@@ -388,7 +388,7 @@ unsafe fn buf_delete_signs(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn buf_has_signs(buf: *const buf_T) -> bool {
     unsafe { buf_meta_total(buf, kMTMetaSignHL) + buf_meta_total(buf, kMTMetaSignText) != 0 }
 }
@@ -508,7 +508,7 @@ unsafe fn sign_cmd_idx(begin_cmd: *mut c_char, end_cmd: *mut c_char) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn describe_sign_text(buf: *mut c_char, sign_text: *mut schar_T) -> usize {
     unsafe {
         let mut p: usize = 0;
@@ -524,7 +524,7 @@ pub unsafe extern "C" fn describe_sign_text(buf: *mut c_char, sign_text: *mut sc
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn init_sign_text(
     sp: *mut sign_T,
     sign_text: *mut schar_T,
@@ -1063,7 +1063,7 @@ unsafe fn parse_sign_cmd_args(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_sign(eap: *mut exarg_T) {
     unsafe {
         let mut arg = (*eap).arg;
@@ -1191,7 +1191,7 @@ unsafe fn sign_get_placed_info_dict(mark: MTKey) -> *mut dict_T {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_buffer_signs(buf: *mut buf_T) -> *mut list_T {
     unsafe {
         let l = tv_list_alloc(kListLenMayKnow);
@@ -1288,7 +1288,7 @@ unsafe fn sign_get_placed(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn free_signs() {
     unsafe {
         let mut names: KVec<cstr_t> = KVec::new();
@@ -1320,7 +1320,7 @@ unsafe fn get_nth_sign_group_name(idx: c_int) -> *mut c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_sign_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         match expand_what {
@@ -1366,7 +1366,7 @@ pub unsafe extern "C" fn get_sign_name(_xp: *mut expand_T, idx: c_int) -> *mut c
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_context_in_sign_cmd(xp: *mut expand_T, arg: *mut c_char) {
     unsafe {
         (*xp).xp_context = EXPAND_SIGN;
@@ -1503,7 +1503,7 @@ unsafe fn sign_define_multiple(l: *const list_T, retlist: *mut list_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_sign_define(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1538,7 +1538,7 @@ pub unsafe extern "C" fn f_sign_define(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_sign_getdefined(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1561,7 +1561,7 @@ pub unsafe extern "C" fn f_sign_getdefined(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_sign_getplaced(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1619,7 +1619,7 @@ pub unsafe extern "C" fn f_sign_getplaced(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_sign_jump(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1755,7 +1755,7 @@ unsafe fn sign_place_from_dict(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_sign_place(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1783,7 +1783,7 @@ pub unsafe extern "C" fn f_sign_place(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_sign_placelist(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1838,7 +1838,7 @@ unsafe fn sign_undefine_multiple(l: *const list_T, retlist: *mut list_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_sign_undefine(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1904,7 +1904,7 @@ unsafe fn sign_unplace_from_dict(group_tv: *mut typval_T, dict: *mut dict_T) -> 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_sign_unplace(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1929,7 +1929,7 @@ pub unsafe extern "C" fn f_sign_unplace(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_sign_unplacelist(
     argvars: *mut typval_T,
     rettv: *mut typval_T,

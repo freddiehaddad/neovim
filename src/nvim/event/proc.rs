@@ -192,7 +192,7 @@ unsafe fn loop_process_events_until<F: FnMut() -> bool>(
 }
 
 /// @returns zero on success, or negative error code
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn proc_spawn(proc_: *mut Proc, in_: bool, out: bool, err: bool) -> c_int {
     unsafe {
         let hdr = proc_header(proc_);
@@ -298,7 +298,7 @@ pub unsafe extern "C" fn proc_spawn(proc_: *mut Proc, in_: bool, out: bool, err:
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn proc_teardown(loop_: *mut Loop) {
     unsafe {
         proc_is_tearing_down = true;
@@ -321,7 +321,7 @@ pub unsafe extern "C" fn proc_teardown(loop_: *mut Loop) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn proc_close_streams(proc_: *mut Proc) {
     unsafe {
         stream_may_close(proc_in(proc_));
@@ -331,7 +331,7 @@ pub unsafe extern "C" fn proc_close_streams(proc_: *mut Proc) {
 }
 
 /// Synchronously wait for a process to finish
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn proc_wait(
     proc_: *mut Proc,
     ms: c_int,
@@ -381,7 +381,7 @@ pub unsafe extern "C" fn proc_wait(
 }
 
 /// Ask a process to terminate and eventually kill if it doesn't respond
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn proc_stop(proc_: *mut Proc) {
     unsafe {
         let hdr = proc_header(proc_);
@@ -414,7 +414,7 @@ pub unsafe extern "C" fn proc_stop(proc_: *mut Proc) {
 }
 
 /// Frees process-owned resources.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn proc_free(proc_: *mut Proc) {
     unsafe {
         let hdr = proc_header(proc_);
@@ -633,7 +633,7 @@ unsafe extern "C" fn exit_event(argv: *mut *mut c_void) {
 }
 
 /// Performs self-exit because the primary RPC channel was closed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn exit_on_closed_chan(status: c_int) {
     unsafe {
         let qc = loop_queues(main_loop_ptr());

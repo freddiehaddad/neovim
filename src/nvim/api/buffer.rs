@@ -135,7 +135,7 @@ use crate::state::MODE_INSERT;
 
 /// Ensures that a buffer is loaded.
 // DLLEXPORT buf_T *api_buf_ensure_loaded(Buffer buf, Error *err);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn api_buf_ensure_loaded(buf: Buffer, err: *mut Error) -> *mut buf_T {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
@@ -163,7 +163,7 @@ pub unsafe extern "C" fn api_buf_ensure_loaded(buf: Buffer, err: *mut Error) -> 
 /// @return Line count, or 0 for unloaded buffer. |api-buffer|
 // DLLEXPORT Integer nvim_buf_line_count(Buffer buf, Error *err)
 //   FUNC_API_SINCE(1);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_line_count(buf: Buffer, err: *mut Error) -> Integer {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
@@ -249,7 +249,7 @@ pub unsafe extern "C" fn nvim_buf_line_count(buf: Buffer, err: *mut Error) -> In
 // DLLEXPORT Boolean nvim_buf_attach(uint64_t channel_id, Buffer buf, Boolean send_buffer,
 //                                   Dict(buf_attach) *opts, Error *err)
 //   FUNC_API_SINCE(4);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_attach(
     channel_id: u64,
     buf: Buffer,
@@ -315,7 +315,7 @@ pub unsafe extern "C" fn nvim_buf_attach(
 ///         otherwise True.
 // DLLEXPORT Boolean nvim_buf_detach(uint64_t channel_id, Buffer buf, Error *err)
 //   FUNC_API_SINCE(4) FUNC_API_REMOTE_ONLY;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_detach(channel_id: u64, buf: Buffer, err: *mut Error) -> Boolean {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
@@ -349,7 +349,7 @@ pub unsafe extern "C" fn nvim_buf_detach(channel_id: u64, buf: Buffer, err: *mut
 //                                              Integer end, Boolean strict_indexing, Arena *arena,
 //                                              lua_State *lstate, Error *err)
 //   FUNC_API_SINCE(1);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_get_lines(
     channel_id: u64,
     buf: Buffer,
@@ -435,7 +435,7 @@ pub unsafe extern "C" fn nvim_buf_get_lines(
 //                                   Arena *arena, Error *err)
 //   FUNC_API_SINCE(1)
 //   FUNC_API_TEXTLOCK;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_set_lines(
     channel_id: u64,
     buf: Buffer,
@@ -681,7 +681,7 @@ pub unsafe extern "C" fn nvim_buf_set_lines(
 //                                  ArrayOf(String) replacement, Arena *arena, Error *err)
 //   FUNC_API_SINCE(7)
 //   FUNC_API_TEXTLOCK;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_set_text(
     channel_id: u64,
     buf: Buffer,
@@ -1037,7 +1037,7 @@ pub unsafe extern "C" fn nvim_buf_set_text(
 //                                             Dict(empty) *opts, Arena *arena, lua_State *lstate,
 //                                             Error *err)
 //   FUNC_API_SINCE(9);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_get_text(
     channel_id: u64,
     buf: Buffer,
@@ -1167,7 +1167,7 @@ pub unsafe extern "C" fn nvim_buf_get_text(
 /// @return Integer byte offset, or -1 for unloaded buffer.
 // DLLEXPORT Integer nvim_buf_get_offset(Buffer buf, Integer index, Error *err)
 //   FUNC_API_SINCE(5);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_get_offset(
     buf: Buffer,
     index: Integer,
@@ -1210,7 +1210,7 @@ pub unsafe extern "C" fn nvim_buf_get_offset(
 /// @return Variable value
 // DLLEXPORT Object nvim_buf_get_var(Buffer buf, String name, Arena *arena, Error *err)
 //   FUNC_API_SINCE(1);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_get_var(
     buf: Buffer,
     name: NvimString,
@@ -1234,7 +1234,7 @@ pub unsafe extern "C" fn nvim_buf_get_var(
 /// @return `b:changedtick` value.
 // DLLEXPORT Integer nvim_buf_get_changedtick(Buffer buf, Error *err)
 //   FUNC_API_SINCE(2);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_get_changedtick(buf: Buffer, err: *mut Error) -> Integer {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
@@ -1255,7 +1255,7 @@ pub unsafe extern "C" fn nvim_buf_get_changedtick(buf: Buffer, err: *mut Error) 
 // DLLEXPORT ArrayOf(DictAs(get_keymap)) nvim_buf_get_keymap(Buffer buf, String mode, Arena *arena,
 //                                                           Error *err)
 //   FUNC_API_SINCE(3);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_get_keymap(
     buf: Buffer,
     mode: NvimString,
@@ -1279,7 +1279,7 @@ pub unsafe extern "C" fn nvim_buf_get_keymap(
 // DLLEXPORT void nvim_buf_set_keymap(uint64_t channel_id, Buffer buf, String mode, String lhs,
 //                                    String rhs, Dict(keymap) *opts, Error *err)
 //   FUNC_API_SINCE(6);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_set_keymap(
     channel_id: u64,
     buf: Buffer,
@@ -1306,7 +1306,7 @@ pub unsafe extern "C" fn nvim_buf_set_keymap(
 // DLLEXPORT void nvim_buf_del_keymap(uint64_t channel_id, Buffer buf, String mode, String lhs,
 //                                    Dict(keymap_del) *opts, Error *err)
 //   FUNC_API_SINCE(6);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_del_keymap(
     channel_id: u64,
     buf: Buffer,
@@ -1346,7 +1346,7 @@ pub unsafe extern "C" fn nvim_buf_del_keymap(
 /// @param[out] err   Error details, if any
 // DLLEXPORT void nvim_buf_set_var(Buffer buf, String name, Object value, Error *err)
 //   FUNC_API_SINCE(1);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_set_var(
     buf: Buffer,
     name: NvimString,
@@ -1369,7 +1369,7 @@ pub unsafe extern "C" fn nvim_buf_set_var(
 /// @param[out] err   Error details, if any
 // DLLEXPORT void nvim_buf_del_var(Buffer buf, String name, Error *err)
 //   FUNC_API_SINCE(1);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_del_var(buf: Buffer, name: NvimString, err: *mut Error) {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
@@ -1390,7 +1390,7 @@ pub unsafe extern "C" fn nvim_buf_del_var(buf: Buffer, name: NvimString, err: *m
 /// @return Buffer name
 // DLLEXPORT String nvim_buf_get_name(Buffer buf, Error *err)
 //   FUNC_API_SINCE(1);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_get_name(buf: Buffer, err: *mut Error) -> NvimString {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
@@ -1411,7 +1411,7 @@ pub unsafe extern "C" fn nvim_buf_get_name(buf: Buffer, err: *mut Error) -> Nvim
 /// @param[out] err   Error details, if any
 // DLLEXPORT void nvim_buf_set_name(Buffer buf, String name, Error *err)
 //   FUNC_API_SINCE(1);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: *mut Error) {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
@@ -1460,7 +1460,7 @@ pub unsafe extern "C" fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: *
 /// @return true if the buffer is valid and loaded, false otherwise.
 // DLLEXPORT Boolean nvim_buf_is_loaded(Buffer buf)
 //   FUNC_API_SINCE(5);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_is_loaded(buf: Buffer) -> Boolean {
     unsafe {
         let mut stub = Error {
@@ -1488,7 +1488,7 @@ pub unsafe extern "C" fn nvim_buf_is_loaded(buf: Buffer) -> Boolean {
 // DLLEXPORT void nvim_buf_delete(Buffer buf, Dict(buf_delete) *opts, Error *err)
 //   FUNC_API_SINCE(7)
 //   FUNC_API_TEXTLOCK;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_delete(
     buf: Buffer,
     opts: *mut KeyDict_buf_delete,
@@ -1530,7 +1530,7 @@ pub unsafe extern "C" fn nvim_buf_delete(
 /// @return true if the buffer is valid, false otherwise.
 // DLLEXPORT Boolean nvim_buf_is_valid(Buffer buf)
 //   FUNC_API_SINCE(1);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_is_valid(buf: Buffer) -> Boolean {
     unsafe {
         let mut stub = Error {
@@ -1554,7 +1554,7 @@ pub unsafe extern "C" fn nvim_buf_is_valid(buf: Buffer) -> Boolean {
 /// @see |nvim_del_mark()|
 // DLLEXPORT Boolean nvim_buf_del_mark(Buffer buf, String name, Error *err)
 //   FUNC_API_SINCE(8);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_del_mark(
     buf: Buffer,
     name: NvimString,
@@ -1616,7 +1616,7 @@ pub unsafe extern "C" fn nvim_buf_del_mark(
 // DLLEXPORT Boolean nvim_buf_set_mark(Buffer buf, String name, Integer line, Integer col,
 //                                     Dict(empty) *opts, Error *err)
 //   FUNC_API_SINCE(8);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_set_mark(
     buf: Buffer,
     name: NvimString,
@@ -1661,7 +1661,7 @@ pub unsafe extern "C" fn nvim_buf_set_mark(
 /// @see |nvim_buf_del_mark()|
 // DLLEXPORT ArrayOf(Integer, 2) nvim_buf_get_mark(Buffer buf, String name, Arena *arena, Error *err)
 //   FUNC_API_SINCE(1);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_get_mark(
     buf: Buffer,
     name: NvimString,
@@ -1726,7 +1726,7 @@ pub unsafe extern "C" fn nvim_buf_get_mark(
 // DLLEXPORT Object nvim_buf_call(Buffer buf, LuaRef fn, lua_State *lstate, Error *err)
 //   FUNC_API_SINCE(7)
 //   FUNC_API_LUA_ONLY;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_call(
     buf: Buffer,
     fn_ref: LuaRef,
@@ -1762,7 +1762,7 @@ pub unsafe extern "C" fn nvim_buf_call(
 
 /// @nodoc
 // DLLEXPORT Dict nvim__buf_stats(Buffer buf, Arena *arena, Error *err);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim__buf_stats(buf: Buffer, arena: *mut Arena, err: *mut Error) -> Dict {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
@@ -1988,7 +1988,7 @@ unsafe fn push_linestr(
 /// @return true unless `err` was set
 // DLLEXPORT void buf_collect_lines(buf_T *buf, size_t n, linenr_T start, int start_idx,
 //                                  bool replace_nl, Array *l, lua_State *lstate, Arena *arena);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn buf_collect_lines(
     buf: *mut buf_T,
     n: usize,

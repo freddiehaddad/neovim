@@ -8,21 +8,17 @@
     clippy::upper_case_acronyms
 )]
 
-#[cfg(all(not(test), windows))]
-use crate::event::r#loop::{uv_dlclose, uv_dlopen, uv_dlsym, uv_translate_sys_error};
-#[cfg(all(not(test), windows))]
-use crate::log::{LOGLVL_ERR, LOGLVL_INF, logmsg};
-#[cfg(all(not(test), windows))]
-use crate::os::env::os_get_pid;
-#[cfg(all(not(test), windows))]
-use std::ffi::c_int;
 #[cfg(windows)]
-use std::ffi::{c_char, c_long, c_void};
+use crate::event::r#loop::{uv_dlclose, uv_dlopen, uv_dlsym, uv_translate_sys_error};
+#[cfg(windows)]
+use crate::log::{LOGLVL_ERR, LOGLVL_INF, logmsg};
+#[cfg(windows)]
+use crate::os::env::os_get_pid;
+#[cfg(windows)]
+use std::ffi::{c_char, c_int, c_long, c_void};
 
 #[cfg(windows)]
-use crate::memory::xfree;
-#[cfg(all(not(test), windows))]
-use crate::memory::{xcalloc, xmalloc, xstrdup};
+use crate::memory::{xcalloc, xfree, xmalloc, xstrdup};
 
 #[cfg(windows)]
 use crate::os::os_win_console::{BOOL, DWORD, HANDLE};
@@ -34,25 +30,25 @@ pub type HRESULT = c_long;
 #[cfg(windows)]
 use crate::extmark::TriState;
 
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const INVALID_HANDLE_VALUE: HANDLE = -1isize as HANDLE;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const PIPE_ACCESS_INBOUND: DWORD = 0x0000_0001;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const PIPE_ACCESS_OUTBOUND: DWORD = 0x0000_0002;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const FILE_FLAG_FIRST_PIPE_INSTANCE: DWORD = 0x0008_0000;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const PIPE_TYPE_BYTE: DWORD = 0x0000_0000;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const PIPE_READMODE_BYTE: DWORD = 0x0000_0000;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const PIPE_WAIT: DWORD = 0x0000_0000;
 #[cfg(windows)]
 const EXTENDED_STARTUPINFO_PRESENT: DWORD = 0x0008_0000;
 #[cfg(windows)]
 const CREATE_UNICODE_ENVIRONMENT: DWORD = 0x0000_0400;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE: usize = 0x0002_0016;
 #[cfg(windows)]
 const S_OK: HRESULT = 0;
@@ -119,7 +115,7 @@ pub struct conpty_t {
     pub si_ex: STARTUPINFOEXW,
 }
 
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 use crate::os::dl::UvLib;
 
 #[cfg(windows)]
@@ -142,13 +138,12 @@ pub static mut pClosePseudoConsole: ClosePseudoConsoleFn = None;
 
 #[cfg(windows)]
 static mut HAS_CONPTY: TriState = kNone;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 static mut CONPTY_COUNT: c_int = 0;
 
 #[cfg(windows)]
 #[link(name = "kernel32")]
 unsafe extern "system" {
-    #[cfg(not(test))]
     fn CreateNamedPipeA(
         lpName: *const c_char,
         dwOpenMode: DWORD,
@@ -159,14 +154,12 @@ unsafe extern "system" {
         nDefaultTimeOut: DWORD,
         lpSecurityAttributes: *mut SECURITY_ATTRIBUTES,
     ) -> HANDLE;
-    #[cfg(not(test))]
     fn InitializeProcThreadAttributeList(
         lpAttributeList: *mut c_void,
         dwAttributeCount: DWORD,
         dwFlags: DWORD,
         lpSize: *mut usize,
     ) -> BOOL;
-    #[cfg(not(test))]
     fn UpdateProcThreadAttribute(
         lpAttributeList: *mut c_void,
         dwFlags: DWORD,
@@ -193,7 +186,7 @@ unsafe extern "system" {
 
 #[cfg(windows)]
 use crate::extmark::{kFalse, kNone, kTrue};
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 use crate::os::os_win_console::{CloseHandle, GetLastError};
 
 #[cfg(windows)]
@@ -210,12 +203,6 @@ pub unsafe extern "C" fn os_has_conpty_working() -> bool {
 #[cfg(windows)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_dyn_conpty_init() -> TriState {
-    #[cfg(test)]
-    {
-        kFalse
-    }
-
-    #[cfg(not(test))]
     unsafe {
         let mut conpty_lib = UvLib {
             _opaque: [std::ptr::null_mut(); 4],
@@ -280,13 +267,6 @@ pub unsafe extern "C" fn os_conpty_init(
     width: u16,
     height: u16,
 ) -> *mut conpty_t {
-    #[cfg(test)]
-    {
-        let _ = (in_name, out_name, width, height);
-        std::ptr::null_mut()
-    }
-
-    #[cfg(not(test))]
     unsafe {
         let mut conpty_object = xcalloc(1, std::mem::size_of::<conpty_t>()).cast::<conpty_t>();
         let emsg: *const c_char;
@@ -463,7 +443,6 @@ pub unsafe extern "C" fn os_conpty_set_size(conpty_object: *mut conpty_t, width:
             Y: height as i16,
         };
         if (pResizePseudoConsole.unwrap_unchecked())((*conpty_object).pty, size) != S_OK {
-            #[cfg(not(test))]
             logmsg!(
                 LOGLVL_ERR,
                 std::ptr::null(),

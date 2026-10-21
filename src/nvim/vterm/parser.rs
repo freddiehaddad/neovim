@@ -287,7 +287,7 @@ unsafe fn string_fragment(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_input_write(
     vt: *mut VTerm,
     bytes: *const c_char,
@@ -598,7 +598,7 @@ pub unsafe extern "C" fn vterm_input_write(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_parser_set_callbacks(
     vt: *mut VTerm,
     callbacks: *const VTermParserCallbacks,

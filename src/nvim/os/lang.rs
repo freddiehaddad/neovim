@@ -1,6 +1,5 @@
 //! Locale and message language management (`src/nvim/os/lang.c`).
 
-#![cfg_attr(test, allow(unused_variables))]
 #![allow(
     non_camel_case_types,
     non_snake_case,
@@ -8,72 +7,58 @@
     clippy::missing_safety_doc
 )]
 
-#[cfg(not(test))]
 use crate::buffer::maketitle;
-#[cfg(not(test))]
 use crate::charset::{
     buf_init_isk_chartab, init_isf_chartab, init_isi_chartab, skiptowhite, skipwhite,
 };
-#[cfg(not(test))]
 use crate::eval::vars::{
     VV_COLLATE, VV_CTYPE, VV_LANG, VV_LC_TIME, VV_PROGPATH, get_vim_var_str, set_vim_var_string,
 };
 use crate::ex_docmd::exarg_T;
-#[cfg(all(not(test), unix))]
+#[cfg(unix)]
 use crate::garray::{ga_grow, ga_init, garray_T};
-#[cfg(not(test))]
 use crate::globals::*;
-#[cfg(not(test))]
 use crate::mbyte::mb_strnicmp;
-use crate::memory::xfree;
-#[cfg(all(not(test), unix))]
+#[cfg(unix)]
 use crate::memory::xstrdup;
-#[cfg(not(test))]
-use crate::memory::xstrlcpy;
-#[cfg(not(test))]
+use crate::memory::{xfree, xstrlcpy};
 use crate::message::{semsg, smsg};
-#[cfg(not(test))]
 use crate::option::set_helplang_default;
-use crate::os::env::expand_T;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 use crate::os::env::os_getenv_noalloc;
-#[cfg(not(test))]
-use crate::os::env::os_setenv;
-#[cfg(all(not(test), unix))]
+use crate::os::env::{expand_T, os_setenv};
+#[cfg(unix)]
 use crate::os::shell::get_cmd_output;
-#[cfg(not(test))]
 use crate::path::{path_tail, path_tail_with_sep};
-#[cfg(not(test))]
 use crate::profile::time_msg;
-#[cfg(not(test))]
 use crate::strings::{gettext, setlocale};
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
 pub(crate) const LC_CTYPE: c_int = if cfg!(target_os = "linux") { 0 } else { 2 };
 
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const LC_ALL: c_int = 0;
 #[cfg(windows)]
 const LC_COLLATE: c_int = 1;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const LC_NUMERIC: c_int = 4;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const LC_TIME: c_int = 5;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const VIM_LC_MESSAGES: c_int = 6789;
 
-#[cfg(all(not(test), target_os = "linux"))]
+#[cfg(target_os = "linux")]
 const LC_NUMERIC: c_int = 1;
-#[cfg(all(not(test), target_os = "linux"))]
+#[cfg(target_os = "linux")]
 const LC_TIME: c_int = 2;
-#[cfg(all(not(test), target_os = "linux"))]
+#[cfg(target_os = "linux")]
 const LC_COLLATE: c_int = 3;
 #[cfg(target_os = "linux")]
 const LC_MESSAGES: c_int = 5;
-#[cfg(all(not(test), target_os = "linux"))]
+#[cfg(target_os = "linux")]
 const LC_ALL: c_int = 6;
-#[cfg(all(not(test), target_os = "linux"))]
+#[cfg(target_os = "linux")]
 const VIM_LC_MESSAGES: c_int = LC_MESSAGES;
 
 #[cfg(not(any(windows, target_os = "linux")))]
@@ -93,7 +78,6 @@ static mut LOCALES: *mut *mut c_char = ptr::null_mut();
 #[cfg(not(windows))]
 static mut DID_INIT_LOCALES: bool = false;
 
-#[cfg(not(test))]
 unsafe extern "C" {
 
     #[cfg(target_os = "linux")]
@@ -110,27 +94,16 @@ unsafe extern "C" {
     fn textdomain(domainname: *const c_char) -> *mut c_char;
 }
 
-#[cfg(not(test))]
 use crate::charset::NUL;
-#[cfg(all(not(test), unix))]
+#[cfg(unix)]
 use crate::diff::kShellOptSilent;
-#[cfg(not(test))]
 use crate::os::fs::MAXPATHL;
 #[cfg(not(windows))]
-#[cfg(not(test))]
 use crate::strings::strtok_r;
 
 #[inline]
 unsafe fn get_locale_val(what: c_int) -> *mut c_char {
-    #[cfg(not(test))]
-    unsafe {
-        setlocale(what, ptr::null())
-    }
-    #[cfg(test)]
-    {
-        let _ = what;
-        ptr::null_mut()
-    }
+    unsafe { setlocale(what, ptr::null()) }
 }
 
 #[inline]
@@ -142,7 +115,7 @@ unsafe fn is_valid_mess_lang(lang: *const c_char) -> bool {
 }
 
 /// Obtain the current messages language. Used to set the default for `'helplang'`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_mess_lang() -> *mut c_char {
     unsafe {
         #[cfg(not(windows))]
@@ -158,7 +131,6 @@ pub unsafe extern "C" fn get_mess_lang() -> *mut c_char {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn get_mess_env() -> *mut c_char {
     unsafe {
         #[cfg(not(windows))]
@@ -188,9 +160,8 @@ unsafe fn get_mess_env() -> *mut c_char {
 }
 
 /// Set the `v:lang`, `v:lc_time`, `v:collate`, and `v:ctype` variables.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_lang_var() {
-    #[cfg(not(test))]
     unsafe {
         let mut loc: *const c_char = get_locale_val(LC_CTYPE);
         set_vim_var_string(VV_CTYPE, loc, -1);
@@ -207,9 +178,8 @@ pub unsafe extern "C" fn set_lang_var() {
 }
 
 /// Setup to use the current locale.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn init_locale() {
-    #[cfg(not(test))]
     unsafe {
         let _ = setlocale(LC_ALL, c"".as_ptr());
         let _ = setlocale(LC_NUMERIC, c"C".as_ptr());
@@ -244,9 +214,8 @@ pub unsafe extern "C" fn init_locale() {
 }
 
 /// `":language"`: Set the language (locale).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_language(eap: *mut exarg_T) {
-    #[cfg(not(test))]
     unsafe {
         let mut what = LC_ALL;
         let mut whatstr: *const c_char = c"".as_ptr();
@@ -341,7 +310,6 @@ pub unsafe extern "C" fn ex_language(eap: *mut exarg_T) {
 
 #[cfg(not(windows))]
 unsafe fn find_locales() -> *mut *mut c_char {
-    #[cfg(not(test))]
     unsafe {
         let mut locales_ga = garray_T {
             ga_len: 0,
@@ -382,10 +350,6 @@ unsafe fn find_locales() -> *mut *mut c_char {
             .add(locales_ga.ga_len as usize) = ptr::null_mut();
         locales_ga.ga_data.cast::<*mut c_char>()
     }
-    #[cfg(test)]
-    {
-        ptr::null_mut()
-    }
 }
 
 unsafe fn init_locales() {
@@ -399,7 +363,7 @@ unsafe fn init_locales() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn free_locales() {
     unsafe {
         if LOCALES.is_null() {
@@ -416,7 +380,7 @@ pub unsafe extern "C" fn free_locales() {
 }
 
 /// Function given to `ExpandGeneric()` to obtain the possible arguments of `":language"`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_lang_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     match idx {
         0 => c"messages".as_ptr().cast_mut(),
@@ -435,7 +399,7 @@ pub unsafe extern "C" fn get_lang_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_
 }
 
 /// Function given to `ExpandGeneric()` to obtain the available locales.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_locales(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         init_locales();
@@ -447,9 +411,9 @@ pub unsafe extern "C" fn get_locales(_xp: *mut expand_T, idx: c_int) -> *mut c_c
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn lang_init() {
-    #[cfg(all(not(test), target_os = "macos"))]
+    #[cfg(target_os = "macos")]
     unsafe {
         if !os_env_exists(c"LANG".as_ptr(), true) {
             let _ = os_setenv(c"LANG".as_ptr(), c"C.UTF-8".as_ptr(), 1);

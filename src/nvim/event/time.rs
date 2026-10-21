@@ -74,7 +74,7 @@ unsafe fn create_event(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn time_watcher_init(
     loop_: *mut Loop,
     watcher: *mut TimeWatcher,
@@ -90,7 +90,7 @@ pub unsafe extern "C" fn time_watcher_init(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn time_watcher_start(
     watcher: *mut TimeWatcher,
     cb: time_cb,
@@ -104,14 +104,14 @@ pub unsafe extern "C" fn time_watcher_start(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn time_watcher_stop(watcher: *mut TimeWatcher) {
     unsafe {
         uv_timer_stop(watcher.cast());
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn time_watcher_close(watcher: *mut TimeWatcher, cb: time_cb) {
     unsafe {
         let fields = watcher_fields(watcher);

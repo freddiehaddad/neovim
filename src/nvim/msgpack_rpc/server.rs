@@ -73,7 +73,7 @@ unsafe fn watcher_tcp_addrinfo(watcher: *mut SocketWatcher) -> *mut c_void {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn server_init(mut listen_addr: *const c_char) -> bool {
     unsafe {
         let mut ok = true;
@@ -156,7 +156,7 @@ unsafe fn set_vservername(srvs: *const garray_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn server_teardown() {
     unsafe {
         let data = watchers.ga_data.cast::<*mut SocketWatcher>();
@@ -168,7 +168,7 @@ pub unsafe extern "C" fn server_teardown() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn server_address_new(name: *const c_char) -> *mut c_char {
     unsafe {
         let mut fmt: [c_char; ADDRESS_MAX_SIZE] = [0; ADDRESS_MAX_SIZE];
@@ -230,7 +230,7 @@ pub unsafe extern "C" fn server_address_new(name: *const c_char) -> *mut c_char 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn server_owns_pipe_address(address: *const c_char) -> bool {
     unsafe {
         let mut result = false;
@@ -250,7 +250,7 @@ pub unsafe extern "C" fn server_owns_pipe_address(address: *const c_char) -> boo
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn server_start(addr: *const c_char) -> c_int {
     unsafe {
         if addr.is_null() || *addr == 0 {
@@ -333,7 +333,7 @@ pub unsafe extern "C" fn server_start(addr: *const c_char) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn server_stop(endpoint: *const c_char, keep_vservername: bool) -> bool {
     unsafe {
         let mut watcher: *mut SocketWatcher = ptr::null_mut();
@@ -382,7 +382,7 @@ pub unsafe extern "C" fn server_stop(endpoint: *const c_char, keep_vservername: 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn server_address_list(size: *mut usize) -> *mut *mut c_char {
     unsafe {
         *size = watchers.ga_len as usize;

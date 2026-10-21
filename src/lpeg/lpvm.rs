@@ -35,7 +35,7 @@ unsafe fn getoffset(p: *const Instruction) -> isize {
     unsafe { (*p.add(1)).offset as isize }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn charinset(i: *const Instruction, buff: *const byte, mut c: uint) -> c_int {
     unsafe {
         c = c.wrapping_sub(uint::from((*i).i.aux2.set.offset));
@@ -233,7 +233,7 @@ unsafe fn findopen_full(mut cap: *mut Capture, currindex: Index_t) -> *mut Captu
     ptr::null_mut()
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn r#match(
     l: *mut lua_State,
     o: *const c_char,

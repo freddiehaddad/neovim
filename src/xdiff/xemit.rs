@@ -35,7 +35,7 @@ unsafe fn xdl_emit_record(
     0
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn xdl_get_hunk(
     xscr: *mut *mut xdchange_t,
     xecfg: *const xdemitconf_t,
@@ -96,7 +96,7 @@ struct FuncLine {
     buf: [c_char; 80],
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn xdl_emit_diff(
     xe: *mut xdfenv_t,
     xscr: *mut xdchange_t,

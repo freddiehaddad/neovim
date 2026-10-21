@@ -53,7 +53,7 @@ unsafe fn watcher_signum(watcher: *mut SignalWatcher) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn signal_watcher_init(
     loop_: *mut Loop,
     watcher: *mut SignalWatcher,
@@ -69,7 +69,7 @@ pub unsafe extern "C" fn signal_watcher_init(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn signal_watcher_start(
     watcher: *mut SignalWatcher,
     cb: signal_cb,
@@ -82,14 +82,14 @@ pub unsafe extern "C" fn signal_watcher_start(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn signal_watcher_stop(watcher: *mut SignalWatcher) {
     unsafe {
         uv_signal_stop(watcher.cast());
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn signal_watcher_close(watcher: *mut SignalWatcher, cb: signal_close_cb) {
     unsafe {
         let fields = watcher_fields(watcher);

@@ -6,7 +6,6 @@ use std::ffi::{c_char, c_int};
 use std::ptr;
 
 use crate::lua::base64::{lua_State, luaL_Reg};
-#[cfg(not(test))]
 use crate::lua::converter::{
     LUA_TNONE, lua_gettop, lua_isnumber, lua_pushlstring, lua_pushnumber, lua_tonumber, lua_type,
     luaL_error, luaL_register, luaL_typerror,
@@ -41,7 +40,6 @@ pub fn format_tohex(mut b: UBits, mut n: UBits) -> ([c_char; 8], usize) {
     (buf, len)
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn barg(L: *mut lua_State, idx: c_int) -> UBits {
     unsafe {
@@ -54,7 +52,6 @@ unsafe fn barg(L: *mut lua_State, idx: c_int) -> UBits {
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn bret(L: *mut lua_State, b: UBits) -> c_int {
     unsafe {
@@ -64,31 +61,14 @@ unsafe fn bret(L: *mut lua_State, b: UBits) -> c_int {
 }
 
 unsafe extern "C-unwind" fn bit_tobit(L: *mut lua_State) -> c_int {
-    #[cfg(not(test))]
-    unsafe {
-        bret(L, barg(L, 1))
-    }
-    #[cfg(test)]
-    {
-        let _ = L;
-        0
-    }
+    unsafe { bret(L, barg(L, 1)) }
 }
 
 unsafe extern "C-unwind" fn bit_bnot(L: *mut lua_State) -> c_int {
-    #[cfg(not(test))]
-    unsafe {
-        bret(L, !barg(L, 1))
-    }
-    #[cfg(test)]
-    {
-        let _ = L;
-        0
-    }
+    unsafe { bret(L, !barg(L, 1)) }
 }
 
 unsafe extern "C-unwind" fn bit_band(L: *mut lua_State) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let mut b = barg(L, 1);
         let mut i = lua_gettop(L);
@@ -98,15 +78,9 @@ unsafe extern "C-unwind" fn bit_band(L: *mut lua_State) -> c_int {
         }
         bret(L, b)
     }
-    #[cfg(test)]
-    {
-        let _ = L;
-        0
-    }
 }
 
 unsafe extern "C-unwind" fn bit_bor(L: *mut lua_State) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let mut b = barg(L, 1);
         let mut i = lua_gettop(L);
@@ -116,15 +90,9 @@ unsafe extern "C-unwind" fn bit_bor(L: *mut lua_State) -> c_int {
         }
         bret(L, b)
     }
-    #[cfg(test)]
-    {
-        let _ = L;
-        0
-    }
 }
 
 unsafe extern "C-unwind" fn bit_bxor(L: *mut lua_State) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let mut b = barg(L, 1);
         let mut i = lua_gettop(L);
@@ -134,98 +102,56 @@ unsafe extern "C-unwind" fn bit_bxor(L: *mut lua_State) -> c_int {
         }
         bret(L, b)
     }
-    #[cfg(test)]
-    {
-        let _ = L;
-        0
-    }
 }
 
 unsafe extern "C-unwind" fn bit_lshift(L: *mut lua_State) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let b = barg(L, 1);
         let n = barg(L, 2) & 31;
         bret(L, b.wrapping_shl(n))
     }
-    #[cfg(test)]
-    {
-        let _ = L;
-        0
-    }
 }
 
 unsafe extern "C-unwind" fn bit_rshift(L: *mut lua_State) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let b = barg(L, 1);
         let n = barg(L, 2) & 31;
         bret(L, b.wrapping_shr(n))
     }
-    #[cfg(test)]
-    {
-        let _ = L;
-        0
-    }
 }
 
 unsafe extern "C-unwind" fn bit_arshift(L: *mut lua_State) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let b = barg(L, 1);
         let n = barg(L, 2) & 31;
         bret(L, ((b as SBits).wrapping_shr(n)) as UBits)
     }
-    #[cfg(test)]
-    {
-        let _ = L;
-        0
-    }
 }
 
 unsafe extern "C-unwind" fn bit_rol(L: *mut lua_State) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let b = barg(L, 1);
         let n = barg(L, 2) & 31;
         bret(L, b.rotate_left(n))
     }
-    #[cfg(test)]
-    {
-        let _ = L;
-        0
-    }
 }
 
 unsafe extern "C-unwind" fn bit_ror(L: *mut lua_State) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let b = barg(L, 1);
         let n = barg(L, 2) & 31;
         bret(L, b.rotate_right(n))
     }
-    #[cfg(test)]
-    {
-        let _ = L;
-        0
-    }
 }
 
 unsafe extern "C-unwind" fn bit_bswap(L: *mut lua_State) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let b = barg(L, 1);
         bret(L, b.swap_bytes())
     }
-    #[cfg(test)]
-    {
-        let _ = L;
-        0
-    }
 }
 
 unsafe extern "C-unwind" fn bit_tohex(L: *mut lua_State) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let b = barg(L, 1);
         let n = if lua_type(L, 2) == LUA_TNONE {
@@ -236,11 +162,6 @@ unsafe extern "C-unwind" fn bit_tohex(L: *mut lua_State) -> c_int {
         let (buf, len) = format_tohex(b, n);
         lua_pushlstring(L, buf.as_ptr(), len);
         1
-    }
-    #[cfg(test)]
-    {
-        let _ = L;
-        0
     }
 }
 
@@ -300,7 +221,6 @@ static BIT_FUNCS: [luaL_Reg; 13] = [
 ];
 
 pub unsafe extern "C-unwind" fn nvim_luaopen_bit(L: *mut lua_State) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         lua_pushnumber(L, 1_437_217_655.0);
         let b = barg(L, -1);
@@ -317,15 +237,10 @@ pub unsafe extern "C-unwind" fn nvim_luaopen_bit(L: *mut lua_State) -> c_int {
         luaL_register(L, c"bit".as_ptr(), BIT_FUNCS.as_ptr());
         1
     }
-    #[cfg(test)]
-    {
-        let _ = L;
-        1
-    }
 }
 
 #[cfg(feature = "vendor-bit")]
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn luaopen_bit(L: *mut lua_State) -> c_int {
     unsafe { nvim_luaopen_bit(L) }
 }

@@ -112,7 +112,7 @@ fn s_ischr(m: u64) -> bool {
 /// determined by *fnamelen.
 /// Returns VALID_ flags or -1 for failure.
 /// When there is an error, *fnamep is set to NULL.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn modify_fname(
     src: *mut c_char,
     tilde_file: bool,
@@ -468,7 +468,7 @@ pub unsafe extern "C" fn modify_fname(
 }
 
 /// "chdir(dir)" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_chdir(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -530,7 +530,7 @@ pub unsafe extern "C" fn f_chdir(
 }
 
 /// "delete()" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_delete(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -572,7 +572,7 @@ pub unsafe extern "C" fn f_delete(
 }
 
 /// "executable()" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_executable(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -590,7 +590,7 @@ pub unsafe extern "C" fn f_executable(
 }
 
 /// "exepath()" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_exepath(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -616,7 +616,7 @@ pub unsafe extern "C" fn f_exepath(
 }
 
 /// "filecopy()" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_filecopy(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -646,7 +646,7 @@ pub unsafe extern "C" fn f_filecopy(
 }
 
 /// "filereadable()" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_filereadable(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -662,7 +662,7 @@ pub unsafe extern "C" fn f_filereadable(
 /// @return  0 for not writable
 ///          1 for writable file
 ///          2 for a dir which we have rights to write into.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_filewritable(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -765,7 +765,7 @@ unsafe fn findfilendir(argvars: *mut typval_T, rettv: *mut typval_T, find_what: 
 }
 
 /// "finddir({fname}[, {path}[, {count}]])" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_finddir(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -777,7 +777,7 @@ pub unsafe extern "C" fn f_finddir(
 }
 
 /// "findfile({fname}[, {path}[, {count}]])" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_findfile(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -789,7 +789,7 @@ pub unsafe extern "C" fn f_findfile(
 }
 
 /// "fnamemodify({fname}, {mods})" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_fnamemodify(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -963,7 +963,7 @@ unsafe fn getcwd_scope_args(
 }
 
 /// `getcwd([{win}[, {tab}[, {buf}]]])` function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_getcwd(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1042,7 +1042,7 @@ pub unsafe extern "C" fn f_getcwd(
 }
 
 /// "getfperm({fname})" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_getfperm(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1068,7 +1068,7 @@ pub unsafe extern "C" fn f_getfperm(
 }
 
 /// "getfsize({fname})" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_getfsize(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1097,7 +1097,7 @@ pub unsafe extern "C" fn f_getfsize(
 }
 
 /// "getftime({fname})" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_getftime(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1116,7 +1116,7 @@ pub unsafe extern "C" fn f_getftime(
 }
 
 /// "getftype({fname})" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_getftype(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1155,7 +1155,7 @@ pub unsafe extern "C" fn f_getftype(
 }
 
 /// "glob()" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_glob(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut options: c_int = WILD_SILENT | WILD_USE_NL;
@@ -1215,7 +1215,7 @@ pub unsafe extern "C" fn f_glob(argvars: *mut typval_T, rettv: *mut typval_T, _f
 }
 
 /// "globpath()" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_globpath(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1284,7 +1284,7 @@ pub unsafe extern "C" fn f_globpath(
 }
 
 /// "glob2regpat()" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_glob2regpat(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1303,7 +1303,7 @@ pub unsafe extern "C" fn f_glob2regpat(
 }
 
 /// `haslocaldir([{win}[, {tab}[, {buf}]]])` function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_haslocaldir(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1349,7 +1349,7 @@ pub unsafe extern "C" fn f_haslocaldir(
 }
 
 /// "isabsolutepath()" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_isabsolutepath(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1361,7 +1361,7 @@ pub unsafe extern "C" fn f_isabsolutepath(
 }
 
 /// "isdirectory()" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_isdirectory(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1373,7 +1373,7 @@ pub unsafe extern "C" fn f_isdirectory(
 }
 
 /// "mkdir()" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_mkdir(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1472,7 +1472,7 @@ pub unsafe extern "C" fn f_mkdir(
 }
 
 /// "pathshorten()" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_pathshorten(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1539,7 +1539,7 @@ unsafe extern "C" fn readdir_checkitem(context: *mut c_void, name: *const c_char
 }
 
 /// "readdir()" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_readdir(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1842,7 +1842,7 @@ unsafe fn read_file_or_blob(argvars: *mut typval_T, rettv: *mut typval_T, always
 }
 
 /// "readblob()" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_readblob(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1858,7 +1858,7 @@ pub unsafe extern "C" fn f_readblob(
 }
 
 /// "readfile()" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_readfile(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1874,7 +1874,7 @@ pub unsafe extern "C" fn f_readfile(
 }
 
 /// "rename({from}, {to})" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_rename(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1894,7 +1894,7 @@ pub unsafe extern "C" fn f_rename(
 }
 
 /// "resolve()" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_resolve(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -2079,7 +2079,7 @@ pub unsafe extern "C" fn f_resolve(
 }
 
 /// "simplify()" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_simplify(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -2094,7 +2094,7 @@ pub unsafe extern "C" fn f_simplify(
 }
 
 /// "tempname()" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_tempname(
     _argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -2204,7 +2204,7 @@ unsafe fn write_string(fp: *mut FileDescriptor, data: *const c_char) -> bool {
 }
 
 /// "writefile()" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_writefile(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -2333,7 +2333,7 @@ pub unsafe extern "C" fn f_writefile(
 }
 
 /// "browse(save, title, initdir, default)" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_browse(
     _argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -2346,7 +2346,7 @@ pub unsafe extern "C" fn f_browse(
 }
 
 /// "browsedir(title, initdir)" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_browsedir(
     argvars: *mut typval_T,
     rettv: *mut typval_T,

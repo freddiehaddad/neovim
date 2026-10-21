@@ -1,28 +1,21 @@
 //! High-resolution timers, delays, and local-time formatting (`src/nvim/os/time.c`).
 
-#[cfg(not(test))]
 use crate::event::r#loop::loop_poll_events;
-#[cfg(not(test))]
 use crate::globals::*;
-#[cfg(all(not(test), unix))]
+#[cfg(unix)]
 use crate::os::env::os_getenv_noalloc;
-#[cfg(not(test))]
 use crate::os::input::os_input_ready;
-#[cfg(all(not(test), unix))]
+#[cfg(unix)]
 use std::cell::UnsafeCell;
-#[cfg(not(test))]
-use std::ffi::c_void;
-use std::ffi::{CStr, c_char, c_int, c_uint};
+use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 
 pub type Timestamp = u64;
 #[allow(non_camel_case_types)]
 pub type time_t = i64;
 
 pub const NS_PER_SEC: i64 = 1_000_000_000;
-#[cfg(not(test))]
 const UV_CLOCK_REALTIME: c_int = 1;
 
-#[cfg(not(test))]
 #[repr(C)]
 struct UvTimespec64 {
     tv_sec: i64,
@@ -35,12 +28,12 @@ pub struct Tm {
     pub _fields: [c_int; 16],
 }
 
-#[cfg(all(not(test), unix))]
+#[cfg(unix)]
 struct TzCache(UnsafeCell<[u8; 64]>);
-#[cfg(all(not(test), unix))]
+#[cfg(unix)]
 unsafe impl Sync for TzCache {}
 
-#[cfg(all(not(test), unix))]
+#[cfg(unix)]
 static TZ_CACHE: TzCache = TzCache(UnsafeCell::new([0u8; 64]));
 
 unsafe extern "C" {
@@ -51,7 +44,6 @@ unsafe extern "C" {
     pub fn uv_sleep(msec: c_uint);
 }
 
-#[cfg(not(test))]
 unsafe extern "C" {
 
     fn uv_hrtime() -> u64;
@@ -73,18 +65,12 @@ unsafe extern "C" {
 /// High-resolution monotonic clock in nanoseconds (`os_hrtime`).
 #[unsafe(no_mangle)]
 pub extern "C" fn os_hrtime() -> u64 {
-    #[cfg(not(test))]
-    unsafe {
-        uv_hrtime()
-    }
-    #[cfg(test)]
-    1_000_000
+    unsafe { uv_hrtime() }
 }
 
 /// High-resolution real-time clock in nanoseconds since Unix epoch (`os_realtime`).
 #[unsafe(no_mangle)]
 pub extern "C" fn os_realtime() -> i64 {
-    #[cfg(not(test))]
     unsafe {
         let mut ts = UvTimespec64 {
             tv_sec: 0,
@@ -95,30 +81,17 @@ pub extern "C" fn os_realtime() -> i64 {
         }
         ts.tv_sec * NS_PER_SEC + i64::from(ts.tv_nsec)
     }
-    #[cfg(test)]
-    NS_PER_SEC
 }
 
 /// Millisecond-resolution monotonic loop time (`os_now`).
 #[unsafe(no_mangle)]
 pub extern "C" fn os_now() -> u64 {
-    #[cfg(not(test))]
-    unsafe {
-        uv_now((&raw const main_loop).cast())
-    }
-    #[cfg(test)]
-    1
+    unsafe { uv_now((&raw const main_loop).cast()) }
 }
 
 /// Sleep for `ms` milliseconds while polling the main event loop (`os_delay`).
 #[unsafe(no_mangle)]
 pub extern "C" fn os_delay(ms: u64, ignoreinput: bool) {
-    #[cfg(test)]
-    {
-        let _ = (ms, ignoreinput);
-    }
-
-    #[cfg(not(test))]
     unsafe {
         let clamped = ms.min(u64::from(c_int::MAX as u32)) as i64;
         let mut remaining = clamped;
@@ -151,13 +124,10 @@ pub extern "C" fn os_delay(ms: u64, ignoreinput: bool) {
 /// Block for `ms` milliseconds without processing events (`os_sleep`).
 #[unsafe(no_mangle)]
 pub extern "C" fn os_sleep(ms: u64) {
-    #[cfg(not(test))]
     unsafe {
         let clamped = ms.min(u64::from(c_uint::MAX)) as c_uint;
         uv_sleep(clamped);
     }
-    #[cfg(test)]
-    let _ = ms;
 }
 
 /// Portable `localtime_r()` (`os_localtime_r`).
@@ -166,7 +136,7 @@ pub extern "C" fn os_sleep(ms: u64) {
 /// `clock` and `result` must be valid pointers.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_localtime_r(clock: *const time_t, result: *mut Tm) -> *mut Tm {
-    #[cfg(all(unix, not(test)))]
+    #[cfg(unix)]
     unsafe {
         let tz_ptr = os_getenv_noalloc(c"TZ".as_ptr());
         let tz_bytes = if tz_ptr.is_null() {
@@ -185,19 +155,13 @@ pub unsafe extern "C" fn os_localtime_r(clock: *const time_t, result: *mut Tm) -
         localtime_r(clock, result)
     }
 
-    #[cfg(all(target_os = "windows", not(test)))]
+    #[cfg(target_os = "windows")]
     unsafe {
         let local_time = win_localtime64(clock);
         if local_time.is_null() {
             return std::ptr::null_mut();
         }
         *result.cast::<[c_int; 9]>() = *local_time;
-        result
-    }
-
-    #[cfg(test)]
-    {
-        let _ = clock;
         result
     }
 }
@@ -239,7 +203,6 @@ pub unsafe extern "C" fn os_ctime_r(
     let mut clock_local = Tm { _fields: [0; 16] };
     let ptr = unsafe { os_localtime_r(clock, &mut clock_local) };
 
-    #[cfg(not(test))]
     unsafe {
         if ptr.is_null()
             || strftime(
@@ -251,11 +214,6 @@ pub unsafe extern "C" fn os_ctime_r(
         {
             copy_str_clamped(result, result_len.saturating_sub(1), b"(Invalid)");
         }
-    }
-    #[cfg(test)]
-    unsafe {
-        let _ = ptr;
-        copy_str_clamped(result, result_len.saturating_sub(1), b"(Invalid)");
     }
 
     if add_newline && result_len > 0 {
@@ -294,11 +252,11 @@ pub unsafe extern "C" fn os_strptime(
     format: *const c_char,
     tm: *mut Tm,
 ) -> *mut c_char {
-    #[cfg(all(unix, not(test)))]
+    #[cfg(unix)]
     unsafe {
         strptime(str_ptr, format, tm)
     }
-    #[cfg(any(not(unix), test))]
+    #[cfg(not(unix))]
     {
         let _ = (str_ptr, format, tm);
         std::ptr::null_mut()
@@ -322,7 +280,9 @@ mod tests {
         let t: time_t = 0;
         unsafe {
             let out = os_ctime_r(&t, buf.as_mut_ptr(), buf.len(), true);
-            assert_eq!(CStr::from_ptr(out).to_str().unwrap(), "(Invalid)\n");
+            let s = CStr::from_ptr(out).to_str().unwrap();
+            assert!(s.ends_with('\n'));
+            assert!(s.contains("1969") || s.contains("1970"));
         }
     }
 }

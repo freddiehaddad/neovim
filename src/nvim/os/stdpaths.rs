@@ -1,26 +1,19 @@
 //! XDG standard directory paths (`src/nvim/os/stdpaths.c`).
 
-#[cfg(not(test))]
 use crate::fileio::vim_gettempdir;
 use crate::garray::K_PATH_CMP_LITERAL;
-#[cfg(not(test))]
 use crate::globals::*;
-#[cfg(all(not(test), unix))]
+#[cfg(unix)]
 use crate::memory::xstrdup;
 use crate::memory::{xfree, xmallocz, xrealloc};
-#[cfg(all(not(test), unix))]
+#[cfg(unix)]
 use crate::os::env::os_env_exists;
-#[cfg(not(test))]
 use crate::os::env::{expand_env_save, os_getenv, os_getenv_noalloc};
-#[cfg(not(test))]
 use crate::os::fs::MAXPATHL;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 use crate::os::fs::os_realpath;
-#[cfg(not(test))]
 use crate::path::{concat_fnames_realloc, path_equal, path_is_absolute};
-#[cfg(not(test))]
-use std::ffi::CString;
-use std::ffi::{CStr, c_char, c_void};
+use std::ffi::{CStr, CString, c_char, c_void};
 
 #[cfg(target_os = "windows")]
 const ENV_SEP_BYTE: u8 = b';';
@@ -56,7 +49,7 @@ const XDG_ENV_VARS: [&CStr; 7] = [
     c"XDG_DATA_DIRS",
 ];
 
-#[cfg(all(not(test), target_os = "windows"))]
+#[cfg(target_os = "windows")]
 const XDG_DEFAULTS_ENV_VARS: [Option<&CStr>; 7] = [
     Some(c"LOCALAPPDATA"),
     Some(c"LOCALAPPDATA"),
@@ -122,7 +115,6 @@ unsafe fn c_bytes_to_xmallocz(bytes: &[u8]) -> *mut c_char {
 /// Get the value of `$NVIM_APPNAME`, or `"nvim"` if not set (`get_appname`).
 #[unsafe(no_mangle)]
 pub extern "C" fn get_appname(namelike: bool) -> *const c_char {
-    #[cfg(not(test))]
     unsafe {
         let env_val = os_getenv_noalloc(c"NVIM_APPNAME".as_ptr());
         let name_buff = (&raw mut NameBuff).cast::<u8>();
@@ -143,18 +135,12 @@ pub extern "C" fn get_appname(namelike: bool) -> *const c_char {
         }
         name_buff.cast::<c_char>()
     }
-    #[cfg(test)]
-    {
-        let _ = namelike;
-        c"nvim".as_ptr()
-    }
 }
 
 /// Return true if `$NVIM_APPNAME` is a valid name or relative path (`appname_is_valid`).
 #[unsafe(no_mangle)]
 pub extern "C" fn appname_is_valid() -> bool {
     let appname_ptr = get_appname(false);
-    #[cfg(not(test))]
     if unsafe { path_is_absolute(appname_ptr) } {
         return false;
     }
@@ -168,7 +154,6 @@ pub extern "C" fn appname_is_valid() -> bool {
     true
 }
 
-#[cfg(not(test))]
 unsafe fn xdg_remove_duplicate(ret: *mut c_char, sep: u8) -> *mut c_char {
     let input_bytes = unsafe { CStr::from_ptr(ret).to_bytes() };
     let mut token_cstrs: Vec<CString> = Vec::new();
@@ -209,21 +194,6 @@ unsafe fn xdg_remove_duplicate(ret: *mut c_char, sep: u8) -> *mut c_char {
 /// Return allocated XDG variable value for `idx` (`stdpaths_get_xdg_var`).
 #[unsafe(no_mangle)]
 pub extern "C" fn stdpaths_get_xdg_var(idx: XDGVarType) -> *mut c_char {
-    #[cfg(test)]
-    {
-        let _ = (
-            idx,
-            ENV_SEP_BYTE,
-            K_PATH_CMP_LITERAL,
-            &XDG_ENV_VARS,
-            &XDG_DEFAULTS,
-            c_bytes_to_xmallocz as unsafe fn(&[u8]) -> *mut c_char,
-            to_slash_in_place as unsafe fn(*mut c_char),
-        );
-        unsafe { c_bytes_to_xmallocz(b"/tmp/nvim_test_xdg") }
-    }
-
-    #[cfg(not(test))]
     unsafe {
         let i = idx as usize;
         let env = XDG_ENV_VARS[i].as_ptr();
@@ -298,12 +268,7 @@ pub extern "C" fn get_xdg_home(idx: XDGVarType) -> *mut c_char {
     }
     suffix.push(0);
 
-    #[cfg(not(test))]
-    unsafe {
-        concat_fnames_realloc(dir, suffix.as_ptr().cast::<c_char>(), true)
-    }
-    #[cfg(test)]
-    dir
+    unsafe { concat_fnames_realloc(dir, suffix.as_ptr().cast::<c_char>(), true) }
 }
 
 /// Return `$XDG_CACHE_HOME/$NVIM_APPNAME/{fname}` (`stdpaths_user_cache_subpath`).
@@ -312,15 +277,7 @@ pub extern "C" fn get_xdg_home(idx: XDGVarType) -> *mut c_char {
 /// `fname` must be a valid C string.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn stdpaths_user_cache_subpath(fname: *const c_char) -> *mut c_char {
-    #[cfg(not(test))]
-    unsafe {
-        concat_fnames_realloc(get_xdg_home(XDGVarType::kXDGCacheHome), fname, true)
-    }
-    #[cfg(test)]
-    {
-        let _ = fname;
-        get_xdg_home(XDGVarType::kXDGCacheHome)
-    }
+    unsafe { concat_fnames_realloc(get_xdg_home(XDGVarType::kXDGCacheHome), fname, true) }
 }
 
 /// Return `$XDG_CONFIG_HOME/$NVIM_APPNAME/{fname}` (`stdpaths_user_conf_subpath`).
@@ -329,15 +286,7 @@ pub unsafe extern "C" fn stdpaths_user_cache_subpath(fname: *const c_char) -> *m
 /// `fname` must be a valid C string.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn stdpaths_user_conf_subpath(fname: *const c_char) -> *mut c_char {
-    #[cfg(not(test))]
-    unsafe {
-        concat_fnames_realloc(get_xdg_home(XDGVarType::kXDGConfigHome), fname, true)
-    }
-    #[cfg(test)]
-    {
-        let _ = fname;
-        get_xdg_home(XDGVarType::kXDGConfigHome)
-    }
+    unsafe { concat_fnames_realloc(get_xdg_home(XDGVarType::kXDGConfigHome), fname, true) }
 }
 
 /// Return `$XDG_DATA_HOME/$NVIM_APPNAME/{fname}` (`stdpaths_user_data_subpath`).
@@ -346,15 +295,7 @@ pub unsafe extern "C" fn stdpaths_user_conf_subpath(fname: *const c_char) -> *mu
 /// `fname` must be a valid C string.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn stdpaths_user_data_subpath(fname: *const c_char) -> *mut c_char {
-    #[cfg(not(test))]
-    unsafe {
-        concat_fnames_realloc(get_xdg_home(XDGVarType::kXDGDataHome), fname, true)
-    }
-    #[cfg(test)]
-    {
-        let _ = fname;
-        get_xdg_home(XDGVarType::kXDGDataHome)
-    }
+    unsafe { concat_fnames_realloc(get_xdg_home(XDGVarType::kXDGDataHome), fname, true) }
 }
 
 /// Return `$XDG_STATE_HOME/$NVIM_APPNAME/{fname}` with optional trailing path separators and
@@ -368,14 +309,8 @@ pub unsafe extern "C" fn stdpaths_user_state_subpath(
     trailing_pathseps: usize,
     escape_commas: bool,
 ) -> *mut c_char {
-    #[cfg(not(test))]
     let mut ret =
         unsafe { concat_fnames_realloc(get_xdg_home(XDGVarType::kXDGStateHome), fname, true) };
-    #[cfg(test)]
-    let mut ret = {
-        let _ = fname;
-        unsafe { c_bytes_to_xmallocz(b"/state/a,b") }
-    };
 
     let mut len = unsafe { CStr::from_ptr(ret).to_bytes().len() };
     let mut numcommas = if escape_commas {
@@ -420,10 +355,10 @@ mod tests {
     #[test]
     fn state_subpath_escapes_commas_and_appends_separators() {
         unsafe {
-            let p = stdpaths_user_state_subpath(c"shada".as_ptr(), 2, true);
+            let p = stdpaths_user_state_subpath(c"a,b".as_ptr(), 2, true);
             let s = CStr::from_ptr(p).to_bytes();
-            assert_eq!(s[..11], *b"/state/a\\,b");
-            assert_eq!(s[11..13], [PATHSEP_BYTE, PATHSEP_BYTE]);
+            let expected_suffix = [b'/', b'a', b'\\', b',', b'b', PATHSEP_BYTE, PATHSEP_BYTE];
+            assert!(s.ends_with(&expected_suffix));
             xfree(p.cast::<c_void>());
         }
     }

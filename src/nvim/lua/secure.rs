@@ -3,32 +3,20 @@
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 use crate::charset::{skiptowhite, skipwhite};
-#[cfg(not(test))]
 use crate::lua::converter::{
     LUA_GLOBALSINDEX, lua_createtable, lua_getfield, lua_gettop, lua_pushnumber, lua_pushstring,
     lua_settable, lua_settop, lua_toboolean, lua_tolstring,
 };
-#[cfg(not(test))]
 use crate::lua::executor::{get_global_lstate, nlua_error, nlua_pcall};
-#[cfg(not(test))]
 use crate::memory::{xcalloc, xfree, xmemdupz};
-#[cfg(not(test))]
 use crate::message::{semsg, smsg};
-#[cfg(not(test))]
-use std::ffi::c_void;
-use std::ffi::{CStr, c_char};
+use std::ffi::{CStr, c_char, c_void};
 
 use crate::ex_docmd::exarg_T;
 
 /// Read a file securely via `vim.secure.read(path)` (`nlua_read_secure`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn nlua_read_secure(path: *const c_char) -> *mut c_char {
-    #[cfg(test)]
-    {
-        let _ = path;
-        std::ptr::null_mut()
-    }
-    #[cfg(not(test))]
     unsafe {
         let lstate = get_global_lstate();
         let top = lua_gettop(lstate);
@@ -56,7 +44,6 @@ pub unsafe extern "C-unwind" fn nlua_read_secure(path: *const c_char) -> *mut c_
     }
 }
 
-#[cfg(not(test))]
 unsafe fn nlua_trust(action: *const c_char, path: *const c_char) -> bool {
     unsafe {
         let lstate = get_global_lstate();
@@ -111,10 +98,6 @@ unsafe fn nlua_trust(action: *const c_char, path: *const c_char) -> bool {
 /// `:trust` command implementation (`ex_trust`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_trust(eap: *mut exarg_T) {
-    #[cfg(test)]
-    let _ = eap;
-
-    #[cfg(not(test))]
     unsafe {
         let arg = (*eap).arg;
         let p = skiptowhite(arg);

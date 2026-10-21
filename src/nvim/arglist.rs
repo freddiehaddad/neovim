@@ -156,7 +156,7 @@ unsafe fn check_arglist_locked() -> c_int {
 }
 
 /// Clear an argument list: free all file names and reset it to zero entries (`alist_clear`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn alist_clear(al: *mut alist_T) {
     unsafe {
         if check_arglist_locked() == FAIL {
@@ -171,7 +171,7 @@ pub unsafe extern "C" fn alist_clear(al: *mut alist_T) {
 }
 
 /// Init an argument list (`alist_init`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn alist_init(al: *mut alist_T) {
     unsafe {
         ga_init(&raw mut (*al).al_ga, size_of::<aentry_T>() as c_int, 5);
@@ -179,7 +179,7 @@ pub unsafe extern "C" fn alist_init(al: *mut alist_T) {
 }
 
 /// Remove a reference from an argument list (`alist_unlink`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn alist_unlink(al: *mut alist_T) {
     unsafe {
         if !ptr::eq(al, &raw const global_alist) {
@@ -193,7 +193,7 @@ pub unsafe extern "C" fn alist_unlink(al: *mut alist_T) {
 }
 
 /// Create a new argument list and use it for the current window (`alist_new`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn alist_new() {
     unsafe {
         let al: *mut alist_T = xmalloc(size_of::<alist_T>()).cast();
@@ -206,7 +206,7 @@ pub unsafe extern "C" fn alist_new() {
 }
 
 /// Expand the file names in the global argument list (`alist_expand`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn alist_expand(fnum_list: *mut c_int, fnum_len: c_int) {
     unsafe {
         let save_p_su = p_su;
@@ -244,7 +244,7 @@ pub unsafe extern "C" fn alist_expand(fnum_list: *mut c_int, fnum_len: c_int) {
 }
 
 /// Set the argument list for the current window (`alist_set`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn alist_set(
     al: *mut alist_T,
     count: c_int,
@@ -293,7 +293,7 @@ pub unsafe extern "C" fn alist_set(
 }
 
 /// Add file `fname` to argument list `al` (`alist_add`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn alist_add(al: *mut alist_T, fname: *mut c_char, set_fnum: c_int) {
     unsafe {
         let wp = curwin;
@@ -369,7 +369,7 @@ unsafe fn get_arglist(gap: *mut garray_T, mut str_: *mut c_char, escaped: bool) 
 }
 
 /// Parse a list of arguments (file names), expand them and return in `fnames[fcountp]` (`get_arglist_exp`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_arglist_exp(
     str_: *mut c_char,
     fcountp: *mut c_int,
@@ -571,7 +571,7 @@ unsafe fn do_arglist(mut str_: *mut c_char, what: c_int, after: c_int, will_edit
 }
 
 /// Redefine the argument list (`set_arglist`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_arglist(str_: *mut c_char) {
     unsafe {
         do_arglist(str_, AL_SET, 0, true);
@@ -579,7 +579,7 @@ pub unsafe extern "C" fn set_arglist(str_: *mut c_char) {
 }
 
 /// Return true if window `win` is editing the file at the current argument index (`editing_arg_idx`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn editing_arg_idx(win: *mut win_T) -> bool {
     unsafe {
         let idx = (*win).w_arg_idx;
@@ -596,7 +596,7 @@ pub unsafe extern "C" fn editing_arg_idx(win: *mut win_T) -> bool {
 }
 
 /// Check if window `win` is editing the `w_arg_idx` file in its argument list (`check_arg_idx`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn check_arg_idx(win: *mut win_T) {
     unsafe {
         let wcount = wargcount(win);
@@ -632,7 +632,7 @@ pub unsafe extern "C" fn check_arg_idx(win: *mut win_T) {
 }
 
 /// `:args`, `:arglocal` and `:argglobal` (`ex_args`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_args(eap: *mut exarg_T) {
     unsafe {
         if (*eap).cmdidx != CMD_args {
@@ -694,7 +694,7 @@ pub unsafe extern "C" fn ex_args(eap: *mut exarg_T) {
 }
 
 /// `:previous`, `:sprevious`, `:Next` and `:sNext` (`ex_previous`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_previous(eap: *mut exarg_T) {
     unsafe {
         let count = argcount();
@@ -708,7 +708,7 @@ pub unsafe extern "C" fn ex_previous(eap: *mut exarg_T) {
 }
 
 /// `:rewind`, `:first`, `:sfirst` and `:srewind` (`ex_rewind`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_rewind(eap: *mut exarg_T) {
     unsafe {
         do_argfile(eap, 0);
@@ -716,7 +716,7 @@ pub unsafe extern "C" fn ex_rewind(eap: *mut exarg_T) {
 }
 
 /// `:last` and `:slast` (`ex_last`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_last(eap: *mut exarg_T) {
     unsafe {
         do_argfile(eap, argcount() - 1);
@@ -724,7 +724,7 @@ pub unsafe extern "C" fn ex_last(eap: *mut exarg_T) {
 }
 
 /// `:argument` and `:sargument` (`ex_argument`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_argument(eap: *mut exarg_T) {
     unsafe {
         let i = if (*eap).addr_count > 0 {
@@ -737,7 +737,7 @@ pub unsafe extern "C" fn ex_argument(eap: *mut exarg_T) {
 }
 
 /// Edit file `argn` of the argument lists (`do_argfile`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn do_argfile(eap: *mut exarg_T, argn: c_int) {
     unsafe {
         let is_split_cmd = *(*eap).cmd == b's' as c_char;
@@ -817,7 +817,7 @@ pub unsafe extern "C" fn do_argfile(eap: *mut exarg_T, argn: c_int) {
 }
 
 /// `:next`, and commands that behave like it (`ex_next`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_next(eap: *mut exarg_T) {
     unsafe {
         if buf_hide(curbuf)
@@ -841,7 +841,7 @@ pub unsafe extern "C" fn ex_next(eap: *mut exarg_T) {
 }
 
 /// `:argdedupe` (`ex_argdedupe`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_argdedupe(_eap: *mut exarg_T) {
     unsafe {
         let mut i: c_int = 0;
@@ -883,7 +883,7 @@ pub unsafe extern "C" fn ex_argdedupe(_eap: *mut exarg_T) {
 }
 
 /// `:argedit` (`ex_argedit`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_argedit(eap: *mut exarg_T) {
     unsafe {
         let mut i = if (*eap).addr_count != 0 {
@@ -911,7 +911,7 @@ pub unsafe extern "C" fn ex_argedit(eap: *mut exarg_T) {
 }
 
 /// `:argadd` (`ex_argadd`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_argadd(eap: *mut exarg_T) {
     unsafe {
         do_arglist(
@@ -929,7 +929,7 @@ pub unsafe extern "C" fn ex_argadd(eap: *mut exarg_T) {
 }
 
 /// `:argdelete` (`ex_argdelete`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_argdelete(eap: *mut exarg_T) {
     unsafe {
         if check_arglist_locked() == FAIL {
@@ -991,7 +991,7 @@ pub unsafe extern "C" fn ex_argdelete(eap: *mut exarg_T) {
 }
 
 /// Obtain the possible arguments of the `argedit` and `argdelete` commands (`get_arglist_name`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_arglist_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx >= argcount() {
@@ -1002,7 +1002,7 @@ pub unsafe extern "C" fn get_arglist_name(_xp: *mut expand_T, idx: c_int) -> *mu
 }
 
 /// Get the file name for an argument list entry (`alist_name`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn alist_name(aep: *mut aentry_T) -> *mut c_char {
     unsafe {
         let bp = buflist_findnr((*aep).ae_fnum);
@@ -1324,7 +1324,7 @@ unsafe fn do_arg_all(mut count: c_int, forceit: c_int, keep_tabs: bool) {
 }
 
 /// `:all` and `:sall` (`ex_all`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_all(eap: *mut exarg_T) {
     unsafe {
         if (*eap).addr_count == 0 {
@@ -1335,7 +1335,7 @@ pub unsafe extern "C" fn ex_all(eap: *mut exarg_T) {
 }
 
 /// Concatenate all files in the argument list, separated by spaces (`arg_all`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn arg_all() -> *mut c_char {
     unsafe {
         let mut retval: *mut c_char = ptr::null_mut();
@@ -1384,7 +1384,7 @@ pub unsafe extern "C" fn arg_all() -> *mut c_char {
 }
 
 /// `argc([window id])` function (`f_argc`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_argc(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if (*argvars).v_type == VarType::VAR_UNKNOWN {
@@ -1403,7 +1403,7 @@ pub unsafe extern "C" fn f_argc(argvars: *mut typval_T, rettv: *mut typval_T, _f
 }
 
 /// `argidx()` function (`f_argidx`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_argidx(
     _argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1415,7 +1415,7 @@ pub unsafe extern "C" fn f_argidx(
 }
 
 /// `arglistid()` function (`f_arglistid`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_arglistid(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1442,7 +1442,7 @@ unsafe fn get_arglist_as_rettv(arglist_ptr: *mut aentry_T, count: c_int, rettv: 
 }
 
 /// `argv(nr)` function (`f_argv`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_argv(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut al_ptr: *mut aentry_T = ptr::null_mut();

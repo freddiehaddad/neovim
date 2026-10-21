@@ -10,21 +10,16 @@
     clippy::missing_safety_doc
 )]
 
-use crate::api::private::helpers::has_key;
-#[cfg(not(test))]
 use crate::api::private::helpers::{
     ArrayBuilder, TryState, add_c, api_set_error, api_set_sctx, api_typename, arena_array,
     arena_dict, arena_string, arena_take_arraybuilder, boolean_obj, cstr_as_string, dict_obj,
-    error_set, find_buffer_by_handle, integer_obj, luaref_obj, put_c, string_obj, try_enter,
-    try_leave,
+    error_set, find_buffer_by_handle, has_key, integer_obj, luaref_obj, put_c, string_obj,
+    try_enter, try_leave,
 };
-use crate::api::private::validate::{Array, Error, NvimString, Object};
-#[cfg(not(test))]
 use crate::api::private::validate::{
-    ErrorType, ObjectType, api_err_conflict, api_err_exp, api_err_invalid, api_err_required,
-    check_string_array,
+    Array, Error, ErrorType, NvimString, Object, ObjectType, api_err_conflict, api_err_exp,
+    api_err_invalid, api_err_required, check_string_array,
 };
-#[cfg(not(test))]
 use crate::autocmd::{
     AUGROUP_ALL, AUGROUP_DEFAULT, AUGROUP_ERROR, BUFLOCAL_PAT_LEN, NUM_EVENTS,
     apply_autocmds_group, au_get_autocmds_for_event, aucmd_del_for_event_and_group,
@@ -33,76 +28,48 @@ use crate::autocmd::{
     autocmd_delete_id, autocmd_register, do_autocmd_event, event_T, event_name2nr_str,
     event_nr2name,
 };
-#[cfg(not(test))]
 use crate::buffer::do_modelines;
-#[cfg(not(test))]
 use crate::eval::typval::{
     Callback, callback_free, callback_to_string, kCallbackFuncref, kCallbackLua, kCallbackNone,
     kCallbackPartial,
 };
-#[cfg(not(test))]
 use crate::globals::*;
-#[cfg(not(test))]
 use crate::lua::converter::{LUA_NOREF, LuaRef};
-#[cfg(not(test))]
 use crate::lua::executor::{api_new_luaref, nlua_ref_is_function};
-use crate::memory::Arena;
-#[cfg(not(test))]
-use crate::memory::{arena_memdupz, xfree, xstrndup};
+use crate::memory::{Arena, arena_memdupz, xfree, xstrndup};
 use crate::msgpack_rpc::packer::Integer;
-#[cfg(not(test))]
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 use crate::api::tabpage::Buffer;
 use crate::highlight::OptionalKeys;
 
-#[cfg(not(test))]
 const AUCMD_MAX_PATTERNS: usize = 256;
 
-#[cfg(not(test))]
 const KEYSET_OPTIDX_get_autocmds__id: u64 = 1;
-#[cfg(not(test))]
 const KEYSET_OPTIDX_get_autocmds__buf: u64 = 2;
-#[cfg(not(test))]
 const KEYSET_OPTIDX_get_autocmds__event: u64 = 3;
-#[cfg(not(test))]
 const KEYSET_OPTIDX_get_autocmds__buffer: u64 = 5;
-#[cfg(not(test))]
 const KEYSET_OPTIDX_get_autocmds__pattern: u64 = 6;
 
-#[cfg(not(test))]
 const KEYSET_OPTIDX_create_autocmd__buf: u64 = 1;
-#[cfg(not(test))]
 const KEYSET_OPTIDX_create_autocmd__desc: u64 = 2;
-#[cfg(not(test))]
 const KEYSET_OPTIDX_create_autocmd__buffer: u64 = 5;
 const KEYSET_OPTIDX_create_autocmd__command: u64 = 7;
-#[cfg(not(test))]
 const KEYSET_OPTIDX_create_autocmd__pattern: u64 = 8;
 const KEYSET_OPTIDX_create_autocmd__callback: u64 = 9;
 
-#[cfg(not(test))]
 const KEYSET_OPTIDX_clear_autocmds__buf: u64 = 1;
-#[cfg(not(test))]
 const KEYSET_OPTIDX_clear_autocmds__buffer: u64 = 4;
-#[cfg(not(test))]
 const KEYSET_OPTIDX_clear_autocmds__pattern: u64 = 5;
 
-#[cfg(not(test))]
 const KEYSET_OPTIDX_create_augroup__clear: u64 = 1;
 
-#[cfg(not(test))]
 const KEYSET_OPTIDX_exec_autocmds__buf: u64 = 1;
-#[cfg(not(test))]
 const KEYSET_OPTIDX_exec_autocmds__data: u64 = 2;
-#[cfg(not(test))]
 const KEYSET_OPTIDX_exec_autocmds__buffer: u64 = 4;
-#[cfg(not(test))]
 const KEYSET_OPTIDX_exec_autocmds__pattern: u64 = 5;
-#[cfg(not(test))]
 const KEYSET_OPTIDX_exec_autocmds__modeline: u64 = 6;
 
-#[cfg(not(test))]
 use crate::math::FAIL;
 
 #[repr(C)]
@@ -157,10 +124,8 @@ pub struct KeyDict_exec_autocmds {
     pub data: Object,
 }
 
-#[cfg(not(test))]
 static mut NEXT_AUTOCMD_ID: i64 = 1;
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn api_err_con(err: *mut Error, name: *const c_char, name2: *const c_char) {
     unsafe {
@@ -168,7 +133,6 @@ unsafe fn api_err_con(err: *mut Error, name: *const c_char, name2: *const c_char
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn api_err_inv(err: *mut Error, name: *const c_char, val_s: *const c_char) {
     unsafe {
@@ -176,7 +140,6 @@ unsafe fn api_err_inv(err: *mut Error, name: *const c_char, val_s: *const c_char
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn api_err_int(err: *mut Error, name: *const c_char, val_n: i64) {
     unsafe {
@@ -184,7 +147,6 @@ unsafe fn api_err_int(err: *mut Error, name: *const c_char, val_n: i64) {
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn api_err_req(err: *mut Error, name: *const c_char) {
     unsafe {
@@ -192,7 +154,6 @@ unsafe fn api_err_req(err: *mut Error, name: *const c_char) {
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn format_buflocal_arena(arena: *mut Arena, handle: c_int) -> NvimString {
     let s = format!("<buffer={handle}>");
@@ -205,7 +166,6 @@ unsafe fn format_buflocal_arena(arena: *mut Arena, handle: c_int) -> NvimString 
     }
 }
 
-#[cfg(not(test))]
 unsafe fn unpack_string_or_array(
     v: Object,
     k: *const c_char,
@@ -245,7 +205,6 @@ unsafe fn unpack_string_or_array(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn get_augroup_from_object(group: Object, err: *mut Error) -> c_int {
     unsafe {
         match group.obj_type {
@@ -284,7 +243,6 @@ unsafe fn get_augroup_from_object(group: Object, err: *mut Error) -> c_int {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn get_patterns_from_pattern_or_buf(
     pattern: Object,
     has_buf: bool,
@@ -376,7 +334,6 @@ unsafe fn get_patterns_from_pattern_or_buf(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn clear_autocmd(
     event: event_T,
     pat: *const c_char,
@@ -445,17 +402,6 @@ pub unsafe extern "C" fn nvim_get_autocmds(
     arena: *mut Arena,
     err: *mut Error,
 ) -> Array {
-    #[cfg(test)]
-    {
-        let _ = (opts, arena, err);
-        Array {
-            items: std::ptr::null_mut(),
-            size: 0,
-            capacity: 0,
-        }
-    }
-
-    #[cfg(not(test))]
     unsafe {
         let mut autocmd_list: ArrayBuilder = std::mem::zeroed();
         autocmd_list.init();
@@ -888,13 +834,6 @@ pub unsafe extern "C" fn nvim_create_autocmd(
     arena: *mut Arena,
     err: *mut Error,
 ) -> Integer {
-    #[cfg(test)]
-    {
-        let _ = (channel_id, event, opts, arena, err);
-        -1
-    }
-
-    #[cfg(not(test))]
     unsafe {
         let mut autocmd_id: i64 = -1;
         let mut desc: *const c_char = std::ptr::null();
@@ -1066,10 +1005,6 @@ pub unsafe extern "C" fn nvim_create_autocmd(
 // DLLEXPORT void nvim_del_autocmd(Integer id, Error *err) FUNC_API_SINCE(9);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_del_autocmd(id: Integer, err: *mut Error) {
-    #[cfg(test)]
-    let _ = (id, err);
-
-    #[cfg(not(test))]
     unsafe {
         if id <= 0 {
             api_err_int(err, c"autocmd id".as_ptr(), id);
@@ -1108,10 +1043,6 @@ pub unsafe extern "C" fn nvim_clear_autocmds(
     arena: *mut Arena,
     err: *mut Error,
 ) {
-    #[cfg(test)]
-    let _ = (opts, arena, err);
-
-    #[cfg(not(test))]
     unsafe {
         let event_array =
             unpack_string_or_array((*opts).event, c"event".as_ptr(), false, arena, err);
@@ -1208,13 +1139,6 @@ pub unsafe extern "C" fn nvim_create_augroup(
     opts: *mut KeyDict_create_augroup,
     err: *mut Error,
 ) -> Integer {
-    #[cfg(test)]
-    {
-        let _ = (channel_id, name, opts, err);
-        -1
-    }
-
-    #[cfg(not(test))]
     unsafe {
         let augroup_name = name.data;
         let clear_autocmds = if has_key(
@@ -1261,10 +1185,6 @@ pub unsafe extern "C" fn nvim_create_augroup(
 // DLLEXPORT void nvim_del_augroup_by_id(Integer id, Error *err) FUNC_API_SINCE(9);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_del_augroup_by_id(id: Integer, err: *mut Error) {
-    #[cfg(test)]
-    let _ = (id, err);
-
-    #[cfg(not(test))]
     unsafe {
         let mut tstate: TryState = std::mem::zeroed();
         try_enter(&mut tstate);
@@ -1282,10 +1202,6 @@ pub unsafe extern "C" fn nvim_del_augroup_by_id(id: Integer, err: *mut Error) {
 // DLLEXPORT void nvim_del_augroup_by_name(String name, Error *err) FUNC_API_SINCE(9);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_del_augroup_by_name(name: NvimString, err: *mut Error) {
-    #[cfg(test)]
-    let _ = (name, err);
-
-    #[cfg(not(test))]
     unsafe {
         let mut tstate: TryState = std::mem::zeroed();
         try_enter(&mut tstate);
@@ -1314,10 +1230,6 @@ pub unsafe extern "C" fn nvim_exec_autocmds(
     arena: *mut Arena,
     err: *mut Error,
 ) {
-    #[cfg(test)]
-    let _ = (event, opts, arena, err);
-
-    #[cfg(not(test))]
     unsafe {
         let mut au_group = AUGROUP_ALL;
         let mut b = curbuf;

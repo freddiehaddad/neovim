@@ -77,7 +77,7 @@ pub struct save_v_event_T {
 
 static mut was_safe: bool = false;
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn state_enter(s: *mut VimState) {
     unsafe {
         loop {
@@ -149,7 +149,7 @@ pub unsafe extern "C" fn state_enter(s: *mut VimState) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn state_handle_k_event() {
     unsafe {
         loop {
@@ -171,7 +171,7 @@ pub unsafe extern "C" fn state_handle_k_event() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn virtual_active(wp: *mut win_T) -> bool {
     unsafe {
         if (State & MODE_TERMINAL) != 0 {
@@ -193,7 +193,7 @@ pub unsafe extern "C" fn virtual_active(wp: *mut win_T) -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_real_state() -> c_int {
     unsafe {
         if (State & MODE_NORMAL) != 0 {
@@ -210,7 +210,7 @@ pub unsafe extern "C" fn get_real_state() -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_mode(buf: *mut c_char) {
     unsafe {
         let mut i: usize = 0;
@@ -308,7 +308,7 @@ pub unsafe extern "C" fn get_mode(buf: *mut c_char) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn may_trigger_modechanged() {
     unsafe {
         if !has_event(EVENT_MODECHANGED) || got_int {
@@ -366,7 +366,7 @@ unsafe fn is_safe_now() -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn may_trigger_safestate(safe: bool) {
     unsafe {
         let is_safe = safe && is_safe_now();
@@ -400,7 +400,7 @@ pub unsafe extern "C" fn may_trigger_safestate(safe: bool) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn state_no_longer_safe(reason: *const c_char) {
     unsafe {
         if was_safe && !reason.is_null() && g_min_log_level <= LOGLVL_DBG {
@@ -418,7 +418,7 @@ pub unsafe extern "C" fn state_no_longer_safe(reason: *const c_char) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_was_safe_state() -> bool {
     unsafe { was_safe }
 }

@@ -288,7 +288,7 @@ mod unix_impl {
     }
 
     /// @returns zero on success, or negative error code
-    #[cfg_attr(not(test), unsafe(no_mangle))]
+    #[unsafe(no_mangle)]
     pub unsafe extern "C" fn pty_proc_spawn(ptyproc: *mut PtyProc) -> c_int {
         unsafe {
             if termios_default.c_cflag == 0 {
@@ -410,7 +410,7 @@ mod unix_impl {
         }
     }
 
-    #[cfg_attr(not(test), unsafe(no_mangle))]
+    #[unsafe(no_mangle)]
     pub unsafe extern "C" fn pty_proc_tty_name(ptyproc: *mut PtyProc) -> *const c_char {
         unsafe {
             let ptail = pty_proc_unix_tail(ptyproc);
@@ -418,7 +418,7 @@ mod unix_impl {
         }
     }
 
-    #[cfg_attr(not(test), unsafe(no_mangle))]
+    #[unsafe(no_mangle)]
     pub unsafe extern "C" fn pty_proc_resize(ptyproc: *mut PtyProc, width: u16, height: u16) {
         unsafe {
             let ptail = pty_proc_unix_tail(ptyproc);
@@ -432,7 +432,7 @@ mod unix_impl {
         }
     }
 
-    #[cfg_attr(not(test), unsafe(no_mangle))]
+    #[unsafe(no_mangle)]
     pub unsafe extern "C" fn pty_proc_resume(ptyproc: *mut PtyProc) {
         unsafe {
             let hdr = proc_header(ptyproc.cast());
@@ -440,7 +440,7 @@ mod unix_impl {
         }
     }
 
-    #[cfg_attr(not(test), unsafe(no_mangle))]
+    #[unsafe(no_mangle)]
     pub unsafe extern "C" fn pty_proc_flush_master(ptyproc: *mut PtyProc) {
         #[cfg(target_os = "linux")]
         unsafe {
@@ -461,7 +461,7 @@ mod unix_impl {
         let _ = ptyproc;
     }
 
-    #[cfg_attr(not(test), unsafe(no_mangle))]
+    #[unsafe(no_mangle)]
     pub unsafe extern "C" fn pty_proc_close(ptyproc: *mut PtyProc) {
         unsafe {
             pty_proc_close_master(ptyproc);
@@ -473,7 +473,7 @@ mod unix_impl {
         }
     }
 
-    #[cfg_attr(not(test), unsafe(no_mangle))]
+    #[unsafe(no_mangle)]
     pub unsafe extern "C" fn pty_proc_close_master(ptyproc: *mut PtyProc) {
         unsafe {
             let ptail = pty_proc_unix_tail(ptyproc);
@@ -484,7 +484,7 @@ mod unix_impl {
         }
     }
 
-    #[cfg_attr(not(test), unsafe(no_mangle))]
+    #[unsafe(no_mangle)]
     pub unsafe extern "C" fn pty_proc_teardown(loop_: *mut Loop) {
         unsafe {
             uv_signal_stop(loop_children_watcher(loop_));

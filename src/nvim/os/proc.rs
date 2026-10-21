@@ -1,28 +1,18 @@
 //! OS process inspection and process-tree termination (`src/nvim/os/proc.c`).
 
-#![cfg_attr(test, allow(unused_mut))]
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 use crate::api::private::helpers::{arena_dict, arena_string};
-#[cfg(not(test))]
 use crate::event::r#loop::uv_kill;
 #[cfg(windows)]
 use crate::memory::Arena;
-#[cfg(any(not(test), unix))]
 use crate::memory::xrealloc;
-#[cfg(all(not(test), windows))]
-use std::ffi::CStr;
-#[cfg(all(not(test), windows))]
-use std::ffi::c_char;
-use std::ffi::c_int;
-#[cfg(any(not(test), unix))]
-use std::ffi::c_void;
+#[cfg(windows)]
+use std::ffi::{CStr, c_char};
+use std::ffi::{c_int, c_void};
 
 #[cfg(target_os = "windows")]
-use crate::api::private::validate::Dict;
-#[cfg(target_os = "windows")]
-#[cfg(not(test))]
-use crate::api::private::validate::NvimString;
-#[cfg(all(not(test), windows))]
+use crate::api::private::validate::{Dict, NvimString};
+#[cfg(windows)]
 use crate::api::private::validate::{KeyValuePair, Object, ObjectData, ObjectType};
 
 #[cfg(target_os = "windows")]
@@ -33,19 +23,14 @@ const UV_ESRCH: c_int = -3;
 const SIGTERM_NUM: c_int = 15;
 const SIGKILL_NUM: c_int = 9;
 
-#[cfg(test)]
-unsafe fn uv_kill(pid: c_int, _signum: c_int) -> c_int {
-    if pid <= 0 { UV_ESRCH } else { 0 }
-}
-
-#[cfg(all(not(test), target_os = "windows"))]
+#[cfg(target_os = "windows")]
 const TH32CS_SNAPPROCESS: u32 = 0x0000_0002;
-#[cfg(all(not(test), target_os = "windows"))]
+#[cfg(target_os = "windows")]
 const PROCESS_ALL_ACCESS: u32 = 0x001F_FFFF;
-#[cfg(all(not(test), target_os = "windows"))]
+#[cfg(target_os = "windows")]
 const INVALID_HANDLE_VALUE: *mut c_void = (-1isize) as *mut c_void;
 
-#[cfg(all(not(test), target_os = "windows"))]
+#[cfg(target_os = "windows")]
 #[repr(C)]
 struct ProcessEntry32 {
     dw_size: u32,
@@ -60,7 +45,7 @@ struct ProcessEntry32 {
     sz_exe_file: [c_char; 260],
 }
 
-#[cfg(all(not(test), target_os = "windows"))]
+#[cfg(target_os = "windows")]
 impl ProcessEntry32 {
     fn zeroed() -> Self {
         Self {
@@ -78,17 +63,17 @@ impl ProcessEntry32 {
     }
 }
 
-#[cfg(all(target_os = "windows", not(test)))]
+#[cfg(target_os = "windows")]
 use crate::os::os_win_console::{CloseHandle, GetProcessId, OpenProcess, TerminateProcess};
 
-#[cfg(all(target_os = "windows", not(test)))]
+#[cfg(target_os = "windows")]
 unsafe extern "system" {
     fn CreateToolhelp32Snapshot(dw_flags: u32, th32_process_id: u32) -> *mut c_void;
     fn Process32First(h_snapshot: *mut c_void, lppe: *mut ProcessEntry32) -> i32;
     fn Process32Next(h_snapshot: *mut c_void, lppe: *mut ProcessEntry32) -> i32;
 }
 
-#[cfg(all(target_os = "windows", not(test)))]
+#[cfg(target_os = "windows")]
 unsafe fn os_proc_tree_kill_rec(proc_handle: *mut c_void, sig: c_int) -> bool {
     if proc_handle.is_null() {
         return false;
@@ -129,7 +114,6 @@ pub extern "C" fn os_proc_tree_kill(pid: c_int, sig: c_int) -> bool {
     #[cfg(target_os = "windows")]
     {
         if pid > 0 {
-            #[cfg(not(test))]
             unsafe {
                 let h = OpenProcess(PROCESS_ALL_ACCESS, 0, pid as u32);
                 let ok = os_proc_tree_kill_rec(h, sig);
@@ -171,7 +155,7 @@ pub unsafe extern "C" fn os_proc_children(
         *proc_count = 0;
     }
 
-    #[cfg(all(target_os = "windows", not(test)))]
+    #[cfg(target_os = "windows")]
     unsafe {
         let h = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
         if h == INVALID_HANDLE_VALUE {
@@ -241,13 +225,6 @@ pub unsafe extern "C" fn os_proc_info(pid: c_int, arena: *mut Arena) -> Dict {
         items: std::ptr::null_mut(),
     };
 
-    #[cfg(test)]
-    {
-        let _ = (pid, arena);
-        pinfo
-    }
-
-    #[cfg(not(test))]
     unsafe {
         let h = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
         if h == INVALID_HANDLE_VALUE {
@@ -349,7 +326,7 @@ mod tests {
         unsafe {
             assert_eq!(os_proc_children(-1, &mut list, &mut count), 2);
         }
-        assert!(os_proc_running(1));
-        assert!(!os_proc_running(-1));
+        assert!(os_proc_running(std::process::id() as c_int));
+        assert!(!os_proc_running(c_int::MAX));
     }
 }

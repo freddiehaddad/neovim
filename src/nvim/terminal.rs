@@ -1,6 +1,5 @@
 //! VT220/xterm-like terminal emulator (`src/nvim/terminal.c`).
 
-#![cfg_attr(test, allow(unused_mut, unused_variables))]
 #![allow(
     non_camel_case_types,
     non_snake_case,
@@ -9,90 +8,62 @@
     clippy::too_many_arguments
 )]
 
-#[cfg(not(test))]
 use crate::option::{OPT_LOCAL, OptInt, SB_MAX, kOptBuftype, set_option_value};
 
-#[cfg(not(test))]
 use crate::api::private::helpers::{
     api_clear_error, api_free_object, dict_get_value, dict_set_var, int_obj, str_obj,
 };
-use crate::api::private::validate::NvimString;
-#[cfg(not(test))]
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
+    Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
 };
 use crate::api::tabpage::Buffer;
-#[cfg(not(test))]
 use crate::autocmd::{
     AUGROUP_ALL, EVENT_TERMCLOSE, EVENT_TERMENTER, EVENT_TERMLEAVE, EVENT_TERMOPEN,
     EVENT_TERMREQUEST, EVENT_TEXTCHANGEDT, apply_autocmds, apply_autocmds_group, block_autocmds,
     has_event, is_autocmd_blocked, unblock_autocmds,
 };
-use crate::buffer::buf_T;
-#[cfg(not(test))]
-use crate::buffer::{DOBUF_FIRST, DOBUF_WIPE, MAXLNUM, buf_get_changedtick, do_buffer};
-#[cfg(not(test))]
+use crate::buffer::{DOBUF_FIRST, DOBUF_WIPE, MAXLNUM, buf_T, buf_get_changedtick, do_buffer};
 use crate::change::{appended_lines_buf, changed_lines, deleted_lines_buf};
 use crate::channel::TerminalOptions;
-#[cfg(not(test))]
 use crate::charset::is_special;
-#[cfg(not(test))]
 use crate::context::{
     CtxSwitch, ctx_restore, ctx_switch, handle_get_buffer, handle_get_window, is_ctx_win,
 };
-#[cfg(not(test))]
 use crate::cursor::{coladvance, linenr_T, pos_T as tab_pos_T};
-#[cfg(not(test))]
 use crate::cursor_shape::{
     CursorShape, SHAPE_CURSOR, SHAPE_IDX_TERM, parse_shape_opt, shape_table,
 };
-#[cfg(not(test))]
 use crate::drawscreen::{
     UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID, redraw_buf_line_later, redraw_later,
     redraw_statuslines, setcursor, show_cursor_info_later, showmode, status_redraw_buf, unshowmode,
     update_screen,
 };
-#[cfg(not(test))]
 use crate::eval::typval::{
     tv_dict_add_nr, tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_list,
     tv_list_append_string,
 };
-#[cfg(not(test))]
 use crate::eval::vars::{VV_TERMREQUEST, get_globvar_dict, set_vim_var_string};
-#[cfg(not(test))]
 use crate::eval::{eval_call_provider, get_v_event, kListLenMayKnow, restore_v_event};
-#[cfg(not(test))]
 use crate::event::r#loop::loop_queues;
-use crate::event::multiqueue::MultiQueue;
-#[cfg(not(test))]
 use crate::event::multiqueue::{
-    EVENT_HANDLER_MAX_ARGC, Event, multiqueue_free, multiqueue_move_events, multiqueue_new,
-    multiqueue_new_child, multiqueue_process_events, multiqueue_put_event,
+    EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_free, multiqueue_move_events,
+    multiqueue_new, multiqueue_new_child, multiqueue_process_events, multiqueue_put_event,
 };
-#[cfg(not(test))]
 use crate::event::time::{
     TimeWatcher, time_watcher_close, time_watcher_init, time_watcher_start, time_watcher_stop,
     watcher_fields,
 };
-#[cfg(not(test))]
 use crate::ex_docmd::do_cmdline;
-#[cfg(not(test))]
 use crate::globals::*;
-#[cfg(not(test))]
 use crate::grid::schar_get_adv;
-#[cfg(not(test))]
 use crate::highlight::{
     HL_BG_INDEXED, HL_FG_INDEXED, hl_add_url, hl_combine_attr, hl_get_term_attr,
 };
-#[cfg(not(test))]
 use crate::highlight_group::name_to_color;
-#[cfg(not(test))]
 use crate::input::{
     K_PASTE_START, getcmdkeycmd, map_execute_lua, merge_modifiers, paste_repeat, requeue_key,
 };
-#[cfg(not(test))]
 use crate::input_cmdatom::{atom_term_enter, cmdarg_T};
-#[cfg(not(test))]
 use crate::keycodes::{
     ESC, K_BS, K_COMMAND, K_DEL, K_DOWN, K_END, K_F1, K_F2, K_F3, K_F4, K_F5, K_F6, K_F7, K_F8,
     K_F9, K_F10, K_F11, K_F12, K_F13, K_F14, K_F15, K_F16, K_F17, K_F18, K_F19, K_F20, K_F21,
@@ -108,78 +79,55 @@ use crate::keycodes::{
     K_X1RELEASE, K_X2DRAG, K_X2MOUSE, K_X2RELEASE, K_ZERO, MOD_MASK_ALT, MOD_MASK_CTRL,
     MOD_MASK_SHIFT, TAB, unsimplify_key,
 };
-#[cfg(not(test))]
 use crate::kvec::KVec;
-#[cfg(not(test))]
 use crate::map::{
     HlAttrs, MH_TOMBSTONE, MHPutStatus, MapHash, Set, mh_delete_ptr_t, mh_get_ptr_t, mh_put_ptr_t,
     ptr_t,
 };
-#[cfg(not(test))]
 use crate::mark::{WinInfo, kMarkAdjustTerm, mark_adjust_buf};
-#[cfg(not(test))]
 use crate::mbyte::{mb_check_adjust_col, utf_ptr2char, utf_ptr2len};
-#[cfg(not(test))]
 use crate::memline::{ml_append_buf, ml_delete_buf, ml_replace_buf};
-use crate::memory::xrealloc;
-#[cfg(not(test))]
-use crate::memory::{strequal, xcalloc, xfree, xmalloc, xmemdup, xmemdupz, xstrdup};
-#[cfg(not(test))]
+use crate::memory::{strequal, xcalloc, xfree, xmalloc, xmemdup, xmemdupz, xrealloc, xstrdup};
 use crate::mouse::{
     MSCR_DOWN, MSCR_LEFT, MSCR_RIGHT, MSCR_UP, do_mousescroll, mouse_find_win_inner,
 };
-#[cfg(not(test))]
 use crate::r#move::{curs_columns, set_topline, validate_cursor, win_col_off};
 use crate::msgpack_rpc::packer::handle_T;
-#[cfg(not(test))]
 use crate::ops::clear_oparg;
-#[cfg(not(test))]
 use crate::option_vars::*;
-#[cfg(not(test))]
 use crate::optionstr::free_string_option;
-#[cfg(not(test))]
 use crate::state::{
     MODE_TERMINAL, VimState, may_trigger_modechanged, save_v_event_T, state_enter,
     state_handle_k_event,
 };
-#[cfg(not(test))]
 use crate::strings::vim_snprintf;
-#[cfg(not(test))]
 use crate::textformat::oparg_T;
-#[cfg(not(test))]
 use crate::ui::{
     ui_busy_start, ui_busy_stop, ui_cursor_shape, ui_flush, ui_mode_info_set, vim_beep,
 };
-#[cfg(not(test))]
 use crate::vterm::keyboard::{
     VTERM_KEY_BACKSPACE, VTERM_KEY_ENTER, VTERM_KEY_FUNCTION_0, VTERM_KEY_NONE, VTERM_KEY_TAB,
     VTERM_MOD_ALT, VTERM_MOD_CTRL, VTERM_MOD_NONE, VTERM_MOD_SHIFT, VTermColor, VTermKey,
     VTermModifier, VTermStateFull as VTermState, vterm_keyboard_end_paste, vterm_keyboard_key,
     vterm_keyboard_start_paste, vterm_keyboard_unichar,
 };
-use crate::vterm::mouse::VTerm;
-#[cfg(not(test))]
-use crate::vterm::mouse::{VTermPos, vterm_mouse_button, vterm_mouse_move};
-use crate::vterm::parser::VTermTerminator;
-#[cfg(not(test))]
-use crate::vterm::parser::{VTERM_TERMINATOR_BEL, VTermStringFragment, vterm_input_write};
-#[cfg(not(test))]
+use crate::vterm::mouse::{VTerm, VTermPos, vterm_mouse_button, vterm_mouse_move};
+use crate::vterm::parser::{
+    VTERM_TERMINATOR_BEL, VTermStringFragment, VTermTerminator, vterm_input_write,
+};
 use crate::vterm::pen::{
     VTERM_ATTR_URI, VTERM_COLOR_DEFAULT_BG, VTERM_COLOR_DEFAULT_FG, VTERM_COLOR_INDEXED,
     VTERM_UNDERLINE_CURLY, VTERM_UNDERLINE_DOUBLE, VTERM_UNDERLINE_SINGLE, VTERM_VALUETYPE_INT,
     VTermProp, VTermRect, VTermValue, vterm_state_convert_color_to_rgb,
     vterm_state_set_palette_color, vterm_state_set_penattr,
 };
-#[cfg(not(test))]
 use crate::vterm::screen::{
-    VTERM_DAMAGE_SCROLL, VTERM_PROP_ALTSCREEN, VTermScreenCallbacks, VTermScreenCellAttrs,
-    vterm_obtain_screen, vterm_screen_enable_altscreen, vterm_screen_enable_reflow,
-    vterm_screen_flush_damage, vterm_screen_get_cell, vterm_screen_reset,
-    vterm_screen_set_callbacks, vterm_screen_set_damage_merge,
+    VTERM_DAMAGE_SCROLL, VTERM_PROP_ALTSCREEN, VTermScreen, VTermScreenCallbacks, VTermScreenCell,
+    VTermScreenCellAttrs, vterm_obtain_screen, vterm_screen_enable_altscreen,
+    vterm_screen_enable_reflow, vterm_screen_flush_damage, vterm_screen_get_cell,
+    vterm_screen_reset, vterm_screen_set_callbacks, vterm_screen_set_damage_merge,
     vterm_screen_set_unrecognised_fallbacks,
 };
-use crate::vterm::screen::{VTermScreen, VTermScreenCell};
-#[cfg(not(test))]
 use crate::vterm::state::{
     VTERM_PROP_CURSORBLINK, VTERM_PROP_CURSORSHAPE, VTERM_PROP_CURSORSHAPE_BAR_LEFT,
     VTERM_PROP_CURSORSHAPE_BLOCK, VTERM_PROP_CURSORSHAPE_UNDERLINE, VTERM_PROP_CURSORVISIBLE,
@@ -188,140 +136,80 @@ use crate::vterm::state::{
     vterm_state_focus_in, vterm_state_focus_out, vterm_state_set_selection_callbacks,
     vterm_state_set_termprop,
 };
-#[cfg(not(test))]
 use crate::vterm::vterm::{
     vterm_free, vterm_get_size, vterm_new, vterm_output_set_callback, vterm_set_size,
     vterm_set_utf8,
 };
-use crate::window::win_T;
-#[cfg(not(test))]
-use crate::window::{may_trigger_win_scrolled_resized, win_valid, winopt_T};
-#[cfg(not(test))]
-use std::ffi::CStr;
-#[cfg(not(test))]
-use std::ffi::c_uint;
-use std::ffi::{c_char, c_int, c_void};
+use crate::window::{may_trigger_win_scrolled_resized, win_T, win_valid, winopt_T};
+use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
-#[cfg(not(test))]
 use crate::arglist::ML_EMPTY;
-#[cfg(not(test))]
 use crate::charset::NUL;
-#[cfg(not(test))]
 use crate::cmdexpand::Ctrl_N;
-#[cfg(not(test))]
 use crate::drawline::{HL_OVERLINE, HL_STRIKETHROUGH, kOptCuloptFlagNumber};
-#[cfg(not(test))]
 use crate::eval::funcs::{
     HL_BLINK, HL_BOLD, HL_CONCEALED, HL_DIM, HL_INVERSE, HL_ITALIC, HL_UNDERCURL, HL_UNDERDOUBLE,
     HL_UNDERLINE,
 };
-#[cfg(not(test))]
 use crate::ex_cmds::Ctrl_C;
-#[cfg(not(test))]
 use crate::ex_getln::{Ctrl_BSL, Ctrl_O, K_EVENT, K_LUA};
-#[cfg(not(test))]
 use crate::extmark::kExtmarkUndo;
 use crate::kvec::StringBuilder;
-#[cfg(not(test))]
 use crate::search::FORWARD;
 
-#[cfg(not(test))]
 const REFRESH_DELAY: u64 = 10;
 const TEXTBUF_SIZE: usize = 0x1fff;
-#[cfg(not(test))]
 const SELECTIONBUF_SIZE: usize = 0x0400;
 
-#[cfg(not(test))]
 const kOptBoFlagTerm: c_uint = 0x40000;
 
-#[cfg(not(test))]
 const kOptTpfFlagBS: c_uint = 0x01;
-#[cfg(not(test))]
 const kOptTpfFlagHT: c_uint = 0x02;
-#[cfg(not(test))]
 const kOptTpfFlagFF: c_uint = 0x04;
-#[cfg(not(test))]
 const kOptTpfFlagESC: c_uint = 0x08;
-#[cfg(not(test))]
 const kOptTpfFlagDEL: c_uint = 0x10;
-#[cfg(not(test))]
 const kOptTpfFlagC0: c_uint = 0x20;
-#[cfg(not(test))]
 const kOptTpfFlagC1: c_uint = 0x40;
 
-#[cfg(not(test))]
 const VTERM_UNDERLINE_OFF: u32 = 0;
 
-#[cfg(not(test))]
 const VTERM_SELECTION_CLIPBOARD: VTermSelectionMask = 1 << 0;
-#[cfg(not(test))]
 const VTERM_SELECTION_PRIMARY: VTermSelectionMask = 1 << 1;
 
-#[cfg(not(test))]
 const VTERM_KEY_ESCAPE: VTermKey = 4;
-#[cfg(not(test))]
 const VTERM_KEY_UP: VTermKey = 5;
-#[cfg(not(test))]
 const VTERM_KEY_DOWN: VTermKey = 6;
-#[cfg(not(test))]
 const VTERM_KEY_LEFT: VTermKey = 7;
-#[cfg(not(test))]
 const VTERM_KEY_RIGHT: VTermKey = 8;
-#[cfg(not(test))]
 const VTERM_KEY_INS: VTermKey = 9;
-#[cfg(not(test))]
 const VTERM_KEY_DEL: VTermKey = 10;
-#[cfg(not(test))]
 const VTERM_KEY_HOME: VTermKey = 11;
-#[cfg(not(test))]
 const VTERM_KEY_END: VTermKey = 12;
-#[cfg(not(test))]
 const VTERM_KEY_PAGEUP: VTermKey = 13;
-#[cfg(not(test))]
 const VTERM_KEY_PAGEDOWN: VTermKey = 14;
-#[cfg(not(test))]
 const VTERM_KEY_KP_0: VTermKey = 512;
-#[cfg(not(test))]
 const VTERM_KEY_KP_1: VTermKey = 513;
-#[cfg(not(test))]
 const VTERM_KEY_KP_2: VTermKey = 514;
-#[cfg(not(test))]
 const VTERM_KEY_KP_3: VTermKey = 515;
-#[cfg(not(test))]
 const VTERM_KEY_KP_4: VTermKey = 516;
-#[cfg(not(test))]
 const VTERM_KEY_KP_5: VTermKey = 517;
-#[cfg(not(test))]
 const VTERM_KEY_KP_6: VTermKey = 518;
-#[cfg(not(test))]
 const VTERM_KEY_KP_7: VTermKey = 519;
-#[cfg(not(test))]
 const VTERM_KEY_KP_8: VTermKey = 520;
-#[cfg(not(test))]
 const VTERM_KEY_KP_9: VTermKey = 521;
-#[cfg(not(test))]
 const VTERM_KEY_KP_MULT: VTermKey = 522;
-#[cfg(not(test))]
 const VTERM_KEY_KP_PLUS: VTermKey = 523;
-#[cfg(not(test))]
 const VTERM_KEY_KP_MINUS: VTermKey = 525;
-#[cfg(not(test))]
 const VTERM_KEY_KP_PERIOD: VTermKey = 526;
-#[cfg(not(test))]
 const VTERM_KEY_KP_DIVIDE: VTermKey = 527;
-#[cfg(not(test))]
 const VTERM_KEY_KP_ENTER: VTermKey = 528;
 
-#[cfg(not(test))]
 const Ctrl_AT: c_int = 0;
-#[cfg(not(test))]
 const Ctrl_M: c_int = 13;
 
-#[cfg(not(test))]
 const TERM_ATTRS_MAX: c_int = 1024;
 
-#[cfg(not(test))]
 #[repr(C)]
 struct TerminalState {
     state: VimState,
@@ -401,12 +289,9 @@ pub struct Terminal {
     refcount: usize,
 }
 
-#[cfg(not(test))]
 static mut REFRESH_TIMER: [u64; 64] = [0; 64];
-#[cfg(not(test))]
 static mut REFRESH_PENDING: bool = false;
 
-#[cfg(not(test))]
 static mut VTERM_SCREEN_CALLBACKS: VTermScreenCallbacks = VTermScreenCallbacks {
     damage: Some(term_damage),
     moverect: Some(term_moverect),
@@ -420,13 +305,11 @@ static mut VTERM_SCREEN_CALLBACKS: VTermScreenCallbacks = VTermScreenCallbacks {
     sb_clear: Some(term_sb_clear),
 };
 
-#[cfg(not(test))]
 static mut VTERM_SELECTION_CALLBACKS: VTermSelectionCallbacks = VTermSelectionCallbacks {
     set: Some(term_selection_set),
     query: None,
 };
 
-#[cfg(not(test))]
 static mut VTERM_FALLBACKS: VTermStateFallbacks = VTermStateFallbacks {
     control: None,
     csi: None,
@@ -437,7 +320,6 @@ static mut VTERM_FALLBACKS: VTermStateFallbacks = VTermStateFallbacks {
     sos: None,
 };
 
-#[cfg(not(test))]
 static mut INVALIDATED_TERMINALS: Set<ptr_t> = Set {
     h: MapHash {
         n_buckets: 0,
@@ -451,31 +333,26 @@ static mut INVALIDATED_TERMINALS: Set<ptr_t> = Set {
     keys: ptr::null_mut(),
 };
 
-#[cfg(not(test))]
 #[inline]
 const fn vterm_key_function(n: c_int) -> VTermKey {
     VTERM_KEY_FUNCTION_0 + n
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn sbrow_cells(sbrow: *mut ScrollbackLine) -> *mut VTermScreenCell {
     unsafe { sbrow.add(1).cast::<VTermScreenCell>() }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn refresh_timer_ptr() -> *mut TimeWatcher {
     (&raw mut REFRESH_TIMER).cast::<TimeWatcher>()
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn set_has_term(set: *mut Set<ptr_t>, term: *mut Terminal) -> bool {
     unsafe { mh_get_ptr_t(set, term.cast::<c_void>()) != MH_TOMBSTONE }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn set_put_term(set: *mut Set<ptr_t>, term: *mut Terminal) {
     unsafe {
@@ -484,7 +361,6 @@ unsafe fn set_put_term(set: *mut Set<ptr_t>, term: *mut Terminal) {
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn set_del_term(set: *mut Set<ptr_t>, term: *mut Terminal) {
     unsafe {
@@ -493,7 +369,6 @@ unsafe fn set_del_term(set: *mut Set<ptr_t>, term: *mut Terminal) {
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn set_destroy_ptr(set: *mut Set<ptr_t>) {
     unsafe {
@@ -514,7 +389,6 @@ unsafe fn set_destroy_ptr(set: *mut Set<ptr_t>) {
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn sb_init(sb: *mut StringBuilder) {
     unsafe {
@@ -526,7 +400,6 @@ unsafe fn sb_init(sb: *mut StringBuilder) {
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn sb_destroy(sb: *mut StringBuilder) {
     unsafe {
@@ -539,7 +412,6 @@ unsafe fn sb_destroy(sb: *mut StringBuilder) {
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn sb_push(sb: *mut StringBuilder, c: c_char) {
     unsafe {
@@ -588,7 +460,6 @@ unsafe fn sb_concat_len(sb: *mut StringBuilder, data: *const c_char, len: usize)
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 const fn cstr_slice_as_string(bytes: &'static [u8]) -> NvimString {
     NvimString {
@@ -597,13 +468,7 @@ const fn cstr_slice_as_string(bytes: &'static [u8]) -> NvimString {
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn emit_termrequest(argv: *mut *mut c_void) {
-    #[cfg(test)]
-    {
-        let _ = argv;
-    }
-    #[cfg(not(test))]
     unsafe {
         let buf_handle = (*argv.add(0) as isize) as handle_T;
         let sequence = (*argv.add(1)).cast::<c_char>();
@@ -723,7 +588,6 @@ unsafe extern "C" fn emit_termrequest(argv: *mut *mut c_void) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn schedule_termrequest(term: *mut Terminal) {
     unsafe {
         (*term).pending.send = xmalloc(size_of::<StringBuilder>()).cast::<StringBuilder>();
@@ -753,7 +617,6 @@ unsafe fn schedule_termrequest(term: *mut Terminal) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn parse_osc8(str_: *const c_char, attr: *mut c_int) -> c_int {
     unsafe {
         let mut i: usize = 0;
@@ -780,14 +643,7 @@ unsafe fn parse_osc8(str_: *const c_char, attr: *mut c_int) -> c_int {
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn on_osc(command: c_int, frag: VTermStringFragment, user: *mut c_void) -> c_int {
-    #[cfg(test)]
-    {
-        let _ = (command, frag, user);
-        0
-    }
-    #[cfg(not(test))]
     unsafe {
         let term = user.cast::<Terminal>();
         if frag.str_.is_null() || frag.is_empty() {
@@ -836,19 +692,12 @@ unsafe extern "C" fn on_osc(command: c_int, frag: VTermStringFragment, user: *mu
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn on_dcs(
     command: *const c_char,
     commandlen: usize,
     frag: VTermStringFragment,
     user: *mut c_void,
 ) -> c_int {
-    #[cfg(test)]
-    {
-        let _ = (command, commandlen, frag, user);
-        0
-    }
-    #[cfg(not(test))]
     unsafe {
         let term = user.cast::<Terminal>();
         if command.is_null() || frag.str_.is_null() {
@@ -876,14 +725,7 @@ unsafe extern "C" fn on_dcs(
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn on_apc(frag: VTermStringFragment, user: *mut c_void) -> c_int {
-    #[cfg(test)]
-    {
-        let _ = (frag, user);
-        0
-    }
-    #[cfg(not(test))]
     unsafe {
         let term = user.cast::<Terminal>();
         if frag.str_.is_null() || frag.is_empty() {
@@ -913,7 +755,6 @@ unsafe extern "C" fn on_apc(frag: VTermStringFragment, user: *mut c_void) -> c_i
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn terminal_init() {
-    #[cfg(not(test))]
     unsafe {
         let timer = refresh_timer_ptr();
         time_watcher_init((&raw mut main_loop).cast(), timer, ptr::null_mut());
@@ -924,7 +765,6 @@ pub unsafe extern "C" fn terminal_init() {
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn terminal_teardown() {
-    #[cfg(not(test))]
     unsafe {
         let timer = refresh_timer_ptr();
         time_watcher_stop(timer);
@@ -934,14 +774,12 @@ pub unsafe extern "C" fn terminal_teardown() {
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn term_output_callback(s: *const c_char, len: usize, user_data: *mut c_void) {
     unsafe {
         terminal_send(user_data.cast::<Terminal>(), s, len);
     }
 }
 
-#[cfg(not(test))]
 unsafe fn term_may_alloc_scrollback(term: *mut Terminal, mut buf: *mut buf_T) -> bool {
     unsafe {
         if !(*term).sb_buffer.is_null() {
@@ -969,12 +807,6 @@ pub unsafe extern "C" fn terminal_alloc(
     buf: *mut buf_T,
     mut opts: TerminalOptions,
 ) -> *mut Terminal {
-    #[cfg(test)]
-    {
-        let _ = (buf, opts);
-        ptr::null_mut()
-    }
-    #[cfg(not(test))]
     unsafe {
         if opts.width == 0 {
             opts.width = 80;
@@ -1061,11 +893,6 @@ pub unsafe extern "C" fn terminal_alloc(
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn terminal_open(termpp: *mut *mut Terminal, buf: *mut buf_T) {
-    #[cfg(test)]
-    {
-        let _ = (termpp, buf);
-    }
-    #[cfg(not(test))]
     unsafe {
         let term = *termpp;
         debug_assert!(!term.is_null());
@@ -1148,11 +975,6 @@ pub unsafe extern "C" fn terminal_open(termpp: *mut *mut Terminal, buf: *mut buf
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn terminal_close(termpp: *mut *mut Terminal, status: c_int) {
-    #[cfg(test)]
-    {
-        let _ = (termpp, status);
-    }
-    #[cfg(not(test))]
     unsafe {
         let term = *termpp;
         if (*term).destroy {
@@ -1257,9 +1079,7 @@ pub unsafe extern "C" fn terminal_close(termpp: *mut *mut Terminal, status: c_in
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn terminal_state_change_event(argv: *mut *mut c_void) {
-    #[cfg(not(test))]
     unsafe {
         let buf_handle = (*argv as isize) as handle_T;
         let buf = handle_get_buffer(buf_handle);
@@ -1271,11 +1091,6 @@ unsafe extern "C" fn terminal_state_change_event(argv: *mut *mut c_void) {
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn terminal_set_state(term: *mut Terminal, suspended: bool) {
-    #[cfg(test)]
-    {
-        let _ = (term, suspended);
-    }
-    #[cfg(not(test))]
     unsafe {
         if (*term).suspended != suspended {
             let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
@@ -1294,11 +1109,6 @@ pub unsafe extern "C" fn terminal_set_state(term: *mut Terminal, suspended: bool
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn terminal_check_size(term: *mut Terminal) {
-    #[cfg(test)]
-    {
-        let _ = term;
-    }
-    #[cfg(not(test))]
     unsafe {
         if (*term).closed {
             return;
@@ -1345,7 +1155,6 @@ pub unsafe extern "C" fn terminal_check_size(term: *mut Terminal) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn set_terminal_winopts(s: *mut TerminalState) {
     unsafe {
         debug_assert!((*s).save_curwin_handle == 0);
@@ -1384,7 +1193,6 @@ unsafe fn set_terminal_winopts(s: *mut TerminalState) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn unset_terminal_winopts(s: *mut TerminalState) {
     unsafe {
         debug_assert!((*s).save_curwin_handle != 0);
@@ -1438,11 +1246,6 @@ unsafe fn unset_terminal_winopts(s: *mut TerminalState) {
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn terminal_enter() -> bool {
-    #[cfg(test)]
-    {
-        false
-    }
-    #[cfg(not(test))]
     unsafe {
         let buf = curbuf;
         debug_assert!(!(*buf).terminal.is_null());
@@ -1540,7 +1343,6 @@ pub unsafe extern "C" fn terminal_enter() -> bool {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn terminal_check_cursor() {
     unsafe {
         let term = (*curbuf).terminal.cast::<Terminal>();
@@ -1571,7 +1373,6 @@ unsafe fn terminal_check_cursor() {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn terminal_check_focus(s: *mut TerminalState) -> bool {
     unsafe {
         if (*curbuf).terminal.is_null() {
@@ -1602,14 +1403,7 @@ unsafe fn terminal_check_focus(s: *mut TerminalState) -> bool {
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn terminal_check(state: *mut VimState) -> c_int {
-    #[cfg(test)]
-    {
-        let _ = state;
-        0
-    }
-    #[cfg(not(test))]
     unsafe {
         let s = state.cast::<TerminalState>();
 
@@ -1670,14 +1464,7 @@ unsafe extern "C" fn terminal_check(state: *mut VimState) -> c_int {
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn terminal_execute(state: *mut VimState, key: c_int) -> c_int {
-    #[cfg(test)]
-    {
-        let _ = (state, key);
-        0
-    }
-    #[cfg(not(test))]
     unsafe {
         let s = state.cast::<TerminalState>();
         let mut tmp_mod_mask = mod_mask;
@@ -1749,11 +1536,6 @@ unsafe extern "C" fn terminal_execute(state: *mut VimState, key: c_int) -> c_int
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn terminal_destroy(termpp: *mut *mut Terminal) {
-    #[cfg(test)]
-    {
-        let _ = termpp;
-    }
-    #[cfg(not(test))]
     unsafe {
         let term = *termpp;
         let buf = handle_get_buffer((*term).buf_handle);
@@ -1800,7 +1582,6 @@ unsafe fn terminal_send(term: *mut Terminal, data: *const c_char, size: usize) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn is_filter_char(c: c_int) -> bool {
     let flag = match c {
         0x08 => kOptTpfFlagBS,
@@ -1824,11 +1605,6 @@ unsafe fn is_filter_char(c: c_int) -> bool {
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn terminal_set_streamed_paste(term: *mut Terminal, streamed: bool) {
-    #[cfg(test)]
-    {
-        let _ = (term, streamed);
-    }
-    #[cfg(not(test))]
     unsafe {
         if (*term).streamed_paste != streamed {
             let cur_term = (*curbuf).terminal.cast::<Terminal>();
@@ -1844,11 +1620,6 @@ pub unsafe extern "C" fn terminal_set_streamed_paste(term: *mut Terminal, stream
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn terminal_paste(count: c_int, y_array: *mut NvimString, y_size: usize) {
-    #[cfg(test)]
-    {
-        let _ = (count, y_array, y_size);
-    }
-    #[cfg(not(test))]
     unsafe {
         if y_size == 0 {
             return;
@@ -1896,7 +1667,6 @@ pub unsafe extern "C" fn terminal_paste(count: c_int, y_array: *mut NvimString, 
     }
 }
 
-#[cfg(not(test))]
 unsafe fn terminal_send_key(term: *mut Terminal, mut c: c_int) {
     unsafe {
         let mut mod_: VTermModifier = VTERM_MOD_NONE;
@@ -1913,9 +1683,7 @@ unsafe fn terminal_send_key(term: *mut Terminal, mut c: c_int) {
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn on_sync_flush(argv: *mut *mut c_void) {
-    #[cfg(not(test))]
     unsafe {
         if exiting {
             return;
@@ -1933,11 +1701,6 @@ unsafe extern "C" fn on_sync_flush(argv: *mut *mut c_void) {
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn terminal_receive(term: *mut Terminal, data: *const c_char, len: usize) {
-    #[cfg(test)]
-    {
-        let _ = (term, data, len);
-    }
-    #[cfg(not(test))]
     unsafe {
         if data.is_null() {
             return;
@@ -1982,7 +1745,6 @@ pub unsafe extern "C" fn terminal_receive(term: *mut Terminal, data: *const c_ch
     }
 }
 
-#[cfg(not(test))]
 unsafe fn get_rgb(state: *const VTermState, mut color: VTermColor) -> c_int {
     unsafe {
         vterm_state_convert_color_to_rgb(state, &mut color);
@@ -1993,7 +1755,6 @@ unsafe fn get_rgb(state: *const VTermState, mut color: VTermColor) -> c_int {
     }
 }
 
-#[cfg(not(test))]
 const fn get_underline_hl_flag(attrs: VTermScreenCellAttrs) -> c_int {
     match attrs.underline() {
         VTERM_UNDERLINE_OFF => 0,
@@ -2011,11 +1772,6 @@ pub unsafe extern "C" fn terminal_get_line_attributes(
     linenr: c_int,
     term_attrs: *mut c_int,
 ) {
-    #[cfg(test)]
-    {
-        let _ = (term, linenr, term_attrs);
-    }
-    #[cfg(not(test))]
     unsafe {
         let mut height: c_int = 0;
         let mut width: c_int = 0;
@@ -2162,7 +1918,6 @@ pub unsafe extern "C" fn terminal_notify_theme(term: *mut Terminal, dark: bool) 
     }
 }
 
-#[cfg(not(test))]
 unsafe fn terminal_focus(term: *const Terminal, focus: bool) {
     unsafe {
         let state = vterm_obtain_state((*term).vt);
@@ -2174,7 +1929,6 @@ unsafe fn terminal_focus(term: *const Terminal, focus: bool) {
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn term_damage(rect: VTermRect, data: *mut c_void) -> c_int {
     unsafe {
         invalidate_terminal(data.cast::<Terminal>(), rect.start_row, rect.end_row);
@@ -2182,7 +1936,6 @@ unsafe extern "C" fn term_damage(rect: VTermRect, data: *mut c_void) -> c_int {
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn term_moverect(dest: VTermRect, src: VTermRect, data: *mut c_void) -> c_int {
     unsafe {
         invalidate_terminal(
@@ -2194,7 +1947,6 @@ unsafe extern "C" fn term_moverect(dest: VTermRect, src: VTermRect, data: *mut c
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn term_movecursor(
     new_pos: VTermPos,
     _old_pos: VTermPos,
@@ -2210,7 +1962,6 @@ unsafe extern "C" fn term_movecursor(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn buf_set_term_title(buf: *mut buf_T, title: *const c_char, len: usize) {
     unsafe {
         if buf.is_null() {
@@ -2240,18 +1991,11 @@ unsafe fn buf_set_term_title(buf: *mut buf_T, title: *const c_char, len: usize) 
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn term_settermprop(
     prop: VTermProp,
     val: *mut VTermValue,
     data: *mut c_void,
 ) -> c_int {
-    #[cfg(test)]
-    {
-        let _ = (prop, val, data);
-        0
-    }
-    #[cfg(not(test))]
     unsafe {
         let term = data.cast::<Terminal>();
 
@@ -2325,36 +2069,25 @@ unsafe extern "C" fn term_settermprop(
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn term_bell(_data: *mut c_void) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         vim_beep(kOptBoFlagTerm);
     }
     1
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn term_theme(dark: *mut bool, _data: *mut c_void) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         *dark = *p_bg == b'd' as c_char;
     }
     1
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn term_sb_push(
     cols: c_int,
     cells: *const VTermScreenCell,
     data: *mut c_void,
 ) -> c_int {
-    #[cfg(test)]
-    {
-        let _ = (cols, cells, data);
-        0
-    }
-    #[cfg(not(test))]
     unsafe {
         let term = data.cast::<Terminal>();
         if !term_may_alloc_scrollback(term, ptr::null_mut()) {
@@ -2409,7 +2142,6 @@ unsafe extern "C" fn term_sb_push(
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn term_sb_pop(
     cols: c_int,
     cells: *mut VTermScreenCell,
@@ -2454,7 +2186,6 @@ unsafe extern "C" fn term_sb_pop(
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn term_sb_clear(data: *mut c_void) -> c_int {
     unsafe {
         let term = data.cast::<Terminal>();
@@ -2475,9 +2206,7 @@ unsafe extern "C" fn term_sb_clear(data: *mut c_void) -> c_int {
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn term_clipboard_set(argv: *mut *mut c_void) {
-    #[cfg(not(test))]
     unsafe {
         let mask = (*argv.add(0) as isize) as VTermSelectionMask;
         let data = (*argv.add(1)).cast::<c_char>();
@@ -2517,18 +2246,11 @@ unsafe extern "C" fn term_clipboard_set(argv: *mut *mut c_void) {
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn term_selection_set(
     mask: VTermSelectionMask,
     frag: VTermStringFragment,
     user: *mut c_void,
 ) -> c_int {
-    #[cfg(test)]
-    {
-        let _ = (mask, frag, user);
-        1
-    }
-    #[cfg(not(test))]
     unsafe {
         let term = user.cast::<Terminal>();
         if frag.initial() {
@@ -2558,7 +2280,6 @@ unsafe extern "C" fn term_selection_set(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn convert_modifiers(key: *mut c_int, modifiers: c_int, statep: *mut VTermModifier) {
     unsafe {
         if (modifiers & c_int::from(MOD_MASK_SHIFT)) != 0 {
@@ -2579,7 +2300,6 @@ unsafe fn convert_modifiers(key: *mut c_int, modifiers: c_int, statep: *mut VTer
     }
 }
 
-#[cfg(not(test))]
 unsafe fn convert_key(
     key: *mut c_int,
     mut modifiers: c_int,
@@ -2688,7 +2408,6 @@ unsafe fn convert_key(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn mouse_action(
     term: *mut Terminal,
     button: c_int,
@@ -2705,7 +2424,6 @@ unsafe fn mouse_action(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn send_mouse_event(term: *mut Terminal, mut c: c_int) -> bool {
     unsafe {
         let mut row = mouse_row;
@@ -2793,7 +2511,6 @@ unsafe fn send_mouse_event(term: *mut Terminal, mut c: c_int) -> bool {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn fetch_row(term: *mut Terminal, row: c_int, end_col: c_int) {
     unsafe {
         let mut col: c_int = 0;
@@ -2818,7 +2535,6 @@ unsafe fn fetch_row(term: *mut Terminal, row: c_int, end_col: c_int) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn fetch_cell(
     term: *mut Terminal,
     row: c_int,
@@ -2845,7 +2561,6 @@ unsafe fn fetch_cell(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn invalidate_terminal(term: *mut Terminal, start_row: c_int, end_row: c_int) {
     unsafe {
         if start_row != -1 && end_row != -1 {
@@ -2858,7 +2573,6 @@ unsafe fn invalidate_terminal(term: *mut Terminal, start_row: c_int, end_row: c_
         }
 
         set_put_term(&raw mut INVALIDATED_TERMINALS, term);
-        #[cfg(not(test))]
         if !REFRESH_PENDING {
             time_watcher_start(
                 refresh_timer_ptr(),
@@ -2873,13 +2587,11 @@ unsafe fn invalidate_terminal(term: *mut Terminal, start_row: c_int, end_row: c_
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn terminal_check_refresh() {
-    #[cfg(not(test))]
     unsafe {
         multiqueue_process_events((*watcher_fields(refresh_timer_ptr())).events);
     }
 }
 
-#[cfg(not(test))]
 unsafe fn refresh_terminal(term: *mut Terminal) {
     unsafe {
         let buf = handle_get_buffer((*term).buf_handle);
@@ -2921,7 +2633,6 @@ unsafe fn refresh_terminal(term: *mut Terminal) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn refresh_cursor(term: *mut Terminal, cursor_visible: *mut bool) {
     unsafe {
         if !is_focused(term) {
@@ -2968,9 +2679,7 @@ unsafe fn refresh_cursor(term: *mut Terminal, cursor_visible: *mut bool) {
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn refresh_timer_cb(_watcher: *mut TimeWatcher, _data: *mut c_void) {
-    #[cfg(not(test))]
     unsafe {
         REFRESH_PENDING = false;
         if exiting {
@@ -3004,7 +2713,6 @@ unsafe extern "C" fn refresh_timer_cb(_watcher: *mut TimeWatcher, _data: *mut c_
     }
 }
 
-#[cfg(not(test))]
 unsafe fn refresh_size(term: *mut Terminal, _buf: *mut buf_T) -> bool {
     unsafe {
         if !(*term).pending.resize || (*term).closed {
@@ -3026,11 +2734,6 @@ unsafe fn refresh_size(term: *mut Terminal, _buf: *mut buf_T) -> bool {
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn on_scrollback_option_changed(term: *mut Terminal) {
-    #[cfg(test)]
-    {
-        let _ = term;
-    }
-    #[cfg(not(test))]
     unsafe {
         if !(*term).sb_buffer.is_null() {
             refresh_terminal(term);
@@ -3038,7 +2741,6 @@ pub unsafe extern "C" fn on_scrollback_option_changed(term: *mut Terminal) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn adjust_scrollback(term: *mut Terminal, buf: *mut buf_T) {
     unsafe {
         if (*buf).b_p_scbk < 1 {
@@ -3080,7 +2782,6 @@ unsafe fn adjust_scrollback(term: *mut Terminal, buf: *mut buf_T) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn refresh_scrollback(term: *mut Terminal, buf: *mut buf_T) {
     unsafe {
         if let Some(read_pause_cb) = (*term).opts.read_pause_cb {
@@ -3139,7 +2840,6 @@ unsafe fn refresh_scrollback(term: *mut Terminal, buf: *mut buf_T) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn refresh_screen(term: *mut Terminal, buf: *mut buf_T) {
     unsafe {
         let mut changed: c_int = 0;
@@ -3181,7 +2881,6 @@ unsafe fn refresh_screen(term: *mut Terminal, buf: *mut buf_T) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn adjust_topline_cursor(term: *mut Terminal, buf: *mut buf_T, added: c_int) {
     unsafe {
         let ml_end = (*buf).b_ml.ml_line_count;
@@ -3228,7 +2927,6 @@ unsafe fn adjust_topline_cursor(term: *mut Terminal, buf: *mut buf_T, added: c_i
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn row_to_linenr(term: *mut Terminal, row: c_int) -> c_int {
     if row != c_int::MAX {
@@ -3238,19 +2936,16 @@ unsafe fn row_to_linenr(term: *mut Terminal, row: c_int) -> c_int {
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn linenr_to_row(term: *mut Terminal, linenr: c_int) -> c_int {
     unsafe { linenr - (*term).sb_current as c_int - 1 }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn is_focused(term: *mut Terminal) -> bool {
     unsafe { (State & MODE_TERMINAL) != 0 && (*curbuf).terminal.cast::<Terminal>() == term }
 }
 
-#[cfg(not(test))]
 unsafe fn get_config_string(buf: *mut buf_T, key: *mut c_char) -> *mut c_char {
     unsafe {
         let mut err = Error {

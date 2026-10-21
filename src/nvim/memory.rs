@@ -3,37 +3,21 @@
 
 #![allow(clippy::missing_safety_doc)]
 
-#[cfg(not(test))]
 use crate::api::ui::remote_ui_free_all_mem;
-#[cfg(not(test))]
 use crate::buffer_updates::buf_free_callbacks;
-#[cfg(not(test))]
 use crate::errors::*;
-#[cfg(not(test))]
 use crate::ex_cmds::free_prev_shellcmd;
-#[cfg(not(test))]
 use crate::ex_docmd::{do_cmdline_cmd, free_cd_dir};
-#[cfg(not(test))]
 use crate::globals::*;
-#[cfg(not(test))]
 use crate::input::close_all_scripts;
-#[cfg(not(test))]
 use crate::lua::executor::nlua_free_all_mem;
-#[cfg(not(test))]
 use crate::main_init::preserve_exit;
-#[cfg(not(test))]
 use crate::memfile::mf_release_all;
-#[cfg(not(test))]
 use crate::message::{clear_sb_text, msg_hist_clear, reset_last_sourcing, semsg, set_keep_msg};
-#[cfg(not(test))]
 use crate::option::free_all_options;
-#[cfg(not(test))]
 use crate::option_vars::*;
-#[cfg(not(test))]
 use crate::register::set_expr_line;
-#[cfg(not(test))]
 use crate::ui::ui_free_all_mem;
-#[cfg(not(test))]
 use crate::ui_client::ui_client_free_all_mem;
 use std::cell::UnsafeCell;
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -93,7 +77,7 @@ pub static mut mem_realloc: MemRealloc = crt_realloc;
 
 /// Indicates that `free_all_mem` function was or is running.
 #[allow(non_upper_case_globals)]
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static mut entered_free_all_mem: bool = false;
 
 static TRYING_TO_FREE: AtomicBool = AtomicBool::new(false);
@@ -135,7 +119,6 @@ unsafe fn try_to_free_memory() {
         return;
     }
 
-    #[cfg(not(test))]
     unsafe {
         clear_sb_text(true);
         mf_release_all();
@@ -148,7 +131,6 @@ unsafe fn try_to_free_memory() {
 }
 
 unsafe fn do_outofmem_msg(size: usize) {
-    #[cfg(not(test))]
     unsafe {
         if did_outofmem_msg {
             return;
@@ -160,17 +142,10 @@ unsafe fn do_outofmem_msg(size: usize) {
             size as u64,
         );
     }
-    #[cfg(test)]
-    let _ = size;
 }
 
 unsafe fn out_of_memory_exit() -> ! {
-    #[cfg(not(test))]
-    unsafe {
-        preserve_exit(e_outofmem.as_ptr())
-    }
-    #[cfg(test)]
-    std::process::abort()
+    unsafe { preserve_exit(e_outofmem.as_ptr()) }
 }
 
 /// Free all cached reusable arena blocks (`arena_free_reuse_blks`).
@@ -274,12 +249,9 @@ pub unsafe extern "C" fn xrealloc(ptr: *mut c_void, size: usize) -> *mut c_void 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn xmallocz(size: usize) -> *mut c_void {
     let Some(total_size) = size.checked_add(1) else {
-        #[cfg(not(test))]
         unsafe {
             preserve_exit(c"Nvim: Data too large to fit into virtual memory space\n".as_ptr());
         }
-        #[cfg(test)]
-        std::process::abort();
     };
     let ret = unsafe { xmalloc(total_size).cast::<u8>() };
     unsafe {
@@ -749,7 +721,6 @@ pub unsafe extern "C" fn alloc_block() -> *mut c_char {
             *count_ptr -= 1;
             retval
         } else {
-            #[cfg(not(test))]
             {
                 arena_alloc_count += 1;
             }
@@ -803,7 +774,6 @@ pub unsafe extern "C" fn arena_alloc(arena: *mut Arena, size: usize, align: bool
     };
     if alloc_pos + size > a.size {
         if size > (ARENA_BLOCK_SIZE - std::mem::size_of::<ConsumedBlk>()) >> 1 {
-            #[cfg(not(test))]
             unsafe {
                 arena_alloc_count += 1;
             }
@@ -912,7 +882,6 @@ pub unsafe extern "C" fn arena_strdup(arena: *mut Arena, str_ptr: *const c_char)
 }
 
 /// Free everything that we allocated (`free_all_mem`).
-#[cfg(not(test))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn free_all_mem() {
     use crate::api::extmark::api_extmark_free_all_mem;

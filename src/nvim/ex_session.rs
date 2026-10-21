@@ -1043,7 +1043,7 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_loadview(eap: *mut exarg_T) {
     unsafe {
         let fname = get_view_file(*(*eap).arg);
@@ -1058,7 +1058,7 @@ pub unsafe extern "C" fn ex_loadview(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_mkrc(eap: *mut exarg_T) {
     unsafe {
         let mut view_session = false;
@@ -1284,7 +1284,7 @@ unsafe fn get_view_file(c: c_char) -> *mut c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn put_eol(fd: *mut FILE) -> c_int {
     unsafe {
         if fputc(b'\n' as c_int, fd) < 0 {
@@ -1294,7 +1294,7 @@ pub unsafe extern "C" fn put_eol(fd: *mut FILE) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn put_line(fd: *mut FILE, s: *mut c_char) -> c_int {
     unsafe {
         if fputs(s, fd) < 0 || fputc(b'\n' as c_int, fd) < 0 {

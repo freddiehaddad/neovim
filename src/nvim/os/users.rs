@@ -1,17 +1,15 @@
 //! Operating system user information (`src/nvim/os/users.c`).
 
-#![cfg_attr(test, allow(dead_code))]
-
 #[cfg(unix)]
 use crate::fileio::getuid;
 use crate::garray::{ga_clear_strings, ga_grow, ga_init, garray_T};
 use crate::math::{FAIL, OK};
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 use crate::mbyte::utf16_to_utf8;
 use crate::memory::{xfree, xstrdup};
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 use crate::message::semsg;
-#[cfg(all(not(test), unix))]
+#[cfg(unix)]
 use crate::os::env::os_getenv_noalloc;
 use std::cell::UnsafeCell;
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -90,7 +88,7 @@ struct UserInfo0 {
     usri0_name: *mut u16,
 }
 
-#[cfg(all(target_os = "windows", not(test)))]
+#[cfg(target_os = "windows")]
 unsafe extern "system" {
     fn NetUserEnum(
         servername: *const u16,
@@ -155,10 +153,7 @@ pub unsafe extern "C" fn os_get_usernames(users: *mut garray_T) -> c_int {
         }
         endpwent();
 
-        #[cfg(not(test))]
         let user_env = os_getenv_noalloc(c"USER".as_ptr());
-        #[cfg(test)]
-        let user_env: *const c_char = std::ptr::null();
 
         if !user_env.is_null() && *user_env != 0 {
             let gap = &*users;
@@ -181,7 +176,7 @@ pub unsafe extern "C" fn os_get_usernames(users: *mut garray_T) -> c_int {
         }
     }
 
-    #[cfg(all(target_os = "windows", not(test)))]
+    #[cfg(target_os = "windows")]
     unsafe {
         let mut nusers: u32 = 0;
         let mut ntotal: u32 = 0;

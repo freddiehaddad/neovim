@@ -3,56 +3,34 @@
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 use crate::buffer::VAR_FIXED;
-#[cfg(not(test))]
 use crate::errors::*;
-#[cfg(not(test))]
 use crate::eval::fs::K_LIST_LEN_UNKNOWN;
-use crate::eval::typval::{EvalFuncData, tv_blob_len, tv_list_first, tv_list_len, typval_T};
-#[cfg(not(test))]
 use crate::eval::typval::{
-    TV_TRANSLATE, TypvalVval, VAR_LOCKED, VAR_UNLOCKED, VarType, blob_T, dict_T, dictitem_T,
-    list_T, listitem_T, tv_blob_copy, tv_blob_get, tv_blob_remove,
+    EvalFuncData, TV_TRANSLATE, TypvalVval, VAR_LOCKED, VAR_UNLOCKED, VarType, blob_T, dict_T,
+    dictitem_T, list_T, listitem_T, tv_blob_copy, tv_blob_get, tv_blob_len, tv_blob_remove,
     tv_check_for_string_or_list_or_blob_arg, tv_clear, tv_copy, tv_dict_add_tv, tv_dict_alloc_ret,
     tv_dict_copy, tv_dict_extend, tv_dict_item_remove, tv_dict_remove, tv_dict_unref, tv_equal,
     tv_get_bool_chk, tv_get_number_chk, tv_get_string, tv_get_string_chk, tv_list_alloc_ret,
     tv_list_append_owned_tv, tv_list_append_tv, tv_list_copy, tv_list_extend, tv_list_find,
-    tv_list_insert_tv, tv_list_item_remove, tv_list_remove, tv_list_reverse, tv_list_set_lock,
-    tv_list_set_ret, tv_list_unref, value_check_lock,
+    tv_list_first, tv_list_insert_tv, tv_list_item_remove, tv_list_len, tv_list_remove,
+    tv_list_reverse, tv_list_set_lock, tv_list_set_ret, tv_list_unref, typval_T, value_check_lock,
 };
-use crate::eval::vars::tv_list_locked;
-#[cfg(not(test))]
 use crate::eval::vars::{
     VV_KEY, VV_VAL, get_vim_var_tv, prepare_vimvar, restore_vimvar, set_vim_var_nr,
-    set_vim_var_string, set_vim_var_type, var_check_fixed, var_check_ro,
+    set_vim_var_string, set_vim_var_type, tv_list_locked, var_check_fixed, var_check_ro,
 };
-#[cfg(not(test))]
 use crate::eval::{eval_expr_typval, get_copyID, tv_blob_set_ret};
-#[cfg(not(test))]
 use crate::ex_docmd::do_cmdline_cmd;
-#[cfg(not(test))]
 use crate::garray::{ga_append, ga_concat, ga_grow, ga_init, garray_T};
-#[cfg(not(test))]
 use crate::globals::*;
-#[cfg(not(test))]
 use crate::hashtab::{hash_lock, hash_unlock, hashitem_empty};
-#[cfg(not(test))]
 use crate::math::{FAIL, OK};
-#[cfg(not(test))]
 use crate::mbyte::{mb_strnicmp, utf_ptr2len, utfc_ptr2len};
-#[cfg(not(test))]
 use crate::memory::xmemdupz;
-#[cfg(not(test))]
 use crate::message::{emsg, semsg};
-#[cfg(not(test))]
 use crate::strings::reverse_text;
-#[cfg(not(test))]
-use std::ffi::c_int;
-#[cfg(not(test))]
-use std::ffi::c_void;
-#[cfg(not(test))]
-use std::ffi::{CStr, c_char};
+use std::ffi::{CStr, c_char, c_int, c_void};
 
-#[cfg(not(test))]
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum FilterMap {
     Filter,
@@ -61,7 +39,6 @@ enum FilterMap {
     ForEach,
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn tv_blob_set(b: *mut blob_T, idx: c_int, c: u8) {
     unsafe {
@@ -69,7 +46,6 @@ unsafe fn tv_blob_set(b: *mut blob_T, idx: c_int, c: u8) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn filter_map_one(
     tv: *mut typval_T,
     expr: *mut typval_T,
@@ -121,7 +97,6 @@ unsafe fn filter_map_one(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn filter_map_dict(
     d: *mut dict_T,
     filtermap: FilterMap,
@@ -208,7 +183,6 @@ unsafe fn filter_map_dict(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn filter_map_blob(
     blob_arg: *mut blob_T,
     filtermap: FilterMap,
@@ -289,7 +263,6 @@ unsafe fn filter_map_blob(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn filter_map_string(
     str_ptr: *const c_char,
     filtermap: FilterMap,
@@ -360,7 +333,6 @@ unsafe fn filter_map_string(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn filter_map_list(
     l: *mut list_T,
     filtermap: FilterMap,
@@ -433,7 +405,6 @@ unsafe fn filter_map_list(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn filter_map(argvars: *mut typval_T, rettv: *mut typval_T, filtermap: FilterMap) {
     unsafe {
         let (func_name, arg_errmsg) = match filtermap {
@@ -522,10 +493,6 @@ pub unsafe extern "C" fn f_filter(
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         filter_map(argvars, rettv, FilterMap::Filter);
     }
@@ -534,10 +501,6 @@ pub unsafe extern "C" fn f_filter(
 /// `"map()"` function (`f_map`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_map(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         filter_map(argvars, rettv, FilterMap::Map);
     }
@@ -550,10 +513,6 @@ pub unsafe extern "C" fn f_mapnew(
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         filter_map(argvars, rettv, FilterMap::MapNew);
     }
@@ -566,10 +525,6 @@ pub unsafe extern "C" fn f_foreach(
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         filter_map(argvars, rettv, FilterMap::ForEach);
     }
@@ -578,10 +533,6 @@ pub unsafe extern "C" fn f_foreach(
 /// `"add(list, item)"` function (`f_add`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_add(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         (*rettv).vval.v_number = 1;
         let arg0 = &*argvars;
@@ -609,7 +560,6 @@ pub unsafe extern "C" fn f_add(argvars: *mut typval_T, rettv: *mut typval_T, _fp
     }
 }
 
-#[cfg(not(test))]
 unsafe fn count_string(haystack: *const c_char, needle: *const c_char, ic: bool) -> i64 {
     unsafe {
         if haystack.is_null() || needle.is_null() || *needle == 0 {
@@ -648,7 +598,6 @@ unsafe fn count_string(haystack: *const c_char, needle: *const c_char, ic: bool)
     }
 }
 
-#[cfg(not(test))]
 unsafe fn count_list(l: *mut list_T, needle: *mut typval_T, idx: i64, ic: bool) -> i64 {
     unsafe {
         if tv_list_len(l) == 0 {
@@ -670,7 +619,6 @@ unsafe fn count_list(l: *mut list_T, needle: *mut typval_T, idx: i64, ic: bool) 
     }
 }
 
-#[cfg(not(test))]
 unsafe fn count_dict(d: *mut dict_T, needle: *mut typval_T, ic: bool) -> i64 {
     unsafe {
         if d.is_null() {
@@ -701,10 +649,6 @@ pub unsafe extern "C" fn f_count(
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         let mut n: i64 = 0;
         let mut ic = false;
@@ -748,7 +692,6 @@ pub unsafe extern "C" fn f_count(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn extend_dict(
     argvars: *mut typval_T,
     arg_errmsg: *const c_char,
@@ -812,7 +755,6 @@ unsafe fn extend_dict(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn extend_list(
     argvars: *mut typval_T,
     arg_errmsg: *const c_char,
@@ -872,7 +814,6 @@ unsafe fn extend_list(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn extend_impl(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -906,10 +847,6 @@ pub unsafe extern "C" fn f_extend(
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         extend_impl(argvars, rettv, c"extend() argument".as_ptr(), false);
     }
@@ -922,10 +859,6 @@ pub unsafe extern "C" fn f_extendnew(
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         extend_impl(argvars, rettv, c"extendnew() argument".as_ptr(), true);
     }
@@ -938,10 +871,6 @@ pub unsafe extern "C" fn f_insert(
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         let mut error = false;
         let arg0 = &*argvars;
@@ -1035,10 +964,6 @@ pub unsafe extern "C" fn f_remove(
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         let arg_errmsg = c"remove() argument".as_ptr();
         match (*argvars).v_type {
@@ -1062,10 +987,6 @@ pub unsafe extern "C" fn f_reverse(
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         if tv_check_for_string_or_list_or_blob_arg(argvars, 0) == FAIL {
             return;

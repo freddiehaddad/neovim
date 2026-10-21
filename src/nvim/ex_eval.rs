@@ -181,12 +181,12 @@ unsafe fn discard_pending_return(p: *mut typval_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn aborting() -> bool {
     unsafe { (did_emsg != 0 && force_abort) || got_int || did_throw }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn update_force_abort() {
     unsafe {
         if cause_abort {
@@ -195,17 +195,17 @@ pub unsafe extern "C" fn update_force_abort() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn should_abort(retcode: c_int) -> bool {
     unsafe { (retcode == FAIL && trylevel != 0 && emsg_silent == 0) || aborting() }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn aborted_in_try() -> bool {
     unsafe { force_abort }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cause_errthrow(
     mesg: *const c_char,
     multiline: bool,
@@ -297,7 +297,7 @@ unsafe fn free_msglist(l: *mut msglist_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn free_global_msglist() {
     unsafe {
         free_msglist(*msg_list);
@@ -305,7 +305,7 @@ pub unsafe extern "C" fn free_global_msglist() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn do_errthrow(cstack: *mut cstack_T, cmdname: *mut c_char) {
     unsafe {
         if cause_abort {
@@ -328,7 +328,7 @@ pub unsafe extern "C" fn do_errthrow(cstack: *mut cstack_T, cmdname: *mut c_char
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn do_intthrow(cstack: *mut cstack_T) -> bool {
     unsafe {
         if !got_int || (trylevel == 0 && !did_throw) {
@@ -354,7 +354,7 @@ pub unsafe extern "C" fn do_intthrow(cstack: *mut cstack_T) -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_exception_string(
     value: *mut c_void,
     r#type: except_type_T,
@@ -559,7 +559,7 @@ unsafe fn discard_exception(excp: *mut except_T, was_finished: bool) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn discard_current_exception() {
     unsafe {
         if !current_exception.is_null() {
@@ -674,7 +674,7 @@ unsafe fn finish_exception(excp: *mut except_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn exception_state_save(estate: *mut exception_state_T) {
     unsafe {
         (*estate).estate_current_exception = current_exception;
@@ -685,7 +685,7 @@ pub unsafe extern "C" fn exception_state_save(estate: *mut exception_state_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn exception_state_restore(estate: *mut exception_state_T) {
     unsafe {
         if did_throw {
@@ -699,7 +699,7 @@ pub unsafe extern "C" fn exception_state_restore(estate: *mut exception_state_T)
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn exception_state_clear() {
     unsafe {
         current_exception = ptr::null_mut();
@@ -768,7 +768,7 @@ unsafe fn report_pending(action: c_int, pending: c_int, value: *mut c_void) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn report_make_pending(pending: c_int, value: *mut c_void) {
     unsafe {
         if p_verbose >= 14 || debug_break_level > 0 {
@@ -811,7 +811,7 @@ unsafe fn report_discard_pending(pending: c_int, value: *mut c_void) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_eval(eap: *mut exarg_T) {
     unsafe {
         let mut tv: typval_T = std::mem::zeroed();
@@ -827,7 +827,7 @@ pub unsafe extern "C" fn ex_eval(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_if(eap: *mut exarg_T) {
     unsafe {
         let cstack = (*eap).cstack.cast::<cstack_T>();
@@ -854,7 +854,7 @@ pub unsafe extern "C" fn ex_if(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_endif(eap: *mut exarg_T) {
     unsafe {
         did_endif = true;
@@ -875,7 +875,7 @@ pub unsafe extern "C" fn ex_endif(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_else(eap: *mut exarg_T) {
     unsafe {
         let cstack = (*eap).cstack.cast::<cstack_T>();
@@ -942,7 +942,7 @@ pub unsafe extern "C" fn ex_else(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_while(eap: *mut exarg_T) {
     unsafe {
         let mut error = false;
@@ -1005,7 +1005,7 @@ pub unsafe extern "C" fn ex_while(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_continue(eap: *mut exarg_T) {
     unsafe {
         let cstack = (*eap).cstack.cast::<cstack_T>();
@@ -1026,7 +1026,7 @@ pub unsafe extern "C" fn ex_continue(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_break(eap: *mut exarg_T) {
     unsafe {
         let cstack = (*eap).cstack.cast::<cstack_T>();
@@ -1043,7 +1043,7 @@ pub unsafe extern "C" fn ex_break(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_endwhile(eap: *mut exarg_T) {
     unsafe {
         let cstack = (*eap).cstack.cast::<cstack_T>();
@@ -1096,7 +1096,7 @@ pub unsafe extern "C" fn ex_endwhile(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_throw(eap: *mut exarg_T) {
     unsafe {
         let arg = (*eap).arg;
@@ -1117,7 +1117,7 @@ pub unsafe extern "C" fn ex_throw(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn do_throw(cstack: *mut cstack_T) {
     unsafe {
         let idx = cleanup_conditionals(cstack, 0, 0);
@@ -1138,7 +1138,7 @@ pub unsafe extern "C" fn do_throw(cstack: *mut cstack_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_try(eap: *mut exarg_T) {
     unsafe {
         let cstack = (*eap).cstack.cast::<cstack_T>();
@@ -1169,7 +1169,7 @@ pub unsafe extern "C" fn ex_try(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_catch(eap: *mut exarg_T) {
     unsafe {
         let mut idx: c_int = 0;
@@ -1286,7 +1286,7 @@ pub unsafe extern "C" fn ex_catch(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_finally(eap: *mut exarg_T) {
     unsafe {
         let mut pending = CSTP_NONE;
@@ -1357,7 +1357,7 @@ pub unsafe extern "C" fn ex_finally(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_endtry(eap: *mut exarg_T) {
     unsafe {
         let mut rethrow = false;
@@ -1474,7 +1474,7 @@ pub unsafe extern "C" fn ex_endtry(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn enter_cleanup(csp: *mut cleanup_T) {
     unsafe {
         let pending = CSTP_NONE;
@@ -1511,7 +1511,7 @@ pub unsafe extern "C" fn enter_cleanup(csp: *mut cleanup_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn leave_cleanup(csp: *mut cleanup_T) {
     unsafe {
         let pending = (*csp).pending;
@@ -1559,7 +1559,7 @@ pub unsafe extern "C" fn leave_cleanup(csp: *mut cleanup_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cleanup_conditionals(
     cstack: *mut cstack_T,
     searched_cond: c_int,
@@ -1662,7 +1662,7 @@ unsafe fn get_end_emsg(cstack: *const cstack_T) -> *mut c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rewind_conditionals(
     cstack: *mut cstack_T,
     idx: c_int,
@@ -1683,7 +1683,7 @@ pub unsafe extern "C" fn rewind_conditionals(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_endfunction(_eap: *mut exarg_T) {
     unsafe {
         semsg!(
@@ -1693,7 +1693,7 @@ pub unsafe extern "C" fn ex_endfunction(_eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn has_loop_cmd(mut p: *mut c_char) -> bool {
     unsafe {
         loop {

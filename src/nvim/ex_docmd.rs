@@ -217,12 +217,11 @@ use crate::register::{
     PUT_CURSLINE, PUT_FIXINDENT, PUT_LINE, do_execreg, do_put, ex_display, op_yank, set_expr_line,
     valid_yank_reg, write_reg_contents,
 };
-use crate::runtime::SID_NONE;
 use crate::runtime::{
-    DIP_ALL, ESTACK_SCRIPT, ESTACK_SFILE, ESTACK_STACK, ETYPE_EXCEPT, do_finish, estack_pop,
-    estack_push, estack_sfile, ex_finish, ex_options, ex_packadd, ex_packloadall, ex_runtime,
-    ex_scriptencoding, ex_scriptnames, ex_source, exestack, getsourceline, source_breakpoint,
-    source_dbg_tick, source_finished, source_level, source_runtime,
+    DIP_ALL, ESTACK_SCRIPT, ESTACK_SFILE, ESTACK_STACK, ETYPE_EXCEPT, SID_NONE, do_finish,
+    estack_pop, estack_push, estack_sfile, ex_finish, ex_options, ex_packadd, ex_packloadall,
+    ex_runtime, ex_scriptencoding, ex_scriptnames, ex_source, exestack, getsourceline,
+    source_breakpoint, source_dbg_tick, source_finished, source_level, source_runtime,
 };
 use crate::search::{
     do_search, find_pattern_in_path, restore_last_search_pattern, save_last_search_pattern,
@@ -725,8 +724,7 @@ const CMDMODS: [CmdModInfo; 24] = [
     },
 ];
 
-#[allow(clippy::large_const_arrays)]
-const CMDNAMES: [CommandDefinition; 564] = [
+static CMDNAMES: [CommandDefinition; 564] = [
     CommandDefinition {
         cmd_name: c"append".as_ptr(),
         cmd_func: ex_append,
@@ -4970,7 +4968,7 @@ unsafe fn do_cmdline_end() {
 }
 
 /// Execute a simple command line.  Used for translated commands like "*".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn do_cmdline_cmd(cmd: *const c_char) -> c_int {
     unsafe {
         do_cmdline(
@@ -4983,7 +4981,7 @@ pub unsafe extern "C" fn do_cmdline_cmd(cmd: *const c_char) -> c_int {
 }
 
 /// do_cmdline(): execute one Ex command line
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn do_cmdline(
     cmdline: *mut c_char,
     fgetline: LineGetter,
@@ -5472,7 +5470,7 @@ pub unsafe extern "C" fn do_cmdline(
 }
 
 /// Handle when "did_throw" is set after executing commands.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_did_throw() {
     unsafe {
         debug_assert!(!current_exception.is_null());
@@ -5580,7 +5578,7 @@ unsafe fn store_loop_line(gap: *mut garray_T, line: *mut c_char) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn getline_equal(
     fgetline: LineGetter,
     cookie: *mut c_void,
@@ -5597,7 +5595,7 @@ pub unsafe extern "C" fn getline_equal(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn getline_cookie(fgetline: LineGetter, cookie: *mut c_void) -> *mut c_void {
     unsafe {
         let mut gp = fgetline;
@@ -5796,7 +5794,7 @@ unsafe fn skip_colon_white(mut p: *const c_char, skipleadingwhite: bool) -> *mut
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_cmd_addr_type(eap: *mut exarg_T, p: *mut c_char) {
     unsafe {
         if is_user_cmdidx(std::mem::transmute::<c_int, cmdidx_T>((*eap).cmdidx)) {
@@ -5819,7 +5817,7 @@ pub unsafe extern "C" fn set_cmd_addr_type(eap: *mut exarg_T, p: *mut c_char) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_cmd_default_range(eap: *mut exarg_T) -> linenr_T {
     unsafe {
         match (*eap).addr_type {
@@ -5836,7 +5834,7 @@ pub unsafe extern "C" fn get_cmd_default_range(eap: *mut exarg_T) -> linenr_T {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_cmd_dflall_range(eap: *mut exarg_T) {
     unsafe {
         (*eap).line1 = 1;
@@ -5921,7 +5919,7 @@ unsafe fn parse_register(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_cmd_count(eap: *mut exarg_T, count: linenr_T, validate: bool) {
     unsafe {
         if (*eap).addr_type != ADDR_LINES {
@@ -5977,7 +5975,7 @@ unsafe fn parse_count(eap: *mut exarg_T, errormsg: *mut *const c_char, validate:
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn is_cmd_ni(cmdidx: cmdidx_T) -> bool {
     if is_user_cmdidx(cmdidx) {
         return false;
@@ -6010,7 +6008,7 @@ unsafe fn parse_bang(eap: *const exarg_T, p: *mut *mut c_char) -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn cmd_has_expr_args(cmdidx: cmdidx_T) -> bool {
     matches!(
         cmdidx,
@@ -6022,7 +6020,7 @@ pub extern "C" fn cmd_has_expr_args(cmdidx: cmdidx_T) -> bool {
     )
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn parse_cmdline(
     cmdline: *mut *mut c_char,
     eap: *mut exarg_T,
@@ -6296,7 +6294,7 @@ unsafe fn execute_cmd0(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn execute_cmd(
     eap: *mut exarg_T,
     cmod: *mut cmdmod_T,
@@ -6947,7 +6945,7 @@ unsafe fn ex_range_without_command(eap: *mut exarg_T) -> *mut c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn parse_command_modifiers(
     eap: *mut exarg_T,
     errormsg: *mut *const c_char,
@@ -7217,7 +7215,7 @@ pub unsafe extern "C" fn parse_command_modifiers(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn apply_cmdmod(cmod: *mut cmdmod_T) {
     unsafe {
         if ((*cmod).cmod_flags & CMOD_SANDBOX) != 0 && (*cmod).cmod_did_sandbox == 0 {
@@ -7256,7 +7254,7 @@ pub unsafe extern "C" fn apply_cmdmod(cmod: *mut cmdmod_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn undo_cmdmod(cmod: *mut cmdmod_T) {
     unsafe {
         if (*cmod).cmod_verbose_save > 0 {
@@ -7303,7 +7301,7 @@ pub unsafe extern "C" fn undo_cmdmod(cmod: *mut cmdmod_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn parse_cmd_address(
     eap: *mut exarg_T,
     errormsg: *mut *const c_char,
@@ -7454,7 +7452,7 @@ pub unsafe extern "C" fn parse_cmd_address(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn checkforcmd(pp: *mut *mut c_char, cmd: *const c_char, len: c_int) -> bool {
     unsafe {
         let mut i: usize = 0;
@@ -7533,7 +7531,7 @@ unsafe fn one_letter_cmd(p: *const c_char, idx: *mut cmdidx_T) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn find_ex_command(eap: *mut exarg_T, full: *mut c_int) -> *mut c_char {
     unsafe {
         let mut p = (*eap).cmd;
@@ -7646,7 +7644,7 @@ pub unsafe extern "C" fn find_ex_command(eap: *mut exarg_T, full: *mut c_int) ->
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn modifier_len(cmd: *mut c_char) -> c_int {
     unsafe {
         let mut p = cmd;
@@ -7672,7 +7670,7 @@ pub unsafe extern "C" fn modifier_len(cmd: *mut c_char) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cmd_exists(name: *const c_char) -> c_int {
     unsafe {
         for info in &CMDMODS {
@@ -7717,7 +7715,7 @@ pub unsafe extern "C" fn cmd_exists(name: *const c_char) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_fullcommand(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -7755,7 +7753,7 @@ pub unsafe extern "C" fn f_fullcommand(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn excmd_get_cmdidx(cmd: *const c_char, len: usize) -> cmdidx_T {
     unsafe {
         if len == 3 && strncmp(c"def".as_ptr(), cmd, 3) == 0 {
@@ -7777,12 +7775,12 @@ pub unsafe extern "C" fn excmd_get_cmdidx(cmd: *const c_char, len: usize) -> cmd
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn excmd_get_argt(idx: cmdidx_T) -> u32 {
     CMDNAMES[idx as usize].cmd_argt
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn skip_range(mut cmd: *const c_char, ctx: *mut c_int) -> *mut c_char {
     unsafe {
         while !vim_strchr(
@@ -7842,7 +7840,7 @@ unsafe fn addr_error(addr_type: cmd_addr_T) -> *const c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_address(
     eap: *mut exarg_T,
     ptr: *mut *mut c_char,
@@ -8161,7 +8159,7 @@ unsafe fn get_flags(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_ni(eap: *mut exarg_T) {
     unsafe {
         if (*eap).skip == 0 {
@@ -8181,7 +8179,7 @@ unsafe extern "C" fn ex_script_ni(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn invalid_range(eap: *mut exarg_T) -> *mut c_char {
     unsafe {
         if (*eap).line1 < 0 || (*eap).line2 < 0 || (*eap).line1 > (*eap).line2 {
@@ -8296,7 +8294,7 @@ unsafe fn skip_grep_pat(eap: *mut exarg_T) -> *mut c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn replace_makeprg(
     eap: *mut exarg_T,
     mut arg: *mut c_char,
@@ -8345,7 +8343,7 @@ pub unsafe extern "C" fn replace_makeprg(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn expand_filename(
     eap: *mut exarg_T,
     cmdlinep: *mut *mut c_char,
@@ -8556,7 +8554,7 @@ unsafe fn repl_cmdline(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn separate_nextcmd(eap: *mut exarg_T) {
     unsafe {
         let mut p = skip_grep_pat(eap);
@@ -8612,7 +8610,7 @@ pub unsafe extern "C" fn separate_nextcmd(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn getargcmd(argp: *mut *mut c_char) -> *mut c_char {
     unsafe {
         let mut arg = *argp;
@@ -8637,7 +8635,7 @@ pub unsafe extern "C" fn getargcmd(argp: *mut *mut c_char) -> *mut c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn skip_cmd_arg(mut p: *mut c_char, rembs: bool) -> *mut c_char {
     unsafe {
         while *p != NUL && !ascii_isspace_c(*p) {
@@ -8654,7 +8652,7 @@ pub unsafe extern "C" fn skip_cmd_arg(mut p: *mut c_char, rembs: bool) -> *mut c
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_bad_opt(p: *const c_char, eap: *mut exarg_T) -> c_int {
     unsafe {
         if stricmp_c(p, c"keep".as_ptr()) == 0 {
@@ -8679,7 +8677,7 @@ unsafe extern "C" fn get_bad_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn getargopt(eap: *mut exarg_T) -> c_int {
     unsafe {
         let mut arg = (*eap).arg.add(2);
@@ -8776,7 +8774,7 @@ unsafe extern "C" fn get_argopt_name(_xp: *mut expand_T, idx: c_int) -> *mut c_c
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn expand_argopt(
     pat: *mut c_char,
     xp: *mut expand_T,
@@ -9041,14 +9039,14 @@ unsafe extern "C" fn ex_blast(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn ends_excmd(c: c_int) -> c_int {
     c_int::from(
         c == c_int::from(NUL) || c == b'|' as c_int || c == b'"' as c_int || c == b'\n' as c_int,
     )
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn find_nextcmd(mut p: *const c_char) -> *mut c_char {
     unsafe {
         while *p != b'|' as c_char && *p != b'\n' as c_char {
@@ -9061,7 +9059,7 @@ pub unsafe extern "C" fn find_nextcmd(mut p: *const c_char) -> *mut c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn check_nextcmd(p: *mut c_char) -> *mut c_char {
     unsafe {
         let s = skipwhite(p);
@@ -9116,7 +9114,7 @@ unsafe fn check_more(message: bool, forceit: bool) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_command_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx >= CMD_SIZE_I32 {
@@ -9160,7 +9158,7 @@ unsafe extern "C" fn ex_highlight(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn not_exiting(save_exiting: bool) {
     unsafe {
         exiting = save_exiting;
@@ -9168,7 +9166,7 @@ pub unsafe extern "C" fn not_exiting(save_exiting: bool) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn before_quit_autocmds(
     wp: *mut win_T,
     quit_all: bool,
@@ -9287,7 +9285,7 @@ unsafe extern "C" fn ex_cquit(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn before_quit_all(eap: *mut exarg_T) -> c_int {
     unsafe {
         if text_locked() {
@@ -9816,7 +9814,7 @@ unsafe extern "C" fn ex_pclose(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_win_close(forceit: c_int, win: *mut win_T, tp: *mut tabpage_T) {
     unsafe {
         debug_assert!(tp.is_null() || tp != curtab);
@@ -9927,7 +9925,7 @@ unsafe extern "C" fn ex_tabonly(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tabpage_close(forceit: c_int) {
     unsafe {
         let mut done: c_int = 0;
@@ -9962,7 +9960,7 @@ pub unsafe extern "C" fn tabpage_close(forceit: c_int) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tabpage_close_other(tp: *mut tabpage_T, forceit: c_int) {
     unsafe {
         let mut done: c_int = 0;
@@ -10209,7 +10207,7 @@ unsafe fn call_findfunc(pat: *mut c_char, cmdcomplete: BoolVarValue) -> *mut lis
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn expand_findfunc(
     xp: *mut expand_T,
     pat: *mut c_char,
@@ -10281,14 +10279,14 @@ unsafe fn findfunc_find_file(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn free_findfunc_option() {
     unsafe {
         callback_free(&raw mut p_ffu);
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_ref_in_findfunc(copyID: c_int) -> bool {
     unsafe { set_ref_in_callback(&raw mut p_ffu, copyID, ptr::null_mut(), ptr::null_mut()) }
 }
@@ -10308,7 +10306,7 @@ unsafe fn set_browse_edit_arg(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_splitview(eap: *mut exarg_T) {
     unsafe {
         set_browse_edit_arg(eap);
@@ -10415,7 +10413,7 @@ pub unsafe extern "C" fn ex_splitview(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tabpage_new() {
     unsafe {
         let mut ea: exarg_T = std::mem::zeroed();
@@ -10790,7 +10788,7 @@ unsafe extern "C" fn ex_edit(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn do_exedit(eap: *mut exarg_T, old_curwin: *mut win_T) {
     unsafe {
         if ((*eap).cmdidx == cmdidx_T::CMD_new as c_int
@@ -11026,7 +11024,7 @@ unsafe extern "C" fn ex_read(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn free_cd_dir() {
     unsafe {
         xfree(prev_dir.cast());
@@ -11102,7 +11100,7 @@ unsafe fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn do_chdir(mut new_dir: *mut c_char, scope: CdScope) -> bool {
     unsafe {
         if new_dir.is_null() || allbuf_locked() {
@@ -11186,7 +11184,7 @@ unsafe fn chdir_clear(scope: CdScope) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_cd(eap: *mut exarg_T) {
     unsafe {
         let new_dir = (*eap).arg;
@@ -11289,7 +11287,7 @@ unsafe extern "C" fn ex_sleep(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn do_sleep(msec: i64, hide_cursor: bool) {
     unsafe {
         if hide_cursor {
@@ -11513,7 +11511,7 @@ unsafe extern "C" fn ex_copymove(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_may_print(eap: *mut exarg_T) {
     unsafe {
         if (*eap).flags != 0 {
@@ -11876,7 +11874,7 @@ unsafe fn close_redir() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_mkdir_emsg(name: *const c_char, prot: c_int) -> c_int {
     unsafe {
         let ret = os_mkdir(name, prot);
@@ -11888,7 +11886,7 @@ pub unsafe extern "C" fn vim_mkdir_emsg(name: *const c_char, prot: c_int) -> c_i
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn open_exfile(
     fname: *mut c_char,
     forceit: c_int,
@@ -11943,7 +11941,7 @@ unsafe extern "C" fn ex_mark(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn update_topline_cursor() {
     unsafe {
         check_cursor(curwin);
@@ -11955,7 +11953,7 @@ pub unsafe extern "C" fn update_topline_cursor() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn save_current_state(sst: *mut save_state_T) {
     unsafe {
         (*sst).save_msg_scroll = msg_scroll;
@@ -11974,7 +11972,7 @@ pub unsafe extern "C" fn save_current_state(sst: *mut save_state_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn restore_current_state(sst: *mut save_state_T) {
     unsafe {
         restore_typeahead((&raw mut (*sst).tabuf).cast());
@@ -11997,7 +11995,7 @@ pub unsafe extern "C" fn restore_current_state(sst: *mut save_state_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn expr_map_locked() -> bool {
     unsafe { expr_map_lock > 0 && ((*curbuf).b_flags & BF_DUMMY) == 0 }
 }
@@ -12141,7 +12139,7 @@ unsafe extern "C" fn ex_stopinsert(_eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn exec_normal_cmd(cmd: *mut c_char, remap: c_int, silent: bool) {
     unsafe {
         let _ = ins_typebuf(cmd, remap, 0, true, silent);
@@ -12149,7 +12147,7 @@ pub unsafe extern "C" fn exec_normal_cmd(cmd: *mut c_char, remap: c_int, silent:
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn exec_normal(was_typed: bool, use_vpeekc: bool) {
     unsafe {
         let mut oa: oparg_T = std::mem::zeroed();
@@ -12368,7 +12366,7 @@ const SPEC_AMATCH: isize = 12;
 const SPEC_SFLNUM: isize = 13;
 const SPEC_SID: isize = 14;
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn find_cmdline_var(src: *const c_char, usedlen: *mut usize) -> isize {
     const SPEC_STR: [&CStr; 15] = [
         c"%",
@@ -12400,7 +12398,7 @@ pub unsafe extern "C" fn find_cmdline_var(src: *const c_char, usedlen: *mut usiz
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eval_vars(
     src: *mut c_char,
     srcstart: *const c_char,
@@ -12670,7 +12668,7 @@ pub unsafe extern "C" fn eval_vars(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn expand_sfile(arg: *mut c_char) -> *mut c_char {
     unsafe {
         let mut result = xstrdup(arg);
@@ -12831,7 +12829,7 @@ unsafe extern "C" fn ex_filetype(eap: *mut exarg_T) {
 
 static mut EX_ERROR_BUF: [c_char; MSG_BUF_LEN] = [0; MSG_BUF_LEN];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_errmsg(msg: *const c_char, arg: *const c_char) -> *mut c_char {
     unsafe {
         let buf = (&raw mut EX_ERROR_BUF).cast::<c_char>();
@@ -12840,7 +12838,7 @@ pub unsafe extern "C" fn ex_errmsg(msg: *const c_char, arg: *const c_char) -> *m
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn filetype_plugin_enable() {
     unsafe {
         if filetype_plugin == kNone {
@@ -12854,7 +12852,7 @@ pub unsafe extern "C" fn filetype_plugin_enable() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn filetype_maybe_enable() {
     unsafe {
         if filetype_detect == kNone {
@@ -12892,7 +12890,7 @@ unsafe extern "C" fn ex_digraphs(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_no_hlsearch(flag: bool) {
     unsafe {
         Search.no_hlsearch = flag;
@@ -12967,7 +12965,7 @@ unsafe extern "C" fn ex_folddo(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn is_loclist_cmd(cmdidx: c_int) -> bool {
     unsafe {
         if !(0..CMD_SIZE_I32).contains(&cmdidx) {
@@ -13116,7 +13114,7 @@ unsafe extern "C" fn ex_fclose(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn verify_command(cmd: *mut c_char) {
     const SMILE_LINES: [&CStr; 105] = [
         c" #xxn`          #xnxx`        ,+x@##@Mz;`        .xxxxxxxxxnz+,      znnnnnnnnnnnnnnnn.",
@@ -13283,7 +13281,7 @@ pub unsafe extern "C" fn verify_command(cmd: *mut c_char) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn is_map_cmd(cmdidx: cmdidx_T) -> bool {
     if is_user_cmdidx(cmdidx) {
         return false;

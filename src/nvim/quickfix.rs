@@ -630,7 +630,7 @@ unsafe fn qf_init_process_nextline(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn qf_init(
     wp: *mut win_T,
     efile: *const c_char,
@@ -2034,7 +2034,7 @@ unsafe fn locstack_queue_delreq(qi: *mut qf_info_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn qf_stack_get_bufnr() -> c_int {
     unsafe {
         assert!(!ql_info.is_null());
@@ -2102,7 +2102,7 @@ unsafe fn ll_free_all(pqi: *mut *mut qf_info_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn qf_free_all(wp: *mut win_T) {
     unsafe {
         let qi = ql_info;
@@ -2135,7 +2135,7 @@ unsafe fn decr_quickfix_busy() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn check_quickfix_busy() {
     unsafe {
         if quickfix_busy != 0 {
@@ -2252,7 +2252,7 @@ unsafe fn qf_add_entry(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn qf_resize_stack(n: c_int) {
     unsafe {
         assert!(!ql_info.is_null());
@@ -2260,7 +2260,7 @@ pub unsafe extern "C" fn qf_resize_stack(n: c_int) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ll_resize_stack(wp: *mut win_T, n: c_int) {
     unsafe {
         if is_ll_window(wp) {
@@ -2304,7 +2304,7 @@ unsafe fn qf_resize_stack_base(qi: *mut qf_info_T, n: c_int) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn qf_init_stack() {
     unsafe {
         ql_info = qf_alloc_stack(QFLT_QUICKFIX, p_chi as c_int);
@@ -2491,7 +2491,7 @@ unsafe fn copy_loclist(from_qfl: *mut qf_list_T, to_qfl: *mut qf_list_T) -> c_in
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn copy_loclist_stack(from: *mut win_T, to: *mut win_T) {
     unsafe {
         let qi = get_loc_list(from);
@@ -3441,7 +3441,7 @@ unsafe fn qf_jump_to_buffer(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn qf_jump(qi: *mut qf_info_T, dir: c_int, errornr: c_int, forceit: c_int) {
     unsafe {
         qf_jump_newwin(qi, dir, errornr, forceit, false);
@@ -3630,7 +3630,7 @@ unsafe fn qf_list_entry(qfp: *mut qfline_T, qf_idx: c_int, cursel: bool) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn qf_list(eap: *mut exarg_T) {
     unsafe {
         let mut arg = (*eap).arg;
@@ -3790,7 +3790,7 @@ unsafe fn qf_msg(qi: *mut qf_info_T, which: c_int, lead: *const c_char) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn qf_age(eap: *mut exarg_T) {
     unsafe {
         let qi = qf_cmd_get_stack(eap, true);
@@ -3824,7 +3824,7 @@ pub unsafe extern "C" fn qf_age(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn qf_history(eap: *mut exarg_T) {
     unsafe {
         let qi = qf_cmd_get_stack(eap, false);
@@ -3914,7 +3914,7 @@ unsafe fn qf_free(qfl: *mut qf_list_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn qf_mark_adjust(
     buf: *mut buf_T,
     wp: *mut win_T,
@@ -4003,7 +4003,7 @@ unsafe fn qf_types(c: c_int, nr: c_int) -> *const c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn qf_view_result(split: bool) {
     unsafe {
         let mut qi = ql_info;
@@ -4032,7 +4032,7 @@ pub unsafe extern "C" fn qf_view_result(split: bool) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_cwindow(eap: *mut exarg_T) {
     unsafe {
         let qi = qf_cmd_get_stack(eap, true);
@@ -4053,7 +4053,7 @@ pub unsafe extern "C" fn ex_cwindow(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_cclose(eap: *mut exarg_T) {
     unsafe {
         let qi = qf_cmd_get_stack(eap, false);
@@ -4190,7 +4190,7 @@ unsafe fn qf_set_title_var(qfl: *mut qf_list_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_copen(eap: *mut exarg_T) {
     unsafe {
         let qi = qf_cmd_get_stack(eap, true);
@@ -4254,7 +4254,7 @@ unsafe fn qf_win_goto(win: *mut win_T, lnum: linenr_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_cbottom(eap: *mut exarg_T) {
     unsafe {
         let qi = qf_cmd_get_stack(eap, true);
@@ -4269,7 +4269,7 @@ pub unsafe extern "C" fn ex_cbottom(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn qf_current_entry(wp: *mut win_T) -> linenr_T {
     unsafe {
         let mut qi = ql_info;
@@ -4793,7 +4793,7 @@ unsafe fn qf_jump_first(qi: *mut qf_info_T, save_qfid: c_uint, forceit: c_int) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn grep_internal(cmdidx: cmdidx_T) -> c_int {
     unsafe {
         let gp = if *(*curbuf).b_p_gp == NUL {
@@ -4847,7 +4847,7 @@ unsafe fn make_get_fullcmd(makecmd: *const c_char, fname: *const c_char) -> *mut
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_make(eap: *mut exarg_T) {
     unsafe {
         let enc = if *(*curbuf).b_p_menc != NUL {
@@ -4995,7 +4995,7 @@ unsafe fn get_mef_name() -> *mut c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn qf_get_size(eap: *mut exarg_T) -> usize {
     unsafe {
         let qi = qf_cmd_get_stack(eap, false);
@@ -5006,7 +5006,7 @@ pub unsafe extern "C" fn qf_get_size(eap: *mut exarg_T) -> usize {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn qf_get_valid_size(eap: *mut exarg_T) -> usize {
     unsafe {
         let qi = qf_cmd_get_stack(eap, false);
@@ -5037,7 +5037,7 @@ pub unsafe extern "C" fn qf_get_valid_size(eap: *mut exarg_T) -> usize {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn qf_get_cur_idx(eap: *mut exarg_T) -> usize {
     unsafe {
         let qi = qf_cmd_get_stack(eap, false);
@@ -5050,7 +5050,7 @@ pub unsafe extern "C" fn qf_get_cur_idx(eap: *mut exarg_T) -> usize {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn qf_get_cur_valid_idx(eap: *mut exarg_T) -> c_int {
     unsafe {
         let qi = qf_cmd_get_stack(eap, false);
@@ -5121,7 +5121,7 @@ unsafe fn qf_get_nth_valid_entry(qfl: *mut qf_list_T, n: usize, fdo: bool) -> us
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_cc(eap: *mut exarg_T) {
     unsafe {
         let qi = qf_cmd_get_stack(eap, true);
@@ -5163,7 +5163,7 @@ pub unsafe extern "C" fn ex_cc(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_cnext(eap: *mut exarg_T) {
     unsafe {
         let qi = qf_cmd_get_stack(eap, true);
@@ -5471,7 +5471,7 @@ unsafe fn qf_find_nth_adj_entry(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_cbelow(eap: *mut exarg_T) {
     unsafe {
         if (*eap).addr_count > 0 && (*eap).line2 <= 0 {
@@ -5553,7 +5553,7 @@ unsafe fn cfile_get_auname(cmdidx: cmdidx_T) -> *const c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_cfile(eap: *mut exarg_T) {
     unsafe {
         let mut wp: *mut win_T = ptr::null_mut();
@@ -6056,7 +6056,7 @@ unsafe fn vgr_process_files(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_vimgrep(eap: *mut exarg_T) {
     unsafe {
         if !check_can_set_curbuf_forceit((*eap).forceit) {
@@ -7391,7 +7391,7 @@ unsafe fn qf_free_stack(mut wp: *mut win_T, qi: *mut qf_info_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_errorlist(
     wp: *mut win_T,
     list: *mut list_T,
@@ -7489,7 +7489,7 @@ unsafe fn mark_quickfix_ctx(qi: *mut qf_info_T, copyID: c_int) -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_ref_in_quickfix(copyID: c_int) -> bool {
     unsafe {
         assert!(!ql_info.is_null());
@@ -7588,7 +7588,7 @@ unsafe fn cbuffer_process_args(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_cbuffer(eap: *mut exarg_T) {
     unsafe {
         let au_name = cbuffer_get_auname((*eap).cmdidx);
@@ -7706,7 +7706,7 @@ unsafe fn trigger_cexpr_autocmd(cmdidx: c_int) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cexpr_core(eap: *const exarg_T, tv: *mut typval_T) -> c_int {
     unsafe {
         let mut wp: *mut win_T = ptr::null_mut();
@@ -7762,7 +7762,7 @@ pub unsafe extern "C" fn cexpr_core(eap: *const exarg_T, tv: *mut typval_T) -> c
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_cexpr(eap: *mut exarg_T) {
     unsafe {
         if trigger_cexpr_autocmd((*eap).cmdidx) == FAIL {
@@ -7904,7 +7904,7 @@ unsafe fn hgr_search_in_rtp(qfl: *mut qf_list_T, p_regmatch: *mut regmatch_T, la
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_helpgrep(eap: *mut exarg_T) {
     unsafe {
         let mut qi = ql_info;
@@ -8004,7 +8004,7 @@ pub unsafe extern "C" fn ex_helpgrep(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn free_quickfix() {
     unsafe {
         qf_free_all(ptr::null_mut());
@@ -8051,7 +8051,7 @@ unsafe fn get_qf_loc_list(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_getloclist(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -8063,7 +8063,7 @@ pub unsafe extern "C" fn f_getloclist(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_getqflist(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -8145,7 +8145,7 @@ unsafe fn set_qf_ll_list(wp: *mut win_T, args: *mut typval_T, rettv: *mut typval
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_setloclist(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -8161,7 +8161,7 @@ pub unsafe extern "C" fn f_setloclist(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_setqflist(
     argvars: *mut typval_T,
     rettv: *mut typval_T,

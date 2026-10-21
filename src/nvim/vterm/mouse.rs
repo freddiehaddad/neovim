@@ -193,7 +193,7 @@ unsafe fn output_mouse(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_mouse_move(
     vt: *mut VTerm,
     row: c_int,
@@ -227,7 +227,7 @@ pub unsafe extern "C" fn vterm_mouse_move(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_mouse_button(
     vt: *mut VTerm,
     button: c_int,

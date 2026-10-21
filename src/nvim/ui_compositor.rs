@@ -88,7 +88,7 @@ unsafe fn push_layer(g: *mut ScreenGrid) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_comp_init() {
     unsafe {
         push_layer(&raw mut default_grid);
@@ -96,7 +96,7 @@ pub unsafe extern "C" fn ui_comp_init() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_comp_free_all_mem() {
     unsafe {
         xfree(layers.items.cast());
@@ -112,7 +112,7 @@ pub unsafe extern "C" fn ui_comp_free_all_mem() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_comp_syn_init() {
     unsafe {
         dbghl_normal = syn_check_group(c"RedrawDebugNormal".as_ptr(), 17);
@@ -122,7 +122,7 @@ pub unsafe extern "C" fn ui_comp_syn_init() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_comp_attach(ui: *mut RemoteUI) {
     unsafe {
         composed_uis += 1;
@@ -130,7 +130,7 @@ pub unsafe extern "C" fn ui_comp_attach(ui: *mut RemoteUI) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_comp_detach(ui: *mut RemoteUI) {
     unsafe {
         composed_uis -= 1;
@@ -145,13 +145,13 @@ pub unsafe extern "C" fn ui_comp_detach(ui: *mut RemoteUI) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_comp_should_draw() -> bool {
     unsafe { composed_uis != 0 && valid_screen }
 }
 
 /// Raises or lowers the layer, syncing `comp_index` with `zindex` (`ui_comp_layers_adjust`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_comp_layers_adjust(mut layer_idx: usize, raise: bool) {
     unsafe {
         let size = layers.size;
@@ -183,7 +183,7 @@ pub unsafe extern "C" fn ui_comp_layers_adjust(mut layer_idx: usize, raise: bool
 }
 
 /// Places `grid` at `(col, row)` position with `(width * height)` size (`ui_comp_put_grid`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_comp_put_grid(
     grid: *mut ScreenGrid,
     row: c_int,
@@ -282,7 +282,7 @@ pub unsafe extern "C" fn ui_comp_put_grid(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_comp_remove_grid(grid: *mut ScreenGrid) {
     unsafe {
         debug_assert!(!ptr::eq(grid, &raw const default_grid));
@@ -308,7 +308,7 @@ pub unsafe extern "C" fn ui_comp_remove_grid(grid: *mut ScreenGrid) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_comp_set_grid(handle: handle_T) -> bool {
     unsafe {
         if (*curgrid).handle == handle {
@@ -330,7 +330,7 @@ pub unsafe extern "C" fn ui_comp_set_grid(handle: handle_T) -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_comp_raise_grid(grid: *mut ScreenGrid, new_index: usize) {
     unsafe {
         let old_index = (*grid).comp_index;
@@ -357,7 +357,7 @@ pub unsafe extern "C" fn ui_comp_raise_grid(grid: *mut ScreenGrid, new_index: us
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_comp_grid_cursor_goto(grid_handle: Integer, r: Integer, c: Integer) {
     unsafe {
         if !ui_comp_set_grid(grid_handle as c_int) {
@@ -383,7 +383,7 @@ pub unsafe extern "C" fn ui_comp_grid_cursor_goto(grid_handle: Integer, r: Integ
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_comp_mouse_focus(row: c_int, col: c_int) -> *mut ScreenGrid {
     unsafe {
         let mut i = layers.size as isize - 1;
@@ -419,7 +419,7 @@ pub unsafe extern "C" fn ui_comp_mouse_focus(row: c_int, col: c_int) -> *mut Scr
 }
 
 /// Compute which grid is on top at supplied screen coordinates (`ui_comp_get_grid_at_coord`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_comp_get_grid_at_coord(row: c_int, col: c_int) -> *mut ScreenGrid {
     unsafe {
         let mut i = layers.size as isize - 1;
@@ -685,7 +685,7 @@ unsafe fn compose_area(
 }
 
 /// Compose the area under the grid (`ui_comp_compose_grid`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_comp_compose_grid(grid: *mut ScreenGrid) {
     unsafe {
         if ui_comp_should_draw() {
@@ -699,7 +699,7 @@ pub unsafe extern "C" fn ui_comp_compose_grid(grid: *mut ScreenGrid) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_comp_raw_line(
     grid: Integer,
     mut row: Integer,
@@ -767,7 +767,7 @@ pub unsafe extern "C" fn ui_comp_raw_line(
 }
 
 /// The screen is invalid and will soon be cleared (`ui_comp_set_screen_valid`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_comp_set_screen_valid(valid: bool) -> bool {
     unsafe {
         let old_val = valid_screen;
@@ -779,7 +779,7 @@ pub unsafe extern "C" fn ui_comp_set_screen_valid(valid: bool) -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_comp_msg_set_pos(
     _grid: Integer,
     row: Integer,
@@ -865,7 +865,7 @@ unsafe fn curgrid_covered_above(top: c_int, bot: c_int, left: c_int, right: c_in
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_comp_grid_scroll(
     grid: Integer,
     mut top: Integer,
@@ -909,7 +909,7 @@ pub unsafe extern "C" fn ui_comp_grid_scroll(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_comp_grid_resize(grid: Integer, width: Integer, height: Integer) {
     unsafe {
         if grid == 1 {

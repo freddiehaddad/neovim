@@ -101,7 +101,7 @@ unsafe fn rstream_space(stream: *mut RStream) -> usize {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rstream_init_fd(loop_: *mut Loop, stream: *mut RStream, fd: c_int) {
     unsafe {
         stream_init(loop_, stream.cast(), fd, ptr::null_mut());
@@ -109,7 +109,7 @@ pub unsafe extern "C" fn rstream_init_fd(loop_: *mut Loop, stream: *mut RStream,
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rstream_init_stream(stream: *mut RStream, uvstream: *mut uv_stream_t) {
     unsafe {
         stream_init(ptr::null_mut(), stream.cast(), -1, uvstream);
@@ -117,7 +117,7 @@ pub unsafe extern "C" fn rstream_init_stream(stream: *mut RStream, uvstream: *mu
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rstream_init(stream: *mut RStream) {
     unsafe {
         let r = rstream_fields(stream);
@@ -132,7 +132,7 @@ pub unsafe extern "C" fn rstream_init(stream: *mut RStream) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rstream_start_inner(stream: *mut RStream) {
     unsafe {
         let s = stream_fields(stream);
@@ -144,7 +144,7 @@ pub unsafe extern "C" fn rstream_start_inner(stream: *mut RStream) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rstream_start(
     stream: *mut RStream,
     cb: stream_read_cb,
@@ -162,7 +162,7 @@ pub unsafe extern "C" fn rstream_start(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rstream_stop_inner(stream: *mut RStream) {
     unsafe {
         let s = stream_fields(stream);
@@ -174,7 +174,7 @@ pub unsafe extern "C" fn rstream_stop_inner(stream: *mut RStream) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rstream_stop(stream: *mut RStream) {
     unsafe {
         rstream_stop_inner(stream);
@@ -280,7 +280,7 @@ unsafe extern "C" fn read_event(argv: *mut *mut c_void) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rstream_available(stream: *mut RStream) -> usize {
     unsafe {
         let r = rstream_fields(stream);
@@ -288,7 +288,7 @@ pub unsafe extern "C" fn rstream_available(stream: *mut RStream) -> usize {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rstream_consume(stream: *mut RStream, consumed: usize) {
     unsafe {
         let r = rstream_fields(stream);
@@ -356,7 +356,7 @@ unsafe extern "C" fn rstream_close_cb(s: *mut Stream, data: *mut c_void) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rstream_may_close(stream: *mut RStream) {
     unsafe {
         stream_may_close(stream);

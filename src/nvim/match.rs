@@ -367,7 +367,7 @@ unsafe fn match_delete(wp: *mut win_T, id: c_int, perr: bool) -> c_int {
 }
 
 /// Delete all matches in the match list of window `wp` (`clear_matches`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn clear_matches(wp: *mut win_T) {
     unsafe {
         while !(*wp).w_match_head.is_null() {
@@ -395,7 +395,7 @@ unsafe fn get_match(wp: *mut win_T, id: c_int) -> *mut matchitem_T {
 }
 
 /// Init for calling `prepare_search_hl()` (`init_search_hl`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn init_search_hl(wp: *mut win_T, search_hl: *mut match_T) {
     unsafe {
         let mut cur = (*wp).w_match_head.cast::<matchitem_T>();
@@ -576,7 +576,7 @@ unsafe fn next_search_hl(
 }
 
 /// Advance to the match in window `wp` line `lnum` or past it (`prepare_search_hl`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn prepare_search_hl(
     wp: *mut win_T,
     search_hl: *mut match_T,
@@ -659,7 +659,7 @@ unsafe fn check_cur_search_hl(wp: *mut win_T, shl: *mut match_T) {
 }
 
 /// Prepare for `'hlsearch'` and match highlighting in one window line (`prepare_search_hl_line`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn prepare_search_hl_line(
     wp: *mut win_T,
     lnum: linenr_T,
@@ -747,7 +747,7 @@ pub unsafe extern "C" fn prepare_search_hl_line(
 }
 
 /// For a position in a line: Check for start/end of `'hlsearch'` and other matches (`update_search_hl`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn update_search_hl(
     wp: *mut win_T,
     lnum: linenr_T,
@@ -875,7 +875,7 @@ pub unsafe extern "C" fn update_search_hl(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_prevcol_hl_flag(
     wp: *mut win_T,
     search_hl: *mut match_T,
@@ -913,7 +913,7 @@ pub unsafe extern "C" fn get_prevcol_hl_flag(
 }
 
 /// Get highlighting for the char after the text in `char_attr` (`get_search_match_hl`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_search_match_hl(
     wp: *mut win_T,
     search_hl: *mut match_T,
@@ -974,7 +974,7 @@ unsafe fn matchadd_dict_arg(
 }
 
 /// `clearmatches()` function (`f_clearmatches`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_clearmatches(
     argvars: *mut typval_T,
     _rettv: *mut typval_T,
@@ -989,7 +989,7 @@ pub unsafe extern "C" fn f_clearmatches(
 }
 
 /// `getmatches()` function (`f_getmatches`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_getmatches(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1048,7 +1048,7 @@ pub unsafe extern "C" fn f_getmatches(
 }
 
 /// `setmatches()` function (`f_setmatches`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_setmatches(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1159,7 +1159,7 @@ pub unsafe extern "C" fn f_setmatches(
 }
 
 /// `matchadd()` function (`f_matchadd`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_matchadd(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1210,7 +1210,7 @@ pub unsafe extern "C" fn f_matchadd(
 }
 
 /// `matchaddpos()` function (`f_matchaddpos`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_matchaddpos(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1274,7 +1274,7 @@ pub unsafe extern "C" fn f_matchaddpos(
 }
 
 /// `matcharg()` function (`f_matcharg`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_matcharg(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1299,7 +1299,7 @@ pub unsafe extern "C" fn f_matcharg(
 }
 
 /// `matchdelete()` function (`f_matchdelete`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_matchdelete(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1316,7 +1316,7 @@ pub unsafe extern "C" fn f_matchdelete(
 }
 
 /// `:[N]match {group} {pattern}` (`ex_match`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_match(eap: *mut exarg_T) {
     unsafe {
         let mut g: *mut c_char = ptr::null_mut();

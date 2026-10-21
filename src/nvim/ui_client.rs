@@ -60,7 +60,7 @@ const ARRAY_INIT: Array = Array {
     capacity: 0,
 };
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static mut tui: *mut TUIData = ptr::null_mut();
 static mut tui_width: c_int = 0;
 static mut tui_height: c_int = 0;
@@ -80,7 +80,7 @@ unsafe extern "C" {
 
 use crate::api::ui::kLineFlagWrap;
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_start_server(
     exepath: *const c_char,
     argc: usize,
@@ -143,7 +143,7 @@ pub unsafe extern "C" fn ui_client_start_server(
 }
 
 /// Attaches this client to the UI channel, and sets its client info (`ui_client_attach`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_attach(
     width: c_int,
     height: c_int,
@@ -269,7 +269,7 @@ pub unsafe extern "C" fn ui_client_attach(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_detach() {
     unsafe {
         rpc_send_event(ui_client_channel_id, c"nvim_ui_detach".as_ptr(), ARRAY_INIT);
@@ -277,7 +277,7 @@ pub unsafe extern "C" fn ui_client_detach() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_run() -> ! {
     unsafe {
         tui_start(
@@ -314,7 +314,7 @@ pub unsafe extern "C" fn ui_client_run() -> ! {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_stop() {
     unsafe {
         ui_client_attached = false;
@@ -324,7 +324,7 @@ pub unsafe extern "C" fn ui_client_stop() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_set_size(width: c_int, height: c_int) {
     unsafe {
         if ui_client_attached {
@@ -344,7 +344,7 @@ pub unsafe extern "C" fn ui_client_set_size(width: c_int, height: c_int) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_ui_client_redraw(
     _channel_id: u64,
     _args: Array,
@@ -361,7 +361,7 @@ pub unsafe extern "C" fn handle_ui_client_redraw(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_dict2hlattrs(d: Dict, rgb: bool) -> HlAttrs {
     unsafe {
         let mut err = Error {
@@ -392,7 +392,7 @@ pub unsafe extern "C" fn ui_client_dict2hlattrs(d: Dict, rgb: bool) -> HlAttrs {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event_grid_resize(args: Array) {
     unsafe {
         if args.size < 3
@@ -428,12 +428,12 @@ pub unsafe extern "C" fn ui_client_event_grid_resize(args: Array) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event_grid_line(_args: Array) {
     std::process::abort()
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event_raw_line(g: *mut GridLineEvent) {
     unsafe {
         let grid = (*g).args[0];
@@ -458,7 +458,7 @@ pub unsafe extern "C" fn ui_client_event_raw_line(g: *mut GridLineEvent) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event_connect(args: Array) {
     unsafe {
         if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
@@ -530,7 +530,7 @@ unsafe extern "C" fn channel_connect_event(argv: *mut *mut c_void) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event_restart(args: Array) {
     unsafe {
         api_free_array(restart_args);
@@ -539,7 +539,7 @@ pub unsafe extern "C" fn ui_client_event_restart(args: Array) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event__set_restart_on_crash_exit(args: Array) {
     unsafe {
         api_free_array(restart_args_after_crash_exit);
@@ -547,7 +547,7 @@ pub unsafe extern "C" fn ui_client_event__set_restart_on_crash_exit(args: Array)
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_attach_to_restarted_server(error_restart: bool) {
     unsafe {
         let mut args = restart_args;
@@ -661,7 +661,7 @@ pub unsafe extern "C" fn ui_client_attach_to_restarted_server(error_restart: boo
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event_error_exit(args: Array) {
     unsafe {
         if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeInteger {
@@ -679,7 +679,7 @@ pub unsafe extern "C" fn ui_client_event_error_exit(args: Array) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_free_all_mem() {
     unsafe {
         tui_free_all_mem(tui);
@@ -709,7 +709,7 @@ unsafe fn log_ui_event_err(func_name: *const c_char, ev_name: *const c_char) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event_mode_info_set(args: Array) {
     unsafe {
         if args.size < 2
@@ -730,42 +730,42 @@ pub unsafe extern "C" fn ui_client_event_mode_info_set(args: Array) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event_update_menu(_args: Array) {
     unsafe {
         tui_update_menu(tui);
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event_busy_start(_args: Array) {
     unsafe {
         tui_busy_start(tui);
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event_busy_stop(_args: Array) {
     unsafe {
         tui_busy_stop(tui);
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event_mouse_on(_args: Array) {
     unsafe {
         tui_mouse_on(tui);
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event_mouse_off(_args: Array) {
     unsafe {
         tui_mouse_off(tui);
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event_mode_change(args: Array) {
     unsafe {
         if args.size < 2
@@ -786,35 +786,35 @@ pub unsafe extern "C" fn ui_client_event_mode_change(args: Array) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event_bell(_args: Array) {
     unsafe {
         tui_bell(tui);
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event_visual_bell(_args: Array) {
     unsafe {
         tui_visual_bell(tui);
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event_flush(_args: Array) {
     unsafe {
         tui_flush(tui);
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event_suspend(_args: Array) {
     unsafe {
         tui_suspend(tui);
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event_set_title(args: Array) {
     unsafe {
         if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
@@ -825,7 +825,7 @@ pub unsafe extern "C" fn ui_client_event_set_title(args: Array) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event_set_icon(args: Array) {
     unsafe {
         if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
@@ -836,7 +836,7 @@ pub unsafe extern "C" fn ui_client_event_set_icon(args: Array) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event_screenshot(args: Array) {
     unsafe {
         if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
@@ -850,7 +850,7 @@ pub unsafe extern "C" fn ui_client_event_screenshot(args: Array) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event_option_set(args: Array) {
     unsafe {
         if args.size < 2 || (*args.items).obj_type != ObjectType::kObjectTypeString {
@@ -864,7 +864,7 @@ pub unsafe extern "C" fn ui_client_event_option_set(args: Array) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event_chdir(args: Array) {
     unsafe {
         if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
@@ -875,7 +875,7 @@ pub unsafe extern "C" fn ui_client_event_chdir(args: Array) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event_ui_send(args: Array) {
     unsafe {
         if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
@@ -886,7 +886,7 @@ pub unsafe extern "C" fn ui_client_event_ui_send(args: Array) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event_default_colors_set(args: Array) {
     unsafe {
         if args.size < 5
@@ -913,7 +913,7 @@ pub unsafe extern "C" fn ui_client_event_default_colors_set(args: Array) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event_hl_attr_define(args: Array) {
     unsafe {
         if args.size < 4
@@ -936,7 +936,7 @@ pub unsafe extern "C" fn ui_client_event_hl_attr_define(args: Array) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event_grid_clear(args: Array) {
     unsafe {
         if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeInteger {
@@ -950,7 +950,7 @@ pub unsafe extern "C" fn ui_client_event_grid_clear(args: Array) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event_grid_cursor_goto(args: Array) {
     unsafe {
         if args.size < 3
@@ -973,7 +973,7 @@ pub unsafe extern "C" fn ui_client_event_grid_cursor_goto(args: Array) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_event_grid_scroll(args: Array) {
     unsafe {
         if args.size < 7
@@ -1119,7 +1119,7 @@ const EVENT_HANDLERS: [UIClientHandler; 28] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_handler_hash(str_in: *const c_char, len: usize) -> c_int {
     if str_in.is_null() {
         return -1;
@@ -1185,7 +1185,7 @@ pub unsafe extern "C" fn ui_client_handler_hash(str_in: *const c_char, len: usiz
     low as c_int
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_get_redraw_handler(
     name: *const c_char,
     name_len: usize,

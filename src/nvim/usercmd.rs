@@ -99,7 +99,7 @@ const E_COMPLETE_USED_WITHOUT_ALLOWING_ARGUMENTS: &CStr =
 const E_NO_SUCH_USER_DEFINED_COMMAND_IN_CURRENT_BUFFER_STR: &CStr =
     c"E1237: No such user-defined command in current buffer: %s";
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static mut ucmds: garray_T = garray_T {
     ga_len: 0,
     ga_maxlen: 0,
@@ -227,7 +227,7 @@ unsafe fn user_cmd_ga(gap: *const garray_T, i: c_int) -> *mut ucmd_T {
 }
 
 /// Search for a user command that matches `eap->cmd` (`find_ucmd`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn find_ucmd(
     eap: *mut exarg_T,
     p: *mut c_char,
@@ -326,7 +326,7 @@ pub unsafe extern "C" fn find_ucmd(
 }
 
 /// Set completion context for `:command` (`set_context_in_user_cmd`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_context_in_user_cmd(
     xp: *mut expand_T,
     arg_in: *const c_char,
@@ -377,7 +377,7 @@ pub unsafe extern "C" fn set_context_in_user_cmd(
 }
 
 /// Set the completion context for the argument of a user defined command (`set_context_in_user_cmdarg`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_context_in_user_cmdarg(
     cmd: *const c_char,
     mut arg: *const c_char,
@@ -430,13 +430,13 @@ pub unsafe extern "C" fn set_context_in_user_cmdarg(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn expand_user_command_name(idx: c_int) -> *mut c_char {
     unsafe { get_user_commands(ptr::null_mut(), idx - CMD_SIZE) }
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of user command names (`get_user_commands`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_user_commands(_xp: *mut expand_T, mut idx: c_int) -> *mut c_char {
     unsafe {
         let buf = (*prevwin_curwin()).w_buffer;
@@ -461,7 +461,7 @@ pub unsafe extern "C" fn get_user_commands(_xp: *mut expand_T, mut idx: c_int) -
 }
 
 /// Get the name of user command `idx` (`get_user_command_name`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_user_command_name(idx: c_int, cmdidx: c_int) -> *mut c_char {
     unsafe {
         if cmdidx == CMD_USER && idx < ucmds.ga_len {
@@ -478,7 +478,7 @@ pub unsafe extern "C" fn get_user_command_name(idx: c_int, cmdidx: c_int) -> *mu
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of user address type names (`get_user_cmd_addr_type`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_user_cmd_addr_type(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     if idx < 0 || (idx as usize) >= ADDR_TYPE_COMPLETE.len() {
         return ptr::null_mut();
@@ -490,7 +490,7 @@ pub unsafe extern "C" fn get_user_cmd_addr_type(_xp: *mut expand_T, idx: c_int) 
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of user command attributes (`get_user_cmd_flags`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_user_cmd_flags(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     const USER_CMD_FLAGS: [&CStr; 10] = [
         c"addr",
@@ -511,7 +511,7 @@ pub unsafe extern "C" fn get_user_cmd_flags(_xp: *mut expand_T, idx: c_int) -> *
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of values for `-nargs` (`get_user_cmd_nargs`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_user_cmd_nargs(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     const USER_CMD_NARGS: [&CStr; 6] = [c"0", c"1", c"_", c"*", c"?", c"+"];
     if idx < 0 || (idx as usize) >= USER_CMD_NARGS.len() {
@@ -531,7 +531,7 @@ fn get_command_complete(arg: c_int) -> *mut c_char {
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of values for `-complete` (`get_user_cmd_complete`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_user_cmd_complete(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     if idx < 0 || (idx as usize) >= COMMAND_COMPLETE_LEN {
         return ptr::null_mut();
@@ -544,7 +544,7 @@ pub unsafe extern "C" fn get_user_cmd_complete(_xp: *mut expand_T, idx: c_int) -
 }
 
 /// Get the name of completion type `expand` as an allocated string (`cmdcomplete_type_to_str`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cmdcomplete_type_to_str(
     expand: c_int,
     compl_arg: *const c_char,
@@ -575,7 +575,7 @@ pub unsafe extern "C" fn cmdcomplete_type_to_str(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cmdcomplete_str_to_type(complete_str: *const c_char) -> c_int {
     unsafe {
         if strncmp(complete_str, c"custom,".as_ptr(), 7) == 0 {
@@ -823,7 +823,7 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
 }
 
 /// Parse address type argument (`parse_addr_type_arg`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn parse_addr_type_arg(
     value: *mut c_char,
     vallen: c_int,
@@ -859,7 +859,7 @@ pub unsafe extern "C" fn parse_addr_type_arg(
 }
 
 /// Parse a completion argument `value[vallen]` (`parse_compl_arg`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn parse_compl_arg(
     value: *const c_char,
     vallen: c_int,
@@ -1072,7 +1072,7 @@ unsafe fn uc_scan_attr(
 }
 
 /// Check for a valid user command name (`uc_validate_name`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn uc_validate_name(mut name: *mut c_char) -> *mut c_char {
     unsafe {
         if ascii_isalpha(*name) {
@@ -1088,7 +1088,7 @@ pub unsafe extern "C" fn uc_validate_name(mut name: *mut c_char) -> *mut c_char 
 }
 
 /// Create a new user command `name`, if one doesn't already exist (`uc_add_command`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn uc_add_command(
     name: *mut c_char,
     name_len: usize,
@@ -1217,7 +1217,7 @@ pub unsafe extern "C" fn uc_add_command(
 }
 
 /// `:command ...` (`ex_command`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_command(eap: *mut exarg_T) {
     unsafe {
         let mut argt: u32 = 0;
@@ -1297,7 +1297,7 @@ pub unsafe extern "C" fn ex_command(eap: *mut exarg_T) {
 }
 
 /// `:comclear` (`ex_comclear`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_comclear(_eap: *mut exarg_T) {
     unsafe {
         uc_clear(&raw mut ucmds);
@@ -1307,7 +1307,7 @@ pub unsafe extern "C" fn ex_comclear(_eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn free_ucmd(cmd: *mut ucmd_T) {
     unsafe {
         xfree((*cmd).uc_name.cast());
@@ -1321,7 +1321,7 @@ pub unsafe extern "C" fn free_ucmd(cmd: *mut ucmd_T) {
 }
 
 /// Clear all user commands for `gap` (`uc_clear`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn uc_clear(gap: *mut garray_T) {
     unsafe {
         for i in 0..(*gap).ga_len {
@@ -1331,7 +1331,7 @@ pub unsafe extern "C" fn uc_clear(gap: *mut garray_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_delcommand(eap: *mut exarg_T) {
     unsafe {
         let mut i: c_int;
@@ -1386,7 +1386,7 @@ pub unsafe extern "C" fn ex_delcommand(eap: *mut exarg_T) {
 }
 
 /// Split a string by unescaped whitespace (space & tab) (`uc_split_args_iter`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn uc_split_args_iter(
     arg: *const c_char,
     arglen: usize,
@@ -1434,7 +1434,7 @@ pub unsafe extern "C" fn uc_split_args_iter(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn uc_nargs_upper_bound(arg: *const c_char, arglen: usize) -> usize {
     unsafe {
         let mut was_white = true;
@@ -1599,7 +1599,7 @@ unsafe fn add_cmd_modifier(
 }
 
 /// Add modifiers from `cmod->cmod_split` to `buf` (`add_win_cmd_modifiers`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn add_win_cmd_modifiers(
     buf: *mut c_char,
     cmod: *const cmdmod_T,
@@ -1642,7 +1642,7 @@ pub unsafe extern "C" fn add_win_cmd_modifiers(
 }
 
 /// Generate text for the `cmod` command modifiers (`uc_mods`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn uc_mods(
     mut buf: *mut c_char,
     cmod: *const cmdmod_T,
@@ -1937,7 +1937,7 @@ unsafe fn uc_check_code(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn do_ucmd(eap: *mut exarg_T, preview: bool) -> c_int {
     unsafe {
         let mut end: *mut c_char = ptr::null_mut();
@@ -2077,7 +2077,7 @@ unsafe fn arena_str_obj(arena: *mut Arena, bytes: &[u8]) -> Object {
 
 /// Gets a map of maps describing user-commands defined for buffer `buf` or
 /// defined globally if `buf` is NULL (`commands_array`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn commands_array(buf: *mut buf_T, arena: *mut Arena) -> Dict {
     unsafe {
         let gap: *const garray_T = if buf.is_null() {

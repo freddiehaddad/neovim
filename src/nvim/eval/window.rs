@@ -66,7 +66,7 @@ pub struct viewstate_T {
     pub vs_empty_rows: c_int,
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn win_has_winnr(wp: *mut win_T, tp: *mut tabpage_T) -> bool {
     unsafe {
         let cur = if tp == curtab {
@@ -78,7 +78,7 @@ pub unsafe extern "C" fn win_has_winnr(wp: *mut win_T, tp: *mut tabpage_T) -> bo
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn win_find_nr(mut nr: c_int, mut tp: *mut tabpage_T) -> *mut win_T {
     unsafe {
         if tp.is_null() {
@@ -153,13 +153,13 @@ unsafe fn win_id2tabwin(argvars: *mut typval_T, rettv: *mut typval_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn win_id2wp(id: c_int) -> *mut win_T {
     unsafe { win_id2wp_tp(id, ptr::null_mut()) }
 }
 
 /// Return the window and tab pointer of window `id` (`win_id2wp_tp`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn win_id2wp_tp(id: c_int, tpp: *mut *mut tabpage_T) -> *mut win_T {
     unsafe {
         let mut tp = first_tabpage;
@@ -197,7 +197,7 @@ unsafe fn win_id2win(argvars: *mut typval_T) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn win_findbuf(argvars: *mut typval_T, list: *mut list_T) {
     unsafe {
         let bufnr = tv_get_number(argvars) as c_int;
@@ -217,7 +217,7 @@ pub unsafe extern "C" fn win_findbuf(argvars: *mut typval_T, list: *mut list_T) 
 }
 
 /// Find window specified by `vp` in tabpage `tp` (`find_win_by_nr`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn find_win_by_nr(vp: *mut typval_T, mut tp: *mut tabpage_T) -> *mut win_T {
     unsafe {
         let nr = tv_get_number_chk(vp, ptr::null_mut()) as c_int;
@@ -251,7 +251,7 @@ pub unsafe extern "C" fn find_win_by_nr(vp: *mut typval_T, mut tp: *mut tabpage_
 
 /// Find a window: When using a Window ID in any tab page, when using a number
 /// in the current tab page (`find_win_by_nr_or_id`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn find_win_by_nr_or_id(vp: *mut typval_T) -> *mut win_T {
     unsafe {
         let nr = tv_get_number_chk(vp, ptr::null_mut()) as c_int;
@@ -265,7 +265,7 @@ pub unsafe extern "C" fn find_win_by_nr_or_id(vp: *mut typval_T) -> *mut win_T {
 }
 
 /// Find window specified by `wvp` in tabpage `tvp` (`find_tabwin`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn find_tabwin(wvp: *mut typval_T, tvp: *mut typval_T) -> *mut win_T {
     unsafe {
         let mut wp: *mut win_T = ptr::null_mut();
@@ -523,7 +523,7 @@ unsafe fn get_tabpage_info(tp: *mut tabpage_T, tp_idx: c_int) -> *mut dict_T {
 }
 
 /// `gettabinfo()` function (`f_gettabinfo`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_gettabinfo(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -567,7 +567,7 @@ pub unsafe extern "C" fn f_gettabinfo(
 }
 
 /// `getwininfo()` function (`f_getwininfo`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_getwininfo(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -611,7 +611,7 @@ pub unsafe extern "C" fn f_getwininfo(
 }
 
 /// `getwinpos({timeout})` function (`f_getwinpos`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_getwinpos(
     _argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -625,7 +625,7 @@ pub unsafe extern "C" fn f_getwinpos(
 }
 
 /// `getwinposx()` function (`f_getwinposx`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_getwinposx(
     _argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -637,7 +637,7 @@ pub unsafe extern "C" fn f_getwinposx(
 }
 
 /// `getwinposy()` function (`f_getwinposy`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_getwinposy(
     _argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -649,7 +649,7 @@ pub unsafe extern "C" fn f_getwinposy(
 }
 
 /// `tabpagenr()` function (`f_tabpagenr`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_tabpagenr(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -682,7 +682,7 @@ pub unsafe extern "C" fn f_tabpagenr(
 }
 
 /// `tabpagewinnr()` function (`f_tabpagewinnr`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_tabpagewinnr(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -700,7 +700,7 @@ pub unsafe extern "C" fn f_tabpagewinnr(
 }
 
 /// `win_execute(win_id, command)` function (`f_win_execute`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_win_execute(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -732,7 +732,7 @@ pub unsafe extern "C" fn f_win_execute(
 }
 
 /// `win_findbuf()` function (`f_win_findbuf`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_win_findbuf(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -745,7 +745,7 @@ pub unsafe extern "C" fn f_win_findbuf(
 }
 
 /// `win_getid()` function (`f_win_getid`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_win_getid(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -757,7 +757,7 @@ pub unsafe extern "C" fn f_win_getid(
 }
 
 /// `win_gotoid()` function (`f_win_gotoid`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_win_gotoid(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -793,7 +793,7 @@ pub unsafe extern "C" fn f_win_gotoid(
 }
 
 /// `win_id2tabwin()` function (`f_win_id2tabwin`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_win_id2tabwin(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -805,7 +805,7 @@ pub unsafe extern "C" fn f_win_id2tabwin(
 }
 
 /// `win_id2win()` function (`f_win_id2win`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_win_id2win(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -817,7 +817,7 @@ pub unsafe extern "C" fn f_win_id2win(
 }
 
 /// `win_move_separator()` function (`f_win_move_separator`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_win_move_separator(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -842,7 +842,7 @@ pub unsafe extern "C" fn f_win_move_separator(
 }
 
 /// `win_move_statusline()` function (`f_win_move_statusline`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_win_move_statusline(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -867,7 +867,7 @@ pub unsafe extern "C" fn f_win_move_statusline(
 }
 
 /// `win_screenpos()` function (`f_win_screenpos`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_win_screenpos(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -896,7 +896,7 @@ pub unsafe extern "C" fn f_win_screenpos(
 }
 
 /// `win_splitmove()` function (`f_win_splitmove`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_win_splitmove(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -966,7 +966,7 @@ pub unsafe extern "C" fn f_win_splitmove(
 }
 
 /// `win_gettype(nr)` function (`f_win_gettype`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_win_gettype(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1003,7 +1003,7 @@ pub unsafe extern "C" fn f_win_gettype(
 }
 
 /// `getcmdwintype()` function (`f_getcmdwintype`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_getcmdwintype(
     _argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1018,7 +1018,7 @@ pub unsafe extern "C" fn f_getcmdwintype(
 }
 
 /// `winbufnr(nr)` function (`f_winbufnr`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_winbufnr(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1035,7 +1035,7 @@ pub unsafe extern "C" fn f_winbufnr(
 }
 
 /// `wincol()` function (`f_wincol`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_wincol(
     _argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1048,7 +1048,7 @@ pub unsafe extern "C" fn f_wincol(
 }
 
 /// `winheight(nr)` function (`f_winheight`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_winheight(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1065,7 +1065,7 @@ pub unsafe extern "C" fn f_winheight(
 }
 
 /// `winlayout()` function (`f_winlayout`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_winlayout(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1089,7 +1089,7 @@ pub unsafe extern "C" fn f_winlayout(
 }
 
 /// `winline()` function (`f_winline`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_winline(
     _argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1102,7 +1102,7 @@ pub unsafe extern "C" fn f_winline(
 }
 
 /// `winnr()` function (`f_winnr`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_winnr(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1114,7 +1114,7 @@ pub unsafe extern "C" fn f_winnr(
 }
 
 /// `winrestcmd()` function (`f_winrestcmd`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_winrestcmd(
     _argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1157,7 +1157,7 @@ pub unsafe extern "C" fn f_winrestcmd(
 }
 
 /// `winrestview()` function (`f_winrestview`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_winrestview(
     argvars: *mut typval_T,
     _rettv: *mut typval_T,
@@ -1219,7 +1219,7 @@ pub unsafe extern "C" fn f_winrestview(
 }
 
 /// `winsaveview()` function (`f_winsaveview`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_winsaveview(
     _argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1260,7 +1260,7 @@ pub unsafe extern "C" fn f_winsaveview(
 }
 
 /// `winwidth(nr)` function (`f_winwidth`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_winwidth(
     argvars: *mut typval_T,
     rettv: *mut typval_T,

@@ -3,21 +3,16 @@
 
 #![allow(clippy::missing_safety_doc)]
 
-#[cfg(not(test))]
 use crate::errors::*;
-use crate::eval::typval::{TypvalVval, VarType, blob_T, typval_T};
-#[cfg(not(test))]
 use crate::eval::typval::{
-    tv_clear, tv_get_number, tv_get_string, tv_get_string_buf, tv_list_extend,
+    TypvalVval, VarType, blob_T, tv_clear, tv_get_number, tv_get_string, tv_get_string_buf,
+    tv_list_extend, typval_T,
 };
-#[cfg(not(test))]
 use crate::eval::{grow_string_tv, num_divide, num_modulus};
 use crate::garray::ga_grow;
 use crate::math::{FAIL, OK};
-#[cfg(not(test))]
 use crate::message::semsg;
 use crate::regexp::NUMBUFLEN;
-#[cfg(not(test))]
 use crate::strings::concat_str;
 use std::ffi::{c_char, c_int, c_void};
 
@@ -77,7 +72,6 @@ unsafe fn tv_op_list(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
             (*l2).lv_refcount += 1;
         }
     } else {
-        #[cfg(not(test))]
         unsafe {
             tv_list_extend(l1, l2, std::ptr::null_mut());
         }
@@ -87,13 +81,6 @@ unsafe fn tv_op_list(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
 }
 
 unsafe fn tv_op_number(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
-    #[cfg(test)]
-    let mut n = if tv1.v_type == VarType::VAR_NUMBER {
-        unsafe { tv1.vval.v_number }
-    } else {
-        0
-    };
-    #[cfg(not(test))]
     let mut n = unsafe { tv_get_number(tv1) };
 
     if tv2.v_type == VarType::VAR_FLOAT {
@@ -109,16 +96,12 @@ unsafe fn tv_op_number(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
             b'/' => f /= rhs,
             _ => {}
         }
-        #[cfg(not(test))]
         unsafe {
             tv_clear(tv1);
         }
         tv1.v_type = VarType::VAR_FLOAT;
         tv1.vval = TypvalVval { v_float: f };
     } else {
-        #[cfg(test)]
-        let rhs = unsafe { tv2.vval.v_number };
-        #[cfg(not(test))]
         let rhs = unsafe { tv_get_number(tv2) };
 
         match op {
@@ -126,28 +109,13 @@ unsafe fn tv_op_number(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
             b'-' => n = n.wrapping_sub(rhs),
             b'*' => n = n.wrapping_mul(rhs),
             b'/' => {
-                #[cfg(not(test))]
-                {
-                    n = num_divide(n, rhs);
-                }
-                #[cfg(test)]
-                {
-                    n /= rhs;
-                }
+                n = num_divide(n, rhs);
             }
             b'%' => {
-                #[cfg(not(test))]
-                {
-                    n = num_modulus(n, rhs);
-                }
-                #[cfg(test)]
-                {
-                    n %= rhs;
-                }
+                n = num_modulus(n, rhs);
             }
             _ => {}
         }
-        #[cfg(not(test))]
         unsafe {
             tv_clear(tv1);
         }
@@ -163,7 +131,6 @@ unsafe fn tv_op_string(tv1: &mut typval_T, tv2: &typval_T) -> c_int {
         return FAIL;
     }
 
-    #[cfg(not(test))]
     unsafe {
         let mut numbuf = [0 as c_char; NUMBUFLEN];
         let s2 = tv_get_string_buf(tv2, numbuf.as_mut_ptr());
@@ -177,8 +144,6 @@ unsafe fn tv_op_string(tv1: &mut typval_T, tv2: &typval_T) -> c_int {
         tv1.v_type = VarType::VAR_STRING;
         tv1.vval = TypvalVval { v_string: s };
     }
-    #[cfg(test)]
-    let _ = (tv1, NUMBUFLEN);
 
     OK
 }
@@ -208,14 +173,7 @@ unsafe fn tv_op_float(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
     let f = if tv2.v_type == VarType::VAR_FLOAT {
         unsafe { tv2.vval.v_float }
     } else {
-        #[cfg(not(test))]
-        {
-            (unsafe { tv_get_number(tv2) }) as f64
-        }
-        #[cfg(test)]
-        {
-            (unsafe { tv2.vval.v_number }) as f64
-        }
+        (unsafe { tv_get_number(tv2) }) as f64
     };
 
     unsafe {
@@ -246,7 +204,6 @@ pub unsafe extern "C" fn eexe_mod_op(
         || tv2.v_type == VarType::VAR_DICT
         || (matches!(tv2.v_type, VarType::VAR_BOOL | VarType::VAR_SPECIAL) && op_byte == b'.')
     {
-        #[cfg(not(test))]
         unsafe {
             semsg!(e_letwrong.as_ptr(), op);
         }
@@ -269,7 +226,6 @@ pub unsafe extern "C" fn eexe_mod_op(
     };
 
     if retval != OK {
-        #[cfg(not(test))]
         unsafe {
             semsg!(e_letwrong.as_ptr(), op);
         }

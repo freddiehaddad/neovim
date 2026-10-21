@@ -7,55 +7,35 @@
     clippy::too_many_arguments
 )]
 
-#[cfg(not(test))]
 use crate::api::private::helpers::{api_clear_error, api_free_string, api_set_error};
-#[cfg(not(test))]
-use crate::api::private::validate::{Error, ErrorType, ObjectData, ObjectType};
-use crate::api::private::validate::{NvimString, Object};
-#[cfg(not(test))]
+use crate::api::private::validate::{Error, ErrorType, NvimString, Object, ObjectData, ObjectType};
 use crate::linematch::{fastforward_buf_to_lnum, linematch_nbuffers};
 use crate::lua::base64::lua_State;
-#[cfg(not(test))]
 use crate::lua::converter::{
     LUA_TFUNCTION, LUA_TTABLE, lua_concat, lua_createtable, lua_error, lua_gettop, lua_isnumber,
     lua_objlen, lua_pcall, lua_pushinteger, lua_pushlstring, lua_pushstring, lua_pushvalue,
     lua_rawseti, lua_settop, lua_tolstring, lua_tonumber, lua_type, luaL_argerror, luaL_error,
     luaL_where, nlua_pop_keydict,
 };
-#[cfg(not(test))]
 use crate::lua::executor::{api_free_luaref, nlua_pushref};
-#[cfg(not(test))]
 use crate::memory::{strequal, xfree};
-#[cfg(not(test))]
 use crate::xdiff::xdiffi::xdl_diff;
-#[cfg(not(test))]
 use crate::xdiff::{
     XDF_HISTOGRAM_DIFF, XDF_IGNORE_CR_AT_EOL, XDF_INDENT_HEURISTIC, XDF_NEED_MINIMAL,
     XDF_PATIENCE_DIFF, mmbuffer_t, mmfile_t, xdemitcb_t, xdemitconf_t, xpparam_t,
 };
-use std::ffi::c_int;
-#[cfg(not(test))]
-use std::ffi::{c_char, c_long, c_void};
+use std::ffi::{c_char, c_int, c_long, c_void};
 
-#[cfg(not(test))]
 const COMPARED_BUFFER0: c_int = 1 << 0;
-#[cfg(not(test))]
 const COMPARED_BUFFER1: c_int = 1 << 1;
 
-#[cfg(not(test))]
 const KEYSET_OPTIDX_CTXLEN: u64 = 1;
-#[cfg(not(test))]
 const KEYSET_OPTIDX_ON_HUNK: u64 = 2;
-#[cfg(not(test))]
 const KEYSET_OPTIDX_ALGORITHM: u64 = 3;
-#[cfg(not(test))]
 const KEYSET_OPTIDX_LINEMATCH: u64 = 4;
-#[cfg(not(test))]
 const KEYSET_OPTIDX_RESULT_TYPE: u64 = 5;
-#[cfg(not(test))]
 const KEYSET_OPTIDX_INTERHUNKCTXLEN: u64 = 6;
 
-#[cfg(not(test))]
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum NluaXdiffMode {
     Unified,
@@ -80,7 +60,6 @@ pub struct KeyDict_xdl_diff {
     pub indent_heuristic: bool,
 }
 
-#[cfg(not(test))]
 impl KeyDict_xdl_diff {
     fn init() -> Self {
         Self {
@@ -115,7 +94,6 @@ impl KeyDict_xdl_diff {
     }
 }
 
-#[cfg(not(test))]
 struct HunkPriv {
     lstate: *mut lua_State,
     err: *mut Error,
@@ -125,19 +103,14 @@ struct HunkPriv {
     iwhite: bool,
 }
 
-#[cfg(not(test))]
 use crate::api::private::dispatch::KeyDict_xdl_diff_get_field;
-#[cfg(not(test))]
 use crate::diff::{
     XDF_IGNORE_BLANK_LINES, XDF_IGNORE_WHITESPACE, XDF_IGNORE_WHITESPACE_AT_EOL,
     XDF_IGNORE_WHITESPACE_CHANGE,
 };
-#[cfg(not(test))]
 use crate::lua::base64::LUA_TSTRING;
-#[cfg(not(test))]
 use crate::lua::converter::LUA_NOREF;
 
-#[cfg(not(test))]
 unsafe fn lua_pushhunk(
     lstate: *mut lua_State,
     mut start_a: isize,
@@ -166,7 +139,6 @@ unsafe fn lua_pushhunk(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn get_linematch_results(
     lstate: *mut lua_State,
     ma: *mut mmfile_t,
@@ -236,7 +208,6 @@ unsafe fn get_linematch_results(
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn write_string(
     priv_data: *mut c_void,
     mb: *mut mmbuffer_t,
@@ -255,7 +226,6 @@ unsafe extern "C" fn write_string(
     0
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn hunk_locations_cb(
     start_a: c_int,
     count_a: c_int,
@@ -292,7 +262,6 @@ unsafe extern "C" fn hunk_locations_cb(
     0
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn call_on_hunk_cb(
     mut start_a: c_int,
     count_a: c_int,
@@ -339,7 +308,6 @@ unsafe extern "C" fn call_on_hunk_cb(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn get_string_arg(lstate: *mut lua_State, idx: c_int) -> mmfile_t {
     unsafe {
         if lua_type(lstate, idx) != LUA_TSTRING {
@@ -357,7 +325,6 @@ unsafe fn get_string_arg(lstate: *mut lua_State, idx: c_int) -> mmfile_t {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn process_xdl_diff_opts(
     lstate: *mut lua_State,
     cfg: &mut xdemitconf_t,
@@ -492,13 +459,6 @@ unsafe fn process_xdl_diff_opts(
 /// Lua `vim.diff(a, b, opts)` implementation (`nlua_xdl_diff`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> c_int {
-    #[cfg(test)]
-    {
-        let _ = lstate;
-        0
-    }
-
-    #[cfg(not(test))]
     unsafe {
         if lua_gettop(lstate) < 2 {
             return luaL_error(lstate, c"Expected at least 2 arguments".as_ptr());

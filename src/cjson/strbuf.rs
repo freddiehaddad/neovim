@@ -140,7 +140,7 @@ unsafe fn debug_stats(s: *mut strbuf_t) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn strbuf_init(s: *mut strbuf_t, len: usize) {
     let size = if len == 0 {
         STRBUF_DEFAULT_SIZE
@@ -168,7 +168,7 @@ pub unsafe extern "C" fn strbuf_init(s: *mut strbuf_t, len: usize) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn strbuf_new(len: usize) -> *mut strbuf_t {
     unsafe {
         let s = malloc(size_of::<strbuf_t>()).cast::<strbuf_t>();
@@ -182,7 +182,7 @@ pub unsafe extern "C" fn strbuf_new(len: usize) -> *mut strbuf_t {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn strbuf_free(s: *mut strbuf_t) {
     unsafe {
         debug_stats(s);
@@ -197,7 +197,7 @@ pub unsafe extern "C" fn strbuf_free(s: *mut strbuf_t) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn strbuf_free_to_string(s: *mut strbuf_t, len: *mut usize) -> *mut c_char {
     unsafe {
         debug_stats(s);
@@ -248,7 +248,7 @@ unsafe fn calculate_new_size(s: *mut strbuf_t, len: usize) -> usize {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn strbuf_resize(s: *mut strbuf_t, len: usize) {
     unsafe {
         let newsize = calculate_new_size(s, len);
@@ -271,7 +271,7 @@ pub unsafe extern "C" fn strbuf_resize(s: *mut strbuf_t, len: usize) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn strbuf_append_string(s: *mut strbuf_t, str_in: *const c_char) {
     unsafe {
         let mut space = strbuf_empty_length(s);

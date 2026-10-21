@@ -352,7 +352,7 @@ unsafe fn kv_a<T: Copy>(v: &mut KVec<T>, i: usize) -> *mut T {
     unsafe { v.items.add(i) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_start(
     tui_p: *mut *mut TUIData,
     width: *mut c_int,
@@ -410,7 +410,7 @@ unsafe fn tui_set_term_mode(tui: *mut TUIData, mode: TermMode, set: bool) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_handle_term_mode(
     tui: *mut TUIData,
     mode: TermMode,
@@ -492,7 +492,7 @@ unsafe fn tui_query_extended_underline(tui: *mut TUIData) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_enable_extended_underline(tui: *mut TUIData) {
     unsafe {
         terminfo_set_if_empty(tui, kTerm_set_underline_style, c"\x1b[4:%p1%dm".as_ptr());
@@ -516,7 +516,7 @@ unsafe fn tui_query_kitty_keyboard(tui: *mut TUIData) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_set_key_encoding(tui: *mut TUIData) {
     unsafe {
         match (*input_prefix(tui_input(tui))).key_encoding {
@@ -558,7 +558,7 @@ unsafe fn tui_query_bg_color_noflush(tui: *mut TUIData) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_query_bg_color(tui: *mut TUIData) {
     unsafe {
         tui_query_bg_color_noflush(tui);
@@ -1161,7 +1161,7 @@ unsafe fn tui_terminal_after_startup(tui: *mut TUIData) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_stop(tui: *mut TUIData) {
     unsafe {
         if uv_is_closing(tui_output_handle(tui)) != 0 {
@@ -1242,12 +1242,12 @@ unsafe fn tui_terminal_stop(tui: *mut TUIData) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_is_stopped(tui: *mut TUIData) -> bool {
     unsafe { (*tui).stopped }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_free_all_mem(tui: *mut TUIData) {
     unsafe {
         ugrid_free(&raw mut (*tui).grid);
@@ -1807,7 +1807,7 @@ unsafe fn reset_scroll_region(tui: *mut TUIData, fullwidth: bool) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_grid_resize(
     tui: *mut TUIData,
     _g: Integer,
@@ -1837,7 +1837,7 @@ pub unsafe extern "C" fn tui_grid_resize(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_grid_clear(tui: *mut TUIData, _g: Integer) {
     unsafe {
         ugrid_clear(&raw mut (*tui).grid);
@@ -1847,7 +1847,7 @@ pub unsafe extern "C" fn tui_grid_clear(tui: *mut TUIData, _g: Integer) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_grid_cursor_goto(
     tui: *mut TUIData,
     _grid: Integer,
@@ -1912,7 +1912,7 @@ unsafe fn decode_cursor_entry(args: Dict) -> cursorentry_T {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_mode_info_set(
     tui: *mut TUIData,
     guicursor_enabled: bool,
@@ -1938,24 +1938,24 @@ pub unsafe extern "C" fn tui_mode_info_set(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_update_menu(_tui: *mut TUIData) {}
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_busy_start(tui: *mut TUIData) {
     unsafe {
         (*tui).busy = true;
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_busy_stop(tui: *mut TUIData) {
     unsafe {
         (*tui).busy = false;
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_mouse_on(tui: *mut TUIData) {
     unsafe {
         if !(*tui).mouse_enabled {
@@ -1969,7 +1969,7 @@ pub unsafe extern "C" fn tui_mouse_on(tui: *mut TUIData) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_mouse_off(tui: *mut TUIData) {
     unsafe {
         if (*tui).mouse_enabled {
@@ -2029,7 +2029,7 @@ unsafe fn tui_set_mode(tui: *mut TUIData, mode: ModeShape) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_mode_change(tui: *mut TUIData, _mode: NvimString, mode_idx: Integer) {
     unsafe {
         #[cfg(unix)]
@@ -2068,7 +2068,7 @@ pub unsafe extern "C" fn tui_mode_change(tui: *mut TUIData, _mode: NvimString, m
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_grid_scroll(
     tui: *mut TUIData,
     _g: Integer,
@@ -2135,7 +2135,7 @@ pub unsafe extern "C" fn tui_grid_scroll(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_add_url(_tui: *mut TUIData, url: *const c_char) -> i32 {
     unsafe {
         if url.is_null() {
@@ -2151,7 +2151,7 @@ pub unsafe extern "C" fn tui_add_url(_tui: *mut TUIData, url: *const c_char) -> 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_hl_attr_define(
     tui: *mut TUIData,
     id: Integer,
@@ -2168,7 +2168,7 @@ pub unsafe extern "C" fn tui_hl_attr_define(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_bell(tui: *mut TUIData) {
     unsafe {
         let seq = b"\x07";
@@ -2176,7 +2176,7 @@ pub unsafe extern "C" fn tui_bell(tui: *mut TUIData) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_visual_bell(tui: *mut TUIData) {
     unsafe {
         if (*tui).screen_or_tmux {
@@ -2196,7 +2196,7 @@ pub unsafe extern "C" fn tui_visual_bell(tui: *mut TUIData) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_default_colors_set(
     tui: *mut TUIData,
     rgb_fg: Integer,
@@ -2218,7 +2218,7 @@ pub unsafe extern "C" fn tui_default_colors_set(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_ui_send(tui: *mut TUIData, content: NvimString) {
     unsafe {
         if (*tui).invalid_regions.size != 0 || (*tui).bufpos > 0 {
@@ -2249,7 +2249,7 @@ pub unsafe extern "C" fn tui_ui_send(tui: *mut TUIData, content: NvimString) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_flush(tui: *mut TUIData) {
     unsafe {
         let nrevents = loop_size((*tui).loop_);
@@ -2362,7 +2362,7 @@ unsafe fn show_verbose_terminfo(tui: *mut TUIData) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_suspend(tui: *mut TUIData) {
     #[cfg(unix)]
     unsafe {
@@ -2400,7 +2400,7 @@ unsafe extern "C" fn tui_suspend_cb(tui: *mut TUIData) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_set_title(tui: *mut TUIData, title: NvimString) {
     unsafe {
         if !(*tui).can_set_title {
@@ -2439,10 +2439,10 @@ pub unsafe extern "C" fn tui_set_title(tui: *mut TUIData, title: NvimString) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_set_icon(_tui: *mut TUIData, _icon: NvimString) {}
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_screenshot(tui: *mut TUIData, path: NvimString) {
     unsafe {
         let f = fopen(path.data, c"w".as_ptr());
@@ -2474,7 +2474,7 @@ pub unsafe extern "C" fn tui_screenshot(tui: *mut TUIData, path: NvimString) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_option_set(tui: *mut TUIData, name: NvimString, value: Object) {
     unsafe {
         if strequal(name.data, c"mousemoveevent".as_ptr()) {
@@ -2516,7 +2516,7 @@ pub unsafe extern "C" fn tui_option_set(tui: *mut TUIData, name: NvimString, val
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_chdir(_tui: *mut TUIData, path: NvimString) {
     unsafe {
         let err = uv_chdir(path.data);
@@ -2535,7 +2535,7 @@ pub unsafe extern "C" fn tui_chdir(_tui: *mut TUIData, path: NvimString) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_raw_line(
     tui: *mut TUIData,
     _g: Integer,
@@ -2633,7 +2633,7 @@ unsafe fn invalidate(tui: *mut TUIData, top: c_int, bot: c_int, left: c_int, rig
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_set_size(tui: *mut TUIData, width: c_int, height: c_int) {
     unsafe {
         (*tui).pending_resize_events += 1;
@@ -2675,7 +2675,7 @@ unsafe fn parse_sscanf_int(val: *const c_char, out: &mut c_int) -> bool {
     false
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tui_guess_size(tui: *mut TUIData) {
     unsafe {
         let mut width: c_int = 0;

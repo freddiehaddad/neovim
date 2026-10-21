@@ -22,7 +22,7 @@ fn onlybit(mut c: c_int, mut b: c_int) -> c_int {
     c
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn charsettype(cs: *const byte, info: *mut charsetinfo) -> Opcode {
     unsafe {
         let mut low1 = 0usize;
@@ -68,7 +68,7 @@ pub unsafe extern "C" fn charsettype(cs: *const byte, info: *mut charsetinfo) ->
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn getbytefromcharset(info: *const charsetinfo, index: c_int) -> byte {
     unsafe {
         if index < (*info).size {
@@ -79,7 +79,7 @@ pub unsafe extern "C" fn getbytefromcharset(info: *const charsetinfo, index: c_i
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tocharset(tree: *mut TTree, cs: *mut Charset) -> c_int {
     unsafe {
         let cs_ptr = (*cs).cs.as_mut_ptr();
@@ -111,7 +111,7 @@ pub unsafe extern "C" fn tocharset(tree: *mut TTree, cs: *mut Charset) -> c_int 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tree2cset(tree: *mut TTree, info: *mut charsetinfo) {
     unsafe {
         debug_assert_eq!((*tree).tag, TSet);

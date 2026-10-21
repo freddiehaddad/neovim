@@ -156,7 +156,7 @@ enum sb_clear_T {
 
 static mut confirm_msg_used: c_int = 0;
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static mut msg_hist_last: *mut MessageHistoryEntry = ptr::null_mut();
 static mut msg_hist_first: *mut MessageHistoryEntry = ptr::null_mut();
 static mut msg_hist_temp: *mut MessageHistoryEntry = ptr::null_mut();
@@ -232,7 +232,6 @@ macro_rules! smsg {
     ($hl_id:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
         let hl = $hl_id;
         let fmt_ptr: *const std::ffi::c_char = $fmt;
-        #[cfg(not(test))]
         {
             $crate::strings::vim_snprintf!(
                 (&raw mut $crate::globals::IObuff).cast::<std::ffi::c_char>(),
@@ -245,11 +244,6 @@ macro_rules! smsg {
                 hl,
             )
         }
-        #[cfg(test)]
-        {
-            let _ = (hl, fmt_ptr $(, $crate::strings::IntoFmtVal::into_fmt_val($arg))*);
-            false
-        }
     }};
 }
 pub use smsg;
@@ -259,7 +253,6 @@ macro_rules! smsg_keep {
     ($hl_id:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
         let hl = $hl_id;
         let fmt_ptr: *const std::ffi::c_char = $fmt;
-        #[cfg(not(test))]
         {
             $crate::strings::vim_snprintf!(
                 (&raw mut $crate::globals::IObuff).cast::<std::ffi::c_char>(),
@@ -274,11 +267,6 @@ macro_rules! smsg_keep {
                 false,
             )
         }
-        #[cfg(test)]
-        {
-            let _ = (hl, fmt_ptr $(, $crate::strings::IntoFmtVal::into_fmt_val($arg))*);
-            false
-        }
     }};
 }
 pub use smsg_keep;
@@ -287,7 +275,6 @@ pub use smsg_keep;
 macro_rules! semsg {
     ($fmt:expr $(, $arg:expr)* $(,)?) => {{
         let fmt_ptr: *const std::ffi::c_char = $fmt;
-        #[cfg(not(test))]
         {
             if $crate::message::emsg_not_now() {
                 let _ = (fmt_ptr $(, $crate::strings::IntoFmtVal::into_fmt_val($arg))*);
@@ -303,11 +290,6 @@ macro_rules! semsg {
                 $crate::message::emsg(errbuf.as_ptr())
             }
         }
-        #[cfg(test)]
-        {
-            let _ = (fmt_ptr $(, $crate::strings::IntoFmtVal::into_fmt_val($arg))*);
-            false
-        }
     }};
 }
 pub use semsg;
@@ -317,7 +299,6 @@ macro_rules! semsg_multiline {
     ($kind:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
         let kind_ptr: *const std::ffi::c_char = $kind;
         let fmt_ptr: *const std::ffi::c_char = $fmt;
-        #[cfg(not(test))]
         {
             if $crate::message::emsg_not_now() {
                 let _ = (kind_ptr, fmt_ptr $(, $crate::strings::IntoFmtVal::into_fmt_val($arg))*);
@@ -332,11 +313,6 @@ macro_rules! semsg_multiline {
                 );
                 $crate::message::emsg_multiline(errbuf.as_ptr(), kind_ptr, 6, true)
             }
-        }
-        #[cfg(test)]
-        {
-            let _ = (kind_ptr, fmt_ptr $(, $crate::strings::IntoFmtVal::into_fmt_val($arg))*);
-            false
         }
     }};
 }
@@ -354,7 +330,6 @@ pub use siemsg;
 macro_rules! msg_schedule_semsg {
     ($fmt:expr $(, $arg:expr)* $(,)?) => {{
         let fmt_ptr: *const std::ffi::c_char = $fmt;
-        #[cfg(not(test))]
         {
             $crate::strings::vim_snprintf!(
                 (&raw mut $crate::globals::IObuff).cast::<std::ffi::c_char>(),
@@ -366,8 +341,6 @@ macro_rules! msg_schedule_semsg {
                 (&raw const $crate::globals::IObuff).cast::<std::ffi::c_char>(),
             );
         }
-        #[cfg(test)]
-        let _ = (fmt_ptr $(, $crate::strings::IntoFmtVal::into_fmt_val($arg))*);
     }};
 }
 pub use msg_schedule_semsg;
@@ -376,7 +349,6 @@ pub use msg_schedule_semsg;
 macro_rules! msg_schedule_semsg_multiline {
     ($fmt:expr $(, $arg:expr)* $(,)?) => {{
         let fmt_ptr: *const std::ffi::c_char = $fmt;
-        #[cfg(not(test))]
         {
             $crate::strings::vim_snprintf!(
                 (&raw mut $crate::globals::IObuff).cast::<std::ffi::c_char>(),
@@ -388,8 +360,6 @@ macro_rules! msg_schedule_semsg_multiline {
                 (&raw const $crate::globals::IObuff).cast::<std::ffi::c_char>(),
             );
         }
-        #[cfg(test)]
-        let _ = (fmt_ptr $(, $crate::strings::IntoFmtVal::into_fmt_val($arg))*);
     }};
 }
 pub use msg_schedule_semsg_multiline;
@@ -399,7 +369,6 @@ macro_rules! swmsg {
     ($hl:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
         let hl_val: bool = $hl;
         let fmt_ptr: *const std::ffi::c_char = $fmt;
-        #[cfg(not(test))]
         {
             $crate::strings::vim_snprintf!(
                 (&raw mut $crate::globals::IObuff).cast::<std::ffi::c_char>(),
@@ -413,8 +382,6 @@ macro_rules! swmsg {
                 true,
             );
         }
-        #[cfg(test)]
-        let _ = (hl_val, fmt_ptr $(, $crate::strings::IntoFmtVal::into_fmt_val($arg))*);
     }};
 }
 use crate::api::ui::MAX_SCHAR_SIZE;
@@ -450,7 +417,7 @@ unsafe fn msgchunk_text_ptr(mp: *mut msgchunk_T) -> *mut c_char {
 }
 
 /// Returns true if the given integer message-id was previously generated.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_id_exists(id: i64) -> bool {
     unsafe { id > 0 && id < msg_id_next }
 }
@@ -474,7 +441,7 @@ unsafe fn ui_ext_msg_set_pos(row: c_int, scrolled: bool) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_grid_set_pos(row: c_int, scrolled: bool) {
     unsafe {
         if !msg_grid.throttled {
@@ -488,12 +455,12 @@ pub unsafe extern "C" fn msg_grid_set_pos(row: c_int, scrolled: bool) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_use_grid() -> bool {
     unsafe { !default_grid.chars.is_null() && !ui_has(kUIMessages) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_grid_validate() {
     unsafe {
         grid_assign_handle(&raw mut msg_grid);
@@ -566,7 +533,7 @@ pub unsafe extern "C" fn msg_grid_validate() {
 }
 
 /// Like msg() but keep it silent when 'verbosefile' is set.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn verb_msg(s: *const c_char) -> c_int {
     unsafe {
         verbose_enter();
@@ -580,13 +547,13 @@ pub unsafe extern "C" fn verb_msg(s: *const c_char) -> c_int {
 /// When terminal not initialized (yet) printf("%s", ..) is used.
 ///
 /// @return  true if wait_return() not called
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg(s: *const c_char, hl_id: c_int) -> bool {
     unsafe { msg_keep(s, hl_id, false, false) }
 }
 
 /// Similar to msg_outtrans_len, but support newlines and tabs.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_multiline(
     str_: NvimString,
     hl_id: c_int,
@@ -698,7 +665,7 @@ unsafe fn format_progress_message(hl_msg: *mut HlMessage, msg_data: *mut Message
 }
 
 /// Print message chunks, each with their own highlight ID.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_multihl(
     mut id: MsgID,
     mut hl_msg: HlMessage,
@@ -792,7 +759,7 @@ pub unsafe extern "C" fn msg_multihl(
 }
 
 /// @param keep set keep_msg if it doesn't scroll
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_keep(
     mut s: *const c_char,
     hl_id: c_int,
@@ -873,7 +840,7 @@ pub unsafe extern "C" fn msg_keep(
 /// @return  an allocated string or NULL when no truncating is done.
 ///
 /// @param force  always truncate
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_strtrunc(s: *const c_char, force: c_int) -> *mut c_char {
     unsafe {
         let mut buf: *mut c_char = ptr::null_mut();
@@ -913,7 +880,7 @@ pub unsafe extern "C" fn msg_strtrunc(s: *const c_char, force: c_int) -> *mut c_
 
 /// Truncate a string "s" to "buf" with cell width "room".
 /// "s" and "buf" may be equal.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn trunc_string(
     s: *const c_char,
     buf: *mut c_char,
@@ -1009,7 +976,7 @@ pub unsafe extern "C" fn trunc_string(
 
 /// Reset the last used sourcing name/lnum.  Makes sure it is displayed again
 /// for the next error message;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn reset_last_sourcing() {
     unsafe {
         xfree(last_sourcing_name.cast());
@@ -1082,7 +1049,7 @@ unsafe fn get_emsg_lnum() -> *mut c_char {
 /// Display name and line number for the source of an error.
 /// Remember the file name and line number, so that for the next error the info
 /// is only displayed if it changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_source(hl_id: c_int) {
     unsafe {
         // Bail out if something called here causes an error.
@@ -1127,7 +1094,7 @@ pub unsafe extern "C" fn msg_source(hl_id: c_int) {
 ///            If "emsg_off" is set: no error messages at the moment.
 ///            If "msg" is in 'debug': do error message but without side effects.
 ///            If "emsg_skip" is set: never do error messages.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn emsg_not_now() -> bool {
     unsafe {
         (emsg_off > 0
@@ -1137,7 +1104,7 @@ pub unsafe extern "C" fn emsg_not_now() -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn emsg_multiline(
     s: *const c_char,
     kind: *const c_char,
@@ -1297,12 +1264,12 @@ pub unsafe extern "C" fn emsg_multiline(
 }
 
 /// emsg() - display an error message
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn emsg(s: *const c_char) -> bool {
     unsafe { emsg_multiline(s, c"emsg".as_ptr(), HLF_E, false) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn emsg_invreg(name: c_int) {
     unsafe {
         semsg!(
@@ -1315,7 +1282,7 @@ pub unsafe extern "C" fn emsg_invreg(name: c_int) {
 /// Same as emsg(...), but abort on error when ABORT_ON_INTERNAL_ERROR is
 /// defined. It is used for internal errors only, so that they can be
 /// detected when fuzzing vim.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn iemsg(s: *const c_char) {
     unsafe {
         if emsg_not_now() {
@@ -1326,7 +1293,7 @@ pub unsafe extern "C" fn iemsg(s: *const c_char) {
 }
 
 /// Give an "Internal error" message.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn internal_error(where_: *const c_char) {
     unsafe {
         siemsg!(gettext(e_intern2.as_ptr()), where_);
@@ -1341,7 +1308,7 @@ unsafe extern "C" fn msg_semsg_event(argv: *mut *mut c_void) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_schedule_semsg_cstr(s: *const c_char) {
     unsafe {
         let dup = xstrdup(s);
@@ -1365,7 +1332,7 @@ unsafe extern "C" fn msg_semsg_multiline_event(argv: *mut *mut c_void) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_schedule_semsg_multiline_cstr(s: *const c_char) {
     unsafe {
         let dup = xstrdup(s);
@@ -1386,7 +1353,7 @@ pub unsafe extern "C" fn msg_schedule_semsg_multiline_cstr(s: *const c_char) {
 /// Careful: The string may be changed by msg_may_trunc()!
 ///
 /// @return  a pointer to the printed message, if wait_return() not called.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_trunc(s: *mut c_char, force: bool, hl_id: c_int) -> *mut c_char {
     unsafe {
         // Add message to history before truncating.
@@ -1407,7 +1374,7 @@ pub unsafe extern "C" fn msg_trunc(s: *mut c_char, force: bool, hl_id: c_int) ->
 /// @return  a pointer to where the truncated message starts.
 ///
 /// @note: May change the message by replacing a character with '<'.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_may_trunc(force: bool, mut s: *mut c_char) -> *mut c_char {
     unsafe {
         if ui_has(kUIMessages) {
@@ -1440,7 +1407,7 @@ pub unsafe extern "C" fn msg_may_trunc(force: bool, mut s: *mut c_char) -> *mut 
 
 /// Shows a progress-message.  A non-"running" `status` ends the message and announces the
 /// progress task as "done".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_progress(
     s: *mut c_char,
     id: *mut c_char,
@@ -1476,7 +1443,7 @@ pub unsafe extern "C" fn msg_progress(
 }
 
 /// Shows message `s` with `id`: replaces the message with the same `id`, if any.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_with_id(
     mut s: *mut c_char,
     id: *mut c_char,
@@ -1525,7 +1492,7 @@ pub unsafe extern "C" fn msg_with_id(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn hl_msg_free(mut hl_msg: HlMessage) {
     unsafe {
         for i in 0..hl_msg.size {
@@ -1567,7 +1534,7 @@ unsafe fn msg_hist_add(mut s: *const c_char, len: c_int, hl_id: c_int) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn do_autocmd_progress(
     msg_id: MsgID,
     msg: HlMessage,
@@ -1762,7 +1729,7 @@ unsafe fn msg_hist_free_msg(entry: *mut MessageHistoryEntry) {
 }
 
 /// Delete oldest messages from the history until there are "keep" messages.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_hist_clear(keep: c_int) {
     unsafe {
         while msg_hist_len > keep || (keep == 0 && !msg_hist_first.is_null()) {
@@ -1772,7 +1739,7 @@ pub unsafe extern "C" fn msg_hist_clear(keep: c_int) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_hist_clear_temp() {
     unsafe {
         while !msg_hist_temp.is_null() {
@@ -1786,7 +1753,7 @@ pub unsafe extern "C" fn msg_hist_clear_temp() {
 }
 
 /// Check the 'messagesopt' fields after schema validation.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_messagesopt(args: *mut optset_T) -> *const c_char {
     unsafe {
         let v = opt_keyset(
@@ -1812,7 +1779,7 @@ pub unsafe extern "C" fn validate_messagesopt(args: *mut optset_T) -> *const c_c
 }
 
 /// Process the updated 'messagesopt' option value.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_messagesopt(_args: *mut optset_T) -> *const c_char {
     unsafe {
         let v = opt_keyset(p_mopt, kOptMessagesopt, ptr::null_mut()).cast::<OptKeyDict_mopt>();
@@ -1831,7 +1798,7 @@ pub unsafe extern "C" fn did_set_messagesopt(_args: *mut optset_T) -> *const c_c
 }
 
 /// :messages command implementation
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_messages(eap: *mut exarg_T) {
     unsafe {
         if CStr::from_ptr((*eap).arg) == c"clear" {
@@ -1949,7 +1916,7 @@ pub unsafe extern "C" fn ex_messages(eap: *mut exarg_T) {
 
 /// Call this after prompting the user.  This will avoid a hit-return message
 /// and a delay.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_end_prompt() {
     unsafe {
         need_wait_return = false;
@@ -1966,7 +1933,7 @@ pub unsafe extern "C" fn msg_end_prompt() {
 /// @param redraw  if true, redraw the entire screen UPD_NOT_VALID
 ///                if false, do a normal redraw
 ///                if -1, don't redraw at all
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn wait_return(redraw: c_int) {
     unsafe {
         let mut c: c_int;
@@ -2189,7 +2156,7 @@ unsafe fn hit_return_msg(newline_sb: bool) {
 }
 
 /// Set "keep_msg" to "s".  Free the old value and check for NULL pointer.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_keep_msg(s: *const c_char, hl_id: c_int) {
     unsafe {
         if ui_has(kUIMessages) {
@@ -2208,12 +2175,12 @@ pub unsafe extern "C" fn set_keep_msg(s: *const c_char, hl_id: c_int) {
 }
 
 /// Return true if printing messages should currently be done.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn messaging() -> bool {
     unsafe { !(p_lz != 0 && char_avail() && !KeyTyped) && (p_ch > 0 || ui_has(kUIMessages)) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msgmore(n: c_int) {
     unsafe {
         if global_busy != 0 || !messaging() {
@@ -2262,7 +2229,7 @@ pub unsafe extern "C" fn msgmore(n: c_int) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_ext_set_kind(msg_kind: *const c_char) {
     unsafe {
         msg_ext_ui_flush();
@@ -2275,7 +2242,7 @@ pub unsafe extern "C" fn msg_ext_set_kind(msg_kind: *const c_char) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_ext_set_append(append: bool) {
     unsafe {
         msg_ext_ui_flush();
@@ -2283,7 +2250,7 @@ pub unsafe extern "C" fn msg_ext_set_append(append: bool) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_ext_set_trigger(trigger: *const c_char) {
     unsafe {
         msg_ext_ui_flush();
@@ -2292,7 +2259,7 @@ pub unsafe extern "C" fn msg_ext_set_trigger(trigger: *const c_char) {
 }
 
 // Should be executed at all callsites emitting non-internal messages.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_ext_no_fast() {
     unsafe {
         msg_ext_ui_flush();
@@ -2301,7 +2268,7 @@ pub unsafe extern "C" fn msg_ext_no_fast() {
 }
 
 /// Prepare for outputting characters in the command line.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_start() {
     unsafe {
         let mut did_return = false;
@@ -2364,7 +2331,7 @@ pub unsafe extern "C" fn msg_start() {
 }
 
 /// Note that the current msg position is where messages start.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_starthere() {
     unsafe {
         lines_left = cmdline_row;
@@ -2372,14 +2339,14 @@ pub unsafe extern "C" fn msg_starthere() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_putchar(c: c_int) {
     unsafe {
         msg_putchar_hl(c, 0);
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_putchar_hl(c: c_int, hl_id: c_int) {
     unsafe {
         let mut buf = [0 as c_char; MB_MAXCHAR + 1];
@@ -2397,7 +2364,7 @@ pub unsafe extern "C" fn msg_putchar_hl(c: c_int, hl_id: c_int) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_outnum(n: c_int) {
     unsafe {
         let mut buf = [0 as c_char; 20];
@@ -2406,7 +2373,7 @@ pub unsafe extern "C" fn msg_outnum(n: c_int) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_home_replace(fname: *const c_char) {
     unsafe {
         msg_home_replace_hl(fname, 0);
@@ -2425,7 +2392,7 @@ unsafe fn msg_home_replace_hl(fname: *const c_char, hl_id: c_int) {
 /// if "len" is -1, output up to a NUL character. Use highlight "hl_id".
 ///
 /// @return  the number of characters it takes on the screen.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_outtrans(str_: *const c_char, hl_id: c_int, hist: bool) -> c_int {
     unsafe {
         msg_outtrans_len(
@@ -2441,7 +2408,7 @@ pub unsafe extern "C" fn msg_outtrans(str_: *const c_char, hl_id: c_int, hist: b
 /// Handles multi-byte characters.
 ///
 /// @return  pointer to the next character.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_outtrans_one(
     p: *const c_char,
     hl_id: c_int,
@@ -2462,7 +2429,7 @@ pub unsafe extern "C" fn msg_outtrans_one(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_outtrans_len(
     msgstr: *const c_char,
     mut len: c_int,
@@ -2544,7 +2511,7 @@ pub unsafe extern "C" fn msg_outtrans_len(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_make(mut arg: *const c_char) {
     unsafe {
         const STR: &[u8; 6] = b"eeffoc";
@@ -2570,7 +2537,7 @@ pub unsafe extern "C" fn msg_make(mut arg: *const c_char) {
 
 /// Output the string 'str' up to a NUL character.
 /// Return the number of characters it takes on the screen.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_outtrans_special(
     strstart: *const c_char,
     from: bool,
@@ -2615,7 +2582,7 @@ pub unsafe extern "C" fn msg_outtrans_special(
 }
 
 /// Convert string, replacing key codes with printables
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn str2special_save(
     str_: *const c_char,
     replace_spaces: bool,
@@ -2644,7 +2611,7 @@ pub unsafe extern "C" fn str2special_save(
 }
 
 /// Convert string, replacing key codes with printables
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn str2special_arena(
     str_: *const c_char,
     replace_spaces: bool,
@@ -2674,7 +2641,7 @@ pub unsafe extern "C" fn str2special_arena(
 }
 
 /// Convert character, replacing key with printable representation.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn str2special(
     sp: *mut *const c_char,
     replace_spaces: bool,
@@ -2771,7 +2738,7 @@ pub unsafe extern "C" fn str2special(
 }
 
 /// Convert string, replacing key codes with printables
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn str2specialbuf(
     mut sp: *const c_char,
     mut buf: *mut c_char,
@@ -2793,7 +2760,7 @@ pub unsafe extern "C" fn str2specialbuf(
 }
 
 /// print line for :print or :list command
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_prt_line(mut s: *const c_char, mut list: bool) {
     unsafe {
         let mut sc: schar_T;
@@ -2990,14 +2957,14 @@ pub unsafe extern "C" fn msg_prt_line(mut s: *const c_char, mut list: bool) {
 
 /// Output a string to the screen at position msg_row, msg_col.
 /// Update msg_row and msg_col for the next message.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_puts(s: *const c_char) {
     unsafe {
         msg_puts_hl(s, 0, false);
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_puts_title(mut s: *const c_char) {
     unsafe {
         if ui_has(kUIMessages) && *s == NL as c_char {
@@ -3010,7 +2977,7 @@ pub unsafe extern "C" fn msg_puts_title(mut s: *const c_char) {
 /// Show a message in such a way that it always fits in the line.  Cut out a
 /// part in the middle and replace it with "..." when necessary.
 /// Does not handle multi-byte characters!
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_outtrans_long(longstr: *const c_char, hl_id: c_int) {
     unsafe {
         let len = CStr::from_ptr(longstr).to_bytes().len() as c_int;
@@ -3026,7 +2993,7 @@ pub unsafe extern "C" fn msg_outtrans_long(longstr: *const c_char, hl_id: c_int)
 }
 
 /// Basic function for writing a message with highlight id.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_puts_hl(s: *const c_char, hl_id: c_int, hist: bool) {
     unsafe {
         msg_puts_len(s, -1, hl_id, hist);
@@ -3034,7 +3001,7 @@ pub unsafe extern "C" fn msg_puts_hl(s: *const c_char, hl_id: c_int, hist: bool)
 }
 
 /// Write a message with highlight id.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_puts_len(str_: *const c_char, len: isize, hl_id: c_int, hist: bool) {
     unsafe {
         assert!(
@@ -3294,7 +3261,7 @@ unsafe fn msg_puts_display(str_: *const c_char, maxlen: c_int, hl_id: c_int, rec
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_line_flush() {
     unsafe {
         if cmdmsg_rl {
@@ -3304,7 +3271,7 @@ pub unsafe extern "C" fn msg_line_flush() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_cursor_goto(mut row: c_int, mut col: c_int) {
     unsafe {
         if cmdmsg_rl {
@@ -3317,7 +3284,7 @@ pub unsafe extern "C" fn msg_cursor_goto(mut row: c_int, mut col: c_int) {
 
 /// @return  true when ":filter pattern" was used and "msg" does not match
 ///          "pattern".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn message_filtered(msg: *const c_char) -> bool {
     unsafe {
         if cmdmod.cmod_filter_regmatch.regprog.is_null() {
@@ -3334,18 +3301,18 @@ pub unsafe extern "C" fn message_filtered(msg: *const c_char) -> bool {
 }
 
 /// including horizontal separator
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_scrollsize() -> c_int {
     unsafe { msg_scrolled + p_ch as c_int + c_int::from(p_ch > 0 || msg_scrolled > 1) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_do_throttle() -> bool {
     unsafe { msg_use_grid() && (rdb_flags & kOptRdbFlagNothrottle) == 0 }
 }
 
 /// Scroll the screen up one line for displaying the next message line.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_scroll_up(may_throttle: bool, zerocmd: bool) {
     unsafe {
         if may_throttle && msg_do_throttle() {
@@ -3385,7 +3352,7 @@ pub unsafe extern "C" fn msg_scroll_up(may_throttle: bool, zerocmd: bool) {
 }
 
 /// Send throttled message output to UI clients
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_scroll_flush() {
     unsafe {
         if msg_grid.throttled {
@@ -3435,7 +3402,7 @@ pub unsafe extern "C" fn msg_scroll_flush() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_reset_scroll() {
     unsafe {
         if ui_has(kUIMessages) {
@@ -3461,7 +3428,7 @@ pub unsafe extern "C" fn msg_reset_scroll() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_ui_refresh() {
     unsafe {
         if ui_has(kUIMultigrid) && !msg_grid.chars.is_null() {
@@ -3475,7 +3442,7 @@ pub unsafe extern "C" fn msg_ui_refresh() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_ui_flush() {
     unsafe {
         if ui_has(kUIMultigrid) && !msg_grid.chars.is_null() && msg_grid.pending_comp_index_update {
@@ -3565,7 +3532,7 @@ unsafe fn store_sb_text(
 }
 
 /// Finished showing messages, clear the scroll-back text on the next message.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn may_clear_sb_text() {
     unsafe {
         msg_ext_ui_flush();
@@ -3575,7 +3542,7 @@ pub unsafe extern "C" fn may_clear_sb_text() {
 }
 
 /// Starting to edit the command line: do not clear messages now.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sb_text_start_cmdline() {
     unsafe {
         if do_clear_sb_text == sb_clear_T::SB_CLEAR_CMDLINE_BUSY {
@@ -3588,7 +3555,7 @@ pub unsafe extern "C" fn sb_text_start_cmdline() {
 }
 
 /// Redrawing the command line: clear the last unfinished line.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sb_text_restart_cmdline() {
     unsafe {
         do_clear_sb_text = sb_clear_T::SB_CLEAR_CMDLINE_BUSY;
@@ -3611,7 +3578,7 @@ pub unsafe extern "C" fn sb_text_restart_cmdline() {
 }
 
 /// Ending to edit the command line: clear old lines but the last one later.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sb_text_end_cmdline() {
     unsafe {
         do_clear_sb_text = sb_clear_T::SB_CLEAR_CMDLINE_DONE;
@@ -3619,7 +3586,7 @@ pub unsafe extern "C" fn sb_text_end_cmdline() {
 }
 
 /// Clear any text remembered for scrolling back.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn clear_sb_text(all: bool) {
     unsafe {
         let lastp: *mut *mut msgchunk_T = if all {
@@ -3640,7 +3607,7 @@ pub unsafe extern "C" fn clear_sb_text(all: bool) {
 }
 
 /// "g<" command.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn show_sb_text() {
     unsafe {
         if ui_has(kUIMessages) {
@@ -3672,7 +3639,7 @@ unsafe fn msg_sb_start(mps: *mut msgchunk_T) -> *mut msgchunk_T {
 }
 
 /// Mark the last message chunk as finishing the line.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_sb_eol() {
     unsafe {
         if !last_msgchunk.is_null() {
@@ -3700,7 +3667,7 @@ unsafe fn disp_sb_line(row: c_int, smp: *mut msgchunk_T) -> *mut msgchunk_T {
 }
 
 /// @return  true when messages should be printed to stdout/stderr
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_use_printf() -> c_int {
     unsafe { c_int::from(!embedded_mode && ui_active() == 0 && !ui_has(kUIMessages)) }
 }
@@ -4004,7 +3971,7 @@ unsafe fn msg_moremsg(full: bool) {
 
 /// Repeat the message for the current mode: MODE_ASKMORE, MODE_EXTERNCMD,
 /// or confirm() prompt.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn repeat_message() {
     unsafe {
         if ui_has(kUIMessages) {
@@ -4033,7 +4000,7 @@ pub unsafe extern "C" fn repeat_message() {
 
 /// Clear from current message position to end of screen.
 /// Skip this when ":silent" was used, no need to clear for redirection.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_clr_eos() {
     unsafe {
         if msg_silent == 0 {
@@ -4043,7 +4010,7 @@ pub unsafe extern "C" fn msg_clr_eos() {
 }
 
 /// Clear from current message position to end of screen.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_clr_eos_force() {
     unsafe {
         if ui_has(kUIMessages) {
@@ -4090,7 +4057,7 @@ pub unsafe extern "C" fn msg_clr_eos_force() {
 }
 
 /// Clear the command line.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_clr_cmdline() {
     unsafe {
         msg_row = cmdline_row;
@@ -4103,7 +4070,7 @@ pub unsafe extern "C" fn msg_clr_cmdline() {
 /// call wait_return() if the message does not fit in the available space
 ///
 /// @return  true if wait_return() not called.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_end() -> bool {
     unsafe {
         if !exiting && need_wait_return && (State & MODE_CMDLINE) == 0 {
@@ -4127,7 +4094,7 @@ unsafe fn msg_ext_init_chunks() -> *mut Array {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_ext_ui_flush() {
     unsafe {
         if !ui_has(kUIMessages) {
@@ -4187,7 +4154,7 @@ pub unsafe extern "C" fn msg_ext_ui_flush() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_ext_flush_showmode() {
     unsafe {
         if ui_has(kUIMessages) && (msg_ext_last_attr != -1 || SHOWMODE_CLEAR) {
@@ -4203,7 +4170,7 @@ pub unsafe extern "C" fn msg_ext_flush_showmode() {
 
 /// If the written message runs into the shown command or ruler, we have to
 /// wait for hit-return and redraw the window later.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_check() {
     unsafe {
         if ui_has(kUIMessages) {
@@ -4292,7 +4259,7 @@ unsafe fn redir_write(str_: *const c_char, maxlen: isize) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn redirecting() -> c_int {
     unsafe {
         c_int::from(
@@ -4307,7 +4274,7 @@ pub unsafe extern "C" fn redirecting() -> c_int {
 
 /// Before giving verbose message.
 /// Must always be called paired with verbose_leave()!
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn verbose_enter() {
     unsafe {
         if *p_vfile != NUL {
@@ -4325,7 +4292,7 @@ pub unsafe extern "C" fn verbose_enter() {
 
 /// After giving verbose message.
 /// Must always be called paired with verbose_enter()!
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn verbose_leave() {
     unsafe {
         if *p_vfile != NUL {
@@ -4342,7 +4309,7 @@ pub unsafe extern "C" fn verbose_leave() {
 }
 
 /// Like verbose_enter() and set msg_scroll when displaying the message.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn verbose_enter_scroll() {
     unsafe {
         verbose_enter();
@@ -4353,7 +4320,7 @@ pub unsafe extern "C" fn verbose_enter_scroll() {
 }
 
 /// Like verbose_leave() and set cmdline_row when displaying the message.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn verbose_leave_scroll() {
     unsafe {
         verbose_leave();
@@ -4364,7 +4331,7 @@ pub unsafe extern "C" fn verbose_leave_scroll() {
 }
 
 /// Called when 'verbosefile' is set: stop writing to the file.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn verbose_stop() {
     unsafe {
         if !verbose_fd.is_null() {
@@ -4378,7 +4345,7 @@ pub unsafe extern "C" fn verbose_stop() {
 /// Open the file 'verbosefile'.
 ///
 /// @return  FAIL or OK.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn verbose_open() -> c_int {
     unsafe {
         if verbose_fd.is_null() && !verbose_did_open {
@@ -4396,7 +4363,7 @@ pub unsafe extern "C" fn verbose_open() -> c_int {
 
 /// Give a warning message (for searching).
 /// Use 'w' highlighting and may repeat the message after redrawing
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn give_warning(message: *const c_char, hl: bool, hist: bool) {
     unsafe {
         if msg_silent != 0 {
@@ -4434,7 +4401,7 @@ pub unsafe extern "C" fn give_warning(message: *const c_char, hl: bool, hist: bo
 }
 
 /// Advance msg cursor to column "col".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_advance(mut col: c_int) {
     unsafe {
         if msg_silent != 0 {
@@ -4449,7 +4416,7 @@ pub unsafe extern "C" fn msg_advance(mut col: c_int) {
 }
 
 /// Display the ":confirm" message.  Also called from do_dialog() and when screen resized.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn display_confirm_msg() {
     unsafe {
         confirm_msg_used += 1;
@@ -4462,7 +4429,7 @@ pub unsafe extern "C" fn display_confirm_msg() {
 }
 
 /// Only for legacy UI (`!ui_has(kUIMessages)`): Pause to display a message for `ms` milliseconds.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_delay(mut ms: u64, ignoreinput: bool) {
     unsafe {
         if ui_has(kUIMessages) {
@@ -4493,7 +4460,7 @@ pub unsafe extern "C" fn msg_delay(mut ms: u64, ignoreinput: bool) {
 }
 
 /// Check if there should be a delay to allow the user to see a message.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msg_check_for_delay(check_msg_scroll: bool) {
     unsafe {
         if (emsg_on_display || (check_msg_scroll && msg_scroll != 0))

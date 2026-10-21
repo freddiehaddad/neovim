@@ -1,9 +1,7 @@
 //! Functions for calling external native shared libraries (`src/nvim/os/dl.c`).
 
-#[cfg(not(test))]
 use crate::event::r#loop::{uv_dlclose, uv_dlerror, uv_dlopen, uv_dlsym};
 use crate::memory::xstrdup;
-#[cfg(not(test))]
 use crate::message::semsg;
 use std::ffi::{c_char, c_int, c_void};
 
@@ -30,22 +28,6 @@ pub unsafe extern "C" fn os_libcall(
         return false;
     }
 
-    #[cfg(test)]
-    {
-        let _ = (
-            argv,
-            argi,
-            str_out,
-            int_out,
-            xstrdup,
-            UvLib {
-                _opaque: [std::ptr::null_mut(); 4],
-            },
-        );
-        false
-    }
-
-    #[cfg(not(test))]
     unsafe {
         let mut lib = UvLib {
             _opaque: [std::ptr::null_mut(); 4],

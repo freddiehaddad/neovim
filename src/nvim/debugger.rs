@@ -2,101 +2,57 @@
 
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
-#[cfg(not(test))]
 use crate::charset::{getdigits_int32, skipwhite};
-#[cfg(not(test))]
 use crate::drawscreen::{UPD_NOT_VALID, redraw_all_later};
-use crate::eval::typval::typval_T;
-#[cfg(not(test))]
-use crate::eval::typval::{Callback, tv_free};
-#[cfg(not(test))]
+use crate::eval::typval::{Callback, tv_free, typval_T};
 use crate::eval::{EXPR_IS, eval_expr, typval_compare, typval_tostring};
-#[cfg(not(test))]
-use crate::ex_docmd::{DOCMD_EXCRESET, do_cmdline, do_cmdline_cmd};
-#[cfg(not(test))]
+use crate::ex_docmd::{DOCMD_EXCRESET, do_cmdline, do_cmdline_cmd, exarg_T as exarg_Full};
 use crate::ex_getln::{getcmdline_prompt, getexline};
-#[cfg(not(test))]
 use crate::fileio::file_pat_to_reg_pat;
-#[cfg(not(test))]
 use crate::garray::{ga_clear, ga_grow, garray_T};
-#[cfg(not(test))]
 use crate::globals::*;
-#[cfg(not(test))]
-use crate::input::{restore_typeahead, save_typeahead};
-#[cfg(not(test))]
+use crate::input::{restore_typeahead, save_typeahead, tasave_T};
 use crate::math::{FAIL, OK};
-#[cfg(not(test))]
 use crate::memory::{xfree, xmalloc, xstrdup};
-#[cfg(not(test))]
 use crate::message::{emsg, msg, msg_starthere, semsg, smsg};
-#[cfg(not(test))]
 use crate::os::env::{expand_env_save, home_replace};
-#[cfg(not(test))]
 use crate::path::fix_fname;
-#[cfg(not(test))]
 use crate::regexp::{RE_MAGIC, RE_STRING, vim_regcomp, vim_regexec_prog, vim_regfree};
-#[cfg(not(test))]
 use crate::runtime::{ESTACK_NONE, estack_sfile, sourcing_lnum};
-#[cfg(not(test))]
-use std::ffi::c_void;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
-#[cfg(not(test))]
 const DBG_FUNC: c_int = 1;
-#[cfg(not(test))]
 const DBG_FILE: c_int = 2;
-#[cfg(not(test))]
 const DBG_EXPR: c_int = 3;
 
-#[cfg(not(test))]
 const CMD_BREAKDEL: c_int = 38;
-#[cfg(not(test))]
 const CMD_PROFILE: c_int = 338;
-#[cfg(not(test))]
 const CMD_PROFDEL: c_int = 339;
 
-#[cfg(not(test))]
 const CMD_CONT: c_int = 1;
-#[cfg(not(test))]
 const CMD_NEXT: c_int = 2;
-#[cfg(not(test))]
 const CMD_STEP: c_int = 3;
-#[cfg(not(test))]
 const CMD_FINISH: c_int = 4;
-#[cfg(not(test))]
 const CMD_QUIT: c_int = 5;
-#[cfg(not(test))]
 const CMD_INTERRUPT: c_int = 6;
-#[cfg(not(test))]
 const CMD_BACKTRACE: c_int = 7;
-#[cfg(not(test))]
 const CMD_FRAME: c_int = 8;
-#[cfg(not(test))]
 const CMD_UP: c_int = 9;
-#[cfg(not(test))]
 const CMD_DOWN: c_int = 10;
 
 static DEBUG_GREEDY: AtomicBool = AtomicBool::new(false);
-#[cfg(not(test))]
 static LAST_CMD: AtomicI32 = AtomicI32::new(0);
-#[cfg(not(test))]
 static LAST_BREAKP: AtomicI32 = AtomicI32::new(0);
-#[cfg(not(test))]
 static HAS_EXPR_BREAKPOINT: AtomicBool = AtomicBool::new(false);
-#[cfg(not(test))]
 static DEBUG_SKIPPED: AtomicBool = AtomicBool::new(false);
 static DEBUG_BREAKPOINT_LNUM: AtomicI32 = AtomicI32::new(0);
 
-#[cfg(not(test))]
 static mut DEBUG_OLDVAL: *mut c_char = std::ptr::null_mut();
-#[cfg(not(test))]
 static mut DEBUG_NEWVAL: *mut c_char = std::ptr::null_mut();
 static mut DEBUG_BREAKPOINT_NAME: *mut c_char = std::ptr::null_mut();
-#[cfg(not(test))]
 static mut DEBUG_SKIPPED_NAME: *mut c_char = std::ptr::null_mut();
 
-#[cfg(not(test))]
 static mut DBG_BREAKP: garray_T = garray_T {
     ga_len: 0,
     ga_maxlen: 0,
@@ -105,7 +61,6 @@ static mut DBG_BREAKP: garray_T = garray_T {
     ga_data: std::ptr::null_mut(),
 };
 
-#[cfg(not(test))]
 static mut PROF_GA: garray_T = garray_T {
     ga_len: 0,
     ga_maxlen: 0,
@@ -127,23 +82,12 @@ pub struct debuggy {
     pub dbg_level: c_int,
 }
 
-use crate::ex_docmd::exarg_T as exarg_Full;
-
-#[cfg(not(test))]
-use crate::input::tasave_T;
-
-#[cfg(not(test))]
 use crate::autocmd::DOCMD_VERBOSE;
-#[cfg(not(test))]
 use crate::cmdexpand::EXPAND_NOTHING;
-#[cfg(not(test))]
 use crate::keycodes::{K_SPECIAL, KE_SNR, KS_EXTRA};
-#[cfg(not(test))]
 use crate::os::fs::MAXPATHL;
-#[cfg(not(test))]
 use crate::state::MODE_NORMAL;
 
-#[cfg(not(test))]
 #[inline]
 fn atoi_cstr(s: *const c_char) -> c_int {
     let text = unsafe { CStr::from_ptr(s).to_string_lossy() };
@@ -168,7 +112,6 @@ fn atoi_cstr(s: *const c_char) -> c_int {
     val.wrapping_mul(sign)
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn debuggy_at(gap: *mut garray_T, idx: c_int) -> *mut debuggy {
     unsafe { (*gap).ga_data.cast::<debuggy>().add(idx as usize) }
@@ -192,7 +135,6 @@ unsafe fn get_maxbacktrace_level(sname: *const c_char) -> c_int {
     count
 }
 
-#[cfg(not(test))]
 unsafe fn do_checkbacktracelevel() {
     unsafe {
         if debug_backtrace_level < 0 {
@@ -210,7 +152,6 @@ unsafe fn do_checkbacktracelevel() {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn do_setdebugtracelevel(arg: *mut c_char) {
     unsafe {
         let level = atoi_cstr(arg);
@@ -223,7 +164,6 @@ unsafe fn do_setdebugtracelevel(arg: *mut c_char) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn do_showbacktrace(cmd: *const c_char) {
     unsafe {
         let sname = estack_sfile(ESTACK_NONE);
@@ -266,10 +206,6 @@ unsafe fn do_showbacktrace(cmd: *const c_char) {
 /// Interactive debug mode loop (`do_debug`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn do_debug(cmd: *mut c_char) {
-    #[cfg(test)]
-    let _ = cmd;
-
-    #[cfg(not(test))]
     unsafe {
         let save_msg_scroll = msg_scroll;
         let save_state = State;
@@ -495,10 +431,6 @@ pub unsafe extern "C" fn do_debug(cmd: *mut c_char) {
 /// `:debug` command (`ex_debug`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_debug(eap: *mut exarg_Full) {
-    #[cfg(test)]
-    let _ = eap;
-
-    #[cfg(not(test))]
     unsafe {
         let save = debug_break_level;
         debug_break_level = 9999;
@@ -510,10 +442,6 @@ pub unsafe extern "C" fn ex_debug(eap: *mut exarg_Full) {
 /// Check if a breakpoint or debug break level was hit (`dbg_check_breakpoint`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn dbg_check_breakpoint(eap: *mut exarg_Full) {
-    #[cfg(test)]
-    let _ = eap;
-
-    #[cfg(not(test))]
     unsafe {
         DEBUG_SKIPPED.store(false, Ordering::Relaxed);
         let eap = &mut *eap;
@@ -552,12 +480,6 @@ pub unsafe extern "C" fn dbg_check_breakpoint(eap: *mut exarg_Full) {
 /// Enter debug mode if previously skipped by `dbg_check_breakpoint()` (`dbg_check_skipped`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn dbg_check_skipped(eap: *mut exarg_Full) -> bool {
-    #[cfg(test)]
-    {
-        let _ = eap;
-        false
-    }
-    #[cfg(not(test))]
     unsafe {
         if !DEBUG_SKIPPED.load(Ordering::Relaxed) {
             return false;
@@ -573,7 +495,6 @@ pub unsafe extern "C" fn dbg_check_skipped(eap: *mut exarg_Full) -> bool {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn eval_expr_no_emsg(bp: &debuggy) -> *mut typval_T {
     unsafe {
         emsg_off += 1;
@@ -583,7 +504,6 @@ unsafe fn eval_expr_no_emsg(bp: &debuggy) -> *mut typval_T {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn dbg_parsearg(arg: *mut c_char, gap: *mut garray_T) -> c_int {
     unsafe {
         let mut p = arg;
@@ -681,10 +601,6 @@ unsafe fn dbg_parsearg(arg: *mut c_char, gap: *mut garray_T) -> c_int {
 /// `:breakadd` (and `:profile` file/func) command (`ex_breakadd`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_breakadd(eap: *mut exarg_Full) {
-    #[cfg(test)]
-    let _ = eap;
-
-    #[cfg(not(test))]
     unsafe {
         let eap = &*eap;
         let gap = if eap.cmdidx == CMD_PROFILE {
@@ -739,7 +655,6 @@ pub unsafe extern "C" fn ex_debuggreedy(eap: *mut exarg_Full) {
     DEBUG_GREEDY.store(greedy, Ordering::Relaxed);
 }
 
-#[cfg(not(test))]
 unsafe fn update_has_expr_breakpoint() {
     unsafe {
         let gap = std::ptr::addr_of_mut!(DBG_BREAKP);
@@ -757,10 +672,6 @@ unsafe fn update_has_expr_breakpoint() {
 /// `:breakdel` and `:profdel` command (`ex_breakdel`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_breakdel(eap: *mut exarg_Full) {
-    #[cfg(test)]
-    let _ = eap;
-
-    #[cfg(not(test))]
     unsafe {
         let eap = &*eap;
         let mut todel: c_int = -1;
@@ -844,7 +755,6 @@ pub unsafe extern "C" fn ex_breakdel(eap: *mut exarg_Full) {
 /// `:breaklist` command (`ex_breaklist`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_breaklist(_eap: *mut exarg_Full) {
-    #[cfg(not(test))]
     unsafe {
         let gap = std::ptr::addr_of_mut!(DBG_BREAKP);
         if (*gap).ga_len <= 0 {
@@ -885,7 +795,6 @@ pub unsafe extern "C" fn ex_breaklist(_eap: *mut exarg_Full) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn debuggy_find(
     file: bool,
     fname: *mut c_char,
@@ -980,12 +889,6 @@ unsafe fn debuggy_find(
 /// Find a breakpoint for a function or sourced file (`dbg_find_breakpoint`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn dbg_find_breakpoint(file: bool, fname: *mut c_char, after: i32) -> i32 {
-    #[cfg(test)]
-    {
-        let _ = (file, fname, after);
-        0
-    }
-    #[cfg(not(test))]
     unsafe {
         debuggy_find(
             file,
@@ -1000,15 +903,7 @@ pub unsafe extern "C" fn dbg_find_breakpoint(file: bool, fname: *mut c_char, aft
 /// Check if profiling is enabled for a function or sourced file (`has_profiling`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn has_profiling(file: bool, fname: *mut c_char, fp: *mut bool) -> bool {
-    #[cfg(test)]
-    {
-        let _ = (file, fname, fp);
-        false
-    }
-    #[cfg(not(test))]
-    unsafe {
-        debuggy_find(file, fname, 0, std::ptr::addr_of_mut!(PROF_GA), fp) != 0
-    }
+    unsafe { debuggy_find(file, fname, 0, std::ptr::addr_of_mut!(PROF_GA), fp) != 0 }
 }
 
 /// Record that a breakpoint was encountered (`dbg_breakpoint`).

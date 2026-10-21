@@ -307,7 +307,7 @@ unsafe fn parse_map_cmd(arg_str: *const c_char, arena: *mut Arena) -> Array {
 ///               - "botright": |:botright|.
 // DLLEXPORT Dict(cmd) nvim_parse_cmd(String str, Dict(empty) *opts, Arena *arena, Error *err)
 //   FUNC_API_SINCE(10) FUNC_API_FAST;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_parse_cmd(
     str_val: NvimString,
     _opts: *mut KeyDict_empty,
@@ -622,7 +622,7 @@ pub unsafe extern "C" fn nvim_parse_cmd(
 // DLLEXPORT String nvim_cmd(uint64_t channel_id, Dict(cmd) *cmd, Dict(cmd_opts) *opts, Arena *arena,
 //                           Error *err)
 //   FUNC_API_SINCE(10);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_cmd(
     channel_id: u64,
     cmd: *mut KeyDict_cmd,
@@ -1351,7 +1351,7 @@ unsafe fn build_cmdline_str(cmdlinep: *mut *mut c_char, eap: *mut exarg_T, args:
 //                                         Dict(user_command) *opts,
 //                                         Error *err)
 //   FUNC_API_SINCE(9);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_create_user_command(
     channel_id: u64,
     name: NvimString,
@@ -1370,7 +1370,7 @@ pub unsafe extern "C" fn nvim_create_user_command(
 /// @param[out] err Error details, if any.
 // DLLEXPORT void nvim_del_user_command(String name, Error *err)
 //   FUNC_API_SINCE(9);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_del_user_command(name: NvimString, err: *mut Error) {
     unsafe {
         nvim_buf_del_user_command(-1, name, err);
@@ -1385,7 +1385,7 @@ pub unsafe extern "C" fn nvim_del_user_command(name: NvimString, err: *mut Error
 // DLLEXPORT void nvim_buf_create_user_command(uint64_t channel_id, Buffer buf, String name,
 //                                             Object cmd, Dict(user_command) *opts, Error *err)
 //   FUNC_API_SINCE(9);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_create_user_command(
     channel_id: u64,
     buf: Buffer,
@@ -1417,7 +1417,7 @@ pub unsafe extern "C" fn nvim_buf_create_user_command(
 /// @param[out] err Error details, if any.
 // DLLEXPORT void nvim_buf_del_user_command(Buffer buf, String name, Error *err)
 //   FUNC_API_SINCE(9);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_del_user_command(buf: Buffer, name: NvimString, err: *mut Error) {
     unsafe {
         let gap = if buf == -1 {
@@ -1454,7 +1454,7 @@ pub unsafe extern "C" fn nvim_buf_del_user_command(buf: Buffer, name: NvimString
 
 // DLLEXPORT void create_user_command(uint64_t channel_id, String name, Union(String, LuaRef) cmd,
 //                                    Dict(user_command) *opts, int flags, Error *err);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn create_user_command(
     channel_id: u64,
     name: NvimString,
@@ -1782,7 +1782,7 @@ pub unsafe extern "C" fn create_user_command(
 // DLLEXPORT DictOf(DictAs(command_info)) nvim_get_commands(Dict(get_commands) *opts, Arena *arena,
 //                                                          Error *err)
 //   FUNC_API_SINCE(4);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_get_commands(
     opts: *mut KeyDict_get_commands,
     arena: *mut Arena,
@@ -1801,7 +1801,7 @@ pub unsafe extern "C" fn nvim_get_commands(
 // DLLEXPORT DictAs(command_info) nvim_buf_get_commands(Buffer buf, Dict(get_commands) *opts,
 //                                                      Arena *arena, Error *err)
 //   FUNC_API_SINCE(4);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_get_commands(
     buf: Buffer,
     opts: *mut KeyDict_get_commands,

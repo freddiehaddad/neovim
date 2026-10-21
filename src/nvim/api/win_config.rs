@@ -352,7 +352,7 @@ unsafe fn striequal_str(a: *const c_char, b: &str) -> bool {
 /// @return |window-ID|, or 0 on error
 // DLLEXPORT Window nvim_open_win(Buffer buf, Boolean enter, Dict(win_config) *config, Error *err)
 //   FUNC_API_SINCE(6) FUNC_API_TEXTLOCK;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_open_win(
     buf: Buffer,
     enter: Boolean,
@@ -1050,7 +1050,7 @@ unsafe fn win_config_float_tp(
 /// @param[out] err     Error details, if any
 // DLLEXPORT void nvim_win_set_config(Window win, Dict(win_config) *config, Error *err)
 //   FUNC_API_SINCE(6);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_win_set_config(
     win: Window,
     config: *mut KeyDict_win_config,
@@ -1156,7 +1156,7 @@ unsafe fn config_put_bordertext(
 /// @return     Map defining the window configuration, see |nvim_open_win()|
 // DLLEXPORT Dict(win_config) nvim_win_get_config(Window win, Arena *arena, Error *err)
 //   FUNC_API_SINCE(6);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_win_get_config(
     win: Window,
     arena: *mut Arena,
@@ -1350,7 +1350,7 @@ unsafe fn parse_float_bufpos(bufpos: Array, out: *mut lpos_T) -> bool {
 
 // DLLEXPORT void parse_bordertext(Object bordertext, BorderTextType bordertext_type,
 //                                 WinConfig *fconfig, Error *err);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn parse_bordertext(
     bordertext: Object,
     bordertext_type: BorderTextType,
@@ -1464,7 +1464,7 @@ unsafe fn parse_bordertext_pos(
 }
 
 // DLLEXPORT void parse_border_style(Object style, WinConfig *fconfig, Error *err);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn parse_border_style(
     style: Object,
     fconfig: *mut WinConfig,
@@ -1635,7 +1635,7 @@ unsafe fn generate_api_error(wp: *mut win_T, attribute: *const c_char, err: *mut
 
 /// Parses a border style name or custom (comma-separated) style.
 // DLLEXPORT bool parse_winborder(WinConfig *fconfig, char *border_opt, Error *err);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn parse_winborder(
     fconfig: *mut WinConfig,
     border_opt: *mut c_char,

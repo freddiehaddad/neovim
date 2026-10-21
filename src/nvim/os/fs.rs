@@ -1,6 +1,5 @@
 //! Filesystem access and libuv file operations (`src/nvim/os/fs.c`).
 
-#![cfg_attr(test, allow(unused_mut, unused_variables))]
 #![allow(
     non_camel_case_types,
     non_snake_case,
@@ -9,61 +8,47 @@
     clippy::upper_case_acronyms
 )]
 
-#[cfg(not(test))]
 use crate::api::private::helpers::cstr_as_string;
-#[cfg(not(test))]
 use crate::errors::*;
 
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 use crate::event::r#loop::uv_guess_handle;
-#[cfg(not(test))]
 use crate::event::r#loop::{
     uv_chdir, uv_cwd, uv_fs_req_cleanup, uv_req_size, uv_strerror, uv_translate_sys_error,
 };
-#[cfg(not(test))]
 use crate::globals::*;
-#[cfg(all(not(test), unix))]
+#[cfg(unix)]
 use crate::log::logmsg;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 use crate::mbyte::{mb_strnicmp, utf8_to_utf16, utf16_to_utf8};
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 use crate::memory::xmallocz;
-#[cfg(not(test))]
 use crate::memory::{memcnt, xfree, xmalloc, xmemcpyz, xmemdupz, xstrchrnul, xstrdup, xstrlcpy};
-#[cfg(not(test))]
 use crate::message::{emsg, semsg, smsg, verbose_enter, verbose_leave};
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 use crate::option::copy_option_part;
-#[cfg(not(test))]
 use crate::option_vars::*;
-#[cfg(not(test))]
 use crate::os::env::os_getenv;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 use crate::os::env::{os_env_exists, os_getenv_noalloc};
-#[cfg(not(test))]
 use crate::path::{
     FullName_save, append_path, dir_of_file_exists, get_past_head, gettail_dir, path_skip_sep,
     path_tail_with_sep, path_with_url, save_abs_path, to_slash, vim_ispathsep,
 };
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 use crate::path::{path_next_component, path_tail, vim_ispathsep_nocolon};
-#[cfg(not(test))]
-use crate::strings::gettext;
-#[cfg(all(not(test), unix))]
+#[cfg(unix)]
 use crate::strings::strerror;
-use crate::strings::strlen as c_strlen;
-#[cfg(not(test))]
+use crate::strings::{gettext, strlen as c_strlen};
 use crate::ui::ui_call_chdir;
-#[cfg(all(not(test), windows))]
-use std::ffi::CStr;
-#[cfg(all(not(test), windows))]
-use std::ffi::c_uint;
+#[cfg(windows)]
+use std::ffi::{CStr, c_uint};
 use std::ffi::{c_char, c_int, c_long, c_void};
 use std::ptr;
 
 pub(crate) const MAXPATHL: usize = 4096;
 
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 use crate::os::os_win_console::os_redirect_stdin_to_conin;
 
 #[repr(C)]
@@ -120,34 +105,28 @@ pub type uv_fs_buf_t = [u64; 80];
 use crate::event::r#loop::{uv_gid_t, uv_uid_t};
 
 const NODE_NORMAL: c_int = 0;
-#[cfg(any(not(test), unix))]
 pub(crate) const NODE_OTHER: c_int = 2;
 
-#[cfg(not(test))]
 const kPathGeneric: c_int = 1;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const kPathDrive: c_int = 2;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const kPathUNC: c_int = 3;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const kPathDevice: c_int = 4;
 
-#[cfg(not(test))]
 const UV_FS: c_int = 6;
 
-#[cfg(not(test))]
 const UV_EOF: c_int = -4095;
-#[cfg(not(test))]
 const UV_UNKNOWN: isize = -4094;
 
 pub(crate) const UV_ENOENT: c_int = if cfg!(windows) { -4058 } else { -2 };
-#[cfg(any(not(test), not(windows)))]
 pub(crate) const UV_EINTR: c_int = if cfg!(windows) { -4072 } else { -4 };
 pub(crate) const UV_EINVAL: c_int = if cfg!(windows) { -4071 } else { -22 };
 
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const UV_EAGAIN: c_int = -4088;
-#[cfg(all(not(test), target_os = "linux"))]
+#[cfg(target_os = "linux")]
 const UV_EAGAIN: c_int = -11;
 #[cfg(all(not(windows), not(target_os = "linux")))]
 const UV_EAGAIN: c_int = -35;
@@ -155,11 +134,9 @@ const UV_EAGAIN: c_int = -35;
 const S_IFBLK: u64 = 0o060000;
 pub(crate) const S_IFLNK: u64 = 0o120000;
 
-#[cfg(not(test))]
 const R_OK: c_int = 4;
-#[cfg(not(test))]
 const W_OK: c_int = 2;
-#[cfg(all(not(test), unix))]
+#[cfg(unix)]
 const X_OK: c_int = 1;
 
 pub(crate) const O_WRONLY: c_int = 1;
@@ -206,33 +183,33 @@ pub(crate) const CASE_INSENSITIVE_FILENAME: bool =
 
 #[cfg(windows)]
 const O_BINARY: c_int = 0x8000;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const ENV_SEPCHAR: u8 = b';';
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const ENV_SEPSTR: &CStr = c";";
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const PATHSEP: c_char = b'\\' as c_char;
 
-#[cfg(all(not(test), not(windows)))]
+#[cfg(not(windows))]
 const ENV_SEPCHAR: u8 = b':';
-#[cfg(all(not(test), not(windows)))]
+#[cfg(not(windows))]
 const PATHSEP: c_char = b'/' as c_char;
-#[cfg(all(not(test), not(windows)))]
+#[cfg(not(windows))]
 const F_GETFD: c_int = 1;
-#[cfg(all(not(test), not(windows)))]
+#[cfg(not(windows))]
 const F_SETFD: c_int = 2;
-#[cfg(all(not(test), not(windows)))]
+#[cfg(not(windows))]
 const FD_CLOEXEC: c_int = 1;
 
-#[cfg(all(not(test), target_os = "linux"))]
+#[cfg(target_os = "linux")]
 const E2BIG: c_int = 7;
-#[cfg(all(not(test), target_os = "linux"))]
+#[cfg(target_os = "linux")]
 const EACCES: c_int = 13;
-#[cfg(all(not(test), target_os = "linux"))]
+#[cfg(target_os = "linux")]
 const EPERM: c_int = 1;
-#[cfg(all(not(test), target_os = "linux"))]
+#[cfg(target_os = "linux")]
 const ERANGE: c_int = 34;
-#[cfg(all(not(test), target_os = "linux"))]
+#[cfg(target_os = "linux")]
 const ENOTSUP: c_int = 95;
 
 #[repr(C)]
@@ -255,7 +232,7 @@ pub struct iovec {
     pub iov_len: usize,
 }
 
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct GUID {
@@ -265,7 +242,7 @@ struct GUID {
     data4: [u8; 8],
 }
 
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 static CLSID_SHELL_LINK: GUID = GUID {
     data1: 0x00021401,
     data2: 0x0000,
@@ -273,7 +250,7 @@ static CLSID_SHELL_LINK: GUID = GUID {
     data4: [0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46],
 };
 
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 static IID_ISHELL_LINK_W: GUID = GUID {
     data1: 0x000214F9,
     data2: 0x0000,
@@ -281,7 +258,7 @@ static IID_ISHELL_LINK_W: GUID = GUID {
     data4: [0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46],
 };
 
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 static IID_IPERSIST_FILE: GUID = GUID {
     data1: 0x0000010b,
     data2: 0x0000,
@@ -289,7 +266,7 @@ static IID_IPERSIST_FILE: GUID = GUID {
     data4: [0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46],
 };
 
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 #[repr(C)]
 struct IShellLinkWVtbl {
     query_interface: unsafe extern "system" fn(
@@ -308,13 +285,13 @@ struct IShellLinkWVtbl {
     ) -> i32,
 }
 
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 #[repr(C)]
 struct IShellLinkW {
     lp_vtbl: *const IShellLinkWVtbl,
 }
 
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 #[repr(C)]
 struct IPersistFileVtbl {
     query_interface: unsafe extern "system" fn(
@@ -333,33 +310,27 @@ struct IPersistFileVtbl {
     ) -> i32,
 }
 
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 #[repr(C)]
 struct IPersistFile {
     lp_vtbl: *const IPersistFileVtbl,
 }
 
-#[cfg(not(test))]
 use crate::charset::NUL;
 
-#[cfg(not(test))]
 use crate::bufwrite::NODE_WRITABLE;
-#[cfg(not(test))]
 use crate::channel::STDIN_FILENO;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 use crate::event::stream::{UV_FILE, UV_TTY};
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 use crate::fileio::{_close, _dup, _fdopen, _get_osfhandle, _read, _write};
 use crate::fileio::{O_RDONLY, S_IFDIR, S_IFMT, S_IFREG};
-#[cfg(all(not(test), not(windows)))]
+#[cfg(not(windows))]
 use crate::fileio::{dup, fcntl, fdopen, getuid, read, write};
-use crate::math::FAIL;
-#[cfg(not(test))]
-use crate::math::OK;
-#[cfg(all(not(test), windows))]
+use crate::math::{FAIL, OK};
+#[cfg(windows)]
 use crate::memline::kPathDeviceUNC;
 
-#[cfg(not(test))]
 unsafe extern "C" {
     fn uv_exepath(buffer: *mut c_char, size: *mut usize) -> c_int;
 
@@ -531,7 +502,7 @@ unsafe extern "C" {
     fn __error() -> *mut c_int;
 }
 
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 unsafe extern "system" {
     fn SetHandleInformation(hObject: *mut c_void, dwMask: u32, dwFlags: u32) -> c_int;
     fn CoInitialize(pvReserved: *mut c_void) -> i32;
@@ -578,52 +549,35 @@ pub const fn s_issock(m: u64) -> bool {
 
 #[inline]
 pub unsafe fn errno_ptr() -> *mut c_int {
-    #[cfg(all(not(test), windows))]
+    #[cfg(windows)]
     unsafe {
         _errno()
     }
-    #[cfg(all(not(test), target_os = "linux"))]
+    #[cfg(target_os = "linux")]
     unsafe {
         __errno_location()
     }
-    #[cfg(all(not(test), not(windows), not(target_os = "linux")))]
+    #[cfg(all(not(windows), not(target_os = "linux")))]
     unsafe {
         __error()
-    }
-    #[cfg(test)]
-    {
-        ptr::null_mut()
     }
 }
 
 #[inline]
 pub unsafe fn os_errno() -> c_int {
-    #[cfg(not(test))]
-    unsafe {
-        *errno_ptr()
-    }
-    #[cfg(test)]
-    {
-        0
-    }
+    unsafe { *errno_ptr() }
 }
 
 #[inline]
 pub unsafe fn os_set_errno(val: c_int) {
-    #[cfg(not(test))]
     unsafe {
         *errno_ptr() = val;
-    }
-    #[cfg(test)]
-    {
-        let _ = val;
     }
 }
 
 /// Changes the current directory to `path`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_chdir(path: *const c_char) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         if p_verbose >= 5 {
             verbose_enter();
@@ -636,17 +590,11 @@ pub unsafe extern "C" fn os_chdir(path: *const c_char) -> c_int {
         }
         err
     }
-    #[cfg(test)]
-    {
-        let _ = path;
-        -1
-    }
 }
 
 /// Get the name of current directory.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_dirname(buf: *mut c_char, mut len: usize) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let error_number = uv_cwd(buf, &raw mut len);
         if error_number != 0 {
@@ -656,17 +604,11 @@ pub unsafe extern "C" fn os_dirname(buf: *mut c_char, mut len: usize) -> c_int {
         to_slash(buf);
         OK
     }
-    #[cfg(test)]
-    {
-        let _ = (buf, len);
-        FAIL
-    }
 }
 
 /// Check if the given path is a directory and not a symlink to a directory.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_isrealdir(name: *const c_char) -> bool {
-    #[cfg(not(test))]
     unsafe {
         let mut request: uv_fs_buf_t = [0; 80];
         if uv_fs_lstat(ptr::null_mut(), &raw mut request, name, ptr::null()) != 0 {
@@ -680,15 +622,10 @@ pub unsafe extern "C" fn os_isrealdir(name: *const c_char) -> bool {
         }
         s_isdir(mode)
     }
-    #[cfg(test)]
-    {
-        let _ = name;
-        false
-    }
 }
 
 /// Check if the given path exists and is a directory.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_isdir(name: *const c_char) -> bool {
     unsafe {
         let mode = os_getperm(name);
@@ -700,9 +637,9 @@ pub unsafe extern "C" fn os_isdir(name: *const c_char) -> bool {
 }
 
 /// Check what `name` is (`NODE_NORMAL`, `NODE_WRITABLE`, or `NODE_OTHER`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_nodetype(name: *const c_char) -> c_int {
-    #[cfg(all(not(test), not(windows)))]
+    #[cfg(not(windows))]
     unsafe {
         let mut statbuf = uv_stat_t::default();
         if os_stat(name, &raw mut statbuf) != 0 {
@@ -716,7 +653,7 @@ pub unsafe extern "C" fn os_nodetype(name: *const c_char) -> c_int {
         }
         NODE_WRITABLE
     }
-    #[cfg(all(not(test), windows))]
+    #[cfg(windows)]
     unsafe {
         let bytes = CStr::from_ptr(name).to_bytes();
         if bytes.starts_with(b"\\\\.\\") {
@@ -734,37 +671,25 @@ pub unsafe extern "C" fn os_nodetype(name: *const c_char) -> c_int {
             _ => NODE_OTHER,
         }
     }
-    #[cfg(test)]
-    {
-        let _ = name;
-        NODE_NORMAL
-    }
 }
 
 /// Gets the absolute path of the currently running executable.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_exepath(buffer: *mut c_char, size: *mut usize) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let r = uv_exepath(buffer, size);
         to_slash(buffer);
         r
     }
-    #[cfg(test)]
-    {
-        let _ = (buffer, size);
-        -1
-    }
 }
 
 /// Checks if the file `name` is executable.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_can_exe(
     name: *const c_char,
     abspath: *mut *mut c_char,
     use_path: bool,
 ) -> bool {
-    #[cfg(not(test))]
     unsafe {
         if !use_path || gettail_dir(name) != name {
             #[cfg(windows)]
@@ -774,14 +699,8 @@ pub unsafe extern "C" fn os_can_exe(
         }
         is_executable_in_path(name, abspath)
     }
-    #[cfg(test)]
-    {
-        let _ = (name, abspath, use_path);
-        false
-    }
 }
 
-#[cfg(not(test))]
 unsafe fn is_executable(name: *const c_char, abspath: *mut *mut c_char) -> bool {
     unsafe {
         let mode = os_getperm(name);
@@ -794,20 +713,14 @@ unsafe fn is_executable(name: *const c_char, abspath: *mut *mut c_char) -> bool 
 
         #[cfg(not(windows))]
         let ok = s_isreg(mode as u64) && {
-            #[cfg(not(test))]
             {
                 let mut req: uv_fs_buf_t = [0; 80];
                 let r = uv_fs_access(ptr::null_mut(), &raw mut req, name, X_OK, ptr::null());
                 uv_fs_req_cleanup((&raw mut req).cast());
                 r == 0
             }
-            #[cfg(test)]
-            {
-                false
-            }
         };
 
-        #[cfg(not(test))]
         if ok && !abspath.is_null() {
             *abspath = save_abs_path(name);
         }
@@ -815,9 +728,8 @@ unsafe fn is_executable(name: *const c_char, abspath: *mut *mut c_char) -> bool 
     }
 }
 
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 unsafe fn is_executable_ext(name: *const c_char, abspath: *mut *mut c_char) -> bool {
-    #[cfg(not(test))]
     unsafe {
         let sh_tail = CStr::from_ptr(path_tail(p_sh)).to_bytes();
         let has_sub =
@@ -870,22 +782,15 @@ unsafe fn is_executable_ext(name: *const c_char, abspath: *mut *mut c_char) -> b
         }
         false
     }
-    #[cfg(test)]
-    {
-        let _ = (name, abspath);
-        false
-    }
 }
 
-#[cfg(all(not(test), not(windows)))]
+#[cfg(not(windows))]
 #[inline]
 unsafe fn is_executable_ext(name: *const c_char, abspath: *mut *mut c_char) -> bool {
     unsafe { is_executable(name, abspath) }
 }
 
-#[cfg(not(test))]
 unsafe fn is_executable_in_path(name: *const c_char, abspath: *mut *mut c_char) -> bool {
-    #[cfg(not(test))]
     unsafe {
         let path_env = os_getenv(c"PATH".as_ptr());
         if path_env.is_null() {
@@ -935,20 +840,14 @@ unsafe fn is_executable_in_path(name: *const c_char, abspath: *mut *mut c_char) 
         xfree(path_env.cast());
         rv
     }
-    #[cfg(test)]
-    {
-        let _ = (name, abspath);
-        false
-    }
 }
 
 /// Opens or creates a file and returns a file descriptor, or negative libuv error code.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_open(path: *const c_char, flags: c_int, mode: c_int) -> c_int {
     if path.is_null() {
         return UV_EINVAL;
     }
-    #[cfg(not(test))]
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_open(
@@ -962,15 +861,10 @@ pub unsafe extern "C" fn os_open(path: *const c_char, flags: c_int, mode: c_int)
         uv_fs_req_cleanup((&raw mut req).cast());
         r
     }
-    #[cfg(test)]
-    {
-        let _ = (flags, mode);
-        UV_EINVAL
-    }
 }
 
 /// Compatibility wrapper conforming to `fopen(3)`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_fopen(path: *const c_char, flags: *const c_char) -> *mut c_void {
     unsafe {
         assert!(!flags.is_null());
@@ -1008,25 +902,21 @@ pub unsafe extern "C" fn os_fopen(path: *const c_char, flags: *const c_char) -> 
         if fd < 0 {
             return ptr::null_mut();
         }
-        #[cfg(all(not(test), windows))]
+        #[cfg(windows)]
         {
             _fdopen(fd, flags)
         }
-        #[cfg(all(not(test), not(windows)))]
+        #[cfg(not(windows))]
         {
             fdopen(fd, flags)
-        }
-        #[cfg(test)]
-        {
-            ptr::null_mut()
         }
     }
 }
 
 /// Sets file descriptor `fd` to close-on-exec (Unix) or non-inheritable (Windows).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_set_cloexec(fd: c_int) -> c_int {
-    #[cfg(all(not(test), not(windows)))]
+    #[cfg(not(windows))]
     unsafe {
         let fdflags = fcntl(fd, F_GETFD);
         if fdflags < 0 {
@@ -1061,7 +951,7 @@ pub unsafe extern "C" fn os_set_cloexec(fd: c_int) -> c_int {
         }
         0
     }
-    #[cfg(all(not(test), windows))]
+    #[cfg(windows)]
     unsafe {
         let h = _get_osfhandle(fd);
         if h == -1 || SetHandleInformation(h as *mut c_void, 1, 0) == 0 {
@@ -1069,34 +959,22 @@ pub unsafe extern "C" fn os_set_cloexec(fd: c_int) -> c_int {
         }
         0
     }
-    #[cfg(test)]
-    {
-        let _ = fd;
-        0
-    }
 }
 
 /// Close a file.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_close(fd: c_int) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_close(ptr::null_mut(), &raw mut req, fd, ptr::null());
         uv_fs_req_cleanup((&raw mut req).cast());
         r
     }
-    #[cfg(test)]
-    {
-        let _ = fd;
-        0
-    }
 }
 
 /// Duplicate file descriptor.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_dup(fd: c_int) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         loop {
             #[cfg(windows)]
@@ -1116,15 +994,10 @@ pub unsafe extern "C" fn os_dup(fd: c_int) -> c_int {
             return ret;
         }
     }
-    #[cfg(test)]
-    {
-        let _ = fd;
-        -1
-    }
 }
 
 /// Duplicates file descriptor `fd` and marks the copy close-on-exec.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_dup_cloexec(fd: c_int) -> c_int {
     unsafe {
         let newfd = os_dup(fd);
@@ -1136,9 +1009,8 @@ pub unsafe extern "C" fn os_dup_cloexec(fd: c_int) -> c_int {
 }
 
 /// Open the file descriptor for stdin.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_open_stdin_fd() -> c_int {
-    #[cfg(not(test))]
     unsafe {
         if stdin_fd > 0 {
             stdin_fd
@@ -1149,14 +1021,10 @@ pub unsafe extern "C" fn os_open_stdin_fd() -> c_int {
             fd
         }
     }
-    #[cfg(test)]
-    {
-        -1
-    }
 }
 
 /// Read from a file.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_read(
     fd: c_int,
     ret_eof: *mut bool,
@@ -1170,7 +1038,6 @@ pub unsafe extern "C" fn os_read(
             assert_eq!(size, 0);
             return 0;
         }
-        #[cfg(not(test))]
         {
             let mut read_bytes: usize = 0;
             while read_bytes != size {
@@ -1206,16 +1073,11 @@ pub unsafe extern "C" fn os_read(
             }
             read_bytes as isize
         }
-        #[cfg(test)]
-        {
-            let _ = (fd, non_blocking);
-            0
-        }
     }
 }
 
 /// Read from a file to multiple buffers at once.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_readv(
     fd: c_int,
     ret_eof: *mut bool,
@@ -1225,7 +1087,7 @@ pub unsafe extern "C" fn os_readv(
 ) -> isize {
     unsafe {
         *ret_eof = false;
-        #[cfg(all(not(test), not(windows)))]
+        #[cfg(not(windows))]
         {
             let mut read_bytes: usize = 0;
             let mut toread: usize = 0;
@@ -1271,7 +1133,7 @@ pub unsafe extern "C" fn os_readv(
             }
             read_bytes as isize
         }
-        #[cfg(any(test, windows))]
+        #[cfg(windows)]
         {
             let _ = (fd, &mut iov, &mut iov_size, non_blocking);
             0
@@ -1280,7 +1142,7 @@ pub unsafe extern "C" fn os_readv(
 }
 
 /// Write to a file.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_write(
     fd: c_int,
     buf: *const c_char,
@@ -1291,7 +1153,6 @@ pub unsafe extern "C" fn os_write(
         assert_eq!(size, 0);
         return 0;
     }
-    #[cfg(not(test))]
     unsafe {
         let mut written_bytes: usize = 0;
         while written_bytes != size {
@@ -1326,21 +1187,15 @@ pub unsafe extern "C" fn os_write(
         }
         written_bytes as isize
     }
-    #[cfg(test)]
-    {
-        let _ = (fd, non_blocking);
-        0
-    }
 }
 
 /// Copies a file from `path` to `new_path`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_copy(
     path: *const c_char,
     new_path: *const c_char,
     flags: c_int,
 ) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_copyfile(
@@ -1354,17 +1209,11 @@ pub unsafe extern "C" fn os_copy(
         uv_fs_req_cleanup((&raw mut req).cast());
         r
     }
-    #[cfg(test)]
-    {
-        let _ = (path, new_path, flags);
-        -1
-    }
 }
 
 /// Flushes file modifications to disk.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_fsync(fd: c_int) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_fsync(ptr::null_mut(), &raw mut req, fd, ptr::null());
@@ -1372,18 +1221,12 @@ pub unsafe extern "C" fn os_fsync(fd: c_int) -> c_int {
         g_stats.fsync += 1;
         r
     }
-    #[cfg(test)]
-    {
-        let _ = fd;
-        0
-    }
 }
 
 unsafe fn os_stat(name: *const c_char, statbuf: *mut uv_stat_t) -> c_int {
     if name.is_null() {
         return UV_EINVAL;
     }
-    #[cfg(not(test))]
     unsafe {
         let mut request: uv_fs_buf_t = [0; 80];
         let result = uv_fs_stat(ptr::null_mut(), &raw mut request, name, ptr::null());
@@ -1393,15 +1236,10 @@ unsafe fn os_stat(name: *const c_char, statbuf: *mut uv_stat_t) -> c_int {
         uv_fs_req_cleanup((&raw mut request).cast());
         result
     }
-    #[cfg(test)]
-    {
-        let _ = statbuf;
-        UV_EINVAL
-    }
 }
 
 /// Get the file permissions for a given file.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_getperm(name: *const c_char) -> i32 {
     unsafe {
         let mut statbuf = uv_stat_t::default();
@@ -1415,45 +1253,33 @@ pub unsafe extern "C" fn os_getperm(name: *const c_char) -> i32 {
 }
 
 /// Set the permission of a file.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_setperm(name: *const c_char, perm: c_int) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_chmod(ptr::null_mut(), &raw mut req, name, perm, ptr::null());
         uv_fs_req_cleanup((&raw mut req).cast());
         if r == 0 { OK } else { FAIL }
     }
-    #[cfg(test)]
-    {
-        let _ = (name, perm);
-        FAIL
-    }
 }
 
 /// Set the permission of the file referred to by the open file descriptor.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_fsetperm(fd: c_int, perm: c_int) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_fchmod(ptr::null_mut(), &raw mut req, fd, perm, ptr::null());
         uv_fs_req_cleanup((&raw mut req).cast());
         if r == 0 { OK } else { FAIL }
     }
-    #[cfg(test)]
-    {
-        let _ = (fd, perm);
-        FAIL
-    }
 }
 
 /// Copy extended attributes `from_file` to `to_file`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_copy_xattr(from_file: *const c_char, to_file: *const c_char) {
-    #[cfg(not(all(not(test), target_os = "linux")))]
+    #[cfg(not(target_os = "linux"))]
     let _ = (from_file, to_file);
-    #[cfg(all(not(test), target_os = "linux"))]
+    #[cfg(target_os = "linux")]
     unsafe {
         if from_file.is_null() {
             return;
@@ -1532,21 +1358,21 @@ pub unsafe extern "C" fn os_copy_xattr(from_file: *const c_char, to_file: *const
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn os_get_acl(_fname: *const c_char) -> vim_acl_T {
     ptr::null_mut()
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn os_set_acl(_fname: *const c_char, _aclent: vim_acl_T) {}
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn os_free_acl(_aclent: vim_acl_T) {}
 
 /// Checks if the current user owns a file.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_file_owned(fname: *const c_char) -> bool {
-    #[cfg(all(not(test), not(windows)))]
+    #[cfg(not(windows))]
     unsafe {
         let uid = u64::from(getuid());
         let mut finfo = FileInfo::default();
@@ -1554,7 +1380,7 @@ pub unsafe extern "C" fn os_file_owned(fname: *const c_char) -> bool {
         let link_owned = os_fileinfo_link(fname, &raw mut finfo) && finfo.stat.st_uid == uid;
         file_owned && link_owned
     }
-    #[cfg(any(test, windows))]
+    #[cfg(windows)]
     {
         let _ = fname;
         true
@@ -1562,9 +1388,8 @@ pub unsafe extern "C" fn os_file_owned(fname: *const c_char) -> bool {
 }
 
 /// Changes the owner and group of a file, like `chown(2)`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_chown(path: *const c_char, owner: uv_uid_t, group: uv_gid_t) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_chown(
@@ -1578,32 +1403,21 @@ pub unsafe extern "C" fn os_chown(path: *const c_char, owner: uv_uid_t, group: u
         uv_fs_req_cleanup((&raw mut req).cast());
         r
     }
-    #[cfg(test)]
-    {
-        let _ = (path, owner, group);
-        -1
-    }
 }
 
 /// Changes the owner and group of an open file descriptor, like `fchown(2)`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_fchown(fd: c_int, owner: uv_uid_t, group: uv_gid_t) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_fchown(ptr::null_mut(), &raw mut req, fd, owner, group, ptr::null());
         uv_fs_req_cleanup((&raw mut req).cast());
         r
     }
-    #[cfg(test)]
-    {
-        let _ = (fd, owner, group);
-        -1
-    }
 }
 
 /// Check if a path exists.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_path_exists(path: *const c_char) -> bool {
     unsafe {
         let mut statbuf = uv_stat_t::default();
@@ -1612,9 +1426,8 @@ pub unsafe extern "C" fn os_path_exists(path: *const c_char) -> bool {
 }
 
 /// Sets file access and modification times.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_file_settime(path: *const c_char, atime: f64, mtime: f64) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_utime(
@@ -1628,34 +1441,22 @@ pub unsafe extern "C" fn os_file_settime(path: *const c_char, atime: f64, mtime:
         uv_fs_req_cleanup((&raw mut req).cast());
         r
     }
-    #[cfg(test)]
-    {
-        let _ = (path, atime, mtime);
-        -1
-    }
 }
 
 /// Check if a file is readable.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_file_is_readable(name: *const c_char) -> bool {
-    #[cfg(not(test))]
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_access(ptr::null_mut(), &raw mut req, name, R_OK, ptr::null());
         uv_fs_req_cleanup((&raw mut req).cast());
         r == 0
     }
-    #[cfg(test)]
-    {
-        let _ = name;
-        false
-    }
 }
 
 /// Check if a file is writable (`0` = not writable, `1` = writable file, `2` = writable dir).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_file_is_writable(name: *const c_char) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_access(ptr::null_mut(), &raw mut req, name, W_OK, ptr::null());
@@ -1666,56 +1467,38 @@ pub unsafe extern "C" fn os_file_is_writable(name: *const c_char) -> c_int {
             0
         }
     }
-    #[cfg(test)]
-    {
-        let _ = name;
-        0
-    }
 }
 
 /// Rename a file or directory.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_rename(path: *const c_char, new_path: *const c_char) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_rename(ptr::null_mut(), &raw mut req, path, new_path, ptr::null());
         uv_fs_req_cleanup((&raw mut req).cast());
         if r == 0 { OK } else { FAIL }
     }
-    #[cfg(test)]
-    {
-        let _ = (path, new_path);
-        FAIL
-    }
 }
 
 /// Make a directory.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_mkdir(path: *const c_char, mode: i32) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_mkdir(ptr::null_mut(), &raw mut req, path, mode, ptr::null());
         uv_fs_req_cleanup((&raw mut req).cast());
         r
     }
-    #[cfg(test)]
-    {
-        let _ = (path, mode);
-        -1
-    }
 }
 
 /// Make a directory, with higher levels when needed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_mkdir_recurse(
     dir: *const c_char,
     mode: i32,
     failed_dir: *mut *mut c_char,
     created: *mut *mut c_char,
 ) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let dirlen = c_strlen(dir);
         let curdir = xmemdupz(dir.cast(), dirlen).cast::<c_char>();
@@ -1756,17 +1539,11 @@ pub unsafe extern "C" fn os_mkdir_recurse(
         xfree(curdir.cast());
         0
     }
-    #[cfg(test)]
-    {
-        let _ = (dir, mode, failed_dir, created);
-        -1
-    }
 }
 
 /// Create the parent directory of a file if it does not exist.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_file_mkdir(fname: *mut c_char, mode: i32) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         if !dir_of_file_exists(fname) {
             let tail = path_tail_with_sep(fname);
@@ -1788,17 +1565,11 @@ pub unsafe extern "C" fn os_file_mkdir(fname: *mut c_char, mode: i32) -> c_int {
         }
         0
     }
-    #[cfg(test)]
-    {
-        let _ = (fname, mode);
-        0
-    }
 }
 
 /// Create a unique temporary directory.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_mkdtemp(templ: *const c_char, path: *mut c_char) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let mut request: uv_fs_buf_t = [0; 80];
         let result = uv_fs_mkdtemp(ptr::null_mut(), &raw mut request, templ, ptr::null());
@@ -1813,34 +1584,22 @@ pub unsafe extern "C" fn os_mkdtemp(templ: *const c_char, path: *mut c_char) -> 
         uv_fs_req_cleanup((&raw mut request).cast());
         result
     }
-    #[cfg(test)]
-    {
-        let _ = (templ, path);
-        -1
-    }
 }
 
 /// Remove a directory.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_rmdir(path: *const c_char) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_rmdir(ptr::null_mut(), &raw mut req, path, ptr::null());
         uv_fs_req_cleanup((&raw mut req).cast());
         r
     }
-    #[cfg(test)]
-    {
-        let _ = path;
-        -1
-    }
 }
 
 /// Opens a directory.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_scandir(dir: *mut Directory, path: *const c_char) -> bool {
-    #[cfg(not(test))]
     unsafe {
         debug_assert!(uv_req_size(UV_FS) + size_of::<uv_dirent_t>() <= size_of::<Directory>());
         let req = dir.cast::<uv_fs_buf_t>();
@@ -1850,17 +1609,11 @@ pub unsafe extern "C" fn os_scandir(dir: *mut Directory, path: *const c_char) ->
         }
         r >= 0
     }
-    #[cfg(test)]
-    {
-        let _ = (dir, path);
-        false
-    }
 }
 
 /// Increments the directory pointer.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_scandir_next(dir: *mut Directory) -> *const c_char {
-    #[cfg(not(test))]
     unsafe {
         let req = dir.cast::<uv_fs_buf_t>();
         let ent = dir
@@ -1874,41 +1627,29 @@ pub unsafe extern "C" fn os_scandir_next(dir: *mut Directory) -> *const c_char {
             ptr::null()
         }
     }
-    #[cfg(test)]
-    {
-        let _ = dir;
-        ptr::null()
-    }
 }
 
 /// Frees memory associated with `os_scandir()`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_closedir(dir: *mut Directory) {
-    #[cfg(not(test))]
     unsafe {
         uv_fs_req_cleanup(dir.cast());
     }
 }
 
 /// Remove a file.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_remove(path: *const c_char) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_unlink(ptr::null_mut(), &raw mut req, path, ptr::null());
         uv_fs_req_cleanup((&raw mut req).cast());
         r
     }
-    #[cfg(test)]
-    {
-        let _ = path;
-        -1
-    }
 }
 
 /// Get the file information for a given path.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_fileinfo(path: *const c_char, file_info: *mut FileInfo) -> bool {
     unsafe {
         *file_info = FileInfo::default();
@@ -1917,11 +1658,10 @@ pub unsafe extern "C" fn os_fileinfo(path: *const c_char, file_info: *mut FileIn
 }
 
 /// Parses `path` into a `FileInfo` structure.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_fileinfo2(path: *const c_char, info: *mut FileInfo) -> bool {
     unsafe {
         *info = FileInfo::default();
-        #[cfg(not(test))]
         {
             if path_with_url(path) != 0 {
                 return true;
@@ -1994,14 +1734,13 @@ pub unsafe extern "C" fn os_fileinfo2(path: *const c_char, info: *mut FileInfo) 
 }
 
 /// Get the file information for a given path without following links.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_fileinfo_link(path: *const c_char, file_info: *mut FileInfo) -> bool {
     unsafe {
         *file_info = FileInfo::default();
         if path.is_null() {
             return false;
         }
-        #[cfg(not(test))]
         {
             let mut request: uv_fs_buf_t = [0; 80];
             let ok = uv_fs_lstat(ptr::null_mut(), &raw mut request, path, ptr::null()) == 0;
@@ -2011,19 +1750,14 @@ pub unsafe extern "C" fn os_fileinfo_link(path: *const c_char, file_info: *mut F
             uv_fs_req_cleanup((&raw mut request).cast());
             ok
         }
-        #[cfg(test)]
-        {
-            false
-        }
     }
 }
 
 /// Get the file information for a given file descriptor.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_fileinfo_fd(file_descriptor: c_int, file_info: *mut FileInfo) -> bool {
     unsafe {
         *file_info = FileInfo::default();
-        #[cfg(not(test))]
         {
             let mut request: uv_fs_buf_t = [0; 80];
             let ok = uv_fs_fstat(
@@ -2038,16 +1772,11 @@ pub unsafe extern "C" fn os_fileinfo_fd(file_descriptor: c_int, file_info: *mut 
             uv_fs_req_cleanup((&raw mut request).cast());
             ok
         }
-        #[cfg(test)]
-        {
-            let _ = file_descriptor;
-            false
-        }
     }
 }
 
 /// Compare the inodes of two `FileInfo`s.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_fileinfo_id_equal(
     file_info_1: *const FileInfo,
     file_info_2: *const FileInfo,
@@ -2059,7 +1788,7 @@ pub unsafe extern "C" fn os_fileinfo_id_equal(
 }
 
 /// Get the `FileID` of a `FileInfo`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_fileinfo_id(file_info: *const FileInfo, file_id: *mut FileID) {
     unsafe {
         (*file_id).inode = (*file_info).stat.st_ino;
@@ -2068,31 +1797,31 @@ pub unsafe extern "C" fn os_fileinfo_id(file_info: *const FileInfo, file_id: *mu
 }
 
 /// Get the inode of a `FileInfo`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_fileinfo_inode(file_info: *const FileInfo) -> u64 {
     unsafe { (*file_info).stat.st_ino }
 }
 
 /// Get the size of a file from a `FileInfo`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_fileinfo_size(file_info: *const FileInfo) -> u64 {
     unsafe { (*file_info).stat.st_size }
 }
 
 /// Get the number of hardlinks from a `FileInfo`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_fileinfo_hardlinks(file_info: *const FileInfo) -> u64 {
     unsafe { (*file_info).stat.st_nlink }
 }
 
 /// Get the blocksize from a `FileInfo`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_fileinfo_blocksize(file_info: *const FileInfo) -> u64 {
     unsafe { (*file_info).stat.st_blksize }
 }
 
 /// Get the `FileID` for a given path.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_fileid(path: *const c_char, file_id: *mut FileID) -> bool {
     unsafe {
         let mut statbuf = uv_stat_t::default();
@@ -2107,7 +1836,7 @@ pub unsafe extern "C" fn os_fileid(path: *const c_char, file_id: *mut FileID) ->
 }
 
 /// Check if two `FileID`s are equal.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_fileid_equal(
     file_id_1: *const FileID,
     file_id_2: *const FileID,
@@ -2118,13 +1847,12 @@ pub unsafe extern "C" fn os_fileid_equal(
 }
 
 /// Return the canonicalized absolute pathname.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_realpath(
     name: *const c_char,
     mut buf: *mut c_char,
     len: usize,
 ) -> *mut c_char {
-    #[cfg(not(test))]
     unsafe {
         let mut request: uv_fs_buf_t = [0; 80];
         let result = uv_fs_realpath(ptr::null_mut(), &raw mut request, name, ptr::null());
@@ -2138,16 +1866,11 @@ pub unsafe extern "C" fn os_realpath(
         uv_fs_req_cleanup((&raw mut request).cast());
         if result == 0 { buf } else { ptr::null_mut() }
     }
-    #[cfg(test)]
-    {
-        let _ = (name, &mut buf, len);
-        ptr::null_mut()
-    }
 }
 
-#[cfg_attr(all(not(test), windows), unsafe(no_mangle))]
+#[cfg_attr(windows, unsafe(no_mangle))]
 pub unsafe extern "C" fn os_resolve_shortcut(fname: *const c_char) -> *mut c_char {
-    #[cfg(all(not(test), windows))]
+    #[cfg(windows)]
     unsafe {
         if fname.is_null() {
             return ptr::null_mut();
@@ -2216,16 +1939,16 @@ pub unsafe extern "C" fn os_resolve_shortcut(fname: *const c_char) -> *mut c_cha
         to_slash(rfname);
         rfname
     }
-    #[cfg(any(test, not(windows)))]
+    #[cfg(not(windows))]
     {
         let _ = fname;
         ptr::null_mut()
     }
 }
 
-#[cfg_attr(all(not(test), windows), unsafe(no_mangle))]
+#[cfg_attr(windows, unsafe(no_mangle))]
 pub unsafe extern "C" fn os_is_reparse_point_include(path: *const c_char) -> bool {
-    #[cfg(all(not(test), windows))]
+    #[cfg(windows)]
     unsafe {
         let mut utf16_path: *mut u16 = ptr::null_mut();
         let r = utf8_to_utf16(path, -1, &raw mut utf16_path);
@@ -2271,7 +1994,7 @@ pub unsafe extern "C" fn os_is_reparse_point_include(path: *const c_char) -> boo
         xfree(utf16_path.cast());
         result
     }
-    #[cfg(any(test, not(windows)))]
+    #[cfg(not(windows))]
     {
         let _ = path;
         false
@@ -2292,7 +2015,7 @@ mod tests {
             fi1.stat.st_nlink = 2;
             fi1.stat.st_blksize = 4096;
 
-            let mut fi2 = fi1;
+            let fi2 = fi1;
             assert!(os_fileinfo_id_equal(&raw const fi1, &raw const fi2));
             assert_eq!(os_fileinfo_inode(&raw const fi1), 42);
             assert_eq!(os_fileinfo_size(&raw const fi1), 1234);

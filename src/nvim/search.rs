@@ -248,7 +248,7 @@ unsafe fn find_substr(haystack: *const c_char, needle: &[u8]) -> bool {
 }
 
 /// Translate search pattern for `vim_regcomp()`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn search_regcomp(
     mut pat: *mut c_char,
     mut patlen: usize,
@@ -317,12 +317,12 @@ pub unsafe extern "C" fn search_regcomp(
 }
 
 /// Get search pattern used by `search_regcomp()`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_search_pat() -> *mut c_char {
     unsafe { mr_pattern }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn save_re_pat(idx: c_int, pat: *mut c_char, patlen: usize, magic: c_int) {
     unsafe {
         let i = idx as usize;
@@ -345,7 +345,7 @@ pub unsafe extern "C" fn save_re_pat(idx: c_int, pat: *mut c_char, patlen: usize
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn save_search_patterns() {
     unsafe {
         let prev = save_level;
@@ -373,7 +373,7 @@ pub unsafe extern "C" fn save_search_patterns() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn restore_search_patterns() {
     unsafe {
         save_level -= 1;
@@ -402,7 +402,7 @@ unsafe fn free_spat(spat: *mut SearchPattern) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn free_search_patterns() {
     unsafe {
         free_spat(&raw mut spats[0]);
@@ -415,7 +415,7 @@ pub unsafe extern "C" fn free_search_patterns() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn save_last_search_pattern() {
     unsafe {
         did_save_last_search_spat += 1;
@@ -436,7 +436,7 @@ pub unsafe extern "C" fn save_last_search_pattern() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn restore_last_search_pattern() {
     unsafe {
         did_save_last_search_spat -= 1;
@@ -475,22 +475,22 @@ unsafe fn restore_incsearch_state() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn last_search_pattern() -> *mut c_char {
     unsafe { spats[RE_SEARCH as usize].pat }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn last_search_pattern_len() -> usize {
     unsafe { spats[RE_SEARCH as usize].patlen }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ignorecase(pat: *mut c_char) -> c_int {
     unsafe { ignorecase_opt(pat, p_ic, p_scs) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ignorecase_opt(pat: *mut c_char, ic_in: c_int, scs: c_int) -> c_int {
     unsafe {
         let mut ic = ic_in;
@@ -506,7 +506,7 @@ pub unsafe extern "C" fn ignorecase_opt(pat: *mut c_char, ic_in: c_int, scs: c_i
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn pat_has_uppercase(pat: *mut c_char) -> bool {
     unsafe {
         let mut p = pat;
@@ -554,22 +554,22 @@ pub unsafe extern "C" fn pat_has_uppercase(pat: *mut c_char) -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn last_csearch() -> *const c_char {
     (&raw const lastc_bytes).cast::<c_char>()
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn last_csearch_forward() -> c_int {
     unsafe { c_int::from(lastcdir == FORWARD) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn last_csearch_until() -> c_int {
     unsafe { c_int::from(last_t_cmd) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_last_csearch(c: c_int, s: *mut c_char, len: c_int) {
     unsafe {
         lastc[0] = c as u8;
@@ -582,26 +582,26 @@ pub unsafe extern "C" fn set_last_csearch(c: c_int, s: *mut c_char, len: c_int) 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_csearch_direction(cdir: Direction) {
     unsafe {
         lastcdir = cdir;
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_csearch_until(t_cmd: c_int) {
     unsafe {
         last_t_cmd = t_cmd != 0;
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn last_search_pat() -> *mut c_char {
     unsafe { spats[last_idx as usize].pat }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn reset_search_dir() {
     unsafe {
         spats[0].off.dir = b'/' as c_char;
@@ -609,7 +609,7 @@ pub unsafe extern "C" fn reset_search_dir() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_last_search_pat(
     s: *const c_char,
     idx: c_int,
@@ -656,7 +656,7 @@ pub unsafe extern "C" fn set_last_search_pat(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn last_pat_prog(regmatch: *mut regmmatch_T) {
     unsafe {
         if spats[last_idx as usize].pat.is_null() {
@@ -678,7 +678,7 @@ pub unsafe extern "C" fn last_pat_prog(regmatch: *mut regmmatch_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn searchit(
     win: *mut win_T,
     buf: *mut buf_T,
@@ -1112,7 +1112,7 @@ pub unsafe extern "C" fn searchit(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_search_direction(cdir: c_int) {
     unsafe {
         spats[0].off.dir = cdir as c_char;
@@ -1137,7 +1137,7 @@ fn first_submatch(rp: &regmmatch_T) -> c_int {
     0
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn parse_search_pattern_offset(
     pat: *mut *mut c_char,
     patlen: *mut usize,
@@ -1222,7 +1222,7 @@ pub unsafe extern "C" fn parse_search_pattern_offset(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn do_search(
     oap: *mut oparg_T,
     mut dirc: c_int,
@@ -1629,7 +1629,7 @@ pub unsafe extern "C" fn do_search(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn search_for_exact_line(
     buf: *mut buf_T,
     pos: *mut pos_T,
@@ -1696,7 +1696,7 @@ pub unsafe extern "C" fn search_for_exact_line(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn searchc(cap: *mut cmdarg_T, mut t_cmd: bool) -> c_int {
     unsafe {
         let mut c = (*cap).nchar;
@@ -1784,7 +1784,7 @@ pub unsafe extern "C" fn searchc(cap: *mut cmdarg_T, mut t_cmd: bool) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn findmatch(oap: *mut oparg_T, initc: c_int) -> *mut pos_T {
     unsafe { findmatchlimit(oap, initc, 0, 0) }
 }
@@ -1893,7 +1893,7 @@ unsafe fn find_mps_values(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn findmatchlimit(
     oap: *mut oparg_T,
     mut initc: c_int,
@@ -2446,7 +2446,7 @@ pub unsafe extern "C" fn findmatchlimit(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn showmatch(c: c_int) {
     unsafe {
         let mut vcol: colnr_T = 0;
@@ -2542,7 +2542,7 @@ pub unsafe extern "C" fn showmatch(c: c_int) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn current_search(count: c_int, forward: bool) -> c_int {
     unsafe {
         let old_p_ws = p_ws;
@@ -2770,7 +2770,7 @@ unsafe fn is_zero_width(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn linewhite(lnum: linenr_T) -> bool {
     unsafe {
         let p = skipwhite(ml_get(lnum));
@@ -3018,7 +3018,7 @@ unsafe fn update_search_stat(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_searchcount(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -3178,7 +3178,7 @@ unsafe fn get_line_and_copy(lnum: linenr_T, buf: *mut c_char) -> *mut c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn find_pattern_in_path(
     ptr_pat: *mut c_char,
     mut dir: Direction,
@@ -3970,14 +3970,14 @@ unsafe fn show_pat_in_path(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_search_pattern(pat: *mut SearchPattern) {
     unsafe {
         *pat = spats[0];
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_substitute_pattern(pat: *mut SearchPattern) {
     unsafe {
         *pat = spats[1];
@@ -3990,7 +3990,7 @@ pub unsafe extern "C" fn get_substitute_pattern(pat: *mut SearchPattern) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_search_pattern_timestamp(substitute: bool) -> Timestamp {
     unsafe {
         spats[if substitute {
@@ -4002,7 +4002,7 @@ pub unsafe extern "C" fn get_search_pattern_timestamp(substitute: bool) -> Times
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn search_pattern_cleared(substitute: bool) -> bool {
     unsafe {
         spats[if substitute {
@@ -4015,7 +4015,7 @@ pub unsafe extern "C" fn search_pattern_cleared(substitute: bool) -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_search_pattern(pat: SearchPattern) {
     unsafe {
         free_spat(&raw mut spats[0]);
@@ -4024,7 +4024,7 @@ pub unsafe extern "C" fn set_search_pattern(pat: SearchPattern) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_substitute_pattern(pat: SearchPattern) {
     unsafe {
         free_spat(&raw mut spats[1]);
@@ -4038,14 +4038,14 @@ pub unsafe extern "C" fn set_substitute_pattern(pat: SearchPattern) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_last_used_pattern(is_substitute_pattern: bool) {
     unsafe {
         last_idx = c_int::from(is_substitute_pattern);
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn search_was_last_used() -> bool {
     unsafe { last_idx == 0 }
 }

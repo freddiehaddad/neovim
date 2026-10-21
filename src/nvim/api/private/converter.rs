@@ -2,40 +2,28 @@
 
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
-use crate::api::private::helpers::nil_obj;
-#[cfg(not(test))]
-use crate::api::private::helpers::{arena_array, arena_dict};
-#[cfg(not(test))]
-use crate::api::private::validate::{Array, Dict, NvimString};
-use crate::api::private::validate::{Error, Object, ObjectData, ObjectType};
-use crate::eval::decode::decode_string;
-use crate::eval::typval::{TypvalVval, VAR_UNLOCKED, VarType, typval_T};
-#[cfg(not(test))]
-use crate::eval::typval::{
-    blob_T, dict_T, dictitem_T, list_T, listitem_T, partial_T, tv_dict_add, tv_dict_alloc,
-    tv_dict_item_alloc, tv_list_alloc, tv_list_append_owned_tv,
+use crate::api::private::helpers::{arena_array, arena_dict, nil_obj};
+use crate::api::private::validate::{
+    Array, Dict, Error, NvimString, Object, ObjectData, ObjectType,
 };
-#[cfg(not(test))]
+use crate::eval::decode::decode_string;
+use crate::eval::typval::{
+    TypvalVval, VAR_UNLOCKED, VarType, blob_T, dict_T, dictitem_T, list_T, listitem_T, partial_T,
+    tv_dict_add, tv_dict_alloc, tv_dict_item_alloc, tv_list_alloc, tv_list_append_owned_tv,
+    typval_T,
+};
 use crate::eval::userfunc::{FC_LUAREF, find_func, register_luafunc};
-#[cfg(not(test))]
 use crate::eval::{get_copyID, partial_name};
-#[cfg(not(test))]
 use crate::hashtab::{hashitem_T, hashitem_empty};
-#[cfg(not(test))]
 use crate::lua::converter::LUA_NOREF;
-#[cfg(not(test))]
 use crate::lua::executor::api_new_luaref;
-use crate::memory::Arena;
-#[cfg(not(test))]
-use crate::memory::{arena_memdupz, xstrdup};
-#[cfg(not(test))]
+use crate::memory::{Arena, arena_memdupz, xstrdup};
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 pub(crate) const K_SPECIAL_VAR_NULL: i64 = 0;
 pub(crate) const K_BOOL_VAR_FALSE: i64 = 0;
 pub(crate) const K_BOOL_VAR_TRUE: i64 = 1;
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn cbuf_to_string_obj(
     arena: *mut Arena,
@@ -66,7 +54,6 @@ unsafe fn cbuf_to_string_obj(
     }
 }
 
-#[cfg(not(test))]
 enum ConvStackEntry {
     List {
         list: *mut list_T,
@@ -83,7 +70,6 @@ enum ConvStackEntry {
     },
 }
 
-#[cfg(not(test))]
 unsafe fn convert_one_value(
     stack: &mut Vec<Object>,
     mpstack: &mut Vec<ConvStackEntry>,
@@ -266,7 +252,6 @@ unsafe fn convert_one_value(
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn pop_into_parent_list(stack: &mut Vec<Object>) {
     let item = stack.pop().unwrap();
@@ -280,7 +265,6 @@ unsafe fn pop_into_parent_list(stack: &mut Vec<Object>) {
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn pop_into_parent_dict(stack: &mut Vec<Object>) {
     let val = stack.pop().unwrap();
@@ -301,13 +285,6 @@ pub unsafe extern "C" fn vim_to_object(
     arena: *mut Arena,
     reuse_strdata: bool,
 ) -> Object {
-    #[cfg(test)]
-    {
-        let _ = (obj, arena, reuse_strdata);
-        nil_obj()
-    }
-
-    #[cfg(not(test))]
     unsafe {
         let copy_id = get_copyID();
         let mut stack: Vec<Object> = Vec::with_capacity(4);
@@ -448,63 +425,52 @@ pub unsafe extern "C" fn object_to_vim_take_luaref(
             let s = unsafe { obj.data.string };
             *tv_ref = unsafe { decode_string(s.data, s.size, false, false) };
         }
-        ObjectType::kObjectTypeArray => {
-            #[cfg(not(test))]
-            unsafe {
-                let arr = obj.data.array;
-                let list = tv_list_alloc(arr.size as isize);
-                for i in 0..arr.size {
-                    let mut li_tv = typval_T {
-                        v_type: VarType::VAR_UNKNOWN,
-                        v_lock: VAR_UNLOCKED,
-                        vval: TypvalVval { v_number: 0 },
-                    };
-                    object_to_vim_take_luaref(arr.items.add(i), &mut li_tv, take_luaref, _err);
-                    tv_list_append_owned_tv(list, li_tv);
-                }
-                if !list.is_null() {
-                    (*list).lv_refcount += 1;
-                }
-                tv_ref.v_type = VarType::VAR_LIST;
-                tv_ref.vval = TypvalVval { v_list: list };
-            }
-            #[cfg(test)]
-            let _ = take_luaref;
-        }
-        ObjectType::kObjectTypeDict => {
-            #[cfg(not(test))]
-            unsafe {
-                let d = obj.data.dict;
-                let dict = tv_dict_alloc();
-                for i in 0..d.size {
-                    let item = &mut *d.items.add(i);
-                    let di = tv_dict_item_alloc(item.key.data);
-                    object_to_vim_take_luaref(&mut item.value, &mut (*di).di_tv, take_luaref, _err);
-                    tv_dict_add(dict, di);
-                }
-                (*dict).dv_refcount += 1;
-                tv_ref.v_type = VarType::VAR_DICT;
-                tv_ref.vval = TypvalVval {
-                    v_ptr: dict.cast::<c_void>(),
+        ObjectType::kObjectTypeArray => unsafe {
+            let arr = obj.data.array;
+            let list = tv_list_alloc(arr.size as isize);
+            for i in 0..arr.size {
+                let mut li_tv = typval_T {
+                    v_type: VarType::VAR_UNKNOWN,
+                    v_lock: VAR_UNLOCKED,
+                    vval: TypvalVval { v_number: 0 },
                 };
+                object_to_vim_take_luaref(arr.items.add(i), &mut li_tv, take_luaref, _err);
+                tv_list_append_owned_tv(list, li_tv);
             }
-        }
-        ObjectType::kObjectTypeLuaRef => {
-            #[cfg(not(test))]
-            unsafe {
-                let mut ref_id = obj.data.luaref;
-                if take_luaref {
-                    obj.data.luaref = LUA_NOREF;
-                } else {
-                    ref_id = api_new_luaref(ref_id);
-                }
-                let name = register_luafunc(ref_id);
-                tv_ref.v_type = VarType::VAR_FUNC;
-                tv_ref.vval = TypvalVval {
-                    v_string: xstrdup(name),
-                };
+            if !list.is_null() {
+                (*list).lv_refcount += 1;
             }
-        }
+            tv_ref.v_type = VarType::VAR_LIST;
+            tv_ref.vval = TypvalVval { v_list: list };
+        },
+        ObjectType::kObjectTypeDict => unsafe {
+            let d = obj.data.dict;
+            let dict = tv_dict_alloc();
+            for i in 0..d.size {
+                let item = &mut *d.items.add(i);
+                let di = tv_dict_item_alloc(item.key.data);
+                object_to_vim_take_luaref(&mut item.value, &mut (*di).di_tv, take_luaref, _err);
+                tv_dict_add(dict, di);
+            }
+            (*dict).dv_refcount += 1;
+            tv_ref.v_type = VarType::VAR_DICT;
+            tv_ref.vval = TypvalVval {
+                v_ptr: dict.cast::<c_void>(),
+            };
+        },
+        ObjectType::kObjectTypeLuaRef => unsafe {
+            let mut ref_id = obj.data.luaref;
+            if take_luaref {
+                obj.data.luaref = LUA_NOREF;
+            } else {
+                ref_id = api_new_luaref(ref_id);
+            }
+            let name = register_luafunc(ref_id);
+            tv_ref.v_type = VarType::VAR_FUNC;
+            tv_ref.vval = TypvalVval {
+                v_string: xstrdup(name),
+            };
+        },
     }
 }
 

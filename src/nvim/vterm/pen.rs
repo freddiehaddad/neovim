@@ -534,7 +534,7 @@ unsafe fn set_pen_col_ansi(state: *mut VTermStateFull, attr: VTermAttr, col: i64
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_state_newpen(state: *mut VTermStateFull) {
     unsafe {
         (*state).default_fg.set_rgb(240, 240, 240);
@@ -549,7 +549,7 @@ pub unsafe extern "C" fn vterm_state_newpen(state: *mut VTermStateFull) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_state_resetpen(state: *mut VTermStateFull) {
     unsafe {
         (*state).pen.set_bold(0);
@@ -587,7 +587,7 @@ pub unsafe extern "C" fn vterm_state_resetpen(state: *mut VTermStateFull) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_state_savepen(state: *mut VTermStateFull, save: c_int) {
     unsafe {
         if save != 0 {
@@ -620,7 +620,7 @@ pub unsafe extern "C" fn vterm_state_savepen(state: *mut VTermStateFull, save: c
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_state_set_default_colors(
     state: *mut VTermStateFull,
     default_fg: *const VTermColor,
@@ -643,7 +643,7 @@ pub unsafe extern "C" fn vterm_state_set_default_colors(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_state_set_palette_color(
     state: *mut VTermStateFull,
     index: c_int,
@@ -656,7 +656,7 @@ pub unsafe extern "C" fn vterm_state_set_palette_color(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_state_convert_color_to_rgb(
     state: *const VTermStateFull,
     col: *mut VTermColor,
@@ -670,7 +670,7 @@ pub unsafe extern "C" fn vterm_state_convert_color_to_rgb(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_state_setpen(
     state: *mut VTermStateFull,
     args: *const c_long,
@@ -914,7 +914,7 @@ unsafe fn vterm_state_getpen_color(
     argi
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_state_getpen(
     state: *mut VTermStateFull,
     args: *mut c_long,
@@ -993,7 +993,7 @@ pub unsafe extern "C" fn vterm_state_getpen(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_state_set_penattr(
     state: *mut VTermStateFull,
     attr: VTermAttr,

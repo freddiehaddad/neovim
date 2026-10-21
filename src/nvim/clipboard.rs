@@ -1,47 +1,31 @@
 //! Clipboard register handling (`src/nvim/clipboard.c`).
 
-#![cfg_attr(test, allow(unused_mut))]
 #![allow(non_snake_case, clippy::missing_safety_doc)]
 
 use crate::api::private::validate::NvimString;
-#[cfg(not(test))]
 use crate::eval::typval::{
     VarType, list_T, tv_list_alloc, tv_list_append_list, tv_list_append_string,
 };
-#[cfg(not(test))]
 use crate::eval::{eval_call_provider, eval_has_provider};
-#[cfg(not(test))]
 use crate::mcursor::mc_replaying;
-use crate::memory::xstrdup;
-#[cfg(not(test))]
-use crate::memory::{xcalloc, xfree};
-#[cfg(not(test))]
+use crate::memory::{xcalloc, xfree, xstrdup};
 use crate::message::{emsg, msg, redirecting};
-#[cfg(not(test))]
 use crate::option_vars::*;
-use crate::register::yankreg_T;
-#[cfg(not(test))]
 use crate::register::{
     MotionType, PLUS_REGISTER, STAR_REGISTER, free_register, get_y_previous, get_y_register,
-    update_yankreg_width,
+    update_yankreg_width, yankreg_T,
 };
-use std::ffi::{CStr, c_char, c_int};
-#[cfg(not(test))]
-use std::ffi::{c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
-#[cfg(not(test))]
 const K_OPT_CB_FLAG_UNNAMED: c_uint = 0x01;
-#[cfg(not(test))]
 const K_OPT_CB_FLAG_UNNAMEDPLUS: c_uint = 0x02;
 
-#[cfg(not(test))]
 const CTRL_V: u8 = 0x16;
 
 static BATCH_CHANGE_COUNT: AtomicI32 = AtomicI32::new(0);
 static CLIPBOARD_DELAY_UPDATE: AtomicBool = AtomicBool::new(false);
 static CLIPBOARD_NEEDS_UPDATE: AtomicBool = AtomicBool::new(false);
-#[cfg(not(test))]
 static CLIPBOARD_DIDWARN: AtomicBool = AtomicBool::new(false);
 
 const MSG_NO_CLIP: &CStr = c"clipboard: No provider. Try \":checkhealth\" or \":h clipboard\".";
@@ -61,19 +45,6 @@ pub unsafe extern "C" fn adjust_clipboard_name(
     quiet: bool,
     writing: bool,
 ) -> *mut yankreg_T {
-    #[cfg(test)]
-    {
-        let _ = (
-            name,
-            quiet,
-            writing,
-            MSG_NO_CLIP,
-            cstr_to_nvim_string as unsafe fn(*const c_char) -> NvimString,
-        );
-        std::ptr::null_mut()
-    }
-
-    #[cfg(not(test))]
     unsafe {
         let reg_char = *name;
         let flags = cb_flags;
@@ -141,13 +112,6 @@ pub unsafe extern "C" fn get_clipboard(
     target: *mut *mut yankreg_T,
     quiet: bool,
 ) -> bool {
-    #[cfg(test)]
-    {
-        let _ = (name, target, quiet);
-        false
-    }
-
-    #[cfg(not(test))]
     unsafe {
         let implicit = name == 0;
         let mut errmsg = true;
@@ -280,12 +244,6 @@ pub unsafe extern "C" fn get_clipboard(
 /// Write `reg` to the clipboard provider (`set_clipboard`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_clipboard(mut name: c_int, reg: *mut yankreg_T) {
-    #[cfg(test)]
-    {
-        let _ = (name, reg);
-    }
-
-    #[cfg(not(test))]
     unsafe {
         if mc_replaying() || adjust_clipboard_name(&mut name, false, true).is_null() {
             return;
@@ -345,7 +303,6 @@ pub extern "C" fn end_batch_changes() {
     }
     CLIPBOARD_DELAY_UPDATE.store(false, Ordering::Relaxed);
     if CLIPBOARD_NEEDS_UPDATE.swap(false, Ordering::Relaxed) {
-        #[cfg(not(test))]
         unsafe {
             set_clipboard(0, get_y_previous());
         }

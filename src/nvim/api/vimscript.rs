@@ -10,41 +10,26 @@
     clippy::missing_safety_doc
 )]
 
-#[cfg(not(test))]
 use crate::api::private::converter::{object_to_vim, vim_to_object};
-#[cfg(not(test))]
 use crate::api::private::helpers::{
     TryState, add_c, api_set_error, api_set_sctx, arena_array, arena_dict, arena_string, array_obj,
-    boolean_obj, dict_obj, error_set, float_obj, integer_obj, put_c, string_obj, try_enter,
-    try_leave,
+    boolean_obj, cstr_as_string, dict_obj, error_set, float_obj, integer_obj, nil_obj, put_c,
+    string_obj, try_enter, try_leave,
 };
-use crate::api::private::helpers::{cstr_as_string, nil_obj};
-use crate::api::private::validate::{Array, Dict, Error, NvimString, Object};
-#[cfg(not(test))]
-use crate::api::private::validate::{ErrorType, KeyValuePair, ObjectType, api_err_exp};
-#[cfg(not(test))]
+use crate::api::private::validate::{
+    Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType, api_err_exp,
+};
 use crate::eval::typval::{VarType, dict_T, tv_clear, tv_dict_find, typval_T};
-#[cfg(not(test))]
 use crate::eval::userfunc::{call_func, funcexe_T};
-#[cfg(not(test))]
 use crate::eval::{clear_evalarg, eval0};
-#[cfg(not(test))]
 use crate::ex_docmd::do_cmdline_cmd;
-#[cfg(not(test))]
 use crate::garray::{ga_clear, ga_init, garray_T};
-#[cfg(not(test))]
 use crate::globals::*;
-#[cfg(not(test))]
 use crate::kvec::KVecWithInit;
 use crate::lua::converter::Boolean;
-use crate::memory::Arena;
-#[cfg(not(test))]
-use crate::memory::{xfree, xmemdupz};
-#[cfg(not(test))]
+use crate::memory::{Arena, xfree, xmemdupz};
 use crate::msgpack_rpc::packer::Integer;
-#[cfg(not(test))]
 use crate::runtime::do_source_str;
-#[cfg(not(test))]
 use crate::viml::parser::expressions::{
     ExprASTNode, ccs_tab, east_node_type_tab, eltkn_cmp_type_tab, expr_asgn_type_tab,
     kExprAsgnPlain, kExprFlagsDisallowEOC, kExprFlagsMulti, kExprFlagsParseLet,
@@ -52,17 +37,12 @@ use crate::viml::parser::expressions::{
     kExprNodeFloat, kExprNodeInteger, kExprNodeOption, kExprNodePlainIdentifier, kExprNodePlainKey,
     kExprNodeRegister, kExprNodeSingleQuotedString, viml_pexpr_free_ast, viml_pexpr_parse,
 };
-#[cfg(not(test))]
 use crate::viml::parser::parser::{
     ParserHighlight, ParserLine, ParserPosition, ParserState, parser_simple_get_line,
     viml_parser_destroy,
 };
-#[cfg(not(test))]
-use std::ffi::{CStr, c_char, c_int};
-#[cfg(not(test))]
-use std::ffi::{c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 
-#[cfg(not(test))]
 const API_INTEGER_MAX: u64 = i64::MAX as u64;
 
 #[repr(C)]
@@ -70,12 +50,9 @@ pub struct KeyDict_exec_opts {
     pub output: Boolean,
 }
 
-#[cfg(not(test))]
 use crate::eval::funcs::MAX_FUNC_ARGS;
-#[cfg(not(test))]
 use crate::math::{FAIL, OK};
 
-#[cfg(not(test))]
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct ExprASTConvStackItem {
@@ -83,15 +60,11 @@ struct ExprASTConvStackItem {
     ret_node_p: *mut Object,
 }
 
-#[cfg(not(test))]
 type ExprASTConvStack = KVecWithInit<ExprASTConvStackItem, 16>;
 
-#[cfg(not(test))]
 static mut EVAL_RECURSIVE: c_int = 0;
-#[cfg(not(test))]
 static mut CALL_FUNC_RECURSIVE: c_int = 0;
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn cstr_to_string(s: &'static CStr) -> NvimString {
     let bytes = s.to_bytes();
@@ -104,7 +77,6 @@ unsafe fn cstr_to_string(s: &'static CStr) -> NvimString {
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn cbuf_to_arena_obj(arena: *mut Arena, s: *const c_char, len: usize) -> Object {
     unsafe {
@@ -146,13 +118,6 @@ pub unsafe extern "C" fn nvim_exec2(
     opts: *mut KeyDict_exec_opts,
     err: *mut Error,
 ) -> Dict {
-    #[cfg(test)]
-    {
-        let _ = (channel_id, src, opts, err);
-        Dict::new()
-    }
-
-    #[cfg(not(test))]
     unsafe {
         let mut result = Dict::new();
         let output = exec_impl(channel_id, src, opts, err);
@@ -177,16 +142,6 @@ pub unsafe extern "C" fn exec_impl(
     opts: *mut KeyDict_exec_opts,
     err: *mut Error,
 ) -> NvimString {
-    #[cfg(test)]
-    {
-        let _ = (channel_id, src, opts, err);
-        NvimString {
-            data: std::ptr::null_mut(),
-            size: 0,
-        }
-    }
-
-    #[cfg(not(test))]
     unsafe {
         let save_msg_silent = msg_silent;
         let save_redir_off = redir_off;
@@ -258,10 +213,6 @@ pub unsafe extern "C" fn exec_impl(
 // DLLEXPORT void nvim_command(String cmd, Error *err) FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_command(cmd: NvimString, err: *mut Error) {
-    #[cfg(test)]
-    let _ = (cmd, err);
-
-    #[cfg(not(test))]
     unsafe {
         let mut tstate: TryState = std::mem::zeroed();
         try_enter(&mut tstate);
@@ -280,13 +231,6 @@ pub unsafe extern "C" fn nvim_command(cmd: NvimString, err: *mut Error) {
 // DLLEXPORT Object nvim_eval(String expr, Arena *arena, Error *err) FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_eval(expr: NvimString, arena: *mut Arena, err: *mut Error) -> Object {
-    #[cfg(test)]
-    {
-        let _ = (expr, arena, err);
-        nil_obj()
-    }
-
-    #[cfg(not(test))]
     unsafe {
         let mut rv = nil_obj();
 
@@ -334,7 +278,6 @@ pub unsafe extern "C" fn nvim_eval(expr: NvimString, arena: *mut Arena, err: *mu
     }
 }
 
-#[cfg(not(test))]
 unsafe fn call_function_impl(
     channel_id: u64,
     fn_name: NvimString,
@@ -432,16 +375,7 @@ pub unsafe extern "C" fn nvim_call_function(
     arena: *mut Arena,
     err: *mut Error,
 ) -> Object {
-    #[cfg(test)]
-    {
-        let _ = (channel_id, fn_name, args, arena, err);
-        nil_obj()
-    }
-
-    #[cfg(not(test))]
-    unsafe {
-        call_function_impl(channel_id, fn_name, args, std::ptr::null_mut(), arena, err)
-    }
+    unsafe { call_function_impl(channel_id, fn_name, args, std::ptr::null_mut(), arena, err) }
 }
 
 /// Calls a Vimscript |Dictionary-function| with the given arguments.
@@ -464,13 +398,6 @@ pub unsafe extern "C" fn nvim_call_dict_function(
     arena: *mut Arena,
     err: *mut Error,
 ) -> Object {
-    #[cfg(test)]
-    {
-        let _ = (channel_id, dict, &mut fn_name, args, arena, err);
-        nil_obj()
-    }
-
-    #[cfg(not(test))]
     unsafe {
         let mut rv = nil_obj();
         let mut rettv: typval_T = std::mem::zeroed();
@@ -667,13 +594,6 @@ pub unsafe extern "C" fn nvim_parse_expression(
     arena: *mut Arena,
     err: *mut Error,
 ) -> Dict {
-    #[cfg(test)]
-    {
-        let _ = (expr, flags, hl, arena, err);
-        Dict::new()
-    }
-
-    #[cfg(not(test))]
     unsafe {
         let mut pflags: c_int = 0;
         for i in 0..flags.size {

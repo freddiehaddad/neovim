@@ -290,7 +290,7 @@ unsafe fn xdl_split(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn xdl_recs_cmp(
     dd1: *mut diffdata_t,
     mut off1: c_long,
@@ -363,7 +363,7 @@ pub unsafe extern "C" fn xdl_recs_cmp(
     0
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn xdl_do_diff(
     mf1: *mut mmfile_t,
     mf2: *mut mmfile_t,
@@ -698,7 +698,7 @@ fn xdl_bug(msg: &str) -> ! {
     std::process::exit(1);
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn xdl_change_compact(
     xdf: *mut xdfile_t,
     xdfo: *mut xdfile_t,
@@ -813,7 +813,7 @@ pub unsafe extern "C" fn xdl_change_compact(
     0
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn xdl_build_script(xe: *mut xdfenv_t, xscr: *mut *mut xdchange_t) -> c_int {
     let mut cscr: *mut xdchange_t = ptr::null_mut();
     unsafe {
@@ -849,7 +849,7 @@ pub unsafe extern "C" fn xdl_build_script(xe: *mut xdfenv_t, xscr: *mut *mut xdc
     0
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn xdl_free_script(mut xscr: *mut xdchange_t) {
     while !xscr.is_null() {
         let xch = xscr;
@@ -924,7 +924,7 @@ unsafe fn xdl_emit_diff_wrapper(
     unsafe { xdl_emit_diff(xe, xscr, ecb, xecfg) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn xdl_diff(
     mf1: *mut mmfile_t,
     mf2: *mut mmfile_t,

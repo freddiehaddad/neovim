@@ -230,7 +230,7 @@ unsafe fn get_extra_buf(mut size: usize) -> *mut c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn drawline_free_all_mem() {
     unsafe {
         xfree(extra_buf.cast());
@@ -622,7 +622,7 @@ unsafe fn draw_col_fill(wlv: &mut winlinevars_T, fillchar: schar_T, width: c_int
 
 /// Return true if CursorLineSign / CursorLineFold highlight is to be used.
 /// This depends only on 'cursorline', not on 'cursorlineopt'.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn use_cursor_line_highlight(wp: *mut win_T, lnum: linenr_T) -> bool {
     unsafe { (*wp).w_onebuf_opt.wo_cul != 0 && lnum == (*wp).w_cursorline }
 }
@@ -672,7 +672,7 @@ unsafe fn foldcolumn_sep_char(first_level: c_int, i: c_int, wp: *mut win_T) -> s
 }
 
 /// Draw the foldcolumn or fill "out_buffer". Assume monocell characters.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn fill_foldcolumn(
     wp: *mut win_T,
     foldinfo: foldinfo_T,
@@ -1364,7 +1364,7 @@ unsafe fn get_rightmost_vcol(wp: *mut win_T, color_cols: *const c_int) -> c_int 
 }
 
 /// Display line "lnum" of window "wp" on the screen.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn win_line(
     wp: *mut win_T,
     lnum: linenr_T,

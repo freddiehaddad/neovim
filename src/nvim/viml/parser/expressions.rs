@@ -15,14 +15,11 @@ use crate::keycodes::{FSK_IN_STRING, FSK_KEYCODE, FSK_SIMPLIFY, trans_special};
 use crate::kvec::KVecWithInit;
 use crate::mbyte::{mb_copy_char, utf_char2bytes, utf_char2len, utfc_ptr2len_len};
 use crate::memory::{xfree, xmalloc, xmallocz};
-#[cfg(not(test))]
 use crate::strings::vim_snprintf;
 use crate::viml::parser::parser::{
     ParserHighlightChunk, ParserLine, ParserPosition, ParserState, viml_parser_get_remaining_line,
 };
-#[cfg(not(test))]
-use std::ffi::CStr;
-use std::ffi::{c_char, c_int};
+use std::ffi::{CStr, c_char, c_int};
 
 use crate::eval::STR2NR_ALL;
 use crate::eval::typval::float_T;
@@ -434,7 +431,6 @@ enum ExprOpAssociativity {
 pub struct SyncCStrArray<const N: usize>(pub [*const c_char; N]);
 unsafe impl<const N: usize> Sync for SyncCStrArray<N> {}
 
-#[cfg(not(test))]
 const ELTKN_TYPE_TAB: [&CStr; 27] = [
     c"Invalid",
     c"Missing",
@@ -493,7 +489,6 @@ const fn build_ccs_tab() -> [*const c_char; 64] {
 #[unsafe(no_mangle)]
 pub static ccs_tab: SyncCStrArray<64> = SyncCStrArray(build_ccs_tab());
 
-#[cfg(not(test))]
 const ELTKN_MUL_TYPE_TAB: [&CStr; 3] = [c"Mul", c"Div", c"Mod"];
 
 #[unsafe(no_mangle)]
@@ -1155,12 +1150,9 @@ pub unsafe extern "C" fn viml_pexpr_next_token(
     }
 }
 
-#[cfg(not(test))]
 static mut INTCHAR_BUF: [c_char; 16] = [0; 16];
-#[cfg(not(test))]
 static mut REPR_TOKEN_RET: [c_char; 1024] = [0; 1024];
 
-#[cfg(not(test))]
 unsafe fn intchar2str(ch: c_int) -> *const c_char {
     unsafe {
         let buf = std::ptr::addr_of_mut!(INTCHAR_BUF).cast::<c_char>();
@@ -1191,13 +1183,6 @@ pub unsafe extern "C" fn viml_pexpr_repr_token(
     token: LexExprToken,
     ret_size: *mut usize,
 ) -> *const c_char {
-    #[cfg(test)]
-    {
-        let _ = (pstate, token, ret_size);
-        std::ptr::null()
-    }
-
-    #[cfg(not(test))]
     unsafe {
         let ret = std::ptr::addr_of_mut!(REPR_TOKEN_RET).cast::<c_char>();
         let mut p = ret;

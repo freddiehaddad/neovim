@@ -8,26 +8,18 @@
 )]
 
 use crate::api::private::validate::NvimString;
-use crate::charset::is_special;
-#[cfg(not(test))]
-use crate::charset::{ascii_isalpha, ascii_isdigit, transchar, vim_isprintc, vim_str2nr};
-#[cfg(not(test))]
-use crate::eval::vars::get_var_value;
-#[cfg(not(test))]
+use crate::charset::{
+    ascii_isalpha, ascii_isdigit, is_special, transchar, vim_isprintc, vim_str2nr,
+};
+use crate::eval::vars::{get_var_value, scid_T};
 use crate::globals::*;
-#[cfg(not(test))]
 use crate::mbyte::{
     utf_char2bytes, utf_char2len, utf_ptr2char, utf_ptr2len, utfc_ptr2len, utfc_ptr2len_len,
 };
-#[cfg(not(test))]
 use crate::memory::{xmalloc, xrealloc};
-#[cfg(not(test))]
 use crate::message::emsg;
-#[cfg(not(test))]
 use crate::strings::{vim_snprintf, vim_strchr};
 use std::ffi::{CStr, c_char, c_int, c_uint};
-
-use crate::eval::vars::scid_T;
 
 pub const NUL: u8 = 0;
 pub const BS: c_int = 0x08;
@@ -159,9 +151,7 @@ pub const fn key2termcap1(x: c_int) -> c_int {
     (((-x) as u32 >> 8) & 0xff) as c_int
 }
 
-#[cfg(not(test))]
 use crate::cmdexpand::MB_MAXBYTES;
-#[cfg(not(test))]
 use crate::eval::STR2NR_ALL;
 use crate::mouse::{MOUSE_LEFT, MOUSE_MIDDLE, MOUSE_RELEASE, MOUSE_RIGHT, MOUSE_X1, MOUSE_X2};
 
@@ -382,7 +372,6 @@ pub const FSK_KEEP_X_KEY: c_int = 0x02;
 pub const FSK_IN_STRING: c_int = 0x04;
 pub const FSK_SIMPLIFY: c_int = 0x08;
 
-#[cfg(not(test))]
 const K_CPO_BSLASH: c_int = b'B' as c_int;
 
 #[repr(C)]
@@ -1913,13 +1902,11 @@ fn toupper_asc(c: c_int) -> c_int {
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 fn ctrl_chr(c: c_int) -> c_int {
     toupper_asc(c) ^ 0x40
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn strnicmp_asc(s: *const c_char, pat: &[u8]) -> bool {
     for (i, &p) in pat.iter().enumerate() {
@@ -2174,7 +2161,6 @@ pub extern "C" fn handle_x_keys(key: c_int) -> c_int {
     }
 }
 
-#[cfg(not(test))]
 static mut SPECIAL_KEY_STRING: [c_char; MAX_KEY_NAME_LEN + 1] = [0; MAX_KEY_NAME_LEN + 1];
 
 /// Gets a key "chord" (key + modifiers) as a string, and optionally as structured `data`
@@ -2185,13 +2171,6 @@ pub unsafe extern "C" fn get_special_key(
     mut modifiers: c_int,
     data: *mut keychord,
 ) -> *mut c_char {
-    #[cfg(test)]
-    {
-        let _ = (&mut c, &mut modifiers, data);
-        std::ptr::null_mut()
-    }
-
-    #[cfg(not(test))]
     unsafe {
         let string = std::ptr::addr_of_mut!(SPECIAL_KEY_STRING).cast::<c_char>();
         let mut is_ascii_ctrl = false;
@@ -2403,13 +2382,6 @@ pub unsafe extern "C" fn special_to_buf(
     escape_ks: bool,
     dst: *mut c_char,
 ) -> c_uint {
-    #[cfg(test)]
-    {
-        let _ = (key, modifiers, escape_ks, dst);
-        0
-    }
-
-    #[cfg(not(test))]
     unsafe {
         let mut dlen: c_uint = 0;
 
@@ -2442,7 +2414,6 @@ pub unsafe extern "C" fn special_to_buf(
     }
 }
 
-#[cfg(not(test))]
 /// Try to include modifiers (except alt/meta) in the key (`extract_modifiers`).
 fn extract_modifiers(
     mut key: c_int,
@@ -2496,13 +2467,6 @@ pub unsafe extern "C" fn find_special_key(
     flags: c_int,
     did_simplify: *mut bool,
 ) -> c_int {
-    #[cfg(test)]
-    {
-        let _ = (srcp, src_len, modp, flags, did_simplify);
-        0
-    }
-
-    #[cfg(not(test))]
     unsafe {
         if src_len == 0 {
             return 0;
@@ -2745,13 +2709,6 @@ pub unsafe extern "C" fn replace_termcodes(
     did_simplify: *mut bool,
     cpo_val: *const c_char,
 ) -> *mut c_char {
-    #[cfg(test)]
-    {
-        let _ = (from, from_len, bufp, sid_arg, flags, did_simplify, cpo_val);
-        std::ptr::null_mut()
-    }
-
-    #[cfg(not(test))]
     unsafe {
         let mut dlen: usize = 0;
         let end_exclusive = from.add(from_len);
@@ -2915,13 +2872,6 @@ pub unsafe extern "C" fn replace_termcodes(
 /// Add character `c` to buffer `s`, escaping `K_SPECIAL` (`add_char2buf`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn add_char2buf(c: c_int, s: *mut c_char) -> *mut c_char {
-    #[cfg(test)]
-    {
-        let _ = c;
-        s
-    }
-
-    #[cfg(not(test))]
     unsafe {
         let mut s = s;
         let mut temp = [0 as c_char; MB_MAXBYTES + 1];
@@ -2947,13 +2897,6 @@ pub unsafe extern "C" fn add_char2buf(c: c_int, s: *mut c_char) -> *mut c_char {
 /// Copy `p` to allocated memory, escaping `K_SPECIAL` (`vim_strsave_escape_ks`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_strsave_escape_ks(p: *mut c_char) -> *mut c_char {
-    #[cfg(test)]
-    {
-        let _ = p;
-        std::ptr::null_mut()
-    }
-
-    #[cfg(not(test))]
     unsafe {
         let res = xmalloc(CStr::from_ptr(p).to_bytes().len() * 4 + 1).cast::<c_char>();
         let mut d = res;

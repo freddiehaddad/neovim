@@ -7,60 +7,37 @@
     clippy::useless_conversion
 )]
 
-#[cfg(not(test))]
 use crate::api::private::converter::{K_BOOL_VAR_FALSE, K_BOOL_VAR_TRUE};
-#[cfg(not(test))]
 use crate::eval::encode::{encode_tv2echo, encode_tv2string};
-use crate::eval::typval::{EvalFuncData, typval_T};
-#[cfg(not(test))]
 use crate::eval::typval::{
-    TypvalVval, VAR_UNLOCKED, VarType, dict_T, dictitem_T, tv_check_for_float_or_nr_arg,
-    tv_check_for_opt_number_arg, tv_check_for_opt_string_arg, tv_check_for_opt_string_or_list_arg,
-    tv_check_for_string_or_number_arg, tv_clear, tv_dict_add_tv, tv_dict_alloc, tv_dict_find,
-    tv_equal, tv_get_float, tv_get_number_chk, tv_get_string, tv_get_string_buf_chk,
-    tv_get_string_chk, tv_list_first, tv_list_last, tv_list_len,
+    EvalFuncData, TypvalVval, VAR_UNLOCKED, VarType, dict_T, dictitem_T,
+    tv_check_for_float_or_nr_arg, tv_check_for_opt_number_arg, tv_check_for_opt_string_arg,
+    tv_check_for_opt_string_or_list_arg, tv_check_for_string_or_number_arg, tv_clear,
+    tv_dict_add_tv, tv_dict_alloc, tv_dict_find, tv_equal, tv_get_float, tv_get_number_chk,
+    tv_get_string, tv_get_string_buf_chk, tv_get_string_chk, tv_list_first, tv_list_last,
+    tv_list_len, typval_T,
 };
-#[cfg(not(test))]
 use crate::eval::vars::{
     VV_ERRMSG, VV_EXCEPTION, VV_TESTING, assert_error, get_vim_var_nr, get_vim_var_str,
     get_vim_var_tv, set_vim_var_string,
 };
-#[cfg(not(test))]
 use crate::eval::{garbage_collect, pattern_match};
-#[cfg(not(test))]
 use crate::ex_docmd::do_cmdline_cmd;
-#[cfg(not(test))]
 use crate::fileio::{fclose, fgetc};
-#[cfg(not(test))]
-use crate::garray::ga_concat;
-use crate::garray::{ga_append, ga_clear, ga_concat_len, ga_init, garray_T};
-#[cfg(not(test))]
+use crate::garray::{ga_append, ga_clear, ga_concat, ga_concat_len, ga_init, garray_T};
 use crate::globals::IOSIZE;
-#[cfg(not(test))]
 use crate::globals::*;
-#[cfg(not(test))]
 use crate::hashtab::hashitem_empty;
-#[cfg(not(test))]
 use crate::math::FAIL;
-#[cfg(not(test))]
 use crate::mbyte::{mb_cptr2char_adv, utf_ptr2char};
-#[cfg(not(test))]
 use crate::memory::{xfree, xstrdup, xstrlcpy};
-#[cfg(not(test))]
 use crate::message::{emsg, msg_reset_scroll};
-#[cfg(not(test))]
 use crate::os::fs::os_fopen;
-#[cfg(not(test))]
 use crate::regexp::NUMBUFLEN;
-#[cfg(not(test))]
 use crate::runtime::{ESTACK_NONE, estack_sfile, sourcing_lnum};
-#[cfg(not(test))]
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
-#[cfg(not(test))]
-use std::ffi::c_void;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_char, c_int, c_void};
 
-#[cfg(not(test))]
 const EOF_VAL: c_int = -1;
 
 const BS: u8 = 0x08;
@@ -70,7 +47,6 @@ pub(crate) const FF: u8 = 0x0c;
 const CAR: u8 = 0x0d;
 const ESC: u8 = 0x1b;
 
-#[cfg(not(test))]
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum AssertType {
     Equal,
@@ -88,8 +64,6 @@ pub unsafe fn ga_concat_literal(gap: *mut garray_T, s: &[u8]) {
     }
 }
 
-#[cfg(not(test))]
-#[cfg(not(test))]
 unsafe fn prepare_assert_error(gap: *mut garray_T) {
     unsafe {
         let sname = estack_sfile(ESTACK_NONE);
@@ -141,7 +115,6 @@ unsafe fn ga_concat_esc(gap: *mut garray_T, p: *const c_char, clen: c_int) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn ga_concat_shorten_esc(gap: *mut garray_T, str_ptr: *const c_char) {
     unsafe {
         if str_ptr.is_null() {
@@ -173,7 +146,6 @@ unsafe fn ga_concat_shorten_esc(gap: *mut garray_T, str_ptr: *const c_char) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn fill_assert_error(
     gap: *mut garray_T,
     opt_msg_tv: *mut typval_T,
@@ -309,7 +281,6 @@ unsafe fn fill_assert_error(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn assert_equal_common(argvars: *mut typval_T, atype: AssertType) -> c_int {
     unsafe {
         if tv_equal(argvars, argvars.add(1), false) != (atype == AssertType::Equal) {
@@ -337,7 +308,6 @@ unsafe fn assert_equal_common(argvars: *mut typval_T, atype: AssertType) -> c_in
     }
 }
 
-#[cfg(not(test))]
 unsafe fn assert_match_common(argvars: *mut typval_T, atype: AssertType) -> c_int {
     unsafe {
         let mut buf1 = [0 as c_char; NUMBUFLEN];
@@ -373,7 +343,6 @@ unsafe fn assert_match_common(argvars: *mut typval_T, atype: AssertType) -> c_in
     }
 }
 
-#[cfg(not(test))]
 unsafe fn assert_bool(argvars: *mut typval_T, is_true: bool) -> c_int {
     unsafe {
         let mut error = false;
@@ -416,7 +385,6 @@ unsafe fn assert_bool(argvars: *mut typval_T, is_true: bool) -> c_int {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn assert_append_cmd_or_arg(gap: *mut garray_T, argvars: *mut typval_T, cmd: *const c_char) {
     unsafe {
         if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN
@@ -431,7 +399,6 @@ unsafe fn assert_append_cmd_or_arg(gap: *mut garray_T, argvars: *mut typval_T, c
     }
 }
 
-#[cfg(not(test))]
 unsafe fn assert_beeps(argvars: *mut typval_T, no_beep: bool) -> c_int {
     unsafe {
         let cmd = tv_get_string_chk(argvars);
@@ -475,10 +442,6 @@ pub unsafe extern "C" fn f_assert_beeps(
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         (*rettv).vval.v_number = assert_beeps(argvars, false) as i64;
     }
@@ -491,10 +454,6 @@ pub unsafe extern "C" fn f_assert_nobeep(
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         (*rettv).vval.v_number = assert_beeps(argvars, true) as i64;
     }
@@ -507,16 +466,11 @@ pub unsafe extern "C" fn f_assert_equal(
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         (*rettv).vval.v_number = assert_equal_common(argvars, AssertType::Equal) as i64;
     }
 }
 
-#[cfg(not(test))]
 unsafe fn assert_equalfile(argvars: *mut typval_T) -> c_int {
     unsafe {
         let mut buf1 = [0 as c_char; NUMBUFLEN];
@@ -642,10 +596,6 @@ pub unsafe extern "C" fn f_assert_equalfile(
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         (*rettv).vval.v_number = assert_equalfile(argvars) as i64;
     }
@@ -658,10 +608,6 @@ pub unsafe extern "C" fn f_assert_notequal(
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         (*rettv).vval.v_number = assert_equal_common(argvars, AssertType::NotEqual) as i64;
     }
@@ -674,10 +620,6 @@ pub unsafe extern "C" fn f_assert_exception(
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         let error = tv_get_string_chk(argvars);
         let v_exc = get_vim_var_str(VV_EXCEPTION);
@@ -734,10 +676,6 @@ pub unsafe extern "C" fn f_assert_fails(
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         let save_trylevel = trylevel;
         let called_emsg_before = called_emsg;
@@ -944,16 +882,11 @@ pub unsafe extern "C" fn f_assert_false(
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         (*rettv).vval.v_number = assert_bool(argvars, false) as i64;
     }
 }
 
-#[cfg(not(test))]
 unsafe fn assert_inrange(argvars: *mut typval_T) -> c_int {
     unsafe {
         let mut error = false;
@@ -1040,10 +973,6 @@ pub unsafe extern "C" fn f_assert_inrange(
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         if tv_check_for_float_or_nr_arg(argvars, 0) == FAIL
             || tv_check_for_float_or_nr_arg(argvars, 1) == FAIL
@@ -1063,10 +992,6 @@ pub unsafe extern "C" fn f_assert_match(
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         (*rettv).vval.v_number = assert_match_common(argvars, AssertType::Match) as i64;
     }
@@ -1079,10 +1004,6 @@ pub unsafe extern "C" fn f_assert_notmatch(
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         (*rettv).vval.v_number = assert_match_common(argvars, AssertType::NotMatch) as i64;
     }
@@ -1095,10 +1016,6 @@ pub unsafe extern "C" fn f_assert_report(
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         let mut ga = garray_T {
             ga_len: 0,
@@ -1122,10 +1039,6 @@ pub unsafe extern "C" fn f_assert_true(
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         (*rettv).vval.v_number = assert_bool(argvars, true) as i64;
     }
@@ -1138,7 +1051,6 @@ pub unsafe extern "C" fn f_test_garbagecollect_now(
     _rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(not(test))]
     unsafe {
         if get_vim_var_nr(VV_TESTING) == 0 {
             emsg(c"E1142: Calling test_garbagecollect_now() while v:testing is not set".as_ptr());
@@ -1155,10 +1067,6 @@ pub unsafe extern "C" fn f_test_write_list_log(
     _rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = argvars;
-
-    #[cfg(not(test))]
     unsafe {
         let _fname = tv_get_string_chk(argvars);
     }

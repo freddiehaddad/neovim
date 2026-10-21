@@ -117,7 +117,7 @@ const fn has_briopt_key(v: &OptKeyDict_briopt, bit: u64) -> bool {
 }
 
 /// Set the integer values corresponding to the string setting of `'vartabstop'` (`tabstop_set`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tabstop_set(
     mut var: *mut c_char,
     array: *mut *mut colnr_T,
@@ -189,7 +189,7 @@ pub unsafe extern "C" fn tabstop_set(
 }
 
 /// Calculate the number of screen spaces a tab will occupy (`tabstop_padding`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tabstop_padding(
     col: colnr_T,
     ts_arg: OptInt,
@@ -224,7 +224,7 @@ pub unsafe extern "C" fn tabstop_padding(
 }
 
 /// Find the size of the tab that covers a particular column (`tabstop_at`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tabstop_at(
     col: colnr_T,
     ts: OptInt,
@@ -261,7 +261,7 @@ pub unsafe extern "C" fn tabstop_at(
 }
 
 /// Find the column on which a tab starts (`tabstop_start`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tabstop_start(col: colnr_T, ts: c_int, vts: *mut colnr_T) -> colnr_T {
     unsafe {
         let mut tabcol: colnr_T = 0;
@@ -286,7 +286,7 @@ pub unsafe extern "C" fn tabstop_start(col: colnr_T, ts: c_int, vts: *mut colnr_
 }
 
 /// Find the number of tabs and spaces necessary to get from one column to another (`tabstop_fromto`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tabstop_fromto(
     start_col: colnr_T,
     end_col: colnr_T,
@@ -365,7 +365,7 @@ pub unsafe extern "C" fn tabstop_fromto(
 }
 
 /// Copy a tabstop array, allocating space for the new array (`tabstop_copy`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tabstop_copy(oldts: *const c_int) -> *mut c_int {
     unsafe {
         if oldts.is_null() {
@@ -383,13 +383,13 @@ pub unsafe extern "C" fn tabstop_copy(oldts: *const c_int) -> *mut c_int {
 }
 
 /// Return a count of the number of tabstops (`tabstop_count`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tabstop_count(ts: *mut colnr_T) -> c_int {
     if ts.is_null() { 0 } else { unsafe { *ts } }
 }
 
 /// Return the first tabstop, or 8 if there are no tabstops defined (`tabstop_first`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tabstop_first(ts: *mut colnr_T) -> c_int {
     if ts.is_null() {
         8
@@ -399,7 +399,7 @@ pub unsafe extern "C" fn tabstop_first(ts: *mut colnr_T) -> c_int {
 }
 
 /// Return the effective shiftwidth value for current buffer (`get_sw_value`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_sw_value(buf: *mut buf_T) -> c_int {
     unsafe { get_sw_value_col(buf, 0, false) }
 }
@@ -415,7 +415,7 @@ unsafe fn get_sw_value_pos(buf: *mut buf_T, pos: *const pos_T, left: bool) -> c_
 }
 
 /// Return the effective shiftwidth value using the first non-blank in the current line (`get_sw_value_indent`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_sw_value_indent(buf: *mut buf_T, left: bool) -> c_int {
     unsafe {
         let mut pos = (*curwin).w_cursor;
@@ -425,7 +425,7 @@ pub unsafe extern "C" fn get_sw_value_indent(buf: *mut buf_T, left: bool) -> c_i
 }
 
 /// Return the effective shiftwidth value using virtual column `col` (`get_sw_value_col`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_sw_value_col(buf: *mut buf_T, col: colnr_T, left: bool) -> c_int {
     unsafe {
         if (*buf).b_p_sw != 0 {
@@ -437,7 +437,7 @@ pub unsafe extern "C" fn get_sw_value_col(buf: *mut buf_T, col: colnr_T, left: b
 }
 
 /// Return the effective softtabstop value for the current buffer (`get_sts_value`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_sts_value() -> c_int {
     unsafe {
         if (*curbuf).b_p_sts < 0 {
@@ -449,7 +449,7 @@ pub unsafe extern "C" fn get_sts_value() -> c_int {
 }
 
 /// Count the size (in window cells) of the indent in the current line (`get_indent`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_indent() -> c_int {
     unsafe {
         indent_size_ts(
@@ -461,19 +461,19 @@ pub unsafe extern "C" fn get_indent() -> c_int {
 }
 
 /// Count the size (in window cells) of the indent in line `lnum` (`get_indent_lnum`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_indent_lnum(lnum: linenr_T) -> c_int {
     unsafe { indent_size_ts(ml_get(lnum), (*curbuf).b_p_ts, (*curbuf).b_p_vts_array) }
 }
 
 /// Count the size (in window cells) of the indent in line `lnum` of buffer `buf` (`get_indent_buf`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_indent_buf(buf: *mut buf_T, lnum: linenr_T) -> c_int {
     unsafe { indent_size_ts(ml_get_buf(buf, lnum), (*buf).b_p_ts, (*buf).b_p_vts_array) }
 }
 
 /// Compute the size of the indent (in window cells) in line `ptr`, without tabstops (`indent_size_no_ts`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn indent_size_no_ts(mut ptr: *const c_char) -> c_int {
     unsafe {
         let tab_size = dy_escape_width;
@@ -493,7 +493,7 @@ pub unsafe extern "C" fn indent_size_no_ts(mut ptr: *const c_char) -> c_int {
 }
 
 /// Compute the size of the indent (in window cells) in line `ptr`, using tabstops (`indent_size_ts`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn indent_size_ts(
     mut ptr: *const c_char,
     ts: OptInt,
@@ -559,7 +559,7 @@ pub unsafe extern "C" fn indent_size_ts(
 }
 
 /// Set the indent of the current line (`set_indent`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_indent(size: c_int, flags: c_int) -> bool {
     unsafe {
         let mut doit = false;
@@ -775,7 +775,7 @@ pub unsafe extern "C" fn set_indent(size: c_int, flags: c_int) -> bool {
 }
 
 /// Return the indent of the current line after a number (`get_number_indent`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_number_indent(lnum: linenr_T) -> c_int {
     unsafe {
         if lnum > (*curbuf).b_ml.ml_line_count {
@@ -828,7 +828,7 @@ pub unsafe extern "C" fn get_number_indent(lnum: linenr_T) -> c_int {
 }
 
 /// Check `briopt` as `'breakindentopt'` and update the members of `wp` (`briopt_check`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn briopt_check(wp: *mut win_T) {
     unsafe {
         if wp.is_null() {
@@ -866,7 +866,7 @@ pub unsafe extern "C" fn briopt_check(wp: *mut win_T) {
 }
 
 /// Return appropriate space number for breakindent (`get_breakindent_win`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_breakindent_win(wp: *mut win_T, line: *mut c_char) -> c_int {
     unsafe {
         let eff_wwidth = (*wp).w_view_width - win_col_off(wp) + win_col_off2(wp);
@@ -962,7 +962,7 @@ pub unsafe extern "C" fn get_breakindent_win(wp: *mut win_T, line: *mut c_char) 
 }
 
 /// Return true if the cursor is before (or on, when `extra == 0`) the first non-blank in the line (`inindent`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn inindent(extra: c_int) -> bool {
     unsafe {
         let mut ptr = get_cursor_line_ptr();
@@ -976,7 +976,7 @@ pub unsafe extern "C" fn inindent(extra: c_int) -> bool {
 }
 
 /// Handle reindenting a block of lines (`op_reindent`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn op_reindent(oap: *mut oparg_T, how: Indenter) {
     unsafe {
         let mut i: c_int = 0;
@@ -1105,7 +1105,7 @@ pub unsafe extern "C" fn op_reindent(oap: *mut oparg_T, how: Indenter) {
 }
 
 /// Return true if lines starting with `#` should be left aligned (`preprocs_left`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn preprocs_left() -> bool {
     unsafe {
         ((*curbuf).b_p_si != 0 && (*curbuf).b_p_cin == 0)
@@ -1116,7 +1116,7 @@ pub unsafe extern "C" fn preprocs_left() -> bool {
 }
 
 /// Return true if the conditions are OK for smart indenting (`may_do_si`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn may_do_si() -> bool {
     unsafe {
         (*curbuf).b_p_si != 0
@@ -1127,7 +1127,7 @@ pub unsafe extern "C" fn may_do_si() -> bool {
 }
 
 /// Try to do some very smart auto-indenting (`ins_try_si`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_try_si(c: c_int) {
     unsafe {
         if ((Ins.did_si || Ins.can_si_back) && c == b'{' as c_int)
@@ -1196,7 +1196,7 @@ pub unsafe extern "C" fn ins_try_si(c: c_int) {
 }
 
 /// Insert an indent (for `<Tab>` or `CTRL-T`) or delete an indent (for `CTRL-D`) (`change_indent`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn change_indent(
     type_: c_int,
     amount: c_int,
@@ -1367,7 +1367,7 @@ pub unsafe extern "C" fn change_indent(
 }
 
 /// Copy the indent from `src` to the current line (and fill to `size`) (`copy_indent`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn copy_indent(size: c_int, src: *mut c_char) -> bool {
     unsafe {
         let mut p: *mut c_char = ptr::null_mut();
@@ -1472,7 +1472,7 @@ unsafe fn emsg_text_too_long() {
 }
 
 /// `:retab` (`ex_retab`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_retab(eap: *mut exarg_T) {
     unsafe {
         let mut got_tab = false;
@@ -1677,7 +1677,7 @@ pub unsafe extern "C" fn ex_retab(eap: *mut exarg_T) {
 }
 
 /// Get indent level from `'indentexpr'` (`get_expr_indent`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_expr_indent() -> c_int {
     unsafe {
         let use_sandbox = was_set_insecurely(curwin, kOptIndentexpr, OPT_LOCAL) != 0;
@@ -1718,7 +1718,7 @@ pub unsafe extern "C" fn get_expr_indent() -> c_int {
 }
 
 /// Compute Lisp indent for the current line (`get_lisp_indent`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_lisp_indent() -> c_int {
     unsafe {
         let mut paren: pos_T;
@@ -1960,7 +1960,7 @@ unsafe fn lisp_match(p: *const c_char) -> bool {
 }
 
 /// Re-indent the current line (`fixthisline`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn fixthisline(get_the_indent: IndentGetter) {
     unsafe {
         let amount = get_the_indent();
@@ -1976,7 +1976,7 @@ pub unsafe extern "C" fn fixthisline(get_the_indent: IndentGetter) {
 }
 
 /// Return true if `'indentexpr'` should be used for Lisp indenting (`use_indentexpr_for_lisp`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn use_indentexpr_for_lisp() -> bool {
     unsafe {
         (*curbuf).b_p_lisp != 0
@@ -1986,7 +1986,7 @@ pub unsafe extern "C" fn use_indentexpr_for_lisp() -> bool {
 }
 
 /// Fix indent for `'lisp'` and `'cindent'` (`fix_indent`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn fix_indent() {
     unsafe {
         if p_paste != 0 {
@@ -2005,7 +2005,7 @@ pub unsafe extern "C" fn fix_indent() {
 }
 
 /// `indent()` function (`f_indent`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_indent(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -2022,7 +2022,7 @@ pub unsafe extern "C" fn f_indent(
 }
 
 /// `lispindent(lnum)` function (`f_lispindent`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_lispindent(
     argvars: *mut typval_T,
     rettv: *mut typval_T,

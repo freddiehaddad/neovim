@@ -426,7 +426,7 @@ unsafe fn histogram_diff(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn xdl_do_histogram_diff(
     file1: *mut mmfile_t,
     file2: *mut mmfile_t,

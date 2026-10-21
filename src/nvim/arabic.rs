@@ -1,26 +1,11 @@
 //! Functions for Arabic language shaping (`src/nvim/arabic.c`).
 
-#[cfg(not(test))]
 use crate::option_vars::*;
 use std::ffi::c_int;
 
-#[cfg(test)]
-use std::sync::atomic::{AtomicI32, Ordering};
-#[cfg(test)]
-static TEST_P_ARSHAPE: AtomicI32 = AtomicI32::new(1);
-#[cfg(test)]
-static TEST_P_TBIDI: AtomicI32 = AtomicI32::new(0);
-
 #[inline]
 fn arshape_enabled() -> bool {
-    #[cfg(not(test))]
-    unsafe {
-        p_arshape != 0 && p_tbidi == 0
-    }
-    #[cfg(test)]
-    {
-        TEST_P_ARSHAPE.load(Ordering::Relaxed) != 0 && TEST_P_TBIDI.load(Ordering::Relaxed) == 0
-    }
+    unsafe { p_arshape != 0 && p_tbidi == 0 }
 }
 
 const A_HAMZA: u32 = 0x0621;
@@ -623,8 +608,10 @@ mod tests {
 
     #[test]
     fn combine_and_shape_lam_alef_and_contextual_forms() {
-        TEST_P_ARSHAPE.store(1, Ordering::Relaxed);
-        TEST_P_TBIDI.store(0, Ordering::Relaxed);
+        unsafe {
+            p_arshape = 1;
+            p_tbidi = 0;
+        }
 
         assert!(arabic_maycombine(A_ALEF as c_int));
         assert!(arabic_combine(A_LAM as c_int, A_ALEF as c_int));

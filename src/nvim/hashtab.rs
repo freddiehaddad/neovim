@@ -1,6 +1,5 @@
 //! Handling of a hashtable with Vim-specific properties (`src/nvim/hashtab.c`).
 
-#[cfg(not(test))]
 use crate::message::siemsg;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 
@@ -215,7 +214,6 @@ pub unsafe extern "C" fn hash_add(ht: *mut hashtab_T, key: *mut c_char) -> c_int
     let hash = unsafe { hash_hash(key) };
     let hi = unsafe { hash_lookup(ht, key, len, hash) };
     if unsafe { !hashitem_empty(&*hi) } {
-        #[cfg(not(test))]
         unsafe {
             siemsg!(
                 c"E685: Internal error: hash_add(): duplicate key \"%s\"".as_ptr(),
@@ -459,7 +457,9 @@ mod tests {
             }
             assert_eq!((*ht).ht_used, 50);
             // Duplicate key returns FAIL
+            crate::globals::emsg_skip += 1;
             assert_eq!(hash_add(ht, keys[0].as_ptr().cast_mut()), FAIL);
+            crate::globals::emsg_skip -= 1;
 
             for k in &keys {
                 let hi = hash_find(ht, k.as_ptr());

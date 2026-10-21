@@ -458,7 +458,7 @@ fn vterm_rect_move(rect: &mut VTermRect, row_delta: c_int, col_delta: c_int) {
     rect.end_col += col_delta;
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn getcell(
     screen: *const VTermScreen,
     row: c_int,
@@ -1460,7 +1460,7 @@ unsafe fn screen_new(vt: *mut VTerm) -> *mut VTermScreen {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_screen_free(screen: *mut VTermScreen) {
     unsafe {
         vterm_allocator_free((*screen).vt, (*screen).buffers[BUFIDX_PRIMARY].cast());
@@ -1473,7 +1473,7 @@ pub unsafe extern "C" fn vterm_screen_free(screen: *mut VTermScreen) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_screen_reset(screen: *mut VTermScreen, hard: c_int) {
     unsafe {
         (*screen).damaged.start_row = -1;
@@ -1483,7 +1483,7 @@ pub unsafe extern "C" fn vterm_screen_reset(screen: *mut VTermScreen, hard: c_in
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_screen_get_cell(
     screen: *const VTermScreen,
     pos: VTermPos,
@@ -1535,7 +1535,7 @@ pub unsafe extern "C" fn vterm_screen_get_cell(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_obtain_screen(vt: *mut VTerm) -> *mut VTermScreen {
     unsafe {
         if !(*vt).screen.is_null() {
@@ -1548,21 +1548,21 @@ pub unsafe extern "C" fn vterm_obtain_screen(vt: *mut VTerm) -> *mut VTermScreen
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_screen_enable_reflow(screen: *mut VTermScreen, reflow: bool) {
     unsafe {
         (*screen).set_reflow(reflow);
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_screen_set_reflow(screen: *mut VTermScreen, reflow: bool) {
     unsafe {
         vterm_screen_enable_reflow(screen, reflow);
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_screen_enable_altscreen(screen: *mut VTermScreen, altscreen: c_int) {
     unsafe {
         if (*screen).buffers[BUFIDX_ALTSCREEN].is_null() && altscreen != 0 {
@@ -1575,7 +1575,7 @@ pub unsafe extern "C" fn vterm_screen_enable_altscreen(screen: *mut VTermScreen,
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_screen_set_callbacks(
     screen: *mut VTermScreen,
     callbacks: *const VTermScreenCallbacks,
@@ -1587,7 +1587,7 @@ pub unsafe extern "C" fn vterm_screen_set_callbacks(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_screen_set_unrecognised_fallbacks(
     screen: *mut VTermScreen,
     fallbacks: *const VTermStateFallbacks,
@@ -1598,7 +1598,7 @@ pub unsafe extern "C" fn vterm_screen_set_unrecognised_fallbacks(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_screen_flush_damage(screen: *mut VTermScreen) {
     unsafe {
         if (*screen).pending_scrollrect.start_row != -1 {
@@ -1626,7 +1626,7 @@ pub unsafe extern "C" fn vterm_screen_flush_damage(screen: *mut VTermScreen) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_screen_set_damage_merge(
     screen: *mut VTermScreen,
     size: VTermDamageSize,
@@ -1637,7 +1637,7 @@ pub unsafe extern "C" fn vterm_screen_set_damage_merge(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_screen_convert_color_to_rgb(
     screen: *const VTermScreen,
     col: *mut VTermColor,
@@ -1647,7 +1647,7 @@ pub unsafe extern "C" fn vterm_screen_convert_color_to_rgb(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rect_expand(dst: *mut VTermRect, src: *mut VTermRect) {
     unsafe {
         if (*dst).start_row > (*src).start_row {
@@ -1665,7 +1665,7 @@ pub unsafe extern "C" fn rect_expand(dst: *mut VTermRect, src: *mut VTermRect) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rect_clip(dst: *mut VTermRect, bounds: *mut VTermRect) {
     unsafe {
         if (*dst).start_row < (*bounds).start_row {
@@ -1689,7 +1689,7 @@ pub unsafe extern "C" fn rect_clip(dst: *mut VTermRect, bounds: *mut VTermRect) 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rect_equal(a: *mut VTermRect, b: *mut VTermRect) -> c_int {
     unsafe {
         c_int::from(
@@ -1701,7 +1701,7 @@ pub unsafe extern "C" fn rect_equal(a: *mut VTermRect, b: *mut VTermRect) -> c_i
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rect_contains(big: *mut VTermRect, small: *mut VTermRect) -> c_int {
     unsafe {
         if (*small).start_row < (*big).start_row
@@ -1716,7 +1716,7 @@ pub unsafe extern "C" fn rect_contains(big: *mut VTermRect, small: *mut VTermRec
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rect_intersects(a: *mut VTermRect, b: *mut VTermRect) -> c_int {
     unsafe {
         if (*a).start_row > (*b).end_row

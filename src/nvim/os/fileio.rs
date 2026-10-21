@@ -1,6 +1,6 @@
 //! Buffered file descriptor reading and writing (`src/nvim/os/fileio.c`).
 
-#![cfg_attr(any(test, target_os = "windows"), allow(dead_code))]
+#![cfg_attr(target_os = "windows", allow(dead_code))]
 
 #[cfg(unix)]
 use std::ffi::c_void;
@@ -91,66 +91,12 @@ pub struct FileDescriptor {
 }
 
 #[cfg(unix)]
-use crate::os::fs::iovec as IoVec;
+use crate::os::fs::{iovec as IoVec, os_readv};
 
 use crate::memory::ARENA_BLOCK_SIZE;
-#[cfg(all(not(test), unix))]
-use crate::os::fs::os_readv;
-#[cfg(not(test))]
 use crate::os::fs::{
     os_close, os_file_mkdir, os_fsync, os_open, os_open_stdin_fd, os_read, os_write,
 };
-
-#[cfg(test)]
-unsafe fn os_file_mkdir(_fname: *mut c_char, _mode: i32) -> c_int {
-    0
-}
-#[cfg(test)]
-unsafe fn os_open(_path: *const c_char, _flags: c_int, _mode: c_int) -> c_int {
-    -1
-}
-#[cfg(test)]
-unsafe fn os_open_stdin_fd() -> c_int {
-    0
-}
-#[cfg(test)]
-unsafe fn os_close(_fd: c_int) -> c_int {
-    0
-}
-#[cfg(test)]
-unsafe fn os_fsync(_fd: c_int) -> c_int {
-    0
-}
-#[cfg(test)]
-unsafe fn os_write(_fd: c_int, _buf: *const c_char, size: usize, _non_blocking: bool) -> isize {
-    size as isize
-}
-#[cfg(test)]
-unsafe fn os_read(
-    _fd: c_int,
-    ret_eof: *mut bool,
-    _ret_buf: *mut c_char,
-    _size: usize,
-    _non_blocking: bool,
-) -> isize {
-    unsafe {
-        *ret_eof = true;
-    }
-    0
-}
-#[cfg(all(unix, test))]
-unsafe fn os_readv(
-    _fd: c_int,
-    ret_eof: *mut bool,
-    _iov: *mut IoVec,
-    _iov_size: usize,
-    _non_blocking: bool,
-) -> isize {
-    unsafe {
-        *ret_eof = true;
-    }
-    0
-}
 
 #[inline]
 fn file_space(fp: &FileDescriptor) -> usize {

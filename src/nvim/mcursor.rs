@@ -189,7 +189,7 @@ const fn static_cstr_as_string(s: &'static [u8]) -> NvimString {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_init() {
     unsafe {
         mc_ns();
@@ -245,12 +245,12 @@ unsafe fn mc_session_ns() -> u32 {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_count() -> usize {
     unsafe { mc_cursors.size }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_showcmd(buf: *mut c_char, size: usize) -> usize {
     unsafe {
         if mc_cursors.size == 0 {
@@ -272,7 +272,7 @@ pub unsafe extern "C" fn mc_showcmd(buf: *mut c_char, size: usize) -> usize {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_replaying() -> bool {
     unsafe { (*get_vim_var_tv(VV_CASCADING)).vval.v_bool == kBoolVarTrue }
 }
@@ -545,7 +545,7 @@ unsafe fn mc_cascade() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_clock_edge(map_edit: bool, map_moved: bool, follow: bool) {
     unsafe {
         if (map_edit || (follow && map_moved && !Visual.active))
@@ -611,7 +611,7 @@ unsafe fn mc_cleanup(dedupe: bool, primary: *const pos_T, keep_mark: u32) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_ins_join() {
     unsafe {
         if !mc_replaying() {
@@ -620,12 +620,12 @@ pub unsafe extern "C" fn mc_ins_join() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_ins_replay_can_join() -> bool {
     unsafe { !mc_replaying() || mc_ins_joined }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_ins_cascade_start(
     cascade: bool,
     origin: CmdOrigin,
@@ -901,7 +901,7 @@ unsafe fn mc_ins_keys_nonliteral(keys: *const c_char, len: usize) -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_ins_cascade_restart() {
     unsafe {
         if !mc_ins_span.active
@@ -919,22 +919,22 @@ pub unsafe extern "C" fn mc_ins_cascade_restart() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_ins_replaying() -> bool {
     unsafe { mc_replaying() && mc_ins_cascading() }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_ins_cascading() -> bool {
     unsafe { mc_ins_span.active }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_ins_cascaded(root_frame: u64) -> bool {
     unsafe { !mc_ins_span.first && mc_ins_span.frame == root_frame }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_ins_cascade() {
     unsafe {
         if !mc_ins_span.active
@@ -1163,7 +1163,7 @@ unsafe fn mc_reg_gather() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_vsel_clear() {
     unsafe {
         let buf = handle_get_buffer(mc_vsel_buf);
@@ -1205,7 +1205,7 @@ unsafe fn mc_vsel_mark(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_vsel_refresh() {
     unsafe {
         mc_vsel_clear();
@@ -1296,7 +1296,7 @@ pub unsafe extern "C" fn mc_vsel_refresh() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_undo_time() {
     unsafe {
         atom_did_global_op();
@@ -1304,7 +1304,7 @@ pub unsafe extern "C" fn mc_undo_time() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_ins_commit() -> bool {
     unsafe {
         let active = mc_ins_span.active;
@@ -1354,7 +1354,7 @@ pub unsafe extern "C" fn mc_ins_commit() -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_buf_has_cursors(buf: *mut buf_T) -> bool {
     unsafe {
         for i in 0..mc_cursors.size {
@@ -1366,7 +1366,7 @@ pub unsafe extern "C" fn mc_buf_has_cursors(buf: *mut buf_T) -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_following() -> bool {
     unsafe { (*curbuf).b_p_follow != 0 }
 }
@@ -1399,7 +1399,7 @@ unsafe fn mc_lua_enable(enable: bool) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_mark_at(buf: *mut buf_T, pos: pos_T, skip: u32) -> u32 {
     unsafe {
         if mc_cursors.size == 0 {
@@ -1601,7 +1601,7 @@ unsafe fn mc_zq_run(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_zq_start(cap: *mut cmdarg_T) {
     unsafe {
         (*(*cap).oap).from_visual = Visual.active;
@@ -1614,7 +1614,7 @@ pub unsafe extern "C" fn mc_zq_start(cap: *mut cmdarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_zq(oap: *mut oparg_T, cap: *mut cmdarg_T, origin: pos_T) {
     unsafe {
         atom_did_global_op();
@@ -1756,7 +1756,7 @@ pub unsafe extern "C" fn mc_zq(oap: *mut oparg_T, cap: *mut cmdarg_T, origin: po
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_counter(count1: c_long) {
     unsafe {
         atom_did_global_op();
@@ -1783,7 +1783,7 @@ pub unsafe extern "C" fn mc_counter(count1: c_long) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_follow_set(on: TriState) {
     unsafe {
         if mc_replaying() {
@@ -1800,7 +1800,7 @@ pub unsafe extern "C" fn mc_follow_set(on: TriState) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_toggle(buf: *mut buf_T, pos: pos_T, end_follow: bool, on: TriState) {
     unsafe {
         if mc_replaying() {
@@ -1819,7 +1819,7 @@ pub unsafe extern "C" fn mc_toggle(buf: *mut buf_T, pos: pos_T, end_follow: bool
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_add(buf: *mut buf_T, pos: pos_T) -> *mut Context {
     unsafe {
         let existing = mc_mark_at(buf, pos, 0);
@@ -1842,7 +1842,7 @@ pub unsafe extern "C" fn mc_add(buf: *mut buf_T, pos: pos_T) -> *mut Context {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_on_extmark_set(buf: *mut buf_T, ns_id: u32, mut id: u32, pos: pos_T) {
     unsafe {
         if ns_id != mc_ns() {
@@ -1871,7 +1871,7 @@ pub unsafe extern "C" fn mc_on_extmark_set(buf: *mut buf_T, ns_id: u32, mut id: 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_buf_clear(buf: *mut buf_T) {
     unsafe {
         if mc_replaying() {
@@ -1882,7 +1882,7 @@ pub unsafe extern "C" fn mc_buf_clear(buf: *mut buf_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_buf_free(buf: *mut buf_T) {
     unsafe {
         if mc_replaying() {
@@ -1895,7 +1895,7 @@ pub unsafe extern "C" fn mc_buf_free(buf: *mut buf_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_ns_clearing(buf: *mut buf_T, ns_id: u32) {
     unsafe {
         if (ns_id != mc_ns() && ns_id != 0) || mc_replaying() {
@@ -1910,7 +1910,7 @@ pub unsafe extern "C" fn mc_ns_clearing(buf: *mut buf_T, ns_id: u32) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_ns_cleared(buf: *mut buf_T, ns_id: u32) {
     unsafe {
         if (ns_id != mc_ns() && ns_id != 0) || mc_replaying() || !mc_buf_has_cursors(buf) {
@@ -1960,7 +1960,7 @@ pub unsafe extern "C" fn mc_ns_cleared(buf: *mut buf_T, ns_id: u32) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_free_all() {
     unsafe {
         while mc_cursors.size > 0 {

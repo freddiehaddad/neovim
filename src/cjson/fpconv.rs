@@ -43,7 +43,7 @@ unsafe fn strtod_buffer_size(s: *const c_char) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn fpconv_strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> c_double {
     unsafe {
         if LOCALE_DECIMAL_POINT == b'.' as c_char {
@@ -107,7 +107,7 @@ unsafe fn set_number_format(fmt: *mut c_char, precision: c_int) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn fpconv_g_fmt(
     mut str_out: *mut c_char,
     num: c_double,
@@ -144,7 +144,7 @@ pub unsafe extern "C" fn fpconv_g_fmt(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn fpconv_init() {
     unsafe {
         fpconv_update_locale();

@@ -171,7 +171,7 @@ unsafe fn extmark_push_savepos(
 }
 
 /// Create or update an extmark (`extmark_set`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn extmark_set(
     buf: *mut buf_T,
     ns_id: u32,
@@ -395,7 +395,7 @@ unsafe fn extmark_setraw(buf: *mut buf_T, mark: u64, row: c_int, col: colnr_T, r
 }
 
 /// Remove an extmark in `ns_id` by `id` (`extmark_del_id`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn extmark_del_id(buf: *mut buf_T, ns_id: u32, id: u32) -> bool {
     unsafe {
         let mut itr = MarkTreeIter::default();
@@ -414,7 +414,7 @@ pub unsafe extern "C" fn extmark_del_id(buf: *mut buf_T, ns_id: u32, id: u32) ->
 }
 
 /// Remove a (paired) extmark `key` pointed to by `itr` (`extmark_del`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn extmark_del(
     buf: *mut buf_T,
     itr: *mut MarkTreeIter,
@@ -463,7 +463,7 @@ pub unsafe extern "C" fn extmark_del(
 }
 
 /// Free extmarks in a ns between lines (`extmark_clear`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn extmark_clear(
     buf: *mut buf_T,
     ns_id: u32,
@@ -530,7 +530,7 @@ pub unsafe extern "C" fn extmark_clear(
 }
 
 /// Return the position of marks between a range (`extmark_get`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn extmark_get(
     buf: *mut buf_T,
     ns_id: u32,
@@ -625,7 +625,7 @@ unsafe fn push_mark(
 }
 
 /// Lookup an extmark by id (`extmark_from_id`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn extmark_from_id(buf: *mut buf_T, ns_id: u32, id: u32) -> MTPair {
     unsafe {
         let mark = marktree_lookup_ns(
@@ -646,7 +646,7 @@ pub unsafe extern "C" fn extmark_from_id(buf: *mut buf_T, ns_id: u32, id: u32) -
 }
 
 /// Creates or updates point extmark (`extmark_set_pos`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn extmark_set_pos(
     buf: *mut buf_T,
     ns_id: u32,
@@ -686,7 +686,7 @@ pub unsafe extern "C" fn extmark_set_pos(
 }
 
 /// Gets the position of an extmark, shifted by buffer edits since it was set (`extmark_get_pos`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn extmark_get_pos(
     buf: *mut buf_T,
     ns_id: u32,
@@ -705,7 +705,7 @@ pub unsafe extern "C" fn extmark_get_pos(
 }
 
 /// Free extmarks from the buffer (`extmark_free_all`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn extmark_free_all(buf: *mut buf_T) {
     unsafe {
         let mut itr = MarkTreeIter::default();
@@ -733,7 +733,7 @@ pub unsafe extern "C" fn extmark_free_all(buf: *mut buf_T) {
 }
 
 /// Invalidate extmarks between range and copy to undo header (`extmark_splice_delete`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn extmark_splice_delete(
     buf: *mut buf_T,
     l_row: c_int,
@@ -820,7 +820,7 @@ pub unsafe extern "C" fn extmark_splice_delete(
 }
 
 /// Undo or redo an extmark operation (`extmark_apply_undo`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn extmark_apply_undo(undo_info: ExtmarkUndoObject, undo: bool) {
     unsafe {
         if undo_info.type_ == kExtmarkSplice {
@@ -903,7 +903,7 @@ pub unsafe extern "C" fn extmark_apply_undo(undo_info: ExtmarkUndoObject, undo: 
 }
 
 /// Adjust extmark row for inserted/deleted rows (`extmark_adjust`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn extmark_adjust(
     buf: *mut buf_T,
     line1: linenr_T,
@@ -952,7 +952,7 @@ pub unsafe extern "C" fn extmark_adjust(
 }
 
 /// Adjusts extmarks after a text edit, and emits the `on_bytes` event (`extmark_splice`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn extmark_splice(
     buf: *mut buf_T,
     start_row: c_int,
@@ -986,7 +986,7 @@ pub unsafe extern "C" fn extmark_splice(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn extmark_splice_impl(
     buf: *mut buf_T,
     start_row: c_int,
@@ -1115,7 +1115,7 @@ pub unsafe extern "C" fn extmark_splice_impl(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn extmark_splice_cols(
     buf: *mut buf_T,
     start_row: c_int,
@@ -1140,7 +1140,7 @@ pub unsafe extern "C" fn extmark_splice_cols(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn extmark_move_region(
     buf: *mut buf_T,
     start_row: c_int,

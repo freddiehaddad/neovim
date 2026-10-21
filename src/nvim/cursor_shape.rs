@@ -2,27 +2,17 @@
 
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
-#[cfg(not(test))]
 use crate::api::private::helpers::{arena_array, arena_dict, cstr_as_nvim_string};
-use crate::api::private::validate::Array;
-#[cfg(not(test))]
 use crate::api::private::validate::{
-    Dict, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
+    Array, Dict, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
 };
-#[cfg(not(test))]
 use crate::charset::getdigits_int;
-#[cfg(not(test))]
 use crate::ex_getln::{cmdline_at_end, cmdline_overstrike};
-#[cfg(not(test))]
 use crate::globals::*;
-#[cfg(not(test))]
 use crate::highlight_group::{syn_check_group, syn_id2attr};
-#[cfg(not(test))]
 use crate::log::{LOGLVL_WRN, logmsg};
 use crate::memory::Arena;
-#[cfg(not(test))]
 use crate::option_vars::*;
-#[cfg(not(test))]
 use crate::ui::ui_mode_info_set;
 use std::ffi::{CStr, c_char, c_int};
 
@@ -76,7 +66,6 @@ pub struct cursorentry_T {
 
 unsafe impl Sync for cursorentry_T {}
 
-#[cfg(not(test))]
 use crate::state::{
     MODE_CMDLINE, MODE_INSERT, MODE_SHOWMATCH, MODE_TERMINAL, REPLACE_FLAG, VREPLACE_FLAG,
 };
@@ -126,7 +115,6 @@ pub static mut shape_table: [cursorentry_T; SHAPE_IDX_COUNT] = [
     entry(c"terminal", 0, 0, 0, c"t", SHAPE_CURSOR as c_char),
 ];
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn dict_put_c(dic: &mut Dict, key: &'static CStr, value: Object) {
     assert!(dic.size < dic.capacity);
@@ -143,7 +131,6 @@ unsafe fn dict_put_c(dic: &mut Dict, key: &'static CStr, value: Object) {
     dic.size += 1;
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn strchr_ascii(mut s: *const c_char, ch: u8) -> *const c_char {
     unsafe {
@@ -160,7 +147,6 @@ unsafe fn strchr_ascii(mut s: *const c_char, ch: u8) -> *const c_char {
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn strnicmp_asc(mut s1: *const c_char, mut s2: *const c_char, mut len: usize) -> bool {
     unsafe {
@@ -181,7 +167,6 @@ unsafe fn strnicmp_asc(mut s1: *const c_char, mut s2: *const c_char, mut len: us
     }
 }
 
-#[cfg(not(test))]
 unsafe fn clear_shape_table() {
     let tbl = unsafe { &mut *std::ptr::addr_of_mut!(shape_table) };
     for entry in tbl.iter_mut() {
@@ -197,16 +182,6 @@ unsafe fn clear_shape_table() {
 /// Converts `shape_table` into an `Array` of `Dict`s (`mode_style_array`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mode_style_array(arena: *mut Arena) -> Array {
-    #[cfg(test)]
-    {
-        let _ = arena;
-        Array {
-            size: 0,
-            capacity: 0,
-            items: std::ptr::null_mut(),
-        }
-    }
-    #[cfg(not(test))]
     unsafe {
         let mut all = arena_array(arena, SHAPE_IDX_COUNT);
         let tbl = &*std::ptr::addr_of!(shape_table);
@@ -365,12 +340,6 @@ pub unsafe extern "C" fn mode_style_array(arena: *mut Arena) -> Array {
 /// Parses the `'guicursor'` option (`parse_shape_opt`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn parse_shape_opt(what: c_int) -> *const c_char {
-    #[cfg(test)]
-    {
-        let _ = what;
-        std::ptr::null()
-    }
-    #[cfg(not(test))]
     unsafe {
         let mut p: *const c_char = std::ptr::null();
         let mut idx: usize = 0;
@@ -545,7 +514,6 @@ pub unsafe extern "C" fn cursor_mode_str2int(mode: *const c_char) -> c_int {
             return mode_idx as c_int;
         }
     }
-    #[cfg(not(test))]
     unsafe {
         logmsg!(
             LOGLVL_WRN,
@@ -563,12 +531,6 @@ pub unsafe extern "C" fn cursor_mode_str2int(mode: *const c_char) -> c_int {
 /// Check if a syntax id is used as a cursor style (`cursor_mode_uses_syn_id`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cursor_mode_uses_syn_id(syn_id: c_int) -> bool {
-    #[cfg(test)]
-    {
-        let _ = syn_id;
-        false
-    }
-    #[cfg(not(test))]
     unsafe {
         if *p_guicursor == 0 {
             return false;
@@ -586,11 +548,6 @@ pub unsafe extern "C" fn cursor_mode_uses_syn_id(syn_id: c_int) -> bool {
 /// Return the index into `shape_table[]` for the current mode (`cursor_get_mode_idx`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cursor_get_mode_idx() -> c_int {
-    #[cfg(test)]
-    {
-        SHAPE_IDX_N as c_int
-    }
-    #[cfg(not(test))]
     unsafe {
         if State == MODE_SHOWMATCH {
             SHAPE_IDX_SM as c_int

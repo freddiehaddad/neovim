@@ -71,6 +71,7 @@ use crate::ui::{
 };
 use crate::viml::parser::expressions::SyncCStrArray;
 use std::ffi::{CStr, c_char, c_int};
+use std::io::Write;
 use std::ptr;
 
 const MAX_HL_ID: c_int = 20000;
@@ -306,7 +307,6 @@ unsafe fn write_hex6(buf: *mut c_char, val: c_int) {
 
 #[inline]
 unsafe fn write_dec(buf: *mut c_char, cap: usize, val: c_int) {
-    use std::io::Write;
     let slice = unsafe { std::slice::from_raw_parts_mut(buf.cast::<u8>(), cap) };
     let mut cursor = std::io::Cursor::new(&mut slice[..cap - 1]);
     let _ = write!(cursor, "{val}");
@@ -690,7 +690,7 @@ const HIGHLIGHT_INIT_DARK: [&CStr; 70] = [
     c"@variable guifg=NvimLightGrey2",
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static highlight_init_cmdline: SyncCStrArray<141> = SyncCStrArray([
     c"NvimInternalError ctermfg=Red ctermbg=Red guifg=Red guibg=Red".as_ptr(),
     c"default link NvimAssignment Operator".as_ptr(),
@@ -835,22 +835,22 @@ pub static highlight_init_cmdline: SyncCStrArray<141> = SyncCStrArray([
     ptr::null(),
 ]);
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn highlight_num_groups() -> c_int {
     unsafe { highlight_ga.ga_len }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn highlight_group_name(id: c_int) -> *mut c_char {
     unsafe { (*hl_table().add(id as usize)).sg_name }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn highlight_link_id(id: c_int) -> c_int {
     unsafe { (*hl_table().add(id as usize)).sg_link }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn syn_init_cmdline_highlight(reset: bool, init: bool) {
     unsafe {
         let mut i = 0;
@@ -861,7 +861,7 @@ pub unsafe extern "C" fn syn_init_cmdline_highlight(reset: bool, init: bool) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn init_highlight(both: bool, reset: bool) {
     unsafe {
         let p = get_var_value(c"g:colors_name".as_ptr());
@@ -896,7 +896,7 @@ pub unsafe extern "C" fn init_highlight(both: bool, reset: bool) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn load_colors(name: *mut c_char) -> c_int {
     unsafe {
         if load_colors_recursive {
@@ -956,7 +956,7 @@ unsafe fn lookup_color(idx: c_int, foreground: bool, boldp: *mut TriState) -> c_
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_hl_group(
     id: c_int,
     attrs: HlAttrs,
@@ -1134,7 +1134,7 @@ unsafe fn set_gui_color(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
     unsafe {
         if !init && ends_excmd(c_int::from(*line as u8)) != 0 {
@@ -1615,7 +1615,7 @@ pub unsafe extern "C" fn do_highlight(mut line: *const c_char, forceit: bool, in
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn free_highlight() {
     unsafe {
         for i in 0..highlight_ga.ga_len {
@@ -1636,7 +1636,7 @@ pub unsafe extern "C" fn free_highlight() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn restore_cterm_colors() {
     unsafe {
         normal_fg = -1;
@@ -1832,7 +1832,7 @@ unsafe fn hlgroup2dict(hl: *mut Dict, ns_id: NS, hl_id: c_int, arena: *mut Arena
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ns_get_hl_defs(
     ns_id: NS,
     opts: *mut KeyDict_get_highlight,
@@ -1978,7 +1978,7 @@ unsafe fn highlight_list_arg(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn highlight_has_attr(id: c_int, flag: c_int, modec: c_int) -> *const c_char {
     unsafe {
         if id <= 0 || id > highlight_ga.ga_len {
@@ -2006,7 +2006,7 @@ pub unsafe extern "C" fn highlight_has_attr(id: c_int, flag: c_int, modec: c_int
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn highlight_color(
     id: c_int,
     what: *const c_char,
@@ -2086,7 +2086,7 @@ pub unsafe extern "C" fn highlight_color(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn syn_list_header(
     did_header: bool,
     outlen: c_int,
@@ -2177,7 +2177,7 @@ unsafe fn set_hl_attr(idx: c_int) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn syn_name2id(name: *const c_char) -> c_int {
     unsafe {
         if *name == b'@' as c_char {
@@ -2187,7 +2187,7 @@ pub unsafe extern "C" fn syn_name2id(name: *const c_char) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn syn_name2id_len(name: *const c_char, len: usize) -> c_int {
     unsafe {
         if len == 0 || len > MAX_SYN_NAME {
@@ -2202,7 +2202,7 @@ pub unsafe extern "C" fn syn_name2id_len(name: *const c_char, len: usize) -> c_i
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn syn_name2attr(name: *const c_char) -> c_int {
     unsafe {
         let id = syn_name2id(name);
@@ -2213,12 +2213,12 @@ pub unsafe extern "C" fn syn_name2attr(name: *const c_char) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn highlight_exists(name: *const c_char) -> c_int {
     unsafe { c_int::from(syn_name2id(name) > 0) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn syn_id2name(id: c_int) -> *mut c_char {
     unsafe {
         if id <= 0 || id > highlight_ga.ga_len {
@@ -2228,7 +2228,7 @@ pub unsafe extern "C" fn syn_id2name(id: c_int) -> *mut c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn syn_check_group(name: *const c_char, len: usize) -> c_int {
     unsafe {
         if len > MAX_SYN_NAME {
@@ -2305,7 +2305,7 @@ unsafe fn syn_add_group(name: *const c_char, len: usize) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn syn_id2attr(hl_id: c_int) -> c_int {
     unsafe {
         let mut optional = false;
@@ -2313,7 +2313,7 @@ pub unsafe extern "C" fn syn_id2attr(hl_id: c_int) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn syn_ns_id2attr(
     mut ns_id: c_int,
     mut hl_id: c_int,
@@ -2334,7 +2334,7 @@ pub unsafe extern "C" fn syn_ns_id2attr(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn syn_get_final_id(mut hl_id: c_int) -> c_int {
     unsafe {
         let mut ns_id = (*curwin).w_ns_hl_active;
@@ -2343,7 +2343,7 @@ pub unsafe extern "C" fn syn_get_final_id(mut hl_id: c_int) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn syn_ns_get_final_id(ns_id: *mut c_int, hl_idp: *mut c_int) -> bool {
     unsafe {
         let mut hl_id = *hl_idp;
@@ -2383,7 +2383,7 @@ pub unsafe extern "C" fn syn_ns_get_final_id(ns_id: *mut c_int, hl_idp: *mut c_i
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn highlight_attr_set_all() {
     unsafe {
         for idx in 0..highlight_ga.ga_len {
@@ -2455,7 +2455,7 @@ unsafe fn combine_stl_hlt(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn highlight_changed() {
     unsafe {
         let mut userhl = [0 as c_char; 30];
@@ -2534,7 +2534,7 @@ pub unsafe extern "C" fn highlight_changed() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_context_in_highlight_cmd(xp: *mut expand_T, mut arg: *const c_char) {
     unsafe {
         (*xp).xp_context = EXPAND_HIGHLIGHT;
@@ -2605,12 +2605,12 @@ unsafe fn highlight_list_two(cnt: c_int, id: c_int) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_highlight_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe { get_highlight_name_ext(xp, idx, true).cast_mut() }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_highlight_name_ext(
     _xp: *mut expand_T,
     idx: c_int,
@@ -2642,7 +2642,7 @@ pub unsafe extern "C" fn get_highlight_name_ext(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn name_to_color(name: *const c_char, idx: *mut c_int) -> RgbValue {
     unsafe {
         if *name == b'#' as c_char
@@ -2688,7 +2688,7 @@ pub unsafe extern "C" fn name_to_color(name: *const c_char, idx: *mut c_int) -> 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn coloridx_to_name(
     idx: c_int,
     val: c_int,
@@ -2711,7 +2711,7 @@ pub unsafe extern "C" fn coloridx_to_name(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn name_to_ctermcolor(name: *const c_char) -> c_int {
     unsafe {
         let off = (*name as u8).to_ascii_uppercase() as c_char;
@@ -2740,7 +2740,7 @@ macro_rules! cname {
     };
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static color_name_table: [color_name_table_T; 708] = [
     cname!(c"AliceBlue", 0xf0, 0xf8, 0xff),
     cname!(c"AntiqueWhite", 0xfa, 0xeb, 0xd7),

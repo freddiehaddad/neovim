@@ -91,7 +91,7 @@ unsafe extern "C" {
     ) -> c_int;
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn wstream_init_fd(
     loop_: *mut Loop,
     stream: *mut Stream,
@@ -104,7 +104,7 @@ pub unsafe extern "C" fn wstream_init_fd(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn wstream_init_stream(
     stream: *mut Stream,
     uvstream: *mut uv_stream_t,
@@ -116,7 +116,7 @@ pub unsafe extern "C" fn wstream_init_stream(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn wstream_init(stream: *mut Stream, maxmem: usize) {
     unsafe {
         let fields = stream_fields(stream);
@@ -124,7 +124,7 @@ pub unsafe extern "C" fn wstream_init(stream: *mut Stream, maxmem: usize) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn wstream_set_write_cb(
     stream: *mut Stream,
     cb: stream_write_cb,
@@ -137,7 +137,7 @@ pub unsafe extern "C" fn wstream_set_write_cb(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn wstream_write(stream: *mut Stream, buffer: *mut WBuffer) -> c_int {
     unsafe {
         let fields = stream_fields(stream);
@@ -198,7 +198,7 @@ pub unsafe extern "C" fn wstream_write(stream: *mut Stream, buffer: *mut WBuffer
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn wstream_new_buffer(
     data: *mut c_char,
     size: usize,
@@ -240,7 +240,7 @@ unsafe extern "C" fn write_cb(req: *mut uv_write_t, status: c_int) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn wstream_release_wbuffer(buffer: *mut WBuffer) {
     unsafe {
         (*buffer).refcount -= 1;

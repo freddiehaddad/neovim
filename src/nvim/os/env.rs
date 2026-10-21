@@ -1,6 +1,5 @@
 //! Environment variable inspection and path expansion (`src/nvim/os/env.c`).
 
-#![cfg_attr(test, allow(unused_mut, unused_variables))]
 #![allow(
     non_camel_case_types,
     non_snake_case,
@@ -8,83 +7,66 @@
     clippy::missing_safety_doc
 )]
 
-#[cfg(not(test))]
 use crate::api::private::validate::NvimString;
 use crate::buffer::buf_T;
 use crate::charset::skipwhite;
 #[cfg(unix)]
 use crate::charset::vim_isfilec;
 use crate::cursor::pos_T;
-#[cfg(not(test))]
 use crate::eval::fs::modify_fname;
-#[cfg(not(test))]
 use crate::eval::skip_expr;
-#[cfg(not(test))]
 use crate::eval::vars::{VV_PROGPATH, get_vim_var_str};
-#[cfg(not(test))]
 use crate::globals::*;
 use crate::lua::converter::LuaRef;
-#[cfg(not(test))]
 use crate::mbyte::{mb_stricmp, utf_isalnum, utf_ptr2char, utf_ptr2len};
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 use crate::mbyte::{utf_valid_string, utf16_to_utf8};
-use crate::memory::{xfree, xmalloc, xmemrchr, xstrdup, xstrlcpy};
-#[cfg(not(test))]
-use crate::memory::{xmemcpyz, xmemdupz, xstrlcat};
-#[cfg(all(not(test), windows))]
+use crate::memory::{xfree, xmalloc, xmemcpyz, xmemdupz, xmemrchr, xstrdup, xstrlcat, xstrlcpy};
+#[cfg(windows)]
 use crate::message::semsg;
-#[cfg(not(test))]
 use crate::message::{emsg, internal_error};
-#[cfg(not(test))]
 use crate::option_vars::*;
-#[cfg(not(test))]
 use crate::os::fs::{UV_EINVAL, os_isdir};
-#[cfg(all(not(test), unix))]
+#[cfg(unix)]
 use crate::os::fs::{os_dirname, os_realpath};
 #[cfg(unix)]
 use crate::os::users::os_get_userdir;
-#[cfg(not(test))]
 use crate::path::{
     after_pathsep, append_path, concat_fnames, path_cmp, path_is_absolute, path_tail,
-    path_tail_with_sep,
+    path_tail_with_sep, to_slash, to_slash_save, vim_ispathsep,
 };
-use crate::path::{to_slash, to_slash_save, vim_ispathsep};
 use crate::runtime::sctx_T;
-#[cfg(not(test))]
-use crate::strings::vim_strsave_escaped;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 use crate::strings::wcslen;
-use crate::strings::{strlen as c_strlen, vim_strchr};
+use crate::strings::{strlen as c_strlen, vim_strchr, vim_strsave_escaped};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
 pub(crate) const EXPAND_BUF_LEN: usize = 256;
-#[cfg(not(test))]
 const INIT_SIZE: usize = 64;
-#[cfg(not(test))]
 const RUNTIME_DIRNAME: &CStr = c"runtime";
 
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const ENV_SEPCHAR: u8 = b';';
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const ENV_SEPSTR: &CStr = c";";
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const PATHSEPSTR: &CStr = c"\\";
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const MAX_ENVPATHLEN: usize = 8192;
 
-#[cfg(all(not(test), not(windows)))]
+#[cfg(not(windows))]
 const ENV_SEPCHAR: u8 = b':';
-#[cfg(all(not(test), not(windows)))]
+#[cfg(not(windows))]
 const ENV_SEPSTR: &CStr = c":";
 #[cfg(windows)]
 #[cfg(not(windows))]
 const PATHSEPSTR: &CStr = c"/";
-#[cfg(all(not(test), not(windows)))]
+#[cfg(not(windows))]
 const MAX_ENVPATHLEN: usize = c_int::MAX as usize;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const UV_ENOBUFS: c_int = -4060;
-#[cfg(all(not(test), target_os = "linux"))]
+#[cfg(target_os = "linux")]
 const UV_ENOBUFS: c_int = -105;
 #[cfg(all(not(windows), not(target_os = "linux")))]
 const UV_ENOBUFS: c_int = -55;
@@ -116,7 +98,7 @@ pub struct expand_T {
     pub xp_pre_incsearch_pos: pos_T,
 }
 
-#[cfg(all(not(test), target_os = "linux"))]
+#[cfg(target_os = "linux")]
 #[repr(C)]
 struct Utsname {
     sysname: [c_char; 65],
@@ -138,10 +120,8 @@ struct Utsname {
 }
 
 static mut HOMEDIR: *mut c_char = ptr::null_mut();
-#[cfg(not(test))]
 static mut HOMEDIR_BUF: [c_char; MAXPATHL] = [0; MAXPATHL];
 
-#[cfg(not(test))]
 use crate::version::{default_vim_dir, default_vimruntime_dir};
 
 unsafe extern "C" {
@@ -151,7 +131,6 @@ unsafe extern "C" {
     pub static mut environ: *mut *mut c_char;
 }
 
-#[cfg(not(test))]
 unsafe extern "C" {
     fn uv_os_getenv(name: *const c_char, buffer: *mut c_char, size: *mut usize) -> c_int;
     fn uv_os_setenv(name: *const c_char, value: *const c_char) -> c_int;
@@ -168,15 +147,14 @@ unsafe extern "C" {
 }
 
 use crate::charset::NUL;
-#[cfg(all(not(test), unix))]
+#[cfg(unix)]
 use crate::globals::IOSIZE;
-#[cfg(not(test))]
 use crate::math::OK;
 use crate::os::fs::MAXPATHL;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 use crate::os::os_win_console::GetLastError;
 
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 unsafe extern "system" {
     fn GetEnvironmentStringsW() -> *mut u16;
     fn FreeEnvironmentStringsW(lpszEnvironmentBlock: *mut u16) -> c_int;
@@ -185,42 +163,32 @@ unsafe extern "system" {
 
 #[inline]
 unsafe fn striequal(a: *const c_char, b: *const c_char) -> bool {
-    #[cfg(not(test))]
-    unsafe {
-        mb_stricmp(a, b) == 0
-    }
-    #[cfg(test)]
-    unsafe {
-        CStr::from_ptr(a)
-            .to_bytes()
-            .eq_ignore_ascii_case(CStr::from_ptr(b).to_bytes())
-    }
+    unsafe { mb_stricmp(a, b) == 0 }
 }
 
 #[inline]
 unsafe fn env_name_valid(name: *const c_char) -> bool {
     unsafe {
-        #[cfg(all(not(test), windows))]
+        #[cfg(windows)]
         {
             *name != NUL && utf_valid_string(name, ptr::null())
         }
-        #[cfg(any(test, not(windows)))]
+        #[cfg(not(windows))]
         {
             *name != NUL
         }
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn env_init() {
-    #[cfg(not(test))]
     unsafe {
         nvim_testing = os_env_exists(c"NVIM_TEST".as_ptr(), false);
     }
 }
 
 /// Gets the length (bytes) of the env var name at `p`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn env_name_len(p: *const c_char) -> usize {
     unsafe {
         let mut s = p;
@@ -233,13 +201,10 @@ pub unsafe extern "C" fn env_name_len(p: *const c_char) -> usize {
                 s = s.add(1);
                 continue;
             }
-            #[cfg(not(test))]
             let (len, is_alnum) = {
                 let l = utf_ptr2len(s);
                 (l, l != 1 && utf_isalnum(utf_ptr2char(s)))
             };
-            #[cfg(test)]
-            let (len, is_alnum) = (1, false);
             if !is_alnum {
                 break;
             }
@@ -250,13 +215,12 @@ pub unsafe extern "C" fn env_name_len(p: *const c_char) -> usize {
 }
 
 /// Like `getenv()`, but returns NULL if the variable is empty.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_getenv(name: *const c_char) -> *mut c_char {
     unsafe {
         if !env_name_valid(name) {
             return ptr::null_mut();
         }
-        #[cfg(not(test))]
         {
             let mut size = INIT_SIZE;
             let mut buf = [0 as c_char; INIT_SIZE];
@@ -278,15 +242,11 @@ pub unsafe extern "C" fn os_getenv(name: *const c_char) -> *mut c_char {
             assert_ne!(r, UV_EINVAL);
             e
         }
-        #[cfg(test)]
-        {
-            ptr::null_mut()
-        }
     }
 }
 
 /// Like `getenv()`, but stores the value in `buf` instead of allocating.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_getenv_buf(
     name: *const c_char,
     buf: *mut c_char,
@@ -296,7 +256,6 @@ pub unsafe extern "C" fn os_getenv_buf(
         if !env_name_valid(name) {
             return ptr::null_mut();
         }
-        #[cfg(not(test))]
         {
             let mut size = bufsize;
             let mut r = uv_os_getenv(name, buf, &raw mut size);
@@ -315,36 +274,22 @@ pub unsafe extern "C" fn os_getenv_buf(
             }
             buf
         }
-        #[cfg(test)]
-        {
-            let _ = (buf, bufsize);
-            ptr::null_mut()
-        }
     }
 }
 
 /// Like `getenv()`, but use `NameBuff` instead of allocating.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_getenv_noalloc(name: *const c_char) -> *mut c_char {
-    #[cfg(not(test))]
-    unsafe {
-        os_getenv_buf(name, (&raw mut NameBuff).cast(), MAXPATHL)
-    }
-    #[cfg(test)]
-    {
-        let _ = name;
-        ptr::null_mut()
-    }
+    unsafe { os_getenv_buf(name, (&raw mut NameBuff).cast(), MAXPATHL) }
 }
 
 /// Returns true if environment variable `name` is defined (even if empty).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_env_exists(name: *const c_char, nonempty: bool) -> bool {
     unsafe {
         if !env_name_valid(name) {
             return false;
         }
-        #[cfg(not(test))]
         {
             let mut buf = [0 as c_char; 2];
             let mut size = buf.len();
@@ -352,16 +297,11 @@ pub unsafe extern "C" fn os_env_exists(name: *const c_char, nonempty: bool) -> b
             assert_ne!(r, UV_EINVAL);
             (r == 0 && (!nonempty || size > 0)) || r == UV_ENOBUFS
         }
-        #[cfg(test)]
-        {
-            let _ = nonempty;
-            false
-        }
     }
 }
 
 /// Sets an environment variable.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_setenv(
     name: *const c_char,
     value: *const c_char,
@@ -386,7 +326,6 @@ pub unsafe extern "C" fn os_setenv(
                 return 0;
             }
         }
-        #[cfg(not(test))]
         {
             #[cfg(windows)]
             if striequal(name, c"LC_ALL".as_ptr())
@@ -401,34 +340,24 @@ pub unsafe extern "C" fn os_setenv(
             assert_ne!(r, UV_EINVAL);
             if r == 0 { 0 } else { -1 }
         }
-        #[cfg(test)]
-        {
-            let _ = value;
-            0
-        }
     }
 }
 
 /// Unset environment variable.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_unsetenv(name: *const c_char) -> c_int {
     unsafe {
         if !env_name_valid(name) {
             return -1;
         }
-        #[cfg(not(test))]
         {
             let r = uv_os_unsetenv(name);
             if r == 0 { 0 } else { -1 }
         }
-        #[cfg(test)]
-        {
-            0
-        }
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_free_fullenv(env: *mut *mut c_char) {
     if env.is_null() {
         return;
@@ -445,9 +374,9 @@ pub unsafe extern "C" fn os_free_fullenv(env: *mut *mut c_char) {
 }
 
 /// Copy name of the environment variable at `index` in the current environment variables block.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_getenvname_at_index(index: usize) -> *mut c_char {
-    #[cfg(all(not(test), windows))]
+    #[cfg(windows)]
     unsafe {
         let envstrings = GetEnvironmentStringsW();
         if envstrings.is_null() {
@@ -484,7 +413,7 @@ pub unsafe extern "C" fn os_getenvname_at_index(index: usize) -> *mut c_char {
         FreeEnvironmentStringsW(envstrings);
         name
     }
-    #[cfg(all(not(test), not(windows)))]
+    #[cfg(not(windows))]
     unsafe {
         #[cfg(target_os = "macos")]
         let env_arr: *const *mut c_char = (*_NSGetEnviron()).cast_const();
@@ -503,27 +432,22 @@ pub unsafe extern "C" fn os_getenvname_at_index(index: usize) -> *mut c_char {
         assert!(pos > 0);
         xmemdupz(str_ptr.cast(), pos).cast::<c_char>()
     }
-    #[cfg(test)]
-    {
-        let _ = index;
-        ptr::null_mut()
-    }
 }
 
 /// Get the process ID of the Nvim process.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn os_get_pid() -> i64 {
     i64::from(std::process::id())
 }
 
 /// Signals to the OS that Nvim is an application for "interactive work".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_hint_priority() {}
 
 /// Gets the hostname of the current machine.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_get_hostname(hostname: *mut c_char, size: usize) {
-    #[cfg(all(not(test), any(target_os = "linux", target_os = "macos")))]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     unsafe {
         let mut vutsname: Utsname = std::mem::zeroed();
         if uname(&raw mut vutsname) < 0 {
@@ -532,11 +456,7 @@ pub unsafe extern "C" fn os_get_hostname(hostname: *mut c_char, size: usize) {
             xstrlcpy(hostname, vutsname.nodename.as_ptr(), size);
         }
     }
-    #[cfg(all(
-        not(test),
-        not(windows),
-        not(any(target_os = "linux", target_os = "macos"))
-    ))]
+    #[cfg(all(not(windows), not(any(target_os = "linux", target_os = "macos"))))]
     unsafe {
         if gethostname(hostname, size) < 0 {
             *hostname = NUL;
@@ -544,7 +464,7 @@ pub unsafe extern "C" fn os_get_hostname(hostname: *mut c_char, size: usize) {
             *hostname.add(size - 1) = NUL;
         }
     }
-    #[cfg(all(not(test), windows))]
+    #[cfg(windows)]
     unsafe {
         let mut host_utf16 = [0u16; 16];
         let mut host_wsize = host_utf16.len() as u32;
@@ -565,20 +485,13 @@ pub unsafe extern "C" fn os_get_hostname(hostname: *mut c_char, size: usize) {
         xstrlcpy(hostname, host_utf8, size);
         xfree(host_utf8.cast());
     }
-    #[cfg(test)]
-    unsafe {
-        if size > 0 {
-            *hostname = NUL;
-        }
-    }
 }
 
 /// Gets the "real", resolved user home directory as determined by `init_homedir`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_homedir() -> *const c_char {
     unsafe {
         if HOMEDIR.is_null() {
-            #[cfg(not(test))]
             emsg(c"os_homedir failed: homedir not initialized".as_ptr());
             return ptr::null();
         }
@@ -586,9 +499,7 @@ pub unsafe extern "C" fn os_homedir() -> *const c_char {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn os_uv_homedir() -> *mut c_char {
-    #[cfg(not(test))]
     unsafe {
         let buf = (&raw mut HOMEDIR_BUF).cast::<c_char>();
         *buf = NUL;
@@ -600,14 +511,10 @@ unsafe fn os_uv_homedir() -> *mut c_char {
         *buf = NUL;
         ptr::null_mut()
     }
-    #[cfg(test)]
-    {
-        ptr::null_mut()
-    }
 }
 
 /// Sets `homedir` to the "real", resolved user home directory.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn init_homedir() {
     unsafe {
         xfree(HOMEDIR.cast());
@@ -616,7 +523,7 @@ pub unsafe extern "C" fn init_homedir() {
         let mut var = os_getenv(c"HOME".as_ptr());
         let tofree = var;
 
-        #[cfg(all(not(test), windows))]
+        #[cfg(windows)]
         {
             if var.is_null() {
                 let homedrive = os_getenv(c"HOMEDRIVE".as_ptr());
@@ -663,7 +570,7 @@ pub unsafe extern "C" fn init_homedir() {
             }
         }
 
-        #[cfg(all(not(test), not(windows)))]
+        #[cfg(not(windows))]
         {
             if var.is_null() {
                 var = os_uv_homedir();
@@ -687,7 +594,7 @@ pub unsafe extern "C" fn init_homedir() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn free_homedir() {
     unsafe {
         xfree(HOMEDIR.cast());
@@ -696,13 +603,13 @@ pub unsafe extern "C" fn free_homedir() {
 }
 
 /// Call `expand_env()` and store the result in an allocated string.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn expand_env_save(src: *mut c_char) -> *mut c_char {
     unsafe { expand_env_save_opt(src, false, ptr::null_mut()) }
 }
 
 /// Similar to `expand_env_save()` with `one` and `esc_chars`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn expand_env_save_opt(
     src: *mut c_char,
     one: bool,
@@ -716,13 +623,13 @@ pub unsafe extern "C" fn expand_env_save_opt(
 }
 
 /// Expand environment variable with path name.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn expand_env(src: *mut c_char, dst: *mut c_char, dstlen: c_int) -> usize {
     unsafe { expand_env_esc(src, dst, dstlen, ptr::null_mut(), false, ptr::null_mut()) }
 }
 
 /// Expand environment variable with path name and escaping.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn expand_env_esc(
     srcp: *const c_char,
     mut dst: *mut c_char,
@@ -746,7 +653,6 @@ pub unsafe extern "C" fn expand_env_esc(
             if *src == b'`' as c_char && *src.add(1) == b'=' as c_char {
                 let var = src;
                 src = src.add(2);
-                #[cfg(not(test))]
                 let _ = skip_expr(&raw mut src, ptr::null_mut());
                 if *src == b'`' as c_char {
                     src = src.add(1);
@@ -860,10 +766,7 @@ pub unsafe extern "C" fn expand_env_esc(
                     let var_bytes = CStr::from_ptr(var).to_bytes();
                     let esc_bytes = CStr::from_ptr(esc_chars).to_bytes();
                     if var_bytes.iter().any(|b| esc_bytes.contains(b)) {
-                        #[cfg(not(test))]
                         let p = vim_strsave_escaped(var, esc_chars);
-                        #[cfg(test)]
-                        let p = xstrdup(var);
                         if mustfree {
                             xfree(var.cast());
                         }
@@ -877,10 +780,7 @@ pub unsafe extern "C" fn expand_env_esc(
                     if c + c_strlen(tail) + 1 < (dstlen as usize) {
                         ptr::copy_nonoverlapping(var, dst, c + 1);
                         dstlen -= c as c_int;
-                        #[cfg(not(test))]
                         let ends_with_sep = after_pathsep(dst, dst.add(c)) != 0;
-                        #[cfg(test)]
-                        let ends_with_sep = false;
                         #[cfg(windows)]
                         let not_colon = *dst.add(c - 1) != b':' as c_char;
                         #[cfg(not(windows))]
@@ -930,7 +830,6 @@ pub unsafe extern "C" fn expand_env_esc(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn vim_runtime_dir(vimdir: *const c_char) -> *mut c_char {
     if vimdir.is_null() {
         return ptr::null_mut();
@@ -939,7 +838,6 @@ unsafe fn vim_runtime_dir(vimdir: *const c_char) -> *mut c_char {
         if *vimdir == NUL {
             return ptr::null_mut();
         }
-        #[cfg(not(test))]
         {
             let vimdir_len = c_strlen(vimdir);
             let p = concat_fnames(
@@ -962,9 +860,7 @@ unsafe fn vim_runtime_dir(vimdir: *const c_char) -> *mut c_char {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn remove_tail(path: *mut c_char, pend: *mut c_char, dirname: *const c_char) -> *mut c_char {
-    #[cfg(not(test))]
     unsafe {
         let len = c_strlen(dirname);
         if (pend as usize) > (path as usize) + len {
@@ -980,7 +876,7 @@ unsafe fn remove_tail(path: *mut c_char, pend: *mut c_char, dirname: *const c_ch
 }
 
 /// Iterates `$PATH`-like delimited list `val`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_env_iter(
     delim: c_char,
     val: *const c_char,
@@ -1007,7 +903,7 @@ pub unsafe extern "C" fn vim_env_iter(
 }
 
 /// Iterates `$PATH`-like delimited list `val` in reverse order.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_env_iter_rev(
     delim: c_char,
     val: *const c_char,
@@ -1034,9 +930,8 @@ pub unsafe extern "C" fn vim_env_iter_rev(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_get_prefix_from_exepath(exe_name: *mut c_char) {
-    #[cfg(not(test))]
     unsafe {
         xstrlcpy(exe_name, get_vim_var_str(VV_PROGPATH), MAXPATHL);
         let path_end = path_tail_with_sep(exe_name);
@@ -1047,10 +942,9 @@ pub unsafe extern "C" fn vim_get_prefix_from_exepath(exe_name: *mut c_char) {
 }
 
 /// Vim `getenv()` wrapper with special handling of `$HOME`, `$VIM`, `$VIMRUNTIME`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_getenv(name: *const c_char) -> *mut c_char {
     unsafe {
-        #[cfg(not(test))]
         assert!(*get_vim_var_str(VV_PROGPATH) != NUL);
 
         #[cfg(windows)]
@@ -1081,7 +975,6 @@ pub unsafe extern "C" fn vim_getenv(name: *const c_char) -> *mut c_char {
             return ptr::null_mut();
         }
 
-        #[cfg(not(test))]
         {
             let mut vim_path: *mut c_char = ptr::null_mut();
             if vimruntime && *default_vimruntime_dir == NUL {
@@ -1165,15 +1058,11 @@ pub unsafe extern "C" fn vim_getenv(name: *const c_char) -> *mut c_char {
             }
             vim_path
         }
-        #[cfg(test)]
-        {
-            ptr::null_mut()
-        }
     }
 }
 
 /// Replace home directory by `"~"` in each space or comma separated file name in `src`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn home_replace(
     buf: *const buf_T,
     mut src: *const c_char,
@@ -1187,7 +1076,6 @@ pub unsafe extern "C" fn home_replace(
             return 0;
         }
 
-        #[cfg(not(test))]
         if !buf.is_null() && (*buf).b_help {
             let dlen = xstrlcpy(dst, path_tail(src), dstlen);
             return dlen.min(dstlen - 1);
@@ -1211,7 +1099,6 @@ pub unsafe extern "C" fn home_replace(
         let mut homedir_env_mod = homedir_env;
         let mut must_free = false;
 
-        #[cfg(not(test))]
         if !homedir_env_mod.is_null() && *homedir_env_mod == b'~' as c_char {
             must_free = true;
             let mut usedlen: usize = 0;
@@ -1247,10 +1134,7 @@ pub unsafe extern "C" fn home_replace(
             let mut p = HOMEDIR;
             let mut len = dirlen;
             loop {
-                #[cfg(not(test))]
                 let cmp_ok = len != 0 && path_cmp(p_fic != 0, src, p, len) == 0;
-                #[cfg(test)]
-                let cmp_ok = false;
 
                 if cmp_ok
                     && (vim_ispathsep(c_int::from(*src.add(len) as u8))
@@ -1310,7 +1194,7 @@ pub unsafe extern "C" fn home_replace(
 }
 
 /// Like `home_replace`, store the replaced string in allocated memory.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn home_replace_save(buf: *mut buf_T, src: *const c_char) -> *mut c_char {
     unsafe {
         let mut len: usize = 3;
@@ -1324,7 +1208,7 @@ pub unsafe extern "C" fn home_replace_save(buf: *mut buf_T, src: *const c_char) 
 }
 
 /// Function given to `ExpandGeneric()` to obtain an environment variable name.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_env_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
     assert!(idx >= 0);
     unsafe {
@@ -1339,9 +1223,8 @@ pub unsafe extern "C" fn get_env_name(xp: *mut expand_T, idx: c_int) -> *mut c_c
 }
 
 /// Appends the head of `fname` to `$PATH` and sets it in the environment.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_setenv_append_path(fname: *const c_char) -> bool {
-    #[cfg(not(test))]
     unsafe {
         if !path_is_absolute(fname) {
             internal_error(c"os_setenv_append_path()".as_ptr());
@@ -1374,15 +1257,10 @@ pub unsafe extern "C" fn os_setenv_append_path(fname: *const c_char) -> bool {
         xfree(path.cast());
         retval
     }
-    #[cfg(test)]
-    {
-        let _ = fname;
-        false
-    }
 }
 
 /// Returns true if `sh` looks like it resolves to `"cmd.exe"`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_shell_is_cmdexe(sh: *const c_char) -> bool {
     unsafe {
         if *sh == NUL {
@@ -1390,27 +1268,20 @@ pub unsafe extern "C" fn os_shell_is_cmdexe(sh: *const c_char) -> bool {
         }
         if striequal(sh, c"$COMSPEC".as_ptr()) {
             let comspec = os_getenv_noalloc(c"COMSPEC".as_ptr());
-            #[cfg(not(test))]
             return !comspec.is_null() && striequal(c"cmd.exe".as_ptr(), path_tail(comspec));
-            #[cfg(test)]
-            return !comspec.is_null();
         }
         if striequal(sh, c"cmd.exe".as_ptr()) || striequal(sh, c"cmd".as_ptr()) {
             return true;
         }
-        #[cfg(not(test))]
-        return striequal(c"cmd.exe".as_ptr(), path_tail(sh));
-        #[cfg(test)]
-        false
+        striequal(c"cmd.exe".as_ptr(), path_tail(sh))
     }
 }
 
 /// Removes environment variable `var` and takes care of side effects.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_unsetenv_ext(var: *const c_char) {
     unsafe {
         let _ = os_unsetenv(var);
-        #[cfg(not(test))]
         if striequal(var, c"VIM".as_ptr()) {
             didset_vim = false;
         } else if striequal(var, c"VIMRUNTIME".as_ptr()) {
@@ -1420,14 +1291,13 @@ pub unsafe extern "C" fn vim_unsetenv_ext(var: *const c_char) {
 }
 
 /// Set environment variable `name` and take care of side effects.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_setenv_ext(name: *const c_char, val: *const c_char) {
     unsafe {
         let _ = os_setenv(name, val, 1);
         if striequal(name, c"HOME".as_ptr()) {
             init_homedir();
         } else {
-            #[cfg(not(test))]
             if didset_vim && striequal(name, c"VIM".as_ptr()) {
                 didset_vim = false;
             } else if didset_vimruntime && striequal(name, c"VIMRUNTIME".as_ptr()) {
@@ -1438,7 +1308,7 @@ pub unsafe extern "C" fn vim_setenv_ext(name: *const c_char, val: *const c_char)
 }
 
 /// Restore a previous environment variable value, or unset it if NULL.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn restore_env_var(
     name: *const c_char,
     old_value: *mut c_char,

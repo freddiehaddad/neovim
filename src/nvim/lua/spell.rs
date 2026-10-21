@@ -27,7 +27,7 @@ use crate::eval::funcs::{HLF_SPB, HLF_SPC, HLF_SPL, HLF_SPR};
 use crate::ex_getln::hlf_T;
 
 /// Check spelling in `str` (`nlua_spell_check`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> c_int {
     unsafe {
         if lua_gettop(lstate) < 1 {
@@ -107,7 +107,7 @@ pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> c_in
 }
 
 /// Open the `vim.spell` Lua library (`luaopen_spell`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn luaopen_spell(lstate: *mut lua_State) -> c_int {
     const SPELL_FUNCTIONS: [luaL_Reg; 2] = [
         luaL_Reg {

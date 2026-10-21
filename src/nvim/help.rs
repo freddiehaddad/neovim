@@ -56,7 +56,7 @@ const kBoolVarTrue: i64 = 1;
 const kSpecialVarNull: i64 = 0;
 
 /// `:help`: open a read-only window on a help file (`ex_help`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_help(eap: *mut exarg_T) {
     unsafe {
         let mut arg: *mut c_char;
@@ -276,7 +276,7 @@ pub unsafe extern "C" fn ex_help(eap: *mut exarg_T) {
 }
 
 /// `:helpclose`: Close one help window (`ex_helpclose`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_helpclose(eap: *mut exarg_T) {
     unsafe {
         let mut win = firstwin;
@@ -291,7 +291,7 @@ pub unsafe extern "C" fn ex_helpclose(eap: *mut exarg_T) {
 }
 
 /// Search for a language specifier in the form `@xx` (`check_help_lang`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn check_help_lang(arg: *mut c_char) -> *mut c_char {
     unsafe {
         let len = CStr::from_ptr(arg).to_bytes().len();
@@ -308,7 +308,7 @@ pub unsafe extern "C" fn check_help_lang(arg: *mut c_char) -> *mut c_char {
 }
 
 /// Return a heuristic indicating how well the given string matches (`help_heuristic`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn help_heuristic(
     matched_string: *mut c_char,
     mut offset: c_int,
@@ -365,7 +365,7 @@ unsafe extern "C" fn help_compare(s1: *const c_void, s2: *const c_void) -> c_int
 }
 
 /// Find all help tags matching `arg`, sort them and return in `matches[]` (`find_help_tags`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn find_help_tags(
     arg: *const c_char,
     num_matches: *mut c_int,
@@ -437,7 +437,7 @@ pub unsafe extern "C" fn find_help_tags(
 }
 
 /// Cleanup matches for help tags (`cleanup_help_tags`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cleanup_help_tags(num_file: c_int, file: *mut *mut c_char) {
     unsafe {
         let mut buf = [0u8; 3];
@@ -490,7 +490,7 @@ pub unsafe extern "C" fn cleanup_help_tags(num_file: c_int, file: *mut *mut c_ch
 }
 
 /// Called when starting to edit a buffer for a help file (`prepare_help_buffer`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn prepare_help_buffer() {
     unsafe {
         (*curbuf).b_help = true;
@@ -530,7 +530,7 @@ pub unsafe extern "C" fn prepare_help_buffer() {
 }
 
 /// Populate `*local-additions*` in `help.txt` (`get_local_additions`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_local_additions() {
     unsafe {
         let mut no_args = [typval_T {
@@ -548,7 +548,7 @@ pub unsafe extern "C" fn get_local_additions() {
 }
 
 /// `:exusage` (`ex_exusage`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_exusage(_eap: *mut exarg_T) {
     unsafe {
         do_cmdline_cmd(c"help ex-cmd-index".as_ptr());
@@ -556,7 +556,7 @@ pub unsafe extern "C" fn ex_exusage(_eap: *mut exarg_T) {
 }
 
 /// `:viusage` (`ex_viusage`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_viusage(_eap: *mut exarg_T) {
     unsafe {
         do_cmdline_cmd(c"help normal-index".as_ptr());
@@ -564,7 +564,7 @@ pub unsafe extern "C" fn ex_viusage(_eap: *mut exarg_T) {
 }
 
 /// `:helptags` (`ex_helptags`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_helptags(eap: *mut exarg_T) {
     unsafe {
         let mut add_help_tags = false;

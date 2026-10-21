@@ -3098,7 +3098,7 @@ unsafe fn shada_write(
 }
 
 /// Write ShaDa file to a given location (`shada_write_file`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn shada_write_file(file: *const c_char, mut nomerge: bool) -> c_int {
     unsafe {
         let fname = shada_filename(file);
@@ -3364,13 +3364,13 @@ pub unsafe extern "C" fn shada_write_file(file: *const c_char, mut nomerge: bool
 }
 
 /// Read marks information from ShaDa file (`shada_read_marks`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn shada_read_marks() -> c_int {
     unsafe { shada_read_file(ptr::null(), kShaDaWantMarks) }
 }
 
 /// Read all information from ShaDa file (`shada_read_everything`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn shada_read_everything(
     fname: *const c_char,
     forceit: bool,
@@ -4294,7 +4294,7 @@ unsafe fn shada_init_jumps(jumps: *mut ShadaEntry, removable_bufs: *mut Set<ptr_
 }
 
 /// Gets registers as a msgpack-encoded string, in shada format (`shada_encode_regs`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn shada_encode_regs(scale_ts: bool, since: Timestamp) -> NvimString {
     unsafe {
         let wms = xcalloc(1, std::mem::size_of::<WriteMergerState>()).cast::<WriteMergerState>();
@@ -4315,7 +4315,7 @@ pub unsafe extern "C" fn shada_encode_regs(scale_ts: bool, since: Timestamp) -> 
 }
 
 /// Gets the jumplist as a msgpack-encoded string, in shada format (`shada_encode_jumps`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn shada_encode_jumps() -> NvimString {
     unsafe {
         let mut removable_bufs: Set<ptr_t> = set_init();
@@ -4333,7 +4333,7 @@ pub unsafe extern "C" fn shada_encode_jumps() -> NvimString {
 }
 
 /// Gets the buffer-list as a msgpack-encoded string, in shada format (`shada_encode_buflist`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn shada_encode_buflist() -> NvimString {
     unsafe {
         let mut removable_bufs: Set<ptr_t> = set_init();
@@ -4350,7 +4350,7 @@ pub unsafe extern "C" fn shada_encode_buflist() -> NvimString {
 }
 
 /// Gets global Vimscript variables as a msgpack-encoded string, in shada format (`shada_encode_gvars`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn shada_encode_gvars() -> NvimString {
     unsafe {
         let mut packer = packer_string_buffer();
@@ -4402,7 +4402,7 @@ pub unsafe extern "C" fn shada_encode_gvars() -> NvimString {
 }
 
 /// Read ShaDa from String (`shada_read_string`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn shada_read_string(string: NvimString, flags: c_int) {
     if string.size == 0 {
         return;
@@ -4416,7 +4416,7 @@ pub unsafe extern "C" fn shada_read_string(string: NvimString, flags: c_int) {
 }
 
 /// Find the parameter represented by the given character in 'shada' (`get_shada_parameter`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_shada_parameter(param_type: c_int) -> c_int {
     unsafe {
         let p = find_shada_parameter(param_type);
@@ -4436,7 +4436,7 @@ pub unsafe extern "C" fn get_shada_parameter(param_type: c_int) -> c_int {
 }
 
 /// Find the parameter represented by the given character in 'shada' (`find_shada_parameter`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn find_shada_parameter(param_type: c_int) -> *mut c_char {
     unsafe {
         let mut p = p_shada;
@@ -4458,7 +4458,7 @@ pub unsafe extern "C" fn find_shada_parameter(param_type: c_int) -> *mut c_char 
 }
 
 /// Read marks for the current buffer from the ShaDa file (`check_marks_read`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn check_marks_read() {
     unsafe {
         if !(*curbuf).b_marks_read

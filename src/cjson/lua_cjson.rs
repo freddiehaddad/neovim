@@ -1602,7 +1602,7 @@ unsafe extern "C-unwind" fn json_protect_conversion(l: *mut lua_State) -> c_int 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn lua_cjson_new(l: *mut lua_State) -> c_int {
     let reg = [
         luaL_Reg {
@@ -1694,7 +1694,7 @@ unsafe extern "C-unwind" fn lua_cjson_safe_new(l: *mut lua_State) -> c_int {
     1
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn luaopen_cjson(l: *mut lua_State) -> c_int {
     unsafe {
         lua_cjson_new(l);
@@ -1702,7 +1702,7 @@ pub unsafe extern "C-unwind" fn luaopen_cjson(l: *mut lua_State) -> c_int {
     1
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn luaopen_cjson_safe(l: *mut lua_State) -> c_int {
     unsafe {
         lua_cjson_safe_new(l);

@@ -218,7 +218,7 @@ unsafe fn poll_main_loop_until<F: FnMut() -> bool>(timeout: i64, mut cond: F) {
 }
 
 /// Checks if an address string looks like a TCP endpoint, and returns the end of the host part.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn socket_address_tcp_host_end(address: *const c_char) -> *mut c_char {
     if address.is_null() {
         return ptr::null_mut();
@@ -242,7 +242,7 @@ pub unsafe extern "C" fn socket_address_tcp_host_end(address: *const c_char) -> 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn socket_watcher_init(
     loop_: *mut Loop,
     watcher: *mut SocketWatcher,
@@ -371,7 +371,7 @@ unsafe extern "C" fn early_server_close_cb(handle: *mut uv_handle_t) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn socket_watcher_start(
     watcher: *mut SocketWatcher,
     backlog: c_int,
@@ -483,7 +483,7 @@ pub unsafe extern "C" fn socket_watcher_start(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn socket_watcher_accept(
     watcher: *mut SocketWatcher,
     stream: *mut RStream,
@@ -514,7 +514,7 @@ pub unsafe extern "C" fn socket_watcher_accept(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn socket_watcher_close(watcher: *mut SocketWatcher, cb: socket_close_cb) {
     unsafe {
         let tail = watcher_tail(watcher);
@@ -577,7 +577,7 @@ unsafe extern "C" fn connect_cb(req: *mut uv_connect_t, status: c_int) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn socket_connect(
     loop_: *mut Loop,
     stream: *mut RStream,

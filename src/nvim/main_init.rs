@@ -1,6 +1,5 @@
 //! Main entry point, CLI argument parsing, startup, and shutdown (`src/nvim/main.c`).
 
-#![cfg_attr(test, allow(unused_mut))]
 #![allow(
     non_camel_case_types,
     non_snake_case,
@@ -9,265 +8,172 @@
     clippy::too_many_arguments
 )]
 
-#[cfg(not(test))]
 use crate::api::private::helpers::{
     api_free_object, api_metadata_raw, bool_obj, cstr_as_string, cstr_obj, int_obj,
 };
-#[cfg(not(test))]
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
 };
-#[cfg(not(test))]
 use crate::api::ui::remote_ui_wait_for_attach;
-#[cfg(not(test))]
 use crate::arglist::{alist_add, alist_init, alist_name, gargcount, garglist};
-#[cfg(not(test))]
 use crate::autocmd::{
     EVENT_BUFENTER, EVENT_BUFUNLOAD, EVENT_BUFWINLEAVE, EVENT_VIMENTER, EVENT_VIMLEAVE,
     EVENT_VIMLEAVEPRE, apply_autocmds, apply_autocmds_win, autocmd_init, block_autocmds,
     is_autocmd_blocked, unblock_autocmds,
 };
-#[cfg(not(test))]
 use crate::buffer::{
     BLN_LISTED, MAXLNUM, SEA_DIALOG, SEA_NONE, SEA_QUIT, VAR_FIXED, buf_get_changedtick,
     buf_is_empty, buf_set_changedtick, buf_valid, buflist_new, bufref_T, bufref_valid,
     do_autochdir, do_modelines, handle_swap_exists, open_buffer, set_buflisted, set_bufref,
     set_curbuf, setfname,
 };
-#[cfg(not(test))]
 use crate::channel::{
     CallbackReader, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO, channel_connect,
     channel_from_stdio, channel_init, channel_teardown,
 };
 use crate::charset::ascii_isdigit;
-#[cfg(not(test))]
 use crate::diff::{diff_win_options, diffopt_horizontal};
-#[cfg(not(test))]
 use crate::drawscreen::{
     UPD_NOT_VALID, UPD_VALID, default_grid_alloc, redraw_all_later, redraw_later, screenclear,
 };
-#[cfg(not(test))]
 use crate::errors::*;
-#[cfg(not(test))]
 use crate::eval::typval::{
     tv_clear, tv_list_alloc, tv_list_alloc_ret, tv_list_append_string, tv_list_set_lock,
     varnumber_T,
 };
-#[cfg(not(test))]
 use crate::eval::userfunc::invoke_all_defer;
-#[cfg(not(test))]
 use crate::eval::vars::{
     VV_ARGF, VV_EXITING, VV_EXITREASON, VV_OLDFILES, VV_PROGNAME, VV_PROGPATH, VV_SEND_SERVER,
     VV_STARTTIME, VV_SWAPCOMMAND, VV_VIM_DID_ENTER, VV_VIM_DID_INIT, get_vim_var_list,
     get_vim_var_str, set_reg_var, set_vim_var_list, set_vim_var_nr, set_vim_var_string,
     set_vim_var_type,
 };
-#[cfg(not(test))]
 use crate::eval::{
     eval_has_provider, eval_init, garbage_collect, kListLenMayKnow, set_argv_var, timer_teardown,
 };
-#[cfg(not(test))]
 use crate::event::r#loop::{
     loop_close, loop_init, loop_poll_events, loop_queues, uv_guess_handle, uv_strerror,
 };
-#[cfg(not(test))]
 use crate::event::multiqueue::{multiqueue_new_child, multiqueue_process_events};
-#[cfg(not(test))]
 use crate::event::proc::proc_teardown;
-#[cfg(not(test))]
 use crate::event::socket::socket_address_tcp_host_end;
-#[cfg(not(test))]
 use crate::event::stream::{UV_NAMED_PIPE, UV_TCP};
-#[cfg(not(test))]
 use crate::ex_cmds::{ECMD_HIDE, ECMD_LASTL, do_ecmd, kOptShortmess};
-#[cfg(not(test))]
 use crate::ex_docmd::{do_cmdline_cmd, filetype_maybe_enable, filetype_plugin_enable};
-#[cfg(not(test))]
 use crate::ex_getln::cmdline_init;
-#[cfg(not(test))]
 use crate::extmark::TriState;
-#[cfg(not(test))]
 use crate::fileio::{FILE, READ_NEW, READ_STDIN, fprintf, printf, readfile, shorten_fnames};
-#[cfg(not(test))]
 use crate::garray::ga_grow;
-#[cfg(not(test))]
 use crate::globals::*;
-#[cfg(not(test))]
 use crate::hashtab::hash_debug_results;
-#[cfg(not(test))]
 use crate::highlight::highlight_init;
-#[cfg(not(test))]
 use crate::highlight_group::init_highlight;
-#[cfg(not(test))]
 use crate::input::{open_scriptin, stuffcharReadbuff, vgetc};
-#[cfg(not(test))]
 use crate::keycodes::K_NOP;
-#[cfg(not(test))]
 use crate::log::{LOGLVL_DBG, LOGLVL_INF, log_get_stderr, log_init, logmsg_str};
-#[cfg(not(test))]
 use crate::lua::converter::{LUA_GLOBALSINDEX, lua_getfield, lua_pushstring, lua_tolstring};
-#[cfg(not(test))]
 use crate::lua::executor::{
     get_global_lstate, kRetObject, nlua_call_typval, nlua_exec, nlua_exec_file, nlua_init,
     nlua_init_defaults, nlua_pcall,
 };
-#[cfg(not(test))]
 use crate::mark::setpcmark;
-#[cfg(not(test))]
 use crate::math::{FAIL, OK};
-#[cfg(not(test))]
 use crate::mcursor::mc_init;
-#[cfg(not(test))]
 use crate::memfile::memfile_T;
-#[cfg(not(test))]
 use crate::memline::{ml_close_all, ml_close_notmod, ml_recover, ml_sync_all, recover_names};
-#[cfg(not(test))]
 use crate::memory::{entered_free_all_mem, free_all_mem, strequal, xfree, xmalloc, xstrdup};
-#[cfg(not(test))]
 use crate::message::{msg_putchar, semsg, wait_return};
-#[cfg(not(test))]
 use crate::mouse::setmouse;
-#[cfg(not(test))]
 use crate::r#move::update_topline;
-#[cfg(not(test))]
 use crate::msgpack_rpc::packer::{Integer, handle_T};
-#[cfg(not(test))]
 use crate::msgpack_rpc::server::{server_init, server_teardown};
-#[cfg(not(test))]
 use crate::normal::{
     check_scrollbind, init_normal_cmds, kOptCbFlagUnnamed, kOptCbFlagUnnamedplus, normal_enter,
 };
-#[cfg(not(test))]
 use crate::option::{
     OptInt, kOptArabic, kOptKeymap, kOptRightleft, kOptWindow, reset_modifiable, set_init_1,
     set_init_2, set_init_3, set_init_tablocal, set_option_direct, set_option_value_give_err,
     set_options_bin,
 };
-#[cfg(not(test))]
 use crate::option_vars::*;
-#[cfg(not(test))]
 use crate::optionstr::OptIndex;
-#[cfg(not(test))]
 use crate::os::env::{
     env_init, init_homedir, os_get_pid, os_getenv, os_getenv_noalloc, os_hint_priority,
     vim_env_iter,
 };
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 use crate::os::env::{os_homedir, os_setenv_append_path};
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 use crate::os::fs::os_dup_cloexec;
-#[cfg(not(test))]
 use crate::os::fs::{
     CASE_INSENSITIVE_FILENAME, os_exepath, os_fopen, os_isdir, os_path_exists, os_write,
 };
-#[cfg(not(test))]
 use crate::os::input::{os_breakcheck, os_isatty};
-#[cfg(not(test))]
 use crate::os::lang::{init_locale, set_lang_var};
-#[cfg(not(test))]
 use crate::os::signal::{signal_init, signal_reject_deadly, signal_stop, signal_teardown};
-#[cfg(not(test))]
 use crate::os::stdpaths::{
     XDGVarType, appname_is_valid, get_appname, stdpaths_get_xdg_var, stdpaths_user_conf_subpath,
 };
-#[cfg(not(test))]
 use crate::os::time::os_realtime;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 use crate::path::path_to_slash;
-#[cfg(not(test))]
 use crate::path::{
     concat_fnames, kPathCmpExpand, path_equal, path_fix_case, path_guess_exepath, path_tail,
     vim_FullName,
 };
-#[cfg(not(test))]
 use crate::profile::{profile_dump, time_finish, time_init, time_msg, time_start};
-#[cfg(not(test))]
 use crate::quickfix::{kOptErrorfile, qf_init, qf_init_stack, qf_jump};
-#[cfg(not(test))]
 use crate::register::get_default_register_name;
-#[cfg(not(test))]
 use crate::runtime::{
     DOSO_NONE, DOSO_VIMRC, ETYPE_ARGS, ETYPE_ENV, SID_CARG, SID_CMDARG, SID_ENV, do_source,
     estack_init, estack_pop, estack_push, load_plugins, runtime_init,
 };
-#[cfg(not(test))]
 use crate::shada::{shada_read_everything, shada_write_file};
-#[cfg(not(test))]
 use crate::strings::{gettext, vim_snprintf};
-#[cfg(not(test))]
 use crate::syntax::syn_maybe_enable;
-#[cfg(not(test))]
 use crate::terminal::{terminal_init, terminal_teardown};
-#[cfg(not(test))]
 use crate::ui::{do_autocmd_uienter_all, ui_call_error_exit, ui_call_set_title, ui_flush, ui_init};
-#[cfg(not(test))]
 use crate::ui_client::{ui_client_run, ui_client_start_server, ui_client_stop};
-#[cfg(not(test))]
 use crate::ui_compositor::ui_comp_syn_init;
-#[cfg(not(test))]
 use crate::version::{list_version, main_exitfree};
-#[cfg(not(test))]
 use crate::window::{
     goto_tabpage, make_tabpages, make_windows, only_one_window, tabpage_T, win_alloc_first,
     win_close, win_count, win_enter, win_equal, win_init_size, win_new_screensize, win_valid,
 };
-#[cfg(not(test))]
-use std::ffi::CStr;
-#[cfg(not(test))]
-use std::ffi::c_void;
-use std::ffi::{c_char, c_int};
-#[cfg(not(test))]
+use std::ffi::{CStr, c_char, c_int, c_void};
 use std::io::Write;
-#[cfg(not(test))]
-use std::mem::size_of;
-use std::mem::zeroed;
+use std::mem::{size_of, zeroed};
 use std::ptr;
 
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 use crate::os::os_win_console::{os_icon_init, os_icon_reset, os_title_reset, os_title_save};
 
 pub const MAX_ARG_CMDS: usize = 10;
 
-#[cfg(not(test))]
 const NO_BUFFERS: c_int = 1;
 
-#[cfg(not(test))]
 const WIN_HOR: c_int = 1;
-#[cfg(not(test))]
 const WIN_VER: c_int = 2;
-#[cfg(not(test))]
 const WIN_TABS: c_int = 3;
 
-#[cfg(not(test))]
 const EDIT_NONE: c_int = 0;
-#[cfg(not(test))]
 const EDIT_FILE: c_int = 1;
-#[cfg(not(test))]
 const EDIT_STDIN: c_int = 2;
-#[cfg(not(test))]
 const EDIT_TAG: c_int = 3;
-#[cfg(not(test))]
 const EDIT_QF: c_int = 4;
 
-#[cfg(not(test))]
 const kOptShadafile: OptIndex = 259;
-#[cfg(not(test))]
 const kOptVerbosefile: OptIndex = 344;
 
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const PATHSEP: u8 = b'\\';
-#[cfg(all(not(test), not(windows)))]
+#[cfg(not(windows))]
 const PATHSEP: u8 = b'/';
 
-#[cfg(not(test))]
 const ERR_ARG_MISSING: &CStr = c"Argument missing after";
-#[cfg(not(test))]
 const ERR_OPT_GARBAGE: &CStr = c"Garbage after option argument";
-#[cfg(not(test))]
 const ERR_OPT_UNKNOWN: &CStr = c"Unknown option argument";
-#[cfg(not(test))]
 const ERR_TOO_MANY_ARGS: &CStr = c"Too many edit arguments";
-#[cfg(not(test))]
 const ERR_EXTRA_CMD: &CStr =
     c"Too many \"+command\", \"-c command\" or \"--cmd command\" arguments";
 
@@ -310,7 +216,7 @@ pub struct mparm_T {
     pub had_stdin_file: bool,
 }
 
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 #[repr(C)]
 struct OsVersionInfoA {
     dwOSVersionInfoSize: u32,
@@ -321,34 +227,24 @@ struct OsVersionInfoA {
     szCSDVersion: [c_char; 128],
 }
 
-#[cfg(not(test))]
 static mut ARGV0: *mut c_char = ptr::null_mut();
-#[cfg(not(test))]
 static mut REALLY_EXITING: bool = false;
 
-#[cfg(not(test))]
 use crate::charset::NUL;
-#[cfg(not(test))]
 use crate::extmark::{kFalse, kNone, kTrue};
-#[cfg(not(test))]
-#[cfg(all(not(test), windows))]
-use crate::fileio::_close as close;
-#[cfg(all(not(test), not(windows)))]
+#[cfg(not(windows))]
 #[cfg(windows)]
 use crate::fileio::close;
-#[cfg(all(not(test), windows))]
-use crate::fileio::dup2;
-#[cfg(not(test))]
+#[cfg(windows)]
+use crate::fileio::{_close as close, dup2};
 use crate::globals::IOSIZE;
-#[cfg(not(test))]
 use crate::os::fs::MAXPATHL;
 
-#[cfg(all(windows, not(test)))]
+#[cfg(windows)]
 unsafe extern "system" {
     fn GetVersionExA(lpVersionInformation: *mut OsVersionInfoA) -> c_int;
 }
 
-#[cfg(not(test))]
 unsafe extern "C" {
     fn setbuf(stream: *mut FILE, buffer: *mut c_char);
 
@@ -358,22 +254,15 @@ unsafe extern "C" {
     fn tcdrain(fd: c_int) -> c_int;
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn time_msg_if_enabled(s: *const c_char) {
-    #[cfg(not(test))]
     unsafe {
         if !time_fd.is_null() {
             time_msg(s, ptr::null());
         }
     }
-    #[cfg(test)]
-    {
-        let _ = s;
-    }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn to_slash_if_needed(p: *mut c_char) {
     #[cfg(windows)]
@@ -388,7 +277,6 @@ unsafe fn to_slash_if_needed(p: *mut c_char) {
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn stricmp_ascii(a: *const c_char, b: &[u8]) -> bool {
     unsafe {
@@ -399,7 +287,6 @@ unsafe fn stricmp_ascii(a: *const c_char, b: &[u8]) -> bool {
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn strnicmp_ascii(a: *const c_char, b: &[u8]) -> bool {
     unsafe {
@@ -411,9 +298,8 @@ unsafe fn strnicmp_ascii(a: *const c_char, b: &[u8]) -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn event_init() {
-    #[cfg(not(test))]
     unsafe {
         loop_init((&raw mut main_loop).cast(), ptr::null_mut());
         env_init();
@@ -429,9 +315,7 @@ pub unsafe extern "C" fn event_init() {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn event_teardown() -> bool {
-    #[cfg(not(test))]
     unsafe {
         let queues = loop_queues((&raw mut main_loop).cast());
         if (*queues).events.is_null() {
@@ -449,15 +333,9 @@ unsafe fn event_teardown() -> bool {
 
         loop_close((&raw mut main_loop).cast(), true)
     }
-    #[cfg(test)]
-    {
-        true
-    }
 }
 
-#[cfg(not(test))]
 unsafe fn early_init(paramp: *mut mparm_T) {
-    #[cfg(not(test))]
     unsafe {
         os_hint_priority();
         estack_init();
@@ -513,15 +391,10 @@ unsafe fn early_init(paramp: *mut mparm_T) {
         set_lang_var();
         qf_init_stack();
     }
-    #[cfg(test)]
-    {
-        let _ = paramp;
-    }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         ARGV0 = *argv;
         to_slash_if_needed(ARGV0);
@@ -948,16 +821,10 @@ pub unsafe extern "C" fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int
 
         0
     }
-    #[cfg(test)]
-    {
-        let _ = (argc, argv);
-        0
-    }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_exit(mut r: c_int) -> ! {
-    #[cfg(not(test))]
     unsafe {
         exiting = true;
         signal_reject_deadly();
@@ -1005,15 +872,10 @@ pub unsafe extern "C" fn os_exit(mut r: c_int) -> ! {
 
         std::process::exit(r);
     }
-    #[cfg(test)]
-    {
-        std::process::exit(r);
-    }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn getout(mut exitval: c_int) -> ! {
-    #[cfg(not(test))]
     unsafe {
         assert!(ui_client_channel_id == 0);
         exiting = true;
@@ -1143,15 +1005,10 @@ pub unsafe extern "C" fn getout(mut exitval: c_int) -> ! {
 
         os_exit(exitval);
     }
-    #[cfg(test)]
-    {
-        std::process::exit(exitval);
-    }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn preserve_exit(errmsg: *const c_char) -> ! {
-    #[cfg(not(test))]
     unsafe {
         if REALLY_EXITING {
             std::process::exit(2);
@@ -1204,19 +1061,14 @@ pub unsafe extern "C" fn preserve_exit(errmsg: *const c_char) -> ! {
 
         getout(1);
     }
-    #[cfg(test)]
-    {
-        let _ = errmsg;
-        std::process::exit(1);
-    }
 }
 
-#[cfg_attr(all(not(test), not(windows)), unsafe(no_mangle))]
+#[cfg_attr(not(windows), unsafe(no_mangle))]
 pub extern "C" fn __ubsan_default_options() -> *const c_char {
     c"print_stacktrace=1".as_ptr()
 }
 
-#[cfg_attr(all(not(test), not(windows)), unsafe(no_mangle))]
+#[cfg_attr(not(windows), unsafe(no_mangle))]
 pub extern "C" fn __asan_default_options() -> *const c_char {
     c"handle_abort=1,handle_sigill=1".as_ptr()
 }
@@ -1238,9 +1090,7 @@ unsafe fn get_number_arg(p: *const c_char, idx: *mut c_int, mut def: c_int) -> c
     }
 }
 
-#[cfg(not(test))]
 unsafe fn server_connect(server_addr: *const c_char, errmsg: *mut *const c_char) -> u64 {
-    #[cfg(not(test))]
     unsafe {
         if server_addr.is_null() {
             *errmsg = c"no address specified".as_ptr();
@@ -1256,14 +1106,8 @@ unsafe fn server_connect(server_addr: *const c_char, errmsg: *mut *const c_char)
         }
         chan
     }
-    #[cfg(test)]
-    {
-        let _ = (server_addr, errmsg);
-        0
-    }
 }
 
-#[cfg(not(test))]
 unsafe fn remote_request(
     params: *mut mparm_T,
     remote_args: c_int,
@@ -1272,7 +1116,6 @@ unsafe fn remote_request(
     argv: *mut *mut c_char,
     ui_only: bool,
 ) {
-    #[cfg(not(test))]
     unsafe {
         let is_ui = strequal(*argv.add(remote_args as usize), c"--remote-ui".as_ptr());
         if ui_only && !is_ui {
@@ -1435,15 +1278,9 @@ unsafe fn remote_request(
             (*params).window_layout = WIN_TABS;
         }
     }
-    #[cfg(test)]
-    {
-        let _ = (params, remote_args, server_addr, argc, argv, ui_only);
-    }
 }
 
-#[cfg(not(test))]
 unsafe fn edit_stdin(parmp: *mut mparm_T) -> bool {
-    #[cfg(not(test))]
     unsafe {
         let implicit = !headless_mode
             && !(embedded_mode && stdin_fd <= 0)
@@ -1453,16 +1290,9 @@ unsafe fn edit_stdin(parmp: *mut mparm_T) -> bool {
             && (*parmp).scriptin.is_null();
         (*parmp).had_stdin_file || implicit
     }
-    #[cfg(test)]
-    {
-        let _ = parmp;
-        false
-    }
 }
 
-#[cfg(not(test))]
 unsafe fn command_line_scan(parmp: *mut mparm_T) {
-    #[cfg(not(test))]
     unsafe {
         let mut argc = (*parmp).argc - 1;
         let mut argv = (*parmp).argv.add(1);
@@ -1938,15 +1768,9 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
 
         time_msg_if_enabled(c"parsing arguments".as_ptr());
     }
-    #[cfg(test)]
-    {
-        let _ = parmp;
-    }
 }
 
-#[cfg(not(test))]
 unsafe fn set_argf_var() {
-    #[cfg(not(test))]
     unsafe {
         let list = tv_list_alloc(kListLenMayKnow);
         let count = gargcount();
@@ -1977,9 +1801,7 @@ unsafe fn init_params(paramp: *mut mparm_T, argc: c_int, argv: *mut *mut c_char)
     }
 }
 
-#[cfg(not(test))]
 unsafe fn init_startuptime(paramp: *mut mparm_T) {
-    #[cfg(not(test))]
     unsafe {
         let mut is_embed = false;
         for i in 1..((*paramp).argc - 1) {
@@ -2003,15 +1825,9 @@ unsafe fn init_startuptime(paramp: *mut mparm_T) {
             }
         }
     }
-    #[cfg(test)]
-    {
-        let _ = paramp;
-    }
 }
 
-#[cfg(not(test))]
 unsafe fn check_and_set_isatty(_paramp: *mut mparm_T) {
-    #[cfg(not(test))]
     unsafe {
         stdin_isatty = os_isatty(STDIN_FILENO);
         stdout_isatty = os_isatty(STDOUT_FILENO);
@@ -2020,9 +1836,7 @@ unsafe fn check_and_set_isatty(_paramp: *mut mparm_T) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn init_path(exename: *const c_char) {
-    #[cfg(not(test))]
     unsafe {
         let mut exepath = [0 as c_char; MAXPATHL];
         let mut exepathlen: usize = MAXPATHL;
@@ -2037,27 +1851,13 @@ unsafe fn init_path(exename: *const c_char) {
             os_setenv_append_path(exepath.as_ptr());
         }
     }
-    #[cfg(test)]
-    {
-        let _ = exename;
-    }
 }
 
-#[cfg(not(test))]
 unsafe fn get_fname(_parmp: *mut mparm_T) -> *mut c_char {
-    #[cfg(not(test))]
-    unsafe {
-        alist_name(garglist())
-    }
-    #[cfg(test)]
-    {
-        ptr::null_mut()
-    }
+    unsafe { alist_name(garglist()) }
 }
 
-#[cfg(not(test))]
 unsafe fn set_window_layout(paramp: *mut mparm_T) {
-    #[cfg(not(test))]
     unsafe {
         if (*paramp).diff_mode != 0 && (*paramp).window_layout == 0 {
             (*paramp).window_layout = if diffopt_horizontal() {
@@ -2067,15 +1867,9 @@ unsafe fn set_window_layout(paramp: *mut mparm_T) {
             };
         }
     }
-    #[cfg(test)]
-    {
-        let _ = paramp;
-    }
 }
 
-#[cfg(not(test))]
 unsafe fn handle_quickfix(paramp: *mut mparm_T) {
-    #[cfg(not(test))]
     unsafe {
         if (*paramp).edit_type == EDIT_QF {
             if !(*paramp).use_ef.is_null() {
@@ -2097,15 +1891,9 @@ unsafe fn handle_quickfix(paramp: *mut mparm_T) {
             time_msg_if_enabled(c"reading errorfile".as_ptr());
         }
     }
-    #[cfg(test)]
-    {
-        let _ = paramp;
-    }
 }
 
-#[cfg(not(test))]
 unsafe fn handle_tag(tagname: *mut c_char) {
-    #[cfg(not(test))]
     unsafe {
         if !tagname.is_null() {
             swap_exists_did_quit = false;
@@ -2119,15 +1907,9 @@ unsafe fn handle_tag(tagname: *mut c_char) {
             }
         }
     }
-    #[cfg(test)]
-    {
-        let _ = tagname;
-    }
 }
 
-#[cfg(not(test))]
 unsafe fn read_stdin() {
-    #[cfg(not(test))]
     unsafe {
         swap_exists_action = SEA_DIALOG;
         no_wait_return = 1;
@@ -2190,9 +1972,7 @@ unsafe fn read_stdin() {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn create_windows(parmp: *mut mparm_T) {
-    #[cfg(not(test))]
     unsafe {
         if (*parmp).window_count == -1 {
             (*parmp).window_count = 1;
@@ -2293,15 +2073,9 @@ unsafe fn create_windows(parmp: *mut mparm_T) {
             autocmd_no_leave -= 1;
         }
     }
-    #[cfg(test)]
-    {
-        let _ = parmp;
-    }
 }
 
-#[cfg(not(test))]
 unsafe fn edit_buffers(parmp: *mut mparm_T) {
-    #[cfg(not(test))]
     unsafe {
         let mut advance = true;
         let mut p_shm_save: *mut c_char = ptr::null_mut();
@@ -2412,15 +2186,9 @@ unsafe fn edit_buffers(parmp: *mut mparm_T) {
             win_equal(curwin, false, b'b' as c_int);
         }
     }
-    #[cfg(test)]
-    {
-        let _ = parmp;
-    }
 }
 
-#[cfg(not(test))]
 unsafe fn exe_pre_commands(parmp: *mut mparm_T) {
-    #[cfg(not(test))]
     unsafe {
         let cnt = (*parmp).n_pre_commands;
         if cnt <= 0 {
@@ -2437,15 +2205,9 @@ unsafe fn exe_pre_commands(parmp: *mut mparm_T) {
         current_sctx.sc_sid = 0;
         time_msg_if_enabled(c"--cmd commands".as_ptr());
     }
-    #[cfg(test)]
-    {
-        let _ = parmp;
-    }
 }
 
-#[cfg(not(test))]
 unsafe fn exe_commands(parmp: *mut mparm_T) {
-    #[cfg(not(test))]
     unsafe {
         msg_scroll = 1;
         if (*parmp).tagname.is_null() && (*curwin).w_cursor.lnum <= 1 {
@@ -2473,15 +2235,9 @@ unsafe fn exe_commands(parmp: *mut mparm_T) {
         }
         time_msg_if_enabled(c"executing command arguments".as_ptr());
     }
-    #[cfg(test)]
-    {
-        let _ = parmp;
-    }
 }
 
-#[cfg(not(test))]
 unsafe fn do_system_initialization() {
-    #[cfg(not(test))]
     unsafe {
         let config_dirs = stdpaths_get_xdg_var(XDGVarType::kXDGConfigDirs);
         if !config_dirs.is_null() {
@@ -2544,9 +2300,7 @@ unsafe fn do_system_initialization() {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn do_user_initialization() -> bool {
-    #[cfg(not(test))]
     unsafe {
         let mut do_exrc = p_exrc != 0;
         if execute_env(c"VIMINIT".as_ptr().cast_mut()) == OK {
@@ -2680,15 +2434,9 @@ unsafe fn do_user_initialization() -> bool {
         }
         do_exrc
     }
-    #[cfg(test)]
-    {
-        false
-    }
 }
 
-#[cfg(not(test))]
 unsafe fn do_exrc_initialization() {
-    #[cfg(not(test))]
     unsafe {
         let L = get_global_lstate();
         assert!(!L.is_null());
@@ -2705,9 +2453,7 @@ unsafe fn do_exrc_initialization() {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn source_startup_scripts(parmp: *const mparm_T) {
-    #[cfg(not(test))]
     unsafe {
         if !(*parmp).use_vimrc.is_null() {
             if strequal((*parmp).use_vimrc, c"NONE".as_ptr())
@@ -2728,15 +2474,9 @@ unsafe fn source_startup_scripts(parmp: *const mparm_T) {
         }
         time_msg_if_enabled(c"sourcing vimrc file(s)".as_ptr());
     }
-    #[cfg(test)]
-    {
-        let _ = parmp;
-    }
 }
 
-#[cfg(not(test))]
 unsafe fn execute_env(env: *mut c_char) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let initstr = os_getenv(env);
         if initstr.is_null() {
@@ -2756,14 +2496,8 @@ unsafe fn execute_env(env: *mut c_char) -> c_int {
         xfree(initstr.cast());
         OK
     }
-    #[cfg(test)]
-    {
-        let _ = env;
-        FAIL
-    }
 }
 
-#[cfg(not(test))]
 unsafe fn mainerr(msg1: *const c_char, msg2: *const c_char, msg3: *const c_char) -> ! {
     unsafe {
         print_mainerr(msg1, msg2, msg3);
@@ -2771,9 +2505,7 @@ unsafe fn mainerr(msg1: *const c_char, msg2: *const c_char, msg3: *const c_char)
     }
 }
 
-#[cfg(not(test))]
 unsafe fn print_mainerr(msg1: *const c_char, msg2: *const c_char, msg3: *const c_char) {
-    #[cfg(not(test))]
     unsafe {
         let prgname = path_tail(ARGV0);
         signal_stop();
@@ -2789,15 +2521,9 @@ unsafe fn print_mainerr(msg1: *const c_char, msg2: *const c_char, msg3: *const c
         fprintf(stderr, gettext(c"\nMore info with \"".as_ptr()));
         fprintf(stderr, c"%s -h\"\n".as_ptr(), prgname);
     }
-    #[cfg(test)]
-    {
-        let _ = (msg1, msg2, msg3);
-    }
 }
 
-#[cfg(not(test))]
 unsafe fn version() {
-    #[cfg(not(test))]
     unsafe {
         nlua_init(ptr::null_mut(), 0, -1);
         info_message = true;
@@ -2807,9 +2533,7 @@ unsafe fn version() {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn usage() {
-    #[cfg(not(test))]
     unsafe {
         signal_stop();
 
@@ -2901,9 +2625,7 @@ unsafe fn usage() {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn check_swap_exists_action() {
-    #[cfg(not(test))]
     unsafe {
         if swap_exists_action == SEA_QUIT {
             ui_call_error_exit(1);

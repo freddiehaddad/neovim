@@ -206,7 +206,7 @@ const fn rot13(c: c_int, a: c_int) -> c_int {
 }
 
 /// Translate a command name into an operator type.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_op_type(char1: c_int, char2: c_int) -> c_int {
     unsafe {
         if char1 == b'r' as c_int {
@@ -240,20 +240,20 @@ pub unsafe extern "C" fn get_op_type(char1: c_int, char2: c_int) -> c_int {
 }
 
 /// Return non-zero if operator `op` always works on whole lines.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn op_on_lines(op: c_int) -> c_int {
     c_int::from(OPCHARS[op as usize][2] & OPF_LINES)
 }
 
 /// Return non-zero if operator `op` changes text.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn op_is_change(op: c_int) -> c_int {
     c_int::from(OPCHARS[op as usize][2] & OPF_CHANGE)
 }
 
 /// Whether operator `op` builds a redo: text-changing operators do, ":" and the fold operators do
 /// not. Yank with the 'y' flag in 'cpoptions'.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn op_redoable(op: c_int, redo_yank: bool) -> bool {
     unsafe {
         if op == OP_YANK {
@@ -265,19 +265,19 @@ pub unsafe extern "C" fn op_redoable(op: c_int, redo_yank: bool) -> bool {
 }
 
 /// Get first operator command character.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_op_char(optype: c_int) -> c_int {
     c_int::from(OPCHARS[optype as usize][0])
 }
 
 /// Get second operator command character.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_extra_op_char(optype: c_int) -> c_int {
     c_int::from(OPCHARS[optype as usize][1])
 }
 
 /// Handle a shift operation.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn op_shift(oap: *mut oparg_T, curs_top: bool, amount: c_int) {
     unsafe {
         let mut block_col: c_int = 0;
@@ -461,7 +461,7 @@ unsafe fn get_new_vts_indent(
 }
 
 /// Shift the current line `amount` shiftwidth(s) left or right.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn shift_line(
     left: bool,
     round: bool,
@@ -836,7 +836,7 @@ unsafe fn block_insert(
 }
 
 /// Handle a delete operation.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn op_delete(oap: *mut oparg_T) -> c_int {
     unsafe {
         let mut bd: block_def = std::mem::zeroed();
@@ -1431,7 +1431,7 @@ unsafe fn op_replace(oap: *mut oparg_T, mut c: c_int) -> c_int {
 }
 
 /// Handle the (non-standard vi) tilde operator. Also for "gu", "gU" and "g?".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn op_tilde(oap: *mut oparg_T) {
     unsafe {
         let mut bd: block_def = std::mem::zeroed();
@@ -1536,7 +1536,7 @@ unsafe fn swapchars(op_type: c_int, pos: *mut pos_T, length: c_int) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn swapchar(op_type: c_int, pos: *mut pos_T) -> bool {
     unsafe {
         let c = gchar_pos(pos);
@@ -1577,7 +1577,7 @@ pub unsafe extern "C" fn swapchar(op_type: c_int, pos: *mut pos_T) -> bool {
 }
 
 /// Insert and append operators for Visual mode.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn op_insert(oap: *mut oparg_T, count1: c_int) {
     unsafe {
         let mut pre_textlen: c_int = 0;
@@ -1764,7 +1764,7 @@ pub unsafe extern "C" fn op_insert(oap: *mut oparg_T, count1: c_int) {
 }
 
 /// Handle a change operation.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn op_change(oap: *mut oparg_T) -> c_int {
     unsafe {
         let mut pre_textlen: c_int = 0;
@@ -1888,7 +1888,7 @@ pub unsafe extern "C" fn op_change(oap: *mut oparg_T) -> c_int {
 
 /// When the cursor is on the NUL past the end of the line and it should not be
 /// there move it left.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn adjust_cursor_eol() {
     unsafe {
         let cur_ve_flags = get_ve_flags(curwin);
@@ -1921,7 +1921,7 @@ pub unsafe extern "C" fn adjust_cursor_eol() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn skip_comment(
     mut line: *mut c_char,
     process: bool,
@@ -1970,7 +1970,7 @@ pub unsafe extern "C" fn skip_comment(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn do_join(
     count: usize,
     insert_space: bool,
@@ -2176,7 +2176,7 @@ pub unsafe extern "C" fn do_join(
 }
 
 /// Reset 'linebreak' and take care of side effects.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn reset_lbr() -> bool {
     unsafe {
         if (*curwin).w_onebuf_opt.wo_lbr == 0 {
@@ -2189,7 +2189,7 @@ pub unsafe extern "C" fn reset_lbr() -> bool {
 }
 
 /// Restore 'linebreak' and take care of side effects.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn restore_lbr(lbr_saved: bool) {
     unsafe {
         if (*curwin).w_onebuf_opt.wo_lbr != 0 || !lbr_saved {
@@ -2202,7 +2202,7 @@ pub unsafe extern "C" fn restore_lbr(lbr_saved: bool) {
 }
 
 /// Prepare a few things for block mode yank/delete/tilde.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn block_prep(
     oap: *mut oparg_T,
     bdp: *mut block_def,
@@ -2339,7 +2339,7 @@ pub unsafe extern "C" fn block_prep(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn getregionpos_prep(
     p1: *mut pos_T,
     p2: *mut pos_T,
@@ -2393,7 +2393,7 @@ pub unsafe extern "C" fn getregionpos_prep(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn getregionpos_line(
     lnum: linenr_T,
     p1: pos_T,
@@ -2475,7 +2475,7 @@ pub unsafe extern "C" fn getregionpos_line(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn charwise_block_prep(
     mut start: pos_T,
     mut end: pos_T,
@@ -2557,7 +2557,7 @@ pub unsafe extern "C" fn charwise_block_prep(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn op_addsub(oap: *mut oparg_T, Prenum1: linenr_T, g_cmd: bool) {
     unsafe {
         let mut bd: block_def = std::mem::zeroed();
@@ -2658,7 +2658,7 @@ pub unsafe extern "C" fn op_addsub(oap: *mut oparg_T, Prenum1: linenr_T, g_cmd: 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn do_addsub(
     op_type: c_int,
     pos: *mut pos_T,
@@ -3072,7 +3072,7 @@ pub unsafe extern "C" fn do_addsub(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn clear_oparg(oap: *mut oparg_T) {
     unsafe {
         ptr::write_bytes(oap, 0, 1);
@@ -3120,7 +3120,7 @@ unsafe fn line_count_info(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cursor_pos_info(dict: *mut dict_T) {
     unsafe {
         let mut buf1 = [0 as c_char; 50];
@@ -3513,14 +3513,14 @@ unsafe fn op_colon(oap: *mut oparg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn free_operatorfunc_option() {
     unsafe {
         callback_free(&raw mut p_opfunc);
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_ref_in_opfunc(copyID: c_int) -> bool {
     unsafe { set_ref_in_callback(&raw mut p_opfunc, copyID, ptr::null_mut(), ptr::null_mut()) }
 }
@@ -3660,7 +3660,7 @@ unsafe fn is_ex_cmdchar(cap: *const cmdarg_T) -> bool {
     unsafe { (*cap).cmdchar == b':' as c_int || (*cap).cmdchar == K_COMMAND }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn op_self_select(cap: *const cmdarg_T) -> bool {
     unsafe {
         (*cap).cmdchar == b'g' as c_int
@@ -3695,7 +3695,7 @@ unsafe fn op_ins_visual(oap: *mut oparg_T, cap: *mut cmdarg_T) -> VisualIns {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn do_pending_operator(cap: *mut cmdarg_T, old_col: c_int, gui_yank: bool) {
     unsafe {
         let oap = (*cap).oap;
@@ -4192,7 +4192,7 @@ pub unsafe extern "C" fn do_pending_operator(cap: *mut cmdarg_T, old_col: c_int,
 }
 
 /// Get the byte count of buffer region. End-exclusive.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_region_bytecount(
     buf: *mut buf_T,
     start_lnum: linenr_T,

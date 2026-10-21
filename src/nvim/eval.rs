@@ -1,6 +1,5 @@
 //! Expression evaluation (`src/nvim/eval.c`).
 
-#![cfg_attr(test, allow(unused_mut, unused_variables))]
 #![allow(
     non_camel_case_types,
     non_snake_case,
@@ -9,10 +8,8 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::private::helpers::tv_dict_is_watched;
-#[cfg(not(test))]
 use crate::api::private::helpers::{
-    HLF_E, api_clear_error, arena_array, cstr_as_string, cstr_to_string,
+    HLF_E, api_clear_error, arena_array, cstr_as_string, cstr_to_string, tv_dict_is_watched,
 };
 use crate::charset::{
     VARNUMBER_MIN, ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_islower, ascii_isupper,
@@ -20,33 +17,37 @@ use crate::charset::{
     skipwhite, vim_str2nr,
 };
 use crate::eval::typval::{
-    Callback, EvalFuncData, TV_CSTRING, TypvalVval, VAR_UNLOCKED, VarType, blob_T, dict_T,
-    dict_watchers_queue, dictitem_T, float_T, kCallbackExpr, kCallbackFuncref, kCallbackLua,
-    kCallbackNone, kCallbackPartial, list_T, listitem_T, listwatch_T, partial_T, tv_blob_alloc,
-    tv_blob_alloc_ret, tv_blob_check_index, tv_blob_check_range, tv_blob_copy, tv_blob_equal,
-    tv_blob_get, tv_blob_len, tv_blob_set_append, tv_blob_set_range, tv_blob_slice_or_index,
-    tv_blob_unref, tv_check_lock, tv_check_num, tv_check_str, tv_clear, tv_copy, tv_dict_add,
-    tv_dict_add_nr, tv_dict_alloc, tv_dict_copy, tv_dict_equal, tv_dict_find, tv_dict_free,
-    tv_dict_free_contents, tv_dict_free_dict, tv_dict_get_callback, tv_dict_get_number,
-    tv_dict_hi2di, tv_dict_item_alloc, tv_dict_item_free, tv_dict_unref, tv_dict_watcher_node_data,
-    tv_dict_watcher_notify, tv_dict_wrong_func_name, tv_empty_string, tv_equal, tv_get_float,
-    tv_get_number, tv_get_number_chk, tv_get_string, tv_get_string_buf, tv_get_string_buf_chk,
-    tv_get_string_chk, tv_in_free_unref_items, tv_initial_value, tv_is_func, tv_list_alloc,
-    tv_list_alloc_ret, tv_list_append_dict, tv_list_append_owned_tv, tv_list_append_string,
-    tv_list_assign_range, tv_list_check_range_index_one, tv_list_check_range_index_two,
-    tv_list_concat, tv_list_copy, tv_list_equal, tv_list_find, tv_list_find_nr, tv_list_first,
-    tv_list_free, tv_list_free_contents, tv_list_free_list, tv_list_join, tv_list_last,
-    tv_list_len, tv_list_ref, tv_list_set_lock, tv_list_set_ret, tv_list_slice_or_index,
-    tv_list_unref, tv_list_watch_add, tv_list_watch_remove, tv2bool, typval_T, value_check_lock,
-    varnumber_T,
+    Callback, EvalFuncData, TV_CSTRING, TypvalVval, VAR_UNLOCKED, VarType, blob_T, callback_copy,
+    callback_free, callback_put, dict_T, dict_watchers_queue, dictitem_T, float_T, kCallbackExpr,
+    kCallbackFuncref, kCallbackLua, kCallbackNone, kCallbackPartial, list_T, listitem_T,
+    listwatch_T, partial_T, tv_blob_alloc, tv_blob_alloc_ret, tv_blob_check_index,
+    tv_blob_check_range, tv_blob_copy, tv_blob_equal, tv_blob_get, tv_blob_len, tv_blob_set_append,
+    tv_blob_set_range, tv_blob_slice_or_index, tv_blob_unref, tv_check_lock, tv_check_num,
+    tv_check_str, tv_clear, tv_copy, tv_dict_add, tv_dict_add_nr, tv_dict_alloc, tv_dict_copy,
+    tv_dict_equal, tv_dict_find, tv_dict_free, tv_dict_free_contents, tv_dict_free_dict,
+    tv_dict_get_callback, tv_dict_get_number, tv_dict_hi2di, tv_dict_item_alloc, tv_dict_item_free,
+    tv_dict_unref, tv_dict_watcher_node_data, tv_dict_watcher_notify, tv_dict_wrong_func_name,
+    tv_empty_string, tv_equal, tv_get_float, tv_get_number, tv_get_number_chk, tv_get_string,
+    tv_get_string_buf, tv_get_string_buf_chk, tv_get_string_chk, tv_in_free_unref_items,
+    tv_initial_value, tv_is_func, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict,
+    tv_list_append_owned_tv, tv_list_append_string, tv_list_assign_range,
+    tv_list_check_range_index_one, tv_list_check_range_index_two, tv_list_concat, tv_list_copy,
+    tv_list_equal, tv_list_find, tv_list_find_nr, tv_list_first, tv_list_free,
+    tv_list_free_contents, tv_list_free_list, tv_list_join, tv_list_last, tv_list_len, tv_list_ref,
+    tv_list_set_lock, tv_list_set_ret, tv_list_slice_or_index, tv_list_unref, tv_list_watch_add,
+    tv_list_watch_remove, tv2bool, typval_T, value_check_lock, varnumber_T,
 };
-use crate::eval::vars::tv_init;
-#[cfg(not(test))]
+use crate::eval::vars::{
+    VV_ARGV, VV_EVENT, VV_LUA, VV_SHELL_ERROR, check_vars, eval_one_expr_in_str, eval_variable,
+    evalarg_T, evalvars_clear, evalvars_init, ex_let_vars, find_var, garbage_collect_globvars,
+    garbage_collect_scriptvars, garbage_collect_vimvars, get_vim_var_dict, get_vim_var_partial,
+    get_vimvar_dict, lval_T, opt_to_tv, set_var, set_var_const, set_vim_var_list, set_vim_var_nr,
+    skip_var_list, tv_init, valid_varname, var_check_lock, var_check_ro, var_wrong_func_name,
+};
 use crate::event::r#loop::{loop_queues, uv_handle_size};
-#[cfg(not(test))]
-use crate::strings::{atol, gettext};
 use crate::strings::{
-    concat_str, strcmp, strlen, strncmp, strpbrk, strstr, strtod, vim_snprintf, vim_strchr,
+    atol, concat_str, gettext, strcmp, strlen, strncmp, strpbrk, strstr, strtod, vim_snprintf,
+    vim_strchr,
 };
 pub mod buffer;
 pub mod decode;
@@ -62,40 +63,27 @@ pub mod userfunc;
 pub mod vars;
 pub mod window;
 
-use crate::buffer::{NOTDONE, VAR_FIXED, bt_prompt, buf_T};
-#[cfg(not(test))]
-use crate::buffer::{buflist_findnr, kUIMessages};
-#[cfg(not(test))]
-use crate::channel::callback_reader_free;
-#[cfg(not(test))]
+use crate::buffer::{NOTDONE, VAR_FIXED, bt_prompt, buf_T, buflist_findnr, kUIMessages};
+use crate::channel::{CallbackReader, Channel, callback_reader_free, kChannelStreamProc};
 use crate::errors::*;
-#[cfg(not(test))]
 use crate::eval::funcs::{E_STRING_LIST_OR_BLOB_REQUIRED, UV_TIMER, get_list_line, kOptCpoptions};
-#[cfg(not(test))]
-use crate::eval::typval::{callback_copy, callback_free, callback_put};
 use crate::eval::userfunc::{
     call_func, call_simple_func, call_simple_luafunc, deref_func_name, eval_fname_script,
     find_func, free_all_functions, free_unref_funccal, func_init, func_ptr_unref, func_ref,
-    func_unref, funcexe_T, get_func_tv, get_funccal_args_ht, get_lambda_tv,
+    func_unref, funcexe_T, get_current_funccal, get_func_tv, get_funccal_args_ht, get_lambda_tv,
     get_scriptlocal_funcname, make_partial, restore_funccal, save_funccal, set_ref_in_call_stack,
     set_ref_in_func, set_ref_in_func_args, set_ref_in_functions, set_ref_in_previous_funccal,
     ufunc_T,
 };
-#[cfg(not(test))]
-use crate::eval::vars::opt_to_tv;
-#[cfg(not(test))]
 use crate::ex_cmds::check_secure;
-use crate::ex_docmd::{check_nextcmd, cmd_has_expr_args, ends_excmd, exarg_T};
-#[cfg(not(test))]
-use crate::ex_docmd::{do_cmdline, set_ref_in_findfunc};
-#[cfg(not(test))]
+use crate::ex_docmd::{
+    check_nextcmd, cmd_has_expr_args, do_cmdline, ends_excmd, exarg_T, set_ref_in_findfunc,
+};
 use crate::globals::*;
-#[cfg(not(test))]
 use crate::lua::executor::{
     kRetObject, nlua_call_ref, nlua_is_deferred_safe, nlua_is_table_from_lua,
     nlua_register_table_as_callable,
 };
-#[cfg(not(test))]
 use crate::message::{
     emsg, emsg_multiline, iemsg, internal_error, msg, msg_clr_eos, msg_end, msg_ext_no_fast,
     msg_ext_set_append, msg_ext_set_kind, msg_multiline, msg_outnum, msg_puts, msg_puts_hl,
@@ -103,82 +91,55 @@ use crate::message::{
     verbose_enter_scroll, verbose_leave, verbose_leave_scroll,
 };
 use crate::r#move::{check_cursor_moved, update_topline, validate_botline_win};
-#[cfg(not(test))]
 use crate::option::{
     find_option_end, get_option_value, get_tty_option, is_option_hidden, is_tty_option,
     kOptFoldexpr, kOptFoldtext, optval_free, set_option_value_give_err, was_set_insecurely,
 };
-#[cfg(not(test))]
 use crate::option_vars::*;
-#[cfg(not(test))]
 use crate::quickfix::set_ref_in_quickfix;
-#[cfg(not(test))]
 use crate::regexp::{
     RE_MAGIC, RE_STRING, REGSUB_COPY, REGSUB_MAGIC, regmatch_T, vim_regcomp, vim_regexec_nl,
     vim_regfree, vim_regsub,
 };
 use crate::register::{get_reg_contents, kGRegExprSrc, op_global_reg_iter, yankreg_T};
 use crate::runtime::{
-    exestack, free_autoload_scriptnames, free_scriptnames, script_autoload, sctx_T,
-    sourcing_a_script,
+    exestack, free_autoload_scriptnames, free_scriptnames, get_scriptname, script_autoload,
+    script_is_lua, sctx_T, sourcing_a_script,
 };
-#[cfg(not(test))]
-use crate::runtime::{get_scriptname, script_is_lua};
-#[cfg(not(test))]
 use crate::ui::ui_has;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
-#[cfg(not(test))]
 use crate::api::private::converter::{object_to_vim, vim_to_object};
-#[cfg(not(test))]
-use crate::api::private::validate::{Error, ErrorType};
-use crate::api::private::validate::{NvimString, Object, ObjectData, ObjectType};
-use crate::autocmd::funccal_entry_T;
-use crate::channel::{CallbackReader, Channel, kChannelStreamProc};
+use crate::api::private::validate::{Error, ErrorType, NvimString, Object, ObjectData, ObjectType};
+use crate::autocmd::{DOCMD_NOWAIT, DOCMD_VERBOSE, PROF_YES, funccal_entry_T};
 use crate::cmdexpand::{
     EXPAND_COMMANDS, EXPAND_ENV_VARS, EXPAND_EXPRESSION, EXPAND_FUNCTIONS, EXPAND_NOTHING,
     EXPAND_SETTINGS, EXPAND_USER_VARS, cmdidx_T,
 };
 use crate::cursor::{colnr_T, linenr_T, pos_T};
-#[cfg(not(test))]
-use crate::eval::encode::encode_tv2echo;
-use crate::eval::encode::{encode_list_write, encode_tv2string};
+use crate::eval::encode::{encode_list_write, encode_tv2echo, encode_tv2string};
 use crate::eval::executor::eexe_mod_op;
 use crate::eval::gc::{gc_first_dict, gc_first_list};
-#[cfg(not(test))]
-use crate::eval::userfunc::get_current_funccal;
-use crate::eval::vars::{
-    VV_ARGV, VV_EVENT, VV_LUA, VV_SHELL_ERROR, check_vars, eval_one_expr_in_str, eval_variable,
-    evalarg_T, evalvars_clear, evalvars_init, ex_let_vars, find_var, garbage_collect_globvars,
-    garbage_collect_scriptvars, garbage_collect_vimvars, get_vim_var_dict, get_vim_var_partial,
-    get_vimvar_dict, lval_T, set_var, set_var_const, set_vim_var_list, set_vim_var_nr,
-    skip_var_list, valid_varname, var_check_lock, var_check_ro, var_wrong_func_name,
-};
-#[cfg(not(test))]
 use crate::event::multiqueue::{multiqueue_free, multiqueue_new_child};
 use crate::event::proc::{Proc, proc_header};
-use crate::event::time::{TimeWatcher, TimeWatcherFields, time_watcher_start};
-#[cfg(not(test))]
 use crate::event::time::{
-    time_watcher_close, time_watcher_init, time_watcher_stop, watcher_fields,
+    TimeWatcher, TimeWatcherFields, time_watcher_close, time_watcher_init, time_watcher_start,
+    time_watcher_stop, watcher_fields,
 };
-use crate::ex_eval::aborting;
-#[cfg(not(test))]
-use crate::ex_eval::discard_current_exception;
+use crate::ex_eval::{aborting, discard_current_exception};
 use crate::garray::{ga_append, ga_clear, ga_concat, ga_grow, ga_init, garray_T};
 use crate::hashtab::{hash_init, hashitem_empty, hashtab_T};
 use crate::highlight_group::syn_name2id;
-#[cfg(not(test))]
-use crate::insexpand::set_ref_in_cpt_callbacks;
-use crate::insexpand::set_ref_in_insexpand_funcs;
+use crate::insexpand::{set_ref_in_cpt_callbacks, set_ref_in_insexpand_funcs};
 use crate::keycodes::{
     FSK_IN_STRING, FSK_KEYCODE, FSK_SIMPLIFY, K_SPECIAL, KE_SNR, KS_EXTRA, find_special_key,
     trans_special,
 };
-#[cfg(not(test))]
-use crate::map::map_del_uint64_t_ptr_t;
-use crate::map::{Map, MapHash, Set, map_put_ref_uint64_t_ptr_t, map_ref_uint64_t_ptr_t, ptr_t};
+use crate::map::{
+    Map, MapHash, Set, map_del_uint64_t_ptr_t, map_put_ref_uint64_t_ptr_t, map_ref_uint64_t_ptr_t,
+    ptr_t,
+};
 use crate::mark::{mark_get, mark_global_iter, xfmark_T};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
@@ -186,37 +147,26 @@ use crate::mbyte::{
     utfc_ptr2len, vimconv_T,
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
-#[cfg(not(test))]
-use crate::memory::{Arena, arena_finish, arena_mem_free, xstrndup};
 use crate::memory::{
-    memchrsub, strchrsub, strequal, strnequal, xcalloc, xfree, xmalloc, xmemdupz, xrealloc, xstrdup,
+    Arena, arena_finish, arena_mem_free, memchrsub, strchrsub, strequal, strnequal, xcalloc, xfree,
+    xmalloc, xmemdupz, xrealloc, xstrdup, xstrndup,
 };
-#[cfg(not(test))]
-use crate::msgpack_rpc::channel::channel_tail;
-use crate::msgpack_rpc::channel::{channel_prefix, channel_stream_ptr, find_channel};
+use crate::msgpack_rpc::channel::{channel_prefix, channel_stream_ptr, channel_tail, find_channel};
 use crate::ops::set_ref_in_opfunc;
-use crate::optionstr::OptIndex;
-#[cfg(not(test))]
-use crate::optionstr::free_string_option;
+use crate::optionstr::{OptIndex, free_string_option};
 use crate::os::env::{env_name_len, expand_T, expand_env_save, vim_getenv};
 use crate::os::fs::os_can_exe;
 use crate::os::lang::free_locales;
-#[cfg(not(test))]
-use crate::os::shell::shell_argv_to_str;
-use crate::os::shell::{os_system, shell_build_argv, shell_free_argv};
+use crate::os::shell::{os_system, shell_argv_to_str, shell_build_argv, shell_free_argv};
 use crate::profile::{estack_T, prof_child_enter, prof_child_exit, proftime_T};
 use crate::state::save_v_event_T;
 use crate::tag::set_ref_in_tagfunc;
 use crate::window::win_T;
 
-#[cfg(not(test))]
-use crate::autocmd::{DOCMD_NOWAIT, DOCMD_VERBOSE, PROF_YES};
 use crate::change::TAB;
 use crate::charset::{NL, NUL};
 use crate::globals::IOSIZE;
-#[cfg(not(test))]
-use crate::option::kOptInvalid;
-use crate::option::{OPT_GLOBAL, OPT_LOCAL};
+use crate::option::{OPT_GLOBAL, OPT_LOCAL, kOptInvalid};
 use crate::regexp::NUMBUFLEN;
 use crate::viml::parser::parser::CONV_NONE;
 pub type timer_T = c_void;
@@ -279,7 +229,6 @@ pub(crate) const kListLenMayKnow: isize = -3;
 
 pub(crate) const kMarkAll: c_int = 1;
 
-#[cfg(not(test))]
 const kWinOptFoldexpr: usize = 15;
 
 pub(crate) const STR2NR_ALL: c_int = 0x7f;
@@ -291,34 +240,23 @@ const MAX_EVAL7_RECURSE: c_int = 300;
 #[cfg(not(target_env = "msvc"))]
 const MAX_EVAL7_RECURSE: c_int = 1000;
 
-#[cfg(not(test))]
 const E_MISSBRAC: &CStr = c"E111: Missing ']'";
-#[cfg(not(test))]
 const E_LIST_END: &CStr = c"E697: Missing end of List ']': %s";
-#[cfg(not(test))]
 const E_CANNOT_SLICE_DICTIONARY: &CStr = c"E719: Cannot slice a Dictionary";
-#[cfg(not(test))]
 const E_CANNOT_INDEX_SPECIAL_VARIABLE: &CStr = c"E909: Cannot index a special variable";
-#[cfg(not(test))]
 const E_NOWHITESPACE: &CStr = c"E274: No white space allowed before parenthesis";
-#[cfg(not(test))]
 const E_CANNOT_INDEX_A_FUNCREF: &CStr = c"E695: Cannot index a Funcref";
-#[cfg(not(test))]
 const E_VARIABLE_NESTED_TOO_DEEP_FOR_MAKING_COPY: &CStr =
     c"E698: Variable nested too deep for making a copy";
-#[cfg(not(test))]
 const E_EXPRESSION_TOO_RECURSIVE_STR: &CStr = c"E1169: Expression too recursive: %s";
-#[cfg(not(test))]
 const E_DOT_CAN_ONLY_BE_USED_ON_DICTIONARY_STR: &CStr =
     c"E1203: Dot can only be used on a dictionary: %s";
-#[cfg(not(test))]
 const E_EMPTY_FUNCTION_NAME: &CStr = c"E1192: Empty function name";
-#[cfg(not(test))]
 const E_CANNOT_USE_PARTIAL_HERE: &CStr = c"E1265: Cannot use a partial here";
 const NAMESPACE_CHAR: &CStr = c"abglstvw";
 
 /// Used for checking if local variables or arguments used in a lambda.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static mut eval_lavars_used: *mut bool = ptr::null_mut();
 
 static mut echo_hl_id: c_int = 0;
@@ -469,10 +407,7 @@ unsafe fn tv_list_item_next(_l: *const list_T, li: *const listitem_T) -> *mut li
 #[inline]
 pub(crate) unsafe fn timer_tail(timer: *mut timer_T) -> *mut TimerTail {
     unsafe {
-        #[cfg(not(test))]
         let uv_sz = uv_handle_size(UV_TIMER);
-        #[cfg(test)]
-        let uv_sz = 160;
         timer
             .cast::<u8>()
             .add(uv_sz + size_of::<TimeWatcherFields>())
@@ -482,14 +417,11 @@ pub(crate) unsafe fn timer_tail(timer: *mut timer_T) -> *mut TimerTail {
 
 #[inline]
 unsafe fn timer_size() -> usize {
-    #[cfg(not(test))]
     let uv_sz = unsafe { uv_handle_size(UV_TIMER) };
-    #[cfg(test)]
-    let uv_sz = 160;
     uv_sz + size_of::<TimeWatcherFields>() + size_of::<TimerTail>()
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_v_event(sve: *mut save_v_event_T) -> *mut dict_T {
     unsafe {
         let v_event = get_vim_var_dict(VV_EVENT);
@@ -509,7 +441,7 @@ pub unsafe extern "C" fn get_v_event(sve: *mut save_v_event_T) -> *mut dict_T {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn restore_v_event(v_event: *mut dict_T, sve: *mut save_v_event_T) {
     unsafe {
         tv_dict_free_contents(v_event);
@@ -526,7 +458,7 @@ pub unsafe extern "C" fn restore_v_event(v_event: *mut dict_T, sve: *mut save_v_
 }
 
 /// @return  "n1" divided by "n2", taking care of dividing by zero.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn num_divide(n1: varnumber_T, n2: varnumber_T) -> varnumber_T {
     if n2 == 0 {
         if n1 == 0 {
@@ -544,13 +476,13 @@ pub extern "C" fn num_divide(n1: varnumber_T, n2: varnumber_T) -> varnumber_T {
 }
 
 /// @return  "n1" modulus "n2", taking care of dividing by zero.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn num_modulus(n1: varnumber_T, n2: varnumber_T) -> varnumber_T {
     if n2 == 0 { 0 } else { n1.wrapping_rem(n2) }
 }
 
 /// Initialize the global and v: variables.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eval_init() {
     unsafe {
         evalvars_init();
@@ -558,7 +490,7 @@ pub unsafe extern "C" fn eval_init() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eval_clear() {
     unsafe {
         evalvars_clear();
@@ -570,7 +502,7 @@ pub unsafe extern "C" fn eval_clear() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn fill_evalarg_from_eap(
     evalarg: *mut evalarg_T,
     eap: *mut exarg_T,
@@ -588,7 +520,6 @@ pub unsafe extern "C" fn fill_evalarg_from_eap(
             return;
         }
 
-        #[cfg(not(test))]
         let is_list_line = (*eap).ea_getline.is_some_and(|f| {
             ptr::fn_addr_eq(
                 f,
@@ -596,8 +527,6 @@ pub unsafe extern "C" fn fill_evalarg_from_eap(
                     as unsafe extern "C" fn(c_int, *mut c_void, c_int, bool) -> *mut c_char,
             )
         });
-        #[cfg(test)]
-        let is_list_line = false;
 
         if sourcing_a_script(eap) != 0 || is_list_line {
             (*evalarg).eval_getline = (*eap).ea_getline;
@@ -608,7 +537,7 @@ pub unsafe extern "C" fn fill_evalarg_from_eap(
 
 /// Top level evaluation function, returning a boolean.
 /// Sets "error" to true if there was an error.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eval_to_bool(
     arg: *mut c_char,
     error: *mut bool,
@@ -628,7 +557,6 @@ pub unsafe extern "C" fn eval_to_bool(
 
         fill_evalarg_from_eap(&raw mut evalarg, eap, skip);
 
-        #[cfg(not(test))]
         if skip {
             emsg_skip += 1;
         }
@@ -646,7 +574,6 @@ pub unsafe extern "C" fn eval_to_bool(
                 tv_clear(&raw mut tv);
             }
         }
-        #[cfg(not(test))]
         if skip {
             emsg_skip -= 1;
         }
@@ -660,9 +587,7 @@ pub unsafe extern "C" fn eval_to_bool(
 unsafe fn eval1_emsg(arg: *mut *mut c_char, rettv: *mut typval_T, eap: *mut exarg_T) -> c_int {
     unsafe {
         let start = *arg;
-        #[cfg(not(test))]
         let did_emsg_before = did_emsg;
-        #[cfg(not(test))]
         let called_emsg_before = called_emsg;
         let mut evalarg = evalarg_T {
             eval_flags: 0,
@@ -674,7 +599,6 @@ unsafe fn eval1_emsg(arg: *mut *mut c_char, rettv: *mut typval_T, eap: *mut exar
         fill_evalarg_from_eap(&raw mut evalarg, eap, !eap.is_null() && (*eap).skip != 0);
 
         let ret = eval1(arg, rettv, &raw mut evalarg);
-        #[cfg(not(test))]
         if ret == FAIL
             && !aborting()
             && did_emsg == did_emsg_before
@@ -689,7 +613,7 @@ unsafe fn eval1_emsg(arg: *mut *mut c_char, rettv: *mut typval_T, eap: *mut exar
 
 /// @return  whether a typval is a valid expression to pass to eval_expr_typval()
 ///          or eval_expr_to_bool(). An empty string returns false.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eval_expr_valid_arg(tv: *const typval_T) -> bool {
     unsafe {
         (*tv).v_type != VarType::VAR_UNKNOWN
@@ -788,7 +712,6 @@ unsafe fn eval_expr_string(expr: *const typval_T, rettv: *mut typval_T) -> c_int
 
         if *skipwhite(s) != NUL {
             tv_clear(rettv);
-            #[cfg(not(test))]
             semsg!(gettext((&raw const e_invexpr2).cast()), s);
             return FAIL;
         }
@@ -798,7 +721,7 @@ unsafe fn eval_expr_string(expr: *const typval_T, rettv: *mut typval_T) -> c_int
 }
 
 /// Evaluate an expression, which can be a function, partial or string.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eval_expr_typval(
     expr: *const typval_T,
     want_func: bool,
@@ -819,7 +742,7 @@ pub unsafe extern "C" fn eval_expr_typval(
 }
 
 /// Like eval_to_bool() but using a typval_T instead of a string.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eval_expr_to_bool(expr: *const typval_T, error: *mut bool) -> bool {
     unsafe {
         let mut argv = tv_initial_value();
@@ -836,7 +759,7 @@ pub unsafe extern "C" fn eval_expr_to_bool(expr: *const typval_T, error: *mut bo
 }
 
 /// Top level evaluation function, returning a string.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eval_to_string_skip(
     arg: *mut c_char,
     eap: *mut exarg_T,
@@ -853,7 +776,6 @@ pub unsafe extern "C" fn eval_to_string_skip(
         };
 
         fill_evalarg_from_eap(&raw mut evalarg, eap, skip);
-        #[cfg(not(test))]
         if skip {
             emsg_skip += 1;
         }
@@ -863,7 +785,6 @@ pub unsafe extern "C" fn eval_to_string_skip(
             retval = xstrdup(tv_get_string(&raw const tv));
             tv_clear(&raw mut tv);
         }
-        #[cfg(not(test))]
         if skip {
             emsg_skip -= 1;
         }
@@ -874,7 +795,7 @@ pub unsafe extern "C" fn eval_to_string_skip(
 }
 
 /// Skip over an expression at "*pp".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn skip_expr(pp: *mut *mut c_char, evalarg: *mut evalarg_T) -> c_int {
     unsafe {
         let save_flags = if evalarg.is_null() {
@@ -927,7 +848,7 @@ unsafe fn typval2string(tv: *mut typval_T, join_list: bool) -> *mut c_char {
 }
 
 /// Top level evaluation function, returning a string.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eval_to_string_eap(
     arg: *mut c_char,
     join_list: bool,
@@ -962,7 +883,7 @@ pub unsafe extern "C" fn eval_to_string_eap(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eval_to_string(
     arg: *mut c_char,
     join_list: bool,
@@ -972,7 +893,7 @@ pub unsafe extern "C" fn eval_to_string(
 }
 
 /// Call eval_to_string() without using current local variables and using textlock.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eval_to_string_safe(
     arg: *mut c_char,
     use_sandbox: bool,
@@ -982,7 +903,6 @@ pub unsafe extern "C" fn eval_to_string_safe(
         let mut funccal_entry: funccal_entry_T = std::mem::zeroed();
 
         save_funccal(&raw mut funccal_entry);
-        #[cfg(not(test))]
         {
             if use_sandbox {
                 sandbox += 1;
@@ -990,7 +910,6 @@ pub unsafe extern "C" fn eval_to_string_safe(
             textlock += 1;
         }
         let retval = eval_to_string(arg, false, use_simple_function);
-        #[cfg(not(test))]
         {
             if use_sandbox {
                 sandbox -= 1;
@@ -1003,7 +922,7 @@ pub unsafe extern "C" fn eval_to_string_safe(
 }
 
 /// Top level evaluation function, returning a number.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eval_to_number(
     expr: *mut c_char,
     use_simple_function: bool,
@@ -1014,7 +933,6 @@ pub unsafe extern "C" fn eval_to_number(
         let mut p = skipwhite(expr);
         let mut r = NOTDONE;
 
-        #[cfg(not(test))]
         {
             emsg_off += 1;
         }
@@ -1023,10 +941,7 @@ pub unsafe extern "C" fn eval_to_number(
             r = may_call_simple_func(expr, &raw mut rettv);
         }
         if r == NOTDONE {
-            #[cfg(not(test))]
             let evalarg_ptr = &raw mut EVALARG_EVALUATE;
-            #[cfg(test)]
-            let evalarg_ptr: *mut evalarg_T = ptr::null_mut();
             r = eval1(&raw mut p, &raw mut rettv, evalarg_ptr);
         }
         if r == FAIL {
@@ -1035,7 +950,6 @@ pub unsafe extern "C" fn eval_to_number(
             retval = tv_get_number_chk(&raw const rettv, ptr::null_mut());
             tv_clear(&raw mut rettv);
         }
-        #[cfg(not(test))]
         {
             emsg_off -= 1;
         }
@@ -1045,12 +959,12 @@ pub unsafe extern "C" fn eval_to_number(
 }
 
 /// Top level evaluation function.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eval_expr(arg: *mut c_char, eap: *mut exarg_T) -> *mut typval_T {
     unsafe { eval_expr_ext(arg, eap, false) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eval_expr_ext(
     arg: *mut c_char,
     eap: *mut exarg_T,
@@ -1087,7 +1001,7 @@ pub unsafe extern "C" fn eval_expr_ext(
 }
 
 /// Call some Vim script function and return the result in "*rettv".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn call_vim_function(
     mut func: *const c_char,
     argc: c_int,
@@ -1109,10 +1023,7 @@ pub unsafe extern "C" fn call_vim_function(
         }
 
         (*rettv).v_type = VarType::VAR_UNKNOWN;
-        #[cfg(not(test))]
         let lnum = (*curwin).w_cursor.lnum;
-        #[cfg(test)]
-        let lnum = 1;
         let mut funcexe = funcexe_T {
             fe_argv_func: None,
             fe_firstline: lnum,
@@ -1135,7 +1046,7 @@ pub unsafe extern "C" fn call_vim_function(
 }
 
 /// Call Vim script function and return the result as a string.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn call_func_retstr(
     func: *const c_char,
     argc: c_int,
@@ -1154,7 +1065,7 @@ pub unsafe extern "C" fn call_func_retstr(
 }
 
 /// Call Vim script function and return the result as a List.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn call_func_retlist(
     func: *const c_char,
     argc: c_int,
@@ -1177,9 +1088,8 @@ pub unsafe extern "C" fn call_func_retlist(
 }
 
 /// Evaluate a number-valued "expr" option ('indentexpr'/'formatexpr') via its callback.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eval_expr_option_number(cb: *mut Callback, use_sandbox: bool) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let mut copy = Callback {
             data: ptr::null_mut(),
@@ -1204,15 +1114,11 @@ pub unsafe extern "C" fn eval_expr_option_number(cb: *mut Callback, use_sandbox:
         callback_free(&raw mut copy);
         retval
     }
-    #[cfg(test)]
-    {
-        -1
-    }
 }
 
 /// Evaluate a "expr" option ('foldtext'/'includeexpr') via its callback, under |textlock| and an
 /// isolated funccal stack; evaluates in the |sandbox| when `use_sandbox`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eval_expr_option_tv(
     cb: *mut Callback,
     use_sandbox: bool,
@@ -1221,7 +1127,6 @@ pub unsafe extern "C" fn eval_expr_option_tv(
     unsafe {
         let mut funccal_entry: funccal_entry_T = std::mem::zeroed();
         save_funccal(&raw mut funccal_entry);
-        #[cfg(not(test))]
         {
             if use_sandbox {
                 sandbox += 1;
@@ -1230,7 +1135,6 @@ pub unsafe extern "C" fn eval_expr_option_tv(
         }
         let mut argv = [tv_initial_value()];
         let ok = callback_call(cb, 0, argv.as_mut_ptr(), ret_tv);
-        #[cfg(not(test))]
         {
             textlock -= 1;
             if use_sandbox {
@@ -1244,9 +1148,8 @@ pub unsafe extern "C" fn eval_expr_option_tv(
 
 /// Evaluate 'foldexpr'. Returns the foldlevel, and any character preceding
 /// it in "*cp". Doesn't give error messages.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eval_foldexpr(wp: *mut win_T, cp: *mut c_int) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let saved_sctx = current_sctx;
         let use_sandbox = was_set_insecurely(wp, kOptFoldexpr, OPT_LOCAL) != 0;
@@ -1295,16 +1198,11 @@ pub unsafe extern "C" fn eval_foldexpr(wp: *mut win_T, cp: *mut c_int) -> c_int 
 
         retval as c_int
     }
-    #[cfg(test)]
-    {
-        0
-    }
 }
 
 /// Evaluate 'foldtext', returning an Array or a String (NULL_STRING on failure).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eval_foldtext(wp: *mut win_T) -> Object {
-    #[cfg(not(test))]
     unsafe {
         let use_sandbox = was_set_insecurely(wp, kOptFoldtext, OPT_LOCAL) != 0;
         let mut tv = tv_initial_value();
@@ -1337,18 +1235,6 @@ pub unsafe extern "C" fn eval_foldtext(wp: *mut win_T) -> Object {
             tv_clear(&raw mut tv);
         }
         retval
-    }
-    #[cfg(test)]
-    {
-        Object {
-            obj_type: ObjectType::kObjectTypeString,
-            data: ObjectData {
-                string: NvimString {
-                    data: ptr::null_mut(),
-                    size: 0,
-                },
-            },
-        }
     }
 }
 
@@ -1428,7 +1314,6 @@ unsafe fn get_lval_dict_item(
             && len == -1
             && rettv.is_null()
         {
-            #[cfg(not(test))]
             semsg!((&raw const e_illvar).cast(), c"v:['lua']".as_ptr());
             return GLV_FAIL;
         }
@@ -1437,14 +1322,12 @@ unsafe fn get_lval_dict_item(
             if (*lp).ll_dict == get_vimvar_dict()
                 || ptr::eq(&raw mut (*(*lp).ll_dict).dv_hashtab, get_funccal_args_ht())
             {
-                #[cfg(not(test))]
                 semsg!(gettext((&raw const e_illvar).cast()), name);
                 return GLV_FAIL;
             }
 
             if *p == b'[' as c_char || *p == b'.' as c_char || unlet {
                 if !quiet {
-                    #[cfg(not(test))]
                     semsg!(gettext((&raw const e_dictkey).cast()), key);
                 }
                 return GLV_FAIL;
@@ -1578,7 +1461,6 @@ unsafe fn get_lval_subscript(
         {
             if *p == b'.' as c_char && (*(*lp).ll_tv).v_type != VarType::VAR_DICT {
                 if !quiet {
-                    #[cfg(not(test))]
                     semsg!(
                         gettext(E_DOT_CAN_ONLY_BE_USED_ON_DICTIONARY_STR.as_ptr()),
                         name,
@@ -1591,7 +1473,6 @@ unsafe fn get_lval_subscript(
                 && (*(*lp).ll_tv).v_type != VarType::VAR_BLOB
             {
                 if !quiet {
-                    #[cfg(not(test))]
                     emsg(gettext(
                         c"E689: Can only index a List, Dictionary or Blob".as_ptr(),
                     ));
@@ -1609,7 +1490,6 @@ unsafe fn get_lval_subscript(
 
             if (*lp).ll_range {
                 if !quiet {
-                    #[cfg(not(test))]
                     emsg(gettext(c"E708: [:] must come last".as_ptr()));
                 }
                 tv_clear(&raw mut var1);
@@ -1629,7 +1509,6 @@ unsafe fn get_lval_subscript(
                 }
                 if len == 0 {
                     if !quiet {
-                        #[cfg(not(test))]
                         emsg(gettext(c"E713: Cannot use empty key after .".as_ptr()));
                     }
                     return ptr::null_mut();
@@ -1641,10 +1520,7 @@ unsafe fn get_lval_subscript(
                     empty1 = true;
                 } else {
                     empty1 = false;
-                    #[cfg(not(test))]
                     let evalarg_ptr = &raw mut EVALARG_EVALUATE;
-                    #[cfg(test)]
-                    let evalarg_ptr: *mut evalarg_T = ptr::null_mut();
                     if eval1(&raw mut p, &raw mut var1, evalarg_ptr) == FAIL {
                         tv_clear(&raw mut var1);
                         tv_clear(&raw mut var2);
@@ -1661,7 +1537,6 @@ unsafe fn get_lval_subscript(
                 if *p == b':' as c_char {
                     if (*(*lp).ll_tv).v_type == VarType::VAR_DICT {
                         if !quiet {
-                            #[cfg(not(test))]
                             emsg(gettext(E_CANNOT_SLICE_DICTIONARY.as_ptr()));
                         }
                         tv_clear(&raw mut var1);
@@ -1675,7 +1550,6 @@ unsafe fn get_lval_subscript(
                             && !(*rettv).vval.v_blob.is_null())
                     {
                         if !quiet {
-                            #[cfg(not(test))]
                             emsg(gettext(c"E709: [:] requires a List or Blob value".as_ptr()));
                         }
                         tv_clear(&raw mut var1);
@@ -1687,10 +1561,7 @@ unsafe fn get_lval_subscript(
                         (*lp).ll_empty2 = true;
                     } else {
                         (*lp).ll_empty2 = false;
-                        #[cfg(not(test))]
                         let evalarg_ptr = &raw mut EVALARG_EVALUATE;
-                        #[cfg(test)]
-                        let evalarg_ptr: *mut evalarg_T = ptr::null_mut();
                         if eval1(&raw mut p, &raw mut var2, evalarg_ptr) == FAIL
                             || !tv_check_str(&raw const var2)
                         {
@@ -1706,7 +1577,6 @@ unsafe fn get_lval_subscript(
 
                 if *p != b']' as c_char {
                     if !quiet {
-                        #[cfg(not(test))]
                         emsg(gettext(E_MISSBRAC.as_ptr()));
                     }
                     tv_clear(&raw mut var1);
@@ -1764,7 +1634,7 @@ unsafe fn get_lval_subscript(
 }
 
 /// Get an lvalue
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_lval(
     name: *mut c_char,
     rettv: *mut typval_T,
@@ -1801,7 +1671,6 @@ pub unsafe extern "C" fn get_lval(
                 && *p != b'[' as c_char
                 && *p != b'.' as c_char
             {
-                #[cfg(not(test))]
                 semsg!(gettext((&raw const e_trailing_arg).cast()), p);
                 return ptr::null_mut();
             }
@@ -1811,7 +1680,6 @@ pub unsafe extern "C" fn get_lval(
             (*lp).ll_name = (*lp).ll_exp_name;
             if (*lp).ll_exp_name.is_null() {
                 if !aborting() && !quiet {
-                    #[cfg(not(test))]
                     {
                         emsg_severe = true;
                         semsg!(gettext((&raw const e_invarg2).cast()), name);
@@ -1844,7 +1712,6 @@ pub unsafe extern "C" fn get_lval(
             flags & GLV_NO_AUTOLOAD,
         );
         if v.is_null() && !quiet {
-            #[cfg(not(test))]
             semsg!(
                 gettext(c"E121: Undefined variable: %.*s".as_ptr()),
                 (*lp).ll_name_len as c_int,
@@ -1872,7 +1739,7 @@ pub unsafe extern "C" fn get_lval(
 }
 
 /// Clear lval "lp" that was filled by get_lval().
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn clear_lval(lp: *mut lval_T) {
     unsafe {
         xfree((*lp).ll_exp_name.cast());
@@ -1881,7 +1748,7 @@ pub unsafe extern "C" fn clear_lval(lp: *mut lval_T) {
 }
 
 /// Set a variable that was parsed by get_lval() to "rettv".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_var_lval(
     lp: *mut lval_T,
     endp: *mut c_char,
@@ -1896,7 +1763,6 @@ pub unsafe extern "C" fn set_var_lval(
             *endp = NUL;
             if !(*lp).ll_blob.is_null() {
                 if !op.is_null() && *op != b'=' as c_char {
-                    #[cfg(not(test))]
                     semsg!(gettext((&raw const e_letwrong).cast()), op);
                     *endp = cc;
                     return;
@@ -1926,7 +1792,6 @@ pub unsafe extern "C" fn set_var_lval(
                     let val = tv_get_number_chk(rettv, &raw mut error);
                     if !error {
                         if !(0..=255).contains(&val) {
-                            #[cfg(not(test))]
                             semsg!(
                                 gettext((&raw const e_invalid_value_for_blob_nr).cast()),
                                 val,
@@ -1940,7 +1805,6 @@ pub unsafe extern "C" fn set_var_lval(
                 let mut tv = tv_initial_value();
 
                 if is_const {
-                    #[cfg(not(test))]
                     emsg(gettext((&raw const e_cannot_mod).cast()));
                     *endp = cc;
                     return;
@@ -1981,7 +1845,6 @@ pub unsafe extern "C" fn set_var_lval(
             // Skip
         } else if (*lp).ll_range {
             if is_const {
-                #[cfg(not(test))]
                 emsg(gettext(c"E996: Cannot lock a range".as_ptr()));
                 return;
             }
@@ -2001,7 +1864,6 @@ pub unsafe extern "C" fn set_var_lval(
             let watched = tv_dict_is_watched(dict);
 
             if is_const {
-                #[cfg(not(test))]
                 emsg(gettext(c"E996: Cannot lock a list or dict".as_ptr()));
                 return;
             }
@@ -2009,7 +1871,6 @@ pub unsafe extern "C" fn set_var_lval(
             let mut skip_assign = false;
             if !(*lp).ll_newkey.is_null() {
                 if !op.is_null() && *op != b'=' as c_char {
-                    #[cfg(not(test))]
                     semsg!(gettext((&raw const e_dictkey).cast()), (*lp).ll_newkey);
                     return;
                 }
@@ -2063,7 +1924,7 @@ pub unsafe extern "C" fn set_var_lval(
 }
 
 /// Evaluate the expression used in a ":for var in expr" command.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eval_for_line(
     arg: *const c_char,
     errp: *mut bool,
@@ -2092,12 +1953,10 @@ pub unsafe extern "C" fn eval_for_line(
             || *expr.add(1) != b'n' as c_char
             || !(*expr.add(2) == NUL || ascii_iswhite(*expr.add(2)))
         {
-            #[cfg(not(test))]
             emsg(gettext(c"E690: Missing \"in\" after :for".as_ptr()));
             return fi.cast();
         }
 
-        #[cfg(not(test))]
         if skip {
             emsg_skip += 1;
         }
@@ -2129,13 +1988,11 @@ pub unsafe extern "C" fn eval_for_line(
                         (*fi).fi_string = xstrdup(c"".as_ptr());
                     }
                 } else {
-                    #[cfg(not(test))]
                     emsg(gettext(E_STRING_LIST_OR_BLOB_REQUIRED.as_ptr()));
                     tv_clear(&raw mut tv);
                 }
             }
         }
-        #[cfg(not(test))]
         if skip {
             emsg_skip -= 1;
         }
@@ -2145,7 +2002,7 @@ pub unsafe extern "C" fn eval_for_line(
 }
 
 /// Use the first item in a ":for" list. Advance to the next.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn next_for_item(fi_void: *mut c_void, arg: *mut c_char) -> bool {
     unsafe {
         let fi = fi_void.cast::<forinfo_T>();
@@ -2221,7 +2078,7 @@ pub unsafe extern "C" fn next_for_item(fi_void: *mut c_void, arg: *mut c_char) -
 }
 
 /// Free the structure used to store info used by ":for".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn free_for_info(fi_void: *mut c_void) {
     unsafe {
         let fi = fi_void.cast::<forinfo_T>();
@@ -2241,7 +2098,7 @@ pub unsafe extern "C" fn free_for_info(fi_void: *mut c_void) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_context_for_expression(
     xp: *mut expand_T,
     mut arg: *mut c_char,
@@ -2365,9 +2222,8 @@ pub unsafe extern "C" fn set_context_for_expression(
 }
 
 /// Does not use 'cpo' and always uses 'magic'.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn pattern_match(pat: *const c_char, text: *const c_char, ic: bool) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let mut matches: c_int = 0;
         let mut regmatch: regmatch_T = std::mem::zeroed();
@@ -2382,10 +2238,6 @@ pub unsafe extern "C" fn pattern_match(pat: *const c_char, text: *const c_char, 
         }
         p_cpo = save_cpo;
         matches
-    }
-    #[cfg(test)]
-    {
-        0
     }
 }
 
@@ -2421,10 +2273,7 @@ unsafe fn eval_func(
 
         s = xmemdupz(s.cast(), len as usize).cast();
 
-        #[cfg(not(test))]
         let lnum = (*curwin).w_cursor.lnum;
-        #[cfg(test)]
-        let lnum = 1;
         let mut funcexe = funcexe_T {
             fe_argv_func: None,
             fe_firstline: lnum,
@@ -2456,7 +2305,7 @@ unsafe fn eval_func(
 }
 
 /// After using "evalarg" filled from "eap": free the memory.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn clear_evalarg(evalarg: *mut evalarg_T, eap: *mut exarg_T) {
     unsafe {
         if evalarg.is_null() {
@@ -2477,7 +2326,7 @@ pub unsafe extern "C" fn clear_evalarg(evalarg: *mut evalarg_T, eap: *mut exarg_
 }
 
 /// Handle zero level expression.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eval0(
     arg: *mut c_char,
     rettv: *mut typval_T,
@@ -2485,9 +2334,7 @@ pub unsafe extern "C" fn eval0(
     evalarg: *mut evalarg_T,
 ) -> c_int {
     unsafe {
-        #[cfg(not(test))]
         let did_emsg_before = did_emsg;
-        #[cfg(not(test))]
         let called_emsg_before = called_emsg;
         let mut end_error = false;
 
@@ -2501,7 +2348,6 @@ pub unsafe extern "C" fn eval0(
             if ret != FAIL {
                 tv_clear(rettv);
             }
-            #[cfg(not(test))]
             if !aborting() && did_emsg == did_emsg_before && called_emsg == called_emsg_before {
                 if end_error {
                     semsg!(gettext((&raw const e_trailing_arg).cast()), p);
@@ -2529,7 +2375,7 @@ pub unsafe extern "C" fn eval0(
 
 /// If "arg" is a simple function call without arguments then call it and return
 /// the result. Otherwise return NOTDONE.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn may_call_simple_func(arg: *const c_char, rettv: *mut typval_T) -> c_int {
     unsafe {
         let parens = strstr(arg, c"()".as_ptr()).cast_const();
@@ -2575,7 +2421,7 @@ unsafe fn eval0_simple_funccal(
 /// Handle top level expression:
 ///      expr2 ? expr1 : expr1
 ///      expr2 ?? expr1
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eval1(
     arg: *mut *mut c_char,
     rettv: *mut typval_T,
@@ -2643,7 +2489,6 @@ pub unsafe extern "C" fn eval1(
             if !op_falsy {
                 p = *arg;
                 if *p != b':' as c_char {
-                    #[cfg(not(test))]
                     emsg(gettext(c"E109: Missing ':' after '?'".as_ptr()));
                     if evaluate && result {
                         tv_clear(rettv);
@@ -2902,13 +2747,8 @@ unsafe fn eval4(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut evala
                 ic = false;
                 len += 1;
             } else {
-                #[cfg(not(test))]
                 {
                     ic = p_ic != 0;
-                }
-                #[cfg(test)]
-                {
-                    ic = false;
                 }
             }
 
@@ -2979,7 +2819,7 @@ unsafe fn eval_addlist(tv1: *mut typval_T, tv2: *mut typval_T) -> c_int {
 }
 
 /// Append string "s2" to the string in "tv1".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn grow_string_tv(tv1: *mut typval_T, s2: *const c_char) -> c_int {
     unsafe {
         if (*tv1).v_type != VarType::VAR_STRING || (*tv1).vval.v_string.is_null() {
@@ -3203,7 +3043,6 @@ unsafe fn eval_multdiv_number(tv1: *mut typval_T, tv2: *mut typval_T, op: c_int)
                     f1 / f2
                 };
             } else {
-                #[cfg(not(test))]
                 emsg(gettext(c"E804: Cannot use '%' with Float".as_ptr()));
                 return FAIL;
             }
@@ -3280,7 +3119,6 @@ unsafe fn eval7(
         let mut end_leader: *const c_char = *arg;
 
         if EVAL7_RECURSE == MAX_EVAL7_RECURSE {
-            #[cfg(not(test))]
             semsg!(gettext(E_EXPRESSION_TOO_RECURSIVE_STR.as_ptr()), *arg);
             return FAIL;
         }
@@ -3342,7 +3180,6 @@ unsafe fn eval7(
                 if **arg == b')' as c_char {
                     *arg = (*arg).add(1);
                 } else if ret == OK {
-                    #[cfg(not(test))]
                     emsg(gettext(c"E110: Missing ')'".as_ptr()));
                     tv_clear(rettv);
                     ret = FAIL;
@@ -3500,7 +3337,6 @@ unsafe fn call_func_rettv(
             } else {
                 funcname = functv.vval.v_string;
                 if funcname.is_null() || *funcname == NUL {
-                    #[cfg(not(test))]
                     emsg(gettext(E_EMPTY_FUNCTION_NAME.as_ptr()));
                     tv_clear(&raw mut functv);
                     return FAIL;
@@ -3510,10 +3346,7 @@ unsafe fn call_func_rettv(
             funcname = c"".as_ptr();
         }
 
-        #[cfg(not(test))]
         let lnum = (*curwin).w_cursor.lnum;
-        #[cfg(test)]
-        let lnum = 1;
         let mut funcexe = funcexe_T {
             fe_argv_func: None,
             fe_firstline: lnum,
@@ -3565,10 +3398,8 @@ unsafe fn eval_lambda(
         } else if **arg != b'(' as c_char {
             if verbose {
                 if *skipwhite(*arg) == b'(' as c_char {
-                    #[cfg(not(test))]
                     emsg(gettext(E_NOWHITESPACE.as_ptr()));
                 } else {
-                    #[cfg(not(test))]
                     semsg!(
                         gettext((&raw const e_missingparen).cast()),
                         c"lambda".as_ptr(),
@@ -3633,10 +3464,8 @@ unsafe fn eval_method(
         if len <= 0 {
             if verbose {
                 if lua_funcname.is_null() {
-                    #[cfg(not(test))]
                     emsg(gettext(c"E260: Missing name after ->".as_ptr()));
                 } else {
-                    #[cfg(not(test))]
                     semsg!(gettext((&raw const e_invexpr2).cast()), name);
                 }
             }
@@ -3657,7 +3486,6 @@ unsafe fn eval_method(
                     ret = FAIL;
                 } else if *skipwhite(*arg) != NUL {
                     if verbose {
-                        #[cfg(not(test))]
                         semsg!(gettext((&raw const e_trailing_arg).cast()), *arg);
                     }
                     ret = FAIL;
@@ -3672,7 +3500,6 @@ unsafe fn eval_method(
                     let ref_pt = tv_partial(&raw const ref_tv);
                     if (*ref_pt).pt_argc > 0 || !(*ref_pt).pt_dict.is_null() {
                         if verbose {
-                            #[cfg(not(test))]
                             emsg(gettext(E_CANNOT_USE_PARTIAL_HERE.as_ptr()));
                         }
                         ret = FAIL;
@@ -3688,7 +3515,6 @@ unsafe fn eval_method(
                     }
                 } else {
                     if verbose {
-                        #[cfg(not(test))]
                         semsg!(gettext((&raw const e_not_callable_type_str).cast()), name);
                     }
                     ret = FAIL;
@@ -3700,13 +3526,11 @@ unsafe fn eval_method(
             if ret == OK {
                 if **arg != b'(' as c_char {
                     if verbose {
-                        #[cfg(not(test))]
                         semsg!(gettext((&raw const e_missingparen).cast()), name);
                     }
                     ret = FAIL;
                 } else if ascii_iswhite(*(*arg).sub(1)) {
                     if verbose {
-                        #[cfg(not(test))]
                         emsg(gettext(E_NOWHITESPACE.as_ptr()));
                     }
                     ret = FAIL;
@@ -3816,7 +3640,6 @@ unsafe fn eval_index(
 
             if **arg != b']' as c_char {
                 if verbose {
-                    #[cfg(not(test))]
                     emsg(gettext(E_MISSBRAC.as_ptr()));
                 }
                 tv_clear(&raw mut var1);
@@ -3865,28 +3688,24 @@ unsafe fn check_can_index(rettv: *mut typval_T, evaluate: bool, verbose: bool) -
         match (*rettv).v_type {
             VarType::VAR_FUNC | VarType::VAR_PARTIAL => {
                 if verbose {
-                    #[cfg(not(test))]
                     emsg(gettext(E_CANNOT_INDEX_A_FUNCREF.as_ptr()));
                 }
                 return FAIL;
             }
             VarType::VAR_FLOAT => {
                 if verbose {
-                    #[cfg(not(test))]
                     emsg(gettext((&raw const e_using_float_as_string).cast()));
                 }
                 return FAIL;
             }
             VarType::VAR_BOOL | VarType::VAR_SPECIAL => {
                 if verbose {
-                    #[cfg(not(test))]
                     emsg(gettext(E_CANNOT_INDEX_SPECIAL_VARIABLE.as_ptr()));
                 }
                 return FAIL;
             }
             VarType::VAR_UNKNOWN => {
                 if evaluate {
-                    #[cfg(not(test))]
                     emsg(gettext(E_CANNOT_INDEX_SPECIAL_VARIABLE.as_ptr()));
                     return FAIL;
                 }
@@ -3902,7 +3721,7 @@ unsafe fn check_can_index(rettv: *mut typval_T, evaluate: bool, verbose: bool) -
 }
 
 /// slice() function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_slice(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -3952,7 +3771,6 @@ unsafe fn eval_index_inner(
         if is_range {
             if (*rettv).v_type == VarType::VAR_DICT {
                 if verbose {
-                    #[cfg(not(test))]
                     emsg(gettext(E_CANNOT_SLICE_DICTIONARY.as_ptr()));
                 }
                 return FAIL;
@@ -4040,7 +3858,6 @@ unsafe fn eval_index_inner(
                 let item = tv_dict_find((*rettv).vval.v_dict, key, keylen);
 
                 if item.is_null() && verbose {
-                    #[cfg(not(test))]
                     if keylen > 0 {
                         semsg!(gettext((&raw const e_dictkey_len).cast()), keylen, key);
                     } else {
@@ -4062,7 +3879,7 @@ unsafe fn eval_index_inner(
 }
 
 /// Get an option value
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eval_option(
     arg: *mut *const c_char,
     rettv: *mut typval_T,
@@ -4077,7 +3894,6 @@ pub unsafe extern "C" fn eval_option(
 
         if option_end.is_null() {
             if !rettv.is_null() {
-                #[cfg(not(test))]
                 semsg!(gettext(c"E112: Option name missing: %s".as_ptr()), *arg);
             }
             return FAIL;
@@ -4092,7 +3908,6 @@ pub unsafe extern "C" fn eval_option(
         *option_end = NUL;
 
         let mut ret = OK;
-        #[cfg(not(test))]
         {
             let is_tty_opt = is_tty_option(*arg);
 
@@ -4171,7 +3986,6 @@ unsafe fn eval_number(
             while ascii_isxdigit(*bp) {
                 if !ascii_isxdigit(*bp.add(1)) {
                     if !blob.is_null() {
-                        #[cfg(not(test))]
                         emsg(gettext(
                             c"E973: Blob literal should have an even number of hex characters"
                                 .as_ptr(),
@@ -4212,7 +4026,6 @@ unsafe fn eval_number(
             );
             if len == 0 {
                 if evaluate {
-                    #[cfg(not(test))]
                     semsg!(gettext((&raw const e_invexpr2).cast()), *arg);
                 }
                 return FAIL;
@@ -4272,7 +4085,6 @@ unsafe fn eval_string(
                 }
                 p = p.add(1);
                 if *p.sub(1) == b'}' as c_char && *p != b'}' as c_char {
-                    #[cfg(not(test))]
                     semsg!(gettext((&raw const e_stray_closing_curly_str).cast()), *arg);
                     return FAIL;
                 }
@@ -4282,7 +4094,6 @@ unsafe fn eval_string(
         }
 
         if *p != b'"' as c_char && !(interpolate && *p == b'{' as c_char) {
-            #[cfg(not(test))]
             semsg!(gettext(c"E114: Missing quote: %s".as_ptr()), *arg);
             return FAIL;
         }
@@ -4388,7 +4199,6 @@ unsafe fn eval_string(
                         p = p_const.cast_mut();
                         if spec_len != 0 {
                             end = end.add(spec_len as usize);
-                            #[cfg(not(test))]
                             if (end as usize) >= ((*rettv).vval.v_string as usize + len) {
                                 iemsg(c"eval_string() used more space than allocated".as_ptr());
                             }
@@ -4455,7 +4265,6 @@ unsafe fn eval_lit_string(
                 } else if *p == b'}' as c_char {
                     p = p.add(1);
                     if *p != b'}' as c_char {
-                        #[cfg(not(test))]
                         semsg!(gettext((&raw const e_stray_closing_curly_str).cast()), *arg);
                         return FAIL;
                     }
@@ -4466,7 +4275,6 @@ unsafe fn eval_lit_string(
         }
 
         if *p != b'\'' as c_char && !(interpolate && *p == b'{' as c_char) {
-            #[cfg(not(test))]
             semsg!(gettext(c"E115: Missing quote: %s".as_ptr()), *arg);
             return FAIL;
         }
@@ -4506,7 +4314,7 @@ unsafe fn eval_lit_string(
 }
 
 /// Evaluate a single or double quoted string possibly containing expressions.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eval_interp_string(
     arg: *mut *mut c_char,
     rettv: *mut typval_T,
@@ -4565,7 +4373,7 @@ pub unsafe extern "C" fn eval_interp_string(
 }
 
 /// @return  the function name of the partial.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn partial_name(pt: *mut partial_T) -> *mut c_char {
     unsafe {
         if !pt.is_null() {
@@ -4600,7 +4408,7 @@ unsafe fn partial_free(pt: *mut partial_T) {
 
 /// Unreference a closure: decrement the reference count and free it when it
 /// becomes zero.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn partial_unref(pt: *mut partial_T) {
     unsafe {
         if pt.is_null() {
@@ -4648,7 +4456,6 @@ unsafe fn eval_list(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut e
             }
 
             if !had_comma {
-                #[cfg(not(test))]
                 semsg!(gettext(c"E696: Missing comma in List: %s".as_ptr()), *arg);
                 if evaluate {
                     tv_list_free(l);
@@ -4658,7 +4465,6 @@ unsafe fn eval_list(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut e
         }
 
         if **arg != b']' as c_char {
-            #[cfg(not(test))]
             semsg!(gettext(E_LIST_END.as_ptr()), *arg);
             if evaluate {
                 tv_list_free(l);
@@ -4675,7 +4481,7 @@ unsafe fn eval_list(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut e
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn func_equal(tv1: *mut typval_T, tv2: *mut typval_T, ic: bool) -> bool {
     unsafe {
         let mut s1 = if (*tv1).v_type == VarType::VAR_FUNC {
@@ -4747,7 +4553,7 @@ pub unsafe extern "C" fn func_equal(tv1: *mut typval_T, tv2: *mut typval_T, ic: 
 }
 
 /// Get next (unique) copy ID.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_copyID() -> c_int {
     unsafe {
         CURRENT_COPY_ID = CURRENT_COPY_ID.wrapping_add(COPYID_INC);
@@ -4756,12 +4562,11 @@ pub unsafe extern "C" fn get_copyID() -> c_int {
 }
 
 /// Do garbage collection for lists and dicts.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn garbage_collect(testing: bool) -> bool {
     unsafe {
         let mut abort = false;
 
-        #[cfg(not(test))]
         if !testing {
             want_garbage_collect = false;
             may_garbage_collect = false;
@@ -4786,7 +4591,6 @@ pub unsafe extern "C" fn garbage_collect(testing: bool) -> bool {
         abort = abort || set_ref_in_previous_funccal(copyID);
         abort = abort || garbage_collect_scriptvars(copyID);
 
-        #[cfg(not(test))]
         {
             let mut buf = firstbuf;
             while !buf.is_null() {
@@ -4861,12 +4665,10 @@ pub unsafe extern "C" fn garbage_collect(testing: bool) -> bool {
         abort = abort || set_ref_in_insexpand_funcs(copyID);
         abort = abort || set_ref_in_opfunc(copyID);
         abort = abort || set_ref_in_tagfunc(copyID);
-        #[cfg(not(test))]
         {
             abort = abort || set_ref_in_findfunc(copyID);
         }
 
-        #[cfg(not(test))]
         {
             let mut tp = first_tabpage;
             while !tp.is_null() {
@@ -4928,7 +4730,6 @@ pub unsafe extern "C" fn garbage_collect(testing: bool) -> bool {
             }
         }
 
-        #[cfg(not(test))]
         {
             let mut tp = first_tabpage;
             while !tp.is_null() {
@@ -4947,7 +4748,6 @@ pub unsafe extern "C" fn garbage_collect(testing: bool) -> bool {
         abort = abort || set_ref_in_call_stack(copyID);
         abort = abort || set_ref_in_functions(copyID);
 
-        #[cfg(not(test))]
         {
             for i in 0..(channels.set.h.n_keys as usize) {
                 let data = (*channels.values.add(i)).cast::<Channel>();
@@ -4986,7 +4786,6 @@ pub unsafe extern "C" fn garbage_collect(testing: bool) -> bool {
 
         abort = abort || set_ref_in_func_args(copyID);
         abort = abort || garbage_collect_vimvars(copyID);
-        #[cfg(not(test))]
         {
             abort = abort || set_ref_in_quickfix(copyID);
         }
@@ -4996,7 +4795,6 @@ pub unsafe extern "C" fn garbage_collect(testing: bool) -> bool {
             did_free = free_unref_items(copyID) != 0;
             did_free = free_unref_funccal(copyID, c_int::from(testing)) || did_free;
         } else {
-            #[cfg(not(test))]
             if p_verbose > 0 {
                 verb_msg(gettext(
                     c"Not enough memory to set references, garbage collection aborted!".as_ptr(),
@@ -5060,7 +4858,7 @@ unsafe fn free_unref_items(copyID: c_int) -> c_int {
 }
 
 /// Mark all lists and dicts referenced through hashtab "ht" with "copyID".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_ref_in_ht(
     ht: *mut hashtab_T,
     copyID: c_int,
@@ -5106,7 +4904,7 @@ pub unsafe extern "C" fn set_ref_in_ht(
 }
 
 /// Mark all lists and dicts referenced through list "l" with "copyID".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_ref_in_list_items(
     l: *mut list_T,
     copyID: c_int,
@@ -5237,7 +5035,7 @@ unsafe fn set_ref_in_item_partial(
 }
 
 /// Mark all lists and dicts referenced through typval "tv" with "copyID".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_ref_in_item(
     tv: *mut typval_T,
     copyID: c_int,
@@ -5329,7 +5127,6 @@ unsafe fn eval_dict(
                 return FAIL;
             }
             if **arg != b':' as c_char {
-                #[cfg(not(test))]
                 semsg!(
                     gettext(c"E720: Missing colon in Dictionary: %s".as_ptr()),
                     *arg,
@@ -5362,7 +5159,6 @@ unsafe fn eval_dict(
             if evaluate {
                 let mut item = tv_dict_find(d, key, -1);
                 if !item.is_null() {
-                    #[cfg(not(test))]
                     semsg!(
                         gettext(c"E721: Duplicate key in Dictionary: \"%s\"".as_ptr()),
                         key,
@@ -5392,7 +5188,6 @@ unsafe fn eval_dict(
                 break;
             }
             if !had_comma {
-                #[cfg(not(test))]
                 semsg!(
                     gettext(c"E722: Missing comma in Dictionary: %s".as_ptr()),
                     *arg,
@@ -5405,7 +5200,6 @@ unsafe fn eval_dict(
         }
 
         if **arg != b'}' as c_char {
-            #[cfg(not(test))]
             semsg!(
                 gettext(c"E723: Missing end of Dictionary '}': %s".as_ptr()),
                 *arg,
@@ -5442,7 +5236,7 @@ unsafe fn eval_lit_dict(
 }
 
 /// Convert the string to a floating point number.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn string2float(text: *const c_char, ret_value: *mut float_T) -> usize {
     unsafe {
         let b0 = (*text as u8).to_ascii_lowercase();
@@ -5510,7 +5304,7 @@ unsafe fn eval_env_var(arg: *mut *mut c_char, rettv: *mut typval_T, evaluate: c_
 }
 
 /// Builds a process argument vector from a Vimscript object (typval_T).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tv_to_argv(
     cmd_tv: *mut typval_T,
     cmd: *mut *const c_char,
@@ -5526,7 +5320,6 @@ pub unsafe extern "C" fn tv_to_argv(
         }
 
         if (*cmd_tv).v_type != VarType::VAR_LIST {
-            #[cfg(not(test))]
             semsg!(
                 gettext((&raw const e_invarg2).cast()),
                 c"expected String or List".as_ptr(),
@@ -5537,7 +5330,6 @@ pub unsafe extern "C" fn tv_to_argv(
         let argl = (*cmd_tv).vval.v_list;
         let argc = tv_list_len(argl);
         if argc == 0 {
-            #[cfg(not(test))]
             emsg(gettext((&raw const e_invarg).cast()));
             return ptr::null_mut();
         }
@@ -5553,7 +5345,6 @@ pub unsafe extern "C" fn tv_to_argv(
                     c"'%s' is not executable".as_ptr(),
                     arg0,
                 );
-                #[cfg(not(test))]
                 semsg!(
                     gettext((&raw const e_invargNval).cast()),
                     c"cmd".as_ptr(),
@@ -5607,15 +5398,11 @@ unsafe fn string_to_list(str_: *const c_char, mut len: usize, keepempty: bool) -
 unsafe fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: *mut typval_T, retlist: bool) {
     unsafe {
         let mut wait_time: proftime_T = 0;
-        #[cfg(not(test))]
         let profiling = do_profiling == PROF_YES;
-        #[cfg(test)]
-        let profiling = false;
 
         (*rettv).v_type = VarType::VAR_STRING;
         (*rettv).vval.v_string = ptr::null_mut();
 
-        #[cfg(not(test))]
         if check_secure() {
             return;
         }
@@ -5637,7 +5424,6 @@ unsafe fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: *mut typval_
             return;
         }
 
-        #[cfg(not(test))]
         if p_verbose > 3 {
             let cmdstr = shell_argv_to_str(argv);
             verbose_enter_scroll();
@@ -5712,7 +5498,7 @@ unsafe fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: *mut typval_
 }
 
 /// f_system - the Vimscript system() function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_system(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -5723,7 +5509,7 @@ pub unsafe extern "C" fn f_system(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_systemlist(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -5735,7 +5521,7 @@ pub unsafe extern "C" fn f_systemlist(
 }
 
 /// Get a callback from "arg". It can be a Funcref or a function name.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn callback_from_typval(
     callback: *mut Callback,
     arg: *const typval_T,
@@ -5743,10 +5529,7 @@ pub unsafe extern "C" fn callback_from_typval(
     unsafe {
         let mut r = OK;
 
-        #[cfg(not(test))]
         let is_lua_tbl = nlua_is_table_from_lua(arg);
-        #[cfg(test)]
-        let is_lua_tbl = false;
 
         if (*arg).v_type == VarType::VAR_PARTIAL && !tv_partial(arg).is_null() {
             let pt = tv_partial(arg);
@@ -5777,7 +5560,6 @@ pub unsafe extern "C" fn callback_from_typval(
                 (*callback).cb_type = kCallbackFuncref;
             }
         } else if is_lua_tbl {
-            #[cfg(not(test))]
             {
                 let name = nlua_register_table_as_callable(arg);
                 if !name.is_null() {
@@ -5797,7 +5579,6 @@ pub unsafe extern "C" fn callback_from_typval(
         }
 
         if r == FAIL {
-            #[cfg(not(test))]
             emsg(gettext(c"E921: Invalid callback argument".as_ptr()));
             return false;
         }
@@ -5805,13 +5586,13 @@ pub unsafe extern "C" fn callback_from_typval(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_callback_depth() -> c_int {
     unsafe { callback_depth }
 }
 
 /// @return  whether the callback could be called.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn callback_call(
     callback: *mut Callback,
     argcount_in: c_int,
@@ -5819,7 +5600,6 @@ pub unsafe extern "C" fn callback_call(
     rettv: *mut typval_T,
 ) -> bool {
     unsafe {
-        #[cfg(not(test))]
         if i64::from(callback_depth) > p_mfd {
             emsg(gettext((&raw const e_command_too_recursive).cast()));
             return false;
@@ -5846,55 +5626,45 @@ pub unsafe extern "C" fn callback_call(
                 name = partial_name(partial);
             }
             kCallbackLua => {
-                #[cfg(not(test))]
-                {
-                    let mut arena = Arena {
-                        cur_blk: ptr::null_mut(),
-                        pos: 0,
-                        size: 0,
-                    };
-                    let mut luaargs = arena_array(&raw mut arena, argcount_in as usize);
-                    for i in 0..(argcount_in as usize) {
-                        *luaargs.items.add(luaargs.size) =
-                            vim_to_object(argvars_in.add(i), &raw mut arena, false);
-                        luaargs.size += 1;
-                    }
-                    let mut err = Error {
-                        err_type: ErrorType::kErrorTypeNone,
-                        msg: ptr::null_mut(),
-                    };
-                    let luaref = *(&raw const (*callback).data).cast::<c_int>();
-                    callback_depth += 1;
-                    let result = nlua_call_ref(
-                        luaref,
-                        ptr::null(),
-                        luaargs,
-                        kRetObject,
-                        &raw mut arena,
-                        &raw mut err,
-                    );
-                    callback_depth -= 1;
-                    let ok = err.err_type == ErrorType::kErrorTypeNone;
-                    if !ok {
-                        semsg_multiline!(c"emsg".as_ptr(), c"E5108: %s".as_ptr(), err.msg);
-                        api_clear_error(&raw mut err);
-                    } else {
-                        object_to_vim(result, rettv, ptr::null_mut());
-                    }
-                    arena_mem_free(arena_finish(&raw mut arena));
-                    return ok;
+                let mut arena = Arena {
+                    cur_blk: ptr::null_mut(),
+                    pos: 0,
+                    size: 0,
+                };
+                let mut luaargs = arena_array(&raw mut arena, argcount_in as usize);
+                for i in 0..(argcount_in as usize) {
+                    *luaargs.items.add(luaargs.size) =
+                        vim_to_object(argvars_in.add(i), &raw mut arena, false);
+                    luaargs.size += 1;
                 }
-                #[cfg(test)]
-                {
-                    return false;
+                let mut err = Error {
+                    err_type: ErrorType::kErrorTypeNone,
+                    msg: ptr::null_mut(),
+                };
+                let luaref = *(&raw const (*callback).data).cast::<c_int>();
+                callback_depth += 1;
+                let result = nlua_call_ref(
+                    luaref,
+                    ptr::null(),
+                    luaargs,
+                    kRetObject,
+                    &raw mut arena,
+                    &raw mut err,
+                );
+                callback_depth -= 1;
+                let ok = err.err_type == ErrorType::kErrorTypeNone;
+                if !ok {
+                    semsg_multiline!(c"emsg".as_ptr(), c"E5108: %s".as_ptr(), err.msg);
+                    api_clear_error(&raw mut err);
+                } else {
+                    object_to_vim(result, rettv, ptr::null_mut());
                 }
+                arena_mem_free(arena_finish(&raw mut arena));
+                return ok;
             }
             kCallbackExpr => {
                 callback_depth += 1;
-                #[cfg(not(test))]
                 let evalarg_ptr = &raw mut EVALARG_EVALUATE;
-                #[cfg(test)]
-                let evalarg_ptr: *mut evalarg_T = ptr::null_mut();
                 let r = eval0_simple_funccal(
                     skipwhite((*callback).data.cast::<c_char>()),
                     rettv,
@@ -5910,10 +5680,7 @@ pub unsafe extern "C" fn callback_call(
             }
         }
 
-        #[cfg(not(test))]
         let lnum = (*curwin).w_cursor.lnum;
-        #[cfg(test)]
-        let lnum = 1;
         let mut funcexe = funcexe_T {
             fe_argv_func: None,
             fe_firstline: lnum,
@@ -5933,7 +5700,7 @@ pub unsafe extern "C" fn callback_call(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_ref_in_callback(
     callback: *mut Callback,
     copyID: c_int,
@@ -5955,7 +5722,6 @@ pub unsafe extern "C" fn set_ref_in_callback(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn set_ref_in_callback_reader(
     reader: *mut CallbackReader,
     copyID: c_int,
@@ -5981,7 +5747,7 @@ unsafe fn set_ref_in_callback_reader(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn find_timer_by_nr(xx: varnumber_T) -> *mut timer_T {
     unsafe {
         let ptr = map_ref_uint64_t_ptr_t(&raw mut timers, xx as u64, ptr::null_mut());
@@ -5993,7 +5759,7 @@ pub unsafe extern "C" fn find_timer_by_nr(xx: varnumber_T) -> *mut timer_T {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn add_timer_info(rettv: *mut typval_T, timer: *mut timer_T) {
     unsafe {
         let list = (*rettv).vval.v_list;
@@ -6019,13 +5785,12 @@ pub unsafe extern "C" fn add_timer_info(rettv: *mut typval_T, timer: *mut timer_
         if tv_dict_add(dict, di) == FAIL {
             xfree(di.cast());
         } else {
-            #[cfg(not(test))]
             callback_put(&raw mut (*tt).callback, &raw mut (*di).di_tv);
         }
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn add_timer_info_all(rettv: *mut typval_T) {
     unsafe {
         tv_list_alloc_ret(rettv, timers.set.h.size as isize);
@@ -6040,14 +5805,12 @@ pub unsafe extern "C" fn add_timer_info_all(rettv: *mut typval_T) {
 }
 
 /// Invoked on the main loop.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn timer_due_cb(_tw: *mut TimeWatcher, data: *mut c_void) {
     unsafe {
         let timer = data.cast::<timer_T>();
         let tt = timer_tail(timer);
-        #[cfg(not(test))]
         let save_did_emsg = did_emsg;
-        #[cfg(not(test))]
         let called_emsg_before = called_emsg;
 
         if (*tt).stopped || (*tt).paused {
@@ -6074,7 +5837,6 @@ pub unsafe extern "C" fn timer_due_cb(_tw: *mut TimeWatcher, data: *mut c_void) 
             &raw mut rettv,
         );
 
-        #[cfg(not(test))]
         {
             if called_emsg > called_emsg_before && did_emsg != 0 {
                 (*tt).emsg_count += 1;
@@ -6098,7 +5860,7 @@ pub unsafe extern "C" fn timer_due_cb(_tw: *mut TimeWatcher, data: *mut c_void) 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn timer_start(
     timeout: i64,
     repeat_count: c_int,
@@ -6118,7 +5880,6 @@ pub unsafe extern "C" fn timer_start(
         (*tt).timer_id = id as c_int;
         (*tt).callback = *callback;
 
-        #[cfg(not(test))]
         {
             let main_loop_ptr = (&raw mut main_loop).cast();
             time_watcher_init(main_loop_ptr, timer.cast(), timer);
@@ -6144,7 +5905,7 @@ pub unsafe extern "C" fn timer_start(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn timer_stop(timer: *mut timer_T) {
     unsafe {
         let tt = timer_tail(timer);
@@ -6152,7 +5913,6 @@ pub unsafe extern "C" fn timer_stop(timer: *mut timer_T) {
             return;
         }
         (*tt).stopped = true;
-        #[cfg(not(test))]
         {
             time_watcher_stop(timer.cast());
             time_watcher_close(timer.cast(), Some(timer_close_cb));
@@ -6160,14 +5920,12 @@ pub unsafe extern "C" fn timer_stop(timer: *mut timer_T) {
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn timer_close_cb(_tw: *mut TimeWatcher, data: *mut c_void) {
     unsafe {
         let timer = data.cast::<timer_T>();
         let wf = watcher_fields(timer.cast());
         let tt = timer_tail(timer);
         multiqueue_free((*wf).events);
-        #[cfg(not(test))]
         callback_free(&raw mut (*tt).callback);
         let _ = map_del_uint64_t_ptr_t(&raw mut timers, (*tt).timer_id as u64, ptr::null_mut());
         timer_decref(timer);
@@ -6184,7 +5942,7 @@ unsafe fn timer_decref(timer: *mut timer_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn timer_stop_all() {
     unsafe {
         for i in 0..(timers.set.h.n_keys as usize) {
@@ -6194,7 +5952,7 @@ pub unsafe extern "C" fn timer_stop_all() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn timer_teardown() {
     unsafe {
         timer_stop_all();
@@ -6202,7 +5960,7 @@ pub unsafe extern "C" fn timer_teardown() {
 }
 
 /// Saves a typval_T as a string.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn save_tv_as_string(
     tv: *mut typval_T,
     len: *mut isize,
@@ -6227,10 +5985,7 @@ pub unsafe extern "C" fn save_tv_as_string(
         }
 
         if (*tv).v_type == VarType::VAR_NUMBER {
-            #[cfg(not(test))]
             let buf = buflist_findnr((*tv).vval.v_number as c_int);
-            #[cfg(test)]
-            let buf: *mut buf_T = ptr::null_mut();
             if !buf.is_null() {
                 for lnum in 1..=(*buf).b_ml.ml_line_count {
                     let mut p = ml_get_buf(buf, lnum);
@@ -6241,7 +5996,6 @@ pub unsafe extern "C" fn save_tv_as_string(
                     *len += 1;
                 }
             } else {
-                #[cfg(not(test))]
                 semsg!(gettext((&raw const e_nobufnr).cast()), (*tv).vval.v_number);
                 *len = -1;
                 return ptr::null_mut();
@@ -6322,7 +6076,7 @@ pub unsafe extern "C" fn save_tv_as_string(
 
 /// Convert the specified byte index of line 'lnum' in buffer 'buf' to a
 /// character index.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn buf_byteidx_to_charidx(
     buf: *mut buf_T,
     mut lnum: linenr_T,
@@ -6361,7 +6115,7 @@ pub unsafe extern "C" fn buf_byteidx_to_charidx(
 
 /// Convert the specified character index of line 'lnum' in buffer 'buf' to a
 /// byte index.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn buf_charidx_to_byteidx(
     buf: *mut buf_T,
     mut lnum: linenr_T,
@@ -6392,7 +6146,7 @@ pub unsafe extern "C" fn buf_charidx_to_byteidx(
 }
 
 /// Translate a Vimscript object into a position.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn var2fpos(
     tv: *const typval_T,
     dollar_lnum: bool,
@@ -6461,7 +6215,6 @@ pub unsafe extern "C" fn var2fpos(
                 coladd: (*wp).w_cursor.coladd,
             };
         } else if *name == b'v' as c_char && *name.add(1) == NUL {
-            #[cfg(not(test))]
             if Visual.active && wp == curwin {
                 VAR2FPOS_POS = pos_T {
                     lnum: Visual.start.lnum,
@@ -6535,7 +6288,7 @@ pub unsafe extern "C" fn var2fpos(
 }
 
 /// Convert list in "arg" into position "posp" and optional file number "fnump".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn list2fpos(
     arg: *mut typval_T,
     posp: *mut pos_T,
@@ -6564,7 +6317,6 @@ pub unsafe extern "C" fn list2fpos(
                 return FAIL;
             }
             if n == 0 {
-                #[cfg(not(test))]
                 {
                     n = (*curbuf).b_fnum;
                 }
@@ -6585,21 +6337,15 @@ pub unsafe extern "C" fn list2fpos(
             return FAIL;
         }
         if charcol {
-            #[cfg(not(test))]
             let buf = buflist_findnr(if fnump.is_null() {
                 (*curbuf).b_fnum
             } else {
                 *fnump
             });
-            #[cfg(test)]
-            let buf: *mut buf_T = ptr::null_mut();
             if buf.is_null() || (*buf).b_ml.ml_mfp.is_null() {
                 return FAIL;
             }
-            #[cfg(not(test))]
             let cur_lnum = (*curwin).w_cursor.lnum;
-            #[cfg(test)]
-            let cur_lnum = 1;
             n = buf_charidx_to_byteidx(
                 buf,
                 if (*posp).lnum == 0 {
@@ -6628,7 +6374,7 @@ pub unsafe extern "C" fn list2fpos(
 }
 
 /// Get the length of an environment variable name.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_env_len(arg: *mut *const c_char) -> c_int {
     unsafe {
         let len = env_name_len(*arg);
@@ -6638,7 +6384,7 @@ pub unsafe extern "C" fn get_env_len(arg: *mut *const c_char) -> c_int {
 }
 
 /// Get the length of the name of a function or internal variable.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_id_len(arg: *mut *const c_char) -> c_int {
     unsafe {
         let mut p = *arg;
@@ -6666,7 +6412,7 @@ pub unsafe extern "C" fn get_id_len(arg: *mut *const c_char) -> c_int {
 }
 
 /// Get the length of the name of a variable or function.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_name_len(
     arg: *mut *const c_char,
     alias: *mut *mut c_char,
@@ -6719,7 +6465,6 @@ pub unsafe extern "C" fn get_name_len(
 
         len += get_id_len(arg);
         if len == 0 && verbose && **arg != NUL {
-            #[cfg(not(test))]
             semsg!(gettext((&raw const e_invexpr2).cast()), *arg);
         }
 
@@ -6728,7 +6473,7 @@ pub unsafe extern "C" fn get_name_len(
 }
 
 /// Find the end of a variable or function name, taking care of magic braces.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn find_name_end(
     arg: *const c_char,
     expr_start: *mut *const c_char,
@@ -6845,7 +6590,6 @@ unsafe fn make_expanded_name(
                 + (in_end as usize).wrapping_sub(expr_end as usize)
                 + 1;
             retval = xmalloc(retvalsize).cast::<c_char>();
-            #[cfg(not(test))]
             vim_snprintf!(
                 retval,
                 retvalsize,
@@ -6880,26 +6624,26 @@ unsafe fn make_expanded_name(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn eval_isnamec(c: c_int) -> bool {
     let ch = c as u8 as c_char;
     ascii_isalnum(ch) || ch == b'_' as c_char || ch == b':' as c_char || ch == AUTOLOAD_CHAR
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn eval_isnamec1(c: c_int) -> bool {
     let ch = c as u8 as c_char;
     ascii_isalpha(ch) || ch == b'_' as c_char
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn eval_isdictc(c: c_int) -> bool {
     let ch = c as u8 as c_char;
     ascii_isalnum(ch) || ch == b'_' as c_char
 }
 
 /// Set the v:argv list.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_argv_var(argv: *mut *mut c_char, argc: c_int) {
     unsafe {
         let l = tv_list_alloc(argc as isize);
@@ -6914,7 +6658,7 @@ pub unsafe extern "C" fn set_argv_var(argv: *mut *mut c_char, argc: c_int) {
 }
 
 /// Check if special v:lua value for calling lua functions.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn is_luafunc(partial: *mut partial_T) -> bool {
     unsafe { partial == get_vim_var_partial(VV_LUA) }
 }
@@ -6924,7 +6668,7 @@ unsafe fn tv_is_luafunc(tv: *mut typval_T) -> bool {
 }
 
 /// Skips one character past the end of the name of a v:lua function.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn skip_luafunc_name(mut p: *const c_char) -> *const c_char {
     unsafe {
         while ascii_isalnum(*p)
@@ -6940,7 +6684,7 @@ pub unsafe extern "C" fn skip_luafunc_name(mut p: *const c_char) -> *const c_cha
 }
 
 /// Check the function name after "v:lua."
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn check_luafunc_name(str_: *const c_char, paren: bool) -> c_int {
     unsafe {
         let p = skip_luafunc_name(str_);
@@ -6953,7 +6697,7 @@ pub unsafe extern "C" fn check_luafunc_name(str_: *const c_char, paren: bool) ->
 
 /// Return the character "str[index]" where "index" is the character index,
 /// including composing characters.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn char_from_string(str_: *const c_char, index: varnumber_T) -> *mut c_char {
     unsafe {
         let mut nchar = index;
@@ -7018,7 +6762,7 @@ unsafe fn char_idx2byte(str_: *const c_char, str_len: usize, idx: varnumber_T) -
 }
 
 /// Return the slice "str[first : last]" using character indexes.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn string_slice(
     str_: *const c_char,
     first: varnumber_T,
@@ -7056,7 +6800,7 @@ pub unsafe extern "C" fn string_slice(
 }
 
 /// Handle subscripts, `.name`, funcref calls, and `->method()`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_subscript(
     arg: *mut *const c_char,
     rettv: *mut typval_T,
@@ -7148,7 +6892,7 @@ pub unsafe extern "C" fn handle_subscript(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_selfdict(rettv: *mut typval_T, selfdict: *mut dict_T) {
     unsafe {
         if (*rettv).v_type == VarType::VAR_PARTIAL
@@ -7162,7 +6906,7 @@ pub unsafe extern "C" fn set_selfdict(rettv: *mut typval_T, selfdict: *mut dict_
 }
 
 /// Make a copy of an item.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn var_item_copy(
     conv: *const vimconv_T,
     from: *mut typval_T,
@@ -7174,7 +6918,6 @@ pub unsafe extern "C" fn var_item_copy(
         let mut ret = OK;
 
         if VAR_ITEM_COPY_RECURSE >= DICT_MAXNEST {
-            #[cfg(not(test))]
             emsg(gettext(E_VARIABLE_NESTED_TOO_DEEP_FOR_MAKING_COPY.as_ptr()));
             return FAIL;
         }
@@ -7237,7 +6980,6 @@ pub unsafe extern "C" fn var_item_copy(
                 }
             }
             VarType::VAR_UNKNOWN => {
-                #[cfg(not(test))]
                 internal_error(c"var_item_copy(UNKNOWN)".as_ptr());
                 ret = FAIL;
             }
@@ -7248,9 +6990,8 @@ pub unsafe extern "C" fn var_item_copy(
 }
 
 /// ":echo expr1 ..." and ":echon expr1 ..."
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_echo(eap: *mut exarg_T) {
-    #[cfg(not(test))]
     unsafe {
         let mut arg = (*eap).arg;
         let mut rettv = tv_initial_value();
@@ -7340,7 +7081,7 @@ pub unsafe extern "C" fn ex_echo(eap: *mut exarg_T) {
 }
 
 /// ":echohl {name}".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_echohl(eap: *mut exarg_T) {
     unsafe {
         echo_hl_id = syn_name2id((*eap).arg);
@@ -7348,15 +7089,14 @@ pub unsafe extern "C" fn ex_echohl(eap: *mut exarg_T) {
 }
 
 /// Returns the :echo highlight id.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_echo_hl_id() -> c_int {
     unsafe { echo_hl_id }
 }
 
 /// ":execute", ":echomsg", ":echoerr"
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_execute(eap: *mut exarg_T) {
-    #[cfg(not(test))]
     unsafe {
         let mut arg = (*eap).arg;
         let mut rettv = tv_initial_value();
@@ -7442,7 +7182,7 @@ pub unsafe extern "C" fn ex_execute(eap: *mut exarg_T) {
 }
 
 /// Skip over the name of an option variable: "&option", "&g:option" or "&l:option".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn find_option_var_end(
     arg: *mut *const c_char,
     opt_idxp: *mut OptIndex,
@@ -7460,16 +7200,13 @@ pub unsafe extern "C" fn find_option_var_end(
             *opt_flags = 0;
         }
 
-        #[cfg(not(test))]
         let end = find_option_end(p, opt_idxp);
-        #[cfg(test)]
-        let end: *const c_char = ptr::null();
         *arg = if end.is_null() { *arg } else { p };
         end
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn var_flavour(varname: *mut c_char) -> var_flavour_T {
     unsafe {
         let mut p = varname;
@@ -7490,7 +7227,7 @@ pub unsafe extern "C" fn var_flavour(varname: *mut c_char) -> var_flavour_T {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn var_set_global(name: *const c_char, mut vartv: typval_T) {
     unsafe {
         let mut funccall_entry: funccal_entry_T = std::mem::zeroed();
@@ -7502,9 +7239,8 @@ pub unsafe extern "C" fn var_set_global(name: *const c_char, mut vartv: typval_T
 }
 
 /// Display script name where an item was last set.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn last_set_msg(script_ctx: sctx_T) {
-    #[cfg(not(test))]
     unsafe {
         if script_ctx.sc_sid == 0 {
             return;
@@ -7531,7 +7267,7 @@ pub unsafe extern "C" fn last_set_msg(script_ctx: sctx_T) {
 }
 
 /// Perform a substitution on "str" with pattern "pat" and substitute "sub".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn do_string_sub(
     mut str_: *mut c_char,
     mut len: usize,
@@ -7541,7 +7277,6 @@ pub unsafe extern "C" fn do_string_sub(
     flags: *const c_char,
     ret_len: *mut usize,
 ) -> *mut c_char {
-    #[cfg(not(test))]
     unsafe {
         let mut regmatch: regmatch_T = std::mem::zeroed();
         let mut ga = garray_T {
@@ -7660,14 +7395,10 @@ pub unsafe extern "C" fn do_string_sub(
 
         ret
     }
-    #[cfg(test)]
-    {
-        ptr::null_mut()
-    }
 }
 
 /// Common code for getting job callbacks for `jobstart`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn common_job_callbacks(
     vopts: *mut dict_T,
     on_stdout: *mut CallbackReader,
@@ -7691,7 +7422,6 @@ pub unsafe extern "C" fn common_job_callbacks(
             return true;
         }
 
-        #[cfg(not(test))]
         {
             callback_reader_free(on_stdout);
             callback_reader_free(on_stderr);
@@ -7701,7 +7431,7 @@ pub unsafe extern "C" fn common_job_callbacks(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn find_job(id: u64, show_error: bool) -> *mut Channel {
     unsafe {
         let data = find_channel(id);
@@ -7715,7 +7445,6 @@ pub unsafe extern "C" fn find_job(id: u64, show_error: bool) -> *mut Channel {
         if data.is_null() || (*channel_prefix(data)).streamtype != kChannelStreamProc || is_stopped
         {
             if show_error {
-                #[cfg(not(test))]
                 if !data.is_null() && (*channel_prefix(data)).streamtype != kChannelStreamProc {
                     emsg(gettext((&raw const e_invchanjob).cast()));
                 } else {
@@ -7728,20 +7457,18 @@ pub unsafe extern "C" fn find_job(id: u64, show_error: bool) -> *mut Channel {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn script_host_eval(
     name: *mut c_char,
     argvars: *mut typval_T,
     rettv: *mut typval_T,
 ) {
     unsafe {
-        #[cfg(not(test))]
         if check_secure() {
             return;
         }
 
         if (*argvars).v_type != VarType::VAR_STRING {
-            #[cfg(not(test))]
             emsg(gettext((&raw const e_invarg).cast()));
             return;
         }
@@ -7752,7 +7479,7 @@ pub unsafe extern "C" fn script_host_eval(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eval_call_provider(
     provider: *mut c_char,
     method: *mut c_char,
@@ -7761,7 +7488,6 @@ pub unsafe extern "C" fn eval_call_provider(
 ) -> typval_T {
     unsafe {
         if !eval_has_provider(provider, false) {
-            #[cfg(not(test))]
             semsg!(
                 c"E319: No \"%s\" provider found. Run \":checkhealth vim.provider\"".as_ptr(),
                 provider,
@@ -7781,9 +7507,7 @@ pub unsafe extern "C" fn eval_call_provider(
             provider,
         );
 
-        #[cfg(not(test))]
         let saved_provider_caller_scope = provider_caller_scope;
-        #[cfg(not(test))]
         {
             let es_ptr = exestack
                 .ga_data
@@ -7801,7 +7525,6 @@ pub unsafe extern "C" fn eval_call_provider(
         }
         let mut funccal_entry: funccal_entry_T = std::mem::zeroed();
         save_funccal(&raw mut funccal_entry);
-        #[cfg(not(test))]
         {
             provider_call_nesting += 1;
         }
@@ -7822,10 +7545,7 @@ pub unsafe extern "C" fn eval_call_provider(
         let mut rettv = tv_initial_value();
         tv_list_ref(arguments);
 
-        #[cfg(not(test))]
         let lnum = (*curwin).w_cursor.lnum;
-        #[cfg(test)]
-        let lnum = 1;
         let mut funcexe = funcexe_T {
             fe_argv_func: None,
             fe_firstline: lnum,
@@ -7848,7 +7568,6 @@ pub unsafe extern "C" fn eval_call_provider(
 
         tv_list_unref(arguments);
         restore_funccal();
-        #[cfg(not(test))]
         {
             provider_caller_scope = saved_provider_caller_scope;
             provider_call_nesting -= 1;
@@ -7864,7 +7583,7 @@ pub unsafe extern "C" fn eval_call_provider(
 }
 
 /// Checks if provider for feature `feat` is enabled.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eval_has_provider(feat: *const c_char, throw_if_fast: bool) -> bool {
     unsafe {
         if !strequal(feat, c"clipboard".as_ptr())
@@ -7878,7 +7597,6 @@ pub unsafe extern "C" fn eval_has_provider(feat: *const c_char, throw_if_fast: b
             return false;
         }
 
-        #[cfg(not(test))]
         if throw_if_fast && !nlua_is_deferred_safe() {
             semsg!(
                 (&raw const e_fast_api_disabled).cast(),
@@ -7921,7 +7639,6 @@ pub unsafe extern "C" fn eval_has_provider(feat: *const c_char, throw_if_fast: b
                     c"provider#%s#Call".as_ptr(),
                     name.as_ptr(),
                 );
-                #[cfg(not(test))]
                 if !find_func(buf.as_ptr()).is_null() && p_lpl != 0 {
                     semsg!(
                         c"provider: %s: missing required variable g:loaded_%s_provider".as_ptr(),
@@ -7943,7 +7660,6 @@ pub unsafe extern "C" fn eval_has_provider(feat: *const c_char, throw_if_fast: b
                 name.as_ptr(),
             );
             if find_func(buf.as_ptr()).is_null() {
-                #[cfg(not(test))]
                 semsg!(
                     c"provider: %s: g:loaded_%s_provider=2 but %s is not defined".as_ptr(),
                     name.as_ptr(),
@@ -7959,7 +7675,7 @@ pub unsafe extern "C" fn eval_has_provider(feat: *const c_char, throw_if_fast: b
 }
 
 /// Writes "<sourcing_name>:<sourcing_lnum>" to `buf[bufsize]`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eval_fmt_source_name_line(buf: *mut c_char, bufsize: usize) {
     unsafe {
         if !exestack.ga_data.is_null() && exestack.ga_len > 0 {
@@ -7983,7 +7699,7 @@ pub unsafe extern "C" fn eval_fmt_source_name_line(buf: *mut c_char, bufsize: us
 }
 
 /// Gets the current user-input in prompt buffer `buf`, or NULL if buffer is not a prompt buffer.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn prompt_get_input(buf: *mut buf_T) -> *mut c_char {
     unsafe {
         if !bt_prompt(buf) {
@@ -8009,7 +7725,7 @@ pub unsafe extern "C" fn prompt_get_input(buf: *mut buf_T) -> *mut c_char {
 }
 
 /// Compare "typ1" and "typ2". Put the result in "typ1".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn typval_compare(
     typ1: *mut typval_T,
     typ2: *mut typval_T,
@@ -8033,7 +7749,6 @@ pub unsafe extern "C" fn typval_compare(
             } else if (*typ1).v_type != (*typ2).v_type
                 || (expr_type != EXPR_EQUAL && expr_type != EXPR_NEQUAL)
             {
-                #[cfg(not(test))]
                 if (*typ1).v_type != (*typ2).v_type {
                     emsg(gettext(c"E977: Can only compare Blob with Blob".as_ptr()));
                 } else {
@@ -8059,7 +7774,6 @@ pub unsafe extern "C" fn typval_compare(
             } else if (*typ1).v_type != (*typ2).v_type
                 || (expr_type != EXPR_EQUAL && expr_type != EXPR_NEQUAL)
             {
-                #[cfg(not(test))]
                 if (*typ1).v_type != (*typ2).v_type {
                     emsg(gettext(c"E691: Can only compare List with List".as_ptr()));
                 } else {
@@ -8085,7 +7799,6 @@ pub unsafe extern "C" fn typval_compare(
             } else if (*typ1).v_type != (*typ2).v_type
                 || (expr_type != EXPR_EQUAL && expr_type != EXPR_NEQUAL)
             {
-                #[cfg(not(test))]
                 if (*typ1).v_type != (*typ2).v_type {
                     emsg(gettext(
                         c"E735: Can only compare Dictionary with Dictionary".as_ptr(),
@@ -8108,7 +7821,6 @@ pub unsafe extern "C" fn typval_compare(
                 && expr_type != EXPR_IS
                 && expr_type != EXPR_ISNOT
             {
-                #[cfg(not(test))]
                 emsg(gettext(c"E694: Invalid operation for Funcrefs".as_ptr()));
                 tv_clear(typ1);
                 return FAIL;
@@ -8197,7 +7909,7 @@ pub unsafe extern "C" fn typval_compare(
 }
 
 /// Convert any type to a string, never give an error.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn typval_tostring(arg: *mut typval_T, quotes: bool) -> *mut c_char {
     unsafe {
         if arg.is_null() {

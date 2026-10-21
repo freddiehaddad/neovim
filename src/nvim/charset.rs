@@ -217,7 +217,7 @@ pub const fn k_second(c: c_int) -> u8 {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn buf_init_isk_chartab(buf: *mut buf_T) -> c_int {
     unsafe {
         let save_chartab = (*buf).b_chartab;
@@ -233,7 +233,7 @@ pub unsafe extern "C" fn buf_init_isk_chartab(buf: *mut buf_T) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn init_isf_chartab() -> c_int {
     unsafe {
         let save_chartab = isf_chartab;
@@ -246,7 +246,7 @@ pub unsafe extern "C" fn init_isf_chartab() -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn init_isi_chartab() -> c_int {
     unsafe {
         let save_chartab = isi_chartab;
@@ -259,12 +259,12 @@ pub unsafe extern "C" fn init_isi_chartab() -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn check_isopt(var: *mut c_char) -> c_int {
     unsafe { parse_isopt(var, ptr::null_mut()) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn parse_isopt(var: *const c_char, chartab: *mut u64) -> c_int {
     unsafe {
         let mut p = var;
@@ -339,7 +339,7 @@ pub unsafe extern "C" fn parse_isopt(var: *const c_char, chartab: *mut u64) -> c
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn trans_characters(mut buf: *mut c_char, bufsize: c_int) {
     unsafe {
         let mut len = CStr::from_ptr(buf).to_bytes().len() as c_int;
@@ -368,7 +368,7 @@ pub unsafe extern "C" fn trans_characters(mut buf: *mut c_char, bufsize: c_int) 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn transstr_len(s: *const c_char, untab: bool) -> usize {
     unsafe {
         let mut p = s;
@@ -406,7 +406,7 @@ pub unsafe extern "C" fn transstr_len(s: *const c_char, untab: bool) -> usize {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn transstr_buf(
     s: *const c_char,
     slen: isize,
@@ -466,7 +466,7 @@ pub unsafe extern "C" fn transstr_buf(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn transstr(s: *const c_char, untab: bool) -> *mut c_char {
     unsafe {
         let len = transstr_len(s, untab) + 1;
@@ -476,7 +476,7 @@ pub unsafe extern "C" fn transstr(s: *const c_char, untab: bool) -> *mut c_char 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn kv_transstr(
     str_: *mut StringBuilder,
     s: *const c_char,
@@ -494,7 +494,7 @@ pub unsafe extern "C" fn kv_transstr(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn str_foldcase(
     str_: *mut c_char,
     orglen: c_int,
@@ -579,12 +579,12 @@ pub unsafe extern "C" fn str_foldcase(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn transchar(c: c_int) -> *mut c_char {
     unsafe { transchar_buf(curbuf, c) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn transchar_buf(buf: *const buf_T, mut c: c_int) -> *mut c_char {
     unsafe {
         let charbuf_ptr = (&raw mut transchar_charbuf).cast::<u8>();
@@ -608,12 +608,12 @@ pub unsafe extern "C" fn transchar_buf(buf: *const buf_T, mut c: c_int) -> *mut 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn transchar_byte(c: c_int) -> *mut c_char {
     unsafe { transchar_byte_buf(curbuf, c) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn transchar_byte_buf(buf: *const buf_T, c: c_int) -> *mut c_char {
     unsafe {
         if c >= 0x80 {
@@ -625,7 +625,7 @@ pub unsafe extern "C" fn transchar_byte_buf(buf: *const buf_T, c: c_int) -> *mut
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn transchar_nonprint(buf: *const buf_T, charbuf: *mut c_char, mut c: c_int) {
     unsafe {
         if c == c_int::from(NL) {
@@ -645,7 +645,7 @@ pub unsafe extern "C" fn transchar_nonprint(buf: *const buf_T, charbuf: *mut c_c
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn transchar_hex(buf: *mut c_char, c: c_int) -> usize {
     unsafe {
         let mut i: usize = 0;
@@ -676,7 +676,7 @@ pub unsafe extern "C" fn transchar_hex(buf: *mut c_char, c: c_int) -> usize {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rl_mirror_ascii(str_: *mut c_char, end: *mut c_char) {
     unsafe {
         let mut p1 = str_;
@@ -694,7 +694,7 @@ pub unsafe extern "C" fn rl_mirror_ascii(str_: *mut c_char, end: *mut c_char) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn char2cells(c: c_int) -> c_int {
     unsafe {
         if c >= 0x80 {
@@ -704,12 +704,12 @@ pub unsafe extern "C" fn char2cells(c: c_int) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_strsize(s: *const c_char) -> c_int {
     unsafe { vim_strnsize(s, MAXCOL) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_strnsize(s: *const c_char, mut len: c_int) -> c_int {
     unsafe {
         assert!(!s.is_null());
@@ -725,17 +725,17 @@ pub unsafe extern "C" fn vim_strnsize(s: *const c_char, mut len: c_int) -> c_int
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_isIDc(c: c_int) -> bool {
     unsafe { c > 0 && c < 0x100 && get_chartab((&raw const isi_chartab).cast::<u64>(), c) != 0 }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_iswordc(c: c_int) -> bool {
     unsafe { vim_iswordc_buf(c, curbuf) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_iswordc_tab(c: c_int, chartab: *const u64) -> bool {
     unsafe {
         if c >= 0x100 {
@@ -746,17 +746,17 @@ pub unsafe extern "C" fn vim_iswordc_tab(c: c_int, chartab: *const u64) -> bool 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_iswordc_buf(c: c_int, buf: *mut buf_T) -> bool {
     unsafe { vim_iswordc_tab(c, (*buf).b_chartab.as_ptr()) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_iswordp(p: *const c_char) -> bool {
     unsafe { vim_iswordp_buf(p, curbuf) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_iswordp_buf(p: *const c_char, buf: *mut buf_T) -> bool {
     unsafe {
         let mut c = c_int::from(*p as u8);
@@ -767,12 +767,12 @@ pub unsafe extern "C" fn vim_iswordp_buf(p: *const c_char, buf: *mut buf_T) -> b
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_isfilec(c: c_int) -> bool {
     unsafe { c >= 0x100 || (c > 0 && get_chartab((&raw const isf_chartab).cast::<u64>(), c) != 0) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_is_fname_char(c: c_int) -> bool {
     unsafe {
         vim_isfilec(c)
@@ -783,7 +783,7 @@ pub unsafe extern "C" fn vim_is_fname_char(c: c_int) -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_isfilec_or_wc(c: c_int) -> bool {
     unsafe {
         let buf: [c_char; 2] = [c as c_char, NUL];
@@ -791,7 +791,7 @@ pub unsafe extern "C" fn vim_isfilec_or_wc(c: c_int) -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_isprintc(c: c_int) -> bool {
     unsafe {
         if c >= 0x100 {
@@ -801,7 +801,7 @@ pub unsafe extern "C" fn vim_isprintc(c: c_int) -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn skipwhite(mut p: *const c_char) -> *mut c_char {
     unsafe {
         while ascii_iswhite(*p as c_int) {
@@ -811,7 +811,7 @@ pub unsafe extern "C" fn skipwhite(mut p: *const c_char) -> *mut c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn skipwhite_len(mut p: *const c_char, mut len: usize) -> *mut c_char {
     unsafe {
         while len > 0 && ascii_iswhite(*p as c_int) {
@@ -822,17 +822,17 @@ pub unsafe extern "C" fn skipwhite_len(mut p: *const c_char, mut len: usize) -> 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn getwhitecols_curline() -> isize {
     unsafe { getwhitecols(get_cursor_line_ptr()) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn getwhitecols(p: *const c_char) -> isize {
     unsafe { skipwhite(p).offset_from(p) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn skipdigits(q: *const c_char) -> *mut c_char {
     unsafe {
         let mut p = q;
@@ -843,7 +843,7 @@ pub unsafe extern "C" fn skipdigits(q: *const c_char) -> *mut c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn skipbin(q: *const c_char) -> *const c_char {
     unsafe {
         let mut p = q;
@@ -854,7 +854,7 @@ pub unsafe extern "C" fn skipbin(q: *const c_char) -> *const c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn skiphex(q: *mut c_char) -> *mut c_char {
     unsafe {
         let mut p = q;
@@ -865,7 +865,7 @@ pub unsafe extern "C" fn skiphex(q: *mut c_char) -> *mut c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn skiptodigit(q: *mut c_char) -> *mut c_char {
     unsafe {
         let mut p = q;
@@ -876,7 +876,7 @@ pub unsafe extern "C" fn skiptodigit(q: *mut c_char) -> *mut c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn skiptobin(q: *const c_char) -> *const c_char {
     unsafe {
         let mut p = q;
@@ -887,7 +887,7 @@ pub unsafe extern "C" fn skiptobin(q: *const c_char) -> *const c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn skiptohex(q: *mut c_char) -> *mut c_char {
     unsafe {
         let mut p = q;
@@ -898,7 +898,7 @@ pub unsafe extern "C" fn skiptohex(q: *mut c_char) -> *mut c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn skiptowhite(mut p: *const c_char) -> *mut c_char {
     unsafe {
         while *p != b' ' as c_char && *p != b'\t' as c_char && *p != NUL {
@@ -908,7 +908,7 @@ pub unsafe extern "C" fn skiptowhite(mut p: *const c_char) -> *mut c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn skiptowhite_esc(mut p: *const c_char) -> *mut c_char {
     unsafe {
         while *p != b' ' as c_char && *p != b'\t' as c_char && *p != NUL {
@@ -921,12 +921,12 @@ pub unsafe extern "C" fn skiptowhite_esc(mut p: *const c_char) -> *mut c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn skip_to_newline(p: *const c_char) -> *mut c_char {
     unsafe { xstrchrnul(p, NL) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn try_getdigits(pp: *mut *mut c_char, nr: *mut i64) -> bool {
     unsafe {
         let orig = *pp;
@@ -984,7 +984,7 @@ pub unsafe extern "C" fn try_getdigits(pp: *mut *mut c_char, nr: *mut i64) -> bo
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn getdigits(pp: *mut *mut c_char, strict: bool, def: i64) -> i64 {
     unsafe {
         let mut number: i64 = 0;
@@ -996,7 +996,7 @@ pub unsafe extern "C" fn getdigits(pp: *mut *mut c_char, strict: bool, def: i64)
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn getdigits_int(pp: *mut *mut c_char, strict: bool, def: c_int) -> c_int {
     let number = unsafe { getdigits(pp, strict, i64::from(def)) };
     match c_int::try_from(number) {
@@ -1008,7 +1008,7 @@ pub unsafe extern "C" fn getdigits_int(pp: *mut *mut c_char, strict: bool, def: 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn getdigits_long(pp: *mut *mut c_char, strict: bool, def: c_long) -> c_long {
     let number = unsafe { getdigits(pp, strict, i64::from(def)) };
     match c_long::try_from(number) {
@@ -1020,7 +1020,7 @@ pub unsafe extern "C" fn getdigits_long(pp: *mut *mut c_char, strict: bool, def:
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn getdigits_int32(pp: *mut *mut c_char, strict: bool, def: i32) -> i32 {
     let number = unsafe { getdigits(pp, strict, i64::from(def)) };
     match i32::try_from(number) {
@@ -1032,7 +1032,7 @@ pub unsafe extern "C" fn getdigits_int32(pp: *mut *mut c_char, strict: bool, def
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_isblankline(lbuf: *mut c_char) -> bool {
     unsafe {
         let p = skipwhite(lbuf);
@@ -1040,7 +1040,7 @@ pub unsafe extern "C" fn vim_isblankline(lbuf: *mut c_char) -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_str2nr(
     start: *const c_char,
     prep: *mut c_int,
@@ -1240,7 +1240,7 @@ pub unsafe extern "C" fn vim_str2nr(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub const extern "C" fn hex2nr(c: c_int) -> c_int {
     if c >= b'a' as c_int && c <= b'f' as c_int {
         c - b'a' as c_int + 10
@@ -1251,7 +1251,7 @@ pub const extern "C" fn hex2nr(c: c_int) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn hexhex2nr(p: *const c_char) -> c_int {
     unsafe {
         if !ascii_isxdigit(*p as c_int) || !ascii_isxdigit(*p.add(1) as c_int) {
@@ -1261,7 +1261,7 @@ pub unsafe extern "C" fn hexhex2nr(p: *const c_char) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rem_backslash(str_: *const c_char) -> bool {
     unsafe {
         #[cfg(windows)]
@@ -1280,7 +1280,7 @@ pub unsafe extern "C" fn rem_backslash(str_: *const c_char) -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn backslash_halve(mut p: *mut c_char) {
     unsafe {
         while *p != NUL && !rem_backslash(p) {
@@ -1307,7 +1307,7 @@ pub unsafe extern "C" fn backslash_halve(mut p: *mut c_char) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn backslash_halve_save(mut p: *const c_char) -> *mut c_char {
     unsafe {
         let res: *mut c_char = xmalloc(CStr::from_ptr(p).to_bytes().len() + 1).cast();

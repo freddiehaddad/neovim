@@ -255,7 +255,7 @@ pub unsafe fn loop_closing_ptr(loop_: *mut Loop) -> *mut bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn loop_init(loop_: *mut Loop, _data: *mut c_void) {
     unsafe {
         debug_assert!(
@@ -324,7 +324,7 @@ unsafe fn loop_uv_run(loop_: *mut Loop, ms: i64) -> bool {
 /// Processes one `Loop.uv` event (at most).
 /// Processes all `Loop.fast_events` events.
 /// Does NOT process `Loop.events`, that is an application-specific decision.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn loop_poll_events(loop_: *mut Loop, ms: i64) -> bool {
     unsafe {
         let timeout_expired = loop_uv_run(loop_, ms);
@@ -335,7 +335,7 @@ pub unsafe extern "C" fn loop_poll_events(loop_: *mut Loop, ms: i64) -> bool {
 }
 
 /// Schedules a fast event from another thread.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn loop_schedule_fast(loop_: *mut Loop, event: Event) {
     unsafe {
         let mutex = loop_mutex(loop_);
@@ -349,7 +349,7 @@ pub unsafe extern "C" fn loop_schedule_fast(loop_: *mut Loop, event: Event) {
 
 /// Schedules an event from another thread. Unlike loop_schedule_fast(), the
 /// event is forwarded to `Loop.events`, instead of being processed immediately.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn loop_schedule_deferred(loop_: *mut Loop, event: Event) {
     unsafe {
         let eventp: *mut Event = xmalloc(size_of::<Event>()).cast();
@@ -377,7 +377,7 @@ unsafe extern "C" fn loop_deferred_event(argv: *mut *mut c_void) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn loop_on_put(_queue: *mut MultiQueue, data: *mut c_void) {
     unsafe {
         let loop_: *mut Loop = data;
@@ -396,7 +396,7 @@ unsafe extern "C" fn loop_walk_cb(handle: *mut uv_handle_t, _arg: *mut c_void) {
 }
 
 /// Closes `loop` and its handles, and frees its structures.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn loop_close(loop_: *mut Loop, wait: bool) -> bool {
     unsafe {
         let mut rv = true;
@@ -450,7 +450,7 @@ pub unsafe extern "C" fn loop_close(loop_: *mut Loop, wait: bool) -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn loop_purge(loop_: *mut Loop) {
     unsafe {
         let mutex = loop_mutex(loop_);
@@ -462,7 +462,7 @@ pub unsafe extern "C" fn loop_purge(loop_: *mut Loop) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn loop_size(loop_: *mut Loop) -> usize {
     unsafe {
         let mutex = loop_mutex(loop_);

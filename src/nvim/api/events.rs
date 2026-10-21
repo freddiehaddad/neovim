@@ -10,18 +10,11 @@
     clippy::missing_safety_doc
 )]
 
-#[cfg(not(test))]
 use crate::api::private::helpers::api_typename;
-use crate::api::private::validate::{Error, NvimString, Object};
-#[cfg(not(test))]
-use crate::api::private::validate::{ObjectType, api_err_exp};
-#[cfg(not(test))]
+use crate::api::private::validate::{Error, NvimString, Object, ObjectType, api_err_exp};
 use crate::autocmd::do_termresponse_autocmd;
-#[cfg(not(test))]
 use crate::eval::vars::{VV_TERMRESPONSE, set_vim_var_string};
-#[cfg(not(test))]
 use crate::log::{LOGLVL_ERR, logmsg};
-#[cfg(not(test))]
 use std::ffi::CStr;
 
 /// Emitted on the client channel if an async API request responds with an error.
@@ -32,10 +25,6 @@ use std::ffi::CStr;
 // DLLEXPORT void nvim_error_event(uint64_t channel_id, Integer type, String msg) FUNC_API_REMOTE_ONLY;
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_error_event(channel_id: u64, _type: i64, msg: NvimString) {
-    #[cfg(test)]
-    let _ = (channel_id, msg);
-
-    #[cfg(not(test))]
     unsafe {
         let msg_ptr = if msg.size != 0 {
             msg.data
@@ -76,10 +65,6 @@ pub unsafe extern "C" fn nvim_ui_term_event(
     value: Object,
     err: *mut Error,
 ) {
-    #[cfg(test)]
-    let _ = (channel_id, event, value, err);
-
-    #[cfg(not(test))]
     unsafe {
         if !event.data.is_null() && CStr::from_ptr(event.data).to_bytes() == b"termresponse" {
             if value.obj_type != ObjectType::kObjectTypeString {

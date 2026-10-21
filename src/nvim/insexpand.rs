@@ -562,7 +562,7 @@ unsafe fn compl_strings_add(str_ptr: *const c_char, len: usize, mut hash: hash_T
 }
 
 /// CTRL-X pressed in Insert mode.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_ctrl_x() {
     unsafe {
         if !ctrl_x_mode_cmdline() {
@@ -583,117 +583,117 @@ pub unsafe extern "C" fn ins_ctrl_x() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ctrl_x_mode_none() -> bool {
     unsafe { ctrl_x_mode == 0 }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ctrl_x_mode_normal() -> bool {
     unsafe { ctrl_x_mode == CTRL_X_NORMAL }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ctrl_x_mode_scroll() -> bool {
     unsafe { ctrl_x_mode == CTRL_X_SCROLL }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ctrl_x_mode_whole_line() -> bool {
     unsafe { ctrl_x_mode == CTRL_X_WHOLE_LINE }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ctrl_x_mode_files() -> bool {
     unsafe { ctrl_x_mode == CTRL_X_FILES }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ctrl_x_mode_tags() -> bool {
     unsafe { ctrl_x_mode == CTRL_X_TAGS }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ctrl_x_mode_path_patterns() -> bool {
     unsafe { ctrl_x_mode == CTRL_X_PATH_PATTERNS }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ctrl_x_mode_path_defines() -> bool {
     unsafe { ctrl_x_mode == CTRL_X_PATH_DEFINES }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ctrl_x_mode_dictionary() -> bool {
     unsafe { ctrl_x_mode == CTRL_X_DICTIONARY }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ctrl_x_mode_thesaurus() -> bool {
     unsafe { ctrl_x_mode == CTRL_X_THESAURUS }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ctrl_x_mode_cmdline() -> bool {
     unsafe { ctrl_x_mode == CTRL_X_CMDLINE || ctrl_x_mode == CTRL_X_CMDLINE_CTRL_X }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ctrl_x_mode_function() -> bool {
     unsafe { ctrl_x_mode == CTRL_X_FUNCTION }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ctrl_x_mode_omni() -> bool {
     unsafe { ctrl_x_mode == CTRL_X_OMNI }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ctrl_x_mode_spell() -> bool {
     unsafe { ctrl_x_mode == CTRL_X_SPELL }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ctrl_x_mode_eval() -> bool {
     unsafe { ctrl_x_mode == CTRL_X_EVAL }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ctrl_x_mode_line_or_eval() -> bool {
     unsafe { ctrl_x_mode == CTRL_X_WHOLE_LINE || ctrl_x_mode == CTRL_X_EVAL }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ctrl_x_mode_register() -> bool {
     unsafe { ctrl_x_mode == CTRL_X_REGISTER }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ctrl_x_mode_not_default() -> bool {
     unsafe { ctrl_x_mode != CTRL_X_NORMAL }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ctrl_x_mode_not_defined_yet() -> bool {
     unsafe { ctrl_x_mode == CTRL_X_NOT_DEFINED_YET }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn compl_status_adding() -> bool {
     unsafe { (compl_cont_status & CONT_ADDING) != 0 }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn compl_status_sol() -> bool {
     unsafe { (compl_cont_status & CONT_SOL) != 0 }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn compl_status_local() -> bool {
     unsafe { (compl_cont_status & CONT_LOCAL) != 0 }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn compl_status_clear() {
     unsafe {
         compl_cont_status = 0;
@@ -716,7 +716,7 @@ unsafe fn compl_shows_dir_backward() -> bool {
 }
 
 /// Check that the 'dictionary' or 'thesaurus' option can be used.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn check_compl_option(dict_opt: bool) -> bool {
     unsafe {
         let empty = if dict_opt {
@@ -747,7 +747,7 @@ pub unsafe extern "C" fn check_compl_option(dict_opt: bool) -> bool {
 }
 
 /// Check that the character "c" a valid key to go to or keep us in CTRL-X mode.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_is_ctrl_x_key(c: c_int) -> bool {
     unsafe {
         if ins_compl_pum_key(c) {
@@ -880,7 +880,7 @@ unsafe fn do_autocmd_completedone(c: c_int, mode: c_int, word: *mut NvimString) 
 }
 
 /// Check that character "c" is part of the item currently being completed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_accept_char(c: c_int) -> bool {
     unsafe {
         if compl_autocomplete && compl_from_nonkeyword {
@@ -903,7 +903,7 @@ pub unsafe extern "C" fn ins_compl_accept_char(c: c_int) -> bool {
 }
 
 /// Check if "c" is a commit character for the currently selected completion match.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_commit_char(c: c_int) -> bool {
     unsafe {
         if c < b' ' as c_int {
@@ -1022,7 +1022,7 @@ unsafe fn ins_compl_infercase_gettext(
 }
 
 /// Like `ins_compl_add()`, but infers case if `'ic'` and `'inf'` are set.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_add_infercase(
     str_arg: *mut c_char,
     len: c_int,
@@ -1114,13 +1114,13 @@ unsafe fn is_nearest_active() -> bool {
 }
 
 /// True if a match is selected (even if it is not inserted).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_is_match_selected() -> bool {
     unsafe { !compl_shown_match.is_null() && !is_first_match(compl_shown_match) }
 }
 
 /// Returns true if autocomplete is active and the pre-insert effect targets the longest prefix.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_preinsert_longest() -> bool {
     unsafe {
         compl_autocomplete
@@ -1396,7 +1396,7 @@ unsafe fn ins_compl_insert_bytes(p: *const c_char, mut len: c_int) {
 }
 
 /// Get current completion leader.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_leader() -> *mut c_char {
     unsafe {
         if !compl_leader.data.is_null() {
@@ -1419,7 +1419,7 @@ unsafe fn ins_compl_leader_len() -> usize {
 }
 
 /// Checks if the column is within the currently inserted completion text column range.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_col_range_attr(lnum: linenr_T, col: c_int) -> c_int {
     unsafe {
         let has_preinsert = ins_compl_has_preinsert() || ins_compl_preinsert_longest();
@@ -1462,7 +1462,7 @@ unsafe fn ins_compl_has_multiple() -> bool {
 }
 
 /// Returns true if the given line number falls within the range of a multi-line completion.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_lnum_in_range(lnum: linenr_T) -> bool {
     unsafe {
         if !ins_compl_has_multiple() {
@@ -1575,14 +1575,14 @@ unsafe fn ins_compl_make_cyclic() -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_has_shown_match() -> bool {
     unsafe {
         compl_shown_match.is_null() || !ptr::eq(compl_shown_match, (*compl_shown_match).cp_next)
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_long_shown_match() -> bool {
     unsafe {
         !compl_shown_match.is_null()
@@ -1591,7 +1591,7 @@ pub unsafe extern "C" fn ins_compl_long_shown_match() -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_cot_flags() -> c_uint {
     unsafe {
         if (*curbuf).b_cot_flags != 0 {
@@ -1614,7 +1614,7 @@ unsafe fn ins_compl_del_pum() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn pum_wanted() -> bool {
     unsafe { (get_cot_flags() & (kOptCotFlagMenu | kOptCotFlagMenuone)) != 0 || compl_autocomplete }
 }
@@ -2079,7 +2079,7 @@ unsafe fn ins_compl_build_pum() -> c_int {
 }
 
 /// Show the popup menu for the list of matches.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_show_pum() {
     unsafe {
         if !pum_wanted() || !pum_enough_matches() {
@@ -2141,7 +2141,7 @@ pub unsafe extern "C" fn ins_compl_show_pum() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn compl_match_curr_select(selected: c_int) -> bool {
     unsafe {
         if selected < 0 {
@@ -2452,7 +2452,7 @@ unsafe fn ins_compl_files(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn find_word_start(mut ptr: *mut c_char) -> *mut c_char {
     unsafe {
         while *ptr != NUL && *ptr != b'\n' as c_char && mb_get_class(ptr) <= 1 {
@@ -2462,7 +2462,7 @@ pub unsafe extern "C" fn find_word_start(mut ptr: *mut c_char) -> *mut c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn find_word_end(mut ptr: *mut c_char) -> *mut c_char {
     unsafe {
         let start_class = mb_get_class(ptr);
@@ -2478,7 +2478,7 @@ pub unsafe extern "C" fn find_word_end(mut ptr: *mut c_char) -> *mut c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn find_line_end(ptr: *mut c_char) -> *mut c_char {
     unsafe {
         let mut s = ptr.add(strlen(ptr));
@@ -2548,7 +2548,7 @@ unsafe fn ins_compl_free() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_clear() {
     unsafe {
         compl_cont_status = 0;
@@ -2574,51 +2574,51 @@ pub unsafe extern "C" fn ins_compl_clear() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_active() -> bool {
     unsafe { compl_started }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_win_active(wp: *mut win_T) -> bool {
     unsafe {
         ins_compl_active() && ptr::eq(wp, compl_curr_win) && ptr::eq((*wp).w_buffer, compl_curr_buf)
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_used_match() -> bool {
     unsafe { compl_used_match }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_init_get_longest() {
     unsafe {
         compl_get_longest = false;
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_interrupted() -> bool {
     unsafe { compl_interrupted || compl_time_slice_expired }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_enter_selects() -> bool {
     unsafe { compl_enter_selects }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_col() -> colnr_T {
     unsafe { compl_col }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_len() -> c_int {
     unsafe { compl_length }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_has_preinsert() -> bool {
     unsafe {
         let cur_cot_flags = get_cot_flags();
@@ -2634,7 +2634,7 @@ pub unsafe extern "C" fn ins_compl_has_preinsert() -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_preinsert_effect() -> bool {
     unsafe {
         if !ins_compl_has_preinsert() && !ins_compl_preinsert_longest() {
@@ -2644,7 +2644,7 @@ pub unsafe extern "C" fn ins_compl_preinsert_effect() -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_bs() -> c_int {
     unsafe {
         if ins_compl_preinsert_effect() {
@@ -2698,7 +2698,7 @@ unsafe fn ins_compl_need_restart() -> bool {
     unsafe { compl_was_interrupted || ins_compl_refresh_always() }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_has_autocomplete() -> bool {
     unsafe {
         if (*curbuf).b_p_ac >= 0 {
@@ -2795,7 +2795,7 @@ unsafe fn get_compl_len() -> c_int {
     unsafe { ((*curwin).w_cursor.col - compl_col).max(0) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_addleader(c: c_int) {
     unsafe {
         if ins_compl_preinsert_effect() {
@@ -2856,7 +2856,7 @@ unsafe fn ins_compl_set_original_text(str_ptr: *const c_char, len: usize) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_addfrommatch() {
     unsafe {
         let len = (*curwin).w_cursor.col - compl_col;
@@ -3099,12 +3099,12 @@ unsafe fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_cancel() -> bool {
     unsafe { ins_compl_stop(b' ' as c_int, ctrl_x_mode, true) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_prep(c: c_int) -> bool {
     unsafe {
         let mut retval = false;
@@ -3287,7 +3287,7 @@ unsafe fn get_cpt_sources_count(cpt: *mut c_char) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn clear_cpt_callbacks(callbacks: *mut *mut Callback, count: c_int) {
     unsafe {
         if callbacks.is_null() || (*callbacks).is_null() {
@@ -3328,7 +3328,7 @@ unsafe fn copy_cpt_callbacks(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_buflocal_cpt_callbacks(buf: *mut buf_T) {
     unsafe {
         if buf.is_null() {
@@ -3380,7 +3380,7 @@ unsafe fn parse_cpt_callbacks(cpt: *mut c_char, cbp: *mut *mut Callback, cnt: *m
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_cpt_callbacks(args: *mut optset_T) -> c_int {
     unsafe {
         let opt_flags = (*args).os_flags;
@@ -3416,7 +3416,7 @@ pub unsafe extern "C" fn set_cpt_callbacks(args: *mut optset_T) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_ref_in_cpt_callbacks(
     callbacks: *mut Callback,
     count: c_int,
@@ -3437,7 +3437,7 @@ pub unsafe extern "C" fn set_ref_in_cpt_callbacks(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_ref_in_insexpand_funcs(copyID: c_int) -> bool {
     unsafe {
         let mut abort =
@@ -3772,7 +3772,7 @@ unsafe fn set_completion(mut startcol: colnr_T, list: *mut list_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_complete(
     argvars: *mut typval_T,
     _rettv: *mut typval_T,
@@ -3801,7 +3801,7 @@ pub unsafe extern "C" fn f_complete(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_complete_add(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -3812,7 +3812,7 @@ pub unsafe extern "C" fn f_complete_add(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_complete_check(
     _argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -4101,7 +4101,7 @@ unsafe fn get_complete_info(what_list: *mut list_T, retdict: *mut dict_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_complete_info(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -5487,7 +5487,7 @@ unsafe fn ins_compl_update_shown_match() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_delete(new_leader: bool) {
     unsafe {
         let mut orig_col: c_int = 0;
@@ -5695,7 +5695,7 @@ unsafe fn find_common_prefix(prefix_len: *mut usize, curbuf_only: bool) -> *mut 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
     unsafe {
         let compl_len = get_compl_len();
@@ -6011,7 +6011,7 @@ unsafe fn check_elapsed_time() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_check_keys(frequency: c_int, in_compl_func: bool) {
     static mut count: c_int = 0;
     unsafe {
@@ -6730,7 +6730,7 @@ unsafe fn ins_compl_show_statusmsg() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_complete(c: c_int, enable_pum: bool) -> c_int {
     unsafe {
         compl_direction = ins_compl_key2dir(c);
@@ -6815,7 +6815,7 @@ pub unsafe extern "C" fn ins_complete(c: c_int, enable_pum: bool) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_enable_autocomplete() {
     unsafe {
         compl_autocomplete = true;
@@ -6823,28 +6823,28 @@ pub unsafe extern "C" fn ins_compl_enable_autocomplete() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_disable_autocomplete() {
     unsafe {
         compl_autocomplete = false;
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_arm_autostart() {
     unsafe {
         compl_autostart_pending = true;
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_disarm_autostart() {
     unsafe {
         compl_autostart_pending = false;
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_arm_autocomplete_delay() -> bool {
     unsafe {
         if p_acl > 0 {
@@ -6856,19 +6856,19 @@ pub unsafe extern "C" fn ins_compl_arm_autocomplete_delay() -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_clear_autocomplete_delay() {
     unsafe {
         compl_autocomplete_pending = false;
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_autocomplete_pending() -> bool {
     unsafe { compl_autocomplete_pending }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_compl_autocomplete_elapsed() -> i64 {
     unsafe { ((os_hrtime() - compl_autocomplete_start_tv) / 1_000_000) as i64 }
 }
@@ -6943,7 +6943,7 @@ unsafe fn quote_meta(mut dest: *mut c_char, mut src: *const c_char, mut len: c_i
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn free_insexpand_stuff() {
     unsafe {
         api_clear_string(&raw mut compl_orig_text);
@@ -7185,7 +7185,7 @@ unsafe fn cpt_compl_refresh() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_preinserted(
     _argvars: *mut typval_T,
     rettv: *mut typval_T,

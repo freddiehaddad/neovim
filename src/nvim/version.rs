@@ -3743,7 +3743,7 @@ static INCLUDED_PATCHSETS: [&[c_int]; 5] = [
     PATCHES_902,
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static mut Versions: [*mut c_char; 5] = [
     c"8.1".as_ptr().cast_mut(),
     c"8.2".as_ptr().cast_mut(),
@@ -3791,18 +3791,18 @@ static LONG_VERSION_BUF: [u8; 256] =
     make_cstr_buf_or(option_env!("NVIM_VERSION_LONG"), "NVIM v0.13.0-dev");
 static VERSION_BUILD_BUF: [u8; 256] = make_cstr_buf(option_env!("NVIM_VERSION_BUILD"));
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static nvim_version_major: c_int = 0;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static nvim_version_minor: c_int = 13;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static nvim_version_patch: c_int = 0;
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static mut version_buildtype: *mut c_char = (&raw const VERSION_BUILDTYPE_BUF)
     .cast::<c_char>()
     .cast_mut();
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static mut version_cflags: *mut c_char = if match option_env!("NVIM_VERSION_CFLAGS") {
     Some(s) => !s.is_empty(),
     None => false,
@@ -3811,21 +3811,21 @@ pub static mut version_cflags: *mut c_char = if match option_env!("NVIM_VERSION_
 } else {
     ptr::null_mut()
 };
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static mut default_vim_dir: *mut c_char =
     (&raw const DEFAULT_VIM_DIR_BUF).cast::<c_char>().cast_mut();
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static mut default_vimruntime_dir: *mut c_char = (&raw const DEFAULT_VIMRUNTIME_DIR_BUF)
     .cast::<c_char>()
     .cast_mut();
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static mut default_lib_dir: *mut c_char =
     (&raw const DEFAULT_LIB_DIR_BUF).cast::<c_char>().cast_mut();
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static main_exitfree: bool = env_flag_enabled(option_env!("NVIM_EXITFREE"), false);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static mut longVersion: *mut c_char = (&raw const LONG_VERSION_BUF).cast::<c_char>().cast_mut();
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static mut nvim_version_build: *const c_char = if match option_env!("NVIM_VERSION_BUILD") {
     Some(s) => !s.is_empty(),
     None => false,
@@ -3836,7 +3836,7 @@ pub static mut nvim_version_build: *const c_char = if match option_env!("NVIM_VE
 };
 
 /// Compares a version string to the current Nvim version (`has_nvim_version`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn has_nvim_version(version_str: *const c_char) -> bool {
     unsafe {
         let mut p = version_str;
@@ -3874,18 +3874,18 @@ pub unsafe extern "C" fn has_nvim_version(version_str: *const c_char) -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn min_vim_version() -> c_int {
     VIM_VERSIONS[0]
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn highest_patch() -> c_int {
     INCLUDED_PATCHSETS[0][0]
 }
 
 /// Checks whether a Vim patch has been included (`has_vim_patch`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn has_vim_patch(n: c_int, major_minor_version: c_int) -> bool {
     let v_i = if major_minor_version > 0 {
         if major_minor_version < VIM_VERSIONS[0] {
@@ -3919,7 +3919,7 @@ pub extern "C" fn has_vim_patch(n: c_int, major_minor_version: c_int) -> bool {
     false
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_version(eap: *mut exarg_T) {
     unsafe {
         if *(*eap).arg == NUL {
@@ -3956,7 +3956,7 @@ unsafe fn version_msg(s: *const c_char) {
 }
 
 /// List string items nicely aligned in columns (`list_in_columns`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn list_in_columns(items: *mut *mut c_char, size: c_int, current: c_int) {
     unsafe {
         let mut item_count: c_int = 0;
@@ -4024,7 +4024,7 @@ pub unsafe extern "C" fn list_in_columns(items: *mut *mut c_char, size: c_int, c
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn list_lua_version() {
     unsafe {
         const CODE: &[u8] = b"return ((jit and jit.version) and jit.version or _VERSION)\0";
@@ -4055,7 +4055,7 @@ pub unsafe extern "C" fn list_lua_version() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn list_version() {
     unsafe {
         msg_ext_set_kind(c"list_cmd".as_ptr());
@@ -4111,7 +4111,7 @@ pub unsafe extern "C" fn list_version() {
 }
 
 /// Whether it still is not too late to show an intro message (`may_show_intro`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn may_show_intro() -> bool {
     unsafe {
         buf_is_empty(curbuf)
@@ -4124,7 +4124,7 @@ pub unsafe extern "C" fn may_show_intro() -> bool {
 }
 
 /// Give an introductory message about Vim (`intro_message`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn intro_message(colon: bool) {
     unsafe {
         let lines: [*const c_char; 18] = [
@@ -4287,7 +4287,7 @@ unsafe fn do_intro_line(row: c_int, mesg: *const c_char, colon: bool, is_logo: b
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_intro(_eap: *mut exarg_T) {
     unsafe {
         screenclear();

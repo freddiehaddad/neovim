@@ -172,7 +172,7 @@ unsafe fn strnlen_4(p: *const u8) -> usize {
 }
 
 /// Determine if dedicated window grid should be used or the `default_grid` (`grid_adjust`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn grid_adjust(
     grid: *mut GridView,
     row_off: *mut c_int,
@@ -185,7 +185,7 @@ pub unsafe extern "C" fn grid_adjust(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn schar_from_str(str_: *const c_char) -> schar_T {
     unsafe {
         if str_.is_null() {
@@ -195,7 +195,7 @@ pub unsafe extern "C" fn schar_from_str(str_: *const c_char) -> schar_T {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn schar_from_buf(buf: *const c_char, len: usize) -> schar_T {
     unsafe {
         assert!(len < MAX_SCHAR_SIZE);
@@ -223,7 +223,7 @@ pub unsafe extern "C" fn schar_from_buf(buf: *const c_char, len: usize) -> schar
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn schar_cache_clear_if_full() -> bool {
     unsafe {
         if glyph_cache.h.n_keys > (1 << 21) {
@@ -234,7 +234,7 @@ pub unsafe extern "C" fn schar_cache_clear_if_full() -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn schar_cache_clear() {
     unsafe {
         decor_check_invalid_glyphs();
@@ -246,7 +246,7 @@ pub unsafe extern "C" fn schar_cache_clear() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn schar_high(sc: schar_T) -> bool {
     #[cfg(target_endian = "big")]
     {
@@ -259,7 +259,7 @@ pub extern "C" fn schar_high(sc: schar_T) -> bool {
 }
 
 /// Sets final NUL (`schar_get`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn schar_get(mut buf_out: *mut c_char, sc: schar_T) -> usize {
     unsafe {
         let len = schar_get_adv(&raw mut buf_out, sc);
@@ -269,7 +269,7 @@ pub unsafe extern "C" fn schar_get(mut buf_out: *mut c_char, sc: schar_T) -> usi
 }
 
 /// Advance `buf_out`. Do NOT set final NUL (`schar_get_adv`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn schar_get_adv(buf_out: *mut *mut c_char, sc: schar_T) -> usize {
     unsafe {
         let len: usize;
@@ -289,7 +289,7 @@ pub unsafe extern "C" fn schar_get_adv(buf_out: *mut *mut c_char, sc: schar_T) -
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn schar_len(sc: schar_T) -> usize {
     unsafe {
         if schar_high(sc) {
@@ -304,7 +304,7 @@ pub unsafe extern "C" fn schar_len(sc: schar_T) -> usize {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn schar_cells(sc: schar_T) -> c_int {
     unsafe {
         #[cfg(target_endian = "big")]
@@ -334,7 +334,7 @@ unsafe fn schar_get_first_byte(sc: schar_T) -> c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn schar_get_first_codepoint(sc: schar_T) -> c_int {
     unsafe {
         let mut sc_buf = [0 as c_char; MAX_SCHAR_SIZE];
@@ -343,7 +343,7 @@ pub unsafe extern "C" fn schar_get_first_codepoint(sc: schar_T) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn schar_get_ascii(sc: schar_T) -> c_char {
     #[cfg(target_endian = "big")]
     unsafe {
@@ -383,7 +383,7 @@ unsafe fn schar_get_first_two_codepoints(sc: schar_T, c0: *mut c_int, c1: *mut c
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn line_do_arabic_shape(buf: *mut schar_T, cols: c_int) {
     unsafe {
         let mut i: c_int = 0;
@@ -455,7 +455,7 @@ pub unsafe extern "C" fn line_do_arabic_shape(buf: *mut schar_T, cols: c_int) {
 }
 
 /// Clear a line in the grid starting at `off` until `width` characters are cleared (`grid_clear_line`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn grid_clear_line(
     grid: *mut ScreenGrid,
     off: usize,
@@ -480,7 +480,7 @@ pub unsafe extern "C" fn grid_clear_line(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn grid_invalidate(grid: *mut ScreenGrid) {
     unsafe {
         ptr::write_bytes(
@@ -497,7 +497,7 @@ unsafe fn grid_invalid_row(grid: *mut ScreenGrid, row: c_int) -> bool {
 }
 
 /// Get a single character directly from `grid.chars` (`grid_getchar`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn grid_getchar(
     grid: *mut ScreenGrid,
     row: c_int,
@@ -517,7 +517,7 @@ pub unsafe extern "C" fn grid_getchar(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn grid_line_start(view: *mut GridView, mut row: c_int) {
     unsafe {
         let mut col: c_int = 0;
@@ -526,7 +526,7 @@ pub unsafe extern "C" fn grid_line_start(view: *mut GridView, mut row: c_int) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn screengrid_line_start(grid: *mut ScreenGrid, row: c_int, col: c_int) {
     unsafe {
         grid_line_maxcol = (*grid).cols;
@@ -560,7 +560,7 @@ pub unsafe extern "C" fn screengrid_line_start(grid: *mut ScreenGrid, row: c_int
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn grid_line_getchar(mut col: c_int, attr: *mut c_int) -> schar_T {
     unsafe {
         if col < grid_line_maxcol {
@@ -576,7 +576,7 @@ pub unsafe extern "C" fn grid_line_getchar(mut col: c_int, attr: *mut c_int) -> 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn grid_line_put_schar(col: c_int, schar: schar_T, attr: c_int) {
     unsafe {
         assert!(!grid_line_grid.is_null());
@@ -593,7 +593,7 @@ pub unsafe extern "C" fn grid_line_put_schar(col: c_int, schar: schar_T, attr: c
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn grid_line_puts(
     mut col: c_int,
     text: *const c_char,
@@ -656,7 +656,7 @@ pub unsafe extern "C" fn grid_line_puts(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn grid_line_fill(
     start_col: c_int,
     mut end_col: c_int,
@@ -681,7 +681,7 @@ pub unsafe extern "C" fn grid_line_fill(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn grid_line_clear_end(
     start_col: c_int,
     end_col: c_int,
@@ -699,14 +699,14 @@ pub unsafe extern "C" fn grid_line_clear_end(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn grid_line_cursor_goto(col: c_int) {
     unsafe {
         ui_grid_cursor_goto((*grid_line_grid).handle, grid_line_row, col);
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn grid_line_mirror(width: c_int) {
     unsafe {
         grid_line_clear_to = grid_line_last.max(grid_line_clear_to);
@@ -723,7 +723,7 @@ pub unsafe extern "C" fn grid_line_mirror(width: c_int) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn linebuf_mirror(
     firstp: *mut c_int,
     lastp: *mut c_int,
@@ -781,7 +781,7 @@ pub unsafe extern "C" fn linebuf_mirror(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn grid_line_flush() {
     unsafe {
         let grid = grid_line_grid;
@@ -807,7 +807,7 @@ pub unsafe extern "C" fn grid_line_flush() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn grid_line_flush_if_valid_row() {
     unsafe {
         if grid_line_row < 0 || grid_line_row >= (*grid_line_grid).rows {
@@ -822,7 +822,7 @@ pub unsafe extern "C" fn grid_line_flush_if_valid_row() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn grid_clear(
     grid: *mut GridView,
     start_row: c_int,
@@ -863,7 +863,7 @@ unsafe fn grid_char_needs_redraw(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn grid_put_linebuf(
     grid: *mut ScreenGrid,
     row: c_int,
@@ -1064,7 +1064,7 @@ pub unsafe extern "C" fn grid_put_linebuf(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn grid_alloc(
     grid: *mut ScreenGrid,
     rows: c_int,
@@ -1120,7 +1120,7 @@ pub unsafe extern "C" fn grid_alloc(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn grid_free(grid: *mut ScreenGrid) {
     unsafe {
         xfree((*grid).chars.cast());
@@ -1135,7 +1135,7 @@ pub unsafe extern "C" fn grid_free(grid: *mut ScreenGrid) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn grid_free_all_mem() {
     unsafe {
         grid_free(&raw mut default_grid);
@@ -1163,7 +1163,7 @@ pub unsafe extern "C" fn grid_free_all_mem() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn win_grid_alloc(wp: *mut win_T) {
     unsafe {
         let grid = &raw mut (*wp).w_grid;
@@ -1230,7 +1230,7 @@ pub unsafe extern "C" fn win_grid_alloc(wp: *mut win_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn grid_assign_handle(grid: *mut ScreenGrid) {
     unsafe {
         if (*grid).handle == 0 {
@@ -1240,7 +1240,7 @@ pub unsafe extern "C" fn grid_assign_handle(grid: *mut ScreenGrid) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn grid_ins_lines(
     grid: *mut ScreenGrid,
     row: c_int,
@@ -1299,7 +1299,7 @@ pub unsafe extern "C" fn grid_ins_lines(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn grid_del_lines(
     grid: *mut ScreenGrid,
     row: c_int,
@@ -1423,7 +1423,7 @@ fn get_bordertext_col(total_col: c_int, text_width: c_int, align: AlignTextPos) 
 }
 
 /// Draw border on floating window grid (`grid_draw_border`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn grid_draw_border(
     grid: *mut ScreenGrid,
     config: *mut WinConfig,
@@ -1562,7 +1562,7 @@ unsafe fn linecopy(grid: *mut ScreenGrid, to: c_int, from: c_int, col: c_int, wi
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_win_by_grid_handle(handle: handle_T) -> *mut win_T {
     unsafe {
         let mut wp = firstwin;
@@ -1577,7 +1577,7 @@ pub unsafe extern "C" fn get_win_by_grid_handle(handle: handle_T) -> *mut win_T 
 }
 
 /// Put a unicode character in a screen cell (`schar_from_char`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn schar_from_char(mut c: c_int) -> schar_T {
     unsafe {
         let mut sc: schar_T = 0;

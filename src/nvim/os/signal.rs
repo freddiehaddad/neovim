@@ -78,7 +78,7 @@ unsafe extern "C" {
     pub fn signal(signum: c_int, handler: usize) -> usize;
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn signal_init() {
     unsafe {
         #[cfg(unix)]
@@ -124,7 +124,7 @@ unsafe fn signal_ignore_deadly() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn signal_teardown() {
     unsafe {
         signal_stop();
@@ -143,7 +143,7 @@ pub unsafe extern "C" fn signal_teardown() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn signal_start() {
     unsafe {
         #[cfg(unix)]
@@ -162,7 +162,7 @@ pub unsafe extern "C" fn signal_start() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn signal_stop() {
     unsafe {
         #[cfg(unix)]
@@ -180,14 +180,14 @@ pub unsafe extern "C" fn signal_stop() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn signal_reject_deadly() {
     unsafe {
         rejecting_deadly = true;
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn signal_accept_deadly() {
     unsafe {
         rejecting_deadly = false;

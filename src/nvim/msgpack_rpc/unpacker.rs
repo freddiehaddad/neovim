@@ -2,40 +2,33 @@
 
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
-#[cfg(not(test))]
-use crate::api::private::dispatch::msgpack_rpc_get_handler_for;
+use crate::api::private::dispatch::{MsgpackRpcRequestHandler, msgpack_rpc_get_handler_for};
 use crate::api::private::helpers::{api_set_error, nil_obj};
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
 };
-#[cfg(not(test))]
 use crate::globals::*;
-#[cfg(not(test))]
 use crate::grid::schar_from_buf;
 use crate::kvec::KVec;
-use crate::lua::converter::FieldHashfn;
-#[cfg(not(test))]
-use crate::lua::converter::{Boolean, OptKeySet};
-#[cfg(not(test))]
-use crate::memory::xstrdup;
-use crate::memory::{Arena, arena_alloc, arena_finish, arena_mem_free};
+use crate::lua::converter::{Boolean, FieldHashfn, OptKeySet};
+use crate::memory::{Arena, arena_alloc, arena_finish, arena_mem_free, xstrdup};
 use crate::mpack::mpack_core::{
-    MPACK_OK, mpack_rtoken, mpack_tokbuf_t, mpack_token_t, mpack_token_type_t,
+    MPACK_OK, mpack_read, mpack_rtoken, mpack_tokbuf_init, mpack_tokbuf_t, mpack_token_t,
+    mpack_token_type_t,
 };
 use crate::mpack::object::{
     mpack_node_t, mpack_parent_node, mpack_parse, mpack_parser_init, mpack_parser_t,
 };
 use crate::msgpack_rpc::packer::{EXT_OBJECT_TYPE_SHIFT, Integer};
-#[cfg(not(test))]
 use crate::ui_client::{
-    handle_ui_client_redraw, ui_client_event_grid_line, ui_client_get_redraw_handler,
+    UIClientHandler, handle_ui_client_redraw, ui_client_event_grid_line,
+    ui_client_get_redraw_handler,
 };
 use std::ffi::{c_char, c_int, c_void};
 
 const MAX_EXT_LEN: usize = 9;
 const EXT_OBJECT_TYPE_MAX: c_int =
     (ObjectType::kObjectTypeTabpage as c_int) - EXT_OBJECT_TYPE_SHIFT;
-#[cfg(not(test))]
 const K_UNPACK_TYPE_STRING_ARRAY: c_int = -1;
 
 pub type AdditionalDataBuilder = KVec<c_char>;
@@ -50,9 +43,6 @@ pub enum MessageType {
     kMessageTypeNotification = 2,
     kMessageTypeRedrawEvent = 3,
 }
-
-use crate::api::private::dispatch::MsgpackRpcRequestHandler;
-use crate::ui_client::UIClientHandler;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -100,10 +90,7 @@ use crate::eval::funcs::{MPACK_EOF, MPACK_ERROR, MPACK_NOMEM};
 use crate::mpack::conv::{
     mpack_unpack_boolean, mpack_unpack_float_fast, mpack_unpack_sint, mpack_unpack_uint,
 };
-#[cfg(not(test))]
-use crate::mpack::mpack_core::{mpack_read, mpack_tokbuf_init};
 
-#[cfg(not(test))]
 #[inline]
 const fn empty_arena() -> Arena {
     Arena {
@@ -301,7 +288,6 @@ unsafe extern "C-unwind" fn api_parse_enter(parser: *mut mpack_parser_t, node: *
 unsafe extern "C-unwind" fn api_parse_exit(_parser: *mut mpack_parser_t, _node: *mut mpack_node_t) {
 }
 
-#[cfg(not(test))]
 unsafe extern "C-unwind" fn parse_nop(_parser: *mut mpack_parser_t, _node: *mut mpack_node_t) {}
 
 /// Unpack a single MessagePack value into an `Object` (`unpack`).
@@ -361,10 +347,6 @@ pub unsafe extern "C" fn unpack(
 /// Initialize an `Unpacker` (`unpacker_init`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn unpacker_init(p: *mut Unpacker) {
-    #[cfg(test)]
-    let _ = p;
-
-    #[cfg(not(test))]
     unsafe {
         let p_ref = &mut *p;
         mpack_parser_init(&mut p_ref.parser, 0);
@@ -391,12 +373,6 @@ pub unsafe extern "C" fn unpacker_teardown(p: *mut Unpacker) {
 /// Parse the header of a msgpack-rpc message (`unpacker_parse_header`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn unpacker_parse_header(p: *mut Unpacker) -> bool {
-    #[cfg(test)]
-    {
-        let _ = p;
-        false
-    }
-    #[cfg(not(test))]
     unsafe {
         let p = &mut *p;
         let mut tok = std::mem::zeroed::<mpack_token_t>();
@@ -503,12 +479,6 @@ pub unsafe extern "C" fn unpacker_parse_header(p: *mut Unpacker) -> bool {
 /// Advance the unpacker state machine (`unpacker_advance`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn unpacker_advance(p: *mut Unpacker) -> bool {
-    #[cfg(test)]
-    {
-        let _ = p;
-        false
-    }
-    #[cfg(not(test))]
     unsafe {
         let p_ref = &mut *p;
         assert!(p_ref.state >= 0);
@@ -605,7 +575,6 @@ pub unsafe extern "C" fn unpacker_advance(p: *mut Unpacker) -> bool {
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn next_type(
     p: &mut Unpacker,
@@ -633,12 +602,6 @@ unsafe fn next_type(
 /// Specialized redraw/grid_line parser (`unpacker_parse_redraw`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn unpacker_parse_redraw(p: *mut Unpacker) -> bool {
-    #[cfg(test)]
-    {
-        let _ = p;
-        false
-    }
-    #[cfg(not(test))]
     unsafe {
         let p = &mut *p;
         let mut tok = std::mem::zeroed::<mpack_token_t>();
@@ -876,15 +839,6 @@ pub unsafe extern "C" fn unpacker_parse_redraw(p: *mut Unpacker) -> bool {
 /// Unpack a complete msgpack string/bin token (`unpack_string`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn unpack_string(data: *mut *const c_char, size: *mut usize) -> NvimString {
-    #[cfg(test)]
-    {
-        let _ = (data, size);
-        NvimString {
-            data: std::ptr::null_mut(),
-            size: 0,
-        }
-    }
-    #[cfg(not(test))]
     unsafe {
         let mut data2 = *data;
         let mut size2 = *size;
@@ -919,12 +873,6 @@ pub unsafe extern "C" fn unpack_string(data: *mut *const c_char, size: *mut usiz
 /// Unpack a msgpack array header (`unpack_array`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn unpack_array(data: *mut *const c_char, size: *mut usize) -> isize {
-    #[cfg(test)]
-    {
-        let _ = (data, size);
-        -1
-    }
-    #[cfg(not(test))]
     unsafe {
         let mut tok = std::mem::zeroed::<mpack_token_t>();
         let result = mpack_rtoken(data, size, &mut tok);
@@ -942,12 +890,6 @@ pub unsafe extern "C" fn unpack_integer(
     size: *mut usize,
     res: *mut Integer,
 ) -> bool {
-    #[cfg(test)]
-    {
-        let _ = (data, size, res);
-        false
-    }
-    #[cfg(not(test))]
     unsafe {
         let mut tok = std::mem::zeroed::<mpack_token_t>();
         let result = mpack_rtoken(data, size, &mut tok);
@@ -961,12 +903,6 @@ pub unsafe extern "C" fn unpack_integer(
 /// Unpack a uint or sint token into `Integer` (`unpack_uint_or_sint`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn unpack_uint_or_sint(tok: mpack_token_t, res: *mut Integer) -> bool {
-    #[cfg(test)]
-    {
-        let _ = (tok, res);
-        false
-    }
-    #[cfg(not(test))]
     unsafe {
         if tok.r#type == mpack_token_type_t::MPACK_TOKEN_UINT {
             *res = mpack_unpack_uint(tok) as Integer;
@@ -983,12 +919,6 @@ pub unsafe extern "C" fn unpack_uint_or_sint(tok: mpack_token_t, res: *mut Integ
 /// Skip one msgpack value (`unpack_skip`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn unpack_skip(data: *mut *const c_char, size: *mut usize) -> c_int {
-    #[cfg(test)]
-    {
-        let _ = (data, size);
-        0
-    }
-    #[cfg(not(test))]
     unsafe {
         let mut parser = std::mem::zeroed::<mpack_parser_t>();
         mpack_parser_init(&mut parser, 0);
@@ -1034,12 +964,6 @@ pub unsafe extern "C-unwind" fn unpack_keydict(
     size: *mut usize,
     error: *mut *mut c_char,
 ) -> bool {
-    #[cfg(test)]
-    {
-        let _ = (retval, hashy, ad, data, size, error);
-        false
-    }
-    #[cfg(not(test))]
     unsafe {
         let ks = retval.cast::<OptKeySet>();
         let mut tok = std::mem::zeroed::<mpack_token_t>();

@@ -15,7 +15,7 @@ const fn bytes_to_chars<const N: usize>(b: &[u8; N]) -> [c_char; N] {
 
 macro_rules! def_err {
     ($name:ident, $s:literal) => {
-        #[cfg_attr(not(test), unsafe(no_mangle))]
+        #[unsafe(no_mangle)]
         pub static $name: [c_char; $s.len()] = bytes_to_chars($s);
     };
 }

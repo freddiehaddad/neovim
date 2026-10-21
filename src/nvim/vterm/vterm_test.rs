@@ -61,23 +61,23 @@ const VTERM_ATTR_URI_MASK: VTermAttrMask = 1 << 12;
 const VTERM_ATTR_DIM_MASK: VTermAttrMask = 1 << 13;
 const VTERM_ATTR_OVERLINE_MASK: VTermAttrMask = 1 << 14;
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static mut state_pos: VTermPos = VTermPos { row: 0, col: 0 };
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static mut want_state_putglyph: bool = false;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static mut want_state_movecursor: bool = false;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static mut want_state_erase: bool = false;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static mut want_state_scrollrect: bool = false;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static mut want_state_moverect: bool = false;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static mut want_state_settermprop: bool = false;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static mut want_state_scrollback: bool = false;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static mut want_screen_scrollback: bool = false;
 
 #[repr(C)]
@@ -137,7 +137,7 @@ unsafe fn push_frag_bytes(out: &mut Vec<u8>, frag: VTermStringFragment) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn parser_text(
     bytes: *const c_char,
     len: usize,
@@ -163,7 +163,7 @@ pub unsafe extern "C" fn parser_text(
     i as c_int
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn parser_csi(
     leader: *const c_char,
     args: *const c_long,
@@ -212,7 +212,7 @@ pub unsafe extern "C" fn parser_csi(
     1
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn parser_osc(
     command: c_int,
     frag: VTermStringFragment,
@@ -237,7 +237,7 @@ pub unsafe extern "C" fn parser_osc(
     1
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn parser_dcs(
     command: *const c_char,
     commandlen: usize,
@@ -263,7 +263,7 @@ pub unsafe extern "C" fn parser_dcs(
     1
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn parser_apc(frag: VTermStringFragment, _user: *mut c_void) -> c_int {
     let mut out = b"apc ".to_vec();
     if frag.initial() {
@@ -280,7 +280,7 @@ pub unsafe extern "C" fn parser_apc(frag: VTermStringFragment, _user: *mut c_voi
     1
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn parser_pm(frag: VTermStringFragment, _user: *mut c_void) -> c_int {
     let mut out = b"pm ".to_vec();
     if frag.initial() {
@@ -297,7 +297,7 @@ pub unsafe extern "C" fn parser_pm(frag: VTermStringFragment, _user: *mut c_void
     1
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn parser_sos(frag: VTermStringFragment, _user: *mut c_void) -> c_int {
     let mut out = b"sos ".to_vec();
     if frag.initial() {
@@ -314,7 +314,7 @@ pub unsafe extern "C" fn parser_sos(frag: VTermStringFragment, _user: *mut c_voi
     1
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn selection_set(
     mask: VTermSelectionMask,
     frag: VTermStringFragment,
@@ -336,7 +336,7 @@ pub unsafe extern "C" fn selection_set(
     1
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn selection_query(mask: VTermSelectionMask, _user: *mut c_void) -> c_int {
     let mut out = Vec::new();
     let _ = writeln!(out, "selection-query mask={mask:04X}");
@@ -365,7 +365,7 @@ unsafe fn format_schar(out: &mut Vec<u8>, schar: schar_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn state_putglyph(
     info: *mut VTermGlyphInfo,
     pos: VTermPos,
@@ -399,7 +399,7 @@ pub unsafe extern "C" fn state_putglyph(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn state_movecursor(
     pos: VTermPos,
     _oldpos: VTermPos,
@@ -417,7 +417,7 @@ pub unsafe extern "C" fn state_movecursor(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn state_scrollrect(
     rect: VTermRect,
     downward: c_int,
@@ -439,7 +439,7 @@ pub unsafe extern "C" fn state_scrollrect(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn state_moverect(
     dest: VTermRect,
     src: VTermRect,
@@ -484,7 +484,7 @@ fn format_color_bytes(out: &mut Vec<u8>, col: &VTermColor) {
     out.push(b')');
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn print_color(col: *const VTermColor) {
     if col.is_null() {
         return;
@@ -511,7 +511,7 @@ const fn vterm_get_prop_type(prop: VTermProp) -> VTermValueType {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn state_settermprop(
     prop: VTermProp,
     val: *mut VTermValue,
@@ -556,7 +556,7 @@ pub unsafe extern "C" fn state_settermprop(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn state_erase(
     rect: VTermRect,
     selective: c_int,
@@ -578,7 +578,7 @@ pub unsafe extern "C" fn state_erase(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn state_setpenattr(
     attr: VTermAttr,
     val: *mut VTermValue,
@@ -607,7 +607,7 @@ pub unsafe extern "C" fn state_setpenattr(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn state_sb_clear(_user: *mut c_void) -> c_int {
     unsafe {
         if !want_state_scrollback {
@@ -618,7 +618,7 @@ pub unsafe extern "C" fn state_sb_clear(_user: *mut c_void) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn screen_sb_pushline(
     cols: c_int,
     cells: *const VTermScreenCell,
@@ -644,7 +644,7 @@ pub unsafe extern "C" fn screen_sb_pushline(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn screen_sb_popline(
     cols: c_int,
     cells: *mut VTermScreenCell,
@@ -670,7 +670,7 @@ pub unsafe extern "C" fn screen_sb_popline(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn screen_sb_clear(_user: *mut c_void) -> c_int {
     unsafe {
         if !want_screen_scrollback {
@@ -681,7 +681,7 @@ pub unsafe extern "C" fn screen_sb_clear(_user: *mut c_void) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn term_output(s: *const c_char, len: usize, _user: *mut c_void) {
     let mut out = b"output ".to_vec();
     unsafe {
@@ -694,7 +694,7 @@ pub unsafe extern "C" fn term_output(s: *const c_char, len: usize, _user: *mut c
     append_test_output(&out);
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_state_get_penattr(
     state: *const VTermStateFull,
     attr: VTermAttr,
@@ -768,7 +768,7 @@ pub unsafe extern "C" fn vterm_state_get_penattr(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_color_is_equal(a: *const VTermColor, b: *const VTermColor) -> c_int {
     unsafe {
         let ca = &*a;
@@ -843,7 +843,7 @@ unsafe fn attrs_differ(attrs: VTermAttrMask, a: *const ScreenCell, b: *const Scr
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_screen_get_attrs_extent(
     screen: *const VTermScreen,
     extent: *mut VTermRect,
@@ -882,7 +882,7 @@ pub unsafe extern "C" fn vterm_screen_get_attrs_extent(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_screen_get_text(
     screen: *const VTermScreen,
     buffer: *mut c_char,
@@ -930,7 +930,7 @@ pub unsafe extern "C" fn vterm_screen_get_text(
     outpos
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_screen_is_eol(
     screen: *const VTermScreen,
     mut pos: VTermPos,
@@ -947,7 +947,7 @@ pub unsafe extern "C" fn vterm_screen_is_eol(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_state_get_cursorpos(
     state: *const VTermStateFull,
     cursorpos: *mut VTermPos,
@@ -957,7 +957,7 @@ pub unsafe extern "C" fn vterm_state_get_cursorpos(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_state_set_bold_highbright(
     state: *mut VTermStateFull,
     bold_is_highbright: c_int,

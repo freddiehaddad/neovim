@@ -135,7 +135,7 @@ pub struct ff_search_ctx_T {
 static mut ff_expand_buffer: NvimString = NULL_STRING;
 
 /// Initialization routine for `vim_findfile()`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_findfile_init(
     mut path: *mut c_char,
     filename: *mut c_char,
@@ -462,7 +462,7 @@ pub unsafe extern "C" fn vim_findfile_init(
 }
 
 /// Return the stopdir string. Check that `;` is not escaped.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_findfile_stopdir(mut buf: *mut c_char) -> *mut c_char {
     unsafe {
         while *buf != NUL
@@ -505,7 +505,7 @@ pub unsafe extern "C" fn vim_findfile_stopdir(mut buf: *mut c_char) -> *mut c_ch
 }
 
 /// Clean up the given search context. Can handle a NULL pointer.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_findfile_cleanup(ctx: *mut c_void) {
     unsafe {
         if ctx.is_null() {
@@ -519,7 +519,7 @@ pub unsafe extern "C" fn vim_findfile_cleanup(ctx: *mut c_void) {
 }
 
 /// Find a file in a search context.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_findfile(search_ctx_arg: *mut c_void) -> *mut c_char {
     unsafe {
         if search_ctx_arg.is_null() {
@@ -1235,7 +1235,7 @@ unsafe fn ff_path_in_stoplist(
 }
 
 /// Find the file name `ptr[len]` in the path. Also finds directory names.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn find_file_in_path(
     ptr: *mut c_char,
     len: usize,
@@ -1265,7 +1265,7 @@ pub unsafe extern "C" fn find_file_in_path(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn free_findfile() {
     unsafe {
         xfree(ff_expand_buffer.data.cast());
@@ -1275,7 +1275,7 @@ pub unsafe extern "C" fn free_findfile() {
 }
 
 /// Find the directory name `ptr[len]` in the path.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn find_directory_in_path(
     ptr: *mut c_char,
     len: usize,
@@ -1300,7 +1300,7 @@ pub unsafe extern "C" fn find_directory_in_path(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn find_file_in_path_option(
     mut ptr: *mut c_char,
     len: usize,
@@ -1497,7 +1497,7 @@ pub unsafe extern "C" fn find_file_in_path_option(
 }
 
 /// Get the file name at the cursor.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn grab_file_name(count: c_int, file_lnum: *mut linenr_T) -> *mut c_char {
     unsafe {
         let options = FNAME_MESS | FNAME_EXP | FNAME_REL | FNAME_UNESC;
@@ -1527,7 +1527,7 @@ pub unsafe extern "C" fn grab_file_name(count: c_int, file_lnum: *mut linenr_T) 
 }
 
 /// Return the file name under or after the cursor.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn file_name_at_cursor(
     options: c_int,
     count: c_int,
@@ -1546,7 +1546,7 @@ pub unsafe extern "C" fn file_name_at_cursor(
 }
 
 /// Return the name of the file under or after `line[col]`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn file_name_in_line(
     line: *mut c_char,
     col: c_int,
@@ -1665,7 +1665,7 @@ unsafe fn eval_includeexpr(ptr: *const c_char, len: usize) -> *mut c_char {
 }
 
 /// Return the name of the file `ptr[len]` in `'path'`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn find_file_name_in_path(
     mut ptr: *mut c_char,
     mut len: usize,
@@ -1770,7 +1770,7 @@ pub unsafe extern "C" fn find_file_name_in_path(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn do_autocmd_dirchanged(
     new_dir: *mut c_char,
     scope: CdScope,
@@ -1836,7 +1836,7 @@ pub unsafe extern "C" fn do_autocmd_dirchanged(
 }
 
 /// Change to a file's directory.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_chdirfile(fname: *mut c_char, cause: CdCause) -> c_int {
     unsafe {
         let mut dir: [c_char; MAXPATHL] = [0; MAXPATHL];
@@ -1870,7 +1870,7 @@ pub unsafe extern "C" fn vim_chdirfile(fname: *mut c_char, cause: CdCause) -> c_
 }
 
 /// Change directory to `new_dir`. Search `'cdpath'` for relative directory names.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_chdir(new_dir: *mut c_char) -> c_int {
     unsafe {
         let mut file_to_find: *mut c_char = ptr::null_mut();

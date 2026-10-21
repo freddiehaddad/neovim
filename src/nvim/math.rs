@@ -18,7 +18,6 @@ mod fp_consts {
 
 #[cfg(target_os = "macos")]
 mod fp_consts {
-    use std::ffi::c_int;
     pub const FP_NAN: c_int = 1;
     pub const FP_INFINITE: c_int = 2;
     pub const FP_ZERO: c_int = 3;

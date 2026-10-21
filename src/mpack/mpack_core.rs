@@ -120,7 +120,7 @@ unsafe fn mpack_blob(
     MPACK_OK
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mpack_tokbuf_init(tokbuf: *mut mpack_tokbuf_t) {
     unsafe {
         (*tokbuf).ppos = 0;
@@ -129,7 +129,7 @@ pub unsafe extern "C" fn mpack_tokbuf_init(tokbuf: *mut mpack_tokbuf_t) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mpack_read(
     tokbuf: *mut mpack_tokbuf_t,
     buf: *mut *const c_char,
@@ -197,7 +197,7 @@ pub unsafe extern "C" fn mpack_read(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mpack_write(
     tokbuf: *mut mpack_tokbuf_t,
     buf: *mut *mut c_char,
@@ -277,7 +277,7 @@ pub unsafe extern "C" fn mpack_write(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mpack_rtoken(
     buf: *mut *const c_char,
     buflen: *mut usize,

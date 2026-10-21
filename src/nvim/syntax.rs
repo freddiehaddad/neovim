@@ -516,7 +516,7 @@ unsafe fn valid_state(ssp: *const garray_T) -> bool {
 }
 
 /// Set the timeout used for syntax highlighting.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn syn_set_timeout(tm: *mut proftime_T) {
     unsafe {
         syn_tm = tm;
@@ -524,7 +524,7 @@ pub unsafe extern "C" fn syn_set_timeout(tm: *mut proftime_T) {
 }
 
 /// Start the syntax recognition for a line.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn syntax_start(wp: *mut win_T, lnum: linenr_T) {
     unsafe {
         let mut last_valid: *mut synstate_T = ptr::null_mut();
@@ -1009,7 +1009,7 @@ unsafe fn syn_stack_free_block(block: *mut synblock_T) {
 }
 
 /// Free b_sst_array[] for buffer "buf".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn syn_stack_free_all(block: *mut synblock_T) {
     unsafe {
         syn_stack_free_block(block);
@@ -1084,7 +1084,7 @@ unsafe fn syn_stack_alloc() {
 }
 
 /// Check for changes in a buffer to affect stored syntax states.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn syn_stack_apply_changes(buf: *mut buf_T) {
     unsafe {
         syn_stack_apply_changes_block(&raw mut (*buf).b_s, buf);
@@ -1417,7 +1417,7 @@ unsafe fn syn_stack_equal(sp: *mut synstate_T) -> bool {
 }
 
 /// We stop parsing syntax above line "lnum".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn syntax_end_parsing(wp: *mut win_T, lnum: linenr_T) {
     unsafe {
         if syn_block != win_s(wp) {
@@ -1451,7 +1451,7 @@ unsafe fn validate_current_state() {
 }
 
 /// Check if the syntax at start of lnum changed since last time.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn syntax_check_changed(lnum: linenr_T) -> bool {
     unsafe {
         let mut retval = true;
@@ -1503,7 +1503,7 @@ unsafe fn syn_finish_line(syncing: bool) -> bool {
 }
 
 /// Gets highlight attributes for next character.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_syntax_attr(
     col: colnr_T,
     can_spell: *mut bool,
@@ -2937,7 +2937,7 @@ unsafe fn syn_cmd_iskeyword(eap: *mut exarg_T, _syncing: c_int) {
 }
 
 /// Clear all syntax info for one buffer.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn syntax_clear(block: *mut synblock_T) {
     unsafe {
         (*block).b_syn_error = false;
@@ -2987,7 +2987,7 @@ pub unsafe extern "C" fn syntax_clear(block: *mut synblock_T) {
 }
 
 /// Get rid of ownsyntax for window "wp".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn reset_synblock(wp: *mut win_T) {
     unsafe {
         if win_s(wp) != &raw mut (*(*wp).w_buffer).b_s {
@@ -3171,7 +3171,7 @@ unsafe fn syn_cmd_onoff(eap: *mut exarg_T, name: *const c_char) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn syn_maybe_enable() {
     unsafe {
         if !did_syntax_onoff {
@@ -5355,7 +5355,7 @@ const SUBCOMMANDS: [(*const c_char, SubcmdFn); 19] = [
 ];
 
 /// ":syntax".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_syntax(eap: *mut exarg_T) {
     unsafe {
         let arg = (*eap).arg;
@@ -5394,7 +5394,7 @@ pub unsafe extern "C" fn ex_syntax(eap: *mut exarg_T) {
 }
 
 /// @deprecated
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_ownsyntax(eap: *mut exarg_T) {
     unsafe {
         if win_s(curwin) == &raw mut (*(*curwin).w_buffer).b_s {
@@ -5431,7 +5431,7 @@ pub unsafe extern "C" fn ex_ownsyntax(eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn syntax_present(win: *mut win_T) -> bool {
     unsafe {
         (*win_s(win)).b_syn_patterns.ga_len != 0
@@ -5441,7 +5441,7 @@ pub unsafe extern "C" fn syntax_present(win: *mut win_T) -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn reset_expand_highlight() {
     unsafe {
         include_none = 0;
@@ -5450,7 +5450,7 @@ pub unsafe extern "C" fn reset_expand_highlight() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_context_in_echohl_cmd(xp: *mut expand_T, arg: *const c_char) {
     unsafe {
         (*xp).xp_context = EXPAND_HIGHLIGHT;
@@ -5459,7 +5459,7 @@ pub unsafe extern "C" fn set_context_in_echohl_cmd(xp: *mut expand_T, arg: *cons
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_context_in_syntax_cmd(xp: *mut expand_T, arg: *const c_char) {
     unsafe {
         (*xp).xp_context = EXPAND_SYNTAX;
@@ -5507,7 +5507,7 @@ pub unsafe extern "C" fn set_context_in_syntax_cmd(xp: *mut expand_T, arg: *cons
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_syntax_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx < 0 {
@@ -5584,7 +5584,7 @@ pub unsafe extern "C" fn get_syntax_name(xp: *mut expand_T, idx: c_int) -> *mut 
 }
 
 /// Function called for expression evaluation: get syntax ID at file position.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn syn_get_id(
     wp: *mut win_T,
     lnum: linenr_T,
@@ -5610,7 +5610,7 @@ pub unsafe extern "C" fn syn_get_id(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_syntax_info(seqnrp: *mut c_int) -> c_int {
     unsafe {
         *seqnrp = current_seqnr;
@@ -5618,7 +5618,7 @@ pub unsafe extern "C" fn get_syntax_info(seqnrp: *mut c_int) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn syn_get_concealed_id(
     wp: *mut win_T,
     lnum: linenr_T,
@@ -5637,12 +5637,12 @@ pub unsafe extern "C" fn syn_get_concealed_id(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn syn_get_sub_char() -> c_int {
     unsafe { current_sub_char }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn syn_get_stack_item(i: c_int) -> c_int {
     unsafe {
         if i >= current_state.ga_len {
@@ -5666,7 +5666,7 @@ unsafe fn syn_cur_foldlevel() -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn syn_get_foldlevel(wp: *mut win_T, lnum: linenr_T) -> c_int {
     unsafe {
         let mut level: c_int = 0;
@@ -5705,7 +5705,7 @@ pub unsafe extern "C" fn syn_get_foldlevel(wp: *mut win_T, lnum: linenr_T) -> c_
 }
 
 /// ":syntime".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_syntime(eap: *mut exarg_T) {
     unsafe {
         if strcmp((*eap).arg, c"on".as_ptr()) == 0 {
@@ -5744,7 +5744,7 @@ unsafe fn syntime_clear() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_syntime_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     match idx {
         0 => c"on".as_ptr().cast_mut(),

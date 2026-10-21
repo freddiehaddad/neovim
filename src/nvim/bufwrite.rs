@@ -1,6 +1,5 @@
 //! Buffer file writing, encoding conversion, and backup management (`src/nvim/bufwrite.c`).
 
-#![cfg_attr(test, allow(unused_mut, unused_variables))]
 #![allow(
     non_camel_case_types,
     non_snake_case,
@@ -9,72 +8,47 @@
     clippy::too_many_arguments
 )]
 
-#[cfg(not(test))]
 use crate::autocmd::{
     EVENT_BUFWRITECMD, EVENT_BUFWRITEPOST, EVENT_BUFWRITEPRE, EVENT_FILEAPPENDCMD,
     EVENT_FILEAPPENDPOST, EVENT_FILEAPPENDPRE, EVENT_FILEWRITECMD, EVENT_FILEWRITEPOST,
     EVENT_FILEWRITEPRE, EVENT_FILTERWRITEPOST, EVENT_FILTERWRITEPRE, apply_autocmds_exarg,
 };
-use crate::buffer::buf_T;
-#[cfg(all(not(test), unix))]
+#[cfg(unix)]
 use crate::buffer::buf_set_file_id;
-#[cfg(not(test))]
 use crate::buffer::{
-    BF_NEW, BF_WRITE_MASK, NOTDONE, bt_nofilename, buf_get_changedtick, bufref_T, bufref_valid,
-    set_bufref,
+    BF_NEW, BF_WRITE_MASK, NOTDONE, bt_nofilename, buf_T, buf_get_changedtick, bufref_T,
+    bufref_valid, set_bufref,
 };
-#[cfg(not(test))]
 use crate::change::unchanged;
-#[cfg(not(test))]
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
-use crate::cursor::linenr_T;
-#[cfg(not(test))]
-use crate::cursor::pos_T;
-#[cfg(not(test))]
+use crate::cursor::{linenr_T, pos_T};
 use crate::dialog::ask_yesno;
-#[cfg(not(test))]
 use crate::drawscreen::status_redraw_all;
-#[cfg(not(test))]
 use crate::errors::*;
-#[cfg(not(test))]
 use crate::eval::vars::{FORCE_BIN, eval_charconvert};
-#[cfg(not(test))]
 use crate::event::r#loop::uv_strerror;
-#[cfg(all(not(test), unix))]
+#[cfg(unix)]
 use crate::event::r#loop::{uv_gid_t, uv_uid_t};
-#[cfg(not(test))]
 use crate::ex_cmds::check_secure;
-use crate::ex_docmd::exarg_T;
-#[cfg(not(test))]
+use crate::ex_docmd::{CMOD_LOCKMARKS, UNDO_HASH_SIZE, exarg_T};
 use crate::ex_eval::{aborting, should_abort};
-#[cfg(not(test))]
 use crate::fileio::{
-    EOL_DOS, EOL_UNIX, FIO_NOCONVERT, ICONV_EINVAL, WRITEBUFSIZE, add_quoted_fname,
-    buf_store_file_info, call_iconv, call_iconv_close, close_fd, filemess_bufwrite, fname_msg_id,
-    get_fio_flags, iconv_t, kShmOver, match_file_list, modname, msg_add_fileformat, msg_add_lines,
-    need_conversion, set_rw_fname, slow_io_ns, time_differs, vim_rename, vim_tempname, write_eintr,
+    EOL_DOS, EOL_UNIX, FIO_ENDIAN_L, FIO_LATIN1, FIO_NOCONVERT, FIO_UCS2, FIO_UCS4, FIO_UTF8,
+    FIO_UTF16, ICONV_EINVAL, WRITEBUFSIZE, add_quoted_fname, buf_store_file_info, call_iconv,
+    call_iconv_close, close_fd, filemess_bufwrite, fname_msg_id, get_fio_flags, iconv_t, kShmOver,
+    match_file_list, modname, msg_add_fileformat, msg_add_lines, need_conversion, set_rw_fname,
+    slow_io_ns, time_differs, vim_rename, vim_tempname, write_eintr,
 };
-use crate::fileio::{FIO_ENDIAN_L, FIO_LATIN1, FIO_UCS2, FIO_UCS4, FIO_UTF8, FIO_UTF16};
 #[cfg(not(windows))]
-#[cfg(not(test))]
 use crate::fileio::{getgid, getuid};
-#[cfg(not(test))]
 use crate::globals::IOSIZE;
-#[cfg(not(test))]
 use crate::globals::*;
-#[cfg(not(test))]
 use crate::mbyte::{enc_canonize, my_iconv_open, utf_ptr2char, utf_ptr2len_len};
-#[cfg(not(test))]
 use crate::memline::{get_file_in_dir, make_percent_swname, ml_get_buf, ml_preserve, ml_timestamp};
-#[cfg(not(test))]
 use crate::memory::{verbose_try_malloc, xfree, xmalloc, xmemcpyz, xstrdup, xstrlcat, xstrlcpy};
-#[cfg(not(test))]
 use crate::message::{emsg, msg, msg_progress, msg_puts_hl, msg_with_id, semsg, set_keep_msg};
-#[cfg(not(test))]
 use crate::option::{copy_option_part, get_bkc_flags, get_fileformat_force, shortmess};
-#[cfg(not(test))]
 use crate::option_vars::*;
-#[cfg(not(test))]
 use crate::os::fs::{
     FileInfo, MAXPATHL, O_APPEND, O_CREAT, O_EXCL, O_NOFOLLOW, O_TRUNC, O_WRONLY, os_close,
     os_copy, os_copy_xattr, os_errno as iconv_errno, os_file_is_writable, os_fileinfo,
@@ -82,92 +56,59 @@ use crate::os::fs::{
     os_get_acl, os_getperm, os_isdir, os_mkdir_recurse, os_nodetype, os_open, os_path_exists,
     os_remove, os_set_acl, os_setperm, vim_acl_T,
 };
-#[cfg(all(not(test), unix))]
+#[cfg(unix)]
 use crate::os::fs::{os_chown, os_fchown, os_file_settime, os_fsetperm, s_isdir, s_isreg};
-#[cfg(not(test))]
 use crate::os::input::os_breakcheck;
-#[cfg(not(test))]
 use crate::os::time::os_hrtime;
-#[cfg(not(test))]
 use crate::path::{after_pathsep, kPathCmpLiteral, path_equal, path_tail};
-#[cfg(not(test))]
 use crate::sha256::{context_sha256_T, sha256_finish, sha256_start, sha256_update};
-#[cfg(not(test))]
 use crate::strings::{gettext, strlen as c_strlen, vim_snprintf, vim_snprintf_add, vim_strchr};
-#[cfg(not(test))]
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush};
-#[cfg(not(test))]
 use crate::undo::{curbufIsChanged, u_unchanged, u_update_save_nr, u_write_undo};
-#[cfg(not(test))]
-use std::ffi::c_uint;
-use std::ffi::{c_char, c_int};
+use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
 
-#[cfg(not(test))]
 use crate::api::private::helpers::HLF_E;
-#[cfg(not(test))]
 use crate::arglist::ML_EMPTY;
-#[cfg(not(test))]
 use crate::charset::{EOL_MAC, NUL};
-#[cfg(not(test))]
 use crate::eval::typval::kCallbackNone;
-#[cfg(not(test))]
-use crate::ex_docmd::{CMOD_LOCKMARKS, UNDO_HASH_SIZE};
-use crate::math::FAIL;
-#[cfg(not(test))]
-use crate::math::OK;
-#[cfg(not(test))]
+use crate::math::{FAIL, OK};
 use crate::optionstr::{kOptBkcFlagAuto, kOptBkcFlagYes};
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 use crate::os::fs::NODE_OTHER;
 
-#[cfg(not(test))]
 const NL: u32 = b'\n' as u32;
-#[cfg(not(test))]
 const NL_CHAR: c_char = b'\n' as c_char;
-#[cfg(not(test))]
 const CAR_CHAR: c_char = b'\r' as c_char;
 
-#[cfg(not(test))]
 const SMALLBUFSIZE: usize = 256;
-#[cfg(not(test))]
 const ICONV_MULT: usize = 8;
 
-#[cfg(not(test))]
 pub(crate) const NODE_WRITABLE: c_int = 1;
 
-#[cfg(all(not(test), unix))]
+#[cfg(unix)]
 const kOptBkcFlagBreaksymlink: c_uint = 0x08;
-#[cfg(all(not(test), unix))]
+#[cfg(unix)]
 const kOptBkcFlagBreakhardlink: c_uint = 0x10;
 
-#[cfg(not(test))]
 const kCpoFnameapp: c_int = b'P' as c_int;
-#[cfg(not(test))]
 const kCpoFnamew: c_int = b'F' as c_int;
-#[cfg(not(test))]
 const kCpoFwrite: c_int = b'W' as c_int;
-#[cfg(not(test))]
 const kCpoKeepro: c_int = b'Z' as c_int;
-#[cfg(not(test))]
 const kCpoPlus: c_int = b'+' as c_int;
 
-#[cfg(not(test))]
 const kShmWri: c_int = b'w' as c_int;
-#[cfg(not(test))]
 const kShmWrite: c_int = b'W' as c_int;
 
-#[cfg(not(test))]
 const UV_FS_COPYFILE_FICLONE: c_int = 0x0002;
 
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const UV_ENOTSUP: c_int = -4049;
-#[cfg(all(not(test), target_os = "linux"))]
+#[cfg(target_os = "linux")]
 const UV_ENOTSUP: c_int = -95;
 #[cfg(not(any(windows, target_os = "linux")))]
 const UV_ENOTSUP: c_int = -45;
 
-#[cfg(not(test))]
 #[repr(C)]
 struct Error_T {
     num: *const c_char,
@@ -176,7 +117,6 @@ struct Error_T {
     alloc: bool,
 }
 
-#[cfg(not(test))]
 #[repr(C)]
 struct bw_info {
     bw_fd: c_int,
@@ -254,7 +194,6 @@ unsafe fn ucs2bytes(mut c: u32, pp: *mut *mut c_char, flags: c_int) -> bool {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn buf_write_convert_with_iconv(
     ip: *mut bw_info,
     bufp: *mut *mut c_char,
@@ -303,7 +242,6 @@ unsafe fn buf_write_convert_with_iconv(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn buf_write_convert(ip: *mut bw_info, bufp: *mut *mut c_char, lenp: *mut c_int) -> c_int {
     unsafe {
         let flags = (*ip).bw_flags;
@@ -317,22 +255,12 @@ unsafe fn buf_write_convert(ip: *mut bw_info, bufp: *mut *mut c_char, lenp: *mut
             };
             wlen = 0;
             while wlen < *lenp {
-                #[cfg(not(test))]
                 let n = utf_ptr2len_len((*bufp).add(wlen as usize), *lenp - wlen);
-                #[cfg(test)]
-                let n = 1;
                 if n > *lenp - wlen {
                     break;
                 }
                 let c: u32 = if n > 1 {
-                    #[cfg(not(test))]
-                    {
-                        utf_ptr2char((*bufp).add(wlen as usize)) as u32
-                    }
-                    #[cfg(test)]
-                    {
-                        0
-                    }
+                    utf_ptr2char((*bufp).add(wlen as usize)) as u32
                 } else {
                     u32::from(*(*bufp).add(wlen as usize) as u8)
                 };
@@ -372,7 +300,6 @@ unsafe fn buf_write_convert(ip: *mut bw_info, bufp: *mut *mut c_char, lenp: *mut
     }
 }
 
-#[cfg(not(test))]
 unsafe fn buf_write_bytes(ip: *mut bw_info) -> c_int {
     unsafe {
         let mut buf = (*ip).bw_buf;
@@ -388,10 +315,7 @@ unsafe fn buf_write_bytes(ip: *mut bw_info) -> c_int {
             (*ip).bw_len = remaining;
 
             if (*ip).bw_fd >= 0 {
-                #[cfg(not(test))]
                 let wlen = write_eintr((*ip).bw_fd, buf.cast(), len as usize) as c_int;
-                #[cfg(test)]
-                let wlen = len;
                 if wlen < len {
                     return FAIL;
                 }
@@ -407,10 +331,7 @@ unsafe fn buf_write_bytes(ip: *mut bw_info) -> c_int {
         } else {
             (*ip).bw_len = 0;
             if (*ip).bw_fd >= 0 {
-                #[cfg(not(test))]
                 let wlen = write_eintr((*ip).bw_fd, buf.cast(), len as usize) as c_int;
-                #[cfg(test)]
-                let wlen = len;
                 if wlen < len {
                     return FAIL;
                 }
@@ -421,9 +342,7 @@ unsafe fn buf_write_bytes(ip: *mut bw_info) -> c_int {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn check_mtime(buf: *mut buf_T, file_info: *const FileInfo) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         if (*buf).b_mtime_read != 0
             && time_differs(file_info, (*buf).b_mtime_read, (*buf).b_mtime_read_ns)
@@ -446,10 +365,7 @@ unsafe fn check_mtime(buf: *mut buf_T, file_info: *const FileInfo) -> c_int {
 unsafe fn make_bom(buf_in: *mut c_char, name: *mut c_char) -> c_int {
     unsafe {
         let buf = buf_in.cast::<u8>();
-        #[cfg(not(test))]
         let flags = get_fio_flags(name);
-        #[cfg(test)]
-        let flags = FIO_UTF8;
 
         if flags == FIO_LATIN1 || flags == 0 {
             return 0;
@@ -466,7 +382,6 @@ unsafe fn make_bom(buf_in: *mut c_char, name: *mut c_char) -> c_int {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn buf_write_do_autocmds(
     mut buf: *mut buf_T,
     fnamep: *mut *mut c_char,
@@ -483,7 +398,6 @@ unsafe fn buf_write_do_autocmds(
     orig_start: pos_T,
     orig_end: pos_T,
 ) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let old_line_count = (*buf).b_ml.ml_line_count;
         let msg_save = msg_scroll;
@@ -654,7 +568,6 @@ unsafe fn buf_write_do_autocmds(
     NOTDONE
 }
 
-#[cfg(not(test))]
 unsafe fn buf_write_do_post_autocmds(
     buf: *mut buf_T,
     fname: *mut c_char,
@@ -664,7 +577,6 @@ unsafe fn buf_write_do_post_autocmds(
     reset_changed: bool,
     whole: bool,
 ) {
-    #[cfg(not(test))]
     unsafe {
         let mut aco: CtxSwitch = std::mem::zeroed();
         (*curbuf).b_no_eol_lnum = 0;
@@ -692,7 +604,6 @@ unsafe fn buf_write_do_post_autocmds(
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 const fn set_err_num(num: *const c_char, msg: *const c_char) -> Error_T {
     Error_T {
@@ -703,7 +614,6 @@ const fn set_err_num(num: *const c_char, msg: *const c_char) -> Error_T {
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 const fn set_err(msg: *const c_char) -> Error_T {
     Error_T {
@@ -714,7 +624,6 @@ const fn set_err(msg: *const c_char) -> Error_T {
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 const fn set_err_arg(msg: *const c_char, arg: c_int) -> Error_T {
     Error_T {
@@ -725,9 +634,7 @@ const fn set_err_arg(msg: *const c_char, arg: c_int) -> Error_T {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn emit_err(e: *mut Error_T, msg_id: *const c_char) {
-    #[cfg(not(test))]
     unsafe {
         let mut errmsg = [0 as c_char; IOSIZE];
         if !(*e).num.is_null() && (*e).arg != 0 {
@@ -775,7 +682,7 @@ unsafe fn emit_err(e: *mut Error_T, msg_id: *const c_char) {
     }
 }
 
-#[cfg(all(not(test), not(windows)))]
+#[cfg(not(windows))]
 unsafe fn get_fileinfo_os(
     fname: *mut c_char,
     file_info_old: *mut FileInfo,
@@ -793,14 +700,12 @@ unsafe fn get_fileinfo_os(
             *perm = (*file_info_old).stat.st_mode as c_int;
             if !s_isreg((*file_info_old).stat.st_mode) {
                 if s_isdir((*file_info_old).stat.st_mode) {
-                    #[cfg(not(test))]
                     {
                         *err = set_err_num(c"E502".as_ptr(), gettext(c"is a directory".as_ptr()));
                     }
                     return FAIL;
                 }
                 if os_nodetype(fname) != NODE_WRITABLE {
-                    #[cfg(not(test))]
                     {
                         *err = set_err_num(
                             c"E503".as_ptr(),
@@ -818,7 +723,7 @@ unsafe fn get_fileinfo_os(
     }
 }
 
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 unsafe fn get_fileinfo_os(
     fname: *mut c_char,
     file_info_old: *mut FileInfo,
@@ -835,7 +740,6 @@ unsafe fn get_fileinfo_os(
             os_nodetype(fname)
         };
         if nodetype == NODE_OTHER {
-            #[cfg(not(test))]
             {
                 *err = set_err_num(
                     c"E503".as_ptr(),
@@ -853,7 +757,6 @@ unsafe fn get_fileinfo_os(
             if *perm < 0 {
                 *newfile = true;
             } else if os_isdir(fname) {
-                #[cfg(not(test))]
                 {
                     *err = set_err_num(c"E502".as_ptr(), gettext(c"is a directory".as_ptr()));
                 }
@@ -867,7 +770,6 @@ unsafe fn get_fileinfo_os(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn get_fileinfo(
     buf: *mut buf_T,
     fname: *mut c_char,
@@ -900,7 +802,6 @@ unsafe fn get_fileinfo(
             *readonly = os_file_is_writable(fname) == 0;
 
             if !forceit && *readonly {
-                #[cfg(not(test))]
                 if !vim_strchr(p_cpo, kCpoFwrite).is_null() {
                     *err = set_err_num(
                         c"E504".as_ptr(),
@@ -923,14 +824,13 @@ unsafe fn get_fileinfo(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn buf_get_backup_name(
     fname: *mut c_char,
     dirp: *mut *mut c_char,
     no_prepend_dot: bool,
     backup_ext: *mut c_char,
 ) -> *mut c_char {
-    #[cfg(not(test))]
     unsafe {
         let mut backup: *mut c_char = ptr::null_mut();
         let iobuf = (&raw mut IObuff).cast::<c_char>();
@@ -966,13 +866,8 @@ pub unsafe extern "C" fn buf_get_backup_name(
         }
         backup
     }
-    #[cfg(test)]
-    {
-        ptr::null_mut()
-    }
 }
 
-#[cfg(not(test))]
 unsafe fn buf_write_make_backup(
     fname: *mut c_char,
     append: bool,
@@ -986,7 +881,6 @@ unsafe fn buf_write_make_backup(
     backupp: *mut *mut c_char,
     err: *mut Error_T,
 ) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let mut file_info = FileInfo::default();
         let no_prepend_dot = false;
@@ -1211,7 +1105,7 @@ unsafe fn buf_write_make_backup(
 }
 
 /// Write to file `fname` lines `start` through `end`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn buf_write(
     mut buf: *mut buf_T,
     mut fname: *mut c_char,
@@ -1224,7 +1118,6 @@ pub unsafe extern "C" fn buf_write(
     reset_changed: bool,
     filtering: bool,
 ) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let mut retval = OK;
         let msg_save = msg_scroll;
@@ -2211,10 +2104,6 @@ pub unsafe extern "C" fn buf_write(
 
         retval
     }
-    #[cfg(test)]
-    {
-        FAIL
-    }
 }
 
 #[cfg(test)]
@@ -2225,7 +2114,7 @@ mod tests {
     fn ucs2bytes_and_make_bom_encode_utf8_and_utf16() {
         unsafe {
             let mut buf = [0 as c_char; 8];
-            assert_eq!(make_bom(buf.as_mut_ptr(), ptr::null_mut()), 3);
+            assert_eq!(make_bom(buf.as_mut_ptr(), c"utf-8".as_ptr().cast_mut()), 3);
             assert_eq!(
                 [buf[0] as u8, buf[1] as u8, buf[2] as u8],
                 [0xef, 0xbb, 0xbf]

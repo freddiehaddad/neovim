@@ -92,7 +92,7 @@ const fn ctrl_chr(x: u8) -> c_int {
 }
 /// Check if line[] contains a "//" comment, ignoring matches inside strings.
 /// Return MAXCOL if not, otherwise return the column.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn check_linecomment(line: *const c_char) -> c_int {
     unsafe {
         let mut p = line;
@@ -154,7 +154,7 @@ pub unsafe extern "C" fn check_linecomment(line: *const c_char) -> c_int {
 unsafe fn ind_find_start_comment() -> *mut pos_T {
     unsafe { find_start_comment((*curbuf).b_ind_maxcomment) }
 }
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn find_start_comment(ind_maxcomment: c_int) -> *mut pos_T {
     unsafe {
         let mut pos: *mut pos_T;
@@ -281,7 +281,7 @@ unsafe fn skip_string(mut p: *const c_char) -> *const c_char {
         p
     }
 }
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn is_pos_in_string(line: *const c_char, col: colnr_T) -> c_int {
     unsafe {
         let mut p = line;
@@ -292,7 +292,7 @@ pub unsafe extern "C" fn is_pos_in_string(line: *const c_char, col: colnr_T) -> 
         c_int::from(!((p.offset_from(line) as colnr_T) <= col))
     }
 }
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cin_is_cinword(mut line: *const c_char) -> bool {
     unsafe {
         let mut retval = false;
@@ -314,7 +314,7 @@ pub unsafe extern "C" fn cin_is_cinword(mut line: *const c_char) -> bool {
         retval
     }
 }
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cindent_on() -> bool {
     unsafe {
         p_paste == 0 && ((*curbuf).b_p_cin != 0 || (*curbuf).b_p_inde.cb_type != kCallbackNone)
@@ -1509,7 +1509,7 @@ unsafe fn find_last_paren(l: *const c_char, start: c_char, end: c_char) -> bool 
     }
 }
 /// Parse 'cinoptions' and set the values in "buf".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn parse_cino(buf: *mut buf_T) {
     unsafe {
         let mut fraction: c_int = 0;
@@ -1636,7 +1636,7 @@ pub unsafe extern "C" fn parse_cino(buf: *mut buf_T) {
 }
 /// Return the desired indent for C code.
 /// Return -1 if the indent should be left alone (inside a raw string).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_c_indent() -> c_int {
     unsafe {
         let mut amount: c_int;
@@ -3016,7 +3016,7 @@ unsafe fn find_match(lookfor: c_int, ourscope: linenr_T) -> c_int {
     }
 }
 /// Check that "cinkeys" contains the key "keytyped".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn in_cinkeys(keytyped: c_int, when: c_int, line_is_empty: bool) -> bool {
     unsafe {
         if keytyped == NUL as c_int {
@@ -3197,7 +3197,7 @@ pub unsafe extern "C" fn in_cinkeys(keytyped: c_int, when: c_int, line_is_empty:
     }
 }
 /// Do C or expression indenting on the current line.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn do_c_expr_indent() {
     unsafe {
         if (*curbuf).b_p_inde.cb_type != kCallbackNone {
@@ -3208,7 +3208,7 @@ pub unsafe extern "C" fn do_c_expr_indent() {
     }
 }
 /// "cindent(lnum)" function
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_cindent(
     argvars: *mut typval_T,
     rettv: *mut typval_T,

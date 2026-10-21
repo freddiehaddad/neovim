@@ -14,7 +14,7 @@ fn pow2(n: c_uint) -> c_double {
     f64::from(1u32 << (n / 2)) * f64::from(1u32 << (n / 2)) * f64::from(1u32 << (n % 2))
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn mpack_pack_nil() -> mpack_token_t {
     mpack_token_t {
         r#type: MPACK_TOKEN_NIL,
@@ -25,7 +25,7 @@ pub extern "C" fn mpack_pack_nil() -> mpack_token_t {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn mpack_pack_boolean(v: c_uint) -> mpack_token_t {
     mpack_token_t {
         r#type: MPACK_TOKEN_BOOLEAN,
@@ -39,7 +39,7 @@ pub extern "C" fn mpack_pack_boolean(v: c_uint) -> mpack_token_t {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn mpack_pack_uint(v: mpack_uintmax_t) -> mpack_token_t {
     mpack_token_t {
         r#type: MPACK_TOKEN_UINT,
@@ -53,7 +53,7 @@ pub extern "C" fn mpack_pack_uint(v: mpack_uintmax_t) -> mpack_token_t {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn mpack_pack_sint(v: mpack_sintmax_t) -> mpack_token_t {
     if v < 0 {
         let tc = v as mpack_uintmax_t;
@@ -65,7 +65,7 @@ pub extern "C" fn mpack_pack_sint(v: mpack_sintmax_t) -> mpack_token_t {
     mpack_pack_uint(v as mpack_uintmax_t)
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn mpack_pack_float_compat(v: c_double) -> mpack_token_t {
     let (length, value) = if mpack_fits_single(v) {
         (4, mpack_pack_ieee754(v, 23, 8))
@@ -80,7 +80,7 @@ pub extern "C" fn mpack_pack_float_compat(v: c_double) -> mpack_token_t {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn mpack_pack_float_fast(v: c_double) -> mpack_token_t {
     let (length, value) = if mpack_fits_single(v) {
         (
@@ -108,7 +108,7 @@ pub extern "C" fn mpack_pack_float_fast(v: c_double) -> mpack_token_t {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn mpack_pack_number(v: c_double) -> mpack_token_t {
     if !(-9223372036854775808.0..18446744073709551616.0).contains(&v) {
         return mpack_pack_float_fast(v);
@@ -165,7 +165,7 @@ pub extern "C" fn mpack_pack_number(v: c_double) -> mpack_token_t {
     tok
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn mpack_pack_chunk(p: *const c_char, l: mpack_uint32_t) -> mpack_token_t {
     mpack_token_t {
         r#type: MPACK_TOKEN_CHUNK,
@@ -174,7 +174,7 @@ pub extern "C" fn mpack_pack_chunk(p: *const c_char, l: mpack_uint32_t) -> mpack
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn mpack_pack_str(l: mpack_uint32_t) -> mpack_token_t {
     mpack_token_t {
         r#type: MPACK_TOKEN_STR,
@@ -185,7 +185,7 @@ pub extern "C" fn mpack_pack_str(l: mpack_uint32_t) -> mpack_token_t {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn mpack_pack_bin(l: mpack_uint32_t) -> mpack_token_t {
     mpack_token_t {
         r#type: MPACK_TOKEN_BIN,
@@ -196,7 +196,7 @@ pub extern "C" fn mpack_pack_bin(l: mpack_uint32_t) -> mpack_token_t {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn mpack_pack_ext(t: c_int, l: mpack_uint32_t) -> mpack_token_t {
     mpack_token_t {
         r#type: MPACK_TOKEN_EXT,
@@ -205,7 +205,7 @@ pub extern "C" fn mpack_pack_ext(t: c_int, l: mpack_uint32_t) -> mpack_token_t {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn mpack_pack_array(l: mpack_uint32_t) -> mpack_token_t {
     mpack_token_t {
         r#type: MPACK_TOKEN_ARRAY,
@@ -216,7 +216,7 @@ pub extern "C" fn mpack_pack_array(l: mpack_uint32_t) -> mpack_token_t {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn mpack_pack_map(l: mpack_uint32_t) -> mpack_token_t {
     mpack_token_t {
         r#type: MPACK_TOKEN_MAP,
@@ -227,19 +227,19 @@ pub extern "C" fn mpack_pack_map(l: mpack_uint32_t) -> mpack_token_t {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn mpack_unpack_boolean(t: mpack_token_t) -> bool {
     let val = unsafe { t.data.value };
     val.lo != 0 || val.hi != 0
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn mpack_unpack_uint(t: mpack_token_t) -> mpack_uintmax_t {
     let val = unsafe { t.data.value };
     (((val.hi as mpack_uintmax_t) << 31) << 1) | (val.lo as mpack_uintmax_t)
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn mpack_unpack_sint(t: mpack_token_t) -> mpack_sintmax_t {
     let val = unsafe { t.data.value };
     let hi = val.hi;
@@ -255,7 +255,7 @@ pub extern "C" fn mpack_unpack_sint(t: mpack_token_t) -> mpack_sintmax_t {
     -((rv.wrapping_sub(1)) as mpack_sintmax_t) - 1
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn mpack_unpack_float_compat(t: mpack_token_t) -> c_double {
     let val = unsafe { t.data.value };
     if val.lo == 0 && val.hi == 0 {
@@ -296,7 +296,7 @@ pub extern "C" fn mpack_unpack_float_compat(t: mpack_token_t) -> c_double {
     mant * if sign != 0 { -1.0 } else { 1.0 }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn mpack_unpack_float_fast(t: mpack_token_t) -> c_double {
     let val = unsafe { t.data.value };
     if t.length == 4 {
@@ -307,7 +307,7 @@ pub extern "C" fn mpack_unpack_float_fast(t: mpack_token_t) -> c_double {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn mpack_unpack_number(t: mpack_token_t) -> c_double {
     if t.r#type == MPACK_TOKEN_FLOAT {
         return mpack_unpack_float_fast(t);

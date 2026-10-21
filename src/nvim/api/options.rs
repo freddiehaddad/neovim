@@ -395,7 +395,7 @@ unsafe fn wipe_ft_buf(buf: *mut buf_T) {
 /// @return          Option value
 // DLLEXPORT Object nvim_get_option_value(String name, Dict(option) *opts, Error *err)
 //   FUNC_API_SINCE(9) FUNC_API_RET_ALLOC;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_get_option_value(
     name: NvimString,
     opts: *mut KeyDict_option,
@@ -460,7 +460,7 @@ pub unsafe extern "C" fn nvim_get_option_value(
 /// @nodoc
 // DLLEXPORT Object nvim__option_to_object(String name, Object value, Arena *arena, Error *err)
 //   FUNC_API_LUA_ONLY;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim__option_to_object(
     name: NvimString,
     value: Object,
@@ -591,7 +591,7 @@ pub unsafe extern "C" fn nvim__option_to_object(
 // DLLEXPORT Object nvim_set_option_value(uint64_t channel_id, String name, Object value,
 //                                        Dict(option) *opts, Arena *arena, Error *err)
 //   FUNC_API_SINCE(9);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_set_option_value(
     channel_id: u64,
     name: NvimString,
@@ -816,7 +816,7 @@ pub unsafe extern "C" fn nvim_set_option_value(
 /// @return dict of all options
 // DLLEXPORT Dict nvim_get_all_options_info(Arena *arena, Error *err)
 //   FUNC_API_SINCE(7);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_get_all_options_info(arena: *mut Arena, _err: *mut Error) -> Dict {
     unsafe { get_all_options_info(arena) }
 }
@@ -857,7 +857,7 @@ pub unsafe extern "C" fn nvim_get_all_options_info(arena: *mut Arena, _err: *mut
 // DLLEXPORT DictAs(get_option_info) nvim_get_option_info2(String name, Dict(option) *opts,
 //                                                         Arena *arena, Error *err)
 //   FUNC_API_SINCE(11);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_get_option_info2(
     name: NvimString,
     opts: *mut KeyDict_option,

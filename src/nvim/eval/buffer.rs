@@ -70,7 +70,7 @@ struct cob_T {
 }
 
 /// Find a buffer by number or exact name (`find_buffer`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn find_buffer(avar: *mut typval_T) -> *mut buf_T {
     unsafe {
         let mut buf: *mut buf_T = ptr::null_mut();
@@ -265,7 +265,7 @@ unsafe fn set_buffer_lines(
 }
 
 /// `append(lnum, string/list)` function (`f_append`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_append(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -297,7 +297,7 @@ unsafe fn buf_set_append_line(argvars: *mut typval_T, rettv: *mut typval_T, appe
 }
 
 /// `appendbufline(buf, lnum, string/list)` function (`f_appendbufline`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_appendbufline(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -360,7 +360,7 @@ unsafe fn prompt_trim_scrollback(buf: *mut buf_T) {
 }
 
 /// Invokes the user-defined callback defined for the current prompt-buffer (`prompt_invoke_callback`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn prompt_invoke_callback() {
     unsafe {
         let lnum = (*curbuf).b_ml.ml_line_count;
@@ -418,7 +418,7 @@ pub unsafe extern "C" fn prompt_invoke_callback() {
 }
 
 /// Return true when the interrupt callback was invoked (`invoke_prompt_interrupt`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn invoke_prompt_interrupt() -> bool {
     unsafe {
         if (*curbuf).b_prompt_interrupt.cb_type == kCallbackNone {
@@ -448,7 +448,7 @@ pub unsafe extern "C" fn invoke_prompt_interrupt() -> bool {
 }
 
 /// `prompt_appendbuf({buffer}, string/list)` function (`f_prompt_appendbuf`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_prompt_appendbuf(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -536,7 +536,7 @@ pub unsafe extern "C" fn f_prompt_appendbuf(
 }
 
 /// `bufadd(expr)` function (`f_bufadd`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_bufadd(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -550,7 +550,7 @@ pub unsafe extern "C" fn f_bufadd(
 }
 
 /// `bufexists(expr)` function (`f_bufexists`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_bufexists(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -562,7 +562,7 @@ pub unsafe extern "C" fn f_bufexists(
 }
 
 /// `buflisted(expr)` function (`f_buflisted`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_buflisted(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -575,7 +575,7 @@ pub unsafe extern "C" fn f_buflisted(
 }
 
 /// `bufload(expr)` function (`f_bufload`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_bufload(
     argvars: *mut typval_T,
     _unused: *mut typval_T,
@@ -593,7 +593,7 @@ pub unsafe extern "C" fn f_bufload(
 }
 
 /// `bufloaded(expr)` function (`f_bufloaded`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_bufloaded(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -606,7 +606,7 @@ pub unsafe extern "C" fn f_bufloaded(
 }
 
 /// `bufname(expr)` function (`f_bufname`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_bufname(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -627,7 +627,7 @@ pub unsafe extern "C" fn f_bufname(
 }
 
 /// `bufnr(expr)` function (`f_bufnr`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_bufnr(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -697,7 +697,7 @@ unsafe fn buf_win_common(argvars: *mut typval_T, rettv: *mut typval_T, get_nr: b
 }
 
 /// `bufwinid(nr)` function (`f_bufwinid`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_bufwinid(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -709,7 +709,7 @@ pub unsafe extern "C" fn f_bufwinid(
 }
 
 /// `bufwinnr(nr)` function (`f_bufwinnr`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_bufwinnr(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -721,7 +721,7 @@ pub unsafe extern "C" fn f_bufwinnr(
 }
 
 /// `deletebufline()` function (`f_deletebufline`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_deletebufline(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -885,7 +885,7 @@ unsafe fn get_buffer_info(buf: *mut buf_T) -> *mut dict_T {
 }
 
 /// `getbufinfo()` function (`f_getbufinfo`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_getbufinfo(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1017,7 +1017,7 @@ unsafe fn getbufline(argvars: *mut typval_T, rettv: *mut typval_T, retlist: bool
 }
 
 /// `getbufline()` function (`f_getbufline`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_getbufline(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1029,7 +1029,7 @@ pub unsafe extern "C" fn f_getbufline(
 }
 
 /// `getbufoneline()` function (`f_getbufoneline`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_getbufoneline(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1041,7 +1041,7 @@ pub unsafe extern "C" fn f_getbufoneline(
 }
 
 /// `getline(lnum, [end])` function (`f_getline`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_getline(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1060,7 +1060,7 @@ pub unsafe extern "C" fn f_getline(
 }
 
 /// `setbufline()` function (`f_setbufline`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_setbufline(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1072,7 +1072,7 @@ pub unsafe extern "C" fn f_setbufline(
 }
 
 /// `setline()` function (`f_setline`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_setline(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1088,7 +1088,7 @@ pub unsafe extern "C" fn f_setline(
 }
 
 /// `prompt_setcallback({buffer}, {callback})` function (`f_prompt_setcallback`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_prompt_setcallback(
     argvars: *mut typval_T,
     _rettv: *mut typval_T,
@@ -1118,7 +1118,7 @@ pub unsafe extern "C" fn f_prompt_setcallback(
 }
 
 /// `prompt_setinterrupt({buffer}, {callback})` function (`f_prompt_setinterrupt`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_prompt_setinterrupt(
     argvars: *mut typval_T,
     _rettv: *mut typval_T,
@@ -1148,7 +1148,7 @@ pub unsafe extern "C" fn f_prompt_setinterrupt(
 }
 
 /// `prompt_getprompt({buffer})` function (`f_prompt_getprompt`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_prompt_getprompt(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1168,7 +1168,7 @@ pub unsafe extern "C" fn f_prompt_getprompt(
 }
 
 /// `prompt_getinput({buffer})` function (`f_prompt_getinput`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_prompt_getinput(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -1188,7 +1188,7 @@ pub unsafe extern "C" fn f_prompt_getinput(
 }
 
 /// `prompt_setprompt({buffer}, {text})` function (`f_prompt_setprompt`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_prompt_setprompt(
     argvars: *mut typval_T,
     _rettv: *mut typval_T,

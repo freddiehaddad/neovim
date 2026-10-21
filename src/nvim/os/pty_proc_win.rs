@@ -247,7 +247,7 @@ mod win_impl {
     }
 
     /// @returns zero on success, or negative error code.
-    #[cfg_attr(not(test), unsafe(no_mangle))]
+    #[unsafe(no_mangle)]
     pub unsafe extern "C" fn pty_proc_spawn(ptyproc: *mut PtyProc) -> c_int {
         unsafe {
             let proc_: *mut Proc = ptyproc.cast();
@@ -418,12 +418,12 @@ mod win_impl {
         }
     }
 
-    #[cfg_attr(not(test), unsafe(no_mangle))]
+    #[unsafe(no_mangle)]
     pub unsafe extern "C" fn pty_proc_tty_name(_ptyproc: *mut PtyProc) -> *const c_char {
         c"?".as_ptr()
     }
 
-    #[cfg_attr(not(test), unsafe(no_mangle))]
+    #[unsafe(no_mangle)]
     pub unsafe extern "C" fn pty_proc_resize(ptyproc: *mut PtyProc, width: u16, height: u16) {
         unsafe {
             let ptail = pty_proc_win_tail(ptyproc);
@@ -431,13 +431,13 @@ mod win_impl {
         }
     }
 
-    #[cfg_attr(not(test), unsafe(no_mangle))]
+    #[unsafe(no_mangle)]
     pub unsafe extern "C" fn pty_proc_resume(_ptyproc: *mut PtyProc) {}
 
-    #[cfg_attr(not(test), unsafe(no_mangle))]
+    #[unsafe(no_mangle)]
     pub unsafe extern "C" fn pty_proc_flush_master(_ptyproc: *mut PtyProc) {}
 
-    #[cfg_attr(not(test), unsafe(no_mangle))]
+    #[unsafe(no_mangle)]
     pub unsafe extern "C" fn pty_proc_close(ptyproc: *mut PtyProc) {
         unsafe {
             let proc_: *mut Proc = ptyproc.cast();
@@ -461,10 +461,10 @@ mod win_impl {
         }
     }
 
-    #[cfg_attr(not(test), unsafe(no_mangle))]
+    #[unsafe(no_mangle)]
     pub unsafe extern "C" fn pty_proc_close_master(_ptyproc: *mut PtyProc) {}
 
-    #[cfg_attr(not(test), unsafe(no_mangle))]
+    #[unsafe(no_mangle)]
     pub unsafe extern "C" fn pty_proc_teardown(_loop_: *mut Loop) {}
 
     unsafe extern "C" fn pty_proc_connect_cb(req: *mut uv_connect_t, status: c_int) {

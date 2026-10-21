@@ -8,24 +8,22 @@
     clippy::upper_case_acronyms
 )]
 
-#[cfg(all(not(test), windows))]
-use crate::globals::*;
-#[cfg(all(not(test), windows))]
-use crate::log::{LOGLVL_INF, LOGLVL_WRN, logmsg};
-#[cfg(all(not(test), windows))]
-use crate::os::env::{os_getenv, os_getenv_noalloc};
-#[cfg(all(not(test), windows))]
-use crate::os::fs::os_path_exists;
-#[cfg(all(not(test), windows))]
-use crate::strings::vim_snprintf;
-#[cfg(all(not(test), windows))]
-use crate::ui::ui_active;
-#[cfg(all(not(test), windows))]
-use std::ffi::CStr;
 #[cfg(windows)]
-use std::ffi::{c_char, c_int, c_uint, c_ulong, c_void};
+use crate::globals::*;
+#[cfg(windows)]
+use crate::log::{LOGLVL_INF, LOGLVL_WRN, logmsg};
+#[cfg(windows)]
+use crate::os::env::{os_getenv, os_getenv_noalloc};
+#[cfg(windows)]
+use crate::os::fs::os_path_exists;
+#[cfg(windows)]
+use crate::strings::vim_snprintf;
+#[cfg(windows)]
+use crate::ui::ui_active;
+#[cfg(windows)]
+use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong, c_void};
 
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 use crate::memory::xfree;
 
 #[cfg(windows)]
@@ -69,15 +67,15 @@ const WM_SETICON: UINT = 0x0080;
 const ICON_SMALL: WPARAM = 0;
 #[cfg(windows)]
 const ICON_BIG: WPARAM = 1;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const IMAGE_ICON: UINT = 1;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const LR_LOADFROMFILE: UINT = 0x0000_0010;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const LR_LOADMAP3DCOLORS: UINT = 0x0000_1000;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const ENABLE_VIRTUAL_TERMINAL_PROCESSING: DWORD = 0x0004;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 const UV_TTY_SUPPORTED: c_int = 0;
 
 #[cfg(windows)]
@@ -124,7 +122,6 @@ unsafe extern "system" {
 unsafe extern "system" {
     fn ShowWindow(hWnd: HWND, nCmdShow: c_int) -> BOOL;
     fn SendMessageA(hWnd: HWND, Msg: UINT, wParam: WPARAM, lParam: LPARAM) -> LRESULT;
-    #[cfg(not(test))]
     fn LoadImageA(
         hInst: *mut c_void,
         name: *const c_char,
@@ -137,11 +134,9 @@ unsafe extern "system" {
 
 #[cfg(windows)]
 use crate::channel::{STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
-#[cfg(all(not(test), windows))]
-use crate::fileio::_get_osfhandle;
 #[cfg(windows)]
-use crate::fileio::{_close, O_RDONLY};
-#[cfg(all(not(test), windows))]
+use crate::fileio::{_close, _get_osfhandle, O_RDONLY};
+#[cfg(windows)]
 use crate::os::fs::MAXPATHL;
 
 #[cfg(windows)]
@@ -149,7 +144,7 @@ unsafe extern "C" {
     fn _open_osfhandle(osfhandle: isize, flags: c_int) -> c_int;
 }
 
-#[cfg(all(windows, not(test)))]
+#[cfg(windows)]
 unsafe extern "C" {
 
     fn uv_tty_set_vterm_state(state: c_int);
@@ -253,7 +248,6 @@ pub unsafe extern "C" fn os_attach_parent_console() {
         CONSOLE_INHERITED =
             !GetConsoleWindow().is_null() || AttachConsole(ATTACH_PARENT_PROCESS) != 0;
         if !CONSOLE_INHERITED {
-            #[cfg(not(test))]
             logmsg!(
                 LOGLVL_INF,
                 std::ptr::null(),
@@ -273,10 +267,6 @@ pub unsafe extern "C" fn os_attach_parent_console() {
 #[cfg(windows)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_detach_ui_console(stdio_ui: bool) {
-    #[cfg(test)]
-    let _ = stdio_ui;
-
-    #[cfg(not(test))]
     unsafe {
         if stdio_ui || (CONSOLE_INHERITED && ui_active() == 0) {
             os_swap_to_hidden_console();
@@ -303,7 +293,6 @@ pub unsafe extern "C" fn os_icon_reset() {
 #[cfg(windows)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_icon_init() {
-    #[cfg(not(test))]
     unsafe {
         H_WND = GetConsoleWindow();
         if H_WND.is_null() {
@@ -364,10 +353,6 @@ pub unsafe extern "C" fn os_title_reset() {
 #[cfg(windows)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_tty_guess_term(term: *mut *const c_char, out_fd: c_int) {
-    #[cfg(test)]
-    let _ = (term, out_fd);
-
-    #[cfg(not(test))]
     unsafe {
         let conemu_env = os_getenv_noalloc(c"ConEmuANSI".as_ptr());
         let conemu_ansi = !conemu_env.is_null() && CStr::from_ptr(conemu_env).to_bytes() == b"ON";

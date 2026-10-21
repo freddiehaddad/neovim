@@ -9,26 +9,18 @@
 
 use crate::api::private::helpers::{boolean_obj, integer_obj, string_obj};
 use crate::api::private::validate::{Array, NvimString};
-use crate::event::r#loop::Loop;
-#[cfg(not(test))]
 use crate::event::r#loop::{
-    loop_schedule_fast, uv_close, uv_handle_size, uv_timer_init, uv_timer_start, uv_timer_stop,
-    uv_timer_t,
+    Loop, loop_schedule_fast, uv_close, uv_handle_size, uv_timer_init, uv_timer_start,
+    uv_timer_stop, uv_timer_t,
 };
-#[cfg(not(test))]
 use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event};
 use crate::event::rstream::{
-    RStream, rstream_init_fd, rstream_may_close, rstream_size, rstream_start, rstream_stop,
+    RStream, rstream_available, rstream_consume, rstream_fields, rstream_init_fd,
+    rstream_may_close, rstream_size, rstream_start, rstream_stop,
 };
-#[cfg(not(test))]
-use crate::event::rstream::{rstream_available, rstream_consume, rstream_fields};
-#[cfg(not(test))]
 use crate::globals::*;
-#[cfg(not(test))]
 use crate::main_init::os_exit;
-#[cfg(not(test))]
 use crate::msgpack_rpc::channel::rpc_send_event;
-#[cfg(not(test))]
 use crate::option_vars::*;
 use crate::tui::termkey::driver_csi::{
     TERMKEY_MOUSE_DRAG, TERMKEY_MOUSE_PRESS, TERMKEY_MOUSE_RELEASE, TERMKEY_MOUSE_UNKNOWN,
@@ -51,18 +43,15 @@ use crate::tui::termkey::termkey::{
     termkey_new_abstract, termkey_push_bytes, termkey_set_buffer_size, termkey_set_canonflags,
     termkey_start, termkey_strfkey,
 };
-#[cfg(not(test))]
 use crate::tui::tui::{
-    tui_enable_extended_underline, tui_handle_term_mode, tui_query_bg_color, tui_set_size,
+    TUIData, tui_enable_extended_underline, tui_handle_term_mode, tui_query_bg_color, tui_set_size,
 };
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
 use crate::channel::STDIN_FILENO;
-#[cfg(not(test))]
 use crate::eval::funcs::UV_TIMER;
 use crate::option::OptInt;
-use crate::tui::tui::TUIData;
 pub type TermInput = c_void;
 pub type KeyEncoding = c_int;
 
@@ -110,7 +99,6 @@ pub(crate) struct TermInputSuffix {
 
 static mut LAST_PRESSED_BUTTON: c_int = 0;
 
-#[cfg(not(test))]
 unsafe extern "C" {
 
     fn uv_timer_get_due_in(handle: *const uv_timer_t) -> u64;
@@ -122,7 +110,6 @@ pub(crate) unsafe fn input_prefix(input: *mut TermInput) -> *mut TermInputPrefix
     input.cast::<TermInputPrefix>()
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn input_timer_handle(input: *mut TermInput) -> *mut uv_timer_t {
     unsafe {
@@ -133,14 +120,10 @@ unsafe fn input_timer_handle(input: *mut TermInput) -> *mut uv_timer_t {
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn input_bg_query_timer(input: *mut TermInput) -> *mut uv_timer_t {
     unsafe {
-        #[cfg(not(test))]
         let timer_sz = uv_handle_size(UV_TIMER);
-        #[cfg(test)]
-        let timer_sz = 160;
         input
             .cast::<u8>()
             .add(size_of::<TermInputPrefix>() + timer_sz)
@@ -151,10 +134,7 @@ unsafe fn input_bg_query_timer(input: *mut TermInput) -> *mut uv_timer_t {
 #[inline]
 pub(crate) unsafe fn input_loop_ptr(input: *mut TermInput) -> *mut *mut Loop {
     unsafe {
-        #[cfg(not(test))]
         let timer_sz = uv_handle_size(UV_TIMER);
-        #[cfg(test)]
-        let timer_sz = 160;
         input
             .cast::<u8>()
             .add(size_of::<TermInputPrefix>() + 2 * timer_sz)
@@ -165,10 +145,7 @@ pub(crate) unsafe fn input_loop_ptr(input: *mut TermInput) -> *mut *mut Loop {
 #[inline]
 pub(crate) unsafe fn input_read_stream(input: *mut TermInput) -> *mut RStream {
     unsafe {
-        #[cfg(not(test))]
         let timer_sz = uv_handle_size(UV_TIMER);
-        #[cfg(test)]
-        let timer_sz = 160;
         input
             .cast::<u8>()
             .add(size_of::<TermInputPrefix>() + 2 * timer_sz + size_of::<*mut Loop>())
@@ -179,10 +156,7 @@ pub(crate) unsafe fn input_read_stream(input: *mut TermInput) -> *mut RStream {
 #[inline]
 pub(crate) unsafe fn input_suffix(input: *mut TermInput) -> *mut TermInputSuffix {
     unsafe {
-        #[cfg(not(test))]
         let timer_sz = uv_handle_size(UV_TIMER);
-        #[cfg(test)]
-        let timer_sz = 160;
         input
             .cast::<u8>()
             .add(
@@ -279,7 +253,7 @@ const fn kitty_key_name(key: c_int) -> Option<&'static str> {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tinput_init(
     input: *mut TermInput,
     loop_: *mut Loop,
@@ -293,7 +267,6 @@ pub unsafe extern "C" fn tinput_init(
         let p = input_prefix(input);
         (*p).paste = 0;
         (*p).in_fd = STDIN_FILENO;
-        #[cfg(not(test))]
         {
             (*p).ttimeout = p_ttimeout != 0;
             (*p).ttimeoutlen = p_ttm;
@@ -312,7 +285,6 @@ pub unsafe extern "C" fn tinput_init(
         let curflags = termkey_get_canonflags((*p).tk);
         termkey_set_canonflags((*p).tk, curflags | TERMKEY_CANON_DELBS);
 
-        #[cfg(not(test))]
         {
             let th = input_timer_handle(input);
             uv_timer_init(loop_.cast(), th);
@@ -325,10 +297,9 @@ pub unsafe extern "C" fn tinput_init(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tinput_destroy(input: *mut TermInput) {
     unsafe {
-        #[cfg(not(test))]
         {
             uv_close(input_timer_handle(input).cast(), None);
             uv_close(input_bg_query_timer(input).cast(), None);
@@ -339,18 +310,17 @@ pub unsafe extern "C" fn tinput_destroy(input: *mut TermInput) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tinput_start(input: *mut TermInput) {
     unsafe {
         rstream_start(input_read_stream(input), Some(tinput_read_cb), input.cast());
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tinput_stop(input: *mut TermInput) {
     unsafe {
         rstream_stop(input_read_stream(input));
-        #[cfg(not(test))]
         {
             uv_timer_stop(input_timer_handle(input));
             uv_timer_stop(input_bg_query_timer(input));
@@ -358,9 +328,7 @@ pub unsafe extern "C" fn tinput_stop(input: *mut TermInput) {
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn tinput_done_event(_argv: *mut *mut c_void) {
-    #[cfg(not(test))]
     unsafe {
         os_exit(1);
     }
@@ -386,10 +354,7 @@ unsafe fn tinput_flush(input: *mut TermInput) {
                 size: 3,
                 capacity: 3,
             };
-            #[cfg(not(test))]
             rpc_send_event(ui_client_channel_id, c"nvim_paste".as_ptr(), args);
-            #[cfg(test)]
-            let _ = args;
             if (*p).paste == 1 {
                 (*p).paste = 2;
             }
@@ -400,10 +365,7 @@ unsafe fn tinput_flush(input: *mut TermInput) {
                 size: 1,
                 capacity: 1,
             };
-            #[cfg(not(test))]
             rpc_send_event(ui_client_channel_id, c"nvim_input".as_ptr(), args);
-            #[cfg(test)]
-            let _ = args;
         }
         (*s).key_buffer_len = 0;
     }
@@ -682,7 +644,6 @@ unsafe fn tk_getkeys(input: *mut TermInput, force: bool) {
         }
 
         if (*p).ttimeout && (*p).ttimeoutlen >= 0 {
-            #[cfg(not(test))]
             {
                 let th = input_timer_handle(input);
                 uv_timer_stop(th);
@@ -694,7 +655,6 @@ unsafe fn tk_getkeys(input: *mut TermInput, force: bool) {
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn tinput_timer_cb(handle: *mut uv_timer_t) {
     unsafe {
         let input = *handle.cast::<*mut TermInput>();
@@ -710,14 +670,10 @@ unsafe extern "C" fn tinput_timer_cb(handle: *mut uv_timer_t) {
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn bg_query_timer_cb(handle: *mut uv_timer_t) {
     unsafe {
         let input = *handle.cast::<*mut TermInput>();
-        #[cfg(not(test))]
         tui_query_bg_color((*input_suffix(input)).tui_data);
-        #[cfg(test)]
-        let _ = input;
     }
 }
 
@@ -733,10 +689,7 @@ unsafe fn handle_focus_event(_input: *mut TermInput, ptr: *const c_char, size: u
                     size: 1,
                     capacity: 1,
                 };
-                #[cfg(not(test))]
                 rpc_send_event(ui_client_channel_id, c"nvim_ui_set_focus".as_ptr(), args);
-                #[cfg(test)]
-                let _ = args;
                 return 3;
             }
         }
@@ -796,12 +749,9 @@ unsafe fn send_termresponse(response: &[u8]) {
         size: 2,
         capacity: 2,
     };
-    #[cfg(not(test))]
     unsafe {
         rpc_send_event(ui_client_channel_id, c"nvim_ui_term_event".as_ptr(), args);
     }
-    #[cfg(test)]
-    let _ = args;
 }
 
 unsafe fn handle_term_response(input: *mut TermInput, key: *const TermKeyKey) {
@@ -815,7 +765,6 @@ unsafe fn handle_term_response(input: *mut TermInput, key: *const TermKeyKey) {
             if (*key).r#type == TERMKEY_TYPE_DCS
                 && (s_bytes.starts_with(b"1$r4:3m") || s_bytes.starts_with(b"1$r0;4:3m"))
             {
-                #[cfg(not(test))]
                 tui_enable_extended_underline((*input_suffix(input)).tui_data);
             }
 
@@ -891,7 +840,6 @@ unsafe fn handle_modereport(input: *mut TermInput, key: *const TermKeyKey) {
             &raw mut value,
         ) == TERMKEY_RES_KEY
         {
-            #[cfg(not(test))]
             tui_handle_term_mode((*input_suffix(input)).tui_data, mode, value);
         }
     }
@@ -975,10 +923,7 @@ unsafe fn handle_unknown_csi(input: *mut TermInput, key: *const TermKeyKey) {
                     if args[0] == 48 {
                         let height_chars = args[1];
                         let width_chars = args[2];
-                        #[cfg(not(test))]
                         tui_set_size((*input_suffix(input)).tui_data, width_chars, height_chars);
-                        #[cfg(test)]
-                        let _ = (height_chars, width_chars);
                     }
                 }
             }
@@ -1011,7 +956,6 @@ unsafe fn handle_unknown_csi(input: *mut TermInput, key: *const TermKeyKey) {
                         }
                     }
                     if args[0] == 997 {
-                        #[cfg(not(test))]
                         {
                             let bg_th = input_bg_query_timer(input);
                             if uv_timer_get_due_in(bg_th) > 0 {
@@ -1134,7 +1078,6 @@ unsafe extern "C" fn tinput_read_cb(
         tinput_flush(input);
 
         if eof {
-            #[cfg(not(test))]
             loop_schedule_fast(
                 (&raw mut main_loop).cast(),
                 Event {
@@ -1151,14 +1094,11 @@ unsafe extern "C" fn tinput_read_cb(
             } else {
                 0
             };
-            #[cfg(not(test))]
             {
                 let th = input_timer_handle(input);
                 uv_timer_stop(th);
                 uv_timer_start(th, Some(tinput_timer_cb), u64::from(ms as u32), 0);
             }
-            #[cfg(test)]
-            let _ = ms;
         }
 
         consumed

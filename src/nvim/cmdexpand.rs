@@ -1084,7 +1084,7 @@ unsafe fn cmdline_fuzzy_completion_supported(xp: *const expand_T) -> bool {
 
 /// Returns true if fuzzy completion for cmdline completion is enabled and
 /// "fuzzystr" is not empty.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cmdline_fuzzy_complete(fuzzystr: *const c_char) -> bool {
     unsafe { (wop_flags & kOptWopFlagFuzzy) != 0 && *fuzzystr != NUL }
 }
@@ -1206,7 +1206,7 @@ unsafe fn ExpandEscape(
 
 /// Return FAIL if this is not an appropriate context in which to do
 /// completion of anything, return OK if it is (even if there are no matches).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nextwild(
     xp: *mut expand_T,
     type_arg: c_int,
@@ -1416,7 +1416,7 @@ unsafe fn cmdline_pum_create(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cmdline_pum_display(changed_array: bool) {
     unsafe {
         pum_display(
@@ -1430,13 +1430,13 @@ pub unsafe extern "C" fn cmdline_pum_display(changed_array: bool) {
 }
 
 /// Returns true if the cmdline completion popup menu is being displayed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cmdline_pum_active() -> bool {
     unsafe { pum_visible() && !compl_match_array.is_null() }
 }
 
 /// Remove the cmdline completion popup menu (if present), free the list of items.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cmdline_pum_remove(defer_redraw: bool) {
     unsafe {
         pum_undisplay(!defer_redraw);
@@ -1446,7 +1446,7 @@ pub unsafe extern "C" fn cmdline_pum_remove(defer_redraw: bool) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cmdline_pum_cleanup(cclp: *mut CmdlineInfo) {
     unsafe {
         cmdline_pum_remove(false);
@@ -1455,7 +1455,7 @@ pub unsafe extern "C" fn cmdline_pum_cleanup(cclp: *mut CmdlineInfo) {
 }
 
 /// Returns the current cmdline completion pattern.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cmdline_compl_pattern() -> *mut c_char {
     unsafe {
         let xp = (*get_cmdline_info()).xpc;
@@ -1468,7 +1468,7 @@ pub unsafe extern "C" fn cmdline_compl_pattern() -> *mut c_char {
 }
 
 /// Returns true if fuzzy cmdline completion is active, false otherwise.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cmdline_compl_is_fuzzy() -> bool {
     unsafe {
         let xp = (*get_cmdline_info()).xpc;
@@ -1899,7 +1899,7 @@ unsafe fn find_longest_match(xp: *mut expand_T, options: c_int) -> *mut c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn free_xp_files_extra(xp: *mut expand_T, numfiles: c_int) {
     unsafe {
         if !(*xp).xp_files_abbr.is_null() {
@@ -1922,7 +1922,7 @@ pub unsafe extern "C" fn free_xp_files_extra(xp: *mut expand_T, numfiles: c_int)
 }
 
 /// Do wildcard expansion on the string "str".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ExpandOne(
     xp: *mut expand_T,
     str_arg: *mut c_char,
@@ -2046,7 +2046,7 @@ pub unsafe extern "C" fn ExpandOne(
 }
 
 /// Prepare an expand structure for use.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ExpandInit(xp: *mut expand_T) {
     unsafe {
         ptr::write_bytes(xp, 0, 1);
@@ -2057,7 +2057,7 @@ pub unsafe extern "C" fn ExpandInit(xp: *mut expand_T) {
 }
 
 /// Cleanup an expand structure after use.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ExpandCleanup(xp: *mut expand_T) {
     unsafe {
         if (*xp).xp_numfiles >= 0 {
@@ -2070,7 +2070,7 @@ pub unsafe extern "C" fn ExpandCleanup(xp: *mut expand_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn clear_cmdline_orig() {
     unsafe {
         xfree(cmdline_orig.data.cast());
@@ -2173,7 +2173,7 @@ unsafe fn show_pum_matches(
 }
 
 /// Display completion matches.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn showmatches(
     xp: *mut expand_T,
     display_wildmenu: bool,
@@ -2382,7 +2382,7 @@ unsafe fn expand_showtail(xp: *mut expand_T) -> bool {
 }
 
 /// Prepare a string for expansion.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn addstar(
     fname: *mut c_char,
     mut len: usize,
@@ -2516,7 +2516,7 @@ pub unsafe extern "C" fn addstar(
 }
 
 /// Must parse the command line so far to work out what context we are in.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_expand_context(xp: *mut expand_T) {
     unsafe {
         let ccline = get_cmdline_info();
@@ -3646,7 +3646,7 @@ unsafe fn set_one_cmd_context(xp: *mut expand_T, buff: *const c_char) -> *const 
 }
 
 /// Set the completion context in "xp" for command "str".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_cmd_context(
     xp: *mut expand_T,
     str_arg: *mut c_char,
@@ -3699,7 +3699,7 @@ pub unsafe extern "C" fn set_cmd_context(
 }
 
 /// Expand the command line "str" from context "xp".
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn expand_cmdline(
     xp: *mut expand_T,
     str_arg: *const c_char,
@@ -4511,7 +4511,7 @@ unsafe fn ExpandFromContext(
 }
 
 /// Expand a list of names.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ExpandGeneric(
     pat: *const c_char,
     xp: *mut expand_T,
@@ -4949,7 +4949,7 @@ unsafe fn ExpandUserDefined(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn expand_process_user_list(
     retlist: *mut list_T,
     matches: *mut *mut *mut c_char,
@@ -5085,7 +5085,7 @@ unsafe fn ExpandUserLua(
 }
 
 /// Expand `file` for all comma-separated directories in `path`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn globpath(
     mut path: *mut c_char,
     file: *mut c_char,
@@ -5148,7 +5148,7 @@ pub unsafe extern "C" fn globpath(
 }
 
 /// Translate some keys pressed when 'wildmenu' is used.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn wildmenu_translate_key(
     cclp: *mut CmdlineInfo,
     key: c_int,
@@ -5350,7 +5350,7 @@ unsafe fn wildmenu_process_key_filenames(
 }
 
 /// Handle a key pressed when wild menu is displayed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn wildmenu_process_key(
     cclp: *mut CmdlineInfo,
     key: c_int,
@@ -5372,7 +5372,7 @@ pub unsafe extern "C" fn wildmenu_process_key(
 }
 
 /// Free expanded names when finished walking through the matches.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn wildmenu_cleanup(cclp: *mut CmdlineInfo) {
     unsafe {
         if p_wmnu == 0 || wild_menu_showing == 0 {
@@ -5413,7 +5413,7 @@ pub unsafe extern "C" fn wildmenu_cleanup(cclp: *mut CmdlineInfo) {
 }
 
 /// "getcompletion()" function.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_getcompletion(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -5545,7 +5545,7 @@ pub unsafe extern "C" fn f_getcompletion(
 }
 
 /// "getcompletiontype()" function.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_getcompletiontype(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -5578,7 +5578,7 @@ pub unsafe extern "C" fn f_getcompletiontype(
 }
 
 /// "cmdcomplete_info()" function.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_cmdcomplete_info(
     _argvars: *mut typval_T,
     rettv: *mut typval_T,

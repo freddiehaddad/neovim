@@ -1017,7 +1017,7 @@ pub(crate) unsafe fn opt_dict_schema(opt_idx: OptIndex) -> *const OptDictSchema 
 }
 
 /// After setting various option values: recompute variables that depend on option values.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn didset_string_options() {
     unsafe {
         check_str_opt(kOptCasemap, ptr::null_mut(), ptr::null());
@@ -1054,7 +1054,7 @@ unsafe fn illegal_char(errbuf: *const CharBuf, c: c_int) -> *const c_char {
 }
 
 /// Check string options in a buffer for NULL value.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn check_buf_options(buf: *mut buf_T) {
     unsafe {
         check_string_option(&raw mut (*buf).b_p_bh);
@@ -1111,7 +1111,7 @@ pub unsafe extern "C" fn check_buf_options(buf: *mut buf_T) {
 }
 
 /// Free the string allocated for an option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn free_string_option(p: *mut c_char) {
     unsafe {
         if p != (&raw mut empty_string_option).cast::<c_char>() {
@@ -1120,7 +1120,7 @@ pub unsafe extern "C" fn free_string_option(p: *mut c_char) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn clear_string_option(pp: *mut *mut c_char) {
     unsafe {
         let empty = (&raw mut empty_string_option).cast::<c_char>();
@@ -1131,7 +1131,7 @@ pub unsafe extern "C" fn clear_string_option(pp: *mut *mut c_char) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn check_string_option(pp: *mut *mut c_char) {
     unsafe {
         if (*pp).is_null() {
@@ -1146,7 +1146,7 @@ unsafe fn valid_filetype(val: *const c_char) -> bool {
 }
 
 /// Handle setting 'signcolumn' for value 'val'.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn check_signcolumn(scl: *mut c_char, wp: *mut win_T) -> c_int {
     unsafe {
         let mut val = (&raw mut empty_string_option).cast::<c_char>();
@@ -1334,7 +1334,7 @@ unsafe fn check_stl_str_adv_scope(
 }
 
 /// Check validity of options with the 'statusline' format.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn check_stl_option(
     mut s: *mut c_char,
     errbuf: *const CharBuf,
@@ -1343,7 +1343,7 @@ pub unsafe extern "C" fn check_stl_option(
 }
 
 /// Check for a "normal" directory or file name in some options.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn check_illegal_path_names(val: *mut c_char, flags: u32) -> bool {
     unsafe {
         let nfname_illegal = if secure != 0 {
@@ -1390,7 +1390,7 @@ unsafe fn check_str_opt(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn expand_set_str_generic(
     args: *mut optexpand_T,
     numMatches: *mut c_int,
@@ -1404,7 +1404,7 @@ pub unsafe extern "C" fn expand_set_str_generic(
 }
 
 /// An option that accepts a list of flags is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_str_generic(args: *mut optset_T) -> *const c_char {
     unsafe {
         check_str_opt(
@@ -1416,7 +1416,7 @@ pub unsafe extern "C" fn did_set_str_generic(args: *mut optset_T) -> *const c_ch
 }
 
 /// Validate named string values without updating derived flags.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_str_generic(args: *mut optset_T) -> *const c_char {
     unsafe {
         let opt = get_option((*args).os_idx);
@@ -1609,13 +1609,13 @@ unsafe fn completing_value_for_subopt(args: *mut optexpand_T, name_suffix: *cons
 }
 
 /// The 'ambiwidth' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_ambiwidth(_args: *mut optset_T) -> *const c_char {
     unsafe { check_chars_options() }
 }
 
 /// The 'emoji' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_emoji(args: *mut optset_T) -> *const c_char {
     unsafe {
         let errmsg = check_str_opt(kOptAmbiwidth, ptr::null_mut(), (*args).os_errbuf);
@@ -1627,7 +1627,7 @@ pub unsafe extern "C" fn did_set_emoji(args: *mut optset_T) -> *const c_char {
 }
 
 /// The 'background' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_background(args: *mut optset_T) -> *const c_char {
     unsafe {
         if *(*args).os_oldval.data.string.data == *p_bg {
@@ -1664,7 +1664,7 @@ pub unsafe extern "C" fn did_set_background(args: *mut optset_T) -> *const c_cha
 }
 
 /// Validate the 'backspace' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_backspace(args: *mut optset_T) -> *const c_char {
     unsafe {
         let value = (*args).os_newval.data.string.data;
@@ -1679,7 +1679,7 @@ pub unsafe extern "C" fn validate_backspace(args: *mut optset_T) -> *const c_cha
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_backupcopy(args: *mut optset_T) -> *const c_char {
     unsafe {
         let mut flags: c_uint = 0;
@@ -1705,7 +1705,7 @@ pub unsafe extern "C" fn validate_backupcopy(args: *mut optset_T) -> *const c_ch
 }
 
 /// The 'backupcopy' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_backupcopy(args: *mut optset_T) -> *const c_char {
     unsafe {
         let buf = (*args).os_buf;
@@ -1740,7 +1740,7 @@ pub unsafe extern "C" fn did_set_backupcopy(args: *mut optset_T) -> *const c_cha
 }
 
 /// Validate the 'backupext' or 'patchmode' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_backupext_or_patchmode(args: *mut optset_T) -> *const c_char {
     unsafe {
         let bex = if (*args).os_idx == kOptBackupext {
@@ -1768,7 +1768,7 @@ pub unsafe extern "C" fn validate_backupext_or_patchmode(args: *mut optset_T) ->
 }
 
 /// The 'breakat' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_breakat(_args: *mut optset_T) -> *const c_char {
     unsafe {
         let flags_ptr = (&raw mut breakat_flags).cast::<c_char>();
@@ -1789,7 +1789,7 @@ pub unsafe extern "C" fn did_set_breakat(_args: *mut optset_T) -> *const c_char 
 }
 
 /// The 'breakindentopt' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_breakindentopt(args: *mut optset_T) -> *const c_char {
     unsafe {
         let win = (*args).os_win;
@@ -1808,7 +1808,7 @@ pub unsafe extern "C" fn did_set_breakindentopt(args: *mut optset_T) -> *const c
 }
 
 /// Validate the 'buftype' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_buftype(args: *mut optset_T) -> *const c_char {
     unsafe {
         let buf = (*args).os_buf;
@@ -1826,7 +1826,7 @@ pub unsafe extern "C" fn validate_buftype(args: *mut optset_T) -> *const c_char 
 }
 
 /// The 'buftype' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_buftype(args: *mut optset_T) -> *const c_char {
     unsafe {
         let buf = (*args).os_buf;
@@ -1872,7 +1872,7 @@ pub unsafe extern "C" fn did_set_buftype(args: *mut optset_T) -> *const c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_chars_option(args: *mut optset_T) -> *const c_char {
     unsafe {
         set_chars_option(
@@ -1947,7 +1947,7 @@ unsafe fn did_set_global_chars_option(
 }
 
 /// The 'fillchars' option or the 'listchars' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_chars_option(args: *mut optset_T) -> *const c_char {
     unsafe {
         let win = (*args).os_win;
@@ -1981,7 +1981,7 @@ pub unsafe extern "C" fn did_set_chars_option(args: *mut optset_T) -> *const c_c
 }
 
 /// Expand 'fillchars' or 'listchars' option value.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn expand_set_chars_option(
     args: *mut optexpand_T,
     numMatches: *mut c_int,
@@ -2005,7 +2005,7 @@ pub unsafe extern "C" fn expand_set_chars_option(
 }
 
 /// The 'cinoptions' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_cinoptions(args: *mut optset_T) -> *const c_char {
     unsafe {
         parse_cino((*args).os_buf);
@@ -2013,13 +2013,13 @@ pub unsafe extern "C" fn did_set_cinoptions(args: *mut optset_T) -> *const c_cha
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_colorcolumn(args: *mut optset_T) -> *const c_char {
     unsafe { check_colorcolumn((*args).os_newval.data.string.data, ptr::null_mut()) }
 }
 
 /// The 'colorcolumn' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_colorcolumn(args: *mut optset_T) -> *const c_char {
     unsafe {
         let win = (*args).os_win;
@@ -2036,7 +2036,7 @@ pub unsafe extern "C" fn did_set_colorcolumn(args: *mut optset_T) -> *const c_ch
 }
 
 /// Validate the 'comments' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_comments(args: *mut optset_T) -> *const c_char {
     unsafe {
         let mut errmsg: *const c_char = ptr::null();
@@ -2075,7 +2075,7 @@ pub unsafe extern "C" fn validate_comments(args: *mut optset_T) -> *const c_char
 }
 
 /// Validate the 'commentstring' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_commentstring(args: *mut optset_T) -> *const c_char {
     unsafe {
         let value = (*args).os_newval.data.string.data;
@@ -2088,7 +2088,7 @@ pub unsafe extern "C" fn validate_commentstring(args: *mut optset_T) -> *const c
 }
 
 /// Validate the 'complete' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_complete(args: *mut optset_T) -> *const c_char {
     unsafe {
         let mut buffer = [0 as c_char; LSIZE];
@@ -2157,7 +2157,7 @@ pub unsafe extern "C" fn validate_complete(args: *mut optset_T) -> *const c_char
 }
 
 /// The 'complete' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_complete(args: *mut optset_T) -> *const c_char {
     unsafe {
         if set_cpt_callbacks(args) != OK {
@@ -2172,7 +2172,7 @@ pub unsafe extern "C" fn did_set_complete(args: *mut optset_T) -> *const c_char 
 }
 
 /// Validate 'completeitemalign' and prepare its column order.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_completeitemalign(args: *mut optset_T) -> *const c_char {
     unsafe {
         let mut p = (*args).os_newval.data.string.data;
@@ -2207,7 +2207,7 @@ pub unsafe extern "C" fn validate_completeitemalign(args: *mut optset_T) -> *con
 }
 
 /// The 'completeitemalign' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_completeitemalign(args: *mut optset_T) -> *const c_char {
     unsafe {
         cia_flags = (*args).os_prep.flags;
@@ -2216,7 +2216,7 @@ pub unsafe extern "C" fn did_set_completeitemalign(args: *mut optset_T) -> *cons
 }
 
 /// The 'completeopt' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_completeopt(args: *mut optset_T) -> *const c_char {
     unsafe {
         let buf = (*args).os_buf;
@@ -2241,7 +2241,7 @@ pub unsafe extern "C" fn did_set_completeopt(args: *mut optset_T) -> *const c_ch
 }
 
 #[cfg(windows)]
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_completeslash(args: *mut optset_T) -> *const c_char {
     unsafe {
         let buf = (*args).os_buf;
@@ -2266,7 +2266,7 @@ pub unsafe extern "C" fn did_set_completeslash(args: *mut optset_T) -> *const c_
 }
 
 /// Validate the 'concealcursor' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_concealcursor(args: *mut optset_T) -> *const c_char {
     unsafe {
         check_option_listflag(
@@ -2277,7 +2277,7 @@ pub unsafe extern "C" fn validate_concealcursor(args: *mut optset_T) -> *const c
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn expand_set_concealcursor(
     args: *mut optexpand_T,
     numMatches: *mut c_int,
@@ -2287,7 +2287,7 @@ pub unsafe extern "C" fn expand_set_concealcursor(
 }
 
 /// Validate the 'cpoptions' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_cpoptions(args: *mut optset_T) -> *const c_char {
     unsafe {
         check_option_listflag(
@@ -2298,7 +2298,7 @@ pub unsafe extern "C" fn validate_cpoptions(args: *mut optset_T) -> *const c_cha
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn expand_set_cpoptions(
     args: *mut optexpand_T,
     numMatches: *mut c_int,
@@ -2307,7 +2307,7 @@ pub unsafe extern "C" fn expand_set_cpoptions(
     unsafe { expand_set_opt_listflag(args, CPO_VI.as_ptr(), numMatches, matches) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_cursorlineopt(args: *mut optset_T) -> *const c_char {
     unsafe {
         let value = (*args).os_newval.data.string.data;
@@ -2319,7 +2319,7 @@ pub unsafe extern "C" fn validate_cursorlineopt(args: *mut optset_T) -> *const c
 }
 
 /// The 'cursorlineopt' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_cursorlineopt(args: *mut optset_T) -> *const c_char {
     unsafe {
         if ((*args).os_flags & OPT_GLOBAL) != 0 {
@@ -2332,7 +2332,7 @@ pub unsafe extern "C" fn did_set_cursorlineopt(args: *mut optset_T) -> *const c_
 }
 
 /// The 'diffanchors' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_diffanchors(args: *mut optset_T) -> *const c_char {
     unsafe {
         if diffanchors_changed(((*args).os_flags & OPT_LOCAL) != 0) == FAIL {
@@ -2343,7 +2343,7 @@ pub unsafe extern "C" fn did_set_diffanchors(args: *mut optset_T) -> *const c_ch
 }
 
 /// The 'diffopt' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_diffopt(_args: *mut optset_T) -> *const c_char {
     unsafe {
         if diffopt_changed() == FAIL {
@@ -2354,7 +2354,7 @@ pub unsafe extern "C" fn did_set_diffopt(_args: *mut optset_T) -> *const c_char 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn expand_set_diffopt(
     args: *mut optexpand_T,
     numMatches: *mut c_int,
@@ -2392,7 +2392,7 @@ pub unsafe extern "C" fn expand_set_diffopt(
 }
 
 /// The 'display' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_display(args: *mut optset_T) -> *const c_char {
     unsafe {
         let errmsg = did_set_str_generic(args);
@@ -2410,7 +2410,7 @@ pub unsafe extern "C" fn did_set_display(args: *mut optset_T) -> *const c_char {
 }
 
 /// Validate and canonize 'encoding', 'fileencoding' or 'makeencoding'.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_encoding(args: *mut optset_T) -> *const c_char {
     unsafe {
         if (*args).os_idx == kOptFileencoding {
@@ -2435,7 +2435,7 @@ pub unsafe extern "C" fn validate_encoding(args: *mut optset_T) -> *const c_char
 }
 
 /// One of the 'encoding', 'fileencoding' or 'makeencoding' options is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_encoding(args: *mut optset_T) -> *const c_char {
     unsafe {
         let buf = (*args).os_buf;
@@ -2457,7 +2457,7 @@ pub unsafe extern "C" fn did_set_encoding(args: *mut optset_T) -> *const c_char 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn expand_set_encoding(
     args: *mut optexpand_T,
     numMatches: *mut c_int,
@@ -2467,7 +2467,7 @@ pub unsafe extern "C" fn expand_set_encoding(
 }
 
 /// Validate the 'eventignore'/'eventignorewin' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_eventignore(args: *mut optset_T) -> *const c_char {
     unsafe {
         if check_ei(
@@ -2509,7 +2509,7 @@ unsafe extern "C" fn get_eventignore_name(xp: *mut expand_T, idx: c_int) -> *mut
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn expand_set_eventignore(
     args: *mut optexpand_T,
     numMatches: *mut c_int,
@@ -2521,7 +2521,7 @@ pub unsafe extern "C" fn expand_set_eventignore(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_fileformat(args: *mut optset_T) -> *const c_char {
     unsafe {
         let buf = (*args).os_buf;
@@ -2533,7 +2533,7 @@ pub unsafe extern "C" fn validate_fileformat(args: *mut optset_T) -> *const c_ch
 }
 
 /// The 'fileformat' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_fileformat(args: *mut optset_T) -> *const c_char {
     unsafe {
         let buf = (*args).os_buf;
@@ -2549,7 +2549,7 @@ pub unsafe extern "C" fn did_set_fileformat(args: *mut optset_T) -> *const c_cha
 }
 
 /// Function given to ExpandGeneric() to obtain the possible arguments of fileformat options.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_fileformat_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx < 0 || (idx as usize) >= (&raw const opt_ff_values as *const [*const c_char]).len() {
@@ -2560,7 +2560,7 @@ pub unsafe extern "C" fn get_fileformat_name(_xp: *mut expand_T, idx: c_int) -> 
 }
 
 /// Validate the 'filetype', 'syntax' or 'keymap' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_filetype(args: *mut optset_T) -> *const c_char {
     unsafe {
         if valid_filetype((*args).os_newval.data.string.data) {
@@ -2572,7 +2572,7 @@ pub unsafe extern "C" fn validate_filetype(args: *mut optset_T) -> *const c_char
 }
 
 /// The 'filetype' or the 'syntax' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_filetype_or_syntax(args: *mut optset_T) -> *const c_char {
     unsafe {
         let varp = (*args).os_varp.cast::<*mut c_char>();
@@ -2583,7 +2583,7 @@ pub unsafe extern "C" fn did_set_filetype_or_syntax(args: *mut optset_T) -> *con
 }
 
 /// The 'foldexpr' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_foldexpr(args: *mut optset_T) -> *const c_char {
     unsafe {
         let win = (*args).os_win;
@@ -2595,7 +2595,7 @@ pub unsafe extern "C" fn did_set_foldexpr(args: *mut optset_T) -> *const c_char 
 }
 
 /// The 'foldignore' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_foldignore(args: *mut optset_T) -> *const c_char {
     unsafe {
         let win = (*args).os_win;
@@ -2607,7 +2607,7 @@ pub unsafe extern "C" fn did_set_foldignore(args: *mut optset_T) -> *const c_cha
 }
 
 /// Validate the 'foldmarker' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_foldmarker(args: *mut optset_T) -> *const c_char {
     unsafe {
         let value = (*args).os_newval.data.string.data;
@@ -2624,7 +2624,7 @@ pub unsafe extern "C" fn validate_foldmarker(args: *mut optset_T) -> *const c_ch
 }
 
 /// The 'foldmarker' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_foldmarker(args: *mut optset_T) -> *const c_char {
     unsafe {
         let win = (*args).os_win;
@@ -2636,7 +2636,7 @@ pub unsafe extern "C" fn did_set_foldmarker(args: *mut optset_T) -> *const c_cha
 }
 
 /// The 'foldmethod' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_foldmethod(args: *mut optset_T) -> *const c_char {
     unsafe {
         let win = (*args).os_win;
@@ -2649,7 +2649,7 @@ pub unsafe extern "C" fn did_set_foldmethod(args: *mut optset_T) -> *const c_cha
 }
 
 /// Validate the 'formatoptions' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_formatoptions(args: *mut optset_T) -> *const c_char {
     unsafe {
         check_option_listflag(
@@ -2660,7 +2660,7 @@ pub unsafe extern "C" fn validate_formatoptions(args: *mut optset_T) -> *const c
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn expand_set_formatoptions(
     args: *mut optexpand_T,
     numMatches: *mut c_int,
@@ -2670,7 +2670,7 @@ pub unsafe extern "C" fn expand_set_formatoptions(
 }
 
 /// The 'guicursor' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_guicursor(_args: *mut optset_T) -> *const c_char {
     unsafe {
         let errmsg = parse_shape_opt(SHAPE_CURSOR);
@@ -2685,7 +2685,7 @@ pub unsafe extern "C" fn did_set_guicursor(_args: *mut optset_T) -> *const c_cha
 }
 
 /// The 'helpfile' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_helpfile(_args: *mut optset_T) -> *const c_char {
     unsafe {
         if didset_vim {
@@ -2699,7 +2699,7 @@ pub unsafe extern "C" fn did_set_helpfile(_args: *mut optset_T) -> *const c_char
 }
 
 /// Validate the 'helplang' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_helplang(args: *mut optset_T) -> *const c_char {
     unsafe {
         let mut s = (*args).os_newval.data.string.data;
@@ -2719,7 +2719,7 @@ pub unsafe extern "C" fn validate_helplang(args: *mut optset_T) -> *const c_char
 }
 
 /// Validate the 'highlight' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_highlight(args: *mut optset_T) -> *const c_char {
     unsafe {
         if c_strcmp((*args).os_newval.data.string.data, HIGHLIGHT_INIT.as_ptr()) != 0 {
@@ -2730,13 +2730,13 @@ pub unsafe extern "C" fn validate_highlight(args: *mut optset_T) -> *const c_cha
 }
 
 /// The 'iconstring' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_iconstring(args: *mut optset_T) -> *const c_char {
     unsafe { did_set_titleiconstring(args, STL_IN_ICON) }
 }
 
 /// The 'inccommand' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_inccommand(_args: *mut optset_T) -> *const c_char {
     unsafe {
         if cmdpreview {
@@ -2747,7 +2747,7 @@ pub unsafe extern "C" fn did_set_inccommand(_args: *mut optset_T) -> *const c_ch
 }
 
 /// Validate the 'isident', 'iskeyword' or 'isfname' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_isopt(args: *mut optset_T) -> *const c_char {
     unsafe {
         if check_isopt((*args).os_newval.data.string.data) == FAIL {
@@ -2759,7 +2759,7 @@ pub unsafe extern "C" fn validate_isopt(args: *mut optset_T) -> *const c_char {
 }
 
 /// The 'iskeyword' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_iskeyword(args: *mut optset_T) -> *const c_char {
     unsafe {
         let varp = (*args).os_varp.cast::<*mut c_char>();
@@ -2774,7 +2774,7 @@ pub unsafe extern "C" fn did_set_iskeyword(args: *mut optset_T) -> *const c_char
 }
 
 /// The 'isident', 'iskeyword', 'isprint' or 'isfname' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_isopt(args: *mut optset_T) -> *const c_char {
     unsafe {
         let res = if ptr::eq((*args).os_varp, (&raw mut p_isf).cast()) {
@@ -2791,7 +2791,7 @@ pub unsafe extern "C" fn did_set_isopt(args: *mut optset_T) -> *const c_char {
 }
 
 /// The 'keymap' option has changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_keymap(args: *mut optset_T) -> *const c_char {
     unsafe {
         let buf = (*args).os_buf;
@@ -2832,7 +2832,7 @@ pub unsafe extern "C" fn did_set_keymap(args: *mut optset_T) -> *const c_char {
 }
 
 /// The 'keymodel' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_keymodel(_args: *mut optset_T) -> *const c_char {
     unsafe {
         km_stopsel = !vim_strchr(p_km, b'o' as c_int).is_null();
@@ -2842,7 +2842,7 @@ pub unsafe extern "C" fn did_set_keymodel(_args: *mut optset_T) -> *const c_char
 }
 
 /// Validate the 'lispoptions' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_lispoptions(args: *mut optset_T) -> *const c_char {
     unsafe {
         let value = (*args).os_newval.data.string.data;
@@ -2858,7 +2858,7 @@ pub unsafe extern "C" fn validate_lispoptions(args: *mut optset_T) -> *const c_c
 }
 
 /// Validate the 'matchpairs' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_matchpairs(args: *mut optset_T) -> *const c_char {
     unsafe {
         let mut p = (*args).os_newval.data.string.data;
@@ -2888,7 +2888,7 @@ pub unsafe extern "C" fn validate_matchpairs(args: *mut optset_T) -> *const c_ch
 }
 
 /// Validate the 'mkspellmem' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_mkspellmem(args: *mut optset_T) -> *const c_char {
     unsafe {
         if spell_check_msm((*args).os_newval.data.string.data, false) == OK {
@@ -2900,7 +2900,7 @@ pub unsafe extern "C" fn validate_mkspellmem(args: *mut optset_T) -> *const c_ch
 }
 
 /// Validate the 'mouse' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_mouse(args: *mut optset_T) -> *const c_char {
     unsafe {
         check_option_listflag(
@@ -2911,7 +2911,7 @@ pub unsafe extern "C" fn validate_mouse(args: *mut optset_T) -> *const c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn expand_set_mouse(
     args: *mut optexpand_T,
     numMatches: *mut c_int,
@@ -2921,7 +2921,7 @@ pub unsafe extern "C" fn expand_set_mouse(
 }
 
 /// Validate the 'mousescroll' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_mousescroll(args: *mut optset_T) -> *const c_char {
     unsafe {
         let v = opt_keyset(
@@ -2941,7 +2941,7 @@ pub unsafe extern "C" fn validate_mousescroll(args: *mut optset_T) -> *const c_c
 }
 
 /// Handle setting 'mousescroll'.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_mousescroll(_args: *mut optset_T) -> *const c_char {
     unsafe {
         let v = opt_keyset(p_mousescroll, kOptMousescroll, ptr::null_mut())
@@ -2963,13 +2963,13 @@ pub unsafe extern "C" fn did_set_mousescroll(_args: *mut optset_T) -> *const c_c
 }
 
 /// The 'rulerformat' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_rulerformat(args: *mut optset_T) -> *const c_char {
     unsafe { did_set_statustabline_rulerformat(args, true, false) }
 }
 
 /// The 'selection' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_selection(_args: *mut optset_T) -> *const c_char {
     unsafe {
         if Visual.active {
@@ -2980,7 +2980,7 @@ pub unsafe extern "C" fn did_set_selection(_args: *mut optset_T) -> *const c_cha
 }
 
 /// Validate the 'sessionoptions' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_sessionoptions(args: *mut optset_T) -> *const c_char {
     unsafe {
         let mut flags: c_uint = 0;
@@ -3003,7 +3003,7 @@ pub unsafe extern "C" fn validate_sessionoptions(args: *mut optset_T) -> *const 
 }
 
 /// Validate the 'shada' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_shada(args: *mut optset_T) -> *const c_char {
     unsafe {
         let errbuf = (*args).os_errbuf;
@@ -3074,7 +3074,7 @@ pub unsafe extern "C" fn validate_shada(args: *mut optset_T) -> *const c_char {
 }
 
 /// Validate 'shellpipe'/'shellredir' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_shellpipe_redir(args: *mut optset_T) -> *const c_char {
     unsafe {
         let mut seen = false;
@@ -3106,7 +3106,7 @@ pub unsafe extern "C" fn validate_shellpipe_redir(args: *mut optset_T) -> *const
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn expand_set_shortmess(
     args: *mut optexpand_T,
     numMatches: *mut c_int,
@@ -3123,7 +3123,7 @@ pub unsafe extern "C" fn expand_set_shortmess(
 }
 
 /// Validate the 'shortmess' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_shortmess(args: *mut optset_T) -> *const c_char {
     unsafe {
         check_option_listflag(
@@ -3135,7 +3135,7 @@ pub unsafe extern "C" fn validate_shortmess(args: *mut optset_T) -> *const c_cha
 }
 
 /// Validate the 'showbreak' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_showbreak(args: *mut optset_T) -> *const c_char {
     unsafe {
         let mut s = (*args).os_newval.data.string.data;
@@ -3150,7 +3150,7 @@ pub unsafe extern "C" fn validate_showbreak(args: *mut optset_T) -> *const c_cha
 }
 
 /// The 'showcmdloc' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_showcmdloc(_args: *mut optset_T) -> *const c_char {
     unsafe {
         comp_col();
@@ -3158,7 +3158,7 @@ pub unsafe extern "C" fn did_set_showcmdloc(_args: *mut optset_T) -> *const c_ch
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_signcolumn(args: *mut optset_T) -> *const c_char {
     unsafe {
         if check_signcolumn((*args).os_newval.data.string.data, ptr::null_mut()) == OK {
@@ -3170,7 +3170,7 @@ pub unsafe extern "C" fn validate_signcolumn(args: *mut optset_T) -> *const c_ch
 }
 
 /// The 'signcolumn' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_signcolumn(args: *mut optset_T) -> *const c_char {
     unsafe {
         let win = (*args).os_win;
@@ -3203,7 +3203,7 @@ unsafe extern "C" fn free_spellcap_prog(prog: *mut c_void) {
 }
 
 /// Validate 'spellcapcheck' and prepare its regexp program.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_spellcapcheck(args: *mut optset_T) -> *const c_char {
     unsafe {
         let mut prog: *mut regprog_T = ptr::null_mut();
@@ -3240,7 +3240,7 @@ pub unsafe extern "C" fn validate_spellcapcheck(args: *mut optset_T) -> *const c
 }
 
 /// The 'spellcapcheck' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_spellcapcheck(args: *mut optset_T) -> *const c_char {
     unsafe {
         if ptr::eq((*args).os_varp, (&raw mut p_spc).cast()) {
@@ -3256,7 +3256,7 @@ pub unsafe extern "C" fn did_set_spellcapcheck(args: *mut optset_T) -> *const c_
 }
 
 /// Validate the 'spellfile' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_spellfile(args: *mut optset_T) -> *const c_char {
     unsafe {
         if valid_spellfile((*args).os_newval.data.string.data) {
@@ -3268,13 +3268,13 @@ pub unsafe extern "C" fn validate_spellfile(args: *mut optset_T) -> *const c_cha
 }
 
 /// The 'spellfile' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_spellfile(_args: *mut optset_T) -> *const c_char {
     unsafe { did_set_spell_option() }
 }
 
 /// Validate the 'spelllang' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_spelllang(args: *mut optset_T) -> *const c_char {
     unsafe {
         if valid_spelllang((*args).os_newval.data.string.data) {
@@ -3286,13 +3286,13 @@ pub unsafe extern "C" fn validate_spelllang(args: *mut optset_T) -> *const c_cha
 }
 
 /// The 'spelllang' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_spelllang(_args: *mut optset_T) -> *const c_char {
     unsafe { did_set_spell_option() }
 }
 
 /// The 'spelloptions' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_spelloptions(args: *mut optset_T) -> *const c_char {
     unsafe {
         let win = (*args).os_win;
@@ -3329,7 +3329,7 @@ pub unsafe extern "C" fn did_set_spelloptions(args: *mut optset_T) -> *const c_c
 }
 
 /// Validate the 'spellsuggest' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_spellsuggest(args: *mut optset_T) -> *const c_char {
     unsafe {
         let mut sps: [c_int; 2] = [0, 0];
@@ -3348,7 +3348,7 @@ pub unsafe extern "C" fn validate_spellsuggest(args: *mut optset_T) -> *const c_
 }
 
 /// The 'spellsuggest' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_spellsuggest(args: *mut optset_T) -> *const c_char {
     unsafe {
         let sps = (*args).os_prep.ptr.cast::<c_int>();
@@ -3357,7 +3357,7 @@ pub unsafe extern "C" fn did_set_spellsuggest(args: *mut optset_T) -> *const c_c
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_splitkeep(_args: *mut optset_T) -> *const c_char {
     unsafe {
         let mut tp = first_tabpage;
@@ -3378,7 +3378,7 @@ pub unsafe extern "C" fn did_set_splitkeep(_args: *mut optset_T) -> *const c_cha
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_statustabline_rulerformat(args: *mut optset_T) -> *const c_char {
     unsafe {
         let value = (*args).os_newval.data.string.data;
@@ -3391,13 +3391,13 @@ pub unsafe extern "C" fn validate_statustabline_rulerformat(args: *mut optset_T)
 }
 
 /// The 'statuscolumn' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_statuscolumn(args: *mut optset_T) -> *const c_char {
     unsafe { did_set_statustabline_rulerformat(args, false, true) }
 }
 
 /// The 'statusline' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_statusline(args: *mut optset_T) -> *const c_char {
     unsafe { did_set_statustabline_rulerformat(args, false, false) }
 }
@@ -3452,13 +3452,13 @@ unsafe fn did_set_statustabline_rulerformat(
 }
 
 /// The 'tabline' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_tabline(args: *mut optset_T) -> *const c_char {
     unsafe { did_set_statustabline_rulerformat(args, false, false) }
 }
 
 /// The 'tagcase' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_tagcase(args: *mut optset_T) -> *const c_char {
     unsafe {
         let buf = (*args).os_buf;
@@ -3507,13 +3507,13 @@ unsafe fn did_set_titleiconstring(args: *mut optset_T, flagval: c_int) -> *const
 }
 
 /// The 'titlestring' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_titlestring(args: *mut optset_T) -> *const c_char {
     unsafe { did_set_titleiconstring(args, STL_IN_TITLE) }
 }
 
 /// Validate 'vartabstop' or 'varsofttabstop' and prepare its tab widths.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_vartabstop(args: *mut optset_T) -> *const c_char {
     unsafe {
         let value = (*args).os_newval.data.string.data;
@@ -3542,7 +3542,7 @@ pub unsafe extern "C" fn validate_vartabstop(args: *mut optset_T) -> *const c_ch
 }
 
 /// The 'vartabstop' or 'varsofttabstop' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_vartabstop(args: *mut optset_T) -> *const c_char {
     unsafe {
         if ptr::eq((*args).os_varp, (&raw mut p_vts).cast())
@@ -3569,7 +3569,7 @@ pub unsafe extern "C" fn did_set_vartabstop(args: *mut optset_T) -> *const c_cha
 }
 
 /// The 'verbosefile' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_verbosefile(_args: *mut optset_T) -> *const c_char {
     unsafe {
         verbose_stop();
@@ -3581,7 +3581,7 @@ pub unsafe extern "C" fn did_set_verbosefile(_args: *mut optset_T) -> *const c_c
 }
 
 /// The 'virtualedit' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_virtualedit(args: *mut optset_T) -> *const c_char {
     unsafe {
         let win = (*args).os_win;
@@ -3616,7 +3616,7 @@ pub unsafe extern "C" fn did_set_virtualedit(args: *mut optset_T) -> *const c_ch
 }
 
 /// Validate the 'whichwrap' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_whichwrap(args: *mut optset_T) -> *const c_char {
     unsafe {
         check_option_listflag(
@@ -3627,7 +3627,7 @@ pub unsafe extern "C" fn validate_whichwrap(args: *mut optset_T) -> *const c_cha
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn expand_set_whichwrap(
     args: *mut optexpand_T,
     numMatches: *mut c_int,
@@ -3636,7 +3636,7 @@ pub unsafe extern "C" fn expand_set_whichwrap(
     unsafe { expand_set_opt_listflag(args, WW_ALL.as_ptr(), numMatches, matches) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_wildmode(args: *mut optset_T) -> *const c_char {
     unsafe {
         let mut flags = [0u8; 4];
@@ -3650,7 +3650,7 @@ pub unsafe extern "C" fn validate_wildmode(args: *mut optset_T) -> *const c_char
 }
 
 /// The 'wildmode' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_wildmode(args: *mut optset_T) -> *const c_char {
     unsafe {
         ptr::copy_nonoverlapping(
@@ -3663,13 +3663,13 @@ pub unsafe extern "C" fn did_set_wildmode(args: *mut optset_T) -> *const c_char 
 }
 
 /// The 'winbar' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_winbar(args: *mut optset_T) -> *const c_char {
     unsafe { did_set_statustabline_rulerformat(args, false, false) }
 }
 
 /// Validate the 'winborder' or 'pumborder' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_border(args: *mut optset_T) -> *const c_char {
     unsafe {
         let mut fconfig = WIN_CONFIG_INIT;
@@ -3688,7 +3688,7 @@ pub unsafe extern "C" fn validate_border(args: *mut optset_T) -> *const c_char {
 }
 
 /// The 'winhighlight' option is changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn did_set_winhighlight(args: *mut optset_T) -> *const c_char {
     unsafe {
         let win = (*args).os_win;
@@ -3707,7 +3707,7 @@ pub unsafe extern "C" fn did_set_winhighlight(args: *mut optset_T) -> *const c_c
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn expand_set_winhighlight(
     args: *mut optexpand_T,
     numMatches: *mut c_int,
@@ -3829,7 +3829,7 @@ unsafe fn opt_schema_err(
 }
 
 /// Validates a dict option against its schema (options.lua).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn opt_strings_check(
     val: *const c_char,
     schema: *const OptSchemaItem,
@@ -3946,7 +3946,7 @@ pub unsafe extern "C" fn opt_strings_check(
 }
 
 /// Parses a validated dict option into `out`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn opt_fill(value: *const c_char, get_field: FieldHashfn, out: *mut c_void) {
     unsafe {
         let Some(get_field_fn) = get_field else {
@@ -3984,7 +3984,7 @@ pub unsafe extern "C" fn opt_fill(value: *const c_char, get_field: FieldHashfn, 
 }
 
 /// Reify a dict-option value to a keyset (`OptKeyDict_…`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn opt_keyset(
     value: *const c_char,
     opt_idx: OptIndex,
@@ -4004,7 +4004,7 @@ pub unsafe extern "C" fn opt_keyset(
 }
 
 /// Return OK if "p" is a valid fileformat name, FAIL otherwise.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn check_ff_value(p: *mut c_char) -> c_int {
     unsafe {
         if opt_strings_flags(
@@ -4290,7 +4290,7 @@ unsafe fn lcs_tab_entries() -> [CharsTabEntry; 12] {
 }
 
 /// Handle setting 'listchars' or 'fillchars'.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_chars_option(
     wp: *mut win_T,
     mut value: *const c_char,
@@ -4558,7 +4558,7 @@ pub unsafe extern "C" fn set_chars_option(
 }
 
 /// Function given to ExpandGeneric() to obtain possible arguments of the 'fillchars' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_fillchars_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         let tab = fcs_tab_entries();
@@ -4570,7 +4570,7 @@ pub unsafe extern "C" fn get_fillchars_name(_xp: *mut expand_T, idx: c_int) -> *
 }
 
 /// Function given to ExpandGeneric() to obtain possible arguments of the 'listchars' option.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_listchars_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         let tab = lcs_tab_entries();
@@ -4582,7 +4582,7 @@ pub unsafe extern "C" fn get_listchars_name(_xp: *mut expand_T, idx: c_int) -> *
 }
 
 /// Check all global and local values of 'listchars' and 'fillchars'.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn check_chars_options() -> *const c_char {
     unsafe {
         if !set_chars_option(curwin, p_lcs, CharsOption::kListchars, false, ptr::null()).is_null() {
@@ -4629,7 +4629,7 @@ pub unsafe extern "C" fn check_chars_options() -> *const c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_previewpopup(args: *mut optset_T) -> *const c_char {
     unsafe {
         let mut fconfig = WIN_CONFIG_INIT;
@@ -4640,7 +4640,7 @@ pub unsafe extern "C" fn validate_previewpopup(args: *mut optset_T) -> *const c_
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn expand_set_popupoption(
     args: *mut optexpand_T,
     numMatches: *mut c_int,

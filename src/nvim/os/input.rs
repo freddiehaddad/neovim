@@ -177,7 +177,7 @@ unsafe fn reset_cursorhold_wait(tb_change_cnt: c_int) {
 }
 
 /// Reads OS input into `buf`, and consumes pending events while waiting (if `ms != 0`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn input_get(
     buf: *mut u8,
     maxlen: c_int,
@@ -282,13 +282,13 @@ pub unsafe extern "C" fn input_get(
 }
 
 /// Check if a character is available for reading
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_char_avail() -> bool {
     unsafe { inbuf_poll(0, ptr::null_mut()) }
 }
 
 /// Poll for fast events. `got_int` will be set to `true` if CTRL-C was typed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_breakcheck() {
     unsafe {
         if got_int {
@@ -300,7 +300,7 @@ pub unsafe extern "C" fn os_breakcheck() {
 }
 
 /// Check for CTRL-C pressed, but only once in a while.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn line_breakcheck() {
     unsafe {
         breakcheck_count += 1;
@@ -312,7 +312,7 @@ pub unsafe extern "C" fn line_breakcheck() {
 }
 
 /// Like line_breakcheck() but check 10 times less often.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn fast_breakcheck() {
     unsafe {
         breakcheck_count += 1;
@@ -324,7 +324,7 @@ pub unsafe extern "C" fn fast_breakcheck() {
 }
 
 /// Like line_breakcheck() but check 100 times less often.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn veryfast_breakcheck() {
     unsafe {
         breakcheck_count += 1;
@@ -336,12 +336,12 @@ pub unsafe extern "C" fn veryfast_breakcheck() {
 }
 
 /// Test whether a file descriptor refers to a terminal.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_isatty(fd: c_int) -> bool {
     unsafe { uv_guess_handle(fd) == UV_TTY }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn input_available() -> usize {
     unsafe {
         ensure_input_ptrs_init();
@@ -357,7 +357,7 @@ unsafe fn input_space() -> usize {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn input_enqueue_raw(data: *const c_char, size: usize) {
     unsafe {
         ensure_input_ptrs_init();
@@ -375,7 +375,7 @@ pub unsafe extern "C" fn input_enqueue_raw(data: *const c_char, size: usize) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn input_enqueue(chan_id: u64, keys: NvimString) -> usize {
     unsafe {
         ensure_input_ptrs_init();
@@ -581,7 +581,7 @@ unsafe fn handle_mouse_event(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn input_enqueue_mouse(
     code: c_int,
     mut modifier: u8,
@@ -617,7 +617,7 @@ pub unsafe extern "C" fn input_enqueue_mouse(
 }
 
 /// @return true if the main loop is blocked and waiting for input.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn input_blocking() -> bool {
     unsafe { blocking }
 }
@@ -718,7 +718,7 @@ unsafe fn push_event_key(buf: *mut u8, maxlen: c_int) -> c_int {
 }
 
 /// Check if there's pending input already in typebuf or `events`
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_input_ready(events: *mut MultiQueue) -> bool {
     unsafe { typebuf_was_filled || input_available() != 0 || pending_events(events) }
 }

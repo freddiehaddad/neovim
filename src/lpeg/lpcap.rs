@@ -336,7 +336,7 @@ unsafe fn numcap(cs: *mut CapState) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn finddyncap(mut cap: *mut Capture, last: *mut Capture) -> c_int {
     unsafe {
         while cap < last {
@@ -349,7 +349,7 @@ pub unsafe extern "C" fn finddyncap(mut cap: *mut Capture, last: *mut Capture) -
     0
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn runtimecap(
     cs: *mut CapState,
     close: *mut Capture,
@@ -611,7 +611,7 @@ unsafe fn pushcapture(cs: *mut CapState) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn getcaptures(
     l: *mut lua_State,
     s: *const c_char,

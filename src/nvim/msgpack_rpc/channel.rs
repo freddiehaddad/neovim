@@ -1,6 +1,5 @@
 //! Msgpack-RPC channel transport and request/response dispatch (`src/nvim/msgpack_rpc/channel.c`).
 
-#![cfg_attr(test, allow(unused_variables))]
 #![allow(
     non_camel_case_types,
     non_snake_case,
@@ -9,51 +8,35 @@
 )]
 
 use crate::api::private::dispatch::MsgpackRpcRequestHandler;
-use crate::api::private::helpers::{NIL, cstr_as_string};
-#[cfg(not(test))]
 use crate::api::private::helpers::{
-    api_clear_error, api_free_dict, api_free_object, api_set_error, copy_dict,
+    NIL, api_clear_error, api_free_dict, api_free_object, api_set_error, copy_dict, cstr_as_string,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
 };
-#[cfg(not(test))]
 use crate::api::ui::{remote_ui_disconnect, remote_ui_flush_pending_data};
 use crate::channel::{
-    CallbackReader, Channel, kChannelStreamProc, kChannelStreamSocket, kChannelStreamStdio,
-    put_event_1,
-};
-#[cfg(not(test))]
-use crate::channel::{
-    channel_close, channel_decref, channel_event, channel_incref, kChannelPartRpc,
+    CallbackReader, Channel, channel_close, channel_decref, channel_event, channel_incref,
+    kChannelPartRpc, kChannelStreamProc, kChannelStreamSocket, kChannelStreamStdio, put_event_1,
 };
 use crate::eval::typval::Callback;
-#[cfg(not(test))]
 use crate::event::r#loop::{loop_poll_events, loop_queues, uv_handle_size, uv_strerror};
 use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, event_create_oneshot, multiqueue_empty,
-    multiqueue_process_events, multiqueue_put_event,
+    multiqueue_free, multiqueue_new_child, multiqueue_process_events, multiqueue_put_event,
 };
-#[cfg(not(test))]
-use crate::event::multiqueue::{multiqueue_free, multiqueue_new_child};
-#[cfg(not(test))]
-use crate::event::proc::exit_on_closed_chan;
-use crate::event::proc::{proc_in, proc_out, proc_size};
+use crate::event::proc::{exit_on_closed_chan, proc_in, proc_out, proc_size};
 use crate::event::rstream::{RStream, rstream_size, rstream_start};
 use crate::event::stream::Stream;
 use crate::event::wstream::{WBuffer, wstream_new_buffer, wstream_release_wbuffer, wstream_write};
-#[cfg(not(test))]
 use crate::globals::*;
 use crate::kvec::KVec;
-#[cfg(not(test))]
 use crate::log::logmsg;
-#[cfg(not(test))]
 use crate::map::{MH_TOMBSTONE, mh_get_uint64_t};
 use crate::memory::{
     ARENA_BLOCK_SIZE, Arena, ArenaMem, alloc_block, arena_finish, arena_mem_free, arena_memdupz,
     free_block, xcalloc, xfree, xmalloc,
 };
-#[cfg(not(test))]
 use crate::message::semsg;
 use crate::msgpack_rpc::packer::{
     Integer, PackerBuffer, mpack_array, mpack_integer, mpack_nil, mpack_object, mpack_object_array,
@@ -63,9 +46,8 @@ use crate::msgpack_rpc::unpacker::{
     MessageType, Unpacker, unpacker_advance, unpacker_init, unpacker_teardown,
 };
 use crate::os::input::input_blocking;
-#[cfg(all(not(test), windows))]
+#[cfg(windows)]
 use crate::os::os_win_console::os_detach_ui_console;
-#[cfg(not(test))]
 use crate::ui_client::{ui_client_attach_to_restarted_server, ui_client_event_raw_line};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
@@ -209,25 +191,19 @@ pub type RequestHandlerFn = unsafe extern "C" fn(
     error: *mut Error,
 ) -> Object;
 
-#[cfg(not(test))]
 use crate::api::private::dispatch::{
     handle_nvim_get_mode, handle_nvim_paste, handle_nvim_ui_try_resize,
 };
 use crate::api::ui::kUIExtCount;
 use crate::api::vim::kChannelStreamInternal;
-#[cfg(not(test))]
 use crate::autocmd::EVENT_CHANINFO;
-#[cfg(not(test))]
 use crate::event::libuv_proc::UV_PROCESS;
 use crate::log::{LOGLVL_ERR, LOGLVL_INF};
 
 #[inline]
 pub unsafe fn channel_stream_union_size() -> usize {
     unsafe {
-        #[cfg(not(test))]
         let proc_uv_sz = uv_handle_size(UV_PROCESS);
-        #[cfg(test)]
-        let proc_uv_sz = 136;
         proc_size() + proc_uv_sz + size_of::<LibuvProcTail>()
     }
 }
@@ -285,7 +261,6 @@ pub unsafe fn channel_outstream(chan: *mut Channel) -> *mut RStream {
 
 #[inline]
 pub unsafe fn find_channel(id: u64) -> *mut Channel {
-    #[cfg(not(test))]
     unsafe {
         let k = mh_get_uint64_t(&raw mut channels.set, id);
         if k == MH_TOMBSTONE {
@@ -293,11 +268,6 @@ pub unsafe fn find_channel(id: u64) -> *mut Channel {
         } else {
             (*channels.values.add(k as usize)).cast::<Channel>()
         }
-    }
-    #[cfg(test)]
-    {
-        let _ = id;
-        ptr::null_mut()
     }
 }
 
@@ -331,19 +301,17 @@ fn create_event_2(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rpc_init() {
-    #[cfg(not(test))]
     unsafe {
         let qc = loop_queues((&raw mut main_loop).cast());
         ch_before_blocking_events = multiqueue_new_child((*qc).events);
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rpc_start(channel: *mut Channel) {
     unsafe {
-        #[cfg(not(test))]
         channel_incref(channel);
 
         let cp = channel_prefix(channel);
@@ -383,7 +351,7 @@ unsafe fn find_rpc_channel(id: u64) -> *mut Channel {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rpc_send_event(id: u64, name: *const c_char, args: Array) -> bool {
     unsafe {
         let mut channel: *mut Channel = ptr::null_mut();
@@ -404,7 +372,7 @@ pub unsafe extern "C" fn rpc_send_event(id: u64, name: *const c_char, args: Arra
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rpc_send_call(
     id: u64,
     method_name: *const c_char,
@@ -415,7 +383,6 @@ pub unsafe extern "C" fn rpc_send_call(
     unsafe {
         let mut channel = find_rpc_channel(id);
         if channel.is_null() {
-            #[cfg(not(test))]
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
@@ -425,7 +392,6 @@ pub unsafe extern "C" fn rpc_send_call(
             return NIL;
         }
 
-        #[cfg(not(test))]
         channel_incref(channel);
 
         let cp = channel_prefix(channel);
@@ -452,16 +418,12 @@ pub unsafe extern "C" fn rpc_send_call(
             if !(*cp).events.is_null() && !multiqueue_empty((*cp).events) {
                 multiqueue_process_events((*cp).events);
             } else {
-                #[cfg(not(test))]
                 loop_poll_events((&raw mut main_loop).cast(), -1);
-                #[cfg(test)]
-                break;
             }
         }
         (*rpc).call_stack.size -= 1;
 
         if !(*frame_ptr).returned {
-            #[cfg(not(test))]
             {
                 api_set_error!(
                     err,
@@ -476,7 +438,6 @@ pub unsafe extern "C" fn rpc_send_call(
 
         if (*frame_ptr).errored {
             let res = (*frame_ptr).result;
-            #[cfg(not(test))]
             if res.obj_type == ObjectType::kObjectTypeString {
                 api_set_error!(
                     err,
@@ -520,7 +481,6 @@ pub unsafe extern "C" fn rpc_send_call(
             (*frame_ptr).result_mem = ptr::null_mut();
         }
 
-        #[cfg(not(test))]
         channel_decref(channel);
 
         *result_mem = (*frame_ptr).result_mem;
@@ -542,7 +502,6 @@ unsafe extern "C" fn receive_msgpack(
 ) -> usize {
     unsafe {
         let channel = data.cast::<Channel>();
-        #[cfg(not(test))]
         channel_incref(channel);
 
         let mut consumed: usize = 0;
@@ -565,7 +524,6 @@ unsafe extern "C" fn receive_msgpack(
             chan_close_on_err(channel, msg.as_ptr().cast::<c_char>(), LOGLVL_INF);
         }
 
-        #[cfg(not(test))]
         channel_decref(channel);
 
         consumed
@@ -592,7 +550,6 @@ unsafe fn parse_msgpack(channel: *mut Channel) {
 
         while unpacker_advance(p) {
             if (*p).msg_type == MessageType::kMessageTypeRedrawEvent {
-                #[cfg(not(test))]
                 if ui_client_attached {
                     if (*p).has_grid_line_event {
                         ui_client_event_raw_line(&raw mut (*p).grid_line_event);
@@ -653,7 +610,6 @@ unsafe fn parse_msgpack(channel: *mut Channel) {
 
         if unpacker_closed(p) {
             chan_close_on_err(channel, (*p).unpack_error.msg, LOGLVL_INF);
-            #[cfg(not(test))]
             api_clear_error(&raw mut (*p).unpack_error);
         }
     }
@@ -674,7 +630,6 @@ unsafe fn handle_request(channel: *mut Channel, p: *mut Unpacker, args: Array) {
                 (*p).request_id,
                 (*p).unpack_error.msg,
             );
-            #[cfg(not(test))]
             api_clear_error(&raw mut (*p).unpack_error);
             arena_mem_free(arena_finish(&raw mut (*p).arena));
             return;
@@ -693,29 +648,21 @@ unsafe fn handle_request(channel: *mut Channel, p: *mut Unpacker, args: Array) {
             size: 0,
         };
         (*evdata).request_id = (*p).request_id;
-        #[cfg(not(test))]
         channel_incref(channel);
 
         if (*p).handler.fast {
-            #[cfg(not(test))]
             let is_get_mode = (*p).handler.r#fn.map(|f| f as *const c_void)
                 == Some(handle_nvim_get_mode as *const c_void);
-            #[cfg(test)]
-            let is_get_mode = false;
 
             if is_get_mode && !input_blocking() {
-                #[cfg(not(test))]
                 put_event_1(ch_before_blocking_events, request_event, evdata.cast());
             } else {
                 let mut argv_ptr = evdata.cast::<c_void>();
                 request_event(&raw mut argv_ptr);
             }
         } else {
-            #[cfg(not(test))]
             let is_resize = (*p).handler.r#fn.map(|f| f as *const c_void)
                 == Some(handle_nvim_ui_try_resize as *const c_void);
-            #[cfg(test)]
-            let is_resize = false;
 
             if is_resize {
                 let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
@@ -728,7 +675,6 @@ unsafe fn handle_request(channel: *mut Channel, p: *mut Unpacker, args: Array) {
                     2,
                 );
                 multiqueue_put_event((*cp).events, ev);
-                #[cfg(not(test))]
                 multiqueue_put_event(resize_events, ev);
             } else {
                 put_event_1((*cp).events, request_event, evdata.cast());
@@ -765,21 +711,18 @@ unsafe extern "C" fn request_event(argv: *mut *mut c_void) {
                 );
             }
             if handler.ret_alloc {
-                #[cfg(not(test))]
                 api_free_object(result);
             }
         }
 
         arena_mem_free(arena_finish(&raw mut (*e).used_mem));
-        #[cfg(not(test))]
         channel_decref(channel);
         xfree(e.cast());
-        #[cfg(not(test))]
         api_clear_error(&raw mut error);
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rpc_write_raw(id: u64, buffer: *mut WBuffer) -> bool {
     unsafe {
         let channel = find_rpc_channel(id);
@@ -804,7 +747,6 @@ unsafe fn channel_write(channel: *mut Channel, buffer: *mut WBuffer) -> bool {
         }
 
         if (*cp).streamtype == kChannelStreamInternal {
-            #[cfg(not(test))]
             channel_incref(channel);
             create_event_2(
                 (*cp).events,
@@ -818,10 +760,7 @@ unsafe fn channel_write(channel: *mut Channel, buffer: *mut WBuffer) -> bool {
         }
 
         if err != 0 {
-            #[cfg(not(test))]
             let err_str = CStr::from_ptr(uv_strerror(err)).to_string_lossy();
-            #[cfg(test)]
-            let err_str = "error";
             let msg = format!(
                 "ch {}: stream write failed: {err_str}. RPC canceled; closing channel\0",
                 (*cp).id
@@ -862,7 +801,6 @@ unsafe extern "C" fn internal_read_event(argv: *mut *mut c_void) {
             }
         }
 
-        #[cfg(not(test))]
         channel_decref(channel);
         wstream_release_wbuffer(buffer);
     }
@@ -880,18 +818,14 @@ unsafe fn send_error(
             err_type: ErrorType::kErrorTypeNone,
             msg: ptr::null_mut(),
         };
-        #[cfg(not(test))]
         api_set_error!(
             &raw mut e,
             ErrorType::kErrorTypeException,
             c"%s".as_ptr(),
             err,
         );
-        #[cfg(test)]
-        let _ = err;
         let mut nil_obj = NIL;
         serialize_response(chan, handler, r#type, id, &raw mut e, &raw mut nil_obj);
-        #[cfg(not(test))]
         api_clear_error(&raw mut e);
     }
 }
@@ -900,7 +834,6 @@ unsafe fn broadcast_event(name: *const c_char, args: Array) {
     unsafe {
         let mut chans = KVec::<*mut Channel>::new();
 
-        #[cfg(not(test))]
         for i in 0..(channels.set.h.n_keys as usize) {
             let channel = (*channels.values.add(i)).cast::<Channel>();
             if (*channel_tail(channel)).is_rpc {
@@ -916,9 +849,7 @@ unsafe fn broadcast_event(name: *const c_char, args: Array) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn has_undetached_rpc_chan() -> bool {
-    #[cfg(not(test))]
     unsafe {
         for i in 0..(channels.set.h.n_keys as usize) {
             let chan = (*channels.values.add(i)).cast::<Channel>();
@@ -931,7 +862,7 @@ unsafe fn has_undetached_rpc_chan() -> bool {
     false
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rpc_close(channel: *mut Channel) {
     unsafe {
         let ct = channel_tail(channel);
@@ -941,7 +872,6 @@ pub unsafe extern "C" fn rpc_close(channel: *mut Channel) {
 
         (*ct).rpc.closed = true;
 
-        #[cfg(not(test))]
         {
             let qc = loop_queues((&raw mut main_loop).cast());
             put_event_1((*qc).fast_events, rpc_close_event, channel.cast());
@@ -949,22 +879,19 @@ pub unsafe extern "C" fn rpc_close(channel: *mut Channel) {
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn rpc_close_event(argv: *mut *mut c_void) {
     unsafe {
         let channel = (*argv).cast::<Channel>();
         assert!(!channel.is_null());
 
-        #[cfg(not(test))]
         channel_decref(channel);
 
         let cp = channel_prefix(channel);
         let ct = channel_tail(channel);
 
-        #[cfg(all(not(test), windows))]
+        #[cfg(windows)]
         let ui_closed = !(*ct).rpc.ui.is_null();
 
-        #[cfg(not(test))]
         {
             remote_ui_disconnect((*cp).id, ptr::null_mut(), false);
 
@@ -989,12 +916,10 @@ unsafe extern "C" fn rpc_close_event(argv: *mut *mut c_void) {
                 }
             }
         }
-        #[cfg(test)]
-        let _ = (cp, ct);
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rpc_free(channel: *mut Channel) {
     unsafe {
         let ct = channel_tail(channel);
@@ -1002,14 +927,12 @@ pub unsafe extern "C" fn rpc_free(channel: *mut Channel) {
         xfree((*ct).rpc.unpacker.cast());
 
         (*ct).rpc.call_stack.destroy();
-        #[cfg(not(test))]
         api_free_dict((*ct).rpc.info);
     }
 }
 
 unsafe fn chan_close_on_err(channel: *mut Channel, msg: *const c_char, loglevel: c_int) {
     unsafe {
-        #[cfg(not(test))]
         logmsg!(
             loglevel,
             c"RPC: ".as_ptr(),
@@ -1039,7 +962,6 @@ unsafe fn chan_close_on_err(channel: *mut Channel, msg: *const c_char, loglevel:
             (*frame).result_mem = arena_finish(&raw mut (*p).arena);
         }
 
-        #[cfg(not(test))]
         {
             channel_close((*cp).id, kChannelPartRpc, ptr::null_mut());
             logmsg!(
@@ -1052,8 +974,6 @@ unsafe fn chan_close_on_err(channel: *mut Channel, msg: *const c_char, loglevel:
                 msg,
             );
         }
-        #[cfg(test)]
-        let _ = (cp, loglevel);
     }
 }
 
@@ -1089,7 +1009,7 @@ unsafe fn serialize_request(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn serialize_response(
     mut channel: *mut Channel,
     handler: MsgpackRpcRequestHandler,
@@ -1102,14 +1022,10 @@ pub unsafe extern "C" fn serialize_response(
         if (*err).err_type != ErrorType::kErrorTypeNone
             && r#type == MessageType::kMessageTypeNotification
         {
-            #[cfg(not(test))]
             let is_paste = handler.r#fn.map(|f| f as *const c_void)
                 == Some(handle_nvim_paste as *const c_void);
-            #[cfg(test)]
-            let is_paste = false;
 
             if is_paste {
-                #[cfg(not(test))]
                 {
                     semsg!(c"paste: %s".as_ptr(), (*err).msg);
                     api_clear_error(err);
@@ -1177,7 +1093,6 @@ unsafe fn packer_buffer_init_channels(
             let chan = *chans.add(i);
             let ct = channel_tail(chan);
             if !(*ct).rpc.ui.is_null() && (*(*ct).rpc.ui).incomplete_event {
-                #[cfg(not(test))]
                 remote_ui_flush_pending_data((*ct).rpc.ui);
             }
         }
@@ -1221,7 +1136,7 @@ unsafe extern "C" fn channel_flush_callback(packer: *mut PackerBuffer) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rpc_set_client_info(id: u64, info: Dict) {
     unsafe {
         let chan = find_rpc_channel(id);
@@ -1230,7 +1145,6 @@ pub unsafe extern "C" fn rpc_set_client_info(id: u64, info: Dict) {
         }
 
         let ct = channel_tail(chan);
-        #[cfg(not(test))]
         api_free_dict((*ct).rpc.info);
         (*ct).rpc.info = info;
 
@@ -1249,26 +1163,16 @@ pub unsafe extern "C" fn rpc_set_client_info(id: u64, info: Dict) {
             }
         };
 
-        #[cfg(not(test))]
         channel_event(chan, EVENT_CHANINFO);
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rpc_client_info(chan: *mut Channel) -> Dict {
-    unsafe {
-        #[cfg(not(test))]
-        {
-            copy_dict((*channel_tail(chan)).rpc.info, ptr::null_mut())
-        }
-        #[cfg(test)]
-        {
-            (*channel_tail(chan)).rpc.info
-        }
-    }
+    unsafe { copy_dict((*channel_tail(chan)).rpc.info, ptr::null_mut()) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_client_info(chan: *mut Channel, key: *const c_char) -> *const c_char {
     unsafe {
         let ct = channel_tail(chan);
@@ -1291,9 +1195,8 @@ pub unsafe extern "C" fn get_client_info(chan: *mut Channel, key: *const c_char)
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn rpc_free_all_mem() {
-    #[cfg(not(test))]
     unsafe {
         multiqueue_free(ch_before_blocking_events);
     }

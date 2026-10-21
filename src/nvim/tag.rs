@@ -332,7 +332,7 @@ const fn toupper_asc(c: u8) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn free_tagfunc_option() {
     unsafe {
         callback_free(&raw mut p_tfu);
@@ -341,13 +341,13 @@ pub unsafe extern "C" fn free_tagfunc_option() {
 
 /// Mark the global `'tagfunc'` callback with `copyID` so that it is not garbage
 /// collected.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_ref_in_tagfunc(copyID: c_int) -> bool {
     unsafe { set_ref_in_callback(&raw mut p_tfu, copyID, ptr::null_mut(), ptr::null_mut()) }
 }
 
 /// Jump to tag; handling of tag commands and tag stack.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn do_tag(
     eap: *mut exarg_T,
     tag: *mut c_char,
@@ -1074,7 +1074,7 @@ unsafe fn add_llist_tags(tag: *mut c_char, num_matches: c_int, matches: *mut *mu
 }
 
 /// Free cached tags.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tag_freematch() {
     unsafe {
         xfree(tagmatchname.cast());
@@ -1083,7 +1083,7 @@ pub unsafe extern "C" fn tag_freematch() {
 }
 
 /// Print the tag stack.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn do_tags(_eap: *mut exarg_T) {
     unsafe {
         let tagstack: *mut taggy_T = (&raw mut (*curwin).w_tagstack).cast::<taggy_T>();
@@ -2274,7 +2274,7 @@ unsafe fn findtags_copy_matches(
 }
 
 /// `find_tags()` - search for tags in tags files.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn find_tags(
     pat: *mut c_char,
     num_matches: *mut c_int,
@@ -2441,7 +2441,7 @@ unsafe extern "C" fn found_tagfile_cb(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn free_tag_stuff() {
     unsafe {
         ga_clear_strings(&raw mut tag_fnames);
@@ -2454,7 +2454,7 @@ pub unsafe extern "C" fn free_tag_stuff() {
 }
 
 /// Get the next name of a tag file from the tag file list.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_tagfname(
     tnp: *mut tagname_T,
     first: c_int,
@@ -2571,7 +2571,7 @@ pub unsafe extern "C" fn get_tagfname(
 }
 
 /// Free the contents of a `tagname_T` that was filled by `get_tagfname()`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tagname_free(tnp: *mut tagname_T) {
     unsafe {
         xfree((*tnp).tn_tags.cast());
@@ -3144,7 +3144,7 @@ unsafe fn find_extra(pp: *mut *mut c_char) -> c_int {
 }
 
 /// Free a single entry in a tag stack.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tagstack_clear_entry(item: *mut taggy_T) {
     unsafe {
         xfree((*item).tagname.cast());
@@ -3154,7 +3154,7 @@ pub unsafe extern "C" fn tagstack_clear_entry(item: *mut taggy_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn expand_tags(
     tagnames: bool,
     pat: *mut c_char,
@@ -3256,7 +3256,7 @@ unsafe fn add_tag_field(
 
 /// Add the tags matching the specified pattern `pat` to the list `list`
 /// as a dictionary. Use `buf_fname` for priority, unless NULL.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_tags(
     list: *mut list_T,
     pat: *mut c_char,
@@ -3412,7 +3412,7 @@ unsafe fn get_tag_details(tag: *mut taggy_T, retdict: *mut dict_T) {
 }
 
 /// Return the tag stack entries of the specified window `wp` in dictionary `retdict`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_tagstack(wp: *mut win_T, retdict: *mut dict_T) {
     unsafe {
         tv_dict_add_nr(
@@ -3550,7 +3550,7 @@ unsafe fn tagstack_set_curidx(wp: *mut win_T, curidx: c_int) {
 }
 
 /// Set the tag stack entries of the specified window.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_tagstack(wp: *mut win_T, d: *const dict_T, action: c_int) -> c_int {
     unsafe {
         if tfu_in_use {

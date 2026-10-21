@@ -343,7 +343,7 @@ pub unsafe extern "C" fn multiqueue_size(this: *mut MultiQueue) -> usize {
 ///
 /// # Safety
 /// `this` must be a valid pointer to a `MultiQueue`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ut_multiqueue_put(this: *mut MultiQueue, str_: *const std::ffi::c_char) {
     unsafe {
         let mut ev = Event::nil();
@@ -356,7 +356,7 @@ pub unsafe extern "C" fn ut_multiqueue_put(this: *mut MultiQueue, str_: *const s
 ///
 /// # Safety
 /// `this` must be a valid pointer to a `MultiQueue`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ut_multiqueue_get(this: *mut MultiQueue) -> *const std::ffi::c_char {
     unsafe {
         let ev = multiqueue_get(this);

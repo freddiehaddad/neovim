@@ -286,7 +286,7 @@ struct TypedState {
     map_start: usize,
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static mut g_atoms: CmdAtomVec = KVec::new();
 
 static mut atom_captures: u64 = 0;
@@ -417,7 +417,7 @@ unsafe fn is_child_frame() -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_free(atom: *mut CmdAtom) {
     unsafe {
         if !(*atom).keys.is_null() {
@@ -437,7 +437,7 @@ pub unsafe extern "C" fn atom_free(atom: *mut CmdAtom) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atoms_free(v: *mut CmdAtomVec) {
     unsafe {
         while (*v).size > 0 {
@@ -448,7 +448,7 @@ pub unsafe extern "C" fn atoms_free(v: *mut CmdAtomVec) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_free_all() {
     unsafe {
         atoms_free(&raw mut g_atoms);
@@ -470,7 +470,7 @@ pub unsafe extern "C" fn atom_free_all() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_cmd_spec(cap: *const cmdarg_T) -> CmdSpec {
     unsafe {
         let operand = nv_is((*cap).cmdchar, NV_LANG | NV_NCH_ARG);
@@ -533,7 +533,7 @@ unsafe fn atom_origin_undoseq(origin: CmdOrigin) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_origin_pos(buf: *mut buf_T) -> pos_T {
     unsafe {
         let o = composite.origin;
@@ -813,7 +813,7 @@ unsafe fn atom_emit(atom: *const CmdAtom) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_push_raw(cascade: bool, atom: *mut CmdAtom) {
     unsafe {
         assert!(!(*atom).keys.is_null());
@@ -923,7 +923,7 @@ unsafe fn atom_composite_lhs() -> *mut c_char {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_lhs_replay_queue() {
     unsafe {
         crate::kvec::kv_push(
@@ -939,12 +939,12 @@ pub unsafe extern "C" fn atom_lhs_replay_queue() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_composite_queued() -> bool {
     unsafe { composite.queued }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_composite_active() -> bool {
     unsafe { composite.active }
 }
@@ -1006,7 +1006,7 @@ unsafe fn atom_composite_end() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_composite_abort() {
     unsafe {
         composite.r#macro = false;
@@ -1017,7 +1017,7 @@ pub unsafe extern "C" fn atom_composite_abort() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_term_enter() {
     unsafe {
         if !mc_replaying() {
@@ -1027,7 +1027,7 @@ pub unsafe extern "C" fn atom_term_enter() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_is_user_cmd() -> bool {
     unsafe {
         !mc_replaying()
@@ -1041,7 +1041,7 @@ unsafe fn atom_is_user_input() -> bool {
     unsafe { KeyTyped || (atom_is_user_cmd() && atom_composite_active()) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_suppress(suppress: bool) {
     unsafe {
         atom_suppressed = suppress;
@@ -1063,7 +1063,7 @@ unsafe fn atom_buf_has_consumers() -> bool {
     unsafe { mc_buf_has_cursors(curbuf) || has_event(EVENT_CMDATOM) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_key_class(cmd: c_int, arg: c_int, arg2: c_int) -> c_uint {
     unsafe {
         if cmd == K_EVENT || cmd == K_IGNORE {
@@ -1164,7 +1164,7 @@ pub unsafe extern "C" fn atom_key_class(cmd: c_int, arg: c_int, arg2: c_int) -> 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_cmdline_set(firstc: c_int, line: *const c_char, len: usize) {
     unsafe {
         if cur_frame.is_null()
@@ -1188,7 +1188,7 @@ unsafe fn atom_typed_collecting() -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_payload_start() {
     unsafe {
         if expr_map_lock == 0
@@ -1202,7 +1202,7 @@ pub unsafe extern "C" fn atom_payload_start() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_payload_end() {
     unsafe {
         if expr_map_lock == 0
@@ -1237,7 +1237,7 @@ unsafe fn atom_payload_append(atom: *mut CmdAtom, frame: *mut CmdFrame) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_typed_add(chars: *const u8, len: usize) {
     unsafe {
         if mc_replaying() || !atom_typed_collecting() || cmdline_star > 0 {
@@ -1260,7 +1260,7 @@ pub unsafe extern "C" fn atom_typed_add(chars: *const u8, len: usize) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_typed_del(len: usize) {
     unsafe {
         if mc_replaying() || !atom_typed_collecting() {
@@ -1270,7 +1270,7 @@ pub unsafe extern "C" fn atom_typed_del(len: usize) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_did_global_op() {
     unsafe {
         if !mc_replaying() {
@@ -1280,7 +1280,7 @@ pub unsafe extern "C" fn atom_did_global_op() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_follow_changed() {
     unsafe {
         if mc_replaying() {
@@ -1298,7 +1298,7 @@ pub unsafe extern "C" fn atom_follow_changed() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_redo_prepped() {
     unsafe {
         if atom_is_user_cmd() {
@@ -1307,14 +1307,14 @@ pub unsafe extern "C" fn atom_redo_prepped() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_redo_cancel() {
     unsafe {
         (*root_frame()).redo_frame = 0;
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_macro_start(regname: c_int) {
     unsafe {
         if atom_is_user_input() {
@@ -1327,7 +1327,7 @@ pub unsafe extern "C" fn atom_macro_start(regname: c_int) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_stuff_start(cap: *const cmdarg_T) {
     unsafe {
         if mc_replaying() || atom_composite_active() || !atom_is_user_input() {
@@ -1339,7 +1339,7 @@ pub unsafe extern "C" fn atom_stuff_start(cap: *const cmdarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_map_start(lhs: *const c_char, len: usize, peeked: bool) {
     unsafe {
         if mc_replaying() || reg_executing != 0 || ex_normal_busy != 0 {
@@ -1373,7 +1373,7 @@ pub unsafe extern "C" fn atom_map_start(lhs: *const c_char, len: usize, peeked: 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_visual_reset() {
     unsafe {
         vatom.state = kVatomNone;
@@ -1398,12 +1398,12 @@ unsafe fn atom_visual_typed() -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_visual_replayable() -> bool {
     unsafe { atom_visual_pending() && (vatom.state & kVatomVoid) == 0 }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_visual_redoable() -> bool {
     unsafe {
         if !atom_visual_replayable() {
@@ -1419,7 +1419,7 @@ pub unsafe extern "C" fn atom_visual_redoable() -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_visual_span() -> NvimString {
     unsafe {
         if !atom_visual_replayable() {
@@ -1603,7 +1603,7 @@ unsafe fn atom_visual_end_suffix(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_visual_end(spec: CmdSpec, redoable: bool) -> bool {
     unsafe {
         if mc_replaying() {
@@ -1613,7 +1613,7 @@ pub unsafe extern "C" fn atom_visual_end(spec: CmdSpec, redoable: bool) -> bool 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_capture_op(oap: *mut oparg_T, cap: *mut cmdarg_T, redo_yank: bool) {
     unsafe {
         let redoable = op_redoable((*oap).op_type, redo_yank);
@@ -1763,7 +1763,7 @@ pub unsafe extern "C" fn atom_capture_op(oap: *mut oparg_T, cap: *mut cmdarg_T, 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_ins_start(
     cmd: c_int,
     count: c_long,
@@ -1812,7 +1812,7 @@ pub unsafe extern "C" fn atom_ins_start(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_ins_end(session: *mut InsSession, busy: bool) {
     unsafe {
         let visual = (*session).vis != kVInsNone;
@@ -1880,7 +1880,7 @@ unsafe fn atom_ins_push(session: *const InsSession, cascade: bool) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_cmd_start(old: *mut CmdFrame, cmdchar: c_int) {
     unsafe {
         let consumers = atom_buf_has_consumers();
@@ -2117,7 +2117,7 @@ unsafe fn atom_capture_cmd(ca: *mut cmdarg_T, old: *mut CmdFrame) -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn atom_cmd_end(ca: *mut cmdarg_T, old: *mut CmdFrame) {
     unsafe {
         if composite.follow == kNone

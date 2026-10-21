@@ -10,39 +10,23 @@
     clippy::missing_safety_doc
 )]
 
-#[cfg(not(test))]
 use crate::eval::vars::{VV_SEND_SERVER, get_vim_var_str};
-#[cfg(not(test))]
 use crate::event::r#loop::{uv_mutex_lock, uv_mutex_unlock, uv_strerror};
-use crate::fileio::FILE;
-#[cfg(all(not(test), unix))]
+#[cfg(unix)]
 use crate::fileio::fgets;
-#[cfg(not(test))]
-use crate::fileio::{EOF, fclose, fflush, fopen, fprintf, fputc};
-#[cfg(not(test))]
+use crate::fileio::{EOF, FILE, fclose, fflush, fopen, fprintf, fputc};
 use crate::globals::*;
-#[cfg(not(test))]
 use crate::memory::{entered_free_all_mem, xfree, xstrlcpy};
-#[cfg(not(test))]
 use crate::message::msg_schedule_semsg;
-#[cfg(not(test))]
 use crate::os::env::{expand_env, os_get_pid, os_getenv_buf, os_setenv};
-#[cfg(all(not(test), unix))]
+#[cfg(unix)]
 use crate::os::fs::os_exepath;
-#[cfg(not(test))]
 use crate::os::fs::{os_isdir, os_mkdir_recurse};
-#[cfg(not(test))]
 use crate::os::stdpaths::{get_xdg_home, stdpaths_user_state_subpath};
-#[cfg(not(test))]
 use crate::os::time::{Tm, os_localtime, strftime};
-#[cfg(not(test))]
 use crate::path::{concat_fnames_realloc, path_tail};
-#[cfg(not(test))]
 use crate::strings::strerror;
-#[cfg(not(test))]
-use std::ffi::CStr;
-use std::ffi::{c_char, c_int, c_void};
-#[cfg(not(test))]
+use std::ffi::{CStr, c_char, c_int, c_void};
 use std::io::Write;
 use std::ptr;
 
@@ -51,34 +35,25 @@ pub const LOGLVL_INF: c_int = 2;
 pub const LOGLVL_WRN: c_int = 3;
 pub const LOGLVL_ERR: c_int = 4;
 
-#[cfg(not(test))]
 #[repr(C)]
 struct UvTimeval64 {
     tv_sec: i64,
     tv_usec: i32,
 }
 
-#[cfg(not(test))]
 #[repr(C, align(8))]
 struct UvMutex([u8; 128]);
 
-#[cfg(not(test))]
 static mut LOG_FILE_PATH: [c_char; MAXPATHL + 1] = [0; MAXPATHL + 1];
-#[cfg(not(test))]
 static mut DID_LOG_INIT: bool = false;
-#[cfg(not(test))]
 static mut MUTEX: UvMutex = UvMutex([0; 128]);
-#[cfg(not(test))]
 static mut RECURSIVE: bool = false;
-#[cfg(not(test))]
 static mut DID_MSG: bool = false;
-#[cfg(not(test))]
 static mut INSTANCE_NAME: [c_char; 32] = [0; 32];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static mut g_min_log_level: c_int = LOGLVL_WRN;
 
-#[cfg(not(test))]
 unsafe extern "C" {
     fn uv_mutex_init_recursive(handle: *mut c_void) -> c_int;
     fn uv_print_all_handles(loop_: *mut c_void, stream: *mut FILE);
@@ -105,64 +80,51 @@ unsafe extern "C" {
     static mut __stdoutp: *mut FILE;
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn log_get_stdout() -> *mut FILE {
-    #[cfg(all(not(test), windows))]
+    #[cfg(windows)]
     unsafe {
         __acrt_iob_func(1)
     }
-    #[cfg(all(not(test), target_os = "linux"))]
+    #[cfg(target_os = "linux")]
     unsafe {
         c_stdout
     }
-    #[cfg(all(not(test), not(any(windows, target_os = "linux"))))]
+    #[cfg(not(any(windows, target_os = "linux")))]
     unsafe {
         __stdoutp
     }
-    #[cfg(test)]
-    {
-        ptr::null_mut()
-    }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn log_get_stderr() -> *mut FILE {
-    #[cfg(all(not(test), windows))]
+    #[cfg(windows)]
     unsafe {
         __acrt_iob_func(2)
     }
-    #[cfg(all(not(test), target_os = "linux"))]
+    #[cfg(target_os = "linux")]
     unsafe {
         c_stderr
     }
-    #[cfg(all(not(test), not(any(windows, target_os = "linux"))))]
+    #[cfg(not(any(windows, target_os = "linux")))]
     unsafe {
         __stderrp
     }
-    #[cfg(test)]
-    {
-        ptr::null_mut()
-    }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn log_is_std_stream(fp: *mut FILE) -> bool {
-    #[cfg(all(not(test), windows))]
+    #[cfg(windows)]
     unsafe {
         fp == __acrt_iob_func(2) || fp == __acrt_iob_func(1)
     }
-    #[cfg(all(not(test), target_os = "linux"))]
+    #[cfg(target_os = "linux")]
     unsafe {
         fp == c_stderr || fp == c_stdout
     }
-    #[cfg(all(not(test), not(any(windows, target_os = "linux"))))]
+    #[cfg(not(any(windows, target_os = "linux")))]
     unsafe {
         fp == __stderrp || fp == __stdoutp
-    }
-    #[cfg(test)]
-    {
-        let _ = fp;
-        false
     }
 }
 
@@ -178,22 +140,15 @@ macro_rules! logmsg {
         } else {
             let fmt_ptr: *const std::ffi::c_char = $fmt;
             let mut stack_buf = [0 as std::ffi::c_char; 1024];
-            #[cfg(not(test))]
             let len = $crate::strings::vim_snprintf!(
                 (&raw mut stack_buf).cast::<std::ffi::c_char>(),
                 stack_buf.len(),
                 fmt_ptr,
                 $($arg),+
             );
-            #[cfg(test)]
-            let len = {
-                let _ = (&raw mut stack_buf, fmt_ptr, $($crate::strings::IntoFmtVal::into_fmt_val($arg)),+);
-                0
-            };
             if len >= stack_buf.len() as std::ffi::c_int {
                 let cap = (len as usize) + 1;
                 let heap_buf = $crate::memory::xmalloc(cap).cast::<std::ffi::c_char>();
-                #[cfg(not(test))]
                 $crate::strings::vim_snprintf!(heap_buf, cap, fmt_ptr, $($arg),+);
                 let ret = $crate::log::logmsg_str(
                     lvl,
@@ -219,9 +174,8 @@ macro_rules! logmsg {
     }};
 }
 use crate::charset::NUL;
-#[cfg(all(not(test), unix))]
+#[cfg(unix)]
 use crate::globals::IOSIZE;
-#[cfg(not(test))]
 use crate::os::fs::MAXPATHL;
 pub use logmsg;
 
@@ -230,7 +184,6 @@ unsafe fn log_try_create(fname: *const c_char) -> bool {
         if fname.is_null() || *fname == NUL {
             return false;
         }
-        #[cfg(not(test))]
         {
             let log_file = fopen(fname, c"a".as_ptr());
             if log_file.is_null() {
@@ -239,17 +192,11 @@ unsafe fn log_try_create(fname: *const c_char) -> bool {
             fclose(log_file);
             true
         }
-        #[cfg(test)]
-        {
-            false
-        }
     }
 }
 
-#[cfg(not(test))]
 /// Initializes the log file path and sets `$NVIM_LOG_FILE` if empty.
 unsafe fn log_path_init() {
-    #[cfg(not(test))]
     unsafe {
         let size = MAXPATHL + 1;
         let path_ptr = (&raw mut LOG_FILE_PATH).cast::<c_char>();
@@ -324,9 +271,8 @@ unsafe fn log_path_init() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn log_init() {
-    #[cfg(not(test))]
     unsafe {
         uv_mutex_init_recursive((&raw mut MUTEX).cast());
         log_path_init();
@@ -334,25 +280,22 @@ pub unsafe extern "C" fn log_init() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn log_lock() {
-    #[cfg(not(test))]
     unsafe {
         uv_mutex_lock((&raw mut MUTEX).cast());
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn log_unlock() {
-    #[cfg(not(test))]
     unsafe {
         uv_mutex_unlock((&raw mut MUTEX).cast());
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn log_should_log(log_level: c_int) -> bool {
-    #[cfg(not(test))]
     unsafe {
         if !DID_LOG_INIT {
             g_stats.log_skip += 1;
@@ -360,14 +303,9 @@ pub unsafe extern "C" fn log_should_log(log_level: c_int) -> bool {
         }
         log_level >= g_min_log_level
     }
-    #[cfg(test)]
-    {
-        let _ = log_level;
-        false
-    }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn logmsg_str(
     log_level: c_int,
     context: *const c_char,
@@ -376,7 +314,6 @@ pub unsafe extern "C" fn logmsg_str(
     eol: bool,
     msg: *const c_char,
 ) -> bool {
-    #[cfg(not(test))]
     unsafe {
         if !DID_LOG_INIT {
             g_stats.log_skip += 1;
@@ -430,16 +367,10 @@ pub unsafe extern "C" fn logmsg_str(
         log_unlock();
         ret
     }
-    #[cfg(test)]
-    {
-        let _ = (log_level, context, func_name, line_num, eol, msg);
-        false
-    }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn log_uv_handles(loop_: *mut c_void) {
-    #[cfg(not(test))]
     unsafe {
         log_lock();
         let log_file = open_log_file();
@@ -449,18 +380,13 @@ pub unsafe extern "C" fn log_uv_handles(loop_: *mut c_void) {
         }
         log_unlock();
     }
-    #[cfg(test)]
-    {
-        let _ = loop_;
-    }
 }
 
 /// Open the log file for appending.
 ///
 /// @return Log file, or `stderr` on failure
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn open_log_file() -> *mut FILE {
-    #[cfg(not(test))]
     unsafe {
         let path_ptr = (&raw const LOG_FILE_PATH).cast::<c_char>();
         let mut errnum: c_int = 0;
@@ -493,14 +419,10 @@ pub unsafe extern "C" fn open_log_file() -> *mut FILE {
         );
         stderr
     }
-    #[cfg(test)]
-    {
-        ptr::null_mut()
-    }
 }
 
 #[cfg(unix)]
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn log_callstack_to_file_trace(
     log_file: *mut FILE,
     func_name: *const c_char,
@@ -508,7 +430,6 @@ pub unsafe extern "C" fn log_callstack_to_file_trace(
     trace: *const *mut c_void,
     trace_size: c_int,
 ) {
-    #[cfg(not(test))]
     unsafe {
         let mut exepath = [0 as c_char; MAXPATHL];
         let mut exepathlen: usize = MAXPATHL;
@@ -547,48 +468,33 @@ pub unsafe extern "C" fn log_callstack_to_file_trace(
             fclose(log_file);
         }
     }
-    #[cfg(test)]
-    {
-        let _ = (log_file, func_name, line_num, trace, trace_size);
-    }
 }
 
 #[cfg(any(target_os = "linux", target_vendor = "apple"))]
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn log_callstack_to_file(
     log_file: *mut FILE,
     func_name: *const c_char,
     line_num: c_int,
 ) {
-    #[cfg(not(test))]
     unsafe {
         let mut trace: [*mut c_void; 100] = [ptr::null_mut(); 100];
         let trace_size = backtrace(trace.as_mut_ptr(), trace.len() as c_int);
         log_callstack_to_file_trace(log_file, func_name, line_num, trace.as_ptr(), trace_size);
     }
-    #[cfg(test)]
-    {
-        let _ = (log_file, func_name, line_num);
-    }
 }
 
 #[cfg(any(target_os = "linux", target_vendor = "apple"))]
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn log_callstack(func_name: *const c_char, line_num: c_int) {
-    #[cfg(not(test))]
     unsafe {
         log_lock();
         let log_file = open_log_file();
         log_callstack_to_file(log_file, func_name, line_num);
         log_unlock();
     }
-    #[cfg(test)]
-    {
-        let _ = (func_name, line_num);
-    }
 }
 
-#[cfg(not(test))]
 unsafe fn do_log_to_file_str(
     log_file: *mut FILE,
     log_level: c_int,
@@ -598,7 +504,6 @@ unsafe fn do_log_to_file_str(
     eol: bool,
     msg: *const c_char,
 ) -> bool {
-    #[cfg(not(test))]
     unsafe {
         const LOG_LEVELS: [&CStr; 5] = [c"", c"DBG", c"INF", c"WRN", c"ERR"];
         assert!((LOGLVL_DBG..=LOGLVL_ERR).contains(&log_level));
@@ -709,11 +614,6 @@ unsafe fn do_log_to_file_str(
         }
 
         true
-    }
-    #[cfg(test)]
-    {
-        let _ = (log_file, log_level, context, func_name, line_num, eol, msg);
-        false
     }
 }
 

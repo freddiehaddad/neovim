@@ -44,7 +44,7 @@ static CLS_BIGWORD: AtomicBool = AtomicBool::new(false);
 
 /// Find the start of the next sentence, searching in the direction specified
 /// by the `dir` argument (`findsent`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn findsent(dir: Direction, mut count: c_int) -> c_int {
     unsafe {
         let mut c: c_int;
@@ -192,7 +192,7 @@ pub unsafe extern "C" fn findsent(dir: Direction, mut count: c_int) -> c_int {
 }
 
 /// Find the next paragraph or section in direction `dir` (`findpar`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn findpar(
     pincl: *mut bool,
     dir: c_int,
@@ -294,7 +294,7 @@ unsafe fn inmacro(opt: *mut c_char, s: *const c_char) -> bool {
 }
 
 /// Return true if line `lnum` is the start of a section or paragraph (`startPS`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn startPS(lnum: linenr_T, para: c_int, both: bool) -> bool {
     unsafe {
         let s = ml_get(lnum);
@@ -331,7 +331,7 @@ unsafe fn cls() -> c_int {
 }
 
 /// Move forward `count` words (`fwd_word`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn fwd_word(mut count: c_int, bigword: bool, eol: bool) -> c_int {
     unsafe {
         (*curwin).w_cursor.coladd = 0;
@@ -384,7 +384,7 @@ pub unsafe extern "C" fn fwd_word(mut count: c_int, bigword: bool, eol: bool) ->
 }
 
 /// Move backward `count` words (`bck_word`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bck_word(mut count: c_int, bigword: bool, mut stop: bool) -> c_int {
     unsafe {
         (*curwin).w_cursor.coladd = 0;
@@ -434,7 +434,7 @@ pub unsafe extern "C" fn bck_word(mut count: c_int, bigword: bool, mut stop: boo
 }
 
 /// Move to the end of the word (`end_word`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn end_word(
     mut count: c_int,
     bigword: bool,
@@ -500,7 +500,7 @@ pub unsafe extern "C" fn end_word(
 }
 
 /// Move back to the end of the word (`bckend_word`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bckend_word(mut count: c_int, bigword: bool, eol: bool) -> c_int {
     unsafe {
         (*curwin).w_cursor.coladd = 0;
@@ -609,7 +609,7 @@ unsafe fn findsent_forward(mut count: c_int, mut at_start_sent: bool) {
 }
 
 /// Find word under cursor, cursor at end (`current_word`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn current_word(
     oap: *mut oparg_T,
     mut count: c_int,
@@ -730,7 +730,7 @@ pub unsafe extern "C" fn current_word(
 }
 
 /// Find the current line ("il") or all lines ("al") (`current_line`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn current_line(oap: *mut oparg_T, include: bool) -> c_int {
     unsafe {
         if include {
@@ -798,7 +798,7 @@ pub unsafe extern "C" fn current_line(oap: *mut oparg_T, include: bool) -> c_int
 }
 
 /// Find sentence(s) under the cursor, cursor at end (`current_sent`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn current_sent(oap: *mut oparg_T, mut count: c_int, include: bool) -> c_int {
     unsafe {
         let mut start_pos = (*curwin).w_cursor;
@@ -936,7 +936,7 @@ pub unsafe extern "C" fn current_sent(oap: *mut oparg_T, mut count: c_int, inclu
 }
 
 /// Find block under the cursor, cursor at end (`current_block`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn current_block(
     oap: *mut oparg_T,
     mut count: c_int,
@@ -1144,7 +1144,7 @@ unsafe fn in_html_tag(end_tag: bool) -> bool {
 }
 
 /// Find tag block under the cursor, cursor at end (`current_tagblock`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn current_tagblock(
     oap: *mut oparg_T,
     count_arg: c_int,
@@ -1347,7 +1347,7 @@ pub unsafe extern "C" fn current_tagblock(
 }
 
 /// Find paragraph under the cursor (`current_par`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn current_par(
     oap: *mut oparg_T,
     count: c_int,
@@ -1580,7 +1580,7 @@ unsafe fn find_prev_quote(
 }
 
 /// Find quote under the cursor, cursor at end (`current_quote`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn current_quote(
     oap: *mut oparg_T,
     count: c_int,

@@ -2,71 +2,46 @@
 
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
-#[cfg(not(test))]
 use crate::charset::vim_str2nr;
-#[cfg(not(test))]
 use crate::eval::encode::encode_list_write;
-#[cfg(not(test))]
 use crate::eval::string2float;
-use crate::eval::typval::{TypvalVval, VAR_UNLOCKED, VarType, list_T, typval_T};
-#[cfg(not(test))]
 use crate::eval::typval::{
-    dict_T, dictitem_T, tv_blob_alloc_ret, tv_clear, tv_dict_add, tv_dict_alloc, tv_dict_find,
-    tv_dict_item_alloc, tv_dict_item_alloc_len, tv_list_alloc, tv_list_append_list,
-    tv_list_append_number, tv_list_append_owned_tv, tv_list_len, tv_list_ref,
+    TypvalVval, VAR_UNLOCKED, VarType, dict_T, dictitem_T, list_T, tv_blob_alloc_ret, tv_clear,
+    tv_dict_add, tv_dict_alloc, tv_dict_find, tv_dict_item_alloc, tv_dict_item_alloc_len,
+    tv_list_alloc, tv_list_append_list, tv_list_append_number, tv_list_append_owned_tv,
+    tv_list_len, tv_list_ref, typval_T,
 };
-#[cfg(not(test))]
 use crate::eval::vars::eval_msgpack_type_lists;
-#[cfg(not(test))]
 use crate::garray::ga_concat_len;
-#[cfg(not(test))]
 use crate::hashtab::hashitem_empty;
-use crate::math::FAIL;
-#[cfg(not(test))]
-use crate::math::OK;
-#[cfg(not(test))]
+use crate::math::{FAIL, OK};
 use crate::mbyte::{utf_char2bytes, utf_char2len, utf_ptr2char, utf_ptr2len};
-use crate::memory::{xfree, xmemdupz};
-#[cfg(not(test))]
-use crate::memory::{xmalloc, xmallocz};
-#[cfg(not(test))]
+use crate::memory::{xfree, xmalloc, xmallocz, xmemdupz};
 use crate::message::{emsg, semsg};
 use std::ffi::{CStr, c_char, c_int, c_void};
 
-#[cfg(not(test))]
 pub(crate) const K_LIST_LEN_MAY_KNOW: isize = -3;
 
-#[cfg(not(test))]
 pub(crate) const K_MP_INTEGER: usize = 2;
-#[cfg(not(test))]
 pub(crate) const K_MP_MAP: usize = 6;
-#[cfg(not(test))]
 pub(crate) const K_MP_EXT: usize = 7;
 
-#[cfg(not(test))]
 const SURROGATE_HI_START: u64 = 0xD800;
-#[cfg(not(test))]
 const SURROGATE_HI_END: u64 = 0xDBFF;
-#[cfg(not(test))]
 const SURROGATE_LO_START: u64 = 0xDC00;
-#[cfg(not(test))]
 const SURROGATE_LO_END: u64 = 0xDFFF;
-#[cfg(not(test))]
 pub(crate) const SURROGATE_FIRST_CHAR: c_int = 0x10000;
 
 use crate::mpack::mpack_core::{MPACK_OK, mpack_token_type_t};
-use crate::mpack::object::mpack_parser_t;
-#[cfg(not(test))]
-use crate::mpack::object::{mpack_node_t, mpack_parent_node, mpack_parse, mpack_parser_init};
+use crate::mpack::object::{
+    mpack_node_t, mpack_parent_node, mpack_parse, mpack_parser_init, mpack_parser_t,
+};
 
-#[cfg(not(test))]
 use crate::api::private::converter::{K_BOOL_VAR_FALSE, K_BOOL_VAR_TRUE, K_SPECIAL_VAR_NULL};
-#[cfg(not(test))]
 use crate::mpack::conv::{
     mpack_unpack_boolean, mpack_unpack_float_fast, mpack_unpack_sint, mpack_unpack_uint,
 };
 
-#[cfg(not(test))]
 #[derive(Clone, Copy)]
 struct JsonContainerStackItem {
     stack_index: usize,
@@ -75,7 +50,6 @@ struct JsonContainerStackItem {
     container: typval_T,
 }
 
-#[cfg(not(test))]
 #[derive(Clone, Copy)]
 struct ValuesStackItem {
     is_special_string: bool,
@@ -84,7 +58,6 @@ struct ValuesStackItem {
     val: typval_T,
 }
 
-#[cfg(not(test))]
 unsafe fn create_special_dict(rettv: *mut typval_T, mp_type: usize, val: typval_T) {
     unsafe {
         let dict = tv_dict_alloc();
@@ -115,12 +88,6 @@ pub unsafe extern "C" fn decode_create_map_special_dict(
     ret_tv: *mut typval_T,
     len: isize,
 ) -> *mut list_T {
-    #[cfg(test)]
-    {
-        let _ = (ret_tv, len);
-        std::ptr::null_mut()
-    }
-    #[cfg(not(test))]
     unsafe {
         let list = tv_list_alloc(len);
         tv_list_ref(list);
@@ -154,7 +121,6 @@ pub unsafe extern "C" fn decode_string(
     };
     let use_blob = force_blob || has_nul;
 
-    #[cfg(not(test))]
     if use_blob {
         let mut tv = typval_T {
             v_type: VarType::VAR_UNKNOWN,
@@ -187,7 +153,6 @@ pub unsafe extern "C" fn decode_string(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn json_decoder_pop(
     obj: ValuesStackItem,
     stack: &mut Vec<ValuesStackItem>,
@@ -294,7 +259,6 @@ unsafe fn json_decoder_pop(
     OK
 }
 
-#[cfg(not(test))]
 #[allow(clippy::too_many_arguments)]
 unsafe fn parse_json_string(
     buf: *const c_char,
@@ -532,7 +496,6 @@ unsafe fn parse_json_string(
     }
 }
 
-#[cfg(not(test))]
 #[allow(clippy::too_many_arguments)]
 unsafe fn parse_json_number(
     buf: *const c_char,
@@ -696,13 +659,6 @@ pub unsafe extern "C" fn json_decode_string(
     buf_len: usize,
     rettv: *mut typval_T,
 ) -> c_int {
-    #[cfg(test)]
-    {
-        let _ = (buf, buf_len, rettv);
-        FAIL
-    }
-
-    #[cfg(not(test))]
     unsafe {
         let mut p = buf;
         let e = buf.add(buf_len);
@@ -1108,7 +1064,6 @@ pub unsafe extern "C" fn json_decode_string(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn positive_integer_to_special_typval(rettv: *mut typval_T, val: u64) {
     unsafe {
         if val <= (i64::MAX as u64) {
@@ -1139,7 +1094,6 @@ unsafe fn positive_integer_to_special_typval(rettv: *mut typval_T, val: u64) {
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C-unwind" fn typval_parse_enter(
     parser: *mut mpack_parser_t,
     node: *mut mpack_node_t,
@@ -1276,7 +1230,6 @@ pub unsafe extern "C" fn typval_parser_error_free(parser: *mut mpack_parser_t) {
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C-unwind" fn typval_parse_exit(
     _parser: *mut mpack_parser_t,
     node: *mut mpack_node_t,
@@ -1404,7 +1357,6 @@ pub unsafe extern "C" fn mpack_parse_typval(
     data: *mut *const c_char,
     size: *mut usize,
 ) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         mpack_parse(
             parser,
@@ -1413,11 +1365,6 @@ pub unsafe extern "C" fn mpack_parse_typval(
             Some(typval_parse_enter),
             Some(typval_parse_exit),
         )
-    }
-    #[cfg(test)]
-    {
-        let _ = (parser, data, size);
-        MPACK_OK
     }
 }
 
@@ -1431,12 +1378,6 @@ pub unsafe extern "C" fn unpack_typval(
     unsafe {
         (*ret).v_type = VarType::VAR_UNKNOWN;
     }
-    #[cfg(test)]
-    {
-        let _ = (data, size);
-        MPACK_OK
-    }
-    #[cfg(not(test))]
     unsafe {
         let mut parser = std::mem::MaybeUninit::<mpack_parser_t>::uninit();
         mpack_parser_init(parser.as_mut_ptr(), 0);

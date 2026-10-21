@@ -1261,7 +1261,7 @@ const MPACK_FUNCTIONS: [luaL_Reg; 6] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn luaopen_mpack(l: *mut lua_State) -> c_int {
     unsafe {
         luaL_newmetatable(l, UNPACKER_META_NAME.as_ptr());

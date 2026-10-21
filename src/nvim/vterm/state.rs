@@ -114,7 +114,7 @@ pub(crate) const VT_MODE_CTRL8BIT: u32 = 1 << 1;
 const CSI_ARG_MISSING: c_int = ((1u32 << 31) - 1) as c_int;
 
 /// Primary Device Attributes (DA1) response.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static mut vterm_primary_device_attr: [c_char; 9] = [
     b'6' as c_char,
     b'1' as c_char,
@@ -422,7 +422,7 @@ unsafe fn vterm_state_new(vt: *mut VTerm) -> *mut VTermStateFull {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_state_free(state: *mut VTermStateFull) {
     unsafe {
         vterm_allocator_free((*state).vt, (*state).tabstops.cast());
@@ -2682,7 +2682,7 @@ static PARSER_CALLBACKS: VTermParserCallbacks = VTermParserCallbacks {
     resize: Some(on_resize),
 };
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_obtain_state(vt: *mut VTerm) -> *mut VTermStateFull {
     unsafe {
         if !(*vt).state.is_null() {
@@ -2698,7 +2698,7 @@ pub unsafe extern "C" fn vterm_obtain_state(vt: *mut VTerm) -> *mut VTermStateFu
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_state_reset(state: *mut VTermStateFull, hard: c_int) {
     unsafe {
         (*state).scrollregion_top = 0;
@@ -2781,7 +2781,7 @@ pub unsafe extern "C" fn vterm_state_reset(state: *mut VTermStateFull, hard: c_i
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_state_set_callbacks(
     state: *mut VTermStateFull,
     callbacks: *const VTermStateCallbacks,
@@ -2802,7 +2802,7 @@ pub unsafe extern "C" fn vterm_state_set_callbacks(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_state_set_unrecognised_fallbacks(
     state: *mut VTermStateFull,
     fallbacks: *const VTermStateFallbacks,
@@ -2819,7 +2819,7 @@ pub unsafe extern "C" fn vterm_state_set_unrecognised_fallbacks(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_state_set_termprop(
     state: *mut VTermStateFull,
     prop: VTermProp,
@@ -2904,7 +2904,7 @@ pub unsafe extern "C" fn vterm_state_set_termprop(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_state_focus_in(state: *mut VTermStateFull) {
     unsafe {
         if ((*state).mode & MODE_REPORT_FOCUS) != 0 {
@@ -2913,7 +2913,7 @@ pub unsafe extern "C" fn vterm_state_focus_in(state: *mut VTermStateFull) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_state_focus_out(state: *mut VTermStateFull) {
     unsafe {
         if ((*state).mode & MODE_REPORT_FOCUS) != 0 {
@@ -2922,7 +2922,7 @@ pub unsafe extern "C" fn vterm_state_focus_out(state: *mut VTermStateFull) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_state_get_lineinfo(
     state: *const VTermStateFull,
     row: c_int,
@@ -2930,7 +2930,7 @@ pub unsafe extern "C" fn vterm_state_get_lineinfo(
     unsafe { (*state).lineinfo.cast::<VTermLineInfo>().add(row as usize) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_state_set_selection_callbacks(
     state: *mut VTermStateFull,
     callbacks: *const VTermSelectionCallbacks,

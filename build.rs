@@ -80,39 +80,36 @@ fn main() {
     let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
 
     if target_os == "windows" && target_env == "msvc" {
-        println!(
-            "cargo:rustc-link-arg-bin=nvim=/LIBPATH:{}",
-            deps_lib.display()
-        );
+        println!("cargo:rustc-link-search=native={}", deps_lib.display());
         for lib in [
-            "luv.lib",
-            "libiconv.lib",
-            "tree-sitter.lib",
-            "utf8proc_static.lib",
-            "libintl.lib",
-            "unibilium.lib",
-            "lua51.lib",
-            "libuv.lib",
-            "netapi32.lib",
-            "bcrypt.lib",
-            "ntdll.lib",
-            "iphlpapi.lib",
-            "psapi.lib",
-            "ws2_32.lib",
-            "userenv.lib",
-            "dbghelp.lib",
-            "ole32.lib",
-            "shell32.lib",
-            "advapi32.lib",
-            "user32.lib",
-            "gdi32.lib",
+            "luv",
+            "libiconv",
+            "tree-sitter",
+            "utf8proc_static",
+            "libintl",
+            "unibilium",
+            "lua51",
+            "libuv",
+            "netapi32",
+            "bcrypt",
+            "ntdll",
+            "iphlpapi",
+            "psapi",
+            "ws2_32",
+            "userenv",
+            "dbghelp",
+            "ole32",
+            "shell32",
+            "advapi32",
+            "user32",
+            "gdi32",
         ] {
-            println!("cargo:rustc-link-arg-bin=nvim={lib}");
+            println!("cargo:rustc-link-lib={lib}");
         }
-        println!("cargo:rustc-link-arg-bin=nvim=/DEFAULTLIB:msvcrt");
-        println!("cargo:rustc-link-arg-bin=nvim=/DEFAULTLIB:ucrt");
-        println!("cargo:rustc-link-arg-bin=nvim=/NODEFAULTLIB:libcmt");
-        println!("cargo:rustc-link-arg-bin=nvim=/NODEFAULTLIB:libucrt");
+        println!("cargo:rustc-link-arg=/DEFAULTLIB:msvcrt");
+        println!("cargo:rustc-link-arg=/DEFAULTLIB:ucrt");
+        println!("cargo:rustc-link-arg=/NODEFAULTLIB:libcmt");
+        println!("cargo:rustc-link-arg=/NODEFAULTLIB:libucrt");
         let manifest_path = manifest_dir
             .join("src")
             .join("nvim")
@@ -123,32 +120,38 @@ fn main() {
             "cargo:rustc-link-arg-bin=nvim=/MANIFESTINPUT:{}",
             manifest_path.display()
         );
+        let lua_dll = deps_prefix.join("bin").join("lua51.dll");
+        if lua_dll.exists()
+            && let Ok(out_dir) = env::var("OUT_DIR")
+            && let Some(profile_dir) = PathBuf::from(out_dir).ancestors().nth(3).map(PathBuf::from)
+        {
+            let _ = std::fs::copy(&lua_dll, profile_dir.join("lua51.dll"));
+            let _ = std::fs::copy(&lua_dll, profile_dir.join("deps").join("lua51.dll"));
+        }
     } else if target_os != "windows" {
         println!("cargo:rustc-link-arg-bin=nvim=-rdynamic");
-        println!("cargo:rustc-link-arg-bin=nvim=-L{}", deps_lib.display());
-        for archive in [
-            "libluv.a",
-            "libtree-sitter.a",
-            "libutf8proc.a",
-            "libunibilium.a",
-            "libluajit-5.1.a",
-            "libuv.a",
+        println!("cargo:rustc-link-search=native={}", deps_lib.display());
+        for (archive, lib) in [
+            ("libluv.a", "static=luv"),
+            ("libtree-sitter.a", "static=tree-sitter"),
+            ("libutf8proc.a", "static=utf8proc"),
+            ("libunibilium.a", "static=unibilium"),
+            ("libluajit-5.1.a", "static=luajit-5.1"),
+            ("libuv.a", "static=uv"),
         ] {
-            let p = deps_lib.join(archive);
-            if p.exists() {
-                println!("cargo:rustc-link-arg-bin=nvim={}", p.display());
+            if deps_lib.join(archive).exists() {
+                println!("cargo:rustc-link-lib={lib}");
             }
         }
-        for syslib in ["-lm", "-ldl", "-lpthread"] {
-            println!("cargo:rustc-link-arg-bin=nvim={syslib}");
+        for syslib in ["m", "dl", "pthread"] {
+            println!("cargo:rustc-link-lib={syslib}");
         }
         if target_os == "linux" {
-            println!("cargo:rustc-link-arg-bin=nvim=-lutil");
+            println!("cargo:rustc-link-lib=util");
         } else if target_os == "macos" {
-            println!("cargo:rustc-link-arg-bin=nvim=-liconv");
+            println!("cargo:rustc-link-lib=iconv");
             println!("cargo:rustc-link-arg-bin=nvim=-Wl,-export_dynamic");
-            println!("cargo:rustc-link-arg-bin=nvim=-framework");
-            println!("cargo:rustc-link-arg-bin=nvim=CoreServices");
+            println!("cargo:rustc-link-lib=framework=CoreServices");
         }
     }
 }

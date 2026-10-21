@@ -72,7 +72,7 @@ static mut ERR_LINE_BUF: StringBuilder = StringBuilder::new();
 // DLLEXPORT String nvim_exec(uint64_t channel_id, String src, Boolean output, Error *err)
 //   FUNC_API_SINCE(7) FUNC_API_DEPRECATED_SINCE(11)
 //   FUNC_API_RET_ALLOC;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_exec(
     channel_id: u64,
     src: NvimString,
@@ -90,7 +90,7 @@ pub unsafe extern "C" fn nvim_exec(
 // DLLEXPORT String nvim_command_output(uint64_t channel_id, String command, Error *err)
 //   FUNC_API_SINCE(1) FUNC_API_DEPRECATED_SINCE(7)
 //   FUNC_API_RET_ALLOC;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_command_output(
     channel_id: u64,
     command: NvimString,
@@ -108,7 +108,7 @@ pub unsafe extern "C" fn nvim_command_output(
 //   FUNC_API_SINCE(3)
 //   FUNC_API_DEPRECATED_SINCE(7)
 //   FUNC_API_REMOTE_ONLY;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_execute_lua(
     code: NvimString,
     args: Array,
@@ -128,7 +128,7 @@ pub unsafe extern "C" fn nvim_execute_lua(
 // DLLEXPORT Integer nvim_buf_get_number(Buffer buffer, Error *err)
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(2);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_get_number(buffer: Buffer, err: *mut Error) -> Integer {
     unsafe {
         let buf = find_buffer_by_handle(buffer, err);
@@ -168,7 +168,7 @@ unsafe fn src2ns(src_id: *mut Integer) -> u32 {
 //                                         Integer line_end, Error *err)
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(7);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_clear_highlight(
     buffer: Buffer,
     ns_id: Integer,
@@ -199,7 +199,7 @@ pub unsafe extern "C" fn nvim_buf_clear_highlight(
 //                                          Error *err)
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(13);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_add_highlight(
     buffer: Buffer,
     mut ns_id: Integer,
@@ -292,7 +292,7 @@ pub unsafe extern "C" fn nvim_buf_add_highlight(
 //                                             Array chunks, Dict(empty) *opts, Error *err)
 //   FUNC_API_SINCE(5)
 //   FUNC_API_DEPRECATED_SINCE(8);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_set_virtual_text(
     buffer: Buffer,
     mut src_id: Integer,
@@ -387,7 +387,7 @@ pub unsafe extern "C" fn nvim_buf_set_virtual_text(
 // DLLEXPORT Dict nvim_get_hl_by_id(Integer hl_id, Boolean rgb, Arena *arena, Error *err)
 //   FUNC_API_SINCE(3)
 //   FUNC_API_DEPRECATED_SINCE(9);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_get_hl_by_id(
     hl_id: Integer,
     rgb: Boolean,
@@ -417,7 +417,7 @@ pub unsafe extern "C" fn nvim_get_hl_by_id(
 // DLLEXPORT Dict nvim_get_hl_by_name(String name, Boolean rgb, Arena *arena, Error *err)
 //   FUNC_API_SINCE(3)
 //   FUNC_API_DEPRECATED_SINCE(9);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_get_hl_by_name(
     name: NvimString,
     rgb: Boolean,
@@ -447,7 +447,7 @@ pub unsafe extern "C" fn nvim_get_hl_by_name(
 // DLLEXPORT void buffer_insert(Buffer buffer, Integer lnum, ArrayOf(String) lines, Arena *arena,
 //                              Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn buffer_insert(
     buffer: Buffer,
     lnum: Integer,
@@ -470,7 +470,7 @@ pub unsafe extern "C" fn buffer_insert(
 /// @return Line string
 // DLLEXPORT String buffer_get_line(Buffer buffer, Integer index, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn buffer_get_line(
     buffer: Buffer,
     mut index: Integer,
@@ -510,7 +510,7 @@ pub unsafe extern "C" fn buffer_get_line(
 /// @param[out] err Error details, if any
 // DLLEXPORT void buffer_set_line(Buffer buffer, Integer index, String line, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn buffer_set_line(
     buffer: Buffer,
     mut index: Integer,
@@ -539,7 +539,7 @@ pub unsafe extern "C" fn buffer_set_line(
 /// @param[out] err Error details, if any
 // DLLEXPORT void buffer_del_line(Buffer buffer, Integer index, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn buffer_del_line(
     buffer: Buffer,
     mut index: Integer,
@@ -568,7 +568,7 @@ pub unsafe extern "C" fn buffer_del_line(
 //                                                 Boolean include_start, Boolean include_end,
 //                                                 Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn buffer_get_line_slice(
     buffer: Buffer,
     mut start: Integer,
@@ -601,7 +601,7 @@ pub unsafe extern "C" fn buffer_get_line_slice(
 //                                      Boolean include_start, Boolean include_end,
 //                                      ArrayOf(String) replacement, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn buffer_set_line_slice(
     buffer: Buffer,
     mut start: Integer,
@@ -630,7 +630,7 @@ pub unsafe extern "C" fn buffer_set_line_slice(
 /// @return Old value or nil if there was no previous value.
 // DLLEXPORT Object buffer_set_var(Buffer buffer, String name, Object value, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn buffer_set_var(
     buffer: Buffer,
     name: NvimString,
@@ -657,7 +657,7 @@ pub unsafe extern "C" fn buffer_set_var(
 /// @return Old value
 // DLLEXPORT Object buffer_del_var(Buffer buffer, String name, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn buffer_del_var(
     buffer: Buffer,
     name: NvimString,
@@ -684,7 +684,7 @@ pub unsafe extern "C" fn buffer_del_var(
 /// @return Old value or nil if there was no previous value.
 // DLLEXPORT Object window_set_var(Window window, String name, Object value, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn window_set_var(
     window: Window,
     name: NvimString,
@@ -711,7 +711,7 @@ pub unsafe extern "C" fn window_set_var(
 /// @return Old value
 // DLLEXPORT Object window_del_var(Window window, String name, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn window_del_var(
     window: Window,
     name: NvimString,
@@ -739,7 +739,7 @@ pub unsafe extern "C" fn window_del_var(
 // DLLEXPORT Object tabpage_set_var(Tabpage tabpage, String name, Object value, Arena *arena,
 //                                  Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tabpage_set_var(
     tabpage: Tabpage,
     name: NvimString,
@@ -766,7 +766,7 @@ pub unsafe extern "C" fn tabpage_set_var(
 /// @return Old value
 // DLLEXPORT Object tabpage_del_var(Tabpage tabpage, String name, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tabpage_del_var(
     tabpage: Tabpage,
     name: NvimString,
@@ -787,7 +787,7 @@ pub unsafe extern "C" fn tabpage_del_var(
 /// @return Old value or nil if there was no previous value.
 // DLLEXPORT Object vim_set_var(String name, Object value, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_set_var(
     name: NvimString,
     value: Object,
@@ -801,7 +801,7 @@ pub unsafe extern "C" fn vim_set_var(
 /// @see nvim_del_var
 // DLLEXPORT Object vim_del_var(String name, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_del_var(
     name: NvimString,
     arena: *mut Arena,
@@ -825,7 +825,7 @@ const fn convert_index(index: i64) -> i64 {
 // DLLEXPORT DictAs(get_option_info) nvim_get_option_info(String name, Arena *arena, Error *err)
 //   FUNC_API_SINCE(7)
 //   FUNC_API_DEPRECATED_SINCE(11);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_get_option_info(
     name: NvimString,
     arena: *mut Arena,
@@ -844,7 +844,7 @@ pub unsafe extern "C" fn nvim_get_option_info(
 // DLLEXPORT void nvim_set_option(uint64_t channel_id, String name, Object value, Error *err)
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(11);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_set_option(
     channel_id: u64,
     name: NvimString,
@@ -873,7 +873,7 @@ pub unsafe extern "C" fn nvim_set_option(
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(11)
 //   FUNC_API_RET_ALLOC;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_get_option(name: NvimString, err: *mut Error) -> Object {
     unsafe { get_option_from(ptr::null_mut(), kOptScopeGlobal, name, err) }
 }
@@ -889,7 +889,7 @@ pub unsafe extern "C" fn nvim_get_option(name: NvimString, err: *mut Error) -> O
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(11)
 //   FUNC_API_RET_ALLOC;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_get_option(
     buffer: Buffer,
     name: NvimString,
@@ -917,7 +917,7 @@ pub unsafe extern "C" fn nvim_buf_get_option(
 //                                    Error *err)
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(11);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_set_option(
     channel_id: u64,
     buffer: Buffer,
@@ -945,7 +945,7 @@ pub unsafe extern "C" fn nvim_buf_set_option(
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(11)
 //   FUNC_API_RET_ALLOC;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_win_get_option(
     window: Window,
     name: NvimString,
@@ -973,7 +973,7 @@ pub unsafe extern "C" fn nvim_win_get_option(
 //                                    Error *err)
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(11);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_win_set_option(
     channel_id: u64,
     window: Window,
@@ -1096,7 +1096,7 @@ unsafe fn set_option_to(
 /// @return Array of two elements.
 // DLLEXPORT Array nvim_call_atomic(uint64_t channel_id, Array calls, Arena *arena, Error *err)
 //   FUNC_API_SINCE(1) FUNC_API_DEPRECATED_SINCE(12) FUNC_API_REMOTE_ONLY;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_call_atomic(
     channel_id: u64,
     calls: Array,
@@ -1202,7 +1202,7 @@ pub unsafe extern "C" fn nvim_call_atomic(
 // DLLEXPORT void nvim_subscribe(uint64_t channel_id, String event)
 // // XXX: c_grammar.lua is order-sensitive.
 //   FUNC_API_SINCE(1) FUNC_API_DEPRECATED_SINCE(13) FUNC_API_REMOTE_ONLY;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_subscribe(_channel_id: u64, _event: NvimString) {}
 
 /// @deprecated
@@ -1212,7 +1212,7 @@ pub unsafe extern "C" fn nvim_subscribe(_channel_id: u64, _event: NvimString) {}
 // DLLEXPORT void nvim_unsubscribe(uint64_t channel_id, String event)
 // // XXX: c_grammar.lua is order-sensitive.
 //   FUNC_API_SINCE(1) FUNC_API_DEPRECATED_SINCE(13) FUNC_API_REMOTE_ONLY;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_unsubscribe(_channel_id: u64, _event: NvimString) {}
 
 unsafe fn push_char(line_buf: &mut StringBuilder, c: c_char, to_err: bool) {
@@ -1272,7 +1272,7 @@ unsafe fn write_msg(message: NvimString, to_err: bool, writeln: bool) {
 /// @param str Message
 // DLLEXPORT void nvim_out_write(String str)
 //   FUNC_API_SINCE(1) FUNC_API_DEPRECATED_SINCE(13);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_out_write(str: NvimString) {
     unsafe {
         write_msg(str, false, false);
@@ -1285,7 +1285,7 @@ pub unsafe extern "C" fn nvim_out_write(str: NvimString) {
 // DLLEXPORT void nvim_err_write(String str)
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(13);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_err_write(str: NvimString) {
     unsafe {
         write_msg(str, true, false);
@@ -1298,7 +1298,7 @@ pub unsafe extern "C" fn nvim_err_write(str: NvimString) {
 // DLLEXPORT void nvim_err_writeln(String str)
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(13);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_err_writeln(str: NvimString) {
     unsafe {
         write_msg(str, true, true);
@@ -1316,7 +1316,7 @@ pub unsafe extern "C" fn nvim_err_writeln(str: NvimString) {
 // DLLEXPORT Object nvim_notify(String msg, Integer log_level, Dict opts, Arena *arena, Error *err)
 //   FUNC_API_SINCE(7)
 //   FUNC_API_DEPRECATED_SINCE(13);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_notify(
     msg_str: NvimString,
     log_level: Integer,
@@ -1354,7 +1354,7 @@ pub unsafe extern "C" fn nvim_notify(
 // DLLEXPORT void nvim_win_set_height(Window win, Integer height, Error *err)
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(15);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_win_set_height(win: Window, height: Integer, err: *mut Error) {
     unsafe {
         let w = find_window_by_handle(win, err);
@@ -1380,7 +1380,7 @@ pub unsafe extern "C" fn nvim_win_set_height(win: Window, height: Integer, err: 
 // DLLEXPORT void nvim_win_set_width(Window win, Integer width, Error *err)
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(15);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_win_set_width(win: Window, width: Integer, err: *mut Error) {
     unsafe {
         let w = find_window_by_handle(win, err);

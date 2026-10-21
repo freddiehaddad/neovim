@@ -69,7 +69,7 @@ unsafe fn callrecursive(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn hascaptures(mut tree: *mut TTree) -> c_int {
     unsafe {
         loop {
@@ -103,7 +103,7 @@ pub unsafe extern "C" fn hascaptures(mut tree: *mut TTree) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn checkaux(mut tree: *mut TTree, pred: c_int) -> c_int {
     unsafe {
         loop {
@@ -152,7 +152,7 @@ pub unsafe extern "C" fn checkaux(mut tree: *mut TTree, pred: c_int) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn fixedlen(mut tree: *mut TTree) -> c_int {
     let mut len: c_int = 0;
     unsafe {
@@ -350,7 +350,7 @@ unsafe fn needfollow(mut tree: *mut TTree) -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sizei(i: *const Instruction) -> c_int {
     unsafe {
         match (*i).i.code {
@@ -396,7 +396,7 @@ unsafe fn newcode(l: *mut lua_State, p: *mut Pattern, mut size: c_int) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn freecode(l: *mut lua_State, p: *mut Pattern) {
     unsafe {
         if !(*p).code.is_null() {
@@ -1022,7 +1022,7 @@ unsafe fn peephole(compst: *mut CompileState) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn compile(
     l: *mut lua_State,
     p: *mut Pattern,

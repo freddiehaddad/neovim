@@ -379,7 +379,7 @@ unsafe fn pum_border_width() -> c_int {
 }
 
 /// Show the popup menu with items `array[size]` (`pum_display`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn pum_display(
     array: *mut pumitem_T,
     size: c_int,
@@ -734,7 +734,7 @@ unsafe fn pum_user_attr_combine(idx: c_int, type_: c_int, attr: c_int) -> c_int 
 }
 
 /// Redraw the popup menu, using `pum_first` and `pum_selected` (`pum_redraw`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn pum_redraw() {
     unsafe {
         let mut row: c_int = 0;
@@ -1265,7 +1265,7 @@ unsafe fn pum_adjust_info_position(wp: *mut win_T, width: c_int) -> bool {
 }
 
 /// Used for `nvim__complete_set` (`pum_set_info`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn pum_set_info(selected: c_int, info: *mut c_char) -> *mut win_T {
     unsafe {
         if !PUM_IS_VISIBLE || !compl_match_curr_select(selected) {
@@ -1517,7 +1517,7 @@ unsafe fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
 }
 
 /// Undisplay the popup menu (`pum_undisplay`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn pum_undisplay(immediate: bool) {
     unsafe {
         PUM_IS_VISIBLE = false;
@@ -1530,7 +1530,7 @@ pub unsafe extern "C" fn pum_undisplay(immediate: bool) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn pum_check_clear() {
     unsafe {
         if !PUM_IS_VISIBLE && PUM_IS_DRAWN {
@@ -1552,7 +1552,7 @@ pub unsafe extern "C" fn pum_check_clear() {
 }
 
 /// Clear the popup menu (`pum_clear`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn pum_clear() {
     unsafe {
         PUM_FIRST = 0;
@@ -1560,33 +1560,33 @@ pub unsafe extern "C" fn pum_clear() {
 }
 
 /// Return true if the popup menu is displayed (`pum_visible`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn pum_visible() -> bool {
     unsafe { PUM_IS_VISIBLE }
 }
 
 /// Return true if the popup menu is displayed and drawn on the grid (`pum_drawn`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn pum_drawn() -> bool {
     unsafe { pum_visible() && !PUM_EXTERNAL }
 }
 
 /// Screen was cleared, need to redraw next time (`pum_invalidate`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn pum_invalidate() {
     unsafe {
         PUM_INVALID = true;
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn pum_recompose() {
     unsafe {
         ui_comp_compose_grid(&raw mut pum_grid);
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn pum_ext_select_item(item: c_int, insert: bool, finish: bool) {
     unsafe {
         if !pum_visible() || item < -1 || item >= PUM_SIZE {
@@ -1600,7 +1600,7 @@ pub unsafe extern "C" fn pum_ext_select_item(item: c_int, insert: bool, finish: 
 }
 
 /// Gets the height of the menu (`pum_get_height`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn pum_get_height() -> c_int {
     unsafe {
         if PUM_EXTERNAL {
@@ -1614,7 +1614,7 @@ pub unsafe extern "C" fn pum_get_height() -> c_int {
 }
 
 /// Add size information about the pum to `dict` (`pum_set_event_info`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn pum_set_event_info(dict: *mut dict_T) {
     unsafe {
         if !pum_visible() {
@@ -1787,7 +1787,7 @@ unsafe fn pum_execute_menu(menu: *mut vimmenu_T, mode: c_int) {
 }
 
 /// Open the terminal version of the popup menu (`pum_show_popupmenu`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn pum_show_popupmenu(menu: *mut vimmenu_T) {
     unsafe {
         pum_undisplay(true);
@@ -1906,7 +1906,7 @@ pub unsafe extern "C" fn pum_show_popupmenu(menu: *mut vimmenu_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn pum_make_popup(path_name: *const c_char, use_mouse_pos: c_int) {
     unsafe {
         if use_mouse_pos == 0 {
@@ -1933,7 +1933,7 @@ pub unsafe extern "C" fn pum_make_popup(path_name: *const c_char, use_mouse_pos:
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn pum_pos_ui_flush(force: bool) {
     unsafe {
         if force

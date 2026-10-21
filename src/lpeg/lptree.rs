@@ -1226,7 +1226,7 @@ unsafe extern "C-unwind" fn lp_type(l: *mut lua_State) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn lp_gc(l: *mut lua_State) -> c_int {
     unsafe {
         let p = getpattern(l, 1);
@@ -1419,7 +1419,7 @@ const METAREG: [luaL_Reg; 10] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn luaopen_lpeg(l: *mut lua_State) -> c_int {
     const LPEG_VERSION: &[u8] = b"LPeg 1.1.0";
     unsafe {

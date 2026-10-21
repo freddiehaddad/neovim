@@ -2,36 +2,22 @@
 
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
-use crate::channel::CallbackReader;
-#[cfg(not(test))]
-use crate::channel::{channel_close, channel_create_event, channel_job_start};
-#[cfg(not(test))]
+use crate::channel::{CallbackReader, channel_close, channel_create_event, channel_job_start};
 use crate::eval::find_job;
-#[cfg(not(test))]
 use crate::eval::funcs::{f_jobstart, f_jobstop};
-use crate::eval::typval::{Callback, EvalFuncData, typval_T};
-#[cfg(not(test))]
 use crate::eval::typval::{
-    VarType, dict_T, list_T, listitem_T, tv_dict_add_bool, tv_dict_alloc, tv_dict_free,
-    tv_get_string,
+    Callback, EvalFuncData, VarType, dict_T, list_T, listitem_T, tv_dict_add_bool, tv_dict_alloc,
+    tv_dict_free, tv_get_string, typval_T,
 };
-#[cfg(not(test))]
 use crate::ex_cmds::check_secure;
 use crate::garray::garray_T;
-#[cfg(not(test))]
 use crate::globals::*;
-#[cfg(not(test))]
 use crate::memory::{xmalloc, xstrdup};
-#[cfg(not(test))]
 use crate::message::{emsg, semsg};
-#[cfg(not(test))]
 use std::ffi::{c_char, c_int, c_void};
 
-#[cfg(not(test))]
 const K_BOOL_VAR_TRUE: c_int = 1;
-#[cfg(not(test))]
 const K_CHANNEL_PART_RPC: c_int = 3;
-#[cfg(not(test))]
 const K_CHANNEL_STDIN_PIPE: c_int = 0;
 
 #[inline]
@@ -68,10 +54,6 @@ pub unsafe extern "C" fn f_rpcstart(
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         (*rettv).v_type = VarType::VAR_NUMBER;
         (*rettv).vval.v_number = 0;
@@ -164,10 +146,6 @@ pub unsafe extern "C" fn f_rpcstop(
     rettv: *mut typval_T,
     fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv, fptr);
-
-    #[cfg(not(test))]
     unsafe {
         (*rettv).v_type = VarType::VAR_NUMBER;
         (*rettv).vval.v_number = 0;
@@ -203,10 +181,6 @@ pub unsafe extern "C" fn f_last_buffer_nr(
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = rettv;
-
-    #[cfg(not(test))]
     unsafe {
         let mut n: c_int = 0;
         let mut buf = firstbuf;
@@ -227,10 +201,6 @@ pub unsafe extern "C" fn f_termopen(
     rettv: *mut typval_T,
     fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv, fptr);
-
-    #[cfg(not(test))]
     unsafe {
         if check_secure() {
             return;

@@ -370,7 +370,7 @@ unsafe fn free_buff(buf: *mut StuffBuf) {
 }
 
 /// Gets the contents of the record buffer as a string (typeahead encoding) and clears the buffer.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_recorded() -> *mut c_char {
     unsafe {
         let mut len = recordbuff.size;
@@ -460,7 +460,7 @@ unsafe fn sb_take_string(buf: *mut StringBuilder) -> NvimString {
 }
 
 /// Gets `spec` (or current pending change, if `spec` is NULL), composed into a "redo" keyseq.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn redo_keys(spec: *const CmdSpec) -> NvimString {
     unsafe {
         let spec = if !spec.is_null() {
@@ -481,7 +481,7 @@ pub unsafe extern "C" fn redo_keys(spec: *const CmdSpec) -> NvimString {
 }
 
 /// Gets the pending change's `CmdSpec` (without `body`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn redo_spec() -> CmdSpec {
     unsafe {
         let mut spec = redobuff.cur;
@@ -566,7 +566,7 @@ unsafe fn sb_add_byte(sb: *mut StringBuilder, c: c_int) {
 }
 
 /// Dual of `add_char_buff()`, for a `StringBuilder`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sb_add_char(sb: *mut StringBuilder, c: c_int) {
     unsafe {
         let mut temp = [0 as c_char; MB_MAXBYTES * 3 + 1];
@@ -615,19 +615,19 @@ unsafe fn start_stuff() {
 }
 
 /// Returns true if the readahead ("stuff") buffer is empty.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn stuff_empty() -> bool {
     unsafe { readbuf1.keys.size == 0 && readbuf2.keys.size == 0 }
 }
 
 /// Returns true if `readbuf1` is empty.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn readbuf1_empty() -> bool {
     unsafe { readbuf1.keys.size == 0 }
 }
 
 /// Set a typeahead character that won't be flushed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn typeahead_noflush(c: c_int) {
     unsafe {
         typeahead_char = c;
@@ -635,7 +635,7 @@ pub unsafe extern "C" fn typeahead_noflush(c: c_int) {
 }
 
 /// Remove the contents of the stuff buffer and the mapped characters in the typeahead buffer.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn flush_buffers(flush_typeahead: flush_buffers_T) {
     unsafe {
         init_typebuf();
@@ -681,14 +681,14 @@ pub unsafe extern "C" fn flush_buffers(flush_typeahead: flush_buffers_T) {
 }
 
 /// Hides keys from `vim.on_key()` callbacks.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn block_on_key() {
     unsafe {
         on_key_blocked += 1;
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn unblock_on_key() {
     unsafe {
         on_key_blocked -= 1;
@@ -696,7 +696,7 @@ pub unsafe extern "C" fn unblock_on_key() {
 }
 
 /// Flush map and typeahead buffers and give a warning for an error.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn beep_flush() {
     unsafe {
         if emsg_silent == 0 && !mc_replaying() {
@@ -707,7 +707,7 @@ pub unsafe extern "C" fn beep_flush() {
 }
 
 /// Starts capturing a new change.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn redo_new(spec: CmdSpec) {
     unsafe {
         assert_eq!(spec.body.size, 0);
@@ -722,7 +722,7 @@ pub unsafe extern "C" fn redo_new(spec: CmdSpec) {
 }
 
 /// Frees both redo buffers.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn redo_free_all() {
     unsafe {
         kv_destroy(&raw mut redobuff.cur.body);
@@ -732,7 +732,7 @@ pub unsafe extern "C" fn redo_free_all() {
 }
 
 /// Prepare for redo of any command.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn prep_redo(as_atom: bool, arg_meta: bool, spec: CmdSpec) {
     unsafe {
         if as_atom {
@@ -747,7 +747,7 @@ pub unsafe extern "C" fn prep_redo(as_atom: bool, arg_meta: bool, spec: CmdSpec)
 }
 
 /// Prepare for redo of a Visual-mode command.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn prep_redo_visual(keys: *const c_char, len: usize, spec: CmdSpec) {
     unsafe {
         let mut stored = spec;
@@ -765,7 +765,7 @@ pub unsafe extern "C" fn prep_redo_visual(keys: *const c_char, len: usize, spec:
 }
 
 /// Discard the contents of the redo buffer and restore the previous redo buffer.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn redo_cancel() {
     unsafe {
         if block_redo {
@@ -782,7 +782,7 @@ pub unsafe extern "C" fn redo_cancel() {
 }
 
 /// Saves the redo state to `save_redo` and detaches it.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn save_redobuff(save_redo: *mut RedoState) {
     unsafe {
         *save_redo = redobuff;
@@ -797,7 +797,7 @@ pub unsafe extern "C" fn save_redobuff(save_redo: *mut RedoState) {
 }
 
 /// Restores the redo state from `save_redo`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn restore_redobuff(save_redo: *mut RedoState) {
     unsafe {
         kv_destroy(&raw mut redobuff.cur.body);
@@ -807,7 +807,7 @@ pub unsafe extern "C" fn restore_redobuff(save_redo: *mut RedoState) {
 }
 
 /// Append `len` bytes of `s` (-1: up to the NUL) to the redo buffer.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn redo_append_str(s: *const c_char, len: isize) {
     unsafe {
         if !block_redo {
@@ -818,7 +818,7 @@ pub unsafe extern "C" fn redo_append_str(s: *const c_char, len: isize) {
 }
 
 /// Appends `str` to `buf` literally, escaping special characters with CTRL-V.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sb_add_lit(buf: *mut StringBuilder, str_: *const c_char, len: c_int) {
     unsafe {
         let mut s = str_;
@@ -865,7 +865,7 @@ pub unsafe extern "C" fn sb_add_lit(buf: *mut StringBuilder, str_: *const c_char
 }
 
 /// Append to redo literally; no-op if `block_redo` is set.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn redo_append_lit(str_: *const c_char, len: c_int) {
     unsafe {
         if block_redo {
@@ -876,7 +876,7 @@ pub unsafe extern "C" fn redo_append_lit(str_: *const c_char, len: c_int) {
 }
 
 /// Appends `s` to `buf`, leaving 3-byte special key codes unmodified and escaping other K_SPECIAL bytes.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sb_add_spec(buf: *mut StringBuilder, mut s: *const c_char) {
     unsafe {
         while *s != NUL as c_char {
@@ -892,7 +892,7 @@ pub unsafe extern "C" fn sb_add_spec(buf: *mut StringBuilder, mut s: *const c_ch
 }
 
 /// Append `s` to the redo buffer.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn redo_append_spec(s: *const c_char) {
     unsafe {
         if block_redo {
@@ -903,7 +903,7 @@ pub unsafe extern "C" fn redo_append_spec(s: *const c_char) {
 }
 
 /// Appends character `c` to the redo buffer, translated to typeahead encoding.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn redo_append_char(c: c_int) {
     unsafe {
         if !block_redo {
@@ -913,7 +913,7 @@ pub unsafe extern "C" fn redo_append_char(c: c_int) {
 }
 
 /// Appends string `s` (must be typeahead encoding) to the stuff buffer.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn stuffReadbuff(s: *const c_char) {
     unsafe {
         add_buff(&raw mut readbuf1, s, -1);
@@ -921,14 +921,14 @@ pub unsafe extern "C" fn stuffReadbuff(s: *const c_char) {
 }
 
 /// Appends string `s` (must be typeahead encoding) to the redo stuff buffer.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn stuffRedoReadbuff(s: *const c_char) {
     unsafe {
         add_buff(&raw mut readbuf2, s, -1);
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn stuffReadbuffLen(s: *const c_char, len: isize) {
     unsafe {
         if add_last_insert == 1 {
@@ -939,7 +939,7 @@ pub unsafe extern "C" fn stuffReadbuffLen(s: *const c_char, len: isize) {
 }
 
 /// Stuff `s` into the stuff buffer, leaving special key codes unmodified.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn stuffReadbuffSpecial(mut s: *const c_char) {
     unsafe {
         while *s != NUL as c_char {
@@ -958,7 +958,7 @@ pub unsafe extern "C" fn stuffReadbuffSpecial(mut s: *const c_char) {
 }
 
 /// Appends character `c` to the stuff buffer, translated to typeahead encoding.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn stuffcharReadbuff(c: c_int) {
     unsafe {
         add_char_buff(&raw mut readbuf1, c);
@@ -966,7 +966,7 @@ pub unsafe extern "C" fn stuffcharReadbuff(c: c_int) {
 }
 
 /// Append a number to the stuff buffer.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn stuffnumReadbuff(n: c_int) {
     unsafe {
         add_num_buff(&raw mut readbuf1, n);
@@ -974,7 +974,7 @@ pub unsafe extern "C" fn stuffnumReadbuff(n: c_int) {
 }
 
 /// Stuff a string into the typeahead buffer.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn stuffescaped(mut arg: *const c_char, literally: bool) {
     unsafe {
         while *arg != NUL as c_char {
@@ -1000,7 +1000,7 @@ pub unsafe extern "C" fn stuffescaped(mut arg: *const c_char, literally: bool) {
 }
 
 /// Dot-repeat `"."` command.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn start_redo(count: c_int, old_redo: bool) -> c_int {
     unsafe {
         let rd = if old_redo {
@@ -1038,7 +1038,7 @@ pub unsafe extern "C" fn start_redo(count: c_int, old_redo: bool) -> c_int {
 }
 
 /// Repeats the last insert (`R`, `o`, `O`, `a`, `A`, `i` or `I` command).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn start_redo_ins() -> c_int {
     unsafe {
         if redobuff.cur.body.size == 0 {
@@ -1069,7 +1069,7 @@ pub unsafe extern "C" fn start_redo_ins() -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn stop_redo_ins() {
     unsafe {
         block_redo = false;
@@ -1092,13 +1092,13 @@ unsafe fn init_typebuf() {
 }
 
 /// Returns true when keys cannot be remapped.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn noremap_keys() -> bool {
     unsafe { (KeyNoremap & ((RM_NONE | RM_SCRIPT) as c_int)) != 0 }
 }
 
 /// Insert a string in position `offset` in the typeahead buffer.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ins_typebuf(
     str_: *mut c_char,
     noremap: c_int,
@@ -1224,7 +1224,7 @@ pub unsafe extern "C" fn ins_typebuf(
 }
 
 /// Re-queues key `c`: puts a key obtained by `vgetc()` back into typeahead.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn requeue_key(
     c: c_int,
     modifiers: c_int,
@@ -1242,25 +1242,25 @@ pub unsafe extern "C" fn requeue_key(
 }
 
 /// Return true if the typeahead buffer was changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn typebuf_changed(tb_change_cnt: c_int) -> bool {
     unsafe { tb_change_cnt != 0 && (typebuf.tb_change_cnt != tb_change_cnt || typebuf_was_filled) }
 }
 
 /// Return true if there are no characters in the typeahead buffer that have not been typed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn typebuf_typed() -> c_int {
     unsafe { c_int::from(typebuf.tb_maplen == 0) }
 }
 
 /// Get the number of characters that are mapped (or not typed).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn typebuf_maplen() -> c_int {
     unsafe { typebuf.tb_maplen }
 }
 
 /// Remove `len` characters from `typebuf.tb_buf[typebuf.tb_off + offset]`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn del_typebuf(len: c_int, offset: c_int) {
     unsafe {
         if len == 0 {
@@ -1426,7 +1426,7 @@ unsafe fn gotchars(chars: *const u8, len: usize) {
 }
 
 /// Record an `<Ignore>` key.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn gotchars_ignore() {
     unsafe {
         let nop_buf: [u8; 3] = [K_SPECIAL, KS_EXTRA, KE_IGNORE];
@@ -1453,7 +1453,7 @@ unsafe fn ungetchars(len: c_int, recorded: bool) {
 }
 
 /// Sync undo when typed characters are obtained from the typeahead buffer.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn may_sync_undo() {
     unsafe {
         if ((State & (MODE_INSERT | MODE_CMDLINE)) == 0 || Ins.moved != kInsNone) && curscript < 0 {
@@ -1513,7 +1513,7 @@ unsafe fn can_get_ungot() -> bool {
 }
 
 /// Save all three kinds of typeahead, so that the user must type at a prompt.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn save_typeahead(tp: *mut tasave_T) {
     unsafe {
         (*tp).save_typebuf = typebuf;
@@ -1529,7 +1529,7 @@ pub unsafe extern "C" fn save_typeahead(tp: *mut tasave_T) {
 }
 
 /// Restore the typeahead to what it was before calling `save_typeahead()`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn restore_typeahead(tp: *mut tasave_T) {
     unsafe {
         free_typebuf();
@@ -1544,7 +1544,7 @@ pub unsafe extern "C" fn restore_typeahead(tp: *mut tasave_T) {
 }
 
 /// Open a new script file for the `":source!"` command.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn openscript(name: *mut c_char, directly: bool) {
     unsafe {
         if curscript + 1 == NSCRIPT as c_int {
@@ -1625,7 +1625,7 @@ unsafe fn closescript() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn close_all_scripts() {
     unsafe {
         while curscript >= 0 {
@@ -1634,7 +1634,7 @@ pub unsafe extern "C" fn close_all_scripts() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn open_scriptin(scriptin_name: *mut c_char) -> bool {
     unsafe {
         assert!(curscript == -1);
@@ -1677,13 +1677,13 @@ pub unsafe extern "C" fn open_scriptin(scriptin_name: *mut c_char) -> bool {
 }
 
 /// Return true when reading keys from a script file.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn using_script() -> c_int {
     unsafe { c_int::from(curscript >= 0) }
 }
 
 /// Called just before doing a blocking wait.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn before_blocking() {
     unsafe {
         updatescript(0);
@@ -1712,7 +1712,7 @@ unsafe fn updatescript(c: c_int) {
 }
 
 /// Merge `modifiers` into `c_arg`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn merge_modifiers(c_arg: c_int, modifiers: *mut c_int) -> c_int {
     unsafe {
         let mut c = c_arg;
@@ -1793,7 +1793,7 @@ unsafe fn add_byte_to_showcmd(byte: u8) {
 }
 
 /// Get the next input character.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vgetc() -> c_int {
     unsafe {
         let mut c: c_int;
@@ -1962,7 +1962,7 @@ pub unsafe extern "C" fn vgetc() -> c_int {
 }
 
 /// Like `vgetc()`, but never return a NUL when called recursively.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn safe_vgetc() -> c_int {
     unsafe {
         let mut c = vgetc();
@@ -1974,7 +1974,7 @@ pub unsafe extern "C" fn safe_vgetc() -> c_int {
 }
 
 /// Like `safe_vgetc()`, but loop to handle `K_IGNORE`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn plain_vgetc() -> c_int {
     unsafe {
         loop {
@@ -1987,7 +1987,7 @@ pub unsafe extern "C" fn plain_vgetc() -> c_int {
 }
 
 /// Check if a character is available, such that `vgetc()` will not block.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vpeekc() -> c_int {
     unsafe {
         if can_get_ungot() {
@@ -1998,7 +1998,7 @@ pub unsafe extern "C" fn vpeekc() -> c_int {
 }
 
 /// Check if any character is available, also half an escape sequence.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vpeekc_any() -> c_int {
     unsafe {
         let mut c = vpeekc();
@@ -2010,7 +2010,7 @@ pub unsafe extern "C" fn vpeekc_any() -> c_int {
 }
 
 /// Call `vpeekc()` without causing anything to be mapped.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn char_avail() -> bool {
     unsafe {
         if test_disable_char_avail {
@@ -2188,7 +2188,7 @@ unsafe fn getchar_common(argvars: *mut typval_T, rettv: *mut typval_T, mut allow
 }
 
 /// `"getchar()"` function.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_getchar(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -2200,7 +2200,7 @@ pub unsafe extern "C" fn f_getchar(
 }
 
 /// `"getcharstr()"` function.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_getcharstr(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -2212,7 +2212,7 @@ pub unsafe extern "C" fn f_getcharstr(
 }
 
 /// `"getcharmod()"` function.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_getcharmod(
     _argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -2740,7 +2740,7 @@ unsafe fn handle_mapping(
 }
 
 /// Unget one character (can only be done once!).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vungetc(c: c_int) {
     unsafe {
         ungot = UngotKey {
@@ -2755,7 +2755,7 @@ pub unsafe extern "C" fn vungetc(c: c_int) {
 }
 
 /// When peeking and not getting a character, `reg_executing` cannot be cleared yet.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn check_end_reg_executing(advance: bool) {
     unsafe {
         if reg_executing != 0 && (typebuf.tb_maplen == 0 || pending_end_reg_executing) {
@@ -3248,7 +3248,7 @@ unsafe fn inchar(buf: *mut u8, maxlen: c_int, wait_time: c_long) -> c_int {
 }
 
 /// Fix typed characters for use by `vgetc()`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn fix_input_buffer(buf: *mut u8, mut len: c_int) -> c_int {
     unsafe {
         if using_script() == 0 {
@@ -3278,7 +3278,7 @@ pub unsafe extern "C" fn fix_input_buffer(buf: *mut u8, mut len: c_int) -> c_int
 }
 
 /// Get a key stroke directly from the user.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_keystroke(events: *mut MultiQueue) -> c_int {
     unsafe {
         let mut buf: *mut u8 = ptr::null_mut();
@@ -3353,7 +3353,7 @@ pub unsafe extern "C" fn get_keystroke(events: *mut MultiQueue) -> c_int {
 }
 
 /// Function passed to `do_cmdline()` to get the command after a `<Cmd>` key from typeahead.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn getcmdkeycmd(
     promptc: c_int,
     _cookie: *mut c_void,
@@ -3446,7 +3446,7 @@ pub unsafe extern "C" fn getcmdkeycmd(
 }
 
 /// Handle a Lua mapping: get its id from typeahead and execute its callback.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
     unsafe {
         let mut line_ga = garray_T {
@@ -3522,7 +3522,7 @@ pub unsafe extern "C" fn map_execute_lua(may_repeat: bool, discard: bool) -> boo
 }
 
 /// Wraps pasted text stream with `K_PASTE_START` and `K_PASTE_END`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn paste_store(
     channel_id: u64,
     state: TriState,
@@ -3604,7 +3604,7 @@ pub unsafe extern "C" fn paste_store(
 }
 
 /// Gets a paste stored by `paste_store()` from typeahead and repeats it.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn paste_repeat(count: c_int) {
     unsafe {
         let mut ga = garray_T {

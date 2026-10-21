@@ -66,7 +66,7 @@ unsafe fn session_slots_ptr(session: *mut mpack_rpc_session_t) -> *mut mpack_rpc
     unsafe { (&raw mut (*session).slots).cast::<mpack_rpc_slot_s>() }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mpack_rpc_session_init(
     session: *mut mpack_rpc_session_t,
     capacity: mpack_uint32_t,
@@ -86,7 +86,7 @@ pub unsafe extern "C" fn mpack_rpc_session_init(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mpack_rpc_receive_tok(
     session: *mut mpack_rpc_session_t,
     tok: mpack_token_t,
@@ -146,7 +146,7 @@ pub unsafe extern "C" fn mpack_rpc_receive_tok(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mpack_rpc_request_tok(
     session: *mut mpack_rpc_session_t,
     tok: *mut mpack_token_t,
@@ -190,7 +190,7 @@ pub unsafe extern "C" fn mpack_rpc_request_tok(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mpack_rpc_reply_tok(
     session: *mut mpack_rpc_session_t,
     tok: *mut mpack_token_t,
@@ -220,7 +220,7 @@ pub unsafe extern "C" fn mpack_rpc_reply_tok(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mpack_rpc_notify_tok(
     session: *mut mpack_rpc_session_t,
     tok: *mut mpack_token_t,
@@ -240,7 +240,7 @@ pub unsafe extern "C" fn mpack_rpc_notify_tok(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mpack_rpc_receive(
     session: *mut mpack_rpc_session_t,
     buf: *mut *const c_char,
@@ -264,7 +264,7 @@ pub unsafe extern "C" fn mpack_rpc_receive(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mpack_rpc_request(
     session: *mut mpack_rpc_session_t,
     buf: *mut *mut c_char,
@@ -290,7 +290,7 @@ pub unsafe extern "C" fn mpack_rpc_request(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mpack_rpc_reply(
     session: *mut mpack_rpc_session_t,
     buf: *mut *mut c_char,
@@ -313,7 +313,7 @@ pub unsafe extern "C" fn mpack_rpc_reply(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mpack_rpc_notify(
     session: *mut mpack_rpc_session_t,
     buf: *mut *mut c_char,
@@ -335,7 +335,7 @@ pub unsafe extern "C" fn mpack_rpc_notify(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mpack_rpc_session_copy(
     dst: *mut mpack_rpc_session_t,
     src: *mut mpack_rpc_session_t,

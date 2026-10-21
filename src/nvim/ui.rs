@@ -111,10 +111,10 @@ struct UIEventCallback {
     ext_widgets: [bool; kUIGlobalCount],
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static mut uis: [*mut RemoteUI; MAX_UI_COUNT] = [ptr::null_mut(); MAX_UI_COUNT];
 static mut ui_ext: [bool; kUIExtCount] = [false; kUIExtCount];
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static mut ui_count: usize = 0;
 static mut ui_mode_idx: c_int = SHAPE_IDX_N;
 static mut cursor_row: c_int = 0;
@@ -150,7 +150,7 @@ static mut beep_start_time: u64 = 0;
 static mut ui_flush_was_busy: bool = false;
 static mut ui_flush_cursor_was_obscured: bool = false;
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_init() {
     unsafe {
         default_grid.handle = 1;
@@ -159,7 +159,7 @@ pub unsafe extern "C" fn ui_init() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_free_all_mem() {
     unsafe {
         for i in 0..ui_event_cbs.set.h.n_keys as usize {
@@ -189,7 +189,7 @@ pub unsafe extern "C" fn ui_free_all_mem() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_rgb_attached() -> bool {
     unsafe {
         if p_tgc != 0 {
@@ -207,7 +207,7 @@ pub unsafe extern "C" fn ui_rgb_attached() -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_gui_attached() -> bool {
     unsafe {
         let uis_ptr = (&raw const uis).cast::<*mut RemoteUI>();
@@ -222,7 +222,7 @@ pub unsafe extern "C" fn ui_gui_attached() -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_override() -> bool {
     unsafe {
         let uis_ptr = (&raw const uis).cast::<*mut RemoteUI>();
@@ -236,12 +236,12 @@ pub unsafe extern "C" fn ui_override() -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_active() -> usize {
     unsafe { ui_count }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_refresh() {
     unsafe {
         if ui_client_channel_id != 0 {
@@ -323,7 +323,7 @@ pub unsafe extern "C" fn ui_refresh() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_pum_get_height() -> c_int {
     unsafe {
         let mut pum_height: c_int = 0;
@@ -342,7 +342,7 @@ pub unsafe extern "C" fn ui_pum_get_height() -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_pum_get_pos(
     pwidth: *mut f64,
     pheight: *mut f64,
@@ -372,7 +372,7 @@ unsafe extern "C" fn ui_refresh_event(_argv: *mut *mut c_void) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_schedule_refresh() {
     unsafe {
         multiqueue_put_event(
@@ -385,7 +385,7 @@ pub unsafe extern "C" fn ui_schedule_refresh() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_default_colors_set() {
     unsafe {
         pending_default_colors = true;
@@ -410,7 +410,7 @@ unsafe fn ui_may_set_default_colors() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_busy_start() {
     unsafe {
         let prev = busy;
@@ -421,7 +421,7 @@ pub unsafe extern "C" fn ui_busy_start() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_busy_stop() {
     unsafe {
         busy -= 1;
@@ -431,7 +431,7 @@ pub unsafe extern "C" fn ui_busy_stop() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vim_beep(val: c_uint) {
     unsafe {
         if emsg_silent != 0 || in_assert_fails {
@@ -463,7 +463,7 @@ pub unsafe extern "C" fn vim_beep(val: c_uint) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn do_autocmd_uienter_all() {
     unsafe {
         let uis_ptr = (&raw const uis).cast::<*mut RemoteUI>();
@@ -473,12 +473,12 @@ pub unsafe extern "C" fn do_autocmd_uienter_all() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_can_attach_more() -> bool {
     unsafe { ui_count < MAX_UI_COUNT }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_attach_impl(ui: *mut RemoteUI, chanid: u64) {
     unsafe {
         if ui_count >= MAX_UI_COUNT {
@@ -520,7 +520,7 @@ pub unsafe extern "C" fn ui_attach_impl(ui: *mut RemoteUI, chanid: u64) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_detach_impl(ui: *mut RemoteUI, chanid: u64) {
     unsafe {
         if ui_count > MAX_UI_COUNT {
@@ -558,7 +558,7 @@ pub unsafe extern "C" fn ui_detach_impl(ui: *mut RemoteUI, chanid: u64) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_set_ext_option(ui: *mut RemoteUI, ext: UIExtension, active: bool) {
     unsafe {
         let idx = ext as usize;
@@ -576,7 +576,7 @@ pub unsafe extern "C" fn ui_set_ext_option(ui: *mut RemoteUI, ext: UIExtension, 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_line(
     grid: *mut ScreenGrid,
     row: c_int,
@@ -622,14 +622,14 @@ pub unsafe extern "C" fn ui_line(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_cursor_goto(new_row: c_int, new_col: c_int) {
     unsafe {
         ui_grid_cursor_goto(DEFAULT_GRID_HANDLE, new_row, new_col);
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_grid_cursor_goto(
     grid_handle: handle_T,
     new_row: c_int,
@@ -646,7 +646,7 @@ pub unsafe extern "C" fn ui_grid_cursor_goto(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_check_cursor_grid(grid_handle: handle_T) {
     unsafe {
         if cursor_grid_handle == grid_handle {
@@ -655,24 +655,24 @@ pub unsafe extern "C" fn ui_check_cursor_grid(grid_handle: handle_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_mode_info_set() {
     unsafe {
         pending_mode_info_update = true;
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_current_row() -> c_int {
     unsafe { cursor_row }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_current_col() -> c_int {
     unsafe { cursor_col }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_flush() {
     unsafe {
         debug_assert!(ui_client_channel_id == 0);
@@ -752,7 +752,7 @@ pub unsafe extern "C" fn ui_flush() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_check_mouse() {
     unsafe {
         has_mouse = false;
@@ -780,7 +780,7 @@ pub unsafe extern "C" fn ui_check_mouse() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_mouse_has(mode: c_int) -> bool {
     unsafe {
         let mut p = p_mouse;
@@ -802,7 +802,7 @@ pub unsafe extern "C" fn ui_mouse_has(mode: c_int) -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_cursor_shape_no_check_conceal() {
     unsafe {
         if !full_screen {
@@ -816,7 +816,7 @@ pub unsafe extern "C" fn ui_cursor_shape_no_check_conceal() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_cursor_shape() {
     unsafe {
         ui_cursor_shape_no_check_conceal();
@@ -846,12 +846,12 @@ unsafe fn ui_cursor_is_behind_floatwin() -> bool {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_has(ext: UIExtension) -> bool {
     unsafe { *(&raw const ui_ext).cast::<bool>().add(ext as usize) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_array(arena: *mut Arena) -> Array {
     unsafe {
         let mut all_uis = arena_array(arena, ui_count);
@@ -919,7 +919,7 @@ pub unsafe extern "C" fn ui_array(arena: *mut Arena) -> Array {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_grid_resize(
     grid_handle: handle_T,
     width: c_int,
@@ -980,7 +980,7 @@ unsafe fn ui_attach_error(ns_id: u32, name: *const c_char, msg: *const c_char) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_event(name: *mut c_char, args: Array) {
     unsafe {
         let save_expr_map_lock = expr_map_lock;
@@ -1056,7 +1056,7 @@ unsafe fn free_ui_event_callback(event_cb: *mut UIEventCallback) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_add_cb(ns_id: u32, cb: LuaRef, ext_widgets: *mut bool) {
     unsafe {
         let event_cb = xcalloc(1, size_of::<UIEventCallback>()).cast::<UIEventCallback>();
@@ -1086,7 +1086,7 @@ pub unsafe extern "C" fn ui_add_cb(ns_id: u32, cb: LuaRef, ext_widgets: *mut boo
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_remove_cb(ns_id: u32, checkerr: bool) {
     unsafe {
         let k = mh_get_uint32_t(&raw mut ui_event_cbs.set, ns_id);
@@ -1121,7 +1121,7 @@ static mut UILOG_SEEN: usize = 0;
 #[cfg(debug_assertions)]
 static mut UILOG_LAST_EVENT: *const c_char = ptr::null();
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_log(funname: *const c_char) {
     #[cfg(not(debug_assertions))]
     let _ = funname;
@@ -1210,98 +1210,98 @@ macro_rules! ui_call_loop {
     };
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_mode_info_set(enabled: bool, cursor_styles: Array) {
     ui_call_loop!(true, c"mode_info_set", |ui| {
         remote_ui_mode_info_set(ui, enabled, cursor_styles)
     });
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_update_menu() {
     ui_call_loop!(true, c"update_menu", |ui| remote_ui_update_menu(ui));
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_busy_start() {
     ui_call_loop!(true, c"busy_start", |ui| remote_ui_busy_start(ui));
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_busy_stop() {
     ui_call_loop!(true, c"busy_stop", |ui| remote_ui_busy_stop(ui));
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_mouse_on() {
     ui_call_loop!(true, c"mouse_on", |ui| remote_ui_mouse_on(ui));
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_mouse_off() {
     ui_call_loop!(true, c"mouse_off", |ui| remote_ui_mouse_off(ui));
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_mode_change(mode: NvimString, mode_idx: Integer) {
     ui_call_loop!(true, c"mode_change", |ui| {
         remote_ui_mode_change(ui, mode, mode_idx)
     });
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_bell() {
     ui_call_loop!(true, c"bell", |ui| remote_ui_bell(ui));
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_visual_bell() {
     ui_call_loop!(true, c"visual_bell", |ui| remote_ui_visual_bell(ui));
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_flush() {
     ui_call_loop!(true, c"flush", |ui| remote_ui_flush(ui));
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_suspend() {
     ui_call_loop!(true, c"suspend", |ui| remote_ui_suspend(ui));
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_set_title(title: NvimString) {
     ui_call_loop!(true, c"set_title", |ui| remote_ui_set_title(ui, title));
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_set_icon(icon: NvimString) {
     ui_call_loop!(true, c"set_icon", |ui| remote_ui_set_icon(ui, icon));
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_screenshot(path: NvimString) {
     ui_call_loop!(true, c"screenshot", |ui| remote_ui_screenshot(ui, path));
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_option_set(name: NvimString, value: Object) {
     ui_call_loop!(true, c"option_set", |ui| {
         remote_ui_option_set(ui, name, value)
     });
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_chdir(path: NvimString) {
     ui_call_loop!(true, c"chdir", |ui| remote_ui_chdir(ui, path));
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_ui_send(content: NvimString) {
     ui_call_loop!(true, c"ui_send", |ui| remote_ui_ui_send(ui, content));
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_update_fg(fg: Integer) {
     static mut ENTERED: bool = false;
     unsafe {
@@ -1320,7 +1320,7 @@ pub unsafe extern "C" fn ui_call_update_fg(fg: Integer) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_update_bg(bg: Integer) {
     static mut ENTERED: bool = false;
     unsafe {
@@ -1339,7 +1339,7 @@ pub unsafe extern "C" fn ui_call_update_bg(bg: Integer) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_update_sp(sp: Integer) {
     static mut ENTERED: bool = false;
     unsafe {
@@ -1358,7 +1358,7 @@ pub unsafe extern "C" fn ui_call_update_sp(sp: Integer) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_resize(width: Integer, height: Integer) {
     static mut ENTERED: bool = false;
     unsafe {
@@ -1377,7 +1377,7 @@ pub unsafe extern "C" fn ui_call_resize(width: Integer, height: Integer) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_clear() {
     static mut ENTERED: bool = false;
     unsafe {
@@ -1390,7 +1390,7 @@ pub unsafe extern "C" fn ui_call_clear() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_eol_clear() {
     static mut ENTERED: bool = false;
     unsafe {
@@ -1403,7 +1403,7 @@ pub unsafe extern "C" fn ui_call_eol_clear() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_cursor_goto(row: Integer, col: Integer) {
     static mut ENTERED: bool = false;
     unsafe {
@@ -1422,7 +1422,7 @@ pub unsafe extern "C" fn ui_call_cursor_goto(row: Integer, col: Integer) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_put(str_in: NvimString) {
     static mut ENTERED: bool = false;
     unsafe {
@@ -1441,7 +1441,7 @@ pub unsafe extern "C" fn ui_call_put(str_in: NvimString) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_set_scroll_region(
     top: Integer,
     bot: Integer,
@@ -1465,7 +1465,7 @@ pub unsafe extern "C" fn ui_call_set_scroll_region(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_scroll(count: Integer) {
     static mut ENTERED: bool = false;
     unsafe {
@@ -1484,7 +1484,7 @@ pub unsafe extern "C" fn ui_call_scroll(count: Integer) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_default_colors_set(
     rgb_fg: Integer,
     rgb_bg: Integer,
@@ -1497,7 +1497,7 @@ pub unsafe extern "C" fn ui_call_default_colors_set(
     });
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_hl_attr_define(
     id: Integer,
     rgb_attrs: crate::map::HlAttrs,
@@ -1509,14 +1509,14 @@ pub unsafe extern "C" fn ui_call_hl_attr_define(
     });
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_hl_group_set(name: NvimString, id: Integer) {
     ui_call_loop!(true, c"hl_group_set", |ui| {
         remote_ui_hl_group_set(ui, name, id)
     });
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_grid_resize(grid: Integer, width: Integer, height: Integer) {
     unsafe {
         ui_comp_grid_resize(grid, width, height);
@@ -1526,7 +1526,7 @@ pub unsafe extern "C" fn ui_call_grid_resize(grid: Integer, width: Integer, heig
     });
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_composed_call_grid_resize(
     grid: Integer,
     width: Integer,
@@ -1537,12 +1537,12 @@ pub unsafe extern "C" fn ui_composed_call_grid_resize(
     });
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_grid_clear(grid: Integer) {
     ui_call_loop!(true, c"grid_clear", |ui| remote_ui_grid_clear(ui, grid));
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_grid_cursor_goto(grid: Integer, row: Integer, col: Integer) {
     unsafe {
         ui_comp_grid_cursor_goto(grid, row, col);
@@ -1552,7 +1552,7 @@ pub unsafe extern "C" fn ui_call_grid_cursor_goto(grid: Integer, row: Integer, c
     });
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_composed_call_grid_cursor_goto(
     grid: Integer,
     row: Integer,
@@ -1563,7 +1563,7 @@ pub unsafe extern "C" fn ui_composed_call_grid_cursor_goto(
     });
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_grid_line(
     grid: Integer,
     row: Integer,
@@ -1594,7 +1594,7 @@ pub unsafe extern "C" fn ui_call_grid_line(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_grid_scroll(
     grid: Integer,
     top: Integer,
@@ -1612,7 +1612,7 @@ pub unsafe extern "C" fn ui_call_grid_scroll(
     });
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_composed_call_grid_scroll(
     grid: Integer,
     top: Integer,
@@ -1627,7 +1627,7 @@ pub unsafe extern "C" fn ui_composed_call_grid_scroll(
     });
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_grid_destroy(grid: Integer) {
     static mut ENTERED: bool = false;
     unsafe {
@@ -1646,7 +1646,7 @@ pub unsafe extern "C" fn ui_call_grid_destroy(grid: Integer) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_raw_line(
     grid: Integer,
     row: Integer,
@@ -1670,7 +1670,7 @@ pub unsafe extern "C" fn ui_call_raw_line(
     });
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_composed_call_raw_line(
     grid: Integer,
     row: Integer,
@@ -1689,7 +1689,7 @@ pub unsafe extern "C" fn ui_composed_call_raw_line(
     });
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_win_pos(
     grid: Integer,
     win: handle_T,
@@ -1722,7 +1722,7 @@ pub unsafe extern "C" fn ui_call_win_pos(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_win_float_pos(
     grid: Integer,
     win: handle_T,
@@ -1765,7 +1765,7 @@ pub unsafe extern "C" fn ui_call_win_float_pos(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_win_external_pos(grid: Integer, win: handle_T) {
     static mut ENTERED: bool = false;
     unsafe {
@@ -1784,7 +1784,7 @@ pub unsafe extern "C" fn ui_call_win_external_pos(grid: Integer, win: handle_T) 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_win_hide(grid: Integer) {
     static mut ENTERED: bool = false;
     unsafe {
@@ -1803,7 +1803,7 @@ pub unsafe extern "C" fn ui_call_win_hide(grid: Integer) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_win_close(grid: Integer) {
     static mut ENTERED: bool = false;
     unsafe {
@@ -1822,7 +1822,7 @@ pub unsafe extern "C" fn ui_call_win_close(grid: Integer) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_msg_set_pos(
     grid: Integer,
     row: Integer,
@@ -1839,7 +1839,7 @@ pub unsafe extern "C" fn ui_call_msg_set_pos(
     });
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_composed_call_msg_set_pos(
     grid: Integer,
     row: Integer,
@@ -1853,7 +1853,7 @@ pub unsafe extern "C" fn ui_composed_call_msg_set_pos(
     });
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_win_viewport(
     grid: Integer,
     win: handle_T,
@@ -1879,7 +1879,7 @@ pub unsafe extern "C" fn ui_call_win_viewport(
     });
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_win_viewport_margins(
     grid: Integer,
     win: handle_T,
@@ -1893,7 +1893,7 @@ pub unsafe extern "C" fn ui_call_win_viewport_margins(
     });
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_win_extmark(
     grid: Integer,
     win: handle_T,
@@ -1926,7 +1926,7 @@ pub unsafe extern "C" fn ui_call_win_extmark(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_popupmenu_show(
     items_arr: Array,
     selected: Integer,
@@ -1957,7 +1957,7 @@ pub unsafe extern "C" fn ui_call_popupmenu_show(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_popupmenu_hide() {
     static mut ENTERED: bool = false;
     unsafe {
@@ -1970,7 +1970,7 @@ pub unsafe extern "C" fn ui_call_popupmenu_hide() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_popupmenu_select(selected: Integer) {
     static mut ENTERED: bool = false;
     unsafe {
@@ -1989,7 +1989,7 @@ pub unsafe extern "C" fn ui_call_popupmenu_select(selected: Integer) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_tabline_update(
     current: handle_T,
     tabs: Array,
@@ -2018,7 +2018,7 @@ pub unsafe extern "C" fn ui_call_tabline_update(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_cmdline_show(
     content: Array,
     pos: Integer,
@@ -2053,7 +2053,7 @@ pub unsafe extern "C" fn ui_call_cmdline_show(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_cmdline_pos(pos: Integer, level: Integer) {
     static mut ENTERED: bool = false;
     unsafe {
@@ -2072,7 +2072,7 @@ pub unsafe extern "C" fn ui_call_cmdline_pos(pos: Integer, level: Integer) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_cmdline_special_char(c: NvimString, shift: bool, level: Integer) {
     static mut ENTERED: bool = false;
     unsafe {
@@ -2091,7 +2091,7 @@ pub unsafe extern "C" fn ui_call_cmdline_special_char(c: NvimString, shift: bool
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_cmdline_hide(level: Integer, abort: bool) {
     static mut ENTERED: bool = false;
     unsafe {
@@ -2110,7 +2110,7 @@ pub unsafe extern "C" fn ui_call_cmdline_hide(level: Integer, abort: bool) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_cmdline_block_show(lines: Array) {
     static mut ENTERED: bool = false;
     unsafe {
@@ -2129,7 +2129,7 @@ pub unsafe extern "C" fn ui_call_cmdline_block_show(lines: Array) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_cmdline_block_append(lines: Array) {
     static mut ENTERED: bool = false;
     unsafe {
@@ -2148,7 +2148,7 @@ pub unsafe extern "C" fn ui_call_cmdline_block_append(lines: Array) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_cmdline_block_hide() {
     static mut ENTERED: bool = false;
     unsafe {
@@ -2161,7 +2161,7 @@ pub unsafe extern "C" fn ui_call_cmdline_block_hide() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_wildmenu_show(items_arr: Array) {
     static mut ENTERED: bool = false;
     unsafe {
@@ -2180,7 +2180,7 @@ pub unsafe extern "C" fn ui_call_wildmenu_show(items_arr: Array) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_wildmenu_select(selected: Integer) {
     static mut ENTERED: bool = false;
     unsafe {
@@ -2199,7 +2199,7 @@ pub unsafe extern "C" fn ui_call_wildmenu_select(selected: Integer) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_wildmenu_hide() {
     static mut ENTERED: bool = false;
     unsafe {
@@ -2212,7 +2212,7 @@ pub unsafe extern "C" fn ui_call_wildmenu_hide() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_msg_show(
     kind: NvimString,
     content: Array,
@@ -2247,7 +2247,7 @@ pub unsafe extern "C" fn ui_call_msg_show(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_msg_clear() {
     static mut ENTERED: bool = false;
     unsafe {
@@ -2260,7 +2260,7 @@ pub unsafe extern "C" fn ui_call_msg_clear() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_msg_showcmd(content: Array) {
     static mut ENTERED: bool = false;
     unsafe {
@@ -2279,7 +2279,7 @@ pub unsafe extern "C" fn ui_call_msg_showcmd(content: Array) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_msg_showmode(content: Array) {
     static mut ENTERED: bool = false;
     unsafe {
@@ -2298,7 +2298,7 @@ pub unsafe extern "C" fn ui_call_msg_showmode(content: Array) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_msg_ruler(content: Array) {
     static mut ENTERED: bool = false;
     unsafe {
@@ -2317,7 +2317,7 @@ pub unsafe extern "C" fn ui_call_msg_ruler(content: Array) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_msg_history_show(entries: Array, prev_cmd: bool) {
     static mut ENTERED: bool = false;
     unsafe {
@@ -2336,12 +2336,12 @@ pub unsafe extern "C" fn ui_call_msg_history_show(entries: Array, prev_cmd: bool
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call_error_exit(status: Integer) {
     ui_call_loop!(true, c"error_exit", |ui| remote_ui_error_exit(ui, status));
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_call__set_restart_on_crash_exit(progpath: NvimString, argv: Array) {
     ui_call_loop!(true, c"_set_restart_on_crash_exit", |ui| {
         remote_ui__set_restart_on_crash_exit(ui, progpath, argv)

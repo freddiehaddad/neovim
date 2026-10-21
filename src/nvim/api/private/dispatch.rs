@@ -123,7 +123,6 @@ use crate::shada::{
     KeyDict__shada_buflist_item, KeyDict__shada_mark, KeyDict__shada_register,
     KeyDict__shada_search_pat,
 };
-#[cfg(not(test))]
 use crate::ui_client::handle_ui_client_redraw;
 use std::ffi::{c_char, c_int};
 use std::mem::{offset_of, zeroed};
@@ -334,7 +333,7 @@ unsafe fn extract_array(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static _shada_buflist_item_table: [KeySetLink; 4] = [
     KeySetLink {
         str: c"c".as_ptr().cast_mut(),
@@ -366,7 +365,7 @@ pub static _shada_buflist_item_table: [KeySetLink; 4] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn _shada_buflist_item_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -379,7 +378,7 @@ pub unsafe extern "C" fn _shada_buflist_item_hash(str_: *const c_char, len: usiz
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict__shada_buflist_item_get_field(
     str_: *const c_char,
     len: usize,
@@ -392,7 +391,7 @@ pub unsafe extern "C-unwind" fn KeyDict__shada_buflist_item_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static _shada_mark_table: [KeySetLink; 5] = [
     KeySetLink {
         str: c"c".as_ptr().cast_mut(),
@@ -431,7 +430,7 @@ pub static _shada_mark_table: [KeySetLink; 5] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn _shada_mark_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -445,7 +444,7 @@ pub unsafe extern "C" fn _shada_mark_hash(str_: *const c_char, len: usize) -> c_
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict__shada_mark_get_field(
     str_: *const c_char,
     len: usize,
@@ -458,7 +457,7 @@ pub unsafe extern "C-unwind" fn KeyDict__shada_mark_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static _shada_register_table: [KeySetLink; 6] = [
     KeySetLink {
         str: c"n".as_ptr().cast_mut(),
@@ -504,7 +503,7 @@ pub static _shada_register_table: [KeySetLink; 6] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn _shada_register_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -519,7 +518,7 @@ pub unsafe extern "C" fn _shada_register_hash(str_: *const c_char, len: usize) -
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict__shada_register_get_field(
     str_: *const c_char,
     len: usize,
@@ -532,7 +531,7 @@ pub unsafe extern "C-unwind" fn KeyDict__shada_register_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static _shada_search_pat_table: [KeySetLink; 11] = [
     KeySetLink {
         str: c"sb".as_ptr().cast_mut(),
@@ -613,7 +612,7 @@ pub static _shada_search_pat_table: [KeySetLink; 11] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn _shada_search_pat_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -633,7 +632,7 @@ pub unsafe extern "C" fn _shada_search_pat_hash(str_: *const c_char, len: usize)
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict__shada_search_pat_get_field(
     str_: *const c_char,
     len: usize,
@@ -646,7 +645,7 @@ pub unsafe extern "C-unwind" fn KeyDict__shada_search_pat_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static buf_attach_table: [KeySetLink; 8] = [
     KeySetLink {
         str: c"preview".as_ptr().cast_mut(),
@@ -706,7 +705,7 @@ pub static buf_attach_table: [KeySetLink; 8] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn buf_attach_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -723,7 +722,7 @@ pub unsafe extern "C" fn buf_attach_hash(str_: *const c_char, len: usize) -> c_i
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_buf_attach_get_field(
     str_: *const c_char,
     len: usize,
@@ -736,7 +735,7 @@ pub unsafe extern "C-unwind" fn KeyDict_buf_attach_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static buf_delete_table: [KeySetLink; 3] = [
     KeySetLink {
         str: c"force".as_ptr().cast_mut(),
@@ -761,7 +760,7 @@ pub static buf_delete_table: [KeySetLink; 3] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn buf_delete_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -773,7 +772,7 @@ pub unsafe extern "C" fn buf_delete_hash(str_: *const c_char, len: usize) -> c_i
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_buf_delete_get_field(
     str_: *const c_char,
     len: usize,
@@ -786,7 +785,7 @@ pub unsafe extern "C-unwind" fn KeyDict_buf_delete_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static chan_set_table: [KeySetLink; 2] = [
     KeySetLink {
         str: c"detach".as_ptr().cast_mut(),
@@ -804,7 +803,7 @@ pub static chan_set_table: [KeySetLink; 2] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn chan_set_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -815,7 +814,7 @@ pub unsafe extern "C" fn chan_set_hash(str_: *const c_char, len: usize) -> c_int
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_chan_set_get_field(
     str_: *const c_char,
     len: usize,
@@ -828,7 +827,7 @@ pub unsafe extern "C-unwind" fn KeyDict_chan_set_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static clear_autocmds_table: [KeySetLink; 6] = [
     KeySetLink {
         str: c"buf".as_ptr().cast_mut(),
@@ -874,7 +873,7 @@ pub static clear_autocmds_table: [KeySetLink; 6] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn clear_autocmds_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -889,7 +888,7 @@ pub unsafe extern "C" fn clear_autocmds_hash(str_: *const c_char, len: usize) ->
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_clear_autocmds_get_field(
     str_: *const c_char,
     len: usize,
@@ -902,7 +901,7 @@ pub unsafe extern "C-unwind" fn KeyDict_clear_autocmds_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static cmd_table: [KeySetLink; 12] = [
     KeySetLink {
         str: c"cmd".as_ptr().cast_mut(),
@@ -990,7 +989,7 @@ pub static cmd_table: [KeySetLink; 12] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cmd_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -1011,7 +1010,7 @@ pub unsafe extern "C" fn cmd_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_cmd_get_field(
     str_: *const c_char,
     len: usize,
@@ -1024,7 +1023,7 @@ pub unsafe extern "C-unwind" fn KeyDict_cmd_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static cmd_magic_table: [KeySetLink; 3] = [
     KeySetLink {
         str: c"bar".as_ptr().cast_mut(),
@@ -1049,7 +1048,7 @@ pub static cmd_magic_table: [KeySetLink; 3] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cmd_magic_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -1061,7 +1060,7 @@ pub unsafe extern "C" fn cmd_magic_hash(str_: *const c_char, len: usize) -> c_in
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_cmd_magic_get_field(
     str_: *const c_char,
     len: usize,
@@ -1074,7 +1073,7 @@ pub unsafe extern "C-unwind" fn KeyDict_cmd_magic_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static cmd_mods_table: [KeySetLink; 21] = [
     KeySetLink {
         str: c"tab".as_ptr().cast_mut(),
@@ -1225,7 +1224,7 @@ pub static cmd_mods_table: [KeySetLink; 21] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cmd_mods_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -1255,7 +1254,7 @@ pub unsafe extern "C" fn cmd_mods_hash(str_: *const c_char, len: usize) -> c_int
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_cmd_mods_get_field(
     str_: *const c_char,
     len: usize,
@@ -1268,7 +1267,7 @@ pub unsafe extern "C-unwind" fn KeyDict_cmd_mods_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static cmd_mods_filter_table: [KeySetLink; 3] = [
     KeySetLink {
         str: c"force".as_ptr().cast_mut(),
@@ -1293,7 +1292,7 @@ pub static cmd_mods_filter_table: [KeySetLink; 3] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cmd_mods_filter_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -1305,7 +1304,7 @@ pub unsafe extern "C" fn cmd_mods_filter_hash(str_: *const c_char, len: usize) -
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_cmd_mods_filter_get_field(
     str_: *const c_char,
     len: usize,
@@ -1318,7 +1317,7 @@ pub unsafe extern "C-unwind" fn KeyDict_cmd_mods_filter_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static cmd_opts_table: [KeySetLink; 2] = [
     KeySetLink {
         str: c"output".as_ptr().cast_mut(),
@@ -1336,7 +1335,7 @@ pub static cmd_opts_table: [KeySetLink; 2] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cmd_opts_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -1347,7 +1346,7 @@ pub unsafe extern "C" fn cmd_opts_hash(str_: *const c_char, len: usize) -> c_int
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_cmd_opts_get_field(
     str_: *const c_char,
     len: usize,
@@ -1360,7 +1359,7 @@ pub unsafe extern "C-unwind" fn KeyDict_cmd_opts_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static complete_set_table: [KeySetLink; 2] = [
     KeySetLink {
         str: c"info".as_ptr().cast_mut(),
@@ -1378,7 +1377,7 @@ pub static complete_set_table: [KeySetLink; 2] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn complete_set_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -1389,7 +1388,7 @@ pub unsafe extern "C" fn complete_set_hash(str_: *const c_char, len: usize) -> c
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_complete_set_get_field(
     str_: *const c_char,
     len: usize,
@@ -1402,7 +1401,7 @@ pub unsafe extern "C-unwind" fn KeyDict_complete_set_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static context_table: [KeySetLink; 2] = [
     KeySetLink {
         str: c"types".as_ptr().cast_mut(),
@@ -1420,7 +1419,7 @@ pub static context_table: [KeySetLink; 2] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn context_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -1431,7 +1430,7 @@ pub unsafe extern "C" fn context_hash(str_: *const c_char, len: usize) -> c_int 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_context_get_field(
     str_: *const c_char,
     len: usize,
@@ -1444,7 +1443,7 @@ pub unsafe extern "C-unwind" fn KeyDict_context_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static create_augroup_table: [KeySetLink; 2] = [
     KeySetLink {
         str: c"clear".as_ptr().cast_mut(),
@@ -1462,7 +1461,7 @@ pub static create_augroup_table: [KeySetLink; 2] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn create_augroup_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -1473,7 +1472,7 @@ pub unsafe extern "C" fn create_augroup_hash(str_: *const c_char, len: usize) ->
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_create_augroup_get_field(
     str_: *const c_char,
     len: usize,
@@ -1486,7 +1485,7 @@ pub unsafe extern "C-unwind" fn KeyDict_create_augroup_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static create_autocmd_table: [KeySetLink; 10] = [
     KeySetLink {
         str: c"buf".as_ptr().cast_mut(),
@@ -1560,7 +1559,7 @@ pub static create_autocmd_table: [KeySetLink; 10] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn create_autocmd_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -1579,7 +1578,7 @@ pub unsafe extern "C" fn create_autocmd_hash(str_: *const c_char, len: usize) ->
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_create_autocmd_get_field(
     str_: *const c_char,
     len: usize,
@@ -1592,7 +1591,7 @@ pub unsafe extern "C-unwind" fn KeyDict_create_autocmd_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static echo_opts_table: [KeySetLink; 11] = [
     KeySetLink {
         str: c"id".as_ptr().cast_mut(),
@@ -1673,7 +1672,7 @@ pub static echo_opts_table: [KeySetLink; 11] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn echo_opts_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -1693,7 +1692,7 @@ pub unsafe extern "C" fn echo_opts_hash(str_: *const c_char, len: usize) -> c_in
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_echo_opts_get_field(
     str_: *const c_char,
     len: usize,
@@ -1706,7 +1705,7 @@ pub unsafe extern "C-unwind" fn KeyDict_echo_opts_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static empty_table: [KeySetLink; 1] = [KeySetLink {
     str: ptr::null_mut(),
     ptr_off: 0,
@@ -1715,13 +1714,13 @@ pub static empty_table: [KeySetLink; 1] = [KeySetLink {
     is_hlgroup: false,
 }];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn empty_hash(str_: *const c_char, len: usize) -> c_int {
     let _ = (str_, len);
     -1
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_empty_get_field(
     str_: *const c_char,
     len: usize,
@@ -1734,7 +1733,7 @@ pub unsafe extern "C-unwind" fn KeyDict_empty_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static eval_statusline_table: [KeySetLink; 8] = [
     KeySetLink {
         str: c"winid".as_ptr().cast_mut(),
@@ -1794,7 +1793,7 @@ pub static eval_statusline_table: [KeySetLink; 8] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eval_statusline_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -1811,7 +1810,7 @@ pub unsafe extern "C" fn eval_statusline_hash(str_: *const c_char, len: usize) -
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_eval_statusline_get_field(
     str_: *const c_char,
     len: usize,
@@ -1824,7 +1823,7 @@ pub unsafe extern "C-unwind" fn KeyDict_eval_statusline_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static exec_autocmds_table: [KeySetLink; 7] = [
     KeySetLink {
         str: c"buf".as_ptr().cast_mut(),
@@ -1877,7 +1876,7 @@ pub static exec_autocmds_table: [KeySetLink; 7] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn exec_autocmds_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -1893,7 +1892,7 @@ pub unsafe extern "C" fn exec_autocmds_hash(str_: *const c_char, len: usize) -> 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_exec_autocmds_get_field(
     str_: *const c_char,
     len: usize,
@@ -1906,7 +1905,7 @@ pub unsafe extern "C-unwind" fn KeyDict_exec_autocmds_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static exec_opts_table: [KeySetLink; 2] = [
     KeySetLink {
         str: c"output".as_ptr().cast_mut(),
@@ -1924,7 +1923,7 @@ pub static exec_opts_table: [KeySetLink; 2] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn exec_opts_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -1935,7 +1934,7 @@ pub unsafe extern "C" fn exec_opts_hash(str_: *const c_char, len: usize) -> c_in
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_exec_opts_get_field(
     str_: *const c_char,
     len: usize,
@@ -1948,7 +1947,7 @@ pub unsafe extern "C-unwind" fn KeyDict_exec_opts_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static get_autocmds_table: [KeySetLink; 7] = [
     KeySetLink {
         str: c"id".as_ptr().cast_mut(),
@@ -2001,7 +2000,7 @@ pub static get_autocmds_table: [KeySetLink; 7] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_autocmds_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -2017,7 +2016,7 @@ pub unsafe extern "C" fn get_autocmds_hash(str_: *const c_char, len: usize) -> c
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_get_autocmds_get_field(
     str_: *const c_char,
     len: usize,
@@ -2030,7 +2029,7 @@ pub unsafe extern "C-unwind" fn KeyDict_get_autocmds_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static get_commands_table: [KeySetLink; 2] = [
     KeySetLink {
         str: c"builtin".as_ptr().cast_mut(),
@@ -2048,7 +2047,7 @@ pub static get_commands_table: [KeySetLink; 2] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_commands_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -2059,7 +2058,7 @@ pub unsafe extern "C" fn get_commands_hash(str_: *const c_char, len: usize) -> c
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_get_commands_get_field(
     str_: *const c_char,
     len: usize,
@@ -2072,7 +2071,7 @@ pub unsafe extern "C-unwind" fn KeyDict_get_commands_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static get_extmark_table: [KeySetLink; 3] = [
     KeySetLink {
         str: c"details".as_ptr().cast_mut(),
@@ -2097,7 +2096,7 @@ pub static get_extmark_table: [KeySetLink; 3] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_extmark_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -2109,7 +2108,7 @@ pub unsafe extern "C" fn get_extmark_hash(str_: *const c_char, len: usize) -> c_
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_get_extmark_get_field(
     str_: *const c_char,
     len: usize,
@@ -2122,7 +2121,7 @@ pub unsafe extern "C-unwind" fn KeyDict_get_extmark_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static get_extmarks_table: [KeySetLink; 6] = [
     KeySetLink {
         str: c"type".as_ptr().cast_mut(),
@@ -2168,7 +2167,7 @@ pub static get_extmarks_table: [KeySetLink; 6] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_extmarks_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -2183,7 +2182,7 @@ pub unsafe extern "C" fn get_extmarks_hash(str_: *const c_char, len: usize) -> c
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_get_extmarks_get_field(
     str_: *const c_char,
     len: usize,
@@ -2196,7 +2195,7 @@ pub unsafe extern "C-unwind" fn KeyDict_get_extmarks_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static get_highlight_table: [KeySetLink; 5] = [
     KeySetLink {
         str: c"id".as_ptr().cast_mut(),
@@ -2235,7 +2234,7 @@ pub static get_highlight_table: [KeySetLink; 5] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_highlight_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -2249,7 +2248,7 @@ pub unsafe extern "C" fn get_highlight_hash(str_: *const c_char, len: usize) -> 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_get_highlight_get_field(
     str_: *const c_char,
     len: usize,
@@ -2262,7 +2261,7 @@ pub unsafe extern "C-unwind" fn KeyDict_get_highlight_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static get_ns_table: [KeySetLink; 2] = [
     KeySetLink {
         str: c"winid".as_ptr().cast_mut(),
@@ -2280,7 +2279,7 @@ pub static get_ns_table: [KeySetLink; 2] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_ns_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -2291,7 +2290,7 @@ pub unsafe extern "C" fn get_ns_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_get_ns_get_field(
     str_: *const c_char,
     len: usize,
@@ -2304,7 +2303,7 @@ pub unsafe extern "C-unwind" fn KeyDict_get_ns_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static highlight_table: [KeySetLink; 37] = [
     KeySetLink {
         str: c"bg".as_ptr().cast_mut(),
@@ -2567,7 +2566,7 @@ pub static highlight_table: [KeySetLink; 37] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn highlight_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -2613,7 +2612,7 @@ pub unsafe extern "C" fn highlight_hash(str_: *const c_char, len: usize) -> c_in
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_highlight_get_field(
     str_: *const c_char,
     len: usize,
@@ -2626,7 +2625,7 @@ pub unsafe extern "C-unwind" fn KeyDict_highlight_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static highlight_cterm_table: [KeySetLink; 17] = [
     KeySetLink {
         str: c"dim".as_ptr().cast_mut(),
@@ -2749,7 +2748,7 @@ pub static highlight_cterm_table: [KeySetLink; 17] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn highlight_cterm_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -2775,7 +2774,7 @@ pub unsafe extern "C" fn highlight_cterm_hash(str_: *const c_char, len: usize) -
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_highlight_cterm_get_field(
     str_: *const c_char,
     len: usize,
@@ -2788,7 +2787,7 @@ pub unsafe extern "C-unwind" fn KeyDict_highlight_cterm_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static keymap_table: [KeySetLink; 10] = [
     KeySetLink {
         str: c"desc".as_ptr().cast_mut(),
@@ -2862,7 +2861,7 @@ pub static keymap_table: [KeySetLink; 10] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn keymap_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -2881,7 +2880,7 @@ pub unsafe extern "C" fn keymap_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_keymap_get_field(
     str_: *const c_char,
     len: usize,
@@ -2894,7 +2893,7 @@ pub unsafe extern "C-unwind" fn KeyDict_keymap_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static keymap_del_table: [KeySetLink; 2] = [
     KeySetLink {
         str: c"lhs".as_ptr().cast_mut(),
@@ -2912,7 +2911,7 @@ pub static keymap_del_table: [KeySetLink; 2] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn keymap_del_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -2923,7 +2922,7 @@ pub unsafe extern "C" fn keymap_del_hash(str_: *const c_char, len: usize) -> c_i
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_keymap_del_get_field(
     str_: *const c_char,
     len: usize,
@@ -2936,7 +2935,7 @@ pub unsafe extern "C-unwind" fn KeyDict_keymap_del_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static ns_opts_table: [KeySetLink; 2] = [
     KeySetLink {
         str: c"wins".as_ptr().cast_mut(),
@@ -2954,7 +2953,7 @@ pub static ns_opts_table: [KeySetLink; 2] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ns_opts_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -2965,7 +2964,7 @@ pub unsafe extern "C" fn ns_opts_hash(str_: *const c_char, len: usize) -> c_int 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_ns_opts_get_field(
     str_: *const c_char,
     len: usize,
@@ -2978,7 +2977,7 @@ pub unsafe extern "C-unwind" fn KeyDict_ns_opts_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static open_term_table: [KeySetLink; 3] = [
     KeySetLink {
         str: c"on_input".as_ptr().cast_mut(),
@@ -3003,7 +3002,7 @@ pub static open_term_table: [KeySetLink; 3] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn open_term_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -3015,7 +3014,7 @@ pub unsafe extern "C" fn open_term_hash(str_: *const c_char, len: usize) -> c_in
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_open_term_get_field(
     str_: *const c_char,
     len: usize,
@@ -3028,7 +3027,7 @@ pub unsafe extern "C-unwind" fn KeyDict_open_term_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static option_table: [KeySetLink; 8] = [
     KeySetLink {
         str: c"buf".as_ptr().cast_mut(),
@@ -3088,7 +3087,7 @@ pub static option_table: [KeySetLink; 8] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn option_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -3105,7 +3104,7 @@ pub unsafe extern "C" fn option_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_option_get_field(
     str_: *const c_char,
     len: usize,
@@ -3118,7 +3117,7 @@ pub unsafe extern "C-unwind" fn KeyDict_option_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static redraw_table: [KeySetLink; 11] = [
     KeySetLink {
         str: c"buf".as_ptr().cast_mut(),
@@ -3199,7 +3198,7 @@ pub static redraw_table: [KeySetLink; 11] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn redraw_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -3219,7 +3218,7 @@ pub unsafe extern "C" fn redraw_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_redraw_get_field(
     str_: *const c_char,
     len: usize,
@@ -3232,7 +3231,7 @@ pub unsafe extern "C-unwind" fn KeyDict_redraw_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static runtime_table: [KeySetLink; 3] = [
     KeySetLink {
         str: c"is_lua".as_ptr().cast_mut(),
@@ -3257,7 +3256,7 @@ pub static runtime_table: [KeySetLink; 3] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn runtime_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -3269,7 +3268,7 @@ pub unsafe extern "C" fn runtime_hash(str_: *const c_char, len: usize) -> c_int 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_runtime_get_field(
     str_: *const c_char,
     len: usize,
@@ -3282,7 +3281,7 @@ pub unsafe extern "C-unwind" fn KeyDict_runtime_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static set_decoration_provider_table: [KeySetLink; 10] = [
     KeySetLink {
         str: c"on_buf".as_ptr().cast_mut(),
@@ -3356,7 +3355,7 @@ pub static set_decoration_provider_table: [KeySetLink; 10] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_decoration_provider_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -3375,7 +3374,7 @@ pub unsafe extern "C" fn set_decoration_provider_hash(str_: *const c_char, len: 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_set_decoration_provider_get_field(
     str_: *const c_char,
     len: usize,
@@ -3388,7 +3387,7 @@ pub unsafe extern "C-unwind" fn KeyDict_set_decoration_provider_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static set_extmark_table: [KeySetLink; 36] = [
     KeySetLink {
         str: c"id".as_ptr().cast_mut(),
@@ -3644,7 +3643,7 @@ pub static set_extmark_table: [KeySetLink; 36] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_extmark_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -3689,7 +3688,7 @@ pub unsafe extern "C" fn set_extmark_hash(str_: *const c_char, len: usize) -> c_
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_set_extmark_get_field(
     str_: *const c_char,
     len: usize,
@@ -3702,7 +3701,7 @@ pub unsafe extern "C-unwind" fn KeyDict_set_extmark_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static tabpage_config_table: [KeySetLink; 2] = [
     KeySetLink {
         str: c"after".as_ptr().cast_mut(),
@@ -3720,7 +3719,7 @@ pub static tabpage_config_table: [KeySetLink; 2] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tabpage_config_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -3731,7 +3730,7 @@ pub unsafe extern "C" fn tabpage_config_hash(str_: *const c_char, len: usize) ->
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_tabpage_config_get_field(
     str_: *const c_char,
     len: usize,
@@ -3744,7 +3743,7 @@ pub unsafe extern "C-unwind" fn KeyDict_tabpage_config_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static user_command_table: [KeySetLink; 13] = [
     KeySetLink {
         str: c"bar".as_ptr().cast_mut(),
@@ -3839,7 +3838,7 @@ pub static user_command_table: [KeySetLink; 13] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn user_command_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -3861,7 +3860,7 @@ pub unsafe extern "C" fn user_command_hash(str_: *const c_char, len: usize) -> c
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_user_command_get_field(
     str_: *const c_char,
     len: usize,
@@ -3874,7 +3873,7 @@ pub unsafe extern "C-unwind" fn KeyDict_user_command_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static win_config_table: [KeySetLink; 25] = [
     KeySetLink {
         str: c"col".as_ptr().cast_mut(),
@@ -4053,7 +4052,7 @@ pub static win_config_table: [KeySetLink; 25] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn win_config_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -4087,7 +4086,7 @@ pub unsafe extern "C" fn win_config_hash(str_: *const c_char, len: usize) -> c_i
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_win_config_get_field(
     str_: *const c_char,
     len: usize,
@@ -4100,7 +4099,7 @@ pub unsafe extern "C-unwind" fn KeyDict_win_config_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static win_resize_table: [KeySetLink; 2] = [
     KeySetLink {
         str: c"anchor".as_ptr().cast_mut(),
@@ -4118,7 +4117,7 @@ pub static win_resize_table: [KeySetLink; 2] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn win_resize_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -4129,7 +4128,7 @@ pub unsafe extern "C" fn win_resize_hash(str_: *const c_char, len: usize) -> c_i
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_win_resize_get_field(
     str_: *const c_char,
     len: usize,
@@ -4142,7 +4141,7 @@ pub unsafe extern "C-unwind" fn KeyDict_win_resize_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static win_text_height_table: [KeySetLink; 6] = [
     KeySetLink {
         str: c"end_row".as_ptr().cast_mut(),
@@ -4188,7 +4187,7 @@ pub static win_text_height_table: [KeySetLink; 6] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn win_text_height_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -4203,7 +4202,7 @@ pub unsafe extern "C" fn win_text_height_hash(str_: *const c_char, len: usize) -
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_win_text_height_get_field(
     str_: *const c_char,
     len: usize,
@@ -4216,7 +4215,7 @@ pub unsafe extern "C-unwind" fn KeyDict_win_text_height_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static xdl_diff_table: [KeySetLink; 13] = [
     KeySetLink {
         str: c"ctxlen".as_ptr().cast_mut(),
@@ -4311,7 +4310,7 @@ pub static xdl_diff_table: [KeySetLink; 13] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn xdl_diff_hash(str_: *const c_char, len: usize) -> c_int {
     if str_.is_null() || len == 0 {
         return -1;
@@ -4333,7 +4332,7 @@ pub unsafe extern "C" fn xdl_diff_hash(str_: *const c_char, len: usize) -> c_int
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn KeyDict_xdl_diff_get_field(
     str_: *const c_char,
     len: usize,
@@ -4346,7 +4345,7 @@ pub unsafe extern "C-unwind" fn KeyDict_xdl_diff_get_field(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_autocmds(
     channel_id: u64,
     args: Array,
@@ -4383,7 +4382,7 @@ pub unsafe extern "C" fn handle_nvim_get_autocmds(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_create_autocmd(
     channel_id: u64,
     args: Array,
@@ -4421,7 +4420,7 @@ pub unsafe extern "C" fn handle_nvim_create_autocmd(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_del_autocmd(
     channel_id: u64,
     args: Array,
@@ -4461,7 +4460,7 @@ pub unsafe extern "C" fn handle_nvim_del_autocmd(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_clear_autocmds(
     channel_id: u64,
     args: Array,
@@ -4497,7 +4496,7 @@ pub unsafe extern "C" fn handle_nvim_clear_autocmds(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_create_augroup(
     channel_id: u64,
     args: Array,
@@ -4544,7 +4543,7 @@ pub unsafe extern "C" fn handle_nvim_create_augroup(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_del_augroup_by_id(
     channel_id: u64,
     args: Array,
@@ -4585,7 +4584,7 @@ pub unsafe extern "C" fn handle_nvim_del_augroup_by_id(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_del_augroup_by_name(
     channel_id: u64,
     args: Array,
@@ -4626,7 +4625,7 @@ pub unsafe extern "C" fn handle_nvim_del_augroup_by_name(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_exec_autocmds(
     channel_id: u64,
     args: Array,
@@ -4663,7 +4662,7 @@ pub unsafe extern "C" fn handle_nvim_exec_autocmds(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_line_count(
     channel_id: u64,
     args: Array,
@@ -4706,7 +4705,7 @@ pub unsafe extern "C" fn handle_nvim_buf_line_count(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_attach(
     channel_id: u64,
     args: Array,
@@ -4762,7 +4761,7 @@ pub unsafe extern "C" fn handle_nvim_buf_attach(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_detach(
     channel_id: u64,
     args: Array,
@@ -4804,7 +4803,7 @@ pub unsafe extern "C" fn handle_nvim_buf_detach(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_get_lines(
     channel_id: u64,
     args: Array,
@@ -4885,7 +4884,7 @@ pub unsafe extern "C" fn handle_nvim_buf_get_lines(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_set_lines(
     channel_id: u64,
     args: Array,
@@ -4970,7 +4969,7 @@ pub unsafe extern "C" fn handle_nvim_buf_set_lines(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_set_text(
     channel_id: u64,
     args: Array,
@@ -5063,7 +5062,7 @@ pub unsafe extern "C" fn handle_nvim_buf_set_text(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_get_text(
     channel_id: u64,
     args: Array,
@@ -5157,7 +5156,7 @@ pub unsafe extern "C" fn handle_nvim_buf_get_text(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_get_offset(
     channel_id: u64,
     args: Array,
@@ -5210,7 +5209,7 @@ pub unsafe extern "C" fn handle_nvim_buf_get_offset(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_get_var(
     channel_id: u64,
     args: Array,
@@ -5261,7 +5260,7 @@ pub unsafe extern "C" fn handle_nvim_buf_get_var(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_get_changedtick(
     channel_id: u64,
     args: Array,
@@ -5304,7 +5303,7 @@ pub unsafe extern "C" fn handle_nvim_buf_get_changedtick(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_get_keymap(
     channel_id: u64,
     args: Array,
@@ -5357,7 +5356,7 @@ pub unsafe extern "C" fn handle_nvim_buf_get_keymap(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_set_keymap(
     channel_id: u64,
     args: Array,
@@ -5442,7 +5441,7 @@ pub unsafe extern "C" fn handle_nvim_buf_set_keymap(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_del_keymap(
     channel_id: u64,
     args: Array,
@@ -5509,7 +5508,7 @@ pub unsafe extern "C" fn handle_nvim_buf_del_keymap(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_set_var(
     channel_id: u64,
     args: Array,
@@ -5560,7 +5559,7 @@ pub unsafe extern "C" fn handle_nvim_buf_set_var(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_del_var(
     channel_id: u64,
     args: Array,
@@ -5610,7 +5609,7 @@ pub unsafe extern "C" fn handle_nvim_buf_del_var(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_get_name(
     channel_id: u64,
     args: Array,
@@ -5652,7 +5651,7 @@ pub unsafe extern "C" fn handle_nvim_buf_get_name(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_set_name(
     channel_id: u64,
     args: Array,
@@ -5702,7 +5701,7 @@ pub unsafe extern "C" fn handle_nvim_buf_set_name(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_is_loaded(
     channel_id: u64,
     args: Array,
@@ -5741,7 +5740,7 @@ pub unsafe extern "C" fn handle_nvim_buf_is_loaded(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_delete(
     channel_id: u64,
     args: Array,
@@ -5791,7 +5790,7 @@ pub unsafe extern "C" fn handle_nvim_buf_delete(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_is_valid(
     channel_id: u64,
     args: Array,
@@ -5830,7 +5829,7 @@ pub unsafe extern "C" fn handle_nvim_buf_is_valid(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_del_mark(
     channel_id: u64,
     args: Array,
@@ -5881,7 +5880,7 @@ pub unsafe extern "C" fn handle_nvim_buf_del_mark(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_set_mark(
     channel_id: u64,
     args: Array,
@@ -5955,7 +5954,7 @@ pub unsafe extern "C" fn handle_nvim_buf_set_mark(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_get_mark(
     channel_id: u64,
     args: Array,
@@ -6006,7 +6005,7 @@ pub unsafe extern "C" fn handle_nvim_buf_get_mark(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim__buf_stats(
     channel_id: u64,
     args: Array,
@@ -6048,7 +6047,7 @@ pub unsafe extern "C" fn handle_nvim__buf_stats(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_parse_cmd(
     channel_id: u64,
     args: Array,
@@ -6107,7 +6106,7 @@ pub unsafe extern "C" fn handle_nvim_parse_cmd(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_cmd(
     channel_id: u64,
     args: Array,
@@ -6162,7 +6161,7 @@ pub unsafe extern "C" fn handle_nvim_cmd(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_create_user_command(
     channel_id: u64,
     args: Array,
@@ -6209,7 +6208,7 @@ pub unsafe extern "C" fn handle_nvim_create_user_command(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_del_user_command(
     channel_id: u64,
     args: Array,
@@ -6250,7 +6249,7 @@ pub unsafe extern "C" fn handle_nvim_del_user_command(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_create_user_command(
     channel_id: u64,
     args: Array,
@@ -6295,7 +6294,7 @@ pub unsafe extern "C" fn handle_nvim_buf_create_user_command(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_del_user_command(
     channel_id: u64,
     args: Array,
@@ -6347,7 +6346,7 @@ pub unsafe extern "C" fn handle_nvim_buf_del_user_command(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_commands(
     channel_id: u64,
     args: Array,
@@ -6384,7 +6383,7 @@ pub unsafe extern "C" fn handle_nvim_get_commands(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_get_commands(
     channel_id: u64,
     args: Array,
@@ -6432,7 +6431,7 @@ pub unsafe extern "C" fn handle_nvim_buf_get_commands(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_exec(
     channel_id: u64,
     args: Array,
@@ -6482,7 +6481,7 @@ pub unsafe extern "C" fn handle_nvim_exec(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_command_output(
     channel_id: u64,
     args: Array,
@@ -6524,7 +6523,7 @@ pub unsafe extern "C" fn handle_nvim_command_output(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_execute_lua(
     channel_id: u64,
     args: Array,
@@ -6574,7 +6573,7 @@ pub unsafe extern "C" fn handle_nvim_execute_lua(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_get_number(
     channel_id: u64,
     args: Array,
@@ -6617,7 +6616,7 @@ pub unsafe extern "C" fn handle_nvim_buf_get_number(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_clear_highlight(
     channel_id: u64,
     args: Array,
@@ -6689,7 +6688,7 @@ pub unsafe extern "C" fn handle_nvim_buf_clear_highlight(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_add_highlight(
     channel_id: u64,
     args: Array,
@@ -6782,7 +6781,7 @@ pub unsafe extern "C" fn handle_nvim_buf_add_highlight(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_set_virtual_text(
     channel_id: u64,
     args: Array,
@@ -6860,7 +6859,7 @@ pub unsafe extern "C" fn handle_nvim_buf_set_virtual_text(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_hl_by_id(
     channel_id: u64,
     args: Array,
@@ -6910,7 +6909,7 @@ pub unsafe extern "C" fn handle_nvim_get_hl_by_id(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_hl_by_name(
     channel_id: u64,
     args: Array,
@@ -6962,7 +6961,7 @@ pub unsafe extern "C" fn handle_nvim_get_hl_by_name(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_buffer_insert(
     channel_id: u64,
     args: Array,
@@ -7022,7 +7021,7 @@ pub unsafe extern "C" fn handle_buffer_insert(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_buffer_get_line(
     channel_id: u64,
     args: Array,
@@ -7073,7 +7072,7 @@ pub unsafe extern "C" fn handle_buffer_get_line(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_buffer_set_line(
     channel_id: u64,
     args: Array,
@@ -7132,7 +7131,7 @@ pub unsafe extern "C" fn handle_buffer_set_line(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_buffer_del_line(
     channel_id: u64,
     args: Array,
@@ -7182,7 +7181,7 @@ pub unsafe extern "C" fn handle_buffer_del_line(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_buffer_get_line_slice(
     channel_id: u64,
     args: Array,
@@ -7265,7 +7264,7 @@ pub unsafe extern "C" fn handle_buffer_get_line_slice(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_buffer_set_line_slice(
     channel_id: u64,
     args: Array,
@@ -7351,7 +7350,7 @@ pub unsafe extern "C" fn handle_buffer_set_line_slice(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_buffer_set_var(
     channel_id: u64,
     args: Array,
@@ -7403,7 +7402,7 @@ pub unsafe extern "C" fn handle_buffer_set_var(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_buffer_del_var(
     channel_id: u64,
     args: Array,
@@ -7454,7 +7453,7 @@ pub unsafe extern "C" fn handle_buffer_del_var(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_window_set_var(
     channel_id: u64,
     args: Array,
@@ -7506,7 +7505,7 @@ pub unsafe extern "C" fn handle_window_set_var(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_window_del_var(
     channel_id: u64,
     args: Array,
@@ -7557,7 +7556,7 @@ pub unsafe extern "C" fn handle_window_del_var(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_tabpage_set_var(
     channel_id: u64,
     args: Array,
@@ -7609,7 +7608,7 @@ pub unsafe extern "C" fn handle_tabpage_set_var(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_tabpage_del_var(
     channel_id: u64,
     args: Array,
@@ -7660,7 +7659,7 @@ pub unsafe extern "C" fn handle_tabpage_del_var(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_vim_set_var(
     channel_id: u64,
     args: Array,
@@ -7702,7 +7701,7 @@ pub unsafe extern "C" fn handle_vim_set_var(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_vim_del_var(
     channel_id: u64,
     args: Array,
@@ -7743,7 +7742,7 @@ pub unsafe extern "C" fn handle_vim_del_var(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_option_info(
     channel_id: u64,
     args: Array,
@@ -7785,7 +7784,7 @@ pub unsafe extern "C" fn handle_nvim_get_option_info(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_set_option(
     channel_id: u64,
     args: Array,
@@ -7826,7 +7825,7 @@ pub unsafe extern "C" fn handle_nvim_set_option(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_option(
     channel_id: u64,
     args: Array,
@@ -7867,7 +7866,7 @@ pub unsafe extern "C" fn handle_nvim_get_option(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_get_option(
     channel_id: u64,
     args: Array,
@@ -7920,7 +7919,7 @@ pub unsafe extern "C" fn handle_nvim_buf_get_option(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_set_option(
     channel_id: u64,
     args: Array,
@@ -7973,7 +7972,7 @@ pub unsafe extern "C" fn handle_nvim_buf_set_option(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_win_get_option(
     channel_id: u64,
     args: Array,
@@ -8026,7 +8025,7 @@ pub unsafe extern "C" fn handle_nvim_win_get_option(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_win_set_option(
     channel_id: u64,
     args: Array,
@@ -8079,7 +8078,7 @@ pub unsafe extern "C" fn handle_nvim_win_set_option(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_call_atomic(
     channel_id: u64,
     args: Array,
@@ -8120,7 +8119,7 @@ pub unsafe extern "C" fn handle_nvim_call_atomic(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_subscribe(
     channel_id: u64,
     args: Array,
@@ -8157,7 +8156,7 @@ pub unsafe extern "C" fn handle_nvim_subscribe(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_unsubscribe(
     channel_id: u64,
     args: Array,
@@ -8194,7 +8193,7 @@ pub unsafe extern "C" fn handle_nvim_unsubscribe(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_out_write(
     channel_id: u64,
     args: Array,
@@ -8231,7 +8230,7 @@ pub unsafe extern "C" fn handle_nvim_out_write(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_err_write(
     channel_id: u64,
     args: Array,
@@ -8268,7 +8267,7 @@ pub unsafe extern "C" fn handle_nvim_err_write(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_err_writeln(
     channel_id: u64,
     args: Array,
@@ -8305,7 +8304,7 @@ pub unsafe extern "C" fn handle_nvim_err_writeln(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_notify(
     channel_id: u64,
     args: Array,
@@ -8364,7 +8363,7 @@ pub unsafe extern "C" fn handle_nvim_notify(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_win_set_height(
     channel_id: u64,
     args: Array,
@@ -8416,7 +8415,7 @@ pub unsafe extern "C" fn handle_nvim_win_set_height(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_win_set_width(
     channel_id: u64,
     args: Array,
@@ -8467,7 +8466,7 @@ pub unsafe extern "C" fn handle_nvim_win_set_width(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_error_event(
     channel_id: u64,
     args: Array,
@@ -8513,7 +8512,7 @@ pub unsafe extern "C" fn handle_nvim_error_event(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_ui_term_event(
     channel_id: u64,
     args: Array,
@@ -8554,7 +8553,7 @@ pub unsafe extern "C" fn handle_nvim_ui_term_event(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_create_namespace(
     channel_id: u64,
     args: Array,
@@ -8593,7 +8592,7 @@ pub unsafe extern "C" fn handle_nvim_create_namespace(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_namespaces(
     channel_id: u64,
     args: Array,
@@ -8622,7 +8621,7 @@ pub unsafe extern "C" fn handle_nvim_get_namespaces(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_get_extmark_by_id(
     channel_id: u64,
     args: Array,
@@ -8690,7 +8689,7 @@ pub unsafe extern "C" fn handle_nvim_buf_get_extmark_by_id(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_get_extmarks(
     channel_id: u64,
     args: Array,
@@ -8750,7 +8749,7 @@ pub unsafe extern "C" fn handle_nvim_buf_get_extmarks(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_set_extmark(
     channel_id: u64,
     args: Array,
@@ -8828,7 +8827,7 @@ pub unsafe extern "C" fn handle_nvim_buf_set_extmark(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_del_extmark(
     channel_id: u64,
     args: Array,
@@ -8891,7 +8890,7 @@ pub unsafe extern "C" fn handle_nvim_buf_del_extmark(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_buf_clear_namespace(
     channel_id: u64,
     args: Array,
@@ -8963,7 +8962,7 @@ pub unsafe extern "C" fn handle_nvim_buf_clear_namespace(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim__buf_debug_extmarks(
     channel_id: u64,
     args: Array,
@@ -9026,7 +9025,7 @@ pub unsafe extern "C" fn handle_nvim__buf_debug_extmarks(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim__ns_set(
     channel_id: u64,
     args: Array,
@@ -9079,7 +9078,7 @@ pub unsafe extern "C" fn handle_nvim__ns_set(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim__ns_get(
     channel_id: u64,
     args: Array,
@@ -9125,7 +9124,7 @@ pub unsafe extern "C" fn handle_nvim__ns_get(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_option_value(
     channel_id: u64,
     args: Array,
@@ -9172,7 +9171,7 @@ pub unsafe extern "C" fn handle_nvim_get_option_value(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_set_option_value(
     channel_id: u64,
     args: Array,
@@ -9220,7 +9219,7 @@ pub unsafe extern "C" fn handle_nvim_set_option_value(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_all_options_info(
     channel_id: u64,
     args: Array,
@@ -9252,7 +9251,7 @@ pub unsafe extern "C" fn handle_nvim_get_all_options_info(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_option_info2(
     channel_id: u64,
     args: Array,
@@ -9299,7 +9298,7 @@ pub unsafe extern "C" fn handle_nvim_get_option_info2(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_tabpage_list_wins(
     channel_id: u64,
     args: Array,
@@ -9342,7 +9341,7 @@ pub unsafe extern "C" fn handle_nvim_tabpage_list_wins(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_tabpage_get_var(
     channel_id: u64,
     args: Array,
@@ -9395,7 +9394,7 @@ pub unsafe extern "C" fn handle_nvim_tabpage_get_var(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_tabpage_set_var(
     channel_id: u64,
     args: Array,
@@ -9448,7 +9447,7 @@ pub unsafe extern "C" fn handle_nvim_tabpage_set_var(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_tabpage_del_var(
     channel_id: u64,
     args: Array,
@@ -9500,7 +9499,7 @@ pub unsafe extern "C" fn handle_nvim_tabpage_del_var(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_tabpage_get_win(
     channel_id: u64,
     args: Array,
@@ -9543,7 +9542,7 @@ pub unsafe extern "C" fn handle_nvim_tabpage_get_win(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_tabpage_set_win(
     channel_id: u64,
     args: Array,
@@ -9596,7 +9595,7 @@ pub unsafe extern "C" fn handle_nvim_tabpage_set_win(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_tabpage_get_number(
     channel_id: u64,
     args: Array,
@@ -9639,7 +9638,7 @@ pub unsafe extern "C" fn handle_nvim_tabpage_get_number(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_tabpage_is_valid(
     channel_id: u64,
     args: Array,
@@ -9679,7 +9678,7 @@ pub unsafe extern "C" fn handle_nvim_tabpage_is_valid(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_open_tabpage(
     channel_id: u64,
     args: Array,
@@ -9738,7 +9737,7 @@ pub unsafe extern "C" fn handle_nvim_open_tabpage(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_ui_attach(
     channel_id: u64,
     args: Array,
@@ -9796,7 +9795,7 @@ pub unsafe extern "C" fn handle_nvim_ui_attach(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_ui_attach(
     channel_id: u64,
     args: Array,
@@ -9854,7 +9853,7 @@ pub unsafe extern "C" fn handle_ui_attach(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_ui_set_focus(
     channel_id: u64,
     args: Array,
@@ -9894,7 +9893,7 @@ pub unsafe extern "C" fn handle_nvim_ui_set_focus(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_ui_detach(
     channel_id: u64,
     args: Array,
@@ -9925,7 +9924,7 @@ pub unsafe extern "C" fn handle_nvim_ui_detach(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_ui_try_resize(
     channel_id: u64,
     args: Array,
@@ -9976,7 +9975,7 @@ pub unsafe extern "C" fn handle_nvim_ui_try_resize(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_ui_set_option(
     channel_id: u64,
     args: Array,
@@ -10017,7 +10016,7 @@ pub unsafe extern "C" fn handle_nvim_ui_set_option(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_ui_try_resize_grid(
     channel_id: u64,
     args: Array,
@@ -10078,7 +10077,7 @@ pub unsafe extern "C" fn handle_nvim_ui_try_resize_grid(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_ui_pum_set_height(
     channel_id: u64,
     args: Array,
@@ -10119,7 +10118,7 @@ pub unsafe extern "C" fn handle_nvim_ui_pum_set_height(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_ui_pum_set_bounds(
     channel_id: u64,
     args: Array,
@@ -10190,7 +10189,7 @@ pub unsafe extern "C" fn handle_nvim_ui_pum_set_bounds(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_ui_send(
     channel_id: u64,
     args: Array,
@@ -10230,7 +10229,7 @@ pub unsafe extern "C" fn handle_nvim_ui_send(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_hl_id_by_name(
     channel_id: u64,
     args: Array,
@@ -10272,7 +10271,7 @@ pub unsafe extern "C" fn handle_nvim_get_hl_id_by_name(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_hl(
     channel_id: u64,
     args: Array,
@@ -10318,7 +10317,7 @@ pub unsafe extern "C" fn handle_nvim_get_hl(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_set_hl(
     channel_id: u64,
     args: Array,
@@ -10378,7 +10377,7 @@ pub unsafe extern "C" fn handle_nvim_set_hl(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_hl_ns(
     channel_id: u64,
     args: Array,
@@ -10423,7 +10422,7 @@ pub unsafe extern "C" fn handle_nvim_get_hl_ns(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_set_hl_ns(
     channel_id: u64,
     args: Array,
@@ -10463,7 +10462,7 @@ pub unsafe extern "C" fn handle_nvim_set_hl_ns(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_set_hl_ns_fast(
     channel_id: u64,
     args: Array,
@@ -10504,7 +10503,7 @@ pub unsafe extern "C" fn handle_nvim_set_hl_ns_fast(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_feedkeys(
     channel_id: u64,
     args: Array,
@@ -10559,7 +10558,7 @@ pub unsafe extern "C" fn handle_nvim_feedkeys(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_input(
     channel_id: u64,
     args: Array,
@@ -10597,7 +10596,7 @@ pub unsafe extern "C" fn handle_nvim_input(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_input_mouse(
     channel_id: u64,
     args: Array,
@@ -10682,7 +10681,7 @@ pub unsafe extern "C" fn handle_nvim_input_mouse(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_replace_termcodes(
     channel_id: u64,
     args: Array,
@@ -10751,7 +10750,7 @@ pub unsafe extern "C" fn handle_nvim_replace_termcodes(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_exec_lua(
     channel_id: u64,
     args: Array,
@@ -10801,7 +10800,7 @@ pub unsafe extern "C" fn handle_nvim_exec_lua(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim__exec_lua_fast(
     channel_id: u64,
     args: Array,
@@ -10852,7 +10851,7 @@ pub unsafe extern "C" fn handle_nvim__exec_lua_fast(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_strwidth(
     channel_id: u64,
     args: Array,
@@ -10893,7 +10892,7 @@ pub unsafe extern "C" fn handle_nvim_strwidth(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_list_runtime_paths(
     channel_id: u64,
     args: Array,
@@ -10925,7 +10924,7 @@ pub unsafe extern "C" fn handle_nvim_list_runtime_paths(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim__runtime_inspect(
     channel_id: u64,
     args: Array,
@@ -10954,7 +10953,7 @@ pub unsafe extern "C" fn handle_nvim__runtime_inspect(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_runtime_file(
     channel_id: u64,
     args: Array,
@@ -11006,7 +11005,7 @@ pub unsafe extern "C" fn handle_nvim_get_runtime_file(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim__get_lib_dir(
     channel_id: u64,
     args: Array,
@@ -11035,7 +11034,7 @@ pub unsafe extern "C" fn handle_nvim__get_lib_dir(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim__get_runtime(
     channel_id: u64,
     args: Array,
@@ -11091,7 +11090,7 @@ pub unsafe extern "C" fn handle_nvim__get_runtime(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_set_current_dir(
     channel_id: u64,
     args: Array,
@@ -11132,7 +11131,7 @@ pub unsafe extern "C" fn handle_nvim_set_current_dir(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_current_line(
     channel_id: u64,
     args: Array,
@@ -11164,7 +11163,7 @@ pub unsafe extern "C" fn handle_nvim_get_current_line(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_set_current_line(
     channel_id: u64,
     args: Array,
@@ -11209,7 +11208,7 @@ pub unsafe extern "C" fn handle_nvim_set_current_line(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_del_current_line(
     channel_id: u64,
     args: Array,
@@ -11244,7 +11243,7 @@ pub unsafe extern "C" fn handle_nvim_del_current_line(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_var(
     channel_id: u64,
     args: Array,
@@ -11285,7 +11284,7 @@ pub unsafe extern "C" fn handle_nvim_get_var(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_set_var(
     channel_id: u64,
     args: Array,
@@ -11326,7 +11325,7 @@ pub unsafe extern "C" fn handle_nvim_set_var(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_del_var(
     channel_id: u64,
     args: Array,
@@ -11366,7 +11365,7 @@ pub unsafe extern "C" fn handle_nvim_del_var(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_vvar(
     channel_id: u64,
     args: Array,
@@ -11407,7 +11406,7 @@ pub unsafe extern "C" fn handle_nvim_get_vvar(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_set_vvar(
     channel_id: u64,
     args: Array,
@@ -11448,7 +11447,7 @@ pub unsafe extern "C" fn handle_nvim_set_vvar(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_echo(
     channel_id: u64,
     args: Array,
@@ -11506,7 +11505,7 @@ pub unsafe extern "C" fn handle_nvim_echo(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_list_bufs(
     channel_id: u64,
     args: Array,
@@ -11535,7 +11534,7 @@ pub unsafe extern "C" fn handle_nvim_list_bufs(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_current_buf(
     channel_id: u64,
     args: Array,
@@ -11564,7 +11563,7 @@ pub unsafe extern "C" fn handle_nvim_get_current_buf(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_set_current_buf(
     channel_id: u64,
     args: Array,
@@ -11610,7 +11609,7 @@ pub unsafe extern "C" fn handle_nvim_set_current_buf(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_list_wins(
     channel_id: u64,
     args: Array,
@@ -11639,7 +11638,7 @@ pub unsafe extern "C" fn handle_nvim_list_wins(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_current_win(
     channel_id: u64,
     args: Array,
@@ -11668,7 +11667,7 @@ pub unsafe extern "C" fn handle_nvim_get_current_win(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_set_current_win(
     channel_id: u64,
     args: Array,
@@ -11714,7 +11713,7 @@ pub unsafe extern "C" fn handle_nvim_set_current_win(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_create_buf(
     channel_id: u64,
     args: Array,
@@ -11764,7 +11763,7 @@ pub unsafe extern "C" fn handle_nvim_create_buf(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_open_term(
     channel_id: u64,
     args: Array,
@@ -11815,7 +11814,7 @@ pub unsafe extern "C" fn handle_nvim_open_term(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_chan_send(
     channel_id: u64,
     args: Array,
@@ -11864,7 +11863,7 @@ pub unsafe extern "C" fn handle_nvim_chan_send(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_list_tabpages(
     channel_id: u64,
     args: Array,
@@ -11893,7 +11892,7 @@ pub unsafe extern "C" fn handle_nvim_list_tabpages(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_current_tabpage(
     channel_id: u64,
     args: Array,
@@ -11922,7 +11921,7 @@ pub unsafe extern "C" fn handle_nvim_get_current_tabpage(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_set_current_tabpage(
     channel_id: u64,
     args: Array,
@@ -11968,7 +11967,7 @@ pub unsafe extern "C" fn handle_nvim_set_current_tabpage(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_paste(
     channel_id: u64,
     args: Array,
@@ -12031,7 +12030,7 @@ pub unsafe extern "C" fn handle_nvim_paste(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_put(
     channel_id: u64,
     args: Array,
@@ -12102,7 +12101,7 @@ pub unsafe extern "C" fn handle_nvim_put(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_color_by_name(
     channel_id: u64,
     args: Array,
@@ -12141,7 +12140,7 @@ pub unsafe extern "C" fn handle_nvim_get_color_by_name(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_color_map(
     channel_id: u64,
     args: Array,
@@ -12170,7 +12169,7 @@ pub unsafe extern "C" fn handle_nvim_get_color_map(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_context(
     channel_id: u64,
     args: Array,
@@ -12207,7 +12206,7 @@ pub unsafe extern "C" fn handle_nvim_get_context(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_load_context(
     channel_id: u64,
     args: Array,
@@ -12248,7 +12247,7 @@ pub unsafe extern "C" fn handle_nvim_load_context(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_mode(
     channel_id: u64,
     args: Array,
@@ -12277,7 +12276,7 @@ pub unsafe extern "C" fn handle_nvim_get_mode(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_keymap(
     channel_id: u64,
     args: Array,
@@ -12315,7 +12314,7 @@ pub unsafe extern "C" fn handle_nvim_get_keymap(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_set_keymap(
     channel_id: u64,
     args: Array,
@@ -12386,7 +12385,7 @@ pub unsafe extern "C" fn handle_nvim_set_keymap(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_del_keymap(
     channel_id: u64,
     args: Array,
@@ -12440,7 +12439,7 @@ pub unsafe extern "C" fn handle_nvim_del_keymap(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_api_info(
     channel_id: u64,
     args: Array,
@@ -12469,7 +12468,7 @@ pub unsafe extern "C" fn handle_nvim_get_api_info(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_set_client_info(
     channel_id: u64,
     args: Array,
@@ -12547,7 +12546,7 @@ pub unsafe extern "C" fn handle_nvim_set_client_info(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_chan_set(
     channel_id: u64,
     args: Array,
@@ -12598,7 +12597,7 @@ pub unsafe extern "C" fn handle_nvim_chan_set(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim__cmdwin_set(
     channel_id: u64,
     args: Array,
@@ -12648,7 +12647,7 @@ pub unsafe extern "C" fn handle_nvim__cmdwin_set(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_chan_info(
     channel_id: u64,
     args: Array,
@@ -12690,7 +12689,7 @@ pub unsafe extern "C" fn handle_nvim_get_chan_info(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_list_chans(
     channel_id: u64,
     args: Array,
@@ -12719,7 +12718,7 @@ pub unsafe extern "C" fn handle_nvim_list_chans(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim__id(
     channel_id: u64,
     args: Array,
@@ -12749,7 +12748,7 @@ pub unsafe extern "C" fn handle_nvim__id(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim__id_array(
     channel_id: u64,
     args: Array,
@@ -12787,7 +12786,7 @@ pub unsafe extern "C" fn handle_nvim__id_array(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim__id_dict(
     channel_id: u64,
     args: Array,
@@ -12825,7 +12824,7 @@ pub unsafe extern "C" fn handle_nvim__id_dict(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim__id_float(
     channel_id: u64,
     args: Array,
@@ -12863,7 +12862,7 @@ pub unsafe extern "C" fn handle_nvim__id_float(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim__stats(
     channel_id: u64,
     args: Array,
@@ -12892,7 +12891,7 @@ pub unsafe extern "C" fn handle_nvim__stats(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_list_uis(
     channel_id: u64,
     args: Array,
@@ -12921,7 +12920,7 @@ pub unsafe extern "C" fn handle_nvim_list_uis(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_proc_children(
     channel_id: u64,
     args: Array,
@@ -12963,7 +12962,7 @@ pub unsafe extern "C" fn handle_nvim_get_proc_children(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_proc(
     channel_id: u64,
     args: Array,
@@ -13004,7 +13003,7 @@ pub unsafe extern "C" fn handle_nvim_get_proc(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_select_popupmenu_item(
     channel_id: u64,
     args: Array,
@@ -13070,7 +13069,7 @@ pub unsafe extern "C" fn handle_nvim_select_popupmenu_item(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim__inspect_cell(
     channel_id: u64,
     args: Array,
@@ -13132,7 +13131,7 @@ pub unsafe extern "C" fn handle_nvim__inspect_cell(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim__screenshot(
     channel_id: u64,
     args: Array,
@@ -13169,7 +13168,7 @@ pub unsafe extern "C" fn handle_nvim__screenshot(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim__invalidate_glyph_cache(
     channel_id: u64,
     args: Array,
@@ -13197,7 +13196,7 @@ pub unsafe extern "C" fn handle_nvim__invalidate_glyph_cache(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim__unpack(
     channel_id: u64,
     args: Array,
@@ -13238,7 +13237,7 @@ pub unsafe extern "C" fn handle_nvim__unpack(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_del_mark(
     channel_id: u64,
     args: Array,
@@ -13279,7 +13278,7 @@ pub unsafe extern "C" fn handle_nvim_del_mark(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_get_mark(
     channel_id: u64,
     args: Array,
@@ -13333,7 +13332,7 @@ pub unsafe extern "C" fn handle_nvim_get_mark(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_eval_statusline(
     channel_id: u64,
     args: Array,
@@ -13380,7 +13379,7 @@ pub unsafe extern "C" fn handle_nvim_eval_statusline(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim__complete_set(
     channel_id: u64,
     args: Array,
@@ -13427,7 +13426,7 @@ pub unsafe extern "C" fn handle_nvim__complete_set(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim__redraw(
     channel_id: u64,
     args: Array,
@@ -13471,7 +13470,7 @@ pub unsafe extern "C" fn handle_nvim__redraw(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim__set_restart_on_crash(
     channel_id: u64,
     args: Array,
@@ -13519,7 +13518,7 @@ pub unsafe extern "C" fn handle_nvim__set_restart_on_crash(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_exec2(
     channel_id: u64,
     args: Array,
@@ -13573,7 +13572,7 @@ pub unsafe extern "C" fn handle_nvim_exec2(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_command(
     channel_id: u64,
     args: Array,
@@ -13613,7 +13612,7 @@ pub unsafe extern "C" fn handle_nvim_command(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_eval(
     channel_id: u64,
     args: Array,
@@ -13654,7 +13653,7 @@ pub unsafe extern "C" fn handle_nvim_eval(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_call_function(
     channel_id: u64,
     args: Array,
@@ -13704,7 +13703,7 @@ pub unsafe extern "C" fn handle_nvim_call_function(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_call_dict_function(
     channel_id: u64,
     args: Array,
@@ -13757,7 +13756,7 @@ pub unsafe extern "C" fn handle_nvim_call_dict_function(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_parse_expression(
     channel_id: u64,
     args: Array,
@@ -13819,7 +13818,7 @@ pub unsafe extern "C" fn handle_nvim_parse_expression(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_open_win(
     channel_id: u64,
     args: Array,
@@ -13885,7 +13884,7 @@ pub unsafe extern "C" fn handle_nvim_open_win(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_win_set_config(
     channel_id: u64,
     args: Array,
@@ -13931,7 +13930,7 @@ pub unsafe extern "C" fn handle_nvim_win_set_config(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_win_get_config(
     channel_id: u64,
     args: Array,
@@ -13979,7 +13978,7 @@ pub unsafe extern "C" fn handle_nvim_win_get_config(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_win_get_buf(
     channel_id: u64,
     args: Array,
@@ -14021,7 +14020,7 @@ pub unsafe extern "C" fn handle_nvim_win_get_buf(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_win_set_buf(
     channel_id: u64,
     args: Array,
@@ -14076,7 +14075,7 @@ pub unsafe extern "C" fn handle_nvim_win_set_buf(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_win_get_cursor(
     channel_id: u64,
     args: Array,
@@ -14119,7 +14118,7 @@ pub unsafe extern "C" fn handle_nvim_win_get_cursor(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_win_set_cursor(
     channel_id: u64,
     args: Array,
@@ -14165,7 +14164,7 @@ pub unsafe extern "C" fn handle_nvim_win_set_cursor(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_win_get_height(
     channel_id: u64,
     args: Array,
@@ -14208,7 +14207,7 @@ pub unsafe extern "C" fn handle_nvim_win_get_height(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_win_get_width(
     channel_id: u64,
     args: Array,
@@ -14250,7 +14249,7 @@ pub unsafe extern "C" fn handle_nvim_win_get_width(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_win_get_var(
     channel_id: u64,
     args: Array,
@@ -14301,7 +14300,7 @@ pub unsafe extern "C" fn handle_nvim_win_get_var(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_win_set_var(
     channel_id: u64,
     args: Array,
@@ -14352,7 +14351,7 @@ pub unsafe extern "C" fn handle_nvim_win_set_var(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_win_del_var(
     channel_id: u64,
     args: Array,
@@ -14402,7 +14401,7 @@ pub unsafe extern "C" fn handle_nvim_win_del_var(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_win_get_position(
     channel_id: u64,
     args: Array,
@@ -14445,7 +14444,7 @@ pub unsafe extern "C" fn handle_nvim_win_get_position(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_win_get_tabpage(
     channel_id: u64,
     args: Array,
@@ -14488,7 +14487,7 @@ pub unsafe extern "C" fn handle_nvim_win_get_tabpage(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_win_get_number(
     channel_id: u64,
     args: Array,
@@ -14531,7 +14530,7 @@ pub unsafe extern "C" fn handle_nvim_win_get_number(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_win_is_valid(
     channel_id: u64,
     args: Array,
@@ -14570,7 +14569,7 @@ pub unsafe extern "C" fn handle_nvim_win_is_valid(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_win_hide(
     channel_id: u64,
     args: Array,
@@ -14615,7 +14614,7 @@ pub unsafe extern "C" fn handle_nvim_win_hide(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_win_close(
     channel_id: u64,
     args: Array,
@@ -14669,7 +14668,7 @@ pub unsafe extern "C" fn handle_nvim_win_close(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_win_set_hl_ns(
     channel_id: u64,
     args: Array,
@@ -14720,7 +14719,7 @@ pub unsafe extern "C" fn handle_nvim_win_set_hl_ns(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_win_text_height(
     channel_id: u64,
     args: Array,
@@ -14768,7 +14767,7 @@ pub unsafe extern "C" fn handle_nvim_win_text_height(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn handle_nvim_win_resize(
     channel_id: u64,
     args: Array,
@@ -14833,19 +14832,10 @@ pub unsafe extern "C" fn handle_nvim_win_resize(
 }
 
 macro_rules! rpc_fn {
-    ($f:ident) => {{
-        #[cfg(not(test))]
-        {
-            Some($f)
-        }
-        #[cfg(test)]
-        {
-            None
-        }
-    }};
+    ($f:ident) => {{ { Some($f) } }};
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub static method_handlers: [MsgpackRpcRequestHandler; 283] = [
     MsgpackRpcRequestHandler {
         name: c"redraw".as_ptr(),
@@ -16547,7 +16537,7 @@ pub static method_handlers: [MsgpackRpcRequestHandler; 283] = [
     },
 ];
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msgpack_rpc_get_handler_for_hash(
     str_in: *const c_char,
     len: usize,
@@ -16843,12 +16833,12 @@ pub unsafe extern "C" fn msgpack_rpc_get_handler_for_hash(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msgpack_rpc_get_handler_at(hash: c_int) -> MsgpackRpcRequestHandler {
     method_handlers[hash as usize]
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn msgpack_rpc_get_handler_for(
     name: *const c_char,
     name_len: usize,
@@ -26393,7 +26383,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_resize(lstate: *mut lua_State) -> 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn nlua_add_api_functions(lstate: *mut lua_State) {
     unsafe {
         lua_createtable(lstate, 0, 185);

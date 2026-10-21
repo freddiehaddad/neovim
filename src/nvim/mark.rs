@@ -202,7 +202,7 @@ unsafe fn reset_xfmark(
 }
 
 /// Set named mark `c` at current cursor position (`setmark`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn setmark(c: c_int) -> c_int {
     unsafe {
         let view = mark_view_make(curwin, (*curwin).w_cursor);
@@ -216,7 +216,7 @@ pub unsafe extern "C" fn setmark(c: c_int) -> c_int {
 }
 
 /// Free `fmark_T` item (`free_fmark`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn free_fmark(fm: fmark_T) {
     unsafe {
         xfree(fm.additional_data.cast());
@@ -224,7 +224,7 @@ pub unsafe extern "C" fn free_fmark(fm: fmark_T) {
 }
 
 /// Free `xfmark_T` item (`free_xfmark`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn free_xfmark(fm: xfmark_T) {
     unsafe {
         xfree(fm.fname.cast());
@@ -233,7 +233,7 @@ pub unsafe extern "C" fn free_xfmark(fm: xfmark_T) {
 }
 
 /// Free and clear `fmark_T` item (`clear_fmark`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn clear_fmark(fm: *mut fmark_T, timestamp: Timestamp) {
     unsafe {
         free_fmark(*fm);
@@ -313,7 +313,7 @@ unsafe fn do_markset_autocmd(c: c_char, pos: *const pos_T, buf: *mut buf_T) {
 }
 
 /// Set named mark `c` to position `pos` (`setmark_pos`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn setmark_pos(
     c: c_int,
     pos: *mut pos_T,
@@ -403,7 +403,7 @@ pub unsafe extern "C" fn setmark_pos(
 }
 
 /// Remove every jump list entry referring to a given buffer (`mark_jumplist_forget_file`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mark_jumplist_forget_file(wp: *mut win_T, fnum: c_int) {
     unsafe {
         let mut i = (*wp).w_jumplistlen - 1;
@@ -424,7 +424,7 @@ pub unsafe extern "C" fn mark_jumplist_forget_file(wp: *mut win_T, fnum: c_int) 
 }
 
 /// Delete every entry referring to file `fnum` from both the jumplist and the tag stack (`mark_forget_file`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mark_forget_file(wp: *mut win_T, fnum: c_int) {
     unsafe {
         mark_jumplist_forget_file(wp, fnum);
@@ -447,7 +447,7 @@ pub unsafe extern "C" fn mark_forget_file(wp: *mut win_T, fnum: c_int) {
 }
 
 /// Set the previous context mark to the current position and add it to the jump list (`setpcmark`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn setpcmark() {
     unsafe {
         if global_busy != 0
@@ -493,7 +493,7 @@ pub unsafe extern "C" fn setpcmark() {
 }
 
 /// Check previous context mark (`checkpcmark`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn checkpcmark() {
     unsafe {
         if (*curwin).w_prev_pcmark.lnum != 0
@@ -506,7 +506,7 @@ pub unsafe extern "C" fn checkpcmark() {
 }
 
 /// Get mark in `count` position in the jumplist relative to the current index (`get_jumplist`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_jumplist(win: *mut win_T, mut count: c_int) -> *mut fmark_T {
     unsafe {
         cleanup_jumplist(win, true);
@@ -547,7 +547,7 @@ pub unsafe extern "C" fn get_jumplist(win: *mut win_T, mut count: c_int) -> *mut
 }
 
 /// Get mark in `count` position in the changelist relative to the current index (`get_changelist`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_changelist(
     buf: *mut buf_T,
     win: *mut win_T,
@@ -580,7 +580,7 @@ pub unsafe extern "C" fn get_changelist(
 }
 
 /// Get a named mark (`mark_get`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mark_get(
     buf: *mut buf_T,
     win: *mut win_T,
@@ -616,7 +616,7 @@ pub unsafe extern "C" fn mark_get(
 }
 
 /// Get a global mark `{A-Z0-9}` (`mark_get_global`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mark_get_global(resolve: bool, mut name: c_int) -> *mut xfmark_T {
     unsafe {
         if ascii_isdigit(name) {
@@ -635,7 +635,7 @@ pub unsafe extern "C" fn mark_get_global(resolve: bool, mut name: c_int) -> *mut
 }
 
 /// Get a local mark (`mark_get_local`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mark_get_local(
     buf: *mut buf_T,
     win: *mut win_T,
@@ -673,7 +673,7 @@ pub unsafe extern "C" fn mark_get_local(
 }
 
 /// Get marks that are actually motions (`mark_get_motion`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mark_get_motion(
     buf: *mut buf_T,
     win: *mut win_T,
@@ -718,7 +718,7 @@ pub unsafe extern "C" fn mark_get_motion(
 }
 
 /// Get visual marks `'<'`, `'>'` (`mark_get_visual`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mark_get_visual(buf: *mut buf_T, name: c_int) -> *mut fmark_T {
     unsafe {
         let mut mark: *mut fmark_T = ptr::null_mut();
@@ -743,7 +743,7 @@ pub unsafe extern "C" fn mark_get_visual(buf: *mut buf_T, name: c_int) -> *mut f
 }
 
 /// Wrap a `pos_T` into an `fmark_T` (`pos_to_mark`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn pos_to_mark(
     buf: *mut buf_T,
     fmp: *mut fmark_T,
@@ -777,7 +777,7 @@ unsafe fn switch_to_mark_buf(fm: *mut fmark_T, pcmark_on_switch: bool) -> MarkMo
 }
 
 /// Move to the given file mark, changing the buffer and cursor position (`mark_move_to`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mark_move_to(mut fm: *mut fmark_T, flags: MarkMove) -> MarkMoveRes {
     unsafe {
         let mut res: MarkMoveRes = kMarkMoveSuccess;
@@ -831,7 +831,7 @@ pub unsafe extern "C" fn mark_move_to(mut fm: *mut fmark_T, flags: MarkMove) -> 
 }
 
 /// Restore the mark view (`mark_view_restore`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mark_view_restore(fm: *mut fmark_T) {
     unsafe {
         if !fm.is_null() && (*fm).view.topline_offset >= 0 {
@@ -851,7 +851,7 @@ pub unsafe extern "C" fn mark_view_restore(fm: *mut fmark_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mark_view_make(wp: *const win_T, pos: pos_T) -> fmarkv_T {
     unsafe {
         fmarkv_T {
@@ -862,7 +862,7 @@ pub unsafe extern "C" fn mark_view_make(wp: *const win_T, pos: pos_T) -> fmarkv_
 }
 
 /// Search for the next named mark in the current file from a start position (`getnextmark`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn getnextmark(
     startpos: *mut pos_T,
     dir: c_int,
@@ -930,7 +930,7 @@ unsafe fn fname2fnum(fm: *mut xfmark_T) {
 }
 
 /// Check all file marks for a name that matches the file name in `buf` (`fmarks_check_names`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn fmarks_check_names(buf: *mut buf_T) {
     unsafe {
         let name = (*buf).b_ffname;
@@ -966,7 +966,7 @@ unsafe fn fmarks_check_one(fm: *mut xfmark_T, name: *mut c_char, buf: *mut buf_T
 }
 
 /// Check the position in `fm` is valid (`mark_check`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mark_check(fm: *mut fmark_T, errormsg: *mut *const c_char) -> bool {
     unsafe {
         if fm.is_null() {
@@ -986,7 +986,7 @@ pub unsafe extern "C" fn mark_check(fm: *mut fmark_T, errormsg: *mut *const c_ch
 }
 
 /// Check if a mark line number is greater than the buffer line count (`mark_check_line_bounds`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mark_check_line_bounds(
     buf: *mut buf_T,
     fm: *mut fmark_T,
@@ -1002,7 +1002,7 @@ pub unsafe extern "C" fn mark_check_line_bounds(
 }
 
 /// Clear all marks and change list in the given buffer (`clrallmarks`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn clrallmarks(buf: *mut buf_T, timestamp: Timestamp) {
     unsafe {
         for i in 0..NMARKS {
@@ -1022,7 +1022,7 @@ pub unsafe extern "C" fn clrallmarks(buf: *mut buf_T, timestamp: Timestamp) {
 }
 
 /// Get name of file from a filemark (`fm_getname`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn fm_getname(fmark: *mut fmark_T, lead_len: c_int) -> *mut c_char {
     unsafe {
         if (*fmark).fnum == (*curbuf).b_fnum {
@@ -1056,7 +1056,7 @@ unsafe fn mark_line(mp: *mut pos_T, lead_len: c_int) -> *mut c_char {
 }
 
 /// `:marks {arg}` (`ex_marks`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_marks(eap: *mut exarg_T) {
     unsafe {
         nlua_call_excmd(
@@ -1070,7 +1070,7 @@ pub unsafe extern "C" fn ex_marks(eap: *mut exarg_T) {
 }
 
 /// `:delmarks[!] [marks]` (`ex_delmarks`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_delmarks(eap: *mut exarg_T) {
     unsafe {
         let pos = pos_T {
@@ -1222,7 +1222,7 @@ pub unsafe extern "C" fn ex_delmarks(eap: *mut exarg_T) {
 }
 
 /// Print the jumplist (`ex_jumps`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_jumps(_eap: *mut exarg_T) {
     unsafe {
         cleanup_jumplist(curwin, true);
@@ -1287,7 +1287,7 @@ pub unsafe extern "C" fn ex_jumps(_eap: *mut exarg_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_clearjumps(_eap: *mut exarg_T) {
     unsafe {
         free_jumplist(curwin);
@@ -1297,7 +1297,7 @@ pub unsafe extern "C" fn ex_clearjumps(_eap: *mut exarg_T) {
 }
 
 /// Print the changelist (`ex_changes`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_changes(_eap: *mut exarg_T) {
     unsafe {
         msg_ext_set_kind(c"list_cmd".as_ptr());
@@ -1408,7 +1408,7 @@ unsafe fn one_adjust_cursor(
 }
 
 /// Adjust marks between `line1` and `line2` (inclusive) to move `amount` lines (`mark_adjust`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mark_adjust(
     line1: linenr_T,
     line2: linenr_T,
@@ -1431,7 +1431,7 @@ pub unsafe extern "C" fn mark_adjust(
 }
 
 /// Adjust marks without adjusting folds (`mark_adjust_nofold`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mark_adjust_nofold(
     line1: linenr_T,
     line2: linenr_T,
@@ -1453,7 +1453,7 @@ pub unsafe extern "C" fn mark_adjust_nofold(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mark_adjust_buf(
     buf: *mut buf_T,
     line1: linenr_T,
@@ -1761,7 +1761,7 @@ unsafe fn col_adjust(
 }
 
 /// Adjust marks in line `lnum` at column `mincol` and further (`mark_col_adjust`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mark_col_adjust(
     lnum: linenr_T,
     mincol: colnr_T,
@@ -1936,7 +1936,7 @@ pub unsafe extern "C" fn mark_col_adjust(
 }
 
 /// Remove duplicate marks in the jumplist (`cleanup_jumplist`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cleanup_jumplist(wp: *mut win_T, loadfiles: bool) {
     unsafe {
         if loadfiles {
@@ -2002,7 +2002,7 @@ pub unsafe extern "C" fn cleanup_jumplist(wp: *mut win_T, loadfiles: bool) {
 }
 
 /// Copy the jumplist from window `from` to window `to` (`copy_jumplist`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn copy_jumplist(from: *mut win_T, to: *mut win_T) {
     unsafe {
         for i in 0..((*from).w_jumplistlen as usize) {
@@ -2017,7 +2017,7 @@ pub unsafe extern "C" fn copy_jumplist(from: *mut win_T, to: *mut win_T) {
 }
 
 /// Iterate over jumplist items (`mark_jumplist_iter`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mark_jumplist_iter(
     iter: *const c_void,
     win: *const win_T,
@@ -2045,7 +2045,7 @@ pub unsafe extern "C" fn mark_jumplist_iter(
 }
 
 /// Iterate over global marks (`mark_global_iter`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mark_global_iter(
     iter: *const c_void,
     name: *mut c_char,
@@ -2119,7 +2119,7 @@ unsafe fn next_buffer_mark(buf: *const buf_T, mark_name: &mut c_char) -> *const 
 }
 
 /// Iterate over buffer marks (`mark_buffer_iter`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mark_buffer_iter(
     iter: *const c_void,
     buf: *const buf_T,
@@ -2161,7 +2161,7 @@ pub unsafe extern "C" fn mark_buffer_iter(
 }
 
 /// Set global mark (`mark_set_global`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mark_set_global(name: c_char, fm: xfmark_T, update: bool) -> bool {
     unsafe {
         let idx = mark_global_index(name);
@@ -2181,7 +2181,7 @@ pub unsafe extern "C" fn mark_set_global(name: c_char, fm: xfmark_T, update: boo
 }
 
 /// Set local mark (`mark_set_local`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mark_set_local(
     name: c_char,
     buf: *mut buf_T,
@@ -2215,7 +2215,7 @@ pub unsafe extern "C" fn mark_set_local(
 }
 
 /// Free items in the jumplist of window `wp` (`free_jumplist`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn free_jumplist(wp: *mut win_T) {
     unsafe {
         for i in 0..((*wp).w_jumplistlen as usize) {
@@ -2225,7 +2225,7 @@ pub unsafe extern "C" fn free_jumplist(wp: *mut win_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_last_cursor(win: *mut win_T) {
     unsafe {
         if !(*win).w_buffer.is_null() {
@@ -2239,7 +2239,7 @@ pub unsafe extern "C" fn set_last_cursor(win: *mut win_T) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn free_all_marks() {
     unsafe {
         for i in 0..NGLOBALMARKS {
@@ -2252,7 +2252,7 @@ pub unsafe extern "C" fn free_all_marks() {
 }
 
 /// Adjust position to point to the first byte of a multi-byte character (`mark_mb_adjustpos`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mark_mb_adjustpos(buf: *mut buf_T, lp: *mut pos_T) {
     unsafe {
         if (*lp).col > 0 || (*lp).coladd > 1 {
@@ -2316,7 +2316,7 @@ unsafe fn add_mark(
 }
 
 /// Get information about marks local to a buffer (`get_buf_local_marks`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_buf_local_marks(buf: *const buf_T, l: *mut list_T) {
     unsafe {
         let mut mname: [c_char; 3] = [b'\'' as c_char, b' ' as c_char, 0];
@@ -2411,13 +2411,13 @@ pub unsafe extern "C" fn get_buf_local_marks(buf: *const buf_T, l: *mut list_T) 
 }
 
 /// Get a global mark (`get_raw_global_mark`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_raw_global_mark(name: c_char) -> xfmark_T {
     unsafe { namedfm[mark_global_index(name) as usize] }
 }
 
 /// Get information about global marks (`get_global_marks`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_global_marks(l: *mut list_T) {
     unsafe {
         let mut mname: [c_char; 3] = [b'\'' as c_char, b' ' as c_char, 0];

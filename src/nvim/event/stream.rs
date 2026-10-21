@@ -118,7 +118,7 @@ pub unsafe fn stream_fields(stream: *mut Stream) -> *mut StreamFields {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn stream_set_blocking(fd: c_int, blocking: bool) -> c_int {
     unsafe {
         let mut loop_buf = [0u64; 256];
@@ -136,7 +136,7 @@ pub unsafe extern "C" fn stream_set_blocking(fd: c_int, blocking: bool) -> c_int
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn stream_init(
     loop_: *mut Loop,
     stream: *mut Stream,
@@ -209,7 +209,7 @@ pub unsafe extern "C" fn stream_init(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn stream_may_close(stream: *mut Stream) {
     unsafe {
         if *stream_closed_ptr(stream) {
@@ -242,7 +242,7 @@ pub unsafe extern "C" fn stream_may_close(stream: *mut Stream) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn stream_close_handle(stream: *mut Stream) {
     unsafe {
         let fields = stream_fields(stream);

@@ -9,14 +9,9 @@
 )]
 
 use crate::api::private::validate::NvimString;
-#[cfg(not(test))]
-use crate::charset::kv_transstr;
-#[cfg(not(test))]
+use crate::charset::{NUL, kv_transstr};
 use crate::kvec::{KVec, StringBuilder};
-#[cfg(not(test))]
-use crate::memory::arena_strdup;
-use crate::memory::{Arena, strequal};
-#[cfg(not(test))]
+use crate::memory::{Arena, arena_strdup, strequal};
 use crate::strings::vim_snprintf;
 use crate::tui::termkey::driver_ti::{
     TerminfoEntry, kTermCount, kTermKeyCount, kTerminfoFuncKeyMax,
@@ -25,7 +20,6 @@ use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
 pub type unibi_term = c_void;
-use crate::charset::NUL;
 
 pub const kTerm_carriage_return: usize = 0;
 pub const kTerm_change_scroll_region: usize = 1;
@@ -1987,7 +1981,6 @@ static VTPCON_TERMINFO: TerminfoEntry = {
     e
 };
 
-#[cfg(not(test))]
 static UNI_IDS: [unibi_string; 41] = [
     unibi_string::unibi_carriage_return,
     unibi_string::unibi_change_scroll_region,
@@ -2032,12 +2025,10 @@ static UNI_IDS: [unibi_string; 41] = [
     unibi_string::unibi_to_status_line,
 ];
 
-#[cfg(not(test))]
 static UNI_EXT: [&CStr; 8] = [
     c"Se", c"Ss", c"smxx", c"setrgbf", c"setrgbb", c"Cs", c"Cr", c"Smulx",
 ];
 
-#[cfg(not(test))]
 static UNI_KEYS: [[unibi_string; 2]; kTermKeyCount] = [
     [
         unibi_string::unibi_key_backspace,
@@ -2081,7 +2072,6 @@ static UNI_KEYS: [[unibi_string; 2]; kTermKeyCount] = [
     ],
 ];
 
-#[cfg(not(test))]
 static UNI_FKEYS: [unibi_string; kTerminfoFuncKeyMax] = [
     unibi_string::unibi_key_f1,
     unibi_string::unibi_key_f2,
@@ -2148,7 +2138,6 @@ static UNI_FKEYS: [unibi_string; kTerminfoFuncKeyMax] = [
     unibi_string::unibi_key_f63,
 ];
 
-#[cfg(not(test))]
 static STRING_NAMES: [&str; kTermCount] = [
     "carriage_return",
     "change_scroll_region",
@@ -2201,7 +2190,6 @@ static STRING_NAMES: [&str; kTermCount] = [
     "set_underline_style (Smulx)",
 ];
 
-#[cfg(not(test))]
 static KEY_NAMES: [&str; kTermKeyCount] = [
     "backspace",
     "beg",
@@ -2221,7 +2209,6 @@ static KEY_NAMES: [&str; kTermKeyCount] = [
     "right",
 ];
 
-#[cfg(not(test))]
 static FKEY_NAMES: [&str; kTerminfoFuncKeyMax] = [
     "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11", "f12", "f13", "f14", "f15",
     "f16", "f17", "f18", "f19", "f20", "f21", "f22", "f23", "f24", "f25", "f26", "f27", "f28",
@@ -2230,7 +2217,6 @@ static FKEY_NAMES: [&str; kTerminfoFuncKeyMax] = [
     "f55", "f56", "f57", "f58", "f59", "f60", "f61", "f62", "f63",
 ];
 
-#[cfg(not(test))]
 unsafe extern "C" {
     fn unibi_from_term(name: *const c_char) -> *mut unibi_term;
     fn unibi_destroy(ut: *mut unibi_term);
@@ -2355,12 +2341,6 @@ pub unsafe extern "C" fn terminfo_from_database(
     termname: *mut c_char,
     arena: *mut Arena,
 ) -> bool {
-    #[cfg(test)]
-    {
-        let _ = (ti, termname, arena);
-        false
-    }
-    #[cfg(not(test))]
     unsafe {
         let ut = unibi_from_term(termname);
         if ut.is_null() {
@@ -2444,13 +2424,11 @@ pub unsafe extern "C" fn terminfo_from_database(
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 const fn fmt_bool(val: bool) -> &'static str {
     if val { "true" } else { "false" }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn sb_append_str(data: &mut StringBuilder, s: &str) {
     unsafe {
@@ -2464,15 +2442,6 @@ pub unsafe extern "C" fn terminfo_info_msg(
     termname: *const c_char,
     from_db: bool,
 ) -> NvimString {
-    #[cfg(test)]
-    {
-        let _ = (ti, termname, from_db);
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
-    }
-    #[cfg(not(test))]
     unsafe {
         let mut data: StringBuilder = KVec::new();
         let termname_bytes = if termname.is_null() {
@@ -2609,17 +2578,12 @@ unsafe fn onum(
         if buf_end.offset_from(*buf) < (len + 2) as isize {
             return false;
         }
-        #[cfg(not(test))]
         {
             let l = vim_snprintf!(*buf, len + 2, fmt, num);
             if l < 0 {
                 return false;
             }
             *buf = (*buf).add(l as usize);
-        }
-        #[cfg(test)]
-        {
-            let _ = (fmt, num);
         }
         true
     }
@@ -2767,7 +2731,6 @@ pub unsafe extern "C" fn terminfo_fmt(
                         if (buf_end.offset_from(buf) as usize) < (l + 1) {
                             return 0;
                         }
-                        #[cfg(not(test))]
                         {
                             let r = vim_snprintf!(buf, l + 1, fmt.as_ptr(), ostr);
                             if r >= 0 {

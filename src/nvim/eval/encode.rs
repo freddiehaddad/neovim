@@ -3,84 +3,47 @@
 
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
-#[cfg(not(test))]
 use crate::api::private::converter::{K_BOOL_VAR_TRUE, K_SPECIAL_VAR_NULL};
-#[cfg(not(test))]
 use crate::api::private::validate::NvimString;
 use crate::buffer::NOTDONE;
-#[cfg(not(test))]
 use crate::eval::decode::{K_MP_EXT, K_MP_INTEGER, K_MP_MAP, SURROGATE_FIRST_CHAR};
 use crate::eval::typval::{
-    TypvalVval, VAR_UNLOCKED, VarType, blob_T, dict_T, list_T, listitem_T, partial_T,
-    tv_list_first, typval_T,
+    TypvalVval, VAR_UNLOCKED, VarType, blob_T, dict_T, dictitem_T, list_T, listitem_T, partial_T,
+    tv_blob_get, tv_blob_len, tv_dict_find, tv_list_append_allocated_string, tv_list_first,
+    tv_list_idx_of_item, tv_list_last, tv_list_len, typval_T,
 };
-#[cfg(not(test))]
-use crate::eval::typval::{
-    dictitem_T, tv_blob_get, tv_blob_len, tv_dict_find, tv_list_append_allocated_string,
-    tv_list_idx_of_item, tv_list_last, tv_list_len,
-};
-#[cfg(not(test))]
 use crate::eval::vars::{NUM_MSGPACK_TYPES, eval_msgpack_type_lists};
-#[cfg(not(test))]
 use crate::eval::{get_copyID, partial_name};
-#[cfg(not(test))]
-use crate::garray::{ga_append, ga_clear, ga_concat, ga_grow, ga_init};
-use crate::garray::{ga_concat_len, garray_T};
-use crate::hashtab::hashitem_T;
-#[cfg(not(test))]
-use crate::hashtab::hashitem_empty;
-#[cfg(not(test))]
+use crate::garray::{ga_append, ga_clear, ga_concat, ga_concat_len, ga_grow, ga_init, garray_T};
+use crate::hashtab::{hashitem_T, hashitem_empty};
 use crate::keycodes::{BS, CAR};
 use crate::math::{FAIL, OK};
-#[cfg(not(test))]
 use crate::mbyte::{utf_char2len, utf_printable, utf_ptr2char, utf_ptr2len};
-#[cfg(not(test))]
-use crate::memory::{memchrsub, memcnt, xmemdupz, xmemscan, xrealloc};
-use crate::memory::{xfree, xmalloc};
-#[cfg(not(test))]
+use crate::memory::{memchrsub, memcnt, xfree, xmalloc, xmemdupz, xmemscan, xrealloc};
 use crate::message::{emsg, internal_error, semsg};
-use crate::msgpack_rpc::packer::PackerBuffer;
-#[cfg(not(test))]
 use crate::msgpack_rpc::packer::{
-    mpack_array, mpack_bin, mpack_bool, mpack_check_buffer, mpack_ext, mpack_float8, mpack_integer,
-    mpack_map, mpack_nil, mpack_str, mpack_uint64,
+    PackerBuffer, mpack_array, mpack_bin, mpack_bool, mpack_check_buffer, mpack_ext, mpack_float8,
+    mpack_integer, mpack_map, mpack_nil, mpack_str, mpack_uint64,
 };
-#[cfg(not(test))]
 use crate::regexp::NUMBUFLEN;
-#[cfg(not(test))]
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
-#[cfg(not(test))]
 use crate::testing::ga_concat_literal;
 use std::ffi::{CStr, c_char, c_int, c_void};
-#[cfg(not(test))]
-use std::sync::atomic::AtomicBool;
-#[cfg(not(test))]
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
 
-#[cfg(not(test))]
 pub(crate) const K_MP_NIL: usize = 0;
-#[cfg(not(test))]
 pub(crate) const K_MP_BOOLEAN: usize = 1;
-#[cfg(not(test))]
 pub(crate) const K_MP_FLOAT: usize = 3;
-#[cfg(not(test))]
 pub(crate) const K_MP_STRING: usize = 4;
-#[cfg(not(test))]
 pub(crate) const K_MP_ARRAY: usize = 5;
 
-#[cfg(not(test))]
 const SURROGATE_HI_START: c_int = 0xD800;
-#[cfg(not(test))]
 const SURROGATE_HI_END: c_int = 0xDBFF;
-#[cfg(not(test))]
 const SURROGATE_LO_START: c_int = 0xDC00;
-#[cfg(not(test))]
 const SURROGATE_LO_END: c_int = 0xDFFF;
 
-#[cfg(not(test))]
 const TAB: c_int = 0x09;
 const NL: c_int = 0x0a;
-#[cfg(not(test))]
 const FF: c_int = 0x0c;
 
 #[repr(transparent)]
@@ -94,7 +57,6 @@ pub static encode_bool_var_names: CStrArray<2> =
 #[unsafe(no_mangle)]
 pub static encode_special_var_names: CStrArray<1> = CStrArray([c"v:null".as_ptr()]);
 
-#[cfg(not(test))]
 static DID_ECHO_STRING_EMSG: AtomicBool = AtomicBool::new(false);
 
 /// Structure defining state for `encode_read_from_list()` (`ListReaderState`).
@@ -111,7 +73,6 @@ pub struct ListReaderState {
 pub(crate) enum MPConvStackValType {
     Dict,
     List,
-    #[cfg(not(test))]
     Pairs,
     Partial,
     PartialList,
@@ -171,10 +132,6 @@ pub unsafe extern "C" fn encode_blob_write(
 /// Msgpack callback for writing to `readfile()`-style list (`encode_list_write`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn encode_list_write(data: *mut c_void, buf: *const c_char, len: usize) {
-    #[cfg(test)]
-    let _ = (data, buf, len);
-
-    #[cfg(not(test))]
     unsafe {
         if len == 0 {
             return;
@@ -358,12 +315,6 @@ pub unsafe extern "C" fn encode_vim_list_to_buf(
 /// Check whether given key can be used in `json_encode()` (`encode_check_json_key`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn encode_check_json_key(tv: *const typval_T) -> bool {
-    #[cfg(test)]
-    {
-        let _ = tv;
-        false
-    }
-    #[cfg(not(test))]
     unsafe {
         let tv = &*tv;
         if tv.v_type == VarType::VAR_STRING {
@@ -402,7 +353,6 @@ pub unsafe extern "C" fn encode_check_json_key(tv: *const typval_T) -> bool {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn conv_error(
     msg: *const c_char,
     mpstack: &[MPConvStackVal],
@@ -512,7 +462,6 @@ unsafe fn conv_error(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn convert_to_single_quoted_string(gap: *mut garray_T, buf: *const c_char, len: usize) {
     unsafe {
         if buf.is_null() {
@@ -533,7 +482,6 @@ unsafe fn convert_to_single_quoted_string(gap: *mut garray_T, buf: *const c_char
     }
 }
 
-#[cfg(not(test))]
 unsafe fn convert_to_json_string(gap: *mut garray_T, buf: *const c_char, len: usize) -> c_int {
     const XDIGITS: &[u8; 16] = b"0123456789ABCDEF";
 
@@ -653,7 +601,6 @@ unsafe fn convert_to_json_string(gap: *mut garray_T, buf: *const c_char, len: us
     }
 }
 
-#[cfg(not(test))]
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum TextEncodeMode {
     String,
@@ -661,7 +608,6 @@ enum TextEncodeMode {
     Json,
 }
 
-#[cfg(not(test))]
 enum EncodeBackend {
     Text {
         gap: *mut garray_T,
@@ -672,7 +618,6 @@ enum EncodeBackend {
     },
 }
 
-#[cfg(not(test))]
 impl EncodeBackend {
     #[inline]
     fn allow_specials(&self) -> bool {
@@ -1260,7 +1205,6 @@ impl EncodeBackend {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn convert_one_value(
     backend: &mut EncodeBackend,
     mpstack: &mut Vec<MPConvStackVal>,
@@ -1615,7 +1559,6 @@ unsafe fn convert_one_value(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn encode_vim_with_backend(
     backend: &mut EncodeBackend,
     top_tv: *mut typval_T,
@@ -1867,12 +1810,6 @@ pub unsafe extern "C" fn encode_vim_to_echo(
     tv: *mut typval_T,
     objname: *const c_char,
 ) -> c_int {
-    #[cfg(test)]
-    {
-        let _ = (gap, tv, objname);
-        OK
-    }
-    #[cfg(not(test))]
     unsafe {
         let mut backend = EncodeBackend::Text {
             gap,
@@ -1889,12 +1826,6 @@ pub unsafe extern "C" fn encode_vim_to_msgpack(
     tv: *mut typval_T,
     objname: *const c_char,
 ) -> c_int {
-    #[cfg(test)]
-    {
-        let _ = (packer, tv, objname);
-        OK
-    }
-    #[cfg(not(test))]
     unsafe {
         let mut backend = EncodeBackend::Msgpack { packer };
         encode_vim_with_backend(&mut backend, tv, objname)
@@ -1904,12 +1835,6 @@ pub unsafe extern "C" fn encode_vim_to_msgpack(
 /// Return a string with the string representation of a variable (`encode_tv2string`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn encode_tv2string(tv: *mut typval_T, len: *mut usize) -> *mut c_char {
-    #[cfg(test)]
-    {
-        let _ = (tv, len);
-        std::ptr::null_mut()
-    }
-    #[cfg(not(test))]
     unsafe {
         let mut ga = garray_T {
             ga_len: 0,
@@ -1938,12 +1863,6 @@ pub unsafe extern "C" fn encode_tv2string(tv: *mut typval_T, len: *mut usize) ->
 /// Return a string with the `:echo` representation of a variable (`encode_tv2echo`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn encode_tv2echo(tv: *mut typval_T, len: *mut usize) -> *mut c_char {
-    #[cfg(test)]
-    {
-        let _ = (tv, len);
-        std::ptr::null_mut()
-    }
-    #[cfg(not(test))]
     unsafe {
         let mut ga = garray_T {
             ga_len: 0,
@@ -1973,12 +1892,6 @@ pub unsafe extern "C" fn encode_tv2echo(tv: *mut typval_T, len: *mut usize) -> *
 /// Return a JSON string representation of a variable (`encode_tv2json`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn encode_tv2json(tv: *mut typval_T, len: *mut usize) -> *mut c_char {
-    #[cfg(test)]
-    {
-        let _ = (tv, len);
-        std::ptr::null_mut()
-    }
-    #[cfg(not(test))]
     unsafe {
         let mut ga = garray_T {
             ga_len: 0,

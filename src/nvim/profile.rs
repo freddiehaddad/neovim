@@ -3,41 +3,22 @@
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 use crate::charset::{skiptowhite, skipwhite};
-#[cfg(not(test))]
 use crate::debugger::ex_breakadd;
 use crate::eval::typval::{dict_T, dictitem_T, list_T, listitem_T, typval_T};
-use crate::eval::userfunc::ufunc_T;
-#[cfg(not(test))]
-use crate::eval::userfunc::{func_tbl_get, funcline, get_current_funccal};
-#[cfg(not(test))]
+use crate::eval::userfunc::{func_tbl_get, funcline, get_current_funccal, ufunc_T};
 use crate::eval::vars::{VV_PROFILING, set_vim_var_nr};
-#[cfg(not(test))]
 use crate::event::r#loop::uv_err_name;
-#[cfg(not(test))]
-use crate::ex_docmd::exarg_T as exarg_Full;
-use crate::ex_docmd::exarg_T;
-#[cfg(not(test))]
+use crate::ex_docmd::{exarg_T, exarg_T as exarg_Full};
 use crate::fileio::{FILE, fclose, fopen, fprintf, vim_fgets};
-#[cfg(not(test))]
-use crate::garray::{ga_clear, ga_grow};
-use crate::garray::{ga_init, garray_T};
-#[cfg(not(test))]
+use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
-#[cfg(not(test))]
 use crate::hashtab::hashitem_empty;
-use crate::memory::xcalloc;
-#[cfg(not(test))]
-use crate::memory::{xfree, xmalloc};
-#[cfg(not(test))]
+use crate::memory::{xcalloc, xfree, xmalloc};
 use crate::message::{emsg, semsg};
-#[cfg(not(test))]
-use crate::os::env::expand_env_save_opt;
-#[cfg(not(test))]
+use crate::os::env::{expand_T, expand_env_save_opt};
 use crate::os::fs::os_fopen;
 use crate::os::time::os_hrtime;
-#[cfg(not(test))]
 use crate::runtime::{get_scriptname, script_id_valid, script_item, script_items, sourcing_lnum};
-#[cfg(not(test))]
 use crate::strings::qsort;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
@@ -45,26 +26,20 @@ use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
 pub type proftime_T = u64;
 
 const NS_PER_SEC: f64 = 1_000_000_000.0;
-#[cfg(not(test))]
 const PROF_PAUSED: c_int = 2;
 
-#[cfg(not(test))]
 const IOFBF: c_int = 0;
 
 const PEXP_SUBCMD: i32 = 0;
 
 static PROF_WAIT_TIME: AtomicU64 = AtomicU64::new(0);
 static WAIT_TIME: AtomicU64 = AtomicU64::new(0);
-#[cfg(not(test))]
 static PAUSE_TIME: AtomicU64 = AtomicU64::new(0);
-#[cfg(not(test))]
 static G_START_TIME: AtomicU64 = AtomicU64::new(0);
 static G_PREV_TIME: AtomicU64 = AtomicU64::new(0);
 static PEXPAND_WHAT: AtomicI32 = AtomicI32::new(PEXP_SUBCMD);
 
-#[cfg(not(test))]
 static mut STARTUPTIME_BUF: *mut c_char = std::ptr::null_mut();
-#[cfg(not(test))]
 static mut PROFILE_FNAME: *mut c_char = std::ptr::null_mut();
 static mut PROFILE_MSG_BUF: [c_char; 50] = [0; 50];
 
@@ -108,18 +83,13 @@ pub struct scriptitem_T {
     pub sn_prl_execed: c_int,
 }
 
-#[cfg(not(test))]
 use crate::autocmd::PROF_YES;
-#[cfg(not(test))]
 use crate::charset::NL;
 use crate::cmdexpand::{EXPAND_FILES, EXPAND_NOTHING, EXPAND_PROFILE, EXPAND_USER_FUNC};
 use crate::eval::funcs::MAX_FUNC_ARGS;
 use crate::eval::userfunc::{FIXVAR_CNT, VAR_SHORT_LEN};
-#[cfg(not(test))]
 use crate::globals::{IOSIZE, PROF_NONE};
-#[cfg(not(test))]
 use crate::keycodes::K_SPECIAL;
-use crate::os::env::expand_T;
 
 #[repr(C)]
 pub struct estack_T {
@@ -160,13 +130,11 @@ pub struct funccall_T {
     pub fc_ufuncs: garray_T,
 }
 
-#[cfg(not(test))]
 unsafe extern "C" {
 
     fn setvbuf(stream: *mut FILE, buffer: *mut c_char, mode: c_int, size: usize) -> c_int;
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn prl_item(si: *mut scriptitem_T, idx: c_int) -> *mut sn_prl_T {
     unsafe { (*si).sn_prl_ga.ga_data.cast::<sn_prl_T>().add(idx as usize) }
@@ -277,7 +245,6 @@ pub extern "C" fn profile_sub_wait(tm: proftime_T, tma: proftime_T) -> proftime_
     profile_sub(tma, tm3)
 }
 
-#[cfg(not(test))]
 #[inline]
 const fn profile_equal(tm1: proftime_T, tm2: proftime_T) -> bool {
     tm1 == tm2
@@ -309,7 +276,6 @@ pub const extern "C" fn profile_cmp(tm1: proftime_T, tm2: proftime_T) -> c_int {
 /// Reset all profiling information (`profile_reset`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn profile_reset() {
-    #[cfg(not(test))]
     unsafe {
         for id in 1..=script_items.ga_len {
             let si = &mut *script_item(id);
@@ -373,10 +339,6 @@ pub unsafe extern "C" fn profile_reset() {
 /// `":profile cmd args"` (`ex_profile`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_profile(eap: *mut exarg_T) {
-    #[cfg(test)]
-    let _ = eap;
-
-    #[cfg(not(test))]
     unsafe {
         let arg = (*eap).arg;
         let mut e = skiptowhite(arg);
@@ -473,11 +435,6 @@ pub extern "C" fn prof_input_end() {
 /// Returns `true` when a function defined in the current script should be profiled (`prof_def_func`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn prof_def_func() -> bool {
-    #[cfg(test)]
-    {
-        false
-    }
-    #[cfg(not(test))]
     unsafe {
         if current_sctx.sc_sid > 0 {
             (*script_item(current_sctx.sc_sid)).sn_pr_force
@@ -487,7 +444,6 @@ pub unsafe extern "C" fn prof_def_func() -> bool {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn prof_func_line(
     fd: *mut FILE,
     count: c_int,
@@ -514,7 +470,6 @@ unsafe fn prof_func_line(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn prof_sort_list(
     fd: *mut FILE,
     sorttab: *mut *mut ufunc_T,
@@ -546,7 +501,6 @@ unsafe fn prof_sort_list(
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn prof_total_cmp(s1: *const c_void, s2: *const c_void) -> c_int {
     unsafe {
         let p1 = &**s1.cast::<*const ufunc_T>();
@@ -555,7 +509,6 @@ unsafe extern "C" fn prof_total_cmp(s1: *const c_void, s2: *const c_void) -> c_i
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C" fn prof_self_cmp(s1: *const c_void, s2: *const c_void) -> c_int {
     unsafe {
         let p1 = &**s1.cast::<*const ufunc_T>();
@@ -603,7 +556,6 @@ pub unsafe extern "C" fn func_do_profile(fp: *mut ufunc_T) {
 /// Prepare profiling for entering a child (`prof_child_enter`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn prof_child_enter(tm: *mut proftime_T) {
-    #[cfg(not(test))]
     unsafe {
         let fc = get_current_funccal();
         if !fc.is_null() && (*(*fc).fc_func).uf_profiling != 0 {
@@ -618,7 +570,6 @@ pub unsafe extern "C" fn prof_child_enter(tm: *mut proftime_T) {
 /// Take care of time spent in a child (`prof_child_exit`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn prof_child_exit(tm: *mut proftime_T) {
-    #[cfg(not(test))]
     unsafe {
         let fc = get_current_funccal();
         if !fc.is_null() && (*(*fc).fc_func).uf_profiling != 0 {
@@ -637,10 +588,6 @@ pub unsafe extern "C" fn prof_child_exit(tm: *mut proftime_T) {
 /// Called when starting to read a function line (`func_line_start`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn func_line_start(cookie: *mut c_void) {
-    #[cfg(test)]
-    let _ = cookie;
-
-    #[cfg(not(test))]
     unsafe {
         let fcp = cookie.cast::<funccall_T>();
         let fp = &mut *(*fcp).fc_func;
@@ -693,7 +640,6 @@ pub unsafe extern "C" fn func_line_end(cookie: *mut c_void) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn func_dump_profile(fd: *mut FILE) {
     unsafe {
         let functbl = func_tbl_get();
@@ -818,7 +764,6 @@ pub unsafe extern "C" fn profile_init(si: *mut scriptitem_T) {
 /// Save time when starting to invoke another script or function (`script_prof_save`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn script_prof_save(tm: *mut proftime_T) {
-    #[cfg(not(test))]
     unsafe {
         if current_sctx.sc_sid > 0 && current_sctx.sc_sid <= script_items.ga_len {
             let si = &mut *script_item(current_sctx.sc_sid);
@@ -839,10 +784,6 @@ pub unsafe extern "C" fn script_prof_save(tm: *mut proftime_T) {
 /// Count time spent in children after invoking another script or function (`script_prof_restore`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn script_prof_restore(tm: *const proftime_T) {
-    #[cfg(test)]
-    let _ = tm;
-
-    #[cfg(not(test))]
     unsafe {
         if !script_id_valid(current_sctx.sc_sid) {
             return;
@@ -861,7 +802,6 @@ pub unsafe extern "C" fn script_prof_restore(tm: *const proftime_T) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn script_dump_profile(fd: *mut FILE) {
     unsafe {
         let mut iobuf = [0 as c_char; IOSIZE];
@@ -934,7 +874,6 @@ unsafe fn script_dump_profile(fd: *mut FILE) {
 /// Dump the profiling info (`profile_dump`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn profile_dump() {
-    #[cfg(not(test))]
     unsafe {
         if PROFILE_FNAME.is_null() {
             return;
@@ -954,7 +893,6 @@ pub unsafe extern "C" fn profile_dump() {
 /// Called when starting to read a script line (`script_line_start`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn script_line_start() {
-    #[cfg(not(test))]
     unsafe {
         if current_sctx.sc_sid <= 0 || current_sctx.sc_sid > script_items.ga_len {
             return;
@@ -984,7 +922,6 @@ pub unsafe extern "C" fn script_line_start() {
 /// Called when actually executing a script line (`script_line_exec`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn script_line_exec() {
-    #[cfg(not(test))]
     unsafe {
         if current_sctx.sc_sid <= 0 || current_sctx.sc_sid > script_items.ga_len {
             return;
@@ -999,7 +936,6 @@ pub unsafe extern "C" fn script_line_exec() {
 /// Called when done with a script line (`script_line_end`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn script_line_end() {
-    #[cfg(not(test))]
     unsafe {
         if current_sctx.sc_sid <= 0 || current_sctx.sc_sid > script_items.ga_len {
             return;
@@ -1038,7 +974,6 @@ pub extern "C" fn time_pop(tp: proftime_T) {
     G_PREV_TIME.store(prev.wrapping_sub(tp), Ordering::Relaxed);
 }
 
-#[cfg(not(test))]
 unsafe fn time_diff(then: proftime_T, now: proftime_T) {
     let diff = profile_sub(now, then);
     let s = format!("{:07.3}\0", (diff as f64) / 1.0e6);
@@ -1050,10 +985,6 @@ unsafe fn time_diff(then: proftime_T, now: proftime_T) {
 /// Initializes the startuptime code (`time_start`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn time_start(message: *const c_char) {
-    #[cfg(test)]
-    let _ = message;
-
-    #[cfg(not(test))]
     unsafe {
         if time_fd.is_null() {
             return;
@@ -1080,10 +1011,6 @@ pub unsafe extern "C" fn time_start(message: *const c_char) {
 /// Prints out timing info (`time_msg`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn time_msg(mesg: *const c_char, start: *const proftime_T) {
-    #[cfg(test)]
-    let _ = (mesg, start);
-
-    #[cfg(not(test))]
     unsafe {
         if time_fd.is_null() {
             return;
@@ -1107,10 +1034,6 @@ pub unsafe extern "C" fn time_msg(mesg: *const c_char, start: *const proftime_T)
 /// Initializes the `time_fd` stream for `--startuptime` (`time_init`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn time_init(fname: *const c_char, proc_name: *const c_char) {
-    #[cfg(test)]
-    let _ = (fname, proc_name);
-
-    #[cfg(not(test))]
     unsafe {
         const BUFSIZE: usize = 8192;
         time_fd = fopen(fname, c"a".as_ptr());
@@ -1141,7 +1064,6 @@ pub unsafe extern "C" fn time_init(fname: *const c_char, proc_name: *const c_cha
 /// Flushes the startuptimes to disk for the current process (`time_finish`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn time_finish() {
-    #[cfg(not(test))]
     unsafe {
         if time_fd.is_null() {
             return;

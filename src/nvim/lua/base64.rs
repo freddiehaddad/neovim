@@ -1,7 +1,6 @@
 //! Lua `vim.base64` bindings (`src/nvim/lua/base64.c`).
 
 use crate::base64::{decode_bytes, encode_bytes};
-#[cfg(not(test))]
 use crate::lua::converter::{
     lua_createtable, lua_gettop, lua_pushlstring, lua_tolstring, lua_type, luaL_argerror,
     luaL_error, luaL_register,
@@ -34,7 +33,6 @@ pub struct luaL_Buffer {
     pub buffer: [c_char; 8192],
 }
 
-#[cfg(not(test))]
 unsafe extern "C-unwind" fn nlua_base64_encode(lstate: *mut lua_State) -> c_int {
     unsafe {
         if lua_gettop(lstate) < 1 {
@@ -58,7 +56,6 @@ unsafe extern "C-unwind" fn nlua_base64_encode(lstate: *mut lua_State) -> c_int 
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C-unwind" fn nlua_base64_decode(lstate: *mut lua_State) -> c_int {
     unsafe {
         if lua_gettop(lstate) < 1 {
@@ -85,17 +82,6 @@ unsafe extern "C-unwind" fn nlua_base64_decode(lstate: *mut lua_State) -> c_int 
     }
 }
 
-#[cfg(test)]
-unsafe extern "C-unwind" fn nlua_base64_encode(_lstate: *mut lua_State) -> c_int {
-    let _ = (LUA_TSTRING, encode_bytes, decode_bytes);
-    1
-}
-
-#[cfg(test)]
-unsafe extern "C-unwind" fn nlua_base64_decode(_lstate: *mut lua_State) -> c_int {
-    1
-}
-
 static BASE64_FUNCTIONS: [luaL_Reg; 3] = [
     luaL_Reg {
         name: c"encode".as_ptr(),
@@ -117,12 +103,9 @@ static BASE64_FUNCTIONS: [luaL_Reg; 3] = [
 /// `lstate` must be a valid `lua_State` pointer.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn luaopen_base64(lstate: *mut lua_State) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         lua_createtable(lstate, 0, 0);
         luaL_register(lstate, std::ptr::null(), BASE64_FUNCTIONS.as_ptr());
     }
-    #[cfg(test)]
-    let _ = (lstate, &BASE64_FUNCTIONS);
     1
 }

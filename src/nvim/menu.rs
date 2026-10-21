@@ -183,7 +183,7 @@ unsafe fn is_menus_locked() -> bool {
 }
 
 /// Do the `:menu` command and relatives (`ex_menu`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_menu(eap: *mut exarg_T) {
     unsafe {
         let mut noremap: c_int = 0;
@@ -851,7 +851,7 @@ unsafe fn menu_get_recursive(mut menu: *const vimmenu_T, modes: c_int) -> *mut d
 }
 
 /// Export menus matching path `path_name` (`menu_get`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn menu_get(path_name: *mut c_char, modes: c_int, list: *mut list_T) -> bool {
     unsafe {
         let mut menu = *get_root_menu(path_name);
@@ -1017,7 +1017,7 @@ unsafe fn show_menus_recursive(mut menu: *mut vimmenu_T, modes: c_int, mut depth
 }
 
 /// Work out what to complete when doing command line completion of menu names (`set_context_in_menu_cmd`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn set_context_in_menu_cmd(
     xp: *mut expand_T,
     cmd: *const c_char,
@@ -1125,7 +1125,7 @@ pub unsafe extern "C" fn set_context_in_menu_cmd(
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of (sub)menus (not entries) (`get_menu_name`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_menu_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx == 0 {
@@ -1169,7 +1169,7 @@ pub unsafe extern "C" fn get_menu_name(_xp: *mut expand_T, idx: c_int) -> *mut c
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of menus and menu entries (`get_menu_names`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_menu_names(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx == 0 {
@@ -1281,7 +1281,7 @@ unsafe fn menu_namecmp(name: *const c_char, mname: *const c_char) -> bool {
 }
 
 /// Return the `MENU_MODES` specified by menu command `cmd` (`get_menu_cmd_modes`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_menu_cmd_modes(
     mut cmd: *const c_char,
     forceit: bool,
@@ -1434,7 +1434,7 @@ unsafe fn menu_text(
 }
 
 /// Return true if `name` can be a menu in the MenuBar (`menu_is_menubar`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn menu_is_menubar(name: *const c_char) -> bool {
     unsafe {
         !menu_is_popup(name)
@@ -1445,19 +1445,19 @@ pub unsafe extern "C" fn menu_is_menubar(name: *const c_char) -> bool {
 }
 
 /// Return true if `name` is a popup menu name (`menu_is_popup`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn menu_is_popup(name: *const c_char) -> bool {
     unsafe { strncmp(name, c"PopUp".as_ptr(), 5) == 0 }
 }
 
 /// Return true if `name` is a toolbar menu name (`menu_is_toolbar`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn menu_is_toolbar(name: *const c_char) -> bool {
     unsafe { strncmp(name, c"ToolBar".as_ptr(), 7) == 0 }
 }
 
 /// Return true if the name is a menu separator identifier (`menu_is_separator`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn menu_is_separator(name: *mut c_char) -> bool {
     unsafe {
         let len = CStr::from_ptr(name).to_bytes().len();
@@ -1500,7 +1500,7 @@ unsafe fn get_menu_mode() -> c_int {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_menu_mode_flag() -> c_int {
     unsafe {
         let mode = get_menu_mode();
@@ -1513,7 +1513,7 @@ pub unsafe extern "C" fn get_menu_mode_flag() -> c_int {
 }
 
 /// Display the Special `"PopUp"` menu as a pop-up at the current mouse position (`show_popupmenu`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn show_popupmenu() {
     unsafe {
         let menu_mode = get_menu_mode();
@@ -1545,7 +1545,7 @@ pub unsafe extern "C" fn show_popupmenu() {
 }
 
 /// Execute `menu` (`execute_menu`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn execute_menu(eap: *const exarg_T, menu: *mut vimmenu_T, mode_idx: c_int) {
     unsafe {
         let mut idx = mode_idx;
@@ -1685,7 +1685,7 @@ unsafe fn menu_getbyname(name_arg: *mut c_char) -> *mut vimmenu_T {
 }
 
 /// `:emenu` (`ex_emenu`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_emenu(eap: *mut exarg_T) {
     unsafe {
         let mut arg = (*eap).arg;
@@ -1718,7 +1718,7 @@ pub unsafe extern "C" fn ex_emenu(eap: *mut exarg_T) {
 }
 
 /// Given a menu descriptor, e.g. `"File.New"`, find it in the menu hierarchy (`menu_find`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn menu_find(path_name: *const c_char) -> *mut vimmenu_T {
     unsafe {
         let mut menu = *get_root_menu(path_name);
@@ -1763,7 +1763,7 @@ pub unsafe extern "C" fn menu_find(path_name: *const c_char) -> *mut vimmenu_T {
 }
 
 /// `:menutrans` (`ex_menutranslate`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_menutranslate(eap: *mut exarg_T) {
     unsafe {
         let mut arg = (*eap).arg;
@@ -1995,7 +1995,7 @@ unsafe fn menuitem_getinfo(
 }
 
 /// `menu_info()` function (`f_menu_info`).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_menu_info(
     argvars: *mut typval_T,
     rettv: *mut typval_T,

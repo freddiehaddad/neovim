@@ -375,7 +375,7 @@ unsafe fn sb_push_cstr(sb: &mut Vec<u8>, s: *const c_char) {
 }
 
 /// Open a new memline for `buf`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_open(buf: *mut buf_T) -> c_int {
     unsafe {
         (*buf).b_ml.ml_stack_size = 0;
@@ -485,7 +485,7 @@ unsafe fn ml_open_error(buf: *mut buf_T, mfp: *mut memfile_T, hp: *mut bhdr_T) -
 }
 
 /// Called when the file name of `buf` has been changed.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_setname(buf: *mut buf_T) {
     unsafe {
         let mut success = false;
@@ -555,7 +555,7 @@ pub unsafe extern "C" fn ml_setname(buf: *mut buf_T) {
 }
 
 /// Open a file for the memfile for all buffers that are not readonly or have been modified.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_open_files() {
     unsafe {
         let mut buf = firstbuf;
@@ -569,7 +569,7 @@ pub unsafe extern "C" fn ml_open_files() {
 }
 
 /// Open a swapfile for an existing memfile, if there is no swapfile yet.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_open_file(buf: *mut buf_T) {
     unsafe {
         let mfp = (*buf).b_ml.ml_mfp.cast::<memfile_T>();
@@ -641,7 +641,7 @@ pub unsafe extern "C" fn ml_open_file(buf: *mut buf_T) {
 }
 
 /// If still need to create a swapfile, create a swapfile now.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn check_need_swap(newfile: bool) {
     unsafe {
         let old_msg_silent = msg_silent;
@@ -656,7 +656,7 @@ pub unsafe extern "C" fn check_need_swap(newfile: bool) {
 }
 
 /// Close memline for buffer `buf`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_close(buf: *mut buf_T, del_file: c_int) {
     unsafe {
         if (*buf).b_ml.ml_mfp.is_null() {
@@ -678,7 +678,7 @@ pub unsafe extern "C" fn ml_close(buf: *mut buf_T, del_file: c_int) {
 }
 
 /// Close all existing memlines and memfiles.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_close_all(del_file: bool) {
     unsafe {
         let mut buf = firstbuf;
@@ -692,7 +692,7 @@ pub unsafe extern "C" fn ml_close_all(del_file: bool) {
 }
 
 /// Close all memfiles for not modified buffers.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_close_notmod() {
     unsafe {
         let mut buf = firstbuf;
@@ -706,7 +706,7 @@ pub unsafe extern "C" fn ml_close_notmod() {
 }
 
 /// Update the timestamp in the `.swp` file.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_timestamp(buf: *mut buf_T) {
     unsafe {
         ml_upd_block0(buf, upd_block0_T::UB_FNAME);
@@ -846,7 +846,7 @@ unsafe fn swapfile_proc_running(b0p: *const ZeroBlock, swap_fname: *const c_char
 }
 
 /// Try to recover `curbuf` from the `.swp` file.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_recover(checkext: bool) {
     unsafe {
         let mut buf: *mut buf_T = ptr::null_mut();
@@ -1485,7 +1485,7 @@ unsafe fn ml_recover_theend(
 }
 
 /// Enumerate swapfiles for `fname`, appending each found path to `ret_list`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn recover_names(
     fname: *mut c_char,
     skip_curbuf: bool,
@@ -1641,7 +1641,7 @@ pub unsafe extern "C" fn recover_names(
 }
 
 /// Append the full path to `name` with path separators made into percent signs to `dir`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn make_percent_swname(
     dir: *mut c_char,
     dir_end: *mut c_char,
@@ -1692,7 +1692,7 @@ pub unsafe extern "C" fn make_percent_swname(
 }
 
 /// For Vimscript `swapinfo()`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn swapfile_dict(fname: *const c_char, d: *mut dict_T) {
     unsafe {
         let mut b0 = std::mem::zeroed::<ZeroBlock>();
@@ -1981,7 +1981,7 @@ unsafe fn recov_file_names(names: *mut *mut c_char, path: *mut c_char, prepend_d
 }
 
 /// Sync all memlines.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_sync_all(check_file: c_int, check_char: c_int, do_fsync: bool) {
     unsafe {
         let mut buf = firstbuf;
@@ -2029,7 +2029,7 @@ pub unsafe extern "C" fn ml_sync_all(check_file: c_int, check_char: c_int, do_fs
 }
 
 /// Sync one buffer, including negative blocks.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_preserve(buf: *mut buf_T, message: bool, do_fsync: bool) {
     unsafe {
         let mfp = (*buf).b_ml.ml_mfp.cast::<memfile_T>();
@@ -2082,43 +2082,43 @@ pub unsafe extern "C" fn ml_preserve(buf: *mut buf_T, message: bool, do_fsync: b
 }
 
 /// Return a pointer to a (read-only copy of a) line in `curbuf`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_get(lnum: linenr_T) -> *mut c_char {
     unsafe { ml_get_buf_impl(curbuf, lnum, false) }
 }
 
 /// Return a pointer to a (read-only copy of a) line in `buf`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char {
     unsafe { ml_get_buf_impl(buf, lnum, false) }
 }
 
 /// Like `ml_get_buf`, but allow the line to be mutated in place.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_get_buf_mut(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char {
     unsafe { ml_get_buf_impl(buf, lnum, true) }
 }
 
 /// Return pointer to position `pos`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_get_pos(pos: *const pos_T) -> *mut c_char {
     unsafe { ml_get_buf(curbuf, (*pos).lnum).offset((*pos).col as isize) }
 }
 
 /// Return length (excluding NUL) of the given line.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_get_len(lnum: linenr_T) -> colnr_T {
     unsafe { ml_get_buf_len(curbuf, lnum) }
 }
 
 /// Return length (excluding NUL) of the text after position `pos`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_get_pos_len(pos: *mut pos_T) -> colnr_T {
     unsafe { ml_get_buf_len(curbuf, (*pos).lnum) - (*pos).col }
 }
 
 /// Return length (excluding NUL) of the given line in `buf`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_get_buf_len(buf: *mut buf_T, lnum: linenr_T) -> colnr_T {
     unsafe {
         let line = ml_get_buf(buf, lnum);
@@ -2131,7 +2131,7 @@ pub unsafe extern "C" fn ml_get_buf_len(buf: *mut buf_T, lnum: linenr_T) -> coln
 }
 
 /// Gets the charwise NL-joined text of range `[start, end)` as an allocated `String`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_region_text(buf: *mut buf_T, start: pos_T, end: pos_T) -> NvimString {
     unsafe {
         let mut sb = Vec::<u8>::new();
@@ -2166,7 +2166,7 @@ pub unsafe extern "C" fn ml_region_text(buf: *mut buf_T, start: pos_T, end: pos_
 }
 
 /// Return codepoint at `pos`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn gchar_pos(pos: *mut pos_T) -> c_int {
     unsafe {
         if (*pos).col == MAXCOL || (*pos).col > ml_get_len((*pos).lnum) {
@@ -2252,7 +2252,7 @@ unsafe fn ml_get_errorret(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char {
 }
 
 /// Check if a line that was just obtained by `ml_get` is in allocated memory.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_line_alloced() -> c_int {
     unsafe { (*curbuf).b_ml.ml_flags & ML_LINE_DIRTY }
 }
@@ -2670,7 +2670,7 @@ unsafe fn ml_append_flush(
 }
 
 /// Append a line after `lnum` (may be 0 to insert in front of the file).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_append(
     lnum: linenr_T,
     line: *mut c_char,
@@ -2681,7 +2681,7 @@ pub unsafe extern "C" fn ml_append(
 }
 
 /// Append a line after `lnum` using `ML_APPEND_` flags.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_append_flags(
     lnum: linenr_T,
     line: *mut c_char,
@@ -2697,7 +2697,7 @@ pub unsafe extern "C" fn ml_append_flags(
 }
 
 /// Like `ml_append()` but for an arbitrary buffer.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_append_buf(
     buf: *mut buf_T,
     lnum: linenr_T,
@@ -2719,14 +2719,14 @@ pub unsafe extern "C" fn ml_append_buf(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_add_deleted_len(ptr: *mut c_char, len: isize) {
     unsafe {
         ml_add_deleted_len_buf(curbuf, ptr, len);
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_add_deleted_len_buf(buf: *mut buf_T, ptr: *mut c_char, mut len: isize) {
     unsafe {
         if inhibit_delete_count != 0 {
@@ -2752,13 +2752,13 @@ pub unsafe extern "C" fn ml_add_deleted_len_buf(buf: *mut buf_T, ptr: *mut c_cha
 }
 
 /// Replace line `lnum`, with buffering, in current buffer.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_replace(lnum: linenr_T, line: *mut c_char, copy: bool) -> c_int {
     unsafe { ml_replace_buf(curbuf, lnum, line, copy, false) }
 }
 
 /// Replace a line for the current buffer with explicit `len` (excluding NUL).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_replace_len(
     lnum: linenr_T,
     line: *mut c_char,
@@ -2768,7 +2768,7 @@ pub unsafe extern "C" fn ml_replace_len(
     unsafe { ml_replace_buf_len(curbuf, lnum, line, len, copy, false) }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_replace_buf(
     buf: *mut buf_T,
     lnum: linenr_T,
@@ -2787,7 +2787,7 @@ pub unsafe extern "C" fn ml_replace_buf(
 }
 
 /// Replace line `lnum`, with buffering.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_replace_buf_len(
     buf: *mut buf_T,
     lnum: linenr_T,
@@ -2837,7 +2837,7 @@ pub unsafe extern "C" fn ml_replace_buf_len(
 }
 
 /// Delete line `lnum` in `buf`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_delete_buf(buf: *mut buf_T, lnum: linenr_T, message: bool) -> c_int {
     unsafe {
         ml_flush_line(buf, false);
@@ -2971,13 +2971,13 @@ unsafe fn ml_delete_int(buf: *mut buf_T, lnum: linenr_T, flags: c_int) -> c_int 
 }
 
 /// Delete line `lnum` in the current buffer.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_delete(lnum: linenr_T) -> c_int {
     unsafe { ml_delete_flags(lnum, 0) }
 }
 
 /// Like `ml_delete()` but using flags.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_delete_flags(lnum: linenr_T, flags: c_int) -> c_int {
     unsafe {
         ml_flush_line(curbuf, false);
@@ -2989,7 +2989,7 @@ pub unsafe extern "C" fn ml_delete_flags(lnum: linenr_T, flags: c_int) -> c_int 
 }
 
 /// Set the `DB_MARKED` flag for line `lnum`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_setmarked(lnum: linenr_T) {
     unsafe {
         if lnum < 1 || lnum > (*curbuf).b_ml.ml_line_count || (*curbuf).b_ml.ml_mfp.is_null() {
@@ -3010,7 +3010,7 @@ pub unsafe extern "C" fn ml_setmarked(lnum: linenr_T) {
 }
 
 /// Find the first line with its `DB_MARKED` flag set.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_firstmarked() -> linenr_T {
     unsafe {
         if (*curbuf).b_ml.ml_mfp.is_null() {
@@ -3043,7 +3043,7 @@ pub unsafe extern "C" fn ml_firstmarked() -> linenr_T {
 }
 
 /// Clear all `DB_MARKED` flags.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_clearmarked() {
     unsafe {
         if (*curbuf).b_ml.ml_mfp.is_null() {
@@ -3073,7 +3073,7 @@ pub unsafe extern "C" fn ml_clearmarked() {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_flush_deleted_bytes(
     buf: *mut buf_T,
     codepoints: *mut usize,
@@ -3398,7 +3398,7 @@ unsafe fn ml_lineadd(buf: *mut buf_T, count: c_int) {
 
 /// Resolve a symlink in the last component of a file name.
 #[cfg(unix)]
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn resolve_symlink(fname: *const c_char, buf: *mut c_char) -> c_int {
     unsafe {
         let mut tmp = [0 as c_char; MAXPATHL];
@@ -3448,7 +3448,7 @@ pub unsafe extern "C" fn resolve_symlink(fname: *const c_char, buf: *mut c_char)
 }
 
 /// Make swapfile name out of the file name and a directory name.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn makeswapname(
     fname: *mut c_char,
     _ffname: *mut c_char,
@@ -3498,7 +3498,7 @@ pub unsafe extern "C" fn makeswapname(
 }
 
 /// Get file name to use for swapfile or backup file.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_file_in_dir(fname: *mut c_char, dname: *mut c_char) -> *mut c_char {
     unsafe {
         let tail = cstr_as_string(path_tail(fname));
@@ -3955,7 +3955,7 @@ unsafe fn char_to_long(s_in: *const c_char) -> c_long {
 }
 
 /// Set the flags in the first block of the swapfile.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_setflags(buf: *mut buf_T) {
     unsafe {
         if (*buf).b_ml.ml_mfp.is_null() {
@@ -4145,7 +4145,7 @@ unsafe fn ml_updatechunk(buf: *mut buf_T, line: linenr_T, mut len: c_int, updtyp
 }
 
 /// Find offset for line or line with offset.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ml_find_line_or_offset(
     buf: *mut buf_T,
     lnum: linenr_T,
@@ -4282,7 +4282,7 @@ pub unsafe extern "C" fn ml_find_line_or_offset(
 }
 
 /// Goto byte in buffer with offset `cnt`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn goto_byte(cnt: c_int) {
     unsafe {
         let mut boff = cnt;
@@ -4308,7 +4308,7 @@ pub unsafe extern "C" fn goto_byte(cnt: c_int) {
 }
 
 /// Increment the line pointer `lp` crossing line boundaries as necessary.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn inc(lp: *mut pos_T) -> c_int {
     unsafe {
         if (*lp).col != MAXCOL {
@@ -4330,7 +4330,7 @@ pub unsafe extern "C" fn inc(lp: *mut pos_T) -> c_int {
 }
 
 /// Same as `inc()`, but skip NUL at the end of non-empty lines.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn incl(lp: *mut pos_T) -> c_int {
     unsafe {
         let mut r = inc(lp);
@@ -4342,7 +4342,7 @@ pub unsafe extern "C" fn incl(lp: *mut pos_T) -> c_int {
 }
 
 /// Decrements position `lp` by one character (multibyte-aware), crossing line boundaries.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn dec(lp: *mut pos_T) -> c_int {
     unsafe {
         (*lp).coladd = 0;
@@ -4372,7 +4372,7 @@ pub unsafe extern "C" fn dec(lp: *mut pos_T) -> c_int {
 }
 
 /// Same as `dec()`, but skip NUL at the end of non-empty lines.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn decl(lp: *mut pos_T) -> c_int {
     unsafe {
         let mut r = dec(lp);

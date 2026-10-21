@@ -2,49 +2,28 @@
 
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
-#[cfg(not(test))]
 use crate::cmdexpand::EXPAND_NOTHING;
-#[cfg(not(test))]
 use crate::eval::typval::Callback;
-#[cfg(not(test))]
 use crate::ex_cmds::HLF_R;
-#[cfg(not(test))]
 use crate::ex_getln::getcmdline_prompt;
-#[cfg(not(test))]
 use crate::globals::*;
-#[cfg(not(test))]
 use crate::input::ins_typebuf;
-#[cfg(not(test))]
 use crate::keycodes::{CAR, ESC};
-#[cfg(not(test))]
 use crate::mapping::REMAP_YES;
-#[cfg(not(test))]
 use crate::mbyte::{mb_tolower, utf_char2bytes, utf_ptr2char, utf_ptr2len, utfc_ptr2len};
-#[cfg(not(test))]
 use crate::memory::{xfree, xmalloc, xstrdup};
-#[cfg(not(test))]
 use crate::message::{HLF_M, display_confirm_msg, msg_end_prompt, msg_putchar, set_keep_msg};
-#[cfg(not(test))]
 use crate::mouse::setmouse;
-#[cfg(not(test))]
 use crate::os::input::input_available;
-#[cfg(not(test))]
 use crate::ui::{ui_active, ui_call_busy_stop, ui_flush, ui_has, ui_mouse_has};
-#[cfg(not(test))]
-use std::ffi::{CStr, c_void};
-use std::ffi::{c_char, c_int};
+use std::ffi::{CStr, c_char, c_int, c_void};
 
-#[cfg(not(test))]
 const DLG_BUTTON_SEP: u8 = b'\n';
-#[cfg(not(test))]
 const DLG_HOTKEY_CHAR: u8 = b'&';
 
-#[cfg(not(test))]
 const CTRL_C: c_int = 0x03;
 
-#[cfg(not(test))]
 const K_UI_MESSAGES: c_int = 4;
-#[cfg(not(test))]
 const K_MOUSE_COMMAND: c_int = b'c' as c_int;
 
 pub(crate) const VIM_YES: c_int = 2;
@@ -53,9 +32,7 @@ const VIM_CANCEL: c_int = 4;
 pub(crate) const VIM_ALL: c_int = 5;
 pub(crate) const VIM_DISCARDALL: c_int = 6;
 
-#[cfg(not(test))]
 const HAS_HOTKEY_LEN: usize = 30;
-#[cfg(not(test))]
 const HOTK_LEN: usize = 4;
 
 #[unsafe(no_mangle)]
@@ -64,7 +41,6 @@ pub static mut confirm_msg: *mut c_char = std::ptr::null_mut();
 #[unsafe(no_mangle)]
 pub static mut confirm_buttons: *mut c_char = std::ptr::null_mut();
 
-#[cfg(not(test))]
 unsafe fn copy_char(from: *const c_char, to: *mut c_char, lowercase: bool) -> usize {
     unsafe {
         if lowercase {
@@ -78,7 +54,6 @@ unsafe fn copy_char(from: *const c_char, to: *mut c_char, lowercase: bool) -> us
     }
 }
 
-#[cfg(not(test))]
 unsafe fn console_dialog_alloc(
     message: *const c_char,
     buttons: *const c_char,
@@ -141,7 +116,6 @@ unsafe fn console_dialog_alloc(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn copy_confirm_hotkeys(
     buttons: *const c_char,
     mut default_button_idx: c_int,
@@ -222,7 +196,6 @@ unsafe fn copy_confirm_hotkeys(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn msg_show_console_dialog(
     message: *const c_char,
     buttons: *const c_char,
@@ -240,12 +213,6 @@ unsafe fn msg_show_console_dialog(
 /// Ask for a `'y'` or `'n'` reply from the user (`ask_yesno`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn ask_yesno(str_ptr: *const c_char) -> c_int {
-    #[cfg(test)]
-    {
-        let _ = str_ptr;
-        b'n' as c_int
-    }
-    #[cfg(not(test))]
     unsafe {
         let save_state = State;
         no_wait_return += 1;
@@ -288,12 +255,6 @@ pub unsafe extern "C" fn prompt_for_input(
     one_key: bool,
     mouse_used: *mut bool,
 ) -> c_int {
-    #[cfg(test)]
-    {
-        let _ = (prompt, hl_id, one_key, mouse_used);
-        0
-    }
-    #[cfg(not(test))]
     unsafe {
         let mut ret = if one_key { ESC } else { 0 };
         let kmsg = if !keep_msg.is_null() {
@@ -382,12 +343,6 @@ pub unsafe extern "C" fn do_dialog(
     _textfield: *const c_char,
     ex_cmd: c_int,
 ) -> c_int {
-    #[cfg(test)]
-    {
-        let _ = (message, buttons, ex_cmd);
-        dfltbutton
-    }
-    #[cfg(not(test))]
     unsafe {
         if silent_mode {
             return dfltbutton;
@@ -563,6 +518,7 @@ mod tests {
     #[test]
     fn vim_dialog_yesno_uses_default_in_test_mode() {
         unsafe {
+            silent_mode = true;
             assert_eq!(
                 vim_dialog_yesno(0, std::ptr::null_mut(), c"Save?".as_ptr().cast_mut(), 1),
                 VIM_YES

@@ -3,66 +3,42 @@
 
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
-#[cfg(not(test))]
 use crate::api::private::converter::{K_BOOL_VAR_FALSE, K_BOOL_VAR_TRUE, K_SPECIAL_VAR_NULL};
-use crate::api::private::helpers::nil_obj;
-#[cfg(not(test))]
 use crate::api::private::helpers::{
     api_free_array, api_free_dict, api_free_object, api_set_error, api_typename, arena_array,
-    arena_dict, cbuf_to_arena_str, error_set,
+    arena_dict, cbuf_to_arena_str, error_set, nil_obj,
 };
-use crate::api::private::validate::{Array, Dict, Error, NvimString, Object, ObjectType};
-#[cfg(not(test))]
-use crate::api::private::validate::{ErrorType, KeyValuePair, ObjectData};
-#[cfg(not(test))]
+use crate::api::private::validate::{
+    Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
+};
 use crate::buffer::NOTDONE;
-#[cfg(not(test))]
 use crate::eval::decode::{
     K_MP_EXT, K_MP_INTEGER, K_MP_MAP, decode_create_map_special_dict, decode_string,
 };
-#[cfg(not(test))]
 use crate::eval::encode::{
     K_MP_ARRAY, K_MP_BOOLEAN, K_MP_FLOAT, K_MP_NIL, K_MP_STRING, MPConvStackData, MPConvStackVal,
     MPConvStackValType, encode_vim_list_to_buf,
 };
-use crate::eval::typval::typval_T;
-#[cfg(not(test))]
 use crate::eval::typval::{
     TypvalVval, VAR_UNLOCKED, VarType, blob_T, dict_T, dictitem_T, partial_T, tv_blob_len,
     tv_clear, tv_copy, tv_dict_add, tv_dict_alloc, tv_dict_find, tv_dict_item_alloc_len,
     tv_list_alloc, tv_list_append_list, tv_list_append_owned_tv, tv_list_first, tv_list_last,
-    tv_list_len, tv_list_ref,
+    tv_list_len, tv_list_ref, typval_T,
 };
-#[cfg(not(test))]
 use crate::eval::userfunc::{FC_LUAREF, find_func, register_luafunc};
-#[cfg(not(test))]
 use crate::eval::vars::{NUM_MSGPACK_TYPES, eval_msgpack_type_lists};
-#[cfg(not(test))]
 use crate::eval::{get_copyID, partial_name};
-#[cfg(not(test))]
 use crate::globals::*;
-#[cfg(not(test))]
 use crate::hashtab::hashitem_empty;
-#[cfg(not(test))]
 use crate::highlight_group::syn_check_group;
 use crate::lua::base64::lua_State;
-#[cfg(not(test))]
 use crate::lua::executor::{api_free_luaref, nlua_pushref, nlua_ref_global};
-#[cfg(not(test))]
 use crate::math::{FAIL, OK};
-use crate::memory::Arena;
-#[cfg(not(test))]
-use crate::memory::{arena_memdupz, xfree, xstrdup};
-#[cfg(not(test))]
+use crate::memory::{Arena, arena_memdupz, xfree, xstrdup};
 use crate::message::{emsg, internal_error, semsg};
 use crate::msgpack_rpc::packer::{Integer, handle_T};
-#[cfg(not(test))]
-use std::ffi::CStr;
-use std::ffi::{c_char, c_int, c_void};
-#[cfg(not(test))]
-use std::sync::atomic::AtomicBool;
-#[cfg(not(test))]
-use std::sync::atomic::Ordering;
+use std::ffi::{CStr, c_char, c_int, c_void};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 pub type Boolean = bool;
 pub type Float = f64;
@@ -79,14 +55,10 @@ pub type lua_Alloc = Option<
     ) -> *mut c_void,
 >;
 
-#[cfg(not(test))]
 pub(crate) const K_NLUA_PUSH_SPECIAL: c_int = 0x01;
-#[cfg(not(test))]
 const K_NLUA_PUSH_FREE_REFS: c_int = 0x02;
 
-#[cfg(not(test))]
 const TYPE_IDX_VALUE: bool = true;
-#[cfg(not(test))]
 const VAL_IDX_VALUE: bool = false;
 
 pub const LUA_MULTRET: c_int = -1;
@@ -94,7 +66,6 @@ pub const LUA_REGISTRYINDEX: c_int = -10000;
 pub const LUA_GLOBALSINDEX: c_int = -10002;
 pub(crate) const LUA_MINSTACK: c_int = 20;
 
-#[cfg(not(test))]
 pub(crate) const LUA_TNONE: c_int = -1;
 pub(crate) const LUA_TNIL: c_int = 0;
 pub(crate) const LUA_TBOOLEAN: c_int = 1;
@@ -106,12 +77,10 @@ pub(crate) const LUA_TFUNCTION: c_int = 6;
 pub(crate) const LUA_TUSERDATA: c_int = 7;
 
 pub(crate) const LUA_ERRRUN: c_int = 2;
-#[cfg(not(test))]
 pub(crate) const LUA_ERRMEM: c_int = 4;
 
 pub(crate) const LUAL_BUFFERSIZE: usize = if cfg!(windows) { 512 } else { 8192 };
 
-#[cfg(not(test))]
 static TYPVAL_CONV_SPECIAL: AtomicBool = AtomicBool::new(false);
 
 #[repr(C)]
@@ -141,7 +110,6 @@ unsafe impl Sync for KeySetLink {}
 pub type FieldHashfn =
     Option<unsafe extern "C-unwind" fn(str: *const c_char, len: usize) -> *const KeySetLink>;
 
-#[cfg(not(test))]
 #[derive(Clone, Copy)]
 struct LuaTableProps {
     maxidx: usize,
@@ -152,7 +120,6 @@ struct LuaTableProps {
     has_type_key: bool,
 }
 
-#[cfg(not(test))]
 #[derive(Clone, Copy)]
 struct TVPopStackItem {
     tv: *mut typval_T,
@@ -162,7 +129,6 @@ struct TVPopStackItem {
     idx: c_int,
 }
 
-#[cfg(not(test))]
 #[derive(Clone, Copy)]
 struct ObjPopStackItem {
     obj: *mut Object,
@@ -365,7 +331,6 @@ pub unsafe fn luaL_checkint(lstate: *mut lua_State, n: c_int) -> c_int {
     unsafe { luaL_checkinteger(lstate, n) as c_int }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn nlua_push_type_idx(lstate: *mut lua_State) {
     unsafe {
@@ -373,7 +338,6 @@ unsafe fn nlua_push_type_idx(lstate: *mut lua_State) {
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn nlua_push_val_idx(lstate: *mut lua_State) {
     unsafe {
@@ -381,7 +345,6 @@ unsafe fn nlua_push_val_idx(lstate: *mut lua_State) {
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn nlua_push_type(lstate: *mut lua_State, obj_type: ObjectType) {
     unsafe {
@@ -389,7 +352,6 @@ unsafe fn nlua_push_type(lstate: *mut lua_State, obj_type: ObjectType) {
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn nlua_create_typed_table(
     lstate: *mut lua_State,
@@ -405,7 +367,6 @@ unsafe fn nlua_create_typed_table(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn nlua_traverse_table(lstate: *mut lua_State) -> LuaTableProps {
     unsafe {
         let mut tsize = 0usize;
@@ -545,12 +506,6 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
     lstate: *mut lua_State,
     ret_tv: *mut typval_T,
 ) -> bool {
-    #[cfg(test)]
-    {
-        let _ = (lstate, ret_tv);
-        false
-    }
-    #[cfg(not(test))]
     unsafe {
         let mut ret = true;
         let initial_size = lua_gettop(lstate);
@@ -817,7 +772,6 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn lua_conv_nil(lstate: *mut lua_State) {
     unsafe {
@@ -829,7 +783,6 @@ unsafe fn lua_conv_nil(lstate: *mut lua_State) {
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn lua_conv_empty_dict(lstate: *mut lua_State) {
     unsafe {
@@ -843,7 +796,6 @@ unsafe fn lua_conv_empty_dict(lstate: *mut lua_State) {
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn lua_conv_list_start(lstate: *mut lua_State, len: c_int) -> c_int {
     unsafe {
@@ -860,7 +812,6 @@ unsafe fn lua_conv_list_start(lstate: *mut lua_State, len: c_int) -> c_int {
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn lua_conv_dict_start(lstate: *mut lua_State, len: usize) -> c_int {
     unsafe {
@@ -876,7 +827,6 @@ unsafe fn lua_conv_dict_start(lstate: *mut lua_State, len: usize) -> c_int {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn lua_check_self_reference(
     lstate: *mut lua_State,
     val: *mut c_void,
@@ -915,7 +865,6 @@ unsafe fn lua_check_self_reference(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn lua_convert_one_value(
     lstate: *mut lua_State,
     mpstack: &mut Vec<MPConvStackVal>,
@@ -1274,7 +1223,6 @@ unsafe fn lua_convert_one_value(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: *mut typval_T) -> c_int {
     unsafe {
         let copy_id = get_copyID();
@@ -1404,12 +1352,6 @@ pub unsafe extern "C-unwind" fn nlua_push_typval(
     tv: *mut typval_T,
     flags: c_int,
 ) -> bool {
-    #[cfg(test)]
-    {
-        let _ = (lstate, tv, flags);
-        false
-    }
-    #[cfg(not(test))]
     unsafe {
         TYPVAL_CONV_SPECIAL.store((flags & K_NLUA_PUSH_SPECIAL) != 0, Ordering::Relaxed);
         let initial_size = lua_gettop(lstate);
@@ -1436,10 +1378,6 @@ pub unsafe extern "C-unwind" fn nlua_push_String(
     s: NvimString,
     _flags: c_int,
 ) {
-    #[cfg(test)]
-    let _ = (lstate, s);
-
-    #[cfg(not(test))]
     unsafe {
         let data = if s.size != 0 { s.data } else { c"".as_ptr() };
         lua_pushlstring(lstate, data, s.size);
@@ -1453,10 +1391,6 @@ pub unsafe extern "C-unwind" fn nlua_push_Integer(
     n: Integer,
     _flags: c_int,
 ) {
-    #[cfg(test)]
-    let _ = (lstate, n);
-
-    #[cfg(not(test))]
     unsafe {
         lua_pushnumber(lstate, n as lua_Number);
     }
@@ -1465,10 +1399,6 @@ pub unsafe extern "C-unwind" fn nlua_push_Integer(
 /// Convert given `Float` to Lua number or typed table (`nlua_push_Float`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn nlua_push_Float(lstate: *mut lua_State, f: Float, flags: c_int) {
-    #[cfg(test)]
-    let _ = (lstate, f, flags);
-
-    #[cfg(not(test))]
     unsafe {
         if (flags & K_NLUA_PUSH_SPECIAL) != 0 {
             nlua_create_typed_table(lstate, 0, 1, ObjectType::kObjectTypeFloat);
@@ -1488,10 +1418,6 @@ pub unsafe extern "C-unwind" fn nlua_push_Boolean(
     b: Boolean,
     _flags: c_int,
 ) {
-    #[cfg(test)]
-    let _ = (lstate, b);
-
-    #[cfg(not(test))]
     unsafe {
         lua_pushboolean(lstate, c_int::from(b));
     }
@@ -1500,10 +1426,6 @@ pub unsafe extern "C-unwind" fn nlua_push_Boolean(
 /// Convert given `Dict` to Lua table (`nlua_push_Dict`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn nlua_push_Dict(lstate: *mut lua_State, dict: Dict, flags: c_int) {
-    #[cfg(test)]
-    let _ = (lstate, dict, flags);
-
-    #[cfg(not(test))]
     unsafe {
         lua_createtable(lstate, 0, dict.size as c_int);
         if dict.size == 0 {
@@ -1526,10 +1448,6 @@ pub unsafe extern "C-unwind" fn nlua_push_Array(
     array: Array,
     flags: c_int,
 ) {
-    #[cfg(test)]
-    let _ = (lstate, array, flags);
-
-    #[cfg(not(test))]
     unsafe {
         lua_createtable(lstate, array.size as c_int, 0);
         for i in 0..array.size {
@@ -1546,10 +1464,6 @@ pub unsafe extern "C-unwind" fn nlua_push_handle(
     item: handle_T,
     _flags: c_int,
 ) {
-    #[cfg(test)]
-    let _ = (lstate, item);
-
-    #[cfg(not(test))]
     unsafe {
         lua_pushnumber(lstate, item as lua_Number);
     }
@@ -1562,10 +1476,6 @@ pub unsafe extern "C-unwind" fn nlua_push_Object(
     obj: *mut Object,
     flags: c_int,
 ) {
-    #[cfg(test)]
-    let _ = (lstate, obj, flags);
-
-    #[cfg(not(test))]
     unsafe {
         let obj = &mut *obj;
         match obj.obj_type {
@@ -1605,15 +1515,6 @@ pub unsafe extern "C-unwind" fn nlua_pop_String(
     arena: *mut Arena,
     err: *mut Error,
 ) -> NvimString {
-    #[cfg(test)]
-    {
-        let _ = (lstate, arena, err);
-        NvimString {
-            data: std::ptr::null_mut(),
-            size: 0,
-        }
-    }
-    #[cfg(not(test))]
     unsafe {
         if lua_type(lstate, -1) != LUA_TSTRING {
             lua_pop(lstate, 1);
@@ -1643,12 +1544,6 @@ pub unsafe extern "C-unwind" fn nlua_pop_Integer(
     _arena: *mut Arena,
     err: *mut Error,
 ) -> Integer {
-    #[cfg(test)]
-    {
-        let _ = (lstate, err);
-        0
-    }
-    #[cfg(not(test))]
     unsafe {
         if lua_type(lstate, -1) != LUA_TNUMBER {
             lua_pop(lstate, 1);
@@ -1683,12 +1578,6 @@ pub unsafe extern "C-unwind" fn nlua_pop_Boolean(
     _arena: *mut Arena,
     _err: *mut Error,
 ) -> Boolean {
-    #[cfg(test)]
-    {
-        let _ = lstate;
-        false
-    }
-    #[cfg(not(test))]
     unsafe {
         let ret = lua_toboolean(lstate, -1) != 0;
         lua_pop(lstate, 1);
@@ -1702,12 +1591,6 @@ pub unsafe extern "C-unwind" fn nlua_pop_Boolean_strict(
     lstate: *mut lua_State,
     err: *mut Error,
 ) -> Boolean {
-    #[cfg(test)]
-    {
-        let _ = (lstate, err);
-        false
-    }
-    #[cfg(not(test))]
     unsafe {
         let mut ret = false;
         match lua_type(lstate, -1) {
@@ -1733,7 +1616,6 @@ pub unsafe extern "C-unwind" fn nlua_pop_Boolean_strict(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn nlua_check_type(
     lstate: *mut lua_State,
     err: *mut Error,
@@ -1792,12 +1674,6 @@ pub unsafe extern "C-unwind" fn nlua_pop_Float(
     _arena: *mut Arena,
     err: *mut Error,
 ) -> Float {
-    #[cfg(test)]
-    {
-        let _ = (lstate, err);
-        0.0
-    }
-    #[cfg(not(test))]
     unsafe {
         if lua_type(lstate, -1) == LUA_TNUMBER {
             let ret = lua_tonumber(lstate, -1);
@@ -1813,7 +1689,6 @@ pub unsafe extern "C-unwind" fn nlua_pop_Float(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn nlua_pop_Array_unchecked(
     lstate: *mut lua_State,
     table_props: LuaTableProps,
@@ -1856,16 +1731,6 @@ pub unsafe extern "C-unwind" fn nlua_pop_Array(
     arena: *mut Arena,
     err: *mut Error,
 ) -> Array {
-    #[cfg(test)]
-    {
-        let _ = (lstate, arena, err);
-        Array {
-            size: 0,
-            capacity: 0,
-            items: std::ptr::null_mut(),
-        }
-    }
-    #[cfg(not(test))]
     unsafe {
         let table_props = nlua_check_type(lstate, err, ObjectType::kObjectTypeArray);
         if table_props.table_type != ObjectType::kObjectTypeArray {
@@ -1879,7 +1744,6 @@ pub unsafe extern "C-unwind" fn nlua_pop_Array(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn nlua_pop_Dict_unchecked(
     lstate: *mut lua_State,
     table_props: LuaTableProps,
@@ -1938,16 +1802,6 @@ pub unsafe extern "C-unwind" fn nlua_pop_Dict(
     arena: *mut Arena,
     err: *mut Error,
 ) -> Dict {
-    #[cfg(test)]
-    {
-        let _ = (lstate, ref_, arena, err);
-        Dict {
-            size: 0,
-            capacity: 0,
-            items: std::ptr::null_mut(),
-        }
-    }
-    #[cfg(not(test))]
     unsafe {
         let table_props = nlua_check_type(lstate, err, ObjectType::kObjectTypeDict);
         if table_props.table_type != ObjectType::kObjectTypeDict {
@@ -1970,12 +1824,6 @@ pub unsafe extern "C-unwind" fn nlua_pop_Object(
     arena: *mut Arena,
     err: *mut Error,
 ) -> Object {
-    #[cfg(test)]
-    {
-        let _ = (lstate, ref_, arena, err);
-        nil_obj()
-    }
-    #[cfg(not(test))]
     unsafe {
         let mut ret = nil_obj();
         let initial_size = lua_gettop(lstate);
@@ -2201,12 +2049,6 @@ pub unsafe extern "C-unwind" fn nlua_pop_LuaRef(
     _arena: *mut Arena,
     _err: *mut Error,
 ) -> LuaRef {
-    #[cfg(test)]
-    {
-        let _ = lstate;
-        LUA_NOREF
-    }
-    #[cfg(not(test))]
     unsafe {
         let rv = nlua_ref_global(lstate, -1);
         lua_pop(lstate, 1);
@@ -2221,12 +2063,6 @@ pub unsafe extern "C-unwind" fn nlua_pop_handle(
     _arena: *mut Arena,
     err: *mut Error,
 ) -> handle_T {
-    #[cfg(test)]
-    {
-        let _ = (lstate, err);
-        -1
-    }
-    #[cfg(not(test))]
     unsafe {
         let ret = if lua_type(lstate, -1) != LUA_TNUMBER {
             api_set_error!(
@@ -2246,10 +2082,6 @@ pub unsafe extern "C-unwind" fn nlua_pop_handle(
 /// Record auxiliary values in `vim` module (`nlua_init_types`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn nlua_init_types(lstate: *mut lua_State) {
-    #[cfg(test)]
-    let _ = lstate;
-
-    #[cfg(not(test))]
     unsafe {
         lua_pushlstring(lstate, c"type_idx".as_ptr(), 8);
         nlua_push_type_idx(lstate);
@@ -2309,10 +2141,6 @@ pub unsafe extern "C-unwind" fn nlua_pop_keydict(
     arena: *mut Arena,
     err: *mut Error,
 ) {
-    #[cfg(test)]
-    let _ = (L, retval, hashy, err_opt, arena, err);
-
-    #[cfg(not(test))]
     unsafe {
         if lua_type(L, -1) != LUA_TTABLE {
             api_set_error!(
@@ -2400,10 +2228,6 @@ pub unsafe extern "C-unwind" fn nlua_push_keydict(
     value: *mut c_void,
     table: *mut KeySetLink,
 ) {
-    #[cfg(test)]
-    let _ = (L, value, table);
-
-    #[cfg(not(test))]
     unsafe {
         lua_createtable(L, 0, 0);
         let mut i = 0usize;

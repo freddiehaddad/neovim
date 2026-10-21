@@ -2,34 +2,24 @@
 
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
-#[cfg(not(test))]
 use crate::charset::vim_strsize;
-use crate::eval::typval::{EvalFuncData, typval_T};
-#[cfg(not(test))]
 use crate::eval::typval::{
-    VarType, tv_get_number, tv_get_number_chk, tv_get_string_buf, tv_get_string_chk,
+    EvalFuncData, VarType, tv_get_number, tv_get_number_chk, tv_get_string_buf, tv_get_string_chk,
+    typval_T,
 };
-#[cfg(not(test))]
 use crate::ex_cmds::check_secure;
-use crate::ex_docmd::exarg_T;
-#[cfg(not(test))]
+use crate::ex_docmd::{CMOD_KEEPPATTERNS, exarg_T};
 use crate::ex_getln::{get_cmdline_firstc, get_list_range};
-#[cfg(not(test))]
 use crate::globals::*;
 use crate::math::{FAIL, OK};
-use crate::memory::{xfree, xmallocz};
-#[cfg(not(test))]
-use crate::memory::{xmalloc, xstrlcpy};
-#[cfg(not(test))]
+use crate::memory::{xfree, xmalloc, xmallocz, xstrlcpy};
 use crate::message::{
     message_filtered, msg, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts_title, semsg,
     trunc_string,
 };
-#[cfg(not(test))]
 use crate::option_vars::*;
 use crate::os::env::expand_T;
 use crate::os::time::os_time;
-#[cfg(not(test))]
 use crate::regexp::{
     NSUBEXP, NUMBUFLEN, RE_MAGIC, RE_STRING, regmatch_T, vim_regcomp, vim_regexec, vim_regfree,
 };
@@ -49,10 +39,8 @@ static mut HISTORY: [*mut histentry_T; HIST_COUNT] = [std::ptr::null_mut(); HIST
 static mut HISIDX: [c_int; HIST_COUNT] = [-1; HIST_COUNT];
 static mut HISNUM: [c_int; HIST_COUNT] = [0; HIST_COUNT];
 static HISLEN: AtomicI32 = AtomicI32::new(0);
-#[cfg(not(test))]
 static LAST_MAPTICK: AtomicI32 = AtomicI32::new(-1);
 
-#[cfg(not(test))]
 const HISTORY_NAMES: [&CStr; HIST_COUNT] = [c"cmd", c"search", c"expr", c"input", c"debug"];
 const HISTORY_EXPAND_ARGS: [&CStr; 12] = [
     c":", c"=", c"@", c">", c"?", c"/", c"cmd", c"search", c"expr", c"input", c"debug", c"all",
@@ -68,12 +56,8 @@ pub struct histentry_T {
     pub additional_data: *mut c_void,
 }
 
-#[cfg(not(test))]
-use crate::ex_docmd::CMOD_KEEPPATTERNS;
-#[cfg(not(test))]
 use crate::globals::IOSIZE;
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn strnicmp_asc(mut s1: *const c_char, mut s2: *const c_char, mut len: usize) -> bool {
     unsafe {
@@ -174,7 +158,6 @@ pub unsafe extern "C" fn get_history_arg(_xp: *mut expand_T, idx: c_int) -> *mut
 /// Initialize or resize command-line history tables (`init_history`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn init_history() {
-    #[cfg(not(test))]
     unsafe {
         assert!(p_hi >= 0 && p_hi <= (c_int::MAX as i64));
         let newlen = p_hi as c_int;
@@ -306,7 +289,6 @@ unsafe fn in_history(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn get_histtype(name: *const c_char, len: usize, return_default: bool) -> c_int {
     unsafe {
         if len == 0 {
@@ -341,16 +323,12 @@ pub unsafe extern "C" fn add_to_history(
     in_map: bool,
     sep: c_int,
 ) {
-    #[cfg(test)]
-    let _ = in_map;
-
     let hislen = HISLEN.load(Ordering::Relaxed);
     if hislen == 0 || histype == HIST_INVALID {
         return;
     }
     assert_ne!(histype, HIST_DEFAULT);
 
-    #[cfg(not(test))]
     unsafe {
         if (cmdmod.cmod_flags & CMOD_KEEPPATTERNS) != 0 && histype == HIST_SEARCH {
             return;
@@ -403,14 +381,12 @@ pub unsafe extern "C" fn add_to_history(
         HISNUM[htype] += 1;
         hisptr.hisnum = HISNUM[htype];
 
-        #[cfg(not(test))]
         if histype == HIST_SEARCH && in_map {
             LAST_MAPTICK.store(maptick, Ordering::Relaxed);
         }
     }
 }
 
-#[cfg(not(test))]
 unsafe fn get_history_idx(histype: c_int) -> c_int {
     let hislen = HISLEN.load(Ordering::Relaxed);
     if hislen == 0 || histype < 0 || (histype as usize) >= HIST_COUNT {
@@ -423,7 +399,6 @@ unsafe fn get_history_idx(histype: c_int) -> c_int {
     unsafe { (*HISTORY[histype as usize].add(idx as usize)).hisnum }
 }
 
-#[cfg(not(test))]
 unsafe fn calc_hist_idx(histype: c_int, num: c_int) -> c_int {
     let hislen = HISLEN.load(Ordering::Relaxed);
     if hislen == 0 || histype < 0 || (histype as usize) >= HIST_COUNT || num == 0 {
@@ -485,7 +460,6 @@ pub unsafe extern "C" fn clr_history(histype: c_int) -> c_int {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn del_history_entry(histype: c_int, str_ptr: *mut c_char) -> c_int {
     unsafe {
         let hislen = HISLEN.load(Ordering::Relaxed);
@@ -550,7 +524,6 @@ unsafe fn del_history_entry(histype: c_int, str_ptr: *mut c_char) -> c_int {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn del_history_idx(histype: c_int, idx_arg: c_int) -> c_int {
     unsafe {
         let mut i = calc_hist_idx(histype, idx_arg);
@@ -562,7 +535,6 @@ unsafe fn del_history_idx(histype: c_int, idx_arg: c_int) -> c_int {
         let hislen = HISLEN.load(Ordering::Relaxed);
         hist_free_entry(HISTORY[htype].add(i as usize));
 
-        #[cfg(not(test))]
         if histype == HIST_SEARCH && maptick == LAST_MAPTICK.load(Ordering::Relaxed) && i == idx {
             LAST_MAPTICK.store(-1, Ordering::Relaxed);
         }
@@ -589,10 +561,6 @@ pub unsafe extern "C" fn f_histadd(
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         (*rettv).vval.v_number = 0;
         if check_secure() {
@@ -633,10 +601,6 @@ pub unsafe extern "C" fn f_histdel(
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         let str_ptr = tv_get_string_chk(argvars);
         let n = if str_ptr.is_null() {
@@ -665,10 +629,6 @@ pub unsafe extern "C" fn f_histget(
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         let str_ptr = tv_get_string_chk(argvars);
         if str_ptr.is_null() {
@@ -713,10 +673,6 @@ pub unsafe extern "C" fn f_histnr(
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    #[cfg(test)]
-    let _ = (argvars, rettv);
-
-    #[cfg(not(test))]
     unsafe {
         let histname = tv_get_string_chk(argvars);
         let htype = if histname.is_null() {
@@ -735,10 +691,6 @@ pub unsafe extern "C" fn f_histnr(
 /// `:history` command (`ex_history`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn ex_history(eap: *mut exarg_T) {
-    #[cfg(test)]
-    let _ = eap;
-
-    #[cfg(not(test))]
     unsafe {
         let mut histype1 = HIST_CMD;
         let mut histype2 = HIST_CMD;

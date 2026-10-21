@@ -65,7 +65,7 @@ static DEFAULT_ALLOCATOR: VTermAllocatorFunctions = VTermAllocatorFunctions {
 };
 
 /// Convenient shortcut for default cases.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_new(rows: c_int, cols: c_int) -> *mut VTerm {
     unsafe {
         let builder = VTermBuilder {
@@ -81,7 +81,7 @@ pub unsafe extern "C" fn vterm_new(rows: c_int, cols: c_int) -> *mut VTerm {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_build(builder: *const VTermBuilder) -> *mut VTerm {
     unsafe {
         let allocator = if !(*builder).allocator.is_null() {
@@ -126,7 +126,7 @@ pub unsafe extern "C" fn vterm_build(builder: *const VTermBuilder) -> *mut VTerm
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_free(vt: *mut VTerm) {
     unsafe {
         if !(*vt).screen.is_null() {
@@ -144,7 +144,7 @@ pub unsafe extern "C" fn vterm_free(vt: *mut VTerm) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_allocator_malloc(vt: *mut VTerm, size: usize) -> *mut c_void {
     unsafe {
         let allocator = (*vt).allocator.cast::<VTermAllocatorFunctions>();
@@ -153,7 +153,7 @@ pub unsafe extern "C" fn vterm_allocator_malloc(vt: *mut VTerm, size: usize) -> 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_allocator_free(vt: *mut VTerm, ptr: *mut c_void) {
     unsafe {
         let allocator = (*vt).allocator.cast::<VTermAllocatorFunctions>();
@@ -162,7 +162,7 @@ pub unsafe extern "C" fn vterm_allocator_free(vt: *mut VTerm, ptr: *mut c_void) 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_get_size(vt: *const VTerm, rowsp: *mut c_int, colsp: *mut c_int) {
     unsafe {
         if !rowsp.is_null() {
@@ -174,7 +174,7 @@ pub unsafe extern "C" fn vterm_get_size(vt: *const VTerm, rowsp: *mut c_int, col
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_set_size(vt: *mut VTerm, rows: c_int, cols: c_int) {
     if rows < 1 || cols < 1 {
         return;
@@ -193,7 +193,7 @@ pub unsafe extern "C" fn vterm_set_size(vt: *mut VTerm, rows: c_int, cols: c_int
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_set_utf8(vt: *mut VTerm, is_utf8: c_int) {
     unsafe {
         if is_utf8 != 0 {
@@ -204,7 +204,7 @@ pub unsafe extern "C" fn vterm_set_utf8(vt: *mut VTerm, is_utf8: c_int) {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_output_set_callback(
     vt: *mut VTerm,
     func: VTermOutputCallback,
@@ -219,7 +219,7 @@ pub unsafe extern "C" fn vterm_output_set_callback(
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_push_output_bytes(vt: *mut VTerm, bytes: *const c_char, len: usize) {
     unsafe {
         if !(*vt).outfunc.is_null() {
@@ -341,7 +341,7 @@ pub unsafe fn vterm_push_output_str_bytes(vt: *mut VTerm, ctrl: u8, term: bool, 
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn vterm_get_attr_type(attr: VTermAttr) -> VTermValueType {
     match attr {
         VTERM_ATTR_BOLD => VTERM_VALUETYPE_BOOL,
@@ -363,7 +363,7 @@ pub extern "C" fn vterm_get_attr_type(attr: VTermAttr) -> VTermValueType {
     }
 }
 
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vterm_scroll_rect(
     mut rect: VTermRect,
     downward: c_int,

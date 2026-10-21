@@ -154,7 +154,7 @@ unsafe fn have_dollars(num: c_int, file: *mut *mut c_char) -> bool {
 }
 
 /// Performs wildcard pattern matching using the shell.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_expand_wildcards(
     num_pat: c_int,
     pat: *mut *mut c_char,
@@ -570,7 +570,7 @@ pub unsafe extern "C" fn os_expand_wildcards(
 
 /// Builds the argument vector for running the user-configured 'shell' (p_sh)
 /// with an optional command prefixed by 'shellcmdflag' (p_shcf).
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn shell_build_argv(
     cmd: *const c_char,
     extra_args: *const c_char,
@@ -605,7 +605,7 @@ pub unsafe extern "C" fn shell_build_argv(
 }
 
 /// Releases the memory allocated by `shell_build_argv`.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn shell_free_argv(argv: *mut *mut c_char) {
     if argv.is_null() {
         return;
@@ -621,7 +621,7 @@ pub unsafe extern "C" fn shell_free_argv(argv: *mut *mut c_char) {
 }
 
 /// Joins shell arguments from `argv` into a new string.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn shell_argv_to_str(argv: *mut *mut c_char) -> *mut c_char {
     unsafe {
         let mut n: usize = 0;
@@ -653,7 +653,7 @@ pub unsafe extern "C" fn shell_argv_to_str(argv: *mut *mut c_char) -> *mut c_cha
 }
 
 /// Calls the user-configured 'shell' (p_sh) for running a command or wildcard expansion.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_call_shell(
     cmd: *mut c_char,
     opts: c_int,
@@ -720,7 +720,7 @@ pub unsafe extern "C" fn os_call_shell(
 }
 
 /// os_call_shell() wrapper. Handles 'verbose', :profile, and v:shell_error.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn call_shell(
     cmd: *mut c_char,
     opts: c_int,
@@ -764,7 +764,7 @@ pub unsafe extern "C" fn call_shell(
 }
 
 /// Get the stdout of an external command.
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_cmd_output(
     cmd: *mut c_char,
     infile: *mut c_char,
@@ -840,7 +840,7 @@ pub unsafe extern "C" fn get_cmd_output(
 }
 
 /// os_system - synchronously execute a command in the shell
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_system(
     argv: *mut *mut c_char,
     input: *const c_char,

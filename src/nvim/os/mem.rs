@@ -1,6 +1,5 @@
 //! System memory information (`src/nvim/os/mem.c`).
 
-#[cfg(not(test))]
 unsafe extern "C" {
     fn uv_get_total_memory() -> u64;
 }
@@ -13,10 +12,7 @@ pub const fn bytes_to_kib(bytes: u64) -> u64 {
 /// Get the total system physical memory in KiB (`os_get_total_mem_kib`).
 #[unsafe(no_mangle)]
 pub extern "C" fn os_get_total_mem_kib() -> u64 {
-    #[cfg(not(test))]
     let total_bytes = unsafe { uv_get_total_memory() };
-    #[cfg(test)]
-    let total_bytes = 16 * 1024 * 1024 * 1024u64;
 
     bytes_to_kib(total_bytes)
 }

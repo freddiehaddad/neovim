@@ -231,7 +231,7 @@ pub unsafe fn ns_in_win(ns_id: u32, wp: *mut win_T) -> bool {
 }
 
 // DLLEXPORT void api_extmark_free_all_mem(void);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn api_extmark_free_all_mem() {
     unsafe {
         for i in 0..namespace_ids.set.h.n_keys {
@@ -258,7 +258,7 @@ pub unsafe extern "C" fn api_extmark_free_all_mem() {
 /// @return Namespace id
 // DLLEXPORT Integer nvim_create_namespace(String name)
 //   FUNC_API_SINCE(5);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_create_namespace(name: NvimString) -> Integer {
     unsafe {
         let k = mh_get_String(&raw mut namespace_ids.set, name);
@@ -291,7 +291,7 @@ pub unsafe extern "C" fn nvim_create_namespace(name: NvimString) -> Integer {
 /// @return dict that maps from names to namespace ids.
 // DLLEXPORT DictOf(Integer) nvim_get_namespaces(Arena *arena)
 //   FUNC_API_SINCE(5);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_get_namespaces(arena: *mut Arena) -> Dict {
     unsafe {
         let mut retval = arena_dict(arena, namespace_ids.set.h.size as usize);
@@ -309,7 +309,7 @@ pub unsafe extern "C" fn nvim_get_namespaces(arena: *mut Arena) -> Dict {
 }
 
 // DLLEXPORT const char *describe_ns(NS ns_id, const char *unknown);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn describe_ns(ns_id: NS, unknown: *const c_char) -> *const c_char {
     unsafe {
         for i in 0..namespace_ids.set.h.n_keys {
@@ -324,7 +324,7 @@ pub unsafe extern "C" fn describe_ns(ns_id: NS, unknown: *const c_char) -> *cons
 }
 
 // DLLEXPORT bool ns_initialized(uint32_t ns);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ns_initialized(ns: u32) -> bool {
     if ns < 1 {
         return false;
@@ -333,7 +333,7 @@ pub unsafe extern "C" fn ns_initialized(ns: u32) -> bool {
 }
 
 // DLLEXPORT Array virt_text_to_array(VirtText vt, bool hl_name, Arena *arena);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn virt_text_to_array(
     vt: VirtText,
     hl_name: bool,
@@ -457,7 +457,7 @@ unsafe fn extmark_to_array(
 // nvim_buf_get_extmark_by_id(Buffer buf, Integer ns_id, Integer id, Dict(get_extmark) *opts,
 //                            Arena *arena, Error *err)
 //   FUNC_API_SINCE(7);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_get_extmark_by_id(
     buf: Buffer,
     ns_id: Integer,
@@ -558,7 +558,7 @@ pub unsafe extern "C" fn nvim_buf_get_extmark_by_id(
 //                                                                   Dict(get_extmarks) *opts,
 //                                                                   Arena *arena, Error *err)
 //   FUNC_API_SINCE(7);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_get_extmarks(
     buf: Buffer,
     ns_id: Integer,
@@ -806,7 +806,7 @@ pub unsafe extern "C" fn nvim_buf_get_extmarks(
 // DLLEXPORT Integer nvim_buf_set_extmark(Buffer buf, Integer ns_id, Integer line, Integer col,
 //                                        Dict(set_extmark) *opts, Error *err)
 //   FUNC_API_SINCE(7);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_set_extmark(
     buf: Buffer,
     ns_id: Integer,
@@ -1443,7 +1443,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
 /// @return true if the extmark was found, else false
 // DLLEXPORT Boolean nvim_buf_del_extmark(Buffer buf, Integer ns_id, Integer id, Error *err)
 //   FUNC_API_SINCE(7);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_del_extmark(
     buf: Buffer,
     ns_id: Integer,
@@ -1478,7 +1478,7 @@ pub unsafe extern "C" fn nvim_buf_del_extmark(
 // DLLEXPORT void nvim_buf_clear_namespace(Buffer buf, Integer ns_id, Integer line_start,
 //                                         Integer line_end, Error *err)
 //   FUNC_API_SINCE(5);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_clear_namespace(
     buf: Buffer,
     ns_id: Integer,
@@ -1582,7 +1582,7 @@ pub unsafe extern "C" fn nvim_buf_clear_namespace(
 // DLLEXPORT void nvim_set_decoration_provider(Integer ns_id, Dict(set_decoration_provider) *opts,
 //                                             Error *err)
 //   FUNC_API_SINCE(7) FUNC_API_LUA_ONLY;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_set_decoration_provider(
     ns_id: Integer,
     opts: *mut KeyDict_set_decoration_provider,
@@ -1688,7 +1688,7 @@ unsafe fn extmark_get_index_from_obj(
 }
 
 // DLLEXPORT VirtText parse_virt_text(Array chunks, Error *err, int *width, bool untab);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn parse_virt_text(
     chunks: Array,
     err: *mut Error,
@@ -1782,7 +1782,7 @@ pub unsafe extern "C" fn parse_virt_text(
 /// @nodoc
 // DLLEXPORT String nvim__buf_debug_extmarks(Buffer buf, Boolean keys, Boolean dot, Error *err)
 //   FUNC_API_SINCE(7) FUNC_API_RET_ALLOC;
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim__buf_debug_extmarks(
     buf: Buffer,
     keys: Boolean,
@@ -1808,7 +1808,7 @@ pub unsafe extern "C" fn nvim__buf_debug_extmarks(
 ///           - wins: a list of windows to be scoped in
 ///
 // DLLEXPORT void nvim__ns_set(Integer ns_id, Dict(ns_opts) *opts, Error *err);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim__ns_set(ns_id: Integer, opts: *mut KeyDict_ns_opts, err: *mut Error) {
     unsafe {
         if !ns_initialized(ns_id as u32) {
@@ -1925,7 +1925,7 @@ pub unsafe extern "C" fn nvim__ns_set(ns_id: Integer, opts: *mut KeyDict_ns_opts
 /// @param ns_id Namespace
 /// @return  Map defining the namespace properties, see |nvim__ns_set()|
 // DLLEXPORT Dict(ns_opts) nvim__ns_get(Integer ns_id, Arena *arena, Error *err);
-#[cfg_attr(not(test), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim__ns_get(
     ns_id: Integer,
     arena: *mut Arena,
