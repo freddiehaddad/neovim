@@ -34,7 +34,7 @@ const CSI_ARG_MASK: c_long = !((1u64 << 31) as c_long);
 
 const VTERM_VALUETYPE_STRING: VTermValueType = 3;
 
-const VTERM_N_ATTRS: VTermAttr = 16;
+pub(crate) const VTERM_N_ATTRS: VTermAttr = 16;
 
 const VTERM_ATTR_BOLD_MASK: VTermAttrMask = 1 << 0;
 const VTERM_ATTR_UNDERLINE_MASK: VTermAttrMask = 1 << 1;

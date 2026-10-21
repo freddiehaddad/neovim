@@ -17,12 +17,14 @@ use crate::strings::vim_snprintf;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
-use crate::event::proc::{SIGHUP, SIGTERM};
 #[cfg(windows)]
 use crate::os::os_win_console::os_clear_hwnd;
 
-const SIGINT: c_int = 2;
-const SIGQUIT: c_int = 3;
+pub(crate) const SIGHUP: c_int = 1;
+pub(crate) const SIGINT: c_int = 2;
+pub(crate) const SIGQUIT: c_int = 3;
+pub(crate) const SIGKILL: c_int = 9;
+pub(crate) const SIGTERM: c_int = 15;
 pub(crate) const SIGWINCH: c_int = 28;
 
 #[cfg(unix)]

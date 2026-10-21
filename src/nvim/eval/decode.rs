@@ -24,10 +24,10 @@ pub(crate) const K_MP_INTEGER: usize = 2;
 pub(crate) const K_MP_MAP: usize = 6;
 pub(crate) const K_MP_EXT: usize = 7;
 
-const SURROGATE_HI_START: u64 = 0xD800;
-const SURROGATE_HI_END: u64 = 0xDBFF;
-const SURROGATE_LO_START: u64 = 0xDC00;
-const SURROGATE_LO_END: u64 = 0xDFFF;
+pub(crate) const SURROGATE_HI_START: c_int = 0xD800;
+pub(crate) const SURROGATE_HI_END: c_int = 0xDBFF;
+pub(crate) const SURROGATE_LO_START: c_int = 0xDC00;
+pub(crate) const SURROGATE_LO_END: c_int = 0xDFFF;
 pub(crate) const SURROGATE_FIRST_CHAR: c_int = 0x10000;
 
 use crate::mpack::mpack_core::{MPACK_OK, mpack_token_type_t};
@@ -401,18 +401,18 @@ unsafe fn parse_json_string(
                         ];
                         t = t.add(4);
                         let hex_str = std::str::from_utf8_unchecked(&ubuf);
-                        let ch = u64::from(u16::from_str_radix(hex_str, 16).unwrap_or(0));
+                        let ch = c_int::from(u16::from_str_radix(hex_str, 16).unwrap_or(0));
                         if (SURROGATE_HI_START..=SURROGATE_HI_END).contains(&ch) {
                             if fst_in_pair != 0 {
                                 str_end =
                                     str_end.add(utf_char2bytes(fst_in_pair, str_end) as usize);
                             }
-                            fst_in_pair = ch as c_int;
+                            fst_in_pair = ch;
                         } else if (SURROGATE_LO_START..=SURROGATE_LO_END).contains(&ch)
                             && fst_in_pair != 0
                         {
-                            let full_char = ((ch - SURROGATE_LO_START) as c_int)
-                                + ((fst_in_pair - (SURROGATE_HI_START as c_int)) << 10)
+                            let full_char = (ch - SURROGATE_LO_START)
+                                + ((fst_in_pair - SURROGATE_HI_START) << 10)
                                 + SURROGATE_FIRST_CHAR;
                             str_end = str_end.add(utf_char2bytes(full_char, str_end) as usize);
                             fst_in_pair = 0;
@@ -422,7 +422,7 @@ unsafe fn parse_json_string(
                                     str_end.add(utf_char2bytes(fst_in_pair, str_end) as usize);
                                 fst_in_pair = 0;
                             }
-                            str_end = str_end.add(utf_char2bytes(ch as c_int, str_end) as usize);
+                            str_end = str_end.add(utf_char2bytes(ch, str_end) as usize);
                         }
                     }
                     b'\\' => {

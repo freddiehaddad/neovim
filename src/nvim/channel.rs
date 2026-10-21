@@ -85,7 +85,7 @@ pub struct CallbackReader {
 
 use crate::option::OptInt;
 
-const CHAN_STDERR: u64 = 2;
+pub(crate) const CHAN_STDERR: u64 = 2;
 
 pub(crate) const STDIN_FILENO: c_int = 0;
 pub(crate) const STDOUT_FILENO: c_int = 1;

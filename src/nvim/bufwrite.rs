@@ -94,12 +94,7 @@ const kShmWrite: c_int = b'W' as c_int;
 
 const UV_FS_COPYFILE_FICLONE: c_int = 0x0002;
 
-#[cfg(windows)]
-const UV_ENOTSUP: c_int = -4049;
-#[cfg(target_os = "linux")]
-const UV_ENOTSUP: c_int = -95;
-#[cfg(not(any(windows, target_os = "linux")))]
-const UV_ENOTSUP: c_int = -45;
+use crate::os::fs::UV_ENOTSUP;
 
 #[repr(C)]
 struct Error_T {

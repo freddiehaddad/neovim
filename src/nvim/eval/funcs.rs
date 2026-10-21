@@ -238,15 +238,10 @@ pub(crate) const MAX_FUNC_ARGS: usize = 20;
 
 pub(crate) const kSpecialVarNull: SpecialVarValue = 0;
 
-const VAR_TYPE_NUMBER: c_int = 0;
-const VAR_TYPE_STRING: c_int = 1;
-const VAR_TYPE_FUNC: c_int = 2;
-const VAR_TYPE_LIST: c_int = 3;
-const VAR_TYPE_DICT: c_int = 4;
-const VAR_TYPE_FLOAT: c_int = 5;
-const VAR_TYPE_BOOL: c_int = 6;
-const VAR_TYPE_SPECIAL: c_int = 7;
-const VAR_TYPE_BLOB: c_int = 10;
+use crate::eval::vars::{
+    VAR_TYPE_BLOB, VAR_TYPE_BOOL, VAR_TYPE_DICT, VAR_TYPE_FLOAT, VAR_TYPE_FUNC, VAR_TYPE_LIST,
+    VAR_TYPE_NUMBER, VAR_TYPE_SPECIAL, VAR_TYPE_STRING,
+};
 
 pub(crate) const TFN_INT: c_int = 1;
 pub(crate) const TFN_NO_DEREF: c_int = 8;
@@ -2102,8 +2097,7 @@ pub unsafe extern "C" fn f_debugbreak(
         }
         #[cfg(not(windows))]
         {
-            const SIGINT: c_int = 2;
-            uv_kill(pid, SIGINT);
+            uv_kill(pid, crate::os::signal::SIGINT);
         }
     }
 }
@@ -10175,7 +10169,7 @@ pub unsafe extern "C" fn f_timer_stopall(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn f_type(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        let mut n: c_int = -1;
+        let mut n: varnumber_T = -1;
         match (*argvars).v_type {
             VarType::VAR_NUMBER => n = VAR_TYPE_NUMBER,
             VarType::VAR_STRING => n = VAR_TYPE_STRING,
@@ -10188,7 +10182,7 @@ pub unsafe extern "C" fn f_type(argvars: *mut typval_T, rettv: *mut typval_T, _f
             VarType::VAR_BLOB => n = VAR_TYPE_BLOB,
             VarType::VAR_UNKNOWN => internal_error(c"f_type(UNKNOWN)".as_ptr()),
         }
-        (*rettv).vval.v_number = varnumber_T::from(n);
+        (*rettv).vval.v_number = n;
     }
 }
 

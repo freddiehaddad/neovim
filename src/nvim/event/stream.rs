@@ -19,7 +19,7 @@ pub const UV_TTY: c_int = 14;
 pub const UV_FILE: c_int = 17;
 
 #[cfg(windows)]
-const UV_TTY_MODE_NORMAL: c_int = 0;
+use crate::event::r#loop::UV_TTY_MODE_NORMAL;
 #[cfg(windows)]
 const UV_TTY_MODE_RAW: c_int = 1;
 

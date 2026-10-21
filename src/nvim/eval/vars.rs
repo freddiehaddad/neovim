@@ -136,16 +136,16 @@ const VV_RO_SBX: c_char = 4;
 
 const DI_FLAGS_RO_SBX: u8 = 2;
 
-const VAR_TYPE_NUMBER: varnumber_T = 0;
-const VAR_TYPE_STRING: varnumber_T = 1;
-const VAR_TYPE_FUNC: varnumber_T = 2;
-const VAR_TYPE_LIST: varnumber_T = 3;
-const VAR_TYPE_DICT: varnumber_T = 4;
-const VAR_TYPE_FLOAT: varnumber_T = 5;
-const VAR_TYPE_BOOL: varnumber_T = 6;
+pub(crate) const VAR_TYPE_NUMBER: varnumber_T = 0;
+pub(crate) const VAR_TYPE_STRING: varnumber_T = 1;
+pub(crate) const VAR_TYPE_FUNC: varnumber_T = 2;
+pub(crate) const VAR_TYPE_LIST: varnumber_T = 3;
+pub(crate) const VAR_TYPE_DICT: varnumber_T = 4;
+pub(crate) const VAR_TYPE_FLOAT: varnumber_T = 5;
+pub(crate) const VAR_TYPE_BOOL: varnumber_T = 6;
+pub(crate) const VAR_TYPE_SPECIAL: varnumber_T = 7;
 pub(crate) const VAR_TYPE_BLOB: varnumber_T = 10;
 
-const CHAN_STDERR: varnumber_T = 2;
 pub(crate) const ENV_STARTREASON: &CStr = c"__NVIM_STARTREASON";
 
 pub(crate) const SID_STR: scid_T = -10;
@@ -625,7 +625,7 @@ pub unsafe extern "C" fn evalvars_init() {
 
         set_vim_var_dict(VV_EVENT, tv_dict_alloc_lock(VAR_FIXED));
         set_vim_var_list(VV_ERRORS, tv_list_alloc(kListLenUnknown));
-        set_vim_var_nr(VV_STDERR, CHAN_STDERR);
+        set_vim_var_nr(VV_STDERR, crate::channel::CHAN_STDERR as varnumber_T);
         set_vim_var_nr(VV_SEARCHFORWARD, 1);
         set_vim_var_nr(VV_HLSEARCH, 1);
         set_vim_var_nr(VV_COUNT1, 1);

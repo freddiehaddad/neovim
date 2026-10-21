@@ -109,19 +109,35 @@ const kPathDevice: c_int = 4;
 
 const UV_FS: c_int = 6;
 
-const UV_EOF: c_int = -4095;
-const UV_UNKNOWN: isize = -4094;
+pub(crate) const UV_EOF: c_int = -4095;
+pub(crate) const UV_UNKNOWN: c_int = -4094;
 
 pub(crate) const UV_ENOENT: c_int = if cfg!(windows) { -4058 } else { -2 };
 pub(crate) const UV_EINTR: c_int = if cfg!(windows) { -4072 } else { -4 };
 pub(crate) const UV_EINVAL: c_int = if cfg!(windows) { -4071 } else { -22 };
-
-#[cfg(windows)]
-const UV_EAGAIN: c_int = -4088;
-#[cfg(target_os = "linux")]
-const UV_EAGAIN: c_int = -11;
-#[cfg(all(not(windows), not(target_os = "linux")))]
-const UV_EAGAIN: c_int = -35;
+pub(crate) const UV_EIO: c_int = if cfg!(windows) { -4070 } else { -5 };
+pub(crate) const UV_EROFS: c_int = if cfg!(windows) { -4043 } else { -30 };
+pub(crate) const UV_ENOTSUP: c_int = if cfg!(windows) {
+    -4049
+} else if cfg!(target_os = "linux") {
+    -95
+} else {
+    -45
+};
+pub(crate) const UV_ENOBUFS: c_int = if cfg!(windows) {
+    -4060
+} else if cfg!(target_os = "linux") {
+    -105
+} else {
+    -55
+};
+const UV_EAGAIN: c_int = if cfg!(windows) {
+    -4088
+} else if cfg!(target_os = "linux") {
+    -11
+} else {
+    -35
+};
 
 const S_IFBLK: u64 = 0o060000;
 pub(crate) const S_IFLNK: u64 = 0o120000;
@@ -1034,7 +1050,7 @@ pub unsafe extern "C" fn os_write(
                 }
             }
             if cur_written_bytes == 0 {
-                return UV_UNKNOWN;
+                return UV_UNKNOWN as isize;
             }
         }
         written_bytes as isize

@@ -32,7 +32,7 @@ use std::ptr;
 
 pub type bcount_t = isize;
 pub type ExtmarkOp = c_int;
-pub type ExtmarkType = c_int;
+pub type ExtmarkType = u16;
 pub type ExtmarkInfoArray = KVec<MTPair>;
 pub type UndoObjectType = c_int;
 pub type TriState = c_int;
@@ -41,6 +41,10 @@ pub type extmark_undo_vec_t = KVec<ExtmarkUndoObject>;
 pub(crate) const kExtmarkNOOP: ExtmarkOp = 0;
 pub(crate) const kExtmarkUndo: ExtmarkOp = 1;
 pub(crate) const kExtmarkNone: ExtmarkType = 0x1;
+pub(crate) const kExtmarkSign: ExtmarkType = 0x2;
+pub(crate) const kExtmarkVirtText: ExtmarkType = 0x8;
+pub(crate) const kExtmarkVirtLines: ExtmarkType = 0x10;
+pub(crate) const kExtmarkHighlight: ExtmarkType = 0x20;
 pub(crate) const kNone: c_int = -1;
 pub(crate) const kFalse: c_int = 0;
 pub(crate) const kTrue: c_int = 1;
@@ -607,7 +611,7 @@ unsafe fn push_mark(
                 return;
             }
             let type_flags = decor_type_flags(mt_decor(mark.start));
-            if (type_flags as ExtmarkType & type_filter) == 0 {
+            if (type_flags & type_filter) == 0 {
                 return;
             }
         }

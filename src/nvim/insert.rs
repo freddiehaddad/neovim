@@ -162,7 +162,7 @@ use crate::window::{goto_tabpage, may_trigger_win_scrolled_resized, win_T};
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 
-const COM_MIDDLE: c_int = b'm' as c_int;
+use crate::change::COM_MIDDLE;
 const INPUT_BUFLEN: usize = 100;
 
 pub(crate) const MOD_MASK_SHIFT: c_int = 0x02;
@@ -1883,7 +1883,7 @@ pub unsafe extern "C" fn insertchar(mut c: c_int, flags: c_int, second_indent: c
             let mut p: *mut c_char = ptr::null_mut();
             let line = get_cursor_line_ptr();
             let mut i = get_leader_len(line, &raw mut p, false, true);
-            if i > 0 && !vim_strchr(p, COM_MIDDLE).is_null() {
+            if i > 0 && !vim_strchr(p, c_int::from(COM_MIDDLE as u8)).is_null() {
                 while *p != NUL && *p.offset(-1) != b':' as c_char {
                     p = p.add(1);
                 }

@@ -454,7 +454,7 @@ mod tests {
 
     #[test]
     fn vterm_get_attr_type_maps_attributes() {
-        const VTERM_N_ATTRS: VTermAttr = 16;
+        use crate::vterm::vterm_test::VTERM_N_ATTRS;
         assert_eq!(vterm_get_attr_type(VTERM_ATTR_BOLD), VTERM_VALUETYPE_BOOL);
         assert_eq!(
             vterm_get_attr_type(VTERM_ATTR_UNDERLINE),

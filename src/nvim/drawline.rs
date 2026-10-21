@@ -1,9 +1,8 @@
 //! Functions for drawing window lines on the screen (`src/nvim/drawline.c`).
 //! This is the middle level, `drawscreen.rs` is the top and `grid.rs` the lower level.
 
-use crate::api::vim::{
-    HLF_CLN, HLF_CLS, HLF_LNA, HLF_LNB, HLF_N, HLF_SC, SIGN_SHOW_MAX, STL_FOLDCOL, STL_SIGNCOL,
-};
+use crate::api::vim::{HLF_CLN, HLF_CLS, HLF_LNA, HLF_LNB, HLF_N, HLF_SC, SIGN_SHOW_MAX};
+use crate::statusline::{STL_FOLDCOL, STL_SIGNCOL};
 use crate::autocmd::HLF_8;
 use crate::buffer::{bt_quickfix, buf_T, buf_meta_total};
 use crate::change::TAB;
@@ -1005,9 +1004,9 @@ unsafe fn draw_statuscol(
             let textlen = (*sp).start.offset_from(p);
             let translen = transstr_buf(p, textlen, transbuf_ptr, MAXPATHL, true);
             draw_col_buf(wp, wlv, transbuf_ptr, translen, cur_attr, fold_vcol, false);
-            let attr = if (*sp).item == STL_SIGNCOL {
+            let attr = if (*sp).item == c_int::from(STL_SIGNCOL as u8) {
                 scl_attr
-            } else if (*sp).item == STL_FOLDCOL {
+            } else if (*sp).item == c_int::from(STL_FOLDCOL as u8) {
                 0
             } else {
                 num_attr
@@ -1020,7 +1019,7 @@ unsafe fn draw_statuscol(
                     0
                 },
             );
-            fold_vcol = if (*sp).item == STL_FOLDCOL {
+            fold_vcol = if (*sp).item == c_int::from(STL_FOLDCOL as u8) {
                 (&raw const (*stcp).fold_vcol).cast::<colnr_T>()
             } else {
                 ptr::null()

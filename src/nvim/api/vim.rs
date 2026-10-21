@@ -155,8 +155,7 @@ pub(crate) const HLF_CLN: c_int = 15;
 pub(crate) const HLF_CLS: c_int = 16;
 pub(crate) const HLF_SC: c_int = 35;
 
-pub(crate) const STL_FOLDCOL: c_int = b'C' as c_int;
-pub(crate) const STL_SIGNCOL: c_int = b's' as c_int;
+use crate::statusline::{STL_FOLDCOL, STL_SIGNCOL};
 
 const KEYSET_OPTIDX_highlight__update: u32 = 14;
 const KEYSET_OPTIDX_highlight__url: u32 = 5;
@@ -3326,9 +3325,9 @@ pub unsafe extern "C" fn nvim_eval_statusline(
                     arena_strdup(arena, user_str.as_ptr().cast::<c_char>())
                 };
 
-                let combine = if (*sp).item == STL_SIGNCOL {
+                let combine = if (*sp).item == c_int::from(STL_SIGNCOL as u8) {
                     syn_id2name(scl_hl_id)
-                } else if (*sp).item == STL_FOLDCOL {
+                } else if (*sp).item == c_int::from(STL_FOLDCOL as u8) {
                     grpname
                 } else {
                     dfltname

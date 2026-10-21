@@ -219,15 +219,13 @@ pub struct DecorVirtText {
     pub next: *mut DecorVirtText,
 }
 
+use crate::extmark::{
+    kExtmarkHighlight, kExtmarkNone, kExtmarkSign, kExtmarkVirtLines, kExtmarkVirtText,
+};
+
 pub(crate) const SIGN_WIDTH: usize = 2;
 const SIGN_SHOW_MAX: c_int = 9;
 pub(crate) const SCL_NUM: c_int = -2;
-
-const kExtmarkNone: u16 = 0x1;
-const kExtmarkSign: u16 = 0x2;
-const kExtmarkVirtText: u16 = 0x8;
-const kExtmarkVirtLines: u16 = 0x10;
-const kExtmarkHighlight: u16 = 0x20;
 
 const kDecorKindHighlight: DecorRangeKind = 0;
 pub(crate) const kDecorKindVirtText: DecorRangeKind = 2;

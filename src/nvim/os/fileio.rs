@@ -1,12 +1,17 @@
 //! Buffered file descriptor reading and writing (`src/nvim/os/fileio.c`).
 
-#![cfg_attr(target_os = "windows", allow(dead_code))]
-
 #[cfg(unix)]
 use std::ffi::c_void;
 use std::ffi::{c_char, c_int};
 
-use crate::memory::{alloc_block, free_block};
+use crate::fileio::O_RDONLY;
+use crate::memory::{ARENA_BLOCK_SIZE, alloc_block, free_block};
+use crate::os::fs::{
+    O_APPEND, O_CREAT, O_EXCL, O_NOFOLLOW, O_TRUNC, O_WRONLY, UV_EINVAL, UV_EIO, UV_ENOTSUP,
+    UV_EROFS, os_close, os_file_mkdir, os_fsync, os_open, os_open_stdin_fd, os_read, os_write,
+};
+#[cfg(unix)]
+use crate::os::fs::{iovec as IoVec, os_readv};
 
 pub const K_FILE_READ_ONLY: c_int = 1;
 pub const K_FILE_CREATE: c_int = 2;
@@ -17,65 +22,6 @@ pub const K_FILE_TRUNCATE: c_int = 32;
 pub const K_FILE_APPEND: c_int = 64;
 pub const K_FILE_NON_BLOCKING: c_int = 128;
 pub const K_FILE_MK_DIR: c_int = 256;
-
-#[cfg(target_os = "windows")]
-mod os_consts {
-    use std::ffi::c_int;
-    pub const O_RDONLY: c_int = 0x0000;
-    pub const O_WRONLY: c_int = 0x0001;
-    pub const O_APPEND: c_int = 0x0008;
-    pub const O_CREAT: c_int = 0x0100;
-    pub const O_TRUNC: c_int = 0x0200;
-    pub const O_EXCL: c_int = 0x0400;
-    pub const O_NOFOLLOW: Option<c_int> = None;
-
-    pub const UV_EINVAL: c_int = -4071;
-    pub const UV_EIO: c_int = -4070;
-    pub const UV_ENOTSUP: c_int = -4049;
-    pub const UV_EROFS: c_int = -4043;
-}
-
-#[cfg(target_os = "linux")]
-mod os_consts {
-    use std::ffi::c_int;
-    pub const O_RDONLY: c_int = 0;
-    pub const O_WRONLY: c_int = 1;
-    pub const O_CREAT: c_int = 0o100;
-    pub const O_EXCL: c_int = 0o200;
-    pub const O_TRUNC: c_int = 0o1000;
-    pub const O_APPEND: c_int = 0o2000;
-    #[cfg(any(target_arch = "aarch64", target_arch = "arm"))]
-    pub const O_NOFOLLOW: Option<c_int> = Some(0o100000);
-    #[cfg(not(any(target_arch = "aarch64", target_arch = "arm")))]
-    pub const O_NOFOLLOW: Option<c_int> = Some(0o400000);
-
-    pub const UV_EINVAL: c_int = -22;
-    pub const UV_EIO: c_int = -5;
-    pub const UV_ENOTSUP: c_int = -95;
-    pub const UV_EROFS: c_int = -30;
-}
-
-#[cfg(not(any(target_os = "windows", target_os = "linux")))]
-mod os_consts {
-    use std::ffi::c_int;
-    pub const O_RDONLY: c_int = 0x0000;
-    pub const O_WRONLY: c_int = 0x0001;
-    pub const O_APPEND: c_int = 0x0008;
-    pub const O_NOFOLLOW: Option<c_int> = Some(0x0100);
-    pub const O_CREAT: c_int = 0x0200;
-    pub const O_TRUNC: c_int = 0x0400;
-    pub const O_EXCL: c_int = 0x0800;
-
-    pub const UV_EINVAL: c_int = -22;
-    pub const UV_EIO: c_int = -5;
-    pub const UV_ENOTSUP: c_int = -45;
-    pub const UV_EROFS: c_int = -30;
-}
-
-use os_consts::{
-    O_APPEND, O_CREAT, O_EXCL, O_NOFOLLOW, O_RDONLY, O_TRUNC, O_WRONLY, UV_EINVAL, UV_EIO,
-    UV_ENOTSUP, UV_EROFS,
-};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -89,14 +35,6 @@ pub struct FileDescriptor {
     pub non_blocking: bool,
     pub bytes_read: u64,
 }
-
-#[cfg(unix)]
-use crate::os::fs::{iovec as IoVec, os_readv};
-
-use crate::memory::ARENA_BLOCK_SIZE;
-use crate::os::fs::{
-    os_close, os_file_mkdir, os_fsync, os_open, os_open_stdin_fd, os_read, os_write,
-};
 
 #[inline]
 fn file_space(fp: &FileDescriptor) -> usize {
@@ -144,9 +82,9 @@ pub unsafe extern "C" fn file_open(
         assert_ne!(wr, Some(true));
         os_open_flags |= O_RDONLY;
     }
-    if let Some(o_nofollow) = O_NOFOLLOW {
+    if O_NOFOLLOW != 0 {
         if (flags & K_FILE_NO_SYMLINK) != 0 {
-            os_open_flags |= o_nofollow;
+            os_open_flags |= O_NOFOLLOW;
         }
         if (flags & K_FILE_MK_DIR) != 0 {
             assert_eq!(flags & K_FILE_CREATE_ONLY, 0);

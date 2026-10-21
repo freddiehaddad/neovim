@@ -53,7 +53,6 @@ pub(crate) const MAX_SCHAR_SIZE: usize = 32;
 const UI_BUF_SIZE: usize = 4096;
 const EVENT_BUF_SIZE: usize = 256;
 pub(crate) const HLATTRS_DICT_SIZE: usize = 24;
-const DEFAULT_GRID_HANDLE: Integer = 1;
 pub(crate) const NO_SCREEN: c_int = 2;
 pub(crate) const CHAN_STDIO: u64 = 1;
 
@@ -790,7 +789,7 @@ pub unsafe extern "C" fn nvim_ui_try_resize_grid(
         if get_ui_or_err(channel_id, err).is_null() {
             return;
         }
-        if grid == DEFAULT_GRID_HANDLE {
+        if grid == Integer::from(crate::drawscreen::DEFAULT_GRID_HANDLE) {
             nvim_ui_try_resize(channel_id, width, height, err);
         } else {
             ui_grid_resize(grid as handle_T, width as c_int, height as c_int, err);

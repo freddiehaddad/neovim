@@ -128,17 +128,17 @@ mod win_impl {
     type WaitOrTimerCallback =
         Option<unsafe extern "system" fn(lpParameter: *mut c_void, TimerOrWaitFired: BOOLEAN)>;
 
-    const UV_REQ: c_int = 1;
+    use crate::event::r#loop::{UV_REQ, UV_RUN_ONCE};
+    use crate::log::LOGLVL_ERR;
+    use crate::os::fs::UV_ENOENT;
+
     const UV_CONNECT: c_int = 2;
-    const UV_RUN_ONCE: c_int = 1;
-    const UV_ENOENT: c_int = -4058;
     const UV_ENOSYS: c_int = -4054;
 
     const WAIT_TIMEOUT: DWORD = 258;
     const INFINITE: DWORD = 0xFFFF_FFFF;
     const WT_EXECUTEDEFAULT: c_ulong = 0x0000_0000;
     const WT_EXECUTEONLYONCE: c_ulong = 0x0000_0008;
-    const LOGLVL_ERR: c_int = 4;
 
     #[repr(C)]
     struct PtyProcWinTail {

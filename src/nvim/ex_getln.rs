@@ -206,8 +206,8 @@ const kOptWimFlagFull: u8 = 0x01;
 const kOptWimFlagLongest: u8 = 0x02;
 const kOptWimFlagList: u8 = 0x04;
 const kOptWimFlagLastused: u8 = 0x08;
-const kOptWimFlagNoselect: u8 = 0x10;
-const kOptWimFlagNoinsert: u8 = 0x20;
+pub(crate) const kOptWimFlagNoselect: u8 = 0x10;
+pub(crate) const kOptWimFlagNoinsert: u8 = 0x20;
 
 pub(crate) const kOptBoFlagError: c_uint = 0x40;
 

@@ -11,10 +11,10 @@ use crate::ex_cmds::check_secure;
 use crate::garray::garray_T;
 use crate::globals::*;
 use crate::memory::{xmalloc, xstrdup};
+use crate::api::private::converter::K_BOOL_VAR_TRUE;
 use crate::message::{emsg, semsg};
 use std::ffi::{c_char, c_int, c_void};
 
-const K_BOOL_VAR_TRUE: c_int = 1;
 const K_CHANNEL_PART_RPC: c_int = 3;
 const K_CHANNEL_STDIN_PIPE: c_int = 0;
 
@@ -221,7 +221,7 @@ pub unsafe extern "C" fn f_termopen(
         }
 
         let dict = arg1.vval.v_ptr.cast::<dict_T>();
-        tv_dict_add_bool(dict, c"term".as_ptr(), 4, K_BOOL_VAR_TRUE);
+        tv_dict_add_bool(dict, c"term".as_ptr(), 4, K_BOOL_VAR_TRUE as c_int);
         f_jobstart(argvars, rettv, fptr);
         if must_free {
             tv_dict_free(dict);

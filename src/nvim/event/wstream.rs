@@ -13,9 +13,10 @@ use std::ffi::c_ulong;
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
+use crate::os::fs::UV_UNKNOWN;
+
 const DEFAULT_MAXMEM: usize = 1024 * 1024 * 2000;
 const UV_WRITE: c_int = 3;
-const UV_UNKNOWN: c_int = -4094;
 #[cfg(windows)]
 const UV_ENOMEM: c_int = -4057;
 #[cfg(not(windows))]

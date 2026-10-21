@@ -30,8 +30,8 @@ use crate::drawline::kHlModeReplace;
 use crate::drawscreen::{UPD_NOT_VALID, redraw_all_later};
 use crate::eval::vars::MAXCOL;
 use crate::extmark::{
-    ExtmarkType, extmark_clear, extmark_del_id, extmark_from_id, extmark_get, extmark_set,
-    kExtmarkNone,
+    extmark_clear, extmark_del_id, extmark_from_id, extmark_get, extmark_set, kExtmarkHighlight,
+    kExtmarkNone, kExtmarkSign, kExtmarkVirtLines, kExtmarkVirtText,
 };
 use crate::globals::*;
 use crate::grid::schar_high;
@@ -60,11 +60,6 @@ use std::ptr;
 use crate::cursor::{colnr_T, linenr_T};
 
 const SET_EXTMARK_TABLE_SIZE: usize = 36;
-
-const kExtmarkSign: ExtmarkType = 0x2;
-const kExtmarkVirtText: ExtmarkType = 0x8;
-const kExtmarkVirtLines: ExtmarkType = 0x10;
-const kExtmarkHighlight: ExtmarkType = 0x20;
 
 const KEYSET_OPTIDX_get_extmark__hl_name: u64 = 2;
 const KEYSET_OPTIDX_get_extmarks__type: u64 = 1;

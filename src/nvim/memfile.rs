@@ -28,7 +28,7 @@ pub type mfdirty_T = c_int;
 use crate::math::{FAIL, OK};
 
 const MEMFILE_PAGE_SIZE: c_uint = 4096;
-const MIN_SWAP_PAGE_SIZE: u64 = 1048;
+pub(crate) const MIN_SWAP_PAGE_SIZE: c_uint = 1048;
 const MAX_SWAP_PAGE_SIZE: u64 = 50000;
 
 pub(crate) const BH_DIRTY: c_uint = 1;
@@ -168,7 +168,7 @@ pub unsafe extern "C" fn mf_open(fname: *mut c_char, flags: c_int) -> *mut memfi
             let mut file_info = FileInfo::default();
             if os_fileinfo_fd((*mfp).mf_fd, &raw mut file_info) {
                 let blocksize = os_fileinfo_blocksize(&raw const file_info);
-                if (MIN_SWAP_PAGE_SIZE..=MAX_SWAP_PAGE_SIZE).contains(&blocksize) {
+                if (u64::from(MIN_SWAP_PAGE_SIZE)..=MAX_SWAP_PAGE_SIZE).contains(&blocksize) {
                     (*mfp).mf_page_size = blocksize as c_uint;
                 }
             }

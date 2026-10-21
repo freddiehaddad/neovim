@@ -64,7 +64,7 @@ use crate::globals::IOSIZE;
 use crate::math::{FAIL, OK};
 use crate::state::{MODE_INSERT, VREPLACE_FLAG};
 
-const TABSTOP_MAX: c_int = 9999;
+pub(crate) const TABSTOP_MAX: c_int = 9999;
 
 pub(crate) const SIN_CHANGED: c_int = 1;
 const SIN_UNDO: c_int = 4;

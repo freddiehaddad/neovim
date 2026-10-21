@@ -16,8 +16,10 @@ const UV_ASYNC: c_int = 1;
 pub(crate) const UV_SIGNAL: c_int = 16;
 
 pub(crate) const UV_RUN_DEFAULT: c_int = 0;
-const UV_RUN_ONCE: c_int = 1;
+pub(crate) const UV_RUN_ONCE: c_int = 1;
 pub(crate) const UV_RUN_NOWAIT: c_int = 2;
+pub(crate) const UV_REQ: c_int = 1;
+pub(crate) const UV_TTY_MODE_NORMAL: c_int = 0;
 
 #[cfg(windows)]
 const UV_EBUSY: c_int = -4082;

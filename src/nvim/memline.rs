@@ -143,7 +143,7 @@ const ML_FLUSH: c_int = 0x02;
 const MLCS_MAXL: c_int = 800;
 const MLCS_MINL: c_int = 400;
 
-const MIN_SWAP_PAGE_SIZE: c_uint = 1048;
+use crate::memfile::MIN_SWAP_PAGE_SIZE;
 pub(crate) const MFS_FLUSH: c_int = 4;
 
 const BF_RECOVERED: c_int = 0x01;

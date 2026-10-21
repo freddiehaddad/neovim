@@ -104,7 +104,7 @@ const TERMINFO_SEQ_LIMIT: usize = 128;
 const DEL: c_char = 0x7f;
 
 #[cfg(unix)]
-const UV_TTY_MODE_NORMAL: c_int = 0;
+use crate::event::r#loop::UV_TTY_MODE_NORMAL;
 #[cfg(unix)]
 const UV_TTY_MODE_IO: c_int = 2;
 #[cfg(target_os = "linux")]

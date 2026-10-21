@@ -19,7 +19,7 @@ use crate::memory::{xfree, xmalloc, xmemcpyz, xmemdupz, xmemrchr, xstrdup, xstrl
 use crate::message::semsg;
 use crate::message::{emsg, internal_error};
 use crate::option_vars::*;
-use crate::os::fs::{UV_EINVAL, os_isdir};
+use crate::os::fs::{UV_EINVAL, UV_ENOBUFS, os_isdir};
 #[cfg(unix)]
 use crate::os::fs::{os_dirname, os_realpath};
 #[cfg(unix)]
@@ -47,13 +47,6 @@ const MAX_ENVPATHLEN: usize = if cfg!(windows) {
 } else {
     c_int::MAX as usize
 };
-#[cfg(windows)]
-const UV_ENOBUFS: c_int = -4060;
-#[cfg(target_os = "linux")]
-const UV_ENOBUFS: c_int = -105;
-#[cfg(all(not(windows), not(target_os = "linux")))]
-const UV_ENOBUFS: c_int = -55;
-
 #[repr(C)]
 pub struct expand_T {
     pub xp_pattern: *mut c_char,

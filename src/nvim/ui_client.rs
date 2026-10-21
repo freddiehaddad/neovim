@@ -45,7 +45,7 @@ use std::ffi::{c_char, c_int, c_void};
 use std::mem::{size_of, zeroed};
 use std::ptr;
 
-const UI_CLIENT_STDIN_FD: Integer = 3;
+pub(crate) const UI_CLIENT_STDIN_FD: c_int = 3;
 const KEYSET_OPTIDX_highlight__url: u64 = 5;
 
 #[unsafe(no_mangle)]
@@ -158,7 +158,7 @@ pub unsafe extern "C" fn ui_client_attach(
         put_opt(c"stdin_tty".as_ptr(), bool_obj(stdin_isatty));
         put_opt(c"stdout_tty".as_ptr(), bool_obj(stdout_isatty));
         if ui_client_forward_stdin {
-            put_opt(c"stdin_fd".as_ptr(), int_obj(UI_CLIENT_STDIN_FD));
+            put_opt(c"stdin_fd".as_ptr(), int_obj(Integer::from(UI_CLIENT_STDIN_FD)));
             ui_client_forward_stdin = false;
         }
 

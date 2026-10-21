@@ -21,9 +21,10 @@ use crate::strings::{gettext, strlen as c_strlen, strrchr, vim_snprintf};
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
+use crate::event::r#loop::UV_REQ;
+
 pub(crate) const ADDRESS_MAX_SIZE: usize = 256;
 
-const UV_REQ: c_int = 1;
 const UV_GETADDRINFO: c_int = 8;
 const UV_PIPE_NO_TRUNCATE: c_uint = 1;
 

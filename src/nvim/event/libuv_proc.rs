@@ -38,7 +38,7 @@ const UV_PROCESS_WINDOWS_VERBATIM_ARGUMENTS: c_uint = 1 << 2;
 const UV_PROCESS_DETACHED: c_uint = 1 << 3;
 const UV_PROCESS_WINDOWS_HIDE: c_uint = 1 << 4;
 
-const UI_CLIENT_STDIN_FD: c_int = 3;
+use crate::ui_client::UI_CLIENT_STDIN_FD;
 
 pub type uv_process_t = c_void;
 type uv_exit_cb =

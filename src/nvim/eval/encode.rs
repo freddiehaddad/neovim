@@ -4,7 +4,10 @@
 use crate::api::private::converter::{K_BOOL_VAR_TRUE, K_SPECIAL_VAR_NULL};
 use crate::api::private::validate::NvimString;
 use crate::buffer::NOTDONE;
-use crate::eval::decode::{K_MP_EXT, K_MP_INTEGER, K_MP_MAP, SURROGATE_FIRST_CHAR};
+use crate::eval::decode::{
+    K_MP_EXT, K_MP_INTEGER, K_MP_MAP, SURROGATE_FIRST_CHAR, SURROGATE_HI_END, SURROGATE_HI_START,
+    SURROGATE_LO_END, SURROGATE_LO_START,
+};
 use crate::eval::typval::{
     TypvalVval, VAR_UNLOCKED, VarType, blob_T, dict_T, dictitem_T, list_T, listitem_T, partial_T,
     tv_blob_get, tv_blob_len, tv_dict_find, tv_list_append_allocated_string, tv_list_first,
@@ -34,11 +37,6 @@ pub(crate) const K_MP_BOOLEAN: usize = 1;
 pub(crate) const K_MP_FLOAT: usize = 3;
 pub(crate) const K_MP_STRING: usize = 4;
 pub(crate) const K_MP_ARRAY: usize = 5;
-
-const SURROGATE_HI_START: c_int = 0xD800;
-const SURROGATE_HI_END: c_int = 0xDBFF;
-const SURROGATE_LO_START: c_int = 0xDC00;
-const SURROGATE_LO_END: c_int = 0xDFFF;
 
 const FF: c_int = 0x0c;
 

@@ -30,11 +30,8 @@ use std::ptr;
 
 const KILL_TIMEOUT_MS: u64 = 2000;
 
-pub(crate) const SIGHUP: c_int = 1;
-const SIGKILL: c_int = 9;
-pub(crate) const SIGTERM: c_int = 15;
-
 use crate::channel::{kProcTypePty, kProcTypeUv};
+use crate::os::signal::{SIGHUP, SIGKILL, SIGTERM};
 pub type Proc = c_void;
 pub type LibuvProc = c_void;
 pub type PtyProc = c_void;

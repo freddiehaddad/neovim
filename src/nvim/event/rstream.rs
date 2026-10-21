@@ -13,13 +13,8 @@ use crate::event::wstream::uv_buf_t;
 use crate::log::{LOGLVL_DBG, g_min_log_level, logmsg};
 use crate::memory::{ARENA_BLOCK_SIZE, alloc_block, free_block};
 use std::ffi::{c_char, c_int, c_void};
+use crate::os::fs::{UV_ENOBUFS, UV_EOF};
 use std::ptr;
-
-const UV_EOF: isize = -4095;
-#[cfg(windows)]
-const UV_ENOBUFS: isize = -4060;
-#[cfg(not(windows))]
-const UV_ENOBUFS: isize = -105;
 
 pub type RStream = c_void;
 pub type stream_read_cb = Option<
@@ -165,9 +160,9 @@ unsafe extern "C" fn read_cb(uvstream: *mut uv_stream_t, cnt: isize, _buf: *cons
         let stream = *uvstream.cast::<*mut RStream>();
 
         if cnt <= 0 {
-            if cnt == UV_ENOBUFS || cnt == 0 {
+            if cnt == UV_ENOBUFS as isize || cnt == 0 {
                 return;
-            } else if cnt == UV_EOF && uv_handle_get_type(uvstream.cast()) == UV_TTY {
+            } else if cnt == UV_EOF as isize && uv_handle_get_type(uvstream.cast()) == UV_TTY {
                 invoke_read_cb(stream, true);
             } else {
                 if g_min_log_level <= LOGLVL_DBG {

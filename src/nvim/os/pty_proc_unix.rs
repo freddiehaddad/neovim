@@ -76,14 +76,11 @@ mod unix_impl {
     #[cfg(not(target_os = "linux"))]
     type speed_t = c_ulong;
 
-    const LOGLVL_ERR: c_int = 4;
+    use crate::fileio::EINTR;
+    use crate::log::LOGLVL_ERR;
+    use crate::os::signal::{SIGHUP, SIGINT, SIGKILL, SIGQUIT, SIGTERM};
 
-    const SIGHUP: c_int = 1;
-    const SIGINT: c_int = 2;
-    const SIGQUIT: c_int = 3;
-    const SIGKILL: c_int = 9;
     const SIGALRM: c_int = 14;
-    const SIGTERM: c_int = 15;
     #[cfg(target_os = "linux")]
     const SIGCHLD: c_int = 17;
     #[cfg(not(target_os = "linux"))]
@@ -102,7 +99,6 @@ mod unix_impl {
     #[cfg(not(target_os = "linux"))]
     const O_NONBLOCK: c_int = 0x0004;
 
-    const EINTR: c_int = 4;
     const POLLIN: i16 = 1;
 
     const WNOHANG: c_int = 1;

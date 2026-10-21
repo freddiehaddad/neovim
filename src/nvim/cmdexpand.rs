@@ -901,8 +901,7 @@ const kOptWopFlagTagfile: c_uint = 0x02;
 const kOptWopFlagPum: c_uint = 0x04;
 const kOptWopFlagExacttext: c_uint = 0x08;
 
-const kOptWimFlagNoselect: c_int = 0x10;
-const kOptWimFlagNoinsert: c_int = 0x20;
+use crate::ex_getln::{kOptWimFlagNoinsert, kOptWimFlagNoselect};
 
 pub(crate) const kOptBoFlagWildmode: c_uint = 0x80000;
 
@@ -2172,8 +2171,8 @@ pub unsafe extern "C" fn showmatches(
         let mut numMatches: c_int = 0;
         let mut matches: *mut *mut c_char = ptr::null_mut();
         let showtail: bool;
-        let noselect = (wim_flags_arg & kOptWimFlagNoselect) != 0;
-        let noinsert = (wim_flags_arg & kOptWimFlagNoinsert) != 0;
+        let noselect = (wim_flags_arg & c_int::from(kOptWimFlagNoselect)) != 0;
+        let noinsert = (wim_flags_arg & c_int::from(kOptWimFlagNoinsert)) != 0;
         let cmdline_unchanged = noselect || noinsert;
 
         if (*xp).xp_numfiles == -1 {

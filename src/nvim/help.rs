@@ -45,7 +45,7 @@ pub(crate) const TAG_NO_TAGFUNC: c_int = 256;
 
 pub(crate) const kOptIskeyword: OptIndex = 155;
 
-const kSpecialVarNull: i64 = 0;
+use crate::eval::funcs::kSpecialVarNull;
 
 /// `:help`: open a read-only window on a help file (`ex_help`).
 #[unsafe(no_mangle)]
@@ -573,7 +573,7 @@ pub unsafe extern "C" fn ex_helptags(eap: *mut exarg_T) {
                     v_type: VarType::VAR_SPECIAL,
                     v_lock: 0,
                     vval: TypvalVval {
-                        v_number: kSpecialVarNull,
+                        v_special: kSpecialVarNull,
                     },
                 }
             } else {

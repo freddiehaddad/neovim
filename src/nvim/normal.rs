@@ -1579,10 +1579,10 @@ pub unsafe extern "C" fn init_normal_cmds() {
 
 /// True if command `cmdchar` has any of the given NV_XX `flags`.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nv_is(cmdchar: c_int, flags: c_int) -> bool {
+pub unsafe extern "C" fn nv_is(cmdchar: c_int, flags: u16) -> bool {
     unsafe {
         let idx = find_command(cmdchar);
-        idx >= 0 && (c_int::from(nv_cmds[idx as usize].cmd_flags) & flags) != 0
+        idx >= 0 && (nv_cmds[idx as usize].cmd_flags & flags) != 0
     }
 }
 

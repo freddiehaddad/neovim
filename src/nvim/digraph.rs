@@ -60,7 +60,6 @@ pub(crate) const kBoolVarFalse: c_int = 0;
 pub(crate) const kBoolVarTrue: c_int = 1;
 
 const KEYMAP_LOADED: i16 = 2;
-const B_IMODE_LMAP: c_int = 1;
 
 const KMAP_MAXLEN: usize = 20;
 const KMAP_LLEN: usize = 200;
@@ -2373,7 +2372,7 @@ pub unsafe extern "C" fn get_keymap_str(
     len: c_int,
 ) -> c_int {
     unsafe {
-        if (*(*wp).w_buffer).b_p_iminsert != i64::from(B_IMODE_LMAP) {
+        if (*(*wp).w_buffer).b_p_iminsert != crate::ex_cmds::B_IMODE_LMAP {
             return 0;
         }
 

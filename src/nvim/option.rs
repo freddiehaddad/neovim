@@ -471,7 +471,6 @@ const kOptVeFlagNoneU: c_uint = 0x20;
 
 pub(crate) const SB_MAX: OptInt = 1_000_000;
 const MAX_NUMBERWIDTH: OptInt = 20;
-const TABSTOP_MAX: OptInt = 9999;
 const MAX_MCO: OptInt = 6;
 
 const B_IMODE_LAST: OptInt = 1;
@@ -3965,7 +3964,7 @@ unsafe fn validate_num_option(
             kOptTabstop => {
                 if value < 1 {
                     return e_positive.as_ptr();
-                } else if value > TABSTOP_MAX {
+                } else if value > OptInt::from(crate::indent::TABSTOP_MAX) {
                     return e_invarg.as_ptr();
                 }
             }
