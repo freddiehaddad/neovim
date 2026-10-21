@@ -73,15 +73,7 @@ pub struct keyvalue_T {
 
 unsafe extern "C" {
     pub(crate) fn snprintf(s: *mut c_char, maxlen: usize, format: *const c_char, ...) -> c_int;
-    #[link_name = "qsort"]
-    fn c_qsort(
-        base: *mut c_void,
-        nmemb: usize,
-        size: usize,
-        compar: Option<unsafe extern "C" fn(*const c_void, *const c_void) -> c_int>,
-    );
     pub fn strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> c_double;
-    pub fn strtoll(nptr: *const c_char, endptr: *mut *mut c_char, base: c_int) -> c_longlong;
     pub fn strcoll(s1: *const c_char, s2: *const c_char) -> c_int;
     pub fn setlocale(category: c_int, locale: *const c_char) -> *mut c_char;
     #[link_name = "gettext"]
@@ -348,8 +340,60 @@ pub unsafe fn qsort(
     size: usize,
     compar: unsafe extern "C" fn(*const c_void, *const c_void) -> c_int,
 ) {
-    unsafe {
-        c_qsort(base, nmemb, size, Some(compar));
+    if nmemb < 2 || size == 0 {
+        return;
+    }
+    let bytes = base.cast::<u8>();
+    let swap_elems = |i: usize, j: usize| {
+        if i != j {
+            unsafe {
+                ptr::swap_nonoverlapping(bytes.add(i * size), bytes.add(j * size), size);
+            }
+        }
+    };
+    let sift_down = |mut root: usize, end: usize| {
+        loop {
+            let left = 2 * root + 1;
+            if left >= end {
+                break;
+            }
+            let mut swap_idx = root;
+            unsafe {
+                if compar(
+                    bytes.add(swap_idx * size).cast(),
+                    bytes.add(left * size).cast(),
+                ) < 0
+                {
+                    swap_idx = left;
+                }
+                let right = left + 1;
+                if right < end
+                    && compar(
+                        bytes.add(swap_idx * size).cast(),
+                        bytes.add(right * size).cast(),
+                    ) < 0
+                {
+                    swap_idx = right;
+                }
+            }
+            if swap_idx == root {
+                break;
+            }
+            swap_elems(root, swap_idx);
+            root = swap_idx;
+        }
+    };
+
+    let mut start = nmemb / 2;
+    while start > 0 {
+        start -= 1;
+        sift_down(start, nmemb);
+    }
+    let mut end = nmemb;
+    while end > 1 {
+        end -= 1;
+        swap_elems(0, end);
+        sift_down(0, end);
     }
 }
 
@@ -488,6 +532,97 @@ pub unsafe fn strtoul(nptr: *const c_char, endptr: *mut *mut c_char, mut base: c
 #[inline]
 pub unsafe fn strtol(nptr: *const c_char, endptr: *mut *mut c_char, base: c_int) -> c_long {
     unsafe { strtoul(nptr, endptr, base) as c_long }
+}
+
+#[inline]
+pub unsafe fn strtoll(
+    nptr: *const c_char,
+    endptr: *mut *mut c_char,
+    mut base: c_int,
+) -> c_longlong {
+    unsafe {
+        let mut s = nptr;
+        while matches!(*s as u8, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c) {
+            s = s.add(1);
+        }
+        let neg = if *s == b'-' as c_char {
+            s = s.add(1);
+            true
+        } else {
+            if *s == b'+' as c_char {
+                s = s.add(1);
+            }
+            false
+        };
+        if (base == 0 || base == 16)
+            && *s == b'0' as c_char
+            && matches!(*s.add(1) as u8, b'x' | b'X')
+            && (*s.add(2) as u8).is_ascii_hexdigit()
+        {
+            s = s.add(2);
+            base = 16;
+        } else if base == 0 {
+            base = if *s == b'0' as c_char { 8 } else { 10 };
+        }
+        let radix = base as u32;
+        let cutoff = if neg {
+            (c_longlong::MAX as u64) + 1
+        } else {
+            c_longlong::MAX as u64
+        };
+        let mut acc: u64 = 0;
+        let mut any = false;
+        let mut overflow = false;
+        loop {
+            let ch = *s as u8 as char;
+            let Some(digit) = ch.to_digit(radix) else {
+                break;
+            };
+            any = true;
+            if !overflow {
+                if let Some(next) = acc
+                    .checked_mul(u64::from(radix))
+                    .and_then(|v| v.checked_add(u64::from(digit)))
+                    && next <= cutoff
+                {
+                    acc = next;
+                } else {
+                    overflow = true;
+                }
+            }
+            s = s.add(1);
+        }
+        if !endptr.is_null() {
+            *endptr = if any { s.cast_mut() } else { nptr.cast_mut() };
+        }
+        if overflow {
+            if neg {
+                c_longlong::MIN
+            } else {
+                c_longlong::MAX
+            }
+        } else if neg {
+            acc.wrapping_neg() as c_longlong
+        } else {
+            acc as c_longlong
+        }
+    }
+}
+
+#[inline]
+fn write_fmt_to_c_buf(dst: &mut [c_char], args: std::fmt::Arguments<'_>) -> usize {
+    use std::io::Write;
+    if dst.is_empty() {
+        return 0;
+    }
+    let max_bytes = dst.len() - 1;
+    let buf: &mut [u8] =
+        unsafe { std::slice::from_raw_parts_mut(dst.as_mut_ptr().cast::<u8>(), max_bytes) };
+    let mut cursor = std::io::Cursor::new(buf);
+    let _ = cursor.write_fmt(args);
+    let written = cursor.position() as usize;
+    dst[written] = NUL;
+    written
 }
 
 #[inline]
@@ -2332,12 +2467,10 @@ unsafe fn vim_vsnprintf_typval_inner(
                                     ) as usize;
                                 }
                                 b'd' => {
-                                    str_arg_l += snprintf(
-                                        tmp.as_mut_ptr().add(str_arg_l),
-                                        tmp.len() - str_arg_l,
-                                        c"%lld".as_ptr(),
-                                        arg as c_longlong,
-                                    ) as usize;
+                                    str_arg_l += write_fmt_to_c_buf(
+                                        &mut tmp[str_arg_l..],
+                                        format_args!("{arg}"),
+                                    );
                                 }
                                 b'b' | b'B' => {
                                     let mut bits = 64usize;
@@ -2357,20 +2490,29 @@ unsafe fn vim_vsnprintf_typval_inner(
                                         str_arg_l += 1;
                                     }
                                 }
+                                b'o' => {
+                                    str_arg_l += write_fmt_to_c_buf(
+                                        &mut tmp[str_arg_l..],
+                                        format_args!("{uarg:o}"),
+                                    );
+                                }
+                                b'x' => {
+                                    str_arg_l += write_fmt_to_c_buf(
+                                        &mut tmp[str_arg_l..],
+                                        format_args!("{uarg:x}"),
+                                    );
+                                }
+                                b'X' => {
+                                    str_arg_l += write_fmt_to_c_buf(
+                                        &mut tmp[str_arg_l..],
+                                        format_args!("{uarg:X}"),
+                                    );
+                                }
                                 _ => {
-                                    let mut f = [
-                                        b'%' as c_char,
-                                        b'l' as c_char,
-                                        b'l' as c_char,
-                                        fmt_spec,
-                                        0,
-                                    ];
-                                    str_arg_l += snprintf(
-                                        tmp.as_mut_ptr().add(str_arg_l),
-                                        tmp.len() - str_arg_l,
-                                        f.as_mut_ptr(),
-                                        uarg as c_ulonglong,
-                                    ) as usize;
+                                    str_arg_l += write_fmt_to_c_buf(
+                                        &mut tmp[str_arg_l..],
+                                        format_args!("{uarg}"),
+                                    );
                                 }
                             }
 
@@ -2485,12 +2627,10 @@ unsafe fn vim_vsnprintf_typval_inner(
                                 if precision > max_prec {
                                     precision = max_prec;
                                 }
-                                l += snprintf(
-                                    format.as_mut_ptr().add(l),
-                                    format.len() - l,
-                                    c".%d".as_ptr(),
-                                    precision as c_int,
-                                ) as usize;
+                                l += write_fmt_to_c_buf(
+                                    &mut format[l..],
+                                    format_args!(".{}", precision as c_int),
+                                );
                             }
 
                             format[l] = if fmt_spec == b'F' as c_char {
@@ -3866,6 +4006,28 @@ mod tests {
             let s = c"9.1.0123";
             assert_eq!(strtoul(s.as_ptr(), &raw mut end, 10), 9);
             assert_eq!(*end as u8, b'.');
+            assert_eq!(
+                strtoll(c"  -9223372036854775808!".as_ptr(), &raw mut end, 10),
+                i64::MIN
+            );
+            assert_eq!(*end as u8, b'!');
+            assert_eq!(
+                strtoll(c"99999999999999999999999".as_ptr(), &raw mut end, 10),
+                i64::MAX
+            );
+            unsafe extern "C" fn cmp_i32(a: *const c_void, b: *const c_void) -> c_int {
+                let x = unsafe { *a.cast::<i32>() };
+                let y = unsafe { *b.cast::<i32>() };
+                x.cmp(&y) as c_int
+            }
+            let mut arr = [9i32, -3, 7, 0, -3, 12, 4, 1];
+            qsort(
+                arr.as_mut_ptr().cast(),
+                arr.len(),
+                size_of::<i32>(),
+                cmp_i32,
+            );
+            assert_eq!(arr, [-3, -3, 0, 1, 4, 7, 9, 12]);
             let mut tok_buf = *b"en_US\nde_DE\n\0";
             let mut saveptr: *mut c_char = ptr::null_mut();
             let t1 = strtok_r(

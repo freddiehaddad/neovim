@@ -38,7 +38,7 @@ use crate::mpack::rpc::{
     mpack_rpc_session_copy, mpack_rpc_session_init, mpack_rpc_session_struct_size,
     mpack_rpc_session_t,
 };
-use crate::strings::snprintf;
+use crate::strings::vim_snprintf;
 
 const LUA_REFNIL: c_int = -1;
 
@@ -714,7 +714,7 @@ unsafe extern "C-unwind" fn lmpack_unparse_enter(
                 }
                 _ => {
                     let mut errmsg = [0 as c_char; 50];
-                    snprintf(
+                    vim_snprintf!(
                         errmsg.as_mut_ptr(),
                         50,
                         c"can't serialize object of type %d".as_ptr(),
