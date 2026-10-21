@@ -8,17 +8,17 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::deprecated::DecorInline;
 use crate::api::extmark::{
     ExtmarkInfoArray, ExtmarkType, kExtmarkNone, kSHUIWatched, kSHUIWatchedOverlay,
 };
 use crate::api::private::validate::Error;
+use crate::buffer::{MAXLNUM, buf_T, kExtmarkNoUndo};
 use crate::buffer_updates::buf_updates_send_splice;
+use crate::cursor::{colnr_T, linenr_T, pos_T};
 use crate::decoration::{
-    buf_decor_remove, buf_put_decor, buf_signcols_count_range, decor_free, decor_redraw,
-    decor_state_invalidate, decor_type_flags,
+    DecorInline, buf_decor_remove, buf_put_decor, buf_signcols_count_range, decor_free,
+    decor_redraw, decor_state_invalidate, decor_type_flags,
 };
-use crate::eval::deprecated::{buf_T, pos_T};
 use crate::globals::*;
 use crate::kvec::KVec;
 use crate::map::{
@@ -42,7 +42,6 @@ use std::ffi::c_int;
 use std::ptr;
 
 use crate::api::buffer::{bcount_t, kExtmarkUndo};
-use crate::cursor::{colnr_T, linenr_T};
 pub type ExtmarkOp = c_int;
 pub type UndoObjectType = c_int;
 pub type TriState = c_int;
@@ -107,7 +106,6 @@ pub struct ExtmarkUndoObject {
 }
 
 use crate::api::vim::{kNone, kTrue};
-use crate::buffer::{MAXLNUM, kExtmarkNoUndo};
 
 #[inline]
 unsafe fn kv_push_val<T>(v: *mut KVec<T>, val: T) {

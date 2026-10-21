@@ -7,7 +7,6 @@
     clippy::missing_safety_doc
 )]
 
-use crate::api::tabpage::win_T;
 use crate::autocmd::{EVENT_MODECHANGED, EVENT_SAFESTATE, apply_autocmds, has_event};
 use crate::drawscreen::{kOptVeFlagBlock, setcursor, update_screen};
 use crate::eval::typval::{tv_dict_add_str, tv_dict_set_keys_readonly};
@@ -27,6 +26,7 @@ use crate::option::get_ve_flags;
 use crate::os::input::{input_available, input_get, os_breakcheck};
 use crate::strings::{strcmp, strcpy, vim_snprintf};
 use crate::ui::ui_flush;
+use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 

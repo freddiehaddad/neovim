@@ -9,18 +9,16 @@
 )]
 
 use crate::api::command::{EX_NOSPC, EX_XFILE, exarg_T};
-use crate::api::tabpage::{lpos_T, win_T};
 use crate::autocmd::{EVENT_SYNTAX, apply_autocmds};
-use crate::buffer::{MAXLNUM, buf_get_changedtick};
+use crate::buffer::{MAXLNUM, buf_T, buf_get_changedtick};
 use crate::charset::{
     ascii_isalpha, ascii_isdigit, ascii_iswhite, check_isopt, getdigits_int, getdigits_int32,
     parse_isopt, skiptowhite, skipwhite, str_foldcase, vim_isprintc, vim_iswordp_buf,
 };
 use crate::cmdexpand::{EXPAND_HIGHLIGHT, EXPAND_NOTHING, EXPAND_SYNTAX, HLF_D};
-use crate::cursor::{colnr_T, linenr_T};
+use crate::cursor::{colnr_T, linenr_T, lpos_T, pos_T};
 use crate::drawscreen::{UPD_NOT_VALID, UPD_SOME_VALID, redraw_curbuf_later, redraw_later};
 use crate::errors::*;
-use crate::eval::deprecated::{buf_T, pos_T, syn_time_T, synblock_T};
 use crate::eval::vars::{do_unlet, get_var_value, set_internal_string_var};
 use crate::ex_docmd::{
     check_nextcmd, do_cmdline_cmd, ends_excmd, expand_filename, find_nextcmd, separate_nextcmd,
@@ -68,9 +66,68 @@ use crate::strings::{
     strncmp, strnicmp_c, strpbrk, vim_snprintf, vim_strchr, vim_strnsave_up, vim_strsave_up,
     xstrnsave,
 };
-use std::ffi::{c_char, c_int, c_void};
+use crate::window::win_T;
+use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::mem::{offset_of, size_of};
 use std::ptr;
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct syn_time_T {
+    pub total: u64,
+    pub slowest: u64,
+    pub count: c_int,
+    pub match_: c_int,
+}
+
+#[repr(C)]
+pub struct synblock_T {
+    pub b_keywtab: hashtab_T,
+    pub b_keywtab_ic: hashtab_T,
+    pub b_syn_error: bool,
+    pub b_syn_slow: bool,
+    pub b_syn_ic: c_int,
+    pub b_syn_foldlevel: c_int,
+    pub b_syn_spell: c_int,
+    pub b_syn_patterns: garray_T,
+    pub b_syn_clusters: garray_T,
+    pub b_spell_cluster_id: c_int,
+    pub b_nospell_cluster_id: c_int,
+    pub b_syn_containedin: c_int,
+    pub b_syn_sync_flags: c_int,
+    pub b_syn_sync_id: i16,
+    pub b_syn_sync_minlines: i32,
+    pub b_syn_sync_maxlines: i32,
+    pub b_syn_sync_linebreaks: i32,
+    pub b_syn_linecont_pat: *mut c_char,
+    pub b_syn_linecont_prog: *mut regprog_T,
+    pub b_syn_linecont_time: syn_time_T,
+    pub b_syn_linecont_ic: c_int,
+    pub b_syn_topgrp: c_int,
+    pub b_syn_conceal: c_int,
+    pub b_syn_folditems: c_int,
+    pub b_sst_array: *mut c_void,
+    pub b_sst_len: c_int,
+    pub b_sst_first: *mut c_void,
+    pub b_sst_search: *mut c_void,
+    pub b_sst_firstfree: *mut c_void,
+    pub b_sst_freecount: c_int,
+    pub b_sst_check_lnum: i32,
+    pub b_sst_lasttick: u64,
+    pub b_idlist_cache: *mut c_void,
+    pub b_langp: garray_T,
+    pub b_spell_ismw: [bool; 256],
+    pub b_spell_ismw_mb: *mut c_char,
+    pub b_p_spc: *mut c_char,
+    pub b_cap_prog: *mut c_void,
+    pub b_p_spf: *mut c_char,
+    pub b_p_spl: *mut c_char,
+    pub b_p_spo: *mut c_char,
+    pub b_p_spo_flags: c_uint,
+    pub b_cjk: c_int,
+    pub b_syn_chartab: [u64; 4],
+    pub b_syn_isk: *mut c_char,
+}
 
 use crate::ex_getln::disptick_T;
 

@@ -9,19 +9,16 @@
 )]
 
 use crate::api::command::exarg_T;
-use crate::api::tabpage::win_T;
 use crate::charset::{
     ascii_isdigit, char2cells, getdigits_int, is_special, skiptowhite, skipwhite,
 };
-use crate::clipboard::{VarType, list_T, typval_T};
 use crate::drawscreen::status_redraw_curbuf;
 use crate::errors::*;
-use crate::eval::deprecated::EvalFuncData;
 use crate::eval::eval_to_string;
 use crate::eval::typval::{
-    tv_check_for_opt_bool_arg, tv_get_bool, tv_get_string_buf_chk, tv_get_string_chk,
-    tv_list_alloc, tv_list_alloc_ret, tv_list_append_list, tv_list_append_string, tv_list_first,
-    tv_list_len,
+    EvalFuncData, VarType, list_T, tv_check_for_opt_bool_arg, tv_get_bool, tv_get_string_buf_chk,
+    tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret, tv_list_append_list,
+    tv_list_append_string, tv_list_first, tv_list_len, typval_T,
 };
 use crate::ex_docmd::{do_cmdline_cmd, getline_equal};
 use crate::ex_getln::putcmdline;
@@ -38,6 +35,7 @@ use crate::option_vars::*;
 use crate::os::input::fast_breakcheck;
 use crate::runtime::{getsourceline, source_runtime};
 use crate::strings::{gettext, vim_snprintf};
+use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 

@@ -25,13 +25,17 @@ use crate::api::private::validate::{
 };
 use crate::api::tabpage::{Buffer, Tabpage, Window};
 use crate::api::vimscript::{KeyDict_exec_opts, exec_impl};
-use crate::decoration::{clear_virttext, decor_find_virttext};
+use crate::cursor::colnr_T;
+use crate::decoration::{
+    DECOR_ID_INVALID, DecorInline, DecorVirtText, DecorVirtTextData, clear_virttext,
+    decor_find_virttext, kHlModeUnknown, kVPosEndOfLine,
+};
 use crate::eval::vars::get_globvar_dict;
 use crate::extmark::extmark_set;
 use crate::globals::*;
 use crate::highlight::OptionalKeys;
 use crate::highlight_group::{syn_check_group, syn_get_final_id, syn_id2attr, syn_name2id};
-use crate::kvec::KVec;
+use crate::kvec::StringBuilder;
 use crate::lua::converter::Boolean;
 use crate::lua::executor::{kRetObject, nlua_exec};
 use crate::map_glyph_cache::NvimString;
@@ -42,81 +46,17 @@ use crate::memory::{Arena, xmalloc, xrealloc};
 use crate::message::{emsg, msg, msg_end, msg_ext_no_fast};
 use crate::msgpack_rpc::packer::Integer;
 use crate::option::{
-    OptScope, find_option, get_option_info, get_option_value_for, option_has_scope,
+    OPT_GLOBAL, OPT_LOCAL, OptScope, find_option, get_option_info, get_option_value_for,
+    kOptInvalid, kOptScopeBuf, kOptScopeGlobal, kOptScopeWin, option_has_scope,
     set_option_value_for,
 };
-use crate::optionstr::OptIndex;
 use crate::window::{win_setheight_win, win_setwidth_win};
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
-use crate::cursor::colnr_T;
-pub type VirtTextPos = c_int;
-pub type VirtLineOverflow = c_int;
-pub type StringBuilder = KVec<c_char>;
-
 const MAXLNUM: i64 = 0x7fffffff;
 const MAXCOL: i64 = 0x7fffffff;
-pub(crate) const DECOR_ID_INVALID: u32 = u32::MAX;
 const LINE_BUFFER_MIN_SIZE: usize = 4096;
-
-pub(crate) const OPT_GLOBAL: c_int = 0x01;
-pub(crate) const OPT_LOCAL: c_int = 0x02;
-
-pub(crate) const kOptScopeGlobal: OptScope = 0;
-pub(crate) const kOptScopeWin: OptScope = 1;
-pub(crate) const kOptScopeBuf: OptScope = 2;
-
-pub(crate) const kOptInvalid: OptIndex = -1;
-
-pub(crate) const kHlModeUnknown: u8 = 0;
-pub(crate) const kVPosEndOfLine: VirtTextPos = 0;
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct DecorInline {
-    pub ext: bool,
-    pub data: DecorInlineData,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct VirtTextChunk {
-    pub text: *mut c_char,
-    pub hl_id: c_int,
-}
-
-pub type VirtText = KVec<VirtTextChunk>;
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct VirtLine {
-    pub line: VirtText,
-    pub flags: c_int,
-    pub overflow: VirtLineOverflow,
-}
-
-pub type VirtLines = KVec<VirtLine>;
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub union DecorVirtTextData {
-    pub virt_text: VirtText,
-    pub virt_lines: VirtLines,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct DecorVirtText {
-    pub flags: u8,
-    pub hl_mode: u8,
-    pub priority: u16,
-    pub width: c_int,
-    pub col: c_int,
-    pub pos: VirtTextPos,
-    pub data: DecorVirtTextData,
-    pub next: *mut DecorVirtText,
-}
 
 #[repr(C)]
 pub struct KeyDict_empty {

@@ -9,32 +9,22 @@
 )]
 
 #[cfg(not(test))]
-use crate::api::options::CtxSwitch;
-#[cfg(not(test))]
-use crate::api::private::helpers::TryState;
-#[cfg(not(test))]
 use crate::api::private::helpers::{
-    api_clear_error, dict_check_writable, find_buffer_by_handle, find_tab_by_handle,
+    TryState, api_clear_error, dict_check_writable, find_buffer_by_handle, find_tab_by_handle,
     find_window_by_handle, try_enter, try_leave, tv_dict_is_watched,
 };
 #[cfg(not(test))]
 use crate::api::private::validate::{Error, ErrorType};
 #[cfg(not(test))]
-use crate::api::tabpage::win_T;
+use crate::buffer::buf_T;
 #[cfg(not(test))]
-use crate::clipboard::typval_T;
-#[cfg(not(test))]
-use crate::context::{ctx_restore, ctx_switch, handle_get_buffer, handle_get_window};
+use crate::context::{CtxSwitch, ctx_restore, ctx_switch, handle_get_buffer, handle_get_window};
 #[cfg(not(test))]
 use crate::cursor::linenr_T;
 #[cfg(not(test))]
-use crate::eval::decode::dict_T;
-#[cfg(not(test))]
-use crate::eval::deprecated::buf_T;
-#[cfg(not(test))]
 use crate::eval::typval::{
-    tv_clear, tv_copy, tv_dict_add, tv_dict_find, tv_dict_item_alloc_len, tv_dict_item_remove,
-    tv_dict_watcher_notify,
+    dict_T, tv_clear, tv_copy, tv_dict_add, tv_dict_find, tv_dict_item_alloc_len,
+    tv_dict_item_remove, tv_dict_watcher_notify, typval_T,
 };
 #[cfg(not(test))]
 use crate::eval::vars::{before_set_vvar, get_globvar_dict, get_vimvar_dict};
@@ -73,7 +63,7 @@ use crate::map_glyph_cache::NvimString;
 #[cfg(not(test))]
 use crate::mbyte::{
     convert_setup, convert_setup_ext, enc_canonize, enc_skip, mb_stricmp, mb_utf_index_to_bytes,
-    mb_utflen, string_convert, utf_cp_bounds_len, utf_ptr2len_len,
+    mb_utflen, string_convert, utf_cp_bounds_len, utf_ptr2len_len, vimconv_T,
 };
 #[cfg(not(test))]
 use crate::memline::{ml_get_buf, ml_get_buf_len};
@@ -84,20 +74,17 @@ use crate::message::str2special;
 #[cfg(not(test))]
 use crate::msgpack_rpc::packer::handle_T;
 #[cfg(not(test))]
-use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
+use crate::regexp::{regmatch_T, regprog_T, vim_regcomp, vim_regexec, vim_regfree};
 #[cfg(not(test))]
 use crate::runtime::script_autoload;
 #[cfg(not(test))]
-use crate::window::win_find_tabpage;
+use crate::window::{win_T, win_find_tabpage};
 #[cfg(not(test))]
 use std::ffi::CStr;
 #[cfg(not(test))]
 use std::ffi::c_char;
 use std::ffi::c_int;
 use std::ptr;
-
-#[cfg(not(test))]
-use crate::regexp::regprog_T;
 
 #[cfg(not(test))]
 const NUL: c_char = 0;
@@ -147,11 +134,6 @@ const kCtxKeepDirs: c_int = 2;
 const kCtxNoDisplay: c_int = 4;
 #[cfg(not(test))]
 const kCtxValidate: c_int = 16;
-
-#[cfg(not(test))]
-use crate::mbyte::vimconv_T;
-#[cfg(not(test))]
-use crate::regexp::regmatch_T;
 
 static REGEX_META: [luaL_Reg; 5] = [
     luaL_Reg {

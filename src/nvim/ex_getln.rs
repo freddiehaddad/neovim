@@ -11,14 +11,13 @@
 use crate::api::autocmd::{event_T, kCallbackNone};
 use crate::api::command::{ADDR_LINES, CMOD_NOSWAPFILE, EX_PREVIEW, EX_RANGE, cmdmod_T, exarg_T};
 use crate::api::extmark::nvim_create_namespace;
-use crate::api::options::{CtxSwitch, SID_NONE};
+use crate::api::options::SID_NONE;
 use crate::api::private::helpers::{
     HLF_E, TryState, add_c, api_clear_error, api_free_array, arena_array, array_obj,
     cbuf_as_string, cstr_as_obj, cstr_as_string, error_init, error_set, integer_obj, string_obj,
     try_enter, try_leave,
 };
 use crate::api::private::validate::{Array, Object};
-use crate::api::tabpage::win_T;
 use crate::api::vim::{BACKWARD, REMAP_NONE, nvim_create_buf};
 use crate::autocmd::{
     DOCMD_NOWAIT, EVENT_CMDLINECHANGED, EVENT_CMDLINEENTER, EVENT_CMDLINELEAVE,
@@ -26,13 +25,13 @@ use crate::autocmd::{
     unblock_autocmds,
 };
 use crate::buffer::{
-    DOBUF_FIRST, DOBUF_GOTO, MAXLNUM, buf_clear, buf_valid, buflist_findnr, do_buffer, kUIMessages,
+    DOBUF_FIRST, DOBUF_GOTO, MAXLNUM, buf_T, buf_clear, buf_valid, buflist_findnr, do_buffer,
+    kUIMessages,
 };
 use crate::charset::{
     ascii_isalpha, ascii_isdigit, ascii_isspace, ascii_iswhite, is_special, skipwhite, vim_isIDc,
     vim_isprintc, vim_iswordc, vim_str2nr,
 };
-use crate::clipboard::{TypvalVval, VarType, typval_T};
 use crate::cmdexpand::{
     CmdlineColorChunk, CmdlineInfo, ColoredCmdline, Ctrl_N, Ctrl_P, EXPAND_NOTHING,
     EXPAND_UNSUCCESSFUL, ExpandCleanup, ExpandInit, ExpandOne, SEARCH_NOOF, SEARCH_OPT,
@@ -47,8 +46,8 @@ use crate::cmdhist::{
     HIST_INVALID, HIST_SEARCH, add_to_history, get_hisidx, get_hislen, get_histentry,
     hist_char2type, init_history,
 };
-use crate::context::{ctx_restore, ctx_switch, kCtxKeepDirs};
-use crate::cursor::{clearpos, coladvance, equalpos, gchar_cursor, get_cursor_pos_ptr, lt};
+use crate::context::{CtxSwitch, ctx_restore, ctx_switch, kCtxKeepDirs};
+use crate::cursor::{clearpos, coladvance, equalpos, gchar_cursor, get_cursor_pos_ptr, lt, pos_T};
 use crate::digraph::{do_digraph, get_digraph, kBoolVarFalse, kBoolVarTrue};
 use crate::drawscreen::{
     UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID, redraw_all_later, redraw_custom_title_later,
@@ -57,13 +56,13 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 use crate::eval::buffer::varnumber_T;
-use crate::eval::deprecated::{Callback, EvalFuncData, buf_T, pos_T};
 use crate::eval::typval::{
-    callback_free, tv_check_for_opt_number_arg, tv_check_for_string_arg, tv_clear, tv_copy,
-    tv_dict_add_bool, tv_dict_add_nr, tv_dict_add_str, tv_dict_find, tv_dict_get_callback,
-    tv_dict_get_number, tv_dict_get_string_buf_chk, tv_dict_set_keys_readonly, tv_get_number,
-    tv_get_number_chk, tv_get_string, tv_get_string_buf_chk, tv_get_string_chk, tv_list_first,
-    tv_list_free, tv_list_last, tv_list_len,
+    Callback, EvalFuncData, TypvalVval, VarType, callback_free, tv_check_for_opt_number_arg,
+    tv_check_for_string_arg, tv_clear, tv_copy, tv_dict_add_bool, tv_dict_add_nr, tv_dict_add_str,
+    tv_dict_find, tv_dict_get_callback, tv_dict_get_number, tv_dict_get_string_buf_chk,
+    tv_dict_set_keys_readonly, tv_get_number, tv_get_number_chk, tv_get_string,
+    tv_get_string_buf_chk, tv_get_string_chk, tv_list_first, tv_list_free, tv_list_last,
+    tv_list_len, typval_T,
 };
 use crate::eval::vars::{get_globvar_dict, heredoc_get, set_vim_var_char};
 use crate::eval::window::viewstate_T;
@@ -172,7 +171,7 @@ use crate::viml::parser::parser::{
 };
 use crate::window::{
     WSP_BOT, close_windows, global_stl_height, lastwin_nofloating,
-    may_trigger_win_scrolled_resized, win_enter, win_size_restore, win_size_save, win_split,
+    may_trigger_win_scrolled_resized, win_T, win_enter, win_size_restore, win_size_save, win_split,
 };
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;

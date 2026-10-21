@@ -9,10 +9,10 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::tabpage::ScreenGrid;
 use crate::globals::*;
 use crate::grid::{
-    kOptRdbFlagInvalid, sattr_T, schar_T, schar_from_ascii, schar_from_buf, schar_from_char,
+    ScreenGrid, kOptRdbFlagInvalid, sattr_T, schar_T, schar_from_ascii, schar_from_buf,
+    schar_from_char,
 };
 use crate::highlight::hl_blend_attrs;
 use crate::highlight_group::{syn_check_group, syn_id2attr};

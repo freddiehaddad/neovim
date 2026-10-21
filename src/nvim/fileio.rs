@@ -10,7 +10,7 @@
 )]
 
 use crate::api::command::{CMOD_LOCKMARKS, exarg_T};
-use crate::api::options::{CtxSwitch, IOSIZE, bufref_T};
+use crate::api::options::IOSIZE;
 use crate::api::private::helpers::{HLF_E, cstr_as_obj};
 use crate::autocmd::{
     EVENT_BUFADD, EVENT_BUFDELETE, EVENT_BUFNEW, EVENT_BUFNEWFILE, EVENT_BUFREADCMD,
@@ -21,22 +21,21 @@ use crate::autocmd::{
 };
 use crate::buffer::{
     BF_CHECK_RO, BF_NEW, BF_NOTEDITED, BLN_DUMMY, MAXLNUM, MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC,
-    NOTDONE, SEA_QUIT, bt_dontwrite, bt_nofilename, bt_normal, buf_contents_changed, buf_is_empty,
-    buflist_new, bufref_valid, do_modelines, kShmFileinfo, kShmRo, kUIMessages, set_bufref,
-    setfname, wipe_buffer,
+    NOTDONE, SEA_QUIT, bt_dontwrite, bt_nofilename, bt_normal, buf_T, buf_contents_changed,
+    buf_is_empty, buflist_new, bufref_T, bufref_valid, do_modelines, kShmFileinfo, kShmRo,
+    kUIMessages, set_bufref, setfname, wipe_buffer,
 };
 use crate::buffer_updates::buf_updates_unload;
 use crate::change::{HLF_W, appended_lines_mark, save_file_ff, unchanged};
 #[cfg(windows)]
 use crate::charset::vim_isfilec;
 use crate::charset::{EOL_MAC, ascii_isdigit, ascii_isspace, skipdigits};
-use crate::context::{ctx_restore, ctx_switch};
-use crate::cursor::{check_cursor, check_cursor_lnum, colnr_T, linenr_T};
+use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
+use crate::cursor::{check_cursor, check_cursor_lnum, colnr_T, linenr_T, pos_T};
 use crate::dialog::do_dialog;
 use crate::diff::diff_invalidate;
 use crate::drawscreen::{UPD_NOT_VALID, redraw_curbuf_later, status_redraw_all};
 use crate::errors::*;
-use crate::eval::deprecated::{buf_T, pos_T};
 use crate::eval::fs::{CheckItem, FileInfo, SEEK_SET};
 use crate::eval::vars::{
     BAD_DROP, BAD_KEEP, FORCE_BIN, FORCE_NOBIN, VV_FCS_CHOICE, VV_FCS_REASON, VV_WARNINGMSG,
@@ -224,13 +223,13 @@ static mut VIM_TEMPDIR_DP: *mut c_void = ptr::null_mut();
 
 use crate::api::autocmd::kCallbackNone;
 use crate::api::buffer::{NL, NUL};
-use crate::api::deprecated::OPT_LOCAL;
 use crate::api::vim::MAXPATHL;
 use crate::arglist::ML_EMPTY;
 use crate::eval::funcs::VIM_WARNING;
 use crate::ex_cmds::{BL_FIX, BL_WHITE, kShmOverall};
 use crate::ex_docmd::UNDO_HASH_SIZE;
 use crate::math::{FAIL, OK};
+use crate::option::OPT_LOCAL;
 
 unsafe extern "C" {
 

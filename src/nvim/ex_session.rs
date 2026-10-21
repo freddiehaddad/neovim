@@ -9,16 +9,12 @@
 )]
 
 use crate::api::command::exarg_T;
-use crate::api::tabpage::{frame_T, tabpage_T, win_T};
 use crate::arglist::{aentry_T, alist_T, alist_name};
 use crate::autocmd::{EVENT_SESSIONWRITEPOST, EVENT_SESSIONWRITEPRE, apply_autocmds};
-use crate::buffer::{bt_help, bt_nofilename, bt_normal, bt_terminal, buflist_findnr};
+use crate::buffer::{bt_help, bt_nofilename, bt_normal, bt_terminal, buf_T, buflist_findnr};
 use crate::charset::ascii_isdigit;
-use crate::clipboard::VarType;
 use crate::errors::*;
-use crate::eval::decode::dictitem_T;
-use crate::eval::deprecated::{buf_T, fmark_T};
-use crate::eval::typval::tv_get_string;
+use crate::eval::typval::{VarType, dictitem_T, tv_get_string};
 use crate::eval::vars::{VV_THIS_SESSION, get_globvar_dict, set_vim_var_string};
 use crate::eval::{VAR_FLAVOUR_SESSION, var_flavour};
 use crate::ex_docmd::{open_exfile, vim_mkdir_emsg};
@@ -30,22 +26,22 @@ use crate::garray::garray_T;
 use crate::globals::*;
 use crate::hashtab::hashitem_empty;
 use crate::mapping::makemap;
+use crate::mark::fmark_T;
 use crate::mbyte::utfc_ptr2len;
 use crate::memory::{xfree, xmalloc, xmemcpyz};
 use crate::message::{emsg, semsg};
-use crate::option::{makefoldset, makeset};
+use crate::option::{OPT_GLOBAL, OPT_LOCAL, makefoldset, makeset};
 use crate::option_vars::*;
 use crate::os::env::home_replace_save;
 use crate::os::fs::{os_chdir, os_dirname, os_isdir};
 use crate::path::{add_pathsep, vim_FullName, vim_ispathsep};
 use crate::runtime::{DOSO_NONE, do_source};
 use crate::strings::{gettext, vim_strsave_escaped};
-use crate::window::tabpage_index;
+use crate::window::{frame_T, tabpage_T, tabpage_index, win_T};
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 use crate::api::buffer::NUL;
-use crate::api::deprecated::{OPT_GLOBAL, OPT_LOCAL};
 use crate::api::vim::MAXPATHL;
 use crate::api::win_config::FR_COL;
 use crate::drawscreen::FR_LEAF;

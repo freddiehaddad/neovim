@@ -5,31 +5,23 @@
 #[cfg(not(test))]
 use crate::api::private::converter::VAR_UNLOCKED;
 use crate::buffer::VAR_FIXED;
-use crate::clipboard::typval_T;
-#[cfg(not(test))]
-use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T};
 #[cfg(not(test))]
 use crate::errors::*;
-#[cfg(not(test))]
-use crate::eval::decode::{dict_T, dictitem_T};
-use crate::eval::deprecated::EvalFuncData;
 #[cfg(not(test))]
 use crate::eval::executor::blob_T;
 #[cfg(not(test))]
 use crate::eval::fs::K_LIST_LEN_UNKNOWN;
-#[cfg(not(test))]
-use crate::eval::tv_blob_set_ret;
+use crate::eval::typval::{EvalFuncData, tv_blob_len, tv_list_first, tv_list_len, typval_T};
 #[cfg(not(test))]
 use crate::eval::typval::{
-    TV_TRANSLATE, VAR_LOCKED, tv_blob_copy, tv_blob_get, tv_blob_remove,
-    tv_check_for_string_or_list_or_blob_arg, tv_clear, tv_copy, tv_dict_add_tv, tv_dict_alloc_ret,
-    tv_dict_copy, tv_dict_extend, tv_dict_item_remove, tv_dict_remove, tv_dict_unref, tv_equal,
-    tv_get_bool_chk, tv_get_number_chk, tv_get_string, tv_get_string_chk, tv_list_alloc_ret,
-    tv_list_append_owned_tv, tv_list_append_tv, tv_list_copy, tv_list_extend, tv_list_find,
-    tv_list_insert_tv, tv_list_item_remove, tv_list_remove, tv_list_reverse, tv_list_set_lock,
-    tv_list_set_ret, tv_list_unref, value_check_lock,
+    TV_TRANSLATE, TypvalVval, VAR_LOCKED, VarType, dict_T, dictitem_T, list_T, listitem_T,
+    tv_blob_copy, tv_blob_get, tv_blob_remove, tv_check_for_string_or_list_or_blob_arg, tv_clear,
+    tv_copy, tv_dict_add_tv, tv_dict_alloc_ret, tv_dict_copy, tv_dict_extend, tv_dict_item_remove,
+    tv_dict_remove, tv_dict_unref, tv_equal, tv_get_bool_chk, tv_get_number_chk, tv_get_string,
+    tv_get_string_chk, tv_list_alloc_ret, tv_list_append_owned_tv, tv_list_append_tv, tv_list_copy,
+    tv_list_extend, tv_list_find, tv_list_insert_tv, tv_list_item_remove, tv_list_remove,
+    tv_list_reverse, tv_list_set_lock, tv_list_set_ret, tv_list_unref, value_check_lock,
 };
-use crate::eval::typval::{tv_blob_len, tv_list_first, tv_list_len};
 use crate::eval::vars::tv_list_locked;
 #[cfg(not(test))]
 use crate::eval::vars::{
@@ -37,7 +29,7 @@ use crate::eval::vars::{
     set_vim_var_string, set_vim_var_type, var_check_fixed, var_check_ro,
 };
 #[cfg(not(test))]
-use crate::eval::{eval_expr_typval, get_copyID};
+use crate::eval::{eval_expr_typval, get_copyID, tv_blob_set_ret};
 #[cfg(not(test))]
 use crate::ex_docmd::do_cmdline_cmd;
 #[cfg(not(test))]

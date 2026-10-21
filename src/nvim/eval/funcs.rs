@@ -19,39 +19,35 @@ use crate::api::private::helpers::{
     cstr_as_string, dict_set_var,
 };
 use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{ScreenGrid, tabpage_T, win_T};
 use crate::api::vim::{BACKWARD, MAXPATHL, kFalse, kNone, kTrue, nvim_feedkeys};
 use crate::autocmd::{
     DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_BUFFILEPOST, EVENT_BUFFILEPRE, apply_autocmds,
     au_exists, autocmd_supported, funccal_entry_T,
 };
 use crate::buffer::{
-    VAR_FIXED, buf_close_terminal, buflist_findnr, buflist_findpat, kUIMessages, setfname,
+    VAR_FIXED, buf_T, buf_close_terminal, buflist_findnr, buflist_findpat, kUIMessages, setfname,
 };
 use crate::buffer_updates::luaret_truthy;
 use crate::channel::{
-    ChannelStdinMode, channel_close, channel_connect, channel_create_event, channel_decref,
-    channel_from_stdio, channel_incref, channel_job_start, channel_send, channel_terminal_alloc,
-    kChannelPartRpc, kChannelPartStderr, kChannelPartStdin, kChannelPartStdout, kChannelStdinPipe,
-    kChannelStreamProc, kProcTypePty,
+    CallbackReader, Channel, ChannelStdinMode, channel_close, channel_connect,
+    channel_create_event, channel_decref, channel_from_stdio, channel_incref, channel_job_start,
+    channel_send, channel_terminal_alloc, kChannelPartRpc, kChannelPartStderr, kChannelPartStdin,
+    kChannelPartStdout, kChannelStdinPipe, kChannelStreamProc, kProcTypePty,
 };
 use crate::charset::{VARNUMBER_MIN, ascii_isdigit, getdigits_int, skipwhite};
-use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
 use crate::cmdexpand::{
     EXPAND_FILES, ExpandCleanup, ExpandInit, ExpandOne, SEARCH_START, WILD_ALL, WILD_ALL_KEEP,
     WILD_ICASE, WILD_KEEP_ALL, WILD_LIST_NOTFOUND, WILD_SILENT, WILD_USE_NL, WILD_USE_SHELLSLASH,
     cmdidx_T, cmdline_pum_active,
 };
-use crate::cursor::{VALID_VIRTCOL, check_cursor, colnr_T, equalpos, get_cursor_pos_ptr, linenr_T};
+use crate::cursor::{
+    VALID_VIRTCOL, check_cursor, colnr_T, equalpos, get_cursor_pos_ptr, linenr_T, pos_T,
+};
 use crate::dialog::{do_dialog, prompt_for_input};
 use crate::errors::*;
 use crate::eval::buffer::{find_buffer, varnumber_T};
 use crate::eval::decode::{
-    dict_T, dictitem_T, json_decode_string, mpack_parse_typval, typval_parser_error_free,
-    unpack_typval,
-};
-use crate::eval::deprecated::{
-    Callback, CallbackReader, Channel, EvalFuncData, buf_T, pos_T, synblock_T,
+    json_decode_string, mpack_parse_typval, typval_parser_error_free, unpack_typval,
 };
 use crate::eval::encode::{
     ListReaderState, encode_init_lrstate, encode_list_write, encode_read_from_list, encode_tv2echo,
@@ -61,24 +57,25 @@ use crate::eval::executor::blob_T;
 #[cfg(unix)]
 use crate::eval::typval::tv_dict_extend;
 use crate::eval::typval::{
-    TV_TRANSLATE, callback_free, check_repeat_count, float_T, tv_blob_alloc_ret, tv_blob_get,
-    tv_blob_len, tv_blob_set_range, tv_check_for_buffer_arg, tv_check_for_dict_arg,
-    tv_check_for_list_arg, tv_check_for_list_or_blob_arg, tv_check_for_lnum_arg,
-    tv_check_for_nonempty_string_arg, tv_check_for_nonnull_dict_arg, tv_check_for_number_arg,
-    tv_check_for_opt_bool_arg, tv_check_for_opt_dict_arg, tv_check_for_opt_number_arg,
-    tv_check_for_string_arg, tv_check_for_string_or_func_arg, tv_check_for_string_or_list_arg,
-    tv_check_num, tv_check_str_or_nr, tv_clear, tv_copy, tv_dict_add_allocated_str,
-    tv_dict_add_bool, tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len,
-    tv_dict_alloc, tv_dict_alloc_ret, tv_dict_find, tv_dict_get_bool, tv_dict_get_callback,
-    tv_dict_get_number, tv_dict_get_number_def, tv_dict_get_string, tv_dict_hi2di,
-    tv_dict_item_remove, tv_dict_watcher_add, tv_dict_watcher_remove, tv_equal, tv_get_bool,
-    tv_get_bool_chk, tv_get_lnum, tv_get_lnum_buf, tv_get_number, tv_get_number_chk, tv_get_string,
+    Callback, EvalFuncData, TV_TRANSLATE, TypvalVval, VarType, callback_free, check_repeat_count,
+    dict_T, dictitem_T, float_T, list_T, listitem_T, tv_blob_alloc_ret, tv_blob_get, tv_blob_len,
+    tv_blob_set_range, tv_check_for_buffer_arg, tv_check_for_dict_arg, tv_check_for_list_arg,
+    tv_check_for_list_or_blob_arg, tv_check_for_lnum_arg, tv_check_for_nonempty_string_arg,
+    tv_check_for_nonnull_dict_arg, tv_check_for_number_arg, tv_check_for_opt_bool_arg,
+    tv_check_for_opt_dict_arg, tv_check_for_opt_number_arg, tv_check_for_string_arg,
+    tv_check_for_string_or_func_arg, tv_check_for_string_or_list_arg, tv_check_num,
+    tv_check_str_or_nr, tv_clear, tv_copy, tv_dict_add_allocated_str, tv_dict_add_bool,
+    tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc,
+    tv_dict_alloc_ret, tv_dict_find, tv_dict_get_bool, tv_dict_get_callback, tv_dict_get_number,
+    tv_dict_get_number_def, tv_dict_get_string, tv_dict_hi2di, tv_dict_item_remove,
+    tv_dict_watcher_add, tv_dict_watcher_remove, tv_equal, tv_get_bool, tv_get_bool_chk,
+    tv_get_lnum, tv_get_lnum_buf, tv_get_number, tv_get_number_chk, tv_get_string,
     tv_get_string_buf, tv_get_string_buf_chk, tv_get_string_chk, tv_initial_value, tv_is_func,
     tv_islocked, tv_list_alloc, tv_list_alloc_ret, tv_list_append_allocated_string,
     tv_list_append_dict, tv_list_append_list, tv_list_append_number, tv_list_append_owned_tv,
     tv_list_append_string, tv_list_append_tv, tv_list_copy, tv_list_extend, tv_list_find,
     tv_list_find_nr, tv_list_first, tv_list_flatten, tv_list_item_remove, tv_list_len, tv_list_ref,
-    tv_list_set_lock, tv_list_set_ret, tv_list_unref, value_check_lock,
+    tv_list_set_lock, tv_list_set_ret, tv_list_unref, typval_T, value_check_lock,
 };
 use crate::eval::userfunc::{
     EvalFuncDef, FCERR_NONE, FCERR_NOTMETHOD, FCERR_TOOFEW, FCERR_TOOMANY, FCERR_UNKNOWN,
@@ -125,7 +122,9 @@ use crate::ex_getln::{
 };
 use crate::garray::{ga_append, ga_append_via_ptr, ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
-use crate::grid::{grid_getchar, schar_T, schar_from_char, schar_get, schar_get_first_codepoint};
+use crate::grid::{
+    ScreenGrid, grid_getchar, schar_T, schar_from_char, schar_get, schar_get_first_codepoint,
+};
 use crate::highlight_group::{
     get_highlight_name_ext, highlight_color, highlight_exists, highlight_has_attr,
     syn_get_final_id, syn_name2id,
@@ -224,7 +223,8 @@ use crate::strings::{
     vim_strsave_escaped, vim_strsave_shellescape,
 };
 use crate::syntax::{
-    HL_CONCEAL, get_syntax_info, syn_get_id, syn_get_stack_item, syn_get_sub_char, syntax_present,
+    HL_CONCEAL, get_syntax_info, syn_get_id, syn_get_stack_item, syn_get_sub_char, synblock_T,
+    syntax_present,
 };
 use crate::tag::{get_tagfname, get_tags, get_tagstack, set_tagstack, tagname_T, tagname_free};
 use crate::textformat::{MotionType, oparg_T};
@@ -235,6 +235,7 @@ use crate::ui::{
 use crate::ui_compositor::ui_comp_get_grid_at_coord;
 use crate::version::{has_nvim_version, has_vim_patch};
 use crate::window::find_tabpage;
+use crate::window::{tabpage_T, win_T};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -3719,7 +3720,7 @@ unsafe fn getregionpos(
 
 impl pos_T {
     #[inline]
-    unsafe fn cast(&mut self) -> *mut crate::eval::deprecated::pos_T {
+    unsafe fn cast(&mut self) -> *mut crate::cursor::pos_T {
         (self as *mut pos_T).cast()
     }
 }
@@ -3772,12 +3773,12 @@ pub unsafe extern "C" fn f_getregion(
             } else {
                 let mut bd: block_def = std::mem::zeroed();
                 charwise_block_prep(
-                    crate::eval::deprecated::pos_T {
+                    crate::cursor::pos_T {
                         lnum: p1.lnum,
                         col: p1.col,
                         coladd: p1.coladd,
                     },
-                    crate::eval::deprecated::pos_T {
+                    crate::cursor::pos_T {
                         lnum: p2.lnum,
                         col: p2.col,
                         coladd: p2.coladd,
@@ -3868,12 +3869,12 @@ pub unsafe extern "C" fn f_getregionpos(
             bounds_only = tv_dict_get_bool(d, c"bounds".as_ptr(), 0) != 0;
         }
 
-        let tab_p1 = crate::eval::deprecated::pos_T {
+        let tab_p1 = crate::cursor::pos_T {
             lnum: p1.lnum,
             col: p1.col,
             coladd: p1.coladd,
         };
-        let tab_p2 = crate::eval::deprecated::pos_T {
+        let tab_p2 = crate::cursor::pos_T {
             lnum: p2.lnum,
             col: p2.col,
             coladd: p2.coladd,
@@ -7135,24 +7136,24 @@ pub unsafe extern "C" fn f_getreginfo(
         let mut buf = [0 as c_char; NUMBUFLEN + 2];
         let mut reglen: colnr_T = 0;
         let mut buflen = match get_reg_type(regname, &raw mut reglen) {
-            crate::clipboard::MotionType::kMTLineWise => {
+            crate::register::MotionType::kMTLineWise => {
                 buf[0] = b'V' as c_char;
                 buf[1] = NUL;
                 1
             }
-            crate::clipboard::MotionType::kMTCharWise => {
+            crate::register::MotionType::kMTCharWise => {
                 buf[0] = b'v' as c_char;
                 buf[1] = NUL;
                 1
             }
-            crate::clipboard::MotionType::kMTBlockWise => vim_snprintf_safelen!(
+            crate::register::MotionType::kMTBlockWise => vim_snprintf_safelen!(
                 buf.as_mut_ptr(),
                 buf.len(),
                 c"%c%d".as_ptr(),
                 c_int::from(Ctrl_V),
                 reglen + 1,
             ),
-            crate::clipboard::MotionType::kMTUnknown => std::process::abort(),
+            crate::register::MotionType::kMTUnknown => std::process::abort(),
         };
         tv_dict_add_str_len(dict, c"regtype".as_ptr(), 7, buf.as_ptr(), buflen as c_int);
 
@@ -8834,20 +8835,20 @@ pub unsafe extern "C" fn f_setpos(
 
 unsafe fn get_yank_type(
     pp: *mut *mut c_char,
-    yank_type: *mut crate::clipboard::MotionType,
+    yank_type: *mut crate::register::MotionType,
     block_len: *mut c_int,
 ) -> c_int {
     unsafe {
         let mut stropt = *pp;
         match *stropt {
             c if c == b'v' as c_char || c == b'c' as c_char => {
-                *yank_type = crate::clipboard::MotionType::kMTCharWise;
+                *yank_type = crate::register::MotionType::kMTCharWise;
             }
             c if c == b'V' as c_char || c == b'l' as c_char => {
-                *yank_type = crate::clipboard::MotionType::kMTLineWise;
+                *yank_type = crate::register::MotionType::kMTLineWise;
             }
             c if c == b'b' as c_char || c == Ctrl_V => {
-                *yank_type = crate::clipboard::MotionType::kMTBlockWise;
+                *yank_type = crate::register::MotionType::kMTBlockWise;
                 if ascii_isdigit(*stropt.add(1)) {
                     stropt = stropt.add(1);
                     *block_len = getdigits_int(&raw mut stropt, false, 0) - 1;
@@ -8871,7 +8872,7 @@ pub unsafe extern "C" fn f_setreg(
     unsafe {
         let mut append = false;
         let mut block_len: c_int = -1;
-        let mut yank_type = crate::clipboard::MotionType::kMTUnknown;
+        let mut yank_type = crate::register::MotionType::kMTUnknown;
 
         (*rettv).vval.v_number = 1;
 
@@ -8894,7 +8895,7 @@ pub unsafe extern "C" fn f_setreg(
                     c_int::from(regname as u8),
                     lstval.as_mut_ptr(),
                     false,
-                    crate::clipboard::MotionType::kMTUnknown,
+                    crate::register::MotionType::kMTUnknown,
                     -1,
                 );
                 return;
@@ -8930,7 +8931,7 @@ pub unsafe extern "C" fn f_setreg(
 
         let mut set_unnamed = false;
         if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
-            if yank_type != crate::clipboard::MotionType::kMTUnknown {
+            if yank_type != crate::register::MotionType::kMTUnknown {
                 semsg!(gettext(e_toomanyarg.as_ptr()), c"setreg".as_ptr());
                 return;
             }

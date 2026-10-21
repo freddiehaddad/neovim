@@ -11,21 +11,18 @@
 
 use crate::api::command::{CMOD_KEEPJUMPS, CMOD_LOCKMARKS, exarg_T};
 use crate::api::private::validate::{Dict, KeyValuePair, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{win_T, winopt_T, xfmark_T};
 use crate::autocmd::{AUGROUP_ALL, EVENT_MARKSET, aucmd_defer, has_event};
 use crate::buffer::{
-    GETF_SETMARK, MAXLNUM, NMARKS, bt_prompt, buflist_findnr, buflist_getfile, buflist_new,
+    GETF_SETMARK, MAXLNUM, NMARKS, bt_prompt, buf_T, buflist_findnr, buflist_getfile, buflist_new,
     buflist_nr2name, first_win_in_tab, kMarkAdjustNormal,
 };
 use crate::charset::{ascii_isdigit, ascii_islower, ascii_isupper, skipwhite, vim_isprintc};
-use crate::clipboard::list_T;
 use crate::context::{INIT_FMARK, INIT_FMARKV};
-use crate::cursor::{check_cursor, colnr_T, equalpos, linenr_T, lt};
+use crate::cursor::{check_cursor, colnr_T, equalpos, linenr_T, lt, pos_T};
 use crate::diff::diff_mark_adjust;
 use crate::errors::*;
-use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T, pos_T};
 use crate::eval::typval::{
-    tv_dict_add_list, tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc, tv_list_alloc,
+    list_T, tv_dict_add_list, tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc, tv_list_alloc,
     tv_list_append_dict, tv_list_append_number,
 };
 use crate::extmark::{ExtmarkOp, extmark_adjust};
@@ -57,6 +54,7 @@ use crate::tag::tagstack_clear_entry;
 use crate::textformat::oparg_T;
 use crate::textobject::{findpar, findsent};
 use crate::undo::u_update_named_mark;
+use crate::window::{win_T, winopt_T};
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -64,6 +62,30 @@ pub type MarkMoveRes = c_int;
 pub type MarkMove = c_int;
 pub type MarkGet = c_int;
 pub type MarkAdjustMode = c_int;
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct fmarkv_T {
+    pub topline_offset: i32,
+    pub skipcol: i32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct fmark_T {
+    pub mark: pos_T,
+    pub fnum: c_int,
+    pub timestamp: u64,
+    pub view: fmarkv_T,
+    pub additional_data: *mut c_void,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct xfmark_T {
+    pub fmark: fmark_T,
+    pub fname: *mut c_char,
+}
 use crate::api::buffer::{FORWARD, NUL, kExtmarkNOOP, kMarkAdjustApi, kMarkAllNoResolve};
 use crate::api::options::IOSIZE;
 use crate::api::vim::{BACKWARD, MAXPATHL};

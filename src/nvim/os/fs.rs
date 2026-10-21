@@ -13,7 +13,7 @@
 use crate::api::private::helpers::cstr_as_string;
 #[cfg(not(test))]
 use crate::errors::*;
-use crate::eval::deprecated::FileID;
+
 use crate::eval::fs::{FileInfo, uv_stat_t};
 #[cfg(all(not(test), windows))]
 use crate::event::r#loop::uv_guess_handle;
@@ -64,6 +64,13 @@ use std::ptr;
 
 #[cfg(all(not(test), windows))]
 use crate::os::os_win_console::os_redirect_stdin_to_conin;
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct FileID {
+    pub inode: u64,
+    pub device_id: u64,
+}
 
 #[repr(C)]
 pub struct Directory {

@@ -10,7 +10,8 @@
 )]
 
 #[cfg(not(test))]
-use crate::api::options::{CtxSwitch, kOptBuftype};
+use crate::api::options::kOptBuftype;
+
 #[cfg(not(test))]
 use crate::api::private::helpers::{
     api_clear_error, api_free_object, dict_get_value, dict_set_var, int_obj, str_obj,
@@ -19,15 +20,14 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
 };
-#[cfg(not(test))]
-use crate::api::tabpage::winopt_T;
-use crate::api::tabpage::{Buffer, win_T};
+use crate::api::tabpage::Buffer;
 #[cfg(not(test))]
 use crate::autocmd::{
     AUGROUP_ALL, EVENT_TERMCLOSE, EVENT_TERMENTER, EVENT_TERMLEAVE, EVENT_TERMOPEN,
     EVENT_TERMREQUEST, EVENT_TEXTCHANGEDT, apply_autocmds, apply_autocmds_group, block_autocmds,
     has_event, is_autocmd_blocked, unblock_autocmds,
 };
+use crate::buffer::buf_T;
 #[cfg(not(test))]
 use crate::buffer::{DOBUF_FIRST, DOBUF_WIPE, MAXLNUM, buf_get_changedtick, do_buffer};
 #[cfg(not(test))]
@@ -36,9 +36,11 @@ use crate::channel::TerminalOptions;
 #[cfg(not(test))]
 use crate::charset::is_special;
 #[cfg(not(test))]
-use crate::context::{ctx_restore, ctx_switch, handle_get_buffer, handle_get_window, is_ctx_win};
+use crate::context::{
+    CtxSwitch, ctx_restore, ctx_switch, handle_get_buffer, handle_get_window, is_ctx_win,
+};
 #[cfg(not(test))]
-use crate::cursor::{coladvance, linenr_T};
+use crate::cursor::{coladvance, linenr_T, pos_T as tab_pos_T};
 #[cfg(not(test))]
 use crate::cursor_shape::{
     CursorShape, SHAPE_CURSOR, SHAPE_IDX_TERM, parse_shape_opt, shape_table,
@@ -49,9 +51,6 @@ use crate::drawscreen::{
     redraw_statuslines, setcursor, show_cursor_info_later, showmode, status_redraw_buf, unshowmode,
     update_screen,
 };
-use crate::eval::deprecated::buf_T;
-#[cfg(not(test))]
-use crate::eval::deprecated::pos_T as tab_pos_T;
 #[cfg(not(test))]
 use crate::eval::typval::{
     tv_dict_add_nr, tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_list,
@@ -134,9 +133,7 @@ use crate::msgpack_rpc::packer::handle_T;
 #[cfg(not(test))]
 use crate::ops::clear_oparg;
 #[cfg(not(test))]
-use crate::option::OptInt;
-#[cfg(not(test))]
-use crate::option::{SB_MAX, set_option_value};
+use crate::option::{OPT_LOCAL, OptInt, SB_MAX, set_option_value};
 #[cfg(not(test))]
 use crate::option_vars::*;
 #[cfg(not(test))]
@@ -155,12 +152,10 @@ use crate::ui::{
     ui_busy_start, ui_busy_stop, ui_cursor_shape, ui_flush, ui_mode_info_set, vim_beep,
 };
 #[cfg(not(test))]
-use crate::vterm::keyboard::VTermModifier;
-#[cfg(not(test))]
 use crate::vterm::keyboard::{
     VTERM_KEY_BACKSPACE, VTERM_KEY_ENTER, VTERM_KEY_FUNCTION_0, VTERM_KEY_NONE, VTERM_KEY_TAB,
-    VTERM_MOD_ALT, VTERM_MOD_CTRL, VTERM_MOD_NONE, VTERM_MOD_SHIFT, VTermColor,
-    VTermStateFull as VTermState, vterm_keyboard_end_paste, vterm_keyboard_key,
+    VTERM_MOD_ALT, VTERM_MOD_CTRL, VTERM_MOD_NONE, VTERM_MOD_SHIFT, VTermColor, VTermKey,
+    VTermModifier, VTermStateFull as VTermState, vterm_keyboard_end_paste, vterm_keyboard_key,
     vterm_keyboard_start_paste, vterm_keyboard_unichar,
 };
 use crate::vterm::mouse::VTerm;
@@ -199,6 +194,9 @@ use crate::vterm::vterm::{
     vterm_free, vterm_get_size, vterm_new, vterm_output_set_callback, vterm_set_size,
     vterm_set_utf8,
 };
+use crate::window::win_T;
+#[cfg(not(test))]
+use crate::window::winopt_T;
 #[cfg(not(test))]
 use crate::window::{may_trigger_win_scrolled_resized, win_valid};
 #[cfg(not(test))]
@@ -210,9 +208,6 @@ use std::ptr;
 
 #[cfg(not(test))]
 use crate::api::buffer::{FORWARD, NUL, kExtmarkUndo};
-#[cfg(not(test))]
-use crate::api::deprecated::OPT_LOCAL;
-use crate::api::deprecated::StringBuilder;
 #[cfg(not(test))]
 use crate::arglist::ML_EMPTY;
 #[cfg(not(test))]
@@ -228,8 +223,7 @@ use crate::eval::funcs::{
 use crate::ex_cmds::Ctrl_C;
 #[cfg(not(test))]
 use crate::ex_getln::{Ctrl_BSL, Ctrl_O, K_EVENT, K_LUA};
-#[cfg(not(test))]
-use crate::vterm::keyboard::VTermKey;
+use crate::kvec::StringBuilder;
 
 #[cfg(not(test))]
 const REFRESH_DELAY: u64 = 10;

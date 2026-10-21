@@ -25,6 +25,7 @@ use crate::api::private::helpers::{
 };
 use crate::api::private::validate::{Dict, KeyValuePair, Object};
 use crate::autocmd::{DOCMD_NOWAIT, DOCMD_VERBOSE, HLF_8};
+use crate::buffer::buf_T;
 use crate::charset::{
     ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_isupper, ascii_iswhite, getdigits_int,
     skiptowhite, skipwhite,
@@ -42,7 +43,6 @@ use crate::cmdexpand::{
     EXPAND_USER_CMD_FLAGS, EXPAND_USER_COMMANDS, EXPAND_USER_COMPLETE, EXPAND_USER_DEFINED,
     EXPAND_USER_LIST, EXPAND_USER_LUA, EXPAND_USER_NARGS, EXPAND_USER_VARS, HLF_D, cmd_addr_T,
 };
-use crate::eval::deprecated::buf_T;
 use crate::eval::funcs::DOCMD_KEYTYPED;
 use crate::eval::last_set_msg;
 use crate::eval::typval::nlua_clear_ref;

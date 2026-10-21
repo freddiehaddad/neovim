@@ -4,7 +4,9 @@
 #![allow(non_snake_case, clippy::missing_safety_doc)]
 
 #[cfg(not(test))]
-use crate::eval::typval::{tv_list_alloc, tv_list_append_list, tv_list_append_string};
+use crate::eval::typval::{
+    VarType, list_T, tv_list_alloc, tv_list_append_list, tv_list_append_string,
+};
 #[cfg(not(test))]
 use crate::eval::{eval_call_provider, eval_has_provider};
 use crate::map_glyph_cache::NvimString;
@@ -17,14 +19,15 @@ use crate::memory::{xcalloc, xfree};
 use crate::message::{emsg, msg, redirecting};
 #[cfg(not(test))]
 use crate::option_vars::*;
+use crate::register::yankreg_T;
 #[cfg(not(test))]
 use crate::register::{
-    PLUS_REGISTER, STAR_REGISTER, free_register, get_y_previous, get_y_register,
+    MotionType, PLUS_REGISTER, STAR_REGISTER, free_register, get_y_previous, get_y_register,
     update_yankreg_width,
 };
+use std::ffi::{CStr, c_char, c_int};
 #[cfg(not(test))]
-use std::ffi::c_uint;
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{c_uint, c_void};
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
 #[cfg(not(test))]
@@ -34,95 +37,6 @@ const K_OPT_CB_FLAG_UNNAMEDPLUS: c_uint = 0x02;
 
 #[cfg(not(test))]
 const CTRL_V: u8 = 0x16;
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[allow(non_camel_case_types)]
-pub enum MotionType {
-    kMTUnknown = -1,
-    kMTCharWise = 0,
-    kMTLineWise = 1,
-    kMTBlockWise = 2,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[allow(non_camel_case_types)]
-pub enum VarType {
-    VAR_UNKNOWN = 0,
-    VAR_NUMBER = 1,
-    VAR_STRING = 2,
-    VAR_FUNC = 3,
-    VAR_LIST = 4,
-    VAR_DICT = 5,
-    VAR_FLOAT = 6,
-    VAR_BOOL = 7,
-    VAR_SPECIAL = 8,
-    VAR_PARTIAL = 9,
-    VAR_BLOB = 10,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-#[allow(non_camel_case_types)]
-pub union TypvalVval {
-    pub v_number: i64,
-    pub v_bool: c_int,
-    pub v_special: c_int,
-    pub v_float: f64,
-    pub v_string: *mut c_char,
-    pub v_list: *mut list_T,
-    pub v_dict: *mut crate::eval::decode::dict_T,
-    pub v_blob: *mut crate::eval::executor::blob_T,
-    pub v_ptr: *mut c_void,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-#[allow(non_camel_case_types)]
-pub struct typval_T {
-    pub v_type: VarType,
-    pub v_lock: c_int,
-    pub vval: TypvalVval,
-}
-
-#[repr(C)]
-#[allow(non_camel_case_types)]
-pub struct listitem_T {
-    pub li_next: *mut listitem_T,
-    pub li_prev: *mut listitem_T,
-    pub li_tv: typval_T,
-}
-
-#[repr(C)]
-#[allow(non_camel_case_types)]
-pub struct list_T {
-    pub lv_first: *mut listitem_T,
-    pub lv_last: *mut listitem_T,
-    pub lv_watch: *mut c_void,
-    pub lv_idx_item: *mut listitem_T,
-    pub lv_copylist: *mut list_T,
-    pub lv_used_next: *mut list_T,
-    pub lv_used_prev: *mut list_T,
-    pub lv_refcount: c_int,
-    pub lv_len: c_int,
-    pub lv_idx: c_int,
-    pub lv_copyID: c_int,
-    pub lv_lock: c_int,
-    pub lua_table_ref: c_int,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
-#[allow(non_camel_case_types)]
-pub struct yankreg_T {
-    pub y_array: *mut NvimString,
-    pub y_size: usize,
-    pub y_type: MotionType,
-    pub y_width: c_int,
-    pub timestamp: u64,
-    pub additional_data: *mut c_void,
-}
 
 static BATCH_CHANGE_COUNT: AtomicI32 = AtomicI32::new(0);
 static CLIPBOARD_DELAY_UPDATE: AtomicBool = AtomicBool::new(false);

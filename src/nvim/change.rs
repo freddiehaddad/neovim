@@ -9,11 +9,10 @@
 )]
 
 use crate::api::buffer::{FORWARD, NUL, bcount_t, kExtmarkNOOP, kExtmarkUndo};
-use crate::api::tabpage::win_T;
 use crate::autocmd::{EVENT_FILECHANGEDRO, apply_autocmds, aucmd_defer_modified};
 use crate::buffer::{
-    BF_NEVERLOADED, BF_NEW, MAXLNUM, bt_dontwrite, bt_prompt, buf_inc_changedtick, buf_meta_total,
-    kUIMessages,
+    BF_NEVERLOADED, BF_NEW, MAXLNUM, bt_dontwrite, bt_prompt, buf_T, buf_inc_changedtick,
+    buf_meta_total, kUIMessages,
 };
 use crate::buffer_updates::buf_updates_send_changes;
 use crate::charset::{
@@ -22,14 +21,13 @@ use crate::charset::{
 use crate::context::INIT_FMARKV;
 use crate::cursor::{
     check_cursor_lnum, check_visual_pos, coladvance_force, colnr_T, get_cursor_line_len,
-    get_cursor_line_ptr, get_cursor_pos_ptr, getviscol, linenr_T,
+    get_cursor_line_ptr, get_cursor_pos_ptr, getviscol, linenr_T, pos_T,
 };
 use crate::diff::{diff_internal, diff_lnum_win, diff_update_line};
 use crate::drawscreen::{
     UPD_NOT_VALID, UPD_VALID, redraw_buf_status_later, redraw_later, redrawWinline,
     set_must_redraw, showmode,
 };
-use crate::eval::deprecated::{buf_T, pos_T};
 use crate::eval::vars::{VV_WARNINGMSG, set_vim_var_string};
 use crate::extmark::{extmark_adjust, extmark_splice, extmark_splice_cols};
 use crate::fold::{find_wl_entry, foldUpdate, hasAnyFolding, hasFoldingWin};
@@ -72,6 +70,7 @@ use crate::strings::{concat_str, tr, vim_strchr, xstrnsave};
 use crate::textformat::{comp_textwidth, has_format_option};
 use crate::ui::{ui_active, ui_has};
 use crate::undo::{curbufIsChanged, u_clearline, u_save_cursor, u_savedel};
+use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 

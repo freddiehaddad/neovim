@@ -13,26 +13,19 @@
 #[cfg(not(test))]
 use crate::api::private::converter::{object_to_vim, vim_to_object};
 #[cfg(not(test))]
-use crate::api::private::helpers::TryState;
-#[cfg(not(test))]
-use crate::api::private::helpers::put_c;
-#[cfg(not(test))]
 use crate::api::private::helpers::{
-    add_c, api_set_error, api_set_sctx, arena_array, arena_dict, arena_string, array_obj,
-    boolean_obj, dict_obj, error_set, float_obj, integer_obj, string_obj, try_enter, try_leave,
+    TryState, add_c, api_set_error, api_set_sctx, arena_array, arena_dict, arena_string, array_obj,
+    boolean_obj, dict_obj, error_set, float_obj, integer_obj, put_c, string_obj, try_enter,
+    try_leave,
 };
 use crate::api::private::helpers::{cstr_as_string, nil_obj};
 use crate::api::private::validate::{Array, Dict, Error, Object};
 #[cfg(not(test))]
 use crate::api::private::validate::{ErrorType, KeyValuePair, ObjectType, api_err_exp};
 #[cfg(not(test))]
-use crate::clipboard::{VarType, typval_T};
+use crate::eval::typval::{VarType, dict_T, tv_clear, tv_dict_find, typval_T};
 #[cfg(not(test))]
-use crate::eval::decode::dict_T;
-#[cfg(not(test))]
-use crate::eval::typval::{tv_clear, tv_dict_find};
-#[cfg(not(test))]
-use crate::eval::userfunc::call_func;
+use crate::eval::userfunc::{call_func, funcexe_T};
 #[cfg(not(test))]
 use crate::eval::{clear_evalarg, eval0};
 #[cfg(not(test))]
@@ -80,8 +73,6 @@ pub struct KeyDict_exec_opts {
 
 #[cfg(not(test))]
 use crate::eval::funcs::MAX_FUNC_ARGS;
-#[cfg(not(test))]
-use crate::eval::userfunc::funcexe_T;
 #[cfg(not(test))]
 use crate::math::{FAIL, OK};
 

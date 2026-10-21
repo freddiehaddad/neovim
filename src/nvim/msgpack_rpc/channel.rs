@@ -19,12 +19,15 @@ use crate::api::private::validate::{
 };
 #[cfg(not(test))]
 use crate::api::ui::{remote_ui_disconnect, remote_ui_flush_pending_data};
+use crate::channel::{
+    CallbackReader, Channel, kChannelStreamProc, kChannelStreamSocket, kChannelStreamStdio,
+    put_event_1,
+};
 #[cfg(not(test))]
 use crate::channel::{
     channel_close, channel_decref, channel_event, channel_incref, kChannelPartRpc,
 };
-use crate::channel::{kChannelStreamProc, kChannelStreamSocket, kChannelStreamStdio, put_event_1};
-use crate::eval::deprecated::{Callback, CallbackReader, Channel};
+use crate::eval::typval::Callback;
 #[cfg(not(test))]
 use crate::event::r#loop::{loop_poll_events, loop_queues, uv_handle_size, uv_strerror};
 use crate::event::multiqueue::{

@@ -11,15 +11,13 @@
 use crate::api::command::exarg_T;
 use crate::autocmd::{EVENT_MENUPOPUP, HLF_8, apply_autocmds};
 use crate::charset::{ascii_isdigit, ascii_iswhite, getdigits_int, skipwhite};
-use crate::clipboard::{VarType, list_T, typval_T};
-use crate::cursor::{check_cursor, gchar_cursor};
+use crate::cursor::{check_cursor, gchar_cursor, pos_T};
 use crate::errors::*;
-use crate::eval::decode::dict_T;
-use crate::eval::deprecated::{EvalFuncData, pos_T};
 use crate::eval::typval::{
-    tv_dict_add_allocated_str, tv_dict_add_bool, tv_dict_add_dict, tv_dict_add_list,
-    tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc, tv_dict_alloc_ret,
-    tv_get_string_chk, tv_list_alloc, tv_list_append_dict, tv_list_append_string,
+    EvalFuncData, VarType, dict_T, list_T, tv_dict_add_allocated_str, tv_dict_add_bool,
+    tv_dict_add_dict, tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len,
+    tv_dict_alloc, tv_dict_alloc_ret, tv_get_string_chk, tv_list_alloc, tv_list_append_dict,
+    tv_list_append_string, typval_T,
 };
 use crate::eval::vars::del_menutrans_vars;
 use crate::ex_docmd::{ends_excmd, exec_normal_cmd, restore_current_state, save_current_state};

@@ -11,7 +11,6 @@
     clippy::unnecessary_cast
 )]
 
-use crate::api::deprecated::StringBuilder;
 use crate::api::private::helpers::{
     api_clear_error, api_free_object, arena_array, array_obj, boolean_obj, cstr_as_obj, dict_obj,
     static_cstr_as_obj, static_cstr_as_string, string_obj,
@@ -45,7 +44,7 @@ use crate::globals::{DFLT_COLS, DFLT_ROWS, *};
 use crate::grid::{
     sattr_T, schar_T, schar_cache_clear_if_full, schar_from_ascii, schar_get, schar_get_ascii,
 };
-use crate::kvec::KVec;
+use crate::kvec::{KVec, StringBuilder};
 use crate::log::{LOGLVL_DBG, LOGLVL_ERR, LOGLVL_WRN, g_min_log_level, logmsg};
 use crate::lua::executor::{kRetObject, nlua_exec};
 use crate::map::{HlAttrs, Set, cstr_t, mh_put_cstr_t};

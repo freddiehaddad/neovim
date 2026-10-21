@@ -8,12 +8,10 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::tabpage::win_T;
 use crate::buffer::{VALID_TOPLINE, VAR_FIXED, bt_prompt, bt_quickfix};
 use crate::charset::{ascii_iswhite, vim_iswordc};
-use crate::clipboard::{TypvalVval, VarType, typval_T, yankreg_T};
 use crate::cursor::{
-    coladvance, colnr_T, equalpos, get_cursor_pos_ptr, linenr_T, lt, ltoreq, set_leftcol,
+    coladvance, colnr_T, equalpos, get_cursor_pos_ptr, linenr_T, lt, ltoreq, pos_T, set_leftcol,
 };
 use crate::decoration::{decor_conceal_line, decor_virt_lines};
 use crate::diff::diff_check_fill;
@@ -22,8 +20,9 @@ use crate::drawscreen::{
     redraw_curbuf_later, redraw_later, redraw_statuslines, setcursor, update_screen,
 };
 use crate::eval::buffer::varnumber_T;
-use crate::eval::deprecated::{EvalFuncData, pos_T};
-use crate::eval::typval::{tv_clear, tv_dict_add_nr, tv_dict_alloc_ret};
+use crate::eval::typval::{
+    EvalFuncData, TypvalVval, VarType, tv_clear, tv_dict_add_nr, tv_dict_alloc_ret, typval_T,
+};
 use crate::eval::vars::{VV_LNUM, VV_VIRTNUM, get_vim_var_nr, set_vim_var_nr};
 use crate::eval::{call_vim_function, eval_has_provider};
 use crate::ex_docmd::{do_cmdline_cmd, tabpage_close, tabpage_close_other, tabpage_new};
@@ -65,7 +64,9 @@ use crate::plines::{
     win_charsize, win_chartabsize, win_get_fill,
 };
 use crate::popupmenu::pum_visible;
-use crate::register::{PUT_CURSEND, PUT_FIXINDENT, do_put, insert_reg, yank_register_mline};
+use crate::register::{
+    PUT_CURSEND, PUT_FIXINDENT, do_put, insert_reg, yank_register_mline, yankreg_T,
+};
 use crate::search::findmatch;
 use crate::state::{MODE_INSERT, MODE_NORMAL, REPLACE_FLAG, virtual_active};
 use crate::statusline::stl_connected;
@@ -74,7 +75,7 @@ use crate::textformat::oparg_T;
 use crate::ui::{ui_check_mouse, ui_cursor_shape, ui_flush, ui_mouse_has};
 use crate::ui_compositor::ui_comp_mouse_focus;
 use crate::window::{
-    find_tabpage, global_stl_height, goto_tabpage, tabpage_index, tabpage_move,
+    find_tabpage, global_stl_height, goto_tabpage, tabpage_index, tabpage_move, win_T,
     win_drag_status_line, win_drag_vsep_line, win_enter, win_fdccol_count, win_valid,
 };
 use std::ffi::{CStr, c_char, c_int, c_long};

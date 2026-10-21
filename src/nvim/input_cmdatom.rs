@@ -9,19 +9,16 @@
     clippy::useless_conversion
 )]
 
-use crate::api::buffer::VisualState;
 use crate::api::private::helpers::{
     api_free_dict, api_free_string, array_obj, boolean_obj, cstr_as_obj, cstr_to_obj,
     cstr_to_string, dict_obj, integer_obj,
 };
 use crate::api::private::validate::{Array, Dict, KeyValuePair, Object};
-use crate::api::tabpage::win_T;
 use crate::autocmd::{AUGROUP_ALL, EVENT_CMDATOM, aucmd_defer, has_event};
-use crate::buffer::{buf_get_changedtick, bufref_valid, set_bufref};
+use crate::buffer::{buf_T, buf_get_changedtick, bufref_T, bufref_valid, set_bufref};
 use crate::charset::is_special;
-use crate::cursor::equalpos;
+use crate::cursor::{equalpos, pos_T};
 use crate::eval::buffer::varnumber_T;
-use crate::eval::deprecated::{buf_T, pos_T};
 use crate::eval::vars::{VV_OP, get_vim_var_str};
 use crate::extmark::TriState;
 use crate::globals::*;
@@ -36,7 +33,7 @@ use crate::keycodes::{
     K_RIGHTMOUSE, K_S_LEFT, K_S_RIGHT, K_SPECIAL, K_UP, K_X1MOUSE, K_X2MOUSE, get_special_key_name,
     termcap2key,
 };
-use crate::kvec::KVec;
+use crate::kvec::{KVec, StringBuilder};
 use crate::map_glyph_cache::NvimString;
 use crate::mbyte::utf_char2bytes;
 use crate::mcursor::{
@@ -44,7 +41,7 @@ use crate::mcursor::{
     mc_ins_commit, mc_mark_at, mc_replaying, mc_vsel_clear, mc_vsel_refresh,
 };
 use crate::memory::{xfree, xmemdupz, xrealloc, xstrdup};
-use crate::normal::{REPLACE_CR_NCHAR, nv_is};
+use crate::normal::{REPLACE_CR_NCHAR, VisualState, nv_is};
 use crate::ops::{
     OP_APPEND, OP_CHANGE, OP_INSERT, OP_NOP, OP_NR_ADD, OP_NR_SUB, OP_REPLACE, get_extra_op_char,
     get_op_char, op_redoable, op_self_select,
@@ -56,15 +53,13 @@ use crate::strings::{
     concat_str, strcat, strchr, strcpy, strlen, strncmp, vim_snprintf, vim_strchr,
 };
 use crate::textformat::oparg_T;
-use crate::window::win_valid;
+use crate::window::{win_T, win_valid};
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
 use std::ptr;
 
-use crate::api::deprecated::StringBuilder;
 pub type CmdAtomVec = KVec<CmdAtom>;
 use crate::os::time::Timestamp;
 
-use crate::api::options::bufref_T;
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::api::vim::{kFalse, kNone, kTrue};
 use crate::cmdexpand::MB_MAXBYTES;

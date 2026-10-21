@@ -11,11 +11,12 @@
 use crate::api::private::helpers::{
     HLF_E, api_clear_string, cbuf_as_string, cbuf_to_string, copy_string,
 };
-use crate::api::tabpage::win_T;
 use crate::autocmd::{
     EVENT_COMPLETECHANGED, EVENT_COMPLETEDONE, EVENT_COMPLETEDONEPRE, apply_autocmds, has_event,
 };
-use crate::buffer::{MAXLNUM, NOTDONE, VAR_FIXED, bt_cmdwin, buf_spname, buf_valid, kUIMessages};
+use crate::buffer::{
+    MAXLNUM, NOTDONE, VAR_FIXED, bt_cmdwin, buf_T, buf_spname, buf_valid, kUIMessages,
+};
 use crate::change::{
     HLF_W, MB_MAXCHAR, OPENLINE_FORCE_INDENT, OPENLINE_KEEPTRAIL, deleted_lines_mark,
     ins_bytes_len, ins_char, ins_char_bytes, ins_str, open_line,
@@ -24,28 +25,26 @@ use crate::charset::{
     ascii_isdigit, ascii_iswhite, ascii_iswhite_or_nul, getwhitecols, skipwhite, str_foldcase,
     vim_isIDc, vim_isfilec, vim_isprintc, vim_iswordc, vim_iswordp, vim_strsize,
 };
-use crate::clipboard::{VarType, list_T, listitem_T, typval_T};
 use crate::cmdexpand::{
     Ctrl_N, Ctrl_P, EXPAND_FILES, EXPAND_LUA, EXPAND_NOTHING, EXPAND_OK, EXPAND_UNSUCCESSFUL,
     RE_LAST, SEARCH_NFMSG, TAG_MANY, addstar, expand_cmdline, free_xp_files_extra, set_cmd_context,
 };
 use crate::cursor::{
     check_cursor, colnr_T, dec_cursor, equalpos, get_cursor_line_len, get_cursor_line_ptr,
-    get_cursor_pos_len, get_cursor_pos_ptr, inc_cursor, linenr_T,
+    get_cursor_pos_len, get_cursor_pos_ptr, inc_cursor, linenr_T, pos_T,
 };
 use crate::drawscreen::{
     conceal_cursor_line, kShmCompletionmenu, redrawWinline, setcursor, showmode, update_screen,
 };
 use crate::errors::*;
 use crate::eval::buffer::varnumber_T;
-use crate::eval::decode::dict_T;
-use crate::eval::deprecated::{Callback, EvalFuncData, buf_T, pos_T};
 use crate::eval::typval::{
-    callback_copy, callback_free, tv_clear, tv_dict_add_bool, tv_dict_add_dict, tv_dict_add_list,
-    tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len, tv_dict_add_tv, tv_dict_alloc,
-    tv_dict_alloc_lock, tv_dict_alloc_ret, tv_dict_find, tv_dict_get_number, tv_dict_get_string,
-    tv_dict_get_tv, tv_dict_set_keys_readonly, tv_dict_unref, tv_get_number_chk, tv_get_string,
-    tv_get_string_chk, tv_list_alloc, tv_list_append_dict, tv_list_unref,
+    Callback, EvalFuncData, VarType, callback_copy, callback_free, dict_T, list_T, listitem_T,
+    tv_clear, tv_dict_add_bool, tv_dict_add_dict, tv_dict_add_list, tv_dict_add_nr,
+    tv_dict_add_str, tv_dict_add_str_len, tv_dict_add_tv, tv_dict_alloc, tv_dict_alloc_lock,
+    tv_dict_alloc_ret, tv_dict_find, tv_dict_get_number, tv_dict_get_string, tv_dict_get_tv,
+    tv_dict_set_keys_readonly, tv_dict_unref, tv_get_number_chk, tv_get_string, tv_get_string_chk,
+    tv_list_alloc, tv_list_append_dict, tv_list_unref, typval_T,
 };
 use crate::eval::userfunc::callback_call_retnr;
 use crate::eval::vars::{VV_COMPLETED_ITEM, set_vim_var_dict};
@@ -139,7 +138,7 @@ use crate::tag::find_tags;
 use crate::textformat::auto_format;
 use crate::ui::{ui_flush, ui_has, vim_beep};
 use crate::undo::undo_allowed;
-use crate::window::{WinKind, win_valid};
+use crate::window::{WinKind, win_T, win_valid};
 use crate::winfloat::win_float_find;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -453,7 +452,6 @@ struct cpt_source_T {
 
 use crate::api::autocmd::kCallbackNone;
 use crate::api::buffer::{FORWARD, NUL, kExtmarkUndo};
-use crate::api::deprecated::{OPT_GLOBAL, OPT_LOCAL};
 use crate::api::options::IOSIZE;
 use crate::api::vim::BACKWARD;
 use crate::drawline::{HLF_COUNT, SMT_ALL};
@@ -461,6 +459,7 @@ use crate::eval::funcs::SEARCH_KEEP;
 use crate::ex_cmds::{Ctrl_C, Ctrl_E, Ctrl_Y, HLF_R};
 use crate::ex_docmd::{FIND_ANY, FIND_DEFINE};
 use crate::help::{TAG_NAMES, TAG_REGEXP, TAG_VERBOSE};
+use crate::option::{OPT_GLOBAL, OPT_LOCAL};
 
 static mut compl_first_match: *mut compl_T = ptr::null_mut();
 static mut compl_curr_match: *mut compl_T = ptr::null_mut();

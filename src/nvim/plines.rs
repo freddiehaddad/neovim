@@ -7,14 +7,12 @@
     clippy::missing_safety_doc
 )]
 
-use crate::api::deprecated::DecorVirtText;
 use crate::api::extmark::{kVPosInline, kVTIsLines, ns_in_win};
-use crate::api::tabpage::win_T;
+use crate::buffer::buf_T;
 use crate::charset::{vim_isprintc, vim_strsize};
-use crate::cursor::{colnr_T, linenr_T, lt, ltoreq};
-use crate::decoration::{decor_conceal_line, decor_virt_lines, kMTFilterSelect};
+use crate::cursor::{colnr_T, linenr_T, lt, ltoreq, pos_T};
+use crate::decoration::{DecorVirtText, decor_conceal_line, decor_virt_lines, kMTFilterSelect};
 use crate::diff::{diff_check_fill, diffopt_filler};
-use crate::eval::deprecated::{buf_T, pos_T};
 use crate::fold::{hasFolding, hasFoldingWin, lineFolded};
 use crate::globals::*;
 use crate::indent::{get_breakindent_win, tabstop_padding};
@@ -28,6 +26,7 @@ use crate::r#move::{win_col_off, win_col_off2};
 use crate::option::get_showbreak_value;
 use crate::option_vars::*;
 use crate::state::{MODE_NORMAL, virtual_active};
+use crate::window::win_T;
 use std::ffi::{c_char, c_int, c_long};
 use std::ptr;
 

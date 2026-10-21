@@ -11,8 +11,7 @@
 use crate::api::autocmd::kCallbackNone;
 use crate::api::command::{CMOD_LOCKMARKS, exarg_T};
 use crate::api::private::helpers::{cstr_as_obj, integer_obj};
-use crate::api::tabpage::win_T;
-use crate::buffer::{buf_get_changedtick, modifiable};
+use crate::buffer::{buf_T, buf_get_changedtick, modifiable};
 use crate::change::{
     SIN_INSERT, SIN_NOMARK, TAB, changed_bytes, changed_lines, get_leader_len, ins_bytes, ins_str,
     replace_normal,
@@ -21,15 +20,14 @@ use crate::charset::{
     ascii_isdigit, ascii_iswhite, ascii_iswhite_or_nul, char2cells, getdigits,
     getwhitecols_curline, kOptDyFlagUhex, skipwhite, vim_strsize,
 };
-use crate::clipboard::typval_T;
 use crate::cursor::{
     check_cursor, coladvance, colnr_T, get_cursor_line_len, get_cursor_line_ptr, linenr_T, lt,
+    pos_T,
 };
 use crate::drawscreen::{UPD_INVERTED, redraw_curbuf_later};
 use crate::errors::*;
-use crate::eval::deprecated::{EvalFuncData, buf_T, pos_T};
 use crate::eval::eval_expr_option_number;
-use crate::eval::typval::tv_get_lnum;
+use crate::eval::typval::{EvalFuncData, tv_get_lnum, typval_T};
 use crate::eval::vars::{VV_LNUM, set_vim_var_nr};
 use crate::ex_docmd::handle_did_throw;
 use crate::extmark::extmark_splice_cols;
@@ -45,8 +43,8 @@ use crate::message::{emsg, msg_progress};
 use crate::r#move::{changed_cline_bef_curs, win_col_off, win_col_off2};
 use crate::ops::shift_line;
 use crate::option::{
-    OptInt, copy_option_part, get_flp_value, get_showbreak_value, opt_error, set_option_value,
-    was_set_insecurely,
+    OPT_LOCAL, OptInt, copy_option_part, get_flp_value, get_showbreak_value, opt_error,
+    set_option_value, was_set_insecurely,
 };
 use crate::option_vars::*;
 use crate::optionstr::{CharBuf, OptIndex, OptKeyDict_briopt, opt_keyset};
@@ -63,6 +61,7 @@ use crate::search::{findmatch, linewhite};
 use crate::strings::{atoi, gettext, ngettext, strcmp, strncmp, vim_strchr, xstrnsave};
 use crate::textformat::{has_format_option, oparg_T};
 use crate::undo::{u_clearline, u_save, u_savecommon, u_savesub};
+use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong};
 use std::ptr;
 
@@ -72,7 +71,6 @@ pub type IndentGetter = unsafe extern "C" fn() -> c_int;
 pub type Indenter = unsafe extern "C" fn() -> c_int;
 
 use crate::api::buffer::{NUL, kExtmarkUndo};
-use crate::api::deprecated::OPT_LOCAL;
 use crate::api::options::IOSIZE;
 use crate::ex_cmds::{BL_FIX, BL_SOL, BL_WHITE};
 use crate::math::{FAIL, OK};

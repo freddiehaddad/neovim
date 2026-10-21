@@ -5,7 +5,7 @@ use std::ffi::{c_char, c_int, c_uint};
 use std::mem::zeroed;
 use std::ptr;
 
-use crate::eval::deprecated::Callback;
+use crate::eval::typval::Callback;
 use crate::option::OptInt;
 use crate::optionstr::{OptIndex, OptSchemaItem, OptSchemaKind};
 

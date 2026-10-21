@@ -11,12 +11,11 @@
 use crate::api::command::exarg_T;
 use crate::api::private::helpers::cstr_as_obj;
 use crate::arglist::get_arglist_exp;
-use crate::buffer::buflist_findname_exp;
+use crate::buffer::{buf_T, buflist_findname_exp};
 use crate::charset::{ascii_isdigit, getdigits_int, skipdigits, skipwhite};
 use crate::cursor::linenr_T;
 use crate::drawscreen::{UPD_SOME_VALID, redraw_all_later};
 use crate::errors::*;
-use crate::eval::deprecated::buf_T;
 use crate::fileio::{
     EOF, FILE, buf_reload, fclose, feof, ferror, fgetc, fputc, fread, fseek, ftell, fwrite, get2c,
     get3c, get4c, get8ctime, put_bytes, put_time, read_string, vim_fgets, vim_tempname,
@@ -38,7 +37,7 @@ use crate::message::{
     emsg, msg, msg_clr_eos, msg_outtrans_long, msg_puts, msg_start, semsg, smsg, verbose_enter,
     verbose_leave,
 };
-use crate::option::{copy_option_part, kOptSpellfile, set_option_value_give_err};
+use crate::option::{OPT_LOCAL, copy_option_part, kOptSpellfile, set_option_value_give_err};
 use crate::option_vars::*;
 use crate::os::env::home_replace;
 use crate::os::fs::{os_fopen, os_isdir, os_mkdir, os_mkdir_recurse, os_path_exists};
@@ -75,7 +74,6 @@ use std::ptr;
 
 pub type SpellAddType = c_int;
 use crate::api::buffer::NUL;
-use crate::api::deprecated::OPT_LOCAL;
 use crate::api::options::IOSIZE;
 use crate::api::vim::MAXPATHL;
 use crate::change::TAB;

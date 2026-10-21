@@ -3,9 +3,9 @@
 
 #![allow(clippy::missing_safety_doc)]
 
-use crate::clipboard::{TypvalVval, VarType, typval_T};
 #[cfg(not(test))]
 use crate::errors::*;
+use crate::eval::typval::{TypvalVval, VarType, typval_T};
 #[cfg(not(test))]
 use crate::eval::typval::{
     tv_clear, tv_get_number, tv_get_string, tv_get_string_buf, tv_list_extend,

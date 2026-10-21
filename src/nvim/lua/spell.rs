@@ -8,7 +8,6 @@
 )]
 
 use crate::errors::*;
-use crate::eval::deprecated::synblock_T;
 use crate::globals::*;
 use crate::lua::base64::{LUA_TSTRING, lua_State, luaL_Reg};
 use crate::lua::converter::{
@@ -18,6 +17,7 @@ use crate::lua::converter::{
 use crate::message::emsg;
 use crate::spell::{parse_spelllang, spell_check};
 use crate::strings::gettext;
+use crate::syntax::synblock_T;
 use std::ffi::c_int;
 use std::ptr;
 

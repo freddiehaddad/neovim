@@ -8,22 +8,19 @@
 )]
 
 use crate::api::extmark::nvim_create_namespace;
-use crate::api::options::CtxSwitch;
+
 use crate::api::private::converter::object_to_vim;
 use crate::api::private::helpers::{
     api_clear_error, api_free_array, api_free_string, api_set_error, arena_dict, array_obj,
     copy_array, copy_object, cstr_literal, error_set, put_c, string_obj, string_to_array,
 };
 use crate::api::private::validate::{Array, Dict, Error, ErrorType, ObjectType};
-use crate::api::tabpage::{tabpage_T, win_T};
 use crate::api::vimscript::{KeyDict_exec_opts, exec_impl};
 use crate::autocmd::{block_autocmds, unblock_autocmds};
-use crate::buffer::{MAXLNUM, bt_prompt, bufref_valid, do_autochdir, set_bufref};
-use crate::clipboard::{VarType, typval_T};
-use crate::cursor::{check_cursor, check_pos, colnr_T, equalpos};
-use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T, pos_T, visualinfo_T};
+use crate::buffer::{MAXLNUM, bt_prompt, buf_T, bufref_valid, do_autochdir, set_bufref};
+use crate::cursor::{check_cursor, check_pos, colnr_T, equalpos, pos_T};
 use crate::eval::encode::encode_vim_list_to_buf;
-use crate::eval::typval::tv_clear;
+use crate::eval::typval::{VarType, tv_clear, typval_T};
 use crate::eval::userfunc::func_tbl_get;
 use crate::eval::vars::vars_clear;
 use crate::ex_docmd::do_cmdline_cmd;
@@ -33,8 +30,10 @@ use crate::globals::*;
 use crate::hashtab::{hash_init, hashitem_empty};
 use crate::map::{map_del_int_ptr_t, map_put_ref_int_ptr_t, mh_get_int};
 use crate::map_glyph_cache::{MH_TOMBSTONE, NvimString};
+use crate::mark::{fmark_T, fmarkv_T};
 use crate::memory::{Arena, strequal_str as strequal, xfree, xstrdup};
 use crate::msgpack_rpc::packer::handle_T;
+use crate::normal::visualinfo_T;
 use crate::option::buf_copy_options;
 use crate::option_vars::*;
 use crate::os::fs::{os_chdir, os_dirname};
@@ -44,9 +43,9 @@ use crate::shada::{
     shada_encode_gvars, shada_encode_jumps, shada_encode_regs, shada_read_string,
 };
 use crate::window::{
-    close_tabpage, entering_window, goto_tabpage_tp, leaving_window, unuse_tabpage, update_cwd,
-    use_tabpage, valid_tabpage, valid_tabpage_win, win_alloc_ctx_win, win_append,
-    win_find_by_handle, win_goto, win_init_empty, win_remove, win_valid,
+    close_tabpage, entering_window, goto_tabpage_tp, leaving_window, tabpage_T, unuse_tabpage,
+    update_cwd, use_tabpage, valid_tabpage, valid_tabpage_win, win_T, win_alloc_ctx_win,
+    win_append, win_find_by_handle, win_goto, win_init_empty, win_remove, win_valid,
 };
 use crate::winfloat::win_config_float;
 use std::ffi::{CStr, c_char, c_int};
@@ -65,6 +64,32 @@ pub type CtxStateFlags = c_int;
 pub type CtxLoadFlags = c_int;
 pub type CtxSwitchFlags = c_int;
 pub type CdCause = c_int;
+
+#[repr(C)]
+pub struct CtxSwitch {
+    pub cs_flags: c_int,
+    pub cs_mode: c_int,
+    pub cs_curwin: handle_T,
+    pub cs_curwin_xtab: bool,
+    pub cs_prevwin: handle_T,
+    pub cs_curtab: *mut tabpage_T,
+    pub cs_same_win: bool,
+    pub cs_visual_active: bool,
+    pub cs_prompt_insert: c_int,
+    pub cs_new_curwin: handle_T,
+    pub cs_new_curbuf: crate::buffer::bufref_T,
+    pub cs_ctxwin_idx: c_int,
+    pub cs_target_win: handle_T,
+    pub cs_target_old_pos: pos_T,
+    pub cs_did_chdir: bool,
+    pub cs_dirs_tab: handle_T,
+    pub cs_w_localdir: *mut c_char,
+    pub cs_b_localdir: *mut c_char,
+    pub cs_tp_localdir: *mut c_char,
+    pub cs_globaldir: *mut c_char,
+    pub cs_cwd: *mut c_char,
+    pub cs_apply_acd: bool,
+}
 
 const NUM_SAVED_REGISTERS: c_int = 37;
 

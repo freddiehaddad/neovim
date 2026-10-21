@@ -20,7 +20,8 @@ use crate::charset::{
     skipwhite, vim_str2nr,
 };
 use crate::eval::typval::{
-    TV_CSTRING, dict_watchers_queue, listwatch_T, tv_blob_alloc, tv_blob_alloc_ret,
+    Callback, EvalFuncData, TV_CSTRING, TypvalVval, VarType, dict_T, dict_watchers_queue,
+    dictitem_T, float_T, list_T, listitem_T, listwatch_T, tv_blob_alloc, tv_blob_alloc_ret,
     tv_blob_check_index, tv_blob_check_range, tv_blob_copy, tv_blob_equal, tv_blob_get,
     tv_blob_len, tv_blob_set_append, tv_blob_set_range, tv_blob_slice_or_index, tv_blob_unref,
     tv_check_lock, tv_check_num, tv_check_str, tv_clear, tv_copy, tv_dict_add, tv_dict_add_nr,
@@ -35,7 +36,7 @@ use crate::eval::typval::{
     tv_list_equal, tv_list_find, tv_list_find_nr, tv_list_first, tv_list_free,
     tv_list_free_contents, tv_list_free_list, tv_list_join, tv_list_last, tv_list_len, tv_list_ref,
     tv_list_set_lock, tv_list_set_ret, tv_list_slice_or_index, tv_list_unref, tv_list_watch_add,
-    tv_list_watch_remove, tv2bool, value_check_lock,
+    tv_list_watch_remove, tv2bool, typval_T, value_check_lock,
 };
 use crate::eval::vars::tv_init;
 #[cfg(not(test))]
@@ -59,7 +60,7 @@ pub mod userfunc;
 pub mod vars;
 pub mod window;
 
-use crate::buffer::{NOTDONE, VAR_FIXED, bt_prompt};
+use crate::buffer::{NOTDONE, VAR_FIXED, bt_prompt, buf_T};
 #[cfg(not(test))]
 use crate::buffer::{buflist_findnr, kUIMessages};
 #[cfg(not(test))]
@@ -113,7 +114,7 @@ use crate::regexp::{
     RE_MAGIC, RE_STRING, REGSUB_COPY, REGSUB_MAGIC, vim_regcomp, vim_regexec_nl, vim_regfree,
     vim_regsub,
 };
-use crate::register::{get_reg_contents, kGRegExprSrc, op_global_reg_iter};
+use crate::register::{get_reg_contents, kGRegExprSrc, op_global_reg_iter, yankreg_T};
 use crate::runtime::{
     exestack, free_autoload_scriptnames, free_scriptnames, script_autoload, sourcing_a_script,
 };
@@ -125,25 +126,20 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
 use crate::api::command::exarg_T;
-use crate::api::private::converter::partial_T;
-use crate::api::private::converter::{VAR_UNLOCKED, sctx_T, ufunc_T};
+use crate::api::private::converter::{VAR_UNLOCKED, partial_T, sctx_T, ufunc_T};
 #[cfg(not(test))]
 use crate::api::private::converter::{object_to_vim, vim_to_object};
 #[cfg(not(test))]
 use crate::api::private::validate::{Error, ErrorType};
 use crate::api::private::validate::{Object, ObjectData, ObjectType};
-use crate::api::tabpage::{win_T, xfmark_T};
 use crate::autocmd::funccal_entry_T;
-use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T, yankreg_T};
+use crate::channel::{CallbackReader, Channel, kChannelStreamProc};
 use crate::cmdexpand::{
     EXPAND_COMMANDS, EXPAND_ENV_VARS, EXPAND_EXPRESSION, EXPAND_FUNCTIONS, EXPAND_NOTHING,
     EXPAND_SETTINGS, EXPAND_USER_VARS, cmdidx_T,
 };
-use crate::cursor::{colnr_T, linenr_T};
+use crate::cursor::{colnr_T, linenr_T, pos_T};
 use crate::eval::buffer::varnumber_T;
-use crate::eval::decode::{dict_T, dictitem_T};
-use crate::eval::deprecated::Channel;
-use crate::eval::deprecated::{Callback, CallbackReader, EvalFuncData, buf_T, pos_T};
 #[cfg(not(test))]
 use crate::eval::encode::encode_tv2echo;
 use crate::eval::encode::{encode_list_write, encode_tv2string};
@@ -153,7 +149,7 @@ use crate::eval::gc::{gc_first_dict, gc_first_list};
 use crate::eval::userfunc::get_current_funccal;
 use crate::eval::vars::{
     VV_ARGV, VV_EVENT, VV_LUA, VV_SHELL_ERROR, check_vars, eval_one_expr_in_str, eval_variable,
-    evalvars_clear, evalvars_init, ex_let_vars, find_var, garbage_collect_globvars,
+    evalarg_T, evalvars_clear, evalvars_init, ex_let_vars, find_var, garbage_collect_globvars,
     garbage_collect_scriptvars, garbage_collect_vimvars, get_vim_var_dict, get_vim_var_partial,
     get_vimvar_dict, lval_T, set_var, set_var_const, set_vim_var_list, set_vim_var_nr,
     skip_var_list, valid_varname, var_check_lock, var_check_ro, var_wrong_func_name,
@@ -183,7 +179,7 @@ use crate::keycodes::{
 use crate::map::map_del_uint64_t_ptr_t;
 use crate::map::{Map, Set, map_put_ref_uint64_t_ptr_t, map_ref_uint64_t_ptr_t, ptr_t};
 use crate::map_glyph_cache::{MapHash, NvimString};
-use crate::mark::{mark_get, mark_global_iter};
+use crate::mark::{mark_get, mark_global_iter, xfmark_T};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
     mb_charlen, mb_copy_char, mb_strcmp_ic, string_convert, utf_char2bytes, utf_head_off,
@@ -213,22 +209,19 @@ use crate::profile::{estack_T, prof_child_enter, prof_child_exit, proftime_T};
 use crate::regexp::regmatch_T;
 use crate::state::save_v_event_T;
 use crate::tag::set_ref_in_tagfunc;
-
-use crate::eval::vars::evalarg_T;
+use crate::window::win_T;
 
 use crate::api::autocmd::{
     kCallbackExpr, kCallbackFuncref, kCallbackLua, kCallbackNone, kCallbackPartial,
 };
 use crate::api::buffer::{NL, NUL};
-#[cfg(not(test))]
-use crate::api::deprecated::kOptInvalid;
-use crate::api::deprecated::{OPT_GLOBAL, OPT_LOCAL};
 use crate::api::options::IOSIZE;
 #[cfg(not(test))]
 use crate::autocmd::{DOCMD_NOWAIT, DOCMD_VERBOSE, PROF_YES};
 use crate::change::TAB;
-use crate::channel::kChannelStreamProc;
-use crate::eval::typval::float_T;
+#[cfg(not(test))]
+use crate::option::kOptInvalid;
+use crate::option::{OPT_GLOBAL, OPT_LOCAL};
 use crate::regexp::NUMBUFLEN;
 use crate::viml::parser::parser::CONV_NONE;
 pub type timer_T = c_void;

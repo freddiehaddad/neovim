@@ -8,8 +8,7 @@
 )]
 use crate::api::autocmd::kCallbackNone;
 use crate::api::buffer::NUL;
-use crate::api::tabpage::lpos_T;
-use crate::buffer::MAXLNUM;
+use crate::buffer::{MAXLNUM, buf_T};
 use crate::change::{
     COM_END, COM_LEFT, COM_MAX_LEN, COM_MIDDLE, COM_RIGHT, COM_START, KEY_OPEN_BACK, KEY_OPEN_FORW,
 };
@@ -17,10 +16,10 @@ use crate::charset::{
     ascii_isdigit, ascii_iswhite, getdigits_int, getwhitecols_curline, skiptowhite, skipwhite,
     vim_isIDc, vim_iswordc, vim_iswordp, vim_strsize,
 };
-use crate::clipboard::typval_T;
-use crate::cursor::{colnr_T, get_cursor_line_ptr, get_cursor_pos_ptr, linenr_T, lt};
-use crate::eval::deprecated::{EvalFuncData, buf_T, pos_T};
-use crate::eval::typval::tv_get_lnum;
+use crate::cursor::{
+    colnr_T, get_cursor_line_ptr, get_cursor_pos_ptr, linenr_T, lpos_T, lt, pos_T,
+};
+use crate::eval::typval::{EvalFuncData, tv_get_lnum, typval_T};
 use crate::globals::*;
 use crate::indent::{fixthisline, get_expr_indent, get_indent, get_indent_lnum, get_sw_value};
 use crate::keycodes::get_special_key_code;

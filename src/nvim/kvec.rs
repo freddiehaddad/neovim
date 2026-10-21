@@ -1,8 +1,10 @@
 //! C-ABI compatible `kvec_t` and `kvec_withinit_t` containers (`src/klib/kvec.h`).
 
-use std::ffi::c_void;
+use std::ffi::{c_char, c_void};
 
 use crate::memory::{xfree, xmalloc, xrealloc};
+
+pub type StringBuilder = KVec<c_char>;
 
 #[repr(C)]
 #[derive(Debug)]

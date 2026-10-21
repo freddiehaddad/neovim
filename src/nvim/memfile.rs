@@ -8,9 +8,9 @@
     clippy::missing_safety_doc
 )]
 
+use crate::buffer::{MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC, buf_T};
 #[cfg(not(test))]
 use crate::errors::*;
-use crate::eval::deprecated::buf_T;
 #[cfg(not(test))]
 use crate::eval::fs::FileInfo;
 #[cfg(not(test))]
@@ -48,7 +48,6 @@ use std::ptr;
 
 pub type blocknr_T = i64;
 pub type mfdirty_T = c_int;
-use crate::buffer::{MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC};
 use crate::eval::fs::{SEEK_END, SEEK_SET};
 use crate::math::{FAIL, OK};
 

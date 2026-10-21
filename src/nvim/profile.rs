@@ -7,10 +7,9 @@ use crate::api::command::exarg_T as exarg_Full;
 use crate::api::command::exarg_T;
 use crate::api::private::converter::ufunc_T;
 use crate::charset::{skiptowhite, skipwhite};
-use crate::clipboard::{list_T, listitem_T, typval_T};
 #[cfg(not(test))]
 use crate::debugger::ex_breakadd;
-use crate::eval::decode::{dict_T, dictitem_T};
+use crate::eval::typval::{dict_T, dictitem_T, list_T, listitem_T, typval_T};
 #[cfg(not(test))]
 use crate::eval::userfunc::{func_tbl_get, funcline, get_current_funccal};
 #[cfg(not(test))]
@@ -18,7 +17,7 @@ use crate::eval::vars::{VV_PROFILING, set_vim_var_nr};
 #[cfg(not(test))]
 use crate::event::r#loop::uv_err_name;
 #[cfg(not(test))]
-use crate::fileio::{fclose, fopen, fprintf, vim_fgets};
+use crate::fileio::{FILE, fclose, fopen, fprintf, vim_fgets};
 #[cfg(not(test))]
 use crate::garray::{ga_clear, ga_grow};
 use crate::garray::{ga_init, garray_T};
@@ -44,8 +43,6 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
 
 pub type proftime_T = u64;
-#[cfg(not(test))]
-use crate::fileio::FILE;
 
 const NS_PER_SEC: f64 = 1_000_000_000.0;
 #[cfg(not(test))]

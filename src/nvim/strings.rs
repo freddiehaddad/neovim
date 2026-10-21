@@ -14,14 +14,12 @@ use crate::charset::{
     transstr, vim_str2nr,
 };
 use crate::charset::{ascii_isdigit, ascii_iswhite, rem_backslash};
-use crate::clipboard::{VarType, typval_T};
 use crate::errors::*;
 use crate::eval::buffer::varnumber_T;
-use crate::eval::deprecated::EvalFuncData;
 #[cfg(not(test))]
 use crate::eval::encode::encode_tv2echo;
 use crate::eval::encode::encode_tv2string;
-use crate::eval::typval::float_T;
+use crate::eval::typval::{EvalFuncData, VarType, float_T, typval_T};
 #[cfg(not(test))]
 use crate::eval::typval::{
     tv_check_for_number_arg, tv_check_for_opt_bool_arg, tv_check_for_opt_number_arg,

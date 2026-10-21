@@ -10,14 +10,12 @@
 
 use crate::api::command::{CMOD_KEEPALT, exarg_T};
 use crate::api::private::helpers::cstr_as_obj;
-use crate::api::tabpage::win_T;
 use crate::buffer::{bt_help, buflist_findnr, set_buflisted, wipe_buffer};
 use crate::charset::{
     ascii_isalnum, ascii_isalpha, ascii_iswhite, buf_init_isk_chartab, skipwhite,
 };
-use crate::clipboard::{TypvalVval, VarType, typval_T};
 use crate::errors::*;
-use crate::eval::typval::tv_clear;
+use crate::eval::typval::{TypvalVval, VarType, tv_clear, typval_T};
 use crate::ex_cmds::{ECMD_HIDE, ECMD_LASTL, ECMD_SET_HELP, do_ecmd};
 use crate::ex_docmd::do_cmdline_cmd;
 use crate::fileio::fclose;
@@ -25,19 +23,20 @@ use crate::globals::*;
 use crate::lua::executor::nlua_call_typval;
 use crate::memory::{xfree, xstrdup, xstrlcpy};
 use crate::message::{emsg, semsg, smsg};
-use crate::option::{OptInt, set_option_direct};
+use crate::option::{OPT_LOCAL, OptInt, set_option_direct};
 use crate::option_vars::*;
 use crate::optionstr::{OptIndex, check_buf_options};
 use crate::os::fs::os_fopen;
 use crate::path::FreeWild;
 use crate::strings::{gettext, qsort};
 use crate::tag::{do_tag, find_tags};
-use crate::window::{WSP_BOT, WSP_HELP, WSP_TOP, win_close, win_enter, win_setheight, win_split};
+use crate::window::{
+    WSP_BOT, WSP_HELP, WSP_TOP, win_T, win_close, win_enter, win_setheight, win_split,
+};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
 use crate::api::buffer::NUL;
-use crate::api::deprecated::OPT_LOCAL;
 use crate::api::options::{IOSIZE, kOptBuftype};
 use crate::cmdexpand::TAG_MANY;
 use crate::diff::kOptFoldmethod;

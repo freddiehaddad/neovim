@@ -11,8 +11,6 @@
 use crate::api::autocmd::{event_T, kCallbackNone};
 use crate::api::buffer::{FORWARD, ML_LINE_DIRTY, NUL};
 use crate::api::command::CMOD_KEEPJUMPS;
-use crate::api::options::{CtxSwitch, bufref_T};
-use crate::api::tabpage::win_T;
 use crate::api::vim::{BACKWARD, kFalse, kNone, kTrue};
 use crate::arglist::ML_EMPTY;
 use crate::autocmd::{
@@ -21,8 +19,8 @@ use crate::autocmd::{
     apply_autocmds, has_event,
 };
 use crate::buffer::{
-    bt_cmdwin, bt_prompt, bt_quickfix, buf_get_changedtick, buf_is_empty, buf_meta_total,
-    bufref_valid, kUIMessages, set_bufref,
+    bt_cmdwin, bt_prompt, bt_quickfix, buf_T, buf_get_changedtick, buf_is_empty, buf_meta_total,
+    bufref_T, bufref_valid, kUIMessages, set_bufref,
 };
 use crate::change::{
     COM_MAX_LEN, MB_MAXCHAR, OPENLINE_DO_COM, appended_lines_mark, change_warning, changed_bytes,
@@ -33,14 +31,13 @@ use crate::charset::{
     ascii_isdigit, ascii_isspace, ascii_iswhite, ascii_isxdigit, ascii2cells, char2cells, hex2nr,
     skipwhite, vim_isprintc, vim_iswordc,
 };
-use crate::clipboard::yankreg_T;
 use crate::cmdexpand::{Ctrl_N, Ctrl_P, MB_MAXBYTES};
-use crate::context::{ctx_restore, ctx_switch};
+use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::cursor::{
     VALID_VIRTCOL, char_before_cursor, check_cursor, check_cursor_col, check_visual_pos,
     coladvance, colnr_T, dec_cursor, equalpos, gchar_cursor, get_cursor_line_len,
     get_cursor_line_ptr, get_cursor_pos_len, get_cursor_pos_ptr, getviscol, inc_cursor,
-    kOptVeFlagAll, linenr_T, lt,
+    kOptVeFlagAll, linenr_T, lt, pos_T,
 };
 use crate::decoration::{decor_conceal_line, win_lines_concealed};
 use crate::digraph::{digraph_get, do_digraph};
@@ -52,7 +49,6 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 use crate::eval::buffer::{invoke_prompt_interrupt, prompt_invoke_callback};
-use crate::eval::deprecated::{buf_T, pos_T};
 use crate::eval::userfunc::ascii_iswhite_nl_or_nul;
 use crate::eval::vars::{VV_CHAR, VV_INSERTMODE, get_vim_var_str, set_vim_var_string};
 use crate::ex_cmds::{B_IMODE_LMAP, BL_FIX, BL_SOL, BL_WHITE, Ctrl_C, Ctrl_E, Ctrl_Y};
@@ -152,7 +148,7 @@ use crate::popupmenu::{pum_check_clear, pum_visible};
 use crate::regexp::{Ctrl_H, Ctrl_V, MAXCOL};
 use crate::register::{
     PUT_CURSEND, PUT_FIXINDENT, YREG_PASTE, do_put, get_expr_register, get_yank_register,
-    insert_reg, is_literal_register, valid_yank_reg,
+    insert_reg, is_literal_register, valid_yank_reg, yankreg_T,
 };
 use crate::state::{
     MODE_CMDLINE, MODE_INSERT, MODE_LANGMAP, MODE_NORMAL, MODE_REPLACE, MODE_VREPLACE,
@@ -168,7 +164,7 @@ use crate::textformat::{
 use crate::textobject::{bck_word, fwd_word};
 use crate::ui::{ui_cursor_shape, ui_flush, ui_has, vim_beep};
 use crate::undo::{u_clearallandblockfree, u_save, u_save_cursor, u_sync};
-use crate::window::{goto_tabpage, may_trigger_win_scrolled_resized};
+use crate::window::{goto_tabpage, may_trigger_win_scrolled_resized, win_T};
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 

@@ -12,8 +12,7 @@
 use crate::api::autocmd::{AutoCmd, AutoCmdVec, AutoPat, event_T, kCallbackLua};
 use crate::api::buffer::NUL;
 use crate::api::command::exarg_T;
-use crate::api::deprecated::OPT_LOCAL;
-use crate::api::options::{CtxSwitch, SID_NONE, bufref_T};
+use crate::api::options::SID_NONE;
 use crate::api::private::converter::{object_to_vim, sctx_T};
 use crate::api::private::helpers::{
     HLF_E, api_clear_error, api_free_object, api_free_string, boolean_obj, copy_object,
@@ -23,20 +22,20 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType,
 };
-use crate::api::tabpage::{Buffer, win_T};
+use crate::api::tabpage::Buffer;
 use crate::api::ui::NO_SCREEN;
 use crate::api::vim::{MAXPATHL, kFalse, kNone, kTrue};
-use crate::buffer::{bt_nofile, buflist_findnr, bufref_valid, do_modelines, set_bufref};
+use crate::buffer::{
+    bt_nofile, buf_T, buflist_findnr, bufref_T, bufref_valid, do_modelines, set_bufref,
+};
 use crate::charset::{ascii_iswhite, getdigits_int, skipdigits, skipwhite};
-use crate::clipboard::typval_T;
 use crate::cmdexpand::{EXPAND_EVENTS, EXPAND_FILES, EXPAND_NOTHING};
-use crate::context::{ctx_restore, ctx_switch, is_ctx_win};
+use crate::context::{CtxSwitch, ctx_restore, ctx_switch, is_ctx_win};
 use crate::errors::*;
 use crate::eval::buffer::varnumber_T;
-use crate::eval::deprecated::{Callback, buf_T};
 use crate::eval::typval::{
-    callback_copy, callback_free, callback_to_string, tv_clear, tv_dict_add_nr, tv_dict_add_tv,
-    tv_dict_set_keys_readonly,
+    Callback, callback_copy, callback_free, callback_to_string, tv_clear, tv_dict_add_nr,
+    tv_dict_add_tv, tv_dict_set_keys_readonly, typval_T,
 };
 use crate::eval::userfunc::{restore_funccal, save_funccal};
 use crate::eval::vars::{
@@ -71,7 +70,7 @@ use crate::message::{
     verbose_enter_scroll, verbose_leave, verbose_leave_scroll,
 };
 use crate::msgpack_rpc::packer::{Integer, handle_T};
-use crate::option::{apply_optionset_autocmd_now, set_option_direct};
+use crate::option::{OPT_LOCAL, apply_optionset_autocmd_now, set_option_direct};
 use crate::option_vars::*;
 use crate::optionstr::OptIndex;
 use crate::os::env::{expand_T, expand_env_save};
@@ -86,7 +85,7 @@ use crate::state::{MODE_INSERT, MODE_NORMAL_BUSY, get_mode, get_real_state, save
 use crate::strings::tr;
 use crate::window::{
     check_lnums, check_lnums_nested, reset_lnums, snapshot_windows_scroll_size, unuse_tabpage,
-    use_tabpage,
+    use_tabpage, win_T,
 };
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;

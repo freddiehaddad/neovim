@@ -4,13 +4,11 @@
 
 #[cfg(not(test))]
 use crate::charset::{getdigits_int32, skipwhite};
-use crate::clipboard::typval_T;
 #[cfg(not(test))]
 use crate::drawscreen::{UPD_NOT_VALID, redraw_all_later};
+use crate::eval::typval::typval_T;
 #[cfg(not(test))]
-use crate::eval::deprecated::Callback;
-#[cfg(not(test))]
-use crate::eval::typval::tv_free;
+use crate::eval::typval::{Callback, tv_free};
 #[cfg(not(test))]
 use crate::eval::{EXPR_IS, eval_expr, typval_compare, typval_tostring};
 #[cfg(not(test))]

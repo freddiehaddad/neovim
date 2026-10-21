@@ -6,15 +6,15 @@
     clippy::missing_safety_doc,
     clippy::too_many_arguments
 )]
+use crate::buffer::buf_T;
 use crate::change::{MB_MAXCHAR, inserted_bytes};
 use crate::charset::{ascii_isdigit, ascii_iswhite, getdigits_int, skiptowhite, skipwhite};
-use crate::clipboard::{TypvalVval, VarType, listitem_T, typval_T};
 use crate::cursor::{check_cursor, colnr_T, get_cursor_line_len, get_cursor_line_ptr};
 use crate::errors::*;
-use crate::eval::deprecated::{buf_T, synblock_T};
 use crate::eval::typval::{
-    tv_clear, tv_dict_add_allocated_str, tv_dict_add_bool, tv_dict_add_nr, tv_dict_add_str,
-    tv_dict_alloc, tv_list_alloc_ret, tv_list_append_tv, tv_list_unref,
+    TypvalVval, VarType, listitem_T, tv_clear, tv_dict_add_allocated_str, tv_dict_add_bool,
+    tv_dict_add_nr, tv_dict_add_str, tv_dict_alloc, tv_list_alloc_ret, tv_list_append_tv,
+    tv_list_unref, typval_T,
 };
 use crate::eval::vars::{eval_spell_expr, get_spellword};
 use crate::fileio::{fclose, vim_fgets};
@@ -54,6 +54,7 @@ use crate::strings::{
     atoi, gettext, qsort, strcat, strcmp, strcpy, strlen, strmove, strncmp, strncpy, vim_snprintf,
     vim_strchr, xstrnsave,
 };
+use crate::syntax::synblock_T;
 use crate::ui::vim_beep;
 use crate::undo::u_save_cursor;
 use std::ffi::{c_char, c_int, c_uint, c_void};

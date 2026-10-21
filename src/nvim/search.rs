@@ -10,16 +10,14 @@
 )]
 
 use crate::api::command::CMOD_KEEPPATTERNS;
-use crate::api::tabpage::{lpos_T, win_T};
 use crate::autocmd::{EVENT_SEARCHWRAPPED, apply_autocmds};
-use crate::buffer::{buf_get_changedtick, kUIMessages};
+use crate::buffer::{buf_T, buf_get_changedtick, kUIMessages};
 use crate::change::{TAB, get_leader_len};
 use crate::charset::{ascii_isdigit, skipwhite, vim_isfilec, vim_iswordc, vim_iswordp};
-use crate::clipboard::{VarType, listitem_T, typval_T};
 use crate::cmdhist::{HIST_SEARCH, add_to_history};
 use crate::cursor::{
     check_cursor, clearpos, colnr_T, dec_cursor, equalpos, get_cursor_line_len,
-    get_cursor_line_ptr, inc_cursor, linenr_T, lt, ltoreq,
+    get_cursor_line_ptr, inc_cursor, linenr_T, lpos_T, lt, ltoreq, pos_T,
 };
 use crate::drawscreen::{
     UPD_INVERTED, UPD_SOME_VALID, UPD_VALID, redraw_all_later, redraw_curbuf_later, redraw_later,
@@ -27,11 +25,10 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 use crate::eval::buffer::varnumber_T;
-use crate::eval::decode::{dict_T, dictitem_T};
-use crate::eval::deprecated::{EvalFuncData, buf_T, pos_T};
 use crate::eval::typval::{
-    tv_check_for_nonnull_dict_arg, tv_dict_add_nr, tv_dict_alloc_ret, tv_dict_find,
-    tv_dict_get_bool, tv_get_number_chk, tv_get_string_chk, tv_list_find, tv_list_len,
+    EvalFuncData, VarType, dict_T, dictitem_T, listitem_T, tv_check_for_nonnull_dict_arg,
+    tv_dict_add_nr, tv_dict_alloc_ret, tv_dict_find, tv_dict_get_bool, tv_get_number_chk,
+    tv_get_string_chk, tv_list_find, tv_list_len, typval_T,
 };
 use crate::eval::vars::{VV_SEARCHFORWARD, set_vim_var_nr};
 use crate::ex_cmds::{HLF_R, RE_BOTH, RE_SUBST, SEARCH_HIS, getfile, prepare_tagpreview};
@@ -91,7 +88,7 @@ use crate::state::MODE_SHOWMATCH;
 use crate::strings::{atol, reverse_text, strncmp, tr, vim_snprintf, vim_strchr, xstrnsave};
 use crate::textformat::oparg_T;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_cursor_shape, ui_flush, ui_has, vim_beep};
-use crate::window::{reset_binding, win_enter, win_split, win_valid};
+use crate::window::{reset_binding, win_T, win_enter, win_split, win_valid};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 

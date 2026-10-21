@@ -11,7 +11,7 @@
 #[cfg(not(test))]
 use crate::charset::kv_transstr;
 #[cfg(not(test))]
-use crate::kvec::KVec;
+use crate::kvec::{KVec, StringBuilder};
 use crate::map_glyph_cache::NvimString;
 #[cfg(not(test))]
 use crate::memory::arena_strdup;
@@ -26,8 +26,6 @@ use std::ptr;
 
 pub type unibi_term = c_void;
 use crate::api::buffer::NUL;
-#[cfg(not(test))]
-use crate::api::deprecated::StringBuilder;
 
 pub const kTerm_carriage_return: usize = 0;
 pub const kTerm_change_scroll_region: usize = 1;

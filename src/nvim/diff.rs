@@ -8,27 +8,23 @@
 )]
 use crate::api::autocmd::kCallbackNone;
 use crate::api::command::{ADDR_LINES, CMOD_LOCKMARKS, cmdidx_T, exarg_T};
-use crate::api::options::{CtxSwitch, bufref_T};
 use crate::api::private::helpers::{boolean_obj, static_cstr_as_obj};
-use crate::api::tabpage::{tabpage_T, win_T};
 use crate::autocmd::{EVENT_DIFFUPDATED, apply_autocmds};
 use crate::buffer::{
-    MAXLNUM, bt_prompt, buf_get_changedtick, buf_is_empty, buf_valid, buflist_findnr,
-    buflist_findpat, bufref_valid, modifiable, set_bufref,
+    MAXLNUM, bt_prompt, buf_T, buf_get_changedtick, buf_is_empty, buf_valid, buflist_findnr,
+    buflist_findpat, bufref_T, bufref_valid, modifiable, set_bufref,
 };
 use crate::bufwrite::buf_write;
 use crate::change::{change_warning, changed_lines};
 use crate::charset::{ascii_isdigit, ascii_iswhite, getdigits_int, getdigits_int32, skipwhite};
-use crate::clipboard::typval_T;
-use crate::context::{ctx_restore, ctx_switch};
+use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::cursor::{check_cursor, colnr_T, linenr_T};
 use crate::decoration::decor_conceal_line;
 use crate::drawscreen::{UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID, redraw_later};
 use crate::errors::*;
 use crate::eval::buffer::varnumber_T;
-use crate::eval::deprecated::{EvalFuncData, buf_T};
 use crate::eval::fs::FileInfo;
-use crate::eval::typval::{tv_get_lnum, tv_get_number};
+use crate::eval::typval::{EvalFuncData, tv_get_lnum, tv_get_number, typval_T};
 use crate::eval::vars::{eval_diff, eval_patch};
 use crate::ex_cmds::{append_redir, ex_file};
 use crate::ex_docmd::{do_cmdline_cmd, do_exedit, get_address};
@@ -69,8 +65,8 @@ use crate::strings::{
 use crate::ui::vim_beep;
 use crate::undo::{u_save, u_sync};
 use crate::window::{
-    WSP_VERT, frames_locked, scroll_to_fraction, set_fraction, win_split, win_valid,
-    window_layout_lock, window_layout_unlock,
+    WSP_VERT, frames_locked, scroll_to_fraction, set_fraction, tabpage_T, win_T, win_split,
+    win_valid, window_layout_lock, window_layout_unlock,
 };
 use crate::xdiff::xdiffi::xdl_diff;
 use crate::xdiff::{mmfile_t, xdemitcb_t, xdemitconf_t, xpparam_t};
@@ -197,13 +193,13 @@ struct linemap_entry_T {
     lineoff: c_int,
 }
 use crate::api::buffer::{FORWARD, NL, NUL, kExtmarkNOOP, kExtmarkUndo};
-use crate::api::deprecated::{OPT_LOCAL, kOptScopeWin};
 #[cfg(unix)]
 use crate::api::vim::MAXPATHL;
 use crate::api::vim::{BACKWARD, kFalse, kNone, kTrue};
 use crate::arglist::ML_EMPTY;
 use crate::cmdexpand::MB_MAXBYTES;
 use crate::math::{FAIL, OK};
+use crate::option::{OPT_LOCAL, kOptScopeWin};
 use crate::regexp::MAXCOL;
 static mut diff_busy: bool = false;
 static mut diff_need_update: bool = false;

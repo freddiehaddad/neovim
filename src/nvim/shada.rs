@@ -14,25 +14,23 @@ use crate::api::private::helpers::{
     api_free_dict, api_free_string, copy_string, cstr_as_string, static_cstr_as_string,
 };
 use crate::api::private::validate::{Dict, KeyValuePair, Object, ObjectData, ObjectType};
-use crate::api::tabpage::xfmark_T;
 use crate::arglist::alist_T;
 use crate::buffer::{
-    BLN_LISTED, JUMPLISTSIZE, NMARKS, bt_quickfix, bt_terminal, buflist_findnr, buflist_new,
+    BLN_LISTED, JUMPLISTSIZE, NMARKS, bt_quickfix, bt_terminal, buf_T, buflist_findnr, buflist_new,
     buflist_setfpos,
 };
-use crate::clipboard::{MotionType, TypvalVval, VarType, typval_T, yankreg_T};
 use crate::cmdhist::{
     HIST_CMD, HIST_COUNT, HIST_DEBUG, HIST_EXPR, HIST_INPUT, HIST_SEARCH, clr_history,
     hist_get_array, hist_iter, histentry_T,
 };
 use crate::context::INIT_FMARKV;
-use crate::cursor::{colnr_T, linenr_T};
+use crate::cursor::{colnr_T, linenr_T, pos_T};
 use crate::eval::decode::{decode_string, unpack_typval};
-use crate::eval::deprecated::{buf_T, fmark_T, pos_T};
 use crate::eval::encode::encode_vim_to_msgpack;
 use crate::eval::fs::FileInfo;
 use crate::eval::typval::{
-    tv_clear, tv_copy, tv_dict_hi2di, tv_list_alloc, tv_list_append_allocated_string, tv_list_len,
+    TypvalVval, VarType, tv_clear, tv_copy, tv_dict_hi2di, tv_list_alloc,
+    tv_list_append_allocated_string, tv_list_len, typval_T,
 };
 use crate::eval::vars::{
     VAR_TYPE_BLOB, VV_OLDFILES, get_globvar_ht, get_vim_var_list, set_vim_var_list,
@@ -56,9 +54,9 @@ use crate::map::{
 };
 use crate::map_glyph_cache::{MH_TOMBSTONE, MHPutStatus, MapHash, NvimString};
 use crate::mark::{
-    EXTRA_MARKS, cleanup_jumplist, free_fmark, free_xfmark, mark_buffer_iter, mark_get,
+    EXTRA_MARKS, cleanup_jumplist, fmark_T, free_fmark, free_xfmark, mark_buffer_iter, mark_get,
     mark_global_iter, mark_jumplist_iter, mark_set_global, mark_set_local, set_last_cursor,
-    setpcmark,
+    setpcmark, xfmark_T,
 };
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strnicmp;
@@ -92,7 +90,8 @@ use crate::path::{
 };
 use crate::regexp::{kMarkBufLocal, regtilde};
 use crate::register::{
-    NUM_SAVED_REGISTERS, op_global_reg_iter, op_reg_get, op_reg_index, op_reg_set, reg_empty,
+    MotionType, NUM_SAVED_REGISTERS, op_global_reg_iter, op_reg_get, op_reg_index, op_reg_set,
+    reg_empty, yankreg_T,
 };
 use crate::search::{
     AdditionalData, SearchOffset, SearchPattern, get_search_pattern, get_search_pattern_timestamp,

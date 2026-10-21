@@ -9,30 +9,28 @@
 )]
 
 use crate::api::command::exarg_T;
-use crate::api::options::{CtxSwitch, IOSIZE};
+use crate::api::options::IOSIZE;
 use crate::autocmd::{HLF_T, block_autocmds, unblock_autocmds};
 use crate::buffer::{
-    MAXLNUM, NMARKS, NO_LOCAL_UNDOLEVEL, bt_dontwrite, bt_prompt, buf_get_changedtick,
+    MAXLNUM, NMARKS, NO_LOCAL_UNDOLEVEL, bt_dontwrite, bt_prompt, buf_T, buf_get_changedtick,
     buf_is_empty, buf_set_changedtick,
 };
 use crate::buffer_updates::{buf_updates_changedtick, buf_updates_unload};
 use crate::change::{
     change_warning, changed, changed_bytes, changed_lines, file_ff_differs, unchanged,
 };
-use crate::clipboard::{VarType, list_T, typval_T};
-use crate::context::{ctx_restore, ctx_switch};
+use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::cursor::{
     check_cursor, check_cursor_col, check_cursor_lnum, check_pos, clearpos, coladvance, colnr_T,
-    equalpos, getviscol, linenr_T,
+    equalpos, getviscol, linenr_T, pos_T,
 };
 use crate::drawscreen::{UPD_NOT_VALID, redraw_later, redrawWinline};
 use crate::errors::*;
-use crate::eval::deprecated::{EvalFuncData, buf_T, fmark_T, pos_T, visualinfo_T};
 use crate::eval::fs::FileInfo;
 use crate::eval::funcs::get_buf_arg;
 use crate::eval::typval::{
-    tv_dict_add_list, tv_dict_add_nr, tv_dict_alloc, tv_dict_alloc_ret, tv_get_string,
-    tv_list_alloc, tv_list_append_dict,
+    EvalFuncData, VarType, list_T, tv_dict_add_list, tv_dict_add_nr, tv_dict_alloc,
+    tv_dict_alloc_ret, tv_get_string, tv_list_alloc, tv_list_append_dict, typval_T,
 };
 use crate::event::r#loop::uv_strerror;
 use crate::ex_docmd::{UNDO_HASH_SIZE, expr_map_locked};
@@ -55,7 +53,7 @@ use crate::input_cmdatom::{atom_did_global_op, atom_origin_pos};
 use crate::insert::beginline;
 use crate::kvec::KVec;
 use crate::map_glyph_cache::NvimString;
-use crate::mark::{free_fmark, mark_adjust, setpcmark};
+use crate::mark::{fmark_T, free_fmark, mark_adjust, setpcmark};
 use crate::mbyte::utfc_ptr2len;
 use crate::mcursor::mc_undo_time;
 #[cfg(unix)]
@@ -67,6 +65,7 @@ use crate::message::{
     msg_putchar, msg_puts, msg_puts_hl, msg_start, semsg, smsg, smsg_keep, verb_msg, verbose_enter,
     verbose_leave,
 };
+use crate::normal::visualinfo_T;
 use crate::option::{OptInt, copy_option_part, shortmess};
 use crate::option_vars::*;
 use crate::os::fs::{

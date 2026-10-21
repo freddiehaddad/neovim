@@ -9,7 +9,7 @@
 )]
 
 #[cfg(windows)]
-use crate::eval::typval::tv_dict_to_env;
+use crate::eval::typval::{dict_T, tv_dict_to_env};
 #[cfg(windows)]
 use crate::event::r#loop::{Loop, loop_schedule_fast, uv_req_size, uv_run, uv_translate_sys_error};
 #[cfg(windows)]
@@ -33,8 +33,6 @@ use std::ffi::{c_int, c_ulong, c_void};
 #[cfg(any(test, windows))]
 use std::ptr;
 
-#[cfg(windows)]
-use crate::eval::decode::dict_T;
 #[cfg(windows)]
 use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event};
 #[cfg(windows)]
@@ -128,8 +126,10 @@ pub(crate) unsafe fn quote_cmd_arg(
 #[cfg(windows)]
 mod win_impl {
     use super::*;
-    use crate::event::r#loop::{uv_connect_t, uv_thread_t};
-    use crate::os::os_win_console::{BOOL, DWORD, HANDLE};
+    use crate::event::r#loop::{uv_connect_t, uv_pipe_connect, uv_thread_t};
+    use crate::os::os_win_console::{
+        BOOL, CloseHandle, DWORD, GetLastError, GetProcessId, HANDLE, TerminateProcess,
+    };
 
     type BOOLEAN = u8;
     type uv_thread_cb = Option<unsafe extern "C" fn(arg: *mut c_void)>;
@@ -157,14 +157,10 @@ mod win_impl {
         proc_handle: HANDLE,
     }
 
-    use crate::event::r#loop::uv_pipe_connect;
-
     unsafe extern "C" {
         fn uv_thread_create(tid: *mut uv_thread_t, entry: uv_thread_cb, arg: *mut c_void) -> c_int;
         fn uv_thread_detach(tid: *mut uv_thread_t) -> c_int;
     }
-
-    use crate::os::os_win_console::{CloseHandle, GetLastError, GetProcessId, TerminateProcess};
 
     unsafe extern "system" {
         fn WaitForSingleObject(hHandle: HANDLE, dwMilliseconds: DWORD) -> DWORD;

@@ -9,8 +9,8 @@
     clippy::useless_conversion
 )]
 
+use crate::buffer::buf_T;
 use crate::cursor::get_cursor_line_ptr;
-use crate::eval::deprecated::buf_T;
 use crate::garray::{ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::mbyte::{
@@ -26,10 +26,10 @@ use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
 use std::ptr;
 
 use crate::api::buffer::{NL, NUL};
-use crate::api::deprecated::StringBuilder;
 use crate::change::TAB;
 use crate::eval::buffer::varnumber_T;
 use crate::keycodes::CAR;
+use crate::kvec::StringBuilder;
 use crate::math::{FAIL, OK};
 use crate::regexp::MAXCOL;
 pub type uvarnumber_T = u64;

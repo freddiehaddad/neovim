@@ -11,7 +11,7 @@
 
 use crate::api::autocmd::kCallbackNone;
 use crate::api::buffer::{NUL, bcount_t, kExtmarkUndo};
-use crate::buffer::{buf_get_changedtick, col_print, modifiable};
+use crate::buffer::{buf_T, buf_get_changedtick, col_print, modifiable};
 use crate::change::{
     COM_END, appended_lines_mark, changed_bytes, changed_lines, del_bytes, del_char, del_lines,
     get_last_leader_offset, get_leader_len, ins_char, ins_str, kCpoDollar, kOptVeFlagOnemore,
@@ -22,19 +22,19 @@ use crate::charset::{
     ascii_isspace, ascii_isupper, ascii_iswhite, ascii_isxdigit, getwhitecols,
     getwhitecols_curline, skipwhite, uvarnumber_T, vim_str2nr,
 };
-use crate::clipboard::{TypvalVval, VarType, set_clipboard, typval_T, yankreg_T};
+use crate::clipboard::set_clipboard;
 use crate::cursor::{
     VALID_VIRTCOL, check_cursor, check_cursor_col, check_pos, coladvance, coladvance_force,
     colnr_T, dec_cursor, equalpos, gchar_cursor, get_cursor_line_len, get_cursor_line_ptr,
     get_cursor_pos_ptr, getviscol, getviscol2, getvpos, inc_cursor, kOptVeFlagAll, linenr_T, lt,
-    ltoreq,
+    ltoreq, pos_T,
 };
 use crate::drawscreen::{UPD_INVERTED, redraw_curbuf_later, update_screen};
 use crate::errors::*;
 use crate::eval::buffer::varnumber_T;
-use crate::eval::decode::dict_T;
-use crate::eval::deprecated::{buf_T, pos_T};
-use crate::eval::typval::{callback_free, tv_clear, tv_dict_add_nr};
+use crate::eval::typval::{
+    TypvalVval, VarType, callback_free, dict_T, tv_clear, tv_dict_add_nr, typval_T,
+};
 use crate::eval::{callback_call, set_ref_in_callback};
 use crate::ex_docmd::do_cmdline;
 use crate::ex_getln::{Ctrl_A, K_LUA, getexline};
@@ -86,7 +86,7 @@ use crate::plines::{
 };
 use crate::register::{
     YREG_YANK, block_def, do_autocmd_textyankpost, get_y_register, get_yank_register,
-    is_append_register, op_yank, op_yank_reg, shift_delete_registers, valid_yank_reg,
+    is_append_register, op_yank, op_yank_reg, shift_delete_registers, valid_yank_reg, yankreg_T,
 };
 use crate::state::{MODE_INSERT, MODE_REPLACE, VREPLACE_FLAG, virtual_active};
 use crate::strings::{ngettext, strcpy_raw, tr, vim_snprintf, vim_strchr};

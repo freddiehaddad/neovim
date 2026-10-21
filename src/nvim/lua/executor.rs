@@ -27,9 +27,6 @@ use crate::api::private::validate::{ErrorType, ObjectData, ObjectType};
 #[cfg(not(test))]
 use crate::change::inserted_bytes;
 #[cfg(not(test))]
-use crate::clipboard::TypvalVval;
-use crate::clipboard::{VarType, typval_T};
-#[cfg(not(test))]
 use crate::cursor::{check_cursor, colnr_T};
 #[cfg(not(test))]
 use crate::drawscreen::{UPD_NOT_VALID, redraw_curbuf_later};
@@ -38,7 +35,8 @@ use crate::errors::*;
 #[cfg(not(test))]
 use crate::eval::funcs::{find_internal_func, find_internal_func_lua};
 #[cfg(not(test))]
-use crate::eval::typval::tv_clear;
+use crate::eval::typval::{TypvalVval, tv_clear};
+use crate::eval::typval::{VarType, typval_T};
 use crate::eval::userfunc::FCERR_NONE;
 #[cfg(not(test))]
 use crate::eval::userfunc::{EvalFuncDef, FCERR_OTHER, call_func, funcexe_T, register_luafunc};
@@ -77,19 +75,17 @@ use crate::lua::base64::lua_State;
 #[cfg(not(test))]
 use crate::lua::base64::{LUA_TSTRING, lua_CFunction};
 #[cfg(not(test))]
-use crate::lua::converter::LUA_REGISTRYINDEX;
-#[cfg(not(test))]
 use crate::lua::converter::{
-    K_NLUA_PUSH_SPECIAL, LUA_ERRMEM, LUA_ERRRUN, LUA_TBOOLEAN, LUA_TFUNCTION, LUA_TTABLE,
-    lua_Integer, lua_call, lua_checkstack, lua_close, lua_concat, lua_createtable, lua_error,
-    lua_getfield, lua_getglobal, lua_getmetatable, lua_gettop, lua_insert, lua_isboolean,
-    lua_iscfunction, lua_isfunction, lua_isnil, lua_isnumber, lua_isstring, lua_istable,
-    lua_newtable, lua_newuserdata, lua_next, lua_pcall, lua_pop, lua_pushboolean, lua_pushcclosure,
-    lua_pushcfunction, lua_pushinteger, lua_pushlightuserdata, lua_pushlstring, lua_pushnil,
-    lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rawgeti, lua_rawseti, lua_remove,
-    lua_replace, lua_setfield, lua_setglobal, lua_setmetatable, lua_settop, lua_toboolean,
-    lua_tocfunction, lua_tointeger, lua_tolstring, lua_tostring, lua_touserdata, lua_type,
-    lua_upvalueindex, luaL_checkinteger, luaL_checklstring, luaL_checktype, luaL_error,
+    K_NLUA_PUSH_SPECIAL, LUA_ERRMEM, LUA_ERRRUN, LUA_REGISTRYINDEX, LUA_TBOOLEAN, LUA_TFUNCTION,
+    LUA_TTABLE, lua_Integer, lua_call, lua_checkstack, lua_close, lua_concat, lua_createtable,
+    lua_error, lua_getfield, lua_getglobal, lua_getmetatable, lua_gettop, lua_insert,
+    lua_isboolean, lua_iscfunction, lua_isfunction, lua_isnil, lua_isnumber, lua_isstring,
+    lua_istable, lua_newtable, lua_newuserdata, lua_next, lua_pcall, lua_pop, lua_pushboolean,
+    lua_pushcclosure, lua_pushcfunction, lua_pushinteger, lua_pushlightuserdata, lua_pushlstring,
+    lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rawgeti, lua_rawseti,
+    lua_remove, lua_replace, lua_setfield, lua_setglobal, lua_setmetatable, lua_settop,
+    lua_toboolean, lua_tocfunction, lua_tointeger, lua_tolstring, lua_tostring, lua_touserdata,
+    lua_type, lua_upvalueindex, luaL_checkinteger, luaL_checklstring, luaL_checktype, luaL_error,
     luaL_loadbuffer, luaL_newstate, luaL_openlibs, luaL_ref, luaL_unref, luaL_where,
     nlua_init_types, nlua_pop_Array, nlua_pop_Integer, nlua_pop_Object, nlua_pop_typval,
     nlua_push_Array, nlua_push_Object, nlua_push_typval,

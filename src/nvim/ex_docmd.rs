@@ -16,7 +16,7 @@ use crate::api::command::{
     EX_CMDARG, EX_COUNT, EX_DFLALL, EX_EXTRA, EX_NEEDARG, EX_NOSPC, EX_RANGE, EX_REGSTR, EX_SBOXOK,
     EX_TRLBAR, EX_XFILE, EX_ZEROR, cmdmod_T, exarg_T, is_user_cmdidx,
 };
-use crate::api::options::{BF_DUMMY, IOSIZE, SID_NONE, bufref_T, kOptFiletype};
+use crate::api::options::{BF_DUMMY, IOSIZE, SID_NONE, kOptFiletype};
 #[cfg(windows)]
 use crate::api::private::helpers::api_free_object;
 use crate::api::private::helpers::{
@@ -24,7 +24,6 @@ use crate::api::private::helpers::{
     integer_obj,
 };
 use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{tabpage_T, win_T};
 use crate::api::ui::{remote_ui_connect, remote_ui_restart, ui_detach_channel, ui_detach_others};
 use crate::api::vimscript::nvim_command;
 use crate::arglist::{
@@ -41,17 +40,15 @@ use crate::autocmd::{
 use crate::buffer::{
     DOBUF_CURRENT, DOBUF_DEL, DOBUF_FIRST, DOBUF_LAST, DOBUF_MOD, DOBUF_UNLOAD, DOBUF_WIPE,
     MAXLNUM, bt_prompt, bt_quickfix, buf_hide, buf_spname, buflist_findnr, buflist_findpat,
-    buflist_list, bufref_valid, do_bufdel, do_modelines, ex_buffer_all, get_highest_fnum,
+    buflist_list, bufref_T, bufref_valid, do_bufdel, do_modelines, ex_buffer_all, get_highest_fnum,
     goto_buffer, maketitle, no_write_message, otherfile, set_bufref, setaltfname, setfname,
 };
-use crate::channel::{channel_event, channel_job_start, kChannelStdinPipe};
+use crate::channel::{CallbackReader, channel_event, channel_job_start, kChannelStdinPipe};
 use crate::charset::{
     backslash_halve, getdigits, getdigits_int, getdigits_int32, skipdigits, skiptowhite_esc,
     skipwhite,
 };
-use crate::clipboard::{
-    TypvalVval, VarType, end_batch_changes, list_T, start_batch_changes, typval_T,
-};
+use crate::clipboard::{end_batch_changes, start_batch_changes};
 use crate::cmdexpand::{
     CompleteListItemGetter, EX_NOTRLCOM, EXPAND_FILES, EXPAND_NOTHING, ExpandGeneric, ExpandInit,
     ExpandOne, LineGetter, WILD_ADD_SLASH, WILD_EXPAND_FREE, WILD_ICASE, WILD_LIST_NOTFOUND,
@@ -59,7 +56,7 @@ use crate::cmdexpand::{
 };
 use crate::cmdhist::ex_history;
 use crate::context::{CdCause, ctx_did_chdir, is_ctx_win};
-use crate::cursor::{check_cursor, check_cursor_col, linenr_T};
+use crate::cursor::{check_cursor, check_cursor_col, linenr_T, pos_T};
 use crate::debugger::{
     dbg_breakpoint, dbg_check_breakpoint, dbg_find_breakpoint, do_debug, ex_breakadd, ex_breakdel,
     ex_breaklist, ex_debug, ex_debuggreedy,
@@ -74,7 +71,6 @@ use crate::drawscreen::{
     redraw_curbuf_later, redraw_later, redraw_statuslines, screen_resize, setcursor_mayforce,
     showmode, status_redraw_all, status_redraw_curbuf, update_screen,
 };
-use crate::eval::deprecated::{Callback, CallbackReader, EvalFuncData, pos_T};
 use crate::eval::fs::{
     VALID_HEAD, VALID_PATH, kCdScopeBuffer, kCdScopeTabpage, kCdScopeWindow, modify_fname,
 };
@@ -82,9 +78,10 @@ use crate::eval::funcs::{
     DOCMD_KEYTYPED, RE_SEARCH, SEARCH_KEEP, VIM_QUESTION, create_environment, kMTLineWise,
 };
 use crate::eval::typval::{
-    BoolVarValue, callback_free, tv_clear, tv_dict_add_str, tv_dict_alloc, tv_dict_get_string,
-    tv_get_string, tv_list_alloc_ret, tv_list_append_allocated_string, tv_list_copy, tv_list_find,
-    tv_list_find_str, tv_list_free,
+    BoolVarValue, Callback, EvalFuncData, TypvalVval, VarType, callback_free, list_T, tv_clear,
+    tv_dict_add_str, tv_dict_alloc, tv_dict_get_string, tv_get_string, tv_list_alloc_ret,
+    tv_list_append_allocated_string, tv_list_copy, tv_list_find, tv_list_find_str, tv_list_free,
+    typval_T,
 };
 use crate::eval::userfunc::{
     MSG_BUF_LEN, current_func_returned, do_return, ex_call, ex_delfunction, ex_function, ex_return,
@@ -191,8 +188,8 @@ use crate::ops::{
     OP_DELETE, OP_LSHIFT, OP_RSHIFT, OP_YANK, clear_oparg, do_join, op_delete, op_shift,
 };
 use crate::option::{
-    OptInt, ex_set, get_findfunc, get_option_sctx, get_scrolloff_value, set_option_direct,
-    set_option_value_give_err,
+    OPT_LOCAL, OptInt, ex_set, get_findfunc, get_option_sctx, get_scrolloff_value,
+    set_option_direct, set_option_value_give_err,
 };
 use crate::option_vars::*;
 use crate::optionstr::{check_ff_value, free_string_option, get_fileformat_name};
@@ -270,6 +267,7 @@ use crate::window::{
     win_enter, win_goto, win_new_tabpage, win_setheight_win, win_setwidth_win, win_split,
     win_valid, window_layout_locked,
 };
+use crate::window::{tabpage_T, win_T};
 use crate::winfloat::{win_float_close, win_float_remove};
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
@@ -290,7 +288,6 @@ pub type ex_func_T = unsafe extern "C" fn(*mut exarg_T);
 pub type ex_preview_func_T = Option<unsafe extern "C" fn(*mut exarg_T, c_int, handle_T) -> c_int>;
 use crate::api::autocmd::kCallbackNone;
 use crate::api::buffer::{FORWARD, NUL};
-use crate::api::deprecated::OPT_LOCAL;
 use crate::api::vim::{
     BACKWARD, MAXPATHL, REMAP_NONE, REMAP_YES, kCdScopeGlobal, kFalse, kNone, kTrue,
 };

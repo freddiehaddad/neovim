@@ -10,21 +10,20 @@
 
 use crate::api::private::helpers::{SID_API_CLIENT, find_buffer_by_handle};
 use crate::api::private::validate::{Error, ErrorType};
-use crate::api::tabpage::{tabpage_T, win_T};
-use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
+use crate::buffer::buf_T;
 use crate::cmdexpand::{
     EXPAND_FILES, ExpandCleanup, ExpandInit, ExpandOne, WILD_ALL, WILD_ALL_KEEP, WILD_ALLLINKS,
     WILD_ICASE, WILD_KEEP_ALL, WILD_SILENT, WILD_USE_NL, globpath,
 };
 use crate::errors::*;
-use crate::eval::deprecated::{EvalFuncData, buf_T};
 use crate::eval::executor::blob_T;
 use crate::eval::typval::{
-    tv_blob_alloc_ret, tv_blob_free, tv_blob_len, tv_check_for_nonempty_string_arg,
-    tv_check_for_string_arg, tv_check_str_or_nr, tv_clear, tv_get_bool_chk, tv_get_number,
-    tv_get_number_chk, tv_get_string, tv_get_string_buf, tv_get_string_buf_chk, tv_get_string_chk,
-    tv_list_alloc_ret, tv_list_append_owned_tv, tv_list_append_string, tv_list_first,
-    tv_list_item_remove, tv_list_len, tv_list_set_ret,
+    EvalFuncData, TypvalVval, VarType, list_T, tv_blob_alloc_ret, tv_blob_free, tv_blob_len,
+    tv_check_for_nonempty_string_arg, tv_check_for_string_arg, tv_check_str_or_nr, tv_clear,
+    tv_get_bool_chk, tv_get_number, tv_get_number_chk, tv_get_string, tv_get_string_buf,
+    tv_get_string_buf_chk, tv_get_string_chk, tv_list_alloc_ret, tv_list_append_owned_tv,
+    tv_list_append_string, tv_list_first, tv_list_item_remove, tv_list_len, tv_list_set_ret,
+    typval_T,
 };
 use crate::eval::userfunc::{add_defer, can_add_defer};
 use crate::eval::vars::{VV_VAL, prepare_vimvar, restore_vimvar, set_vim_var_string};
@@ -75,7 +74,7 @@ use crate::runtime::script_is_lua;
 #[cfg(unix)]
 use crate::strings::concat_str;
 use crate::strings::{gettext, strlen as c_strlen, vim_strchr, vim_strsave_shellescape, xstrnsave};
-use crate::window::find_tabpage;
+use crate::window::{find_tabpage, tabpage_T, win_T};
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 

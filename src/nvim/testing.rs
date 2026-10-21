@@ -11,21 +11,16 @@
 use crate::api::options::IOSIZE;
 #[cfg(not(test))]
 use crate::api::private::converter::{K_BOOL_VAR_FALSE, K_BOOL_VAR_TRUE, VAR_UNLOCKED};
-use crate::clipboard::typval_T;
-#[cfg(not(test))]
-use crate::clipboard::{TypvalVval, VarType};
-#[cfg(not(test))]
-use crate::eval::decode::{dict_T, dictitem_T};
-use crate::eval::deprecated::EvalFuncData;
 #[cfg(not(test))]
 use crate::eval::encode::{encode_tv2echo, encode_tv2string};
+use crate::eval::typval::{EvalFuncData, typval_T};
 #[cfg(not(test))]
 use crate::eval::typval::{
-    tv_check_for_float_or_nr_arg, tv_check_for_opt_number_arg, tv_check_for_opt_string_arg,
-    tv_check_for_opt_string_or_list_arg, tv_check_for_string_or_number_arg, tv_clear,
-    tv_dict_add_tv, tv_dict_alloc, tv_dict_find, tv_equal, tv_get_float, tv_get_number_chk,
-    tv_get_string, tv_get_string_buf_chk, tv_get_string_chk, tv_list_first, tv_list_last,
-    tv_list_len,
+    TypvalVval, VarType, dict_T, dictitem_T, tv_check_for_float_or_nr_arg,
+    tv_check_for_opt_number_arg, tv_check_for_opt_string_arg, tv_check_for_opt_string_or_list_arg,
+    tv_check_for_string_or_number_arg, tv_clear, tv_dict_add_tv, tv_dict_alloc, tv_dict_find,
+    tv_equal, tv_get_float, tv_get_number_chk, tv_get_string, tv_get_string_buf_chk,
+    tv_get_string_chk, tv_list_first, tv_list_last, tv_list_len,
 };
 #[cfg(not(test))]
 use crate::eval::vars::{

@@ -7,16 +7,16 @@
 use crate::api::private::converter::{K_BOOL_VAR_TRUE, K_SPECIAL_VAR_NULL};
 use crate::api::private::converter::{VAR_UNLOCKED, partial_T};
 use crate::buffer::NOTDONE;
-use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
-use crate::eval::decode::dict_T;
 #[cfg(not(test))]
-use crate::eval::decode::{K_MP_EXT, K_MP_INTEGER, K_MP_MAP, SURROGATE_FIRST_CHAR, dictitem_T};
+use crate::eval::decode::{K_MP_EXT, K_MP_INTEGER, K_MP_MAP, SURROGATE_FIRST_CHAR};
 use crate::eval::executor::blob_T;
-use crate::eval::typval::tv_list_first;
+use crate::eval::typval::{
+    TypvalVval, VarType, dict_T, list_T, listitem_T, tv_list_first, typval_T,
+};
 #[cfg(not(test))]
 use crate::eval::typval::{
-    tv_blob_get, tv_blob_len, tv_dict_find, tv_list_append_allocated_string, tv_list_idx_of_item,
-    tv_list_last, tv_list_len,
+    dictitem_T, tv_blob_get, tv_blob_len, tv_dict_find, tv_list_append_allocated_string,
+    tv_list_idx_of_item, tv_list_last, tv_list_len,
 };
 #[cfg(not(test))]
 use crate::eval::vars::{NUM_MSGPACK_TYPES, eval_msgpack_type_lists};

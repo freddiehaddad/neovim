@@ -15,10 +15,9 @@ use crate::api::private::helpers::{
     error_set, integer_obj, window_obj,
 };
 use crate::api::private::validate::{Array, ObjectType};
-use crate::api::tabpage::win_T;
+use crate::buffer::buf_T;
 use crate::cursor::linenr_T;
 use crate::decoration::decor_check_to_be_deleted;
-use crate::eval::deprecated::buf_T;
 use crate::globals::*;
 use crate::highlight::hl_check_ns;
 use crate::kvec::KVec;
@@ -29,6 +28,7 @@ use crate::memory::{xfree, xrealloc};
 use crate::message::msg_schedule_semsg_multiline;
 use crate::r#move::validate_botline_win;
 use crate::msgpack_rpc::packer::Integer;
+use crate::window::win_T;
 use std::ffi::{c_char, c_int};
 use std::ptr;
 

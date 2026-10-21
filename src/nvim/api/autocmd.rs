@@ -13,12 +13,11 @@
 use crate::api::private::converter::sctx_T;
 use crate::api::private::helpers::has_key;
 #[cfg(not(test))]
-use crate::api::private::helpers::put_c;
-#[cfg(not(test))]
 use crate::api::private::helpers::{
-    add_c, api_set_error, api_set_sctx, api_typename, arena_array, arena_dict, arena_string,
-    arena_take_arraybuilder, boolean_obj, cstr_as_string, dict_obj, error_set,
-    find_buffer_by_handle, integer_obj, luaref_obj, string_obj, try_enter, try_leave,
+    ArrayBuilder, TryState, add_c, api_set_error, api_set_sctx, api_typename, arena_array,
+    arena_dict, arena_string, arena_take_arraybuilder, boolean_obj, cstr_as_string, dict_obj,
+    error_set, find_buffer_by_handle, integer_obj, luaref_obj, put_c, string_obj, try_enter,
+    try_leave,
 };
 use crate::api::private::validate::{Array, Error, Object};
 #[cfg(not(test))]
@@ -36,7 +35,7 @@ use crate::autocmd::{
 };
 #[cfg(not(test))]
 use crate::buffer::do_modelines;
-use crate::eval::deprecated::Callback;
+use crate::eval::typval::Callback;
 #[cfg(not(test))]
 use crate::eval::typval::{callback_free, callback_to_string};
 #[cfg(not(test))]
@@ -58,8 +57,6 @@ use std::ffi::{c_char, c_int};
 
 use crate::api::tabpage::Buffer;
 pub type event_T = c_int;
-#[cfg(not(test))]
-use crate::api::private::helpers::{ArrayBuilder, TryState};
 use crate::highlight::OptionalKeys;
 
 #[cfg(not(test))]

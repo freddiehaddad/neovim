@@ -8,23 +8,18 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::options::CtxSwitch;
-use crate::api::tabpage::{frame_T, tabpage_T, win_T};
 use crate::buffer::{bt_cmdwin, bt_quickfix, bt_terminal, first_win_in_tab};
 use crate::charset::getdigits_int;
-use crate::clipboard::{VarType, list_T, typval_T};
-use crate::context::{ctx_restore, ctx_switch, is_ctx_win};
+use crate::context::{CtxSwitch, ctx_restore, ctx_switch, is_ctx_win};
 use crate::cursor::{check_cursor, colnr_T, linenr_T};
 use crate::errors::*;
-use crate::eval::decode::dict_T;
-use crate::eval::deprecated::{EvalFuncData, ScopeDictDictItem};
 use crate::eval::funcs::execute_common;
 use crate::eval::typval::{
-    tv_check_for_nonnull_dict_arg, tv_dict_add_dict, tv_dict_add_list, tv_dict_add_nr,
-    tv_dict_alloc, tv_dict_alloc_ret, tv_dict_find, tv_dict_get_bool, tv_dict_get_number,
-    tv_get_bool, tv_get_number, tv_get_number_chk, tv_get_string_chk, tv_list_alloc,
-    tv_list_alloc_ret, tv_list_append_dict, tv_list_append_list, tv_list_append_number,
-    tv_list_append_string,
+    EvalFuncData, ScopeDictDictItem, VarType, dict_T, list_T, tv_check_for_nonnull_dict_arg,
+    tv_dict_add_dict, tv_dict_add_list, tv_dict_add_nr, tv_dict_alloc, tv_dict_alloc_ret,
+    tv_dict_find, tv_dict_get_bool, tv_dict_get_number, tv_get_bool, tv_get_number,
+    tv_get_number_chk, tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict,
+    tv_list_append_list, tv_list_append_number, tv_list_append_string, typval_T,
 };
 use crate::ex_getln::text_or_buf_locked;
 use crate::garray::{ga_append, ga_concat_len, ga_init, garray_T};
@@ -39,9 +34,10 @@ use crate::msgpack_rpc::packer::handle_T;
 use crate::normal::end_visual_mode;
 use crate::strings::gettext;
 use crate::window::{
-    LOWEST_WIN_ID, WSP_ABOVE, WSP_BELOW, WSP_VERT, check_split_disallowed, find_tabpage,
-    goto_tabpage_win, tabpage_index, valid_tabpage, win_drag_status_line, win_drag_vsep_line,
-    win_get_tabwin, win_goto, win_horz_neighbor, win_splitmove, win_valid, win_vert_neighbor,
+    LOWEST_WIN_ID, WSP_ABOVE, WSP_BELOW, WSP_VERT, check_split_disallowed, find_tabpage, frame_T,
+    goto_tabpage_win, tabpage_T, tabpage_index, valid_tabpage, win_T, win_drag_status_line,
+    win_drag_vsep_line, win_get_tabwin, win_goto, win_horz_neighbor, win_splitmove, win_valid,
+    win_vert_neighbor,
 };
 use std::ffi::{CStr, c_char, c_int};
 use std::fmt::Write as _;

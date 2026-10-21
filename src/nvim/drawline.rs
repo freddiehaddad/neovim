@@ -11,29 +11,28 @@
 
 use crate::api::autocmd::kCallbackNone;
 use crate::api::buffer::{FORWARD, NUL};
-use crate::api::deprecated::{DecorVirtText, VirtLine, VirtLines, VirtText, kVPosEndOfLine};
 use crate::api::extmark::{
     DecorRange, NS, kVLLeftcol, kVLOverflowAuto, kVLOverflowScroll, kVPosEndOfLineRightAlign,
     kVPosInline, kVPosRightAlign, kVPosWinCol, kVTRepeatLinebreak,
 };
-use crate::api::tabpage::{GridView, win_T};
 use crate::api::vim::{
     HLF_CLN, HLF_CLS, HLF_LNA, HLF_LNB, HLF_N, HLF_SC, MAXPATHL, SIGN_SHOW_MAX, STL_FOLDCOL,
     STL_SIGNCOL, kFalse, kTrue,
 };
 use crate::autocmd::HLF_8;
-use crate::buffer::{bt_quickfix, buf_meta_total};
+use crate::buffer::{bt_quickfix, buf_T, buf_meta_total};
 use crate::change::TAB;
 use crate::charset::{
     ascii_isdigit, ascii_iswhite, kOptDyFlagUhex, rl_mirror_ascii, skiptowhite, skipwhite,
     transchar_buf, transchar_hex, transstr_buf, vim_isprintc,
 };
-use crate::cursor::{VALID_VIRTCOL, colnr_T, get_cursor_rel_lnum, linenr_T, ltoreq};
+use crate::cursor::{VALID_VIRTCOL, colnr_T, get_cursor_rel_lnum, linenr_T, ltoreq, pos_T};
 use crate::decoration::{
-    SCL_NUM, SignTextAttrs, clear_virttext, decor_has_more_decorations, decor_init_draw_col,
-    decor_recheck_draw_col, decor_redraw_col, decor_redraw_eol, decor_redraw_line,
-    decor_redraw_signs, decor_virt_line_rows, decor_virt_lines, decor_virt_pos,
-    decor_virt_pos_kind, kDecorKindUIWatched, kDecorKindVirtText, next_virt_text_chunk,
+    DecorVirtText, SCL_NUM, SignTextAttrs, VirtLine, VirtLines, VirtText, clear_virttext,
+    decor_has_more_decorations, decor_init_draw_col, decor_recheck_draw_col, decor_redraw_col,
+    decor_redraw_eol, decor_redraw_line, decor_redraw_signs, decor_virt_line_rows,
+    decor_virt_lines, decor_virt_pos, decor_virt_pos_kind, kDecorKindUIWatched, kDecorKindVirtText,
+    kVPosEndOfLine, next_virt_text_chunk,
 };
 use crate::decoration_provider::{decor_providers_invoke_line, decor_providers_invoke_range};
 use crate::diff::{
@@ -43,14 +42,14 @@ use crate::diff::{
 use crate::drawscreen::{
     WinExtmark, compute_foldcolumn, conceal_cursor_line, number_width, spellvars_T, win_draw_end,
 };
-use crate::eval::deprecated::{buf_T, pos_T, synblock_T};
 use crate::ex_getln::{disptick_T, hlf_T};
 use crate::extmark::TriState;
 use crate::fold::{FOLD_TEXT_LEN, get_foldtext};
 use crate::globals::*;
 use crate::grid::{
-    grid_adjust, grid_put_linebuf, linebuf_mirror, schar_T, schar_cells, schar_from_ascii,
-    schar_from_char, schar_get_adv, schar_get_ascii, schar_get_first_codepoint, schar_len,
+    GridView, grid_adjust, grid_put_linebuf, linebuf_mirror, schar_T, schar_cells,
+    schar_from_ascii, schar_from_char, schar_get_adv, schar_get_ascii, schar_get_first_codepoint,
+    schar_len,
 };
 use crate::highlight::{
     hl_attr, hl_blend_attrs, hl_combine_attr, hl_get_underline, syn_attr2entry, win_bg_attr,
@@ -84,10 +83,12 @@ use crate::state::{MODE_INSERT, virtual_active};
 use crate::statusline::{build_statuscol_str, foldinfo_T, statuscol_T};
 use crate::strings::{vim_snprintf, vim_strchr};
 use crate::syntax::{
-    HL_CONCEAL, get_syntax_attr, get_syntax_info, syn_get_sub_char, syntax_present, syntax_start,
+    HL_CONCEAL, get_syntax_attr, get_syntax_info, syn_get_sub_char, synblock_T, syntax_present,
+    syntax_start,
 };
 use crate::terminal::{Terminal, terminal_get_line_attributes};
 use crate::ui::ui_rgb_attached;
+use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 

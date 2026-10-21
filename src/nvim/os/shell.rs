@@ -63,7 +63,6 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
 use crate::api::buffer::{NL, NUL};
-use crate::api::deprecated::StringBuilder;
 use crate::api::vim::MAXPATHL;
 use crate::autocmd::PROF_YES;
 use crate::change::TAB;
@@ -71,6 +70,7 @@ use crate::channel::{STDERR_FILENO, STDOUT_FILENO, kProcTypeUv};
 use crate::diff::{kShellOptDoOut, kShellOptSilent};
 use crate::eval::buffer::varnumber_T;
 use crate::eval::fs::{SEEK_END, SEEK_SET};
+use crate::kvec::StringBuilder;
 use crate::state::MODE_EXTERNCMD;
 
 const CAR: c_char = b'\r' as c_char;

@@ -8,26 +8,20 @@ use crate::api::buffer::LUA_NOREF;
 use crate::api::private::converter::{
     K_BOOL_VAR_FALSE, K_BOOL_VAR_TRUE, K_SPECIAL_VAR_NULL, VAR_UNLOCKED, partial_T,
 };
-#[cfg(not(test))]
-use crate::api::private::helpers::cbuf_to_arena_str;
 use crate::api::private::helpers::nil_obj;
 #[cfg(not(test))]
 use crate::api::private::helpers::{
     api_free_array, api_free_dict, api_free_object, api_set_error, api_typename, arena_array,
-    arena_dict, error_set,
+    arena_dict, cbuf_to_arena_str, error_set,
 };
 use crate::api::private::validate::{Array, Dict, Error, Object, ObjectType};
 #[cfg(not(test))]
 use crate::api::private::validate::{ErrorType, KeyValuePair, ObjectData};
 #[cfg(not(test))]
 use crate::buffer::NOTDONE;
-use crate::clipboard::typval_T;
-#[cfg(not(test))]
-use crate::clipboard::{TypvalVval, VarType};
 #[cfg(not(test))]
 use crate::eval::decode::{
-    K_MP_EXT, K_MP_INTEGER, K_MP_MAP, decode_create_map_special_dict, decode_string, dict_T,
-    dictitem_T,
+    K_MP_EXT, K_MP_INTEGER, K_MP_MAP, decode_create_map_special_dict, decode_string,
 };
 #[cfg(not(test))]
 use crate::eval::encode::{
@@ -36,11 +30,12 @@ use crate::eval::encode::{
 };
 #[cfg(not(test))]
 use crate::eval::executor::blob_T;
+use crate::eval::typval::typval_T;
 #[cfg(not(test))]
 use crate::eval::typval::{
-    tv_blob_len, tv_clear, tv_copy, tv_dict_add, tv_dict_alloc, tv_dict_find,
-    tv_dict_item_alloc_len, tv_list_alloc, tv_list_append_list, tv_list_append_owned_tv,
-    tv_list_first, tv_list_last, tv_list_len, tv_list_ref,
+    TypvalVval, VarType, dict_T, dictitem_T, tv_blob_len, tv_clear, tv_copy, tv_dict_add,
+    tv_dict_alloc, tv_dict_find, tv_dict_item_alloc_len, tv_list_alloc, tv_list_append_list,
+    tv_list_append_owned_tv, tv_list_first, tv_list_last, tv_list_len, tv_list_ref,
 };
 #[cfg(not(test))]
 use crate::eval::userfunc::{FC_LUAREF, find_func, register_luafunc};

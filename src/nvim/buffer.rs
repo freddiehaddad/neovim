@@ -10,10 +10,8 @@
 )]
 
 use crate::api::command::{CMOD_CONFIRM, CMOD_HIDE, CMOD_KEEPALT, exarg_T};
-use crate::api::deprecated::{OPT_LOCAL, StringBuilder};
-use crate::api::options::{BF_DUMMY, CtxSwitch, IOSIZE, bufref_T};
+use crate::api::options::{BF_DUMMY, IOSIZE};
 use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO, cstr_as_string, tv_dict_is_watched};
-use crate::api::tabpage::{tabpage_T, win_T};
 use crate::api::win_config::{UIExtension, kCtxNoDisplay, kWinStyleMinimal};
 use crate::arglist::{ML_EMPTY, alist_T, check_arg_idx};
 use crate::autocmd::{
@@ -29,21 +27,19 @@ use crate::charset::{
     ascii_isdigit, ascii_isspace, buf_init_isk_chartab, getdigits_int, skiptowhite_esc, skipwhite,
     trans_characters, try_getdigits, vim_strsize,
 };
-use crate::clipboard::{TypvalVval, VarType, typval_T};
 use crate::cmdexpand::{
     BUF_DIFF_FILTER, WILD_BUFLASTUSED, WILD_HOME_REPLACE, cmdidx_T, cmdline_fuzzy_complete,
 };
-use crate::context::{INIT_FMARK, INIT_FMARKV, ctx_restore, ctx_switch, is_ctx_win};
-use crate::cursor::{check_cursor_col, check_cursor_lnum, colnr_T, linenr_T};
+use crate::context::{CtxSwitch, INIT_FMARK, INIT_FMARKV, ctx_restore, ctx_switch, is_ctx_win};
+use crate::cursor::{check_cursor_col, check_cursor_lnum, colnr_T, linenr_T, pos_T};
 use crate::diff::{diff_buf_add, diff_buf_delete, diff_mode_buf, diffopt_hiddenoff};
 use crate::digraph::{keymap_ga_clear, keymap_init};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_later, redrawing, status_redraw_all};
 use crate::errors::*;
 use crate::eval::buffer::varnumber_T;
-use crate::eval::deprecated::{ChangedtickDictItem, FileID, buf_T, fmark_T, pos_T, synblock_T};
 use crate::eval::typval::{
-    callback_free, tv_dict_add, tv_dict_alloc, tv_dict_find, tv_dict_item_copy,
-    tv_dict_watcher_notify,
+    TypvalVval, VarType, callback_free, tv_dict_add, tv_dict_alloc, tv_dict_find,
+    tv_dict_item_copy, tv_dict_watcher_notify, typval_T,
 };
 use crate::eval::vars::{init_var_dict, unref_var_dict, vars_clear};
 use crate::ex_cmds::{ECMD_FORCEIT, ECMD_ONE, do_ecmd, getfile};
@@ -67,12 +63,13 @@ use crate::indent::inindent;
 use crate::indent_c::parse_cino;
 use crate::input::vgetc;
 use crate::insexpand::clear_cpt_callbacks;
+use crate::kvec::StringBuilder;
 use crate::main_init::getout;
 use crate::map::{Map, map_del_int_ptr_t, map_put_ref_int_ptr_t, mh_get_int, ptr_t};
 use crate::map_glyph_cache::MH_TOMBSTONE;
 use crate::mapping::map_clear_mode;
 use crate::mark::{
-    WinInfo, clear_fmark, clrallmarks, fmarks_check_names, free_fmark, mark_adjust_buf,
+    WinInfo, clear_fmark, clrallmarks, fmark_T, fmarks_check_names, free_fmark, mark_adjust_buf,
     mark_forget_file, mark_jumplist_forget_file, mark_view_make, mark_view_restore,
     set_last_cursor, setpcmark,
 };
@@ -91,7 +88,8 @@ use crate::message::{
 use crate::r#move::{scroll_cursor_halfway, validate_virtcol};
 use crate::normal::{end_visual_mode, reset_VIsual_and_resel};
 use crate::option::{
-    OptInt, buf_copy_options, clear_winopt, copy_winopt, didset_window_options, do_set, shortmess,
+    OPT_LOCAL, OptInt, buf_copy_options, clear_winopt, copy_winopt, didset_window_options, do_set,
+    shortmess,
 };
 use crate::option_vars::*;
 use crate::optionstr::{CharBuf, OptIndex, clear_string_option};
@@ -100,7 +98,7 @@ use crate::os::env::{home_replace, home_replace_save};
 use crate::os::fs::os_getperm;
 #[cfg(all(not(test), windows))]
 use crate::os::fs::os_resolve_shortcut;
-use crate::os::fs::{CASE_INSENSITIVE_FILENAME, os_fileid, os_fileid_equal, os_isdir};
+use crate::os::fs::{CASE_INSENSITIVE_FILENAME, FileID, os_fileid, os_fileid_equal, os_isdir};
 use crate::os::input::{line_breakcheck, os_breakcheck};
 use crate::os::time::os_time;
 use crate::path::{
@@ -118,7 +116,7 @@ use crate::strings::{
     gettext, ngettext, qsort, strcmp, strcpy_raw, strlen, strncmp, vim_snprintf,
     vim_snprintf_safelen, vim_strchr, xstrnsave,
 };
-use crate::syntax::{reset_synblock, syntax_clear};
+use crate::syntax::{reset_synblock, synblock_T, syntax_clear};
 use crate::terminal::{Terminal, terminal_check_size, terminal_close, terminal_running};
 use crate::ui::{ui_call_set_icon, ui_call_set_title, ui_has};
 use crate::undo::{u_clearallandblockfree, u_sync, undo_fmt_time};
@@ -131,11 +129,311 @@ use crate::window::{
     tabpage_index, update_cwd, win_close, win_enter, win_locked, win_move_after, win_split,
     win_valid, win_valid_any_tab, window_layout_lock, window_layout_unlock,
 };
+use crate::window::{tabpage_T, win_T};
 use crate::winfloat::{win_float_update_preview, win_set_minimal_style};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
 pub type MetaIndex = usize;
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct bufref_T {
+    pub br_buf: *mut buf_T,
+    pub br_fnum: c_int,
+    pub br_buf_free_count: c_int,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct ChangedtickDictItem {
+    pub di_tv: typval_T,
+    pub di_flags: u8,
+    pub di_key: [c_char; 12],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct BufSigncols {
+    pub max: c_int,
+    pub last_max: c_int,
+    pub count: [c_int; 9],
+    pub autom: bool,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct BufUpdateCallbacks {
+    pub on_lines: crate::lua::converter::LuaRef,
+    pub on_bytes: crate::lua::converter::LuaRef,
+    pub on_changedtick: crate::lua::converter::LuaRef,
+    pub on_detach: crate::lua::converter::LuaRef,
+    pub on_reload: crate::lua::converter::LuaRef,
+    pub utf_sizes: bool,
+    pub preview: bool,
+}
+
+#[repr(C)]
+pub struct buf_T {
+    pub b_fnum: crate::msgpack_rpc::packer::handle_T,
+    pub b_ml: crate::memline::memline_T,
+    pub b_next: *mut buf_T,
+    pub b_prev: *mut buf_T,
+    pub b_nwindows: c_int,
+    pub b_flags: c_int,
+    pub b_locked: c_int,
+    pub b_locked_split: c_int,
+    pub b_ro_locked: c_int,
+    pub b_ffname: *mut c_char,
+    pub b_sfname: *mut c_char,
+    pub b_fname: *mut c_char,
+    pub file_id_valid: bool,
+    pub file_id: FileID,
+    pub b_changed: c_int,
+    pub changedtick_di: ChangedtickDictItem,
+    pub b_last_changedtick: i64,
+    pub b_last_changedtick_i: i64,
+    pub b_last_changedtick_pum: i64,
+    pub b_saving: bool,
+    pub b_mod_set: bool,
+    pub b_mod_top: i32,
+    pub b_mod_bot: i32,
+    pub b_mod_xlines: i32,
+    pub b_wininfo: crate::kvec::KVec<*mut c_void>,
+    pub b_mod_tick_syn: u64,
+    pub b_mod_tick_decor: u64,
+    pub b_mtime: i64,
+    pub b_mtime_ns: i64,
+    pub b_mtime_read: i64,
+    pub b_mtime_read_ns: i64,
+    pub b_orig_size: u64,
+    pub b_orig_mode: c_int,
+    pub b_last_used: i64,
+    pub b_namedm: [fmark_T; 26],
+    pub b_visual: crate::normal::visualinfo_T,
+    pub b_visual_mode_eval: c_int,
+    pub b_last_cursor: fmark_T,
+    pub b_last_insert: fmark_T,
+    pub b_last_change: fmark_T,
+    pub b_changelist: [fmark_T; 100],
+    pub b_changelistlen: c_int,
+    pub b_new_change: bool,
+    pub b_chartab: [u64; 4],
+    pub b_maphash: [*mut c_void; 256],
+    pub b_first_abbr: *mut c_void,
+    pub b_ucmds: garray_T,
+    pub b_op_start: pos_T,
+    pub b_op_start_orig: pos_T,
+    pub b_op_end: pos_T,
+    pub b_marks_read: bool,
+    pub b_modified_was_set: bool,
+    pub b_did_filetype: bool,
+    pub b_keep_filetype: bool,
+    pub b_au_did_filetype: bool,
+    pub b_u_oldhead: *mut c_void,
+    pub b_u_newhead: *mut c_void,
+    pub b_u_curhead: *mut c_void,
+    pub b_u_numhead: c_int,
+    pub b_u_synced: bool,
+    pub b_u_seq_last: c_int,
+    pub b_u_save_nr_last: c_int,
+    pub b_u_seq_cur: c_int,
+    pub b_u_time_cur: i64,
+    pub b_u_save_nr_cur: c_int,
+    pub b_u_line_ptr: *mut c_char,
+    pub b_u_line_lnum: i32,
+    pub b_u_line_colnr: i32,
+    pub b_scanned: bool,
+    pub b_p_iminsert: i64,
+    pub b_p_imsearch: i64,
+    pub b_kmap_state: i16,
+    pub b_kmap_ga: garray_T,
+    pub b_p_initialized: bool,
+    pub b_p_script_ctx: [crate::api::private::converter::sctx_T; 93],
+    pub b_p_ac: c_int,
+    pub b_p_ai: c_int,
+    pub b_p_ai_nopaste: c_int,
+    pub b_p_bkc: *mut c_char,
+    pub b_bkc_flags: c_uint,
+    pub b_p_ci: c_int,
+    pub b_p_bin: c_int,
+    pub b_p_bomb: c_int,
+    pub b_p_bh: *mut c_char,
+    pub b_p_bt: *mut c_char,
+    pub b_p_busy: i64,
+    pub b_has_qf_entry: c_int,
+    pub b_p_bl: c_int,
+    pub b_p_channel: i64,
+    pub b_p_cin: c_int,
+    pub b_p_cino: *mut c_char,
+    pub b_p_cink: *mut c_char,
+    pub b_p_cinw: *mut c_char,
+    pub b_p_cinsd: *mut c_char,
+    pub b_p_com: *mut c_char,
+    pub b_p_cms: *mut c_char,
+    pub b_p_cot: *mut c_char,
+    pub b_cot_flags: c_uint,
+    pub b_p_cpt: *mut c_char,
+    #[cfg(windows)]
+    pub b_p_csl: *mut c_char,
+    pub b_p_cpt_flags: u32,
+    pub b_p_cpt_cb: *mut crate::eval::typval::Callback,
+    pub b_p_cpt_count: c_int,
+    pub b_p_cfu: crate::eval::typval::Callback,
+    pub b_p_ofu: crate::eval::typval::Callback,
+    pub b_p_tfu: crate::eval::typval::Callback,
+    pub b_p_ffu: crate::eval::typval::Callback,
+    pub b_p_eof: c_int,
+    pub b_p_eol: c_int,
+    pub b_p_fixeol: c_int,
+    pub b_p_et: c_int,
+    pub b_p_et_nobin: c_int,
+    pub b_p_et_nopaste: c_int,
+    pub b_p_fenc: *mut c_char,
+    pub b_p_ff: *mut c_char,
+    pub b_p_ft: *mut c_char,
+    pub b_p_follow: c_int,
+    pub b_p_fo: *mut c_char,
+    pub b_p_flp: *mut c_char,
+    pub b_p_inf: c_int,
+    pub b_p_isk: *mut c_char,
+    pub b_p_def: *mut c_char,
+    pub b_p_inc: *mut c_char,
+    pub b_p_inex: crate::eval::typval::Callback,
+    pub b_p_inex_flags: u32,
+    pub b_p_inde: crate::eval::typval::Callback,
+    pub b_p_inde_flags: u32,
+    pub b_p_indk: *mut c_char,
+    pub b_p_fp: *mut c_char,
+    pub b_p_fex: crate::eval::typval::Callback,
+    pub b_p_fex_flags: u32,
+    pub b_p_fs: c_int,
+    pub b_p_kp: *mut c_char,
+    pub b_p_lisp: c_int,
+    pub b_p_lop: *mut c_char,
+    pub b_p_menc: *mut c_char,
+    pub b_p_mps: *mut c_char,
+    pub b_p_ml: c_int,
+    pub b_p_ml_nobin: c_int,
+    pub b_p_ma: c_int,
+    pub b_p_nf: *mut c_char,
+    pub b_p_pi: c_int,
+    pub b_p_qe: *mut c_char,
+    pub b_p_ro: c_int,
+    pub b_p_sw: i64,
+    pub b_p_scbk: i64,
+    pub b_p_si: c_int,
+    pub b_p_sts: i64,
+    pub b_p_sts_nopaste: i64,
+    pub b_p_sua: *mut c_char,
+    pub b_p_swf: c_int,
+    pub b_p_smc: i64,
+    pub b_p_syn: *mut c_char,
+    pub b_p_ts: i64,
+    pub b_p_tw: i64,
+    pub b_p_tw_nobin: i64,
+    pub b_p_tw_nopaste: i64,
+    pub b_p_wm: i64,
+    pub b_p_wm_nobin: i64,
+    pub b_p_wm_nopaste: i64,
+    pub b_p_vsts: *mut c_char,
+    pub b_p_vsts_array: *mut i32,
+    pub b_p_vsts_nopaste: *mut c_char,
+    pub b_p_vts: *mut c_char,
+    pub b_p_vts_array: *mut i32,
+    pub b_p_keymap: *mut c_char,
+    pub b_p_gefm: *mut c_char,
+    pub b_p_gp: *mut c_char,
+    pub b_p_mp: *mut c_char,
+    pub b_p_efm: *mut c_char,
+    pub b_p_ep: *mut c_char,
+    pub b_p_path: *mut c_char,
+    pub b_p_ar: c_int,
+    pub b_p_tags: *mut c_char,
+    pub b_p_tc: *mut c_char,
+    pub b_tc_flags: c_uint,
+    pub b_p_dict: *mut c_char,
+    pub b_p_dia: *mut c_char,
+    pub b_p_tsr: *mut c_char,
+    pub b_p_tsrfu: crate::eval::typval::Callback,
+    pub b_p_ul: i64,
+    pub b_p_udf: c_int,
+    pub b_p_lw: *mut c_char,
+    pub b_ind_level: c_int,
+    pub b_ind_open_imag: c_int,
+    pub b_ind_no_brace: c_int,
+    pub b_ind_first_open: c_int,
+    pub b_ind_open_extra: c_int,
+    pub b_ind_close_extra: c_int,
+    pub b_ind_open_left_imag: c_int,
+    pub b_ind_jump_label: c_int,
+    pub b_ind_case: c_int,
+    pub b_ind_case_code: c_int,
+    pub b_ind_case_break: c_int,
+    pub b_ind_param: c_int,
+    pub b_ind_func_type: c_int,
+    pub b_ind_comment: c_int,
+    pub b_ind_in_comment: c_int,
+    pub b_ind_in_comment2: c_int,
+    pub b_ind_cpp_baseclass: c_int,
+    pub b_ind_continuation: c_int,
+    pub b_ind_unclosed: c_int,
+    pub b_ind_unclosed2: c_int,
+    pub b_ind_unclosed_noignore: c_int,
+    pub b_ind_unclosed_wrapped: c_int,
+    pub b_ind_unclosed_whiteok: c_int,
+    pub b_ind_matching_paren: c_int,
+    pub b_ind_paren_prev: c_int,
+    pub b_ind_maxparen: c_int,
+    pub b_ind_maxcomment: c_int,
+    pub b_ind_scopedecl: c_int,
+    pub b_ind_scopedecl_code: c_int,
+    pub b_ind_java: c_int,
+    pub b_ind_js: c_int,
+    pub b_ind_keep_case_label: c_int,
+    pub b_ind_hash_comment: c_int,
+    pub b_ind_cpp_namespace: c_int,
+    pub b_ind_if_for_while: c_int,
+    pub b_ind_cpp_extern_c: c_int,
+    pub b_ind_pragma: c_int,
+    pub b_no_eol_lnum: i32,
+    pub b_start_eof: c_int,
+    pub b_start_eol: c_int,
+    pub b_start_ffc: c_int,
+    pub b_start_fenc: *mut c_char,
+    pub b_bad_char: c_int,
+    pub b_start_bomb: c_int,
+    pub b_bufvar: crate::eval::typval::ScopeDictDictItem,
+    pub b_vars: *mut crate::eval::typval::dict_T,
+    pub b_may_swap: bool,
+    pub b_did_warn: bool,
+    pub b_help: bool,
+    pub b_spell: bool,
+    pub b_prompt_text: *mut c_char,
+    pub b_prompt_callback: crate::eval::typval::Callback,
+    pub b_prompt_interrupt: crate::eval::typval::Callback,
+    pub b_prompt_append_new_line: bool,
+    pub b_prompt_insert: c_int,
+    pub b_prompt_start: fmark_T,
+    pub b_s: synblock_T,
+    pub b_signcols: BufSigncols,
+    pub terminal: *mut Terminal,
+    pub additional_data: *mut c_void,
+    pub b_mapped_ctrl_c: c_int,
+    pub b_marktree: [crate::marktree::MarkTree; 1],
+    pub b_extmark_ns: [Map<u32, u32>; 1],
+    pub b_prev_line_count: c_int,
+    pub update_channels: crate::kvec::KVec<u64>,
+    pub update_callbacks: crate::kvec::KVec<BufUpdateCallbacks>,
+    pub update_need_codepoints: bool,
+    pub deleted_bytes: usize,
+    pub deleted_bytes2: usize,
+    pub deleted_codepoints: usize,
+    pub deleted_codeunits: usize,
+    pub flush_count: c_int,
+    pub b_localdir: *mut c_char,
+    pub b_prevdir: *mut c_char,
+}
 
 pub const GETF_SETMARK: c_int = 0x01;
 pub const GETF_ALT: c_int = 0x02;

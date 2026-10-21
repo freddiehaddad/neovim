@@ -8,22 +8,19 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::deprecated::StringBuilder;
 use crate::api::private::helpers::api_clear_error;
 use crate::api::private::validate::{Array, Error, ErrorType};
 use crate::api::vim::{
     MAXPATHL, REMAP_NONE, REMAP_YES, is_internal_call, kFalse, kNone, nvim_paste,
 };
 use crate::charset::{ascii_iswhite, is_special, skipwhite, to_special};
-use crate::clipboard::{VarType, typval_T};
 use crate::cursor::{colnr_T, get_cursor_line_ptr, linenr_T};
 use crate::drawscreen::{SHOWCMD_COLS, setcursor, showmode, unshowmode, update_screen};
 use crate::errors::*;
-use crate::eval::deprecated::EvalFuncData;
 use crate::eval::garbage_collect;
 use crate::eval::typval::{
-    tv_check_for_opt_dict_arg, tv_dict_get_bool, tv_dict_get_string, tv_dict_has_key,
-    tv_get_bool_chk,
+    EvalFuncData, VarType, tv_check_for_opt_dict_arg, tv_dict_get_bool, tv_dict_get_string,
+    tv_dict_has_key, tv_get_bool_chk, typval_T,
 };
 use crate::eval::vars::{
     VV_MOUSE_COL, VV_MOUSE_LNUM, VV_MOUSE_WIN, VV_MOUSE_WINID, set_vim_var_nr,
@@ -57,7 +54,7 @@ use crate::keycodes::{
     KE_PLUG, KE_SNR, KS_EXTRA, KS_MODIFIER, KS_SPECIAL, KS_ZERO, MOD_MASK_ALT, MOD_MASK_CTRL,
     MOD_MASK_SHIFT, NL, TAB, key2termcap0, key2termcap1, special_to_buf, termcap2key,
 };
-use crate::kvec::{KVec, kv_concat_len, kv_destroy, kv_push};
+use crate::kvec::{KVec, StringBuilder, kv_concat_len, kv_destroy, kv_push};
 use crate::lua::executor::{kRetNilBool, nlua_call_ref, nlua_exec_on_key};
 use crate::map_glyph_cache::NvimString;
 use crate::mapping::{

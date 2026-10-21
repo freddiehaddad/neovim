@@ -12,7 +12,7 @@
     clippy::useless_conversion
 )]
 
-use crate::api::deprecated::{KeyDict_empty, StringBuilder};
+use crate::api::deprecated::KeyDict_empty;
 use crate::api::private::converter::sctx_T;
 use crate::api::private::dispatch::{
     KeyDict_cmd_magic_get_field, KeyDict_cmd_mods_filter_get_field, KeyDict_cmd_mods_get_field,
@@ -39,6 +39,7 @@ use crate::ex_eval::aborting;
 use crate::garray::{ga_clear, ga_init, garray_T};
 use crate::globals::*;
 use crate::highlight::OptionalKeys;
+use crate::kvec::StringBuilder;
 use crate::lua::converter::{Boolean, LuaRef};
 use crate::lua::executor::{api_free_luaref, api_new_luaref};
 use crate::map_glyph_cache::NvimString;

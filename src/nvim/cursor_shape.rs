@@ -3,9 +3,7 @@
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 #[cfg(not(test))]
-use crate::api::private::helpers::cstr_as_nvim_string;
-#[cfg(not(test))]
-use crate::api::private::helpers::{arena_array, arena_dict};
+use crate::api::private::helpers::{arena_array, arena_dict, cstr_as_nvim_string};
 use crate::api::private::validate::Array;
 #[cfg(not(test))]
 use crate::api::private::validate::{Dict, KeyValuePair, Object, ObjectData, ObjectType};

@@ -17,14 +17,11 @@ use crate::autocmd::{
 use crate::charset::{
     ascii_isalnum, ascii_islower, ascii_iswhite, getdigits, skiptowhite, skipwhite, vim_strsize,
 };
-use crate::clipboard::{VarType, listitem_T, typval_T};
 use crate::cmdexpand::{EXPAND_USER_FUNC, cmdidx_T, kUICmdline};
 use crate::cursor::linenr_T;
 use crate::debugger::{dbg_breakpoint, dbg_find_breakpoint, has_profiling};
 use crate::errors::*;
 use crate::eval::buffer::varnumber_T;
-use crate::eval::decode::{dict_T, dictitem_T};
-use crate::eval::deprecated::{Callback, EvalFuncData};
 use crate::eval::encode::{encode_tv2echo, encode_tv2string};
 use crate::eval::funcs::{
     MAX_FUNC_ARGS, TFN_INT, TFN_NO_DEREF, call_internal_func, call_internal_method,
@@ -33,9 +30,10 @@ use crate::eval::funcs::{
 #[cfg(not(test))]
 use crate::eval::typval::tv_dict_hi2di;
 use crate::eval::typval::{
-    TV_CSTRING, tv_clear, tv_copy, tv_dict_add, tv_dict_item_alloc, tv_dict_item_alloc_len,
-    tv_dict_item_remove, tv_dict_unref, tv_get_number_chk, tv_is_func, tv_list_append,
-    tv_list_init_static, tv_list_set_lock, value_check_lock,
+    Callback, EvalFuncData, TV_CSTRING, VarType, dict_T, dictitem_T, listitem_T, tv_clear, tv_copy,
+    tv_dict_add, tv_dict_item_alloc, tv_dict_item_alloc_len, tv_dict_item_remove, tv_dict_unref,
+    tv_get_number_chk, tv_is_func, tv_list_append, tv_list_init_static, tv_list_set_lock, typval_T,
+    value_check_lock,
 };
 use crate::eval::vars::{
     VV_TESTING, evalarg_T, find_var, find_var_ht, find_var_in_ht, get_vim_var_nr, init_var_dict,

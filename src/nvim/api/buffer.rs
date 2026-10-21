@@ -12,7 +12,6 @@
 )]
 
 use crate::api::deprecated::KeyDict_empty;
-use crate::api::options::CtxSwitch;
 use crate::api::private::helpers::{
     NIL, add_c, api_clear_error, api_set_error, arena_array, arena_dict, boolean_obj, buf_get_text,
     cstr_as_string, dict_get_value, dict_set_var, error_set, find_buffer_by_handle, has_key,
@@ -21,13 +20,16 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, Object, api_err_invalid, api_err_range, check_string_array,
 };
-use crate::api::tabpage::{Buffer, win_T};
-use crate::buffer::{DOBUF_FIRST, DOBUF_UNLOAD, DOBUF_WIPE, buf_ensure_loaded, do_buffer};
+use crate::api::tabpage::Buffer;
+use crate::buffer::{
+    BufUpdateCallbacks, DOBUF_FIRST, DOBUF_UNLOAD, DOBUF_WIPE, buf_T, buf_ensure_loaded, do_buffer,
+};
 use crate::buffer_updates::{buf_updates_register, buf_updates_unregister};
 use crate::change::changed_lines;
-use crate::context::{ctx_restore, ctx_switch};
-use crate::cursor::{check_cursor_col, check_cursor_lnum, check_visual_pos, colnr_T, linenr_T};
-use crate::eval::deprecated::{BufUpdateCallbacks, buf_T, pos_T};
+use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
+use crate::cursor::{
+    check_cursor_col, check_cursor_lnum, check_visual_pos, colnr_T, linenr_T, pos_T,
+};
 use crate::ex_cmds::rename_buffer;
 use crate::extmark::{ExtmarkOp, extmark_splice};
 use crate::globals::*;
@@ -51,6 +53,7 @@ use crate::msgpack_rpc::packer::Integer;
 use crate::ops::get_region_bytecount;
 use crate::option_vars::*;
 use crate::undo::{u_header_T, u_save_buf};
+use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -123,29 +126,6 @@ pub struct KeyDict_buf_delete {
     pub is_set__buf_delete_: OptionalKeys,
     pub force: Boolean,
     pub unload: Boolean,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct VisualExtent {
-    pub mode: c_int,
-    pub line_count: linenr_T,
-    pub vcol: colnr_T,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct VisualState {
-    pub start: pos_T,
-    pub active: bool,
-    pub select: bool,
-    pub select_reg: c_int,
-    pub select_exclu_adj: bool,
-    pub restart_select: c_int,
-    pub need_end: bool,
-    pub reselect: c_int,
-    pub mode: c_int,
-    pub resel: VisualExtent,
 }
 
 use crate::math::{FAIL, OK};

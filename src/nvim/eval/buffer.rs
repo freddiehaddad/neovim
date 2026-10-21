@@ -8,29 +8,25 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::options::CtxSwitch;
-use crate::api::tabpage::win_T;
 use crate::buffer::{
-    MAXLNUM, SEA_NONE, bt_cmdwin, bt_nofilename, bt_prompt, buf_ensure_loaded, buf_get_changedtick,
-    buflist_add, buflist_findlnum, buflist_findname_exp, buflist_findnr, buflist_new,
-    first_win_in_tab, kExtmarkNoUndo, kMarkAdjustNormal,
+    MAXLNUM, SEA_NONE, bt_cmdwin, bt_nofilename, bt_prompt, buf_T, buf_ensure_loaded,
+    buf_get_changedtick, buflist_add, buflist_findlnum, buflist_findname_exp, buflist_findnr,
+    buflist_new, first_win_in_tab, kExtmarkNoUndo, kMarkAdjustNormal,
 };
 use crate::change::{
     ML_DEL_MESSAGE, appended_lines_mark, changed_lines, deleted_lines_buf, deleted_lines_mark,
     inserted_bytes,
 };
-use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
-use crate::context::{ctx_restore, ctx_switch};
+use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::cursor::{check_cursor_col, colnr_T, linenr_T};
-use crate::eval::decode::dict_T;
-use crate::eval::deprecated::{Callback, EvalFuncData, buf_T};
 use crate::eval::funcs::{get_buf_arg, tv_get_buf, tv_get_buf_from_arg};
 use crate::eval::typval::{
-    callback_free, tv_check_str_or_nr, tv_clear, tv_dict_add_dict, tv_dict_add_list,
-    tv_dict_add_nr, tv_dict_add_str, tv_dict_alloc, tv_dict_get_bool, tv_get_bool_chk, tv_get_lnum,
+    Callback, EvalFuncData, TypvalVval, VarType, callback_free, dict_T, list_T, listitem_T,
+    tv_check_str_or_nr, tv_clear, tv_dict_add_dict, tv_dict_add_list, tv_dict_add_nr,
+    tv_dict_add_str, tv_dict_alloc, tv_dict_get_bool, tv_get_bool_chk, tv_get_lnum,
     tv_get_lnum_buf, tv_get_string, tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret,
     tv_list_append_dict, tv_list_append_number, tv_list_append_string, tv_list_first,
-    tv_list_item_remove, tv_list_last, tv_list_len,
+    tv_list_item_remove, tv_list_last, tv_list_len, typval_T,
 };
 use crate::eval::window::win_has_winnr;
 use crate::eval::{
@@ -51,6 +47,7 @@ use crate::path::path_with_url;
 use crate::sign::{buf_has_signs, get_buffer_signs};
 use crate::strings::concat_str;
 use crate::undo::{bufIsChanged, u_clearallandblockfree, u_save, u_savesub, u_sync};
+use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 

@@ -9,10 +9,11 @@
 )]
 
 use crate::api::private::converter::sctx_T;
+use crate::buffer::buf_T;
 use crate::charset::skipwhite;
 #[cfg(unix)]
 use crate::charset::vim_isfilec;
-use crate::eval::deprecated::{buf_T, pos_T};
+use crate::cursor::pos_T;
 #[cfg(not(test))]
 use crate::eval::fs::modify_fname;
 #[cfg(not(test))]
@@ -38,9 +39,7 @@ use crate::message::{emsg, internal_error};
 #[cfg(not(test))]
 use crate::option_vars::*;
 #[cfg(not(test))]
-use crate::os::fs::UV_EINVAL;
-#[cfg(not(test))]
-use crate::os::fs::os_isdir;
+use crate::os::fs::{UV_EINVAL, os_isdir};
 #[cfg(all(not(test), unix))]
 use crate::os::fs::{os_dirname, os_realpath};
 #[cfg(unix)]

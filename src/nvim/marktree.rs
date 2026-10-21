@@ -281,8 +281,8 @@ pub const fn mt_decor_sign(key: MTKey) -> bool {
 }
 
 #[inline]
-pub const fn mt_decor(key: MTKey) -> crate::api::deprecated::DecorInline {
-    crate::api::deprecated::DecorInline {
+pub const fn mt_decor(key: MTKey) -> crate::decoration::DecorInline {
+    crate::decoration::DecorInline {
         ext: (key.flags & MT_FLAG_DECOR_EXT) != 0,
         data: key.decor_data,
     }

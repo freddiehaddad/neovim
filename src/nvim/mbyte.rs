@@ -9,18 +9,16 @@
     clippy::enum_variant_names
 )]
 
-use crate::api::tabpage::win_T;
 use crate::arabic::arabic_combine;
 use crate::charset::{ascii_iswhite, ascii2cells, vim_isprintc, vim_iswordc_tab};
-use crate::clipboard::{VarType, list_T, listitem_T, typval_T};
-use crate::cursor::{colnr_T, get_cursor_pos_ptr};
+use crate::cursor::{colnr_T, get_cursor_pos_ptr, pos_T};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_all_later};
 use crate::errors::*;
 use crate::eval::buffer::varnumber_T;
-use crate::eval::deprecated::{EvalFuncData, pos_T};
 use crate::eval::typval::{
-    tv_check_for_string_arg, tv_get_string, tv_get_string_buf, tv_list_alloc, tv_list_alloc_ret,
-    tv_list_append_list, tv_list_append_number, tv_list_first, tv_list_len,
+    EvalFuncData, VarType, list_T, listitem_T, tv_check_for_string_arg, tv_get_string,
+    tv_get_string_buf, tv_list_alloc, tv_list_alloc_ret, tv_list_append_list,
+    tv_list_append_number, tv_list_first, tv_list_len, typval_T,
 };
 #[cfg(windows)]
 use crate::event::r#loop::uv_translate_sys_error;
@@ -47,6 +45,7 @@ use crate::os::fs::os_errno as iconv_errno;
 use crate::os::lang::LC_CTYPE;
 use crate::plines::{CharInfo, ClusterInfo, StrCharInfo};
 use crate::strings::{setlocale, strmove_c, tolower, toupper};
+use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 

@@ -11,10 +11,9 @@
 use crate::charset::{ascii_iswhite, skipwhite};
 use crate::cursor::{
     clearpos, coladvance, colnr_T, dec_cursor, equalpos, gchar_cursor, get_cursor_line_ptr,
-    get_cursor_pos_ptr, inc_cursor, linenr_T, lt, ltoreq,
+    get_cursor_pos_ptr, inc_cursor, linenr_T, lt, ltoreq, pos_T,
 };
 use crate::drawscreen::{UPD_INVERTED, redraw_curbuf_later, showmode};
-use crate::eval::deprecated::pos_T;
 use crate::eval::funcs::{do_searchpair, kMTCharWise, kMTLineWise};
 use crate::fold::hasFolding;
 use crate::globals::*;

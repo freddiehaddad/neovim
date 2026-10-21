@@ -9,20 +9,20 @@
 )]
 
 use crate::api::autocmd::kCallbackNone;
-use crate::api::deprecated::{DecorVirtText, DecorVirtTextData, VirtText, VirtTextChunk};
 use crate::api::extmark::{NS, kVPosWinCol};
-use crate::api::tabpage::{frame_T, win_T};
 use crate::autocmd::{EVENT_VIMRESIZED, apply_autocmds};
 use crate::buffer::{
-    MAXLNUM, STL_IN_ICON, STL_IN_TITLE, VALID_TOPLINE, buf_meta_total, kUIMessages, maketitle,
+    MAXLNUM, STL_IN_ICON, STL_IN_TITLE, VALID_TOPLINE, buf_T, buf_meta_total, kUIMessages,
+    maketitle,
 };
 use crate::charset::{vim_isprintc, vim_strsize};
 use crate::cmdexpand::{cmdline_pum_display, kUICmdline};
 use crate::context::ctx_saved_curwin;
-use crate::cursor::{colnr_T, linenr_T};
+use crate::cursor::{colnr_T, linenr_T, pos_T};
 use crate::decoration::{
-    SCL_NUM, buf_signcols_count_range, decor_conceal_line, decor_range_add_virt,
-    decor_redraw_reset, decor_virt_lines, win_lines_concealed,
+    DecorVirtText, DecorVirtTextData, SCL_NUM, VirtText, VirtTextChunk, buf_signcols_count_range,
+    decor_conceal_line, decor_range_add_virt, decor_redraw_reset, decor_virt_lines,
+    win_lines_concealed,
 };
 use crate::decoration_provider::{
     decor_providers_invoke_buf, decor_providers_invoke_end, decor_providers_invoke_win,
@@ -32,7 +32,6 @@ use crate::diff::diff_redraw;
 use crate::digraph::{HLF_CM, get_keymap_str};
 use crate::drawline::{HLF_AT, HLF_COUNT, HLF_FC, VALID_WCOL, kCpoNumcol, win_line};
 use crate::eval::buffer::varnumber_T;
-use crate::eval::deprecated::{buf_T, pos_T};
 use crate::eval::vars::{VV_ECHOSPACE, set_vim_var_nr};
 use crate::ex_getln::{
     cmdline_screen_cleared, compute_cmdrow, get_cmdline_info, hlf_T, redrawcmdline,
@@ -97,8 +96,8 @@ use crate::ui::{
 use crate::ui_compositor::ui_comp_set_screen_valid;
 use crate::version::{intro_message, may_show_intro};
 use crate::window::{
-    MIN_COLUMNS, frame2win, global_stl_height, last_stl_height, min_rows,
-    min_rows_for_all_tabpages, win_fdccol_count, win_new_screensize, win_ui_flush,
+    MIN_COLUMNS, frame_T, frame2win, global_stl_height, last_stl_height, min_rows,
+    min_rows_for_all_tabpages, win_T, win_fdccol_count, win_new_screensize, win_ui_flush,
 };
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;

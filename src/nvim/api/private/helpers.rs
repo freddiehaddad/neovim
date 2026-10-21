@@ -11,14 +11,12 @@ use crate::api::private::converter::{object_to_vim, sctx_T, vim_to_object};
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType, api_err_exp,
 };
-use crate::api::tabpage::{Buffer, Tabpage, Window, tabpage_T, win_T};
-use crate::clipboard::typval_T;
-use crate::cursor::{colnr_T, linenr_T};
-use crate::eval::decode::{dict_T, dictitem_T};
-use crate::eval::deprecated::{buf_T, pos_T};
+use crate::api::tabpage::{Buffer, Tabpage, Window};
+use crate::buffer::buf_T;
+use crate::cursor::{colnr_T, linenr_T, pos_T};
 use crate::eval::typval::{
-    tv_clear, tv_copy, tv_dict_add, tv_dict_find, tv_dict_item_alloc_len, tv_dict_item_remove,
-    tv_dict_watcher_notify,
+    dict_T, dictitem_T, tv_clear, tv_copy, tv_dict_add, tv_dict_find, tv_dict_item_alloc_len,
+    tv_dict_item_remove, tv_dict_watcher_notify, typval_T,
 };
 use crate::eval::vars::{before_set_vvar, get_vimvar_dict, scid_T};
 use crate::ex_eval::{
@@ -42,6 +40,7 @@ use crate::message::hl_msg_free;
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::msgpack_rpc::unpacker::unpack;
 use crate::runtime::script_is_lua;
+use crate::window::{tabpage_T, win_T};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::mem::{size_of, zeroed};
 use std::ptr;

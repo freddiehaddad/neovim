@@ -11,9 +11,7 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::deprecated::{VirtText, VirtTextChunk};
 use crate::api::extmark::{parse_virt_text, virt_text_to_array};
-use crate::api::options::{CtxSwitch, bufref_T};
 use crate::api::private::helpers::{
     add_c, api_clear_error, api_free_array, api_free_object, api_set_error, api_typename,
     arena_array, array_obj, cbuf_to_string, cstr_as_string, cstr_to_obj, cstrn_as_string,
@@ -24,11 +22,13 @@ use crate::api::private::validate::{
     Array, Error, ErrorType, Object, ObjectType, api_err_conflict, api_err_exp, api_err_invalid,
     api_err_required,
 };
-use crate::api::tabpage::{Buffer, WinConfig, Window, frame_T, lpos_T, tabpage_T, win_T};
+use crate::api::tabpage::{Buffer, Window};
 use crate::autocmd::{EVENT_WINNEW, apply_autocmds_win, block_autocmds, unblock_autocmds};
-use crate::buffer::{bufref_valid, set_bufref};
+use crate::buffer::{bufref_T, bufref_valid, set_bufref};
 use crate::charset::transstr;
-use crate::context::{ctx_restore, ctx_switch, is_ctx_win};
+use crate::context::{CtxSwitch, ctx_restore, ctx_switch, is_ctx_win};
+use crate::cursor::lpos_T;
+use crate::decoration::{VirtText, VirtTextChunk};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_later, set_must_redraw};
 use crate::errors::*;
 use crate::ex_docmd::expr_map_locked;
@@ -46,12 +46,12 @@ use crate::option_vars::*;
 use crate::ui::ui_has;
 use crate::ui_compositor::ui_comp_remove_grid;
 use crate::window::{
-    WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_NOENTER, WSP_TOP, WSP_VERT,
-    check_split_disallowed_err, clear_float_config, goto_tabpage_win, last_status,
-    lastwin_nofloating, merge_win_config, one_window, win_append, win_comp_pos, win_find_tabpage,
-    win_goto, win_locked, win_remove, win_set_buf, win_setheight_win, win_setwidth_win,
-    win_split_ins, win_valid, win_valid_any_tab, window_layout_locked_err, winframe_find_altwin,
-    winframe_remove, winframe_restore,
+    WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_NOENTER, WSP_TOP, WSP_VERT, WinConfig,
+    check_split_disallowed_err, clear_float_config, frame_T, goto_tabpage_win, last_status,
+    lastwin_nofloating, merge_win_config, one_window, tabpage_T, win_T, win_append, win_comp_pos,
+    win_find_tabpage, win_goto, win_locked, win_remove, win_set_buf, win_setheight_win,
+    win_setwidth_win, win_split_ins, win_valid, win_valid_any_tab, window_layout_locked_err,
+    winframe_find_altwin, winframe_remove, winframe_restore,
 };
 use crate::winfloat::{
     win_config_float, win_float_find_altwin, win_new_float, win_set_minimal_style,

@@ -67,8 +67,7 @@ pub const fn wtermsig(stat: c_int) -> c_int {
 #[cfg(unix)]
 mod unix_impl {
     use super::*;
-    use crate::event::r#loop::uv_signal_t;
-    use crate::event::r#loop::{Loop, loop_children_watcher, loop_queues};
+    use crate::event::r#loop::{Loop, loop_children_watcher, loop_queues, uv_signal_t};
     use crate::event::proc::{
         Proc, PtyProc, proc_err, proc_header, proc_in, proc_out, proc_size, proc_tail,
     };

@@ -16,7 +16,6 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{
     Array, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
 };
-use crate::api::tabpage::ScreenGrid;
 use crate::api::ui::{
     kLineFlagWrap, kUIExtCount, kUIHlState, kUILinegrid, kUITermColors,
     remote_ui__set_restart_on_crash_exit, remote_ui_bell, remote_ui_busy_start,
@@ -40,7 +39,7 @@ use crate::event::multiqueue::{
 };
 use crate::ex_getln::cmdline_ui_flush;
 use crate::globals::*;
-use crate::grid::{get_win_by_grid_handle, sattr_T, schar_T};
+use crate::grid::{ScreenGrid, get_win_by_grid_handle, sattr_T, schar_T};
 use crate::highlight::{highlight_use_hlstate, ui_send_all_hls};
 use crate::log::{LOGLVL_ERR, logmsg};
 use crate::lua::converter::LuaRef;

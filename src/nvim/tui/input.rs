@@ -11,10 +11,9 @@ use crate::api::private::helpers::{boolean_obj, integer_obj, string_obj};
 use crate::api::private::validate::Array;
 use crate::event::r#loop::Loop;
 #[cfg(not(test))]
-use crate::event::r#loop::uv_timer_t;
-#[cfg(not(test))]
 use crate::event::r#loop::{
     loop_schedule_fast, uv_close, uv_handle_size, uv_timer_init, uv_timer_start, uv_timer_stop,
+    uv_timer_t,
 };
 #[cfg(not(test))]
 use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event};

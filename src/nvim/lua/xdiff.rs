@@ -28,21 +28,12 @@ use crate::map_glyph_cache::NvimString;
 #[cfg(not(test))]
 use crate::memory::{strequal, xfree};
 #[cfg(not(test))]
-use crate::xdiff::XDF_HISTOGRAM_DIFF;
-#[cfg(not(test))]
-use crate::xdiff::XDF_IGNORE_CR_AT_EOL;
-#[cfg(not(test))]
-use crate::xdiff::XDF_INDENT_HEURISTIC;
-#[cfg(not(test))]
-use crate::xdiff::XDF_NEED_MINIMAL;
-#[cfg(not(test))]
-use crate::xdiff::XDF_PATIENCE_DIFF;
-#[cfg(not(test))]
-use crate::xdiff::mmfile_t;
-#[cfg(not(test))]
 use crate::xdiff::xdiffi::xdl_diff;
 #[cfg(not(test))]
-use crate::xdiff::{mmbuffer_t, xdemitcb_t, xdemitconf_t, xpparam_t};
+use crate::xdiff::{
+    XDF_HISTOGRAM_DIFF, XDF_IGNORE_CR_AT_EOL, XDF_INDENT_HEURISTIC, XDF_NEED_MINIMAL,
+    XDF_PATIENCE_DIFF, mmbuffer_t, mmfile_t, xdemitcb_t, xdemitconf_t, xpparam_t,
+};
 use std::ffi::c_int;
 #[cfg(not(test))]
 use std::ffi::{c_char, c_long, c_void};

@@ -15,8 +15,8 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
 };
-use crate::channel::{channel_connect, channel_job_start, kChannelStdinPipe};
-use crate::eval::deprecated::{Callback, CallbackReader};
+use crate::channel::{CallbackReader, channel_connect, channel_job_start, kChannelStdinPipe};
+use crate::eval::typval::Callback;
 use crate::event::r#loop::{loop_poll_events, loop_queues};
 use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, multiqueue_empty, multiqueue_process_events,

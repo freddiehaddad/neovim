@@ -18,13 +18,12 @@ use crate::api::private::helpers::{cstr_as_string, dict_put_cstr};
 use crate::api::private::validate::{Array, Dict, Object, ObjectData, ObjectType};
 #[cfg(not(test))]
 use crate::autocmd::{apply_autocmds, has_event};
-use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
+use crate::buffer::buf_T;
 #[cfg(not(test))]
 use crate::errors::*;
-use crate::eval::decode::dict_T;
-use crate::eval::deprecated::{Callback, CallbackReader, Channel, buf_T};
 #[cfg(not(test))]
 use crate::eval::encode::encode_list_write;
+use crate::eval::typval::{Callback, TypvalVval, VarType, dict_T, list_T, typval_T};
 #[cfg(not(test))]
 use crate::eval::typval::{
     callback_free, tv_clear, tv_dict_add_dict, tv_dict_add_list, tv_dict_find, tv_dict_free,
@@ -110,6 +109,19 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
 pub type ChannelStdinMode = c_int;
+pub type Channel = c_void;
+
+#[repr(C)]
+pub struct CallbackReader {
+    pub cb: Callback,
+    pub self_dict: *mut dict_T,
+    pub buffer: crate::garray::garray_T,
+    pub eof: bool,
+    pub buffered: bool,
+    pub fwd_err: bool,
+    pub reader_type: *const c_char,
+}
+
 use crate::eval::buffer::varnumber_T;
 use crate::option::OptInt;
 

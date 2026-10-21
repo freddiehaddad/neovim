@@ -12,17 +12,16 @@
 use crate::api::private::converter::sctx_T;
 use crate::api::private::helpers::{TryState, api_clear_error, try_enter, try_leave};
 use crate::api::private::validate::{Error, ErrorType, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{fcs_chars_T, lcs_chars_T, win_T};
 use crate::api::win_config::{WIN_CONFIG_INIT, parse_winborder};
 use crate::autocmd::{check_ei, get_event_name_no_group};
-use crate::buffer::{MAXLNUM, STL_IN_ICON, STL_IN_TITLE, kUIMessages, modifiable};
+use crate::buffer::{MAXLNUM, STL_IN_ICON, STL_IN_TITLE, buf_T, kUIMessages, modifiable};
 use crate::charset::{
     EOL_MAC, ascii_isdigit, buf_init_isk_chartab, char2cells, check_isopt, getdigits_int,
     hexhex2nr, init_isf_chartab, init_isi_chartab, kOptDyFlagUhex, transchar, transchar_byte,
     try_getdigits,
 };
 use crate::cmdexpand::{CompleteListItemGetter, ExpandGeneric};
-use crate::cursor::{coladvance, colnr_T};
+use crate::cursor::{coladvance, colnr_T, pos_T};
 use crate::cursor_shape::{SHAPE_CURSOR, parse_shape_opt};
 use crate::diff::{diffanchors_changed, diffopt_changed, kOptDiffopt};
 use crate::digraph::keymap_init;
@@ -31,7 +30,6 @@ use crate::drawscreen::{
     redraw_curbuf_later, redraw_later, redrawWinline, status_redraw_buf,
 };
 use crate::errors::*;
-use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T, pos_T, synblock_T};
 use crate::eval::vars::{do_unlet, get_var_value};
 use crate::ex_getln::{B_IMODE_NONE, B_IMODE_USE_INSERT, check_opt_wim};
 use crate::fold::{
@@ -46,6 +44,7 @@ use crate::indent_c::parse_cino;
 use crate::insexpand::{LSIZE, set_cpt_callbacks};
 use crate::lua::converter::{Boolean, FieldHashfn, KeySetLink, OptKeySet};
 use crate::map_glyph_cache::NvimString;
+use crate::mark::{fmark_T, fmarkv_T};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
     enc_canonize, get_encoding_name, utf_ptr2cells, utf_ptr2char, utfc_ptr2len, utfc_ptr2schar,
@@ -76,9 +75,10 @@ use crate::strings::{
     atoi, gettext, strcmp as c_strcmp, strcspn, strlen as c_strlen, strncmp as c_strncmp, strpbrk,
     strstr, vim_snprintf, vim_strchr,
 };
+use crate::syntax::synblock_T;
 use crate::terminal::terminal_notify_theme;
 use crate::ui::ui_has;
-use crate::window::{check_colorcolumn, global_stl_height};
+use crate::window::{check_colorcolumn, fcs_chars_T, global_stl_height, lcs_chars_T, win_T};
 use crate::winfloat::{win_config_float, win_previewpopup_config};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -199,12 +199,12 @@ pub struct vimoption_T {
 }
 
 use crate::api::buffer::NUL;
-use crate::api::deprecated::{OPT_GLOBAL, OPT_LOCAL};
 use crate::api::options::{IOSIZE, SID_NONE};
 use crate::decoration::SCL_NUM;
 use crate::ex_cmds::B_IMODE_LMAP;
 use crate::ex_session::{kOptSsopFlagCurdir, kOptSsopFlagSesdir};
 use crate::fileio::kOptFileencoding;
+use crate::option::{OPT_GLOBAL, OPT_LOCAL};
 
 #[repr(C)]
 #[derive(Clone, Copy)]

@@ -11,8 +11,8 @@
 use crate::api::command::{CMOD_NOSWAPFILE, exarg_T};
 use crate::api::extmark::nvim_create_namespace;
 use crate::api::options::{
-    CtxSwitch, IOSIZE, OP_ADDING, OP_NONE, OP_PREPENDING, OP_REMOVING, PREFIX_NONE, SID_NONE,
-    kOptBufhidden, kOptBuftype, kOptFiletype, kOptModeline, kOptScopeTab, kOptSwapfile,
+    IOSIZE, OP_ADDING, OP_NONE, OP_PREPENDING, OP_REMOVING, PREFIX_NONE, SID_NONE, kOptBufhidden,
+    kOptBuftype, kOptFiletype, kOptModeline, kOptScopeTab, kOptSwapfile,
 };
 use crate::api::private::converter::sctx_T;
 use crate::api::private::helpers::{
@@ -21,13 +21,12 @@ use crate::api::private::helpers::{
     string_obj,
 };
 use crate::api::private::validate::{Dict, Error, ErrorType, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{tabpage_T, win_T, winopt_T};
 use crate::autocmd::{
     EVENT_BUFADD, EVENT_BUFDELETE, EVENT_OPTIONSET, EVENT_SYNTAX, OPT_NOWIN, apply_autocmds,
     aucmd_defer_modified, do_filetype_autocmd, kOptModified,
 };
 use crate::buffer::{
-    BCO_ALWAYS, KEYMAP_INIT, NO_LOCAL_UNDOLEVEL, OPT_MODELINE, bt_prompt, buf_is_empty,
+    BCO_ALWAYS, KEYMAP_INIT, NO_LOCAL_UNDOLEVEL, OPT_MODELINE, bt_prompt, buf_T, buf_is_empty,
     do_autochdir, free_buf_options, maketitle,
 };
 use crate::change::{HLF_W, save_file_ff};
@@ -38,14 +37,13 @@ use crate::charset::{
     init_isf_chartab, init_isi_chartab, is_special, skiptowhite_esc, skipwhite, trans_characters,
     transchar, vim_str2nr, vim_strsize,
 };
-use crate::clipboard::typval_T;
 use crate::cmdexpand::{
     EXPAND_BOOL_SETTINGS, EXPAND_DIRECTORIES, EXPAND_FILES, EXPAND_FILETYPE, EXPAND_KEYMAP,
     EXPAND_NOTHING, EXPAND_OLD_SETTING, EXPAND_OWNSYNTAX, EXPAND_SETTING_SUBTRACT, EXPAND_SETTINGS,
     EXPAND_STRING_SETTING, EXPAND_UNSUCCESSFUL, XP_BS_COMMA, XP_BS_ONE, XP_BS_THREE, XP_PREFIX_INV,
     XP_PREFIX_NO, cmdidx_T, cmdline_fuzzy_complete,
 };
-use crate::context::{ctx_restore, ctx_switch};
+use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::cursor_shape::{SHAPE_CURSOR, parse_shape_opt};
 use crate::decoration_provider::get_decor_provider;
 use crate::diff::{diff_buf_adjust, kOptDiff, kOptFoldmethod};
@@ -55,11 +53,10 @@ use crate::drawscreen::{
     status_redraw_all, status_redraw_curbuf,
 };
 use crate::errors::*;
-use crate::eval::decode::dict_T;
-use crate::eval::deprecated::{Callback, buf_T, synblock_T};
 use crate::eval::encode::encode_tv2string;
 use crate::eval::typval::{
-    callback_copy, callback_free, callback_put, tv_clear, tv_dict_add_tv, tv_dict_alloc, tv_free,
+    Callback, callback_copy, callback_free, callback_put, dict_T, tv_clear, tv_dict_add_tv,
+    tv_dict_alloc, tv_free, typval_T,
 };
 use crate::eval::userfunc::get_scriptlocal_funcname;
 use crate::eval::vars::{
@@ -145,6 +142,7 @@ use crate::strings::{
     strlen as c_strlen, strncmp as c_strncmp, strstr, vim_snprintf, vim_snprintf_safelen,
     vim_strchr, vim_strsave_escaped,
 };
+use crate::syntax::synblock_T;
 use crate::tag::free_tagfunc_option;
 use crate::terminal::on_scrollback_option_changed;
 use crate::ui::ui_call_option_set;
@@ -152,9 +150,9 @@ use crate::undo::{bufIsChanged, curbufIsChanged, u_compute_hash, u_read_undo, u_
 use crate::window::{
     MIN_COLUMNS, STATUS_HEIGHT, check_colorcolumn, command_height, frame_new_height,
     global_stl_height, last_status, min_rows, min_rows_for_all_tabpages, set_winbar,
-    set_winbar_all, set_winbar_win, tabline_height, unuse_tabpage, use_tabpage, win_comp_pos,
-    win_comp_scroll, win_default_scroll, win_equal, win_find_tabpage, win_new_screen_rows,
-    win_setheight, win_setwidth,
+    set_winbar_all, set_winbar_win, tabline_height, tabpage_T, unuse_tabpage, use_tabpage, win_T,
+    win_comp_pos, win_comp_scroll, win_default_scroll, win_equal, win_find_tabpage,
+    win_new_screen_rows, win_setheight, win_setwidth, winopt_T,
 };
 use crate::winfloat::win_float_update_statusline;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
@@ -164,13 +162,18 @@ pub type OptInt = i64;
 pub type OptScope = c_int;
 pub type set_op_T = c_int;
 pub type set_prefix_T = c_int;
+
+pub(crate) const OPT_GLOBAL: c_int = 0x01;
+pub(crate) const OPT_LOCAL: c_int = 0x02;
+pub(crate) const kOptScopeGlobal: OptScope = 0;
+pub(crate) const kOptScopeWin: OptScope = 1;
+pub(crate) const kOptScopeBuf: OptScope = 2;
+pub(crate) const kOptInvalid: OptIndex = -1;
+
 use crate::api::autocmd::{
     kCallbackExpr, kCallbackFuncref, kCallbackLua, kCallbackNone, kCallbackPartial,
 };
 use crate::api::buffer::NUL;
-use crate::api::deprecated::{
-    OPT_GLOBAL, OPT_LOCAL, kOptInvalid, kOptScopeBuf, kOptScopeGlobal, kOptScopeWin,
-};
 use crate::api::ui::NO_SCREEN;
 use crate::api::vim::{BCO_ENTER, BCO_NOHELP, ERR_BUFLEN, MAXPATHL, kFalse, kNone, kTrue};
 use crate::api::win_config::kCtxNoDisplay;

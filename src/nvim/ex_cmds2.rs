@@ -9,7 +9,6 @@
 )]
 
 use crate::api::command::{CMOD_CONFIRM, cmdidx_T, exarg_T};
-use crate::api::options::{CtxSwitch, bufref_T};
 use crate::arglist::{
     CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN, CMD_argdo, ML_EMPTY, aentry_T, alist_T,
     do_argfile, editing_arg_idx, ex_all, ex_rewind, set_arglist,
@@ -18,19 +17,18 @@ use crate::autocmd::{
     DOCMD_NOWAIT, DOCMD_VERBOSE, EVENT_SYNTAX, apply_autocmds, au_event_disable, au_event_restore,
 };
 use crate::buffer::{
-    DOBUF_FIRST, DOBUF_GOTO, DOBUF_UNLOAD, bt_dontwrite, buf_hide, buf_set_name, buf_spname,
-    buflist_findnr, bufref_valid, first_win_in_tab, goto_buffer, kUIMessages, no_write_message,
-    no_write_message_nobang, set_bufref, set_curbuf,
+    DOBUF_FIRST, DOBUF_GOTO, DOBUF_UNLOAD, bt_dontwrite, buf_T, buf_hide, buf_set_name, buf_spname,
+    buflist_findnr, bufref_T, bufref_valid, first_win_in_tab, goto_buffer, kUIMessages,
+    no_write_message, no_write_message_nobang, set_bufref, set_curbuf,
 };
 use crate::bufwrite::buf_write;
 use crate::change::{HLF_W, unchanged};
 use crate::channel::channel_job_running;
-use crate::context::{ctx_restore, ctx_switch};
+use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::dialog::{
     VIM_ALL, VIM_DISCARDALL, VIM_NO, VIM_YES, vim_dialog_yesnoallcancel, vim_dialog_yesnocancel,
 };
 use crate::errors::*;
-use crate::eval::deprecated::buf_T;
 use crate::eval::eval_call_provider;
 use crate::eval::typval::{
     tv_list_alloc, tv_list_append_allocated_string, tv_list_append_number, tv_list_append_string,

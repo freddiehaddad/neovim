@@ -10,7 +10,6 @@
     clippy::missing_safety_doc
 )]
 
-use crate::api::options::CtxSwitch;
 use crate::api::private::helpers::{
     NIL, add_c, api_clear_error, api_set_error, arena_array, arena_dict, dict_get_value,
     dict_set_var, error_set, find_buffer_by_handle, find_window_by_handle, has_key, integer_obj,
@@ -21,7 +20,7 @@ use crate::api::private::validate::{
     api_err_invalid, api_err_range, api_err_required,
 };
 use crate::api::tabpage::{Buffer, Tabpage, Window};
-use crate::context::{ctx_restore, ctx_switch, is_ctx_win};
+use crate::context::{CtxSwitch, ctx_restore, ctx_switch, is_ctx_win};
 use crate::cursor::{check_cursor_col, colnr_T, linenr_T};
 use crate::drawscreen::{UPD_NOT_VALID, UPD_VALID, redraw_later};
 use crate::errors::*;

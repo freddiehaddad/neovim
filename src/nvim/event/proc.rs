@@ -7,7 +7,7 @@
     clippy::missing_safety_doc
 )]
 
-use crate::eval::decode::dict_T;
+use crate::eval::typval::dict_T;
 use crate::event::libuv_proc::{libuv_proc_close, libuv_proc_spawn};
 use crate::event::r#loop::{
     Loop, loop_children_kill_timer, loop_exit_delay_timer, loop_poll_events, loop_queues,

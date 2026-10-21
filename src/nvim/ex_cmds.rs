@@ -13,11 +13,10 @@ use crate::api::buffer::{NUL, bcount_t, kExtmarkNOOP, kExtmarkUndo};
 use crate::api::command::{
     CMOD_CONFIRM, CMOD_KEEPALT, CMOD_KEEPMARKS, CMOD_KEEPPATTERNS, CMOD_LOCKMARKS, exarg_T,
 };
-use crate::api::options::{IOSIZE, SID_NONE, bufref_T};
+use crate::api::options::{IOSIZE, SID_NONE};
 use crate::api::private::helpers::{
     api_clear_string, cbuf_as_string, cbuf_to_string, cstr_as_obj, cstr_as_string,
 };
-use crate::api::tabpage::{lpos_T, win_T};
 use crate::arglist::{
     CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN, ML_EMPTY, check_arg_idx, do_argfile,
 };
@@ -30,11 +29,12 @@ use crate::buffer::{
     BF_CHECK_RO, BF_NEVERLOADED, BF_NEW, BF_NOTEDITED, BF_READERR, BFA_KEEP_UNDO, BLN_CURBUF,
     BLN_LISTED, BLN_NOCURWIN, DOBUF_UNLOAD, GETFILE_ERROR, GETFILE_NOT_WRITTEN, GETFILE_OPEN_OTHER,
     GETFILE_SAME_FILE, KEYMAP_INIT, MAXLNUM, SEA_DIALOG, SEA_QUIT, bt_dontwrite, bt_nofilename,
-    buf_clear_file, buf_ensure_loaded, buf_freeall, buf_hide, buf_name_changed, buflist_altfpos,
-    buflist_findfmark, buflist_findname, buflist_findnr, buflist_new, bufref_valid, close_buffer,
-    do_autochdir, do_modelines, fileinfo, fname_expand, get_winopts, handle_swap_exists,
-    kCdCauseBuffer, kShmFileinfo, kUIMessages, maketitle, modifiable, no_write_message,
-    no_write_message_buf, open_buffer, otherfile, set_buflisted, set_bufref, setaltfname, setfname,
+    buf_T, buf_clear_file, buf_ensure_loaded, buf_freeall, buf_hide, buf_name_changed,
+    buflist_altfpos, buflist_findfmark, buflist_findname, buflist_findnr, buflist_new, bufref_T,
+    bufref_valid, close_buffer, do_autochdir, do_modelines, fileinfo, fname_expand, get_winopts,
+    handle_swap_exists, kCdCauseBuffer, kShmFileinfo, kUIMessages, maketitle, modifiable,
+    no_write_message, no_write_message_buf, open_buffer, otherfile, set_buflisted, set_bufref,
+    setaltfname, setfname,
 };
 use crate::buffer_updates::buf_updates_send_changes;
 use crate::bufwrite::buf_write;
@@ -52,7 +52,7 @@ use crate::cmdexpand::{RE_LAST, cmdidx_T};
 use crate::cmdhist::{HIST_SEARCH, add_to_history};
 use crate::cursor::{
     check_cursor, check_cursor_col, check_cursor_lnum, check_pos, coladvance, colnr_T, equalpos,
-    get_cursor_line_ptr, get_cursor_pos_ptr, linenr_T,
+    get_cursor_line_ptr, get_cursor_pos_ptr, linenr_T, lpos_T, pos_T,
 };
 use crate::decoration::bufhl_add_hl_pos_offset;
 use crate::dialog::{VIM_YES, prompt_for_input, vim_dialog_yesno};
@@ -64,7 +64,6 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 use crate::eval::buffer::varnumber_T;
-use crate::eval::deprecated::{buf_T, pos_T, synblock_T};
 use crate::eval::vars::{VV_SWAPCOMMAND, get_vim_var_str, set_vim_var_string};
 use crate::ex_cmds2::{
     autowrite, autowrite_all, buf_write_all, check_changed, check_fname, dialog_changed,
@@ -94,6 +93,11 @@ use crate::regexp::{
     MAXCOL, RE_MAGIC, REGSUB_BACKSLASH, REGSUB_COPY, REGSUB_MAGIC, re_multiline, regmatch_T,
     regmmatch_T, regprog_T, regtilde, skip_regexp, skip_regexp_err, skip_regexp_ex, vim_regcomp,
     vim_regexec, vim_regexec_multi, vim_regfree, vim_regsub_multi,
+};
+use crate::syntax::synblock_T;
+use crate::window::{
+    check_can_set_curbuf_forceit, check_lnums, curwin_init, update_cwd, win_T, win_enter,
+    win_split, win_valid,
 };
 
 use crate::math::{FAIL, OK};
@@ -147,10 +151,6 @@ use crate::terminal::{Terminal, terminal_check_size, terminal_running};
 use crate::ui::{ui_cursor_goto, ui_cursor_shape, ui_has};
 use crate::undo::{
     u_inssub, u_save, u_save_cursor, u_savecommon, u_savedel, u_savesub, u_sync, u_unchanged,
-};
-use crate::window::{
-    check_can_set_curbuf_forceit, check_lnums, curwin_init, update_cwd, win_enter, win_split,
-    win_valid,
 };
 use crate::winfloat::{win_float_anchor_preview, win_float_special, win_float_update_preview};
 use std::ffi::{CStr, c_char, c_double, c_int, c_ulong, c_void};

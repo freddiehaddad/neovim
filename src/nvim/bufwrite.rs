@@ -11,33 +11,34 @@
 
 use crate::api::command::exarg_T;
 #[cfg(not(test))]
-use crate::api::options::{CtxSwitch, IOSIZE, bufref_T};
+use crate::api::options::IOSIZE;
 #[cfg(not(test))]
 use crate::autocmd::{
     EVENT_BUFWRITECMD, EVENT_BUFWRITEPOST, EVENT_BUFWRITEPRE, EVENT_FILEAPPENDCMD,
     EVENT_FILEAPPENDPOST, EVENT_FILEAPPENDPRE, EVENT_FILEWRITECMD, EVENT_FILEWRITEPOST,
     EVENT_FILEWRITEPRE, EVENT_FILTERWRITEPOST, EVENT_FILTERWRITEPRE, apply_autocmds_exarg,
 };
+use crate::buffer::buf_T;
 #[cfg(all(not(test), unix))]
 use crate::buffer::buf_set_file_id;
 #[cfg(not(test))]
 use crate::buffer::{
-    BF_NEW, BF_WRITE_MASK, NOTDONE, bt_nofilename, buf_get_changedtick, bufref_valid, set_bufref,
+    BF_NEW, BF_WRITE_MASK, NOTDONE, bt_nofilename, buf_get_changedtick, bufref_T, bufref_valid,
+    set_bufref,
 };
 #[cfg(not(test))]
 use crate::change::unchanged;
 #[cfg(not(test))]
-use crate::context::{ctx_restore, ctx_switch};
+use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::cursor::linenr_T;
+#[cfg(not(test))]
+use crate::cursor::pos_T;
 #[cfg(not(test))]
 use crate::dialog::ask_yesno;
 #[cfg(not(test))]
 use crate::drawscreen::status_redraw_all;
 #[cfg(not(test))]
 use crate::errors::*;
-use crate::eval::deprecated::buf_T;
-#[cfg(not(test))]
-use crate::eval::deprecated::pos_T;
 #[cfg(not(test))]
 use crate::eval::fs::FileInfo;
 #[cfg(not(test))]
@@ -54,7 +55,7 @@ use crate::ex_eval::{aborting, should_abort};
 use crate::fileio::{
     EOL_DOS, EOL_UNIX, FIO_NOCONVERT, ICONV_EINVAL, WRITEBUFSIZE, add_quoted_fname,
     buf_store_file_info, call_iconv, call_iconv_close, close_fd, filemess_bufwrite, fname_msg_id,
-    get_fio_flags, kShmOver, match_file_list, modname, msg_add_fileformat, msg_add_lines,
+    get_fio_flags, iconv_t, kShmOver, match_file_list, modname, msg_add_fileformat, msg_add_lines,
     need_conversion, set_rw_fname, slow_io_ns, time_differs, vim_rename, vim_tempname, write_eintr,
 };
 use crate::fileio::{FIO_ENDIAN_L, FIO_LATIN1, FIO_UCS2, FIO_UCS4, FIO_UTF8, FIO_UTF16};
@@ -76,21 +77,12 @@ use crate::option::{copy_option_part, get_bkc_flags, get_fileformat_force, short
 #[cfg(not(test))]
 use crate::option_vars::*;
 #[cfg(not(test))]
-use crate::os::fs::O_APPEND;
-#[cfg(not(test))]
-use crate::os::fs::O_CREAT;
-#[cfg(not(test))]
-use crate::os::fs::O_EXCL;
-#[cfg(not(test))]
-use crate::os::fs::O_NOFOLLOW;
-#[cfg(not(test))]
-use crate::os::fs::O_TRUNC;
-#[cfg(not(test))]
 use crate::os::fs::{
-    O_WRONLY, os_close, os_copy, os_copy_xattr, os_errno as iconv_errno, os_file_is_writable,
-    os_fileinfo, os_fileinfo_hardlinks, os_fileinfo_id_equal, os_fileinfo_link, os_free_acl,
-    os_fsync, os_get_acl, os_getperm, os_isdir, os_mkdir_recurse, os_nodetype, os_open,
-    os_path_exists, os_remove, os_set_acl, os_setperm, vim_acl_T,
+    O_APPEND, O_CREAT, O_EXCL, O_NOFOLLOW, O_TRUNC, O_WRONLY, os_close, os_copy, os_copy_xattr,
+    os_errno as iconv_errno, os_file_is_writable, os_fileinfo, os_fileinfo_hardlinks,
+    os_fileinfo_id_equal, os_fileinfo_link, os_free_acl, os_fsync, os_get_acl, os_getperm,
+    os_isdir, os_mkdir_recurse, os_nodetype, os_open, os_path_exists, os_remove, os_set_acl,
+    os_setperm, vim_acl_T,
 };
 #[cfg(all(not(test), unix))]
 use crate::os::fs::{os_chown, os_fchown, os_file_settime, os_fsetperm, s_isdir, s_isreg};
@@ -129,8 +121,6 @@ use crate::arglist::ML_EMPTY;
 use crate::charset::EOL_MAC;
 #[cfg(not(test))]
 use crate::ex_docmd::UNDO_HASH_SIZE;
-#[cfg(not(test))]
-use crate::fileio::iconv_t;
 use crate::math::FAIL;
 #[cfg(not(test))]
 use crate::math::OK;

@@ -7,24 +7,22 @@
     clippy::too_many_arguments
 )]
 use crate::api::command::exarg_T;
-use crate::api::options::{IOSIZE, bufref_T};
+use crate::api::options::IOSIZE;
 use crate::api::private::helpers::boolean_obj;
-use crate::api::tabpage::win_T;
 use crate::autocmd::{EVENT_SPELLFILEMISSING, apply_autocmds};
-use crate::buffer::{buf_is_empty, bufref_valid, set_bufref};
+use crate::buffer::{buf_T, buf_is_empty, bufref_T, bufref_valid, set_bufref};
 use crate::change::{TAB, inserted_bytes};
 use crate::charset::{
     ascii_isalpha, ascii_isdigit, ascii_iswhite, getwhitecols, skipbin, skipdigits, skiphex,
     skipwhite, vim_is_fname_char,
 };
-use crate::cursor::{colnr_T, get_cursor_line_len, get_cursor_line_ptr, linenr_T};
+use crate::cursor::{colnr_T, get_cursor_line_len, get_cursor_line_ptr, linenr_T, pos_T};
 use crate::decoration::{
     decor_redraw_col, decor_redraw_line, decor_redraw_reset, decor_state_free,
 };
 use crate::decoration_provider::decor_providers_invoke_spell;
 use crate::drawscreen::{UPD_NOT_VALID, redraw_later};
 use crate::errors::*;
-use crate::eval::deprecated::{buf_T, pos_T, synblock_T};
 use crate::ex_cmds::do_sub_msg;
 use crate::ex_docmd::do_cmdline_cmd;
 use crate::ex_getln::hlf_T;
@@ -50,7 +48,7 @@ use crate::message::{
     emsg, give_warning, msg_end, msg_ext_set_kind, msg_putchar, msg_puts, msg_start, semsg, smsg,
 };
 use crate::option::{
-    copy_option_part, get_option_value, kOptSpell, kOptSpelllang, optval_free,
+    OPT_LOCAL, copy_option_part, get_option_value, kOptSpell, kOptSpelllang, optval_free,
     set_option_value_give_err, shortmess, valid_name,
 };
 use crate::option_vars::*;
@@ -73,14 +71,13 @@ use crate::strings::{
     concat_str, gettext, strcat, strcmp, strcpy, strlen, strncmp, strstr, vim_snprintf, vim_strchr,
     xstrnsave,
 };
-use crate::syntax::{syn_get_id, syntax_present};
+use crate::syntax::{syn_get_id, synblock_T, syntax_present};
 use crate::undo::u_save_cursor;
-use crate::window::win_valid_any_tab;
+use crate::window::{win_T, win_valid_any_tab};
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 pub type smt_T = c_int;
 use crate::api::buffer::{FORWARD, NUL};
-use crate::api::deprecated::OPT_LOCAL;
 use crate::api::vim::{BACKWARD, MAXPATHL, kFalse, kNone, kTrue};
 use crate::cmdexpand::MB_MAXBYTES;
 use crate::drawline::{HLF_COUNT, SMT_ALL, kOptSpoFlagNoplainbuffer};

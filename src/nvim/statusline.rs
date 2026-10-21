@@ -12,30 +12,28 @@ use crate::api::private::helpers::{
     add_c, api_free_array, arena_array, arena_dict, arena_string, cstr_as_string, put_c,
 };
 use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{ScreenGrid, win_T};
 use crate::buffer::{
-    append_arg_number, bt_quickfix, buf_spname, calc_percentage, get_rel_pos, kUIMessages,
+    append_arg_number, bt_quickfix, buf_T, buf_spname, calc_percentage, get_rel_pos, kUIMessages,
 };
 use crate::charset::{
     EOL_MAC, ascii_isdigit, getdigits_int, skipdigits, trans_characters, transstr_buf,
     vim_strnsize, vim_strsize,
 };
-use crate::clipboard::{TypvalVval, VarType, typval_T};
 use crate::context::ctx_saved_curwin;
 use crate::cursor::{colnr_T, linenr_T};
 use crate::digraph::get_keymap_str;
 use crate::drawline::{HLF_CLF, HLF_FC, fill_foldcolumn, use_cursor_line_highlight};
 use crate::drawscreen::{HLF_C, compute_foldcolumn, redrawing, w_endcol, w_endrow};
 use crate::eval::buffer::varnumber_T;
-use crate::eval::deprecated::buf_T;
 use crate::eval::eval_to_string_safe;
+use crate::eval::typval::{TypvalVval, VarType, typval_T};
 use crate::eval::vars::{
     VV_LNUM, VV_RELNUM, VV_VIRTNUM, do_unlet, get_vim_var_nr, set_internal_string_var, set_var,
     set_vim_var_nr,
 };
 use crate::globals::*;
 use crate::grid::{
-    grid_adjust, grid_line_fill, grid_line_flush, grid_line_put_schar, grid_line_puts,
+    ScreenGrid, grid_adjust, grid_line_fill, grid_line_flush, grid_line_put_schar, grid_line_puts,
     grid_line_start, schar_T, schar_from_ascii, schar_get, schar_get_adv, schar_len,
     screengrid_line_start,
 };
@@ -68,7 +66,7 @@ use crate::sign::describe_sign_text;
 use crate::strings::{atoi, toupper, tr, vim_snprintf, vim_snprintf_safelen, vim_strchr};
 use crate::ui::{ui_call_msg_ruler, ui_call_tabline_update, ui_has};
 use crate::undo::bufIsChanged;
-use crate::window::{global_stl_height, lastwin_nofloating, tabline_height};
+use crate::window::{global_stl_height, lastwin_nofloating, tabline_height, win_T};
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -203,13 +201,13 @@ pub struct foldinfo_T {
 }
 
 use crate::api::buffer::NUL;
-use crate::api::deprecated::{OPT_LOCAL, kOptInvalid};
 use crate::api::vim::MAXPATHL;
 use crate::arglist::ML_EMPTY;
 use crate::autocmd::HLF_T;
 use crate::cmdexpand::kUIWildmenu;
 use crate::decoration::{SCL_NUM, SIGN_WIDTH, SignTextAttrs};
 use crate::keycodes::CAR;
+use crate::option::{OPT_LOCAL, kOptInvalid};
 use crate::runtime::SID_ERROR;
 use crate::state::MODE_INSERT;
 

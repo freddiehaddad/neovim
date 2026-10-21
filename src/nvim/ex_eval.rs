@@ -10,11 +10,10 @@
 
 use crate::api::command::exarg_T;
 use crate::charset::{ascii_isdigit, skipwhite};
-use crate::clipboard::{list_T, typval_T};
 use crate::cursor::linenr_T;
 use crate::debugger::dbg_check_skipped;
 use crate::errors::*;
-use crate::eval::typval::{tv_clear, tv_free, tv_list_ref, tv_list_unref};
+use crate::eval::typval::{list_T, tv_clear, tv_free, tv_list_ref, tv_list_unref, typval_T};
 use crate::eval::userfunc::{do_return, get_return_cmd};
 use crate::eval::vars::{
     VV_EXCEPTION, VV_STACKTRACE, VV_THROWPOINT, evalarg_T, set_vim_var_list, set_vim_var_string,

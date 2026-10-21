@@ -10,11 +10,11 @@
 
 use crate::api::private::converter::{VAR_UNLOCKED, partial_T, ufunc_T};
 use crate::charset::vim_str2nr;
-use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
+
 use crate::cursor::linenr_T;
 use crate::errors::*;
-use crate::eval::decode::{dict_T, dictitem_T};
-use crate::eval::deprecated::{Callback, EvalFuncData, buf_T};
+
+use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE, VAR_FIXED, buf_T};
 use crate::eval::encode::{
     MPConvPartialStage, MPConvStackData, MPConvStackVal, MPConvStackValType, encode_bool_var_names,
     encode_special_var_names, encode_tv2echo, encode_tv2string,
@@ -69,7 +69,6 @@ use crate::api::autocmd::{
 };
 use crate::api::buffer::{LUA_NOREF, NUL};
 use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO};
-use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE, VAR_FIXED};
 use crate::cmdexpand::MB_MAXBYTES;
 use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
 use crate::eval::buffer::varnumber_T;
@@ -80,6 +79,110 @@ use crate::viml::parser::parser::CONV_NONE;
 pub type float_T = f64;
 pub type VarLockStatus = c_int;
 pub type BoolVarValue = c_int;
+pub type EvalFuncData = *mut c_void;
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Callback {
+    pub data: *mut c_void,
+    pub cb_type: c_int,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(non_camel_case_types)]
+pub enum VarType {
+    VAR_UNKNOWN = 0,
+    VAR_NUMBER = 1,
+    VAR_STRING = 2,
+    VAR_FUNC = 3,
+    VAR_LIST = 4,
+    VAR_DICT = 5,
+    VAR_FLOAT = 6,
+    VAR_BOOL = 7,
+    VAR_SPECIAL = 8,
+    VAR_PARTIAL = 9,
+    VAR_BLOB = 10,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+#[allow(non_camel_case_types)]
+pub union TypvalVval {
+    pub v_number: i64,
+    pub v_bool: c_int,
+    pub v_special: c_int,
+    pub v_float: f64,
+    pub v_string: *mut c_char,
+    pub v_list: *mut list_T,
+    pub v_dict: *mut dict_T,
+    pub v_blob: *mut blob_T,
+    pub v_ptr: *mut c_void,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+#[allow(non_camel_case_types)]
+pub struct typval_T {
+    pub v_type: VarType,
+    pub v_lock: c_int,
+    pub vval: TypvalVval,
+}
+
+#[repr(C)]
+#[allow(non_camel_case_types)]
+pub struct listitem_T {
+    pub li_next: *mut listitem_T,
+    pub li_prev: *mut listitem_T,
+    pub li_tv: typval_T,
+}
+
+#[repr(C)]
+#[allow(non_camel_case_types)]
+pub struct list_T {
+    pub lv_first: *mut listitem_T,
+    pub lv_last: *mut listitem_T,
+    pub lv_watch: *mut c_void,
+    pub lv_idx_item: *mut listitem_T,
+    pub lv_copylist: *mut list_T,
+    pub lv_used_next: *mut list_T,
+    pub lv_used_prev: *mut list_T,
+    pub lv_refcount: c_int,
+    pub lv_len: c_int,
+    pub lv_idx: c_int,
+    pub lv_copyID: c_int,
+    pub lv_lock: c_int,
+    pub lua_table_ref: c_int,
+}
+
+#[repr(C)]
+pub struct dictitem_T {
+    pub di_tv: typval_T,
+    pub di_flags: u8,
+    pub di_key: [c_char; 1],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct ScopeDictDictItem {
+    pub di_tv: typval_T,
+    pub di_flags: u8,
+    pub di_key: [c_char; 1],
+}
+
+#[repr(C)]
+pub struct dict_T {
+    pub dv_lock: c_int,
+    pub dv_scope: c_int,
+    pub dv_refcount: c_int,
+    pub dv_copyID: c_int,
+    pub dv_hashtab: crate::hashtab::hashtab_T,
+    pub dv_copydict: *mut dict_T,
+    pub dv_used_next: *mut dict_T,
+    pub dv_used_prev: *mut dict_T,
+    pub watchers: [*mut c_void; 2],
+    pub lua_table_ref: c_int,
+}
 
 const ITEM_COMPARE_FAIL: c_int = 999;
 

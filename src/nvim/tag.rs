@@ -9,7 +9,6 @@
 )]
 
 use crate::api::command::exarg_T;
-use crate::api::tabpage::{taggy_T, win_T};
 use crate::autocmd::{EVENT_BUFREADCMD, has_autocmd};
 use crate::buffer::{
     GETF_SETMARK, GETFILE_OPEN_OTHER, GETFILE_SAME_FILE, GETFILE_UNUSED, MAXLNUM, NOTDONE,
@@ -19,21 +18,19 @@ use crate::buffer::{
 use crate::charset::{
     ascii_isalpha, ascii_isdigit, ascii_islower, ascii_iswhite, skipdigits, vim_isblankline,
 };
-use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
 use crate::cmdexpand::{
     EXPAND_FILES, ExpandInit, ExpandOne, HLF_D, TAG_MANY, WILD_EXPAND_FREE, WILD_LIST_NOTFOUND,
     WILD_SILENT,
 };
-use crate::cursor::{check_cursor, linenr_T};
+use crate::cursor::{check_cursor, linenr_T, pos_T};
 use crate::drawscreen::{UPD_VALID, redraw_later};
 use crate::errors::*;
-use crate::eval::decode::{dict_T, dictitem_T};
-use crate::eval::deprecated::{fmark_T, fmarkv_T, pos_T};
 use crate::eval::typval::{
-    callback_free, tv_clear, tv_dict_add_bool, tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str,
-    tv_dict_add_str_len, tv_dict_alloc, tv_dict_alloc_lock, tv_dict_find, tv_dict_get_number,
-    tv_dict_get_string, tv_get_number, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict,
-    tv_list_append_number, tv_list_append_tv, tv_list_free,
+    TypvalVval, VarType, callback_free, dict_T, dictitem_T, list_T, tv_clear, tv_dict_add_bool,
+    tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc,
+    tv_dict_alloc_lock, tv_dict_find, tv_dict_get_number, tv_dict_get_string, tv_get_number,
+    tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict, tv_list_append_number,
+    tv_list_append_tv, tv_list_free, typval_T,
 };
 use crate::eval::vars::{VV_SWAPCOMMAND, set_vim_var_string};
 use crate::eval::{callback_call, list2fpos, set_ref_in_callback};
@@ -58,7 +55,7 @@ use crate::help::{
 };
 use crate::insexpand::{TAG_INS_COMP, TAG_NOIC, ins_compl_check_keys, ins_compl_interrupted};
 use crate::lua::executor::nlua_call_excmd;
-use crate::mark::{fm_getname, mark_view_make, mark_view_restore, setpcmark};
+use crate::mark::{fm_getname, fmark_T, fmarkv_T, mark_view_make, mark_view_restore, setpcmark};
 use crate::mbyte::{
     convert_setup, mb_ptr_adv, mb_strnicmp, string_convert, utfc_ptr2len, vimconv_T,
 };
@@ -89,13 +86,23 @@ use crate::strings::{
     vim_snprintf_safelen, vim_strchr, xstrnsave,
 };
 use crate::window::{
-    WSP_VERT, check_can_set_curbuf_forceit, swbuf_goto_win_with_buf, tabpage_index, win_close,
-    win_enter, win_split, win_valid,
+    WSP_VERT, check_can_set_curbuf_forceit, swbuf_goto_win_with_buf, tabpage_index, win_T,
+    win_close, win_enter, win_split, win_valid,
 };
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
 use crate::eval::buffer::varnumber_T;
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct taggy_T {
+    pub tagname: *mut c_char,
+    pub fmark: fmark_T,
+    pub cur_match: c_int,
+    pub cur_fnum: c_int,
+    pub user_data: *mut c_char,
+}
 
 const LSIZE: c_int = 512;
 const TAGSTACKSIZE: c_int = 20;

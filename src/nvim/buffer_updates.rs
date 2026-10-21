@@ -13,8 +13,7 @@ use crate::api::private::helpers::{
     NIL, arena_array, array_obj, boolean_obj, buffer_obj, integer_obj,
 };
 use crate::api::private::validate::{Array, Object, ObjectType};
-use crate::buffer::buf_get_changedtick;
-use crate::eval::deprecated::{BufUpdateCallbacks, buf_T};
+use crate::buffer::{BufUpdateCallbacks, buf_T, buf_get_changedtick};
 use crate::globals::*;
 use crate::log::logmsg;
 use crate::lua::executor::{api_free_luaref, kRetNilBool, nlua_call_ref};

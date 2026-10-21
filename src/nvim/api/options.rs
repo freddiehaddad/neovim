@@ -20,29 +20,29 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType, api_err_conflict, api_err_exp,
 };
-use crate::api::tabpage::{Buffer, Tabpage, Window, tabpage_T, win_T};
+use crate::api::tabpage::{Buffer, Tabpage, Window};
 use crate::autocmd::{
     EVENT_FILETYPE, block_autocmds, do_filetype_autocmd, has_event, unblock_autocmds,
 };
-use crate::buffer::{BLN_DUMMY, buflist_new, bufref_valid, set_bufref, wipe_buffer};
-use crate::context::{ctx_restore, ctx_switch};
-use crate::eval::deprecated::{buf_T, pos_T};
+use crate::buffer::{
+    BLN_DUMMY, buf_T, buflist_new, bufref_T, bufref_valid, set_bufref, wipe_buffer,
+};
+use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::globals::*;
 use crate::lua::converter::Boolean;
 use crate::map_glyph_cache::NvimString;
 use crate::memline::ml_open;
 use crate::memory::{Arena, arena_memdupz, strequal_str as strequal, xfree, xmalloc, xstrdup};
-use crate::msgpack_rpc::packer::handle_T;
 use crate::option::{
-    OptScope, copy_option_part, escape_option_str_cmdline, find_option, free_option_prepared,
-    get_all_options_info, get_option, get_option_info, get_option_newval, get_option_value_for,
-    get_option_varp_scope_from, get_varp_from, kOptFlagColon, kOptFlagComma, kOptFlagFlagList,
-    opt_from_varp, option_has_scope, option_has_type, optval_free, optval_from_obj, optval_own,
-    set_op_T, set_option_direct, set_option_value_for, set_prefix_T,
-    validate_and_prepare_option_value,
+    OPT_GLOBAL, OPT_LOCAL, OptScope, copy_option_part, escape_option_str_cmdline, find_option,
+    free_option_prepared, get_all_options_info, get_option, get_option_info, get_option_newval,
+    get_option_value_for, get_option_varp_scope_from, get_varp_from, kOptFlagColon, kOptFlagComma,
+    kOptFlagFlagList, kOptInvalid, kOptScopeBuf, kOptScopeGlobal, kOptScopeWin, opt_from_varp,
+    option_has_scope, option_has_type, optval_free, optval_from_obj, optval_own, set_op_T,
+    set_option_direct, set_option_value_for, set_prefix_T, validate_and_prepare_option_value,
 };
 use crate::strings::{strchr, strlen};
-use crate::window::close_windows;
+use crate::window::{close_windows, win_T};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -78,45 +78,8 @@ const KEYSET_OPTIDX_option__filetype: u64 = 6;
 const KEYSET_OPTIDX_option__operation: u64 = 7;
 
 use crate::api::buffer::NUL;
-use crate::api::deprecated::{
-    OPT_GLOBAL, OPT_LOCAL, kOptInvalid, kOptScopeBuf, kOptScopeGlobal, kOptScopeWin,
-};
 use crate::math::{FAIL, OK};
 use crate::memfile::memfile_T;
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct bufref_T {
-    pub br_buf: *mut buf_T,
-    pub br_fnum: c_int,
-    pub br_buf_free_count: c_int,
-}
-
-#[repr(C)]
-pub struct CtxSwitch {
-    pub cs_flags: c_int,
-    pub cs_mode: c_int,
-    pub cs_curwin: handle_T,
-    pub cs_curwin_xtab: bool,
-    pub cs_prevwin: handle_T,
-    pub cs_curtab: *mut tabpage_T,
-    pub cs_same_win: bool,
-    pub cs_visual_active: bool,
-    pub cs_prompt_insert: c_int,
-    pub cs_new_curwin: handle_T,
-    pub cs_new_curbuf: bufref_T,
-    pub cs_ctxwin_idx: c_int,
-    pub cs_target_win: handle_T,
-    pub cs_target_old_pos: pos_T,
-    pub cs_did_chdir: bool,
-    pub cs_dirs_tab: handle_T,
-    pub cs_w_localdir: *mut c_char,
-    pub cs_b_localdir: *mut c_char,
-    pub cs_tp_localdir: *mut c_char,
-    pub cs_globaldir: *mut c_char,
-    pub cs_cwd: *mut c_char,
-    pub cs_apply_acd: bool,
-}
 
 #[repr(C)]
 pub struct KeyDict_option {

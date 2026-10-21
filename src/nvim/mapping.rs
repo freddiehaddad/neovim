@@ -19,19 +19,18 @@ use crate::api::private::helpers::{
 };
 use crate::api::private::validate::{Array, Dict, Error, ErrorType, ObjectType};
 use crate::api::tabpage::Buffer;
+use crate::buffer::buf_T;
 use crate::charset::{
     ascii_isspace, ascii_iswhite, is_special, k_second, skipwhite, to_special, transchar,
     vim_iswordp,
 };
-use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
 use crate::cmdexpand::{EXPAND_MAPPINGS, EXPAND_NOTHING, MB_MAXBYTES, cmdline_fuzzy_complete};
 use crate::errors::*;
-use crate::eval::decode::dict_T;
-use crate::eval::deprecated::{EvalFuncData, buf_T};
 use crate::eval::typval::{
-    nlua_clear_ref, tv_check_for_dict_arg, tv_dict_alloc_ret, tv_dict_find, tv_dict_get_bool,
-    tv_dict_get_number, tv_dict_get_string, tv_get_bool, tv_get_string, tv_get_string_buf,
-    tv_get_string_buf_chk, tv_list_alloc_ret, tv_list_append_dict,
+    EvalFuncData, TypvalVval, VarType, dict_T, list_T, nlua_clear_ref, tv_check_for_dict_arg,
+    tv_dict_alloc_ret, tv_dict_find, tv_dict_get_bool, tv_dict_get_number, tv_dict_get_string,
+    tv_get_bool, tv_get_string, tv_get_string_buf, tv_get_string_buf_chk, tv_list_alloc_ret,
+    tv_list_append_dict, typval_T,
 };
 use crate::eval::userfunc::{FC_LUAREF, find_func};
 use crate::eval::vars::{scid_T, set_vim_var_char};

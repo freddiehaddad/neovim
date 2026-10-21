@@ -8,8 +8,7 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::buffer::{LUA_INTERNAL_CALL, VisualState, nvim_buf_set_text};
-use crate::api::deprecated::{DecorInline, OPT_LOCAL, StringBuilder};
+use crate::api::buffer::{LUA_INTERNAL_CALL, nvim_buf_set_text};
 use crate::api::extmark::nvim_create_namespace;
 use crate::api::private::helpers::{
     api_clear_error, api_free_string, boolean_obj, cstr_as_string, cstr_to_string, string_to_array,
@@ -17,19 +16,21 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{Error, ErrorType};
 use crate::api::vim::{REMAP_NONE, kCtxRegs, kFalse, kNone, kTrue, nvim_feedkeys};
 use crate::autocmd::{block_autocmds, unblock_autocmds};
-use crate::buffer::{MAXLNUM, buf_get_changedtick, bufref_valid};
+use crate::buffer::{MAXLNUM, buf_T, buf_get_changedtick, bufref_valid};
 use crate::charset::to_special;
-use crate::clipboard::{TypvalVval, VarType, set_clipboard, typval_T};
+use crate::clipboard::set_clipboard;
 use crate::context::{
     CONTEXT_INIT, Context, INIT_POS, ctx_free, ctx_load, ctx_save, handle_get_buffer, kCtxCursor,
     kCtxMarks, kCtxMergeReg, kCtxVisual,
 };
 use crate::cursor::{
     check_cursor, check_cursor_col, check_pos, colnr_T, equalpos, getvpos, linenr_T, lt, ltoreq,
+    pos_T,
 };
+use crate::decoration::DecorInline;
 use crate::drawscreen::{UPD_SOME_VALID, redraw_all_later};
 use crate::eval::buffer::varnumber_T;
-use crate::eval::deprecated::{buf_T, pos_T, visualinfo_T};
+use crate::eval::typval::{TypvalVval, VarType, typval_T};
 use crate::eval::vars::{VV_CASCADING, get_vim_var_tv, set_vim_var_bool};
 use crate::eval::window::viewstate_T;
 use crate::ex_docmd::{
@@ -52,7 +53,7 @@ use crate::input_cmdatom::{
 };
 use crate::insexpand::ins_compl_active;
 use crate::keycodes::{K_COMMAND, K_SPECIAL};
-use crate::kvec::KVec;
+use crate::kvec::{KVec, StringBuilder};
 use crate::log::{LOGLVL_DBG, g_min_log_level, logmsg};
 use crate::lua::executor::nlua_call_typval;
 use crate::map_glyph_cache::NvimString;
@@ -68,9 +69,9 @@ use crate::r#move::{
     restore_viewstate, save_viewstate, set_topline, update_curswant, update_topline,
 };
 use crate::msgpack_rpc::packer::handle_T;
-use crate::normal::{end_visual_mode, visualinfo};
+use crate::normal::{VisualState, end_visual_mode, visualinfo, visualinfo_T};
 use crate::ops::{getregionpos_line, getregionpos_prep};
-use crate::option::set_option_value_give_err;
+use crate::option::{OPT_LOCAL, set_option_value_give_err};
 use crate::option_vars::*;
 use crate::os::input::line_breakcheck;
 use crate::os::time::{Timestamp, os_realtime};
@@ -147,7 +148,7 @@ struct McStart {
 
 static mut mc_ins_span: McInsSpan = McInsSpan {
     origin: CmdOrigin {
-        buf: crate::api::options::bufref_T {
+        buf: crate::buffer::bufref_T {
             br_buf: ptr::null_mut(),
             br_fnum: 0,
             br_buf_free_count: 0,
@@ -1151,7 +1152,7 @@ unsafe fn mc_reg_gather() {
                     joined[idx].items,
                     joined[idx].size as isize,
                     false,
-                    crate::clipboard::MotionType::kMTLineWise,
+                    crate::register::MotionType::kMTLineWise,
                     0,
                 );
                 if r == b'"' as c_int {

@@ -16,7 +16,6 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType, api_err_exp, api_err_invalid,
 };
-use crate::api::tabpage::win_T;
 use crate::api::ui::{HLATTRS_DICT_SIZE, remote_ui_hl_attr_define, remote_ui_hl_group_set};
 use crate::decoration_provider::get_decor_provider;
 use crate::drawscreen::screen_invalidate_highlights;
@@ -41,6 +40,7 @@ use crate::option_vars::*;
 use crate::popupmenu::pum_drawn;
 use crate::strings::gettext;
 use crate::ui::ui_call_hl_attr_define;
+use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 

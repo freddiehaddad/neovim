@@ -12,11 +12,11 @@ use crate::api::buffer::NUL;
 #[cfg(not(test))]
 use crate::api::options::IOSIZE;
 #[cfg(not(test))]
+use crate::buffer::buf_T;
+#[cfg(not(test))]
 use crate::context::handle_get_buffer;
 #[cfg(not(test))]
 use crate::cursor::linenr_T;
-#[cfg(not(test))]
-use crate::eval::deprecated::buf_T;
 #[cfg(not(test))]
 use crate::event::r#loop::{uv_dlclose, uv_dlerror, uv_dlopen, uv_dlsym};
 #[cfg(not(test))]

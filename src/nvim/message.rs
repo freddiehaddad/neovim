@@ -20,14 +20,13 @@ use crate::charset::{
     ascii_iswhite, ascii2cells, char2cells, is_special, k_second, skipwhite, to_special,
     transchar_buf, transchar_byte_buf, vim_isprintc, vim_strsize,
 };
-use crate::clipboard::{TypvalVval, VarType, typval_T};
 use crate::dialog::{confirm_buttons, confirm_msg, prompt_for_input};
 use crate::drawscreen::{
     UPD_NOT_VALID, UPD_VALID, redraw_all_later, redraw_later, set_must_redraw,
 };
 use crate::errors::*;
 use crate::eval::callback_call;
-use crate::eval::typval::tv_clear;
+use crate::eval::typval::{TypvalVval, VarType, tv_clear, typval_T};
 use crate::eval::vars::{
     VV_ERRMSG, VV_SCROLLSTART, VV_STATUSMSG, VV_WARNINGMSG, get_vim_var_str, set_vim_var_string,
     var_redir_str,

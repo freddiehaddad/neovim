@@ -19,10 +19,9 @@ use crate::charset::{ascii_isspace, ascii_iswhite, char2cells, getwhitecols_curl
 use crate::cursor::{
     check_cursor, check_cursor_col, coladvance, colnr_T, dec_cursor, gchar_cursor,
     get_cursor_line_len, get_cursor_line_ptr, get_cursor_pos_len, get_cursor_pos_ptr, inc_cursor,
-    linenr_T, pchar_cursor,
+    linenr_T, pchar_cursor, pos_T,
 };
 use crate::drawscreen::{UPD_INVERTED, UPD_VALID, redraw_curbuf_later};
-use crate::eval::deprecated::pos_T;
 use crate::eval::eval_expr_option_number;
 use crate::eval::vars::{
     VV_CHAR, VV_COUNT, VV_LNUM, set_vim_var_char, set_vim_var_nr, set_vim_var_string,
@@ -45,7 +44,7 @@ use crate::memory::xfree;
 use crate::message::msgmore;
 use crate::r#move::update_topline;
 use crate::ops::do_join;
-use crate::option::{kBufOptFormatexpr, kOptFormatexpr, was_set_insecurely};
+use crate::option::{OPT_LOCAL, kBufOptFormatexpr, kOptFormatexpr, was_set_insecurely};
 use crate::option_vars::*;
 use crate::os::input::line_breakcheck;
 use crate::strings::{strncmp, vim_strchr, xstrnsave};
@@ -73,7 +72,6 @@ pub type MotionType = c_int;
 pub type InsArrow = c_int;
 use crate::api::buffer::{FORWARD, NUL};
 use crate::api::command::CMOD_LOCKMARKS;
-use crate::api::deprecated::OPT_LOCAL;
 use crate::ex_cmds::{BL_FIX, BL_WHITE};
 use crate::extmark::TriState;
 use crate::math::FAIL;

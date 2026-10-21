@@ -11,10 +11,6 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::deprecated::{
-    DECOR_ID_INVALID, DecorInline, DecorVirtText, DecorVirtTextData, VirtLine, VirtLineOverflow,
-    VirtLines, VirtText, VirtTextChunk, VirtTextPos, kHlModeUnknown, kVPosEndOfLine,
-};
 use crate::api::private::helpers::{
     add_c, api_set_error, api_typename, arena_array, arena_dict, array_obj, boolean_obj,
     copy_string, cstr_as_string, dict_obj, error_set, find_buffer_by_handle, find_window_by_handle,
@@ -24,15 +20,17 @@ use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType, api_err_exp, api_err_invalid,
     api_err_range,
 };
-use crate::api::tabpage::{Buffer, Window, win_T};
+use crate::api::tabpage::{Buffer, Window};
+use crate::buffer::buf_T;
 use crate::charset::{transstr, vim_isprintc};
 use crate::decoration::{
-    clear_virtlines, clear_virttext, decor_free, decor_put_sh, decor_put_vt, decor_range_add_sh,
-    decor_range_add_virt, decor_sh_from_inline, decor_to_dict_legacy, hl_group_name,
+    DECOR_ID_INVALID, DecorInline, DecorVirtText, DecorVirtTextData, VirtLine, VirtLineOverflow,
+    VirtLines, VirtText, VirtTextChunk, VirtTextPos, clear_virtlines, clear_virttext, decor_free,
+    decor_put_sh, decor_put_vt, decor_range_add_sh, decor_range_add_virt, decor_sh_from_inline,
+    decor_to_dict_legacy, hl_group_name, kHlModeUnknown, kVPosEndOfLine,
 };
 use crate::decoration_provider::{decor_provider_clear, get_decor_provider};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_all_later};
-use crate::eval::deprecated::buf_T;
 use crate::extmark::{extmark_clear, extmark_del_id, extmark_from_id, extmark_get, extmark_set};
 use crate::globals::*;
 use crate::grid::schar_high;
@@ -56,6 +54,7 @@ use crate::memory::{Arena, strequal_str as strequal, xfree};
 use crate::r#move::changed_window_setting;
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::sign::init_sign_text;
+use crate::window::win_T;
 use std::ffi::{c_char, c_int};
 use std::ptr;
 

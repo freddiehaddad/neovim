@@ -4,16 +4,16 @@
 
 #[cfg(not(test))]
 use crate::charset::vim_str2nr;
-use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
 #[cfg(not(test))]
 use crate::eval::encode::encode_list_write;
 #[cfg(not(test))]
 use crate::eval::string2float;
+use crate::eval::typval::{TypvalVval, VarType, list_T, typval_T};
 #[cfg(not(test))]
 use crate::eval::typval::{
-    tv_blob_alloc_ret, tv_clear, tv_dict_add, tv_dict_alloc, tv_dict_find, tv_dict_item_alloc,
-    tv_dict_item_alloc_len, tv_list_alloc, tv_list_append_list, tv_list_append_number,
-    tv_list_append_owned_tv, tv_list_len, tv_list_ref,
+    dict_T, dictitem_T, tv_blob_alloc_ret, tv_clear, tv_dict_add, tv_dict_alloc, tv_dict_find,
+    tv_dict_item_alloc, tv_dict_item_alloc_len, tv_list_alloc, tv_list_append_list,
+    tv_list_append_number, tv_list_append_owned_tv, tv_list_len, tv_list_ref,
 };
 #[cfg(not(test))]
 use crate::eval::vars::eval_msgpack_type_lists;
@@ -21,7 +21,6 @@ use crate::eval::vars::eval_msgpack_type_lists;
 use crate::garray::ga_concat_len;
 #[cfg(not(test))]
 use crate::hashtab::hashitem_empty;
-use crate::hashtab::hashtab_T;
 use crate::math::FAIL;
 #[cfg(not(test))]
 use crate::math::OK;
@@ -56,9 +55,9 @@ const SURROGATE_LO_END: u64 = 0xDFFF;
 pub(crate) const SURROGATE_FIRST_CHAR: c_int = 0x10000;
 
 use crate::mpack::mpack_core::{MPACK_OK, mpack_token_type_t};
-#[cfg(not(test))]
-use crate::mpack::object::mpack_node_t;
 use crate::mpack::object::mpack_parser_t;
+#[cfg(not(test))]
+use crate::mpack::object::{mpack_node_t, mpack_parent_node, mpack_parse, mpack_parser_init};
 
 use crate::api::private::converter::VAR_UNLOCKED;
 #[cfg(not(test))]
@@ -67,29 +66,6 @@ use crate::api::private::converter::{K_BOOL_VAR_FALSE, K_BOOL_VAR_TRUE, K_SPECIA
 use crate::mpack::conv::{
     mpack_unpack_boolean, mpack_unpack_float_fast, mpack_unpack_sint, mpack_unpack_uint,
 };
-#[cfg(not(test))]
-use crate::mpack::object::{mpack_parent_node, mpack_parse, mpack_parser_init};
-
-#[repr(C)]
-pub struct dictitem_T {
-    pub di_tv: typval_T,
-    pub di_flags: u8,
-    pub di_key: [c_char; 1],
-}
-
-#[repr(C)]
-pub struct dict_T {
-    pub dv_lock: c_int,
-    pub dv_scope: c_int,
-    pub dv_refcount: c_int,
-    pub dv_copyID: c_int,
-    pub dv_hashtab: hashtab_T,
-    pub dv_copydict: *mut dict_T,
-    pub dv_used_next: *mut dict_T,
-    pub dv_used_prev: *mut dict_T,
-    pub watchers: [*mut c_void; 2],
-    pub lua_table_ref: c_int,
-}
 
 #[cfg(not(test))]
 #[derive(Clone, Copy)]

@@ -15,21 +15,18 @@ use crate::autocmd::{
     EVENT_BUFREADPOST, EVENT_BUFWINENTER, EVENT_SWAPEXISTS, apply_autocmds, has_autocmd,
 };
 use crate::buffer::{
-    MAXLNUM, MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC, NOTDONE, SEA_NONE, SEA_QUIT, SEA_RECOVER,
+    MAXLNUM, MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC, NOTDONE, SEA_NONE, SEA_QUIT, SEA_RECOVER, buf_T,
     buf_inc_changedtick, buf_spname, kUIMessages, open_buffer, setfname,
 };
 use crate::change::{ML_DEL_MESSAGE, changed_internal, unchanged};
 use crate::charset::ascii_isalpha;
-use crate::clipboard::{list_T, typval_T};
-use crate::cursor::{check_cursor, coladvance, colnr_T, linenr_T};
+use crate::cursor::{check_cursor, coladvance, colnr_T, linenr_T, pos_T};
 use crate::dialog::do_dialog;
 use crate::drawscreen::{UPD_NOT_VALID, redraw_curbuf_later};
-use crate::eval::decode::dict_T;
-use crate::eval::deprecated::{buf_T, pos_T};
 use crate::eval::fs::{FileInfo, SEEK_END};
 use crate::eval::typval::{
-    tv_clear, tv_dict_add_nr, tv_dict_add_str_len, tv_list_alloc_ret,
-    tv_list_append_allocated_string, tv_list_first, tv_list_len,
+    dict_T, list_T, tv_clear, tv_dict_add_nr, tv_dict_add_str_len, tv_list_alloc_ret,
+    tv_list_append_allocated_string, tv_list_first, tv_list_len, typval_T,
 };
 use crate::eval::vars::{VV_SWAPCHOICE, VV_SWAPNAME, get_vim_var_str, set_vim_var_string};
 use crate::fileio::{
@@ -77,8 +74,30 @@ use crate::statusline::get_trans_bufname;
 use crate::strings::{gettext, strcmp as c_strcmp, strlen as c_strlen, tr, vim_strchr};
 use crate::ui::{ui_flush, ui_has};
 use crate::undo::bufIsChanged;
-use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
+use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
+
+#[repr(C)]
+pub struct memline_T {
+    pub ml_line_count: i32,
+    pub ml_mfp: *mut c_void,
+    pub ml_stack: *mut c_void,
+    pub ml_stack_top: c_int,
+    pub ml_stack_size: c_int,
+    pub ml_flags: c_int,
+    pub ml_line_textlen: c_int,
+    pub ml_line_lnum: i32,
+    pub ml_line_ptr: *mut c_char,
+    pub ml_line_offset: usize,
+    pub ml_line_offset_ff: c_int,
+    pub ml_locked: *mut c_void,
+    pub ml_locked_low: i32,
+    pub ml_locked_high: i32,
+    pub ml_locked_lineadd: c_int,
+    pub ml_chunksize: *mut c_void,
+    pub ml_numchunks: c_int,
+    pub ml_usedchunks: c_int,
+}
 
 #[cfg(unix)]
 use crate::os::users::os_get_uname;
@@ -266,7 +285,6 @@ static e_warning_pointer_block_corrupted: &CStr = c"E1364: Warning: Pointer bloc
 
 use crate::api::buffer::{ML_LINE_DIRTY, NL, NUL};
 use crate::api::command::CMOD_NOSWAPFILE;
-use crate::api::deprecated::OPT_LOCAL;
 use crate::api::options::{BF_DUMMY, IOSIZE};
 use crate::api::vim::MAXPATHL;
 use crate::arglist::ML_EMPTY;
@@ -282,6 +300,7 @@ use crate::fileio::{_close as close, _lseeki64 as vim_lseek};
 use crate::fileio::{close, lseek as vim_lseek};
 use crate::insert::ML_ALLOCATED;
 use crate::math::{FAIL, OK};
+use crate::option::OPT_LOCAL;
 #[cfg(unix)]
 const EINVAL: c_int = 22;
 use crate::regexp::MAXCOL;

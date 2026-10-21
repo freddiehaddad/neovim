@@ -5,12 +5,11 @@
 use crate::api::command::exarg_T;
 #[cfg(not(test))]
 use crate::charset::vim_strsize;
+use crate::eval::typval::{EvalFuncData, typval_T};
 #[cfg(not(test))]
-use crate::clipboard::VarType;
-use crate::clipboard::typval_T;
-use crate::eval::deprecated::EvalFuncData;
-#[cfg(not(test))]
-use crate::eval::typval::{tv_get_number, tv_get_number_chk, tv_get_string_buf, tv_get_string_chk};
+use crate::eval::typval::{
+    VarType, tv_get_number, tv_get_number_chk, tv_get_string_buf, tv_get_string_chk,
+};
 #[cfg(not(test))]
 use crate::ex_cmds::check_secure;
 #[cfg(not(test))]
@@ -32,7 +31,7 @@ use crate::os::env::expand_T;
 use crate::os::time::os_time;
 #[cfg(not(test))]
 use crate::regexp::{
-    NSUBEXP, NUMBUFLEN, RE_MAGIC, RE_STRING, vim_regcomp, vim_regexec, vim_regfree,
+    NSUBEXP, NUMBUFLEN, RE_MAGIC, RE_STRING, regmatch_T, vim_regcomp, vim_regexec, vim_regfree,
 };
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicI32, Ordering};
@@ -73,8 +72,6 @@ pub struct histentry_T {
 use crate::api::command::CMOD_KEEPPATTERNS;
 #[cfg(not(test))]
 use crate::api::options::IOSIZE;
-#[cfg(not(test))]
-use crate::regexp::regmatch_T;
 
 #[cfg(not(test))]
 #[inline]

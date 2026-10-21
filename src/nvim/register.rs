@@ -23,22 +23,18 @@ use crate::buffer::{
 use crate::buffer_updates::buf_updates_send_changes;
 use crate::change::{SIN_NOMARK, changed_bytes, changed_lines, del_chars, kOptVeFlagOnemore};
 use crate::charset::{ascii_iswhite, getdigits_int, skipwhite, transchar, vim_strsize};
-use crate::clipboard::{
-    MotionType, adjust_clipboard_name, get_clipboard, set_clipboard, yankreg_T,
-};
+use crate::clipboard::{adjust_clipboard_name, get_clipboard, set_clipboard};
 use crate::cmdexpand::Ctrl_P;
 use crate::cursor::{
     coladvance_force, colnr_T, gchar_cursor, get_cursor_line_len, get_cursor_line_ptr,
-    get_cursor_pos_len, get_cursor_pos_ptr, getviscol, getvpos, kOptVeFlagAll, linenr_T,
+    get_cursor_pos_len, get_cursor_pos_ptr, getviscol, getvpos, kOptVeFlagAll, linenr_T, pos_T,
 };
 use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
 use crate::drawscreen::{showmode, update_screen};
 use crate::errors::*;
-use crate::eval::decode::dict_T;
-use crate::eval::deprecated::pos_T;
 use crate::eval::funcs::RE_SEARCH;
 use crate::eval::typval::{
-    tv_dict_add_bool, tv_dict_add_list, tv_dict_add_str, tv_dict_add_str_len,
+    dict_T, tv_dict_add_bool, tv_dict_add_list, tv_dict_add_str, tv_dict_add_str_len,
     tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_allocated_string,
     tv_list_append_string,
 };
@@ -98,6 +94,28 @@ use crate::ui::ui_has;
 use crate::undo::{u_save, u_save_cursor};
 use std::ffi::{CStr, c_char, c_int, c_ulong, c_void};
 use std::ptr;
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(non_camel_case_types)]
+pub enum MotionType {
+    kMTUnknown = -1,
+    kMTCharWise = 0,
+    kMTLineWise = 1,
+    kMTBlockWise = 2,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+#[allow(non_camel_case_types)]
+pub struct yankreg_T {
+    pub y_array: *mut NvimString,
+    pub y_size: usize,
+    pub y_type: MotionType,
+    pub y_width: c_int,
+    pub timestamp: u64,
+    pub additional_data: *mut c_void,
+}
 
 const TAB: c_int = b'\t' as c_int;
 const CAR: c_char = b'\r' as c_char;

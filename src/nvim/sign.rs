@@ -9,31 +9,30 @@
 )]
 
 use crate::api::command::exarg_T;
-use crate::api::deprecated::DecorInline;
 use crate::api::extmark::{
     DECOR_SIGN_HIGHLIGHT_INIT, DecorPriority, DecorSignHighlight, NS, describe_ns, kSHIsSign,
     nvim_create_namespace,
 };
 use crate::api::private::helpers::cstr_as_string;
-use crate::buffer::{buf_hide, buf_meta_total, buflist_findname_exp, buflist_findnr};
+use crate::buffer::{buf_T, buf_hide, buf_meta_total, buflist_findname_exp, buflist_findnr};
 use crate::charset::{
     ascii_isdigit, ascii_iswhite, backslash_halve, getdigits_int, skiptowhite, skiptowhite_esc,
     skipwhite, vim_isprintc,
 };
-use crate::clipboard::{VarType, list_T, typval_T};
 use crate::cursor::{check_cursor_lnum, linenr_T};
-use crate::decoration::{SIGN_WIDTH, SignItem, decor_find_sign, decor_put_sh, sign_item_cmp};
+use crate::decoration::{
+    DecorInline, SIGN_WIDTH, SignItem, decor_find_sign, decor_put_sh, sign_item_cmp,
+};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_buf_later};
 use crate::errors::*;
-use crate::eval::decode::dict_T;
-use crate::eval::deprecated::{EvalFuncData, buf_T};
 use crate::eval::funcs::get_buf_arg;
 use crate::eval::typval::{
-    tv_check_for_nonnull_dict_arg, tv_check_for_opt_dict_arg, tv_check_for_string_arg,
-    tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc,
-    tv_dict_find, tv_dict_get_number, tv_dict_get_number_def, tv_dict_get_string, tv_get_lnum,
-    tv_get_number_chk, tv_get_string, tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret,
-    tv_list_append_dict, tv_list_append_number,
+    EvalFuncData, VarType, dict_T, list_T, tv_check_for_nonnull_dict_arg,
+    tv_check_for_opt_dict_arg, tv_check_for_string_arg, tv_dict_add_list, tv_dict_add_nr,
+    tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc, tv_dict_find, tv_dict_get_number,
+    tv_dict_get_number_def, tv_dict_get_string, tv_get_lnum, tv_get_number_chk, tv_get_string,
+    tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict,
+    tv_list_append_number, typval_T,
 };
 use crate::ex_cmds::{BL_WHITE, ECMD_HIDE, do_ecmd};
 use crate::extmark::{extmark_del, extmark_del_id, extmark_set};

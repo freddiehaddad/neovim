@@ -10,13 +10,11 @@
 
 use crate::api::buffer::{NUL, nvim_buf_set_lines};
 use crate::api::command::exarg_T;
-use crate::api::deprecated::OPT_LOCAL;
 use crate::api::private::helpers::{
     add_c, api_clear_error, api_free_array, arena_array, array_obj, boolean_obj, cstr_as_obj,
     cstr_as_string, string_obj,
 };
 use crate::api::private::validate::{Array, Error, ErrorType, Object};
-use crate::api::tabpage::win_T;
 use crate::api::win_config::{WIN_CONFIG_INIT, kUIMultigrid, parse_winborder};
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 use crate::buffer::{bt_nofile, buf_clear, first_win_in_tab};
@@ -30,8 +28,7 @@ use crate::drawscreen::{
     setcursor_mayforce, update_screen,
 };
 use crate::errors::*;
-use crate::eval::decode::dict_T;
-use crate::eval::typval::{tv_dict_add_bool, tv_dict_add_float, tv_dict_add_nr};
+use crate::eval::typval::{dict_T, tv_dict_add_bool, tv_dict_add_float, tv_dict_add_nr};
 use crate::ex_cmds::{Ctrl_C, ECMD_ONE, do_ecmd, prepare_tagpreview};
 use crate::fuzzy::fuzzy_match_str_with_pos;
 use crate::garray::{ga_clear, garray_T};
@@ -62,7 +59,7 @@ use crate::menu::{execute_menu, get_menu_mode_flag, menu_find, menu_is_separator
 use crate::message::emsg;
 use crate::mouse::mouse_find_win_outer;
 use crate::r#move::{update_topline, validate_cheight, validate_cursor, validate_cursor_col};
-use crate::option::{kOptBuflisted, set_option_value_give_err};
+use crate::option::{OPT_LOCAL, kOptBuflisted, set_option_value_give_err};
 use crate::option_vars::*;
 use crate::plines::{plines_m_win, win_linetabsize};
 use crate::strings::{gettext, reverse_text, strchr};
@@ -72,7 +69,7 @@ use crate::ui::{
     ui_has, ui_pum_get_height, ui_pum_get_pos,
 };
 use crate::ui_compositor::{ui_comp_compose_grid, ui_comp_put_grid, ui_comp_remove_grid};
-use crate::window::{goto_tabpage_tp, valid_tabpage, win_enter, win_setheight, win_valid};
+use crate::window::{goto_tabpage_tp, valid_tabpage, win_T, win_enter, win_setheight, win_valid};
 use crate::winfloat::{win_config_float, win_float_close, win_float_find, win_float_special};
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;

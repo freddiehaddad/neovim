@@ -10,17 +10,14 @@ use crate::api::private::helpers::{arena_array, arena_dict};
 #[cfg(not(test))]
 use crate::api::private::validate::{Array, Dict};
 use crate::api::private::validate::{Error, Object, ObjectData, ObjectType};
-use crate::clipboard::{TypvalVval, VarType, typval_T};
-#[cfg(not(test))]
-use crate::clipboard::{list_T, listitem_T};
-#[cfg(not(test))]
-use crate::eval::decode::dictitem_T;
-use crate::eval::decode::{decode_string, dict_T};
+use crate::eval::decode::decode_string;
 #[cfg(not(test))]
 use crate::eval::executor::blob_T;
+use crate::eval::typval::{TypvalVval, VarType, dict_T, typval_T};
 #[cfg(not(test))]
 use crate::eval::typval::{
-    tv_dict_add, tv_dict_alloc, tv_dict_item_alloc, tv_list_alloc, tv_list_append_owned_tv,
+    dictitem_T, list_T, listitem_T, tv_dict_add, tv_dict_alloc, tv_dict_item_alloc, tv_list_alloc,
+    tv_list_append_owned_tv,
 };
 #[cfg(not(test))]
 use crate::eval::userfunc::{FC_LUAREF, find_func, register_luafunc};

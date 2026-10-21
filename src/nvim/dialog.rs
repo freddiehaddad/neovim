@@ -7,7 +7,7 @@ use crate::api::vim::REMAP_YES;
 #[cfg(not(test))]
 use crate::cmdexpand::EXPAND_NOTHING;
 #[cfg(not(test))]
-use crate::eval::deprecated::Callback;
+use crate::eval::typval::Callback;
 #[cfg(not(test))]
 use crate::ex_cmds::HLF_R;
 #[cfg(not(test))]

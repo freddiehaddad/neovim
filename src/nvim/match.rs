@@ -9,19 +9,18 @@
 )]
 
 use crate::api::command::exarg_T;
-use crate::api::tabpage::win_T;
+use crate::buffer::buf_T;
 use crate::charset::{ascii_iswhite, skiptowhite, skipwhite};
-use crate::clipboard::{VarType, list_T, typval_T};
 use crate::drawscreen::{UPD_SOME_VALID, UPD_VALID, redraw_later, redraw_win_range_later};
 use crate::errors::*;
-use crate::eval::deprecated::{EvalFuncData, buf_T};
 use crate::eval::funcs::get_optional_window;
 use crate::eval::typval::{
-    tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc,
-    tv_dict_find, tv_dict_get_number, tv_dict_get_string, tv_dict_get_string_buf, tv_get_number,
-    tv_get_number_chk, tv_get_string, tv_get_string_buf_chk, tv_list_alloc, tv_list_alloc_ret,
-    tv_list_append_dict, tv_list_append_number, tv_list_append_string, tv_list_append_tv,
-    tv_list_first, tv_list_idx_of_item, tv_list_len, tv_list_ref, tv_list_unref,
+    EvalFuncData, VarType, list_T, tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str,
+    tv_dict_add_str_len, tv_dict_alloc, tv_dict_find, tv_dict_get_number, tv_dict_get_string,
+    tv_dict_get_string_buf, tv_get_number, tv_get_number_chk, tv_get_string, tv_get_string_buf_chk,
+    tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict, tv_list_append_number,
+    tv_list_append_string, tv_list_append_tv, tv_list_first, tv_list_idx_of_item, tv_list_len,
+    tv_list_ref, tv_list_unref, typval_T,
 };
 use crate::eval::window::find_win_by_nr_or_id;
 use crate::ex_docmd::{ends_excmd, ex_errmsg, find_nextcmd, set_no_hlsearch};
@@ -39,6 +38,7 @@ use crate::regexp::{
     vim_regexec_multi, vim_regfree,
 };
 use crate::strings::{gettext, vim_snprintf, vim_strchr};
+use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 

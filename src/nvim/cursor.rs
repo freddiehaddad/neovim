@@ -9,10 +9,9 @@
 )]
 
 use crate::api::buffer::NUL;
-use crate::api::tabpage::win_T;
+use crate::buffer::buf_T;
 use crate::change::{TAB, inserted_bytes, kOptVeFlagOnemore};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_later};
-use crate::eval::deprecated::{buf_T, pos_T};
 use crate::fold::{hasAnyFolding, hasFolding};
 use crate::globals::*;
 use crate::mark::mark_mb_adjustpos;
@@ -31,11 +30,27 @@ use crate::plines::{
 };
 use crate::regexp::MAXCOL;
 use crate::state::{MODE_INSERT, MODE_TERMINAL, virtual_active};
+use crate::window::win_T;
 use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
 
 pub type colnr_T = i32;
 pub type linenr_T = i32;
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct pos_T {
+    pub lnum: i32,
+    pub col: i32,
+    pub coladd: i32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct lpos_T {
+    pub lnum: i32,
+    pub col: i32,
+}
 
 #[inline]
 pub const fn equalpos(a: pos_T, b: pos_T) -> bool {

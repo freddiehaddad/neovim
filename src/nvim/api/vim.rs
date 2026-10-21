@@ -15,12 +15,9 @@ use crate::api::buffer::{
     FORWARD, INTERNAL_CALL_MASK, KeyDict_keymap, KeyDict_keymap_del, LUA_NOREF, NL, NUL,
     api_buf_ensure_loaded, nvim_buf_del_keymap,
 };
-use crate::api::deprecated::{
-    KeyDict_empty, OPT_LOCAL, StringBuilder, buffer_del_line, buffer_get_line, buffer_set_line,
-    kOptScopeBuf,
-};
+use crate::api::deprecated::{KeyDict_empty, buffer_del_line, buffer_get_line, buffer_set_line};
 use crate::api::extmark::NS;
-use crate::api::options::{bufref_T, kOptBufhidden, kOptBuftype};
+use crate::api::options::{kOptBufhidden, kOptBuftype};
 use crate::api::private::converter::vim_to_object;
 use crate::api::private::helpers::{
     ArrayBuilder, HlMessageChunk, TryState, add_c, api_metadata, api_set_error, api_set_sctx,
@@ -35,21 +32,20 @@ use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType, api_err_exp, api_err_invalid,
     api_err_required,
 };
-use crate::api::tabpage::{Buffer, ScreenGrid, Tabpage, Window, win_T};
+use crate::api::tabpage::{Buffer, Tabpage, Window};
 use crate::autocmd::{
     EVENT_BUFADD, EVENT_BUFNEW, EVENT_CHANINFO, apply_autocmds, block_autocmds,
     may_trigger_vim_suspend_resume, unblock_autocmds,
 };
 use crate::buffer::{
-    BLN_LISTED, BLN_NEW, BLN_NOOPT, DOBUF_FIRST, DOBUF_GOTO, buf_close_terminal,
-    buf_get_changedtick, buflist_new, buflist_nr2name, bufref_valid, do_buffer, read_buffer_into,
-    set_bufref,
+    BLN_LISTED, BLN_NEW, BLN_NOOPT, DOBUF_FIRST, DOBUF_GOTO, buf_T, buf_close_terminal,
+    buf_get_changedtick, buflist_new, buflist_nr2name, bufref_T, bufref_valid, do_buffer,
+    read_buffer_into, set_bufref,
 };
 use crate::channel::{
-    InternalState, TerminalOptions, channel_all_info, channel_alloc, channel_decref, channel_event,
-    channel_incref, channel_info, channel_send,
+    Channel, InternalState, TerminalOptions, channel_all_info, channel_alloc, channel_decref,
+    channel_event, channel_incref, channel_info, channel_send,
 };
-use crate::clipboard::yankreg_T;
 use crate::context::{
     CONTEXT_INIT, CtxStateFlags, ctx_free, ctx_from_dict, ctx_load, ctx_save, ctx_to_dict,
 };
@@ -60,7 +56,6 @@ use crate::drawscreen::{
     UPD_CLEAR, UPD_NOT_VALID, UPD_VALID, redraw_all_later, redraw_buf_later,
     redraw_buf_range_later, redraw_later, setcursor_mayforce, update_screen, win_update_cursorline,
 };
-use crate::eval::deprecated::{Channel, buf_T};
 use crate::eval::typval::tv_dict_find;
 use crate::eval::vars::{
     VV_LNUM, VV_RELNUM, VV_VIRTNUM, get_globvar_dict, get_vimvar_dict, set_vim_var_nr,
@@ -70,7 +65,9 @@ use crate::ex_eval::aborting;
 use crate::ex_getln::hlf_T;
 use crate::fold::fold_info;
 use crate::globals::*;
-use crate::grid::{get_win_by_grid_handle, schar_T, schar_cache_clear, schar_get, win_grid_alloc};
+use crate::grid::{
+    ScreenGrid, get_win_by_grid_handle, schar_T, schar_cache_clear, schar_get, win_grid_alloc,
+};
 use crate::highlight::{
     KeyDict_highlight, OptionalKeys, dict2hlattrs, highlight_use_hlstate, hl_check_ns,
     hl_get_attr_by_id, hl_inspect, hl_ns_get_attrs, ns_hl_def, win_check_ns_hl,
@@ -87,6 +84,7 @@ use crate::keycodes::{
     REPTERM_FROM_PART, REPTERM_NO_SPECIAL, name_to_mod_mask, replace_termcodes,
     vim_strsave_escape_ks,
 };
+use crate::kvec::StringBuilder;
 use crate::lua::converter::{Boolean, Float, LuaRef};
 use crate::lua::executor::{
     api_free_luaref, kRetNilBool, kRetObject, nlua_call_ref, nlua_exec, nlua_get_global_ref_count,
@@ -113,14 +111,14 @@ use crate::msgpack_rpc::channel::{
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::msgpack_rpc::unpacker::unpack;
 use crate::normal::reset_VIsual_and_resel;
-use crate::option::{buf_copy_options, set_option_direct_for};
+use crate::option::{OPT_LOCAL, buf_copy_options, kOptScopeBuf, set_option_direct_for};
 use crate::option_vars::*;
 use crate::optionstr::{CharBuf, check_stl_option};
 use crate::os::input::{input_blocking, input_enqueue, input_enqueue_mouse, input_enqueue_raw};
 use crate::os::proc::os_proc_children;
 use crate::popupmenu::{pum_ext_select_item, pum_set_info};
 use crate::register::{
-    PUT_CURSEND, do_put, finish_yankreg_from_object, prepare_yankreg_from_object,
+    PUT_CURSEND, do_put, finish_yankreg_from_object, prepare_yankreg_from_object, yankreg_T,
 };
 use crate::runtime::{
     DIP_ALL, DIP_DIRFILE, DOSO_NONE, do_in_runtimepath, do_source, get_lib_dir, runtime_get_named,
@@ -136,7 +134,9 @@ use crate::terminal::{
     terminal_running, terminal_set_streamed_paste,
 };
 use crate::ui::{ui_array, ui_call__set_restart_on_crash_exit, ui_call_screenshot, ui_flush};
-use crate::window::{global_stl_height, goto_tabpage_tp, goto_tabpage_win, win_find_tabpage};
+use crate::window::{
+    global_stl_height, goto_tabpage_tp, goto_tabpage_win, win_T, win_find_tabpage,
+};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 

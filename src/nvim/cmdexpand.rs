@@ -25,17 +25,16 @@ use crate::charset::{
     backslash_halve_save, rem_backslash, skipdigits, skiptowhite, skipwhite, transchar,
     transchar_byte, vim_isfilec_or_wc, vim_strsize,
 };
-use crate::clipboard::{VarType, list_T, typval_T};
 use crate::cmdhist::get_history_arg;
-use crate::cursor::ltoreq;
+use crate::cursor::{ltoreq, pos_T};
 use crate::drawscreen::{redraw_statuslines, update_screen, win_redraw_last_status};
 use crate::errors::*;
-use crate::eval::deprecated::{Callback, EvalFuncData, pos_T};
 use crate::eval::funcs::{get_expr_name, get_function_name};
 use crate::eval::typval::{
-    tv_check_for_string_arg, tv_clear, tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str_len,
-    tv_dict_alloc_ret, tv_dict_get_string, tv_get_bool_chk, tv_get_string, tv_get_string_chk,
-    tv_list_alloc, tv_list_alloc_ret, tv_list_append_string, tv_list_unref,
+    Callback, EvalFuncData, VarType, list_T, tv_check_for_string_arg, tv_clear, tv_dict_add_list,
+    tv_dict_add_nr, tv_dict_add_str_len, tv_dict_alloc_ret, tv_dict_get_string, tv_get_bool_chk,
+    tv_get_string, tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret, tv_list_append_string,
+    tv_list_unref, typval_T,
 };
 use crate::eval::userfunc::get_user_func_name;
 use crate::eval::vars::get_user_var_name;
@@ -711,11 +710,11 @@ pub enum cmdidx_T {
 }
 
 use crate::api::buffer::{FORWARD, NUL};
-use crate::api::deprecated::{OPT_GLOBAL, OPT_LOCAL};
 use crate::api::vim::{BACKWARD, MAXPATHL};
 use crate::change::TAB;
 #[cfg(unix)]
 use crate::ex_getln::VSE_SHELL;
+use crate::option::{OPT_GLOBAL, OPT_LOCAL};
 
 #[repr(C)]
 #[derive(Clone, Copy)]

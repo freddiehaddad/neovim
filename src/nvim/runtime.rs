@@ -22,19 +22,17 @@ use crate::autocmd::{
     EVENT_SOURCEPRE, PROF_YES, apply_autocmds, funccal_entry_T, has_autocmd,
 };
 use crate::charset::{skip_to_newline, skiptowhite, skiptowhite_esc, skipwhite, skipwhite_len};
-use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
 use crate::cmdexpand::{EXPAND_RUNTIME, LineGetter, WILD_ADD_SLASH, globpath};
 use crate::cursor::linenr_T;
 use crate::debugger::{dbg_breakpoint, dbg_find_breakpoint, has_profiling};
 use crate::errors::*;
-use crate::eval::decode::dict_T;
-use crate::eval::deprecated::{EvalFuncData, ScopeDictDictItem};
 use crate::eval::typval::{
-    VAR_LOCKED, tv_check_for_opt_dict_arg, tv_dict_add_bool, tv_dict_add_dict, tv_dict_add_func,
+    EvalFuncData, ScopeDictDictItem, TypvalVval, VAR_LOCKED, VarType, dict_T, list_T,
+    tv_check_for_opt_dict_arg, tv_dict_add_bool, tv_dict_add_dict, tv_dict_add_func,
     tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_alloc, tv_dict_alloc_lock,
     tv_dict_copy, tv_dict_find, tv_dict_get_string, tv_get_number_chk, tv_get_string,
     tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict, tv_list_append_string,
-    tv_list_append_tv,
+    tv_list_append_tv, typval_T,
 };
 use crate::eval::userfunc::{func_tbl_get, restore_funccal, save_funccal};
 use crate::eval::vars::{SID_STR, new_script_vars, scid_T};

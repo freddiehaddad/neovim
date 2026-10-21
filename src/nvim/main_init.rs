@@ -10,8 +10,6 @@
 )]
 
 #[cfg(not(test))]
-use crate::api::options::bufref_T;
-#[cfg(not(test))]
 use crate::api::private::helpers::{
     api_free_object, api_metadata_raw, bool_obj, cstr_as_string, cstr_obj, int_obj,
 };
@@ -20,15 +18,9 @@ use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType,
 };
 #[cfg(not(test))]
-use crate::api::tabpage::tabpage_T;
-#[cfg(not(test))]
 use crate::api::ui::remote_ui_wait_for_attach;
 #[cfg(not(test))]
-use crate::arglist::gargcount;
-#[cfg(not(test))]
-use crate::arglist::garglist;
-#[cfg(not(test))]
-use crate::arglist::{alist_add, alist_init, alist_name};
+use crate::arglist::{alist_add, alist_init, alist_name, gargcount, garglist};
 #[cfg(not(test))]
 use crate::autocmd::{
     EVENT_BUFENTER, EVENT_BUFUNLOAD, EVENT_BUFWINLEAVE, EVENT_VIMENTER, EVENT_VIMLEAVE,
@@ -38,13 +30,14 @@ use crate::autocmd::{
 #[cfg(not(test))]
 use crate::buffer::{
     BLN_LISTED, MAXLNUM, SEA_DIALOG, SEA_NONE, SEA_QUIT, VAR_FIXED, buf_get_changedtick,
-    buf_is_empty, buf_set_changedtick, buf_valid, buflist_new, bufref_valid, do_autochdir,
-    do_modelines, handle_swap_exists, open_buffer, set_buflisted, set_bufref, set_curbuf, setfname,
+    buf_is_empty, buf_set_changedtick, buf_valid, buflist_new, bufref_T, bufref_valid,
+    do_autochdir, do_modelines, handle_swap_exists, open_buffer, set_buflisted, set_bufref,
+    set_curbuf, setfname,
 };
 #[cfg(not(test))]
 use crate::channel::{
-    STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO, channel_connect, channel_from_stdio, channel_init,
-    channel_teardown,
+    CallbackReader, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO, channel_connect,
+    channel_from_stdio, channel_init, channel_teardown,
 };
 use crate::charset::ascii_isdigit;
 #[cfg(not(test))]
@@ -58,11 +51,9 @@ use crate::errors::*;
 #[cfg(not(test))]
 use crate::eval::buffer::varnumber_T;
 #[cfg(not(test))]
-use crate::eval::deprecated::CallbackReader;
-#[cfg(not(test))]
-use crate::eval::typval::tv_list_set_lock;
-#[cfg(not(test))]
-use crate::eval::typval::{tv_clear, tv_list_alloc, tv_list_alloc_ret, tv_list_append_string};
+use crate::eval::typval::{
+    tv_clear, tv_list_alloc, tv_list_alloc_ret, tv_list_append_string, tv_list_set_lock,
+};
 #[cfg(not(test))]
 use crate::eval::userfunc::invoke_all_defer;
 #[cfg(not(test))]
@@ -97,9 +88,7 @@ use crate::ex_getln::cmdline_init;
 #[cfg(not(test))]
 use crate::extmark::TriState;
 #[cfg(not(test))]
-use crate::fileio::FILE;
-#[cfg(not(test))]
-use crate::fileio::{READ_NEW, READ_STDIN, fprintf, printf, readfile, shorten_fnames};
+use crate::fileio::{FILE, READ_NEW, READ_STDIN, fprintf, printf, readfile, shorten_fnames};
 #[cfg(not(test))]
 use crate::garray::ga_grow;
 #[cfg(not(test))]
@@ -117,9 +106,7 @@ use crate::keycodes::K_NOP;
 #[cfg(not(test))]
 use crate::log::{LOGLVL_DBG, LOGLVL_INF, log_get_stderr, log_init, logmsg_str};
 #[cfg(not(test))]
-use crate::lua::converter::LUA_GLOBALSINDEX;
-#[cfg(not(test))]
-use crate::lua::converter::{lua_getfield, lua_pushstring, lua_tolstring};
+use crate::lua::converter::{LUA_GLOBALSINDEX, lua_getfield, lua_pushstring, lua_tolstring};
 #[cfg(not(test))]
 use crate::lua::executor::{
     get_global_lstate, kRetObject, nlua_call_typval, nlua_exec, nlua_exec_file, nlua_init,
@@ -154,11 +141,10 @@ use crate::normal::{
     check_scrollbind, init_normal_cmds, kOptCbFlagUnnamed, kOptCbFlagUnnamedplus, normal_enter,
 };
 #[cfg(not(test))]
-use crate::option::OptInt;
-#[cfg(not(test))]
 use crate::option::{
-    kOptArabic, kOptKeymap, kOptRightleft, kOptWindow, reset_modifiable, set_init_1, set_init_2,
-    set_init_3, set_init_tablocal, set_option_direct, set_option_value_give_err, set_options_bin,
+    OptInt, kOptArabic, kOptKeymap, kOptRightleft, kOptWindow, reset_modifiable, set_init_1,
+    set_init_2, set_init_3, set_init_tablocal, set_option_direct, set_option_value_give_err,
+    set_options_bin,
 };
 #[cfg(not(test))]
 use crate::option_vars::*;
@@ -171,12 +157,12 @@ use crate::os::env::{
 };
 #[cfg(all(not(test), windows))]
 use crate::os::env::{os_homedir, os_setenv_append_path};
-#[cfg(not(test))]
-use crate::os::fs::CASE_INSENSITIVE_FILENAME;
 #[cfg(all(not(test), windows))]
 use crate::os::fs::os_dup_cloexec;
 #[cfg(not(test))]
-use crate::os::fs::{os_exepath, os_fopen, os_isdir, os_path_exists, os_write};
+use crate::os::fs::{
+    CASE_INSENSITIVE_FILENAME, os_exepath, os_fopen, os_isdir, os_path_exists, os_write,
+};
 #[cfg(not(test))]
 use crate::os::input::{os_breakcheck, os_isatty};
 #[cfg(not(test))]
@@ -223,6 +209,8 @@ use crate::ui_client::{ui_client_run, ui_client_start_server, ui_client_stop};
 use crate::ui_compositor::ui_comp_syn_init;
 #[cfg(not(test))]
 use crate::version::{list_version, main_exitfree};
+#[cfg(not(test))]
+use crate::window::tabpage_T;
 #[cfg(not(test))]
 use crate::window::{
     goto_tabpage, make_tabpages, make_windows, only_one_window, win_alloc_first, win_close,
@@ -762,10 +750,10 @@ pub unsafe extern "C" fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int
         set_window_layout(&raw mut params);
 
         if recoverymode && fname.is_null() {
-            let mut items_tv: crate::clipboard::typval_T = zeroed();
+            let mut items_tv: crate::eval::typval::typval_T = zeroed();
             tv_list_alloc_ret(&raw mut items_tv, 0);
             recover_names(ptr::null_mut(), false, items_tv.vval.v_list);
-            let mut lua_args: [crate::clipboard::typval_T; 2] = [items_tv, zeroed()];
+            let mut lua_args: [crate::eval::typval::typval_T; 2] = [items_tv, zeroed()];
             nlua_call_typval(
                 c"vim._core.swapfile".as_ptr(),
                 c"list_swaps".as_ptr(),
@@ -930,7 +918,7 @@ pub unsafe extern "C" fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int
                     true,
                     c"executing stdin as Ex commands".as_ptr(),
                 );
-                let mut args: [crate::clipboard::typval_T; 1] = [zeroed()];
+                let mut args: [crate::eval::typval::typval_T; 1] = [zeroed()];
                 nlua_call_typval(
                     c"vim._core.exmode".as_ptr(),
                     c"run".as_ptr(),
@@ -1039,7 +1027,7 @@ pub unsafe extern "C" fn getout(mut exitval: c_int) -> ! {
             exitval += ex_exitval;
         }
 
-        set_vim_var_type(VV_EXITING, crate::clipboard::VarType::VAR_NUMBER);
+        set_vim_var_type(VV_EXITING, crate::eval::typval::VarType::VAR_NUMBER);
         set_vim_var_nr(VV_EXITING, varnumber_T::from(exitval));
 
         if *get_vim_var_str(VV_EXITREASON) == NUL {

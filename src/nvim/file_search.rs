@@ -13,12 +13,11 @@ use crate::api::private::helpers::{
 };
 use crate::autocmd::{EVENT_DIRCHANGED, EVENT_DIRCHANGEDPRE, apply_autocmds, has_event};
 use crate::charset::{getdigits, getdigits_int32, getdigits_long, skipwhite, vim_isfilec};
-use crate::clipboard::typval_T;
 use crate::context::{CdCause, kCdCauseWindow};
 use crate::cursor::{get_cursor_line_ptr, linenr_T};
 use crate::errors::*;
 use crate::eval::typval::{
-    tv_clear, tv_dict_add_bool, tv_dict_add_str, tv_dict_set_keys_readonly, tv_get_string,
+    tv_clear, tv_dict_add_bool, tv_dict_add_str, tv_dict_set_keys_readonly, tv_get_string, typval_T,
 };
 use crate::eval::vars::{VV_FNAME, set_vim_var_string};
 use crate::eval::{eval_expr_option_tv, get_v_event, restore_v_event};
@@ -28,10 +27,12 @@ use crate::mbyte::{mb_tolower, utf_head_off, utf_ptr2char, utfc_ptr2len};
 use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xrealloc, xstrdup, xstrlcpy};
 use crate::message::{emsg, semsg};
 use crate::normal::get_visual_text;
-use crate::option::{copy_option_part, was_set_insecurely};
+use crate::option::{OPT_LOCAL, copy_option_part, was_set_insecurely};
 use crate::option_vars::*;
 use crate::os::env::expand_env_esc;
-use crate::os::fs::{os_chdir, os_dirname, os_fileid, os_fileid_equal, os_isdir, os_path_exists};
+use crate::os::fs::{
+    FileID, os_chdir, os_dirname, os_fileid, os_fileid_equal, os_isdir, os_path_exists,
+};
 use crate::os::input::os_breakcheck;
 use crate::path::{
     EW_ADDSLASH, EW_DIR, EW_NOTWILD, EW_SILENT, FreeWild, FullName_save, after_pathsep,
@@ -80,10 +81,8 @@ const E_PATH_TOO_LONG_FOR_COMPLETION: &CStr = c"E854: Path too long for completi
 
 use crate::api::autocmd::kCallbackNone;
 use crate::api::buffer::NUL;
-use crate::api::deprecated::OPT_LOCAL;
 use crate::api::vim::{MAXPATHL, kCdScopeGlobal};
 use crate::buffer::{kCdCauseAuto, kCdCauseBuffer};
-use crate::eval::deprecated::FileID;
 use crate::eval::fs::{kCdScopeBuffer, kCdScopeTabpage, kCdScopeWindow};
 use crate::ex_session::kCdCauseOther;
 use crate::math::{FAIL, OK};
