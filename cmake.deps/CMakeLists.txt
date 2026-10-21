@@ -11,10 +11,8 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" "${PROJECT_SOURCE_DI
 
 include(CheckCCompilerFlag)
 include(ExternalProject)
-include(FindPackageHandleStandardArgs)
 
 include(Deps)
-include(Find)
 include(Util)
 
 #-------------------------------------------------------------------------------
@@ -102,10 +100,10 @@ if(USE_BUNDLED_LUAJIT)
   set(LUA_ENGINE LuaJit)
 elseif(USE_BUNDLED_LUA)
   set(LUA_ENGINE Lua)
-else()
-  find_package(Luajit)
+elseif(USE_BUNDLED_LUV)
+  find_path(LUAJIT_INCLUDE_DIR luajit.h PATH_SUFFIXES luajit-2.1 luajit-2.0)
   find_package(Lua 5.1 EXACT)
-  if(LUAJIT_FOUND)
+  if(LUAJIT_INCLUDE_DIR)
     set(LUA_ENGINE LuaJit)
     string(APPEND DEPS_INCLUDE_FLAGS " -I\"${LUAJIT_INCLUDE_DIR}\"")
   elseif(LUA_FOUND)

@@ -71,8 +71,6 @@ file(GLOB_RECURSE NVIM_RUST_SOURCES CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_LIST_DIR}/*.rs"
   "${NVIM_RUNTIME_DIR}/lua/vim/*.lua"
   "${NVIM_RUNTIME_DIR}/lua/vim/_core/*.lua"
-  "${PROJECT_SOURCE_DIR}/build.rs"
-  "${PROJECT_SOURCE_DIR}/src/bit.rs"
   "${PROJECT_SOURCE_DIR}/src/cjson/*.rs"
   "${PROJECT_SOURCE_DIR}/src/lpeg/*.rs"
   "${PROJECT_SOURCE_DIR}/src/mpack/*.rs"
@@ -125,6 +123,8 @@ add_custom_command(
     ${NVIM_RUST_CARGO_FLAGS}
   DEPENDS
     "${PROJECT_SOURCE_DIR}/Cargo.toml"
+    "${PROJECT_SOURCE_DIR}/build.rs"
+    "${PROJECT_SOURCE_DIR}/src/bit.rs"
     ${NVIM_RUST_SOURCES}
   WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
   USES_TERMINAL)
@@ -151,7 +151,7 @@ add_custom_target(testrust
   USES_TERMINAL)
 
 install(PROGRAMS "${NVIM_BIN_FILE}" DESTINATION ${CMAKE_INSTALL_BINDIR})
-if(MSVC)
+if(WIN32)
   install(FILES "${NVIM_RUST_TARGET_DIR}/${NVIM_RUST_PROFILE_DIR}/nvim.pdb" DESTINATION ${CMAKE_INSTALL_BINDIR} OPTIONAL)
 endif()
 
