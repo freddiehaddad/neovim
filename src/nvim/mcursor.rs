@@ -1,7 +1,6 @@
 //! Multicursor tracking, preview, and cascade replay (`src/nvim/mcursor.c`).
 
 #![allow(
-    clippy::deref_addrof,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -767,7 +766,7 @@ unsafe fn mc_ins_preview_rebase() {
             let mut mark = 0;
             if mc_ctx_resolve(ctx, &mut pos) && (*ctx).mark != mc_ins_span.origin.mcursor {
                 mc_region_mark_set(&mut mark, pos);
-                (*(&raw mut mc_ins_span.regions)).push(mark);
+                crate::kvec::kv_push(&raw mut mc_ins_span.regions, mark);
             }
         }
     }
@@ -1875,7 +1874,7 @@ pub unsafe extern "C" fn mc_on_extmark_set(buf: *mut buf_T, ns_id: u32, mut id: 
         ctx.buf = (*buf).b_fnum;
         ctx.pos = pos;
         ctx.mark = id;
-        (*(&raw mut mc_cursors)).push(ctx);
+        crate::kvec::kv_push(&raw mut mc_cursors, ctx);
     }
 }
 
@@ -1976,8 +1975,8 @@ pub unsafe extern "C" fn mc_free_all() {
             let mut ctx = *mc_cursors.items.add(mc_cursors.size);
             ctx_free(&mut ctx);
         }
-        (*(&raw mut mc_cursors)).destroy();
-        (*(&raw mut mc_ins_span.regions)).destroy();
+        crate::kvec::kv_destroy(&raw mut mc_cursors);
+        crate::kvec::kv_destroy(&raw mut mc_ins_span.regions);
         ctx_free(&raw mut mc_start.ctx);
     }
 }

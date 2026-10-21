@@ -1,10 +1,10 @@
 //! Built-in `assert_*` and `test_*` functions (`src/nvim/testing.c`).
 
 #![allow(
-    clippy::useless_conversion,
     non_camel_case_types,
     non_snake_case,
-    clippy::missing_safety_doc
+    clippy::missing_safety_doc,
+    clippy::useless_conversion
 )]
 
 #[cfg(not(test))]

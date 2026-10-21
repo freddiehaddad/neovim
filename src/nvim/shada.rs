@@ -6,7 +6,6 @@
     non_upper_case_globals,
     clippy::enum_variant_names,
     clippy::missing_safety_doc,
-    clippy::needless_range_loop,
     clippy::too_many_arguments
 )]
 
@@ -1247,8 +1246,8 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
         }
         let mut hms = std::mem::zeroed::<[HistoryMergerState; HIST_COUNT]>();
         if (srni_flags & kSDReadHistory) != 0 {
-            for i in 0..HIST_COUNT {
-                hms_init(&mut hms[i], i as u8, p_hi as usize, true, true);
+            for (i, hm) in hms.iter_mut().enumerate().take(HIST_COUNT) {
+                hms_init(hm, i as u8, p_hi as usize, true, true);
             }
         }
         let mut cur_entry = MISSING_ENTRY;
@@ -1557,16 +1556,16 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
         }
 
         if (srni_flags & kSDReadHistory) != 0 {
-            for i in 0..HIST_COUNT {
-                hms_insert_whole_neovim_history(&mut hms[i]);
+            for (i, hm) in hms.iter_mut().enumerate().take(HIST_COUNT) {
+                hms_insert_whole_neovim_history(hm);
                 clr_history(i as c_int);
                 let mut new_hisidx: *mut c_int = ptr::null_mut();
                 let mut new_hisnum: *mut c_int = ptr::null_mut();
                 let hist = hist_get_array(i as u8, &mut new_hisidx, &mut new_hisnum);
                 if !hist.is_null() {
-                    hms_to_he_array(&hms[i], hist, new_hisidx, new_hisnum);
+                    hms_to_he_array(hm, hist, new_hisidx, new_hisnum);
                 }
-                hms_dealloc(&mut hms[i]);
+                hms_dealloc(hm);
             }
         }
         if cl_bufs.h.n_occupied != 0 {
@@ -2565,14 +2564,14 @@ unsafe fn shada_write(
         let dump_global_marks = get_shada_parameter(b'f' as c_int) != 0;
         let mut dump_history = false;
 
-        for i in 0..HIST_COUNT {
+        for (i, dump_one) in dump_one_history.iter_mut().enumerate().take(HIST_COUNT) {
             let mut num_saved = get_shada_parameter(hist_type2char(i as c_int));
             if num_saved == -1 {
                 num_saved = p_hi as c_int;
             }
             if num_saved > 0 {
                 dump_history = true;
-                dump_one_history[i] = true;
+                *dump_one = true;
                 hms_init(
                     &mut (*wms).hms[i],
                     i as u8,
@@ -2581,7 +2580,7 @@ unsafe fn shada_write(
                     false,
                 );
             } else {
-                dump_one_history[i] = false;
+                *dump_one = false;
             }
         }
 
@@ -3078,8 +3077,8 @@ unsafe fn shada_write(
             }
 
             if dump_history {
-                for i in 0..HIST_COUNT {
-                    if dump_one_history[i] {
+                for (i, &dump_one) in dump_one_history.iter().enumerate().take(HIST_COUNT) {
+                    if dump_one {
                         hms_insert_whole_neovim_history(&mut (*wms).hms[i]);
                         let mut cur_entry = (*wms).hms[i].hmll.first;
                         while !cur_entry.is_null() {
@@ -3098,8 +3097,8 @@ unsafe fn shada_write(
         };
         ret = write_body;
 
-        for i in 0..HIST_COUNT {
-            if dump_one_history[i] {
+        for (i, &dump_one) in dump_one_history.iter().enumerate().take(HIST_COUNT) {
+            if dump_one {
                 hms_dealloc(&mut (*wms).hms[i]);
             }
         }

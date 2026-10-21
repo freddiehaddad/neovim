@@ -3487,8 +3487,8 @@ unsafe fn match_composing(mut sta: *mut nfa_state_T, curc: c_int, clen: c_int) -
 
         while (*sta).c != NFA_END_COMPOSING {
             let mut found = false;
-            for j in 0..ccount {
-                if cchars[j] == (*sta).c {
+            for &cc in cchars.iter().take(ccount) {
+                if cc == (*sta).c {
                     found = true;
                     break;
                 }

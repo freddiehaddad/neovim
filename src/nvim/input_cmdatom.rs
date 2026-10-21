@@ -1,13 +1,12 @@
 //! Input engine command-atom policy layer (`src/nvim/input_cmdatom.c`).
 
 #![allow(
-    clippy::useless_conversion,
-    clippy::deref_addrof,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
     clippy::missing_safety_doc,
-    clippy::too_many_arguments
+    clippy::too_many_arguments,
+    clippy::useless_conversion
 )]
 
 use crate::api::buffer::VisualState;
@@ -461,7 +460,7 @@ pub unsafe extern "C" fn atoms_free(v: *mut CmdAtomVec) {
 pub unsafe extern "C" fn atom_free_all() {
     unsafe {
         atoms_free(&raw mut g_atoms);
-        (*(&raw mut g_atoms)).destroy();
+        crate::kvec::kv_destroy(&raw mut g_atoms);
         let mut frame = cur_frame;
         while !frame.is_null() {
             atom_free(&mut (*frame).staged);
@@ -472,10 +471,10 @@ pub unsafe extern "C" fn atom_free_all() {
             frame = (*frame).parent;
         }
         atom_composite_abort();
-        (*(&raw mut composite.atoms)).destroy();
-        (*(&raw mut typed.keys)).destroy();
+        crate::kvec::kv_destroy(&raw mut composite.atoms);
+        crate::kvec::kv_destroy(&raw mut typed.keys);
         atoms_free(&raw mut vatom.atoms);
-        (*(&raw mut vatom.atoms)).destroy();
+        crate::kvec::kv_destroy(&raw mut vatom.atoms);
     }
 }
 
@@ -840,7 +839,7 @@ pub unsafe extern "C" fn atom_push_raw(cascade: bool, atom: *mut CmdAtom) {
             if collect {
                 composite.queued = true;
             }
-            (*(&raw mut vatom.atoms)).push(*atom);
+            crate::kvec::kv_push(&raw mut vatom.atoms, *atom);
             vatom.frame = if !cur_frame.is_null() {
                 (*cur_frame).id
             } else {
@@ -861,13 +860,13 @@ pub unsafe extern "C" fn atom_push_raw(cascade: bool, atom: *mut CmdAtom) {
             copy.text = ptr::null_mut();
             copy.lhs = ptr::null_mut();
             copy.atoms = KVec::new();
-            (*(&raw mut g_atoms)).push(copy);
+            crate::kvec::kv_push(&raw mut g_atoms, copy);
             if collect {
                 composite.queued = true;
             }
         }
         if collect {
-            (*(&raw mut composite.atoms)).push(*atom);
+            crate::kvec::kv_push(&raw mut composite.atoms, *atom);
         } else {
             if (*atom).r#type != kAInsertSpan {
                 atom_emit(atom);
@@ -935,13 +934,16 @@ unsafe fn atom_composite_lhs() -> *mut c_char {
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn atom_lhs_replay_queue() {
     unsafe {
-        (*(&raw mut g_atoms)).push(CmdAtom {
-            r#type: kAComp,
-            keys: atom_composite_lhs(),
-            remap: true,
-            origin: composite.origin,
-            ..CmdAtom::default()
-        });
+        crate::kvec::kv_push(
+            &raw mut g_atoms,
+            CmdAtom {
+                r#type: kAComp,
+                keys: atom_composite_lhs(),
+                remap: true,
+                origin: composite.origin,
+                ..CmdAtom::default()
+            },
+        );
     }
 }
 
@@ -1261,7 +1263,7 @@ pub unsafe extern "C" fn atom_typed_add(chars: *const u8, len: usize) {
             return;
         }
         for i in 0..len {
-            (*(&raw mut typed.keys)).push(*chars.add(i));
+            crate::kvec::kv_push(&raw mut typed.keys, *chars.add(i));
         }
     }
 }
@@ -1471,12 +1473,15 @@ unsafe fn atom_visual_span_flush() {
         }
         let span = atom_visual_span();
         vatom.done = vatom.atoms.size;
-        (*(&raw mut g_atoms)).push(CmdAtom {
-            r#type: kAVisualSpan,
-            keys: span.data,
-            origin: vatom.origin,
-            ..CmdAtom::default()
-        });
+        crate::kvec::kv_push(
+            &raw mut g_atoms,
+            CmdAtom {
+                r#type: kAVisualSpan,
+                keys: span.data,
+                origin: vatom.origin,
+                ..CmdAtom::default()
+            },
+        );
     }
 }
 
@@ -1572,25 +1577,31 @@ unsafe fn atom_visual_end_suffix(
             ..CmdAtom::default()
         };
         if !spec.is_null() {
-            (*(&raw mut vatom.atoms)).push(CmdAtom {
-                r#type: kAOperator,
-                spec: *spec,
-                keys: suffix,
-                origin: (*cur_frame).origin,
-                ..CmdAtom::default()
-            });
+            crate::kvec::kv_push(
+                &raw mut vatom.atoms,
+                CmdAtom {
+                    r#type: kAOperator,
+                    spec: *spec,
+                    keys: suffix,
+                    origin: (*cur_frame).origin,
+                    ..CmdAtom::default()
+                },
+            );
         } else {
             xfree(suffix.cast());
         }
         atom.cascaded = vatom.done > 0;
         if atom.cascaded && vatom.done < vatom.atoms.size {
             let span = atom_visual_span();
-            (*(&raw mut g_atoms)).push(CmdAtom {
-                r#type: kAVisualSpan,
-                keys: span.data,
-                origin,
-                ..CmdAtom::default()
-            });
+            crate::kvec::kv_push(
+                &raw mut g_atoms,
+                CmdAtom {
+                    r#type: kAVisualSpan,
+                    keys: span.data,
+                    origin,
+                    ..CmdAtom::default()
+                },
+            );
         }
         atom.atoms = vatom.atoms;
         vatom.atoms = KVec::new();

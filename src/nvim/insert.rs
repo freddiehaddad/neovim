@@ -1,7 +1,6 @@
 //! Functions for Insert mode (`src/nvim/insert.c`).
 
 #![allow(
-    clippy::deref_addrof,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -2173,7 +2172,7 @@ pub unsafe extern "C" fn stop_arrow() -> c_int {
 unsafe fn stop_insert(end_insert_pos: *mut pos_T, esc: c_int, nomove: c_int) {
     unsafe {
         stop_redo_ins();
-        (*(&raw mut replace_stack)).destroy();
+        crate::kvec::kv_destroy(&raw mut replace_stack);
 
         let redo = redo_keys(ptr::null());
         let added = if redo.data.is_null() {
@@ -2650,7 +2649,7 @@ pub unsafe extern "C" fn replace_push(str_: *mut c_char, len: usize) {
         if replace_stack.size < replace_offset as usize {
             return;
         }
-        (*(&raw mut replace_stack)).ensure_space(len);
+        crate::kvec::kv_ensure_space(&raw mut replace_stack, len);
         let p = replace_stack
             .items
             .add(replace_stack.size - replace_offset as usize);

@@ -5,7 +5,6 @@
     non_snake_case,
     non_upper_case_globals,
     clippy::missing_safety_doc,
-    clippy::needless_range_loop,
     clippy::too_many_arguments
 )]
 
@@ -7977,9 +7976,9 @@ pub unsafe extern "C" fn check_colorcolumn(cc: *mut c_char, wp: *mut win_T) -> *
             color_cols[..count].sort_unstable();
 
             let mut j: usize = 0;
-            for i in 0..count {
-                if j == 0 || *(*wp).w_p_cc_cols.add(j - 1) != color_cols[i] {
-                    *(*wp).w_p_cc_cols.add(j) = color_cols[i];
+            for &cc in color_cols.iter().take(count) {
+                if j == 0 || *(*wp).w_p_cc_cols.add(j - 1) != cc {
+                    *(*wp).w_p_cc_cols.add(j) = cc;
                     j += 1;
                 }
             }

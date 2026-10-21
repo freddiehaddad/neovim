@@ -5,7 +5,6 @@
     non_snake_case,
     non_upper_case_globals,
     clippy::missing_safety_doc,
-    clippy::needless_range_loop,
     clippy::too_many_arguments
 )]
 
@@ -1652,8 +1651,8 @@ pub unsafe extern "C" fn call_user_func(
 
         did_emsg |= save_did_emsg;
         call_depth -= 1;
-        for i in 0..tv_to_free_len {
-            tv_clear(tv_to_free[i]);
+        for &tv in tv_to_free.iter().take(tv_to_free_len) {
+            tv_clear(tv);
         }
         cleanup_function_call(fc);
 

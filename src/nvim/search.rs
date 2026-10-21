@@ -1,13 +1,12 @@
 //! Code for normal mode searching commands (`src/nvim/search.c`).
 
 #![allow(
-    clippy::useless_conversion,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
     clippy::missing_safety_doc,
-    clippy::needless_range_loop,
-    clippy::too_many_arguments
+    clippy::too_many_arguments,
+    clippy::useless_conversion
 )]
 
 use crate::api::command::{CMOD_KEEPPATTERNS, regmatch_T};
@@ -420,9 +419,8 @@ unsafe fn free_spat(spat: *mut SearchPattern) {
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn free_search_patterns() {
     unsafe {
-        for i in 0..2 {
-            free_spat(&raw mut spats[i]);
-        }
+        free_spat(&raw mut spats[0]);
+        free_spat(&raw mut spats[1]);
         spats = [EMPTY_SEARCH_PATTERN, EMPTY_SEARCH_PATTERN];
 
         xfree(mr_pattern.cast());

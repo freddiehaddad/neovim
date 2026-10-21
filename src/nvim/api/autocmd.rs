@@ -7,8 +7,7 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::needless_range_loop
+    clippy::missing_safety_doc
 )]
 
 use crate::api::private::converter::sctx_T;
@@ -724,8 +723,8 @@ pub unsafe extern "C" fn nvim_get_autocmds(
                 pattern_filter_count += 1;
             }
 
-            for event in 0..NUM_EVENTS {
-                if check_event && !event_set[event] {
+            for (event, &has_ev) in event_set.iter().enumerate().take(NUM_EVENTS) {
+                if check_event && !has_ev {
                     continue;
                 }
 

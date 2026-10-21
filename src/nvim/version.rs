@@ -4,8 +4,7 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::needless_range_loop
+    clippy::missing_safety_doc
 )]
 
 use crate::api::buffer::NUL;
@@ -4163,8 +4162,7 @@ pub unsafe extern "C" fn intro_message(colon: bool) {
 
         let mut row = blanklines / 2;
         if (row >= 2 && Columns >= 50) || colon {
-            for i in 0..lines.len() {
-                let p = lines[i];
+            for (i, &p) in lines.iter().enumerate() {
                 let mut allocated: *mut c_char = ptr::null_mut();
 
                 let mesg: *const c_char = if !strstr(p, c"news".as_ptr()).is_null() {

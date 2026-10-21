@@ -1,12 +1,12 @@
 //! Code related to character sets (`src/nvim/charset.c`).
 
 #![allow(
-    clippy::useless_conversion,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
     clippy::missing_safety_doc,
-    clippy::too_many_arguments
+    clippy::too_many_arguments,
+    clippy::useless_conversion
 )]
 
 use crate::cursor::get_cursor_line_ptr;

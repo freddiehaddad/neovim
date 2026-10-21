@@ -5,7 +5,6 @@
     non_snake_case,
     non_upper_case_globals,
     clippy::missing_safety_doc,
-    clippy::needless_range_loop,
     clippy::too_many_arguments
 )]
 
@@ -3512,7 +3511,7 @@ unsafe fn put_pattern(s: *const c_char, c: c_int, spp: *const synpat_T, hl_id: c
         msg_putchar(SEPCHARS[i] as c_int);
 
         let mut first = true;
-        for j in 0..SPO_COUNT {
+        for (j, &spo_name) in spo_name_tab.iter().enumerate().take(SPO_COUNT) {
             let mask: i16 = 1 << j;
             if ((*spp).sp_off_flags & (mask + (mask << SPO_COUNT))) == 0 {
                 continue;
@@ -3520,7 +3519,7 @@ unsafe fn put_pattern(s: *const c_char, c: c_int, spp: *const synpat_T, hl_id: c
             if !first {
                 msg_putchar(b',' as c_int);
             }
-            msg_puts(spo_name_tab[j]);
+            msg_puts(spo_name);
             let n = (*spp).sp_offsets[j];
             if j != SPO_LC_OFF {
                 if ((*spp).sp_off_flags & mask) != 0 {
@@ -4338,8 +4337,13 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
                 if syn_id != 0 {
                     syn_incl_toplevel(syn_id, &raw mut syn_opt_arg.flags);
                     let mut idx = (*win_s(curwin)).b_syn_patterns.ga_len;
-                    for item in ITEM_START..=ITEM_END {
-                        let mut ppp = pat_ptrs[item];
+                    for (item, &pat_ptr) in pat_ptrs
+                        .iter()
+                        .enumerate()
+                        .take(ITEM_END + 1)
+                        .skip(ITEM_START)
+                    {
+                        let mut ppp = pat_ptr;
                         while !ppp.is_null() {
                             let spp = syn_items(win_s(curwin)).offset(idx as isize);
                             *spp = *(*ppp).pp_synp;
@@ -4380,8 +4384,8 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
             }
         }
 
-        for item in ITEM_START..=ITEM_END {
-            let mut ppp = pat_ptrs[item];
+        for &pat_ptr in pat_ptrs.iter().take(ITEM_END + 1).skip(ITEM_START) {
+            let mut ppp = pat_ptr;
             while !ppp.is_null() {
                 let ppp_next = (*ppp).pp_next;
                 if !success && !(*ppp).pp_synp.is_null() {

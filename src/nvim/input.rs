@@ -5,7 +5,6 @@
     non_snake_case,
     non_upper_case_globals,
     clippy::missing_safety_doc,
-    clippy::needless_range_loop,
     clippy::too_many_arguments
 )]
 
@@ -572,10 +571,9 @@ unsafe fn key_char_encode(c: c_int, buf: *mut c_char) -> usize {
             utf_char2bytes(c, bytes.as_mut_ptr().cast())
         };
         let mut off: usize = 0;
-        for i in 0..len as usize {
+        for &b in bytes.iter().take(len as usize) {
             let mut tmp = [0 as c_char; 4];
-            let n = key_byte_encode(if is_special(c) { c } else { bytes[i] as c_int }, &mut tmp)
-                as usize;
+            let n = key_byte_encode(if is_special(c) { c } else { b as c_int }, &mut tmp) as usize;
             ptr::copy_nonoverlapping(tmp.as_ptr(), buf.add(off), n + 1);
             off += n;
         }
@@ -1883,9 +1881,9 @@ pub unsafe extern "C" fn vgetc() -> c_int {
                 if n > 1 {
                     no_mapping += 1;
                     buf[0] = c as u8;
-                    for i in 1..n as usize {
-                        buf[i] = vgetorpeek(true) as u8;
-                        if buf[i] == K_SPECIAL {
+                    for slot in buf.iter_mut().take(n as usize).skip(1) {
+                        *slot = vgetorpeek(true) as u8;
+                        if *slot == K_SPECIAL {
                             vgetorpeek(true);
                             vgetorpeek(true);
                         }

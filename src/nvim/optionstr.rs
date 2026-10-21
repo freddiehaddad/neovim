@@ -6,7 +6,6 @@
     non_upper_case_globals,
     clippy::enum_variant_names,
     clippy::missing_safety_doc,
-    clippy::needless_range_loop,
     clippy::too_many_arguments
 )]
 
@@ -840,8 +839,8 @@ unsafe fn dip_hash(str_arg: *const c_char, len: usize) -> isize {
             16 => (18, 19),
             _ => (0, 0),
         };
-        for i in low..high {
-            if c_memcmp(str_arg, DIP_TABLE[i].str, len) == 0 {
+        for (i, entry) in DIP_TABLE.iter().enumerate().take(high).skip(low) {
+            if c_memcmp(str_arg, entry.str, len) == 0 {
                 return i as isize;
             }
         }

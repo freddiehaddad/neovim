@@ -6,7 +6,6 @@
     non_upper_case_globals,
     clippy::enum_variant_names,
     clippy::missing_safety_doc,
-    clippy::needless_range_loop,
     clippy::too_many_arguments
 )]
 

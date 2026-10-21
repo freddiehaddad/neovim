@@ -5,7 +5,6 @@
     non_snake_case,
     non_upper_case_globals,
     clippy::missing_safety_doc,
-    clippy::needless_range_loop,
     clippy::too_many_arguments
 )]
 
@@ -772,8 +771,8 @@ pub unsafe extern "C" fn suggest_load_files() {
                 let fd = os_fopen((*slang).sl_fname, c"r".as_ptr());
                 if !fd.is_null() {
                     let mut ok = true;
-                    for i in 0..VIMSUGMAGICL {
-                        buf[i] = fgetc(fd) as c_char;
+                    for slot in buf.iter_mut().take(VIMSUGMAGICL) {
+                        *slot = fgetc(fd) as c_char;
                     }
                     if strncmp(buf.as_ptr(), VIMSUGMAGIC.as_ptr().cast(), VIMSUGMAGICL) != 0 {
                         semsg!(
@@ -2579,9 +2578,9 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                 {
                     sofoto = getroom_save(spin, items[1]);
                 } else if strcmp(items[0], c"COMMON".as_ptr()) == 0 {
-                    for i in 1..itemcnt {
-                        if hi_empty(hash_find(&raw const (*spin).si_commonwords, items[i])) {
-                            let p_cw = xstrdup(items[i]);
+                    for &item in items.iter().take(itemcnt).skip(1) {
+                        if hi_empty(hash_find(&raw const (*spin).si_commonwords, item)) {
+                            let p_cw = xstrdup(item);
                             hash_add(&raw mut (*spin).si_commonwords, p_cw);
                         }
                     }
@@ -5271,8 +5270,8 @@ unsafe fn mkspell(
             fname = xmalloc(MAXPATHL).cast::<c_char>();
 
             let mut region_ok = true;
-            for i in 0..(incount as usize) {
-                afile[i] = ptr::null_mut();
+            for (i, slot) in afile.iter_mut().enumerate().take(incount as usize) {
+                *slot = ptr::null_mut();
 
                 if incount > 1 {
                     let in_i = *innames.add(i);
@@ -5369,9 +5368,9 @@ unsafe fn mkspell(
                 ga_clear(&raw mut spin.si_prefcond);
                 hash_clear_all(&raw mut spin.si_commonwords, 0);
 
-                for j in 0..(incount as usize) {
-                    if !afile[j].is_null() {
-                        spell_free_aff(afile[j]);
+                for &af in afile.iter().take(incount as usize) {
+                    if !af.is_null() {
+                        spell_free_aff(af);
                     }
                 }
 

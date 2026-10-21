@@ -5,7 +5,6 @@
     non_snake_case,
     non_upper_case_globals,
     clippy::missing_safety_doc,
-    clippy::needless_range_loop,
     clippy::too_many_arguments
 )]
 
@@ -1687,8 +1686,8 @@ unsafe fn undo_write_bytes(bi: &mut bufinfo_T, nr: u64, len: usize) -> bool {
         assert!(len > 0);
         let mut buf = [0u8; 8];
         let mut i = len - 1;
-        for bufi in 0..len {
-            buf[bufi] = (nr >> (i * 8)) as u8;
+        for slot in buf.iter_mut().take(len) {
+            *slot = (nr >> (i * 8)) as u8;
             i = i.wrapping_sub(1);
         }
         undo_write(bi, buf.as_mut_ptr(), len)
@@ -2380,13 +2379,13 @@ unsafe fn u_undoredo(undo: bool, do_buf_event: bool) {
             buf_updates_changedtick(curbuf);
         }
 
-        for i in 0..NMARKS {
+        for (i, &nm) in namedm.iter().enumerate().take(NMARKS) {
             if (*curhead).uh_namedm[i].mark.lnum != 0 {
                 free_fmark((*curbuf).b_namedm[i]);
                 (*curbuf).b_namedm[i] = (*curhead).uh_namedm[i];
             }
-            if namedm[i].mark.lnum != 0 {
-                (*curhead).uh_namedm[i] = namedm[i];
+            if nm.mark.lnum != 0 {
+                (*curhead).uh_namedm[i] = nm;
             } else {
                 (*curhead).uh_namedm[i].mark.lnum = 0;
             }

@@ -1,7 +1,6 @@
 //! Command API functions (`src/nvim/api/command.c`).
 
 #![allow(
-    clippy::useless_conversion,
     clippy::doc_lazy_continuation,
     clippy::doc_overindented_list_items,
     clippy::empty_line_after_doc_comments,
@@ -9,7 +8,8 @@
     non_snake_case,
     non_upper_case_globals,
     clippy::missing_safety_doc,
-    clippy::too_many_arguments
+    clippy::too_many_arguments,
+    clippy::useless_conversion
 )]
 
 use crate::api::autocmd::OptionalKeys;

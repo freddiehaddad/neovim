@@ -4,7 +4,6 @@
     non_snake_case,
     non_upper_case_globals,
     clippy::missing_safety_doc,
-    clippy::needless_range_loop,
     clippy::too_many_arguments
 )]
 pub use crate::api::autocmd::event_T;
@@ -940,7 +939,9 @@ unsafe fn diff_try_update(dio: *mut diffio_T, idx_orig: usize, eap: *mut exarg_T
                     }
                     break 'theend;
                 }
-                for idx_new in (idx_orig + 1)..DB_COUNT {
+                for (idx_new, anchor_row) in
+                    anchors.iter().enumerate().take(DB_COUNT).skip(idx_orig + 1)
+                {
                     buf = (*curtab).tp_diffbuf[idx_new];
                     if buf.is_null() || (*buf).b_ml.ml_mfp.is_null() {
                         continue;
@@ -948,12 +949,12 @@ unsafe fn diff_try_update(dio: *mut diffio_T, idx_orig: usize, eap: *mut exarg_T
                     lnum_start = if anchor_i == 0 {
                         1
                     } else {
-                        anchors[idx_new][anchor_i - 1]
+                        anchor_row[anchor_i - 1]
                     };
                     lnum_end = if anchor_i == num_anchors {
                         -1
                     } else {
-                        anchors[idx_new][anchor_i] - 1
+                        anchor_row[anchor_i] - 1
                     };
                     if diff_write(buf, &raw mut (*dio).dio_new, lnum_start, lnum_end) == FAIL {
                         continue;
@@ -1990,9 +1991,9 @@ unsafe fn apply_linematch_results(
         let mut line_numbers: [linenr_T; DB_COUNT] = [0; DB_COUNT];
         let mut outputmap: [usize; DB_COUNT] = [0; DB_COUNT];
         let mut ndiffs: usize = 0;
-        for i in 0..DB_COUNT {
+        for (i, line_num) in line_numbers.iter_mut().enumerate().take(DB_COUNT) {
             if !(*curtab).tp_diffbuf[i].is_null() {
-                line_numbers[i] = (*dp).df_lnum[i];
+                *line_num = (*dp).df_lnum[i];
                 (*dp).df_count[i] = 0;
                 outputmap[ndiffs] = i;
                 ndiffs += 1;
@@ -2003,9 +2004,9 @@ unsafe fn apply_linematch_results(
             if i != 0 && *decisions.add(i - 1) != *decisions.add(i) {
                 dp_s = diff_alloc_new(curtab, dp_s, (*dp_s).df_next);
                 (*dp_s).is_linematched = true;
-                for j in 0..DB_COUNT {
+                for (j, &line_num) in line_numbers.iter().enumerate().take(DB_COUNT) {
                     if !(*curtab).tp_diffbuf[j].is_null() {
-                        (*dp_s).df_lnum[j] = line_numbers[j];
+                        (*dp_s).df_lnum[j] = line_num;
                         (*dp_s).df_count[j] = 0;
                     }
                 }
@@ -2930,7 +2931,7 @@ unsafe fn diff_find_change_inline_diff(dp: *mut diff_T) {
         }
         'done: {
             let mut file1_idx: isize = -1;
-            for i in 0..DB_COUNT {
+            for (i, lm) in linemap.iter_mut().enumerate().take(DB_COUNT) {
                 dio.dio_diff.dout_ga.ga_len = 0;
                 let buf = (*curtab).tp_diffbuf[i];
                 if buf.is_null() || (*buf).b_ml.ml_mfp.is_null() {
@@ -2981,7 +2982,7 @@ unsafe fn diff_find_change_inline_diff(dp: *mut diff_T) {
                                 && !last_white
                             {
                                 eol_ga_len = (*curstr).ga_len;
-                                eol_linemap_len = linemap[i].ga_len;
+                                eol_linemap_len = lm.ga_len;
                                 eol_numlines = numlines;
                                 last_white = true;
                             }
@@ -3033,13 +3034,13 @@ unsafe fn diff_find_change_inline_diff(dp: *mut diff_T) {
                                 num_bytes: char_len,
                                 lineoff: off,
                             };
-                            ga_grow(&raw mut linemap[i], 1);
-                            *(linemap[i].ga_data.cast::<linemap_entry_T>())
-                                .add(linemap[i].ga_len as usize) = linemap_entry;
-                            linemap[i].ga_len += 1;
+                            ga_grow(lm, 1);
+                            *(lm.ga_data.cast::<linemap_entry_T>()).add(lm.ga_len as usize) =
+                                linemap_entry;
+                            lm.ga_len += 1;
                         } else {
-                            (*(linemap[i].ga_data.cast::<linemap_entry_T>())
-                                .add((linemap[i].ga_len - 1) as usize))
+                            (*(lm.ga_data.cast::<linemap_entry_T>())
+                                .add((lm.ga_len - 1) as usize))
                             .num_bytes += char_len;
                         }
                         in_keyword = new_in_keyword;
@@ -3053,7 +3054,7 @@ unsafe fn diff_find_change_inline_diff(dp: *mut diff_T) {
                         && eol_ga_len != -1
                     {
                         (*curstr).ga_len = eol_ga_len;
-                        linemap[i].ga_len = eol_linemap_len;
+                        lm.ga_len = eol_linemap_len;
                         numlines = eol_numlines;
                     }
                     if (diff_flags & DIFF_IWHITEALL) == 0 {
@@ -3064,10 +3065,10 @@ unsafe fn diff_find_change_inline_diff(dp: *mut diff_T) {
                             num_bytes: size_of::<c_int>() as colnr_T,
                             lineoff: off,
                         };
-                        ga_grow(&raw mut linemap[i], 1);
-                        *(linemap[i].ga_data.cast::<linemap_entry_T>())
-                            .add(linemap[i].ga_len as usize) = linemap_entry;
-                        linemap[i].ga_len += 1;
+                        ga_grow(lm, 1);
+                        *(lm.ga_data.cast::<linemap_entry_T>()).add(lm.ga_len as usize) =
+                            linemap_entry;
+                        lm.ga_len += 1;
                     }
                 }
                 if file1_idx != i as isize {

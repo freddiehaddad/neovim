@@ -1,12 +1,10 @@
 //! Functions for Insert mode completion (`src/nvim/insexpand.c`).
 
 #![allow(
-    clippy::blocks_in_conditions,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
     clippy::missing_safety_doc,
-    clippy::needless_range_loop,
     clippy::too_many_arguments
 )]
 
@@ -6188,49 +6186,49 @@ unsafe fn get_normal_compl_info(
                 compl_length,
             );
             compl_pattern.size = n - 1;
-        } else if {
-            startcol -= 1;
-            startcol < 0 || !vim_iswordp(mb_prevptr(line, line.add((startcol + 1) as usize)))
-        } {
-            compl_pattern = cbuf_to_string(c"\\<\\k\\k".as_ptr(), 6);
-            compl_col += curs_col;
-            compl_length = 0;
-            compl_from_nonkeyword = true;
         } else {
-            startcol -= utf_head_off(line, line.add(startcol as usize));
-            let base_class = mb_get_class(line.add(startcol as usize));
-            while {
-                startcol -= 1;
-                startcol >= 0
-            } {
-                let head_off = utf_head_off(line, line.add(startcol as usize));
-                if base_class != mb_get_class(line.add((startcol - head_off) as usize)) {
-                    break;
-                }
-                startcol -= head_off;
-            }
-
-            startcol += 1;
-            compl_col += startcol;
-            compl_length = curs_col - startcol;
-            if compl_length == 1 {
-                compl_pattern.data = xmalloc(7).cast::<c_char>();
-                strcpy(compl_pattern.data, c"\\<".as_ptr());
-                quote_meta(compl_pattern.data.add(2), line.add(compl_col as usize), 1);
-                strcat(compl_pattern.data, c"\\k".as_ptr());
-                compl_pattern.size = strlen(compl_pattern.data);
+            startcol -= 1;
+            if startcol < 0 || !vim_iswordp(mb_prevptr(line, line.add((startcol + 1) as usize))) {
+                compl_pattern = cbuf_to_string(c"\\<\\k\\k".as_ptr(), 6);
+                compl_col += curs_col;
+                compl_length = 0;
+                compl_from_nonkeyword = true;
             } else {
-                let n = quote_meta(ptr::null_mut(), line.add(compl_col as usize), compl_length)
-                    as usize
-                    + 2;
-                compl_pattern.data = xmalloc(n).cast::<c_char>();
-                strcpy(compl_pattern.data, c"\\<".as_ptr());
-                quote_meta(
-                    compl_pattern.data.add(2),
-                    line.add(compl_col as usize),
-                    compl_length,
-                );
-                compl_pattern.size = n - 1;
+                startcol -= utf_head_off(line, line.add(startcol as usize));
+                let base_class = mb_get_class(line.add(startcol as usize));
+                while {
+                    startcol -= 1;
+                    startcol >= 0
+                } {
+                    let head_off = utf_head_off(line, line.add(startcol as usize));
+                    if base_class != mb_get_class(line.add((startcol - head_off) as usize)) {
+                        break;
+                    }
+                    startcol -= head_off;
+                }
+
+                startcol += 1;
+                compl_col += startcol;
+                compl_length = curs_col - startcol;
+                if compl_length == 1 {
+                    compl_pattern.data = xmalloc(7).cast::<c_char>();
+                    strcpy(compl_pattern.data, c"\\<".as_ptr());
+                    quote_meta(compl_pattern.data.add(2), line.add(compl_col as usize), 1);
+                    strcat(compl_pattern.data, c"\\k".as_ptr());
+                    compl_pattern.size = strlen(compl_pattern.data);
+                } else {
+                    let n = quote_meta(ptr::null_mut(), line.add(compl_col as usize), compl_length)
+                        as usize
+                        + 2;
+                    compl_pattern.data = xmalloc(n).cast::<c_char>();
+                    strcpy(compl_pattern.data, c"\\<".as_ptr());
+                    quote_meta(
+                        compl_pattern.data.add(2),
+                        line.add(compl_col as usize),
+                        compl_length,
+                    );
+                    compl_pattern.size = n - 1;
+                }
             }
         }
 

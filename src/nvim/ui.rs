@@ -5,7 +5,6 @@
     non_snake_case,
     non_upper_case_globals,
     clippy::missing_safety_doc,
-    clippy::needless_range_loop,
     clippy::too_many_arguments
 )]
 
@@ -262,8 +261,8 @@ pub unsafe extern "C" fn ui_refresh() {
             let ui = *uis_ptr.add(i);
             width = width.min((*ui).width);
             height = height.min((*ui).height);
-            for j in 0..kUIExtCount {
-                ext_widgets[j] &= (*ui).ui_ext[j] || inclusive;
+            for (j, widget) in ext_widgets.iter_mut().enumerate().take(kUIExtCount) {
+                *widget &= (*ui).ui_ext[j] || inclusive;
             }
         }
 
@@ -276,8 +275,8 @@ pub unsafe extern "C" fn ui_refresh() {
         let ext_names_ptr = (&raw const ui_ext_names).cast::<*const c_char>();
         let had_message = *ui_ext_ptr.add(kUIMessages);
 
-        for i in 0..kUIExtCount {
-            let val = ext_widgets[i] | *ui_cb_ext_ptr.add(i);
+        for (i, &widget) in ext_widgets.iter().enumerate().take(kUIExtCount) {
+            let val = widget | *ui_cb_ext_ptr.add(i);
             *ui_ext_ptr.add(i) = val;
             if i < kUIGlobalCount {
                 ui_call_option_set(cstr_as_string(*ext_names_ptr.add(i)), bool_obj(val));
