@@ -167,19 +167,12 @@ fn main() {
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
     let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
 
-    let have_libintl = !matches!(
-        env::var("NVIM_HAVE_LIBINTL").as_deref(),
-        Ok("0" | "false" | "OFF" | "off")
-    );
-
     if target_os == "windows" && target_env == "msvc" {
         println!("cargo:rustc-link-search=native={}", deps_lib.display());
-        if have_libintl {
-            println!("cargo:rustc-link-lib=libintl");
-        }
         for lib in [
             "luv",
             "libiconv",
+            "libcharset",
             "tree-sitter",
             "lua51",
             "libuv",

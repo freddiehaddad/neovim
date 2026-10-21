@@ -35,10 +35,8 @@ option(USE_BUNDLED_TS "Use the bundled treesitter runtime." ${USE_BUNDLED})
 option(USE_BUNDLED_TS_PARSERS "Use the bundled treesitter parsers." ${USE_BUNDLED})
 
 if(USE_BUNDLED AND MSVC)
-  option(USE_BUNDLED_GETTEXT "Use the bundled version of gettext." ON)
   option(USE_BUNDLED_LIBICONV "Use the bundled version of libiconv." ON)
 else()
-  option(USE_BUNDLED_GETTEXT "Use the bundled version of gettext." OFF)
   option(USE_BUNDLED_LIBICONV "Use the bundled version of libiconv." OFF)
 endif()
 
@@ -128,10 +126,6 @@ endif()
 
 if(USE_BUNDLED_LUV)
   include(BuildLuv)
-endif()
-
-if(USE_BUNDLED_GETTEXT)
-  include(BuildGettext)
 endif()
 
 if(USE_BUNDLED_LIBICONV)

@@ -11,21 +11,20 @@ use crate::ex_docmd::exarg_T;
 #[cfg(unix)]
 use crate::garray::{ga_grow, ga_init, garray_T};
 use crate::globals::*;
-use crate::mbyte::mb_strnicmp;
+use crate::mbyte::{convert_setup, mb_strnicmp, string_convert, vimconv_T};
 #[cfg(unix)]
 use crate::memory::xstrdup;
 use crate::memory::{xfree, xstrlcpy};
 use crate::message::{semsg, smsg};
 use crate::option::set_helplang_default;
-#[cfg(windows)]
-use crate::os::env::os_getenv_noalloc;
-use crate::os::env::{expand_T, os_setenv};
+use crate::os::env::{expand_T, os_getenv_noalloc, os_setenv};
 #[cfg(unix)]
 use crate::os::shell::get_cmd_output;
 use crate::path::{path_tail, path_tail_with_sep};
 use crate::profile::time_msg;
 use crate::strings::gettext;
-use std::ffi::{c_char, c_int, c_ulong};
+use std::ffi::{CStr, CString, c_char, c_int};
+use std::path::{Path, PathBuf};
 use std::ptr;
 
 pub(crate) const HAVE_LIBINTL: bool = match option_env!("NVIM_HAVE_LIBINTL") {
@@ -77,49 +76,487 @@ static mut LOCALES: *mut *mut c_char = ptr::null_mut();
 static mut DID_INIT_LOCALES: bool = false;
 
 unsafe extern "C" {
-    #[cfg(target_os = "linux")]
-    static mut _nl_msg_cat_cntr: c_int;
-
     pub(crate) fn setlocale(category: c_int, locale: *const c_char) -> *mut c_char;
 
     #[cfg(unix)]
     pub(crate) fn nl_langinfo(item: c_int) -> *mut c_char;
+}
 
-    #[link_name = "gettext"]
-    pub(crate) fn c_gettext(msgid: *const c_char) -> *mut c_char;
+struct MoEntry {
+    msgid: Box<[u8]>,
+    forms: Box<[CString]>,
+}
 
-    #[link_name = "ngettext"]
-    pub(crate) fn c_ngettext(
-        msgid1: *const c_char,
-        msgid2: *const c_char,
-        n: c_ulong,
-    ) -> *mut c_char;
+struct MoCatalog {
+    path: PathBuf,
+    plural_expr: Box<[u8]>,
+    entries: Box<[MoEntry]>,
+}
 
-    #[cfg_attr(windows, link_name = "libintl_bind_textdomain_codeset")]
-    #[cfg_attr(not(windows), link_name = "bind_textdomain_codeset")]
-    fn c_bind_textdomain_codeset(domainname: *const c_char, codeset: *const c_char) -> *mut c_char;
+static mut LOCALE_DIR: [u8; MAXPATHL] = [0; MAXPATHL];
+static mut LOCALE_DIR_LEN: usize = 0;
+static mut CATALOGS: Vec<MoCatalog> = Vec::new();
+static mut ACTIVE_CATALOG: Option<usize> = None;
+static mut CATALOG_VALID: bool = false;
 
-    #[cfg(any(windows, target_os = "linux"))]
-    #[cfg_attr(windows, link_name = "libintl_bindtextdomain")]
-    #[cfg_attr(not(windows), link_name = "bindtextdomain")]
-    fn c_bindtextdomain(domainname: *const c_char, dirname: *const c_char) -> *mut c_char;
+fn eval_plural_expr(expr: &[u8], n: u64) -> usize {
+    struct Parser<'a> {
+        s: &'a [u8],
+        pos: usize,
+        n: u64,
+    }
+    impl Parser<'_> {
+        fn skip_ws(&mut self) {
+            while self.pos < self.s.len()
+                && matches!(self.s[self.pos], b' ' | b'\t' | b'\r' | b'\n')
+            {
+                self.pos += 1;
+            }
+        }
+        fn eat(&mut self, pat: &[u8]) -> bool {
+            self.skip_ws();
+            if self.s[self.pos..].starts_with(pat) {
+                self.pos += pat.len();
+                true
+            } else {
+                false
+            }
+        }
+        fn parse_ternary(&mut self) -> u64 {
+            let cond = self.parse_or();
+            if self.eat(b"?") {
+                let then_v = self.parse_ternary();
+                let _ = self.eat(b":");
+                let else_v = self.parse_ternary();
+                if cond != 0 { then_v } else { else_v }
+            } else {
+                cond
+            }
+        }
+        fn parse_or(&mut self) -> u64 {
+            let mut v = self.parse_and();
+            while self.eat(b"||") {
+                let rhs = self.parse_and();
+                v = u64::from(v != 0 || rhs != 0);
+            }
+            v
+        }
+        fn parse_and(&mut self) -> u64 {
+            let mut v = self.parse_eq();
+            while self.eat(b"&&") {
+                let rhs = self.parse_eq();
+                v = u64::from(v != 0 && rhs != 0);
+            }
+            v
+        }
+        fn parse_eq(&mut self) -> u64 {
+            let mut v = self.parse_rel();
+            loop {
+                if self.eat(b"==") {
+                    let rhs = self.parse_rel();
+                    v = u64::from(v == rhs);
+                } else if self.eat(b"!=") {
+                    let rhs = self.parse_rel();
+                    v = u64::from(v != rhs);
+                } else {
+                    break;
+                }
+            }
+            v
+        }
+        fn parse_rel(&mut self) -> u64 {
+            let mut v = self.parse_add();
+            loop {
+                if self.eat(b"<=") {
+                    let rhs = self.parse_add();
+                    v = u64::from(v <= rhs);
+                } else if self.eat(b">=") {
+                    let rhs = self.parse_add();
+                    v = u64::from(v >= rhs);
+                } else if self.eat(b"<") {
+                    let rhs = self.parse_add();
+                    v = u64::from(v < rhs);
+                } else if self.eat(b">") {
+                    let rhs = self.parse_add();
+                    v = u64::from(v > rhs);
+                } else {
+                    break;
+                }
+            }
+            v
+        }
+        fn parse_add(&mut self) -> u64 {
+            let mut v = self.parse_mul();
+            loop {
+                if self.eat(b"+") {
+                    v = v.wrapping_add(self.parse_mul());
+                } else if self.eat(b"-") {
+                    v = v.wrapping_sub(self.parse_mul());
+                } else {
+                    break;
+                }
+            }
+            v
+        }
+        fn parse_mul(&mut self) -> u64 {
+            let mut v = self.parse_unary();
+            loop {
+                if self.eat(b"%") {
+                    let rhs = self.parse_unary();
+                    v = v.checked_rem(rhs).unwrap_or(0);
+                } else if self.eat(b"*") {
+                    v = v.wrapping_mul(self.parse_unary());
+                } else if self.eat(b"/") {
+                    let rhs = self.parse_unary();
+                    v = v.checked_div(rhs).unwrap_or(0);
+                } else {
+                    break;
+                }
+            }
+            v
+        }
+        fn parse_unary(&mut self) -> u64 {
+            self.skip_ws();
+            if self.pos < self.s.len()
+                && self.s[self.pos] == b'!'
+                && self.s.get(self.pos + 1) != Some(&b'=')
+            {
+                self.pos += 1;
+                u64::from(self.parse_unary() == 0)
+            } else {
+                self.parse_primary()
+            }
+        }
+        fn parse_primary(&mut self) -> u64 {
+            self.skip_ws();
+            if self.eat(b"(") {
+                let v = self.parse_ternary();
+                let _ = self.eat(b")");
+                return v;
+            }
+            if self.pos < self.s.len() && self.s[self.pos] == b'n' {
+                self.pos += 1;
+                return self.n;
+            }
+            let mut val: u64 = 0;
+            while self.pos < self.s.len() && self.s[self.pos].is_ascii_digit() {
+                val = val
+                    .wrapping_mul(10)
+                    .wrapping_add(u64::from(self.s[self.pos] - b'0'));
+                self.pos += 1;
+            }
+            val
+        }
+    }
+    if expr.is_empty() {
+        return usize::from(n != 1);
+    }
+    let mut p = Parser { s: expr, pos: 0, n };
+    p.parse_ternary() as usize
+}
 
-    #[cfg(any(windows, target_os = "linux"))]
-    #[cfg_attr(windows, link_name = "libintl_textdomain")]
-    #[cfg_attr(not(windows), link_name = "textdomain")]
-    fn c_textdomain(domainname: *const c_char) -> *mut c_char;
+fn parse_mo_header(header: &[u8]) -> (Option<Vec<u8>>, Vec<u8>) {
+    let mut charset = None;
+    let mut plural_expr = Vec::new();
+    for line in header.split(|&b| b == b'\n') {
+        if line.len() >= 13 && line[..13].eq_ignore_ascii_case(b"content-type:") {
+            if let Some(pos) = line
+                .windows(8)
+                .position(|w| w.eq_ignore_ascii_case(b"charset="))
+            {
+                let rest = &line[pos + 8..];
+                let end = rest
+                    .iter()
+                    .position(|&b| matches!(b, b' ' | b'\t' | b'\r' | b';'))
+                    .unwrap_or(rest.len());
+                charset = Some(rest[..end].to_vec());
+            }
+        } else if line.len() >= 13
+            && line[..13].eq_ignore_ascii_case(b"plural-forms:")
+            && let Some(pos) = line
+                .windows(7)
+                .position(|w| w.eq_ignore_ascii_case(b"plural="))
+        {
+            let rest = &line[pos + 7..];
+            let end = rest
+                .iter()
+                .position(|&b| b == b';' || b == b'\r')
+                .unwrap_or(rest.len());
+            plural_expr = rest[..end].to_vec();
+        }
+    }
+    (charset, plural_expr)
+}
+
+unsafe fn convert_mo_bytes_to_utf8(bytes: &[u8], charset: Option<&[u8]>) -> Vec<u8> {
+    let Some(cs) = charset else {
+        return bytes.to_vec();
+    };
+    if cs.eq_ignore_ascii_case(b"utf-8")
+        || cs.eq_ignore_ascii_case(b"utf8")
+        || cs.eq_ignore_ascii_case(b"us-ascii")
+        || cs.eq_ignore_ascii_case(b"ascii")
+    {
+        return bytes.to_vec();
+    }
+    if cs.eq_ignore_ascii_case(b"iso-8859-1")
+        || cs.eq_ignore_ascii_case(b"iso_8859-1")
+        || cs.eq_ignore_ascii_case(b"latin1")
+    {
+        let mut out = Vec::with_capacity(bytes.len());
+        for &b in bytes {
+            if b < 0x80 {
+                out.push(b);
+            } else {
+                out.push(0xC0 | (b >> 6));
+                out.push(0x80 | (b & 0x3F));
+            }
+        }
+        return out;
+    }
+    if let Ok(cs_cstr) = CString::new(cs) {
+        let mut vc: vimconv_T = unsafe { std::mem::zeroed() };
+        if unsafe {
+            convert_setup(
+                &raw mut vc,
+                cs_cstr.as_ptr().cast_mut(),
+                c"utf-8".as_ptr().cast_mut(),
+            )
+        } == crate::math::OK
+            && vc.vc_type != 0
+        {
+            let mut len = bytes.len();
+            let converted = unsafe {
+                string_convert(
+                    &raw const vc,
+                    bytes.as_ptr().cast::<c_char>().cast_mut(),
+                    &raw mut len,
+                )
+            };
+            let _ = unsafe { convert_setup(&raw mut vc, ptr::null_mut(), ptr::null_mut()) };
+            if !converted.is_null() {
+                let slice =
+                    unsafe { std::slice::from_raw_parts(converted.cast::<u8>(), len) }.to_vec();
+                unsafe { xfree(converted.cast()) };
+                return slice;
+            }
+        }
+    }
+    bytes.to_vec()
+}
+
+unsafe fn parse_mo_catalog(path: PathBuf, data: &[u8]) -> Option<MoCatalog> {
+    if data.len() < 28 {
+        return None;
+    }
+    let magic = u32::from_le_bytes(data[0..4].try_into().ok()?);
+    let read_u32 = |off: usize| -> Option<u32> {
+        let b: [u8; 4] = data.get(off..off + 4)?.try_into().ok()?;
+        if magic == 0x9504_12de {
+            Some(u32::from_le_bytes(b))
+        } else if magic == 0xde12_0495 {
+            Some(u32::from_be_bytes(b))
+        } else {
+            None
+        }
+    };
+    let rev = read_u32(4)?;
+    if (rev >> 16) > 1 {
+        return None;
+    }
+    let nstrings = read_u32(8)? as usize;
+    let orig_tab = read_u32(12)? as usize;
+    let trans_tab = read_u32(16)? as usize;
+
+    let mut raw_entries = Vec::with_capacity(nstrings);
+    let mut charset = None;
+    let mut plural_expr = Vec::new();
+
+    for i in 0..nstrings {
+        let o_len = read_u32(orig_tab.checked_add(i * 8)?)? as usize;
+        let o_off = read_u32(orig_tab.checked_add(i * 8 + 4)?)? as usize;
+        let t_len = read_u32(trans_tab.checked_add(i * 8)?)? as usize;
+        let t_off = read_u32(trans_tab.checked_add(i * 8 + 4)?)? as usize;
+        let orig = data.get(o_off..o_off.checked_add(o_len)?)?;
+        let trans = data.get(t_off..t_off.checked_add(t_len)?)?;
+        let msgid = orig.split(|&b| b == 0).next().unwrap_or(b"");
+        if msgid.is_empty() {
+            let (cs, pe) = parse_mo_header(trans);
+            charset = cs;
+            plural_expr = pe;
+        } else if !trans.is_empty() {
+            raw_entries.push((msgid, trans));
+        }
+    }
+
+    let mut entries = Vec::with_capacity(raw_entries.len());
+    for (msgid, trans) in raw_entries {
+        let mut forms = Vec::new();
+        for form_bytes in trans.split(|&b| b == 0) {
+            let utf8 = unsafe { convert_mo_bytes_to_utf8(form_bytes, charset.as_deref()) };
+            if let Ok(cstr) = CString::new(utf8) {
+                forms.push(cstr);
+            }
+        }
+        if !forms.is_empty() {
+            entries.push(MoEntry {
+                msgid: msgid.into(),
+                forms: forms.into_boxed_slice(),
+            });
+        }
+    }
+    entries.sort_by(|a, b| a.msgid.cmp(&b.msgid));
+
+    Some(MoCatalog {
+        path,
+        plural_expr: plural_expr.into_boxed_slice(),
+        entries: entries.into_boxed_slice(),
+    })
+}
+
+fn push_unique_str(vec: &mut Vec<String>, s: String) {
+    if !s.is_empty() && !vec.contains(&s) {
+        vec.push(s);
+    }
+}
+
+fn locale_candidates(locale: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    for part in locale.split(':') {
+        let part = part.trim();
+        if part.is_empty() || matches!(part, "C" | "C.UTF-8" | "C.utf8" | "POSIX") {
+            continue;
+        }
+        let no_mod = part.split('@').next().unwrap_or(part);
+        let (base, codeset) = match no_mod.split_once('.') {
+            Some((b, c)) => (b, Some(c)),
+            None => (no_mod, None),
+        };
+        let ll = base.split('_').next().unwrap_or(base);
+        push_unique_str(&mut out, part.to_string());
+        push_unique_str(&mut out, no_mod.to_string());
+        if let Some(cs) = codeset
+            && (cs.eq_ignore_ascii_case("utf-8") || cs.eq_ignore_ascii_case("utf8"))
+        {
+            push_unique_str(&mut out, format!("{base}.UTF-8"));
+            push_unique_str(&mut out, format!("{ll}.UTF-8"));
+        }
+        push_unique_str(&mut out, base.to_string());
+        push_unique_str(&mut out, ll.to_string());
+    }
+    out
+}
+
+unsafe fn current_message_locale() -> Option<String> {
+    unsafe {
+        for var in [c"LANGUAGE", c"LC_ALL", c"LC_MESSAGES", c"LANG"] {
+            let p = os_getenv_noalloc(var.as_ptr());
+            if !p.is_null()
+                && *p != 0
+                && let Ok(s) = CStr::from_ptr(p).to_str()
+            {
+                return Some(s.to_string());
+            }
+        }
+        let p = get_mess_env();
+        if !p.is_null()
+            && *p != 0
+            && let Ok(s) = CStr::from_ptr(p).to_str()
+        {
+            return Some(s.to_string());
+        }
+        None
+    }
+}
+
+unsafe fn ensure_catalog_loaded() -> Option<&'static MoCatalog> {
+    unsafe {
+        let catalogs_ptr = &raw mut CATALOGS;
+        let catalogs = &mut *catalogs_ptr;
+        if !CATALOG_VALID {
+            CATALOG_VALID = true;
+            ACTIVE_CATALOG = None;
+            if LOCALE_DIR_LEN == 0 {
+                return None;
+            }
+            let dir_slice =
+                std::slice::from_raw_parts((&raw const LOCALE_DIR).cast::<u8>(), LOCALE_DIR_LEN);
+            let dir_str = std::str::from_utf8(dir_slice).ok()?;
+            let base_dir = Path::new(dir_str);
+            let locale = current_message_locale()?;
+            for cand in locale_candidates(&locale) {
+                let mo_path = base_dir.join(&cand).join("LC_MESSAGES").join("nvim.mo");
+                if let Some(idx) = catalogs.iter().position(|c| c.path == mo_path) {
+                    ACTIVE_CATALOG = Some(idx);
+                    break;
+                }
+                if let Ok(bytes) = std::fs::read(&mo_path)
+                    && let Some(cat) = parse_mo_catalog(mo_path, &bytes)
+                {
+                    let idx = catalogs.len();
+                    catalogs.push(cat);
+                    ACTIVE_CATALOG = Some(idx);
+                    break;
+                }
+            }
+        }
+        ACTIVE_CATALOG.and_then(|idx| catalogs.get(idx))
+    }
+}
+
+pub(crate) unsafe fn c_gettext(msgid: *const c_char) -> *mut c_char {
+    if msgid.is_null() || unsafe { *msgid == 0 } {
+        return msgid.cast_mut();
+    }
+    unsafe {
+        let Some(cat) = ensure_catalog_loaded() else {
+            return msgid.cast_mut();
+        };
+        let key = CStr::from_ptr(msgid).to_bytes();
+        if let Ok(idx) = cat.entries.binary_search_by(|e| e.msgid.as_ref().cmp(key))
+            && let Some(first) = cat.entries[idx].forms.first()
+        {
+            return first.as_ptr().cast_mut();
+        }
+        msgid.cast_mut()
+    }
+}
+
+pub(crate) unsafe fn c_ngettext(
+    msgid1: *const c_char,
+    msgid2: *const c_char,
+    n: u64,
+) -> *mut c_char {
+    let fallback = if n == 1 {
+        msgid1.cast_mut()
+    } else {
+        msgid2.cast_mut()
+    };
+    if msgid1.is_null() || unsafe { *msgid1 == 0 } {
+        return fallback;
+    }
+    unsafe {
+        let Some(cat) = ensure_catalog_loaded() else {
+            return fallback;
+        };
+        let key = CStr::from_ptr(msgid1).to_bytes();
+        if let Ok(idx) = cat.entries.binary_search_by(|e| e.msgid.as_ref().cmp(key)) {
+            let forms = &cat.entries[idx].forms;
+            let form_idx = eval_plural_expr(&cat.plural_expr, n);
+            if let Some(form) = forms.get(form_idx).or_else(|| forms.first()) {
+                return form.as_ptr().cast_mut();
+            }
+        }
+        fallback
+    }
 }
 
 #[inline]
 pub unsafe fn bind_textdomain_codeset(
-    domainname: *const c_char,
+    _domainname: *const c_char,
     codeset: *const c_char,
 ) -> *mut c_char {
-    if HAVE_LIBINTL {
-        unsafe { c_bind_textdomain_codeset(domainname, codeset) }
-    } else {
-        ptr::null_mut()
-    }
+    codeset.cast_mut()
 }
 
 use crate::charset::NUL;
@@ -221,10 +658,12 @@ pub unsafe fn init_locale() {
         let offset = (tail as usize) - (localepath.as_ptr() as usize);
         xstrlcpy(tail, c"share/locale".as_ptr(), MAXPATHL - offset);
 
-        #[cfg(any(windows, target_os = "linux"))]
         if HAVE_LIBINTL {
-            let _ = c_bindtextdomain(c"nvim".as_ptr(), localepath.as_ptr());
-            let _ = c_textdomain(c"nvim".as_ptr());
+            let bytes = CStr::from_ptr(localepath.as_ptr()).to_bytes();
+            let len = bytes.len().min(MAXPATHL);
+            LOCALE_DIR[..len].copy_from_slice(&bytes[..len]);
+            LOCALE_DIR_LEN = len;
+            CATALOG_VALID = false;
         }
 
         if !time_fd.is_null() {
@@ -299,10 +738,7 @@ pub unsafe fn ex_language(eap: *mut exarg_T) {
                     name,
                 );
             } else {
-                #[cfg(target_os = "linux")]
-                {
-                    _nl_msg_cat_cntr += 1;
-                }
+                CATALOG_VALID = false;
                 let _ = os_setenv(c"LC_ALL".as_ptr(), c"".as_ptr(), 1);
 
                 if what != LC_TIME && what != LC_COLLATE {
@@ -459,6 +895,19 @@ mod tests {
                 CStr::from_ptr(get_lang_arg(ptr::null_mut(), 3)).to_bytes(),
                 b"collate"
             );
+
+            assert_eq!(eval_plural_expr(b"(n != 1)", 1), 0);
+            assert_eq!(eval_plural_expr(b"(n != 1)", 2), 1);
+            let slavic =
+                b"n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2";
+            assert_eq!(eval_plural_expr(slavic, 1), 0);
+            assert_eq!(eval_plural_expr(slavic, 2), 1);
+            assert_eq!(eval_plural_expr(slavic, 5), 2);
+            assert_eq!(eval_plural_expr(slavic, 11), 2);
+            assert_eq!(eval_plural_expr(slavic, 21), 0);
+
+            let cands = locale_candidates("ja_JP.UTF-8");
+            assert!(cands.iter().any(|c| c == "ja"));
         }
     }
 }

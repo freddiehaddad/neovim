@@ -128,48 +128,48 @@ pub unsafe fn gettext(msgid: *const c_char) -> *mut c_char {
 }
 
 pub trait IntoNgettextCount {
-    fn into_ngettext_count(self) -> c_ulong;
+    fn into_ngettext_count(self) -> u64;
 }
 
 impl IntoNgettextCount for u32 {
     #[inline]
-    fn into_ngettext_count(self) -> c_ulong {
-        self as c_ulong
+    fn into_ngettext_count(self) -> u64 {
+        u64::from(self)
     }
 }
 
 impl IntoNgettextCount for u64 {
     #[inline]
-    fn into_ngettext_count(self) -> c_ulong {
-        self as c_ulong
+    fn into_ngettext_count(self) -> u64 {
+        self
     }
 }
 
 impl IntoNgettextCount for usize {
     #[inline]
-    fn into_ngettext_count(self) -> c_ulong {
-        self as c_ulong
+    fn into_ngettext_count(self) -> u64 {
+        self as u64
     }
 }
 
 impl IntoNgettextCount for i32 {
     #[inline]
-    fn into_ngettext_count(self) -> c_ulong {
-        self as c_ulong
+    fn into_ngettext_count(self) -> u64 {
+        self as u64
     }
 }
 
 impl IntoNgettextCount for i64 {
     #[inline]
-    fn into_ngettext_count(self) -> c_ulong {
-        self as c_ulong
+    fn into_ngettext_count(self) -> u64 {
+        self as u64
     }
 }
 
 impl IntoNgettextCount for isize {
     #[inline]
-    fn into_ngettext_count(self) -> c_ulong {
-        self as c_ulong
+    fn into_ngettext_count(self) -> u64 {
+        self as u64
     }
 }
 
