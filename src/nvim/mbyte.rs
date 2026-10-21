@@ -45,6 +45,7 @@ use crate::os::env::{expand_T, os_getenv_noalloc};
 use crate::os::fs::os_errno as iconv_errno;
 use crate::os::lang::LC_CTYPE;
 use crate::plines::{CharInfo, ClusterInfo, StrCharInfo};
+use crate::strings::strmove_c;
 use crate::strings::{setlocale, tolower, toupper};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -901,7 +902,7 @@ const fn tolower_asc(c: c_int) -> c_int {
 }
 
 #[inline]
-unsafe fn vim_strchr(string: *const c_char, c: c_int) -> *const c_char {
+pub unsafe fn vim_strchr(string: *const c_char, c: c_int) -> *const c_char {
     if string.is_null() || c <= 0 {
         return ptr::null();
     }
@@ -918,7 +919,7 @@ unsafe fn vim_strchr(string: *const c_char, c: c_int) -> *const c_char {
 }
 
 #[inline]
-unsafe fn vim_strnicmp_asc(s1: *const c_char, s2: *const c_char, mut n: usize) -> c_int {
+pub unsafe fn vim_strnicmp_asc(s1: *const c_char, s2: *const c_char, mut n: usize) -> c_int {
     let mut p1 = s1.cast::<u8>();
     let mut p2 = s2.cast::<u8>();
     unsafe {
@@ -1057,6 +1058,15 @@ pub unsafe fn basechar_cells_impl(c: CharInfo) -> c_int {
         unsafe { ascii2cells(c.value) }
     } else {
         unsafe { utf_char2cells(c.value) }
+    }
+}
+
+#[inline]
+pub unsafe fn mb_ptr_back<T, U>(s: *const T, p: *mut *mut U) {
+    unsafe {
+        let prev = (*p).cast::<c_char>().sub(1);
+        let step = 1 + utf_head_off(s.cast(), prev) as usize;
+        *p = (*p).cast::<u8>().sub(step).cast();
     }
 }
 
@@ -3184,13 +3194,6 @@ unsafe fn enc_alias_search(name: *const c_char) -> c_int {
         }
     }
     -1
-}
-
-unsafe fn strmove_c(dst: *mut c_char, src: *const c_char) {
-    unsafe {
-        let len = CStr::from_ptr(src).to_bytes_with_nul().len();
-        ptr::copy(src, dst, len);
-    }
 }
 
 #[cfg_attr(not(test), unsafe(no_mangle))]

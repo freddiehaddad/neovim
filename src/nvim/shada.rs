@@ -9,6 +9,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::api::extmark::set_has_ptr;
 use crate::api::private::helpers::{
     api_free_dict, api_free_string, copy_string, cstr_as_string, static_cstr_as_string,
 };
@@ -47,11 +48,12 @@ use crate::fileio::{S_IFDIR, S_IFMT, modname, vim_rename};
 use crate::fileio::{getgid, getuid};
 use crate::globals::*;
 use crate::hashtab::{hashitem_T, hashitem_empty};
+use crate::highlight::map_destroy;
+use crate::highlight::set_destroy;
 use crate::lua::converter::Boolean;
 use crate::map::{
     Map, Set, cstr_t, map_del_cstr_t_ptr_t, map_put_ref_cstr_t_ptr_t, map_ref_cstr_t_ptr_t,
-    mh_get_cstr_t, mh_get_path_t, mh_get_ptr_t, mh_put_cstr_t, mh_put_path_t, mh_put_ptr_t, path_t,
-    ptr_t,
+    mh_get_cstr_t, mh_get_path_t, mh_put_cstr_t, mh_put_path_t, mh_put_ptr_t, path_t, ptr_t,
 };
 use crate::map_glyph_cache::{MH_TOMBSTONE, MHPutStatus, MapHash, NvimString};
 use crate::mark::{
@@ -671,11 +673,6 @@ const fn mark_local_index(name: c_char) -> c_int {
 }
 
 #[inline]
-unsafe fn set_has_ptr(set: *mut Set<ptr_t>, key: ptr_t) -> bool {
-    unsafe { mh_get_ptr_t(set, key) != MH_TOMBSTONE }
-}
-
-#[inline]
 unsafe fn set_put_ptr(set: *mut Set<ptr_t>, key: ptr_t) -> bool {
     let mut status = MHPutStatus::kMHExisting;
     unsafe {
@@ -710,24 +707,6 @@ unsafe fn set_put_path(set: *mut Set<path_t>, key: path_t) -> bool {
         mh_put_path_t(set, key, &mut status);
     }
     status != MHPutStatus::kMHExisting
-}
-
-#[inline]
-unsafe fn set_destroy<K>(set: *mut Set<K>) {
-    unsafe {
-        xfree((*set).keys.cast::<c_void>());
-        xfree((*set).h.hash.cast::<c_void>());
-        *set = set_init();
-    }
-}
-
-#[inline]
-unsafe fn map_destroy<K, V>(map: *mut Map<K, V>) {
-    unsafe {
-        set_destroy(&mut (*map).set);
-        xfree((*map).values.cast::<c_void>());
-        (*map).values = ptr::null_mut();
-    }
 }
 
 #[inline]

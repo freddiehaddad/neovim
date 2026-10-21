@@ -19,6 +19,7 @@ use crate::api::command::{
 };
 #[cfg(windows)]
 use crate::api::private::helpers::api_free_object;
+use crate::api::private::helpers::cstr_as_nvim_string;
 use crate::api::private::helpers::{
     HLF_E, api_clear_error, boolean_obj, cstr_as_obj, error_init, error_set, integer_obj,
 };
@@ -27,10 +28,11 @@ use crate::api::tabpage::{pos_T, tabpage_T, win_T};
 use crate::api::ui::{remote_ui_connect, remote_ui_restart, ui_detach_channel, ui_detach_others};
 use crate::api::vimscript::nvim_command;
 use crate::api::win_config::bufref_T;
+use crate::arglist::argcount;
 use crate::arglist::{
-    CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN, ML_EMPTY, alist_T, arg_all, check_arg_idx,
-    ex_all, ex_argadd, ex_argdedupe, ex_argdelete, ex_argedit, ex_args, ex_argument, ex_last,
-    ex_next, ex_previous, ex_rewind,
+    CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN, ML_EMPTY, arg_all, check_arg_idx, ex_all,
+    ex_argadd, ex_argdedupe, ex_argdelete, ex_argedit, ex_args, ex_argument, ex_last, ex_next,
+    ex_previous, ex_rewind,
 };
 use crate::autocmd::{
     DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_CHANINFO, EVENT_CMDUNDEFINED, EVENT_EXITPRE,
@@ -153,7 +155,6 @@ use crate::log::{LOGLVL_INF, log_should_log, logmsg};
 use crate::lua::executor::{ex_lua, ex_luado, ex_luafile, nlua_call_excmd, nlua_call_typval};
 use crate::lua::secure::ex_trust;
 use crate::main_init::getout;
-use crate::map_glyph_cache::NvimString;
 use crate::mapping::{ex_abbreviate, ex_abclear, ex_map, ex_mapclear, ex_unmap};
 use crate::mark::{
     checkpcmark, ex_changes, ex_clearjumps, ex_delmarks, ex_jumps, ex_marks, mark_check, mark_get,
@@ -243,6 +244,7 @@ use crate::spell::{ex_spelldump, ex_spellinfo, ex_spellrepall};
 use crate::spellfile::{ex_mkspell, ex_spell};
 use crate::state::{MODE_CMDLINE, MODE_INSERT, MODE_TERMINAL};
 use crate::statusline::draw_tabline;
+use crate::strings::strmove_c;
 use crate::strings::{
     atoi, atol, concat_str, del_trailing_spaces, gettext, ngettext, strcat, strcmp, strlen,
     strncmp, strpbrk, strrchr, strrep, strstr, vim_snprintf, vim_strchr, vim_stricmp as stricmp_c,
@@ -4743,11 +4745,6 @@ unsafe fn sourcing_lnum_ptr() -> *mut linenr_T {
 }
 
 #[inline]
-unsafe fn argcount() -> c_int {
-    unsafe { (*((*curwin).w_alist.cast::<alist_T>())).al_ga.ga_len }
-}
-
-#[inline]
 unsafe fn clear_wcmd_ga(gap: *mut garray_T) {
     unsafe {
         let data = (*gap).ga_data.cast::<wcmd_T>();
@@ -4759,35 +4756,10 @@ unsafe fn clear_wcmd_ga(gap: *mut garray_T) {
 }
 
 #[inline]
-unsafe fn strmove_c(dst: *mut c_char, src: *const c_char) {
-    unsafe {
-        let len = strlen(src) + 1;
-        ptr::copy(src, dst, len);
-    }
-}
-
-#[inline]
 unsafe fn strcpy_c(dst: *mut c_char, src: *const c_char) {
     unsafe {
         let len = strlen(src) + 1;
         ptr::copy_nonoverlapping(src, dst, len);
-    }
-}
-
-#[inline]
-unsafe fn cstr_as_nvim_string(s: *const c_char) -> NvimString {
-    if s.is_null() {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
-    } else {
-        unsafe {
-            NvimString {
-                data: s.cast_mut(),
-                size: strlen(s),
-            }
-        }
     }
 }
 

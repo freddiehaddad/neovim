@@ -10,6 +10,7 @@
 
 use crate::api::autocmd::TryState;
 use crate::api::options::{CtxSwitch, optset_T};
+use crate::api::private::helpers::error_set;
 use crate::api::private::helpers::{
     api_clear_error, api_set_error, cstr_as_string, dict_obj, find_window_by_handle, integer_obj,
     try_enter, try_leave,
@@ -75,13 +76,13 @@ use crate::garray::{ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::grid::{grid_adjust, grid_assign_handle, grid_clear, grid_free, win_grid_alloc};
 use crate::hashtab::hash_init;
-use crate::input::{beep_flush, plain_vgetc, typebuf_maplen};
+use crate::input::langmap_adjust;
+use crate::input::{beep_flush, plain_vgetc};
 use crate::insert::{Ctrl_J, Ctrl_S, Ctrl_X, beginline, cursor_down_inner, cursor_up_inner};
 use crate::keycodes::{CAR, K_BS, K_DOWN, K_KENTER, K_LEFT, K_RIGHT, K_UP};
 use crate::kvec::KVec;
 use crate::main_init::getout;
 use crate::map::{StcClick, StcClicks, map_del_int_ptr_t, map_put_ref_int_ptr_t};
-use crate::mapping::langmap_adjust_mb;
 use crate::mark::{WinInfo, copy_jumplist, free_jumplist, setmark, setpcmark};
 use crate::r#match::clear_matches;
 use crate::math::{FAIL, OK};
@@ -216,11 +217,6 @@ const ERROR_INIT: Error = Error {
 };
 
 #[inline]
-const fn error_set(err: &Error) -> bool {
-    !matches!(err.err_type, ErrorType::kErrorTypeNone)
-}
-
-#[inline]
 fn nowin() -> *mut win_T {
     (-1isize) as *mut win_T
 }
@@ -245,25 +241,6 @@ pub unsafe fn reset_binding(wp: *mut win_T) {
     unsafe {
         (*wp).w_onebuf_opt.wo_scb = 0;
         (*wp).w_onebuf_opt.wo_crb = 0;
-    }
-}
-
-#[inline]
-unsafe fn langmap_adjust(c: &mut c_int, condition: bool) {
-    unsafe {
-        if *p_langmap != NUL
-            && condition
-            && (p_lrm != 0
-                || (if vgetc_busy != 0 {
-                    typebuf_maplen() == 0
-                } else {
-                    KeyTyped
-                }))
-            && KeyStuffed == 0
-            && *c >= 0
-        {
-            *c = langmap_adjust_mb(*c);
-        }
     }
 }
 

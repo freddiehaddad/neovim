@@ -19,6 +19,7 @@ use crate::api::private::validate::{
 };
 #[cfg(not(test))]
 use crate::api::ui::{remote_ui_disconnect, remote_ui_flush_pending_data};
+use crate::channel::put_event_1;
 #[cfg(not(test))]
 use crate::channel::{
     channel_close, channel_decref, channel_event, channel_incref, kChannelPartRpc,
@@ -307,25 +308,6 @@ pub unsafe fn find_channel(id: u64) -> *mut Channel {
 #[inline]
 fn unpacker_closed(p: *const Unpacker) -> bool {
     unsafe { (*p).state < 0 }
-}
-
-#[inline]
-fn put_event_1(
-    queue: *mut MultiQueue,
-    handler: unsafe extern "C" fn(*mut *mut c_void),
-    a0: *mut c_void,
-) {
-    let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
-    argv[0] = a0;
-    unsafe {
-        multiqueue_put_event(
-            queue,
-            Event {
-                handler: Some(handler),
-                argv,
-            },
-        );
-    }
 }
 
 #[inline]

@@ -82,6 +82,7 @@ use crate::globals::*;
 use crate::grid::{grid_line_flush, grid_line_puts, grid_line_start};
 use crate::help::ex_help;
 use crate::indent_c::{FM_BACKWARD, FM_SKIPCOMM, check_linecomment};
+use crate::input::langmap_adjust;
 use crate::input::{
     K_PASTE_START, beep_flush, char_avail, getcmdkeycmd, gotchars_ignore, kInsNone,
     map_execute_lua, paste_repeat, plain_vgetc, prep_redo, readbuf1_empty, redo_append_char,
@@ -110,7 +111,7 @@ use crate::keycodes::{
     MOD_MASK_SHIFT, NL, TAB, is_special, simplify_key,
 };
 use crate::lua::executor::nlua_call_typval;
-use crate::mapping::{add_map, langmap_adjust_mb};
+use crate::mapping::add_map;
 use crate::mark::{
     MarkMove, MarkMoveRes, checkpcmark, get_changelist, get_jumplist, getnextmark, kMarkBeginLine,
     kMarkChangedCursor, kMarkChangedLine, kMarkContext, kMarkJumpList, kMarkMoveFailed,
@@ -179,8 +180,9 @@ use crate::state::{
     may_trigger_safestate, state_enter, state_handle_k_event, state_no_longer_safe, virtual_active,
 };
 use crate::statusline::{OptIndex, draw_tabline, win_redr_status};
+use crate::strings::tr;
 use crate::strings::{
-    gettext, qsort, strcat, strchr, strcmp, strcpy, strlen, vim_snprintf, vim_strchr,
+    qsort, strcat, strchr, strcmp, strcpy, strlen, vim_snprintf, vim_strchr,
     vim_strsave_shellescape, xstrnsave,
 };
 use crate::syntax::syn_stack_free_all;
@@ -328,11 +330,6 @@ static mut do_check_scrollbind_old_buf: *mut buf_T = ptr::null_mut();
 static mut do_check_scrollbind_old_leftcol: colnr_T = 0;
 
 #[inline]
-unsafe fn tr(s: *const c_char) -> *const c_char {
-    unsafe { gettext(s) }
-}
-
-#[inline]
 pub unsafe fn lineempty(lnum: linenr_T) -> bool {
     unsafe { *ml_get(lnum) == NUL }
 }
@@ -377,29 +374,6 @@ unsafe fn win_hl_attr(wp: *mut win_T, hlf: usize) -> c_int {
 #[inline]
 unsafe fn hl_attr(hlf: usize) -> c_int {
     unsafe { *hl_attr_active.add(hlf) }
-}
-
-#[inline]
-unsafe fn langmap_adjust(c: &mut c_int, condition: bool) {
-    unsafe {
-        if *p_langmap != NUL
-            && condition
-            && (p_lrm != 0
-                || (if vgetc_busy != 0 {
-                    typebuf_maplen() == 0
-                } else {
-                    KeyTyped
-                }))
-            && KeyStuffed == 0
-            && *c >= 0
-        {
-            if *c < 256 {
-                *c = c_int::from(*(&raw const langmap_mapchar).cast::<u8>().add(*c as usize));
-            } else {
-                *c = langmap_adjust_mb(*c);
-            }
-        }
-    }
 }
 
 #[inline]

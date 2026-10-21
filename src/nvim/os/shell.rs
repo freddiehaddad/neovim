@@ -9,6 +9,7 @@
 )]
 
 use crate::buffer::{kUIMessages, read_buffer_into};
+use crate::charset::skipwhite;
 use crate::charset::{ascii_iswhite, backslash_halve};
 use crate::errors::*;
 use crate::eval::vars::{VV_SHELL_ERROR, set_vim_var_nr};
@@ -118,16 +119,6 @@ unsafe extern "system" {
     fn GetConsoleCP() -> u32;
     fn SetConsoleOutputCP(wCodePageID: u32) -> c_int;
     fn SetConsoleCP(wCodePageID: u32) -> c_int;
-}
-
-#[inline]
-unsafe fn skipwhite(mut p: *const c_char) -> *mut c_char {
-    unsafe {
-        while ascii_iswhite(*p) {
-            p = p.add(1);
-        }
-        p.cast_mut()
-    }
 }
 
 unsafe fn save_patterns(

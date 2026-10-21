@@ -106,9 +106,7 @@ const UV_EAGAIN: c_int = -11;
 #[cfg(all(not(windows), not(target_os = "linux")))]
 const UV_EAGAIN: c_int = -35;
 
-#[cfg(all(not(test), unix))]
 const S_IFBLK: u64 = 0o060000;
-#[cfg(any(not(test), unix))]
 pub(crate) const S_IFLNK: u64 = 0o120000;
 
 #[cfg(not(test))]
@@ -305,11 +303,9 @@ use crate::bufwrite::NODE_WRITABLE;
 use crate::channel::STDIN_FILENO;
 #[cfg(all(not(test), windows))]
 use crate::event::stream::{UV_FILE, UV_TTY};
-#[cfg(not(test))]
-use crate::fileio::S_IFREG;
 #[cfg(all(not(test), windows))]
 use crate::fileio::{_close, _dup, _fdopen, _get_osfhandle, _read, _write};
-use crate::fileio::{O_RDONLY, S_IFDIR, S_IFMT};
+use crate::fileio::{O_RDONLY, S_IFDIR, S_IFMT, S_IFREG};
 #[cfg(all(not(test), not(windows)))]
 use crate::fileio::{dup, fcntl, fdopen, getuid, read, write};
 use crate::math::FAIL;
@@ -506,26 +502,33 @@ unsafe extern "system" {
 }
 
 #[inline]
-const fn s_isdir(m: u64) -> bool {
+pub const fn s_isdir(m: u64) -> bool {
     (m & S_IFMT) == S_IFDIR
 }
 
-#[cfg(not(test))]
 #[inline]
-const fn s_isreg(m: u64) -> bool {
+pub const fn s_isreg(m: u64) -> bool {
     (m & S_IFMT) == S_IFREG
 }
 
-#[cfg(all(not(test), unix))]
 #[inline]
-const fn s_isblk(m: u64) -> bool {
-    (m & S_IFMT) == S_IFBLK
+pub const fn s_isblk(m: u64) -> bool {
+    cfg!(unix) && (m & S_IFMT) == S_IFBLK
 }
 
-#[cfg(not(test))]
 #[inline]
-const fn s_islnk(m: u64) -> bool {
+pub const fn s_islnk(m: u64) -> bool {
     (m & S_IFMT) == S_IFLNK
+}
+
+#[inline]
+pub const fn s_isfifo(m: u64) -> bool {
+    (m & S_IFMT) == crate::fileio::S_IFIFO
+}
+
+#[inline]
+pub const fn s_issock(m: u64) -> bool {
+    cfg!(unix) && (m & S_IFMT) == crate::fileio::S_IFSOCK
 }
 
 #[inline]

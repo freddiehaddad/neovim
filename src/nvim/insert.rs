@@ -52,7 +52,8 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 use crate::eval::buffer::{invoke_prompt_interrupt, prompt_invoke_callback};
-use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T};
+use crate::eval::deprecated::buf_T;
+use crate::eval::userfunc::ascii_iswhite_nl_or_nul;
 use crate::eval::vars::{VV_CHAR, VV_INSERTMODE, get_vim_var_str, set_vim_var_string};
 use crate::ex_cmds::{B_IMODE_LMAP, BL_FIX, BL_SOL, BL_WHITE, Ctrl_C, Ctrl_E, Ctrl_Y};
 use crate::ex_docmd::{do_cmdline, do_cmdline_cmd, expr_map_locked};
@@ -77,6 +78,7 @@ use crate::indent::{
     tabstop_start,
 };
 use crate::indent_c::{cindent_on, do_c_expr_indent, in_cinkeys};
+use crate::input::mb_byte2len_check;
 use crate::input::{
     K_COMPLETE_DELAY, K_PASTE_START, char_avail, getcmdkeycmd, kInsNone, langmap_adjust,
     map_execute_lua, merge_modifiers, paste_repeat, plain_vgetc, prep_redo, redo_append_char,
@@ -113,7 +115,8 @@ use crate::keycodes::{
 use crate::kvec::KVec;
 use crate::map_glyph_cache::NvimString;
 use crate::mapping::{check_abbr, map_to_exists_mode};
-use crate::mark::{free_fmark, mark_view_make};
+use crate::mark::mark_view_make;
+use crate::mark::reset_fmark;
 use crate::marktree::kMTMetaInline;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
@@ -122,6 +125,8 @@ use crate::mbyte::{
 };
 use crate::mcursor::{mc_ins_cascade, mc_ins_cascade_restart, mc_ins_join, mc_ins_replaying};
 use crate::memline::{gchar_pos, ml_append, ml_get, ml_get_buf, ml_get_len, ml_replace};
+use crate::memory::strnequal;
+use crate::memory::xstrnsave;
 use crate::memory::{xfree, xmalloc, xmemdupz, xstrdup};
 use crate::message::{emsg, msg_check_for_delay};
 use crate::mouse::{
@@ -142,7 +147,6 @@ use crate::option::{
 };
 use crate::option_vars::*;
 use crate::os::input::line_breakcheck;
-use crate::os::time::os_time;
 use crate::plines::{
     CSType, CharsizeArg, charsize_nowrap, getvcol, getvcol_nolist, init_charsize_arg,
     linetabsize_col, utf_ClusterInfo, utf_ptr2StrCharInfo, win_charsize, win_chartabsize,
@@ -276,11 +280,6 @@ static mut pc_col: c_int = 0;
 static mut ins_esc_disabled_redraw: bool = false;
 
 #[inline]
-fn ascii_iswhite_nl_or_nul(c: c_int) -> bool {
-    ascii_iswhite(c) || c == NL || c == CAR || c == NUL as c_int
-}
-
-#[inline]
 const fn is_special_ins(c: c_int) -> bool {
     c < b' ' as c_int || c >= DEL || c == b'0' as c_int || c == b'^' as c_int
 }
@@ -293,40 +292,6 @@ pub unsafe fn linetabsize_str(s: *mut c_char) -> c_int {
 #[inline]
 fn mb_byte2len(b: c_int) -> c_int {
     c_int::from(utf8len_tab[(b as u8) as usize])
-}
-
-#[inline]
-fn mb_byte2len_check(b: c_int) -> c_int {
-    if !(0..=255).contains(&b) {
-        1
-    } else {
-        c_int::from(utf8len_tab[b as usize])
-    }
-}
-
-#[inline]
-unsafe fn strnequal(a: *const c_char, b: *const c_char, len: usize) -> bool {
-    unsafe {
-        std::slice::from_raw_parts(a.cast::<u8>(), len)
-            == std::slice::from_raw_parts(b.cast::<u8>(), len)
-    }
-}
-
-#[inline]
-unsafe fn xstrnsave(s: *const c_char, len: usize) -> *mut c_char {
-    unsafe { xmemdupz(s.cast(), len).cast() }
-}
-
-#[inline]
-unsafe fn reset_fmark(fmarkp: *mut fmark_T, mark: pos_T, fnum: c_int, view: fmarkv_T) {
-    unsafe {
-        free_fmark(*fmarkp);
-        (*fmarkp).mark = mark;
-        (*fmarkp).fnum = fnum;
-        (*fmarkp).timestamp = os_time();
-        (*fmarkp).view = view;
-        (*fmarkp).additional_data = ptr::null_mut();
-    }
 }
 
 #[inline]

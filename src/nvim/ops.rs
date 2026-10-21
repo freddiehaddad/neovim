@@ -17,6 +17,7 @@ use crate::change::{
     get_last_leader_offset, get_leader_len, ins_char, ins_str, kCpoDollar, kOptVeFlagOnemore,
     truncate_line,
 };
+use crate::charset::ascii_isbdigit;
 use crate::charset::{
     STR2NR_BIN, STR2NR_HEX, STR2NR_OCT, ascii_isalpha, ascii_isdigit, ascii_isspace, ascii_isupper,
     ascii_iswhite, ascii_isxdigit, getwhitecols, getwhitecols_curline, skipwhite, uvarnumber_T,
@@ -92,7 +93,9 @@ use crate::register::{
     is_append_register, op_yank, op_yank_reg, shift_delete_registers, valid_yank_reg,
 };
 use crate::state::{MODE_INSERT, MODE_REPLACE, VREPLACE_FLAG, virtual_active};
-use crate::strings::{gettext, ngettext, vim_snprintf, vim_strchr};
+use crate::strings::strcpy_raw;
+use crate::strings::tr;
+use crate::strings::{ngettext, vim_snprintf, vim_strchr};
 use crate::textformat::{
     MotionType, auto_format, has_format_option, op_format, op_formatexpr, oparg_T,
 };
@@ -199,16 +202,6 @@ const OPCHARS: [[u8; 3]; 31] = [
 static mut addsub_hexupper: bool = false;
 
 #[inline]
-unsafe fn tr(s: *const c_char) -> *const c_char {
-    unsafe { gettext(s) }
-}
-
-#[inline]
-const fn ascii_isbdigit(c: c_int) -> bool {
-    c == b'0' as c_int || c == b'1' as c_int
-}
-
-#[inline]
 const fn char_ord(x: c_int) -> c_int {
     let b = x as u8;
     if b < b'a' {
@@ -221,14 +214,6 @@ const fn char_ord(x: c_int) -> c_int {
 #[inline]
 const fn rot13(c: c_int, a: c_int) -> c_int {
     (((c - a) + 13) % 26) + a
-}
-
-#[inline]
-unsafe fn strcpy_raw(dst: *mut c_char, src: *const c_char) {
-    unsafe {
-        let len = CStr::from_ptr(src).to_bytes_with_nul().len();
-        ptr::copy_nonoverlapping(src, dst, len);
-    }
 }
 
 /// Translate a command name into an operator type.

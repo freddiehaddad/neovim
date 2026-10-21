@@ -9,13 +9,13 @@
 )]
 
 use crate::api::extmark::NS;
+use crate::api::private::helpers::put_c;
 use crate::api::private::helpers::{
     add_c, api_dict_to_keydict, api_set_error, arena_array, arena_dict, boolean_obj, cstr_as_obj,
     cstr_as_string, dict_obj, integer_obj, string_obj,
 };
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType, api_err_exp,
-    api_err_invalid,
+    Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType, api_err_exp, api_err_invalid,
 };
 use crate::api::tabpage::win_T;
 use crate::api::ui::{HLATTRS_DICT_SIZE, remote_ui_hl_attr_define, remote_ui_hl_group_set};
@@ -188,7 +188,7 @@ pub struct KeyDict_highlight_cterm {
 
 type NSHlAttr = [c_int; HLF_COUNT];
 
-const fn empty_map_hash() -> MapHash {
+pub const fn empty_map_hash() -> MapHash {
     MapHash {
         n_buckets: 0,
         size: 0,
@@ -295,21 +295,6 @@ const fn hl_attr_key(a: c_int, b: c_int) -> u64 {
 }
 
 #[inline]
-unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
-    debug_assert!(dict.size < dict.capacity);
-    unsafe {
-        *dict.items.add(dict.size) = KeyValuePair {
-            key: NvimString {
-                data: key.as_ptr().cast_mut(),
-                size: key.to_bytes().len(),
-            },
-            value,
-        };
-    }
-    dict.size += 1;
-}
-
-#[inline]
 unsafe fn map_get_u64_int(map: *mut Map<u64, c_int>, key: u64) -> c_int {
     unsafe {
         let ptr = map_ref_uint64_t_int(map, key, ptr::null_mut());
@@ -360,7 +345,7 @@ unsafe fn pmap_get_int(map: *mut Map<c_int, ptr_t>, key: c_int) -> ptr_t {
 }
 
 #[inline]
-unsafe fn set_destroy<K>(set: *mut Set<K>) {
+pub unsafe fn set_destroy<K>(set: *mut Set<K>) {
     unsafe {
         xfree((*set).keys.cast());
         xfree((*set).h.hash.cast());
@@ -372,7 +357,7 @@ unsafe fn set_destroy<K>(set: *mut Set<K>) {
 }
 
 #[inline]
-unsafe fn map_destroy<K, V>(map: *mut Map<K, V>) {
+pub unsafe fn map_destroy<K, V>(map: *mut Map<K, V>) {
     unsafe {
         set_destroy(&raw mut (*map).set);
         xfree((*map).values.cast());

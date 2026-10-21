@@ -327,16 +327,55 @@ unsafe fn pmap_get_int(map: *mut Map<c_int, *mut c_void>, key: c_int) -> *mut c_
     }
 }
 
+pub trait IntoDictKey {
+    unsafe fn into_dict_key(self) -> NvimString;
+}
+
+impl IntoDictKey for *const c_char {
+    #[inline]
+    unsafe fn into_dict_key(self) -> NvimString {
+        unsafe { cstr_as_string(self) }
+    }
+}
+
+impl IntoDictKey for *mut c_char {
+    #[inline]
+    unsafe fn into_dict_key(self) -> NvimString {
+        unsafe { cstr_as_string(self) }
+    }
+}
+
+impl IntoDictKey for &'static CStr {
+    #[inline]
+    unsafe fn into_dict_key(self) -> NvimString {
+        static_cstr_as_string(self)
+    }
+}
+
 #[inline]
-pub unsafe fn put_c(dict: &mut Dict, key: *const c_char, val: Object) {
+pub unsafe fn put_c<K: IntoDictKey>(dict: &mut Dict, key: K, val: Object) {
     debug_assert!(!dict.items.is_null() && dict.size < dict.capacity);
     unsafe {
         *dict.items.add(dict.size) = KeyValuePair {
-            key: cstr_as_string(key),
+            key: key.into_dict_key(),
             value: val,
         };
     }
     dict.size += 1;
+}
+
+pub use cstr_as_string as cstr_as_nvim_string;
+pub use put_c as dict_put_cstr;
+
+#[inline]
+pub unsafe fn cbuf_to_arena_str(arena: *mut Arena, buf: *const c_char, len: usize) -> NvimString {
+    let ptr = if buf.is_null() { c"".as_ptr() } else { buf };
+    unsafe {
+        NvimString {
+            data: arena_memdupz(arena, ptr, len),
+            size: len,
+        }
+    }
 }
 
 #[inline]

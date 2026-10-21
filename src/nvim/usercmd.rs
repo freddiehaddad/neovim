@@ -19,9 +19,9 @@ use crate::api::command::{
     exarg_T, ucmd_T,
 };
 use crate::api::options::IOSIZE;
+use crate::api::private::helpers::dict_put_cstr;
 use crate::api::private::helpers::{
-    arena_dict, boolean_obj, cstr_as_obj, cstr_as_string, dict_obj, integer_obj, luaref_obj,
-    nil_obj, string_obj,
+    arena_dict, boolean_obj, cstr_as_obj, dict_obj, integer_obj, luaref_obj, nil_obj, string_obj,
 };
 use crate::api::private::validate::{Dict, KeyValuePair, Object};
 use crate::autocmd::{DOCMD_NOWAIT, DOCMD_VERBOSE, HLF_8};
@@ -2046,16 +2046,6 @@ pub unsafe extern "C" fn do_ucmd(eap: *mut exarg_T, preview: bool) -> c_int {
         xfree(split_buf.cast());
 
         0
-    }
-}
-
-#[inline]
-unsafe fn dict_put_cstr(d: &mut Dict, key: *const c_char, value: Object) {
-    unsafe {
-        let item = d.items.add(d.size);
-        (*item).key = cstr_as_string(key);
-        (*item).value = value;
-        d.size += 1;
     }
 }
 

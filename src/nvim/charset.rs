@@ -181,7 +181,7 @@ unsafe fn get_chartab(chartab: *const u64, c: c_int) -> u64 {
 }
 
 #[inline]
-const fn ascii_isbdigit(c: c_int) -> bool {
+pub const fn ascii_isbdigit(c: c_int) -> bool {
     c == b'0' as c_int || c == b'1' as c_int
 }
 

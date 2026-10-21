@@ -136,17 +136,17 @@ unsafe fn arglist() -> *mut aentry_T {
 }
 
 #[inline]
-unsafe fn argcount() -> c_int {
+pub unsafe fn argcount() -> c_int {
     unsafe { wargcount(curwin) }
 }
 
 #[inline]
-unsafe fn garglist() -> *mut aentry_T {
+pub unsafe fn garglist() -> *mut aentry_T {
     unsafe { aarglist(&raw const global_alist) }
 }
 
 #[inline]
-unsafe fn gargcount() -> c_int {
+pub unsafe fn gargcount() -> c_int {
     unsafe { global_alist.al_ga.ga_len }
 }
 

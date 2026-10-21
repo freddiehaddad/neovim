@@ -64,6 +64,9 @@ use crate::map::{
 use crate::map_glyph_cache::{MapHash, NvimString};
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strcmp_ic;
+use crate::mbyte::vim_strchr;
+use crate::mbyte::vim_strnicmp_asc;
+use crate::memory::xstrnsave;
 use crate::memory::{xcalloc, xfree, xmalloc, xmallocz, xmemdupz, xrealloc, xstrdup};
 use crate::message::{
     emsg, give_warning, msg_advance, msg_clr_eos, msg_end, msg_ext_set_kind, msg_outtrans,
@@ -83,7 +86,7 @@ use crate::regexp::{RE_MAGIC, RE_NOBREAK, vim_regcomp, vim_regfree};
 use crate::runtime::{ETYPE_AUCMD, estack_pop, estack_push, exestack};
 use crate::search::{restore_search_patterns, save_search_patterns};
 use crate::state::{MODE_INSERT, MODE_NORMAL_BUSY, get_mode, get_real_state, save_v_event_T};
-use crate::strings::gettext;
+use crate::strings::tr;
 use crate::window::{
     check_lnums, check_lnums_nested, reset_lnums, snapshot_windows_scroll_size, unuse_tabpage,
     use_tabpage,
@@ -1275,52 +1278,8 @@ static mut focusgained_last_time: Timestamp = 0;
 static mut ft_recursive: c_int = 0;
 
 #[inline]
-unsafe fn tr(s: &CStr) -> *mut c_char {
-    unsafe { gettext(s.as_ptr()) }
-}
-
-#[inline]
 const fn tolower_asc(c: u8) -> u8 {
     if c.is_ascii_uppercase() { c + 0x20 } else { c }
-}
-
-#[inline]
-unsafe fn vim_strnicmp_asc(s1: *const c_char, s2: *const c_char, mut n: usize) -> c_int {
-    let mut p1 = s1.cast::<u8>();
-    let mut p2 = s2.cast::<u8>();
-    unsafe {
-        while n > 0 {
-            let c1 = tolower_asc(*p1);
-            let c2 = tolower_asc(*p2);
-            if c1 != c2 {
-                return c_int::from(c1) - c_int::from(c2);
-            }
-            if c1 == 0 {
-                return 0;
-            }
-            p1 = p1.add(1);
-            p2 = p2.add(1);
-            n -= 1;
-        }
-    }
-    0
-}
-
-#[inline]
-unsafe fn vim_strchr(string: *const c_char, c: c_int) -> *const c_char {
-    if string.is_null() || c <= 0 {
-        return ptr::null();
-    }
-    let mut p = string;
-    unsafe {
-        while *p != 0 {
-            if c_int::from(*p.cast::<u8>()) == c {
-                return p;
-            }
-            p = p.add(1);
-        }
-    }
-    ptr::null()
 }
 
 #[inline]
@@ -1346,17 +1305,6 @@ unsafe fn vim_stricmp(s1: *const c_char, s2: *const c_char) -> c_int {
 #[inline]
 unsafe fn vim_strnicmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int {
     unsafe { vim_strnicmp_asc(s1, s2, n) }
-}
-
-#[inline]
-unsafe fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char {
-    unsafe {
-        let dst = xmallocz(len).cast::<c_char>();
-        let src_len = CStr::from_ptr(string).to_bytes().len().min(len);
-        ptr::copy_nonoverlapping(string, dst, src_len);
-        ptr::write_bytes(dst.add(src_len), 0, len - src_len + 1);
-        dst
-    }
 }
 
 #[inline]

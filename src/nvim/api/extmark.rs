@@ -16,8 +16,8 @@ use crate::api::deprecated::{
     DECOR_ID_INVALID, DecorInline, DecorVirtText, DecorVirtTextData, VirtLine, VirtLineOverflow,
     VirtLines, VirtText, VirtTextChunk, VirtTextPos, kHlModeUnknown, kVPosEndOfLine,
 };
-use crate::api::private::helpers::cstr_literal;
 use crate::api::private::helpers::has_key;
+use crate::api::private::helpers::put_c;
 use crate::api::private::helpers::string_to_cstr;
 use crate::api::private::helpers::{
     add_c, api_set_error, api_typename, arena_array, arena_dict, array_obj, boolean_obj,
@@ -40,6 +40,7 @@ use crate::eval::deprecated::buf_T;
 use crate::extmark::{extmark_clear, extmark_del_id, extmark_from_id, extmark_get, extmark_set};
 use crate::globals::*;
 use crate::grid::schar_high;
+use crate::highlight::set_destroy;
 use crate::kvec::KVec;
 use crate::lua::converter::{Boolean, LuaRef};
 use crate::map::{
@@ -55,11 +56,12 @@ use crate::marktree::{
 };
 use crate::mbyte::{mb_string2cells, utfc_ptr2schar};
 use crate::memline::ml_get_buf_len;
+use crate::memory::strequal_str as strequal;
 use crate::memory::{Arena, xfree};
 use crate::r#move::changed_window_setting;
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::sign::init_sign_text;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 pub type NS = handle_T;
@@ -337,45 +339,6 @@ pub struct KeyDict_ns_opts {
 }
 
 #[inline]
-unsafe fn strequal(a: *const c_char, b: &str) -> bool {
-    if a.is_null() {
-        return false;
-    }
-    unsafe { CStr::from_ptr(a).to_bytes() == b.as_bytes() }
-}
-
-#[inline]
-unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
-    unsafe {
-        *dict.items.add(dict.size) = KeyValuePair {
-            key: cstr_literal(key),
-            value,
-        };
-        dict.size += 1;
-    }
-}
-
-#[inline]
-unsafe fn set_destroy<K>(set: *mut Set<K>) {
-    unsafe {
-        xfree((*set).keys.cast());
-        xfree((*set).h.hash.cast());
-        *set = Set {
-            h: MapHash {
-                n_buckets: 0,
-                size: 0,
-                n_occupied: 0,
-                upper_bound: 0,
-                n_keys: 0,
-                keys_capacity: 0,
-                hash: ptr::null_mut(),
-            },
-            keys: ptr::null_mut(),
-        };
-    }
-}
-
-#[inline]
 unsafe fn set_has_u32(set: *mut Set<u32>, key: u32) -> bool {
     unsafe { mh_get_uint32_t(set, key) != MH_TOMBSTONE }
 }
@@ -396,7 +359,7 @@ unsafe fn set_del_u32(set: *mut Set<u32>, mut key: u32) {
 }
 
 #[inline]
-unsafe fn set_has_ptr(set: *mut Set<ptr_t>, key: ptr_t) -> bool {
+pub unsafe fn set_has_ptr(set: *mut Set<ptr_t>, key: ptr_t) -> bool {
     unsafe { mh_get_ptr_t(set, key) != MH_TOMBSTONE }
 }
 

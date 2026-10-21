@@ -12,11 +12,12 @@ use crate::api::autocmd::{event_T, kCallbackNone};
 use crate::api::command::{ADDR_LINES, CMOD_NOSWAPFILE, EX_PREVIEW, EX_RANGE, cmdmod_T, exarg_T};
 use crate::api::extmark::nvim_create_namespace;
 use crate::api::options::{CtxSwitch, SID_NONE};
+use crate::api::private::helpers::error_set;
 use crate::api::private::helpers::{
     HLF_E, add_c, api_clear_error, api_free_array, arena_array, array_obj, cbuf_as_string,
     cstr_as_obj, cstr_as_string, error_init, integer_obj, string_obj, try_enter, try_leave,
 };
-use crate::api::private::validate::{Array, Error, ErrorType, Object};
+use crate::api::private::validate::{Array, Object};
 use crate::api::tabpage::{pos_T, win_T};
 use crate::api::vim::{BACKWARD, REMAP_NONE, nvim_create_buf};
 use crate::autocmd::{
@@ -147,10 +148,7 @@ use crate::state::{
     MODE_CMDLINE, MODE_LANGMAP, VimState, may_trigger_modechanged, may_trigger_safestate,
     save_v_event_T, state_enter, state_handle_k_event,
 };
-#[cfg(unix)]
-use crate::strings::strncasecmp;
-#[cfg(windows)]
-use crate::strings::vim_strnicmp;
+use crate::strings::strnicmp_c;
 use crate::strings::{
     gettext, strcmp, strcpy, strlen, strncmp, strrchr, vim_strchr, vim_strsave_escaped, xstrnsave,
 };
@@ -372,23 +370,6 @@ static mut cmdpreview_ns: c_int = 0;
 
 static mut prev_prompt_id: c_uint = c_uint::MAX;
 static mut prev_prompt_errors: c_int = 0;
-
-#[inline]
-unsafe fn strnicmp_c(s1: *const c_char, s2: *const c_char, len: usize) -> c_int {
-    #[cfg(windows)]
-    unsafe {
-        vim_strnicmp(s1, s2, len)
-    }
-    #[cfg(not(windows))]
-    unsafe {
-        strncasecmp(s1, s2, len)
-    }
-}
-
-#[inline]
-const fn error_set(err: &Error) -> bool {
-    !matches!(err.err_type, ErrorType::kErrorTypeNone)
-}
 
 #[inline]
 unsafe fn array_add(a: &mut Array, item: Object) {

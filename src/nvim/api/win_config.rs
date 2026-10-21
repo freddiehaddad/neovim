@@ -41,6 +41,7 @@ use crate::highlight_group::{syn_check_group, syn_id2name};
 use crate::lua::converter::Boolean;
 use crate::map_glyph_cache::NvimString;
 use crate::mbyte::{mb_string2cells, mb_string2cells_len};
+use crate::memory::strequal_str;
 use crate::memory::{Arena, strequal};
 use crate::r#move::changed_window_setting;
 use crate::msgpack_rpc::packer::Integer;
@@ -197,14 +198,6 @@ pub const WIN_CONFIG_INIT: WinConfig = WinConfig {
     hide: false,
     _cmdline_offset: c_int::MAX,
 };
-
-#[inline]
-unsafe fn strequal_str(a: *const c_char, b: &str) -> bool {
-    if a.is_null() {
-        return false;
-    }
-    unsafe { CStr::from_ptr(a).to_bytes() == b.as_bytes() }
-}
 
 #[inline]
 unsafe fn striequal_str(a: *const c_char, b: &str) -> bool {

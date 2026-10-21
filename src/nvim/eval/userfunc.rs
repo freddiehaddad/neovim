@@ -98,6 +98,7 @@ use crate::runtime::{
     script_items, sourcing_lnum, sourcing_name,
 };
 use crate::search::{restore_search_patterns, save_search_patterns};
+use crate::strings::strcpy_raw;
 use crate::strings::{
     concat_str, gettext, memchr, strchr, strcmp, strlen, strncmp, strstr, vim_snprintf, vim_strchr,
     xstrnsave,
@@ -237,7 +238,7 @@ const E_CANNOT_USE_PARTIAL_WITH_DICTIONARY_FOR_DEFER: &CStr =
     c"E1300: Cannot use a partial with dictionary for :defer";
 
 #[inline]
-const fn ascii_iswhite_nl_or_nul(c: c_int) -> bool {
+pub const fn ascii_iswhite_nl_or_nul(c: c_int) -> bool {
     matches!(c as u8, b' ' | b'\t' | b'\n' | b'\r' | 0)
 }
 
@@ -273,21 +274,6 @@ unsafe fn funcarg(fp: *const ufunc_T, j: c_int) -> *mut c_char {
 #[inline]
 pub unsafe fn funcline(fp: *const ufunc_T, j: c_int) -> *mut c_char {
     unsafe { *((*fp).uf_lines.ga_data.cast::<*mut c_char>()).add(j as usize) }
-}
-
-#[inline]
-unsafe fn strcpy_raw(mut dst: *mut c_char, mut src: *const c_char) {
-    unsafe {
-        loop {
-            let c = *src;
-            *dst = c;
-            if c == NUL {
-                break;
-            }
-            dst = dst.add(1);
-            src = src.add(1);
-        }
-    }
 }
 
 #[cfg_attr(not(test), unsafe(no_mangle))]

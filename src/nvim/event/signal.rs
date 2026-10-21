@@ -8,10 +8,10 @@
 )]
 
 use crate::event::r#loop::{
-    UV_SIGNAL, uv_close, uv_handle_size, uv_loop_size, uv_signal_init, uv_signal_start,
-    uv_signal_stop,
+    UV_SIGNAL, uv_close, uv_handle_size, uv_signal_init, uv_signal_start, uv_signal_stop,
 };
 use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_put_event};
+use crate::event::time::loop_fast_events;
 use std::ffi::{c_int, c_void};
 use std::ptr;
 
@@ -52,16 +52,6 @@ unsafe fn watcher_signum(watcher: *mut SignalWatcher) -> c_int {
             .cast::<u8>()
             .add(uv_handle_size(UV_HANDLE) + std::mem::size_of::<*const c_void>())
             .cast::<c_int>()
-    }
-}
-
-#[inline]
-unsafe fn loop_fast_events(loop_: *mut Loop) -> *mut MultiQueue {
-    unsafe {
-        *loop_
-            .cast::<u8>()
-            .add(uv_loop_size() + 2 * std::mem::size_of::<*mut MultiQueue>())
-            .cast::<*mut MultiQueue>()
     }
 }
 

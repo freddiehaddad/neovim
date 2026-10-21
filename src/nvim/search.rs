@@ -88,7 +88,8 @@ use crate::regexp::{
     vim_regexec_multi, vim_regfree,
 };
 use crate::state::MODE_SHOWMATCH;
-use crate::strings::{atol, gettext, reverse_text, strncmp, vim_snprintf, vim_strchr, xstrnsave};
+use crate::strings::tr;
+use crate::strings::{atol, reverse_text, strncmp, vim_snprintf, vim_strchr, xstrnsave};
 use crate::textformat::oparg_T;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_cursor_shape, ui_flush, ui_has, vim_beep};
 use crate::window::reset_binding;
@@ -238,11 +239,6 @@ static mut stat_chgtick: c_int = 0;
 static mut stat_lastpat: *mut c_char = ptr::null_mut();
 static mut stat_lastpatlen: usize = 0;
 static mut stat_lbuf: *mut buf_T = ptr::null_mut();
-
-#[inline]
-unsafe fn tr(s: *const c_char) -> *const c_char {
-    unsafe { gettext(s) }
-}
 
 #[inline]
 const fn empty_pos(a: pos_T) -> bool {

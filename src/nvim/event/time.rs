@@ -44,7 +44,7 @@ pub unsafe fn watcher_fields(watcher: *mut TimeWatcher) -> *mut TimeWatcherField
 }
 
 #[inline]
-unsafe fn loop_fast_events(loop_: *mut Loop) -> *mut MultiQueue {
+pub unsafe fn loop_fast_events(loop_: *mut Loop) -> *mut MultiQueue {
     unsafe {
         *loop_
             .cast::<u8>()

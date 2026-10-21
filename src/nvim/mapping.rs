@@ -14,16 +14,14 @@ use crate::api::buffer::{KeyDict_keymap, LUA_NOREF, NUL};
 use crate::api::command::exarg_T;
 use crate::api::options::optset_T;
 use crate::api::private::converter::{VAR_UNLOCKED, object_to_vim_take_luaref, sctx_T};
-use crate::api::private::helpers::cstr_literal;
 use crate::api::private::helpers::has_key;
+use crate::api::private::helpers::put_c;
 use crate::api::private::helpers::{
     api_clear_error, api_free_object, api_set_error, api_set_sctx, arena_dict,
     arena_take_arraybuilder, cstr_as_obj, cstr_as_string, dict_obj, find_buffer_by_handle,
     integer_obj, luaref_obj, string_obj, string_to_cstr,
 };
-use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType,
-};
+use crate::api::private::validate::{Array, Dict, Error, ErrorType, ObjectType};
 use crate::charset::{
     ascii_isspace, ascii_iswhite, is_special, k_second, skipwhite, to_special, transchar,
     vim_iswordp,
@@ -244,17 +242,6 @@ const fn k_third(c: c_int) -> u8 {
         KE_FILLER
     } else {
         key2termcap1(c) as u8
-    }
-}
-
-#[inline]
-unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
-    unsafe {
-        *dict.items.add(dict.size) = KeyValuePair {
-            key: cstr_literal(key),
-            value,
-        };
-        dict.size += 1;
     }
 }
 

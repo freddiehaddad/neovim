@@ -27,13 +27,15 @@ use crate::garray::{ga_append_via_ptr, ga_clear, ga_grow, ga_init, ga_set_growsi
 pub(super) use crate::globals::*;
 use crate::keycodes::{BS, CAR, ESC, K_SPECIAL};
 use crate::mark::mark_get;
+pub(super) use crate::mbyte::mb_ptr_back;
 use crate::mbyte::{
     GraphemeState, mb_get_class_tab, mb_islower, mb_isupper, mb_ptr2char_adv, mb_strnicmp,
     mb_tolower, mb_toupper, utf_char2bytes, utf_char2len, utf_composinglike, utf_fold,
     utf_head_off, utf_iscomposing_legacy, utf_ptr2char, utf_ptr2len, utf_strnicmp, utfc_ptr2len,
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
-use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xrealloc, xstrdup};
+pub(super) use crate::memory::xstrnsave;
+use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xrealloc, xstrdup};
 pub(super) use crate::message::{
     emsg, iemsg, internal_error, msg_puts, semsg, verbose_enter, verbose_leave,
 };
@@ -41,6 +43,7 @@ pub(super) use crate::option_vars::*;
 use crate::os::input::fast_breakcheck;
 use crate::plines::{getvvcol, win_linetabsize};
 use crate::profile::{profile_passed_limit, proftime_T};
+pub(super) use crate::strings::tr;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 pub(super) use std::mem::{size_of, zeroed};
 use std::ptr;
@@ -925,12 +928,7 @@ static mut regexp_engine: c_int = 0;
 pub(super) use crate::eval::partial_name;
 pub(super) use crate::eval::typval::tv_get_string_buf_chk;
 pub(super) use crate::eval::userfunc::call_func;
-pub(super) use crate::strings::{gettext, vim_strchr, vim_strsave_escaped};
-
-#[inline]
-pub(super) unsafe fn tr(s: *const c_char) -> *mut c_char {
-    unsafe { gettext(s) }
-}
+pub(super) use crate::strings::{vim_strchr, vim_strsave_escaped};
 
 #[inline]
 pub(super) const fn ascii_isdigit(c: c_int) -> bool {
@@ -947,11 +945,6 @@ pub(super) const fn ascii_isxdigit(c: c_int) -> bool {
     (c >= b'0' as c_int && c <= b'9' as c_int)
         || (c >= b'a' as c_int && c <= b'f' as c_int)
         || (c >= b'A' as c_int && c <= b'F' as c_int)
-}
-
-#[inline]
-pub(super) unsafe fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char {
-    unsafe { xmemdupz(string.cast(), len).cast() }
 }
 
 #[inline]
@@ -1003,15 +996,6 @@ pub(super) unsafe fn mb_ptr_adv<T>(p: *mut *mut T) {
     unsafe {
         let step = utfc_ptr2len((*p).cast()) as usize;
         *p = (*p).cast::<u8>().add(step).cast();
-    }
-}
-
-#[inline]
-pub(super) unsafe fn mb_ptr_back<T, U>(s: *const T, p: *mut *mut U) {
-    unsafe {
-        let prev = (*p).cast::<c_char>().sub(1);
-        let step = (utf_head_off(s.cast(), prev) + 1) as usize;
-        *p = (*p).cast::<u8>().sub(step).cast();
     }
 }
 

@@ -116,6 +116,7 @@ use crate::runtime::{ETYPE_MODELINE, estack_pop, estack_push};
 use crate::spell::parse_spelllang;
 use crate::state::{MAP_ALL_MODES, MODE_INSERT};
 use crate::statusline::build_stl_str_hl;
+use crate::strings::strcpy_raw;
 use crate::strings::{
     gettext, ngettext, qsort, strcmp, strlen, strncmp, vim_snprintf, vim_snprintf_safelen,
     vim_strchr, xstrnsave,
@@ -335,21 +336,6 @@ pub unsafe fn first_win_in_tab(tp: *mut tabpage_T) -> *mut win_T {
 #[inline]
 pub unsafe fn modifiable(buf: *const buf_T) -> bool {
     unsafe { (*buf).b_p_ma != 0 && (*buf).b_ro_locked == 0 }
-}
-
-#[inline]
-unsafe fn strcpy_raw(mut dst: *mut c_char, mut src: *const c_char) {
-    unsafe {
-        loop {
-            let c = *src;
-            *dst = c;
-            if c == NUL {
-                break;
-            }
-            dst = dst.add(1);
-            src = src.add(1);
-        }
-    }
 }
 
 unsafe fn trigger_undo_ftplugin(buf: *mut buf_T, win: *mut win_T) {

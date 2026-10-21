@@ -108,7 +108,7 @@ unsafe fn libuv_proc_tail(uvproc: *mut LibuvProc) -> *mut LibuvProcTail {
 }
 
 #[inline]
-unsafe fn proc_get_exepath(proc_: *mut Proc) -> *const c_char {
+pub unsafe fn proc_get_exepath(proc_: *mut Proc) -> *const c_char {
     unsafe {
         let hdr = proc_header(proc_);
         if !(*hdr).exepath.is_null() {

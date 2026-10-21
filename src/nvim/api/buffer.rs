@@ -15,8 +15,8 @@ use crate::api::autocmd::OptionalKeys;
 use crate::api::deprecated::KeyDict_empty;
 use crate::api::options::CtxSwitch;
 use crate::api::private::helpers::NIL;
-use crate::api::private::helpers::cstr_literal;
 use crate::api::private::helpers::has_key;
+use crate::api::private::helpers::put_c;
 use crate::api::private::helpers::try_wrap;
 use crate::api::private::helpers::{
     add_c, api_clear_error, api_set_error, arena_array, arena_dict, boolean_obj, buf_get_text,
@@ -25,7 +25,7 @@ use crate::api::private::helpers::{
 };
 use crate::api::private::validate::api_err_range;
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, Object, api_err_invalid, check_string_array,
+    Array, Dict, Error, ErrorType, Object, api_err_invalid, check_string_array,
 };
 use crate::api::tabpage::{Buffer, pos_T, win_T};
 use crate::buffer::{DOBUF_FIRST, DOBUF_UNLOAD, DOBUF_WIPE, buf_ensure_loaded, do_buffer};
@@ -160,17 +160,6 @@ pub struct VisualState {
 use crate::math::{FAIL, OK};
 use crate::regexp::Ctrl_V;
 use crate::state::MODE_INSERT;
-
-#[inline]
-unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
-    unsafe {
-        *dict.items.add(dict.size) = KeyValuePair {
-            key: cstr_literal(key),
-            value,
-        };
-        dict.size += 1;
-    }
-}
 
 /// @brief <pre>help
 /// For more information on buffers, see |buffers|.

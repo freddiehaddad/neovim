@@ -22,6 +22,7 @@ use crate::api::extmark::NS;
 use crate::api::options::{CharBuf, kOptBufhidden, kOptBuftype};
 use crate::api::private::converter::vim_to_object;
 use crate::api::private::helpers::cstr_to_arena_obj;
+use crate::api::private::helpers::error_set;
 use crate::api::private::helpers::{
     add_c, api_metadata, api_set_error, api_set_sctx, api_typename, arena_array, arena_dict,
     arena_take_arraybuilder, array_obj, boolean_obj, buffer_obj, copy_array, copy_dict,
@@ -379,12 +380,7 @@ unsafe fn validate_t(
 }
 
 #[inline]
-const fn error_set(e: &Error) -> bool {
-    !matches!(e.err_type, ErrorType::kErrorTypeNone)
-}
-
-#[inline]
-const fn is_internal_call(channel_id: u64) -> bool {
+pub const fn is_internal_call(channel_id: u64) -> bool {
     (channel_id & INTERNAL_CALL_MASK) != 0
 }
 

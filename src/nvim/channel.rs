@@ -12,9 +12,10 @@
 #[cfg(not(test))]
 use crate::api::private::converter::object_to_vim;
 use crate::api::private::helpers::cstr_as_string;
+use crate::api::private::helpers::dict_put_cstr;
 #[cfg(not(test))]
 use crate::api::private::helpers::{arena_array, arena_dict};
-use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Array, Dict, Object, ObjectData, ObjectType};
 #[cfg(not(test))]
 use crate::autocmd::{apply_autocmds, has_event};
 use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
@@ -222,7 +223,7 @@ unsafe fn pty_height_ptr(chan: *mut Channel) -> *mut u16 {
 }
 
 #[inline]
-fn put_event_1(
+pub unsafe fn put_event_1(
     queue: *mut MultiQueue,
     handler: unsafe extern "C" fn(*mut *mut c_void),
     a0: *mut c_void,
@@ -259,22 +260,6 @@ fn put_event_2(
                 argv,
             },
         );
-    }
-}
-
-#[inline]
-unsafe fn dict_put_cstr(d: &mut Dict, key: &'static CStr, value: Object) {
-    unsafe {
-        assert!(d.size < d.capacity);
-        let bytes = key.to_bytes();
-        *d.items.add(d.size) = KeyValuePair {
-            key: NvimString {
-                data: key.as_ptr().cast_mut(),
-                size: bytes.len(),
-            },
-            value,
-        };
-        d.size += 1;
     }
 }
 

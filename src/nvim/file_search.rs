@@ -8,6 +8,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::api::private::helpers::api_clear_string;
 use crate::api::private::helpers::{cbuf_to_string, copy_string, cstr_as_string, cstr_to_string};
 use crate::autocmd::{EVENT_DIRCHANGED, EVENT_DIRCHANGEDPRE, apply_autocmds, has_event};
 use crate::charset::{getdigits, getdigits_int32, getdigits_long, skipwhite, vim_isfilec};
@@ -41,7 +42,8 @@ use crate::path::{
 use crate::path::{path_to_slash, vim_FullName};
 use crate::plines::linenr_T;
 use crate::state::save_v_event_T;
-use crate::strings::{gettext, vim_snprintf, vim_strchr, xstrnsave};
+use crate::strings::tr;
+use crate::strings::{vim_snprintf, vim_strchr, xstrnsave};
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
@@ -137,20 +139,6 @@ pub struct ff_search_ctx_T {
 }
 
 static mut ff_expand_buffer: NvimString = NULL_STRING;
-
-#[inline]
-unsafe fn tr(s: *const c_char) -> *const c_char {
-    unsafe { gettext(s) }
-}
-
-#[inline]
-unsafe fn api_clear_string(s: &mut NvimString) {
-    unsafe {
-        xfree(s.data.cast());
-        s.data = ptr::null_mut();
-        s.size = 0;
-    }
-}
 
 /// Initialization routine for `vim_findfile()`.
 #[cfg_attr(not(test), unsafe(no_mangle))]

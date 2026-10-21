@@ -3,6 +3,8 @@
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 use crate::api::private::converter::ufunc_T;
+use crate::charset::skiptowhite;
+use crate::charset::skipwhite;
 use crate::clipboard::{list_T, listitem_T, typval_T};
 #[cfg(not(test))]
 use crate::debugger::{ex_breakadd, exarg_Full};
@@ -165,26 +167,6 @@ pub struct funccall_T {
 unsafe extern "C" {
 
     fn setvbuf(stream: *mut FILE, buffer: *mut c_char, mode: c_int, size: usize) -> c_int;
-}
-
-#[inline]
-unsafe fn skipwhite(mut p: *const c_char) -> *mut c_char {
-    unsafe {
-        while matches!(*p as u8, b' ' | b'\t') {
-            p = p.add(1);
-        }
-        p.cast_mut()
-    }
-}
-
-#[inline]
-unsafe fn skiptowhite(mut p: *const c_char) -> *mut c_char {
-    unsafe {
-        while !matches!(*p as u8, b' ' | b'\t' | 0) {
-            p = p.add(1);
-        }
-        p.cast_mut()
-    }
 }
 
 #[cfg(not(test))]

@@ -114,6 +114,64 @@ unsafe extern "C" {
     pub fn setlocale(category: c_int, locale: *const c_char) -> *mut c_char;
 }
 
+pub trait IntoCCharPtr {
+    fn into_c_char_ptr(self) -> *const c_char;
+}
+
+impl IntoCCharPtr for *const c_char {
+    #[inline]
+    fn into_c_char_ptr(self) -> *const c_char {
+        self
+    }
+}
+
+impl IntoCCharPtr for *mut c_char {
+    #[inline]
+    fn into_c_char_ptr(self) -> *const c_char {
+        self
+    }
+}
+
+impl IntoCCharPtr for &CStr {
+    #[inline]
+    fn into_c_char_ptr(self) -> *const c_char {
+        self.as_ptr()
+    }
+}
+
+#[inline]
+pub unsafe fn tr<S: IntoCCharPtr>(s: S) -> *mut c_char {
+    unsafe { gettext(s.into_c_char_ptr()) }
+}
+
+#[inline]
+pub unsafe fn c_strcpy(dst: *mut c_char, src: *const c_char) {
+    unsafe {
+        let len = CStr::from_ptr(src).to_bytes_with_nul().len();
+        ptr::copy_nonoverlapping(src, dst, len);
+    }
+}
+pub use c_strcpy as strcpy_raw;
+
+#[inline]
+pub unsafe fn strmove(dst: *mut c_char, src: *const c_char) {
+    unsafe {
+        let len = CStr::from_ptr(src).to_bytes_with_nul().len();
+        ptr::copy(src, dst, len);
+    }
+}
+pub use strmove as strmove_c;
+
+#[inline]
+pub unsafe fn stricmp_c(s1: *const c_char, s2: *const c_char) -> c_int {
+    unsafe { vim_stricmp(s1, s2) }
+}
+
+#[inline]
+pub unsafe fn strnicmp_c(s1: *const c_char, s2: *const c_char, n: usize) -> c_int {
+    unsafe { vim_strnicmp(s1, s2, n) }
+}
+
 #[inline]
 pub unsafe fn gettext(msgid: *const c_char) -> *mut c_char {
     #[cfg(not(test))]

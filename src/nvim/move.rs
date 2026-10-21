@@ -45,11 +45,12 @@ use crate::plines::{
     colnr_T, getvcol, getvvcol, linenr_T, linetabsize_eol, plines_m_win, plines_win,
     plines_win_full, plines_win_nofill, win_get_fill, win_may_fill,
 };
-use crate::strings::{gettext, vim_strchr};
+use crate::strings::tr;
+use crate::strings::vim_strchr;
 use crate::textformat::oparg_T;
 use crate::window::win_fdccol_count;
 use crate::winfloat::win_check_anchored_floats;
-use std::ffi::{c_char, c_int};
+use std::ffi::c_int;
 use std::ptr;
 
 use crate::api::buffer::{FORWARD, NUL, VALID_BOTLINE_AP};
@@ -72,11 +73,6 @@ struct lineoff_T {
     lnum: linenr_T,
     fill: c_int,
     height: c_int,
-}
-
-#[inline]
-unsafe fn tr(s: *const c_char) -> *const c_char {
-    unsafe { gettext(s) }
 }
 
 /// Get the number of screen lines skipped with `wp->w_skipcol`.

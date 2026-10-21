@@ -13,6 +13,7 @@ use crate::api::command::{
     CMOD_CONFIRM, CMOD_KEEPALT, CMOD_KEEPMARKS, CMOD_KEEPPATTERNS, CMOD_LOCKMARKS, exarg_T,
     regmatch_T,
 };
+use crate::api::private::helpers::api_clear_string;
 use crate::api::private::helpers::{cbuf_as_string, cbuf_to_string, cstr_as_obj, cstr_as_string};
 use crate::api::tabpage::{lpos_T, pos_T, win_T};
 use crate::arglist::{
@@ -352,15 +353,6 @@ unsafe fn bufIsChanged(buf: *const buf_T) -> bool {
 #[inline]
 unsafe fn curbufIsChanged() -> bool {
     unsafe { bufIsChanged(curbuf) }
-}
-
-#[inline]
-unsafe fn api_clear_string(value: &mut NvimString) {
-    unsafe {
-        xfree(value.data.cast::<c_void>());
-    }
-    value.data = ptr::null_mut();
-    value.size = 0;
 }
 
 #[inline]

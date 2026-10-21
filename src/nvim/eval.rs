@@ -39,6 +39,7 @@ use crate::eval::typval::{
     tv_list_len, tv_list_ref, tv_list_set_lock, tv_list_set_ret, tv_list_slice_or_index,
     tv_list_unref, tv_list_watch_add, tv_list_watch_remove, tv2bool, value_check_lock,
 };
+use crate::eval::vars::tv_init;
 #[cfg(not(test))]
 use crate::event::r#loop::{loop_queues, uv_handle_size};
 #[cfg(not(test))]
@@ -414,15 +415,6 @@ pub struct caller_scope {
     pub autocmd_fname_full: bool,
     pub autocmd_bufnr: c_int,
     pub funccalp: *mut c_void,
-}
-
-#[inline]
-unsafe fn tv_init(rettv: *mut typval_T) {
-    if !rettv.is_null() {
-        unsafe {
-            *rettv = tv_initial_value();
-        }
-    }
 }
 
 #[inline]

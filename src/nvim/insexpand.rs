@@ -89,6 +89,7 @@ use crate::kvec::KVec;
 use crate::lua::executor::nlua_expand_pat;
 use crate::map_glyph_cache::NvimString;
 use crate::math::{FAIL, OK};
+use crate::mbyte::mb_ptr_back;
 use crate::mbyte::{
     mb_get_class, mb_islower, mb_isupper, mb_prevptr, mb_ptr2char_adv, mb_tolower, mb_toupper,
     ptr2cells, utf_char2bytes, utf_char2len, utf_head_off, utf_ptr2char, utf_ptr2len, utf8len_tab,
@@ -365,14 +366,6 @@ unsafe fn mb_ptr_adv(p: *mut *mut c_char) {
 unsafe fn mb_ptr_adv_const(p: *mut *const c_char) {
     unsafe {
         *p = (*p).add(utf_ptr2len(*p) as usize);
-    }
-}
-
-#[inline]
-unsafe fn mb_ptr_back(s: *const c_char, p: *mut *mut c_char) {
-    unsafe {
-        let off = utf_head_off(s, (*p).sub(1));
-        *p = (*p).sub(1 + off as usize);
     }
 }
 

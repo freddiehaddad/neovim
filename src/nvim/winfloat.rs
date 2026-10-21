@@ -9,6 +9,7 @@
 )]
 
 use crate::api::deprecated::{OPT_LOCAL, kOptScopeBuf};
+use crate::api::private::helpers::error_set;
 use crate::api::private::helpers::has_key;
 use crate::api::private::helpers::{
     api_clear_error, api_set_error, cstr_as_obj, error_init, find_buffer_by_handle,
@@ -66,11 +67,6 @@ use crate::api::buffer::NUL;
 use crate::api::options::kOptBufhidden;
 use crate::ex_cmds::kWinPreview;
 use crate::math::FAIL;
-
-#[inline]
-const fn error_set(err: &Error) -> bool {
-    !matches!(err.err_type, ErrorType::kErrorTypeNone)
-}
 
 /// Creates a new float, or transforms an existing window to a float (`win_new_float`).
 #[cfg_attr(not(test), unsafe(no_mangle))]

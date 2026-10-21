@@ -34,6 +34,7 @@ use crate::globals::*;
 use crate::lua::converter::Boolean;
 use crate::map_glyph_cache::NvimString;
 use crate::memline::ml_open;
+use crate::memory::strequal_str as strequal;
 use crate::memory::{Arena, arena_memdupz, xfree, xmalloc, xstrdup};
 use crate::msgpack_rpc::packer::handle_T;
 use crate::option::{
@@ -135,14 +136,6 @@ pub struct KeyDict_option {
     pub filetype: NvimString,
     pub operation: NvimString,
     pub dry_run: Boolean,
-}
-
-#[inline]
-unsafe fn strequal(a: *const c_char, b: &str) -> bool {
-    if a.is_null() {
-        return false;
-    }
-    unsafe { CStr::from_ptr(a).to_bytes() == b.as_bytes() }
 }
 
 unsafe fn validate_option_value_args(

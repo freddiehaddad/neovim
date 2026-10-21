@@ -15,6 +15,8 @@ use crate::api::autocmd::TryState;
 #[cfg(not(test))]
 use crate::api::private::converter::{object_to_vim, vim_to_object};
 #[cfg(not(test))]
+use crate::api::private::helpers::put_c;
+#[cfg(not(test))]
 use crate::api::private::helpers::{
     add_c, api_set_error, api_set_sctx, arena_array, arena_dict, arena_string, array_obj,
     boolean_obj, dict_obj, error_set, float_obj, integer_obj, string_obj, try_enter, try_leave,
@@ -110,21 +112,6 @@ unsafe fn cstr_to_string(s: &'static CStr) -> NvimString {
             data,
             size: bytes.len(),
         }
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
-    unsafe {
-        *dict.items.add(dict.size) = KeyValuePair {
-            key: NvimString {
-                data: key.as_ptr().cast_mut(),
-                size: key.to_bytes().len(),
-            },
-            value,
-        };
-        dict.size += 1;
     }
 }
 

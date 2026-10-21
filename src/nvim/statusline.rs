@@ -65,7 +65,8 @@ use crate::os::env::home_replace;
 use crate::path::{path_tail, shorten_dir};
 use crate::plines::{colnr_T, linenr_T};
 use crate::sign::describe_sign_text;
-use crate::strings::{atoi, gettext, toupper, vim_snprintf, vim_snprintf_safelen, vim_strchr};
+use crate::strings::tr;
+use crate::strings::{atoi, toupper, vim_snprintf, vim_snprintf_safelen, vim_strchr};
 use crate::ui::{ui_call_msg_ruler, ui_call_tabline_update, ui_has};
 use crate::undo::bufIsChanged;
 use crate::window::{global_stl_height, lastwin_nofloating, tabline_height};
@@ -230,11 +231,6 @@ pub struct statuscol_T {
 }
 
 static mut did_show_ext_ruler: bool = false;
-
-#[inline]
-unsafe fn tr(s: *const c_char) -> *const c_char {
-    unsafe { gettext(s) }
-}
 
 /// Redraw the status line of window `wp`.
 #[cfg_attr(not(test), unsafe(no_mangle))]
@@ -2070,7 +2066,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         str = if opt == STL_ROFLAG_ALT {
                             c",RO".as_ptr().cast_mut()
                         } else {
-                            tr(c"[RO]".as_ptr()).cast_mut()
+                            tr(c"[RO]".as_ptr())
                         };
                     }
                 }
@@ -2080,7 +2076,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         str = if opt == STL_HELPFLAG_ALT {
                             c",HLP".as_ptr().cast_mut()
                         } else {
-                            tr(c"[Help]".as_ptr()).cast_mut()
+                            tr(c"[Help]".as_ptr())
                         };
                     }
                 }
@@ -2113,16 +2109,16 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         str = if opt == STL_PREVIEWFLAG_ALT {
                             c",PRV".as_ptr().cast_mut()
                         } else {
-                            tr(c"[Preview]".as_ptr()).cast_mut()
+                            tr(c"[Preview]".as_ptr())
                         };
                     }
                 }
                 STL_QUICKFIX => {
                     if bt_quickfix((*wp).w_buffer) {
                         str = if !(*wp).w_llist_ref.is_null() {
-                            tr(msg_loclist).cast_mut()
+                            tr(msg_loclist)
                         } else {
-                            tr(msg_qflist).cast_mut()
+                            tr(msg_qflist)
                         };
                     }
                 }

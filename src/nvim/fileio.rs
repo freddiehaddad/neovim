@@ -89,7 +89,7 @@ use crate::os::fs::{
     os_rmdir, os_scandir, os_scandir_next, os_set_acl, os_set_cloexec, vim_acl_T,
 };
 #[cfg(unix)]
-use crate::os::fs::{S_IFLNK, os_fchown, os_fileinfo_link, os_setperm, uv_gid_t, uv_uid_t};
+use crate::os::fs::{os_fchown, os_fileinfo_link, os_setperm, s_islnk, uv_gid_t, uv_uid_t};
 use crate::os::input::os_breakcheck;
 use crate::os::time::{os_hrtime, time_t};
 use crate::os::users::os_get_username;
@@ -181,10 +181,10 @@ pub(crate) const ICONV_EINVAL: c_int = 22;
 const UV_FS_COPYFILE_EXCL: c_int = 0x0001;
 
 pub(crate) const S_IFMT: u64 = 0o170000;
-const S_IFIFO: u64 = 0o010000;
+pub(crate) const S_IFIFO: u64 = 0o010000;
 pub(crate) const S_IFDIR: u64 = 0o040000;
 pub(crate) const S_IFREG: u64 = 0o100000;
-const S_IFSOCK: u64 = 0o140000;
+pub(crate) const S_IFSOCK: u64 = 0o140000;
 
 const LOG_DEBUG: c_int = 1;
 const LOG_WARN: c_int = 3;
@@ -365,14 +365,8 @@ const fn s_issock(m: i32) -> bool {
     cfg!(unix) && ((m as u64) & S_IFMT) == S_IFSOCK
 }
 
-#[cfg(unix)]
 #[inline]
-const fn s_islnk(m: u64) -> bool {
-    (m & S_IFMT) == S_IFLNK
-}
-
-#[inline]
-unsafe fn close_fd(fd: c_int) -> c_int {
+pub unsafe fn close_fd(fd: c_int) -> c_int {
     #[cfg(all(not(test), windows))]
     unsafe {
         _close(fd)
@@ -389,7 +383,7 @@ unsafe fn close_fd(fd: c_int) -> c_int {
 }
 
 #[inline]
-unsafe fn vim_lseek(fd: c_int, offset: off_T, whence: c_int) -> off_T {
+pub unsafe fn vim_lseek(fd: c_int, offset: off_T, whence: c_int) -> off_T {
     #[cfg(all(not(test), windows))]
     unsafe {
         _lseeki64(fd, offset, whence)
@@ -406,7 +400,55 @@ unsafe fn vim_lseek(fd: c_int, offset: off_T, whence: c_int) -> off_T {
 }
 
 #[inline]
-unsafe fn call_iconv(
+pub unsafe fn c_fdopen(fd: c_int, mode: *const c_char) -> *mut FILE {
+    #[cfg(windows)]
+    unsafe {
+        _fdopen(fd, mode)
+    }
+    #[cfg(not(windows))]
+    unsafe {
+        fdopen(fd, mode)
+    }
+}
+
+#[inline]
+pub unsafe fn c_fileno(stream: *mut FILE) -> c_int {
+    #[cfg(windows)]
+    unsafe {
+        _fileno(stream)
+    }
+    #[cfg(not(windows))]
+    unsafe {
+        fileno(stream)
+    }
+}
+
+#[inline]
+pub unsafe fn vim_fseek(stream: *mut FILE, offset: off_T, whence: c_int) -> c_int {
+    #[cfg(windows)]
+    unsafe {
+        _fseeki64(stream, offset, whence)
+    }
+    #[cfg(not(windows))]
+    unsafe {
+        fseeko(stream, offset, whence)
+    }
+}
+
+#[inline]
+pub unsafe fn vim_ftell(stream: *mut FILE) -> off_T {
+    #[cfg(windows)]
+    unsafe {
+        _ftelli64(stream)
+    }
+    #[cfg(not(windows))]
+    unsafe {
+        ftello(stream)
+    }
+}
+
+#[inline]
+pub unsafe fn call_iconv(
     cd: iconv_t,
     inbuf: *mut *const c_char,
     inbytesleft: *mut usize,
@@ -429,7 +471,7 @@ unsafe fn call_iconv(
 }
 
 #[inline]
-unsafe fn call_iconv_close(cd: iconv_t) -> c_int {
+pub unsafe fn call_iconv_close(cd: iconv_t) -> c_int {
     #[cfg(all(not(test), windows))]
     unsafe {
         libiconv_close(cd)

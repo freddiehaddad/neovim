@@ -12,13 +12,12 @@ use crate::api::command::exarg_T;
 use crate::api::options::{IOSIZE, optset_T};
 use crate::api::private::converter::{sctx_T, ufunc_T};
 use crate::api::private::helpers::cstr_literal;
+use crate::api::private::helpers::put_c;
 use crate::api::private::helpers::{
     SID_API_CLIENT, SID_LUA, add_c, api_clear_error, arena_array, arena_dict, arena_string,
     boolean_obj, cstr_as_obj, cstr_as_string, cstr_to_string, dict_obj, integer_obj, string_obj,
 };
-use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType,
-};
+use crate::api::private::validate::{Array, Error, ErrorType, ObjectType};
 use crate::autocmd::{
     AutoPatCmd, DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_SOURCECMD, EVENT_SOURCEPOST,
     EVENT_SOURCEPRE, PROF_YES, apply_autocmds, funccal_entry_T, has_autocmd,
@@ -281,17 +280,6 @@ use crate::api::vim::{MAXPATHL, kFalse, kNone, kTrue};
 use crate::buffer::{SID_MODELINE, VAR_FIXED};
 use crate::version::default_lib_dir;
 use crate::viml::parser::parser::CONV_NONE;
-
-#[inline]
-unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
-    unsafe {
-        *dict.items.add(dict.size) = KeyValuePair {
-            key: cstr_literal(key),
-            value,
-        };
-        dict.size += 1;
-    }
-}
 
 #[inline]
 pub unsafe fn script_item(id: scid_T) -> *mut scriptitem_T {

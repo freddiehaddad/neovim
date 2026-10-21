@@ -18,9 +18,11 @@ use crate::api::private::converter::sctx_T;
 use crate::api::private::dispatch::{
     KeyDict_cmd_magic_get_field, KeyDict_cmd_mods_filter_get_field, KeyDict_cmd_mods_get_field,
 };
+use crate::api::private::helpers::cbuf_to_arena_str;
 use crate::api::private::helpers::cstr_literal;
 use crate::api::private::helpers::cstrn_as_string;
 use crate::api::private::helpers::has_key;
+use crate::api::private::helpers::put_c;
 use crate::api::private::helpers::string_to_cstr;
 use crate::api::private::helpers::try_wrap;
 use crate::api::private::helpers::with_script_context;
@@ -30,11 +32,13 @@ use crate::api::private::helpers::{
     string_obj,
 };
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType, api_err_exp, api_err_invalid,
+    Array, Dict, Error, ErrorType, Object, ObjectType, api_err_exp, api_err_invalid,
     api_err_required,
 };
 use crate::api::tabpage::Buffer;
 use crate::autocmd::{EVENT_CMDUNDEFINED, apply_autocmds, has_event};
+use crate::charset::skiptowhite;
+use crate::charset::skipwhite;
 use crate::charset::{ascii_isupper, ascii_iswhite, getdigits_long};
 use crate::ex_docmd::{
     excmd_get_argt, execute_cmd, find_ex_command, get_command_name, getargcmd, getargopt,
@@ -48,6 +52,7 @@ use crate::lua::converter::{Boolean, LuaRef};
 use crate::lua::executor::{api_free_luaref, api_new_luaref};
 use crate::map_glyph_cache::NvimString;
 use crate::mbyte::mb_islower;
+use crate::memory::strequal_str as strequal;
 use crate::memory::{Arena, arena_alloc, arena_memdupz, xcalloc, xfree};
 use crate::msgpack_rpc::packer::Integer;
 use crate::regexp::{RE_MAGIC, vim_regcomp};
@@ -324,16 +329,6 @@ pub struct KeyDict_get_commands {
 }
 
 #[inline]
-unsafe fn cbuf_to_arena_str(arena: *mut Arena, buf: *const c_char, len: usize) -> NvimString {
-    unsafe {
-        NvimString {
-            data: arena_memdupz(arena, buf, len),
-            size: len,
-        }
-    }
-}
-
-#[inline]
 unsafe fn cstr_to_arena_str(arena: *mut Arena, str_ptr: *const c_char) -> NvimString {
     unsafe {
         if str_ptr.is_null() {
@@ -369,45 +364,6 @@ impl CmdIdxVal for crate::cmdexpand::cmdidx_T {
 #[inline]
 pub fn is_user_cmdidx<T: CmdIdxVal>(cmdidx: T) -> bool {
     cmdidx.check_user_cmd()
-}
-
-#[inline]
-unsafe fn skipwhite(mut p: *mut c_char) -> *mut c_char {
-    unsafe {
-        while ascii_iswhite(*p) {
-            p = p.add(1);
-        }
-        p
-    }
-}
-
-#[inline]
-unsafe fn skiptowhite(mut p: *mut c_char) -> *mut c_char {
-    unsafe {
-        while *p != NUL && !ascii_iswhite(*p) {
-            p = p.add(1);
-        }
-        p
-    }
-}
-
-#[inline]
-unsafe fn strequal(a: *const c_char, b: &str) -> bool {
-    if a.is_null() {
-        return false;
-    }
-    unsafe { CStr::from_ptr(a).to_bytes() == b.as_bytes() }
-}
-
-#[inline]
-unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
-    unsafe {
-        *dict.items.add(dict.size) = KeyValuePair {
-            key: cstr_literal(key),
-            value,
-        };
-        dict.size += 1;
-    }
 }
 
 unsafe fn parse_map_cmd(arg_str: *const c_char, arena: *mut Arena) -> Array {

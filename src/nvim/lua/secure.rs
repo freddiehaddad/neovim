@@ -2,6 +2,7 @@
 
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
+use crate::charset::{skiptowhite, skipwhite};
 #[cfg(not(test))]
 use crate::lua::converter::{
     LUA_GLOBALSINDEX, lua_createtable, lua_getfield, lua_gettop, lua_pushnumber, lua_pushstring,
@@ -18,26 +19,6 @@ use std::ffi::c_void;
 use std::ffi::{CStr, c_char};
 
 pub use crate::api::command::exarg_T;
-
-#[inline]
-unsafe fn skipwhite(mut p: *const c_char) -> *const c_char {
-    unsafe {
-        while matches!(*p as u8, b' ' | b'\t') {
-            p = p.add(1);
-        }
-        p
-    }
-}
-
-#[inline]
-unsafe fn skiptowhite(mut p: *const c_char) -> *const c_char {
-    unsafe {
-        while !matches!(*p as u8, b' ' | b'\t' | 0) {
-            p = p.add(1);
-        }
-        p
-    }
-}
 
 /// Read a file securely via `vim.secure.read(path)` (`nlua_read_secure`).
 #[unsafe(no_mangle)]
@@ -154,7 +135,7 @@ pub unsafe extern "C" fn ex_trust(eap: *mut exarg_T) {
         }
 
         if *path == 0 {
-            path = std::ptr::null();
+            path = std::ptr::null_mut();
         }
 
         nlua_trust(action, path);

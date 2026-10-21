@@ -28,8 +28,8 @@ use crate::hashtab::{
     hash_lookup, hashitem_T, hashtab_T,
 };
 use crate::mbyte::{
-    convert_setup, enc_canonize, mb_charlen, mb_cptr2char_adv, mb_ptr_adv, mb_ptr2char_adv,
-    string_convert, utf_char2bytes, utf_char2len, utf_head_off, utf_ptr2char, utf_ptr2len,
+    convert_setup, enc_canonize, mb_charlen, mb_cptr2char_adv, mb_ptr_adv, mb_ptr_back,
+    mb_ptr2char_adv, string_convert, utf_char2bytes, utf_char2len, utf_ptr2char, utf_ptr2len,
     utf_valid_string, utfc_ptr2len, vimconv_T,
 };
 use crate::memline::{ml_append_buf, ml_get_buf, ml_get_buf_len};
@@ -367,14 +367,6 @@ unsafe fn hi2ci(hi: *mut hashitem_T) -> *mut compitem_T {
 #[inline]
 unsafe fn hi2wn(hi: *mut hashitem_T) -> *mut wordnode_T {
     unsafe { (*hi).hi_key.cast::<wordnode_T>() }
-}
-
-#[inline]
-unsafe fn mb_ptr_back(s: *const c_char, p: &mut *mut c_char) {
-    unsafe {
-        let off = utf_head_off(s, (*p).sub(1)) as usize + 1;
-        *p = (*p).sub(off);
-    }
 }
 
 #[inline]

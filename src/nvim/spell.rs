@@ -37,6 +37,7 @@ use crate::hashtab::{
 };
 use crate::insexpand::{ins_compl_add_infercase, ins_compl_check_keys, ins_compl_interrupted};
 use crate::log::logmsg;
+use crate::mbyte::mb_ptr_back;
 use crate::mbyte::{
     mb_charlen_len, mb_cptr2char_adv, mb_get_class, mb_islower, mb_isupper, mb_ptr_adv,
     mb_ptr2char_adv, mb_stricmp, mb_strnicmp, mb_toupper, utf_char2bytes, utf_class, utf_fold,
@@ -227,13 +228,7 @@ unsafe fn mb_cptr_adv(p: &mut *const c_char) {
         *p = (*p).add(utfc_ptr2len(*p) as usize);
     }
 }
-#[inline]
-unsafe fn mb_ptr_back(s: *const c_char, p: &mut *mut c_char) {
-    unsafe {
-        let off = utf_head_off(s, (*p).sub(1)) + 1;
-        *p = (*p).sub(off as usize);
-    }
-}
+
 #[inline]
 pub unsafe fn langp_entry(ga: *const garray_T, i: usize) -> *mut langp_T {
     unsafe { ((*ga).ga_data.cast::<langp_T>()).add(i) }

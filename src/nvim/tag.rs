@@ -45,11 +45,9 @@ use crate::ex_docmd::{
 use crate::file_search::{
     FINDFILE_FILE, vim_findfile, vim_findfile_cleanup, vim_findfile_init, vim_findfile_stopdir,
 };
-#[cfg(windows)]
-use crate::fileio::{_fseeki64, _ftelli64};
+use crate::fileio::vim_fseek;
+use crate::fileio::vim_ftell;
 use crate::fileio::{fclose, vim_fgets};
-#[cfg(not(windows))]
-use crate::fileio::{fseeko, ftello};
 use crate::fold::foldOpenCursor;
 use crate::garray::{ga_clear, ga_clear_strings, ga_grow, ga_init, garray_T};
 use crate::globals::*;
@@ -333,30 +331,6 @@ static mut DO_TAG_NUM_MATCHES: c_int = 0;
 static mut DO_TAG_MAX_NUM_MATCHES: c_int = 0;
 static mut DO_TAG_MATCHES: *mut *mut c_char = ptr::null_mut();
 static mut DO_TAG_FLAGS: c_int = 0;
-
-#[inline]
-unsafe fn vim_fseek(stream: *mut FILE, offset: off_T, whence: c_int) -> c_int {
-    #[cfg(windows)]
-    {
-        unsafe { _fseeki64(stream, offset, whence) }
-    }
-    #[cfg(not(windows))]
-    {
-        unsafe { fseeko(stream, offset, whence) }
-    }
-}
-
-#[inline]
-unsafe fn vim_ftell(stream: *mut FILE) -> off_T {
-    #[cfg(windows)]
-    {
-        unsafe { _ftelli64(stream) }
-    }
-    #[cfg(not(windows))]
-    {
-        unsafe { ftello(stream) }
-    }
-}
 
 #[inline]
 const fn toupper_asc(c: u8) -> c_int {

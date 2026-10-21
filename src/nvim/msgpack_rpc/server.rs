@@ -10,6 +10,8 @@
 use crate::channel::channel_from_connection;
 use crate::eval::vars::{VV_SEND_SERVER, get_vim_var_str, set_vim_var_string};
 use crate::event::r#loop::{uv_freeaddrinfo, uv_handle_get_type, uv_handle_size, uv_strerror};
+use crate::event::socket::socket_watcher_uv_size;
+use crate::event::socket::watcher_addr;
 use crate::event::socket::{
     ADDRESS_MAX_SIZE, socket_watcher_close, socket_watcher_init, socket_watcher_start,
 };
@@ -37,7 +39,7 @@ use crate::api::options::IOSIZE;
 use crate::api::vim::{kFalse, kNone, kTrue};
 pub use crate::event::r#loop::{Loop, uv_handle_t};
 pub use crate::event::socket::{SocketWatcher, socket_cb, socket_close_cb};
-use crate::event::stream::{UV_NAMED_PIPE, UV_TCP};
+use crate::event::stream::UV_TCP;
 
 static mut watchers: garray_T = garray_T {
     ga_len: 0,
@@ -49,22 +51,8 @@ static mut watchers: garray_T = garray_T {
 static mut server_addr_count: u32 = 0;
 
 #[inline]
-unsafe fn socket_watcher_uv_size() -> usize {
-    unsafe {
-        let tcp_size = uv_handle_size(UV_TCP) + std::mem::size_of::<*mut c_void>();
-        let pipe_size = uv_handle_size(UV_NAMED_PIPE);
-        tcp_size.max(pipe_size)
-    }
-}
-
-#[inline]
 unsafe fn socket_watcher_size() -> usize {
     unsafe { ADDRESS_MAX_SIZE + socket_watcher_uv_size() + 5 * std::mem::size_of::<*mut c_void>() }
-}
-
-#[inline]
-unsafe fn watcher_addr(watcher: *mut SocketWatcher) -> *mut c_char {
-    watcher.cast::<c_char>()
 }
 
 #[inline]

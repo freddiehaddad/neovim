@@ -10,6 +10,7 @@
 
 use crate::api::private::helpers::api_clear_error;
 use crate::api::private::validate::{Array, Error, ErrorType};
+use crate::api::vim::is_internal_call;
 use crate::api::vim::{MAXPATHL, REMAP_NONE, REMAP_YES, kFalse, kNone, nvim_paste};
 use crate::charset::{ascii_iswhite, skipwhite, to_special};
 use crate::clipboard::{VarType, typval_T};
@@ -56,6 +57,9 @@ use crate::keycodes::{
     MOD_MASK_SHIFT, NL, TAB, is_special, key2termcap0, key2termcap1, special_to_buf, termcap2key,
 };
 use crate::kvec::KVec;
+use crate::kvec::kv_concat_len;
+use crate::kvec::kv_destroy;
+use crate::kvec::kv_push;
 use crate::lua::executor::{kRetNilBool, nlua_call_ref, nlua_exec_on_key};
 use crate::map_glyph_cache::NvimString;
 use crate::mapping::{
@@ -305,7 +309,7 @@ static mut SHOWCMD_STATE: gotchars_state_T = gotchars_state_T::new();
 static mut LAST_VGETC_RECORDED_LEN: usize = 0;
 static mut VGETORPEEK_TC: c_int = 0;
 
-use crate::api::buffer::{LUA_INTERNAL_CALL, LUA_NOREF, VIML_INTERNAL_CALL};
+use crate::api::buffer::{LUA_INTERNAL_CALL, LUA_NOREF};
 use crate::cmdexpand::{Ctrl_N, Ctrl_P, MB_MAXBYTES};
 use crate::math::{FAIL, OK};
 use crate::regexp::Ctrl_V;
@@ -331,43 +335,17 @@ const fn k_third(c: c_int) -> c_int {
 }
 
 #[inline]
-unsafe fn kv_push(v: *mut StringBuilder, c: c_char) {
-    unsafe {
-        (*v).push(c);
-    }
-}
-
-#[inline]
-unsafe fn kv_concat_len(v: *mut StringBuilder, data: *const c_char, len: usize) {
-    unsafe {
-        (*v).concat_len(data, len);
-    }
-}
-
-#[inline]
-unsafe fn kv_destroy(v: *mut StringBuilder) {
-    unsafe {
-        (*v).destroy();
-    }
-}
-
-#[inline]
 unsafe fn mb_byte2len(b: c_int) -> c_int {
     unsafe { utf_byte2len(b) }
 }
 
 #[inline]
-unsafe fn mb_byte2len_check(b: c_int) -> c_int {
+pub unsafe fn mb_byte2len_check(b: c_int) -> c_int {
     if !(0..=255).contains(&b) {
         1
     } else {
         unsafe { utf_byte2len(b) }
     }
-}
-
-#[inline]
-const fn is_internal_call(channel_id: u64) -> bool {
-    (channel_id & VIML_INTERNAL_CALL) != 0
 }
 
 #[inline]

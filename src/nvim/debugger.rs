@@ -3,7 +3,7 @@
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 #[cfg(not(test))]
-use crate::charset::getdigits_int32;
+use crate::charset::{getdigits_int32, skipwhite};
 use crate::clipboard::typval_T;
 #[cfg(not(test))]
 use crate::drawscreen::{UPD_NOT_VALID, redraw_all_later};
@@ -146,17 +146,6 @@ pub use crate::cmdexpand::LineGetter;
 use crate::keycodes::{K_SPECIAL, KE_SNR, KS_EXTRA};
 #[cfg(not(test))]
 use crate::state::MODE_NORMAL;
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn skipwhite(mut p: *mut c_char) -> *mut c_char {
-    unsafe {
-        while matches!(*p as u8, b' ' | b'\t') {
-            p = p.add(1);
-        }
-        p
-    }
-}
 
 #[cfg(not(test))]
 #[inline]

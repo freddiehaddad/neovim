@@ -115,6 +115,7 @@ use crate::runtime::{
 use crate::search::{Direction, ignorecase, pat_has_uppercase, searchit};
 use crate::sign::{get_sign_name, set_context_in_sign_cmd};
 use crate::statusline::fillchar_status;
+use crate::strings::c_strcpy;
 use crate::strings::{
     gettext, qsort, sort_strings, strcase_save, strcmp as c_strcmp, strlen as c_strlen,
     strncmp as c_strncmp, vim_snprintf, vim_strchr, vim_strsave_escaped, xstrnsave,
@@ -1008,21 +1009,6 @@ unsafe fn c_strchr(mut s: *const c_char, c: c_char) -> *mut c_char {
                 return ptr::null_mut();
             }
             s = s.add(1);
-        }
-    }
-}
-
-#[inline]
-unsafe fn c_strcpy(mut dst: *mut c_char, mut src: *const c_char) {
-    unsafe {
-        loop {
-            let c = *src;
-            *dst = c;
-            if c == NUL {
-                break;
-            }
-            dst = dst.add(1);
-            src = src.add(1);
         }
     }
 }

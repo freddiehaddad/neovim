@@ -41,15 +41,14 @@ use crate::extmark::{
     ExtmarkMove, ExtmarkSplice, ExtmarkUndoData, ExtmarkUndoObject, UndoObjectType,
     extmark_apply_undo, extmark_splice_cols, extmark_undo_vec_t, kExtmarkMove, kExtmarkSplice,
 };
+use crate::fileio::c_fdopen;
+use crate::fileio::c_fileno;
 #[cfg(unix)]
 use crate::fileio::getuid;
-#[cfg(windows)]
-use crate::fileio::{_fdopen, _fileno, _ftelli64};
+use crate::fileio::vim_ftell;
 use crate::fileio::{
     EOF, O_RDONLY, fclose, feof, fflush, fgetc, fread, fwrite, get2c, get4c, get8ctime, read_eintr,
 };
-#[cfg(not(windows))]
-use crate::fileio::{fdopen, fileno, ftello};
 use crate::fold::foldOpenCursor;
 use crate::garray::{ga_clear_strings, ga_grow, ga_init, garray_T};
 use crate::globals::*;
@@ -197,42 +196,6 @@ static mut u_newcount: c_int = 0;
 static mut u_oldcount: c_int = 0;
 static mut undo_undoes: bool = false;
 static mut lastmark: c_int = 0;
-
-#[inline]
-unsafe fn c_fdopen(fd: c_int, mode: *const c_char) -> *mut FILE {
-    #[cfg(windows)]
-    {
-        unsafe { _fdopen(fd, mode) }
-    }
-    #[cfg(not(windows))]
-    {
-        unsafe { fdopen(fd, mode) }
-    }
-}
-
-#[inline]
-unsafe fn c_fileno(stream: *mut FILE) -> c_int {
-    #[cfg(windows)]
-    {
-        unsafe { _fileno(stream) }
-    }
-    #[cfg(not(windows))]
-    {
-        unsafe { fileno(stream) }
-    }
-}
-
-#[inline]
-unsafe fn vim_ftell(stream: *mut FILE) -> off_T {
-    #[cfg(windows)]
-    {
-        unsafe { _ftelli64(stream) }
-    }
-    #[cfg(not(windows))]
-    {
-        unsafe { ftello(stream) }
-    }
-}
 
 /// Save the current line for both the `"u"` and `"U"` command.
 #[cfg_attr(not(test), unsafe(no_mangle))]

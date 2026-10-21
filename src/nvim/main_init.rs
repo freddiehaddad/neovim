@@ -22,7 +22,11 @@ use crate::api::tabpage::tabpage_T;
 #[cfg(not(test))]
 use crate::api::ui::remote_ui_wait_for_attach;
 #[cfg(not(test))]
-use crate::arglist::{aentry_T, alist_add, alist_init, alist_name};
+use crate::arglist::gargcount;
+#[cfg(not(test))]
+use crate::arglist::garglist;
+#[cfg(not(test))]
+use crate::arglist::{alist_add, alist_init, alist_name};
 #[cfg(not(test))]
 use crate::autocmd::{
     EVENT_BUFENTER, EVENT_BUFUNLOAD, EVENT_BUFWINLEAVE, EVENT_VIMENTER, EVENT_VIMLEAVE,
@@ -410,32 +414,6 @@ unsafe fn strnicmp_ascii(a: *const c_char, b: &[u8]) -> bool {
         }
         let bytes = CStr::from_ptr(a).to_bytes();
         bytes.len() >= b.len() && bytes[..b.len()].eq_ignore_ascii_case(b)
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn gargcount() -> c_int {
-    #[cfg(not(test))]
-    unsafe {
-        global_alist.al_ga.ga_len
-    }
-    #[cfg(test)]
-    {
-        0
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn garglist() -> *mut aentry_T {
-    #[cfg(not(test))]
-    unsafe {
-        global_alist.al_ga.ga_data.cast::<aentry_T>()
-    }
-    #[cfg(test)]
-    {
-        ptr::null_mut()
     }
 }
 

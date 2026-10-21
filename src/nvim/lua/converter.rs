@@ -8,6 +8,8 @@ use crate::api::buffer::LUA_NOREF;
 use crate::api::private::converter::{
     K_BOOL_VAR_FALSE, K_BOOL_VAR_TRUE, K_SPECIAL_VAR_NULL, VAR_UNLOCKED, partial_T,
 };
+#[cfg(not(test))]
+use crate::api::private::helpers::cbuf_to_arena_str;
 use crate::api::private::helpers::nil_obj;
 #[cfg(not(test))]
 use crate::api::private::helpers::{
@@ -370,14 +372,6 @@ pub unsafe fn luaL_checkstring(lstate: *mut lua_State, n: c_int) -> *const c_cha
 #[inline]
 pub unsafe fn luaL_checkint(lstate: *mut lua_State, n: c_int) -> c_int {
     unsafe { luaL_checkinteger(lstate, n) as c_int }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn cbuf_to_arena_str(arena: *mut Arena, s: *const c_char, len: usize) -> NvimString {
-    let ptr = if s.is_null() { c"".as_ptr() } else { s };
-    let data = unsafe { arena_memdupz(arena, ptr, len) };
-    NvimString { data, size: len }
 }
 
 #[cfg(not(test))]

@@ -36,14 +36,14 @@ use crate::ex_docmd::{do_chdir, vim_mkdir_emsg};
 use crate::file_search::{
     FINDFILE_DIR, FINDFILE_FILE, find_file_in_path_option, vim_findfile_cleanup,
 };
-#[cfg(windows)]
-use crate::fileio::{_fileno, _fseeki64};
+use crate::fileio::c_fileno;
+#[cfg(not(windows))]
+use crate::fileio::readlink;
+use crate::fileio::vim_fseek;
 use crate::fileio::{
     delete_recursive, fclose, file_pat_to_reg_pat, fread, readdir_core, vim_copyfile, vim_rename,
     vim_tempname,
 };
-#[cfg(not(windows))]
-use crate::fileio::{fileno, fseeko, readlink};
 use crate::garray::{ga_clear_strings, ga_concat_strings, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::math::{FAIL, OK};
@@ -58,6 +58,10 @@ use crate::os::fileio::{
     FileDescriptor, K_FILE_APPEND, K_FILE_CREATE, K_FILE_MK_DIR, K_FILE_TRUNCATE, file_close,
     file_flush, file_open, file_write,
 };
+use crate::os::fs::s_isdir;
+use crate::os::fs::s_isfifo;
+use crate::os::fs::s_islnk;
+use crate::os::fs::s_isreg;
 use crate::os::fs::{
     os_can_exe, os_dirname, os_file_is_readable, os_file_is_writable, os_fileinfo, os_fileinfo_fd,
     os_fileinfo_link, os_fileinfo_size, os_fileinfo2, os_fopen, os_getperm, os_isdir,
@@ -103,15 +107,7 @@ pub(crate) const kCdScopeWindow: c_int = 1;
 pub(crate) const kCdScopeTabpage: c_int = 2;
 
 const S_IFMT_MASK: u64 = 0xF000;
-const S_IFIFO_VAL: u64 = 0x1000;
 const S_IFCHR_VAL: u64 = 0x2000;
-const S_IFDIR_VAL: u64 = 0x4000;
-#[cfg(unix)]
-const S_IFBLK_VAL: u64 = 0x6000;
-const S_IFREG_VAL: u64 = 0x8000;
-const S_IFLNK_VAL: u64 = 0xA000;
-#[cfg(unix)]
-const S_IFSOCK_VAL: u64 = 0xC000;
 
 const E_ERROR_WHILE_WRITING_STR: &CStr = c"E80: Error while writing: %s";
 
@@ -119,6 +115,7 @@ use crate::api::buffer::{NL, NUL};
 use crate::api::options::IOSIZE;
 use crate::api::private::converter::VAR_UNLOCKED;
 use crate::api::vim::{MAXPATHL, kCdScopeGlobal};
+use crate::os::fs::{s_isblk, s_issock};
 use crate::regexp::NUMBUFLEN;
 
 #[repr(C)]
@@ -160,76 +157,8 @@ pub struct FileInfo {
 }
 
 #[inline]
-fn s_isreg(m: u64) -> bool {
-    (m & S_IFMT_MASK) == S_IFREG_VAL
-}
-
-#[inline]
-fn s_isdir(m: u64) -> bool {
-    (m & S_IFMT_MASK) == S_IFDIR_VAL
-}
-
-#[inline]
-fn s_islnk(m: u64) -> bool {
-    (m & S_IFMT_MASK) == S_IFLNK_VAL
-}
-
-#[inline]
 fn s_ischr(m: u64) -> bool {
     (m & S_IFMT_MASK) == S_IFCHR_VAL
-}
-
-#[inline]
-fn s_isfifo(m: u64) -> bool {
-    (m & S_IFMT_MASK) == S_IFIFO_VAL
-}
-
-#[inline]
-#[cfg(unix)]
-fn s_isblk(m: u64) -> bool {
-    (m & S_IFMT_MASK) == S_IFBLK_VAL
-}
-
-#[inline]
-#[cfg(not(unix))]
-fn s_isblk(_m: u64) -> bool {
-    false
-}
-
-#[inline]
-#[cfg(unix)]
-fn s_issock(m: u64) -> bool {
-    (m & S_IFMT_MASK) == S_IFSOCK_VAL
-}
-
-#[inline]
-#[cfg(not(unix))]
-fn s_issock(_m: u64) -> bool {
-    false
-}
-
-#[inline]
-unsafe fn c_fileno(stream: *mut FILE) -> c_int {
-    #[cfg(windows)]
-    {
-        unsafe { _fileno(stream) }
-    }
-    #[cfg(not(windows))]
-    {
-        unsafe { fileno(stream) }
-    }
-}
-
-#[inline]
-unsafe fn vim_fseek(stream: *mut FILE, offset: off_T, whence: c_int) -> c_int {
-    #[cfg(windows)]
-    {
-        unsafe { _fseeki64(stream, offset, whence) }
-    }
-    #[cfg(not(windows))]
-    {
-        unsafe { fseeko(stream, offset, whence) }
-    }
 }
 
 /// Adjust a filename, according to a string of modifiers.
@@ -2485,14 +2414,16 @@ pub unsafe extern "C" fn f_browsedir(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fileio::{S_IFDIR, S_IFIFO, S_IFREG};
+    use crate::os::fs::S_IFLNK;
 
     #[test]
     fn stat_mode_predicates_identify_file_types() {
-        assert!(s_isreg(S_IFREG_VAL | 0o644));
-        assert!(!s_isdir(S_IFREG_VAL | 0o644));
-        assert!(s_isdir(S_IFDIR_VAL | 0o755));
-        assert!(s_islnk(S_IFLNK_VAL | 0o777));
+        assert!(s_isreg(S_IFREG | 0o644));
+        assert!(!s_isdir(S_IFREG | 0o644));
+        assert!(s_isdir(S_IFDIR | 0o755));
+        assert!(s_islnk(S_IFLNK | 0o777));
         assert!(s_ischr(S_IFCHR_VAL | 0o600));
-        assert!(s_isfifo(S_IFIFO_VAL | 0o600));
+        assert!(s_isfifo(S_IFIFO | 0o600));
     }
 }

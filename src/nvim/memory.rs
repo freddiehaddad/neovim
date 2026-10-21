@@ -528,6 +528,23 @@ pub unsafe extern "C" fn xmemdup(data: *const c_void, len: usize) -> *mut c_void
     ret.cast::<c_void>()
 }
 
+/// Duplicate `len` bytes of `str_ptr` and append a NUL terminator (`xstrnsave`).
+#[inline]
+#[allow(clippy::missing_safety_doc)]
+pub unsafe fn xstrnsave(str_ptr: *const c_char, len: usize) -> *mut c_char {
+    unsafe { xmemdupz(str_ptr.cast::<c_void>(), len).cast::<c_char>() }
+}
+
+/// Return true if C string `a` equals Rust string `b` (`strequal_str`).
+#[inline]
+#[allow(clippy::missing_safety_doc)]
+pub unsafe fn strequal_str(a: *const c_char, b: &str) -> bool {
+    if a.is_null() {
+        return false;
+    }
+    unsafe { CStr::from_ptr(a).to_bytes() == b.as_bytes() }
+}
+
 /// Return true if C strings `a` and `b` are equal (both may be null) (`strequal`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn strequal(a: *const c_char, b: *const c_char) -> bool {

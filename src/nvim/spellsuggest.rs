@@ -27,6 +27,7 @@ use crate::hashtab::{
 use crate::input::{beep_flush, prep_redo, redo_append_char, redo_append_lit, vgetc};
 use crate::input_cmdatom::CmdSpec;
 use crate::lua::executor::nlua_call_typval;
+use crate::mbyte::mb_ptr_back;
 use crate::mbyte::{
     mb_charlen, mb_cptr2char_adv, mb_ptr_adv, mb_stricmp, utf_byte2len, utf_char2bytes,
     utf_char2len, utf_head_off, utf_iscomposing_legacy, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
@@ -51,6 +52,7 @@ use crate::spell::{
     spell_move_to, spell_soundfold, spell_valid_case, valid_word_prefix,
 };
 use crate::spellfile::{MAXREGIONS, WF_NOSUGGEST, suggest_load_files};
+use crate::strings::strmove;
 use crate::strings::{
     atoi, gettext, qsort, strcat, strcmp, strcpy, strlen, strncmp, strncpy, vim_snprintf,
     vim_strchr, xstrnsave,
@@ -352,25 +354,13 @@ unsafe fn sug_max_count(su: *const suginfo_T) -> c_int {
 }
 
 #[inline]
-unsafe fn mb_ptr_back(s: *const c_char, p: &mut *mut c_char) {
-    unsafe {
-        let off = utf_head_off(s, (*p).sub(1)) + 1;
-        *p = (*p).sub(off as usize);
-    }
-}
-#[inline]
 unsafe fn mb_cptr_back(s: *const c_char, p: &mut *const c_char) {
     unsafe {
         let off = utf_head_off(s, (*p).sub(1)) + 1;
         *p = (*p).sub(off as usize);
     }
 }
-#[inline]
-unsafe fn strmove(dst: *mut c_char, src: *const c_char) {
-    unsafe {
-        ptr::copy(src, dst, strlen(src) + 1);
-    }
-}
+
 #[inline]
 unsafe fn was_banned(su: *mut suginfo_T, word: *const c_char) -> bool {
     unsafe { !hashitem_empty(&*hash_find(&raw mut (*su).su_banned, word)) }
@@ -1425,7 +1415,7 @@ unsafe fn suggest_trie_walk(
                             p = (&raw mut preword)
                                 .cast::<c_char>()
                                 .add(stack[udepth].ts_prewordlen as usize);
-                            mb_ptr_back((&raw const preword).cast(), &mut p);
+                            mb_ptr_back(&raw const preword, &mut p);
                         }
                     }
                     if soundfold {
@@ -1533,7 +1523,7 @@ unsafe fn suggest_trie_walk(
                                 p = (&raw mut preword)
                                     .cast::<c_char>()
                                     .add(strlen((&raw const preword).cast()));
-                                mb_ptr_back((&raw const preword).cast(), &mut p);
+                                mb_ptr_back(&raw const preword, &mut p);
                                 if spell_iswordp(p, curwin) {
                                     newscore += SCORE_NONWORD;
                                 }
@@ -1844,7 +1834,7 @@ unsafe fn suggest_trie_walk(
                                         if utf_iscomposing_legacy(c) {
                                             stack[udepth].ts_score -= SCORE_INS - SCORE_INSCOMP;
                                         } else {
-                                            mb_ptr_back((&raw const tword).cast(), &mut p);
+                                            mb_ptr_back(&raw const tword, &mut p);
                                             if c == utf_ptr2char(p) {
                                                 stack[udepth].ts_score -= SCORE_INS - SCORE_INSDUP;
                                             }

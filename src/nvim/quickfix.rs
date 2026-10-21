@@ -65,10 +65,7 @@ use crate::ex_docmd::{do_cmdline_cmd, ex_cd, is_loclist_cmd};
 use crate::ex_eval::{aborting, cleanup_T, enter_cleanup, leave_cleanup};
 use crate::ex_getln::get_list_range;
 use crate::extmark::extmark_splice;
-#[cfg(windows)]
-use crate::fileio::_fdopen;
-#[cfg(not(windows))]
-use crate::fileio::fdopen;
+use crate::fileio::c_fdopen;
 use crate::fileio::{
     EINTR, READ_DUMMY, READ_NEW, fclose, ferror, fgets, readfile, shorten_buf_fname,
     shorten_fnames, vim_fgets, vim_tempname,
@@ -127,6 +124,7 @@ use crate::regexp::{
     RE_MAGIC, RE_STRING, vim_regcomp, vim_regexec, vim_regexec_multi, vim_regfree,
 };
 use crate::search::{do_search, last_search_pat};
+use crate::strings::c_strcpy;
 use crate::strings::{
     atoi, atol, gettext, has_non_ascii, strcmp as c_strcmp, strlen as c_strlen, vim_snprintf,
     vim_snprintf_safelen, vim_strchr,
@@ -508,18 +506,6 @@ static mut did_bufnr_emsg: bool = false;
 static mut set_qf_ll_recursive: c_int = 0;
 
 #[inline]
-unsafe fn c_fdopen(fd: c_int, mode: *const c_char) -> *mut FILE {
-    #[cfg(windows)]
-    unsafe {
-        _fdopen(fd, mode)
-    }
-    #[cfg(not(windows))]
-    unsafe {
-        fdopen(fd, mode)
-    }
-}
-
-#[inline]
 unsafe fn strnicmp_asc(mut s1: *const c_char, mut s2: *const c_char, mut n: usize) -> c_int {
     unsafe {
         while n > 0 {
@@ -536,14 +522,6 @@ unsafe fn strnicmp_asc(mut s1: *const c_char, mut s2: *const c_char, mut n: usiz
             n -= 1;
         }
         0
-    }
-}
-
-#[inline]
-unsafe fn c_strcpy(dst: *mut c_char, src: *const c_char) {
-    unsafe {
-        let len = c_strlen(src);
-        ptr::copy_nonoverlapping(src, dst, len + 1);
     }
 }
 

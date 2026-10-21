@@ -15,11 +15,8 @@ use crate::eval::deprecated::buf_T;
 use crate::eval::fs::FileInfo;
 #[cfg(not(test))]
 use crate::event::r#loop::loop_recursive_ptr;
-#[cfg(all(not(test), windows))]
-use crate::fileio::{_close, _lseeki64};
-#[cfg(not(windows))]
-#[cfg(not(test))]
-use crate::fileio::{close, lseek};
+use crate::fileio::close_fd;
+use crate::fileio::vim_lseek;
 #[cfg(not(test))]
 use crate::fileio::{read_eintr, write_eintr};
 #[cfg(not(test))]
@@ -108,40 +105,6 @@ pub struct memfile_T {
     pub mf_infile_count: blocknr_T,
     pub mf_page_size: c_uint,
     pub mf_dirty: mfdirty_T,
-}
-
-#[inline]
-unsafe fn vim_lseek(fd: c_int, offset: off_T, whence: c_int) -> off_T {
-    #[cfg(all(not(test), windows))]
-    unsafe {
-        _lseeki64(fd, offset, whence)
-    }
-    #[cfg(all(not(test), not(windows)))]
-    unsafe {
-        lseek(fd, offset, whence)
-    }
-    #[cfg(test)]
-    {
-        let _ = (fd, offset, whence);
-        -1
-    }
-}
-
-#[inline]
-unsafe fn close_fd(fd: c_int) -> c_int {
-    #[cfg(all(not(test), windows))]
-    unsafe {
-        _close(fd)
-    }
-    #[cfg(all(not(test), not(windows)))]
-    unsafe {
-        close(fd)
-    }
-    #[cfg(test)]
-    {
-        let _ = fd;
-        0
-    }
 }
 
 #[inline]

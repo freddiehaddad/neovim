@@ -12,7 +12,7 @@ use crate::api::buffer::FORWARD;
 #[cfg(not(test))]
 use crate::api::private::converter::VAR_UNLOCKED;
 #[cfg(not(test))]
-use crate::charset::{ascii_isalnum, ascii_iswhite, vim_iswordc, vim_iswordp};
+use crate::charset::{ascii_isalnum, ascii_iswhite, skipwhite, vim_iswordc, vim_iswordp};
 use crate::clipboard::typval_T;
 #[cfg(not(test))]
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T};
@@ -121,17 +121,6 @@ struct MatchStruct {
     lower_needle: [c_int; MATCH_MAX_LEN],
     lower_haystack: [c_int; MATCH_MAX_LEN],
     match_bonus: [f64; MATCH_MAX_LEN],
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn skipwhite(mut p: *mut c_char) -> *mut c_char {
-    unsafe {
-        while matches!(*p as u8, b' ' | b'\t') {
-            p = p.add(1);
-        }
-        p
-    }
 }
 
 #[cfg(not(test))]

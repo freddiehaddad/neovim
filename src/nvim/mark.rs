@@ -144,7 +144,7 @@ unsafe fn set_fmark(fmarkp: *mut fmark_T, mark: pos_T, fnum: c_int, view: fmarkv
 }
 
 #[inline]
-unsafe fn reset_fmark(fmarkp: *mut fmark_T, mark: pos_T, fnum: c_int, view: fmarkv_T) {
+pub unsafe fn reset_fmark(fmarkp: *mut fmark_T, mark: pos_T, fnum: c_int, view: fmarkv_T) {
     unsafe {
         free_fmark(*fmarkp);
         set_fmark(fmarkp, mark, fnum, view);

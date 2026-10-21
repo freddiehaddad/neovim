@@ -151,6 +151,7 @@ use crate::memline::{
     decl, incl, ml_find_line_or_offset, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len, ml_open,
     recover_names, swapfile_dict,
 };
+use crate::memory::strnequal;
 use crate::memory::{
     ARENA_BLOCK_SIZE, Arena, ArenaMem, alloc_block, arena_finish, arena_mem_free, free_block,
     strequal, xcalloc, xfree, xmalloc, xmallocz, xmemdup, xmemdupz, xstrdup,
@@ -464,11 +465,6 @@ fn toupper_asc(c: c_char) -> u8 {
 #[inline]
 fn tolower_asc(c: c_char) -> u8 {
     (c as u8).to_ascii_lowercase()
-}
-
-#[inline]
-unsafe fn strnequal(a: *const c_char, b: *const c_char, n: usize) -> bool {
-    unsafe { strncmp(a, b, n) == 0 }
 }
 
 #[inline]

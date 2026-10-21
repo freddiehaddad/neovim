@@ -87,6 +87,7 @@ use crate::os::env::{
 use crate::register::{get_reg_contents, kGRegExprSrc, write_reg_contents};
 use crate::runtime::{new_script_item, script_autoload, script_item, script_items, scriptvar_T};
 use crate::search::set_search_direction;
+use crate::strings::c_strcpy;
 use crate::strings::{
     concat_str, gettext, strcmp as c_strcmp, strlen as c_strlen, strncmp as c_strncmp,
     vim_snprintf, vim_strchr,
@@ -527,21 +528,6 @@ static mut redir_endp: *mut c_char = ptr::null_mut();
 static mut redir_varname: *mut c_char = ptr::null_mut();
 
 #[inline]
-unsafe fn c_strcpy(mut dst: *mut c_char, mut src: *const c_char) {
-    unsafe {
-        loop {
-            let c = *src;
-            *dst = c;
-            if c == NUL {
-                break;
-            }
-            dst = dst.add(1);
-            src = src.add(1);
-        }
-    }
-}
-
-#[inline]
 unsafe fn c_memchr(s: *const c_char, c: u8, n: usize) -> *const c_char {
     unsafe {
         let p = s.cast::<u8>();
@@ -555,7 +541,7 @@ unsafe fn c_memchr(s: *const c_char, c: u8, n: usize) -> *const c_char {
 }
 
 #[inline]
-unsafe fn tv_init(tv: *mut typval_T) {
+pub unsafe fn tv_init(tv: *mut typval_T) {
     if !tv.is_null() {
         unsafe {
             ptr::write_bytes(tv, 0, 1);
@@ -583,7 +569,7 @@ unsafe fn script_vars_ht(id: scid_T) -> *mut hashtab_T {
 }
 
 #[inline]
-fn tristate_from_int(val: OptInt) -> TriState {
+pub fn tristate_from_int(val: OptInt) -> TriState {
     if val == 0 {
         kFalse
     } else if val >= 1 {

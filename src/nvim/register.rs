@@ -10,6 +10,7 @@
 
 use crate::api::buffer::{FORWARD, NL, NUL, kExtmarkNOOP, kExtmarkUndo};
 use crate::api::command::{CMOD_LOCKMARKS, exarg_T};
+use crate::api::private::helpers::api_clear_string;
 use crate::api::private::helpers::{cbuf_as_string, cbuf_to_string};
 use crate::api::vim::{BACKWARD, REMAP_NONE, REMAP_YES};
 use crate::autocmd::{
@@ -252,15 +253,6 @@ unsafe fn copy_string_global(s: NvimString) -> NvimString {
         }
     } else {
         unsafe { cbuf_to_string(s.data, s.size) }
-    }
-}
-
-#[inline]
-unsafe fn api_clear_string(s: &mut NvimString) {
-    unsafe {
-        xfree(s.data.cast());
-        s.data = ptr::null_mut();
-        s.size = 0;
     }
 }
 

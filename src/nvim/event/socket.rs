@@ -145,7 +145,7 @@ unsafe extern "C" {
 }
 
 #[inline]
-unsafe fn socket_watcher_uv_size() -> usize {
+pub unsafe fn socket_watcher_uv_size() -> usize {
     unsafe {
         let tcp_size = uv_handle_size(UV_TCP) + size_of::<*mut addrinfo>();
         let pipe_size = uv_handle_size(UV_NAMED_PIPE);
@@ -154,7 +154,7 @@ unsafe fn socket_watcher_uv_size() -> usize {
 }
 
 #[inline]
-unsafe fn watcher_addr(watcher: *mut SocketWatcher) -> *mut c_char {
+pub unsafe fn watcher_addr(watcher: *mut SocketWatcher) -> *mut c_char {
     watcher.cast::<c_char>()
 }
 

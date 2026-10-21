@@ -41,10 +41,8 @@ use crate::state::{
     MODE_ASKMORE, MODE_CMDLINE, MODE_HITRETURN, MODE_INSERT, MODE_LANGMAP, MODE_NORMAL,
     MODE_TERMINAL, MODE_VISUAL, get_real_state,
 };
-#[cfg(unix)]
-use crate::strings::strcasecmp;
-#[cfg(windows)]
-use crate::strings::vim_stricmp;
+use crate::strings::stricmp_c;
+use crate::strings::strmove;
 use crate::strings::{
     gettext, strcat, strcmp, strcpy, strncmp, vim_strchr, vim_strnicmp_asc, xstrnsave,
 };
@@ -158,26 +156,6 @@ static mut MENUTRANS_GA: garray_T = garray_T {
     ga_growsize: 0,
     ga_data: ptr::null_mut(),
 };
-
-#[inline]
-unsafe fn stricmp_c(s1: *const c_char, s2: *const c_char) -> c_int {
-    #[cfg(windows)]
-    unsafe {
-        vim_stricmp(s1, s2)
-    }
-    #[cfg(not(windows))]
-    unsafe {
-        strcasecmp(s1, s2)
-    }
-}
-
-#[inline]
-unsafe fn strmove(dst: *mut c_char, src: *const c_char) {
-    unsafe {
-        let len = CStr::from_ptr(src).to_bytes().len() + 1;
-        ptr::copy(src, dst, len);
-    }
-}
 
 #[inline]
 unsafe fn tv_dict_len(d: *const dict_T) -> isize {

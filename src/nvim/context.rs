@@ -11,13 +11,12 @@ use crate::api::extmark::nvim_create_namespace;
 use crate::api::options::CtxSwitch;
 use crate::api::private::converter::object_to_vim;
 use crate::api::private::helpers::cstr_literal;
+use crate::api::private::helpers::put_c;
 use crate::api::private::helpers::{
     api_clear_error, api_free_array, api_free_string, api_set_error, arena_dict, array_obj,
     copy_array, copy_object, error_set, string_obj, string_to_array,
 };
-use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType,
-};
+use crate::api::private::validate::{Array, Dict, Error, ErrorType, ObjectType};
 use crate::api::tabpage::{pos_T, tabpage_T, win_T};
 use crate::api::vimscript::{KeyDict_exec_opts, exec_impl};
 use crate::autocmd::{block_autocmds, unblock_autocmds};
@@ -36,6 +35,7 @@ use crate::globals::*;
 use crate::hashtab::{hash_init, hashitem_empty};
 use crate::map::{map_del_int_ptr_t, map_put_ref_int_ptr_t, mh_get_int};
 use crate::map_glyph_cache::{MH_TOMBSTONE, NvimString};
+use crate::memory::strequal_str as strequal;
 use crate::memory::{Arena, xfree, xstrdup};
 use crate::msgpack_rpc::packer::handle_T;
 use crate::option::buf_copy_options;
@@ -174,25 +174,6 @@ static mut CTX_SWITCH_DEPTH: c_int = 0;
 static mut CTX_SAVED_CURWIN: handle_T = 0;
 static mut CTX_DID_CHDIR: bool = false;
 static mut CTX_MARKS_NS_ID: u32 = 0;
-
-#[inline]
-unsafe fn strequal(a: *const c_char, b: &str) -> bool {
-    if a.is_null() {
-        return false;
-    }
-    unsafe { CStr::from_ptr(a).to_bytes() == b.as_bytes() }
-}
-
-#[inline]
-unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
-    unsafe {
-        *dict.items.add(dict.size) = KeyValuePair {
-            key: cstr_literal(key),
-            value,
-        };
-        dict.size += 1;
-    }
-}
 
 #[inline]
 pub unsafe fn handle_get_buffer(h: handle_T) -> *mut buf_T {

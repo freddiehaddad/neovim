@@ -40,6 +40,7 @@ use crate::extmark::TriState;
 use crate::garray::{ga_clear, ga_grow, ga_set_growsize, garray_T};
 use crate::globals::*;
 use crate::grid::UIExtension;
+use crate::highlight::empty_map_hash;
 use crate::highlight::{
     HL_ALTFONT, HL_DEFAULT, HLATTRS_INIT, HLF_INACTIVE, HLF_NONE, KEYSET_OPTIDX_highlight__bg,
     KEYSET_OPTIDX_highlight__fg, KEYSET_OPTIDX_highlight__font, KEYSET_OPTIDX_highlight__sp,
@@ -49,7 +50,7 @@ use crate::highlight::{
 use crate::lua::converter::Boolean;
 use crate::lua::executor::nlua_set_sctx;
 use crate::map::{HlAttrs, Map, Set, cstr_t, map_put_ref_cstr_t_int, map_ref_cstr_t_int};
-use crate::map_glyph_cache::{MapHash, NvimString};
+use crate::map_glyph_cache::NvimString;
 use crate::math::OK;
 use crate::mbyte::{mb_stricmp, mb_strnicmp};
 use crate::memory::{
@@ -150,18 +151,6 @@ struct HlGroup {
     sg_blend: c_int,
     sg_font: *mut c_char,
     sg_parent: c_int,
-}
-
-const fn empty_map_hash() -> MapHash {
-    MapHash {
-        n_buckets: 0,
-        size: 0,
-        n_occupied: 0,
-        upper_bound: 0,
-        n_keys: 0,
-        keys_capacity: 0,
-        hash: ptr::null_mut(),
-    }
 }
 
 static mut highlight_ga: garray_T = garray_T {

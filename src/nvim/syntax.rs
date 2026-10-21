@@ -38,6 +38,7 @@ use crate::highlight_group::{
 };
 use crate::indent_c::find_start_comment;
 use crate::r#match::regmmatch_T;
+use crate::mbyte::mb_ptr_back;
 use crate::mbyte::{mb_ptr_adv, mb_strcmp_ic, utf_head_off, utf_ptr2char, utfc_ptr2len};
 use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
 use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xstrdup};
@@ -61,14 +62,12 @@ use crate::regexp::{
     vim_regcomp, vim_regcomp_had_eol, vim_regexec, vim_regexec_multi, vim_regfree,
 };
 use crate::runtime::{DIP_ALL, DOSO_NONE, do_source, source_runtime};
+use crate::strings::stricmp_c;
+use crate::strings::strnicmp_c;
 use crate::strings::{
     gettext, memcpy, memmove, memset, qsort, strcat, strchr, strcmp, strcpy, strlen, strncmp,
     strpbrk, vim_snprintf, vim_strchr, vim_strnsave_up, vim_strsave_up, xstrnsave,
 };
-#[cfg(unix)]
-use crate::strings::{strcasecmp, strncasecmp};
-#[cfg(windows)]
-use crate::strings::{vim_stricmp, vim_strnicmp};
 use std::ffi::{c_char, c_int, c_void};
 use std::mem::{offset_of, size_of};
 use std::ptr;
@@ -378,30 +377,6 @@ static mut last_matchgroup: c_int = 0;
 static mut expand_what: c_int = EXP_SUBCMD;
 
 #[inline]
-unsafe fn stricmp_c(s1: *const c_char, s2: *const c_char) -> c_int {
-    #[cfg(windows)]
-    unsafe {
-        vim_stricmp(s1, s2)
-    }
-    #[cfg(not(windows))]
-    unsafe {
-        strcasecmp(s1, s2)
-    }
-}
-
-#[inline]
-unsafe fn strnicmp_c(s1: *const c_char, s2: *const c_char, n: usize) -> c_int {
-    #[cfg(windows)]
-    unsafe {
-        vim_strnicmp(s1, s2, n)
-    }
-    #[cfg(not(windows))]
-    unsafe {
-        strncasecmp(s1, s2, n)
-    }
-}
-
-#[inline]
 const fn toupper_asc(c: c_char) -> u8 {
     let b = c as u8;
     if b >= b'a' && b <= b'z' {
@@ -482,14 +457,6 @@ unsafe fn invalid_state(ssp: *const garray_T) -> bool {
 #[inline]
 unsafe fn valid_state(ssp: *const garray_T) -> bool {
     unsafe { (*ssp).ga_itemsize != 0 }
-}
-
-#[inline]
-unsafe fn mb_ptr_back(s: *const c_char, p: &mut *mut c_char) {
-    unsafe {
-        let off = utf_head_off(s, (*p).sub(1)) as usize + 1;
-        *p = (*p).sub(off);
-    }
 }
 
 /// Set the timeout used for syntax highlighting.

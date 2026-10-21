@@ -48,18 +48,17 @@ use crate::event::r#loop::uv_strerror;
 use crate::ex_cmds::check_secure;
 #[cfg(not(test))]
 use crate::ex_eval::{aborting, should_abort};
-#[cfg(all(not(test), windows))]
-use crate::fileio::{_close, libiconv, libiconv_close};
 #[cfg(not(test))]
 use crate::fileio::{
     EOL_DOS, EOL_UNIX, FIO_NOCONVERT, ICONV_EINVAL, WRITEBUFSIZE, add_quoted_fname,
-    buf_store_file_info, filemess_bufwrite, fname_msg_id, get_fio_flags, kShmOver, match_file_list,
-    modname, msg_add_fileformat, msg_add_lines, need_conversion, set_rw_fname, slow_io_ns,
-    time_differs, vim_rename, vim_tempname, write_eintr,
+    buf_store_file_info, call_iconv, call_iconv_close, close_fd, filemess_bufwrite, fname_msg_id,
+    get_fio_flags, kShmOver, match_file_list, modname, msg_add_fileformat, msg_add_lines,
+    need_conversion, set_rw_fname, slow_io_ns, time_differs, vim_rename, vim_tempname, write_eintr,
 };
+use crate::fileio::{FIO_ENDIAN_L, FIO_LATIN1, FIO_UCS2, FIO_UCS4, FIO_UTF8, FIO_UTF16};
 #[cfg(not(windows))]
 #[cfg(not(test))]
-use crate::fileio::{close, getgid, getuid, iconv, iconv_close};
+use crate::fileio::{getgid, getuid};
 #[cfg(not(test))]
 use crate::globals::*;
 #[cfg(not(test))]
@@ -92,7 +91,9 @@ use crate::os::fs::{
     os_path_exists, os_remove, os_set_acl, os_setperm, vim_acl_T,
 };
 #[cfg(all(not(test), unix))]
-use crate::os::fs::{os_chown, os_fchown, os_file_settime, os_fsetperm, uv_gid_t, uv_uid_t};
+use crate::os::fs::{
+    os_chown, os_fchown, os_file_settime, os_fsetperm, s_isdir, s_isreg, uv_gid_t, uv_uid_t,
+};
 #[cfg(not(test))]
 use crate::os::input::os_breakcheck;
 #[cfg(not(test))]
@@ -130,9 +131,6 @@ pub use crate::eval::buffer::varnumber_T;
 #[cfg(not(test))]
 use crate::ex_docmd::UNDO_HASH_SIZE;
 pub use crate::fileio::iconv_t;
-use crate::fileio::{FIO_ENDIAN_L, FIO_LATIN1, FIO_UCS2, FIO_UCS4, FIO_UTF8, FIO_UTF16};
-#[cfg(all(not(test), unix))]
-use crate::fileio::{S_IFDIR, S_IFMT, S_IFREG};
 use crate::math::FAIL;
 #[cfg(not(test))]
 use crate::math::OK;
@@ -211,75 +209,6 @@ struct bw_info {
     bw_conv_error_lnum: linenr_T,
     bw_start_lnum: linenr_T,
     bw_iconv_fd: iconv_t,
-}
-
-#[cfg(all(not(test), unix))]
-#[inline]
-const fn s_isdir(m: u64) -> bool {
-    (m & S_IFMT) == S_IFDIR
-}
-
-#[cfg(all(not(test), unix))]
-#[inline]
-const fn s_isreg(m: u64) -> bool {
-    (m & S_IFMT) == S_IFREG
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn close_fd(fd: c_int) -> c_int {
-    #[cfg(all(not(test), windows))]
-    unsafe {
-        _close(fd)
-    }
-    #[cfg(all(not(test), not(windows)))]
-    unsafe {
-        close(fd)
-    }
-    #[cfg(test)]
-    {
-        0
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn call_iconv(
-    cd: iconv_t,
-    inbuf: *mut *const c_char,
-    inbytesleft: *mut usize,
-    outbuf: *mut *mut c_char,
-    outbytesleft: *mut usize,
-) -> usize {
-    #[cfg(all(not(test), windows))]
-    unsafe {
-        libiconv(cd, inbuf, inbytesleft, outbuf, outbytesleft)
-    }
-    #[cfg(all(not(test), not(windows)))]
-    unsafe {
-        iconv(cd, inbuf, inbytesleft, outbuf, outbytesleft)
-    }
-    #[cfg(test)]
-    {
-        0
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn call_iconv_close(cd: iconv_t) -> c_int {
-    #[cfg(all(not(test), windows))]
-    unsafe {
-        libiconv_close(cd)
-    }
-    #[cfg(all(not(test), not(windows)))]
-    unsafe {
-        iconv_close(cd)
-    }
-    #[cfg(test)]
-    {
-        0
-    }
 }
 
 /// Convert a Unicode character to bytes.

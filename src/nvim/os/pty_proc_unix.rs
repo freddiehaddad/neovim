@@ -10,6 +10,8 @@
 #[cfg(unix)]
 use crate::eval::typval::tv_dict_to_env;
 #[cfg(unix)]
+use crate::event::libuv_proc::proc_get_exepath;
+#[cfg(unix)]
 use crate::event::r#loop::{uv_handle_get_loop, uv_strerror};
 #[cfg(unix)]
 use crate::log::logmsg;
@@ -283,18 +285,6 @@ mod unix_impl {
                 .cast::<u8>()
                 .add(proc_size())
                 .cast::<PtyProcUnixTail>()
-        }
-    }
-
-    #[inline]
-    unsafe fn proc_get_exepath(proc_: *mut Proc) -> *const c_char {
-        unsafe {
-            let hdr = proc_header(proc_);
-            if !(*hdr).exepath.is_null() {
-                (*hdr).exepath
-            } else {
-                *(*hdr).argv
-            }
         }
     }
 

@@ -31,6 +31,7 @@ use crate::buffer::{
     do_autochdir, free_buf_options, maketitle,
 };
 use crate::change::{HLF_W, save_file_ff};
+use crate::charset::is_special;
 #[cfg(windows)]
 use crate::charset::vim_isfilec;
 use crate::charset::{
@@ -62,6 +63,7 @@ use crate::eval::typval::{
     callback_copy, callback_free, callback_put, tv_clear, tv_dict_add_tv, tv_dict_alloc, tv_free,
 };
 use crate::eval::userfunc::get_scriptlocal_funcname;
+use crate::eval::vars::tristate_from_int;
 use crate::eval::vars::{
     FORCE_BIN, VV_OPTION_COMMAND, VV_OPTION_NEW, VV_OPTION_OLD, VV_OPTION_OLDGLOBAL,
     VV_OPTION_OLDLOCAL, VV_OPTION_TYPE, VV_WARNINGMSG, get_vim_var_str, kOptFlagFunc, opt_to_tv,
@@ -91,6 +93,7 @@ use crate::indent::{
 use crate::indent_c::parse_cino;
 use crate::input_cmdatom::atom_follow_changed;
 use crate::insexpand::{VAR_STRING, kOptComplete, set_buflocal_cpt_callbacks};
+use crate::keycodes::termcap2key;
 use crate::keycodes::{
     FSK_KEEP_X_KEY, FSK_KEYCODE, FSK_SIMPLIFY, K_KENTER, K_ZERO, find_special_key,
     find_special_key_in_table, get_special_key_code, get_special_key_name,
@@ -106,6 +109,7 @@ use crate::mbyte::{enc_locale, utfc_ptr2len};
 use crate::mcursor::{kOptFollow, mc_ins_replay_can_join};
 use crate::memfile::mf_close_file;
 use crate::memline::{ml_open_file, ml_open_files};
+use crate::memory::strnequal;
 use crate::memory::{
     Arena, strequal, xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xrealloc, xstrdup, xstrlcpy,
 };
@@ -139,6 +143,7 @@ use crate::regexp::{MAXCOL, NUMBUFLEN, vim_regexec};
 use crate::runtime::{DIP_ALL, runtimepath_default, source_runtime_vim_lua, sourcing_lnum};
 use crate::spell::{compile_cap_prog, did_set_spell_option, init_spell_chartab, parse_spelllang};
 use crate::spellsuggest::{spell_apply_sps, spell_check_sps};
+use crate::strings::c_strcpy;
 use crate::strings::{
     concat_str, gettext, gettext as tr, sort_strings, strchr, strcmp as c_strcmp,
     strlen as c_strlen, strncmp as c_strncmp, strstr, vim_snprintf, vim_snprintf_safelen,
@@ -655,39 +660,11 @@ unsafe fn c_strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_cha
 }
 
 #[inline]
-unsafe fn c_strcpy(dst: *mut c_char, src: *const c_char) {
-    unsafe {
-        ptr::copy(src, dst, c_strlen(src) + 1);
-    }
-}
-
-#[inline]
-unsafe fn strnequal(a: *const c_char, b: *const c_char, n: usize) -> bool {
-    unsafe { c_strncmp(a, b, n) == 0 }
-}
-
-#[inline]
 const fn unset_obj() -> Object {
     Object {
         obj_type: ObjectType::kObjectTypeUnset,
         data: ObjectData { integer: 0 },
     }
-}
-
-#[inline]
-const fn tristate_from_int(val: c_int) -> TriState {
-    if val == 0 {
-        kFalse
-    } else if val >= 1 {
-        kTrue
-    } else {
-        kNone
-    }
-}
-
-#[inline]
-const fn termcap2key(a: c_int, b: c_int) -> c_int {
-    -(a + (b << 8))
 }
 
 #[inline]
@@ -703,11 +680,6 @@ const fn key2termcap1(x: c_int) -> u8 {
 #[inline]
 const fn ctrl_chr(x: u8) -> c_int {
     ((x ^ 0x40) & 0x9f) as c_int
-}
-
-#[inline]
-const fn is_special(c: OptInt) -> bool {
-    c < 0
 }
 
 #[inline]
@@ -5538,7 +5510,7 @@ pub unsafe extern "C" fn opt_from_varp(opt_idx: OptIndex, varp: *mut c_void) -> 
 
         match (*get_option(opt_idx)).opt_type {
             ObjectType::kObjectTypeBoolean => {
-                opt_from_tristate(tristate_from_int(*(varp.cast::<c_int>())))
+                opt_from_tristate(tristate_from_int(OptInt::from(*(varp.cast::<c_int>()))))
             }
             ObjectType::kObjectTypeInteger => integer_obj(*(varp.cast::<OptInt>())),
             ObjectType::kObjectTypeString => {
@@ -8706,7 +8678,7 @@ unsafe fn wc_use_keyname(varp: *const c_void, wcp: *mut OptInt) -> c_int {
         let p = varp.cast::<OptInt>();
         if p == &raw const p_wc || p == &raw const p_wcm {
             *wcp = *p;
-            if is_special(*wcp) || find_special_key_in_table(*wcp as c_int) >= 0 {
+            if is_special(*wcp as c_int) || find_special_key_in_table(*wcp as c_int) >= 0 {
                 return 1;
             }
         }

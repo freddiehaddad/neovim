@@ -3,6 +3,8 @@
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 #[cfg(not(test))]
+use crate::api::private::helpers::cstr_as_nvim_string;
+#[cfg(not(test))]
 use crate::api::private::helpers::{arena_array, arena_dict};
 use crate::api::private::validate::Array;
 #[cfg(not(test))]
@@ -127,20 +129,6 @@ pub static mut shape_table: [cursorentry_T; SHAPE_IDX_COUNT] = [
     entry(c"showmatch", 100, 100, 100, c"sm", SHAPE_CURSOR as c_char),
     entry(c"terminal", 0, 0, 0, c"t", SHAPE_CURSOR as c_char),
 ];
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn cstr_as_nvim_string(s: *const c_char) -> NvimString {
-    let size = if s.is_null() {
-        0
-    } else {
-        unsafe { CStr::from_ptr(s).to_bytes().len() }
-    };
-    NvimString {
-        data: s.cast_mut(),
-        size,
-    }
-}
 
 #[cfg(not(test))]
 #[inline]

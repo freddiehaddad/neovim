@@ -28,7 +28,7 @@ use crate::drawscreen::{
     UPD_NOT_VALID, UPD_VALID, redraw_buf_status_later, redraw_later, redrawWinline,
     set_must_redraw, showmode,
 };
-use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T};
+use crate::eval::deprecated::buf_T;
 use crate::eval::vars::{VV_WARNINGMSG, set_vim_var_string};
 use crate::extmark::{bcount_t, extmark_adjust, extmark_splice, extmark_splice_cols};
 use crate::fold::{find_wl_entry, foldUpdate, hasAnyFolding, hasFoldingWin};
@@ -41,7 +41,8 @@ use crate::indent::{
 use crate::indent_c::{check_linecomment, cin_is_cinword, do_c_expr_indent, in_cinkeys};
 use crate::insert::{prompt_text, replace_push, replace_push_nul, truncate_spaces};
 use crate::insexpand::ins_compl_active;
-use crate::mark::{free_fmark, mark_adjust, mark_col_adjust, mark_view_make};
+use crate::mark::reset_fmark;
+use crate::mark::{mark_adjust, mark_col_adjust, mark_view_make};
 use crate::marktree::{kMTMetaInline, kMTMetaLines};
 use crate::mbyte::{
     mb_adjust_cursor, ptr2cells, utf_char2bytes, utf_composinglike, utf_head_off,
@@ -63,12 +64,12 @@ use crate::r#move::{
 };
 use crate::option::{copy_option_part, get_ve_flags};
 use crate::option_vars::*;
-use crate::os::time::os_time;
 use crate::plines::{colnr_T, getvcol, linenr_T, linetabsize_eol, win_chartabsize};
 use crate::search::{findmatch, linewhite, showmatch};
 use crate::spell::spell_check_window;
 use crate::state::{MODE_INSERT, REPLACE_FLAG, VREPLACE_FLAG, virtual_active};
-use crate::strings::{concat_str, gettext, vim_strchr, xstrnsave};
+use crate::strings::tr;
+use crate::strings::{concat_str, vim_strchr, xstrnsave};
 use crate::textformat::{comp_textwidth, has_format_option};
 use crate::ui::{ui_active, ui_has};
 use crate::undo::{curbufIsChanged, u_clearline, u_save_cursor, u_savedel};
@@ -128,25 +129,8 @@ const kFoNoOpenComs: c_int = b'/' as c_int;
 pub(crate) const HLF_W: c_int = 26;
 
 #[inline]
-unsafe fn tr(s: *const c_char) -> *const c_char {
-    unsafe { gettext(s) }
-}
-
-#[inline]
 pub const fn replace_normal(s: c_int) -> bool {
     (s & REPLACE_FLAG) != 0 && (s & VREPLACE_FLAG) == 0
-}
-
-#[inline]
-unsafe fn reset_fmark(fmarkp: *mut fmark_T, mark: pos_T, fnum: c_int, view: fmarkv_T) {
-    unsafe {
-        free_fmark(*fmarkp);
-        (*fmarkp).mark = mark;
-        (*fmarkp).fnum = fnum;
-        (*fmarkp).timestamp = os_time();
-        (*fmarkp).view = view;
-        (*fmarkp).additional_data = ptr::null_mut();
-    }
 }
 
 #[inline]

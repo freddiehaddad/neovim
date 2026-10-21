@@ -13,6 +13,8 @@
 use crate::api::private::converter::sctx_T;
 use crate::api::private::helpers::has_key;
 #[cfg(not(test))]
+use crate::api::private::helpers::put_c;
+#[cfg(not(test))]
 use crate::api::private::helpers::{
     add_c, api_set_error, api_set_sctx, api_typename, arena_array, arena_dict, arena_string,
     arena_take_arraybuilder, boolean_obj, cstr_as_string, dict_obj, error_set,
@@ -21,8 +23,8 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{Array, Error, Object};
 #[cfg(not(test))]
 use crate::api::private::validate::{
-    Dict, ErrorType, KeyValuePair, ObjectType, api_err_conflict, api_err_exp, api_err_invalid,
-    api_err_required, check_string_array,
+    ErrorType, ObjectType, api_err_conflict, api_err_exp, api_err_invalid, api_err_required,
+    check_string_array,
 };
 #[cfg(not(test))]
 use crate::autocmd::{
@@ -230,21 +232,6 @@ unsafe fn api_err_int(err: *mut Error, name: *const c_char, val_n: i64) {
 unsafe fn api_err_req(err: *mut Error, name: *const c_char) {
     unsafe {
         api_err_required(err, name);
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
-    unsafe {
-        *dict.items.add(dict.size) = KeyValuePair {
-            key: NvimString {
-                data: key.as_ptr().cast_mut(),
-                size: key.to_bytes().len(),
-            },
-            value,
-        };
-        dict.size += 1;
     }
 }
 

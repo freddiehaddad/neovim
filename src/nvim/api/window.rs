@@ -14,6 +14,7 @@ use crate::api::autocmd::OptionalKeys;
 use crate::api::options::CtxSwitch;
 use crate::api::private::helpers::NIL;
 use crate::api::private::helpers::has_key;
+use crate::api::private::helpers::put_c;
 use crate::api::private::helpers::try_wrap;
 use crate::api::private::helpers::{
     add_c, api_clear_error, api_set_error, arena_array, arena_dict, dict_get_value, dict_set_var,
@@ -21,7 +22,7 @@ use crate::api::private::helpers::{
 };
 use crate::api::private::validate::api_err_range;
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType, api_err_conflict, api_err_exp,
+    Array, Dict, Error, ErrorType, Object, ObjectType, api_err_conflict, api_err_exp,
     api_err_invalid, api_err_required,
 };
 use crate::api::tabpage::{Buffer, Tabpage, Window};
@@ -36,6 +37,7 @@ use crate::lua::converter::{Boolean, LuaRef};
 use crate::lua::executor::{kRetMultiStack, nlua_call_ref};
 use crate::map_glyph_cache::NvimString;
 use crate::memory::Arena;
+use crate::memory::strequal_str as strequal;
 use crate::message::emsg;
 use crate::r#move::{update_topline, validate_cursor};
 use crate::msgpack_rpc::packer::Integer;
@@ -45,7 +47,7 @@ use crate::window::{
     win_close, win_close_othertab, win_find_tabpage, win_get_tabwin, win_set_buf,
     win_setheight_win, win_setwidth_win,
 };
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::c_int;
 use std::ptr;
 
 use crate::api::win_config::{kCtxNoDisplay, kCtxNoEvents};
@@ -79,34 +81,6 @@ pub struct KeyDict_win_text_height {
 pub struct KeyDict_win_resize {
     pub is_set__win_resize_: OptionalKeys,
     pub anchor: NvimString,
-}
-
-#[inline]
-const fn cstr_as_string(s: &'static CStr) -> NvimString {
-    let bytes = s.to_bytes();
-    NvimString {
-        data: bytes.as_ptr() as *mut c_char,
-        size: bytes.len(),
-    }
-}
-
-#[inline]
-unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
-    unsafe {
-        *dict.items.add(dict.size) = KeyValuePair {
-            key: cstr_as_string(key),
-            value,
-        };
-        dict.size += 1;
-    }
-}
-
-#[inline]
-unsafe fn strequal(a: *const c_char, b: &str) -> bool {
-    if a.is_null() {
-        return false;
-    }
-    unsafe { CStr::from_ptr(a).to_bytes() == b.as_bytes() }
 }
 
 /// Gets the current buffer in a window
