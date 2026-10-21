@@ -2,7 +2,7 @@
 
 use crate::api::deprecated::KeyDict_empty;
 use crate::api::private::helpers::{
-    MAXLNUM, NIL, add_c, api_clear_error, api_set_error, arena_array, arena_dict, boolean_obj,
+    MAXLNUM, OBJECT_NIL, add_c, api_clear_error, api_set_error, arena_array, arena_dict, boolean_obj,
     buf_get_text, cstr_as_string, dict_get_value, dict_set_var, error_set, find_buffer_by_handle,
     has_key, integer_obj, normalize_index, put_c, set_mark, static_cstr_as_obj, string_obj,
     try_wrap,
@@ -1207,7 +1207,7 @@ pub unsafe extern "C" fn nvim_buf_get_var(
     unsafe {
         let b = find_buffer_by_handle(buf, err);
         if b.is_null() {
-            return NIL;
+            return OBJECT_NIL;
         }
         dict_get_value((*b).b_vars, name, arena, err)
     }
@@ -1363,7 +1363,7 @@ pub unsafe extern "C" fn nvim_buf_del_var(buf: Buffer, name: NvimString, err: *m
         if b.is_null() {
             return;
         }
-        dict_set_var((*b).b_vars, name, NIL, true, false, ptr::null_mut(), err);
+        dict_set_var((*b).b_vars, name, OBJECT_NIL, true, false, ptr::null_mut(), err);
     }
 }
 
@@ -1723,7 +1723,7 @@ pub unsafe extern "C" fn nvim_buf_call(
     unsafe {
         let b = find_buffer_by_handle(buf, err);
         if b.is_null() {
-            return NIL;
+            return OBJECT_NIL;
         }
 
         try_wrap(err, || {
@@ -1743,7 +1743,7 @@ pub unsafe extern "C" fn nvim_buf_call(
             ctx_restore(&mut cs);
         });
 
-        NIL
+        OBJECT_NIL
     }
 }
 

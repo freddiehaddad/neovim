@@ -2,8 +2,8 @@
 
 use crate::api::extmark::describe_ns;
 use crate::api::private::helpers::{
-    api_clear_error, api_set_error, arena_array, arena_dict, arr_obj, bool_obj, cstr_as_string,
-    float_obj, int_obj, str_obj, win_obj,
+    api_clear_error, api_set_error, arena_array, arena_dict, array_obj, boolean_obj, cstr_as_string,
+    float_obj, integer_obj, string_obj, window_obj,
 };
 use crate::api::private::validate::{
     Array, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
@@ -266,7 +266,7 @@ pub unsafe extern "C" fn ui_refresh() {
             let val = widget | *ui_cb_ext_ptr.add(i);
             *ui_ext_ptr.add(i) = val;
             if i < kUIGlobalCount {
-                ui_call_option_set(cstr_as_string(*ext_names_ptr.add(i)), bool_obj(val));
+                ui_call_option_set(cstr_as_string(*ext_names_ptr.add(i)), boolean_obj(val));
             }
         }
 
@@ -274,7 +274,7 @@ pub unsafe extern "C" fn ui_refresh() {
             if ui_refresh_cmdheight {
                 set_option_value(
                     kOptCmdheight,
-                    int_obj(Integer::from(had_message)),
+                    integer_obj(Integer::from(had_message)),
                     0,
                     true,
                     ptr::null_mut(),
@@ -557,7 +557,7 @@ pub unsafe extern "C" fn ui_set_ext_option(ui: *mut RemoteUI, ext: UIExtension, 
         }
         let name = *(&raw const ui_ext_names).cast::<*const c_char>().add(idx);
         if *name != b'_' as c_char || active {
-            remote_ui_option_set(ui, cstr_as_string(name), bool_obj(active));
+            remote_ui_option_set(ui, cstr_as_string(name), boolean_obj(active));
         }
         if idx == kUITermColors {
             ui_default_colors_set();
@@ -858,10 +858,10 @@ pub unsafe extern "C" fn ui_array(arena: *mut Arena) -> Array {
                 info.size += 1;
             };
 
-            put_info(c"width".as_ptr(), int_obj(Integer::from((*ui).width)));
-            put_info(c"height".as_ptr(), int_obj(Integer::from((*ui).height)));
-            put_info(c"rgb".as_ptr(), bool_obj((*ui).rgb));
-            put_info(c"override".as_ptr(), bool_obj((*ui).r#override));
+            put_info(c"width".as_ptr(), integer_obj(Integer::from((*ui).width)));
+            put_info(c"height".as_ptr(), integer_obj(Integer::from((*ui).height)));
+            put_info(c"rgb".as_ptr(), boolean_obj((*ui).rgb));
+            put_info(c"override".as_ptr(), boolean_obj((*ui).r#override));
             put_info(
                 c"term_name".as_ptr(),
                 Object {
@@ -885,18 +885,18 @@ pub unsafe extern "C" fn ui_array(arena: *mut Arena) -> Array {
             );
             put_info(
                 c"term_colors".as_ptr(),
-                int_obj(Integer::from((*ui).term_colors)),
+                integer_obj(Integer::from((*ui).term_colors)),
             );
-            put_info(c"stdin_tty".as_ptr(), bool_obj((*ui).stdin_tty));
-            put_info(c"stdout_tty".as_ptr(), bool_obj((*ui).stdout_tty));
+            put_info(c"stdin_tty".as_ptr(), boolean_obj((*ui).stdin_tty));
+            put_info(c"stdout_tty".as_ptr(), boolean_obj((*ui).stdout_tty));
 
             for j in 0..kUIExtCount {
                 let ename = *ext_names_ptr.add(j);
                 if *ename != b'_' as c_char || (*ui).ui_ext[j] {
-                    put_info(ename, bool_obj((*ui).ui_ext[j]));
+                    put_info(ename, boolean_obj((*ui).ui_ext[j]));
                 }
             }
-            put_info(c"chan".as_ptr(), int_obj((*ui).channel_id as Integer));
+            put_info(c"chan".as_ptr(), integer_obj((*ui).channel_id as Integer));
 
             *all_uis.items.add(all_uis.size) = Object {
                 obj_type: ObjectType::kObjectTypeDict,
@@ -1298,7 +1298,7 @@ pub unsafe extern "C" fn ui_call_update_fg(fg: Integer) {
             return;
         }
         ENTERED = true;
-        let mut items = [int_obj(fg)];
+        let mut items = [integer_obj(fg)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 1,
@@ -1317,7 +1317,7 @@ pub unsafe extern "C" fn ui_call_update_bg(bg: Integer) {
             return;
         }
         ENTERED = true;
-        let mut items = [int_obj(bg)];
+        let mut items = [integer_obj(bg)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 1,
@@ -1336,7 +1336,7 @@ pub unsafe extern "C" fn ui_call_update_sp(sp: Integer) {
             return;
         }
         ENTERED = true;
-        let mut items = [int_obj(sp)];
+        let mut items = [integer_obj(sp)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 1,
@@ -1355,7 +1355,7 @@ pub unsafe extern "C" fn ui_call_resize(width: Integer, height: Integer) {
             return;
         }
         ENTERED = true;
-        let mut items = [int_obj(width), int_obj(height)];
+        let mut items = [integer_obj(width), integer_obj(height)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 2,
@@ -1400,7 +1400,7 @@ pub unsafe extern "C" fn ui_call_cursor_goto(row: Integer, col: Integer) {
             return;
         }
         ENTERED = true;
-        let mut items = [int_obj(row), int_obj(col)];
+        let mut items = [integer_obj(row), integer_obj(col)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 2,
@@ -1419,7 +1419,7 @@ pub unsafe extern "C" fn ui_call_put(str_in: NvimString) {
             return;
         }
         ENTERED = true;
-        let mut items = [str_obj(str_in)];
+        let mut items = [string_obj(str_in)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 1,
@@ -1443,7 +1443,7 @@ pub unsafe extern "C" fn ui_call_set_scroll_region(
             return;
         }
         ENTERED = true;
-        let mut items = [int_obj(top), int_obj(bot), int_obj(left), int_obj(right)];
+        let mut items = [integer_obj(top), integer_obj(bot), integer_obj(left), integer_obj(right)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 4,
@@ -1462,7 +1462,7 @@ pub unsafe extern "C" fn ui_call_scroll(count: Integer) {
             return;
         }
         ENTERED = true;
-        let mut items = [int_obj(count)];
+        let mut items = [integer_obj(count)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 1,
@@ -1567,11 +1567,11 @@ pub unsafe extern "C" fn ui_call_grid_line(
         }
         ENTERED = true;
         let mut items = [
-            int_obj(grid),
-            int_obj(row),
-            int_obj(col_start),
-            arr_obj(data),
-            bool_obj(wrap),
+            integer_obj(grid),
+            integer_obj(row),
+            integer_obj(col_start),
+            array_obj(data),
+            boolean_obj(wrap),
         ];
         let args = Array {
             items: items.as_mut_ptr(),
@@ -1624,7 +1624,7 @@ pub unsafe extern "C" fn ui_call_grid_destroy(grid: Integer) {
             return;
         }
         ENTERED = true;
-        let mut items = [int_obj(grid)];
+        let mut items = [integer_obj(grid)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 1,
@@ -1694,12 +1694,12 @@ pub unsafe extern "C" fn ui_call_win_pos(
         }
         ENTERED = true;
         let mut items = [
-            int_obj(grid),
-            win_obj(win),
-            int_obj(startrow),
-            int_obj(startcol),
-            int_obj(width),
-            int_obj(height),
+            integer_obj(grid),
+            window_obj(win),
+            integer_obj(startrow),
+            integer_obj(startcol),
+            integer_obj(width),
+            integer_obj(height),
         ];
         let args = Array {
             items: items.as_mut_ptr(),
@@ -1732,17 +1732,17 @@ pub unsafe extern "C" fn ui_call_win_float_pos(
         }
         ENTERED = true;
         let mut items = [
-            int_obj(grid),
-            win_obj(win),
-            str_obj(anchor),
-            int_obj(anchor_grid),
+            integer_obj(grid),
+            window_obj(win),
+            string_obj(anchor),
+            integer_obj(anchor_grid),
             float_obj(anchor_row),
             float_obj(anchor_col),
-            bool_obj(mouse_enabled),
-            int_obj(zindex),
-            int_obj(compindex),
-            int_obj(screen_row),
-            int_obj(screen_col),
+            boolean_obj(mouse_enabled),
+            integer_obj(zindex),
+            integer_obj(compindex),
+            integer_obj(screen_row),
+            integer_obj(screen_col),
         ];
         let args = Array {
             items: items.as_mut_ptr(),
@@ -1762,7 +1762,7 @@ pub unsafe extern "C" fn ui_call_win_external_pos(grid: Integer, win: handle_T) 
             return;
         }
         ENTERED = true;
-        let mut items = [int_obj(grid), win_obj(win)];
+        let mut items = [integer_obj(grid), window_obj(win)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 2,
@@ -1781,7 +1781,7 @@ pub unsafe extern "C" fn ui_call_win_hide(grid: Integer) {
             return;
         }
         ENTERED = true;
-        let mut items = [int_obj(grid)];
+        let mut items = [integer_obj(grid)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 1,
@@ -1800,7 +1800,7 @@ pub unsafe extern "C" fn ui_call_win_close(grid: Integer) {
             return;
         }
         ENTERED = true;
-        let mut items = [int_obj(grid)];
+        let mut items = [integer_obj(grid)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 1,
@@ -1898,12 +1898,12 @@ pub unsafe extern "C" fn ui_call_win_extmark(
         }
         ENTERED = true;
         let mut items = [
-            int_obj(grid),
-            win_obj(win),
-            int_obj(ns_id),
-            int_obj(mark_id),
-            int_obj(row),
-            int_obj(col),
+            integer_obj(grid),
+            window_obj(win),
+            integer_obj(ns_id),
+            integer_obj(mark_id),
+            integer_obj(row),
+            integer_obj(col),
         ];
         let args = Array {
             items: items.as_mut_ptr(),
@@ -1930,11 +1930,11 @@ pub unsafe extern "C" fn ui_call_popupmenu_show(
         }
         ENTERED = true;
         let mut items = [
-            arr_obj(items_arr),
-            int_obj(selected),
-            int_obj(row),
-            int_obj(col),
-            int_obj(grid),
+            array_obj(items_arr),
+            integer_obj(selected),
+            integer_obj(row),
+            integer_obj(col),
+            integer_obj(grid),
         ];
         let args = Array {
             items: items.as_mut_ptr(),
@@ -1967,7 +1967,7 @@ pub unsafe extern "C" fn ui_call_popupmenu_select(selected: Integer) {
             return;
         }
         ENTERED = true;
-        let mut items = [int_obj(selected)];
+        let mut items = [integer_obj(selected)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 1,
@@ -1993,9 +1993,9 @@ pub unsafe extern "C" fn ui_call_tabline_update(
         ENTERED = true;
         let mut items = [
             tab_obj(current),
-            arr_obj(tabs),
+            array_obj(tabs),
             buf_obj(current_buffer),
-            arr_obj(buffers),
+            array_obj(buffers),
         ];
         let args = Array {
             items: items.as_mut_ptr(),
@@ -2024,13 +2024,13 @@ pub unsafe extern "C" fn ui_call_cmdline_show(
         }
         ENTERED = true;
         let mut items = [
-            arr_obj(content),
-            int_obj(pos),
-            str_obj(firstc),
-            str_obj(prompt),
-            int_obj(indent),
-            int_obj(level),
-            int_obj(hl_id),
+            array_obj(content),
+            integer_obj(pos),
+            string_obj(firstc),
+            string_obj(prompt),
+            integer_obj(indent),
+            integer_obj(level),
+            integer_obj(hl_id),
         ];
         let args = Array {
             items: items.as_mut_ptr(),
@@ -2050,7 +2050,7 @@ pub unsafe extern "C" fn ui_call_cmdline_pos(pos: Integer, level: Integer) {
             return;
         }
         ENTERED = true;
-        let mut items = [int_obj(pos), int_obj(level)];
+        let mut items = [integer_obj(pos), integer_obj(level)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 2,
@@ -2069,7 +2069,7 @@ pub unsafe extern "C" fn ui_call_cmdline_special_char(c: NvimString, shift: bool
             return;
         }
         ENTERED = true;
-        let mut items = [str_obj(c), bool_obj(shift), int_obj(level)];
+        let mut items = [string_obj(c), boolean_obj(shift), integer_obj(level)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 3,
@@ -2088,7 +2088,7 @@ pub unsafe extern "C" fn ui_call_cmdline_hide(level: Integer, abort: bool) {
             return;
         }
         ENTERED = true;
-        let mut items = [int_obj(level), bool_obj(abort)];
+        let mut items = [integer_obj(level), boolean_obj(abort)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 2,
@@ -2107,7 +2107,7 @@ pub unsafe extern "C" fn ui_call_cmdline_block_show(lines: Array) {
             return;
         }
         ENTERED = true;
-        let mut items = [arr_obj(lines)];
+        let mut items = [array_obj(lines)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 1,
@@ -2126,7 +2126,7 @@ pub unsafe extern "C" fn ui_call_cmdline_block_append(lines: Array) {
             return;
         }
         ENTERED = true;
-        let mut items = [arr_obj(lines)];
+        let mut items = [array_obj(lines)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 1,
@@ -2158,7 +2158,7 @@ pub unsafe extern "C" fn ui_call_wildmenu_show(items_arr: Array) {
             return;
         }
         ENTERED = true;
-        let mut items = [arr_obj(items_arr)];
+        let mut items = [array_obj(items_arr)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 1,
@@ -2177,7 +2177,7 @@ pub unsafe extern "C" fn ui_call_wildmenu_select(selected: Integer) {
             return;
         }
         ENTERED = true;
-        let mut items = [int_obj(selected)];
+        let mut items = [integer_obj(selected)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 1,
@@ -2218,13 +2218,13 @@ pub unsafe extern "C" fn ui_call_msg_show(
         }
         ENTERED = true;
         let mut items = [
-            str_obj(kind),
-            arr_obj(content),
-            bool_obj(replace_last),
-            bool_obj(history),
-            bool_obj(append),
+            string_obj(kind),
+            array_obj(content),
+            boolean_obj(replace_last),
+            boolean_obj(history),
+            boolean_obj(append),
             id,
-            str_obj(trigger),
+            string_obj(trigger),
         ];
         let args = Array {
             items: items.as_mut_ptr(),
@@ -2257,7 +2257,7 @@ pub unsafe extern "C" fn ui_call_msg_showcmd(content: Array) {
             return;
         }
         ENTERED = true;
-        let mut items = [arr_obj(content)];
+        let mut items = [array_obj(content)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 1,
@@ -2276,7 +2276,7 @@ pub unsafe extern "C" fn ui_call_msg_showmode(content: Array) {
             return;
         }
         ENTERED = true;
-        let mut items = [arr_obj(content)];
+        let mut items = [array_obj(content)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 1,
@@ -2295,7 +2295,7 @@ pub unsafe extern "C" fn ui_call_msg_ruler(content: Array) {
             return;
         }
         ENTERED = true;
-        let mut items = [arr_obj(content)];
+        let mut items = [array_obj(content)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 1,
@@ -2314,7 +2314,7 @@ pub unsafe extern "C" fn ui_call_msg_history_show(entries: Array, prev_cmd: bool
             return;
         }
         ENTERED = true;
-        let mut items = [arr_obj(entries), bool_obj(prev_cmd)];
+        let mut items = [array_obj(entries), boolean_obj(prev_cmd)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 2,

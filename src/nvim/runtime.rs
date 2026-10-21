@@ -2,7 +2,7 @@
 
 use crate::api::private::helpers::{
     SID_API_CLIENT, SID_LUA, add_c, api_clear_error, arena_array, arena_dict, arena_string,
-    boolean_obj, cstr_as_obj, cstr_as_string, cstr_literal, cstr_to_string, dict_obj, integer_obj,
+    boolean_obj, cstr_as_obj, cstr_as_string, static_cstr_as_string, cstr_to_string, dict_obj, integer_obj,
     put_c, string_obj,
 };
 use crate::api::private::validate::{Array, Error, ErrorType, NvimString, ObjectType};
@@ -449,12 +449,12 @@ pub unsafe extern "C" fn estack_sfile(which: estack_arg_T) -> *mut c_char {
         for idx in 0..exestack.ga_len {
             entry = (exestack.ga_data as *const estack_T).add(idx as usize);
             if !(*entry).es_name.is_null() {
-                let mut type_name = cstr_literal(c"");
+                let mut type_name = static_cstr_as_string(c"");
                 let es_name = cstr_as_string((*entry).es_name);
                 if (*entry).es_type != last_type {
                     match (*entry).es_type {
-                        ETYPE_SCRIPT => type_name = cstr_literal(c"script "),
-                        ETYPE_UFUNC => type_name = cstr_literal(c"function "),
+                        ETYPE_SCRIPT => type_name = static_cstr_as_string(c"script "),
+                        ETYPE_UFUNC => type_name = static_cstr_as_string(c"function "),
                         _ => {}
                     }
                     last_type = (*entry).es_type;
@@ -1621,7 +1621,7 @@ unsafe fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
                     data: fname,
                     size: fname_len,
                 },
-                cstr_literal(c"after"),
+                static_cstr_as_string(c"after"),
                 true,
             );
             if if is_pack {
@@ -3209,7 +3209,7 @@ unsafe fn do_source_ext(
                     msg: ptr::null_mut(),
                 };
                 let result = nlua_exec(
-                    cstr_literal(c"return require('vim._core.util').source_is_lua(...)"),
+                    static_cstr_as_string(c"return require('vim._core.util').source_is_lua(...)"),
                     ptr::null(),
                     args,
                     kRetNilBool,

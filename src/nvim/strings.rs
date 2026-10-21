@@ -135,7 +135,6 @@ pub unsafe fn c_strcpy(dst: *mut c_char, src: *const c_char) {
         ptr::copy_nonoverlapping(src, dst, len);
     }
 }
-pub use c_strcpy as strcpy_raw;
 
 #[inline]
 pub unsafe fn strmove(dst: *mut c_char, src: *const c_char) {
@@ -143,17 +142,6 @@ pub unsafe fn strmove(dst: *mut c_char, src: *const c_char) {
         let len = CStr::from_ptr(src).to_bytes_with_nul().len();
         ptr::copy(src, dst, len);
     }
-}
-pub use strmove as strmove_c;
-
-#[inline]
-pub unsafe fn stricmp_c(s1: *const c_char, s2: *const c_char) -> c_int {
-    unsafe { vim_stricmp(s1, s2) }
-}
-
-#[inline]
-pub unsafe fn strnicmp_c(s1: *const c_char, s2: *const c_char, n: usize) -> c_int {
-    unsafe { vim_strnicmp(s1, s2, n) }
 }
 
 #[inline]

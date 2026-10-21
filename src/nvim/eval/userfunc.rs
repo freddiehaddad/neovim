@@ -85,7 +85,7 @@ use crate::runtime::{
 };
 use crate::search::{restore_search_patterns, save_search_patterns};
 use crate::strings::{
-    concat_str, gettext, memchr, strchr, strcmp, strcpy_raw, strlen, strncmp, strstr, vim_snprintf,
+    concat_str, gettext, memchr, strchr, strcmp, c_strcpy, strlen, strncmp, strstr, vim_snprintf,
     vim_strchr, xstrnsave,
 };
 use crate::ui::ui_has;
@@ -647,7 +647,7 @@ pub unsafe extern "C" fn get_lambda_tv(
             let p = xmalloc(len).cast::<c_char>();
             *(newlines.ga_data.cast::<*mut c_char>()).add(newlines.ga_len as usize) = p;
             newlines.ga_len += 1;
-            strcpy_raw(p, c"return ".as_ptr());
+            c_strcpy(p, c"return ".as_ptr());
             xmemcpyz(p.add(7).cast(), start.cast(), expr_len);
             if strstr(p.add(7), c"a:".as_ptr()).is_null() {
                 flags |= FC_NOARGS;
@@ -911,7 +911,7 @@ unsafe fn fname_trans_sid(
         }
         let fnamelen = fname_buflen + strlen(script_name);
         if fnamelen < FLEN_FIXED {
-            strcpy_raw(fname_buf.add(fname_buflen), script_name);
+            c_strcpy(fname_buf.add(fname_buflen), script_name);
             fname_buf
         } else {
             let fname = xmalloc(fnamelen + 1).cast::<c_char>();
@@ -1018,7 +1018,7 @@ unsafe fn cat_func_name(buf: *mut c_char, bufsize: usize, fp: *const ufunc_T) ->
 unsafe fn add_nr_var(dp: *mut dict_T, v: *mut dictitem_T, name: *const c_char, nr: varnumber_T) {
     unsafe {
         let key_ptr = (&raw mut (*v).di_key).cast::<c_char>();
-        strcpy_raw(key_ptr, name);
+        c_strcpy(key_ptr, name);
         (*v).di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
         hash_add(&raw mut (*dp).dv_hashtab, key_ptr);
         (*v).di_tv.v_type = VarType::VAR_NUMBER;
@@ -1315,7 +1315,7 @@ pub unsafe extern "C" fn call_user_func(
             let v = fixvar_ptr.add(fixvar_idx).cast::<dictitem_T>();
             fixvar_idx += 1;
             name = (&raw mut (*v).di_key).cast::<c_char>();
-            strcpy_raw(name, c"self".as_ptr());
+            c_strcpy(name, c"self".as_ptr());
             (*v).di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
             hash_add(&raw mut (*fc).fc_l_vars.dv_hashtab, name);
             (*v).di_tv.v_type = VarType::VAR_DICT;
@@ -1348,7 +1348,7 @@ pub unsafe extern "C" fn call_user_func(
             let v = fixvar_ptr.add(fixvar_idx).cast::<dictitem_T>();
             fixvar_idx += 1;
             name = (&raw mut (*v).di_key).cast::<c_char>();
-            strcpy_raw(name, c"000".as_ptr());
+            c_strcpy(name, c"000".as_ptr());
             (*v).di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
             hash_add(&raw mut (*fc).fc_l_avars.dv_hashtab, name);
             (*v).di_tv.v_type = VarType::VAR_LIST;
@@ -1424,7 +1424,7 @@ pub unsafe extern "C" fn call_user_func(
                 let item = fixvar_ptr.add(fixvar_idx).cast::<dictitem_T>();
                 fixvar_idx += 1;
                 (*item).di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
-                strcpy_raw((&raw mut (*item).di_key).cast::<c_char>(), name);
+                c_strcpy((&raw mut (*item).di_key).cast::<c_char>(), name);
                 item
             } else {
                 let item = tv_dict_item_alloc_len(name, namelen);
@@ -4172,7 +4172,7 @@ pub unsafe extern "C" fn get_return_cmd(rettv: *mut c_void) -> *mut c_char {
         xstrlcpy(iobuff_ptr.add(8), s, IOSIZE - 8);
         let mut iobuff_len = 8 + slen;
         if iobuff_len >= IOSIZE {
-            strcpy_raw(iobuff_ptr.add(IOSIZE - 4), c"...".as_ptr());
+            c_strcpy(iobuff_ptr.add(IOSIZE - 4), c"...".as_ptr());
             iobuff_len = IOSIZE - 1;
         }
         xfree(tofree.cast());

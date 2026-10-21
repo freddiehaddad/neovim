@@ -136,7 +136,7 @@ use crate::state::{MODE_CMDLINE, MODE_INSERT, MODE_LANGMAP};
 use crate::strings::{
     atoi, atol, concat_str, gettext, isalpha, ngettext, qsort, strcat, strchr, strcmp, strcoll,
     strcpy, strlen, strncmp, strtod, vim_snprintf, vim_snprintf_add, vim_snprintf_safelen,
-    vim_strchr, vim_stricmp as stricmp_c, vim_strsave_escaped, xstrnsave,
+    vim_strchr, vim_stricmp, vim_strsave_escaped, xstrnsave,
 };
 use crate::terminal::{Terminal, terminal_check_size, terminal_running};
 use crate::ui::{ui_cursor_goto, ui_cursor_shape, ui_has};
@@ -595,7 +595,7 @@ unsafe extern "C" fn string_compare(s1: *const c_void, s2: *const c_void) -> c_i
             return strcoll(s1.cast::<c_char>(), s2.cast::<c_char>());
         }
         if sort_ic {
-            stricmp_c(s1.cast::<c_char>(), s2.cast::<c_char>())
+            vim_stricmp(s1.cast::<c_char>(), s2.cast::<c_char>())
         } else {
             strcmp(s1.cast::<c_char>(), s2.cast::<c_char>())
         }

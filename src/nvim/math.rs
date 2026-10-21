@@ -6,52 +6,54 @@ use std::ffi::{c_int, c_uint};
 pub const OK: c_int = 1;
 pub const FAIL: c_int = 0;
 
-#[cfg(target_os = "windows")]
-mod fp_consts {
-    use std::ffi::c_int;
-    pub const FP_INFINITE: c_int = 1;
-    pub const FP_NAN: c_int = 2;
-    pub const FP_NORMAL: c_int = -1;
-    pub const FP_SUBNORMAL: c_int = -2;
-    pub const FP_ZERO: c_int = 0;
-}
-
-#[cfg(target_os = "macos")]
-mod fp_consts {
-    pub const FP_NAN: c_int = 1;
-    pub const FP_INFINITE: c_int = 2;
-    pub const FP_ZERO: c_int = 3;
-    pub const FP_NORMAL: c_int = 4;
-    pub const FP_SUBNORMAL: c_int = 5;
-}
-
-#[cfg(any(target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))]
-mod fp_consts {
-    use std::ffi::c_int;
-    pub const FP_INFINITE: c_int = 0x01;
-    pub const FP_NAN: c_int = 0x02;
-    pub const FP_NORMAL: c_int = 0x04;
-    pub const FP_SUBNORMAL: c_int = 0x08;
-    pub const FP_ZERO: c_int = 0x10;
-}
-
-#[cfg(not(any(
+pub const FP_NAN: c_int = if cfg!(any(
     target_os = "windows",
-    target_os = "macos",
     target_os = "freebsd",
     target_os = "openbsd",
     target_os = "netbsd"
-)))]
-mod fp_consts {
-    use std::ffi::c_int;
-    pub const FP_NAN: c_int = 0;
-    pub const FP_INFINITE: c_int = 1;
-    pub const FP_ZERO: c_int = 2;
-    pub const FP_SUBNORMAL: c_int = 3;
-    pub const FP_NORMAL: c_int = 4;
-}
+)) {
+    2
+} else if cfg!(target_os = "macos") {
+    1
+} else {
+    0
+};
 
-pub use fp_consts::{FP_INFINITE, FP_NAN, FP_NORMAL, FP_SUBNORMAL, FP_ZERO};
+pub const FP_INFINITE: c_int = if cfg!(target_os = "macos") { 2 } else { 1 };
+
+pub const FP_ZERO: c_int = if cfg!(target_os = "windows") {
+    0
+} else if cfg!(target_os = "macos") {
+    3
+} else if cfg!(any(
+    target_os = "freebsd",
+    target_os = "openbsd",
+    target_os = "netbsd"
+)) {
+    0x10
+} else {
+    2
+};
+
+pub const FP_SUBNORMAL: c_int = if cfg!(target_os = "windows") {
+    -2
+} else if cfg!(target_os = "macos") {
+    5
+} else if cfg!(any(
+    target_os = "freebsd",
+    target_os = "openbsd",
+    target_os = "netbsd"
+)) {
+    0x08
+} else {
+    3
+};
+
+pub const FP_NORMAL: c_int = if cfg!(target_os = "windows") {
+    -1
+} else {
+    4
+};
 
 /// Classify a `f64` into platform `<math.h>` `FP_*` categories (`xfpclassify`).
 #[unsafe(no_mangle)]

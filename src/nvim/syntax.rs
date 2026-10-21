@@ -54,8 +54,8 @@ use crate::regexp::{
 };
 use crate::runtime::{DIP_ALL, DOSO_NONE, do_source, source_runtime};
 use crate::strings::{
-    gettext, memcpy, memmove, memset, qsort, strcat, strchr, strcmp, strcpy, stricmp_c, strlen,
-    strncmp, strnicmp_c, strpbrk, vim_snprintf, vim_strchr, vim_strnsave_up, vim_strsave_up,
+    gettext, memcpy, memmove, memset, qsort, strcat, strchr, strcmp, strcpy, vim_stricmp, strlen,
+    strncmp, vim_strnicmp, strpbrk, vim_snprintf, vim_strchr, vim_strnsave_up, vim_strsave_up,
     xstrnsave,
 };
 use crate::window::win_T;
@@ -2774,9 +2774,9 @@ unsafe fn syn_cmd_conceal(eap: *mut exarg_T, _syncing: c_int) {
             } else {
                 msg(c"syntax conceal off".as_ptr(), 0);
             }
-        } else if strnicmp_c(arg, c"on".as_ptr(), 2) == 0 && next.offset_from(arg) == 2 {
+        } else if vim_strnicmp(arg, c"on".as_ptr(), 2) == 0 && next.offset_from(arg) == 2 {
             (*win_s(curwin)).b_syn_conceal = 1;
-        } else if strnicmp_c(arg, c"off".as_ptr(), 3) == 0 && next.offset_from(arg) == 3 {
+        } else if vim_strnicmp(arg, c"off".as_ptr(), 3) == 0 && next.offset_from(arg) == 3 {
             (*win_s(curwin)).b_syn_conceal = 0;
         } else {
             semsg!(gettext(e_illegal_arg), arg);
@@ -2799,9 +2799,9 @@ unsafe fn syn_cmd_case(eap: *mut exarg_T, _syncing: c_int) {
             } else {
                 msg(c"syntax case match".as_ptr(), 0);
             }
-        } else if strnicmp_c(arg, c"match".as_ptr(), 5) == 0 && next.offset_from(arg) == 5 {
+        } else if vim_strnicmp(arg, c"match".as_ptr(), 5) == 0 && next.offset_from(arg) == 5 {
             (*win_s(curwin)).b_syn_ic = 0;
-        } else if strnicmp_c(arg, c"ignore".as_ptr(), 6) == 0 && next.offset_from(arg) == 6 {
+        } else if vim_strnicmp(arg, c"ignore".as_ptr(), 6) == 0 && next.offset_from(arg) == 6 {
             (*win_s(curwin)).b_syn_ic = 1;
         } else {
             semsg!(gettext(e_illegal_arg), arg);
@@ -2831,9 +2831,9 @@ unsafe fn syn_cmd_foldlevel(eap: *mut exarg_T, _syncing: c_int) {
         }
 
         let arg_end = skiptowhite(arg);
-        if strnicmp_c(arg, c"start".as_ptr(), 5) == 0 && arg_end.offset_from(arg) == 5 {
+        if vim_strnicmp(arg, c"start".as_ptr(), 5) == 0 && arg_end.offset_from(arg) == 5 {
             (*win_s(curwin)).b_syn_foldlevel = SYNFLD_START;
-        } else if strnicmp_c(arg, c"minimum".as_ptr(), 7) == 0 && arg_end.offset_from(arg) == 7 {
+        } else if vim_strnicmp(arg, c"minimum".as_ptr(), 7) == 0 && arg_end.offset_from(arg) == 7 {
             (*win_s(curwin)).b_syn_foldlevel = SYNFLD_MINIMUM;
         } else {
             semsg!(gettext(e_illegal_arg), arg);
@@ -2864,11 +2864,11 @@ unsafe fn syn_cmd_spell(eap: *mut exarg_T, _syncing: c_int) {
             } else {
                 msg(c"syntax spell default".as_ptr(), 0);
             }
-        } else if strnicmp_c(arg, c"toplevel".as_ptr(), 8) == 0 && next.offset_from(arg) == 8 {
+        } else if vim_strnicmp(arg, c"toplevel".as_ptr(), 8) == 0 && next.offset_from(arg) == 8 {
             (*win_s(curwin)).b_syn_spell = SYNSPL_TOP;
-        } else if strnicmp_c(arg, c"notoplevel".as_ptr(), 10) == 0 && next.offset_from(arg) == 10 {
+        } else if vim_strnicmp(arg, c"notoplevel".as_ptr(), 10) == 0 && next.offset_from(arg) == 10 {
             (*win_s(curwin)).b_syn_spell = SYNSPL_NOTOP;
-        } else if strnicmp_c(arg, c"default".as_ptr(), 7) == 0 && next.offset_from(arg) == 7 {
+        } else if vim_strnicmp(arg, c"default".as_ptr(), 7) == 0 && next.offset_from(arg) == 7 {
             (*win_s(curwin)).b_syn_spell = SYNSPL_DEFAULT;
         } else {
             semsg!(gettext(e_illegal_arg), arg);
@@ -2895,7 +2895,7 @@ unsafe fn syn_cmd_iskeyword(eap: *mut exarg_T, _syncing: c_int) {
             } else {
                 msg_outtrans(gettext(c"syntax iskeyword not set".as_ptr()), 0, false);
             }
-        } else if strnicmp_c(arg, c"clear".as_ptr(), 5) == 0 {
+        } else if vim_strnicmp(arg, c"clear".as_ptr(), 5) == 0 {
             memmove(
                 (&raw mut (*win_s(curwin)).b_syn_chartab).cast(),
                 (&raw const (*curbuf).b_chartab).cast(),
@@ -4587,10 +4587,10 @@ unsafe fn syn_add_cluster(name: *mut c_char) -> c_int {
         (*scp).scl_name_u = vim_strsave_up(name);
         (*scp).scl_list = ptr::null_mut();
 
-        if stricmp_c(name, c"Spell".as_ptr()) == 0 {
+        if vim_stricmp(name, c"Spell".as_ptr()) == 0 {
             (*win_s(curwin)).b_spell_cluster_id = len + SYNID_CLUSTER as c_int;
         }
-        if stricmp_c(name, c"NoSpell".as_ptr()) == 0 {
+        if vim_stricmp(name, c"NoSpell".as_ptr()) == 0 {
             (*win_s(curwin)).b_nospell_cluster_id = len + SYNID_CLUSTER as c_int;
         }
 
@@ -4619,15 +4619,15 @@ unsafe fn syn_cmd_cluster(eap: *mut exarg_T, _syncing: c_int) {
             scl_id -= SYNID_CLUSTER as c_int;
 
             loop {
-                let (opt_len, list_op) = if strnicmp_c(rest, c"add".as_ptr(), 3) == 0
+                let (opt_len, list_op) = if vim_strnicmp(rest, c"add".as_ptr(), 3) == 0
                     && (ascii_iswhite(*rest.add(3)) || *rest.add(3) == b'=' as c_char)
                 {
                     (3, CLUSTER_ADD)
-                } else if strnicmp_c(rest, c"remove".as_ptr(), 6) == 0
+                } else if vim_strnicmp(rest, c"remove".as_ptr(), 6) == 0
                     && (ascii_iswhite(*rest.add(6)) || *rest.add(6) == b'=' as c_char)
                 {
                     (6, CLUSTER_SUBTRACT)
-                } else if strnicmp_c(rest, c"contains".as_ptr(), 8) == 0
+                } else if vim_strnicmp(rest, c"contains".as_ptr(), 8) == 0
                     && (ascii_iswhite(*rest.add(8)) || *rest.add(8) == b'=' as c_char)
                 {
                     (8, CLUSTER_REPLACE)
@@ -5464,22 +5464,22 @@ pub unsafe extern "C" fn set_context_in_syntax_cmd(xp: *mut expand_T, arg: *cons
             (*xp).xp_context = EXPAND_NOTHING;
         } else {
             let n = p.offset_from(arg) as usize;
-            if strnicmp_c(arg, c"case".as_ptr(), n) == 0 {
+            if vim_strnicmp(arg, c"case".as_ptr(), n) == 0 {
                 expand_what = EXP_CASE;
-            } else if strnicmp_c(arg, c"spell".as_ptr(), n) == 0 {
+            } else if vim_strnicmp(arg, c"spell".as_ptr(), n) == 0 {
                 expand_what = EXP_SPELL;
-            } else if strnicmp_c(arg, c"sync".as_ptr(), n) == 0 {
+            } else if vim_strnicmp(arg, c"sync".as_ptr(), n) == 0 {
                 expand_what = EXP_SYNC;
-            } else if strnicmp_c(arg, c"list".as_ptr(), n) == 0 {
+            } else if vim_strnicmp(arg, c"list".as_ptr(), n) == 0 {
                 let p2 = skipwhite(p);
                 if *p2 == b'@' as c_char {
                     expand_what = EXP_CLUSTER;
                 } else {
                     (*xp).xp_context = EXPAND_HIGHLIGHT;
                 }
-            } else if strnicmp_c(arg, c"keyword".as_ptr(), n) == 0
-                || strnicmp_c(arg, c"region".as_ptr(), n) == 0
-                || strnicmp_c(arg, c"match".as_ptr(), n) == 0
+            } else if vim_strnicmp(arg, c"keyword".as_ptr(), n) == 0
+                || vim_strnicmp(arg, c"region".as_ptr(), n) == 0
+                || vim_strnicmp(arg, c"match".as_ptr(), n) == 0
             {
                 (*xp).xp_context = EXPAND_HIGHLIGHT;
             } else {

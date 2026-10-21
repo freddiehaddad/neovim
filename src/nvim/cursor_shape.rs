@@ -1,6 +1,6 @@
 //! Handling of cursor and mouse pointer shapes in various modes (`src/nvim/cursor_shape.c`).
 
-use crate::api::private::helpers::{arena_array, arena_dict, cstr_as_nvim_string};
+use crate::api::private::helpers::{arena_array, arena_dict, cstr_as_string};
 use crate::api::private::validate::{
     Array, Dict, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
 };
@@ -175,7 +175,7 @@ pub unsafe extern "C" fn mode_style_array(arena: *mut Arena) -> Array {
                 Object {
                     obj_type: ObjectType::kObjectTypeString,
                     data: ObjectData {
-                        string: cstr_as_nvim_string(cur.full_name),
+                        string: cstr_as_string(cur.full_name),
                     },
                 },
             );
@@ -185,7 +185,7 @@ pub unsafe extern "C" fn mode_style_array(arena: *mut Arena) -> Array {
                 Object {
                     obj_type: ObjectType::kObjectTypeString,
                     data: ObjectData {
-                        string: cstr_as_nvim_string(cur.name),
+                        string: cstr_as_string(cur.name),
                     },
                 },
             );
@@ -213,7 +213,7 @@ pub unsafe extern "C" fn mode_style_array(arena: *mut Arena) -> Array {
                     Object {
                         obj_type: ObjectType::kObjectTypeString,
                         data: ObjectData {
-                            string: cstr_as_nvim_string(shape_cstr.as_ptr()),
+                            string: cstr_as_string(shape_cstr.as_ptr()),
                         },
                     },
                 );

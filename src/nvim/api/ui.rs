@@ -1,8 +1,8 @@
 //! Remote UI API and msgpack redraw packing (`src/nvim/api/ui.c`).
 
 use crate::api::private::helpers::{
-    api_clear_error, api_set_error, api_typename, arena_array, arena_dict, arr_obj, bool_obj,
-    cstr_as_string, dict_obj, error_set, int_obj, str_obj, string_to_cstr, win_obj,
+    api_clear_error, api_set_error, api_typename, arena_array, arena_dict, array_obj, boolean_obj,
+    cstr_as_string, dict_obj, error_set, integer_obj, string_obj, string_to_cstr, window_obj,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType, api_err_exp,
@@ -175,7 +175,7 @@ pub unsafe extern "C" fn remote_ui_disconnect(
             return;
         }
         if send_error_exit {
-            let mut args_items: [Object; 1] = [int_obj(0)];
+            let mut args_items: [Object; 1] = [integer_obj(0)];
             let args = Array {
                 items: args_items.as_mut_ptr(),
                 size: 1,
@@ -441,7 +441,7 @@ pub unsafe extern "C" fn ui_attach(
     unsafe {
         let mut opts_items: [KeyValuePair; 1] = [KeyValuePair {
             key: cstr_as_string(c"rgb".as_ptr()),
-            value: bool_obj(enable_rgb),
+            value: boolean_obj(enable_rgb),
         }];
         let opts = Dict {
             items: opts_items.as_mut_ptr(),
@@ -496,7 +496,7 @@ pub unsafe extern "C" fn remote_ui_connect(
         if ui.is_null() {
             return;
         }
-        let mut args_items: [Object; 1] = [str_obj(cstr_as_string(server_addr))];
+        let mut args_items: [Object; 1] = [string_obj(cstr_as_string(server_addr))];
         let args = Array {
             items: args_items.as_mut_ptr(),
             size: 1,
@@ -520,14 +520,14 @@ pub unsafe extern "C" fn remote_ui_restart(listen_addr: NvimString) {
             let detach_val = !chan.is_null() && (*channel_tail(chan)).detach;
             let mut cfg_items: [KeyValuePair; 1] = [KeyValuePair {
                 key: cstr_as_string(c"detach".as_ptr()),
-                value: bool_obj(detach_val),
+                value: boolean_obj(detach_val),
             }];
             let chan_config = Dict {
                 items: cfg_items.as_mut_ptr(),
                 size: 1,
                 capacity: 1,
             };
-            let mut args_items: [Object; 2] = [str_obj(listen_addr), dict_obj(chan_config)];
+            let mut args_items: [Object; 2] = [string_obj(listen_addr), dict_obj(chan_config)];
             let args = Array {
                 items: args_items.as_mut_ptr(),
                 size: 2,
@@ -963,7 +963,7 @@ unsafe extern "C" fn ui_flush_callback(packer: *mut PackerBuffer) {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn remote_ui_grid_clear(ui: *mut RemoteUI, grid: Integer) {
     unsafe {
-        let mut args_items: [Object; 1] = [int_obj(grid)];
+        let mut args_items: [Object; 1] = [integer_obj(grid)];
         let args = Array {
             items: args_items.as_mut_ptr(),
             size: usize::from((*ui).ui_ext[kUILinegrid]),
@@ -990,14 +990,14 @@ pub unsafe extern "C" fn remote_ui_grid_resize(
         let mut args_items: [Object; 3] = zeroed();
         let mut size = 0;
         if (*ui).ui_ext[kUILinegrid] {
-            args_items[size] = int_obj(grid);
+            args_items[size] = integer_obj(grid);
             size += 1;
         } else {
             (*ui).client_col = -1;
         }
-        args_items[size] = int_obj(width);
+        args_items[size] = integer_obj(width);
         size += 1;
-        args_items[size] = int_obj(height);
+        args_items[size] = integer_obj(height);
         size += 1;
         let args = Array {
             items: args_items.as_mut_ptr(),
@@ -1029,13 +1029,13 @@ pub unsafe extern "C" fn remote_ui_grid_scroll(
     unsafe {
         if (*ui).ui_ext[kUILinegrid] {
             let mut args_items: [Object; 7] = [
-                int_obj(grid),
-                int_obj(top),
-                int_obj(bot),
-                int_obj(left),
-                int_obj(right),
-                int_obj(rows),
-                int_obj(cols),
+                integer_obj(grid),
+                integer_obj(top),
+                integer_obj(bot),
+                integer_obj(left),
+                integer_obj(right),
+                integer_obj(rows),
+                integer_obj(cols),
             ];
             let args = Array {
                 items: args_items.as_mut_ptr(),
@@ -1045,10 +1045,10 @@ pub unsafe extern "C" fn remote_ui_grid_scroll(
             push_call(ui, c"grid_scroll".as_ptr(), args);
         } else {
             let mut args_items: [Object; 4] = [
-                int_obj(top),
-                int_obj(bot - 1),
-                int_obj(left),
-                int_obj(right - 1),
+                integer_obj(top),
+                integer_obj(bot - 1),
+                integer_obj(left),
+                integer_obj(right - 1),
             ];
             push_call(
                 ui,
@@ -1060,7 +1060,7 @@ pub unsafe extern "C" fn remote_ui_grid_scroll(
                 },
             );
 
-            args_items[0] = int_obj(rows);
+            args_items[0] = integer_obj(rows);
             push_call(
                 ui,
                 c"scroll".as_ptr(),
@@ -1071,10 +1071,10 @@ pub unsafe extern "C" fn remote_ui_grid_scroll(
                 },
             );
 
-            args_items[0] = int_obj(0);
-            args_items[1] = int_obj(Integer::from((*ui).height - 1));
-            args_items[2] = int_obj(0);
-            args_items[3] = int_obj(Integer::from((*ui).width - 1));
+            args_items[0] = integer_obj(0);
+            args_items[1] = integer_obj(Integer::from((*ui).height - 1));
+            args_items[2] = integer_obj(0);
+            args_items[3] = integer_obj(Integer::from((*ui).width - 1));
             push_call(
                 ui,
                 c"set_scroll_region".as_ptr(),
@@ -1113,11 +1113,11 @@ pub unsafe extern "C" fn remote_ui_default_colors_set(
             }
         }
         let mut args_items: [Object; 5] = [
-            int_obj(rgb_fg),
-            int_obj(rgb_bg),
-            int_obj(rgb_sp),
-            int_obj(cterm_fg),
-            int_obj(cterm_bg),
+            integer_obj(rgb_fg),
+            integer_obj(rgb_bg),
+            integer_obj(rgb_sp),
+            integer_obj(cterm_fg),
+            integer_obj(cterm_bg),
         ];
         push_call(
             ui,
@@ -1130,7 +1130,7 @@ pub unsafe extern "C" fn remote_ui_default_colors_set(
         );
 
         if !(*ui).ui_ext[kUILinegrid] {
-            args_items[0] = int_obj(if (*ui).rgb { rgb_fg } else { cterm_fg - 1 });
+            args_items[0] = integer_obj(if (*ui).rgb { rgb_fg } else { cterm_fg - 1 });
             push_call(
                 ui,
                 c"update_fg".as_ptr(),
@@ -1141,7 +1141,7 @@ pub unsafe extern "C" fn remote_ui_default_colors_set(
                 },
             );
 
-            args_items[0] = int_obj(if (*ui).rgb { rgb_bg } else { cterm_bg - 1 });
+            args_items[0] = integer_obj(if (*ui).rgb { rgb_bg } else { cterm_bg - 1 });
             push_call(
                 ui,
                 c"update_bg".as_ptr(),
@@ -1152,7 +1152,7 @@ pub unsafe extern "C" fn remote_ui_default_colors_set(
                 },
             );
 
-            args_items[0] = int_obj(if (*ui).rgb { rgb_sp } else { -1 });
+            args_items[0] = integer_obj(if (*ui).rgb { rgb_sp } else { -1 });
             push_call(
                 ui,
                 c"update_sp".as_ptr(),
@@ -1200,16 +1200,16 @@ pub unsafe extern "C" fn remote_ui_hl_attr_define(
             let url = hl_get_url(rgb_attrs.url as u32);
             *rgb.items.add(rgb.size) = KeyValuePair {
                 key: cstr_as_string(c"url".as_ptr()),
-                value: str_obj(cstr_as_string(url)),
+                value: string_obj(cstr_as_string(url)),
             };
             rgb.size += 1;
         }
 
         let mut args_items: [Object; 4] = [
-            int_obj(id),
+            integer_obj(id),
             dict_obj(rgb),
             dict_obj(cterm),
-            arr_obj(if (*ui).ui_ext[kUIHlState] {
+            array_obj(if (*ui).ui_ext[kUIHlState] {
                 info
             } else {
                 ARRAY_INIT
@@ -1266,7 +1266,7 @@ pub unsafe extern "C" fn remote_ui_grid_cursor_goto(
 ) {
     unsafe {
         if (*ui).ui_ext[kUILinegrid] {
-            let mut args_items: [Object; 3] = [int_obj(grid), int_obj(row), int_obj(col)];
+            let mut args_items: [Object; 3] = [integer_obj(grid), integer_obj(row), integer_obj(col)];
             let args = Array {
                 items: args_items.as_mut_ptr(),
                 size: 3,
@@ -1291,7 +1291,7 @@ pub unsafe extern "C" fn remote_ui_cursor_goto(ui: *mut RemoteUI, row: Integer, 
         }
         (*ui).client_row = row;
         (*ui).client_col = col;
-        let mut args_items: [Object; 2] = [int_obj(row), int_obj(col)];
+        let mut args_items: [Object; 2] = [integer_obj(row), integer_obj(col)];
         let args = Array {
             items: args_items.as_mut_ptr(),
             size: 2,
@@ -1306,7 +1306,7 @@ pub unsafe extern "C" fn remote_ui_cursor_goto(ui: *mut RemoteUI, row: Integer, 
 pub unsafe extern "C" fn remote_ui_put(ui: *mut RemoteUI, cell: *const c_char) {
     unsafe {
         (*ui).client_col += 1;
-        let mut args_items: [Object; 1] = [str_obj(cstr_as_string(cell))];
+        let mut args_items: [Object; 1] = [string_obj(cstr_as_string(cell))];
         let args = Array {
             items: args_items.as_mut_ptr(),
             size: 1,
@@ -1495,7 +1495,7 @@ pub unsafe extern "C" fn remote_ui_ui_send(ui: *mut RemoteUI, content: NvimStrin
         if !(*ui).stdout_tty {
             return;
         }
-        let mut args_items: [Object; 1] = [str_obj(content)];
+        let mut args_items: [Object; 1] = [string_obj(content)];
         let args = Array {
             items: args_items.as_mut_ptr(),
             size: 1,
@@ -1535,7 +1535,7 @@ unsafe fn translate_contents(ui: *mut RemoteUI, contents: Array, arena: *mut Are
             }
             *new_item.items.add(1) = *item.items.add(1);
             new_item.size = 2;
-            *new_contents.items.add(i) = arr_obj(new_item);
+            *new_contents.items.add(i) = array_obj(new_item);
         }
         new_contents.size = contents.size;
         new_contents
@@ -1546,7 +1546,7 @@ unsafe fn translate_firstarg(ui: *mut RemoteUI, args: Array, arena: *mut Arena) 
     unsafe {
         let mut new_args = arena_array(arena, args.size);
         let contents = (*args.items).data.array;
-        *new_args.items.add(0) = arr_obj(translate_contents(ui, contents, arena));
+        *new_args.items.add(0) = array_obj(translate_contents(ui, contents, arena));
         for i in 1..args.size {
             *new_args.items.add(i) = *args.items.add(i);
         }
@@ -1574,14 +1574,14 @@ pub unsafe extern "C" fn remote_ui_event(ui: *mut RemoteUI, mut name: *mut c_cha
                 let block = (*args.items).data.array;
                 let mut new_block = arena_array(&raw mut arena, block.size);
                 for i in 0..block.size {
-                    *new_block.items.add(i) = arr_obj(translate_contents(
+                    *new_block.items.add(i) = array_obj(translate_contents(
                         ui,
                         (*block.items.add(i)).data.array,
                         &raw mut arena,
                     ));
                 }
                 new_block.size = block.size;
-                let mut new_args_items: [Object; 1] = [arr_obj(new_block)];
+                let mut new_args_items: [Object; 1] = [array_obj(new_block)];
                 let new_args = Array {
                     items: new_args_items.as_mut_ptr(),
                     size: 1,
@@ -1609,7 +1609,7 @@ pub unsafe extern "C" fn remote_ui_event(ui: *mut RemoteUI, mut name: *mut c_cha
                         *new_items.items.add(i) = *(*items.items.add(i)).data.array.items;
                     }
                     new_items.size = items.size;
-                    let mut new_args_items: [Object; 1] = [arr_obj(new_items)];
+                    let mut new_args_items: [Object; 1] = [array_obj(new_items)];
                     push_call(
                         ui,
                         c"wildmenu_show".as_ptr(),
@@ -1671,7 +1671,7 @@ pub unsafe extern "C" fn remote_ui_mode_info_set(
     cursor_styles: Array,
 ) {
     unsafe {
-        let mut items = [bool_obj(enabled), arr_obj(cursor_styles)];
+        let mut items = [boolean_obj(enabled), array_obj(cursor_styles)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 2,
@@ -1723,7 +1723,7 @@ pub unsafe extern "C" fn remote_ui_mode_change(
     mode_idx: Integer,
 ) {
     unsafe {
-        let mut items = [str_obj(mode), int_obj(mode_idx)];
+        let mut items = [string_obj(mode), integer_obj(mode_idx)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 2,
@@ -1757,7 +1757,7 @@ pub unsafe extern "C" fn remote_ui_suspend(ui: *mut RemoteUI) {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn remote_ui_set_title(ui: *mut RemoteUI, title: NvimString) {
     unsafe {
-        let mut items = [str_obj(title)];
+        let mut items = [string_obj(title)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 1,
@@ -1770,7 +1770,7 @@ pub unsafe extern "C" fn remote_ui_set_title(ui: *mut RemoteUI, title: NvimStrin
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn remote_ui_set_icon(ui: *mut RemoteUI, icon: NvimString) {
     unsafe {
-        let mut items = [str_obj(icon)];
+        let mut items = [string_obj(icon)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 1,
@@ -1783,7 +1783,7 @@ pub unsafe extern "C" fn remote_ui_set_icon(ui: *mut RemoteUI, icon: NvimString)
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn remote_ui_screenshot(ui: *mut RemoteUI, path: NvimString) {
     unsafe {
-        let mut items = [str_obj(path)];
+        let mut items = [string_obj(path)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 1,
@@ -1796,7 +1796,7 @@ pub unsafe extern "C" fn remote_ui_screenshot(ui: *mut RemoteUI, path: NvimStrin
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn remote_ui_option_set(ui: *mut RemoteUI, name: NvimString, value: Object) {
     unsafe {
-        let mut items = [str_obj(name), value];
+        let mut items = [string_obj(name), value];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 2,
@@ -1809,7 +1809,7 @@ pub unsafe extern "C" fn remote_ui_option_set(ui: *mut RemoteUI, name: NvimStrin
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn remote_ui_chdir(ui: *mut RemoteUI, path: NvimString) {
     unsafe {
-        let mut items = [str_obj(path)];
+        let mut items = [string_obj(path)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 1,
@@ -1822,7 +1822,7 @@ pub unsafe extern "C" fn remote_ui_chdir(ui: *mut RemoteUI, path: NvimString) {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn remote_ui_hl_group_set(ui: *mut RemoteUI, name: NvimString, id: Integer) {
     unsafe {
-        let mut items = [str_obj(name), int_obj(id)];
+        let mut items = [string_obj(name), integer_obj(id)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 2,
@@ -1844,12 +1844,12 @@ pub unsafe extern "C" fn remote_ui_msg_set_pos(
 ) {
     unsafe {
         let mut items = [
-            int_obj(grid),
-            int_obj(row),
-            bool_obj(scrolled),
-            str_obj(sep_char),
-            int_obj(zindex),
-            int_obj(compindex),
+            integer_obj(grid),
+            integer_obj(row),
+            boolean_obj(scrolled),
+            string_obj(sep_char),
+            integer_obj(zindex),
+            integer_obj(compindex),
         ];
         let args = Array {
             items: items.as_mut_ptr(),
@@ -1874,14 +1874,14 @@ pub unsafe extern "C" fn remote_ui_win_viewport(
 ) {
     unsafe {
         let mut items = [
-            int_obj(grid),
-            win_obj(win),
-            int_obj(topline),
-            int_obj(botline),
-            int_obj(curline),
-            int_obj(curcol),
-            int_obj(line_count),
-            int_obj(scroll_delta),
+            integer_obj(grid),
+            window_obj(win),
+            integer_obj(topline),
+            integer_obj(botline),
+            integer_obj(curline),
+            integer_obj(curcol),
+            integer_obj(line_count),
+            integer_obj(scroll_delta),
         ];
         let args = Array {
             items: items.as_mut_ptr(),
@@ -1904,12 +1904,12 @@ pub unsafe extern "C" fn remote_ui_win_viewport_margins(
 ) {
     unsafe {
         let mut items = [
-            int_obj(grid),
-            win_obj(win),
-            int_obj(top),
-            int_obj(bottom),
-            int_obj(left),
-            int_obj(right),
+            integer_obj(grid),
+            window_obj(win),
+            integer_obj(top),
+            integer_obj(bottom),
+            integer_obj(left),
+            integer_obj(right),
         ];
         let args = Array {
             items: items.as_mut_ptr(),
@@ -1923,7 +1923,7 @@ pub unsafe extern "C" fn remote_ui_win_viewport_margins(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn remote_ui_error_exit(ui: *mut RemoteUI, status: Integer) {
     unsafe {
-        let mut items = [int_obj(status)];
+        let mut items = [integer_obj(status)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 1,
@@ -1940,7 +1940,7 @@ pub unsafe extern "C" fn remote_ui__set_restart_on_crash_exit(
     argv: Array,
 ) {
     unsafe {
-        let mut items = [str_obj(progpath), arr_obj(argv)];
+        let mut items = [string_obj(progpath), array_obj(argv)];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 2,

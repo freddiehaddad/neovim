@@ -1,7 +1,7 @@
 //! Options API functions (`src/nvim/api/options.c`).
 
 use crate::api::private::helpers::{
-    NIL, add_c, api_free_object, api_set_error, api_typename, arena_array, arena_dict,
+    OBJECT_NIL, add_c, api_free_object, api_set_error, api_typename, arena_array, arena_dict,
     arena_string, array_obj, boolean_obj, copy_object, cstr_as_string, dict_obj, error_set,
     find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, has_key, put_c,
     static_cstr_as_obj, string_obj, try_wrap, with_script_context,
@@ -411,7 +411,7 @@ pub unsafe extern "C" fn nvim_get_option_value(
             err,
         ) == 0
         {
-            return NIL;
+            return OBJECT_NIL;
         }
 
         let mut aco: CtxSwitch = std::mem::zeroed();
@@ -422,7 +422,7 @@ pub unsafe extern "C" fn nvim_get_option_value(
             if !ftbuf.is_null() {
                 wipe_ft_buf(ftbuf);
             }
-            return NIL;
+            return OBJECT_NIL;
         }
 
         if !ftbuf.is_null() {
@@ -439,7 +439,7 @@ pub unsafe extern "C" fn nvim_get_option_value(
 
         if error_set(err) {
             api_free_object(value);
-            return NIL;
+            return OBJECT_NIL;
         }
 
         value
@@ -465,7 +465,7 @@ pub unsafe extern "C" fn nvim__option_to_object(
                 c"Unknown option '%s'".as_ptr(),
                 name.data,
             );
-            return NIL;
+            return OBJECT_NIL;
         }
 
         if value.obj_type != ObjectType::kObjectTypeString {
@@ -611,14 +611,14 @@ pub unsafe extern "C" fn nvim_set_option_value(
             err,
         ) == 0
         {
-            return NIL;
+            return OBJECT_NIL;
         }
 
         if scope == kOptScopeWin && opt_flags == 0 && option_has_scope(opt_idx, kOptScopeGlobal) {
             opt_flags = OPT_LOCAL;
         }
 
-        let mut merged_val = NIL;
+        let mut merged_val = OBJECT_NIL;
         let mut errmsg: *const c_char = ptr::null();
         let option = get_option(opt_idx);
         let is_array = value.obj_type == ObjectType::kObjectTypeArray;
@@ -683,7 +683,7 @@ pub unsafe extern "C" fn nvim_set_option_value(
                     api_typename(value.obj_type),
                 );
                 optval_free(merged_val);
-                return NIL;
+                return OBJECT_NIL;
             }
 
             let mut argp: *mut c_char = ptr::null_mut();
@@ -739,7 +739,7 @@ pub unsafe extern "C" fn nvim_set_option_value(
                 if !errmsg.is_null() {
                     api_set_error!(err, ErrorType::kErrorTypeValidation, c"%s".as_ptr(), errmsg);
                     optval_free(merged_val);
-                    return NIL;
+                    return OBJECT_NIL;
                 }
             }
         }
@@ -754,7 +754,7 @@ pub unsafe extern "C" fn nvim_set_option_value(
                 os_varp: ptr::null_mut(),
                 os_idx: opt_idx,
                 os_flags: opt_flags,
-                os_oldval: NIL,
+                os_oldval: OBJECT_NIL,
                 os_newval: merged_val,
                 os_prep: OptSetPrep {
                     ptr: ptr::null_mut(),
@@ -773,7 +773,7 @@ pub unsafe extern "C" fn nvim_set_option_value(
             if !errmsg.is_null() {
                 api_set_error!(err, ErrorType::kErrorTypeException, c"%s".as_ptr(), errmsg);
                 optval_free(merged_val);
-                return NIL;
+                return OBJECT_NIL;
             }
         } else {
             with_script_context(channel_id, || {

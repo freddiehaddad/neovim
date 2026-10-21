@@ -1,7 +1,7 @@
 //! User defined command support (`src/nvim/usercmd.c`).
 
 use crate::api::private::helpers::{
-    arena_dict, boolean_obj, cstr_as_obj, dict_obj, dict_put_cstr, integer_obj, luaref_obj,
+    arena_dict, boolean_obj, cstr_as_obj, dict_obj, put_c, integer_obj, luaref_obj,
     nil_obj, string_obj,
 };
 use crate::api::private::validate::{Dict, KeyValuePair, NvimString, Object};
@@ -2083,37 +2083,37 @@ pub unsafe extern "C" fn commands_array(buf: *mut buf_T, arena: *mut Arena) -> D
             let mut d = arena_dict(arena, 16);
             let cmd = user_cmd_ga(gap, i);
 
-            dict_put_cstr(&mut d, c"name".as_ptr(), cstr_as_obj((*cmd).uc_name));
-            dict_put_cstr(&mut d, c"definition".as_ptr(), cstr_as_obj((*cmd).uc_rep));
-            dict_put_cstr(&mut d, c"desc".as_ptr(), cstr_as_obj((*cmd).uc_desc));
-            dict_put_cstr(
+            put_c(&mut d, c"name".as_ptr(), cstr_as_obj((*cmd).uc_name));
+            put_c(&mut d, c"definition".as_ptr(), cstr_as_obj((*cmd).uc_rep));
+            put_c(&mut d, c"desc".as_ptr(), cstr_as_obj((*cmd).uc_desc));
+            put_c(
                 &mut d,
                 c"script_id".as_ptr(),
                 integer_obj(i64::from((*cmd).uc_script_ctx.sc_sid)),
             );
-            dict_put_cstr(
+            put_c(
                 &mut d,
                 c"bang".as_ptr(),
                 boolean_obj(((*cmd).uc_argt & EX_BANG) != 0),
             );
-            dict_put_cstr(
+            put_c(
                 &mut d,
                 c"bar".as_ptr(),
                 boolean_obj(((*cmd).uc_argt & EX_TRLBAR) != 0),
             );
-            dict_put_cstr(
+            put_c(
                 &mut d,
                 c"register".as_ptr(),
                 boolean_obj(((*cmd).uc_argt & EX_REGSTR) != 0),
             );
-            dict_put_cstr(
+            put_c(
                 &mut d,
                 c"keepscript".as_ptr(),
                 boolean_obj(((*cmd).uc_argt & EX_KEEPSCRIPT) != 0),
             );
 
             if (*cmd).uc_preview_luaref != LUA_NOREF {
-                dict_put_cstr(
+                put_c(
                     &mut d,
                     c"preview".as_ptr(),
                     luaref_obj(api_new_luaref((*cmd).uc_preview_luaref)),
@@ -2121,7 +2121,7 @@ pub unsafe extern "C" fn commands_array(buf: *mut buf_T, arena: *mut Arena) -> D
             }
 
             if (*cmd).uc_luaref != LUA_NOREF {
-                dict_put_cstr(
+                put_c(
                     &mut d,
                     c"callback".as_ptr(),
                     luaref_obj(api_new_luaref((*cmd).uc_luaref)),
@@ -2142,17 +2142,17 @@ pub unsafe extern "C" fn commands_array(buf: *mut buf_T, arena: *mut Arena) -> D
             } else {
                 std::slice::from_ref(&arg_ch)
             };
-            dict_put_cstr(&mut d, c"nargs".as_ptr(), arena_str_obj(arena, arg_slice));
+            put_c(&mut d, c"nargs".as_ptr(), arena_str_obj(arena, arg_slice));
 
             if (*cmd).uc_compl_luaref != LUA_NOREF {
-                dict_put_cstr(
+                put_c(
                     &mut d,
                     c"complete".as_ptr(),
                     luaref_obj(api_new_luaref((*cmd).uc_compl_luaref)),
                 );
             } else {
                 let cmd_compl = get_command_complete((*cmd).uc_compl);
-                dict_put_cstr(
+                put_c(
                     &mut d,
                     c"complete".as_ptr(),
                     if cmd_compl.is_null() {
@@ -2162,7 +2162,7 @@ pub unsafe extern "C" fn commands_array(buf: *mut buf_T, arena: *mut Arena) -> D
                     },
                 );
             }
-            dict_put_cstr(
+            put_c(
                 &mut d,
                 c"complete_arg".as_ptr(),
                 if (*cmd).uc_compl_arg.is_null() {
@@ -2181,7 +2181,7 @@ pub unsafe extern "C" fn commands_array(buf: *mut buf_T, arena: *mut Arena) -> D
                     obj = cstr_as_obj(c"0".as_ptr());
                 }
             }
-            dict_put_cstr(&mut d, c"count".as_ptr(), obj);
+            put_c(&mut d, c"count".as_ptr(), obj);
 
             obj = nil_obj();
             if ((*cmd).uc_argt & EX_RANGE) != 0 {
@@ -2194,7 +2194,7 @@ pub unsafe extern "C" fn commands_array(buf: *mut buf_T, arena: *mut Arena) -> D
                     obj = cstr_as_obj(c".".as_ptr());
                 }
             }
-            dict_put_cstr(&mut d, c"range".as_ptr(), obj);
+            put_c(&mut d, c"range".as_ptr(), obj);
 
             obj = nil_obj();
             for entry in &ADDR_TYPE_COMPLETE {
@@ -2208,9 +2208,9 @@ pub unsafe extern "C" fn commands_array(buf: *mut buf_T, arena: *mut Arena) -> D
                     break;
                 }
             }
-            dict_put_cstr(&mut d, c"addr".as_ptr(), obj);
+            put_c(&mut d, c"addr".as_ptr(), obj);
 
-            dict_put_cstr(&mut rv, (*cmd).uc_name, dict_obj(d));
+            put_c(&mut rv, (*cmd).uc_name, dict_obj(d));
         }
         let _ = size_of::<KeyValuePair>();
         rv

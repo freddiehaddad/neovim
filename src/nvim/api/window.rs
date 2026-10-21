@@ -1,7 +1,7 @@
 //! Window API functions (`src/nvim/api/window.c`).
 
 use crate::api::private::helpers::{
-    NIL, add_c, api_clear_error, api_set_error, arena_array, arena_dict, dict_get_value,
+    OBJECT_NIL, add_c, api_clear_error, api_set_error, arena_array, arena_dict, dict_get_value,
     dict_set_var, error_set, find_buffer_by_handle, find_window_by_handle, has_key, integer_obj,
     normalize_index, put_c, try_wrap,
 };
@@ -254,7 +254,7 @@ pub unsafe extern "C" fn nvim_win_get_var(
     unsafe {
         let w = find_window_by_handle(win, err);
         if w.is_null() {
-            return NIL;
+            return OBJECT_NIL;
         }
         dict_get_value((*w).w_vars, name, arena, err)
     }
@@ -298,7 +298,7 @@ pub unsafe extern "C" fn nvim_win_del_var(win: Window, name: NvimString, err: *m
         if w.is_null() {
             return;
         }
-        dict_set_var((*w).w_vars, name, NIL, true, false, ptr::null_mut(), err);
+        dict_set_var((*w).w_vars, name, OBJECT_NIL, true, false, ptr::null_mut(), err);
     }
 }
 
@@ -473,7 +473,7 @@ pub unsafe extern "C" fn nvim_win_call(
     unsafe {
         let w = find_window_by_handle(win, err);
         if w.is_null() {
-            return NIL;
+            return OBJECT_NIL;
         }
         let tabpage = win_find_tabpage(w);
 
@@ -498,7 +498,7 @@ pub unsafe extern "C" fn nvim_win_call(
             }
             ctx_restore(&mut cs);
         });
-        NIL
+        OBJECT_NIL
     }
 }
 

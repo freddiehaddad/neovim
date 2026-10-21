@@ -81,7 +81,7 @@ use crate::register::{
     is_append_register, op_yank, op_yank_reg, shift_delete_registers, valid_yank_reg, yankreg_T,
 };
 use crate::state::{MODE_INSERT, MODE_REPLACE, VREPLACE_FLAG, virtual_active};
-use crate::strings::{ngettext, strcpy_raw, tr, vim_snprintf, vim_strchr};
+use crate::strings::{ngettext, c_strcpy, tr, vim_snprintf, vim_strchr};
 use crate::textformat::{auto_format, has_format_option, op_format, op_formatexpr, oparg_T};
 use crate::ui::vim_beep;
 use crate::undo::{u_clearline, u_save, u_save_cursor};
@@ -587,7 +587,7 @@ unsafe fn shift_block(oap: *mut oparg_T, amount: c_int) {
                 b' ',
                 spaces as usize,
             );
-            strcpy_raw(
+            c_strcpy(
                 newp.add((bd.textcol + tabs + spaces) as usize),
                 bd.textstart,
             );
@@ -667,7 +667,7 @@ unsafe fn shift_block(oap: *mut oparg_T, amount: c_int) {
             newlen = fill;
             ptr::copy(oldp, newp, fixedlen as usize);
             ptr::write_bytes(newp.add(fixedlen as usize), b' ', fill as usize);
-            strcpy_raw(newp.add((fixedlen + fill) as usize), non_white);
+            c_strcpy(newp.add((fixedlen + fill) as usize), non_white);
             debug_assert_eq!(newlen - oldlen, new_line_len - old_line_len);
         }
         ml_replace((*curwin).w_cursor.lnum, newp, false);
@@ -785,7 +785,7 @@ unsafe fn block_insert(
             if spaces > 0 {
                 offset += count;
             }
-            strcpy_raw(newp.add(offset as usize), oldp);
+            c_strcpy(newp.add(offset as usize), oldp);
 
             ml_replace(lnum, newp, false);
             extmark_splice_cols(
@@ -945,7 +945,7 @@ pub unsafe extern "C" fn op_delete(oap: *mut oparg_T) -> c_int {
                         b' ',
                         (bd.startspaces + bd.endspaces) as usize,
                     );
-                    strcpy_raw(
+                    c_strcpy(
                         newp.add((bd.textcol + bd.startspaces + bd.endspaces) as usize),
                         oldp.add((bd.textcol + bd.textlen) as usize),
                     );
@@ -1843,7 +1843,7 @@ pub unsafe extern "C" fn op_change(oap: *mut oparg_T) -> c_int {
                         newlen += vpos.coladd;
                         ptr::copy(ins_text, newp.add(newlen as usize), ins_len as usize);
                         newlen += ins_len;
-                        strcpy_raw(newp.add(newlen as usize), oldp.add(bd.textcol as usize));
+                        c_strcpy(newp.add(newlen as usize), oldp.add(bd.textcol as usize));
                         ml_replace(linenr, newp, false);
                         extmark_splice_cols(
                             curbuf,
@@ -3027,7 +3027,7 @@ pub unsafe extern "C" fn do_addsub(
             *ptr_line = NUL;
             let mut buf1len = ptr_line.offset_from(buf1) as c_int;
 
-            strcpy_raw(buf1.add(buf1len as usize), buf2_ptr);
+            c_strcpy(buf1.add(buf1len as usize), buf2_ptr);
             buf1len += buf2len;
 
             ins_str(buf1, buf1len as usize);

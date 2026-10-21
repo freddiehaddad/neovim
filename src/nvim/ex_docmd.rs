@@ -4,7 +4,7 @@ use crate::api::command::is_user_cmdidx;
 #[cfg(windows)]
 use crate::api::private::helpers::api_free_object;
 use crate::api::private::helpers::{
-    HLF_E, api_clear_error, boolean_obj, cstr_as_nvim_string, cstr_as_obj, error_init, error_set,
+    HLF_E, api_clear_error, boolean_obj, cstr_as_string, cstr_as_obj, error_init, error_set,
     integer_obj,
 };
 use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
@@ -227,8 +227,8 @@ use crate::state::{MODE_CMDLINE, MODE_INSERT, MODE_TERMINAL};
 use crate::statusline::draw_tabline;
 use crate::strings::{
     atoi, atol, concat_str, del_trailing_spaces, gettext, ngettext, strcat, strcmp, strlen,
-    strmove_c, strncmp, strpbrk, strrchr, strrep, strstr, vim_snprintf, vim_strchr,
-    vim_stricmp as stricmp_c, vim_strsave_escaped,
+    strmove, strncmp, strpbrk, strrchr, strrep, strstr, vim_snprintf, vim_strchr,
+    vim_stricmp, vim_strsave_escaped,
 };
 use crate::syntax::{ex_ownsyntax, ex_syntax, ex_syntime};
 use crate::tag::{do_tag, do_tags};
@@ -5231,7 +5231,7 @@ pub unsafe extern "C" fn do_cmdline(
                     new_last_cmdline = ptr::null_mut();
                 }
             } else {
-                strmove_c(cmdline_copy, next_cmdline);
+                strmove(cmdline_copy, next_cmdline);
                 next_cmdline = cmdline_copy;
             }
 
@@ -6804,7 +6804,7 @@ unsafe fn do_one_cmd(
                 let mut s = ea.arg;
                 while *s != NUL {
                     if *s == b'\\' as c_char && *s.add(1) == b'\n' as c_char {
-                        strmove_c(s, s.add(1));
+                        strmove(s, s.add(1));
                     } else if *s == b'\n' as c_char {
                         ea.nextcmd = s.add(1);
                         *s = NUL;
@@ -8555,7 +8555,7 @@ pub unsafe extern "C" fn separate_nextcmd(eap: *mut exarg_T) {
                 if ((*eap).argt & (EX_CTRLV | EX_XFILE)) != 0 {
                     p = p.add(1);
                 } else {
-                    strmove_c(p, p.add(1));
+                    strmove(p, p.add(1));
                 }
                 if *p == NUL {
                     break;
@@ -8584,7 +8584,7 @@ pub unsafe extern "C" fn separate_nextcmd(eap: *mut exarg_T) {
                 if (vim_strchr(p_cpo, kCpoBar).is_null() || ((*eap).argt & EX_CTRLV) == 0)
                     && *p.sub(1) == b'\\' as c_char
                 {
-                    strmove_c(p.sub(1), p);
+                    strmove(p.sub(1), p);
                     p = p.sub(1);
                 } else {
                     (*eap).nextcmd = check_nextcmd(p);
@@ -8632,7 +8632,7 @@ pub unsafe extern "C" fn skip_cmd_arg(mut p: *mut c_char, rembs: bool) -> *mut c
         while *p != NUL && !ascii_isspace_c(*p) {
             if *p == b'\\' as c_char && *p.add(1) != NUL {
                 if rembs {
-                    strmove_c(p, p.add(1));
+                    strmove(p, p.add(1));
                 } else {
                     p = p.add(1);
                 }
@@ -8646,9 +8646,9 @@ pub unsafe extern "C" fn skip_cmd_arg(mut p: *mut c_char, rembs: bool) -> *mut c
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_bad_opt(p: *const c_char, eap: *mut exarg_T) -> c_int {
     unsafe {
-        if stricmp_c(p, c"keep".as_ptr()) == 0 {
+        if vim_stricmp(p, c"keep".as_ptr()) == 0 {
             (*eap).bad_char = BAD_KEEP;
-        } else if stricmp_c(p, c"drop".as_ptr()) == 0 {
+        } else if vim_stricmp(p, c"drop".as_ptr()) == 0 {
             (*eap).bad_char = BAD_DROP;
         } else if utfc_ptr2len(p) == 1 && *p.add(1) == NUL {
             (*eap).bad_char = c_int::from(*p as u8);
@@ -9462,7 +9462,7 @@ unsafe extern "C" fn ex_restart(eap: *mut exarg_T) {
             if listen_arg.is_null() {
                 let mut lua_err = error_init();
                 let rv = nlua_exec(
-                    cstr_as_nvim_string(
+                    cstr_as_string(
                         c"return require('vim._core.server').restart_canonical_addr".as_ptr(),
                     ),
                     ptr::null(),
@@ -9570,7 +9570,7 @@ unsafe extern "C" fn ex_restart(eap: *mut exarg_T) {
 
         'fail_2: {
             let mut detach_kv = [KeyValuePair {
-                key: cstr_as_nvim_string(c"detach".as_ptr()),
+                key: cstr_as_string(c"detach".as_ptr()),
                 value: boolean_obj(true),
             }];
             let detach_opts = Dict {
@@ -9606,15 +9606,15 @@ unsafe extern "C" fn ex_restart(eap: *mut exarg_T) {
             if *after_cmd != NUL {
                 let mut autocmd_kv = [
                     KeyValuePair {
-                        key: cstr_as_nvim_string(c"once".as_ptr()),
+                        key: cstr_as_string(c"once".as_ptr()),
                         value: boolean_obj(true),
                     },
                     KeyValuePair {
-                        key: cstr_as_nvim_string(c"nested".as_ptr()),
+                        key: cstr_as_string(c"nested".as_ptr()),
                         value: boolean_obj(true),
                     },
                     KeyValuePair {
-                        key: cstr_as_nvim_string(c"command".as_ptr()),
+                        key: cstr_as_string(c"command".as_ptr()),
                         value: cstr_as_obj(after_cmd),
                     },
                 ];
@@ -9715,7 +9715,7 @@ unsafe extern "C" fn ex_restart(eap: *mut exarg_T) {
                 result_mem = ptr::null_mut();
             }
 
-            remote_ui_restart(cstr_as_nvim_string(listen_addr));
+            remote_ui_restart(cstr_as_string(listen_addr));
             ui_flush();
             xfree(listen_addr.cast());
 
@@ -9726,7 +9726,7 @@ unsafe extern "C" fn ex_restart(eap: *mut exarg_T) {
                 quit_cmd_copy = concat_str(c"confirm ".as_ptr(), quit_cmd);
                 quit_cmd = quit_cmd_copy;
             }
-            nvim_command(cstr_as_nvim_string(quit_cmd), &raw mut err);
+            nvim_command(cstr_as_string(quit_cmd), &raw mut err);
 
             if error_set(&raw const err) {
                 let _ = emsg(err.msg);
@@ -11707,7 +11707,7 @@ unsafe extern "C" fn ex_redir(eap: *mut exarg_T) {
     unsafe {
         let mut arg = (*eap).arg;
 
-        if stricmp_c((*eap).arg, c"END".as_ptr()) == 0 {
+        if vim_stricmp((*eap).arg, c"END".as_ptr()) == 0 {
             close_redir();
         } else if *arg == b'>' as c_char {
             arg = arg.add(1);
@@ -12422,7 +12422,7 @@ pub unsafe extern "C" fn eval_vars(
 
         if (src as usize) > (srcstart as usize) && *src.sub(1) == b'\\' as c_char {
             *usedlen = 0;
-            strmove_c(src.sub(1), src);
+            strmove(src.sub(1), src);
             return ptr::null_mut();
         }
 

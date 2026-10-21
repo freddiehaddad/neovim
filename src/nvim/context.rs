@@ -5,7 +5,7 @@ use crate::api::extmark::nvim_create_namespace;
 use crate::api::private::converter::object_to_vim;
 use crate::api::private::helpers::{
     api_clear_error, api_free_array, api_free_string, api_set_error, arena_dict, array_obj,
-    copy_array, copy_object, cstr_literal, error_set, put_c, string_obj, string_to_array,
+    copy_array, copy_object, static_cstr_as_string, error_set, put_c, string_obj, string_to_array,
 };
 use crate::api::private::validate::{Array, Dict, Error, ErrorType, NvimString, ObjectType};
 use crate::api::vimscript::{KeyDict_exec_opts, exec_impl};
@@ -219,7 +219,7 @@ pub unsafe fn handle_get_window(h: handle_T) -> *mut win_T {
 unsafe fn ctx_marks_ns() -> u32 {
     unsafe {
         if CTX_MARKS_NS_ID == 0 {
-            CTX_MARKS_NS_ID = nvim_create_namespace(cstr_literal(c"nvim.context")) as u32;
+            CTX_MARKS_NS_ID = nvim_create_namespace(static_cstr_as_string(c"nvim.context")) as u32;
         }
         CTX_MARKS_NS_ID
     }

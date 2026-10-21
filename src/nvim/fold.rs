@@ -114,11 +114,7 @@ static mut fdt_result_entered: bool = false;
 static E_NOFOLD: &CStr = c"E490: No fold found";
 
 use crate::drawscreen::redraw_curbuf_later;
-
-#[inline]
-unsafe fn ngettext_wrap(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char {
-    unsafe { crate::strings::ngettext(msgid1, msgid2, n) }
-}
+use crate::strings::ngettext;
 
 /// Copy that folding state from window "wp_from" to window "wp_to".
 #[unsafe(no_mangle)]
@@ -1725,7 +1721,7 @@ pub unsafe extern "C" fn get_foldtext(
             vim_snprintf!(
                 buf,
                 FOLD_TEXT_LEN,
-                ngettext_wrap(
+                ngettext(
                     c"+--%3d line folded".as_ptr(),
                     c"+--%3d lines folded ".as_ptr(),
                     count as c_ulong,
@@ -3024,7 +3020,7 @@ pub unsafe extern "C" fn f_foldtext(
                 }
             }
             let count = foldend - foldstart + 1;
-            let txt = ngettext_wrap(
+            let txt = ngettext(
                 c"+-%s%3d line: ".as_ptr(),
                 c"+-%s%3d lines: ".as_ptr(),
                 count as c_ulong,

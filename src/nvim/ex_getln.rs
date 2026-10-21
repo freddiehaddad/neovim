@@ -141,7 +141,7 @@ use crate::state::{
     save_v_event_T, state_enter, state_handle_k_event,
 };
 use crate::strings::{
-    gettext, strcmp, strcpy, strlen, strncmp, strnicmp_c, strrchr, vim_strchr, vim_strsave_escaped,
+    gettext, strcmp, strcpy, strlen, strncmp, vim_strnicmp, strrchr, vim_strchr, vim_strsave_escaped,
     xstrnsave,
 };
 use crate::ui::{
@@ -4429,7 +4429,7 @@ unsafe fn cmdline_paste(regname: c_int, literally: bool, remcr: bool) -> bool {
                 }
                 let len = ccline.cmdbuff.add(ccline.cmdpos as usize).offset_from(w) as usize;
                 let matches = if p_ic != 0 {
-                    strnicmp_c(w, arg, len) == 0
+                    vim_strnicmp(w, arg, len) == 0
                 } else {
                     strncmp(w, arg, len) == 0
                 };

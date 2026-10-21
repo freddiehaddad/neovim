@@ -33,7 +33,7 @@ use crate::state::{
     MODE_TERMINAL, MODE_VISUAL, get_real_state,
 };
 use crate::strings::{
-    gettext, strcat, strcmp, strcpy, stricmp_c, strmove, strncmp, vim_strchr, vim_strnicmp_asc,
+    gettext, strcat, strcmp, strcpy, vim_stricmp, strmove, strncmp, vim_strchr, vim_strnicmp_asc,
     xstrnsave,
 };
 use crate::ui::ui_call_update_menu;
@@ -319,7 +319,7 @@ pub unsafe extern "C" fn ex_menu(eap: *mut exarg_T) {
             }
 
             let mut map_buf: *mut c_char = ptr::null_mut();
-            if stricmp_c(map_to, c"<nop>".as_ptr()) == 0 {
+            if vim_stricmp(map_to, c"<nop>".as_ptr()) == 0 {
                 map_to = c"".as_ptr().cast_mut();
             } else if (modes & MENU_TIP_MODE) == 0 {
                 map_to = replace_termcodes(
@@ -1828,7 +1828,7 @@ unsafe fn menutrans_lookup(name: *mut c_char, len: c_int) -> *mut c_char {
         *name.add(u_len) = c;
         for i in 0..MENUTRANS_GA.ga_len {
             let entry = tp.add(i as usize);
-            if stricmp_c(dname, (*entry).from_noamp) == 0 {
+            if vim_stricmp(dname, (*entry).from_noamp) == 0 {
                 xfree(dname.cast());
                 return (*entry).to;
             }

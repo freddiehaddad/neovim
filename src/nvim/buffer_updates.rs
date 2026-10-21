@@ -2,7 +2,7 @@
 
 use crate::api::buffer::{LUA_INTERNAL_CALL, buf_collect_lines};
 use crate::api::private::helpers::{
-    NIL, arena_array, array_obj, boolean_obj, buffer_obj, integer_obj,
+    OBJECT_NIL, arena_array, array_obj, boolean_obj, buffer_obj, integer_obj,
 };
 use crate::api::private::validate::{Array, Object, ObjectType};
 use crate::buffer::{BufUpdateCallbacks, buf_T, buf_get_changedtick};
@@ -283,7 +283,7 @@ pub unsafe extern "C" fn buf_updates_send_changes(
                 if send_tick {
                     integer_obj(buf_get_changedtick(buf))
                 } else {
-                    NIL
+                    OBJECT_NIL
                 },
                 integer_obj(i64::from(firstline - 1)),
                 integer_obj(i64::from(firstline - 1) + num_removed),
@@ -325,7 +325,7 @@ pub unsafe extern "C" fn buf_updates_send_changes(
                     if send_tick {
                         integer_obj(buf_get_changedtick(buf))
                     } else {
-                        NIL
+                        OBJECT_NIL
                     },
                     integer_obj(i64::from(firstline - 1)),
                     integer_obj(i64::from(firstline - 1) + num_removed),
@@ -340,7 +340,7 @@ pub unsafe extern "C" fn buf_updates_send_changes(
                     items: items.as_mut_ptr(),
                 };
 
-                let mut res = NIL;
+                let mut res = OBJECT_NIL;
                 textlock_wrap(|| {
                     res = nlua_call_ref(
                         cb.on_lines,
@@ -408,7 +408,7 @@ pub unsafe extern "C" fn buf_updates_send_splice(
                     items: items.as_mut_ptr(),
                 };
 
-                let mut res = NIL;
+                let mut res = OBJECT_NIL;
                 textlock_wrap(|| {
                     res = nlua_call_ref(
                         cb.on_bytes,
@@ -457,7 +457,7 @@ pub unsafe extern "C" fn buf_updates_changedtick(buf: *mut buf_T) {
                     items: items.as_mut_ptr(),
                 };
 
-                let mut res = NIL;
+                let mut res = OBJECT_NIL;
                 textlock_wrap(|| {
                     res = nlua_call_ref(
                         cb.on_changedtick,
@@ -518,7 +518,7 @@ mod tests {
     fn luaret_truthy_checks_boolean_true() {
         assert!(unsafe { luaret_truthy(boolean_obj(true)) });
         assert!(!unsafe { luaret_truthy(boolean_obj(false)) });
-        assert!(!unsafe { luaret_truthy(NIL) });
+        assert!(!unsafe { luaret_truthy(OBJECT_NIL) });
         assert!(!unsafe { luaret_truthy(integer_obj(1)) });
     }
 }

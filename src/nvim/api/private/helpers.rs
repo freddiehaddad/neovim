@@ -56,7 +56,6 @@ pub const OBJECT_NIL: Object = Object {
     obj_type: ObjectType::kObjectTypeNil,
     data: ObjectData { integer: 0 },
 };
-pub use OBJECT_NIL as NIL;
 
 #[inline]
 pub const fn nil_obj() -> Object {
@@ -248,14 +247,6 @@ macro_rules! api_set_error {
 }
 pub use api_set_error;
 
-pub use array_obj as arr_obj;
-pub use boolean_obj as bool_obj;
-pub use cstr_as_obj as cstr_obj;
-pub use integer_obj as int_obj;
-pub use static_cstr_as_string as cstr_literal;
-pub use string_obj as str_obj;
-pub use window_obj as win_obj;
-
 #[inline]
 pub const fn has_key(mask: u64, idx: u64) -> bool {
     (mask & (1u64 << idx)) != 0
@@ -355,9 +346,6 @@ pub unsafe fn put_c<K: IntoDictKey>(dict: &mut Dict, key: K, val: Object) {
     }
     dict.size += 1;
 }
-
-pub use cstr_as_string as cstr_as_nvim_string;
-pub use put_c as dict_put_cstr;
 
 #[inline]
 pub unsafe fn cbuf_to_arena_str(arena: *mut Arena, buf: *const c_char, len: usize) -> NvimString {

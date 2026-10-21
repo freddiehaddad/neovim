@@ -2,7 +2,7 @@
 
 use crate::api::private::dispatch::MsgpackRpcRequestHandler;
 use crate::api::private::helpers::{
-    NIL, api_clear_error, api_free_dict, api_free_object, api_set_error, copy_dict, cstr_as_string,
+    OBJECT_NIL, api_clear_error, api_free_dict, api_free_object, api_set_error, copy_dict, cstr_as_string,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType,
@@ -367,7 +367,7 @@ pub unsafe extern "C" fn rpc_send_call(
                 c"Invalid channel: %llu".as_ptr(),
                 id,
             );
-            return NIL;
+            return OBJECT_NIL;
         }
 
         channel_incref(channel);
@@ -384,7 +384,7 @@ pub unsafe extern "C" fn rpc_send_call(
             request_id,
             returned: false,
             errored: false,
-            result: NIL,
+            result: OBJECT_NIL,
             result_mem: ptr::null_mut(),
         };
         let frame_ptr: *mut ChannelCallFrame = &raw mut frame;
@@ -411,7 +411,7 @@ pub unsafe extern "C" fn rpc_send_call(
                 );
                 channel_decref(channel);
             }
-            return NIL;
+            return OBJECT_NIL;
         }
 
         if (*frame_ptr).errored {
@@ -464,7 +464,7 @@ pub unsafe extern "C" fn rpc_send_call(
         *result_mem = (*frame_ptr).result_mem;
 
         if (*frame_ptr).errored {
-            NIL
+            OBJECT_NIL
         } else {
             (*frame_ptr).result
         }
@@ -802,7 +802,7 @@ unsafe fn send_error(
             c"%s".as_ptr(),
             err,
         );
-        let mut nil_obj = NIL;
+        let mut nil_obj = OBJECT_NIL;
         serialize_response(chan, handler, r#type, id, &raw mut e, &raw mut nil_obj);
         api_clear_error(&raw mut e);
     }
@@ -1204,14 +1204,14 @@ mod tests {
                 request_id: 10,
                 returned: false,
                 errored: false,
-                result: NIL,
+                result: OBJECT_NIL,
                 result_mem: ptr::null_mut(),
             };
             let mut f2 = ChannelCallFrame {
                 request_id: 20,
                 returned: false,
                 errored: false,
-                result: NIL,
+                result: OBJECT_NIL,
                 result_mem: ptr::null_mut(),
             };
             rpc.call_stack.push(&raw mut f1);

@@ -2,8 +2,8 @@
 
 use crate::api::private::dispatch::KeyDict_highlight_get_field as highlight_get_field_cb;
 use crate::api::private::helpers::{
-    OBJECT_NIL, api_dict_to_keydict, api_free_array, api_metadata, api_set_error, bool_obj,
-    copy_array, cstr_as_string, cstr_obj, int_obj,
+    OBJECT_NIL, api_dict_to_keydict, api_free_array, api_metadata, api_set_error, boolean_obj,
+    copy_array, cstr_as_string, cstr_as_obj, integer_obj,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
@@ -148,23 +148,23 @@ pub unsafe extern "C" fn ui_client_attach(
             };
             opts.size += 1;
         };
-        put_opt(c"rgb".as_ptr(), bool_obj(rgb));
-        put_opt(c"ext_linegrid".as_ptr(), bool_obj(true));
-        put_opt(c"ext_termcolors".as_ptr(), bool_obj(true));
+        put_opt(c"rgb".as_ptr(), boolean_obj(rgb));
+        put_opt(c"ext_linegrid".as_ptr(), boolean_obj(true));
+        put_opt(c"ext_termcolors".as_ptr(), boolean_obj(true));
         if !term.is_null() {
-            put_opt(c"term_name".as_ptr(), cstr_obj(term));
+            put_opt(c"term_name".as_ptr(), cstr_as_obj(term));
         }
-        put_opt(c"term_colors".as_ptr(), int_obj(Integer::from(t_colors)));
-        put_opt(c"stdin_tty".as_ptr(), bool_obj(stdin_isatty));
-        put_opt(c"stdout_tty".as_ptr(), bool_obj(stdout_isatty));
+        put_opt(c"term_colors".as_ptr(), integer_obj(Integer::from(t_colors)));
+        put_opt(c"stdin_tty".as_ptr(), boolean_obj(stdin_isatty));
+        put_opt(c"stdout_tty".as_ptr(), boolean_obj(stdout_isatty));
         if ui_client_forward_stdin {
-            put_opt(c"stdin_fd".as_ptr(), int_obj(Integer::from(UI_CLIENT_STDIN_FD)));
+            put_opt(c"stdin_fd".as_ptr(), integer_obj(Integer::from(UI_CLIENT_STDIN_FD)));
             ui_client_forward_stdin = false;
         }
 
         let mut args_items: [Object; 3] = [
-            int_obj(Integer::from(width)),
-            int_obj(Integer::from(height)),
+            integer_obj(Integer::from(width)),
+            integer_obj(Integer::from(height)),
             Object {
                 obj_type: ObjectType::kObjectTypeDict,
                 data: ObjectData { dict: opts },
@@ -203,15 +203,15 @@ pub unsafe extern "C" fn ui_client_attach(
         let mut info_items: [KeyValuePair; 3] = [
             KeyValuePair {
                 key: cstr_as_string(c"website".as_ptr()),
-                value: cstr_obj(c"https://neovim.io".as_ptr()),
+                value: cstr_as_obj(c"https://neovim.io".as_ptr()),
             },
             KeyValuePair {
                 key: cstr_as_string(c"license".as_ptr()),
-                value: cstr_obj(c"Apache 2".as_ptr()),
+                value: cstr_as_obj(c"Apache 2".as_ptr()),
             },
             KeyValuePair {
                 key: cstr_as_string(c"pid".as_ptr()),
-                value: int_obj(Integer::from(uv_os_getpid())),
+                value: integer_obj(Integer::from(uv_os_getpid())),
             },
         ];
         let info = Dict {
@@ -221,12 +221,12 @@ pub unsafe extern "C" fn ui_client_attach(
         };
 
         let mut args2_items: [Object; 5] = [
-            cstr_obj(c"nvim-tui".as_ptr()),
+            cstr_as_obj(c"nvim-tui".as_ptr()),
             Object {
                 obj_type: ObjectType::kObjectTypeDict,
                 data: ObjectData { dict: version },
             },
-            cstr_obj(c"ui".as_ptr()),
+            cstr_as_obj(c"ui".as_ptr()),
             Object {
                 obj_type: ObjectType::kObjectTypeArray,
                 data: ObjectData { array: ARRAY_INIT },
@@ -313,8 +313,8 @@ pub unsafe extern "C" fn ui_client_set_size(width: c_int, height: c_int) {
     unsafe {
         if ui_client_attached {
             let mut args_items: [Object; 2] = [
-                int_obj(Integer::from(width)),
-                int_obj(Integer::from(height)),
+                integer_obj(Integer::from(width)),
+                integer_obj(Integer::from(height)),
             ];
             let args = Array {
                 items: args_items.as_mut_ptr(),
@@ -617,7 +617,7 @@ pub unsafe extern "C" fn ui_client_attach_to_restarted_server(error_restart: boo
                 return;
             }
             if args.size > 1 && (*args.items.add(1)).obj_type == ObjectType::kObjectTypeDict {
-                let mut chan_args_items: [Object; 2] = [int_obj(0), *args.items.add(1)];
+                let mut chan_args_items: [Object; 2] = [integer_obj(0), *args.items.add(1)];
                 let chan_args = Array {
                     items: chan_args_items.as_mut_ptr(),
                     size: 2,

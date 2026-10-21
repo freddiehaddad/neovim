@@ -1,7 +1,7 @@
 //! Async I/O and process/socket/stdio/terminal channel management (`src/nvim/channel.c`).
 
 use crate::api::private::converter::object_to_vim;
-use crate::api::private::helpers::{arena_array, arena_dict, cstr_as_string, dict_put_cstr};
+use crate::api::private::helpers::{arena_array, arena_dict, cstr_as_string, put_c};
 use crate::api::private::validate::{Array, Dict, NvimString, Object, ObjectData, ObjectType};
 use crate::autocmd::{apply_autocmds, event_T, has_event};
 use crate::buffer::buf_T;
@@ -1387,7 +1387,7 @@ pub unsafe extern "C" fn channel_info(id: u64, arena: *mut Arena) -> Dict {
         let cp = channel_prefix(chan);
         let ct = channel_tail(chan);
 
-        dict_put_cstr(
+        put_c(
             &mut info,
             c"id",
             Object {
@@ -1416,7 +1416,7 @@ pub unsafe extern "C" fn channel_info(id: u64, arena: *mut Arena) -> Dict {
                             size: len,
                         }
                     };
-                    dict_put_cstr(
+                    put_c(
                         &mut info,
                         c"pty",
                         Object {
@@ -1452,7 +1452,7 @@ pub unsafe extern "C" fn channel_info(id: u64, arena: *mut Arena) -> Dict {
                         );
                     }
                 }
-                dict_put_cstr(
+                put_c(
                     &mut info,
                     c"argv",
                     Object {
@@ -1465,7 +1465,7 @@ pub unsafe extern "C" fn channel_info(id: u64, arena: *mut Arena) -> Dict {
             kChannelStreamStdio => c"stdio",
             kChannelStreamStderr => c"stderr",
             kChannelStreamInternal => {
-                dict_put_cstr(
+                put_c(
                     &mut info,
                     c"internal",
                     Object {
@@ -1478,7 +1478,7 @@ pub unsafe extern "C" fn channel_info(id: u64, arena: *mut Arena) -> Dict {
             _ => c"socket",
         };
 
-        dict_put_cstr(
+        put_c(
             &mut info,
             c"stream",
             Object {
@@ -1490,7 +1490,7 @@ pub unsafe extern "C" fn channel_info(id: u64, arena: *mut Arena) -> Dict {
         );
 
         let mode_desc: &'static CStr = if (*ct).is_rpc {
-            dict_put_cstr(
+            put_c(
                 &mut info,
                 c"client",
                 Object {
@@ -1500,7 +1500,7 @@ pub unsafe extern "C" fn channel_info(id: u64, arena: *mut Arena) -> Dict {
                     },
                 },
             );
-            dict_put_cstr(
+            put_c(
                 &mut info,
                 c"detach",
                 Object {
@@ -1513,7 +1513,7 @@ pub unsafe extern "C" fn channel_info(id: u64, arena: *mut Arena) -> Dict {
             c"rpc"
         } else if !(*ct).term.is_null() {
             let tbuf = terminal_buf((*ct).term);
-            dict_put_cstr(
+            put_c(
                 &mut info,
                 c"buf",
                 Object {
@@ -1523,7 +1523,7 @@ pub unsafe extern "C" fn channel_info(id: u64, arena: *mut Arena) -> Dict {
                     },
                 },
             );
-            dict_put_cstr(
+            put_c(
                 &mut info,
                 c"buffer",
                 Object {
@@ -1533,7 +1533,7 @@ pub unsafe extern "C" fn channel_info(id: u64, arena: *mut Arena) -> Dict {
                     },
                 },
             );
-            dict_put_cstr(
+            put_c(
                 &mut info,
                 c"exitcode",
                 Object {
@@ -1548,7 +1548,7 @@ pub unsafe extern "C" fn channel_info(id: u64, arena: *mut Arena) -> Dict {
             c"bytes"
         };
 
-        dict_put_cstr(
+        put_c(
             &mut info,
             c"mode",
             Object {

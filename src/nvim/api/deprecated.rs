@@ -4,7 +4,7 @@ use crate::api::buffer::{nvim_buf_get_lines, nvim_buf_set_lines};
 use crate::api::extmark::{nvim_buf_clear_namespace, nvim_create_namespace, parse_virt_text};
 use crate::api::private::dispatch::msgpack_rpc_get_handler_for;
 use crate::api::private::helpers::{
-    MAXLNUM, NIL, add_c, api_clear_error, api_free_object, api_set_error, api_typename,
+    MAXLNUM, OBJECT_NIL, add_c, api_clear_error, api_free_object, api_set_error, api_typename,
     arena_array, array_obj, copy_object, copy_string, cstr_as_string, dict_obj, dict_set_var,
     error_set, find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, integer_obj,
     static_cstr_as_string, string_obj, try_wrap, with_script_context,
@@ -629,7 +629,7 @@ pub unsafe extern "C" fn buffer_set_var(
     unsafe {
         let buf = find_buffer_by_handle(buffer, err);
         if buf.is_null() {
-            return NIL;
+            return OBJECT_NIL;
         }
         dict_set_var((*buf).b_vars, name, value, false, true, arena, err)
     }
@@ -655,9 +655,9 @@ pub unsafe extern "C" fn buffer_del_var(
     unsafe {
         let buf = find_buffer_by_handle(buffer, err);
         if buf.is_null() {
-            return NIL;
+            return OBJECT_NIL;
         }
-        dict_set_var((*buf).b_vars, name, NIL, true, true, arena, err)
+        dict_set_var((*buf).b_vars, name, OBJECT_NIL, true, true, arena, err)
     }
 }
 
@@ -683,7 +683,7 @@ pub unsafe extern "C" fn window_set_var(
     unsafe {
         let win = find_window_by_handle(window, err);
         if win.is_null() {
-            return NIL;
+            return OBJECT_NIL;
         }
         dict_set_var((*win).w_vars, name, value, false, true, arena, err)
     }
@@ -709,9 +709,9 @@ pub unsafe extern "C" fn window_del_var(
     unsafe {
         let win = find_window_by_handle(window, err);
         if win.is_null() {
-            return NIL;
+            return OBJECT_NIL;
         }
-        dict_set_var((*win).w_vars, name, NIL, true, true, arena, err)
+        dict_set_var((*win).w_vars, name, OBJECT_NIL, true, true, arena, err)
     }
 }
 
@@ -738,7 +738,7 @@ pub unsafe extern "C" fn tabpage_set_var(
     unsafe {
         let tab = find_tab_by_handle(tabpage, err);
         if tab.is_null() {
-            return NIL;
+            return OBJECT_NIL;
         }
         dict_set_var((*tab).tp_vars, name, value, false, true, arena, err)
     }
@@ -764,9 +764,9 @@ pub unsafe extern "C" fn tabpage_del_var(
     unsafe {
         let tab = find_tab_by_handle(tabpage, err);
         if tab.is_null() {
-            return NIL;
+            return OBJECT_NIL;
         }
-        dict_set_var((*tab).tp_vars, name, NIL, true, true, arena, err)
+        dict_set_var((*tab).tp_vars, name, OBJECT_NIL, true, true, arena, err)
     }
 }
 
@@ -795,7 +795,7 @@ pub unsafe extern "C" fn vim_del_var(
     arena: *mut Arena,
     err: *mut Error,
 ) -> Object {
-    unsafe { dict_set_var(get_globvar_dict(), name, NIL, true, true, arena, err) }
+    unsafe { dict_set_var(get_globvar_dict(), name, OBJECT_NIL, true, true, arena, err) }
 }
 
 #[inline]
@@ -886,7 +886,7 @@ pub unsafe extern "C" fn nvim_buf_get_option(
     unsafe {
         let buf = find_buffer_by_handle(buffer, err);
         if buf.is_null() {
-            return NIL;
+            return OBJECT_NIL;
         }
         get_option_from(buf.cast(), kOptScopeBuf, name, err)
     }
@@ -942,7 +942,7 @@ pub unsafe extern "C" fn nvim_win_get_option(
     unsafe {
         let win = find_window_by_handle(window, err);
         if win.is_null() {
-            return NIL;
+            return OBJECT_NIL;
         }
         get_option_from(win.cast(), kOptScopeWin, name, err)
     }
@@ -987,18 +987,18 @@ unsafe fn get_option_from(
     unsafe {
         if name.size == 0 {
             api_err_invalid(err, c"option name".as_ptr(), c"<empty>".as_ptr(), 0, true);
-            return NIL;
+            return OBJECT_NIL;
         }
 
         let opt_idx = find_option(name.data);
         if opt_idx == kOptInvalid {
             api_err_invalid(err, c"option name".as_ptr(), name.data, 0, true);
-            return NIL;
+            return OBJECT_NIL;
         }
 
         if !option_has_scope(opt_idx, scope) {
             api_err_invalid(err, c"option name".as_ptr(), name.data, 0, true);
-            return NIL;
+            return OBJECT_NIL;
         }
 
         let value = get_option_value_for(
@@ -1013,7 +1013,7 @@ unsafe fn get_option_from(
             err,
         );
         if error_set(err) {
-            return NIL;
+            return OBJECT_NIL;
         }
 
         value
@@ -1174,7 +1174,7 @@ pub unsafe extern "C" fn nvim_call_atomic(
                 );
                 add_c(&mut rv, array_obj(errval));
             } else {
-                add_c(&mut rv, NIL);
+                add_c(&mut rv, OBJECT_NIL);
             }
         }
 

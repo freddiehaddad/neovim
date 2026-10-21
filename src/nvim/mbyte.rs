@@ -29,7 +29,7 @@ use crate::os::env::{expand_T, os_getenv_noalloc};
 use crate::os::fs::os_errno as iconv_errno;
 use crate::os::lang::LC_CTYPE;
 use crate::plines::{CharInfo, ClusterInfo, StrCharInfo};
-use crate::strings::{setlocale, strmove_c, tolower, toupper, vim_strchr, vim_strnicmp_asc};
+use crate::strings::{setlocale, strmove, tolower, toupper, vim_strchr, vim_strnicmp_asc};
 use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -3095,29 +3095,29 @@ pub unsafe extern "C" fn enc_canonize(enc: *mut c_char) -> *mut c_char {
 
         let p_bytes = CStr::from_ptr(p).to_bytes();
         if p_bytes.starts_with(b"microsoft-cp") {
-            strmove_c(p, p.add(10));
+            strmove(p, p.add(10));
         }
 
         let p_bytes = CStr::from_ptr(p).to_bytes();
         if p_bytes.starts_with(b"iso8859") {
-            strmove_c(p.add(4), p.add(3));
+            strmove(p.add(4), p.add(3));
             *p.add(3) = b'-' as c_char;
         }
 
         let p_bytes = CStr::from_ptr(p).to_bytes();
         if p_bytes.starts_with(b"iso-8859") && p_bytes.len() > 8 && p_bytes[8].is_ascii_digit() {
-            strmove_c(p.add(9), p.add(8));
+            strmove(p.add(9), p.add(8));
             *p.add(8) = b'-' as c_char;
         }
 
         let p_bytes = CStr::from_ptr(p).to_bytes();
         if p_bytes.starts_with(b"latin-") {
-            strmove_c(p.add(5), p.add(6));
+            strmove(p.add(5), p.add(6));
         }
 
         if enc_canon_search(p) >= 0 {
             if p != r {
-                strmove_c(r, p);
+                strmove(r, p);
             }
         } else {
             let i = enc_alias_search(p);

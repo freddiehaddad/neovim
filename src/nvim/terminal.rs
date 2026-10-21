@@ -6,7 +6,7 @@ use crate::vterm::state::VTERM_SELECTION_CLIPBOARD;
 use crate::vterm::state::VTERM_SELECTION_PRIMARY;
 
 use crate::api::private::helpers::{
-    api_clear_error, api_free_object, dict_get_value, dict_set_var, int_obj, str_obj,
+    api_clear_error, api_free_object, dict_get_value, dict_set_var, integer_obj, string_obj,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
@@ -495,8 +495,8 @@ unsafe extern "C" fn emit_termrequest(argv: *mut *mut c_void) {
         set_vim_var_string(VV_TERMREQUEST, sequence, sequence_length as isize);
 
         let mut cursor_items = [
-            int_obj(i64::from(row) - ((*term).sb_deleted.wrapping_sub(sb_deleted) as i64)),
-            int_obj(i64::from(col)),
+            integer_obj(i64::from(row) - ((*term).sb_deleted.wrapping_sub(sb_deleted) as i64)),
+            integer_obj(i64::from(col)),
         ];
         let cursor = Array {
             items: cursor_items.as_mut_ptr(),
@@ -509,14 +509,14 @@ unsafe extern "C" fn emit_termrequest(argv: *mut *mut c_void) {
             size: sequence_length,
         };
         let term_obj = if terminator == VTERM_TERMINATOR_BEL {
-            str_obj(cstr_slice_as_string(b"\x07\0"))
+            string_obj(cstr_slice_as_string(b"\x07\0"))
         } else {
-            str_obj(cstr_slice_as_string(b"\x1b\\\0"))
+            string_obj(cstr_slice_as_string(b"\x1b\\\0"))
         };
         let mut data_items = [
             KeyValuePair {
                 key: cstr_slice_as_string(b"sequence\0"),
-                value: str_obj(termrequest),
+                value: string_obj(termrequest),
             },
             KeyValuePair {
                 key: cstr_slice_as_string(b"cursor\0"),
@@ -898,7 +898,7 @@ pub unsafe extern "C" fn terminal_open(termpp: *mut *mut Terminal, buf: *mut buf
         (*buf).b_locked += 1;
         set_option_value(
             kOptBuftype,
-            str_obj(cstr_slice_as_string(b"terminal\0")),
+            string_obj(cstr_slice_as_string(b"terminal\0")),
             OPT_LOCAL,
             true,
             ptr::null(),
@@ -1037,7 +1037,7 @@ pub unsafe extern "C" fn terminal_close(termpp: *mut *mut Terminal, status: c_in
 
             let mut data_items = [KeyValuePair {
                 key: cstr_slice_as_string(b"pos\0"),
-                value: int_obj(i64::from(pos)),
+                value: integer_obj(i64::from(pos)),
             }];
             let mut data_obj = Object {
                 obj_type: ObjectType::kObjectTypeDict,
@@ -1965,7 +1965,7 @@ unsafe fn buf_set_term_title(buf: *mut buf_T, title: *const c_char, len: usize) 
         dict_set_var(
             (*buf).b_vars,
             cstr_slice_as_string(b"term_title\0"),
-            str_obj(NvimString {
+            string_obj(NvimString {
                 data: title.cast_mut(),
                 size: len,
             }),

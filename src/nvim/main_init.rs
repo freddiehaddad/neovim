@@ -1,7 +1,7 @@
 //! Main entry point, CLI argument parsing, startup, and shutdown (`src/nvim/main.c`).
 
 use crate::api::private::helpers::{
-    api_free_object, api_metadata_raw, bool_obj, cstr_as_string, cstr_obj, int_obj,
+    api_free_object, api_metadata_raw, boolean_obj, cstr_as_string, cstr_as_obj, integer_obj,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
@@ -1151,7 +1151,7 @@ unsafe fn remote_request(
             ptr::null_mut()
         };
         for (idx, t_argc) in (remote_args..argc).enumerate() {
-            *args_items.add(idx) = cstr_obj(*argv.add(t_argc as usize));
+            *args_items.add(idx) = cstr_as_obj(*argv.add(t_argc as usize));
         }
         let args = Array {
             items: args_items,
@@ -1164,9 +1164,9 @@ unsafe fn remote_request(
             msg: ptr::null_mut(),
         };
         let mut a_items: [Object; 4] = [
-            int_obj(Integer::from(chan as c_int)),
-            cstr_obj(server_addr),
-            cstr_obj(connect_error),
+            integer_obj(Integer::from(chan as c_int)),
+            cstr_as_obj(server_addr),
+            cstr_as_obj(connect_error),
             Object {
                 obj_type: ObjectType::kObjectTypeArray,
                 data: ObjectData { array: args },
@@ -1369,7 +1369,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                         } else if strnicmp_ascii(sub, b"clean") {
                             (*parmp).use_vimrc = c"NONE".as_ptr().cast_mut();
                             (*parmp).clean = true;
-                            set_option_value_give_err(kOptShadafile, cstr_obj(c"NONE".as_ptr()), 0);
+                            set_option_value_give_err(kOptShadafile, cstr_as_obj(c"NONE".as_ptr()), 0);
                         } else if strnicmp_ascii(sub, b"luamod-dev") {
                             nlua_disable_preload = true;
                         } else {
@@ -1383,7 +1383,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                         }
                     }
                     b'A' => {
-                        set_option_value_give_err(kOptArabic, bool_obj(true), 0);
+                        set_option_value_give_err(kOptArabic, boolean_obj(true), 0);
                     }
                     b'b' => {
                         set_options_bin((*curbuf).b_p_bin, 1, 0);
@@ -1408,8 +1408,8 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                         os_exit(0);
                     }
                     b'H' => {
-                        set_option_value_give_err(kOptKeymap, cstr_obj(c"hebrew".as_ptr()), 0);
-                        set_option_value_give_err(kOptRightleft, bool_obj(true), 0);
+                        set_option_value_give_err(kOptKeymap, cstr_as_obj(c"hebrew".as_ptr()), 0);
+                        set_option_value_give_err(kOptRightleft, boolean_obj(true), 0);
                     }
                     b'M' => {
                         reset_modifiable();
@@ -1461,7 +1461,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                             if p_shadafile.is_null() || *p_shadafile == NUL {
                                 set_option_value_give_err(
                                     kOptShadafile,
-                                    cstr_obj(c"NONE".as_ptr()),
+                                    cstr_as_obj(c"NONE".as_ptr()),
                                     0,
                                 );
                             }
@@ -1490,7 +1490,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                         if *arg0.add(argv_idx as usize) != NUL {
                             set_option_value_give_err(
                                 kOptVerbosefile,
-                                cstr_obj(arg0.add(argv_idx as usize)),
+                                cstr_as_obj(arg0.add(argv_idx as usize)),
                                 0,
                             );
                             argv_idx = CStr::from_ptr(arg0).to_bytes().len() as c_int;
@@ -1499,7 +1499,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                     b'w' => {
                         if ascii_isdigit(*arg0.add(argv_idx as usize) as c_int) {
                             let n = get_number_arg(arg0, &raw mut argv_idx, 10);
-                            set_option_value_give_err(kOptWindow, int_obj(OptInt::from(n)), 0);
+                            set_option_value_give_err(kOptWindow, integer_obj(OptInt::from(n)), 0);
                         } else {
                             want_argument = true;
                         }
@@ -1593,7 +1593,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                             (*parmp).use_ef = cur_arg;
                         }
                         b'i' => {
-                            set_option_value_give_err(kOptShadafile, cstr_obj(cur_arg), 0);
+                            set_option_value_give_err(kOptShadafile, cstr_as_obj(cur_arg), 0);
                         }
                         b'l' => {
                             headless_mode = true;
@@ -1606,7 +1606,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                             if p_shadafile.is_null() || *p_shadafile == NUL {
                                 set_option_value_give_err(
                                     kOptShadafile,
-                                    cstr_obj(c"NONE".as_ptr()),
+                                    cstr_as_obj(c"NONE".as_ptr()),
                                     0,
                                 );
                             }
@@ -1649,7 +1649,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                             if c == b'w' && ascii_isdigit(*cur_arg as c_int) {
                                 argv_idx = 0;
                                 let n = get_number_arg(cur_arg, &raw mut argv_idx, 10);
-                                set_option_value_give_err(kOptWindow, int_obj(OptInt::from(n)), 0);
+                                set_option_value_give_err(kOptWindow, integer_obj(OptInt::from(n)), 0);
                                 argv_idx = -1;
                             } else {
                                 if !(*parmp).scriptout.is_null() {
@@ -1862,7 +1862,7 @@ unsafe fn handle_quickfix(paramp: *mut mparm_T) {
     unsafe {
         if (*paramp).edit_type == EDIT_QF {
             if !(*paramp).use_ef.is_null() {
-                set_option_direct(kOptErrorfile, cstr_obj((*paramp).use_ef), 0, SID_CARG);
+                set_option_direct(kOptErrorfile, cstr_as_obj((*paramp).use_ef), 0, SID_CARG);
             }
             vim_snprintf!((&raw mut IObuff).cast(), IOSIZE, c"cfile %s".as_ptr(), p_ef);
             if qf_init(
@@ -2096,7 +2096,7 @@ unsafe fn edit_buffers(parmp: *mut mparm_T) {
                         let mut buf = [0 as c_char; 100];
                         p_shm_save = xstrdup(p_shm);
                         vim_snprintf!(buf.as_mut_ptr(), buf.len(), c"F%s".as_ptr(), p_shm);
-                        set_option_value_give_err(kOptShortmess, cstr_obj(buf.as_ptr()), 0);
+                        set_option_value_give_err(kOptShortmess, cstr_as_obj(buf.as_ptr()), 0);
                     }
                 } else {
                     if (*curwin).w_next.is_null() {
@@ -2146,7 +2146,7 @@ unsafe fn edit_buffers(parmp: *mut mparm_T) {
         }
 
         if !p_shm_save.is_null() {
-            set_option_value_give_err(kOptShortmess, cstr_obj(p_shm_save), 0);
+            set_option_value_give_err(kOptShortmess, cstr_as_obj(p_shm_save), 0);
             xfree(p_shm_save.cast());
         }
 

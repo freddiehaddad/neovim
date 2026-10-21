@@ -669,9 +669,6 @@ mod unix_impl {
 }
 
 #[cfg(unix)]
-pub use unix_impl::{VERASE, tcgetattr, termios};
-
-#[cfg(unix)]
 pub use unix_impl::*;
 
 #[cfg(test)]
