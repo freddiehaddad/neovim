@@ -769,7 +769,7 @@ unsafe fn nlua_luv_thread_common_cfpcall(
         let status = lua_pcall(lstate, nargs, nresult, 0);
         if status != 0 {
             if status == LUA_ERRMEM && (flags & LUVF_CALLBACK_NOEXIT) == 0 {
-                fprintf(
+                fprintf!(
                     log_get_stderr(),
                     c"%s\n".as_ptr(),
                     (&raw const e_outofmem).cast::<c_char>(),
@@ -1172,7 +1172,7 @@ unsafe fn nlua_init_packages(lstate: *mut lua_State) -> bool {
         lua_getglobal(lstate, c"require".as_ptr());
         lua_pushstring(lstate, c"vim._init_packages".as_ptr());
         if nlua_pcall(lstate, 1, 0) != 0 {
-            fprintf(log_get_stderr(), c"%s\n".as_ptr(), lua_tostring(lstate, -1));
+            fprintf!(log_get_stderr(), c"%s\n".as_ptr(), lua_tostring(lstate, -1));
             return false;
         }
 
@@ -1338,7 +1338,7 @@ pub unsafe extern "C" fn nlua_init(argv: *mut *mut c_char, argc: c_int, lua_arg0
     unsafe {
         let lstate = luaL_newstate();
         if lstate.is_null() {
-            fprintf(
+            fprintf!(
                 log_get_stderr(),
                 gettext(c"E970: Failed to initialize Lua interpreter\n".as_ptr()),
             );
@@ -1346,7 +1346,7 @@ pub unsafe extern "C" fn nlua_init(argv: *mut *mut c_char, argc: c_int, lua_arg0
         }
         luaL_openlibs(lstate);
         if !nlua_state_init(lstate) {
-            fprintf(
+            fprintf!(
                 log_get_stderr(),
                 gettext(c"E970: Failed to initialize builtin Lua modules\n".as_ptr()),
             );
@@ -2968,7 +2968,7 @@ pub unsafe extern "C" fn nlua_init_defaults() {
         lua_getglobal(L, c"require".as_ptr());
         lua_pushstring(L, c"vim._core.defaults".as_ptr());
         if nlua_pcall(L, 1, 0) != 0 {
-            fprintf(log_get_stderr(), c"%s\n".as_ptr(), lua_tostring(L, -1));
+            fprintf!(log_get_stderr(), c"%s\n".as_ptr(), lua_tostring(L, -1));
         }
     }
 }

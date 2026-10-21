@@ -310,16 +310,16 @@ pub unsafe extern "C" fn logmsg_str(
 
         if entered_free_all_mem {
             let stderr = log_get_stderr();
-            fprintf(
+            fprintf!(
                 stderr,
                 c"FATAL: error in free_all_mem\n %s %s %d: ".as_ptr(),
                 context,
                 func_name,
                 line_num,
             );
-            fprintf(stderr, c"%s".as_ptr(), msg);
+            fprintf!(stderr, c"%s".as_ptr(), msg);
             if eol {
-                fprintf(stderr, c"\n".as_ptr());
+                fprintf!(stderr, c"\n".as_ptr());
             }
             std::process::abort();
         }
@@ -445,7 +445,7 @@ pub unsafe extern "C" fn log_callstack_to_file_trace(
         assert!(!fp.is_null());
         let mut linebuf = [0 as c_char; IOSIZE];
         while !fgets(linebuf.as_mut_ptr(), (IOSIZE - 1) as c_int, fp).is_null() {
-            fprintf(log_file, c"  %s".as_ptr(), linebuf.as_ptr());
+            fprintf!(log_file, c"  %s".as_ptr(), linebuf.as_ptr());
         }
         pclose(fp);
 
@@ -554,7 +554,7 @@ unsafe fn do_log_to_file_str(
         let level_ptr = LOG_LEVELS[log_level as usize].as_ptr();
         let name_cptr = (&raw const INSTANCE_NAME).cast::<c_char>();
         let rv = if line_num == -1 || func_name.is_null() {
-            fprintf(
+            fprintf!(
                 log_file,
                 c"%s %s.%03d %-10s %s".as_ptr(),
                 level_ptr,
@@ -568,7 +568,7 @@ unsafe fn do_log_to_file_str(
                 },
             )
         } else {
-            fprintf(
+            fprintf!(
                 log_file,
                 c"%s %s.%03d %-10s %s%s:%d: ".as_ptr(),
                 level_ptr,
@@ -588,7 +588,7 @@ unsafe fn do_log_to_file_str(
         if rv < 0 {
             return false;
         }
-        if fprintf(log_file, c"%s".as_ptr(), msg) < 0 {
+        if fprintf!(log_file, c"%s".as_ptr(), msg) < 0 {
             return false;
         }
         if eol {

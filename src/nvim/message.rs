@@ -49,8 +49,7 @@ use crate::keycodes::{
     BS, CAR, ESC, K_BS, K_DOWN, K_IGNORE, K_LEFTDRAG, K_LEFTMOUSE, K_LEFTRELEASE, K_MIDDLEDRAG,
     K_MIDDLEMOUSE, K_MIDDLERELEASE, K_MOUSEDOWN, K_MOUSELEFT, K_MOUSEMOVE, K_MOUSERIGHT, K_MOUSEUP,
     K_PAGEDOWN, K_PAGEUP, K_RIGHTDRAG, K_RIGHTMOUSE, K_RIGHTRELEASE, K_SPECIAL, K_UP, K_X1MOUSE,
-    K_X2MOUSE, KS_MODIFIER, MOD_MASK_SHIFT, NL, TAB, get_special_key,
-    keychord,
+    K_X2MOUSE, KS_MODIFIER, MOD_MASK_SHIFT, NL, TAB, get_special_key, keychord,
 };
 use crate::log::{LOGLVL_DBG, LOGLVL_INF, log_get_stderr, logmsg};
 use crate::math::{FAIL, OK};
@@ -698,7 +697,7 @@ pub unsafe extern "C" fn msg_multihl(
             msg_special_case_for_lua_print = true;
             assert!(hl_msg.size == 1);
             let chunk = *hl_msg.items;
-            printf(
+            printf!(
                 c"%.*s\n".as_ptr(),
                 chunk.text.size as c_int,
                 chunk.text.data,
@@ -3692,9 +3691,9 @@ unsafe fn msg_puts_printf(str_: *const c_char, maxlen: isize) {
                 ptr::copy_nonoverlapping(s, p, len);
                 *p.add(len) = NUL;
                 if info_message {
-                    printf(c"%s".as_ptr(), buf.as_ptr());
+                    printf!(c"%s".as_ptr(), buf.as_ptr());
                 } else {
-                    fprintf(log_get_stderr(), c"%s".as_ptr(), buf.as_ptr());
+                    fprintf!(log_get_stderr(), c"%s".as_ptr(), buf.as_ptr());
                 }
             }
 

@@ -87,9 +87,7 @@ use crate::regexp::{RE_MAGIC, regmatch_T, regprog_T, vim_regcomp, vim_regexec, v
 use crate::sha256::{context_sha256_T, sha256_finish, sha256_start, sha256_update};
 use crate::shada::check_marks_read;
 use crate::state::{MODE_CMDLINE, MODE_NORMAL_BUSY};
-use crate::strings::{
-    tr, ngettext, sort_strings, strlen, vim_snprintf, vim_strchr,
-};
+use crate::strings::{ngettext, sort_strings, strlen, tr, vim_snprintf, vim_strchr};
 use crate::ui::{ui_flush, ui_has};
 use crate::undo::{
     bufIsChanged, u_clearallandblockfree, u_clearline, u_compute_hash, u_find_first_changed,
@@ -229,8 +227,6 @@ unsafe extern "C" {
     pub fn fgetc(stream: *mut FILE) -> c_int;
     pub fn fputc(c: c_int, stream: *mut FILE) -> c_int;
     pub fn ungetc(c: c_int, stream: *mut FILE) -> c_int;
-    pub fn fprintf(stream: *mut FILE, format: *const c_char, ...) -> c_int;
-    pub fn printf(format: *const c_char, ...) -> c_int;
     pub fn fflush(stream: *mut FILE) -> c_int;
     pub fn setbuf(stream: *mut FILE, buffer: *mut c_char);
     pub fn setvbuf(stream: *mut FILE, buffer: *mut c_char, mode: c_int, size: usize) -> c_int;
@@ -4544,6 +4540,80 @@ pub unsafe extern "C" fn write_eintr(fd: c_int, buf: *const c_void, bufsize: usi
         ret
     }
 }
+
+pub unsafe fn vim_fprintf_fmt(
+    stream: *mut FILE,
+    fmt: *const c_char,
+    args: &[crate::strings::FmtVal],
+) -> c_int {
+    unsafe {
+        if args.is_empty() && crate::strings::strchr(fmt, b'%' as c_int).is_null() {
+            let bytes = CStr::from_ptr(fmt).to_bytes();
+            if bytes.is_empty() {
+                return 0;
+            }
+            return if fwrite(bytes.as_ptr().cast(), 1, bytes.len(), stream) == bytes.len() {
+                bytes.len() as c_int
+            } else {
+                -1
+            };
+        }
+        let mut stack_buf = [0 as c_char; 1024];
+        let needed =
+            crate::strings::vim_snprintf_fmt(stack_buf.as_mut_ptr(), stack_buf.len(), fmt, args);
+        if needed < 0 {
+            return -1;
+        }
+        let len = needed as usize;
+        if len < stack_buf.len() {
+            if len == 0 || fwrite(stack_buf.as_ptr().cast(), 1, len, stream) == len {
+                needed
+            } else {
+                -1
+            }
+        } else {
+            let mut heap_buf = vec![0 as c_char; len + 1];
+            let actual =
+                crate::strings::vim_snprintf_fmt(heap_buf.as_mut_ptr(), heap_buf.len(), fmt, args);
+            if actual < 0 {
+                return -1;
+            }
+            let alen = actual as usize;
+            if alen == 0 || fwrite(heap_buf.as_ptr().cast(), 1, alen, stream) == alen {
+                actual
+            } else {
+                -1
+            }
+        }
+    }
+}
+
+pub unsafe fn vim_printf_fmt(fmt: *const c_char, args: &[crate::strings::FmtVal]) -> c_int {
+    unsafe { vim_fprintf_fmt(crate::log::log_get_stdout(), fmt, args) }
+}
+
+#[macro_export]
+macro_rules! fprintf {
+    ($stream:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {
+        $crate::fileio::vim_fprintf_fmt(
+            $stream,
+            $fmt,
+            &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
+        )
+    };
+}
+pub use fprintf;
+
+#[macro_export]
+macro_rules! printf {
+    ($fmt:expr $(, $arg:expr)* $(,)?) => {
+        $crate::fileio::vim_printf_fmt(
+            $fmt,
+            &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
+        )
+    };
+}
+pub use printf;
 
 #[cfg(test)]
 mod tests {

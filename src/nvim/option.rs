@@ -130,9 +130,8 @@ use crate::runtime::{
 use crate::spell::{compile_cap_prog, did_set_spell_option, init_spell_chartab, parse_spelllang};
 use crate::spellsuggest::{spell_apply_sps, spell_check_sps};
 use crate::strings::{
-    c_strcpy, concat_str, gettext, tr, sort_strings, strchr, strcmp,
-    strlen, strncmp, strstr, vim_snprintf, vim_snprintf_safelen,
-    vim_strchr, vim_strsave_escaped,
+    c_strcpy, concat_str, gettext, sort_strings, strchr, strcmp, strlen, strncmp, strstr, tr,
+    vim_snprintf, vim_snprintf_safelen, vim_strchr, vim_strsave_escaped,
 };
 use crate::syntax::synblock_T;
 use crate::tag::free_tagfunc_option;
@@ -6798,7 +6797,7 @@ pub unsafe extern "C" fn makeset(fd: *mut FILE, opt_flags: c_int, local_only: c_
 
                         let mut do_endif = false;
                         if opt_idx == kOptSyntax || opt_idx == kOptFiletype {
-                            if fprintf(
+                            if fprintf!(
                                 fd,
                                 c"if &%s != '%s'".as_ptr(),
                                 (*opt).fullname,
@@ -6906,7 +6905,7 @@ unsafe fn put_set_value(
         match value.obj_type {
             ObjectType::kObjectTypeBoolean => {
                 let value_bool = value.data.boolean;
-                if fprintf(
+                if fprintf!(
                     fd,
                     c"%s %s%s".as_ptr(),
                     cmd,
@@ -6922,7 +6921,7 @@ unsafe fn put_set_value(
                 }
             }
             ObjectType::kObjectTypeInteger => {
-                if fprintf(fd, c"%s %s=".as_ptr(), cmd, name) < 0 {
+                if fprintf!(fd, c"%s %s=".as_ptr(), cmd, name) < 0 {
                     return FAIL;
                 }
                 let value_num = value.data.integer;
@@ -6939,7 +6938,7 @@ unsafe fn put_set_value(
                 }
             }
             ObjectType::kObjectTypeString => {
-                if fprintf(fd, c"%s %s=".as_ptr(), cmd, name) < 0 {
+                if fprintf!(fd, c"%s %s=".as_ptr(), cmd, name) < 0 {
                     return FAIL;
                 }
                 let value_str = value.data.string.data;
@@ -6961,7 +6960,7 @@ unsafe fn put_set_value(
                             }
                             let mut p = buf;
                             while *p != NUL {
-                                if fprintf(fd, c"%s %s+=".as_ptr(), cmd, name) < 0 {
+                                if fprintf!(fd, c"%s %s+=".as_ptr(), cmd, name) < 0 {
                                     xfree(buf.cast());
                                     xfree(part.cast());
                                     return FAIL;
@@ -9055,9 +9054,7 @@ pub unsafe extern "C" fn option_slice_eq(
     slicelen: usize,
     name: *const c_char,
 ) -> bool {
-    unsafe {
-        !slice.is_null() && strlen(name) == slicelen && strncmp(slice, name, slicelen) == 0
-    }
+    unsafe { !slice.is_null() && strlen(name) == slicelen && strncmp(slice, name, slicelen) == 0 }
 }
 
 /// Return true when 'shell' has "csh" in the tail.
@@ -9088,12 +9085,7 @@ pub unsafe extern "C" fn get_winbuf_options(bufopt: c_int) -> *mut dict_T {
                 if !varp.is_null() {
                     let ov = opt_from_varp(opt_idx, varp);
                     let mut opt_tv = opt_to_tv(ov, true);
-                    tv_dict_add_tv(
-                        d,
-                        (*opt).fullname,
-                        strlen((*opt).fullname),
-                        &raw mut opt_tv,
-                    );
+                    tv_dict_add_tv(d, (*opt).fullname, strlen((*opt).fullname), &raw mut opt_tv);
                     tv_clear(&raw mut opt_tv);
                     optval_free_read(opt_idx, ov);
                 }
