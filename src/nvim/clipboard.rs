@@ -14,17 +14,16 @@ use crate::register::{
     update_yankreg_width, yankreg_T,
 };
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
-use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
 const K_OPT_CB_FLAG_UNNAMED: c_uint = 0x01;
 const K_OPT_CB_FLAG_UNNAMEDPLUS: c_uint = 0x02;
 
 const CTRL_V: u8 = 0x16;
 
-static BATCH_CHANGE_COUNT: AtomicI32 = AtomicI32::new(0);
-static CLIPBOARD_DELAY_UPDATE: AtomicBool = AtomicBool::new(false);
-static CLIPBOARD_NEEDS_UPDATE: AtomicBool = AtomicBool::new(false);
-static CLIPBOARD_DIDWARN: AtomicBool = AtomicBool::new(false);
+static mut BATCH_CHANGE_COUNT: i32 = 0;
+static mut CLIPBOARD_DELAY_UPDATE: bool = false;
+static mut CLIPBOARD_NEEDS_UPDATE: bool = false;
+static mut CLIPBOARD_DIDWARN: bool = false;
 
 const MSG_NO_CLIP: &CStr = c"clipboard: No provider. Try \":checkhealth\" or \":h clipboard\".";
 
@@ -54,12 +53,11 @@ pub unsafe extern "C" fn adjust_clipboard_name(
         }
 
         if !eval_has_provider(c"clipboard".as_ptr(), false) {
-            if BATCH_CHANGE_COUNT.load(Ordering::Relaxed) <= 1
+            if BATCH_CHANGE_COUNT <= 1
                 && !quiet
-                && (!CLIPBOARD_DIDWARN.load(Ordering::Relaxed)
-                    || (explicit_cb_reg && redirecting() == 0))
+                && (!CLIPBOARD_DIDWARN || (explicit_cb_reg && redirecting() == 0))
             {
-                CLIPBOARD_DIDWARN.store(true, Ordering::Relaxed);
+                CLIPBOARD_DIDWARN = true;
                 msg(MSG_NO_CLIP.as_ptr(), 0);
             }
             return std::ptr::null_mut();
@@ -77,14 +75,14 @@ pub unsafe extern "C" fn adjust_clipboard_name(
                 K_OPT_CB_FLAG_UNNAMEDPLUS
             };
             if writing && (flags & match_flag) != 0 {
-                CLIPBOARD_NEEDS_UPDATE.store(false, Ordering::Relaxed);
+                CLIPBOARD_NEEDS_UPDATE = false;
             }
             target
         } else {
-            if writing && CLIPBOARD_DELAY_UPDATE.load(Ordering::Relaxed) {
-                CLIPBOARD_NEEDS_UPDATE.store(true, Ordering::Relaxed);
+            if writing && CLIPBOARD_DELAY_UPDATE {
+                CLIPBOARD_NEEDS_UPDATE = true;
                 return std::ptr::null_mut();
-            } else if !writing && CLIPBOARD_NEEDS_UPDATE.load(Ordering::Relaxed) {
+            } else if !writing && CLIPBOARD_NEEDS_UPDATE {
                 return std::ptr::null_mut();
             }
 
@@ -287,21 +285,26 @@ pub unsafe extern "C" fn set_clipboard(mut name: c_int, reg: *mut yankreg_T) {
 /// Defer clipboard updates during batch operations (`start_batch_changes`).
 #[unsafe(no_mangle)]
 pub extern "C" fn start_batch_changes() {
-    if BATCH_CHANGE_COUNT.fetch_add(1, Ordering::Relaxed) + 1 > 1 {
-        return;
+    unsafe {
+        BATCH_CHANGE_COUNT += 1;
+        if BATCH_CHANGE_COUNT > 1 {
+            return;
+        }
+        CLIPBOARD_DELAY_UPDATE = true;
     }
-    CLIPBOARD_DELAY_UPDATE.store(true, Ordering::Relaxed);
 }
 
 /// End batch operation and flush deferred clipboard update if needed (`end_batch_changes`).
 #[unsafe(no_mangle)]
 pub extern "C" fn end_batch_changes() {
-    if BATCH_CHANGE_COUNT.fetch_sub(1, Ordering::Relaxed) - 1 > 0 {
-        return;
-    }
-    CLIPBOARD_DELAY_UPDATE.store(false, Ordering::Relaxed);
-    if CLIPBOARD_NEEDS_UPDATE.swap(false, Ordering::Relaxed) {
-        unsafe {
+    unsafe {
+        BATCH_CHANGE_COUNT -= 1;
+        if BATCH_CHANGE_COUNT > 0 {
+            return;
+        }
+        CLIPBOARD_DELAY_UPDATE = false;
+        if CLIPBOARD_NEEDS_UPDATE {
+            CLIPBOARD_NEEDS_UPDATE = false;
             set_clipboard(0, get_y_previous());
         }
     }
@@ -313,12 +316,14 @@ mod tests {
 
     #[test]
     fn batch_changes_nesting_toggles_delay_flag() {
-        start_batch_changes();
-        assert!(CLIPBOARD_DELAY_UPDATE.load(Ordering::Relaxed));
-        start_batch_changes();
-        end_batch_changes();
-        assert!(CLIPBOARD_DELAY_UPDATE.load(Ordering::Relaxed));
-        end_batch_changes();
-        assert!(!CLIPBOARD_DELAY_UPDATE.load(Ordering::Relaxed));
+        unsafe {
+            start_batch_changes();
+            assert!(CLIPBOARD_DELAY_UPDATE);
+            start_batch_changes();
+            end_batch_changes();
+            assert!(CLIPBOARD_DELAY_UPDATE);
+            end_batch_changes();
+            assert!(!CLIPBOARD_DELAY_UPDATE);
+        }
     }
 }

@@ -23,7 +23,6 @@ use crate::regexp::{
     NSUBEXP, NUMBUFLEN, RE_MAGIC, RE_STRING, regmatch_T, vim_regcomp, vim_regexec, vim_regfree,
 };
 use std::ffi::{CStr, c_char, c_int, c_void};
-use std::sync::atomic::{AtomicI32, Ordering};
 
 pub const HIST_DEFAULT: c_int = -2;
 pub const HIST_INVALID: c_int = -1;
@@ -37,8 +36,8 @@ pub const HIST_COUNT: usize = 5;
 static mut HISTORY: [*mut histentry_T; HIST_COUNT] = [std::ptr::null_mut(); HIST_COUNT];
 static mut HISIDX: [c_int; HIST_COUNT] = [-1; HIST_COUNT];
 static mut HISNUM: [c_int; HIST_COUNT] = [0; HIST_COUNT];
-static HISLEN: AtomicI32 = AtomicI32::new(0);
-static LAST_MAPTICK: AtomicI32 = AtomicI32::new(-1);
+static mut HISLEN: c_int = 0;
+static mut LAST_MAPTICK: c_int = -1;
 
 const HISTORY_NAMES: [&CStr; HIST_COUNT] = [c"cmd", c"search", c"expr", c"input", c"debug"];
 const HISTORY_EXPAND_ARGS: [&CStr; 12] = [
@@ -83,7 +82,7 @@ unsafe fn hist_free_entry(hisptr: *mut histentry_T) {
 /// Return the length of the history tables (`get_hislen`).
 #[unsafe(no_mangle)]
 pub extern "C" fn get_hislen() -> c_int {
-    HISLEN.load(Ordering::Relaxed)
+    unsafe { HISLEN }
 }
 
 /// Return a pointer to a specified history table (`get_histentry`).
@@ -141,7 +140,7 @@ pub unsafe extern "C" fn init_history() {
     unsafe {
         assert!(p_hi >= 0 && p_hi <= (c_int::MAX as i64));
         let newlen = p_hi as c_int;
-        let oldlen = HISLEN.load(Ordering::Relaxed);
+        let oldlen = HISLEN;
 
         if newlen == oldlen {
             return;
@@ -200,7 +199,7 @@ pub unsafe extern "C" fn init_history() {
             xfree(HISTORY[hist_type].cast::<c_void>());
             HISTORY[hist_type] = temp;
         }
-        HISLEN.store(newlen, Ordering::Relaxed);
+        HISLEN = newlen;
     }
 }
 
@@ -215,7 +214,7 @@ unsafe fn in_history(
         if cur_idx < 0 {
             return false;
         }
-        let hislen = HISLEN.load(Ordering::Relaxed);
+        let hislen = HISLEN;
         let str_bytes = CStr::from_ptr(str_ptr).to_bytes();
         let mut last_i: c_int = -1;
         let mut i = cur_idx;
@@ -303,7 +302,7 @@ pub unsafe extern "C" fn add_to_history(
     in_map: bool,
     sep: c_int,
 ) {
-    let hislen = HISLEN.load(Ordering::Relaxed);
+    let hislen = unsafe { HISLEN };
     if hislen == 0 || histype == HIST_INVALID {
         return;
     }
@@ -315,8 +314,7 @@ pub unsafe extern "C" fn add_to_history(
         }
 
         if histype == HIST_SEARCH && in_map {
-            if maptick == LAST_MAPTICK.load(Ordering::Relaxed) && HISIDX[HIST_SEARCH as usize] >= 0
-            {
+            if maptick == LAST_MAPTICK && HISIDX[HIST_SEARCH as usize] >= 0 {
                 let sidx = HISIDX[HIST_SEARCH as usize] as usize;
                 hist_free_entry(HISTORY[HIST_SEARCH as usize].add(sidx));
                 HISNUM[histype as usize] -= 1;
@@ -325,7 +323,7 @@ pub unsafe extern "C" fn add_to_history(
                     HISIDX[HIST_SEARCH as usize] = hislen - 1;
                 }
             }
-            LAST_MAPTICK.store(-1, Ordering::Relaxed);
+            LAST_MAPTICK = -1;
         }
     }
 
@@ -362,13 +360,13 @@ pub unsafe extern "C" fn add_to_history(
         hisptr.hisnum = HISNUM[htype];
 
         if histype == HIST_SEARCH && in_map {
-            LAST_MAPTICK.store(maptick, Ordering::Relaxed);
+            LAST_MAPTICK = maptick;
         }
     }
 }
 
 unsafe fn get_history_idx(histype: c_int) -> c_int {
-    let hislen = HISLEN.load(Ordering::Relaxed);
+    let hislen = unsafe { HISLEN };
     if hislen == 0 || histype < 0 || (histype as usize) >= HIST_COUNT {
         return -1;
     }
@@ -380,7 +378,7 @@ unsafe fn get_history_idx(histype: c_int) -> c_int {
 }
 
 unsafe fn calc_hist_idx(histype: c_int, num: c_int) -> c_int {
-    let hislen = HISLEN.load(Ordering::Relaxed);
+    let hislen = unsafe { HISLEN };
     if hislen == 0 || histype < 0 || (histype as usize) >= HIST_COUNT || num == 0 {
         return -1;
     }
@@ -423,7 +421,7 @@ unsafe fn calc_hist_idx(histype: c_int, num: c_int) -> c_int {
 /// Clear all entries in a history (`clr_history`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn clr_history(histype: c_int) -> c_int {
-    let hislen = HISLEN.load(Ordering::Relaxed);
+    let hislen = unsafe { HISLEN };
     if hislen != 0 && histype >= 0 && (histype as usize) < HIST_COUNT {
         let htype = histype as usize;
         unsafe {
@@ -442,7 +440,7 @@ pub unsafe extern "C" fn clr_history(histype: c_int) -> c_int {
 
 unsafe fn del_history_entry(histype: c_int, str_ptr: *mut c_char) -> c_int {
     unsafe {
-        let hislen = HISLEN.load(Ordering::Relaxed);
+        let hislen = HISLEN;
         if hislen == 0
             || histype < 0
             || (histype as usize) >= HIST_COUNT
@@ -512,11 +510,11 @@ unsafe fn del_history_idx(histype: c_int, idx_arg: c_int) -> c_int {
         }
         let htype = histype as usize;
         let idx = HISIDX[htype];
-        let hislen = HISLEN.load(Ordering::Relaxed);
+        let hislen = HISLEN;
         hist_free_entry(HISTORY[htype].add(i as usize));
 
-        if histype == HIST_SEARCH && maptick == LAST_MAPTICK.load(Ordering::Relaxed) && i == idx {
-            LAST_MAPTICK.store(-1, Ordering::Relaxed);
+        if histype == HIST_SEARCH && maptick == LAST_MAPTICK && i == idx {
+            LAST_MAPTICK = -1;
         }
 
         while i != idx {
@@ -679,7 +677,7 @@ pub unsafe extern "C" fn ex_history(eap: *mut exarg_T) {
         let arg = (*eap).arg;
 
         msg_ext_set_kind(c"list_cmd".as_ptr());
-        let hislen = HISLEN.load(Ordering::Relaxed);
+        let hislen = HISLEN;
         if hislen == 0 {
             msg(c"'history' option is zero".as_ptr(), 0);
             return;
@@ -806,7 +804,7 @@ pub unsafe extern "C" fn hist_iter(
         if HISIDX[htype] == -1 {
             return std::ptr::null();
         }
-        let hislen = HISLEN.load(Ordering::Relaxed);
+        let hislen = HISLEN;
         let hstart = HISTORY[htype];
         let hlast = HISTORY[htype].add(HISIDX[htype] as usize);
         let hend = HISTORY[htype].add((hislen - 1) as usize);

@@ -30,7 +30,6 @@ use crate::regexp::NUMBUFLEN;
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 use crate::testing::ga_concat_literal;
 use std::ffi::{CStr, c_char, c_int, c_void};
-use std::sync::atomic::{AtomicBool, Ordering};
 
 pub(crate) const K_MP_NIL: usize = 0;
 pub(crate) const K_MP_BOOLEAN: usize = 1;
@@ -51,7 +50,7 @@ pub static encode_bool_var_names: CStrArray<2> =
 #[unsafe(no_mangle)]
 pub static encode_special_var_names: CStrArray<1> = CStrArray([c"v:null".as_ptr()]);
 
-static DID_ECHO_STRING_EMSG: AtomicBool = AtomicBool::new(false);
+static mut DID_ECHO_STRING_EMSG: bool = false;
 
 /// Structure defining state for `encode_read_from_list()` (`ListReaderState`).
 #[repr(C)]
@@ -1153,7 +1152,8 @@ impl EncodeBackend {
                     gap,
                     mode: TextEncodeMode::String,
                 } => {
-                    if !DID_ECHO_STRING_EMSG.swap(true, Ordering::Relaxed) {
+                    if !DID_ECHO_STRING_EMSG {
+                        DID_ECHO_STRING_EMSG = true;
                         emsg(
                             c"E724: unable to correctly dump variable with self-referencing container"
                                 .as_ptr(),
@@ -1181,7 +1181,8 @@ impl EncodeBackend {
                     mode: TextEncodeMode::Json,
                     ..
                 } => {
-                    if !DID_ECHO_STRING_EMSG.swap(true, Ordering::Relaxed) {
+                    if !DID_ECHO_STRING_EMSG {
+                        DID_ECHO_STRING_EMSG = true;
                         emsg(
                             c"E724: unable to correctly dump variable with self-referencing container"
                                 .as_ptr(),
@@ -1845,7 +1846,7 @@ pub unsafe extern "C" fn encode_tv2string(tv: *mut typval_T, len: *mut usize) ->
         let evs_ret =
             encode_vim_with_backend(&mut backend, tv, c"encode_tv2string() argument".as_ptr());
         assert_eq!(evs_ret, OK);
-        DID_ECHO_STRING_EMSG.store(false, Ordering::Relaxed);
+        DID_ECHO_STRING_EMSG = false;
         if !len.is_null() {
             *len = ga.ga_len as usize;
         }
@@ -1904,7 +1905,7 @@ pub unsafe extern "C" fn encode_tv2json(tv: *mut typval_T, len: *mut usize) -> *
         if evj_ret == FAIL {
             ga_clear(&mut ga);
         }
-        DID_ECHO_STRING_EMSG.store(false, Ordering::Relaxed);
+        DID_ECHO_STRING_EMSG = false;
         if !len.is_null() {
             *len = ga.ga_len as usize;
         }

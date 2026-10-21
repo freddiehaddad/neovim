@@ -25,14 +25,13 @@ use crate::strings::vim_strchr;
 use crate::textformat::oparg_T;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::math::{FAIL, OK};
 use crate::regexp::MAXCOL;
 
 const kCpoEndofsent: c_int = b'J' as c_int;
 
-static CLS_BIGWORD: AtomicBool = AtomicBool::new(false);
+static mut CLS_BIGWORD: bool = false;
 
 /// Find the start of the next sentence, searching in the direction specified
 /// by the `dir` argument (`findsent`).
@@ -315,7 +314,7 @@ unsafe fn cls() -> c_int {
 
         c = utf_class(c);
 
-        if c != 0 && CLS_BIGWORD.load(Ordering::Relaxed) {
+        if c != 0 && CLS_BIGWORD {
             return 1;
         }
         c
@@ -327,7 +326,7 @@ unsafe fn cls() -> c_int {
 pub unsafe extern "C" fn fwd_word(mut count: c_int, bigword: bool, eol: bool) -> c_int {
     unsafe {
         (*curwin).w_cursor.coladd = 0;
-        CLS_BIGWORD.store(bigword, Ordering::Relaxed);
+        CLS_BIGWORD = bigword;
         while {
             count -= 1;
             count >= 0
@@ -380,7 +379,7 @@ pub unsafe extern "C" fn fwd_word(mut count: c_int, bigword: bool, eol: bool) ->
 pub unsafe extern "C" fn bck_word(mut count: c_int, bigword: bool, mut stop: bool) -> c_int {
     unsafe {
         (*curwin).w_cursor.coladd = 0;
-        CLS_BIGWORD.store(bigword, Ordering::Relaxed);
+        CLS_BIGWORD = bigword;
         while {
             count -= 1;
             count >= 0
@@ -435,7 +434,7 @@ pub unsafe extern "C" fn end_word(
 ) -> c_int {
     unsafe {
         (*curwin).w_cursor.coladd = 0;
-        CLS_BIGWORD.store(bigword, Ordering::Relaxed);
+        CLS_BIGWORD = bigword;
 
         if *p_sel == b'e' as c_char
             && Visual.active
@@ -496,7 +495,7 @@ pub unsafe extern "C" fn end_word(
 pub unsafe extern "C" fn bckend_word(mut count: c_int, bigword: bool, eol: bool) -> c_int {
     unsafe {
         (*curwin).w_cursor.coladd = 0;
-        CLS_BIGWORD.store(bigword, Ordering::Relaxed);
+        CLS_BIGWORD = bigword;
         while {
             count -= 1;
             count >= 0
@@ -617,7 +616,7 @@ pub unsafe extern "C" fn current_word(
         let mut inclusive = true;
         let mut include_white = false;
 
-        CLS_BIGWORD.store(bigword, Ordering::Relaxed);
+        CLS_BIGWORD = bigword;
         clearpos(&mut start_pos);
 
         if Visual.active && *p_sel == b'e' as c_char && lt(Visual.start, (*curwin).w_cursor) {

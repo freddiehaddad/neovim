@@ -36,7 +36,6 @@ use crate::memory::{Arena, arena_memdupz, xfree, xstrdup};
 use crate::message::{emsg, internal_error, semsg};
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use std::ffi::{CStr, c_char, c_int, c_void};
-use std::sync::atomic::{AtomicBool, Ordering};
 
 pub type Boolean = bool;
 pub type Float = f64;
@@ -114,7 +113,7 @@ pub(crate) const LUA_ERRMEM: c_int = 4;
 
 pub(crate) const LUAL_BUFFERSIZE: usize = if cfg!(windows) { 512 } else { 8192 };
 
-static TYPVAL_CONV_SPECIAL: AtomicBool = AtomicBool::new(false);
+static mut TYPVAL_CONV_SPECIAL: bool = false;
 
 #[repr(C)]
 pub struct nlua_ref_state_t {
@@ -806,7 +805,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
 #[inline]
 unsafe fn lua_conv_nil(lstate: *mut lua_State) {
     unsafe {
-        if TYPVAL_CONV_SPECIAL.load(Ordering::Relaxed) {
+        if TYPVAL_CONV_SPECIAL {
             lua_pushnil(lstate);
         } else {
             nlua_pushref(lstate, (*nlua_global_refs).nil_ref);
@@ -817,7 +816,7 @@ unsafe fn lua_conv_nil(lstate: *mut lua_State) {
 #[inline]
 unsafe fn lua_conv_empty_dict(lstate: *mut lua_State) {
     unsafe {
-        if TYPVAL_CONV_SPECIAL.load(Ordering::Relaxed) {
+        if TYPVAL_CONV_SPECIAL {
             nlua_create_typed_table(lstate, 0, 0, ObjectType::kObjectTypeDict);
         } else {
             lua_createtable(lstate, 0, 0);
@@ -1384,7 +1383,7 @@ pub unsafe extern "C-unwind" fn nlua_push_typval(
     flags: c_int,
 ) -> bool {
     unsafe {
-        TYPVAL_CONV_SPECIAL.store((flags & K_NLUA_PUSH_SPECIAL) != 0, Ordering::Relaxed);
+        TYPVAL_CONV_SPECIAL = (flags & K_NLUA_PUSH_SPECIAL) != 0;
         let initial_size = lua_gettop(lstate);
 
         if lua_checkstack(lstate, initial_size + 2) == 0 {

@@ -20,7 +20,6 @@ use crate::os::time::os_hrtime;
 use crate::runtime::{get_scriptname, script_id_valid, script_item, script_items, sourcing_lnum};
 use crate::strings::qsort;
 use std::ffi::{CStr, c_char, c_int, c_void};
-use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
 
 pub type proftime_T = u64;
 
@@ -31,12 +30,12 @@ const IOFBF: c_int = 0;
 
 const PEXP_SUBCMD: i32 = 0;
 
-static PROF_WAIT_TIME: AtomicU64 = AtomicU64::new(0);
-static WAIT_TIME: AtomicU64 = AtomicU64::new(0);
-static PAUSE_TIME: AtomicU64 = AtomicU64::new(0);
-static G_START_TIME: AtomicU64 = AtomicU64::new(0);
-static G_PREV_TIME: AtomicU64 = AtomicU64::new(0);
-static PEXPAND_WHAT: AtomicI32 = AtomicI32::new(PEXP_SUBCMD);
+static mut PROF_WAIT_TIME: proftime_T = 0;
+static mut WAIT_TIME: proftime_T = 0;
+static mut PAUSE_TIME: proftime_T = 0;
+static mut G_START_TIME: proftime_T = 0;
+static mut G_PREV_TIME: proftime_T = 0;
+static mut PEXPAND_WHAT: i32 = PEXP_SUBCMD;
 
 static mut STARTUPTIME_BUF: *mut c_char = std::ptr::null_mut();
 static mut PROFILE_FNAME: *mut c_char = std::ptr::null_mut();
@@ -225,13 +224,15 @@ pub const extern "C" fn profile_self(
 
 #[inline]
 fn profile_get_wait() -> proftime_T {
-    PROF_WAIT_TIME.load(Ordering::Relaxed)
+    unsafe { PROF_WAIT_TIME }
 }
 
 /// Sets the current waittime (`profile_set_wait`).
 #[unsafe(no_mangle)]
 pub extern "C" fn profile_set_wait(wait: proftime_T) {
-    PROF_WAIT_TIME.store(wait, Ordering::Relaxed);
+    unsafe {
+        PROF_WAIT_TIME = wait;
+    }
 }
 
 /// Subtracts the passed waittime since `tm` (`profile_sub_wait`).
@@ -357,13 +358,13 @@ pub unsafe extern "C" fn ex_profile(eap: *mut exarg_T) {
             profile_reset();
         } else if arg_bytes == b"pause" {
             if do_profiling == PROF_YES {
-                PAUSE_TIME.store(profile_start(), Ordering::Relaxed);
+                PAUSE_TIME = profile_start();
             }
             do_profiling = PROF_PAUSED;
         } else if arg_bytes == b"continue" {
             if do_profiling == PROF_PAUSED {
-                let elapsed = profile_end(PAUSE_TIME.load(Ordering::Relaxed));
-                PAUSE_TIME.store(elapsed, Ordering::Relaxed);
+                let elapsed = profile_end(PAUSE_TIME);
+                PAUSE_TIME = elapsed;
                 profile_set_wait(profile_add(profile_get_wait(), elapsed));
             }
             do_profiling = PROF_YES;
@@ -378,10 +379,7 @@ pub unsafe extern "C" fn ex_profile(eap: *mut exarg_T) {
 /// Command-line completion item getter for `:profile` (`get_profile_name`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_profile_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
-    if PEXPAND_WHAT.load(Ordering::Relaxed) == PEXP_SUBCMD
-        && idx >= 0
-        && (idx as usize) < PEXPAND_CMDS.len()
-    {
+    if unsafe { PEXPAND_WHAT } == PEXP_SUBCMD && idx >= 0 && (idx as usize) < PEXPAND_CMDS.len() {
         PEXPAND_CMDS[idx as usize].as_ptr().cast_mut()
     } else {
         std::ptr::null_mut()
@@ -393,7 +391,9 @@ pub unsafe extern "C" fn get_profile_name(_xp: *mut expand_T, idx: c_int) -> *mu
 pub unsafe extern "C" fn set_context_in_profile_cmd(xp: *mut expand_T, arg: *const c_char) {
     let xp = unsafe { &mut *xp };
     xp.xp_context = EXPAND_PROFILE;
-    PEXPAND_WHAT.store(PEXP_SUBCMD, Ordering::Relaxed);
+    unsafe {
+        PEXPAND_WHAT = PEXP_SUBCMD;
+    }
     xp.xp_pattern = arg.cast_mut();
 
     let end_subcmd = unsafe { skiptowhite(arg) };
@@ -417,14 +417,18 @@ pub unsafe extern "C" fn set_context_in_profile_cmd(xp: *mut expand_T, arg: *con
 /// Called when starting to wait for user input (`prof_input_start`).
 #[unsafe(no_mangle)]
 pub extern "C" fn prof_input_start() {
-    WAIT_TIME.store(profile_start(), Ordering::Relaxed);
+    unsafe {
+        WAIT_TIME = profile_start();
+    }
 }
 
 /// Called when finished waiting for user input (`prof_input_end`).
 #[unsafe(no_mangle)]
 pub extern "C" fn prof_input_end() {
-    let elapsed = profile_end(WAIT_TIME.load(Ordering::Relaxed));
-    WAIT_TIME.store(elapsed, Ordering::Relaxed);
+    let elapsed = profile_end(unsafe { WAIT_TIME });
+    unsafe {
+        WAIT_TIME = elapsed;
+    }
     profile_set_wait(profile_add(profile_get_wait(), elapsed));
 }
 
@@ -956,8 +960,9 @@ pub unsafe extern "C" fn script_line_end() {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn time_push(rel: *mut proftime_T, start: *mut proftime_T) {
     let now = profile_start();
-    let prev = G_PREV_TIME.swap(now, Ordering::Relaxed);
     unsafe {
+        let prev = G_PREV_TIME;
+        G_PREV_TIME = now;
         *rel = profile_sub(now, prev);
         *start = now;
     }
@@ -966,8 +971,9 @@ pub unsafe extern "C" fn time_push(rel: *mut proftime_T, start: *mut proftime_T)
 /// Computes the prev time after doing something that could nest (`time_pop`).
 #[unsafe(no_mangle)]
 pub extern "C" fn time_pop(tp: proftime_T) {
-    let prev = G_PREV_TIME.load(Ordering::Relaxed);
-    G_PREV_TIME.store(prev.wrapping_sub(tp), Ordering::Relaxed);
+    unsafe {
+        G_PREV_TIME = G_PREV_TIME.wrapping_sub(tp);
+    }
 }
 
 unsafe fn time_diff(then: proftime_T, now: proftime_T) {
@@ -987,8 +993,8 @@ pub unsafe extern "C" fn time_start(message: *const c_char) {
         }
 
         let now = profile_start();
-        G_START_TIME.store(now, Ordering::Relaxed);
-        G_PREV_TIME.store(now, Ordering::Relaxed);
+        G_START_TIME = now;
+        G_PREV_TIME = now;
 
         fprintf!(time_fd, c"\ntimes in msec\n".as_ptr());
         fprintf!(
@@ -1013,7 +1019,7 @@ pub unsafe extern "C" fn time_msg(mesg: *const c_char, start: *const proftime_T)
         }
 
         let now = profile_start();
-        time_diff(G_START_TIME.load(Ordering::Relaxed), now);
+        time_diff(G_START_TIME, now);
 
         if !start.is_null() {
             fprintf!(time_fd, c"  ".as_ptr());
@@ -1021,7 +1027,9 @@ pub unsafe extern "C" fn time_msg(mesg: *const c_char, start: *const proftime_T)
         }
 
         fprintf!(time_fd, c"  ".as_ptr());
-        time_diff(G_PREV_TIME.swap(now, Ordering::Relaxed), now);
+        let prev = G_PREV_TIME;
+        G_PREV_TIME = now;
+        time_diff(prev, now);
 
         fprintf!(time_fd, c": %s\n".as_ptr(), mesg);
     }

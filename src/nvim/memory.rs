@@ -17,9 +17,7 @@ use crate::option_vars::*;
 use crate::register::set_expr_line;
 use crate::ui::ui_free_all_mem;
 use crate::ui_client::ui_client_free_all_mem;
-use std::cell::UnsafeCell;
 use std::ffi::{CStr, c_char, c_int, c_void};
-use std::sync::atomic::{AtomicBool, Ordering};
 
 pub const ARENA_BLOCK_SIZE: usize = 4096;
 const REUSE_MAX: usize = 4;
@@ -77,19 +75,9 @@ pub static mut mem_realloc: MemRealloc = crt_realloc;
 #[unsafe(no_mangle)]
 pub static mut entered_free_all_mem: bool = false;
 
-static TRYING_TO_FREE: AtomicBool = AtomicBool::new(false);
-
-struct ArenaReuseState {
-    head: UnsafeCell<*mut ConsumedBlk>,
-    count: UnsafeCell<usize>,
-}
-
-unsafe impl Sync for ArenaReuseState {}
-
-static ARENA_REUSE: ArenaReuseState = ArenaReuseState {
-    head: UnsafeCell::new(std::ptr::null_mut()),
-    count: UnsafeCell::new(0),
-};
+static mut TRYING_TO_FREE: bool = false;
+static mut ARENA_REUSE_HEAD: *mut ConsumedBlk = std::ptr::null_mut();
+static mut ARENA_REUSE_COUNT: usize = 0;
 
 #[inline]
 unsafe fn raw_malloc(size: usize) -> *mut c_void {
@@ -112,19 +100,18 @@ unsafe fn raw_realloc(ptr: *mut c_void, size: usize) -> *mut c_void {
 }
 
 unsafe fn try_to_free_memory() {
-    if TRYING_TO_FREE.swap(true, Ordering::Relaxed) {
-        return;
-    }
-
     unsafe {
+        if TRYING_TO_FREE {
+            return;
+        }
+        TRYING_TO_FREE = true;
+
         clear_sb_text(true);
         mf_release_all();
-    }
-    unsafe {
         arena_free_reuse_blks();
-    }
 
-    TRYING_TO_FREE.store(false, Ordering::Relaxed);
+        TRYING_TO_FREE = false;
+    }
 }
 
 unsafe fn do_outofmem_msg(size: usize) {
@@ -149,13 +136,11 @@ unsafe fn out_of_memory_exit() -> ! {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn arena_free_reuse_blks() {
     unsafe {
-        let count_ptr = ARENA_REUSE.count.get();
-        let head_ptr = ARENA_REUSE.head.get();
-        while *count_ptr > 0 {
-            let blk = *head_ptr;
-            *head_ptr = (*blk).prev;
+        while ARENA_REUSE_COUNT > 0 {
+            let blk = ARENA_REUSE_HEAD;
+            ARENA_REUSE_HEAD = (*blk).prev;
             xfree(blk.cast::<c_void>());
-            *count_ptr -= 1;
+            ARENA_REUSE_COUNT -= 1;
         }
     }
 }
@@ -702,17 +687,13 @@ pub unsafe extern "C" fn arena_finish(arena: *mut Arena) -> ArenaMem {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn alloc_block() -> *mut c_char {
     unsafe {
-        let count_ptr = ARENA_REUSE.count.get();
-        let head_ptr = ARENA_REUSE.head.get();
-        if *count_ptr > 0 {
-            let retval = (*head_ptr).cast::<c_char>();
-            *head_ptr = (*(*head_ptr)).prev;
-            *count_ptr -= 1;
+        if ARENA_REUSE_COUNT > 0 {
+            let retval = ARENA_REUSE_HEAD.cast::<c_char>();
+            ARENA_REUSE_HEAD = (*ARENA_REUSE_HEAD).prev;
+            ARENA_REUSE_COUNT -= 1;
             retval
         } else {
-            {
-                arena_alloc_count += 1;
-            }
+            arena_alloc_count += 1;
             xmalloc(ARENA_BLOCK_SIZE).cast::<c_char>()
         }
     }
@@ -804,13 +785,11 @@ pub unsafe extern "C" fn free_block(block: *mut c_char) {
         return;
     }
     unsafe {
-        let count_ptr = ARENA_REUSE.count.get();
-        let head_ptr = ARENA_REUSE.head.get();
-        if *count_ptr < REUSE_MAX {
+        if ARENA_REUSE_COUNT < REUSE_MAX {
             let reuse_blk = block.cast::<ConsumedBlk>();
-            (*reuse_blk).prev = *head_ptr;
-            *head_ptr = reuse_blk;
-            *count_ptr += 1;
+            (*reuse_blk).prev = ARENA_REUSE_HEAD;
+            ARENA_REUSE_HEAD = reuse_blk;
+            ARENA_REUSE_COUNT += 1;
         } else {
             xfree(block.cast::<c_void>());
         }

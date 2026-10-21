@@ -2,9 +2,7 @@
 //!
 //! Ported from `src/nvim/sha256.c` and `src/nvim/sha256.h`.
 
-use std::cell::UnsafeCell;
 use std::ffi::c_char;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 pub const SHA256_BUFFER_SIZE: usize = 64;
 pub const SHA256_SUM_SIZE: usize = 32;
@@ -275,14 +273,9 @@ pub fn sha256_hex(buf: &[u8], salt: Option<&[u8]>) -> [u8; SHA256_BUFFER_SIZE] {
     digest_to_hex(&digest)
 }
 
-struct StaticHexBuf(UnsafeCell<[u8; SHA256_BUFFER_SIZE + 1]>);
-
-// Matches C `static char hexit[SHA256_BUFFER_SIZE + 1]` in single-threaded Neovim main loop.
-unsafe impl Sync for StaticHexBuf {}
-
-static HEXIT: StaticHexBuf = StaticHexBuf(UnsafeCell::new([0u8; SHA256_BUFFER_SIZE + 1]));
-static SELF_TESTED: AtomicBool = AtomicBool::new(false);
-static SELF_TEST_FAILURES: AtomicBool = AtomicBool::new(false);
+static mut HEXIT: [u8; SHA256_BUFFER_SIZE + 1] = [0u8; SHA256_BUFFER_SIZE + 1];
+static mut SELF_TESTED: bool = false;
+static mut SELF_TEST_FAILURES: bool = false;
 
 const SELF_TEST_MSG: [&[u8]; 2] = [
     b"abc",
@@ -347,8 +340,11 @@ pub unsafe extern "C" fn sha256_finish(ctx: *mut context_sha256_T, digest: *mut 
 /// Perform the FIPS-180-2 self-test (`sha256_self_test`).
 #[unsafe(no_mangle)]
 pub extern "C" fn sha256_self_test() -> bool {
-    if SELF_TESTED.swap(true, Ordering::Relaxed) {
-        return !SELF_TEST_FAILURES.load(Ordering::Relaxed);
+    unsafe {
+        if SELF_TESTED {
+            return !SELF_TEST_FAILURES;
+        }
+        SELF_TESTED = true;
     }
 
     let mut failures = false;
@@ -377,7 +373,9 @@ pub extern "C" fn sha256_self_test() -> bool {
         }
     }
 
-    SELF_TEST_FAILURES.store(failures, Ordering::Relaxed);
+    unsafe {
+        SELF_TEST_FAILURES = failures;
+    }
     !failures
 }
 
@@ -409,7 +407,8 @@ pub unsafe extern "C" fn sha256_bytes(
     let hex = digest_to_hex(&sha256sum);
 
     unsafe {
-        let out = &mut *HEXIT.0.get();
+        let out_ptr = &raw mut HEXIT;
+        let out = &mut *out_ptr;
         out[..SHA256_BUFFER_SIZE].copy_from_slice(&hex);
         out[SHA256_BUFFER_SIZE] = 0;
         out.as_ptr().cast::<c_char>()

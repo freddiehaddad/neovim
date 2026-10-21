@@ -19,7 +19,6 @@ use crate::path::fix_fname;
 use crate::regexp::{RE_MAGIC, RE_STRING, vim_regcomp, vim_regexec_prog, vim_regfree};
 use crate::runtime::{ESTACK_NONE, estack_sfile, sourcing_lnum};
 use std::ffi::{CStr, c_char, c_int, c_void};
-use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
 const DBG_FUNC: c_int = 1;
 const DBG_FILE: c_int = 2;
@@ -40,12 +39,12 @@ const CMD_FRAME: c_int = 8;
 const CMD_UP: c_int = 9;
 const CMD_DOWN: c_int = 10;
 
-static DEBUG_GREEDY: AtomicBool = AtomicBool::new(false);
-static LAST_CMD: AtomicI32 = AtomicI32::new(0);
-static LAST_BREAKP: AtomicI32 = AtomicI32::new(0);
-static HAS_EXPR_BREAKPOINT: AtomicBool = AtomicBool::new(false);
-static DEBUG_SKIPPED: AtomicBool = AtomicBool::new(false);
-static DEBUG_BREAKPOINT_LNUM: AtomicI32 = AtomicI32::new(0);
+static mut DEBUG_GREEDY: bool = false;
+static mut LAST_CMD: c_int = 0;
+static mut LAST_BREAKP: c_int = 0;
+static mut HAS_EXPR_BREAKPOINT: bool = false;
+static mut DEBUG_SKIPPED: bool = false;
+static mut DEBUG_BREAKPOINT_LNUM: c_int = 0;
 
 static mut DEBUG_OLDVAL: *mut c_char = std::ptr::null_mut();
 static mut DEBUG_NEWVAL: *mut c_char = std::ptr::null_mut();
@@ -264,7 +263,7 @@ pub unsafe extern "C" fn do_debug(cmd: *mut c_char) {
 
             let save_ex_normal_busy = ex_normal_busy;
             ex_normal_busy = 0;
-            if !DEBUG_GREEDY.load(Ordering::Relaxed) {
+            if !DEBUG_GREEDY {
                 save_typeahead(&mut typeaheadbuf);
                 typeahead_saved = true;
                 save_ignore_script = ignore_script;
@@ -339,10 +338,10 @@ pub unsafe extern "C" fn do_debug(cmd: *mut c_char) {
                             lcmd = 0;
                         }
                     }
-                    LAST_CMD.store(lcmd, Ordering::Relaxed);
+                    LAST_CMD = lcmd;
                 }
 
-                let cur_last = LAST_CMD.load(Ordering::Relaxed);
+                let cur_last = LAST_CMD;
                 if cur_last != 0 {
                     match cur_last {
                         CMD_CONT => {
@@ -364,7 +363,7 @@ pub unsafe extern "C" fn do_debug(cmd: *mut c_char) {
                         CMD_INTERRUPT => {
                             got_int = true;
                             debug_break_level = 9999;
-                            LAST_CMD.store(CMD_STEP, Ordering::Relaxed);
+                            LAST_CMD = CMD_STEP;
                         }
                         CMD_BACKTRACE => {
                             do_showbacktrace(cmd);
@@ -442,7 +441,7 @@ pub unsafe extern "C" fn ex_debug(eap: *mut exarg_T) {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn dbg_check_breakpoint(eap: *mut exarg_T) {
     unsafe {
-        DEBUG_SKIPPED.store(false, Ordering::Relaxed);
+        DEBUG_SKIPPED = false;
         let eap = &mut *eap;
         if !DEBUG_BREAKPOINT_NAME.is_null() {
             if eap.skip == 0 {
@@ -455,13 +454,13 @@ pub unsafe extern "C" fn dbg_check_breakpoint(eap: *mut exarg_T) {
                 } else {
                     (c"".as_ptr(), bp_name)
                 };
-                let lnum = DEBUG_BREAKPOINT_LNUM.load(Ordering::Relaxed);
+                let lnum = DEBUG_BREAKPOINT_LNUM;
                 let fmt_str = format!("Breakpoint in \"%s%s\" line {lnum}\0");
                 smsg!(0, fmt_str.as_ptr().cast::<c_char>(), prefix, rest);
                 DEBUG_BREAKPOINT_NAME = std::ptr::null_mut();
                 do_debug(eap.cmd);
             } else {
-                DEBUG_SKIPPED.store(true, Ordering::Relaxed);
+                DEBUG_SKIPPED = true;
                 DEBUG_SKIPPED_NAME = DEBUG_BREAKPOINT_NAME;
                 DEBUG_BREAKPOINT_NAME = std::ptr::null_mut();
             }
@@ -469,7 +468,7 @@ pub unsafe extern "C" fn dbg_check_breakpoint(eap: *mut exarg_T) {
             if eap.skip == 0 {
                 do_debug(eap.cmd);
             } else {
-                DEBUG_SKIPPED.store(true, Ordering::Relaxed);
+                DEBUG_SKIPPED = true;
                 DEBUG_SKIPPED_NAME = std::ptr::null_mut();
             }
         }
@@ -480,7 +479,7 @@ pub unsafe extern "C" fn dbg_check_breakpoint(eap: *mut exarg_T) {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn dbg_check_skipped(eap: *mut exarg_T) -> bool {
     unsafe {
-        if !DEBUG_SKIPPED.load(Ordering::Relaxed) {
+        if !DEBUG_SKIPPED {
             return false;
         }
         let prev_got_int = got_int;
@@ -628,19 +627,21 @@ pub unsafe extern "C" fn ex_breakadd(eap: *mut exarg_T) {
                     bp.dbg_lnum = 1;
                 }
                 if eap.cmdidx != CMD_PROFILE {
-                    let nr = LAST_BREAKP.fetch_add(1, Ordering::Relaxed) + 1;
+                    LAST_BREAKP += 1;
+                    let nr = LAST_BREAKP;
                     bp.dbg_nr = nr;
                     debug_tick += 1;
                 }
                 (*gap).ga_len += 1;
             }
         } else {
-            let nr = LAST_BREAKP.fetch_add(1, Ordering::Relaxed) + 1;
+            LAST_BREAKP += 1;
+            let nr = LAST_BREAKP;
             bp.dbg_nr = nr;
             (*gap).ga_len += 1;
             debug_tick += 1;
             if std::ptr::eq(gap, std::ptr::addr_of!(DBG_BREAKP)) {
-                HAS_EXPR_BREAKPOINT.store(true, Ordering::Relaxed);
+                HAS_EXPR_BREAKPOINT = true;
             }
         }
     }
@@ -651,7 +652,7 @@ pub unsafe extern "C" fn ex_breakadd(eap: *mut exarg_T) {
 pub unsafe extern "C" fn ex_debuggreedy(eap: *mut exarg_T) {
     let eap = unsafe { &*eap };
     let greedy = eap.addr_count == 0 || eap.line2 != 0;
-    DEBUG_GREEDY.store(greedy, Ordering::Relaxed);
+    unsafe { DEBUG_GREEDY = greedy };
 }
 
 unsafe fn update_has_expr_breakpoint() {
@@ -664,7 +665,7 @@ unsafe fn update_has_expr_breakpoint() {
                 break;
             }
         }
-        HAS_EXPR_BREAKPOINT.store(found, Ordering::Relaxed);
+        HAS_EXPR_BREAKPOINT = found;
     }
 }
 
@@ -911,7 +912,7 @@ pub unsafe extern "C" fn dbg_breakpoint(name: *mut c_char, lnum: i32) {
     unsafe {
         DEBUG_BREAKPOINT_NAME = name;
     }
-    DEBUG_BREAKPOINT_LNUM.store(lnum, Ordering::Relaxed);
+    unsafe { DEBUG_BREAKPOINT_LNUM = lnum };
 }
 
 #[cfg(test)]
