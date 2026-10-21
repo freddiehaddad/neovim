@@ -415,3 +415,16 @@ pub unsafe extern "C" fn state_no_longer_safe(reason: *const c_char) {
 pub unsafe extern "C" fn get_was_safe_state() -> bool {
     unsafe { was_safe }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn safe_state_reset_clears_was_safe() {
+        unsafe {
+            state_no_longer_safe(ptr::null());
+            assert!(!get_was_safe_state());
+        }
+    }
+}

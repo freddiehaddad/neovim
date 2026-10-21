@@ -2420,3 +2420,20 @@ pub unsafe extern "C" fn get_keymap_str(
         plen
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builtin_digraph_lookup_and_char_validation() {
+        unsafe {
+            assert!(check_digraph_chars_valid(b'a' as c_int, b':' as c_int));
+            assert_eq!(getexactdigraph(b'a' as c_int, b':' as c_int, false), 0x00e4);
+            assert_eq!(
+                getexactdigraph(b'e' as c_int, b'\'' as c_int, false),
+                0x00e9
+            );
+        }
+    }
+}

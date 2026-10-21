@@ -3097,3 +3097,26 @@ pub unsafe extern "C" fn f_foldtextresult(
         fdt_result_entered = false;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fold_end_computes_inclusive_bottom_line() {
+        let f = fold_T {
+            fd_top: 10,
+            fd_len: 5,
+            fd_nested: garray_T {
+                ga_len: 0,
+                ga_maxlen: 0,
+                ga_itemsize: 0,
+                ga_growsize: 0,
+                ga_data: ptr::null_mut(),
+            },
+            fd_flags: FD_CLOSED,
+            fd_small: kNone,
+        };
+        assert_eq!(unsafe { fold_end(&raw const f) }, 14);
+    }
+}

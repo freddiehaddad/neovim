@@ -1580,3 +1580,22 @@ pub unsafe extern "C" fn schar_from_char(mut c: c_int) -> schar_T {
         sc
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn schar_roundtrip_ascii_and_unicode() {
+        unsafe {
+            let sc_a = schar_from_ascii(b'A');
+            assert_eq!(schar_get_ascii(sc_a), b'A' as c_char);
+
+            let sc_u = schar_from_char(0x2603);
+            let mut buf = [0 as c_char; 16];
+            let len = schar_get(buf.as_mut_ptr(), sc_u);
+            assert_eq!(len, 3);
+            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_str().unwrap(), "☃");
+        }
+    }
+}

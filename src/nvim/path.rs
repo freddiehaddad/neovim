@@ -2397,3 +2397,20 @@ pub unsafe extern "C" fn path_guess_exepath(
         xfree(path.cast::<c_void>());
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn path_tail_and_separators_work() {
+        unsafe {
+            assert!(vim_ispathsep(b'/' as c_int));
+            let s = c"/usr/local/bin/nvim";
+            let tail = path_tail(s.as_ptr());
+            assert_eq!(CStr::from_ptr(tail).to_bytes(), b"nvim");
+            let next = path_next_component(s.as_ptr().add(1));
+            assert_eq!(CStr::from_ptr(next).to_bytes(), b"local/bin/nvim");
+        }
+    }
+}

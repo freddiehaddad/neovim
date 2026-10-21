@@ -579,3 +579,35 @@ pub unsafe extern "C" fn get_cursor_line_len() -> colnr_T {
 pub unsafe extern "C" fn get_cursor_pos_len() -> colnr_T {
     unsafe { ml_get_buf_len(curbuf, (*curwin).w_cursor.lnum) - (*curwin).w_cursor.col }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pos_ordering_and_clearpos_work() {
+        let mut p1 = pos_T {
+            lnum: 3,
+            col: 5,
+            coladd: 1,
+        };
+        let p2 = pos_T {
+            lnum: 3,
+            col: 6,
+            coladd: 0,
+        };
+        assert!(lt(p1, p2));
+        assert!(ltoreq(p1, p2));
+        assert!(ltoreq(p1, p1));
+        assert!(!lt(p2, p1));
+        clearpos(&mut p1);
+        assert!(equalpos(
+            p1,
+            pos_T {
+                lnum: 0,
+                col: 0,
+                coladd: 0
+            }
+        ));
+    }
+}

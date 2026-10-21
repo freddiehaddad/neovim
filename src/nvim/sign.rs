@@ -1950,3 +1950,24 @@ pub unsafe extern "C" fn f_sign_unplacelist(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sign_cmd_idx_and_describe_sign_text_work() {
+        unsafe {
+            let mut cmd = *b"define\0";
+            assert_eq!(
+                sign_cmd_idx(cmd.as_mut_ptr().cast(), cmd.as_mut_ptr().add(6).cast()),
+                SIGNCMD_DEFINE
+            );
+            let mut st = [schar_from_ascii(b'>'), schar_from_ascii(b'>')];
+            let mut buf = [0 as c_char; 16];
+            let len = describe_sign_text(buf.as_mut_ptr(), st.as_mut_ptr());
+            assert_eq!(len, 2);
+            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b">>");
+        }
+    }
+}

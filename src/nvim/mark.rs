@@ -2451,3 +2451,33 @@ pub unsafe extern "C" fn get_global_marks(l: *mut list_T) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn global_mark_index_and_set_get_work() {
+        unsafe {
+            assert_eq!(mark_global_index(b'A' as c_char), 0);
+            assert_eq!(mark_global_index(b'Z' as c_char), 25);
+            assert_eq!(mark_global_index(b'0' as c_char), 26);
+            assert_eq!(mark_global_index(b'9' as c_char), 35);
+            assert_eq!(mark_global_index(b'a' as c_char), -1);
+
+            let mut xfm = INIT_XFMARK;
+            xfm.fmark.mark = pos_T {
+                lnum: 42,
+                col: 7,
+                coladd: 0,
+            };
+            xfm.fmark.fnum = 1;
+            xfm.fmark.timestamp = 100;
+            assert!(mark_set_global(b'A' as c_char, xfm, false));
+            let got = get_raw_global_mark(b'A' as c_char);
+            assert_eq!(got.fmark.mark.lnum, 42);
+            assert_eq!(got.fmark.mark.col, 7);
+            free_all_marks();
+        }
+    }
+}

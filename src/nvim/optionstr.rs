@@ -4651,3 +4651,19 @@ pub unsafe extern "C" fn expand_set_popupoption(
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_ff_value_accepts_valid_and_rejects_invalid() {
+        unsafe {
+            assert_eq!(check_ff_value(c"unix".as_ptr().cast_mut()), OK);
+            assert_eq!(check_ff_value(c"dos".as_ptr().cast_mut()), OK);
+            assert_eq!(check_ff_value(c"mac".as_ptr().cast_mut()), OK);
+            assert_eq!(check_ff_value(c"".as_ptr().cast_mut()), FAIL);
+            assert_eq!(check_ff_value(c"foo".as_ptr().cast_mut()), FAIL);
+        }
+    }
+}

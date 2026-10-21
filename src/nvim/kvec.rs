@@ -246,3 +246,44 @@ impl<T: Copy, const N: usize> KVecWithInit<T, N> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn kvec_and_kvec_with_init_push_concat_and_destroy() {
+        unsafe {
+            let mut v: KVec<i32> = KVec::new();
+            for i in 0..20 {
+                v.push(i);
+            }
+            v.concat_len([100, 200].as_ptr(), 2);
+            assert_eq!(v.size, 22);
+            let slice = std::slice::from_raw_parts(v.items, v.size);
+            assert_eq!(slice[0], 0);
+            assert_eq!(slice[19], 19);
+            assert_eq!(slice[20], 100);
+            assert_eq!(slice[21], 200);
+            v.destroy();
+            assert_eq!(v.size, 0);
+            assert!(v.items.is_null());
+
+            let mut vi = KVecWithInit::<i32, 4> {
+                size: 0,
+                capacity: 0,
+                items: std::ptr::null_mut(),
+                init_array: [0; 4],
+            };
+            vi.init();
+            for i in 1..=10 {
+                vi.push(i);
+            }
+            assert_eq!(vi.size, 10);
+            assert_eq!(vi.get(0), 1);
+            assert_eq!(vi.last(), 10);
+            vi.resize(2);
+            vi.destroy();
+        }
+    }
+}
