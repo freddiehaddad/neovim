@@ -266,8 +266,7 @@ pub unsafe extern "C" fn nvim_tabpage_is_valid(tabpage: Tabpage) -> Boolean {
 /// @param enter  Enter the tabpage (make it the current tabpage).
 /// @param config Configuration for the new tabpage. Keys:
 ///   - after: Position to insert tabpage (default: -1; after current).
-///     0 = first, N = after Nth.
-///
+///            0 = first, N = after Nth.
 /// @param[out] err Error details, if any
 /// @return |tab-ID| of the new tabpage
 // DLLEXPORT Tabpage nvim_open_tabpage(Buffer buf, Boolean enter, Dict(tabpage_config) *config,

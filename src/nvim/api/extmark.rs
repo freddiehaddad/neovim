@@ -421,7 +421,7 @@ unsafe fn extmark_to_array(
 ///
 /// - ns_id: |namespace| id
 /// - invalid: boolean that indicates whether the mark is hidden because the entirety of
-///   text span range is deleted. See also the key `invalidate` in |nvim_buf_set_extmark()|.
+/// text span range is deleted. See also the key `invalidate` in |nvim_buf_set_extmark()|.
 // DLLEXPORT Tuple(Integer, Integer, *DictAs(extmark_details))
 // nvim_buf_get_extmark_by_id(Buffer buf, Integer ns_id, Integer id, Dict(get_extmark) *opts,
 //                            Arena *arena, Error *err)

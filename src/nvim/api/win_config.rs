@@ -269,25 +269,25 @@ unsafe fn striequal_str(a: *const c_char, b: &str) -> bool {
 ///     [ ["+", "MyCorner"], ["x", "MyBorder"] ].
 ///     ```
 ///   - bufpos: Places float relative to buffer text (only when
-///     relative="win"). Takes a tuple of zero-indexed `[line, column]`.
-///     `row` and `col` if given are applied relative to this
-///     position, else they default to:
-///     - `row=1` and `col=0` if `anchor` is "NW" or "NE"
-///     - `row=0` and `col=0` if `anchor` is "SW" or "SE"
-///       (thus like a tooltip near the buffer text).
+///       relative="win"). Takes a tuple of zero-indexed `[line, column]`.
+///       `row` and `col` if given are applied relative to this
+///       position, else they default to:
+///       - `row=1` and `col=0` if `anchor` is "NW" or "NE"
+///       - `row=0` and `col=0` if `anchor` is "SW" or "SE"
+///         (thus like a tooltip near the buffer text).
 ///   - col: Column position in units of screen cell width, may be fractional.
 ///   - external: GUI should display the window as an external
-///     top-level window. Currently accepts no other positioning
-///     configuration together with this.
+///       top-level window. Currently accepts no other positioning
+///       configuration together with this.
 ///   - fixed: If true when anchor is NW or SW, the float window
-///     would be kept fixed even if the window would be truncated.
+///            would be kept fixed even if the window would be truncated.
 ///   - focusable: (default: true) Enable focus by user actions (wincmds, mouse events).
 ///     Non-|focusable| windows can be entered by |nvim_set_current_win()|, or by mouse events if
 ///     `mouse=true`.
 ///   - footer: (`string|string[]?`) Footer in window border: string or list of `[text, highlight]`
 ///     tuples. Default highlight group is `FloatFooter`.
 ///   - footer_pos: (default: "left") Footer position. One of: "left", "center", "right". The
-///     `footer` field must be set also.
+///    `footer` field must be set also.
 ///   - height: Window height (in character cells). Minimum of 1.
 ///   - hide: Hides the floating window. |window-hidden|
 ///   - mouse: (default: `focusable` value) If true, mouse events interact with the window
@@ -295,36 +295,36 @@ unsafe fn striequal_str(a: *const c_char, b: &str) -> bool {
 ///   - noautocmd: Block all autocommands for the duration of the call. Cannot be changed by
 ///     |nvim_win_set_config()|.
 ///   - relative: Sets the window layout to "floating", placed at (row,col) coordinates relative to:
-///     - "cursor"     Cursor position in current window.
-///     - "editor"     The global editor grid.
-///     - "laststatus" 'laststatus' if present, or last row.
-///     - "mouse"      Mouse position.
-///     - "tabline"    Tabline if present, or first row.
-///     - "win"        Window given by the `win` field, or current window.
+///      - "cursor"     Cursor position in current window.
+///      - "editor"     The global editor grid.
+///      - "laststatus" 'laststatus' if present, or last row.
+///      - "mouse"      Mouse position.
+///      - "tabline"    Tabline if present, or first row.
+///      - "win"        Window given by the `win` field, or current window.
 ///   - row: Row position in units of "screen cell height", may be fractional.
 ///   - split: Split direction: "left", "right", "above", "below".
 ///   - style: (optional) Configure the appearance of the window:
-///     - ""         No special style.
-///     - "minimal"  Nvim will display the window with many UI options
-///       disabled. This is useful when displaying a temporary
-///       float where the text should not be edited. Disables
-///       'number', 'relativenumber', 'cursorline', 'cursorcolumn',
-///       'foldcolumn', 'spell' and 'list' options. 'signcolumn'
-///       is changed to `auto` and 'colorcolumn' is cleared.
-///       'statuscolumn' is changed to empty. The end-of-buffer
-///       region is hidden by setting `eob` flag of
-///       'fillchars' to a space char, and clearing the
-///       |hl-EndOfBuffer| region in 'winhighlight'.
+///       - ""         No special style.
+///       - "minimal"  Nvim will display the window with many UI options
+///                    disabled. This is useful when displaying a temporary
+///                    float where the text should not be edited. Disables
+///                    'number', 'relativenumber', 'cursorline', 'cursorcolumn',
+///                    'foldcolumn', 'spell' and 'list' options. 'signcolumn'
+///                    is changed to `auto` and 'colorcolumn' is cleared.
+///                    'statuscolumn' is changed to empty. The end-of-buffer
+///                     region is hidden by setting `eob` flag of
+///                    'fillchars' to a space char, and clearing the
+///                    |hl-EndOfBuffer| region in 'winhighlight'.
 ///   - title: (optional) Title in window border, string or list.
-///     List should consist of `[text, highlight]` tuples.
-///     If string, or a tuple lacks a highlight, the default highlight group is `FloatTitle`.
+///       List should consist of `[text, highlight]` tuples.
+///       If string, or a tuple lacks a highlight, the default highlight group is `FloatTitle`.
 ///   - title_pos: (default: "left") Title position. One of: "left", "center", "right". The `title`
 ///     field must be set also.
 ///   - vertical: Split vertically |:vertical|.
 ///   - width: Window width (in character cells). Minimum of 1.
 ///   - win: |window-ID| target window. Can be in a different tab page. Determines the window to
-///     split (negative values act like |:topleft|, |:botright|), the relative window for a
-///     `relative="win"` float, or just the target tab page (inferred from the window) for others.
+///       split (negative values act like |:topleft|, |:botright|), the relative window for a
+///       `relative="win"` float, or just the target tab page (inferred from the window) for others.
 ///   - zindex: (positive integer, default: 50) Stacking order. Floats with higher `zindex` overlay
 ///     floats with lower indices. Below 100 is recommended, unless there is a good reason to
 ///     overshadow builtin elements. The cursor is dimmed if an unfocused float above the cursor

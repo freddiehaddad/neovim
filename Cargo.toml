@@ -57,6 +57,8 @@ non_snake_case = "allow"
 non_upper_case_globals = "allow"
 
 [lints.clippy]
+doc_lazy_continuation = "allow"
+doc_overindented_list_items = "allow"
 enum_variant_names = "allow"
 missing_safety_doc = "allow"
 module_inception = "allow"

@@ -230,6 +230,7 @@ function M.parse(filename)
   if vim.endswith(filename, '.rs') then
     local out = {} --- @type string[]
     local in_proto = false
+    local in_brief = false
     for line in (txt .. '\n'):gmatch('(.-)\r?\n') do
       if in_proto then
         local body = line:match('^//%s?(.*)$') or ''
@@ -237,6 +238,22 @@ function M.parse(filename)
         if body:find(';%s*$') then
           in_proto = false
         end
+      elseif in_brief then
+        local body = line:match('^//(.*)$')
+        if body then
+          out[#out + 1] = '///' .. body
+          if body:find('</pre>%s*$') then
+            in_brief = false
+            out[#out + 1] = ''
+          end
+        else
+          in_brief = false
+          out[#out + 1] = ''
+        end
+      elseif line:match('^//%s+@brief') then
+        local body = line:match('^//(.*)$')
+        out[#out + 1] = '///' .. body
+        in_brief = not body:find('</pre>%s*$')
       elseif line:match('^///') then
         out[#out + 1] = line
       elseif line:match('^// DLLEXPORT ') then
