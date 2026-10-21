@@ -30,6 +30,14 @@ use crate::os::fs::os_errno;
 use crate::os::lang::LC_CTYPE;
 use crate::plines::{CharInfo, ClusterInfo, StrCharInfo};
 use crate::strings::{setlocale, strmove, tolower, toupper, vim_strchr, vim_strnicmp_asc};
+use crate::utf8proc::{
+    UTF8PROC_BOUNDCLASS_CONTROL, UTF8PROC_BOUNDCLASS_CR, UTF8PROC_BOUNDCLASS_EXTENDED_PICTOGRAPHIC,
+    UTF8PROC_BOUNDCLASS_OTHER, UTF8PROC_BOUNDCLASS_PREPEND, UTF8PROC_BOUNDCLASS_REGIONAL_INDICATOR,
+    UTF8PROC_BOUNDCLASS_SPACINGMARK, UTF8PROC_CASEFOLD, UTF8PROC_CATEGORY_LU, UTF8PROC_CATEGORY_ME,
+    UTF8PROC_CATEGORY_MN, UTF8PROC_CATEGORY_NO, utf8proc_decompose_char, utf8proc_get_property,
+    utf8proc_grapheme_break, utf8proc_grapheme_break_stateful, utf8proc_property_t,
+    utf8proc_tolower, utf8proc_toupper,
+};
 use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -69,21 +77,6 @@ const DBCS_DEBUG: c_int = -1;
 const kOptCmpFlagInternal: c_uint = 0x01;
 const kOptCmpFlagKeepascii: c_uint = 0x02;
 
-const UTF8PROC_CASEFOLD: c_int = 1 << 10;
-
-const UTF8PROC_CATEGORY_LU: i16 = 1;
-const UTF8PROC_CATEGORY_MN: i16 = 6;
-const UTF8PROC_CATEGORY_ME: i16 = 8;
-const UTF8PROC_CATEGORY_NO: i16 = 11;
-
-const UTF8PROC_BOUNDCLASS_OTHER: u32 = 1;
-const UTF8PROC_BOUNDCLASS_CR: u32 = 2;
-const UTF8PROC_BOUNDCLASS_CONTROL: u32 = 4;
-const UTF8PROC_BOUNDCLASS_REGIONAL_INDICATOR: u32 = 11;
-const UTF8PROC_BOUNDCLASS_SPACINGMARK: u32 = 12;
-const UTF8PROC_BOUNDCLASS_PREPEND: u32 = 13;
-const UTF8PROC_BOUNDCLASS_EXTENDED_PICTOGRAPHIC: u32 = 19;
-
 const ICONV_E2BIG: c_int = 7;
 #[cfg(windows)]
 const ICONV_EILSEQ: c_int = 42;
@@ -107,39 +100,6 @@ pub struct vimconv_T {
     pub vc_factor: c_int,
     pub vc_fd: *mut c_void,
     pub vc_fail: bool,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct utf8proc_property_t {
-    pub category: i16,
-    pub combining_class: i16,
-    pub bidi_class: i16,
-    pub decomp_type: i16,
-    pub decomp_seqindex: u16,
-    pub casefold_seqindex: u16,
-    pub uppercase_seqindex: u16,
-    pub lowercase_seqindex: u16,
-    pub titlecase_seqindex: u16,
-    pub comb_bits: u16,
-    pub prop_bits: u32,
-}
-
-impl utf8proc_property_t {
-    #[inline]
-    pub const fn charwidth(&self) -> u32 {
-        (self.prop_bits >> 4) & 0x3
-    }
-
-    #[inline]
-    pub const fn ambiguous_width(&self) -> bool {
-        ((self.prop_bits >> 6) & 0x1) != 0
-    }
-
-    #[inline]
-    pub const fn boundclass(&self) -> u32 {
-        (self.prop_bits >> 8) & 0x3f
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -835,23 +795,6 @@ static mut mb_unescape_buf: [c_char; 6] = [0; 6];
 static mut iconv_working: WorkingStatus = WorkingStatus::kUnknown;
 
 unsafe extern "C" {
-
-    fn utf8proc_get_property(codepoint: i32) -> *const utf8proc_property_t;
-    fn utf8proc_grapheme_break(codepoint1: i32, codepoint2: i32) -> bool;
-    fn utf8proc_grapheme_break_stateful(
-        codepoint1: i32,
-        codepoint2: i32,
-        state: *mut GraphemeState,
-    ) -> bool;
-    fn utf8proc_decompose_char(
-        codepoint: i32,
-        dst: *mut i32,
-        bufsize: isize,
-        options: c_int,
-        last_boundclass: *mut c_int,
-    ) -> isize;
-    fn utf8proc_toupper(c: i32) -> i32;
-    fn utf8proc_tolower(c: i32) -> i32;
     fn towupper(wc: wint_t) -> wint_t;
     fn towlower(wc: wint_t) -> wint_t;
     #[cfg(unix)]
@@ -1403,7 +1346,7 @@ pub unsafe extern "C" fn mb_cptr2char_adv(pp: *mut *const c_char) -> c_int {
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn utf_iscomposing_first(c: c_int) -> bool {
-    unsafe { c >= 128 && !utf8proc_grapheme_break(b' ' as i32, c) }
+    c >= 128 && !utf8proc_grapheme_break(b' ' as i32, c)
 }
 
 #[unsafe(no_mangle)]

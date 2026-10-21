@@ -85,7 +85,6 @@ fn main() {
             "luv",
             "libiconv",
             "tree-sitter",
-            "utf8proc_static",
             "libintl",
             "lua51",
             "libuv",
@@ -133,7 +132,6 @@ fn main() {
         for (archive, lib) in [
             ("libluv.a", "static=luv"),
             ("libtree-sitter.a", "static=tree-sitter"),
-            ("libutf8proc.a", "static=utf8proc"),
             ("libluajit-5.1.a", "static=luajit-5.1"),
             ("libuv.a", "static=uv"),
         ] {

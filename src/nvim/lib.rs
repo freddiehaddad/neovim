@@ -117,6 +117,7 @@ pub mod ui_client;
 pub mod ui_compositor;
 pub mod undo;
 pub mod usercmd;
+pub mod utf8proc;
 pub mod version;
 pub mod viml;
 pub mod vterm;
