@@ -112,7 +112,7 @@ use crate::mcursor::{mc_ins_cascade, mc_ins_cascade_restart, mc_ins_join, mc_ins
 use crate::memline::{
     ML_LINE_DIRTY, gchar_pos, ml_append, ml_get, ml_get_buf, ml_get_len, ml_replace,
 };
-use crate::memory::{strnequal, xfree, xmalloc, xmemdupz, xstrdup, xstrnsave};
+use crate::memory::{strnequal, xfree, xmalloc, xmemdupz, xstrdup};
 use crate::message::{emsg, msg_check_for_delay};
 use crate::mouse::{
     MSCR_DOWN, MSCR_LEFT, MSCR_RIGHT, MSCR_UP, ins_mouse, ins_mousescroll, setmouse,
@@ -148,6 +148,7 @@ use crate::state::{
     REPLACE_FLAG, VREPLACE_FLAG, VimState, may_trigger_modechanged, may_trigger_safestate,
     state_enter, state_handle_k_event, virtual_active,
 };
+use crate::strings::xstrnsave;
 use crate::strings::{gettext, strlen as c_strlen, vim_snprintf, vim_strchr};
 use crate::syntax::syntax_present;
 use crate::terminal::terminal_enter;

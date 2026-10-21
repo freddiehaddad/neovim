@@ -497,12 +497,6 @@ pub unsafe extern "C" fn xmemdup(data: *const c_void, len: usize) -> *mut c_void
     ret.cast::<c_void>()
 }
 
-/// Duplicate `len` bytes of `str_ptr` and append a NUL terminator (`xstrnsave`).
-#[inline]
-pub unsafe fn xstrnsave(str_ptr: *const c_char, len: usize) -> *mut c_char {
-    unsafe { xmemdupz(str_ptr.cast::<c_void>(), len).cast::<c_char>() }
-}
-
 /// Return true if C string `a` equals Rust string `b` (`strequal_str`).
 #[inline]
 pub unsafe fn strequal_str(a: *const c_char, b: &str) -> bool {

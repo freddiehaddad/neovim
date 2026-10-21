@@ -34,7 +34,7 @@ use crate::memfile::{
     mf_free, mf_free_fnames, mf_get, mf_need_trans, mf_new, mf_new_page_size, mf_open,
     mf_open_file, mf_put, mf_set_dirty, mf_set_fnames, mf_sync, mf_trans_del, pmap_get_bhdr,
 };
-use crate::memory::{xfree, xmalloc, xmemdupz, xrealloc, xstpcpy, xstrdup, xstrlcpy, xstrnsave};
+use crate::memory::{xfree, xmalloc, xmemdupz, xrealloc, xstpcpy, xstrdup, xstrlcpy};
 use crate::message::{
     emsg, iemsg, msg, msg_end, msg_ext_set_kind, msg_multiline, msg_outnum, msg_outtrans,
     msg_putchar, msg_puts, msg_puts_hl, msg_reset_scroll, msg_start, semsg, set_keep_msg, siemsg,
@@ -60,6 +60,7 @@ use crate::path::{
 };
 use crate::spell::spell_delete_wordlist;
 use crate::statusline::get_trans_bufname;
+use crate::strings::xstrnsave;
 use crate::strings::{gettext, strcmp as c_strcmp, strlen as c_strlen, tr, vim_strchr};
 use crate::ui::{ui_flush, ui_has};
 use crate::undo::bufIsChanged;

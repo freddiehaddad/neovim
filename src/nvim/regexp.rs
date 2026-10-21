@@ -22,13 +22,14 @@ use crate::mbyte::{
     utf_head_off, utf_iscomposing_legacy, utf_ptr2char, utf_ptr2len, utf_strnicmp, utfc_ptr2len,
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
-use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xrealloc, xstrdup, xstrnsave};
+use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xrealloc, xstrdup};
 use crate::message::{emsg, iemsg, internal_error, msg_puts, semsg, verbose_enter, verbose_leave};
 use crate::option_vars::*;
 use crate::os::input::fast_breakcheck;
 use crate::plines::{getvvcol, win_linetabsize};
 use crate::profile::{profile_passed_limit, proftime_T};
 use crate::strings::tr;
+use crate::strings::xstrnsave;
 use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 pub(super) use std::mem::{size_of, zeroed};

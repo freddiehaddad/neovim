@@ -47,7 +47,7 @@ use crate::map::{
 };
 use crate::math::{FAIL, OK};
 use crate::mbyte::{mb_strcmp_ic, vim_strchr, vim_strnicmp_asc};
-use crate::memory::{xcalloc, xfree, xmalloc, xmallocz, xmemdupz, xrealloc, xstrdup, xstrnsave};
+use crate::memory::{xcalloc, xfree, xmalloc, xmallocz, xmemdupz, xrealloc, xstrdup};
 use crate::message::{
     emsg, give_warning, msg_advance, msg_clr_eos, msg_end, msg_ext_set_kind, msg_outtrans,
     msg_putchar, msg_puts, msg_puts_hl, msg_puts_title, msg_start, semsg, smsg, verbose_enter,
@@ -68,6 +68,7 @@ use crate::runtime::{ETYPE_AUCMD, SID_NONE, estack_pop, estack_push, exestack, s
 use crate::search::{restore_search_patterns, save_search_patterns};
 use crate::state::{MODE_INSERT, MODE_NORMAL_BUSY, get_mode, get_real_state, save_v_event_T};
 use crate::strings::tr;
+use crate::strings::xstrnsave;
 use crate::window::{
     check_lnums, check_lnums_nested, reset_lnums, snapshot_windows_scroll_size, unuse_tabpage,
     use_tabpage, win_T,
