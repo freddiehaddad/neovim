@@ -315,6 +315,152 @@ unsafe extern "C" {
     pub fn uv_thread_detach(tid: *mut uv_thread_t) -> c_int;
     #[cfg(unix)]
     pub fn uv_disable_stdio_inheritance();
+
+    pub fn uv_exepath(buffer: *mut std::ffi::c_char, size: *mut usize) -> c_int;
+    pub fn uv_fs_get_ptr(req: *const crate::os::fs::uv_fs_buf_t) -> *mut c_void;
+    pub fn uv_fs_get_path(req: *const crate::os::fs::uv_fs_buf_t) -> *const std::ffi::c_char;
+    pub fn uv_fs_get_statbuf(req: *mut crate::os::fs::uv_fs_buf_t)
+    -> *mut crate::os::fs::uv_stat_t;
+    pub fn uv_fs_stat(
+        loop_: *mut c_void,
+        req: *mut crate::os::fs::uv_fs_buf_t,
+        path: *const std::ffi::c_char,
+        cb: *const c_void,
+    ) -> c_int;
+    pub fn uv_fs_fstat(
+        loop_: *mut c_void,
+        req: *mut crate::os::fs::uv_fs_buf_t,
+        file: c_int,
+        cb: *const c_void,
+    ) -> c_int;
+    pub fn uv_fs_lstat(
+        loop_: *mut c_void,
+        req: *mut crate::os::fs::uv_fs_buf_t,
+        path: *const std::ffi::c_char,
+        cb: *const c_void,
+    ) -> c_int;
+    pub fn uv_fs_access(
+        loop_: *mut c_void,
+        req: *mut crate::os::fs::uv_fs_buf_t,
+        path: *const std::ffi::c_char,
+        mode: c_int,
+        cb: *const c_void,
+    ) -> c_int;
+    pub fn uv_fs_open(
+        loop_: *mut c_void,
+        req: *mut crate::os::fs::uv_fs_buf_t,
+        path: *const std::ffi::c_char,
+        flags: c_int,
+        mode: c_int,
+        cb: *const c_void,
+    ) -> c_int;
+    pub fn uv_fs_close(
+        loop_: *mut c_void,
+        req: *mut crate::os::fs::uv_fs_buf_t,
+        file: c_int,
+        cb: *const c_void,
+    ) -> c_int;
+    pub fn uv_fs_copyfile(
+        loop_: *mut c_void,
+        req: *mut crate::os::fs::uv_fs_buf_t,
+        path: *const std::ffi::c_char,
+        new_path: *const std::ffi::c_char,
+        flags: c_int,
+        cb: *const c_void,
+    ) -> c_int;
+    pub fn uv_fs_fsync(
+        loop_: *mut c_void,
+        req: *mut crate::os::fs::uv_fs_buf_t,
+        file: c_int,
+        cb: *const c_void,
+    ) -> c_int;
+    pub fn uv_fs_chmod(
+        loop_: *mut c_void,
+        req: *mut crate::os::fs::uv_fs_buf_t,
+        path: *const std::ffi::c_char,
+        mode: c_int,
+        cb: *const c_void,
+    ) -> c_int;
+    pub fn uv_fs_fchmod(
+        loop_: *mut c_void,
+        req: *mut crate::os::fs::uv_fs_buf_t,
+        file: c_int,
+        mode: c_int,
+        cb: *const c_void,
+    ) -> c_int;
+    pub fn uv_fs_chown(
+        loop_: *mut c_void,
+        req: *mut crate::os::fs::uv_fs_buf_t,
+        path: *const std::ffi::c_char,
+        uid: uv_uid_t,
+        gid: uv_gid_t,
+        cb: *const c_void,
+    ) -> c_int;
+    pub fn uv_fs_fchown(
+        loop_: *mut c_void,
+        req: *mut crate::os::fs::uv_fs_buf_t,
+        file: c_int,
+        uid: uv_uid_t,
+        gid: uv_gid_t,
+        cb: *const c_void,
+    ) -> c_int;
+    pub fn uv_fs_utime(
+        loop_: *mut c_void,
+        req: *mut crate::os::fs::uv_fs_buf_t,
+        path: *const std::ffi::c_char,
+        atime: f64,
+        mtime: f64,
+        cb: *const c_void,
+    ) -> c_int;
+    pub fn uv_fs_rename(
+        loop_: *mut c_void,
+        req: *mut crate::os::fs::uv_fs_buf_t,
+        path: *const std::ffi::c_char,
+        new_path: *const std::ffi::c_char,
+        cb: *const c_void,
+    ) -> c_int;
+    pub fn uv_fs_mkdir(
+        loop_: *mut c_void,
+        req: *mut crate::os::fs::uv_fs_buf_t,
+        path: *const std::ffi::c_char,
+        mode: c_int,
+        cb: *const c_void,
+    ) -> c_int;
+    pub fn uv_fs_mkdtemp(
+        loop_: *mut c_void,
+        req: *mut crate::os::fs::uv_fs_buf_t,
+        tpl: *const std::ffi::c_char,
+        cb: *const c_void,
+    ) -> c_int;
+    pub fn uv_fs_rmdir(
+        loop_: *mut c_void,
+        req: *mut crate::os::fs::uv_fs_buf_t,
+        path: *const std::ffi::c_char,
+        cb: *const c_void,
+    ) -> c_int;
+    pub fn uv_fs_scandir(
+        loop_: *mut c_void,
+        req: *mut crate::os::fs::uv_fs_buf_t,
+        path: *const std::ffi::c_char,
+        flags: c_int,
+        cb: *const c_void,
+    ) -> c_int;
+    pub fn uv_fs_scandir_next(
+        req: *mut crate::os::fs::uv_fs_buf_t,
+        ent: *mut crate::os::fs::uv_dirent_t,
+    ) -> c_int;
+    pub fn uv_fs_unlink(
+        loop_: *mut c_void,
+        req: *mut crate::os::fs::uv_fs_buf_t,
+        path: *const std::ffi::c_char,
+        cb: *const c_void,
+    ) -> c_int;
+    pub fn uv_fs_realpath(
+        loop_: *mut c_void,
+        req: *mut crate::os::fs::uv_fs_buf_t,
+        path: *const std::ffi::c_char,
+        cb: *const c_void,
+    ) -> c_int;
 }
 
 #[inline]
