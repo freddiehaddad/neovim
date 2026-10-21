@@ -19,11 +19,12 @@ use crate::keycodes::{
     FSK_KEYCODE, K_SPECIAL, KE_COMPLETE_DELAY, KE_EVENT, KE_FILLER, KS_EXTRA, KS_MODIFIER,
     KS_SPECIAL, get_mouse_button, trans_special,
 };
-use crate::main_init::getout;
+use crate::log::{LOGLVL_WRN, logmsg};
+use crate::main_init::{getout, input_unanswerable};
 use crate::option_vars::*;
 use crate::os::time::{os_hrtime, os_realtime};
 use crate::profile::{prof_input_end, prof_input_start};
-use crate::state::{MODE_INSERT, get_real_state};
+use crate::state::{MODE_INSERT, MODE_MAX_LENGTH, get_mode, get_real_state};
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -621,20 +622,25 @@ unsafe fn inbuf_poll(ms: c_int, events: *mut MultiQueue) -> bool {
             return true;
         }
 
-        if do_profiling == PROF_YES && ms != 0 {
+        if ms == 0 {
+            loop_poll_events(main_loop_ptr(), 0);
+            return os_input_ready(events);
+        }
+
+        if do_profiling == PROF_YES {
             prof_input_start();
         }
 
-        if (ms == -1 || ms > 0) && events != main_loop_events() {
+        if events != main_loop_events() {
             // The pending input provoked a blocking wait. Do special events now. #6247
             blocking = true;
             multiqueue_process_events(ch_before_blocking_events);
         }
 
-        // LOOP_PROCESS_EVENTS_UNTIL(&main_loop, NULL, ms, os_input_ready(events));
+        // LOOP_PROCESS_EVENTS_UNTIL(&main_loop, NULL, ms, os_input_ready(events) || input_unanswerable());
         let mut remaining = i64::from(ms);
         let mut before = if remaining > 0 { os_hrtime() } else { 0 };
-        while !os_input_ready(events) {
+        while !(os_input_ready(events) || input_unanswerable()) {
             loop_poll_events(main_loop_ptr(), remaining);
             if remaining == 0 {
                 break;
@@ -650,8 +656,30 @@ unsafe fn inbuf_poll(ms: c_int, events: *mut MultiQueue) -> bool {
 
         blocking = false;
 
-        if do_profiling == PROF_YES && ms != 0 {
+        if do_profiling == PROF_YES {
             prof_input_end();
+        }
+
+        if input_unanswerable() && !os_input_ready(events) {
+            // Dismiss the prompt (CTRL-C) instead of waiting forever.
+            static mut DID_LOG: bool = false;
+            if !DID_LOG {
+                DID_LOG = true;
+                let mut mode = [0 as c_char; MODE_MAX_LENGTH];
+                get_mode(mode.as_mut_ptr());
+                logmsg!(
+                    LOGLVL_WRN,
+                    ptr::null(),
+                    c"inbuf_poll".as_ptr(),
+                    line!() as c_int,
+                    true,
+                    c"Interrupted prompt (mode=%s): user input is unlikely".as_ptr(),
+                    mode.as_ptr(),
+                );
+            }
+            input_enqueue_raw(c"\x03".as_ptr(), 1);
+            // Also interrupt the code that prompted. Skips remaining exit autocmds.
+            got_int = true;
         }
 
         os_input_ready(events)

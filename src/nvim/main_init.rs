@@ -35,10 +35,10 @@ use crate::eval::typval::{
 };
 use crate::eval::userfunc::invoke_all_defer;
 use crate::eval::vars::{
-    VV_ARGF, VV_EXITING, VV_EXITREASON, VV_OLDFILES, VV_PROGNAME, VV_PROGPATH, VV_SEND_SERVER,
-    VV_STARTTIME, VV_SWAPCOMMAND, VV_VIM_DID_ENTER, VV_VIM_DID_INIT, get_vim_var_list,
-    get_vim_var_str, set_reg_var, set_vim_var_list, set_vim_var_nr, set_vim_var_string,
-    set_vim_var_type,
+    VV_ARGF, VV_ERRMSG, VV_EXITING, VV_EXITREASON, VV_OLDFILES, VV_PROGNAME, VV_PROGPATH,
+    VV_SEND_SERVER, VV_STARTTIME, VV_SWAPCOMMAND, VV_VIM_DID_ENTER, VV_VIM_DID_INIT,
+    get_vim_var_list, get_vim_var_str, set_reg_var, set_vim_var_list, set_vim_var_nr,
+    set_vim_var_string, set_vim_var_type,
 };
 use crate::eval::{
     eval_has_provider, eval_init, garbage_collect, kListLenMayKnow, set_argv_var, timer_teardown,
@@ -62,7 +62,9 @@ use crate::highlight::highlight_init;
 use crate::highlight_group::init_highlight;
 use crate::input::{open_scriptin, stuffcharReadbuff, vgetc};
 use crate::keycodes::K_NOP;
-use crate::log::{LOGLVL_DBG, LOGLVL_INF, log_get_stderr, log_init, logmsg_str};
+use crate::log::{
+    LOGLVL_DBG, LOGLVL_INF, LOGLVL_WRN, log_get_stderr, log_init, logmsg, logmsg_str,
+};
 use crate::lua::converter::{LUA_GLOBALSINDEX, lua_getfield, lua_pushstring, lua_tolstring};
 use crate::lua::executor::{
     get_global_lstate, kRetObject, nlua_call_typval, nlua_exec, nlua_exec_file, nlua_init,
@@ -124,7 +126,9 @@ use crate::shada::{shada_read_everything, shada_write_file};
 use crate::strings::{gettext, vim_snprintf};
 use crate::syntax::syn_maybe_enable;
 use crate::terminal::{terminal_init, terminal_teardown};
-use crate::ui::{do_autocmd_uienter_all, ui_call_error_exit, ui_call_set_title, ui_flush, ui_init};
+use crate::ui::{
+    do_autocmd_uienter_all, ui_active, ui_call_error_exit, ui_call_set_title, ui_flush, ui_init,
+};
 use crate::ui_client::{ui_client_run, ui_client_start_server, ui_client_stop};
 use crate::ui_compositor::ui_comp_syn_init;
 use crate::version::{list_version, main_exitfree};
@@ -794,6 +798,12 @@ pub unsafe extern "C" fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int
     }
 }
 
+/// Prompts/dialogs should not wait for a key (no chance of meaningful input).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn input_unanswerable() -> bool {
+    unsafe { v_dying != 0 || (exiting && ui_active() == 0) }
+}
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_exit(mut r: c_int) -> ! {
     unsafe {
@@ -959,6 +969,17 @@ pub unsafe extern "C" fn getout(mut exitval: c_int) -> ! {
         profile_dump();
 
         if did_emsg != 0 {
+            if !headless_mode && input_unanswerable() {
+                logmsg!(
+                    LOGLVL_WRN,
+                    ptr::null(),
+                    c"getout".as_ptr(),
+                    line!() as c_int,
+                    true,
+                    c"Exiting with error: \"%s\"".as_ptr(),
+                    get_vim_var_str(VV_ERRMSG),
+                );
+            }
             no_wait_return = 0;
             wait_return(0);
         }

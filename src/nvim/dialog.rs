@@ -7,6 +7,7 @@ use crate::ex_getln::getcmdline_prompt;
 use crate::globals::*;
 use crate::input::ins_typebuf;
 use crate::keycodes::{CAR, ESC};
+use crate::main_init::input_unanswerable;
 use crate::mapping::REMAP_YES;
 use crate::mbyte::{mb_tolower, utf_char2bytes, utf_ptr2char, utf_ptr2len, utfc_ptr2len};
 use crate::memory::{xfree, xmalloc, xstrdup};
@@ -355,7 +356,7 @@ pub unsafe extern "C" fn do_dialog(
         let retval: c_int;
 
         loop {
-            if ui_active() == 0 && input_available() == 0 {
+            if (ui_active() == 0 || input_unanswerable()) && input_available() == 0 {
                 retval = dfltbutton;
                 break;
             }

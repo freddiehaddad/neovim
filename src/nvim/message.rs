@@ -52,6 +52,7 @@ use crate::keycodes::{
     K_X2MOUSE, KS_MODIFIER, MOD_MASK_SHIFT, NL, TAB, get_special_key, keychord,
 };
 use crate::log::{LOGLVL_DBG, LOGLVL_INF, log_get_stderr, logmsg};
+use crate::main_init::input_unanswerable;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
     mb_string2cells_len, mb_unescape, ptr2cells, utf_char2bytes, utf_char2cells, utf_head_off,
@@ -1943,7 +1944,7 @@ pub unsafe extern "C" fn wait_return(redraw: c_int) {
             return;
         }
 
-        if headless_mode && ui_active() == 0 {
+        if (headless_mode && ui_active() == 0) || input_unanswerable() {
             return;
         }
 
@@ -3719,7 +3720,8 @@ unsafe fn do_more_prompt(typed_char: c_int) -> bool {
         let mut to_redraw = false;
         let mut mp_last: *mut msgchunk_T = ptr::null_mut();
 
-        let no_need_more = headless_mode && !embedded_mode && ui_active() == 0;
+        let no_need_more =
+            (headless_mode && !embedded_mode && ui_active() == 0) || input_unanswerable();
 
         if no_need_more || DO_MORE_PROMPT_ENTERED || (State == MODE_HITRETURN && typed_char == 0) {
             return false;
