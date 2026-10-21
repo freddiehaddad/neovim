@@ -1,7 +1,9 @@
 //! Multibyte UTF-8 character and encoding handling (`src/nvim/mbyte.c`).
 
 use crate::arabic::arabic_combine;
-use crate::charset::{ascii_iswhite, ascii2cells, vim_isprintc, vim_iswordc_tab};
+use crate::charset::{
+    ascii_iswhite, ascii2cells, tolower_asc, toupper_asc, vim_isprintc, vim_iswordc_tab,
+};
 use crate::cursor::{colnr_T, get_cursor_pos_ptr, pos_T};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_all_later};
 use crate::errors::*;
@@ -12,10 +14,7 @@ use crate::eval::typval::{
 };
 #[cfg(windows)]
 use crate::event::r#loop::uv_translate_sys_error;
-#[cfg(not(windows))]
-use crate::fileio::{iconv, iconv_close};
-#[cfg(windows)]
-use crate::fileio::{libiconv, libiconv_close};
+use crate::fileio::{call_iconv, call_iconv_close};
 use crate::globals::*;
 use crate::grid::{CharBoundsOff, schar_T, schar_from_buf};
 use crate::input::beep_flush;
@@ -30,7 +29,7 @@ use crate::os::env::{expand_T, os_getenv_noalloc};
 use crate::os::fs::os_errno as iconv_errno;
 use crate::os::lang::LC_CTYPE;
 use crate::plines::{CharInfo, ClusterInfo, StrCharInfo};
-use crate::strings::{setlocale, strmove_c, tolower, toupper};
+use crate::strings::{setlocale, strmove_c, tolower, toupper, vim_strchr, vim_strnicmp_asc};
 use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -866,63 +865,6 @@ unsafe extern "C" {
 
 }
 
-#[inline]
-const fn toupper_asc(c: c_int) -> c_int {
-    if c >= b'a' as c_int && c <= b'z' as c_int {
-        c - 0x20
-    } else {
-        c
-    }
-}
-
-#[inline]
-const fn tolower_asc(c: c_int) -> c_int {
-    if c >= b'A' as c_int && c <= b'Z' as c_int {
-        c + 0x20
-    } else {
-        c
-    }
-}
-
-#[inline]
-pub unsafe fn vim_strchr(string: *const c_char, c: c_int) -> *const c_char {
-    if string.is_null() || c <= 0 {
-        return ptr::null();
-    }
-    let mut p = string;
-    unsafe {
-        while *p != 0 {
-            if c_int::from(*p.cast::<u8>()) == c {
-                return p;
-            }
-            p = p.add(1);
-        }
-    }
-    ptr::null()
-}
-
-#[inline]
-pub unsafe fn vim_strnicmp_asc(s1: *const c_char, s2: *const c_char, mut n: usize) -> c_int {
-    let mut p1 = s1.cast::<u8>();
-    let mut p2 = s2.cast::<u8>();
-    unsafe {
-        while n > 0 {
-            let c1 = tolower_asc(c_int::from(*p1));
-            let c2 = tolower_asc(c_int::from(*p2));
-            if c1 != c2 {
-                return c1 - c2;
-            }
-            if c1 == 0 {
-                return 0;
-            }
-            p1 = p1.add(1);
-            p2 = p2.add(1);
-            n -= 1;
-        }
-    }
-    0
-}
-
 #[cfg(windows)]
 unsafe extern "system" {
     fn MultiByteToWideChar(
@@ -975,36 +917,6 @@ unsafe fn call_iconv_open(tocode: *const c_char, fromcode: *const c_char) -> *mu
     #[cfg(not(windows))]
     unsafe {
         iconv_open(tocode, fromcode)
-    }
-}
-
-#[inline]
-unsafe fn call_iconv(
-    cd: *mut c_void,
-    inbuf: *mut *const c_char,
-    inbytesleft: *mut usize,
-    outbuf: *mut *mut c_char,
-    outbytesleft: *mut usize,
-) -> usize {
-    #[cfg(windows)]
-    unsafe {
-        libiconv(cd as isize, inbuf, inbytesleft, outbuf, outbytesleft)
-    }
-    #[cfg(not(windows))]
-    unsafe {
-        iconv(cd as isize, inbuf, inbytesleft, outbuf, outbytesleft)
-    }
-}
-
-#[inline]
-unsafe fn call_iconv_close(cd: *mut c_void) -> c_int {
-    #[cfg(windows)]
-    unsafe {
-        libiconv_close(cd as isize)
-    }
-    #[cfg(not(windows))]
-    unsafe {
-        iconv_close(cd as isize)
     }
 }
 
@@ -3246,7 +3158,7 @@ pub unsafe extern "C" fn enc_locale() -> *mut c_char {
         let mut buf = [0 as c_char; 50];
         let p = vim_strchr(s, b'.' as c_int);
         if !p.is_null() {
-            if p > s.add(2)
+            if p.cast_const() > s.add(2)
                 && vim_strnicmp_asc(p.add(1), c"EUC".as_ptr(), 3) == 0
                 && !(*p.add(4) as u8).is_ascii_alphanumeric()
                 && *p.add(4) != b'-' as c_char

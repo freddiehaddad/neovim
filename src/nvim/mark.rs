@@ -134,12 +134,12 @@ static mut POS_TO_MARK_FMS: fmark_T = INIT_FMARK;
 static mut MARK_MOVE_TO_FM_COPY: fmark_T = INIT_FMARK;
 
 #[inline]
-const fn mark_global_index(name: c_char) -> isize {
+pub const fn mark_global_index(name: c_char) -> c_int {
     let u = name as u8;
     if u.is_ascii_uppercase() {
-        (u - b'A') as isize
+        (u - b'A') as c_int
     } else if u.is_ascii_digit() {
-        (NMARKS + (u - b'0') as usize) as isize
+        (NMARKS as c_int) + ((u - b'0') as c_int)
     } else {
         -1
     }

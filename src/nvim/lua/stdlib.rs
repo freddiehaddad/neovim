@@ -82,25 +82,10 @@ static REGEX_META: [luaL_Reg; 5] = [
     },
 ];
 
-unsafe fn luaopen_mpack(lstate: *mut lua_State) -> c_int {
-    unsafe { crate::mpack::lmpack::luaopen_mpack(lstate.cast()) }
-}
-
-unsafe fn luaopen_lpeg(lstate: *mut lua_State) -> c_int {
-    unsafe { crate::lpeg::lptree::luaopen_lpeg(lstate.cast()) }
-}
-
-unsafe fn lua_cjson_new(lstate: *mut lua_State) -> c_int {
-    unsafe { crate::cjson::lua_cjson::lua_cjson_new(lstate.cast()) }
-}
-
-#[inline]
-unsafe fn lua_isstring(lstate: *mut lua_State, n: c_int) -> bool {
-    unsafe {
-        let t = lua_type(lstate, n);
-        t == LUA_TSTRING || t == 3 // LUA_TNUMBER
-    }
-}
+use crate::cjson::lua_cjson::lua_cjson_new;
+use crate::lpeg::lptree::luaopen_lpeg;
+use crate::lua::converter::lua_isstring;
+use crate::mpack::lmpack::luaopen_mpack;
 
 unsafe fn regex_check(lstate: *mut lua_State) -> *mut *mut regprog_T {
     unsafe { luaL_checkudata(lstate, 1, c"nvim_regex".as_ptr()).cast::<*mut regprog_T>() }
@@ -766,7 +751,7 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> c_int {
 
 unsafe extern "C-unwind" fn nlua_keyparse(lstate: *mut lua_State) -> c_int {
     unsafe {
-        if !lua_isstring(lstate, 1) {
+        if lua_isstring(lstate, 1) == 0 {
             return luaL_argerror(lstate, 1, c"string expected".as_ptr());
         }
 

@@ -11,7 +11,7 @@ use crate::eval::skip_expr;
 use crate::eval::vars::{VV_PROGPATH, get_vim_var_str};
 use crate::globals::*;
 use crate::lua::converter::LuaRef;
-use crate::mbyte::{mb_stricmp, utf_isalnum, utf_ptr2char, utf_ptr2len};
+use crate::mbyte::{utf_isalnum, utf_ptr2char, utf_ptr2len};
 #[cfg(windows)]
 use crate::mbyte::{utf_valid_string, utf16_to_utf8};
 use crate::memory::{xfree, xmalloc, xmemcpyz, xmemdupz, xmemrchr, xstrdup, xstrlcat, xstrlcpy};
@@ -31,7 +31,7 @@ use crate::path::{
 use crate::runtime::sctx_T;
 #[cfg(windows)]
 use crate::strings::wcslen;
-use crate::strings::{strlen as c_strlen, vim_strchr, vim_strsave_escaped};
+use crate::strings::{striequal, strlen as c_strlen, vim_strchr, vim_strsave_escaped};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -130,11 +130,6 @@ unsafe extern "system" {
     fn GetEnvironmentStringsW() -> *mut u16;
     fn FreeEnvironmentStringsW(lpszEnvironmentBlock: *mut u16) -> c_int;
     fn GetComputerNameW(lpBuffer: *mut u16, nSize: *mut u32) -> c_int;
-}
-
-#[inline]
-unsafe fn striequal(a: *const c_char, b: *const c_char) -> bool {
-    unsafe { mb_stricmp(a, b) == 0 }
 }
 
 #[inline]

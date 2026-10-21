@@ -227,14 +227,7 @@ fn put_event_2(
     }
 }
 
-#[inline]
-unsafe fn array_add(a: &mut Array, item: Object) {
-    unsafe {
-        assert!(a.size < a.capacity);
-        *a.items.add(a.size) = item;
-        a.size += 1;
-    }
-}
+use crate::api::private::helpers::add_c as array_add;
 
 /// Teardown the module.
 #[unsafe(no_mangle)]

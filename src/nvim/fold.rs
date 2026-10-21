@@ -113,16 +113,11 @@ static mut fdt_result_entered: bool = false;
 
 static E_NOFOLD: &CStr = c"E490: No fold found";
 
+use crate::drawscreen::redraw_curbuf_later;
+
 #[inline]
 unsafe fn ngettext_wrap(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char {
     unsafe { crate::strings::ngettext(msgid1, msgid2, n) }
-}
-
-#[inline]
-unsafe fn redraw_curbuf_later(type_: c_int) {
-    unsafe {
-        redraw_buf_later((*curwin).w_buffer, type_);
-    }
 }
 
 /// Copy that folding state from window "wp_from" to window "wp_to".

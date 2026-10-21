@@ -53,7 +53,7 @@ use crate::spell::{
     parse_spelllang, slang_alloc, slang_clear, slang_clear_sug, slang_free, spell_casefold,
     spell_enc, spell_soundfold, spell_toupper, spelltab,
 };
-use crate::spellsuggest::{fromto_T, idx_T, langp_T, salfirst_T, salitem_T, slang_T, spelltab_T};
+use crate::spellsuggest::{fromto_T, idx_T, salfirst_T, salitem_T, slang_T, spelltab_T};
 use crate::strings::{
     atoi, gettext, has_non_ascii, memchr, memcmp, memcpy, memmove, memset, qsort, strcat, strcmp,
     strcpy, strerror, strlen, strncmp, strrchr, strstr, vim_snprintf, vim_strchr,
@@ -319,21 +319,7 @@ struct spellinfo_T {
 }
 
 use crate::fileio::ungetc;
-
-#[inline]
-const fn tolower_asc(c: c_char) -> u8 {
-    let b = c as u8;
-    if b >= b'A' && b <= b'Z' {
-        b + (b'a' - b'A')
-    } else {
-        b
-    }
-}
-
-#[inline]
-unsafe fn langp_entry(ga: &garray_T, i: c_int) -> *mut langp_T {
-    unsafe { ga.ga_data.cast::<langp_T>().offset(i as isize) }
-}
+use crate::spell::langp_entry;
 
 #[inline]
 unsafe fn hi2ah(hi: *mut hashitem_T) -> *mut affheader_T {
@@ -730,7 +716,7 @@ pub unsafe extern "C" fn suggest_load_files() {
 
         let mut lpi: c_int = 0;
         while lpi < (*win_s(curwin)).b_langp.ga_len {
-            let lp = langp_entry(&(*win_s(curwin)).b_langp, lpi);
+            let lp = langp_entry(&raw const (*win_s(curwin)).b_langp, lpi as usize);
             let slang = (*lp).lp_slang;
             if (*slang).sl_sugtime != 0 && !(*slang).sl_sugloaded {
                 (*slang).sl_sugloaded = true;
@@ -5254,8 +5240,10 @@ unsafe fn mkspell(
                         region_ok = false;
                         break;
                     }
-                    spin.si_region_name[i * 2] = tolower_asc(*in_i.add(len - 2)) as c_char;
-                    spin.si_region_name[i * 2 + 1] = tolower_asc(*in_i.add(len - 1)) as c_char;
+                    spin.si_region_name[i * 2] =
+                        (*in_i.add(len - 2) as u8).to_ascii_lowercase() as c_char;
+                    spin.si_region_name[i * 2 + 1] =
+                        (*in_i.add(len - 1) as u8).to_ascii_lowercase() as c_char;
                 }
             }
 
@@ -5643,7 +5631,7 @@ unsafe fn init_spellfile() {
             lstart,
         );
 
-        let fname = (*(*langp_entry(&(*win_s(curwin)).b_langp, 0)).lp_slang).sl_fname;
+        let fname = (*(*langp_entry(&raw const (*win_s(curwin)).b_langp, 0)).lp_slang).sl_fname;
         let enc_suffix =
             if !fname.is_null() && !strstr(path_tail(fname), c".ascii.".as_ptr()).is_null() {
                 c"ascii".as_ptr()

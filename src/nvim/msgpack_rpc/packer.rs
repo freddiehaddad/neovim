@@ -41,7 +41,7 @@ pub(crate) unsafe fn mpack_w(b: *mut *mut c_char, byte: u8) {
 }
 
 #[inline]
-unsafe fn mpack_w2(b: *mut *mut c_char, v: u32) {
+pub unsafe fn mpack_w2(b: *mut *mut c_char, v: u32) {
     let bytes = (v as u16).to_be_bytes();
     unsafe {
         std::ptr::copy_nonoverlapping(bytes.as_ptr(), (*b).cast::<u8>(), 2);

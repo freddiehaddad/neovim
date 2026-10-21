@@ -142,14 +142,7 @@ static mut MENUTRANS_GA: garray_T = garray_T {
     ga_data: ptr::null_mut(),
 };
 
-#[inline]
-unsafe fn tv_dict_len(d: *const dict_T) -> isize {
-    if d.is_null() {
-        0
-    } else {
-        unsafe { (*d).dv_hashtab.ht_used as isize }
-    }
-}
+use crate::eval::typval::tv_dict_len;
 
 /// Return true if `name` is a window toolbar menu name (`menu_is_winbar`).
 unsafe fn menu_is_winbar(name: *const c_char) -> bool {

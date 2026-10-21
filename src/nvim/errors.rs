@@ -2,7 +2,7 @@
 
 use std::ffi::c_char;
 
-const fn bytes_to_chars<const N: usize>(b: &[u8; N]) -> [c_char; N] {
+pub(crate) const fn bytes_to_chars<const N: usize>(b: &[u8; N]) -> [c_char; N] {
     let mut out = [0 as c_char; N];
     let mut i = 0;
     while i < N {

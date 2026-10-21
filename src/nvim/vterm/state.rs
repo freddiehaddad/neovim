@@ -104,7 +104,7 @@ const MODE_SYNCHRONIZED_OUTPUT: u32 = 1 << 16;
 pub(crate) const VT_MODE_UTF8: u32 = 1 << 0;
 pub(crate) const VT_MODE_CTRL8BIT: u32 = 1 << 1;
 
-const CSI_ARG_MISSING: c_int = ((1u32 << 31) - 1) as c_int;
+pub(crate) const CSI_ARG_MISSING: c_int = ((1u32 << 31) - 1) as c_int;
 
 /// Primary Device Attributes (DA1) response.
 #[unsafe(no_mangle)]
@@ -162,17 +162,17 @@ pub struct VTermSelectionCallbacks {
 }
 
 #[inline]
-const fn csi_arg(a: c_long) -> c_int {
+pub(crate) const fn csi_arg(a: c_long) -> c_int {
     ((a as u32) & CSI_ARG_MASK_U32) as c_int
 }
 
 #[inline]
-const fn csi_arg_has_more(a: c_long) -> bool {
+pub(crate) const fn csi_arg_has_more(a: c_long) -> bool {
     ((a as u32) & CSI_ARG_FLAG_MORE_U32) != 0
 }
 
 #[inline]
-const fn csi_arg_is_missing(a: c_long) -> bool {
+pub(crate) const fn csi_arg_is_missing(a: c_long) -> bool {
     csi_arg(a) == CSI_ARG_MISSING
 }
 

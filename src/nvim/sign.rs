@@ -2,7 +2,7 @@
 
 use crate::api::extmark::{describe_ns, nvim_create_namespace};
 use crate::api::private::helpers::cstr_as_string;
-use crate::api::private::validate::NvimString;
+
 use crate::buffer::{buf_T, buf_hide, buf_meta_total, buflist_findname_exp, buflist_findnr};
 use crate::charset::{
     NUL, ascii_isdigit, ascii_iswhite, backslash_halve, getdigits_int, skiptowhite,
@@ -35,7 +35,7 @@ use crate::insert::beginline;
 use crate::kvec::KVec;
 use crate::map::{
     MH_TOMBSTONE, Map, MapHash, Set, cstr_t, map_del_cstr_t_ptr_t, map_put_ref_cstr_t_ptr_t,
-    map_ref_String_int, map_ref_cstr_t_ptr_t, mh_get_cstr_t, ptr_t,
+    map_ref_cstr_t_ptr_t, mh_get_cstr_t, ptr_t,
 };
 use crate::mark::setpcmark;
 use crate::marktree::{
@@ -129,13 +129,7 @@ const CMDS: [*const c_char; 7] = [
     ptr::null(),
 ];
 
-#[inline]
-unsafe fn map_get_string_int(key: NvimString) -> c_int {
-    unsafe {
-        let ptr = map_ref_String_int(&raw mut namespace_ids, key, ptr::null_mut());
-        if ptr.is_null() { 0 } else { *ptr }
-    }
-}
+use crate::map::map_get_string_int;
 
 #[inline]
 unsafe fn pmap_get_sign(name: *const c_char) -> *mut sign_T {
@@ -156,7 +150,7 @@ unsafe fn group_get_ns(group: *const c_char) -> i64 {
         } else if strcmp(group, c"*".as_ptr()) == 0 {
             return i64::from(u32::MAX);
         }
-        let ns = map_get_string_int(cstr_as_string(group));
+        let ns = map_get_string_int(&raw mut namespace_ids, cstr_as_string(group));
         if ns != 0 { i64::from(ns) } else { -1 }
     }
 }
@@ -183,7 +177,9 @@ unsafe fn buf_set_sign(
     sp: *mut sign_T,
 ) {
     unsafe {
-        if !group.is_null() && map_get_string_int(cstr_as_string(group)) == 0 {
+        if !group.is_null()
+            && map_get_string_int(&raw mut namespace_ids, cstr_as_string(group)) == 0
+        {
             let ns_vec = &raw mut sign_ns;
             (*ns_vec).push(nvim_create_namespace(cstr_as_string(group)));
         }

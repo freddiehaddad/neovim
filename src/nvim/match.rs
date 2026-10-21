@@ -97,17 +97,7 @@ pub struct SearchState {
     pub no_hlsearch: bool,
 }
 
-#[inline]
-unsafe fn win_hl_attr(wp: *mut win_T, hlf: usize) -> c_int {
-    unsafe {
-        let arr = if !(*wp).w_ns_hl_attr.is_null() && ns_hl_fast < 0 {
-            (*wp).w_ns_hl_attr
-        } else {
-            hl_attr_active
-        };
-        *arr.add(hlf)
-    }
-}
+use crate::highlight::win_hl_attr;
 
 /// Add match to the match list of window `wp` (`match_add`).
 unsafe fn match_add(
@@ -407,7 +397,7 @@ pub unsafe extern "C" fn init_search_hl(wp: *mut win_T, search_hl: *mut match_T)
         (*search_hl).buf = (*wp).w_buffer;
         (*search_hl).lnum = 0;
         (*search_hl).first_lnum = 0;
-        (*search_hl).attr = win_hl_attr(wp, HLF_L);
+        (*search_hl).attr = win_hl_attr(wp, HLF_L as c_int);
     }
 }
 
@@ -775,7 +765,7 @@ pub unsafe extern "C" fn update_search_hl(
                         (*shl).endcol = next_col;
                     }
                     if shl == search_hl && (*shl).has_cursor {
-                        (*shl).attr_cur = win_hl_attr(wp, HLF_LC);
+                        (*shl).attr_cur = win_hl_attr(wp, HLF_LC as c_int);
                         if (*shl).attr_cur != (*shl).attr {
                             search_hl_has_cursor_lnum = lnum;
                         }

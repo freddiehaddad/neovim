@@ -10,8 +10,8 @@ use crate::api::private::validate::{
 use crate::api::vim::{HLF_N, HlMessage, MessageData};
 use crate::autocmd::{AUGROUP_ALL, EVENT_PROGRESS, HLF_8, HLF_T, apply_autocmds_group, has_event};
 use crate::charset::{
-    ascii_iswhite, ascii2cells, char2cells, is_special, k_second, skipwhite, to_special,
-    transchar_buf, transchar_byte_buf, vim_isprintc, vim_strsize,
+    ascii_iswhite, ascii2cells, char2cells, is_special, skipwhite, to_special, transchar_buf,
+    transchar_byte_buf, vim_isprintc, vim_strsize,
 };
 use crate::dialog::{confirm_buttons, confirm_msg, prompt_for_input};
 use crate::drawscreen::{
@@ -49,7 +49,7 @@ use crate::keycodes::{
     BS, CAR, ESC, K_BS, K_DOWN, K_IGNORE, K_LEFTDRAG, K_LEFTMOUSE, K_LEFTRELEASE, K_MIDDLEDRAG,
     K_MIDDLEMOUSE, K_MIDDLERELEASE, K_MOUSEDOWN, K_MOUSELEFT, K_MOUSEMOVE, K_MOUSERIGHT, K_MOUSEUP,
     K_PAGEDOWN, K_PAGEUP, K_RIGHTDRAG, K_RIGHTMOUSE, K_RIGHTRELEASE, K_SPECIAL, K_UP, K_X1MOUSE,
-    K_X2MOUSE, KE_FILLER, KS_MODIFIER, MOD_MASK_SHIFT, NL, TAB, get_special_key, key2termcap1,
+    K_X2MOUSE, KS_MODIFIER, MOD_MASK_SHIFT, NL, TAB, get_special_key,
     keychord,
 };
 use crate::log::{LOGLVL_DBG, LOGLVL_INF, log_get_stderr, logmsg};
@@ -389,14 +389,7 @@ use crate::ex_cmds::{Ctrl_C, HLF_R};
 use crate::ex_getln::{Ctrl_B, Ctrl_F, K_EVENT};
 pub use swmsg;
 
-#[inline]
-const fn k_third(c: c_int) -> u8 {
-    if c == K_SPECIAL as c_int || c == NUL as c_int {
-        KE_FILLER
-    } else {
-        key2termcap1(c) as u8
-    }
-}
+use crate::keycodes::{k_second, k_third};
 
 #[inline]
 unsafe fn have_sourcing_info() -> bool {

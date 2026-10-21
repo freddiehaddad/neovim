@@ -11,7 +11,7 @@ use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_empty, multiqueue_process_events,
     multiqueue_put_event,
 };
-use crate::event::rstream::{RStream, RStreamFields, rstream_fields, rstream_may_close};
+use crate::event::rstream::{RStream, rstream_fields, rstream_may_close};
 use crate::event::stream::{
     Stream, stream_closed_ptr, stream_fields, stream_init, stream_may_close, stream_size,
     stream_uv_ptr,
@@ -76,11 +76,7 @@ static mut proc_is_tearing_down: bool = false;
 static mut exit_need_delay: c_int = 0;
 
 use crate::event::r#loop::{uv_recv_buffer_size, uv_unref};
-
-#[inline]
-pub unsafe fn rstream_size() -> usize {
-    unsafe { stream_size() + size_of::<RStreamFields>() }
-}
+use crate::event::rstream::rstream_size;
 
 #[inline]
 pub unsafe fn proc_header(proc_: *mut Proc) -> *mut ProcHeader {

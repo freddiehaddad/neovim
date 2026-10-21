@@ -403,25 +403,13 @@ const fn compute_build_has_flags() -> u32 {
 
 const NVIM_BUILD_HAS_FLAGS: u32 = compute_build_has_flags();
 
+use crate::charset::{tolower_asc, toupper_asc};
+use crate::cursor::clearpos;
+use crate::eval::typval::tv_dict_len;
 use crate::event::r#loop::{uv_env_item_t, uv_os_environ, uv_os_free_environ, uv_random};
+use crate::mpack::object::mpack_parser_init;
 use crate::os::time::c_mktime;
-
-#[inline]
-unsafe fn mpack_parser_init(parser: *mut mpack_parser_t, capacity: u32) {
-    unsafe { crate::mpack::object::mpack_parser_init(parser.cast(), capacity) }
-}
-
 use crate::terminal::{terminal_buf, terminal_open, terminal_running};
-
-#[inline]
-fn toupper_asc(c: c_char) -> u8 {
-    (c as u8).to_ascii_uppercase()
-}
-
-#[inline]
-fn tolower_asc(c: c_char) -> u8 {
-    (c as u8).to_ascii_lowercase()
-}
 
 #[inline]
 unsafe fn tv_list_uidx(l: *const list_T, mut n: c_int) -> c_int {
@@ -430,15 +418,6 @@ unsafe fn tv_list_uidx(l: *const list_T, mut n: c_int) -> c_int {
             n += tv_list_len(l);
         }
         if n < 0 || n >= tv_list_len(l) { -1 } else { n }
-    }
-}
-
-#[inline]
-unsafe fn tv_dict_len(d: *const dict_T) -> i64 {
-    if d.is_null() {
-        0
-    } else {
-        unsafe { (*d).dv_hashtab.ht_used as i64 }
     }
 }
 
@@ -466,15 +445,6 @@ unsafe fn proc_is_stopped(proc_: *mut Proc) -> bool {
     unsafe {
         let ph = proc_header(proc_);
         (*ph).status >= 0 || (*ph).stopped_time != 0
-    }
-}
-
-#[inline]
-fn clearpos(a: *mut pos_T) {
-    unsafe {
-        (*a).lnum = 0;
-        (*a).col = 0;
-        (*a).coladd = 0;
     }
 }
 
@@ -1939,7 +1909,7 @@ pub unsafe extern "C" fn f_confirm(
                     if typestr.is_null() {
                         error = true;
                     } else {
-                        match toupper_asc(*typestr) {
+                        match toupper_asc(c_int::from(*typestr as u8)) as u8 {
                             b'E' => type_ = VIM_ERROR,
                             b'Q' => type_ = VIM_QUESTION,
                             b'I' => type_ = VIM_INFO,
@@ -8322,13 +8292,13 @@ pub unsafe extern "C" fn do_searchpair(
             col: 0,
             coladd: 0,
         };
-        clearpos(&raw mut firstpos);
+        clearpos(&mut firstpos);
         let mut foundpos = pos_T {
             lnum: 0,
             col: 0,
             coladd: 0,
         };
-        clearpos(&raw mut foundpos);
+        clearpos(&mut foundpos);
         let mut pat = pat3;
         debug_assert!(pat3len >= 0);
         let patlen = pat3len as usize;
@@ -9775,7 +9745,7 @@ pub unsafe extern "C" fn f_synIDattr(
         let mut modec: c_int = if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
             let mut modebuf = [0 as c_char; NUMBUFLEN];
             let mode = tv_get_string_buf(argvars.add(2), modebuf.as_mut_ptr());
-            let mc = c_int::from(tolower_asc(*mode));
+            let mc = tolower_asc(c_int::from(*mode as u8));
             if mc != b'c' as c_int && mc != b'g' as c_int {
                 0
             } else {
@@ -9789,11 +9759,12 @@ pub unsafe extern "C" fn f_synIDattr(
         let _ = &mut modec;
 
         let mut p: *const c_char = ptr::null();
-        match tolower_asc(*what) {
+        let w = |i: usize| tolower_asc(c_int::from(*what.add(i) as u8)) as u8;
+        match w(0) {
             b'b' => {
-                if tolower_asc(*what.add(1)) == b'g' {
+                if w(1) == b'g' {
                     p = highlight_color(id, what, modec);
-                } else if tolower_asc(*what.add(1)) == b'l' {
+                } else if w(1) == b'l' {
                     p = highlight_has_attr(id, HL_BLINK, modec);
                 } else {
                     p = highlight_has_attr(id, HL_BOLD, modec);
@@ -9804,14 +9775,14 @@ pub unsafe extern "C" fn f_synIDattr(
             b'o' => p = highlight_has_attr(id, HL_OVERLINE, modec),
             b'f' => p = highlight_color(id, what, modec),
             b'i' => {
-                if tolower_asc(*what.add(1)) == b'n' {
+                if w(1) == b'n' {
                     p = highlight_has_attr(id, HL_INVERSE, modec);
                 } else {
                     p = highlight_has_attr(id, HL_ITALIC, modec);
                 }
             }
             b'n' => {
-                if tolower_asc(*what.add(1)) == b'o' {
+                if w(1) == b'o' {
                     p = highlight_has_attr(id, HL_NOCOMBINE, modec);
                 } else {
                     p = get_highlight_name_ext(ptr::null_mut(), id - 1, false);
@@ -9819,9 +9790,9 @@ pub unsafe extern "C" fn f_synIDattr(
             }
             b'r' => p = highlight_has_attr(id, HL_INVERSE, modec),
             b's' => {
-                if tolower_asc(*what.add(1)) == b'p' {
+                if w(1) == b'p' {
                     p = highlight_color(id, what, modec);
-                } else if tolower_asc(*what.add(1)) == b't' && tolower_asc(*what.add(2)) == b'r' {
+                } else if w(1) == b't' && w(2) == b'r' {
                     p = highlight_has_attr(id, HL_STRIKETHROUGH, modec);
                 } else {
                     p = highlight_has_attr(id, HL_STANDOUT, modec);
@@ -9829,13 +9800,13 @@ pub unsafe extern "C" fn f_synIDattr(
             }
             b'u' => {
                 if strlen(what) >= 9 {
-                    if tolower_asc(*what.add(5)) == b'l' {
+                    if w(5) == b'l' {
                         p = highlight_has_attr(id, HL_UNDERLINE, modec);
-                    } else if tolower_asc(*what.add(5)) != b'd' {
+                    } else if w(5) != b'd' {
                         p = highlight_has_attr(id, HL_UNDERCURL, modec);
-                    } else if tolower_asc(*what.add(6)) != b'o' {
+                    } else if w(6) != b'o' {
                         p = highlight_has_attr(id, HL_UNDERDASHED, modec);
-                    } else if tolower_asc(*what.add(7)) == b'u' {
+                    } else if w(7) == b'u' {
                         p = highlight_has_attr(id, HL_UNDERDOUBLE, modec);
                     } else {
                         p = highlight_has_attr(id, HL_UNDERDOTTED, modec);

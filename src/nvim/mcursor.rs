@@ -3,7 +3,8 @@
 use crate::api::buffer::{LUA_INTERNAL_CALL, nvim_buf_set_text};
 use crate::api::extmark::nvim_create_namespace;
 use crate::api::private::helpers::{
-    api_clear_error, api_free_string, boolean_obj, cstr_as_string, cstr_to_string, string_to_array,
+    api_clear_error, api_free_string, boolean_obj, cstr_as_string, cstr_to_string,
+    static_cstr_as_string, string_to_array,
 };
 use crate::api::private::validate::{Error, ErrorType, NvimString};
 use crate::api::vim::nvim_feedkeys;
@@ -171,14 +172,6 @@ static mut ns_vsel: u32 = 0;
 static mut ns_last: u32 = 0;
 static mut ns_session: u32 = 0;
 
-#[inline]
-const fn static_cstr_as_string(s: &'static [u8]) -> NvimString {
-    NvimString {
-        data: s.as_ptr().cast_mut().cast(),
-        size: s.len() - 1,
-    }
-}
-
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mc_init() {
     unsafe {
@@ -189,7 +182,7 @@ pub unsafe extern "C" fn mc_init() {
 unsafe fn mc_ns() -> u32 {
     unsafe {
         if ns_mc == 0 {
-            ns_mc = nvim_create_namespace(static_cstr_as_string(b"nvim.multicursor\0")) as u32;
+            ns_mc = nvim_create_namespace(static_cstr_as_string(c"nvim.multicursor")) as u32;
         }
         ns_mc
     }
@@ -199,7 +192,7 @@ unsafe fn mc_vcur_ns() -> u32 {
     unsafe {
         if ns_vcur == 0 {
             ns_vcur =
-                nvim_create_namespace(static_cstr_as_string(b"nvim.multicursor.cursor\0")) as u32;
+                nvim_create_namespace(static_cstr_as_string(c"nvim.multicursor.cursor")) as u32;
         }
         ns_vcur
     }
@@ -209,7 +202,7 @@ unsafe fn mc_vsel_ns() -> u32 {
     unsafe {
         if ns_vsel == 0 {
             ns_vsel =
-                nvim_create_namespace(static_cstr_as_string(b"nvim.multicursor.visual\0")) as u32;
+                nvim_create_namespace(static_cstr_as_string(c"nvim.multicursor.visual")) as u32;
         }
         ns_vsel
     }
@@ -218,8 +211,7 @@ unsafe fn mc_vsel_ns() -> u32 {
 unsafe fn mc_last_ns() -> u32 {
     unsafe {
         if ns_last == 0 {
-            ns_last =
-                nvim_create_namespace(static_cstr_as_string(b"nvim.multicursor.last\0")) as u32;
+            ns_last = nvim_create_namespace(static_cstr_as_string(c"nvim.multicursor.last")) as u32;
         }
         ns_last
     }
@@ -229,7 +221,7 @@ unsafe fn mc_session_ns() -> u32 {
     unsafe {
         if ns_session == 0 {
             ns_session =
-                nvim_create_namespace(static_cstr_as_string(b"nvim.multicursor._session\0")) as u32;
+                nvim_create_namespace(static_cstr_as_string(c"nvim.multicursor._session")) as u32;
         }
         ns_session
     }

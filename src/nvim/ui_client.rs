@@ -46,7 +46,7 @@ use std::mem::{size_of, zeroed};
 use std::ptr;
 
 pub(crate) const UI_CLIENT_STDIN_FD: c_int = 3;
-const KEYSET_OPTIDX_highlight__url: u64 = 5;
+use crate::highlight::KEYSET_OPTIDX_highlight__url;
 
 #[unsafe(no_mangle)]
 pub static mut tui: *mut TUIData = ptr::null_mut();

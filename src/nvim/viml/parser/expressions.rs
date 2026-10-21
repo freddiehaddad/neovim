@@ -610,21 +610,7 @@ const NODE_PROPS: [(ExprOpLvl, ExprOpAssociativity); 39] = [
     (ExprOpLvl::Assignment, ExprOpAssociativity::Left), // kExprNodeAssignment
 ];
 
-#[inline]
-fn ascii_isident(b: u8) -> bool {
-    b.is_ascii_alphanumeric() || b == b'_'
-}
-
-#[inline]
-fn hex2nr(b: u8) -> c_int {
-    if b.is_ascii_lowercase() {
-        c_int::from(b - b'a' + 10)
-    } else if b.is_ascii_uppercase() {
-        c_int::from(b - b'A' + 10)
-    } else {
-        c_int::from(b - b'0')
-    }
-}
+use crate::charset::{ascii_isident, hex2nr};
 
 #[inline]
 fn is_var_scope(b: u8) -> bool {
@@ -1639,7 +1625,7 @@ unsafe fn parse_quoted_string(
                             {
                                 n -= 1;
                                 p = p.add(1);
-                                nr = (nr << 4) + hex2nr(*p as u8);
+                                nr = (nr << 4) + hex2nr(c_int::from(*p as u8));
                             }
                             let esc_len = (p as usize) - (esc_start as usize - 1);
                             let char_len = utf_char2len(nr) as usize;
@@ -1753,7 +1739,7 @@ unsafe fn parse_quoted_string(
                                 {
                                     n -= 1;
                                     p = p.add(1);
-                                    nr = (nr << 4) + hex2nr(*p as u8);
+                                    nr = (nr << 4) + hex2nr(c_int::from(*p as u8));
                                 }
                                 p = p.add(1);
                                 if is_hex {

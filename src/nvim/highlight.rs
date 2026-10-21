@@ -20,9 +20,9 @@ use crate::highlight_group::{
 use crate::lua::converter::Boolean;
 use crate::lua::executor::{kRetObject, nlua_call_ref};
 use crate::map::{
-    ColorItem, ColorKey, HlAttrs, HlEntry, MHPutStatus, Map, MapHash, Set, cstr_t,
+    ColorItem, ColorKey, HlAttrs, HlEntry, MHPutStatus, Map, Set, cstr_t,
     map_put_ref_ColorKey_ColorItem, map_put_ref_int_ptr_t, map_put_ref_uint64_t_int,
-    map_ref_ColorKey_ColorItem, map_ref_int_ptr_t, map_ref_uint64_t_int, mh_clear, mh_get_ColorKey,
+    map_ref_ColorKey_ColorItem, map_ref_uint64_t_int, mh_clear, mh_get_ColorKey,
     mh_put_HlEntry, mh_put_cstr_t, ptr_t,
 };
 use crate::memory::{Arena, arena_finish, arena_mem_free, xfree, xmalloc, xstrdup};
@@ -67,39 +67,41 @@ pub(crate) const HL_FG_INDEXED: i32 = 0x1000;
 pub(crate) const HL_DEFAULT: i32 = 0x2000;
 pub(crate) const HL_GLOBAL: i32 = 0x4000;
 
-pub(crate) const KEYSET_OPTIDX_highlight__bg: c_int = 1;
-pub(crate) const KEYSET_OPTIDX_highlight__fg: c_int = 2;
-pub(crate) const KEYSET_OPTIDX_highlight__sp: c_int = 3;
-const KEYSET_OPTIDX_highlight__dim: c_int = 4;
-const KEYSET_OPTIDX_highlight__bold: c_int = 6;
-pub(crate) const KEYSET_OPTIDX_highlight__font: c_int = 7;
-const KEYSET_OPTIDX_highlight__link: c_int = 8;
-const KEYSET_OPTIDX_highlight__blend: c_int = 9;
-const KEYSET_OPTIDX_highlight__blink: c_int = 11;
-const KEYSET_OPTIDX_highlight__cterm: c_int = 12;
-const KEYSET_OPTIDX_highlight__italic: c_int = 13;
-const KEYSET_OPTIDX_highlight__reverse: c_int = 15;
-const KEYSET_OPTIDX_highlight__default: c_int = 16;
-const KEYSET_OPTIDX_highlight__altfont: c_int = 17;
-const KEYSET_OPTIDX_highlight__conceal: c_int = 18;
-const KEYSET_OPTIDX_highlight__special: c_int = 19;
-const KEYSET_OPTIDX_highlight__ctermfg: c_int = 20;
-const KEYSET_OPTIDX_highlight__ctermbg: c_int = 21;
-const KEYSET_OPTIDX_highlight__fallback: c_int = 22;
-const KEYSET_OPTIDX_highlight__overline: c_int = 23;
-const KEYSET_OPTIDX_highlight__standout: c_int = 24;
-const KEYSET_OPTIDX_highlight__nocombine: c_int = 25;
-const KEYSET_OPTIDX_highlight__undercurl: c_int = 26;
-const KEYSET_OPTIDX_highlight__underline: c_int = 27;
-const KEYSET_OPTIDX_highlight__background: c_int = 28;
-const KEYSET_OPTIDX_highlight__bg_indexed: c_int = 29;
-const KEYSET_OPTIDX_highlight__foreground: c_int = 30;
-const KEYSET_OPTIDX_highlight__fg_indexed: c_int = 31;
-const KEYSET_OPTIDX_highlight__link_global: c_int = 32;
-const KEYSET_OPTIDX_highlight__underdashed: c_int = 33;
-const KEYSET_OPTIDX_highlight__underdotted: c_int = 34;
-const KEYSET_OPTIDX_highlight__underdouble: c_int = 35;
-const KEYSET_OPTIDX_highlight__strikethrough: c_int = 36;
+pub(crate) const KEYSET_OPTIDX_highlight__bg: u64 = 1;
+pub(crate) const KEYSET_OPTIDX_highlight__fg: u64 = 2;
+pub(crate) const KEYSET_OPTIDX_highlight__sp: u64 = 3;
+const KEYSET_OPTIDX_highlight__dim: u64 = 4;
+pub(crate) const KEYSET_OPTIDX_highlight__url: u64 = 5;
+const KEYSET_OPTIDX_highlight__bold: u64 = 6;
+pub(crate) const KEYSET_OPTIDX_highlight__font: u64 = 7;
+const KEYSET_OPTIDX_highlight__link: u64 = 8;
+const KEYSET_OPTIDX_highlight__blend: u64 = 9;
+const KEYSET_OPTIDX_highlight__blink: u64 = 11;
+const KEYSET_OPTIDX_highlight__cterm: u64 = 12;
+const KEYSET_OPTIDX_highlight__italic: u64 = 13;
+pub(crate) const KEYSET_OPTIDX_highlight__update: u64 = 14;
+const KEYSET_OPTIDX_highlight__reverse: u64 = 15;
+const KEYSET_OPTIDX_highlight__default: u64 = 16;
+const KEYSET_OPTIDX_highlight__altfont: u64 = 17;
+const KEYSET_OPTIDX_highlight__conceal: u64 = 18;
+const KEYSET_OPTIDX_highlight__special: u64 = 19;
+const KEYSET_OPTIDX_highlight__ctermfg: u64 = 20;
+const KEYSET_OPTIDX_highlight__ctermbg: u64 = 21;
+const KEYSET_OPTIDX_highlight__fallback: u64 = 22;
+const KEYSET_OPTIDX_highlight__overline: u64 = 23;
+const KEYSET_OPTIDX_highlight__standout: u64 = 24;
+const KEYSET_OPTIDX_highlight__nocombine: u64 = 25;
+const KEYSET_OPTIDX_highlight__undercurl: u64 = 26;
+const KEYSET_OPTIDX_highlight__underline: u64 = 27;
+const KEYSET_OPTIDX_highlight__background: u64 = 28;
+const KEYSET_OPTIDX_highlight__bg_indexed: u64 = 29;
+const KEYSET_OPTIDX_highlight__foreground: u64 = 30;
+const KEYSET_OPTIDX_highlight__fg_indexed: u64 = 31;
+const KEYSET_OPTIDX_highlight__link_global: u64 = 32;
+const KEYSET_OPTIDX_highlight__underdashed: u64 = 33;
+const KEYSET_OPTIDX_highlight__underdotted: u64 = 34;
+const KEYSET_OPTIDX_highlight__underdouble: u64 = 35;
+const KEYSET_OPTIDX_highlight__strikethrough: u64 = 36;
 
 pub const HLATTRS_INIT: HlAttrs = HlAttrs {
     rgb_ae_attr: 0,
@@ -179,17 +181,8 @@ pub struct KeyDict_highlight_cterm {
 
 type NSHlAttr = [c_int; HLF_COUNT];
 
-pub const fn empty_map_hash() -> MapHash {
-    MapHash {
-        n_buckets: 0,
-        size: 0,
-        n_occupied: 0,
-        upper_bound: 0,
-        n_keys: 0,
-        keys_capacity: 0,
-        hash: ptr::null_mut(),
-    }
-}
+use crate::api::private::helpers::has_key;
+use crate::map::{empty_map_hash, pmap_get_int};
 
 static mut hlstate_active: bool = false;
 static mut attr_entries: Set<HlEntry> = Set {
@@ -259,11 +252,6 @@ use crate::eval::funcs::{
 use crate::lua::converter::LUA_NOREF;
 
 #[inline]
-const fn has_key(mask: OptionalKeys, idx: c_int) -> bool {
-    (mask & (1u64 << idx)) != 0
-}
-
-#[inline]
 pub unsafe fn win_hl_attr(wp: *mut win_T, hlf: c_int) -> c_int {
     unsafe {
         let tbl = if !(*wp).w_ns_hl_attr.is_null() && ns_hl_fast < 0 {
@@ -324,14 +312,6 @@ unsafe fn map_put_color(map: *mut Map<ColorKey, ColorItem>, key: ColorKey, val: 
     unsafe {
         let ptr = map_put_ref_ColorKey_ColorItem(map, key, ptr::null_mut(), ptr::null_mut());
         *ptr = val;
-    }
-}
-
-#[inline]
-unsafe fn pmap_get_int(map: *mut Map<c_int, ptr_t>, key: c_int) -> ptr_t {
-    unsafe {
-        let ptr = map_ref_int_ptr_t(map, key, ptr::null_mut());
-        if ptr.is_null() { ptr::null_mut() } else { *ptr }
     }
 }
 
@@ -1482,7 +1462,7 @@ pub unsafe extern "C" fn hlattrs2dict(
 }
 
 #[inline]
-const fn apply_flag_with_key(is_set: u64, opt_idx: c_int, val: bool, mut m: i32, flag: i32) -> i32 {
+const fn apply_flag_with_key(is_set: u64, opt_idx: u64, val: bool, mut m: i32, flag: i32) -> i32 {
     if has_key(is_set, opt_idx) {
         let cmask = if (flag & HL_UNDERLINE_MASK) != 0 {
             HL_UNDERLINE_MASK

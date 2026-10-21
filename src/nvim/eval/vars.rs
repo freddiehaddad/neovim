@@ -4,7 +4,7 @@ use crate::api::private::helpers::{
     DI_FLAGS_FIX, DI_FLAGS_LOCK, DI_FLAGS_RO, SID_LUA, cstr_as_string, cstr_to_string, nil_obj,
     string_obj, tv_dict_is_watched,
 };
-use crate::api::private::validate::{Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Object, ObjectType};
 use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE, VAR_FIXED, VAR_SCOPE, buf_T};
 use crate::charset::{
     NUL, ascii_isdigit, ascii_isupper, ascii_iswhite, getdigits_int, skiptowhite, skipwhite,
@@ -557,13 +557,7 @@ pub fn tristate_from_int(val: OptInt) -> TriState {
     }
 }
 
-#[inline]
-fn integer_obj(i: OptInt) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
-    }
-}
+use crate::api::private::helpers::integer_obj;
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn evalvars_init() {

@@ -27,7 +27,7 @@ use crate::buffer_updates::buf_updates_send_changes;
 use crate::bufwrite::buf_write;
 use crate::change::{
     ML_DEL_MESSAGE, appended_lines, appended_lines_mark, changed_bytes, changed_lines, del_lines,
-    deleted_lines, deleted_lines_mark, file_ff_differs,
+    deleted_lines, deleted_lines_mark,
 };
 use crate::channel::channel_job_running;
 use crate::charset::{
@@ -329,30 +329,8 @@ static mut subflags: subflags_T = subflags_T {
 
 static mut pre_hl_id: c_int = 0;
 
-#[inline]
-unsafe fn bufIsChanged(buf: *const buf_T) -> bool {
-    unsafe {
-        !bt_dontwrite(buf) && ((*buf).b_changed != 0 || file_ff_differs(buf.cast_mut(), true))
-    }
-}
-
-#[inline]
-unsafe fn curbufIsChanged() -> bool {
-    unsafe { bufIsChanged(curbuf) }
-}
-
-#[inline]
-unsafe fn bt_dontwrite_msg(buf: *const buf_T) -> bool {
-    unsafe {
-        if bt_dontwrite(buf) {
-            emsg(gettext(
-                c"E382: Cannot write, 'buftype' option is set".as_ptr(),
-            ));
-            return true;
-        }
-        false
-    }
-}
+use crate::buffer::bt_dontwrite_msg;
+use crate::undo::{bufIsChanged, curbufIsChanged};
 
 /// `":ascii"` and `"ga"` implementation.
 #[unsafe(no_mangle)]

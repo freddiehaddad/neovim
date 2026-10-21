@@ -81,7 +81,7 @@ use crate::math::{FAIL, OK};
 use crate::mbyte::{
     mb_get_class, mb_islower, mb_isupper, mb_prevptr, mb_ptr_back, mb_ptr2char_adv, mb_tolower,
     mb_toupper, ptr2cells, utf_char2bytes, utf_char2len, utf_head_off, utf_ptr2char, utf_ptr2len,
-    utf8len_tab, utfc_ptr2len,
+    utfc_ptr2len,
 };
 use crate::memline::{dec, ml_delete, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
 use crate::memory::{
@@ -321,48 +321,14 @@ unsafe fn kv_destroy_extmarks(v: *mut KVec<ExtmarkUndoObject>) {
     }
 }
 
-#[inline]
-unsafe fn cstr_as_string(str_ptr: *mut c_char) -> NvimString {
-    unsafe {
-        if str_ptr.is_null() {
-            empty_nvim_string()
-        } else {
-            NvimString {
-                data: str_ptr,
-                size: strlen(str_ptr),
-            }
-        }
-    }
-}
-
-#[inline]
-fn mb_byte2len(b: u8) -> c_int {
-    c_int::from(utf8len_tab[b as usize])
-}
-
-#[inline]
-unsafe fn mb_ptr_adv(p: *mut *mut c_char) {
-    unsafe {
-        *p = (*p).add(utf_ptr2len(*p) as usize);
-    }
-}
+use crate::api::private::helpers::cstr_as_string;
+use crate::mbyte::{mb_ptr_adv, utf_byte2len};
+use crate::path::vim_ispathsep;
 
 #[inline]
 unsafe fn mb_ptr_adv_const(p: *mut *const c_char) {
     unsafe {
         *p = (*p).add(utf_ptr2len(*p) as usize);
-    }
-}
-
-#[inline]
-const fn vim_ispathsep(c: c_int) -> bool {
-    #[cfg(unix)]
-    {
-        c == PATHSEP as c_int
-    }
-    #[cfg(windows)]
-    {
-        c == b':' as c_int || c == b'/' as c_int || c == b'\\' as c_int
     }
 }
 
@@ -1495,8 +1461,8 @@ unsafe fn ins_compl_longest_match(match_: *mut compl_T) {
             if diff {
                 break;
             }
-            mb_ptr_adv(&raw mut p);
-            mb_ptr_adv(&raw mut s);
+            mb_ptr_adv(&mut p);
+            mb_ptr_adv(&mut s);
         }
 
         if *p != NUL {
@@ -4450,8 +4416,8 @@ unsafe fn fuzzy_longest_match() {
                     break;
                 }
 
-                mb_ptr_adv(&raw mut prefix_ptr);
-                mb_ptr_adv(&raw mut match_ptr);
+                mb_ptr_adv(&mut prefix_ptr);
+                mb_ptr_adv(&mut match_ptr);
                 j += 1;
             }
 
@@ -5639,15 +5605,15 @@ unsafe fn find_common_prefix(prefix_len: *mut usize, curbuf_only: bool) -> *mut 
                         let mut s2 = (*compl).cp_str.data;
 
                         while j < len && *s1 != NUL && *s2 != NUL {
-                            let l1 = mb_byte2len(*s1 as u8);
-                            let l2 = mb_byte2len(*s2 as u8);
+                            let l1 = utf_byte2len(c_int::from(*s1 as u8));
+                            let l2 = utf_byte2len(c_int::from(*s2 as u8));
                             if l1 != l2 || memcmp(s1.cast(), s2.cast(), l1 as usize) != 0 {
                                 break;
                             }
 
                             j += l1;
-                            mb_ptr_adv(&raw mut s1);
-                            mb_ptr_adv(&raw mut s2);
+                            mb_ptr_adv(&mut s1);
+                            mb_ptr_adv(&mut s2);
                         }
                         len = j;
 
@@ -5763,9 +5729,9 @@ unsafe fn ins_compl_show_filename() {
             space -= ptr2cells(e);
             while space < 0 {
                 space += ptr2cells(s);
-                mb_ptr_adv(&raw mut s);
+                mb_ptr_adv(&mut s);
             }
-            mb_ptr_adv(&raw mut e);
+            mb_ptr_adv(&mut e);
         }
         if !compl_autocomplete {
             msg_hist_off = true;

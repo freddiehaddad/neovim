@@ -43,13 +43,12 @@ use crate::highlight::{OptionalKeys, map_destroy, set_destroy};
 use crate::lua::converter::Boolean;
 use crate::map::{
     MH_TOMBSTONE, MHPutStatus, Map, Set, cstr_t, map_del_cstr_t_ptr_t, map_put_ref_cstr_t_ptr_t,
-    map_ref_cstr_t_ptr_t, mh_get_cstr_t, mh_get_path_t, mh_put_cstr_t, mh_put_path_t, mh_put_ptr_t,
-    path_t, ptr_t,
+    map_ref_cstr_t_ptr_t, mh_get_cstr_t, mh_get_path_t, mh_put_cstr_t, mh_put_path_t, path_t, ptr_t,
 };
 use crate::mark::{
     EXTRA_MARKS, cleanup_jumplist, fmark_T, free_fmark, free_xfmark, mark_buffer_iter, mark_get,
-    mark_global_iter, mark_jumplist_iter, mark_set_global, mark_set_local, set_last_cursor,
-    setpcmark, xfmark_T,
+    mark_global_index, mark_global_iter, mark_jumplist_iter, mark_set_global, mark_set_local,
+    set_last_cursor, setpcmark, xfmark_T,
 };
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strnicmp;
@@ -615,26 +614,11 @@ unsafe fn file_fd(fp: *const FileDescriptor) -> c_int {
     unsafe { (*fp).fd }
 }
 
-#[inline]
-unsafe fn file_space(fp: *const FileDescriptor) -> usize {
-    unsafe { (((*fp).buffer as usize) + ARENA_BLOCK_SIZE).saturating_sub((*fp).write_pos as usize) }
-}
+use crate::os::fileio::file_space;
 
 #[inline]
 unsafe fn xmemdupz_cstr(data: *const c_char, len: usize) -> *mut c_char {
     unsafe { xmemdupz(data.cast::<c_void>(), len).cast::<c_char>() }
-}
-
-#[inline]
-const fn mark_global_index(name: c_char) -> c_int {
-    let u = name as u8;
-    if u.is_ascii_uppercase() {
-        (u - b'A') as c_int
-    } else if u.is_ascii_digit() {
-        (NMARKS as c_int) + ((u - b'0') as c_int)
-    } else {
-        -1
-    }
 }
 
 #[inline]
@@ -653,14 +637,7 @@ const fn mark_local_index(name: c_char) -> c_int {
     }
 }
 
-#[inline]
-unsafe fn set_put_ptr(set: *mut Set<ptr_t>, key: ptr_t) -> bool {
-    let mut status = MHPutStatus::kMHExisting;
-    unsafe {
-        mh_put_ptr_t(set, key, &mut status);
-    }
-    status != MHPutStatus::kMHExisting
-}
+use crate::map::set_put_ptr;
 
 #[inline]
 unsafe fn set_has_cstr(set: *mut Set<cstr_t>, key: cstr_t) -> bool {
@@ -2482,7 +2459,7 @@ unsafe extern "C" fn flush_file_buffer(buffer: *mut PackerBuffer) {
 
 unsafe fn packer_buffer_for_file(file: *mut FileDescriptor) -> PackerBuffer {
     unsafe {
-        if file_space(file) < SHADA_MPACK_FREE_SPACE {
+        if file_space(&*file) < SHADA_MPACK_FREE_SPACE {
             file_flush(file);
         }
         PackerBuffer {

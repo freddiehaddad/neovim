@@ -425,16 +425,6 @@ static mut last_matchgroup: c_int = 0;
 static mut expand_what: c_int = EXP_SUBCMD;
 
 #[inline]
-const fn toupper_asc(c: c_char) -> u8 {
-    let b = c as u8;
-    if b >= b'a' && b <= b'z' {
-        b - (b'a' - b'A')
-    } else {
-        b
-    }
-}
-
-#[inline]
 pub unsafe fn win_s(wp: *mut win_T) -> *mut synblock_T {
     unsafe { (*wp).w_s.cast::<synblock_T>() }
 }
@@ -4940,7 +4930,7 @@ unsafe fn get_id_list(
                     || strcmp(name.add(1), c"TOP".as_ptr()) == 0
                     || strcmp(name.add(1), c"CONTAINED".as_ptr()) == 0
                 {
-                    if toupper_asc(**arg) != b'C' {
+                    if !(**arg as u8).eq_ignore_ascii_case(&b'C') {
                         semsg!(gettext(c"E407: %s not allowed here".as_ptr()), name.add(1));
                         failed = true;
                         xfree(name.cast());

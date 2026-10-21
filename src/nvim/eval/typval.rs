@@ -457,6 +457,15 @@ pub unsafe fn tv_list_len(l: *const list_T) -> c_int {
 }
 
 #[inline]
+pub unsafe fn tv_dict_len(d: *const dict_T) -> i64 {
+    if d.is_null() {
+        0
+    } else {
+        unsafe { (*d).dv_hashtab.ht_used as i64 }
+    }
+}
+
+#[inline]
 pub unsafe fn tv_list_first(l: *const list_T) -> *mut listitem_T {
     unsafe { tv_list_first_inline(l) }
 }

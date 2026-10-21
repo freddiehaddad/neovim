@@ -155,10 +155,9 @@ pub(crate) const HLF_CLN: c_int = 15;
 pub(crate) const HLF_CLS: c_int = 16;
 pub(crate) const HLF_SC: c_int = 35;
 
+use crate::highlight::{KEYSET_OPTIDX_highlight__update, KEYSET_OPTIDX_highlight__url};
 use crate::statusline::{STL_FOLDCOL, STL_SIGNCOL};
 
-const KEYSET_OPTIDX_highlight__update: u32 = 14;
-const KEYSET_OPTIDX_highlight__url: u32 = 5;
 const KEYSET_OPTIDX_get_ns__winid: u32 = 1;
 const KEYSET_OPTIDX_echo_opts__percent: u32 = 8;
 const KEYSET_OPTIDX_open_term__on_input: u32 = 1;

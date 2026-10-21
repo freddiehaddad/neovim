@@ -145,25 +145,7 @@ unsafe fn strchr_ascii(mut s: *const c_char, ch: u8) -> *const c_char {
     }
 }
 
-#[inline]
-unsafe fn strnicmp_asc(mut s1: *const c_char, mut s2: *const c_char, mut len: usize) -> bool {
-    unsafe {
-        while len > 0 {
-            let c1 = (*s1 as u8).to_ascii_lowercase();
-            let c2 = (*s2 as u8).to_ascii_lowercase();
-            if c1 != c2 {
-                return false;
-            }
-            if c1 == 0 {
-                break;
-            }
-            s1 = s1.add(1);
-            s2 = s2.add(1);
-            len -= 1;
-        }
-        true
-    }
-}
+use crate::strings::vim_strnicmp_asc;
 
 unsafe fn clear_shape_table() {
     let tbl = unsafe { &mut *std::ptr::addr_of_mut!(shape_table) };
@@ -380,7 +362,7 @@ pub unsafe extern "C" fn parse_shape_opt(what: c_int) -> *const c_char {
                         } else {
                             idx = SHAPE_IDX_COUNT;
                             for (i, entry) in tbl.iter().enumerate() {
-                                if strnicmp_asc(modep, entry.name, len) {
+                                if vim_strnicmp_asc(modep, entry.name, len) == 0 {
                                     idx = i;
                                     break;
                                 }
@@ -403,15 +385,15 @@ pub unsafe extern "C" fn parse_shape_opt(what: c_int) -> *const c_char {
                     p = colonp.add(1);
                     while *p != 0 && *p as u8 != b',' {
                         let first_byte = *p as u8;
-                        let len = if strnicmp_asc(p, c"ver".as_ptr(), 3)
-                            || strnicmp_asc(p, c"hor".as_ptr(), 3)
+                        let len = if vim_strnicmp_asc(p, c"ver".as_ptr(), 3) == 0
+                            || vim_strnicmp_asc(p, c"hor".as_ptr(), 3) == 0
                         {
                             3usize
-                        } else if strnicmp_asc(p, c"blinkwait".as_ptr(), 9) {
+                        } else if vim_strnicmp_asc(p, c"blinkwait".as_ptr(), 9) == 0 {
                             9usize
-                        } else if strnicmp_asc(p, c"blinkon".as_ptr(), 7) {
+                        } else if vim_strnicmp_asc(p, c"blinkon".as_ptr(), 7) == 0 {
                             7usize
-                        } else if strnicmp_asc(p, c"blinkoff".as_ptr(), 8) {
+                        } else if vim_strnicmp_asc(p, c"blinkoff".as_ptr(), 8) == 0 {
                             8usize
                         } else {
                             0usize
@@ -444,7 +426,7 @@ pub unsafe extern "C" fn parse_shape_opt(what: c_int) -> *const c_char {
                                     tbl[idx].blinkoff = n;
                                 }
                             }
-                        } else if strnicmp_asc(p, c"block".as_ptr(), 5) {
+                        } else if vim_strnicmp_asc(p, c"block".as_ptr(), 5) == 0 {
                             if round == 2 {
                                 tbl[idx].shape = CursorShape::SHAPE_BLOCK;
                             }

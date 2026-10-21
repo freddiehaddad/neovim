@@ -608,15 +608,7 @@ pub unsafe fn strerror(errnum: c_int) -> *mut c_char {
     unsafe { c_strerror(errnum) }
 }
 
-#[inline]
-const fn tolower_asc(c: c_char) -> c_int {
-    let b = c as u8;
-    if b.is_ascii_uppercase() {
-        (b + 0x20) as c_int
-    } else {
-        b as c_int
-    }
-}
+use crate::charset::tolower_asc;
 
 /// Copy up to `len` bytes of `string` into newly allocated memory and terminate with a NUL.
 #[unsafe(no_mangle)]
@@ -1079,7 +1071,7 @@ pub unsafe extern "C" fn vim_strnicmp_asc(
     unsafe {
         let mut i: c_int = 0;
         while len > 0 {
-            i = tolower_asc(*s1) - tolower_asc(*s2);
+            i = tolower_asc(c_int::from(*s1 as u8)) - tolower_asc(c_int::from(*s2 as u8));
             if i != 0 || *s1 == NUL {
                 break;
             }

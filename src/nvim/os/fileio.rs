@@ -37,7 +37,7 @@ pub struct FileDescriptor {
 }
 
 #[inline]
-fn file_space(fp: &FileDescriptor) -> usize {
+pub fn file_space(fp: &FileDescriptor) -> usize {
     ((fp.buffer as usize) + ARENA_BLOCK_SIZE).saturating_sub(fp.write_pos as usize)
 }
 

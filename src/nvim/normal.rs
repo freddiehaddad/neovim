@@ -167,7 +167,7 @@ use crate::state::{
 };
 use crate::statusline::{draw_tabline, win_redr_status};
 use crate::strings::{
-    qsort, strcat, strchr, strcmp, strcpy, strlen, tr, vim_snprintf, vim_strchr,
+    qsort, strcat, strchr, strcpy, strlen, tr, vim_snprintf, vim_strchr,
     vim_strsave_shellescape, xstrnsave,
 };
 use crate::syntax::{syn_stack_free_all, synblock_T};
@@ -346,47 +346,9 @@ pub unsafe fn lineempty(lnum: linenr_T) -> bool {
     unsafe { *ml_get(lnum) == NUL }
 }
 
-#[inline]
-unsafe fn bt_prompt(buf: *const buf_T) -> bool {
-    unsafe {
-        !buf.is_null()
-            && !(*buf).b_p_bt.is_null()
-            && *(*buf).b_p_bt.add(0) == b'p' as c_char
-            && *(*buf).b_p_bt.add(1) == b'r' as c_char
-    }
-}
-
-#[inline]
-pub unsafe fn bt_cmdwin(buf: *const buf_T) -> bool {
-    unsafe { !buf.is_null() && ptr::eq(buf, cmdwin_buf) }
-}
-
-#[inline]
-unsafe fn bt_quickfix(buf: *const buf_T) -> bool {
-    unsafe { !buf.is_null() && !(*buf).b_p_bt.is_null() && *(*buf).b_p_bt == b'q' as c_char }
-}
-
-#[inline]
-unsafe fn strequal(a: *const c_char, b: &CStr) -> bool {
-    unsafe { strcmp(a, b.as_ptr()) == 0 }
-}
-
-#[inline]
-unsafe fn win_hl_attr(wp: *mut win_T, hlf: usize) -> c_int {
-    unsafe {
-        let tbl = if !(*wp).w_ns_hl_attr.is_null() && ns_hl_fast < 0 {
-            (*wp).w_ns_hl_attr
-        } else {
-            hl_attr_active
-        };
-        *tbl.add(hlf)
-    }
-}
-
-#[inline]
-unsafe fn hl_attr(hlf: usize) -> c_int {
-    unsafe { *hl_attr_active.add(hlf) }
-}
+use crate::buffer::{bt_cmdwin, bt_prompt, bt_quickfix};
+use crate::highlight::{hl_attr, win_hl_attr};
+use crate::memory::strequal;
 
 #[inline]
 unsafe fn normal_state_init(s: *mut NormalState) {
@@ -3143,7 +3105,7 @@ pub unsafe extern "C" fn display_showcmd() {
             0
         };
         if !showcmd_is_clear {
-            len += grid_line_puts(sc_col + len, sc_buf, -1, hl_attr(HLF_MSG));
+            len += grid_line_puts(sc_col + len, sc_buf, -1, hl_attr(HLF_MSG as c_int));
         }
         len = len.min(SHOWCMD_COLS as c_int);
 
@@ -3151,7 +3113,7 @@ pub unsafe extern "C" fn display_showcmd() {
             sc_col + len,
             c"          ".as_ptr().add(len as usize),
             -1,
-            hl_attr(HLF_MSG),
+            hl_attr(HLF_MSG as c_int),
         );
 
         grid_line_flush();
@@ -4393,8 +4355,8 @@ unsafe fn nv_K_getcmd(
             return 0;
         }
 
-        let isman = strequal(kp, c"man");
-        let isman_s = strequal(kp, c"man -s");
+        let isman = strequal(kp, c"man".as_ptr());
+        let isman_s = strequal(kp, c"man -s".as_ptr());
         if (*cap).count0 != 0 && !(isman || isman_s) {
             *buflen = vim_snprintf!(
                 buf,
@@ -4481,8 +4443,11 @@ unsafe fn nv_ident(cap: *mut cmdarg_T) {
         } else {
             (*curbuf).b_p_kp
         };
-        let kp_helpbang = strequal(kp, c":help!");
-        let kp_help = kp_helpbang || *kp == NUL || strequal(kp, c":he") || strequal(kp, c":help");
+        let kp_helpbang = strequal(kp, c":help!".as_ptr());
+        let kp_help = kp_helpbang
+            || *kp == NUL
+            || strequal(kp, c":he".as_ptr())
+            || strequal(kp, c":help".as_ptr());
         if kp_help && !kp_helpbang && *skipwhite(ptr) == NUL {
             emsg(tr(e_noident.as_ptr()));
             return;
@@ -4577,7 +4542,7 @@ unsafe fn nv_ident(cap: *mut cmdarg_T) {
                     c"/?^$\\".as_ptr()
                 }
             } else if tag_cmd {
-                if strequal((*curbuf).b_p_ft, c"help") {
+                if strequal((*curbuf).b_p_ft, c"help".as_ptr()) {
                     c"".as_ptr()
                 } else {
                     c"\\|\"\n[".as_ptr()
@@ -5093,7 +5058,7 @@ unsafe fn nv_next(cap: *mut cmdarg_T) {
         if i > 0
             && p_hls != 0
             && !Search.no_hlsearch
-            && win_hl_attr(curwin, HLF_LC) != win_hl_attr(curwin, HLF_L)
+            && win_hl_attr(curwin, HLF_LC as c_int) != win_hl_attr(curwin, HLF_L as c_int)
         {
             redraw_later(curwin, UPD_SOME_VALID);
         }
@@ -5145,7 +5110,7 @@ unsafe fn normal_search(
         if !equalpos((*curwin).w_cursor, prev_cursor)
             && p_hls != 0
             && !Search.no_hlsearch
-            && win_hl_attr(curwin, HLF_LC) != win_hl_attr(curwin, HLF_L)
+            && win_hl_attr(curwin, HLF_LC as c_int) != win_hl_attr(curwin, HLF_L as c_int)
         {
             redraw_later(curwin, UPD_SOME_VALID);
         }

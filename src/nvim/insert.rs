@@ -106,7 +106,7 @@ use crate::math::{FAIL, OK};
 use crate::mbyte::{
     GraphemeState, mb_adjust_cursor, mb_get_class, ptr2cells, utf_ClusterInfo, utf_char2bytes,
     utf_char2len, utf_composinglike, utf_head_off, utf_ptr2StrCharInfo, utf_ptr2char, utf_ptr2len,
-    utf8len_tab, utfc_ptr2len,
+    utfc_ptr2len,
 };
 use crate::mcursor::{mc_ins_cascade, mc_ins_cascade_restart, mc_ins_join, mc_ins_replaying};
 use crate::memline::{
@@ -276,10 +276,7 @@ pub unsafe fn linetabsize_str(s: *mut c_char) -> c_int {
     unsafe { linetabsize_col(0, s) }
 }
 
-#[inline]
-fn mb_byte2len(b: c_int) -> c_int {
-    c_int::from(utf8len_tab[(b as u8) as usize])
-}
+use crate::mbyte::utf_byte2len as mb_byte2len;
 
 #[inline]
 unsafe fn trigger_autocomplete(s: *mut InsertState) -> bool {

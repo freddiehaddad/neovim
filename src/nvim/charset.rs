@@ -109,6 +109,30 @@ pub fn ascii_iswhite_or_nul<C: AsciiInt>(c: C) -> bool {
 }
 
 #[inline]
+pub fn ascii_isident<C: AsciiInt>(c: C) -> bool {
+    let ch = c.into_ascii_int();
+    ascii_isalnum(ch) || ch == b'_' as c_int
+}
+
+#[inline]
+pub const fn toupper_asc(c: c_int) -> c_int {
+    if c >= b'a' as c_int && c <= b'z' as c_int {
+        c - 0x20
+    } else {
+        c
+    }
+}
+
+#[inline]
+pub const fn tolower_asc(c: c_int) -> c_int {
+    if c >= b'A' as c_int && c <= b'Z' as c_int {
+        c + 0x20
+    } else {
+        c
+    }
+}
+
+#[inline]
 pub const fn is_special(c: c_int) -> bool {
     c < 0
 }
@@ -197,16 +221,7 @@ const fn nr2hex(n: u32) -> u8 {
     if v <= 9 { v + b'0' } else { v - 10 + b'a' }
 }
 
-#[inline]
-pub const fn k_second(c: c_int) -> u8 {
-    if c == K_SPECIAL {
-        KS_SPECIAL as u8
-    } else if c == 0 {
-        KS_ZERO as u8
-    } else {
-        ((-c) & 0xff) as u8
-    }
-}
+use crate::keycodes::k_second;
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn buf_init_isk_chartab(buf: *mut buf_T) -> c_int {

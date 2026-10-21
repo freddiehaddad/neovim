@@ -144,6 +144,31 @@ pub const fn key2termcap1(x: c_int) -> c_int {
     (((-x) as u32 >> 8) & 0xff) as c_int
 }
 
+#[inline]
+pub const fn k_second(c: c_int) -> u8 {
+    if c == K_SPECIAL as c_int {
+        KS_SPECIAL
+    } else if c == 0 {
+        KS_ZERO
+    } else {
+        key2termcap0(c) as u8
+    }
+}
+
+#[inline]
+pub const fn k_third(c: c_int) -> u8 {
+    if c == K_SPECIAL as c_int || c == 0 {
+        KE_FILLER
+    } else {
+        key2termcap1(c) as u8
+    }
+}
+
+#[inline]
+pub const fn ctrl_chr(c: c_int) -> c_int {
+    crate::charset::toupper_asc(c) ^ 0x40
+}
+
 use crate::cmdexpand::MB_MAXBYTES;
 use crate::eval::STR2NR_ALL;
 use crate::mouse::{MOUSE_LEFT, MOUSE_MIDDLE, MOUSE_RELEASE, MOUSE_RIGHT, MOUSE_X1, MOUSE_X2};
@@ -1880,36 +1905,8 @@ const KEY_NAMES_TABLE: &[KeyNameEntry; 187] = &[
     },
 ];
 
-#[inline]
-fn ascii_isident(c: c_char) -> bool {
-    let b = c as u8;
-    b.is_ascii_alphanumeric() || b == b'_'
-}
-
-#[inline]
-fn toupper_asc(c: c_int) -> c_int {
-    if (b'a' as c_int..=b'z' as c_int).contains(&c) {
-        c - (b'a' - b'A') as c_int
-    } else {
-        c
-    }
-}
-
-#[inline]
-fn ctrl_chr(c: c_int) -> c_int {
-    toupper_asc(c) ^ 0x40
-}
-
-#[inline]
-unsafe fn strnicmp_asc(s: *const c_char, pat: &[u8]) -> bool {
-    for (i, &p) in pat.iter().enumerate() {
-        let b = unsafe { *s.add(i) as u8 };
-        if b == 0 || !b.eq_ignore_ascii_case(&p) {
-            return false;
-        }
-    }
-    true
-}
+use crate::charset::{ascii_isident, toupper_asc};
+use crate::strings::vim_strnicmp_asc;
 
 fn get_special_key_code_hash(name: &[u8]) -> isize {
     let (low, high): (usize, usize) = match name.len() {
@@ -2504,7 +2501,9 @@ pub unsafe extern "C" fn find_special_key(
                 let end_minus_bp = end as usize - bp as usize;
                 if end_minus_bp > 3 && *bp == b't' as c_char && *bp.add(1) == b'_' as c_char {
                     bp = bp.add(3); // skip t_xx, xx may be '-' or '>'
-                } else if end_minus_bp > 4 && strnicmp_asc(bp, b"char-") {
+                } else if end_minus_bp > 4
+                    && vim_strnicmp_asc(bp, c"char-".as_ptr(), 5) == 0
+                {
                     let mut l: c_int = 0;
                     vim_str2nr(
                         bp.add(5),
@@ -2549,7 +2548,9 @@ pub unsafe extern "C" fn find_special_key(
             // Legal modifier name.
             if (bp as usize) >= (last_dash as usize) {
                 let mut key: c_int;
-                if strnicmp_asc(last_dash.add(1), b"char-") && ascii_isdigit(*last_dash.add(6)) {
+                if vim_strnicmp_asc(last_dash.add(1), c"char-".as_ptr(), 5) == 0
+                    && ascii_isdigit(*last_dash.add(6))
+                {
                     // <Char-123> or <Char-033> or <Char-0x33>
                     let mut l: c_int = 0;
                     let mut n: u64 = 0;
@@ -2737,7 +2738,7 @@ pub unsafe extern "C" fn replace_termcodes(
             {
                 // Change <SID>Func to K_SNR <script-nr> _Func. This name is used
                 // for script-local user functions.
-                if rem >= 5 && strnicmp_asc(src, b"<SID>") {
+                if rem >= 5 && vim_strnicmp_asc(src, c"<SID>".as_ptr(), 5) == 0 {
                     if sid_arg < 0 || (sid_arg == 0 && current_sctx.sc_sid <= 0) {
                         emsg(c"E81: Using <SID> not in a script context".as_ptr());
                     } else {
@@ -2790,9 +2791,12 @@ pub unsafe extern "C" fn replace_termcodes(
                 // Replace <Leader> by the value of "mapleader".
                 // Replace <LocalLeader> by the value of "maplocalleader".
                 // If "mapleader" or "maplocalleader" isn't set use a backslash.
-                let (len, p): (usize, *mut c_char) = if rem >= 8 && strnicmp_asc(src, b"<Leader>") {
-                    (8, get_var_value(c"g:mapleader".as_ptr()))
-                } else if rem >= 13 && strnicmp_asc(src, b"<LocalLeader>") {
+                let (len, p): (usize, *mut c_char) =
+                    if rem >= 8 && vim_strnicmp_asc(src, c"<Leader>".as_ptr(), 8) == 0 {
+                        (8, get_var_value(c"g:mapleader".as_ptr()))
+                    } else if rem >= 13
+                        && vim_strnicmp_asc(src, c"<LocalLeader>".as_ptr(), 13) == 0
+                    {
                     (13, get_var_value(c"g:maplocalleader".as_ptr()))
                 } else {
                     (0, std::ptr::null_mut())

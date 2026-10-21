@@ -17,7 +17,7 @@ use crate::garray::{ga_clear, ga_init, garray_T};
 use crate::globals::*;
 use crate::kvec::KVecWithInit;
 use crate::lua::converter::Boolean;
-use crate::memory::{Arena, xfree, xmemdupz};
+use crate::memory::{Arena, xfree};
 use crate::msgpack_rpc::packer::Integer;
 use crate::runtime::do_source_str;
 use crate::viml::parser::expressions::{
@@ -55,17 +55,7 @@ type ExprASTConvStack = KVecWithInit<ExprASTConvStackItem, 16>;
 static mut EVAL_RECURSIVE: c_int = 0;
 static mut CALL_FUNC_RECURSIVE: c_int = 0;
 
-#[inline]
-unsafe fn cstr_to_string(s: &'static CStr) -> NvimString {
-    let bytes = s.to_bytes();
-    unsafe {
-        let data = xmemdupz(bytes.as_ptr().cast(), bytes.len()).cast::<c_char>();
-        NvimString {
-            data,
-            size: bytes.len(),
-        }
-    }
-}
+use crate::api::private::helpers::cstr_to_string;
 
 #[inline]
 unsafe fn cbuf_to_arena_obj(arena: *mut Arena, s: *const c_char, len: usize) -> Object {
@@ -116,7 +106,7 @@ pub unsafe extern "C" fn nvim_exec2(
         }
         if (*opts).output {
             result.push(KeyValuePair {
-                key: cstr_to_string(c"output"),
+                key: cstr_to_string(c"output".as_ptr()),
                 value: string_obj(output),
             });
         }

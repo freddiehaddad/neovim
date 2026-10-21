@@ -6,7 +6,7 @@ use crate::event::r#loop::loop_recursive_ptr;
 use crate::fileio::{SEEK_END, SEEK_SET, close_fd, off_T, read_eintr, vim_lseek, write_eintr};
 use crate::globals::*;
 use crate::map::{
-    MH_TOMBSTONE, Map, MapHash, Set, map_del_int64_t_int64_t, map_del_int64_t_ptr_t,
+    MH_TOMBSTONE, Map, map_del_int64_t_int64_t, map_del_int64_t_ptr_t,
     map_put_ref_int64_t_int64_t, map_put_ref_int64_t_ptr_t, map_ref_int64_t_int64_t,
     mh_get_int64_t, ptr_t,
 };
@@ -86,24 +86,7 @@ unsafe fn perror_msg(msg: *const c_char) {
     }
 }
 
-#[inline]
-const fn empty_map<K, V>() -> Map<K, V> {
-    Map {
-        set: Set {
-            h: MapHash {
-                n_buckets: 0,
-                size: 0,
-                n_occupied: 0,
-                upper_bound: 0,
-                n_keys: 0,
-                keys_capacity: 0,
-                hash: ptr::null_mut(),
-            },
-            keys: ptr::null_mut(),
-        },
-        values: ptr::null_mut(),
-    }
-}
+use crate::map::empty_map;
 
 #[inline]
 pub unsafe fn pmap_get_bhdr(map: *mut Map<i64, ptr_t>, key: i64) -> *mut bhdr_T {

@@ -255,10 +255,7 @@ pub const fn ascii_iswhite_nl_or_nul(c: c_int) -> bool {
     matches!(c as u8, b' ' | b'\t' | b'\n' | b'\r' | 0)
 }
 
-#[inline]
-const fn toupper_asc(c: c_int) -> c_int {
-    (c as u8).to_ascii_uppercase() as c_int
-}
+use crate::charset::toupper_asc;
 
 #[inline]
 unsafe fn uf2hikey(fp: *const ufunc_T) -> *mut c_char {

@@ -477,25 +477,7 @@ static mut mef_off: c_int = 0;
 static mut did_bufnr_emsg: bool = false;
 static mut set_qf_ll_recursive: c_int = 0;
 
-#[inline]
-unsafe fn strnicmp_asc(mut s1: *const c_char, mut s2: *const c_char, mut n: usize) -> c_int {
-    unsafe {
-        while n > 0 {
-            let c1 = (*s1 as u8).to_ascii_lowercase();
-            let c2 = (*s2 as u8).to_ascii_lowercase();
-            if c1 != c2 {
-                return c_int::from(c1) - c_int::from(c2);
-            }
-            if c1 == 0 {
-                return 0;
-            }
-            s1 = s1.add(1);
-            s2 = s2.add(1);
-            n -= 1;
-        }
-        0
-    }
-}
+use crate::strings::vim_strnicmp_asc;
 
 #[inline]
 unsafe fn c_strcat(dst: *mut c_char, src: *const c_char) {
@@ -7867,9 +7849,9 @@ unsafe fn hgr_search_files_in_dir(
                 let flen = c_strlen(f);
                 if !lang.is_null()
                     && flen >= 3
-                    && strnicmp_asc(lang, f.add(flen - 3), 2) != 0
-                    && !(strnicmp_asc(lang, c"en".as_ptr(), 2) == 0
-                        && strnicmp_asc(c"txt".as_ptr(), f.add(flen - 3), 3) == 0)
+                    && vim_strnicmp_asc(lang, f.add(flen - 3), 2) != 0
+                    && !(vim_strnicmp_asc(lang, c"en".as_ptr(), 2) == 0
+                        && vim_strnicmp_asc(c"txt".as_ptr(), f.add(flen - 3), 3) == 0)
                 {
                     fi += 1;
                     continue;

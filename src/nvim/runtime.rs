@@ -52,7 +52,7 @@ use crate::lua::executor::{
     kRetNilBool, nlua_exec, nlua_exec_file, nlua_exec_ga, nlua_is_deferred_safe,
 };
 use crate::map::{
-    MH_TOMBSTONE, MHPutStatus, Map, MapHash, Set, map_put_ref_String_int, map_ref_String_int,
+    MH_TOMBSTONE, MHPutStatus, Map, Set, map_put_ref_String_int, map_ref_String_int,
     mh_get_String, mh_put_String,
 };
 use crate::math::{FAIL, OK};
@@ -302,27 +302,7 @@ pub unsafe fn set_sourcing_lnum(lnum: linenr_T) {
     }
 }
 
-const fn empty_set<K>() -> Set<K> {
-    Set {
-        h: MapHash {
-            n_buckets: 0,
-            size: 0,
-            n_occupied: 0,
-            upper_bound: 0,
-            n_keys: 0,
-            keys_capacity: 0,
-            hash: ptr::null_mut(),
-        },
-        keys: ptr::null_mut(),
-    }
-}
-
-const fn empty_map<K, V>() -> Map<K, V> {
-    Map {
-        set: empty_set(),
-        values: ptr::null_mut(),
-    }
-}
+use crate::map::{empty_map, empty_set, map_get_string_int};
 
 unsafe fn set_put_ref_string(
     set: *mut Set<NvimString>,
@@ -355,17 +335,6 @@ unsafe fn map_put_string_int(map: *mut Map<NvimString, c_int>, key: NvimString, 
     unsafe {
         let val = map_put_ref_String_int(map, key, ptr::null_mut(), ptr::null_mut());
         *val = value;
-    }
-}
-
-unsafe fn map_get_string_int(map: *mut Map<NvimString, c_int>, key: NvimString) -> c_int {
-    unsafe {
-        let k = mh_get_String(&mut (*map).set, key);
-        if k == MH_TOMBSTONE {
-            0
-        } else {
-            *(*map).values.add(k as usize)
-        }
     }
 }
 

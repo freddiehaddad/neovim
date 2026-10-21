@@ -339,25 +339,7 @@ unsafe extern "C" {
 
 }
 
-#[inline]
-const fn s_isdir(m: i32) -> bool {
-    ((m as u64) & S_IFMT) == S_IFDIR
-}
-
-#[inline]
-const fn s_isreg(m: i32) -> bool {
-    ((m as u64) & S_IFMT) == S_IFREG
-}
-
-#[inline]
-const fn s_isfifo(m: i32) -> bool {
-    cfg!(unix) && ((m as u64) & S_IFMT) == S_IFIFO
-}
-
-#[inline]
-const fn s_issock(m: i32) -> bool {
-    cfg!(unix) && ((m as u64) & S_IFMT) == S_IFSOCK
-}
+use crate::os::fs::{s_isdir, s_isfifo, s_isreg, s_issock};
 
 #[inline]
 pub unsafe fn close_fd(fd: c_int) -> c_int {
@@ -432,8 +414,8 @@ pub unsafe fn vim_ftell(stream: *mut FILE) -> off_T {
 }
 
 #[inline]
-pub unsafe fn call_iconv(
-    cd: iconv_t,
+pub unsafe fn call_iconv<T: IntoIconvT>(
+    cd: T,
     inbuf: *mut *const c_char,
     inbytesleft: *mut usize,
     outbuf: *mut *mut c_char,
@@ -441,23 +423,39 @@ pub unsafe fn call_iconv(
 ) -> usize {
     #[cfg(windows)]
     unsafe {
-        libiconv(cd, inbuf, inbytesleft, outbuf, outbytesleft)
+        libiconv(cd.into_iconv_t(), inbuf, inbytesleft, outbuf, outbytesleft)
     }
     #[cfg(not(windows))]
     unsafe {
-        iconv(cd, inbuf, inbytesleft, outbuf, outbytesleft)
+        iconv(cd.into_iconv_t(), inbuf, inbytesleft, outbuf, outbytesleft)
     }
 }
 
 #[inline]
-pub unsafe fn call_iconv_close(cd: iconv_t) -> c_int {
+pub unsafe fn call_iconv_close<T: IntoIconvT>(cd: T) -> c_int {
     #[cfg(windows)]
     unsafe {
-        libiconv_close(cd)
+        libiconv_close(cd.into_iconv_t())
     }
     #[cfg(not(windows))]
     unsafe {
-        iconv_close(cd)
+        iconv_close(cd.into_iconv_t())
+    }
+}
+
+pub trait IntoIconvT {
+    fn into_iconv_t(self) -> iconv_t;
+}
+impl IntoIconvT for iconv_t {
+    #[inline]
+    fn into_iconv_t(self) -> iconv_t {
+        self
+    }
+}
+impl IntoIconvT for *mut c_void {
+    #[inline]
+    fn into_iconv_t(self) -> iconv_t {
+        self as iconv_t
     }
 }
 
@@ -788,12 +786,12 @@ pub unsafe extern "C" fn readfile(
                 && !read_buffer
                 && !read_fifo
                 && perm >= 0
-                && !s_isreg(perm)
-                && !s_isfifo(perm)
-                && !s_issock(perm)
+                && !s_isreg(perm as u64)
+                && !s_isfifo(perm as u64)
+                && !s_issock(perm as u64)
                 && !is_chr_dev
             {
-                if s_isdir(perm) {
+                if s_isdir(perm as u64) {
                     if !silent {
                         filemess(curbuf, fname, tr(MSG_IS_A_DIRECTORY.as_ptr()), ptr::null());
                     }
@@ -2117,7 +2115,7 @@ pub unsafe extern "C" fn readfile(
                     let mut buflen = c_strlen(iobuf_ptr) as c_int;
                     #[cfg(unix)]
                     {
-                        if s_isfifo(perm) {
+                        if s_isfifo(perm as u64) {
                             buflen += vim_snprintf!(
                                 iobuf_ptr.offset(buflen as isize),
                                 (IOSIZE as c_int - buflen) as usize,
@@ -2126,7 +2124,7 @@ pub unsafe extern "C" fn readfile(
                             );
                             c = true;
                         }
-                        if s_issock(perm) {
+                        if s_issock(perm as u64) {
                             buflen += vim_snprintf!(
                                 iobuf_ptr.offset(buflen as isize),
                                 (IOSIZE as c_int - buflen) as usize,

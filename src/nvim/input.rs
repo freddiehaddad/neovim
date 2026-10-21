@@ -41,8 +41,8 @@ use crate::keycodes::{
     K_KLEFT, K_KMINUS, K_KMULTIPLY, K_KPLUS, K_KPOINT, K_KRIGHT, K_KUP, K_LEFT, K_LEFTMOUSE,
     K_MOUSEMOVE, K_RIGHT, K_S_END, K_S_HOME, K_SNR, K_SPECIAL, K_UP, K_XDOWN, K_XEND, K_XHOME,
     K_XLEFT, K_XRIGHT, K_XUP, K_ZEND, K_ZERO, K_ZHOME, KE_COMPLETE_DELAY, KE_FILLER, KE_IGNORE,
-    KE_PLUG, KE_SNR, KS_EXTRA, KS_MODIFIER, KS_SPECIAL, KS_ZERO, MOD_MASK_ALT, MOD_MASK_CTRL,
-    MOD_MASK_SHIFT, NL, TAB, key2termcap0, key2termcap1, special_to_buf, termcap2key,
+    KE_PLUG, KE_SNR, KS_EXTRA, KS_MODIFIER, MOD_MASK_ALT, MOD_MASK_CTRL, MOD_MASK_SHIFT, NL, TAB,
+    special_to_buf, termcap2key,
 };
 use crate::kvec::{KVec, StringBuilder, kv_concat_len, kv_destroy, kv_push};
 use crate::lua::executor::{kRetNilBool, nlua_call_ref, nlua_exec_on_key};
@@ -292,34 +292,11 @@ static mut VGETORPEEK_TC: c_int = 0;
 
 use crate::api::buffer::LUA_INTERNAL_CALL;
 use crate::cmdexpand::{Ctrl_N, Ctrl_P, MB_MAXBYTES};
+use crate::keycodes::{k_second, k_third};
 use crate::lua::converter::LUA_NOREF;
 use crate::math::{FAIL, OK};
+use crate::mbyte::utf_byte2len as mb_byte2len;
 use crate::regexp::Ctrl_V;
-
-#[inline]
-const fn k_second(c: c_int) -> c_int {
-    if c == K_SPECIAL as c_int {
-        KS_SPECIAL as c_int
-    } else if c == NUL {
-        KS_ZERO as c_int
-    } else {
-        key2termcap0(c)
-    }
-}
-
-#[inline]
-const fn k_third(c: c_int) -> c_int {
-    if c == K_SPECIAL as c_int || c == NUL {
-        KE_FILLER as c_int
-    } else {
-        key2termcap1(c)
-    }
-}
-
-#[inline]
-unsafe fn mb_byte2len(b: c_int) -> c_int {
-    unsafe { utf_byte2len(b) }
-}
 
 #[inline]
 pub unsafe fn mb_byte2len_check(b: c_int) -> c_int {
@@ -2288,8 +2265,8 @@ unsafe fn check_simplify_modifier(max_offset: c_int) -> c_int {
                     let mut new_string = [0u8; MB_MAXBYTES + 1];
                     let len = if is_special(new_c) {
                         new_string[0] = K_SPECIAL;
-                        new_string[1] = k_second(new_c) as u8;
-                        new_string[2] = k_third(new_c) as u8;
+                        new_string[1] = k_second(new_c);
+                        new_string[2] = k_third(new_c);
                         3
                     } else {
                         utf_char2bytes(new_c, new_string.as_mut_ptr().cast())
@@ -3256,8 +3233,8 @@ pub unsafe extern "C" fn fix_input_buffer(buf: *mut u8, mut len: c_int) -> c_int
         } {
             if *p == NUL as u8 || (*p == K_SPECIAL && (i < 2 || *p.add(1) != KS_EXTRA)) {
                 ptr::copy(p.add(1), p.add(3), i as usize);
-                *p.add(2) = k_third(*p as c_int) as u8;
-                *p.add(1) = k_second(*p as c_int) as u8;
+                *p.add(2) = k_third(*p as c_int);
+                *p.add(1) = k_second(*p as c_int);
                 *p = K_SPECIAL;
                 p = p.add(2);
                 len += 2;
@@ -3411,8 +3388,8 @@ pub unsafe extern "C" fn getcmdkeycmd(
                 }
                 if is_special(c1) {
                     ga_append(&raw mut line_ga, K_SPECIAL);
-                    ga_append(&raw mut line_ga, k_second(c1) as u8);
-                    ga_append(&raw mut line_ga, k_third(c1) as u8);
+                    ga_append(&raw mut line_ga, k_second(c1));
+                    ga_append(&raw mut line_ga, k_third(c1));
                 } else {
                     ga_append(&raw mut line_ga, c1 as u8);
                 }

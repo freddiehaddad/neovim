@@ -47,6 +47,64 @@ pub struct Map<K, V> {
     pub values: *mut V,
 }
 
+#[inline]
+pub const fn empty_map_hash() -> MapHash {
+    MapHash {
+        n_buckets: 0,
+        size: 0,
+        n_occupied: 0,
+        upper_bound: 0,
+        n_keys: 0,
+        keys_capacity: 0,
+        hash: std::ptr::null_mut(),
+    }
+}
+
+#[inline]
+pub const fn empty_set<K>() -> Set<K> {
+    Set {
+        h: empty_map_hash(),
+        keys: std::ptr::null_mut(),
+    }
+}
+
+#[inline]
+pub const fn empty_map<K, V>() -> Map<K, V> {
+    Map {
+        set: empty_set(),
+        values: std::ptr::null_mut(),
+    }
+}
+
+#[inline]
+pub unsafe fn pmap_get_int(map: *mut Map<c_int, ptr_t>, key: c_int) -> ptr_t {
+    unsafe {
+        let ptr = map_ref_int_ptr_t(map, key, std::ptr::null_mut());
+        if ptr.is_null() {
+            std::ptr::null_mut()
+        } else {
+            *ptr
+        }
+    }
+}
+
+#[inline]
+pub unsafe fn map_get_string_int(map: *mut Map<NvimString, c_int>, key: NvimString) -> c_int {
+    unsafe {
+        let ptr = map_ref_String_int(map, key, std::ptr::null_mut());
+        if ptr.is_null() { 0 } else { *ptr }
+    }
+}
+
+#[inline]
+pub unsafe fn set_put_ptr(set: *mut Set<ptr_t>, key: ptr_t) -> bool {
+    let mut status = MHPutStatus::kMHExisting;
+    unsafe {
+        mh_put_ptr_t(set, key, &mut status);
+    }
+    status != MHPutStatus::kMHExisting
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct HlAttrs {

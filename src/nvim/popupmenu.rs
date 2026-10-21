@@ -43,7 +43,7 @@ use crate::keycodes::{
 };
 use crate::mbyte::{mb_string2cells, mb_strnicmp, ptr2cells, utf_ptr2cells, utfc_ptr2len};
 use crate::memory::{
-    Arena, arena_finish, arena_mem_free, strequal, xcalloc, xfree, xmalloc, xmemdupz, xrealloc,
+    Arena, arena_finish, arena_mem_free, strequal, xcalloc, xfree, xmalloc, xrealloc,
     xstrdup,
 };
 use crate::menu::{execute_menu, get_menu_mode_flag, menu_find, menu_is_separator, vimmenu_T};
@@ -145,21 +145,7 @@ static mut PUM_IS_DRAWN: bool = false;
 static mut PUM_EXTERNAL: bool = false;
 static mut PUM_INVALID: bool = false;
 
-#[inline]
-unsafe fn cstr_to_string(s: *const c_char) -> NvimString {
-    if s.is_null() {
-        NvimString {
-            data: unsafe { xmemdupz(c"".as_ptr().cast(), 0).cast() },
-            size: 0,
-        }
-    } else {
-        let len = unsafe { CStr::from_ptr(s).to_bytes().len() };
-        NvimString {
-            data: unsafe { xmemdupz(s.cast(), len).cast() },
-            size: len,
-        }
-    }
-}
+use crate::api::private::helpers::cstr_to_string;
 
 #[inline]
 unsafe fn kv_add_obj(a: &mut Array, v: Object) {

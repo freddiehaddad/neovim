@@ -232,18 +232,7 @@ pub unsafe fn reg_empty(reg: *const yankreg_T) -> bool {
     }
 }
 
-#[inline]
-unsafe fn cstr_to_string(s: *const c_char) -> NvimString {
-    if s.is_null() {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
-    } else {
-        let len = unsafe { CStr::from_ptr(s).to_bytes().len() };
-        unsafe { cbuf_to_string(s, len) }
-    }
-}
+use crate::api::private::helpers::cstr_to_string;
 
 #[inline]
 unsafe fn copy_string_global(s: NvimString) -> NvimString {

@@ -22,9 +22,10 @@ use crate::ex_eval::{
 use crate::garray::garray_T;
 use crate::globals::*;
 use crate::highlight_group::{highlight_num_groups, syn_check_group, syn_id2name};
+use crate::kvec::KVec;
 use crate::lua::converter::{Boolean, FieldHashfn, Float, KeySetLink, LuaRef, OptKeySet};
 use crate::lua::executor::{api_free_luaref, api_new_luaref};
-use crate::map::{MH_TOMBSTONE, Map, mh_get_int};
+
 use crate::mark::setmark_pos;
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::memory::{
@@ -175,6 +176,21 @@ pub unsafe fn add_c(array: &mut Array, item: Object) {
     array.size += 1;
 }
 
+#[inline]
+pub unsafe fn array_add(a: &mut Array, item: Object) {
+    unsafe {
+        let mut kv: KVec<Object> = KVec {
+            size: a.size,
+            capacity: a.capacity,
+            items: a.items,
+        };
+        kv.push(item);
+        a.size = kv.size;
+        a.capacity = kv.capacity;
+        a.items = kv.items;
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct TryState {
@@ -301,17 +317,7 @@ pub unsafe fn tv_dict_is_watched(d: *const dict_T) -> bool {
     unsafe { !d.is_null() && (*d).watchers[0].cast_const() != (&raw const (*d).watchers).cast() }
 }
 
-#[inline]
-unsafe fn pmap_get_int(map: *mut Map<c_int, *mut c_void>, key: c_int) -> *mut c_void {
-    unsafe {
-        let k = mh_get_int(&raw mut (*map).set, key);
-        if k == MH_TOMBSTONE {
-            ptr::null_mut()
-        } else {
-            *(*map).values.add(k as usize)
-        }
-    }
-}
+use crate::map::pmap_get_int;
 
 pub trait IntoDictKey {
     unsafe fn into_dict_key(self) -> NvimString;

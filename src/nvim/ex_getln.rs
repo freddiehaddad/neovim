@@ -6,7 +6,7 @@ use crate::api::private::helpers::{
     cbuf_as_string, cstr_as_obj, cstr_as_string, error_init, error_set, integer_obj, string_obj,
     try_enter, try_leave,
 };
-use crate::api::private::validate::{Array, NvimString, Object};
+use crate::api::private::validate::{Array, NvimString};
 use crate::api::vim::nvim_create_buf;
 use crate::autocmd::{
     DOCMD_NOWAIT, EVENT_CMDLINECHANGED, EVENT_CMDLINEENTER, EVENT_CMDLINELEAVE,
@@ -110,7 +110,7 @@ use crate::r#move::{
     changed_cline_bef_curs, restore_viewstate, save_viewstate, update_topline, validate_cursor,
 };
 use crate::msgpack_rpc::packer::{Integer, handle_T};
-use crate::normal::bt_cmdwin;
+use crate::buffer::bt_cmdwin;
 #[cfg(unix)]
 use crate::option::csh_like_shell;
 use crate::option::{
@@ -357,20 +357,7 @@ static mut cmdpreview_ns: c_int = 0;
 static mut prev_prompt_id: c_uint = c_uint::MAX;
 static mut prev_prompt_errors: c_int = 0;
 
-#[inline]
-unsafe fn array_add(a: &mut Array, item: Object) {
-    unsafe {
-        let mut kv: KVec<Object> = KVec {
-            size: a.size,
-            capacity: a.capacity,
-            items: a.items,
-        };
-        kv.push(item);
-        a.size = kv.size;
-        a.capacity = kv.capacity;
-        a.items = kv.items;
-    }
-}
+use crate::api::private::helpers::array_add;
 
 unsafe fn trigger_cmd_autocmd(typechar: c_int, evt: event_T) {
     unsafe {

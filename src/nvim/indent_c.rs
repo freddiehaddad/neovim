@@ -74,15 +74,7 @@ static mut match_char_pos_copy: pos_T = pos_T {
     col: 0,
     coladd: 0,
 };
-#[inline]
-const fn ctrl_chr(x: u8) -> c_int {
-    let upper = if x >= b'a' && x <= b'z' {
-        x - (b'a' - b'A')
-    } else {
-        x
-    };
-    (upper ^ 0x40) as c_int
-}
+use crate::keycodes::ctrl_chr;
 /// Check if line[] contains a "//" comment, ignoring matches inside strings.
 /// Return MAXCOL if not, otherwise return the column.
 #[unsafe(no_mangle)]
@@ -3043,7 +3035,7 @@ pub unsafe extern "C" fn in_cinkeys(keytyped: c_int, when: c_int, line_is_empty:
                 && *look.add(1) >= b'?' as c_char
                 && *look.add(1) <= b'_' as c_char
             {
-                if try_match && keytyped == ctrl_chr(*look.add(1) as u8) {
+                if try_match && keytyped == ctrl_chr(c_int::from(*look.add(1) as u8)) {
                     return true;
                 }
                 look = look.add(2);
@@ -3224,9 +3216,9 @@ mod tests {
     use super::*;
     #[test]
     fn ctrl_chr_and_pos_ordering_work() {
-        assert_eq!(ctrl_chr(b'?'), 0x7f);
-        assert_eq!(ctrl_chr(b'a'), 1);
-        assert_eq!(ctrl_chr(b'A'), 1);
+        assert_eq!(ctrl_chr(c_int::from(b'?')), 0x7f);
+        assert_eq!(ctrl_chr(c_int::from(b'a')), 1);
+        assert_eq!(ctrl_chr(c_int::from(b'A')), 1);
         let a = pos_T {
             lnum: 1,
             col: 2,

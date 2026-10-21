@@ -11,8 +11,7 @@ use crate::api::private::validate::{Array, Dict, Error, ErrorType, NvimString, O
 use crate::api::tabpage::Buffer;
 use crate::buffer::buf_T;
 use crate::charset::{
-    NUL, ascii_isspace, ascii_iswhite, is_special, k_second, skipwhite, to_special, transchar,
-    vim_iswordp,
+    NUL, ascii_isspace, ascii_iswhite, is_special, skipwhite, to_special, transchar, vim_iswordp,
 };
 use crate::cmdexpand::{EXPAND_MAPPINGS, EXPAND_NOTHING, MB_MAXBYTES, cmdline_fuzzy_complete};
 use crate::errors::*;
@@ -36,8 +35,8 @@ use crate::garray::{
 use crate::globals::*;
 use crate::input::{REMAP_SCRIPT, ins_typebuf, noremap_keys};
 use crate::keycodes::{
-    K_SPECIAL, K_ZERO, KE_FILLER, KE_LUA, KE_SNR, KS_EXTRA, KS_MODIFIER, NL, REPTERM_DO_LT,
-    REPTERM_FROM_PART, REPTERM_NO_SIMPLIFY, get_special_key_name, key2termcap1, replace_termcodes,
+    K_SPECIAL, K_ZERO, KE_LUA, KE_SNR, KS_EXTRA, KS_MODIFIER, NL, REPTERM_DO_LT, REPTERM_FROM_PART,
+    REPTERM_NO_SIMPLIFY, get_special_key_name, replace_termcodes,
     vim_strsave_escape_ks, vim_unescape_ks,
 };
 use crate::lua::converter::{LUA_NOREF, LuaRef};
@@ -220,14 +219,7 @@ const fn map_hash(mode: c_int, c1: u8) -> usize {
     }
 }
 
-#[inline]
-const fn k_third(c: c_int) -> u8 {
-    if c == K_SPECIAL as c_int || c == NUL as c_int {
-        KE_FILLER
-    } else {
-        key2termcap1(c) as u8
-    }
-}
+use crate::keycodes::{k_second, k_third};
 
 /// Get the start of the hashed map list for "state" and first character "c".
 #[unsafe(no_mangle)]

@@ -27,18 +27,21 @@ use crate::eval::last_set_msg;
 use crate::eval::vars::{do_unlet, get_var_value};
 use crate::ex_docmd::ends_excmd;
 use crate::extmark::{TriState, kFalse, kNone, kTrue};
+use crate::api::private::helpers::has_key;
 use crate::garray::{ga_clear, ga_grow, ga_set_growsize, garray_T};
 use crate::globals::*;
 use crate::highlight::{
     HL_ALTFONT, HL_DEFAULT, HLATTRS_INIT, HLF_COUNT, HLF_INACTIVE, HLF_NONE,
     KEYSET_OPTIDX_highlight__bg, KEYSET_OPTIDX_highlight__fg, KEYSET_OPTIDX_highlight__font,
-    KEYSET_OPTIDX_highlight__sp, KeyDict_highlight, OptionalKeys, RgbValue, empty_map_hash,
-    hl_add_font_idx, hl_get_font, hl_get_syn_attr, hl_get_ui_attr, hlattrs2dict, ns_get_hl,
-    syn_attr2entry,
+    KEYSET_OPTIDX_highlight__sp, KEYSET_OPTIDX_highlight__update, KeyDict_highlight, OptionalKeys,
+    RgbValue, hl_add_font_idx, hl_get_font, hl_get_syn_attr, hl_get_ui_attr, hlattrs2dict,
+    ns_get_hl, syn_attr2entry,
 };
 use crate::lua::converter::Boolean;
 use crate::lua::executor::nlua_set_sctx;
-use crate::map::{HlAttrs, Map, Set, cstr_t, map_put_ref_cstr_t_int, map_ref_cstr_t_int};
+use crate::map::{
+    HlAttrs, Map, Set, cstr_t, empty_map_hash, map_put_ref_cstr_t_int, map_ref_cstr_t_int,
+};
 use crate::math::OK;
 use crate::mbyte::{mb_stricmp, mb_strnicmp};
 use crate::memory::{
@@ -90,12 +93,10 @@ const kUILinegrid: UIExtension = 5;
 
 const kOptBackground: OptIndex = 13;
 
-const KEYSET_OPTIDX_highlight__update: c_int = 14;
-
-const KEYSET_OPTIDX_get_highlight__id: c_int = 1;
-const KEYSET_OPTIDX_get_highlight__link: c_int = 2;
-const KEYSET_OPTIDX_get_highlight__name: c_int = 3;
-const KEYSET_OPTIDX_get_highlight__create: c_int = 4;
+const KEYSET_OPTIDX_get_highlight__id: u64 = 1;
+const KEYSET_OPTIDX_get_highlight__link: u64 = 2;
+const KEYSET_OPTIDX_get_highlight__name: u64 = 3;
+const KEYSET_OPTIDX_get_highlight__create: u64 = 4;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -309,11 +310,6 @@ unsafe fn write_dec(buf: *mut c_char, cap: usize, val: c_int) {
 #[inline]
 unsafe fn hl_table() -> *mut HlGroup {
     unsafe { highlight_ga.ga_data.cast::<HlGroup>() }
-}
-
-#[inline]
-const fn has_key(mask: OptionalKeys, idx: c_int) -> bool {
-    (mask & (1u64 << idx)) != 0
 }
 
 #[inline]

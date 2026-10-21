@@ -362,20 +362,7 @@ unsafe fn dict_put(d: &mut Dict, key: &CStr, value: Object) {
     }
 }
 
-#[inline]
-unsafe fn array_add(a: &mut Array, item: Object) {
-    unsafe {
-        let mut kv: KVec<Object> = KVec {
-            size: a.size,
-            capacity: a.capacity,
-            items: a.items,
-        };
-        kv.push(item);
-        a.size = kv.size;
-        a.capacity = kv.capacity;
-        a.items = kv.items;
-    }
-}
+use crate::api::private::helpers::array_add;
 
 #[inline]
 unsafe fn root_frame() -> *mut CmdFrame {

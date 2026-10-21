@@ -47,7 +47,6 @@ const VTERM_BASELINE_LOWER: u32 = 2;
 
 pub(crate) const CSI_ARG_FLAG_MORE_U32: u32 = 1u32 << 31;
 pub(crate) const CSI_ARG_MASK_U32: u32 = !(1u32 << 31);
-const CSI_ARG_MISSING_I64: i64 = (1i64 << 31) - 1;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -367,21 +366,7 @@ impl VTermPen {
     }
 }
 
-#[inline]
-fn csi_arg_has_more(a: c_long) -> bool {
-    (a as u32 & CSI_ARG_FLAG_MORE_U32) != 0
-}
-
-#[inline]
-fn csi_arg(a: c_long) -> i64 {
-    i64::from((a as u32) & CSI_ARG_MASK_U32)
-}
-
-#[inline]
-fn csi_arg_is_missing(a: c_long) -> bool {
-    csi_arg(a) == CSI_ARG_MISSING_I64
-}
-
+use crate::vterm::state::{CSI_ARG_MISSING, csi_arg, csi_arg_has_more, csi_arg_is_missing};
 use crate::vterm::vterm::vterm_get_attr_type;
 
 fn lookup_default_colour_ansi(idx: isize, col: &mut VTermColor) {
@@ -515,7 +500,7 @@ unsafe fn setpenattr_col(state: *mut VTermStateFull, attr: VTermAttr, color: VTe
     }
 }
 
-unsafe fn set_pen_col_ansi(state: *mut VTermStateFull, attr: VTermAttr, col: i64) {
+unsafe fn set_pen_col_ansi(state: *mut VTermStateFull, attr: VTermAttr, col: c_int) {
     unsafe {
         let colp = if attr == VTERM_ATTR_BACKGROUND {
             &raw mut (*state).pen.bg
@@ -675,7 +660,7 @@ pub unsafe extern "C" fn vterm_state_setpen(
         while argi < argcount {
             let arg = csi_arg(*args.add(argi as usize));
             match arg {
-                CSI_ARG_MISSING_I64 | 0 => {
+                CSI_ARG_MISSING | 0 => {
                     vterm_state_resetpen(state);
                 }
                 1 => {
@@ -688,7 +673,7 @@ pub unsafe extern "C" fn vterm_state_setpen(
                         && (*state).bold_is_highbright != 0
                     {
                         let idx =
-                            i64::from(fg.idx()) + if (*state).pen.bold() != 0 { 8 } else { 0 };
+                            c_int::from(fg.idx()) + if (*state).pen.bold() != 0 { 8 } else { 0 };
                         set_pen_col_ansi(state, VTERM_ATTR_FOREGROUND, idx);
                     }
                 }
@@ -789,7 +774,7 @@ pub unsafe extern "C" fn vterm_state_setpen(
                     }
                     argi += 1 + lookup_colour(
                         state,
-                        csi_arg(*args.add((argi + 1) as usize)) as c_int,
+                        csi_arg(*args.add((argi + 1) as usize)),
                         args.add((argi + 2) as usize),
                         argcount - argi - 2,
                         &raw mut (*state).pen.fg,
@@ -810,7 +795,7 @@ pub unsafe extern "C" fn vterm_state_setpen(
                     }
                     argi += 1 + lookup_colour(
                         state,
-                        csi_arg(*args.add((argi + 1) as usize)) as c_int,
+                        csi_arg(*args.add((argi + 1) as usize)),
                         args.add((argi + 2) as usize),
                         argcount - argi - 2,
                         &raw mut (*state).pen.bg,

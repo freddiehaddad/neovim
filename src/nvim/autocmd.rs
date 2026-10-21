@@ -46,7 +46,7 @@ use crate::map::{
     map_put_ref_int_String, map_ref_String_int, map_ref_int_String,
 };
 use crate::math::{FAIL, OK};
-use crate::mbyte::{mb_strcmp_ic, vim_strchr, vim_strnicmp_asc};
+use crate::mbyte::mb_strcmp_ic;
 use crate::memory::{xcalloc, xfree, xmalloc, xmallocz, xmemdupz, xrealloc, xstrdup};
 use crate::message::{
     emsg, give_warning, msg_advance, msg_clr_eos, msg_end, msg_ext_set_kind, msg_outtrans,
@@ -1290,35 +1290,7 @@ static mut focusgained_recursive: bool = false;
 static mut focusgained_last_time: Timestamp = 0;
 static mut ft_recursive: c_int = 0;
 
-#[inline]
-const fn tolower_asc(c: u8) -> u8 {
-    if c.is_ascii_uppercase() { c + 0x20 } else { c }
-}
-
-#[inline]
-unsafe fn vim_stricmp(s1: *const c_char, s2: *const c_char) -> c_int {
-    let mut p1 = s1.cast::<u8>();
-    let mut p2 = s2.cast::<u8>();
-    unsafe {
-        loop {
-            let c1 = tolower_asc(*p1);
-            let c2 = tolower_asc(*p2);
-            if c1 != c2 {
-                return c_int::from(c1) - c_int::from(c2);
-            }
-            if c1 == 0 {
-                return 0;
-            }
-            p1 = p1.add(1);
-            p2 = p2.add(1);
-        }
-    }
-}
-
-#[inline]
-unsafe fn vim_strnicmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int {
-    unsafe { vim_strnicmp_asc(s1, s2, n) }
-}
+use crate::strings::{vim_strchr, vim_stricmp, vim_strnicmp, vim_strnicmp_asc};
 
 #[inline]
 unsafe fn kv_pushp_aucmd(v: &mut AutoCmdVec) -> *mut AutoCmd {
@@ -3826,7 +3798,7 @@ pub unsafe extern "C" fn au_exists(arg: *const c_char) -> bool {
         let mut retval = false;
 
         let arg_save = xstrdup(arg);
-        let mut p = vim_strchr(arg_save, b'#' as c_int).cast_mut();
+        let mut p = vim_strchr(arg_save, b'#' as c_int);
         if !p.is_null() {
             *p = NUL;
             p = p.add(1);
@@ -3842,7 +3814,7 @@ pub unsafe extern "C" fn au_exists(arg: *const c_char) -> bool {
                 return true;
             }
             let ev_name = p;
-            p = vim_strchr(ev_name, b'#' as c_int).cast_mut();
+            p = vim_strchr(ev_name, b'#' as c_int);
             if !p.is_null() {
                 *p = NUL;
                 p = p.add(1);

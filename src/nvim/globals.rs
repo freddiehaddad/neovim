@@ -49,15 +49,7 @@ pub(crate) const DFLT_ROWS: c_int = 24;
 pub(crate) const DFLT_COLS: c_int = 80;
 pub(crate) const PROF_NONE: c_int = 0;
 
-const fn bytes_to_chars<const N: usize>(b: &[u8; N]) -> [c_char; N] {
-    let mut out = [0 as c_char; N];
-    let mut i = 0;
-    while i < N {
-        out[i] = b[i] as c_char;
-        i += 1;
-    }
-    out
-}
+use crate::errors::bytes_to_chars;
 
 #[repr(C, align(16))]
 pub struct MainLoopStorage(pub [u8; 4096]);

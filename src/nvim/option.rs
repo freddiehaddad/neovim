@@ -663,20 +663,7 @@ const fn unset_obj() -> Object {
     }
 }
 
-#[inline]
-const fn key2termcap0(x: c_int) -> u8 {
-    ((-x) & 0xff) as u8
-}
-
-#[inline]
-const fn key2termcap1(x: c_int) -> u8 {
-    ((((-x) as u32) >> 8) & 0xff) as u8
-}
-
-#[inline]
-const fn ctrl_chr(x: u8) -> c_int {
-    ((x ^ 0x40) & 0x9f) as c_int
-}
+use crate::keycodes::{ctrl_chr, key2termcap0, key2termcap1};
 
 #[inline]
 unsafe fn optval_type_name(t: ObjectType) -> *const c_char {
@@ -2293,7 +2280,7 @@ pub unsafe extern "C" fn string_to_key(arg: *mut c_char) -> c_int {
             return find_key_len(arg.add(1), c_strlen(arg), true);
         }
         if *arg == b'^' as c_char && *arg.add(1) != NUL {
-            let mut key = ctrl_chr(*arg.add(1) as u8);
+            let mut key = ctrl_chr(c_int::from(*arg.add(1) as u8));
             if key == 0 {
                 key = K_ZERO;
             }

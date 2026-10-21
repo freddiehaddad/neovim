@@ -5,7 +5,7 @@ use crate::api::private::helpers::{
     NIL, api_clear_error, api_free_dict, api_free_object, api_set_error, copy_dict, cstr_as_string,
 };
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
+    Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType,
 };
 use crate::api::ui::{remote_ui_disconnect, remote_ui_flush_pending_data};
 use crate::channel::{
@@ -27,7 +27,7 @@ use crate::kvec::KVec;
 use crate::log::logmsg;
 use crate::map::{MH_TOMBSTONE, mh_get_uint64_t};
 use crate::memory::{
-    ARENA_BLOCK_SIZE, Arena, ArenaMem, alloc_block, arena_finish, arena_mem_free, arena_memdupz,
+    ARENA_BLOCK_SIZE, Arena, ArenaMem, alloc_block, arena_finish, arena_mem_free,
     free_block, xcalloc, xfree, xmalloc,
 };
 use crate::message::semsg;
@@ -62,22 +62,7 @@ const kClientTypeHost: ClientType = 3;
 const kClientTypePlugin: ClientType = 4;
 const kClientTypeMsgpackRpc: ClientType = 5;
 
-#[inline]
-unsafe fn arena_string(arena: *mut Arena, str_: NvimString) -> NvimString {
-    if str_.size == 0 || str_.data.is_null() {
-        NvimString {
-            data: c"".as_ptr().cast_mut(),
-            size: 0,
-        }
-    } else {
-        unsafe {
-            NvimString {
-                data: arena_memdupz(arena, str_.data, str_.size),
-                size: str_.size,
-            }
-        }
-    }
-}
+use crate::api::private::helpers::arena_string;
 
 unsafe extern "C" fn free_block_void(block: *mut c_void) {
     unsafe {

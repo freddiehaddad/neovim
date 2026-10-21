@@ -36,7 +36,7 @@ use crate::lua::converter::{Boolean, FieldHashfn, KeySetLink, OptKeySet};
 use crate::mark::{fmark_T, fmarkv_T};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
-    enc_canonize, get_encoding_name, utf_ptr2cells, utf_ptr2char, utfc_ptr2len, utfc_ptr2schar,
+    enc_canonize, get_encoding_name, utf_ptr2char, utfc_ptr2len, utfc_ptr2schar,
 };
 use crate::memline::ml_setflags;
 use crate::memory::{xfree, xmalloc, xmemcpyz, xmemdup, xmemdupz, xstrdup};
@@ -743,16 +743,7 @@ unsafe fn c_memcmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int {
     }
 }
 
-#[inline]
-unsafe fn ptr2cells(p: *const c_char) -> c_int {
-    unsafe {
-        if (*p as u8) >= 0x80 {
-            utf_ptr2cells(p)
-        } else {
-            char2cells(*p as u8 as c_int)
-        }
-    }
-}
+use crate::mbyte::ptr2cells;
 
 unsafe fn briopt_hash(str_arg: *const c_char, len: usize) -> isize {
     unsafe {

@@ -39,7 +39,7 @@ use crate::highlight::{OptionalKeys, set_destroy};
 use crate::lua::converter::{Boolean, LUA_NOREF, LuaRef};
 use crate::map::{
     MH_TOMBSTONE, MHPutStatus, MapHash, Set, map_put_ref_String_int, mh_delete_uint32_t,
-    mh_get_String, mh_get_ptr_t, mh_get_uint32_t, mh_put_ptr_t, mh_put_uint32_t, ptr_t,
+    mh_get_String, mh_get_ptr_t, mh_get_uint32_t, mh_put_uint32_t, ptr_t,
 };
 use crate::marktree::{
     DECOR_HIGHLIGHT_INLINE_INIT, DECOR_PRIORITY_BASE, DecorExt, DecorInlineData,
@@ -189,17 +189,11 @@ unsafe fn set_del_u32(set: *mut Set<u32>, mut key: u32) {
     }
 }
 
+use crate::map::set_put_ptr;
+
 #[inline]
 pub unsafe fn set_has_ptr(set: *mut Set<ptr_t>, key: ptr_t) -> bool {
     unsafe { mh_get_ptr_t(set, key) != MH_TOMBSTONE }
-}
-
-#[inline]
-unsafe fn set_put_ptr(set: *mut Set<ptr_t>, key: ptr_t) {
-    unsafe {
-        let mut status = MHPutStatus::kMHExisting;
-        let _ = mh_put_ptr_t(set, key, &mut status);
-    }
 }
 
 #[inline]

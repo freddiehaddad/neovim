@@ -315,14 +315,7 @@ static mut DO_TAG_MAX_NUM_MATCHES: c_int = 0;
 static mut DO_TAG_MATCHES: *mut *mut c_char = ptr::null_mut();
 static mut DO_TAG_FLAGS: c_int = 0;
 
-#[inline]
-const fn toupper_asc(c: u8) -> c_int {
-    if c < b'a' || c > b'z' {
-        c as c_int
-    } else {
-        (c - (b'a' - b'A')) as c_int
-    }
-}
+use crate::charset::toupper_asc;
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn free_tagfunc_option() {
@@ -1131,7 +1124,7 @@ pub unsafe extern "C" fn do_tags(_eap: *mut exarg_T) {
 unsafe fn tag_strnicmp(mut s1: *const c_char, mut s2: *const c_char, mut len: usize) -> c_int {
     unsafe {
         while len > 0 {
-            let i = toupper_asc(*s1 as u8) - toupper_asc(*s2 as u8);
+            let i = toupper_asc(c_int::from(*s1 as u8)) - toupper_asc(c_int::from(*s2 as u8));
             if i != 0 {
                 return i;
             }
@@ -1797,7 +1790,7 @@ unsafe fn findtags_parse_line(
             if (*st).state == tagsearch_state_T::TS_BINARY {
                 let mut i = *tagpp.tagname as u8 as c_int;
                 if margs.sortic {
-                    i = toupper_asc(*tagpp.tagname as u8);
+                    i = toupper_asc(c_int::from(*tagpp.tagname as u8));
                 }
                 if i < (*sinfo_p).low_char || i > (*sinfo_p).high_char {
                     margs.sort_error = true;
@@ -1827,7 +1820,7 @@ unsafe fn findtags_parse_line(
                     if (*sinfo_p).curr_offset < (*sinfo_p).high_offset {
                         (*sinfo_p).low_offset = (*sinfo_p).curr_offset;
                         if margs.sortic {
-                            (*sinfo_p).low_char = toupper_asc(*tagpp.tagname as u8);
+                            (*sinfo_p).low_char = toupper_asc(c_int::from(*tagpp.tagname as u8));
                         } else {
                             (*sinfo_p).low_char = *tagpp.tagname as u8 as c_int;
                         }
@@ -1837,7 +1830,7 @@ unsafe fn findtags_parse_line(
                 if tagcmp > 0 && (*sinfo_p).curr_offset != (*sinfo_p).high_offset {
                     (*sinfo_p).high_offset = (*sinfo_p).curr_offset;
                     if margs.sortic {
-                        (*sinfo_p).high_char = toupper_asc(*tagpp.tagname as u8);
+                        (*sinfo_p).high_char = toupper_asc(c_int::from(*tagpp.tagname as u8));
                     } else {
                         (*sinfo_p).high_char = *tagpp.tagname as u8 as c_int;
                     }

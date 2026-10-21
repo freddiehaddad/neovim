@@ -98,14 +98,7 @@ static mut connected_uis: Map<u64, *mut c_void> = Map {
     values: ptr::null_mut(),
 };
 
-#[inline]
-unsafe fn mpack_w2(b: *mut *mut c_char, v: u32) {
-    unsafe {
-        **b = ((v >> 8) & 0xff) as c_char;
-        *(*b).add(1) = (v & 0xff) as c_char;
-        *b = (*b).add(2);
-    }
-}
+use crate::msgpack_rpc::packer::mpack_w2;
 
 unsafe extern "C" fn free_block_cb(block: *mut c_void) {
     unsafe {

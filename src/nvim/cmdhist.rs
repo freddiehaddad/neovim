@@ -55,26 +55,7 @@ pub struct histentry_T {
 }
 
 use crate::globals::IOSIZE;
-
-#[inline]
-unsafe fn strnicmp_asc(mut s1: *const c_char, mut s2: *const c_char, mut len: usize) -> bool {
-    unsafe {
-        while len > 0 {
-            let c1 = (*s1 as u8).to_ascii_lowercase();
-            let c2 = (*s2 as u8).to_ascii_lowercase();
-            if c1 != c2 {
-                return false;
-            }
-            if c1 == 0 {
-                break;
-            }
-            s1 = s1.add(1);
-            s2 = s2.add(1);
-            len -= 1;
-        }
-        true
-    }
-}
+use crate::strings::vim_strnicmp_asc;
 
 #[inline]
 unsafe fn clear_hist_entry(hisptr: *mut histentry_T) {
@@ -298,7 +279,7 @@ unsafe fn get_histtype(name: *const c_char, len: usize, return_default: bool) ->
         }
 
         for (i, &hname) in HISTORY_NAMES.iter().enumerate() {
-            if strnicmp_asc(name, hname.as_ptr(), len) {
+            if vim_strnicmp_asc(name, hname.as_ptr(), len) == 0 {
                 return i as c_int;
             }
         }
@@ -714,7 +695,7 @@ pub unsafe extern "C" fn ex_history(eap: *mut exarg_T) {
             let name_len = (end as usize) - (arg as usize);
             histype1 = get_histtype(arg, name_len, false);
             if histype1 == HIST_INVALID {
-                if strnicmp_asc(arg, c"all".as_ptr(), name_len) {
+                if vim_strnicmp_asc(arg, c"all".as_ptr(), name_len) == 0 {
                     histype1 = 0;
                     histype2 = (HIST_COUNT as c_int) - 1;
                 } else {

@@ -62,7 +62,7 @@ use crate::lua::executor::{
 };
 use crate::mapping::{ExpandMappings, set_context_in_map_cmd};
 use crate::math::{FAIL, OK};
-use crate::mbyte::{mb_tolower, utf_head_off, utf_ptr2cells, utf_ptr2char, utfc_ptr2len};
+use crate::mbyte::{mb_tolower, utf_head_off, utf_ptr2char, utfc_ptr2len};
 use crate::memline::{ml_get, ml_get_len};
 use crate::memory::{xfree, xmalloc, xmemcpyz, xmemdupz, xstpcpy, xstrdup};
 use crate::menu::{get_menu_name, get_menu_names, menu_is_separator, set_context_in_menu_cmd};
@@ -991,28 +991,8 @@ unsafe fn c_strchr(mut s: *const c_char, c: c_char) -> *mut c_char {
     }
 }
 
-#[inline]
-fn vim_ispathsep(c: c_int) -> bool {
-    #[cfg(windows)]
-    {
-        c == b'/' as c_int || c == b'\\' as c_int || c == b':' as c_int
-    }
-    #[cfg(not(windows))]
-    {
-        c == b'/' as c_int
-    }
-}
-
-#[inline]
-unsafe fn ptr2cells(p: *const c_char) -> c_int {
-    unsafe {
-        if (*p as u8) >= 0x80 {
-            utf_ptr2cells(p)
-        } else {
-            crate::charset::char2cells(*p as u8 as c_int)
-        }
-    }
-}
+use crate::mbyte::ptr2cells;
+use crate::path::vim_ispathsep;
 
 #[inline]
 unsafe fn ga_push<T>(gap: *mut garray_T, item: T) {
