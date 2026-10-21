@@ -77,7 +77,7 @@ use crate::register::{get_reg_contents, kGRegExprSrc, write_reg_contents};
 use crate::runtime::{new_script_item, script_autoload, script_item, script_items, scriptvar_T};
 use crate::search::set_search_direction;
 use crate::strings::{
-    c_strcpy, concat_str, gettext, strcmp as c_strcmp, strlen as c_strlen, strncmp as c_strncmp,
+    c_strcpy, concat_str, gettext, strcmp, strlen, strncmp,
     vim_snprintf, vim_strchr,
 };
 use crate::version::{highest_patch, min_vim_version};
@@ -734,7 +734,7 @@ pub unsafe extern "C" fn set_internal_string_var(name: *const c_char, value: *mu
             vval: TypvalVval { v_string: value },
         };
 
-        set_var(name, c_strlen(name), &raw mut tv, true);
+        set_var(name, strlen(name), &raw mut tv, true);
     }
 }
 
@@ -1079,7 +1079,7 @@ pub unsafe extern "C" fn heredoc_get(
         let mut evalstr = false;
         let mut eval_failed = false;
         loop {
-            if c_strncmp(cmd, c"trim".as_ptr(), 4) == 0
+            if strncmp(cmd, c"trim".as_ptr(), 4) == 0
                 && (*cmd.add(4) == NUL || ascii_iswhite(*cmd.add(4) as c_int))
             {
                 cmd = skipwhite(cmd.add(4));
@@ -1092,7 +1092,7 @@ pub unsafe extern "C" fn heredoc_get(
                 text_indent_len = -1;
                 continue;
             }
-            if c_strncmp(cmd, c"eval".as_ptr(), 4) == 0
+            if strncmp(cmd, c"eval".as_ptr(), 4) == 0
                 && (*cmd.add(4) == NUL || ascii_iswhite(*cmd.add(4) as c_int))
             {
                 cmd = skipwhite(cmd.add(4));
@@ -1142,7 +1142,7 @@ pub unsafe extern "C" fn heredoc_get(
                 theline = line_arg;
                 let next_line = vim_strchr(theline, b'\n' as c_int);
                 if next_line.is_null() {
-                    line_arg = line_arg.add(c_strlen(line_arg));
+                    line_arg = line_arg.add(strlen(line_arg));
                 } else {
                     *next_line = NUL;
                     line_arg = next_line.add(1);
@@ -1163,11 +1163,11 @@ pub unsafe extern "C" fn heredoc_get(
             }
 
             if marker_indent_len > 0
-                && c_strncmp(theline, *(*eap).cmdlinep, marker_indent_len as usize) == 0
+                && strncmp(theline, *(*eap).cmdlinep, marker_indent_len as usize) == 0
             {
                 mi = marker_indent_len;
             }
-            if c_strcmp(marker, theline.add(mi as usize)) == 0 {
+            if strcmp(marker, theline.add(mi as usize)) == 0 {
                 break;
             }
 
@@ -1237,7 +1237,7 @@ pub unsafe extern "C" fn ex_let(eap: *mut exarg_T) {
             return;
         }
         let mut expr = skipwhite(argend);
-        let concat = c_strncmp(expr, c"..=".as_ptr(), 3) == 0;
+        let concat = strncmp(expr, c"..=".as_ptr(), 3) == 0;
         let has_assign = *expr == b'=' as c_char
             || (!vim_strchr(c"+-*/%.".as_ptr(), *expr as u8 as c_int).is_null()
                 && *expr.add(1) == b'=' as c_char);
@@ -1642,7 +1642,7 @@ unsafe fn list_arg_vars(
                                 let used_name = if arg == arg_subsc { name } else { name_start };
                                 debug_assert!(!used_name.is_null());
                                 let name_size = if used_name == tofree.cast_const() {
-                                    c_strlen(used_name) as isize
+                                    strlen(used_name) as isize
                                 } else {
                                     arg.offset_from(used_name)
                                 };
@@ -1897,7 +1897,7 @@ unsafe fn ex_let_register(
                 } else {
                     *arg as u8 as c_int
                 };
-                write_reg_contents(reg_c, p, c_strlen(p) as isize, false as c_int);
+                write_reg_contents(reg_c, p, strlen(p) as isize, false as c_int);
                 arg_end = arg.add(1);
             }
             xfree(ptofree.cast());
@@ -2275,7 +2275,7 @@ pub unsafe extern "C" fn del_menutrans_vars() {
         while todo > 0 {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
-                if c_strncmp((*hi).hi_key, c"menutrans_".as_ptr(), 10) == 0 {
+                if strncmp((*hi).hi_key, c"menutrans_".as_ptr(), 10) == 0 {
                     delete_var(ht, hi);
                 }
             }
@@ -2356,7 +2356,7 @@ pub unsafe extern "C" fn get_vim_var_partial(idx: VimVarIndex) -> *mut partial_T
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cat_prefix_varname(prefix: c_int, name: *const c_char) -> *mut c_char {
     unsafe {
-        let mut len = c_strlen(name) + 3;
+        let mut len = strlen(name) + 3;
 
         if len > varnamebuflen {
             xfree(varnamebuf.cast());
@@ -2400,7 +2400,7 @@ pub unsafe extern "C" fn get_user_var_name(xp: *mut expand_T, idx: c_int) -> *mu
             while hashitem_empty(&*HI) {
                 HI = HI.add(1);
             }
-            if c_strncmp(c"g:".as_ptr(), (*xp).xp_pattern, 2) == 0 {
+            if strncmp(c"g:".as_ptr(), (*xp).xp_pattern, 2) == 0 {
                 return cat_prefix_varname(b'g' as c_int, (*HI).hi_key);
             }
             return (*HI).hi_key;
@@ -2617,7 +2617,7 @@ pub unsafe extern "C" fn set_cmdarg(eap: *mut exarg_T, oldarg: *mut c_char) -> *
             len += 10;
         }
         if (*eap).force_enc != 0 {
-            len += c_strlen((*eap).cmd.add((*eap).force_enc as usize)) + 7;
+            len += strlen((*eap).cmd.add((*eap).force_enc as usize)) + 7;
         }
         if (*eap).bad_char != 0 {
             len += 11;
@@ -3002,7 +3002,7 @@ pub unsafe extern "C" fn find_var_ht(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_var_value(name: *const c_char) -> *mut c_char {
     unsafe {
-        let v = find_var(name, c_strlen(name), ptr::null_mut(), 0);
+        let v = find_var(name, strlen(name), ptr::null_mut(), 0);
         if v.is_null() {
             return ptr::null_mut();
         }
@@ -3104,7 +3104,7 @@ unsafe fn list_one_var(v: *mut dictitem_T, prefix: *const c_char, first: *mut c_
         list_one_var_a(
             prefix,
             (*v).di_key.as_ptr(),
-            c_strlen((*v).di_key.as_ptr()) as isize,
+            strlen((*v).di_key.as_ptr()) as isize,
             (*v).di_tv.v_type,
             if s.is_null() { c"".as_ptr() } else { s },
             first,
@@ -3209,13 +3209,13 @@ pub unsafe extern "C" fn before_set_vvar(
                 tv_copy(&raw const (*di).di_tv, &raw mut oldtv);
             }
             (*di).di_tv.vval.v_number = tv_get_number(tv);
-            if c_strcmp(varname, c"searchforward".as_ptr()) == 0 {
+            if strcmp(varname, c"searchforward".as_ptr()) == 0 {
                 set_search_direction(if (*di).di_tv.vval.v_number != 0 {
                     b'/' as c_int
                 } else {
                     b'?' as c_int
                 });
-            } else if c_strcmp(varname, c"hlsearch".as_ptr()) == 0 {
+            } else if strcmp(varname, c"hlsearch".as_ptr()) == 0 {
                 Search.no_hlsearch = (*di).di_tv.vval.v_number == 0;
                 redraw_all_later(UPD_SOME_VALID);
             }
@@ -3381,9 +3381,9 @@ pub unsafe extern "C" fn var_check_ro(
         }
         if name_len == TV_TRANSLATE {
             name = gettext(name);
-            name_len = c_strlen(name);
+            name_len = strlen(name);
         } else if name_len == TV_CSTRING {
-            name_len = c_strlen(name);
+            name_len = strlen(name);
         }
 
         semsg!(gettext(error_message), name_len as c_int, name);
@@ -3405,9 +3405,9 @@ pub unsafe extern "C" fn var_check_lock(
 
         if name_len == TV_TRANSLATE {
             name = gettext(name);
-            name_len = c_strlen(name);
+            name_len = strlen(name);
         } else if name_len == TV_CSTRING {
-            name_len = c_strlen(name);
+            name_len = strlen(name);
         }
 
         semsg!(
@@ -3430,9 +3430,9 @@ pub unsafe extern "C" fn var_check_fixed(
         if (flags as u8 & DI_FLAGS_FIX) != 0 {
             if name_len == TV_TRANSLATE {
                 name = gettext(name);
-                name_len = c_strlen(name);
+                name_len = strlen(name);
             } else if name_len == TV_CSTRING {
-                name_len = c_strlen(name);
+                name_len = strlen(name);
             }
             semsg!(
                 gettext(e_cannot_delete_variable_str.as_ptr()),
@@ -3567,7 +3567,7 @@ unsafe fn get_var_from(
                         &raw mut (*(*tp).tp_vars).dv_hashtab
                     };
 
-                    let v = find_var_in_ht(ht, htname, varname, c_strlen(varname), 0);
+                    let v = find_var_in_ht(ht, htname, varname, strlen(varname), 0);
                     if !v.is_null() {
                         tv_copy(&raw const (*v).di_tv, rettv);
                         done = true;
@@ -3803,7 +3803,7 @@ unsafe fn setwinvar(argvars: *mut typval_T, off: usize) {
             if *varname == b'&' as c_char {
                 set_option_from_tv(varname.add(1), varp);
             } else {
-                let varname_len = c_strlen(varname);
+                let varname_len = strlen(varname);
                 let winvarname = xmalloc(varname_len + 3).cast::<c_char>();
                 ptr::copy_nonoverlapping(c"w:".as_ptr(), winvarname, 2);
                 ptr::copy_nonoverlapping(varname, winvarname.add(2), varname_len + 1);
@@ -3965,7 +3965,7 @@ pub unsafe extern "C" fn var_redir_str(value: *const c_char, value_len: c_int) {
         }
 
         let len = if value_len == -1 {
-            c_strlen(value) as c_int
+            strlen(value) as c_int
         } else {
             value_len
         };
@@ -4133,7 +4133,7 @@ pub unsafe extern "C" fn f_settabvar(
         let save_lu_tp = lastused_tabpage;
         goto_tabpage_tp(tp, false, false);
 
-        let varname_len = c_strlen(varname);
+        let varname_len = strlen(varname);
         let tabvarname = xmalloc(varname_len + 3).cast::<c_char>();
         ptr::copy_nonoverlapping(c"t:".as_ptr(), tabvarname, 2);
         ptr::copy_nonoverlapping(varname, tabvarname.add(2), varname_len + 1);
@@ -4198,7 +4198,7 @@ pub unsafe extern "C" fn f_setbufvar(
             set_option_from_tv(varname.add(1), varp);
             ctx_restore(&raw mut aco);
         } else {
-            let varname_len = c_strlen(varname);
+            let varname_len = strlen(varname);
             let bufvarname = xmalloc(varname_len + 3).cast::<c_char>();
             let save_curbuf = curbuf;
             curbuf = buf;

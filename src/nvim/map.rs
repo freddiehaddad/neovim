@@ -97,12 +97,35 @@ pub unsafe fn map_get_string_int(map: *mut Map<NvimString, c_int>, key: NvimStri
 }
 
 #[inline]
+pub unsafe fn set_has_ptr(set: *mut Set<ptr_t>, key: ptr_t) -> bool {
+    unsafe { mh_get_ptr_t(set, key) != MH_TOMBSTONE }
+}
+
+#[inline]
 pub unsafe fn set_put_ptr(set: *mut Set<ptr_t>, key: ptr_t) -> bool {
     let mut status = MHPutStatus::kMHExisting;
     unsafe {
         mh_put_ptr_t(set, key, &mut status);
     }
     status != MHPutStatus::kMHExisting
+}
+
+#[inline]
+pub unsafe fn set_destroy<K>(set: *mut Set<K>) {
+    unsafe {
+        xfree((*set).keys.cast());
+        xfree((*set).h.hash.cast());
+        *set = empty_set();
+    }
+}
+
+#[inline]
+pub unsafe fn map_destroy<K, V>(map: *mut Map<K, V>) {
+    unsafe {
+        set_destroy(&raw mut (*map).set);
+        xfree((*map).values.cast());
+        (*map).values = std::ptr::null_mut();
+    }
 }
 
 #[repr(C)]

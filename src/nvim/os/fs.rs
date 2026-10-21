@@ -31,7 +31,7 @@ use crate::path::{
 use crate::path::{path_next_component, path_tail, vim_ispathsep_nocolon};
 #[cfg(unix)]
 use crate::strings::strerror;
-use crate::strings::{gettext, strlen as c_strlen};
+use crate::strings::{gettext, strlen};
 use crate::ui::ui_call_chdir;
 #[cfg(windows)]
 use std::ffi::c_uint;
@@ -671,7 +671,7 @@ unsafe fn is_executable_in_path(name: *const c_char, abspath: *mut *mut c_char) 
             if !os_env_exists(c"NoDefaultCurrentDirectoryInExePath".as_ptr(), false)
                 && sh_tail.windows(7).any(|w| w == b"cmd.exe")
             {
-                let pathlen = c_strlen(path_env);
+                let pathlen = strlen(path_env);
                 let p = xmallocz(pathlen + 2).cast::<c_char>();
                 ptr::copy_nonoverlapping(b".;".as_ptr().cast::<c_char>(), p, 2);
                 ptr::copy_nonoverlapping(path_env, p.add(2), pathlen);
@@ -683,7 +683,7 @@ unsafe fn is_executable_in_path(name: *const c_char, abspath: *mut *mut c_char) 
         #[cfg(not(windows))]
         let path = xstrdup(path_env);
 
-        let bufsize = c_strlen(name) + c_strlen(path) + 2;
+        let bufsize = strlen(name) + strlen(path) + 2;
         let buf = xmalloc(bufsize).cast::<c_char>();
 
         let mut p = path;
@@ -736,7 +736,7 @@ pub unsafe extern "C" fn os_open(path: *const c_char, flags: c_int, mode: c_int)
 pub unsafe extern "C" fn os_fopen(path: *const c_char, flags: *const c_char) -> *mut c_void {
     unsafe {
         assert!(!flags.is_null());
-        let flen = c_strlen(flags);
+        let flen = strlen(flags);
         assert!((1..=2).contains(&flen));
 
         let f0 = *flags as u8;
@@ -1208,7 +1208,7 @@ pub unsafe extern "C" fn os_copy_xattr(from_file: *const c_char, to_file: *const
                     max_vallen = vallen;
                 }
 
-                let keylen = (c_strlen(key) + 1) as isize;
+                let keylen = (strlen(key) + 1) as isize;
                 size -= keylen;
                 key = key.add(keylen as usize);
             }
@@ -1368,7 +1368,7 @@ pub unsafe extern "C" fn os_mkdir_recurse(
     created: *mut *mut c_char,
 ) -> c_int {
     unsafe {
-        let dirlen = c_strlen(dir);
+        let dirlen = strlen(dir);
         let curdir = xmemdupz(dir.cast(), dirlen).cast::<c_char>();
         let past_head = get_past_head(curdir);
         let mut e = curdir.add(dirlen);
@@ -1389,7 +1389,7 @@ pub unsafe extern "C" fn os_mkdir_recurse(
             } else {
                 *past_head = past_head_save;
             }
-            let component_len = c_strlen(e);
+            let component_len = strlen(e);
             e = e.add(component_len);
             if ptr::eq(e, real_end)
                 && memcnt(e.sub(component_len).cast(), PATHSEP, component_len) == component_len
@@ -1415,7 +1415,7 @@ pub unsafe extern "C" fn os_file_mkdir(fname: *mut c_char, mode: i32) -> c_int {
     unsafe {
         if !dir_of_file_exists(fname) {
             let tail = path_tail_with_sep(fname);
-            let last_char = tail.add(c_strlen(tail)).sub(1);
+            let last_char = tail.add(strlen(tail)).sub(1);
             if vim_ispathsep(c_int::from(*last_char as u8)) {
                 emsg(gettext(e_noname.as_ptr()));
                 return -1;

@@ -43,7 +43,7 @@ use crate::option::{copy_option_part, get_bkc_flags, get_fileformat_force, short
 use crate::option_vars::*;
 use crate::os::fs::{
     FileInfo, MAXPATHL, O_APPEND, O_CREAT, O_EXCL, O_NOFOLLOW, O_TRUNC, O_WRONLY, os_close,
-    os_copy, os_copy_xattr, os_errno as iconv_errno, os_file_is_writable, os_fileinfo,
+    os_copy, os_copy_xattr, os_errno, os_file_is_writable, os_fileinfo,
     os_fileinfo_hardlinks, os_fileinfo_id_equal, os_fileinfo_link, os_free_acl, os_fsync,
     os_get_acl, os_getperm, os_isdir, os_mkdir_recurse, os_nodetype, os_open, os_path_exists,
     os_remove, os_set_acl, os_setperm, vim_acl_T,
@@ -54,7 +54,7 @@ use crate::os::input::os_breakcheck;
 use crate::os::time::os_hrtime;
 use crate::path::{after_pathsep, kPathCmpLiteral, path_equal, path_tail};
 use crate::sha256::{context_sha256_T, sha256_finish, sha256_start, sha256_update};
-use crate::strings::{gettext, strlen as c_strlen, vim_snprintf, vim_snprintf_add, vim_strchr};
+use crate::strings::{gettext, strlen, vim_snprintf, vim_snprintf_add, vim_strchr};
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush};
 use crate::undo::{curbufIsChanged, u_unchanged, u_update_save_nr, u_write_undo};
 use std::ffi::{c_char, c_int, c_uint};
@@ -216,7 +216,7 @@ unsafe fn buf_write_convert_with_iconv(
             &raw mut to,
             &raw mut tolen,
         ) == usize::MAX
-            && iconv_errno() != ICONV_EINVAL
+            && os_errno() != ICONV_EINVAL
         {
             (*ip).bw_conv_error = 1;
             return -1;
@@ -969,8 +969,8 @@ unsafe fn buf_write_make_backup(
                             xfree((*backupp).cast());
                             *backupp = ptr::null_mut();
                         } else if p_bk == 0 {
-                            let blen = c_strlen(*backupp);
-                            let extlen = c_strlen(backup_ext);
+                            let blen = strlen(*backupp);
+                            let extlen = strlen(backup_ext);
                             let mut wp = if blen > extlen + 1 {
                                 (*backupp).add(blen - 1 - extlen)
                             } else {
@@ -1053,8 +1053,8 @@ unsafe fn buf_write_make_backup(
             while *dirp != 0 {
                 *backupp = buf_get_backup_name(fname, &raw mut dirp, no_prepend_dot, backup_ext);
                 if !(*backupp).is_null() && p_bk == 0 && os_path_exists(*backupp) {
-                    let blen = c_strlen(*backupp);
-                    let extlen = c_strlen(backup_ext);
+                    let blen = strlen(*backupp);
+                    let extlen = strlen(backup_ext);
                     let mut p = if blen > extlen + 1 {
                         (*backupp).add(blen - 1 - extlen)
                     } else {
@@ -1124,7 +1124,7 @@ pub unsafe extern "C" fn buf_write(
         if check_secure() {
             return FAIL;
         }
-        if c_strlen(fname) >= MAXPATHL {
+        if strlen(fname) >= MAXPATHL {
             emsg(gettext(e_longname.as_ptr()));
             return FAIL;
         }
@@ -1567,7 +1567,7 @@ pub unsafe extern "C" fn buf_write(
                                 sha256_update(
                                     &raw mut sha_ctx,
                                     line_ptr.cast(),
-                                    c_strlen(line_ptr) + 1,
+                                    strlen(line_ptr) + 1,
                                 );
                             }
                             loop {

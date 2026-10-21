@@ -17,8 +17,9 @@ use crate::event::multiqueue::{
     multiqueue_put_event,
 };
 use crate::event::socket::socket_address_tcp_host_end;
+use crate::fileio::close_fd;
 #[cfg(not(windows))]
-use crate::fileio::{close as close_fd, dup};
+use crate::fileio::dup;
 use crate::globals::*;
 use crate::grid::{sattr_T, schar_T};
 use crate::highlight::{HLATTRS_INIT, KeyDict_highlight, dict2hlattrs};
@@ -58,9 +59,6 @@ static mut tui_rgb: bool = false;
 static mut restart_args: Array = ARRAY_INIT;
 static mut restart_pending: bool = false;
 static mut restart_args_after_crash_exit: Array = ARRAY_INIT;
-
-#[cfg(windows)]
-use crate::fileio::_close as close_fd;
 
 use crate::event::r#loop::uv_os_getpid;
 

@@ -49,7 +49,7 @@ use crate::path::{
 };
 use crate::profile::{prof_child_enter, prof_child_exit, proftime_T};
 use crate::strings::{
-    gettext, strcat, strcpy, strlen as c_strlen, strstr, vim_snprintf, vim_strchr,
+    gettext, strcat, strcpy, strlen, strstr, vim_snprintf, vim_strchr,
     vim_strnsave_unquoted, vim_strsave_escaped_ext,
 };
 use crate::tag::tag_freematch;
@@ -198,13 +198,13 @@ pub unsafe extern "C" fn os_expand_wildcards(
         }
 
         if num_pat == 1 && **pat == b'`' as c_char {
-            let pat0_len = c_strlen(*pat);
+            let pat0_len = strlen(*pat);
             if pat0_len > 2 && *(*pat).add(pat0_len - 1) == b'`' as c_char {
                 shell_style = STYLE_BT;
             }
         }
         if shell_style != STYLE_BT {
-            let sh_len = c_strlen(p_sh);
+            let sh_len = strlen(p_sh);
             if sh_len >= 3 {
                 let tail3 = CStr::from_ptr(p_sh.add(sh_len - 3)).to_bytes();
                 if tail3 == b"csh" {
@@ -222,7 +222,7 @@ pub unsafe extern "C" fn os_expand_wildcards(
             }
         }
 
-        let mut len = c_strlen(tempname) + 29;
+        let mut len = strlen(tempname) + 29;
         if shell_style == STYLE_VIMGLOB {
             len += SH_VIMGLOB_FUNC.to_bytes().len();
         } else if shell_style == STYLE_GLOBSTAR {
@@ -255,7 +255,7 @@ pub unsafe extern "C" fn os_expand_wildcards(
                 strcpy(command, c"(".as_ptr());
             }
             strcat(command, (*pat).add(1));
-            let mut p = command.add(c_strlen(command) - 1);
+            let mut p = command.add(strlen(command) - 1);
             if is_fish_shell {
                 *p = b';' as c_char;
                 p = p.sub(1);
@@ -302,7 +302,7 @@ pub unsafe extern "C" fn os_expand_wildcards(
                 let mut intick = false;
                 let p_i = *pat.add(i);
 
-                let mut p = command.add(c_strlen(command));
+                let mut p = command.add(strlen(command));
                 *p = b' ' as c_char;
                 p = p.add(1);
                 let mut j = 0;
@@ -448,7 +448,7 @@ pub unsafe extern "C" fn os_expand_wildcards(
             let mut check_spaces = false;
             if shell_style == STYLE_PRINT && !did_find_nul {
                 *buffer.add(len) = NUL;
-                if len != 0 && (c_strlen(buffer) as c_int) < (len as c_int) {
+                if len != 0 && (strlen(buffer) as c_int) < (len as c_int) {
                     did_find_nul = true;
                 } else {
                     check_spaces = true;
@@ -533,7 +533,7 @@ pub unsafe extern "C" fn os_expand_wildcards(
                 continue;
             }
 
-            let new_entry: *mut c_char = xmalloc(c_strlen(entry) + 1 + usize::from(dir)).cast();
+            let new_entry: *mut c_char = xmalloc(strlen(entry) + 1 + usize::from(dir)).cast();
             strcpy(new_entry, entry);
             if dir {
                 add_pathsep(new_entry);
@@ -1316,7 +1316,7 @@ unsafe fn shell_xescape_xquote(cmd: *const c_char) -> *mut c_char {
         if *p_sxe != NUL && sxq_bytes == b"(" {
             ecmd = vim_strsave_escaped_ext(cmd, p_sxe, b'^' as c_char, false);
         }
-        let ncmd_size = c_strlen(ecmd) + sxq_bytes.len() * 2 + 1;
+        let ncmd_size = strlen(ecmd) + sxq_bytes.len() * 2 + 1;
         let ncmd: *mut c_char = xmalloc(ncmd_size).cast();
 
         if sxq_bytes == b"(" {

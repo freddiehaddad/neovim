@@ -17,7 +17,7 @@ use crate::os::env::os_shell_is_cmdexe;
 #[cfg(windows)]
 use crate::os::fs::os_can_exe;
 #[cfg(windows)]
-use crate::strings::{strlen as c_strlen, wcslen};
+use crate::strings::{strlen, wcslen};
 #[cfg(any(test, windows))]
 use std::ffi::{CStr, c_char};
 #[cfg(windows)]
@@ -496,9 +496,9 @@ mod win_impl {
             while !(*argv).is_null() {
                 let arg_str = *argv;
                 let buf_len = if is_cmdexe {
-                    c_strlen(arg_str) + 1
+                    strlen(arg_str) + 1
                 } else {
-                    c_strlen(arg_str) * 2 + 3
+                    strlen(arg_str) * 2 + 3
                 };
                 let arg_buf: *mut c_char = xmalloc(buf_len).cast();
                 if is_cmdexe {
@@ -514,7 +514,7 @@ mod win_impl {
                 } else {
                     quote_cmd_arg(arg_buf, buf_len, arg_str);
                 }
-                utf8_cmd_line_len += c_strlen(arg_buf);
+                utf8_cmd_line_len += strlen(arg_buf);
                 args.push(arg_buf);
                 argc += 1;
                 argv = argv.add(1);

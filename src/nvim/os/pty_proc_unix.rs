@@ -9,7 +9,7 @@ use crate::event::r#loop::{uv_disable_stdio_inheritance, uv_handle_get_loop, uv_
 #[cfg(unix)]
 use crate::log::logmsg;
 #[cfg(unix)]
-use crate::os::fs::{os_errno as get_errno, os_set_cloexec};
+use crate::os::fs::{os_errno, os_set_cloexec};
 #[cfg(unix)]
 use crate::strings::strerror;
 #[cfg(unix)]
@@ -311,7 +311,7 @@ mod unix_impl {
             );
 
             if pid < 0 {
-                let err = get_errno();
+                let err = os_errno();
                 let status = -err;
                 logmsg!(
                     LOGLVL_ERR,
@@ -331,7 +331,7 @@ mod unix_impl {
             'error: {
                 let master_status_flags = fcntl(master, F_GETFL);
                 if master_status_flags == -1 {
-                    let err = get_errno();
+                    let err = os_errno();
                     status = -err;
                     logmsg!(
                         LOGLVL_ERR,
@@ -345,7 +345,7 @@ mod unix_impl {
                     break 'error;
                 }
                 if fcntl(master, F_SETFL, master_status_flags | O_NONBLOCK) == -1 {
-                    let err = get_errno();
+                    let err = os_errno();
                     status = -err;
                     logmsg!(
                         LOGLVL_ERR,
@@ -360,7 +360,7 @@ mod unix_impl {
                 }
 
                 if os_set_cloexec(master) == -1 {
-                    status = -get_errno();
+                    status = -os_errno();
                     logmsg!(
                         LOGLVL_ERR,
                         ptr::null(),
@@ -439,7 +439,7 @@ mod unix_impl {
             };
             loop {
                 let n = poll(&raw mut pfd, 1, 0);
-                if !(n < 0 && get_errno() == EINTR) {
+                if !(n < 0 && os_errno() == EINTR) {
                     break;
                 }
             }
@@ -520,7 +520,7 @@ mod unix_impl {
                 environ = new_env;
             }
             execvp(prog, (*hdr).argv.cast_const());
-            let err = get_errno();
+            let err = os_errno();
             logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
@@ -567,7 +567,7 @@ mod unix_impl {
         unsafe {
             let fd_dup = dup(fd);
             if fd_dup < 0 {
-                let err = get_errno();
+                let err = os_errno();
                 logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
@@ -584,7 +584,7 @@ mod unix_impl {
             let status: c_int;
             'error: {
                 if os_set_cloexec(fd_dup) == -1 {
-                    status = -get_errno();
+                    status = -os_errno();
                     logmsg!(
                         LOGLVL_ERR,
                         ptr::null(),
@@ -633,7 +633,7 @@ mod unix_impl {
                 let mut pid: c_int;
                 loop {
                     pid = waitpid((*hdr).pid, &raw mut stat, WNOHANG | WUNTRACED | WCONTINUED);
-                    if !(pid < 0 && get_errno() == EINTR) {
+                    if !(pid < 0 && os_errno() == EINTR) {
                         break;
                     }
                 }

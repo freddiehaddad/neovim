@@ -42,7 +42,7 @@ use crate::insexpand::ins_compl_active;
 use crate::lua::converter::LuaRef;
 use crate::lua::executor::{kRetNilBool, nlua_call_ref, nlua_set_sctx};
 use crate::map::{
-    Map, MapHash, Set, map_del_String_int, map_del_int_String, map_put_ref_String_int,
+    Map, map_del_String_int, map_del_int_String, map_put_ref_String_int,
     map_put_ref_int_String, map_ref_String_int, map_ref_int_String,
 };
 use crate::math::{FAIL, OK};
@@ -336,31 +336,8 @@ const EMPTY_AUCMD_VEC: AutoCmdVec = AutoCmdVec {
     items: ptr::null_mut(),
 };
 
-pub(crate) const EMPTY_MAP_HASH: MapHash = MapHash {
-    hash: ptr::null_mut(),
-    n_buckets: 0,
-    size: 0,
-    n_occupied: 0,
-    upper_bound: 0,
-    n_keys: 0,
-    keys_capacity: 0,
-};
-
-const EMPTY_NAME_TO_ID_MAP: Map<NvimString, c_int> = Map {
-    set: Set {
-        h: EMPTY_MAP_HASH,
-        keys: ptr::null_mut(),
-    },
-    values: ptr::null_mut(),
-};
-
-const EMPTY_ID_TO_NAME_MAP: Map<c_int, NvimString> = Map {
-    set: Set {
-        h: EMPTY_MAP_HASH,
-        keys: ptr::null_mut(),
-    },
-    values: ptr::null_mut(),
-};
+const EMPTY_NAME_TO_ID_MAP: Map<NvimString, c_int> = crate::map::empty_map();
+const EMPTY_ID_TO_NAME_MAP: Map<c_int, NvimString> = crate::map::empty_map();
 
 static EVENT_NAMES: [EventNameEntry; NUM_EVENTS] = [
     EventNameEntry {

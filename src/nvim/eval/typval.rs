@@ -43,7 +43,7 @@ use crate::strings::strcasecmp;
 #[cfg(windows)]
 use crate::strings::vim_stricmp;
 use crate::strings::{
-    gettext as tr, qsort, strcmp, strcoll, strlen as c_strlen, strncmp, strtod, vim_snprintf,
+    tr, qsort, strcmp, strcoll, strlen, strncmp, strtod, vim_snprintf,
 };
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::offset_of;
@@ -1461,7 +1461,7 @@ unsafe fn list_join_inner(
             item = (*item).li_next;
         }
 
-        let seplen = c_strlen(sep);
+        let seplen = strlen(sep);
         if (*join_gap).ga_len >= 2 {
             sumlen += seplen * ((*join_gap).ga_len as usize - 1);
         }
@@ -2643,7 +2643,7 @@ pub unsafe extern "C" fn tv_dict_item_alloc_len(
 /// Allocate a dictionary item.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn tv_dict_item_alloc(key: *const c_char) -> *mut dictitem_T {
-    unsafe { tv_dict_item_alloc_len(key, c_strlen(key)) }
+    unsafe { tv_dict_item_alloc_len(key, strlen(key)) }
 }
 
 /// Free a dictionary item, also clearing the value.
@@ -2888,8 +2888,8 @@ pub unsafe extern "C" fn tv_dict_to_env(denv: *mut dict_T) -> *mut *mut c_char {
                     let str_ = tv_get_string(&raw const (*var).di_tv);
                     debug_assert!(!str_.is_null());
                     let key_ptr = (&raw const (*var).di_key).cast::<c_char>();
-                    let key_len = c_strlen(key_ptr);
-                    let val_len = c_strlen(str_);
+                    let key_len = strlen(key_ptr);
+                    let val_len = strlen(str_);
                     let len = key_len + val_len + 2;
                     let entry = xmalloc(len).cast::<c_char>();
                     ptr::copy_nonoverlapping(key_ptr, entry, key_len);
@@ -3244,7 +3244,7 @@ pub unsafe extern "C" fn tv_dict_extend(d1: *mut dict_T, d2: *mut dict_T, action
     unsafe {
         let watched = tv_dict_is_watched_inline(d1);
         let arg_errmsg = tr(c"extend() argument".as_ptr());
-        let arg_errmsg_len = c_strlen(arg_errmsg);
+        let arg_errmsg_len = strlen(arg_errmsg);
 
         if *action == b'm' as c_char {
             hash_lock(&raw mut (*d2).dv_hashtab);
@@ -3396,7 +3396,7 @@ pub unsafe extern "C" fn tv_dict_copy(
                 let new_di = if conv.is_null() || (*conv).vc_type == CONV_NONE {
                     tv_dict_item_alloc(key_ptr)
                 } else {
-                    let mut len = c_strlen(key_ptr);
+                    let mut len = strlen(key_ptr);
                     let key = string_convert(conv, key_ptr, &raw mut len);
                     if key.is_null() {
                         tv_dict_item_alloc_len(key_ptr, len)
@@ -4683,9 +4683,9 @@ pub unsafe extern "C" fn value_check_lock(
                 } else {
                     if name_len == TV_TRANSLATE {
                         name = tr(name);
-                        name_len = c_strlen(name);
+                        name_len = strlen(name);
                     } else if name_len == TV_CSTRING {
-                        name_len = c_strlen(name);
+                        name_len = strlen(name);
                     }
                     semsg!(tr(error_message), name_len as c_int, name);
                 }
@@ -4701,9 +4701,9 @@ pub unsafe extern "C" fn value_check_lock(
                 } else {
                     if name_len == TV_TRANSLATE {
                         name = tr(name);
-                        name_len = c_strlen(name);
+                        name_len = strlen(name);
                     } else if name_len == TV_CSTRING {
-                        name_len = c_strlen(name);
+                        name_len = strlen(name);
                     }
                     semsg!(tr(error_message), name_len as c_int, name);
                 }

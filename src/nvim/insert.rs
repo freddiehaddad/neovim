@@ -149,7 +149,7 @@ use crate::state::{
     state_enter, state_handle_k_event, virtual_active,
 };
 use crate::strings::xstrnsave;
-use crate::strings::{gettext, strlen as c_strlen, vim_snprintf, vim_strchr};
+use crate::strings::{gettext, strlen, vim_snprintf, vim_strchr};
 use crate::syntax::syntax_present;
 use crate::terminal::terminal_enter;
 use crate::textformat::{
@@ -276,7 +276,7 @@ pub unsafe fn linetabsize_str(s: *mut c_char) -> c_int {
     unsafe { linetabsize_col(0, s) }
 }
 
-use crate::mbyte::utf_byte2len as mb_byte2len;
+use crate::mbyte::utf_byte2len;
 
 #[inline]
 unsafe fn trigger_autocomplete(s: *mut InsertState) -> bool {
@@ -1525,7 +1525,7 @@ pub unsafe extern "C" fn prompt_text() -> *mut c_char {
 unsafe fn init_prompt(cmdchar_todo: c_int) {
     unsafe {
         let prompt = prompt_text();
-        let prompt_len = c_strlen(prompt) as colnr_T;
+        let prompt_len = strlen(prompt) as colnr_T;
 
         if (*curbuf).b_prompt_start.mark.lnum < 1
             || (*curbuf).b_prompt_start.mark.lnum > (*curbuf).b_ml.ml_line_count
@@ -1820,7 +1820,7 @@ unsafe fn insert_special(mut c: c_int, mut allow_modmask: c_int, mut ctrlv: c_in
         }
         if IS_SPECIAL(c) || (mod_mask != 0 && allow_modmask != 0) {
             let p = get_special_key_name(c, mod_mask);
-            let len = c_strlen(p);
+            let len = strlen(p);
             c = *p.add(len - 1) as u8 as c_int;
             if len > 2 {
                 if stop_arrow() == FAIL {
@@ -1951,7 +1951,7 @@ pub unsafe extern "C" fn insertchar(mut c: c_int, flags: c_int, second_indent: c
                 c = vpeekc();
                 c != NUL as c_int
                     && !is_special_ins(c)
-                    && mb_byte2len(c) == 1
+                    && utf_byte2len(c) == 1
                     && i < INPUT_BUFLEN
                     && (textwidth == 0 || {
                         virtcol += ascii2cells(buf[i - 1] as u8 as c_int);
@@ -3856,7 +3856,7 @@ unsafe fn ins_tab() -> bool {
                             fpos.col - change_col,
                         );
                     } else {
-                        let rem = c_strlen(ptr.offset(i as isize)) + 1;
+                        let rem = strlen(ptr.offset(i as isize)) + 1;
                         ptr::copy(ptr.offset(i as isize), ptr, rem);
                     }
                     if (State & REPLACE_FLAG) != 0 && (State & VREPLACE_FLAG) == 0 {

@@ -31,7 +31,7 @@ use crate::path::{
 use crate::runtime::sctx_T;
 #[cfg(windows)]
 use crate::strings::wcslen;
-use crate::strings::{striequal, strlen as c_strlen, vim_strchr, vim_strsave_escaped};
+use crate::strings::{striequal, strlen, vim_strchr, vim_strsave_escaped};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -497,7 +497,7 @@ pub unsafe extern "C" fn init_homedir() {
                 if homepath.is_null() {
                     homepath = xstrdup(PATHSEPSTR.as_ptr());
                 }
-                if !homedrive.is_null() && c_strlen(homedrive) + c_strlen(homepath) < MAXPATHL {
+                if !homedrive.is_null() && strlen(homedrive) + strlen(homepath) < MAXPATHL {
                     let buf = (&raw mut os_buf).cast::<c_char>();
                     xstrlcpy(buf, homedrive, MAXPATHL);
                     xstrlcat(buf, homepath, MAXPATHL);
@@ -521,7 +521,7 @@ pub unsafe extern "C" fn init_homedir() {
                     var = ptr::null_mut();
                     let exp = os_getenv(buf);
                     if !exp.is_null() {
-                        if *exp != NUL && c_strlen(exp) + c_strlen(p) < MAXPATHL {
+                        if *exp != NUL && strlen(exp) + strlen(p) < MAXPATHL {
                             xstrlcpy(buf, exp, MAXPATHL);
                             xstrlcat(buf, p.add(1), MAXPATHL);
                             var = buf;
@@ -610,7 +610,7 @@ pub unsafe extern "C" fn expand_env_esc(
         let prefix_len: usize = if prefix.is_null() {
             0
         } else {
-            c_strlen(prefix)
+            strlen(prefix)
         };
 
         let mut src = skipwhite(srcp);
@@ -742,8 +742,8 @@ pub unsafe extern "C" fn expand_env_esc(
                 }
 
                 if !var.is_null() && *var != NUL {
-                    let c = c_strlen(var);
-                    if c + c_strlen(tail) + 1 < (dstlen as usize) {
+                    let c = strlen(var);
+                    if c + strlen(tail) + 1 < (dstlen as usize) {
                         ptr::copy_nonoverlapping(var, dst, c + 1);
                         dstlen -= c as c_int;
                         let ends_with_sep = after_pathsep(dst, dst.add(c)) != 0;
@@ -805,7 +805,7 @@ unsafe fn vim_runtime_dir(vimdir: *const c_char) -> *mut c_char {
             return ptr::null_mut();
         }
         {
-            let vimdir_len = c_strlen(vimdir);
+            let vimdir_len = strlen(vimdir);
             let p = concat_fnames(
                 NvimString {
                     data: vimdir.cast_mut(),
@@ -828,7 +828,7 @@ unsafe fn vim_runtime_dir(vimdir: *const c_char) -> *mut c_char {
 
 unsafe fn remove_tail(path: *mut c_char, pend: *mut c_char, dirname: *const c_char) -> *mut c_char {
     unsafe {
-        let len = c_strlen(dirname);
+        let len = strlen(dirname);
         if (pend as usize) > (path as usize) + len {
             let new_tail = pend.sub(len + 1);
             if path_cmp(p_fic != 0, new_tail, dirname, len) == 0
@@ -879,7 +879,7 @@ pub unsafe extern "C" fn vim_env_iter_rev(
 ) -> *const c_void {
     unsafe {
         let varend = if iter.is_null() {
-            val.add(c_strlen(val)).sub(1)
+            val.add(strlen(val)).sub(1)
         } else {
             iter.cast::<c_char>()
         };
@@ -1050,7 +1050,7 @@ pub unsafe extern "C" fn home_replace(
         let dirlen = if HOMEDIR.is_null() {
             0
         } else {
-            c_strlen(HOMEDIR)
+            strlen(HOMEDIR)
         };
 
         #[cfg(windows)]
@@ -1068,7 +1068,7 @@ pub unsafe extern "C" fn home_replace(
         if !homedir_env_mod.is_null() && *homedir_env_mod == b'~' as c_char {
             must_free = true;
             let mut usedlen: usize = 0;
-            let mut flen = c_strlen(homedir_env_mod);
+            let mut flen = strlen(homedir_env_mod);
             let mut fbuf: *mut c_char = ptr::null_mut();
             let _ = modify_fname(
                 c":p".as_ptr().cast_mut(),
@@ -1079,7 +1079,7 @@ pub unsafe extern "C" fn home_replace(
                 &raw mut flen,
                 false,
             );
-            flen = c_strlen(homedir_env_mod);
+            flen = strlen(homedir_env_mod);
             assert_ne!(homedir_env_mod, homedir_env);
             if flen > 0 && vim_ispathsep(c_int::from(*homedir_env_mod.add(flen - 1) as u8)) {
                 *homedir_env_mod.add(flen - 1) = NUL;
@@ -1089,7 +1089,7 @@ pub unsafe extern "C" fn home_replace(
         let envlen = if homedir_env_mod.is_null() {
             0
         } else {
-            c_strlen(homedir_env_mod)
+            strlen(homedir_env_mod)
         };
 
         if !one {
@@ -1165,7 +1165,7 @@ pub unsafe extern "C" fn home_replace_save(buf: *mut buf_T, src: *const c_char) 
     unsafe {
         let mut len: usize = 3;
         if !src.is_null() {
-            len += c_strlen(src);
+            len += strlen(src);
         }
         let dst = xmalloc(len).cast::<c_char>();
         let _ = home_replace(buf, src, dst, len, true);
@@ -1202,7 +1202,7 @@ pub unsafe extern "C" fn os_setenv_append_path(fname: *const c_char) -> bool {
         assert!((tail as usize) >= (fname as usize) && dirlen + 1 < MAXPATHL);
         let _ = xmemcpyz(buf.cast(), fname.cast(), dirlen);
         let path = os_getenv(c"PATH".as_ptr());
-        let pathlen = if path.is_null() { 0 } else { c_strlen(path) };
+        let pathlen = if path.is_null() { 0 } else { strlen(path) };
         let newlen = pathlen + dirlen + 2;
         let mut retval = false;
         if newlen < MAX_ENVPATHLEN {

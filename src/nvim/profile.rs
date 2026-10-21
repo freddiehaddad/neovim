@@ -6,7 +6,7 @@ use crate::eval::typval::{dict_T, dictitem_T, list_T, listitem_T, typval_T};
 use crate::eval::userfunc::{func_tbl_get, funcline, get_current_funccal, ufunc_T};
 use crate::eval::vars::{VV_PROFILING, set_vim_var_nr};
 use crate::event::r#loop::uv_err_name;
-use crate::ex_docmd::{exarg_T, exarg_T as exarg_Full};
+use crate::ex_docmd::exarg_T;
 use crate::fileio::{FILE, fclose, fopen, fprintf, vim_fgets};
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
@@ -369,7 +369,7 @@ pub unsafe extern "C" fn ex_profile(eap: *mut exarg_T) {
         } else if arg_bytes == b"dump" {
             profile_dump();
         } else {
-            ex_breakadd(eap.cast::<exarg_Full>());
+            ex_breakadd(eap.cast::<exarg_T>());
         }
     }
 }

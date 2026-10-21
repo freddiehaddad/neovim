@@ -302,7 +302,7 @@ pub unsafe fn set_sourcing_lnum(lnum: linenr_T) {
     }
 }
 
-use crate::map::{empty_map, empty_set, map_get_string_int};
+use crate::map::{empty_map, empty_set, map_destroy, map_get_string_int, set_destroy};
 
 unsafe fn set_put_ref_string(
     set: *mut Set<NvimString>,
@@ -323,26 +323,10 @@ unsafe fn set_has_string(set: *mut Set<NvimString>, key: NvimString) -> bool {
     unsafe { mh_get_String(set, key) != MH_TOMBSTONE }
 }
 
-unsafe fn set_destroy_string(set: *mut Set<NvimString>) {
-    unsafe {
-        xfree((*set).keys.cast::<c_void>());
-        xfree((*set).h.hash.cast::<c_void>());
-        *set = empty_set();
-    }
-}
-
 unsafe fn map_put_string_int(map: *mut Map<NvimString, c_int>, key: NvimString, value: c_int) {
     unsafe {
         let val = map_put_ref_String_int(map, key, ptr::null_mut(), ptr::null_mut());
         *val = value;
-    }
-}
-
-unsafe fn map_destroy_string_int(map: *mut Map<NvimString, c_int>) {
-    unsafe {
-        set_destroy_string(&mut (*map).set);
-        xfree((*map).values.cast::<c_void>());
-        (*map).values = ptr::null_mut();
     }
 }
 
@@ -1368,8 +1352,8 @@ unsafe fn runtime_search_path_build() -> RuntimeSearchPath {
 
         pack_entries.destroy();
         after_path.destroy();
-        map_destroy_string_int(&mut pack_used);
-        set_destroy_string(&mut rtp_used);
+        map_destroy(&mut pack_used);
+        set_destroy(&mut rtp_used);
 
         search_path
     }

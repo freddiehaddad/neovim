@@ -69,10 +69,10 @@ use crate::option_vars::*;
 use crate::os::env::{expand_env, home_replace, home_replace_save, os_env_exists};
 use crate::os::fs::{
     Directory, FileInfo, TEMP_FILE_PATH_MAXLEN, UV_ENOENT, os_closedir, os_copy, os_dirname,
-    os_errno as get_errno, os_file_is_writable, os_file_owned, os_fileinfo, os_fileinfo_fd,
+    os_errno, os_file_is_writable, os_file_owned, os_fileinfo, os_fileinfo_fd,
     os_fileinfo_id_equal, os_fileinfo_size, os_free_acl, os_get_acl, os_getperm, os_isdir,
     os_isrealdir, os_mkdir, os_mkdtemp, os_open, os_path_exists, os_remove, os_rename, os_rmdir,
-    os_scandir, os_scandir_next, os_set_acl, os_set_cloexec, os_set_errno as set_errno, vim_acl_T,
+    os_scandir, os_scandir_next, os_set_acl, os_set_cloexec, os_set_errno, vim_acl_T,
 };
 #[cfg(unix)]
 use crate::os::fs::{os_fchown, os_fileinfo_link, os_setperm, s_islnk};
@@ -88,7 +88,7 @@ use crate::sha256::{context_sha256_T, sha256_finish, sha256_start, sha256_update
 use crate::shada::check_marks_read;
 use crate::state::{MODE_CMDLINE, MODE_NORMAL_BUSY};
 use crate::strings::{
-    gettext as tr, ngettext, sort_strings, strlen as c_strlen, vim_snprintf, vim_strchr,
+    tr, ngettext, sort_strings, strlen, vim_snprintf, vim_strchr,
 };
 use crate::ui::{ui_flush, ui_has};
 use crate::undo::{
@@ -736,7 +736,7 @@ pub unsafe extern "C" fn readfile(
             }
 
             if !fname.is_null() && *fname != NUL {
-                let fnamelen = c_strlen(fname);
+                let fnamelen = strlen(fname);
 
                 if fnamelen >= MAXPATHL {
                     filemess(
@@ -1452,7 +1452,7 @@ pub unsafe extern "C" fn readfile(
                                 &raw mut top,
                                 &raw mut to_size,
                             ) == usize::MAX
-                                && get_errno() != ICONV_EINVAL)
+                                && os_errno() != ICONV_EINVAL)
                                 || from_size > CONV_RESTLEN
                             {
                                 if can_retry {
@@ -2112,7 +2112,7 @@ pub unsafe extern "C" fn readfile(
                     add_quoted_fname(iobuf_ptr, IOSIZE, curbuf, sfname);
                     let mut c = false;
 
-                    let mut buflen = c_strlen(iobuf_ptr) as c_int;
+                    let mut buflen = strlen(iobuf_ptr) as c_int;
                     #[cfg(unix)]
                     {
                         if s_isfifo(perm as u64) {
@@ -2513,7 +2513,7 @@ unsafe fn next_fenc(pp: *mut *mut c_char, alloced: *mut bool) -> *mut c_char {
         let p = vim_strchr(*pp, b',' as c_int);
         let r = if p.is_null() {
             let res = enc_canonize(*pp);
-            *pp = (*pp).add(c_strlen(*pp));
+            *pp = (*pp).add(strlen(*pp));
             res
         } else {
             let len = p.offset_from(*pp) as usize;
@@ -2677,7 +2677,7 @@ pub unsafe extern "C" fn fname_msg_id(
         if len < size {
             add_quoted_fname(msg_id.add(len), size - len, buf, fname);
         }
-        let total = c_strlen(msg_id);
+        let total = strlen(msg_id);
         if total > 0 {
             *msg_id.add(total - 1) = NUL;
         }
@@ -2712,7 +2712,7 @@ pub unsafe extern "C" fn msg_add_fileformat(eol_type: c_int) -> bool {
 pub unsafe extern "C" fn msg_add_lines(insert_space: c_int, lnum: linenr_T, nchars: off_T) {
     unsafe {
         let iobuf_ptr = (&raw mut IObuff).cast::<c_char>();
-        let mut len = c_strlen(iobuf_ptr);
+        let mut len = strlen(iobuf_ptr);
         let space = if insert_space != 0 {
             c" ".as_ptr()
         } else {
@@ -2970,19 +2970,19 @@ pub unsafe extern "C" fn modname(
     unsafe {
         let retval: *mut c_char;
         let fnamelen: usize;
-        let extlen = c_strlen(ext);
+        let extlen = strlen(ext);
 
         if fname.is_null() || *fname == NUL {
             retval = xmalloc(MAXPATHL + extlen + 3).cast::<c_char>();
-            if os_dirname(retval, MAXPATHL) == FAIL || c_strlen(retval) == 0 {
+            if os_dirname(retval, MAXPATHL) == FAIL || strlen(retval) == 0 {
                 xfree(retval.cast());
                 return ptr::null_mut();
             }
             add_pathsep(retval);
-            fnamelen = c_strlen(retval);
+            fnamelen = strlen(retval);
             prepend_dot = false;
         } else {
-            fnamelen = c_strlen(fname);
+            fnamelen = strlen(fname);
             retval = xmalloc(fnamelen + extlen + 3).cast::<c_char>();
             ptr::copy_nonoverlapping(fname, retval, fnamelen + 1);
         }
@@ -3048,9 +3048,9 @@ pub unsafe extern "C" fn vim_fgets(buf: *mut c_char, size: c_int, fp: *mut FILE)
 
         let mut retval: *mut c_char;
         loop {
-            set_errno(0);
+            os_set_errno(0);
             retval = fgets(buf, size, fp);
-            if !retval.is_null() || get_errno() != EINTR || ferror(fp) == 0 {
+            if !retval.is_null() || os_errno() != EINTR || ferror(fp) == 0 {
                 break;
             }
         }
@@ -3063,9 +3063,9 @@ pub unsafe extern "C" fn vim_fgets(buf: *mut c_char, size: c_int, fp: *mut FILE)
 
             loop {
                 tbuf[tbuf.len() - 2] = NUL;
-                set_errno(0);
+                os_set_errno(0);
                 retval = fgets(tbuf.as_mut_ptr(), tbuf.len() as c_int, fp);
-                if retval.is_null() && (feof(fp) != 0 || get_errno() != EINTR) {
+                if retval.is_null() && (feof(fp) != 0 || os_errno() != EINTR) {
                     break;
                 }
                 if tbuf[tbuf.len() - 2] == NUL || tbuf[tbuf.len() - 2] == b'\n' as c_char {
@@ -3206,7 +3206,7 @@ pub unsafe extern "C" fn put_time(fd: *mut FILE, time_: time_t) -> c_int {
 
 unsafe fn rename_with_tmp(from: *const c_char, to: *const c_char) -> c_int {
     unsafe {
-        if c_strlen(from) >= MAXPATHL - 5 {
+        if strlen(from) >= MAXPATHL - 5 {
             return -1;
         }
 
@@ -3574,7 +3574,7 @@ pub unsafe extern "C" fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
             if !helpmesg {
                 mesg2 = c"".as_ptr().cast_mut();
             }
-            let tbufsize = c_strlen(path) + c_strlen(mesg) + c_strlen(mesg2) + 3;
+            let tbufsize = strlen(path) + strlen(mesg) + strlen(mesg2) + 3;
             let tbuf = xmalloc(tbufsize).cast::<c_char>();
             let tbuflen = vim_snprintf!(tbuf, tbufsize, mesg, path);
             set_vim_var_string(VV_WARNINGMSG, tbuf, tbuflen as isize);
@@ -3937,7 +3937,7 @@ unsafe fn vim_mktempdir() {
                         tmp.as_ptr(),
                     );
                 }
-                tmplen -= c_strlen(user.as_ptr());
+                tmplen -= strlen(user.as_ptr());
                 tmp[tmplen] = NUL;
             }
 
@@ -4157,7 +4157,7 @@ unsafe fn vim_settempdir(tempdir: *mut c_char) -> bool {
 
         vim_FullName(tempdir, buf, MAXPATHL, cfg!(windows));
 
-        let mut buflen = c_strlen(buf);
+        let mut buflen = strlen(buf);
         if after_pathsep(buf, buf.add(buflen)) == 0 {
             let sep_bytes = PATHSEPSTR.to_bytes_with_nul();
             ptr::copy_nonoverlapping(
@@ -4291,7 +4291,7 @@ pub unsafe extern "C" fn file_pat_to_reg_pat(
         }
 
         if pat_end.is_null() {
-            pat_end = pat.add(c_strlen(pat));
+            pat_end = pat.add(strlen(pat));
         }
 
         if pat_end == pat {
@@ -4492,7 +4492,7 @@ pub unsafe extern "C" fn read_eintr(fd: c_int, buf: *mut c_void, bufsize: usize)
             let ret = _read(fd, buf, bufsize as c_uint) as isize;
             #[cfg(not(windows))]
             let ret = read(fd, buf, bufsize);
-            if ret >= 0 || get_errno() != EINTR {
+            if ret >= 0 || os_errno() != EINTR {
                 return ret;
             }
         }
@@ -4512,7 +4512,7 @@ pub unsafe extern "C" fn write_eintr(fd: c_int, buf: *const c_void, bufsize: usi
             #[cfg(not(windows))]
             let wlen = write(fd, buf.cast::<u8>().offset(ret).cast(), rem);
             if wlen < 0 {
-                if get_errno() != EINTR {
+                if os_errno() != EINTR {
                     break;
                 }
             } else {

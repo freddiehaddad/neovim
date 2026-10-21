@@ -61,7 +61,7 @@ use crate::path::{
 use crate::spell::spell_delete_wordlist;
 use crate::statusline::get_trans_bufname;
 use crate::strings::xstrnsave;
-use crate::strings::{gettext, strcmp as c_strcmp, strlen as c_strlen, tr, vim_strchr};
+use crate::strings::{gettext, strcmp, strlen, tr, vim_strchr};
 use crate::ui::{ui_flush, ui_has};
 use crate::undo::bufIsChanged;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
@@ -280,14 +280,11 @@ use crate::buffer::BF_DUMMY;
 use crate::charset::{NL, NUL};
 use crate::eval::buffer::SEA_READONLY;
 use crate::eval::funcs::VIM_WARNING;
-use crate::event::r#loop::uv_strerror as os_strerror;
+use crate::event::r#loop::uv_strerror;
 use crate::ex_docmd::{CMOD_NOSWAPFILE, FLUSH_TYPEAHEAD};
 #[cfg(unix)]
 use crate::fileio::readlink;
-#[cfg(windows)]
-use crate::fileio::{_close as close, _lseeki64 as vim_lseek};
-#[cfg(not(windows))]
-use crate::fileio::{close, lseek as vim_lseek};
+use crate::fileio::{close_fd, vim_lseek};
 use crate::globals::IOSIZE;
 use crate::insert::ML_ALLOCATED;
 use crate::math::{FAIL, OK};
@@ -324,7 +321,7 @@ unsafe fn db_idx_ptr(dp: *mut DataBlock, idx: usize) -> *mut c_uint {
 }
 
 #[inline]
-unsafe fn c_stricmp(mut a: *const c_char, mut b: *const c_char) -> c_int {
+unsafe fn vim_stricmp(mut a: *const c_char, mut b: *const c_char) -> c_int {
     unsafe {
         loop {
             let ca = (*a as u8).to_ascii_lowercase();
@@ -339,7 +336,7 @@ unsafe fn c_stricmp(mut a: *const c_char, mut b: *const c_char) -> c_int {
 }
 
 #[inline]
-unsafe fn c_strnicmp(mut a: *const c_char, mut b: *const c_char, mut len: usize) -> c_int {
+unsafe fn vim_strnicmp(mut a: *const c_char, mut b: *const c_char, mut len: usize) -> c_int {
     unsafe {
         while len > 0 {
             let ca = (*a as u8).to_ascii_lowercase();
@@ -516,7 +513,7 @@ pub unsafe extern "C" fn ml_setname(buf: *mut buf_T) {
                 break;
             }
             if (*mfp).mf_fd >= 0 {
-                close((*mfp).mf_fd);
+                close_fd((*mfp).mf_fd);
                 (*mfp).mf_fd = -1;
             }
 
@@ -757,7 +754,7 @@ unsafe fn set_b0_fname(b0p: *mut ZeroBlock, buf: *mut buf_T) {
             );
             if (*b0p).b0_fname[0] == b'~' as c_char {
                 let retval = os_get_username((&raw mut uname).cast(), B0_UNAME_SIZE);
-                let ulen = c_strlen((&raw const uname).cast());
+                let ulen = strlen((&raw const uname).cast());
                 if retval == FAIL || ulen + flen > B0_FNAME_SIZE_CRYPT - 1 {
                     xstrlcpy(fname_ptr, (*buf).b_ffname, B0_FNAME_SIZE_CRYPT);
                 } else {
@@ -808,9 +805,9 @@ unsafe fn set_b0_dir_flag(b0p: *mut ZeroBlock, buf: *mut buf_T) {
 unsafe fn add_b0_fenc(b0p: *mut ZeroBlock, buf: *mut buf_T) {
     unsafe {
         let size = B0_FNAME_SIZE_NOCRYPT;
-        let n = c_strlen((*buf).b_p_fenc);
+        let n = strlen((*buf).b_p_fenc);
         let fname_ptr = (&raw mut (*b0p).b0_fname).cast::<c_char>();
-        if c_strlen(fname_ptr) + n + 1 > size {
+        if strlen(fname_ptr) + n + 1 > size {
             (*b0p).set_flags((*b0p).flags() & !B0_HAS_FENC);
         } else {
             ptr::copy((*buf).b_p_fenc, fname_ptr.add(size - n), n);
@@ -855,10 +852,10 @@ pub unsafe extern "C" fn ml_recover(checkext: bool) {
         if fname.is_null() {
             fname = c"".as_ptr().cast_mut();
         }
-        let len = c_strlen(fname);
+        let len = strlen(fname);
         if checkext
             && len >= 4
-            && c_strnicmp(fname.add(len - 4), c".s".as_ptr(), 2) == 0
+            && vim_strnicmp(fname.add(len - 4), c".s".as_ptr(), 2) == 0
             && !vim_strchr(
                 c"abcdefghijklmnopqrstuvw".as_ptr(),
                 ((*fname.add(len - 2) as u8).to_ascii_lowercase()) as c_int,
@@ -1365,7 +1362,7 @@ pub unsafe extern "C" fn ml_recover(checkext: bool) {
         } else {
             for i_lnum in 1..=lnum {
                 let p_line = xstrnsave(ml_get(i_lnum), ml_get_len(i_lnum) as usize);
-                let cmp = c_strcmp(p_line, ml_get(i_lnum + lnum));
+                let cmp = strcmp(p_line, ml_get(i_lnum + lnum));
                 xfree(p_line.cast());
                 if cmp != 0 {
                     changed_internal(curbuf);
@@ -1505,7 +1502,7 @@ pub unsafe extern "C" fn recover_names(
         }
 
         let mut dir_name = NvimString {
-            data: xmalloc(c_strlen(p_dir) + 1).cast(),
+            data: xmalloc(strlen(p_dir) + 1).cast(),
             size: 0,
         };
         let mut dirp = p_dir;
@@ -1754,7 +1751,7 @@ pub unsafe extern "C" fn swapfile_dict(fname: *const c_char, d: *mut dict_T) {
             } else {
                 tv_dict_add_str_len(d, c"error".as_ptr(), 5, c"Cannot read file".as_ptr(), 16);
             }
-            close(fd);
+            close_fd(fd);
         } else {
             tv_dict_add_str_len(d, c"error".as_ptr(), 5, c"Cannot open file".as_ptr(), 16);
         }
@@ -1870,7 +1867,7 @@ unsafe fn swapfile_info(fname: *mut c_char, msg: &mut Vec<u8>) -> time_t {
             } else {
                 sb_push_cstr(msg, tr(c"         [cannot be read]"));
             }
-            close(fd);
+            close_fd(fd);
         } else {
             sb_push_cstr(msg, tr(c"         [cannot be opened]"));
         }
@@ -1893,7 +1890,7 @@ unsafe fn swapfile_unchanged(fname: *mut c_char) -> bool {
         if read_eintr(fd, (&raw mut b0).cast(), size_of::<ZeroBlock>())
             != size_of::<ZeroBlock>() as isize
         {
-            close(fd);
+            close_fd(fd);
             return false;
         }
 
@@ -1911,7 +1908,7 @@ unsafe fn swapfile_unchanged(fname: *mut c_char) -> bool {
             os_get_hostname((&raw mut hostname).cast(), B0_HNAME_SIZE);
             hostname[B0_HNAME_SIZE - 1] = NUL;
             b0.b0_hname[B0_HNAME_SIZE - 1] = NUL;
-            if c_stricmp(
+            if vim_stricmp(
                 (&raw const b0.b0_hname).cast(),
                 (&raw const hostname).cast(),
             ) != 0
@@ -1924,7 +1921,7 @@ unsafe fn swapfile_unchanged(fname: *mut c_char) -> bool {
         {
             ret = false;
         }
-        close(fd);
+        close_fd(fd);
         ret
     }
 }
@@ -1953,11 +1950,11 @@ unsafe fn recov_file_names(names: *mut *mut c_char, path: *mut c_char, prepend_d
             let prev = *names.add((num_names - 1) as usize);
             let cur = *names.add(num_names as usize);
             let mut p = prev;
-            let i = c_strlen(prev) as isize - c_strlen(cur) as isize;
+            let i = strlen(prev) as isize - strlen(cur) as isize;
             if i > 0 {
                 p = p.offset(i);
             }
-            if c_strcmp(p, cur) != 0 {
+            if strcmp(p, cur) != 0 {
                 num_names += 1;
             } else {
                 xfree(cur.cast());
@@ -2267,7 +2264,7 @@ unsafe fn ml_append_int(
         }
 
         if len == 0 {
-            len = c_strlen(line) as colnr_T + 1;
+            len = strlen(line) as colnr_T + 1;
         }
         let mut space_needed = i64::from(len) + INDEX_SIZE as i64;
 
@@ -2722,7 +2719,7 @@ pub unsafe extern "C" fn ml_add_deleted_len_buf(buf: *mut buf_T, ptr: *mut c_cha
         if inhibit_delete_count != 0 {
             return;
         }
-        let maxlen = c_strlen(ptr) as isize;
+        let maxlen = strlen(ptr) as isize;
         if len == -1 || len > maxlen {
             len = maxlen;
         }
@@ -2768,7 +2765,7 @@ pub unsafe extern "C" fn ml_replace_buf(
 ) -> c_int {
     unsafe {
         let len = if !line.is_null() {
-            c_strlen(line)
+            strlen(line)
         } else {
             usize::MAX
         };
@@ -3425,7 +3422,7 @@ pub unsafe extern "C" fn resolve_symlink(fname: *const c_char, buf: *mut c_char)
                 xstrlcpy(tmp_ptr, buf, MAXPATHL);
             } else {
                 let tail = path_tail(tmp_ptr);
-                if c_strlen(tail) + c_strlen(buf) >= MAXPATHL {
+                if strlen(tail) + strlen(buf) >= MAXPATHL {
                     return FAIL;
                 }
                 let rem = MAXPATHL - tail.offset_from(tmp_ptr) as usize;
@@ -3460,7 +3457,7 @@ pub unsafe extern "C" fn makeswapname(
             }
         }
 
-        let len = c_strlen(dir_name);
+        let len = strlen(dir_name);
         let s = dir_name.add(len);
         if after_pathsep(dir_name, s) != 0 && len > 1 && *s.offset(-1) == *s.offset(-2) {
             let mut r: *mut c_char = ptr::null_mut();
@@ -3499,7 +3496,7 @@ pub unsafe extern "C" fn get_file_in_dir(fname: *mut c_char, dname: *mut c_char)
             return xmemdupz(fname.cast(), n).cast();
         }
 
-        let dname_len = c_strlen(dname);
+        let dname_len = strlen(dname);
         if *dname == b'.' as c_char && vim_ispathsep(*dname.add(1) as u8 as c_int) {
             if tail.data == fname {
                 retval = concat_fnames(
@@ -3640,7 +3637,7 @@ unsafe fn findswapname(
 ) -> *mut c_char {
     unsafe {
         let buf_fname = (*buf).b_fname;
-        let dir_len = c_strlen(*dirp) + 1;
+        let dir_len = strlen(*dirp) + 1;
         let dir_name = xmalloc(dir_len).cast::<c_char>();
         copy_option_part(dirp, dir_name, dir_len, c",".as_ptr());
 
@@ -3650,7 +3647,7 @@ unsafe fn findswapname(
             if fname.is_null() {
                 break;
             }
-            let n = c_strlen(fname);
+            let n = strlen(fname);
             if n == 0 {
                 xfree(fname.cast());
                 fname = ptr::null_mut();
@@ -3721,7 +3718,7 @@ unsafe fn findswapname(
                             }
                         }
                     }
-                    close(fd);
+                    close_fd(fd);
                 }
 
                 if !differ
@@ -3857,7 +3854,7 @@ unsafe fn findswapname(
                 semsg!(
                     tr(c"E303: Unable to create directory \"%s\" for swap file, recovery impossible: %s"),
                     failed_dir,
-                    os_strerror(ret),
+                    uv_strerror(ret),
                 );
                 xfree(failed_dir.cast());
             }
@@ -3904,11 +3901,11 @@ unsafe fn fnamecmp_ino(fname_c: *mut c_char, fname_s: *mut c_char, ino_block0: c
         let retval_c = vim_FullName(fname_c, buf_c_ptr, MAXPATHL, true);
         let retval_s = vim_FullName(fname_s, buf_s_ptr, MAXPATHL, true);
         if retval_c == OK && retval_s == OK {
-            return c_strcmp(buf_c_ptr, buf_s_ptr) != 0;
+            return strcmp(buf_c_ptr, buf_s_ptr) != 0;
         }
 
         if ino_s == 0 && ino_c == 0 && retval_c == FAIL && retval_s == FAIL {
-            return c_strcmp(fname_c, fname_s) != 0;
+            return strcmp(fname_c, fname_s) != 0;
         }
         true
     }

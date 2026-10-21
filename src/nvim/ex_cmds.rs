@@ -125,7 +125,7 @@ use crate::os::fs::{
 };
 use crate::os::input::{fast_breakcheck, line_breakcheck, os_breakcheck};
 use crate::os::shell::call_shell;
-use crate::os::time::{c_time as time, os_time};
+use crate::os::time::{c_time, os_time};
 use crate::path::{fix_fname, invocation_path_tail, path_fix_case};
 use crate::plines::{linetabsize_col, plines_m_win_fill};
 use crate::profile::{profile_passed_limit, profile_setlimit, profile_zero, proftime_T};
@@ -3277,7 +3277,7 @@ pub unsafe extern "C" fn do_ecmd(
                 msg_scrolled_ign = false;
             }
 
-            (*curbuf).b_last_used = time(ptr::null_mut());
+            (*curbuf).b_last_used = c_time(ptr::null_mut());
 
             if !command.is_null() {
                 do_cmdline(command, None, ptr::null_mut(), DOCMD_VERBOSE);

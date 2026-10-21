@@ -35,11 +35,11 @@ use crate::extmark::{
 };
 use crate::globals::*;
 use crate::grid::schar_high;
-use crate::highlight::{OptionalKeys, set_destroy};
+use crate::highlight::OptionalKeys;
 use crate::lua::converter::{Boolean, LUA_NOREF, LuaRef};
 use crate::map::{
     MH_TOMBSTONE, MHPutStatus, MapHash, Set, map_put_ref_String_int, mh_delete_uint32_t,
-    mh_get_String, mh_get_ptr_t, mh_get_uint32_t, mh_put_uint32_t, ptr_t,
+    mh_get_String, mh_get_uint32_t, mh_put_uint32_t, ptr_t, set_destroy, set_has_ptr, set_put_ptr,
 };
 use crate::marktree::{
     DECOR_HIGHLIGHT_INLINE_INIT, DECOR_PRIORITY_BASE, DecorExt, DecorInlineData,
@@ -49,7 +49,7 @@ use crate::marktree::{
 };
 use crate::mbyte::{mb_string2cells, utfc_ptr2schar};
 use crate::memline::ml_get_buf_len;
-use crate::memory::{Arena, strequal_str as strequal, xfree};
+use crate::memory::{Arena, strequal_str, xfree};
 use crate::r#move::changed_window_setting;
 use crate::msgpack_rpc::packer::Integer;
 use crate::sign::init_sign_text;
@@ -187,13 +187,6 @@ unsafe fn set_del_u32(set: *mut Set<u32>, mut key: u32) {
     unsafe {
         let _ = mh_delete_uint32_t(set, &mut key);
     }
-}
-
-use crate::map::set_put_ptr;
-
-#[inline]
-pub unsafe fn set_has_ptr(set: *mut Set<ptr_t>, key: ptr_t) -> bool {
-    unsafe { mh_get_ptr_t(set, key) != MH_TOMBSTONE }
 }
 
 #[inline]
@@ -566,13 +559,13 @@ pub unsafe extern "C" fn nvim_buf_get_extmarks(
 
         let mut type_filter = kExtmarkNone;
         if has_key(mask, KEYSET_OPTIDX_get_extmarks__type) {
-            if strequal((*opts).type_.data, "sign") {
+            if strequal_str((*opts).type_.data, "sign") {
                 type_filter = kExtmarkSign;
-            } else if strequal((*opts).type_.data, "virt_text") {
+            } else if strequal_str((*opts).type_.data, "virt_text") {
                 type_filter = kExtmarkVirtText;
-            } else if strequal((*opts).type_.data, "virt_lines") {
+            } else if strequal_str((*opts).type_.data, "virt_lines") {
                 type_filter = kExtmarkVirtLines;
-            } else if strequal((*opts).type_.data, "highlight") {
+            } else if strequal_str((*opts).type_.data, "highlight") {
                 type_filter = kExtmarkHighlight;
             } else {
                 api_err_exp(
@@ -998,15 +991,15 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
 
             if has_key(mask, KEYSET_OPTIDX_set_extmark__virt_text_pos) {
                 let str_val = (*opts).virt_text_pos;
-                if strequal(str_val.data, "eol") {
+                if strequal_str(str_val.data, "eol") {
                     virt_text.pos = kVPosEndOfLine;
-                } else if strequal(str_val.data, "overlay") {
+                } else if strequal_str(str_val.data, "overlay") {
                     virt_text.pos = kVPosOverlay;
-                } else if strequal(str_val.data, "right_align") {
+                } else if strequal_str(str_val.data, "right_align") {
                     virt_text.pos = kVPosRightAlign;
-                } else if strequal(str_val.data, "eol_right_align") {
+                } else if strequal_str(str_val.data, "eol_right_align") {
                     virt_text.pos = kVPosEndOfLineRightAlign;
-                } else if strequal(str_val.data, "inline") {
+                } else if strequal_str(str_val.data, "inline") {
                     virt_text.pos = kVPosInline;
                 } else {
                     api_err_invalid(err, c"virt_text_pos".as_ptr(), str_val.data, 0, true);
@@ -1029,11 +1022,11 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
 
             if has_key(mask, KEYSET_OPTIDX_set_extmark__hl_mode) {
                 let str_val = (*opts).hl_mode;
-                if strequal(str_val.data, "replace") {
+                if strequal_str(str_val.data, "replace") {
                     virt_text.hl_mode = kHlModeReplace;
-                } else if strequal(str_val.data, "combine") {
+                } else if strequal_str(str_val.data, "combine") {
                     virt_text.hl_mode = kHlModeCombine;
-                } else if strequal(str_val.data, "blend") {
+                } else if strequal_str(str_val.data, "blend") {
                     if virt_text.pos == kVPosInline {
                         api_set_error!(
                             err,
@@ -1058,13 +1051,13 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
             let mut virt_lines_overflow = kVLOverflowTrunc;
             if has_key(mask, KEYSET_OPTIDX_set_extmark__virt_lines_overflow) {
                 let str_val = (*opts).virt_lines_overflow;
-                if strequal(str_val.data, "scroll") {
+                if strequal_str(str_val.data, "scroll") {
                     virt_lines_overflow = kVLOverflowScroll;
-                } else if strequal(str_val.data, "wrap") {
+                } else if strequal_str(str_val.data, "wrap") {
                     virt_lines_overflow = kVLOverflowWrap;
-                } else if strequal(str_val.data, "auto") {
+                } else if strequal_str(str_val.data, "auto") {
                     virt_lines_overflow = kVLOverflowAuto;
-                } else if !strequal(str_val.data, "trunc") {
+                } else if !strequal_str(str_val.data, "trunc") {
                     api_err_invalid(err, c"virt_lines_overflow".as_ptr(), str_val.data, 0, true);
                     break 'error;
                 }

@@ -36,7 +36,7 @@ use crate::kvec::StringBuilder;
 use crate::lua::converter::{Boolean, LUA_NOREF, LuaRef};
 use crate::lua::executor::{api_free_luaref, api_new_luaref};
 use crate::mbyte::mb_islower;
-use crate::memory::{Arena, arena_alloc, arena_memdupz, strequal_str as strequal, xcalloc, xfree};
+use crate::memory::{Arena, arena_alloc, arena_memdupz, strequal_str, xcalloc, xfree};
 use crate::msgpack_rpc::packer::Integer;
 use crate::regexp::{RE_MAGIC, vim_regcomp};
 use crate::register::valid_yank_reg;
@@ -1090,17 +1090,17 @@ pub unsafe extern "C" fn nvim_cmd(
                 if has_key(mods_mask, KEYSET_OPTIDX_cmd_mods__split) {
                     if *mods.split.data == NUL {
                         // Empty string
-                    } else if strequal(mods.split.data, "aboveleft")
-                        || strequal(mods.split.data, "leftabove")
+                    } else if strequal_str(mods.split.data, "aboveleft")
+                        || strequal_str(mods.split.data, "leftabove")
                     {
                         cmod.cmod_split |= WSP_ABOVE;
-                    } else if strequal(mods.split.data, "belowright")
-                        || strequal(mods.split.data, "rightbelow")
+                    } else if strequal_str(mods.split.data, "belowright")
+                        || strequal_str(mods.split.data, "rightbelow")
                     {
                         cmod.cmod_split |= WSP_BELOW;
-                    } else if strequal(mods.split.data, "topleft") {
+                    } else if strequal_str(mods.split.data, "topleft") {
                         cmod.cmod_split |= WSP_TOP;
-                    } else if strequal(mods.split.data, "botright") {
+                    } else if strequal_str(mods.split.data, "botright") {
                         cmod.cmod_split |= WSP_BOT;
                     } else {
                         api_err_invalid(err, c"mods.split".as_ptr(), c"".as_ptr(), 0, true);

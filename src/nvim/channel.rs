@@ -227,7 +227,7 @@ fn put_event_2(
     }
 }
 
-use crate::api::private::helpers::add_c as array_add;
+use crate::api::private::helpers::add_c;
 
 /// Teardown the module.
 #[unsafe(no_mangle)]
@@ -1441,7 +1441,7 @@ pub unsafe extern "C" fn channel_info(id: u64, arena: *mut Arena) -> Dict {
                         argv = arena_array(arena, n);
                     }
                     for i in 0..n {
-                        array_add(
+                        add_c(
                             &mut argv,
                             Object {
                                 obj_type: ObjectType::kObjectTypeString,
@@ -1584,7 +1584,7 @@ pub unsafe extern "C" fn channel_all_info(arena: *mut Arena) -> Array {
 
         for i in 0..size {
             let info = channel_info((*items.add(i)) as u64, arena);
-            array_add(
+            add_c(
                 &mut ret,
                 Object {
                     obj_type: ObjectType::kObjectTypeDict,

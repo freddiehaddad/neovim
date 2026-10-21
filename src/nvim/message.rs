@@ -60,7 +60,7 @@ use crate::mbyte::{
 };
 use crate::memory::{
     Arena, arena_alloc, strequal, xcalloc, xfree, xmalloc, xmemdupz, xmemrchr, xstrdup, xstrlcat,
-    xstrlcpy, xstrnlen as strnlen,
+    xstrlcpy, xstrnlen,
 };
 use crate::mouse::{MOUSE_SETPOS, jump_to_mouse, setmouse};
 use crate::msgpack_rpc::packer::Integer;
@@ -3099,7 +3099,7 @@ unsafe fn msg_puts_display(str_: *const c_char, maxlen: c_int, hl_id: c_int, rec
             let len = if maxlen < 0 {
                 CStr::from_ptr(str_).to_bytes().len()
             } else {
-                strnlen(str_, maxlen as usize)
+                xstrnlen(str_, maxlen as usize)
             };
             ga_concat_len(&raw mut msg_ext_last_chunk, str_, len);
 

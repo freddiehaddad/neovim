@@ -224,11 +224,8 @@ static mut REALLY_EXITING: bool = false;
 
 use crate::charset::NUL;
 use crate::extmark::{kFalse, kNone, kTrue};
-#[cfg(not(windows))]
 #[cfg(windows)]
-use crate::fileio::close;
-#[cfg(windows)]
-use crate::fileio::{_close as close, dup2};
+use crate::fileio::{close_fd, dup2};
 use crate::globals::IOSIZE;
 use crate::os::fs::MAXPATHL;
 
@@ -488,14 +485,14 @@ pub unsafe extern "C" fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int
             #[cfg(windows)]
             if startup_stderr_fd >= 0 {
                 dup2(startup_stderr_fd, STDERR_FILENO);
-                close(startup_stderr_fd);
+                close_fd(startup_stderr_fd);
             }
             mainerr((&raw const IObuff).cast(), ptr::null(), ptr::null());
         }
 
         #[cfg(windows)]
         if startup_stderr_fd >= 0 {
-            close(startup_stderr_fd);
+            close_fd(startup_stderr_fd);
         }
 
         time_msg_if_enabled(c"expanding arguments".as_ptr());

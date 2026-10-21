@@ -25,7 +25,7 @@ use crate::globals::*;
 use crate::hashtab::{hash_init, hashitem_empty};
 use crate::map::{MH_TOMBSTONE, map_del_int_ptr_t, map_put_ref_int_ptr_t, mh_get_int};
 use crate::mark::{fmark_T, fmarkv_T};
-use crate::memory::{Arena, strequal_str as strequal, xfree, xstrdup};
+use crate::memory::{Arena, strequal_str, xfree, xstrdup};
 use crate::msgpack_rpc::packer::handle_T;
 use crate::normal::visualinfo_T;
 use crate::option::buf_copy_options;
@@ -550,19 +550,19 @@ pub unsafe extern "C" fn ctx_from_dict(
             if item.value.obj_type != ObjectType::kObjectTypeArray {
                 continue;
             }
-            if strequal(item.key.data, "regs") {
+            if strequal_str(item.key.data, "regs") {
                 types |= kCtxRegs;
                 (*ctx).regs = array_to_string(item.value.data.array, err);
-            } else if strequal(item.key.data, "jumps") {
+            } else if strequal_str(item.key.data, "jumps") {
                 types |= kCtxJumps;
                 (*ctx).jumps = array_to_string(item.value.data.array, err);
-            } else if strequal(item.key.data, "bufs") {
+            } else if strequal_str(item.key.data, "bufs") {
                 types |= kCtxBufs;
                 (*ctx).bufs = array_to_string(item.value.data.array, err);
-            } else if strequal(item.key.data, "gvars") {
+            } else if strequal_str(item.key.data, "gvars") {
                 types |= kCtxGVars;
                 (*ctx).gvars = array_to_string(item.value.data.array, err);
-            } else if strequal(item.key.data, "funcs") {
+            } else if strequal_str(item.key.data, "funcs") {
                 types |= kCtxFuncs;
                 (*ctx).funcs = copy_object(item.value, ptr::null_mut()).data.array;
             }

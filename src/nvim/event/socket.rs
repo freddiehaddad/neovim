@@ -16,7 +16,7 @@ use crate::memory::{xfree, xstrdup, xstrlcpy};
 use crate::os::fs::{UV_EINVAL, UV_ENOENT, os_path_exists, os_remove};
 use crate::os::time::os_hrtime;
 use crate::path::path_tail;
-use crate::strings::{gettext, strlen as c_strlen, strrchr, vim_snprintf};
+use crate::strings::{gettext, strlen, strrchr, vim_snprintf};
 
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -363,7 +363,7 @@ pub unsafe extern "C" fn socket_watcher_start(
                     let mut sas_len = size_of::<SockaddrStorage>() as c_int;
                     uv_tcp_getsockname(uv_ptr.cast(), (&raw mut sas).cast(), &raw mut sas_len);
                     let port = u16::from_be_bytes([sas.bytes[2], sas.bytes[3]]);
-                    let len = c_strlen(addr);
+                    let len = strlen(addr);
                     vim_snprintf!(
                         addr.add(len),
                         ADDRESS_MAX_SIZE - len,
@@ -376,7 +376,7 @@ pub unsafe extern "C" fn socket_watcher_start(
             }
             uv_freeaddrinfo((*watcher_tcp_addrinfo_ptr(watcher)).cast());
         } else {
-            result = uv_pipe_bind2(uv_ptr.cast(), addr, c_strlen(addr), UV_PIPE_NO_TRUNCATE);
+            result = uv_pipe_bind2(uv_ptr.cast(), addr, strlen(addr), UV_PIPE_NO_TRUNCATE);
 
             // If bind failed with EACCES/EADDRINUSE, check if socket is stale
             if result == UV_EACCES || result == UV_EADDRINUSE {
@@ -412,7 +412,7 @@ pub unsafe extern "C" fn socket_watcher_start(
 
                         // Retry bind with fresh handle
                         result =
-                            uv_pipe_bind2(uv_ptr.cast(), addr, c_strlen(addr), UV_PIPE_NO_TRUNCATE);
+                            uv_pipe_bind2(uv_ptr.cast(), addr, strlen(addr), UV_PIPE_NO_TRUNCATE);
                     }
                 } else {
                     logmsg!(

@@ -182,7 +182,7 @@ pub struct KeyDict_highlight_cterm {
 type NSHlAttr = [c_int; HLF_COUNT];
 
 use crate::api::private::helpers::has_key;
-use crate::map::{empty_map_hash, pmap_get_int};
+use crate::map::{empty_map_hash, map_destroy, pmap_get_int, set_destroy};
 
 static mut hlstate_active: bool = false;
 static mut attr_entries: Set<HlEntry> = Set {
@@ -312,27 +312,6 @@ unsafe fn map_put_color(map: *mut Map<ColorKey, ColorItem>, key: ColorKey, val: 
     unsafe {
         let ptr = map_put_ref_ColorKey_ColorItem(map, key, ptr::null_mut(), ptr::null_mut());
         *ptr = val;
-    }
-}
-
-#[inline]
-pub unsafe fn set_destroy<K>(set: *mut Set<K>) {
-    unsafe {
-        xfree((*set).keys.cast());
-        xfree((*set).h.hash.cast());
-        *set = Set {
-            h: empty_map_hash(),
-            keys: ptr::null_mut(),
-        };
-    }
-}
-
-#[inline]
-pub unsafe fn map_destroy<K, V>(map: *mut Map<K, V>) {
-    unsafe {
-        set_destroy(&raw mut (*map).set);
-        xfree((*map).values.cast());
-        (*map).values = ptr::null_mut();
     }
 }
 

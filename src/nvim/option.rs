@@ -130,8 +130,8 @@ use crate::runtime::{
 use crate::spell::{compile_cap_prog, did_set_spell_option, init_spell_chartab, parse_spelllang};
 use crate::spellsuggest::{spell_apply_sps, spell_check_sps};
 use crate::strings::{
-    c_strcpy, concat_str, gettext, gettext as tr, sort_strings, strchr, strcmp as c_strcmp,
-    strlen as c_strlen, strncmp as c_strncmp, strstr, vim_snprintf, vim_snprintf_safelen,
+    c_strcpy, concat_str, gettext, tr, sort_strings, strchr, strcmp,
+    strlen, strncmp, strstr, vim_snprintf, vim_snprintf_safelen,
     vim_strchr, vim_strsave_escaped,
 };
 use crate::syntax::synblock_T;
@@ -709,7 +709,7 @@ unsafe fn set_init_default_shell() {
         let shell = os_getenv(c"SHELL".as_ptr());
         if !shell.is_null() {
             if !vim_strchr(shell, b' ' as c_int).is_null() {
-                let len = c_strlen(shell) + 3;
+                let len = strlen(shell) + 3;
                 let cmd = xmalloc(len).cast::<c_char>();
                 vim_snprintf!(cmd, len, c"\"%s\"".as_ptr(), shell);
                 set_string_default(kOptShell, cmd, true);
@@ -778,7 +778,7 @@ unsafe fn set_init_default_backupskip() {
                 let mut has_trailing_path_sep = false;
 
                 if plen == 0 {
-                    plen = c_strlen(p);
+                    plen = strlen(p);
                     if after_pathsep(p, p.add(plen)) != 0 {
                         has_trailing_path_sep = true;
                     }
@@ -841,7 +841,7 @@ unsafe fn set_init_default_cdpath() {
             return;
         }
 
-        let buf = xmalloc(2 * c_strlen(cdpath) + 2).cast::<c_char>();
+        let buf = xmalloc(2 * strlen(cdpath) + 2).cast::<c_char>();
         *buf = b',' as c_char;
         let mut j: usize = 1;
         let mut i: usize = 0;
@@ -914,7 +914,7 @@ pub unsafe extern "C" fn set_init_1(clean_arg: bool) {
         set_init_default_cdpath();
 
         let mut backupdir = stdpaths_user_state_subpath(c"backup".as_ptr(), 2, true);
-        let backupdir_len = c_strlen(backupdir);
+        let backupdir_len = strlen(backupdir);
         backupdir = xrealloc(backupdir.cast(), backupdir_len + 3).cast::<c_char>();
         ptr::copy(backupdir, backupdir.add(2), backupdir_len + 1);
         ptr::copy_nonoverlapping(b".,".as_ptr().cast::<c_char>(), backupdir, 2);
@@ -1121,7 +1121,7 @@ unsafe fn find_dup_item(
             if ((flags & kOptFlagComma) == 0
                 || s == origval
                 || (*s.offset(-1) == b',' as c_char && (bs & 1) == 0))
-                && c_strncmp(s, newval, newvallen) == 0
+                && strncmp(s, newval, newvallen) == 0
                 && ((flags & kOptFlagComma) == 0
                     || *s.add(newvallen) == b',' as c_char
                     || *s.add(newvallen) == NUL)
@@ -1252,7 +1252,7 @@ pub unsafe extern "C" fn set_helplang_default(lang: *const c_char) {
             return;
         }
 
-        let lang_len = c_strlen(lang);
+        let lang_len = strlen(lang);
         if lang_len < 2 {
             return;
         }
@@ -1318,9 +1318,9 @@ unsafe fn stropt_copy_value(
     unsafe {
         let mut arg = *argp;
 
-        let mut newlen = c_strlen(arg) + 1;
+        let mut newlen = strlen(arg) + 1;
         if op != OP_NONE {
-            newlen += c_strlen(origval) + 1;
+            newlen += strlen(origval) + 1;
         }
         let newval = xmalloc(newlen).cast::<c_char>();
         let mut s = newval;
@@ -1374,9 +1374,9 @@ unsafe fn stropt_expand_envvar(
         }
 
         xfree(newval.cast());
-        let mut newlen = (c_strlen(s) as u32) + 1;
+        let mut newlen = (strlen(s) as u32) + 1;
         if op != OP_NONE {
-            newlen += (c_strlen(origval) as u32) + 1;
+            newlen += (strlen(origval) as u32) + 1;
         }
         newval = xmalloc(newlen as usize).cast::<c_char>();
         c_strcpy(newval, s);
@@ -1396,7 +1396,7 @@ unsafe fn stropt_concat_with_comma(
         let mut len: usize;
         let comma = usize::from((flags & kOptFlagComma) != 0 && *origval != NUL && *newval != NUL);
         if op == OP_ADDING {
-            len = c_strlen(origval);
+            len = strlen(origval);
             if comma != 0
                 && len > 1
                 && (flags & kOptFlagOneComma) == kOptFlagOneComma
@@ -1405,11 +1405,11 @@ unsafe fn stropt_concat_with_comma(
             {
                 len -= 1;
             }
-            ptr::copy(newval, newval.add(len + comma), c_strlen(newval) + 1);
+            ptr::copy(newval, newval.add(len + comma), strlen(newval) + 1);
             ptr::copy(origval, newval, len);
         } else {
-            len = c_strlen(newval);
-            ptr::copy(origval, newval.add(len + comma), c_strlen(origval) + 1);
+            len = strlen(newval);
+            ptr::copy(origval, newval.add(len + comma), strlen(origval) + 1);
         }
         if comma != 0 {
             *newval.add(len) = b',' as c_char;
@@ -1440,7 +1440,7 @@ unsafe fn stropt_remove_val(
             }
             let src = strval.add(len as usize);
             let dst_off = strval.offset_from(origval) as usize;
-            ptr::copy(src, newval.add(dst_off), c_strlen(src) + 1);
+            ptr::copy(src, newval.add(dst_off), strlen(src) + 1);
         }
     }
 }
@@ -1457,11 +1457,11 @@ unsafe fn find_key_item(
 
         while *p != NUL {
             if (p == src || *p.offset(-1) == b',' as c_char)
-                && c_strncmp(p, key, keylen as usize) == 0
+                && strncmp(p, key, keylen as usize) == 0
             {
                 let mut end = vim_strchr(p, b',' as c_int);
                 if end.is_null() {
-                    end = p.add(c_strlen(p));
+                    end = p.add(strlen(p));
                 }
                 *itemlenp = end.offset_from(p);
                 return p;
@@ -1477,10 +1477,10 @@ unsafe fn remove_comma_item(str_arg: *const c_char, item: *mut c_char, itemlen: 
     unsafe {
         if *item.offset(itemlen) == b',' as c_char {
             let src = item.offset(itemlen + 1);
-            ptr::copy(src, item, c_strlen(src) + 1);
+            ptr::copy(src, item, strlen(src) + 1);
         } else if (item as *const c_char) > str_arg && *item.offset(-1) == b',' as c_char {
             let src = item.offset(itemlen);
-            ptr::copy(src, item.offset(-1), c_strlen(src) + 1);
+            ptr::copy(src, item.offset(-1), strlen(src) + 1);
         } else {
             *item = NUL;
         }
@@ -1520,7 +1520,7 @@ unsafe fn remove_key_item(
 /// Append a comma-separated item to the end of "str" in-place.
 unsafe fn append_item(str_arg: *mut c_char, item: *mut c_char, item_len: isize) {
     unsafe {
-        let mut len = c_strlen(str_arg) as isize;
+        let mut len = strlen(str_arg) as isize;
         if len > 0 {
             *str_arg.offset(len) = b',' as c_char;
             len += 1;
@@ -1533,7 +1533,7 @@ unsafe fn append_item(str_arg: *mut c_char, item: *mut c_char, item_len: isize) 
 /// Prepend a comma-separated item to the beginning of "str" in-place.
 unsafe fn prepend_item(str_arg: *mut c_char, item: *mut c_char, item_len: isize) {
     unsafe {
-        let len = c_strlen(str_arg) as isize;
+        let len = strlen(str_arg) as isize;
         let comma: isize = if len > 0 { 1 } else { 0 };
 
         ptr::copy(
@@ -1569,7 +1569,7 @@ unsafe fn stropt_handle_keymatch(
         loop {
             let p = vim_strchr(item_start, b',' as c_int);
             let item_len = if p.is_null() {
-                c_strlen(item_start) as isize
+                strlen(item_start) as isize
             } else {
                 p.offset_from(item_start)
             };
@@ -1584,7 +1584,7 @@ unsafe fn stropt_handle_keymatch(
                         let found = find_key_item(newval, item_start, keylen, &raw mut old_itemlen);
                         if !found.is_null() {
                             if old_itemlen == item_len
-                                && c_strncmp(found, item_start, item_len as usize) == 0
+                                && strncmp(found, item_start, item_len as usize) == 0
                             {
                                 remove_key_item(newval, item_start, keylen, found);
                             } else {
@@ -1643,14 +1643,14 @@ unsafe fn stropt_remove_dupflags(newval: *mut c_char, flags: u32) {
                     && !vim_strchr(s.add(2), *s as u8 as c_int).is_null()
                 {
                     let src = s.add(2);
-                    ptr::copy(src, s, c_strlen(src) + 1);
+                    ptr::copy(src, s, strlen(src) + 1);
                     continue;
                 }
             } else if ((flags & kOptFlagComma) == 0 || *s != b',' as c_char)
                 && !vim_strchr(s.add(1), *s as u8 as c_int).is_null()
             {
                 let src = s.add(1);
-                ptr::copy(src, s, c_strlen(src) + 1);
+                ptr::copy(src, s, strlen(src) + 1);
                 continue;
             }
             s = s.add(1);
@@ -1695,7 +1695,7 @@ unsafe fn stropt_get_newval(
         } else {
             let mut len: c_int = 0;
             if op == OP_REMOVING || (flags & kOptFlagNoDup) != 0 {
-                len = c_strlen(newval) as c_int;
+                len = strlen(newval) as c_int;
                 s = find_dup_item(origval, newval, len as usize, flags);
 
                 if (op == OP_ADDING || op == OP_PREPENDING) && !s.is_null() {
@@ -1704,7 +1704,7 @@ unsafe fn stropt_get_newval(
                 }
 
                 if s.is_null() {
-                    s = origval.add(c_strlen(origval));
+                    s = origval.add(strlen(origval));
                 }
             }
 
@@ -1747,10 +1747,10 @@ unsafe fn get_op(arg: *const c_char) -> set_op_T {
 
 unsafe fn get_option_prefix(argp: *mut *mut c_char) -> set_prefix_T {
     unsafe {
-        if c_strncmp(*argp, c"no".as_ptr(), 2) == 0 {
+        if strncmp(*argp, c"no".as_ptr(), 2) == 0 {
             *argp = (*argp).add(2);
             PREFIX_NO
-        } else if c_strncmp(*argp, c"inv".as_ptr(), 3) == 0 {
+        } else if strncmp(*argp, c"inv".as_ptr(), 3) == 0 {
             *argp = (*argp).add(3);
             PREFIX_INV
         } else {
@@ -2165,7 +2165,7 @@ pub unsafe extern "C" fn do_set(mut arg: *mut c_char, opt_flags: c_int) -> c_int
             did_show = true;
         } else {
             while *arg != NUL {
-                if c_strncmp(arg, c"all".as_ptr(), 3) == 0
+                if strncmp(arg, c"all".as_ptr(), 3) == 0
                     && !ascii_isalpha(*arg.add(3))
                     && (opt_flags & OPT_MODELINE) == 0
                 {
@@ -2277,7 +2277,7 @@ unsafe fn find_key_len(arg_arg: *const c_char, len: usize, has_lt: bool) -> c_in
 pub unsafe extern "C" fn string_to_key(arg: *mut c_char) -> c_int {
     unsafe {
         if *arg == b'<' as c_char && *arg.add(1) != NUL {
-            return find_key_len(arg.add(1), c_strlen(arg), true);
+            return find_key_len(arg.add(1), strlen(arg), true);
         }
         if *arg == b'^' as c_char && *arg.add(1) != NUL {
             let mut key = ctrl_chr(c_int::from(*arg.add(1) as u8));
@@ -2363,7 +2363,7 @@ unsafe fn option_expand(opt_idx: OptIndex, mut val: *const c_char) -> *mut c_cha
             val = *((*opt).var.cast::<*const c_char>());
         }
 
-        if val.is_null() || c_strlen(val) > MAXPATHL {
+        if val.is_null() || strlen(val) > MAXPATHL {
             return ptr::null_mut();
         }
 
@@ -2386,7 +2386,7 @@ unsafe fn option_expand(opt_idx: OptIndex, mut val: *const c_char) -> *mut c_cha
                 ptr::null_mut()
             },
         );
-        if c_strcmp(namebuf_ptr, val) == 0 {
+        if strcmp(namebuf_ptr, val) == 0 {
             return ptr::null_mut();
         }
 
@@ -2809,7 +2809,7 @@ pub unsafe extern "C" fn did_set_arabic(args: *mut optset_T) -> *const c_char {
                 }
             }
 
-            if c_strcmp(p_enc, c"utf-8".as_ptr()) != 0 {
+            if strcmp(p_enc, c"utf-8".as_ptr()) != 0 {
                 msg_source(HLF_W);
                 msg(tr(W_ARABIC), HLF_W);
                 set_vim_var_string(VV_WARNINGMSG, tr(W_ARABIC), -1);
@@ -3736,7 +3736,7 @@ unsafe fn do_spelllang_source(win: *mut win_T) {
         let ws = (*win).w_s.cast::<synblock_T>();
         let mut q = (*ws).b_p_spl;
 
-        if c_strncmp(q, c"cjk,".as_ptr(), 4) == 0 {
+        if strncmp(q, c"cjk,".as_ptr(), 4) == 0 {
             q = q.add(4);
         }
 
@@ -5288,7 +5288,7 @@ pub unsafe extern "C" fn find_option_len(name: *const c_char, len: usize) -> Opt
 /// Find index for an option.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn find_option(name: *const c_char) -> OptIndex {
-    unsafe { find_option_len(name, c_strlen(name)) }
+    unsafe { find_option_len(name, strlen(name)) }
 }
 
 /// True if `opt_idx` is a dict option (`schema.dict` in options.lua, e.g. 'diffopt').
@@ -6621,7 +6621,7 @@ unsafe fn showoptions(all: bool, opt_flags: c_int) {
                         1
                     } else {
                         optval_fmt(opt_idx, opt_flags);
-                        (c_strlen((*opt).fullname) as c_int)
+                        (strlen((*opt).fullname) as c_int)
                             + vim_strsize((&raw const NameBuff).cast())
                             + 1
                     };
@@ -6945,7 +6945,7 @@ unsafe fn put_set_value(
                 let value_str = value.data.string.data;
                 if !value_str.is_null() {
                     if (flags & kOptFlagExpand) != 0 {
-                        let size = c_strlen(value_str) + 1;
+                        let size = strlen(value_str) + 1;
                         let buf = xmalloc(size).cast::<c_char>();
                         home_replace(ptr::null_mut(), value_str, buf, size, false);
 
@@ -8035,7 +8035,7 @@ pub unsafe extern "C" fn set_context_in_set_cmd(
             (*xp).xp_pattern = arg;
             return;
         }
-        let argend = arg.add(c_strlen(arg));
+        let argend = arg.add(strlen(arg));
         let mut p = argend.offset(-1);
         if *p == b' ' as c_char && *p.offset(-1) != b'\\' as c_char {
             (*xp).xp_pattern = p.add(1);
@@ -8054,11 +8054,11 @@ pub unsafe extern "C" fn set_context_in_set_cmd(
             }
             p = p.offset(-1);
         }
-        if c_strncmp(p, c"no".as_ptr(), 2) == 0 {
+        if strncmp(p, c"no".as_ptr(), 2) == 0 {
             (*xp).xp_context = EXPAND_BOOL_SETTINGS;
             (*xp).xp_prefix = XP_PREFIX_NO;
             p = p.add(2);
-        } else if c_strncmp(p, c"inv".as_ptr(), 3) == 0 {
+        } else if strncmp(p, c"inv".as_ptr(), 3) == 0 {
             (*xp).xp_context = EXPAND_BOOL_SETTINGS;
             (*xp).xp_prefix = XP_PREFIX_INV;
             p = p.add(3);
@@ -8253,7 +8253,7 @@ pub unsafe extern "C" fn set_context_in_set_cmd(
         }
 
         if (*get_option(opt_idx)).var == (&raw mut p_sps).cast() {
-            if c_strncmp((*xp).xp_pattern, c"file:".as_ptr(), 5) == 0 {
+            if strncmp((*xp).xp_pattern, c"file:".as_ptr(), 5) == 0 {
                 (*xp).xp_pattern = (*xp).xp_pattern.add(5);
             } else if (*get_option(EXPAND_OPTION_IDX)).opt_expand_cb.is_some() {
                 (*xp).xp_context = EXPAND_STRING_SETTING;
@@ -8420,7 +8420,7 @@ pub unsafe extern "C" fn escape_option_str_cmdline(var_arg: *mut c_char) -> *mut
                         || (var == buf && *var.add(4) != b'\\' as c_char))
                 {
                     let src = var.add(1);
-                    ptr::copy(src, var, c_strlen(src) + 1);
+                    ptr::copy(src, var, strlen(src) + 1);
                 }
                 var = var.add(utfc_ptr2len(var) as usize);
             }
@@ -8580,7 +8580,7 @@ pub unsafe extern "C" fn ExpandSettingSubtract(
                 return FAIL;
             }
 
-            let num_flags = c_strlen(option_val);
+            let num_flags = strlen(option_val);
             if num_flags == 0 {
                 return FAIL;
             }
@@ -8714,16 +8714,16 @@ pub unsafe extern "C" fn fill_culopt_flags(val: *mut c_char, flags: *mut c_uint)
         let mut culopt_flags_new: u8 = 0;
 
         while *p != NUL {
-            if c_strncmp(p, c"line".as_ptr(), 4) == 0 {
+            if strncmp(p, c"line".as_ptr(), 4) == 0 {
                 p = p.add(4);
                 culopt_flags_new |= kOptCuloptFlagLine;
-            } else if c_strncmp(p, c"both".as_ptr(), 4) == 0 {
+            } else if strncmp(p, c"both".as_ptr(), 4) == 0 {
                 p = p.add(4);
                 culopt_flags_new |= kOptCuloptFlagLine | kOptCuloptFlagNumber;
-            } else if c_strncmp(p, c"number".as_ptr(), 6) == 0 {
+            } else if strncmp(p, c"number".as_ptr(), 6) == 0 {
                 p = p.add(6);
                 culopt_flags_new |= kOptCuloptFlagNumber;
-            } else if c_strncmp(p, c"screenline".as_ptr(), 10) == 0 {
+            } else if strncmp(p, c"screenline".as_ptr(), 10) == 0 {
                 p = p.add(10);
                 culopt_flags_new |= kOptCuloptFlagScreenline;
             }
@@ -8760,8 +8760,8 @@ pub unsafe extern "C" fn option_set_callback_func(
         }
 
         let tv: *mut typval_T = if *optval == b'{' as c_char
-            || c_strncmp(optval, c"function(".as_ptr(), 9) == 0
-            || c_strncmp(optval, c"funcref(".as_ptr(), 8) == 0
+            || strncmp(optval, c"function(".as_ptr(), 9) == 0
+            || strncmp(optval, c"funcref(".as_ptr(), 8) == 0
         {
             let evaluated = eval_expr(optval, ptr::null_mut());
             if evaluated.is_null() {
@@ -8870,7 +8870,7 @@ pub unsafe extern "C" fn get_showbreak_value(win: *mut win_T) -> *mut c_char {
         if sbr.is_null() || *sbr == NUL {
             return p_sbr;
         }
-        if c_strcmp(sbr, c"NONE".as_ptr()) == 0 {
+        if strcmp(sbr, c"NONE".as_ptr()) == 0 {
             return (&raw mut empty_string_option).cast::<c_char>();
         }
         sbr
@@ -9024,7 +9024,7 @@ pub unsafe extern "C" fn option_next_keyval(
         let end = if !comma.is_null() {
             comma as *const c_char
         } else {
-            s.add(c_strlen(s))
+            s.add(strlen(s))
         };
         let colon = vim_strchr(s, b':' as c_int) as *const c_char;
 
@@ -9056,7 +9056,7 @@ pub unsafe extern "C" fn option_slice_eq(
     name: *const c_char,
 ) -> bool {
     unsafe {
-        !slice.is_null() && c_strlen(name) == slicelen && c_strncmp(slice, name, slicelen) == 0
+        !slice.is_null() && strlen(name) == slicelen && strncmp(slice, name, slicelen) == 0
     }
 }
 
@@ -9091,7 +9091,7 @@ pub unsafe extern "C" fn get_winbuf_options(bufopt: c_int) -> *mut dict_T {
                     tv_dict_add_tv(
                         d,
                         (*opt).fullname,
-                        c_strlen((*opt).fullname),
+                        strlen((*opt).fullname),
                         &raw mut opt_tv,
                     );
                     tv_clear(&raw mut opt_tv);

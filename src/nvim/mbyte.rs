@@ -26,7 +26,7 @@ use crate::r#move::changed_window_setting_all;
 use crate::option_vars::*;
 use crate::optionstr::check_chars_options;
 use crate::os::env::{expand_T, os_getenv_noalloc};
-use crate::os::fs::os_errno as iconv_errno;
+use crate::os::fs::os_errno;
 use crate::os::lang::LC_CTYPE;
 use crate::plines::{CharInfo, ClusterInfo, StrCharInfo};
 use crate::strings::{setlocale, strmove, tolower, toupper, vim_strchr, vim_strnicmp_asc};
@@ -3248,7 +3248,7 @@ unsafe fn iconv_string(
         let mut from = str_;
         let mut fromlen = slen;
         loop {
-            if len == 0 || iconv_errno() == ICONV_E2BIG {
+            if len == 0 || os_errno() == ICONV_E2BIG {
                 len = len + fromlen * 2 + 40;
                 let p = xmalloc(len).cast::<c_char>();
                 if done > 0 {
@@ -3272,7 +3272,7 @@ unsafe fn iconv_string(
                 break;
             }
 
-            let err = iconv_errno();
+            let err = os_errno();
             if !(*vcp).vc_fail && !unconvlenp.is_null() && err == ICONV_EINVAL {
                 *to = NUL;
                 *unconvlenp = fromlen;

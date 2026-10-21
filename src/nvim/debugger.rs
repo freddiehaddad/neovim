@@ -4,7 +4,7 @@ use crate::charset::{getdigits_int32, skipwhite};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_all_later};
 use crate::eval::typval::{Callback, tv_free, typval_T};
 use crate::eval::{EXPR_IS, eval_expr, typval_compare, typval_tostring};
-use crate::ex_docmd::{DOCMD_EXCRESET, do_cmdline, do_cmdline_cmd, exarg_T as exarg_Full};
+use crate::ex_docmd::{DOCMD_EXCRESET, do_cmdline, do_cmdline_cmd, exarg_T};
 use crate::ex_getln::{getcmdline_prompt, getexline};
 use crate::fileio::file_pat_to_reg_pat;
 use crate::garray::{ga_clear, ga_grow, garray_T};
@@ -428,7 +428,7 @@ pub unsafe extern "C" fn do_debug(cmd: *mut c_char) {
 
 /// `:debug` command (`ex_debug`).
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_debug(eap: *mut exarg_Full) {
+pub unsafe extern "C" fn ex_debug(eap: *mut exarg_T) {
     unsafe {
         let save = debug_break_level;
         debug_break_level = 9999;
@@ -439,7 +439,7 @@ pub unsafe extern "C" fn ex_debug(eap: *mut exarg_Full) {
 
 /// Check if a breakpoint or debug break level was hit (`dbg_check_breakpoint`).
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn dbg_check_breakpoint(eap: *mut exarg_Full) {
+pub unsafe extern "C" fn dbg_check_breakpoint(eap: *mut exarg_T) {
     unsafe {
         DEBUG_SKIPPED.store(false, Ordering::Relaxed);
         let eap = &mut *eap;
@@ -477,7 +477,7 @@ pub unsafe extern "C" fn dbg_check_breakpoint(eap: *mut exarg_Full) {
 
 /// Enter debug mode if previously skipped by `dbg_check_breakpoint()` (`dbg_check_skipped`).
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn dbg_check_skipped(eap: *mut exarg_Full) -> bool {
+pub unsafe extern "C" fn dbg_check_skipped(eap: *mut exarg_T) -> bool {
     unsafe {
         if !DEBUG_SKIPPED.load(Ordering::Relaxed) {
             return false;
@@ -598,7 +598,7 @@ unsafe fn dbg_parsearg(arg: *mut c_char, gap: *mut garray_T) -> c_int {
 
 /// `:breakadd` (and `:profile` file/func) command (`ex_breakadd`).
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_breakadd(eap: *mut exarg_Full) {
+pub unsafe extern "C" fn ex_breakadd(eap: *mut exarg_T) {
     unsafe {
         let eap = &*eap;
         let gap = if eap.cmdidx == CMD_PROFILE {
@@ -647,7 +647,7 @@ pub unsafe extern "C" fn ex_breakadd(eap: *mut exarg_Full) {
 
 /// `:debuggreedy` command (`ex_debuggreedy`).
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_debuggreedy(eap: *mut exarg_Full) {
+pub unsafe extern "C" fn ex_debuggreedy(eap: *mut exarg_T) {
     let eap = unsafe { &*eap };
     let greedy = eap.addr_count == 0 || eap.line2 != 0;
     DEBUG_GREEDY.store(greedy, Ordering::Relaxed);
@@ -669,7 +669,7 @@ unsafe fn update_has_expr_breakpoint() {
 
 /// `:breakdel` and `:profdel` command (`ex_breakdel`).
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_breakdel(eap: *mut exarg_Full) {
+pub unsafe extern "C" fn ex_breakdel(eap: *mut exarg_T) {
     unsafe {
         let eap = &*eap;
         let mut todel: c_int = -1;
@@ -752,7 +752,7 @@ pub unsafe extern "C" fn ex_breakdel(eap: *mut exarg_Full) {
 
 /// `:breaklist` command (`ex_breaklist`).
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_breaklist(_eap: *mut exarg_Full) {
+pub unsafe extern "C" fn ex_breaklist(_eap: *mut exarg_T) {
     unsafe {
         let gap = std::ptr::addr_of_mut!(DBG_BREAKP);
         if (*gap).ga_len <= 0 {

@@ -71,8 +71,8 @@ use crate::option::{
     kOptSwapfile, set_option_direct, set_option_value_give_err, shortmess, skip_to_option_part,
 };
 use crate::os::fs::{
-    FileInfo, MAXPATHL, os_dirname, os_errno as get_errno, os_fileinfo_link, os_fopen, os_isdir,
-    os_open_stdin_fd, os_path_exists, os_remove, os_set_errno as set_errno,
+    FileInfo, MAXPATHL, os_dirname, os_errno, os_fileinfo_link, os_fopen, os_isdir,
+    os_open_stdin_fd, os_path_exists, os_remove, os_set_errno,
 };
 use crate::regexp::{
     RE_MAGIC, RE_STRING, regmatch_T, regmmatch_T, regprog_T, vim_regcomp, vim_regexec,
@@ -107,7 +107,7 @@ use crate::option_vars::*;
 use crate::optionstr::{OptIndex, free_string_option};
 use crate::os::env::{expand_env, os_get_pid};
 use crate::os::input::{line_breakcheck, os_breakcheck};
-use crate::os::time::{c_time as time, time_t};
+use crate::os::time::{c_time, time_t};
 #[cfg(windows)]
 use crate::path::path_to_slash;
 use crate::path::{
@@ -117,7 +117,7 @@ use crate::path::{
 };
 use crate::search::{BACKWARD, Direction, FORWARD, do_search, last_search_pat};
 use crate::strings::{
-    atoi, atol, c_strcpy, gettext, has_non_ascii, strcmp as c_strcmp, strlen as c_strlen,
+    atoi, atol, c_strcpy, gettext, has_non_ascii, strcmp, strlen,
     vim_snprintf, vim_snprintf_safelen, vim_strchr,
 };
 use crate::ui::ui_flush;
@@ -482,8 +482,8 @@ use crate::strings::vim_strnicmp_asc;
 #[inline]
 unsafe fn c_strcat(dst: *mut c_char, src: *const c_char) {
     unsafe {
-        let dlen = c_strlen(dst);
-        let slen = c_strlen(src);
+        let dlen = strlen(dst);
+        let slen = strlen(src);
         ptr::copy_nonoverlapping(src, dst.add(dlen), slen + 1);
     }
 }
@@ -869,7 +869,7 @@ unsafe fn free_efm_list(efm_first: *mut *mut efm_T) {
 
 unsafe fn efm_regpat_bufsz(efm: *const c_char) -> usize {
     unsafe {
-        let mut sz = (FMT_PATTERNS * 3) + (c_strlen(efm) << 2);
+        let mut sz = (FMT_PATTERNS * 3) + (strlen(efm) << 2);
         for item in &FMT_PAT {
             sz += item.pattern.to_bytes().len();
         }
@@ -971,7 +971,7 @@ unsafe fn qf_get_next_str_line(state: *mut qfstate_T) -> c_int {
         let len = if !p.is_null() {
             p.offset_from(p_str) as usize + 1
         } else {
-            c_strlen(p_str)
+            strlen(p_str)
         };
 
         if len > IOSIZE - 2 {
@@ -1006,7 +1006,7 @@ unsafe fn qf_get_next_list_line(state: *mut qfstate_T) -> c_int {
         }
 
         let s = (*p_li).li_tv.vval.v_string;
-        let len = c_strlen(s);
+        let len = strlen(s);
         if len > IOSIZE - 2 {
             (*state).linebuf = qf_grow_linebuf(state, len);
         } else {
@@ -1044,9 +1044,9 @@ unsafe fn qf_get_next_file_line(state: *mut qfstate_T) -> c_int {
     unsafe {
         let iobuff_ptr = (&raw mut IObuff).cast::<c_char>();
         loop {
-            set_errno(0);
+            os_set_errno(0);
             if fgets(iobuff_ptr, IOSIZE as c_int, (*state).fd).is_null() {
-                if get_errno() == EINTR {
+                if os_errno() == EINTR {
                     continue;
                 }
                 return QF_END_OF_INPUT;
@@ -1055,7 +1055,7 @@ unsafe fn qf_get_next_file_line(state: *mut qfstate_T) -> c_int {
         }
 
         let mut discard = false;
-        (*state).linelen = c_strlen(iobuff_ptr);
+        (*state).linelen = strlen(iobuff_ptr);
         if (*state).linelen == IOSIZE - 1 && *iobuff_ptr.add((*state).linelen - 1) != NL {
             if (*state).growbuf.is_null() {
                 (*state).growbufsiz = 2 * (IOSIZE - 1);
@@ -1067,7 +1067,7 @@ unsafe fn qf_get_next_file_line(state: *mut qfstate_T) -> c_int {
             *(*state).growbuf.add(growbuflen) = NUL;
 
             loop {
-                set_errno(0);
+                os_set_errno(0);
                 if fgets(
                     (*state).growbuf.add(growbuflen),
                     ((*state).growbufsiz - growbuflen) as c_int,
@@ -1075,12 +1075,12 @@ unsafe fn qf_get_next_file_line(state: *mut qfstate_T) -> c_int {
                 )
                 .is_null()
                 {
-                    if get_errno() == EINTR {
+                    if os_errno() == EINTR {
                         continue;
                     }
                     break;
                 }
-                (*state).linelen = c_strlen((*state).growbuf.add(growbuflen));
+                (*state).linelen = strlen((*state).growbuf.add(growbuflen));
                 growbuflen += (*state).linelen;
                 if *(*state).growbuf.add(growbuflen - 1) == NL {
                     break;
@@ -1097,14 +1097,14 @@ unsafe fn qf_get_next_file_line(state: *mut qfstate_T) -> c_int {
 
             if discard {
                 loop {
-                    set_errno(0);
+                    os_set_errno(0);
                     if fgets(iobuff_ptr, IOSIZE as c_int, (*state).fd).is_null() {
-                        if get_errno() == EINTR {
+                        if os_errno() == EINTR {
                             continue;
                         }
                         break;
                     }
-                    if c_strlen(iobuff_ptr) < IOSIZE - 1 || *iobuff_ptr.add(IOSIZE - 2) == NL {
+                    if strlen(iobuff_ptr) < IOSIZE - 1 || *iobuff_ptr.add(IOSIZE - 2) == NL {
                         break;
                     }
                 }
@@ -1269,7 +1269,7 @@ unsafe fn qf_parse_line(
                     status = qf_parse_file_pfx(idx, fields, qfl, tail);
                     if status == QF_MULTISCAN {
                         let s = skipwhite(tail);
-                        let new_linelen = c_strlen(s);
+                        let new_linelen = strlen(s);
                         if new_linelen >= linelen {
                             return QF_IGNORE_LINE;
                         }
@@ -1418,7 +1418,7 @@ unsafe fn qf_init_ext(
                 errorformat
             };
 
-        if last_efm_cache.is_null() || c_strcmp(last_efm_cache, efm) != 0 {
+        if last_efm_cache.is_null() || strcmp(last_efm_cache, efm) != 0 {
             xfree(last_efm_cache.cast());
             last_efm_cache = ptr::null_mut();
             free_efm_list(&raw mut fmt_first_cache);
@@ -1492,7 +1492,7 @@ unsafe fn qf_store_title(qfl: *mut qf_list_T, title: *const c_char) {
             return;
         }
 
-        let len = c_strlen(title) + 1;
+        let len = strlen(title) + 1;
         let p = xmallocz(len).cast::<c_char>();
         (*qfl).qf_title = p;
         xstrlcpy(p, title, len + 1);
@@ -1753,7 +1753,7 @@ unsafe fn qf_parse_fmt_o(rmp: *mut regmatch_T, midx: usize, fields: *mut qffield
             return QF_FAIL;
         }
         let len = (*rmp).endp[midx].offset_from((*rmp).startp[midx]) as usize;
-        let dsize = (c_strlen((*fields).module) + len + 1).min(CMDBUFFSIZE);
+        let dsize = (strlen((*fields).module) + len + 1).min(CMDBUFFSIZE);
         xstrlcat((*fields).module, (*rmp).startp[midx], dsize);
         QF_OK
     }
@@ -1949,8 +1949,8 @@ unsafe fn qf_parse_multiline_pfx(
                 return QF_FAIL;
             }
             if *(*fields).errmsg != NUL {
-                let textlen = c_strlen((*qfprev).qf_text);
-                let errlen = c_strlen((*fields).errmsg);
+                let textlen = strlen((*qfprev).qf_text);
+                let errlen = strlen((*fields).errmsg);
                 (*qfprev).qf_text =
                     xrealloc((*qfprev).qf_text.cast(), textlen + errlen + 2).cast::<c_char>();
                 *(*qfprev).qf_text.add(textlen) = b'\n' as c_char;
@@ -2522,7 +2522,7 @@ unsafe fn qf_get_fnum(
         path_to_slash(bufname.data);
 
         let buf = if !qf_last_bufname.is_null()
-            && c_strcmp(bufname.data, qf_last_bufname) == 0
+            && strcmp(bufname.data, qf_last_bufname) == 0
             && bufref_valid(&raw mut qf_last_bufref)
         {
             xfree(ptr_str.data.cast());
@@ -2563,7 +2563,7 @@ unsafe fn qf_push_dir(
         if vim_isAbsName(dirbuf) || (**stackptr).next.is_null() || is_file_stack {
             (**stackptr).dirname = xstrdup(dirbuf);
         } else {
-            let dirbuf_len = c_strlen(dirbuf);
+            let dirbuf_len = strlen(dirbuf);
             ds_new = (**stackptr).next;
             (**stackptr).dirname = ptr::null_mut();
             while !ds_new.is_null() {
@@ -3251,7 +3251,7 @@ unsafe fn qf_jump_goto_line(
                 b'/' as c_int,
                 b'/' as c_int,
                 qf_pattern,
-                c_strlen(qf_pattern),
+                strlen(qf_pattern),
                 1,
                 SEARCH_KEEP,
                 p_magic != 0,
@@ -3750,7 +3750,7 @@ unsafe fn qf_msg(qi: *mut qf_info_T, which: c_int, lead: *const c_char) {
         );
 
         if !title.is_null() {
-            let len = c_strlen(buf.as_ptr());
+            let len = strlen(buf.as_ptr());
             if len < 34 {
                 ptr::write_bytes(buf.as_mut_ptr().add(len), b' ', 34 - len);
                 buf[34] = NUL;
@@ -4778,7 +4778,7 @@ pub unsafe extern "C" fn grep_internal(cmdidx: c_int) -> c_int {
                 || cmdidx == CMD_lgrep
                 || cmdidx == CMD_grepadd
                 || cmdidx == CMD_lgrepadd)
-                && c_strcmp(c"internal".as_ptr(), gp) == 0,
+                && strcmp(c"internal".as_ptr(), gp) == 0,
         )
     }
 }
@@ -4797,9 +4797,9 @@ unsafe fn make_get_auname(cmdidx: c_int) -> *const c_char {
 
 unsafe fn make_get_fullcmd(makecmd: *const c_char, fname: *const c_char) -> *mut c_char {
     unsafe {
-        let mut len = c_strlen(p_shq) * 2 + c_strlen(makecmd) + 1;
+        let mut len = strlen(p_shq) * 2 + strlen(makecmd) + 1;
         if *p_sp != NUL {
-            len += c_strlen(p_sp) + c_strlen(fname) + 3;
+            len += strlen(p_sp) + strlen(fname) + 3;
         }
         let cmd = xmalloc(len).cast::<c_char>();
         vim_snprintf!(cmd, len, c"%s%s%s".as_ptr(), p_shq, makecmd, p_shq);
@@ -4945,7 +4945,7 @@ unsafe fn get_mef_name() -> *mut c_char {
             } else {
                 mef_off += 19;
             }
-            let mef_len = c_strlen(p_mef);
+            let mef_len = strlen(p_mef);
             let name = xmalloc(mef_len + 30).cast::<c_char>();
             c_strcpy(name, p_mef);
             let off_idx = p.offset_from(p_mef) as usize;
@@ -5706,7 +5706,7 @@ unsafe fn vgr_match_buflines(
 ) -> bool {
     unsafe {
         let mut found_match = false;
-        let pat_len = c_strlen(spat).min(FUZZY_MATCH_MAX_LEN);
+        let pat_len = strlen(spat).min(FUZZY_MATCH_MAX_LEN);
 
         let mut lnum: linenr_T = 1;
         while lnum <= (*buf).b_ml.ml_line_count && *tomatch > 0 {
@@ -5855,7 +5855,7 @@ unsafe fn existing_swapfile(buf: *const buf_T) -> bool {
         let mfp = (*buf).b_ml.ml_mfp.cast::<memfile_T>();
         if !mfp.is_null() && !(*mfp).mf_fname.is_null() {
             let fname = (*mfp).mf_fname;
-            let len = c_strlen(fname);
+            let len = strlen(fname);
             if len >= 2 {
                 return *fname.add(len - 1) != b'p' as c_char
                     || *fname.add(len - 2) != b'w' as c_char;
@@ -5932,7 +5932,7 @@ unsafe fn vgr_process_files(
         while fi < (*cmd_args).fcount && !got_int && (*cmd_args).tomatch > 0 {
             let fname_exp = *(*cmd_args).fnames.add(fi as usize);
             let fname = path_try_shorten_fname(fname_exp);
-            let now = time(ptr::null_mut());
+            let now = c_time(ptr::null_mut());
             if now > seconds {
                 seconds = now;
                 vgr_display_fname(fname);
@@ -6002,7 +6002,7 @@ unsafe fn vgr_process_files(
 
                         if buf == *first_match_buf
                             && (*target_dir).is_null()
-                            && c_strcmp(dirname_start, dirname_now) != 0
+                            && strcmp(dirname_start, dirname_now) != 0
                         {
                             *target_dir = xstrdup(dirname_now);
                         }
@@ -6138,7 +6138,7 @@ unsafe fn restore_start_dir(dirname_start: *mut c_char) {
         let dirname_now = xmalloc(MAXPATHL).cast::<c_char>();
 
         os_dirname(dirname_now, MAXPATHL);
-        if c_strcmp(dirname_start, dirname_now) != 0 {
+        if strcmp(dirname_start, dirname_now) != 0 {
             let mut ea: exarg_T = std::mem::zeroed();
             ea.arg = dirname_start;
             ea.cmdidx = if (*curwin).w_localdir.is_null() {
@@ -7240,7 +7240,7 @@ unsafe fn qf_setprop_curidx(
 
         if (*di).di_tv.v_type == VarType::VAR_STRING
             && !(*di).di_tv.vval.v_string.is_null()
-            && c_strcmp((*di).di_tv.vval.v_string, c"$".as_ptr()) == 0
+            && strcmp((*di).di_tv.vval.v_string, c"$".as_ptr()) == 0
         {
             newidx = (*qfl).qf_count;
         } else {
@@ -7786,7 +7786,7 @@ unsafe fn hgr_search_file(qfl: *mut qf_list_T, fname: *mut c_char, p_regmatch: *
             let line = iobuff_ptr;
 
             if vim_regexec(p_regmatch, line, 0) {
-                let mut l = c_strlen(line);
+                let mut l = strlen(line);
                 while l > 0 && (*line.add(l - 1) as u8) <= b' ' {
                     l -= 1;
                     *line.add(l) = NUL;
@@ -7846,7 +7846,7 @@ unsafe fn hgr_search_files_in_dir(
             let mut fi: c_int = 0;
             while fi < fcount && !got_int {
                 let f = *fnames.add(fi as usize);
-                let flen = c_strlen(f);
+                let flen = strlen(f);
                 if !lang.is_null()
                     && flen >= 3
                     && vim_strnicmp_asc(lang, f.add(flen - 3), 2) != 0

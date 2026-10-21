@@ -24,7 +24,7 @@ use crate::charset::{NUL, is_special};
 use crate::context::{
     CtxSwitch, ctx_restore, ctx_switch, handle_get_buffer, handle_get_window, is_ctx_win,
 };
-use crate::cursor::{coladvance, linenr_T, pos_T as tab_pos_T};
+use crate::cursor::{coladvance, linenr_T, pos_T};
 use crate::cursor_shape::{
     CursorShape, SHAPE_CURSOR, SHAPE_IDX_TERM, parse_shape_opt, shape_table,
 };
@@ -103,7 +103,7 @@ use crate::ui::{
 use crate::vterm::keyboard::{
     VTERM_KEY_BACKSPACE, VTERM_KEY_ENTER, VTERM_KEY_FUNCTION_0, VTERM_KEY_NONE, VTERM_KEY_TAB,
     VTERM_MOD_ALT, VTERM_MOD_CTRL, VTERM_MOD_NONE, VTERM_MOD_SHIFT, VTermColor, VTermKey,
-    VTermModifier, VTermStateFull as VTermState, vterm_keyboard_end_paste, vterm_keyboard_key,
+    VTermModifier, VTermStateFull, vterm_keyboard_end_paste, vterm_keyboard_key,
     vterm_keyboard_start_paste, vterm_keyboard_unichar,
 };
 use crate::vterm::mouse::{VTerm, VTermPos, vterm_mouse_button, vterm_mouse_move};
@@ -914,7 +914,7 @@ pub unsafe extern "C" fn terminal_open(termpp: *mut *mut Terminal, buf: *mut buf
         }
         (*curwin).w_onebuf_opt.wo_scb = 0;
         (*curwin).w_onebuf_opt.wo_crb = 0;
-        (*curwin).w_cursor = tab_pos_T {
+        (*curwin).w_cursor = pos_T {
             lnum: 1,
             col: 0,
             coladd: 0,
@@ -1344,7 +1344,7 @@ unsafe fn terminal_check_cursor() {
             set_topline(curwin, topline);
         }
         if (*term).suspended && (State & MODE_TERMINAL) != 0 {
-            (*curwin).w_cursor = tab_pos_T {
+            (*curwin).w_cursor = pos_T {
                 lnum: (*curbuf).b_ml.ml_line_count,
                 col: 0,
                 coladd: 0,
@@ -1734,7 +1734,7 @@ pub unsafe extern "C" fn terminal_receive(term: *mut Terminal, data: *const c_ch
     }
 }
 
-unsafe fn get_rgb(state: *const VTermState, mut color: VTermColor) -> c_int {
+unsafe fn get_rgb(state: *const VTermStateFull, mut color: VTermColor) -> c_int {
     unsafe {
         vterm_state_convert_color_to_rgb(state, &mut color);
         let r = c_int::from(color.bytes[1]);

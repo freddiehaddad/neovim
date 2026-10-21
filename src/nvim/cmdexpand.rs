@@ -108,8 +108,8 @@ use crate::search::{Direction, ignorecase, pat_has_uppercase, searchit};
 use crate::sign::{get_sign_name, set_context_in_sign_cmd};
 use crate::statusline::fillchar_status;
 use crate::strings::{
-    c_strcpy, gettext, qsort, sort_strings, strcase_save, strcmp as c_strcmp, strlen as c_strlen,
-    strncmp as c_strncmp, vim_snprintf, vim_strchr, vim_strsave_escaped, xstrnsave,
+    c_strcpy, gettext, qsort, sort_strings, strcase_save, strcmp, strlen,
+    strncmp, vim_snprintf, vim_strchr, vim_strsave_escaped, xstrnsave,
 };
 use crate::syntax::{
     get_syntax_name, get_syntime_arg, reset_expand_highlight, set_context_in_echohl_cmd,
@@ -1068,7 +1068,7 @@ unsafe extern "C" fn sort_func_compare(s1: *const c_void, s2: *const c_void) -> 
         if *p1 == b'<' as c_char && *p2 != b'<' as c_char {
             return 1;
         }
-        c_strcmp(p1, p2)
+        strcmp(p1, p2)
     }
 }
 
@@ -1270,7 +1270,7 @@ pub unsafe extern "C" fn nextwild(
                     }
                     j += 1;
                 }
-                if c_strlen(p) < j {
+                if strlen(p) < j {
                     xfree(p.cast());
                     p = ptr::null_mut();
                 }
@@ -1283,7 +1283,7 @@ pub unsafe extern "C" fn nextwild(
         }
 
         if !p.is_null() && !got_int && (options & (WILD_NOSELECT | WILD_NOINSERT)) == 0 {
-            let plen = c_strlen(p);
+            let plen = strlen(p);
             let difflen = (plen as c_int) - ((*xp).xp_pattern_len as c_int);
             if (*ccline).cmdlen + difflen + 4 > (*ccline).cmdbufflen {
                 realloc_cmdbuff((*ccline).cmdlen + difflen + 4);
@@ -1592,7 +1592,7 @@ unsafe fn redraw_wildmenu(
             let emenu = (*xp).xp_context == EXPAND_MENUS || (*xp).xp_context == EXPAND_MENUNAMES;
             if emenu && menu_is_separator(s) {
                 c_strcpy(buf.add(len), transchar(b'|' as c_int));
-                let l = c_strlen(buf.add(len));
+                let l = strlen(buf.add(len));
                 len += l;
                 clen += l as c_int;
             } else {
@@ -1606,7 +1606,7 @@ unsafe fn redraw_wildmenu(
                         len += l as usize;
                     } else {
                         c_strcpy(buf.add(len), transchar_byte(c_int::from(*s as u8)));
-                        len += c_strlen(buf.add(len));
+                        len += strlen(buf.add(len));
                     }
                     s = s.add(1);
                 }
@@ -1980,7 +1980,7 @@ pub unsafe extern "C" fn ExpandOne(
             }
 
             for i in 0..((*xp).xp_numfiles as usize) {
-                ss_size += c_strlen(*(*xp).xp_files.add(i)) + 1;
+                ss_size += strlen(*(*xp).xp_files.add(i)) + 1;
             }
             ss_size += 1;
 
@@ -2062,7 +2062,7 @@ unsafe fn showmatches_oneline(
             if (*xp).xp_context == EXPAND_TAGS_LISTFILES {
                 let m = *matches.add(j as usize);
                 msg_outtrans(m, HLF_D, false);
-                let p = m.add(c_strlen(m) + 1);
+                let p = m.add(strlen(m) + 1);
                 msg_advance(maxlen + 1);
                 msg_puts(p);
                 msg_advance(maxlen + 3);
@@ -2859,10 +2859,10 @@ unsafe fn set_context_in_lang_cmd(xp: *mut expand_T, arg: *const c_char) -> *con
             (*xp).xp_pattern = arg.cast_mut();
         } else {
             let n = p.offset_from(arg) as usize;
-            if c_strncmp(arg, c"messages".as_ptr(), n) == 0
-                || c_strncmp(arg, c"ctype".as_ptr(), n) == 0
-                || c_strncmp(arg, c"time".as_ptr(), n) == 0
-                || c_strncmp(arg, c"collate".as_ptr(), n) == 0
+            if strncmp(arg, c"messages".as_ptr(), n) == 0
+                || strncmp(arg, c"ctype".as_ptr(), n) == 0
+                || strncmp(arg, c"time".as_ptr(), n) == 0
+                || strncmp(arg, c"collate".as_ptr(), n) == 0
             {
                 (*xp).xp_context = EXPAND_LOCALES;
                 (*xp).xp_pattern = skipwhite(p);
@@ -2899,7 +2899,7 @@ unsafe fn set_context_in_breakadd_cmd(
         }
         let subcmd_start = p;
 
-        if c_strncmp(c"file ".as_ptr(), p, 5) == 0 || c_strncmp(c"func ".as_ptr(), p, 5) == 0 {
+        if strncmp(c"file ".as_ptr(), p, 5) == 0 || strncmp(c"func ".as_ptr(), p, 5) == 0 {
             p = p.add(4);
             p = skipwhite(p);
 
@@ -2911,13 +2911,13 @@ unsafe fn set_context_in_breakadd_cmd(
                 }
                 p = skipwhite(p);
             }
-            if c_strncmp(c"file".as_ptr(), subcmd_start, 4) == 0 {
+            if strncmp(c"file".as_ptr(), subcmd_start, 4) == 0 {
                 (*xp).xp_context = EXPAND_FILES;
             } else {
                 (*xp).xp_context = EXPAND_USER_FUNC;
             }
             (*xp).xp_pattern = p.cast_mut();
-        } else if c_strncmp(c"expr ".as_ptr(), p, 5) == 0 {
+        } else if strncmp(c"expr ".as_ptr(), p, 5) == 0 {
             (*xp).xp_context = EXPAND_EXPRESSION;
             (*xp).xp_pattern = skipwhite(p.add(5));
         }
@@ -2958,12 +2958,12 @@ unsafe fn set_context_in_filetype_cmd(xp: *mut expand_T, arg: *const c_char) -> 
         let mut val: c_int = 0;
 
         loop {
-            if c_strncmp(p, c"plugin".as_ptr(), 6) == 0 && ascii_iswhite(*p.add(6) as c_int) {
+            if strncmp(p, c"plugin".as_ptr(), 6) == 0 && ascii_iswhite(*p.add(6) as c_int) {
                 val |= EXPAND_FILETYPECMD_PLUGIN;
                 p = skipwhite(p.add(6));
                 continue;
             }
-            if c_strncmp(p, c"indent".as_ptr(), 6) == 0 && ascii_iswhite(*p.add(6) as c_int) {
+            if strncmp(p, c"indent".as_ptr(), 6) == 0 && ascii_iswhite(*p.add(6) as c_int) {
                 val |= EXPAND_FILETYPECMD_INDENT;
                 p = skipwhite(p.add(6));
                 continue;
@@ -3495,7 +3495,7 @@ unsafe fn set_one_cmd_context(xp: *mut expand_T, buff: *const c_char) -> *const 
         let mut arg: *const c_char = skipwhite(p);
 
         if (ea.argt & EX_ARGOPT) != 0 {
-            while *arg != NUL && c_strncmp(arg, c"++".as_ptr(), 2) == 0 {
+            while *arg != NUL && strncmp(arg, c"++".as_ptr(), 2) == 0 {
                 p = arg.add(2);
                 while *p != NUL && !ascii_isspace(*p as c_int) {
                     p = p.add(utfc_ptr2len(p) as usize);
@@ -3582,7 +3582,7 @@ unsafe fn set_one_cmd_context(xp: *mut expand_T, buff: *const c_char) -> *const 
 
         p = buff;
         (*xp).xp_pattern = p.cast_mut();
-        let len = c_strlen(buff);
+        let len = strlen(buff);
         while *p != NUL && (p as usize) < (buff.add(len) as usize) {
             if *p == b' ' as c_char || *p == TAB {
                 p = p.add(1);
@@ -3720,7 +3720,7 @@ unsafe fn expand_files_and_dirs(
 
         if (*xp).xp_backslash != XP_BS_NONE {
             free_pat = true;
-            let pat_len = c_strlen(pat);
+            let pat_len = strlen(pat);
             pat = xstrnsave(pat, pat_len);
 
             let mut pat_end = pat.add(pat_len);
@@ -3932,7 +3932,7 @@ unsafe fn get_arg1_from_lua(lua: *const c_char, xp: *mut expand_T, idx: c_int) -
     unsafe {
         let prompt_id = get_cmdline_last_prompt_id();
         if ARG1_LUA_LAST_XP_LINE.is_null()
-            || c_strcmp(ARG1_LUA_LAST_XP_LINE, (*xp).xp_line) != 0
+            || strcmp(ARG1_LUA_LAST_XP_LINE, (*xp).xp_line) != 0
             || ARG1_LUA_LAST_GEN != prompt_id
         {
             xfree(ARG1_LUA_LAST_XP_LINE.cast());
@@ -4429,8 +4429,8 @@ unsafe fn ExpandFromContext(
         }
 
         let mut tofree: *mut c_char = ptr::null_mut();
-        if (*xp).xp_context == EXPAND_USER_FUNC && c_strncmp(pat, c"^s:".as_ptr(), 3) == 0 {
-            let len = c_strlen(pat) + 20;
+        if (*xp).xp_context == EXPAND_USER_FUNC && strncmp(pat, c"^s:".as_ptr(), 3) == 0 {
+            let len = strlen(pat) + 20;
             tofree = xmalloc(len).cast::<c_char>();
             vim_snprintf!(tofree, len, c"^<SNR>\\d\\+_%s".as_ptr(), pat.add(3));
             pat = tofree;
@@ -4558,7 +4558,7 @@ pub unsafe extern "C" fn ExpandGeneric(
                 func_fn,
                 get_menu_names as unsafe extern "C" fn(*mut expand_T, c_int) -> *mut c_char,
             ) {
-                let end = str_item.add(c_strlen(str_item) - 1);
+                let end = str_item.add(strlen(str_item) - 1);
                 if *end == 1 {
                     *end = b'.' as c_char;
                 }
@@ -4629,7 +4629,7 @@ unsafe fn expand_shellcmd_onedir(
 
         for i in 0..(*numMatches as usize) {
             let mut name = *(*matches).add(i);
-            let namelen = c_strlen(name);
+            let namelen = strlen(name);
 
             if namelen > pathlen {
                 let hash: hash_T = hash_hash(name.add(pathlen));
@@ -4662,7 +4662,7 @@ unsafe fn expand_shellcmd(
         let mut flags = flagsarg;
         let mut did_curdir = false;
 
-        let mut patlen = c_strlen(filepat);
+        let mut patlen = strlen(filepat);
         let pat = xmemdupz(filepat.cast(), patlen).cast::<c_char>();
         let mut e = pat.add(patlen);
         let mut s = pat;
@@ -4719,11 +4719,11 @@ unsafe fn expand_shellcmd(
             } else {
                 e = vim_strchr(s, ENV_SEPCHAR);
                 if e.is_null() {
-                    e = s.add(c_strlen(s));
+                    e = s.add(strlen(s));
                 }
 
                 pathlen = e.offset_from(s) as usize;
-                if c_strncmp(s, c".".as_ptr(), pathlen) == 0 {
+                if strncmp(s, c".".as_ptr(), pathlen) == 0 {
                     did_curdir = true;
                     flags |= EW_DIR;
                 } else {
@@ -4851,7 +4851,7 @@ unsafe fn ExpandUserDefined(
         while *s != NUL {
             let mut e = vim_strchr(s, b'\n' as c_int);
             if e.is_null() {
-                e = s.add(c_strlen(s));
+                e = s.add(strlen(s));
             }
             let keep = *e;
             *e = NUL;
@@ -5070,7 +5070,7 @@ pub unsafe extern "C" fn globpath(
             EXPAND_FILES
         };
 
-        let filelen = c_strlen(file);
+        let filelen = strlen(file);
 
         while *path != NUL {
             let mut pathlen = copy_option_part(&raw mut path, buf, MAXPATHL, c",".as_ptr());
@@ -5234,7 +5234,7 @@ unsafe fn wildmenu_process_key_filenames(
         {
             key = p_wc as c_int;
             KeyTyped = true;
-        } else if c_strncmp((*xp).xp_pattern, upseg.as_ptr().add(1), 3) == 0 && key == K_DOWN {
+        } else if strncmp((*xp).xp_pattern, upseg.as_ptr().add(1), 3) == 0 && key == K_DOWN {
             let mut found = false;
 
             let mut j = (*cclp).cmdpos;
@@ -5290,9 +5290,9 @@ unsafe fn wildmenu_process_key_filenames(
 
             if !found {
                 j = i;
-            } else if c_strncmp((*cclp).cmdbuff.add(j as usize), upseg.as_ptr(), 4) == 0 {
+            } else if strncmp((*cclp).cmdbuff.add(j as usize), upseg.as_ptr(), 4) == 0 {
                 j += 4;
-            } else if c_strncmp((*cclp).cmdbuff.add(j as usize), upseg.as_ptr().add(1), 3) == 0
+            } else if strncmp((*cclp).cmdbuff.add(j as usize), upseg.as_ptr().add(1), 3) == 0
                 && j == i
             {
                 j += 3;
@@ -5417,8 +5417,8 @@ pub unsafe extern "C" fn f_getcompletion(
         let pattern = tv_get_string(argvars);
         let mut pattern_start = pattern;
 
-        if c_strcmp(type_str, c"cmdline".as_ptr()) == 0 {
-            let cmdline_len = c_strlen(pattern) as c_int;
+        if strcmp(type_str, c"cmdline".as_ptr()) == 0 {
+            let cmdline_len = strlen(pattern) as c_int;
             set_cmd_context(
                 &raw mut xpc,
                 pattern.cast_mut(),
@@ -5427,12 +5427,12 @@ pub unsafe extern "C" fn f_getcompletion(
                 false as c_int,
             );
             pattern_start = xpc.xp_pattern;
-            xpc.xp_pattern_len = c_strlen(xpc.xp_pattern);
+            xpc.xp_pattern_len = strlen(xpc.xp_pattern);
             xpc.xp_col = cmdline_len;
         } else {
             ExpandInit(&raw mut xpc);
             xpc.xp_pattern = pattern.cast_mut();
-            xpc.xp_pattern_len = c_strlen(xpc.xp_pattern);
+            xpc.xp_pattern_len = strlen(xpc.xp_pattern);
             xpc.xp_line = pattern.cast_mut();
 
             xpc.xp_context = cmdcomplete_str_to_type(type_str);
@@ -5442,14 +5442,14 @@ pub unsafe extern "C" fn f_getcompletion(
                     return;
                 }
                 EXPAND_USER_DEFINED => {
-                    if c_strncmp(type_str, c"custom,".as_ptr(), 7) != 0 {
+                    if strncmp(type_str, c"custom,".as_ptr(), 7) != 0 {
                         semsg!(gettext(e_invarg2.as_ptr()), type_str);
                         return;
                     }
                     xpc.xp_arg = type_str.add(7).cast_mut();
                 }
                 EXPAND_USER_LIST => {
-                    if c_strncmp(type_str, c"customlist,".as_ptr(), 11) != 0 {
+                    if strncmp(type_str, c"customlist,".as_ptr(), 11) != 0 {
                         semsg!(gettext(e_invarg2.as_ptr()), type_str);
                         return;
                     }
@@ -5489,7 +5489,7 @@ pub unsafe extern "C" fn f_getcompletion(
         }
 
         if xpc.xp_context == EXPAND_LUA {
-            xpc.xp_col = c_strlen(xpc.xp_line) as c_int;
+            xpc.xp_col = strlen(xpc.xp_line) as c_int;
             nlua_expand_pat(&raw mut xpc);
             xpc.xp_pattern_len -= xpc.xp_pattern.offset_from(pattern_start) as usize;
         }
@@ -5529,7 +5529,7 @@ pub unsafe extern "C" fn f_getcompletiontype(
         let mut xpc: expand_T = std::mem::zeroed();
         ExpandInit(&raw mut xpc);
 
-        let cmdline_len = c_strlen(pat) as c_int;
+        let cmdline_len = strlen(pat) as c_int;
         set_cmd_context(
             &raw mut xpc,
             pat.cast_mut(),
@@ -5673,7 +5673,7 @@ unsafe fn copy_substring_from_pos(
 /// Returns true if the given string `str` matches the regex pattern `pat`.
 unsafe fn is_regex_match(pat: *mut c_char, str_arg: *mut c_char) -> bool {
     unsafe {
-        if c_strcmp(pat, str_arg) == 0 {
+        if strcmp(pat, str_arg) == 0 {
             return true;
         }
 
@@ -5756,7 +5756,7 @@ unsafe fn expand_pattern_in_buf(
             return FAIL;
         }
 
-        let pat_len = c_strlen(pat) as c_int;
+        let pat_len = strlen(pat) as c_int;
         let mut cur_match_pos = pos_T {
             lnum: 0,
             col: 0,
@@ -5883,7 +5883,7 @@ unsafe fn expand_pattern_in_buf(
             };
 
             for i in 0..(ga.ga_len as usize) {
-                if c_strcmp(match_str, *(ga.ga_data as *mut *mut c_char).add(i)) == 0 {
+                if strcmp(match_str, *(ga.ga_data as *mut *mut c_char).add(i)) == 0 {
                     xfree(match_str.cast());
                     match_str = ptr::null_mut();
                     break;

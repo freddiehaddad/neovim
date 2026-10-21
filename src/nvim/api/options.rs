@@ -21,7 +21,7 @@ use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::globals::*;
 use crate::lua::converter::Boolean;
 use crate::memline::ml_open;
-use crate::memory::{Arena, arena_memdupz, strequal_str as strequal, xfree, xmalloc, xstrdup};
+use crate::memory::{Arena, arena_memdupz, strequal_str, xfree, xmalloc, xstrdup};
 use crate::option::{
     OP_ADDING, OP_NONE, OP_PREPENDING, OP_REMOVING, OPT_GLOBAL, OPT_LOCAL, OptScope, PREFIX_NONE,
     copy_option_part, escape_option_str_cmdline, find_option, free_option_prepared,
@@ -119,9 +119,9 @@ unsafe fn validate_option_value_args(
         }
 
         if has_key(mask, KEYSET_OPTIDX_option__scope) {
-            if strequal((*opts).scope.data, "local") {
+            if strequal_str((*opts).scope.data, "local") {
                 *opt_flags = OPT_LOCAL;
-            } else if strequal((*opts).scope.data, "global") {
+            } else if strequal_str((*opts).scope.data, "global") {
                 *opt_flags = OPT_GLOBAL;
             } else {
                 api_err_exp(
@@ -181,13 +181,13 @@ unsafe fn validate_option_value_args(
         }
 
         if !operation.is_null() && has_key(mask, KEYSET_OPTIDX_option__operation) {
-            if strequal((*opts).operation.data, "set") {
+            if strequal_str((*opts).operation.data, "set") {
                 *operation = OP_NONE;
-            } else if strequal((*opts).operation.data, "append") {
+            } else if strequal_str((*opts).operation.data, "append") {
                 *operation = OP_ADDING;
-            } else if strequal((*opts).operation.data, "prepend") {
+            } else if strequal_str((*opts).operation.data, "prepend") {
                 *operation = OP_PREPENDING;
-            } else if strequal((*opts).operation.data, "remove") {
+            } else if strequal_str((*opts).operation.data, "remove") {
                 *operation = OP_REMOVING;
             } else {
                 api_err_exp(
@@ -902,9 +902,9 @@ mod tests {
         assert!(has_key(mask, KEYSET_OPTIDX_option__scope));
         assert!(!has_key(mask, KEYSET_OPTIDX_option__win));
         unsafe {
-            assert!(strequal(c"local".as_ptr(), "local"));
-            assert!(!strequal(c"local".as_ptr(), "global"));
-            assert!(!strequal(ptr::null(), "local"));
+            assert!(strequal_str(c"local".as_ptr(), "local"));
+            assert!(!strequal_str(c"local".as_ptr(), "global"));
+            assert!(!strequal_str(ptr::null(), "local"));
         }
     }
 }

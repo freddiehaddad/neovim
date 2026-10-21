@@ -62,7 +62,7 @@ use crate::spell::{
 use crate::spellfile::spell_check_msm;
 use crate::spellsuggest::{spell_apply_sps, spell_check_sps};
 use crate::strings::{
-    atoi, gettext, strcmp as c_strcmp, strcspn, strlen as c_strlen, strncmp as c_strncmp, strpbrk,
+    atoi, gettext, strcmp, strcspn, strlen, strncmp, strpbrk,
     strstr, vim_snprintf, vim_strchr,
 };
 use crate::syntax::synblock_T;
@@ -1154,22 +1154,22 @@ pub unsafe extern "C" fn check_signcolumn(scl: *mut c_char, wp: *mut win_T) -> c
             if wp.is_null() {
                 return OK;
             }
-            if c_strncmp(val, c"no".as_ptr(), 2) == 0 {
+            if strncmp(val, c"no".as_ptr(), 2) == 0 {
                 (*wp).w_minscwidth = SCL_NO;
                 (*wp).w_maxscwidth = SCL_NO;
-            } else if c_strncmp(val, c"nu".as_ptr(), 2) == 0
+            } else if strncmp(val, c"nu".as_ptr(), 2) == 0
                 && ((*wp).w_onebuf_opt.wo_nu != 0 || (*wp).w_onebuf_opt.wo_rnu != 0)
             {
                 (*wp).w_minscwidth = SCL_NUM;
                 (*wp).w_maxscwidth = SCL_NUM;
-            } else if c_strncmp(val, c"yes:".as_ptr(), 4) == 0 {
+            } else if strncmp(val, c"yes:".as_ptr(), 4) == 0 {
                 let n = (*val.add(4) as c_int) - (b'0' as c_int);
                 (*wp).w_minscwidth = n;
                 (*wp).w_maxscwidth = n;
             } else if *val == b'y' as c_char {
                 (*wp).w_minscwidth = 1;
                 (*wp).w_maxscwidth = 1;
-            } else if c_strncmp(val, c"auto:".as_ptr(), 5) == 0 {
+            } else if strncmp(val, c"auto:".as_ptr(), 5) == 0 {
                 (*wp).w_minscwidth = 0;
                 (*wp).w_maxscwidth = (*val.add(5) as c_int) - (b'0' as c_int);
             } else {
@@ -1177,8 +1177,8 @@ pub unsafe extern "C" fn check_signcolumn(scl: *mut c_char, wp: *mut win_T) -> c
                 (*wp).w_maxscwidth = 1;
             }
         } else {
-            if c_strncmp(val, c"auto:".as_ptr(), 5) != 0
-                || c_strlen(val) != 8
+            if strncmp(val, c"auto:".as_ptr(), 5) != 0
+                || strlen(val) != 8
                 || !ascii_isdigit(*val.add(5) as c_int)
                 || *val.add(6) != b'-' as c_char
                 || !ascii_isdigit(*val.add(7) as c_int)
@@ -1457,7 +1457,7 @@ unsafe fn expand_set_opt_string(
         let mut val = values;
         while !(*val).is_null() {
             if **val == NUL
-                || (include_orig_val && *option_val != NUL && c_strcmp(*val, option_val) == 0)
+                || (include_orig_val && *option_val != NUL && strcmp(*val, option_val) == 0)
             {
                 val = val.add(1);
                 continue;
@@ -1540,7 +1540,7 @@ unsafe fn expand_set_opt_listflag(
         let append = (*args).oe_append;
         let include_orig_val = (*args).oe_include_orig_val && (*option_val != NUL);
 
-        let num_flags = c_strlen(flags);
+        let num_flags = strlen(flags);
 
         *matches =
             xmalloc(std::mem::size_of::<*mut c_char>() * (num_flags + 1)).cast::<*mut c_char>();
@@ -1583,10 +1583,10 @@ unsafe fn expand_set_opt_listflag(
 unsafe fn completing_value_for_subopt(args: *mut optexpand_T, name_suffix: *const c_char) -> bool {
     unsafe {
         let colon = (*(*args).oe_xp).xp_pattern.sub(1);
-        let len = c_strlen(name_suffix);
+        let len = strlen(name_suffix);
 
         colon.offset_from((*args).oe_set_arg) >= (len as isize)
-            && c_strncmp(colon.sub(len), name_suffix, len) == 0
+            && strncmp(colon.sub(len), name_suffix, len) == 0
     }
 }
 
@@ -1741,7 +1741,7 @@ pub unsafe extern "C" fn validate_backupext_or_patchmode(args: *mut optset_T) ->
             bex
         };
         let pm_s = if *pm == b'.' as c_char { pm.add(1) } else { pm };
-        if c_strcmp(bex_s, pm_s) == 0 {
+        if strcmp(bex_s, pm_s) == 0 {
             return E_BACKUPEXT_AND_PATCHMODE_ARE_EQUAL.as_ptr();
         }
 
@@ -2164,11 +2164,11 @@ pub unsafe extern "C" fn validate_completeitemalign(args: *mut optset_T) -> *con
         let mut buf = [0 as c_char; 10];
         while *p != NUL {
             copy_option_part(&raw mut p, buf.as_mut_ptr(), buf.len(), c",".as_ptr());
-            let item = if c_strcmp(buf.as_ptr(), c"abbr".as_ptr()) == 0 {
+            let item = if strcmp(buf.as_ptr(), c"abbr".as_ptr()) == 0 {
                 CPT_ABBR
-            } else if c_strcmp(buf.as_ptr(), c"kind".as_ptr()) == 0 {
+            } else if strcmp(buf.as_ptr(), c"kind".as_ptr()) == 0 {
                 CPT_KIND
-            } else if c_strcmp(buf.as_ptr(), c"menu".as_ptr()) == 0 {
+            } else if strcmp(buf.as_ptr(), c"menu".as_ptr()) == 0 {
                 CPT_MENU
             } else {
                 return e_invarg.as_ptr();
@@ -2409,7 +2409,7 @@ pub unsafe extern "C" fn validate_encoding(args: *mut optset_T) -> *const c_char
         let value = enc_canonize((*args).os_newval.data.string.data);
         (*args).os_prep.ptr = value.cast();
         (*args).os_prep_free = Some(xfree);
-        if (*args).os_idx == kOptEncoding && c_strcmp(value, c"utf-8".as_ptr()) != 0 {
+        if (*args).os_idx == kOptEncoding && strcmp(value, c"utf-8".as_ptr()) != 0 {
             return e_unsupportedoption.as_ptr();
         }
         ptr::null()
@@ -2558,7 +2558,7 @@ pub unsafe extern "C" fn validate_filetype(args: *mut optset_T) -> *const c_char
 pub unsafe extern "C" fn did_set_filetype_or_syntax(args: *mut optset_T) -> *const c_char {
     unsafe {
         let varp = (*args).os_varp.cast::<*mut c_char>();
-        (*args).os_value_changed = c_strcmp((*args).os_oldval.data.string.data, *varp) != 0;
+        (*args).os_value_changed = strcmp((*args).os_oldval.data.string.data, *varp) != 0;
         (*args).os_value_checked = true;
         ptr::null()
     }
@@ -2704,7 +2704,7 @@ pub unsafe extern "C" fn validate_helplang(args: *mut optset_T) -> *const c_char
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn validate_highlight(args: *mut optset_T) -> *const c_char {
     unsafe {
-        if c_strcmp((*args).os_newval.data.string.data, HIGHLIGHT_INIT.as_ptr()) != 0 {
+        if strcmp((*args).os_newval.data.string.data, HIGHLIGHT_INIT.as_ptr()) != 0 {
             return e_unsupportedoption.as_ptr();
         }
         ptr::null()
@@ -2829,8 +2829,8 @@ pub unsafe extern "C" fn validate_lispoptions(args: *mut optset_T) -> *const c_c
     unsafe {
         let value = (*args).os_newval.data.string.data;
         if *value == NUL
-            || c_strcmp(value, c"expr:0".as_ptr()) == 0
-            || c_strcmp(value, c"expr:1".as_ptr()) == 0
+            || strcmp(value, c"expr:0".as_ptr()) == 0
+            || strcmp(value, c"expr:1".as_ptr()) == 0
         {
             ptr::null()
         } else {
@@ -3208,7 +3208,7 @@ pub unsafe extern "C" fn validate_spellcapcheck(args: *mut optset_T) -> *const c
         (*args).os_prep.ptr = prog.cast();
         (*args).os_prep_free = Some(free_spellcap_prog);
         if err.err_type != ErrorType::kErrorTypeNone {
-            let msg = if c_strncmp(err.msg, c"Vim:".as_ptr(), 4) == 0 {
+            let msg = if strncmp(err.msg, c"Vim:".as_ptr(), 4) == 0 {
                 err.msg.add(4)
             } else {
                 err.msg
@@ -3588,7 +3588,7 @@ pub unsafe extern "C" fn did_set_virtualedit(args: *mut optset_T) -> *const c_ch
             );
             if !errmsg.is_null() {
                 return errmsg;
-            } else if c_strcmp(ve, (*args).os_oldval.data.string.data) != 0 {
+            } else if strcmp(ve, (*args).os_oldval.data.string.data) != 0 {
                 validate_virtcol(win);
                 coladvance(win, (*win).w_virtcol);
             }
@@ -3766,8 +3766,8 @@ unsafe fn opt_strings_flags(
                     );
                 }
 
-                let len = c_strlen(*values.add(i));
-                if c_strncmp(*values.add(i), val, len) == 0
+                let len = strlen(*values.add(i));
+                if strncmp(*values.add(i), val, len) == 0
                     && ((list && *val.add(len) == b',' as c_char) || *val.add(len) == NUL)
                 {
                     val = val.add(len + usize::from(*val.add(len) == b',' as c_char));
@@ -4349,7 +4349,7 @@ pub unsafe extern "C" fn set_chars_option(
                 while i < entries {
                     let name_ptr = tab[i].name.as_ptr();
                     let name_len = tab[i].name.to_bytes().len();
-                    if !(c_strncmp(p, name_ptr, name_len) == 0
+                    if !(strncmp(p, name_ptr, name_len) == 0
                         && *p.add(name_len) == b':' as c_char)
                     {
                         i += 1;
@@ -4359,7 +4359,7 @@ pub unsafe extern "C" fn set_chars_option(
                     let mut s = p.add(name_len + 1);
 
                     if what == CharsOption::kListchars
-                        && c_strcmp(name_ptr, c"multispace".as_ptr()) == 0
+                        && strcmp(name_ptr, c"multispace".as_ptr()) == 0
                     {
                         if round == 0 {
                             last_multispace = p;
@@ -4397,7 +4397,7 @@ pub unsafe extern "C" fn set_chars_option(
                     }
 
                     if what == CharsOption::kListchars
-                        && c_strcmp(name_ptr, c"leadmultispace".as_ptr()) == 0
+                        && strcmp(name_ptr, c"leadmultispace".as_ptr()) == 0
                     {
                         if round == 0 {
                             last_lmultispace = p;

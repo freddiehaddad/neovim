@@ -65,7 +65,7 @@ use crate::path::{path_to_slash_save, slash_adjust};
 use crate::runtime::script_is_lua;
 #[cfg(unix)]
 use crate::strings::concat_str;
-use crate::strings::{gettext, strlen as c_strlen, vim_strchr, vim_strsave_shellescape, xstrnsave};
+use crate::strings::{gettext, strlen, vim_strchr, vim_strsave_shellescape, xstrnsave};
 use crate::window::{find_tabpage, tabpage_T, win_T};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
@@ -178,7 +178,7 @@ pub unsafe extern "C" fn modify_fname(
                 // Append a path separator to a directory.
                 if os_isdir(*fnamep) {
                     // Make room for one or two extra characters.
-                    *fnamep = xstrnsave(*fnamep, c_strlen(*fnamep) + 2);
+                    *fnamep = xstrnsave(*fnamep, strlen(*fnamep) + 2);
                     xfree((*bufp).cast()); // free any allocated file name
                     *bufp = *fnamep;
                     add_pathsep(*fnamep);
@@ -227,7 +227,7 @@ pub unsafe extern "C" fn modify_fname(
                         }
 
                         if dirnamelen == 0 {
-                            dirnamelen = c_strlen(dirname.as_ptr());
+                            dirnamelen = strlen(dirname.as_ptr());
                         }
 
                         // Do not call shorten_fname() here since it removes the prefix
@@ -272,7 +272,7 @@ pub unsafe extern "C" fn modify_fname(
             }
 
             let mut tail = path_tail(*fnamep);
-            *fnamelen = c_strlen(*fnamep);
+            *fnamelen = strlen(*fnamep);
 
             // ":h" - head, remove "/file_name", can be repeated
             // Don't remove the logical root, see `FileInfo`.
@@ -446,7 +446,7 @@ pub unsafe extern "C" fn modify_fname(
                 xfree((*bufp).cast());
                 *fnamep = p;
                 *bufp = p;
-                *fnamelen = c_strlen(p);
+                *fnamelen = strlen(p);
                 *usedlen += 2;
             }
 
@@ -715,7 +715,7 @@ unsafe fn findfilendir(argvars: *mut typval_T, rettv: *mut typval_T, find_what: 
                     } else {
                         ptr::null_mut()
                     },
-                    if first { c_strlen(fname) } else { 0 },
+                    if first { strlen(fname) } else { 0 },
                     0,
                     c_int::from(first),
                     path,
@@ -803,7 +803,7 @@ pub unsafe extern "C" fn f_fnamemodify(
                 fbuf = xstrdup(fname);
             }
             fname = fbuf;
-            len = c_strlen(fname);
+            len = strlen(fname);
             if *mods != NUL {
                 let mut usedlen: usize = 0;
                 modify_fname(
@@ -1916,7 +1916,7 @@ pub unsafe extern "C" fn f_resolve(
                 is_relative_to_current = true;
             }
 
-            let mut len = c_strlen(p) as isize;
+            let mut len = strlen(p) as isize;
             if len > 1 && after_pathsep(p, p.offset(len)) != 0 {
                 has_trailing_pathsep = true;
                 *p.offset(len - 1) = NUL; // The trailing slash breaks readlink().
@@ -1987,8 +1987,8 @@ pub unsafe extern "C" fn f_resolve(
                     if (q as usize) > (p as usize) && !path_is_absolute(buf) {
                         // Symlink is relative to directory of argument. Replace the
                         // symlink with the resolved name in the same directory.
-                        let p_len = c_strlen(p);
-                        let buf_len = c_strlen(buf);
+                        let p_len = strlen(p);
+                        let buf_len = strlen(buf);
                         p = xrealloc(p.cast(), p_len + buf_len + 1).cast();
                         ptr::copy_nonoverlapping(buf, path_tail(p), buf_len + 1);
                     } else {
@@ -2004,7 +2004,7 @@ pub unsafe extern "C" fn f_resolve(
                 // Append the first path component of "remain" to "p".
                 q = path_next_component(remain.add(1)).cast_mut();
                 len = (q as usize).wrapping_sub(remain as usize) as isize - isize::from(*q != NUL);
-                let p_len = c_strlen(p);
+                let p_len = strlen(p);
                 cpy = xmallocz(p_len + len as usize).cast();
                 ptr::copy_nonoverlapping(p, cpy, p_len + 1);
                 xstrlcat(cpy.add(p_len), remain, len as usize + 1);
@@ -2014,7 +2014,7 @@ pub unsafe extern "C" fn f_resolve(
                 // Shorten "remain".
                 if *q != NUL {
                     let rem_tail = q.sub(1);
-                    let rem_len = c_strlen(rem_tail) + 1;
+                    let rem_len = strlen(rem_tail) + 1;
                     ptr::copy(rem_tail, remain, rem_len);
                 } else {
                     xfree(remain.cast());
@@ -2045,7 +2045,7 @@ pub unsafe extern "C" fn f_resolve(
                     }
                     if (q as usize) > (p as usize) {
                         let src_ptr = p.add(2);
-                        let move_len = c_strlen(src_ptr) + 1;
+                        let move_len = strlen(src_ptr) + 1;
                         ptr::copy(src_ptr, p, move_len);
                     }
                 }
@@ -2054,7 +2054,7 @@ pub unsafe extern "C" fn f_resolve(
             // Ensure that the result will have no trailing path separator
             // if the argument had none.  But keep "/" or "//".
             if !has_trailing_pathsep {
-                q = p.add(c_strlen(p));
+                q = p.add(strlen(p));
                 if after_pathsep(p, q) != 0 {
                     *path_tail_with_sep(p) = NUL;
                 }
@@ -2190,7 +2190,7 @@ unsafe fn write_blob(fp: *mut FileDescriptor, blob: *const blob_T) -> bool {
 }
 
 unsafe fn write_string(fp: *mut FileDescriptor, data: *const c_char) -> bool {
-    unsafe { write_data(fp, data, c_strlen(data)) }
+    unsafe { write_data(fp, data, strlen(data)) }
 }
 
 /// "writefile()" function

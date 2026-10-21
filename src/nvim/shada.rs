@@ -1,6 +1,5 @@
 //! ShaDa (Shared Data) file reader and writer (`src/nvim/shada.c`).
 
-use crate::api::extmark::set_has_ptr;
 use crate::api::private::helpers::{
     api_free_dict, api_free_string, copy_string, cstr_as_string, static_cstr_as_string,
 };
@@ -8,7 +7,6 @@ use crate::api::private::validate::{
     Dict, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
 };
 use crate::arglist::alist_T;
-use crate::autocmd::EMPTY_MAP_HASH;
 use crate::buffer::{
     BLN_LISTED, JUMPLISTSIZE, NMARKS, bt_quickfix, bt_terminal, buf_T, buflist_findnr, buflist_new,
     buflist_setfpos,
@@ -39,11 +37,12 @@ use crate::fileio::{S_IFDIR, S_IFMT, modname, vim_rename};
 use crate::fileio::{getgid, getuid};
 use crate::globals::*;
 use crate::hashtab::{hashitem_T, hashitem_empty};
-use crate::highlight::{OptionalKeys, map_destroy, set_destroy};
+use crate::highlight::OptionalKeys;
 use crate::lua::converter::Boolean;
 use crate::map::{
-    MH_TOMBSTONE, MHPutStatus, Map, Set, cstr_t, map_del_cstr_t_ptr_t, map_put_ref_cstr_t_ptr_t,
-    map_ref_cstr_t_ptr_t, mh_get_cstr_t, mh_get_path_t, mh_put_cstr_t, mh_put_path_t, path_t, ptr_t,
+    MH_TOMBSTONE, MHPutStatus, Map, Set, cstr_t, empty_map, empty_set, map_del_cstr_t_ptr_t,
+    map_destroy, map_put_ref_cstr_t_ptr_t, map_ref_cstr_t_ptr_t, mh_get_cstr_t, mh_get_path_t,
+    mh_put_cstr_t, mh_put_path_t, path_t, ptr_t, set_destroy, set_has_ptr, set_put_ptr,
 };
 use crate::mark::{
     EXTRA_MARKS, cleanup_jumplist, fmark_T, free_fmark, free_xfmark, mark_buffer_iter, mark_get,
@@ -134,20 +133,6 @@ const DEFAULT_POS: pos_T = pos_T {
     col: 0,
     coladd: 0,
 };
-
-const fn set_init<K>() -> Set<K> {
-    Set {
-        h: EMPTY_MAP_HASH,
-        keys: ptr::null_mut(),
-    }
-}
-
-const fn map_init<K, V>() -> Map<K, V> {
-    Map {
-        set: set_init(),
-        values: ptr::null_mut(),
-    }
-}
 
 const KEYSET_OPTIDX__shada_buflist_item__c: u32 = 1;
 const KEYSET_OPTIDX__shada_buflist_item__f: u32 = 2;
@@ -599,7 +584,7 @@ use crate::api::private::dispatch::{
 
 use crate::charset::NUL;
 use crate::eval::funcs::MPACK_EOF;
-use crate::event::r#loop::{NS_PER_SEC, uv_strerror as os_strerror};
+use crate::event::r#loop::{NS_PER_SEC, uv_strerror};
 use crate::os::fs::MAXPATHL;
 use crate::version::longVersion;
 
@@ -636,8 +621,6 @@ const fn mark_local_index(name: c_char) -> c_int {
         -1
     }
 }
-
-use crate::map::set_put_ptr;
 
 #[inline]
 unsafe fn set_has_cstr(set: *mut Set<cstr_t>, key: cstr_t) -> bool {
@@ -679,7 +662,7 @@ unsafe fn hmll_init(hmll: *mut HMLList, size: usize) {
             last_free_entry: entries,
             size,
             num_entries: 0,
-            contained_entries: map_init(),
+            contained_entries: empty_map(),
         };
     }
 }
@@ -782,7 +765,7 @@ unsafe fn sd_reader_skip(sd_reader: *mut FileDescriptor, offset: usize) -> ShaDa
         if skip_bytes < 0 {
             semsg!(
                 gettext(c"E886: System error while skipping in ShaDa file: %s".as_ptr()),
-                os_strerror(skip_bytes as c_int),
+                uv_strerror(skip_bytes as c_int),
             );
             return ShaDaReadResult::kSDReadStatusReadError;
         } else if skip_bytes != (offset as isize) {
@@ -813,7 +796,7 @@ unsafe fn close_file(cookie: *mut FileDescriptor) {
         if error != 0 {
             semsg!(
                 gettext(c"E886: System error while closing ShaDa file: %s".as_ptr()),
-                os_strerror(error),
+                uv_strerror(error),
             );
         }
     }
@@ -867,7 +850,7 @@ unsafe fn shada_read_file(file: *const c_char, flags: c_int) -> c_int {
                         c"E886: System error while opening ShaDa file %s for reading: %s".as_ptr(),
                     ),
                     fname,
-                    os_strerror(of_ret),
+                    uv_strerror(of_ret),
                 );
             }
             xfree(fname.cast::<c_void>());
@@ -1188,9 +1171,9 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
             }
         }
         let mut cur_entry = MISSING_ENTRY;
-        let mut cl_bufs: Set<ptr_t> = set_init();
-        let mut fname_bufs: Map<cstr_t, ptr_t> = map_init();
-        let mut oldfiles_set: Set<path_t> = set_init();
+        let mut cl_bufs: Set<ptr_t> = empty_set();
+        let mut fname_bufs: Map<cstr_t, ptr_t> = empty_map();
+        let mut oldfiles_set: Set<path_t> = empty_set();
         if get_old_files && (oldfiles_list.is_null() || force) {
             oldfiles_list = tv_list_alloc(kListLenUnknown);
             set_vim_var_list(VV_OLDFILES, oldfiles_list);
@@ -2495,7 +2478,7 @@ unsafe fn shada_write(
             max_reg_lines = get_shada_parameter(b'"' as c_int);
         }
         let dump_registers = max_reg_lines != 0;
-        let mut removable_bufs: Set<ptr_t> = set_init();
+        let mut removable_bufs: Set<ptr_t> = empty_set();
         let max_kbyte = max_kbyte_i as usize;
         let num_marked_files = get_shada_parameter(b'\'' as c_int) as usize;
         let dump_global_marks = get_shada_parameter(b'f' as c_int) != 0;
@@ -3081,7 +3064,7 @@ pub unsafe extern "C" fn shada_write_file(file: *const c_char, mut nomerge: bool
                                 .as_ptr(),
                         ),
                         fname,
-                        os_strerror(error),
+                        uv_strerror(error),
                     );
                 }
                 nomerge = true;
@@ -3132,7 +3115,7 @@ pub unsafe extern "C" fn shada_write_file(file: *const c_char, mut nomerge: bool
                                             .as_ptr(),
                                     ),
                                     tempname,
-                                    os_strerror(error),
+                                    uv_strerror(error),
                                 );
                             }
                         } else {
@@ -3159,7 +3142,7 @@ pub unsafe extern "C" fn shada_write_file(file: *const c_char, mut nomerge: bool
                                     .as_ptr(),
                             ),
                             failed_dir,
-                            os_strerror(ret),
+                            uv_strerror(ret),
                         );
                         xfree(fname.cast::<c_void>());
                         xfree(failed_dir.cast::<c_void>());
@@ -3180,7 +3163,7 @@ pub unsafe extern "C" fn shada_write_file(file: *const c_char, mut nomerge: bool
                         c"E886: System error while opening ShaDa file %s for writing: %s".as_ptr(),
                     ),
                     fname,
-                    os_strerror(error),
+                    uv_strerror(error),
                 );
             } else {
                 did_open_writer = true;
@@ -3266,7 +3249,7 @@ pub unsafe extern "C" fn shada_write_file(file: *const c_char, mut nomerge: bool
                                             .as_ptr(),
                                     ),
                                     tempname,
-                                    os_strerror(fchown_ret),
+                                    uv_strerror(fchown_ret),
                                 );
                                 chown_ok = false;
                             }
@@ -3412,7 +3395,7 @@ unsafe fn fread_len(
         if read_bytes < 0 {
             semsg!(
                 gettext(c"E886: System error while reading ShaDa file: %s".as_ptr()),
-                os_strerror(read_bytes as c_int),
+                uv_strerror(read_bytes as c_int),
             );
             return ShaDaReadResult::kSDReadStatusReadError;
         }
@@ -3442,7 +3425,7 @@ unsafe fn msgpack_read_uint64(
         if read_bytes < 0 {
             semsg!(
                 gettext(c"E886: System error while reading integer from ShaDa file: %s".as_ptr()),
-                os_strerror(read_bytes as c_int),
+                uv_strerror(read_bytes as c_int),
             );
             return ShaDaReadResult::kSDReadStatusReadError;
         } else if read_bytes == 0 {
@@ -4277,7 +4260,7 @@ pub unsafe extern "C" fn shada_encode_regs(scale_ts: bool, since: Timestamp) -> 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn shada_encode_jumps() -> NvimString {
     unsafe {
-        let mut removable_bufs: Set<ptr_t> = set_init();
+        let mut removable_bufs: Set<ptr_t> = empty_set();
         find_removable_bufs(&mut removable_bufs);
         let mut jumps = [MISSING_ENTRY; JUMPLISTSIZE];
         let jumps_size = shada_init_jumps(jumps.as_mut_ptr(), &mut removable_bufs);
@@ -4295,7 +4278,7 @@ pub unsafe extern "C" fn shada_encode_jumps() -> NvimString {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn shada_encode_buflist() -> NvimString {
     unsafe {
-        let mut removable_bufs: Set<ptr_t> = set_init();
+        let mut removable_bufs: Set<ptr_t> = empty_set();
         find_removable_bufs(&mut removable_bufs);
         let buflist_entry = shada_get_buflist(&mut removable_bufs);
 

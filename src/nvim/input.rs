@@ -295,7 +295,6 @@ use crate::cmdexpand::{Ctrl_N, Ctrl_P, MB_MAXBYTES};
 use crate::keycodes::{k_second, k_third};
 use crate::lua::converter::LUA_NOREF;
 use crate::math::{FAIL, OK};
-use crate::mbyte::utf_byte2len as mb_byte2len;
 use crate::regexp::Ctrl_V;
 
 #[inline]
@@ -2300,7 +2299,7 @@ unsafe fn char_iter(itp: *mut *const u8, nomap: c_int) -> c_int {
         }
 
         if nomap == 0 {
-            let mblen = mb_byte2len(c);
+            let mblen = utf_byte2len(c);
             if mblen > 1 {
                 let mut buf = [0u8; MB_MAXBYTES + 1];
                 buf[0] = c as u8;
@@ -3306,7 +3305,7 @@ pub unsafe extern "C" fn get_keystroke(events: *mut MultiQueue) -> c_int {
                 }
                 break;
             }
-            if mb_byte2len(n) > len {
+            if utf_byte2len(n) > len {
                 continue;
             }
             let term_idx = if len >= buflen { buflen - 1 } else { len } as usize;

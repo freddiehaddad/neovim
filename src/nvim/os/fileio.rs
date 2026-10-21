@@ -11,7 +11,7 @@ use crate::os::fs::{
     UV_EROFS, os_close, os_file_mkdir, os_fsync, os_open, os_open_stdin_fd, os_read, os_write,
 };
 #[cfg(unix)]
-use crate::os::fs::{iovec as IoVec, os_readv};
+use crate::os::fs::{iovec, os_readv};
 
 pub const K_FILE_READ_ONLY: c_int = 1;
 pub const K_FILE_CREATE: c_int = 2;
@@ -283,11 +283,11 @@ pub unsafe extern "C" fn file_read(
                 break;
             }
             let mut iov = [
-                IoVec {
+                iovec {
                     iov_base: buf.cast::<c_void>(),
                     iov_len: read_remaining,
                 },
-                IoVec {
+                iovec {
                     iov_base: fp.write_pos.cast::<c_void>(),
                     iov_len: ARENA_BLOCK_SIZE,
                 },
