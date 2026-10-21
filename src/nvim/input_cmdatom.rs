@@ -349,18 +349,10 @@ pub unsafe fn sb_concat(sb: &mut StringBuilder, s: *const c_char) {
 #[inline]
 unsafe fn dict_put(d: &mut Dict, key: &CStr, value: Object) {
     unsafe {
-        let mut kv: KVec<KeyValuePair> = KVec {
-            size: d.size,
-            capacity: d.capacity,
-            items: d.items,
-        };
-        kv.push(KeyValuePair {
+        d.push(KeyValuePair {
             key: cstr_to_string(key.as_ptr()),
             value,
         });
-        d.size = kv.size;
-        d.capacity = kv.capacity;
-        d.items = kv.items;
     }
 }
 

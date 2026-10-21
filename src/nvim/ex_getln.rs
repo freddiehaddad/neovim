@@ -3632,15 +3632,10 @@ unsafe fn color_expr_cmdline(
         viml_pexpr_free_ast(east);
         viml_parser_destroy(&raw mut pstate);
 
-        let mut kv_colors = KVec::<CmdlineColorChunk> {
-            size: (*ret_ccline_colors).colors.size,
-            capacity: (*ret_ccline_colors).colors.capacity,
-            items: (*ret_ccline_colors).colors.items,
-        };
-        kv_colors.capacity = colors.size;
-        kv_colors.items = xrealloc(
-            kv_colors.items.cast::<c_void>(),
-            size_of::<CmdlineColorChunk>() * kv_colors.capacity,
+        (*ret_ccline_colors).colors.capacity = colors.size;
+        (*ret_ccline_colors).colors.items = xrealloc(
+            (*ret_ccline_colors).colors.items.cast::<c_void>(),
+            size_of::<CmdlineColorChunk>() * (*ret_ccline_colors).colors.capacity,
         )
         .cast::<CmdlineColorChunk>();
         let mut prev_end: usize = 0;
@@ -3649,13 +3644,13 @@ unsafe fn color_expr_cmdline(
             debug_assert!(chunk.start.col < c_int::MAX as usize);
             debug_assert!(chunk.end_col < c_int::MAX as usize);
             if chunk.start.col != prev_end {
-                kv_colors.push(CmdlineColorChunk {
+                (*ret_ccline_colors).colors.push(CmdlineColorChunk {
                     start: prev_end as c_int,
                     end: chunk.start.col as c_int,
                     hl_id: 0,
                 });
             }
-            kv_colors.push(CmdlineColorChunk {
+            (*ret_ccline_colors).colors.push(CmdlineColorChunk {
                 start: chunk.start.col as c_int,
                 end: chunk.end_col as c_int,
                 hl_id: syn_name2id(chunk.group),
@@ -3663,15 +3658,12 @@ unsafe fn color_expr_cmdline(
             prev_end = chunk.end_col;
         }
         if prev_end < (*colored_ccline).cmdlen as usize {
-            kv_colors.push(CmdlineColorChunk {
+            (*ret_ccline_colors).colors.push(CmdlineColorChunk {
                 start: prev_end as c_int,
                 end: (*colored_ccline).cmdlen,
                 hl_id: 0,
             });
         }
-        (*ret_ccline_colors).colors.size = kv_colors.size;
-        (*ret_ccline_colors).colors.capacity = kv_colors.capacity;
-        (*ret_ccline_colors).colors.items = kv_colors.items;
         colors.destroy();
     }
 }
@@ -3801,18 +3793,10 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                 }
                 let mut prev_end: varnumber_T = 0;
                 let mut i: c_int = 0;
-                let mut kv_colors = KVec::<CmdlineColorChunk> {
-                    size: (*ccline_colors).colors.size,
-                    capacity: (*ccline_colors).colors.capacity,
-                    items: (*ccline_colors).colors.items,
-                };
                 let mut li = tv_list_first(v_list);
                 while !li.is_null() {
                     let li_tv = &raw mut (*li).li_tv;
                     if (*li_tv).v_type != VarType::VAR_LIST {
-                        (*ccline_colors).colors.size = kv_colors.size;
-                        (*ccline_colors).colors.capacity = kv_colors.capacity;
-                        (*ccline_colors).colors.items = kv_colors.items;
                         msg_scroll = 1;
                         msg_putchar(b'\n' as c_int);
                         smsg!(
@@ -3825,9 +3809,6 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                     }
                     let l = (*li_tv).vval.v_list;
                     if tv_list_len(l) != 3 {
-                        (*ccline_colors).colors.size = kv_colors.size;
-                        (*ccline_colors).colors.capacity = kv_colors.capacity;
-                        (*ccline_colors).colors.items = kv_colors.items;
                         msg_scroll = 1;
                         msg_putchar(b'\n' as c_int);
                         smsg!(
@@ -3843,16 +3824,10 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                     let first_li = tv_list_first(l);
                     let start = tv_get_number_chk(&raw const (*first_li).li_tv, &raw mut error);
                     if error {
-                        (*ccline_colors).colors.size = kv_colors.size;
-                        (*ccline_colors).colors.capacity = kv_colors.capacity;
-                        (*ccline_colors).colors.items = kv_colors.items;
                         break 'color_cmdline_error;
                     } else if !(prev_end <= start
                         && start < (*colored_ccline).cmdlen as varnumber_T)
                     {
-                        (*ccline_colors).colors.size = kv_colors.size;
-                        (*ccline_colors).colors.capacity = kv_colors.capacity;
-                        (*ccline_colors).colors.items = kv_colors.items;
                         msg_scroll = 1;
                         msg_putchar(b'\n' as c_int);
                         smsg!(
@@ -3869,9 +3844,6 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                         [*(*colored_ccline).cmdbuff.add(start as usize) as u8 as usize]
                         == 0
                     {
-                        (*ccline_colors).colors.size = kv_colors.size;
-                        (*ccline_colors).colors.capacity = kv_colors.capacity;
-                        (*ccline_colors).colors.items = kv_colors.items;
                         msg_scroll = 1;
                         msg_putchar(b'\n' as c_int);
                         smsg!(
@@ -3886,7 +3858,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                         break 'color_cmdline_error;
                     }
                     if start != prev_end {
-                        kv_colors.push(CmdlineColorChunk {
+                        (*ccline_colors).colors.push(CmdlineColorChunk {
                             start: prev_end as c_int,
                             end: start as c_int,
                             hl_id: 0,
@@ -3895,14 +3867,8 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                     let second_li = (*first_li).li_next;
                     let end = tv_get_number_chk(&raw const (*second_li).li_tv, &raw mut error);
                     if error {
-                        (*ccline_colors).colors.size = kv_colors.size;
-                        (*ccline_colors).colors.capacity = kv_colors.capacity;
-                        (*ccline_colors).colors.items = kv_colors.items;
                         break 'color_cmdline_error;
                     } else if !(start < end && end <= (*colored_ccline).cmdlen as varnumber_T) {
-                        (*ccline_colors).colors.size = kv_colors.size;
-                        (*ccline_colors).colors.capacity = kv_colors.capacity;
-                        (*ccline_colors).colors.items = kv_colors.items;
                         msg_scroll = 1;
                         msg_putchar(b'\n' as c_int);
                         smsg!(
@@ -3920,9 +3886,6 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                             [*(*colored_ccline).cmdbuff.add(end as usize) as u8 as usize]
                             == 0
                     {
-                        (*ccline_colors).colors.size = kv_colors.size;
-                        (*ccline_colors).colors.capacity = kv_colors.capacity;
-                        (*ccline_colors).colors.items = kv_colors.items;
                         msg_scroll = 1;
                         msg_putchar(b'\n' as c_int);
                         smsg!(
@@ -3940,12 +3903,9 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                     let last_li = tv_list_last(l);
                     let group = tv_get_string_chk(&raw const (*last_li).li_tv);
                     if group.is_null() {
-                        (*ccline_colors).colors.size = kv_colors.size;
-                        (*ccline_colors).colors.capacity = kv_colors.capacity;
-                        (*ccline_colors).colors.items = kv_colors.items;
                         break 'color_cmdline_error;
                     }
-                    kv_colors.push(CmdlineColorChunk {
+                    (*ccline_colors).colors.push(CmdlineColorChunk {
                         start: start as c_int,
                         end: end as c_int,
                         hl_id: syn_name2id(group),
@@ -3954,15 +3914,12 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                     li = (*li).li_next;
                 }
                 if prev_end < (*colored_ccline).cmdlen as varnumber_T {
-                    kv_colors.push(CmdlineColorChunk {
+                    (*ccline_colors).colors.push(CmdlineColorChunk {
                         start: prev_end as c_int,
                         end: (*colored_ccline).cmdlen,
                         hl_id: 0,
                     });
                 }
-                (*ccline_colors).colors.size = kv_colors.size;
-                (*ccline_colors).colors.capacity = kv_colors.capacity;
-                (*ccline_colors).colors.items = kv_colors.items;
                 prev_prompt_errors = 0;
                 break 'color_cmdline_end;
             }

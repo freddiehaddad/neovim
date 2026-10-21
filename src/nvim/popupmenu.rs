@@ -5,7 +5,7 @@ use crate::api::private::helpers::{
     add_c, api_clear_error, api_free_array, arena_array, array_obj, boolean_obj, cstr_as_obj,
     cstr_as_string, string_obj,
 };
-use crate::api::private::validate::{Array, Error, ErrorType, NvimString, Object};
+use crate::api::private::validate::{Array, Error, ErrorType, NvimString};
 use crate::api::win_config::{WIN_CONFIG_INIT, kUIMultigrid, parse_winborder};
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 use crate::buffer::{bt_nofile, buf_clear, first_win_in_tab};
@@ -43,7 +43,7 @@ use crate::keycodes::{
 };
 use crate::mbyte::{mb_string2cells, mb_strnicmp, ptr2cells, utf_ptr2cells, utfc_ptr2len};
 use crate::memory::{
-    Arena, arena_finish, arena_mem_free, strequal, xcalloc, xfree, xmalloc, xrealloc, xstrdup,
+    Arena, arena_finish, arena_mem_free, strequal, xcalloc, xfree, xmalloc, xstrdup,
 };
 use crate::menu::{execute_menu, get_menu_mode_flag, menu_find, menu_is_separator, vimmenu_T};
 use crate::message::emsg;
@@ -145,18 +145,6 @@ static mut PUM_EXTERNAL: bool = false;
 static mut PUM_INVALID: bool = false;
 
 use crate::api::private::helpers::cstr_to_string;
-
-#[inline]
-unsafe fn kv_add_obj(a: &mut Array, v: Object) {
-    unsafe {
-        if a.size == a.capacity {
-            a.capacity = if a.capacity == 0 { 8 } else { a.capacity * 2 };
-            a.items = xrealloc(a.items.cast(), a.capacity * size_of::<Object>()).cast();
-        }
-        *a.items.add(a.size) = v;
-        a.size += 1;
-    }
-}
 
 unsafe fn pum_compute_size() {
     unsafe {
@@ -1167,7 +1155,7 @@ unsafe fn pum_preview_set_text(
             let line_width = win_linetabsize(win, 0, curr, MAXCOL);
             (*win).w_onebuf_opt.wo_wrap = save_wrap;
             *max_width = (*max_width).max(line_width);
-            kv_add_obj(&mut replacement, string_obj(cstr_to_string(curr)));
+            replacement.push(string_obj(cstr_to_string(curr)));
             *lnum += 1;
 
             if !next.is_null() {

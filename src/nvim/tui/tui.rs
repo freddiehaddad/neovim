@@ -787,12 +787,7 @@ unsafe fn apply_termdefs(tui: *mut TUIData) {
                 size: 1,
                 capacity: 1,
             };
-            let chunks_arr = Array {
-                items: chunks.items,
-                size: chunks.size,
-                capacity: chunks.capacity,
-            };
-            let mut args_items = [array_obj(chunks_arr), boolean_obj(true), dict_obj(opts)];
+            let mut args_items = [array_obj(chunks), boolean_obj(true), dict_obj(opts)];
             let args = Array {
                 items: args_items.as_mut_ptr(),
                 size: 3,

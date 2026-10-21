@@ -57,6 +57,7 @@ use crate::highlight_group::{get_highlight_name, set_context_in_highlight_cmd};
 use crate::input::{beep_flush, char_avail, vpeekc};
 use crate::insexpand::find_word_end;
 use crate::keycodes::{K_DOWN, K_KENTER, K_LEFT, K_RIGHT, K_UP};
+use crate::kvec::KVec;
 use crate::lua::executor::{
     kRetObject, nlua_call_user_expand_func, nlua_exec, nlua_expand_get_matches, nlua_expand_pat,
 };
@@ -721,13 +722,7 @@ pub struct CmdlineColorChunk {
     pub hl_id: c_int,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct CmdlineColors {
-    pub size: usize,
-    pub capacity: usize,
-    pub items: *mut CmdlineColorChunk,
-}
+pub type CmdlineColors = KVec<CmdlineColorChunk>;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

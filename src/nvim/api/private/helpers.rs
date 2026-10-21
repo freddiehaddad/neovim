@@ -22,15 +22,14 @@ use crate::ex_eval::{
 use crate::garray::garray_T;
 use crate::globals::*;
 use crate::highlight_group::{highlight_num_groups, syn_check_group, syn_id2name};
-use crate::kvec::KVec;
 use crate::lua::converter::{Boolean, FieldHashfn, Float, KeySetLink, LuaRef, OptKeySet};
 use crate::lua::executor::{api_free_luaref, api_new_luaref};
 
 use crate::mark::setmark_pos;
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::memory::{
-    Arena, ArenaMem, arena_alloc, arena_finish, arena_memdupz, memchrsub, xfree, xmalloc, xmemdupz,
-    xrealloc, xstrdup, xstrndup, xstrnlen,
+    Arena, ArenaMem, arena_alloc, arena_finish, arena_memdupz, memchrsub, xfree, xmemdupz, xstrdup,
+    xstrndup, xstrnlen,
 };
 use crate::message::hl_msg_free;
 use crate::msgpack_rpc::packer::{Integer, handle_T};
@@ -178,15 +177,7 @@ pub unsafe fn add_c(array: &mut Array, item: Object) {
 #[inline]
 pub unsafe fn array_add(a: &mut Array, item: Object) {
     unsafe {
-        let mut kv: KVec<Object> = KVec {
-            size: a.size,
-            capacity: a.capacity,
-            items: a.items,
-        };
-        kv.push(item);
-        a.size = kv.size;
-        a.capacity = kv.capacity;
-        a.items = kv.items;
+        a.push(item);
     }
 }
 
@@ -779,25 +770,6 @@ pub unsafe extern "C" fn ga_take_string(ga: *mut garray_T) -> NvimString {
     }
 }
 
-unsafe fn kvi_push_obj(v: *mut ArrayBuilder, item: Object) {
-    unsafe {
-        if (*v).size == (*v).capacity {
-            (*v).capacity <<= 1;
-            let init_ptr = (&raw mut (*v).init_array).cast::<Object>();
-            if (*v).items == init_ptr {
-                let new_items = xmalloc((*v).capacity * size_of::<Object>()).cast::<Object>();
-                ptr::copy_nonoverlapping(init_ptr, new_items, (*v).size);
-                (*v).items = new_items;
-            } else {
-                (*v).items =
-                    xrealloc((*v).items.cast(), (*v).capacity * size_of::<Object>()).cast();
-            }
-        }
-        *(*v).items.add((*v).size) = item;
-        (*v).size += 1;
-    }
-}
-
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn string_to_array(
     input: NvimString,
@@ -806,9 +778,7 @@ pub unsafe extern "C" fn string_to_array(
 ) -> Array {
     unsafe {
         let mut ret: ArrayBuilder = zeroed();
-        ret.capacity = 16;
-        ret.size = 0;
-        ret.items = (&raw mut ret.init_array).cast::<Object>();
+        ret.init();
 
         let mut i: usize = 0;
         while i < input.size {
@@ -834,13 +804,10 @@ pub unsafe extern "C" fn string_to_array(
                 },
             );
             memchrsub(s.data.cast(), NUL, NL, line_len);
-            kvi_push_obj(
-                &raw mut ret,
-                Object {
-                    obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData { string: s },
-                },
-            );
+            ret.push(Object {
+                obj_type: ObjectType::kObjectTypeString,
+                data: ObjectData { string: s },
+            });
             if i + 1 == input.size && (*end == NL || (crlf && *end == CAR)) {
                 let empty_s = arena_string(
                     arena,
@@ -849,13 +816,10 @@ pub unsafe extern "C" fn string_to_array(
                         size: 0,
                     },
                 );
-                kvi_push_obj(
-                    &raw mut ret,
-                    Object {
-                        obj_type: ObjectType::kObjectTypeString,
-                        data: ObjectData { string: empty_s },
-                    },
-                );
+                ret.push(Object {
+                    obj_type: ObjectType::kObjectTypeString,
+                    data: ObjectData { string: empty_s },
+                });
             }
             i += 1;
         }
