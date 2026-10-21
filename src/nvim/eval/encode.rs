@@ -39,16 +39,8 @@ pub(crate) const K_MP_ARRAY: usize = 5;
 
 const FF: c_int = 0x0c;
 
-#[repr(transparent)]
-pub struct CStrArray<const N: usize>(pub [*const c_char; N]);
-unsafe impl<const N: usize> Sync for CStrArray<N> {}
-
-#[unsafe(no_mangle)]
-pub static encode_bool_var_names: CStrArray<2> =
-    CStrArray([c"v:false".as_ptr(), c"v:true".as_ptr()]);
-
-#[unsafe(no_mangle)]
-pub static encode_special_var_names: CStrArray<1> = CStrArray([c"v:null".as_ptr()]);
+pub const encode_bool_var_names: [*const c_char; 2] = [c"v:false".as_ptr(), c"v:true".as_ptr()];
+pub const encode_special_var_names: [*const c_char; 1] = [c"v:null".as_ptr()];
 
 static mut DID_ECHO_STRING_EMSG: bool = false;
 

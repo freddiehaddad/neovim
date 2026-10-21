@@ -28,9 +28,6 @@ pub struct VTermEncoding {
     >,
 }
 
-// `VTermEncoding` contains only function pointers and static tables.
-unsafe impl Sync for VTermEncoding {}
-
 #[repr(C)]
 struct UTF8DecoderData {
     bytes_remaining: c_int,
@@ -189,8 +186,6 @@ struct StaticTableEncoding {
     enc: VTermEncoding,
     chars: [u32; 128],
 }
-
-unsafe impl Sync for StaticTableEncoding {}
 
 unsafe extern "C" fn decode_table(
     enc: *mut VTermEncoding,

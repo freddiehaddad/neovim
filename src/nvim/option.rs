@@ -563,8 +563,6 @@ struct ShellRule {
     sxq: *const c_char,
 }
 
-unsafe impl Sync for ShellRule {}
-
 #[cfg(windows)]
 const SHELL_RULES: [ShellRule; 4] = [
     ShellRule {

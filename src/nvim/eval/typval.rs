@@ -269,15 +269,11 @@ struct Join {
     tofree: *mut c_char,
 }
 
-#[repr(transparent)]
-pub struct SyncCStrPtr(pub *const c_char);
-unsafe impl Sync for SyncCStrPtr {}
-
 #[unsafe(no_mangle)]
 pub static mut tv_in_free_unref_items: bool = false;
 
-#[unsafe(no_mangle)]
-pub static tv_empty_string: SyncCStrPtr = SyncCStrPtr(c"".as_ptr());
+static TV_EMPTY_STRING_BYTE: c_char = 0;
+pub const tv_empty_string: *const c_char = &raw const TV_EMPTY_STRING_BYTE;
 
 static mut SORTINFO: *mut sortinfo_T = ptr::null_mut();
 static mut TV_EQUAL_RECURSE_LIMIT: c_int = 0;
@@ -4038,7 +4034,7 @@ unsafe fn nothing_conv_func_start(tv: *mut typval_T, fun: *mut c_char) -> c_int 
             }
         } else {
             func_unref(fun);
-            if !ptr::eq(fun.cast_const(), tv_empty_string.0) {
+            if !ptr::eq(fun.cast_const(), tv_empty_string) {
                 xfree(fun.cast());
             }
             (*tv).vval.v_string = ptr::null_mut();
@@ -5378,7 +5374,7 @@ pub unsafe extern "C" fn tv_get_string_buf_chk(
             VarType::VAR_BOOL => {
                 xstrlcpy(
                     buf,
-                    encode_bool_var_names.0[(*tv).vval.v_bool as usize],
+                    encode_bool_var_names[(*tv).vval.v_bool as usize],
                     NUMBUFLEN,
                 );
                 buf
@@ -5386,7 +5382,7 @@ pub unsafe extern "C" fn tv_get_string_buf_chk(
             VarType::VAR_SPECIAL => {
                 xstrlcpy(
                     buf,
-                    encode_special_var_names.0[(*tv).vval.v_special as usize],
+                    encode_special_var_names[(*tv).vval.v_special as usize],
                     NUMBUFLEN,
                 );
                 buf

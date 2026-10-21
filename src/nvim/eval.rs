@@ -2279,7 +2279,7 @@ unsafe fn eval_func(
         xfree(s.cast());
 
         if (*rettv).v_type == VarType::VAR_UNKNOWN && !evaluate && **arg == b'(' as c_char {
-            (*rettv).vval.v_string = tv_empty_string.0.cast_mut();
+            (*rettv).vval.v_string = tv_empty_string.cast_mut();
             (*rettv).v_type = VarType::VAR_FUNC;
         }
 
