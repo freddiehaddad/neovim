@@ -10,8 +10,8 @@ use crate::api::ui::remote_ui_wait_for_attach;
 use crate::arglist::{alist_add, alist_init, alist_name, gargcount, garglist};
 use crate::autocmd::{
     EVENT_BUFENTER, EVENT_BUFUNLOAD, EVENT_BUFWINLEAVE, EVENT_VIMENTER, EVENT_VIMLEAVE,
-    EVENT_VIMLEAVEPRE, apply_autocmds, apply_autocmds_win, autocmd_init, block_autocmds,
-    is_autocmd_blocked, unblock_autocmds,
+    EVENT_VIMLEAVEPRE, apply_autocmds, autocmd_init, block_autocmds, is_autocmd_blocked,
+    unblock_autocmds,
 };
 use crate::buffer::{
     BLN_LISTED, MAXLNUM, SEA_DIALOG, SEA_NONE, SEA_QUIT, VAR_FIXED, buf_get_changedtick,
@@ -872,7 +872,11 @@ pub unsafe extern "C" fn getout(mut exitval: c_int) -> ! {
             let mut tp: *const tabpage_T = first_tabpage;
             while !tp.is_null() {
                 next_tp = (*tp).tp_next;
-                let mut wp = (*tp).tp_firstwin;
+                let mut wp = if ptr::eq(tp, curtab) {
+                    firstwin
+                } else {
+                    (*tp).tp_firstwin
+                };
                 while !wp.is_null() {
                     if (*wp).w_buffer.is_null() || !buf_valid((*wp).w_buffer) {
                         wp = (*wp).w_next;
@@ -882,13 +886,12 @@ pub unsafe extern "C" fn getout(mut exitval: c_int) -> ! {
                     if buf_get_changedtick(buf) != -1 {
                         let mut bufref: bufref_T = zeroed();
                         set_bufref(&raw mut bufref, buf);
-                        apply_autocmds_win(
+                        apply_autocmds(
                             EVENT_BUFWINLEAVE,
                             (*buf).b_fname,
                             (*buf).b_fname,
                             false,
                             buf,
-                            wp,
                         );
                         if bufref_valid(&raw mut bufref) {
                             buf_set_changedtick(buf, -1);
