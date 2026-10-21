@@ -72,7 +72,6 @@ pub struct keyvalue_T {
 }
 
 unsafe extern "C" {
-    pub(crate) fn snprintf(s: *mut c_char, maxlen: usize, format: *const c_char, ...) -> c_int;
     pub fn strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> c_double;
     pub fn strcoll(s1: *const c_char, s2: *const c_char) -> c_int;
     pub fn setlocale(category: c_int, locale: *const c_char) -> *mut c_char;
@@ -2459,12 +2458,21 @@ unsafe fn vim_vsnprintf_typval_inner(
                         } else {
                             match fmt_spec as u8 {
                                 b'p' => {
-                                    str_arg_l += snprintf(
-                                        tmp.as_mut_ptr().add(str_arg_l),
-                                        tmp.len() - str_arg_l,
-                                        c"%p".as_ptr(),
-                                        ptr_arg,
-                                    ) as usize;
+                                    if ptr_arg.is_null() {
+                                        #[cfg(target_os = "linux")]
+                                        let nil_s = "(nil)";
+                                        #[cfg(not(target_os = "linux"))]
+                                        let nil_s = "0x0";
+                                        str_arg_l += write_fmt_to_c_buf(
+                                            &mut tmp[str_arg_l..],
+                                            format_args!("{nil_s}"),
+                                        );
+                                    } else {
+                                        str_arg_l += write_fmt_to_c_buf(
+                                            &mut tmp[str_arg_l..],
+                                            format_args!("{:#x}", ptr_arg as usize),
+                                        );
+                                    }
                                 }
                                 b'd' => {
                                     str_arg_l += write_fmt_to_c_buf(
@@ -2556,7 +2564,6 @@ unsafe fn vim_vsnprintf_typval_inner(
                         }
                     }
                     b'f' | b'F' | b'e' | b'E' | b'g' | b'G' => {
-                        let mut format = [0 as c_char; 40];
                         let mut remove_trailing_zeroes = false;
 
                         let f = if !tvs.is_null() {
@@ -2609,39 +2616,39 @@ unsafe fn vim_vsnprintf_typval_inner(
                             str_arg_l = 3;
                             zero_padding = false;
                         } else {
-                            format[0] = b'%' as c_char;
-                            let mut l = 1usize;
-                            if force_sign {
-                                format[l] = if space_for_positive != 0 {
-                                    b' ' as c_char
-                                } else {
-                                    b'+' as c_char
-                                };
-                                l += 1;
-                            }
-                            if precision_specified {
+                            let sign_prefix = if f.is_sign_negative() {
+                                "-"
+                            } else if force_sign {
+                                if space_for_positive != 0 { " " } else { "+" }
+                            } else {
+                                ""
+                            };
+                            let eff_prec = if precision_specified {
                                 let mut max_prec = TMP_LEN - 10;
                                 if matches!(fmt_spec as u8, b'f' | b'F') && abs_f > 1.0 {
                                     max_prec -= abs_f.log10() as usize;
                                 }
-                                if precision > max_prec {
-                                    precision = max_prec;
-                                }
-                                l += write_fmt_to_c_buf(
-                                    &mut format[l..],
-                                    format_args!(".{}", precision as c_int),
+                                precision.min(max_prec)
+                            } else {
+                                6
+                            };
+
+                            if matches!(fmt_spec as u8, b'f' | b'F') {
+                                str_arg_l = write_fmt_to_c_buf(
+                                    &mut tmp,
+                                    format_args!("{sign_prefix}{abs_f:.eff_prec$}"),
+                                );
+                            } else {
+                                let sci = format!("{abs_f:.eff_prec$e}");
+                                let (mantissa, exp_str) =
+                                    sci.split_once('e').unwrap_or((&sci, "0"));
+                                let exp: i32 = exp_str.parse().unwrap_or(0);
+                                let e_ch = if fmt_spec == b'E' as c_char { 'E' } else { 'e' };
+                                str_arg_l = write_fmt_to_c_buf(
+                                    &mut tmp,
+                                    format_args!("{sign_prefix}{mantissa}{e_ch}{exp:+03}"),
                                 );
                             }
-
-                            format[l] = if fmt_spec == b'F' as c_char {
-                                b'f' as c_char
-                            } else {
-                                fmt_spec
-                            };
-                            format[l + 1] = NUL;
-
-                            str_arg_l =
-                                snprintf(tmp.as_mut_ptr(), tmp.len(), format.as_ptr(), f) as usize;
 
                             if remove_trailing_zeroes {
                                 let mut tp: *mut c_char;

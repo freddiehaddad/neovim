@@ -1,147 +1,103 @@
 //! Floating point conversion routines (`src/cjson/fpconv.c`).
 
-use std::ffi::{c_char, c_double, c_int, c_void};
+use std::ffi::{c_char, c_double, c_int};
+use std::io::Write;
 use std::ptr;
 
 pub const FPCONV_G_FMT_BUFSIZE: usize = 32;
 
-static mut LOCALE_DECIMAL_POINT: c_char = b'.' as c_char;
-
-use crate::memory::{xfree, xmalloc};
-use crate::strings::{snprintf, strchr, strtod};
-use std::process::abort;
-
-unsafe fn fpconv_update_locale() {
-    let mut buf = [0 as c_char; 8];
-    unsafe {
-        snprintf(buf.as_mut_ptr(), buf.len(), c"%g".as_ptr(), 0.5f64);
-        if buf[0] != b'0' as c_char || buf[2] != b'5' as c_char || buf[3] != 0 {
-            eprint!("Error: wide characters found or printf() bug.");
-            abort();
-        }
-        LOCALE_DECIMAL_POINT = buf[1];
-    }
-}
-
-#[inline]
-fn valid_number_character(ch: c_char) -> bool {
-    let u = ch as u8;
-    if u.is_ascii_digit() || u == b'-' || u == b'+' || u == b'.' {
-        return true;
-    }
-    let lower_ch = u | 0x20;
-    (b'a'..=b'y').contains(&lower_ch)
-}
-
-unsafe fn strtod_buffer_size(s: *const c_char) -> c_int {
-    let mut p = s;
-    unsafe {
-        while valid_number_character(*p) {
-            p = p.add(1);
-        }
-        p.offset_from(s) as c_int
-    }
-}
+use crate::strings::strtod;
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn fpconv_strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> c_double {
-    unsafe {
-        if LOCALE_DECIMAL_POINT == b'.' as c_char {
-            return strtod(nptr, endptr);
-        }
-
-        let buflen = strtod_buffer_size(nptr);
-        if buflen == 0 {
-            *endptr = nptr.cast_mut();
-            return 0.0;
-        }
-
-        let mut localbuf = [0 as c_char; FPCONV_G_FMT_BUFSIZE];
-        let buf = if (buflen as usize) >= FPCONV_G_FMT_BUFSIZE {
-            xmalloc((buflen as usize) + 1).cast::<c_char>()
-        } else {
-            localbuf.as_mut_ptr()
-        };
-
-        ptr::copy_nonoverlapping(nptr, buf, buflen as usize);
-        *buf.offset(buflen as isize) = 0;
-
-        let dp = strchr(buf, c_int::from(b'.'));
-        if !dp.is_null() {
-            *dp = LOCALE_DECIMAL_POINT;
-        }
-
-        let mut endbuf: *mut c_char = ptr::null_mut();
-        let value = strtod(buf, &mut endbuf);
-        *endptr = nptr.offset(endbuf.offset_from(buf)).cast_mut();
-        if (buflen as usize) >= FPCONV_G_FMT_BUFSIZE {
-            xfree(buf.cast::<c_void>());
-        }
-
-        value
-    }
-}
-
-unsafe fn set_number_format(fmt: *mut c_char, precision: c_int) {
-    debug_assert!((1..=16).contains(&precision));
-    let d1 = precision / 10;
-    let d2 = precision % 10;
-    unsafe {
-        *fmt = b'%' as c_char;
-        *fmt.add(1) = b'.' as c_char;
-        let mut i = 2usize;
-        if d1 != 0 {
-            *fmt.add(i) = (b'0' + d1 as u8) as c_char;
-            i += 1;
-        }
-        *fmt.add(i) = (b'0' + d2 as u8) as c_char;
-        i += 1;
-        *fmt.add(i) = b'g' as c_char;
-        i += 1;
-        *fmt.add(i) = 0;
-    }
+    unsafe { strtod(nptr, endptr) }
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn fpconv_g_fmt(
-    mut str_out: *mut c_char,
+    str_out: *mut c_char,
     num: c_double,
     precision: c_int,
 ) -> c_int {
-    let mut buf = [0 as c_char; FPCONV_G_FMT_BUFSIZE];
-    let mut fmt = [0 as c_char; 6];
+    let prec = precision.max(1) as usize;
+    let mut buf = [0u8; FPCONV_G_FMT_BUFSIZE];
+    let mut pos = 0usize;
 
-    unsafe {
-        set_number_format(fmt.as_mut_ptr(), precision);
+    if num.is_sign_negative() {
+        buf[pos] = b'-';
+        pos += 1;
+    }
+    let abs_num = num.abs();
 
-        if LOCALE_DECIMAL_POINT == b'.' as c_char {
-            return snprintf(str_out, FPCONV_G_FMT_BUFSIZE, fmt.as_ptr(), num);
-        }
+    if abs_num.is_nan() {
+        buf[pos..pos + 3].copy_from_slice(b"nan");
+        pos += 3;
+    } else if abs_num.is_infinite() {
+        buf[pos..pos + 3].copy_from_slice(b"inf");
+        pos += 3;
+    } else {
+        let sci = format!("{abs_num:.*e}", prec - 1);
+        let (mantissa, exp_str) = sci.split_once('e').unwrap_or((&sci, "0"));
+        let exp: i32 = exp_str.parse().unwrap_or(0);
 
-        let len = snprintf(buf.as_mut_ptr(), FPCONV_G_FMT_BUFSIZE, fmt.as_ptr(), num);
-
-        let mut b = buf.as_ptr();
-        loop {
-            let c = *b;
-            *str_out = if c == LOCALE_DECIMAL_POINT {
-                b'.' as c_char
-            } else {
-                c
-            };
-            str_out = str_out.add(1);
-            b = b.add(1);
-            if c == 0 {
-                break;
+        let mut digits = [0u8; 32];
+        let mut dlen = 0usize;
+        for &b in mantissa.as_bytes() {
+            if b != b'.' && dlen < digits.len() {
+                digits[dlen] = b;
+                dlen += 1;
             }
         }
+        while dlen > 1 && digits[dlen - 1] == b'0' {
+            dlen -= 1;
+        }
 
-        len
+        if exp < -4 || exp >= prec as i32 {
+            buf[pos] = digits[0];
+            pos += 1;
+            if dlen > 1 {
+                buf[pos] = b'.';
+                pos += 1;
+                buf[pos..pos + (dlen - 1)].copy_from_slice(&digits[1..dlen]);
+                pos += dlen - 1;
+            }
+            let mut cursor = std::io::Cursor::new(&mut buf[pos..FPCONV_G_FMT_BUFSIZE - 1]);
+            let _ = write!(cursor, "e{exp:+03}");
+            pos += cursor.position() as usize;
+        } else if exp < 0 {
+            buf[pos..pos + 2].copy_from_slice(b"0.");
+            pos += 2;
+            let zeros = (-1 - exp) as usize;
+            buf[pos..pos + zeros].fill(b'0');
+            pos += zeros;
+            buf[pos..pos + dlen].copy_from_slice(&digits[..dlen]);
+            pos += dlen;
+        } else {
+            let int_digits = (exp as usize) + 1;
+            if int_digits >= dlen {
+                buf[pos..pos + dlen].copy_from_slice(&digits[..dlen]);
+                pos += dlen;
+                let zeros = int_digits - dlen;
+                buf[pos..pos + zeros].fill(b'0');
+                pos += zeros;
+            } else {
+                buf[pos..pos + int_digits].copy_from_slice(&digits[..int_digits]);
+                pos += int_digits;
+                buf[pos] = b'.';
+                pos += 1;
+                let frac_len = dlen - int_digits;
+                buf[pos..pos + frac_len].copy_from_slice(&digits[int_digits..dlen]);
+                pos += frac_len;
+            }
+        }
     }
+
+    buf[pos] = 0;
+    unsafe {
+        ptr::copy_nonoverlapping(buf.as_ptr().cast::<c_char>(), str_out, pos + 1);
+    }
+    pos as c_int
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn fpconv_init() {
-    unsafe {
-        fpconv_update_locale();
-    }
-}
+pub unsafe extern "C" fn fpconv_init() {}
