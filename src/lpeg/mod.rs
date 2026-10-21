@@ -17,7 +17,6 @@ pub type uint = c_uint;
 pub type Index_t = uint;
 pub type lua_Unsigned = usize;
 
-pub const VERSION: &str = "1.1.0";
 pub const PATTERN_T: &CStr = c"lpeg-pattern";
 pub const MAXSTACKIDX: &CStr = c"lpeg-maxstack";
 
@@ -85,7 +84,6 @@ pub unsafe fn testchar(st: *const byte, c: uint) -> c_int {
 pub const MAXOFF: c_int = 0xF;
 pub const MAXAUX: c_int = 0xFF;
 pub const MAXBEHIND: c_int = MAXAUX;
-pub const MAXPATTSIZE: c_int = (c_short::MAX as c_int) - 10;
 
 #[inline]
 pub const fn instsize(l: c_int) -> c_int {

@@ -463,7 +463,7 @@ unsafe fn lookup_colour(
     }
 }
 
-unsafe fn setpenattr(
+unsafe extern "C" fn setpenattr(
     state: *mut VTermStateFull,
     attr: VTermAttr,
     _type: VTermValueType,
@@ -512,8 +512,7 @@ unsafe fn set_pen_col_ansi(state: *mut VTermStateFull, attr: VTermAttr, col: c_i
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_state_newpen(state: *mut VTermStateFull) {
+pub unsafe fn vterm_state_newpen(state: *mut VTermStateFull) {
     unsafe {
         (*state).default_fg.set_rgb(240, 240, 240);
         (*state).default_bg.set_rgb(0, 0, 0);
@@ -527,8 +526,7 @@ pub unsafe extern "C" fn vterm_state_newpen(state: *mut VTermStateFull) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_state_resetpen(state: *mut VTermStateFull) {
+pub unsafe fn vterm_state_resetpen(state: *mut VTermStateFull) {
     unsafe {
         (*state).pen.set_bold(0);
         setpenattr_bool(state, VTERM_ATTR_BOLD, 0);
@@ -565,8 +563,7 @@ pub unsafe extern "C" fn vterm_state_resetpen(state: *mut VTermStateFull) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_state_savepen(state: *mut VTermStateFull, save: c_int) {
+pub unsafe fn vterm_state_savepen(state: *mut VTermStateFull, save: c_int) {
     unsafe {
         if save != 0 {
             (*state).saved.pen = (*state).pen;
@@ -598,8 +595,7 @@ pub unsafe extern "C" fn vterm_state_savepen(state: *mut VTermStateFull, save: c
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_state_set_default_colors(
+pub unsafe fn vterm_state_set_default_colors(
     state: *mut VTermStateFull,
     default_fg: *const VTermColor,
     default_bg: *const VTermColor,
@@ -621,8 +617,7 @@ pub unsafe extern "C" fn vterm_state_set_default_colors(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_state_set_palette_color(
+pub unsafe fn vterm_state_set_palette_color(
     state: *mut VTermStateFull,
     index: c_int,
     col: *const VTermColor,
@@ -634,11 +629,7 @@ pub unsafe extern "C" fn vterm_state_set_palette_color(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_state_convert_color_to_rgb(
-    state: *const VTermStateFull,
-    col: *mut VTermColor,
-) {
+pub unsafe fn vterm_state_convert_color_to_rgb(state: *const VTermStateFull, col: *mut VTermColor) {
     unsafe {
         if (*col).is_indexed() {
             lookup_colour_palette(state, (*col).idx() as isize, col);
@@ -648,12 +639,7 @@ pub unsafe extern "C" fn vterm_state_convert_color_to_rgb(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_state_setpen(
-    state: *mut VTermStateFull,
-    args: *const c_long,
-    argcount: c_int,
-) {
+pub unsafe fn vterm_state_setpen(state: *mut VTermStateFull, args: *const c_long, argcount: c_int) {
     unsafe {
         let mut argi: c_int = 0;
 
@@ -892,8 +878,7 @@ unsafe fn vterm_state_getpen_color(
     argi
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_state_getpen(
+pub unsafe fn vterm_state_getpen(
     state: *mut VTermStateFull,
     args: *mut c_long,
     _argcount: c_int,
@@ -971,8 +956,7 @@ pub unsafe extern "C" fn vterm_state_getpen(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_state_set_penattr(
+pub unsafe fn vterm_state_set_penattr(
     state: *mut VTermStateFull,
     attr: VTermAttr,
     r#type: VTermValueType,

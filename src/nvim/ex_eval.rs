@@ -166,13 +166,11 @@ unsafe fn discard_pending_return(p: *mut typval_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn aborting() -> bool {
+pub unsafe fn aborting() -> bool {
     unsafe { (did_emsg != 0 && force_abort) || got_int || did_throw }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn update_force_abort() {
+pub unsafe fn update_force_abort() {
     unsafe {
         if cause_abort {
             force_abort = true;
@@ -180,18 +178,15 @@ pub unsafe extern "C" fn update_force_abort() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn should_abort(retcode: c_int) -> bool {
+pub unsafe fn should_abort(retcode: c_int) -> bool {
     unsafe { (retcode == FAIL && trylevel != 0 && emsg_silent == 0) || aborting() }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn aborted_in_try() -> bool {
+pub unsafe fn aborted_in_try() -> bool {
     unsafe { force_abort }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cause_errthrow(
+pub unsafe fn cause_errthrow(
     mesg: *const c_char,
     multiline: bool,
     concat: bool,
@@ -282,16 +277,14 @@ unsafe fn free_msglist(l: *mut msglist_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn free_global_msglist() {
+pub unsafe fn free_global_msglist() {
     unsafe {
         free_msglist(*msg_list);
         *msg_list = ptr::null_mut();
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_errthrow(cstack: *mut cstack_T, cmdname: *mut c_char) {
+pub unsafe fn do_errthrow(cstack: *mut cstack_T, cmdname: *mut c_char) {
     unsafe {
         if cause_abort {
             cause_abort = false;
@@ -313,8 +306,7 @@ pub unsafe extern "C" fn do_errthrow(cstack: *mut cstack_T, cmdname: *mut c_char
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_intthrow(cstack: *mut cstack_T) -> bool {
+pub unsafe fn do_intthrow(cstack: *mut cstack_T) -> bool {
     unsafe {
         if !got_int || (trylevel == 0 && !did_throw) {
             return false;
@@ -339,8 +331,7 @@ pub unsafe extern "C" fn do_intthrow(cstack: *mut cstack_T) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_exception_string(
+pub unsafe fn get_exception_string(
     value: *mut c_void,
     r#type: except_type_T,
     cmdname: *mut c_char,
@@ -544,8 +535,7 @@ unsafe fn discard_exception(excp: *mut except_T, was_finished: bool) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn discard_current_exception() {
+pub unsafe fn discard_current_exception() {
     unsafe {
         if !current_exception.is_null() {
             discard_exception(current_exception, false);
@@ -659,8 +649,7 @@ unsafe fn finish_exception(excp: *mut except_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn exception_state_save(estate: *mut exception_state_T) {
+pub unsafe fn exception_state_save(estate: *mut exception_state_T) {
     unsafe {
         (*estate).estate_current_exception = current_exception;
         (*estate).estate_did_throw = did_throw;
@@ -670,8 +659,7 @@ pub unsafe extern "C" fn exception_state_save(estate: *mut exception_state_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn exception_state_restore(estate: *mut exception_state_T) {
+pub unsafe fn exception_state_restore(estate: *mut exception_state_T) {
     unsafe {
         if did_throw {
             handle_did_throw();
@@ -684,8 +672,7 @@ pub unsafe extern "C" fn exception_state_restore(estate: *mut exception_state_T)
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn exception_state_clear() {
+pub unsafe fn exception_state_clear() {
     unsafe {
         current_exception = ptr::null_mut();
         did_throw = false;
@@ -753,8 +740,7 @@ unsafe fn report_pending(action: c_int, pending: c_int, value: *mut c_void) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn report_make_pending(pending: c_int, value: *mut c_void) {
+pub unsafe fn report_make_pending(pending: c_int, value: *mut c_void) {
     unsafe {
         if p_verbose >= 14 || debug_break_level > 0 {
             if debug_break_level <= 0 {
@@ -796,8 +782,7 @@ unsafe fn report_discard_pending(pending: c_int, value: *mut c_void) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_eval(eap: *mut exarg_T) {
+pub unsafe fn ex_eval(eap: *mut exarg_T) {
     unsafe {
         let mut tv: typval_T = std::mem::zeroed();
         let mut evalarg: evalarg_T = std::mem::zeroed();
@@ -812,8 +797,7 @@ pub unsafe extern "C" fn ex_eval(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_if(eap: *mut exarg_T) {
+pub unsafe fn ex_if(eap: *mut exarg_T) {
     unsafe {
         let cstack = (*eap).cstack.cast::<cstack_T>();
 
@@ -839,8 +823,7 @@ pub unsafe extern "C" fn ex_if(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_endif(eap: *mut exarg_T) {
+pub unsafe fn ex_endif(eap: *mut exarg_T) {
     unsafe {
         did_endif = true;
         let cstack = (*eap).cstack.cast::<cstack_T>();
@@ -860,8 +843,7 @@ pub unsafe extern "C" fn ex_endif(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_else(eap: *mut exarg_T) {
+pub unsafe fn ex_else(eap: *mut exarg_T) {
     unsafe {
         let cstack = (*eap).cstack.cast::<cstack_T>();
         let mut skip = check_skip(cstack);
@@ -927,8 +909,7 @@ pub unsafe extern "C" fn ex_else(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_while(eap: *mut exarg_T) {
+pub unsafe fn ex_while(eap: *mut exarg_T) {
     unsafe {
         let mut error = false;
         let cstack = (*eap).cstack.cast::<cstack_T>();
@@ -990,8 +971,7 @@ pub unsafe extern "C" fn ex_while(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_continue(eap: *mut exarg_T) {
+pub unsafe fn ex_continue(eap: *mut exarg_T) {
     unsafe {
         let cstack = (*eap).cstack.cast::<cstack_T>();
 
@@ -1011,8 +991,7 @@ pub unsafe extern "C" fn ex_continue(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_break(eap: *mut exarg_T) {
+pub unsafe fn ex_break(eap: *mut exarg_T) {
     unsafe {
         let cstack = (*eap).cstack.cast::<cstack_T>();
 
@@ -1028,8 +1007,7 @@ pub unsafe extern "C" fn ex_break(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_endwhile(eap: *mut exarg_T) {
+pub unsafe fn ex_endwhile(eap: *mut exarg_T) {
     unsafe {
         let cstack = (*eap).cstack.cast::<cstack_T>();
         let (err, csf) = if (*eap).cmdidx == CMD_endwhile {
@@ -1081,8 +1059,7 @@ pub unsafe extern "C" fn ex_endwhile(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_throw(eap: *mut exarg_T) {
+pub unsafe fn ex_throw(eap: *mut exarg_T) {
     unsafe {
         let arg = (*eap).arg;
         let value = if *arg != NUL && *arg != b'|' as c_char && *arg != b'\n' as c_char {
@@ -1102,8 +1079,7 @@ pub unsafe extern "C" fn ex_throw(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_throw(cstack: *mut cstack_T) {
+pub unsafe fn do_throw(cstack: *mut cstack_T) {
     unsafe {
         let idx = cleanup_conditionals(cstack, 0, 0);
         if idx >= 0 {
@@ -1123,8 +1099,7 @@ pub unsafe extern "C" fn do_throw(cstack: *mut cstack_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_try(eap: *mut exarg_T) {
+pub unsafe fn ex_try(eap: *mut exarg_T) {
     unsafe {
         let cstack = (*eap).cstack.cast::<cstack_T>();
 
@@ -1154,8 +1129,7 @@ pub unsafe extern "C" fn ex_try(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_catch(eap: *mut exarg_T) {
+pub unsafe fn ex_catch(eap: *mut exarg_T) {
     unsafe {
         let mut idx: c_int = 0;
         let mut give_up = false;
@@ -1271,8 +1245,7 @@ pub unsafe extern "C" fn ex_catch(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_finally(eap: *mut exarg_T) {
+pub unsafe fn ex_finally(eap: *mut exarg_T) {
     unsafe {
         let mut pending = CSTP_NONE;
         let cstack = (*eap).cstack.cast::<cstack_T>();
@@ -1342,8 +1315,7 @@ pub unsafe extern "C" fn ex_finally(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_endtry(eap: *mut exarg_T) {
+pub unsafe fn ex_endtry(eap: *mut exarg_T) {
     unsafe {
         let mut rethrow = false;
         let mut pending: c_int = CSTP_NONE;
@@ -1459,8 +1431,7 @@ pub unsafe extern "C" fn ex_endtry(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn enter_cleanup(csp: *mut cleanup_T) {
+pub unsafe fn enter_cleanup(csp: *mut cleanup_T) {
     unsafe {
         let pending = CSTP_NONE;
 
@@ -1496,8 +1467,7 @@ pub unsafe extern "C" fn enter_cleanup(csp: *mut cleanup_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn leave_cleanup(csp: *mut cleanup_T) {
+pub unsafe fn leave_cleanup(csp: *mut cleanup_T) {
     unsafe {
         let pending = (*csp).pending;
         if pending == CSTP_NONE {
@@ -1544,8 +1514,7 @@ pub unsafe extern "C" fn leave_cleanup(csp: *mut cleanup_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cleanup_conditionals(
+pub unsafe fn cleanup_conditionals(
     cstack: *mut cstack_T,
     searched_cond: c_int,
     inclusive: c_int,
@@ -1647,8 +1616,7 @@ unsafe fn get_end_emsg(cstack: *const cstack_T) -> *mut c_char {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn rewind_conditionals(
+pub unsafe fn rewind_conditionals(
     cstack: *mut cstack_T,
     idx: c_int,
     cond_type: c_int,
@@ -1668,8 +1636,7 @@ pub unsafe extern "C" fn rewind_conditionals(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_endfunction(_eap: *mut exarg_T) {
+pub unsafe fn ex_endfunction(_eap: *mut exarg_T) {
     unsafe {
         semsg!(
             gettext(e_str_not_inside_function.as_ptr()),
@@ -1678,8 +1645,7 @@ pub unsafe extern "C" fn ex_endfunction(_eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn has_loop_cmd(mut p: *mut c_char) -> bool {
+pub unsafe fn has_loop_cmd(mut p: *mut c_char) -> bool {
     unsafe {
         loop {
             while *p == b' ' as c_char || *p == b'\t' as c_char || *p == b':' as c_char {

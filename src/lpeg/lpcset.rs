@@ -22,8 +22,7 @@ fn onlybit(mut c: c_int, mut b: c_int) -> c_int {
     c
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn charsettype(cs: *const byte, info: *mut charsetinfo) -> Opcode {
+pub unsafe fn charsettype(cs: *const byte, info: *mut charsetinfo) -> Opcode {
     unsafe {
         let mut low1 = 0usize;
         while low1 < CHARSETSIZE && *cs.add(low1) == 0 {
@@ -68,8 +67,7 @@ pub unsafe extern "C" fn charsettype(cs: *const byte, info: *mut charsetinfo) ->
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn getbytefromcharset(info: *const charsetinfo, index: c_int) -> byte {
+pub unsafe fn getbytefromcharset(info: *const charsetinfo, index: c_int) -> byte {
     unsafe {
         if index < (*info).size {
             *(*info).cs.add(index as usize)
@@ -79,8 +77,7 @@ pub unsafe extern "C" fn getbytefromcharset(info: *const charsetinfo, index: c_i
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tocharset(tree: *mut TTree, cs: *mut Charset) -> c_int {
+pub unsafe fn tocharset(tree: *mut TTree, cs: *mut Charset) -> c_int {
     unsafe {
         let cs_ptr = (*cs).cs.as_mut_ptr();
         match (*tree).tag {
@@ -111,8 +108,7 @@ pub unsafe extern "C" fn tocharset(tree: *mut TTree, cs: *mut Charset) -> c_int 
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tree2cset(tree: *mut TTree, info: *mut charsetinfo) {
+pub unsafe fn tree2cset(tree: *mut TTree, info: *mut charsetinfo) {
     unsafe {
         debug_assert_eq!((*tree).tag, TSet);
         (*info).offset = c_int::from((*tree).u.set.offset);

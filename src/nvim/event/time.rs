@@ -13,7 +13,7 @@ use std::ptr;
 use crate::eval::funcs::UV_TIMER;
 pub type TimeWatcher = c_void;
 
-pub type time_cb = Option<unsafe extern "C" fn(watcher: *mut TimeWatcher, data: *mut c_void)>;
+pub type time_cb = Option<unsafe fn(watcher: *mut TimeWatcher, data: *mut c_void)>;
 
 #[repr(C)]
 pub struct TimeWatcherFields {
@@ -67,12 +67,7 @@ unsafe fn create_event(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn time_watcher_init(
-    loop_: *mut Loop,
-    watcher: *mut TimeWatcher,
-    data: *mut c_void,
-) {
+pub unsafe fn time_watcher_init(loop_: *mut Loop, watcher: *mut TimeWatcher, data: *mut c_void) {
     unsafe {
         uv_timer_init(loop_.cast(), watcher.cast());
         *watcher.cast::<*mut c_void>() = watcher;
@@ -83,8 +78,7 @@ pub unsafe extern "C" fn time_watcher_init(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn time_watcher_start(
+pub unsafe fn time_watcher_start(
     watcher: *mut TimeWatcher,
     cb: time_cb,
     timeout: u64,
@@ -97,15 +91,13 @@ pub unsafe extern "C" fn time_watcher_start(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn time_watcher_stop(watcher: *mut TimeWatcher) {
+pub unsafe fn time_watcher_stop(watcher: *mut TimeWatcher) {
     unsafe {
         uv_timer_stop(watcher.cast());
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn time_watcher_close(watcher: *mut TimeWatcher, cb: time_cb) {
+pub unsafe fn time_watcher_close(watcher: *mut TimeWatcher, cb: time_cb) {
     unsafe {
         let fields = watcher_fields(watcher);
         (*fields).close_cb = cb;

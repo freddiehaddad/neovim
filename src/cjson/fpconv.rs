@@ -8,17 +8,11 @@ pub const FPCONV_G_FMT_BUFSIZE: usize = 32;
 
 use crate::strings::strtod;
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn fpconv_strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> c_double {
+pub unsafe fn fpconv_strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> c_double {
     unsafe { strtod(nptr, endptr) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn fpconv_g_fmt(
-    str_out: *mut c_char,
-    num: c_double,
-    precision: c_int,
-) -> c_int {
+pub unsafe fn fpconv_g_fmt(str_out: *mut c_char, num: c_double, precision: c_int) -> c_int {
     let prec = precision.max(1) as usize;
     let mut buf = [0u8; FPCONV_G_FMT_BUFSIZE];
     let mut pos = 0usize;
@@ -99,5 +93,4 @@ pub unsafe extern "C" fn fpconv_g_fmt(
     pos as c_int
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn fpconv_init() {}
+pub unsafe fn fpconv_init() {}

@@ -154,7 +154,6 @@ const E_OVERLAPPING_RANGES_FOR_NR: &CStr = c"E1113: Overlapping ranges for 0x%lx
 const E_ONLY_VALUES_OF_0X80_AND_HIGHER_SUPPORTED: &CStr =
     c"E1114: Only values of 0x80 and higher supported";
 
-#[unsafe(no_mangle)]
 pub static utf8len_tab: [u8; 256] = [
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 0?
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 1?
@@ -174,7 +173,6 @@ pub static utf8len_tab: [u8; 256] = [
     4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 1, 1, // F?
 ];
 
-#[unsafe(no_mangle)]
 pub static utf8len_tab_zero: [u8; 256] = [
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 0?
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 1?
@@ -1011,8 +1009,7 @@ unsafe fn enc_canon_search(name: *const c_char) -> c_int {
     -1
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn enc_canon_props(name: *const c_char) -> c_int {
+pub unsafe fn enc_canon_props(name: *const c_char) -> c_int {
     unsafe {
         let i = enc_canon_search(name);
         if i >= 0 {
@@ -1029,8 +1026,7 @@ pub unsafe extern "C" fn enc_canon_props(name: *const c_char) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn bomb_size() -> c_int {
+pub unsafe fn bomb_size() -> c_int {
     unsafe {
         let mut n = 0;
         if (*curbuf).b_p_bomb != 0 && (*curbuf).b_p_bin == 0 {
@@ -1047,8 +1043,7 @@ pub unsafe extern "C" fn bomb_size() -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn remove_bom(s: *mut c_char) {
+pub unsafe fn remove_bom(s: *mut c_char) {
     unsafe {
         let mut p = s.cast::<u8>();
         while *p != 0 {
@@ -1062,13 +1057,11 @@ pub unsafe extern "C" fn remove_bom(s: *mut c_char) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mb_get_class(p: *const c_char) -> c_int {
+pub unsafe fn mb_get_class(p: *const c_char) -> c_int {
     unsafe { mb_get_class_tab(p, (*curbuf).b_chartab.as_ptr()) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mb_get_class_tab(p: *const c_char, chartab: *const u64) -> c_int {
+pub unsafe fn mb_get_class_tab(p: *const c_char, chartab: *const u64) -> c_int {
     unsafe {
         let b0 = *p.cast::<u8>();
         if utf8len_tab[b0 as usize] == 1 {
@@ -1090,8 +1083,7 @@ unsafe fn prop_is_emojilike(prop: *const utf8proc_property_t) -> bool {
     bc == UTF8PROC_BOUNDCLASS_EXTENDED_PICTOGRAPHIC || bc == UTF8PROC_BOUNDCLASS_REGIONAL_INDICATOR
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_char2cells(c: c_int) -> c_int {
+pub unsafe fn utf_char2cells(c: c_int) -> c_int {
     unsafe {
         if c < 0x80 {
             return 1;
@@ -1123,8 +1115,7 @@ pub unsafe extern "C" fn utf_char2cells(c: c_int) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ptr2cells(p_in: *const c_char) -> c_int {
+pub unsafe fn ptr2cells(p_in: *const c_char) -> c_int {
     unsafe { utf_ClusterInfo(utf_ptr2StrCharInfo(p_in)).cells }
 }
 
@@ -1138,8 +1129,7 @@ pub unsafe extern "C" fn utf_ptr2cells(p_in: *const c_char) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_ptr2CharInfo_impl(p: *const u8, len: usize) -> i32 {
+pub unsafe fn utf_ptr2CharInfo_impl(p: *const u8, len: usize) -> i32 {
     unsafe {
         const CORRECTIONS: [u32; 7] = [
             1u32 << 31,
@@ -1202,8 +1192,7 @@ pub unsafe extern "C" fn utf_ptr2CharInfo_impl(p: *const u8, len: usize) -> i32 
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mb_string2cells(str_: *const c_char) -> usize {
+pub unsafe fn mb_string2cells(str_: *const c_char) -> usize {
     unsafe {
         let mut clen = 0usize;
         let mut ci = utf_ptr2StrCharInfo(str_);
@@ -1326,8 +1315,7 @@ unsafe fn utf_safe_read_char_adv(s: &mut *const c_char, n: &mut usize) -> c_int 
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mb_ptr2char_adv(pp: *mut *const c_char) -> c_int {
+pub unsafe fn mb_ptr2char_adv(pp: *mut *const c_char) -> c_int {
     unsafe {
         let c = utf_ptr2char(*pp);
         *pp = (*pp).add(utfc_ptr2len(*pp) as usize);
@@ -1335,8 +1323,7 @@ pub unsafe extern "C" fn mb_ptr2char_adv(pp: *mut *const c_char) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mb_cptr2char_adv(pp: *mut *const c_char) -> c_int {
+pub unsafe fn mb_cptr2char_adv(pp: *mut *const c_char) -> c_int {
     unsafe {
         let c = utf_ptr2char(*pp);
         *pp = (*pp).add(utf_ptr2len(*pp) as usize);
@@ -1344,13 +1331,11 @@ pub unsafe extern "C" fn mb_cptr2char_adv(pp: *mut *const c_char) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_iscomposing_first(c: c_int) -> bool {
+pub unsafe fn utf_iscomposing_first(c: c_int) -> bool {
     c >= 128 && !utf8proc_grapheme_break(b' ' as i32, c)
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_composinglike(
+pub unsafe fn utf_composinglike(
     p1: *const c_char,
     p2: *const c_char,
     state: *mut GraphemeState,
@@ -1368,8 +1353,7 @@ pub unsafe extern "C" fn utf_composinglike(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_iscomposing(c1: c_int, c2: c_int, state: *mut GraphemeState) -> bool {
+pub unsafe fn utf_iscomposing(c1: c_int, c2: c_int, state: *mut GraphemeState) -> bool {
     unsafe { !utf8proc_grapheme_break_stateful(c1, c2, state) || arabic_combine(c1, c2) }
 }
 
@@ -1401,12 +1385,7 @@ pub unsafe extern "C" fn utfc_ptr2schar(p: *const c_char, firstc: *mut c_int) ->
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utfc_ptrlen2schar(
-    p: *const c_char,
-    mut len: c_int,
-    firstc: *mut c_int,
-) -> schar_T {
+pub unsafe fn utfc_ptrlen2schar(p: *const c_char, mut len: c_int, firstc: *mut c_int) -> schar_T {
     unsafe {
         if (len == 1 && *p.cast::<u8>() >= 0x80) || len == 0 {
             *firstc = c_int::from(*p.cast::<u8>());
@@ -1440,13 +1419,11 @@ pub unsafe extern "C" fn utf_ptr2len(p_in: *const c_char) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_byte2len(b: c_int) -> c_int {
+pub unsafe fn utf_byte2len(b: c_int) -> c_int {
     c_int::from(utf8len_tab[b as usize])
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_ptr2len_len(p: *const c_char, size: c_int) -> c_int {
+pub unsafe fn utf_ptr2len_len(p: *const c_char, size: c_int) -> c_int {
     unsafe {
         let bytes = p.cast::<u8>();
         let len = c_int::from(utf8len_tab[*bytes as usize]);
@@ -1494,8 +1471,7 @@ pub unsafe extern "C" fn utfc_ptr2len(p: *const c_char) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utfc_ptr2len_len(p: *const c_char, size: c_int) -> c_int {
+pub unsafe fn utfc_ptr2len_len(p: *const c_char, size: c_int) -> c_int {
     unsafe {
         if size < 1 || *p == NUL {
             return 0;
@@ -1531,8 +1507,7 @@ pub unsafe extern "C" fn utfc_ptr2len_len(p: *const c_char, size: c_int) -> c_in
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_char2len(c: c_int) -> c_int {
+pub unsafe fn utf_char2len(c: c_int) -> c_int {
     if c < 0x80 {
         1
     } else if c < 0x800 {
@@ -1589,16 +1564,14 @@ pub unsafe extern "C" fn utf_char2bytes(c: c_int, buf: *mut c_char) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_iscomposing_legacy(c: c_int) -> bool {
+pub unsafe fn utf_iscomposing_legacy(c: c_int) -> bool {
     unsafe {
         let prop = utf8proc_get_property(c);
         (*prop).category == UTF8PROC_CATEGORY_MN || (*prop).category == UTF8PROC_CATEGORY_ME
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_isalnum(c: c_int) -> bool {
+pub unsafe fn utf_isalnum(c: c_int) -> bool {
     unsafe {
         let prop = utf8proc_get_property(c);
         (*prop).category >= UTF8PROC_CATEGORY_LU && (*prop).category <= UTF8PROC_CATEGORY_NO
@@ -1624,8 +1597,7 @@ fn intable(table: &[Interval], c: c_int) -> bool {
     false
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_printable(c: c_int) -> bool {
+pub unsafe fn utf_printable(c: c_int) -> bool {
     const NONPRINT: &[Interval] = &[
         Interval {
             first: 0x070f,
@@ -1667,13 +1639,11 @@ pub unsafe extern "C" fn utf_printable(c: c_int) -> bool {
     !intable(NONPRINT, c)
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_class(c: c_int) -> c_int {
+pub unsafe fn utf_class(c: c_int) -> c_int {
     unsafe { utf_class_tab(c, (*curbuf).b_chartab.as_ptr()) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_class_tab(c: c_int, chartab: *const u64) -> c_int {
+pub unsafe fn utf_class_tab(c: c_int, chartab: *const u64) -> c_int {
     const CLASSES: &[ClInterval] = &[
         ClInterval {
             first: 0x037e,
@@ -2066,8 +2036,7 @@ pub unsafe extern "C" fn utf_class_tab(c: c_int, chartab: *const u64) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_ambiguous_width(p: *const c_char) -> bool {
+pub unsafe fn utf_ambiguous_width(p: *const c_char) -> bool {
     unsafe {
         if *p == NUL || *p.add(1) == NUL {
             return false;
@@ -2125,13 +2094,11 @@ pub unsafe extern "C" fn mb_toupper(a: c_int) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mb_islower(a: c_int) -> bool {
+pub unsafe fn mb_islower(a: c_int) -> bool {
     unsafe { mb_toupper(a) != a }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mb_tolower(a: c_int) -> c_int {
+pub unsafe fn mb_tolower(a: c_int) -> c_int {
     unsafe {
         if a < 128 && (cmp_flags & kOptCmpFlagKeepascii) != 0 {
             return tolower_asc(a);
@@ -2146,18 +2113,16 @@ pub unsafe extern "C" fn mb_tolower(a: c_int) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mb_isupper(a: c_int) -> bool {
+pub unsafe fn mb_isupper(a: c_int) -> bool {
     unsafe { mb_tolower(a) != a }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mb_isalpha(a: c_int) -> bool {
+#[cfg(unix)]
+pub unsafe fn mb_isalpha(a: c_int) -> bool {
     unsafe { mb_islower(a) || mb_isupper(a) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_strnicmp(
+pub unsafe fn utf_strnicmp(
     mut s1: *const c_char,
     mut s2: *const c_char,
     mut n1: usize,
@@ -2223,12 +2188,7 @@ pub unsafe extern "C" fn utf_strnicmp(
 }
 
 #[cfg(windows)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf8_to_utf16(
-    utf8: *const c_char,
-    utf8len: c_int,
-    utf16: *mut *mut u16,
-) -> c_int {
+pub unsafe fn utf8_to_utf16(utf8: *const c_char, utf8len: c_int, utf16: *mut *mut u16) -> c_int {
     unsafe {
         let mut bufsize = MultiByteToWideChar(CP_UTF8, 0, utf8, utf8len, ptr::null_mut(), 0);
         if bufsize == 0 {
@@ -2250,12 +2210,7 @@ pub unsafe extern "C" fn utf8_to_utf16(
 }
 
 #[cfg(windows)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf16_to_utf8(
-    utf16: *const u16,
-    utf16len: c_int,
-    utf8: *mut *mut c_char,
-) -> c_int {
+pub unsafe fn utf16_to_utf8(utf16: *const u16, utf16len: c_int, utf8: *mut *mut c_char) -> c_int {
     unsafe {
         let mut bufsize = WideCharToMultiByte(
             CP_UTF8,
@@ -2294,8 +2249,7 @@ pub unsafe extern "C" fn utf16_to_utf8(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mb_utflen(
+pub unsafe fn mb_utflen(
     s: *const c_char,
     len: usize,
     codepoints: *mut usize,
@@ -2323,8 +2277,7 @@ pub unsafe extern "C" fn mb_utflen(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mb_utf_index_to_bytes(
+pub unsafe fn mb_utf_index_to_bytes(
     s: *const c_char,
     len: usize,
     index: usize,
@@ -2356,18 +2309,15 @@ pub unsafe extern "C" fn mb_utf_index_to_bytes(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mb_strnicmp(s1: *const c_char, s2: *const c_char, nn: usize) -> c_int {
+pub unsafe fn mb_strnicmp(s1: *const c_char, s2: *const c_char, nn: usize) -> c_int {
     unsafe { utf_strnicmp(s1, s2, nn, nn) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mb_stricmp(s1: *const c_char, s2: *const c_char) -> c_int {
+pub unsafe fn mb_stricmp(s1: *const c_char, s2: *const c_char) -> c_int {
     unsafe { mb_strnicmp(s1, s2, MAXCOL) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn show_utf8() {
+pub unsafe fn show_utf8() {
     unsafe {
         let line = get_cursor_pos_ptr();
         let len = utfc_ptr2len(line);
@@ -2499,11 +2449,7 @@ pub unsafe extern "C" fn utf_head_off(base_in: *const c_char, p_in: *const c_cha
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_ClusterInfo_impl(
-    base: StrCharInfo,
-    max_len: *mut c_int,
-) -> ClusterInfo {
+pub unsafe fn utf_ClusterInfo_impl(base: StrCharInfo, max_len: *mut c_int) -> ClusterInfo {
     unsafe {
         let mut cells = basechar_cells_impl(base.chr);
         let mut prev_code = base.chr.value;
@@ -2579,8 +2525,7 @@ pub unsafe extern "C" fn utf_ClusterInfo_impl(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_eat_space(cc: c_int) -> bool {
+pub unsafe fn utf_eat_space(cc: c_int) -> bool {
     (0x2000..=0x206F).contains(&cc)
         || (0x2e00..=0x2e7f).contains(&cc)
         || (0x3000..=0x303f).contains(&cc)
@@ -2590,8 +2535,7 @@ pub unsafe extern "C" fn utf_eat_space(cc: c_int) -> bool {
         || (0xff5b..=0xff65).contains(&cc)
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_allow_break_before(cc: c_int) -> bool {
+pub unsafe fn utf_allow_break_before(cc: c_int) -> bool {
     const BOL_PROHIBITION_PUNCT: &[c_int] = &[
         b'!' as c_int,
         b'%' as c_int,
@@ -2640,8 +2584,7 @@ pub unsafe extern "C" fn utf_allow_break_before(cc: c_int) -> bool {
     BOL_PROHIBITION_PUNCT.binary_search(&cc).is_err()
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_allow_break_after(cc: c_int) -> bool {
+pub unsafe fn utf_allow_break_after(cc: c_int) -> bool {
     const EOL_PROHIBITION_PUNCT: &[c_int] = &[
         b'(' as c_int,
         b'<' as c_int,
@@ -2666,8 +2609,7 @@ pub unsafe extern "C" fn utf_allow_break_after(cc: c_int) -> bool {
     EOL_PROHIBITION_PUNCT.binary_search(&cc).is_err()
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_allow_break(cc: c_int, ncc: c_int) -> bool {
+pub unsafe fn utf_allow_break(cc: c_int, ncc: c_int) -> bool {
     unsafe {
         if cc == ncc && (cc == 0x2014 || cc == 0x2026) {
             return false;
@@ -2676,8 +2618,7 @@ pub unsafe extern "C" fn utf_allow_break(cc: c_int, ncc: c_int) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mb_copy_char(fp: *mut *const c_char, tp: *mut *mut c_char) {
+pub unsafe fn mb_copy_char(fp: *mut *const c_char, tp: *mut *mut c_char) {
     unsafe {
         let l = utfc_ptr2len(*fp) as usize;
         ptr::copy(*fp, *tp, l);
@@ -2686,8 +2627,7 @@ pub unsafe extern "C" fn mb_copy_char(fp: *mut *const c_char, tp: *mut *mut c_ch
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mb_off_next(base: *const c_char, p: *const c_char) -> c_int {
+pub unsafe fn mb_off_next(base: *const c_char, p: *const c_char) -> c_int {
     unsafe {
         let head_off = utf_head_off(base, p);
         if head_off == 0 {
@@ -2751,13 +2691,11 @@ pub unsafe extern "C" fn utf_cp_bounds_len(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_cp_bounds(base: *const c_char, p_in: *const c_char) -> CharBoundsOff {
+pub unsafe fn utf_cp_bounds(base: *const c_char, p_in: *const c_char) -> CharBoundsOff {
     unsafe { utf_cp_bounds_len(base, p_in, c_int::MAX) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_find_illegal() {
+pub unsafe fn utf_find_illegal() {
     unsafe {
         let pos: pos_T = (*curwin).w_cursor;
         let mut vimconv = vimconv_T {
@@ -2823,8 +2761,7 @@ pub unsafe extern "C" fn utf_find_illegal() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_valid_string(s: *const c_char, end: *const c_char) -> bool {
+pub unsafe fn utf_valid_string(s: *const c_char, end: *const c_char) -> bool {
     unsafe {
         let mut p = s.cast::<u8>();
         let end_u8 = end.cast::<u8>();
@@ -2855,15 +2792,13 @@ pub unsafe extern "C" fn utf_valid_string(s: *const c_char, end: *const c_char) 
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mb_adjust_cursor() {
+pub unsafe fn mb_adjust_cursor() {
     unsafe {
         mark_mb_adjustpos(curbuf.cast(), (&raw mut (*curwin).w_cursor).cast());
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mb_check_adjust_col(win_: *mut c_void) {
+pub unsafe fn mb_check_adjust_col(win_: *mut c_void) {
     unsafe {
         let win = win_.cast::<win_T>();
         let oldcol = (*win).w_cursor.col;
@@ -2893,8 +2828,7 @@ pub unsafe extern "C" fn mb_check_adjust_col(win_: *mut c_void) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mb_prevptr(line: *mut c_char, mut p: *mut c_char) -> *mut c_char {
+pub unsafe fn mb_prevptr(line: *mut c_char, mut p: *mut c_char) -> *mut c_char {
     unsafe {
         if p > line {
             let off = utf_head_off(line, p.sub(1)) + 1;
@@ -2904,8 +2838,7 @@ pub unsafe extern "C" fn mb_prevptr(line: *mut c_char, mut p: *mut c_char) -> *m
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mb_charlen(str_: *const c_char) -> c_int {
+pub unsafe fn mb_charlen(str_: *const c_char) -> c_int {
     unsafe {
         if str_.is_null() {
             return 0;
@@ -2920,8 +2853,7 @@ pub unsafe extern "C" fn mb_charlen(str_: *const c_char) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mb_charlen_len(str_: *const c_char, len: c_int) -> c_int {
+pub unsafe fn mb_charlen_len(str_: *const c_char, len: c_int) -> c_int {
     unsafe {
         let mut p = str_;
         let end = str_.add(len.max(0) as usize);
@@ -2934,8 +2866,7 @@ pub unsafe extern "C" fn mb_charlen_len(str_: *const c_char, len: c_int) -> c_in
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mb_unescape(pp: *mut *const c_char) -> *const c_char {
+pub unsafe fn mb_unescape(pp: *mut *const c_char) -> *const c_char {
     unsafe {
         let mut buf_idx = 0usize;
         let str_ = (*pp).cast::<u8>();
@@ -2971,8 +2902,7 @@ pub unsafe extern "C" fn mb_unescape(pp: *mut *const c_char) -> *const c_char {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn enc_skip(p: *mut c_char) -> *mut c_char {
+pub unsafe fn enc_skip(p: *mut c_char) -> *mut c_char {
     unsafe {
         let bytes = CStr::from_ptr(p).to_bytes();
         if bytes.starts_with(b"2byte-") {
@@ -2995,8 +2925,7 @@ unsafe fn enc_alias_search(name: *const c_char) -> c_int {
     -1
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn enc_canonize(enc: *mut c_char) -> *mut c_char {
+pub unsafe fn enc_canonize(enc: *mut c_char) -> *mut c_char {
     unsafe {
         let enc_bytes = CStr::from_ptr(enc).to_bytes();
         if enc_bytes == b"default" {
@@ -3054,8 +2983,7 @@ pub unsafe extern "C" fn enc_canonize(enc: *mut c_char) -> *mut c_char {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn enc_locale() -> *mut c_char {
+pub unsafe fn enc_locale() -> *mut c_char {
     unsafe {
         #[cfg(unix)]
         let mut s: *const c_char = nl_langinfo(CODESET);
@@ -3125,8 +3053,7 @@ pub unsafe extern "C" fn enc_locale() -> *mut c_char {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn my_iconv_open(to: *mut c_char, from: *mut c_char) -> *mut c_void {
+pub unsafe fn my_iconv_open(to: *mut c_char, from: *mut c_char) -> *mut c_void {
     unsafe {
         const ICONV_TESTLEN: usize = 400;
         if iconv_working == WorkingStatus::kBroken {
@@ -3226,12 +3153,7 @@ unsafe fn iconv_string(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_iconv(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_iconv(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
         (*rettv).vval.v_string = ptr::null_mut();
@@ -3275,8 +3197,7 @@ pub unsafe extern "C" fn convert_setup(
     unsafe { convert_setup_ext(vcp, from, true, to, true) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn convert_setup_ext(
+pub unsafe fn convert_setup_ext(
     vcp: *mut vimconv_T,
     from: *mut c_char,
     from_unicode_is_utf8: bool,
@@ -3352,8 +3273,7 @@ pub unsafe extern "C" fn convert_setup_ext(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn string_convert(
+pub unsafe fn string_convert(
     vcp: *const vimconv_T,
     ptr: *mut c_char,
     lenp: *mut usize,
@@ -3361,8 +3281,7 @@ pub unsafe extern "C" fn string_convert(
     unsafe { string_convert_ext(vcp, ptr, lenp, ptr::null_mut()) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn string_convert_ext(
+pub unsafe fn string_convert_ext(
     vcp: *const vimconv_T,
     ptr: *mut c_char,
     lenp: *mut usize,
@@ -3528,12 +3447,7 @@ unsafe fn first_list_number(l: *const list_T) -> varnumber_T {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_setcellwidths(
-    argvars: *mut typval_T,
-    _rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_setcellwidths(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if (*argvars).v_type != VarType::VAR_LIST || (*argvars).vval.v_list.is_null() {
             emsg((&raw const e_listreq).cast::<c_char>());
@@ -3631,12 +3545,7 @@ pub unsafe extern "C" fn f_setcellwidths(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getcellwidths(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_getcellwidths(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_list_alloc_ret(rettv, cw_table_size as isize);
         for i in 0..cw_table_size {
@@ -3650,12 +3559,7 @@ pub unsafe extern "C" fn f_getcellwidths(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_charclass(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_charclass(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if tv_check_for_string_arg(argvars, 0) == FAIL || (*argvars).vval.v_string.is_null() {
             return;
@@ -3664,16 +3568,14 @@ pub unsafe extern "C" fn f_charclass(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_encoding_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_encoding_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     if idx < 0 || (idx as usize) >= ENC_CANON_TABLE.len() {
         return ptr::null_mut();
     }
     ENC_CANON_TABLE[idx as usize].name.as_ptr().cast_mut()
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mb_strcmp_ic(ic: bool, s1: *const c_char, s2: *const c_char) -> c_int {
+pub unsafe fn mb_strcmp_ic(ic: bool, s1: *const c_char, s2: *const c_char) -> c_int {
     unsafe {
         if ic {
             mb_stricmp(s1, s2)

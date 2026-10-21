@@ -583,7 +583,7 @@ unsafe fn json_append_number(
     }
 }
 
-unsafe extern "C" fn cmp_key_entries(a: *const c_void, b: *const c_void) -> c_int {
+unsafe fn cmp_key_entries(a: *const c_void, b: *const c_void) -> c_int {
     unsafe {
         let ka = a.cast::<key_entry_t>();
         let kb = b.cast::<key_entry_t>();
@@ -1593,7 +1593,6 @@ unsafe extern "C-unwind" fn json_protect_conversion(l: *mut lua_State) -> c_int 
     }
 }
 
-#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn lua_cjson_new(l: *mut lua_State) -> c_int {
     let reg = [
         luaL_Reg {

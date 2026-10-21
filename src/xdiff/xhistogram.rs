@@ -426,8 +426,7 @@ unsafe fn histogram_diff(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xdl_do_histogram_diff(
+pub unsafe fn xdl_do_histogram_diff(
     file1: *mut mmfile_t,
     file2: *mut mmfile_t,
     xpp: *const xpparam_t,

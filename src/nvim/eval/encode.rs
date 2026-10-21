@@ -101,19 +101,6 @@ pub(crate) struct MPConvStackVal {
     pub(crate) data: MPConvStackData,
 }
 
-/// Msgpack callback for writing to a Blob (`encode_blob_write`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn encode_blob_write(
-    data: *mut c_void,
-    buf: *const c_char,
-    len: usize,
-) -> c_int {
-    unsafe {
-        ga_concat_len(&mut (*data.cast::<blob_T>()).bv_ga, buf, len);
-    }
-    len as c_int
-}
-
 /// Msgpack callback for writing to `readfile()`-style list (`encode_list_write`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn encode_list_write(data: *mut c_void, buf: *const c_char, len: usize) {
@@ -174,8 +161,7 @@ pub unsafe extern "C" fn encode_list_write(data: *mut c_void, buf: *const c_char
 }
 
 /// Initialize `ListReaderState` structure (`encode_init_lrstate`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn encode_init_lrstate(list: *const list_T) -> ListReaderState {
+pub unsafe fn encode_init_lrstate(list: *const list_T) -> ListReaderState {
     let first = unsafe { tv_list_first(list) };
     let li_length = if first.is_null() {
         0
@@ -196,8 +182,7 @@ pub unsafe extern "C" fn encode_init_lrstate(list: *const list_T) -> ListReaderS
 }
 
 /// Read bytes from list (`encode_read_from_list`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn encode_read_from_list(
+pub unsafe fn encode_read_from_list(
     state: *mut ListReaderState,
     buf: *mut c_char,
     nbuf: usize,
@@ -254,8 +239,7 @@ pub unsafe extern "C" fn encode_read_from_list(
 }
 
 /// Convert `readfile()`-style list to a `char *` buffer with length (`encode_vim_list_to_buf`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn encode_vim_list_to_buf(
+pub unsafe fn encode_vim_list_to_buf(
     list: *const list_T,
     ret_len: *mut usize,
     ret_buf: *mut *mut c_char,
@@ -298,8 +282,7 @@ pub unsafe extern "C" fn encode_vim_list_to_buf(
 }
 
 /// Check whether given key can be used in `json_encode()` (`encode_check_json_key`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn encode_check_json_key(tv: *const typval_T) -> bool {
+pub unsafe fn encode_check_json_key(tv: *const typval_T) -> bool {
     unsafe {
         let tv = &*tv;
         if tv.v_type == VarType::VAR_STRING {
@@ -1791,8 +1774,7 @@ unsafe fn encode_vim_with_backend(
 }
 
 /// Convert Vimscript value to `:echo` output (`encode_vim_to_echo`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn encode_vim_to_echo(
+pub unsafe fn encode_vim_to_echo(
     gap: *mut garray_T,
     tv: *mut typval_T,
     objname: *const c_char,
@@ -1807,8 +1789,7 @@ pub unsafe extern "C" fn encode_vim_to_echo(
 }
 
 /// Convert Vimscript value to msgpack string (`encode_vim_to_msgpack`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn encode_vim_to_msgpack(
+pub unsafe fn encode_vim_to_msgpack(
     packer: *mut PackerBuffer,
     tv: *mut typval_T,
     objname: *const c_char,
@@ -1820,8 +1801,7 @@ pub unsafe extern "C" fn encode_vim_to_msgpack(
 }
 
 /// Return a string with the string representation of a variable (`encode_tv2string`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn encode_tv2string(tv: *mut typval_T, len: *mut usize) -> *mut c_char {
+pub unsafe fn encode_tv2string(tv: *mut typval_T, len: *mut usize) -> *mut c_char {
     unsafe {
         let mut ga = garray_T {
             ga_len: 0,
@@ -1848,8 +1828,7 @@ pub unsafe extern "C" fn encode_tv2string(tv: *mut typval_T, len: *mut usize) ->
 }
 
 /// Return a string with the `:echo` representation of a variable (`encode_tv2echo`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn encode_tv2echo(tv: *mut typval_T, len: *mut usize) -> *mut c_char {
+pub unsafe fn encode_tv2echo(tv: *mut typval_T, len: *mut usize) -> *mut c_char {
     unsafe {
         let mut ga = garray_T {
             ga_len: 0,
@@ -1877,8 +1856,7 @@ pub unsafe extern "C" fn encode_tv2echo(tv: *mut typval_T, len: *mut usize) -> *
 }
 
 /// Return a JSON string representation of a variable (`encode_tv2json`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn encode_tv2json(tv: *mut typval_T, len: *mut usize) -> *mut c_char {
+pub unsafe fn encode_tv2json(tv: *mut typval_T, len: *mut usize) -> *mut c_char {
     unsafe {
         let mut ga = garray_T {
             ga_len: 0,

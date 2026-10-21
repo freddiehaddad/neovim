@@ -18,7 +18,7 @@ use std::ptr;
 
 pub type RStream = c_void;
 pub type stream_read_cb = Option<
-    unsafe extern "C" fn(
+    unsafe fn(
         stream: *mut RStream,
         read_data: *const c_char,
         count: usize,
@@ -66,24 +66,14 @@ unsafe fn rstream_space(stream: *mut RStream) -> usize {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn rstream_init_fd(loop_: *mut Loop, stream: *mut RStream, fd: c_int) {
+pub unsafe fn rstream_init_fd(loop_: *mut Loop, stream: *mut RStream, fd: c_int) {
     unsafe {
         stream_init(loop_, stream.cast(), fd, ptr::null_mut());
         rstream_init(stream);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn rstream_init_stream(stream: *mut RStream, uvstream: *mut uv_stream_t) {
-    unsafe {
-        stream_init(ptr::null_mut(), stream.cast(), -1, uvstream);
-        rstream_init(stream);
-    }
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn rstream_init(stream: *mut RStream) {
+pub unsafe fn rstream_init(stream: *mut RStream) {
     unsafe {
         let r = rstream_fields(stream);
         let s = stream_fields(stream);
@@ -97,8 +87,7 @@ pub unsafe extern "C" fn rstream_init(stream: *mut RStream) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn rstream_start_inner(stream: *mut RStream) {
+pub unsafe fn rstream_start_inner(stream: *mut RStream) {
     unsafe {
         let s = stream_fields(stream);
         if !(*s).uvstream.is_null() {
@@ -109,12 +98,7 @@ pub unsafe extern "C" fn rstream_start_inner(stream: *mut RStream) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn rstream_start(
-    stream: *mut RStream,
-    cb: stream_read_cb,
-    data: *mut c_void,
-) {
+pub unsafe fn rstream_start(stream: *mut RStream, cb: stream_read_cb, data: *mut c_void) {
     unsafe {
         let r = rstream_fields(stream);
         let s = stream_fields(stream);
@@ -127,8 +111,7 @@ pub unsafe extern "C" fn rstream_start(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn rstream_stop_inner(stream: *mut RStream) {
+pub unsafe fn rstream_stop_inner(stream: *mut RStream) {
     unsafe {
         let s = stream_fields(stream);
         if !(*s).uvstream.is_null() {
@@ -139,8 +122,7 @@ pub unsafe extern "C" fn rstream_stop_inner(stream: *mut RStream) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn rstream_stop(stream: *mut RStream) {
+pub unsafe fn rstream_stop(stream: *mut RStream) {
     unsafe {
         rstream_stop_inner(stream);
         (*rstream_fields(stream)).want_read = false;
@@ -245,16 +227,14 @@ unsafe extern "C" fn read_event(argv: *mut *mut c_void) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn rstream_available(stream: *mut RStream) -> usize {
+pub unsafe fn rstream_available(stream: *mut RStream) -> usize {
     unsafe {
         let r = rstream_fields(stream);
         ((*r).write_pos as usize) - ((*r).read_pos as usize)
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn rstream_consume(stream: *mut RStream, consumed: usize) {
+pub unsafe fn rstream_consume(stream: *mut RStream, consumed: usize) {
     unsafe {
         let r = rstream_fields(stream);
         (*r).read_pos = (*r).read_pos.add(consumed);
@@ -310,7 +290,7 @@ unsafe fn invoke_read_cb(stream: *mut RStream, eof: bool) {
     }
 }
 
-unsafe extern "C" fn rstream_close_cb(s: *mut Stream, data: *mut c_void) {
+unsafe fn rstream_close_cb(s: *mut Stream, data: *mut c_void) {
     unsafe {
         let stream = data;
         assert!(!stream.is_null() && ptr::eq(s, stream));
@@ -321,8 +301,7 @@ unsafe extern "C" fn rstream_close_cb(s: *mut Stream, data: *mut c_void) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn rstream_may_close(stream: *mut RStream) {
+pub unsafe fn rstream_may_close(stream: *mut RStream) {
     unsafe {
         stream_may_close(stream);
     }

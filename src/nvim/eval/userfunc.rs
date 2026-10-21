@@ -92,10 +92,8 @@ use crate::ui::ui_has;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
-pub type FnameTransError = c_int;
-pub type VimLFunc = Option<unsafe extern "C" fn(*mut typval_T, *mut typval_T, EvalFuncData)>;
-pub type ArgvFunc =
-    Option<unsafe extern "C" fn(c_int, *mut typval_T, c_int, *mut ufunc_T) -> c_int>;
+pub type VimLFunc = Option<unsafe fn(*mut typval_T, *mut typval_T, EvalFuncData)>;
+pub type ArgvFunc = Option<unsafe fn(c_int, *mut typval_T, c_int, *mut ufunc_T) -> c_int>;
 
 #[repr(C)]
 pub struct ufunc_T {
@@ -286,16 +284,14 @@ pub unsafe fn funcline(fp: *const ufunc_T, j: c_int) -> *mut c_char {
     unsafe { *((*fp).uf_lines.ga_data.cast::<*mut c_char>()).add(j as usize) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn func_init() {
+pub unsafe fn func_init() {
     unsafe {
         hash_init(&raw mut func_hashtab);
     }
 }
 
 /// Return the function hash table.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn func_tbl_get() -> *mut hashtab_T {
+pub unsafe fn func_tbl_get() -> *mut hashtab_T {
     &raw mut func_hashtab
 }
 
@@ -528,8 +524,7 @@ unsafe fn alloc_ufunc(name: *const c_char, namelen: usize) -> *mut ufunc_T {
 }
 
 /// Parse a lambda expression and get a Funcref from `*arg`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_lambda_tv(
+pub unsafe fn get_lambda_tv(
     arg: *mut *mut c_char,
     rettv: *mut typval_T,
     evalarg: *mut evalarg_T,
@@ -698,8 +693,7 @@ pub unsafe extern "C" fn get_lambda_tv(
 }
 
 /// Return name of the function corresponding to `name`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn deref_func_name(
+pub unsafe fn deref_func_name(
     name: *const c_char,
     lenp: *mut c_int,
     partialp: *mut *mut partial_T,
@@ -748,8 +742,7 @@ pub unsafe extern "C" fn deref_func_name(
 }
 
 /// Give an error message with a function name. Handle `<SNR>` things.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn emsg_funcname(errmsg: *const c_char, name: *const c_char) {
+pub unsafe fn emsg_funcname(errmsg: *const c_char, name: *const c_char) {
     unsafe {
         let mut p = name.cast_mut();
 
@@ -805,8 +798,7 @@ unsafe fn get_func_arguments(
 }
 
 /// Call a function and put the result in `rettv`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_func_tv(
+pub unsafe fn get_func_tv(
     name: *const c_char,
     len: c_int,
     rettv: *mut typval_T,
@@ -928,8 +920,7 @@ unsafe fn fname_trans_sid(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_func_arity(
+pub unsafe fn get_func_arity(
     name: *const c_char,
     required: *mut c_int,
     optional: *mut c_int,
@@ -978,7 +969,6 @@ pub unsafe extern "C" fn get_func_arity(
 }
 
 /// Find a function by name, return pointer to it in ufuncs.
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn find_func(name: *const c_char) -> *mut ufunc_T {
     unsafe {
         let hi = hash_find(&raw const func_hashtab, name);
@@ -1224,8 +1214,7 @@ unsafe fn func_clear_free(fp: *mut ufunc_T, force: bool) {
 }
 
 /// Allocate a `funccall_T`, link it in `current_funccal` and fill in `fp` and `rettv`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn create_funccal(fp: *mut ufunc_T, rettv: *mut typval_T) -> *mut funccall_T {
+pub unsafe fn create_funccal(fp: *mut ufunc_T, rettv: *mut typval_T) -> *mut funccall_T {
     unsafe {
         let fc = xcalloc(1, std::mem::size_of::<funccall_T>()).cast::<funccall_T>();
         (*fc).fc_caller = current_funccal;
@@ -1237,19 +1226,8 @@ pub unsafe extern "C" fn create_funccal(fp: *mut ufunc_T, rettv: *mut typval_T) 
     }
 }
 
-/// Restore `current_funccal`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn remove_funccal() {
-    unsafe {
-        let fc = current_funccal;
-        current_funccal = (*fc).fc_caller;
-        free_funccal(fc);
-    }
-}
-
 /// Call a user function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn call_user_func(
+pub unsafe fn call_user_func(
     fp: *mut ufunc_T,
     argcount: c_int,
     argvars: *mut typval_T,
@@ -1722,8 +1700,7 @@ unsafe fn call_user_func_check(
 }
 
 /// Save the current function call pointer, and set it to NULL.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn save_funccal(entry: *mut funccal_entry_T) {
+pub unsafe fn save_funccal(entry: *mut funccal_entry_T) {
     unsafe {
         (*entry).top_funccal = current_funccal.cast();
         (*entry).next = funccal_stack;
@@ -1732,8 +1709,7 @@ pub unsafe extern "C" fn save_funccal(entry: *mut funccal_entry_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn restore_funccal() {
+pub unsafe fn restore_funccal() {
     unsafe {
         if funccal_stack.is_null() {
             iemsg(c"INTERNAL: restore_funccal()".as_ptr());
@@ -1744,20 +1720,17 @@ pub unsafe extern "C" fn restore_funccal() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_current_funccal() -> *mut funccall_T {
+pub unsafe fn get_current_funccal() -> *mut funccall_T {
     unsafe { current_funccal }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_current_funccal(fc: *mut funccall_T) {
+pub unsafe fn set_current_funccal(fc: *mut funccall_T) {
     unsafe {
         current_funccal = fc;
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn free_all_functions() {
+pub unsafe fn free_all_functions() {
     unsafe {
         while !current_funccal.is_null() {
             tv_clear((*current_funccal).fc_rettv);
@@ -1830,8 +1803,7 @@ unsafe fn builtin_function(name: *const c_char, len: c_int) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn func_call(
+pub unsafe fn func_call(
     name: *mut c_char,
     args: *mut typval_T,
     partial: *mut partial_T,
@@ -1884,8 +1856,7 @@ pub unsafe extern "C" fn func_call(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn callback_call_retnr(
+pub unsafe fn callback_call_retnr(
     callback: *mut Callback,
     argcount: c_int,
     argvars: *mut typval_T,
@@ -1960,8 +1931,7 @@ unsafe fn argv_add_base(
 }
 
 /// Call a function with its resolved parameters.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn call_func(
+pub unsafe fn call_func(
     mut funcname: *const c_char,
     mut len: c_int,
     rettv: *mut typval_T,
@@ -2123,8 +2093,7 @@ pub unsafe extern "C" fn call_func(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn call_simple_luafunc(
+pub unsafe fn call_simple_luafunc(
     funcname: *const c_char,
     len: usize,
     rettv: *mut typval_T,
@@ -2140,12 +2109,7 @@ pub unsafe extern "C" fn call_simple_luafunc(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn call_simple_func(
-    funcname: *const c_char,
-    len: usize,
-    rettv: *mut typval_T,
-) -> c_int {
+pub unsafe fn call_simple_func(funcname: *const c_char, len: usize, rettv: *mut typval_T) -> c_int {
     unsafe {
         let mut ret = FAIL;
 
@@ -2199,8 +2163,7 @@ pub unsafe extern "C" fn call_simple_func(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn printable_func_name(fp: *mut ufunc_T) -> *mut c_char {
+pub unsafe fn printable_func_name(fp: *mut ufunc_T) -> *mut c_char {
     unsafe {
         if !(*fp).uf_name_exp.is_null() {
             (*fp).uf_name_exp
@@ -2288,8 +2251,7 @@ unsafe fn list_func_head(fp: *mut ufunc_T, indent: bool, force: bool) -> c_int {
 }
 
 /// Get a function name, translating `<SID>` and `<SNR>`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn trans_function_name(
+pub unsafe fn trans_function_name(
     pp: *mut *mut c_char,
     skip: bool,
     flags: c_int,
@@ -2527,8 +2489,7 @@ pub unsafe extern "C" fn trans_function_name(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_scriptlocal_funcname(funcname: *mut c_char) -> *mut c_char {
+pub unsafe fn get_scriptlocal_funcname(funcname: *mut c_char) -> *mut c_char {
     unsafe {
         if funcname.is_null() {
             return ptr::null_mut();
@@ -2567,8 +2528,7 @@ pub unsafe extern "C" fn get_scriptlocal_funcname(funcname: *mut c_char) -> *mut
 }
 
 /// Call `trans_function_name()`, except that a lambda is returned as-is.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn save_function_name(
+pub unsafe fn save_function_name(
     name: *mut *mut c_char,
     skip: bool,
     flags: c_int,
@@ -3021,8 +2981,7 @@ unsafe fn get_function_body(
 }
 
 /// `:function`
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_function(eap: *mut exarg_T) {
+pub unsafe fn ex_function(eap: *mut exarg_T) {
     unsafe {
         let mut line_to_free: *mut c_char = ptr::null_mut();
         let mut line_arg: *mut c_char = ptr::null_mut();
@@ -3428,8 +3387,7 @@ pub unsafe extern "C" fn ex_function(eap: *mut exarg_T) {
 
 /// Return 5 if `p` starts with `<SID>` or `<SNR>` (ignoring case),
 /// 2 if `p` starts with `s:`, 0 otherwise.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval_fname_script(p: *const c_char) -> c_int {
+pub unsafe fn eval_fname_script(p: *const c_char) -> c_int {
     unsafe {
         if *p == b'<' as c_char
             && (mb_strnicmp(p.add(1), c"SID>".as_ptr(), 4) == 0
@@ -3444,8 +3402,7 @@ pub unsafe extern "C" fn eval_fname_script(p: *const c_char) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn translated_function_exists(name: *const c_char) -> bool {
+pub unsafe fn translated_function_exists(name: *const c_char) -> bool {
     unsafe {
         if builtin_function(name, -1) {
             return !find_internal_func(name).is_null();
@@ -3454,8 +3411,7 @@ pub unsafe extern "C" fn translated_function_exists(name: *const c_char) -> bool
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn function_exists(name: *const c_char, no_deref: bool) -> bool {
+pub unsafe fn function_exists(name: *const c_char, no_deref: bool) -> bool {
     unsafe {
         let mut nm = name.cast_mut();
         let mut n = false;
@@ -3477,8 +3433,7 @@ pub unsafe extern "C" fn function_exists(name: *const c_char, no_deref: bool) ->
 
 /// Function given to `ExpandGeneric()` to obtain the list of user defined
 /// function names.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_user_func_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_user_func_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx == 0 {
             get_uf_done = 0;
@@ -3531,8 +3486,7 @@ pub unsafe extern "C" fn get_user_func_name(xp: *mut expand_T, idx: c_int) -> *m
 }
 
 /// `:delfunction {name}`
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_delfunction(eap: *mut exarg_T) {
+pub unsafe fn ex_delfunction(eap: *mut exarg_T) {
     unsafe {
         let mut fp: *mut ufunc_T = ptr::null_mut();
         let mut fudi: funcdict_T = std::mem::zeroed();
@@ -3619,8 +3573,7 @@ pub unsafe extern "C" fn ex_delfunction(eap: *mut exarg_T) {
 
 /// Unreference a Function: decrement the reference count and free it when it
 /// becomes zero.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn func_unref(name: *mut c_char) {
+pub unsafe fn func_unref(name: *mut c_char) {
     unsafe {
         if name.is_null() || !func_name_refcount(name) {
             return;
@@ -3635,8 +3588,7 @@ pub unsafe extern "C" fn func_unref(name: *mut c_char) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn func_ptr_unref(fp: *mut ufunc_T) {
+pub unsafe fn func_ptr_unref(fp: *mut ufunc_T) {
     unsafe {
         if !fp.is_null() {
             (*fp).uf_refcount -= 1;
@@ -3647,8 +3599,7 @@ pub unsafe extern "C" fn func_ptr_unref(fp: *mut ufunc_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn func_ref(name: *mut c_char) {
+pub unsafe fn func_ref(name: *mut c_char) {
     unsafe {
         if name.is_null() || !func_name_refcount(name) {
             return;
@@ -3662,8 +3613,7 @@ pub unsafe extern "C" fn func_ref(name: *mut c_char) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn func_ptr_ref(fp: *mut ufunc_T) {
+pub unsafe fn func_ptr_ref(fp: *mut ufunc_T) {
     unsafe {
         if !fp.is_null() {
             (*fp).uf_refcount += 1;
@@ -3691,8 +3641,7 @@ unsafe fn can_free_funccal(fc: *const funccall_T, copyID: c_int) -> bool {
 }
 
 /// `:return [expr]`
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_return(eap: *mut exarg_T) {
+pub unsafe fn ex_return(eap: *mut exarg_T) {
     unsafe {
         let arg = (*eap).arg;
         let mut rettv: typval_T = std::mem::zeroed();
@@ -3879,8 +3828,7 @@ unsafe fn ex_defer_inner(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn can_add_defer() -> bool {
+pub unsafe fn can_add_defer() -> bool {
     unsafe {
         if get_current_funccal().is_null() {
             semsg!(
@@ -3893,8 +3841,7 @@ pub unsafe extern "C" fn can_add_defer() -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn add_defer(name: *mut c_char, argcount_arg: c_int, argvars: *mut typval_T) {
+pub unsafe fn add_defer(name: *mut c_char, argcount_arg: c_int, argvars: *mut typval_T) {
     unsafe {
         let saved_name = xstrdup(name);
         let mut argcount = argcount_arg;
@@ -3968,8 +3915,7 @@ unsafe fn handle_defer_one(funccal: *mut funccall_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn invoke_all_defer() {
+pub unsafe fn invoke_all_defer() {
     unsafe {
         let mut fc = current_funccal;
         while !fc.is_null() {
@@ -3990,8 +3936,7 @@ pub unsafe extern "C" fn invoke_all_defer() {
 }
 
 /// `:1,25call func(arg1, arg2)` or `:defer func(arg1, arg2)`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_call(eap: *mut exarg_T) {
+pub unsafe fn ex_call(eap: *mut exarg_T) {
     unsafe {
         let mut arg = (*eap).arg;
         let mut fudi: funcdict_T = std::mem::zeroed();
@@ -4093,8 +4038,7 @@ pub unsafe extern "C" fn ex_call(eap: *mut exarg_T) {
 }
 
 /// Return from a function. Possibly makes the return pending.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_return(
+pub unsafe fn do_return(
     eap: *mut exarg_T,
     reanimate: bool,
     is_cmd: bool,
@@ -4150,8 +4094,7 @@ pub unsafe extern "C" fn do_return(
 }
 
 /// Generate a return command for producing the value of `rettv`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_return_cmd(rettv: *mut c_void) -> *mut c_char {
+pub unsafe fn get_return_cmd(rettv: *mut c_void) -> *mut c_char {
     unsafe {
         let mut s: *mut c_char = ptr::null_mut();
         let mut tofree: *mut c_char = ptr::null_mut();
@@ -4181,8 +4124,7 @@ pub unsafe extern "C" fn get_return_cmd(rettv: *mut c_void) -> *mut c_char {
 }
 
 /// Get next function line.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_func_line(
+pub unsafe fn get_func_line(
     _c: c_int,
     cookie: *mut c_void,
     _indent: c_int,
@@ -4237,8 +4179,7 @@ pub unsafe extern "C" fn get_func_line(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn func_has_ended(cookie: *mut c_void) -> c_int {
+pub unsafe fn func_has_ended(cookie: *mut c_void) -> c_int {
     unsafe {
         let fcp = cookie.cast::<funccall_T>();
         if (((*(*fcp).fc_func).uf_flags & FC_ABORT) != 0 && did_emsg != 0 && !aborted_in_try())
@@ -4251,14 +4192,12 @@ pub unsafe extern "C" fn func_has_ended(cookie: *mut c_void) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn func_has_abort(cookie: *mut c_void) -> c_int {
+pub unsafe fn func_has_abort(cookie: *mut c_void) -> c_int {
     unsafe { (*(*cookie.cast::<funccall_T>()).fc_func).uf_flags & FC_ABORT }
 }
 
 /// Turn `dict.Func` into a partial for `Func` bound to `dict`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn make_partial(selfdict: *mut dict_T, rettv: *mut typval_T) {
+pub unsafe fn make_partial(selfdict: *mut dict_T, rettv: *mut typval_T) {
     unsafe {
         let mut fp: *mut ufunc_T = ptr::null_mut();
         let mut fname_buf = [0 as c_char; FLEN_FIXED + 1];
@@ -4330,33 +4269,27 @@ pub unsafe extern "C" fn make_partial(selfdict: *mut dict_T, rettv: *mut typval_
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn func_name(cookie: *mut c_void) -> *mut c_char {
+pub unsafe fn func_name(cookie: *mut c_void) -> *mut c_char {
     unsafe { uf2hikey((*cookie.cast::<funccall_T>()).fc_func) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn func_breakpoint(cookie: *mut c_void) -> *mut linenr_T {
+pub unsafe fn func_breakpoint(cookie: *mut c_void) -> *mut linenr_T {
     unsafe { &raw mut (*cookie.cast::<funccall_T>()).fc_breakpoint }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn func_dbg_tick(cookie: *mut c_void) -> *mut c_int {
+pub unsafe fn func_dbg_tick(cookie: *mut c_void) -> *mut c_int {
     unsafe { &raw mut (*cookie.cast::<funccall_T>()).fc_dbg_tick }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn func_level(cookie: *mut c_void) -> c_int {
+pub unsafe fn func_level(cookie: *mut c_void) -> c_int {
     unsafe { (*cookie.cast::<funccall_T>()).fc_level }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn current_func_returned() -> c_int {
+pub unsafe fn current_func_returned() -> c_int {
     unsafe { (*current_funccal).fc_returned }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn free_unref_funccal(copyID: c_int, testing: c_int) -> bool {
+pub unsafe fn free_unref_funccal(copyID: c_int, testing: c_int) -> bool {
     unsafe {
         let mut did_free = false;
         let mut did_free_funccal = false;
@@ -4380,8 +4313,7 @@ pub unsafe extern "C" fn free_unref_funccal(copyID: c_int, testing: c_int) -> bo
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_funccal() -> *mut funccall_T {
+pub unsafe fn get_funccal() -> *mut funccall_T {
     unsafe {
         let mut funccal = current_funccal;
         if debug_backtrace_level > 0 {
@@ -4412,8 +4344,7 @@ unsafe fn get_funccal_for_vars() -> *mut funccall_T {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_funccal_local_dict() -> *mut dict_T {
+pub unsafe fn get_funccal_local_dict() -> *mut dict_T {
     unsafe {
         let funccal = get_funccal_for_vars();
         if funccal.is_null() {
@@ -4424,8 +4355,7 @@ pub unsafe extern "C" fn get_funccal_local_dict() -> *mut dict_T {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_funccal_local_ht() -> *mut hashtab_T {
+pub unsafe fn get_funccal_local_ht() -> *mut hashtab_T {
     unsafe {
         let d = get_funccal_local_dict();
         if !d.is_null() {
@@ -4436,8 +4366,7 @@ pub unsafe extern "C" fn get_funccal_local_ht() -> *mut hashtab_T {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_funccal_local_var() -> *mut dictitem_T {
+pub unsafe fn get_funccal_local_var() -> *mut dictitem_T {
     unsafe {
         let funccal = get_funccal_for_vars();
         if funccal.is_null() {
@@ -4448,8 +4377,7 @@ pub unsafe extern "C" fn get_funccal_local_var() -> *mut dictitem_T {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_funccal_args_dict() -> *mut dict_T {
+pub unsafe fn get_funccal_args_dict() -> *mut dict_T {
     unsafe {
         let funccal = get_funccal_for_vars();
         if funccal.is_null() {
@@ -4460,8 +4388,7 @@ pub unsafe extern "C" fn get_funccal_args_dict() -> *mut dict_T {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_funccal_args_ht() -> *mut hashtab_T {
+pub unsafe fn get_funccal_args_ht() -> *mut hashtab_T {
     unsafe {
         let d = get_funccal_args_dict();
         if !d.is_null() {
@@ -4472,8 +4399,7 @@ pub unsafe extern "C" fn get_funccal_args_ht() -> *mut hashtab_T {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_funccal_args_var() -> *mut dictitem_T {
+pub unsafe fn get_funccal_args_var() -> *mut dictitem_T {
     unsafe {
         let funccal = get_funccal_for_vars();
         if funccal.is_null() {
@@ -4484,8 +4410,7 @@ pub unsafe extern "C" fn get_funccal_args_var() -> *mut dictitem_T {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn list_func_vars(first: *mut c_int) {
+pub unsafe fn list_func_vars(first: *mut c_int) {
     unsafe {
         if !current_funccal.is_null() && (*current_funccal).fc_l_vars.dv_refcount > 0 {
             list_hashtable_vars(
@@ -4498,8 +4423,7 @@ pub unsafe extern "C" fn list_func_vars(first: *mut c_int) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_current_funccal_dict(ht: *mut hashtab_T) -> *mut dict_T {
+pub unsafe fn get_current_funccal_dict(ht: *mut hashtab_T) -> *mut dict_T {
     unsafe {
         if !current_funccal.is_null() && ht == &raw mut (*current_funccal).fc_l_vars.dv_hashtab {
             return &raw mut (*current_funccal).fc_l_vars;
@@ -4508,8 +4432,7 @@ pub unsafe extern "C" fn get_current_funccal_dict(ht: *mut hashtab_T) -> *mut di
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn find_hi_in_scoped_ht(
+pub unsafe fn find_hi_in_scoped_ht(
     name: *const c_char,
     pht: *mut *mut hashtab_T,
 ) -> *mut hashitem_T {
@@ -4544,8 +4467,7 @@ pub unsafe extern "C" fn find_hi_in_scoped_ht(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn find_var_in_scoped_ht(
+pub unsafe fn find_var_in_scoped_ht(
     name: *const c_char,
     namelen: usize,
     no_autoload: c_int,
@@ -4585,8 +4507,7 @@ pub unsafe extern "C" fn find_var_in_scoped_ht(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_ref_in_previous_funccal(copyID: c_int) -> bool {
+pub unsafe fn set_ref_in_previous_funccal(copyID: c_int) -> bool {
     unsafe {
         let mut fc = previous_funccal;
         while !fc.is_null() {
@@ -4629,8 +4550,7 @@ unsafe fn set_ref_in_funccal(fc: *mut funccall_T, copyID: c_int) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_ref_in_call_stack(copyID: c_int) -> bool {
+pub unsafe fn set_ref_in_call_stack(copyID: c_int) -> bool {
     unsafe {
         let mut fc = current_funccal;
         while !fc.is_null() {
@@ -4656,8 +4576,7 @@ pub unsafe extern "C" fn set_ref_in_call_stack(copyID: c_int) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_ref_in_functions(copyID: c_int) -> bool {
+pub unsafe fn set_ref_in_functions(copyID: c_int) -> bool {
     unsafe {
         let mut todo = func_hashtab.ht_used as c_int;
         let mut hi = func_hashtab.ht_array;
@@ -4676,8 +4595,7 @@ pub unsafe extern "C" fn set_ref_in_functions(copyID: c_int) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_ref_in_func_args(copyID: c_int) -> bool {
+pub unsafe fn set_ref_in_func_args(copyID: c_int) -> bool {
     unsafe {
         for i in 0..funcargs.ga_len {
             let tv = *(funcargs.ga_data.cast::<*mut typval_T>()).add(i as usize);
@@ -4689,12 +4607,7 @@ pub unsafe extern "C" fn set_ref_in_func_args(copyID: c_int) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_ref_in_func(
-    name: *mut c_char,
-    fp_in: *mut ufunc_T,
-    copyID: c_int,
-) -> bool {
+pub unsafe fn set_ref_in_func(name: *mut c_char, fp_in: *mut ufunc_T, copyID: c_int) -> bool {
     unsafe {
         let mut fp = fp_in;
         let mut error = FCERR_NONE;
@@ -4727,8 +4640,7 @@ pub unsafe extern "C" fn set_ref_in_func(
 }
 
 /// Registers a luaref as a lambda.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn register_luafunc(ref_: LuaRef) -> *mut c_char {
+pub unsafe fn register_luafunc(ref_: LuaRef) -> *mut c_char {
     unsafe {
         let name = get_lambda_name();
         let fp = alloc_ufunc(name.data, name.size);

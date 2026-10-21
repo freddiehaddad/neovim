@@ -232,8 +232,7 @@ pub unsafe extern "C" fn api_err_conflict(
 ///
 /// # Safety
 /// `arr`, `name`, and `err` must be valid.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_string_array(
+pub unsafe fn check_string_array(
     arr: Array,
     name: *mut c_char,
     disallow_nl: bool,

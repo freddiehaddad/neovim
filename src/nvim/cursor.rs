@@ -77,8 +77,7 @@ pub(crate) const VALID_VIRTCOL: c_int = 0x04;
 pub(crate) const kOptVeFlagAll: c_uint = 0x04;
 
 /// Return the screen position of the cursor (`getviscol`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn getviscol() -> c_int {
+pub unsafe fn getviscol() -> c_int {
     unsafe {
         let mut x: colnr_T = 0;
         getvvcol(
@@ -94,8 +93,7 @@ pub unsafe extern "C" fn getviscol() -> c_int {
 }
 
 /// Return the screen position of character `col` with a `coladd` in the cursor line (`getviscol2`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn getviscol2(col: colnr_T, coladd: colnr_T) -> c_int {
+pub unsafe fn getviscol2(col: colnr_T, coladd: colnr_T) -> c_int {
     unsafe {
         let mut x: colnr_T = 0;
         let mut pos = pos_T {
@@ -116,8 +114,7 @@ pub unsafe extern "C" fn getviscol2(col: colnr_T, coladd: colnr_T) -> c_int {
 }
 
 /// Go to column `wcol`, and add/insert white space as necessary (`coladvance_force`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn coladvance_force(wcol: colnr_T) -> c_int {
+pub unsafe fn coladvance_force(wcol: colnr_T) -> c_int {
     unsafe {
         let rc = coladvance2(curwin, &raw mut (*curwin).w_cursor, true, false, wcol);
 
@@ -131,8 +128,7 @@ pub unsafe extern "C" fn coladvance_force(wcol: colnr_T) -> c_int {
 }
 
 /// Try to advance the Cursor to the specified screen column (`coladvance`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn coladvance(wp: *mut win_T, wcol: colnr_T) -> c_int {
+pub unsafe fn coladvance(wp: *mut win_T, wcol: colnr_T) -> c_int {
     unsafe {
         let rc = getvpos(wp, &raw mut (*wp).w_cursor, wcol);
 
@@ -303,26 +299,22 @@ unsafe fn coladvance2(
 }
 
 /// Return in `pos` the position of the cursor advanced to screen column `wcol` (`getvpos`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn getvpos(wp: *mut win_T, pos: *mut pos_T, wcol: colnr_T) -> c_int {
+pub unsafe fn getvpos(wp: *mut win_T, pos: *mut pos_T, wcol: colnr_T) -> c_int {
     unsafe { coladvance2(wp, pos, false, virtual_active(wp), wcol) }
 }
 
 /// Increment the cursor position (`inc_cursor`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn inc_cursor() -> c_int {
+pub unsafe fn inc_cursor() -> c_int {
     unsafe { inc(&raw mut (*curwin).w_cursor) }
 }
 
 /// Decrement the cursor position (`dec_cursor`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn dec_cursor() -> c_int {
+pub unsafe fn dec_cursor() -> c_int {
     unsafe { dec(&raw mut (*curwin).w_cursor) }
 }
 
 /// Get the line number relative to the current cursor position (`get_cursor_rel_lnum`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_cursor_rel_lnum(wp: *mut win_T, lnum: linenr_T) -> linenr_T {
+pub unsafe fn get_cursor_rel_lnum(wp: *mut win_T, lnum: linenr_T) -> linenr_T {
     unsafe {
         let cursor = (*wp).w_cursor.lnum;
         if lnum == cursor || hasAnyFolding(wp) == 0 {
@@ -348,8 +340,7 @@ pub unsafe extern "C" fn get_cursor_rel_lnum(wp: *mut win_T, lnum: linenr_T) -> 
 }
 
 /// Make sure `pos.lnum` and `pos.col` are valid in `buf` (`check_pos`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_pos(buf: *mut buf_T, pos: *mut pos_T) {
+pub unsafe fn check_pos(buf: *mut buf_T, pos: *mut pos_T) {
     unsafe {
         (*pos).lnum = (*pos).lnum.min((*buf).b_ml.ml_line_count);
         if (*pos).col > 0 {
@@ -359,8 +350,7 @@ pub unsafe extern "C" fn check_pos(buf: *mut buf_T, pos: *mut pos_T) {
 }
 
 /// Make sure `win->w_cursor.lnum` is valid (`check_cursor_lnum`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_cursor_lnum(win: *mut win_T) {
+pub unsafe fn check_cursor_lnum(win: *mut win_T) {
     unsafe {
         let buf = (*win).w_buffer;
         if (*win).w_cursor.lnum > (*buf).b_ml.ml_line_count
@@ -380,8 +370,7 @@ pub unsafe extern "C" fn check_cursor_lnum(win: *mut win_T) {
 }
 
 /// Make sure `win->w_cursor.col` is valid (`check_cursor_col`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_cursor_col(win: *mut win_T) {
+pub unsafe fn check_cursor_col(win: *mut win_T) {
     unsafe {
         let oldcol = (*win).w_cursor.col;
         let oldcoladd = (*win).w_cursor.col + (*win).w_cursor.coladd;
@@ -435,8 +424,7 @@ pub unsafe extern "C" fn check_cursor_col(win: *mut win_T) {
 }
 
 /// Make sure `curwin->w_cursor` is on a valid character (`check_cursor`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_cursor(wp: *mut win_T) {
+pub unsafe fn check_cursor(wp: *mut win_T) {
     unsafe {
         check_cursor_lnum(wp);
         check_cursor_col(wp);
@@ -444,8 +432,7 @@ pub unsafe extern "C" fn check_cursor(wp: *mut win_T) {
 }
 
 /// Check if `Visual.start` position is valid, correct it if not (`check_visual_pos`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_visual_pos() {
+pub unsafe fn check_visual_pos() {
     unsafe {
         if Visual.start.lnum > (*curbuf).b_ml.ml_line_count {
             Visual.start.lnum = (*curbuf).b_ml.ml_line_count;
@@ -462,8 +449,7 @@ pub unsafe extern "C" fn check_visual_pos() {
 }
 
 /// Make sure `curwin->w_cursor` is not on the NUL at the end of the line (`adjust_cursor_col`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn adjust_cursor_col() {
+pub unsafe fn adjust_cursor_col() {
     unsafe {
         if (*curwin).w_cursor.col > 0
             && (!Visual.active || *p_sel == b'o' as c_char)
@@ -475,8 +461,7 @@ pub unsafe extern "C" fn adjust_cursor_col() {
 }
 
 /// Set `curwin->w_leftcol` to `leftcol` (`set_leftcol`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_leftcol(leftcol: colnr_T) -> bool {
+pub unsafe fn set_leftcol(leftcol: colnr_T) -> bool {
     unsafe {
         if (*curwin).w_leftcol == leftcol {
             return false;
@@ -528,14 +513,12 @@ pub unsafe extern "C" fn set_leftcol(leftcol: colnr_T) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn gchar_cursor() -> c_int {
+pub unsafe fn gchar_cursor() -> c_int {
     unsafe { utf_ptr2char(get_cursor_pos_ptr()) }
 }
 
 /// Return the character immediately before the cursor (`char_before_cursor`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn char_before_cursor() -> c_int {
+pub unsafe fn char_before_cursor() -> c_int {
     unsafe {
         if (*curwin).w_cursor.col == 0 {
             return -1;
@@ -549,34 +532,29 @@ pub unsafe extern "C" fn char_before_cursor() -> c_int {
 }
 
 /// Write a character at the current cursor position (`pchar_cursor`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn pchar_cursor(c: c_char) {
+pub unsafe fn pchar_cursor(c: c_char) {
     unsafe {
         *ml_get_buf_mut(curbuf, (*curwin).w_cursor.lnum).add((*curwin).w_cursor.col as usize) = c;
     }
 }
 
 /// Return pointer to cursor line (`get_cursor_line_ptr`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_cursor_line_ptr() -> *mut c_char {
+pub unsafe fn get_cursor_line_ptr() -> *mut c_char {
     unsafe { ml_get_buf(curbuf, (*curwin).w_cursor.lnum) }
 }
 
 /// Return pointer to cursor position (`get_cursor_pos_ptr`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_cursor_pos_ptr() -> *mut c_char {
+pub unsafe fn get_cursor_pos_ptr() -> *mut c_char {
     unsafe { ml_get_buf(curbuf, (*curwin).w_cursor.lnum).add((*curwin).w_cursor.col as usize) }
 }
 
 /// Return length (excluding the NUL) of the cursor line (`get_cursor_line_len`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_cursor_line_len() -> colnr_T {
+pub unsafe fn get_cursor_line_len() -> colnr_T {
     unsafe { ml_get_buf_len(curbuf, (*curwin).w_cursor.lnum) }
 }
 
 /// Return length (excluding the NUL) of the cursor position (`get_cursor_pos_len`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_cursor_pos_len() -> colnr_T {
+pub unsafe fn get_cursor_pos_len() -> colnr_T {
     unsafe { ml_get_buf_len(curbuf, (*curwin).w_cursor.lnum) - (*curwin).w_cursor.col }
 }
 

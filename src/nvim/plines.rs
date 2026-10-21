@@ -121,8 +121,7 @@ pub unsafe fn win_linetabsize(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn win_chartabsize(wp: *mut win_T, p: *const c_char, col: colnr_T) -> c_int {
+pub unsafe fn win_chartabsize(wp: *mut win_T, p: *const c_char, col: colnr_T) -> c_int {
     unsafe {
         let buf = (*wp).w_buffer;
         if c_int::from(*p) == TAB
@@ -134,8 +133,7 @@ pub unsafe extern "C" fn win_chartabsize(wp: *mut win_T, p: *const c_char, col: 
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn linetabsize_col(startvcol: c_int, s: *mut c_char) -> c_int {
+pub unsafe fn linetabsize_col(startvcol: c_int, s: *mut c_char) -> c_int {
     unsafe {
         let mut csarg: CharsizeArg = std::mem::zeroed();
         let cstype = init_charsize_arg(&mut csarg, curwin, 0, s);
@@ -147,13 +145,11 @@ pub unsafe extern "C" fn linetabsize_col(startvcol: c_int, s: *mut c_char) -> c_
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn linetabsize(wp: *mut win_T, lnum: linenr_T) -> c_int {
+pub unsafe fn linetabsize(wp: *mut win_T, lnum: linenr_T) -> c_int {
     unsafe { win_linetabsize(wp, lnum, ml_get_buf((*wp).w_buffer, lnum), MAXCOL) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn linetabsize_eol(wp: *mut win_T, lnum: linenr_T) -> c_int {
+pub unsafe fn linetabsize_eol(wp: *mut win_T, lnum: linenr_T) -> c_int {
     unsafe {
         linetabsize(wp, lnum)
             + if (*wp).w_onebuf_opt.wo_list != 0 && (*wp).w_p_lcs_chars.eol != 0 {
@@ -164,8 +160,7 @@ pub unsafe extern "C" fn linetabsize_eol(wp: *mut win_T, lnum: linenr_T) -> c_in
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn init_charsize_arg(
+pub unsafe fn init_charsize_arg(
     csarg: *mut CharsizeArg,
     wp: *mut win_T,
     lnum: linenr_T,
@@ -209,8 +204,7 @@ pub unsafe extern "C" fn init_charsize_arg(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn init_charsize_arg_skip_cur_text(
+pub unsafe fn init_charsize_arg_skip_cur_text(
     csarg: *mut CharsizeArg,
     wp: *mut win_T,
     lnum: linenr_T,
@@ -266,8 +260,7 @@ unsafe fn inline_virt_text_width(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn charsize_regular(
+pub unsafe fn charsize_regular(
     csarg: *mut CharsizeArg,
     cur: *const c_char,
     vcol: colnr_T,
@@ -560,8 +553,7 @@ unsafe fn charsize_fast_impl(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn charsize_fast(
+pub unsafe fn charsize_fast(
     csarg: *mut CharsizeArg,
     cur: *const c_char,
     vcol: colnr_T,
@@ -580,8 +572,7 @@ pub unsafe extern "C" fn charsize_fast(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn charsize_nowrap(
+pub unsafe fn charsize_nowrap(
     buf: *mut buf_T,
     _cur: *const c_char,
     use_tabstop: bool,
@@ -620,8 +611,7 @@ unsafe fn in_win_border(wp: *mut win_T, vcol: colnr_T) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn linesize_regular(
+pub unsafe fn linesize_regular(
     csarg: *mut CharsizeArg,
     mut vcol_arg: c_int,
     len: colnr_T,
@@ -658,12 +648,7 @@ pub unsafe extern "C" fn linesize_regular(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn linesize_fast(
-    csarg: *const CharsizeArg,
-    mut vcol_arg: c_int,
-    len: colnr_T,
-) -> c_int {
+pub unsafe fn linesize_fast(csarg: *const CharsizeArg, mut vcol_arg: c_int, len: colnr_T) -> c_int {
     unsafe {
         let wp = (*csarg).win;
         let use_tabstop = (*csarg).use_tabstop;
@@ -703,8 +688,7 @@ unsafe fn virt_text_cursor_off(csarg: *const CharsizeArg, on_nul: bool) -> c_int
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn getvcol(
+pub unsafe fn getvcol(
     wp: *mut win_T,
     pos: *mut pos_T,
     start: *mut colnr_T,
@@ -799,8 +783,7 @@ pub unsafe extern "C" fn getvcol(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn getvcol_nolist(posp: *mut pos_T) -> colnr_T {
+pub unsafe fn getvcol_nolist(posp: *mut pos_T) -> colnr_T {
     unsafe {
         let list_save = (*curwin).w_onebuf_opt.wo_list;
         let mut vcol: colnr_T = 0;
@@ -816,8 +799,7 @@ pub unsafe extern "C" fn getvcol_nolist(posp: *mut pos_T) -> colnr_T {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn getvvcol(
+pub unsafe fn getvvcol(
     wp: *mut win_T,
     pos: *mut pos_T,
     start: *mut colnr_T,
@@ -862,8 +844,7 @@ pub unsafe extern "C" fn getvvcol(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn getvcols(
+pub unsafe fn getvcols(
     wp: *mut win_T,
     pos1: *mut pos_T,
     pos2: *mut pos_T,
@@ -899,37 +880,25 @@ pub unsafe extern "C" fn getvcols(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn win_may_fill(wp: *mut win_T) -> bool {
+pub unsafe fn win_may_fill(wp: *mut win_T) -> bool {
     unsafe {
         ((*wp).w_onebuf_opt.wo_diff != 0 && diffopt_filler())
             || (*(*wp).w_buffer).b_marktree[0].meta_root[kMTMetaLines] != 0
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn win_get_fill(wp: *mut win_T, lnum: linenr_T) -> c_int {
+pub unsafe fn win_get_fill(wp: *mut win_T, lnum: linenr_T) -> c_int {
     unsafe {
         decor_virt_lines(wp, lnum - 1, lnum, ptr::null_mut(), ptr::null_mut(), true)
             + diff_check_fill(wp, lnum)
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn plines_win(
-    wp: *mut win_T,
-    lnum: linenr_T,
-    limit_winheight: bool,
-) -> c_int {
+pub unsafe fn plines_win(wp: *mut win_T, lnum: linenr_T, limit_winheight: bool) -> c_int {
     unsafe { plines_win_nofill(wp, lnum, limit_winheight) + win_get_fill(wp, lnum) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn plines_win_nofill(
-    wp: *mut win_T,
-    lnum: linenr_T,
-    limit_winheight: bool,
-) -> c_int {
+pub unsafe fn plines_win_nofill(wp: *mut win_T, lnum: linenr_T, limit_winheight: bool) -> c_int {
     unsafe {
         if decor_conceal_line(wp, lnum - 1, false) {
             return 0;
@@ -946,8 +915,7 @@ pub unsafe extern "C" fn plines_win_nofill(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn plines_win_nofold(wp: *mut win_T, lnum: linenr_T) -> c_int {
+pub unsafe fn plines_win_nofold(wp: *mut win_T, lnum: linenr_T) -> c_int {
     unsafe {
         let s = ml_get_buf((*wp).w_buffer, lnum);
         let mut csarg: CharsizeArg = std::mem::zeroed();
@@ -984,8 +952,7 @@ pub unsafe extern "C" fn plines_win_nofold(wp: *mut win_T, lnum: linenr_T) -> c_
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn plines_win_col(wp: *mut win_T, lnum: linenr_T, column: c_long) -> c_int {
+pub unsafe fn plines_win_col(wp: *mut win_T, lnum: linenr_T, column: c_long) -> c_int {
     unsafe {
         let mut lines = win_get_fill(wp, lnum);
         if (*wp).w_onebuf_opt.wo_wrap == 0 || (*wp).w_view_width == 0 {
@@ -1033,8 +1000,7 @@ pub unsafe extern "C" fn plines_win_col(wp: *mut win_T, lnum: linenr_T, column: 
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn plines_win_full(
+pub unsafe fn plines_win_full(
     wp: *mut win_T,
     mut lnum: linenr_T,
     nextp: *mut linenr_T,
@@ -1066,8 +1032,7 @@ pub unsafe extern "C" fn plines_win_full(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn plines_m_win(
+pub unsafe fn plines_m_win(
     wp: *mut win_T,
     mut first: linenr_T,
     last: linenr_T,
@@ -1087,12 +1052,7 @@ pub unsafe extern "C" fn plines_m_win(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn plines_m_win_fill(
-    wp: *mut win_T,
-    first: linenr_T,
-    last: linenr_T,
-) -> c_int {
+pub unsafe fn plines_m_win_fill(wp: *mut win_T, first: linenr_T, last: linenr_T) -> c_int {
     unsafe {
         let mut count = last - first
             + 1
@@ -1109,8 +1069,7 @@ pub unsafe extern "C" fn plines_m_win_fill(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn win_text_height(
+pub unsafe fn win_text_height(
     wp: *mut win_T,
     start_lnum: linenr_T,
     start_vcol: i64,
@@ -1191,8 +1150,7 @@ pub unsafe extern "C" fn win_text_height(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn win_max_displaywidth(
+pub unsafe fn win_max_displaywidth(
     wp: *mut win_T,
     first: linenr_T,
     last: linenr_T,

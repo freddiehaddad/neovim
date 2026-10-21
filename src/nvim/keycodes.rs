@@ -73,7 +73,6 @@ pub const KE_S_F34: u8 = 39;
 pub const KE_S_F35: u8 = 40;
 pub const KE_S_F36: u8 = 41;
 pub const KE_S_F37: u8 = 42;
-pub const KE_MOUSE: u8 = 43;
 pub const KE_LEFTMOUSE: u8 = 44;
 pub const KE_LEFTDRAG: u8 = 45;
 pub const KE_LEFTRELEASE: u8 = 46;
@@ -285,14 +284,6 @@ pub const K_S_F1: c_int = termcap2key(KS_EXTRA as c_int, KE_S_F1 as c_int);
 pub const K_S_F2: c_int = termcap2key(KS_EXTRA as c_int, KE_S_F2 as c_int);
 pub const K_S_F3: c_int = termcap2key(KS_EXTRA as c_int, KE_S_F3 as c_int);
 pub const K_S_F4: c_int = termcap2key(KS_EXTRA as c_int, KE_S_F4 as c_int);
-pub const K_S_F5: c_int = termcap2key(KS_EXTRA as c_int, KE_S_F5 as c_int);
-pub const K_S_F6: c_int = termcap2key(KS_EXTRA as c_int, KE_S_F6 as c_int);
-pub const K_S_F7: c_int = termcap2key(KS_EXTRA as c_int, KE_S_F7 as c_int);
-pub const K_S_F8: c_int = termcap2key(KS_EXTRA as c_int, KE_S_F8 as c_int);
-pub const K_S_F9: c_int = termcap2key(KS_EXTRA as c_int, KE_S_F9 as c_int);
-pub const K_S_F10: c_int = termcap2key(KS_EXTRA as c_int, KE_S_F10 as c_int);
-pub const K_S_F11: c_int = termcap2key(KS_EXTRA as c_int, KE_S_F11 as c_int);
-pub const K_S_F12: c_int = termcap2key(KS_EXTRA as c_int, KE_S_F12 as c_int);
 
 pub const K_HELP: c_int = termcap2key(b'%' as c_int, b'1' as c_int);
 pub const K_UNDO: c_int = termcap2key(b'&' as c_int, b'8' as c_int);
@@ -409,7 +400,6 @@ pub struct keychord {
     pub key_alt: NvimString,
 }
 
-#[unsafe(no_mangle)]
 pub static mod_mask_table: [modmasktable; 10] = [
     modmasktable {
         mod_mask: MOD_MASK_ALT,
@@ -2052,8 +2042,7 @@ fn get_special_key_code_hash(name: &[u8]) -> isize {
 }
 
 /// Return the modifier mask bit (`MOD_MASK_*`) corresponding to mod name (`name_to_mod_mask`).
-#[unsafe(no_mangle)]
-pub extern "C" fn name_to_mod_mask(c: c_int) -> c_int {
+pub fn name_to_mod_mask(c: c_int) -> c_int {
     let c = toupper_asc(c);
     let mut i = 0;
     while mod_mask_table[i].mod_mask != 0 {
@@ -2066,8 +2055,7 @@ pub extern "C" fn name_to_mod_mask(c: c_int) -> c_int {
 }
 
 /// Check if there is a special key code for `key` with specified modifiers (`simplify_key`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn simplify_key(key: c_int, modifiers: *mut c_int) -> c_int {
+pub unsafe fn simplify_key(key: c_int, modifiers: *mut c_int) -> c_int {
     let mut mods = unsafe { *modifiers };
     if (mods & c_int::from(MOD_MASK_SHIFT | MOD_MASK_CTRL)) == 0 {
         return key;
@@ -2104,8 +2092,7 @@ pub unsafe extern "C" fn simplify_key(key: c_int, modifiers: *mut c_int) -> c_in
 }
 
 /// Inverse of `simplify_key()` (`unsimplify_key`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn unsimplify_key(c: c_int, modifiers: *mut c_int) -> c_int {
+pub unsafe fn unsimplify_key(c: c_int, modifiers: *mut c_int) -> c_int {
     if !is_special(c) {
         return c;
     }
@@ -2131,8 +2118,7 @@ pub unsafe extern "C" fn unsimplify_key(c: c_int, modifiers: *mut c_int) -> c_in
 }
 
 /// Change `<xKey>` to `<Key>` (`handle_x_keys`).
-#[unsafe(no_mangle)]
-pub extern "C" fn handle_x_keys(key: c_int) -> c_int {
+pub fn handle_x_keys(key: c_int) -> c_int {
     match key {
         K_XUP => K_UP,
         K_XDOWN => K_DOWN,
@@ -2156,8 +2142,7 @@ static mut SPECIAL_KEY_STRING: [c_char; MAX_KEY_NAME_LEN + 1] = [0; MAX_KEY_NAME
 
 /// Gets a key "chord" (key + modifiers) as a string, and optionally as structured `data`
 /// (`get_special_key`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_special_key(
+pub unsafe fn get_special_key(
     mut c: c_int,
     mut modifiers: c_int,
     data: *mut keychord,
@@ -2340,14 +2325,12 @@ pub unsafe extern "C" fn get_special_key(
 }
 
 /// Return string representing the key "chord" (key + modifiers) (`get_special_key_name`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_special_key_name(c: c_int, modifiers: c_int) -> *mut c_char {
+pub unsafe fn get_special_key_name(c: c_int, modifiers: c_int) -> *mut c_char {
     unsafe { get_special_key(c, modifiers, std::ptr::null_mut()) }
 }
 
 /// Try translating a `<>` name ("keycode") (`trans_special`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn trans_special(
+pub unsafe fn trans_special(
     srcp: *mut *const c_char,
     src_len: usize,
     dst: *mut c_char,
@@ -2366,8 +2349,7 @@ pub unsafe extern "C" fn trans_special(
 
 /// Put the character sequence for `key` with `modifiers` into `dst` and return
 /// the resulting length (`special_to_buf`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn special_to_buf(
+pub unsafe fn special_to_buf(
     key: c_int,
     modifiers: c_int,
     escape_ks: bool,
@@ -2632,8 +2614,7 @@ pub unsafe extern "C" fn find_special_key(
 }
 
 /// Try to find key `c` in the special key table (`find_special_key_in_table`).
-#[unsafe(no_mangle)]
-pub extern "C" fn find_special_key_in_table(c: c_int) -> c_int {
+pub fn find_special_key_in_table(c: c_int) -> c_int {
     for (i, entry) in KEY_NAMES_TABLE.iter().enumerate() {
         if c == entry.key && !entry.is_alt {
             return i as c_int;
@@ -2643,8 +2624,7 @@ pub extern "C" fn find_special_key_in_table(c: c_int) -> c_int {
 }
 
 /// Find the special key with the given name (`get_special_key_code`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_special_key_code(name: *const c_char) -> c_int {
+pub unsafe fn get_special_key_code(name: *const c_char) -> c_int {
     unsafe {
         if *name == b't' as c_char
             && *name.add(1) == b'_' as c_char
@@ -2673,12 +2653,7 @@ pub unsafe extern "C" fn get_special_key_code(name: *const c_char) -> c_int {
 }
 
 /// Look up the given mouse code to return the relevant information (`get_mouse_button`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_mouse_button(
-    code: c_int,
-    is_click: *mut bool,
-    is_drag: *mut bool,
-) -> c_int {
+pub unsafe fn get_mouse_button(code: c_int, is_click: *mut bool, is_drag: *mut bool) -> c_int {
     for entry in MOUSE_TABLE {
         if code == entry.pseudo_code {
             unsafe {
@@ -2692,8 +2667,7 @@ pub unsafe extern "C" fn get_mouse_button(
 }
 
 /// Encode `<key>` notation into Nvim's internal key representation (`replace_termcodes`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn replace_termcodes(
+pub unsafe fn replace_termcodes(
     from: *const c_char,
     from_len: usize,
     bufp: *mut *mut c_char,
@@ -2865,8 +2839,7 @@ pub unsafe extern "C" fn replace_termcodes(
 }
 
 /// Add character `c` to buffer `s`, escaping `K_SPECIAL` (`add_char2buf`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn add_char2buf(c: c_int, s: *mut c_char) -> *mut c_char {
+pub unsafe fn add_char2buf(c: c_int, s: *mut c_char) -> *mut c_char {
     unsafe {
         let mut s = s;
         let mut temp = [0 as c_char; MB_MAXBYTES + 1];
@@ -2890,8 +2863,7 @@ pub unsafe extern "C" fn add_char2buf(c: c_int, s: *mut c_char) -> *mut c_char {
 }
 
 /// Copy `p` to allocated memory, escaping `K_SPECIAL` (`vim_strsave_escape_ks`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_strsave_escape_ks(p: *mut c_char) -> *mut c_char {
+pub unsafe fn vim_strsave_escape_ks(p: *mut c_char) -> *mut c_char {
     unsafe {
         let res = xmalloc(CStr::from_ptr(p).to_bytes().len() * 4 + 1).cast::<c_char>();
         let mut d = res;
@@ -2921,8 +2893,7 @@ pub unsafe extern "C" fn vim_strsave_escape_ks(p: *mut c_char) -> *mut c_char {
 }
 
 /// Remove escaping from `K_SPECIAL` characters in-place (`vim_unescape_ks`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_unescape_ks(p: *mut c_char) -> usize {
+pub unsafe fn vim_unescape_ks(p: *mut c_char) -> usize {
     unsafe {
         let mut s = p.cast::<u8>();
         let mut d = p.cast::<u8>();

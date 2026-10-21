@@ -34,10 +34,8 @@ pub(crate) const VIM_DISCARDALL: c_int = 6;
 const HAS_HOTKEY_LEN: usize = 30;
 const HOTK_LEN: usize = 4;
 
-#[unsafe(no_mangle)]
 pub static mut confirm_msg: *mut c_char = std::ptr::null_mut();
 
-#[unsafe(no_mangle)]
 pub static mut confirm_buttons: *mut c_char = std::ptr::null_mut();
 
 unsafe fn copy_char(from: *const c_char, to: *mut c_char, lowercase: bool) -> usize {
@@ -210,8 +208,7 @@ unsafe fn msg_show_console_dialog(
 }
 
 /// Ask for a `'y'` or `'n'` reply from the user (`ask_yesno`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ask_yesno(str_ptr: *const c_char) -> c_int {
+pub unsafe fn ask_yesno(str_ptr: *const c_char) -> c_int {
     unsafe {
         let save_state = State;
         no_wait_return += 1;
@@ -247,8 +244,7 @@ pub unsafe extern "C" fn ask_yesno(str_ptr: *const c_char) -> c_int {
 }
 
 /// Ask the user for input through a cmdline prompt (`prompt_for_input`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn prompt_for_input(
+pub unsafe fn prompt_for_input(
     prompt: *mut c_char,
     hl_id: c_int,
     one_key: bool,
@@ -332,8 +328,7 @@ pub unsafe extern "C" fn prompt_for_input(
 }
 
 /// Generic console dialog handler (`do_dialog`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_dialog(
+pub unsafe fn do_dialog(
     _dlg_type: c_int,
     _title: *const c_char,
     message: *const c_char,
@@ -418,8 +413,7 @@ pub unsafe extern "C" fn do_dialog(
 }
 
 /// Yes/No dialog (`vim_dialog_yesno`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_dialog_yesno(
+pub unsafe fn vim_dialog_yesno(
     dlg_type: c_int,
     title: *mut c_char,
     message: *mut c_char,
@@ -449,8 +443,7 @@ pub unsafe extern "C" fn vim_dialog_yesno(
 }
 
 /// Yes/No/Cancel dialog (`vim_dialog_yesnocancel`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_dialog_yesnocancel(
+pub unsafe fn vim_dialog_yesnocancel(
     dlg_type: c_int,
     title: *mut c_char,
     message: *mut c_char,
@@ -479,8 +472,7 @@ pub unsafe extern "C" fn vim_dialog_yesnocancel(
 }
 
 /// Yes/No/Save All/Discard All/Cancel dialog (`vim_dialog_yesnoallcancel`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_dialog_yesnoallcancel(
+pub unsafe fn vim_dialog_yesnoallcancel(
     dlg_type: c_int,
     title: *mut c_char,
     message: *mut c_char,

@@ -74,7 +74,6 @@ pub const TERMKEY_SYM_KPDIV: TermKeySym = 56;
 pub const TERMKEY_SYM_KPCOMMA: TermKeySym = 57;
 pub const TERMKEY_SYM_KPPERIOD: TermKeySym = 58;
 pub const TERMKEY_SYM_KPEQUALS: TermKeySym = 59;
-pub const TERMKEY_N_SYMS: TermKeySym = 60;
 
 pub type TermKeyType = c_int;
 pub const TERMKEY_TYPE_UNKNOWN_CSI: TermKeyType = -1;
@@ -164,30 +163,36 @@ pub struct keyinfo {
 }
 
 pub type TermKeyTerminfoGetstrHook = Option<
-    unsafe extern "C" fn(
-        name: *const c_char,
-        value: *const c_char,
-        data: *mut c_void,
-    ) -> *const c_char,
+    unsafe fn(name: *const c_char, value: *const c_char, data: *mut c_void) -> *const c_char,
+>;
+
+pub type TermKeyPeekkeyFn = Option<
+    unsafe fn(
+        tk: *mut TermKey,
+        info: *mut c_void,
+        key: *mut TermKeyKey,
+        force: c_int,
+        nbytes: *mut usize,
+    ) -> TermKeyResult,
+>;
+
+pub type TermKeyPeekkeySimpleFn = Option<
+    unsafe fn(
+        tk: *mut TermKey,
+        key: *mut TermKeyKey,
+        force: c_int,
+        nbytes: *mut usize,
+    ) -> TermKeyResult,
 >;
 
 #[repr(C)]
 pub struct TermKeyDriver {
     pub name: *const c_char,
-    pub new_driver:
-        Option<unsafe extern "C" fn(tk: *mut TermKey, term: *mut TerminfoEntry) -> *mut c_void>,
-    pub free_driver: Option<unsafe extern "C" fn(info: *mut c_void)>,
-    pub start_driver: Option<unsafe extern "C" fn(tk: *mut TermKey, info: *mut c_void) -> c_int>,
-    pub stop_driver: Option<unsafe extern "C" fn(tk: *mut TermKey, info: *mut c_void) -> c_int>,
-    pub peekkey: Option<
-        unsafe extern "C" fn(
-            tk: *mut TermKey,
-            info: *mut c_void,
-            key: *mut TermKeyKey,
-            force: c_int,
-            nbytes: *mut usize,
-        ) -> TermKeyResult,
-    >,
+    pub new_driver: Option<unsafe fn(tk: *mut TermKey, term: *mut TerminfoEntry) -> *mut c_void>,
+    pub free_driver: Option<unsafe fn(info: *mut c_void)>,
+    pub start_driver: Option<unsafe fn(tk: *mut TermKey, info: *mut c_void) -> c_int>,
+    pub stop_driver: Option<unsafe fn(tk: *mut TermKey, info: *mut c_void) -> c_int>,
+    pub peekkey: TermKeyPeekkeyFn,
 }
 
 #[repr(C)]
@@ -200,22 +205,10 @@ pub struct TermKeyDriverNode {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct TermKeyMethods {
-    pub emit_codepoint:
-        Option<unsafe extern "C" fn(tk: *mut TermKey, codepoint: c_int, key: *mut TermKeyKey)>,
-    pub peekkey_simple: Option<
-        unsafe extern "C" fn(
-            tk: *mut TermKey,
-            key: *mut TermKeyKey,
-            force: c_int,
-            nbytes: *mut usize,
-        ) -> TermKeyResult,
-    >,
+    pub emit_codepoint: Option<unsafe fn(tk: *mut TermKey, codepoint: c_int, key: *mut TermKeyKey)>,
+    pub peekkey_simple: TermKeyPeekkeySimpleFn,
     pub peekkey_mouse: Option<
-        unsafe extern "C" fn(
-            tk: *mut TermKey,
-            key: *mut TermKeyKey,
-            nbytes: *mut usize,
-        ) -> TermKeyResult,
+        unsafe fn(tk: *mut TermKey, key: *mut TermKeyKey, nbytes: *mut usize) -> TermKeyResult,
     >,
 }
 
@@ -695,8 +688,7 @@ unsafe fn load_terminfo(ti: *mut TermKeyTI) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn new_driver_ti(tk: *mut TermKey, term: *mut TerminfoEntry) -> *mut c_void {
+pub unsafe fn new_driver_ti(tk: *mut TermKey, term: *mut TerminfoEntry) -> *mut c_void {
     unsafe {
         let ti = xmalloc(std::mem::size_of::<TermKeyTI>()).cast::<TermKeyTI>();
         (*ti).tk = tk;
@@ -708,8 +700,7 @@ pub unsafe extern "C" fn new_driver_ti(tk: *mut TermKey, term: *mut TerminfoEntr
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn start_driver_ti(_tk: *mut TermKey, info: *mut c_void) -> c_int {
+pub unsafe fn start_driver_ti(_tk: *mut TermKey, info: *mut c_void) -> c_int {
     unsafe {
         let ti = info.cast::<TermKeyTI>();
         if (*ti).root.is_null() {
@@ -719,13 +710,11 @@ pub unsafe extern "C" fn start_driver_ti(_tk: *mut TermKey, info: *mut c_void) -
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn stop_driver_ti(_tk: *mut TermKey, _info: *mut c_void) -> c_int {
+pub unsafe fn stop_driver_ti(_tk: *mut TermKey, _info: *mut c_void) -> c_int {
     1
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn free_driver_ti(info: *mut c_void) {
+pub unsafe fn free_driver_ti(info: *mut c_void) {
     unsafe {
         let ti = info.cast::<TermKeyTI>();
         free_trie((*ti).root);
@@ -739,8 +728,7 @@ pub unsafe extern "C" fn free_driver_ti(info: *mut c_void) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn peekkey_ti(
+pub unsafe fn peekkey_ti(
     tk: *mut TermKey,
     info: *mut c_void,
     key: *mut TermKeyKey,

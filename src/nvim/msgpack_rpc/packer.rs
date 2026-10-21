@@ -12,7 +12,7 @@ pub(crate) const EXT_OBJECT_TYPE_SHIFT: c_int = ObjectType::kObjectTypeBuffer as
 
 pub type handle_T = c_int;
 pub type Integer = i64;
-pub type PackerBufferFlush = Option<unsafe extern "C" fn(buffer: *mut PackerBuffer)>;
+pub type PackerBufferFlush = Option<unsafe fn(buffer: *mut PackerBuffer)>;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -138,8 +138,7 @@ fn mpack_remaining(packer: &PackerBuffer) -> usize {
 ///
 /// # Safety
 /// `packer` must be a valid writable pointer to a `PackerBuffer`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mpack_check_buffer(packer: *mut PackerBuffer) {
+pub unsafe fn mpack_check_buffer(packer: *mut PackerBuffer) {
     let p = unsafe { &mut *packer };
     if mpack_remaining(p) < 2 * MPACK_ITEM_SIZE
         && let Some(flush) = p.packer_flush
@@ -154,8 +153,7 @@ pub unsafe extern "C" fn mpack_check_buffer(packer: *mut PackerBuffer) {
 ///
 /// # Safety
 /// `ptr` and `*ptr` must be valid writable pointers with sufficient space.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mpack_uint64(ptr: *mut *mut c_char, i: u64) {
+pub unsafe fn mpack_uint64(ptr: *mut *mut c_char, i: u64) {
     unsafe {
         if i > 0x0fff_ffff {
             mpack_w(ptr, 0xcf);
@@ -170,8 +168,7 @@ pub unsafe extern "C" fn mpack_uint64(ptr: *mut *mut c_char, i: u64) {
 ///
 /// # Safety
 /// `ptr` and `*ptr` must be valid writable pointers with sufficient space.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mpack_integer(ptr: *mut *mut c_char, i: Integer) {
+pub unsafe fn mpack_integer(ptr: *mut *mut c_char, i: Integer) {
     unsafe {
         if i >= 0 {
             mpack_uint64(ptr, i as u64);
@@ -197,8 +194,7 @@ pub unsafe extern "C" fn mpack_integer(ptr: *mut *mut c_char, i: Integer) {
 ///
 /// # Safety
 /// `ptr` and `*ptr` must be valid writable pointers with sufficient space.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mpack_float8(ptr: *mut *mut c_char, i: f64) {
+pub unsafe fn mpack_float8(ptr: *mut *mut c_char, i: f64) {
     unsafe {
         mpack_w(ptr, 0xcb);
         mpack_w8(ptr, i.to_bits());
@@ -209,8 +205,7 @@ pub unsafe extern "C" fn mpack_float8(ptr: *mut *mut c_char, i: f64) {
 ///
 /// # Safety
 /// `str_val` and `packer` must be valid.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mpack_str(str_val: NvimString, packer: *mut PackerBuffer) {
+pub unsafe fn mpack_str(str_val: NvimString, packer: *mut PackerBuffer) {
     let len = str_val.size;
     let p = unsafe { &mut *packer };
     unsafe {
@@ -236,8 +231,7 @@ pub unsafe extern "C" fn mpack_str(str_val: NvimString, packer: *mut PackerBuffe
 ///
 /// # Safety
 /// `str_val` and `packer` must be valid.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mpack_bin(str_val: NvimString, packer: *mut PackerBuffer) {
+pub unsafe fn mpack_bin(str_val: NvimString, packer: *mut PackerBuffer) {
     let len = str_val.size;
     let p = unsafe { &mut *packer };
     unsafe {
@@ -261,8 +255,7 @@ pub unsafe extern "C" fn mpack_bin(str_val: NvimString, packer: *mut PackerBuffe
 ///
 /// # Safety
 /// `data` must be valid for `len` bytes when `len > 0`, and `packer` must be valid.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mpack_raw(data: *const c_char, len: usize, packer: *mut PackerBuffer) {
+pub unsafe fn mpack_raw(data: *const c_char, len: usize, packer: *mut PackerBuffer) {
     let mut pos = 0usize;
     while pos < len {
         let p = unsafe { &mut *packer };
@@ -296,13 +289,7 @@ pub unsafe extern "C" fn mpack_raw(data: *const c_char, len: usize, packer: *mut
 ///
 /// # Safety
 /// `buf` must be valid for `len` bytes when `len > 0`, and `packer` must be valid.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mpack_ext(
-    buf: *mut c_char,
-    len: usize,
-    ext_type: i8,
-    packer: *mut PackerBuffer,
-) {
+pub unsafe fn mpack_ext(buf: *mut c_char, len: usize, ext_type: i8, packer: *mut PackerBuffer) {
     let p = unsafe { &mut *packer };
     unsafe {
         if len == 1 {
@@ -329,12 +316,7 @@ pub unsafe extern "C" fn mpack_ext(
 ///
 /// # Safety
 /// `packer` must be a valid writable pointer to a `PackerBuffer`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mpack_handle(
-    obj_type: ObjectType,
-    handle: handle_T,
-    packer: *mut PackerBuffer,
-) {
+pub unsafe fn mpack_handle(obj_type: ObjectType, handle: handle_T, packer: *mut PackerBuffer) {
     let exttype = ((obj_type as c_int) - EXT_OBJECT_TYPE_SHIFT) as u8;
     let p = unsafe { &mut *packer };
     unsafe {
@@ -361,8 +343,7 @@ pub unsafe extern "C" fn mpack_handle(
 ///
 /// # Safety
 /// `obj` and `packer` must be valid writable pointers.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mpack_object(obj: *mut Object, packer: *mut PackerBuffer) {
+pub unsafe fn mpack_object(obj: *mut Object, packer: *mut PackerBuffer) {
     unsafe {
         mpack_object_inner(obj, std::ptr::null_mut(), 0, packer);
     }
@@ -372,8 +353,7 @@ pub unsafe extern "C" fn mpack_object(obj: *mut Object, packer: *mut PackerBuffe
 ///
 /// # Safety
 /// `arr` and `packer` must be valid.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mpack_object_array(arr: Array, packer: *mut PackerBuffer) {
+pub unsafe fn mpack_object_array(arr: Array, packer: *mut PackerBuffer) {
     let p = unsafe { &mut *packer };
     unsafe {
         mpack_array(&mut p.ptr, arr.size as u32);
@@ -396,8 +376,7 @@ pub unsafe extern "C" fn mpack_object_array(arr: Array, packer: *mut PackerBuffe
 ///
 /// # Safety
 /// `current` and `packer` must be valid pointers, and `container` must be null or valid.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mpack_object_inner(
+pub unsafe fn mpack_object_inner(
     mut current: *mut Object,
     mut container: *mut Object,
     mut container_idx: usize,
@@ -518,7 +497,7 @@ pub unsafe extern "C" fn mpack_object_inner(
     }
 }
 
-unsafe extern "C" fn flush_string_buffer(buffer: *mut PackerBuffer) {
+unsafe fn flush_string_buffer(buffer: *mut PackerBuffer) {
     let b = unsafe { &mut *buffer };
     let current_capacity = (b.endptr as usize) - (b.startptr as usize);
     let new_capacity = 2 * current_capacity;
@@ -530,8 +509,7 @@ unsafe extern "C" fn flush_string_buffer(buffer: *mut PackerBuffer) {
 }
 
 /// Create a growable `PackerBuffer` backed by `xmalloc` (`packer_string_buffer`).
-#[unsafe(no_mangle)]
-pub extern "C" fn packer_string_buffer() -> PackerBuffer {
+pub fn packer_string_buffer() -> PackerBuffer {
     const INITIAL_SIZE: usize = 64;
     let alloc = unsafe { xmalloc(INITIAL_SIZE).cast::<c_char>() };
     PackerBuffer {
@@ -548,8 +526,7 @@ pub extern "C" fn packer_string_buffer() -> PackerBuffer {
 ///
 /// # Safety
 /// `buffer` must be a valid pointer to a `PackerBuffer` created by `packer_string_buffer`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn packer_take_string(buffer: *mut PackerBuffer) -> NvimString {
+pub unsafe fn packer_take_string(buffer: *mut PackerBuffer) -> NvimString {
     let b = unsafe { &*buffer };
     NvimString {
         data: b.startptr,

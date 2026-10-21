@@ -358,8 +358,7 @@ unsafe fn patience_diff(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xdl_do_patience_diff(
+pub unsafe fn xdl_do_patience_diff(
     file1: *mut mmfile_t,
     file2: *mut mmfile_t,
     xpp: *const xpparam_t,

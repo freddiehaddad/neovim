@@ -298,10 +298,10 @@ pub(super) struct nfa_regprog_T {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct regengine_T {
-    pub regcomp: unsafe extern "C" fn(*mut u8, c_int) -> *mut regprog_T,
-    pub regfree: unsafe extern "C" fn(*mut regprog_T),
-    pub regexec_nl: unsafe extern "C" fn(*mut regmatch_T, *mut u8, colnr_T, bool) -> c_int,
-    pub regexec_multi: unsafe extern "C" fn(
+    pub regcomp: unsafe fn(*mut u8, c_int) -> *mut regprog_T,
+    pub regfree: unsafe fn(*mut regprog_T),
+    pub regexec_nl: unsafe fn(*mut regmatch_T, *mut u8, colnr_T, bool) -> c_int,
+    pub regexec_multi: unsafe fn(
         *mut regmmatch_T,
         *mut win_T,
         *mut buf_T,
@@ -1106,8 +1106,7 @@ pub(super) unsafe fn ri_upper(c: c_int) -> bool {
 }
 
 /// Return true if compiled regular expression `prog` can match a line break.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn re_multiline(prog: *const regprog_T) -> c_int {
+pub unsafe fn re_multiline(prog: *const regprog_T) -> c_int {
     unsafe { ((*prog).regflags & RF_HASNL) as c_int }
 }
 
@@ -1190,12 +1189,7 @@ pub(super) unsafe fn skip_anyof(mut p: *mut c_char) -> *mut c_char {
 }
 
 /// Skip past regular expression.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn skip_regexp(
-    startp: *mut c_char,
-    delim: c_int,
-    magic: c_int,
-) -> *mut c_char {
+pub unsafe fn skip_regexp(startp: *mut c_char, delim: c_int, magic: c_int) -> *mut c_char {
     unsafe {
         skip_regexp_ex(
             startp,
@@ -1209,12 +1203,7 @@ pub unsafe extern "C" fn skip_regexp(
 }
 
 /// Call `skip_regexp()` and when the delimiter does not match give an error and return NULL.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn skip_regexp_err(
-    startp: *mut c_char,
-    delim: c_int,
-    magic: c_int,
-) -> *mut c_char {
+pub unsafe fn skip_regexp_err(startp: *mut c_char, delim: c_int, magic: c_int) -> *mut c_char {
     unsafe {
         let p = skip_regexp(startp, delim, magic);
         if *p as u8 as c_int != delim {
@@ -1229,8 +1218,7 @@ pub unsafe extern "C" fn skip_regexp_err(
 }
 
 /// `skip_regexp()` with extra arguments.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn skip_regexp_ex(
+pub unsafe fn skip_regexp_ex(
     mut startp: *mut c_char,
     dirc: c_int,
     magic: c_int,
@@ -1675,8 +1663,7 @@ pub(super) unsafe fn make_extmatch() -> *mut reg_extmatch_T {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ref_extmatch(em: *mut reg_extmatch_T) -> *mut reg_extmatch_T {
+pub unsafe fn ref_extmatch(em: *mut reg_extmatch_T) -> *mut reg_extmatch_T {
     unsafe {
         if !em.is_null() {
             (*em).refcnt += 1;
@@ -1685,8 +1672,7 @@ pub unsafe extern "C" fn ref_extmatch(em: *mut reg_extmatch_T) -> *mut reg_extma
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn unref_extmatch(em: *mut reg_extmatch_T) {
+pub unsafe fn unref_extmatch(em: *mut reg_extmatch_T) {
     unsafe {
         if !em.is_null() {
             (*em).refcnt -= 1;
@@ -2080,8 +2066,7 @@ unsafe fn do_lower(d: *mut c_int, c: c_int) {
 }
 
 /// Replace tildes in the pattern by the old pattern.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn regtilde(source: *mut c_char, magic: c_int, preview: bool) -> *mut c_char {
+pub unsafe fn regtilde(source: *mut c_char, magic: c_int, preview: bool) -> *mut c_char {
     unsafe {
         let mut newsub = source;
         let mut newsublen: usize = 0;
@@ -2161,7 +2146,7 @@ pub unsafe extern "C" fn regtilde(source: *mut c_char, magic: c_int, preview: bo
     }
 }
 
-unsafe extern "C" fn fill_submatch_list(
+unsafe fn fill_submatch_list(
     _argc: c_int,
     argv: *mut typval_T,
     argskip: c_int,
@@ -2201,8 +2186,7 @@ unsafe fn clear_submatch_list(sl: *mut staticList10_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_regsub(
+pub unsafe fn vim_regsub(
     rmp: *mut regmatch_T,
     source: *mut c_char,
     expr: *mut typval_T,
@@ -2235,8 +2219,7 @@ pub unsafe extern "C" fn vim_regsub(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_regsub_multi(
+pub unsafe fn vim_regsub_multi(
     rmp: *mut regmmatch_T,
     lnum: linenr_T,
     source: *mut c_char,
@@ -2267,17 +2250,6 @@ pub unsafe extern "C" fn vim_regsub_multi(
         }
 
         result
-    }
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn free_resub_eval_result() {
-    unsafe {
-        for i in 0..MAX_REGSUB_NESTING {
-            let p = (&raw mut eval_result).cast::<*mut c_char>().add(i);
-            xfree((*p).cast());
-            *p = ptr::null_mut();
-        }
     }
 }
 
@@ -2709,8 +2681,7 @@ unsafe fn reg_getline_submatch_len(lnum: linenr_T) -> colnr_T {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn reg_submatch(no: c_int) -> *mut c_char {
+pub unsafe fn reg_submatch(no: c_int) -> *mut c_char {
     unsafe {
         let mut retval: *mut c_char = ptr::null_mut();
         if !can_f_submatch || no < 0 {
@@ -2790,8 +2761,7 @@ pub unsafe extern "C" fn reg_submatch(no: c_int) -> *mut c_char {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn reg_submatch_list(no: c_int) -> *mut list_T {
+pub unsafe fn reg_submatch_list(no: c_int) -> *mut list_T {
     unsafe {
         if !can_f_submatch || no < 0 {
             return ptr::null_mut();
@@ -3002,14 +2972,12 @@ pub(super) unsafe fn coll_get_char() -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_regcomp_had_eol() -> c_int {
+pub unsafe fn vim_regcomp_had_eol() -> c_int {
     unsafe { had_eol }
 }
 
 /// Compile a regular expression into internal code.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T {
+pub unsafe fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T {
     unsafe {
         let mut prog: *mut regprog_T;
         let mut expr = expr_arg;
@@ -3067,8 +3035,7 @@ pub unsafe extern "C" fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -
 }
 
 /// Free a compiled regexp program, returned by `vim_regcomp()`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_regfree(prog: *mut regprog_T) {
+pub unsafe fn vim_regfree(prog: *mut regprog_T) {
     unsafe {
         if !prog.is_null() {
             ((*(*prog).engine).regfree)(prog);
@@ -3076,8 +3043,7 @@ pub unsafe extern "C" fn vim_regfree(prog: *mut regprog_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn free_regexp_stuff() {
+pub unsafe fn free_regexp_stuff() {
     unsafe {
         ga_clear(&raw mut regstack);
         ga_clear(&raw mut backpos);
@@ -3168,8 +3134,7 @@ unsafe fn vim_regexec_string(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_regexec_prog(
+pub unsafe fn vim_regexec_prog(
     prog: *mut *mut regprog_T,
     ignore_case: bool,
     line: *const c_char,
@@ -3189,26 +3154,15 @@ pub unsafe extern "C" fn vim_regexec_prog(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_regexec(
-    rmp: *mut regmatch_T,
-    line: *const c_char,
-    col: colnr_T,
-) -> bool {
+pub unsafe fn vim_regexec(rmp: *mut regmatch_T, line: *const c_char, col: colnr_T) -> bool {
     unsafe { vim_regexec_string(rmp, line, col, false) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_regexec_nl(
-    rmp: *mut regmatch_T,
-    line: *const c_char,
-    col: colnr_T,
-) -> bool {
+pub unsafe fn vim_regexec_nl(rmp: *mut regmatch_T, line: *const c_char, col: colnr_T) -> bool {
     unsafe { vim_regexec_string(rmp, line, col, true) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_regexec_multi(
+pub unsafe fn vim_regexec_multi(
     rmp: *mut regmmatch_T,
     win: *mut win_T,
     buf: *mut buf_T,

@@ -181,8 +181,7 @@ static mut undo_undoes: bool = false;
 static mut lastmark: c_int = 0;
 
 /// Save the current line for both the `"u"` and `"U"` command.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn u_save_cursor() -> c_int {
+pub unsafe fn u_save_cursor() -> c_int {
     unsafe {
         let cur = (*curwin).w_cursor.lnum;
         let top = if cur > 0 { cur - 1 } else { 0 };
@@ -192,13 +191,11 @@ pub unsafe extern "C" fn u_save_cursor() -> c_int {
 }
 
 /// Save the lines between `top` and `bot` for both the `"u"` and `"U"` command.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn u_save(top: linenr_T, bot: linenr_T) -> c_int {
+pub unsafe fn u_save(top: linenr_T, bot: linenr_T) -> c_int {
     unsafe { u_save_buf(curbuf, top, bot) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn u_save_buf(buf: *mut buf_T, top: linenr_T, bot: linenr_T) -> c_int {
+pub unsafe fn u_save_buf(buf: *mut buf_T, top: linenr_T, bot: linenr_T) -> c_int {
     unsafe {
         if top >= bot || bot > (*buf).b_ml.ml_line_count + 1 {
             return FAIL;
@@ -213,20 +210,17 @@ pub unsafe extern "C" fn u_save_buf(buf: *mut buf_T, top: linenr_T, bot: linenr_
 }
 
 /// Save the line `lnum` (used by `":s"` and `"~"` command).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn u_savesub(lnum: linenr_T) -> c_int {
+pub unsafe fn u_savesub(lnum: linenr_T) -> c_int {
     unsafe { u_savecommon(curbuf, lnum - 1, lnum + 1, lnum + 1, false) }
 }
 
 /// A new line is inserted before line `lnum` (used by `:s` command).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn u_inssub(lnum: linenr_T) -> c_int {
+pub unsafe fn u_inssub(lnum: linenr_T) -> c_int {
     unsafe { u_savecommon(curbuf, lnum - 1, lnum, lnum + 1, false) }
 }
 
 /// Save the lines `lnum` - `lnum + nlines` (used by delete command).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn u_savedel(lnum: linenr_T, nlines: linenr_T) -> c_int {
+pub unsafe fn u_savedel(lnum: linenr_T, nlines: linenr_T) -> c_int {
     unsafe {
         u_savecommon(
             curbuf,
@@ -243,8 +237,7 @@ pub unsafe extern "C" fn u_savedel(lnum: linenr_T, nlines: linenr_T) -> c_int {
 }
 
 /// Return true when undo is allowed. Otherwise print an error message and return false.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn undo_allowed(buf: *mut buf_T) -> bool {
+pub unsafe fn undo_allowed(buf: *mut buf_T) -> bool {
     unsafe {
         if (*buf).b_p_ma == 0 {
             emsg(gettext((&raw const e_modifiable).cast()));
@@ -286,8 +279,7 @@ unsafe fn zero_fmark_additional_data(fmarks: *mut fmark_T) {
 }
 
 /// Common code for various ways to save text before a change.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn u_savecommon(
+pub unsafe fn u_savecommon(
     buf: *mut buf_T,
     top: linenr_T,
     bot: linenr_T,
@@ -1266,7 +1258,7 @@ pub unsafe extern "C" fn u_write_undo(
     }
 }
 
-unsafe extern "C" fn uhp_seq_cmp(v1: *const c_void, v2: *const c_void) -> c_int {
+unsafe fn uhp_seq_cmp(v1: *const c_void, v2: *const c_void) -> c_int {
     unsafe {
         let u1 = *v1.cast::<*const u_header_T>();
         let u2 = *v2.cast::<*const u_header_T>();
@@ -1301,8 +1293,7 @@ unsafe fn uhp_table_find(uhp_table: *mut *mut u_header_T, num_head: c_int, seq: 
 }
 
 /// Loads the undo tree from an undo file.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const c_char) {
+pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const c_char) {
     unsafe {
         #[cfg(not(unix))]
         let _ = orig_name;
@@ -1716,8 +1707,7 @@ unsafe fn undo_read_string(bi: &mut bufinfo_T, len: usize) -> *mut c_char {
 }
 
 /// Undo `count` times.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn u_undo(mut count: c_int) {
+pub unsafe fn u_undo(mut count: c_int) {
     unsafe {
         if !(*curbuf).b_u_synced {
             u_sync(true);
@@ -1734,8 +1724,7 @@ pub unsafe extern "C" fn u_undo(mut count: c_int) {
 }
 
 /// Redo `count` times.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn u_redo(count: c_int) {
+pub unsafe fn u_redo(count: c_int) {
     unsafe {
         if vim_strchr(p_cpo, kCpoUndo).is_null() {
             undo_undoes = false;
@@ -1746,8 +1735,7 @@ pub unsafe extern "C" fn u_redo(count: c_int) {
 }
 
 /// Undo and remove the branch from the undo tree.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn u_undo_and_forget(mut count: c_int, do_buf_event: bool) -> bool {
+pub unsafe fn u_undo_and_forget(mut count: c_int, do_buf_event: bool) -> bool {
     unsafe {
         if !(*curbuf).b_u_synced {
             u_sync(true);
@@ -1835,8 +1823,7 @@ unsafe fn u_doit(startcount: c_int, quiet: bool, do_buf_event: bool) {
 }
 
 /// Undo or redo over the timeline.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
+pub unsafe fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
     unsafe {
         if text_locked() {
             text_locked_msg();
@@ -2490,8 +2477,7 @@ unsafe fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
 }
 
 /// Put the timestamp of an undo header in `buf[buflen]` in a nice format.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn undo_fmt_time(buf: *mut c_char, buflen: usize, tt: time_t) {
+pub unsafe fn undo_fmt_time(buf: *mut c_char, buflen: usize, tt: time_t) {
     unsafe {
         let now = os_time() as time_t;
         if now - tt >= 100 {
@@ -2527,8 +2513,7 @@ pub unsafe extern "C" fn undo_fmt_time(buf: *mut c_char, buflen: usize, tt: time
 }
 
 /// `u_sync`: stop adding to the current entry list.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn u_sync(force: bool) {
+pub unsafe fn u_sync(force: bool) {
     unsafe {
         if (*curbuf).b_u_synced || (!force && no_u_sync > 0) {
             return;
@@ -2544,8 +2529,7 @@ pub unsafe extern "C" fn u_sync(force: bool) {
 }
 
 /// `":undolist"`: List the leafs of the undo tree.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_undolist(_eap: *mut exarg_T) {
+pub unsafe fn ex_undolist(_eap: *mut exarg_T) {
     unsafe {
         let mut changes: c_int = 1;
 
@@ -2646,8 +2630,7 @@ pub unsafe extern "C" fn ex_undolist(_eap: *mut exarg_T) {
 }
 
 /// `":undojoin"`: continue adding to the last entry list.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_undojoin(_eap: *mut exarg_T) {
+pub unsafe fn ex_undojoin(_eap: *mut exarg_T) {
     unsafe {
         if (*curbuf).b_u_newhead.is_null() {
             return;
@@ -2669,8 +2652,7 @@ pub unsafe extern "C" fn ex_undojoin(_eap: *mut exarg_T) {
 }
 
 /// Called after writing or reloading the file and setting `b_changed` to false.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn u_unchanged(buf: *mut buf_T) {
+pub unsafe fn u_unchanged(buf: *mut buf_T) {
     unsafe {
         u_unch_branch((*buf).b_u_oldhead.cast::<u_header_T>());
         (*buf).b_did_warn = false;
@@ -2679,8 +2661,7 @@ pub unsafe extern "C" fn u_unchanged(buf: *mut buf_T) {
 
 /// After reloading a buffer which was saved for `'undoreload'`: Find the first
 /// line that was changed and set the cursor there.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn u_find_first_changed() {
+pub unsafe fn u_find_first_changed() {
     unsafe {
         let uhp = (*curbuf).b_u_newhead.cast::<u_header_T>();
         if !(*curbuf).b_u_curhead.is_null() || uhp.is_null() {
@@ -2712,8 +2693,7 @@ pub unsafe extern "C" fn u_find_first_changed() {
 }
 
 /// Increase the write count, store it in the last undo header, what would be used for `"u"`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn u_update_save_nr(buf: *mut buf_T) {
+pub unsafe fn u_update_save_nr(buf: *mut buf_T) {
     unsafe {
         (*buf).b_u_save_nr_last += 1;
         (*buf).b_u_save_nr_cur = (*buf).b_u_save_nr_last;
@@ -2903,8 +2883,7 @@ unsafe fn u_freeentry(uep: *mut u_entry_T, mut n: c_int) {
 }
 
 /// Prunes the newest undo entry if it has no changes.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn u_forget_unchanged(buf: *mut buf_T) {
+pub unsafe fn u_forget_unchanged(buf: *mut buf_T) {
     unsafe {
         let uhp = (*buf).b_u_newhead.cast::<u_header_T>();
         let uep = if !uhp.is_null() {
@@ -2937,8 +2916,7 @@ pub unsafe extern "C" fn u_forget_unchanged(buf: *mut buf_T) {
 }
 
 /// Invalidate the undo buffer; called when storage has already been released.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn u_clearall(buf: *mut buf_T) {
+pub unsafe fn u_clearall(buf: *mut buf_T) {
     unsafe {
         (*buf).b_u_newhead = ptr::null_mut();
         (*buf).b_u_oldhead = ptr::null_mut();
@@ -2951,8 +2929,7 @@ pub unsafe extern "C" fn u_clearall(buf: *mut buf_T) {
 }
 
 /// Free all allocated memory blocks for the buffer `buf`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn u_blockfree(buf: *mut buf_T) {
+pub unsafe fn u_blockfree(buf: *mut buf_T) {
     unsafe {
         while !(*buf).b_u_oldhead.is_null() {
             let previous_oldhead = (*buf).b_u_oldhead;
@@ -2968,8 +2945,7 @@ pub unsafe extern "C" fn u_blockfree(buf: *mut buf_T) {
 }
 
 /// Free all allocated memory blocks for the buffer `buf` and invalidate the undo buffer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn u_clearallandblockfree(buf: *mut buf_T) {
+pub unsafe fn u_clearallandblockfree(buf: *mut buf_T) {
     unsafe {
         u_blockfree(buf);
         u_clearall(buf);
@@ -2996,8 +2972,7 @@ unsafe fn u_saveline(buf: *mut buf_T, lnum: linenr_T) {
 }
 
 /// Clear the line saved for the `"U"` command.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn u_clearline(buf: *mut buf_T) {
+pub unsafe fn u_clearline(buf: *mut buf_T) {
     unsafe {
         if (*buf).b_u_line_ptr.is_null() {
             return;
@@ -3010,8 +2985,7 @@ pub unsafe extern "C" fn u_clearline(buf: *mut buf_T) {
 }
 
 /// Implementation of the `"U"` command.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn u_undoline() {
+pub unsafe fn u_undoline() {
     unsafe {
         if (*curbuf).b_u_line_ptr.is_null()
             || (*curbuf).b_u_line_lnum > (*curbuf).b_ml.ml_line_count
@@ -3065,8 +3039,7 @@ unsafe fn u_save_line_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char {
 }
 
 /// Check if the `'modified'` flag is set, or `'ff'` has changed.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn bufIsChanged(buf: *mut buf_T) -> bool {
+pub unsafe fn bufIsChanged(buf: *mut buf_T) -> bool {
     unsafe {
         if bt_prompt(buf) {
             (*buf).b_modified_was_set
@@ -3077,8 +3050,7 @@ pub unsafe extern "C" fn bufIsChanged(buf: *mut buf_T) -> bool {
 }
 
 /// Return true if any buffer has changes. Also buffers that are not written.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn anyBufIsChanged() -> bool {
+pub unsafe fn anyBufIsChanged() -> bool {
     unsafe {
         let mut buf = firstbuf;
         while !buf.is_null() {
@@ -3092,8 +3064,7 @@ pub unsafe extern "C" fn anyBufIsChanged() -> bool {
 }
 
 /// Return true if the current buffer has changed.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn curbufIsChanged() -> bool {
+pub unsafe fn curbufIsChanged() -> bool {
     unsafe { bufIsChanged(curbuf) }
 }
 
@@ -3134,12 +3105,7 @@ unsafe fn u_eval_tree(buf: *mut buf_T, first_uhp: *const u_header_T) -> *mut lis
 }
 
 /// `"undofile(name)"` function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_undofile(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_undofile(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
         let fname = tv_get_string(argvars);
@@ -3157,12 +3123,7 @@ pub unsafe extern "C" fn f_undofile(
 }
 
 /// `"undotree(expr)"` function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_undotree(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_undotree(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_dict_alloc_ret(rettv);
 
@@ -3225,8 +3186,7 @@ pub unsafe extern "C" fn f_undotree(
 }
 
 /// Drops named mark `idx` from the pending undo snapshot.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn u_update_named_mark(buf: *mut buf_T, idx: c_int) {
+pub unsafe fn u_update_named_mark(buf: *mut buf_T, idx: c_int) {
     unsafe {
         let uhp = if !(*buf).b_u_curhead.is_null() {
             (*buf).b_u_curhead.cast::<u_header_T>()
@@ -3240,8 +3200,7 @@ pub unsafe extern "C" fn u_update_named_mark(buf: *mut buf_T, idx: c_int) {
 }
 
 /// Given the buffer, return the undo header. If none is set, set one first.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn u_force_get_undo_header(buf: *mut buf_T) -> *mut u_header_T {
+pub unsafe fn u_force_get_undo_header(buf: *mut buf_T) -> *mut u_header_T {
     unsafe {
         let mut uhp: *mut u_header_T = if !(*buf).b_u_curhead.is_null() {
             (*buf).b_u_curhead.cast::<u_header_T>()
@@ -3266,8 +3225,7 @@ pub unsafe extern "C" fn u_force_get_undo_header(buf: *mut buf_T) -> *mut u_head
 }
 
 /// Checkpoints the undo state of `buf` and detaches its undotree.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn u_checkpoint(uc: *mut UndoCheckpoint, buf: *mut buf_T) {
+pub unsafe fn u_checkpoint(uc: *mut UndoCheckpoint, buf: *mut buf_T) {
     unsafe {
         (*uc).uc_synced = (*buf).b_u_synced;
         (*uc).uc_oldhead = (*buf).b_u_oldhead.cast::<u_header_T>();
@@ -3291,8 +3249,7 @@ pub unsafe extern "C" fn u_checkpoint(uc: *mut UndoCheckpoint, buf: *mut buf_T) 
 }
 
 /// Reverts `buf` from a checkpoint.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn u_rollback(uc: *mut UndoCheckpoint, buf: *mut buf_T) {
+pub unsafe fn u_rollback(uc: *mut UndoCheckpoint, buf: *mut buf_T) {
     unsafe {
         if (*buf).b_u_seq_cur != (*uc).uc_seq_cur {
             let mut count: c_int = 0;

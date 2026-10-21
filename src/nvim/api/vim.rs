@@ -955,7 +955,7 @@ pub unsafe extern "C" fn nvim__runtime_inspect(arena: *mut Arena) -> Array {
     unsafe { runtime_inspect(arena) }
 }
 
-unsafe extern "C" fn find_runtime_cb(
+unsafe fn find_runtime_cb(
     num_fnames: c_int,
     fnames: *mut *mut c_char,
     all: bool,
@@ -1683,9 +1683,9 @@ pub unsafe extern "C" fn nvim_create_buf(
     }
 }
 
-unsafe extern "C" fn term_read_pause(_pause: bool, _data: *mut c_void) {}
+unsafe fn term_read_pause(_pause: bool, _data: *mut c_void) {}
 
-unsafe extern "C" fn term_write(buf: *const c_char, size: usize, data: *mut c_void) {
+unsafe fn term_write(buf: *const c_char, size: usize, data: *mut c_void) {
     unsafe {
         let chan = data.cast::<Channel>();
         let internal = channel_stream_ptr(chan).cast::<InternalState>();
@@ -1721,11 +1721,11 @@ unsafe extern "C" fn term_write(buf: *const c_char, size: usize, data: *mut c_vo
     }
 }
 
-unsafe extern "C" fn term_resize(_width: u16, _height: u16, _data: *mut c_void) {}
+unsafe fn term_resize(_width: u16, _height: u16, _data: *mut c_void) {}
 
-unsafe extern "C" fn term_resume(_data: *mut c_void) {}
+unsafe fn term_resume(_data: *mut c_void) {}
 
-unsafe extern "C" fn term_close(data: *mut c_void) {
+unsafe fn term_close(data: *mut c_void) {
     unsafe {
         let chan = data.cast::<Channel>();
         let internal = channel_stream_ptr(chan).cast::<InternalState>();

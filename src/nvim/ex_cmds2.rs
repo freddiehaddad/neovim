@@ -91,72 +91,62 @@ unsafe fn curwin_arglist() -> *mut aentry_T {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_ruby(eap: *mut exarg_T) {
+pub unsafe fn ex_ruby(eap: *mut exarg_T) {
     unsafe {
         script_host_execute(c"ruby".as_ptr(), eap);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_rubyfile(eap: *mut exarg_T) {
+pub unsafe fn ex_rubyfile(eap: *mut exarg_T) {
     unsafe {
         script_host_execute_file(c"ruby".as_ptr(), eap);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_rubydo(eap: *mut exarg_T) {
+pub unsafe fn ex_rubydo(eap: *mut exarg_T) {
     unsafe {
         script_host_do_range(c"ruby".as_ptr(), eap);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_python3(eap: *mut exarg_T) {
+pub unsafe fn ex_python3(eap: *mut exarg_T) {
     unsafe {
         script_host_execute(c"python3".as_ptr(), eap);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_py3file(eap: *mut exarg_T) {
+pub unsafe fn ex_py3file(eap: *mut exarg_T) {
     unsafe {
         script_host_execute_file(c"python3".as_ptr(), eap);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_pydo3(eap: *mut exarg_T) {
+pub unsafe fn ex_pydo3(eap: *mut exarg_T) {
     unsafe {
         script_host_do_range(c"python3".as_ptr(), eap);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_perl(eap: *mut exarg_T) {
+pub unsafe fn ex_perl(eap: *mut exarg_T) {
     unsafe {
         script_host_execute(c"perl".as_ptr(), eap);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_perlfile(eap: *mut exarg_T) {
+pub unsafe fn ex_perlfile(eap: *mut exarg_T) {
     unsafe {
         script_host_execute_file(c"perl".as_ptr(), eap);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_perldo(eap: *mut exarg_T) {
+pub unsafe fn ex_perldo(eap: *mut exarg_T) {
     unsafe {
         script_host_do_range(c"perl".as_ptr(), eap);
     }
 }
 
 /// If `'autowrite'` option set, try to write the file (`autowrite`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn autowrite(buf: *mut buf_T, forceit: bool) -> c_int {
+pub unsafe fn autowrite(buf: *mut buf_T, forceit: bool) -> c_int {
     unsafe {
         if (p_aw == 0 && p_awa == 0)
             || p_write == 0
@@ -178,8 +168,7 @@ pub unsafe extern "C" fn autowrite(buf: *mut buf_T, forceit: bool) -> c_int {
 }
 
 /// Flush all buffers, except the ones that are readonly or are never written (`autowrite_all`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn autowrite_all() {
+pub unsafe fn autowrite_all() {
     unsafe {
         if (p_aw == 0 && p_awa == 0) || p_write == 0 {
             return;
@@ -202,8 +191,7 @@ pub unsafe extern "C" fn autowrite_all() {
 }
 
 /// Return true if buffer was changed and cannot be abandoned (`check_changed`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_changed(buf: *mut buf_T, flags: c_int) -> bool {
+pub unsafe fn check_changed(buf: *mut buf_T, flags: c_int) -> bool {
     unsafe {
         let forceit = (flags & CCGD_FORCEIT) != 0;
         let mut bufref: bufref_T = std::mem::zeroed();
@@ -247,8 +235,7 @@ pub unsafe extern "C" fn check_changed(buf: *mut buf_T, flags: c_int) -> bool {
 }
 
 /// Ask the user what to do when abandoning a changed buffer (`dialog_changed`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn dialog_changed(buf: *mut buf_T, checkall: bool) {
+pub unsafe fn dialog_changed(buf: *mut buf_T, checkall: bool) {
     unsafe {
         let mut buff = [0 as c_char; DIALOG_MSG_SIZE];
         let mut ea: exarg_T = std::mem::zeroed();
@@ -327,8 +314,7 @@ pub unsafe extern "C" fn dialog_changed(buf: *mut buf_T, checkall: bool) {
 }
 
 /// Ask the user whether to close the terminal buffer or not (`dialog_close_terminal`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn dialog_close_terminal(buf: *mut buf_T) -> bool {
+pub unsafe fn dialog_close_terminal(buf: *mut buf_T) -> bool {
     unsafe {
         let mut buff = [0 as c_char; DIALOG_MSG_SIZE];
         let fname = if !(*buf).b_fname.is_null() {
@@ -347,8 +333,7 @@ pub unsafe extern "C" fn dialog_close_terminal(buf: *mut buf_T) -> bool {
 }
 
 /// Return true if the buffer `buf` can be abandoned (`can_abandon`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn can_abandon(buf: *mut buf_T, forceit: bool) -> bool {
+pub unsafe fn can_abandon(buf: *mut buf_T, forceit: bool) -> bool {
     unsafe {
         buf_hide(buf)
             || !bufIsChanged(buf)
@@ -371,8 +356,7 @@ unsafe fn add_bufnum(bufnrs: *mut c_int, bufnump: *mut c_int, nr: c_int) {
 }
 
 /// Check if any buffer was changed and cannot be abandoned (`check_changed_any`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_changed_any(hidden: bool, unload: bool) -> bool {
+pub unsafe fn check_changed_any(hidden: bool, unload: bool) -> bool {
     unsafe {
         let mut ret = false;
         let mut bufcount: usize = 0;
@@ -503,8 +487,7 @@ pub unsafe extern "C" fn check_changed_any(hidden: bool, unload: bool) -> bool {
 }
 
 /// Return `FAIL` if there is no file name, `OK` if there is one (`check_fname`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_fname() -> c_int {
+pub unsafe fn check_fname() -> c_int {
     unsafe {
         if (*curbuf).b_ffname.is_null() {
             emsg(gettext((&raw const e_noname).cast()));
@@ -515,8 +498,7 @@ pub unsafe extern "C" fn check_fname() -> c_int {
 }
 
 /// Flush the contents of a buffer, unless it has no file name (`buf_write_all`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buf_write_all(buf: *mut buf_T, forceit: bool) -> c_int {
+pub unsafe fn buf_write_all(buf: *mut buf_T, forceit: bool) -> c_int {
     unsafe {
         let old_curbuf = curbuf;
         let retval = buf_write(
@@ -545,8 +527,7 @@ pub unsafe extern "C" fn buf_write_all(buf: *mut buf_T, forceit: bool) -> c_int 
 }
 
 /// `:argdo`, `:windo`, `:bufdo`, `:tabdo`, `:cdo`, `:ldo`, `:cfdo` and `:lfdo` (`ex_listdo`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_listdo(eap: *mut exarg_T) {
+pub unsafe fn ex_listdo(eap: *mut exarg_T) {
     unsafe {
         if (*curwin).w_onebuf_opt.wo_wfb != 0
             && (*eap).cmdidx != CMD_windo
@@ -803,8 +784,7 @@ pub unsafe extern "C" fn ex_listdo(eap: *mut exarg_T) {
 }
 
 /// `:compiler[!] {name}` (`ex_compiler`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_compiler(eap: *mut exarg_T) {
+pub unsafe fn ex_compiler(eap: *mut exarg_T) {
     unsafe {
         let mut old_cur_comp: *mut c_char = ptr::null_mut();
 
@@ -855,8 +835,7 @@ pub unsafe extern "C" fn ex_compiler(eap: *mut exarg_T) {
 }
 
 /// `:checktime [buffer]` (`ex_checktime`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_checktime(eap: *mut exarg_T) {
+pub unsafe fn ex_checktime(eap: *mut exarg_T) {
     unsafe {
         let save_no_check_timestamps = no_check_timestamps;
 
@@ -922,8 +901,7 @@ unsafe fn script_host_do_range(name: *const c_char, eap: *mut exarg_T) {
 }
 
 /// `:drop` (`ex_drop`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_drop(eap: *mut exarg_T) {
+pub unsafe fn ex_drop(eap: *mut exarg_T) {
     unsafe {
         let mut split = false;
 

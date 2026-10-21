@@ -74,8 +74,7 @@ const XDG_DEFAULTS: [Option<&CStr>; 7] = [
 ];
 
 /// Get the value of `$NVIM_APPNAME`, or `"nvim"` if not set (`get_appname`).
-#[unsafe(no_mangle)]
-pub extern "C" fn get_appname(namelike: bool) -> *const c_char {
+pub fn get_appname(namelike: bool) -> *const c_char {
     unsafe {
         let env_val = os_getenv_noalloc(c"NVIM_APPNAME".as_ptr());
         let name_buff = (&raw mut NameBuff).cast::<u8>();
@@ -100,8 +99,7 @@ pub extern "C" fn get_appname(namelike: bool) -> *const c_char {
 }
 
 /// Return true if `$NVIM_APPNAME` is a valid name or relative path (`appname_is_valid`).
-#[unsafe(no_mangle)]
-pub extern "C" fn appname_is_valid() -> bool {
+pub fn appname_is_valid() -> bool {
     let appname_ptr = get_appname(false);
     if unsafe { path_is_absolute(appname_ptr) } {
         return false;
@@ -154,8 +152,7 @@ unsafe fn xdg_remove_duplicate(ret: *mut c_char, sep: u8) -> *mut c_char {
 }
 
 /// Return allocated XDG variable value for `idx` (`stdpaths_get_xdg_var`).
-#[unsafe(no_mangle)]
-pub extern "C" fn stdpaths_get_xdg_var(idx: XDGVarType) -> *mut c_char {
+pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> *mut c_char {
     unsafe {
         let i = idx as usize;
         let env = XDG_ENV_VARS[i].as_ptr();
@@ -217,8 +214,7 @@ pub extern "C" fn stdpaths_get_xdg_var(idx: XDGVarType) -> *mut c_char {
 }
 
 /// Return Nvim-specific XDG directory subpath (`get_xdg_home`).
-#[unsafe(no_mangle)]
-pub extern "C" fn get_xdg_home(idx: XDGVarType) -> *mut c_char {
+pub fn get_xdg_home(idx: XDGVarType) -> *mut c_char {
     let dir = stdpaths_get_xdg_var(idx);
     if dir.is_null() {
         return std::ptr::null_mut();
@@ -236,31 +232,12 @@ pub extern "C" fn get_xdg_home(idx: XDGVarType) -> *mut c_char {
     unsafe { concat_fnames_realloc(dir, suffix.as_ptr().cast::<c_char>(), true) }
 }
 
-/// Return `$XDG_CACHE_HOME/$NVIM_APPNAME/{fname}` (`stdpaths_user_cache_subpath`).
-///
-/// # Safety
-/// `fname` must be a valid C string.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn stdpaths_user_cache_subpath(fname: *const c_char) -> *mut c_char {
-    unsafe { concat_fnames_realloc(get_xdg_home(XDGVarType::kXDGCacheHome), fname, true) }
-}
-
 /// Return `$XDG_CONFIG_HOME/$NVIM_APPNAME/{fname}` (`stdpaths_user_conf_subpath`).
 ///
 /// # Safety
 /// `fname` must be a valid C string.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn stdpaths_user_conf_subpath(fname: *const c_char) -> *mut c_char {
+pub unsafe fn stdpaths_user_conf_subpath(fname: *const c_char) -> *mut c_char {
     unsafe { concat_fnames_realloc(get_xdg_home(XDGVarType::kXDGConfigHome), fname, true) }
-}
-
-/// Return `$XDG_DATA_HOME/$NVIM_APPNAME/{fname}` (`stdpaths_user_data_subpath`).
-///
-/// # Safety
-/// `fname` must be a valid C string.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn stdpaths_user_data_subpath(fname: *const c_char) -> *mut c_char {
-    unsafe { concat_fnames_realloc(get_xdg_home(XDGVarType::kXDGDataHome), fname, true) }
 }
 
 /// Return `$XDG_STATE_HOME/$NVIM_APPNAME/{fname}` with optional trailing path separators and
@@ -268,8 +245,7 @@ pub unsafe extern "C" fn stdpaths_user_data_subpath(fname: *const c_char) -> *mu
 ///
 /// # Safety
 /// `fname` must be a valid C string.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn stdpaths_user_state_subpath(
+pub unsafe fn stdpaths_user_state_subpath(
     fname: *const c_char,
     trailing_pathseps: usize,
     escape_commas: bool,

@@ -337,11 +337,13 @@ use crate::math::{FAIL, OK};
 use crate::memline::kPathDeviceUNC;
 
 use crate::event::r#loop::{
-    uv_exepath, uv_fs_access, uv_fs_chmod, uv_fs_chown, uv_fs_close, uv_fs_copyfile, uv_fs_fchmod,
-    uv_fs_fchown, uv_fs_fstat, uv_fs_fsync, uv_fs_get_path, uv_fs_get_ptr, uv_fs_get_statbuf,
-    uv_fs_lstat, uv_fs_mkdir, uv_fs_mkdtemp, uv_fs_open, uv_fs_realpath, uv_fs_rename, uv_fs_rmdir,
-    uv_fs_scandir, uv_fs_scandir_next, uv_fs_stat, uv_fs_unlink, uv_fs_utime,
+    uv_exepath, uv_fs_access, uv_fs_chmod, uv_fs_close, uv_fs_copyfile, uv_fs_fchown, uv_fs_fstat,
+    uv_fs_fsync, uv_fs_get_path, uv_fs_get_ptr, uv_fs_get_statbuf, uv_fs_lstat, uv_fs_mkdir,
+    uv_fs_mkdtemp, uv_fs_open, uv_fs_realpath, uv_fs_rename, uv_fs_rmdir, uv_fs_scandir,
+    uv_fs_scandir_next, uv_fs_stat, uv_fs_unlink,
 };
+#[cfg(unix)]
+use crate::event::r#loop::{uv_fs_chown, uv_fs_fchmod, uv_fs_utime};
 
 unsafe extern "C" {
     #[cfg_attr(windows, link_name = "_errno")]
@@ -456,8 +458,7 @@ pub unsafe extern "C" fn os_dirname(buf: *mut c_char, mut len: usize) -> c_int {
 }
 
 /// Check if the given path is a directory and not a symlink to a directory.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_isrealdir(name: *const c_char) -> bool {
+pub unsafe fn os_isrealdir(name: *const c_char) -> bool {
     unsafe {
         let mut request: uv_fs_buf_t = [0; 80];
         if uv_fs_lstat(ptr::null_mut(), &raw mut request, name, ptr::null()) != 0 {
@@ -523,8 +524,7 @@ pub unsafe extern "C" fn os_nodetype(name: *const c_char) -> c_int {
 }
 
 /// Gets the absolute path of the currently running executable.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_exepath(buffer: *mut c_char, size: *mut usize) -> c_int {
+pub unsafe fn os_exepath(buffer: *mut c_char, size: *mut usize) -> c_int {
     unsafe {
         let r = uv_exepath(buffer, size);
         to_slash(buffer);
@@ -713,8 +713,7 @@ pub unsafe extern "C" fn os_open(path: *const c_char, flags: c_int, mode: c_int)
 }
 
 /// Compatibility wrapper conforming to `fopen(3)`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_fopen(path: *const c_char, flags: *const c_char) -> *mut c_void {
+pub unsafe fn os_fopen(path: *const c_char, flags: *const c_char) -> *mut c_void {
     unsafe {
         assert!(!flags.is_null());
         let flen = strlen(flags);
@@ -756,8 +755,7 @@ pub unsafe extern "C" fn os_fopen(path: *const c_char, flags: *const c_char) -> 
 }
 
 /// Sets file descriptor `fd` to close-on-exec (Unix) or non-inheritable (Windows).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_set_cloexec(fd: c_int) -> c_int {
+pub unsafe fn os_set_cloexec(fd: c_int) -> c_int {
     #[cfg(not(windows))]
     unsafe {
         let fdflags = fcntl(fd, F_GETFD);
@@ -836,8 +834,8 @@ pub unsafe extern "C" fn os_dup(fd: c_int) -> c_int {
 }
 
 /// Duplicates file descriptor `fd` and marks the copy close-on-exec.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_dup_cloexec(fd: c_int) -> c_int {
+#[cfg(windows)]
+pub unsafe fn os_dup_cloexec(fd: c_int) -> c_int {
     unsafe {
         let newfd = os_dup(fd);
         if newfd >= 0 {
@@ -848,8 +846,7 @@ pub unsafe extern "C" fn os_dup_cloexec(fd: c_int) -> c_int {
 }
 
 /// Open the file descriptor for stdin.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_open_stdin_fd() -> c_int {
+pub unsafe fn os_open_stdin_fd() -> c_int {
     unsafe {
         if stdin_fd > 0 {
             stdin_fd
@@ -1029,12 +1026,7 @@ pub unsafe extern "C" fn os_write(
 }
 
 /// Copies a file from `path` to `new_path`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_copy(
-    path: *const c_char,
-    new_path: *const c_char,
-    flags: c_int,
-) -> c_int {
+pub unsafe fn os_copy(path: *const c_char, new_path: *const c_char, flags: c_int) -> c_int {
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_copyfile(
@@ -1051,8 +1043,7 @@ pub unsafe extern "C" fn os_copy(
 }
 
 /// Flushes file modifications to disk.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_fsync(fd: c_int) -> c_int {
+pub unsafe fn os_fsync(fd: c_int) -> c_int {
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_fsync(ptr::null_mut(), &raw mut req, fd, ptr::null());
@@ -1103,8 +1094,8 @@ pub unsafe extern "C" fn os_setperm(name: *const c_char, perm: c_int) -> c_int {
 }
 
 /// Set the permission of the file referred to by the open file descriptor.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_fsetperm(fd: c_int, perm: c_int) -> c_int {
+#[cfg(unix)]
+pub unsafe fn os_fsetperm(fd: c_int, perm: c_int) -> c_int {
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_fchmod(ptr::null_mut(), &raw mut req, fd, perm, ptr::null());
@@ -1114,8 +1105,7 @@ pub unsafe extern "C" fn os_fsetperm(fd: c_int, perm: c_int) -> c_int {
 }
 
 /// Copy extended attributes `from_file` to `to_file`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_copy_xattr(from_file: *const c_char, to_file: *const c_char) {
+pub unsafe fn os_copy_xattr(from_file: *const c_char, to_file: *const c_char) {
     #[cfg(not(target_os = "linux"))]
     let _ = (from_file, to_file);
     #[cfg(target_os = "linux")]
@@ -1197,20 +1187,16 @@ pub unsafe extern "C" fn os_copy_xattr(from_file: *const c_char, to_file: *const
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn os_get_acl(_fname: *const c_char) -> vim_acl_T {
+pub fn os_get_acl(_fname: *const c_char) -> vim_acl_T {
     ptr::null_mut()
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn os_set_acl(_fname: *const c_char, _aclent: vim_acl_T) {}
+pub fn os_set_acl(_fname: *const c_char, _aclent: vim_acl_T) {}
 
-#[unsafe(no_mangle)]
-pub extern "C" fn os_free_acl(_aclent: vim_acl_T) {}
+pub fn os_free_acl(_aclent: vim_acl_T) {}
 
 /// Checks if the current user owns a file.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_file_owned(fname: *const c_char) -> bool {
+pub unsafe fn os_file_owned(fname: *const c_char) -> bool {
     #[cfg(not(windows))]
     unsafe {
         let uid = u64::from(getuid());
@@ -1227,8 +1213,8 @@ pub unsafe extern "C" fn os_file_owned(fname: *const c_char) -> bool {
 }
 
 /// Changes the owner and group of a file, like `chown(2)`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_chown(path: *const c_char, owner: uv_uid_t, group: uv_gid_t) -> c_int {
+#[cfg(unix)]
+pub unsafe fn os_chown(path: *const c_char, owner: uv_uid_t, group: uv_gid_t) -> c_int {
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_chown(
@@ -1265,8 +1251,8 @@ pub unsafe extern "C" fn os_path_exists(path: *const c_char) -> bool {
 }
 
 /// Sets file access and modification times.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_file_settime(path: *const c_char, atime: f64, mtime: f64) -> c_int {
+#[cfg(unix)]
+pub unsafe fn os_file_settime(path: *const c_char, atime: f64, mtime: f64) -> c_int {
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_utime(
@@ -1381,8 +1367,7 @@ pub unsafe extern "C" fn os_mkdir_recurse(
 }
 
 /// Create the parent directory of a file if it does not exist.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_file_mkdir(fname: *mut c_char, mode: i32) -> c_int {
+pub unsafe fn os_file_mkdir(fname: *mut c_char, mode: i32) -> c_int {
     unsafe {
         if !dir_of_file_exists(fname) {
             let tail = path_tail_with_sep(fname);
@@ -1407,8 +1392,7 @@ pub unsafe extern "C" fn os_file_mkdir(fname: *mut c_char, mode: i32) -> c_int {
 }
 
 /// Create a unique temporary directory.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_mkdtemp(templ: *const c_char, path: *mut c_char) -> c_int {
+pub unsafe fn os_mkdtemp(templ: *const c_char, path: *mut c_char) -> c_int {
     unsafe {
         let mut request: uv_fs_buf_t = [0; 80];
         let result = uv_fs_mkdtemp(ptr::null_mut(), &raw mut request, templ, ptr::null());
@@ -1437,8 +1421,7 @@ pub unsafe extern "C" fn os_rmdir(path: *const c_char) -> c_int {
 }
 
 /// Opens a directory.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_scandir(dir: *mut Directory, path: *const c_char) -> bool {
+pub unsafe fn os_scandir(dir: *mut Directory, path: *const c_char) -> bool {
     unsafe {
         debug_assert!(uv_req_size(UV_FS) + size_of::<uv_dirent_t>() <= size_of::<Directory>());
         let req = dir.cast::<uv_fs_buf_t>();
@@ -1451,8 +1434,7 @@ pub unsafe extern "C" fn os_scandir(dir: *mut Directory, path: *const c_char) ->
 }
 
 /// Increments the directory pointer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_scandir_next(dir: *mut Directory) -> *const c_char {
+pub unsafe fn os_scandir_next(dir: *mut Directory) -> *const c_char {
     unsafe {
         let req = dir.cast::<uv_fs_buf_t>();
         let ent = dir
@@ -1469,8 +1451,7 @@ pub unsafe extern "C" fn os_scandir_next(dir: *mut Directory) -> *const c_char {
 }
 
 /// Frees memory associated with `os_scandir()`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_closedir(dir: *mut Directory) {
+pub unsafe fn os_closedir(dir: *mut Directory) {
     unsafe {
         uv_fs_req_cleanup(dir.cast());
     }
@@ -1497,8 +1478,7 @@ pub unsafe extern "C" fn os_fileinfo(path: *const c_char, file_info: *mut FileIn
 }
 
 /// Parses `path` into a `FileInfo` structure.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_fileinfo2(path: *const c_char, info: *mut FileInfo) -> bool {
+pub unsafe fn os_fileinfo2(path: *const c_char, info: *mut FileInfo) -> bool {
     unsafe {
         *info = FileInfo::default();
         {
@@ -1686,12 +1666,7 @@ pub unsafe extern "C" fn os_fileid_equal(
 }
 
 /// Return the canonicalized absolute pathname.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_realpath(
-    name: *const c_char,
-    mut buf: *mut c_char,
-    len: usize,
-) -> *mut c_char {
+pub unsafe fn os_realpath(name: *const c_char, mut buf: *mut c_char, len: usize) -> *mut c_char {
     unsafe {
         let mut request: uv_fs_buf_t = [0; 80];
         let result = uv_fs_realpath(ptr::null_mut(), &raw mut request, name, ptr::null());
@@ -1707,8 +1682,8 @@ pub unsafe extern "C" fn os_realpath(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_resolve_shortcut(fname: *const c_char) -> *mut c_char {
+#[cfg(windows)]
+pub unsafe fn os_resolve_shortcut(fname: *const c_char) -> *mut c_char {
     #[cfg(windows)]
     unsafe {
         if fname.is_null() {
@@ -1785,8 +1760,8 @@ pub unsafe extern "C" fn os_resolve_shortcut(fname: *const c_char) -> *mut c_cha
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_is_reparse_point_include(path: *const c_char) -> bool {
+#[cfg(windows)]
+pub unsafe fn os_is_reparse_point_include(path: *const c_char) -> bool {
     #[cfg(windows)]
     unsafe {
         let mut utf16_path: *mut u16 = ptr::null_mut();

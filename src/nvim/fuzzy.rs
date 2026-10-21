@@ -307,8 +307,7 @@ unsafe fn match_positions(
 }
 
 /// Fuzzy match `pat_arg` in `str` (`fuzzy_match`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn fuzzy_match(
+pub unsafe fn fuzzy_match(
     str_ptr: *mut c_char,
     pat_arg: *const c_char,
     matchseq: bool,
@@ -396,7 +395,7 @@ pub unsafe extern "C" fn fuzzy_match(
     }
 }
 
-unsafe extern "C" fn fuzzy_match_item_compare(s1: *const c_void, s2: *const c_void) -> c_int {
+unsafe fn fuzzy_match_item_compare(s1: *const c_void, s2: *const c_void) -> c_int {
     unsafe {
         let item1 = &*s1.cast::<fuzzyItem_T>();
         let item2 = &*s2.cast::<fuzzyItem_T>();
@@ -710,30 +709,20 @@ unsafe fn do_fuzzymatch(argvars: *const typval_T, rettv: *mut typval_T, retmatch
 }
 
 /// `"matchfuzzy()"` function (`f_matchfuzzy`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_matchfuzzy(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_matchfuzzy(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         do_fuzzymatch(argvars, rettv, false);
     }
 }
 
 /// `"matchfuzzypos()"` function (`f_matchfuzzypos`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_matchfuzzypos(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_matchfuzzypos(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         do_fuzzymatch(argvars, rettv, true);
     }
 }
 
-unsafe extern "C" fn fuzzy_match_str_compare(s1: *const c_void, s2: *const c_void) -> c_int {
+unsafe fn fuzzy_match_str_compare(s1: *const c_void, s2: *const c_void) -> c_int {
     let f1 = unsafe { &*s1.cast::<fuzmatch_str_T>() };
     let f2 = unsafe { &*s2.cast::<fuzmatch_str_T>() };
 
@@ -746,7 +735,7 @@ unsafe extern "C" fn fuzzy_match_str_compare(s1: *const c_void, s2: *const c_voi
     }
 }
 
-unsafe extern "C" fn fuzzy_match_func_compare(s1: *const c_void, s2: *const c_void) -> c_int {
+unsafe fn fuzzy_match_func_compare(s1: *const c_void, s2: *const c_void) -> c_int {
     let f1 = unsafe { &*s1.cast::<fuzmatch_str_T>() };
     let f2 = unsafe { &*s2.cast::<fuzmatch_str_T>() };
     let b1 = unsafe { *f1.str_ptr as u8 };
@@ -765,8 +754,7 @@ unsafe extern "C" fn fuzzy_match_func_compare(s1: *const c_void, s2: *const c_vo
 }
 
 /// Fuzzy match `pat` in `str` (`fuzzy_match_str`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn fuzzy_match_str(str_ptr: *mut c_char, pat: *const c_char) -> c_int {
+pub unsafe fn fuzzy_match_str(str_ptr: *mut c_char, pat: *const c_char) -> c_int {
     if str_ptr.is_null() || pat.is_null() {
         return 0;
     }
@@ -787,11 +775,7 @@ pub unsafe extern "C" fn fuzzy_match_str(str_ptr: *mut c_char, pat: *const c_cha
 }
 
 /// Fuzzy match positions of `pat` in `str` (`fuzzy_match_str_with_pos`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn fuzzy_match_str_with_pos(
-    str_ptr: *mut c_char,
-    pat: *const c_char,
-) -> *mut garray_T {
+pub unsafe fn fuzzy_match_str_with_pos(str_ptr: *mut c_char, pat: *const c_char) -> *mut garray_T {
     unsafe {
         if str_ptr.is_null() || pat.is_null() {
             return std::ptr::null_mut();
@@ -833,8 +817,7 @@ pub unsafe extern "C" fn fuzzy_match_str_with_pos(
 }
 
 /// Fuzzy match a word in line `*ptr` (`fuzzy_match_str_in_line`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn fuzzy_match_str_in_line(
+pub unsafe fn fuzzy_match_str_in_line(
     ptr: *mut *mut c_char,
     pat: *mut c_char,
     len: *mut c_int,
@@ -888,8 +871,7 @@ pub unsafe extern "C" fn fuzzy_match_str_in_line(
 }
 
 /// Search for the next fuzzy match in `buf` (`search_for_fuzzy_match`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn search_for_fuzzy_match(
+pub unsafe fn search_for_fuzzy_match(
     buf: *mut buf_T,
     pos: *mut pos_T,
     pattern: *mut c_char,
@@ -989,24 +971,9 @@ pub unsafe extern "C" fn search_for_fuzzy_match(
     }
 }
 
-/// Free an array of `fuzmatch_str_T` (`fuzmatch_str_free`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn fuzmatch_str_free(fuzmatch: *mut fuzmatch_str_T, count: c_int) {
-    if fuzmatch.is_null() {
-        return;
-    }
-    unsafe {
-        for i in 0..(count.max(0) as usize) {
-            xfree((*fuzmatch.add(i)).str_ptr.cast::<c_void>());
-        }
-        xfree(fuzmatch.cast::<c_void>());
-    }
-}
-
 /// Sort `fuzmatch` by score and copy strings into `*matches`, freeing `fuzmatch`
 /// (`fuzzymatches_to_strmatches`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn fuzzymatches_to_strmatches(
+pub unsafe fn fuzzymatches_to_strmatches(
     fuzmatch: *mut fuzmatch_str_T,
     matches: *mut *mut *mut c_char,
     count: c_int,
@@ -1018,7 +985,7 @@ pub unsafe extern "C" fn fuzzymatches_to_strmatches(
             *matches = xmalloc(cnt * std::mem::size_of::<*mut c_char>()).cast::<*mut c_char>();
 
             {
-                let cmp: unsafe extern "C" fn(*const c_void, *const c_void) -> c_int = if funcsort {
+                let cmp: unsafe fn(*const c_void, *const c_void) -> c_int = if funcsort {
                     fuzzy_match_func_compare
                 } else {
                     fuzzy_match_str_compare

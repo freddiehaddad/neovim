@@ -823,23 +823,19 @@ pub static highlight_init_cmdline: SyncCStrArray<141> = SyncCStrArray([
     ptr::null(),
 ]);
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn highlight_num_groups() -> c_int {
+pub unsafe fn highlight_num_groups() -> c_int {
     unsafe { highlight_ga.ga_len }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn highlight_group_name(id: c_int) -> *mut c_char {
+pub unsafe fn highlight_group_name(id: c_int) -> *mut c_char {
     unsafe { (*hl_table().add(id as usize)).sg_name }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn highlight_link_id(id: c_int) -> c_int {
+pub unsafe fn highlight_link_id(id: c_int) -> c_int {
     unsafe { (*hl_table().add(id as usize)).sg_link }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn syn_init_cmdline_highlight(reset: bool, init: bool) {
+pub unsafe fn syn_init_cmdline_highlight(reset: bool, init: bool) {
     unsafe {
         let mut i = 0;
         while !highlight_init_cmdline.0[i].is_null() {
@@ -849,8 +845,7 @@ pub unsafe extern "C" fn syn_init_cmdline_highlight(reset: bool, init: bool) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn init_highlight(both: bool, reset: bool) {
+pub unsafe fn init_highlight(both: bool, reset: bool) {
     unsafe {
         let p = get_var_value(c"g:colors_name".as_ptr());
         if !p.is_null() {
@@ -884,8 +879,7 @@ pub unsafe extern "C" fn init_highlight(both: bool, reset: bool) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn load_colors(name: *mut c_char) -> c_int {
+pub unsafe fn load_colors(name: *mut c_char) -> c_int {
     unsafe {
         if load_colors_recursive {
             return OK;
@@ -944,8 +938,7 @@ unsafe fn lookup_color(idx: c_int, foreground: bool, boldp: *mut TriState) -> c_
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_hl_group(
+pub unsafe fn set_hl_group(
     id: c_int,
     attrs: HlAttrs,
     dict: *mut KeyDict_highlight,
@@ -1122,8 +1115,7 @@ unsafe fn set_gui_color(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
+pub unsafe fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
     unsafe {
         if !init && ends_excmd(c_int::from(*line as u8)) != 0 {
             msg_ext_set_kind(c"list_cmd".as_ptr());
@@ -1603,8 +1595,7 @@ pub unsafe extern "C" fn do_highlight(mut line: *const c_char, forceit: bool, in
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn free_highlight() {
+pub unsafe fn free_highlight() {
     unsafe {
         for i in 0..highlight_ga.ga_len {
             xfree((*hl_table().add(i as usize)).sg_font.cast());
@@ -1624,8 +1615,7 @@ pub unsafe extern "C" fn free_highlight() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn restore_cterm_colors() {
+pub unsafe fn restore_cterm_colors() {
     unsafe {
         normal_fg = -1;
         normal_bg = -1;
@@ -1820,8 +1810,7 @@ unsafe fn hlgroup2dict(hl: *mut Dict, ns_id: NS, hl_id: c_int, arena: *mut Arena
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ns_get_hl_defs(
+pub unsafe fn ns_get_hl_defs(
     ns_id: NS,
     opts: *mut KeyDict_get_highlight,
     arena: *mut Arena,
@@ -1966,8 +1955,7 @@ unsafe fn highlight_list_arg(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn highlight_has_attr(id: c_int, flag: c_int, modec: c_int) -> *const c_char {
+pub unsafe fn highlight_has_attr(id: c_int, flag: c_int, modec: c_int) -> *const c_char {
     unsafe {
         if id <= 0 || id > highlight_ga.ga_len {
             return ptr::null();
@@ -1994,12 +1982,7 @@ pub unsafe extern "C" fn highlight_has_attr(id: c_int, flag: c_int, modec: c_int
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn highlight_color(
-    id: c_int,
-    what: *const c_char,
-    modec: c_int,
-) -> *const c_char {
+pub unsafe fn highlight_color(id: c_int, what: *const c_char, modec: c_int) -> *const c_char {
     unsafe {
         let mut fg = false;
         let mut sp = false;
@@ -2074,8 +2057,7 @@ pub unsafe extern "C" fn highlight_color(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn syn_list_header(
+pub unsafe fn syn_list_header(
     did_header: bool,
     outlen: c_int,
     id: c_int,
@@ -2165,8 +2147,7 @@ unsafe fn set_hl_attr(idx: c_int) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn syn_name2id(name: *const c_char) -> c_int {
+pub unsafe fn syn_name2id(name: *const c_char) -> c_int {
     unsafe {
         if *name == b'@' as c_char {
             return syn_check_group(name, CStr::from_ptr(name).to_bytes().len());
@@ -2175,8 +2156,7 @@ pub unsafe extern "C" fn syn_name2id(name: *const c_char) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn syn_name2id_len(name: *const c_char, len: usize) -> c_int {
+pub unsafe fn syn_name2id_len(name: *const c_char, len: usize) -> c_int {
     unsafe {
         if len == 0 || len > MAX_SYN_NAME {
             return 0;
@@ -2190,8 +2170,7 @@ pub unsafe extern "C" fn syn_name2id_len(name: *const c_char, len: usize) -> c_i
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn syn_name2attr(name: *const c_char) -> c_int {
+pub unsafe fn syn_name2attr(name: *const c_char) -> c_int {
     unsafe {
         let id = syn_name2id(name);
         if id != 0 {
@@ -2201,13 +2180,11 @@ pub unsafe extern "C" fn syn_name2attr(name: *const c_char) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn highlight_exists(name: *const c_char) -> c_int {
+pub unsafe fn highlight_exists(name: *const c_char) -> c_int {
     unsafe { c_int::from(syn_name2id(name) > 0) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn syn_id2name(id: c_int) -> *mut c_char {
+pub unsafe fn syn_id2name(id: c_int) -> *mut c_char {
     unsafe {
         if id <= 0 || id > highlight_ga.ga_len {
             return c"".as_ptr().cast_mut();
@@ -2216,8 +2193,7 @@ pub unsafe extern "C" fn syn_id2name(id: c_int) -> *mut c_char {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn syn_check_group(name: *const c_char, len: usize) -> c_int {
+pub unsafe fn syn_check_group(name: *const c_char, len: usize) -> c_int {
     unsafe {
         if len > MAX_SYN_NAME {
             emsg(gettext(e_highlight_group_name_too_long.as_ptr()));
@@ -2293,20 +2269,14 @@ unsafe fn syn_add_group(name: *const c_char, len: usize) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn syn_id2attr(hl_id: c_int) -> c_int {
+pub unsafe fn syn_id2attr(hl_id: c_int) -> c_int {
     unsafe {
         let mut optional = false;
         syn_ns_id2attr(-1, hl_id, &raw mut optional)
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn syn_ns_id2attr(
-    mut ns_id: c_int,
-    mut hl_id: c_int,
-    optional: *mut bool,
-) -> c_int {
+pub unsafe fn syn_ns_id2attr(mut ns_id: c_int, mut hl_id: c_int, optional: *mut bool) -> c_int {
     unsafe {
         if syn_ns_get_final_id(&raw mut ns_id, &raw mut hl_id) {
             *optional = false;
@@ -2322,8 +2292,7 @@ pub unsafe extern "C" fn syn_ns_id2attr(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn syn_get_final_id(mut hl_id: c_int) -> c_int {
+pub unsafe fn syn_get_final_id(mut hl_id: c_int) -> c_int {
     unsafe {
         let mut ns_id = (*curwin).w_ns_hl_active;
         syn_ns_get_final_id(&raw mut ns_id, &raw mut hl_id);
@@ -2331,8 +2300,7 @@ pub unsafe extern "C" fn syn_get_final_id(mut hl_id: c_int) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn syn_ns_get_final_id(ns_id: *mut c_int, hl_idp: *mut c_int) -> bool {
+pub unsafe fn syn_ns_get_final_id(ns_id: *mut c_int, hl_idp: *mut c_int) -> bool {
     unsafe {
         let mut hl_id = *hl_idp;
         let mut used = false;
@@ -2371,8 +2339,7 @@ pub unsafe extern "C" fn syn_ns_get_final_id(ns_id: *mut c_int, hl_idp: *mut c_i
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn highlight_attr_set_all() {
+pub unsafe fn highlight_attr_set_all() {
     unsafe {
         for idx in 0..highlight_ga.ga_len {
             let sgp = &mut *hl_table().add(idx as usize);
@@ -2443,8 +2410,7 @@ unsafe fn combine_stl_hlt(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn highlight_changed() {
+pub unsafe fn highlight_changed() {
     unsafe {
         let mut userhl = [0 as c_char; 30];
         let mut id_S: c_int = -1;
@@ -2522,8 +2488,7 @@ pub unsafe extern "C" fn highlight_changed() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_context_in_highlight_cmd(xp: *mut expand_T, mut arg: *const c_char) {
+pub unsafe fn set_context_in_highlight_cmd(xp: *mut expand_T, mut arg: *const c_char) {
     unsafe {
         (*xp).xp_context = EXPAND_HIGHLIGHT;
         (*xp).xp_pattern = arg.cast_mut();
@@ -2593,13 +2558,11 @@ unsafe fn highlight_list_two(cnt: c_int, id: c_int) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_highlight_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_highlight_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe { get_highlight_name_ext(xp, idx, true).cast_mut() }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_highlight_name_ext(
+pub unsafe fn get_highlight_name_ext(
     _xp: *mut expand_T,
     idx: c_int,
     skip_cleared: bool,
@@ -2630,8 +2593,7 @@ pub unsafe extern "C" fn get_highlight_name_ext(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn name_to_color(name: *const c_char, idx: *mut c_int) -> RgbValue {
+pub unsafe fn name_to_color(name: *const c_char, idx: *mut c_int) -> RgbValue {
     unsafe {
         if *name == b'#' as c_char
             && (*name.add(1) as u8).is_ascii_hexdigit()
@@ -2676,12 +2638,7 @@ pub unsafe extern "C" fn name_to_color(name: *const c_char, idx: *mut c_int) -> 
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn coloridx_to_name(
-    idx: c_int,
-    val: c_int,
-    hexbuf: *mut c_char,
-) -> *const c_char {
+pub unsafe fn coloridx_to_name(idx: c_int, val: c_int, hexbuf: *mut c_char) -> *const c_char {
     unsafe {
         if idx >= 0 {
             return color_name_table[idx as usize].name;
@@ -2699,8 +2656,7 @@ pub unsafe extern "C" fn coloridx_to_name(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn name_to_ctermcolor(name: *const c_char) -> c_int {
+pub unsafe fn name_to_ctermcolor(name: *const c_char) -> c_int {
     unsafe {
         let off = (*name as u8).to_ascii_uppercase() as c_char;
         let mut i = COLOR_NAMES.len() as isize - 1;
@@ -2728,7 +2684,6 @@ macro_rules! cname {
     };
 }
 
-#[unsafe(no_mangle)]
 pub static color_name_table: [color_name_table_T; 708] = [
     cname!(c"AliceBlue", 0xf0, 0xf8, 0xff),
     cname!(c"AntiqueWhite", 0xfa, 0xeb, 0xd7),

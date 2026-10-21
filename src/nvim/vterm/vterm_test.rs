@@ -759,8 +759,7 @@ pub unsafe extern "C" fn vterm_state_get_penattr(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_color_is_equal(a: *const VTermColor, b: *const VTermColor) -> c_int {
+pub unsafe fn vterm_color_is_equal(a: *const VTermColor, b: *const VTermColor) -> c_int {
     unsafe {
         let ca = &*a;
         let cb = &*b;

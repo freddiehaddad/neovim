@@ -16,8 +16,10 @@ use crate::math::{FAIL, OK};
 #[cfg(unix)]
 use crate::mbyte::mb_isalpha;
 use crate::mbyte::{mb_strcmp_ic, utf_fold, utf_head_off, utf_ptr2char, utfc_ptr2len};
+#[cfg(windows)]
+use crate::memory::strchrsub;
 use crate::memory::{
-    strchrsub, xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xrealloc, xstrdup, xstrlcat, xstrlcpy,
+    xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xrealloc, xstrdup, xstrlcat, xstrlcpy,
 };
 use crate::option::copy_option_part;
 use crate::option_vars::*;
@@ -82,6 +84,7 @@ pub const EW_PATH: c_int = 0x80;
 pub const EW_ICASE: c_int = 0x100;
 pub const EW_NOERROR: c_int = 0x200;
 pub const EW_NOTWILD: c_int = 0x400;
+#[cfg(unix)]
 pub const EW_KEEPDOLLAR: c_int = 0x800;
 pub const EW_ALLLINKS: c_int = 0x1000;
 pub const EW_SHELLCMD: c_int = 0x2000;
@@ -265,8 +268,7 @@ pub unsafe extern "C" fn path_next_component(mut fname: *const c_char) -> *const
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn path_skip_sep(mut path: *const c_char, colon: bool) -> *mut c_char {
+pub unsafe fn path_skip_sep(mut path: *const c_char, colon: bool) -> *mut c_char {
     unsafe {
         while if colon {
             vim_ispathsep(*path as c_int)
@@ -279,8 +281,7 @@ pub unsafe extern "C" fn path_skip_sep(mut path: *const c_char, colon: bool) -> 
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn path_head_length() -> c_int {
+pub fn path_head_length() -> c_int {
     #[cfg(windows)]
     {
         3
@@ -291,8 +292,7 @@ pub extern "C" fn path_head_length() -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn is_path_head(path: *const c_char) -> bool {
+pub unsafe fn is_path_head(path: *const c_char) -> bool {
     #[cfg(windows)]
     unsafe {
         (*path as u8).is_ascii_alphabetic() && *path.add(1) == b':' as c_char
@@ -303,8 +303,7 @@ pub unsafe extern "C" fn is_path_head(path: *const c_char) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_past_head(path: *const c_char) -> *mut c_char {
+pub unsafe fn get_past_head(path: *const c_char) -> *mut c_char {
     unsafe {
         #[cfg(windows)]
         let mut retval = path;
@@ -318,8 +317,7 @@ pub unsafe extern "C" fn get_past_head(path: *const c_char) -> *mut c_char {
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn vim_ispathsep(c: c_int) -> bool {
+pub fn vim_ispathsep(c: c_int) -> bool {
     #[cfg(unix)]
     {
         c == b'/' as c_int
@@ -330,8 +328,7 @@ pub extern "C" fn vim_ispathsep(c: c_int) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn vim_ispathsep_nocolon(c: c_int) -> bool {
+pub fn vim_ispathsep_nocolon(c: c_int) -> bool {
     #[cfg(windows)]
     {
         vim_ispathsep(c) && c != b':' as c_int
@@ -342,8 +339,7 @@ pub extern "C" fn vim_ispathsep_nocolon(c: c_int) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn vim_ispathlistsep(c: c_int) -> bool {
+pub fn vim_ispathlistsep(c: c_int) -> bool {
     #[cfg(unix)]
     {
         c == b':' as c_int
@@ -354,8 +350,7 @@ pub extern "C" fn vim_ispathlistsep(c: c_int) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn shorten_dir_len(str_: *mut c_char, trim_len: c_int) {
+pub unsafe fn shorten_dir_len(str_: *mut c_char, trim_len: c_int) {
     unsafe {
         let tail = path_tail(str_);
         let mut d = str_;
@@ -398,15 +393,13 @@ pub unsafe extern "C" fn shorten_dir_len(str_: *mut c_char, trim_len: c_int) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn shorten_dir(str_: *mut c_char) {
+pub unsafe fn shorten_dir(str_: *mut c_char) {
     unsafe {
         shorten_dir_len(str_, 1);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn dir_of_file_exists(fname: *mut c_char) -> bool {
+pub unsafe fn dir_of_file_exists(fname: *mut c_char) -> bool {
     unsafe {
         let p = path_tail_with_sep(fname);
         if p == fname {
@@ -442,12 +435,7 @@ unsafe fn do_concat_fnames(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn concat_fnames(
-    fname1: NvimString,
-    fname2: NvimString,
-    sep: bool,
-) -> NvimString {
+pub unsafe fn concat_fnames(fname1: NvimString, fname2: NvimString, sep: bool) -> NvimString {
     unsafe {
         let mut ret = NvimString {
             data: xmalloc(fname1.size + usize::from(sep) + fname2.size + 1).cast::<c_char>(),
@@ -466,8 +454,7 @@ pub unsafe extern "C" fn concat_fnames(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn concat_fnames_realloc(
+pub unsafe fn concat_fnames_realloc(
     fname1: *mut c_char,
     fname2: *const c_char,
     sep: bool,
@@ -481,8 +468,7 @@ pub unsafe extern "C" fn concat_fnames_realloc(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn add_pathsep(p: *mut c_char) -> bool {
+pub unsafe fn add_pathsep(p: *mut c_char) -> bool {
     unsafe {
         if *p == NUL {
             return true;
@@ -504,8 +490,7 @@ pub unsafe extern "C" fn add_pathsep(p: *mut c_char) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn FullName_save(fname: *const c_char, force: bool) -> *mut c_char {
+pub unsafe fn FullName_save(fname: *const c_char, force: bool) -> *mut c_char {
     if fname.is_null() {
         return ptr::null_mut();
     }
@@ -520,8 +505,7 @@ pub unsafe extern "C" fn FullName_save(fname: *const c_char, force: bool) -> *mu
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn save_abs_path(name: *const c_char) -> *mut c_char {
+pub unsafe fn save_abs_path(name: *const c_char) -> *mut c_char {
     unsafe {
         if !path_is_absolute(name) {
             return FullName_save(name, true);
@@ -530,8 +514,7 @@ pub unsafe extern "C" fn save_abs_path(name: *const c_char) -> *mut c_char {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn path_has_wildcard(mut p: *const c_char, all: bool) -> bool {
+pub unsafe fn path_has_wildcard(mut p: *const c_char, all: bool) -> bool {
     unsafe {
         let wildcards = if all {
             PATH_ALL_WILDCARDS
@@ -1070,8 +1053,7 @@ unsafe fn uniquefy_paths(gap: *mut garray_T, pattern: *mut c_char, path_option: 
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn gettail_dir(fname: *const c_char) -> *const c_char {
+pub unsafe fn gettail_dir(fname: *const c_char) -> *const c_char {
     unsafe {
         let mut dir_end = fname;
         let mut next_dir_end = fname;
@@ -1191,8 +1173,7 @@ unsafe fn has_special_wildchar(mut p: *const c_char, flags: c_int) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn gen_expand_wildcards(
+pub unsafe fn gen_expand_wildcards(
     num_pat: c_int,
     pat: *mut *mut c_char,
     num_file: *mut c_int,
@@ -1332,8 +1313,7 @@ pub unsafe extern "C" fn gen_expand_wildcards(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn FreeWild(mut count: c_int, files: *mut *mut c_char) {
+pub unsafe fn FreeWild(mut count: c_int, files: *mut *mut c_char) {
     if count <= 0 || files.is_null() {
         return;
     }
@@ -1407,8 +1387,7 @@ unsafe fn expand_backtick(gap: *mut garray_T, pat: *mut c_char, flags: c_int) ->
 }
 
 #[cfg(windows)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn slash_adjust(p: *mut c_char) {
+pub unsafe fn slash_adjust(p: *mut c_char) {
     unsafe {
         if path_with_url(p) != 0 {
             return;
@@ -1427,8 +1406,8 @@ pub unsafe extern "C" fn slash_adjust(p: *mut c_char) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn path_to_backslash(p: *mut c_char) -> *mut c_char {
+#[cfg(windows)]
+pub unsafe fn path_to_backslash(p: *mut c_char) -> *mut c_char {
     if !p.is_null() {
         unsafe {
             strchrsub(p, PATHSEP, b'\\' as c_char);
@@ -1437,8 +1416,8 @@ pub unsafe extern "C" fn path_to_backslash(p: *mut c_char) -> *mut c_char {
     p
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn path_to_slash(p: *mut c_char) -> *mut c_char {
+#[cfg(windows)]
+pub unsafe fn path_to_slash(p: *mut c_char) -> *mut c_char {
     if !p.is_null() {
         unsafe {
             if path_with_url(p) == 0 {
@@ -1449,8 +1428,8 @@ pub unsafe extern "C" fn path_to_slash(p: *mut c_char) -> *mut c_char {
     p
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn path_to_slash_save(p: *const c_char) -> *mut c_char {
+#[cfg(windows)]
+pub unsafe fn path_to_slash_save(p: *const c_char) -> *mut c_char {
     if p.is_null() {
         ptr::null_mut()
     } else {
@@ -1458,8 +1437,7 @@ pub unsafe extern "C" fn path_to_slash_save(p: *const c_char) -> *mut c_char {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn addfile(gap: *mut garray_T, f: *mut c_char, flags: c_int) {
+pub unsafe fn addfile(gap: *mut garray_T, f: *mut c_char, flags: c_int) {
     unsafe {
         let mut file_info: FileInfo = std::mem::zeroed();
 
@@ -1505,8 +1483,7 @@ pub unsafe extern "C" fn addfile(gap: *mut garray_T, f: *mut c_char, flags: c_in
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn simplify_filename(filename: *mut c_char) -> usize {
+pub unsafe fn simplify_filename(filename: *mut c_char) -> usize {
     unsafe {
         let mut components: c_int = 0;
         let mut stripping_disabled = false;
@@ -1654,8 +1631,7 @@ pub unsafe extern "C" fn simplify_filename(filename: *mut c_char) -> usize {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn path_has_drive_letter(p: *const c_char, path_len: usize) -> bool {
+pub unsafe fn path_has_drive_letter(p: *const c_char, path_len: usize) -> bool {
     unsafe {
         path_len >= 2
             && (*p as u8).is_ascii_alphabetic()
@@ -1667,8 +1643,7 @@ pub unsafe extern "C" fn path_has_drive_letter(p: *const c_char, path_len: usize
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn path_is_url(p: *const c_char) -> c_int {
+pub unsafe fn path_is_url(p: *const c_char) -> c_int {
     unsafe {
         if *p == b':' as c_char && *p.add(1) == b'/' as c_char {
             URL_SLASH
@@ -1726,8 +1701,7 @@ pub unsafe extern "C" fn path_with_extension(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_isAbsName(name: *const c_char) -> bool {
+pub unsafe fn vim_isAbsName(name: *const c_char) -> bool {
     unsafe { path_with_url(name) != 0 || path_is_absolute(name) }
 }
 
@@ -1764,8 +1738,7 @@ pub unsafe extern "C" fn vim_FullName(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn fix_fname(fname: *const c_char) -> *mut c_char {
+pub unsafe fn fix_fname(fname: *const c_char) -> *mut c_char {
     #[cfg(unix)]
     unsafe {
         FullName_save(fname, true)
@@ -1843,15 +1816,13 @@ pub unsafe extern "C" fn path_fix_case(name: *mut c_char) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn after_pathsep(b: *const c_char, p: *const c_char) -> c_int {
+pub unsafe fn after_pathsep(b: *const c_char, p: *const c_char) -> c_int {
     unsafe {
         c_int::from(p > b && vim_ispathsep(*p.sub(1) as c_int) && utf_head_off(b, p.sub(1)) == 0)
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn same_directory(f1: *mut c_char, f2: *mut c_char) -> bool {
+pub unsafe fn same_directory(f1: *mut c_char, f2: *mut c_char) -> bool {
     unsafe {
         if f1.is_null() || f2.is_null() {
             return false;
@@ -1867,8 +1838,7 @@ pub unsafe extern "C" fn same_directory(f1: *mut c_char, f2: *mut c_char) -> boo
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn path_fold_char(ic: bool, p: *const c_char, len: *mut c_int) -> c_int {
+pub unsafe fn path_fold_char(ic: bool, p: *const c_char, len: *mut c_int) -> c_int {
     unsafe {
         if vim_ispathsep_nocolon(*p as c_int) {
             *len = 1;
@@ -2001,8 +1971,7 @@ pub unsafe extern "C" fn path_shorten_fname(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn expand_wildcards_eval(
+pub unsafe fn expand_wildcards_eval(
     pat: *mut *mut c_char,
     num_file: *mut c_int,
     file: *mut *mut *mut c_char,
@@ -2055,8 +2024,7 @@ pub unsafe extern "C" fn expand_wildcards_eval(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn expand_wildcards(
+pub unsafe fn expand_wildcards(
     num_pat: c_int,
     pat: *mut *mut c_char,
     num_files: *mut c_int,
@@ -2121,8 +2089,7 @@ pub unsafe extern "C" fn expand_wildcards(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn match_suffix(fname: *mut c_char) -> bool {
+pub unsafe fn match_suffix(fname: *mut c_char) -> bool {
     unsafe {
         let mut suf_buf = [0 as c_char; MAXSUFLEN];
         let fnamelen = CStr::from_ptr(fname).to_bytes().len();

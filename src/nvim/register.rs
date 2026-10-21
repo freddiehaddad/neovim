@@ -246,8 +246,7 @@ unsafe fn copy_string_global(s: NvimString) -> NvimString {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_unname_register() -> c_int {
+pub unsafe fn get_unname_register() -> c_int {
     unsafe {
         if y_previous.is_null() {
             -1
@@ -257,18 +256,15 @@ pub unsafe extern "C" fn get_unname_register() -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_y_register(reg: c_int) -> *mut yankreg_T {
+pub unsafe fn get_y_register(reg: c_int) -> *mut yankreg_T {
     unsafe { (&raw mut y_regs).cast::<yankreg_T>().add(reg as usize) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_y_previous() -> *mut yankreg_T {
+pub unsafe fn get_y_previous() -> *mut yankreg_T {
     unsafe { y_previous }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_expr_register() -> c_int {
+pub unsafe fn get_expr_register() -> c_int {
     unsafe {
         let new_line = getcmdline(c_int::from(b'='), 0, 0, true);
         if new_line.is_null() {
@@ -283,16 +279,14 @@ pub unsafe extern "C" fn get_expr_register() -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_expr_line(new_line: *mut c_char) {
+pub unsafe fn set_expr_line(new_line: *mut c_char) {
     unsafe {
         xfree(expr_line.cast());
         expr_line = new_line;
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_expr_line() -> *mut c_char {
+pub unsafe fn get_expr_line() -> *mut c_char {
     unsafe {
         if expr_line.is_null() {
             return ptr::null_mut();
@@ -311,8 +305,7 @@ pub unsafe extern "C" fn get_expr_line() -> *mut c_char {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_expr_line_src() -> *mut c_char {
+pub unsafe fn get_expr_line_src() -> *mut c_char {
     unsafe {
         if expr_line.is_null() {
             return ptr::null_mut();
@@ -321,8 +314,7 @@ pub unsafe extern "C" fn get_expr_line_src() -> *mut c_char {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn valid_yank_reg(regname: c_int, writing: bool) -> bool {
+pub unsafe fn valid_yank_reg(regname: c_int, writing: bool) -> bool {
     unsafe {
         (regname > 0 && regname <= 0x7f && (regname as u8).is_ascii_alphanumeric())
             || (!writing && !vim_strchr(c"/#.%:=".as_ptr(), regname).is_null())
@@ -334,8 +326,7 @@ pub unsafe extern "C" fn valid_yank_reg(regname: c_int, writing: bool) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_default_register_name() -> c_int {
+pub unsafe fn get_default_register_name() -> c_int {
     unsafe {
         let mut name: c_int = 0;
         adjust_clipboard_name(&raw mut name, true, false);
@@ -343,8 +334,7 @@ pub unsafe extern "C" fn get_default_register_name() -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn op_reg_iter(
+pub unsafe fn op_reg_iter(
     iter: *const c_void,
     regs: *const yankreg_T,
     name: *mut c_char,
@@ -381,8 +371,7 @@ pub unsafe extern "C" fn op_reg_iter(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn op_global_reg_iter(
+pub unsafe fn op_global_reg_iter(
     iter: *const c_void,
     name: *mut c_char,
     reg: *mut yankreg_T,
@@ -399,8 +388,7 @@ pub unsafe extern "C" fn op_global_reg_iter(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn reg_max_ts(clipboard: bool) -> Timestamp {
+pub unsafe fn reg_max_ts(clipboard: bool) -> Timestamp {
     unsafe {
         let mut max_ts: Timestamp = 0;
         let mut iter: *const c_void = ptr::null();
@@ -425,22 +413,7 @@ pub unsafe extern "C" fn reg_max_ts(clipboard: bool) -> Timestamp {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn op_reg_amount() -> usize {
-    unsafe {
-        let mut ret: usize = 0;
-        let regs = (&raw const y_regs).cast::<yankreg_T>();
-        for i in 0..NUM_SAVED_REGISTERS {
-            if !reg_empty(regs.add(i)) {
-                ret += 1;
-            }
-        }
-        ret
-    }
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn op_reg_set(name: c_char, reg: yankreg_T, is_unnamed: bool) -> bool {
+pub unsafe fn op_reg_set(name: c_char, reg: yankreg_T, is_unnamed: bool) -> bool {
     unsafe {
         let i = op_reg_index(c_int::from(name as u8));
         if i == -1 {
@@ -457,8 +430,7 @@ pub unsafe extern "C" fn op_reg_set(name: c_char, reg: yankreg_T, is_unnamed: bo
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn op_reg_get(name: c_char) -> *const yankreg_T {
+pub unsafe fn op_reg_get(name: c_char) -> *const yankreg_T {
     unsafe {
         let i = op_reg_index(c_int::from(name as u8));
         if i == -1 {
@@ -468,8 +440,7 @@ pub unsafe extern "C" fn op_reg_get(name: c_char) -> *const yankreg_T {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn op_reg_set_previous(name: c_char) -> bool {
+pub unsafe fn op_reg_set_previous(name: c_char) -> bool {
     unsafe {
         let i = op_reg_index(c_int::from(name as u8));
         if i == -1 {
@@ -480,8 +451,7 @@ pub unsafe extern "C" fn op_reg_set_previous(name: c_char) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn update_yankreg_width(reg: *mut yankreg_T) {
+pub unsafe fn update_yankreg_width(reg: *mut yankreg_T) {
     unsafe {
         if (*reg).y_type == MotionType::kMTBlockWise {
             let mut maxlen: usize = 0;
@@ -496,8 +466,7 @@ pub unsafe extern "C" fn update_yankreg_width(reg: *mut yankreg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_yank_register(regname: c_int, mode: c_int) -> *mut yankreg_T {
+pub unsafe fn get_yank_register(regname: c_int, mode: c_int) -> *mut yankreg_T {
     unsafe {
         let mut reg: *mut yankreg_T = ptr::null_mut();
 
@@ -529,8 +498,7 @@ pub unsafe extern "C" fn get_yank_register(regname: c_int, mode: c_int) -> *mut 
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn yank_register_mline(regname: c_int, reg: *mut *mut yankreg_T) -> bool {
+pub unsafe fn yank_register_mline(regname: c_int, reg: *mut *mut yankreg_T) -> bool {
     unsafe {
         *reg = ptr::null_mut();
         if regname != 0 && !valid_yank_reg(regname, false) {
@@ -544,8 +512,7 @@ pub unsafe extern "C" fn yank_register_mline(regname: c_int, reg: *mut *mut yank
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn copy_register(name: c_int) -> *mut yankreg_T {
+pub unsafe fn copy_register(name: c_int) -> *mut yankreg_T {
     unsafe {
         let reg = get_yank_register(name, YREG_PASTE);
         let copy = xmalloc(size_of::<yankreg_T>()).cast::<yankreg_T>();
@@ -598,8 +565,7 @@ unsafe fn stuff_yank(regname: c_int, p: *mut c_char) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_record(c: c_int) -> c_int {
+pub unsafe fn do_record(c: c_int) -> c_int {
     unsafe {
         let retval: c_int;
 
@@ -770,13 +736,7 @@ unsafe fn execreg_line_continuation(lines: *mut NvimString, idx: *mut usize) -> 
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_execreg(
-    mut regname: c_int,
-    colon: c_int,
-    addcr: c_int,
-    silent: c_int,
-) -> c_int {
+pub unsafe fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent: c_int) -> c_int {
     unsafe {
         let mut retval = OK;
 
@@ -892,12 +852,7 @@ pub unsafe extern "C" fn do_execreg(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn insert_reg(
-    regname: c_int,
-    mut reg: *mut yankreg_T,
-    literally_arg: bool,
-) -> c_int {
+pub unsafe fn insert_reg(regname: c_int, mut reg: *mut yankreg_T, literally_arg: bool) -> c_int {
     unsafe {
         let mut retval = OK;
         let mut allocated = false;
@@ -969,8 +924,7 @@ pub unsafe extern "C" fn insert_reg(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_spec_reg(
+pub unsafe fn get_spec_reg(
     regname: c_int,
     argp: *mut *mut c_char,
     allocated: *mut bool,
@@ -1067,12 +1021,7 @@ pub unsafe extern "C" fn get_spec_reg(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cmdline_paste_reg(
-    regname: c_int,
-    literally_arg: bool,
-    remcr: bool,
-) -> bool {
+pub unsafe fn cmdline_paste_reg(regname: c_int, literally_arg: bool, remcr: bool) -> bool {
     unsafe {
         let literally = literally_arg || is_literal_register(regname);
 
@@ -1097,8 +1046,7 @@ pub unsafe extern "C" fn cmdline_paste_reg(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn shift_delete_registers(y_append: bool) {
+pub unsafe fn shift_delete_registers(y_append: bool) {
     unsafe {
         let regs = (&raw mut y_regs).cast::<yankreg_T>();
         free_register(regs.add(9));
@@ -1114,8 +1062,7 @@ pub unsafe extern "C" fn shift_delete_registers(y_append: bool) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn clear_registers() {
+pub unsafe fn clear_registers() {
     unsafe {
         let regs = (&raw mut y_regs).cast::<yankreg_T>();
         for i in 0..NUM_REGISTERS {
@@ -1124,8 +1071,7 @@ pub unsafe extern "C" fn clear_registers() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn free_register(reg: *mut yankreg_T) {
+pub unsafe fn free_register(reg: *mut yankreg_T) {
     unsafe {
         xfree((*reg).additional_data);
         (*reg).additional_data = ptr::null_mut();
@@ -1175,13 +1121,7 @@ unsafe fn yank_copy_line(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn op_yank_reg(
-    oap: *mut oparg_T,
-    message: bool,
-    mut reg: *mut yankreg_T,
-    append: bool,
-) {
+pub unsafe fn op_yank_reg(oap: *mut oparg_T, message: bool, mut reg: *mut yankreg_T, append: bool) {
     unsafe {
         let mut newreg = EMPTY_YANKREG;
         let orig_motion = match (*oap).motion_type {
@@ -1385,8 +1325,7 @@ pub unsafe extern "C" fn op_yank_reg(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn format_reg_type(
+pub unsafe fn format_reg_type(
     reg_type: MotionType,
     reg_width: colnr_T,
     buf: *mut c_char,
@@ -1437,8 +1376,7 @@ unsafe fn add_regtype_to_dict(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_autocmd_textyankpost(oap: *mut oparg_T, reg: *mut yankreg_T) {
+pub unsafe fn do_autocmd_textyankpost(oap: *mut oparg_T, reg: *mut yankreg_T) {
     unsafe {
         if textyankpost_recursive || !has_event(EVENT_TEXTYANKPOST) {
             return;
@@ -1602,8 +1540,7 @@ unsafe fn put_do_autocmd(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn op_yank(oap: *mut oparg_T, message: bool) -> bool {
+pub unsafe fn op_yank(oap: *mut oparg_T, message: bool) -> bool {
     unsafe {
         if (*oap).regname != 0 && !valid_yank_reg((*oap).regname, true) {
             beep_flush();
@@ -1621,8 +1558,7 @@ pub unsafe extern "C" fn op_yank(oap: *mut oparg_T, message: bool) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_put(
+pub unsafe fn do_put(
     regname: c_int,
     mut reg: *mut yankreg_T,
     mut dir: c_int,
@@ -2576,8 +2512,7 @@ unsafe fn dis_msg(mut p: *const c_char, skip_esc: bool) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_display(eap: *mut exarg_T) {
+pub unsafe fn ex_display(eap: *mut exarg_T) {
     unsafe {
         let mut arg = (*eap).arg;
         if !arg.is_null() && *arg == NUL {
@@ -2731,8 +2666,7 @@ pub unsafe extern "C" fn ex_display(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_reg_type(regname: c_int, reg_width: *mut colnr_T) -> MotionType {
+pub unsafe fn get_reg_type(regname: c_int, reg_width: *mut colnr_T) -> MotionType {
     unsafe {
         if regname == c_int::from(b'%')
             || regname == c_int::from(b'#')
@@ -2775,8 +2709,7 @@ unsafe fn get_reg_wrap_one_line(s: *mut c_char, flags: c_int) -> *mut c_void {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_reg_contents(mut regname: c_int, flags: c_int) -> *mut c_void {
+pub unsafe fn get_reg_contents(mut regname: c_int, flags: c_int) -> *mut c_void {
     unsafe {
         if regname == c_int::from(b'=') {
             if (flags & kGRegNoExpr) != 0 {
@@ -3010,20 +2943,13 @@ unsafe fn finish_write_reg(name: c_int, reg: *mut yankreg_T, old_y_previous: *mu
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn write_reg_contents(
-    name: c_int,
-    str_: *const c_char,
-    len: isize,
-    must_append: c_int,
-) {
+pub unsafe fn write_reg_contents(name: c_int, str_: *const c_char, len: isize, must_append: c_int) {
     unsafe {
         write_reg_contents_ex(name, str_, len, must_append != 0, MotionType::kMTUnknown, 0);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn write_reg_contents_lst(
+pub unsafe fn write_reg_contents_lst(
     name: c_int,
     strings: *mut *mut c_char,
     must_append: bool,
@@ -3062,8 +2988,7 @@ pub unsafe extern "C" fn write_reg_contents_lst(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn write_reg_contents_ex(
+pub unsafe fn write_reg_contents_ex(
     name: c_int,
     str_: *const c_char,
     mut len: isize,
@@ -3140,8 +3065,7 @@ pub unsafe extern "C" fn write_reg_contents_ex(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn prepare_yankreg_from_object(
+pub unsafe fn prepare_yankreg_from_object(
     reg: *mut yankreg_T,
     regtype: NvimString,
     _lines: usize,
@@ -3182,8 +3106,7 @@ pub unsafe extern "C" fn prepare_yankreg_from_object(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn finish_yankreg_from_object(reg: *mut yankreg_T, clipboard_adjust: bool) {
+pub unsafe fn finish_yankreg_from_object(reg: *mut yankreg_T, clipboard_adjust: bool) {
     unsafe {
         if (*reg).y_size > 0 && (*(*reg).y_array.add((*reg).y_size - 1)).size == 0 {
             if (*reg).y_type != MotionType::kMTCharWise {

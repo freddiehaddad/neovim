@@ -20,7 +20,6 @@ use crate::eval::funcs::{HLF_SPB, HLF_SPC, HLF_SPL, HLF_SPR};
 use crate::ex_getln::hlf_T;
 
 /// Check spelling in `str` (`nlua_spell_check`).
-#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> c_int {
     unsafe {
         if lua_gettop(lstate) < 1 {

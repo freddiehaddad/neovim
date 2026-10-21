@@ -139,8 +139,7 @@ pub unsafe extern "C" fn file_open_fd(
 ///
 /// # Safety
 /// `fp` must be a valid writable pointer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn file_open_stdin(fp: *mut FileDescriptor) -> c_int {
+pub unsafe fn file_open_stdin(fp: *mut FileDescriptor) -> c_int {
     let stdin_fd = unsafe { os_open_stdin_fd() };
     unsafe { file_open_fd(fp, stdin_fd, K_FILE_READ_ONLY | K_FILE_NON_BLOCKING) }
 }
@@ -149,12 +148,7 @@ pub unsafe extern "C" fn file_open_stdin(fp: *mut FileDescriptor) -> c_int {
 ///
 /// # Safety
 /// `ret_fp` must be a valid writable pointer, and `data` must be valid for `len` bytes.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn file_open_buffer(
-    ret_fp: *mut FileDescriptor,
-    data: *mut c_char,
-    len: usize,
-) {
+pub unsafe fn file_open_buffer(ret_fp: *mut FileDescriptor, data: *mut c_char, len: usize) {
     let fp = unsafe { &mut *ret_fp };
     fp.wr = false;
     fp.non_blocking = false;
@@ -366,11 +360,7 @@ pub unsafe extern "C" fn file_read(
 ///
 /// # Safety
 /// `fp` must be a valid writable pointer to a `FileDescriptor`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn file_try_read_buffered(
-    fp: *mut FileDescriptor,
-    size: usize,
-) -> *mut c_char {
+pub unsafe fn file_try_read_buffered(fp: *mut FileDescriptor, size: usize) -> *mut c_char {
     let fp = unsafe { &mut *fp };
     if (fp.write_pos as usize).saturating_sub(fp.read_pos as usize) >= size {
         let ret = fp.read_pos;

@@ -1109,7 +1109,6 @@ unsafe extern "C" fn on_parser_progress(state: *mut TSParseState) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn nts_parser_parse_buf(
     p: *mut TSParser,
     old_tree: *const TSTree,
@@ -2466,10 +2465,8 @@ unsafe extern "C-unwind" fn tslua_get_minimum_language_version(L: *mut lua_State
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_treesitter_free() {}
+pub unsafe fn nlua_treesitter_free() {}
 
-#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn nlua_treesitter_init(lstate: *mut lua_State) {
     unsafe {
         tslua_init(lstate);

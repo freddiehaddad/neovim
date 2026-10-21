@@ -811,8 +811,7 @@ unsafe fn get_fileinfo(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buf_get_backup_name(
+pub unsafe fn buf_get_backup_name(
     fname: *mut c_char,
     dirp: *mut *mut c_char,
     no_prepend_dot: bool,
@@ -1092,8 +1091,7 @@ unsafe fn buf_write_make_backup(
 }
 
 /// Write to file `fname` lines `start` through `end`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buf_write(
+pub unsafe fn buf_write(
     mut buf: *mut buf_T,
     mut fname: *mut c_char,
     mut sfname: *mut c_char,

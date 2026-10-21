@@ -2600,11 +2600,7 @@ unsafe fn unibi_from_term(termname: *const c_char) -> Option<UnibiTerm> {
     unibi_from_dirs(UNIBI_TERMINFO_DIRS, term)
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn terminfo_is_term_family(
-    term: *const c_char,
-    family: *const c_char,
-) -> bool {
+pub unsafe fn terminfo_is_term_family(term: *const c_char, family: *const c_char) -> bool {
     if term.is_null() {
         return false;
     }
@@ -2619,8 +2615,7 @@ pub unsafe extern "C" fn terminfo_is_term_family(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn terminfo_is_bsd_console(term: *const c_char) -> bool {
+pub unsafe fn terminfo_is_bsd_console(term: *const c_char) -> bool {
     #[cfg(any(
         target_os = "freebsd",
         target_os = "netbsd",
@@ -2641,8 +2636,7 @@ pub unsafe extern "C" fn terminfo_is_bsd_console(term: *const c_char) -> bool {
     false
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn terminfo_from_builtin(
+pub unsafe fn terminfo_from_builtin(
     term: *const c_char,
     termname: *mut *mut c_char,
 ) -> *const TerminfoEntry {
@@ -2705,8 +2699,7 @@ pub unsafe extern "C" fn terminfo_from_builtin(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn terminfo_from_database(
+pub unsafe fn terminfo_from_database(
     ti: *mut TerminfoEntry,
     termname: *mut c_char,
     arena: *mut Arena,
@@ -2804,8 +2797,7 @@ unsafe fn sb_append_str(data: &mut StringBuilder, s: &str) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn terminfo_info_msg(
+pub unsafe fn terminfo_info_msg(
     ti: *const TerminfoEntry,
     termname: *const c_char,
     from_db: bool,

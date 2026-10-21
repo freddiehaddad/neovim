@@ -43,7 +43,7 @@ jobs:
           git config --global user.name 'marvim'
           git config --global user.email 'marvim@users.noreply.github.com'
 
-      - name: Update src/version.c
+      - name: Update src/nvim/version.rs
         id: update-version
         run: |
           git checkout -b ${VERSION_BRANCH}
@@ -55,7 +55,7 @@ jobs:
         run: |
           git add -u
           TMP_FILE=$(mktemp)
-          printf 'docs: update version.c\n\n' > ${TMP_FILE}
+          printf 'docs: update version.rs\n\n' > ${TMP_FILE}
           bash scripts/vim-patch.sh -n >> ${TMP_FILE}
           git commit -F ${TMP_FILE}
           git push --force https://${GITHUB_ACTOR}:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY} ${VERSION_BRANCH}

@@ -208,8 +208,7 @@ unsafe fn w_lines_at(wp: *mut win_T, idx: usize) -> *mut wline_T {
     unsafe { (*wp).w_lines.cast::<wline_T>().add(idx) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn conceal_check_cursor_line() {
+pub unsafe fn conceal_check_cursor_line() {
     unsafe {
         let should_conceal = conceal_cursor_line(curwin);
         if (*curwin).w_onebuf_opt.wo_cole <= 0 || conceal_cursor_used == should_conceal {
@@ -225,8 +224,7 @@ pub unsafe extern "C" fn conceal_check_cursor_line() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn default_grid_alloc() -> bool {
+pub unsafe fn default_grid_alloc() -> bool {
     unsafe {
         if default_grid_resizing {
             return false;
@@ -261,8 +259,7 @@ pub unsafe extern "C" fn default_grid_alloc() -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn screenclear() {
+pub unsafe fn screenclear() {
     unsafe {
         msg_check_for_delay(false);
 
@@ -328,8 +325,7 @@ unsafe fn cmdline_number_prompt() -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn screen_resize(mut width: c_int, mut height: c_int) {
+pub unsafe fn screen_resize(mut width: c_int, mut height: c_int) {
     unsafe {
         if updating_screen || resizing_screen || cmdline_number_prompt() {
             return;
@@ -459,8 +455,7 @@ pub unsafe extern "C" fn screen_resize(mut width: c_int, mut height: c_int) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_screensize() {
+pub unsafe fn check_screensize() {
     unsafe {
         Rows = Rows.max(min_rows_for_all_tabpages()).min(1000);
         Columns = Columns.clamp(MIN_COLUMNS, 10000);
@@ -472,8 +467,7 @@ pub unsafe extern "C" fn redrawing() -> bool {
     unsafe { RedrawingDisabled == 0 && !(p_lz != 0 && char_avail() && !KeyTyped && !do_redraw) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn update_screen() -> c_int {
+pub unsafe fn update_screen() -> c_int {
     unsafe {
         if still_may_intro && !may_show_intro() {
             redraw_later(firstwin, UPD_NOT_VALID);
@@ -783,8 +777,7 @@ pub unsafe extern "C" fn update_screen() -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn start_search_hl() {
+pub unsafe fn start_search_hl() {
     unsafe {
         if p_hls == 0 || Search.no_hlsearch {
             return;
@@ -796,8 +789,7 @@ pub unsafe extern "C" fn start_search_hl() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn end_search_hl() {
+pub unsafe fn end_search_hl() {
     unsafe {
         if screen_search_hl.rm.regprog.is_null() {
             return;
@@ -808,15 +800,13 @@ pub unsafe extern "C" fn end_search_hl() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn setcursor() {
+pub unsafe fn setcursor() {
     unsafe {
         setcursor_mayforce(curwin, false);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn setcursor_mayforce(wp: *mut win_T, force: bool) {
+pub unsafe fn setcursor_mayforce(wp: *mut win_T, force: bool) {
     unsafe {
         if force || redrawing() {
             validate_cursor(wp);
@@ -838,8 +828,7 @@ pub unsafe extern "C" fn setcursor_mayforce(wp: *mut win_T, force: bool) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn redraw_custom_title_later() -> bool {
+pub unsafe fn redraw_custom_title_later() -> bool {
     unsafe {
         if (p_icon != 0 && (stl_syntax & STL_IN_ICON) != 0)
             || (p_title != 0 && (stl_syntax & STL_IN_TITLE) != 0)
@@ -851,8 +840,7 @@ pub unsafe extern "C" fn redraw_custom_title_later() -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn show_cursor_info_later(force: bool) {
+pub unsafe fn show_cursor_info_later(force: bool) {
     unsafe {
         let state = get_real_state();
         let empty_line = c_int::from(
@@ -906,8 +894,7 @@ pub unsafe extern "C" fn show_cursor_info_later(force: bool) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn skip_showmode() -> bool {
+pub unsafe fn skip_showmode() -> bool {
     unsafe {
         if global_busy != 0 || msg_silent != 0 || !redrawing() || (char_avail() && !KeyTyped) {
             redraw_mode = true;
@@ -917,8 +904,7 @@ pub unsafe extern "C" fn skip_showmode() -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn showmode() -> c_int {
+pub unsafe fn showmode() -> c_int {
     unsafe {
         let mut length: c_int = 0;
 
@@ -1094,8 +1080,7 @@ unsafe fn msg_pos_mode() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn unshowmode(force: bool) {
+pub unsafe fn unshowmode(force: bool) {
     unsafe {
         if !redrawing() || (!force && char_avail() && !KeyTyped) {
             redraw_cmdline = true;
@@ -1105,8 +1090,7 @@ pub unsafe extern "C" fn unshowmode(force: bool) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn clearmode() {
+pub unsafe fn clearmode() {
     unsafe {
         let save_msg_row = msg_row;
         let save_msg_col = msg_col;
@@ -1141,7 +1125,6 @@ unsafe fn recording_mode(hl_id: c_int) {
     }
 }
 
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn comp_col() {
     unsafe {
         let last_has_status = last_stl_height(false) > 0;
@@ -2478,8 +2461,7 @@ unsafe fn win_update(wp: *mut win_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn win_scroll_lines(wp: *mut win_T, row: c_int, line_count: c_int) {
+pub unsafe fn win_scroll_lines(wp: *mut win_T, row: c_int, line_count: c_int) {
     unsafe {
         if !redrawing() || line_count == 0 {
             return;
@@ -2518,8 +2500,7 @@ pub unsafe extern "C" fn win_scroll_lines(wp: *mut win_T, row: c_int, line_count
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn win_draw_end(
+pub unsafe fn win_draw_end(
     wp: *mut win_T,
     c1: schar_T,
     draw_margin: bool,
@@ -2586,8 +2567,7 @@ pub unsafe extern "C" fn win_draw_end(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn compute_foldcolumn(wp: *mut win_T, col: c_int) -> c_int {
+pub unsafe fn compute_foldcolumn(wp: *mut win_T, col: c_int) -> c_int {
     unsafe {
         let fdc = win_fdccol_count(wp);
         let wmw = if ptr::eq(wp, curwin) && p_wmw == 0 {
@@ -2600,8 +2580,7 @@ pub unsafe extern "C" fn compute_foldcolumn(wp: *mut win_T, col: c_int) -> c_int
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn number_width(wp: *mut win_T) -> c_int {
+pub unsafe fn number_width(wp: *mut win_T) -> c_int {
     unsafe {
         let mut lnum = if (*wp).w_onebuf_opt.wo_rnu != 0 && (*wp).w_onebuf_opt.wo_nu == 0 {
             (*wp).w_view_height
@@ -2645,8 +2624,7 @@ pub unsafe extern "C" fn number_width(wp: *mut win_T) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn redraw_later(wp: *mut win_T, type_: c_int) {
+pub unsafe fn redraw_later(wp: *mut win_T, type_: c_int) {
     unsafe {
         assert!(!wp.is_null() || exiting);
         if !exiting && !redraw_not_allowed && (*wp).w_redr_type < type_ {
@@ -2659,8 +2637,7 @@ pub unsafe extern "C" fn redraw_later(wp: *mut win_T, type_: c_int) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn redraw_all_later(type_: c_int) {
+pub unsafe fn redraw_all_later(type_: c_int) {
     unsafe {
         let mut wp = firstwin;
         while !wp.is_null() {
@@ -2671,8 +2648,7 @@ pub unsafe extern "C" fn redraw_all_later(type_: c_int) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_must_redraw(type_: c_int) {
+pub unsafe fn set_must_redraw(type_: c_int) {
     unsafe {
         if !redraw_not_allowed {
             must_redraw = must_redraw.max(type_);
@@ -2680,8 +2656,7 @@ pub unsafe extern "C" fn set_must_redraw(type_: c_int) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn screen_invalidate_highlights() {
+pub unsafe fn screen_invalidate_highlights() {
     unsafe {
         let mut wp = firstwin;
         while !wp.is_null() {
@@ -2692,15 +2667,13 @@ pub unsafe extern "C" fn screen_invalidate_highlights() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn redraw_curbuf_later(type_: c_int) {
+pub unsafe fn redraw_curbuf_later(type_: c_int) {
     unsafe {
         redraw_buf_later(curbuf, type_);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn redraw_buf_later(buf: *mut buf_T, type_: c_int) {
+pub unsafe fn redraw_buf_later(buf: *mut buf_T, type_: c_int) {
     unsafe {
         let mut wp = firstwin;
         while !wp.is_null() {
@@ -2712,8 +2685,7 @@ pub unsafe extern "C" fn redraw_buf_later(buf: *mut buf_T, type_: c_int) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn redraw_buf_line_later(buf: *mut buf_T, line: linenr_T, force: bool) {
+pub unsafe fn redraw_buf_line_later(buf: *mut buf_T, line: linenr_T, force: bool) {
     unsafe {
         let mut wp = firstwin;
         while !wp.is_null() {
@@ -2728,8 +2700,7 @@ pub unsafe extern "C" fn redraw_buf_line_later(buf: *mut buf_T, line: linenr_T, 
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn redraw_win_range_later(wp: *mut win_T, first: linenr_T, last: linenr_T) {
+pub unsafe fn redraw_win_range_later(wp: *mut win_T, first: linenr_T, last: linenr_T) {
     unsafe {
         if last >= (*wp).w_topline && first < (*wp).w_botline {
             if (*wp).w_redraw_top == 0 || (*wp).w_redraw_top > first {
@@ -2743,15 +2714,13 @@ pub unsafe extern "C" fn redraw_win_range_later(wp: *mut win_T, first: linenr_T,
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn redrawWinline(wp: *mut win_T, lnum: linenr_T) {
+pub unsafe fn redrawWinline(wp: *mut win_T, lnum: linenr_T) {
     unsafe {
         redraw_win_range_later(wp, lnum, lnum);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn redraw_buf_range_later(buf: *mut buf_T, first: linenr_T, last: linenr_T) {
+pub unsafe fn redraw_buf_range_later(buf: *mut buf_T, first: linenr_T, last: linenr_T) {
     unsafe {
         let mut wp = firstwin;
         while !wp.is_null() {
@@ -2763,8 +2732,7 @@ pub unsafe extern "C" fn redraw_buf_range_later(buf: *mut buf_T, first: linenr_T
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn redraw_buf_status_later(buf: *mut buf_T) {
+pub unsafe fn redraw_buf_status_later(buf: *mut buf_T) {
     unsafe {
         let mut wp = firstwin;
         while !wp.is_null() {
@@ -2788,8 +2756,7 @@ pub unsafe extern "C" fn redraw_buf_status_later(buf: *mut buf_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn status_redraw_all() {
+pub unsafe fn status_redraw_all() {
     unsafe {
         let is_stl_global = global_stl_height() != 0;
 
@@ -2807,15 +2774,13 @@ pub unsafe extern "C" fn status_redraw_all() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn status_redraw_curbuf() {
+pub unsafe fn status_redraw_curbuf() {
     unsafe {
         status_redraw_buf(curbuf);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn status_redraw_buf(buf: *mut buf_T) {
+pub unsafe fn status_redraw_buf(buf: *mut buf_T) {
     unsafe {
         let is_stl_global = global_stl_height() != 0;
 
@@ -2838,8 +2803,7 @@ pub unsafe extern "C" fn status_redraw_buf(buf: *mut buf_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn redraw_statuslines() {
+pub unsafe fn redraw_statuslines() {
     unsafe {
         let mut wp = firstwin;
         while !wp.is_null() {
@@ -2862,8 +2826,7 @@ pub unsafe extern "C" fn redraw_statuslines() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn win_redraw_last_status(mut frp: *const frame_T) {
+pub unsafe fn win_redraw_last_status(mut frp: *const frame_T) {
     unsafe {
         if (*frp).fr_layout == FR_LEAF {
             (*(*frp).fr_win).w_redr_status = true;
@@ -2884,8 +2847,7 @@ pub unsafe extern "C" fn win_redraw_last_status(mut frp: *const frame_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn conceal_cursor_line(wp: *const win_T) -> bool {
+pub unsafe fn conceal_cursor_line(wp: *const win_T) -> bool {
     unsafe {
         if *(*wp).w_onebuf_opt.wo_cocu == NUL {
             return false;
@@ -2905,16 +2867,14 @@ pub unsafe extern "C" fn conceal_cursor_line(wp: *const win_T) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn win_cursorline_standout(wp: *const win_T) -> bool {
+pub unsafe fn win_cursorline_standout(wp: *const win_T) -> bool {
     unsafe {
         (*wp).w_onebuf_opt.wo_cul != 0
             || (ptr::eq(wp, curwin) && (*wp).w_onebuf_opt.wo_cole > 0 && !conceal_cursor_line(wp))
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn win_update_cursorline(wp: *mut win_T, foldinfo: *mut foldinfo_T) {
+pub unsafe fn win_update_cursorline(wp: *mut win_T, foldinfo: *mut foldinfo_T) {
     unsafe {
         (*wp).w_cursorline = if win_cursorline_standout(wp) {
             (*wp).w_cursor.lnum

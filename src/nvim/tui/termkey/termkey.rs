@@ -33,12 +33,8 @@ use crate::tui::termkey::driver_ti::{
 use std::ffi::{CStr, c_char, c_int, c_uchar, c_void};
 
 pub const TERMKEY_FLAG_NOINTERPRET: c_int = 1 << 0;
-pub const TERMKEY_FLAG_RAW: c_int = 1 << 2;
 pub const TERMKEY_FLAG_UTF8: c_int = 1 << 3;
-pub const TERMKEY_FLAG_NOTERMIOS: c_int = 1 << 4;
 pub const TERMKEY_FLAG_SPACESYMBOL: c_int = 1 << 5;
-pub const TERMKEY_FLAG_CTRLC: c_int = 1 << 6;
-pub const TERMKEY_FLAG_EINTR: c_int = 1 << 7;
 pub const TERMKEY_FLAG_NOSTART: c_int = 1 << 8;
 pub const TERMKEY_FLAG_KEEPC0: c_int = 1 << 9;
 
@@ -523,8 +519,7 @@ pub unsafe extern "C" fn termkey_new_abstract(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn termkey_free(tk: *mut TermKey) {
+pub unsafe fn termkey_free(tk: *mut TermKey) {
     unsafe {
         xfree((*tk).buffer.cast());
         (*tk).buffer = std::ptr::null_mut();
@@ -555,8 +550,7 @@ pub unsafe extern "C" fn termkey_destroy(tk: *mut TermKey) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn termkey_hook_terminfo_getstr(
+pub unsafe fn termkey_hook_terminfo_getstr(
     tk: *mut TermKey,
     hookfn: TermKeyTerminfoGetstrHook,
     data: *mut c_void,
@@ -671,8 +665,7 @@ unsafe fn eat_bytes(tk: *mut TermKey, count: usize) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn fill_utf8(codepoint: c_int, str_out: *mut c_char) -> c_int {
+pub unsafe fn fill_utf8(codepoint: c_int, str_out: *mut c_char) -> c_int {
     unsafe {
         let nbytes = utf_char2bytes(codepoint, str_out);
         *str_out.add(nbytes as usize) = 0;
@@ -745,7 +738,7 @@ unsafe fn parse_utf8(
     }
 }
 
-unsafe extern "C" fn emit_codepoint(tk: *mut TermKey, codepoint: c_int, key: *mut TermKeyKey) {
+unsafe fn emit_codepoint(tk: *mut TermKey, codepoint: c_int, key: *mut TermKeyKey) {
     unsafe {
         if codepoint == 0 {
             (*key).r#type = TERMKEY_TYPE_KEYSYM;
@@ -878,7 +871,7 @@ unsafe fn peekkey(
     }
 }
 
-unsafe extern "C" fn peekkey_simple(
+unsafe fn peekkey_simple(
     tk: *mut TermKey,
     key: *mut TermKeyKey,
     force: c_int,
@@ -965,7 +958,7 @@ unsafe extern "C" fn peekkey_simple(
     }
 }
 
-unsafe extern "C" fn peekkey_mouse(
+unsafe fn peekkey_mouse(
     tk: *mut TermKey,
     key: *mut TermKeyKey,
     nbytep: *mut usize,
@@ -1060,8 +1053,7 @@ pub unsafe extern "C" fn termkey_push_bytes(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn termkey_register_keyname(
+pub unsafe fn termkey_register_keyname(
     tk: *mut TermKey,
     mut sym: TermKeySym,
     name: *const c_char,

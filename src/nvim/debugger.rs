@@ -202,8 +202,7 @@ unsafe fn do_showbacktrace(cmd: *const c_char) {
 }
 
 /// Interactive debug mode loop (`do_debug`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_debug(cmd: *mut c_char) {
+pub unsafe fn do_debug(cmd: *mut c_char) {
     unsafe {
         let save_msg_scroll = msg_scroll;
         let save_state = State;
@@ -427,8 +426,7 @@ pub unsafe extern "C" fn do_debug(cmd: *mut c_char) {
 }
 
 /// `:debug` command (`ex_debug`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_debug(eap: *mut exarg_T) {
+pub unsafe fn ex_debug(eap: *mut exarg_T) {
     unsafe {
         let save = debug_break_level;
         debug_break_level = 9999;
@@ -438,8 +436,7 @@ pub unsafe extern "C" fn ex_debug(eap: *mut exarg_T) {
 }
 
 /// Check if a breakpoint or debug break level was hit (`dbg_check_breakpoint`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn dbg_check_breakpoint(eap: *mut exarg_T) {
+pub unsafe fn dbg_check_breakpoint(eap: *mut exarg_T) {
     unsafe {
         DEBUG_SKIPPED = false;
         let eap = &mut *eap;
@@ -476,8 +473,7 @@ pub unsafe extern "C" fn dbg_check_breakpoint(eap: *mut exarg_T) {
 }
 
 /// Enter debug mode if previously skipped by `dbg_check_breakpoint()` (`dbg_check_skipped`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn dbg_check_skipped(eap: *mut exarg_T) -> bool {
+pub unsafe fn dbg_check_skipped(eap: *mut exarg_T) -> bool {
     unsafe {
         if !DEBUG_SKIPPED {
             return false;
@@ -597,8 +593,7 @@ unsafe fn dbg_parsearg(arg: *mut c_char, gap: *mut garray_T) -> c_int {
 }
 
 /// `:breakadd` (and `:profile` file/func) command (`ex_breakadd`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_breakadd(eap: *mut exarg_T) {
+pub unsafe fn ex_breakadd(eap: *mut exarg_T) {
     unsafe {
         let eap = &*eap;
         let gap = if eap.cmdidx == CMD_PROFILE {
@@ -648,8 +643,7 @@ pub unsafe extern "C" fn ex_breakadd(eap: *mut exarg_T) {
 }
 
 /// `:debuggreedy` command (`ex_debuggreedy`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_debuggreedy(eap: *mut exarg_T) {
+pub unsafe fn ex_debuggreedy(eap: *mut exarg_T) {
     let eap = unsafe { &*eap };
     let greedy = eap.addr_count == 0 || eap.line2 != 0;
     unsafe { DEBUG_GREEDY = greedy };
@@ -670,8 +664,7 @@ unsafe fn update_has_expr_breakpoint() {
 }
 
 /// `:breakdel` and `:profdel` command (`ex_breakdel`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_breakdel(eap: *mut exarg_T) {
+pub unsafe fn ex_breakdel(eap: *mut exarg_T) {
     unsafe {
         let eap = &*eap;
         let mut todel: c_int = -1;
@@ -753,8 +746,7 @@ pub unsafe extern "C" fn ex_breakdel(eap: *mut exarg_T) {
 }
 
 /// `:breaklist` command (`ex_breaklist`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_breaklist(_eap: *mut exarg_T) {
+pub unsafe fn ex_breaklist(_eap: *mut exarg_T) {
     unsafe {
         let gap = std::ptr::addr_of_mut!(DBG_BREAKP);
         if (*gap).ga_len <= 0 {
@@ -887,8 +879,7 @@ unsafe fn debuggy_find(
 }
 
 /// Find a breakpoint for a function or sourced file (`dbg_find_breakpoint`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn dbg_find_breakpoint(file: bool, fname: *mut c_char, after: i32) -> i32 {
+pub unsafe fn dbg_find_breakpoint(file: bool, fname: *mut c_char, after: i32) -> i32 {
     unsafe {
         debuggy_find(
             file,
@@ -901,14 +892,12 @@ pub unsafe extern "C" fn dbg_find_breakpoint(file: bool, fname: *mut c_char, aft
 }
 
 /// Check if profiling is enabled for a function or sourced file (`has_profiling`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn has_profiling(file: bool, fname: *mut c_char, fp: *mut bool) -> bool {
+pub unsafe fn has_profiling(file: bool, fname: *mut c_char, fp: *mut bool) -> bool {
     unsafe { debuggy_find(file, fname, 0, std::ptr::addr_of_mut!(PROF_GA), fp) != 0 }
 }
 
 /// Record that a breakpoint was encountered (`dbg_breakpoint`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn dbg_breakpoint(name: *mut c_char, lnum: i32) {
+pub unsafe fn dbg_breakpoint(name: *mut c_char, lnum: i32) {
     unsafe {
         DEBUG_BREAKPOINT_NAME = name;
     }

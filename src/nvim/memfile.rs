@@ -126,8 +126,7 @@ unsafe fn destroy_map<K, V>(map: *mut Map<K, V>) {
 }
 
 /// Open a new or existing memory block file.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mf_open(fname: *mut c_char, flags: c_int) -> *mut memfile_T {
+pub unsafe fn mf_open(fname: *mut c_char, flags: c_int) -> *mut memfile_T {
     unsafe {
         let mfp = xmalloc(size_of::<memfile_T>()).cast::<memfile_T>();
 
@@ -178,8 +177,7 @@ pub unsafe extern "C" fn mf_open(fname: *mut c_char, flags: c_int) -> *mut memfi
 }
 
 /// Open a file for an existing memfile.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mf_open_file(mfp: *mut memfile_T, fname: *mut c_char) -> c_int {
+pub unsafe fn mf_open_file(mfp: *mut memfile_T, fname: *mut c_char) -> c_int {
     unsafe {
         if mf_do_open(mfp, fname, O_RDWR | O_CREAT | O_EXCL) {
             (*mfp).mf_dirty = MF_DIRTY_YES;
@@ -191,8 +189,7 @@ pub unsafe extern "C" fn mf_open_file(mfp: *mut memfile_T, fname: *mut c_char) -
 }
 
 /// Close a memory file and optionally delete the associated file.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mf_close(mfp: *mut memfile_T, del_file: bool) {
+pub unsafe fn mf_close(mfp: *mut memfile_T, del_file: bool) {
     if mfp.is_null() {
         return;
     }
@@ -219,8 +216,7 @@ pub unsafe extern "C" fn mf_close(mfp: *mut memfile_T, del_file: bool) {
 }
 
 /// Close the swap file for a memfile. Used when 'swapfile' is reset.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mf_close_file(buf: *mut buf_T, getlines: bool) {
+pub unsafe fn mf_close_file(buf: *mut buf_T, getlines: bool) {
     unsafe {
         let mfp = (*buf).b_ml.ml_mfp.cast::<memfile_T>();
         if mfp.is_null() || (*mfp).mf_fd < 0 {
@@ -246,20 +242,14 @@ pub unsafe extern "C" fn mf_close_file(buf: *mut buf_T, getlines: bool) {
 }
 
 /// Set new size for a memfile.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mf_new_page_size(mfp: *mut memfile_T, new_size: c_uint) {
+pub unsafe fn mf_new_page_size(mfp: *mut memfile_T, new_size: c_uint) {
     unsafe {
         (*mfp).mf_page_size = new_size;
     }
 }
 
 /// Get a new block.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mf_new(
-    mfp: *mut memfile_T,
-    negative: bool,
-    page_count: c_uint,
-) -> *mut bhdr_T {
+pub unsafe fn mf_new(mfp: *mut memfile_T, negative: bool, page_count: c_uint) -> *mut bhdr_T {
     unsafe {
         let freep = (*mfp).mf_free_first;
         let hp: *mut bhdr_T =
@@ -305,12 +295,7 @@ pub unsafe extern "C" fn mf_new(
 }
 
 /// Get existing block `nr` with `page_count` pages.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mf_get(
-    mfp: *mut memfile_T,
-    nr: blocknr_T,
-    page_count: c_uint,
-) -> *mut bhdr_T {
+pub unsafe fn mf_get(mfp: *mut memfile_T, nr: blocknr_T, page_count: c_uint) -> *mut bhdr_T {
     unsafe {
         if nr >= (*mfp).mf_blocknr_max || nr <= (*mfp).mf_blocknr_min {
             return ptr::null_mut();
@@ -348,8 +333,7 @@ pub unsafe extern "C" fn mf_get(
 }
 
 /// Release the block `*hp`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mf_put(mfp: *mut memfile_T, hp: *mut bhdr_T, dirty: bool, infile: bool) {
+pub unsafe fn mf_put(mfp: *mut memfile_T, hp: *mut bhdr_T, dirty: bool, infile: bool) {
     unsafe {
         let mut flags = (*hp).bh_flags;
 
@@ -371,8 +355,7 @@ pub unsafe extern "C" fn mf_put(mfp: *mut memfile_T, hp: *mut bhdr_T, dirty: boo
 }
 
 /// Signal block as no longer used (may put it in the free list).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mf_free(mfp: *mut memfile_T, hp: *mut bhdr_T) {
+pub unsafe fn mf_free(mfp: *mut memfile_T, hp: *mut bhdr_T) {
     unsafe {
         xfree((*hp).bh_data);
         let _ = map_del_int64_t_ptr_t(&raw mut (*mfp).mf_hash, (*hp).bh_bnum, ptr::null_mut());
@@ -386,8 +369,7 @@ pub unsafe extern "C" fn mf_free(mfp: *mut memfile_T, hp: *mut bhdr_T) {
 }
 
 /// Sync memory file to disk.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mf_sync(mfp: *mut memfile_T, flags: c_int) -> c_int {
+pub unsafe fn mf_sync(mfp: *mut memfile_T, flags: c_int) -> c_int {
     unsafe {
         let got_int_save = got_int;
 
@@ -453,8 +435,7 @@ pub unsafe extern "C" fn mf_sync(mfp: *mut memfile_T, flags: c_int) -> c_int {
 }
 
 /// Set dirty flag for all blocks in memory file with a positive block number.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mf_set_dirty(mfp: *mut memfile_T) {
+pub unsafe fn mf_set_dirty(mfp: *mut memfile_T) {
     unsafe {
         for i in 0..((*mfp).mf_hash.set.h.n_keys as usize) {
             let hp = (*(*mfp).mf_hash.values.add(i)).cast::<bhdr_T>();
@@ -467,8 +448,7 @@ pub unsafe extern "C" fn mf_set_dirty(mfp: *mut memfile_T) {
 }
 
 /// Release as many blocks as possible.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mf_release_all() -> bool {
+pub unsafe fn mf_release_all() -> bool {
     let mut retval = false;
     unsafe {
         let mut buf = firstbuf;
@@ -680,8 +660,7 @@ unsafe fn mf_trans_add(mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
 }
 
 /// Lookup translation from trans list and delete the entry.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mf_trans_del(mfp: *mut memfile_T, old_nr: blocknr_T) -> blocknr_T {
+pub unsafe fn mf_trans_del(mfp: *mut memfile_T, old_nr: blocknr_T) -> blocknr_T {
     unsafe {
         let num = map_ref_int64_t_int64_t(&raw mut (*mfp).mf_trans, old_nr, ptr::null_mut());
         if num.is_null() {
@@ -698,8 +677,7 @@ pub unsafe extern "C" fn mf_trans_del(mfp: *mut memfile_T, old_nr: blocknr_T) ->
 }
 
 /// Frees `mf_fname` and `mf_ffname`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mf_free_fnames(mfp: *mut memfile_T) {
+pub unsafe fn mf_free_fnames(mfp: *mut memfile_T) {
     unsafe {
         xfree((*mfp).mf_fname.cast());
         (*mfp).mf_fname = ptr::null_mut();
@@ -709,8 +687,7 @@ pub unsafe extern "C" fn mf_free_fnames(mfp: *mut memfile_T) {
 }
 
 /// Set the simple file name and the full file name of memfile's swapfile.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mf_set_fnames(mfp: *mut memfile_T, fname: *mut c_char) {
+pub unsafe fn mf_set_fnames(mfp: *mut memfile_T, fname: *mut c_char) {
     unsafe {
         (*mfp).mf_fname = fname;
         {
@@ -720,8 +697,7 @@ pub unsafe extern "C" fn mf_set_fnames(mfp: *mut memfile_T, fname: *mut c_char) 
 }
 
 /// Make name of memfile's swapfile a full path.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mf_fullname(mfp: *mut memfile_T) {
+pub unsafe fn mf_fullname(mfp: *mut memfile_T) {
     if mfp.is_null() {
         return;
     }
@@ -737,8 +713,7 @@ pub unsafe extern "C" fn mf_fullname(mfp: *mut memfile_T) {
 }
 
 /// Return true if there are any translations pending for memfile.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mf_need_trans(mfp: *mut memfile_T) -> bool {
+pub unsafe fn mf_need_trans(mfp: *mut memfile_T) -> bool {
     unsafe { !(*mfp).mf_fname.is_null() && (*mfp).mf_neg_count > 0 }
 }
 

@@ -5,15 +5,11 @@
 
 use crate::eval::vars::{VV_SEND_SERVER, get_vim_var_str};
 use crate::event::r#loop::{uv_mutex_lock, uv_mutex_unlock, uv_strerror};
-#[cfg(unix)]
-use crate::fileio::fgets;
 use crate::fileio::{EOF, FILE, fclose, fflush, fopen, fprintf, fputc};
 use crate::globals::*;
 use crate::memory::{entered_free_all_mem, xfree, xstrlcpy};
 use crate::message::msg_schedule_semsg;
 use crate::os::env::{expand_env, os_get_pid, os_getenv_buf, os_setenv};
-#[cfg(unix)]
-use crate::os::fs::os_exepath;
 use crate::os::fs::{os_isdir, os_mkdir_recurse};
 use crate::os::stdpaths::{get_xdg_home, stdpaths_user_state_subpath};
 use crate::os::time::{Tm, os_localtime, strftime};
@@ -38,19 +34,13 @@ static mut RECURSIVE: bool = false;
 static mut DID_MSG: bool = false;
 static mut INSTANCE_NAME: [c_char; 32] = [0; 32];
 
-#[unsafe(no_mangle)]
 pub static mut g_min_log_level: c_int = LOGLVL_WRN;
 
 use crate::event::r#loop::{
     UvTimeval64, uv_gettimeofday, uv_mutex_init_recursive, uv_print_all_handles,
 };
-#[cfg(unix)]
-use crate::fileio::{pclose, popen};
 
 unsafe extern "C" {
-    #[cfg(any(target_os = "linux", target_vendor = "apple"))]
-    fn backtrace(buffer: *mut *mut c_void, size: c_int) -> c_int;
-
     #[cfg(windows)]
     fn __acrt_iob_func(ix: u32) -> *mut FILE;
     #[cfg(not(windows))]
@@ -63,8 +53,7 @@ unsafe extern "C" {
     static mut c_stdout: *mut FILE;
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn log_get_stdout() -> *mut FILE {
+pub unsafe fn log_get_stdout() -> *mut FILE {
     #[cfg(windows)]
     unsafe {
         __acrt_iob_func(1)
@@ -75,8 +64,7 @@ pub unsafe extern "C" fn log_get_stdout() -> *mut FILE {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn log_get_stderr() -> *mut FILE {
+pub unsafe fn log_get_stderr() -> *mut FILE {
     #[cfg(windows)]
     unsafe {
         __acrt_iob_func(2)
@@ -87,8 +75,7 @@ pub unsafe extern "C" fn log_get_stderr() -> *mut FILE {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn log_is_std_stream(fp: *mut FILE) -> bool {
+pub unsafe fn log_is_std_stream(fp: *mut FILE) -> bool {
     unsafe { fp == log_get_stderr() || fp == log_get_stdout() }
 }
 
@@ -138,8 +125,6 @@ macro_rules! logmsg {
     }};
 }
 use crate::charset::NUL;
-#[cfg(unix)]
-use crate::globals::IOSIZE;
 use crate::os::fs::MAXPATHL;
 pub use logmsg;
 
@@ -235,8 +220,7 @@ unsafe fn log_path_init() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn log_init() {
+pub unsafe fn log_init() {
     unsafe {
         uv_mutex_init_recursive((&raw mut MUTEX).cast());
         log_path_init();
@@ -244,22 +228,19 @@ pub unsafe extern "C" fn log_init() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn log_lock() {
+pub unsafe fn log_lock() {
     unsafe {
         uv_mutex_lock((&raw mut MUTEX).cast());
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn log_unlock() {
+pub unsafe fn log_unlock() {
     unsafe {
         uv_mutex_unlock((&raw mut MUTEX).cast());
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn log_should_log(log_level: c_int) -> bool {
+pub unsafe fn log_should_log(log_level: c_int) -> bool {
     unsafe {
         if !DID_LOG_INIT {
             g_stats.log_skip += 1;
@@ -269,8 +250,7 @@ pub unsafe extern "C" fn log_should_log(log_level: c_int) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn logmsg_str(
+pub unsafe fn logmsg_str(
     log_level: c_int,
     context: *const c_char,
     func_name: *const c_char,
@@ -333,8 +313,7 @@ pub unsafe extern "C" fn logmsg_str(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn log_uv_handles(loop_: *mut c_void) {
+pub unsafe fn log_uv_handles(loop_: *mut c_void) {
     unsafe {
         log_lock();
         let log_file = open_log_file();
@@ -349,8 +328,7 @@ pub unsafe extern "C" fn log_uv_handles(loop_: *mut c_void) {
 /// Open the log file for appending.
 ///
 /// @return Log file, or `stderr` on failure
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn open_log_file() -> *mut FILE {
+pub unsafe fn open_log_file() -> *mut FILE {
     unsafe {
         let path_ptr = (&raw const LOG_FILE_PATH).cast::<c_char>();
         let mut errnum: c_int = 0;
@@ -382,80 +360,6 @@ pub unsafe extern "C" fn open_log_file() -> *mut FILE {
             msg.as_ptr().cast(),
         );
         stderr
-    }
-}
-
-#[cfg(unix)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn log_callstack_to_file_trace(
-    log_file: *mut FILE,
-    func_name: *const c_char,
-    line_num: c_int,
-    trace: *const *mut c_void,
-    trace_size: c_int,
-) {
-    unsafe {
-        let mut exepath = [0 as c_char; MAXPATHL];
-        let mut exepathlen: usize = MAXPATHL;
-        if os_exepath(exepath.as_mut_ptr(), &raw mut exepathlen) != 0 {
-            std::process::abort();
-        }
-        assert!(24 + exepathlen < IOSIZE);
-
-        let exepath_s = CStr::from_ptr(exepath.as_ptr()).to_str().unwrap_or("");
-        let mut cmdbuf = Vec::with_capacity(IOSIZE + 2000 + MAXPATHL);
-        let _ = write!(cmdbuf, "addr2line -e {exepath_s} -f -p");
-        for i in 1..(trace_size as usize) {
-            let p = *trace.add(i);
-            let _ = write!(cmdbuf, " {p:p}");
-        }
-        cmdbuf.push(0);
-
-        do_log_to_file_str(
-            log_file,
-            LOGLVL_DBG,
-            ptr::null(),
-            func_name,
-            line_num,
-            true,
-            c"trace:".as_ptr(),
-        );
-        let fp = popen(cmdbuf.as_ptr().cast(), c"r".as_ptr());
-        assert!(!fp.is_null());
-        let mut linebuf = [0 as c_char; IOSIZE];
-        while !fgets(linebuf.as_mut_ptr(), (IOSIZE - 1) as c_int, fp).is_null() {
-            fprintf!(log_file, c"  %s".as_ptr(), linebuf.as_ptr());
-        }
-        pclose(fp);
-
-        if !log_is_std_stream(log_file) {
-            fclose(log_file);
-        }
-    }
-}
-
-#[cfg(any(target_os = "linux", target_vendor = "apple"))]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn log_callstack_to_file(
-    log_file: *mut FILE,
-    func_name: *const c_char,
-    line_num: c_int,
-) {
-    unsafe {
-        let mut trace: [*mut c_void; 100] = [ptr::null_mut(); 100];
-        let trace_size = backtrace(trace.as_mut_ptr(), trace.len() as c_int);
-        log_callstack_to_file_trace(log_file, func_name, line_num, trace.as_ptr(), trace_size);
-    }
-}
-
-#[cfg(any(target_os = "linux", target_vendor = "apple"))]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn log_callstack(func_name: *const c_char, line_num: c_int) {
-    unsafe {
-        log_lock();
-        let log_file = open_log_file();
-        log_callstack_to_file(log_file, func_name, line_num);
-        log_unlock();
     }
 }
 

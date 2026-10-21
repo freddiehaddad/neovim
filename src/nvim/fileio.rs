@@ -18,7 +18,9 @@ use crate::buffer_updates::buf_updates_unload;
 use crate::change::{HLF_W, appended_lines_mark, save_file_ff, unchanged};
 #[cfg(windows)]
 use crate::charset::vim_isfilec;
-use crate::charset::{EOL_MAC, ascii_isdigit, ascii_isspace, skipdigits};
+use crate::charset::{EOL_MAC, ascii_isspace};
+#[cfg(test)]
+use crate::charset::{ascii_isdigit, skipdigits};
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::cursor::{check_cursor, check_cursor_lnum, colnr_T, linenr_T, pos_T};
 use crate::dialog::do_dialog;
@@ -235,10 +237,6 @@ unsafe extern "C" {
     pub fn ferror(stream: *mut FILE) -> c_int;
     pub fn feof(stream: *mut FILE) -> c_int;
     #[cfg(unix)]
-    pub fn popen(command: *const c_char, mode: *const c_char) -> *mut FILE;
-    #[cfg(unix)]
-    pub fn pclose(stream: *mut FILE) -> c_int;
-    #[cfg(unix)]
     pub fn tcdrain(fd: c_int) -> c_int;
     #[cfg(unix)]
     pub fn getppid() -> c_int;
@@ -419,20 +417,14 @@ unsafe fn filemess(buf: *mut buf_T, name: *mut c_char, s: *const c_char, msg_id:
 
 /// Shows file `name` before writing it, as a "bufwrite" message with `msg_id`, which buf_write()
 /// replaces when done (or with a progress-message, if slow).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn filemess_bufwrite(
-    buf: *mut buf_T,
-    name: *mut c_char,
-    msg_id: *const c_char,
-) {
+pub unsafe fn filemess_bufwrite(buf: *mut buf_T, name: *mut c_char, msg_id: *const c_char) {
     unsafe {
         filemess(buf, name, c"".as_ptr(), msg_id);
     }
 }
 
 /// If a file read/write is slower than this, emit a progress-message.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn slow_io_ns() -> u64 {
+pub unsafe fn slow_io_ns() -> u64 {
     unsafe {
         if nvim_testing && get_vim_var_nr(VV_TESTING) != 0 {
             0
@@ -470,8 +462,7 @@ unsafe fn readfile_progress(
 }
 
 /// Read lines from file "fname" into the buffer after line "from".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn readfile(
+pub unsafe fn readfile(
     fname: *mut c_char,
     mut sfname: *mut c_char,
     from: linenr_T,
@@ -2312,8 +2303,8 @@ pub unsafe extern "C" fn readfile(
 }
 
 /// Returns true if the file name argument is of the form "/dev/fd/\d\+".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn is_dev_fd_file(fname: *mut c_char) -> bool {
+#[cfg(test)]
+pub unsafe fn is_dev_fd_file(fname: *mut c_char) -> bool {
     unsafe {
         let bytes = CStr::from_ptr(fname).to_bytes();
         bytes.starts_with(b"/dev/fd/")
@@ -2344,8 +2335,7 @@ unsafe fn readfile_linenr(linecnt: linenr_T, p: *mut c_char, endp: *const c_char
 
 /// Fill "*eap" to force the 'fileencoding', 'fileformat' and 'binary' to be
 /// equal to the buffer "buf".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn prep_exarg(eap: *mut exarg_T, buf: *const buf_T) {
+pub unsafe fn prep_exarg(eap: *mut exarg_T, buf: *const buf_T) {
     unsafe {
         let fenc_bytes = CStr::from_ptr((*buf).b_p_fenc).to_bytes();
         let cmd_len = 15 + fenc_bytes.len();
@@ -2369,8 +2359,7 @@ pub unsafe extern "C" fn prep_exarg(eap: *mut exarg_T, buf: *const buf_T) {
 }
 
 /// Set default or forced 'fileformat' and 'binary'.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_file_options(set_options: bool, eap: *mut exarg_T) {
+pub unsafe fn set_file_options(set_options: bool, eap: *mut exarg_T) {
     unsafe {
         if set_options {
             if !eap.is_null() && (*eap).force_ff != 0 {
@@ -2389,8 +2378,7 @@ pub unsafe extern "C" fn set_file_options(set_options: bool, eap: *mut exarg_T) 
 }
 
 /// Set forced 'fileencoding'.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_forced_fenc(eap: *mut exarg_T) {
+pub unsafe fn set_forced_fenc(eap: *mut exarg_T) {
     unsafe {
         if (*eap).force_enc == 0 {
             return;
@@ -2472,8 +2460,7 @@ unsafe fn readfile_charconvert(
 }
 
 /// Set the name of the current buffer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_rw_fname(fname: *mut c_char, sfname: *mut c_char) -> c_int {
+pub unsafe fn set_rw_fname(fname: *mut c_char, sfname: *mut c_char) -> c_int {
     unsafe {
         let buf = curbuf;
 
@@ -2541,8 +2528,7 @@ pub unsafe extern "C" fn set_rw_fname(fname: *mut c_char, sfname: *mut c_char) -
 }
 
 /// Put file name into the specified buffer with quotes.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn add_quoted_fname(
+pub unsafe fn add_quoted_fname(
     ret_buf: *mut c_char,
     bufsize: usize,
     buf: *const buf_T,
@@ -2561,8 +2547,7 @@ pub unsafe extern "C" fn add_quoted_fname(
 }
 
 /// Sets progress-message id of reading/writing file `fname`, e.g. `nvim.bufread "foo.txt"`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn fname_msg_id(
+pub unsafe fn fname_msg_id(
     msg_id: *mut c_char,
     size: usize,
     prefix: *const c_char,
@@ -2585,8 +2570,7 @@ pub unsafe extern "C" fn fname_msg_id(
 }
 
 /// Append message for text mode to IObuff.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn msg_add_fileformat(eol_type: c_int) -> bool {
+pub unsafe fn msg_add_fileformat(eol_type: c_int) -> bool {
     unsafe {
         let iobuf_ptr = (&raw mut IObuff).cast::<c_char>();
         #[cfg(not(windows))]
@@ -2608,8 +2592,7 @@ pub unsafe extern "C" fn msg_add_fileformat(eol_type: c_int) -> bool {
 }
 
 /// Append line and character count to IObuff.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn msg_add_lines(insert_space: c_int, lnum: linenr_T, nchars: off_T) {
+pub unsafe fn msg_add_lines(insert_space: c_int, lnum: linenr_T, nchars: off_T) {
     unsafe {
         let iobuf_ptr = (&raw mut IObuff).cast::<c_char>();
         let mut len = strlen(iobuf_ptr);
@@ -2654,12 +2637,7 @@ pub unsafe extern "C" fn msg_add_lines(insert_space: c_int, lnum: linenr_T, ncha
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn time_differs(
-    file_info: *const FileInfo,
-    mtime: i64,
-    mtime_ns: i64,
-) -> bool {
+pub unsafe fn time_differs(file_info: *const FileInfo, mtime: i64, mtime_ns: i64) -> bool {
     unsafe {
         let sec: i64 = (*file_info).stat.st_mtim.tv_sec as _;
         let nsec: i64 = (*file_info).stat.st_mtim.tv_nsec as _;
@@ -2675,8 +2653,7 @@ pub unsafe extern "C" fn time_differs(
 }
 
 /// Return true if file encoding "fenc" requires conversion from or to 'encoding'.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn need_conversion(fenc: *const c_char) -> bool {
+pub unsafe fn need_conversion(fenc: *const c_char) -> bool {
     unsafe {
         let same_encoding: bool;
         let fenc_flags: c_int;
@@ -2699,8 +2676,7 @@ pub unsafe extern "C" fn need_conversion(fenc: *const c_char) -> bool {
 
 /// Return the FIO_ flags needed for the internal conversion if 'name' was
 /// unicode or latin1, otherwise 0.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_fio_flags(mut name: *const c_char) -> c_int {
+pub unsafe fn get_fio_flags(mut name: *const c_char) -> c_int {
     unsafe {
         if name.is_null() || *name == NUL {
             name = if p_enc.is_null() {
@@ -2797,12 +2773,7 @@ unsafe fn check_for_bom(
 }
 
 /// Shorten filename of a buffer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn shorten_buf_fname(
-    buf: *mut buf_T,
-    dirname: *mut c_char,
-    force: c_int,
-) -> bool {
+pub unsafe fn shorten_buf_fname(buf: *mut buf_T, dirname: *mut c_char, force: c_int) -> bool {
     unsafe {
         if (*buf).b_fname.is_null()
             || bt_nofilename(buf)
@@ -2840,8 +2811,7 @@ pub unsafe extern "C" fn shorten_buf_fname(
 }
 
 /// Shortens filenames for all buffers.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn shorten_fnames(force: c_int) {
+pub unsafe fn shorten_fnames(force: c_int) {
     unsafe {
         let mut dirname: [c_char; MAXPATHL] = [0; MAXPATHL];
         let mut changed = false;
@@ -2861,8 +2831,7 @@ pub unsafe extern "C" fn shorten_fnames(force: c_int) {
 }
 
 /// Get new filename ended by given extension.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn modname(
+pub unsafe fn modname(
     fname: *const c_char,
     ext: *const c_char,
     mut prepend_dot: bool,
@@ -2934,8 +2903,7 @@ pub unsafe extern "C" fn modname(
 
 /// Like fgets(), but if the file line is too long, it is truncated and the
 /// rest of the line is thrown away.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_fgets(buf: *mut c_char, size: c_int, fp: *mut FILE) -> bool {
+pub unsafe fn vim_fgets(buf: *mut c_char, size: c_int, fp: *mut FILE) -> bool {
     unsafe {
         if size < 2 {
             if size == 1 {
@@ -2978,8 +2946,7 @@ pub unsafe extern "C" fn vim_fgets(buf: *mut c_char, size: c_int, fp: *mut FILE)
 }
 
 /// Read 2 bytes from "fd" and turn them into an int, MSB first.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get2c(fd: *mut FILE) -> c_int {
+pub unsafe fn get2c(fd: *mut FILE) -> c_int {
     unsafe {
         let n = fgetc(fd);
         if n == EOF {
@@ -2994,8 +2961,7 @@ pub unsafe extern "C" fn get2c(fd: *mut FILE) -> c_int {
 }
 
 /// Read 3 bytes from "fd" and turn them into an int, MSB first.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get3c(fd: *mut FILE) -> c_int {
+pub unsafe fn get3c(fd: *mut FILE) -> c_int {
     unsafe {
         let mut n = fgetc(fd);
         if n == EOF {
@@ -3015,8 +2981,7 @@ pub unsafe extern "C" fn get3c(fd: *mut FILE) -> c_int {
 }
 
 /// Read 4 bytes from "fd" and turn them into an int, MSB first.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get4c(fd: *mut FILE) -> c_int {
+pub unsafe fn get4c(fd: *mut FILE) -> c_int {
     unsafe {
         let mut c = fgetc(fd);
         if c == EOF {
@@ -3043,8 +3008,7 @@ pub unsafe extern "C" fn get4c(fd: *mut FILE) -> c_int {
 }
 
 /// Read 8 bytes from `fd` and turn them into a time_t, MSB first.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get8ctime(fd: *mut FILE) -> time_t {
+pub unsafe fn get8ctime(fd: *mut FILE) -> time_t {
     unsafe {
         let mut n: time_t = 0;
 
@@ -3060,8 +3024,7 @@ pub unsafe extern "C" fn get8ctime(fd: *mut FILE) -> time_t {
 }
 
 /// Reads a string of length "cnt" from "fd" into allocated memory.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn read_string(fd: *mut FILE, cnt: usize) -> *mut c_char {
+pub unsafe fn read_string(fd: *mut FILE, cnt: usize) -> *mut c_char {
     unsafe {
         let str_ = xmallocz(cnt).cast::<c_char>();
         for i in 0..cnt {
@@ -3077,8 +3040,7 @@ pub unsafe extern "C" fn read_string(fd: *mut FILE, cnt: usize) -> *mut c_char {
 }
 
 /// Writes a number to file "fd", most significant bit first, in "len" bytes.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn put_bytes(fd: *mut FILE, number: u64, len: usize) -> bool {
+pub unsafe fn put_bytes(fd: *mut FILE, number: u64, len: usize) -> bool {
     unsafe {
         debug_assert!(len > 0);
         for i in (0..len).rev() {
@@ -3091,8 +3053,7 @@ pub unsafe extern "C" fn put_bytes(fd: *mut FILE, number: u64, len: usize) -> bo
 }
 
 /// Writes time_t to file "fd" in 8 bytes.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn put_time(fd: *mut FILE, time_: time_t) -> c_int {
+pub unsafe fn put_time(fd: *mut FILE, time_: time_t) -> c_int {
     unsafe {
         let mut buf: [u8; 8] = [0; 8];
         time_to_bytes(time_, buf.as_mut_ptr());
@@ -3144,8 +3105,7 @@ unsafe fn rename_with_tmp(from: *const c_char, to: *const c_char) -> c_int {
 }
 
 /// Rename a file, falling back to copying across filesystems if needed.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_rename(from: *const c_char, to: *const c_char) -> c_int {
+pub unsafe fn vim_rename(from: *const c_char, to: *const c_char) -> c_int {
     unsafe {
         let mut use_tmp_file = false;
 
@@ -3195,8 +3155,7 @@ pub unsafe extern "C" fn vim_rename(from: *const c_char, to: *const c_char) -> c
 }
 
 /// Create the new file with same permissions as the original.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_copyfile(from: *const c_char, to: *const c_char) -> c_int {
+pub unsafe fn vim_copyfile(from: *const c_char, to: *const c_char) -> c_int {
     unsafe {
         #[cfg(not(windows))]
         {
@@ -3227,8 +3186,7 @@ pub unsafe extern "C" fn vim_copyfile(from: *const c_char, to: *const c_char) ->
 }
 
 /// Check if any not hidden buffer has been changed.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_timestamps(focus: c_int) -> c_int {
+pub unsafe fn check_timestamps(focus: c_int) -> c_int {
     unsafe {
         if no_check_timestamps > 0 {
             return 0;
@@ -3317,8 +3275,7 @@ unsafe fn move_lines(frombuf: *mut buf_T, tobuf: *mut buf_T) -> c_int {
 }
 
 /// Check if buffer "buf" has been changed.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
+pub unsafe fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
     unsafe {
         static mut BUSY: bool = false;
 
@@ -3555,8 +3512,7 @@ pub unsafe extern "C" fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
 }
 
 /// Reload a buffer that is already loaded.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
+pub unsafe fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
     unsafe {
         let mut ea: exarg_T = std::mem::zeroed();
         let old_ro = (*buf).b_p_ro;
@@ -3687,8 +3643,7 @@ pub unsafe extern "C" fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_op
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buf_store_file_info(buf: *mut buf_T, file_info: *mut FileInfo) {
+pub unsafe fn buf_store_file_info(buf: *mut buf_T, file_info: *mut FileInfo) {
     unsafe {
         (*buf).b_mtime = (*file_info).stat.st_mtim.tv_sec as _;
         (*buf).b_mtime_ns = (*file_info).stat.st_mtim.tv_nsec as _;
@@ -3698,8 +3653,7 @@ pub unsafe extern "C" fn buf_store_file_info(buf: *mut buf_T, file_info: *mut Fi
 }
 
 /// Adjust the line with missing eol, used for the next write.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn write_lnum_adjust(offset: linenr_T) {
+pub unsafe fn write_lnum_adjust(offset: linenr_T) {
     unsafe {
         if (*curbuf).b_no_eol_lnum != 0 {
             (*curbuf).b_no_eol_lnum += offset;
@@ -3873,8 +3827,7 @@ unsafe fn vim_mktempdir() {
 }
 
 /// Core part of "readdir()" function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn readdir_core(
+pub unsafe fn readdir_core(
     gap: *mut garray_T,
     path: *const c_char,
     context: *mut c_void,
@@ -3926,8 +3879,7 @@ pub unsafe extern "C" fn readdir_core(
 }
 
 /// Delete "name" and everything in it, recursively.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn delete_recursive(name: *const c_char) -> c_int {
+pub unsafe fn delete_recursive(name: *const c_char) -> c_int {
     unsafe {
         let mut result: c_int = 0;
 
@@ -4102,8 +4054,7 @@ pub unsafe extern "C" fn vim_tempname() -> *mut c_char {
 
 /// Tries matching a filename with a "pattern" ("prog" is NULL), or use the
 /// precompiled regprog "prog" ("pattern" is NULL).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn match_file_pat(
+pub unsafe fn match_file_pat(
     pattern: *mut c_char,
     prog: *mut *mut regprog_T,
     fname: *mut c_char,
@@ -4141,12 +4092,7 @@ pub unsafe extern "C" fn match_file_pat(
 }
 
 /// Check if a file matches with a pattern in "list".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn match_file_list(
-    list: *mut c_char,
-    sfname: *mut c_char,
-    ffname: *mut c_char,
-) -> bool {
+pub unsafe fn match_file_list(list: *mut c_char, sfname: *mut c_char, ffname: *mut c_char) -> bool {
     unsafe {
         let tail = path_tail(sfname);
 
@@ -4384,8 +4330,7 @@ pub unsafe extern "C" fn file_pat_to_reg_pat(
 }
 
 /// Version of read() that retries when interrupted by EINTR.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn read_eintr(fd: c_int, buf: *mut c_void, bufsize: usize) -> isize {
+pub unsafe fn read_eintr(fd: c_int, buf: *mut c_void, bufsize: usize) -> isize {
     unsafe {
         loop {
             #[cfg(windows)]
@@ -4400,8 +4345,7 @@ pub unsafe extern "C" fn read_eintr(fd: c_int, buf: *mut c_void, bufsize: usize)
 }
 
 /// Version of write() that retries when interrupted by EINTR.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn write_eintr(fd: c_int, buf: *const c_void, bufsize: usize) -> isize {
+pub unsafe fn write_eintr(fd: c_int, buf: *const c_void, bufsize: usize) -> isize {
     unsafe {
         let mut ret: isize = 0;
 

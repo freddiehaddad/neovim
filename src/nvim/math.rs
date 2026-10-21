@@ -52,8 +52,7 @@ pub const FP_SUBNORMAL: c_int = if cfg!(target_os = "windows") {
 pub const FP_NORMAL: c_int = if cfg!(target_os = "windows") { -1 } else { 4 };
 
 /// Classify a `f64` into platform `<math.h>` `FP_*` categories (`xfpclassify`).
-#[unsafe(no_mangle)]
-pub extern "C" fn xfpclassify(d: f64) -> c_int {
+pub fn xfpclassify(d: f64) -> c_int {
     let bits = d.to_bits();
     let e = (bits >> 52) & 0x7ff;
     let m = bits & 0x000f_ffff_ffff_ffff;

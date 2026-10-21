@@ -44,8 +44,7 @@ pub struct mpack_parser_t {
     pub items: [mpack_node_t; MPACK_MAX_OBJECT_DEPTH + 1],
 }
 
-pub type mpack_walk_cb =
-    Option<unsafe extern "C-unwind" fn(w: *mut mpack_parser_t, n: *mut mpack_node_t)>;
+pub type mpack_walk_cb = Option<unsafe fn(w: *mut mpack_parser_t, n: *mut mpack_node_t)>;
 
 #[inline]
 pub const fn mpack_parser_struct_size(c: mpack_uint32_t) -> usize {
@@ -69,8 +68,7 @@ unsafe fn parser_items_ptr(parser: *mut mpack_parser_t) -> *mut mpack_node_t {
     unsafe { (&raw mut (*parser).items).cast::<mpack_node_t>() }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mpack_parser_init(parser: *mut mpack_parser_t, capacity: mpack_uint32_t) {
+pub unsafe fn mpack_parser_init(parser: *mut mpack_parser_t, capacity: mpack_uint32_t) {
     unsafe {
         mpack_tokbuf_init(&raw mut (*parser).tokbuf);
         (*parser).data.p = ptr::null_mut();
@@ -88,8 +86,7 @@ pub unsafe extern "C" fn mpack_parser_init(parser: *mut mpack_parser_t, capacity
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C-unwind" fn mpack_parse_tok(
+pub unsafe fn mpack_parse_tok(
     parser: *mut mpack_parser_t,
     tok: mpack_token_t,
     enter_cb: mpack_walk_cb,
@@ -137,8 +134,7 @@ pub unsafe extern "C-unwind" fn mpack_parse_tok(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C-unwind" fn mpack_unparse_tok(
+pub unsafe fn mpack_unparse_tok(
     parser: *mut mpack_parser_t,
     tok: *mut mpack_token_t,
     enter_cb: mpack_walk_cb,
@@ -186,8 +182,7 @@ pub unsafe extern "C-unwind" fn mpack_unparse_tok(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C-unwind" fn mpack_parse(
+pub unsafe fn mpack_parse(
     parser: *mut mpack_parser_t,
     buf: *mut *const c_char,
     buflen: *mut usize,
@@ -236,8 +231,7 @@ pub unsafe extern "C-unwind" fn mpack_parse(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C-unwind" fn mpack_unparse(
+pub unsafe fn mpack_unparse(
     parser: *mut mpack_parser_t,
     buf: *mut *mut c_char,
     buflen: *mut usize,
@@ -279,8 +273,7 @@ pub unsafe extern "C-unwind" fn mpack_unparse(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mpack_parser_copy(d: *mut mpack_parser_t, s: *mut mpack_parser_t) {
+pub unsafe fn mpack_parser_copy(d: *mut mpack_parser_t, s: *mut mpack_parser_t) {
     unsafe {
         let dst_capacity = (*d).capacity;
         debug_assert!((*s).capacity <= dst_capacity);

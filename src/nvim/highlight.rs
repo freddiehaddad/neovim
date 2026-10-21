@@ -315,8 +315,7 @@ unsafe fn map_put_color(map: *mut Map<ColorKey, ColorItem>, key: ColorKey, val: 
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn highlight_init() {
+pub unsafe fn highlight_init() {
     unsafe {
         let mut status = MHPutStatus::kMHExisting;
         mh_put_HlEntry(
@@ -333,8 +332,7 @@ pub unsafe extern "C" fn highlight_init() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn highlight_use_hlstate() -> bool {
+pub unsafe fn highlight_use_hlstate() -> bool {
     unsafe {
         if hlstate_active {
             return false;
@@ -393,8 +391,7 @@ unsafe fn get_attr_entry(mut entry: HlEntry) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ui_send_all_hls(ui: *mut RemoteUI) {
+pub unsafe fn ui_send_all_hls(ui: *mut RemoteUI) {
     unsafe {
         for i in 1..(attr_entries.h.size as usize) {
             let mut arena = Arena {
@@ -417,8 +414,7 @@ pub unsafe extern "C" fn ui_send_all_hls(ui: *mut RemoteUI) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hl_get_syn_attr(ns_id: c_int, idx: c_int, at_en: HlAttrs) -> c_int {
+pub unsafe fn hl_get_syn_attr(ns_id: c_int, idx: c_int, at_en: HlAttrs) -> c_int {
     unsafe {
         if at_en.cterm_fg_color != 0
             || at_en.cterm_bg_color != 0
@@ -442,8 +438,7 @@ pub unsafe extern "C" fn hl_get_syn_attr(ns_id: c_int, idx: c_int, at_en: HlAttr
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ns_hl_def(
+pub unsafe fn ns_hl_def(
     ns_id: NS,
     hl_id: c_int,
     attrs: HlAttrs,
@@ -483,13 +478,7 @@ pub unsafe extern "C" fn ns_hl_def(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ns_get_hl(
-    ns_hl: *mut NS,
-    hl_id: c_int,
-    link: bool,
-    nodefault: bool,
-) -> c_int {
+pub unsafe fn ns_get_hl(ns_hl: *mut NS, hl_id: c_int, link: bool, nodefault: bool) -> c_int {
     unsafe {
         if *ns_hl == 0 {
             return -1;
@@ -602,8 +591,7 @@ pub unsafe extern "C" fn ns_get_hl(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hl_check_ns() -> bool {
+pub unsafe fn hl_check_ns() -> bool {
     unsafe {
         let ns = if ns_hl_fast > 0 {
             ns_hl_fast
@@ -629,16 +617,14 @@ pub unsafe extern "C" fn hl_check_ns() -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn win_check_ns_hl(wp: *mut win_T) -> bool {
+pub unsafe fn win_check_ns_hl(wp: *mut win_T) -> bool {
     unsafe {
         ns_hl_win = if !wp.is_null() { (*wp).w_ns_hl } else { -1 };
         hl_check_ns()
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hl_ns_get_attrs(
+pub unsafe fn hl_ns_get_attrs(
     ns_id: c_int,
     hl_id: c_int,
     optional: *mut bool,
@@ -658,8 +644,7 @@ pub unsafe extern "C" fn hl_ns_get_attrs(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hl_get_ui_attr(
+pub unsafe fn hl_get_ui_attr(
     ns_id: c_int,
     idx: c_int,
     final_id: c_int,
@@ -695,8 +680,7 @@ pub unsafe extern "C" fn hl_get_ui_attr(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hl_apply_winblend(winbl: c_int, mut attr: c_int) -> c_int {
+pub unsafe fn hl_apply_winblend(winbl: c_int, mut attr: c_int) -> c_int {
     unsafe {
         let mut entry = *attr_entries.keys.add(attr as usize);
         if entry.attr.hl_blend == -1 && winbl > 0 {
@@ -707,8 +691,7 @@ pub unsafe extern "C" fn hl_apply_winblend(winbl: c_int, mut attr: c_int) -> c_i
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn update_window_hl(wp: *mut win_T, invalid: bool) {
+pub unsafe fn update_window_hl(wp: *mut win_T, invalid: bool) {
     unsafe {
         let ns_id = (*wp).w_ns_hl;
 
@@ -793,8 +776,7 @@ pub unsafe extern "C" fn update_window_hl(wp: *mut win_T, invalid: bool) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn update_ns_hl(ns_id: c_int) {
+pub unsafe fn update_ns_hl(ns_id: c_int) {
     unsafe {
         if ns_id <= 0 {
             return;
@@ -827,8 +809,7 @@ pub unsafe extern "C" fn update_ns_hl(ns_id: c_int) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn win_bg_attr(wp: *mut win_T) -> c_int {
+pub unsafe fn win_bg_attr(wp: *mut win_T) -> c_int {
     unsafe {
         if ns_hl_fast < 0 {
             let local = if ptr::eq(wp, curwin) {
@@ -849,8 +830,7 @@ pub unsafe extern "C" fn win_bg_attr(wp: *mut win_T) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hl_get_underline() -> c_int {
+pub unsafe fn hl_get_underline() -> c_int {
     unsafe {
         let mut attrs = HLATTRS_INIT;
         attrs.cterm_ae_attr = HL_UNDERLINE;
@@ -865,8 +845,7 @@ pub unsafe extern "C" fn hl_get_underline() -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hl_add_url(attr: c_int, url: *const c_char) -> c_int {
+pub unsafe fn hl_add_url(attr: c_int, url: *const c_char) -> c_int {
     unsafe {
         let mut attrs = HLATTRS_INIT;
         let mut status = MHPutStatus::kMHExisting;
@@ -887,16 +866,14 @@ pub unsafe extern "C" fn hl_add_url(attr: c_int, url: *const c_char) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hl_get_url(index: u32) -> *const c_char {
+pub unsafe fn hl_get_url(index: u32) -> *const c_char {
     unsafe {
         assert!(!urls.keys.is_null());
         *urls.keys.add(index as usize)
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hl_add_font_idx(font_name: *const c_char) -> i32 {
+pub unsafe fn hl_add_font_idx(font_name: *const c_char) -> i32 {
     unsafe {
         if font_name.is_null() || *font_name == 0 {
             return -1;
@@ -910,8 +887,7 @@ pub unsafe extern "C" fn hl_add_font_idx(font_name: *const c_char) -> i32 {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hl_get_font(index: i32) -> *const c_char {
+pub unsafe fn hl_get_font(index: i32) -> *const c_char {
     unsafe {
         if index < 0 || fonts.keys.is_null() {
             return ptr::null();
@@ -920,8 +896,7 @@ pub unsafe extern "C" fn hl_get_font(index: i32) -> *const c_char {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hl_get_term_attr(aep: *mut HlAttrs) -> c_int {
+pub unsafe fn hl_get_term_attr(aep: *mut HlAttrs) -> c_int {
     unsafe {
         get_attr_entry(HlEntry {
             attr: *aep,
@@ -933,8 +908,7 @@ pub unsafe extern "C" fn hl_get_term_attr(aep: *mut HlAttrs) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn clear_hl_tables(reinit: bool) {
+pub unsafe fn clear_hl_tables(reinit: bool) {
     unsafe {
         for i in 0..urls.h.n_keys {
             xfree((*urls.keys.add(i as usize)).cast_mut().cast());
@@ -970,8 +944,7 @@ pub unsafe extern "C" fn clear_hl_tables(reinit: bool) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hl_invalidate_blends() {
+pub unsafe fn hl_invalidate_blends() {
     unsafe {
         mh_clear(&raw mut blend_attr_entries.set.h);
         mh_clear(&raw mut blendthrough_attr_entries.set.h);
@@ -988,8 +961,7 @@ const fn hl_combine_ae(char_ae: i32, prim_ae: i32) -> i32 {
     (char_ae & !HL_UNDERLINE_MASK) | (prim_ae & !HL_UNDERLINE_MASK) | new_ul
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hl_combine_attr(char_attr: c_int, prim_attr: c_int) -> c_int {
+pub unsafe fn hl_combine_attr(char_attr: c_int, prim_attr: c_int) -> c_int {
     unsafe {
         if char_attr == 0 {
             return prim_attr;
@@ -1101,12 +1073,7 @@ unsafe fn get_colors_force(mut attrs: HlAttrs) -> HlAttrs {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hl_blend_attrs(
-    back_attr: c_int,
-    front_attr: c_int,
-    through: *mut bool,
-) -> c_int {
+pub unsafe fn hl_blend_attrs(back_attr: c_int, front_attr: c_int, through: *mut bool) -> c_int {
     unsafe {
         if front_attr < 0 || back_attr < 0 {
             return front_attr;
@@ -1264,8 +1231,7 @@ const fn hl_cterm2rgb_color(nr: c_int) -> c_int {
     (r << 16) + (g << 8) + b
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn syn_attr2entry(attr: c_int) -> HlAttrs {
+pub unsafe fn syn_attr2entry(attr: c_int) -> HlAttrs {
     unsafe {
         if attr <= 0 || attr >= attr_entries.h.size as c_int {
             return HLATTRS_INIT;
@@ -1274,8 +1240,7 @@ pub unsafe extern "C" fn syn_attr2entry(attr: c_int) -> HlAttrs {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hl_get_attr_by_id(
+pub unsafe fn hl_get_attr_by_id(
     attr_id: Integer,
     rgb: Boolean,
     arena: *mut Arena,
@@ -1313,8 +1278,7 @@ pub unsafe extern "C" fn hl_get_attr_by_id(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hlattrs2dict(
+pub unsafe fn hlattrs2dict(
     hl: *mut Dict,
     mut hl_attrs: *mut Dict,
     ae: HlAttrs,
@@ -1468,8 +1432,7 @@ const fn apply_cterm_flag(val: bool, mut m: i32, flag: i32) -> i32 {
     m
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn dict2hlattrs(
+pub unsafe fn dict2hlattrs(
     dict: *mut KeyDict_highlight,
     use_rgb: bool,
     link_id: *mut c_int,
@@ -1825,13 +1788,7 @@ pub unsafe extern "C" fn dict2hlattrs(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn object_to_color(
-    val: Object,
-    key: *mut c_char,
-    rgb: bool,
-    err: *mut Error,
-) -> c_int {
+pub unsafe fn object_to_color(val: Object, key: *mut c_char, rgb: bool, err: *mut Error) -> c_int {
     unsafe {
         if val.obj_type == ObjectType::kObjectTypeInteger {
             val.data.integer as c_int
@@ -1858,8 +1815,7 @@ pub unsafe extern "C" fn object_to_color(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hl_inspect(attr: c_int, arena: *mut Arena) -> Array {
+pub unsafe fn hl_inspect(attr: c_int, arena: *mut Arena) -> Array {
     unsafe {
         if !hlstate_active {
             return Array {

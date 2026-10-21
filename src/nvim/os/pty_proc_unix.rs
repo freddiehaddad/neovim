@@ -12,12 +12,14 @@ use crate::log::logmsg;
 use crate::os::fs::{os_errno, os_set_cloexec};
 #[cfg(unix)]
 use crate::strings::strerror;
+#[cfg(any(unix, test))]
+use std::ffi::c_int;
 #[cfg(unix)]
-use std::ffi::{c_char, c_ulong};
-use std::ffi::{c_int, c_ushort};
+use std::ffi::{c_char, c_ulong, c_ushort};
 #[cfg(unix)]
 use std::ptr;
 
+#[cfg(unix)]
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct winsize {
@@ -27,31 +29,37 @@ pub struct winsize {
     pub ws_ypixel: c_ushort,
 }
 
+#[cfg(any(unix, test))]
 #[inline]
 pub const fn wifstopped(stat: c_int) -> bool {
     (stat & 0xff) == 0x7f
 }
 
+#[cfg(any(unix, test))]
 #[inline]
 pub const fn wifcontinued(stat: c_int) -> bool {
     stat == 0xffff
 }
 
+#[cfg(any(unix, test))]
 #[inline]
 pub const fn wifexited(stat: c_int) -> bool {
     (stat & 0x7f) == 0
 }
 
+#[cfg(any(unix, test))]
 #[inline]
 pub const fn wexitstatus(stat: c_int) -> c_int {
     (stat >> 8) & 0xff
 }
 
+#[cfg(any(unix, test))]
 #[inline]
 pub const fn wifsignaled(stat: c_int) -> bool {
     (((stat & 0x7f) + 1) as i8 >> 1) > 0
 }
 
+#[cfg(any(unix, test))]
 #[inline]
 pub const fn wtermsig(stat: c_int) -> c_int {
     stat & 0x7f
@@ -272,8 +280,7 @@ mod unix_impl {
     }
 
     /// @returns zero on success, or negative error code
-    #[unsafe(no_mangle)]
-    pub unsafe extern "C" fn pty_proc_spawn(ptyproc: *mut PtyProc) -> c_int {
+    pub unsafe fn pty_proc_spawn(ptyproc: *mut PtyProc) -> c_int {
         unsafe {
             if termios_default.c_cflag == 0 {
                 init_termios(&raw mut termios_default);
@@ -394,16 +401,14 @@ mod unix_impl {
         }
     }
 
-    #[unsafe(no_mangle)]
-    pub unsafe extern "C" fn pty_proc_tty_name(ptyproc: *mut PtyProc) -> *const c_char {
+    pub unsafe fn pty_proc_tty_name(ptyproc: *mut PtyProc) -> *const c_char {
         unsafe {
             let ptail = pty_proc_unix_tail(ptyproc);
             ptsname((*ptail).tty_fd)
         }
     }
 
-    #[unsafe(no_mangle)]
-    pub unsafe extern "C" fn pty_proc_resize(ptyproc: *mut PtyProc, width: u16, height: u16) {
+    pub unsafe fn pty_proc_resize(ptyproc: *mut PtyProc, width: u16, height: u16) {
         unsafe {
             let ptail = pty_proc_unix_tail(ptyproc);
             (*ptail).winsize = winsize {
@@ -416,16 +421,14 @@ mod unix_impl {
         }
     }
 
-    #[unsafe(no_mangle)]
-    pub unsafe extern "C" fn pty_proc_resume(ptyproc: *mut PtyProc) {
+    pub unsafe fn pty_proc_resume(ptyproc: *mut PtyProc) {
         unsafe {
             let hdr = proc_header(ptyproc.cast());
             killpg((*hdr).pid, SIGCONT);
         }
     }
 
-    #[unsafe(no_mangle)]
-    pub unsafe extern "C" fn pty_proc_flush_master(ptyproc: *mut PtyProc) {
+    pub unsafe fn pty_proc_flush_master(ptyproc: *mut PtyProc) {
         #[cfg(target_os = "linux")]
         unsafe {
             let ptail = pty_proc_unix_tail(ptyproc);
@@ -445,8 +448,7 @@ mod unix_impl {
         let _ = ptyproc;
     }
 
-    #[unsafe(no_mangle)]
-    pub unsafe extern "C" fn pty_proc_close(ptyproc: *mut PtyProc) {
+    pub unsafe fn pty_proc_close(ptyproc: *mut PtyProc) {
         unsafe {
             pty_proc_close_master(ptyproc);
             let proc_: *mut Proc = ptyproc.cast();
@@ -457,8 +459,7 @@ mod unix_impl {
         }
     }
 
-    #[unsafe(no_mangle)]
-    pub unsafe extern "C" fn pty_proc_close_master(ptyproc: *mut PtyProc) {
+    pub unsafe fn pty_proc_close_master(ptyproc: *mut PtyProc) {
         unsafe {
             let ptail = pty_proc_unix_tail(ptyproc);
             if (*ptail).tty_fd >= 0 {
@@ -468,8 +469,7 @@ mod unix_impl {
         }
     }
 
-    #[unsafe(no_mangle)]
-    pub unsafe extern "C" fn pty_proc_teardown(loop_: *mut Loop) {
+    pub unsafe fn pty_proc_teardown(loop_: *mut Loop) {
         unsafe {
             uv_signal_stop(loop_children_watcher(loop_));
         }

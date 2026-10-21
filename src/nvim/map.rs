@@ -295,8 +295,7 @@ const fn roundup32(mut x: u32) -> u32 {
 ///
 /// # Safety
 /// `h` must be a valid writable pointer to a `MapHash`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mh_realloc(h: *mut MapHash, n_min_buckets: u32) {
+pub unsafe fn mh_realloc(h: *mut MapHash, n_min_buckets: u32) {
     let h = unsafe { &mut *h };
     unsafe {
         xfree(h.hash.cast::<c_void>());
@@ -313,8 +312,7 @@ pub unsafe extern "C" fn mh_realloc(h: *mut MapHash, n_min_buckets: u32) {
 ///
 /// # Safety
 /// `h` must be a valid writable pointer to a `MapHash`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mh_clear(h: *mut MapHash) {
+pub unsafe fn mh_clear(h: *mut MapHash) {
     let h = unsafe { &mut *h };
     if !h.hash.is_null() {
         unsafe {
@@ -1047,20 +1045,6 @@ impl_c_map!(
     map_del_ColorKey_ColorItem,
     INIT_COLOR_ITEM
 );
-
-/// Delete a key:value pair from a `PMap(cstr_t)` and free both key and value (`pmap_del2`).
-///
-/// # Safety
-/// `map` and `key` must be valid pointers, and the stored key and value must be `xfree`-able.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn pmap_del2(map: *mut Map<cstr_t, ptr_t>, key: *const c_char) {
-    let mut key_alloc: cstr_t = std::ptr::null();
-    let val = unsafe { map_del_cstr_t_ptr_t(map, key, &mut key_alloc) };
-    unsafe {
-        xfree(key_alloc.cast_mut().cast::<c_void>());
-        xfree(val);
-    }
-}
 
 #[cfg(test)]
 mod tests {

@@ -26,9 +26,8 @@ use crate::normal::reset_VIsual_and_resel;
 use crate::option_vars::*;
 use crate::os::input::os_breakcheck;
 use crate::path::{
-    EW_ADDSLASH, EW_DIR, EW_FILE, EW_NOERROR, EW_NOTFOUND, EW_NOTWILD, FreeWild, FullName_save,
-    expand_wildcards, fix_fname, gen_expand_wildcards, kPathCmpExpand, kPathCmpFull,
-    kPathCmpLiteral, path_equal,
+    EW_ADDSLASH, EW_DIR, EW_FILE, EW_NOTFOUND, EW_NOTWILD, FullName_save, expand_wildcards,
+    fix_fname, gen_expand_wildcards, kPathCmpExpand, kPathCmpFull, kPathCmpLiteral, path_equal,
 };
 use crate::regexp::{RE_MAGIC, regmatch_T, vim_regcomp, vim_regexec, vim_regfree};
 use crate::strings::gettext;
@@ -147,8 +146,7 @@ unsafe fn check_arglist_locked() -> c_int {
 }
 
 /// Clear an argument list: free all file names and reset it to zero entries (`alist_clear`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn alist_clear(al: *mut alist_T) {
+pub unsafe fn alist_clear(al: *mut alist_T) {
     unsafe {
         if check_arglist_locked() == FAIL {
             return;
@@ -162,16 +160,14 @@ pub unsafe extern "C" fn alist_clear(al: *mut alist_T) {
 }
 
 /// Init an argument list (`alist_init`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn alist_init(al: *mut alist_T) {
+pub unsafe fn alist_init(al: *mut alist_T) {
     unsafe {
         ga_init(&raw mut (*al).al_ga, size_of::<aentry_T>() as c_int, 5);
     }
 }
 
 /// Remove a reference from an argument list (`alist_unlink`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn alist_unlink(al: *mut alist_T) {
+pub unsafe fn alist_unlink(al: *mut alist_T) {
     unsafe {
         if !ptr::eq(al, &raw const global_alist) {
             (*al).al_refcount -= 1;
@@ -184,8 +180,7 @@ pub unsafe extern "C" fn alist_unlink(al: *mut alist_T) {
 }
 
 /// Create a new argument list and use it for the current window (`alist_new`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn alist_new() {
+pub unsafe fn alist_new() {
     unsafe {
         let al: *mut alist_T = xmalloc(size_of::<alist_T>()).cast();
         (*al).al_refcount = 1;
@@ -196,47 +191,8 @@ pub unsafe extern "C" fn alist_new() {
     }
 }
 
-/// Expand the file names in the global argument list (`alist_expand`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn alist_expand(fnum_list: *mut c_int, fnum_len: c_int) {
-    unsafe {
-        let save_p_su = p_su;
-        let old_arg_count = gargcount();
-        let old_arg_files: *mut *mut c_char =
-            xmalloc(size_of::<*mut c_char>() * (old_arg_count as usize)).cast();
-
-        p_su = (&raw mut empty_string_option).cast();
-        for i in 0..(old_arg_count as usize) {
-            *old_arg_files.add(i) = xstrdup((*garglist().add(i)).ae_fname);
-        }
-        let mut new_arg_files: *mut *mut c_char = ptr::null_mut();
-        let mut new_arg_file_count: c_int = 0;
-        if expand_wildcards(
-            old_arg_count,
-            old_arg_files,
-            &raw mut new_arg_file_count,
-            &raw mut new_arg_files,
-            EW_FILE | EW_NOTFOUND | EW_ADDSLASH | EW_NOERROR,
-        ) == OK
-            && new_arg_file_count > 0
-        {
-            alist_set(
-                &raw mut global_alist,
-                new_arg_file_count,
-                new_arg_files,
-                1,
-                fnum_list,
-                fnum_len,
-            );
-            FreeWild(old_arg_count, old_arg_files);
-        }
-        p_su = save_p_su;
-    }
-}
-
 /// Set the argument list for the current window (`alist_set`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn alist_set(
+pub unsafe fn alist_set(
     al: *mut alist_T,
     count: c_int,
     files: *mut *mut c_char,
@@ -284,8 +240,7 @@ pub unsafe extern "C" fn alist_set(
 }
 
 /// Add file `fname` to argument list `al` (`alist_add`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn alist_add(al: *mut alist_T, fname: *mut c_char, set_fnum: c_int) {
+pub unsafe fn alist_add(al: *mut alist_T, fname: *mut c_char, set_fnum: c_int) {
     unsafe {
         let wp = curwin;
         if fname.is_null() {
@@ -360,8 +315,7 @@ unsafe fn get_arglist(gap: *mut garray_T, mut str_: *mut c_char, escaped: bool) 
 }
 
 /// Parse a list of arguments (file names), expand them and return in `fnames[fcountp]` (`get_arglist_exp`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_arglist_exp(
+pub unsafe fn get_arglist_exp(
     str_: *mut c_char,
     fcountp: *mut c_int,
     fnamesp: *mut *mut *mut c_char,
@@ -562,16 +516,14 @@ unsafe fn do_arglist(mut str_: *mut c_char, what: c_int, after: c_int, will_edit
 }
 
 /// Redefine the argument list (`set_arglist`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_arglist(str_: *mut c_char) {
+pub unsafe fn set_arglist(str_: *mut c_char) {
     unsafe {
         do_arglist(str_, AL_SET, 0, true);
     }
 }
 
 /// Return true if window `win` is editing the file at the current argument index (`editing_arg_idx`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn editing_arg_idx(win: *mut win_T) -> bool {
+pub unsafe fn editing_arg_idx(win: *mut win_T) -> bool {
     unsafe {
         let idx = (*win).w_arg_idx;
         if idx >= wargcount(win) {
@@ -587,8 +539,7 @@ pub unsafe extern "C" fn editing_arg_idx(win: *mut win_T) -> bool {
 }
 
 /// Check if window `win` is editing the `w_arg_idx` file in its argument list (`check_arg_idx`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_arg_idx(win: *mut win_T) {
+pub unsafe fn check_arg_idx(win: *mut win_T) {
     unsafe {
         let wcount = wargcount(win);
         if wcount > 1 && !editing_arg_idx(win) {
@@ -623,8 +574,7 @@ pub unsafe extern "C" fn check_arg_idx(win: *mut win_T) {
 }
 
 /// `:args`, `:arglocal` and `:argglobal` (`ex_args`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_args(eap: *mut exarg_T) {
+pub unsafe fn ex_args(eap: *mut exarg_T) {
     unsafe {
         if (*eap).cmdidx != CMD_args {
             if check_arglist_locked() == FAIL {
@@ -685,8 +635,7 @@ pub unsafe extern "C" fn ex_args(eap: *mut exarg_T) {
 }
 
 /// `:previous`, `:sprevious`, `:Next` and `:sNext` (`ex_previous`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_previous(eap: *mut exarg_T) {
+pub unsafe fn ex_previous(eap: *mut exarg_T) {
     unsafe {
         let count = argcount();
         let target = if (*curwin).w_arg_idx - (*eap).line2 >= count {
@@ -699,24 +648,21 @@ pub unsafe extern "C" fn ex_previous(eap: *mut exarg_T) {
 }
 
 /// `:rewind`, `:first`, `:sfirst` and `:srewind` (`ex_rewind`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_rewind(eap: *mut exarg_T) {
+pub unsafe fn ex_rewind(eap: *mut exarg_T) {
     unsafe {
         do_argfile(eap, 0);
     }
 }
 
 /// `:last` and `:slast` (`ex_last`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_last(eap: *mut exarg_T) {
+pub unsafe fn ex_last(eap: *mut exarg_T) {
     unsafe {
         do_argfile(eap, argcount() - 1);
     }
 }
 
 /// `:argument` and `:sargument` (`ex_argument`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_argument(eap: *mut exarg_T) {
+pub unsafe fn ex_argument(eap: *mut exarg_T) {
     unsafe {
         let i = if (*eap).addr_count > 0 {
             (*eap).line2 - 1
@@ -728,8 +674,7 @@ pub unsafe extern "C" fn ex_argument(eap: *mut exarg_T) {
 }
 
 /// Edit file `argn` of the argument lists (`do_argfile`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_argfile(eap: *mut exarg_T, argn: c_int) {
+pub unsafe fn do_argfile(eap: *mut exarg_T, argn: c_int) {
     unsafe {
         let is_split_cmd = *(*eap).cmd == b's' as c_char;
         let old_arg_idx = (*curwin).w_arg_idx;
@@ -808,8 +753,7 @@ pub unsafe extern "C" fn do_argfile(eap: *mut exarg_T, argn: c_int) {
 }
 
 /// `:next`, and commands that behave like it (`ex_next`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_next(eap: *mut exarg_T) {
+pub unsafe fn ex_next(eap: *mut exarg_T) {
     unsafe {
         if buf_hide(curbuf)
             || (*eap).cmdidx == CMD_snext
@@ -832,8 +776,7 @@ pub unsafe extern "C" fn ex_next(eap: *mut exarg_T) {
 }
 
 /// `:argdedupe` (`ex_argdedupe`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_argdedupe(_eap: *mut exarg_T) {
+pub unsafe fn ex_argdedupe(_eap: *mut exarg_T) {
     unsafe {
         let mut i: c_int = 0;
         while i < argcount() {
@@ -874,8 +817,7 @@ pub unsafe extern "C" fn ex_argdedupe(_eap: *mut exarg_T) {
 }
 
 /// `:argedit` (`ex_argedit`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_argedit(eap: *mut exarg_T) {
+pub unsafe fn ex_argedit(eap: *mut exarg_T) {
     unsafe {
         let mut i = if (*eap).addr_count != 0 {
             (*eap).line2
@@ -902,8 +844,7 @@ pub unsafe extern "C" fn ex_argedit(eap: *mut exarg_T) {
 }
 
 /// `:argadd` (`ex_argadd`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_argadd(eap: *mut exarg_T) {
+pub unsafe fn ex_argadd(eap: *mut exarg_T) {
     unsafe {
         do_arglist(
             (*eap).arg,
@@ -920,8 +861,7 @@ pub unsafe extern "C" fn ex_argadd(eap: *mut exarg_T) {
 }
 
 /// `:argdelete` (`ex_argdelete`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_argdelete(eap: *mut exarg_T) {
+pub unsafe fn ex_argdelete(eap: *mut exarg_T) {
     unsafe {
         if check_arglist_locked() == FAIL {
             return;
@@ -982,8 +922,7 @@ pub unsafe extern "C" fn ex_argdelete(eap: *mut exarg_T) {
 }
 
 /// Obtain the possible arguments of the `argedit` and `argdelete` commands (`get_arglist_name`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_arglist_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_arglist_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx >= argcount() {
             return ptr::null_mut();
@@ -993,8 +932,7 @@ pub unsafe extern "C" fn get_arglist_name(_xp: *mut expand_T, idx: c_int) -> *mu
 }
 
 /// Get the file name for an argument list entry (`alist_name`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn alist_name(aep: *mut aentry_T) -> *mut c_char {
+pub unsafe fn alist_name(aep: *mut aentry_T) -> *mut c_char {
     unsafe {
         let bp = buflist_findnr((*aep).ae_fnum);
         if bp.is_null() || (*bp).b_fname.is_null() {
@@ -1315,8 +1253,7 @@ unsafe fn do_arg_all(mut count: c_int, forceit: c_int, keep_tabs: bool) {
 }
 
 /// `:all` and `:sall` (`ex_all`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_all(eap: *mut exarg_T) {
+pub unsafe fn ex_all(eap: *mut exarg_T) {
     unsafe {
         if (*eap).addr_count == 0 {
             (*eap).line2 = 9999;
@@ -1326,8 +1263,7 @@ pub unsafe extern "C" fn ex_all(eap: *mut exarg_T) {
 }
 
 /// Concatenate all files in the argument list, separated by spaces (`arg_all`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn arg_all() -> *mut c_char {
+pub unsafe fn arg_all() -> *mut c_char {
     unsafe {
         let mut retval: *mut c_char = ptr::null_mut();
 
@@ -1375,8 +1311,7 @@ pub unsafe extern "C" fn arg_all() -> *mut c_char {
 }
 
 /// `argc([window id])` function (`f_argc`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_argc(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_argc(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if (*argvars).v_type == VarType::VAR_UNKNOWN {
             (*rettv).vval.v_number = argcount() as varnumber_T;
@@ -1394,24 +1329,14 @@ pub unsafe extern "C" fn f_argc(argvars: *mut typval_T, rettv: *mut typval_T, _f
 }
 
 /// `argidx()` function (`f_argidx`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_argidx(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_argidx(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = (*curwin).w_arg_idx as varnumber_T;
     }
 }
 
 /// `arglistid()` function (`f_arglistid`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_arglistid(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_arglistid(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = -1;
         let wp = find_tabwin(argvars, argvars.add(1));
@@ -1433,8 +1358,7 @@ unsafe fn get_arglist_as_rettv(arglist_ptr: *mut aentry_T, count: c_int, rettv: 
 }
 
 /// `argv(nr)` function (`f_argv`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_argv(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_argv(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut al_ptr: *mut aentry_T = ptr::null_mut();
         let mut count: c_int = -1;

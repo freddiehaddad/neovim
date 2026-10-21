@@ -349,8 +349,7 @@ unsafe fn match_delete(wp: *mut win_T, id: c_int, perr: bool) -> c_int {
 }
 
 /// Delete all matches in the match list of window `wp` (`clear_matches`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn clear_matches(wp: *mut win_T) {
+pub unsafe fn clear_matches(wp: *mut win_T) {
     unsafe {
         while !(*wp).w_match_head.is_null() {
             let head = (*wp).w_match_head.cast::<matchitem_T>();
@@ -377,8 +376,7 @@ unsafe fn get_match(wp: *mut win_T, id: c_int) -> *mut matchitem_T {
 }
 
 /// Init for calling `prepare_search_hl()` (`init_search_hl`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn init_search_hl(wp: *mut win_T, search_hl: *mut match_T) {
+pub unsafe fn init_search_hl(wp: *mut win_T, search_hl: *mut match_T) {
     unsafe {
         let mut cur = (*wp).w_match_head.cast::<matchitem_T>();
         while !cur.is_null() {
@@ -558,12 +556,7 @@ unsafe fn next_search_hl(
 }
 
 /// Advance to the match in window `wp` line `lnum` or past it (`prepare_search_hl`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn prepare_search_hl(
-    wp: *mut win_T,
-    search_hl: *mut match_T,
-    lnum: linenr_T,
-) {
+pub unsafe fn prepare_search_hl(wp: *mut win_T, search_hl: *mut match_T, lnum: linenr_T) {
     unsafe {
         let mut cur = (*wp).w_match_head.cast::<matchitem_T>();
         let mut shl: *mut match_T;
@@ -641,8 +634,7 @@ unsafe fn check_cur_search_hl(wp: *mut win_T, shl: *mut match_T) {
 }
 
 /// Prepare for `'hlsearch'` and match highlighting in one window line (`prepare_search_hl_line`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn prepare_search_hl_line(
+pub unsafe fn prepare_search_hl_line(
     wp: *mut win_T,
     lnum: linenr_T,
     mincol: colnr_T,
@@ -729,8 +721,7 @@ pub unsafe extern "C" fn prepare_search_hl_line(
 }
 
 /// For a position in a line: Check for start/end of `'hlsearch'` and other matches (`update_search_hl`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn update_search_hl(
+pub unsafe fn update_search_hl(
     wp: *mut win_T,
     lnum: linenr_T,
     col: colnr_T,
@@ -857,8 +848,7 @@ pub unsafe extern "C" fn update_search_hl(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_prevcol_hl_flag(
+pub unsafe fn get_prevcol_hl_flag(
     wp: *mut win_T,
     search_hl: *mut match_T,
     curcol: colnr_T,
@@ -895,8 +885,7 @@ pub unsafe extern "C" fn get_prevcol_hl_flag(
 }
 
 /// Get highlighting for the char after the text in `char_attr` (`get_search_match_hl`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_search_match_hl(
+pub unsafe fn get_search_match_hl(
     wp: *mut win_T,
     search_hl: *mut match_T,
     col: colnr_T,
@@ -956,12 +945,7 @@ unsafe fn matchadd_dict_arg(
 }
 
 /// `clearmatches()` function (`f_clearmatches`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_clearmatches(
-    argvars: *mut typval_T,
-    _rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_clearmatches(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let win = get_optional_window(argvars, 0);
         if !win.is_null() {
@@ -971,12 +955,7 @@ pub unsafe extern "C" fn f_clearmatches(
 }
 
 /// `getmatches()` function (`f_getmatches`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getmatches(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_getmatches(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let win = get_optional_window(argvars, 0);
 
@@ -1030,12 +1009,7 @@ pub unsafe extern "C" fn f_getmatches(
 }
 
 /// `setmatches()` function (`f_setmatches`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_setmatches(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_setmatches(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut s: *mut list_T = ptr::null_mut();
         let win = get_optional_window(argvars, 1);
@@ -1141,12 +1115,7 @@ pub unsafe extern "C" fn f_setmatches(
 }
 
 /// `matchadd()` function (`f_matchadd`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_matchadd(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_matchadd(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut grpbuf = [0 as c_char; NUMBUFLEN];
         let mut patbuf = [0 as c_char; NUMBUFLEN];
@@ -1192,12 +1161,7 @@ pub unsafe extern "C" fn f_matchadd(
 }
 
 /// `matchaddpos()` function (`f_matchaddpos`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_matchaddpos(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_matchaddpos(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = -1;
 
@@ -1256,12 +1220,7 @@ pub unsafe extern "C" fn f_matchaddpos(
 }
 
 /// `matcharg()` function (`f_matcharg`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_matcharg(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_matcharg(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let id = tv_get_number(argvars) as c_int;
 
@@ -1281,12 +1240,7 @@ pub unsafe extern "C" fn f_matcharg(
 }
 
 /// `matchdelete()` function (`f_matchdelete`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_matchdelete(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_matchdelete(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let win = get_optional_window(argvars, 1);
         (*rettv).vval.v_number = if win.is_null() {
@@ -1298,8 +1252,7 @@ pub unsafe extern "C" fn f_matchdelete(
 }
 
 /// `:[N]match {group} {pattern}` (`ex_match`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_match(eap: *mut exarg_T) {
+pub unsafe fn ex_match(eap: *mut exarg_T) {
     unsafe {
         let mut g: *mut c_char = ptr::null_mut();
         let end: *mut c_char;

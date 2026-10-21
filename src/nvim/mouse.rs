@@ -490,8 +490,7 @@ unsafe fn do_popup(which_button: c_int, m_pos_flag: c_int, mut m_pos: pos_T) -> 
 }
 
 /// Do the appropriate action for the current mouse click in the current mode.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_mouse(
+pub unsafe fn do_mouse(
     oap: *mut oparg_T,
     c: c_int,
     mut dir: c_int,
@@ -1140,8 +1139,7 @@ pub unsafe extern "C" fn do_mouse(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ins_mouse(c: c_int) {
+pub unsafe fn ins_mouse(c: c_int) {
     unsafe {
         let old_curwin = curwin;
 
@@ -1178,8 +1176,7 @@ pub unsafe extern "C" fn ins_mouse(c: c_int) {
 }
 
 /// Common mouse wheel scrolling, shared between Insert mode and NV modes.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_mousescroll(cap: *mut cmdarg_T) {
+pub unsafe fn do_mousescroll(cap: *mut cmdarg_T) {
     unsafe {
         let shift_or_ctrl = (mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) != 0;
 
@@ -1217,8 +1214,7 @@ pub unsafe extern "C" fn do_mousescroll(cap: *mut cmdarg_T) {
 
 /// Implementation for scrolling in Insert mode in direction "dir", which is one
 /// of the MSCR_ values.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ins_mousescroll(dir: c_int) {
+pub unsafe fn ins_mousescroll(dir: c_int) {
     unsafe {
         let mut cap: cmdarg_T = std::mem::zeroed();
         let mut oa: oparg_T = std::mem::zeroed();
@@ -1274,8 +1270,7 @@ pub unsafe extern "C" fn ins_mousescroll(dir: c_int) {
 /// one of the MSCR_ values. Scrolls the completion info popup when the mouse
 /// pointer is on top of it.
 /// Returns true when the info popup was scrolled.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cmdline_mousescroll(dir: c_int) -> bool {
+pub unsafe fn cmdline_mousescroll(dir: c_int) -> bool {
     unsafe {
         let mut cap: cmdarg_T = std::mem::zeroed();
         let mut oa: oparg_T = std::mem::zeroed();
@@ -1318,8 +1313,7 @@ pub unsafe extern "C" fn cmdline_mousescroll(dir: c_int) -> bool {
 }
 
 /// Return true if "c" is a mouse key.
-#[unsafe(no_mangle)]
-pub extern "C" fn is_mouse_key(c: c_int) -> bool {
+pub fn is_mouse_key(c: c_int) -> bool {
     matches!(
         c,
         K_LEFTMOUSE
@@ -1353,8 +1347,7 @@ unsafe fn mouse_model_popup() -> bool {
 }
 
 /// Reset the window being dragged. To be called when switching tab page.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn reset_dragwin() {
+pub unsafe fn reset_dragwin() {
     unsafe {
         dragwin = ptr::null_mut();
     }
@@ -1392,12 +1385,7 @@ unsafe fn jump_to_mouse_retnomove(
 /// Move the cursor to the specified row and column on the screen.
 /// Change current window if necessary. Returns an integer with the
 /// CURSOR_MOVED bit set if the cursor has moved or unset otherwise.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn jump_to_mouse(
-    mut flags: c_int,
-    inclusive: *mut bool,
-    which_button: c_int,
-) -> c_int {
+pub unsafe fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button: c_int) -> c_int {
     unsafe {
         static mut status_line_offset: c_int = 0;
         static mut sep_line_offset: c_int = 0;
@@ -1746,8 +1734,7 @@ unsafe fn do_mousescroll_horiz(leftcol: colnr_T) -> bool {
 
 /// Normal and Visual modes implementation for scrolling in direction
 /// "cap->arg", which is one of the MSCR_ values.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nv_mousescroll(cap: *mut cmdarg_T) {
+pub unsafe fn nv_mousescroll(cap: *mut cmdarg_T) {
     unsafe {
         let old_curwin = curwin;
 
@@ -1772,8 +1759,7 @@ pub unsafe extern "C" fn nv_mousescroll(cap: *mut cmdarg_T) {
 }
 
 /// Mouse clicks and drags.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nv_mouse(cap: *mut cmdarg_T) {
+pub unsafe fn nv_mouse(cap: *mut cmdarg_T) {
     unsafe {
         do_mouse((*cap).oap, (*cap).cmdchar, BACKWARD, (*cap).count1, false);
     }
@@ -1782,8 +1768,7 @@ pub unsafe extern "C" fn nv_mouse(cap: *mut cmdarg_T) {
 /// Compute the buffer line position from the screen position "rowp" / "colp" in
 /// window "win".
 /// Returns true if the position is below the last line.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mouse_comp_pos(
+pub unsafe fn mouse_comp_pos(
     win: *mut win_T,
     rowp: *mut c_int,
     colp: *mut c_int,
@@ -1909,8 +1894,7 @@ pub unsafe extern "C" fn mouse_comp_pos(
 
 /// Find the window at "grid" position "*rowp" and "*colp". The positions are
 /// updated to become relative to the top-left of the window inner area.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mouse_find_win_inner(
+pub unsafe fn mouse_find_win_inner(
     gridp: *mut c_int,
     rowp: *mut c_int,
     colp: *mut c_int,
@@ -1964,8 +1948,7 @@ pub unsafe extern "C" fn mouse_find_win_inner(
 
 /// Find the window at "grid" position "*rowp" and "*colp". The positions are
 /// updated to become relative to the top-left of the window.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mouse_find_win_outer(
+pub unsafe fn mouse_find_win_outer(
     gridp: *mut c_int,
     rowp: *mut c_int,
     colp: *mut c_int,
@@ -2024,8 +2007,7 @@ unsafe fn mouse_find_grid_win(gridp: *mut c_int, rowp: *mut c_int, colp: *mut c_
 
 /// Convert a virtual (screen) column to a character column.
 /// The first column is zero.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vcol2col(
+pub unsafe fn vcol2col(
     wp: *mut win_T,
     lnum: linenr_T,
     vcol: colnr_T,
@@ -2064,8 +2046,7 @@ pub unsafe extern "C" fn vcol2col(
 }
 
 /// Set UI mouse depending on current mode and 'mouse'.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn setmouse() {
+pub unsafe fn setmouse() {
     unsafe {
         ui_cursor_shape();
         ui_check_mouse();
@@ -2174,12 +2155,7 @@ unsafe fn mouse_check_grid(vcolp: *mut colnr_T, flagsp: *mut c_int) {
 }
 
 /// "getmousepos()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getmousepos(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_getmousepos(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut row = mouse_row;
         let mut col = mouse_col;

@@ -4730,7 +4730,7 @@ unsafe fn finish_nfa_regexec(retval: c_int, col: colnr_T) -> c_int {
     }
 }
 
-pub(super) unsafe extern "C" fn nfa_regcomp(expr: *mut u8, re_flags: c_int) -> *mut regprog_T {
+pub(super) unsafe fn nfa_regcomp(expr: *mut u8, re_flags: c_int) -> *mut regprog_T {
     unsafe {
         let mut prog: *mut nfa_regprog_T = ptr::null_mut();
 
@@ -4801,7 +4801,7 @@ unsafe fn cleanup_nfa_regcomp(prog: *mut nfa_regprog_T) -> *mut regprog_T {
     }
 }
 
-pub(super) unsafe extern "C" fn nfa_regfree(prog: *mut regprog_T) {
+pub(super) unsafe fn nfa_regfree(prog: *mut regprog_T) {
     unsafe {
         if prog.is_null() {
             return;
@@ -4815,7 +4815,7 @@ pub(super) unsafe extern "C" fn nfa_regfree(prog: *mut regprog_T) {
     }
 }
 
-pub(super) unsafe extern "C" fn nfa_regexec_nl(
+pub(super) unsafe fn nfa_regexec_nl(
     rmp: *mut regmatch_T,
     line: *mut u8,
     col: colnr_T,
@@ -4836,7 +4836,7 @@ pub(super) unsafe extern "C" fn nfa_regexec_nl(
     }
 }
 
-pub(super) unsafe extern "C" fn nfa_regexec_multi(
+pub(super) unsafe fn nfa_regexec_multi(
     rmp: *mut regmmatch_T,
     win: *mut win_T,
     buf: *mut buf_T,

@@ -36,11 +36,9 @@ pub type Proc = c_void;
 pub type LibuvProc = c_void;
 pub type PtyProc = c_void;
 
-pub type proc_exit_cb =
-    Option<unsafe extern "C" fn(proc_: *mut Proc, status: c_int, data: *mut c_void)>;
-pub type proc_state_cb =
-    Option<unsafe extern "C" fn(proc_: *mut Proc, suspended: bool, data: *mut c_void)>;
-pub type internal_proc_cb = Option<unsafe extern "C" fn(proc_: *mut Proc)>;
+pub type proc_exit_cb = Option<unsafe fn(proc_: *mut Proc, status: c_int, data: *mut c_void)>;
+pub type proc_state_cb = Option<unsafe fn(proc_: *mut Proc, suspended: bool, data: *mut c_void)>;
+pub type internal_proc_cb = Option<unsafe fn(proc_: *mut Proc)>;
 
 #[repr(C)]
 pub struct ProcHeader {
@@ -109,7 +107,7 @@ pub unsafe fn proc_size() -> usize {
 }
 
 #[inline]
-pub unsafe fn libuv_proc_uv(proc_: *mut Proc) -> *mut uv_handle_t {
+pub unsafe extern "C" fn libuv_proc_uv(proc_: *mut Proc) -> *mut uv_handle_t {
     unsafe { proc_.cast::<u8>().add(proc_size()).cast() }
 }
 
@@ -174,8 +172,7 @@ unsafe fn loop_process_events_until<F: FnMut() -> bool>(
 }
 
 /// @returns zero on success, or negative error code
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn proc_spawn(proc_: *mut Proc, in_: bool, out: bool, err: bool) -> c_int {
+pub unsafe fn proc_spawn(proc_: *mut Proc, in_: bool, out: bool, err: bool) -> c_int {
     unsafe {
         let hdr = proc_header(proc_);
         let tail = proc_tail(proc_);
@@ -280,8 +277,7 @@ pub unsafe extern "C" fn proc_spawn(proc_: *mut Proc, in_: bool, out: bool, err:
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn proc_teardown(loop_: *mut Loop) {
+pub unsafe fn proc_teardown(loop_: *mut Loop) {
     unsafe {
         proc_is_tearing_down = true;
         let qc = loop_queues(loop_);
@@ -303,8 +299,7 @@ pub unsafe extern "C" fn proc_teardown(loop_: *mut Loop) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn proc_close_streams(proc_: *mut Proc) {
+pub unsafe fn proc_close_streams(proc_: *mut Proc) {
     unsafe {
         stream_may_close(proc_in(proc_));
         rstream_may_close(proc_out(proc_));
@@ -313,12 +308,7 @@ pub unsafe extern "C" fn proc_close_streams(proc_: *mut Proc) {
 }
 
 /// Synchronously wait for a process to finish
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn proc_wait(
-    proc_: *mut Proc,
-    ms: c_int,
-    mut events: *mut MultiQueue,
-) -> c_int {
+pub unsafe fn proc_wait(proc_: *mut Proc, ms: c_int, mut events: *mut MultiQueue) -> c_int {
     unsafe {
         let hdr = proc_header(proc_);
         let tail = proc_tail(proc_);
@@ -363,8 +353,7 @@ pub unsafe extern "C" fn proc_wait(
 }
 
 /// Ask a process to terminate and eventually kill if it doesn't respond
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn proc_stop(proc_: *mut Proc) {
+pub unsafe fn proc_stop(proc_: *mut Proc) {
     unsafe {
         let hdr = proc_header(proc_);
         let exited = (*hdr).status >= 0;
@@ -396,8 +385,7 @@ pub unsafe extern "C" fn proc_stop(proc_: *mut Proc) {
 }
 
 /// Frees process-owned resources.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn proc_free(proc_: *mut Proc) {
+pub unsafe fn proc_free(proc_: *mut Proc) {
     unsafe {
         let hdr = proc_header(proc_);
         if !(*hdr).argv.is_null() {
@@ -452,7 +440,7 @@ unsafe extern "C" fn proc_close_event(argv: *mut *mut c_void) {
     }
 }
 
-unsafe extern "C" fn decref(proc_: *mut Proc) {
+unsafe fn decref(proc_: *mut Proc) {
     unsafe {
         let hdr = proc_header(proc_);
         let tail = proc_tail(proc_);
@@ -615,8 +603,7 @@ unsafe extern "C" fn exit_event(argv: *mut *mut c_void) {
 }
 
 /// Performs self-exit because the primary RPC channel was closed.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn exit_on_closed_chan(status: c_int) {
+pub unsafe fn exit_on_closed_chan(status: c_int) {
     unsafe {
         let qc = loop_queues(main_loop_ptr());
         let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
@@ -631,7 +618,7 @@ pub unsafe extern "C" fn exit_on_closed_chan(status: c_int) {
     }
 }
 
-unsafe extern "C" fn on_proc_exit(proc_: *mut Proc) {
+unsafe fn on_proc_exit(proc_: *mut Proc) {
     unsafe {
         let hdr = proc_header(proc_);
         let tail = proc_tail(proc_);
@@ -645,7 +632,7 @@ unsafe extern "C" fn on_proc_exit(proc_: *mut Proc) {
     }
 }
 
-unsafe extern "C" fn on_proc_stream_close(_stream: *mut Stream, data: *mut c_void) {
+unsafe fn on_proc_stream_close(_stream: *mut Stream, data: *mut c_void) {
     unsafe {
         let proc_: *mut Proc = data;
         decref(proc_);

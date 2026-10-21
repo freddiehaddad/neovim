@@ -108,8 +108,7 @@ unsafe fn os_proc_tree_kill_rec(proc_handle: *mut c_void, sig: c_int) -> bool {
 }
 
 /// Kill process `pid` and its process group / descendants (`os_proc_tree_kill`).
-#[unsafe(no_mangle)]
-pub extern "C" fn os_proc_tree_kill(pid: c_int, sig: c_int) -> bool {
+pub fn os_proc_tree_kill(pid: c_int, sig: c_int) -> bool {
     assert!(sig == SIGTERM_NUM || sig == SIGKILL_NUM);
     #[cfg(target_os = "windows")]
     {
@@ -139,8 +138,7 @@ pub extern "C" fn os_proc_tree_kill(pid: c_int, sig: c_int) -> bool {
 ///
 /// # Safety
 /// `proc_list` and `proc_count` must be valid writable pointers.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_proc_children(
+pub unsafe fn os_proc_children(
     ppid: c_int,
     proc_list: *mut *mut c_int,
     proc_count: *mut usize,
@@ -217,8 +215,7 @@ pub unsafe extern "C" fn os_proc_children(
 ///
 /// # Safety
 /// `arena` must be a valid pointer to an initialized `Arena`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_proc_info(pid: c_int, arena: *mut Arena) -> Dict {
+pub unsafe fn os_proc_info(pid: c_int, arena: *mut Arena) -> Dict {
     let mut pinfo = Dict {
         size: 0,
         capacity: 0,
@@ -303,8 +300,7 @@ pub unsafe extern "C" fn os_proc_info(pid: c_int, arena: *mut Arena) -> Dict {
 }
 
 /// Return true if process `pid` is running (`os_proc_running`).
-#[unsafe(no_mangle)]
-pub extern "C" fn os_proc_running(pid: c_int) -> bool {
+pub fn os_proc_running(pid: c_int) -> bool {
     let err = unsafe { uv_kill(pid, 0) };
     if err == 0 {
         return true;

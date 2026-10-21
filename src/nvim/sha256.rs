@@ -147,12 +147,6 @@ impl context_sha256_T {
         }
     }
 
-    #[inline]
-    pub fn start(&mut self) {
-        self.total = [0, 0];
-        self.state = INITIAL_STATE;
-    }
-
     fn process_block(&mut self, data: &[u8; SHA256_BUFFER_SIZE]) {
         let mut w = [0u32; SHA256_BUFFER_SIZE];
         for (i, &chunk) in data.as_chunks::<4>().0.iter().enumerate() {
@@ -263,6 +257,7 @@ pub fn digest_to_hex(digest: &[u8; SHA256_SUM_SIZE]) -> [u8; SHA256_BUFFER_SIZE]
     out
 }
 
+#[cfg(test)]
 pub fn sha256_hex(buf: &[u8], salt: Option<&[u8]>) -> [u8; SHA256_BUFFER_SIZE] {
     let mut ctx = context_sha256_T::new();
     ctx.update(buf);

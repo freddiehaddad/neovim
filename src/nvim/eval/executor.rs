@@ -188,12 +188,7 @@ unsafe fn tv_op_float(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
 }
 
 /// Execute compound assignment `tv1 <op>= tv2` (`eexe_mod_op`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eexe_mod_op(
-    tv1: *mut typval_T,
-    tv2: *const typval_T,
-    op: *const c_char,
-) -> c_int {
+pub unsafe fn eexe_mod_op(tv1: *mut typval_T, tv2: *const typval_T, op: *const c_char) -> c_int {
     let tv1 = unsafe { &mut *tv1 };
     let tv2 = unsafe { &*tv2 };
     let op_byte = unsafe { *op as u8 };

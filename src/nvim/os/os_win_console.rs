@@ -149,16 +149,14 @@ use crate::os::fs::MAXPATHL;
 use crate::event::r#loop::uv_tty_set_vterm_state;
 
 #[cfg(windows)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_enable_ctrl_c() {
+pub unsafe fn os_enable_ctrl_c() {
     unsafe {
         SetConsoleCtrlHandler(std::ptr::null(), 0);
     }
 }
 
 #[cfg(windows)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_open_conin_fd() -> c_int {
+pub unsafe fn os_open_conin_fd() -> c_int {
     unsafe {
         let conin_handle = CreateFileA(
             c"CONIN$".as_ptr(),
@@ -177,16 +175,14 @@ pub unsafe extern "C" fn os_open_conin_fd() -> c_int {
 }
 
 #[cfg(windows)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_clear_hwnd() {
+pub unsafe fn os_clear_hwnd() {
     unsafe {
         H_WND = std::ptr::null_mut();
     }
 }
 
 #[cfg(windows)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_redirect_stdin_to_conin() {
+pub unsafe fn os_redirect_stdin_to_conin() {
     unsafe {
         close(STDIN_FILENO);
         let conin_fd = os_open_conin_fd();
@@ -195,8 +191,7 @@ pub unsafe extern "C" fn os_redirect_stdin_to_conin() {
 }
 
 #[cfg(windows)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_redirect_stdout_stderr_to_conout() {
+pub unsafe fn os_redirect_stdout_stderr_to_conout() {
     unsafe {
         let conout_handle = CreateFileA(
             c"CONOUT$".as_ptr(),
@@ -218,8 +213,7 @@ pub unsafe extern "C" fn os_redirect_stdout_stderr_to_conout() {
 }
 
 #[cfg(windows)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_reattach_console_stdio() {
+pub unsafe fn os_reattach_console_stdio() {
     unsafe {
         os_enable_ctrl_c();
         os_redirect_stdin_to_conin();
@@ -228,8 +222,7 @@ pub unsafe extern "C" fn os_reattach_console_stdio() {
 }
 
 #[cfg(windows)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_swap_to_hidden_console() {
+pub unsafe fn os_swap_to_hidden_console() {
     unsafe {
         FreeConsole();
         AllocConsole();
@@ -240,8 +233,7 @@ pub unsafe extern "C" fn os_swap_to_hidden_console() {
 }
 
 #[cfg(windows)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_attach_parent_console() {
+pub unsafe fn os_attach_parent_console() {
     unsafe {
         CONSOLE_INHERITED =
             !GetConsoleWindow().is_null() || AttachConsole(ATTACH_PARENT_PROCESS) != 0;
@@ -263,8 +255,7 @@ pub unsafe extern "C" fn os_attach_parent_console() {
 }
 
 #[cfg(windows)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_detach_ui_console(stdio_ui: bool) {
+pub unsafe fn os_detach_ui_console(stdio_ui: bool) {
     unsafe {
         if stdio_ui || (CONSOLE_INHERITED && ui_active() == 0) {
             os_swap_to_hidden_console();
@@ -273,8 +264,7 @@ pub unsafe extern "C" fn os_detach_ui_console(stdio_ui: bool) {
 }
 
 #[cfg(windows)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_icon_reset() {
+pub unsafe fn os_icon_reset() {
     unsafe {
         if H_WND.is_null() {
             return;
@@ -289,8 +279,7 @@ pub unsafe extern "C" fn os_icon_reset() {
 }
 
 #[cfg(windows)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_icon_init() {
+pub unsafe fn os_icon_init() {
     unsafe {
         H_WND = GetConsoleWindow();
         if H_WND.is_null() {
@@ -331,8 +320,7 @@ pub unsafe extern "C" fn os_icon_init() {
 }
 
 #[cfg(windows)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_title_save() {
+pub unsafe fn os_title_save() {
     unsafe {
         let ptr = std::ptr::addr_of_mut!(ORIG_TITLE).cast::<c_char>();
         GetConsoleTitleA(ptr, 256);
@@ -340,8 +328,7 @@ pub unsafe extern "C" fn os_title_save() {
 }
 
 #[cfg(windows)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_title_reset() {
+pub unsafe fn os_title_reset() {
     unsafe {
         let ptr = std::ptr::addr_of!(ORIG_TITLE).cast::<c_char>();
         SetConsoleTitleA(ptr);
@@ -349,8 +336,7 @@ pub unsafe extern "C" fn os_title_reset() {
 }
 
 #[cfg(windows)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_tty_guess_term(term: *mut *const c_char, out_fd: c_int) {
+pub unsafe fn os_tty_guess_term(term: *mut *const c_char, out_fd: c_int) {
     unsafe {
         let conemu_env = os_getenv_noalloc(c"ConEmuANSI".as_ptr());
         let conemu_ansi = !conemu_env.is_null() && CStr::from_ptr(conemu_env).to_bytes() == b"ON";

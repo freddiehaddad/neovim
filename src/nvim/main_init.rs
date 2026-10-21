@@ -791,13 +791,11 @@ pub unsafe extern "C" fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int
 }
 
 /// Prompts/dialogs should not wait for a key (no chance of meaningful input).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn input_unanswerable() -> bool {
+pub unsafe fn input_unanswerable() -> bool {
     unsafe { v_dying != 0 || (exiting && ui_active() == 0) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_exit(mut r: c_int) -> ! {
+pub unsafe fn os_exit(mut r: c_int) -> ! {
     unsafe {
         exiting = true;
         signal_reject_deadly();
@@ -847,8 +845,7 @@ pub unsafe extern "C" fn os_exit(mut r: c_int) -> ! {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn getout(mut exitval: c_int) -> ! {
+pub unsafe fn getout(mut exitval: c_int) -> ! {
     unsafe {
         assert!(ui_client_channel_id == 0);
         exiting = true;
@@ -994,8 +991,7 @@ pub unsafe extern "C" fn getout(mut exitval: c_int) -> ! {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn preserve_exit(errmsg: *const c_char) -> ! {
+pub unsafe fn preserve_exit(errmsg: *const c_char) -> ! {
     unsafe {
         if REALLY_EXITING {
             std::process::exit(2);
@@ -1050,13 +1046,11 @@ pub unsafe extern "C" fn preserve_exit(errmsg: *const c_char) -> ! {
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn __ubsan_default_options() -> *const c_char {
+pub fn __ubsan_default_options() -> *const c_char {
     c"print_stacktrace=1".as_ptr()
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn __asan_default_options() -> *const c_char {
+pub fn __asan_default_options() -> *const c_char {
     c"handle_abort=1,handle_sigill=1".as_ptr()
 }
 

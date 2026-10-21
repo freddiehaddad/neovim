@@ -45,12 +45,7 @@ unsafe fn equal_string(a: NvimString, b: NvimString) -> bool {
 ///
 /// # Safety
 /// `set` must be a valid pointer to an initialized `Set_glyph` with `n_buckets > 0`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mh_find_bucket_glyph(
-    set: *mut Set_glyph,
-    key: NvimString,
-    put: bool,
-) -> u32 {
+pub unsafe fn mh_find_bucket_glyph(set: *mut Set_glyph, key: NvimString, put: bool) -> u32 {
     let set = unsafe { &mut *set };
     let h = &mut set.h;
     let mut step: u32 = 0;
@@ -106,8 +101,7 @@ pub unsafe extern "C" fn mh_get_glyph(set: *mut Set_glyph, key: NvimString) -> u
 ///
 /// # Safety
 /// `set` must be a valid pointer to a `Set_glyph`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mh_rehash_glyph(set: *mut Set_glyph) {
+pub unsafe fn mh_rehash_glyph(set: *mut Set_glyph) {
     let set_ref = unsafe { &mut *set };
     let mut k: u32 = 0;
     while k < set_ref.h.n_keys {

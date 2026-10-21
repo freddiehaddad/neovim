@@ -49,11 +49,7 @@ fn cs_disjoint(cs1: &Charset, cs2: &Charset) -> bool {
     true
 }
 
-unsafe fn callrecursive(
-    tree: *mut TTree,
-    f: unsafe extern "C" fn(*mut TTree) -> c_int,
-    def: c_int,
-) -> c_int {
+unsafe fn callrecursive(tree: *mut TTree, f: unsafe fn(*mut TTree) -> c_int, def: c_int) -> c_int {
     unsafe {
         let key = (*tree).key;
         debug_assert_eq!((*tree).tag, TCall);
@@ -69,8 +65,7 @@ unsafe fn callrecursive(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hascaptures(mut tree: *mut TTree) -> c_int {
+pub unsafe fn hascaptures(mut tree: *mut TTree) -> c_int {
     unsafe {
         loop {
             match (*tree).tag {
@@ -103,8 +98,7 @@ pub unsafe extern "C" fn hascaptures(mut tree: *mut TTree) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn checkaux(mut tree: *mut TTree, pred: c_int) -> c_int {
+pub unsafe fn checkaux(mut tree: *mut TTree, pred: c_int) -> c_int {
     unsafe {
         loop {
             match (*tree).tag {
@@ -152,8 +146,7 @@ pub unsafe extern "C" fn checkaux(mut tree: *mut TTree, pred: c_int) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn fixedlen(mut tree: *mut TTree) -> c_int {
+pub unsafe fn fixedlen(mut tree: *mut TTree) -> c_int {
     let mut len: c_int = 0;
     unsafe {
         loop {
@@ -350,8 +343,7 @@ unsafe fn needfollow(mut tree: *mut TTree) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn sizei(i: *const Instruction) -> c_int {
+pub unsafe fn sizei(i: *const Instruction) -> c_int {
     unsafe {
         match (*i).i.code {
             ISet | ISpan => 1 + c_int::from((*i).i.aux2.set.size),
@@ -396,7 +388,6 @@ unsafe fn newcode(l: *mut lua_State, p: *mut Pattern, mut size: c_int) {
     }
 }
 
-#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn freecode(l: *mut lua_State, p: *mut Pattern) {
     unsafe {
         if !(*p).code.is_null() {

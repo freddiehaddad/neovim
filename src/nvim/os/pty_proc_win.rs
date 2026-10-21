@@ -204,7 +204,7 @@ mod win_impl {
         }
     }
 
-    unsafe extern "C" fn pty_proc_close_console(stream: *mut Stream, _data: *mut c_void) {
+    unsafe fn pty_proc_close_console(stream: *mut Stream, _data: *mut c_void) {
         unsafe {
             let s_fields = stream_fields(stream);
             let ptyproc: *mut PtyProc = (*s_fields).internal_data;
@@ -234,8 +234,7 @@ mod win_impl {
     }
 
     /// @returns zero on success, or negative error code.
-    #[unsafe(no_mangle)]
-    pub unsafe extern "C" fn pty_proc_spawn(ptyproc: *mut PtyProc) -> c_int {
+    pub unsafe fn pty_proc_spawn(ptyproc: *mut PtyProc) -> c_int {
         unsafe {
             let proc_: *mut Proc = ptyproc.cast();
             let hdr = proc_header(proc_);
@@ -405,27 +404,22 @@ mod win_impl {
         }
     }
 
-    #[unsafe(no_mangle)]
-    pub unsafe extern "C" fn pty_proc_tty_name(_ptyproc: *mut PtyProc) -> *const c_char {
+    pub unsafe fn pty_proc_tty_name(_ptyproc: *mut PtyProc) -> *const c_char {
         c"?".as_ptr()
     }
 
-    #[unsafe(no_mangle)]
-    pub unsafe extern "C" fn pty_proc_resize(ptyproc: *mut PtyProc, width: u16, height: u16) {
+    pub unsafe fn pty_proc_resize(ptyproc: *mut PtyProc, width: u16, height: u16) {
         unsafe {
             let ptail = pty_proc_win_tail(ptyproc);
             os_conpty_set_size((*ptail).conpty, width, height);
         }
     }
 
-    #[unsafe(no_mangle)]
-    pub unsafe extern "C" fn pty_proc_resume(_ptyproc: *mut PtyProc) {}
+    pub unsafe fn pty_proc_resume(_ptyproc: *mut PtyProc) {}
 
-    #[unsafe(no_mangle)]
-    pub unsafe extern "C" fn pty_proc_flush_master(_ptyproc: *mut PtyProc) {}
+    pub unsafe fn pty_proc_flush_master(_ptyproc: *mut PtyProc) {}
 
-    #[unsafe(no_mangle)]
-    pub unsafe extern "C" fn pty_proc_close(ptyproc: *mut PtyProc) {
+    pub unsafe fn pty_proc_close(ptyproc: *mut PtyProc) {
         unsafe {
             let proc_: *mut Proc = ptyproc.cast();
             let proc_t = proc_tail(proc_);
@@ -448,11 +442,9 @@ mod win_impl {
         }
     }
 
-    #[unsafe(no_mangle)]
-    pub unsafe extern "C" fn pty_proc_close_master(_ptyproc: *mut PtyProc) {}
+    pub unsafe fn pty_proc_close_master(_ptyproc: *mut PtyProc) {}
 
-    #[unsafe(no_mangle)]
-    pub unsafe extern "C" fn pty_proc_teardown(_loop_: *mut Loop) {}
+    pub unsafe fn pty_proc_teardown(_loop_: *mut Loop) {}
 
     unsafe extern "C" fn pty_proc_connect_cb(req: *mut uv_connect_t, status: c_int) {
         debug_assert_eq!(status, 0);

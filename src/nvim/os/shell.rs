@@ -2,7 +2,9 @@
 
 use crate::api::private::validate::NvimString;
 use crate::buffer::{kUIMessages, read_buffer_into};
-use crate::charset::{NL, NUL, ascii_iswhite, backslash_halve, skipwhite};
+use crate::charset::{NL, NUL, skipwhite};
+#[cfg(unix)]
+use crate::charset::{ascii_iswhite, backslash_halve};
 use crate::errors::*;
 use crate::eval::vars::{VV_SHELL_ERROR, set_vim_var_nr};
 use crate::event::r#loop::{
@@ -22,36 +24,45 @@ use crate::event::wstream::{
 };
 use crate::ex_cmds::{check_secure, kShellOptRead, kShellOptWrite, make_filter_cmd};
 use crate::ex_docmd::CAR;
-use crate::fileio::{SEEK_END, SEEK_SET, fclose, fopen, fread, fseek, ftell, vim_tempname};
+#[cfg(unix)]
+use crate::fileio::fopen;
+use crate::fileio::{SEEK_END, SEEK_SET, fclose, fread, fseek, ftell, vim_tempname};
 use crate::globals::*;
+#[cfg(unix)]
 use crate::math::{FAIL, OK};
 #[cfg(windows)]
 use crate::mbyte::CP_UTF8;
 use crate::mbyte::{utf8len_tab_zero, utfc_ptr2len_len};
 use crate::memline::ml_append;
 use crate::memory::{xcalloc, xfree, xmalloc, xmemdupz, xstrdup, xstrlcat, xstrlcpy};
+#[cfg(unix)]
+use crate::message::msg;
 use crate::message::{
-    emsg, msg, msg_end, msg_ext_no_fast, msg_ext_set_append, msg_ext_set_kind, msg_multiline,
+    emsg, msg_end, msg_ext_no_fast, msg_ext_set_append, msg_ext_set_kind, msg_multiline,
     msg_outnum, msg_outtrans, msg_putchar, msg_puts, msg_sb_eol, msg_schedule_semsg, msg_start,
     semsg, smsg, verbose_enter, verbose_leave,
 };
 use crate::option_vars::*;
 #[cfg(windows)]
 use crate::os::env::{os_getenv, os_setenv, restore_env_var};
-use crate::os::fs::{MAXPATHL, os_can_exe, os_fopen, os_isdir, os_path_exists, os_remove};
-use crate::os::signal::{signal_accept_deadly, signal_reject_deadly};
-use crate::os::time::{os_delay, os_hrtime};
+use crate::os::fs::{MAXPATHL, os_fopen, os_remove};
 #[cfg(unix)]
-use crate::path::invocation_path_tail;
+use crate::os::fs::{os_can_exe, os_isdir, os_path_exists};
+use crate::os::signal::{signal_accept_deadly, signal_reject_deadly};
+#[cfg(unix)]
+use crate::os::time::os_delay;
+use crate::os::time::os_hrtime;
+#[cfg(unix)]
 use crate::path::{
     EW_DIR, EW_EXEC, EW_FILE, EW_KEEPDOLLAR, EW_NOTFOUND, EW_SHELLCMD, EW_SILENT, add_pathsep,
-    path_has_wildcard, path_tail,
+    invocation_path_tail, path_has_wildcard, path_tail,
 };
 use crate::profile::{prof_child_enter, prof_child_exit, proftime_T};
 use crate::strings::{
-    gettext, strcat, strcpy, strlen, strstr, vim_snprintf, vim_strchr, vim_strnsave_unquoted,
-    vim_strsave_escaped_ext,
+    gettext, strlen, vim_snprintf, vim_strnsave_unquoted, vim_strsave_escaped_ext,
 };
+#[cfg(unix)]
+use crate::strings::{strcat, strcpy, strstr, vim_strchr};
 use crate::tag::tag_freematch;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush, ui_has};
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -68,16 +79,23 @@ use crate::state::MODE_EXTERNCMD;
 const OUT_DATA_THRESHOLD: usize = 1024 * 10;
 const MAX_CHUNK_SIZE: usize = OUT_DATA_THRESHOLD / 2;
 
+#[cfg(unix)]
 const SHELL_SPECIAL: &CStr = c"\t \"&'$;<>()\\|\n";
 
 const kShellOptExpand: c_int = 2;
 const kShellOptHideMess: c_int = 64;
 
+#[cfg(unix)]
 const STYLE_ECHO: c_int = 0;
+#[cfg(unix)]
 const STYLE_GLOB: c_int = 1;
+#[cfg(unix)]
 const STYLE_VIMGLOB: c_int = 2;
+#[cfg(unix)]
 const STYLE_PRINT: c_int = 3;
+#[cfg(unix)]
 const STYLE_BT: c_int = 4;
+#[cfg(unix)]
 const STYLE_GLOBSTAR: c_int = 5;
 
 const HLF_SE: c_int = 72;
@@ -86,6 +104,7 @@ const HLF_SO: c_int = 73;
 #[repr(C, align(8))]
 struct LibuvProcBuf([u8; 4096]);
 
+#[cfg(unix)]
 static mut did_find_nul: bool = false;
 static mut throttle_started: u64 = 0;
 static mut throttle_received: usize = 0;
@@ -103,6 +122,7 @@ unsafe extern "system" {
     fn SetConsoleCP(wCodePageID: u32) -> c_int;
 }
 
+#[cfg(unix)]
 unsafe fn save_patterns(
     num_pat: c_int,
     pat: *mut *mut c_char,
@@ -121,6 +141,7 @@ unsafe fn save_patterns(
     }
 }
 
+#[cfg(unix)]
 unsafe fn have_wildcard(num: c_int, file: *mut *mut c_char) -> bool {
     unsafe {
         for i in 0..(num as usize) {
@@ -132,6 +153,7 @@ unsafe fn have_wildcard(num: c_int, file: *mut *mut c_char) -> bool {
     }
 }
 
+#[cfg(unix)]
 unsafe fn have_dollars(num: c_int, file: *mut *mut c_char) -> bool {
     unsafe {
         for i in 0..(num as usize) {
@@ -144,8 +166,8 @@ unsafe fn have_dollars(num: c_int, file: *mut *mut c_char) -> bool {
 }
 
 /// Performs wildcard pattern matching using the shell.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_expand_wildcards(
+#[cfg(unix)]
+pub unsafe fn os_expand_wildcards(
     num_pat: c_int,
     pat: *mut *mut c_char,
     num_file: *mut c_int,
@@ -595,8 +617,7 @@ pub unsafe extern "C" fn shell_build_argv(
 }
 
 /// Releases the memory allocated by `shell_build_argv`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn shell_free_argv(argv: *mut *mut c_char) {
+pub unsafe fn shell_free_argv(argv: *mut *mut c_char) {
     if argv.is_null() {
         return;
     }
@@ -643,12 +664,7 @@ pub unsafe extern "C" fn shell_argv_to_str(argv: *mut *mut c_char) -> *mut c_cha
 }
 
 /// Calls the user-configured 'shell' (p_sh) for running a command or wildcard expansion.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_call_shell(
-    cmd: *mut c_char,
-    opts: c_int,
-    extra_args: *mut c_char,
-) -> c_int {
+pub unsafe fn os_call_shell(cmd: *mut c_char, opts: c_int, extra_args: *mut c_char) -> c_int {
     unsafe {
         let mut input = StringBuilder::new();
         let mut output: *mut c_char = ptr::null_mut();
@@ -710,12 +726,7 @@ pub unsafe extern "C" fn os_call_shell(
 }
 
 /// os_call_shell() wrapper. Handles 'verbose', :profile, and v:shell_error.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn call_shell(
-    cmd: *mut c_char,
-    opts: c_int,
-    extra_shell_arg: *mut c_char,
-) -> c_int {
+pub unsafe fn call_shell(cmd: *mut c_char, opts: c_int, extra_shell_arg: *mut c_char) -> c_int {
     unsafe {
         let mut wait_time: proftime_T = 0;
 
@@ -754,8 +765,7 @@ pub unsafe extern "C" fn call_shell(
 }
 
 /// Get the stdout of an external command.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_cmd_output(
+pub unsafe fn get_cmd_output(
     cmd: *mut c_char,
     infile: *mut c_char,
     flags: c_int,
@@ -992,7 +1002,7 @@ unsafe fn do_os_system(
     }
 }
 
-unsafe extern "C" fn system_data_cb(
+unsafe fn system_data_cb(
     _stream: *mut RStream,
     buf: *const c_char,
     count: usize,
@@ -1163,7 +1173,7 @@ unsafe fn out_data_append_to_screen(
     }
 }
 
-unsafe extern "C" fn out_data_cb(
+unsafe fn out_data_cb(
     stream: *mut RStream,
     ptr_data: *const c_char,
     mut count: usize,
@@ -1293,7 +1303,7 @@ unsafe fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool)
     }
 }
 
-unsafe extern "C" fn shell_write_cb(stream: *mut Stream, _data: *mut c_void, status: c_int) {
+unsafe fn shell_write_cb(stream: *mut Stream, _data: *mut c_void, status: c_int) {
     unsafe {
         if status != 0 {
             msg_schedule_semsg!(

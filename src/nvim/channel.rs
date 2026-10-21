@@ -134,12 +134,11 @@ pub struct TerminalOptions {
     pub data: *mut c_void,
     pub width: u16,
     pub height: u16,
-    pub read_pause_cb: Option<unsafe extern "C" fn(pause: bool, data: *mut c_void)>,
-    pub write_cb:
-        Option<unsafe extern "C" fn(buffer: *const c_char, size: usize, data: *mut c_void)>,
-    pub resize_cb: Option<unsafe extern "C" fn(width: u16, height: u16, data: *mut c_void)>,
-    pub resume_cb: Option<unsafe extern "C" fn(data: *mut c_void)>,
-    pub close_cb: Option<unsafe extern "C" fn(data: *mut c_void)>,
+    pub read_pause_cb: Option<unsafe fn(pause: bool, data: *mut c_void)>,
+    pub write_cb: Option<unsafe fn(buffer: *const c_char, size: usize, data: *mut c_void)>,
+    pub resize_cb: Option<unsafe fn(width: u16, height: u16, data: *mut c_void)>,
+    pub resume_cb: Option<unsafe fn(data: *mut c_void)>,
+    pub close_cb: Option<unsafe fn(data: *mut c_void)>,
     pub force_crlf: bool,
 }
 
@@ -230,8 +229,7 @@ fn put_event_2(
 use crate::api::private::helpers::add_c;
 
 /// Teardown the module.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn channel_teardown() {
+pub unsafe fn channel_teardown() {
     unsafe {
         for i in 0..(channels.set.h.n_keys as usize) {
             let chan = (*channels.values.add(i)).cast::<Channel>();
@@ -240,8 +238,7 @@ pub unsafe extern "C" fn channel_teardown() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn channel_free_all_mem() {
+pub unsafe fn channel_free_all_mem() {
     unsafe {
         for i in 0..(channels.set.h.n_keys as usize) {
             let chan = (*channels.values.add(i)).cast::<Channel>();
@@ -271,12 +268,7 @@ pub unsafe extern "C" fn channel_free_all_mem() {
 }
 
 /// Closes a channel.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn channel_close(
-    id: u64,
-    part: ChannelPart,
-    mut error: *mut *const c_char,
-) -> bool {
+pub unsafe fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c_char) -> bool {
     unsafe {
         let mut dummy: *const c_char = ptr::null();
         if error.is_null() {
@@ -396,8 +388,7 @@ pub unsafe extern "C" fn channel_close(
 }
 
 /// Initializes the module.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn channel_init() {
+pub unsafe fn channel_init() {
     unsafe {
         let _ = channel_alloc(kChannelStreamStderr);
         rpc_init();
@@ -405,8 +396,7 @@ pub unsafe extern "C" fn channel_init() {
 }
 
 /// Allocates a channel.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn channel_alloc(r#type: ChannelStreamType) -> *mut Channel {
+pub unsafe fn channel_alloc(r#type: ChannelStreamType) -> *mut Channel {
     unsafe {
         let chan = xcalloc(1, channel_size()).cast::<Channel>();
         let cp = channel_prefix(chan);
@@ -445,22 +435,19 @@ pub unsafe extern "C" fn channel_alloc(r#type: ChannelStreamType) -> *mut Channe
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn channel_create_event(chan: *mut Channel, _ext_source: *const c_char) {
+pub unsafe fn channel_create_event(chan: *mut Channel, _ext_source: *const c_char) {
     unsafe {
         channel_event(chan, EVENT_CHANOPEN);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn channel_incref(chan: *mut Channel) {
+pub unsafe fn channel_incref(chan: *mut Channel) {
     unsafe {
         (*channel_prefix(chan)).refcount += 1;
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn channel_decref(chan: *mut Channel) {
+pub unsafe fn channel_decref(chan: *mut Channel) {
     unsafe {
         let cp = channel_prefix(chan);
         let ct = channel_tail(chan);
@@ -479,16 +466,14 @@ pub unsafe extern "C" fn channel_decref(chan: *mut Channel) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn callback_reader_free(reader: *mut CallbackReader) {
+pub unsafe fn callback_reader_free(reader: *mut CallbackReader) {
     unsafe {
         callback_free(&raw mut (*reader).cb);
         ga_clear(&raw mut (*reader).buffer);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn callback_reader_start(reader: *mut CallbackReader, r#type: *const c_char) {
+pub unsafe fn callback_reader_start(reader: *mut CallbackReader, r#type: *const c_char) {
     unsafe {
         ga_init(
             &raw mut (*reader).buffer,
@@ -555,15 +540,14 @@ unsafe fn channel_destroy_early(chan: *mut Channel) {
     }
 }
 
-unsafe extern "C" fn close_cb(_stream: *mut Stream, data: *mut c_void) {
+unsafe fn close_cb(_stream: *mut Stream, data: *mut c_void) {
     unsafe {
         channel_decref(data.cast());
     }
 }
 
 /// Starts a job and returns the associated channel.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn channel_job_start(
+pub unsafe fn channel_job_start(
     argv: *mut *mut c_char,
     exepath: *const c_char,
     on_stdout: CallbackReader,
@@ -720,8 +704,7 @@ pub unsafe extern "C" fn channel_job_start(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn channel_connect(
+pub unsafe fn channel_connect(
     tcp: bool,
     address: *const c_char,
     rpc: bool,
@@ -776,8 +759,7 @@ pub unsafe extern "C" fn channel_connect(
 }
 
 /// Creates an RPC channel from a tcp/pipe socket connection.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn channel_from_connection(watcher: *mut SocketWatcher) {
+pub unsafe fn channel_from_connection(watcher: *mut SocketWatcher) {
     unsafe {
         let channel = channel_alloc(kChannelStreamSocket);
         let socket_stream = channel_stream_ptr(channel).cast::<RStream>();
@@ -797,8 +779,7 @@ pub unsafe extern "C" fn channel_from_connection(watcher: *mut SocketWatcher) {
 }
 
 /// Creates an API channel from stdin/stdout. Used when embedding Nvim.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn channel_from_stdio(
+pub unsafe fn channel_from_stdio(
     rpc: bool,
     on_output: CallbackReader,
     error: *mut *const c_char,
@@ -858,8 +839,7 @@ pub unsafe extern "C" fn channel_from_stdio(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn channel_send(
+pub unsafe fn channel_send(
     id: u64,
     data: *mut c_char,
     len: usize,
@@ -963,8 +943,7 @@ unsafe fn buffer_to_tv_list(buf: *const c_char, len: usize) -> *mut list_T {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn on_channel_data(
+pub unsafe fn on_channel_data(
     stream: *mut RStream,
     buf: *const c_char,
     count: usize,
@@ -978,8 +957,7 @@ pub unsafe extern "C" fn on_channel_data(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn on_job_stderr(
+pub unsafe fn on_job_stderr(
     stream: *mut RStream,
     buf: *const c_char,
     count: usize,
@@ -1067,8 +1045,7 @@ unsafe extern "C" fn on_channel_event(args: *mut *mut c_void) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn channel_reader_callbacks(chan: *mut Channel, reader: *mut CallbackReader) {
+pub unsafe fn channel_reader_callbacks(chan: *mut Channel, reader: *mut CallbackReader) {
     unsafe {
         if (*reader).buffered {
             if (*reader).eof {
@@ -1110,7 +1087,7 @@ pub unsafe extern "C" fn channel_reader_callbacks(chan: *mut Channel, reader: *m
     }
 }
 
-unsafe extern "C" fn channel_proc_exit_cb(proc_: *mut Proc, status: c_int, data: *mut c_void) {
+unsafe fn channel_proc_exit_cb(proc_: *mut Proc, status: c_int, data: *mut c_void) {
     unsafe {
         let chan = data.cast::<Channel>();
         let cp = channel_prefix(chan);
@@ -1139,7 +1116,7 @@ unsafe extern "C" fn channel_proc_exit_cb(proc_: *mut Proc, status: c_int, data:
     }
 }
 
-unsafe extern "C" fn channel_proc_state_cb(_proc: *mut Proc, suspended: bool, data: *mut c_void) {
+unsafe fn channel_proc_state_cb(_proc: *mut Proc, suspended: bool, data: *mut c_void) {
     unsafe {
         let chan = data.cast::<Channel>();
         let ct = channel_tail(chan);
@@ -1203,8 +1180,7 @@ unsafe fn channel_callback_call(chan: *mut Channel, reader: *mut CallbackReader)
 }
 
 /// Allocate terminal for channel.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn channel_terminal_alloc(buf: *mut buf_T, chan: *mut Channel) {
+pub unsafe fn channel_terminal_alloc(buf: *mut buf_T, chan: *mut Channel) {
     unsafe {
         let cp = channel_prefix(chan);
         let ct = channel_tail(chan);
@@ -1227,7 +1203,7 @@ pub unsafe extern "C" fn channel_terminal_alloc(buf: *mut buf_T, chan: *mut Chan
     }
 }
 
-unsafe extern "C" fn term_read_pause(pause: bool, data: *mut c_void) {
+unsafe fn term_read_pause(pause: bool, data: *mut c_void) {
     unsafe {
         let chan = data.cast::<Channel>();
         let proc_ptr = channel_stream_ptr(chan).cast::<Proc>();
@@ -1243,7 +1219,7 @@ unsafe extern "C" fn term_read_pause(pause: bool, data: *mut c_void) {
     }
 }
 
-unsafe extern "C" fn term_write(buf: *const c_char, size: usize, data: *mut c_void) {
+unsafe fn term_write(buf: *const c_char, size: usize, data: *mut c_void) {
     unsafe {
         let chan = data.cast::<Channel>();
         let proc_ptr = channel_stream_ptr(chan).cast::<Proc>();
@@ -1261,14 +1237,14 @@ unsafe extern "C" fn term_write(buf: *const c_char, size: usize, data: *mut c_vo
     }
 }
 
-unsafe extern "C" fn term_resize(width: u16, height: u16, data: *mut c_void) {
+unsafe fn term_resize(width: u16, height: u16, data: *mut c_void) {
     let chan = data.cast::<Channel>();
     unsafe {
         pty_proc_resize(channel_stream_ptr(chan).cast(), width, height);
     }
 }
 
-unsafe extern "C" fn term_resume(data: *mut c_void) {
+unsafe fn term_resume(data: *mut c_void) {
     let chan = data.cast::<Channel>();
     unsafe {
         pty_proc_resume(channel_stream_ptr(chan).cast());
@@ -1295,7 +1271,7 @@ unsafe extern "C" fn term_delayed_free(argv: *mut *mut c_void) {
     }
 }
 
-unsafe extern "C" fn term_close(data: *mut c_void) {
+unsafe fn term_close(data: *mut c_void) {
     unsafe {
         let chan = data.cast::<Channel>();
         let cp = channel_prefix(chan);
@@ -1304,8 +1280,7 @@ unsafe extern "C" fn term_close(data: *mut c_void) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn channel_event(chan: *mut Channel, event: event_T) {
+pub unsafe fn channel_event(chan: *mut Channel, event: event_T) {
     unsafe {
         if has_event(event) {
             channel_incref(chan);
@@ -1354,8 +1329,7 @@ unsafe extern "C" fn set_info_event(argv: *mut *mut c_void) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn channel_job_running(id: u64) -> bool {
+pub unsafe fn channel_job_running(id: u64) -> bool {
     unsafe {
         let chan = find_channel(id);
         if chan.is_null() {
@@ -1370,8 +1344,7 @@ pub unsafe extern "C" fn channel_job_running(id: u64) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn channel_info(id: u64, arena: *mut Arena) -> Dict {
+pub unsafe fn channel_info(id: u64, arena: *mut Arena) -> Dict {
     unsafe {
         let chan = find_channel(id);
         if chan.is_null() {
@@ -1563,8 +1536,7 @@ pub unsafe extern "C" fn channel_info(id: u64, arena: *mut Arena) -> Dict {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn channel_all_info(arena: *mut Arena) -> Array {
+pub unsafe fn channel_all_info(arena: *mut Arena) -> Array {
     unsafe {
         let count = channels.set.h.size as usize;
 

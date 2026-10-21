@@ -218,6 +218,7 @@ const kCmdRedrawPos: c_int = 1;
 const kCmdRedrawAll: c_int = 2;
 
 pub const VSE_NONE: c_int = 0;
+#[cfg(unix)]
 pub const VSE_SHELL: c_int = 1;
 pub const VSE_BUFFER: c_int = 2;
 
@@ -402,8 +403,7 @@ unsafe fn set_search_match(t: *mut pos_T) {
 /// incsearch and wildmenu completion.
 /// Returns true if pattern is valid.
 /// Sets `skiplen`, `patlen`, `Search.first_line`, and `Search.last_line` and `magic` if overruled.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn parse_pattern_and_range(
+pub unsafe fn parse_pattern_and_range(
     incsearch_start: *mut pos_T,
     search_delim: *mut c_int,
     skiplen: *mut c_int,
@@ -1267,7 +1267,7 @@ unsafe fn command_line_enter(
     }
 }
 
-unsafe extern "C" fn command_line_check(state: *mut VimState) -> c_int {
+unsafe fn command_line_check(state: *mut VimState) -> c_int {
     unsafe {
         let s = state.cast::<CommandLineState>();
 
@@ -1563,7 +1563,7 @@ unsafe fn command_line_end_wildmenu(s: *mut CommandLineState, key_is_wc: bool, c
     }
 }
 
-unsafe extern "C" fn command_line_execute(state: *mut VimState, key: c_int) -> c_int {
+unsafe fn command_line_execute(state: *mut VimState, key: c_int) -> c_int {
     unsafe {
         if key == K_IGNORE || key == K_NOP {
             return -1; // get another key
@@ -2834,13 +2834,11 @@ unsafe fn empty_pattern_magic(p: *mut c_char, mut len: usize, magic_val: magic_T
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cmdpreview_get_bufnr() -> handle_T {
+pub unsafe fn cmdpreview_get_bufnr() -> handle_T {
     unsafe { cmdpreview_bufnr }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cmdpreview_get_ns() -> c_int {
+pub unsafe fn cmdpreview_get_ns() -> c_int {
     unsafe { cmdpreview_ns }
 }
 
@@ -3265,8 +3263,7 @@ pub unsafe extern "C" fn getcmdline(
 }
 
 /// Get a command line with a prompt.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn getcmdline_prompt(
+pub unsafe fn getcmdline_prompt(
     firstc: c_int,
     prompt: *const c_char,
     hl_id: c_int,
@@ -3320,8 +3317,7 @@ pub unsafe extern "C" fn getcmdline_prompt(
 }
 
 /// Parse `'wildmode'`, updating flags only when non-NULL and the value is valid.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_opt_wim(value: *const c_char, flags: *mut u8) -> c_int {
+pub unsafe fn check_opt_wim(value: *const c_char, flags: *mut u8) -> c_int {
     unsafe {
         let mut new_wim_flags: [u8; 4] = [0; 4];
         let mut idx: usize = 0;
@@ -3377,8 +3373,7 @@ pub unsafe extern "C" fn check_opt_wim(value: *const c_char, flags: *mut u8) -> 
 
 /// Return true when the text must not be changed and we can't switch to
 /// another window or buffer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn text_locked() -> bool {
+pub unsafe fn text_locked() -> bool {
     unsafe {
         if expr_map_locked() {
             return true;
@@ -3387,21 +3382,18 @@ pub unsafe extern "C" fn text_locked() -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn text_locked_msg() {
+pub unsafe fn text_locked_msg() {
     unsafe {
         emsg(gettext(get_text_locked_msg()));
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_text_locked_msg() -> *const c_char {
+pub unsafe fn get_text_locked_msg() -> *const c_char {
     e_textlock.as_ptr()
 }
 
 /// Check for text, window or buffer locked.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn text_or_buf_locked() -> bool {
+pub unsafe fn text_or_buf_locked() -> bool {
     unsafe {
         if text_locked() {
             text_locked_msg();
@@ -3412,8 +3404,7 @@ pub unsafe extern "C" fn text_or_buf_locked() -> bool {
 }
 
 /// Check if `curbuf->b_ro_locked` or `allbuf_lock` is set.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn curbuf_locked() -> bool {
+pub unsafe fn curbuf_locked() -> bool {
     unsafe {
         if (*curbuf).b_ro_locked > 0 {
             emsg(gettext(e_cannot_edit_other_buf.as_ptr()));
@@ -3423,8 +3414,7 @@ pub unsafe extern "C" fn curbuf_locked() -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn allbuf_locked() -> bool {
+pub unsafe fn allbuf_locked() -> bool {
     unsafe {
         if allbuf_lock > 0 {
             emsg(gettext(
@@ -3459,8 +3449,7 @@ unsafe fn cmd_startcol() -> c_int {
 }
 
 /// Compute the column position for a byte position on the command line.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cmd_screencol(bytepos: c_int) -> c_int {
+pub unsafe fn cmd_screencol(bytepos: c_int) -> c_int {
     unsafe {
         let mut m: c_int;
         let mut col = cmd_startcol();
@@ -3507,8 +3496,7 @@ unsafe fn correct_screencol(idx: c_int, cells: c_int, col: *mut c_int) {
 }
 
 /// Get an Ex command line for the `:` command.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn getexline(
+pub unsafe fn getexline(
     c: c_int,
     _cookie: *mut c_void,
     indent: c_int,
@@ -3523,14 +3511,12 @@ pub unsafe extern "C" fn getexline(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cmdline_overstrike() -> bool {
+pub unsafe fn cmdline_overstrike() -> bool {
     unsafe { ccline.overstrike != 0 }
 }
 
 /// Return true if the cursor is at the end of the cmdline.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cmdline_at_end() -> bool {
+pub unsafe fn cmdline_at_end() -> bool {
     unsafe { ccline.cmdpos >= ccline.cmdlen }
 }
 
@@ -3559,8 +3545,7 @@ unsafe fn alloc_cmdbuff(mut len: c_int) {
 }
 
 /// Re-allocate the command line to length `len` + something extra.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn realloc_cmdbuff(len: c_int) {
+pub unsafe fn realloc_cmdbuff(len: c_int) {
     unsafe {
         if len < ccline.cmdbufflen {
             return;
@@ -4083,8 +4068,7 @@ unsafe fn ui_ext_cmdline_show(line: *mut CmdlineInfo) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ui_ext_cmdline_block_append(indent: usize, line: *const c_char) {
+pub unsafe fn ui_ext_cmdline_block_append(indent: usize, line: *const c_char) {
     unsafe {
         let line_len = strlen(line);
         let buf = xmallocz(indent + line_len).cast::<c_char>();
@@ -4115,8 +4099,7 @@ pub unsafe extern "C" fn ui_ext_cmdline_block_append(indent: usize, line: *const
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ui_ext_cmdline_block_leave() {
+pub unsafe fn ui_ext_cmdline_block_leave() {
     unsafe {
         api_free_array(cmdline_block);
         cmdline_block = Array {
@@ -4129,8 +4112,7 @@ pub unsafe extern "C" fn ui_ext_cmdline_block_leave() {
 }
 
 /// Extra redrawing needed for `redraw!` and on `ui_attach`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cmdline_screen_cleared() {
+pub unsafe fn cmdline_screen_cleared() {
     unsafe {
         if !ui_has(kUICmdline) {
             return;
@@ -4154,8 +4136,7 @@ pub unsafe extern "C" fn cmdline_screen_cleared() {
 }
 
 /// Called by `ui_flush`, do what redraws necessary to keep cmdline updated.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cmdline_ui_flush() {
+pub unsafe fn cmdline_ui_flush() {
     unsafe {
         if !ui_has(kUICmdline) {
             return;
@@ -4180,8 +4161,7 @@ pub unsafe extern "C" fn cmdline_ui_flush() {
 }
 
 /// Put a character on the command line.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn putcmdline(c: c_char, shift: bool) {
+pub unsafe fn putcmdline(c: c_char, shift: bool) {
     unsafe {
         if cmd_silent {
             return;
@@ -4209,8 +4189,7 @@ pub unsafe extern "C" fn putcmdline(c: c_char, shift: bool) {
 }
 
 /// Undo a `putcmdline(c, false)`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn unputcmdline() {
+pub unsafe fn unputcmdline() {
     unsafe {
         if cmd_silent {
             return;
@@ -4232,8 +4211,7 @@ pub unsafe extern "C" fn unputcmdline() {
 }
 
 /// Put the given string, of the given length, onto the command line.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn put_on_cmdline(str: *const c_char, mut len: c_int, redraw: bool) {
+pub unsafe fn put_on_cmdline(str: *const c_char, mut len: c_int, redraw: bool) {
     unsafe {
         if len < 0 {
             len = strlen(str) as c_int;
@@ -4407,8 +4385,7 @@ unsafe fn cmdline_paste(regname: c_int, literally: bool, remcr: bool) -> bool {
 }
 
 /// Put a string on the command line.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cmdline_paste_str(mut s: *const c_char, literally: bool) {
+pub unsafe fn cmdline_paste_str(mut s: *const c_char, literally: bool) {
     unsafe {
         if literally {
             put_on_cmdline(s, -1, true);
@@ -4435,8 +4412,7 @@ pub unsafe extern "C" fn cmdline_paste_str(mut s: *const c_char, literally: bool
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn redrawcmdline() {
+pub unsafe fn redrawcmdline() {
     unsafe {
         if cmd_silent {
             return;
@@ -4478,8 +4454,7 @@ unsafe fn redrawcmdprompt() {
 }
 
 /// Redraw what is currently on the command line.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn redrawcmd() {
+pub unsafe fn redrawcmd() {
     unsafe {
         if cmd_silent {
             return;
@@ -4521,8 +4496,7 @@ pub unsafe extern "C" fn redrawcmd() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn compute_cmdrow() {
+pub unsafe fn compute_cmdrow() {
     unsafe {
         if msg_scrolled != 0 {
             cmdline_row = Rows - 1;
@@ -4541,8 +4515,7 @@ pub unsafe extern "C" fn compute_cmdrow() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cursorcmd() {
+pub unsafe fn cursorcmd() {
     unsafe {
         if cmd_silent || ui_has(kUICmdline) {
             return;
@@ -4556,8 +4529,7 @@ pub unsafe extern "C" fn cursorcmd() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn gotocmdline(clr: bool) {
+pub unsafe fn gotocmdline(clr: bool) {
     unsafe {
         if ui_has(kUICmdline) {
             return;
@@ -4598,8 +4570,7 @@ unsafe fn ccheck_abbr(c: c_int) -> c_int {
 }
 
 /// Escape special characters in `fname`, depending on `what`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_strsave_fnameescape(fname: *const c_char, what: c_int) -> *mut c_char {
+pub unsafe fn vim_strsave_fnameescape(fname: *const c_char, what: c_int) -> *mut c_char {
     unsafe {
         #[cfg(windows)]
         let mut p = {
@@ -4654,8 +4625,7 @@ pub unsafe extern "C" fn vim_strsave_fnameescape(fname: *const c_char, what: c_i
 }
 
 /// Put a backslash before the file name in `pp`, which is in allocated memory.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn escape_fname(pp: *mut *mut c_char) {
+pub unsafe fn escape_fname(pp: *mut *mut c_char) {
     unsafe {
         let p = xmalloc(strlen(*pp) + 2).cast::<c_char>();
         *p = b'\\' as c_char;
@@ -4667,12 +4637,7 @@ pub unsafe extern "C" fn escape_fname(pp: *mut *mut c_char) {
 
 /// For each file name in `files[num_files]`:
 /// If `orig_pat` starts with `~/`, replace the home directory with `~`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tilde_replace(
-    orig_pat: *mut c_char,
-    num_files: c_int,
-    files: *mut *mut c_char,
-) {
+pub unsafe fn tilde_replace(orig_pat: *mut c_char, num_files: c_int, files: *mut *mut c_char) {
     unsafe {
         if *orig_pat == b'~' as c_char && vim_ispathsep((*orig_pat.add(1) as u8) as c_int) {
             for i in 0..(num_files as usize) {
@@ -4685,13 +4650,11 @@ pub unsafe extern "C" fn tilde_replace(
 }
 
 /// Get a pointer to the current command line info.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_cmdline_info() -> *mut CmdlineInfo {
+pub unsafe fn get_cmdline_info() -> *mut CmdlineInfo {
     &raw mut ccline
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_cmdline_last_prompt_id() -> c_uint {
+pub unsafe fn get_cmdline_last_prompt_id() -> c_uint {
     unsafe { last_prompt_id }
 }
 
@@ -4802,12 +4765,7 @@ unsafe fn get_cmdline_completion() -> *mut c_char {
 }
 
 /// `"getcmdcomplpat()"` function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getcmdcomplpat(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_getcmdcomplpat(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
         (*rettv).vval.v_string = get_cmdline_completion_pattern();
@@ -4815,8 +4773,7 @@ pub unsafe extern "C" fn f_getcmdcomplpat(
 }
 
 /// `"getcmdcompltype()"` function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getcmdcompltype(
+pub unsafe fn f_getcmdcompltype(
     _argvars: *mut typval_T,
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
@@ -4828,12 +4785,7 @@ pub unsafe extern "C" fn f_getcmdcompltype(
 }
 
 /// `"getcmdline()"` function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getcmdline(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_getcmdline(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
         (*rettv).vval.v_string = get_cmdline_str();
@@ -4841,12 +4793,7 @@ pub unsafe extern "C" fn f_getcmdline(
 }
 
 /// `"getcmdpos()"` function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getcmdpos(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_getcmdpos(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let p = get_ccline_ptr();
         (*rettv).vval.v_number = if !p.is_null() {
@@ -4858,12 +4805,7 @@ pub unsafe extern "C" fn f_getcmdpos(
 }
 
 /// `"getcmdprompt()"` function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getcmdprompt(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_getcmdprompt(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let p = get_ccline_ptr();
         (*rettv).v_type = VarType::VAR_STRING;
@@ -4876,8 +4818,7 @@ pub unsafe extern "C" fn f_getcmdprompt(
 }
 
 /// `"getcmdscreenpos()"` function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getcmdscreenpos(
+pub unsafe fn f_getcmdscreenpos(
     _argvars: *mut typval_T,
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
@@ -4893,12 +4834,7 @@ pub unsafe extern "C" fn f_getcmdscreenpos(
 }
 
 /// `"getcmdtype()"` function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getcmdtype(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_getcmdtype(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
         (*rettv).vval.v_string = xmallocz(1).cast::<c_char>();
@@ -4953,12 +4889,7 @@ unsafe fn set_cmdline_pos(pos: c_int) -> c_int {
 }
 
 /// `"setcmdline()"` function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_setcmdline(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_setcmdline(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if tv_check_for_string_arg(argvars, 0) == FAIL
             || tv_check_for_opt_number_arg(argvars, 1) == FAIL
@@ -4985,12 +4916,7 @@ pub unsafe extern "C" fn f_setcmdline(
 }
 
 /// `"setcmdpos()"` function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_setcmdpos(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_setcmdpos(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let pos = (tv_get_number(argvars) - 1) as c_int;
 
@@ -5001,18 +4927,12 @@ pub unsafe extern "C" fn f_setcmdpos(
 }
 
 /// Return the first character of the current command line.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_cmdline_firstc() -> c_int {
+pub unsafe fn get_cmdline_firstc() -> c_int {
     unsafe { ccline.cmdfirstc }
 }
 
 /// Get indices that specify a range within a list from a string.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_list_range(
-    str: *mut *mut c_char,
-    num1: *mut c_int,
-    num2: *mut c_int,
-) -> c_int {
+pub unsafe fn get_list_range(str: *mut *mut c_char, num1: *mut c_int, num2: *mut c_int) -> c_int {
     unsafe {
         let mut len: c_int = 0;
         let mut first = false;
@@ -5070,16 +4990,14 @@ pub unsafe extern "C" fn get_list_range(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cmdline_init() {
+pub unsafe fn cmdline_init() {
     unsafe {
         ccline = std::mem::zeroed();
     }
 }
 
 /// Validate the `'cedit'` option.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn validate_cedit(args: *mut optset_T) -> *const c_char {
+pub unsafe fn validate_cedit(args: *mut optset_T) -> *const c_char {
     unsafe {
         let value = (*args).os_newval.data.string.data;
         if *value != NUL {
@@ -5093,8 +5011,7 @@ pub unsafe extern "C" fn validate_cedit(args: *mut optset_T) -> *const c_char {
 }
 
 /// The `'cedit'` option is changed.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn did_set_cedit(_args: *mut optset_T) -> *const c_char {
+pub unsafe fn did_set_cedit(_args: *mut optset_T) -> *const c_char {
     unsafe {
         cedit_key = if *p_cedit == NUL {
             -1
@@ -5156,8 +5073,7 @@ unsafe fn cmdwin_invoke(action: *const c_char, firstc: c_int, content: *mut c_ch
 }
 
 /// Calls `vim._core.cmdwin.<action>()`, synchronously.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cmdwin_do_action(action: *const c_char) {
+pub unsafe fn cmdwin_do_action(action: *const c_char) {
     unsafe {
         cmdwin_invoke(action, 0, ptr::null_mut(), 0);
     }
@@ -5210,14 +5126,12 @@ unsafe fn open_cmdwin() -> c_int {
 }
 
 /// @return true if `curbuf` is the cmdwin and we're not editing the command line.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn is_in_cmdwin() -> bool {
+pub unsafe fn is_in_cmdwin() -> bool {
     unsafe { bt_cmdwin(curbuf) && get_cmdline_type() == NUL as c_int }
 }
 
 /// Get script string.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn script_get(eap: *mut exarg_T, lenp: *mut usize) -> *mut c_char {
+pub unsafe fn script_get(eap: *mut exarg_T, lenp: *mut usize) -> *mut c_char {
     unsafe {
         let mut cmd = (*eap).arg;
 
@@ -5261,8 +5175,7 @@ pub unsafe extern "C" fn script_get(eap: *mut exarg_T, lenp: *mut usize) -> *mut
 }
 
 /// Used by `f_input()` and `f_inputdialog()` functions.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_user_input(
+pub unsafe fn get_user_input(
     argvars: *const typval_T,
     rettv: *mut typval_T,
     inputdialog: bool,
@@ -5426,12 +5339,7 @@ pub unsafe extern "C" fn get_user_input(
 }
 
 /// `"wildtrigger()"` function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_wildtrigger(
-    _argvars: *mut typval_T,
-    _rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_wildtrigger(_argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if (State & MODE_CMDLINE) == 0
             || char_avail()

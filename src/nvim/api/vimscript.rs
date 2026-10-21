@@ -115,8 +115,7 @@ pub unsafe extern "C" fn nvim_exec2(
 }
 
 // DLLEXPORT String exec_impl(uint64_t channel_id, String src, Dict(exec_opts) *opts, Error *err);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn exec_impl(
+pub unsafe fn exec_impl(
     channel_id: u64,
     src: NvimString,
     opts: *mut KeyDict_exec_opts,

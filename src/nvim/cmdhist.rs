@@ -80,35 +80,18 @@ unsafe fn hist_free_entry(hisptr: *mut histentry_T) {
 }
 
 /// Return the length of the history tables (`get_hislen`).
-#[unsafe(no_mangle)]
-pub extern "C" fn get_hislen() -> c_int {
+pub fn get_hislen() -> c_int {
     unsafe { HISLEN }
 }
 
 /// Return a pointer to a specified history table (`get_histentry`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_histentry(hist_type: c_int) -> *mut histentry_T {
+pub unsafe fn get_histentry(hist_type: c_int) -> *mut histentry_T {
     unsafe { HISTORY[hist_type as usize] }
 }
 
-/// Set the pointer to a specified history table (`set_histentry`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_histentry(hist_type: c_int, entry: *mut histentry_T) {
-    unsafe {
-        HISTORY[hist_type as usize] = entry;
-    }
-}
-
 /// Return a pointer to the current index for `hist_type` (`get_hisidx`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_hisidx(hist_type: c_int) -> *mut c_int {
+pub unsafe fn get_hisidx(hist_type: c_int) -> *mut c_int {
     unsafe { std::ptr::addr_of_mut!(HISIDX[hist_type as usize]) }
-}
-
-/// Return a pointer to the current counter for `hist_type` (`get_hisnum`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_hisnum(hist_type: c_int) -> *mut c_int {
-    unsafe { std::ptr::addr_of_mut!(HISNUM[hist_type as usize]) }
 }
 
 /// Translate a history character to the associated `HistoryType` (`hist_char2type`).
@@ -125,8 +108,7 @@ pub const extern "C" fn hist_char2type(c: c_int) -> c_int {
 }
 
 /// Obtain possible first arguments of `:history` for completion (`get_history_arg`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_history_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_history_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     if idx >= 0 && (idx as usize) < HISTORY_EXPAND_ARGS.len() {
         HISTORY_EXPAND_ARGS[idx as usize].as_ptr().cast_mut()
     } else {
@@ -135,8 +117,7 @@ pub unsafe extern "C" fn get_history_arg(_xp: *mut expand_T, idx: c_int) -> *mut
 }
 
 /// Initialize or resize command-line history tables (`init_history`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn init_history() {
+pub unsafe fn init_history() {
     unsafe {
         assert!(p_hi >= 0 && p_hi <= (c_int::MAX as i64));
         let newlen = p_hi as c_int;
@@ -294,8 +275,7 @@ unsafe fn get_histtype(name: *const c_char, len: usize, return_default: bool) ->
 }
 
 /// Add the given string to the given history (`add_to_history`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn add_to_history(
+pub unsafe fn add_to_history(
     histype: c_int,
     new_entry: *const c_char,
     new_entrylen: usize,
@@ -419,8 +399,7 @@ unsafe fn calc_hist_idx(histype: c_int, num: c_int) -> c_int {
 }
 
 /// Clear all entries in a history (`clr_history`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn clr_history(histype: c_int) -> c_int {
+pub unsafe fn clr_history(histype: c_int) -> c_int {
     let hislen = unsafe { HISLEN };
     if hislen != 0 && histype >= 0 && (histype as usize) < HIST_COUNT {
         let htype = histype as usize;
@@ -533,12 +512,7 @@ unsafe fn del_history_idx(histype: c_int, idx_arg: c_int) -> c_int {
 }
 
 /// `"histadd()"` function (`f_histadd`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_histadd(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_histadd(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = 0;
         if check_secure() {
@@ -573,12 +547,7 @@ pub unsafe extern "C" fn f_histadd(
 }
 
 /// `"histdel()"` function (`f_histdel`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_histdel(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_histdel(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let str_ptr = tv_get_string_chk(argvars);
         let n = if str_ptr.is_null() {
@@ -601,12 +570,7 @@ pub unsafe extern "C" fn f_histdel(
 }
 
 /// `"histget()"` function (`f_histget`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_histget(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_histget(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let str_ptr = tv_get_string_chk(argvars);
         if str_ptr.is_null() {
@@ -645,12 +609,7 @@ pub unsafe extern "C" fn f_histget(
 }
 
 /// `"histnr()"` function (`f_histnr`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_histnr(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_histnr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let histname = tv_get_string_chk(argvars);
         let htype = if histname.is_null() {
@@ -667,8 +626,7 @@ pub unsafe extern "C" fn f_histnr(
 }
 
 /// `:history` command (`ex_history`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_history(eap: *mut exarg_T) {
+pub unsafe fn ex_history(eap: *mut exarg_T) {
     unsafe {
         let mut histype1 = HIST_CMD;
         let mut histype2 = HIST_CMD;
@@ -785,8 +743,7 @@ pub unsafe extern "C" fn ex_history(eap: *mut exarg_T) {
 }
 
 /// Iterate over history items (`hist_iter`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hist_iter(
+pub unsafe fn hist_iter(
     iter: *const c_void,
     history_type: u8,
     zero: bool,
@@ -845,8 +802,7 @@ pub unsafe extern "C" fn hist_iter(
 }
 
 /// Get array of history items (`hist_get_array`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hist_get_array(
+pub unsafe fn hist_get_array(
     history_type: u8,
     new_hisidx: *mut *mut c_int,
     new_hisnum: *mut *mut c_int,

@@ -143,8 +143,7 @@ unsafe fn is_valid_mess_lang(lang: *const c_char) -> bool {
 }
 
 /// Obtain the current messages language. Used to set the default for `'helplang'`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_mess_lang() -> *mut c_char {
+pub unsafe fn get_mess_lang() -> *mut c_char {
     unsafe {
         #[cfg(not(windows))]
         let p = get_locale_val(LC_MESSAGES);
@@ -188,8 +187,7 @@ unsafe fn get_mess_env() -> *mut c_char {
 }
 
 /// Set the `v:lang`, `v:lc_time`, `v:collate`, and `v:ctype` variables.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_lang_var() {
+pub unsafe fn set_lang_var() {
     unsafe {
         let mut loc: *const c_char = get_locale_val(LC_CTYPE);
         set_vim_var_string(VV_CTYPE, loc, -1);
@@ -206,8 +204,7 @@ pub unsafe extern "C" fn set_lang_var() {
 }
 
 /// Setup to use the current locale.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn init_locale() {
+pub unsafe fn init_locale() {
     unsafe {
         let _ = setlocale(LC_ALL, c"".as_ptr());
         let _ = setlocale(LC_NUMERIC, c"C".as_ptr());
@@ -237,8 +234,7 @@ pub unsafe extern "C" fn init_locale() {
 }
 
 /// `":language"`: Set the language (locale).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_language(eap: *mut exarg_T) {
+pub unsafe fn ex_language(eap: *mut exarg_T) {
     unsafe {
         let mut what = LC_ALL;
         let mut whatstr: *const c_char = c"".as_ptr();
@@ -386,8 +382,7 @@ unsafe fn init_locales() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn free_locales() {
+pub unsafe fn free_locales() {
     unsafe {
         if LOCALES.is_null() {
             return;
@@ -403,8 +398,7 @@ pub unsafe extern "C" fn free_locales() {
 }
 
 /// Function given to `ExpandGeneric()` to obtain the possible arguments of `":language"`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_lang_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_lang_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     match idx {
         0 => c"messages".as_ptr().cast_mut(),
         1 => c"ctype".as_ptr().cast_mut(),
@@ -422,8 +416,7 @@ pub unsafe extern "C" fn get_lang_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_
 }
 
 /// Function given to `ExpandGeneric()` to obtain the available locales.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_locales(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_locales(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         init_locales();
         if LOCALES.is_null() {
@@ -434,8 +427,7 @@ pub unsafe extern "C" fn get_locales(_xp: *mut expand_T, idx: c_int) -> *mut c_c
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn lang_init() {
+pub unsafe fn lang_init() {
     #[cfg(target_os = "macos")]
     unsafe {
         if !os_env_exists(c"LANG".as_ptr(), true) {

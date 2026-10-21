@@ -257,8 +257,7 @@ unsafe fn diff_scan_remember(tp: *mut tabpage_T, idx: c_int, lnum: linenr_T, dp:
         };
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn diff_buf_delete(buf: *mut buf_T) {
+pub unsafe fn diff_buf_delete(buf: *mut buf_T) {
     unsafe {
         let mut tp = first_tabpage;
         while !tp.is_null() {
@@ -275,8 +274,7 @@ pub unsafe extern "C" fn diff_buf_delete(buf: *mut buf_T) {
         }
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn diff_buf_adjust(win: *mut win_T) {
+pub unsafe fn diff_buf_adjust(win: *mut win_T) {
     unsafe {
         if (*win).w_onebuf_opt.wo_diff == 0 {
             let mut found_win = false;
@@ -300,8 +298,7 @@ pub unsafe extern "C" fn diff_buf_adjust(win: *mut win_T) {
         }
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn diff_buf_add(buf: *mut buf_T) {
+pub unsafe fn diff_buf_add(buf: *mut buf_T) {
     unsafe {
         if diff_buf_idx(buf, curtab) != DB_COUNT as c_int {
             return;
@@ -343,8 +340,7 @@ unsafe fn diff_buf_idx(buf: *mut buf_T, tp: *mut tabpage_T) -> c_int {
         idx as c_int
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn diff_invalidate(buf: *mut buf_T) {
+pub unsafe fn diff_invalidate(buf: *mut buf_T) {
     unsafe {
         let mut tp = first_tabpage;
         while !tp.is_null() {
@@ -359,8 +355,7 @@ pub unsafe extern "C" fn diff_invalidate(buf: *mut buf_T) {
         }
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn diff_mark_adjust(
+pub unsafe fn diff_mark_adjust(
     buf: *mut buf_T,
     line1: linenr_T,
     line2: linenr_T,
@@ -662,8 +657,7 @@ unsafe fn diff_check_sanity(tp: *mut tabpage_T, dp: *const diff_T) -> c_int {
         OK
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn diff_redraw(dofold: bool) {
+pub unsafe fn diff_redraw(dofold: bool) {
     unsafe {
         let mut wp_other: *mut win_T = ptr::null_mut();
         let mut used_max_fill_other = false;
@@ -979,12 +973,10 @@ unsafe fn diff_try_update(dio: *mut diffio_T, idx_orig: usize, eap: *mut exarg_T
         xfree((*dio).dio_diff.dout_fname.cast());
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn diff_internal() -> c_int {
+pub unsafe fn diff_internal() -> c_int {
     unsafe { c_int::from((diff_flags & DIFF_INTERNAL) != 0 && p_dex.cb_type == kCallbackNone) }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_diffupdate(eap: *mut exarg_T) {
+pub unsafe fn ex_diffupdate(eap: *mut exarg_T) {
     unsafe {
         if diff_busy {
             diff_need_update = true;
@@ -1252,8 +1244,7 @@ unsafe fn diff_file(dio: *mut diffio_T) -> c_int {
         OK
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_diffpatch(eap: *mut exarg_T) {
+pub unsafe fn ex_diffpatch(eap: *mut exarg_T) {
     unsafe {
         let mut buf: *mut c_char = ptr::null_mut();
         let old_curwin = curwin;
@@ -1409,8 +1400,7 @@ pub unsafe extern "C" fn ex_diffpatch(eap: *mut exarg_T) {
         xfree(esc_name.cast());
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_diffsplit(eap: *mut exarg_T) {
+pub unsafe fn ex_diffsplit(eap: *mut exarg_T) {
     unsafe {
         let old_curwin = curwin;
         let mut old_curbuf = bufref_T {
@@ -1452,8 +1442,7 @@ pub unsafe extern "C" fn ex_diffsplit(eap: *mut exarg_T) {
         scroll_to_fraction(curwin, (*curwin).w_height);
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_diffthis(_eap: *mut exarg_T) {
+pub unsafe fn ex_diffthis(_eap: *mut exarg_T) {
     unsafe {
         diff_win_options(curwin, true);
     }
@@ -1470,8 +1459,7 @@ unsafe fn set_diff_option(wp: *mut win_T, value: bool) {
         curbuf = (*curwin).w_buffer;
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn diff_win_options(wp: *mut win_T, addbuf: bool) {
+pub unsafe fn diff_win_options(wp: *mut win_T, addbuf: bool) {
     unsafe {
         let old_curwin = curwin;
         curwin = wp;
@@ -1538,8 +1526,7 @@ pub unsafe extern "C" fn diff_win_options(wp: *mut win_T, addbuf: bool) {
         redraw_later(wp, UPD_NOT_VALID);
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_diffoff(eap: *mut exarg_T) {
+pub unsafe fn ex_diffoff(eap: *mut exarg_T) {
     unsafe {
         let mut diffwin = false;
         let mut wp = firstwin;
@@ -1828,8 +1815,7 @@ unsafe fn diff_copy_entry(dprev: *const diff_T, dp: *mut diff_T, idx_orig: usize
         (*dp).df_count[idx_new] = (*dp).df_count[idx_orig];
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn diff_clear(tp: *mut tabpage_T) {
+pub unsafe fn diff_clear(tp: *mut tabpage_T) {
     unsafe {
         let mut p = (*tp).tp_first_diff.cast::<diff_T>();
         while !p.is_null() {
@@ -1840,8 +1826,7 @@ pub unsafe extern "C" fn diff_clear(tp: *mut tabpage_T) {
         (*tp).tp_first_diff = ptr::null_mut();
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn diff_linematch(dp: *mut diff_T) -> bool {
+pub unsafe fn diff_linematch(dp: *mut diff_T) -> bool {
     unsafe {
         if (diff_flags & DIFF_LINEMATCH) == 0 {
             return false;
@@ -2050,8 +2035,7 @@ unsafe fn run_linematch_algorithm(dp: *mut diff_T) {
         xfree(decisions.cast());
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn diff_check_with_linestatus(
+pub unsafe fn diff_check_with_linestatus(
     wp: *mut win_T,
     lnum: linenr_T,
     linestatus: *mut c_int,
@@ -2161,8 +2145,7 @@ pub unsafe extern "C" fn diff_check_with_linestatus(
         num_fill
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn diff_check_fill(wp: *mut win_T, lnum: linenr_T) -> c_int {
+pub unsafe fn diff_check_fill(wp: *mut win_T, lnum: linenr_T) -> c_int {
     unsafe {
         if (diff_flags & DIFF_FILLER) == 0 {
             return 0;
@@ -2259,8 +2242,7 @@ unsafe fn diff_cmp(s1: *const c_char, s2: *const c_char) -> c_int {
         0
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn diff_set_topline(fromwin: *mut win_T, towin: *mut win_T) {
+pub unsafe fn diff_set_topline(fromwin: *mut win_T, towin: *mut win_T) {
     unsafe {
         let frombuf = (*fromwin).w_buffer;
         let fromidx = diff_buf_idx(frombuf, curtab);
@@ -2408,8 +2390,7 @@ unsafe fn parse_diffanchors(
         OK
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn diffanchors_changed(buflocal: bool) -> c_int {
+pub unsafe fn diffanchors_changed(buflocal: bool) -> c_int {
     unsafe {
         let result = parse_diffanchors(true, curbuf, ptr::null_mut(), ptr::null_mut());
         if result == OK && (diff_flags & DIFF_ANCHOR) != 0 {
@@ -2431,8 +2412,7 @@ pub unsafe extern "C" fn diffanchors_changed(buflocal: bool) -> c_int {
         result
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn diffopt_changed() -> c_int {
+pub unsafe fn diffopt_changed() -> c_int {
     unsafe {
         let v = opt_keyset(p_dip, kOptDiffopt, ptr::null_mut()).cast::<OptKeyDict_dip>();
         let mut flags = (if (*v).filler { DIFF_FILLER } else { 0 })
@@ -2514,24 +2494,19 @@ pub unsafe extern "C" fn diffopt_changed() -> c_int {
         ret
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn diffopt_horizontal() -> bool {
+pub unsafe fn diffopt_horizontal() -> bool {
     unsafe { (diff_flags & DIFF_HORIZONTAL) != 0 }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn diffopt_hiddenoff() -> bool {
+pub unsafe fn diffopt_hiddenoff() -> bool {
     unsafe { (diff_flags & DIFF_HIDDEN_OFF) != 0 }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn diffopt_closeoff() -> bool {
+pub unsafe fn diffopt_closeoff() -> bool {
     unsafe { (diff_flags & DIFF_CLOSE_OFF) != 0 }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn diffopt_filler() -> bool {
+pub unsafe fn diffopt_filler() -> bool {
     unsafe { (diff_flags & DIFF_FILLER) != 0 }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn diff_update_line(lnum: linenr_T) {
+pub unsafe fn diff_update_line(lnum: linenr_T) {
     unsafe {
         if (diff_flags & ALL_INLINE_DIFF) == 0 {
             return;
@@ -2554,8 +2529,7 @@ pub unsafe extern "C" fn diff_update_line(lnum: linenr_T) {
         }
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn diff_change_parse(
+pub unsafe fn diff_change_parse(
     diffline: *mut diffline_T,
     change: *mut diffline_change_T,
     change_start: *mut c_int,
@@ -3142,12 +3116,7 @@ unsafe fn diff_find_change_inline_diff(dp: *mut diff_T) {
         }
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn diff_find_change(
-    wp: *mut win_T,
-    lnum: linenr_T,
-    diffline: *mut diffline_T,
-) -> bool {
+pub unsafe fn diff_find_change(wp: *mut win_T, lnum: linenr_T, diffline: *mut diffline_T) -> bool {
     unsafe {
         let idx = diff_buf_idx((*wp).w_buffer, curtab);
         if idx == DB_COUNT as c_int {
@@ -3240,8 +3209,7 @@ pub unsafe extern "C" fn diff_find_change(
         added
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn diff_infold(wp: *mut win_T, lnum: linenr_T) -> bool {
+pub unsafe fn diff_infold(wp: *mut win_T, lnum: linenr_T) -> bool {
     unsafe {
         if (*wp).w_onebuf_opt.wo_diff == 0 {
             return false;
@@ -3285,8 +3253,7 @@ pub unsafe extern "C" fn diff_infold(wp: *mut win_T, lnum: linenr_T) -> bool {
         result
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nv_diffgetput(put: bool, count: usize) {
+pub unsafe fn nv_diffgetput(put: bool, count: usize) {
     unsafe {
         if bt_prompt(curbuf) {
             vim_beep(kOptBoFlagOperator);
@@ -3319,8 +3286,7 @@ unsafe fn valid_diff(diff: *const diff_T) -> bool {
         false
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_diffgetput(eap: *mut exarg_T) {
+pub unsafe fn ex_diffgetput(eap: *mut exarg_T) {
     unsafe {
         let idx_other: usize;
         let idx_cur_i = diff_buf_idx(curbuf, curtab);
@@ -3647,8 +3613,7 @@ unsafe fn diff_fold_update(dp: *const diff_T, skip_idx: usize) {
         }
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn diff_mode_buf(buf: *mut buf_T) -> bool {
+pub unsafe fn diff_mode_buf(buf: *mut buf_T) -> bool {
     unsafe {
         let mut tp = first_tabpage;
         while !tp.is_null() {
@@ -3660,8 +3625,7 @@ pub unsafe extern "C" fn diff_mode_buf(buf: *mut buf_T) -> bool {
         false
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn diff_move_to(dir: c_int, mut count: c_int) -> c_int {
+pub unsafe fn diff_move_to(dir: c_int, mut count: c_int) -> c_int {
     unsafe {
         let mut lnum = (*curwin).w_cursor.lnum;
         let idx = diff_buf_idx(curbuf, curtab);
@@ -3748,18 +3712,13 @@ unsafe fn diff_get_corresponding_line_int(buf1: *mut buf_T, lnum1: linenr_T) -> 
         lnum1 - baseline
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn diff_get_corresponding_line(
-    buf1: *mut buf_T,
-    lnum1: linenr_T,
-) -> linenr_T {
+pub unsafe fn diff_get_corresponding_line(buf1: *mut buf_T, lnum1: linenr_T) -> linenr_T {
     unsafe {
         let lnum = diff_get_corresponding_line_int(buf1, lnum1);
         lnum.min((*curbuf).b_ml.ml_line_count)
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn diff_lnum_win(lnum: linenr_T, wp: *mut win_T) -> linenr_T {
+pub unsafe fn diff_lnum_win(lnum: linenr_T, wp: *mut win_T) -> linenr_T {
     unsafe {
         let idx = diff_buf_idx(curbuf, curtab);
         if idx == DB_COUNT as c_int {
@@ -3875,7 +3834,7 @@ unsafe fn parse_diff_unified(line: *mut c_char, hunk: *mut diffhunk_T) -> c_int 
         FAIL
     }
 }
-unsafe extern "C" fn xdiff_out(
+unsafe fn xdiff_out(
     start_a: c_int,
     count_a: c_int,
     start_b: c_int,
@@ -3896,23 +3855,13 @@ unsafe extern "C" fn xdiff_out(
         0
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_diff_filler(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_diff_filler(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number =
             diff_check_fill(curwin, tv_get_lnum(argvars)).max(0) as varnumber_T;
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_diff_hlID(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_diff_hlID(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut diffline = diffline_T {
             changes: ptr::null_mut(),

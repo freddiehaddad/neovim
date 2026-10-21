@@ -43,8 +43,7 @@ unsafe fn textlock_wrap<F: FnOnce()>(f: F) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buf_updates_register(
+pub unsafe fn buf_updates_register(
     buf: *mut buf_T,
     channel_id: u64,
     cb: BufUpdateCallbacks,
@@ -114,13 +113,11 @@ pub unsafe extern "C" fn buf_updates_register(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buf_updates_active(buf: *mut buf_T) -> bool {
+pub unsafe fn buf_updates_active(buf: *mut buf_T) -> bool {
     unsafe { (*buf).update_channels.size != 0 || (*buf).update_callbacks.size != 0 }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buf_updates_send_end(buf: *mut buf_T, channelid: u64) {
+pub unsafe fn buf_updates_send_end(buf: *mut buf_T, channelid: u64) {
     unsafe {
         let mut items = [buffer_obj((*buf).b_fnum)];
         let args = Array {
@@ -132,8 +129,7 @@ pub unsafe extern "C" fn buf_updates_send_end(buf: *mut buf_T, channelid: u64) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buf_updates_unregister(buf: *mut buf_T, channelid: u64) {
+pub unsafe fn buf_updates_unregister(buf: *mut buf_T, channelid: u64) {
     unsafe {
         let size = (*buf).update_channels.size;
         if size == 0 {
@@ -165,8 +161,7 @@ pub unsafe extern "C" fn buf_updates_unregister(buf: *mut buf_T, channelid: u64)
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buf_free_callbacks(buf: *mut buf_T) {
+pub unsafe fn buf_free_callbacks(buf: *mut buf_T) {
     unsafe {
         (*buf).update_channels.destroy();
         for i in 0..(*buf).update_callbacks.size {
@@ -176,8 +171,7 @@ pub unsafe extern "C" fn buf_free_callbacks(buf: *mut buf_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buf_updates_unload(buf: *mut buf_T, can_reload: bool) {
+pub unsafe fn buf_updates_unload(buf: *mut buf_T, can_reload: bool) {
     unsafe {
         let size = (*buf).update_channels.size;
         if size > 0 {
@@ -240,8 +234,7 @@ pub unsafe extern "C" fn buf_updates_unload(buf: *mut buf_T, can_reload: bool) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buf_updates_send_changes(
+pub unsafe fn buf_updates_send_changes(
     buf: *mut buf_T,
     firstline: linenr_T,
     num_added: i64,
@@ -366,8 +359,7 @@ pub unsafe extern "C" fn buf_updates_send_changes(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buf_updates_send_splice(
+pub unsafe fn buf_updates_send_splice(
     buf: *mut buf_T,
     start_row: c_int,
     start_col: colnr_T,
@@ -434,8 +426,7 @@ pub unsafe extern "C" fn buf_updates_send_splice(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buf_updates_changedtick(buf: *mut buf_T) {
+pub unsafe fn buf_updates_changedtick(buf: *mut buf_T) {
     unsafe {
         for i in 0..(*buf).update_channels.size {
             let channel_id = *(*buf).update_channels.items.add(i);
@@ -483,8 +474,7 @@ pub unsafe extern "C" fn buf_updates_changedtick(buf: *mut buf_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buf_updates_changedtick_single(buf: *mut buf_T, channel_id: u64) {
+pub unsafe fn buf_updates_changedtick_single(buf: *mut buf_T, channel_id: u64) {
     unsafe {
         let mut items = [
             buffer_obj((*buf).b_fnum),
@@ -499,8 +489,7 @@ pub unsafe extern "C" fn buf_updates_changedtick_single(buf: *mut buf_T, channel
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buffer_update_callbacks_free(cb: BufUpdateCallbacks) {
+pub unsafe fn buffer_update_callbacks_free(cb: BufUpdateCallbacks) {
     unsafe {
         api_free_luaref(cb.on_lines);
         api_free_luaref(cb.on_bytes);

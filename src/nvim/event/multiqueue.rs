@@ -245,8 +245,7 @@ pub unsafe extern "C" fn multiqueue_get(this: *mut MultiQueue) -> Event {
 ///
 /// # Safety
 /// `this` must be a valid pointer to a `MultiQueue`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn multiqueue_put_event(this: *mut MultiQueue, event: Event) {
+pub unsafe fn multiqueue_put_event(this: *mut MultiQueue, event: Event) {
     assert!(!this.is_null());
     unsafe {
         multiqueue_push(this, event);
@@ -263,8 +262,7 @@ pub unsafe extern "C" fn multiqueue_put_event(this: *mut MultiQueue, event: Even
 ///
 /// # Safety
 /// `dest` and `src` must be valid pointers to `MultiQueue`s.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn multiqueue_move_events(dest: *mut MultiQueue, src: *mut MultiQueue) {
+pub unsafe fn multiqueue_move_events(dest: *mut MultiQueue, src: *mut MultiQueue) {
     unsafe {
         while !multiqueue_empty(src) {
             let event = multiqueue_get(src);
@@ -277,8 +275,7 @@ pub unsafe extern "C" fn multiqueue_move_events(dest: *mut MultiQueue, src: *mut
 ///
 /// # Safety
 /// `this` must be a valid pointer to a `MultiQueue`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn multiqueue_process_events(this: *mut MultiQueue) {
+pub unsafe fn multiqueue_process_events(this: *mut MultiQueue) {
     assert!(!this.is_null());
     unsafe {
         while !multiqueue_empty(this) {
@@ -294,8 +291,7 @@ pub unsafe extern "C" fn multiqueue_process_events(this: *mut MultiQueue) {
 ///
 /// # Safety
 /// `this` must be a valid pointer to a `MultiQueue`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn multiqueue_purge_events(this: *mut MultiQueue) {
+pub unsafe fn multiqueue_purge_events(this: *mut MultiQueue) {
     assert!(!this.is_null());
     unsafe {
         while !multiqueue_empty(this) {
@@ -308,8 +304,7 @@ pub unsafe extern "C" fn multiqueue_purge_events(this: *mut MultiQueue) {
 ///
 /// # Safety
 /// `this` must be a valid pointer to a `MultiQueue`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn multiqueue_empty(this: *mut MultiQueue) -> bool {
+pub unsafe fn multiqueue_empty(this: *mut MultiQueue) -> bool {
     assert!(!this.is_null());
     unsafe { (*this).head.is_null() }
 }
@@ -318,11 +313,7 @@ pub unsafe extern "C" fn multiqueue_empty(this: *mut MultiQueue) -> bool {
 ///
 /// # Safety
 /// `this` must be a valid pointer to an empty `MultiQueue`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn multiqueue_replace_parent(
-    this: *mut MultiQueue,
-    new_parent: *mut MultiQueue,
-) {
+pub unsafe fn multiqueue_replace_parent(this: *mut MultiQueue, new_parent: *mut MultiQueue) {
     assert!(unsafe { multiqueue_empty(this) });
     unsafe {
         (*this).parent = new_parent;
@@ -380,8 +371,7 @@ unsafe extern "C" fn multiqueue_oneshot_event(argv: *mut *mut c_void) {
 }
 
 /// Create a one-shot multicast event safe to enqueue on `num` queues (`event_create_oneshot`).
-#[unsafe(no_mangle)]
-pub extern "C" fn event_create_oneshot(ev: Event, num: c_int) -> Event {
+pub fn event_create_oneshot(ev: Event, num: c_int) -> Event {
     let data = unsafe { xmalloc(std::mem::size_of::<MulticastEvent>()).cast::<MulticastEvent>() };
     unsafe {
         data.write(MulticastEvent {

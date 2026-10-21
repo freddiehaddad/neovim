@@ -7,41 +7,11 @@ use crate::lua::converter::{
     lua_settable, lua_settop, lua_toboolean, lua_tolstring,
 };
 use crate::lua::executor::{get_global_lstate, nlua_error, nlua_pcall};
-use crate::memory::{xcalloc, xfree, xmemdupz};
+use crate::memory::{xfree, xmemdupz};
 use crate::message::{semsg, smsg};
 use std::ffi::{CStr, c_char, c_void};
 
 use crate::ex_docmd::exarg_T;
-
-/// Read a file securely via `vim.secure.read(path)` (`nlua_read_secure`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C-unwind" fn nlua_read_secure(path: *const c_char) -> *mut c_char {
-    unsafe {
-        let lstate = get_global_lstate();
-        let top = lua_gettop(lstate);
-
-        lua_getfield(lstate, LUA_GLOBALSINDEX, c"vim".as_ptr());
-        lua_getfield(lstate, -1, c"secure".as_ptr());
-        lua_getfield(lstate, -1, c"read".as_ptr());
-        lua_pushstring(lstate, path);
-        if nlua_pcall(lstate, 1, 1) != 0 {
-            nlua_error(lstate, c"vim.secure.read: %.*s".as_ptr());
-            lua_settop(lstate, top);
-            return std::ptr::null_mut();
-        }
-
-        let mut len = 0usize;
-        let contents = lua_tolstring(lstate, -1, &mut len);
-        let mut buf: *mut c_char = std::ptr::null_mut();
-        if !contents.is_null() {
-            buf = xcalloc(len + 1, 1).cast::<c_char>();
-            std::ptr::copy_nonoverlapping(contents.cast::<u8>(), buf.cast::<u8>(), len + 1);
-        }
-
-        lua_settop(lstate, top);
-        buf
-    }
-}
 
 unsafe fn nlua_trust(action: *const c_char, path: *const c_char) -> bool {
     unsafe {
@@ -95,8 +65,7 @@ unsafe fn nlua_trust(action: *const c_char, path: *const c_char) -> bool {
 }
 
 /// `:trust` command implementation (`ex_trust`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_trust(eap: *mut exarg_T) {
+pub unsafe fn ex_trust(eap: *mut exarg_T) {
     unsafe {
         let arg = (*eap).arg;
         let p = skiptowhite(arg);

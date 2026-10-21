@@ -1212,7 +1212,6 @@ unsafe extern "C-unwind" fn lp_type(l: *mut lua_State) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn lp_gc(l: *mut lua_State) -> c_int {
     unsafe {
         let p = getpattern(l, 1);

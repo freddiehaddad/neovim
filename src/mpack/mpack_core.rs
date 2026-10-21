@@ -3,7 +3,6 @@
 use std::ffi::{c_char, c_int, c_longlong, c_ulonglong};
 use std::ptr;
 
-pub type mpack_sint32_t = i32;
 pub type mpack_uint32_t = u32;
 pub type mpack_sintmax_t = c_longlong;
 pub type mpack_uintmax_t = c_ulonglong;
@@ -120,8 +119,7 @@ unsafe fn mpack_blob(
     MPACK_OK
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mpack_tokbuf_init(tokbuf: *mut mpack_tokbuf_t) {
+pub unsafe fn mpack_tokbuf_init(tokbuf: *mut mpack_tokbuf_t) {
     unsafe {
         (*tokbuf).ppos = 0;
         (*tokbuf).plen = 0;
@@ -129,8 +127,7 @@ pub unsafe extern "C" fn mpack_tokbuf_init(tokbuf: *mut mpack_tokbuf_t) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mpack_read(
+pub unsafe fn mpack_read(
     tokbuf: *mut mpack_tokbuf_t,
     buf: *mut *const c_char,
     buflen: *mut usize,
@@ -197,8 +194,7 @@ pub unsafe extern "C" fn mpack_read(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mpack_write(
+pub unsafe fn mpack_write(
     tokbuf: *mut mpack_tokbuf_t,
     buf: *mut *mut c_char,
     buflen: *mut usize,
@@ -277,8 +273,7 @@ pub unsafe extern "C" fn mpack_write(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mpack_rtoken(
+pub unsafe fn mpack_rtoken(
     buf: *mut *const c_char,
     buflen: *mut usize,
     tok: *mut mpack_token_t,

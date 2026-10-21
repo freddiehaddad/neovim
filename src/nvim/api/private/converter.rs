@@ -371,8 +371,7 @@ pub unsafe extern "C" fn vim_to_object(
 }
 
 /// Convert an API `Object` into a Vimscript `typval_T` (`object_to_vim`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn object_to_vim(mut obj: Object, tv: *mut typval_T, err: *mut Error) {
+pub unsafe fn object_to_vim(mut obj: Object, tv: *mut typval_T, err: *mut Error) {
     unsafe {
         object_to_vim_take_luaref(&mut obj, tv, false, err);
     }
@@ -380,8 +379,7 @@ pub unsafe extern "C" fn object_to_vim(mut obj: Object, tv: *mut typval_T, err: 
 
 /// Convert an API `Object` into a Vimscript `typval_T`, optionally consuming nested `LuaRef`s
 /// (`object_to_vim_take_luaref`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn object_to_vim_take_luaref(
+pub unsafe fn object_to_vim_take_luaref(
     obj: *mut Object,
     tv: *mut typval_T,
     take_luaref: bool,

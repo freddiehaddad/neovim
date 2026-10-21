@@ -426,36 +426,21 @@ unsafe fn assert_beeps(argvars: *mut typval_T, no_beep: bool) -> c_int {
 }
 
 /// `"assert_beeps(cmd [, error])"` function (`f_assert_beeps`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_assert_beeps(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_assert_beeps(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = assert_beeps(argvars, false) as i64;
     }
 }
 
 /// `"assert_nobeep(cmd [, error])"` function (`f_assert_nobeep`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_assert_nobeep(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_assert_nobeep(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = assert_beeps(argvars, true) as i64;
     }
 }
 
 /// `"assert_equal(expected, actual[, msg])"` function (`f_assert_equal`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_assert_equal(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_assert_equal(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = assert_equal_common(argvars, AssertType::Equal) as i64;
     }
@@ -580,8 +565,7 @@ unsafe fn assert_equalfile(argvars: *mut typval_T) -> c_int {
 }
 
 /// `"assert_equalfile(fname-one, fname-two[, msg])"` function (`f_assert_equalfile`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_assert_equalfile(
+pub unsafe fn f_assert_equalfile(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
@@ -592,20 +576,14 @@ pub unsafe extern "C" fn f_assert_equalfile(
 }
 
 /// `"assert_notequal(expected, actual[, msg])"` function (`f_assert_notequal`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_assert_notequal(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_assert_notequal(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = assert_equal_common(argvars, AssertType::NotEqual) as i64;
     }
 }
 
 /// `"assert_exception(string[, msg])"` function (`f_assert_exception`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_assert_exception(
+pub unsafe fn f_assert_exception(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
@@ -660,12 +638,7 @@ pub unsafe extern "C" fn f_assert_exception(
 }
 
 /// `"assert_fails(cmd [, error [, msg]])"` function (`f_assert_fails`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_assert_fails(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_assert_fails(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let save_trylevel = trylevel;
         let called_emsg_before = called_emsg;
@@ -866,12 +839,7 @@ pub unsafe extern "C" fn f_assert_fails(
 }
 
 /// `"assert_false(actual[, msg])"` function (`f_assert_false`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_assert_false(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_assert_false(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = assert_bool(argvars, false) as i64;
     }
@@ -957,12 +925,7 @@ unsafe fn assert_inrange(argvars: *mut typval_T) -> c_int {
 }
 
 /// `"assert_inrange(lower, upper, actual[, msg])"` function (`f_assert_inrange`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_assert_inrange(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_assert_inrange(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if tv_check_for_float_or_nr_arg(argvars, 0) == FAIL
             || tv_check_for_float_or_nr_arg(argvars, 1) == FAIL
@@ -976,36 +939,21 @@ pub unsafe extern "C" fn f_assert_inrange(
 }
 
 /// `"assert_match(pattern, actual[, msg])"` function (`f_assert_match`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_assert_match(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_assert_match(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = assert_match_common(argvars, AssertType::Match) as i64;
     }
 }
 
 /// `"assert_notmatch(pattern, actual[, msg])"` function (`f_assert_notmatch`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_assert_notmatch(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_assert_notmatch(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = assert_match_common(argvars, AssertType::NotMatch) as i64;
     }
 }
 
 /// `"assert_report(msg)"` function (`f_assert_report`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_assert_report(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_assert_report(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut ga = garray_T {
             ga_len: 0,
@@ -1023,20 +971,14 @@ pub unsafe extern "C" fn f_assert_report(
 }
 
 /// `"assert_true(actual[, msg])"` function (`f_assert_true`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_assert_true(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_assert_true(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = assert_bool(argvars, true) as i64;
     }
 }
 
 /// `"test_garbagecollect_now()"` function (`f_test_garbagecollect_now`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_test_garbagecollect_now(
+pub unsafe fn f_test_garbagecollect_now(
     _argvars: *mut typval_T,
     _rettv: *mut typval_T,
     _fptr: EvalFuncData,
@@ -1051,8 +993,7 @@ pub unsafe extern "C" fn f_test_garbagecollect_now(
 }
 
 /// `"test_write_list_log()"` function (`f_test_write_list_log`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_test_write_list_log(
+pub unsafe fn f_test_write_list_log(
     argvars: *mut typval_T,
     _rettv: *mut typval_T,
     _fptr: EvalFuncData,

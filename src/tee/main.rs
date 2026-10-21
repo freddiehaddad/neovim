@@ -21,30 +21,6 @@ as well as to the standard output.
 Shipped with Nvim 0.12+ for use with :make, :grep, :!, etc.
 ";
 
-#[cfg(unix)]
-fn max_open_files() -> usize {
-    const SC_OPEN_MAX: std::ffi::c_int = {
-        #[cfg(target_os = "linux")]
-        {
-            4
-        }
-        #[cfg(not(target_os = "linux"))]
-        {
-            5
-        }
-    };
-    unsafe extern "C" {
-        fn sysconf(name: std::ffi::c_int) -> std::ffi::c_long;
-    }
-    let v = unsafe { sysconf(SC_OPEN_MAX) };
-    if v < 0 { 10 } else { v as usize }
-}
-
-#[cfg(not(unix))]
-const fn max_open_files() -> usize {
-    10
-}
-
 fn parse_args<I, S>(args: I) -> Result<(bool, Vec<String>), ()>
 where
     I: IntoIterator<Item = S>,
@@ -107,15 +83,6 @@ fn main() {
             process::exit(2);
         }
     };
-
-    let maxfiles = max_open_files();
-    if filenames.len() + 3 > maxfiles {
-        eprintln!(
-            "There is a limit of max {} files.",
-            maxfiles.saturating_sub(3)
-        );
-        process::exit(1);
-    }
 
     let mut files: Vec<File> = Vec::with_capacity(filenames.len());
     for name in &filenames {

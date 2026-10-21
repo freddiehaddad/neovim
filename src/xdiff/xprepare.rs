@@ -297,8 +297,7 @@ unsafe fn xdl_free_ctx(xdf: *mut xdfile_t) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xdl_prepare_env(
+pub unsafe fn xdl_prepare_env(
     mf1: *mut mmfile_t,
     mf2: *mut mmfile_t,
     xpp: *const xpparam_t,
@@ -350,8 +349,7 @@ pub unsafe extern "C" fn xdl_prepare_env(
     0
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xdl_free_env(xe: *mut xdfenv_t) {
+pub unsafe fn xdl_free_env(xe: *mut xdfenv_t) {
     unsafe {
         xdl_free_ctx(&mut (*xe).xdf2);
         xdl_free_ctx(&mut (*xe).xdf1);

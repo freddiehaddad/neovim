@@ -173,8 +173,7 @@ unsafe fn decor_provider_invoke(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_providers_invoke_spell(
+pub unsafe fn decor_providers_invoke_spell(
     wp: *mut win_T,
     start_row: c_int,
     start_col: c_int,
@@ -214,8 +213,7 @@ pub unsafe extern "C" fn decor_providers_invoke_spell(
 }
 
 /// Return whether a provider placed any marks in the callback (`decor_providers_invoke_conceal_line`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_providers_invoke_conceal_line(wp: *mut win_T, row: c_int) -> bool {
+pub unsafe fn decor_providers_invoke_conceal_line(wp: *mut win_T, row: c_int) -> bool {
     unsafe {
         let keys = (*(*wp).w_buffer).b_marktree[0].n_keys;
         let mut i = 0usize;
@@ -248,8 +246,7 @@ pub unsafe extern "C" fn decor_providers_invoke_conceal_line(wp: *mut win_T, row
 }
 
 /// For each provider invoke the 'start' callback (`decor_providers_start`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_providers_start() {
+pub unsafe fn decor_providers_start() {
     unsafe {
         let mut i = 0usize;
         while i < decor_providers.size {
@@ -283,8 +280,7 @@ pub unsafe extern "C" fn decor_providers_start() {
 }
 
 /// For each provider run 'win' (`decor_providers_invoke_win`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_providers_invoke_win(wp: *mut win_T) {
+pub unsafe fn decor_providers_invoke_win(wp: *mut win_T) {
     unsafe {
         debug_assert!(
             decor_state.current_end == 0
@@ -335,8 +331,7 @@ pub unsafe extern "C" fn decor_providers_invoke_win(wp: *mut win_T) {
 }
 
 /// For each provider invoke the 'line' callback for a given window row (`decor_providers_invoke_line`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_providers_invoke_line(wp: *mut win_T, row: c_int) {
+pub unsafe fn decor_providers_invoke_line(wp: *mut win_T, row: c_int) {
     unsafe {
         decor_state.running_decor_provider = true;
         let mut i = 0usize;
@@ -372,8 +367,7 @@ pub unsafe extern "C" fn decor_providers_invoke_line(wp: *mut win_T, row: c_int)
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_providers_invoke_range(
+pub unsafe fn decor_providers_invoke_range(
     wp: *mut win_T,
     start_row: c_int,
     start_col: c_int,
@@ -450,8 +444,7 @@ pub unsafe extern "C" fn decor_providers_invoke_range(
 }
 
 /// For each provider invoke the 'buf' callback for a given buffer (`decor_providers_invoke_buf`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_providers_invoke_buf(buf: *mut buf_T) {
+pub unsafe fn decor_providers_invoke_buf(buf: *mut buf_T) {
     unsafe {
         let mut i = 0usize;
         while i < decor_providers.size {
@@ -481,8 +474,7 @@ pub unsafe extern "C" fn decor_providers_invoke_buf(buf: *mut buf_T) {
 }
 
 /// For each provider invoke the 'end' callback (`decor_providers_invoke_end`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_providers_invoke_end() {
+pub unsafe fn decor_providers_invoke_end() {
     unsafe {
         let mut i = 0usize;
         while i < decor_providers.size {
@@ -510,8 +502,7 @@ pub unsafe extern "C" fn decor_providers_invoke_end() {
 }
 
 /// Mark all cached state of per-namespace highlights as invalid (`decor_provider_invalidate_hl`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_provider_invalidate_hl() {
+pub unsafe fn decor_provider_invalidate_hl() {
     unsafe {
         for i in 0..decor_providers.size {
             (*decor_providers.items.add(i)).hl_cached = false;
@@ -524,8 +515,7 @@ pub unsafe extern "C" fn decor_provider_invalidate_hl() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_decor_provider(ns_id: NS, force: bool) -> *mut DecorProvider {
+pub unsafe fn get_decor_provider(ns_id: NS, force: bool) -> *mut DecorProvider {
     unsafe {
         debug_assert!(ns_id > 0);
         let len = decor_providers.size;
@@ -546,8 +536,7 @@ pub unsafe extern "C" fn get_decor_provider(ns_id: NS, force: bool) -> *mut Deco
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_provider_clear(p: *mut DecorProvider) {
+pub unsafe fn decor_provider_clear(p: *mut DecorProvider) {
     unsafe {
         if p.is_null() {
             return;
@@ -564,8 +553,7 @@ pub unsafe extern "C" fn decor_provider_clear(p: *mut DecorProvider) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_free_all_mem() {
+pub unsafe fn decor_free_all_mem() {
     unsafe {
         for i in 0..decor_providers.size {
             decor_provider_clear(decor_providers.items.add(i));

@@ -77,8 +77,7 @@ static mut match_char_pos_copy: pos_T = pos_T {
 use crate::keycodes::ctrl_chr;
 /// Check if line[] contains a "//" comment, ignoring matches inside strings.
 /// Return MAXCOL if not, otherwise return the column.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_linecomment(line: *const c_char) -> c_int {
+pub unsafe fn check_linecomment(line: *const c_char) -> c_int {
     unsafe {
         let mut p = line;
         if (*curbuf).b_p_lisp != 0 {
@@ -139,8 +138,7 @@ pub unsafe extern "C" fn check_linecomment(line: *const c_char) -> c_int {
 unsafe fn ind_find_start_comment() -> *mut pos_T {
     unsafe { find_start_comment((*curbuf).b_ind_maxcomment) }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn find_start_comment(ind_maxcomment: c_int) -> *mut pos_T {
+pub unsafe fn find_start_comment(ind_maxcomment: c_int) -> *mut pos_T {
     unsafe {
         let mut pos: *mut pos_T;
         let mut cur_maxcomment = ind_maxcomment as i64;
@@ -266,8 +264,7 @@ unsafe fn skip_string(mut p: *const c_char) -> *const c_char {
         p
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn is_pos_in_string(line: *const c_char, col: colnr_T) -> c_int {
+pub unsafe fn is_pos_in_string(line: *const c_char, col: colnr_T) -> c_int {
     unsafe {
         let mut p = line;
         while *p != NUL && (p.offset_from(line) as colnr_T) < col {
@@ -277,8 +274,7 @@ pub unsafe extern "C" fn is_pos_in_string(line: *const c_char, col: colnr_T) -> 
         c_int::from(!((p.offset_from(line) as colnr_T) <= col))
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cin_is_cinword(mut line: *const c_char) -> bool {
+pub unsafe fn cin_is_cinword(mut line: *const c_char) -> bool {
     unsafe {
         let mut retval = false;
         let cinw_len = strlen((*curbuf).b_p_cinw) + 1;
@@ -299,8 +295,7 @@ pub unsafe extern "C" fn cin_is_cinword(mut line: *const c_char) -> bool {
         retval
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cindent_on() -> bool {
+pub unsafe fn cindent_on() -> bool {
     unsafe {
         p_paste == 0 && ((*curbuf).b_p_cin != 0 || (*curbuf).b_p_inde.cb_type != kCallbackNone)
     }
@@ -1494,8 +1489,7 @@ unsafe fn find_last_paren(l: *const c_char, start: c_char, end: c_char) -> bool 
     }
 }
 /// Parse 'cinoptions' and set the values in "buf".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn parse_cino(buf: *mut buf_T) {
+pub unsafe fn parse_cino(buf: *mut buf_T) {
     unsafe {
         let mut fraction: c_int = 0;
         let sw = get_sw_value(buf);
@@ -1621,8 +1615,7 @@ pub unsafe extern "C" fn parse_cino(buf: *mut buf_T) {
 }
 /// Return the desired indent for C code.
 /// Return -1 if the indent should be left alone (inside a raw string).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_c_indent() -> c_int {
+pub unsafe fn get_c_indent() -> c_int {
     unsafe {
         let mut amount: c_int;
         let mut scope_amount: c_int;
@@ -3001,8 +2994,7 @@ unsafe fn find_match(lookfor: c_int, ourscope: linenr_T) -> c_int {
     }
 }
 /// Check that "cinkeys" contains the key "keytyped".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn in_cinkeys(keytyped: c_int, when: c_int, line_is_empty: bool) -> bool {
+pub unsafe fn in_cinkeys(keytyped: c_int, when: c_int, line_is_empty: bool) -> bool {
     unsafe {
         if keytyped == NUL as c_int {
             return false;
@@ -3182,8 +3174,7 @@ pub unsafe extern "C" fn in_cinkeys(keytyped: c_int, when: c_int, line_is_empty:
     }
 }
 /// Do C or expression indenting on the current line.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_c_expr_indent() {
+pub unsafe fn do_c_expr_indent() {
     unsafe {
         if (*curbuf).b_p_inde.cb_type != kCallbackNone {
             fixthisline(get_expr_indent);
@@ -3193,12 +3184,7 @@ pub unsafe extern "C" fn do_c_expr_indent() {
     }
 }
 /// "cindent(lnum)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_cindent(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_cindent(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let pos = (*curwin).w_cursor;
         let lnum = tv_get_lnum(argvars);

@@ -200,8 +200,7 @@ pub unsafe fn ns_in_win(ns_id: u32, wp: *mut win_T) -> bool {
 }
 
 // DLLEXPORT void api_extmark_free_all_mem(void);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn api_extmark_free_all_mem() {
+pub unsafe fn api_extmark_free_all_mem() {
     unsafe {
         for i in 0..namespace_ids.set.h.n_keys {
             let name = *namespace_ids.set.keys.add(i as usize);
@@ -278,8 +277,7 @@ pub unsafe extern "C" fn nvim_get_namespaces(arena: *mut Arena) -> Dict {
 }
 
 // DLLEXPORT const char *describe_ns(NS ns_id, const char *unknown);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn describe_ns(ns_id: NS, unknown: *const c_char) -> *const c_char {
+pub unsafe fn describe_ns(ns_id: NS, unknown: *const c_char) -> *const c_char {
     unsafe {
         for i in 0..namespace_ids.set.h.n_keys {
             let name = *namespace_ids.set.keys.add(i as usize);
@@ -293,8 +291,7 @@ pub unsafe extern "C" fn describe_ns(ns_id: NS, unknown: *const c_char) -> *cons
 }
 
 // DLLEXPORT bool ns_initialized(uint32_t ns);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ns_initialized(ns: u32) -> bool {
+pub unsafe fn ns_initialized(ns: u32) -> bool {
     if ns < 1 {
         return false;
     }
@@ -302,12 +299,7 @@ pub unsafe extern "C" fn ns_initialized(ns: u32) -> bool {
 }
 
 // DLLEXPORT Array virt_text_to_array(VirtText vt, bool hl_name, Arena *arena);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn virt_text_to_array(
-    vt: VirtText,
-    hl_name: bool,
-    arena: *mut Arena,
-) -> Array {
+pub unsafe fn virt_text_to_array(vt: VirtText, hl_name: bool, arena: *mut Arena) -> Array {
     unsafe {
         let mut chunks = arena_array(arena, vt.size);
         let mut i = 0usize;
@@ -1657,8 +1649,7 @@ unsafe fn extmark_get_index_from_obj(
 }
 
 // DLLEXPORT VirtText parse_virt_text(Array chunks, Error *err, int *width, bool untab);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn parse_virt_text(
+pub unsafe fn parse_virt_text(
     chunks: Array,
     err: *mut Error,
     width: *mut c_int,

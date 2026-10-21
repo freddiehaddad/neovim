@@ -81,8 +81,7 @@ unsafe fn adjust_plines_for_skipcol(wp: *mut win_T) -> c_int {
 /// Return how many lines `lnum` will take on the screen, taking into account
 /// whether it is the first line, whether `w_skipcol` is non-zero and limiting
 /// to the window height.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn plines_correct_topline(
+pub unsafe fn plines_correct_topline(
     wp: *mut win_T,
     lnum: linenr_T,
     nextp: *mut linenr_T,
@@ -216,8 +215,7 @@ unsafe fn redraw_for_cursorcolumn(wp: *mut win_T) {
 }
 
 /// Set `wp->w_virtcol` to a value (`vcol`) that is already valid.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_valid_virtcol(wp: *mut win_T, vcol: colnr_T) {
+pub unsafe fn set_valid_virtcol(wp: *mut win_T, vcol: colnr_T) {
     unsafe {
         (*wp).w_virtcol = vcol;
         redraw_for_cursorcolumn(wp);
@@ -227,8 +225,7 @@ pub unsafe extern "C" fn set_valid_virtcol(wp: *mut win_T, vcol: colnr_T) {
 
 /// Calculates how much the `'listchars'` `"precedes"` or `'smoothscroll'` `"<<<"`
 /// marker overlaps with buffer text for window `wp`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn sms_marker_overlap(wp: *mut win_T, mut extra2: c_int) -> c_int {
+pub unsafe fn sms_marker_overlap(wp: *mut win_T, mut extra2: c_int) -> c_int {
     unsafe {
         if extra2 == -1 {
             extra2 = win_col_off(wp) - win_col_off2(wp);
@@ -292,8 +289,7 @@ unsafe fn scrolloffpad_eof_pressure(wp: *mut win_T, lnum: linenr_T, so: OptInt) 
 }
 
 /// Update `wp->w_topline` to move the cursor onto the screen.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn update_topline(wp: *mut win_T) {
+pub unsafe fn update_topline(wp: *mut win_T) {
     unsafe {
         let mut check_botline = false;
         let so_ptr: *mut OptInt = if (*wp).w_onebuf_opt.wo_so >= 0 {
@@ -537,8 +533,7 @@ unsafe fn check_top_offset(wp: *mut win_T) -> bool {
 }
 
 /// Update `w_curswant`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn update_curswant_force() {
+pub unsafe fn update_curswant_force() {
     unsafe {
         validate_virtcol(curwin);
         (*curwin).w_curswant = (*curwin).w_virtcol;
@@ -547,8 +542,7 @@ pub unsafe extern "C" fn update_curswant_force() {
 }
 
 /// Update `w_curswant` if `w_set_curswant` is set.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn update_curswant() {
+pub unsafe fn update_curswant() {
     unsafe {
         if (*curwin).w_set_curswant {
             update_curswant_force();
@@ -557,8 +551,7 @@ pub unsafe extern "C" fn update_curswant() {
 }
 
 /// Check if the cursor has moved. Set the `w_valid` flag accordingly.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_cursor_moved(wp: *mut win_T) {
+pub unsafe fn check_cursor_moved(wp: *mut win_T) {
     unsafe {
         if (*wp).w_cursor.lnum != (*wp).w_valid_cursor.lnum {
             (*wp).w_valid &= !(VALID_WROW
@@ -606,8 +599,7 @@ pub unsafe extern "C" fn check_cursor_moved(wp: *mut win_T) {
 }
 
 /// Call this function when some window settings have changed.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn changed_window_setting(wp: *mut win_T) {
+pub unsafe fn changed_window_setting(wp: *mut win_T) {
     unsafe {
         (*wp).w_lines_valid = 0;
         changed_line_abv_curs_win(wp);
@@ -617,8 +609,7 @@ pub unsafe extern "C" fn changed_window_setting(wp: *mut win_T) {
 }
 
 /// Call `changed_window_setting()` for every window.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn changed_window_setting_all() {
+pub unsafe fn changed_window_setting_all() {
     unsafe {
         let mut tp = first_tabpage;
         while !tp.is_null() {
@@ -637,8 +628,7 @@ pub unsafe extern "C" fn changed_window_setting_all() {
 }
 
 /// Set `wp->w_topline` to a certain number.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_topline(wp: *mut win_T, mut lnum: linenr_T) {
+pub unsafe fn set_topline(wp: *mut win_T, mut lnum: linenr_T) {
     unsafe {
         let prev_topline = (*wp).w_topline;
 
@@ -658,8 +648,7 @@ pub unsafe extern "C" fn set_topline(wp: *mut win_T, mut lnum: linenr_T) {
 }
 
 /// Saves the view of `wp`, for `restore_viewstate()`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn save_viewstate(wp: *mut win_T, vs: *mut viewstate_T) {
+pub unsafe fn save_viewstate(wp: *mut win_T, vs: *mut viewstate_T) {
     unsafe {
         (*vs).vs_curswant = (*wp).w_curswant;
         (*vs).vs_set_curswant = (*wp).w_set_curswant;
@@ -673,8 +662,7 @@ pub unsafe extern "C" fn save_viewstate(wp: *mut win_T, vs: *mut viewstate_T) {
 }
 
 /// Restores the view saved by `save_viewstate()`. No validation.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn restore_viewstate(wp: *mut win_T, vs: *const viewstate_T) {
+pub unsafe fn restore_viewstate(wp: *mut win_T, vs: *const viewstate_T) {
     unsafe {
         (*wp).w_curswant = (*vs).vs_curswant;
         (*wp).w_set_curswant = (*vs).vs_set_curswant;
@@ -689,8 +677,7 @@ pub unsafe extern "C" fn restore_viewstate(wp: *mut win_T, vs: *const viewstate_
 
 /// Call this function when the length of the cursor line (in screen
 /// characters) has changed, and the change is before the cursor.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn changed_cline_bef_curs(wp: *mut win_T) {
+pub unsafe fn changed_cline_bef_curs(wp: *mut win_T) {
     unsafe {
         (*wp).w_valid &=
             !(VALID_WROW | VALID_WCOL | VALID_VIRTCOL | VALID_CROW | VALID_CHEIGHT | VALID_TOPLINE);
@@ -698,16 +685,14 @@ pub unsafe extern "C" fn changed_cline_bef_curs(wp: *mut win_T) {
 }
 
 /// Call this function when the length of a line above the cursor has changed.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn changed_line_abv_curs() {
+pub unsafe fn changed_line_abv_curs() {
     unsafe {
         (*curwin).w_valid &=
             !(VALID_WROW | VALID_WCOL | VALID_VIRTCOL | VALID_CROW | VALID_CHEIGHT | VALID_TOPLINE);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn changed_line_abv_curs_win(wp: *mut win_T) {
+pub unsafe fn changed_line_abv_curs_win(wp: *mut win_T) {
     unsafe {
         (*wp).w_valid &=
             !(VALID_WROW | VALID_WCOL | VALID_VIRTCOL | VALID_CROW | VALID_CHEIGHT | VALID_TOPLINE);
@@ -715,8 +700,7 @@ pub unsafe extern "C" fn changed_line_abv_curs_win(wp: *mut win_T) {
 }
 
 /// Make sure the value of `wp->w_botline` is valid.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn validate_botline_win(wp: *mut win_T) {
+pub unsafe fn validate_botline_win(wp: *mut win_T) {
     unsafe {
         if ((*wp).w_valid & VALID_BOTLINE) == 0 {
             comp_botline(wp);
@@ -725,23 +709,20 @@ pub unsafe extern "C" fn validate_botline_win(wp: *mut win_T) {
 }
 
 /// Mark `wp->w_botline` as invalid.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn invalidate_botline_win(wp: *mut win_T) {
+pub unsafe fn invalidate_botline_win(wp: *mut win_T) {
     unsafe {
         (*wp).w_valid &= !(VALID_BOTLINE | VALID_BOTLINE_AP);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn approximate_botline_win(wp: *mut win_T) {
+pub unsafe fn approximate_botline_win(wp: *mut win_T) {
     unsafe {
         (*wp).w_valid &= !VALID_BOTLINE;
     }
 }
 
 /// Return true if `wp->w_wrow` and `wp->w_wcol` are valid.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cursor_valid(wp: *mut win_T) -> c_int {
+pub unsafe fn cursor_valid(wp: *mut win_T) -> c_int {
     unsafe {
         check_cursor_moved(wp);
         c_int::from(((*wp).w_valid & (VALID_WROW | VALID_WCOL)) == (VALID_WROW | VALID_WCOL))
@@ -749,8 +730,7 @@ pub unsafe extern "C" fn cursor_valid(wp: *mut win_T) -> c_int {
 }
 
 /// Validate cursor position. Makes sure `w_wrow` and `w_wcol` are valid.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn validate_cursor(wp: *mut win_T) {
+pub unsafe fn validate_cursor(wp: *mut win_T) {
     unsafe {
         check_cursor_lnum(wp);
         check_cursor_moved(wp);
@@ -843,8 +823,7 @@ unsafe fn curs_rows(wp: *mut win_T) {
 }
 
 /// Validate `wp->w_virtcol` only.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn validate_virtcol(wp: *mut win_T) {
+pub unsafe fn validate_virtcol(wp: *mut win_T) {
     unsafe {
         check_cursor_moved(wp);
 
@@ -866,8 +845,7 @@ pub unsafe extern "C" fn validate_virtcol(wp: *mut win_T) {
 }
 
 /// Validate `wp->w_cline_height` only.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn validate_cheight(wp: *mut win_T) {
+pub unsafe fn validate_cheight(wp: *mut win_T) {
     unsafe {
         check_cursor_moved(wp);
 
@@ -888,8 +866,7 @@ pub unsafe extern "C" fn validate_cheight(wp: *mut win_T) {
 }
 
 /// Validate `w_wcol` and `w_virtcol` only.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn validate_cursor_col(wp: *mut win_T) {
+pub unsafe fn validate_cursor_col(wp: *mut win_T) {
     unsafe {
         validate_virtcol(wp);
 
@@ -935,8 +912,7 @@ pub unsafe extern "C" fn win_col_off(wp: *mut win_T) -> c_int {
 
 /// Return the difference in column offset for the second screen line of a
 /// wrapped line.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn win_col_off2(wp: *mut win_T) -> c_int {
+pub unsafe fn win_col_off2(wp: *mut win_T) -> c_int {
     unsafe {
         if ((*wp).w_onebuf_opt.wo_nu != 0
             || (*wp).w_onebuf_opt.wo_rnu != 0
@@ -951,8 +927,7 @@ pub unsafe extern "C" fn win_col_off2(wp: *mut win_T) -> c_int {
 
 /// Compute `wp->w_wcol` and `wp->w_virtcol`, and update `wp->w_wrow`,
 /// `wp->w_cline_row`, and `wp->w_leftcol`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn curs_columns(wp: *mut win_T, may_scroll: c_int) {
+pub unsafe fn curs_columns(wp: *mut win_T, may_scroll: c_int) {
     unsafe {
         let mut startcol: colnr_T = 0;
         let mut endcol: colnr_T = 0;
@@ -1160,8 +1135,7 @@ pub unsafe extern "C" fn curs_columns(wp: *mut win_T, may_scroll: c_int) {
 }
 
 /// Compute the screen position of text character at `pos` in window `wp`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn textpos2screenpos(
+pub unsafe fn textpos2screenpos(
     wp: *mut win_T,
     pos: *mut pos_T,
     rowp: *mut c_int,
@@ -1263,12 +1237,7 @@ pub unsafe extern "C" fn textpos2screenpos(
 }
 
 /// `"screenpos({winid}, {lnum}, {col})"` function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_screenpos(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_screenpos(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_dict_alloc_ret(rettv);
         let dict = (*rettv).vval.v_dict;
@@ -1336,12 +1305,7 @@ unsafe fn virtcol2col(wp: *mut win_T, lnum: linenr_T, vcol: c_int) -> c_int {
 }
 
 /// `"virtcol2col({winid}, {lnum}, {col})"` function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_virtcol2col(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_virtcol2col(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = -1;
 
@@ -1469,8 +1433,7 @@ unsafe fn cursor_correct_sms(wp: *mut win_T) {
 }
 
 /// Scroll `count` lines up or down, and redraw.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn scroll_redraw(up: c_int, count: linenr_T) {
+pub unsafe fn scroll_redraw(up: c_int, count: linenr_T) {
     unsafe {
         let prev_topline = (*curwin).w_topline;
         let prev_skipcol = (*curwin).w_skipcol;
@@ -1520,8 +1483,7 @@ pub unsafe extern "C" fn scroll_redraw(up: c_int, count: linenr_T) {
 }
 
 /// Scroll a window down by `line_count` logical lines (`CTRL-Y`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn scrolldown(wp: *mut win_T, line_count: linenr_T, byfold: c_int) -> bool {
+pub unsafe fn scrolldown(wp: *mut win_T, line_count: linenr_T, byfold: c_int) -> bool {
     unsafe {
         let mut done: c_int = 0;
         let mut width1: c_int = 0;
@@ -1642,8 +1604,7 @@ pub unsafe extern "C" fn scrolldown(wp: *mut win_T, line_count: linenr_T, byfold
 }
 
 /// Scroll a window up by `line_count` logical lines (`CTRL-E`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn scrollup(wp: *mut win_T, line_count: linenr_T, byfold: bool) -> bool {
+pub unsafe fn scrollup(wp: *mut win_T, line_count: linenr_T, byfold: bool) -> bool {
     unsafe {
         let topline = (*wp).w_topline;
         let botline = (*wp).w_botline;
@@ -1734,8 +1695,7 @@ pub unsafe extern "C" fn scrollup(wp: *mut win_T, line_count: linenr_T, byfold: 
 }
 
 /// Make sure that `curwin->w_skipcol` is valid for `'smoothscroll'`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn adjust_skipcol() {
+pub unsafe fn adjust_skipcol() {
     unsafe {
         if (*curwin).w_onebuf_opt.wo_wrap == 0
             || (*curwin).w_onebuf_opt.wo_sms == 0
@@ -1816,8 +1776,7 @@ pub unsafe extern "C" fn adjust_skipcol() {
 }
 
 /// Don't end up with too many filler lines in the window.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_topfill(wp: *mut win_T, down: bool) {
+pub unsafe fn check_topfill(wp: *mut win_T, down: bool) {
     unsafe {
         if (*wp).w_topfill > 0 {
             let n = plines_win_nofill(wp, (*wp).w_topline, true);
@@ -1835,8 +1794,7 @@ pub unsafe extern "C" fn check_topfill(wp: *mut win_T, down: bool) {
 }
 
 /// Scroll the screen one line down, without moving the cursor off the screen.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn scrolldown_clamp() {
+pub unsafe fn scrolldown_clamp() {
     unsafe {
         let can_fill = (*curwin).w_topfill < win_get_fill(curwin, (*curwin).w_topline);
 
@@ -1878,8 +1836,7 @@ pub unsafe extern "C" fn scrolldown_clamp() {
 }
 
 /// Scroll the screen one line up, without moving the cursor off the screen.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn scrollup_clamp() {
+pub unsafe fn scrollup_clamp() {
     unsafe {
         if (*curwin).w_topline == (*curbuf).b_ml.ml_line_count && (*curwin).w_topfill == 0 {
             return;
@@ -1957,8 +1914,7 @@ unsafe fn botline_forw(wp: *mut win_T, lp: *mut lineoff_T) {
 }
 
 /// Recompute topline to put the cursor at the top of the window.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn scroll_cursor_top(wp: *mut win_T, min_scroll: c_int, always: c_int) {
+pub unsafe fn scroll_cursor_top(wp: *mut win_T, min_scroll: c_int, always: c_int) {
     unsafe {
         let old_topline = (*wp).w_topline;
         let old_skipcol = (*wp).w_skipcol;
@@ -2061,8 +2017,7 @@ pub unsafe extern "C" fn scroll_cursor_top(wp: *mut win_T, min_scroll: c_int, al
 }
 
 /// Set `w_empty_rows` and `w_filler_rows` for window `wp`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_empty_rows(wp: *mut win_T, used: c_int) {
+pub unsafe fn set_empty_rows(wp: *mut win_T, used: c_int) {
     unsafe {
         (*wp).w_filler_rows = 0;
         if used == 0 {
@@ -2083,8 +2038,7 @@ pub unsafe extern "C" fn set_empty_rows(wp: *mut win_T, used: c_int) {
 }
 
 /// Recompute topline to put the cursor at the bottom of the window.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn scroll_cursor_bot(wp: *mut win_T, min_scroll: c_int, set_topbot: bool) {
+pub unsafe fn scroll_cursor_bot(wp: *mut win_T, min_scroll: c_int, set_topbot: bool) {
     unsafe {
         let mut loff = lineoff_T::default();
         let old_topline = (*wp).w_topline;
@@ -2290,8 +2244,7 @@ pub unsafe extern "C" fn scroll_cursor_bot(wp: *mut win_T, min_scroll: c_int, se
 }
 
 /// Recompute topline to put the cursor halfway across the window.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn scroll_cursor_halfway(wp: *mut win_T, atend: bool, prefer_above: bool) {
+pub unsafe fn scroll_cursor_halfway(wp: *mut win_T, atend: bool, prefer_above: bool) {
     unsafe {
         let old_topline = (*wp).w_topline;
         let mut loff = lineoff_T {
@@ -2418,8 +2371,7 @@ pub unsafe extern "C" fn scroll_cursor_halfway(wp: *mut win_T, atend: bool, pref
 
 /// Correct the cursor position so that it is in a part of the screen at least
 /// `'so'` lines from the top and bottom, if possible.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cursor_correct(wp: *mut win_T) {
+pub unsafe fn cursor_correct(wp: *mut win_T) {
     unsafe {
         let mut above_wanted = get_scrolloff_value(wp);
         let mut below_wanted = get_scrolloff_value(wp);
@@ -2603,8 +2555,7 @@ unsafe fn scroll_with_sms(dir: Direction, mut count: c_int, curscount: *mut c_in
 }
 
 /// Move screen `count` (half) pages up (`dir` is `BACKWARD`) or down (`dir` is `FORWARD`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn pagescroll(dir: Direction, mut count: c_int, half: bool) -> c_int {
+pub unsafe fn pagescroll(dir: Direction, mut count: c_int, half: bool) -> c_int {
     unsafe {
         let mut did_move = false;
         let buflen = (*curbuf).b_ml.ml_line_count;
@@ -2702,8 +2653,7 @@ pub unsafe extern "C" fn pagescroll(dir: Direction, mut count: c_int, half: bool
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_check_cursorbind() {
+pub unsafe fn do_check_cursorbind() {
     unsafe {
         static mut prev_curwin: *mut win_T = ptr::null_mut();
         static mut prev_curbuf: *mut buf_T = ptr::null_mut();

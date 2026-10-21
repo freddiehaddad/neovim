@@ -122,8 +122,7 @@ use crate::state::MODE_INSERT;
 
 /// Ensures that a buffer is loaded.
 // DLLEXPORT buf_T *api_buf_ensure_loaded(Buffer buf, Error *err);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn api_buf_ensure_loaded(buf: Buffer, err: *mut Error) -> *mut buf_T {
+pub unsafe fn api_buf_ensure_loaded(buf: Buffer, err: *mut Error) -> *mut buf_T {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
         if b.is_null() {
@@ -1983,8 +1982,7 @@ unsafe fn push_linestr(
 /// @return true unless `err` was set
 // DLLEXPORT void buf_collect_lines(buf_T *buf, size_t n, linenr_T start, int start_idx,
 //                                  bool replace_nl, Array *l, lua_State *lstate, Arena *arena);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buf_collect_lines(
+pub unsafe fn buf_collect_lines(
     buf: *mut buf_T,
     n: usize,
     start: linenr_T,

@@ -150,24 +150,17 @@ struct syl_item_T {
     sy_chars: [c_char; SY_MAXLEN],
     sy_len: c_int,
 }
-#[unsafe(no_mangle)]
 pub static mut first_lang: *mut slang_T = ptr::null_mut();
-#[unsafe(no_mangle)]
 pub static mut int_wordlist: *mut c_char = ptr::null_mut();
-#[unsafe(no_mangle)]
 pub static mut spelltab: spelltab_T = spelltab_T {
     st_isw: [false; 256],
     st_isu: [false; 256],
     st_fold: [0; 256],
     st_upper: [0; 256],
 };
-#[unsafe(no_mangle)]
 pub static mut did_set_spelltab: bool = false;
-#[unsafe(no_mangle)]
 pub static mut e_format: *mut c_char = c"E759: Format error in spell file".as_ptr().cast_mut();
-#[unsafe(no_mangle)]
 pub static mut repl_from: *mut c_char = ptr::null_mut();
-#[unsafe(no_mangle)]
 pub static mut repl_to: *mut c_char = ptr::null_mut();
 static mut parse_spelllang_recursive: bool = false;
 static mut spell_expand_need_cap: bool = false;
@@ -219,8 +212,7 @@ pub unsafe fn langp_entry(ga: *const garray_T, i: usize) -> *mut langp_T {
     unsafe { ((*ga).ga_data.cast::<langp_T>()).add(i) }
 }
 /// Main spell-checking function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn spell_check(
+pub unsafe fn spell_check(
     wp: *mut win_T,
     ptr: *mut c_char,
     attrp: *mut hlf_T,
@@ -796,8 +788,7 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
         }
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn match_checkcompoundpattern(
+pub unsafe fn match_checkcompoundpattern(
     ptr: *mut c_char,
     wlen: c_int,
     gap: *mut garray_T,
@@ -818,12 +809,7 @@ pub unsafe extern "C" fn match_checkcompoundpattern(
         false
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn can_compound(
-    slang: *mut slang_T,
-    word: *const c_char,
-    flags: *const u8,
-) -> bool {
+pub unsafe fn can_compound(slang: *mut slang_T, word: *const c_char, flags: *const u8) -> bool {
     unsafe {
         let mut uflags: [c_char; MAXWLEN * 2] = [0; MAXWLEN * 2];
         if (*slang).sl_compprog.is_null() {
@@ -848,8 +834,7 @@ pub unsafe extern "C" fn can_compound(
         true
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn match_compoundrule(slang: *mut slang_T, compflags: *const u8) -> bool {
+pub unsafe fn match_compoundrule(slang: *mut slang_T, compflags: *const u8) -> bool {
     unsafe {
         let mut p = (*slang).sl_comprules.cast::<c_char>();
         while *p != NUL {
@@ -891,8 +876,7 @@ pub unsafe extern "C" fn match_compoundrule(slang: *mut slang_T, compflags: *con
         false
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn valid_word_prefix(
+pub unsafe fn valid_word_prefix(
     totprefcnt: c_int,
     arridx: c_int,
     flags: c_int,
@@ -1026,14 +1010,12 @@ unsafe fn fold_more(mip: *mut matchinf_T) -> c_int {
         flen
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn spell_valid_case(wordflags: c_int, treeflags: c_int) -> bool {
+pub unsafe fn spell_valid_case(wordflags: c_int, treeflags: c_int) -> bool {
     (wordflags == WF_ALLCAP && (treeflags & WF_FIXCAP) == 0)
         || ((treeflags & (WF_ALLCAP | WF_KEEPCAP)) == 0
             && ((treeflags & WF_ONECAP) == 0 || (wordflags & WF_ONECAP) != 0))
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn spell_check_window(wp: *mut win_T) -> bool {
+pub unsafe fn spell_check_window(wp: *mut win_T) -> bool {
     unsafe {
         let w_s = (*wp).w_s.cast::<synblock_T>();
         (*wp).w_onebuf_opt.wo_spell != 0
@@ -1042,8 +1024,7 @@ pub unsafe extern "C" fn spell_check_window(wp: *mut win_T) -> bool {
             && !(*((*w_s).b_langp.ga_data.cast::<*mut c_char>())).is_null()
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn no_spell_checking(wp: *mut win_T) -> bool {
+pub unsafe fn no_spell_checking(wp: *mut win_T) -> bool {
     unsafe {
         let w_s = (*wp).w_s.cast::<synblock_T>();
         if (*wp).w_onebuf_opt.wo_spell == 0 || *(*w_s).b_p_spl == NUL || (*w_s).b_langp.ga_len <= 0
@@ -1079,8 +1060,7 @@ unsafe fn can_syn_spell(wp: *mut win_T, lnum: linenr_T, col: c_int) -> bool {
         can_spell
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn spell_move_to(
+pub unsafe fn spell_move_to(
     wp: *mut win_T,
     dir: c_int,
     behaviour: smt_T,
@@ -1266,8 +1246,7 @@ pub unsafe extern "C" fn spell_move_to(
         ret
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn spell_cat_line(buf: *mut c_char, line: *mut c_char, maxlen: c_int) {
+pub unsafe fn spell_cat_line(buf: *mut c_char, line: *mut c_char, maxlen: c_int) {
     unsafe {
         let mut p = skipwhite(line);
         while !vim_strchr(c"*#/\"\t".as_ptr(), *p as u8 as c_int).is_null() {
@@ -1369,8 +1348,7 @@ unsafe fn spell_load_lang(lang: *mut c_char) {
         (*curbuf).b_locked -= 1;
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn spell_enc() -> *mut c_char {
+pub unsafe fn spell_enc() -> *mut c_char {
     unsafe {
         if strlen(p_enc) < 60 && strcmp(p_enc, c"iso-8859-15".as_ptr()) != 0 {
             return p_enc;
@@ -1389,8 +1367,7 @@ unsafe fn int_wordlist_spl(fname: *mut c_char) {
         );
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn slang_alloc(lang: *mut c_char) -> *mut slang_T {
+pub unsafe fn slang_alloc(lang: *mut c_char) -> *mut slang_T {
     unsafe {
         let lp = xcalloc(1, size_of::<slang_T>()).cast::<slang_T>();
         if !lang.is_null() {
@@ -1404,8 +1381,7 @@ pub unsafe extern "C" fn slang_alloc(lang: *mut c_char) -> *mut slang_T {
         lp
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn slang_free(lp: *mut slang_T) {
+pub unsafe fn slang_free(lp: *mut slang_T) {
     unsafe {
         xfree((*lp).sl_name.cast());
         xfree((*lp).sl_fname.cast());
@@ -1422,8 +1398,7 @@ unsafe fn free_salitem(smp: *mut salitem_T) {
         xfree((*smp).sm_to_w.cast());
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn free_sal_items(gap: *mut garray_T) {
+pub unsafe fn free_sal_items(gap: *mut garray_T) {
     unsafe {
         for i in 0..((*gap).ga_len as usize) {
             free_salitem(((*gap).ga_data.cast::<salitem_T>()).add(i));
@@ -1437,8 +1412,7 @@ unsafe fn free_fromto(ftp: *mut fromto_T) {
         xfree((*ftp).ft_to.cast());
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn slang_clear(lp: *mut slang_T) {
+pub unsafe fn slang_clear(lp: *mut slang_T) {
     unsafe {
         xfree((*lp).sl_fbyts.cast());
         (*lp).sl_fbyts = ptr::null_mut();
@@ -1504,8 +1478,7 @@ pub unsafe extern "C" fn slang_clear(lp: *mut slang_T) {
         (*lp).sl_regions[0] = NUL;
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn slang_clear_sug(lp: *mut slang_T) {
+pub unsafe fn slang_clear_sug(lp: *mut slang_T) {
     unsafe {
         xfree((*lp).sl_sbyts.cast());
         (*lp).sl_sbyts = ptr::null_mut();
@@ -1517,7 +1490,7 @@ pub unsafe extern "C" fn slang_clear_sug(lp: *mut slang_T) {
         (*lp).sl_sugtime = 0;
     }
 }
-unsafe extern "C" fn spell_load_cb(
+unsafe fn spell_load_cb(
     num_fnames: c_int,
     fnames: *mut *mut c_char,
     all: bool,
@@ -1548,13 +1521,7 @@ unsafe extern "C" fn spell_load_cb(
         num_fnames > 0
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn count_common_word(
-    lp: *mut slang_T,
-    word: *mut c_char,
-    len: c_int,
-    count: u8,
-) {
+pub unsafe fn count_common_word(lp: *mut slang_T, word: *mut c_char, len: c_int, count: u8) {
     unsafe {
         let mut buf: [c_char; MAXWLEN] = [0; MAXWLEN];
         let p: *mut c_char = if len == -1 {
@@ -1585,8 +1552,7 @@ pub unsafe extern "C" fn count_common_word(
         }
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn byte_in_str(str_: *mut u8, n: c_int) -> bool {
+pub unsafe fn byte_in_str(str_: *mut u8, n: c_int) -> bool {
     unsafe {
         let mut p = str_;
         while *p != 0 {
@@ -1598,8 +1564,7 @@ pub unsafe extern "C" fn byte_in_str(str_: *mut u8, n: c_int) -> bool {
         false
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn init_syl_tab(slang: *mut slang_T) -> c_int {
+pub unsafe fn init_syl_tab(slang: *mut slang_T) -> c_int {
     unsafe {
         ga_init(
             &raw mut (*slang).sl_syl_items,
@@ -1678,8 +1643,7 @@ unsafe fn count_syllables(slang: *mut slang_T, word: *const c_char) -> c_int {
         cnt
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
+pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
     unsafe {
         let mut region_cp: [c_char; 3] = [0; 3];
         let mut lang: [c_char; MAXWLEN + 1] = [0; MAXWLEN + 1];
@@ -2001,8 +1965,7 @@ unsafe fn find_region(rp: *const c_char, region: *const c_char) -> c_int {
         (i / 2) as c_int
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn captype(word: *const c_char, end: *const c_char) -> c_int {
+pub unsafe fn captype(word: *const c_char, end: *const c_char) -> c_int {
     unsafe {
         let mut p = word;
         while !spell_iswordp_nmw(p, curwin) {
@@ -2039,8 +2002,7 @@ pub unsafe extern "C" fn captype(word: *const c_char, end: *const c_char) -> c_i
         0
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn spell_delete_wordlist() {
+pub unsafe fn spell_delete_wordlist() {
     unsafe {
         if int_wordlist.is_null() {
             return;
@@ -2053,8 +2015,7 @@ pub unsafe extern "C" fn spell_delete_wordlist() {
         int_wordlist = ptr::null_mut();
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn spell_free_all() {
+pub unsafe fn spell_free_all() {
     unsafe {
         let mut buf = firstbuf;
         while !buf.is_null() {
@@ -2073,8 +2034,7 @@ pub unsafe extern "C" fn spell_free_all() {
         repl_from = ptr::null_mut();
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn spell_reload() {
+pub unsafe fn spell_reload() {
     unsafe {
         init_spell_chartab();
         spell_free_all();
@@ -2089,8 +2049,7 @@ pub unsafe extern "C" fn spell_reload() {
         }
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn open_spellbuf() -> *mut buf_T {
+pub unsafe fn open_spellbuf() -> *mut buf_T {
     unsafe {
         let buf = xcalloc(1, size_of::<buf_T>()).cast::<buf_T>();
         (*buf).b_spell = true;
@@ -2109,8 +2068,7 @@ pub unsafe extern "C" fn open_spellbuf() -> *mut buf_T {
         buf
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn close_spellbuf(buf: *mut buf_T) {
+pub unsafe fn close_spellbuf(buf: *mut buf_T) {
     unsafe {
         if buf.is_null() {
             return;
@@ -2119,8 +2077,7 @@ pub unsafe extern "C" fn close_spellbuf(buf: *mut buf_T) {
         xfree(buf.cast());
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn clear_spell_chartab(sp: *mut spelltab_T) {
+pub unsafe fn clear_spell_chartab(sp: *mut spelltab_T) {
     unsafe {
         (*sp).st_isw = [false; 256];
         (*sp).st_isu = [false; 256];
@@ -2142,8 +2099,7 @@ pub unsafe extern "C" fn clear_spell_chartab(sp: *mut spelltab_T) {
         }
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn init_spell_chartab() {
+pub unsafe fn init_spell_chartab() {
     unsafe {
         did_set_spelltab = false;
         clear_spell_chartab(&raw mut spelltab);
@@ -2157,8 +2113,7 @@ pub unsafe extern "C" fn init_spell_chartab() {
         }
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn spell_iswordp(p: *const c_char, wp: *const win_T) -> bool {
+pub unsafe fn spell_iswordp(p: *const c_char, wp: *const win_T) -> bool {
     unsafe {
         let w_s = (*wp).w_s.cast::<synblock_T>();
         let l = utfc_ptr2len(p);
@@ -2185,8 +2140,7 @@ pub unsafe extern "C" fn spell_iswordp(p: *const c_char, wp: *const win_T) -> bo
         c >= 0 && spelltab.st_isw[c as usize]
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn spell_iswordp_nmw(p: *const c_char, wp: *mut win_T) -> bool {
+pub unsafe fn spell_iswordp_nmw(p: *const c_char, wp: *mut win_T) -> bool {
     unsafe {
         let c = utf_ptr2char(p);
         if c > 255 {
@@ -2222,8 +2176,7 @@ unsafe fn spell_iswordp_w(p: *const c_int, wp: *const win_T) -> bool {
         *s >= 0 && spelltab.st_isw[*s as usize]
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn spell_casefold(
+pub unsafe fn spell_casefold(
     wp: *const win_T,
     str_: *const c_char,
     len: c_int,
@@ -2259,8 +2212,7 @@ pub unsafe extern "C" fn spell_casefold(
         OK
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_need_cap(wp: *mut win_T, lnum: linenr_T, col: colnr_T) -> bool {
+pub unsafe fn check_need_cap(wp: *mut win_T, lnum: linenr_T, col: colnr_T) -> bool {
     unsafe {
         let w_s = (*wp).w_s.cast::<synblock_T>();
         if (*w_s).b_cap_prog.is_null() {
@@ -2313,8 +2265,7 @@ pub unsafe extern "C" fn check_need_cap(wp: *mut win_T, lnum: linenr_T, col: col
         need_cap
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_spellrepall(_eap: *mut exarg_T) {
+pub unsafe fn ex_spellrepall(_eap: *mut exarg_T) {
     unsafe {
         let pos = (*curwin).w_cursor;
         let save_ws = p_ws;
@@ -2388,8 +2339,7 @@ pub unsafe extern "C" fn ex_spellrepall(_eap: *mut exarg_T) {
         }
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn onecap_copy(word: *const c_char, wcopy: *mut c_char, upper: bool) {
+pub unsafe fn onecap_copy(word: *const c_char, wcopy: *mut c_char, upper: bool) {
     unsafe {
         let mut p = word;
         let mut c = mb_cptr2char_adv(&raw mut p);
@@ -2402,8 +2352,7 @@ pub unsafe extern "C" fn onecap_copy(word: *const c_char, wcopy: *mut c_char, up
         xstrlcpy(wcopy.add(l), p, MAXWLEN - l);
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn allcap_copy(word: *const c_char, wcopy: *mut c_char) {
+pub unsafe fn allcap_copy(word: *const c_char, wcopy: *mut c_char) {
     unsafe {
         let mut d = wcopy;
         let mut s = word;
@@ -2427,8 +2376,7 @@ pub unsafe extern "C" fn allcap_copy(word: *const c_char, wcopy: *mut c_char) {
         *d = NUL;
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nofold_len(fword: *mut c_char, flen: c_int, word: *mut c_char) -> c_int {
+pub unsafe fn nofold_len(fword: *mut c_char, flen: c_int, word: *mut c_char) -> c_int {
     unsafe {
         let mut p = fword;
         let mut i: c_int = 0;
@@ -2445,8 +2393,7 @@ pub unsafe extern "C" fn nofold_len(fword: *mut c_char, flen: c_int, word: *mut 
         p.offset_from(word) as c_int
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn make_case_word(fword: *mut c_char, cword: *mut c_char, flags: c_int) {
+pub unsafe fn make_case_word(fword: *mut c_char, cword: *mut c_char, flags: c_int) {
     unsafe {
         if (flags & WF_ALLCAP) != 0 {
             allcap_copy(fword, cword);
@@ -2457,8 +2404,7 @@ pub unsafe extern "C" fn make_case_word(fword: *mut c_char, cword: *mut c_char, 
         }
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval_soundfold(word: *const c_char) -> *mut c_char {
+pub unsafe fn eval_soundfold(word: *const c_char) -> *mut c_char {
     unsafe {
         let w_s = (*curwin).w_s.cast::<synblock_T>();
         if (*curwin).w_onebuf_opt.wo_spell != 0 && *(*w_s).b_p_spl != NUL {
@@ -2479,8 +2425,7 @@ pub unsafe extern "C" fn eval_soundfold(word: *const c_char) -> *mut c_char {
         xstrdup(word)
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn spell_soundfold(
+pub unsafe fn spell_soundfold(
     slang: *mut slang_T,
     inword: *mut c_char,
     folded: bool,
@@ -2827,8 +2772,7 @@ unsafe fn spell_soundfold_wsal(slang: *mut slang_T, inword: *const c_char, res: 
         *res.add(l) = NUL;
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_spellinfo(_eap: *mut exarg_T) {
+pub unsafe fn ex_spellinfo(_eap: *mut exarg_T) {
     unsafe {
         if no_spell_checking(curwin) {
             return;
@@ -2856,8 +2800,7 @@ pub unsafe extern "C" fn ex_spellinfo(_eap: *mut exarg_T) {
         msg_end();
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_spelldump(eap: *mut exarg_T) {
+pub unsafe fn ex_spelldump(eap: *mut exarg_T) {
     unsafe {
         if no_spell_checking(curwin) {
             return;
@@ -2886,8 +2829,7 @@ pub unsafe extern "C" fn ex_spelldump(eap: *mut exarg_T) {
         redraw_later(curwin, UPD_NOT_VALID);
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn spell_dump_compl(
+pub unsafe fn spell_dump_compl(
     pat: *mut c_char,
     ic: c_int,
     dir: *mut Direction,
@@ -3252,8 +3194,7 @@ unsafe fn dump_prefixes(
         lnum
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn spell_to_word_end(start: *mut c_char, win: *mut win_T) -> *mut c_char {
+pub unsafe fn spell_to_word_end(start: *mut c_char, win: *mut win_T) -> *mut c_char {
     unsafe {
         let mut p = start;
         while *p != NUL && spell_iswordp(p, win) {
@@ -3262,8 +3203,7 @@ pub unsafe extern "C" fn spell_to_word_end(start: *mut c_char, win: *mut win_T) 
         p
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn spell_word_start(startcol: c_int) -> c_int {
+pub unsafe fn spell_word_start(startcol: c_int) -> c_int {
     unsafe {
         if no_spell_checking(curwin) {
             return startcol;
@@ -3288,14 +3228,12 @@ pub unsafe extern "C" fn spell_word_start(startcol: c_int) -> c_int {
         col
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn spell_expand_check_cap(col: colnr_T) {
+pub unsafe fn spell_expand_check_cap(col: colnr_T) {
     unsafe {
         spell_expand_need_cap = check_need_cap(curwin, (*curwin).w_cursor.lnum, col);
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn expand_spelling(
+pub unsafe fn expand_spelling(
     _lnum: linenr_T,
     pat: *mut c_char,
     matchp: *mut *mut *mut c_char,
@@ -3313,12 +3251,10 @@ pub unsafe extern "C" fn expand_spelling(
         ga.ga_len
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn valid_spelllang(val: *const c_char) -> bool {
+pub unsafe fn valid_spelllang(val: *const c_char) -> bool {
     unsafe { valid_name(val, c".-_,@".as_ptr()) }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn valid_spellfile(val: *const c_char) -> bool {
+pub unsafe fn valid_spellfile(val: *const c_char) -> bool {
     unsafe {
         let mut spf_name: [c_char; MAXPATHL] = [0; MAXPATHL];
         let mut spf = val.cast_mut();
@@ -3350,8 +3286,7 @@ pub unsafe extern "C" fn valid_spellfile(val: *const c_char) -> bool {
         true
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn did_set_spell_option() -> *const c_char {
+pub unsafe fn did_set_spell_option() -> *const c_char {
     unsafe {
         let mut errmsg: *const c_char = ptr::null();
         let mut wp = firstwin;
@@ -3365,11 +3300,7 @@ pub unsafe extern "C" fn did_set_spell_option() -> *const c_char {
         errmsg
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn compile_cap_prog(
-    value: *const c_char,
-    prog: *mut *mut regprog_T,
-) -> *const c_char {
+pub unsafe fn compile_cap_prog(value: *const c_char, prog: *mut *mut regprog_T) -> *const c_char {
     unsafe {
         let mut rp: *mut regprog_T = ptr::null_mut();
         if !value.is_null() && *value != NUL {

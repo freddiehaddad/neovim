@@ -35,7 +35,6 @@ pub type StringArray = KVec<NvimString>;
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MessageType {
-    kMessageTypeUnknown = -1,
     kMessageTypeRequest = 0,
     kMessageTypeResponse = 1,
     kMessageTypeNotification = 2,
@@ -98,7 +97,7 @@ const fn empty_arena() -> Arena {
     }
 }
 
-unsafe extern "C-unwind" fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
+unsafe fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
     unsafe {
         let p = (*parser).data.p.cast::<Unpacker>();
         let mut result: *mut Object = std::ptr::null_mut();
@@ -283,10 +282,9 @@ unsafe extern "C-unwind" fn api_parse_enter(parser: *mut mpack_parser_t, node: *
     }
 }
 
-unsafe extern "C-unwind" fn api_parse_exit(_parser: *mut mpack_parser_t, _node: *mut mpack_node_t) {
-}
+unsafe fn api_parse_exit(_parser: *mut mpack_parser_t, _node: *mut mpack_node_t) {}
 
-unsafe extern "C-unwind" fn parse_nop(_parser: *mut mpack_parser_t, _node: *mut mpack_node_t) {}
+unsafe fn parse_nop(_parser: *mut mpack_parser_t, _node: *mut mpack_node_t) {}
 
 /// Unpack a single MessagePack value into an `Object` (`unpack`).
 #[unsafe(no_mangle)]
@@ -369,8 +367,7 @@ pub unsafe extern "C" fn unpacker_teardown(p: *mut Unpacker) {
 }
 
 /// Parse the header of a msgpack-rpc message (`unpacker_parse_header`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn unpacker_parse_header(p: *mut Unpacker) -> bool {
+pub unsafe fn unpacker_parse_header(p: *mut Unpacker) -> bool {
     unsafe {
         let p = &mut *p;
         let mut tok = std::mem::zeroed::<mpack_token_t>();
@@ -598,8 +595,7 @@ unsafe fn next_type(
 }
 
 /// Specialized redraw/grid_line parser (`unpacker_parse_redraw`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn unpacker_parse_redraw(p: *mut Unpacker) -> bool {
+pub unsafe fn unpacker_parse_redraw(p: *mut Unpacker) -> bool {
     unsafe {
         let p = &mut *p;
         let mut tok = std::mem::zeroed::<mpack_token_t>();
@@ -835,8 +831,7 @@ pub unsafe extern "C" fn unpacker_parse_redraw(p: *mut Unpacker) -> bool {
 }
 
 /// Unpack a complete msgpack string/bin token (`unpack_string`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn unpack_string(data: *mut *const c_char, size: *mut usize) -> NvimString {
+pub unsafe fn unpack_string(data: *mut *const c_char, size: *mut usize) -> NvimString {
     unsafe {
         let mut data2 = *data;
         let mut size2 = *size;
@@ -869,8 +864,7 @@ pub unsafe extern "C" fn unpack_string(data: *mut *const c_char, size: *mut usiz
 }
 
 /// Unpack a msgpack array header (`unpack_array`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn unpack_array(data: *mut *const c_char, size: *mut usize) -> isize {
+pub unsafe fn unpack_array(data: *mut *const c_char, size: *mut usize) -> isize {
     unsafe {
         let mut tok = std::mem::zeroed::<mpack_token_t>();
         let result = mpack_rtoken(data, size, &mut tok);
@@ -882,8 +876,7 @@ pub unsafe extern "C" fn unpack_array(data: *mut *const c_char, size: *mut usize
 }
 
 /// Unpack a msgpack integer (`unpack_integer`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn unpack_integer(
+pub unsafe fn unpack_integer(
     data: *mut *const c_char,
     size: *mut usize,
     res: *mut Integer,
@@ -899,8 +892,7 @@ pub unsafe extern "C" fn unpack_integer(
 }
 
 /// Unpack a uint or sint token into `Integer` (`unpack_uint_or_sint`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn unpack_uint_or_sint(tok: mpack_token_t, res: *mut Integer) -> bool {
+pub unsafe fn unpack_uint_or_sint(tok: mpack_token_t, res: *mut Integer) -> bool {
     unsafe {
         if tok.r#type == mpack_token_type_t::MPACK_TOKEN_UINT {
             *res = mpack_unpack_uint(tok) as Integer;
@@ -915,8 +907,7 @@ pub unsafe extern "C" fn unpack_uint_or_sint(tok: mpack_token_t, res: *mut Integ
 }
 
 /// Skip one msgpack value (`unpack_skip`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn unpack_skip(data: *mut *const c_char, size: *mut usize) -> c_int {
+pub unsafe fn unpack_skip(data: *mut *const c_char, size: *mut usize) -> c_int {
     unsafe {
         let mut parser = std::mem::zeroed::<mpack_parser_t>();
         mpack_parser_init(&mut parser, 0);
@@ -925,8 +916,7 @@ pub unsafe extern "C" fn unpack_skip(data: *mut *const c_char, size: *mut usize)
 }
 
 /// Append raw msgpack key-value bytes to `AdditionalDataBuilder` (`push_additional_data`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn push_additional_data(
+pub unsafe fn push_additional_data(
     ad: *mut AdditionalDataBuilder,
     data: *const c_char,
     size: usize,
@@ -953,8 +943,7 @@ pub unsafe extern "C" fn push_additional_data(
 }
 
 /// Unpack a msgpack map into a `KeySet` struct (`unpack_keydict`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C-unwind" fn unpack_keydict(
+pub unsafe fn unpack_keydict(
     retval: *mut c_void,
     hashy: FieldHashfn,
     ad: *mut AdditionalDataBuilder,

@@ -268,8 +268,7 @@ pub unsafe extern "C" fn os_get_userdir(name: *const c_char) -> *mut c_char {
 ///
 /// # Safety
 /// Must only be called during exit cleanup.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn free_users() {
+pub unsafe fn free_users() {
     unsafe {
         ga_clear_strings(&raw mut GA_USERS);
     }
@@ -289,8 +288,7 @@ unsafe fn init_users() {
 ///
 /// # Safety
 /// Caller must ensure single-threaded access to user completion cache.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_users(_xp: *mut crate::os::env::expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_users(_xp: *mut crate::os::env::expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         init_users();
         if idx >= 0 && idx < GA_USERS.ga_len {
@@ -305,8 +303,7 @@ pub unsafe extern "C" fn get_users(_xp: *mut crate::os::env::expand_T, idx: c_in
 ///
 /// # Safety
 /// `name` must be a valid C string.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn match_user(name: *mut c_char) -> c_int {
+pub unsafe fn match_user(name: *mut c_char) -> c_int {
     unsafe {
         init_users();
         let target = CStr::from_ptr(name).to_bytes();

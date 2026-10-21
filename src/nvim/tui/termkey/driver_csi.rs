@@ -723,8 +723,7 @@ pub unsafe extern "C" fn termkey_interpret_csi(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn termkey_interpret_csi_param(
+pub unsafe fn termkey_interpret_csi_param(
     param: TermKeyCsiParam,
     paramp: *mut c_int,
     subparams: *mut c_int,
@@ -904,11 +903,7 @@ unsafe fn register_keys() -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn new_driver_csi(
-    tk: *mut TermKey,
-    _term: *mut TerminfoEntry,
-) -> *mut c_void {
+pub unsafe fn new_driver_csi(tk: *mut TermKey, _term: *mut TerminfoEntry) -> *mut c_void {
     unsafe {
         if KEYINFO_INITIALISED == 0 && register_keys() == 0 {
             return std::ptr::null_mut();
@@ -922,8 +917,7 @@ pub unsafe extern "C" fn new_driver_csi(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn free_driver_csi(info: *mut c_void) {
+pub unsafe fn free_driver_csi(info: *mut c_void) {
     unsafe {
         let csi = info.cast::<TermKeyCsi>();
         if !(*csi).saved_string.is_null() {
@@ -1131,8 +1125,7 @@ unsafe fn peekkey_ctrlstring(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn peekkey_csi(
+pub unsafe fn peekkey_csi(
     tk: *mut TermKey,
     info: *mut c_void,
     key: *mut TermKeyKey,

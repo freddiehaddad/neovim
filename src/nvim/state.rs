@@ -48,9 +48,8 @@ pub const MODE_SHOWMATCH: c_int = 0x6000 | MODE_INSERT;
 
 const kOptVeFlagInsert: c_uint = 0x06;
 
-pub type state_check_callback = Option<unsafe extern "C" fn(state: *mut VimState) -> c_int>;
-pub type state_execute_callback =
-    Option<unsafe extern "C" fn(state: *mut VimState, key: c_int) -> c_int>;
+pub type state_check_callback = Option<unsafe fn(state: *mut VimState) -> c_int>;
+pub type state_execute_callback = Option<unsafe fn(state: *mut VimState, key: c_int) -> c_int>;
 
 #[repr(C)]
 pub struct VimState {
@@ -70,8 +69,7 @@ pub struct save_v_event_T {
 
 static mut was_safe: bool = false;
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn state_enter(s: *mut VimState) {
+pub unsafe fn state_enter(s: *mut VimState) {
     unsafe {
         loop {
             let check_result = if let Some(check_fn) = (*s).check {
@@ -142,8 +140,7 @@ pub unsafe extern "C" fn state_enter(s: *mut VimState) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn state_handle_k_event() {
+pub unsafe fn state_handle_k_event() {
     unsafe {
         loop {
             let events = main_loop_events();
@@ -164,8 +161,7 @@ pub unsafe extern "C" fn state_handle_k_event() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn virtual_active(wp: *mut win_T) -> bool {
+pub unsafe fn virtual_active(wp: *mut win_T) -> bool {
     unsafe {
         if (State & MODE_TERMINAL) != 0 {
             return true;
@@ -186,8 +182,7 @@ pub unsafe extern "C" fn virtual_active(wp: *mut win_T) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_real_state() -> c_int {
+pub unsafe fn get_real_state() -> c_int {
     unsafe {
         if (State & MODE_NORMAL) != 0 {
             if Visual.active {
@@ -203,8 +198,7 @@ pub unsafe extern "C" fn get_real_state() -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_mode(buf: *mut c_char) {
+pub unsafe fn get_mode(buf: *mut c_char) {
     unsafe {
         let mut i: usize = 0;
 
@@ -301,8 +295,7 @@ pub unsafe extern "C" fn get_mode(buf: *mut c_char) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn may_trigger_modechanged() {
+pub unsafe fn may_trigger_modechanged() {
     unsafe {
         if !has_event(EVENT_MODECHANGED) || got_int {
             return;
@@ -359,8 +352,7 @@ unsafe fn is_safe_now() -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn may_trigger_safestate(safe: bool) {
+pub unsafe fn may_trigger_safestate(safe: bool) {
     unsafe {
         let is_safe = safe && is_safe_now();
 
@@ -393,8 +385,7 @@ pub unsafe extern "C" fn may_trigger_safestate(safe: bool) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn state_no_longer_safe(reason: *const c_char) {
+pub unsafe fn state_no_longer_safe(reason: *const c_char) {
     unsafe {
         if was_safe && !reason.is_null() && g_min_log_level <= LOGLVL_DBG {
             logmsg!(
@@ -411,8 +402,7 @@ pub unsafe extern "C" fn state_no_longer_safe(reason: *const c_char) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_was_safe_state() -> bool {
+pub unsafe fn get_was_safe_state() -> bool {
     unsafe { was_safe }
 }
 

@@ -485,52 +485,35 @@ unsafe fn filter_map(argvars: *mut typval_T, rettv: *mut typval_T, filtermap: Fi
 }
 
 /// `"filter()"` function (`f_filter`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_filter(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_filter(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         filter_map(argvars, rettv, FilterMap::Filter);
     }
 }
 
 /// `"map()"` function (`f_map`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_map(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_map(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         filter_map(argvars, rettv, FilterMap::Map);
     }
 }
 
 /// `"mapnew()"` function (`f_mapnew`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_mapnew(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_mapnew(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         filter_map(argvars, rettv, FilterMap::MapNew);
     }
 }
 
 /// `"foreach()"` function (`f_foreach`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_foreach(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_foreach(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         filter_map(argvars, rettv, FilterMap::ForEach);
     }
 }
 
 /// `"add(list, item)"` function (`f_add`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_add(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_add(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = 1;
         let arg0 = &*argvars;
@@ -641,12 +624,7 @@ unsafe fn count_dict(d: *mut dict_T, needle: *mut typval_T, ic: bool) -> i64 {
 }
 
 /// `"count()"` function (`f_count`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_count(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_count(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut n: i64 = 0;
         let mut ic = false;
@@ -839,36 +817,21 @@ unsafe fn extend_impl(
 }
 
 /// `"extend()"` function (`f_extend`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_extend(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_extend(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         extend_impl(argvars, rettv, c"extend() argument".as_ptr(), false);
     }
 }
 
 /// `"extendnew()"` function (`f_extendnew`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_extendnew(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_extendnew(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         extend_impl(argvars, rettv, c"extendnew() argument".as_ptr(), true);
     }
 }
 
 /// `"insert()"` function (`f_insert`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_insert(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_insert(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut error = false;
         let arg0 = &*argvars;
@@ -953,12 +916,7 @@ pub unsafe extern "C" fn f_insert(
 }
 
 /// `"remove()"` function (`f_remove`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_remove(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_remove(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let arg_errmsg = c"remove() argument".as_ptr();
         match (*argvars).v_type {
@@ -973,12 +931,7 @@ pub unsafe extern "C" fn f_remove(
 }
 
 /// `"reverse({list})"` function (`f_reverse`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_reverse(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_reverse(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if tv_check_for_string_or_list_or_blob_arg(argvars, 0) == FAIL {
             return;

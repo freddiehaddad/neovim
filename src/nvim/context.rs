@@ -264,8 +264,7 @@ unsafe fn ctx_positions(ctx: *mut Context, flags: CtxStateFlags) -> [*mut pos_T;
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ctx_free(ctx: *mut Context) {
+pub unsafe fn ctx_free(ctx: *mut Context) {
     unsafe {
         let buf = handle_get_buffer((*ctx).buf);
         if !buf.is_null() {
@@ -284,8 +283,7 @@ pub unsafe extern "C" fn ctx_free(ctx: *mut Context) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ctx_save(ctx: *mut Context, flags: CtxStateFlags) {
+pub unsafe fn ctx_save(ctx: *mut Context, flags: CtxStateFlags) {
     unsafe {
         assert!((*ctx).buf == 0 || (*ctx).buf == (*curbuf).b_fnum);
         (*ctx).buf = (*curbuf).b_fnum;
@@ -396,12 +394,7 @@ pub unsafe extern "C" fn ctx_save(ctx: *mut Context, flags: CtxStateFlags) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ctx_load(
-    ctx: *mut Context,
-    flags: CtxStateFlags,
-    loadflags: CtxLoadFlags,
-) {
+pub unsafe fn ctx_load(ctx: *mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags) {
     unsafe {
         if (flags & kCtxCursor) != 0 {
             assert!(handle_get_buffer((*ctx).buf) == curbuf);
@@ -500,8 +493,7 @@ unsafe fn array_to_string(array: Array, err: *mut Error) -> NvimString {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ctx_to_dict(ctx: *mut Context, arena: *mut Arena) -> Dict {
+pub unsafe fn ctx_to_dict(ctx: *mut Context, arena: *mut Arena) -> Dict {
     unsafe {
         assert!(!ctx.is_null());
         let mut rv = arena_dict(arena, 5);
@@ -534,12 +526,7 @@ pub unsafe extern "C" fn ctx_to_dict(ctx: *mut Context, arena: *mut Arena) -> Di
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ctx_from_dict(
-    dict: Dict,
-    ctx: *mut Context,
-    err: *mut Error,
-) -> CtxStateFlags {
+pub unsafe fn ctx_from_dict(dict: Dict, ctx: *mut Context, err: *mut Error) -> CtxStateFlags {
     unsafe {
         assert!(!ctx.is_null());
         let mut types: CtxStateFlags = 0;
@@ -721,15 +708,13 @@ unsafe fn ctx_dirs_restore(cs: *mut CtxSwitch) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ctx_did_chdir() {
+pub unsafe fn ctx_did_chdir() {
     unsafe {
         CTX_DID_CHDIR = true;
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn is_ctx_win(win: *mut win_T) -> bool {
+pub unsafe fn is_ctx_win(win: *mut win_T) -> bool {
     unsafe {
         for i in 0..ctx_win_vec.size {
             let item = *ctx_win_vec.items.add(i);
@@ -834,8 +819,7 @@ unsafe fn ctx_win_rest(cs: *mut CtxSwitch) -> *mut win_T {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ctx_saved_curwin() -> *mut win_T {
+pub unsafe fn ctx_saved_curwin() -> *mut win_T {
     unsafe {
         if CTX_SAVED_CURWIN == 0 {
             ptr::null_mut()
@@ -845,8 +829,7 @@ pub unsafe extern "C" fn ctx_saved_curwin() -> *mut win_T {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ctx_switch(
+pub unsafe fn ctx_switch(
     cs: *mut CtxSwitch,
     mut wp: *mut win_T,
     tp: *mut tabpage_T,
@@ -971,8 +954,7 @@ unsafe fn ctx_restore_curwin(cs: *mut CtxSwitch, fallback: *mut win_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ctx_restore(cs: *mut CtxSwitch) {
+pub unsafe fn ctx_restore(cs: *mut CtxSwitch) {
     unsafe {
         if (*cs).cs_mode == kCtxSwitchNone {
             return;

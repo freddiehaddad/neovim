@@ -248,7 +248,6 @@ const fn profile_equal(tm1: proftime_T, tm2: proftime_T) -> bool {
 }
 
 /// Converts time duration `tm` to a signed integer (`profile_signed`).
-#[unsafe(no_mangle)]
 pub const extern "C" fn profile_signed(tm: proftime_T) -> i64 {
     if tm <= (i64::MAX as u64) {
         tm as i64
@@ -271,8 +270,7 @@ pub const extern "C" fn profile_cmp(tm1: proftime_T, tm2: proftime_T) -> c_int {
 }
 
 /// Reset all profiling information (`profile_reset`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn profile_reset() {
+pub unsafe fn profile_reset() {
     unsafe {
         for id in 1..=script_items.ga_len {
             let si = &mut *script_item(id);
@@ -334,8 +332,7 @@ pub unsafe extern "C" fn profile_reset() {
 }
 
 /// `":profile cmd args"` (`ex_profile`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_profile(eap: *mut exarg_T) {
+pub unsafe fn ex_profile(eap: *mut exarg_T) {
     unsafe {
         let arg = (*eap).arg;
         let mut e = skiptowhite(arg);
@@ -377,8 +374,7 @@ pub unsafe extern "C" fn ex_profile(eap: *mut exarg_T) {
 }
 
 /// Command-line completion item getter for `:profile` (`get_profile_name`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_profile_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_profile_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     if unsafe { PEXPAND_WHAT } == PEXP_SUBCMD && idx >= 0 && (idx as usize) < PEXPAND_CMDS.len() {
         PEXPAND_CMDS[idx as usize].as_ptr().cast_mut()
     } else {
@@ -387,8 +383,7 @@ pub unsafe extern "C" fn get_profile_name(_xp: *mut expand_T, idx: c_int) -> *mu
 }
 
 /// Set command-line completion context for `:profile` (`set_context_in_profile_cmd`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_context_in_profile_cmd(xp: *mut expand_T, arg: *const c_char) {
+pub unsafe fn set_context_in_profile_cmd(xp: *mut expand_T, arg: *const c_char) {
     let xp = unsafe { &mut *xp };
     xp.xp_context = EXPAND_PROFILE;
     unsafe {
@@ -415,16 +410,14 @@ pub unsafe extern "C" fn set_context_in_profile_cmd(xp: *mut expand_T, arg: *con
 }
 
 /// Called when starting to wait for user input (`prof_input_start`).
-#[unsafe(no_mangle)]
-pub extern "C" fn prof_input_start() {
+pub fn prof_input_start() {
     unsafe {
         WAIT_TIME = profile_start();
     }
 }
 
 /// Called when finished waiting for user input (`prof_input_end`).
-#[unsafe(no_mangle)]
-pub extern "C" fn prof_input_end() {
+pub fn prof_input_end() {
     let elapsed = profile_end(unsafe { WAIT_TIME });
     unsafe {
         WAIT_TIME = elapsed;
@@ -433,8 +426,7 @@ pub extern "C" fn prof_input_end() {
 }
 
 /// Returns `true` when a function defined in the current script should be profiled (`prof_def_func`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn prof_def_func() -> bool {
+pub unsafe fn prof_def_func() -> bool {
     unsafe {
         if current_sctx.sc_sid > 0 {
             (*script_item(current_sctx.sc_sid)).sn_pr_force
@@ -501,7 +493,7 @@ unsafe fn prof_sort_list(
     }
 }
 
-unsafe extern "C" fn prof_total_cmp(s1: *const c_void, s2: *const c_void) -> c_int {
+unsafe fn prof_total_cmp(s1: *const c_void, s2: *const c_void) -> c_int {
     unsafe {
         let p1 = &**s1.cast::<*const ufunc_T>();
         let p2 = &**s2.cast::<*const ufunc_T>();
@@ -509,7 +501,7 @@ unsafe extern "C" fn prof_total_cmp(s1: *const c_void, s2: *const c_void) -> c_i
     }
 }
 
-unsafe extern "C" fn prof_self_cmp(s1: *const c_void, s2: *const c_void) -> c_int {
+unsafe fn prof_self_cmp(s1: *const c_void, s2: *const c_void) -> c_int {
     unsafe {
         let p1 = &**s1.cast::<*const ufunc_T>();
         let p2 = &**s2.cast::<*const ufunc_T>();
@@ -518,8 +510,7 @@ unsafe extern "C" fn prof_self_cmp(s1: *const c_void, s2: *const c_void) -> c_in
 }
 
 /// Start profiling function `fp` (`func_do_profile`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn func_do_profile(fp: *mut ufunc_T) {
+pub unsafe fn func_do_profile(fp: *mut ufunc_T) {
     let fp = unsafe { &mut *fp };
     let mut len = fp.uf_lines.ga_len;
 
@@ -554,8 +545,7 @@ pub unsafe extern "C" fn func_do_profile(fp: *mut ufunc_T) {
 }
 
 /// Prepare profiling for entering a child (`prof_child_enter`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn prof_child_enter(tm: *mut proftime_T) {
+pub unsafe fn prof_child_enter(tm: *mut proftime_T) {
     unsafe {
         let fc = get_current_funccal();
         if !fc.is_null() && (*(*fc).fc_func).uf_profiling != 0 {
@@ -568,8 +558,7 @@ pub unsafe extern "C" fn prof_child_enter(tm: *mut proftime_T) {
 }
 
 /// Take care of time spent in a child (`prof_child_exit`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn prof_child_exit(tm: *mut proftime_T) {
+pub unsafe fn prof_child_exit(tm: *mut proftime_T) {
     unsafe {
         let fc = get_current_funccal();
         if !fc.is_null() && (*(*fc).fc_func).uf_profiling != 0 {
@@ -586,8 +575,7 @@ pub unsafe extern "C" fn prof_child_exit(tm: *mut proftime_T) {
 }
 
 /// Called when starting to read a function line (`func_line_start`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn func_line_start(cookie: *mut c_void) {
+pub unsafe fn func_line_start(cookie: *mut c_void) {
     unsafe {
         let fcp = cookie.cast::<funccall_T>();
         let fp = &mut *(*fcp).fc_func;
@@ -607,8 +595,7 @@ pub unsafe extern "C" fn func_line_start(cookie: *mut c_void) {
 }
 
 /// Called when actually executing a function line (`func_line_exec`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn func_line_exec(cookie: *mut c_void) {
+pub unsafe fn func_line_exec(cookie: *mut c_void) {
     let fcp = cookie.cast::<funccall_T>();
     let fp = unsafe { &mut *(*fcp).fc_func };
     if fp.uf_profiling != 0 && fp.uf_tml_idx >= 0 {
@@ -617,8 +604,7 @@ pub unsafe extern "C" fn func_line_exec(cookie: *mut c_void) {
 }
 
 /// Called when done with a function line (`func_line_end`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn func_line_end(cookie: *mut c_void) {
+pub unsafe fn func_line_end(cookie: *mut c_void) {
     let fcp = cookie.cast::<funccall_T>();
     let fp = unsafe { &mut *(*fcp).fc_func };
 
@@ -742,8 +728,7 @@ unsafe fn func_dump_profile(fd: *mut FILE) {
 }
 
 /// Start profiling a script (`profile_init`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn profile_init(si: *mut scriptitem_T) {
+pub unsafe fn profile_init(si: *mut scriptitem_T) {
     let si = unsafe { &mut *si };
     si.sn_pr_count = 0;
     si.sn_pr_total = profile_zero();
@@ -762,8 +747,7 @@ pub unsafe extern "C" fn profile_init(si: *mut scriptitem_T) {
 }
 
 /// Save time when starting to invoke another script or function (`script_prof_save`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn script_prof_save(tm: *mut proftime_T) {
+pub unsafe fn script_prof_save(tm: *mut proftime_T) {
     unsafe {
         if current_sctx.sc_sid > 0 && current_sctx.sc_sid <= script_items.ga_len {
             let si = &mut *script_item(current_sctx.sc_sid);
@@ -782,8 +766,7 @@ pub unsafe extern "C" fn script_prof_save(tm: *mut proftime_T) {
 }
 
 /// Count time spent in children after invoking another script or function (`script_prof_restore`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn script_prof_restore(tm: *const proftime_T) {
+pub unsafe fn script_prof_restore(tm: *const proftime_T) {
     unsafe {
         if !script_id_valid(current_sctx.sc_sid) {
             return;
@@ -872,8 +855,7 @@ unsafe fn script_dump_profile(fd: *mut FILE) {
 }
 
 /// Dump the profiling info (`profile_dump`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn profile_dump() {
+pub unsafe fn profile_dump() {
     unsafe {
         if PROFILE_FNAME.is_null() {
             return;
@@ -891,8 +873,7 @@ pub unsafe extern "C" fn profile_dump() {
 }
 
 /// Called when starting to read a script line (`script_line_start`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn script_line_start() {
+pub unsafe fn script_line_start() {
     unsafe {
         if current_sctx.sc_sid <= 0 || current_sctx.sc_sid > script_items.ga_len {
             return;
@@ -920,8 +901,7 @@ pub unsafe extern "C" fn script_line_start() {
 }
 
 /// Called when actually executing a script line (`script_line_exec`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn script_line_exec() {
+pub unsafe fn script_line_exec() {
     unsafe {
         if current_sctx.sc_sid <= 0 || current_sctx.sc_sid > script_items.ga_len {
             return;
@@ -934,8 +914,7 @@ pub unsafe extern "C" fn script_line_exec() {
 }
 
 /// Called when done with a script line (`script_line_end`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn script_line_end() {
+pub unsafe fn script_line_end() {
     unsafe {
         if current_sctx.sc_sid <= 0 || current_sctx.sc_sid > script_items.ga_len {
             return;
@@ -957,8 +936,7 @@ pub unsafe extern "C" fn script_line_end() {
 }
 
 /// Saves the previous time before doing something that could nest (`time_push`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn time_push(rel: *mut proftime_T, start: *mut proftime_T) {
+pub unsafe fn time_push(rel: *mut proftime_T, start: *mut proftime_T) {
     let now = profile_start();
     unsafe {
         let prev = G_PREV_TIME;
@@ -969,8 +947,7 @@ pub unsafe extern "C" fn time_push(rel: *mut proftime_T, start: *mut proftime_T)
 }
 
 /// Computes the prev time after doing something that could nest (`time_pop`).
-#[unsafe(no_mangle)]
-pub extern "C" fn time_pop(tp: proftime_T) {
+pub fn time_pop(tp: proftime_T) {
     unsafe {
         G_PREV_TIME = G_PREV_TIME.wrapping_sub(tp);
     }
@@ -985,8 +962,7 @@ unsafe fn time_diff(then: proftime_T, now: proftime_T) {
 }
 
 /// Initializes the startuptime code (`time_start`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn time_start(message: *const c_char) {
+pub unsafe fn time_start(message: *const c_char) {
     unsafe {
         if time_fd.is_null() {
             return;
@@ -1011,8 +987,7 @@ pub unsafe extern "C" fn time_start(message: *const c_char) {
 }
 
 /// Prints out timing info (`time_msg`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn time_msg(mesg: *const c_char, start: *const proftime_T) {
+pub unsafe fn time_msg(mesg: *const c_char, start: *const proftime_T) {
     unsafe {
         if time_fd.is_null() {
             return;
@@ -1036,8 +1011,7 @@ pub unsafe extern "C" fn time_msg(mesg: *const c_char, start: *const proftime_T)
 }
 
 /// Initializes the `time_fd` stream for `--startuptime` (`time_init`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn time_init(fname: *const c_char, proc_name: *const c_char) {
+pub unsafe fn time_init(fname: *const c_char, proc_name: *const c_char) {
     unsafe {
         const BUFSIZE: usize = 8192;
         time_fd = fopen(fname, c"a".as_ptr());
@@ -1066,8 +1040,7 @@ pub unsafe extern "C" fn time_init(fname: *const c_char, proc_name: *const c_cha
 }
 
 /// Flushes the startuptimes to disk for the current process (`time_finish`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn time_finish() {
+pub unsafe fn time_finish() {
     unsafe {
         if time_fd.is_null() {
             return;

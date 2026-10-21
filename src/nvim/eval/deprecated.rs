@@ -47,12 +47,7 @@ const fn callback_reader_init() -> CallbackReader {
 }
 
 /// `"rpcstart()"` function (`f_rpcstart`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_rpcstart(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_rpcstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_NUMBER;
         (*rettv).vval.v_number = 0;
@@ -139,12 +134,7 @@ pub unsafe extern "C" fn f_rpcstart(
 }
 
 /// `"rpcstop()"` function (`f_rpcstop`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_rpcstop(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    fptr: EvalFuncData,
-) {
+pub unsafe fn f_rpcstop(argvars: *mut typval_T, rettv: *mut typval_T, fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_NUMBER;
         (*rettv).vval.v_number = 0;
@@ -174,12 +164,7 @@ pub unsafe extern "C" fn f_rpcstop(
 }
 
 /// `"last_buffer_nr()"` function (`f_last_buffer_nr`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_last_buffer_nr(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_last_buffer_nr(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut n: c_int = 0;
         let mut buf = firstbuf;
@@ -194,12 +179,7 @@ pub unsafe extern "C" fn f_last_buffer_nr(
 }
 
 /// `"termopen(cmd[, cwd])"` function (`f_termopen`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_termopen(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    fptr: EvalFuncData,
-) {
+pub unsafe fn f_termopen(argvars: *mut typval_T, rettv: *mut typval_T, fptr: EvalFuncData) {
     unsafe {
         if check_secure() {
             return;

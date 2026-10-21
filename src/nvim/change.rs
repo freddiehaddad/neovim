@@ -138,8 +138,7 @@ unsafe fn for_all_tab_windows(mut f: impl FnMut(*mut win_T)) {
 }
 
 /// If the file is readonly, give a warning message with the first change.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn change_warning(buf: *mut buf_T, col: c_int) {
+pub unsafe fn change_warning(buf: *mut buf_T, col: c_int) {
     unsafe {
         const W_READONLY: &CStr = c"W10: Warning: Changing a readonly file";
 
@@ -213,8 +212,7 @@ pub unsafe extern "C" fn changed(buf: *mut buf_T) {
 }
 
 /// Internal part of `changed()`, no user interaction.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn changed_internal(buf: *mut buf_T) {
+pub unsafe fn changed_internal(buf: *mut buf_T) {
     unsafe {
         let was_changed = (*buf).b_changed != 0;
         (*buf).b_changed = 1;
@@ -286,8 +284,7 @@ unsafe fn changed_lines_invalidate_win(
 }
 
 /// Like `changed_lines_invalidate_win()`, but for all windows displaying a buffer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn changed_lines_invalidate_buf(
+pub unsafe fn changed_lines_invalidate_buf(
     buf: *mut buf_T,
     lnum: linenr_T,
     col: colnr_T,
@@ -485,8 +482,7 @@ unsafe fn changed_common(
 }
 
 /// Changed bytes within a single line for the current buffer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn changed_bytes(lnum: linenr_T, col: colnr_T) {
+pub unsafe fn changed_bytes(lnum: linenr_T, col: colnr_T) {
     unsafe {
         changed_lines_redraw_buf(curbuf, lnum, lnum + 1, 0);
         changed_common(curbuf, lnum, col, lnum + 1, 0);
@@ -515,13 +511,7 @@ pub unsafe extern "C" fn changed_bytes(lnum: linenr_T, col: colnr_T) {
 }
 
 /// Insert/delete bytes at column.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn inserted_bytes(
-    lnum: linenr_T,
-    start_col: colnr_T,
-    old_col: c_int,
-    new_col: c_int,
-) {
+pub unsafe fn inserted_bytes(lnum: linenr_T, start_col: colnr_T, old_col: c_int, new_col: c_int) {
     unsafe {
         if curbuf_splice_pending == 0 {
             extmark_splice_cols(curbuf, lnum - 1, start_col, old_col, new_col, kExtmarkUndo);
@@ -532,24 +522,21 @@ pub unsafe extern "C" fn inserted_bytes(
 }
 
 /// Appended `count` lines below line `lnum` in the given buffer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn appended_lines_buf(buf: *mut buf_T, lnum: linenr_T, count: linenr_T) {
+pub unsafe fn appended_lines_buf(buf: *mut buf_T, lnum: linenr_T, count: linenr_T) {
     unsafe {
         changed_lines(buf, lnum + 1, 0, lnum + 1, count, true);
     }
 }
 
 /// Appended `count` lines below line `lnum` in the current buffer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn appended_lines(lnum: linenr_T, count: linenr_T) {
+pub unsafe fn appended_lines(lnum: linenr_T, count: linenr_T) {
     unsafe {
         appended_lines_buf(curbuf, lnum, count);
     }
 }
 
 /// Like `appended_lines()`, but adjust marks first.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn appended_lines_mark(lnum: linenr_T, count: c_int) {
+pub unsafe fn appended_lines_mark(lnum: linenr_T, count: c_int) {
     unsafe {
         mark_adjust(lnum + 1, MAXLNUM, count, 0, kExtmarkUndo);
         changed_lines(curbuf, lnum + 1, 0, lnum + 1, count, true);
@@ -557,24 +544,21 @@ pub unsafe extern "C" fn appended_lines_mark(lnum: linenr_T, count: c_int) {
 }
 
 /// Deleted `count` lines at line `lnum` in the given buffer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn deleted_lines_buf(buf: *mut buf_T, lnum: linenr_T, count: linenr_T) {
+pub unsafe fn deleted_lines_buf(buf: *mut buf_T, lnum: linenr_T, count: linenr_T) {
     unsafe {
         changed_lines(buf, lnum, 0, lnum + count, -count, true);
     }
 }
 
 /// Deleted `count` lines at line `lnum` in the current buffer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn deleted_lines(lnum: linenr_T, count: linenr_T) {
+pub unsafe fn deleted_lines(lnum: linenr_T, count: linenr_T) {
     unsafe {
         deleted_lines_buf(curbuf, lnum, count);
     }
 }
 
 /// Like `deleted_lines()`, but adjust marks first.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn deleted_lines_mark(lnum: linenr_T, count: c_int) {
+pub unsafe fn deleted_lines_mark(lnum: linenr_T, count: c_int) {
     unsafe {
         let made_empty = count > 0 && ((*curbuf).b_ml.ml_flags & ML_EMPTY) != 0;
 
@@ -592,8 +576,7 @@ pub unsafe extern "C" fn deleted_lines_mark(lnum: linenr_T, count: c_int) {
 }
 
 /// Marks the area to be redrawn after a change.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn changed_lines_redraw_buf(
+pub unsafe fn changed_lines_redraw_buf(
     buf: *mut buf_T,
     lnum: linenr_T,
     mut lnume: linenr_T,
@@ -622,8 +605,7 @@ pub unsafe extern "C" fn changed_lines_redraw_buf(
 }
 
 /// Changed lines for a buffer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn changed_lines(
+pub unsafe fn changed_lines(
     buf: *mut buf_T,
     lnum: linenr_T,
     col: colnr_T,
@@ -687,8 +669,7 @@ pub unsafe extern "C" fn unchanged(buf: *mut buf_T, ff: bool, always_inc_changed
 }
 
 /// Save the current values of `'fileformat'` and `'fileencoding'`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn save_file_ff(buf: *mut buf_T) {
+pub unsafe fn save_file_ff(buf: *mut buf_T) {
     unsafe {
         (*buf).b_start_ffc = c_int::from(*(*buf).b_p_ff as u8);
         (*buf).b_start_eof = (*buf).b_p_eof;
@@ -707,8 +688,7 @@ pub unsafe extern "C" fn save_file_ff(buf: *mut buf_T) {
 
 /// Return true if `'fileformat'` and/or `'fileencoding'` has a different value
 /// from when editing started.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn file_ff_differs(buf: *mut buf_T, ignore_empty: bool) -> bool {
+pub unsafe fn file_ff_differs(buf: *mut buf_T, ignore_empty: bool) -> bool {
     unsafe {
         if ((*buf).b_flags & BF_NEVERLOADED) != 0 {
             return false;
@@ -739,16 +719,14 @@ pub unsafe extern "C" fn file_ff_differs(buf: *mut buf_T, ignore_empty: bool) ->
 }
 
 /// Insert string `p` at the cursor position. Stops at a NUL byte.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ins_bytes(p: *mut c_char) {
+pub unsafe fn ins_bytes(p: *mut c_char) {
     unsafe {
         ins_bytes_len(p, CStr::from_ptr(p).to_bytes().len());
     }
 }
 
 /// Insert string `p` with length `len` at the cursor position.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ins_bytes_len(p: *mut c_char, len: usize) {
+pub unsafe fn ins_bytes_len(p: *mut c_char, len: usize) {
     unsafe {
         let mut i: usize = 0;
         while i < len {
@@ -760,8 +738,7 @@ pub unsafe extern "C" fn ins_bytes_len(p: *mut c_char, len: usize) {
 }
 
 /// Insert or replace a single character at the cursor position.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ins_char(c: c_int) {
+pub unsafe fn ins_char(c: c_int) {
     unsafe {
         let mut buf: [c_char; MB_MAXCHAR + 1] = [0; MB_MAXCHAR + 1];
         let n = utf_char2bytes(c, buf.as_mut_ptr()) as usize;
@@ -773,8 +750,7 @@ pub unsafe extern "C" fn ins_char(c: c_int) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ins_char_bytes(buf: *mut c_char, charlen: usize) {
+pub unsafe fn ins_char_bytes(buf: *mut c_char, charlen: usize) {
     unsafe {
         if virtual_active(curwin) && (*curwin).w_cursor.coladd > 0 {
             coladvance_force(getviscol());
@@ -858,8 +834,7 @@ pub unsafe extern "C" fn ins_char_bytes(buf: *mut c_char, charlen: usize) {
 }
 
 /// Insert a string at the cursor position.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ins_str(s: *mut c_char, slen: usize) {
+pub unsafe fn ins_str(s: *mut c_char, slen: usize) {
     unsafe {
         let lnum = (*curwin).w_cursor.lnum;
 
@@ -890,8 +865,7 @@ pub unsafe extern "C" fn ins_str(s: *mut c_char, slen: usize) {
 }
 
 /// Delete one character under the cursor.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn del_char(fixpos: bool) -> c_int {
+pub unsafe fn del_char(fixpos: bool) -> c_int {
     unsafe {
         mb_adjust_cursor();
         if *get_cursor_pos_ptr() == NUL {
@@ -902,8 +876,7 @@ pub unsafe extern "C" fn del_char(fixpos: bool) -> c_int {
 }
 
 /// Like `del_bytes()`, but delete characters instead of bytes.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn del_chars(count: c_int, fixpos: c_int) -> c_int {
+pub unsafe fn del_chars(count: c_int, fixpos: c_int) -> c_int {
     unsafe {
         let mut bytes: colnr_T = 0;
         let mut p = get_cursor_pos_ptr();
@@ -919,12 +892,7 @@ pub unsafe extern "C" fn del_chars(count: c_int, fixpos: c_int) -> c_int {
 }
 
 /// Delete `count` bytes under the cursor.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn del_bytes(
-    mut count: colnr_T,
-    fixpos_arg: bool,
-    use_delcombine: bool,
-) -> c_int {
+pub unsafe fn del_bytes(mut count: colnr_T, fixpos_arg: bool, use_delcombine: bool) -> c_int {
     unsafe {
         let lnum = (*curwin).w_cursor.lnum;
         let mut col = (*curwin).w_cursor.col;
@@ -1011,8 +979,7 @@ pub unsafe extern "C" fn del_bytes(
 }
 
 /// Add a new line below or above the current line.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn open_line(
+pub unsafe fn open_line(
     dir: c_int,
     flags: c_int,
     second_line_indent: c_int,
@@ -1871,8 +1838,7 @@ pub unsafe extern "C" fn open_line(
 }
 
 /// Delete from cursor to end of line.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn truncate_line(fixpos: c_int) {
+pub unsafe fn truncate_line(fixpos: c_int) {
     unsafe {
         let lnum = (*curwin).w_cursor.lnum;
         let col = (*curwin).w_cursor.col;
@@ -1894,8 +1860,7 @@ pub unsafe extern "C" fn truncate_line(fixpos: c_int) {
 }
 
 /// Delete `nlines` lines at the cursor.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn del_lines(nlines: linenr_T, undo: bool) {
+pub unsafe fn del_lines(nlines: linenr_T, undo: bool) {
     unsafe {
         let first = (*curwin).w_cursor.lnum;
 
@@ -1929,8 +1894,7 @@ pub unsafe extern "C" fn del_lines(nlines: linenr_T, undo: bool) {
 }
 
 /// Returns the length in bytes of the prefix of the given string which introduces a comment.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_leader_len(
+pub unsafe fn get_leader_len(
     line: *mut c_char,
     flags: *mut *mut c_char,
     backward: bool,
@@ -2059,11 +2023,7 @@ pub unsafe extern "C" fn get_leader_len(
 }
 
 /// Return the offset at which the last comment in `line` starts, or -1 if none.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_last_leader_offset(
-    line: *mut c_char,
-    flags: *mut *mut c_char,
-) -> c_int {
+pub unsafe fn get_last_leader_offset(line: *mut c_char, flags: *mut *mut c_char) -> c_int {
     unsafe {
         let mut result: c_int = -1;
         let mut lower_check_bound: c_int = 0;

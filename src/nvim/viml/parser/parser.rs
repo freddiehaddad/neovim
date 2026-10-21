@@ -63,7 +63,6 @@ pub struct ParserState {
 ///
 /// # Safety
 /// `cookie` must point to a `*const ParserLine` cursor, and `ret_pline` must be writable.
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn parser_simple_get_line(cookie: *mut c_void, ret_pline: *mut ParserLine) {
     unsafe {
         let plines_p = cookie.cast::<*const ParserLine>();
@@ -108,8 +107,7 @@ unsafe fn viml_preader_get_line(preader: &mut ParserInputReader, ret_pline: &mut
 ///
 /// # Safety
 /// `pstate` and `ret_pline` must be valid writable pointers.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn viml_parser_get_remaining_line(
+pub unsafe fn viml_parser_get_remaining_line(
     pstate: *mut ParserState,
     ret_pline: *mut ParserLine,
 ) -> bool {
@@ -136,8 +134,7 @@ pub unsafe extern "C" fn viml_parser_get_remaining_line(
 ///
 /// # Safety
 /// `pstate` must be a valid writable pointer to an initialized `ParserState`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn viml_parser_destroy(pstate: *mut ParserState) {
+pub unsafe fn viml_parser_destroy(pstate: *mut ParserState) {
     let pstate = unsafe { &mut *pstate };
     for i in 0..pstate.reader.lines.size {
         let pline = unsafe { pstate.reader.lines.get(i) };

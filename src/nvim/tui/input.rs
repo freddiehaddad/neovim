@@ -68,7 +68,7 @@ const END_PASTE: &[u8; 6] = b"\x1b[201~";
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct TermInputCallbacks {
-    pub primary_device_attr: Option<unsafe extern "C" fn(tui: *mut TUIData)>,
+    pub primary_device_attr: Option<unsafe fn(tui: *mut TUIData)>,
 }
 
 #[repr(C)]
@@ -242,12 +242,7 @@ const fn kitty_key_name(key: c_int) -> Option<&'static str> {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tinput_init(
-    input: *mut TermInput,
-    loop_: *mut Loop,
-    ti: *mut TerminfoEntry,
-) {
+pub unsafe fn tinput_init(input: *mut TermInput, loop_: *mut Loop, ti: *mut TerminfoEntry) {
     unsafe {
         let loop_ptr = input_loop_ptr(input);
         assert!((*loop_ptr).is_null());
@@ -286,8 +281,7 @@ pub unsafe extern "C" fn tinput_init(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tinput_destroy(input: *mut TermInput) {
+pub unsafe fn tinput_destroy(input: *mut TermInput) {
     unsafe {
         {
             uv_close(input_timer_handle(input).cast(), None);
@@ -299,15 +293,13 @@ pub unsafe extern "C" fn tinput_destroy(input: *mut TermInput) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tinput_start(input: *mut TermInput) {
+pub unsafe fn tinput_start(input: *mut TermInput) {
     unsafe {
         rstream_start(input_read_stream(input), Some(tinput_read_cb), input.cast());
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tinput_stop(input: *mut TermInput) {
+pub unsafe fn tinput_stop(input: *mut TermInput) {
     unsafe {
         rstream_stop(input_read_stream(input));
         {
@@ -1052,7 +1044,7 @@ unsafe fn handle_raw_buffer(
     }
 }
 
-unsafe extern "C" fn tinput_read_cb(
+unsafe fn tinput_read_cb(
     _stream: *mut RStream,
     buf: *const c_char,
     count_: usize,

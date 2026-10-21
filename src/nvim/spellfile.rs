@@ -387,8 +387,7 @@ unsafe fn spell_check_magic_string(fd: *mut FILE) -> c_int {
 }
 
 /// Load one spell file and store the info into a slang_T.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn spell_load_file(
+pub unsafe fn spell_load_file(
     fname: *mut c_char,
     lang: *mut c_char,
     old_lp: *mut slang_T,
@@ -708,8 +707,7 @@ unsafe fn tree_count_words(byts: *const u8, byts_len: c_int, idxs: *mut idx_T) {
 }
 
 /// Load the .sug files for languages that have one and weren't loaded yet.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn suggest_load_files() {
+pub unsafe fn suggest_load_files() {
     unsafe {
         let mut buf = [0 as c_char; MAXWLEN];
         let mut ga: garray_T = std::mem::zeroed();
@@ -1680,8 +1678,7 @@ unsafe fn spell_reload_one(fname: *mut c_char, added_word: bool) {
 }
 
 /// Check the 'mkspellmem' option. Return FAIL if it's wrong.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn spell_check_msm(value: *mut c_char, apply: bool) -> c_int {
+pub unsafe fn spell_check_msm(value: *mut c_char, apply: bool) -> c_int {
     unsafe {
         let mut p = value;
 
@@ -4301,7 +4298,7 @@ unsafe fn node_compress(
     }
 }
 
-unsafe fn node_equal(n1: *mut wordnode_T, n2: *mut wordnode_T) -> bool {
+unsafe extern "C-unwind" fn node_equal(n1: *mut wordnode_T, n2: *mut wordnode_T) -> bool {
     unsafe {
         let mut p1 = n1;
         let mut p2 = n2;
@@ -4324,7 +4321,7 @@ unsafe fn node_equal(n1: *mut wordnode_T, n2: *mut wordnode_T) -> bool {
     }
 }
 
-unsafe extern "C" fn rep_compare(s1: *const c_void, s2: *const c_void) -> c_int {
+unsafe fn rep_compare(s1: *const c_void, s2: *const c_void) -> c_int {
     unsafe {
         let p1 = s1.cast::<fromto_T>();
         let p2 = s2.cast::<fromto_T>();
@@ -4772,8 +4769,7 @@ unsafe fn put_node(
 
 /// ":mkspell [-ascii] outfile  infile ..."
 /// ":mkspell [-ascii] addfile"
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_mkspell(eap: *mut exarg_T) {
+pub unsafe fn ex_mkspell(eap: *mut exarg_T) {
     unsafe {
         let mut fcount: c_int = 0;
         let mut fnames: *mut *mut c_char = ptr::null_mut();
@@ -5358,8 +5354,7 @@ unsafe fn spell_message(spin: *const spellinfo_T, str_: *const c_char) {
 /// ":[count]spellwrong {word}"
 /// ":[count]spellundo  {word}"
 /// ":[count]spellrare  {word}"
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_spell(eap: *mut exarg_T) {
+pub unsafe fn ex_spell(eap: *mut exarg_T) {
     unsafe {
         let what = if (*eap).cmdidx == CMD_spellwrong {
             SPELL_ADD_BAD
@@ -5383,8 +5378,7 @@ pub unsafe extern "C" fn ex_spell(eap: *mut exarg_T) {
 }
 
 /// Add "word[len]" to 'spellfile' as a good or bad word.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn spell_add_word(
+pub unsafe fn spell_add_word(
     word: *mut c_char,
     len: c_int,
     what: SpellAddType,

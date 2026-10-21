@@ -270,8 +270,8 @@ use crate::path::slash_adjust;
 use crate::eval::typval::varnumber_T;
 use crate::extmark::TriState;
 pub type CdScope = c_int;
-pub type ex_func_T = unsafe extern "C" fn(*mut exarg_T);
-pub type ex_preview_func_T = Option<unsafe extern "C" fn(*mut exarg_T, c_int, handle_T) -> c_int>;
+pub type ex_func_T = unsafe fn(*mut exarg_T);
+pub type ex_preview_func_T = Option<unsafe fn(*mut exarg_T, c_int, handle_T) -> c_int>;
 
 pub(crate) const CMD_SIZE: c_int = 564;
 pub(crate) const CMD_USER: c_int = -1;
@@ -4865,8 +4865,7 @@ unsafe fn do_cmdline_end() {
 }
 
 /// Execute a simple command line.  Used for translated commands like "*".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_cmdline_cmd(cmd: *const c_char) -> c_int {
+pub unsafe fn do_cmdline_cmd(cmd: *const c_char) -> c_int {
     unsafe {
         do_cmdline(
             cmd.cast_mut(),
@@ -4878,8 +4877,7 @@ pub unsafe extern "C" fn do_cmdline_cmd(cmd: *const c_char) -> c_int {
 }
 
 /// do_cmdline(): execute one Ex command line
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_cmdline(
+pub unsafe fn do_cmdline(
     cmdline: *mut c_char,
     fgetline: LineGetter,
     cookie: *mut c_void,
@@ -5367,8 +5365,7 @@ pub unsafe extern "C" fn do_cmdline(
 }
 
 /// Handle when "did_throw" is set after executing commands.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn handle_did_throw() {
+pub unsafe fn handle_did_throw() {
     unsafe {
         debug_assert!(!current_exception.is_null());
         let mut p: *mut c_char = ptr::null_mut();
@@ -5430,7 +5427,7 @@ pub unsafe extern "C" fn handle_did_throw() {
 }
 
 /// Obtain a line when inside a ":while" or ":for" loop.
-unsafe extern "C" fn get_loop_line(
+unsafe fn get_loop_line(
     c: c_int,
     cookie: *mut c_void,
     indent: c_int,
@@ -5475,12 +5472,7 @@ unsafe fn store_loop_line(gap: *mut garray_T, line: *mut c_char) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn getline_equal(
-    fgetline: LineGetter,
-    cookie: *mut c_void,
-    func: LineGetter,
-) -> bool {
+pub unsafe fn getline_equal(fgetline: LineGetter, cookie: *mut c_void, func: LineGetter) -> bool {
     unsafe {
         let mut gp = fgetline;
         let mut cp = cookie.cast::<loop_cookie>();
@@ -5492,8 +5484,7 @@ pub unsafe extern "C" fn getline_equal(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn getline_cookie(fgetline: LineGetter, cookie: *mut c_void) -> *mut c_void {
+pub unsafe fn getline_cookie(fgetline: LineGetter, cookie: *mut c_void) -> *mut c_void {
     unsafe {
         let mut gp = fgetline;
         let mut cp = cookie.cast::<loop_cookie>();
@@ -5691,8 +5682,7 @@ unsafe fn skip_colon_white(mut p: *const c_char, skipleadingwhite: bool) -> *mut
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_cmd_addr_type(eap: *mut exarg_T, p: *mut c_char) {
+pub unsafe fn set_cmd_addr_type(eap: *mut exarg_T, p: *mut c_char) {
     unsafe {
         if is_user_cmdidx(std::mem::transmute::<c_int, cmdidx_T>((*eap).cmdidx)) {
             return;
@@ -5714,8 +5704,7 @@ pub unsafe extern "C" fn set_cmd_addr_type(eap: *mut exarg_T, p: *mut c_char) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_cmd_default_range(eap: *mut exarg_T) -> linenr_T {
+pub unsafe fn get_cmd_default_range(eap: *mut exarg_T) -> linenr_T {
     unsafe {
         match (*eap).addr_type {
             ADDR_LINES | ADDR_OTHER => (*curwin).w_cursor.lnum.min((*curbuf).b_ml.ml_line_count),
@@ -5731,8 +5720,7 @@ pub unsafe extern "C" fn get_cmd_default_range(eap: *mut exarg_T) -> linenr_T {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_cmd_dflall_range(eap: *mut exarg_T) {
+pub unsafe fn set_cmd_dflall_range(eap: *mut exarg_T) {
     unsafe {
         (*eap).line1 = 1;
         match (*eap).addr_type {
@@ -5816,8 +5804,7 @@ unsafe fn parse_register(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_cmd_count(eap: *mut exarg_T, count: linenr_T, validate: bool) {
+pub unsafe fn set_cmd_count(eap: *mut exarg_T, count: linenr_T, validate: bool) {
     unsafe {
         if (*eap).addr_type != ADDR_LINES {
             (*eap).line2 = count;
@@ -5872,8 +5859,7 @@ unsafe fn parse_count(eap: *mut exarg_T, errormsg: *mut *const c_char, validate:
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn is_cmd_ni(cmdidx: cmdidx_T) -> bool {
+pub unsafe fn is_cmd_ni(cmdidx: cmdidx_T) -> bool {
     if is_user_cmdidx(cmdidx) {
         return false;
     }
@@ -5905,8 +5891,7 @@ unsafe fn parse_bang(eap: *const exarg_T, p: *mut *mut c_char) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn cmd_has_expr_args(cmdidx: cmdidx_T) -> bool {
+pub fn cmd_has_expr_args(cmdidx: cmdidx_T) -> bool {
     matches!(
         cmdidx,
         cmdidx_T::CMD_execute
@@ -5917,8 +5902,7 @@ pub extern "C" fn cmd_has_expr_args(cmdidx: cmdidx_T) -> bool {
     )
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn parse_cmdline(
+pub unsafe fn parse_cmdline(
     cmdline: *mut *mut c_char,
     eap: *mut exarg_T,
     cmod: *mut cmdmod_T,
@@ -6191,12 +6175,7 @@ unsafe fn execute_cmd0(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn execute_cmd(
-    eap: *mut exarg_T,
-    cmod: *mut cmdmod_T,
-    preview: bool,
-) -> c_int {
+pub unsafe fn execute_cmd(eap: *mut exarg_T, cmod: *mut cmdmod_T, preview: bool) -> c_int {
     unsafe {
         let mut retv: c_int = 0;
         if do_cmdline_start() == FAIL {
@@ -6842,8 +6821,7 @@ unsafe fn ex_range_without_command(eap: *mut exarg_T) -> *mut c_char {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn parse_command_modifiers(
+pub unsafe fn parse_command_modifiers(
     eap: *mut exarg_T,
     errormsg: *mut *const c_char,
     cmod: *mut cmdmod_T,
@@ -7112,8 +7090,7 @@ pub unsafe extern "C" fn parse_command_modifiers(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn apply_cmdmod(cmod: *mut cmdmod_T) {
+pub unsafe fn apply_cmdmod(cmod: *mut cmdmod_T) {
     unsafe {
         if ((*cmod).cmod_flags & CMOD_SANDBOX) != 0 && (*cmod).cmod_did_sandbox == 0 {
             sandbox += 1;
@@ -7151,8 +7128,7 @@ pub unsafe extern "C" fn apply_cmdmod(cmod: *mut cmdmod_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn undo_cmdmod(cmod: *mut cmdmod_T) {
+pub unsafe fn undo_cmdmod(cmod: *mut cmdmod_T) {
     unsafe {
         if (*cmod).cmod_verbose_save > 0 {
             p_verbose = (*cmod).cmod_verbose_save - 1;
@@ -7198,8 +7174,7 @@ pub unsafe extern "C" fn undo_cmdmod(cmod: *mut cmdmod_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn parse_cmd_address(
+pub unsafe fn parse_cmd_address(
     eap: *mut exarg_T,
     errormsg: *mut *const c_char,
     silent: bool,
@@ -7349,8 +7324,7 @@ pub unsafe extern "C" fn parse_cmd_address(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn checkforcmd(pp: *mut *mut c_char, cmd: *const c_char, len: c_int) -> bool {
+pub unsafe fn checkforcmd(pp: *mut *mut c_char, cmd: *const c_char, len: c_int) -> bool {
     unsafe {
         let mut i: usize = 0;
         while *cmd.add(i) != NUL {
@@ -7428,8 +7402,7 @@ unsafe fn one_letter_cmd(p: *const c_char, idx: *mut cmdidx_T) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn find_ex_command(eap: *mut exarg_T, full: *mut c_int) -> *mut c_char {
+pub unsafe fn find_ex_command(eap: *mut exarg_T, full: *mut c_int) -> *mut c_char {
     unsafe {
         let mut p = (*eap).cmd;
         let mut cmdidx_out = cmdidx_T::CMD_append;
@@ -7541,8 +7514,7 @@ pub unsafe extern "C" fn find_ex_command(eap: *mut exarg_T, full: *mut c_int) ->
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn modifier_len(cmd: *mut c_char) -> c_int {
+pub unsafe fn modifier_len(cmd: *mut c_char) -> c_int {
     unsafe {
         let mut p = cmd;
         if ascii_isdigit(*cmd) {
@@ -7567,8 +7539,7 @@ pub unsafe extern "C" fn modifier_len(cmd: *mut c_char) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cmd_exists(name: *const c_char) -> c_int {
+pub unsafe fn cmd_exists(name: *const c_char) -> c_int {
     unsafe {
         for info in &CMDMODS {
             let mut j = 0usize;
@@ -7612,12 +7583,7 @@ pub unsafe extern "C" fn cmd_exists(name: *const c_char) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_fullcommand(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_fullcommand(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut name = tv_get_string(argvars).cast_mut();
 
@@ -7650,8 +7616,7 @@ pub unsafe extern "C" fn f_fullcommand(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn excmd_get_cmdidx(cmd: *const c_char, len: usize) -> cmdidx_T {
+pub unsafe fn excmd_get_cmdidx(cmd: *const c_char, len: usize) -> cmdidx_T {
     unsafe {
         if len == 3 && strncmp(c"def".as_ptr(), cmd, 3) == 0 {
             return cmdidx_T::CMD_SIZE;
@@ -7672,13 +7637,11 @@ pub unsafe extern "C" fn excmd_get_cmdidx(cmd: *const c_char, len: usize) -> cmd
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn excmd_get_argt(idx: cmdidx_T) -> u32 {
+pub unsafe fn excmd_get_argt(idx: cmdidx_T) -> u32 {
     CMDNAMES[idx as usize].cmd_argt
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn skip_range(mut cmd: *const c_char, ctx: *mut c_int) -> *mut c_char {
+pub unsafe fn skip_range(mut cmd: *const c_char, ctx: *mut c_int) -> *mut c_char {
     unsafe {
         while !vim_strchr(
             c" \t0123456789.$%'/?-+,;\\".as_ptr(),
@@ -7737,8 +7700,7 @@ unsafe fn addr_error(addr_type: cmd_addr_T) -> *const c_char {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_address(
+pub unsafe fn get_address(
     eap: *mut exarg_T,
     ptr: *mut *mut c_char,
     addr_type: cmd_addr_T,
@@ -8056,8 +8018,7 @@ unsafe fn get_flags(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_ni(eap: *mut exarg_T) {
+pub unsafe fn ex_ni(eap: *mut exarg_T) {
     unsafe {
         if (*eap).skip == 0 {
             (*eap).errmsg = gettext(c"E319: The command is not available in this version".as_ptr());
@@ -8065,7 +8026,7 @@ pub unsafe extern "C" fn ex_ni(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_script_ni(eap: *mut exarg_T) {
+unsafe fn ex_script_ni(eap: *mut exarg_T) {
     unsafe {
         if (*eap).skip == 0 {
             ex_ni(eap);
@@ -8076,8 +8037,7 @@ unsafe extern "C" fn ex_script_ni(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn invalid_range(eap: *mut exarg_T) -> *mut c_char {
+pub unsafe fn invalid_range(eap: *mut exarg_T) -> *mut c_char {
     unsafe {
         if (*eap).line1 < 0 || (*eap).line2 < 0 || (*eap).line1 > (*eap).line2 {
             return gettext(e_invrange.as_ptr());
@@ -8191,8 +8151,7 @@ unsafe fn skip_grep_pat(eap: *mut exarg_T) -> *mut c_char {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn replace_makeprg(
+pub unsafe fn replace_makeprg(
     eap: *mut exarg_T,
     mut arg: *mut c_char,
     cmdlinep: *mut *mut c_char,
@@ -8240,8 +8199,7 @@ pub unsafe extern "C" fn replace_makeprg(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn expand_filename(
+pub unsafe fn expand_filename(
     eap: *mut exarg_T,
     cmdlinep: *mut *mut c_char,
     errormsgp: *mut *const c_char,
@@ -8454,8 +8412,7 @@ unsafe fn repl_cmdline(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn separate_nextcmd(eap: *mut exarg_T) {
+pub unsafe fn separate_nextcmd(eap: *mut exarg_T) {
     unsafe {
         let mut p = skip_grep_pat(eap);
 
@@ -8510,8 +8467,7 @@ pub unsafe extern "C" fn separate_nextcmd(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn getargcmd(argp: *mut *mut c_char) -> *mut c_char {
+pub unsafe fn getargcmd(argp: *mut *mut c_char) -> *mut c_char {
     unsafe {
         let mut arg = *argp;
         let mut command: *mut c_char = ptr::null_mut();
@@ -8535,8 +8491,7 @@ pub unsafe extern "C" fn getargcmd(argp: *mut *mut c_char) -> *mut c_char {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn skip_cmd_arg(mut p: *mut c_char, rembs: bool) -> *mut c_char {
+pub unsafe fn skip_cmd_arg(mut p: *mut c_char, rembs: bool) -> *mut c_char {
     unsafe {
         while *p != NUL && !ascii_isspace(*p) {
             if *p == b'\\' as c_char && *p.add(1) != NUL {
@@ -8552,8 +8507,7 @@ pub unsafe extern "C" fn skip_cmd_arg(mut p: *mut c_char, rembs: bool) -> *mut c
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_bad_opt(p: *const c_char, eap: *mut exarg_T) -> c_int {
+pub unsafe fn get_bad_opt(p: *const c_char, eap: *mut exarg_T) -> c_int {
     unsafe {
         if vim_stricmp(p, c"keep".as_ptr()) == 0 {
             (*eap).bad_char = BAD_KEEP;
@@ -8568,7 +8522,7 @@ pub unsafe extern "C" fn get_bad_opt(p: *const c_char, eap: *mut exarg_T) -> c_i
     }
 }
 
-unsafe extern "C" fn get_bad_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_bad_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     const P_BAD_VALUES: [&CStr; 3] = [c"?", c"keep", c"drop"];
     if idx >= 0 && (idx as usize) < P_BAD_VALUES.len() {
         P_BAD_VALUES[idx as usize].as_ptr().cast_mut()
@@ -8577,8 +8531,7 @@ unsafe extern "C" fn get_bad_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn getargopt(eap: *mut exarg_T) -> c_int {
+pub unsafe fn getargopt(eap: *mut exarg_T) -> c_int {
     unsafe {
         let mut arg = (*eap).arg.add(2);
         let mut pp: *mut c_int = ptr::null_mut();
@@ -8657,7 +8610,7 @@ pub unsafe extern "C" fn getargopt(eap: *mut exarg_T) -> c_int {
     }
 }
 
-unsafe extern "C" fn get_argopt_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_argopt_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     const P_OPT_VALUES: [&CStr; 7] = [
         c"fileformat=",
         c"encoding=",
@@ -8674,8 +8627,7 @@ unsafe extern "C" fn get_argopt_name(_xp: *mut expand_T, idx: c_int) -> *mut c_c
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn expand_argopt(
+pub unsafe fn expand_argopt(
     pat: *mut c_char,
     xp: *mut expand_T,
     rmp: *mut regmatch_T,
@@ -8825,7 +8777,7 @@ unsafe fn get_tabpage_arg(eap: *mut exarg_T) -> c_int {
     }
 }
 
-unsafe extern "C" fn ex_autocmd(eap: *mut exarg_T) {
+unsafe fn ex_autocmd(eap: *mut exarg_T) {
     unsafe {
         if secure != 0 {
             secure = 2;
@@ -8838,7 +8790,7 @@ unsafe extern "C" fn ex_autocmd(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_doautocmd(eap: *mut exarg_T) {
+unsafe fn ex_doautocmd(eap: *mut exarg_T) {
     unsafe {
         let mut arg = (*eap).arg;
         let call_do_modelines = check_nomodeline(&raw mut arg);
@@ -8851,7 +8803,7 @@ unsafe extern "C" fn ex_doautocmd(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_bunload(eap: *mut exarg_T) {
+unsafe fn ex_bunload(eap: *mut exarg_T) {
     unsafe {
         let cmd = if (*eap).cmdidx == cmdidx_T::CMD_bdelete as c_int {
             DOBUF_DEL
@@ -8871,7 +8823,7 @@ unsafe extern "C" fn ex_bunload(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_buffer(eap: *mut exarg_T) {
+unsafe fn ex_buffer(eap: *mut exarg_T) {
     unsafe {
         do_exbuffer(eap);
     }
@@ -8894,7 +8846,7 @@ unsafe fn do_exbuffer(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_bmodified(eap: *mut exarg_T) {
+unsafe fn ex_bmodified(eap: *mut exarg_T) {
     unsafe {
         goto_buffer(eap, DOBUF_MOD, FORWARD, (*eap).line2);
         if !(*eap).do_ecmd_cmd.is_null() {
@@ -8903,7 +8855,7 @@ unsafe extern "C" fn ex_bmodified(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_bnext(eap: *mut exarg_T) {
+unsafe fn ex_bnext(eap: *mut exarg_T) {
     unsafe {
         goto_buffer(eap, DOBUF_CURRENT, FORWARD, (*eap).line2);
         if !(*eap).do_ecmd_cmd.is_null() {
@@ -8912,7 +8864,7 @@ unsafe extern "C" fn ex_bnext(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_bprevious(eap: *mut exarg_T) {
+unsafe fn ex_bprevious(eap: *mut exarg_T) {
     unsafe {
         goto_buffer(eap, DOBUF_CURRENT, BACKWARD, (*eap).line2);
         if !(*eap).do_ecmd_cmd.is_null() {
@@ -8921,7 +8873,7 @@ unsafe extern "C" fn ex_bprevious(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_brewind(eap: *mut exarg_T) {
+unsafe fn ex_brewind(eap: *mut exarg_T) {
     unsafe {
         goto_buffer(eap, DOBUF_FIRST, FORWARD, 0);
         if !(*eap).do_ecmd_cmd.is_null() {
@@ -8930,7 +8882,7 @@ unsafe extern "C" fn ex_brewind(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_blast(eap: *mut exarg_T) {
+unsafe fn ex_blast(eap: *mut exarg_T) {
     unsafe {
         goto_buffer(eap, DOBUF_LAST, BACKWARD, 0);
         if !(*eap).do_ecmd_cmd.is_null() {
@@ -8939,15 +8891,13 @@ unsafe extern "C" fn ex_blast(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn ends_excmd(c: c_int) -> c_int {
+pub fn ends_excmd(c: c_int) -> c_int {
     c_int::from(
         c == c_int::from(NUL) || c == b'|' as c_int || c == b'"' as c_int || c == b'\n' as c_int,
     )
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn find_nextcmd(mut p: *const c_char) -> *mut c_char {
+pub unsafe fn find_nextcmd(mut p: *const c_char) -> *mut c_char {
     unsafe {
         while *p != b'|' as c_char && *p != b'\n' as c_char {
             if *p == NUL {
@@ -8959,8 +8909,7 @@ pub unsafe extern "C" fn find_nextcmd(mut p: *const c_char) -> *mut c_char {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_nextcmd(p: *mut c_char) -> *mut c_char {
+pub unsafe fn check_nextcmd(p: *mut c_char) -> *mut c_char {
     unsafe {
         let s = skipwhite(p);
         if *s == b'|' as c_char || *s == b'\n' as c_char {
@@ -9014,8 +8963,7 @@ unsafe fn check_more(message: bool, forceit: bool) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_command_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_command_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx >= CMD_SIZE_I32 {
             return expand_user_command_name(idx);
@@ -9024,7 +8972,7 @@ pub unsafe extern "C" fn get_command_name(_xp: *mut expand_T, idx: c_int) -> *mu
     }
 }
 
-unsafe extern "C" fn ex_colorscheme(eap: *mut exarg_T) {
+unsafe fn ex_colorscheme(eap: *mut exarg_T) {
     unsafe {
         if *(*eap).arg == NUL {
             let expr = xstrdup(c"g:colors_name".as_ptr());
@@ -9049,7 +8997,7 @@ unsafe extern "C" fn ex_colorscheme(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_highlight(eap: *mut exarg_T) {
+unsafe fn ex_highlight(eap: *mut exarg_T) {
     unsafe {
         if *(*eap).arg == NUL && *(*eap).cmd.add(2) == b'!' as c_char {
             let _ = msg(gettext(c"Greetings, Vim user!".as_ptr()), 0);
@@ -9058,20 +9006,14 @@ unsafe extern "C" fn ex_highlight(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn not_exiting(save_exiting: bool) {
+pub unsafe fn not_exiting(save_exiting: bool) {
     unsafe {
         exiting = save_exiting;
         set_vim_var_string(VV_EXITREASON, ptr::null(), -1);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn before_quit_autocmds(
-    wp: *mut win_T,
-    quit_all: bool,
-    forceit: bool,
-) -> bool {
+pub unsafe fn before_quit_autocmds(wp: *mut win_T, quit_all: bool, forceit: bool) -> bool {
     unsafe {
         if *get_vim_var_str(VV_EXITREASON) == NUL {
             set_vim_var_string(VV_EXITREASON, c"quit".as_ptr(), 4);
@@ -9114,7 +9056,7 @@ pub unsafe extern "C" fn before_quit_autocmds(
     }
 }
 
-unsafe extern "C" fn ex_quit(eap: *mut exarg_T) {
+unsafe fn ex_quit(eap: *mut exarg_T) {
     unsafe {
         if text_locked() {
             text_locked_msg();
@@ -9173,7 +9115,7 @@ unsafe extern "C" fn ex_quit(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_cquit(eap: *mut exarg_T) {
+unsafe fn ex_cquit(eap: *mut exarg_T) {
     unsafe {
         let status = if (*eap).addr_count > 0 {
             (*eap).line2
@@ -9185,8 +9127,7 @@ unsafe extern "C" fn ex_cquit(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn before_quit_all(eap: *mut exarg_T) -> c_int {
+pub unsafe fn before_quit_all(eap: *mut exarg_T) -> c_int {
     unsafe {
         if text_locked() {
             text_locked_msg();
@@ -9199,7 +9140,7 @@ pub unsafe extern "C" fn before_quit_all(eap: *mut exarg_T) -> c_int {
     }
 }
 
-unsafe extern "C" fn ex_quitall(eap: *mut exarg_T) {
+unsafe fn ex_quitall(eap: *mut exarg_T) {
     unsafe {
         if before_quit_all(eap) == FAIL {
             return;
@@ -9213,7 +9154,7 @@ unsafe extern "C" fn ex_quitall(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_exmode(_eap: *mut exarg_T) {
+unsafe fn ex_exmode(_eap: *mut exarg_T) {
     unsafe {
         if silent_mode {
             return;
@@ -9236,7 +9177,7 @@ unsafe extern "C" fn ex_exmode(_eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_restart(eap: *mut exarg_T) {
+unsafe fn ex_restart(eap: *mut exarg_T) {
     unsafe {
         if (*eap).forceit == 0 {
             let extra_d = tv_dict_alloc();
@@ -9686,7 +9627,7 @@ unsafe extern "C" fn ex_restart(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_close(eap: *mut exarg_T) {
+unsafe fn ex_close(eap: *mut exarg_T) {
     unsafe {
         if !text_locked() && !curbuf_locked() {
             let win = if (*eap).addr_count == 0 {
@@ -9700,7 +9641,7 @@ unsafe extern "C" fn ex_close(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_pclose(eap: *mut exarg_T) {
+unsafe fn ex_pclose(eap: *mut exarg_T) {
     unsafe {
         let mut win = firstwin;
         while !win.is_null() {
@@ -9714,8 +9655,7 @@ unsafe extern "C" fn ex_pclose(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_win_close(forceit: c_int, win: *mut win_T, tp: *mut tabpage_T) {
+pub unsafe fn ex_win_close(forceit: c_int, win: *mut win_T, tp: *mut tabpage_T) {
     unsafe {
         debug_assert!(tp.is_null() || tp != curtab);
 
@@ -9758,7 +9698,7 @@ pub unsafe extern "C" fn ex_win_close(forceit: c_int, win: *mut win_T, tp: *mut 
     }
 }
 
-unsafe extern "C" fn ex_tabclose(eap: *mut exarg_T) {
+unsafe fn ex_tabclose(eap: *mut exarg_T) {
     unsafe {
         if (*first_tabpage).tp_next.is_null() {
             let _ = emsg(gettext(c"E784: Cannot close last tab page".as_ptr()));
@@ -9787,7 +9727,7 @@ unsafe extern "C" fn ex_tabclose(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_tabonly(eap: *mut exarg_T) {
+unsafe fn ex_tabonly(eap: *mut exarg_T) {
     unsafe {
         if (*first_tabpage).tp_next.is_null() {
             let _ = msg(gettext(c"Already only one tab page".as_ptr()), 0);
@@ -9825,8 +9765,7 @@ unsafe extern "C" fn ex_tabonly(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tabpage_close(forceit: c_int) {
+pub unsafe fn tabpage_close(forceit: c_int) {
     unsafe {
         let mut done: c_int = 0;
 
@@ -9860,8 +9799,7 @@ pub unsafe extern "C" fn tabpage_close(forceit: c_int) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tabpage_close_other(tp: *mut tabpage_T, forceit: c_int) {
+pub unsafe fn tabpage_close_other(tp: *mut tabpage_T, forceit: c_int) {
     unsafe {
         let mut done: c_int = 0;
         let mut prev_idx = [0 as c_char; NUMBUFLEN];
@@ -9908,7 +9846,7 @@ pub unsafe extern "C" fn tabpage_close_other(tp: *mut tabpage_T, forceit: c_int)
     }
 }
 
-unsafe extern "C" fn ex_only(eap: *mut exarg_T) {
+unsafe fn ex_only(eap: *mut exarg_T) {
     unsafe {
         if window_layout_locked(cmdidx_T::CMD_only) {
             return;
@@ -9934,7 +9872,7 @@ unsafe extern "C" fn ex_only(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_hide(eap: *mut exarg_T) {
+unsafe fn ex_hide(eap: *mut exarg_T) {
     unsafe {
         if (*eap).skip != 0 {
             return;
@@ -9955,7 +9893,7 @@ unsafe extern "C" fn ex_hide(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_stop(eap: *mut exarg_T) {
+unsafe fn ex_stop(eap: *mut exarg_T) {
     unsafe {
         if (*eap).forceit == 0 {
             autowrite_all();
@@ -9966,7 +9904,7 @@ unsafe extern "C" fn ex_stop(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_exit(eap: *mut exarg_T) {
+unsafe fn ex_exit(eap: *mut exarg_T) {
     unsafe {
         if text_locked() {
             text_locked_msg();
@@ -9994,7 +9932,7 @@ unsafe extern "C" fn ex_exit(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_print(eap: *mut exarg_T) {
+unsafe fn ex_print(eap: *mut exarg_T) {
     unsafe {
         if ((*curbuf).b_ml.ml_flags & ML_EMPTY) != 0 {
             let _ = emsg(gettext(e_empty_buffer.as_ptr()));
@@ -10020,19 +9958,19 @@ unsafe extern "C" fn ex_print(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_goto(eap: *mut exarg_T) {
+unsafe fn ex_goto(eap: *mut exarg_T) {
     unsafe {
         goto_byte((*eap).line2);
     }
 }
 
-unsafe extern "C" fn ex_preserve(_eap: *mut exarg_T) {
+unsafe fn ex_preserve(_eap: *mut exarg_T) {
     unsafe {
         ml_preserve(curbuf, true, true);
     }
 }
 
-unsafe extern "C" fn ex_recover(eap: *mut exarg_T) {
+unsafe fn ex_recover(eap: *mut exarg_T) {
     unsafe {
         recoverymode = true;
         if !check_changed(
@@ -10049,7 +9987,7 @@ unsafe extern "C" fn ex_recover(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_wrongmodifier(eap: *mut exarg_T) {
+unsafe fn ex_wrongmodifier(eap: *mut exarg_T) {
     unsafe {
         (*eap).errmsg = gettext(e_invcmd.as_ptr());
     }
@@ -10107,8 +10045,7 @@ unsafe fn call_findfunc(pat: *mut c_char, cmdcomplete: BoolVarValue) -> *mut lis
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn expand_findfunc(
+pub unsafe fn expand_findfunc(
     xp: *mut expand_T,
     pat: *mut c_char,
     files: *mut *mut *mut c_char,
@@ -10179,15 +10116,13 @@ unsafe fn findfunc_find_file(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn free_findfunc_option() {
+pub unsafe fn free_findfunc_option() {
     unsafe {
         callback_free(&raw mut p_ffu);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_ref_in_findfunc(copyID: c_int) -> bool {
+pub unsafe fn set_ref_in_findfunc(copyID: c_int) -> bool {
     unsafe { set_ref_in_callback(&raw mut p_ffu, copyID, ptr::null_mut(), ptr::null_mut()) }
 }
 
@@ -10206,8 +10141,7 @@ unsafe fn set_browse_edit_arg(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_splitview(eap: *mut exarg_T) {
+pub unsafe fn ex_splitview(eap: *mut exarg_T) {
     unsafe {
         set_browse_edit_arg(eap);
         let old_curwin = curwin;
@@ -10313,8 +10247,7 @@ pub unsafe extern "C" fn ex_splitview(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tabpage_new() {
+pub unsafe fn tabpage_new() {
     unsafe {
         let mut ea: exarg_T = std::mem::zeroed();
         ea.cmdidx = cmdidx_T::CMD_tabnew as c_int;
@@ -10324,7 +10257,7 @@ pub unsafe extern "C" fn tabpage_new() {
     }
 }
 
-unsafe extern "C" fn ex_tabnext(eap: *mut exarg_T) {
+unsafe fn ex_tabnext(eap: *mut exarg_T) {
     unsafe {
         if (*eap).cmdidx == cmdidx_T::CMD_tabfirst as c_int
             || (*eap).cmdidx == cmdidx_T::CMD_tabrewind as c_int
@@ -10368,7 +10301,7 @@ unsafe extern "C" fn ex_tabnext(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_tabmove(eap: *mut exarg_T) {
+unsafe fn ex_tabmove(eap: *mut exarg_T) {
     unsafe {
         let tab_number = get_tabpage_arg(eap);
         if (*eap).errmsg.is_null() {
@@ -10377,7 +10310,7 @@ unsafe extern "C" fn ex_tabmove(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_tabs(_eap: *mut exarg_T) {
+unsafe fn ex_tabs(_eap: *mut exarg_T) {
     unsafe {
         let mut tabcount: c_int = 1;
 
@@ -10462,7 +10395,7 @@ unsafe extern "C" fn ex_tabs(_eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_detach(eap: *mut exarg_T) {
+unsafe fn ex_detach(eap: *mut exarg_T) {
     unsafe {
         let chan = find_channel(current_ui);
         if chan.is_null() {
@@ -10531,7 +10464,7 @@ unsafe extern "C" fn ex_detach(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_connect(eap: *mut exarg_T) {
+unsafe fn ex_connect(eap: *mut exarg_T) {
     unsafe {
         let stop_server = if (*eap).forceit != 0 {
             ui_active() == 1
@@ -10556,7 +10489,7 @@ unsafe extern "C" fn ex_connect(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_mode(eap: *mut exarg_T) {
+unsafe fn ex_mode(eap: *mut exarg_T) {
     unsafe {
         if *(*eap).arg == NUL {
             must_redraw = UPD_CLEAR;
@@ -10567,7 +10500,7 @@ unsafe extern "C" fn ex_mode(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_resize(eap: *mut exarg_T) {
+unsafe fn ex_resize(eap: *mut exarg_T) {
     unsafe {
         let mut wp = curwin;
 
@@ -10601,7 +10534,7 @@ unsafe extern "C" fn ex_resize(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_find(eap: *mut exarg_T) {
+unsafe fn ex_find(eap: *mut exarg_T) {
     unsafe {
         if !check_can_set_curbuf_forceit((*eap).forceit) {
             return;
@@ -10662,7 +10595,7 @@ unsafe extern "C" fn ex_find(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_edit(eap: *mut exarg_T) {
+unsafe fn ex_edit(eap: *mut exarg_T) {
     unsafe {
         set_browse_edit_arg(eap);
         let ffname = if (*eap).cmdidx == cmdidx_T::CMD_enew as c_int {
@@ -10688,8 +10621,7 @@ unsafe extern "C" fn ex_edit(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_exedit(eap: *mut exarg_T, old_curwin: *mut win_T) {
+pub unsafe fn do_exedit(eap: *mut exarg_T, old_curwin: *mut win_T) {
     unsafe {
         if ((*eap).cmdidx == cmdidx_T::CMD_new as c_int
             || (*eap).cmdidx == cmdidx_T::CMD_tabnew as c_int
@@ -10802,19 +10734,19 @@ pub unsafe extern "C" fn do_exedit(eap: *mut exarg_T, old_curwin: *mut win_T) {
     }
 }
 
-unsafe extern "C" fn ex_nogui(eap: *mut exarg_T) {
+unsafe fn ex_nogui(eap: *mut exarg_T) {
     unsafe {
         (*eap).errmsg = gettext(c"E25: Nvim does not have a built-in GUI".as_ptr());
     }
 }
 
-unsafe extern "C" fn ex_popup(eap: *mut exarg_T) {
+unsafe fn ex_popup(eap: *mut exarg_T) {
     unsafe {
         pum_make_popup((*eap).arg, (*eap).forceit);
     }
 }
 
-unsafe extern "C" fn ex_swapname(_eap: *mut exarg_T) {
+unsafe fn ex_swapname(_eap: *mut exarg_T) {
     unsafe {
         let mfp = (*curbuf).b_ml.ml_mfp.cast::<memfile_T>();
         if mfp.is_null() || (*mfp).mf_fname.is_null() {
@@ -10825,7 +10757,7 @@ unsafe extern "C" fn ex_swapname(_eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_syncbind(_eap: *mut exarg_T) {
+unsafe fn ex_syncbind(_eap: *mut exarg_T) {
     unsafe {
         let old_linenr = (*curwin).w_cursor.lnum;
         setpcmark();
@@ -10874,7 +10806,7 @@ unsafe extern "C" fn ex_syncbind(_eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_read(eap: *mut exarg_T) {
+unsafe fn ex_read(eap: *mut exarg_T) {
     unsafe {
         if (*eap).usefilter != 0 {
             do_bang(1, eap, false, false, true);
@@ -10924,8 +10856,7 @@ unsafe extern "C" fn ex_read(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn free_cd_dir() {
+pub unsafe fn free_cd_dir() {
     unsafe {
         xfree(prev_dir.cast());
         prev_dir = ptr::null_mut();
@@ -11000,8 +10931,7 @@ unsafe fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_chdir(mut new_dir: *mut c_char, scope: CdScope) -> bool {
+pub unsafe fn do_chdir(mut new_dir: *mut c_char, scope: CdScope) -> bool {
     unsafe {
         if new_dir.is_null() || allbuf_locked() {
             return false;
@@ -11084,8 +11014,7 @@ unsafe fn chdir_clear(scope: CdScope) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_cd(eap: *mut exarg_T) {
+pub unsafe fn ex_cd(eap: *mut exarg_T) {
     unsafe {
         let new_dir = (*eap).arg;
 
@@ -11124,7 +11053,7 @@ pub unsafe extern "C" fn ex_cd(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_pwd(_eap: *mut exarg_T) {
+unsafe fn ex_pwd(_eap: *mut exarg_T) {
     unsafe {
         if os_dirname((&raw mut NameBuff).cast(), MAXPATHL) == OK {
             #[cfg(windows)]
@@ -11156,7 +11085,7 @@ unsafe extern "C" fn ex_pwd(_eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_equal(eap: *mut exarg_T) {
+unsafe fn ex_equal(eap: *mut exarg_T) {
     unsafe {
         if *(*eap).arg != NUL && *(*eap).arg != b'|' as c_char {
             ex_lua(eap);
@@ -11167,7 +11096,7 @@ unsafe extern "C" fn ex_equal(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_sleep(eap: *mut exarg_T) {
+unsafe fn ex_sleep(eap: *mut exarg_T) {
     unsafe {
         if cursor_valid(curwin) != 0 {
             setcursor_mayforce(curwin, true);
@@ -11187,8 +11116,7 @@ unsafe extern "C" fn ex_sleep(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_sleep(msec: i64, hide_cursor: bool) {
+pub unsafe fn do_sleep(msec: i64, hide_cursor: bool) {
     unsafe {
         if hide_cursor {
             ui_busy_start();
@@ -11227,7 +11155,7 @@ pub unsafe extern "C" fn do_sleep(msec: i64, hide_cursor: bool) {
     }
 }
 
-unsafe extern "C" fn ex_winsize(eap: *mut exarg_T) {
+unsafe fn ex_winsize(eap: *mut exarg_T) {
     unsafe {
         let mut arg = (*eap).arg;
         if !ascii_isdigit(*arg) {
@@ -11248,7 +11176,7 @@ unsafe extern "C" fn ex_winsize(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_wincmd(eap: *mut exarg_T) {
+unsafe fn ex_wincmd(eap: *mut exarg_T) {
     unsafe {
         let mut xchar: c_int = 0;
         let mut p: *mut c_char;
@@ -11286,7 +11214,7 @@ unsafe extern "C" fn ex_wincmd(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_operators(eap: *mut exarg_T) {
+unsafe fn ex_operators(eap: *mut exarg_T) {
     unsafe {
         let mut oa: oparg_T = std::mem::zeroed();
         clear_oparg(&raw mut oa);
@@ -11327,7 +11255,7 @@ unsafe extern "C" fn ex_operators(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_put(eap: *mut exarg_T) {
+unsafe fn ex_put(eap: *mut exarg_T) {
     unsafe {
         if (*eap).line2 == 0 {
             (*eap).line2 = 1;
@@ -11349,7 +11277,7 @@ unsafe extern "C" fn ex_put(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_iput(eap: *mut exarg_T) {
+unsafe fn ex_iput(eap: *mut exarg_T) {
     unsafe {
         if (*eap).line2 == 0 {
             (*eap).line2 = 1;
@@ -11371,7 +11299,7 @@ unsafe extern "C" fn ex_iput(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_copymove(eap: *mut exarg_T) {
+unsafe fn ex_copymove(eap: *mut exarg_T) {
     unsafe {
         let mut errormsg: *const c_char = ptr::null();
         let n = get_address(
@@ -11411,8 +11339,7 @@ unsafe extern "C" fn ex_copymove(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_may_print(eap: *mut exarg_T) {
+pub unsafe fn ex_may_print(eap: *mut exarg_T) {
     unsafe {
         if (*eap).flags != 0 {
             print_line(
@@ -11425,7 +11352,7 @@ pub unsafe extern "C" fn ex_may_print(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_join(eap: *mut exarg_T) {
+unsafe fn ex_join(eap: *mut exarg_T) {
     unsafe {
         (*curwin).w_cursor.lnum = (*eap).line1;
         if (*eap).line1 == (*eap).line2 {
@@ -11450,7 +11377,7 @@ unsafe extern "C" fn ex_join(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_at(eap: *mut exarg_T) {
+unsafe fn ex_at(eap: *mut exarg_T) {
     unsafe {
         let prev_len = typebuf.tb_len;
 
@@ -11489,13 +11416,13 @@ unsafe extern "C" fn ex_at(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_bang(eap: *mut exarg_T) {
+unsafe fn ex_bang(eap: *mut exarg_T) {
     unsafe {
         do_bang((*eap).addr_count, eap, (*eap).forceit != 0, true, true);
     }
 }
 
-unsafe extern "C" fn ex_undo(eap: *mut exarg_T) {
+unsafe fn ex_undo(eap: *mut exarg_T) {
     unsafe {
         if (*eap).addr_count != 1 {
             if (*eap).forceit != 0 {
@@ -11534,7 +11461,7 @@ unsafe extern "C" fn ex_undo(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_wundo(eap: *mut exarg_T) {
+unsafe fn ex_wundo(eap: *mut exarg_T) {
     unsafe {
         let mut hash = [0u8; UNDO_HASH_SIZE];
         u_compute_hash(curbuf, hash.as_mut_ptr());
@@ -11542,7 +11469,7 @@ unsafe extern "C" fn ex_wundo(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_rundo(eap: *mut exarg_T) {
+unsafe fn ex_rundo(eap: *mut exarg_T) {
     unsafe {
         let mut hash = [0u8; UNDO_HASH_SIZE];
         u_compute_hash(curbuf, hash.as_mut_ptr());
@@ -11550,13 +11477,13 @@ unsafe extern "C" fn ex_rundo(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_redo(_eap: *mut exarg_T) {
+unsafe fn ex_redo(_eap: *mut exarg_T) {
     unsafe {
         u_redo(1);
     }
 }
 
-unsafe extern "C" fn ex_later(eap: *mut exarg_T) {
+unsafe fn ex_later(eap: *mut exarg_T) {
     unsafe {
         let mut count: c_int = 0;
         let mut sec = false;
@@ -11612,7 +11539,7 @@ unsafe extern "C" fn ex_later(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_redir(eap: *mut exarg_T) {
+unsafe fn ex_redir(eap: *mut exarg_T) {
     unsafe {
         let mut arg = (*eap).arg;
 
@@ -11681,7 +11608,7 @@ unsafe extern "C" fn ex_redir(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_redraw(eap: *mut exarg_T) {
+unsafe fn ex_redraw(eap: *mut exarg_T) {
     unsafe {
         if cmdpreview {
             return;
@@ -11714,7 +11641,7 @@ unsafe extern "C" fn ex_redraw(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_redrawstatus(eap: *mut exarg_T) {
+unsafe fn ex_redrawstatus(eap: *mut exarg_T) {
     unsafe {
         if cmdpreview {
             return;
@@ -11744,7 +11671,7 @@ unsafe extern "C" fn ex_redrawstatus(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_redrawtabline(_eap: *mut exarg_T) {
+unsafe fn ex_redrawtabline(_eap: *mut exarg_T) {
     unsafe {
         let r = RedrawingDisabled;
         let p = p_lz;
@@ -11774,8 +11701,7 @@ unsafe fn close_redir() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_mkdir_emsg(name: *const c_char, prot: c_int) -> c_int {
+pub unsafe fn vim_mkdir_emsg(name: *const c_char, prot: c_int) -> c_int {
     unsafe {
         let ret = os_mkdir(name, prot);
         if ret != 0 {
@@ -11786,12 +11712,7 @@ pub unsafe extern "C" fn vim_mkdir_emsg(name: *const c_char, prot: c_int) -> c_i
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn open_exfile(
-    fname: *mut c_char,
-    forceit: c_int,
-    mode: *mut c_char,
-) -> *mut FILE {
+pub unsafe fn open_exfile(fname: *mut c_char, forceit: c_int, mode: *mut c_char) -> *mut FILE {
     unsafe {
         #[cfg(unix)]
         if os_isdir(fname) {
@@ -11818,7 +11739,7 @@ pub unsafe extern "C" fn open_exfile(
     }
 }
 
-unsafe extern "C" fn ex_mark(eap: *mut exarg_T) {
+unsafe fn ex_mark(eap: *mut exarg_T) {
     unsafe {
         if *(*eap).arg == NUL {
             let _ = emsg(gettext(e_argreq.as_ptr()));
@@ -11841,8 +11762,7 @@ unsafe extern "C" fn ex_mark(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn update_topline_cursor() {
+pub unsafe fn update_topline_cursor() {
     unsafe {
         check_cursor(curwin);
         update_topline(curwin);
@@ -11853,8 +11773,7 @@ pub unsafe extern "C" fn update_topline_cursor() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn save_current_state(sst: *mut save_state_T) {
+pub unsafe fn save_current_state(sst: *mut save_state_T) {
     unsafe {
         (*sst).save_msg_scroll = msg_scroll;
         (*sst).save_restart_edit = restart_edit;
@@ -11872,8 +11791,7 @@ pub unsafe extern "C" fn save_current_state(sst: *mut save_state_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn restore_current_state(sst: *mut save_state_T) {
+pub unsafe fn restore_current_state(sst: *mut save_state_T) {
     unsafe {
         restore_typeahead((&raw mut (*sst).tabuf).cast());
 
@@ -11895,12 +11813,11 @@ pub unsafe extern "C" fn restore_current_state(sst: *mut save_state_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn expr_map_locked() -> bool {
+pub unsafe fn expr_map_locked() -> bool {
     unsafe { expr_map_lock > 0 && ((*curbuf).b_flags & BF_DUMMY) == 0 }
 }
 
-unsafe extern "C" fn ex_normal(eap: *mut exarg_T) {
+unsafe fn ex_normal(eap: *mut exarg_T) {
     unsafe {
         if !(*curbuf).terminal.is_null() && (State & MODE_TERMINAL) != 0 {
             let _ = emsg(c"Can't re-enter normal mode from terminal mode".as_ptr());
@@ -11993,7 +11910,7 @@ unsafe extern "C" fn ex_normal(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_startinsert(eap: *mut exarg_T) {
+unsafe fn ex_startinsert(eap: *mut exarg_T) {
     unsafe {
         if (*curbuf).b_p_ma == 0 && (*curbuf).terminal.is_null() {
             let _ = emsg(gettext(e_modifiable.as_ptr()));
@@ -12031,7 +11948,7 @@ unsafe extern "C" fn ex_startinsert(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_stopinsert(_eap: *mut exarg_T) {
+unsafe fn ex_stopinsert(_eap: *mut exarg_T) {
     unsafe {
         restart_edit = 0;
         Ins.stop_insert_mode = true;
@@ -12039,16 +11956,14 @@ unsafe extern "C" fn ex_stopinsert(_eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn exec_normal_cmd(cmd: *mut c_char, remap: c_int, silent: bool) {
+pub unsafe fn exec_normal_cmd(cmd: *mut c_char, remap: c_int, silent: bool) {
     unsafe {
         let _ = ins_typebuf(cmd, remap, 0, true, silent);
         exec_normal(false, false);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn exec_normal(was_typed: bool, use_vpeekc: bool) {
+pub unsafe fn exec_normal(was_typed: bool, use_vpeekc: bool) {
     unsafe {
         let mut oa: oparg_T = std::mem::zeroed();
         clear_oparg(&raw mut oa);
@@ -12067,7 +11982,7 @@ pub unsafe extern "C" fn exec_normal(was_typed: bool, use_vpeekc: bool) {
     }
 }
 
-unsafe extern "C" fn ex_checkpath(eap: *mut exarg_T) {
+unsafe fn ex_checkpath(eap: *mut exarg_T) {
     unsafe {
         find_pattern_in_path(
             ptr::null_mut(),
@@ -12090,7 +12005,7 @@ unsafe extern "C" fn ex_checkpath(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_psearch(eap: *mut exarg_T) {
+unsafe fn ex_psearch(eap: *mut exarg_T) {
     unsafe {
         g_do_tagpreview = p_pvh as c_int;
         ex_findpat(eap);
@@ -12098,7 +12013,7 @@ unsafe extern "C" fn ex_psearch(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_findpat(eap: *mut exarg_T) {
+unsafe fn ex_findpat(eap: *mut exarg_T) {
     unsafe {
         let mut whole = true;
         let cname = CMDNAMES[(*eap).cmdidx as usize].cmd_name;
@@ -12158,14 +12073,14 @@ unsafe extern "C" fn ex_findpat(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_ptag(eap: *mut exarg_T) {
+unsafe fn ex_ptag(eap: *mut exarg_T) {
     unsafe {
         g_do_tagpreview = p_pvh as c_int;
         ex_tag_cmd(eap, CMDNAMES[(*eap).cmdidx as usize].cmd_name.add(1));
     }
 }
 
-unsafe extern "C" fn ex_pedit(eap: *mut exarg_T) {
+unsafe fn ex_pedit(eap: *mut exarg_T) {
     unsafe {
         let curwin_save = curwin;
         prepare_preview_window();
@@ -12174,7 +12089,7 @@ unsafe extern "C" fn ex_pedit(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_pbuffer(eap: *mut exarg_T) {
+unsafe fn ex_pbuffer(eap: *mut exarg_T) {
     unsafe {
         let curwin_save = curwin;
         prepare_preview_window();
@@ -12201,7 +12116,7 @@ unsafe fn back_to_current_window(curwin_save: *mut win_T) {
     }
 }
 
-unsafe extern "C" fn ex_stag(eap: *mut exarg_T) {
+unsafe fn ex_stag(eap: *mut exarg_T) {
     unsafe {
         postponed_split = -1;
         postponed_split_flags = cmdmod.cmod_split;
@@ -12212,7 +12127,7 @@ unsafe extern "C" fn ex_stag(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_tag(eap: *mut exarg_T) {
+unsafe fn ex_tag(eap: *mut exarg_T) {
     unsafe {
         ex_tag_cmd(eap, CMDNAMES[(*eap).cmdidx as usize].cmd_name);
     }
@@ -12266,8 +12181,7 @@ const SPEC_AMATCH: isize = 12;
 const SPEC_SFLNUM: isize = 13;
 const SPEC_SID: isize = 14;
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn find_cmdline_var(src: *const c_char, usedlen: *mut usize) -> isize {
+pub unsafe fn find_cmdline_var(src: *const c_char, usedlen: *mut usize) -> isize {
     const SPEC_STR: [&CStr; 15] = [
         c"%",
         c"#",
@@ -12298,8 +12212,7 @@ pub unsafe extern "C" fn find_cmdline_var(src: *const c_char, usedlen: *mut usiz
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval_vars(
+pub unsafe fn eval_vars(
     src: *mut c_char,
     srcstart: *const c_char,
     usedlen: *mut usize,
@@ -12568,8 +12481,7 @@ pub unsafe extern "C" fn eval_vars(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn expand_sfile(arg: *mut c_char) -> *mut c_char {
+pub unsafe fn expand_sfile(arg: *mut c_char) -> *mut c_char {
     unsafe {
         let mut result = xstrdup(arg);
         let mut p = result;
@@ -12618,7 +12530,7 @@ pub unsafe extern "C" fn expand_sfile(arg: *mut c_char) -> *mut c_char {
     }
 }
 
-unsafe extern "C" fn ex_shada(eap: *mut exarg_T) {
+unsafe fn ex_shada(eap: *mut exarg_T) {
     unsafe {
         let save_shada = p_shada;
         if *p_shada == NUL {
@@ -12635,7 +12547,7 @@ unsafe extern "C" fn ex_shada(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_filetype(eap: *mut exarg_T) {
+unsafe fn ex_filetype(eap: *mut exarg_T) {
     unsafe {
         if *(*eap).arg == NUL {
             let _ = smsg!(
@@ -12729,8 +12641,7 @@ unsafe extern "C" fn ex_filetype(eap: *mut exarg_T) {
 
 static mut EX_ERROR_BUF: [c_char; MSG_BUF_LEN] = [0; MSG_BUF_LEN];
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_errmsg(msg: *const c_char, arg: *const c_char) -> *mut c_char {
+pub unsafe fn ex_errmsg(msg: *const c_char, arg: *const c_char) -> *mut c_char {
     unsafe {
         let buf = (&raw mut EX_ERROR_BUF).cast::<c_char>();
         let _ = vim_snprintf!(buf, MSG_BUF_LEN, gettext(msg), arg);
@@ -12738,8 +12649,7 @@ pub unsafe extern "C" fn ex_errmsg(msg: *const c_char, arg: *const c_char) -> *m
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn filetype_plugin_enable() {
+pub unsafe fn filetype_plugin_enable() {
     unsafe {
         if filetype_plugin == kNone {
             source_runtime(FTPLUGIN_FILE.as_ptr().cast_mut(), DIP_ALL);
@@ -12752,8 +12662,7 @@ pub unsafe extern "C" fn filetype_plugin_enable() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn filetype_maybe_enable() {
+pub unsafe fn filetype_maybe_enable() {
     unsafe {
         if filetype_detect == kNone {
             source_runtime(FILETYPE_FILE.as_ptr().cast_mut(), DIP_ALL);
@@ -12762,7 +12671,7 @@ pub unsafe extern "C" fn filetype_maybe_enable() {
     }
 }
 
-unsafe extern "C" fn ex_setfiletype(eap: *mut exarg_T) {
+unsafe fn ex_setfiletype(eap: *mut exarg_T) {
     unsafe {
         if (*curbuf).b_did_filetype {
             return;
@@ -12780,7 +12689,7 @@ unsafe extern "C" fn ex_setfiletype(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_digraphs(eap: *mut exarg_T) {
+unsafe fn ex_digraphs(eap: *mut exarg_T) {
     unsafe {
         if *(*eap).arg != NUL {
             putdigraph((*eap).arg);
@@ -12790,8 +12699,7 @@ unsafe extern "C" fn ex_digraphs(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_no_hlsearch(flag: bool) {
+pub unsafe fn set_no_hlsearch(flag: bool) {
     unsafe {
         Search.no_hlsearch = flag;
         set_vim_var_nr(
@@ -12801,14 +12709,14 @@ pub unsafe extern "C" fn set_no_hlsearch(flag: bool) {
     }
 }
 
-unsafe extern "C" fn ex_nohlsearch(_eap: *mut exarg_T) {
+unsafe fn ex_nohlsearch(_eap: *mut exarg_T) {
     unsafe {
         set_no_hlsearch(true);
         redraw_all_later(UPD_SOME_VALID);
     }
 }
 
-unsafe extern "C" fn ex_fold(eap: *mut exarg_T) {
+unsafe fn ex_fold(eap: *mut exarg_T) {
     unsafe {
         if foldManualAllowed(true) != 0 {
             let start = pos_T {
@@ -12826,7 +12734,7 @@ unsafe extern "C" fn ex_fold(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_foldopen(eap: *mut exarg_T) {
+unsafe fn ex_foldopen(eap: *mut exarg_T) {
     unsafe {
         let start = pos_T {
             lnum: (*eap).line1,
@@ -12848,7 +12756,7 @@ unsafe extern "C" fn ex_foldopen(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_folddo(eap: *mut exarg_T) {
+unsafe fn ex_folddo(eap: *mut exarg_T) {
     unsafe {
         let mut lnum = (*eap).line1;
         while lnum <= (*eap).line2 {
@@ -12865,8 +12773,7 @@ unsafe extern "C" fn ex_folddo(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn is_loclist_cmd(cmdidx: c_int) -> bool {
+pub unsafe fn is_loclist_cmd(cmdidx: c_int) -> bool {
     unsafe {
         if !(0..CMD_SIZE_I32).contains(&cmdidx) {
             return false;
@@ -12875,7 +12782,7 @@ pub unsafe extern "C" fn is_loclist_cmd(cmdidx: c_int) -> bool {
     }
 }
 
-unsafe extern "C" fn ex_checkhealth(eap: *mut exarg_T) {
+unsafe fn ex_checkhealth(eap: *mut exarg_T) {
     unsafe {
         emsg_off += 1;
         let ok = nlua_call_excmd(
@@ -12907,7 +12814,7 @@ unsafe extern "C" fn ex_checkhealth(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_terminal(eap: *mut exarg_T) {
+unsafe fn ex_terminal(eap: *mut exarg_T) {
     unsafe {
         let scroll_save = msg_scroll;
         msg_scroll = 0;
@@ -12948,7 +12855,7 @@ unsafe extern "C" fn ex_terminal(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_log(eap: *mut exarg_T) {
+unsafe fn ex_log(eap: *mut exarg_T) {
     unsafe {
         nlua_call_excmd(
             c"vim._core.ex_cmd".as_ptr(),
@@ -12960,7 +12867,7 @@ unsafe extern "C" fn ex_log(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_lsp(eap: *mut exarg_T) {
+unsafe fn ex_lsp(eap: *mut exarg_T) {
     unsafe {
         nlua_call_excmd(
             c"vim._core.ex_cmd".as_ptr(),
@@ -12972,7 +12879,7 @@ unsafe extern "C" fn ex_lsp(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_packdel(eap: *mut exarg_T) {
+unsafe fn ex_packdel(eap: *mut exarg_T) {
     unsafe {
         nlua_call_excmd(
             c"vim._core.ex_cmd".as_ptr(),
@@ -12984,7 +12891,7 @@ unsafe extern "C" fn ex_packdel(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_packupdate(eap: *mut exarg_T) {
+unsafe fn ex_packupdate(eap: *mut exarg_T) {
     unsafe {
         nlua_call_excmd(
             c"vim._core.ex_cmd".as_ptr(),
@@ -12996,7 +12903,7 @@ unsafe extern "C" fn ex_packupdate(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_uptime(eap: *mut exarg_T) {
+unsafe fn ex_uptime(eap: *mut exarg_T) {
     unsafe {
         nlua_call_excmd(
             c"vim._core.ex_cmd".as_ptr(),
@@ -13008,14 +12915,13 @@ unsafe extern "C" fn ex_uptime(eap: *mut exarg_T) {
     }
 }
 
-unsafe extern "C" fn ex_fclose(eap: *mut exarg_T) {
+unsafe fn ex_fclose(eap: *mut exarg_T) {
     unsafe {
         win_float_remove((*eap).forceit != 0, (*eap).line1);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn verify_command(cmd: *mut c_char) {
+pub unsafe fn verify_command(cmd: *mut c_char) {
     const SMILE_LINES: [&CStr; 105] = [
         c" #xxn`          #xnxx`        ,+x@##@Mz;`        .xxxxxxxxxnz+,      znnnnnnnnnnnnnnnn.",
         c" n###z          x####`      :x##########W+`      ,#############M;    W################.",
@@ -13181,8 +13087,7 @@ pub unsafe extern "C" fn verify_command(cmd: *mut c_char) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn is_map_cmd(cmdidx: cmdidx_T) -> bool {
+pub unsafe fn is_map_cmd(cmdidx: cmdidx_T) -> bool {
     if is_user_cmdidx(cmdidx) {
         return false;
     }

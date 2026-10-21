@@ -129,9 +129,9 @@ use std::ptr;
 
 use crate::api::win_config::UIExtension;
 pub type xp_prefix_T = c_int;
-pub type CompleteListItemGetter = Option<unsafe extern "C" fn(*mut expand_T, c_int) -> *mut c_char>;
-type user_expand_func_T = unsafe extern "C" fn(*const c_char, c_int, *mut typval_T) -> *mut c_void;
-pub type LineGetter = Option<unsafe extern "C" fn(c_int, *mut c_void, c_int, bool) -> *mut c_char>;
+pub type CompleteListItemGetter = Option<unsafe fn(*mut expand_T, c_int) -> *mut c_char>;
+type user_expand_func_T = unsafe fn(*const c_char, c_int, *mut typval_T) -> *mut c_void;
+pub type LineGetter = Option<unsafe fn(c_int, *mut c_void, c_int, bool) -> *mut c_char>;
 pub type cmd_addr_T = c_int;
 
 #[repr(i32)]
@@ -1045,14 +1045,13 @@ unsafe fn cmdline_fuzzy_completion_supported(xp: *const expand_T) -> bool {
 
 /// Returns true if fuzzy completion for cmdline completion is enabled and
 /// "fuzzystr" is not empty.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cmdline_fuzzy_complete(fuzzystr: *const c_char) -> bool {
+pub unsafe fn cmdline_fuzzy_complete(fuzzystr: *const c_char) -> bool {
     unsafe { (wop_flags & kOptWopFlagFuzzy) != 0 && *fuzzystr != NUL }
 }
 
 /// Sort function for the completion matches.
 /// <SNR> functions should be sorted to the end.
-unsafe extern "C" fn sort_func_compare(s1: *const c_void, s2: *const c_void) -> c_int {
+unsafe fn sort_func_compare(s1: *const c_void, s2: *const c_void) -> c_int {
     unsafe {
         let p1 = *s1.cast::<*const c_char>();
         let p2 = *s2.cast::<*const c_char>();
@@ -1167,13 +1166,7 @@ unsafe fn ExpandEscape(
 
 /// Return FAIL if this is not an appropriate context in which to do
 /// completion of anything, return OK if it is (even if there are no matches).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nextwild(
-    xp: *mut expand_T,
-    type_arg: c_int,
-    options: c_int,
-    escape: bool,
-) -> c_int {
+pub unsafe fn nextwild(xp: *mut expand_T, type_arg: c_int, options: c_int, escape: bool) -> c_int {
     unsafe {
         let ccline = get_cmdline_info();
         let mut p: *mut c_char;
@@ -1377,8 +1370,7 @@ unsafe fn cmdline_pum_create(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cmdline_pum_display(changed_array: bool) {
+pub unsafe fn cmdline_pum_display(changed_array: bool) {
     unsafe {
         pum_display(
             compl_match_array,
@@ -1391,14 +1383,12 @@ pub unsafe extern "C" fn cmdline_pum_display(changed_array: bool) {
 }
 
 /// Returns true if the cmdline completion popup menu is being displayed.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cmdline_pum_active() -> bool {
+pub unsafe fn cmdline_pum_active() -> bool {
     unsafe { pum_visible() && !compl_match_array.is_null() }
 }
 
 /// Remove the cmdline completion popup menu (if present), free the list of items.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cmdline_pum_remove(defer_redraw: bool) {
+pub unsafe fn cmdline_pum_remove(defer_redraw: bool) {
     unsafe {
         pum_undisplay(!defer_redraw);
         xfree(compl_match_array.cast());
@@ -1407,8 +1397,7 @@ pub unsafe extern "C" fn cmdline_pum_remove(defer_redraw: bool) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cmdline_pum_cleanup(cclp: *mut CmdlineInfo) {
+pub unsafe fn cmdline_pum_cleanup(cclp: *mut CmdlineInfo) {
     unsafe {
         cmdline_pum_remove(false);
         wildmenu_cleanup(cclp);
@@ -1416,8 +1405,7 @@ pub unsafe extern "C" fn cmdline_pum_cleanup(cclp: *mut CmdlineInfo) {
 }
 
 /// Returns the current cmdline completion pattern.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cmdline_compl_pattern() -> *mut c_char {
+pub unsafe fn cmdline_compl_pattern() -> *mut c_char {
     unsafe {
         let xp = (*get_cmdline_info()).xpc;
         if xp.is_null() {
@@ -1429,8 +1417,7 @@ pub unsafe extern "C" fn cmdline_compl_pattern() -> *mut c_char {
 }
 
 /// Returns true if fuzzy cmdline completion is active, false otherwise.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cmdline_compl_is_fuzzy() -> bool {
+pub unsafe fn cmdline_compl_is_fuzzy() -> bool {
     unsafe {
         let xp = (*get_cmdline_info()).xpc;
         !xp.is_null() && cmdline_fuzzy_completion_supported(xp)
@@ -1860,8 +1847,7 @@ unsafe fn find_longest_match(xp: *mut expand_T, options: c_int) -> *mut c_char {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn free_xp_files_extra(xp: *mut expand_T, numfiles: c_int) {
+pub unsafe fn free_xp_files_extra(xp: *mut expand_T, numfiles: c_int) {
     unsafe {
         if !(*xp).xp_files_abbr.is_null() {
             FreeWild(numfiles, (*xp).xp_files_abbr);
@@ -1883,8 +1869,7 @@ pub unsafe extern "C" fn free_xp_files_extra(xp: *mut expand_T, numfiles: c_int)
 }
 
 /// Do wildcard expansion on the string "str".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ExpandOne(
+pub unsafe fn ExpandOne(
     xp: *mut expand_T,
     str_arg: *mut c_char,
     orig: *mut c_char,
@@ -2007,8 +1992,7 @@ pub unsafe extern "C" fn ExpandOne(
 }
 
 /// Prepare an expand structure for use.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ExpandInit(xp: *mut expand_T) {
+pub unsafe fn ExpandInit(xp: *mut expand_T) {
     unsafe {
         ptr::write_bytes(xp, 0, 1);
         (*xp).xp_backslash = XP_BS_NONE;
@@ -2018,8 +2002,7 @@ pub unsafe extern "C" fn ExpandInit(xp: *mut expand_T) {
 }
 
 /// Cleanup an expand structure after use.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ExpandCleanup(xp: *mut expand_T) {
+pub unsafe fn ExpandCleanup(xp: *mut expand_T) {
     unsafe {
         if (*xp).xp_numfiles >= 0 {
             free_xp_files_extra(xp, (*xp).xp_numfiles);
@@ -2031,8 +2014,7 @@ pub unsafe extern "C" fn ExpandCleanup(xp: *mut expand_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn clear_cmdline_orig() {
+pub unsafe fn clear_cmdline_orig() {
     unsafe {
         xfree(cmdline_orig.data.cast());
         cmdline_orig.data = ptr::null_mut();
@@ -2134,8 +2116,7 @@ unsafe fn show_pum_matches(
 }
 
 /// Display completion matches.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn showmatches(
+pub unsafe fn showmatches(
     xp: *mut expand_T,
     display_wildmenu: bool,
     display_list: bool,
@@ -2343,12 +2324,7 @@ unsafe fn expand_showtail(xp: *mut expand_T) -> bool {
 }
 
 /// Prepare a string for expansion.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn addstar(
-    fname: *mut c_char,
-    mut len: usize,
-    context: c_int,
-) -> *mut c_char {
+pub unsafe fn addstar(fname: *mut c_char, mut len: usize, context: c_int) -> *mut c_char {
     unsafe {
         let retval: *mut c_char;
 
@@ -2477,8 +2453,7 @@ pub unsafe extern "C" fn addstar(
 }
 
 /// Must parse the command line so far to work out what context we are in.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_expand_context(xp: *mut expand_T) {
+pub unsafe fn set_expand_context(xp: *mut expand_T) {
     unsafe {
         let ccline = get_cmdline_info();
 
@@ -3607,8 +3582,7 @@ unsafe fn set_one_cmd_context(xp: *mut expand_T, buff: *const c_char) -> *const 
 }
 
 /// Set the completion context in "xp" for command "str".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_cmd_context(
+pub unsafe fn set_cmd_context(
     xp: *mut expand_T,
     str_arg: *mut c_char,
     len: c_int,
@@ -3660,8 +3634,7 @@ pub unsafe extern "C" fn set_cmd_context(
 }
 
 /// Expand the command line "str" from context "xp".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn expand_cmdline(
+pub unsafe fn expand_cmdline(
     xp: *mut expand_T,
     str_arg: *const c_char,
     col: c_int,
@@ -3793,7 +3766,7 @@ unsafe fn expand_files_and_dirs(
 }
 
 /// Function given to ExpandGeneric() to obtain the possible arguments of ":filetype".
-unsafe extern "C" fn get_filetypecmd_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_filetypecmd_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     if idx < 0 {
         return ptr::null_mut();
     }
@@ -3821,7 +3794,7 @@ unsafe extern "C" fn get_filetypecmd_arg(_xp: *mut expand_T, idx: c_int) -> *mut
 }
 
 /// Function given to ExpandGeneric() to obtain the possible arguments of ":breakadd" / ":breakdel" / ":profdel".
-unsafe extern "C" fn get_breakadd_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_breakadd_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     if (0..=3).contains(&idx) {
         const OPTS: [&CStr; 4] = [c"expr", c"file", c"func", c"here"];
         let i = idx as usize;
@@ -3842,7 +3815,7 @@ unsafe extern "C" fn get_breakadd_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_
 }
 
 /// Function given to ExpandGeneric() to obtain the possible arguments for ":scriptnames".
-unsafe extern "C" fn get_scriptnames_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_scriptnames_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if !script_id_valid(idx + 1) {
             return ptr::null_mut();
@@ -3856,7 +3829,7 @@ unsafe extern "C" fn get_scriptnames_arg(_xp: *mut expand_T, idx: c_int) -> *mut
 }
 
 /// Function given to ExpandGeneric() to obtain the possible arguments of ":retab".
-unsafe extern "C" fn get_retab_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_retab_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     if idx == 0 {
         c"-indentonly".as_ptr().cast_mut()
     } else {
@@ -3865,7 +3838,7 @@ unsafe extern "C" fn get_retab_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_cha
 }
 
 /// Function given to ExpandGeneric() to obtain the possible arguments of ":messages".
-unsafe extern "C" fn get_messages_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_messages_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     if idx == 0 {
         c"clear".as_ptr().cast_mut()
     } else {
@@ -3873,7 +3846,7 @@ unsafe extern "C" fn get_messages_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_
     }
 }
 
-unsafe extern "C" fn get_mapclear_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_mapclear_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     if idx == 0 {
         c"<buffer>".as_ptr().cast_mut()
     } else {
@@ -3882,7 +3855,7 @@ unsafe extern "C" fn get_mapclear_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_
 }
 
 /// Completion for |:checkhealth| command.
-unsafe extern "C" fn get_healthcheck_names(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_healthcheck_names(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         let prompt_id = get_cmdline_last_prompt_id();
         if HEALTHCHECK_LAST_GEN != prompt_id || HEALTHCHECK_LAST_GEN == 0 {
@@ -3982,7 +3955,7 @@ unsafe fn get_arg1_from_lua(lua: *const c_char, xp: *mut expand_T, idx: c_int) -
     }
 }
 
-unsafe extern "C" fn get_marks_arg(xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_marks_arg(xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         get_arg1_from_lua(
             c"return require'vim._core.marks'.complete(...)".as_ptr(),
@@ -3992,7 +3965,7 @@ unsafe extern "C" fn get_marks_arg(xp: *mut expand_T, idx: c_int) -> *mut c_char
     }
 }
 
-unsafe extern "C" fn get_log_arg(xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_log_arg(xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         get_arg1_from_lua(
             c"return require'vim._core.ex_cmd'.log_complete(...)".as_ptr(),
@@ -4002,7 +3975,7 @@ unsafe extern "C" fn get_log_arg(xp: *mut expand_T, idx: c_int) -> *mut c_char {
     }
 }
 
-unsafe extern "C" fn get_lsp_arg(xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_lsp_arg(xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         get_arg1_from_lua(
             c"return require'vim._core.ex_cmd'.lsp_complete(...)".as_ptr(),
@@ -4012,7 +3985,7 @@ unsafe extern "C" fn get_lsp_arg(xp: *mut expand_T, idx: c_int) -> *mut c_char {
     }
 }
 
-unsafe extern "C" fn get_packdel_arg(xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_packdel_arg(xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         get_arg1_from_lua(
             c"return require'vim._core.ex_cmd'.packdel_complete(...)".as_ptr(),
@@ -4022,7 +3995,7 @@ unsafe extern "C" fn get_packdel_arg(xp: *mut expand_T, idx: c_int) -> *mut c_ch
     }
 }
 
-unsafe extern "C" fn get_packupdate_arg(xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_packupdate_arg(xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         get_arg1_from_lua(
             c"return require'vim._core.ex_cmd'.packupdate_complete(...)".as_ptr(),
@@ -4042,7 +4015,7 @@ unsafe fn ExpandOther(
 ) -> c_int {
     struct ExpGen {
         context: c_int,
-        func: unsafe extern "C" fn(*mut expand_T, c_int) -> *mut c_char,
+        func: unsafe fn(*mut expand_T, c_int) -> *mut c_char,
         ic: bool,
         escaped: bool,
     }
@@ -4472,8 +4445,7 @@ unsafe fn ExpandFromContext(
 }
 
 /// Expand a list of names.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ExpandGeneric(
+pub unsafe fn ExpandGeneric(
     pat: *const c_char,
     xp: *mut expand_T,
     regmatch: *mut regmatch_T,
@@ -4551,7 +4523,7 @@ pub unsafe extern "C" fn ExpandGeneric(
 
             if ptr::fn_addr_eq(
                 func_fn,
-                get_menu_names as unsafe extern "C" fn(*mut expand_T, c_int) -> *mut c_char,
+                get_menu_names as unsafe fn(*mut expand_T, c_int) -> *mut c_char,
             ) {
                 let end = str_item.add(strlen(str_item) - 1);
                 if *end == 1 {
@@ -4910,8 +4882,7 @@ unsafe fn ExpandUserDefined(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn expand_process_user_list(
+pub unsafe fn expand_process_user_list(
     retlist: *mut list_T,
     matches: *mut *mut *mut c_char,
     numMatches: *mut c_int,
@@ -5046,8 +5017,7 @@ unsafe fn ExpandUserLua(
 }
 
 /// Expand `file` for all comma-separated directories in `path`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn globpath(
+pub unsafe fn globpath(
     mut path: *mut c_char,
     file: *mut c_char,
     ga: *mut garray_T,
@@ -5109,8 +5079,7 @@ pub unsafe extern "C" fn globpath(
 }
 
 /// Translate some keys pressed when 'wildmenu' is used.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wildmenu_translate_key(
+pub unsafe fn wildmenu_translate_key(
     cclp: *mut CmdlineInfo,
     key: c_int,
     xp: *mut expand_T,
@@ -5311,12 +5280,7 @@ unsafe fn wildmenu_process_key_filenames(
 }
 
 /// Handle a key pressed when wild menu is displayed.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wildmenu_process_key(
-    cclp: *mut CmdlineInfo,
-    key: c_int,
-    xp: *mut expand_T,
-) -> c_int {
+pub unsafe fn wildmenu_process_key(cclp: *mut CmdlineInfo, key: c_int, xp: *mut expand_T) -> c_int {
     unsafe {
         if (*xp).xp_context == EXPAND_MENUNAMES {
             return wildmenu_process_key_menunames(cclp, key, xp);
@@ -5333,8 +5297,7 @@ pub unsafe extern "C" fn wildmenu_process_key(
 }
 
 /// Free expanded names when finished walking through the matches.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wildmenu_cleanup(cclp: *mut CmdlineInfo) {
+pub unsafe fn wildmenu_cleanup(cclp: *mut CmdlineInfo) {
     unsafe {
         if p_wmnu == 0 || wild_menu_showing == 0 {
             return;
@@ -5374,12 +5337,7 @@ pub unsafe extern "C" fn wildmenu_cleanup(cclp: *mut CmdlineInfo) {
 }
 
 /// "getcompletion()" function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getcompletion(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_getcompletion(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut xpc: expand_T = std::mem::zeroed();
         let mut filtered = false;
@@ -5506,8 +5464,7 @@ pub unsafe extern "C" fn f_getcompletion(
 }
 
 /// "getcompletiontype()" function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getcompletiontype(
+pub unsafe fn f_getcompletiontype(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
@@ -5539,8 +5496,7 @@ pub unsafe extern "C" fn f_getcompletiontype(
 }
 
 /// "cmdcomplete_info()" function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_cmdcomplete_info(
+pub unsafe fn f_cmdcomplete_info(
     _argvars: *mut typval_T,
     rettv: *mut typval_T,
     _fptr: EvalFuncData,

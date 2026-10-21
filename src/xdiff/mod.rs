@@ -33,9 +33,7 @@ pub const fn xdf_diff_alg(flags: c_ulong) -> c_ulong {
 
 pub const XDF_INDENT_HEURISTIC: c_ulong = 1 << 23;
 
-pub const XDL_EMIT_FUNCNAMES: c_ulong = 1 << 0;
 pub const XDL_EMIT_NO_HUNK_HDR: c_ulong = 1 << 1;
-pub const XDL_EMIT_FUNCCONTEXT: c_ulong = 1 << 2;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
@@ -59,28 +57,29 @@ pub struct xpparam_t {
     pub anchors_nr: usize,
 }
 
+pub type xdl_out_hunk_fn = Option<
+    unsafe fn(
+        priv_data: *mut c_void,
+        old_begin: c_long,
+        old_nr: c_long,
+        new_begin: c_long,
+        new_nr: c_long,
+        func: *const c_char,
+        funclen: c_long,
+    ) -> c_int,
+>;
+
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct xdemitcb_t {
     pub priv_data: *mut c_void,
-    pub out_hunk: Option<
-        unsafe extern "C" fn(
-            priv_data: *mut c_void,
-            old_begin: c_long,
-            old_nr: c_long,
-            new_begin: c_long,
-            new_nr: c_long,
-            func: *const c_char,
-            funclen: c_long,
-        ) -> c_int,
-    >,
-    pub out_line: Option<
-        unsafe extern "C" fn(priv_data: *mut c_void, mb: *mut mmbuffer_t, nbuf: c_int) -> c_int,
-    >,
+    pub out_hunk: xdl_out_hunk_fn,
+    pub out_line:
+        Option<unsafe fn(priv_data: *mut c_void, mb: *mut mmbuffer_t, nbuf: c_int) -> c_int>,
 }
 
 pub type find_func_t = Option<
-    unsafe extern "C" fn(
+    unsafe fn(
         line: *const c_char,
         line_len: c_long,
         buffer: *mut c_char,
@@ -90,7 +89,7 @@ pub type find_func_t = Option<
 >;
 
 pub type xdl_emit_hunk_consume_func_t = Option<
-    unsafe extern "C" fn(
+    unsafe fn(
         start_a: c_int,
         count_a: c_int,
         start_b: c_int,

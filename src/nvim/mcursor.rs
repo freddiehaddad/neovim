@@ -172,8 +172,7 @@ static mut ns_vsel: u32 = 0;
 static mut ns_last: u32 = 0;
 static mut ns_session: u32 = 0;
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_init() {
+pub unsafe fn mc_init() {
     unsafe {
         mc_ns();
     }
@@ -227,13 +226,7 @@ unsafe fn mc_session_ns() -> u32 {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_count() -> usize {
-    unsafe { mc_cursors.size }
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_showcmd(buf: *mut c_char, size: usize) -> usize {
+pub unsafe fn mc_showcmd(buf: *mut c_char, size: usize) -> usize {
     unsafe {
         if mc_cursors.size == 0 {
             *buf = 0;
@@ -254,8 +247,7 @@ pub unsafe extern "C" fn mc_showcmd(buf: *mut c_char, size: usize) -> usize {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_replaying() -> bool {
+pub unsafe fn mc_replaying() -> bool {
     unsafe { (*get_vim_var_tv(VV_CASCADING)).vval.v_bool == kBoolVarTrue }
 }
 
@@ -527,8 +519,7 @@ unsafe fn mc_cascade() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_clock_edge(map_edit: bool, map_moved: bool, follow: bool) {
+pub unsafe fn mc_clock_edge(map_edit: bool, map_moved: bool, follow: bool) {
     unsafe {
         if (map_edit || (follow && map_moved && !Visual.active))
             && !atom_composite_queued()
@@ -593,8 +584,7 @@ unsafe fn mc_cleanup(dedupe: bool, primary: *const pos_T, keep_mark: u32) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_ins_join() {
+pub unsafe fn mc_ins_join() {
     unsafe {
         if !mc_replaying() {
             mc_ins_joined = true;
@@ -602,13 +592,11 @@ pub unsafe extern "C" fn mc_ins_join() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_ins_replay_can_join() -> bool {
+pub unsafe fn mc_ins_replay_can_join() -> bool {
     unsafe { !mc_replaying() || mc_ins_joined }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_ins_cascade_start(
+pub unsafe fn mc_ins_cascade_start(
     cascade: bool,
     origin: CmdOrigin,
     root_frame: u64,
@@ -883,8 +871,7 @@ unsafe fn mc_ins_keys_nonliteral(keys: *const c_char, len: usize) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_ins_cascade_restart() {
+pub unsafe fn mc_ins_cascade_restart() {
     unsafe {
         if !mc_ins_span.active
             || mc_replaying()
@@ -901,23 +888,19 @@ pub unsafe extern "C" fn mc_ins_cascade_restart() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_ins_replaying() -> bool {
+pub unsafe fn mc_ins_replaying() -> bool {
     unsafe { mc_replaying() && mc_ins_cascading() }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_ins_cascading() -> bool {
+pub unsafe fn mc_ins_cascading() -> bool {
     unsafe { mc_ins_span.active }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_ins_cascaded(root_frame: u64) -> bool {
+pub unsafe fn mc_ins_cascaded(root_frame: u64) -> bool {
     unsafe { !mc_ins_span.first && mc_ins_span.frame == root_frame }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_ins_cascade() {
+pub unsafe fn mc_ins_cascade() {
     unsafe {
         if !mc_ins_span.active
             || mc_replaying()
@@ -1145,8 +1128,7 @@ unsafe fn mc_reg_gather() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_vsel_clear() {
+pub unsafe fn mc_vsel_clear() {
     unsafe {
         let buf = handle_get_buffer(mc_vsel_buf);
         if !buf.is_null() {
@@ -1187,8 +1169,7 @@ unsafe fn mc_vsel_mark(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_vsel_refresh() {
+pub unsafe fn mc_vsel_refresh() {
     unsafe {
         mc_vsel_clear();
         let span = atom_visual_span();
@@ -1278,16 +1259,14 @@ pub unsafe extern "C" fn mc_vsel_refresh() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_undo_time() {
+pub unsafe fn mc_undo_time() {
     unsafe {
         atom_did_global_op();
         extmark_clear(curbuf, mc_ns(), 0, 0, MAXLNUM, MAXCOL);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_ins_commit() -> bool {
+pub unsafe fn mc_ins_commit() -> bool {
     unsafe {
         let active = mc_ins_span.active;
         let ins_cascaded = active && !mc_ins_span.first;
@@ -1336,8 +1315,7 @@ pub unsafe extern "C" fn mc_ins_commit() -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_buf_has_cursors(buf: *mut buf_T) -> bool {
+pub unsafe fn mc_buf_has_cursors(buf: *mut buf_T) -> bool {
     unsafe {
         for i in 0..mc_cursors.size {
             if (*mc_cursors.items.add(i)).buf == (*buf).b_fnum {
@@ -1348,8 +1326,7 @@ pub unsafe extern "C" fn mc_buf_has_cursors(buf: *mut buf_T) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_following() -> bool {
+pub unsafe fn mc_following() -> bool {
     unsafe { (*curbuf).b_p_follow != 0 }
 }
 
@@ -1381,8 +1358,7 @@ unsafe fn mc_lua_enable(enable: bool) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_mark_at(buf: *mut buf_T, pos: pos_T, skip: u32) -> u32 {
+pub unsafe fn mc_mark_at(buf: *mut buf_T, pos: pos_T, skip: u32) -> u32 {
     unsafe {
         if mc_cursors.size == 0 {
             return 0;
@@ -1583,8 +1559,7 @@ unsafe fn mc_zq_run(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_zq_start(cap: *mut cmdarg_T) {
+pub unsafe fn mc_zq_start(cap: *mut cmdarg_T) {
     unsafe {
         (*(*cap).oap).from_visual = Visual.active;
         (*(*cap).oap).motion_type = kMTUnknown;
@@ -1596,8 +1571,7 @@ pub unsafe extern "C" fn mc_zq_start(cap: *mut cmdarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_zq(oap: *mut oparg_T, cap: *mut cmdarg_T, origin: pos_T) {
+pub unsafe fn mc_zq(oap: *mut oparg_T, cap: *mut cmdarg_T, origin: pos_T) {
     unsafe {
         atom_did_global_op();
         if mc_replaying()
@@ -1738,8 +1712,7 @@ pub unsafe extern "C" fn mc_zq(oap: *mut oparg_T, cap: *mut cmdarg_T, origin: po
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_counter(count1: c_long) {
+pub unsafe fn mc_counter(count1: c_long) {
     unsafe {
         atom_did_global_op();
         let mut tv_args = [
@@ -1765,8 +1738,7 @@ pub unsafe extern "C" fn mc_counter(count1: c_long) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_follow_set(on: TriState) {
+pub unsafe fn mc_follow_set(on: TriState) {
     unsafe {
         if mc_replaying() {
             return;
@@ -1782,8 +1754,7 @@ pub unsafe extern "C" fn mc_follow_set(on: TriState) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_toggle(buf: *mut buf_T, pos: pos_T, end_follow: bool, on: TriState) {
+pub unsafe fn mc_toggle(buf: *mut buf_T, pos: pos_T, end_follow: bool, on: TriState) {
     unsafe {
         if mc_replaying() {
             return;
@@ -1801,8 +1772,7 @@ pub unsafe extern "C" fn mc_toggle(buf: *mut buf_T, pos: pos_T, end_follow: bool
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_add(buf: *mut buf_T, pos: pos_T) -> *mut Context {
+pub unsafe fn mc_add(buf: *mut buf_T, pos: pos_T) -> *mut Context {
     unsafe {
         let existing = mc_mark_at(buf, pos, 0);
         if existing != 0 {
@@ -1824,8 +1794,7 @@ pub unsafe extern "C" fn mc_add(buf: *mut buf_T, pos: pos_T) -> *mut Context {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_on_extmark_set(buf: *mut buf_T, ns_id: u32, mut id: u32, pos: pos_T) {
+pub unsafe fn mc_on_extmark_set(buf: *mut buf_T, ns_id: u32, mut id: u32, pos: pos_T) {
     unsafe {
         if ns_id != mc_ns() {
             return;
@@ -1853,8 +1822,7 @@ pub unsafe extern "C" fn mc_on_extmark_set(buf: *mut buf_T, ns_id: u32, mut id: 
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_buf_clear(buf: *mut buf_T) {
+pub unsafe fn mc_buf_clear(buf: *mut buf_T) {
     unsafe {
         if mc_replaying() {
             return;
@@ -1864,8 +1832,7 @@ pub unsafe extern "C" fn mc_buf_clear(buf: *mut buf_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_buf_free(buf: *mut buf_T) {
+pub unsafe fn mc_buf_free(buf: *mut buf_T) {
     unsafe {
         if mc_replaying() {
             return;
@@ -1877,8 +1844,7 @@ pub unsafe extern "C" fn mc_buf_free(buf: *mut buf_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_ns_clearing(buf: *mut buf_T, ns_id: u32) {
+pub unsafe fn mc_ns_clearing(buf: *mut buf_T, ns_id: u32) {
     unsafe {
         if (ns_id != mc_ns() && ns_id != 0) || mc_replaying() {
             return;
@@ -1892,8 +1858,7 @@ pub unsafe extern "C" fn mc_ns_clearing(buf: *mut buf_T, ns_id: u32) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_ns_cleared(buf: *mut buf_T, ns_id: u32) {
+pub unsafe fn mc_ns_cleared(buf: *mut buf_T, ns_id: u32) {
     unsafe {
         if (ns_id != mc_ns() && ns_id != 0) || mc_replaying() || !mc_buf_has_cursors(buf) {
             return;
@@ -1942,8 +1907,7 @@ pub unsafe extern "C" fn mc_ns_cleared(buf: *mut buf_T, ns_id: u32) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mc_free_all() {
+pub unsafe fn mc_free_all() {
     unsafe {
         while mc_cursors.size > 0 {
             mc_cursors.size -= 1;

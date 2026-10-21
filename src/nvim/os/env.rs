@@ -16,8 +16,10 @@ use crate::mbyte::{utf_isalnum, utf_ptr2char, utf_ptr2len};
 use crate::mbyte::{utf_valid_string, utf16_to_utf8};
 use crate::memory::{xfree, xmalloc, xmemcpyz, xmemdupz, xmemrchr, xstrdup, xstrlcat, xstrlcpy};
 #[cfg(windows)]
+use crate::message::emsg;
+use crate::message::internal_error;
+#[cfg(windows)]
 use crate::message::semsg;
-use crate::message::{emsg, internal_error};
 use crate::option_vars::*;
 use crate::os::fs::{UV_EINVAL, UV_ENOBUFS, os_isdir};
 #[cfg(unix)]
@@ -136,16 +138,14 @@ unsafe fn env_name_valid(name: *const c_char) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn env_init() {
+pub unsafe fn env_init() {
     unsafe {
         nvim_testing = os_env_exists(c"NVIM_TEST".as_ptr(), false);
     }
 }
 
 /// Gets the length (bytes) of the env var name at `p`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn env_name_len(p: *const c_char) -> usize {
+pub unsafe fn env_name_len(p: *const c_char) -> usize {
     unsafe {
         let mut s = p;
         loop {
@@ -313,8 +313,7 @@ pub unsafe extern "C" fn os_unsetenv(name: *const c_char) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_free_fullenv(env: *mut *mut c_char) {
+pub unsafe fn os_free_fullenv(env: *mut *mut c_char) {
     if env.is_null() {
         return;
     }
@@ -394,8 +393,7 @@ pub extern "C" fn os_get_pid() -> i64 {
 }
 
 /// Signals to the OS that Nvim is an application for "interactive work".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_hint_priority() {}
+pub unsafe fn os_hint_priority() {}
 
 /// Gets the hostname of the current machine.
 #[unsafe(no_mangle)]
@@ -432,8 +430,8 @@ pub unsafe extern "C" fn os_get_hostname(hostname: *mut c_char, size: usize) {
 }
 
 /// Gets the "real", resolved user home directory as determined by `init_homedir`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_homedir() -> *const c_char {
+#[cfg(windows)]
+pub unsafe fn os_homedir() -> *const c_char {
     unsafe {
         if HOMEDIR.is_null() {
             emsg(c"os_homedir failed: homedir not initialized".as_ptr());
@@ -458,8 +456,7 @@ unsafe fn os_uv_homedir() -> *mut c_char {
 }
 
 /// Sets `homedir` to the "real", resolved user home directory.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn init_homedir() {
+pub unsafe fn init_homedir() {
     unsafe {
         xfree(HOMEDIR.cast());
         HOMEDIR = ptr::null_mut();
@@ -538,8 +535,7 @@ pub unsafe extern "C" fn init_homedir() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn free_homedir() {
+pub unsafe fn free_homedir() {
     unsafe {
         xfree(HOMEDIR.cast());
         HOMEDIR = ptr::null_mut();
@@ -547,14 +543,12 @@ pub unsafe extern "C" fn free_homedir() {
 }
 
 /// Call `expand_env()` and store the result in an allocated string.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn expand_env_save(src: *mut c_char) -> *mut c_char {
+pub unsafe fn expand_env_save(src: *mut c_char) -> *mut c_char {
     unsafe { expand_env_save_opt(src, false, ptr::null_mut()) }
 }
 
 /// Similar to `expand_env_save()` with `one` and `esc_chars`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn expand_env_save_opt(
+pub unsafe fn expand_env_save_opt(
     src: *mut c_char,
     one: bool,
     esc_chars: *mut c_char,
@@ -567,8 +561,7 @@ pub unsafe extern "C" fn expand_env_save_opt(
 }
 
 /// Expand environment variable with path name.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn expand_env(src: *mut c_char, dst: *mut c_char, dstlen: c_int) -> usize {
+pub unsafe fn expand_env(src: *mut c_char, dst: *mut c_char, dstlen: c_int) -> usize {
     unsafe { expand_env_esc(src, dst, dstlen, ptr::null_mut(), false, ptr::null_mut()) }
 }
 
@@ -816,8 +809,7 @@ unsafe fn remove_tail(path: *mut c_char, pend: *mut c_char, dirname: *const c_ch
 }
 
 /// Iterates `$PATH`-like delimited list `val`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_env_iter(
+pub unsafe fn vim_env_iter(
     delim: c_char,
     val: *const c_char,
     iter: *const c_void,
@@ -843,8 +835,7 @@ pub unsafe extern "C" fn vim_env_iter(
 }
 
 /// Iterates `$PATH`-like delimited list `val` in reverse order.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_env_iter_rev(
+pub unsafe fn vim_env_iter_rev(
     delim: c_char,
     val: *const c_char,
     iter: *const c_void,
@@ -870,8 +861,7 @@ pub unsafe extern "C" fn vim_env_iter_rev(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_get_prefix_from_exepath(exe_name: *mut c_char) {
+pub unsafe fn vim_get_prefix_from_exepath(exe_name: *mut c_char) {
     unsafe {
         xstrlcpy(exe_name, get_vim_var_str(VV_PROGPATH), MAXPATHL);
         let path_end = path_tail_with_sep(exe_name);
@@ -882,8 +872,7 @@ pub unsafe extern "C" fn vim_get_prefix_from_exepath(exe_name: *mut c_char) {
 }
 
 /// Vim `getenv()` wrapper with special handling of `$HOME`, `$VIM`, `$VIMRUNTIME`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_getenv(name: *const c_char) -> *mut c_char {
+pub unsafe fn vim_getenv(name: *const c_char) -> *mut c_char {
     unsafe {
         assert!(*get_vim_var_str(VV_PROGPATH) != NUL);
 
@@ -1002,8 +991,7 @@ pub unsafe extern "C" fn vim_getenv(name: *const c_char) -> *mut c_char {
 }
 
 /// Replace home directory by `"~"` in each space or comma separated file name in `src`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn home_replace(
+pub unsafe fn home_replace(
     buf: *const buf_T,
     mut src: *const c_char,
     dst: *mut c_char,
@@ -1134,8 +1122,7 @@ pub unsafe extern "C" fn home_replace(
 }
 
 /// Like `home_replace`, store the replaced string in allocated memory.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn home_replace_save(buf: *mut buf_T, src: *const c_char) -> *mut c_char {
+pub unsafe fn home_replace_save(buf: *mut buf_T, src: *const c_char) -> *mut c_char {
     unsafe {
         let mut len: usize = 3;
         if !src.is_null() {
@@ -1148,8 +1135,7 @@ pub unsafe extern "C" fn home_replace_save(buf: *mut buf_T, src: *const c_char) 
 }
 
 /// Function given to `ExpandGeneric()` to obtain an environment variable name.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_env_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_env_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
     assert!(idx >= 0);
     unsafe {
         let envname = os_getenvname_at_index(idx as usize);
@@ -1218,8 +1204,7 @@ pub unsafe extern "C" fn os_shell_is_cmdexe(sh: *const c_char) -> bool {
 }
 
 /// Removes environment variable `var` and takes care of side effects.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_unsetenv_ext(var: *const c_char) {
+pub unsafe fn vim_unsetenv_ext(var: *const c_char) {
     unsafe {
         let _ = os_unsetenv(var);
         if striequal(var, c"VIM".as_ptr()) {
@@ -1231,8 +1216,7 @@ pub unsafe extern "C" fn vim_unsetenv_ext(var: *const c_char) {
 }
 
 /// Set environment variable `name` and take care of side effects.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_setenv_ext(name: *const c_char, val: *const c_char) {
+pub unsafe fn vim_setenv_ext(name: *const c_char, val: *const c_char) {
     unsafe {
         let _ = os_setenv(name, val, 1);
         if striequal(name, c"HOME".as_ptr()) {
@@ -1248,12 +1232,8 @@ pub unsafe extern "C" fn vim_setenv_ext(name: *const c_char, val: *const c_char)
 }
 
 /// Restore a previous environment variable value, or unset it if NULL.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn restore_env_var(
-    name: *const c_char,
-    old_value: *mut c_char,
-    must_free: bool,
-) {
+#[cfg(windows)]
+pub unsafe fn restore_env_var(name: *const c_char, old_value: *mut c_char, must_free: bool) {
     unsafe {
         if !old_value.is_null() {
             let _ = os_setenv(name, old_value, 1);

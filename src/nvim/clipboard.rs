@@ -36,8 +36,7 @@ unsafe fn cstr_to_nvim_string(s: *const c_char) -> NvimString {
 }
 
 /// Determine if register `*name` should be used as a clipboard (`adjust_clipboard_name`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn adjust_clipboard_name(
+pub unsafe fn adjust_clipboard_name(
     name: *mut c_int,
     quiet: bool,
     writing: bool,
@@ -102,12 +101,7 @@ pub unsafe extern "C" fn adjust_clipboard_name(
 }
 
 /// Read clipboard contents into `*target` (`get_clipboard`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_clipboard(
-    mut name: c_int,
-    target: *mut *mut yankreg_T,
-    quiet: bool,
-) -> bool {
+pub unsafe fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet: bool) -> bool {
     unsafe {
         let implicit = name == 0;
         let mut errmsg = true;
@@ -238,8 +232,7 @@ pub unsafe extern "C" fn get_clipboard(
 }
 
 /// Write `reg` to the clipboard provider (`set_clipboard`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_clipboard(mut name: c_int, reg: *mut yankreg_T) {
+pub unsafe fn set_clipboard(mut name: c_int, reg: *mut yankreg_T) {
     unsafe {
         if mc_replaying() || adjust_clipboard_name(&mut name, false, true).is_null() {
             return;
@@ -283,8 +276,7 @@ pub unsafe extern "C" fn set_clipboard(mut name: c_int, reg: *mut yankreg_T) {
 }
 
 /// Defer clipboard updates during batch operations (`start_batch_changes`).
-#[unsafe(no_mangle)]
-pub extern "C" fn start_batch_changes() {
+pub fn start_batch_changes() {
     unsafe {
         BATCH_CHANGE_COUNT += 1;
         if BATCH_CHANGE_COUNT > 1 {
@@ -295,8 +287,7 @@ pub extern "C" fn start_batch_changes() {
 }
 
 /// End batch operation and flush deferred clipboard update if needed (`end_batch_changes`).
-#[unsafe(no_mangle)]
-pub extern "C" fn end_batch_changes() {
+pub fn end_batch_changes() {
     unsafe {
         BATCH_CHANGE_COUNT -= 1;
         if BATCH_CHANGE_COUNT > 0 {

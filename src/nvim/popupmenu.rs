@@ -60,7 +60,7 @@ use crate::ui::{
     ui_call_popupmenu_select, ui_call_popupmenu_show, ui_call_win_close, ui_call_win_float_pos,
     ui_has, ui_pum_get_height, ui_pum_get_pos,
 };
-use crate::ui_compositor::{ui_comp_compose_grid, ui_comp_put_grid, ui_comp_remove_grid};
+use crate::ui_compositor::{ui_comp_put_grid, ui_comp_remove_grid};
 use crate::window::{goto_tabpage_tp, valid_tabpage, win_T, win_enter, win_setheight, win_valid};
 use crate::winfloat::{win_config_float, win_float_close, win_float_find, win_float_special};
 use std::ffi::{CStr, c_char, c_int, c_uint};
@@ -344,8 +344,7 @@ unsafe fn pum_border_width() -> c_int {
 }
 
 /// Show the popup menu with items `array[size]` (`pum_display`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn pum_display(
+pub unsafe fn pum_display(
     array: *mut pumitem_T,
     size: c_int,
     selected: c_int,
@@ -699,8 +698,7 @@ unsafe fn pum_user_attr_combine(idx: c_int, type_: c_int, attr: c_int) -> c_int 
 }
 
 /// Redraw the popup menu, using `pum_first` and `pum_selected` (`pum_redraw`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn pum_redraw() {
+pub unsafe fn pum_redraw() {
     unsafe {
         let mut row: c_int = 0;
         let attr_scroll = win_hl_attr(curwin, HLF_PSB);
@@ -1230,8 +1228,7 @@ unsafe fn pum_adjust_info_position(wp: *mut win_T, width: c_int) -> bool {
 }
 
 /// Used for `nvim__complete_set` (`pum_set_info`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn pum_set_info(selected: c_int, info: *mut c_char) -> *mut win_T {
+pub unsafe fn pum_set_info(selected: c_int, info: *mut c_char) -> *mut win_T {
     unsafe {
         if !PUM_IS_VISIBLE || !compl_match_curr_select(selected) {
             return ptr::null_mut();
@@ -1482,8 +1479,7 @@ unsafe fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
 }
 
 /// Undisplay the popup menu (`pum_undisplay`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn pum_undisplay(immediate: bool) {
+pub unsafe fn pum_undisplay(immediate: bool) {
     unsafe {
         PUM_IS_VISIBLE = false;
         PUM_ARRAY = ptr::null_mut();
@@ -1495,8 +1491,7 @@ pub unsafe extern "C" fn pum_undisplay(immediate: bool) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn pum_check_clear() {
+pub unsafe fn pum_check_clear() {
     unsafe {
         if !PUM_IS_VISIBLE && PUM_IS_DRAWN {
             if PUM_EXTERNAL {
@@ -1517,42 +1512,30 @@ pub unsafe extern "C" fn pum_check_clear() {
 }
 
 /// Clear the popup menu (`pum_clear`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn pum_clear() {
+pub unsafe fn pum_clear() {
     unsafe {
         PUM_FIRST = 0;
     }
 }
 
 /// Return true if the popup menu is displayed (`pum_visible`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn pum_visible() -> bool {
+pub unsafe fn pum_visible() -> bool {
     unsafe { PUM_IS_VISIBLE }
 }
 
 /// Return true if the popup menu is displayed and drawn on the grid (`pum_drawn`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn pum_drawn() -> bool {
+pub unsafe fn pum_drawn() -> bool {
     unsafe { pum_visible() && !PUM_EXTERNAL }
 }
 
 /// Screen was cleared, need to redraw next time (`pum_invalidate`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn pum_invalidate() {
+pub unsafe fn pum_invalidate() {
     unsafe {
         PUM_INVALID = true;
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn pum_recompose() {
-    unsafe {
-        ui_comp_compose_grid(&raw mut pum_grid);
-    }
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn pum_ext_select_item(item: c_int, insert: bool, finish: bool) {
+pub unsafe fn pum_ext_select_item(item: c_int, insert: bool, finish: bool) {
     unsafe {
         if !pum_visible() || item < -1 || item >= PUM_SIZE {
             return;
@@ -1565,8 +1548,7 @@ pub unsafe extern "C" fn pum_ext_select_item(item: c_int, insert: bool, finish: 
 }
 
 /// Gets the height of the menu (`pum_get_height`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn pum_get_height() -> c_int {
+pub unsafe fn pum_get_height() -> c_int {
     unsafe {
         if PUM_EXTERNAL {
             let ui_pum_height = ui_pum_get_height();
@@ -1579,8 +1561,7 @@ pub unsafe extern "C" fn pum_get_height() -> c_int {
 }
 
 /// Add size information about the pum to `dict` (`pum_set_event_info`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn pum_set_event_info(dict: *mut dict_T) {
+pub unsafe fn pum_set_event_info(dict: *mut dict_T) {
     unsafe {
         if !pum_visible() {
             return;
@@ -1752,8 +1733,7 @@ unsafe fn pum_execute_menu(menu: *mut vimmenu_T, mode: c_int) {
 }
 
 /// Open the terminal version of the popup menu (`pum_show_popupmenu`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn pum_show_popupmenu(menu: *mut vimmenu_T) {
+pub unsafe fn pum_show_popupmenu(menu: *mut vimmenu_T) {
     unsafe {
         pum_undisplay(true);
         PUM_SIZE = 0;
@@ -1871,8 +1851,7 @@ pub unsafe extern "C" fn pum_show_popupmenu(menu: *mut vimmenu_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn pum_make_popup(path_name: *const c_char, use_mouse_pos: c_int) {
+pub unsafe fn pum_make_popup(path_name: *const c_char, use_mouse_pos: c_int) {
     unsafe {
         if use_mouse_pos == 0 {
             mouse_row = (*curwin).w_grid.row_offset + (*curwin).w_wrow;
@@ -1898,8 +1877,7 @@ pub unsafe extern "C" fn pum_make_popup(path_name: *const c_char, use_mouse_pos:
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn pum_pos_ui_flush(force: bool) {
+pub unsafe fn pum_pos_ui_flush(force: bool) {
     unsafe {
         if force
             || (ui_has(kUIMultigrid)

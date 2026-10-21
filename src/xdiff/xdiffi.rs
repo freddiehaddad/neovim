@@ -290,8 +290,7 @@ unsafe fn xdl_split(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xdl_recs_cmp(
+pub unsafe fn xdl_recs_cmp(
     dd1: *mut diffdata_t,
     mut off1: c_long,
     mut lim1: c_long,
@@ -363,8 +362,7 @@ pub unsafe extern "C" fn xdl_recs_cmp(
     0
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xdl_do_diff(
+pub unsafe fn xdl_do_diff(
     mf1: *mut mmfile_t,
     mf2: *mut mmfile_t,
     xpp: *const xpparam_t,
@@ -698,12 +696,7 @@ fn xdl_bug(msg: &str) -> ! {
     std::process::exit(1);
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xdl_change_compact(
-    xdf: *mut xdfile_t,
-    xdfo: *mut xdfile_t,
-    flags: c_long,
-) -> c_int {
+pub unsafe fn xdl_change_compact(xdf: *mut xdfile_t, xdfo: *mut xdfile_t, flags: c_long) -> c_int {
     let mut g = XdlGroup::default();
     let mut go = XdlGroup::default();
 
@@ -813,8 +806,7 @@ pub unsafe extern "C" fn xdl_change_compact(
     0
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xdl_build_script(xe: *mut xdfenv_t, xscr: *mut *mut xdchange_t) -> c_int {
+pub unsafe fn xdl_build_script(xe: *mut xdfenv_t, xscr: *mut *mut xdchange_t) -> c_int {
     let mut cscr: *mut xdchange_t = ptr::null_mut();
     unsafe {
         let rchg1 = (*xe).xdf1.rchg;
@@ -849,8 +841,7 @@ pub unsafe extern "C" fn xdl_build_script(xe: *mut xdfenv_t, xscr: *mut *mut xdc
     0
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xdl_free_script(mut xscr: *mut xdchange_t) {
+pub unsafe fn xdl_free_script(mut xscr: *mut xdchange_t) {
     while !xscr.is_null() {
         let xch = xscr;
         xscr = unsafe { (*xscr).next };
@@ -924,8 +915,7 @@ unsafe fn xdl_emit_diff_wrapper(
     unsafe { xdl_emit_diff(xe, xscr, ecb, xecfg) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xdl_diff(
+pub unsafe fn xdl_diff(
     mf1: *mut mmfile_t,
     mf2: *mut mmfile_t,
     xpp: *const xpparam_t,

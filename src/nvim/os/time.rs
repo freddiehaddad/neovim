@@ -43,14 +43,12 @@ unsafe extern "C" {
 }
 
 /// High-resolution monotonic clock in nanoseconds (`os_hrtime`).
-#[unsafe(no_mangle)]
-pub extern "C" fn os_hrtime() -> u64 {
+pub fn os_hrtime() -> u64 {
     unsafe { uv_hrtime() }
 }
 
 /// High-resolution real-time clock in nanoseconds since Unix epoch (`os_realtime`).
-#[unsafe(no_mangle)]
-pub extern "C" fn os_realtime() -> i64 {
+pub fn os_realtime() -> i64 {
     unsafe {
         let mut ts = UvTimespec64 {
             tv_sec: 0,
@@ -64,14 +62,12 @@ pub extern "C" fn os_realtime() -> i64 {
 }
 
 /// Millisecond-resolution monotonic loop time (`os_now`).
-#[unsafe(no_mangle)]
-pub extern "C" fn os_now() -> u64 {
+pub fn os_now() -> u64 {
     unsafe { uv_now((&raw const main_loop).cast()) }
 }
 
 /// Sleep for `ms` milliseconds while polling the main event loop (`os_delay`).
-#[unsafe(no_mangle)]
-pub extern "C" fn os_delay(ms: u64, ignoreinput: bool) {
+pub fn os_delay(ms: u64, ignoreinput: bool) {
     unsafe {
         let clamped = ms.min(u64::from(c_int::MAX as u32)) as i64;
         let mut remaining = clamped;
@@ -102,8 +98,7 @@ pub extern "C" fn os_delay(ms: u64, ignoreinput: bool) {
 }
 
 /// Block for `ms` milliseconds without processing events (`os_sleep`).
-#[unsafe(no_mangle)]
-pub extern "C" fn os_sleep(ms: u64) {
+pub fn os_sleep(ms: u64) {
     unsafe {
         let clamped = ms.min(u64::from(c_uint::MAX)) as c_uint;
         uv_sleep(clamped);
@@ -114,7 +109,6 @@ pub extern "C" fn os_sleep(ms: u64) {
 ///
 /// # Safety
 /// `clock` and `result` must be valid pointers.
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_localtime_r(clock: *const time_t, result: *mut Tm) -> *mut Tm {
     #[cfg(unix)]
     unsafe {
@@ -151,7 +145,6 @@ pub unsafe extern "C" fn os_localtime_r(clock: *const time_t, result: *mut Tm) -
 ///
 /// # Safety
 /// `result` must be a valid writable pointer to `struct tm`.
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_localtime(result: *mut Tm) -> *mut Tm {
     let rawtime = os_time() as time_t;
     unsafe { os_localtime_r(&rawtime, result) }
@@ -161,8 +154,7 @@ pub unsafe extern "C" fn os_localtime(result: *mut Tm) -> *mut Tm {
 ///
 /// # Safety
 /// `clock` and `result` must be valid pointers, with `result` writable for `result_len` bytes.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_ctime_r(
+pub unsafe fn os_ctime_r(
     clock: *const time_t,
     result: *mut c_char,
     result_len: usize,
@@ -196,26 +188,11 @@ pub unsafe extern "C" fn os_ctime_r(
     result
 }
 
-/// Format current Unix time as local time into `result[..result_len]` (`os_ctime`).
-///
-/// # Safety
-/// `result` must be valid for `result_len` writable bytes.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_ctime(
-    result: *mut c_char,
-    result_len: usize,
-    add_newline: bool,
-) -> *mut c_char {
-    let rawtime = os_time() as time_t;
-    unsafe { os_ctime_r(&rawtime, result, result_len, add_newline) }
-}
-
 /// Portable wrapper for POSIX `strptime()` (`os_strptime`).
 ///
 /// # Safety
 /// `str_ptr`, `format`, and `tm` must be valid pointers.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_strptime(
+pub unsafe fn os_strptime(
     str_ptr: *const c_char,
     format: *const c_char,
     tm: *mut Tm,
@@ -232,8 +209,7 @@ pub unsafe extern "C" fn os_strptime(
 }
 
 /// Obtain current Unix timestamp in seconds (`os_time`).
-#[unsafe(no_mangle)]
-pub extern "C" fn os_time() -> Timestamp {
+pub fn os_time() -> Timestamp {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs())

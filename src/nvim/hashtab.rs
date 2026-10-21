@@ -40,7 +40,6 @@ pub struct hashtab_T {
 }
 
 /// Sentinel object whose address (`&hash_removed`) marks a removed `hashitem_T`.
-#[unsafe(no_mangle)]
 pub static hash_removed: c_char = 0;
 
 #[inline]
@@ -98,8 +97,7 @@ pub unsafe extern "C" fn hash_clear(ht: *mut hashtab_T) {
 /// # Safety
 /// `ht` must be a valid writable pointer to an initialized `hashtab_T`, and every active `hi_key`
 /// must sit at offset `off` inside an `xmalloc`-allocated object.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hash_clear_all(ht: *mut hashtab_T, off: c_uint) {
+pub unsafe fn hash_clear_all(ht: *mut hashtab_T, off: c_uint) {
     let ht_ref = unsafe { &mut *ht };
     let mut todo = ht_ref.ht_used;
     let mut hi = ht_ref.ht_array;
@@ -133,8 +131,7 @@ pub unsafe extern "C" fn hash_find(ht: *const hashtab_T, key: *const c_char) -> 
 ///
 /// # Safety
 /// `ht` and `key` must be valid pointers.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hash_find_len(
+pub unsafe fn hash_find_len(
     ht: *const hashtab_T,
     key: *const c_char,
     len: usize,
@@ -147,8 +144,7 @@ pub unsafe extern "C" fn hash_find_len(
 ///
 /// # Safety
 /// `ht` and `key` must be valid pointers.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hash_lookup(
+pub unsafe fn hash_lookup(
     ht: *const hashtab_T,
     key: *const c_char,
     key_len: usize,
@@ -198,8 +194,7 @@ pub unsafe extern "C" fn hash_lookup(
 }
 
 /// Print hashtable efficiency statistics when `HT_DEBUG` is enabled (`hash_debug_results`).
-#[unsafe(no_mangle)]
-pub extern "C" fn hash_debug_results() {}
+pub fn hash_debug_results() {}
 
 /// Add item with `key` to hashtable `ht` (`hash_add`).
 ///
@@ -229,8 +224,7 @@ pub unsafe extern "C" fn hash_add(ht: *mut hashtab_T, key: *mut c_char) -> c_int
 ///
 /// # Safety
 /// `ht`, `hi`, and `key` must be valid pointers, with `hi` obtained from `hash_lookup(ht, ...)`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hash_add_item(
+pub unsafe fn hash_add_item(
     ht: *mut hashtab_T,
     hi: *mut hashitem_T,
     key: *mut c_char,
@@ -271,8 +265,7 @@ pub unsafe extern "C" fn hash_remove(ht: *mut hashtab_T, hi: *mut hashitem_T) {
 ///
 /// # Safety
 /// `ht` must be a valid writable pointer to a `hashtab_T`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hash_lock(ht: *mut hashtab_T) {
+pub unsafe fn hash_lock(ht: *mut hashtab_T) {
     unsafe {
         (*ht).ht_locked += 1;
     }
@@ -282,8 +275,7 @@ pub unsafe extern "C" fn hash_lock(ht: *mut hashtab_T) {
 ///
 /// # Safety
 /// `ht` must be a valid writable pointer to a `hashtab_T`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hash_unlock(ht: *mut hashtab_T) {
+pub unsafe fn hash_unlock(ht: *mut hashtab_T) {
     let ht_ref = unsafe { &mut *ht };
     ht_ref.ht_locked -= 1;
     unsafe {
@@ -390,8 +382,7 @@ unsafe fn hash_may_resize(ht: &mut hashtab_T, mut minitems: usize) {
 ///
 /// # Safety
 /// `key` must be a valid NUL-terminated C string.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hash_hash(key: *const c_char) -> hash_T {
+pub unsafe fn hash_hash(key: *const c_char) -> hash_T {
     let first = unsafe { *key.cast::<u8>() };
     if first == 0 {
         return 0;
@@ -413,8 +404,7 @@ pub unsafe extern "C" fn hash_hash(key: *const c_char) -> hash_T {
 ///
 /// # Safety
 /// `key` must be valid for `len` bytes when `len > 0`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hash_hash_len(key: *const c_char, len: usize) -> hash_T {
+pub unsafe fn hash_hash_len(key: *const c_char, len: usize) -> hash_T {
     if len == 0 {
         return 0;
     }

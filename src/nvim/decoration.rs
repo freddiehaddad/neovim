@@ -272,8 +272,7 @@ const fn mt_decor_virt(mark: MTKey) -> *mut DecorVirtText {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn bufhl_add_hl_pos_offset(
+pub unsafe fn bufhl_add_hl_pos_offset(
     buf: *mut buf_T,
     src_id: c_int,
     hl_id: c_int,
@@ -332,8 +331,7 @@ pub unsafe extern "C" fn bufhl_add_hl_pos_offset(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_redraw(
+pub unsafe fn decor_redraw(
     buf: *mut buf_T,
     row1: c_int,
     row2: c_int,
@@ -370,13 +368,7 @@ pub unsafe extern "C" fn decor_redraw(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_redraw_sh(
-    buf: *mut buf_T,
-    row1: c_int,
-    row2: c_int,
-    sh: DecorSignHighlight,
-) {
+pub unsafe fn decor_redraw_sh(buf: *mut buf_T, row1: c_int, row2: c_int, sh: DecorSignHighlight) {
     unsafe {
         if (sh.hl_id != 0
             || !sh.url.is_null()
@@ -401,8 +393,7 @@ pub unsafe extern "C" fn decor_redraw_sh(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_put_sh(item: DecorSignHighlight) -> u32 {
+pub unsafe fn decor_put_sh(item: DecorSignHighlight) -> u32 {
     unsafe {
         if decor_freelist != u32::MAX {
             let pos = decor_freelist;
@@ -418,11 +409,7 @@ pub unsafe extern "C" fn decor_put_sh(item: DecorSignHighlight) -> u32 {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_put_vt(
-    vt: DecorVirtText,
-    next: *mut DecorVirtText,
-) -> *mut DecorVirtText {
+pub unsafe fn decor_put_vt(vt: DecorVirtText, next: *mut DecorVirtText) -> *mut DecorVirtText {
     unsafe {
         let decor_alloc: *mut DecorVirtText = xmalloc(size_of::<DecorVirtText>()).cast();
         *decor_alloc = vt;
@@ -431,8 +418,7 @@ pub unsafe extern "C" fn decor_put_vt(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_sh_from_inline(item: DecorHighlightInline) -> DecorSignHighlight {
+pub unsafe fn decor_sh_from_inline(item: DecorHighlightInline) -> DecorSignHighlight {
     assert!((item.flags & kSHIsSign) == 0);
     DecorSignHighlight {
         flags: item.flags,
@@ -449,13 +435,7 @@ pub unsafe extern "C" fn decor_sh_from_inline(item: DecorHighlightInline) -> Dec
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buf_put_decor(
-    buf: *mut buf_T,
-    decor: DecorInline,
-    row: c_int,
-    mut row2: c_int,
-) {
+pub unsafe fn buf_put_decor(buf: *mut buf_T, decor: DecorInline, row: c_int, mut row2: c_int) {
     unsafe {
         if decor.ext && row < (*buf).b_ml.ml_line_count {
             let mut idx = decor.data.ext.sh_idx;
@@ -493,8 +473,7 @@ unsafe fn may_force_numberwidth_recompute(buf: *mut buf_T, unplace: bool) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buf_put_decor_sh(
+pub unsafe fn buf_put_decor_sh(
     buf: *mut buf_T,
     sh: *mut DecorSignHighlight,
     row1: c_int,
@@ -512,8 +491,7 @@ pub unsafe extern "C" fn buf_put_decor_sh(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buf_decor_remove(
+pub unsafe fn buf_decor_remove(
     buf: *mut buf_T,
     row1: c_int,
     mut row2: c_int,
@@ -538,8 +516,7 @@ pub unsafe extern "C" fn buf_decor_remove(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buf_remove_decor_sh(
+pub unsafe fn buf_remove_decor_sh(
     buf: *mut buf_T,
     row1: c_int,
     row2: c_int,
@@ -558,8 +535,7 @@ pub unsafe extern "C" fn buf_remove_decor_sh(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_free(decor: DecorInline) {
+pub unsafe fn decor_free(decor: DecorInline) {
     unsafe {
         if !decor.ext {
             return;
@@ -626,8 +602,7 @@ unsafe fn decor_free_inner(mut vt: *mut DecorVirtText, first_idx: u32) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_state_invalidate(buf: *mut buf_T) {
+pub unsafe fn decor_state_invalidate(buf: *mut buf_T) {
     unsafe {
         if !decor_state.win.is_null() && (*decor_state.win).w_buffer == buf {
             decor_state.itr_valid = false;
@@ -635,8 +610,7 @@ pub unsafe extern "C" fn decor_state_invalidate(buf: *mut buf_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_check_to_be_deleted() {
+pub unsafe fn decor_check_to_be_deleted() {
     unsafe {
         assert!(!decor_state.running_decor_provider);
         decor_free_inner(to_free_virt, to_free_sh);
@@ -646,16 +620,14 @@ pub unsafe extern "C" fn decor_check_to_be_deleted() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_state_free(state: *mut DecorState) {
+pub unsafe fn decor_state_free(state: *mut DecorState) {
     unsafe {
         (*state).slots.destroy();
         (*state).ranges_i.destroy();
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn clear_virttext(text: *mut VirtText) {
+pub unsafe fn clear_virttext(text: *mut VirtText) {
     unsafe {
         for i in 0..(*text).size {
             xfree((*(*text).items.add(i)).text.cast());
@@ -665,8 +637,7 @@ pub unsafe extern "C" fn clear_virttext(text: *mut VirtText) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn clear_virtlines(lines: *mut VirtLines) {
+pub unsafe fn clear_virtlines(lines: *mut VirtLines) {
     unsafe {
         for i in 0..(*lines).size {
             clear_virttext(&raw mut (*(*lines).items.add(i)).line);
@@ -676,8 +647,7 @@ pub unsafe extern "C" fn clear_virtlines(lines: *mut VirtLines) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_check_invalid_glyphs() {
+pub unsafe fn decor_check_invalid_glyphs() {
     unsafe {
         for i in 0..decor_items.size {
             let it = decor_items.items.add(i);
@@ -697,12 +667,7 @@ pub unsafe extern "C" fn decor_check_invalid_glyphs() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn next_virt_text_chunk(
-    vt: VirtText,
-    pos: *mut usize,
-    attr: *mut c_int,
-) -> *mut c_char {
+pub unsafe fn next_virt_text_chunk(vt: VirtText, pos: *mut usize, attr: *mut c_int) -> *mut c_char {
     unsafe {
         let mut text: *mut c_char = ptr::null_mut();
         while text.is_null() && *pos < vt.size {
@@ -721,12 +686,7 @@ pub unsafe extern "C" fn next_virt_text_chunk(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_find_virttext(
-    buf: *mut buf_T,
-    row: c_int,
-    ns_id: u64,
-) -> *mut DecorVirtText {
+pub unsafe fn decor_find_virttext(buf: *mut buf_T, row: c_int, ns_id: u64) -> *mut DecorVirtText {
     unsafe {
         let mut itr: [MarkTreeIter; 1] = std::mem::zeroed();
         marktree_itr_get((*buf).b_marktree.as_mut_ptr(), row, 0, itr.as_mut_ptr());
@@ -749,8 +709,7 @@ pub unsafe extern "C" fn decor_find_virttext(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_redraw_reset(wp: *mut win_T, state: *mut DecorState) -> bool {
+pub unsafe fn decor_redraw_reset(wp: *mut win_T, state: *mut DecorState) -> bool {
     unsafe {
         (*state).row = -1;
         (*state).win = wp;
@@ -782,13 +741,11 @@ pub unsafe extern "C" fn decor_redraw_reset(wp: *mut win_T, state: *mut DecorSta
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_virt_pos(decor: *const DecorRange) -> bool {
+pub unsafe fn decor_virt_pos(decor: *const DecorRange) -> bool {
     unsafe { (*decor).kind == kDecorKindVirtText || (*decor).kind == kDecorKindUIWatched }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_virt_pos_kind(decor: *const DecorRange) -> VirtTextPos {
+pub unsafe fn decor_virt_pos_kind(decor: *const DecorRange) -> VirtTextPos {
     unsafe {
         if (*decor).kind == kDecorKindVirtText {
             return (*(*decor).data.vt).pos;
@@ -800,12 +757,7 @@ pub unsafe extern "C" fn decor_virt_pos_kind(decor: *const DecorRange) -> VirtTe
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_redraw_start(
-    wp: *mut win_T,
-    top_row: c_int,
-    state: *mut DecorState,
-) -> bool {
+pub unsafe fn decor_redraw_start(wp: *mut win_T, top_row: c_int, state: *mut DecorState) -> bool {
     unsafe {
         let buf = (*wp).w_buffer;
         (*state).top_row = top_row;
@@ -873,8 +825,7 @@ unsafe fn decor_state_pack(state: *mut DecorState) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_redraw_line(wp: *mut win_T, row: c_int, state: *mut DecorState) {
+pub unsafe fn decor_redraw_line(wp: *mut win_T, row: c_int, state: *mut DecorState) {
     unsafe {
         decor_state_pack(state);
 
@@ -896,8 +847,7 @@ pub unsafe extern "C" fn decor_redraw_line(wp: *mut win_T, row: c_int, state: *m
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_has_more_decorations(state: *mut DecorState, row: c_int) -> bool {
+pub unsafe fn decor_has_more_decorations(state: *mut DecorState, row: c_int) -> bool {
     unsafe {
         if (*state).current_end != 0 || (*state).future_begin != (*state).ranges_i.size as c_int {
             return true;
@@ -1000,8 +950,7 @@ unsafe fn decor_range_insert(state: *mut DecorState, range: *mut DecorRange) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_range_add_virt(
+pub unsafe fn decor_range_add_virt(
     state: *mut DecorState,
     start_row: c_int,
     start_col: c_int,
@@ -1033,8 +982,7 @@ pub unsafe extern "C" fn decor_range_add_virt(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_range_add_sh(
+pub unsafe fn decor_range_add_sh(
     state: *mut DecorState,
     start_row: c_int,
     start_col: c_int,
@@ -1092,8 +1040,7 @@ pub unsafe extern "C" fn decor_range_add_sh(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_init_draw_col(win_col: c_int, hidden: bool, item: *mut DecorRange) {
+pub unsafe fn decor_init_draw_col(win_col: c_int, hidden: bool, item: *mut DecorRange) {
     unsafe {
         let vt = if (*item).kind == kDecorKindVirtText {
             (*item).data.vt
@@ -1115,12 +1062,7 @@ pub unsafe extern "C" fn decor_init_draw_col(win_col: c_int, hidden: bool, item:
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_recheck_draw_col(
-    win_col: c_int,
-    hidden: bool,
-    state: *mut DecorState,
-) {
+pub unsafe fn decor_recheck_draw_col(win_col: c_int, hidden: bool, state: *mut DecorState) {
     unsafe {
         let end = (*state).current_end;
         let indices = (*state).ranges_i.items;
@@ -1135,8 +1077,7 @@ pub unsafe extern "C" fn decor_recheck_draw_col(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_redraw_col_impl(
+pub unsafe fn decor_redraw_col_impl(
     wp: *mut win_T,
     col: c_int,
     win_col: c_int,
@@ -1327,12 +1268,7 @@ pub unsafe extern "C" fn decor_redraw_col_impl(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_conceal_line(
-    wp: *mut win_T,
-    row: c_int,
-    check_cursor: bool,
-) -> bool {
+pub unsafe fn decor_conceal_line(wp: *mut win_T, row: c_int, check_cursor: bool) -> bool {
     unsafe {
         if row < 0
             || (*wp).w_onebuf_opt.wo_cole < 2
@@ -1375,8 +1311,7 @@ pub unsafe extern "C" fn decor_conceal_line(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn win_lines_concealed(wp: *mut win_T) -> bool {
+pub unsafe fn win_lines_concealed(wp: *mut win_T) -> bool {
     unsafe { hasAnyFolding(wp) != 0 || (*wp).w_onebuf_opt.wo_cole >= 2 }
 }
 
@@ -1411,8 +1346,7 @@ unsafe fn sign_item_cmp_slice(s1: &SignItem, s2: &SignItem) -> Ordering {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn sign_item_cmp(p1: *const c_void, p2: *const c_void) -> c_int {
+pub unsafe fn sign_item_cmp(p1: *const c_void, p2: *const c_void) -> c_int {
     unsafe {
         match sign_item_cmp_slice(&*p1.cast::<SignItem>(), &*p2.cast::<SignItem>()) {
             Ordering::Less => -1,
@@ -1422,8 +1356,7 @@ pub unsafe extern "C" fn sign_item_cmp(p1: *const c_void, p2: *const c_void) -> 
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_redraw_signs(
+pub unsafe fn decor_redraw_signs(
     wp: *mut win_T,
     buf: *mut buf_T,
     row: c_int,
@@ -1505,8 +1438,7 @@ pub unsafe extern "C" fn decor_redraw_signs(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_find_sign(decor: DecorInline) -> *mut DecorSignHighlight {
+pub unsafe fn decor_find_sign(decor: DecorInline) -> *mut DecorSignHighlight {
     unsafe {
         if !decor.ext {
             return ptr::null_mut();
@@ -1525,8 +1457,7 @@ pub unsafe extern "C" fn decor_find_sign(decor: DecorInline) -> *mut DecorSignHi
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buf_signcols_count_range(
+pub unsafe fn buf_signcols_count_range(
     buf: *mut buf_T,
     row1: c_int,
     row2: c_int,
@@ -1588,13 +1519,6 @@ pub unsafe extern "C" fn buf_signcols_count_range(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_redraw_end(state: *mut DecorState) {
-    unsafe {
-        (*state).win = ptr::null_mut();
-    }
-}
-
 #[inline]
 pub unsafe fn decor_redraw_col(
     wp: *mut win_T,
@@ -1612,8 +1536,7 @@ pub unsafe fn decor_redraw_col(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_redraw_eol(
+pub unsafe fn decor_redraw_eol(
     wp: *mut win_T,
     state: *mut DecorState,
     eol_attr: *mut c_int,
@@ -1648,8 +1571,7 @@ unsafe fn decor_virt_line_wrap(wp: *mut win_T, overflow: VirtLineOverflow) -> bo
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_virt_line_rows(
+pub unsafe fn decor_virt_line_rows(
     wp: *mut win_T,
     vl: *const VirtLine,
     target_row: c_int,
@@ -1705,8 +1627,7 @@ pub unsafe extern "C" fn decor_virt_line_rows(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_virt_lines(
+pub unsafe fn decor_virt_lines(
     wp: *mut win_T,
     start_row: c_int,
     end_row: c_int,
@@ -1790,8 +1711,7 @@ pub unsafe extern "C" fn decor_virt_lines(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_to_dict_legacy(
+pub unsafe fn decor_to_dict_legacy(
     dict: *mut Dict,
     decor: DecorInline,
     hl_name: bool,
@@ -1992,8 +1912,7 @@ pub unsafe extern "C" fn decor_to_dict_legacy(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decor_type_flags(decor: DecorInline) -> u16 {
+pub unsafe fn decor_type_flags(decor: DecorInline) -> u16 {
     unsafe {
         if decor.ext {
             let mut type_flags: u16 = kExtmarkNone;
@@ -2025,8 +1944,7 @@ pub unsafe extern "C" fn decor_type_flags(decor: DecorInline) -> u16 {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hl_group_name(hl_id: c_int, hl_name: bool) -> Object {
+pub unsafe fn hl_group_name(hl_id: c_int, hl_name: bool) -> Object {
     unsafe {
         if hl_name {
             cstr_as_obj(syn_id2name(hl_id))

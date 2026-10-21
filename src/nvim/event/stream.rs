@@ -13,6 +13,7 @@ use std::ptr;
 
 pub const UV_IDLE: c_int = 6;
 pub const UV_NAMED_PIPE: c_int = 7;
+#[cfg(windows)]
 pub const UV_STREAM: c_int = 11;
 pub const UV_TCP: c_int = 12;
 pub const UV_TTY: c_int = 14;
@@ -32,9 +33,8 @@ pub type uv_pipe_t = c_void;
 pub type uv_idle_t = c_void;
 pub type uv_tty_t = c_void;
 
-pub type stream_close_cb = Option<unsafe extern "C" fn(stream: *mut Stream, data: *mut c_void)>;
-pub type stream_write_cb =
-    Option<unsafe extern "C" fn(stream: *mut Stream, data: *mut c_void, status: c_int)>;
+pub type stream_close_cb = Option<unsafe fn(stream: *mut Stream, data: *mut c_void)>;
+pub type stream_write_cb = Option<unsafe fn(stream: *mut Stream, data: *mut c_void, status: c_int)>;
 
 #[repr(C)]
 pub struct StreamFields {
@@ -92,7 +92,7 @@ pub unsafe fn stream_closed_ptr(stream: *mut Stream) -> *mut bool {
 }
 
 #[inline]
-pub unsafe fn stream_uv_ptr(stream: *mut Stream) -> *mut c_void {
+pub unsafe extern "C" fn stream_uv_ptr(stream: *mut Stream) -> *mut c_void {
     unsafe { stream.cast::<u8>().add(stream_uv_offset()).cast() }
 }
 
@@ -106,8 +106,7 @@ pub unsafe fn stream_fields(stream: *mut Stream) -> *mut StreamFields {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn stream_set_blocking(fd: c_int, blocking: bool) -> c_int {
+pub unsafe fn stream_set_blocking(fd: c_int, blocking: bool) -> c_int {
     unsafe {
         let mut loop_buf = [0u64; 256];
         let mut pipe_buf = [0u64; 128];
@@ -124,8 +123,7 @@ pub unsafe extern "C" fn stream_set_blocking(fd: c_int, blocking: bool) -> c_int
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn stream_init(
+pub unsafe fn stream_init(
     loop_: *mut Loop,
     stream: *mut Stream,
     fd: c_int,
@@ -197,8 +195,7 @@ pub unsafe extern "C" fn stream_init(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn stream_may_close(stream: *mut Stream) {
+pub unsafe fn stream_may_close(stream: *mut Stream) {
     unsafe {
         if *stream_closed_ptr(stream) {
             return;
@@ -230,8 +227,7 @@ pub unsafe extern "C" fn stream_may_close(stream: *mut Stream) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn stream_close_handle(stream: *mut Stream) {
+pub unsafe fn stream_close_handle(stream: *mut Stream) {
     unsafe {
         let fields = stream_fields(stream);
         let handle: *mut uv_handle_t = if !(*fields).uvstream.is_null() {

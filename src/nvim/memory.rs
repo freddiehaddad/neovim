@@ -27,10 +27,9 @@ pub type MemFree = unsafe extern "C" fn(ptr: *mut c_void);
 pub type MemCalloc = unsafe extern "C" fn(count: usize, size: usize) -> *mut c_void;
 pub type MemRealloc = unsafe extern "C" fn(ptr: *mut c_void, size: usize) -> *mut c_void;
 
-pub type MergeSortGetFunc = Option<unsafe extern "C" fn(node: *mut c_void) -> *mut c_void>;
-pub type MergeSortSetFunc = Option<unsafe extern "C" fn(node: *mut c_void, target: *mut c_void)>;
-pub type MergeSortCompareFunc =
-    Option<unsafe extern "C" fn(a: *const c_void, b: *const c_void) -> c_int>;
+pub type MergeSortGetFunc = Option<unsafe fn(node: *mut c_void) -> *mut c_void>;
+pub type MergeSortSetFunc = Option<unsafe fn(node: *mut c_void, target: *mut c_void)>;
+pub type MergeSortCompareFunc = Option<unsafe fn(a: *const c_void, b: *const c_void) -> c_int>;
 
 #[repr(C)]
 pub struct ConsumedBlk {
@@ -72,7 +71,6 @@ pub static mut mem_calloc: MemCalloc = crt_calloc;
 pub static mut mem_realloc: MemRealloc = crt_realloc;
 
 /// Indicates that `free_all_mem` function was or is running.
-#[unsafe(no_mangle)]
 pub static mut entered_free_all_mem: bool = false;
 
 static mut TRYING_TO_FREE: bool = false;
@@ -133,8 +131,7 @@ unsafe fn out_of_memory_exit() -> ! {
 }
 
 /// Free all cached reusable arena blocks (`arena_free_reuse_blks`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn arena_free_reuse_blks() {
+pub unsafe fn arena_free_reuse_blks() {
     unsafe {
         while ARENA_REUSE_COUNT > 0 {
             let blk = ARENA_REUSE_HEAD;
@@ -146,8 +143,7 @@ pub unsafe extern "C" fn arena_free_reuse_blks() {
 }
 
 /// `malloc()` wrapper that tries to free caches before failing (`try_malloc`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn try_malloc(size: usize) -> *mut c_void {
+pub unsafe fn try_malloc(size: usize) -> *mut c_void {
     let allocated_size = size.max(1);
     let mut ret = unsafe { raw_malloc(allocated_size) };
     if ret.is_null() {
@@ -160,8 +156,7 @@ pub unsafe extern "C" fn try_malloc(size: usize) -> *mut c_void {
 }
 
 /// `try_malloc()` wrapper that reports E342 on failure (`verbose_try_malloc`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn verbose_try_malloc(size: usize) -> *mut c_void {
+pub unsafe fn verbose_try_malloc(size: usize) -> *mut c_void {
     let ret = unsafe { try_malloc(size) };
     if ret.is_null() {
         unsafe {
@@ -211,7 +206,6 @@ pub unsafe extern "C" fn xcalloc(count: usize, size: usize) -> *mut c_void {
 }
 
 /// `realloc()` wrapper that never returns null (`xrealloc`).
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn xrealloc(ptr: *mut c_void, size: usize) -> *mut c_void {
     let allocated_size = size.max(1);
     let mut ret = unsafe { raw_realloc(ptr, allocated_size) };
@@ -228,8 +222,7 @@ pub unsafe extern "C" fn xrealloc(ptr: *mut c_void, size: usize) -> *mut c_void 
 }
 
 /// Allocate `size + 1` bytes and NUL-terminate at `size` (`xmallocz`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xmallocz(size: usize) -> *mut c_void {
+pub unsafe fn xmallocz(size: usize) -> *mut c_void {
     let Some(total_size) = size.checked_add(1) else {
         unsafe {
             preserve_exit(c"Nvim: Data too large to fit into virtual memory space\n".as_ptr());
@@ -255,8 +248,7 @@ pub unsafe extern "C" fn xmemdupz(data: *const c_void, len: usize) -> *mut c_voi
 }
 
 /// Copy `len` bytes from `src` to `dst` and NUL-terminate at `dst[len]` (`xmemcpyz`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xmemcpyz(dst: *mut c_void, src: *const c_void, len: usize) -> *mut c_void {
+pub unsafe fn xmemcpyz(dst: *mut c_void, src: *const c_void, len: usize) -> *mut c_void {
     if len > 0 {
         unsafe {
             std::ptr::copy_nonoverlapping(src.cast::<u8>(), dst.cast::<u8>(), len);
@@ -269,15 +261,13 @@ pub unsafe extern "C" fn xmemcpyz(dst: *mut c_void, src: *const c_void, len: usi
 }
 
 /// Portable `strnlen` (`xstrnlen`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xstrnlen(s: *const c_char, n: usize) -> usize {
+pub unsafe fn xstrnlen(s: *const c_char, n: usize) -> usize {
     let slice = unsafe { std::slice::from_raw_parts(s.cast::<u8>(), n) };
     slice.iter().position(|&b| b == 0).unwrap_or(n)
 }
 
 /// Find `c` in `str_ptr` or return a pointer to its terminating NUL (`xstrchrnul`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xstrchrnul(str_ptr: *const c_char, c: c_char) -> *mut c_char {
+pub unsafe fn xstrchrnul(str_ptr: *const c_char, c: c_char) -> *mut c_char {
     let target = c as u8;
     let mut p = str_ptr.cast::<u8>();
     loop {
@@ -290,8 +280,7 @@ pub unsafe extern "C" fn xstrchrnul(str_ptr: *const c_char, c: c_char) -> *mut c
 }
 
 /// Find `c` in `addr[..size]` or return `addr + size` (`xmemscan`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xmemscan(addr: *const c_void, c: c_char, size: usize) -> *mut c_void {
+pub unsafe fn xmemscan(addr: *const c_void, c: c_char, size: usize) -> *mut c_void {
     if size == 0 {
         return addr.cast_mut();
     }
@@ -301,8 +290,7 @@ pub unsafe extern "C" fn xmemscan(addr: *const c_void, c: c_char, size: usize) -
 }
 
 /// Replace every occurrence of non-NUL `c` in C string `str_ptr` with `x` (`strchrsub`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn strchrsub(str_ptr: *mut c_char, c: c_char, x: c_char) {
+pub unsafe fn strchrsub(str_ptr: *mut c_char, c: c_char, x: c_char) {
     assert_ne!(c, 0);
     let target = c as u8;
     let replacement = x as u8;
@@ -322,8 +310,7 @@ pub unsafe extern "C" fn strchrsub(str_ptr: *mut c_char, c: c_char, x: c_char) {
 }
 
 /// Replace every occurrence of `c` in `data[..len]` with `x` (`memchrsub`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn memchrsub(data: *mut c_void, c: c_char, x: c_char, len: usize) {
+pub unsafe fn memchrsub(data: *mut c_void, c: c_char, x: c_char, len: usize) {
     if len == 0 {
         return;
     }
@@ -337,17 +324,8 @@ pub unsafe extern "C" fn memchrsub(data: *mut c_void, c: c_char, x: c_char, len:
     }
 }
 
-/// Count occurrences of non-NUL `c` in C string `str_ptr` (`strcnt`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn strcnt(str_ptr: *const c_char, c: c_char) -> usize {
-    assert_ne!(c, 0);
-    let bytes = unsafe { CStr::from_ptr(str_ptr).to_bytes() };
-    bytes.iter().filter(|&&b| b == (c as u8)).count()
-}
-
 /// Count occurrences of `c` in `data[..len]` (`memcnt`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn memcnt(data: *const c_void, c: c_char, len: usize) -> usize {
+pub unsafe fn memcnt(data: *const c_void, c: c_char, len: usize) -> usize {
     if len == 0 {
         return 0;
     }
@@ -356,8 +334,7 @@ pub unsafe extern "C" fn memcnt(data: *const c_void, c: c_char, len: usize) -> u
 }
 
 /// Copy `src` to `dst` (including NUL) and return a pointer to the trailing NUL (`xstpcpy`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xstpcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char {
+pub unsafe fn xstpcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char {
     let len = unsafe { CStr::from_ptr(src).to_bytes().len() };
     unsafe {
         std::ptr::copy_nonoverlapping(src.cast::<u8>(), dst.cast::<u8>(), len + 1);
@@ -365,36 +342,8 @@ pub unsafe extern "C" fn xstpcpy(dst: *mut c_char, src: *const c_char) -> *mut c
     }
 }
 
-/// Copy at most `maxlen` bytes from `src` to `dst`, zero-padding any remainder (`xstpncpy`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xstpncpy(
-    dst: *mut c_char,
-    src: *const c_char,
-    maxlen: usize,
-) -> *mut c_char {
-    if maxlen == 0 {
-        return dst;
-    }
-    let src_bytes = unsafe { std::slice::from_raw_parts(src.cast::<u8>(), maxlen) };
-    if let Some(srclen) = src_bytes.iter().position(|&b| b == 0) {
-        unsafe {
-            if srclen > 0 {
-                std::ptr::copy_nonoverlapping(src.cast::<u8>(), dst.cast::<u8>(), srclen);
-            }
-            std::ptr::write_bytes(dst.cast::<u8>().add(srclen), 0, maxlen - srclen);
-            dst.add(srclen)
-        }
-    } else {
-        unsafe {
-            std::ptr::copy_nonoverlapping(src.cast::<u8>(), dst.cast::<u8>(), maxlen);
-            dst.add(maxlen)
-        }
-    }
-}
-
 /// Copy `src` into sized buffer `dst[..dsize]` (`xstrlcpy`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xstrlcpy(dst: *mut c_char, src: *const c_char, dsize: usize) -> usize {
+pub unsafe fn xstrlcpy(dst: *mut c_char, src: *const c_char, dsize: usize) -> usize {
     let slen = unsafe { CStr::from_ptr(src).to_bytes().len() };
     if dsize != 0 {
         let len = slen.min(dsize - 1);
@@ -439,19 +388,8 @@ pub unsafe extern "C" fn xstrdup(str_ptr: *const c_char) -> *mut c_char {
     unsafe { xmemdupz(str_ptr.cast::<c_void>(), len).cast::<c_char>() }
 }
 
-/// Duplicate `str_ptr` or allocate an empty string when `str_ptr` is null (`xstrdupnul`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xstrdupnul(str_ptr: *const c_char) -> *mut c_char {
-    if str_ptr.is_null() {
-        unsafe { xmallocz(0).cast::<c_char>() }
-    } else {
-        unsafe { xstrdup(str_ptr) }
-    }
-}
-
 /// Reverse search for byte `c` in `src[..len]` (`xmemrchr`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xmemrchr(src: *const c_void, c: u8, len: usize) -> *mut c_void {
+pub unsafe fn xmemrchr(src: *const c_void, c: u8, len: usize) -> *mut c_void {
     if len == 0 {
         return std::ptr::null_mut();
     }
@@ -464,8 +402,7 @@ pub unsafe extern "C" fn xmemrchr(src: *const c_void, c: u8, len: usize) -> *mut
 }
 
 /// Duplicate up to `len` bytes of `str_ptr` (`xstrndup`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xstrndup(str_ptr: *const c_char, len: usize) -> *mut c_char {
+pub unsafe fn xstrndup(str_ptr: *const c_char, len: usize) -> *mut c_char {
     let actual_len = unsafe { xstrnlen(str_ptr, len) };
     unsafe { xmemdupz(str_ptr.cast::<c_void>(), actual_len).cast::<c_char>() }
 }
@@ -505,8 +442,7 @@ pub unsafe fn striequal_str(a: *const c_char, b: &str) -> bool {
 }
 
 /// Return true if C strings `a` and `b` are equal (both may be null) (`strequal`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn strequal(a: *const c_char, b: *const c_char) -> bool {
+pub unsafe fn strequal(a: *const c_char, b: *const c_char) -> bool {
     if a.is_null() && b.is_null() {
         return true;
     }
@@ -517,8 +453,7 @@ pub unsafe extern "C" fn strequal(a: *const c_char, b: *const c_char) -> bool {
 }
 
 /// Return true if the first `n` characters of `a` and `b` are equal (`strnequal`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn strnequal(a: *const c_char, b: *const c_char, n: usize) -> bool {
+pub unsafe fn strnequal(a: *const c_char, b: *const c_char, n: usize) -> bool {
     if a.is_null() && b.is_null() {
         return true;
     }
@@ -536,8 +471,7 @@ pub unsafe extern "C" fn strnequal(a: *const c_char, b: *const c_char, n: usize)
 }
 
 /// Write `time_` as 8 big-endian bytes into `buf[0..8]` (`time_to_bytes`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn time_to_bytes(time_val: i64, buf: *mut u8) {
+pub unsafe fn time_to_bytes(time_val: i64, buf: *mut u8) {
     let bytes = (time_val as u64).to_be_bytes();
     unsafe {
         std::ptr::copy_nonoverlapping(bytes.as_ptr(), buf, 8);
@@ -545,8 +479,7 @@ pub unsafe extern "C" fn time_to_bytes(time_val: i64, buf: *mut u8) {
 }
 
 /// Iterative $O(N \log N)$ stable merge sort for doubly-linked lists (`mergesort_list`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mergesort_list(
+pub unsafe fn mergesort_list(
     mut head: *mut c_void,
     get_next: MergeSortGetFunc,
     set_next: MergeSortSetFunc,
@@ -684,8 +617,7 @@ pub unsafe extern "C" fn mergesort_list(
 }
 
 /// Finish allocations in `arena` and return an `ArenaMem` handle (`arena_finish`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn arena_finish(arena: *mut Arena) -> ArenaMem {
+pub unsafe fn arena_finish(arena: *mut Arena) -> ArenaMem {
     let a = unsafe { &mut *arena };
     let res = a.cur_blk.cast::<ConsumedBlk>();
     *a = Arena {
@@ -697,8 +629,7 @@ pub unsafe extern "C" fn arena_finish(arena: *mut Arena) -> ArenaMem {
 }
 
 /// Allocate a `ARENA_BLOCK_SIZE` block (`alloc_block`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn alloc_block() -> *mut c_char {
+pub unsafe fn alloc_block() -> *mut c_char {
     unsafe {
         if ARENA_REUSE_COUNT > 0 {
             let retval = ARENA_REUSE_HEAD.cast::<c_char>();
@@ -713,8 +644,7 @@ pub unsafe extern "C" fn alloc_block() -> *mut c_char {
 }
 
 /// Allocate a fresh block on `arena` (`arena_alloc_block`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn arena_alloc_block(arena: *mut Arena) {
+pub unsafe fn arena_alloc_block(arena: *mut Arena) {
     let a = unsafe { &mut *arena };
     let prev_blk = a.cur_blk.cast::<ConsumedBlk>();
     a.cur_blk = unsafe { alloc_block() };
@@ -739,8 +669,7 @@ const fn arena_align_offset(off: usize) -> usize {
 }
 
 /// Allocate `size` bytes from `arena` (or via `xmalloc` if `arena` is null) (`arena_alloc`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn arena_alloc(arena: *mut Arena, size: usize, align: bool) -> *mut c_void {
+pub unsafe fn arena_alloc(arena: *mut Arena, size: usize, align: bool) -> *mut c_void {
     if arena.is_null() {
         return unsafe { xmalloc(size) };
     }
@@ -792,8 +721,7 @@ pub unsafe extern "C" fn arena_alloc(arena: *mut Arena, size: usize, align: bool
 }
 
 /// Release a `ARENA_BLOCK_SIZE` block back to the reuse pool or free it (`free_block`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn free_block(block: *mut c_char) {
+pub unsafe fn free_block(block: *mut c_char) {
     if block.is_null() {
         return;
     }
@@ -810,8 +738,7 @@ pub unsafe extern "C" fn free_block(block: *mut c_char) {
 }
 
 /// Free all blocks belonging to `mem` (`arena_mem_free`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn arena_mem_free(mem: ArenaMem) {
+pub unsafe fn arena_mem_free(mem: ArenaMem) {
     let mut b = mem;
     if !b.is_null() {
         let reuse_blk = b;
@@ -830,8 +757,7 @@ pub unsafe extern "C" fn arena_mem_free(mem: ArenaMem) {
 }
 
 /// Allocate `size + 1` bytes on `arena` and NUL-terminate (`arena_allocz`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn arena_allocz(arena: *mut Arena, size: usize) -> *mut c_char {
+pub unsafe fn arena_allocz(arena: *mut Arena, size: usize) -> *mut c_char {
     let mem = unsafe { arena_alloc(arena, size + 1, false).cast::<u8>() };
     unsafe {
         *mem.add(size) = 0;
@@ -840,12 +766,7 @@ pub unsafe extern "C" fn arena_allocz(arena: *mut Arena, size: usize) -> *mut c_
 }
 
 /// Copy `buf[..size]` into a NUL-terminated buffer on `arena` (`arena_memdupz`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn arena_memdupz(
-    arena: *mut Arena,
-    buf: *const c_char,
-    size: usize,
-) -> *mut c_char {
+pub unsafe fn arena_memdupz(arena: *mut Arena, buf: *const c_char, size: usize) -> *mut c_char {
     let mem = unsafe { arena_allocz(arena, size).cast::<u8>() };
     if size > 0 {
         unsafe {
@@ -856,15 +777,13 @@ pub unsafe extern "C" fn arena_memdupz(
 }
 
 /// Duplicate C string `str_ptr` onto `arena` (`arena_strdup`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn arena_strdup(arena: *mut Arena, str_ptr: *const c_char) -> *mut c_char {
+pub unsafe fn arena_strdup(arena: *mut Arena, str_ptr: *const c_char) -> *mut c_char {
     let len = unsafe { CStr::from_ptr(str_ptr).to_bytes().len() };
     unsafe { arena_memdupz(arena, str_ptr, len) }
 }
 
 /// Free everything that we allocated (`free_all_mem`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn free_all_mem() {
+pub unsafe fn free_all_mem() {
     use crate::api::extmark::api_extmark_free_all_mem;
     use crate::arglist::alist_clear;
     use crate::autocmd::{autocmd_free_all_mem, block_autocmds, free_all_autocmds};

@@ -324,7 +324,6 @@ use crate::lua::converter::{lua_Debug, lua_getinfo, lua_getstack};
 static mut IN_FAST_CALLBACK: c_int = 0;
 static mut GLOBAL_LSTATE: *mut lua_State = ptr::null_mut();
 
-#[unsafe(no_mangle)]
 pub static mut active_lstate: *mut lua_State = ptr::null_mut();
 
 static mut REQUIRE_REF: LuaRef = LUA_REFNIL;
@@ -371,7 +370,7 @@ unsafe extern "C" {
 }
 
 #[inline]
-unsafe fn put_event(
+unsafe extern "C" fn put_event(
     mq: *mut MultiQueue,
     handler: unsafe extern "C" fn(*mut *mut c_void),
     arg0: *mut c_void,
@@ -583,8 +582,7 @@ unsafe fn nlua_push_eap(lstate: *mut lua_State, eap: *mut exarg_T, cmod: *const 
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_global_lstate() -> *mut lua_State {
+pub unsafe fn get_global_lstate() -> *mut lua_State {
     unsafe { GLOBAL_LSTATE }
 }
 
@@ -603,8 +601,7 @@ unsafe fn nlua_get_error(lstate: *mut lua_State, len: *mut usize) -> *const c_ch
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_error(lstate: *mut lua_State, msg: *const c_char) {
+pub unsafe fn nlua_error(lstate: *mut lua_State, msg: *const c_char) {
     unsafe {
         let mut len: usize = 0;
         let str_ = nlua_get_error(lstate, &raw mut len);
@@ -618,12 +615,7 @@ unsafe extern "C-unwind" fn nlua_no_traceback(_lstate: *mut lua_State) -> c_int 
     1
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_pcall(
-    lstate: *mut lua_State,
-    nargs: c_int,
-    mut nresults: c_int,
-) -> c_int {
+pub unsafe fn nlua_pcall(lstate: *mut lua_State, nargs: c_int, mut nresults: c_int) -> c_int {
     unsafe {
         lua_getglobal(lstate, c"debug".as_ptr());
         if lua_istable(lstate, -1) {
@@ -964,7 +956,7 @@ unsafe extern "C-unwind" fn nlua_check_interrupt(lstate: *mut lua_State) -> c_in
     }
 }
 
-unsafe extern "C" fn nlua_ex_getline(
+unsafe fn nlua_ex_getline(
     _c: c_int,
     cookie: *mut c_void,
     _indent: c_int,
@@ -1062,18 +1054,15 @@ unsafe fn nlua_get_ref_state(lstate: *mut lua_State) -> *mut nlua_ref_state_t {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_get_nil_ref(lstate: *mut lua_State) -> LuaRef {
+pub unsafe fn nlua_get_nil_ref(lstate: *mut lua_State) -> LuaRef {
     unsafe { (*nlua_get_ref_state(lstate)).nil_ref }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_get_empty_dict_ref(lstate: *mut lua_State) -> LuaRef {
+pub unsafe fn nlua_get_empty_dict_ref(lstate: *mut lua_State) -> LuaRef {
     unsafe { (*nlua_get_ref_state(lstate)).empty_dict_ref }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_get_global_ref_count() -> c_int {
+pub unsafe fn nlua_get_global_ref_count() -> c_int {
     unsafe { (*nlua_global_refs).ref_count }
 }
 
@@ -1333,8 +1322,7 @@ unsafe fn nlua_state_init(lstate: *mut lua_State) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_init(argv: *mut *mut c_char, argc: c_int, lua_arg0: c_int) {
+pub unsafe fn nlua_init(argv: *mut *mut c_char, argc: c_int, lua_arg0: c_int) {
     unsafe {
         let lstate = luaL_newstate();
         if lstate.is_null() {
@@ -1408,8 +1396,7 @@ unsafe fn nlua_init_state(thread: bool) -> *mut lua_State {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_free_all_mem() {
+pub unsafe fn nlua_free_all_mem() {
     unsafe {
         if GLOBAL_LSTATE.is_null() {
             return;
@@ -1646,7 +1633,6 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn nlua_in_fast_event(lstate: *mut lua_State) -> c_int {
     unsafe {
         lua_pushboolean(lstate, c_int::from(IN_FAST_CALLBACK > 0));
@@ -1661,7 +1647,6 @@ unsafe fn viml_func_is_fast(name: *const c_char) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
     unsafe {
         let mut err = Error {
@@ -1874,8 +1859,7 @@ unsafe extern "C-unwind" fn nlua_getenv(lstate: *mut lua_State) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_ref(
+pub unsafe fn nlua_ref(
     lstate: *mut lua_State,
     ref_state: *mut nlua_ref_state_t,
     index: c_int,
@@ -1890,17 +1874,11 @@ pub unsafe extern "C" fn nlua_ref(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_ref_global(lstate: *mut lua_State, index: c_int) -> LuaRef {
+pub unsafe fn nlua_ref_global(lstate: *mut lua_State, index: c_int) -> LuaRef {
     unsafe { nlua_ref(lstate, nlua_global_refs, index) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_unref(
-    lstate: *mut lua_State,
-    ref_state: *mut nlua_ref_state_t,
-    ref_: LuaRef,
-) {
+pub unsafe fn nlua_unref(lstate: *mut lua_State, ref_state: *mut nlua_ref_state_t, ref_: LuaRef) {
     unsafe {
         if ref_ > 0 {
             (*ref_state).ref_count -= 1;
@@ -1909,29 +1887,25 @@ pub unsafe extern "C" fn nlua_unref(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_unref_global(lstate: *mut lua_State, ref_: LuaRef) {
+pub unsafe fn nlua_unref_global(lstate: *mut lua_State, ref_: LuaRef) {
     unsafe {
         nlua_unref(lstate, nlua_global_refs, ref_);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn api_free_luaref(ref_: LuaRef) {
+pub unsafe fn api_free_luaref(ref_: LuaRef) {
     unsafe {
         nlua_unref_global(GLOBAL_LSTATE, ref_);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_pushref(lstate: *mut lua_State, ref_: LuaRef) {
+pub unsafe fn nlua_pushref(lstate: *mut lua_State, ref_: LuaRef) {
     unsafe {
         lua_rawgeti(lstate, LUA_REGISTRYINDEX, ref_);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn api_new_luaref(original_ref: LuaRef) -> LuaRef {
+pub unsafe fn api_new_luaref(original_ref: LuaRef) -> LuaRef {
     if original_ref == LUA_NOREF {
         return LUA_NOREF;
     }
@@ -1980,12 +1954,7 @@ unsafe fn nlua_exec_typval_fmt(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_call_luaeval(
-    str_: NvimString,
-    arg: *mut typval_T,
-    ret_tv: *mut typval_T,
-) {
+pub unsafe fn nlua_call_luaeval(str_: NvimString, arg: *mut typval_T, ret_tv: *mut typval_T) {
     unsafe {
         nlua_exec_typval_fmt(
             c"local _A=select(1,...) return (%.*s)".as_ptr(),
@@ -2000,8 +1969,7 @@ pub unsafe extern "C" fn nlua_call_luaeval(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_call_vlua(
+pub unsafe fn nlua_call_vlua(
     str_: *const c_char,
     len: usize,
     args: *mut typval_T,
@@ -2022,8 +1990,7 @@ pub unsafe extern "C" fn nlua_call_vlua(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_call_user_expand_func(xp: *mut expand_T, ret_tv: *mut typval_T) {
+pub unsafe fn nlua_call_user_expand_func(xp: *mut expand_T, ret_tv: *mut typval_T) {
     unsafe {
         let lstate = GLOBAL_LSTATE;
 
@@ -2078,8 +2045,7 @@ unsafe fn nlua_exec_typval(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_exec_ga(ga: *mut garray_T, name: *mut c_char) {
+pub unsafe fn nlua_exec_ga(ga: *mut garray_T, name: *mut c_char) {
     unsafe {
         let code = ga_concat_strings(ga, c"\n".as_ptr());
         let len = CStr::from_ptr(code).to_bytes().len();
@@ -2088,8 +2054,7 @@ pub unsafe extern "C" fn nlua_exec_ga(ga: *mut garray_T, name: *mut c_char) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_exec_typval_callable(
+pub unsafe fn nlua_exec_typval_callable(
     lua_cb: LuaRef,
     argcount: c_int,
     argvars: *mut typval_T,
@@ -2110,8 +2075,7 @@ pub unsafe extern "C" fn nlua_exec_typval_callable(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_exec(
+pub unsafe fn nlua_exec(
     str_: NvimString,
     chunkname: *const c_char,
     args: Array,
@@ -2161,8 +2125,7 @@ pub unsafe extern "C" fn nlua_exec(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_call_typval(
+pub unsafe fn nlua_call_typval(
     module: *const c_char,
     func: *const c_char,
     argvars: *mut typval_T,
@@ -2188,8 +2151,7 @@ pub unsafe extern "C" fn nlua_call_typval(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_call_excmd(
+pub unsafe fn nlua_call_excmd(
     module: *const c_char,
     func: *const c_char,
     eap: *mut exarg_T,
@@ -2225,8 +2187,7 @@ pub unsafe extern "C" fn nlua_call_excmd(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_ref_is_function(ref_: LuaRef) -> bool {
+pub unsafe fn nlua_ref_is_function(ref_: LuaRef) -> bool {
     unsafe {
         let lstate = GLOBAL_LSTATE;
         nlua_pushref(lstate, ref_);
@@ -2236,8 +2197,7 @@ pub unsafe extern "C" fn nlua_ref_is_function(ref_: LuaRef) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_call_ref(
+pub unsafe fn nlua_call_ref(
     ref_: LuaRef,
     name: *const c_char,
     args: Array,
@@ -2257,8 +2217,7 @@ const fn mode_ret(mode: LuaRetMode) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_call_ref_ctx(
+pub unsafe fn nlua_call_ref_ctx(
     fast: bool,
     ref_: LuaRef,
     name: *const c_char,
@@ -2370,13 +2329,11 @@ unsafe fn nlua_call_pop_retval(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_is_deferred_safe() -> bool {
+pub unsafe fn nlua_is_deferred_safe() -> bool {
     unsafe { IN_FAST_CALLBACK == 0 }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_lua(eap: *mut exarg_T) {
+pub unsafe fn ex_lua(eap: *mut exarg_T) {
     unsafe {
         if *(*eap).arg == NUL {
             if (*eap).addr_count > 0 {
@@ -2421,8 +2378,7 @@ pub unsafe extern "C" fn ex_lua(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_luado(eap: *mut exarg_T) {
+pub unsafe fn ex_luado(eap: *mut exarg_T) {
     unsafe {
         if u_save((*eap).line1 - 1, (*eap).line2 + 1) == FAIL {
             emsg(gettext(c"cannot save undo information".as_ptr()));
@@ -2510,15 +2466,13 @@ pub unsafe extern "C" fn ex_luado(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_luafile(eap: *mut exarg_T) {
+pub unsafe fn ex_luafile(eap: *mut exarg_T) {
     unsafe {
         let _ = nlua_exec_file((*eap).arg);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_exec_file(path: *const c_char) -> bool {
+pub unsafe fn nlua_exec_file(path: *const c_char) -> bool {
     unsafe {
         let lstate = GLOBAL_LSTATE;
         if !strequal(path, c"-".as_ptr()) {
@@ -2583,8 +2537,7 @@ pub unsafe extern "C" fn nlua_exec_file(path: *const c_char) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_expand_pat(xp: *mut expand_T) {
+pub unsafe fn nlua_expand_pat(xp: *mut expand_T) {
     unsafe {
         let lstate = GLOBAL_LSTATE;
         let mut status = FAIL;
@@ -2654,8 +2607,7 @@ pub unsafe extern "C" fn nlua_expand_pat(xp: *mut expand_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_expand_get_matches(
+pub unsafe fn nlua_expand_get_matches(
     num_results: *mut c_int,
     results: *mut *mut *mut c_char,
 ) -> c_int {
@@ -2680,8 +2632,7 @@ unsafe extern "C-unwind" fn nlua_is_thread(lstate: *mut lua_State) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_is_table_from_lua(arg: *const typval_T) -> bool {
+pub unsafe fn nlua_is_table_from_lua(arg: *const typval_T) -> bool {
     unsafe {
         if (*arg).v_type == VarType::VAR_DICT {
             (*(*arg).vval.v_dict).lua_table_ref != LUA_NOREF
@@ -2693,8 +2644,7 @@ pub unsafe extern "C" fn nlua_is_table_from_lua(arg: *const typval_T) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_register_table_as_callable(arg: *const typval_T) -> *mut c_char {
+pub unsafe fn nlua_register_table_as_callable(arg: *const typval_T) -> *mut c_char {
     unsafe {
         let table_ref = if (*arg).v_type == VarType::VAR_DICT {
             (*(*arg).vval.v_dict).lua_table_ref
@@ -2735,8 +2685,7 @@ pub unsafe extern "C" fn nlua_register_table_as_callable(arg: *const typval_T) -
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_exec_on_key(c: c_int, typed_buf: *mut c_char) -> bool {
+pub unsafe fn nlua_exec_on_key(c: c_int, typed_buf: *mut c_char) -> bool {
     unsafe {
         static mut RECURSIVE: bool = false;
         if RECURSIVE {
@@ -2779,8 +2728,7 @@ pub unsafe extern "C" fn nlua_exec_on_key(c: c_int, typed_buf: *mut c_char) -> b
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_set_sctx(current: *mut sctx_T) {
+pub unsafe fn nlua_set_sctx(current: *mut sctx_T) {
     unsafe {
         if !script_is_lua((*current).sc_sid) {
             return;
@@ -2828,8 +2776,7 @@ pub unsafe extern "C" fn nlua_set_sctx(current: *mut sctx_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_do_ucmd(cmd: *mut ucmd_T, eap: *mut exarg_T, preview: bool) -> c_int {
+pub unsafe fn nlua_do_ucmd(cmd: *mut ucmd_T, eap: *mut exarg_T, preview: bool) -> c_int {
     unsafe {
         let lstate = GLOBAL_LSTATE;
         nlua_pushref(
@@ -2915,12 +2862,7 @@ pub unsafe extern "C" fn nlua_do_ucmd(cmd: *mut ucmd_T, eap: *mut exarg_T, previ
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_funcref_str(
-    ref_: LuaRef,
-    arena: *mut Arena,
-    show_ref: bool,
-) -> *mut c_char {
+pub unsafe fn nlua_funcref_str(ref_: LuaRef, arena: *mut Arena, show_ref: bool) -> *mut c_char {
     unsafe {
         let lstate = GLOBAL_LSTATE;
         if lua_checkstack(lstate, 1) != 0 {
@@ -2959,8 +2901,7 @@ pub unsafe extern "C" fn nlua_funcref_str(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_init_defaults() {
+pub unsafe fn nlua_init_defaults() {
     unsafe {
         let L = GLOBAL_LSTATE;
         assert!(!L.is_null());
@@ -2973,8 +2914,7 @@ pub unsafe extern "C" fn nlua_init_defaults() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nlua_func_exists(lua_funcname: *const c_char) -> bool {
+pub unsafe fn nlua_func_exists(lua_funcname: *const c_char) -> bool {
     unsafe {
         let length = CStr::from_ptr(lua_funcname).to_bytes().len() + 8;
         let str_ = xmalloc(length).cast::<c_char>();

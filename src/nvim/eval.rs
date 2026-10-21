@@ -151,7 +151,7 @@ use crate::os::env::{env_name_len, expand_T, expand_env_save, vim_getenv};
 use crate::os::fs::os_can_exe;
 use crate::os::lang::free_locales;
 use crate::os::shell::{os_system, shell_argv_to_str, shell_build_argv, shell_free_argv};
-use crate::profile::{estack_T, prof_child_enter, prof_child_exit, proftime_T};
+use crate::profile::{prof_child_enter, prof_child_exit, proftime_T};
 use crate::state::save_v_event_T;
 use crate::tag::set_ref_in_tagfunc;
 use crate::window::win_T;
@@ -245,7 +245,6 @@ const E_CANNOT_USE_PARTIAL_HERE: &CStr = c"E1265: Cannot use a partial here";
 const NAMESPACE_CHAR: &CStr = c"abglstvw";
 
 /// Used for checking if local variables or arguments used in a lambda.
-#[unsafe(no_mangle)]
 pub static mut eval_lavars_used: *mut bool = ptr::null_mut();
 
 static mut echo_hl_id: c_int = 0;
@@ -410,8 +409,7 @@ unsafe fn timer_size() -> usize {
     uv_sz + size_of::<TimeWatcherFields>() + size_of::<TimerTail>()
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_v_event(sve: *mut save_v_event_T) -> *mut dict_T {
+pub unsafe fn get_v_event(sve: *mut save_v_event_T) -> *mut dict_T {
     unsafe {
         let v_event = get_vim_var_dict(VV_EVENT);
 
@@ -430,8 +428,7 @@ pub unsafe extern "C" fn get_v_event(sve: *mut save_v_event_T) -> *mut dict_T {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn restore_v_event(v_event: *mut dict_T, sve: *mut save_v_event_T) {
+pub unsafe fn restore_v_event(v_event: *mut dict_T, sve: *mut save_v_event_T) {
     unsafe {
         tv_dict_free_contents(v_event);
         if (*sve).sve_did_save {
@@ -447,8 +444,7 @@ pub unsafe extern "C" fn restore_v_event(v_event: *mut dict_T, sve: *mut save_v_
 }
 
 /// @return  "n1" divided by "n2", taking care of dividing by zero.
-#[unsafe(no_mangle)]
-pub extern "C" fn num_divide(n1: varnumber_T, n2: varnumber_T) -> varnumber_T {
+pub fn num_divide(n1: varnumber_T, n2: varnumber_T) -> varnumber_T {
     if n2 == 0 {
         if n1 == 0 {
             VARNUMBER_MIN
@@ -465,22 +461,19 @@ pub extern "C" fn num_divide(n1: varnumber_T, n2: varnumber_T) -> varnumber_T {
 }
 
 /// @return  "n1" modulus "n2", taking care of dividing by zero.
-#[unsafe(no_mangle)]
-pub extern "C" fn num_modulus(n1: varnumber_T, n2: varnumber_T) -> varnumber_T {
+pub fn num_modulus(n1: varnumber_T, n2: varnumber_T) -> varnumber_T {
     if n2 == 0 { 0 } else { n1.wrapping_rem(n2) }
 }
 
 /// Initialize the global and v: variables.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval_init() {
+pub unsafe fn eval_init() {
     unsafe {
         evalvars_init();
         func_init();
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval_clear() {
+pub unsafe fn eval_clear() {
     unsafe {
         evalvars_clear();
         free_scriptnames();
@@ -491,12 +484,7 @@ pub unsafe extern "C" fn eval_clear() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn fill_evalarg_from_eap(
-    evalarg: *mut evalarg_T,
-    eap: *mut exarg_T,
-    skip: bool,
-) {
+pub unsafe fn fill_evalarg_from_eap(evalarg: *mut evalarg_T, eap: *mut exarg_T, skip: bool) {
     unsafe {
         *evalarg = evalarg_T {
             eval_flags: if skip { 0 } else { EVAL_EVALUATE },
@@ -512,8 +500,7 @@ pub unsafe extern "C" fn fill_evalarg_from_eap(
         let is_list_line = (*eap).ea_getline.is_some_and(|f| {
             ptr::fn_addr_eq(
                 f,
-                get_list_line
-                    as unsafe extern "C" fn(c_int, *mut c_void, c_int, bool) -> *mut c_char,
+                get_list_line as unsafe fn(c_int, *mut c_void, c_int, bool) -> *mut c_char,
             )
         });
 
@@ -526,8 +513,7 @@ pub unsafe extern "C" fn fill_evalarg_from_eap(
 
 /// Top level evaluation function, returning a boolean.
 /// Sets "error" to true if there was an error.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval_to_bool(
+pub unsafe fn eval_to_bool(
     arg: *mut c_char,
     error: *mut bool,
     eap: *mut exarg_T,
@@ -602,8 +588,7 @@ unsafe fn eval1_emsg(arg: *mut *mut c_char, rettv: *mut typval_T, eap: *mut exar
 
 /// @return  whether a typval is a valid expression to pass to eval_expr_typval()
 ///          or eval_expr_to_bool(). An empty string returns false.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval_expr_valid_arg(tv: *const typval_T) -> bool {
+pub unsafe fn eval_expr_valid_arg(tv: *const typval_T) -> bool {
     unsafe {
         (*tv).v_type != VarType::VAR_UNKNOWN
             && ((*tv).v_type != VarType::VAR_STRING
@@ -710,8 +695,7 @@ unsafe fn eval_expr_string(expr: *const typval_T, rettv: *mut typval_T) -> c_int
 }
 
 /// Evaluate an expression, which can be a function, partial or string.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval_expr_typval(
+pub unsafe fn eval_expr_typval(
     expr: *const typval_T,
     want_func: bool,
     argv: *mut typval_T,
@@ -731,8 +715,7 @@ pub unsafe extern "C" fn eval_expr_typval(
 }
 
 /// Like eval_to_bool() but using a typval_T instead of a string.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval_expr_to_bool(expr: *const typval_T, error: *mut bool) -> bool {
+pub unsafe fn eval_expr_to_bool(expr: *const typval_T, error: *mut bool) -> bool {
     unsafe {
         let mut argv = tv_initial_value();
         let mut rettv = tv_initial_value();
@@ -748,12 +731,7 @@ pub unsafe extern "C" fn eval_expr_to_bool(expr: *const typval_T, error: *mut bo
 }
 
 /// Top level evaluation function, returning a string.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval_to_string_skip(
-    arg: *mut c_char,
-    eap: *mut exarg_T,
-    skip: bool,
-) -> *mut c_char {
+pub unsafe fn eval_to_string_skip(arg: *mut c_char, eap: *mut exarg_T, skip: bool) -> *mut c_char {
     unsafe {
         let mut tv = tv_initial_value();
         let retval: *mut c_char;
@@ -784,8 +762,7 @@ pub unsafe extern "C" fn eval_to_string_skip(
 }
 
 /// Skip over an expression at "*pp".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn skip_expr(pp: *mut *mut c_char, evalarg: *mut evalarg_T) -> c_int {
+pub unsafe fn skip_expr(pp: *mut *mut c_char, evalarg: *mut evalarg_T) -> c_int {
     unsafe {
         let save_flags = if evalarg.is_null() {
             0
@@ -837,8 +814,7 @@ unsafe fn typval2string(tv: *mut typval_T, join_list: bool) -> *mut c_char {
 }
 
 /// Top level evaluation function, returning a string.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval_to_string_eap(
+pub unsafe fn eval_to_string_eap(
     arg: *mut c_char,
     join_list: bool,
     eap: *mut exarg_T,
@@ -872,8 +848,7 @@ pub unsafe extern "C" fn eval_to_string_eap(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval_to_string(
+pub unsafe fn eval_to_string(
     arg: *mut c_char,
     join_list: bool,
     use_simple_function: bool,
@@ -882,8 +857,7 @@ pub unsafe extern "C" fn eval_to_string(
 }
 
 /// Call eval_to_string() without using current local variables and using textlock.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval_to_string_safe(
+pub unsafe fn eval_to_string_safe(
     arg: *mut c_char,
     use_sandbox: bool,
     use_simple_function: bool,
@@ -911,11 +885,7 @@ pub unsafe extern "C" fn eval_to_string_safe(
 }
 
 /// Top level evaluation function, returning a number.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval_to_number(
-    expr: *mut c_char,
-    use_simple_function: bool,
-) -> varnumber_T {
+pub unsafe fn eval_to_number(expr: *mut c_char, use_simple_function: bool) -> varnumber_T {
     unsafe {
         let mut rettv = tv_initial_value();
         let retval: varnumber_T;
@@ -948,13 +918,11 @@ pub unsafe extern "C" fn eval_to_number(
 }
 
 /// Top level evaluation function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval_expr(arg: *mut c_char, eap: *mut exarg_T) -> *mut typval_T {
+pub unsafe fn eval_expr(arg: *mut c_char, eap: *mut exarg_T) -> *mut typval_T {
     unsafe { eval_expr_ext(arg, eap, false) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval_expr_ext(
+pub unsafe fn eval_expr_ext(
     arg: *mut c_char,
     eap: *mut exarg_T,
     use_simple_function: bool,
@@ -990,8 +958,7 @@ pub unsafe extern "C" fn eval_expr_ext(
 }
 
 /// Call some Vim script function and return the result in "*rettv".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn call_vim_function(
+pub unsafe fn call_vim_function(
     mut func: *const c_char,
     argc: c_int,
     argv: *mut typval_T,
@@ -1035,8 +1002,7 @@ pub unsafe extern "C" fn call_vim_function(
 }
 
 /// Call Vim script function and return the result as a string.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn call_func_retstr(
+pub unsafe fn call_func_retstr(
     func: *const c_char,
     argc: c_int,
     argv: *mut typval_T,
@@ -1054,8 +1020,7 @@ pub unsafe extern "C" fn call_func_retstr(
 }
 
 /// Call Vim script function and return the result as a List.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn call_func_retlist(
+pub unsafe fn call_func_retlist(
     func: *const c_char,
     argc: c_int,
     argv: *mut typval_T,
@@ -1077,8 +1042,7 @@ pub unsafe extern "C" fn call_func_retlist(
 }
 
 /// Evaluate a number-valued "expr" option ('indentexpr'/'formatexpr') via its callback.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval_expr_option_number(cb: *mut Callback, use_sandbox: bool) -> c_int {
+pub unsafe fn eval_expr_option_number(cb: *mut Callback, use_sandbox: bool) -> c_int {
     unsafe {
         let mut copy = Callback {
             data: ptr::null_mut(),
@@ -1107,8 +1071,7 @@ pub unsafe extern "C" fn eval_expr_option_number(cb: *mut Callback, use_sandbox:
 
 /// Evaluate a "expr" option ('foldtext'/'includeexpr') via its callback, under |textlock| and an
 /// isolated funccal stack; evaluates in the |sandbox| when `use_sandbox`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval_expr_option_tv(
+pub unsafe fn eval_expr_option_tv(
     cb: *mut Callback,
     use_sandbox: bool,
     ret_tv: *mut typval_T,
@@ -1137,8 +1100,7 @@ pub unsafe extern "C" fn eval_expr_option_tv(
 
 /// Evaluate 'foldexpr'. Returns the foldlevel, and any character preceding
 /// it in "*cp". Doesn't give error messages.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval_foldexpr(wp: *mut win_T, cp: *mut c_int) -> c_int {
+pub unsafe fn eval_foldexpr(wp: *mut win_T, cp: *mut c_int) -> c_int {
     unsafe {
         let saved_sctx = current_sctx;
         let use_sandbox = was_set_insecurely(wp, kOptFoldexpr, OPT_LOCAL) != 0;
@@ -1190,8 +1152,7 @@ pub unsafe extern "C" fn eval_foldexpr(wp: *mut win_T, cp: *mut c_int) -> c_int 
 }
 
 /// Evaluate 'foldtext', returning an Array or a String (NULL_STRING on failure).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval_foldtext(wp: *mut win_T) -> Object {
+pub unsafe fn eval_foldtext(wp: *mut win_T) -> Object {
     unsafe {
         let use_sandbox = was_set_insecurely(wp, kOptFoldtext, OPT_LOCAL) != 0;
         let mut tv = tv_initial_value();
@@ -1623,8 +1584,7 @@ unsafe fn get_lval_subscript(
 }
 
 /// Get an lvalue
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_lval(
+pub unsafe fn get_lval(
     name: *mut c_char,
     rettv: *mut typval_T,
     lp: *mut lval_T,
@@ -1728,8 +1688,7 @@ pub unsafe extern "C" fn get_lval(
 }
 
 /// Clear lval "lp" that was filled by get_lval().
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn clear_lval(lp: *mut lval_T) {
+pub unsafe fn clear_lval(lp: *mut lval_T) {
     unsafe {
         xfree((*lp).ll_exp_name.cast());
         xfree((*lp).ll_newkey.cast());
@@ -1737,8 +1696,7 @@ pub unsafe extern "C" fn clear_lval(lp: *mut lval_T) {
 }
 
 /// Set a variable that was parsed by get_lval() to "rettv".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_var_lval(
+pub unsafe fn set_var_lval(
     lp: *mut lval_T,
     endp: *mut c_char,
     rettv: *mut typval_T,
@@ -1913,8 +1871,7 @@ pub unsafe extern "C" fn set_var_lval(
 }
 
 /// Evaluate the expression used in a ":for var in expr" command.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval_for_line(
+pub unsafe fn eval_for_line(
     arg: *const c_char,
     errp: *mut bool,
     eap: *mut exarg_T,
@@ -1991,8 +1948,7 @@ pub unsafe extern "C" fn eval_for_line(
 }
 
 /// Use the first item in a ":for" list. Advance to the next.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn next_for_item(fi_void: *mut c_void, arg: *mut c_char) -> bool {
+pub unsafe fn next_for_item(fi_void: *mut c_void, arg: *mut c_char) -> bool {
     unsafe {
         let fi = fi_void.cast::<forinfo_T>();
 
@@ -2067,8 +2023,7 @@ pub unsafe extern "C" fn next_for_item(fi_void: *mut c_void, arg: *mut c_char) -
 }
 
 /// Free the structure used to store info used by ":for".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn free_for_info(fi_void: *mut c_void) {
+pub unsafe fn free_for_info(fi_void: *mut c_void) {
     unsafe {
         let fi = fi_void.cast::<forinfo_T>();
 
@@ -2087,8 +2042,7 @@ pub unsafe extern "C" fn free_for_info(fi_void: *mut c_void) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_context_for_expression(
+pub unsafe fn set_context_for_expression(
     xp: *mut expand_T,
     mut arg: *mut c_char,
     cmdidx: cmdidx_T,
@@ -2211,8 +2165,7 @@ pub unsafe extern "C" fn set_context_for_expression(
 }
 
 /// Does not use 'cpo' and always uses 'magic'.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn pattern_match(pat: *const c_char, text: *const c_char, ic: bool) -> c_int {
+pub unsafe fn pattern_match(pat: *const c_char, text: *const c_char, ic: bool) -> c_int {
     unsafe {
         let mut matches: c_int = 0;
         let mut regmatch: regmatch_T = std::mem::zeroed();
@@ -2294,8 +2247,7 @@ unsafe fn eval_func(
 }
 
 /// After using "evalarg" filled from "eap": free the memory.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn clear_evalarg(evalarg: *mut evalarg_T, eap: *mut exarg_T) {
+pub unsafe fn clear_evalarg(evalarg: *mut evalarg_T, eap: *mut exarg_T) {
     unsafe {
         if evalarg.is_null() {
             return;
@@ -2364,8 +2316,7 @@ pub unsafe extern "C" fn eval0(
 
 /// If "arg" is a simple function call without arguments then call it and return
 /// the result. Otherwise return NOTDONE.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn may_call_simple_func(arg: *const c_char, rettv: *mut typval_T) -> c_int {
+pub unsafe fn may_call_simple_func(arg: *const c_char, rettv: *mut typval_T) -> c_int {
     unsafe {
         let parens = strstr(arg, c"()".as_ptr()).cast_const();
         let mut r = NOTDONE;
@@ -2410,12 +2361,7 @@ unsafe fn eval0_simple_funccal(
 /// Handle top level expression:
 ///      expr2 ? expr1 : expr1
 ///      expr2 ?? expr1
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval1(
-    arg: *mut *mut c_char,
-    rettv: *mut typval_T,
-    evalarg: *mut evalarg_T,
-) -> c_int {
+pub unsafe fn eval1(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut evalarg_T) -> c_int {
     unsafe {
         ptr::write_bytes(rettv, 0, 1);
 
@@ -2808,8 +2754,7 @@ unsafe fn eval_addlist(tv1: *mut typval_T, tv2: *mut typval_T) -> c_int {
 }
 
 /// Append string "s2" to the string in "tv1".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn grow_string_tv(tv1: *mut typval_T, s2: *const c_char) -> c_int {
+pub unsafe fn grow_string_tv(tv1: *mut typval_T, s2: *const c_char) -> c_int {
     unsafe {
         if (*tv1).v_type != VarType::VAR_STRING || (*tv1).vval.v_string.is_null() {
             return FAIL;
@@ -3710,12 +3655,7 @@ unsafe fn check_can_index(rettv: *mut typval_T, evaluate: bool, verbose: bool) -
 }
 
 /// slice() function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_slice(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_slice(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if check_can_index(argvars, true, false) != OK {
             return;
@@ -3868,12 +3808,7 @@ unsafe fn eval_index_inner(
 }
 
 /// Get an option value
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval_option(
-    arg: *mut *const c_char,
-    rettv: *mut typval_T,
-    evaluate: bool,
-) -> c_int {
+pub unsafe fn eval_option(arg: *mut *const c_char, rettv: *mut typval_T, evaluate: bool) -> c_int {
     unsafe {
         let working = **arg == b'+' as c_char;
         let mut opt_idx: OptIndex = 0;
@@ -4303,8 +4238,7 @@ unsafe fn eval_lit_string(
 }
 
 /// Evaluate a single or double quoted string possibly containing expressions.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval_interp_string(
+pub unsafe fn eval_interp_string(
     arg: *mut *mut c_char,
     rettv: *mut typval_T,
     evaluate: bool,
@@ -4362,8 +4296,7 @@ pub unsafe extern "C" fn eval_interp_string(
 }
 
 /// @return  the function name of the partial.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn partial_name(pt: *mut partial_T) -> *mut c_char {
+pub unsafe fn partial_name(pt: *mut partial_T) -> *mut c_char {
     unsafe {
         if !pt.is_null() {
             if !(*pt).pt_name.is_null() {
@@ -4397,8 +4330,7 @@ unsafe fn partial_free(pt: *mut partial_T) {
 
 /// Unreference a closure: decrement the reference count and free it when it
 /// becomes zero.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn partial_unref(pt: *mut partial_T) {
+pub unsafe fn partial_unref(pt: *mut partial_T) {
     unsafe {
         if pt.is_null() {
             return;
@@ -4470,8 +4402,7 @@ unsafe fn eval_list(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut e
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn func_equal(tv1: *mut typval_T, tv2: *mut typval_T, ic: bool) -> bool {
+pub unsafe fn func_equal(tv1: *mut typval_T, tv2: *mut typval_T, ic: bool) -> bool {
     unsafe {
         let mut s1 = if (*tv1).v_type == VarType::VAR_FUNC {
             (*tv1).vval.v_string
@@ -4542,8 +4473,7 @@ pub unsafe extern "C" fn func_equal(tv1: *mut typval_T, tv2: *mut typval_T, ic: 
 }
 
 /// Get next (unique) copy ID.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_copyID() -> c_int {
+pub unsafe fn get_copyID() -> c_int {
     unsafe {
         CURRENT_COPY_ID = CURRENT_COPY_ID.wrapping_add(COPYID_INC);
         CURRENT_COPY_ID
@@ -4551,8 +4481,7 @@ pub unsafe extern "C" fn get_copyID() -> c_int {
 }
 
 /// Do garbage collection for lists and dicts.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn garbage_collect(testing: bool) -> bool {
+pub unsafe fn garbage_collect(testing: bool) -> bool {
     unsafe {
         let mut abort = false;
 
@@ -4847,8 +4776,7 @@ unsafe fn free_unref_items(copyID: c_int) -> c_int {
 }
 
 /// Mark all lists and dicts referenced through hashtab "ht" with "copyID".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_ref_in_ht(
+pub unsafe fn set_ref_in_ht(
     ht: *mut hashtab_T,
     copyID: c_int,
     list_stack: *mut *mut list_stack_T,
@@ -4893,8 +4821,7 @@ pub unsafe extern "C" fn set_ref_in_ht(
 }
 
 /// Mark all lists and dicts referenced through list "l" with "copyID".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_ref_in_list_items(
+pub unsafe fn set_ref_in_list_items(
     l: *mut list_T,
     copyID: c_int,
     ht_stack: *mut *mut ht_stack_T,
@@ -5024,8 +4951,7 @@ unsafe fn set_ref_in_item_partial(
 }
 
 /// Mark all lists and dicts referenced through typval "tv" with "copyID".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_ref_in_item(
+pub unsafe fn set_ref_in_item(
     tv: *mut typval_T,
     copyID: c_int,
     ht_stack: *mut *mut ht_stack_T,
@@ -5225,8 +5151,7 @@ unsafe fn eval_lit_dict(
 }
 
 /// Convert the string to a floating point number.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn string2float(text: *const c_char, ret_value: *mut float_T) -> usize {
+pub unsafe fn string2float(text: *const c_char, ret_value: *mut float_T) -> usize {
     unsafe {
         let b0 = (*text as u8).to_ascii_lowercase();
         let b1 = if b0 != 0 {
@@ -5293,8 +5218,7 @@ unsafe fn eval_env_var(arg: *mut *mut c_char, rettv: *mut typval_T, evaluate: c_
 }
 
 /// Builds a process argument vector from a Vimscript object (typval_T).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_to_argv(
+pub unsafe fn tv_to_argv(
     cmd_tv: *mut typval_T,
     cmd: *mut *const c_char,
     executable: *mut bool,
@@ -5487,34 +5411,20 @@ unsafe fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: *mut typval_
 }
 
 /// f_system - the Vimscript system() function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_system(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_system(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         get_system_output_as_rettv(argvars, rettv, false);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_systemlist(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_systemlist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         get_system_output_as_rettv(argvars, rettv, true);
     }
 }
 
 /// Get a callback from "arg". It can be a Funcref or a function name.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn callback_from_typval(
-    callback: *mut Callback,
-    arg: *const typval_T,
-) -> bool {
+pub unsafe fn callback_from_typval(callback: *mut Callback, arg: *const typval_T) -> bool {
     unsafe {
         let mut r = OK;
 
@@ -5575,14 +5485,12 @@ pub unsafe extern "C" fn callback_from_typval(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_callback_depth() -> c_int {
+pub unsafe fn get_callback_depth() -> c_int {
     unsafe { callback_depth }
 }
 
 /// @return  whether the callback could be called.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn callback_call(
+pub unsafe fn callback_call(
     callback: *mut Callback,
     argcount_in: c_int,
     argvars_in: *mut typval_T,
@@ -5689,8 +5597,7 @@ pub unsafe extern "C" fn callback_call(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_ref_in_callback(
+pub unsafe fn set_ref_in_callback(
     callback: *mut Callback,
     copyID: c_int,
     ht_stack: *mut *mut ht_stack_T,
@@ -5736,8 +5643,7 @@ unsafe fn set_ref_in_callback_reader(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn find_timer_by_nr(xx: varnumber_T) -> *mut timer_T {
+pub unsafe fn find_timer_by_nr(xx: varnumber_T) -> *mut timer_T {
     unsafe {
         let ptr = map_ref_uint64_t_ptr_t(&raw mut timers, xx as u64, ptr::null_mut());
         if ptr.is_null() {
@@ -5748,8 +5654,7 @@ pub unsafe extern "C" fn find_timer_by_nr(xx: varnumber_T) -> *mut timer_T {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn add_timer_info(rettv: *mut typval_T, timer: *mut timer_T) {
+pub unsafe fn add_timer_info(rettv: *mut typval_T, timer: *mut timer_T) {
     unsafe {
         let list = (*rettv).vval.v_list;
         let dict = tv_dict_alloc();
@@ -5779,8 +5684,7 @@ pub unsafe extern "C" fn add_timer_info(rettv: *mut typval_T, timer: *mut timer_
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn add_timer_info_all(rettv: *mut typval_T) {
+pub unsafe fn add_timer_info_all(rettv: *mut typval_T) {
     unsafe {
         tv_list_alloc_ret(rettv, timers.set.h.size as isize);
         for i in 0..(timers.set.h.n_keys as usize) {
@@ -5794,8 +5698,7 @@ pub unsafe extern "C" fn add_timer_info_all(rettv: *mut typval_T) {
 }
 
 /// Invoked on the main loop.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn timer_due_cb(_tw: *mut TimeWatcher, data: *mut c_void) {
+pub unsafe fn timer_due_cb(_tw: *mut TimeWatcher, data: *mut c_void) {
     unsafe {
         let timer = data.cast::<timer_T>();
         let tt = timer_tail(timer);
@@ -5849,12 +5752,7 @@ pub unsafe extern "C" fn timer_due_cb(_tw: *mut TimeWatcher, data: *mut c_void) 
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn timer_start(
-    timeout: i64,
-    repeat_count: c_int,
-    callback: *const Callback,
-) -> u64 {
+pub unsafe fn timer_start(timeout: i64, repeat_count: c_int, callback: *const Callback) -> u64 {
     unsafe {
         let timer = xmalloc(timer_size()).cast::<timer_T>();
         let tt = timer_tail(timer);
@@ -5894,8 +5792,7 @@ pub unsafe extern "C" fn timer_start(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn timer_stop(timer: *mut timer_T) {
+pub unsafe fn timer_stop(timer: *mut timer_T) {
     unsafe {
         let tt = timer_tail(timer);
         if (*tt).stopped {
@@ -5909,7 +5806,7 @@ pub unsafe extern "C" fn timer_stop(timer: *mut timer_T) {
     }
 }
 
-unsafe extern "C" fn timer_close_cb(_tw: *mut TimeWatcher, data: *mut c_void) {
+unsafe fn timer_close_cb(_tw: *mut TimeWatcher, data: *mut c_void) {
     unsafe {
         let timer = data.cast::<timer_T>();
         let wf = watcher_fields(timer.cast());
@@ -5931,8 +5828,7 @@ unsafe fn timer_decref(timer: *mut timer_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn timer_stop_all() {
+pub unsafe fn timer_stop_all() {
     unsafe {
         for i in 0..(timers.set.h.n_keys as usize) {
             let timer = (*timers.values.add(i)).cast::<timer_T>();
@@ -5941,16 +5837,14 @@ pub unsafe extern "C" fn timer_stop_all() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn timer_teardown() {
+pub unsafe fn timer_teardown() {
     unsafe {
         timer_stop_all();
     }
 }
 
 /// Saves a typval_T as a string.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn save_tv_as_string(
+pub unsafe fn save_tv_as_string(
     tv: *mut typval_T,
     len: *mut isize,
     endnl: bool,
@@ -6065,12 +5959,7 @@ pub unsafe extern "C" fn save_tv_as_string(
 
 /// Convert the specified byte index of line 'lnum' in buffer 'buf' to a
 /// character index.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buf_byteidx_to_charidx(
-    buf: *mut buf_T,
-    mut lnum: linenr_T,
-    byteidx: c_int,
-) -> c_int {
+pub unsafe fn buf_byteidx_to_charidx(buf: *mut buf_T, mut lnum: linenr_T, byteidx: c_int) -> c_int {
     unsafe {
         if buf.is_null() || (*buf).b_ml.ml_mfp.is_null() {
             return -1;
@@ -6104,8 +5993,7 @@ pub unsafe extern "C" fn buf_byteidx_to_charidx(
 
 /// Convert the specified character index of line 'lnum' in buffer 'buf' to a
 /// byte index.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buf_charidx_to_byteidx(
+pub unsafe fn buf_charidx_to_byteidx(
     buf: *mut buf_T,
     mut lnum: linenr_T,
     mut charidx: c_int,
@@ -6135,8 +6023,7 @@ pub unsafe extern "C" fn buf_charidx_to_byteidx(
 }
 
 /// Translate a Vimscript object into a position.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn var2fpos(
+pub unsafe fn var2fpos(
     tv: *const typval_T,
     dollar_lnum: bool,
     ret_fnum: *mut c_int,
@@ -6277,8 +6164,7 @@ pub unsafe extern "C" fn var2fpos(
 }
 
 /// Convert list in "arg" into position "posp" and optional file number "fnump".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn list2fpos(
+pub unsafe fn list2fpos(
     arg: *mut typval_T,
     posp: *mut pos_T,
     fnump: *mut c_int,
@@ -6363,8 +6249,7 @@ pub unsafe extern "C" fn list2fpos(
 }
 
 /// Get the length of an environment variable name.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_env_len(arg: *mut *const c_char) -> c_int {
+pub unsafe fn get_env_len(arg: *mut *const c_char) -> c_int {
     unsafe {
         let len = env_name_len(*arg);
         *arg = (*arg).add(len);
@@ -6373,8 +6258,7 @@ pub unsafe extern "C" fn get_env_len(arg: *mut *const c_char) -> c_int {
 }
 
 /// Get the length of the name of a function or internal variable.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_id_len(arg: *mut *const c_char) -> c_int {
+pub unsafe fn get_id_len(arg: *mut *const c_char) -> c_int {
     unsafe {
         let mut p = *arg;
         while eval_isnamec(c_int::from(*p as u8)) {
@@ -6401,8 +6285,7 @@ pub unsafe extern "C" fn get_id_len(arg: *mut *const c_char) -> c_int {
 }
 
 /// Get the length of the name of a variable or function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_name_len(
+pub unsafe fn get_name_len(
     arg: *mut *const c_char,
     alias: *mut *mut c_char,
     evaluate: bool,
@@ -6462,8 +6345,7 @@ pub unsafe extern "C" fn get_name_len(
 }
 
 /// Find the end of a variable or function name, taking care of magic braces.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn find_name_end(
+pub unsafe fn find_name_end(
     arg: *const c_char,
     expr_start: *mut *const c_char,
     expr_end: *mut *const c_char,
@@ -6613,27 +6495,23 @@ unsafe fn make_expanded_name(
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn eval_isnamec(c: c_int) -> bool {
+pub fn eval_isnamec(c: c_int) -> bool {
     let ch = c as u8 as c_char;
     ascii_isalnum(ch) || ch == b'_' as c_char || ch == b':' as c_char || ch == AUTOLOAD_CHAR
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn eval_isnamec1(c: c_int) -> bool {
+pub fn eval_isnamec1(c: c_int) -> bool {
     let ch = c as u8 as c_char;
     ascii_isalpha(ch) || ch == b'_' as c_char
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn eval_isdictc(c: c_int) -> bool {
+pub fn eval_isdictc(c: c_int) -> bool {
     let ch = c as u8 as c_char;
     ascii_isalnum(ch) || ch == b'_' as c_char
 }
 
 /// Set the v:argv list.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_argv_var(argv: *mut *mut c_char, argc: c_int) {
+pub unsafe fn set_argv_var(argv: *mut *mut c_char, argc: c_int) {
     unsafe {
         let l = tv_list_alloc(argc as isize);
 
@@ -6647,8 +6525,7 @@ pub unsafe extern "C" fn set_argv_var(argv: *mut *mut c_char, argc: c_int) {
 }
 
 /// Check if special v:lua value for calling lua functions.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn is_luafunc(partial: *mut partial_T) -> bool {
+pub unsafe fn is_luafunc(partial: *mut partial_T) -> bool {
     unsafe { partial == get_vim_var_partial(VV_LUA) }
 }
 
@@ -6657,8 +6534,7 @@ unsafe fn tv_is_luafunc(tv: *mut typval_T) -> bool {
 }
 
 /// Skips one character past the end of the name of a v:lua function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn skip_luafunc_name(mut p: *const c_char) -> *const c_char {
+pub unsafe fn skip_luafunc_name(mut p: *const c_char) -> *const c_char {
     unsafe {
         while ascii_isalnum(*p)
             || *p == b'_' as c_char
@@ -6673,8 +6549,7 @@ pub unsafe extern "C" fn skip_luafunc_name(mut p: *const c_char) -> *const c_cha
 }
 
 /// Check the function name after "v:lua."
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_luafunc_name(str_: *const c_char, paren: bool) -> c_int {
+pub unsafe fn check_luafunc_name(str_: *const c_char, paren: bool) -> c_int {
     unsafe {
         let p = skip_luafunc_name(str_);
         if *p != if paren { b'(' as c_char } else { NUL } {
@@ -6686,8 +6561,7 @@ pub unsafe extern "C" fn check_luafunc_name(str_: *const c_char, paren: bool) ->
 
 /// Return the character "str[index]" where "index" is the character index,
 /// including composing characters.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn char_from_string(str_: *const c_char, index: varnumber_T) -> *mut c_char {
+pub unsafe fn char_from_string(str_: *const c_char, index: varnumber_T) -> *mut c_char {
     unsafe {
         let mut nchar = index;
 
@@ -6751,8 +6625,7 @@ unsafe fn char_idx2byte(str_: *const c_char, str_len: usize, idx: varnumber_T) -
 }
 
 /// Return the slice "str[first : last]" using character indexes.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn string_slice(
+pub unsafe fn string_slice(
     str_: *const c_char,
     first: varnumber_T,
     last: varnumber_T,
@@ -6789,8 +6662,7 @@ pub unsafe extern "C" fn string_slice(
 }
 
 /// Handle subscripts, `.name`, funcref calls, and `->method()`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn handle_subscript(
+pub unsafe fn handle_subscript(
     arg: *mut *const c_char,
     rettv: *mut typval_T,
     evalarg: *mut evalarg_T,
@@ -6881,8 +6753,7 @@ pub unsafe extern "C" fn handle_subscript(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_selfdict(rettv: *mut typval_T, selfdict: *mut dict_T) {
+pub unsafe fn set_selfdict(rettv: *mut typval_T, selfdict: *mut dict_T) {
     unsafe {
         if (*rettv).v_type == VarType::VAR_PARTIAL
             && !(*tv_partial(rettv)).pt_auto
@@ -6895,8 +6766,7 @@ pub unsafe extern "C" fn set_selfdict(rettv: *mut typval_T, selfdict: *mut dict_
 }
 
 /// Make a copy of an item.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn var_item_copy(
+pub unsafe fn var_item_copy(
     conv: *const vimconv_T,
     from: *mut typval_T,
     to: *mut typval_T,
@@ -6979,8 +6849,7 @@ pub unsafe extern "C" fn var_item_copy(
 }
 
 /// ":echo expr1 ..." and ":echon expr1 ..."
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_echo(eap: *mut exarg_T) {
+pub unsafe fn ex_echo(eap: *mut exarg_T) {
     unsafe {
         let mut arg = (*eap).arg;
         let mut rettv = tv_initial_value();
@@ -7070,22 +6939,19 @@ pub unsafe extern "C" fn ex_echo(eap: *mut exarg_T) {
 }
 
 /// ":echohl {name}".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_echohl(eap: *mut exarg_T) {
+pub unsafe fn ex_echohl(eap: *mut exarg_T) {
     unsafe {
         echo_hl_id = syn_name2id((*eap).arg);
     }
 }
 
 /// Returns the :echo highlight id.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_echo_hl_id() -> c_int {
+pub unsafe fn get_echo_hl_id() -> c_int {
     unsafe { echo_hl_id }
 }
 
 /// ":execute", ":echomsg", ":echoerr"
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_execute(eap: *mut exarg_T) {
+pub unsafe fn ex_execute(eap: *mut exarg_T) {
     unsafe {
         let mut arg = (*eap).arg;
         let mut rettv = tv_initial_value();
@@ -7171,8 +7037,7 @@ pub unsafe extern "C" fn ex_execute(eap: *mut exarg_T) {
 }
 
 /// Skip over the name of an option variable: "&option", "&g:option" or "&l:option".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn find_option_var_end(
+pub unsafe fn find_option_var_end(
     arg: *mut *const c_char,
     opt_idxp: *mut OptIndex,
     opt_flags: *mut c_int,
@@ -7195,8 +7060,7 @@ pub unsafe extern "C" fn find_option_var_end(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn var_flavour(varname: *mut c_char) -> var_flavour_T {
+pub unsafe fn var_flavour(varname: *mut c_char) -> var_flavour_T {
     unsafe {
         let mut p = varname;
 
@@ -7216,8 +7080,7 @@ pub unsafe extern "C" fn var_flavour(varname: *mut c_char) -> var_flavour_T {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn var_set_global(name: *const c_char, mut vartv: typval_T) {
+pub unsafe fn var_set_global(name: *const c_char, mut vartv: typval_T) {
     unsafe {
         let mut funccall_entry: funccal_entry_T = std::mem::zeroed();
 
@@ -7228,8 +7091,7 @@ pub unsafe extern "C" fn var_set_global(name: *const c_char, mut vartv: typval_T
 }
 
 /// Display script name where an item was last set.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn last_set_msg(script_ctx: sctx_T) {
+pub unsafe fn last_set_msg(script_ctx: sctx_T) {
     unsafe {
         if script_ctx.sc_sid == 0 {
             return;
@@ -7256,8 +7118,7 @@ pub unsafe extern "C" fn last_set_msg(script_ctx: sctx_T) {
 }
 
 /// Perform a substitution on "str" with pattern "pat" and substitute "sub".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_string_sub(
+pub unsafe fn do_string_sub(
     mut str_: *mut c_char,
     mut len: usize,
     pat: *mut c_char,
@@ -7387,8 +7248,7 @@ pub unsafe extern "C" fn do_string_sub(
 }
 
 /// Common code for getting job callbacks for `jobstart`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn common_job_callbacks(
+pub unsafe fn common_job_callbacks(
     vopts: *mut dict_T,
     on_stdout: *mut CallbackReader,
     on_stderr: *mut CallbackReader,
@@ -7420,8 +7280,7 @@ pub unsafe extern "C" fn common_job_callbacks(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn find_job(id: u64, show_error: bool) -> *mut Channel {
+pub unsafe fn find_job(id: u64, show_error: bool) -> *mut Channel {
     unsafe {
         let data = find_channel(id);
         let is_stopped =
@@ -7446,12 +7305,7 @@ pub unsafe extern "C" fn find_job(id: u64, show_error: bool) -> *mut Channel {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn script_host_eval(
-    name: *mut c_char,
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-) {
+pub unsafe fn script_host_eval(name: *mut c_char, argvars: *mut typval_T, rettv: *mut typval_T) {
     unsafe {
         if check_secure() {
             return;
@@ -7468,8 +7322,7 @@ pub unsafe extern "C" fn script_host_eval(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval_call_provider(
+pub unsafe fn eval_call_provider(
     provider: *mut c_char,
     method: *mut c_char,
     arguments: *mut list_T,
@@ -7572,8 +7425,7 @@ pub unsafe extern "C" fn eval_call_provider(
 }
 
 /// Checks if provider for feature `feat` is enabled.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval_has_provider(feat: *const c_char, throw_if_fast: bool) -> bool {
+pub unsafe fn eval_has_provider(feat: *const c_char, throw_if_fast: bool) -> bool {
     unsafe {
         if !strequal(feat, c"clipboard".as_ptr())
             && !strequal(feat, c"python3".as_ptr())
@@ -7663,33 +7515,8 @@ pub unsafe extern "C" fn eval_has_provider(feat: *const c_char, throw_if_fast: b
     }
 }
 
-/// Writes "<sourcing_name>:<sourcing_lnum>" to `buf[bufsize]`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval_fmt_source_name_line(buf: *mut c_char, bufsize: usize) {
-    unsafe {
-        if !exestack.ga_data.is_null() && exestack.ga_len > 0 {
-            let es = exestack
-                .ga_data
-                .cast::<estack_T>()
-                .add((exestack.ga_len - 1) as usize);
-            if !(*es).es_name.is_null() {
-                vim_snprintf!(
-                    buf,
-                    bufsize,
-                    c"%s:%d".as_ptr(),
-                    (*es).es_name,
-                    (*es).es_lnum,
-                );
-                return;
-            }
-        }
-        vim_snprintf!(buf, bufsize, c"?".as_ptr());
-    }
-}
-
 /// Gets the current user-input in prompt buffer `buf`, or NULL if buffer is not a prompt buffer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn prompt_get_input(buf: *mut buf_T) -> *mut c_char {
+pub unsafe fn prompt_get_input(buf: *mut buf_T) -> *mut c_char {
     unsafe {
         if !bt_prompt(buf) {
             return ptr::null_mut();
@@ -7714,8 +7541,7 @@ pub unsafe extern "C" fn prompt_get_input(buf: *mut buf_T) -> *mut c_char {
 }
 
 /// Compare "typ1" and "typ2". Put the result in "typ1".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn typval_compare(
+pub unsafe fn typval_compare(
     typ1: *mut typval_T,
     typ2: *mut typval_T,
     expr_type: exprtype_T,
@@ -7898,8 +7724,7 @@ pub unsafe extern "C" fn typval_compare(
 }
 
 /// Convert any type to a string, never give an error.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn typval_tostring(arg: *mut typval_T, quotes: bool) -> *mut c_char {
+pub unsafe fn typval_tostring(arg: *mut typval_T, quotes: bool) -> *mut c_char {
     unsafe {
         if arg.is_null() {
             return xstrdup(c"(does not exist)".as_ptr());

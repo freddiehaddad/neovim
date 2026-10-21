@@ -317,8 +317,7 @@ static mut DO_TAG_FLAGS: c_int = 0;
 
 use crate::charset::toupper_asc;
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn free_tagfunc_option() {
+pub unsafe fn free_tagfunc_option() {
     unsafe {
         callback_free(&raw mut p_tfu);
     }
@@ -326,14 +325,12 @@ pub unsafe extern "C" fn free_tagfunc_option() {
 
 /// Mark the global `'tagfunc'` callback with `copyID` so that it is not garbage
 /// collected.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_ref_in_tagfunc(copyID: c_int) -> bool {
+pub unsafe fn set_ref_in_tagfunc(copyID: c_int) -> bool {
     unsafe { set_ref_in_callback(&raw mut p_tfu, copyID, ptr::null_mut(), ptr::null_mut()) }
 }
 
 /// Jump to tag; handling of tag commands and tag stack.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_tag(
+pub unsafe fn do_tag(
     eap: *mut exarg_T,
     tag: *mut c_char,
     mut type_: c_int,
@@ -1059,8 +1056,7 @@ unsafe fn add_llist_tags(tag: *mut c_char, num_matches: c_int, matches: *mut *mu
 }
 
 /// Free cached tags.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tag_freematch() {
+pub unsafe fn tag_freematch() {
     unsafe {
         xfree(tagmatchname.cast());
         tagmatchname = ptr::null_mut();
@@ -1068,8 +1064,7 @@ pub unsafe extern "C" fn tag_freematch() {
 }
 
 /// Print the tag stack.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_tags(_eap: *mut exarg_T) {
+pub unsafe fn do_tags(_eap: *mut exarg_T) {
     unsafe {
         let tagstack: *mut taggy_T = (&raw mut (*curwin).w_tagstack).cast::<taggy_T>();
         let tagstackidx = (*curwin).w_tagstackidx;
@@ -2259,8 +2254,7 @@ unsafe fn findtags_copy_matches(
 }
 
 /// `find_tags()` - search for tags in tags files.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn find_tags(
+pub unsafe fn find_tags(
     pat: *mut c_char,
     num_matches: *mut c_int,
     matchesp: *mut *mut *mut c_char,
@@ -2403,7 +2397,7 @@ pub unsafe extern "C" fn find_tags(
     }
 }
 
-unsafe extern "C" fn found_tagfile_cb(
+unsafe fn found_tagfile_cb(
     num_fnames: c_int,
     fnames: *mut *mut c_char,
     all: bool,
@@ -2426,8 +2420,7 @@ unsafe extern "C" fn found_tagfile_cb(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn free_tag_stuff() {
+pub unsafe fn free_tag_stuff() {
     unsafe {
         ga_clear_strings(&raw mut tag_fnames);
         if !curwin.is_null() {
@@ -2439,12 +2432,7 @@ pub unsafe extern "C" fn free_tag_stuff() {
 }
 
 /// Get the next name of a tag file from the tag file list.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_tagfname(
-    tnp: *mut tagname_T,
-    first: c_int,
-    buf: *mut c_char,
-) -> c_int {
+pub unsafe fn get_tagfname(tnp: *mut tagname_T, first: c_int, buf: *mut c_char) -> c_int {
     unsafe {
         let mut fname: *mut c_char;
 
@@ -2556,8 +2544,7 @@ pub unsafe extern "C" fn get_tagfname(
 }
 
 /// Free the contents of a `tagname_T` that was filled by `get_tagfname()`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tagname_free(tnp: *mut tagname_T) {
+pub unsafe fn tagname_free(tnp: *mut tagname_T) {
     unsafe {
         xfree((*tnp).tn_tags.cast());
         vim_findfile_cleanup((*tnp).tn_search_ctx);
@@ -3129,8 +3116,7 @@ unsafe fn find_extra(pp: *mut *mut c_char) -> c_int {
 }
 
 /// Free a single entry in a tag stack.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tagstack_clear_entry(item: *mut taggy_T) {
+pub unsafe fn tagstack_clear_entry(item: *mut taggy_T) {
     unsafe {
         xfree((*item).tagname.cast());
         (*item).tagname = ptr::null_mut();
@@ -3139,8 +3125,7 @@ pub unsafe extern "C" fn tagstack_clear_entry(item: *mut taggy_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn expand_tags(
+pub unsafe fn expand_tags(
     tagnames: bool,
     pat: *mut c_char,
     num_file: *mut c_int,
@@ -3241,12 +3226,7 @@ unsafe fn add_tag_field(
 
 /// Add the tags matching the specified pattern `pat` to the list `list`
 /// as a dictionary. Use `buf_fname` for priority, unless NULL.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_tags(
-    list: *mut list_T,
-    pat: *mut c_char,
-    buf_fname: *mut c_char,
-) -> c_int {
+pub unsafe fn get_tags(list: *mut list_T, pat: *mut c_char, buf_fname: *mut c_char) -> c_int {
     unsafe {
         let mut num_matches: c_int = 0;
         let mut matches: *mut *mut c_char = ptr::null_mut();
@@ -3397,8 +3377,7 @@ unsafe fn get_tag_details(tag: *mut taggy_T, retdict: *mut dict_T) {
 }
 
 /// Return the tag stack entries of the specified window `wp` in dictionary `retdict`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_tagstack(wp: *mut win_T, retdict: *mut dict_T) {
+pub unsafe fn get_tagstack(wp: *mut win_T, retdict: *mut dict_T) {
     unsafe {
         tv_dict_add_nr(
             retdict,
@@ -3535,8 +3514,7 @@ unsafe fn tagstack_set_curidx(wp: *mut win_T, curidx: c_int) {
 }
 
 /// Set the tag stack entries of the specified window.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_tagstack(wp: *mut win_T, d: *const dict_T, action: c_int) -> c_int {
+pub unsafe fn set_tagstack(wp: *mut win_T, d: *const dict_T, action: c_int) -> c_int {
     unsafe {
         if tfu_in_use {
             emsg(gettext(E_CANNOT_MODIFY_TAG_STACK_WITHIN_TAGFUNC.as_ptr()));

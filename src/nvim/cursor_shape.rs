@@ -8,6 +8,7 @@ use crate::charset::getdigits_int;
 use crate::ex_getln::{cmdline_at_end, cmdline_overstrike};
 use crate::globals::*;
 use crate::highlight_group::{syn_check_group, syn_id2attr};
+#[cfg(test)]
 use crate::log::{LOGLVL_WRN, logmsg};
 use crate::memory::Arena;
 use crate::option_vars::*;
@@ -23,13 +24,6 @@ pub const SHAPE_IDX_CI: usize = 5;
 pub const SHAPE_IDX_CR: usize = 6;
 pub const SHAPE_IDX_O: usize = 7;
 pub const SHAPE_IDX_VE: usize = 8;
-pub const SHAPE_IDX_CLINE: usize = 9;
-pub const SHAPE_IDX_STATUS: usize = 10;
-pub const SHAPE_IDX_SDRAG: usize = 11;
-pub const SHAPE_IDX_VSEP: usize = 12;
-pub const SHAPE_IDX_VDRAG: usize = 13;
-pub const SHAPE_IDX_MORE: usize = 14;
-pub const SHAPE_IDX_MOREL: usize = 15;
 pub const SHAPE_IDX_SM: usize = 16;
 pub const SHAPE_IDX_TERM: usize = 17;
 pub const SHAPE_IDX_COUNT: usize = 18;
@@ -91,7 +85,6 @@ const fn entry(
     }
 }
 
-#[unsafe(no_mangle)]
 pub static mut shape_table: [cursorentry_T; SHAPE_IDX_COUNT] = [
     entry(c"normal", 700, 400, 250, c"n", SHAPE_BOTH),
     entry(c"visual", 700, 400, 250, c"v", SHAPE_BOTH),
@@ -144,8 +137,7 @@ unsafe fn clear_shape_table() {
 }
 
 /// Converts `shape_table` into an `Array` of `Dict`s (`mode_style_array`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mode_style_array(arena: *mut Arena) -> Array {
+pub unsafe fn mode_style_array(arena: *mut Arena) -> Array {
     unsafe {
         let mut all = arena_array(arena, SHAPE_IDX_COUNT);
         let tbl = &*std::ptr::addr_of!(shape_table);
@@ -302,8 +294,7 @@ pub unsafe extern "C" fn mode_style_array(arena: *mut Arena) -> Array {
 }
 
 /// Parses the `'guicursor'` option (`parse_shape_opt`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn parse_shape_opt(what: c_int) -> *const c_char {
+pub unsafe fn parse_shape_opt(what: c_int) -> *const c_char {
     unsafe {
         let mut p: *const c_char = std::ptr::null();
         let mut idx: usize = 0;
@@ -468,8 +459,8 @@ pub unsafe extern "C" fn parse_shape_opt(what: c_int) -> *const c_char {
 }
 
 /// Map cursor mode from string to integer (`cursor_mode_str2int`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cursor_mode_str2int(mode: *const c_char) -> c_int {
+#[cfg(test)]
+pub unsafe fn cursor_mode_str2int(mode: *const c_char) -> c_int {
     let mode_bytes = unsafe { CStr::from_ptr(mode).to_bytes() };
     let tbl = unsafe { &*std::ptr::addr_of!(shape_table) };
     for (mode_idx, entry) in tbl.iter().enumerate() {
@@ -493,8 +484,7 @@ pub unsafe extern "C" fn cursor_mode_str2int(mode: *const c_char) -> c_int {
 }
 
 /// Check if a syntax id is used as a cursor style (`cursor_mode_uses_syn_id`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cursor_mode_uses_syn_id(syn_id: c_int) -> bool {
+pub unsafe fn cursor_mode_uses_syn_id(syn_id: c_int) -> bool {
     unsafe {
         if *p_guicursor == 0 {
             return false;
@@ -510,8 +500,7 @@ pub unsafe extern "C" fn cursor_mode_uses_syn_id(syn_id: c_int) -> bool {
 }
 
 /// Return the index into `shape_table[]` for the current mode (`cursor_get_mode_idx`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cursor_get_mode_idx() -> c_int {
+pub unsafe fn cursor_get_mode_idx() -> c_int {
     unsafe {
         if State == MODE_SHOWMATCH {
             SHAPE_IDX_SM as c_int

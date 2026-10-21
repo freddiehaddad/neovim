@@ -261,7 +261,7 @@ struct ListSortItem {
     key: ListSortKey,
 }
 
-type ListSorter = unsafe extern "C" fn(*const c_void, *const c_void) -> c_int;
+type ListSorter = unsafe fn(*const c_void, *const c_void) -> c_int;
 
 #[repr(C)]
 struct Join {
@@ -269,7 +269,6 @@ struct Join {
     tofree: *mut c_char,
 }
 
-#[unsafe(no_mangle)]
 pub static mut tv_in_free_unref_items: bool = false;
 
 static TV_EMPTY_STRING_BYTE: c_char = 0;
@@ -655,8 +654,7 @@ pub unsafe extern "C" fn tv_list_alloc(_len: isize) -> *mut list_T {
 }
 
 /// Initialize a static list with 10 items.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_list_init_static10(sl: *mut staticList10_T) {
+pub unsafe fn tv_list_init_static10(sl: *mut staticList10_T) {
     unsafe {
         const SL_SIZE: usize = 10;
         ptr::write_bytes(sl, 0, 1);
@@ -683,8 +681,7 @@ pub unsafe extern "C" fn tv_list_init_static10(sl: *mut staticList10_T) {
 }
 
 /// Initialize static list with undefined number of elements.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_list_init_static(l: *mut list_T) {
+pub unsafe fn tv_list_init_static(l: *mut list_T) {
     unsafe {
         ptr::write_bytes(l, 0, 1);
         (*l).lv_refcount = DO_NOT_FREE_CNT;
@@ -805,8 +802,7 @@ pub unsafe extern "C" fn tv_list_remove_items(
 }
 
 /// Move items "item" to "item2" from list "l" to the end of the list "tgt_l".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_list_move_items(
+pub unsafe fn tv_list_move_items(
     l: *mut list_T,
     item: *mut listitem_T,
     item2: *mut listitem_T,
@@ -1042,8 +1038,7 @@ pub unsafe extern "C" fn tv_list_copy(
 }
 
 /// Get the list item in "l" with index "n1".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_list_check_range_index_one(
+pub unsafe fn tv_list_check_range_index_one(
     l: *mut list_T,
     n1: *mut c_int,
     quiet: bool,
@@ -1062,8 +1057,7 @@ pub unsafe extern "C" fn tv_list_check_range_index_one(
 }
 
 /// Check that "n2" can be used as the second index in a range of list "l".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_list_check_range_index_two(
+pub unsafe fn tv_list_check_range_index_two(
     l: *mut list_T,
     n1: *mut c_int,
     li1: *const listitem_T,
@@ -1096,8 +1090,7 @@ pub unsafe extern "C" fn tv_list_check_range_index_two(
 }
 
 /// Assign values from list "src" into a range of "dest".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_list_assign_range(
+pub unsafe fn tv_list_assign_range(
     dest: *mut list_T,
     src: *mut list_T,
     idx1_arg: c_int,
@@ -1166,8 +1159,7 @@ pub unsafe extern "C" fn tv_list_assign_range(
 }
 
 /// Flatten up to "maxitems" in "list", starting at "first" to depth "maxdepth".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_list_flatten(
+pub unsafe fn tv_list_flatten(
     list: *mut list_T,
     first: *mut listitem_T,
     maxitems: i64,
@@ -1363,8 +1355,7 @@ unsafe fn tv_list_slice(ol: *mut list_T, mut n1: varnumber_T, n2: varnumber_T) -
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_list_slice_or_index(
+pub unsafe fn tv_list_slice_or_index(
     _list: *mut list_T,
     range: bool,
     n1_arg: varnumber_T,
@@ -1511,8 +1502,7 @@ pub unsafe extern "C" fn tv_list_join(
 }
 
 /// "join()" function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_join(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_join(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if (*argvars).v_type != VarType::VAR_LIST {
             emsg(tr(e_listreq.as_ptr()));
@@ -1539,12 +1529,7 @@ pub unsafe extern "C" fn f_join(argvars: *mut typval_T, rettv: *mut typval_T, _f
 }
 
 /// "list2str()" function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_list2str(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_list2str(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
         (*rettv).vval.v_string = ptr::null_mut();
@@ -1577,8 +1562,7 @@ pub unsafe extern "C" fn f_list2str(
 }
 
 /// "remove({list})" function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_list_remove(
+pub unsafe fn tv_list_remove(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
     arg_errmsg: *const c_char,
@@ -1779,11 +1763,11 @@ unsafe fn item_compare(s1: *const c_void, s2: *const c_void, keep_zero: bool) ->
     }
 }
 
-unsafe extern "C" fn item_compare_keeping_zero(s1: *const c_void, s2: *const c_void) -> c_int {
+unsafe fn item_compare_keeping_zero(s1: *const c_void, s2: *const c_void) -> c_int {
     unsafe { item_compare(s1, s2, true) }
 }
 
-unsafe extern "C" fn item_compare_not_keeping_zero(s1: *const c_void, s2: *const c_void) -> c_int {
+unsafe fn item_compare_not_keeping_zero(s1: *const c_void, s2: *const c_void) -> c_int {
     unsafe { item_compare(s1, s2, false) }
 }
 
@@ -1851,11 +1835,11 @@ unsafe fn item_compare2(s1: *const c_void, s2: *const c_void, keep_zero: bool) -
     }
 }
 
-unsafe extern "C" fn item_compare2_keeping_zero(s1: *const c_void, s2: *const c_void) -> c_int {
+unsafe fn item_compare2_keeping_zero(s1: *const c_void, s2: *const c_void) -> c_int {
     unsafe { item_compare2(s1, s2, true) }
 }
 
-unsafe extern "C" fn item_compare2_not_keeping_zero(s1: *const c_void, s2: *const c_void) -> c_int {
+unsafe fn item_compare2_not_keeping_zero(s1: *const c_void, s2: *const c_void) -> c_int {
     unsafe { item_compare2(s1, s2, false) }
 }
 
@@ -2101,16 +2085,14 @@ unsafe fn do_sort_uniq(argvars: *mut typval_T, rettv: *mut typval_T, sort: bool)
 }
 
 /// "sort({list})" function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_sort(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_sort(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         do_sort_uniq(argvars, rettv, true);
     }
 }
 
 /// "uniq({list})" function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_uniq(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_uniq(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         do_sort_uniq(argvars, rettv, false);
     }
@@ -2148,8 +2130,7 @@ pub unsafe extern "C" fn tv_list_equal(l1: *mut list_T, l2: *mut list_T, ic: boo
 }
 
 /// Reverse list in-place.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_list_reverse(l: *mut list_T) {
+pub unsafe fn tv_list_reverse(l: *mut list_T) {
     unsafe {
         if tv_list_len_inline(l) <= 1 {
             return;
@@ -2315,8 +2296,7 @@ pub unsafe extern "C" fn tv_dict_watcher_add(
 }
 
 /// Check whether two callbacks are equal.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_callback_equal(cb1: *const Callback, cb2: *const Callback) -> bool {
+pub unsafe fn tv_callback_equal(cb1: *const Callback, cb2: *const Callback) -> bool {
     unsafe {
         if (*cb1).cb_type != (*cb2).cb_type {
             return false;
@@ -2362,8 +2342,7 @@ pub unsafe extern "C" fn callback_free(callback: *mut Callback) {
 }
 
 /// Copy a callback into a typval_T.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn callback_put(cb: *mut Callback, tv: *mut typval_T) {
+pub unsafe fn callback_put(cb: *mut Callback, tv: *mut typval_T) {
     unsafe {
         match (*cb).cb_type {
             kCallbackPartial => {
@@ -2387,8 +2366,7 @@ pub unsafe extern "C" fn callback_put(cb: *mut Callback, tv: *mut typval_T) {
 }
 
 /// Copy callback from "src" to "dest", incrementing the refcounts.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn callback_copy(dest: *mut Callback, src: *mut Callback) {
+pub unsafe fn callback_copy(dest: *mut Callback, src: *mut Callback) {
     unsafe {
         (*dest).cb_type = (*src).cb_type;
         match (*src).cb_type {
@@ -2417,8 +2395,7 @@ pub unsafe extern "C" fn callback_copy(dest: *mut Callback, src: *mut Callback) 
 }
 
 /// Generate a string description of a callback.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn callback_to_string(cb: *mut Callback, arena: *mut Arena) -> *mut c_char {
+pub unsafe fn callback_to_string(cb: *mut Callback, arena: *mut Arena) -> *mut c_char {
     unsafe {
         if (*cb).cb_type == kCallbackLua {
             return nlua_funcref_str((*cb).data as isize as LuaRef, arena.cast(), true);
@@ -2537,8 +2514,7 @@ unsafe fn tv_dict_watcher_matches(watcher: *mut DictWatcher, key: *const c_char)
 }
 
 /// Send a change notification to all dictionary watchers that match given key.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_dict_watcher_notify(
+pub unsafe fn tv_dict_watcher_notify(
     dict: *mut dict_T,
     key: *const c_char,
     newtv: *mut typval_T,
@@ -2652,8 +2628,7 @@ pub unsafe extern "C" fn tv_dict_item_free(item: *mut dictitem_T) {
 }
 
 /// Make a copy of a dictionary item.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_dict_item_copy(di: *mut dictitem_T) -> *mut dictitem_T {
+pub unsafe fn tv_dict_item_copy(di: *mut dictitem_T) -> *mut dictitem_T {
     unsafe {
         let key_ptr = (&raw const (*di).di_key).cast::<c_char>();
         let new_di = tv_dict_item_alloc(key_ptr);
@@ -2704,8 +2679,7 @@ pub unsafe extern "C" fn tv_dict_alloc() -> *mut dict_T {
 }
 
 /// Free items contained in a dictionary.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_dict_free_contents(d: *mut dict_T) {
+pub unsafe fn tv_dict_free_contents(d: *mut dict_T) {
     unsafe {
         hash_lock(&raw mut (*d).dv_hashtab);
         debug_assert!((*d).dv_hashtab.ht_locked > 0);
@@ -2736,8 +2710,7 @@ pub unsafe extern "C" fn tv_dict_free_contents(d: *mut dict_T) {
 }
 
 /// Free a dictionary itself, ignoring items it contains.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_dict_free_dict(d: *mut dict_T) {
+pub unsafe fn tv_dict_free_dict(d: *mut dict_T) {
     unsafe {
         if (*d).dv_used_prev.is_null() {
             gc_first_dict = (*d).dv_used_next.cast::<c_void>();
@@ -2803,18 +2776,12 @@ pub unsafe extern "C" fn tv_dict_find(
 }
 
 /// Check if a key is present in a dictionary.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_dict_has_key(d: *const dict_T, key: *const c_char) -> bool {
+pub unsafe fn tv_dict_has_key(d: *const dict_T, key: *const c_char) -> bool {
     unsafe { !tv_dict_find(d, key, -1).is_null() }
 }
 
 /// Get a typval item from a dictionary and copy it into "rettv".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_dict_get_tv(
-    d: *mut dict_T,
-    key: *const c_char,
-    rettv: *mut typval_T,
-) -> c_int {
+pub unsafe fn tv_dict_get_tv(d: *mut dict_T, key: *const c_char, rettv: *mut typval_T) -> c_int {
     unsafe {
         let di = tv_dict_find(d, key, -1);
         if di.is_null() {
@@ -2833,8 +2800,7 @@ pub unsafe extern "C" fn tv_dict_get_number(d: *const dict_T, key: *const c_char
 }
 
 /// Gets a number item from a dictionary, or a given default value.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_dict_get_number_def(
+pub unsafe fn tv_dict_get_number_def(
     d: *const dict_T,
     key: *const c_char,
     def: c_int,
@@ -2849,12 +2815,7 @@ pub unsafe extern "C" fn tv_dict_get_number_def(
 }
 
 /// Gets a bool item from a dictionary, or a given default value.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_dict_get_bool(
-    d: *const dict_T,
-    key: *const c_char,
-    def: c_int,
-) -> varnumber_T {
+pub unsafe fn tv_dict_get_bool(d: *const dict_T, key: *const c_char, def: c_int) -> varnumber_T {
     unsafe {
         let di = tv_dict_find(d, key, -1);
         if di.is_null() {
@@ -2865,8 +2826,7 @@ pub unsafe extern "C" fn tv_dict_get_bool(
 }
 
 /// Converts a dict to an environment.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_dict_to_env(denv: *mut dict_T) -> *mut *mut c_char {
+pub unsafe fn tv_dict_to_env(denv: *mut dict_T) -> *mut *mut c_char {
     unsafe {
         let env_size = tv_dict_len_inline(denv) as usize;
         let mut i: usize = 0;
@@ -2985,8 +2945,7 @@ pub unsafe extern "C" fn tv_dict_get_callback(
 }
 
 /// Check for adding a function to g: or l:.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_dict_wrong_func_name(
+pub unsafe fn tv_dict_wrong_func_name(
     d: *mut dict_T,
     tv: *mut typval_T,
     name: *const c_char,
@@ -3036,8 +2995,7 @@ pub unsafe extern "C" fn tv_dict_add_list(
 }
 
 /// Add a typval entry to dictionary.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_dict_add_tv(
+pub unsafe fn tv_dict_add_tv(
     d: *mut dict_T,
     key: *const c_char,
     key_len: usize,
@@ -3117,8 +3075,7 @@ pub unsafe extern "C" fn tv_dict_add_float(
 }
 
 /// Add a boolean entry to dictionary.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_dict_add_bool(
+pub unsafe fn tv_dict_add_bool(
     d: *mut dict_T,
     key: *const c_char,
     key_len: usize,
@@ -3148,8 +3105,7 @@ pub unsafe extern "C" fn tv_dict_add_str(
 }
 
 /// Add a string entry to dictionary.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_dict_add_str_len(
+pub unsafe fn tv_dict_add_str_len(
     d: *mut dict_T,
     key: *const c_char,
     key_len: usize,
@@ -3189,8 +3145,7 @@ pub unsafe extern "C" fn tv_dict_add_allocated_str(
 }
 
 /// Add a function entry to dictionary.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_dict_add_func(
+pub unsafe fn tv_dict_add_func(
     d: *mut dict_T,
     key: *const c_char,
     key_len: usize,
@@ -3451,8 +3406,7 @@ pub unsafe extern "C" fn tv_dict_set_keys_readonly(dict: *mut dict_T) {
 }
 
 /// Allocate an empty blob.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_blob_alloc() -> *mut blob_T {
+pub unsafe fn tv_blob_alloc() -> *mut blob_T {
     unsafe {
         let blob = xcalloc(1, size_of::<blob_T>()).cast::<blob_T>();
         ga_init(&raw mut (*blob).bv_ga, 1, 100);
@@ -3461,8 +3415,7 @@ pub unsafe extern "C" fn tv_blob_alloc() -> *mut blob_T {
 }
 
 /// Free a blob. Ignores the reference count.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_blob_free(b: *mut blob_T) {
+pub unsafe fn tv_blob_free(b: *mut blob_T) {
     unsafe {
         ga_clear(&raw mut (*b).bv_ga);
         xfree(b.cast());
@@ -3470,8 +3423,7 @@ pub unsafe extern "C" fn tv_blob_free(b: *mut blob_T) {
 }
 
 /// Unreference a blob.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_blob_unref(b: *mut blob_T) {
+pub unsafe fn tv_blob_unref(b: *mut blob_T) {
     unsafe {
         if !b.is_null() {
             (*b).bv_refcount -= 1;
@@ -3483,8 +3435,7 @@ pub unsafe extern "C" fn tv_blob_unref(b: *mut blob_T) {
 }
 
 /// Check whether two blobs are equal.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_blob_equal(b1: *const blob_T, b2: *const blob_T) -> bool {
+pub unsafe fn tv_blob_equal(b1: *const blob_T, b2: *const blob_T) -> bool {
     unsafe {
         let len1 = tv_blob_len_inline(b1);
         let len2 = tv_blob_len_inline(b2);
@@ -3581,8 +3532,7 @@ unsafe fn tv_blob_index(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_blob_slice_or_index(
+pub unsafe fn tv_blob_slice_or_index(
     blob: *const blob_T,
     is_range: bool,
     n1: varnumber_T,
@@ -3601,12 +3551,7 @@ pub unsafe extern "C" fn tv_blob_slice_or_index(
 }
 
 /// Check if "n1" is a valid index for a blob with length "bloblen".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_blob_check_index(
-    bloblen: c_int,
-    n1: varnumber_T,
-    quiet: bool,
-) -> c_int {
+pub unsafe fn tv_blob_check_index(bloblen: c_int, n1: varnumber_T, quiet: bool) -> c_int {
     unsafe {
         if n1 < 0 || n1 > i64::from(bloblen) {
             if !quiet {
@@ -3619,8 +3564,7 @@ pub unsafe extern "C" fn tv_blob_check_index(
 }
 
 /// Check if "n1"-"n2" is a valid range for a blob with length "bloblen".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_blob_check_range(
+pub unsafe fn tv_blob_check_range(
     bloblen: c_int,
     n1: varnumber_T,
     n2: varnumber_T,
@@ -3638,8 +3582,7 @@ pub unsafe extern "C" fn tv_blob_check_range(
 }
 
 /// Set bytes "n1" to "n2" (inclusive) in "dest" to the value of "src".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_blob_set_range(
+pub unsafe fn tv_blob_set_range(
     dest: *mut blob_T,
     n1: varnumber_T,
     n2: varnumber_T,
@@ -3661,8 +3604,7 @@ pub unsafe extern "C" fn tv_blob_set_range(
 }
 
 /// Store one byte "byte" in blob "blob" at "idx".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_blob_set_append(blob: *mut blob_T, idx: c_int, byte: u8) {
+pub unsafe fn tv_blob_set_append(blob: *mut blob_T, idx: c_int, byte: u8) {
     unsafe {
         let gap = &raw mut (*blob).bv_ga;
         if idx <= (*gap).ga_len {
@@ -3676,8 +3618,7 @@ pub unsafe extern "C" fn tv_blob_set_append(blob: *mut blob_T, idx: c_int, byte:
 }
 
 /// "remove({blob})" function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_blob_remove(
+pub unsafe fn tv_blob_remove(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
     arg_errmsg: *const c_char,
@@ -3748,12 +3689,7 @@ pub unsafe extern "C" fn tv_blob_remove(
 }
 
 /// blob2list() function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_blob2list(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_blob2list(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_list_alloc_ret(rettv, kListLenMayKnow);
 
@@ -3770,12 +3706,7 @@ pub unsafe extern "C" fn f_blob2list(
 }
 
 /// list2blob() function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_list2blob(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_list2blob(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let blob = tv_blob_alloc_ret(rettv);
 
@@ -3820,8 +3751,7 @@ pub unsafe extern "C" fn tv_list_alloc_ret(ret_tv: *mut typval_T, len: isize) ->
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_dict_alloc_lock(lock: VarLockStatus) -> *mut dict_T {
+pub unsafe fn tv_dict_alloc_lock(lock: VarLockStatus) -> *mut dict_T {
     unsafe {
         let d = tv_dict_alloc();
         (*d).dv_lock = lock;
@@ -3886,12 +3816,7 @@ unsafe fn tv_dict2list(argvars: *mut typval_T, rettv: *mut typval_T, what: DictL
 }
 
 /// "items()" function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_items(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_items(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         match (*argvars).v_type {
             VarType::VAR_STRING => tv_string2items(argvars, rettv),
@@ -3909,32 +3834,21 @@ pub unsafe extern "C" fn f_items(
 }
 
 /// "keys()" function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_keys(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_keys(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_dict2list(argvars, rettv, DictListType::Keys);
     }
 }
 
 /// "values(dict)" function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_values(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_values(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_dict2list(argvars, rettv, DictListType::Values);
     }
 }
 
 /// "has_key()" function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_has_key(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_has_key(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if tv_check_for_dict_arg(argvars, 0) == FAIL {
             return;
@@ -3951,8 +3865,7 @@ pub unsafe extern "C" fn f_has_key(
 }
 
 /// "remove({dict})" function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_dict_remove(
+pub unsafe fn tv_dict_remove(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
     arg_errmsg: *const c_char,
@@ -3991,8 +3904,7 @@ pub unsafe extern "C" fn tv_dict_remove(
 }
 
 /// Allocate an empty blob for a return value.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_blob_alloc_ret(ret_tv: *mut typval_T) -> *mut blob_T {
+pub unsafe fn tv_blob_alloc_ret(ret_tv: *mut typval_T) -> *mut blob_T {
     unsafe {
         let b = tv_blob_alloc();
         tv_blob_set_ret_inline(ret_tv, b);
@@ -4001,8 +3913,7 @@ pub unsafe extern "C" fn tv_blob_alloc_ret(ret_tv: *mut typval_T) -> *mut blob_T
 }
 
 /// Copy a blob typval to a different typval.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_blob_copy(from: *mut blob_T, to: *mut typval_T) {
+pub unsafe fn tv_blob_copy(from: *mut blob_T, to: *mut typval_T) {
     unsafe {
         (*to).v_type = VarType::VAR_BLOB;
         (*to).v_lock = VAR_UNLOCKED;
@@ -4451,8 +4362,7 @@ pub unsafe extern "C" fn tv_clear(tv: *mut typval_T) {
 }
 
 /// Free allocated Vimscript object and value stored inside.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_free(tv: *mut typval_T) {
+pub unsafe fn tv_free(tv: *mut typval_T) {
     unsafe {
         if tv.is_null() {
             return;
@@ -4954,13 +4864,11 @@ pub unsafe extern "C" fn tv_get_number_chk(
 }
 
 /// Get the boolean value of a Vimscript object.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_get_bool(tv: *const typval_T) -> varnumber_T {
+pub unsafe fn tv_get_bool(tv: *const typval_T) -> varnumber_T {
     unsafe { tv_get_number_chk(tv, ptr::null_mut()) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_get_bool_chk(tv: *const typval_T, ret_error: *mut bool) -> varnumber_T {
+pub unsafe fn tv_get_bool_chk(tv: *const typval_T, ret_error: *mut bool) -> varnumber_T {
     unsafe { tv_get_number_chk(tv, ret_error) }
 }
 
@@ -4982,8 +4890,7 @@ pub unsafe extern "C" fn tv_get_lnum(tv: *const typval_T) -> linenr_T {
 }
 
 /// Get the line number from Vimscript object.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_get_lnum_buf(tv: *const typval_T, buf: *const buf_T) -> linenr_T {
+pub unsafe fn tv_get_lnum_buf(tv: *const typval_T, buf: *const buf_T) -> linenr_T {
     unsafe {
         if (*tv).v_type == VarType::VAR_STRING
             && !(*tv).vval.v_string.is_null()
@@ -5041,8 +4948,7 @@ pub unsafe extern "C" fn tv_get_float(tv: *const typval_T) -> float_T {
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a string.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_check_for_string_arg(args: *const typval_T, idx: c_int) -> c_int {
+pub unsafe fn tv_check_for_string_arg(args: *const typval_T, idx: c_int) -> c_int {
     unsafe {
         if (*args.offset(idx as isize)).v_type != VarType::VAR_STRING {
             semsg!(tr(E_STRING_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
@@ -5053,11 +4959,7 @@ pub unsafe extern "C" fn tv_check_for_string_arg(args: *const typval_T, idx: c_i
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a non-empty string.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_check_for_nonempty_string_arg(
-    args: *const typval_T,
-    idx: c_int,
-) -> c_int {
+pub unsafe fn tv_check_for_nonempty_string_arg(args: *const typval_T, idx: c_int) -> c_int {
     unsafe {
         if tv_check_for_string_arg(args, idx) == FAIL {
             return FAIL;
@@ -5075,8 +4977,7 @@ pub unsafe extern "C" fn tv_check_for_nonempty_string_arg(
 }
 
 /// Check for an optional string argument at "idx".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_check_for_opt_string_arg(args: *const typval_T, idx: c_int) -> c_int {
+pub unsafe fn tv_check_for_opt_string_arg(args: *const typval_T, idx: c_int) -> c_int {
     unsafe {
         if (*args.offset(idx as isize)).v_type == VarType::VAR_UNKNOWN
             || tv_check_for_string_arg(args, idx) != FAIL
@@ -5089,8 +4990,7 @@ pub unsafe extern "C" fn tv_check_for_opt_string_arg(args: *const typval_T, idx:
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a number.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_check_for_number_arg(args: *const typval_T, idx: c_int) -> c_int {
+pub unsafe fn tv_check_for_number_arg(args: *const typval_T, idx: c_int) -> c_int {
     unsafe {
         if (*args.offset(idx as isize)).v_type != VarType::VAR_NUMBER {
             semsg!(tr(E_NUMBER_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
@@ -5101,8 +5001,7 @@ pub unsafe extern "C" fn tv_check_for_number_arg(args: *const typval_T, idx: c_i
 }
 
 /// Check for an optional number argument at "idx".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_check_for_opt_number_arg(args: *const typval_T, idx: c_int) -> c_int {
+pub unsafe fn tv_check_for_opt_number_arg(args: *const typval_T, idx: c_int) -> c_int {
     unsafe {
         if (*args.offset(idx as isize)).v_type == VarType::VAR_UNKNOWN
             || tv_check_for_number_arg(args, idx) != FAIL
@@ -5115,8 +5014,7 @@ pub unsafe extern "C" fn tv_check_for_opt_number_arg(args: *const typval_T, idx:
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a float or a number.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_check_for_float_or_nr_arg(args: *const typval_T, idx: c_int) -> c_int {
+pub unsafe fn tv_check_for_float_or_nr_arg(args: *const typval_T, idx: c_int) -> c_int {
     unsafe {
         let vt = (*args.offset(idx as isize)).v_type;
         if vt != VarType::VAR_FLOAT && vt != VarType::VAR_NUMBER {
@@ -5131,8 +5029,7 @@ pub unsafe extern "C" fn tv_check_for_float_or_nr_arg(args: *const typval_T, idx
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a bool.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_check_for_bool_arg(args: *const typval_T, idx: c_int) -> c_int {
+pub unsafe fn tv_check_for_bool_arg(args: *const typval_T, idx: c_int) -> c_int {
     unsafe {
         let arg = &*args.offset(idx as isize);
         if arg.v_type != VarType::VAR_BOOL
@@ -5147,8 +5044,7 @@ pub unsafe extern "C" fn tv_check_for_bool_arg(args: *const typval_T, idx: c_int
 }
 
 /// Check for an optional bool argument at "idx".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_check_for_opt_bool_arg(args: *const typval_T, idx: c_int) -> c_int {
+pub unsafe fn tv_check_for_opt_bool_arg(args: *const typval_T, idx: c_int) -> c_int {
     unsafe {
         if (*args.offset(idx as isize)).v_type == VarType::VAR_UNKNOWN {
             return OK;
@@ -5158,8 +5054,7 @@ pub unsafe extern "C" fn tv_check_for_opt_bool_arg(args: *const typval_T, idx: c
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a blob.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_check_for_blob_arg(args: *const typval_T, idx: c_int) -> c_int {
+pub unsafe fn tv_check_for_blob_arg(args: *const typval_T, idx: c_int) -> c_int {
     unsafe {
         if (*args.offset(idx as isize)).v_type != VarType::VAR_BLOB {
             semsg!(tr(E_BLOB_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
@@ -5170,8 +5065,7 @@ pub unsafe extern "C" fn tv_check_for_blob_arg(args: *const typval_T, idx: c_int
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a list.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_check_for_list_arg(args: *const typval_T, idx: c_int) -> c_int {
+pub unsafe fn tv_check_for_list_arg(args: *const typval_T, idx: c_int) -> c_int {
     unsafe {
         if (*args.offset(idx as isize)).v_type != VarType::VAR_LIST {
             semsg!(tr(E_LIST_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
@@ -5182,8 +5076,7 @@ pub unsafe extern "C" fn tv_check_for_list_arg(args: *const typval_T, idx: c_int
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a dict.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_check_for_dict_arg(args: *const typval_T, idx: c_int) -> c_int {
+pub unsafe fn tv_check_for_dict_arg(args: *const typval_T, idx: c_int) -> c_int {
     unsafe {
         if (*args.offset(idx as isize)).v_type != VarType::VAR_DICT {
             semsg!(tr(E_DICT_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
@@ -5194,8 +5087,7 @@ pub unsafe extern "C" fn tv_check_for_dict_arg(args: *const typval_T, idx: c_int
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a non-NULL dict.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_check_for_nonnull_dict_arg(args: *const typval_T, idx: c_int) -> c_int {
+pub unsafe fn tv_check_for_nonnull_dict_arg(args: *const typval_T, idx: c_int) -> c_int {
     unsafe {
         if tv_check_for_dict_arg(args, idx) == FAIL {
             return FAIL;
@@ -5212,8 +5104,7 @@ pub unsafe extern "C" fn tv_check_for_nonnull_dict_arg(args: *const typval_T, id
 }
 
 /// Check for an optional dict argument at "idx".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_check_for_opt_dict_arg(args: *const typval_T, idx: c_int) -> c_int {
+pub unsafe fn tv_check_for_opt_dict_arg(args: *const typval_T, idx: c_int) -> c_int {
     unsafe {
         if (*args.offset(idx as isize)).v_type == VarType::VAR_UNKNOWN
             || tv_check_for_dict_arg(args, idx) != FAIL
@@ -5226,11 +5117,7 @@ pub unsafe extern "C" fn tv_check_for_opt_dict_arg(args: *const typval_T, idx: c
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a string or a number.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_check_for_string_or_number_arg(
-    args: *const typval_T,
-    idx: c_int,
-) -> c_int {
+pub unsafe fn tv_check_for_string_or_number_arg(args: *const typval_T, idx: c_int) -> c_int {
     unsafe {
         let vt = (*args.offset(idx as isize)).v_type;
         if vt != VarType::VAR_STRING && vt != VarType::VAR_NUMBER {
@@ -5245,23 +5132,17 @@ pub unsafe extern "C" fn tv_check_for_string_or_number_arg(
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a buffer number.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_check_for_buffer_arg(args: *const typval_T, idx: c_int) -> c_int {
+pub unsafe fn tv_check_for_buffer_arg(args: *const typval_T, idx: c_int) -> c_int {
     unsafe { tv_check_for_string_or_number_arg(args, idx) }
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a line number.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_check_for_lnum_arg(args: *const typval_T, idx: c_int) -> c_int {
+pub unsafe fn tv_check_for_lnum_arg(args: *const typval_T, idx: c_int) -> c_int {
     unsafe { tv_check_for_string_or_number_arg(args, idx) }
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a string or a list.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_check_for_string_or_list_arg(
-    args: *const typval_T,
-    idx: c_int,
-) -> c_int {
+pub unsafe fn tv_check_for_string_or_list_arg(args: *const typval_T, idx: c_int) -> c_int {
     unsafe {
         let vt = (*args.offset(idx as isize)).v_type;
         if vt != VarType::VAR_STRING && vt != VarType::VAR_LIST {
@@ -5276,11 +5157,7 @@ pub unsafe extern "C" fn tv_check_for_string_or_list_arg(
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a string, a list or a blob.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_check_for_string_or_list_or_blob_arg(
-    args: *const typval_T,
-    idx: c_int,
-) -> c_int {
+pub unsafe fn tv_check_for_string_or_list_or_blob_arg(args: *const typval_T, idx: c_int) -> c_int {
     unsafe {
         let vt = (*args.offset(idx as isize)).v_type;
         if vt != VarType::VAR_STRING && vt != VarType::VAR_LIST && vt != VarType::VAR_BLOB {
@@ -5295,11 +5172,7 @@ pub unsafe extern "C" fn tv_check_for_string_or_list_or_blob_arg(
 }
 
 /// Check for an optional string or list argument at "idx".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_check_for_opt_string_or_list_arg(
-    args: *const typval_T,
-    idx: c_int,
-) -> c_int {
+pub unsafe fn tv_check_for_opt_string_or_list_arg(args: *const typval_T, idx: c_int) -> c_int {
     unsafe {
         if (*args.offset(idx as isize)).v_type == VarType::VAR_UNKNOWN
             || tv_check_for_string_or_list_arg(args, idx) != FAIL
@@ -5312,11 +5185,7 @@ pub unsafe extern "C" fn tv_check_for_opt_string_or_list_arg(
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a string or a function reference.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_check_for_string_or_func_arg(
-    args: *const typval_T,
-    idx: c_int,
-) -> c_int {
+pub unsafe fn tv_check_for_string_or_func_arg(args: *const typval_T, idx: c_int) -> c_int {
     unsafe {
         let vt = (*args.offset(idx as isize)).v_type;
         if vt != VarType::VAR_PARTIAL && vt != VarType::VAR_FUNC && vt != VarType::VAR_STRING {
@@ -5331,8 +5200,7 @@ pub unsafe extern "C" fn tv_check_for_string_or_func_arg(
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a list or a blob.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_check_for_list_or_blob_arg(args: *const typval_T, idx: c_int) -> c_int {
+pub unsafe fn tv_check_for_list_or_blob_arg(args: *const typval_T, idx: c_int) -> c_int {
     unsafe {
         let vt = (*args.offset(idx as isize)).v_type;
         if vt != VarType::VAR_LIST && vt != VarType::VAR_BLOB {
@@ -5428,8 +5296,7 @@ pub unsafe extern "C" fn tv_get_string_buf(tv: *const typval_T, buf: *mut c_char
 }
 
 /// Return true when "tv" is not falsy.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv2bool(tv: *const typval_T) -> bool {
+pub unsafe fn tv2bool(tv: *const typval_T) -> bool {
     unsafe {
         match (*tv).v_type {
             VarType::VAR_NUMBER => (*tv).vval.v_number != 0,
@@ -5453,8 +5320,7 @@ pub unsafe extern "C" fn tv2bool(tv: *const typval_T) -> bool {
 }
 
 /// Check that repeating "slen" items "n" times does not overflow int.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_repeat_count(slen: varnumber_T, n: varnumber_T) -> c_int {
+pub unsafe fn check_repeat_count(slen: varnumber_T, n: varnumber_T) -> c_int {
     unsafe {
         if n <= i64::from(c_int::MAX) / slen {
             return OK;

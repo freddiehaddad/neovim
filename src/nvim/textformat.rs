@@ -133,8 +133,7 @@ unsafe fn whitechar(cc: c_int) -> bool {
 }
 
 /// Return true if format option `x` is in effect (`has_format_option`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn has_format_option(x: c_int) -> bool {
+pub unsafe fn has_format_option(x: c_int) -> bool {
     unsafe {
         if p_paste != 0 {
             return false;
@@ -144,8 +143,7 @@ pub unsafe extern "C" fn has_format_option(x: c_int) -> bool {
 }
 
 /// Format text at the current insert position (`internal_format`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn internal_format(
+pub unsafe fn internal_format(
     textwidth: c_int,
     mut second_indent: c_int,
     flags: c_int,
@@ -658,8 +656,7 @@ unsafe fn paragraph_start(lnum: linenr_T) -> bool {
 }
 
 /// Auto-format from the current line until the end of the paragraph (`auto_format`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn auto_format(trailblank: bool, prev_line: bool) {
+pub unsafe fn auto_format(trailblank: bool, prev_line: bool) {
     unsafe {
         if !has_format_option(kFoAuto) {
             return;
@@ -738,8 +735,7 @@ pub unsafe extern "C" fn auto_format(trailblank: bool, prev_line: bool) {
 }
 
 /// Delete extra space added to continue a paragraph for auto-formatting (`check_auto_format`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_auto_format(end_insert: bool) {
+pub unsafe fn check_auto_format(end_insert: bool) {
     unsafe {
         if !did_add_space {
             return;
@@ -764,8 +760,7 @@ pub unsafe extern "C" fn check_auto_format(end_insert: bool) {
 }
 
 /// Find out textwidth to be used for formatting (`comp_textwidth`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn comp_textwidth(ff: bool) -> c_int {
+pub unsafe fn comp_textwidth(ff: bool) -> c_int {
     unsafe {
         let mut textwidth = (*curbuf).b_p_tw as c_int;
         if textwidth == 0 && (*curbuf).b_p_wm != 0 {
@@ -786,8 +781,7 @@ pub unsafe extern "C" fn comp_textwidth(ff: bool) -> c_int {
 }
 
 /// Implementation of the format operator `gq` (`op_format`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn op_format(oap: *mut oparg_T, keep_cursor: bool) {
+pub unsafe fn op_format(oap: *mut oparg_T, keep_cursor: bool) {
     unsafe {
         let mut old_line_count = (*curbuf).b_ml.ml_line_count;
 
@@ -846,8 +840,7 @@ pub unsafe extern "C" fn op_format(oap: *mut oparg_T, keep_cursor: bool) {
 }
 
 /// Implementation of the format operator `gq` for when using `'formatexpr'` (`op_formatexpr`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn op_formatexpr(oap: *mut oparg_T) {
+pub unsafe fn op_formatexpr(oap: *mut oparg_T) {
     unsafe {
         if (*oap).is_VIsual {
             redraw_curbuf_later(UPD_INVERTED);
@@ -860,8 +853,7 @@ pub unsafe extern "C" fn op_formatexpr(oap: *mut oparg_T) {
 }
 
 /// Evaluate `'formatexpr'` (`fex_format`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn fex_format(lnum: linenr_T, count: c_long, c: c_int) -> c_int {
+pub unsafe fn fex_format(lnum: linenr_T, count: c_long, c: c_int) -> c_int {
     unsafe {
         let use_sandbox = was_set_insecurely(curwin, kOptFormatexpr, OPT_LOCAL) != 0;
         let save_sctx = current_sctx;
@@ -882,8 +874,7 @@ pub unsafe extern "C" fn fex_format(lnum: linenr_T, count: c_long, c: c_int) -> 
 }
 
 /// Format `line_count` lines starting at the cursor position (`format_lines`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn format_lines(line_count: linenr_T, avoid_fex: bool) {
+pub unsafe fn format_lines(line_count: linenr_T, avoid_fex: bool) {
     unsafe {
         let mut is_not_par: bool;
         let mut next_is_not_par: bool;

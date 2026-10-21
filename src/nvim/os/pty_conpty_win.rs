@@ -119,13 +119,10 @@ pub type ResizePseudoConsoleFn = Option<unsafe extern "system" fn(HPCON, COORD) 
 pub type ClosePseudoConsoleFn = Option<unsafe extern "system" fn(HPCON)>;
 
 #[cfg(windows)]
-#[unsafe(no_mangle)]
 pub static mut pCreatePseudoConsole: CreatePseudoConsoleFn = None;
 #[cfg(windows)]
-#[unsafe(no_mangle)]
 pub static mut pResizePseudoConsole: ResizePseudoConsoleFn = None;
 #[cfg(windows)]
-#[unsafe(no_mangle)]
 pub static mut pClosePseudoConsole: ClosePseudoConsoleFn = None;
 
 #[cfg(windows)]
@@ -182,8 +179,7 @@ use crate::extmark::{kFalse, kNone, kTrue};
 use crate::os::os_win_console::{CloseHandle, GetLastError};
 
 #[cfg(windows)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_has_conpty_working() -> bool {
+pub unsafe fn os_has_conpty_working() -> bool {
     unsafe {
         if HAS_CONPTY == kNone {
             HAS_CONPTY = os_dyn_conpty_init();
@@ -193,8 +189,7 @@ pub unsafe extern "C" fn os_has_conpty_working() -> bool {
 }
 
 #[cfg(windows)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_dyn_conpty_init() -> TriState {
+pub unsafe fn os_dyn_conpty_init() -> TriState {
     unsafe {
         let mut conpty_lib = UvLib {
             _opaque: [std::ptr::null_mut(); 4],
@@ -252,8 +247,7 @@ pub unsafe extern "C" fn os_dyn_conpty_init() -> TriState {
 }
 
 #[cfg(windows)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_conpty_init(
+pub unsafe fn os_conpty_init(
     in_name: *mut *mut c_char,
     out_name: *mut *mut c_char,
     width: u16,
@@ -388,8 +382,7 @@ pub unsafe extern "C" fn os_conpty_init(
 }
 
 #[cfg(windows)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_conpty_spawn(
+pub unsafe fn os_conpty_spawn(
     conpty_object: *mut conpty_t,
     proc_handle: *mut HANDLE,
     name: *mut u16,
@@ -425,8 +418,7 @@ pub unsafe extern "C" fn os_conpty_spawn(
 }
 
 #[cfg(windows)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_conpty_set_size(conpty_object: *mut conpty_t, width: u16, height: u16) {
+pub unsafe fn os_conpty_set_size(conpty_object: *mut conpty_t, width: u16, height: u16) {
     assert!(width <= i16::MAX as u16);
     assert!(height <= i16::MAX as u16);
     unsafe {
@@ -449,8 +441,7 @@ pub unsafe extern "C" fn os_conpty_set_size(conpty_object: *mut conpty_t, width:
 }
 
 #[cfg(windows)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_conpty_free(data: *mut c_void) {
+pub unsafe fn os_conpty_free(data: *mut c_void) {
     unsafe {
         let conpty_object = data.cast::<conpty_t>();
         if !conpty_object.is_null() {

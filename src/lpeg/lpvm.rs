@@ -35,8 +35,7 @@ unsafe fn getoffset(p: *const Instruction) -> isize {
     unsafe { (*p.add(1)).offset as isize }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn charinset(i: *const Instruction, buff: *const byte, mut c: uint) -> c_int {
+pub unsafe fn charinset(i: *const Instruction, buff: *const byte, mut c: uint) -> c_int {
     unsafe {
         c = c.wrapping_sub(uint::from((*i).i.aux2.set.offset));
         if c >= (uint::from((*i).i.aux2.set.size) * (size_of::<Instruction>() as uint) * 8) {

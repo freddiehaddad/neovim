@@ -11,8 +11,8 @@ mod tests {
     use std::ffi::c_char;
 
     use crate::mpack::conv::{
-        mpack_pack_boolean, mpack_pack_number, mpack_pack_sint, mpack_pack_uint,
-        mpack_unpack_boolean, mpack_unpack_number, mpack_unpack_sint, mpack_unpack_uint,
+        mpack_pack_boolean, mpack_pack_number, mpack_unpack_boolean, mpack_unpack_number,
+        mpack_unpack_sint, mpack_unpack_uint,
     };
     use crate::mpack::mpack_core::{
         MPACK_OK, mpack_read, mpack_tokbuf_init, mpack_tokbuf_t, mpack_token_t, mpack_write,
@@ -22,14 +22,15 @@ mod tests {
     fn test_mpack_conv_and_core_roundtrip() {
         let tb = mpack_pack_boolean(1);
         assert!(mpack_unpack_boolean(tb));
+        assert!(!mpack_unpack_boolean(mpack_pack_boolean(0)));
 
-        let tu = mpack_pack_uint(0x1234_5678_9abc_def0);
-        assert_eq!(mpack_unpack_uint(tu), 0x1234_5678_9abc_def0);
+        let tu = mpack_pack_number(0x1_0000_0005u64 as f64);
+        assert_eq!(mpack_unpack_uint(tu), 0x1_0000_0005);
 
-        let ts = mpack_pack_sint(-42);
+        let ts = mpack_pack_number(-123456.0);
         let mut ts_with_len = ts;
         ts_with_len.length = 8;
-        assert_eq!(mpack_unpack_sint(ts_with_len), -42);
+        assert_eq!(mpack_unpack_sint(ts_with_len), -123456);
 
         let tn = mpack_pack_number(-1234.5);
         assert!((mpack_unpack_number(tn) - (-1234.5)).abs() < f64::EPSILON);
@@ -52,7 +53,7 @@ mod tests {
                 mpack_read(&mut rtb, &mut rptr, &mut rlen, &mut out_tok),
                 MPACK_OK
             );
-            assert_eq!(mpack_unpack_uint(out_tok), 0x1234_5678_9abc_def0);
+            assert_eq!(mpack_unpack_uint(out_tok), 0x1_0000_0005);
         }
     }
 }

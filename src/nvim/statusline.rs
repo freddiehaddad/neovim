@@ -214,8 +214,7 @@ pub struct statuscol_T {
 static mut did_show_ext_ruler: bool = false;
 
 /// Redraw the status line of window `wp`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn win_redr_status(wp: *mut win_T) {
+pub unsafe fn win_redr_status(wp: *mut win_T) {
     unsafe {
         let is_stl_global = global_stl_height() > 0;
         static mut busy: bool = false;
@@ -260,8 +259,7 @@ pub unsafe extern "C" fn win_redr_status(wp: *mut win_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_trans_bufname(buf: *mut buf_T) {
+pub unsafe fn get_trans_bufname(buf: *mut buf_T) {
     unsafe {
         let name_buff = (&raw mut NameBuff).cast::<c_char>();
         let sp = buf_spname(buf);
@@ -276,8 +274,7 @@ pub unsafe extern "C" fn get_trans_bufname(buf: *mut buf_T) {
 
 /// Return true if the status line of window `wp` is connected to the status
 /// line of the window right of it. If not, then it's a vertical separator.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn stl_connected(wp: *mut win_T) -> bool {
+pub unsafe fn stl_connected(wp: *mut win_T) -> bool {
     unsafe {
         let mut fr = (*wp).w_frame;
         while !(*fr).fr_parent.is_null() {
@@ -295,11 +292,7 @@ pub unsafe extern "C" fn stl_connected(wp: *mut win_T) -> bool {
 }
 
 /// Clear status line, window bar or tab page line click definition table.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn stl_clear_click_defs(
-    click_defs: *mut StlClickDefinition,
-    click_defs_size: usize,
-) {
+pub unsafe fn stl_clear_click_defs(click_defs: *mut StlClickDefinition, click_defs_size: usize) {
     unsafe {
         if !click_defs.is_null() {
             for i in 0..click_defs_size {
@@ -313,8 +306,7 @@ pub unsafe extern "C" fn stl_clear_click_defs(
 }
 
 /// Allocate or resize the click definitions array if needed.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn stl_alloc_click_defs(
+pub unsafe fn stl_alloc_click_defs(
     mut cdp: *mut StlClickDefinition,
     width: c_int,
     size: *mut usize,
@@ -330,8 +322,7 @@ pub unsafe extern "C" fn stl_alloc_click_defs(
 }
 
 /// Fill the click definitions array if needed.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn stl_fill_click_defs(
+pub unsafe fn stl_fill_click_defs(
     click_defs: *mut StlClickDefinition,
     click_recs: *mut StlClickRecord,
     mut buf: *const c_char,
@@ -712,8 +703,7 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn win_redr_winbar(wp: *mut win_T) {
+pub unsafe fn win_redr_winbar(wp: *mut win_T) {
     unsafe {
         static mut entered: bool = false;
 
@@ -731,8 +721,7 @@ pub unsafe extern "C" fn win_redr_winbar(wp: *mut win_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn redraw_ruler() {
+pub unsafe fn redraw_ruler() {
     unsafe {
         static mut did_show_ruler: bool = false;
         let wp = if !(*curwin).w_config.hide && (*curwin).w_status_height == 0 {
@@ -768,8 +757,7 @@ pub unsafe extern "C" fn redraw_ruler() {
 }
 
 /// Get the character to use in a status line. Get its attributes in `*group`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn fillchar_status(group: *mut hlf_T, wp: *mut win_T) -> schar_T {
+pub unsafe fn fillchar_status(group: *mut hlf_T, wp: *mut win_T) -> schar_T {
     unsafe {
         if wp == curwin {
             *group = HLF_S;
@@ -893,8 +881,7 @@ unsafe fn ui_ext_tabline_update() {
 }
 
 /// Draw the tab pages line at the top of the Vim window.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn draw_tabline() {
+pub unsafe fn draw_tabline() {
     unsafe {
         let attr_fill = hl_attr(HLF_TPF);
         let attr_nosel = hl_combine_attr(attr_fill, hl_attr(HLF_TP));
@@ -1077,8 +1064,7 @@ pub unsafe extern "C" fn draw_tabline() {
 }
 
 /// Build the `'statuscolumn'` string for line `lnum`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn build_statuscol_str(
+pub unsafe fn build_statuscol_str(
     wp: *mut win_T,
     lnum: linenr_T,
     relnum: c_int,

@@ -14,9 +14,8 @@ const UV_HANDLE: c_int = 5;
 pub type SignalWatcher = c_void;
 
 pub type signal_cb =
-    Option<unsafe extern "C" fn(watcher: *mut SignalWatcher, signum: c_int, data: *mut c_void)>;
-pub type signal_close_cb =
-    Option<unsafe extern "C" fn(watcher: *mut SignalWatcher, data: *mut c_void)>;
+    Option<unsafe fn(watcher: *mut SignalWatcher, signum: c_int, data: *mut c_void)>;
+pub type signal_close_cb = Option<unsafe fn(watcher: *mut SignalWatcher, data: *mut c_void)>;
 
 #[repr(C)]
 struct SignalWatcherFields {
@@ -46,8 +45,7 @@ unsafe fn watcher_signum(watcher: *mut SignalWatcher) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn signal_watcher_init(
+pub unsafe fn signal_watcher_init(
     loop_: *mut Loop,
     watcher: *mut SignalWatcher,
     data: *mut c_void,
@@ -62,12 +60,7 @@ pub unsafe extern "C" fn signal_watcher_init(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn signal_watcher_start(
-    watcher: *mut SignalWatcher,
-    cb: signal_cb,
-    signum: c_int,
-) {
+pub unsafe fn signal_watcher_start(watcher: *mut SignalWatcher, cb: signal_cb, signum: c_int) {
     unsafe {
         let fields = watcher_fields(watcher);
         (*fields).cb = cb;
@@ -75,15 +68,13 @@ pub unsafe extern "C" fn signal_watcher_start(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn signal_watcher_stop(watcher: *mut SignalWatcher) {
+pub unsafe fn signal_watcher_stop(watcher: *mut SignalWatcher) {
     unsafe {
         uv_signal_stop(watcher.cast());
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn signal_watcher_close(watcher: *mut SignalWatcher, cb: signal_close_cb) {
+pub unsafe fn signal_watcher_close(watcher: *mut SignalWatcher, cb: signal_close_cb) {
     unsafe {
         let fields = watcher_fields(watcher);
         (*fields).close_cb = cb;

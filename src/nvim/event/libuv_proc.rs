@@ -172,8 +172,7 @@ unsafe fn libuv_proc_stdio(
 }
 
 /// @returns zero on success, or negative error code
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn libuv_proc_spawn(uvproc: *mut LibuvProc) -> c_int {
+pub unsafe fn libuv_proc_spawn(uvproc: *mut LibuvProc) -> c_int {
     unsafe {
         let proc_: *mut Proc = uvproc.cast();
         let hdr = proc_header(proc_);
@@ -286,8 +285,7 @@ pub unsafe extern "C" fn libuv_proc_spawn(uvproc: *mut LibuvProc) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn libuv_proc_close(uvproc: *mut LibuvProc) {
+pub unsafe fn libuv_proc_close(uvproc: *mut LibuvProc) {
     unsafe {
         uv_close(libuv_proc_uv(uvproc.cast()), Some(close_cb));
     }

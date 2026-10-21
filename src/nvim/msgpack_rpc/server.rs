@@ -149,8 +149,7 @@ unsafe fn set_vservername(srvs: *const garray_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn server_teardown() {
+pub unsafe fn server_teardown() {
     unsafe {
         let data = watchers.ga_data.cast::<*mut SocketWatcher>();
         for i in 0..watchers.ga_len {
@@ -161,8 +160,7 @@ pub unsafe extern "C" fn server_teardown() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn server_address_new(name: *const c_char) -> *mut c_char {
+pub unsafe fn server_address_new(name: *const c_char) -> *mut c_char {
     unsafe {
         let mut fmt: [c_char; ADDRESS_MAX_SIZE] = [0; ADDRESS_MAX_SIZE];
         let cur_count = server_addr_count;
@@ -223,8 +221,7 @@ pub unsafe extern "C" fn server_address_new(name: *const c_char) -> *mut c_char 
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn server_owns_pipe_address(address: *const c_char) -> bool {
+pub unsafe fn server_owns_pipe_address(address: *const c_char) -> bool {
     unsafe {
         let mut result = false;
         let path = fix_fname(address);
@@ -243,8 +240,7 @@ pub unsafe extern "C" fn server_owns_pipe_address(address: *const c_char) -> boo
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn server_start(addr: *const c_char) -> c_int {
+pub unsafe fn server_start(addr: *const c_char) -> c_int {
     unsafe {
         if addr.is_null() || *addr == 0 {
             logmsg!(
@@ -326,8 +322,7 @@ pub unsafe extern "C" fn server_start(addr: *const c_char) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn server_stop(endpoint: *const c_char, keep_vservername: bool) -> bool {
+pub unsafe fn server_stop(endpoint: *const c_char, keep_vservername: bool) -> bool {
     unsafe {
         let mut watcher: *mut SocketWatcher = ptr::null_mut();
         let mut watcher_found = false;
@@ -375,8 +370,7 @@ pub unsafe extern "C" fn server_stop(endpoint: *const c_char, keep_vservername: 
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn server_address_list(size: *mut usize) -> *mut *mut c_char {
+pub unsafe fn server_address_list(size: *mut usize) -> *mut *mut c_char {
     unsafe {
         *size = watchers.ga_len as usize;
         if *size == 0 {
@@ -397,7 +391,7 @@ pub unsafe extern "C" fn server_address_list(size: *mut usize) -> *mut *mut c_ch
     }
 }
 
-unsafe extern "C" fn connection_cb(watcher: *mut SocketWatcher, result: c_int, _data: *mut c_void) {
+unsafe fn connection_cb(watcher: *mut SocketWatcher, result: c_int, _data: *mut c_void) {
     unsafe {
         if result != 0 {
             logmsg!(
@@ -416,7 +410,7 @@ unsafe extern "C" fn connection_cb(watcher: *mut SocketWatcher, result: c_int, _
     }
 }
 
-unsafe extern "C" fn free_server(watcher: *mut SocketWatcher, _data: *mut c_void) {
+unsafe fn free_server(watcher: *mut SocketWatcher, _data: *mut c_void) {
     unsafe {
         xfree(watcher.cast());
     }

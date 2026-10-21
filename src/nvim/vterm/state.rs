@@ -296,7 +296,12 @@ unsafe fn set_tmp_selection_recvpartial(state: *mut VTermStateFull, val: u32) {
     }
 }
 
-unsafe fn putglyph(state: *mut VTermStateFull, schar: schar_T, width: c_int, pos: VTermPos) {
+unsafe extern "C" fn putglyph(
+    state: *mut VTermStateFull,
+    schar: schar_T,
+    width: c_int,
+    pos: VTermPos,
+) {
     unsafe {
         let lineinfo = (*state).lineinfo.cast::<VTermLineInfo>();
         let li = *lineinfo.add(pos.row as usize);
@@ -338,7 +343,7 @@ unsafe fn updatecursor(state: *mut VTermStateFull, oldpos: *const VTermPos, canc
     }
 }
 
-unsafe fn erase(state: *mut VTermStateFull, rect: VTermRect, selective: c_int) {
+unsafe extern "C" fn erase(state: *mut VTermStateFull, rect: VTermRect, selective: c_int) {
     unsafe {
         if rect.end_col == (*state).cols {
             let lineinfo = (*state).lineinfo.cast::<VTermLineInfo>();
@@ -415,8 +420,7 @@ unsafe fn vterm_state_new(vt: *mut VTerm) -> *mut VTermStateFull {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_state_free(state: *mut VTermStateFull) {
+pub unsafe fn vterm_state_free(state: *mut VTermStateFull) {
     unsafe {
         vterm_allocator_free((*state).vt, (*state).tabstops.cast());
         vterm_allocator_free((*state).vt, (*state).lineinfos[BUFIDX_PRIMARY]);
@@ -2812,8 +2816,7 @@ pub unsafe extern "C" fn vterm_state_set_unrecognised_fallbacks(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_state_set_termprop(
+pub unsafe fn vterm_state_set_termprop(
     state: *mut VTermStateFull,
     prop: VTermProp,
     val: *mut VTermValue,

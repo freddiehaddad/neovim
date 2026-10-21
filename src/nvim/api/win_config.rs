@@ -1327,8 +1327,7 @@ unsafe fn parse_float_bufpos(bufpos: Array, out: *mut lpos_T) -> bool {
 
 // DLLEXPORT void parse_bordertext(Object bordertext, BorderTextType bordertext_type,
 //                                 WinConfig *fconfig, Error *err);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn parse_bordertext(
+pub unsafe fn parse_bordertext(
     bordertext: Object,
     bordertext_type: BorderTextType,
     fconfig: *mut WinConfig,
@@ -1441,12 +1440,7 @@ unsafe fn parse_bordertext_pos(
 }
 
 // DLLEXPORT void parse_border_style(Object style, WinConfig *fconfig, Error *err);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn parse_border_style(
-    style: Object,
-    fconfig: *mut WinConfig,
-    err: *mut Error,
-) {
+pub unsafe fn parse_border_style(style: Object, fconfig: *mut WinConfig, err: *mut Error) {
     unsafe {
         const DEFAULTS_CHARS: [[&str; 8]; 6] = [
             ["╔", "═", "╗", "║", "╝", "═", "╚", "║"],
@@ -1612,8 +1606,7 @@ unsafe fn generate_api_error(wp: *mut win_T, attribute: *const c_char, err: *mut
 
 /// Parses a border style name or custom (comma-separated) style.
 // DLLEXPORT bool parse_winborder(WinConfig *fconfig, char *border_opt, Error *err);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn parse_winborder(
+pub unsafe fn parse_winborder(
     fconfig: *mut WinConfig,
     border_opt: *mut c_char,
     err: *mut Error,

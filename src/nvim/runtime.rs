@@ -114,12 +114,7 @@ pub struct sctx_T {
 }
 use crate::extmark::TriState;
 pub type DoInRuntimepathCB = Option<
-    unsafe extern "C" fn(
-        num_fnames: c_int,
-        fnames: *mut *mut c_char,
-        all: bool,
-        cookie: *mut c_void,
-    ) -> bool,
+    unsafe fn(num_fnames: c_int, fnames: *mut *mut c_char, all: bool, cookie: *mut c_void) -> bool,
 >;
 
 pub const ETYPE_TOP: etype_T = 0;
@@ -130,7 +125,6 @@ pub const ETYPE_MODELINE: etype_T = 4;
 pub const ETYPE_EXCEPT: etype_T = 5;
 pub const ETYPE_ARGS: etype_T = 6;
 pub const ETYPE_ENV: etype_T = 7;
-pub const ETYPE_INTERNAL: etype_T = 8;
 pub const ETYPE_SPELL: etype_T = 9;
 
 pub const ESTACK_NONE: estack_arg_T = 0;
@@ -204,7 +198,6 @@ struct SearchPathItem {
 type RuntimeSearchPath = KVec<SearchPathItem>;
 type CharVec = KVec<*mut c_char>;
 
-#[unsafe(no_mangle)]
 pub static mut exestack: garray_T = garray_T {
     ga_len: 0,
     ga_maxlen: 0,
@@ -213,7 +206,6 @@ pub static mut exestack: garray_T = garray_T {
     ga_data: ptr::null_mut(),
 };
 
-#[unsafe(no_mangle)]
 pub static mut script_items: garray_T = garray_T {
     ga_len: 0,
     ga_maxlen: 0,
@@ -329,8 +321,7 @@ unsafe fn map_put_string_int(map: *mut Map<NvimString, c_int>, key: NvimString, 
 }
 
 /// Initialize the execution stack.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn estack_init() {
+pub unsafe fn estack_init() {
     unsafe {
         ga_grow(&raw mut exestack, 10);
         let entry = (exestack.ga_data as *mut estack_T).add(exestack.ga_len as usize);
@@ -343,12 +334,7 @@ pub unsafe extern "C" fn estack_init() {
 }
 
 /// Add an item to the execution stack.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn estack_push(
-    type_: etype_T,
-    name: *mut c_char,
-    lnum: linenr_T,
-) -> *mut estack_T {
+pub unsafe fn estack_push(type_: etype_T, name: *mut c_char, lnum: linenr_T) -> *mut estack_T {
     unsafe {
         ga_grow(&raw mut exestack, 1);
         let entry = (exestack.ga_data as *mut estack_T).add(exestack.ga_len as usize);
@@ -362,8 +348,7 @@ pub unsafe extern "C" fn estack_push(
 }
 
 /// Add a user function to the execution stack.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn estack_push_ufunc(ufunc: *mut ufunc_T, lnum: linenr_T) {
+pub unsafe fn estack_push_ufunc(ufunc: *mut ufunc_T, lnum: linenr_T) {
     unsafe {
         let name = if !(*ufunc).uf_name_exp.is_null() {
             (*ufunc).uf_name_exp
@@ -378,8 +363,7 @@ pub unsafe extern "C" fn estack_push_ufunc(ufunc: *mut ufunc_T, lnum: linenr_T) 
 }
 
 /// Take an item off of the execution stack.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn estack_pop() {
+pub unsafe fn estack_pop() {
     unsafe {
         if exestack.ga_len > 1 {
             exestack.ga_len -= 1;
@@ -388,8 +372,7 @@ pub unsafe extern "C" fn estack_pop() {
 }
 
 /// Get the current value for <sfile> in allocated memory.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn estack_sfile(which: estack_arg_T) -> *mut c_char {
+pub unsafe fn estack_sfile(which: estack_arg_T) -> *mut c_char {
     unsafe {
         let mut entry = (exestack.ga_data as *const estack_T).add((exestack.ga_len - 1) as usize);
         if which == ESTACK_SFILE && (*entry).es_type != ETYPE_UFUNC {
@@ -507,8 +490,7 @@ unsafe fn stacktrace_push_item(
 }
 
 /// Create the stacktrace from exestack.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn stacktrace_create() -> *mut list_T {
+pub unsafe fn stacktrace_create() -> *mut list_T {
     unsafe {
         let l = tv_list_alloc(exestack.ga_len as isize);
 
@@ -544,12 +526,7 @@ pub unsafe extern "C" fn stacktrace_create() -> *mut list_T {
 }
 
 /// getstacktrace() function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getstacktrace(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_getstacktrace(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let l = stacktrace_create();
         (*rettv).v_type = VarType::VAR_LIST;
@@ -560,8 +537,7 @@ pub unsafe extern "C" fn f_getstacktrace(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn runtime_init() {}
+pub unsafe fn runtime_init() {}
 
 unsafe fn get_runtime_cmd_flags(argp: *mut *mut c_char, where_len: usize) -> c_int {
     unsafe {
@@ -591,8 +567,7 @@ unsafe fn get_runtime_cmd_flags(argp: *mut *mut c_char, where_len: usize) -> c_i
 }
 
 /// ":runtime [where] {name}"
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_runtime(eap: *mut exarg_T) {
+pub unsafe fn ex_runtime(eap: *mut exarg_T) {
     unsafe {
         let mut arg = (*eap).arg;
         let mut flags = if (*eap).forceit != 0 { DIP_ALL } else { 0 };
@@ -604,8 +579,7 @@ pub unsafe extern "C" fn ex_runtime(eap: *mut exarg_T) {
 }
 
 /// Set the completion context for the :runtime command.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_context_in_runtime_cmd(xp: *mut expand_T, mut arg: *const c_char) {
+pub unsafe fn set_context_in_runtime_cmd(xp: *mut expand_T, mut arg: *const c_char) {
     unsafe {
         let mut p = skiptowhite(arg);
         let mut arg_mut = arg as *mut c_char;
@@ -630,7 +604,7 @@ pub unsafe extern "C" fn set_context_in_runtime_cmd(xp: *mut expand_T, mut arg: 
     }
 }
 
-unsafe extern "C" fn source_callback_vim_lua(
+unsafe fn source_callback_vim_lua(
     num_fnames: c_int,
     fnames: *mut *mut c_char,
     all: bool,
@@ -665,7 +639,7 @@ unsafe extern "C" fn source_callback_vim_lua(
     }
 }
 
-unsafe extern "C" fn source_callback(
+unsafe fn source_callback(
     num_fnames: c_int,
     fnames: *mut *mut c_char,
     all: bool,
@@ -697,8 +671,7 @@ unsafe extern "C" fn source_callback(
 
 /// Find the patterns in "name" in all directories in "path" and invoke
 /// "callback(fname, cookie)".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_in_path(
+pub unsafe fn do_in_path(
     path: *const c_char,
     prefix: *const c_char,
     name: *mut c_char,
@@ -967,8 +940,7 @@ unsafe fn do_in_cached_path(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn runtime_inspect(arena: *mut Arena) -> Array {
+pub unsafe fn runtime_inspect(arena: *mut Arena) -> Array {
     unsafe {
         let mut rv = arena_array(arena, runtime_search_path.size);
 
@@ -997,13 +969,7 @@ pub unsafe extern "C" fn runtime_inspect(arena: *mut Arena) -> Array {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn runtime_get_named(
-    lua: bool,
-    pat: Array,
-    all: bool,
-    arena: *mut Arena,
-) -> Array {
+pub unsafe fn runtime_get_named(lua: bool, pat: Array, all: bool, arena: *mut Arena) -> Array {
     unsafe {
         let mut ref_val: c_int = 0;
         let path = runtime_search_path_get_cached(&mut ref_val);
@@ -1021,8 +987,7 @@ pub unsafe extern "C" fn runtime_get_named(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn runtime_get_named_thread(lua: bool, pat: Array, all: bool) -> Array {
+pub unsafe fn runtime_get_named_thread(lua: bool, pat: Array, all: bool) -> Array {
     unsafe {
         let _guard = RUNTIME_SEARCH_PATH_MUTEX
             .lock()
@@ -1093,8 +1058,7 @@ unsafe fn runtime_get_named_common(
 }
 
 /// Find "name" in "path".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_in_path_and_pp(
+pub unsafe fn do_in_path_and_pp(
     path: *mut c_char,
     name: *mut c_char,
     flags: c_int,
@@ -1357,8 +1321,7 @@ unsafe fn runtime_search_path_build() -> RuntimeSearchPath {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn did_set_runtimepackpath(_args: *mut optset_T) -> *const c_char {
+pub unsafe fn did_set_runtimepackpath(_args: *mut optset_T) -> *const c_char {
     unsafe {
         runtime_search_path_valid = false;
         ptr::null()
@@ -1375,8 +1338,7 @@ unsafe fn runtime_search_path_free(path: &mut RuntimeSearchPath) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn runtime_search_path_validate() {
+pub unsafe fn runtime_search_path_validate() {
     unsafe {
         if !nlua_is_deferred_safe() {
             return;
@@ -1399,8 +1361,7 @@ pub unsafe extern "C" fn runtime_search_path_validate() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn update_runtime_search_path_thread(force: bool) {
+pub unsafe fn update_runtime_search_path_thread(force: bool) {
     unsafe {
         if !force && !(runtime_search_path_valid && !runtime_search_path_valid_thread) {
             return;
@@ -1427,8 +1388,7 @@ pub unsafe extern "C" fn update_runtime_search_path_thread(force: bool) {
 }
 
 /// Just like do_in_path_and_pp(), using 'runtimepath' for "path".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_in_runtimepath(
+pub unsafe fn do_in_runtimepath(
     name: *mut c_char,
     mut flags: c_int,
     callback: DoInRuntimepathCB,
@@ -1453,24 +1413,17 @@ pub unsafe extern "C" fn do_in_runtimepath(
 }
 
 /// Source the file "name" from all directories in 'runtimepath'.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn source_runtime(name: *mut c_char, flags: c_int) -> c_int {
+pub unsafe fn source_runtime(name: *mut c_char, flags: c_int) -> c_int {
     unsafe { do_in_runtimepath(name, flags, Some(source_callback), ptr::null_mut()) }
 }
 
 /// Just like source_runtime(), but only source vim and lua files.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn source_runtime_vim_lua(name: *mut c_char, flags: c_int) -> c_int {
+pub unsafe fn source_runtime_vim_lua(name: *mut c_char, flags: c_int) -> c_int {
     unsafe { do_in_runtimepath(name, flags, Some(source_callback_vim_lua), ptr::null_mut()) }
 }
 
 /// Just like source_runtime(), but use "path" instead of 'runtimepath' and only source .vim and .lua files.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn source_in_path_vim_lua(
-    path: *mut c_char,
-    name: *mut c_char,
-    flags: c_int,
-) -> c_int {
+pub unsafe fn source_in_path_vim_lua(path: *mut c_char, name: *mut c_char, flags: c_int) -> c_int {
     unsafe {
         do_in_path_and_pp(
             path,
@@ -1848,7 +1801,7 @@ unsafe fn add_pack_plugins(
     }
 }
 
-unsafe extern "C" fn add_start_pack_plugins(
+unsafe fn add_start_pack_plugins(
     num_fnames: c_int,
     fnames: *mut *mut c_char,
     all: bool,
@@ -1860,7 +1813,7 @@ unsafe extern "C" fn add_start_pack_plugins(
     }
 }
 
-unsafe extern "C" fn add_opt_pack_plugins(
+unsafe fn add_opt_pack_plugins(
     num_fnames: c_int,
     fnames: *mut *mut c_char,
     all: bool,
@@ -1873,8 +1826,7 @@ unsafe extern "C" fn add_opt_pack_plugins(
 }
 
 /// Add all packages in the "start" directory to 'runtimepath'.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn add_pack_start_dirs() {
+pub unsafe fn add_pack_start_dirs() {
     unsafe {
         do_in_path(
             p_pp,
@@ -1899,7 +1851,7 @@ unsafe fn pack_has_entries(buf: *mut c_char) -> bool {
     }
 }
 
-unsafe extern "C" fn add_pack_start_dir(
+unsafe fn add_pack_start_dir(
     num_fnames: c_int,
     fnames: *mut *mut c_char,
     all: bool,
@@ -1932,8 +1884,7 @@ unsafe extern "C" fn add_pack_start_dir(
 }
 
 /// Load plugins from all packages in the "start" directory.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn load_start_packages() {
+pub unsafe fn load_start_packages() {
     unsafe {
         did_source_packages = true;
         do_in_path(
@@ -1958,8 +1909,7 @@ pub unsafe extern "C" fn load_start_packages() {
 }
 
 /// ":packloadall"
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_packloadall(eap: *mut exarg_T) {
+pub unsafe fn ex_packloadall(eap: *mut exarg_T) {
     unsafe {
         if !did_source_packages || (*eap).forceit != 0 {
             add_pack_start_dirs();
@@ -1969,8 +1919,7 @@ pub unsafe extern "C" fn ex_packloadall(eap: *mut exarg_T) {
 }
 
 /// Read all the plugin files at startup.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn load_plugins() {
+pub unsafe fn load_plugins() {
     unsafe {
         if p_lpl != 0 {
             let mut rtp_copy = p_rtp;
@@ -2003,8 +1952,7 @@ pub unsafe extern "C" fn load_plugins() {
 }
 
 /// ":packadd[!] {name}"
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_packadd(eap: *mut exarg_T) {
+pub unsafe fn ex_packadd(eap: *mut exarg_T) {
     unsafe {
         let mut res = OK;
         let len = 11 + CStr::from_ptr((*eap).arg).to_bytes().len() + 5;
@@ -2210,8 +2158,7 @@ unsafe fn ExpandRTDir_int(
 }
 
 /// Expand color scheme, compiler or filetype names.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ExpandRTDir(
+pub unsafe fn ExpandRTDir(
     pat: *mut c_char,
     flags: c_int,
     num_file: *mut c_int,
@@ -2245,8 +2192,7 @@ pub unsafe extern "C" fn ExpandRTDir(
 }
 
 /// Handle command line completion for :runtime command.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn expand_runtime_cmd(
+pub unsafe fn expand_runtime_cmd(
     pat: *mut c_char,
     numMatches: *mut c_int,
     matches: *mut *mut *mut c_char,
@@ -2292,8 +2238,7 @@ pub unsafe extern "C" fn expand_runtime_cmd(
 }
 
 /// Expand loadplugin names: 'packpath'/pack/*/opt/{pat}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ExpandPackAddDir(
+pub unsafe fn ExpandPackAddDir(
     pat: *mut c_char,
     num_file: *mut c_int,
     file: *mut *mut *mut c_char,
@@ -2491,8 +2436,7 @@ unsafe fn add_dir(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_lib_dir() -> *mut c_char {
+pub unsafe fn get_lib_dir() -> *mut c_char {
     unsafe {
         if !default_lib_dir.is_null() && *default_lib_dir != NUL && os_isdir(default_lib_dir) {
             return xstrdup(default_lib_dir);
@@ -2508,8 +2452,7 @@ pub unsafe extern "C" fn get_lib_dir() -> *mut c_char {
 }
 
 /// Determine the startup value for &runtimepath.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn runtimepath_default(clean_arg: bool) -> *mut c_char {
+pub unsafe fn runtimepath_default(clean_arg: bool) -> *mut c_char {
     unsafe {
         const SITE_SIZE: usize = 4;
         const AFTER_SIZE: usize = 5;
@@ -2723,16 +2666,14 @@ unsafe fn cmd_source(fname: *mut c_char, eap: *mut exarg_T) {
 }
 
 /// ":source [{fname}]"
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_source(eap: *mut exarg_T) {
+pub unsafe fn ex_source(eap: *mut exarg_T) {
     unsafe {
         cmd_source((*eap).arg, eap);
     }
 }
 
 /// ":options"
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_options(_eap: *mut exarg_T) {
+pub unsafe fn ex_options(_eap: *mut exarg_T) {
     unsafe {
         let mut buf = [0 as c_char; 500];
         let mut multi_mods = false;
@@ -2747,18 +2688,15 @@ pub unsafe extern "C" fn ex_options(_eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn source_breakpoint(cookie: *mut c_void) -> *mut linenr_T {
+pub unsafe fn source_breakpoint(cookie: *mut c_void) -> *mut linenr_T {
     unsafe { &raw mut (*cookie.cast::<source_cookie_T>()).breakpoint }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn source_dbg_tick(cookie: *mut c_void) -> *mut c_int {
+pub unsafe fn source_dbg_tick(cookie: *mut c_void) -> *mut c_int {
     unsafe { &raw mut (*cookie.cast::<source_cookie_T>()).dbg_tick }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn source_level(cookie: *mut c_void) -> c_int {
+pub unsafe fn source_level(cookie: *mut c_void) -> c_int {
     unsafe { (*cookie.cast::<source_cookie_T>()).level }
 }
 
@@ -2804,11 +2742,7 @@ unsafe fn concat_continued_line(
 }
 
 /// Create a new script item and allocate script-local vars.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn new_script_item(
-    name: *mut c_char,
-    sid_out: *mut scid_T,
-) -> *mut scriptitem_T {
+pub unsafe fn new_script_item(name: *mut c_char, sid_out: *mut scid_T) -> *mut scriptitem_T {
     unsafe {
         last_current_SID += 1;
         let sid = last_current_SID;
@@ -2905,8 +2839,7 @@ unsafe fn do_source_str_init(sp: *mut source_cookie_T, mut str_ptr: *const c_cha
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cmd_source_buffer(eap: *const exarg_T, ex_lua: bool) {
+pub unsafe fn cmd_source_buffer(eap: *const exarg_T, ex_lua: bool) {
     unsafe {
         do_source_ext(
             ptr::null_mut(),
@@ -2921,11 +2854,7 @@ pub unsafe extern "C" fn cmd_source_buffer(eap: *const exarg_T, ex_lua: bool) {
 }
 
 /// Executes lines in `str` as Ex commands.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_source_str(
-    str_ptr: *const c_char,
-    mut traceback_name: *const c_char,
-) -> c_int {
+pub unsafe fn do_source_str(str_ptr: *const c_char, mut traceback_name: *const c_char) -> c_int {
     unsafe {
         let sname = sourcing_name();
         let slnum = sourcing_lnum();
@@ -3305,8 +3234,7 @@ unsafe fn do_source_ext(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_source(
+pub unsafe fn do_source(
     fname: *mut c_char,
     check_other: bool,
     is_vimrc: c_int,
@@ -3326,8 +3254,7 @@ pub unsafe extern "C" fn do_source(
 }
 
 /// Checks if the script with the given script ID is a Lua script.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn script_is_lua(sid: scid_T) -> bool {
+pub unsafe fn script_is_lua(sid: scid_T) -> bool {
     unsafe {
         if sid == SID_LUA {
             return true;
@@ -3340,8 +3267,7 @@ pub unsafe extern "C" fn script_is_lua(sid: scid_T) -> bool {
 }
 
 /// Find an already loaded script "name".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn find_script_by_name(name: *mut c_char) -> c_int {
+pub unsafe fn find_script_by_name(name: *mut c_char) -> c_int {
     unsafe {
         debug_assert!(script_items.ga_len >= 0);
         let mut sid = script_items.ga_len;
@@ -3357,8 +3283,7 @@ pub unsafe extern "C" fn find_script_by_name(name: *mut c_char) -> c_int {
 }
 
 /// ":scriptnames"
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_scriptnames(eap: *mut exarg_T) {
+pub unsafe fn ex_scriptnames(eap: *mut exarg_T) {
     unsafe {
         let namebuff = (&raw mut NameBuff).cast::<c_char>();
         let iobuff = (&raw mut IObuff).cast::<c_char>();
@@ -3399,8 +3324,7 @@ pub unsafe extern "C" fn ex_scriptnames(eap: *mut exarg_T) {
 }
 
 /// Get a pointer to a script name.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_scriptname(script_ctx: sctx_T, should_free: *mut bool) -> *mut c_char {
+pub unsafe fn get_scriptname(script_ctx: sctx_T, should_free: *mut bool) -> *mut c_char {
     unsafe {
         if !should_free.is_null() {
             *should_free = false;
@@ -3447,8 +3371,7 @@ pub unsafe extern "C" fn get_scriptname(script_ctx: sctx_T, should_free: *mut bo
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn free_scriptnames() {
+pub unsafe fn free_scriptnames() {
     unsafe {
         profile_reset();
 
@@ -3463,21 +3386,18 @@ pub unsafe extern "C" fn free_scriptnames() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn free_autoload_scriptnames() {
+pub unsafe fn free_autoload_scriptnames() {
     unsafe {
         ga_clear_strings(&raw mut ga_loaded);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_sourced_lnum(fgetline: LineGetter, cookie: *mut c_void) -> linenr_T {
+pub unsafe fn get_sourced_lnum(fgetline: LineGetter, cookie: *mut c_void) -> linenr_T {
     unsafe {
         if fgetline.is_some_and(|f| {
             std::ptr::fn_addr_eq(
                 f,
-                getsourceline
-                    as unsafe extern "C" fn(c_int, *mut c_void, c_int, bool) -> *mut c_char,
+                getsourceline as unsafe fn(c_int, *mut c_void, c_int, bool) -> *mut c_char,
             )
         }) {
             (*cookie.cast::<source_cookie_T>()).sourcing_lnum
@@ -3517,12 +3437,7 @@ unsafe fn get_script_local_funcs(sid: scid_T) -> *mut list_T {
 }
 
 /// "getscriptinfo()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getscriptinfo(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_getscriptinfo(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_list_alloc_ret(rettv, script_items.ga_len as isize);
 
@@ -3606,8 +3521,7 @@ pub unsafe extern "C" fn f_getscriptinfo(
 }
 
 /// Get one full line from a sourced file.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn getsourceline(
+pub unsafe fn getsourceline(
     _c: c_int,
     cookie: *mut c_void,
     _indent: c_int,
@@ -3820,8 +3734,7 @@ unsafe fn get_one_sourceline(sp: *mut source_cookie_T) -> *mut c_char {
 }
 
 /// Returns true if sourcing a script either from a file or a buffer or a string.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn sourcing_a_script(eap: *mut exarg_T) -> c_int {
+pub unsafe fn sourcing_a_script(eap: *mut exarg_T) -> c_int {
     unsafe {
         let fgetline: LineGetter = (*eap).ea_getline;
         c_int::from(getline_equal(fgetline, (*eap).cookie, Some(getsourceline)))
@@ -3829,8 +3742,7 @@ pub unsafe extern "C" fn sourcing_a_script(eap: *mut exarg_T) -> c_int {
 }
 
 /// ":scriptencoding": Set encoding conversion for a sourced script.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_scriptencoding(eap: *mut exarg_T) {
+pub unsafe fn ex_scriptencoding(eap: *mut exarg_T) {
     unsafe {
         if sourcing_a_script(eap) == 0 {
             emsg(gettext(
@@ -3856,8 +3768,7 @@ pub unsafe extern "C" fn ex_scriptencoding(eap: *mut exarg_T) {
 }
 
 /// ":finish": Mark a sourced file as finished.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_finish(eap: *mut exarg_T) {
+pub unsafe fn ex_finish(eap: *mut exarg_T) {
     unsafe {
         if sourcing_a_script(eap) != 0 {
             do_finish(eap, false);
@@ -3870,8 +3781,7 @@ pub unsafe extern "C" fn ex_finish(eap: *mut exarg_T) {
 }
 
 /// Mark a sourced file as finished.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_finish(eap: *mut exarg_T, reanimate: bool) {
+pub unsafe fn do_finish(eap: *mut exarg_T, reanimate: bool) {
     unsafe {
         let fgetline: LineGetter = (*eap).ea_getline;
         if reanimate {
@@ -3889,8 +3799,7 @@ pub unsafe extern "C" fn do_finish(eap: *mut exarg_T, reanimate: bool) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn source_finished(fgetline: LineGetter, cookie: *mut c_void) -> bool {
+pub unsafe fn source_finished(fgetline: LineGetter, cookie: *mut c_void) -> bool {
     unsafe {
         getline_equal(fgetline, cookie, Some(getsourceline))
             && (*getline_cookie(fgetline, cookie).cast::<source_cookie_T>()).finished
@@ -3898,8 +3807,7 @@ pub unsafe extern "C" fn source_finished(fgetline: LineGetter, cookie: *mut c_vo
 }
 
 /// Return the autoload script name for a function or variable name.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn autoload_name(name: *const c_char, name_len: usize) -> *mut c_char {
+pub unsafe fn autoload_name(name: *const c_char, name_len: usize) -> *mut c_char {
     unsafe {
         const PREFIX: &[u8] = b"autoload/";
         const SUFFIX: &[u8] = b".vim\0";
@@ -3922,12 +3830,7 @@ pub unsafe extern "C" fn autoload_name(name: *const c_char, name_len: usize) -> 
 }
 
 /// If name has a package name try autoloading the script for it.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn script_autoload(
-    name: *const c_char,
-    name_len: usize,
-    reload: bool,
-) -> bool {
+pub unsafe fn script_autoload(name: *const c_char, name_len: usize, reload: bool) -> bool {
     unsafe {
         let slice = std::slice::from_raw_parts(name.cast::<u8>(), name_len);
         let Some(pos) = slice.iter().position(|&b| b == AUTOLOAD_CHAR) else {

@@ -79,6 +79,7 @@ pub type uv_read_cb = Option<
 pub type uv_idle_cb = Option<unsafe extern "C" fn(handle: *mut crate::event::stream::uv_idle_t)>;
 pub type uv_connection_cb =
     Option<unsafe extern "C" fn(server: *mut crate::event::stream::uv_stream_t, status: c_int)>;
+#[cfg(windows)]
 pub type uv_thread_cb = Option<unsafe extern "C" fn(arg: *mut c_void)>;
 
 #[repr(C)]
@@ -179,6 +180,7 @@ unsafe extern "C" {
         width: *mut c_int,
         height: *mut c_int,
     ) -> c_int;
+    #[cfg(windows)]
     pub fn uv_tty_set_vterm_state(state: c_int);
     pub fn uv_write(
         req: *mut c_void,
@@ -313,7 +315,9 @@ unsafe extern "C" {
     pub fn uv_now(loop_ptr: *const c_void) -> u64;
     pub fn uv_thread_self() -> uv_thread_t;
     pub fn uv_thread_equal(t1: *const uv_thread_t, t2: *const uv_thread_t) -> c_int;
+    #[cfg(windows)]
     pub fn uv_thread_create(tid: *mut uv_thread_t, entry: uv_thread_cb, arg: *mut c_void) -> c_int;
+    #[cfg(windows)]
     pub fn uv_thread_detach(tid: *mut uv_thread_t) -> c_int;
     #[cfg(unix)]
     pub fn uv_disable_stdio_inheritance();
@@ -383,6 +387,7 @@ unsafe extern "C" {
         mode: c_int,
         cb: *const c_void,
     ) -> c_int;
+    #[cfg(unix)]
     pub fn uv_fs_fchmod(
         loop_: *mut c_void,
         req: *mut crate::os::fs::uv_fs_buf_t,
@@ -390,6 +395,7 @@ unsafe extern "C" {
         mode: c_int,
         cb: *const c_void,
     ) -> c_int;
+    #[cfg(unix)]
     pub fn uv_fs_chown(
         loop_: *mut c_void,
         req: *mut crate::os::fs::uv_fs_buf_t,
@@ -406,6 +412,7 @@ unsafe extern "C" {
         gid: uv_gid_t,
         cb: *const c_void,
     ) -> c_int;
+    #[cfg(unix)]
     pub fn uv_fs_utime(
         loop_: *mut c_void,
         req: *mut crate::os::fs::uv_fs_buf_t,
@@ -476,7 +483,7 @@ pub unsafe fn loop_queues(loop_: *mut Loop) -> *mut LoopQueuesAndChildren {
 }
 
 #[inline]
-pub unsafe fn main_loop_ptr() -> *mut Loop {
+pub unsafe extern "C" fn main_loop_ptr() -> *mut Loop {
     (&raw mut crate::globals::main_loop).cast()
 }
 
@@ -506,7 +513,7 @@ pub unsafe fn loop_children_kill_timer(loop_: *mut Loop) -> *mut uv_timer_t {
 }
 
 #[inline]
-pub unsafe fn loop_poll_timer(loop_: *mut Loop) -> *mut uv_timer_t {
+pub unsafe extern "C" fn loop_poll_timer(loop_: *mut Loop) -> *mut uv_timer_t {
     unsafe {
         loop_children_kill_timer(loop_)
             .cast::<u8>()
@@ -526,7 +533,7 @@ pub unsafe fn loop_exit_delay_timer(loop_: *mut Loop) -> *mut uv_timer_t {
 }
 
 #[inline]
-pub unsafe fn loop_async(loop_: *mut Loop) -> *mut uv_async_t {
+pub unsafe extern "C" fn loop_async(loop_: *mut Loop) -> *mut uv_async_t {
     unsafe {
         loop_exit_delay_timer(loop_)
             .cast::<u8>()
@@ -560,8 +567,7 @@ pub unsafe fn loop_closing_ptr(loop_: *mut Loop) -> *mut bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn loop_init(loop_: *mut Loop, _data: *mut c_void) {
+pub unsafe fn loop_init(loop_: *mut Loop, _data: *mut c_void) {
     unsafe {
         debug_assert!(
             (loop_closing_ptr(loop_)
@@ -629,8 +635,7 @@ unsafe fn loop_uv_run(loop_: *mut Loop, ms: i64) -> bool {
 /// Processes one `Loop.uv` event (at most).
 /// Processes all `Loop.fast_events` events.
 /// Does NOT process `Loop.events`, that is an application-specific decision.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn loop_poll_events(loop_: *mut Loop, ms: i64) -> bool {
+pub unsafe fn loop_poll_events(loop_: *mut Loop, ms: i64) -> bool {
     unsafe {
         let timeout_expired = loop_uv_run(loop_, ms);
         let qc = loop_queues(loop_);
@@ -640,8 +645,7 @@ pub unsafe extern "C" fn loop_poll_events(loop_: *mut Loop, ms: i64) -> bool {
 }
 
 /// Schedules a fast event from another thread.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn loop_schedule_fast(loop_: *mut Loop, event: Event) {
+pub unsafe fn loop_schedule_fast(loop_: *mut Loop, event: Event) {
     unsafe {
         let mutex = loop_mutex(loop_);
         let qc = loop_queues(loop_);
@@ -654,8 +658,7 @@ pub unsafe extern "C" fn loop_schedule_fast(loop_: *mut Loop, event: Event) {
 
 /// Schedules an event from another thread. Unlike loop_schedule_fast(), the
 /// event is forwarded to `Loop.events`, instead of being processed immediately.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn loop_schedule_deferred(loop_: *mut Loop, event: Event) {
+pub unsafe fn loop_schedule_deferred(loop_: *mut Loop, event: Event) {
     unsafe {
         let eventp: *mut Event = xmalloc(size_of::<Event>()).cast();
         *eventp = event;
@@ -682,7 +685,6 @@ unsafe extern "C" fn loop_deferred_event(argv: *mut *mut c_void) {
     }
 }
 
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn loop_on_put(_queue: *mut MultiQueue, data: *mut c_void) {
     unsafe {
         let loop_: *mut Loop = data;
@@ -755,8 +757,7 @@ pub unsafe extern "C" fn loop_close(loop_: *mut Loop, wait: bool) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn loop_purge(loop_: *mut Loop) {
+pub unsafe fn loop_purge(loop_: *mut Loop) {
     unsafe {
         let mutex = loop_mutex(loop_);
         let qc = loop_queues(loop_);
@@ -767,8 +768,7 @@ pub unsafe extern "C" fn loop_purge(loop_: *mut Loop) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn loop_size(loop_: *mut Loop) -> usize {
+pub unsafe fn loop_size(loop_: *mut Loop) -> usize {
     unsafe {
         let mutex = loop_mutex(loop_);
         let qc = loop_queues(loop_);

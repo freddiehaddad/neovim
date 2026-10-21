@@ -11,21 +11,23 @@ pub enum VTermEncodingType {
     ENC_SINGLE_94 = 1,
 }
 
+pub type VTermEncodingDecodeFn = Option<
+    unsafe fn(
+        enc: *mut VTermEncoding,
+        data: *mut c_void,
+        cp: *mut u32,
+        cpi: *mut c_int,
+        cplen: c_int,
+        bytes: *const c_char,
+        pos: *mut usize,
+        bytelen: usize,
+    ),
+>;
+
 #[repr(C)]
 pub struct VTermEncoding {
-    pub init: Option<unsafe extern "C" fn(enc: *mut VTermEncoding, data: *mut c_void)>,
-    pub decode: Option<
-        unsafe extern "C" fn(
-            enc: *mut VTermEncoding,
-            data: *mut c_void,
-            cp: *mut u32,
-            cpi: *mut c_int,
-            cplen: c_int,
-            bytes: *const c_char,
-            pos: *mut usize,
-            bytelen: usize,
-        ),
-    >,
+    pub init: Option<unsafe fn(enc: *mut VTermEncoding, data: *mut c_void)>,
+    pub decode: VTermEncodingDecodeFn,
 }
 
 #[repr(C)]
@@ -35,13 +37,13 @@ struct UTF8DecoderData {
     this_cp: c_int,
 }
 
-unsafe extern "C" fn init_utf8(_enc: *mut VTermEncoding, data_: *mut c_void) {
+unsafe fn init_utf8(_enc: *mut VTermEncoding, data_: *mut c_void) {
     let data = unsafe { &mut *data_.cast::<UTF8DecoderData>() };
     data.bytes_remaining = 0;
     data.bytes_total = 0;
 }
 
-unsafe extern "C" fn decode_utf8(
+unsafe fn decode_utf8(
     _enc: *mut VTermEncoding,
     data_: *mut c_void,
     cp: *mut u32,
@@ -151,7 +153,7 @@ static ENCODING_UTF8: VTermEncoding = VTermEncoding {
     decode: Some(decode_utf8),
 };
 
-unsafe extern "C" fn decode_usascii(
+unsafe fn decode_usascii(
     _enc: *mut VTermEncoding,
     _data: *mut c_void,
     cp: *mut u32,
@@ -187,7 +189,7 @@ struct StaticTableEncoding {
     chars: [u32; 128],
 }
 
-unsafe extern "C" fn decode_table(
+unsafe fn decode_table(
     enc: *mut VTermEncoding,
     _data: *mut c_void,
     cp: *mut u32,

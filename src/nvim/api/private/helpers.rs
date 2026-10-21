@@ -204,12 +204,7 @@ pub struct HlMessageChunk {
 
 use crate::api::vim::HlMessage;
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn api_set_error_str(
-    err: *mut Error,
-    err_type: ErrorType,
-    msg: *const c_char,
-) {
+pub unsafe fn api_set_error_str(err: *mut Error, err_type: ErrorType, msg: *const c_char) {
     unsafe {
         debug_assert!(!matches!(err_type, ErrorType::kErrorTypeNone));
         (*err).msg = xstrdup(msg);
@@ -355,8 +350,7 @@ pub unsafe fn error_set(e: *const Error) -> bool {
 }
 
 /// Start block that may cause Vimscript exceptions while evaluating another code (`try_enter`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn try_enter(tstate: *mut TryState) {
+pub unsafe fn try_enter(tstate: *mut TryState) {
     unsafe {
         *tstate = TryState {
             current_exception,
@@ -378,8 +372,7 @@ pub unsafe extern "C" fn try_enter(tstate: *mut TryState) {
 }
 
 /// Ends a `try_enter` block; sets error message if any (`try_leave`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn try_leave(tstate: *const TryState, err: *mut Error) {
+pub unsafe fn try_leave(tstate: *const TryState, err: *mut Error) {
     unsafe {
         debug_assert!(trylevel > 0);
         trylevel -= 1;
@@ -451,8 +444,7 @@ pub unsafe extern "C" fn try_leave(tstate: *const TryState, err: *mut Error) {
 }
 
 /// Recursively expands a vimscript value in a dict (`dict_get_value`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn dict_get_value(
+pub unsafe fn dict_get_value(
     dict: *mut dict_T,
     key: NvimString,
     arena: *mut Arena,
@@ -473,8 +465,7 @@ pub unsafe extern "C" fn dict_get_value(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn dict_check_writable(
+pub unsafe fn dict_check_writable(
     dict: *mut dict_T,
     key: NvimString,
     del: bool,
@@ -529,8 +520,7 @@ pub unsafe extern "C" fn dict_check_writable(
 }
 
 /// Set a value in a scope dict (`dict_set_var`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn dict_set_var(
+pub unsafe fn dict_set_var(
     dict: *mut dict_T,
     key: NvimString,
     value: Object,
@@ -616,8 +606,7 @@ pub unsafe extern "C" fn dict_set_var(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf_T {
+pub unsafe fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf_T {
     unsafe {
         if buffer == 0 {
             return curbuf;
@@ -656,8 +645,7 @@ pub unsafe extern "C" fn find_window_by_handle(window: Window, err: *mut Error) 
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn find_tab_by_handle(tabpage: Tabpage, err: *mut Error) -> *mut tabpage_T {
+pub unsafe fn find_tab_by_handle(tabpage: Tabpage, err: *mut Error) -> *mut tabpage_T {
     unsafe {
         if tabpage == 0 {
             return curtab;
@@ -676,19 +664,7 @@ pub unsafe extern "C" fn find_tab_by_handle(tabpage: Tabpage, err: *mut Error) -
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cchar_to_string(c: c_char) -> NvimString {
-    unsafe {
-        let buf: [c_char; 2] = [c, NUL];
-        NvimString {
-            data: xmemdupz(buf.as_ptr().cast(), 1).cast(),
-            size: usize::from(c != NUL),
-        }
-    }
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cstr_to_string(str_: *const c_char) -> NvimString {
+pub unsafe fn cstr_to_string(str_: *const c_char) -> NvimString {
     unsafe {
         if str_.is_null() {
             return NvimString {
@@ -704,13 +680,11 @@ pub unsafe extern "C" fn cstr_to_string(str_: *const c_char) -> NvimString {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn string_to_cstr(str_: NvimString) -> *mut c_char {
+pub unsafe fn string_to_cstr(str_: NvimString) -> *mut c_char {
     unsafe { xstrndup(str_.data, str_.size) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cbuf_to_string(buf: *const c_char, size: usize) -> NvimString {
+pub unsafe fn cbuf_to_string(buf: *const c_char, size: usize) -> NvimString {
     unsafe {
         NvimString {
             data: xmemdupz(buf.cast(), size).cast(),
@@ -719,13 +693,11 @@ pub unsafe extern "C" fn cbuf_to_string(buf: *const c_char, size: usize) -> Nvim
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cstrn_to_string(str_: *const c_char, maxsize: usize) -> NvimString {
+pub unsafe fn cstrn_to_string(str_: *const c_char, maxsize: usize) -> NvimString {
     unsafe { cbuf_to_string(str_, xstrnlen(str_, maxsize)) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cstrn_as_string(str_: *const c_char, maxsize: usize) -> NvimString {
+pub unsafe fn cstrn_as_string(str_: *const c_char, maxsize: usize) -> NvimString {
     unsafe {
         if str_.is_null() {
             return NvimString {
@@ -740,8 +712,7 @@ pub unsafe extern "C" fn cstrn_as_string(str_: *const c_char, maxsize: usize) ->
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cstr_as_string(str_: *const c_char) -> NvimString {
+pub unsafe fn cstr_as_string(str_: *const c_char) -> NvimString {
     unsafe {
         if str_.is_null() {
             return NvimString {
@@ -756,8 +727,7 @@ pub unsafe extern "C" fn cstr_as_string(str_: *const c_char) -> NvimString {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ga_take_string(ga: *mut garray_T) -> NvimString {
+pub unsafe fn ga_take_string(ga: *mut garray_T) -> NvimString {
     unsafe {
         let str_ = NvimString {
             data: (*ga).ga_data.cast(),
@@ -770,12 +740,7 @@ pub unsafe extern "C" fn ga_take_string(ga: *mut garray_T) -> NvimString {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn string_to_array(
-    input: NvimString,
-    crlf: bool,
-    arena: *mut Arena,
-) -> Array {
+pub unsafe fn string_to_array(input: NvimString, crlf: bool, arena: *mut Arena) -> Array {
     unsafe {
         let mut ret: ArrayBuilder = zeroed();
         ret.init();
@@ -828,8 +793,7 @@ pub unsafe extern "C" fn string_to_array(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn normalize_index(
+pub unsafe fn normalize_index(
     buf: *mut buf_T,
     mut index: i64,
     end_exclusive: bool,
@@ -852,8 +816,7 @@ pub unsafe extern "C" fn normalize_index(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buf_get_text(
+pub unsafe fn buf_get_text(
     buf: *mut buf_T,
     lnum: i64,
     mut start_col: i64,
@@ -903,15 +866,13 @@ pub unsafe extern "C" fn buf_get_text(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn api_free_string(value: NvimString) {
+pub unsafe fn api_free_string(value: NvimString) {
     unsafe {
         xfree(value.data.cast());
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn arena_array(arena: *mut Arena, max_size: usize) -> Array {
+pub unsafe fn arena_array(arena: *mut Arena, max_size: usize) -> Array {
     unsafe {
         Array {
             size: 0,
@@ -921,8 +882,7 @@ pub unsafe extern "C" fn arena_array(arena: *mut Arena, max_size: usize) -> Arra
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict {
+pub unsafe fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict {
     unsafe {
         Dict {
             size: 0,
@@ -932,8 +892,7 @@ pub unsafe extern "C" fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict 
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn arena_string(arena: *mut Arena, str_: NvimString) -> NvimString {
+pub unsafe fn arena_string(arena: *mut Arena, str_: NvimString) -> NvimString {
     unsafe {
         if str_.size != 0 {
             NvimString {
@@ -953,11 +912,7 @@ pub unsafe extern "C" fn arena_string(arena: *mut Arena, str_: NvimString) -> Nv
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn arena_take_arraybuilder(
-    arena: *mut Arena,
-    arr: *mut ArrayBuilder,
-) -> Array {
+pub unsafe fn arena_take_arraybuilder(arena: *mut Arena, arr: *mut ArrayBuilder) -> Array {
     unsafe {
         let mut ret = arena_array(arena, (*arr).size);
         ret.size = (*arr).size;
@@ -992,8 +947,7 @@ pub unsafe extern "C" fn api_free_object(value: Object) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn api_free_array(value: Array) {
+pub unsafe fn api_free_array(value: Array) {
     unsafe {
         for i in 0..value.size {
             api_free_object(*value.items.add(i));
@@ -1002,8 +956,7 @@ pub unsafe extern "C" fn api_free_array(value: Array) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn api_free_dict(value: Dict) {
+pub unsafe fn api_free_dict(value: Dict) {
     unsafe {
         for i in 0..value.size {
             let item = *value.items.add(i);
@@ -1014,8 +967,7 @@ pub unsafe extern "C" fn api_free_dict(value: Dict) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn api_clear_error(value: *mut Error) {
+pub unsafe fn api_clear_error(value: *mut Error) {
     unsafe {
         if !error_set(value) {
             return;
@@ -1026,8 +978,7 @@ pub unsafe extern "C" fn api_clear_error(value: *mut Error) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn copy_string(str_: NvimString, arena: *mut Arena) -> NvimString {
+pub unsafe fn copy_string(str_: NvimString, arena: *mut Arena) -> NvimString {
     unsafe {
         if !str_.data.is_null() {
             NvimString {
@@ -1043,8 +994,7 @@ pub unsafe extern "C" fn copy_string(str_: NvimString, arena: *mut Arena) -> Nvi
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn copy_array(array: Array, arena: *mut Arena) -> Array {
+pub unsafe fn copy_array(array: Array, arena: *mut Arena) -> Array {
     unsafe {
         let mut rv = arena_array(arena, array.size);
         for i in 0..array.size {
@@ -1055,8 +1005,7 @@ pub unsafe extern "C" fn copy_array(array: Array, arena: *mut Arena) -> Array {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn copy_dict(dict: Dict, arena: *mut Arena) -> Dict {
+pub unsafe fn copy_dict(dict: Dict, arena: *mut Arena) -> Dict {
     unsafe {
         let mut rv = arena_dict(arena, dict.size);
         for i in 0..dict.size {
@@ -1072,8 +1021,7 @@ pub unsafe extern "C" fn copy_dict(dict: Dict, arena: *mut Arena) -> Dict {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn copy_object(obj: Object, arena: *mut Arena) -> Object {
+pub unsafe fn copy_object(obj: Object, arena: *mut Arena) -> Object {
     unsafe {
         match obj.obj_type {
             ObjectType::kObjectTypeUnset
@@ -1112,8 +1060,7 @@ pub unsafe extern "C" fn copy_object(obj: Object, arena: *mut Arena) -> Object {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn api_object_to_bool(
+pub unsafe fn api_object_to_bool(
     obj: Object,
     what: *const c_char,
     nil_value: bool,
@@ -1132,12 +1079,7 @@ pub unsafe extern "C" fn api_object_to_bool(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn object_to_hl_id(
-    obj: Object,
-    what: *const c_char,
-    err: *mut Error,
-) -> c_int {
+pub unsafe fn object_to_hl_id(obj: Object, what: *const c_char, err: *mut Error) -> c_int {
     unsafe {
         match obj.obj_type {
             ObjectType::kObjectTypeString => {
@@ -1169,8 +1111,7 @@ pub unsafe extern "C" fn object_to_hl_id(
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn api_typename(t: ObjectType) -> *const c_char {
+pub fn api_typename(t: ObjectType) -> *const c_char {
     match t {
         ObjectType::kObjectTypeUnset => c"unset".as_ptr(),
         ObjectType::kObjectTypeNil => c"nil".as_ptr(),
@@ -1187,8 +1128,7 @@ pub extern "C" fn api_typename(t: ObjectType) -> *const c_char {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn parse_hl_msg(chunks: Array, is_err: bool, err: *mut Error) -> HlMessage {
+pub unsafe fn parse_hl_msg(chunks: Array, is_err: bool, err: *mut Error) -> HlMessage {
     unsafe {
         let mut hl_msg = HlMessage::new();
         for i in 0..chunks.size {
@@ -1232,8 +1172,7 @@ pub unsafe extern "C" fn parse_hl_msg(chunks: Array, is_err: bool, err: *mut Err
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn api_dict_to_keydict(
+pub unsafe fn api_dict_to_keydict(
     retval: *mut c_void,
     hashy: FieldHashfn,
     dict: Dict,
@@ -1395,8 +1334,7 @@ pub unsafe extern "C" fn api_dict_to_keydict(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn api_keydict_to_dict(
+pub unsafe fn api_keydict_to_dict(
     value: *mut c_void,
     table: *mut KeySetLink,
     max_size: usize,
@@ -1480,8 +1418,7 @@ pub unsafe extern "C" fn api_keydict_to_dict(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn api_luarefs_free_object(value: Object) {
+pub unsafe fn api_luarefs_free_object(value: Object) {
     unsafe {
         match value.obj_type {
             ObjectType::kObjectTypeLuaRef => api_free_luaref(value.data.luaref),
@@ -1492,8 +1429,7 @@ pub unsafe extern "C" fn api_luarefs_free_object(value: Object) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn api_luarefs_free_keydict(dict: *mut c_void, table: *mut KeySetLink) {
+pub unsafe fn api_luarefs_free_keydict(dict: *mut c_void, table: *mut KeySetLink) {
     unsafe {
         let mut i: usize = 0;
         while !(*table.add(i)).str.is_null() {
@@ -1511,8 +1447,7 @@ pub unsafe extern "C" fn api_luarefs_free_keydict(dict: *mut c_void, table: *mut
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn api_luarefs_free_array(value: Array) {
+pub unsafe fn api_luarefs_free_array(value: Array) {
     unsafe {
         for i in 0..value.size {
             api_luarefs_free_object(*value.items.add(i));
@@ -1520,8 +1455,7 @@ pub unsafe extern "C" fn api_luarefs_free_array(value: Array) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn api_luarefs_free_dict(value: Dict) {
+pub unsafe fn api_luarefs_free_dict(value: Dict) {
     unsafe {
         for i in 0..value.size {
             api_luarefs_free_object((*value.items.add(i)).value);
@@ -1529,8 +1463,7 @@ pub unsafe extern "C" fn api_luarefs_free_dict(value: Dict) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_mark(
+pub unsafe fn set_mark(
     mut buf: *mut buf_T,
     name: NvimString,
     line: Integer,
@@ -1595,8 +1528,7 @@ pub unsafe extern "C" fn set_mark(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_default_stl_hl(
+pub unsafe fn get_default_stl_hl(
     wp: *mut win_T,
     use_winbar: bool,
     stc_hl_id: c_int,
@@ -1620,8 +1552,7 @@ pub unsafe extern "C" fn get_default_stl_hl(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn api_set_sctx(channel_id: u64) -> sctx_T {
+pub unsafe fn api_set_sctx(channel_id: u64) -> sctx_T {
     unsafe {
         let old_current_sctx = current_sctx;
         if channel_id != VIML_INTERNAL_CALL {
@@ -4290,8 +4221,7 @@ fn mpack_push_array(out: &mut Vec<u8>, len: usize) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn api_get_packed_metadata(len: *mut usize) -> *const u8 {
+pub unsafe fn api_get_packed_metadata(len: *mut usize) -> *const u8 {
     let bytes = PACKED_API_METADATA.get_or_init(|| {
         let mut out = Vec::with_capacity(32768);
         out.push(0x86); // fixmap(6)
@@ -4403,8 +4333,7 @@ pub unsafe extern "C" fn api_get_packed_metadata(len: *mut usize) -> *const u8 {
     bytes.as_ptr()
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn api_metadata() -> Object {
+pub unsafe fn api_metadata() -> Object {
     unsafe {
         if METADATA_OBJ.obj_type == ObjectType::kObjectTypeNil {
             let mut arena = Arena {
@@ -4428,8 +4357,7 @@ pub unsafe extern "C" fn api_metadata() -> Object {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn api_metadata_raw() -> NvimString {
+pub unsafe fn api_metadata_raw() -> NvimString {
     unsafe {
         let mut len: usize = 0;
         let ptr = api_get_packed_metadata(&mut len)

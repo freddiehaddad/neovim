@@ -222,14 +222,12 @@ const fn map_hash(mode: c_int, c1: u8) -> usize {
 use crate::keycodes::{k_second, k_third};
 
 /// Get the start of the hashed map list for "state" and first character "c".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_maphash_list(state: c_int, c: c_int) -> *mut mapblock_T {
+pub unsafe fn get_maphash_list(state: c_int, c: c_int) -> *mut mapblock_T {
     unsafe { maphash[map_hash(state, c as u8)] }
 }
 
 /// Get the buffer-local hashed map list for "state" and first character "c".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_buf_maphash_list(state: c_int, c: c_int) -> *mut mapblock_T {
+pub unsafe fn get_buf_maphash_list(state: c_int, c: c_int) -> *mut mapblock_T {
     unsafe { (*curbuf).b_maphash[map_hash(state, c as u8)].cast::<mapblock_T>() }
 }
 
@@ -254,8 +252,7 @@ unsafe fn map_luaid_scan(
 }
 
 /// Resolves a Lua-mapping id to its callback.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn map_luaid_get(n: c_int) -> LuaRef {
+pub unsafe fn map_luaid_get(n: c_int) -> LuaRef {
     unsafe {
         let mut mp = map_luaid_scan(
             (&raw const maphash).cast::<*mut mapblock_T>(),
@@ -311,8 +308,7 @@ unsafe fn mapblock_free(mpp: *mut *mut mapblock_T) {
 }
 
 /// Put characters to represent the map mode in a string buffer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn map_mode_to_chars(mode: c_int, buf: *mut c_char) {
+pub unsafe fn map_mode_to_chars(mode: c_int, buf: *mut c_char) {
     unsafe {
         let mut p = buf;
         if (mode & (MODE_INSERT | MODE_CMDLINE)) == (MODE_INSERT | MODE_CMDLINE) {
@@ -1099,13 +1095,7 @@ unsafe fn buf_do_map(
 
 /// Set or remove a mapping or an abbreviation in the current buffer, OR
 /// display (matching) mappings/abbreviations.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_map(
-    maptype: c_int,
-    arg: *mut c_char,
-    mode: c_int,
-    is_abbrev: bool,
-) -> c_int {
+pub unsafe fn do_map(maptype: c_int, arg: *mut c_char, mode: c_int, is_abbrev: bool) -> c_int {
     unsafe {
         let mut parsed_args = MapArguments::new();
         let mut result = str_to_mapargs(arg, maptype == MAPTYPE_UNMAP, &mut parsed_args);
@@ -1178,8 +1168,7 @@ unsafe fn do_mapclear(mut cmdp: *mut c_char, arg: *mut c_char, forceit: c_int, a
 }
 
 /// Clear all mappings in "mode".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn map_clear_mode(buf: *mut buf_T, mode: c_int, local: bool, abbr: bool) {
+pub unsafe fn map_clear_mode(buf: *mut buf_T, mode: c_int, local: bool, abbr: bool) {
     unsafe {
         let buf_maphash = (&raw mut (*buf).b_maphash).cast::<*mut mapblock_T>();
         let global_maphash = (&raw mut maphash).cast::<*mut mapblock_T>();
@@ -1226,12 +1215,7 @@ pub unsafe extern "C" fn map_clear_mode(buf: *mut buf_T, mode: c_int, local: boo
 }
 
 /// Check if a map exists that has given string in the rhs.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn map_to_exists(
-    str_ptr: *const c_char,
-    modechars: *const c_char,
-    abbr: bool,
-) -> bool {
+pub unsafe fn map_to_exists(str_ptr: *const c_char, modechars: *const c_char, abbr: bool) -> bool {
     unsafe {
         let mut mode: c_int = 0;
         let mut buf: *mut c_char = ptr::null_mut();
@@ -1278,8 +1262,7 @@ pub unsafe extern "C" fn map_to_exists(
 }
 
 /// Check if a map exists that has given string in the rhs.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn map_to_exists_mode(rhs: *const c_char, mode: c_int, abbr: bool) -> bool {
+pub unsafe fn map_to_exists_mode(rhs: *const c_char, mode: c_int, abbr: bool) -> bool {
     unsafe {
         let mut exp_buffer = false;
 
@@ -1372,8 +1355,7 @@ unsafe fn translate_mapping(str_in: *const c_char, cpo_val: *const c_char) -> *m
 
 /// Work out what to complete when doing command line completion of mapping
 /// or abbreviation names.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_context_in_map_cmd(
+pub unsafe fn set_context_in_map_cmd(
     xp: *mut expand_T,
     mut cmd: *mut c_char,
     mut arg: *mut c_char,
@@ -1441,8 +1423,7 @@ pub unsafe extern "C" fn set_context_in_map_cmd(
 }
 
 /// Find all mapping/abbreviation names that match regexp "regmatch".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ExpandMappings(
+pub unsafe fn ExpandMappings(
     pat: *mut c_char,
     regmatch: *mut regmatch_T,
     numMatches: *mut c_int,
@@ -1602,8 +1583,7 @@ pub unsafe extern "C" fn ExpandMappings(
 }
 
 /// Check for an abbreviation.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_abbr(
+pub unsafe fn check_abbr(
     mut c: c_int,
     mut ptr_arg: *mut c_char,
     col: c_int,
@@ -1760,8 +1740,7 @@ pub unsafe extern "C" fn check_abbr(
 
 /// Evaluate the RHS of a mapping or abbreviations and take care of escaping
 /// special characters.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval_map_expr(mp: *mut mapblock_T, c: c_int) -> *mut c_char {
+pub unsafe fn eval_map_expr(mp: *mut mapblock_T, c: c_int) -> *mut c_char {
     unsafe {
         let mut p: *mut c_char = ptr::null_mut();
         let mut expr: *mut c_char = ptr::null_mut();
@@ -1838,8 +1817,7 @@ pub unsafe extern "C" fn eval_map_expr(mp: *mut mapblock_T, c: c_int) -> *mut c_
 }
 
 /// Write map commands for the current mappings to an .exrc file.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn makemap(fd: *mut FILE, buf: *mut buf_T) -> c_int {
+pub unsafe fn makemap(fd: *mut FILE, buf: *mut buf_T) -> c_int {
     unsafe {
         let mut did_cpo = false;
 
@@ -2043,8 +2021,7 @@ pub unsafe extern "C" fn makemap(fd: *mut FILE, buf: *mut buf_T) -> c_int {
 }
 
 /// Write escape string to file.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn put_escstr(fd: *mut FILE, strstart: *const c_char, what: c_int) -> c_int {
+pub unsafe fn put_escstr(fd: *mut FILE, strstart: *const c_char, what: c_int) -> c_int {
     unsafe {
         let mut str_ptr = strstart.cast::<u8>();
 
@@ -2136,8 +2113,7 @@ pub unsafe extern "C" fn put_escstr(fd: *mut FILE, strstart: *const c_char, what
 }
 
 /// Check the string "keys" against the lhs of all mappings.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_map(
+pub unsafe fn check_map(
     keys: *mut c_char,
     mode: c_int,
     exact: c_int,
@@ -2207,12 +2183,7 @@ pub unsafe extern "C" fn check_map(
 }
 
 /// "hasmapto()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_hasmapto(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_hasmapto(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let name = tv_get_string(argvars);
         let mut abbr = false;
@@ -2498,12 +2469,7 @@ unsafe fn get_map_mode_string(mode_string: *const c_char, abbr: bool) -> c_int {
 }
 
 /// "mapset()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_mapset(
-    argvars: *mut typval_T,
-    _rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if check_secure() {
             return;
@@ -2656,12 +2622,7 @@ pub unsafe extern "C" fn f_mapset(
 }
 
 /// "maplist()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_maplist(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_maplist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let flags = REPTERM_FROM_PART | REPTERM_DO_LT;
         let abbr = (*argvars).v_type != VarType::VAR_UNKNOWN && tv_get_bool(argvars) != 0;
@@ -2739,32 +2700,21 @@ pub unsafe extern "C" fn f_maplist(
 }
 
 /// "maparg()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_maparg(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_maparg(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         get_maparg(argvars, rettv, 1);
     }
 }
 
 /// "mapcheck()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_mapcheck(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_mapcheck(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         get_maparg(argvars, rettv, 0);
     }
 }
 
 /// Add a mapping.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn add_map(lhs: *mut c_char, rhs: *mut c_char, mode: c_int, buffer: bool) {
+pub unsafe fn add_map(lhs: *mut c_char, rhs: *mut c_char, mode: c_int, buffer: bool) {
     unsafe {
         let mut args = MapArguments::new();
         set_maparg_lhs_rhs(
@@ -2817,8 +2767,7 @@ unsafe fn langmap_set_entry(from: c_int, to: c_int) {
 }
 
 /// Apply 'langmap' to multi-byte character "c" and return the result.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn langmap_adjust_mb(c: c_int) -> c_int {
+pub unsafe fn langmap_adjust_mb(c: c_int) -> c_int {
     unsafe {
         let entries = langmap_mapga.ga_data.cast::<langmap_entry_T>();
         let mut a: c_int = 0;
@@ -2841,8 +2790,7 @@ pub unsafe extern "C" fn langmap_adjust_mb(c: c_int) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn langmap_init() {
+pub unsafe fn langmap_init() {
     unsafe {
         for i in 0..256 {
             *(&raw mut langmap_mapchar).cast::<u8>().add(i) = i as u8;
@@ -2857,8 +2805,7 @@ pub unsafe extern "C" fn langmap_init() {
 
 /// Called when langmap option is set; the language map can be
 /// changed at any time!
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn did_set_langmap(args: *mut optset_T) -> *const c_char {
+pub unsafe fn did_set_langmap(args: *mut optset_T) -> *const c_char {
     unsafe {
         ga_clear(&raw mut langmap_mapga);
         langmap_init();
@@ -3016,16 +2963,14 @@ unsafe fn do_exmap(eap: *mut exarg_T, isabbrev: bool) {
 }
 
 /// ":abbreviate" and friends.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_abbreviate(eap: *mut exarg_T) {
+pub unsafe fn ex_abbreviate(eap: *mut exarg_T) {
     unsafe {
         do_exmap(eap, true);
     }
 }
 
 /// ":map" and friends.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_map(eap: *mut exarg_T) {
+pub unsafe fn ex_map(eap: *mut exarg_T) {
     unsafe {
         if secure != 0 {
             secure = 2;
@@ -3037,32 +2982,28 @@ pub unsafe extern "C" fn ex_map(eap: *mut exarg_T) {
 }
 
 /// ":unmap" and friends.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_unmap(eap: *mut exarg_T) {
+pub unsafe fn ex_unmap(eap: *mut exarg_T) {
     unsafe {
         do_exmap(eap, false);
     }
 }
 
 /// ":mapclear" and friends.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_mapclear(eap: *mut exarg_T) {
+pub unsafe fn ex_mapclear(eap: *mut exarg_T) {
     unsafe {
         do_mapclear((*eap).cmd, (*eap).arg, (*eap).forceit, 0);
     }
 }
 
 /// ":abclear" and friends.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_abclear(eap: *mut exarg_T) {
+pub unsafe fn ex_abclear(eap: *mut exarg_T) {
     unsafe {
         do_mapclear((*eap).cmd, (*eap).arg, 1, 1);
     }
 }
 
 /// Set, tweak, or remove a mapping in a mode.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn modify_keymap(
+pub unsafe fn modify_keymap(
     channel_id: u64,
     mut buffer: Buffer,
     mut maptype: c_int,
@@ -3260,12 +3201,7 @@ pub unsafe extern "C" fn modify_keymap(
 
 /// Get an array containing dictionaries describing mappings
 /// based on mode and buffer id.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn keymap_array(
-    mode: NvimString,
-    buf: *mut buf_T,
-    arena: *mut Arena,
-) -> Array {
+pub unsafe fn keymap_array(mode: NvimString, buf: *mut buf_T, arena: *mut Arena) -> Array {
     unsafe {
         let mut mappings: ArrayBuilder = std::mem::zeroed();
         mappings.init();

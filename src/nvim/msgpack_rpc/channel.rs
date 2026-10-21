@@ -2,8 +2,7 @@
 
 use crate::api::private::dispatch::MsgpackRpcRequestHandler;
 use crate::api::private::helpers::{
-    OBJECT_NIL, api_clear_error, api_free_dict, api_free_object, api_set_error, copy_dict,
-    cstr_as_string,
+    OBJECT_NIL, api_clear_error, api_free_dict, api_free_object, api_set_error, cstr_as_string,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType,
@@ -163,13 +162,6 @@ pub struct ChannelTail {
     pub did_close_event: bool,
 }
 
-pub type RequestHandlerFn = unsafe extern "C" fn(
-    channel_id: u64,
-    args: Array,
-    arena: *mut Arena,
-    error: *mut Error,
-) -> Object;
-
 use crate::api::private::dispatch::{
     handle_nvim_get_mode, handle_nvim_paste, handle_nvim_ui_try_resize,
 };
@@ -280,16 +272,14 @@ fn create_event_2(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn rpc_init() {
+pub unsafe fn rpc_init() {
     unsafe {
         let qc = loop_queues((&raw mut main_loop).cast());
         ch_before_blocking_events = multiqueue_new_child((*qc).events);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn rpc_start(channel: *mut Channel) {
+pub unsafe fn rpc_start(channel: *mut Channel) {
     unsafe {
         channel_incref(channel);
 
@@ -330,8 +320,7 @@ unsafe fn find_rpc_channel(id: u64) -> *mut Channel {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn rpc_send_event(id: u64, name: *const c_char, args: Array) -> bool {
+pub unsafe fn rpc_send_event(id: u64, name: *const c_char, args: Array) -> bool {
     unsafe {
         let mut channel: *mut Channel = ptr::null_mut();
         if id != 0 {
@@ -351,8 +340,7 @@ pub unsafe extern "C" fn rpc_send_event(id: u64, name: *const c_char, args: Arra
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn rpc_send_call(
+pub unsafe fn rpc_send_call(
     id: u64,
     method_name: *const c_char,
     args: Array,
@@ -472,7 +460,7 @@ pub unsafe extern "C" fn rpc_send_call(
     }
 }
 
-unsafe extern "C" fn receive_msgpack(
+unsafe fn receive_msgpack(
     _stream: *mut RStream,
     rbuf: *const c_char,
     c: usize,
@@ -701,8 +689,7 @@ unsafe extern "C" fn request_event(argv: *mut *mut c_void) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn rpc_write_raw(id: u64, buffer: *mut WBuffer) -> bool {
+pub unsafe fn rpc_write_raw(id: u64, buffer: *mut WBuffer) -> bool {
     unsafe {
         let channel = find_rpc_channel(id);
         if channel.is_null() {
@@ -841,8 +828,7 @@ unsafe fn has_undetached_rpc_chan() -> bool {
     false
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn rpc_close(channel: *mut Channel) {
+pub unsafe fn rpc_close(channel: *mut Channel) {
     unsafe {
         let ct = channel_tail(channel);
         if (*ct).rpc.closed {
@@ -898,8 +884,7 @@ unsafe extern "C" fn rpc_close_event(argv: *mut *mut c_void) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn rpc_free(channel: *mut Channel) {
+pub unsafe fn rpc_free(channel: *mut Channel) {
     unsafe {
         let ct = channel_tail(channel);
         unpacker_teardown((*ct).rpc.unpacker);
@@ -988,8 +973,7 @@ unsafe fn serialize_request(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn serialize_response(
+pub unsafe fn serialize_response(
     mut channel: *mut Channel,
     handler: MsgpackRpcRequestHandler,
     r#type: MessageType,
@@ -1104,7 +1088,7 @@ unsafe fn packer_buffer_finish_channels(packer: *mut PackerBuffer) {
     }
 }
 
-unsafe extern "C" fn channel_flush_callback(packer: *mut PackerBuffer) {
+unsafe fn channel_flush_callback(packer: *mut PackerBuffer) {
     unsafe {
         packer_buffer_finish_channels(packer);
         packer_buffer_init_channels(
@@ -1115,8 +1099,7 @@ unsafe extern "C" fn channel_flush_callback(packer: *mut PackerBuffer) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn rpc_set_client_info(id: u64, info: Dict) {
+pub unsafe fn rpc_set_client_info(id: u64, info: Dict) {
     unsafe {
         let chan = find_rpc_channel(id);
         if chan.is_null() {
@@ -1146,13 +1129,7 @@ pub unsafe extern "C" fn rpc_set_client_info(id: u64, info: Dict) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn rpc_client_info(chan: *mut Channel) -> Dict {
-    unsafe { copy_dict((*channel_tail(chan)).rpc.info, ptr::null_mut()) }
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_client_info(chan: *mut Channel, key: *const c_char) -> *const c_char {
+pub unsafe fn get_client_info(chan: *mut Channel, key: *const c_char) -> *const c_char {
     unsafe {
         let ct = channel_tail(chan);
         if !(*ct).is_rpc {
@@ -1174,8 +1151,7 @@ pub unsafe extern "C" fn get_client_info(chan: *mut Channel, key: *const c_char)
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn rpc_free_all_mem() {
+pub unsafe fn rpc_free_all_mem() {
     unsafe {
         multiqueue_free(ch_before_blocking_events);
     }

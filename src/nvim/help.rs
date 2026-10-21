@@ -48,8 +48,7 @@ pub(crate) const kOptIskeyword: OptIndex = 155;
 use crate::eval::funcs::kSpecialVarNull;
 
 /// `:help`: open a read-only window on a help file (`ex_help`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_help(eap: *mut exarg_T) {
+pub unsafe fn ex_help(eap: *mut exarg_T) {
     unsafe {
         let mut arg: *mut c_char;
         let mut wp: *mut win_T;
@@ -268,8 +267,7 @@ pub unsafe extern "C" fn ex_help(eap: *mut exarg_T) {
 }
 
 /// `:helpclose`: Close one help window (`ex_helpclose`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_helpclose(eap: *mut exarg_T) {
+pub unsafe fn ex_helpclose(eap: *mut exarg_T) {
     unsafe {
         let mut win = firstwin;
         while !win.is_null() {
@@ -283,8 +281,7 @@ pub unsafe extern "C" fn ex_helpclose(eap: *mut exarg_T) {
 }
 
 /// Search for a language specifier in the form `@xx` (`check_help_lang`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_help_lang(arg: *mut c_char) -> *mut c_char {
+pub unsafe fn check_help_lang(arg: *mut c_char) -> *mut c_char {
     unsafe {
         let len = CStr::from_ptr(arg).to_bytes().len();
         if len >= 3
@@ -300,8 +297,7 @@ pub unsafe extern "C" fn check_help_lang(arg: *mut c_char) -> *mut c_char {
 }
 
 /// Return a heuristic indicating how well the given string matches (`help_heuristic`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn help_heuristic(
+pub unsafe fn help_heuristic(
     matched_string: *mut c_char,
     mut offset: c_int,
     wrong_case: bool,
@@ -335,7 +331,7 @@ pub unsafe extern "C" fn help_heuristic(
     }
 }
 
-unsafe extern "C" fn help_compare(s1: *const c_void, s2: *const c_void) -> c_int {
+unsafe fn help_compare(s1: *const c_void, s2: *const c_void) -> c_int {
     unsafe {
         let str1 = *s1.cast::<*const c_char>();
         let str2 = *s2.cast::<*const c_char>();
@@ -357,8 +353,7 @@ unsafe extern "C" fn help_compare(s1: *const c_void, s2: *const c_void) -> c_int
 }
 
 /// Find all help tags matching `arg`, sort them and return in `matches[]` (`find_help_tags`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn find_help_tags(
+pub unsafe fn find_help_tags(
     arg: *const c_char,
     num_matches: *mut c_int,
     matches: *mut *mut *mut c_char,
@@ -429,8 +424,7 @@ pub unsafe extern "C" fn find_help_tags(
 }
 
 /// Cleanup matches for help tags (`cleanup_help_tags`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cleanup_help_tags(num_file: c_int, file: *mut *mut c_char) {
+pub unsafe fn cleanup_help_tags(num_file: c_int, file: *mut *mut c_char) {
     unsafe {
         let mut buf = [0u8; 3];
         let has_default_lang =
@@ -482,8 +476,7 @@ pub unsafe extern "C" fn cleanup_help_tags(num_file: c_int, file: *mut *mut c_ch
 }
 
 /// Called when starting to edit a buffer for a help file (`prepare_help_buffer`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn prepare_help_buffer() {
+pub unsafe fn prepare_help_buffer() {
     unsafe {
         (*curbuf).b_help = true;
         set_option_direct(kOptBuftype, cstr_as_obj(c"help".as_ptr()), OPT_LOCAL, 0);
@@ -522,8 +515,7 @@ pub unsafe extern "C" fn prepare_help_buffer() {
 }
 
 /// Populate `*local-additions*` in `help.txt` (`get_local_additions`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_local_additions() {
+pub unsafe fn get_local_additions() {
     unsafe {
         let mut no_args = [typval_T {
             v_type: VarType::VAR_UNKNOWN,
@@ -540,24 +532,21 @@ pub unsafe extern "C" fn get_local_additions() {
 }
 
 /// `:exusage` (`ex_exusage`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_exusage(_eap: *mut exarg_T) {
+pub unsafe fn ex_exusage(_eap: *mut exarg_T) {
     unsafe {
         do_cmdline_cmd(c"help ex-cmd-index".as_ptr());
     }
 }
 
 /// `:viusage` (`ex_viusage`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_viusage(_eap: *mut exarg_T) {
+pub unsafe fn ex_viusage(_eap: *mut exarg_T) {
     unsafe {
         do_cmdline_cmd(c"help normal-index".as_ptr());
     }
 }
 
 /// `:helptags` (`ex_helptags`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_helptags(eap: *mut exarg_T) {
+pub unsafe fn ex_helptags(eap: *mut exarg_T) {
     unsafe {
         let mut add_help_tags = false;
 

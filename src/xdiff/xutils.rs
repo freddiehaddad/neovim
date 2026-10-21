@@ -14,8 +14,7 @@ use crate::xdiff::{
     mmfile_t, xdemitcb_t, xdfenv_t, xdl_isspace, xpparam_t,
 };
 
-#[unsafe(no_mangle)]
-pub extern "C" fn xdl_bogosqrt(mut n: c_long) -> c_long {
+pub fn xdl_bogosqrt(mut n: c_long) -> c_long {
     let mut i: c_long = 1;
     while n > 0 {
         i <<= 1;
@@ -24,8 +23,7 @@ pub extern "C" fn xdl_bogosqrt(mut n: c_long) -> c_long {
     i
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xdl_emit_diffrec(
+pub unsafe fn xdl_emit_diffrec(
     rec: *const c_char,
     size: c_long,
     pre: *const c_char,
@@ -57,25 +55,18 @@ pub unsafe extern "C" fn xdl_emit_diffrec(
     0
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xdl_mmfile_first(mmf: *mut mmfile_t, size: *mut c_long) -> *mut c_void {
+pub unsafe fn xdl_mmfile_first(mmf: *mut mmfile_t, size: *mut c_long) -> *mut c_void {
     unsafe {
         *size = (*mmf).size as c_long;
         (*mmf).ptr.cast::<c_void>()
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xdl_mmfile_size(mmf: *mut mmfile_t) -> c_long {
+pub unsafe fn xdl_mmfile_size(mmf: *mut mmfile_t) -> c_long {
     unsafe { (*mmf).size as c_long }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xdl_cha_init(
-    cha: *mut chastore_t,
-    isize: c_long,
-    icount: c_long,
-) -> c_int {
+pub unsafe fn xdl_cha_init(cha: *mut chastore_t, isize: c_long, icount: c_long) -> c_int {
     unsafe {
         (*cha).head = ptr::null_mut();
         (*cha).tail = ptr::null_mut();
@@ -88,8 +79,7 @@ pub unsafe extern "C" fn xdl_cha_init(
     0
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xdl_cha_free(cha: *mut chastore_t) {
+pub unsafe fn xdl_cha_free(cha: *mut chastore_t) {
     let mut cur = unsafe { (*cha).head };
     while !cur.is_null() {
         let tmp = cur;
@@ -98,8 +88,7 @@ pub unsafe extern "C" fn xdl_cha_free(cha: *mut chastore_t) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xdl_cha_alloc(cha: *mut chastore_t) -> *mut c_void {
+pub unsafe fn xdl_cha_alloc(cha: *mut chastore_t) -> *mut c_void {
     let mut ancur = unsafe { (*cha).ancur };
     if ancur.is_null() || unsafe { (*ancur).icurr == (*cha).nsize } {
         ancur =
@@ -134,8 +123,7 @@ pub unsafe extern "C" fn xdl_cha_alloc(cha: *mut chastore_t) -> *mut c_void {
     data
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xdl_guess_lines(mf: *mut mmfile_t, sample: c_long) -> c_long {
+pub unsafe fn xdl_guess_lines(mf: *mut mmfile_t, sample: c_long) -> c_long {
     let mut nl: c_long = 0;
     let mut size: c_long = 0;
     let mut tsize: c_long = 0;
@@ -170,8 +158,7 @@ pub unsafe extern "C" fn xdl_guess_lines(mf: *mut mmfile_t, sample: c_long) -> c
     nl + 1
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xdl_blankline(line: *const c_char, size: c_long, flags: c_long) -> c_int {
+pub unsafe fn xdl_blankline(line: *const c_char, size: c_long, flags: c_long) -> c_int {
     if ((flags as c_ulong) & XDF_WHITESPACE_FLAGS) == 0 {
         return c_int::from(size <= 1);
     }
@@ -199,8 +186,7 @@ unsafe fn ends_with_optional_cr(l: *const c_char, mut s: c_long, i: c_long) -> b
     false
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xdl_recmatch(
+pub unsafe fn xdl_recmatch(
     l1: *const c_char,
     s1: c_long,
     l2: *const c_char,
@@ -347,8 +333,7 @@ unsafe fn xdl_hash_record_with_whitespace(
     ha
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xdl_hash_record(
+pub unsafe fn xdl_hash_record(
     data: *mut *const c_char,
     top: *const c_char,
     flags: c_long,
@@ -372,8 +357,7 @@ pub unsafe extern "C" fn xdl_hash_record(
     ha
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn xdl_hashbits(size: c_uint) -> c_uint {
+pub fn xdl_hashbits(size: c_uint) -> c_uint {
     let mut val: c_uint = 1;
     let mut bits: c_uint = 0;
     let max_bits = c_uint::BITS;
@@ -385,8 +369,7 @@ pub extern "C" fn xdl_hashbits(size: c_uint) -> c_uint {
     if bits != 0 { bits } else { 1 }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xdl_num_out(out: *mut c_char, mut val: c_long) -> c_int {
+pub unsafe fn xdl_num_out(out: *mut c_char, mut val: c_long) -> c_int {
     let mut buf = [0 as c_char; 32];
     let mut ptr = buf.len() - 1;
     buf[ptr] = 0;
@@ -489,8 +472,7 @@ unsafe fn xdl_format_hunk_hdr(
     0
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xdl_emit_hunk_hdr(
+pub unsafe fn xdl_emit_hunk_hdr(
     s1: c_long,
     c1: c_long,
     s2: c_long,
@@ -520,8 +502,7 @@ pub unsafe extern "C" fn xdl_emit_hunk_hdr(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xdl_fall_back_diff(
+pub unsafe fn xdl_fall_back_diff(
     diff_env: *mut xdfenv_t,
     xpp: *const xpparam_t,
     line1: c_int,

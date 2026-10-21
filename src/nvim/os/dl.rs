@@ -15,8 +15,7 @@ pub struct UvLib {
 /// # Safety
 /// Pointer arguments must be null or valid C strings / output pointers, and the target symbol
 /// signature in `libname` must match the `(argv != null, str_out != null)` calling convention.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_libcall(
+pub unsafe fn os_libcall(
     libname: *const c_char,
     funcname: *const c_char,
     argv: *const c_char,

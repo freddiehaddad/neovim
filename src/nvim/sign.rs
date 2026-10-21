@@ -376,8 +376,7 @@ unsafe fn buf_delete_signs(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buf_has_signs(buf: *const buf_T) -> bool {
+pub unsafe fn buf_has_signs(buf: *const buf_T) -> bool {
     unsafe { buf_meta_total(buf, kMTMetaSignHL) + buf_meta_total(buf, kMTMetaSignText) != 0 }
 }
 
@@ -496,8 +495,7 @@ unsafe fn sign_cmd_idx(begin_cmd: *mut c_char, end_cmd: *mut c_char) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn describe_sign_text(buf: *mut c_char, sign_text: *mut schar_T) -> usize {
+pub unsafe fn describe_sign_text(buf: *mut c_char, sign_text: *mut schar_T) -> usize {
     unsafe {
         let mut p: usize = 0;
         for i in 0..SIGN_WIDTH {
@@ -512,12 +510,7 @@ pub unsafe extern "C" fn describe_sign_text(buf: *mut c_char, sign_text: *mut sc
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn init_sign_text(
-    sp: *mut sign_T,
-    sign_text: *mut schar_T,
-    text: *mut c_char,
-) -> c_int {
+pub unsafe fn init_sign_text(sp: *mut sign_T, sign_text: *mut schar_T, text: *mut c_char) -> c_int {
     unsafe {
         let mut endp = text.add(CStr::from_ptr(text).to_bytes().len());
         let mut s = if !sp.is_null() { text } else { endp };
@@ -1051,8 +1044,7 @@ unsafe fn parse_sign_cmd_args(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_sign(eap: *mut exarg_T) {
+pub unsafe fn ex_sign(eap: *mut exarg_T) {
     unsafe {
         let mut arg = (*eap).arg;
 
@@ -1179,8 +1171,7 @@ unsafe fn sign_get_placed_info_dict(mark: MTKey) -> *mut dict_T {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_buffer_signs(buf: *mut buf_T) -> *mut list_T {
+pub unsafe fn get_buffer_signs(buf: *mut buf_T) -> *mut list_T {
     unsafe {
         let l = tv_list_alloc(kListLenMayKnow);
         let mut itr: [MarkTreeIter; 1] = std::mem::zeroed();
@@ -1276,8 +1267,7 @@ unsafe fn sign_get_placed(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn free_signs() {
+pub unsafe fn free_signs() {
     unsafe {
         let mut names: KVec<cstr_t> = KVec::new();
         for i in 0..sign_map.set.h.n_keys {
@@ -1308,8 +1298,7 @@ unsafe fn get_nth_sign_group_name(idx: c_int) -> *mut c_char {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_sign_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_sign_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         match expand_what {
             EXP_SUBCMD => CMDS[idx as usize].cast_mut(),
@@ -1354,8 +1343,7 @@ pub unsafe extern "C" fn get_sign_name(_xp: *mut expand_T, idx: c_int) -> *mut c
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_context_in_sign_cmd(xp: *mut expand_T, arg: *mut c_char) {
+pub unsafe fn set_context_in_sign_cmd(xp: *mut expand_T, arg: *mut c_char) {
     unsafe {
         (*xp).xp_context = EXPAND_SIGN;
         expand_what = EXP_SUBCMD;
@@ -1491,12 +1479,7 @@ unsafe fn sign_define_multiple(l: *const list_T, retlist: *mut list_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_sign_define(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_sign_define(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if (*argvars).v_type == VarType::VAR_LIST
             && (*argvars.add(1)).v_type == VarType::VAR_UNKNOWN
@@ -1526,12 +1509,7 @@ pub unsafe extern "C" fn f_sign_define(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_sign_getdefined(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_sign_getdefined(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_list_alloc_ret(rettv, 0);
 
@@ -1549,12 +1527,7 @@ pub unsafe extern "C" fn f_sign_getdefined(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_sign_getplaced(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_sign_getplaced(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut buf: *mut buf_T = ptr::null_mut();
         let mut lnum: linenr_T = 0;
@@ -1607,12 +1580,7 @@ pub unsafe extern "C" fn f_sign_getplaced(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_sign_jump(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_sign_jump(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = -1;
 
@@ -1743,12 +1711,7 @@ unsafe fn sign_place_from_dict(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_sign_place(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_sign_place(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut dict: *mut dict_T = ptr::null_mut();
 
@@ -1771,12 +1734,7 @@ pub unsafe extern "C" fn f_sign_place(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_sign_placelist(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_sign_placelist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_list_alloc_ret(rettv, kListLenMayKnow);
 
@@ -1826,12 +1784,7 @@ unsafe fn sign_undefine_multiple(l: *const list_T, retlist: *mut list_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_sign_undefine(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_sign_undefine(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if (*argvars).v_type == VarType::VAR_LIST
             && (*argvars.add(1)).v_type == VarType::VAR_UNKNOWN
@@ -1892,12 +1845,7 @@ unsafe fn sign_unplace_from_dict(group_tv: *mut typval_T, dict: *mut dict_T) -> 
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_sign_unplace(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_sign_unplace(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut dict: *mut dict_T = ptr::null_mut();
 
@@ -1917,8 +1865,7 @@ pub unsafe extern "C" fn f_sign_unplace(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_sign_unplacelist(
+pub unsafe fn f_sign_unplacelist(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
     _fptr: EvalFuncData,

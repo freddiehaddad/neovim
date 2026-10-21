@@ -7,11 +7,10 @@ use crate::keycodes::{FSK_IN_STRING, FSK_KEYCODE, FSK_SIMPLIFY, NUL, trans_speci
 use crate::kvec::KVecWithInit;
 use crate::mbyte::{mb_copy_char, utf_char2bytes, utf_char2len, utfc_ptr2len_len};
 use crate::memory::{xfree, xmalloc, xmallocz};
-use crate::strings::vim_snprintf;
 use crate::viml::parser::parser::{
     ParserHighlightChunk, ParserLine, ParserPosition, ParserState, viml_parser_get_remaining_line,
 };
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{c_char, c_int};
 
 use crate::eval::STR2NR_ALL;
 use crate::eval::typval::float_T;
@@ -72,8 +71,6 @@ pub const kExprCmpIdentical: ExprComparisonType = 4;
 
 pub type ExprOptScope = c_int;
 pub const kExprOptScopeUnspecified: ExprOptScope = 0;
-pub const kExprOptScopeGlobal: ExprOptScope = b'g' as c_int;
-pub const kExprOptScopeLocal: ExprOptScope = b'l' as c_int;
 
 pub type ExprAssignmentType = c_int;
 pub const kExprAsgnPlain: ExprAssignmentType = 0;
@@ -83,14 +80,6 @@ pub const kExprAsgnConcat: ExprAssignmentType = 3;
 
 pub type ExprVarScope = c_int;
 pub const kExprVarScopeMissing: ExprVarScope = 0;
-pub const kExprVarScopeScript: ExprVarScope = b's' as c_int;
-pub const kExprVarScopeGlobal: ExprVarScope = b'g' as c_int;
-pub const kExprVarScopeVim: ExprVarScope = b'v' as c_int;
-pub const kExprVarScopeBuffer: ExprVarScope = b'b' as c_int;
-pub const kExprVarScopeWindow: ExprVarScope = b'w' as c_int;
-pub const kExprVarScopeTabpage: ExprVarScope = b't' as c_int;
-pub const kExprVarScopeLocal: ExprVarScope = b'l' as c_int;
-pub const kExprVarScopeArguments: ExprVarScope = b'a' as c_int;
 
 pub type LexExprMulType = c_int;
 pub const kExprLexMulMul: LexExprMulType = 0;
@@ -422,36 +411,6 @@ enum ExprOpAssociativity {
 pub struct SyncCStrArray<const N: usize>(pub [*const c_char; N]);
 unsafe impl<const N: usize> Sync for SyncCStrArray<N> {}
 
-const ELTKN_TYPE_TAB: [&CStr; 27] = [
-    c"Invalid",
-    c"Missing",
-    c"Spacing",
-    c"EOC",
-    c"Question",
-    c"Colon",
-    c"Or",
-    c"And",
-    c"Comparison",
-    c"Plus",
-    c"Minus",
-    c"Dot",
-    c"Multiplication",
-    c"Not",
-    c"Number",
-    c"SingleQuotedString",
-    c"DoubleQuotedString",
-    c"Option",
-    c"Register",
-    c"Env",
-    c"PlainIdentifier",
-    c"Bracket",
-    c"FigureBrace",
-    c"Parenthesis",
-    c"Comma",
-    c"Arrow",
-    c"Assignment",
-];
-
 #[unsafe(no_mangle)]
 pub static eltkn_cmp_type_tab: SyncCStrArray<5> = SyncCStrArray([
     c"Equal".as_ptr(),
@@ -479,8 +438,6 @@ const fn build_ccs_tab() -> [*const c_char; 64] {
 
 #[unsafe(no_mangle)]
 pub static ccs_tab: SyncCStrArray<64> = SyncCStrArray(build_ccs_tab());
-
-const ELTKN_MUL_TYPE_TAB: [&CStr; 3] = [c"Mul", c"Div", c"Mod"];
 
 #[unsafe(no_mangle)]
 pub static east_node_type_tab: SyncCStrArray<39> = SyncCStrArray([
@@ -525,7 +482,6 @@ pub static east_node_type_tab: SyncCStrArray<39> = SyncCStrArray([
     c"Assignment".as_ptr(),
 ]);
 
-#[unsafe(no_mangle)]
 pub static node_maxchildren: [u8; 39] = [
     0, // kExprNodeMissing
     2, // kExprNodeOpMissing
@@ -1122,179 +1078,6 @@ pub unsafe extern "C" fn viml_pexpr_next_token(
 
         if (flags & kELFlagPeek) == 0 {
             viml_parser_advance(pstate, ret.len);
-        }
-        ret
-    }
-}
-
-static mut INTCHAR_BUF: [c_char; 16] = [0; 16];
-static mut REPR_TOKEN_RET: [c_char; 1024] = [0; 1024];
-
-unsafe fn intchar2str(ch: c_int) -> *const c_char {
-    unsafe {
-        let buf = std::ptr::addr_of_mut!(INTCHAR_BUF).cast::<c_char>();
-        if (b' ' as c_int..0x7f).contains(&ch) {
-            if (b'0' as c_int..=b'9' as c_int).contains(&ch) {
-                *buf = b'\'' as c_char;
-                *buf.add(1) = ch as u8 as c_char;
-                *buf.add(2) = b'\'' as c_char;
-                *buf.add(3) = 0;
-            } else {
-                *buf = ch as u8 as c_char;
-                *buf.add(1) = 0;
-            }
-        } else {
-            let s = format!("{ch}");
-            let bytes = s.as_bytes();
-            std::ptr::copy_nonoverlapping(bytes.as_ptr().cast(), buf, bytes.len());
-            *buf.add(bytes.len()) = 0;
-        }
-        buf
-    }
-}
-
-/// Represent token as a string (`viml_pexpr_repr_token`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn viml_pexpr_repr_token(
-    pstate: *const ParserState,
-    token: LexExprToken,
-    ret_size: *mut usize,
-) -> *const c_char {
-    unsafe {
-        let ret = std::ptr::addr_of_mut!(REPR_TOKEN_RET).cast::<c_char>();
-        let mut p = ret;
-        let e = ret.add(1023);
-
-        p = p.add(vim_snprintf!(
-            p,
-            1024 - (p as usize - ret as usize),
-            c"%zu:%zu:%s".as_ptr(),
-            token.start.line,
-            token.start.col,
-            ELTKN_TYPE_TAB[token.r#type as usize].as_ptr(),
-        ) as usize);
-        if p as usize >= e as usize {
-            if !ret_size.is_null() {
-                *ret_size = p as usize - ret as usize;
-            }
-            return ret;
-        }
-
-        match token.r#type {
-            kExprLexComparison => {
-                p = p.add(vim_snprintf!(
-                    p,
-                    1024 - (p as usize - ret as usize),
-                    c"(type=%s,ccs=%s,inv=%i)".as_ptr(),
-                    eltkn_cmp_type_tab.0[token.data.cmp.r#type as usize],
-                    ccs_tab.0[token.data.cmp.ccs as usize],
-                    c_int::from(token.data.cmp.inv),
-                ) as usize);
-            }
-            kExprLexMultiplication => {
-                p = p.add(vim_snprintf!(
-                    p,
-                    1024 - (p as usize - ret as usize),
-                    c"(type=%s)".as_ptr(),
-                    ELTKN_MUL_TYPE_TAB[token.data.mul.r#type as usize].as_ptr(),
-                ) as usize);
-            }
-            kExprLexAssignment => {
-                p = p.add(vim_snprintf!(
-                    p,
-                    1024 - (p as usize - ret as usize),
-                    c"(type=%s)".as_ptr(),
-                    expr_asgn_type_tab.0[token.data.ass.r#type as usize],
-                ) as usize);
-            }
-            kExprLexRegister => {
-                p = p.add(vim_snprintf!(
-                    p,
-                    1024 - (p as usize - ret as usize),
-                    c"(name=%s)".as_ptr(),
-                    intchar2str(token.data.reg.name),
-                ) as usize);
-            }
-            kExprLexDoubleQuotedString | kExprLexSingleQuotedString => {
-                p = p.add(vim_snprintf!(
-                    p,
-                    1024 - (p as usize - ret as usize),
-                    c"(closed=%i)".as_ptr(),
-                    c_int::from(token.data.str.closed),
-                ) as usize);
-            }
-            kExprLexOption => {
-                let scope_str = match token.data.opt.scope {
-                    kExprOptScopeGlobal => c"Global".as_ptr(),
-                    kExprOptScopeLocal => c"Local".as_ptr(),
-                    _ => c"Unspecified".as_ptr(),
-                };
-                p = p.add(vim_snprintf!(
-                    p,
-                    1024 - (p as usize - ret as usize),
-                    c"(scope=%s,name=%.*s)".as_ptr(),
-                    scope_str,
-                    token.data.opt.len as c_int,
-                    token.data.opt.name,
-                ) as usize);
-            }
-            kExprLexPlainIdentifier => {
-                p = p.add(vim_snprintf!(
-                    p,
-                    1024 - (p as usize - ret as usize),
-                    c"(scope=%s,autoload=%i)".as_ptr(),
-                    intchar2str(token.data.var.scope),
-                    c_int::from(token.data.var.autoload),
-                ) as usize);
-            }
-            kExprLexNumber => {
-                let val: f64 = if token.data.num.is_float {
-                    token.data.num.val.floating
-                } else {
-                    token.data.num.val.integer as f64
-                };
-                p = p.add(vim_snprintf!(
-                    p,
-                    1024 - (p as usize - ret as usize),
-                    c"(is_float=%i,base=%i,val=%lg)".as_ptr(),
-                    c_int::from(token.data.num.is_float),
-                    c_int::from(token.data.num.base),
-                    val,
-                ) as usize);
-            }
-            kExprLexInvalid => {
-                p = p.add(vim_snprintf!(
-                    p,
-                    1024 - (p as usize - ret as usize),
-                    c"(msg=%s)".as_ptr(),
-                    token.data.err.msg,
-                ) as usize);
-            }
-            _ => {}
-        }
-        if p as usize >= e as usize {
-            if !ret_size.is_null() {
-                *ret_size = p as usize - ret as usize;
-            }
-            return ret;
-        }
-        if pstate.is_null() {
-            p = p.add(vim_snprintf!(
-                p,
-                1024 - (p as usize - ret as usize),
-                c"::%zu".as_ptr(),
-                token.len,
-            ) as usize);
-        } else {
-            *p = b':' as c_char;
-            p = p.add(1);
-            let pline = (*(*pstate).reader.lines.items.add(token.start.line)).data;
-            std::ptr::copy(pline.add(token.start.col), p, token.len);
-            p = p.add(token.len);
-            *p = 0;
-        }
-        if !ret_size.is_null() {
-            *ret_size = p as usize - ret as usize;
         }
         ret
     }

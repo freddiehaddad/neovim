@@ -1436,16 +1436,14 @@ fn event_name2nr_hash(str_: *const c_char, len: usize) -> isize {
     -1
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn autocmd_init() {
+pub unsafe fn autocmd_init() {
     unsafe {
         let events = (*loop_queues((&raw mut main_loop).cast::<Loop>())).events;
         deferred_events = multiqueue_new_child(events);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn autocmd_free_all_mem() {
+pub unsafe fn autocmd_free_all_mem() {
     unsafe {
         multiqueue_free(deferred_events);
     }
@@ -1651,8 +1649,7 @@ unsafe fn aucmd_del(ac: *mut AutoCmd) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn aucmd_del_for_event_and_group(event: event_T, group: c_int) {
+pub unsafe fn aucmd_del_for_event_and_group(event: event_T, group: c_int) {
     unsafe {
         let acs = &raw mut autocmds[event as usize];
         for i in 0..(*acs).size {
@@ -1694,13 +1691,11 @@ unsafe fn au_cleanup() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn au_get_autocmds_for_event(event: event_T) -> *mut AutoCmdVec {
+pub unsafe fn au_get_autocmds_for_event(event: event_T) -> *mut AutoCmdVec {
     unsafe { &raw mut autocmds[event as usize] }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn aubuflocal_remove(buf: *mut buf_T) {
+pub unsafe fn aubuflocal_remove(buf: *mut buf_T) {
     unsafe {
         let mut apc = active_apc_list;
         while !apc.is_null() {
@@ -1736,8 +1731,7 @@ pub unsafe extern "C" fn aubuflocal_remove(buf: *mut buf_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn augroup_add(name: *const c_char) -> c_int {
+pub unsafe fn augroup_add(name: *const c_char) -> c_int {
     unsafe {
         assert!(vim_stricmp(name, c"end".as_ptr()) != 0);
 
@@ -1762,8 +1756,7 @@ pub unsafe extern "C" fn augroup_add(name: *const c_char) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn augroup_del_by_id(id: c_int) {
+pub unsafe fn augroup_del_by_id(id: c_int) {
     unsafe {
         let name = if id <= 0 {
             ptr::null_mut()
@@ -1778,12 +1771,7 @@ pub unsafe extern "C" fn augroup_del_by_id(id: c_int) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn augroup_del(
-    name: *mut c_char,
-    id_for_error: c_int,
-    stupid_legacy_mode: bool,
-) {
+pub unsafe fn augroup_del(name: *mut c_char, id_for_error: c_int, stupid_legacy_mode: bool) {
     unsafe {
         let group = augroup_find(name);
         if group == AUGROUP_ERROR {
@@ -1832,8 +1820,7 @@ pub unsafe extern "C" fn augroup_del(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn augroup_find(name: *const c_char) -> c_int {
+pub unsafe fn augroup_find(name: *const c_char) -> c_int {
     unsafe {
         let existing_id = map_get_string_int(&raw mut map_augroup_name_to_id, cstr_as_string(name));
         if existing_id == AUGROUP_DELETED || existing_id > 0 {
@@ -1844,8 +1831,7 @@ pub unsafe extern "C" fn augroup_find(name: *const c_char) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn augroup_name(mut group: c_int) -> *mut c_char {
+pub unsafe fn augroup_name(mut group: c_int) -> *mut c_char {
     unsafe {
         assert!(group != 0);
 
@@ -1874,13 +1860,11 @@ pub unsafe extern "C" fn augroup_name(mut group: c_int) -> *mut c_char {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn augroup_exists(name: *const c_char) -> bool {
+pub unsafe fn augroup_exists(name: *const c_char) -> bool {
     unsafe { augroup_find(name) > 0 }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_augroup(arg: *mut c_char, del_group: bool) {
+pub unsafe fn do_augroup(arg: *mut c_char, del_group: bool) {
     unsafe {
         if del_group {
             if *arg == NUL {
@@ -1913,8 +1897,7 @@ pub unsafe extern "C" fn do_augroup(arg: *mut c_char, del_group: bool) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn free_all_autocmds() {
+pub unsafe fn free_all_autocmds() {
     unsafe {
         for event in 0..NUM_EVENTS {
             let acs = (&raw mut autocmds).cast::<AutoCmdVec>().add(event);
@@ -1939,8 +1922,7 @@ pub unsafe extern "C" fn free_all_autocmds() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn event_name2nr(start: *const c_char, end: *mut *mut c_char) -> event_T {
+pub unsafe fn event_name2nr(start: *const c_char, end: *mut *mut c_char) -> event_T {
     unsafe {
         let mut p = start;
         while *p != NUL && !ascii_iswhite(*p) && *p != b',' as c_char && *p != b'|' as c_char {
@@ -1960,8 +1942,7 @@ pub unsafe extern "C" fn event_name2nr(start: *const c_char, end: *mut *mut c_ch
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn event_name2nr_str(str_: NvimString) -> event_T {
+pub unsafe fn event_name2nr_str(str_: NvimString) -> event_T {
     let hash_idx = event_name2nr_hash(str_.data, str_.size);
     if hash_idx < 0 {
         return NUM_EVENTS as event_T;
@@ -1970,8 +1951,7 @@ pub unsafe extern "C" fn event_name2nr_str(str_: NvimString) -> event_T {
     EVENT_NAMES[ev].event.abs() as event_T
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn event_nr2name(event: event_T) -> *const c_char {
+pub unsafe fn event_nr2name(event: event_T) -> *const c_char {
     if event >= 0 && (event as usize) < NUM_EVENTS {
         EVENT_NAMES[event as usize].name.as_ptr()
     } else {
@@ -1979,8 +1959,7 @@ pub unsafe extern "C" fn event_nr2name(event: event_T) -> *const c_char {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn event_ignored(event: event_T, mut ei: *mut c_char) -> bool {
+pub unsafe fn event_ignored(event: event_T, mut ei: *mut c_char) -> bool {
     unsafe {
         let mut ignored = false;
         while *ei != NUL {
@@ -2005,8 +1984,7 @@ pub unsafe extern "C" fn event_ignored(event: event_T, mut ei: *mut c_char) -> b
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_ei(mut ei: *mut c_char, win: bool) -> c_int {
+pub unsafe fn check_ei(mut ei: *mut c_char, win: bool) -> c_int {
     unsafe {
         while *ei != NUL {
             if vim_strnicmp(ei, c"all".as_ptr(), 3) == 0
@@ -2028,8 +2006,7 @@ pub unsafe extern "C" fn check_ei(mut ei: *mut c_char, win: bool) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn au_event_disable(what: *mut c_char) -> *mut c_char {
+pub unsafe fn au_event_disable(what: *mut c_char) -> *mut c_char {
     unsafe {
         let p_ei_len = CStr::from_ptr(p_ei).to_bytes().len();
         let what_len = CStr::from_ptr(what).to_bytes().len();
@@ -2046,8 +2023,7 @@ pub unsafe extern "C" fn au_event_disable(what: *mut c_char) -> *mut c_char {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn au_event_restore(old_ei: *mut c_char) {
+pub unsafe fn au_event_restore(old_ei: *mut c_char) {
     unsafe {
         if !old_ei.is_null() {
             set_option_direct(kOptEventignore, cstr_as_obj(old_ei), 0, SID_NONE);
@@ -2056,8 +2032,7 @@ pub unsafe extern "C" fn au_event_restore(old_ei: *mut c_char) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_autocmd(eap: *mut exarg_T, arg_in: *mut c_char, forceit: c_int) {
+pub unsafe fn do_autocmd(eap: *mut exarg_T, arg_in: *mut c_char, forceit: c_int) {
     unsafe {
         let mut arg = arg_in;
         let mut envpat: *mut c_char = ptr::null_mut();
@@ -2183,8 +2158,7 @@ pub unsafe extern "C" fn do_autocmd(eap: *mut exarg_T, arg_in: *mut c_char, forc
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_all_autocmd_events(
+pub unsafe fn do_all_autocmd_events(
     pat: *const c_char,
     once: bool,
     nested: c_int,
@@ -2201,8 +2175,7 @@ pub unsafe extern "C" fn do_all_autocmd_events(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_autocmd_event(
+pub unsafe fn do_autocmd_event(
     event: event_T,
     mut pat: *const c_char,
     once: bool,
@@ -2293,8 +2266,7 @@ pub unsafe extern "C" fn do_autocmd_event(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn autocmd_register(
+pub unsafe fn autocmd_register(
     id: i64,
     event: event_T,
     mut pat: *const c_char,
@@ -2451,11 +2423,7 @@ pub unsafe extern "C" fn autocmd_register(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn aucmd_span_pattern(
-    mut pat: *const c_char,
-    start: *mut *const c_char,
-) -> usize {
+pub unsafe fn aucmd_span_pattern(mut pat: *const c_char, start: *mut *const c_char) -> usize {
     unsafe {
         while *pat == b',' as c_char {
             pat = pat.add(1);
@@ -2481,8 +2449,7 @@ pub unsafe extern "C" fn aucmd_span_pattern(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_doautocmd(
+pub unsafe fn do_doautocmd(
     arg_start: *mut c_char,
     do_msg: bool,
     did_something: *mut bool,
@@ -2539,8 +2506,7 @@ pub unsafe extern "C" fn do_doautocmd(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_doautoall(eap: *mut exarg_T) {
+pub unsafe fn ex_doautoall(eap: *mut exarg_T) {
     unsafe {
         let mut retval = OK;
         let mut aco: CtxSwitch = std::mem::zeroed();
@@ -2583,8 +2549,7 @@ pub unsafe extern "C" fn ex_doautoall(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_nomodeline(argp: *mut *mut c_char) -> bool {
+pub unsafe fn check_nomodeline(argp: *mut *mut c_char) -> bool {
     unsafe {
         let bytes = CStr::from_ptr(*argp).to_bytes();
         if bytes.starts_with(b"<nomodeline>") {
@@ -2595,8 +2560,7 @@ pub unsafe extern "C" fn check_nomodeline(argp: *mut *mut c_char) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn aucmd_defer(
+pub unsafe fn aucmd_defer(
     event: event_T,
     fname: *mut c_char,
     fname_io: *mut c_char,
@@ -2714,8 +2678,7 @@ unsafe extern "C" fn deferred_optionset_modified(argv: *mut *mut c_void) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn aucmd_defer_modified(buf: *mut buf_T, new_val: bool) {
+pub unsafe fn aucmd_defer_modified(buf: *mut buf_T, new_val: bool) {
     unsafe {
         if !has_event(EVENT_OPTIONSET)
             || (bt_nofile(buf) && (*buf).b_p_bl == 0)
@@ -2736,8 +2699,7 @@ pub unsafe extern "C" fn aucmd_defer_modified(buf: *mut buf_T, new_val: bool) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn apply_autocmds(
+pub unsafe fn apply_autocmds(
     event: event_T,
     fname: *mut c_char,
     fname_io: *mut c_char,
@@ -2760,8 +2722,7 @@ pub unsafe extern "C" fn apply_autocmds(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn apply_autocmds_win(
+pub unsafe fn apply_autocmds_win(
     event: event_T,
     fname: *mut c_char,
     fname_io: *mut c_char,
@@ -2785,8 +2746,7 @@ pub unsafe extern "C" fn apply_autocmds_win(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn apply_autocmds_exarg(
+pub unsafe fn apply_autocmds_exarg(
     event: event_T,
     fname: *mut c_char,
     fname_io: *mut c_char,
@@ -2810,8 +2770,7 @@ pub unsafe extern "C" fn apply_autocmds_exarg(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn apply_autocmds_retval(
+pub unsafe fn apply_autocmds_retval(
     event: event_T,
     fname: *mut c_char,
     fname_io: *mut c_char,
@@ -2843,8 +2802,7 @@ pub unsafe extern "C" fn apply_autocmds_retval(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn has_event(event: event_T) -> bool {
+pub unsafe fn has_event(event: event_T) -> bool {
     unsafe { autocmds[event as usize].size != 0 }
 }
 
@@ -2858,8 +2816,7 @@ unsafe fn has_cursorhold() -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn trigger_cursorhold() -> bool {
+pub unsafe fn trigger_cursorhold() -> bool {
     unsafe {
         if !did_cursorhold
             && has_cursorhold()
@@ -2876,8 +2833,7 @@ pub unsafe extern "C" fn trigger_cursorhold() -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn apply_autocmds_group(
+pub unsafe fn apply_autocmds_group(
     event: event_T,
     mut fname: *mut c_char,
     fname_io: *mut c_char,
@@ -3259,8 +3215,7 @@ pub unsafe extern "C" fn apply_autocmds_group(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_termresponse_autocmd(sequence: NvimString, channel_id: u64) {
+pub unsafe fn do_termresponse_autocmd(sequence: NvimString, channel_id: u64) {
     unsafe {
         let mut data_items = [
             KeyValuePair {
@@ -3319,8 +3274,7 @@ pub unsafe extern "C" fn unblock_autocmds() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn is_autocmd_blocked() -> bool {
+pub unsafe fn is_autocmd_blocked() -> bool {
     unsafe { autocmd_blocked != 0 }
 }
 
@@ -3491,8 +3445,7 @@ unsafe fn au_callback(ac: *const AutoCmd, apc: *const AutoPatCmd) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn getnextac(
+pub unsafe fn getnextac(
     _c: c_int,
     cookie: *mut c_void,
     _indent: c_int,
@@ -3554,8 +3507,7 @@ pub unsafe extern "C" fn getnextac(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn has_autocmd(event: event_T, sfname: *mut c_char, buf: *mut buf_T) -> bool {
+pub unsafe fn has_autocmd(event: event_T, sfname: *mut c_char, buf: *mut buf_T) -> bool {
     unsafe {
         if !has_event(event) {
             return false;
@@ -3597,13 +3549,11 @@ pub unsafe extern "C" fn has_autocmd(event: event_T, sfname: *mut c_char, buf: *
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn expand_get_augroup_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn expand_get_augroup_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe { augroup_name(idx + 1) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn aucmd_set_expand_context(
+pub unsafe fn aucmd_set_expand_context(
     xp: *mut expand_T,
     mut arg: *mut c_char,
     doautocmd: bool,
@@ -3667,8 +3617,7 @@ pub unsafe extern "C" fn aucmd_set_expand_context(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn expand_get_event_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn expand_get_event_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         let name = augroup_name(idx + 1);
         if !name.is_null() {
@@ -3687,12 +3636,7 @@ pub unsafe extern "C" fn expand_get_event_name(_xp: *mut expand_T, idx: c_int) -
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_event_name_no_group(
-    _xp: *mut expand_T,
-    idx: c_int,
-    win: bool,
-) -> *mut c_char {
+pub unsafe fn get_event_name_no_group(_xp: *mut expand_T, idx: c_int, win: bool) -> *mut c_char {
     if idx < 0 || (idx as usize) >= NUM_EVENTS {
         return ptr::null_mut();
     }
@@ -3713,16 +3657,14 @@ pub unsafe extern "C" fn get_event_name_no_group(
     ptr::null_mut()
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn autocmd_supported(event: *const c_char) -> bool {
+pub unsafe fn autocmd_supported(event: *const c_char) -> bool {
     unsafe {
         let mut p: *mut c_char = ptr::null_mut();
         event_name2nr(event, &raw mut p) != NUM_EVENTS as event_T
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn au_exists(arg: *const c_char) -> bool {
+pub unsafe fn au_exists(arg: *const c_char) -> bool {
     unsafe {
         let mut buflocal_buf: *mut buf_T = ptr::null_mut();
         let mut retval = false;
@@ -3785,8 +3727,7 @@ pub unsafe extern "C" fn au_exists(arg: *const c_char) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn aupat_is_buflocal(pat: *const c_char, patlen: c_int) -> bool {
+pub unsafe fn aupat_is_buflocal(pat: *const c_char, patlen: c_int) -> bool {
     if patlen < 8 {
         return false;
     }
@@ -3794,8 +3735,7 @@ pub unsafe extern "C" fn aupat_is_buflocal(pat: *const c_char, patlen: c_int) ->
     slice.starts_with(b"<buffer") && slice[slice.len() - 1] == b'>'
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn aupat_get_buflocal_nr(pat: *const c_char, patlen: c_int) -> c_int {
+pub unsafe fn aupat_get_buflocal_nr(pat: *const c_char, patlen: c_int) -> c_int {
     unsafe {
         assert!(aupat_is_buflocal(pat, patlen));
 
@@ -3818,8 +3758,7 @@ pub unsafe extern "C" fn aupat_get_buflocal_nr(pat: *const c_char, patlen: c_int
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn aupat_normalize_buflocal_pat(
+pub unsafe fn aupat_normalize_buflocal_pat(
     dest: *mut c_char,
     pat: *const c_char,
     patlen: c_int,
@@ -3839,17 +3778,7 @@ pub unsafe extern "C" fn aupat_normalize_buflocal_pat(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn autocmd_delete_event(
-    group: c_int,
-    event: event_T,
-    pat: *const c_char,
-) -> c_int {
-    unsafe { do_autocmd_event(event, pat, false, 0, c"".as_ptr(), true, group) }
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn autocmd_delete_id(id: i64) -> bool {
+pub unsafe fn autocmd_delete_id(id: i64) -> bool {
     unsafe {
         assert!(id > 0);
         let mut success = false;
@@ -3868,8 +3797,7 @@ pub unsafe extern "C" fn autocmd_delete_id(id: i64) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn aucmd_handler_to_string(ac: *mut AutoCmd) -> *mut c_char {
+pub unsafe fn aucmd_handler_to_string(ac: *mut AutoCmd) -> *mut c_char {
     unsafe {
         if !(*ac).handler_cmd.is_null() {
             xstrdup((*ac).handler_cmd)
@@ -3965,8 +3893,7 @@ unsafe extern "C" fn vimresume_event(_argv: *mut *mut c_void) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn may_trigger_vim_suspend_resume(suspend: bool) {
+pub unsafe fn may_trigger_vim_suspend_resume(suspend: bool) {
     unsafe {
         if suspend && pending_vimresume == kFalse {
             pending_vimresume = kNone;
@@ -3992,8 +3919,7 @@ pub unsafe extern "C" fn may_trigger_vim_suspend_resume(suspend: bool) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_autocmd_uienter(chanid: u64, attached: bool) {
+pub unsafe fn do_autocmd_uienter(chanid: u64, attached: bool) {
     unsafe {
         if starting == NO_SCREEN || uienter_recursive {
             return;
@@ -4022,8 +3948,7 @@ pub unsafe extern "C" fn do_autocmd_uienter(chanid: u64, attached: bool) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_autocmd_focusgained(gained: bool) {
+pub unsafe fn do_autocmd_focusgained(gained: bool) {
     unsafe {
         if focusgained_recursive {
             return;
@@ -4050,8 +3975,7 @@ pub unsafe extern "C" fn do_autocmd_focusgained(gained: bool) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_filetype_autocmd(buf: *mut buf_T, force: bool) -> bool {
+pub unsafe fn do_filetype_autocmd(buf: *mut buf_T, force: bool) -> bool {
     unsafe {
         if ft_recursive > 0 && !force {
             return false;

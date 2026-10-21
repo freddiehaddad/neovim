@@ -56,9 +56,8 @@ pub type uv_tcp_t = c_void;
 pub type uv_getaddrinfo_t = c_void;
 
 pub type socket_cb =
-    Option<unsafe extern "C" fn(watcher: *mut SocketWatcher, result: c_int, data: *mut c_void)>;
-pub type socket_close_cb =
-    Option<unsafe extern "C" fn(watcher: *mut SocketWatcher, data: *mut c_void)>;
+    Option<unsafe fn(watcher: *mut SocketWatcher, result: c_int, data: *mut c_void)>;
+pub type socket_close_cb = Option<unsafe fn(watcher: *mut SocketWatcher, data: *mut c_void)>;
 
 #[repr(C)]
 pub struct addrinfo {
@@ -182,8 +181,7 @@ unsafe fn poll_main_loop_until<F: FnMut() -> bool>(timeout: i64, mut cond: F) {
 }
 
 /// Checks if an address string looks like a TCP endpoint, and returns the end of the host part.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn socket_address_tcp_host_end(address: *const c_char) -> *mut c_char {
+pub unsafe fn socket_address_tcp_host_end(address: *const c_char) -> *mut c_char {
     if address.is_null() {
         return ptr::null_mut();
     }
@@ -206,8 +204,7 @@ pub unsafe extern "C" fn socket_address_tcp_host_end(address: *const c_char) -> 
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn socket_watcher_init(
+pub unsafe fn socket_watcher_init(
     loop_: *mut Loop,
     watcher: *mut SocketWatcher,
     endpoint: *const c_char,
@@ -297,7 +294,7 @@ pub unsafe extern "C" fn socket_watcher_init(
 }
 
 /// Callback after closing a Stream initialized by socket_connect().
-unsafe extern "C" fn connect_close_cb(_stream: *mut Stream, data: *mut c_void) {
+unsafe fn connect_close_cb(_stream: *mut Stream, data: *mut c_void) {
     unsafe {
         *data.cast::<bool>() = true;
     }
@@ -335,8 +332,7 @@ unsafe extern "C" fn early_server_close_cb(handle: *mut uv_handle_t) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn socket_watcher_start(
+pub unsafe fn socket_watcher_start(
     watcher: *mut SocketWatcher,
     backlog: c_int,
     cb: socket_cb,
@@ -447,11 +443,7 @@ pub unsafe extern "C" fn socket_watcher_start(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn socket_watcher_accept(
-    watcher: *mut SocketWatcher,
-    stream: *mut RStream,
-) -> c_int {
+pub unsafe fn socket_watcher_accept(watcher: *mut SocketWatcher, stream: *mut RStream) -> c_int {
     unsafe {
         let tail = watcher_tail(watcher);
         let uv_ptr = watcher_uv_ptr(watcher);
@@ -478,8 +470,7 @@ pub unsafe extern "C" fn socket_watcher_accept(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn socket_watcher_close(watcher: *mut SocketWatcher, cb: socket_close_cb) {
+pub unsafe fn socket_watcher_close(watcher: *mut SocketWatcher, cb: socket_close_cb) {
     unsafe {
         let tail = watcher_tail(watcher);
         (*tail).close_cb = cb;
@@ -541,8 +532,7 @@ unsafe extern "C" fn connect_cb(req: *mut uv_connect_t, status: c_int) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn socket_connect(
+pub unsafe fn socket_connect(
     loop_: *mut Loop,
     stream: *mut RStream,
     is_tcp: bool,

@@ -214,7 +214,6 @@ unsafe extern "C-unwind" fn regex_tostring(lstate: *mut lua_State) -> c_int {
 }
 
 /// Convert byte index to UTF-32 and UTF-16 indices.
-#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn nlua_str_utfindex(lstate: *mut lua_State) -> c_int {
     unsafe {
         let mut s1_len: usize = 0;
@@ -295,7 +294,6 @@ unsafe extern "C-unwind" fn nlua_str_utf_end(lstate: *mut lua_State) -> c_int {
 }
 
 /// Convert UTF-32 or UTF-16 indices to byte index.
-#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn nlua_str_byteindex(lstate: *mut lua_State) -> c_int {
     unsafe {
         let mut s1_len: usize = 0;
@@ -321,7 +319,6 @@ pub unsafe extern "C-unwind" fn nlua_str_byteindex(lstate: *mut lua_State) -> c_
     }
 }
 
-#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn nlua_regex(lstate: *mut lua_State) -> c_int {
     unsafe {
         let mut err = Error {
@@ -408,7 +405,6 @@ unsafe fn nlua_get_var_scope(lstate: *mut lua_State) -> *mut dict_T {
     }
 }
 
-#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> c_int {
     unsafe {
         let dict = nlua_get_var_scope(lstate);
@@ -499,7 +495,6 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn nlua_getvar(lstate: *mut lua_State) -> c_int {
     unsafe {
         let dict = nlua_get_var_scope(lstate);
@@ -820,7 +815,6 @@ unsafe fn nlua_state_add_internal(lstate: *mut lua_State) {
     }
 }
 
-#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn nlua_state_add_stdlib(lstate: *mut lua_State, is_thread: bool) {
     unsafe {
         if !is_thread {

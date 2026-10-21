@@ -333,8 +333,7 @@ use crate::buffer::bt_dontwrite_msg;
 use crate::undo::{bufIsChanged, curbufIsChanged};
 
 /// `":ascii"` and `"ga"` implementation.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_ascii(_eap: *mut exarg_T) {
+pub unsafe fn do_ascii(_eap: *mut exarg_T) {
     unsafe {
         let data = get_cursor_pos_ptr();
         let len = utfc_ptr2len(data) as usize;
@@ -477,8 +476,7 @@ pub unsafe extern "C" fn do_ascii(_eap: *mut exarg_T) {
 }
 
 /// `":left"`, `":center"` and `":right"`: align text.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_align(eap: *mut exarg_T) {
+pub unsafe fn ex_align(eap: *mut exarg_T) {
     unsafe {
         let mut indent: c_int = 0;
         let mut new_indent: c_int;
@@ -589,7 +587,7 @@ unsafe fn linelen(has_tab: *mut c_int) -> c_int {
     }
 }
 
-unsafe extern "C" fn string_compare(s1: *const c_void, s2: *const c_void) -> c_int {
+unsafe fn string_compare(s1: *const c_void, s2: *const c_void) -> c_int {
     unsafe {
         if sort_lc {
             return strcoll(s1.cast::<c_char>(), s2.cast::<c_char>());
@@ -602,7 +600,7 @@ unsafe extern "C" fn string_compare(s1: *const c_void, s2: *const c_void) -> c_i
     }
 }
 
-unsafe extern "C" fn sort_compare(s1: *const c_void, s2: *const c_void) -> c_int {
+unsafe fn sort_compare(s1: *const c_void, s2: *const c_void) -> c_int {
     unsafe {
         let l1 = *s1.cast::<sorti_T>();
         let l2 = *s2.cast::<sorti_T>();
@@ -666,8 +664,7 @@ unsafe extern "C" fn sort_compare(s1: *const c_void, s2: *const c_void) -> c_int
 }
 
 /// `":sort"`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_sort(eap: *mut exarg_T) {
+pub unsafe fn ex_sort(eap: *mut exarg_T) {
     unsafe {
         let mut regmatch: regmatch_T = std::mem::zeroed();
         let mut maxlen: c_int = 0;
@@ -957,8 +954,7 @@ pub unsafe extern "C" fn ex_sort(eap: *mut exarg_T) {
 }
 
 /// `":uniq"`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_uniq(eap: *mut exarg_T) {
+pub unsafe fn ex_uniq(eap: *mut exarg_T) {
     unsafe {
         let mut regmatch: regmatch_T = std::mem::zeroed();
         let mut maxlen: c_int = 0;
@@ -1173,8 +1169,7 @@ pub unsafe extern "C" fn ex_uniq(eap: *mut exarg_T) {
 }
 
 /// `:move` command - move lines `line1`-`line2` to line `dest`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> c_int {
+pub unsafe fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> c_int {
     unsafe {
         if dest >= line1 && dest < line2 {
             emsg(gettext(
@@ -1354,8 +1349,7 @@ pub unsafe extern "C" fn do_move(line1: linenr_T, line2: linenr_T, mut dest: lin
 }
 
 /// `":copy"`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_copy(mut line1: linenr_T, mut line2: linenr_T, n: linenr_T) {
+pub unsafe fn ex_copy(mut line1: linenr_T, mut line2: linenr_T, n: linenr_T) {
     unsafe {
         let count = line2 - line1 + 1;
         if (cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
@@ -1397,8 +1391,7 @@ pub unsafe extern "C" fn ex_copy(mut line1: linenr_T, mut line2: linenr_T, n: li
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn free_prev_shellcmd() {
+pub unsafe fn free_prev_shellcmd() {
     unsafe {
         xfree(prevcmd.cast::<c_void>());
     }
@@ -1416,8 +1409,7 @@ unsafe fn prevcmd_is_set() -> bool {
 }
 
 /// Handle the `":!cmd"` command.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_bang(
+pub unsafe fn do_bang(
     addr_count: c_int,
     eap: *mut exarg_T,
     forceit: bool,
@@ -1799,8 +1791,7 @@ unsafe fn do_filter(
 }
 
 /// Call a shell to execute a command.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_shell(cmd: *mut c_char, flags: c_int) {
+pub unsafe fn do_shell(cmd: *mut c_char, flags: c_int) {
     unsafe {
         if check_secure() {
             msg_end();
@@ -1864,8 +1855,7 @@ unsafe fn find_pipe(cmd: *const c_char) -> *mut c_char {
 
 /// Create a shell command from a command string, input redirection file and
 /// output redirection file.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn make_filter_cmd(
+pub unsafe fn make_filter_cmd(
     cmd: *mut c_char,
     itmp: *mut c_char,
     otmp: *mut c_char,
@@ -1982,8 +1972,7 @@ pub unsafe extern "C" fn make_filter_cmd(
 }
 
 /// Append output redirection for the given file to the end of the buffer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn append_redir(
+pub unsafe fn append_redir(
     buf: *mut c_char,
     buflen: usize,
     opt: *const c_char,
@@ -2024,8 +2013,7 @@ pub unsafe extern "C" fn append_redir(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn print_line_no_prefix(lnum: linenr_T, use_number: bool, list: bool) {
+pub unsafe fn print_line_no_prefix(lnum: linenr_T, use_number: bool, list: bool) {
     unsafe {
         let mut numbuf: [c_char; 30] = [0; 30];
 
@@ -2044,8 +2032,7 @@ pub unsafe extern "C" fn print_line_no_prefix(lnum: linenr_T, use_number: bool, 
 }
 
 /// Print a text line. Also in silent mode (`"ex -s"`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn print_line(lnum: linenr_T, use_number: bool, list: bool, first: bool) {
+pub unsafe fn print_line(lnum: linenr_T, use_number: bool, list: bool, first: bool) {
     unsafe {
         let save_silent = silent_mode;
 
@@ -2071,8 +2058,7 @@ pub unsafe extern "C" fn print_line(lnum: linenr_T, use_number: bool, list: bool
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn rename_buffer(new_fname: *mut c_char) -> c_int {
+pub unsafe fn rename_buffer(new_fname: *mut c_char) -> c_int {
     unsafe {
         let mut buf = curbuf;
         apply_autocmds(
@@ -2120,8 +2106,7 @@ pub unsafe extern "C" fn rename_buffer(new_fname: *mut c_char) -> c_int {
 }
 
 /// `":file[!] [fname]"`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_file(eap: *mut exarg_T) {
+pub unsafe fn ex_file(eap: *mut exarg_T) {
     unsafe {
         if (*eap).addr_count > 0
             && (*(*eap).arg != NUL || (*eap).line2 > 0 || (*eap).addr_count > 1)
@@ -2144,8 +2129,7 @@ pub unsafe extern "C" fn ex_file(eap: *mut exarg_T) {
 }
 
 /// `":update"`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_update(eap: *mut exarg_T) {
+pub unsafe fn ex_update(eap: *mut exarg_T) {
     unsafe {
         if curbufIsChanged()
             || (!bt_nofilename(curbuf)
@@ -2158,8 +2142,7 @@ pub unsafe extern "C" fn ex_update(eap: *mut exarg_T) {
 }
 
 /// `":write"` and `":saveas"`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_write(eap: *mut exarg_T) {
+pub unsafe fn ex_write(eap: *mut exarg_T) {
     unsafe {
         if (*eap).cmdidx == cmdidx_T::CMD_saveas as c_int {
             (*eap).line1 = 1;
@@ -2198,8 +2181,7 @@ unsafe fn handle_mkdir_p_arg(eap: *mut exarg_T, fname: *mut c_char) -> c_int {
 }
 
 /// Write current buffer to file `eap->arg`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_write(eap: *mut exarg_T) -> c_int {
+pub unsafe fn do_write(eap: *mut exarg_T) -> c_int {
     unsafe {
         let mut fname: *mut c_char = ptr::null_mut();
         let mut retval = FAIL;
@@ -2394,8 +2376,7 @@ pub unsafe extern "C" fn do_write(eap: *mut exarg_T) -> c_int {
 }
 
 /// Check if it is allowed to overwrite a file.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_overwrite(
+pub unsafe fn check_overwrite(
     eap: *mut exarg_T,
     buf: *mut buf_T,
     fname: *mut c_char,
@@ -2482,8 +2463,7 @@ pub unsafe extern "C" fn check_overwrite(
 }
 
 /// Handle `":wnext"`, `":wNext"` and `":wprevious"` commands.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_wnext(eap: *mut exarg_T) {
+pub unsafe fn ex_wnext(eap: *mut exarg_T) {
     unsafe {
         let i = if *(*eap).cmd.add(1) == b'n' as c_char {
             (*curwin).w_arg_idx + (*eap).line2 as c_int
@@ -2499,8 +2479,7 @@ pub unsafe extern "C" fn ex_wnext(eap: *mut exarg_T) {
 }
 
 /// `":wall"`, `":wqall"` and `":xall"`: Write all changed files (and exit).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_wqall(eap: *mut exarg_T) {
+pub unsafe fn do_wqall(eap: *mut exarg_T) {
     unsafe {
         let mut error: c_int = 0;
         let save_forceit = (*eap).forceit;
@@ -2647,8 +2626,7 @@ unsafe fn check_readonly(forceit: *mut c_int, buf: *mut buf_T) -> bool {
 }
 
 /// Try to abandon the current file and edit a new or existing file.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn getfile(
+pub unsafe fn getfile(
     fnum: c_int,
     ffname_arg: *mut c_char,
     sfname_arg: *mut c_char,
@@ -2739,8 +2717,7 @@ pub unsafe extern "C" fn getfile(
 }
 
 /// Set `v:swapcommand` for the `SwapExists` autocommands.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_swapcommand(command: *mut c_char, newlnum: linenr_T) -> bool {
+pub unsafe fn set_swapcommand(command: *mut c_char, newlnum: linenr_T) -> bool {
     unsafe {
         if (command.is_null() && newlnum <= 0) || *get_vim_var_str(VV_SWAPCOMMAND) != NUL {
             return false;
@@ -2763,8 +2740,7 @@ pub unsafe extern "C" fn set_swapcommand(command: *mut c_char, newlnum: linenr_T
 }
 
 /// Start editing a new file.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_ecmd(
+pub unsafe fn do_ecmd(
     fnum: c_int,
     mut ffname: *mut c_char,
     mut sfname: *mut c_char,
@@ -3387,8 +3363,7 @@ unsafe fn get_append_line(eap: *mut exarg_T, indent: c_int) -> *mut c_char {
 }
 
 /// `":insert"` and `":append"`, also used by `":change"`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_append(eap: *mut exarg_T) {
+pub unsafe fn ex_append(eap: *mut exarg_T) {
     unsafe {
         let mut did_undo = false;
         let mut lnum = (*eap).line2;
@@ -3522,8 +3497,7 @@ pub unsafe extern "C" fn ex_append(eap: *mut exarg_T) {
 }
 
 /// `":change"`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_change(eap: *mut exarg_T) {
+pub unsafe fn ex_change(eap: *mut exarg_T) {
     unsafe {
         if (*eap).skip != 0 {
             ex_append(eap);
@@ -3558,8 +3532,7 @@ pub unsafe extern "C" fn ex_change(eap: *mut exarg_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_z(eap: *mut exarg_T) {
+pub unsafe fn ex_z(eap: *mut exarg_T) {
     unsafe {
         let mut bigness: i64;
         let mut minus: c_int = 0;
@@ -3688,8 +3661,7 @@ pub unsafe extern "C" fn ex_z(eap: *mut exarg_T) {
 }
 
 /// @return true if the secure flag is set and also give an error message.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_secure() -> bool {
+pub unsafe fn check_secure() -> bool {
     unsafe {
         if secure != 0 {
             secure = 2;
@@ -3706,16 +3678,14 @@ pub unsafe extern "C" fn check_secure() -> bool {
 }
 
 /// Get old substitute replacement string.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn sub_get_replacement(ret_sub: *mut SubReplacementString) {
+pub unsafe fn sub_get_replacement(ret_sub: *mut SubReplacementString) {
     unsafe {
         *ret_sub = old_sub;
     }
 }
 
 /// Set substitute string and timestamp.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn sub_set_replacement(sub: SubReplacementString) {
+pub unsafe fn sub_set_replacement(sub: SubReplacementString) {
     unsafe {
         xfree(old_sub.sub.cast::<c_void>());
         if sub.additional_data != old_sub.additional_data {
@@ -4848,8 +4818,7 @@ unsafe fn do_sub(
 }
 
 /// Give message for number of substitutions.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_sub_msg(count_only: bool) -> bool {
+pub unsafe fn do_sub_msg(count_only: bool) -> bool {
     unsafe {
         if (((sub_nsubs as OptInt) > p_report && (KeyTyped || sub_nlines > 1 || p_report < 1))
             || count_only)
@@ -4926,8 +4895,7 @@ unsafe fn global_exe_one(cmd: *mut c_char, lnum: linenr_T) {
 }
 
 /// Execute a global command (`:g` / `:v`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_global(eap: *mut exarg_T) {
+pub unsafe fn ex_global(eap: *mut exarg_T) {
     unsafe {
         let mut lnum: linenr_T;
         let mut cmd: *mut c_char;
@@ -5071,8 +5039,7 @@ pub unsafe extern "C" fn ex_global(eap: *mut exarg_T) {
 }
 
 /// Execute `cmd` on lines marked with `ml_setmarked()`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn global_exe(cmd: *mut c_char) {
+pub unsafe fn global_exe(cmd: *mut c_char) {
     unsafe {
         let old_buf = curbuf;
 
@@ -5115,8 +5082,7 @@ pub unsafe extern "C" fn global_exe(cmd: *mut c_char) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn free_old_sub() {
+pub unsafe fn free_old_sub() {
     unsafe {
         sub_set_replacement(SubReplacementString {
             sub: ptr::null_mut(),
@@ -5127,8 +5093,7 @@ pub unsafe extern "C" fn free_old_sub() {
 }
 
 /// Set up for a tagpreview.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn prepare_tagpreview(undo_sync: bool, use_previewpopup: bool) -> bool {
+pub unsafe fn prepare_tagpreview(undo_sync: bool, use_previewpopup: bool) -> bool {
     unsafe {
         if (*curwin).w_onebuf_opt.wo_pvw != 0 {
             return false;
@@ -5324,16 +5289,14 @@ unsafe fn show_sub(
 }
 
 /// `:substitute` command.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_substitute(eap: *mut exarg_T) {
+pub unsafe fn ex_substitute(eap: *mut exarg_T) {
     unsafe {
         do_sub(eap, profile_zero(), 0, 0);
     }
 }
 
 /// `:substitute` command preview callback.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_substitute_preview(
+pub unsafe fn ex_substitute_preview(
     eap: *mut exarg_T,
     cmdpreview_ns: c_int,
     cmdpreview_bufnr: handle_T,
@@ -5356,8 +5319,7 @@ pub unsafe extern "C" fn ex_substitute_preview(
 }
 
 /// Skip over the pattern argument of `":vimgrep /pat/[g][j]"`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn skip_vimgrep_pat(
+pub unsafe fn skip_vimgrep_pat(
     mut p: *mut c_char,
     s: *mut *mut c_char,
     flags: *mut c_int,
@@ -5405,8 +5367,7 @@ pub unsafe extern "C" fn skip_vimgrep_pat(
 }
 
 /// `:oldfiles` (sync) and `:browse oldfiles` (async).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_oldfiles(eap: *mut exarg_T) {
+pub unsafe fn ex_oldfiles(eap: *mut exarg_T) {
     unsafe {
         nlua_call_excmd(
             c"vim._core.ex_cmd".as_ptr(),

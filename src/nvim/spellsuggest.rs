@@ -482,8 +482,7 @@ unsafe fn bytes2offset(pp: *mut *mut c_char) -> c_int {
     }
 }
 /// Parse 'spellsuggest' without changing suggestion state.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn spell_check_sps(
+pub unsafe fn spell_check_sps(
     value: *const c_char,
     ret_flags: *mut c_int,
     ret_limit: *mut c_int,
@@ -553,8 +552,7 @@ pub unsafe extern "C" fn spell_check_sps(
     }
 }
 /// Apply validated 'spellsuggest' flags and suggestion limit.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn spell_apply_sps(flags: c_int, limit: c_int) {
+pub unsafe fn spell_apply_sps(flags: c_int, limit: c_int) {
     unsafe {
         sps_flags = flags;
         sps_limit = limit;
@@ -636,8 +634,7 @@ unsafe fn select_spell_suggestion(sug: *mut suginfo_T) {
     }
 }
 /// "z=": Find badly spelled word under or after the cursor.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn spell_suggest(count: c_int) {
+pub unsafe fn spell_suggest(count: c_int) {
     unsafe {
         let mut badlen: c_int = 0;
         let msg_scroll_save = msg_scroll;
@@ -784,8 +781,7 @@ pub unsafe extern "C" fn spell_suggest(count: c_int) {
     }
 }
 /// Find spell suggestions for "word".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn spell_suggest_list(
+pub unsafe fn spell_suggest_list(
     gap: *mut garray_T,
     word: *mut c_char,
     maxcount: c_int,
@@ -2984,7 +2980,7 @@ unsafe fn rescore_one(su: *mut suginfo_T, stp: *mut suggest_T) {
         }
     }
 }
-unsafe extern "C" fn sug_compare(s1: *const c_void, s2: *const c_void) -> c_int {
+unsafe fn sug_compare(s1: *const c_void, s2: *const c_void) -> c_int {
     unsafe {
         let p1 = s1.cast::<suggest_T>();
         let p2 = s2.cast::<suggest_T>();

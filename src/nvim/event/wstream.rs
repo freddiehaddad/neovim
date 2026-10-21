@@ -5,7 +5,7 @@ use crate::event::r#loop::{
 };
 use crate::event::stream::{
     Stream, stream_close_handle, stream_closed_ptr, stream_fields, stream_init, stream_uv_ptr,
-    stream_write_cb, uv_stream_t,
+    stream_write_cb,
 };
 use crate::memory::{xfree, xmalloc};
 #[cfg(windows)]
@@ -74,45 +74,21 @@ struct WRequestHeader {
 
 use crate::event::r#loop::uv_fs_write;
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wstream_init_fd(
-    loop_: *mut Loop,
-    stream: *mut Stream,
-    fd: c_int,
-    maxmem: usize,
-) {
+pub unsafe fn wstream_init_fd(loop_: *mut Loop, stream: *mut Stream, fd: c_int, maxmem: usize) {
     unsafe {
         stream_init(loop_, stream, fd, ptr::null_mut());
         wstream_init(stream, maxmem);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wstream_init_stream(
-    stream: *mut Stream,
-    uvstream: *mut uv_stream_t,
-    maxmem: usize,
-) {
-    unsafe {
-        stream_init(ptr::null_mut(), stream, -1, uvstream);
-        wstream_init(stream, maxmem);
-    }
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wstream_init(stream: *mut Stream, maxmem: usize) {
+pub unsafe fn wstream_init(stream: *mut Stream, maxmem: usize) {
     unsafe {
         let fields = stream_fields(stream);
         (*fields).maxmem = if maxmem != 0 { maxmem } else { DEFAULT_MAXMEM };
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wstream_set_write_cb(
-    stream: *mut Stream,
-    cb: stream_write_cb,
-    data: *mut c_void,
-) {
+pub unsafe fn wstream_set_write_cb(stream: *mut Stream, cb: stream_write_cb, data: *mut c_void) {
     unsafe {
         let fields = stream_fields(stream);
         (*fields).write_cb = cb;
@@ -120,8 +96,7 @@ pub unsafe extern "C" fn wstream_set_write_cb(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wstream_write(stream: *mut Stream, buffer: *mut WBuffer) -> c_int {
+pub unsafe fn wstream_write(stream: *mut Stream, buffer: *mut WBuffer) -> c_int {
     unsafe {
         let fields = stream_fields(stream);
         assert!((*fields).maxmem != 0);
@@ -181,7 +156,6 @@ pub unsafe extern "C" fn wstream_write(stream: *mut Stream, buffer: *mut WBuffer
     }
 }
 
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn wstream_new_buffer(
     data: *mut c_char,
     size: usize,
@@ -223,8 +197,7 @@ unsafe extern "C" fn write_cb(req: *mut uv_write_t, status: c_int) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wstream_release_wbuffer(buffer: *mut WBuffer) {
+pub unsafe fn wstream_release_wbuffer(buffer: *mut WBuffer) {
     unsafe {
         (*buffer).refcount -= 1;
         if (*buffer).refcount == 0 {

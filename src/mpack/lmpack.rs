@@ -299,10 +299,7 @@ unsafe extern "C-unwind" fn lmpack_unpacker_delete(l: *mut lua_State) -> c_int {
     }
 }
 
-unsafe extern "C-unwind" fn lmpack_parse_enter(
-    parser: *mut mpack_parser_t,
-    node: *mut mpack_node_t,
-) {
+unsafe fn lmpack_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
     unsafe {
         let unpacker = (*parser).data.p.cast::<LmpackUnpacker>();
         let l = (*unpacker).L;
@@ -342,10 +339,7 @@ unsafe extern "C-unwind" fn lmpack_parse_enter(
     }
 }
 
-unsafe extern "C-unwind" fn lmpack_parse_exit(
-    parser: *mut mpack_parser_t,
-    node: *mut mpack_node_t,
-) {
+unsafe fn lmpack_parse_exit(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
     unsafe {
         let unpacker = (*parser).data.p.cast::<LmpackUnpacker>();
         let l = (*unpacker).L;
@@ -576,10 +570,7 @@ unsafe extern "C-unwind" fn lmpack_packer_delete(l: *mut lua_State) -> c_int {
     }
 }
 
-unsafe extern "C-unwind" fn lmpack_unparse_enter(
-    parser: *mut mpack_parser_t,
-    node: *mut mpack_node_t,
-) {
+unsafe fn lmpack_unparse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
     unsafe {
         let packer = (*parser).data.p.cast::<Packer>();
         let l = (*packer).L;
@@ -731,10 +722,7 @@ unsafe extern "C-unwind" fn lmpack_unparse_enter(
     }
 }
 
-unsafe extern "C-unwind" fn lmpack_unparse_exit(
-    parser: *mut mpack_parser_t,
-    node: *mut mpack_node_t,
-) {
+unsafe fn lmpack_unparse_exit(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
     unsafe {
         let packer = (*parser).data.p.cast::<Packer>();
         let l = (*packer).L;

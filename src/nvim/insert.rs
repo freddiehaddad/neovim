@@ -517,7 +517,7 @@ unsafe fn insert_enter(s: *mut InsertState) {
     }
 }
 
-unsafe extern "C" fn insert_check(state: *mut VimState) -> c_int {
+unsafe fn insert_check(state: *mut VimState) -> c_int {
     unsafe {
         let s = state.cast::<InsertState>();
 
@@ -669,7 +669,7 @@ unsafe extern "C" fn insert_check(state: *mut VimState) -> c_int {
     }
 }
 
-unsafe extern "C" fn insert_execute(state: *mut VimState, key: c_int) -> c_int {
+unsafe fn insert_execute(state: *mut VimState, key: c_int) -> c_int {
     unsafe {
         let s = state.cast::<InsertState>();
         if Ins.stop_insert_mode {
@@ -1350,8 +1350,7 @@ pub unsafe extern "C" fn edit(cmdchar: c_int, startln: bool, count: c_int) -> bo
 }
 
 /// Redraw for Insert mode.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ins_redraw(ready: bool) {
+pub unsafe fn ins_redraw(ready: bool) {
     unsafe {
         if char_avail() {
             return;
@@ -1461,8 +1460,7 @@ unsafe fn ins_ctrl_v() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn edit_putchar(c: c_int, highlight: bool) {
+pub unsafe fn edit_putchar(c: c_int, highlight: bool) {
     unsafe {
         if (*curwin).w_grid_alloc.chars.is_null() && default_grid.chars.is_null() {
             return;
@@ -1505,8 +1503,7 @@ pub unsafe extern "C" fn edit_putchar(c: c_int, highlight: bool) {
 }
 
 /// Return the effective prompt for the specified buffer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buf_prompt_text(buf: *const buf_T) -> *mut c_char {
+pub unsafe fn buf_prompt_text(buf: *const buf_T) -> *mut c_char {
     unsafe {
         if (*buf).b_prompt_text.is_null() {
             c"% ".as_ptr().cast_mut()
@@ -1517,8 +1514,7 @@ pub unsafe extern "C" fn buf_prompt_text(buf: *const buf_T) -> *mut c_char {
 }
 
 /// Return the effective prompt for the current buffer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn prompt_text() -> *mut c_char {
+pub unsafe fn prompt_text() -> *mut c_char {
     unsafe { buf_prompt_text(curbuf) }
 }
 
@@ -1594,8 +1590,7 @@ unsafe fn init_prompt(cmdchar_todo: c_int) {
 }
 
 /// Return true if the cursor is in the editable position of the prompt line.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn prompt_curpos_editable() -> bool {
+pub unsafe fn prompt_curpos_editable() -> bool {
     unsafe {
         (*curwin).w_cursor.lnum > (*curbuf).b_prompt_start.mark.lnum
             || ((*curwin).w_cursor.lnum == (*curbuf).b_prompt_start.mark.lnum
@@ -1614,8 +1609,7 @@ unsafe fn set_insstart(lnum: linenr_T, col: colnr_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn edit_unputchar() {
+pub unsafe fn edit_unputchar() {
     unsafe {
         if pc_status != PC_STATUS_UNSET && pc_row >= 0 {
             if pc_status == PC_STATUS_RIGHT {
@@ -1633,8 +1627,7 @@ pub unsafe extern "C" fn edit_unputchar() {
 }
 
 /// Display a `$` at the end of changed text when `$` is in `cpoptions`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn display_dollar(col_arg: colnr_T) {
+pub unsafe fn display_dollar(col_arg: colnr_T) {
     unsafe {
         let col = col_arg.max(0);
         if !redrawing() {
@@ -1654,8 +1647,7 @@ pub unsafe extern "C" fn display_dollar(col_arg: colnr_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn undisplay_dollar() {
+pub unsafe fn undisplay_dollar() {
     unsafe {
         if dollar_vcol < 0 {
             return;
@@ -1666,8 +1658,7 @@ pub unsafe extern "C" fn undisplay_dollar() {
 }
 
 /// Truncate the space at the end of a line.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn truncate_spaces(line: *mut c_char, len: usize) {
+pub unsafe fn truncate_spaces(line: *mut c_char, len: usize) {
     unsafe {
         let mut i = len as isize - 1;
         while i >= 0 && ascii_iswhite(*line.offset(i) as u8 as c_int) {
@@ -1681,8 +1672,7 @@ pub unsafe extern "C" fn truncate_spaces(line: *mut c_char, len: usize) {
 }
 
 /// Backspace the cursor until the given column.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn backspace_until_column(col: c_int) {
+pub unsafe fn backspace_until_column(col: c_int) {
     unsafe {
         while (*curwin).w_cursor.col > col {
             (*curwin).w_cursor.col -= 1;
@@ -1719,8 +1709,7 @@ unsafe fn del_char_after_col(limit_col: c_int) -> bool {
 }
 
 /// Next character is interpreted literally.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_literal(no_simplify: bool) -> c_int {
+pub unsafe fn get_literal(no_simplify: bool) -> c_int {
     unsafe {
         let mut nc: c_int;
         let mut hex = false;
@@ -1838,8 +1827,7 @@ unsafe fn insert_special(mut c: c_int, mut allow_modmask: c_int, mut ctrlv: c_in
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn insertchar(mut c: c_int, flags: c_int, second_indent: c_int) {
+pub unsafe fn insertchar(mut c: c_int, flags: c_int, second_indent: c_int) {
     unsafe {
         let force_format = (flags & INSCHAR_FORMAT) != 0;
         let textwidth = comp_textwidth(force_format);
@@ -2015,12 +2003,7 @@ unsafe fn redo_literal(c: c_int) {
 }
 
 /// Called when the cursor moves in insert-mode without editing text.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn start_arrow(
-    end_insert_pos: *mut pos_T,
-    end_change: bool,
-    move_key: c_int,
-) {
+pub unsafe fn start_arrow(end_insert_pos: *mut pos_T, end_change: bool, move_key: c_int) {
     unsafe {
         if Ins.moved == kInsNone && end_change {
             stop_insert(end_insert_pos, 0, 0);
@@ -2063,8 +2046,7 @@ unsafe fn check_spell_redraw() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn stop_arrow() -> c_int {
+pub unsafe fn stop_arrow() -> c_int {
     unsafe {
         if Ins.moved != kInsNone {
             Ins.start = (*curwin).w_cursor;
@@ -2232,8 +2214,7 @@ unsafe fn stop_insert(end_insert_pos: *mut pos_T, esc: c_int, nomove: c_int) {
 }
 
 /// Set the last inserted text to a single character.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_last_insert(c: c_int) {
+pub unsafe fn set_last_insert(c: c_int) {
     unsafe {
         xfree(last_insert.data.cast());
         last_insert.data = xmalloc(MB_MAXBYTES * 3 + 5).cast();
@@ -2251,8 +2232,7 @@ pub unsafe extern "C" fn set_last_insert(c: c_int) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn free_last_insert() {
+pub unsafe fn free_last_insert() {
     unsafe {
         if !last_insert.data.is_null() {
             xfree(last_insert.data.cast());
@@ -2264,8 +2244,7 @@ pub unsafe extern "C" fn free_last_insert() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn beginline(flags: c_int) {
+pub unsafe fn beginline(flags: c_int) {
     unsafe {
         if (flags & BL_SOL) != 0 && p_sol == 0 {
             coladvance(curwin, (*curwin).w_curswant);
@@ -2288,8 +2267,7 @@ pub unsafe extern "C" fn beginline(flags: c_int) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn oneright() -> c_int {
+pub unsafe fn oneright() -> c_int {
     unsafe {
         if virtual_active(curwin) {
             let prevpos = (*curwin).w_cursor;
@@ -2326,8 +2304,7 @@ pub unsafe extern "C" fn oneright() -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn oneleft() -> c_int {
+pub unsafe fn oneleft() -> c_int {
     unsafe {
         if virtual_active(curwin) {
             let v = getviscol();
@@ -2369,8 +2346,7 @@ pub unsafe extern "C" fn oneleft() -> c_int {
 }
 
 /// Move the cursor up `n` lines in window `wp`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cursor_up_inner(wp: *mut win_T, mut n: linenr_T, skip_conceal: bool) {
+pub unsafe fn cursor_up_inner(wp: *mut win_T, mut n: linenr_T, skip_conceal: bool) {
     unsafe {
         let mut lnum = (*wp).w_cursor.lnum;
 
@@ -2400,8 +2376,7 @@ pub unsafe extern "C" fn cursor_up_inner(wp: *mut win_T, mut n: linenr_T, skip_c
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cursor_up(n: linenr_T, upd_topline: bool) -> c_int {
+pub unsafe fn cursor_up(n: linenr_T, upd_topline: bool) -> c_int {
     unsafe {
         if n > 0 && (*curwin).w_cursor.lnum <= 1 {
             return FAIL;
@@ -2416,8 +2391,7 @@ pub unsafe extern "C" fn cursor_up(n: linenr_T, upd_topline: bool) -> c_int {
 }
 
 /// Move the cursor down `n` lines in window `wp`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cursor_down_inner(wp: *mut win_T, mut n: c_int, skip_conceal: bool) {
+pub unsafe fn cursor_down_inner(wp: *mut win_T, mut n: c_int, skip_conceal: bool) {
     unsafe {
         let mut lnum = (*wp).w_cursor.lnum;
         let line_count = (*(*wp).w_buffer).b_ml.ml_line_count;
@@ -2456,8 +2430,7 @@ pub unsafe extern "C" fn cursor_down_inner(wp: *mut win_T, mut n: c_int, skip_co
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cursor_down(n: c_int, upd_topline: bool) -> c_int {
+pub unsafe fn cursor_down(n: c_int, upd_topline: bool) -> c_int {
     unsafe {
         let mut lnum = (*curwin).w_cursor.lnum;
         hasFoldingWin(
@@ -2481,8 +2454,7 @@ pub unsafe extern "C" fn cursor_down(n: c_int, upd_topline: bool) -> c_int {
 }
 
 /// Stuff the last inserted text in the read buffer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn stuff_inserted(c: c_int, mut count: c_int, no_esc: c_int) -> c_int {
+pub unsafe fn stuff_inserted(c: c_int, mut count: c_int, no_esc: c_int) -> c_int {
     unsafe {
         let mut last: c_char = NUL;
         let mut insert = get_last_insert();
@@ -2540,8 +2512,7 @@ pub unsafe extern "C" fn stuff_inserted(c: c_int, mut count: c_int, no_esc: c_in
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_last_insert() -> NvimString {
+pub unsafe fn get_last_insert() -> NvimString {
     unsafe {
         if last_insert.data.is_null() {
             NvimString {
@@ -2557,8 +2528,7 @@ pub unsafe extern "C" fn get_last_insert() -> NvimString {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_last_insert_save() -> *mut c_char {
+pub unsafe fn get_last_insert_save() -> *mut c_char {
     unsafe {
         let mut insert = get_last_insert();
         if insert.data.is_null() {
@@ -2592,8 +2562,7 @@ unsafe fn echeck_abbr(c: c_int) -> bool {
 }
 
 /// Push character that is replaced onto the replace stack.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn replace_push(str_: *mut c_char, len: usize) {
+pub unsafe fn replace_push(str_: *mut c_char, len: usize) {
     unsafe {
         if replace_stack.size < replace_offset as usize {
             return;
@@ -2610,8 +2579,7 @@ pub unsafe extern "C" fn replace_push(str_: *mut c_char, len: usize) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn replace_push_nul() {
+pub unsafe fn replace_push_nul() {
     unsafe {
         replace_push(c"".as_ptr().cast_mut(), 1);
     }
@@ -2631,8 +2599,7 @@ unsafe fn replace_pop_if_nul() -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn replace_join(mut off: c_int) {
+pub unsafe fn replace_join(mut off: c_int) {
     unsafe {
         let mut i = replace_stack.size as isize;
         while {
@@ -3887,8 +3854,7 @@ unsafe fn ins_tab() -> bool {
 }
 
 /// Handle CR or NL in insert mode.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ins_eol(c: c_int) -> bool {
+pub unsafe fn ins_eol(c: c_int) -> bool {
     unsafe {
         if echeck_abbr(c + ABBR_OFF) {
             return true;
@@ -3986,8 +3952,7 @@ unsafe fn ins_digraph() -> c_int {
 }
 
 /// Handle CTRL-E and CTRL-Y in Insert mode: copy char from other line.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ins_copychar(lnum: linenr_T) -> c_int {
+pub unsafe fn ins_copychar(lnum: linenr_T) -> c_int {
     unsafe {
         if lnum < 1 || lnum > (*curbuf).b_ml.ml_line_count {
             vim_beep(kOptBoFlagCopy);
@@ -4062,8 +4027,7 @@ unsafe fn ins_ctrl_ey(tc: c_int) -> c_int {
 }
 
 /// Get the value that `w_virtcol` would have when `'list'` is off.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_nolist_virtcol() -> colnr_T {
+pub unsafe fn get_nolist_virtcol() -> colnr_T {
     unsafe {
         if (*curwin).w_buffer.is_null()
             || (*(*curwin).w_buffer).b_ml.ml_mfp.is_null()
@@ -4108,21 +4072,18 @@ unsafe fn do_insert_char_pre(c: c_int) -> *mut c_char {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_can_cindent() -> bool {
+pub unsafe fn get_can_cindent() -> bool {
     unsafe { Ins.can_cindent }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_can_cindent(val: bool) {
+pub unsafe fn set_can_cindent(val: bool) {
     unsafe {
         Ins.can_cindent = val;
     }
 }
 
 /// Trigger `event` and take care of fixing undo.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ins_apply_autocmds(event: event_T) -> c_int {
+pub unsafe fn ins_apply_autocmds(event: event_T) -> c_int {
     unsafe {
         let tick = buf_get_changedtick(curbuf);
         let r = c_int::from(apply_autocmds(

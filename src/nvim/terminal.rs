@@ -623,8 +623,7 @@ unsafe extern "C" fn on_apc(frag: VTermStringFragment, user: *mut c_void) -> c_i
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn terminal_init() {
+pub unsafe fn terminal_init() {
     unsafe {
         let timer = refresh_timer_ptr();
         time_watcher_init((&raw mut main_loop).cast(), timer, ptr::null_mut());
@@ -633,8 +632,7 @@ pub unsafe extern "C" fn terminal_init() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn terminal_teardown() {
+pub unsafe fn terminal_teardown() {
     unsafe {
         let timer = refresh_timer_ptr();
         time_watcher_stop(timer);
@@ -672,11 +670,7 @@ unsafe fn term_may_alloc_scrollback(term: *mut Terminal, mut buf: *mut buf_T) ->
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn terminal_alloc(
-    buf: *mut buf_T,
-    mut opts: TerminalOptions,
-) -> *mut Terminal {
+pub unsafe fn terminal_alloc(buf: *mut buf_T, mut opts: TerminalOptions) -> *mut Terminal {
     unsafe {
         if opts.width == 0 {
             opts.width = 80;
@@ -761,8 +755,7 @@ pub unsafe extern "C" fn terminal_alloc(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn terminal_open(termpp: *mut *mut Terminal, buf: *mut buf_T) {
+pub unsafe fn terminal_open(termpp: *mut *mut Terminal, buf: *mut buf_T) {
     unsafe {
         let term = *termpp;
         debug_assert!(!term.is_null());
@@ -843,8 +836,7 @@ pub unsafe extern "C" fn terminal_open(termpp: *mut *mut Terminal, buf: *mut buf
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn terminal_close(termpp: *mut *mut Terminal, status: c_int) {
+pub unsafe fn terminal_close(termpp: *mut *mut Terminal, status: c_int) {
     unsafe {
         let term = *termpp;
         if (*term).destroy {
@@ -959,8 +951,7 @@ unsafe extern "C" fn terminal_state_change_event(argv: *mut *mut c_void) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn terminal_set_state(term: *mut Terminal, suspended: bool) {
+pub unsafe fn terminal_set_state(term: *mut Terminal, suspended: bool) {
     unsafe {
         if (*term).suspended != suspended {
             let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
@@ -977,8 +968,7 @@ pub unsafe extern "C" fn terminal_set_state(term: *mut Terminal, suspended: bool
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn terminal_check_size(term: *mut Terminal) {
+pub unsafe fn terminal_check_size(term: *mut Terminal) {
     unsafe {
         if (*term).closed {
             return;
@@ -1114,8 +1104,7 @@ unsafe fn unset_terminal_winopts(s: *mut TerminalState) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn terminal_enter() -> bool {
+pub unsafe fn terminal_enter() -> bool {
     unsafe {
         let buf = curbuf;
         debug_assert!(!(*buf).terminal.is_null());
@@ -1273,7 +1262,7 @@ unsafe fn terminal_check_focus(s: *mut TerminalState) -> bool {
     }
 }
 
-unsafe extern "C" fn terminal_check(state: *mut VimState) -> c_int {
+unsafe fn terminal_check(state: *mut VimState) -> c_int {
     unsafe {
         let s = state.cast::<TerminalState>();
 
@@ -1334,7 +1323,7 @@ unsafe extern "C" fn terminal_check(state: *mut VimState) -> c_int {
     }
 }
 
-unsafe extern "C" fn terminal_execute(state: *mut VimState, key: c_int) -> c_int {
+unsafe fn terminal_execute(state: *mut VimState, key: c_int) -> c_int {
     unsafe {
         let s = state.cast::<TerminalState>();
         let mut tmp_mod_mask = mod_mask;
@@ -1404,8 +1393,7 @@ unsafe extern "C" fn terminal_execute(state: *mut VimState, key: c_int) -> c_int
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn terminal_destroy(termpp: *mut *mut Terminal) {
+pub unsafe fn terminal_destroy(termpp: *mut *mut Terminal) {
     unsafe {
         let term = *termpp;
         let buf = handle_get_buffer((*term).buf_handle);
@@ -1473,8 +1461,7 @@ unsafe fn is_filter_char(c: c_int) -> bool {
     unsafe { (tpf_flags & flag) != 0 }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn terminal_set_streamed_paste(term: *mut Terminal, streamed: bool) {
+pub unsafe fn terminal_set_streamed_paste(term: *mut Terminal, streamed: bool) {
     unsafe {
         if (*term).streamed_paste != streamed {
             let cur_term = (*curbuf).terminal.cast::<Terminal>();
@@ -1488,8 +1475,7 @@ pub unsafe extern "C" fn terminal_set_streamed_paste(term: *mut Terminal, stream
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn terminal_paste(count: c_int, y_array: *mut NvimString, y_size: usize) {
+pub unsafe fn terminal_paste(count: c_int, y_array: *mut NvimString, y_size: usize) {
     unsafe {
         if y_size == 0 {
             return;
@@ -1569,8 +1555,7 @@ unsafe extern "C" fn on_sync_flush(argv: *mut *mut c_void) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn terminal_receive(term: *mut Terminal, data: *const c_char, len: usize) {
+pub unsafe fn terminal_receive(term: *mut Terminal, data: *const c_char, len: usize) {
     unsafe {
         if data.is_null() {
             return;
@@ -1635,8 +1620,7 @@ const fn get_underline_hl_flag(attrs: VTermScreenCellAttrs) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn terminal_get_line_attributes(
+pub unsafe fn terminal_get_line_attributes(
     term: *mut Terminal,
     _wp: *mut win_T,
     linenr: c_int,
@@ -1758,23 +1742,19 @@ pub unsafe extern "C" fn terminal_get_line_attributes(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn terminal_buf(term: *const Terminal) -> Buffer {
+pub unsafe fn terminal_buf(term: *const Terminal) -> Buffer {
     unsafe { (*term).buf_handle }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn terminal_running(term: *const Terminal) -> bool {
+pub unsafe fn terminal_running(term: *const Terminal) -> bool {
     unsafe { !(*term).closed }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn terminal_suspended(term: *const Terminal) -> bool {
+pub unsafe fn terminal_suspended(term: *const Terminal) -> bool {
     unsafe { (*term).suspended }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn terminal_notify_theme(term: *mut Terminal, dark: bool) {
+pub unsafe fn terminal_notify_theme(term: *mut Terminal, dark: bool) {
     unsafe {
         if !(*term).theme_updates {
             return;
@@ -2455,8 +2435,7 @@ unsafe fn invalidate_terminal(term: *mut Terminal, start_row: c_int, end_row: c_
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn terminal_check_refresh() {
+pub unsafe fn terminal_check_refresh() {
     unsafe {
         multiqueue_process_events((*watcher_fields(refresh_timer_ptr())).events);
     }
@@ -2549,7 +2528,7 @@ unsafe fn refresh_cursor(term: *mut Terminal, cursor_visible: *mut bool) {
     }
 }
 
-unsafe extern "C" fn refresh_timer_cb(_watcher: *mut TimeWatcher, _data: *mut c_void) {
+unsafe fn refresh_timer_cb(_watcher: *mut TimeWatcher, _data: *mut c_void) {
     unsafe {
         REFRESH_PENDING = false;
         if exiting {
@@ -2602,8 +2581,7 @@ unsafe fn refresh_size(term: *mut Terminal, _buf: *mut buf_T) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn on_scrollback_option_changed(term: *mut Terminal) {
+pub unsafe fn on_scrollback_option_changed(term: *mut Terminal) {
     unsafe {
         if !(*term).sb_buffer.is_null() {
             refresh_terminal(term);

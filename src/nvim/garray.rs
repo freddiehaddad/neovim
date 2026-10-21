@@ -72,8 +72,7 @@ pub unsafe extern "C" fn ga_init(gap: *mut garray_T, itemsize: c_int, growsize: 
 ///
 /// # Safety
 /// `gap` must be a valid writable pointer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ga_set_growsize(gap: *mut garray_T, growsize: c_int) {
+pub unsafe fn ga_set_growsize(gap: *mut garray_T, growsize: c_int) {
     let gap = unsafe { &mut *gap };
     gap.ga_growsize = growsize.max(1);
 }
@@ -198,8 +197,7 @@ pub unsafe extern "C" fn ga_concat(gap: *mut garray_T, s: *const c_char) {
 ///
 /// # Safety
 /// `gap` must be a valid writable pointer to a byte `garray_T`, and `s` must be valid for `len` bytes.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ga_concat_len(gap: *mut garray_T, s: *const c_char, len: usize) {
+pub unsafe fn ga_concat_len(gap: *mut garray_T, s: *const c_char, len: usize) {
     if len == 0 {
         return;
     }
@@ -230,8 +228,7 @@ pub unsafe extern "C" fn ga_append(gap: *mut garray_T, c: u8) {
 ///
 /// # Safety
 /// `gap` must be a valid writable pointer to an initialized `garray_T`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ga_append_via_ptr(gap: *mut garray_T, item_size: usize) -> *mut c_void {
+pub unsafe fn ga_append_via_ptr(gap: *mut garray_T, item_size: usize) -> *mut c_void {
     unsafe {
         ga_grow(gap, 1);
         let gap_ref = &mut *gap;

@@ -1445,8 +1445,7 @@ pub unsafe extern "C" fn nvim_buf_del_user_command(buf: Buffer, name: NvimString
 
 // DLLEXPORT void create_user_command(uint64_t channel_id, String name, Union(String, LuaRef) cmd,
 //                                    Dict(user_command) *opts, int flags, Error *err);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn create_user_command(
+pub unsafe fn create_user_command(
     channel_id: u64,
     name: NvimString,
     cmd: Object,

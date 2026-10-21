@@ -199,11 +199,7 @@ unsafe fn get_linematch_results(
     }
 }
 
-unsafe extern "C" fn write_string(
-    priv_data: *mut c_void,
-    mb: *mut mmbuffer_t,
-    nbuf: c_int,
-) -> c_int {
+unsafe fn write_string(priv_data: *mut c_void, mb: *mut mmbuffer_t, nbuf: c_int) -> c_int {
     let out = unsafe { &mut *priv_data.cast::<Vec<u8>>() };
     for i in 0..nbuf.max(0) as usize {
         unsafe {
@@ -217,7 +213,7 @@ unsafe extern "C" fn write_string(
     0
 }
 
-unsafe extern "C" fn hunk_locations_cb(
+unsafe fn hunk_locations_cb(
     start_a: c_int,
     count_a: c_int,
     start_b: c_int,
@@ -253,7 +249,7 @@ unsafe extern "C" fn hunk_locations_cb(
     0
 }
 
-unsafe extern "C" fn call_on_hunk_cb(
+unsafe fn call_on_hunk_cb(
     mut start_a: c_int,
     count_a: c_int,
     mut start_b: c_int,
@@ -448,7 +444,6 @@ unsafe fn process_xdl_diff_opts(
 }
 
 /// Lua `vim.diff(a, b, opts)` implementation (`nlua_xdl_diff`).
-#[unsafe(no_mangle)]
 pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> c_int {
     unsafe {
         if lua_gettop(lstate) < 2 {

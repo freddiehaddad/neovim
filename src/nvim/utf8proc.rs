@@ -104,7 +104,7 @@ impl utf8proc_property_t {
     }
 }
 
-const fn p(
+const extern "C" fn p(
     category: i16,
     combining_class: i16,
     bidi_class: i16,

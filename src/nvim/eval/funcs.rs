@@ -449,8 +449,7 @@ unsafe fn proc_is_stopped(proc_: *mut Proc) -> bool {
 
 /// Function given to `ExpandGeneric()` to obtain the list of internal
 /// or user defined function names.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_function_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_function_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx == 0 {
             GET_FUNC_NAME_INTIDX = -1;
@@ -490,8 +489,7 @@ pub unsafe extern "C" fn get_function_name(xp: *mut expand_T, idx: c_int) -> *mu
 
 /// Function given to `ExpandGeneric()` to obtain the list of internal or
 /// user defined variable or function names.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_expr_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_expr_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx == 0 {
             GET_EXPR_NAME_INTIDX = -1;
@@ -1165,8 +1163,7 @@ pub unsafe fn find_internal_func_hash(str_: *const c_char, len: usize) -> c_int 
 }
 
 /// Gets a builtin (aka "vimfn", "eval") function from the generated hash table.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn find_internal_func(name: *const c_char) -> *const EvalFuncDef {
+pub unsafe fn find_internal_func(name: *const c_char) -> *const EvalFuncDef {
     unsafe {
         let len = strlen(name);
         let index = find_internal_func_hash(name, len);
@@ -1179,8 +1176,7 @@ pub unsafe extern "C" fn find_internal_func(name: *const c_char) -> *const EvalF
 }
 
 /// Gets the Lua name of a Lua-implemented "vimfn" function, or NULL if not found.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn find_internal_func_lua(name: *const c_char) -> *const c_char {
+pub unsafe fn find_internal_func_lua(name: *const c_char) -> *const c_char {
     unsafe {
         let fdef = find_internal_func(name);
         if !fdef.is_null()
@@ -1195,8 +1191,7 @@ pub unsafe extern "C" fn find_internal_func_lua(name: *const c_char) -> *const c
 }
 
 /// Check the argument count to use for internal function "fdef".
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_internal_func(fdef: *const EvalFuncDef, argcount: c_int) -> c_int {
+pub unsafe fn check_internal_func(fdef: *const EvalFuncDef, argcount: c_int) -> c_int {
     unsafe {
         let res = if argcount < c_int::from((*fdef).min_argc) {
             FCERR_TOOFEW
@@ -1216,8 +1211,7 @@ pub unsafe extern "C" fn check_internal_func(fdef: *const EvalFuncDef, argcount:
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn call_internal_func(
+pub unsafe fn call_internal_func(
     fname: *const c_char,
     argcount: c_int,
     argvars: *mut typval_T,
@@ -1241,8 +1235,7 @@ pub unsafe extern "C" fn call_internal_func(
 }
 
 /// Invoke a method for `base->method()`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn call_internal_method(
+pub unsafe fn call_internal_method(
     fname: *const c_char,
     argcount: c_int,
     argvars: *mut typval_T,
@@ -1300,17 +1293,12 @@ unsafe fn non_zero_arg(argvars: *const typval_T) -> bool {
 }
 
 /// Apply a floating point C function on a typval with one `float_T`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn float_op_wrapper(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    fptr: EvalFuncData,
-) {
+pub unsafe fn float_op_wrapper(argvars: *mut typval_T, rettv: *mut typval_T, fptr: EvalFuncData) {
     unsafe {
         let mut f: float_T = 0.0;
         (*rettv).v_type = VarType::VAR_FLOAT;
         if tv_get_float_chk(argvars, &raw mut f) {
-            let func_float: unsafe extern "C" fn(float_T) -> float_T = std::mem::transmute(fptr);
+            let func_float: unsafe fn(float_T) -> float_T = std::mem::transmute(fptr);
             (*rettv).vval.v_float = func_float(f);
         } else {
             (*rettv).vval.v_float = 0.0;
@@ -1319,12 +1307,7 @@ pub unsafe extern "C" fn float_op_wrapper(
 }
 
 /// Invokes an API (`nvim_`) function from Vimscript.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn api_wrapper(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    fptr: EvalFuncData,
-) {
+pub unsafe fn api_wrapper(argvars: *mut typval_T, rettv: *mut typval_T, fptr: EvalFuncData) {
     unsafe {
         if check_secure() {
             return;
@@ -1375,12 +1358,7 @@ pub unsafe extern "C" fn api_wrapper(
 }
 
 /// Invokes a Lua-implemented vimfn/"f_xx" function from Vimscript.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn lua_wrapper(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    fptr: EvalFuncData,
-) {
+pub unsafe fn lua_wrapper(argvars: *mut typval_T, rettv: *mut typval_T, fptr: EvalFuncData) {
     unsafe {
         let mut args_storage = [Object {
             obj_type: ObjectType::kObjectTypeNil,
@@ -1437,8 +1415,7 @@ pub unsafe extern "C" fn lua_wrapper(
 }
 
 /// "abs(expr)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_abs(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_abs(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if (*argvars).v_type == VarType::VAR_FLOAT {
             let mut f: float_T = 0.0;
@@ -1463,8 +1440,7 @@ pub unsafe extern "C" fn f_abs(argvars: *mut typval_T, rettv: *mut typval_T, _fp
 }
 
 /// "and(expr, expr)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_and(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_and(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = tv_get_number_chk(argvars, ptr::null_mut())
             & tv_get_number_chk(argvars.add(1), ptr::null_mut());
@@ -1472,24 +1448,14 @@ pub unsafe extern "C" fn f_and(argvars: *mut typval_T, rettv: *mut typval_T, _fp
 }
 
 /// "api_info()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_api_info(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_api_info(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         object_to_vim(api_metadata(), rettv, ptr::null_mut());
     }
 }
 
 /// "atan2()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_atan2(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_atan2(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut fx: float_T = 0.0;
         let mut fy: float_T = 0.0;
@@ -1503,8 +1469,7 @@ pub unsafe extern "C" fn f_atan2(
 }
 
 /// Get buffer by number or pattern.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_get_buf(tv: *mut typval_T, curtab_only: c_int) -> *mut buf_T {
+pub unsafe fn tv_get_buf(tv: *mut typval_T, curtab_only: c_int) -> *mut buf_T {
     unsafe {
         if (*tv).v_type == VarType::VAR_NUMBER {
             return buflist_findnr((*tv).vval.v_number as c_int);
@@ -1546,8 +1511,7 @@ pub unsafe extern "C" fn tv_get_buf(tv: *mut typval_T, curtab_only: c_int) -> *m
 }
 
 /// Like `tv_get_buf()` but give an error message if the type is wrong.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_get_buf_from_arg(tv: *mut typval_T) -> *mut buf_T {
+pub unsafe fn tv_get_buf_from_arg(tv: *mut typval_T) -> *mut buf_T {
     unsafe {
         if !tv_check_str_or_nr(tv) {
             return ptr::null_mut();
@@ -1560,8 +1524,7 @@ pub unsafe extern "C" fn tv_get_buf_from_arg(tv: *mut typval_T) -> *mut buf_T {
 }
 
 /// Get the buffer from "arg" and give an error and return NULL if it is not valid.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_buf_arg(arg: *mut typval_T) -> *mut buf_T {
+pub unsafe fn get_buf_arg(arg: *mut typval_T) -> *mut buf_T {
     unsafe {
         emsg_off += 1;
         let buf = tv_get_buf(arg, 0);
@@ -1577,12 +1540,7 @@ pub unsafe extern "C" fn get_buf_arg(arg: *mut typval_T) -> *mut buf_T {
 }
 
 /// "byte2line(byte)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_byte2line(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_byte2line(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut boff = (tv_get_number(argvars) as c_int) - 1;
         if boff < 0 {
@@ -1595,8 +1553,7 @@ pub unsafe extern "C" fn f_byte2line(
 }
 
 /// "call(func, arglist [, dict])" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_call(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_call(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if tv_check_for_list_arg(argvars, 1) == FAIL {
             return;
@@ -1660,24 +1617,14 @@ pub unsafe extern "C" fn f_call(argvars: *mut typval_T, rettv: *mut typval_T, _f
 }
 
 /// "changenr()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_changenr(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_changenr(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = varnumber_T::from((*curbuf).b_u_seq_cur);
     }
 }
 
 /// "chanclose(id[, stream])" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_chanclose(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_chanclose(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_NUMBER;
         (*rettv).vval.v_number = 0;
@@ -1723,12 +1670,7 @@ pub unsafe extern "C" fn f_chanclose(
 }
 
 /// "chansend(id, data)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_chansend(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_chansend(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_NUMBER;
         (*rettv).vval.v_number = 0;
@@ -1778,12 +1720,7 @@ pub unsafe extern "C" fn f_chansend(
 }
 
 /// "char2nr(string)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_char2nr(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_char2nr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN && !tv_check_num(argvars.add(1)) {
             return;
@@ -1843,19 +1780,13 @@ unsafe fn get_col(argvars: *mut typval_T, rettv: *mut typval_T, charcol: bool) {
 }
 
 /// "charcol()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_charcol(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_charcol(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         get_col(argvars, rettv, true);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_optional_window(argvars: *mut typval_T, idx: c_int) -> *mut win_T {
+pub unsafe fn get_optional_window(argvars: *mut typval_T, idx: c_int) -> *mut win_T {
     unsafe {
         if (*argvars.add(idx as usize)).v_type == VarType::VAR_UNKNOWN {
             return curwin;
@@ -1870,20 +1801,14 @@ pub unsafe extern "C" fn get_optional_window(argvars: *mut typval_T, idx: c_int)
 }
 
 /// "col(string)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_col(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_col(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         get_col(argvars, rettv, false);
     }
 }
 
 /// "confirm(message, buttons[, default [, type]])" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_confirm(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_confirm(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut buf = [0 as c_char; NUMBUFLEN];
         let mut buf2 = [0 as c_char; NUMBUFLEN];
@@ -1940,8 +1865,7 @@ pub unsafe extern "C" fn f_confirm(
 }
 
 /// "copy()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_copy(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_copy(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         var_item_copy(ptr::null_mut(), argvars, rettv, false, 0);
     }
@@ -2028,24 +1952,14 @@ unsafe fn set_cursorpos(argvars: *mut typval_T, rettv: *mut typval_T, charcol: b
 }
 
 /// "cursor(lnum, col)" or "cursor(list)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_cursor(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_cursor(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         set_cursorpos(argvars, rettv, false);
     }
 }
 
 /// "debugbreak()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_debugbreak(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_debugbreak(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = varnumber_T::from(FAIL);
         let pid = tv_get_number(argvars) as c_int;
@@ -2072,12 +1986,7 @@ pub unsafe extern "C" fn f_debugbreak(
 }
 
 /// "deepcopy()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_deepcopy(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_deepcopy(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if tv_check_for_opt_bool_arg(argvars, 1) == FAIL {
             return;
@@ -2097,12 +2006,7 @@ pub unsafe extern "C" fn f_deepcopy(
 }
 
 /// `dictwatcheradd(dict, key, funcref)` function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_dictwatcheradd(
-    argvars: *mut typval_T,
-    _rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_dictwatcheradd(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if check_secure() {
             return;
@@ -2153,12 +2057,7 @@ pub unsafe extern "C" fn f_dictwatcheradd(
 }
 
 /// `dictwatcherdel(dict, key, funcref)` function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_dictwatcherdel(
-    argvars: *mut typval_T,
-    _rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_dictwatcherdel(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if check_secure() {
             return;
@@ -2201,24 +2100,14 @@ pub unsafe extern "C" fn f_dictwatcherdel(
 }
 
 /// "did_filetype()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_did_filetype(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_did_filetype(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = varnumber_T::from((*curbuf).b_did_filetype);
     }
 }
 
 /// "empty({expr})" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_empty(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_empty(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut n = true;
         match (*argvars).v_type {
@@ -2258,12 +2147,7 @@ pub unsafe extern "C" fn f_empty(
 }
 
 /// "escape({string}, {chars})" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_escape(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_escape(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut buf = [0 as c_char; NUMBUFLEN];
         (*rettv).vval.v_string = vim_strsave_escaped(
@@ -2275,12 +2159,7 @@ pub unsafe extern "C" fn f_escape(
 }
 
 /// "getenv()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getenv(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_getenv(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let p = vim_getenv(tv_get_string(argvars));
         if p.is_null() {
@@ -2294,8 +2173,7 @@ pub unsafe extern "C" fn f_getenv(
 }
 
 /// "eval()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_eval(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_eval(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut s = tv_get_string_chk(argvars).cast_mut();
         if !s.is_null() {
@@ -2316,19 +2194,13 @@ pub unsafe extern "C" fn f_eval(argvars: *mut typval_T, rettv: *mut typval_T, _f
 }
 
 /// "eventhandler()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_eventhandler(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_eventhandler(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = varnumber_T::from(vgetc_busy);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_list_line(
+pub unsafe fn get_list_line(
     _c: c_int,
     cookie: *mut c_void,
     _indent: c_int,
@@ -2351,12 +2223,7 @@ pub unsafe extern "C" fn get_list_line(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn execute_common(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    arg_off: c_int,
-) {
+pub unsafe fn execute_common(argvars: *mut typval_T, rettv: *mut typval_T, arg_off: c_int) {
     unsafe {
         let save_msg_silent = msg_silent;
         let save_emsg_silent = emsg_silent;
@@ -2441,24 +2308,14 @@ pub unsafe extern "C" fn execute_common(
 }
 
 /// "execute(command)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_execute(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_execute(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         execute_common(argvars, rettv, 0);
     }
 }
 
 /// "exists()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_exists(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_exists(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut n: c_int = 0;
         let mut p = tv_get_string(argvars);
@@ -2499,12 +2356,7 @@ pub unsafe extern "C" fn f_exists(
 }
 
 /// "expand()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_expand(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_expand(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut options = WILD_SILENT | WILD_USE_NL | WILD_LIST_NOTFOUND | WILD_USE_SHELLSLASH;
         let mut error = false;
@@ -2591,12 +2443,7 @@ pub unsafe extern "C" fn f_expand(
 }
 
 /// "menu_get(path [, modes])" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_menu_get(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_menu_get(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_list_alloc_ret(rettv, kListLenMayKnow);
         let mut modes = MENU_ALL_MODES;
@@ -2613,12 +2460,7 @@ pub unsafe extern "C" fn f_menu_get(
 }
 
 /// "expandcmd()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_expandcmd(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_expandcmd(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut errormsg: *const c_char = ptr::null();
         let mut emsgoff = true;
@@ -2721,36 +2563,21 @@ unsafe fn flatten_common(argvars: *mut typval_T, rettv: *mut typval_T, make_copy
 }
 
 /// "flatten(list[, {maxdepth}])" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_flatten(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_flatten(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         flatten_common(argvars, rettv, false);
     }
 }
 
 /// "flattennew(list[, {maxdepth}])" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_flattennew(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_flattennew(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         flatten_common(argvars, rettv, true);
     }
 }
 
 /// "feedkeys()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_feedkeys(
-    argvars: *mut typval_T,
-    _rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_feedkeys(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if check_secure() {
             return;
@@ -2766,12 +2593,7 @@ pub unsafe extern "C" fn f_feedkeys(
 }
 
 /// "float2nr({float})" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_float2nr(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_float2nr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut f: float_T = 0.0;
         if !tv_get_float_chk(argvars, &raw mut f) {
@@ -2788,8 +2610,7 @@ pub unsafe extern "C" fn f_float2nr(
 }
 
 /// "fmod()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_fmod(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_fmod(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut fx: float_T = 0.0;
         let mut fy: float_T = 0.0;
@@ -2803,12 +2624,7 @@ pub unsafe extern "C" fn f_fmod(argvars: *mut typval_T, rettv: *mut typval_T, _f
 }
 
 /// "fnameescape({string})" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_fnameescape(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_fnameescape(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_string = vim_strsave_fnameescape(tv_get_string(argvars), VSE_NONE);
         (*rettv).v_type = VarType::VAR_STRING;
@@ -2816,13 +2632,7 @@ pub unsafe extern "C" fn f_fnameescape(
 }
 
 /// "foreground()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_foreground(
-    _argvars: *mut typval_T,
-    _rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
-}
+pub unsafe fn f_foreground(_argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: EvalFuncData) {}
 
 /// "function()" and "funcref()" common implementation
 unsafe fn common_function(argvars: *mut typval_T, rettv: *mut typval_T, is_funcref: bool) {
@@ -2992,35 +2802,20 @@ unsafe fn common_function(argvars: *mut typval_T, rettv: *mut typval_T, is_funcr
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_funcref(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_funcref(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         common_function(argvars, rettv, true);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_function(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_function(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         common_function(argvars, rettv, false);
     }
 }
 
 /// "garbagecollect()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_garbagecollect(
-    argvars: *mut typval_T,
-    _rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_garbagecollect(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         want_garbage_collect = true;
         if (*argvars).v_type != VarType::VAR_UNKNOWN && tv_get_bool(argvars) == 1 {
@@ -3030,8 +2825,7 @@ pub unsafe extern "C" fn f_garbagecollect(
 }
 
 /// "get()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_get(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_get(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut tv: *mut typval_T = ptr::null_mut();
         let mut what_is_dict = false;
@@ -3164,12 +2958,7 @@ pub unsafe extern "C" fn f_get(argvars: *mut typval_T, rettv: *mut typval_T, _fp
 }
 
 /// "getchangelist()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getchangelist(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_getchangelist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_list_alloc_ret(rettv, 2);
         let buf: *const buf_T = if (*argvars).v_type == VarType::VAR_UNKNOWN {
@@ -3328,24 +3117,14 @@ unsafe fn getpos_both(
 }
 
 /// "getcharpos()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getcharpos(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_getcharpos(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         getpos_both(argvars, rettv, false, true);
     }
 }
 
 /// "getcharsearch()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getcharsearch(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_getcharsearch(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_dict_alloc_ret(rettv);
         let dict = (*rettv).vval.v_dict.cast::<dict_T>();
@@ -3366,12 +3145,7 @@ pub unsafe extern "C" fn f_getcharsearch(
 }
 
 /// "getfontname()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getfontname(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_getfontname(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
         (*rettv).vval.v_string = ptr::null_mut();
@@ -3379,12 +3153,7 @@ pub unsafe extern "C" fn f_getfontname(
 }
 
 /// "getjumplist()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getjumplist(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_getjumplist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_list_alloc_ret(rettv, kListLenMayKnow);
         let wp = find_tabwin(argvars, argvars.add(1));
@@ -3436,12 +3205,7 @@ pub unsafe extern "C" fn f_getjumplist(
 }
 
 /// "getmarklist()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getmarklist(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_getmarklist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_list_alloc_ret(rettv, kListLenMayKnow);
         if (*argvars).v_type == VarType::VAR_UNKNOWN {
@@ -3457,31 +3221,20 @@ pub unsafe extern "C" fn f_getmarklist(
 }
 
 /// "getpid()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getpid(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_getpid(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = os_get_pid();
     }
 }
 
 /// "getcurpos(string)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getcurpos(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_getcurpos(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         getpos_both(argvars, rettv, true, false);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getcursorcharpos(
+pub unsafe fn f_getcursorcharpos(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
@@ -3492,12 +3245,7 @@ pub unsafe extern "C" fn f_getcursorcharpos(
 }
 
 /// "getpos(string)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getpos(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_getpos(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         getpos_both(argvars, rettv, false, false);
     }
@@ -3645,18 +3393,13 @@ unsafe fn getregionpos(
 
 impl pos_T {
     #[inline]
-    unsafe fn cast(&mut self) -> *mut crate::cursor::pos_T {
+    unsafe extern "C" fn cast(&mut self) -> *mut crate::cursor::pos_T {
         (self as *mut pos_T).cast()
     }
 }
 
 /// "getregion()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getregion(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_getregion(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let save_curbuf = curbuf;
         let save_virtual = virtual_op;
@@ -3749,12 +3492,7 @@ unsafe fn add_regionpos_range(rettv: *mut typval_T, p1: pos_T, p2: pos_T) {
 }
 
 /// "getregionpos()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getregionpos(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_getregionpos(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let save_curbuf = curbuf;
         let save_virtual = virtual_op;
@@ -3900,12 +3638,7 @@ unsafe fn getreg_get_regname(argvars: *mut typval_T) -> c_int {
 }
 
 /// "getreg()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getreg(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_getreg(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut arg2: c_int = 0;
         let mut return_list = false;
@@ -3948,12 +3681,7 @@ pub unsafe extern "C" fn f_getreg(
 }
 
 /// "getregtype()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getregtype(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_getregtype(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
         (*rettv).vval.v_string = ptr::null_mut();
@@ -3973,12 +3701,7 @@ pub unsafe extern "C" fn f_getregtype(
 }
 
 /// "gettagstack()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_gettagstack(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_gettagstack(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut wp = curwin;
         tv_dict_alloc_ret(rettv);
@@ -3992,7 +3715,7 @@ pub unsafe extern "C" fn f_gettagstack(
     }
 }
 
-unsafe extern "C" fn dummy_timer_due_cb(tw: *mut TimeWatcher, _data: *mut c_void) {
+unsafe fn dummy_timer_due_cb(tw: *mut TimeWatcher, _data: *mut c_void) {
     unsafe {
         if *loop_closing_ptr((&raw mut main_loop).cast()) {
             time_watcher_stop(tw);
@@ -4001,15 +3724,14 @@ unsafe extern "C" fn dummy_timer_due_cb(tw: *mut TimeWatcher, _data: *mut c_void
     }
 }
 
-unsafe extern "C" fn dummy_timer_close_cb(tw: *mut TimeWatcher, _data: *mut c_void) {
+unsafe fn dummy_timer_close_cb(tw: *mut TimeWatcher, _data: *mut c_void) {
     unsafe {
         xfree(tw.cast());
     }
 }
 
 /// "wait(timeout, condition[, interval])" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_wait(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_wait(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_NUMBER;
         (*rettv).vval.v_number = -1;
@@ -4096,12 +3818,7 @@ pub unsafe extern "C" fn f_wait(argvars: *mut typval_T, rettv: *mut typval_T, _f
 }
 
 /// "gettext()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_gettext(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_gettext(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if tv_check_for_nonempty_string_arg(argvars, 0) == FAIL {
             return;
@@ -4112,8 +3829,7 @@ pub unsafe extern "C" fn f_gettext(
 }
 
 /// "has()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_has(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_has(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut x = false;
         let mut n = false;
@@ -4354,32 +4070,21 @@ unsafe fn has_wsl() -> bool {
 }
 
 /// "highlightID(name)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_hlID(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_hlID(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = varnumber_T::from(syn_name2id(tv_get_string(argvars)));
     }
 }
 
 /// "highlight_exists()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_hlexists(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_hlexists(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = varnumber_T::from(highlight_exists(tv_get_string(argvars)));
     }
 }
 
 /// "index()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_index(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_index(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut idx: c_int = 0;
         let mut ic = false;
@@ -4561,12 +4266,7 @@ unsafe fn indexof_list(l: *mut list_T, startidx: varnumber_T, expr: *mut typval_
 }
 
 /// "indexof()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_indexof(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_indexof(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = -1;
 
@@ -4617,36 +4317,21 @@ pub unsafe extern "C" fn f_indexof(
 }
 
 /// "input()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_input(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_input(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         get_user_input(argvars, rettv, false, INPUTSECRET_FLAG);
     }
 }
 
 /// "inputdialog()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_inputdialog(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_inputdialog(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         get_user_input(argvars, rettv, true, INPUTSECRET_FLAG);
     }
 }
 
 /// "inputlist()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_inputlist(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_inputlist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if (*argvars).v_type != VarType::VAR_LIST {
             semsg!(gettext(e_listarg.as_ptr()), c"inputlist()".as_ptr());
@@ -4680,12 +4365,7 @@ pub unsafe extern "C" fn f_inputlist(
 }
 
 /// "inputrestore()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_inputrestore(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_inputrestore(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if GA_USERINPUT.ga_len > 0 {
             GA_USERINPUT.ga_len -= 1;
@@ -4705,12 +4385,7 @@ pub unsafe extern "C" fn f_inputrestore(
 }
 
 /// "inputsave()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_inputsave(
-    _argvars: *mut typval_T,
-    _rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_inputsave(_argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let p = ga_append_via_ptr(&raw mut GA_USERINPUT, size_of::<tasave_T>()).cast::<tasave_T>();
         save_typeahead(p);
@@ -4718,12 +4393,7 @@ pub unsafe extern "C" fn f_inputsave(
 }
 
 /// "inputsecret()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_inputsecret(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    fptr: EvalFuncData,
-) {
+pub unsafe fn f_inputsecret(argvars: *mut typval_T, rettv: *mut typval_T, fptr: EvalFuncData) {
     unsafe {
         cmdline_star += 1;
         INPUTSECRET_FLAG = true;
@@ -4734,36 +4404,21 @@ pub unsafe extern "C" fn f_inputsecret(
 }
 
 /// "interrupt()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_interrupt(
-    _argvars: *mut typval_T,
-    _rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_interrupt(_argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         got_int = true;
     }
 }
 
 /// "invert(expr)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_invert(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_invert(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = !tv_get_number_chk(argvars, ptr::null_mut());
     }
 }
 
 /// "islocked()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_islocked(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_islocked(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut lv: lval_T = std::mem::zeroed();
         (*rettv).vval.v_number = -1;
@@ -4811,12 +4466,7 @@ pub unsafe extern "C" fn f_islocked(
 }
 
 /// "isinf()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_isinf(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_isinf(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if (*argvars).v_type == VarType::VAR_FLOAT && xisinf((*argvars).vval.v_float) != 0 {
             (*rettv).vval.v_number = if (*argvars).vval.v_float > 0.0 { 1 } else { -1 };
@@ -4825,12 +4475,7 @@ pub unsafe extern "C" fn f_isinf(
 }
 
 /// "isnan()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_isnan(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_isnan(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = varnumber_T::from(
             (*argvars).v_type == VarType::VAR_FLOAT && xisnan((*argvars).vval.v_float) != 0,
@@ -4839,8 +4484,7 @@ pub unsafe extern "C" fn f_isnan(
 }
 
 /// "id()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_id(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_id(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let len = vim_snprintf_typval_only(ptr::null_mut(), 0, c"%p".as_ptr(), argvars);
         (*rettv).v_type = VarType::VAR_STRING;
@@ -4855,12 +4499,7 @@ pub unsafe extern "C" fn f_id(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
 }
 
 /// "jobpid(id)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_jobpid(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_jobpid(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_NUMBER;
         (*rettv).vval.v_number = 0;
@@ -4883,12 +4522,7 @@ pub unsafe extern "C" fn f_jobpid(
 }
 
 /// "jobresize(job, width, height)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_jobresize(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_jobresize(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_NUMBER;
         (*rettv).vval.v_number = 0;
@@ -4925,8 +4559,7 @@ pub unsafe extern "C" fn f_jobresize(
 }
 
 /// Builds an environment dict for a child process (job).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn create_environment(
+pub unsafe fn create_environment(
     job_env: *const dictitem_T,
     clear_env: bool,
     pty: bool,
@@ -5052,12 +4685,7 @@ pub unsafe extern "C" fn create_environment(
 }
 
 /// "jobstart()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_jobstart(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_NUMBER;
         (*rettv).vval.v_number = 0;
@@ -5375,12 +5003,7 @@ pub unsafe extern "C" fn f_jobstart(
 }
 
 /// "jobstop()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_jobstop(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_jobstop(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_NUMBER;
         (*rettv).vval.v_number = 0;
@@ -5411,12 +5034,7 @@ pub unsafe extern "C" fn f_jobstop(
 }
 
 /// "jobwait(ids[, timeout])" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_jobwait(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_jobwait(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_NUMBER;
         (*rettv).vval.v_number = 0;
@@ -5532,12 +5150,7 @@ pub unsafe extern "C" fn f_jobwait(
 }
 
 /// "json_decode()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_json_decode(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_json_decode(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut numbuf = [0 as c_char; NUMBUFLEN];
         let s: *const c_char;
@@ -5577,12 +5190,7 @@ pub unsafe extern "C" fn f_json_decode(
 }
 
 /// "json_encode()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_json_encode(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_json_encode(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
         (*rettv).vval.v_string = encode_tv2json(argvars, ptr::null_mut());
@@ -5590,12 +5198,7 @@ pub unsafe extern "C" fn f_json_encode(
 }
 
 /// "keytrans()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_keytrans(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_keytrans(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
         if tv_check_for_string_arg(argvars, 0) == FAIL || (*argvars).vval.v_string.is_null() {
@@ -5608,8 +5211,7 @@ pub unsafe extern "C" fn f_keytrans(
 }
 
 /// "len()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_len(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_len(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         match (*argvars).v_type {
             VarType::VAR_STRING | VarType::VAR_NUMBER => {
@@ -5683,32 +5285,21 @@ unsafe fn libcall_common(argvars: *mut typval_T, rettv: *mut typval_T, out_type:
 }
 
 /// "libcall()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_libcall(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_libcall(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         libcall_common(argvars, rettv, VarType::VAR_STRING);
     }
 }
 
 /// "libcallnr()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_libcallnr(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_libcallnr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         libcall_common(argvars, rettv, VarType::VAR_NUMBER);
     }
 }
 
 /// "line(string, [winid])" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_line(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_line(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut lnum: linenr_T = 0;
         let mut fp: *mut pos_T = ptr::null_mut();
@@ -5740,12 +5331,7 @@ pub unsafe extern "C" fn f_line(argvars: *mut typval_T, rettv: *mut typval_T, _f
 }
 
 /// "line2byte(lnum)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_line2byte(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_line2byte(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let lnum = tv_get_lnum(argvars);
         if lnum < 1 || lnum > (*curbuf).b_ml.ml_line_count + 1 {
@@ -5761,24 +5347,14 @@ pub unsafe extern "C" fn f_line2byte(
 }
 
 /// "localtime()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_localtime(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_localtime(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = (os_time() as time_t) as varnumber_T;
     }
 }
 
 /// "luaeval()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_luaeval(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_luaeval(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let str_ = tv_get_string_chk(argvars);
         if str_.is_null() {
@@ -6070,12 +5646,7 @@ unsafe fn get_matches_in_str(
 }
 
 /// "matchbufline()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_matchbufline(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_matchbufline(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = -1;
         tv_list_alloc_ret(rettv, kListLenUnknown);
@@ -6169,60 +5740,35 @@ pub unsafe extern "C" fn f_matchbufline(
 }
 
 /// "match()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_match(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_match(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         find_some_match(argvars, rettv, SomeMatchType::kSomeMatch);
     }
 }
 
 /// "matchend()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_matchend(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_matchend(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         find_some_match(argvars, rettv, SomeMatchType::kSomeMatchEnd);
     }
 }
 
 /// "matchlist()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_matchlist(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_matchlist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         find_some_match(argvars, rettv, SomeMatchType::kSomeMatchList);
     }
 }
 
 /// "matchstr()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_matchstr(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_matchstr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         find_some_match(argvars, rettv, SomeMatchType::kSomeMatchStr);
     }
 }
 
 /// "matchstrlist()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_matchstrlist(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_matchstrlist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = -1;
         tv_list_alloc_ret(rettv, kListLenUnknown);
@@ -6297,12 +5843,7 @@ pub unsafe extern "C" fn f_matchstrlist(
 }
 
 /// "matchstrpos()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_matchstrpos(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_matchstrpos(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         find_some_match(argvars, rettv, SomeMatchType::kSomeMatchStrPos);
     }
@@ -6367,24 +5908,21 @@ unsafe fn max_min(tv: *const typval_T, rettv: *mut typval_T, domax: bool) {
 }
 
 /// "max()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_max(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_max(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         max_min(argvars, rettv, true);
     }
 }
 
 /// "min()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_min(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_min(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         max_min(argvars, rettv, false);
     }
 }
 
 /// "mode()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_mode(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_mode(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut buf = [0 as c_char; MODE_MAX_LENGTH];
         get_mode(buf.as_mut_ptr());
@@ -6405,12 +5943,7 @@ unsafe fn may_add_state_char(gap: *mut garray_T, include: *const c_char, c: u8) 
 }
 
 /// "state()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_state(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_state(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut ga = garray_T {
             ga_len: 0,
@@ -6454,12 +5987,7 @@ pub unsafe extern "C" fn f_state(
 }
 
 /// "msgpackdump()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_msgpackdump(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_msgpackdump(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if (*argvars).v_type != VarType::VAR_LIST {
             semsg!(gettext(e_listarg.as_ptr()), c"msgpackdump()".as_ptr());
@@ -6621,12 +6149,7 @@ unsafe fn msgpackparse_unpack_blob(blob: *const blob_T, ret_list: *mut list_T) {
 }
 
 /// "msgpackparse()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_msgpackparse(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_msgpackparse(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if (*argvars).v_type != VarType::VAR_LIST && (*argvars).v_type != VarType::VAR_BLOB {
             semsg!(gettext(e_listblobarg.as_ptr()), c"msgpackparse()".as_ptr());
@@ -6642,12 +6165,7 @@ pub unsafe extern "C" fn f_msgpackparse(
 }
 
 /// "nextnonblank()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_nextnonblank(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_nextnonblank(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut lnum = tv_get_lnum(argvars);
         loop {
@@ -6665,12 +6183,7 @@ pub unsafe extern "C" fn f_nextnonblank(
 }
 
 /// "nr2char()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_nr2char(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_nr2char(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN && !tv_check_num(argvars.add(1)) {
             return;
@@ -6703,8 +6216,7 @@ pub unsafe extern "C" fn f_nr2char(
 }
 
 /// "or(expr, expr)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_or(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_or(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = tv_get_number_chk(argvars, ptr::null_mut())
             | tv_get_number_chk(argvars.add(1), ptr::null_mut());
@@ -6712,8 +6224,7 @@ pub unsafe extern "C" fn f_or(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
 }
 
 /// "pow()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_pow(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_pow(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut fx: float_T = 0.0;
         let mut fy: float_T = 0.0;
@@ -6727,12 +6238,7 @@ pub unsafe extern "C" fn f_pow(argvars: *mut typval_T, rettv: *mut typval_T, _fp
 }
 
 /// "prevnonblank()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_prevnonblank(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_prevnonblank(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut lnum = tv_get_lnum(argvars);
         if lnum < 1 || lnum > (*curbuf).b_ml.ml_line_count {
@@ -6747,12 +6253,7 @@ pub unsafe extern "C" fn f_prevnonblank(
 }
 
 /// "printf()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_printf(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_printf(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
         (*rettv).vval.v_string = ptr::null_mut();
@@ -6772,12 +6273,7 @@ pub unsafe extern "C" fn f_printf(
 }
 
 /// "pum_getpos()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_pum_getpos(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_pum_getpos(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_dict_alloc_ret(rettv);
         pum_set_event_info((*rettv).vval.v_dict.cast());
@@ -6785,12 +6281,7 @@ pub unsafe extern "C" fn f_pum_getpos(
 }
 
 /// "pumvisible()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_pumvisible(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_pumvisible(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if pum_visible() {
             (*rettv).vval.v_number = 1;
@@ -6799,12 +6290,7 @@ pub unsafe extern "C" fn f_pumvisible(
 }
 
 /// "py3eval()" and "pyxeval()" functions
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_py3eval(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_py3eval(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         script_host_eval(c"python3".as_ptr().cast_mut(), argvars, rettv);
     }
@@ -6856,8 +6342,7 @@ unsafe fn shuffle_xoshiro128starstar(x: *mut u32, y: *mut u32, z: *mut u32, w: *
 }
 
 /// "rand()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_rand(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_rand(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let result: u32;
 
@@ -6924,12 +6409,7 @@ pub unsafe extern "C" fn f_rand(argvars: *mut typval_T, rettv: *mut typval_T, _f
 }
 
 /// "srand()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_srand(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_srand(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut x: u32 = 0;
         tv_list_alloc_ret(rettv, 4);
@@ -6962,36 +6442,21 @@ pub unsafe extern "C" fn f_srand(
 }
 
 /// "perleval()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_perleval(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_perleval(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         script_host_eval(c"perl".as_ptr().cast_mut(), argvars, rettv);
     }
 }
 
 /// "rubyeval()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_rubyeval(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_rubyeval(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         script_host_eval(c"ruby".as_ptr().cast_mut(), argvars, rettv);
     }
 }
 
 /// "range()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_range(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_range(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let end: varnumber_T;
         let mut stride: varnumber_T = 1;
@@ -7034,12 +6499,7 @@ pub unsafe extern "C" fn f_range(
 }
 
 /// "getreginfo()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_getreginfo(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_getreginfo(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut regname = getreg_get_regname(argvars);
         if regname == 0 {
@@ -7117,35 +6577,20 @@ unsafe fn return_register(regname: c_int, rettv: *mut typval_T) {
 }
 
 /// "reg_executing()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_reg_executing(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_reg_executing(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         return_register(reg_executing, rettv);
     }
 }
 
 /// "reg_recording()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_reg_recording(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_reg_recording(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         return_register(reg_recording, rettv);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_reg_recorded(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_reg_recorded(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         return_register(reg_recorded, rettv);
     }
@@ -7170,12 +6615,7 @@ unsafe fn list2proftime(arg: *mut typval_T, tm: *mut proftime_T) -> c_int {
 }
 
 /// "reltime()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_reltime(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_reltime(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut res: proftime_T = 0;
         let mut start: proftime_T = 0;
@@ -7206,12 +6646,7 @@ pub unsafe extern "C" fn f_reltime(
 }
 
 /// "reltimestr()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_reltimestr(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_reltimestr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut tm: proftime_T = 0;
         (*rettv).v_type = VarType::VAR_STRING;
@@ -7311,12 +6746,7 @@ unsafe fn repeat_string(str_tv: *mut typval_T, n: varnumber_T, rettv: *mut typva
 }
 
 /// "repeat()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_repeat(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_repeat(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let n = tv_get_number(argvars.add(1));
         if (*argvars).v_type == VarType::VAR_LIST {
@@ -7481,12 +6911,7 @@ unsafe fn reduce_blob(argvars: *mut typval_T, expr: *mut typval_T, rettv: *mut t
 }
 
 /// "reduce()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_reduce(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_reduce(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if (*argvars).v_type != VarType::VAR_STRING
             && (*argvars).v_type != VarType::VAR_LIST
@@ -7712,12 +7137,7 @@ unsafe fn search_cmn(argvars: *mut typval_T, match_pos: *mut pos_T, flagsp: *mut
 }
 
 /// "rpcnotify()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_rpcnotify(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_rpcnotify(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_NUMBER;
         (*rettv).vval.v_number = 0;
@@ -7782,12 +7202,7 @@ pub unsafe extern "C" fn f_rpcnotify(
 }
 
 /// "rpcrequest()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_rpcrequest(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_rpcrequest(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_NUMBER;
         (*rettv).vval.v_number = 0;
@@ -7930,12 +7345,7 @@ unsafe fn screenchar_adjust(grid: *mut *mut ScreenGrid, row: *mut c_int, col: *m
 }
 
 /// "screenattr()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_screenattr(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_screenattr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut row = (tv_get_number_chk(argvars, ptr::null_mut()) as c_int) - 1;
         let mut col = (tv_get_number_chk(argvars.add(1), ptr::null_mut()) as c_int) - 1;
@@ -7954,12 +7364,7 @@ pub unsafe extern "C" fn f_screenattr(
 }
 
 /// "screenchar()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_screenchar(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_screenchar(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut row = (tv_get_number_chk(argvars, ptr::null_mut()) as c_int) - 1;
         let mut col = (tv_get_number_chk(argvars.add(1), ptr::null_mut()) as c_int) - 1;
@@ -7982,12 +7387,7 @@ pub unsafe extern "C" fn f_screenchar(
 }
 
 /// "screenchars()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_screenchars(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_screenchars(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut row = (tv_get_number_chk(argvars, ptr::null_mut()) as c_int) - 1;
         let mut col = (tv_get_number_chk(argvars.add(1), ptr::null_mut()) as c_int) - 1;
@@ -8019,36 +7419,21 @@ pub unsafe extern "C" fn f_screenchars(
 }
 
 /// "screencol()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_screencol(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_screencol(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = varnumber_T::from(ui_current_col() + 1);
     }
 }
 
 /// "screenrow()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_screenrow(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_screenrow(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = varnumber_T::from(ui_current_row() + 1);
     }
 }
 
 /// "screenstring()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_screenstring(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_screenstring(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_string = ptr::null_mut();
         (*rettv).v_type = VarType::VAR_STRING;
@@ -8072,12 +7457,7 @@ pub unsafe extern "C" fn f_screenstring(
 }
 
 /// "search()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_search(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_search(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut flags: c_int = 0;
         (*rettv).vval.v_number =
@@ -8086,12 +7466,7 @@ pub unsafe extern "C" fn f_search(
 }
 
 /// "searchdecl()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_searchdecl(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_searchdecl(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut locally: c_int = 1;
         let mut thisblock: c_int = 0;
@@ -8186,24 +7561,14 @@ unsafe fn searchpair_cmn(argvars: *mut typval_T, match_pos: *mut pos_T) -> c_int
 }
 
 /// "searchpair()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_searchpair(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_searchpair(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = varnumber_T::from(searchpair_cmn(argvars, ptr::null_mut()));
     }
 }
 
 /// "searchpairpos()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_searchpairpos(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_searchpairpos(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut match_pos = pos_T {
             lnum: 0,
@@ -8224,8 +7589,7 @@ pub unsafe extern "C" fn f_searchpairpos(
 }
 
 /// Search for a start/middle/end thing.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_searchpair(
+pub unsafe fn do_searchpair(
     spat: *const c_char,
     mpat: *const c_char,
     epat: *const c_char,
@@ -8422,12 +7786,7 @@ pub unsafe extern "C" fn do_searchpair(
 }
 
 /// "searchpos()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_searchpos(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_searchpos(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut match_pos = pos_T {
             lnum: 0,
@@ -8451,12 +7810,7 @@ pub unsafe extern "C" fn f_searchpos(
 }
 
 /// "serverlist()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_serverlist(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_serverlist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut n: usize = 0;
         let addrs = server_address_list(&raw mut n);
@@ -8491,12 +7845,7 @@ pub unsafe extern "C" fn f_serverlist(
 }
 
 /// "serverstart()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_serverstart(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_serverstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
         (*rettv).vval.v_string = ptr::null_mut();
@@ -8543,12 +7892,7 @@ pub unsafe extern "C" fn f_serverstart(
 }
 
 /// "serverstop()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_serverstop(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_serverstop(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if check_secure() {
             return;
@@ -8625,23 +7969,13 @@ unsafe fn set_position(argvars: *mut typval_T, rettv: *mut typval_T, charpos: bo
 }
 
 /// "setcharpos()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_setcharpos(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_setcharpos(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         set_position(argvars, rettv, true);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_setcharsearch(
-    argvars: *mut typval_T,
-    _rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_setcharsearch(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if tv_check_for_dict_arg(argvars, 0) == FAIL {
             return;
@@ -8674,8 +8008,7 @@ pub unsafe extern "C" fn f_setcharsearch(
 }
 
 /// "setcursorcharpos()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_setcursorcharpos(
+pub unsafe fn f_setcursorcharpos(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
     _fptr: EvalFuncData,
@@ -8686,12 +8019,7 @@ pub unsafe extern "C" fn f_setcursorcharpos(
 }
 
 /// "setenv()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_setenv(
-    argvars: *mut typval_T,
-    _rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_setenv(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut namebuf = [0 as c_char; NUMBUFLEN];
         let mut valbuf = [0 as c_char; NUMBUFLEN];
@@ -8711,12 +8039,7 @@ pub unsafe extern "C" fn f_setenv(
 }
 
 /// "setfperm({fname}, {mode})" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_setfperm(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_setfperm(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = 0;
 
@@ -8747,12 +8070,7 @@ pub unsafe extern "C" fn f_setfperm(
 }
 
 /// "setpos()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_setpos(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_setpos(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         set_position(argvars, rettv, false);
     }
@@ -8788,12 +8106,7 @@ unsafe fn get_yank_type(
 }
 
 /// "setreg()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_setreg(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_setreg(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut append = false;
         let mut block_len: c_int = -1;
@@ -8944,12 +8257,7 @@ pub unsafe extern "C" fn f_setreg(
 }
 
 /// "settagstack()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_settagstack(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_settagstack(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut action: c_char = b'r' as c_char;
         (*rettv).vval.v_number = -1;
@@ -8992,12 +8300,7 @@ pub unsafe extern "C" fn f_settagstack(
 }
 
 /// "sha256({expr})" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_sha256(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_sha256(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
         (*rettv).vval.v_string = ptr::null_mut();
@@ -9024,12 +8327,7 @@ pub unsafe extern "C" fn f_sha256(
 }
 
 /// "shellescape({string})" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_shellescape(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_shellescape(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let do_special = non_zero_arg(argvars.add(1));
         (*rettv).vval.v_string =
@@ -9039,12 +8337,7 @@ pub unsafe extern "C" fn f_shellescape(
 }
 
 /// "shiftwidth()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_shiftwidth(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_shiftwidth(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = 0;
         if (*argvars).v_type != VarType::VAR_UNKNOWN {
@@ -9060,12 +8353,7 @@ pub unsafe extern "C" fn f_shiftwidth(
 }
 
 /// "sockconnect()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_sockconnect(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_sockconnect(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if (*argvars).v_type != VarType::VAR_STRING
             || (*argvars.add(1)).v_type != VarType::VAR_STRING
@@ -9123,12 +8411,7 @@ pub unsafe extern "C" fn f_sockconnect(
 }
 
 /// "stdioopen()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_stdioopen(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_stdioopen(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if (*argvars).v_type != VarType::VAR_DICT {
             emsg(gettext(e_invarg.as_ptr()));
@@ -9163,12 +8446,7 @@ pub unsafe extern "C" fn f_stdioopen(
 }
 
 /// "reltimefloat()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_reltimefloat(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_reltimefloat(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut tm: proftime_T = 0;
         (*rettv).v_type = VarType::VAR_FLOAT;
@@ -9180,12 +8458,7 @@ pub unsafe extern "C" fn f_reltimefloat(
 }
 
 /// "soundfold({word})" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_soundfold(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_soundfold(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
         let s = tv_get_string(argvars);
@@ -9194,12 +8467,7 @@ pub unsafe extern "C" fn f_soundfold(
 }
 
 /// "spellbadword()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_spellbadword(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_spellbadword(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let wo_spell_save = (*curwin).w_onebuf_opt.wo_spell;
 
@@ -9262,12 +8530,7 @@ pub unsafe extern "C" fn f_spellbadword(
 }
 
 /// "spellsuggest()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_spellsuggest(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_spellsuggest(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut ga = garray_T {
             ga_len: 0,
@@ -9323,12 +8586,7 @@ pub unsafe extern "C" fn f_spellsuggest(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_split(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_split(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut col: colnr_T = 0;
         let mut keepempty = false;
@@ -9432,12 +8690,7 @@ unsafe fn get_xdg_var_list(xdg: XDGVarType, rettv: *mut typval_T) {
 }
 
 /// "stdpath(type)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_stdpath(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_stdpath(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
         (*rettv).vval.v_string = ptr::null_mut();
@@ -9474,12 +8727,7 @@ pub unsafe extern "C" fn f_stdpath(
 }
 
 /// "str2float()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_str2float(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_str2float(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut p = skipwhite(tv_get_string(argvars));
         let isneg = *p == b'-' as c_char;
@@ -9495,12 +8743,7 @@ pub unsafe extern "C" fn f_str2float(
 }
 
 /// "strftime({format}[, {time}])" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_strftime(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_strftime(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
         let mut p = tv_get_string(argvars).cast_mut();
@@ -9546,12 +8789,7 @@ pub unsafe extern "C" fn f_strftime(
 }
 
 /// "strptime({format}, {timestring})" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_strptime(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_strptime(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut fmt_buf = [0 as c_char; NUMBUFLEN];
         let mut str_buf = [0 as c_char; NUMBUFLEN];
@@ -9583,12 +8821,7 @@ pub unsafe extern "C" fn f_strptime(
 }
 
 /// "submatch()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_submatch(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_submatch(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut error = false;
         let no = tv_get_number_chk(argvars, &raw mut error) as c_int;
@@ -9617,12 +8850,7 @@ pub unsafe extern "C" fn f_submatch(
 }
 
 /// "substitute()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_substitute(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_substitute(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut patbuf = [0 as c_char; NUMBUFLEN];
         let mut subbuf = [0 as c_char; NUMBUFLEN];
@@ -9658,12 +8886,7 @@ pub unsafe extern "C" fn f_substitute(
 }
 
 /// "swapfilelist()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_swapfilelist(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_swapfilelist(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_list_alloc_ret(rettv, kListLenUnknown);
         recover_names(ptr::null_mut(), false, (*rettv).vval.v_list);
@@ -9671,12 +8894,7 @@ pub unsafe extern "C" fn f_swapfilelist(
 }
 
 /// "swapinfo(swap_filename)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_swapinfo(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_swapinfo(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_dict_alloc_ret(rettv);
         swapfile_dict(tv_get_string(argvars), (*rettv).vval.v_dict.cast());
@@ -9684,12 +8902,7 @@ pub unsafe extern "C" fn f_swapinfo(
 }
 
 /// "swapname(expr)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_swapname(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_swapname(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
         let buf = tv_get_buf(argvars, 0);
@@ -9705,12 +8918,7 @@ pub unsafe extern "C" fn f_swapname(
 }
 
 /// "synID(lnum, col, trans)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_synID(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_synID(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let lnum = tv_get_lnum(argvars);
         let col = (tv_get_number(argvars.add(1)) as colnr_T) - 1;
@@ -9732,12 +8940,7 @@ pub unsafe extern "C" fn f_synID(
 }
 
 /// "synIDattr(id, what [, mode])" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_synIDattr(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_synIDattr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let id = tv_get_number(argvars) as c_int;
         let what = tv_get_string(argvars.add(1));
@@ -9827,12 +9030,7 @@ pub unsafe extern "C" fn f_synIDattr(
 }
 
 /// "synIDtrans(id)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_synIDtrans(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_synIDtrans(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut id = tv_get_number(argvars) as c_int;
         if id > 0 {
@@ -9845,12 +9043,7 @@ pub unsafe extern "C" fn f_synIDtrans(
 }
 
 /// "synconcealed(lnum, col)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_synconcealed(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_synconcealed(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut syntax_flags: c_int = 0;
         let mut matchid: c_int = 0;
@@ -9896,12 +9089,7 @@ pub unsafe extern "C" fn f_synconcealed(
 }
 
 /// "synstack(lnum, col)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_synstack(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_synstack(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_list_set_ret(rettv, ptr::null_mut());
 
@@ -9927,12 +9115,7 @@ pub unsafe extern "C" fn f_synstack(
 }
 
 /// "tabpagebuflist()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_tabpagebuflist(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_tabpagebuflist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut wp: *mut win_T = ptr::null_mut();
         if (*argvars).v_type == VarType::VAR_UNKNOWN {
@@ -9961,12 +9144,7 @@ pub unsafe extern "C" fn f_tabpagebuflist(
 }
 
 /// "tagfiles()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_tagfiles(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_tagfiles(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_list_alloc_ret(rettv, kListLenUnknown);
         let fname = xmalloc(MAXPATHL).cast::<c_char>();
@@ -9984,12 +9162,7 @@ pub unsafe extern "C" fn f_tagfiles(
 }
 
 /// "taglist()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_taglist(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_taglist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let tag_pattern = tv_get_string(argvars);
         (*rettv).vval.v_number = 0;
@@ -10009,12 +9182,7 @@ pub unsafe extern "C" fn f_taglist(
 }
 
 /// "timer_info([timer])" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_timer_info(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_timer_info(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_list_alloc_ret(rettv, kListLenUnknown);
         if tv_check_for_opt_number_arg(argvars, 0) == FAIL {
@@ -10035,12 +9203,7 @@ pub unsafe extern "C" fn f_timer_info(
 }
 
 /// "timer_pause(timer, paused)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_timer_pause(
-    argvars: *mut typval_T,
-    _unused: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_timer_pause(argvars: *mut typval_T, _unused: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if (*argvars).v_type != VarType::VAR_NUMBER {
             emsg(gettext(e_number_exp.as_ptr()));
@@ -10066,12 +9229,7 @@ pub unsafe extern "C" fn f_timer_pause(
 }
 
 /// "timer_start(timeout, callback, opts)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_timer_start(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_timer_start(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut repeat: c_int = 1;
         (*rettv).vval.v_number = -1;
@@ -10106,12 +9264,7 @@ pub unsafe extern "C" fn f_timer_start(
 }
 
 /// "timer_stop(timerid)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_timer_stop(
-    argvars: *mut typval_T,
-    _rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_timer_stop(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if tv_check_for_number_arg(argvars, 0) == FAIL {
             return;
@@ -10124,8 +9277,7 @@ pub unsafe extern "C" fn f_timer_stop(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_timer_stopall(
+pub unsafe fn f_timer_stopall(
     _argvars: *mut typval_T,
     _unused: *mut typval_T,
     _fptr: EvalFuncData,
@@ -10136,8 +9288,7 @@ pub unsafe extern "C" fn f_timer_stopall(
 }
 
 /// "type(expr)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_type(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_type(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut n: varnumber_T = -1;
         match (*argvars).v_type {
@@ -10157,12 +9308,7 @@ pub unsafe extern "C" fn f_type(argvars: *mut typval_T, rettv: *mut typval_T, _f
 }
 
 /// "virtcol({expr}, [, {list} [, {winid}]])" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_virtcol(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_virtcol(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut vcol_start: colnr_T = 0;
         let mut vcol_end: colnr_T = 0;
@@ -10216,12 +9362,7 @@ pub unsafe extern "C" fn f_virtcol(
 }
 
 /// "visualmode()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_visualmode(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_visualmode(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let str_ = [(*curbuf).b_visual_mode_eval as c_char, NUL];
         (*rettv).v_type = VarType::VAR_STRING;
@@ -10234,12 +9375,7 @@ pub unsafe extern "C" fn f_visualmode(
 }
 
 /// "wildmenumode()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_wildmenumode(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_wildmenumode(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if wild_menu_showing != 0 || ((State & MODE_CMDLINE) != 0 && cmdline_pum_active()) {
             (*rettv).vval.v_number = 1;
@@ -10248,12 +9384,7 @@ pub unsafe extern "C" fn f_wildmenumode(
 }
 
 /// "windowsversion()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_windowsversion(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_windowsversion(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
         (*rettv).vval.v_string = xstrdup((&raw const windowsVersion).cast());
@@ -10261,12 +9392,7 @@ pub unsafe extern "C" fn f_windowsversion(
 }
 
 /// "wordcount()" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_wordcount(
-    _argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_wordcount(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_dict_alloc_ret(rettv);
         cursor_pos_info((*rettv).vval.v_dict.cast());
@@ -10274,8 +9400,7 @@ pub unsafe extern "C" fn f_wordcount(
 }
 
 /// "xor(expr, expr)" function
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_xor(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_xor(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).vval.v_number = tv_get_number_chk(argvars, ptr::null_mut())
             ^ tv_get_number_chk(argvars.add(1), ptr::null_mut());
@@ -10375,55 +9500,55 @@ use crate::testing::{
 use crate::undo::{f_undofile, f_undotree};
 use crate::viml::parser::parser::CONV_NONE;
 
-unsafe extern "C" fn float_op_acos(x: float_T) -> float_T {
+unsafe fn float_op_acos(x: float_T) -> float_T {
     x.acos()
 }
-unsafe extern "C" fn float_op_asin(x: float_T) -> float_T {
+unsafe fn float_op_asin(x: float_T) -> float_T {
     x.asin()
 }
-unsafe extern "C" fn float_op_atan(x: float_T) -> float_T {
+unsafe fn float_op_atan(x: float_T) -> float_T {
     x.atan()
 }
-unsafe extern "C" fn float_op_ceil(x: float_T) -> float_T {
+unsafe fn float_op_ceil(x: float_T) -> float_T {
     x.ceil()
 }
-unsafe extern "C" fn float_op_cos(x: float_T) -> float_T {
+unsafe fn float_op_cos(x: float_T) -> float_T {
     x.cos()
 }
-unsafe extern "C" fn float_op_cosh(x: float_T) -> float_T {
+unsafe fn float_op_cosh(x: float_T) -> float_T {
     x.cosh()
 }
-unsafe extern "C" fn float_op_exp(x: float_T) -> float_T {
+unsafe fn float_op_exp(x: float_T) -> float_T {
     x.exp()
 }
-unsafe extern "C" fn float_op_floor(x: float_T) -> float_T {
+unsafe fn float_op_floor(x: float_T) -> float_T {
     x.floor()
 }
-unsafe extern "C" fn float_op_log(x: float_T) -> float_T {
+unsafe fn float_op_log(x: float_T) -> float_T {
     x.ln()
 }
-unsafe extern "C" fn float_op_log10(x: float_T) -> float_T {
+unsafe fn float_op_log10(x: float_T) -> float_T {
     x.log10()
 }
-unsafe extern "C" fn float_op_round(x: float_T) -> float_T {
+unsafe fn float_op_round(x: float_T) -> float_T {
     x.round()
 }
-unsafe extern "C" fn float_op_sin(x: float_T) -> float_T {
+unsafe fn float_op_sin(x: float_T) -> float_T {
     x.sin()
 }
-unsafe extern "C" fn float_op_sinh(x: float_T) -> float_T {
+unsafe fn float_op_sinh(x: float_T) -> float_T {
     x.sinh()
 }
-unsafe extern "C" fn float_op_sqrt(x: float_T) -> float_T {
+unsafe fn float_op_sqrt(x: float_T) -> float_T {
     x.sqrt()
 }
-unsafe extern "C" fn float_op_tan(x: float_T) -> float_T {
+unsafe fn float_op_tan(x: float_T) -> float_T {
     x.tan()
 }
-unsafe extern "C" fn float_op_tanh(x: float_T) -> float_T {
+unsafe fn float_op_tanh(x: float_T) -> float_T {
     x.tanh()
 }
-unsafe extern "C" fn float_op_trunc(x: float_T) -> float_T {
+unsafe fn float_op_trunc(x: float_T) -> float_T {
     x.trunc()
 }
 
@@ -16583,8 +15708,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
     },
 ];
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval_func_def_at(idx: c_int) -> *const EvalFuncDef {
+pub unsafe fn eval_func_def_at(idx: c_int) -> *const EvalFuncDef {
     &raw const FUNCTIONS[idx as usize]
 }
 

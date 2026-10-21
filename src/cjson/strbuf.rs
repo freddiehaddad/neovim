@@ -32,11 +32,6 @@ pub unsafe fn strbuf_reset(s: *mut strbuf_t) {
 }
 
 #[inline]
-pub unsafe fn strbuf_allocated(s: *mut strbuf_t) -> c_int {
-    c_int::from(unsafe { !(*s).buf.is_null() })
-}
-
-#[inline]
 pub unsafe fn strbuf_empty_length(s: *mut strbuf_t) -> usize {
     unsafe { (*s).size - (*s).length - 1 }
 }
@@ -140,8 +135,7 @@ unsafe fn debug_stats(s: *mut strbuf_t) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn strbuf_init(s: *mut strbuf_t, len: usize) {
+pub unsafe fn strbuf_init(s: *mut strbuf_t, len: usize) {
     let size = if len == 0 {
         STRBUF_DEFAULT_SIZE
     } else {
@@ -165,8 +159,7 @@ pub unsafe extern "C" fn strbuf_init(s: *mut strbuf_t, len: usize) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn strbuf_new(len: usize) -> *mut strbuf_t {
+pub unsafe fn strbuf_new(len: usize) -> *mut strbuf_t {
     unsafe {
         let s = xmalloc(size_of::<strbuf_t>()).cast::<strbuf_t>();
 
@@ -176,8 +169,7 @@ pub unsafe extern "C" fn strbuf_new(len: usize) -> *mut strbuf_t {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn strbuf_free(s: *mut strbuf_t) {
+pub unsafe fn strbuf_free(s: *mut strbuf_t) {
     unsafe {
         debug_stats(s);
 
@@ -188,25 +180,6 @@ pub unsafe extern "C" fn strbuf_free(s: *mut strbuf_t) {
         if (*s).dynamic != 0 {
             xfree(s.cast::<c_void>());
         }
-    }
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn strbuf_free_to_string(s: *mut strbuf_t, len: *mut usize) -> *mut c_char {
-    unsafe {
-        debug_stats(s);
-        strbuf_ensure_null(s);
-
-        let buf = (*s).buf;
-        if !len.is_null() {
-            *len = (*s).length;
-        }
-
-        if (*s).dynamic != 0 {
-            xfree(s.cast::<c_void>());
-        }
-
-        buf
     }
 }
 
@@ -242,8 +215,7 @@ unsafe fn calculate_new_size(s: *mut strbuf_t, len: usize) -> usize {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn strbuf_resize(s: *mut strbuf_t, len: usize) {
+pub unsafe fn strbuf_resize(s: *mut strbuf_t, len: usize) {
     unsafe {
         let newsize = calculate_new_size(s, len);
 
@@ -262,8 +234,7 @@ pub unsafe extern "C" fn strbuf_resize(s: *mut strbuf_t, len: usize) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn strbuf_append_string(s: *mut strbuf_t, str_in: *const c_char) {
+pub unsafe fn strbuf_append_string(s: *mut strbuf_t, str_in: *const c_char) {
     unsafe {
         let mut space = strbuf_empty_length(s);
         let mut i = 0usize;

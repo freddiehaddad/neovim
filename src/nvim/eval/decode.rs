@@ -81,11 +81,7 @@ unsafe fn create_special_dict(rettv: *mut typval_T, mp_type: usize, val: typval_
 }
 
 /// Create a special dictionary representing a MessagePack MAP (`decode_create_map_special_dict`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decode_create_map_special_dict(
-    ret_tv: *mut typval_T,
-    len: isize,
-) -> *mut list_T {
+pub unsafe fn decode_create_map_special_dict(ret_tv: *mut typval_T, len: isize) -> *mut list_T {
     unsafe {
         let list = tv_list_alloc(len);
         tv_list_ref(list);
@@ -103,8 +99,7 @@ pub unsafe extern "C" fn decode_create_map_special_dict(
 }
 
 /// Convert `s[..len]` into a `VAR_STRING` or `VAR_BLOB` `typval_T` (`decode_string`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decode_string(
+pub unsafe fn decode_string(
     s: *const c_char,
     len: usize,
     force_blob: bool,
@@ -1090,10 +1085,7 @@ unsafe fn positive_integer_to_special_typval(rettv: *mut typval_T, val: u64) {
     }
 }
 
-unsafe extern "C-unwind" fn typval_parse_enter(
-    parser: *mut mpack_parser_t,
-    node: *mut mpack_node_t,
-) {
+unsafe fn typval_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
     unsafe {
         let mut result: *mut typval_T = std::ptr::null_mut();
         let parent = mpack_parent_node(node);
@@ -1206,8 +1198,7 @@ unsafe extern "C-unwind" fn typval_parse_enter(
 }
 
 /// Free un-exited nodes on `parser` after a parse error (`typval_parser_error_free`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn typval_parser_error_free(parser: *mut mpack_parser_t) {
+pub unsafe fn typval_parser_error_free(parser: *mut mpack_parser_t) {
     let p = unsafe { &mut *parser };
     for i in 0..p.size as usize {
         let node = &mut p.items[i];
@@ -1226,10 +1217,7 @@ pub unsafe extern "C" fn typval_parser_error_free(parser: *mut mpack_parser_t) {
     }
 }
 
-unsafe extern "C-unwind" fn typval_parse_exit(
-    _parser: *mut mpack_parser_t,
-    node: *mut mpack_node_t,
-) {
+unsafe fn typval_parse_exit(_parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
     unsafe {
         let node = &mut *node;
         let result = node.data[0].p.cast::<typval_T>();
@@ -1347,8 +1335,7 @@ unsafe extern "C-unwind" fn typval_parse_exit(
 }
 
 /// Parse msgpack data into a `typval_T` using `parser` (`mpack_parse_typval`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mpack_parse_typval(
+pub unsafe fn mpack_parse_typval(
     parser: *mut mpack_parser_t,
     data: *mut *const c_char,
     size: *mut usize,
@@ -1365,8 +1352,7 @@ pub unsafe extern "C" fn mpack_parse_typval(
 }
 
 /// Unpack msgpack buffer `*data[..*size]` into `*ret` (`unpack_typval`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn unpack_typval(
+pub unsafe fn unpack_typval(
     data: *mut *const c_char,
     size: *mut usize,
     ret: *mut typval_T,

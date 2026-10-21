@@ -73,8 +73,7 @@ unsafe extern "C" {
     pub fn signal(signum: c_int, handler: usize) -> usize;
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn signal_init() {
+pub unsafe fn signal_init() {
     unsafe {
         #[cfg(unix)]
         {
@@ -119,8 +118,7 @@ unsafe fn signal_ignore_deadly() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn signal_teardown() {
+pub unsafe fn signal_teardown() {
     unsafe {
         signal_stop();
         signal_ignore_deadly();
@@ -138,8 +136,7 @@ pub unsafe extern "C" fn signal_teardown() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn signal_start() {
+pub unsafe fn signal_start() {
     unsafe {
         #[cfg(unix)]
         signal_watcher_start((&raw mut spipe).cast(), Some(on_signal), SIGPIPE);
@@ -157,8 +154,7 @@ pub unsafe extern "C" fn signal_start() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn signal_stop() {
+pub unsafe fn signal_stop() {
     unsafe {
         #[cfg(unix)]
         signal_watcher_stop((&raw mut spipe).cast());
@@ -175,15 +171,13 @@ pub unsafe extern "C" fn signal_stop() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn signal_reject_deadly() {
+pub unsafe fn signal_reject_deadly() {
     unsafe {
         rejecting_deadly = true;
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn signal_accept_deadly() {
+pub unsafe fn signal_accept_deadly() {
     unsafe {
         rejecting_deadly = false;
     }
@@ -240,7 +234,7 @@ unsafe fn deadly_signal(signum: c_int) -> ! {
     }
 }
 
-unsafe extern "C" fn on_signal(_handle: *mut SignalWatcher, signum: c_int, _data: *mut c_void) {
+unsafe fn on_signal(_handle: *mut SignalWatcher, signum: c_int, _data: *mut c_void) {
     debug_assert!(signum >= 0);
     unsafe {
         #[cfg(target_os = "linux")]

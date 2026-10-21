@@ -1605,8 +1605,7 @@ const HEADER_TABLE: [DgHeaderEntry; 27] = [
 ];
 
 /// Handle digraphs after typing a character (`do_digraph`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn do_digraph(mut c: c_int) -> c_int {
+pub unsafe fn do_digraph(mut c: c_int) -> c_int {
     unsafe {
         if c == -1 {
             BACKSPACED = -1;
@@ -1626,8 +1625,7 @@ pub unsafe extern "C" fn do_digraph(mut c: c_int) -> c_int {
 }
 
 /// Find a digraph for `val` (`get_digraph_for_char`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_digraph_for_char(val_arg: c_int) -> *mut c_char {
+pub unsafe fn get_digraph_for_char(val_arg: c_int) -> *mut c_char {
     unsafe {
         let val = val_arg;
 
@@ -1658,8 +1656,7 @@ pub unsafe extern "C" fn get_digraph_for_char(val_arg: c_int) -> *mut c_char {
 }
 
 /// Get a digraph (`get_digraph`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_digraph(cmdline: bool) -> c_int {
+pub unsafe fn get_digraph(cmdline: bool) -> c_int {
     unsafe {
         no_mapping += 1;
         allow_keys += 1;
@@ -1735,8 +1732,7 @@ unsafe fn getexactdigraph(char1: c_int, char2: c_int, meta_char: bool) -> c_int 
 }
 
 /// Get digraph (`digraph_get`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn digraph_get(char1: c_int, char2: c_int, meta_char: bool) -> c_int {
+pub unsafe fn digraph_get(char1: c_int, char2: c_int, meta_char: bool) -> c_int {
     unsafe {
         let mut retval = getexactdigraph(char1, char2, meta_char);
         if retval == char2 && char1 != char2 {
@@ -1774,8 +1770,7 @@ unsafe fn registerdigraph(char1: c_int, char2: c_int, n: c_int) {
 }
 
 /// Check the characters are valid for a digraph (`check_digraph_chars_valid`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_digraph_chars_valid(char1: c_int, char2: c_int) -> bool {
+pub unsafe fn check_digraph_chars_valid(char1: c_int, char2: c_int) -> bool {
     unsafe {
         if char2 == 0 {
             let mut msg = [0 as c_char; MB_MAXCHAR + 1];
@@ -1796,8 +1791,7 @@ pub unsafe extern "C" fn check_digraph_chars_valid(char1: c_int, char2: c_int) -
 }
 
 /// Add the digraphs in the argument to the digraph table (`putdigraph`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn putdigraph(mut str: *mut c_char) {
+pub unsafe fn putdigraph(mut str: *mut c_char) {
     unsafe {
         while *str != NUL {
             str = skipwhite(str);
@@ -1836,8 +1830,7 @@ unsafe fn digraph_header(msg: *const c_char) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn listdigraphs(use_headers: bool) {
+pub unsafe fn listdigraphs(use_headers: bool) {
     unsafe {
         let mut previous: result_T = 0;
 
@@ -1898,8 +1891,7 @@ unsafe fn digraph_getlist_appendpair(dp: *const digr_T, l: *mut list_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn digraph_getlist_common(list_all: bool, rettv: *mut typval_T) {
+pub unsafe fn digraph_getlist_common(list_all: bool, rettv: *mut typval_T) {
     unsafe {
         let cap = (size_of_val(DIGRAPHDEFAULT) as isize) + (USER_DIGRAPHS.ga_len as isize);
         tv_list_alloc_ret(rettv, cap);
@@ -2047,12 +2039,7 @@ unsafe fn digraph_set_common(argchars: *const typval_T, argdigraph: *const typva
 }
 
 /// `digraph_get()` function (`f_digraph_get`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_digraph_get(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_digraph_get(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
         (*rettv).vval.v_string = ptr::null_mut();
@@ -2078,12 +2065,7 @@ pub unsafe extern "C" fn f_digraph_get(
 }
 
 /// `digraph_getlist()` function (`f_digraph_getlist`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_digraph_getlist(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_digraph_getlist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if tv_check_for_opt_bool_arg(argvars, 0) == FAIL {
             return;
@@ -2100,12 +2082,7 @@ pub unsafe extern "C" fn f_digraph_getlist(
 }
 
 /// `digraph_set()` function (`f_digraph_set`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_digraph_set(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_digraph_set(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_BOOL;
         (*rettv).vval.v_bool = kBoolVarFalse;
@@ -2119,12 +2096,7 @@ pub unsafe extern "C" fn f_digraph_set(
 }
 
 /// `digraph_setlist()` function (`f_digraph_setlist`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn f_digraph_setlist(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub unsafe fn f_digraph_setlist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_BOOL;
         (*rettv).vval.v_bool = kBoolVarFalse;
@@ -2181,8 +2153,7 @@ pub unsafe extern "C" fn f_digraph_setlist(
 }
 
 /// Set up key mapping tables for the `'keymap'` option (`keymap_init`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn keymap_init() -> *mut c_char {
+pub unsafe fn keymap_init() -> *mut c_char {
     unsafe {
         (*curbuf).b_kmap_state &= !KEYMAP_INIT;
 
@@ -2219,8 +2190,7 @@ pub unsafe extern "C" fn keymap_init() -> *mut c_char {
 }
 
 /// `:loadkeymap` command: load the following lines as the keymap (`ex_loadkeymap`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ex_loadkeymap(eap: *mut exarg_T) {
+pub unsafe fn ex_loadkeymap(eap: *mut exarg_T) {
     unsafe {
         let mut buf = [0 as c_char; KMAP_LLEN + 11];
         let save_cpo = p_cpo;
@@ -2318,8 +2288,7 @@ pub unsafe extern "C" fn ex_loadkeymap(eap: *mut exarg_T) {
 }
 
 /// Frees the `buf_T.b_kmap_ga` field of a buffer (`keymap_ga_clear`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn keymap_ga_clear(kmap_ga: *mut garray_T) {
+pub unsafe fn keymap_ga_clear(kmap_ga: *mut garray_T) {
     unsafe {
         let kp = (*kmap_ga).ga_data.cast::<kmap_T>();
         for i in 0..(*kmap_ga).ga_len {
@@ -2364,8 +2333,7 @@ unsafe fn keymap_unload() {
 }
 
 /// Get the value to show for the language mappings, active `'keymap'` (`get_keymap_str`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_keymap_str(
+pub unsafe fn get_keymap_str(
     wp: *mut win_T,
     fmt: *mut c_char,
     buf: *mut c_char,
