@@ -834,7 +834,7 @@ pub unsafe extern "C" fn marktree_intersect_pair(
             }
 
             if skip && (*(*itr).x).level != 0 {
-                let x = *node_ptr((*itr).x).add((*itr).i as usize + 1);
+                let x = *node_ptr((*itr).x).add(((*itr).i + 1) as usize);
                 if delete {
                     unintersect_node(b, x, id, true);
                 } else {
