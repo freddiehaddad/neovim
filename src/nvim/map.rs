@@ -111,6 +111,13 @@ pub unsafe fn set_put_ptr(set: *mut Set<ptr_t>, key: ptr_t) -> bool {
 }
 
 #[inline]
+pub unsafe fn set_del_ptr(set: *mut Set<ptr_t>, mut key: ptr_t) {
+    unsafe {
+        mh_delete_ptr_t(set, &mut key);
+    }
+}
+
+#[inline]
 pub unsafe fn set_destroy<K>(set: *mut Set<K>) {
     unsafe {
         xfree((*set).keys.cast());

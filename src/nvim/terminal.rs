@@ -76,8 +76,7 @@ use crate::keycodes::{
 };
 use crate::kvec::{KVec, StringBuilder};
 use crate::map::{
-    HlAttrs, MH_TOMBSTONE, MHPutStatus, MapHash, Set, mh_delete_ptr_t, mh_get_ptr_t, mh_put_ptr_t,
-    ptr_t,
+    HlAttrs, MapHash, Set, ptr_t, set_del_ptr, set_destroy, set_has_ptr, set_put_ptr,
 };
 use crate::mark::{WinInfo, kMarkAdjustTerm, mark_adjust_buf};
 use crate::mbyte::{mb_check_adjust_col, utf_ptr2char, utf_ptr2len};
@@ -338,118 +337,6 @@ unsafe fn refresh_timer_ptr() -> *mut TimeWatcher {
 }
 
 #[inline]
-unsafe fn set_has_term(set: *mut Set<ptr_t>, term: *mut Terminal) -> bool {
-    unsafe { mh_get_ptr_t(set, term.cast::<c_void>()) != MH_TOMBSTONE }
-}
-
-#[inline]
-unsafe fn set_put_term(set: *mut Set<ptr_t>, term: *mut Terminal) {
-    unsafe {
-        let mut status = MHPutStatus::kMHExisting;
-        mh_put_ptr_t(set, term.cast::<c_void>(), &mut status);
-    }
-}
-
-#[inline]
-unsafe fn set_del_term(set: *mut Set<ptr_t>, term: *mut Terminal) {
-    unsafe {
-        let mut key: ptr_t = term.cast::<c_void>();
-        mh_delete_ptr_t(set, &mut key);
-    }
-}
-
-#[inline]
-unsafe fn set_destroy_ptr(set: *mut Set<ptr_t>) {
-    unsafe {
-        xfree((*set).keys.cast::<c_void>());
-        xfree((*set).h.hash.cast::<c_void>());
-        *set = Set {
-            h: MapHash {
-                n_buckets: 0,
-                size: 0,
-                n_occupied: 0,
-                upper_bound: 0,
-                n_keys: 0,
-                keys_capacity: 0,
-                hash: ptr::null_mut(),
-            },
-            keys: ptr::null_mut(),
-        };
-    }
-}
-
-#[inline]
-unsafe fn sb_init(sb: *mut StringBuilder) {
-    unsafe {
-        *sb = KVec {
-            size: 0,
-            capacity: 0,
-            items: ptr::null_mut(),
-        };
-    }
-}
-
-#[inline]
-unsafe fn sb_destroy(sb: *mut StringBuilder) {
-    unsafe {
-        xfree((*sb).items.cast::<c_void>());
-        *sb = KVec {
-            size: 0,
-            capacity: 0,
-            items: ptr::null_mut(),
-        };
-    }
-}
-
-#[inline]
-unsafe fn sb_push(sb: *mut StringBuilder, c: c_char) {
-    unsafe {
-        if (*sb).size == (*sb).capacity {
-            (*sb).capacity = if (*sb).capacity == 0 {
-                8
-            } else {
-                (*sb).capacity * 2
-            };
-            (*sb).items = xrealloc(
-                (*sb).items.cast::<c_void>(),
-                (*sb).capacity * size_of::<c_char>(),
-            )
-            .cast::<c_char>();
-        }
-        *(*sb).items.add((*sb).size) = c;
-        (*sb).size += 1;
-    }
-}
-
-#[inline]
-unsafe fn sb_concat_len(sb: *mut StringBuilder, data: *const c_char, len: usize) {
-    if len == 0 || data.is_null() {
-        return;
-    }
-    unsafe {
-        let needed = (*sb).size + len;
-        if needed > (*sb).capacity {
-            let mut cap = if (*sb).capacity == 0 {
-                8
-            } else {
-                (*sb).capacity
-            };
-            while cap < needed {
-                cap *= 2;
-            }
-            (*sb).capacity = cap;
-            (*sb).items = xrealloc(
-                (*sb).items.cast::<c_void>(),
-                (*sb).capacity * size_of::<c_char>(),
-            )
-            .cast::<c_char>();
-        }
-        ptr::copy_nonoverlapping(data, (*sb).items.add((*sb).size), len);
-        (*sb).size += len;
-    }
-}
-
-#[inline]
 const fn cstr_slice_as_string(bytes: &'static [u8]) -> NvimString {
     NvimString {
         data: bytes.as_ptr().cast::<c_char>().cast_mut(),
@@ -471,7 +358,7 @@ unsafe extern "C" fn emit_termrequest(argv: *mut *mut c_void) {
         let buf = handle_get_buffer(buf_handle);
         if buf.is_null() || (*buf).terminal.is_null() {
             xfree(sequence.cast::<c_void>());
-            sb_destroy(pending_send);
+            (*pending_send).destroy();
             xfree(pending_send.cast::<c_void>());
             return;
         }
@@ -561,7 +448,7 @@ unsafe extern "C" fn emit_termrequest(argv: *mut *mut c_void) {
         (*term).pending.send = ptr::null_mut();
         if (*pending_send).size > 0 {
             terminal_send(term, (*pending_send).items, (*pending_send).size);
-            sb_destroy(pending_send);
+            (*pending_send).destroy();
         }
         if term_pending_send != pending_send {
             (*term).pending.send = term_pending_send;
@@ -580,7 +467,7 @@ unsafe extern "C" fn emit_termrequest(argv: *mut *mut c_void) {
 unsafe fn schedule_termrequest(term: *mut Terminal) {
     unsafe {
         (*term).pending.send = xmalloc(size_of::<StringBuilder>()).cast::<StringBuilder>();
-        sb_init((*term).pending.send);
+        (*(*term).pending.send).init();
 
         let line = row_to_linenr(term, (*term).cursor.row);
         let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
@@ -653,21 +540,19 @@ unsafe extern "C" fn on_osc(command: c_int, frag: VTermStringFragment, user: *mu
                 command,
             );
             if n > 0 {
-                sb_concat_len(
-                    &raw mut (*term).termrequest_buffer,
-                    prefix.as_ptr(),
-                    n as usize,
-                );
+                (*term)
+                    .termrequest_buffer
+                    .concat_len(prefix.as_ptr(), n as usize);
             }
         }
-        sb_concat_len(&raw mut (*term).termrequest_buffer, frag.str_, frag.len());
+        (*term).termrequest_buffer.concat_len(frag.str_, frag.len());
         if frag.final_() {
             (*term).termrequest_terminator = frag.terminator;
             if has_event(EVENT_TERMREQUEST) {
                 schedule_termrequest(term);
             }
             if command == 8 {
-                sb_push(&raw mut (*term).termrequest_buffer, NUL);
+                (*term).termrequest_buffer.push(NUL);
                 let off = b"\x1b]8;".len();
                 let mut attr: c_int = 0;
                 if parse_osc8((*term).termrequest_buffer.items.add(off), &mut attr) != 0 {
@@ -698,14 +583,12 @@ unsafe extern "C" fn on_dcs(
 
         if frag.initial() {
             (*term).termrequest_buffer.size = 0;
-            sb_concat_len(
-                &raw mut (*term).termrequest_buffer,
-                b"\x1bP".as_ptr().cast::<c_char>(),
-                2,
-            );
-            sb_concat_len(&raw mut (*term).termrequest_buffer, command, commandlen);
+            (*term)
+                .termrequest_buffer
+                .concat_len(b"\x1bP".as_ptr().cast::<c_char>(), 2);
+            (*term).termrequest_buffer.concat_len(command, commandlen);
         }
-        sb_concat_len(&raw mut (*term).termrequest_buffer, frag.str_, frag.len());
+        (*term).termrequest_buffer.concat_len(frag.str_, frag.len());
         if frag.final_() {
             (*term).termrequest_terminator = frag.terminator;
             schedule_termrequest(term);
@@ -727,13 +610,11 @@ unsafe extern "C" fn on_apc(frag: VTermStringFragment, user: *mut c_void) -> c_i
 
         if frag.initial() {
             (*term).termrequest_buffer.size = 0;
-            sb_concat_len(
-                &raw mut (*term).termrequest_buffer,
-                b"\x1b_".as_ptr().cast::<c_char>(),
-                2,
-            );
+            (*term)
+                .termrequest_buffer
+                .concat_len(b"\x1b_".as_ptr().cast::<c_char>(), 2);
         }
-        sb_concat_len(&raw mut (*term).termrequest_buffer, frag.str_, frag.len());
+        (*term).termrequest_buffer.concat_len(frag.str_, frag.len());
         if frag.final_() {
             (*term).termrequest_terminator = frag.terminator;
             schedule_termrequest(term);
@@ -759,7 +640,7 @@ pub unsafe extern "C" fn terminal_teardown() {
         time_watcher_stop(timer);
         multiqueue_free((*watcher_fields(timer)).events);
         time_watcher_close(timer, None);
-        set_destroy_ptr(&raw mut INVALIDATED_TERMINALS);
+        set_destroy(&raw mut INVALIDATED_TERMINALS);
     }
 }
 
@@ -1534,11 +1415,11 @@ pub unsafe extern "C" fn terminal_destroy(termpp: *mut *mut Terminal) {
         }
 
         if (*term).refcount == 0 {
-            if set_has_term(&raw mut INVALIDATED_TERMINALS, term) {
+            if set_has_ptr(&raw mut INVALIDATED_TERMINALS, term.cast()) {
                 block_autocmds();
                 refresh_terminal(term);
                 unblock_autocmds();
-                set_del_term(&raw mut INVALIDATED_TERMINALS, term);
+                set_del_ptr(&raw mut INVALIDATED_TERMINALS, term.cast());
             }
             for i in 0..(*term).sb_current {
                 xfree((*(*term).sb_buffer.add(i)).cast::<c_void>());
@@ -1546,8 +1427,8 @@ pub unsafe extern "C" fn terminal_destroy(termpp: *mut *mut Terminal) {
             xfree((*term).sb_buffer.cast::<c_void>());
             xfree((*term).title.cast::<c_void>());
             xfree((*term).selection_buffer.cast::<c_void>());
-            sb_destroy(&raw mut (*term).selection);
-            sb_destroy(&raw mut (*term).termrequest_buffer);
+            (*term).selection.destroy();
+            (*term).termrequest_buffer.destroy();
             vterm_free((*term).vt);
             multiqueue_free((*term).pending.events);
             xfree(term.cast::<c_void>());
@@ -1562,7 +1443,7 @@ unsafe fn terminal_send(term: *mut Terminal, data: *const c_char, size: usize) {
             return;
         }
         if !(*term).pending.send.is_null() {
-            sb_concat_len((*term).pending.send, data, size);
+            (*(*term).pending.send).concat_len(data, size);
             return;
         }
         if let Some(write_cb) = (*term).opts.write_cb {
@@ -1704,12 +1585,12 @@ pub unsafe extern "C" fn terminal_receive(term: *mut Terminal, data: *const c_ch
             for i in 0..len {
                 let b = *data.add(i);
                 if b == b'\n' as c_char && (i == 0 || *data.add(i - 1) != b'\r' as c_char) {
-                    sb_push(&mut crlf_data, b'\r' as c_char);
+                    crlf_data.push(b'\r' as c_char);
                 }
-                sb_push(&mut crlf_data, b);
+                crlf_data.push(b);
             }
             vterm_input_write((*term).vt, crlf_data.items, crlf_data.size);
-            sb_destroy(&mut crlf_data);
+            crlf_data.destroy();
         } else {
             vterm_input_write((*term).vt, data, len);
         }
@@ -2124,7 +2005,7 @@ unsafe extern "C" fn term_sb_push(
 
         ptr::copy_nonoverlapping(cells, sbrow_cells(sbrow), c);
         if !(*term).synchronized_output {
-            set_put_term(&raw mut INVALIDATED_TERMINALS, term);
+            set_put_ptr(&raw mut INVALIDATED_TERMINALS, term.cast());
         }
 
         1
@@ -2168,7 +2049,7 @@ unsafe extern "C" fn term_sb_pop(
 
         xfree(sbrow.cast::<c_void>());
         if !(*term).synchronized_output {
-            set_put_term(&raw mut INVALIDATED_TERMINALS, term);
+            set_put_ptr(&raw mut INVALIDATED_TERMINALS, term.cast());
         }
 
         1
@@ -2246,7 +2127,7 @@ unsafe extern "C" fn term_selection_set(
             (*term).selection.size = 0;
         }
 
-        sb_concat_len(&raw mut (*term).selection, frag.str_, frag.len());
+        (*term).selection.concat_len(frag.str_, frag.len());
 
         if frag.final_() {
             let data = xmemdupz(
@@ -2561,7 +2442,7 @@ unsafe fn invalidate_terminal(term: *mut Terminal, start_row: c_int, end_row: c_
             return;
         }
 
-        set_put_term(&raw mut INVALIDATED_TERMINALS, term);
+        set_put_ptr(&raw mut INVALIDATED_TERMINALS, term.cast());
         if !REFRESH_PENDING {
             time_watcher_start(
                 refresh_timer_ptr(),
@@ -2697,7 +2578,7 @@ unsafe extern "C" fn refresh_timer_cb(_watcher: *mut TimeWatcher, _data: *mut c_
             }
         }
 
-        set_destroy_ptr(&mut to_refresh);
+        set_destroy(&mut to_refresh);
         unblock_autocmds();
     }
 }

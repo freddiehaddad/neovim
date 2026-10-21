@@ -11,11 +11,10 @@ use crate::cursor::linenr_T;
 use crate::decoration::{NS, decor_check_to_be_deleted};
 use crate::globals::*;
 use crate::highlight::hl_check_ns;
-use crate::kvec::KVec;
+use crate::kvec::{KVec, kv_destroy, kv_pushp};
 use crate::log::{LOGLVL_ERR, logmsg};
 use crate::lua::converter::{LUA_NOREF, LuaRef};
 use crate::lua::executor::{api_free_luaref, kRetMulti, kRetNilBool, nlua_call_ref};
-use crate::memory::{xfree, xrealloc};
 use crate::message::msg_schedule_semsg_multiline;
 use crate::r#move::validate_botline_win;
 use crate::msgpack_rpc::packer::Integer;
@@ -541,18 +540,7 @@ pub unsafe extern "C" fn get_decor_provider(ns_id: NS, force: bool) -> *mut Deco
             return ptr::null_mut();
         }
 
-        if decor_providers.capacity < len + 1 {
-            let mut cap = len + 1;
-            cap = cap.next_power_of_two().max(4);
-            decor_providers.capacity = cap;
-            decor_providers.items = xrealloc(
-                decor_providers.items.cast(),
-                cap * size_of::<DecorProvider>(),
-            )
-            .cast();
-        }
-        decor_providers.size = len + 1;
-        let item = decor_providers.items.add(len);
+        let item = kv_pushp(&raw mut decor_providers);
         ptr::write(item, decor_provider_init(ns_id));
         item
     }
@@ -582,11 +570,6 @@ pub unsafe extern "C" fn decor_free_all_mem() {
         for i in 0..decor_providers.size {
             decor_provider_clear(decor_providers.items.add(i));
         }
-        xfree(decor_providers.items.cast());
-        decor_providers = KVec {
-            size: 0,
-            capacity: 0,
-            items: ptr::null_mut(),
-        };
+        kv_destroy(&raw mut decor_providers);
     }
 }

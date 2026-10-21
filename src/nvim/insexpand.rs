@@ -313,15 +313,8 @@ const fn empty_nvim_string() -> NvimString {
     }
 }
 
-#[inline]
-unsafe fn kv_destroy_extmarks(v: *mut KVec<ExtmarkUndoObject>) {
-    unsafe {
-        xfree((*v).items.cast());
-        *v = KVec::new();
-    }
-}
-
 use crate::api::private::helpers::cstr_as_string;
+use crate::kvec::kv_destroy;
 use crate::mbyte::{mb_ptr_adv, utf_byte2len};
 use crate::path::vim_ispathsep;
 
@@ -2507,7 +2500,7 @@ pub unsafe extern "C" fn ins_compl_clear() {
         api_clear_string(&raw mut compl_pattern);
         api_clear_string(&raw mut compl_leader);
         edit_submode_extra = ptr::null_mut();
-        kv_destroy_extmarks(&raw mut compl_orig_extmarks);
+        kv_destroy(&raw mut compl_orig_extmarks);
         api_clear_string(&raw mut compl_orig_text);
         compl_enter_selects = false;
         cpt_sources_clear();
@@ -6554,7 +6547,7 @@ unsafe fn ins_compl_start() -> c_int {
         ins_compl_fixRedoBufForLeader(ptr::null());
 
         api_clear_string(&raw mut compl_orig_text);
-        kv_destroy_extmarks(&raw mut compl_orig_extmarks);
+        kv_destroy(&raw mut compl_orig_extmarks);
         compl_orig_text = cbuf_to_string(line.add(compl_col as usize), compl_length as usize);
         save_orig_extmarks();
         let mut flags = CP_ORIGINAL_TEXT;
@@ -6579,7 +6572,7 @@ unsafe fn ins_compl_start() -> c_int {
         {
             api_clear_string(&raw mut compl_pattern);
             api_clear_string(&raw mut compl_orig_text);
-            kv_destroy_extmarks(&raw mut compl_orig_extmarks);
+            kv_destroy(&raw mut compl_orig_extmarks);
             Ins.did_ai = save_did_ai;
             return FAIL;
         }
@@ -6892,7 +6885,7 @@ unsafe fn quote_meta(mut dest: *mut c_char, mut src: *const c_char, mut len: c_i
 pub unsafe extern "C" fn free_insexpand_stuff() {
     unsafe {
         api_clear_string(&raw mut compl_orig_text);
-        kv_destroy_extmarks(&raw mut compl_orig_extmarks);
+        kv_destroy(&raw mut compl_orig_extmarks);
         callback_free(&raw mut p_cfu);
         callback_free(&raw mut p_ofu);
         callback_free(&raw mut p_tsrfu);

@@ -20,7 +20,7 @@ use crate::fileio::shorten_buf_fname;
 use crate::globals::*;
 use crate::grid::grid_adjust;
 use crate::kvec::KVec;
-use crate::memory::{xfree, xrealloc, xstrdup};
+use crate::memory::{xfree, xstrdup};
 use crate::message::{emsg, kZIndexMessages};
 use crate::mouse::mouse_find_win_inner;
 use crate::r#move::{textpos2screenpos, validate_cursor};
@@ -356,28 +356,11 @@ unsafe extern "C" fn float_zindex_cmp(a: *const c_void, b: *const c_void) -> c_i
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn win_float_remove(bang: bool, mut count: c_int) {
     unsafe {
-        let mut float_win_arr: KVec<*mut win_T> = KVec {
-            size: 0,
-            capacity: 0,
-            items: ptr::null_mut(),
-        };
+        let mut float_win_arr: KVec<*mut win_T> = KVec::new();
         let mut wp = lastwin;
         while !wp.is_null() && (*wp).w_floating {
             if !(*wp).w_config.hide && (*wp).w_onebuf_opt.wo_wp == 0 {
-                if float_win_arr.size == float_win_arr.capacity {
-                    float_win_arr.capacity = if float_win_arr.capacity > 0 {
-                        float_win_arr.capacity * 2
-                    } else {
-                        8
-                    };
-                    float_win_arr.items = xrealloc(
-                        float_win_arr.items.cast(),
-                        float_win_arr.capacity * size_of::<*mut win_T>(),
-                    )
-                    .cast();
-                }
-                *float_win_arr.items.add(float_win_arr.size) = wp;
-                float_win_arr.size += 1;
+                float_win_arr.push(wp);
             }
             wp = (*wp).w_prev;
         }
@@ -401,7 +384,7 @@ pub unsafe extern "C" fn win_float_remove(bang: bool, mut count: c_int) {
                 }
             }
         }
-        xfree(float_win_arr.items.cast());
+        float_win_arr.destroy();
     }
 }
 

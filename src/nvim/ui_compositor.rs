@@ -9,9 +9,9 @@ use crate::grid::{
 };
 use crate::highlight::hl_blend_attrs;
 use crate::highlight_group::{syn_check_group, syn_id2attr};
-use crate::kvec::KVec;
+use crate::kvec::{KVec, kv_destroy, kv_push};
 use crate::lua::converter::Boolean;
-use crate::memory::{xfree, xmalloc, xrealloc};
+use crate::memory::{xfree, xmalloc};
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::option_vars::*;
 use crate::os::time::os_sleep;
@@ -60,30 +60,10 @@ static mut dbghl_clear: c_int = 0;
 static mut dbghl_composed: c_int = 0;
 static mut dbghl_recompose: c_int = 0;
 
-#[inline]
-unsafe fn push_layer(g: *mut ScreenGrid) {
-    unsafe {
-        if layers.size == layers.capacity {
-            layers.capacity = if layers.capacity > 0 {
-                layers.capacity * 2
-            } else {
-                8
-            };
-            layers.items = xrealloc(
-                layers.items.cast(),
-                layers.capacity * size_of::<*mut ScreenGrid>(),
-            )
-            .cast();
-        }
-        *layers.items.add(layers.size) = g;
-        layers.size += 1;
-    }
-}
-
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_comp_init() {
     unsafe {
-        push_layer(&raw mut default_grid);
+        kv_push(&raw mut layers, &raw mut default_grid);
         curgrid = &raw mut default_grid;
     }
 }
@@ -91,12 +71,7 @@ pub unsafe extern "C" fn ui_comp_init() {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_comp_free_all_mem() {
     unsafe {
-        xfree(layers.items.cast());
-        layers = KVec {
-            size: 0,
-            capacity: 0,
-            items: ptr::null_mut(),
-        };
+        kv_destroy(&raw mut layers);
         xfree(linebuf.cast());
         linebuf = ptr::null_mut();
         xfree(attrbuf.cast());
@@ -243,7 +218,7 @@ pub unsafe extern "C" fn ui_comp_put_grid(
             {
                 insert_at -= 1;
             }
-            push_layer(ptr::null_mut());
+            kv_push(&raw mut layers, ptr::null_mut());
             let mut i = layers.size - 1;
             while i > insert_at {
                 let prev = *layers.items.add(i - 1);

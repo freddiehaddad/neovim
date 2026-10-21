@@ -11,7 +11,8 @@ use crate::decoration::{
 use crate::globals::*;
 use crate::kvec::KVec;
 use crate::map::{
-    Map, map_del_uint32_t_uint32_t, map_put_ref_uint32_t_uint32_t, map_ref_uint32_t_uint32_t,
+    map_del_uint32_t_uint32_t, map_destroy, map_put_ref_uint32_t_uint32_t,
+    map_ref_uint32_t_uint32_t,
 };
 use crate::marktree::{
     DECOR_HIGHLIGHT_INLINE_INIT, DecorInlineData, MT_FLAG_DECOR_HL, MT_FLAG_DECOR_SIGNTEXT,
@@ -25,7 +26,6 @@ use crate::marktree::{
 };
 use crate::mcursor::{mc_ns_cleared, mc_ns_clearing, mc_on_extmark_set};
 use crate::memline::ml_find_line_or_offset;
-use crate::memory::xfree;
 use crate::undo::u_force_get_undo_header;
 use std::ffi::c_int;
 use std::ptr;
@@ -105,16 +105,6 @@ pub union ExtmarkUndoData {
 pub struct ExtmarkUndoObject {
     pub type_: UndoObjectType,
     pub data: ExtmarkUndoData,
-}
-
-#[inline]
-unsafe fn map_destroy_u32_u32(map: *mut Map<u32, u32>) {
-    unsafe {
-        xfree((*map).set.h.hash.cast());
-        xfree((*map).set.keys.cast());
-        xfree((*map).values.cast());
-        ptr::write_bytes(map, 0, 1);
-    }
 }
 
 /// Records a raw mark's position in the open undo block, for `extmark_apply_undo()` to replay.
@@ -491,7 +481,7 @@ pub unsafe extern "C" fn extmark_clear(
 
         if marks_cleared_all {
             if all_ns {
-                map_destroy_u32_u32((*buf).b_extmark_ns.as_mut_ptr());
+                map_destroy((*buf).b_extmark_ns.as_mut_ptr());
             } else {
                 map_del_uint32_t_uint32_t((*buf).b_extmark_ns.as_mut_ptr(), ns_id, ptr::null_mut());
             }
@@ -705,7 +695,7 @@ pub unsafe extern "C" fn extmark_free_all(buf: *mut buf_T) {
         (*buf).b_signcols.max = 0;
         (*buf).b_signcols.count = [0; 9];
 
-        map_destroy_u32_u32((*buf).b_extmark_ns.as_mut_ptr());
+        map_destroy((*buf).b_extmark_ns.as_mut_ptr());
     }
 }
 
@@ -1197,6 +1187,7 @@ pub unsafe extern "C" fn extmark_move_region(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::map::Map;
 
     #[test]
     fn extmark_undo_vec_and_map_destroy_work() {
@@ -1219,7 +1210,7 @@ mod tests {
             v.destroy();
 
             let mut map: Map<u32, u32> = std::mem::zeroed();
-            map_destroy_u32_u32(&raw mut map);
+            map_destroy(&raw mut map);
         }
     }
 }

@@ -39,15 +39,16 @@ use crate::fileio::{check_timestamps, file_pat_to_reg_pat, match_file_pat};
 use crate::globals::*;
 use crate::input::{RedoState, restore_redobuff, save_redobuff};
 use crate::insexpand::ins_compl_active;
+use crate::kvec::KVec;
 use crate::lua::converter::LuaRef;
 use crate::lua::executor::{kRetNilBool, nlua_call_ref, nlua_set_sctx};
 use crate::map::{
-    Map, map_del_String_int, map_del_int_String, map_put_ref_String_int, map_put_ref_int_String,
-    map_ref_String_int, map_ref_int_String,
+    Map, map_del_String_int, map_del_int_String, map_destroy, map_get_string_int,
+    map_put_ref_String_int, map_put_ref_int_String, map_ref_int_String,
 };
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strcmp_ic;
-use crate::memory::{xcalloc, xfree, xmalloc, xmallocz, xmemdupz, xrealloc, xstrdup};
+use crate::memory::{xcalloc, xfree, xmalloc, xmallocz, xmemdupz, xstrdup};
 use crate::message::{
     emsg, give_warning, msg_advance, msg_clr_eos, msg_end, msg_ext_set_kind, msg_outtrans,
     msg_putchar, msg_puts, msg_puts_hl, msg_puts_title, msg_start, semsg, smsg, verbose_enter,
@@ -102,12 +103,7 @@ pub struct AutoCmd {
     pub nested: bool,
 }
 
-#[repr(C)]
-pub struct AutoCmdVec {
-    pub size: usize,
-    pub capacity: usize,
-    pub items: *mut AutoCmd,
-}
+pub type AutoCmdVec = KVec<AutoCmd>;
 
 pub const AUGROUP_DEFAULT: c_int = -1;
 pub const AUGROUP_ERROR: c_int = -2;
@@ -329,15 +325,6 @@ struct EventNameEntry {
     name: &'static CStr,
     event: c_int,
 }
-
-const EMPTY_AUCMD_VEC: AutoCmdVec = AutoCmdVec {
-    size: 0,
-    capacity: 0,
-    items: ptr::null_mut(),
-};
-
-const EMPTY_NAME_TO_ID_MAP: Map<NvimString, c_int> = crate::map::empty_map();
-const EMPTY_ID_TO_NAME_MAP: Map<c_int, NvimString> = crate::map::empty_map();
 
 static EVENT_NAMES: [EventNameEntry; NUM_EVENTS] = [
     EventNameEntry {
@@ -1245,7 +1232,7 @@ static EVENT_HASH: [event_T; 150] = [
     EVENT_FILECHANGEDSHELLPOST,
 ];
 
-static mut autocmds: [AutoCmdVec; NUM_EVENTS] = [EMPTY_AUCMD_VEC; NUM_EVENTS];
+static mut autocmds: [AutoCmdVec; NUM_EVENTS] = [KVec::new(); NUM_EVENTS];
 static mut active_apc_list: *mut AutoPatCmd = ptr::null_mut();
 static mut autocmd_winid: handle_T = 0;
 static mut next_augroup_id: c_int = 1;
@@ -1257,8 +1244,8 @@ static mut autocmd_nested: bool = false;
 static mut autocmd_include_groups: bool = false;
 static mut termresponse_changed: bool = false;
 static mut termresponse_chan_id: u64 = 0;
-static mut map_augroup_name_to_id: Map<NvimString, c_int> = EMPTY_NAME_TO_ID_MAP;
-static mut map_augroup_id_to_name: Map<c_int, NvimString> = EMPTY_ID_TO_NAME_MAP;
+static mut map_augroup_name_to_id: Map<NvimString, c_int> = crate::map::empty_map();
+static mut map_augroup_id_to_name: Map<c_int, NvimString> = crate::map::empty_map();
 static mut apply_autocmds_nesting: c_int = 0;
 static mut filechangeshell_busy: bool = false;
 static mut pending_vimresume: TriState = kFalse;
@@ -1268,34 +1255,6 @@ static mut focusgained_last_time: Timestamp = 0;
 static mut ft_recursive: c_int = 0;
 
 use crate::strings::{vim_strchr, vim_stricmp, vim_strnicmp, vim_strnicmp_asc};
-
-#[inline]
-unsafe fn kv_pushp_aucmd(v: &mut AutoCmdVec) -> *mut AutoCmd {
-    if v.size == v.capacity {
-        v.capacity = if v.capacity != 0 { v.capacity << 1 } else { 8 };
-        v.items = unsafe {
-            xrealloc(v.items.cast::<c_void>(), size_of::<AutoCmd>() * v.capacity).cast::<AutoCmd>()
-        };
-    }
-    let ptr = unsafe { v.items.add(v.size) };
-    v.size += 1;
-    ptr
-}
-
-#[inline]
-unsafe fn kv_destroy_aucmd(v: &mut AutoCmdVec) {
-    unsafe {
-        xfree(v.items.cast::<c_void>());
-    }
-    v.size = 0;
-    v.capacity = 0;
-    v.items = ptr::null_mut();
-}
-
-unsafe fn map_get_name_to_id(key: NvimString) -> c_int {
-    let ptr = unsafe { map_ref_String_int(&raw mut map_augroup_name_to_id, key, ptr::null_mut()) };
-    if ptr.is_null() { 0 } else { unsafe { *ptr } }
-}
 
 unsafe fn map_put_name_to_id(key: NvimString, val: c_int) {
     unsafe {
@@ -1725,7 +1684,7 @@ unsafe fn au_cleanup() {
                 }
             }
             if nsize == 0 {
-                kv_destroy_aucmd(&mut *acs);
+                (*acs).destroy();
             } else {
                 (*acs).size = nsize;
             }
@@ -1876,7 +1835,7 @@ pub unsafe extern "C" fn augroup_del(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn augroup_find(name: *const c_char) -> c_int {
     unsafe {
-        let existing_id = map_get_name_to_id(cstr_as_string(name));
+        let existing_id = map_get_string_int(&raw mut map_augroup_name_to_id, cstr_as_string(name));
         if existing_id == AUGROUP_DELETED || existing_id > 0 {
             existing_id
         } else {
@@ -1962,7 +1921,7 @@ pub unsafe extern "C" fn free_all_autocmds() {
             for i in 0..(*acs).size {
                 aucmd_del((*acs).items.add(i));
             }
-            kv_destroy_aucmd(&mut *acs);
+            (*acs).destroy();
             au_need_clean = false;
         }
 
@@ -1970,19 +1929,13 @@ pub unsafe extern "C" fn free_all_autocmds() {
             let name = *map_augroup_name_to_id.set.keys.add(k);
             api_free_string(name);
         }
-        xfree(map_augroup_name_to_id.set.h.hash.cast());
-        xfree(map_augroup_name_to_id.set.keys.cast());
-        xfree(map_augroup_name_to_id.values.cast());
-        map_augroup_name_to_id = EMPTY_NAME_TO_ID_MAP;
+        map_destroy(&raw mut map_augroup_name_to_id);
 
         for k in 0..map_augroup_id_to_name.set.h.n_keys as usize {
             let name = *map_augroup_id_to_name.values.add(k);
             api_free_string(name);
         }
-        xfree(map_augroup_id_to_name.set.h.hash.cast());
-        xfree(map_augroup_id_to_name.set.keys.cast());
-        xfree(map_augroup_id_to_name.values.cast());
-        map_augroup_id_to_name = EMPTY_ID_TO_NAME_MAP;
+        map_destroy(&raw mut map_augroup_id_to_name);
     }
 }
 
@@ -2465,7 +2418,7 @@ pub unsafe extern "C" fn autocmd_register(
 
         (*ap).refcount += 1;
 
-        let ac = kv_pushp_aucmd(&mut autocmds[event as usize]);
+        let ac = autocmds[event as usize].pushp();
         (*ac).pat = ap;
         (*ac).id = id;
         if !handler_cmd.is_null() {

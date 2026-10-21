@@ -22,7 +22,7 @@ impl<T> Clone for KVec<T> {
 
 impl<T> Copy for KVec<T> {}
 
-impl<T: Copy> KVec<T> {
+impl<T> KVec<T> {
     #[inline]
     pub const fn new() -> Self {
         Self {
@@ -59,12 +59,12 @@ impl<T: Copy> KVec<T> {
         }
     }
 
-    /// Push `value` onto `self` (`kv_push`).
+    /// Reserve one slot at the end of `self` and return a pointer to it (`kv_pushp`).
     ///
     /// # Safety
     /// `self.items` must be null or allocated by `xmalloc`/`xrealloc`.
     #[inline]
-    pub unsafe fn push(&mut self, value: T) {
+    pub unsafe fn pushp(&mut self) -> *mut T {
         if self.size == self.capacity {
             let new_cap = if self.capacity != 0 {
                 self.capacity << 1
@@ -80,24 +80,19 @@ impl<T: Copy> KVec<T> {
                 .cast::<T>()
             };
         }
-        unsafe {
-            *self.items.add(self.size) = value;
-        }
+        let ptr = unsafe { self.items.add(self.size) };
         self.size += 1;
+        ptr
     }
 
-    /// Append `len` elements from `data` (`kv_concat_len`).
+    /// Push `value` onto `self` (`kv_push`).
     ///
     /// # Safety
-    /// `data` must be valid for `len` elements when `len > 0`.
+    /// `self.items` must be null or allocated by `xmalloc`/`xrealloc`.
     #[inline]
-    pub unsafe fn concat_len(&mut self, data: *const T, len: usize) {
-        if len > 0 {
-            unsafe {
-                self.ensure_space(len);
-                std::ptr::copy_nonoverlapping(data, self.items.add(self.size), len);
-            }
-            self.size += len;
+    pub unsafe fn push(&mut self, value: T) {
+        unsafe {
+            std::ptr::write(self.pushp(), value);
         }
     }
 
@@ -114,7 +109,24 @@ impl<T: Copy> KVec<T> {
     }
 }
 
-impl<T: Copy> Default for KVec<T> {
+impl<T: Copy> KVec<T> {
+    /// Append `len` elements from `data` (`kv_concat_len`).
+    ///
+    /// # Safety
+    /// `data` must be valid for `len` elements when `len > 0`.
+    #[inline]
+    pub unsafe fn concat_len(&mut self, data: *const T, len: usize) {
+        if len > 0 {
+            unsafe {
+                self.ensure_space(len);
+                std::ptr::copy_nonoverlapping(data, self.items.add(self.size), len);
+            }
+            self.size += len;
+        }
+    }
+}
+
+impl<T> Default for KVec<T> {
     #[inline]
     fn default() -> Self {
         Self::new()
@@ -122,14 +134,19 @@ impl<T: Copy> Default for KVec<T> {
 }
 
 #[inline]
-pub unsafe fn kv_ensure_space<T: Copy>(v: *mut KVec<T>, len: usize) {
+pub unsafe fn kv_ensure_space<T>(v: *mut KVec<T>, len: usize) {
     unsafe {
         (*v).ensure_space(len);
     }
 }
 
 #[inline]
-pub unsafe fn kv_push<T: Copy>(v: *mut KVec<T>, value: T) {
+pub unsafe fn kv_pushp<T>(v: *mut KVec<T>) -> *mut T {
+    unsafe { (*v).pushp() }
+}
+
+#[inline]
+pub unsafe fn kv_push<T>(v: *mut KVec<T>, value: T) {
     unsafe {
         (*v).push(value);
     }
@@ -143,7 +160,7 @@ pub unsafe fn kv_concat_len<T: Copy>(v: *mut KVec<T>, data: *const T, len: usize
 }
 
 #[inline]
-pub unsafe fn kv_destroy<T: Copy>(v: *mut KVec<T>) {
+pub unsafe fn kv_destroy<T>(v: *mut KVec<T>) {
     unsafe {
         (*v).destroy();
     }
