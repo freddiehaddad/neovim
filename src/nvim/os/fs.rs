@@ -22,7 +22,7 @@ use crate::option::copy_option_part;
 use crate::option_vars::*;
 use crate::os::env::os_getenv;
 #[cfg(windows)]
-use crate::os::env::{os_env_exists, os_getenv_noalloc};
+use crate::os::env::{os_env_exists, os_getenv_buf};
 use crate::path::{
     FullName_save, append_path, dir_of_file_exists, get_past_head, gettail_dir, path_skip_sep,
     path_tail_with_sep, path_with_url, save_abs_path, to_slash, vim_ispathsep,
@@ -588,7 +588,9 @@ unsafe fn is_executable_ext(name: *const c_char, abspath: *mut *mut c_char) -> b
         let buf = (&raw mut os_buf).cast::<c_char>();
         xstrlcpy(buf, name, MAXPATHL);
         let buf_end = xstrchrnul(buf, NUL);
-        let mut pathext: *const c_char = os_getenv_noalloc(c"PATHEXT".as_ptr());
+        let mut pathext_buf = [0 as c_char; MAXPATHL];
+        let mut pathext: *const c_char =
+            os_getenv_buf(c"PATHEXT".as_ptr(), pathext_buf.as_mut_ptr(), pathext_buf.len());
         if pathext.is_null() {
             pathext = c".com;.exe;.bat;.cmd".as_ptr();
         }

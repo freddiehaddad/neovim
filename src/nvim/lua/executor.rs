@@ -71,7 +71,7 @@ use crate::msgpack_rpc::channel::{rpc_send_call, rpc_send_event};
 use crate::msgpack_rpc::packer::handle_T;
 use crate::option_vars::*;
 #[cfg(windows)]
-use crate::os::env::os_getenv_noalloc;
+use crate::os::env::os_getenv;
 use crate::os::env::{expand_T, home_replace_save};
 use crate::os::fileio::{FileDescriptor, file_close, file_open_stdin, file_read};
 use crate::path::fix_fname;
@@ -1854,7 +1854,9 @@ unsafe extern "C-unwind" fn nlua_empty_dict_tostring(lstate: *mut lua_State) -> 
 unsafe extern "C-unwind" fn nlua_getenv(lstate: *mut lua_State) -> c_int {
     unsafe {
         let name = luaL_checklstring(lstate, 1, ptr::null_mut());
-        lua_pushstring(lstate, os_getenv_noalloc(name));
+        let val = os_getenv(name);
+        lua_pushstring(lstate, val);
+        xfree(val.cast());
         1
     }
 }

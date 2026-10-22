@@ -392,49 +392,6 @@ pub unsafe fn strcspn(mut s: *const c_char, reject: *const c_char) -> usize {
     }
 }
 
-#[cfg(any(not(windows), test))]
-#[inline]
-pub unsafe fn strtok_r(
-    s: *mut c_char,
-    delim: *const c_char,
-    saveptr: *mut *mut c_char,
-) -> *mut c_char {
-    unsafe {
-        let mut cur = if !s.is_null() { s } else { *saveptr };
-        if cur.is_null() {
-            return ptr::null_mut();
-        }
-        let is_delim = |ch: c_char| -> bool {
-            let mut d = delim;
-            while *d != NUL {
-                if *d == ch {
-                    return true;
-                }
-                d = d.add(1);
-            }
-            false
-        };
-        while *cur != NUL && is_delim(*cur) {
-            cur = cur.add(1);
-        }
-        if *cur == NUL {
-            *saveptr = cur;
-            return ptr::null_mut();
-        }
-        let token = cur;
-        while *cur != NUL && !is_delim(*cur) {
-            cur = cur.add(1);
-        }
-        if *cur == NUL {
-            *saveptr = cur;
-        } else {
-            *cur = NUL;
-            *saveptr = cur.add(1);
-        }
-        token
-    }
-}
-
 #[inline]
 pub unsafe fn strtoul(nptr: *const c_char, endptr: *mut *mut c_char, mut base: c_int) -> c_ulong {
     unsafe {
@@ -3838,17 +3795,6 @@ mod tests {
             let mut arr = [9i32, -3, 7, 0, -3, 12, 4, 1];
             sort_slice_by(&mut arr, |x, y| x.cmp(y) as c_int);
             assert_eq!(arr, [-3, -3, 0, 1, 4, 7, 9, 12]);
-            let mut tok_buf = *b"en_US\nde_DE\n\0";
-            let mut saveptr: *mut c_char = ptr::null_mut();
-            let t1 = strtok_r(
-                tok_buf.as_mut_ptr().cast(),
-                c"\n".as_ptr(),
-                &raw mut saveptr,
-            );
-            assert_eq!(CStr::from_ptr(t1).to_bytes(), b"en_US");
-            let t2 = strtok_r(ptr::null_mut(), c"\n".as_ptr(), &raw mut saveptr);
-            assert_eq!(CStr::from_ptr(t2).to_bytes(), b"de_DE");
-            assert!(strtok_r(ptr::null_mut(), c"\n".as_ptr(), &raw mut saveptr).is_null());
         }
     }
 

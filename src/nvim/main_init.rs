@@ -94,8 +94,7 @@ use crate::option::{
 use crate::option_vars::*;
 use crate::optionstr::OptIndex;
 use crate::os::env::{
-    env_init, init_homedir, os_get_pid, os_getenv, os_getenv_noalloc, os_hint_priority,
-    vim_env_iter,
+    env_init, init_homedir, os_get_pid, os_getenv, os_getenv_buf, os_hint_priority, vim_env_iter,
 };
 #[cfg(windows)]
 use crate::os::env::{os_homedir, os_setenv_append_path};
@@ -1114,18 +1113,26 @@ unsafe fn remote_request(
                     connect_error,
                 );
                 os_exit(1);
-            } else if strequal(server_addr, os_getenv_noalloc(c"NVIM".as_ptr())) {
-                fprintf!(
-                    stderr,
-                    c"%s".as_ptr(),
-                    c"Cannot attach UI of :terminal child to its parent. ".as_ptr(),
+            } else {
+                let mut nvim_env_buf = [0 as c_char; MAXPATHL];
+                let nvim_env = os_getenv_buf(
+                    c"NVIM".as_ptr(),
+                    nvim_env_buf.as_mut_ptr(),
+                    nvim_env_buf.len(),
                 );
-                fprintf!(
-                    stderr,
-                    c"%s\n".as_ptr(),
-                    c"(Unset $NVIM to skip this check)".as_ptr(),
-                );
-                os_exit(1);
+                if strequal(server_addr, nvim_env) {
+                    fprintf!(
+                        stderr,
+                        c"%s".as_ptr(),
+                        c"Cannot attach UI of :terminal child to its parent. ".as_ptr(),
+                    );
+                    fprintf!(
+                        stderr,
+                        c"%s\n".as_ptr(),
+                        c"(Unset $NVIM to skip this check)".as_ptr(),
+                    );
+                    os_exit(1);
+                }
             }
             ui_client_channel_id = chan;
             return;

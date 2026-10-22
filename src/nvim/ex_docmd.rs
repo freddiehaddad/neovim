@@ -181,7 +181,7 @@ use crate::option::{
 use crate::option_vars::*;
 use crate::optionstr::{check_ff_value, free_string_option, get_fileformat_name};
 use crate::os::env::{
-    expand_T, expand_env, expand_env_esc, expand_env_save, home_replace, os_getenv_noalloc,
+    expand_T, expand_env, expand_env_esc, expand_env_save, home_replace, os_getenv,
 };
 use crate::os::fs::{os_chdir, os_dirname, os_fopen, os_mkdir, os_path_exists};
 use crate::os::input::{line_breakcheck, os_breakcheck};
@@ -12797,7 +12797,7 @@ unsafe fn ex_checkhealth(eap: *mut exarg_T) {
             return;
         }
 
-        let vimruntime_env = os_getenv_noalloc(c"VIMRUNTIME".as_ptr());
+        let vimruntime_env = os_getenv(c"VIMRUNTIME".as_ptr());
         if vimruntime_env.is_null() {
             let _ = emsg(gettext(c"E5009: $VIMRUNTIME is empty or unset".as_ptr()));
         } else {
@@ -12810,6 +12810,7 @@ unsafe fn ex_checkhealth(eap: *mut exarg_T) {
             } else {
                 let _ = emsg(gettext(c"E5009: Invalid 'runtimepath'".as_ptr()));
             }
+            xfree(vimruntime_env.cast());
         }
     }
 }

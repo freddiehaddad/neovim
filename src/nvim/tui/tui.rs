@@ -50,7 +50,7 @@ use crate::msgpack_rpc::channel::rpc_send_event;
 use crate::option::OptInt;
 #[cfg(windows)]
 use crate::os::env::os_setenv;
-use crate::os::env::{os_env_exists, os_getenv, os_getenv_noalloc};
+use crate::os::env::{os_env_exists, os_getenv, os_getenv_buf};
 #[cfg(not(windows))]
 use crate::os::fs::UV_EINTR;
 use crate::os::input::os_isatty;
@@ -2610,8 +2610,11 @@ pub unsafe fn tui_guess_size(tui: *mut TUIData) {
         }
 
         if !got_size {
-            let lines = os_getenv_noalloc(c"LINES".as_ptr());
-            let columns = os_getenv_noalloc(c"COLUMNS".as_ptr());
+            let mut lines_buf = [0 as c_char; 32];
+            let mut cols_buf = [0 as c_char; 32];
+            let lines = os_getenv_buf(c"LINES".as_ptr(), lines_buf.as_mut_ptr(), lines_buf.len());
+            let columns =
+                os_getenv_buf(c"COLUMNS".as_ptr(), cols_buf.as_mut_ptr(), cols_buf.len());
             if parse_sscanf_int(lines, &mut height) && parse_sscanf_int(columns, &mut width) {
                 got_size = true;
             }

@@ -70,7 +70,7 @@ use crate::option::{
 use crate::option_vars::*;
 use crate::optionstr::{CharBuf, OptIndex};
 use crate::os::env::{
-    expand_T, os_env_exists, os_getenv_noalloc, os_unsetenv, vim_getenv, vim_setenv_ext,
+    expand_T, os_env_exists, os_getenv_buf, os_unsetenv, vim_getenv, vim_setenv_ext,
     vim_unsetenv_ext,
 };
 use crate::register::{get_reg_contents, kGRegExprSrc, write_reg_contents};
@@ -640,7 +640,12 @@ pub unsafe fn evalvars_init() {
 
         set_reg_var(0);
 
-        let startreason = os_getenv_noalloc(ENV_STARTREASON.as_ptr());
+        let mut startreason_buf = [0 as c_char; 32];
+        let startreason = os_getenv_buf(
+            ENV_STARTREASON.as_ptr(),
+            startreason_buf.as_mut_ptr(),
+            startreason_buf.len(),
+        );
         if strequal(startreason, c"restart!".as_ptr()) || strequal(startreason, c"restart".as_ptr())
         {
             set_vim_var_string(VV_STARTREASON, startreason, -1);

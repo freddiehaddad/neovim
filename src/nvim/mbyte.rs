@@ -25,7 +25,7 @@ use crate::message::{emsg, msg, semsg};
 use crate::r#move::changed_window_setting_all;
 use crate::option_vars::*;
 use crate::optionstr::check_chars_options;
-use crate::os::env::{expand_T, os_getenv_noalloc};
+use crate::os::env::{expand_T, os_getenv_buf};
 use crate::os::fs::os_errno;
 #[cfg(unix)]
 use crate::os::lang::nl_langinfo;
@@ -2967,14 +2967,15 @@ pub unsafe fn enc_locale() -> *mut c_char {
         #[cfg(not(unix))]
         let mut s: *const c_char = ptr::null();
 
+        let mut env_buf = [0 as c_char; 64];
         if s.is_null() || *s == NUL {
             s = setlocale(LC_CTYPE, ptr::null());
             if s.is_null() || *s == NUL {
-                s = os_getenv_noalloc(c"LC_ALL".as_ptr());
-                if !s.is_null() {
-                    s = os_getenv_noalloc(c"LC_CTYPE".as_ptr());
-                    if !s.is_null() {
-                        s = os_getenv_noalloc(c"LANG".as_ptr());
+                s = os_getenv_buf(c"LC_ALL".as_ptr(), env_buf.as_mut_ptr(), env_buf.len());
+                if s.is_null() {
+                    s = os_getenv_buf(c"LC_CTYPE".as_ptr(), env_buf.as_mut_ptr(), env_buf.len());
+                    if s.is_null() {
+                        s = os_getenv_buf(c"LANG".as_ptr(), env_buf.as_mut_ptr(), env_buf.len());
                     }
                 }
             }

@@ -8,17 +8,11 @@ use crate::eval::vars::{
     VV_COLLATE, VV_CTYPE, VV_LANG, VV_LC_TIME, VV_PROGPATH, get_vim_var_str, set_vim_var_string,
 };
 use crate::ex_docmd::exarg_T;
-#[cfg(unix)]
-use crate::garray::{ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::mbyte::{convert_setup, mb_strnicmp, string_convert, vimconv_T};
-#[cfg(unix)]
-use crate::memory::xstrdup;
 use crate::memory::{xfree, xstrlcpy};
 use crate::message::{semsg, smsg};
 use crate::option::set_helplang_default;
-#[cfg(windows)]
-use crate::os::env::os_getenv_noalloc;
 use crate::os::env::{expand_T, os_getenv_buf, os_setenv};
 #[cfg(unix)]
 use crate::os::shell::get_cmd_output;
@@ -73,7 +67,7 @@ const LC_MESSAGES: c_int = 6;
 #[cfg(not(any(windows, target_os = "linux")))]
 const VIM_LC_MESSAGES: c_int = LC_MESSAGES;
 
-static mut LOCALES: *mut *mut c_char = ptr::null_mut();
+static mut LOCALES: Vec<CString> = Vec::new();
 #[cfg(not(windows))]
 static mut DID_INIT_LOCALES: bool = false;
 
@@ -569,8 +563,6 @@ use crate::charset::NUL;
 #[cfg(unix)]
 use crate::diff::kShellOptSilent;
 use crate::os::fs::MAXPATHL;
-#[cfg(not(windows))]
-use crate::strings::strtok_r;
 
 #[inline]
 unsafe fn get_locale_val(what: c_int) -> *mut c_char {
@@ -601,7 +593,7 @@ pub unsafe fn get_mess_lang() -> *mut c_char {
     }
 }
 
-unsafe fn get_mess_env() -> *mut c_char {
+unsafe fn get_mess_env(#[cfg_attr(not(windows), allow(unused_variables))] buf: &mut [c_char; 64]) -> *mut c_char {
     unsafe {
         #[cfg(not(windows))]
         {
@@ -609,15 +601,15 @@ unsafe fn get_mess_env() -> *mut c_char {
         }
         #[cfg(windows)]
         {
-            let mut p = os_getenv_noalloc(c"LC_ALL".as_ptr());
+            let mut p = os_getenv_buf(c"LC_ALL".as_ptr(), buf.as_mut_ptr(), buf.len());
             if !p.is_null() {
                 return p;
             }
-            p = os_getenv_noalloc(c"LC_MESSAGES".as_ptr());
+            p = os_getenv_buf(c"LC_MESSAGES".as_ptr(), buf.as_mut_ptr(), buf.len());
             if !p.is_null() {
                 return p;
             }
-            p = os_getenv_noalloc(c"LANG".as_ptr());
+            p = os_getenv_buf(c"LANG".as_ptr(), buf.as_mut_ptr(), buf.len());
             if !p.is_null() && (*p as u8).is_ascii_digit() {
                 p = ptr::null_mut();
             }
@@ -632,10 +624,11 @@ unsafe fn get_mess_env() -> *mut c_char {
 /// Set the `v:lang`, `v:lc_time`, `v:collate`, and `v:ctype` variables.
 pub unsafe fn set_lang_var() {
     unsafe {
+        let mut buf = [0 as c_char; 64];
         let mut loc: *const c_char = get_locale_val(LC_CTYPE);
         set_vim_var_string(VV_CTYPE, loc, -1);
 
-        loc = get_mess_env();
+        loc = get_mess_env(&mut buf);
         set_vim_var_string(VV_LANG, loc, -1);
 
         loc = get_locale_val(LC_TIME);
@@ -708,8 +701,9 @@ pub unsafe fn ex_language(eap: *mut exarg_T) {
         }
 
         if *name == NUL {
+            let mut mess_buf = [0 as c_char; 64];
             let mut p_val = if what == VIM_LC_MESSAGES {
-                get_mess_env()
+                get_mess_env(&mut mess_buf)
             } else {
                 setlocale(what, ptr::null())
             };
@@ -770,17 +764,8 @@ pub unsafe fn ex_language(eap: *mut exarg_T) {
 }
 
 #[cfg(not(windows))]
-unsafe fn find_locales() -> *mut *mut c_char {
+unsafe fn find_locales() -> Vec<CString> {
     unsafe {
-        let mut locales_ga = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: ptr::null_mut(),
-        };
-        let mut saveptr: *mut c_char = ptr::null_mut();
-
         let locale_a = get_cmd_output(
             c"locale -a".as_ptr().cast_mut(),
             ptr::null_mut(),
@@ -788,28 +773,16 @@ unsafe fn find_locales() -> *mut *mut c_char {
             ptr::null_mut(),
         );
         if locale_a.is_null() {
-            return ptr::null_mut();
+            return Vec::new();
         }
-        ga_init(&raw mut locales_ga, size_of::<*mut c_char>() as c_int, 20);
-
-        let mut loc = strtok_r(locale_a, c"\n".as_ptr(), &raw mut saveptr);
-        while !loc.is_null() {
-            loc = xstrdup(loc);
-            ga_grow(&raw mut locales_ga, 1);
-            *locales_ga
-                .ga_data
-                .cast::<*mut c_char>()
-                .add(locales_ga.ga_len as usize) = loc;
-            locales_ga.ga_len += 1;
-            loc = strtok_r(ptr::null_mut(), c"\n".as_ptr(), &raw mut saveptr);
-        }
+        let out = CStr::from_ptr(locale_a)
+            .to_bytes()
+            .split(|&b| b == b'\n')
+            .filter(|line| !line.is_empty())
+            .filter_map(|line| CString::new(line).ok())
+            .collect();
         xfree(locale_a.cast());
-        ga_grow(&raw mut locales_ga, 1);
-        *locales_ga
-            .ga_data
-            .cast::<*mut c_char>()
-            .add(locales_ga.ga_len as usize) = ptr::null_mut();
-        locales_ga.ga_data.cast::<*mut c_char>()
+        out
     }
 }
 
@@ -826,16 +799,7 @@ unsafe fn init_locales() {
 
 pub unsafe fn free_locales() {
     unsafe {
-        if LOCALES.is_null() {
-            return;
-        }
-        let mut i: usize = 0;
-        while !(*LOCALES.add(i)).is_null() {
-            xfree((*LOCALES.add(i)).cast());
-            i += 1;
-        }
-        xfree(LOCALES.cast());
-        LOCALES = ptr::null_mut();
+        LOCALES = Vec::new();
     }
 }
 
@@ -846,26 +810,22 @@ pub unsafe fn get_lang_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
         1 => c"ctype".as_ptr().cast_mut(),
         2 => c"time".as_ptr().cast_mut(),
         3 => c"collate".as_ptr().cast_mut(),
-        _ => unsafe {
-            init_locales();
-            if LOCALES.is_null() {
-                ptr::null_mut()
-            } else {
-                *LOCALES.add((idx - 4) as usize)
-            }
-        },
+        _ => unsafe { get_locales(_xp, idx - 4) },
     }
 }
 
 /// Function given to `ExpandGeneric()` to obtain the available locales.
 pub unsafe fn get_locales(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+    if idx < 0 {
+        return ptr::null_mut();
+    }
     unsafe {
         init_locales();
-        if LOCALES.is_null() {
-            ptr::null_mut()
-        } else {
-            *LOCALES.add(idx as usize)
-        }
+        let locales_ptr = &raw const LOCALES;
+        let locales = &*locales_ptr;
+        locales
+            .get(idx as usize)
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
     }
 }
 

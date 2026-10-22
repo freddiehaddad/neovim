@@ -8,7 +8,7 @@ use crate::memory::xstrdup;
 use crate::memory::{xfree, xmemdupz, xrealloc};
 #[cfg(unix)]
 use crate::os::env::os_env_exists;
-use crate::os::env::{expand_env_save, os_getenv, os_getenv_noalloc};
+use crate::os::env::{expand_env_save, os_getenv, os_getenv_buf};
 #[cfg(windows)]
 use crate::os::fs::os_realpath;
 use crate::os::fs::{ENV_SEPCHAR, MAXPATHL, PATHSEP};
@@ -76,8 +76,8 @@ const XDG_DEFAULTS: [Option<&CStr>; 7] = [
 /// Get the value of `$NVIM_APPNAME`, or `"nvim"` if not set (`get_appname`).
 pub fn get_appname(namelike: bool) -> *const c_char {
     unsafe {
-        let env_val = os_getenv_noalloc(c"NVIM_APPNAME".as_ptr());
         let name_buff = (&raw mut NameBuff).cast::<u8>();
+        let env_val = os_getenv_buf(c"NVIM_APPNAME".as_ptr(), name_buff.cast(), MAXPATHL);
         if env_val.is_null() {
             name_buff.copy_from_nonoverlapping(c"nvim".as_ptr().cast::<u8>(), 5);
         }

@@ -2557,11 +2557,13 @@ fn unibi_from_dirs(list: &str, term: &str) -> Option<UnibiTerm> {
 
 unsafe fn get_env_str(name: &CStr) -> Option<String> {
     unsafe {
-        let p = crate::os::env::os_getenv_noalloc(name.as_ptr());
+        let p = crate::os::env::os_getenv(name.as_ptr());
         if p.is_null() {
             None
         } else {
-            Some(CStr::from_ptr(p).to_string_lossy().into_owned())
+            let s = CStr::from_ptr(p).to_string_lossy().into_owned();
+            crate::memory::xfree(p.cast());
+            Some(s)
         }
     }
 }

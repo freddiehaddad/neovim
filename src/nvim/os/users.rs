@@ -12,7 +12,7 @@ use crate::memory::{xfree, xstrdup};
 #[cfg(windows)]
 use crate::message::semsg;
 #[cfg(unix)]
-use crate::os::env::os_getenv_noalloc;
+use crate::os::env::os_getenv_buf;
 use crate::strings::vim_snprintf;
 use std::ffi::{CStr, c_char, c_int, c_void};
 
@@ -150,7 +150,8 @@ pub unsafe fn os_get_usernames(users: *mut garray_T) -> c_int {
         }
         endpwent();
 
-        let user_env = os_getenv_noalloc(c"USER".as_ptr());
+        let mut user_buf = [0 as c_char; 256];
+        let user_env = os_getenv_buf(c"USER".as_ptr(), user_buf.as_mut_ptr(), user_buf.len());
 
         if !user_env.is_null() && *user_env != 0 {
             let gap = &*users;

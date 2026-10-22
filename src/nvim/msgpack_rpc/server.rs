@@ -14,7 +14,7 @@ use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::log::{LOGLVL_ERR, LOGLVL_WRN, logmsg};
 use crate::memory::{strequal, xcalloc, xfree, xmalloc, xstrdup, xstrlcpy};
-use crate::os::env::{os_env_exists, os_get_pid, os_getenv_noalloc, os_unsetenv};
+use crate::os::env::{os_env_exists, os_get_pid, os_getenv, os_unsetenv};
 use crate::os::stdpaths::get_appname;
 use crate::path::{fix_fname, to_slash, to_slash_save};
 use crate::strings::{strcmp, strlen, strstr, vim_snprintf};
@@ -80,7 +80,9 @@ pub unsafe fn server_init(mut listen_addr: *const c_char) -> bool {
         if listen_addr.is_null() || *listen_addr == 0 {
             if os_env_exists(ENV_LISTEN.as_ptr(), true) {
                 user_arg = kFalse;
-                listen_addr = to_slash_save(os_getenv_noalloc(ENV_LISTEN.as_ptr())).cast_const();
+                let raw = os_getenv(ENV_LISTEN.as_ptr());
+                listen_addr = to_slash_save(raw).cast_const();
+                xfree(raw.cast());
             } else {
                 user_arg = kNone;
                 listen_addr = server_address_new(ptr::null()).cast_const();

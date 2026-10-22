@@ -234,11 +234,6 @@ pub unsafe fn os_getenv_buf(name: *const c_char, buf: *mut c_char, bufsize: usiz
     }
 }
 
-/// Like `getenv()`, but use `NameBuff` instead of allocating.
-pub unsafe fn os_getenv_noalloc(name: *const c_char) -> *mut c_char {
-    unsafe { os_getenv_buf(name, (&raw mut NameBuff).cast(), MAXPATHL) }
-}
-
 /// Returns true if environment variable `name` is defined (even if empty).
 pub unsafe fn os_env_exists(name: *const c_char, nonempty: bool) -> bool {
     unsafe {
@@ -1182,7 +1177,8 @@ pub unsafe fn os_shell_is_cmdexe(sh: *const c_char) -> bool {
             return false;
         }
         if striequal(sh, c"$COMSPEC".as_ptr()) {
-            let comspec = os_getenv_noalloc(c"COMSPEC".as_ptr());
+            let mut buf = [0 as c_char; MAXPATHL];
+            let comspec = os_getenv_buf(c"COMSPEC".as_ptr(), buf.as_mut_ptr(), buf.len());
             return !comspec.is_null() && striequal(c"cmd.exe".as_ptr(), path_tail(comspec));
         }
         if striequal(sh, c"cmd.exe".as_ptr()) || striequal(sh, c"cmd".as_ptr()) {
@@ -1300,22 +1296,22 @@ mod tests {
             assert_eq!(CStr::from_ptr(got).to_str().unwrap(), "val1");
             xfree(got.cast());
 
+            let mut buf = [0 as c_char; 64];
             assert_eq!(os_setenv(k.as_ptr(), c"val2".as_ptr(), 0), 0);
             assert_eq!(
-                CStr::from_ptr(os_getenv_noalloc(k.as_ptr()))
+                CStr::from_ptr(os_getenv_buf(k.as_ptr(), buf.as_mut_ptr(), buf.len()))
                     .to_str()
                     .unwrap(),
                 "val1"
             );
             assert_eq!(os_setenv(k.as_ptr(), c"val2".as_ptr(), 1), 0);
             assert_eq!(
-                CStr::from_ptr(os_getenv_noalloc(k.as_ptr()))
+                CStr::from_ptr(os_getenv_buf(k.as_ptr(), buf.as_mut_ptr(), buf.len()))
                     .to_str()
                     .unwrap(),
                 "val2"
             );
 
-            let mut buf = [0 as c_char; 64];
             assert!(!os_getenv_buf(k.as_ptr(), buf.as_mut_ptr(), buf.len()).is_null());
             assert_eq!(CStr::from_ptr(buf.as_ptr()).to_str().unwrap(), "val2");
 
