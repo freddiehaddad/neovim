@@ -50,11 +50,9 @@ pub struct mmbuffer_t {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default)]
 pub struct xpparam_t {
     pub flags: c_ulong,
-    pub anchors: *mut *mut c_char,
-    pub anchors_nr: usize,
 }
 
 pub type xdl_out_hunk_fn = Option<
@@ -78,16 +76,6 @@ pub struct xdemitcb_t {
         Option<unsafe fn(priv_data: *mut c_void, mb: *mut mmbuffer_t, nbuf: c_int) -> c_int>,
 }
 
-pub type find_func_t = Option<
-    unsafe fn(
-        line: *const c_char,
-        line_len: c_long,
-        buffer: *mut c_char,
-        buffer_size: c_long,
-        priv_data: *mut c_void,
-    ) -> c_long,
->;
-
 pub type xdl_emit_hunk_consume_func_t = Option<
     unsafe fn(
         start_a: c_int,
@@ -99,13 +87,11 @@ pub type xdl_emit_hunk_consume_func_t = Option<
 >;
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default)]
 pub struct xdemitconf_t {
     pub ctxlen: c_long,
     pub interhunkctxlen: c_long,
     pub flags: c_ulong,
-    pub find_func: find_func_t,
-    pub find_func_priv: *mut c_void,
     pub hunk_func: xdl_emit_hunk_consume_func_t,
 }
 
@@ -124,8 +110,6 @@ pub struct chastore_t {
     pub isize: c_long,
     pub nsize: c_long,
     pub ancur: *mut chanode_t,
-    pub sncur: *mut chanode_t,
-    pub scurr: c_long,
 }
 
 #[repr(C)]
@@ -208,7 +192,9 @@ pub fn xdl_isspace(c: c_char) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::xdiff::xutils::{xdl_bogosqrt, xdl_hashbits, xdl_num_out, xdl_recmatch};
+    use crate::xdiff::xutils::{
+        xdl_blankline_slice, xdl_bogosqrt, xdl_hashbits, xdl_recmatch, xdl_recmatch_slice,
+    };
 
     #[test]
     fn test_xdl_bogosqrt_and_hashbits() {
@@ -222,26 +208,13 @@ mod tests {
 
     #[test]
     fn test_xdl_num_out_and_recmatch() {
-        let mut buf = [0 as c_char; 32];
-        let len = unsafe { xdl_num_out(buf.as_mut_ptr(), 12345) };
-        assert_eq!(len, 5);
-        let s = unsafe { std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), len as usize) };
-        assert_eq!(s, b"12345");
+        assert_eq!(xdl_blankline_slice(b"  \t\n", XDF_IGNORE_WHITESPACE), 1);
+        assert_eq!(xdl_blankline_slice(b"  \t\n", 0), 0);
 
         let a = b"hello  world\n";
         let b = b"hello world\n";
-        assert_eq!(
-            unsafe {
-                xdl_recmatch(
-                    a.as_ptr().cast::<c_char>(),
-                    a.len() as c_long,
-                    b.as_ptr().cast::<c_char>(),
-                    b.len() as c_long,
-                    0,
-                )
-            },
-            0
-        );
+        assert_eq!(xdl_recmatch_slice(a, b, 0), 0);
+        assert_eq!(xdl_recmatch_slice(a, b, XDF_IGNORE_WHITESPACE_CHANGE), 1);
         assert_eq!(
             unsafe {
                 xdl_recmatch(

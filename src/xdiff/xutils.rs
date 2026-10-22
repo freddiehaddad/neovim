@@ -5,7 +5,7 @@ use std::mem::size_of;
 use std::ptr;
 
 use crate::memory::{xfree, xmalloc};
-use crate::strings::{memchr, memcmp};
+use crate::strings::memchr;
 use crate::xdiff::xdiffi::xdl_do_diff;
 use crate::xdiff::xprepare::xdl_free_env;
 use crate::xdiff::{
@@ -73,8 +73,6 @@ pub unsafe fn xdl_cha_init(cha: *mut chastore_t, isize: c_long, icount: c_long) 
         (*cha).isize = isize;
         (*cha).nsize = icount * isize;
         (*cha).ancur = ptr::null_mut();
-        (*cha).sncur = ptr::null_mut();
-        (*cha).scurr = 0;
     }
     0
 }
@@ -158,21 +156,27 @@ pub unsafe fn xdl_guess_lines(mf: *mut mmfile_t, sample: c_long) -> c_long {
     nl + 1
 }
 
-pub unsafe fn xdl_blankline(line: *const c_char, size: c_long, flags: c_long) -> c_int {
-    if ((flags as c_ulong) & XDF_WHITESPACE_FLAGS) == 0 {
-        return c_int::from(size <= 1);
+pub fn xdl_blankline_slice(line: &[u8], flags: c_ulong) -> c_int {
+    if (flags & XDF_WHITESPACE_FLAGS) == 0 {
+        return c_int::from(line.len() <= 1);
     }
 
-    let mut i: c_long = 0;
-    while i < size && xdl_isspace(unsafe { *line.offset(i as isize) }) {
+    let mut i = 0usize;
+    while i < line.len() && xdl_isspace(line[i] as c_char) {
         i += 1;
     }
 
-    c_int::from(i == size)
+    c_int::from(i == line.len())
 }
 
-unsafe fn ends_with_optional_cr(l: *const c_char, mut s: c_long, i: c_long) -> bool {
-    let complete = s != 0 && unsafe { *l.offset((s - 1) as isize) } == b'\n' as c_char;
+pub unsafe fn xdl_blankline(line: *const c_char, size: c_long, flags: c_long) -> c_int {
+    let slice = unsafe { std::slice::from_raw_parts(line.cast::<u8>(), size.max(0) as usize) };
+    xdl_blankline_slice(slice, flags as c_ulong)
+}
+
+fn ends_with_optional_cr_slice(l: &[u8], i: usize) -> bool {
+    let mut s = l.len();
+    let complete = s != 0 && l[s - 1] == b'\n';
 
     if complete {
         s -= 1;
@@ -180,10 +184,96 @@ unsafe fn ends_with_optional_cr(l: *const c_char, mut s: c_long, i: c_long) -> b
     if s == i {
         return true;
     }
-    if complete && s == i + 1 && unsafe { *l.offset(i as isize) } == b'\r' as c_char {
+    if complete && s == i + 1 && l[i] == b'\r' {
         return true;
     }
     false
+}
+
+pub fn xdl_recmatch_slice(b1: &[u8], b2: &[u8], uflags: c_ulong) -> c_int {
+    if b1 == b2 {
+        return 1;
+    }
+    if (uflags & XDF_WHITESPACE_FLAGS) == 0 {
+        return 0;
+    }
+
+    let s1 = b1.len();
+    let s2 = b2.len();
+    let mut i1 = 0usize;
+    let mut i2 = 0usize;
+
+    if (uflags & XDF_IGNORE_WHITESPACE) != 0 {
+        while i1 < s1 && xdl_isspace(b1[i1] as c_char) {
+            i1 += 1;
+        }
+        while i2 < s2 && xdl_isspace(b2[i2] as c_char) {
+            i2 += 1;
+        }
+        while i1 < s1 && i2 < s2 {
+            let c1 = b1[i1];
+            let c2 = b2[i2];
+            i1 += 1;
+            i2 += 1;
+            if c1 != c2 {
+                return 0;
+            }
+            while i1 < s1 && xdl_isspace(b1[i1] as c_char) {
+                i1 += 1;
+            }
+            while i2 < s2 && xdl_isspace(b2[i2] as c_char) {
+                i2 += 1;
+            }
+        }
+    } else if (uflags & XDF_IGNORE_WHITESPACE_CHANGE) != 0 {
+        while i1 < s1 && i2 < s2 {
+            if xdl_isspace(b1[i1] as c_char) && xdl_isspace(b2[i2] as c_char) {
+                while i1 < s1 && xdl_isspace(b1[i1] as c_char) {
+                    i1 += 1;
+                }
+                while i2 < s2 && xdl_isspace(b2[i2] as c_char) {
+                    i2 += 1;
+                }
+                continue;
+            }
+            let c1 = b1[i1];
+            let c2 = b2[i2];
+            i1 += 1;
+            i2 += 1;
+            if c1 != c2 {
+                return 0;
+            }
+        }
+    } else if (uflags & XDF_IGNORE_WHITESPACE_AT_EOL) != 0 {
+        while i1 < s1 && i2 < s2 && b1[i1] == b2[i2] {
+            i1 += 1;
+            i2 += 1;
+        }
+    } else if (uflags & XDF_IGNORE_CR_AT_EOL) != 0 {
+        while i1 < s1 && i2 < s2 && b1[i1] == b2[i2] {
+            i1 += 1;
+            i2 += 1;
+        }
+        return c_int::from(
+            ends_with_optional_cr_slice(b1, i1) && ends_with_optional_cr_slice(b2, i2),
+        );
+    }
+
+    if i1 < s1 {
+        while i1 < s1 && xdl_isspace(b1[i1] as c_char) {
+            i1 += 1;
+        }
+        if s1 != i1 {
+            return 0;
+        }
+    }
+    if i2 < s2 {
+        while i2 < s2 && xdl_isspace(b2[i2] as c_char) {
+            i2 += 1;
+        }
+        return c_int::from(s2 == i2);
+    }
+    1
 }
 
 pub unsafe fn xdl_recmatch(
@@ -193,91 +283,9 @@ pub unsafe fn xdl_recmatch(
     s2: c_long,
     flags: c_long,
 ) -> c_int {
-    let uflags = flags as c_ulong;
-
-    if s1 == s2 && unsafe { memcmp(l1.cast::<c_void>(), l2.cast::<c_void>(), s1 as usize) } == 0 {
-        return 1;
-    }
-    if (uflags & XDF_WHITESPACE_FLAGS) == 0 {
-        return 0;
-    }
-
-    let mut i1: c_long = 0;
-    let mut i2: c_long = 0;
-
-    if (uflags & XDF_IGNORE_WHITESPACE) != 0 {
-        while i1 < s1 && xdl_isspace(unsafe { *l1.offset(i1 as isize) }) {
-            i1 += 1;
-        }
-        while i2 < s2 && xdl_isspace(unsafe { *l2.offset(i2 as isize) }) {
-            i2 += 1;
-        }
-        while i1 < s1 && i2 < s2 {
-            let c1 = unsafe { *l1.offset(i1 as isize) };
-            let c2 = unsafe { *l2.offset(i2 as isize) };
-            i1 += 1;
-            i2 += 1;
-            if c1 != c2 {
-                return 0;
-            }
-            while i1 < s1 && xdl_isspace(unsafe { *l1.offset(i1 as isize) }) {
-                i1 += 1;
-            }
-            while i2 < s2 && xdl_isspace(unsafe { *l2.offset(i2 as isize) }) {
-                i2 += 1;
-            }
-        }
-    } else if (uflags & XDF_IGNORE_WHITESPACE_CHANGE) != 0 {
-        while i1 < s1 && i2 < s2 {
-            if xdl_isspace(unsafe { *l1.offset(i1 as isize) })
-                && xdl_isspace(unsafe { *l2.offset(i2 as isize) })
-            {
-                while i1 < s1 && xdl_isspace(unsafe { *l1.offset(i1 as isize) }) {
-                    i1 += 1;
-                }
-                while i2 < s2 && xdl_isspace(unsafe { *l2.offset(i2 as isize) }) {
-                    i2 += 1;
-                }
-                continue;
-            }
-            let c1 = unsafe { *l1.offset(i1 as isize) };
-            let c2 = unsafe { *l2.offset(i2 as isize) };
-            i1 += 1;
-            i2 += 1;
-            if c1 != c2 {
-                return 0;
-            }
-        }
-    } else if (uflags & XDF_IGNORE_WHITESPACE_AT_EOL) != 0 {
-        while i1 < s1 && i2 < s2 && unsafe { *l1.offset(i1 as isize) == *l2.offset(i2 as isize) } {
-            i1 += 1;
-            i2 += 1;
-        }
-    } else if (uflags & XDF_IGNORE_CR_AT_EOL) != 0 {
-        while i1 < s1 && i2 < s2 && unsafe { *l1.offset(i1 as isize) == *l2.offset(i2 as isize) } {
-            i1 += 1;
-            i2 += 1;
-        }
-        return c_int::from(unsafe {
-            ends_with_optional_cr(l1, s1, i1) && ends_with_optional_cr(l2, s2, i2)
-        });
-    }
-
-    if i1 < s1 {
-        while i1 < s1 && xdl_isspace(unsafe { *l1.offset(i1 as isize) }) {
-            i1 += 1;
-        }
-        if s1 != i1 {
-            return 0;
-        }
-    }
-    if i2 < s2 {
-        while i2 < s2 && xdl_isspace(unsafe { *l2.offset(i2 as isize) }) {
-            i2 += 1;
-        }
-        return c_int::from(s2 == i2);
-    }
-    1
+    let b1 = unsafe { std::slice::from_raw_parts(l1.cast::<u8>(), s1.max(0) as usize) };
+    let b2 = unsafe { std::slice::from_raw_parts(l2.cast::<u8>(), s2.max(0) as usize) };
+    xdl_recmatch_slice(b1, b2, flags as c_ulong)
 }
 
 unsafe fn xdl_hash_record_with_whitespace(
@@ -369,99 +377,31 @@ pub fn xdl_hashbits(size: c_uint) -> c_uint {
     if bits != 0 { bits } else { 1 }
 }
 
-pub unsafe fn xdl_num_out(out: *mut c_char, mut val: c_long) -> c_int {
-    let mut buf = [0 as c_char; 32];
-    let mut ptr = buf.len() - 1;
-    buf[ptr] = 0;
-
-    if val < 0 {
-        ptr -= 1;
-        buf[ptr] = b'-' as c_char;
-        val = val.wrapping_neg();
-    }
-    while val != 0 && ptr > 0 {
-        ptr -= 1;
-        buf[ptr] = b"0123456789"[(val % 10) as usize] as c_char;
-        val /= 10;
-    }
-    let mut str_ptr = out;
-    if buf[ptr] != 0 {
-        while buf[ptr] != 0 {
-            unsafe {
-                *str_ptr = buf[ptr];
-                str_ptr = str_ptr.add(1);
-            }
-            ptr += 1;
-        }
-    } else {
-        unsafe {
-            *str_ptr = b'0' as c_char;
-            str_ptr = str_ptr.add(1);
-        }
-    }
-    unsafe {
-        *str_ptr = 0;
-        str_ptr.offset_from(out) as c_int
-    }
-}
-
 unsafe fn xdl_format_hunk_hdr(
     s1: c_long,
     c1: c_long,
     s2: c_long,
     c2: c_long,
-    func: *const c_char,
-    mut funclen: c_long,
     ecb: *mut xdemitcb_t,
 ) -> c_int {
-    let mut nb: isize = 0;
-    let mut buf = [0 as c_char; 128];
-    let buf_ptr = buf.as_mut_ptr();
+    use std::io::Write as _;
+    let mut buf = [0u8; 128];
+    let mut cursor = std::io::Cursor::new(&mut buf[..]);
+    let _ = write!(cursor, "@@ -{}", if c1 != 0 { s1 } else { s1 - 1 });
+    if c1 != 1 {
+        let _ = write!(cursor, ",{c1}");
+    }
+    let _ = write!(cursor, " +{}", if c2 != 0 { s2 } else { s2 - 1 });
+    if c2 != 1 {
+        let _ = write!(cursor, ",{c2}");
+    }
+    let _ = writeln!(cursor, " @@");
+    let nb = cursor.position() as c_int;
 
     unsafe {
-        ptr::copy_nonoverlapping(b"@@ -".as_ptr().cast::<c_char>(), buf_ptr, 4);
-        nb += 4;
-
-        nb += xdl_num_out(buf_ptr.offset(nb), if c1 != 0 { s1 } else { s1 - 1 }) as isize;
-
-        if c1 != 1 {
-            *buf_ptr.offset(nb) = b',' as c_char;
-            nb += 1;
-            nb += xdl_num_out(buf_ptr.offset(nb), c1) as isize;
-        }
-
-        ptr::copy_nonoverlapping(b" +".as_ptr().cast::<c_char>(), buf_ptr.offset(nb), 2);
-        nb += 2;
-
-        nb += xdl_num_out(buf_ptr.offset(nb), if c2 != 0 { s2 } else { s2 - 1 }) as isize;
-
-        if c2 != 1 {
-            *buf_ptr.offset(nb) = b',' as c_char;
-            nb += 1;
-            nb += xdl_num_out(buf_ptr.offset(nb), c2) as isize;
-        }
-
-        ptr::copy_nonoverlapping(b" @@".as_ptr().cast::<c_char>(), buf_ptr.offset(nb), 3);
-        nb += 3;
-
-        if !func.is_null() && funclen != 0 {
-            *buf_ptr.offset(nb) = b' ' as c_char;
-            nb += 1;
-            let max_len = (buf.len() as c_long) - (nb as c_long) - 1;
-            if funclen > max_len {
-                funclen = max_len;
-            }
-            if funclen > 0 {
-                ptr::copy_nonoverlapping(func, buf_ptr.offset(nb), funclen as usize);
-                nb += funclen as isize;
-            }
-        }
-        *buf_ptr.offset(nb) = b'\n' as c_char;
-        nb += 1;
-
         let mut mb = mmbuffer_t {
-            ptr: buf_ptr,
-            size: nb as c_int,
+            ptr: buf.as_mut_ptr().cast::<c_char>(),
+            size: nb,
         };
         if let Some(out_line) = (*ecb).out_line
             && out_line((*ecb).priv_data, &mut mb, 1) < 0
@@ -477,8 +417,6 @@ pub unsafe fn xdl_emit_hunk_hdr(
     c1: c_long,
     s2: c_long,
     c2: c_long,
-    func: *const c_char,
-    funclen: c_long,
     ecb: *mut xdemitcb_t,
 ) -> c_int {
     if let Some(out_hunk) = unsafe { (*ecb).out_hunk } {
@@ -489,8 +427,8 @@ pub unsafe fn xdl_emit_hunk_hdr(
                 c1,
                 if c2 != 0 { s2 } else { s2 - 1 },
                 c2,
-                func,
-                funclen,
+                c"".as_ptr(),
+                0,
             )
         } < 0
         {
@@ -498,7 +436,7 @@ pub unsafe fn xdl_emit_hunk_hdr(
         }
         0
     } else {
-        unsafe { xdl_format_hunk_hdr(s1, c1, s2, c2, func, funclen, ecb) }
+        unsafe { xdl_format_hunk_hdr(s1, c1, s2, c2, ecb) }
     }
 }
 

@@ -90,22 +90,12 @@ pub unsafe fn xdl_get_hunk(
     }
 }
 
-struct FuncLine {
-    len: c_long,
-    buf: [c_char; 80],
-}
-
 pub unsafe fn xdl_emit_diff(
     xe: *mut xdfenv_t,
     xscr: *mut xdchange_t,
     ecb: *mut xdemitcb_t,
     xecfg: *const xdemitconf_t,
 ) -> c_int {
-    let func_line = FuncLine {
-        len: 0,
-        buf: [0; 80],
-    };
-
     let mut xch = xscr;
     unsafe {
         while !xch.is_null() {
@@ -125,15 +115,7 @@ pub unsafe fn xdl_emit_diff(
             let e2 = (*xche).i2 + (*xche).chg2 + lctx;
 
             if ((*xecfg).flags & XDL_EMIT_NO_HUNK_HDR) == 0
-                && xdl_emit_hunk_hdr(
-                    s1 + 1,
-                    e1 - s1,
-                    s2 + 1,
-                    e2 - s2,
-                    func_line.buf.as_ptr(),
-                    func_line.len,
-                    ecb,
-                ) < 0
+                && xdl_emit_hunk_hdr(s1 + 1, e1 - s1, s2 + 1, e2 - s2, ecb) < 0
             {
                 return -1;
             }

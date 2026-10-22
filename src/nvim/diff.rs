@@ -1125,15 +1125,11 @@ unsafe fn diff_file_internal(diffio: *mut diffio_T) -> c_int {
     unsafe {
         let mut param = xpparam_t {
             flags: diff_algorithm as c_ulong,
-            anchors: ptr::null_mut(),
-            anchors_nr: 0,
         };
         let emit_cfg = xdemitconf_t {
             ctxlen: 0,
             interhunkctxlen: 0,
             flags: 0,
-            find_func: None,
-            find_func_priv: ptr::null_mut(),
             hunk_func: Some(xdiff_out),
         };
         let mut emit_cb = xdemitcb_t {

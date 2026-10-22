@@ -445,19 +445,8 @@ pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> c_int {
             msg: std::ptr::null_mut(),
         };
 
-        let mut cfg = xdemitconf_t {
-            ctxlen: 0,
-            interhunkctxlen: 0,
-            flags: 0,
-            find_func: None,
-            find_func_priv: std::ptr::null_mut(),
-            hunk_func: None,
-        };
-        let mut params = xpparam_t {
-            flags: 0,
-            anchors: std::ptr::null_mut(),
-            anchors_nr: 0,
-        };
+        let mut cfg = xdemitconf_t::default();
+        let mut params = xpparam_t::default();
         let mut ecb = xdemitcb_t {
             priv_data: std::ptr::null_mut(),
             out_hunk: None,
