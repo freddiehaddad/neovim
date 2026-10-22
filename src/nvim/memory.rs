@@ -22,11 +22,6 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 pub const ARENA_BLOCK_SIZE: usize = 4096;
 const REUSE_MAX: usize = 4;
 
-pub type MemMalloc = unsafe extern "C" fn(size: usize) -> *mut c_void;
-pub type MemFree = unsafe extern "C" fn(ptr: *mut c_void);
-pub type MemCalloc = unsafe extern "C" fn(count: usize, size: usize) -> *mut c_void;
-pub type MemRealloc = unsafe extern "C" fn(ptr: *mut c_void, size: usize) -> *mut c_void;
-
 pub type MergeSortGetFunc = Option<unsafe fn(node: *mut c_void) -> *mut c_void>;
 pub type MergeSortSetFunc = Option<unsafe fn(node: *mut c_void, target: *mut c_void)>;
 pub type MergeSortCompareFunc = Option<unsafe fn(a: *const c_void, b: *const c_void) -> c_int>;
@@ -57,19 +52,6 @@ unsafe extern "C" {
     fn crt_realloc(ptr: *mut c_void, size: usize) -> *mut c_void;
 }
 
-/// Unit-testable `malloc` hook (`mem_malloc`).
-#[unsafe(no_mangle)]
-pub static mut mem_malloc: MemMalloc = crt_malloc;
-/// Unit-testable `free` hook (`mem_free`).
-#[unsafe(no_mangle)]
-pub static mut mem_free: MemFree = crt_free;
-/// Unit-testable `calloc` hook (`mem_calloc`).
-#[unsafe(no_mangle)]
-pub static mut mem_calloc: MemCalloc = crt_calloc;
-/// Unit-testable `realloc` hook (`mem_realloc`).
-#[unsafe(no_mangle)]
-pub static mut mem_realloc: MemRealloc = crt_realloc;
-
 /// Indicates that `free_all_mem` function was or is running.
 pub static mut entered_free_all_mem: bool = false;
 
@@ -79,22 +61,22 @@ static mut ARENA_REUSE_COUNT: usize = 0;
 
 #[inline]
 unsafe fn raw_malloc(size: usize) -> *mut c_void {
-    unsafe { (mem_malloc)(size) }
+    unsafe { crt_malloc(size) }
 }
 
 #[inline]
 unsafe fn raw_free(ptr: *mut c_void) {
-    unsafe { (mem_free)(ptr) }
+    unsafe { crt_free(ptr) }
 }
 
 #[inline]
 unsafe fn raw_calloc(count: usize, size: usize) -> *mut c_void {
-    unsafe { (mem_calloc)(count, size) }
+    unsafe { crt_calloc(count, size) }
 }
 
 #[inline]
 unsafe fn raw_realloc(ptr: *mut c_void, size: usize) -> *mut c_void {
-    unsafe { (mem_realloc)(ptr, size) }
+    unsafe { crt_realloc(ptr, size) }
 }
 
 unsafe fn try_to_free_memory() {
@@ -167,7 +149,6 @@ pub unsafe fn verbose_try_malloc(size: usize) -> *mut c_void {
 }
 
 /// `malloc()` wrapper that never returns null (`xmalloc`).
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn xmalloc(size: usize) -> *mut c_void {
     let ret = unsafe { try_malloc(size) };
     if ret.is_null() {
@@ -177,7 +158,6 @@ pub unsafe extern "C" fn xmalloc(size: usize) -> *mut c_void {
 }
 
 /// `free()` wrapper (`xfree`).
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn xfree(ptr: *mut c_void) {
     unsafe {
         raw_free(ptr);
@@ -185,7 +165,6 @@ pub unsafe extern "C" fn xfree(ptr: *mut c_void) {
 }
 
 /// `calloc()` wrapper that never returns null (`xcalloc`).
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn xcalloc(count: usize, size: usize) -> *mut c_void {
     let (allocated_count, allocated_size) = if count != 0 && size != 0 {
         (count, size)
@@ -236,8 +215,7 @@ pub unsafe fn xmallocz(size: usize) -> *mut c_void {
 }
 
 /// Allocate `len + 1` bytes, copy `data[..len]`, and NUL-terminate (`xmemdupz`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xmemdupz(data: *const c_void, len: usize) -> *mut c_void {
+pub unsafe fn xmemdupz(data: *const c_void, len: usize) -> *mut c_void {
     let ret = unsafe { xmallocz(len).cast::<u8>() };
     if len > 0 {
         unsafe {
@@ -381,8 +359,7 @@ pub unsafe fn xstrlcat(dst: *mut c_char, src: *const c_char, dsize: usize) -> us
 }
 
 /// Duplicate a NUL-terminated C string using `xmalloc` (`xstrdup`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xstrdup(str_ptr: *const c_char) -> *mut c_char {
+pub unsafe fn xstrdup(str_ptr: *const c_char) -> *mut c_char {
     let len = unsafe { CStr::from_ptr(str_ptr).to_bytes().len() };
     unsafe { xmemdupz(str_ptr.cast::<c_void>(), len).cast::<c_char>() }
 }
@@ -407,8 +384,7 @@ pub unsafe fn xstrndup(str_ptr: *const c_char, len: usize) -> *mut c_char {
 }
 
 /// Duplicate `len` bytes from `data` (`xmemdup`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xmemdup(data: *const c_void, len: usize) -> *mut c_void {
+pub unsafe fn xmemdup(data: *const c_void, len: usize) -> *mut c_void {
     let ret = unsafe { xmalloc(len).cast::<u8>() };
     if len > 0 {
         unsafe {

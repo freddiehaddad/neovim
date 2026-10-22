@@ -260,8 +260,7 @@ static ENCODING_DEC_DRAWING: StaticTableEncoding = {
 };
 
 /// Look up a `VTermEncoding` by `(type, designation)` (`vterm_lookup_encoding`).
-#[unsafe(no_mangle)]
-pub extern "C" fn vterm_lookup_encoding(
+pub fn vterm_lookup_encoding(
     enc_type: VTermEncodingType,
     designation: c_char,
 ) -> *mut VTermEncoding {

@@ -703,8 +703,7 @@ unsafe extern "C" fn loop_walk_cb(handle: *mut uv_handle_t, _arg: *mut c_void) {
 }
 
 /// Closes `loop` and its handles, and frees its structures.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn loop_close(loop_: *mut Loop, wait: bool) -> bool {
+pub unsafe fn loop_close(loop_: *mut Loop, wait: bool) -> bool {
     unsafe {
         let mut rv = true;
         *loop_closing_ptr(loop_) = true;

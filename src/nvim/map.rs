@@ -524,46 +524,38 @@ unsafe fn set_delete<K: Copy>(
 }
 
 macro_rules! impl_c_set {
-    ($K:ty, $find_fn:ident, $get_fn:ident, $rehash_fn:ident, $put_fn:ident, $del_fn:ident, $hash_fn:expr, $eq_fn:expr) => {
-        #[unsafe(no_mangle)]
-        pub unsafe extern "C" fn $find_fn(set: *mut Set<$K>, key: $K, put: bool) -> u32 {
-            unsafe { set_find_bucket(&mut *set, key, put, $hash_fn, $eq_fn) }
-        }
-
-        #[unsafe(no_mangle)]
-        pub unsafe extern "C" fn $get_fn(set: *mut Set<$K>, key: $K) -> u32 {
+    ($K:ty, $get_fn:ident, $put_fn:ident, $del_fn:ident, $hash_fn:expr, $eq_fn:expr) => {
+        pub unsafe fn $get_fn(set: *mut Set<$K>, key: $K) -> u32 {
             unsafe { set_get(&mut *set, key, $hash_fn, $eq_fn) }
         }
 
-        #[unsafe(no_mangle)]
-        pub unsafe extern "C" fn $rehash_fn(set: *mut Set<$K>) {
-            unsafe { set_rehash(&mut *set, $hash_fn, $eq_fn) }
-        }
-
-        #[unsafe(no_mangle)]
-        pub unsafe extern "C" fn $put_fn(
-            set: *mut Set<$K>,
-            key: $K,
-            new_status: *mut MHPutStatus,
-        ) -> u32 {
+        pub unsafe fn $put_fn(set: *mut Set<$K>, key: $K, new_status: *mut MHPutStatus) -> u32 {
             unsafe { set_put(&mut *set, key, new_status, $hash_fn, $eq_fn) }
         }
 
-        #[unsafe(no_mangle)]
-        pub unsafe extern "C" fn $del_fn(set: *mut Set<$K>, key: *mut $K) -> u32 {
+        pub unsafe fn $del_fn(set: *mut Set<$K>, key: *mut $K) -> u32 {
             unsafe { set_delete(&mut *set, key, $hash_fn, $eq_fn) }
+        }
+    };
+    ($K:ty, $get_fn:ident, $put_fn:ident, $hash_fn:expr, $eq_fn:expr) => {
+        pub unsafe fn $get_fn(set: *mut Set<$K>, key: $K) -> u32 {
+            unsafe { set_get(&mut *set, key, $hash_fn, $eq_fn) }
+        }
+
+        pub unsafe fn $put_fn(set: *mut Set<$K>, key: $K, new_status: *mut MHPutStatus) -> u32 {
+            unsafe { set_put(&mut *set, key, new_status, $hash_fn, $eq_fn) }
+        }
+    };
+    ($K:ty, $put_fn:ident, $hash_fn:expr, $eq_fn:expr) => {
+        pub unsafe fn $put_fn(set: *mut Set<$K>, key: $K, new_status: *mut MHPutStatus) -> u32 {
+            unsafe { set_put(&mut *set, key, new_status, $hash_fn, $eq_fn) }
         }
     };
 }
 
-macro_rules! impl_c_map {
-    ($K:ty, $V:ty, $get_set_fn:ident, $put_set_fn:ident, $del_set_fn:ident, $ref_fn:ident, $put_ref_fn:ident, $del_fn:ident, $init_val:expr) => {
-        #[unsafe(no_mangle)]
-        pub unsafe extern "C" fn $ref_fn(
-            map: *mut Map<$K, $V>,
-            key: $K,
-            key_alloc: *mut *mut $K,
-        ) -> *mut $V {
+macro_rules! impl_c_map_ref {
+    ($K:ty, $V:ty, $get_set_fn:ident, $ref_fn:ident) => {
+        pub unsafe fn $ref_fn(map: *mut Map<$K, $V>, key: $K, key_alloc: *mut *mut $K) -> *mut $V {
             let map = unsafe { &mut *map };
             let k = unsafe { $get_set_fn(&mut map.set, key) };
             if k == MH_TOMBSTONE {
@@ -576,9 +568,12 @@ macro_rules! impl_c_map {
             }
             unsafe { map.values.add(k as usize) }
         }
+    };
+}
 
-        #[unsafe(no_mangle)]
-        pub unsafe extern "C" fn $put_ref_fn(
+macro_rules! impl_c_map_put_ref {
+    ($K:ty, $V:ty, $put_set_fn:ident, $put_ref_fn:ident, $init_val:expr) => {
+        pub unsafe fn $put_ref_fn(
             map: *mut Map<$K, $V>,
             key: $K,
             key_alloc: *mut *mut $K,
@@ -613,13 +608,12 @@ macro_rules! impl_c_map {
             }
             unsafe { map.values.add(k as usize) }
         }
+    };
+}
 
-        #[unsafe(no_mangle)]
-        pub unsafe extern "C" fn $del_fn(
-            map: *mut Map<$K, $V>,
-            mut key: $K,
-            key_alloc: *mut $K,
-        ) -> $V {
+macro_rules! impl_c_map_del {
+    ($K:ty, $V:ty, $del_set_fn:ident, $del_fn:ident, $init_val:expr) => {
+        pub unsafe fn $del_fn(map: *mut Map<$K, $V>, mut key: $K, key_alloc: *mut $K) -> $V {
             let map = unsafe { &mut *map };
             let mut rv: $V = $init_val;
             let k = unsafe { $del_set_fn(&mut map.set, &mut key) };
@@ -639,6 +633,14 @@ macro_rules! impl_c_map {
             }
             rv
         }
+    };
+}
+
+macro_rules! impl_c_map {
+    ($K:ty, $V:ty, $get_set_fn:ident, $put_set_fn:ident, $del_set_fn:ident, $ref_fn:ident, $put_ref_fn:ident, $del_fn:ident, $init_val:expr) => {
+        impl_c_map_ref!($K, $V, $get_set_fn, $ref_fn);
+        impl_c_map_put_ref!($K, $V, $put_set_fn, $put_ref_fn, $init_val);
+        impl_c_map_del!($K, $V, $del_set_fn, $del_fn, $init_val);
     };
 }
 
@@ -729,9 +731,7 @@ unsafe fn eq_color_key_fn(a: ColorKey, b: ColorKey) -> bool {
 
 impl_c_set!(
     c_int,
-    mh_find_bucket_int,
     mh_get_int,
-    mh_rehash_int,
     mh_put_int,
     mh_delete_int,
     hash_int_fn,
@@ -739,9 +739,7 @@ impl_c_set!(
 );
 impl_c_set!(
     ptr_t,
-    mh_find_bucket_ptr_t,
     mh_get_ptr_t,
-    mh_rehash_ptr_t,
     mh_put_ptr_t,
     mh_delete_ptr_t,
     hash_ptr_fn,
@@ -749,29 +747,16 @@ impl_c_set!(
 );
 impl_c_set!(
     cstr_t,
-    mh_find_bucket_cstr_t,
     mh_get_cstr_t,
-    mh_rehash_cstr_t,
     mh_put_cstr_t,
     mh_delete_cstr_t,
     hash_cstr,
     equal_cstr
 );
-impl_c_set!(
-    path_t,
-    mh_find_bucket_path_t,
-    mh_get_path_t,
-    mh_rehash_path_t,
-    mh_put_path_t,
-    mh_delete_path_t,
-    hash_path,
-    equal_path
-);
+impl_c_set!(path_t, mh_get_path_t, mh_put_path_t, hash_path, equal_path);
 impl_c_set!(
     NvimString,
-    mh_find_bucket_String,
     mh_get_String,
-    mh_rehash_String,
     mh_put_String,
     mh_delete_String,
     hash_string_fn,
@@ -779,9 +764,7 @@ impl_c_set!(
 );
 impl_c_set!(
     u32,
-    mh_find_bucket_uint32_t,
     mh_get_uint32_t,
-    mh_rehash_uint32_t,
     mh_put_uint32_t,
     mh_delete_uint32_t,
     hash_u32_fn,
@@ -789,9 +772,7 @@ impl_c_set!(
 );
 impl_c_set!(
     u64,
-    mh_find_bucket_uint64_t,
     mh_get_uint64_t,
-    mh_rehash_uint64_t,
     mh_put_uint64_t,
     mh_delete_uint64_t,
     hash_u64_fn,
@@ -799,31 +780,17 @@ impl_c_set!(
 );
 impl_c_set!(
     i64,
-    mh_find_bucket_int64_t,
     mh_get_int64_t,
-    mh_rehash_int64_t,
     mh_put_int64_t,
     mh_delete_int64_t,
     hash_i64_fn,
     eq_i64_fn
 );
-impl_c_set!(
-    HlEntry,
-    mh_find_bucket_HlEntry,
-    mh_get_HlEntry,
-    mh_rehash_HlEntry,
-    mh_put_HlEntry,
-    mh_delete_HlEntry,
-    hash_hl_entry_fn,
-    eq_hl_entry_fn
-);
+impl_c_set!(HlEntry, mh_put_HlEntry, hash_hl_entry_fn, eq_hl_entry_fn);
 impl_c_set!(
     ColorKey,
-    mh_find_bucket_ColorKey,
     mh_get_ColorKey,
-    mh_rehash_ColorKey,
     mh_put_ColorKey,
-    mh_delete_ColorKey,
     hash_color_key_fn,
     eq_color_key_fn
 );
@@ -891,37 +858,26 @@ impl_c_map!(
     map_del_int_String,
     INIT_STRING
 );
-impl_c_map!(
+impl_c_map_put_ref!(
     c_int,
     StcClick,
-    mh_get_int,
     mh_put_int,
-    mh_delete_int,
-    map_ref_int_StcClick,
     map_put_ref_int_StcClick,
-    map_del_int_StcClick,
     INIT_STC_CLICK
 );
-impl_c_map!(
+impl_c_map_put_ref!(
     c_int,
     StcClicks,
-    mh_get_int,
     mh_put_int,
-    mh_delete_int,
-    map_ref_int_StcClicks,
     map_put_ref_int_StcClicks,
-    map_del_int_StcClicks,
     INIT_STC_CLICKS
 );
-impl_c_map!(
+#[cfg(test)]
+impl_c_map_put_ref!(
     ptr_t,
     ptr_t,
-    mh_get_ptr_t,
     mh_put_ptr_t,
-    mh_delete_ptr_t,
-    map_ref_ptr_t_ptr_t,
     map_put_ref_ptr_t_ptr_t,
-    map_del_ptr_t_ptr_t,
     std::ptr::null_mut()
 );
 impl_c_map!(
@@ -935,17 +891,8 @@ impl_c_map!(
     map_del_cstr_t_ptr_t,
     std::ptr::null_mut()
 );
-impl_c_map!(
-    cstr_t,
-    c_int,
-    mh_get_cstr_t,
-    mh_put_cstr_t,
-    mh_delete_cstr_t,
-    map_ref_cstr_t_int,
-    map_put_ref_cstr_t_int,
-    map_del_cstr_t_int,
-    0
-);
+impl_c_map_ref!(cstr_t, c_int, mh_get_cstr_t, map_ref_cstr_t_int);
+impl_c_map_put_ref!(cstr_t, c_int, mh_put_cstr_t, map_put_ref_cstr_t_int, 0);
 impl_c_map!(
     NvimString,
     c_int,
@@ -957,14 +904,17 @@ impl_c_map!(
     map_del_String_int,
     0
 );
-impl_c_map!(
+impl_c_map_put_ref!(
     u32,
     ptr_t,
-    mh_get_uint32_t,
     mh_put_uint32_t,
-    mh_delete_uint32_t,
-    map_ref_uint32_t_ptr_t,
     map_put_ref_uint32_t_ptr_t,
+    std::ptr::null_mut()
+);
+impl_c_map_del!(
+    u32,
+    ptr_t,
+    mh_delete_uint32_t,
     map_del_uint32_t_ptr_t,
     std::ptr::null_mut()
 );
@@ -990,36 +940,26 @@ impl_c_map!(
     map_del_uint64_t_ptr_t,
     std::ptr::null_mut()
 );
-impl_c_map!(
-    u64,
-    c_int,
-    mh_get_uint64_t,
-    mh_put_uint64_t,
-    mh_delete_uint64_t,
-    map_ref_uint64_t_int,
-    map_put_ref_uint64_t_int,
-    map_del_uint64_t_int,
-    0
-);
-impl_c_map!(
+impl_c_map_ref!(u64, c_int, mh_get_uint64_t, map_ref_uint64_t_int);
+impl_c_map_put_ref!(u64, c_int, mh_put_uint64_t, map_put_ref_uint64_t_int, 0);
+impl_c_map_put_ref!(
     u64,
     MTDamagePair,
-    mh_get_uint64_t,
     mh_put_uint64_t,
-    mh_delete_uint64_t,
-    map_ref_uint64_t_MTDamagePair,
     map_put_ref_uint64_t_MTDamagePair,
-    map_del_uint64_t_MTDamagePair,
     INIT_MT_DAMAGE_PAIR
 );
-impl_c_map!(
+impl_c_map_put_ref!(
     i64,
     ptr_t,
-    mh_get_int64_t,
     mh_put_int64_t,
-    mh_delete_int64_t,
-    map_ref_int64_t_ptr_t,
     map_put_ref_int64_t_ptr_t,
+    std::ptr::null_mut()
+);
+impl_c_map_del!(
+    i64,
+    ptr_t,
+    mh_delete_int64_t,
     map_del_int64_t_ptr_t,
     std::ptr::null_mut()
 );
@@ -1034,15 +974,17 @@ impl_c_map!(
     map_del_int64_t_int64_t,
     0
 );
-impl_c_map!(
+impl_c_map_ref!(
     ColorKey,
     ColorItem,
     mh_get_ColorKey,
+    map_ref_ColorKey_ColorItem
+);
+impl_c_map_put_ref!(
+    ColorKey,
+    ColorItem,
     mh_put_ColorKey,
-    mh_delete_ColorKey,
-    map_ref_ColorKey_ColorItem,
     map_put_ref_ColorKey_ColorItem,
-    map_del_ColorKey_ColorItem,
     INIT_COLOR_ITEM
 );
 

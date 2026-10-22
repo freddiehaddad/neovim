@@ -501,12 +501,7 @@ unsafe fn vterm_state_get_key_encoding_disambiguate(state: *const VTermStateFull
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_keyboard_unichar(
-    vt: *mut VTerm,
-    mut c: u32,
-    mut mod_: VTermModifier,
-) {
+pub unsafe fn vterm_keyboard_unichar(vt: *mut VTerm, mut c: u32, mut mod_: VTermModifier) {
     unsafe {
         let passthru = if c == u32::from(b' ') {
             mod_ == VTERM_MOD_NONE
@@ -611,8 +606,7 @@ unsafe fn emit_ss3(vt: *mut VTerm, mod_: VTermModifier, literal: c_int) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_keyboard_key(vt: *mut VTerm, key: VTermKey, mod_: VTermModifier) {
+pub unsafe fn vterm_keyboard_key(vt: *mut VTerm, key: VTermKey, mod_: VTermModifier) {
     if key == VTERM_KEY_NONE {
         return;
     }
@@ -700,8 +694,7 @@ pub unsafe extern "C" fn vterm_keyboard_key(vt: *mut VTerm, key: VTermKey, mod_:
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_keyboard_start_paste(vt: *mut VTerm) {
+pub unsafe fn vterm_keyboard_start_paste(vt: *mut VTerm) {
     unsafe {
         let state: *const VTermStateFull = (*vt).state.cast();
         if ((*state).mode & MODE_BRACKETPASTE_BIT) != 0 {
@@ -710,8 +703,7 @@ pub unsafe extern "C" fn vterm_keyboard_start_paste(vt: *mut VTerm) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_keyboard_end_paste(vt: *mut VTerm) {
+pub unsafe fn vterm_keyboard_end_paste(vt: *mut VTerm) {
     unsafe {
         let state: *const VTermStateFull = (*vt).state.cast();
         if ((*state).mode & MODE_BRACKETPASTE_BIT) != 0 {

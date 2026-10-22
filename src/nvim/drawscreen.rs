@@ -462,8 +462,7 @@ pub unsafe fn check_screensize() {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn redrawing() -> bool {
+pub unsafe fn redrawing() -> bool {
     unsafe { RedrawingDisabled == 0 && !(p_lz != 0 && char_avail() && !KeyTyped && !do_redraw) }
 }
 

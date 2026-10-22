@@ -186,13 +186,7 @@ unsafe fn output_mouse(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_mouse_move(
-    vt: *mut VTerm,
-    row: c_int,
-    col: c_int,
-    mod_: VTermModifier,
-) {
+pub unsafe fn vterm_mouse_move(vt: *mut VTerm, row: c_int, col: c_int, mod_: VTermModifier) {
     unsafe {
         let state = (*vt).state;
 
@@ -220,8 +214,7 @@ pub unsafe extern "C" fn vterm_mouse_move(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_mouse_button(
+pub unsafe fn vterm_mouse_button(
     vt: *mut VTerm,
     button: c_int,
     pressed: bool,

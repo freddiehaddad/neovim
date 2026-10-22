@@ -2515,4 +2515,187 @@ mod tests {
             xfree(cdp.cast());
         }
     }
+
+    #[test]
+    fn build_stl_str_hl_formats_aligns_truncates_and_groups() {
+        use crate::buffer::setfname;
+        use crate::grid::schar_from_str;
+        use std::ffi::{CStr, CString};
+
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        unsafe {
+            crate::main_init::ensure_test_editor_init();
+            emsg_skip += 1;
+
+            let check = |max_cells: c_int,
+                         pat: &str,
+                         expected: &str,
+                         file_name: Option<&str>,
+                         fill: Option<&str>,
+                         exp_cells: Option<c_int>| {
+                if let Some(fname) = file_name {
+                    let mut fn_c = CString::new(fname).unwrap().into_bytes_with_nul();
+                    setfname(curbuf, fn_c.as_mut_ptr().cast(), ptr::null_mut(), true);
+                } else {
+                    setfname(curbuf, ptr::null_mut(), ptr::null_mut(), true);
+                }
+                (*curwin).w_cursor.lnum = 0;
+
+                let fillchar = match fill {
+                    None => schar_from_str(c" ".as_ptr()),
+                    Some("") => 0,
+                    Some(s) => {
+                        let c = CString::new(s).unwrap();
+                        schar_from_str(c.as_ptr())
+                    }
+                };
+
+                let mut out_buf = [b' ' as c_char; 120];
+                let mut pat_c = CString::new(pat).unwrap().into_bytes_with_nul();
+                let cells = build_stl_str_hl(
+                    curwin,
+                    CharBuf {
+                        data: out_buf.as_mut_ptr(),
+                        size: out_buf.len(),
+                    },
+                    pat_c.as_mut_ptr().cast(),
+                    kOptInvalid,
+                    0,
+                    fillchar,
+                    max_cells,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                );
+                let got = CStr::from_ptr(out_buf.as_ptr()).to_str().unwrap();
+                assert_eq!(got, expected, "pat={pat:?}");
+                assert_eq!(cells, exp_cells.unwrap_or(max_cells), "pat={pat:?}");
+            };
+
+            // Expression, file name, fillchar, plain text, line numbers
+            check(2, "%!expand(20+1)", "21", None, None, None);
+            check(11, "%!expand(20+1", "expand(20+1", None, None, None);
+            check(10, "%f", "[No Name]", None, None, Some(9));
+            check(
+                30,
+                "%f",
+                "test/unit/buffer_spec.lua",
+                Some("test/unit/buffer_spec.lua"),
+                None,
+                Some(25),
+            );
+            check(
+                80,
+                "%t",
+                "buffer_spec.lua",
+                Some("test/unit/buffer_spec.lua"),
+                None,
+                Some(15),
+            );
+            check(10, "abcde%=", "abcde!!!!!", None, Some("!"), None);
+            check(10, "%=abcde", "~~~~~abcde", None, Some("~"), None);
+            check(10, "abc%=def", "abc━━━━def", None, Some("━"), None);
+            check(10, "abcde%=", "abcde     ", None, Some(""), None);
+            check(80, "this is a test", "this is a test", None, None, Some(14));
+            check(80, "%n", "1", None, None, Some(1));
+            check(80, "%l", "0", None, None, Some(1));
+            check(80, "%L", "1", None, None, Some(1));
+
+            // Truncation & alignment
+            check(10, "0123456789abcde", "<6789abcde", None, None, None);
+            check(10, "abcdef%=ghijkl", "abcdef<jkl", None, None, None);
+            check(10, "abcde%=gone%=fghij", "abcde<ghij", None, None, None);
+            check(10, "abc%<defghijkl", "abc<ghijkl", None, None, None);
+            check(10, "abc%<def%=ghijklmno", "abc<jklmno", None, None, None);
+            check(10, "abcdef%=ghijkl%<mno", "abcdefghi>", None, None, None);
+            check(3, "abc%", "abc", None, None, None);
+            check(20, "neo%=vim", "neo              vim", None, None, None);
+            check(
+                20,
+                "abc%=neovim%=def",
+                "abc!!!!neovim!!!!def",
+                None,
+                Some("!"),
+                None,
+            );
+            check(
+                21,
+                "abc%=neovim%=def",
+                "abc━━━━neovim━━━━━def",
+                None,
+                Some("━"),
+                None,
+            );
+            check(
+                50,
+                "aaaa%=b%=c%=d%=e%=fg%=hi%=jk%=lmnop%=qrstuv%=wxyz",
+                "aaaa  b  c  d  e  fg  hi  jk  lmnop  qrstuv   wxyz",
+                None,
+                None,
+                None,
+            );
+
+            // Item groups & auto-hiding
+            check(
+                30,
+                "%5(%l%), %5.(%l%), %5.5(%l%), %5.10(%l%)",
+                "    0,     0,     0,     0",
+                None,
+                None,
+                Some(26),
+            );
+            check(
+                30,
+                "%-5(%l%), %-5.(%l%), %-5.5(%l%), %-5.10(%l%)",
+                "0    , 0    , 0    , 0    ",
+                None,
+                None,
+                Some(26),
+            );
+            check(
+                29,
+                "%21(foo%=%7(x%=y%=z%)%=bar%)%=%5(a%=b%=c%)",
+                "foo    x  y  z    bar   a b c",
+                None,
+                None,
+                None,
+            );
+            check(
+                40,
+                "%.24(trim both ends: %<%.17(%f%<%)%), path: %<%f",
+                "trim both ends: <buffer>, path: <pec.lua",
+                Some("test/unit/buffer_spec.lua"),
+                None,
+                None,
+            );
+            check(
+                29,
+                "visible: %(pre-%h%f-post%), hidden: %(pre-%h%w-post%)",
+                "visible: pre-X-post, hidden: ",
+                Some("X"),
+                None,
+                None,
+            );
+            check(
+                29,
+                "visible: %(pre-%{'X'}-post%), hidden: %(pre-%{''}-post%)",
+                "visible: pre-X-post, hidden: ",
+                None,
+                None,
+                None,
+            );
+
+            // Multi-cell truncation & escaping %
+            check(5, "12🙂345", "<345", None, None, Some(4));
+            check(5, "123🙂45%<", "123>", None, None, Some(4));
+            check(4, "abc%%", "abc%", None, None, None);
+            check(3, "abc%%abcabc", "<bc", None, None, None);
+            check(1, "%%", "%", None, None, None);
+
+            emsg_skip -= 1;
+        }
+    }
 }

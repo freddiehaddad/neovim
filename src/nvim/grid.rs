@@ -176,8 +176,7 @@ pub unsafe fn grid_adjust(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn schar_from_str(str_: *const c_char) -> schar_T {
+pub unsafe fn schar_from_str(str_: *const c_char) -> schar_T {
     unsafe {
         if str_.is_null() {
             return 0;
@@ -247,8 +246,7 @@ pub fn schar_high(sc: schar_T) -> bool {
 }
 
 /// Sets final NUL (`schar_get`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn schar_get(mut buf_out: *mut c_char, sc: schar_T) -> usize {
+pub unsafe fn schar_get(mut buf_out: *mut c_char, sc: schar_T) -> usize {
     unsafe {
         let len = schar_get_adv(&raw mut buf_out, sc);
         *buf_out = NUL;

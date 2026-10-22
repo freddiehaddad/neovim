@@ -119,38 +119,35 @@ impl VTermStringFragment {
     }
 }
 
+pub type VTermCsiFn = unsafe fn(
+    leader: *const c_char,
+    args: *const c_long,
+    argcount: c_int,
+    intermed: *const c_char,
+    command: c_char,
+    user: *mut c_void,
+) -> c_int;
+
+pub type VTermDcsFn = unsafe fn(
+    command: *const c_char,
+    commandlen: usize,
+    frag: VTermStringFragment,
+    user: *mut c_void,
+) -> c_int;
+
 #[repr(C)]
 pub struct VTermParserCallbacks {
-    pub text:
-        Option<unsafe extern "C" fn(bytes: *const c_char, len: usize, user: *mut c_void) -> c_int>,
-    pub control: Option<unsafe extern "C" fn(control: u8, user: *mut c_void) -> c_int>,
-    pub escape:
-        Option<unsafe extern "C" fn(bytes: *const c_char, len: usize, user: *mut c_void) -> c_int>,
-    pub csi: Option<
-        unsafe extern "C" fn(
-            leader: *const c_char,
-            args: *const c_long,
-            argcount: c_int,
-            intermed: *const c_char,
-            command: c_char,
-            user: *mut c_void,
-        ) -> c_int,
-    >,
-    pub osc: Option<
-        unsafe extern "C" fn(command: c_int, frag: VTermStringFragment, user: *mut c_void) -> c_int,
-    >,
-    pub dcs: Option<
-        unsafe extern "C" fn(
-            command: *const c_char,
-            commandlen: usize,
-            frag: VTermStringFragment,
-            user: *mut c_void,
-        ) -> c_int,
-    >,
-    pub apc: Option<unsafe extern "C" fn(frag: VTermStringFragment, user: *mut c_void) -> c_int>,
-    pub pm: Option<unsafe extern "C" fn(frag: VTermStringFragment, user: *mut c_void) -> c_int>,
-    pub sos: Option<unsafe extern "C" fn(frag: VTermStringFragment, user: *mut c_void) -> c_int>,
-    pub resize: Option<unsafe extern "C" fn(rows: c_int, cols: c_int, user: *mut c_void) -> c_int>,
+    pub text: Option<unsafe fn(bytes: *const c_char, len: usize, user: *mut c_void) -> c_int>,
+    pub control: Option<unsafe fn(control: u8, user: *mut c_void) -> c_int>,
+    pub escape: Option<unsafe fn(bytes: *const c_char, len: usize, user: *mut c_void) -> c_int>,
+    pub csi: Option<VTermCsiFn>,
+    pub osc:
+        Option<unsafe fn(command: c_int, frag: VTermStringFragment, user: *mut c_void) -> c_int>,
+    pub dcs: Option<VTermDcsFn>,
+    pub apc: Option<unsafe fn(frag: VTermStringFragment, user: *mut c_void) -> c_int>,
+    pub pm: Option<unsafe fn(frag: VTermStringFragment, user: *mut c_void) -> c_int>,
+    pub sos: Option<unsafe fn(frag: VTermStringFragment, user: *mut c_void) -> c_int>,
+    pub resize: Option<unsafe fn(rows: c_int, cols: c_int, user: *mut c_void) -> c_int>,
 }
 
 #[inline]
@@ -280,12 +277,7 @@ unsafe fn string_fragment(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_input_write(
-    vt: *mut VTerm,
-    bytes: *const c_char,
-    len: usize,
-) -> usize {
+pub unsafe fn vterm_input_write(vt: *mut VTerm, bytes: *const c_char, len: usize) -> usize {
     unsafe {
         let mut pos: usize = 0;
         let mut string_start: *const c_char = match (*vt).parser.state {
@@ -591,8 +583,7 @@ pub unsafe extern "C" fn vterm_input_write(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_parser_set_callbacks(
+pub unsafe fn vterm_parser_set_callbacks(
     vt: *mut VTerm,
     callbacks: *const VTermParserCallbacks,
     user: *mut c_void,

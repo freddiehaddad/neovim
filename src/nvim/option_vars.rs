@@ -130,7 +130,6 @@ pub static mut p_hid: c_int = 0;
 pub static mut p_hl: *mut c_char = ptr::null_mut();
 pub static mut p_hls: c_int = 0;
 pub static mut p_hi: OptInt = 0;
-#[unsafe(no_mangle)]
 pub static mut p_arshape: c_int = 0;
 pub static mut p_icon: c_int = 0;
 pub static mut p_iconstring: *mut c_char = ptr::null_mut();
@@ -234,15 +233,11 @@ pub static mut p_sel: *mut c_char = ptr::null_mut();
 pub static mut p_slm: *mut c_char = ptr::null_mut();
 pub static mut p_ssop: *mut c_char = ptr::null_mut();
 pub static mut ssop_flags: c_uint = 0;
-#[unsafe(no_mangle)]
 pub static mut p_sh: *mut c_char = ptr::null_mut();
-#[unsafe(no_mangle)]
 pub static mut p_shcf: *mut c_char = ptr::null_mut();
 pub static mut p_sp: *mut c_char = ptr::null_mut();
 pub static mut p_shq: *mut c_char = ptr::null_mut();
-#[unsafe(no_mangle)]
 pub static mut p_sxq: *mut c_char = ptr::null_mut();
-#[unsafe(no_mangle)]
 pub static mut p_sxe: *mut c_char = ptr::null_mut();
 pub static mut p_srr: *mut c_char = ptr::null_mut();
 pub static mut p_stmp: c_int = 0;
@@ -297,7 +292,6 @@ pub static mut p_tl: OptInt = 0;
 pub static mut p_tr: c_int = 0;
 pub static mut p_tags: *mut c_char = ptr::null_mut();
 pub static mut p_tgst: c_int = 0;
-#[unsafe(no_mangle)]
 pub static mut p_tbidi: c_int = 0;
 pub static mut p_tw: OptInt = 0;
 pub static mut p_to: c_int = 0;
@@ -312,7 +306,6 @@ pub static mut p_tgc: c_int = 0;
 pub static mut p_ttimeout: c_int = 0;
 pub static mut p_ttm: OptInt = 0;
 pub static mut p_tf: c_int = 0;
-#[unsafe(no_mangle)]
 pub static mut p_udir: *mut c_char = ptr::null_mut();
 pub static mut p_udf: c_int = 0;
 pub static mut p_ul: OptInt = 0;

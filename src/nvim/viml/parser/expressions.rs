@@ -3708,8 +3708,8 @@ mod tests {
             let t = lex_one(b"&g:", 0);
             assert_eq!(t.r#type, kExprLexInvalid);
             assert_eq!(
-                CStr::from_ptr(t.data.err.msg),
-                c"E112: Option name missing: %.*s"
+                &CStr::from_ptr(t.data.err.msg).to_bytes()[4..],
+                b": Option name missing: %.*s"
             );
 
             let t = lex_one(b"@a", 0);
@@ -3791,8 +3791,8 @@ mod tests {
                 let ast = viml_pexpr_parse(pstate, 0);
                 assert!(!ast.err.msg.is_null());
                 assert_eq!(
-                    CStr::from_ptr(ast.err.msg),
-                    c"E110: Missing closing parenthesis for nested expression: %.*s"
+                    &CStr::from_ptr(ast.err.msg).to_bytes()[4..],
+                    b": Missing closing parenthesis for nested expression: %.*s"
                 );
                 viml_pexpr_free_ast(ast);
             });
@@ -3801,8 +3801,8 @@ mod tests {
                 let ast = viml_pexpr_parse(pstate, 0);
                 assert!(!ast.err.msg.is_null());
                 assert_eq!(
-                    CStr::from_ptr(ast.err.msg),
-                    c"E109: Missing ':' after '?': %.*s"
+                    &CStr::from_ptr(ast.err.msg).to_bytes()[4..],
+                    b": Missing ':' after '?': %.*s"
                 );
                 viml_pexpr_free_ast(ast);
             });

@@ -978,8 +978,7 @@ pub unsafe fn bufref_valid(bufref: *mut bufref_T) -> bool {
 }
 
 /// Check that `buf` points to a valid buffer in the buffer list.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buf_valid(buf: *mut buf_T) -> bool {
+pub unsafe fn buf_valid(buf: *mut buf_T) -> bool {
     if buf.is_null() {
         return false;
     }
@@ -1042,8 +1041,7 @@ pub unsafe fn buf_close_terminal(buf: *mut buf_T) {
 }
 
 /// Close the link to a buffer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn close_buffer(
+pub unsafe fn close_buffer(
     win: *mut win_T,
     buf: *mut buf_T,
     action: c_int,
@@ -2416,8 +2414,7 @@ unsafe fn buf_init_changedtick(buf: *mut buf_T) {
 }
 
 /// Add a file name to the buffer list.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buflist_new(
+pub unsafe fn buflist_new(
     ffname_arg: *mut c_char,
     sfname_arg: *mut c_char,
     lnum: linenr_T,
@@ -2855,8 +2852,7 @@ unsafe fn buflist_findname_file_id(
 }
 
 /// Find file in buffer list by a regexp pattern.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn buflist_findpat(
+pub unsafe fn buflist_findpat(
     pattern: *const c_char,
     pattern_end: *const c_char,
     unlisted: bool,
@@ -3590,8 +3586,7 @@ pub unsafe fn buflist_name_nr(fnum: c_int, fname: *mut *mut c_char, lnum: *mut l
 }
 
 /// Set the file name for `buf` to `ffname_arg`, short file name to `sfname_arg`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn setfname(
+pub unsafe fn setfname(
     buf: *mut buf_T,
     ffname_arg: *mut c_char,
     sfname_arg: *mut c_char,
@@ -3976,8 +3971,7 @@ pub unsafe fn col_print(buf: *mut c_char, buflen: usize, col: c_int, vcol: c_int
 }
 
 /// Put the title name in the title bar and icon of the window.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn maketitle() {
+pub unsafe fn maketitle() {
     unsafe {
         let mut title_str: *mut c_char = ptr::null_mut();
         let mut icon_str: *mut c_char = ptr::null_mut();
@@ -4917,6 +4911,87 @@ mod tests {
             assert!(!bt_terminal(ptr::null()));
             assert!(!bt_nofile(ptr::null()));
             assert!(!bt_dontwrite(ptr::null()));
+        }
+    }
+
+    #[test]
+    fn buf_valid_and_buflist_findpat_work() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        unsafe {
+            crate::main_init::ensure_test_editor_init();
+            emsg_skip += 1;
+
+            assert!(!buf_valid(ptr::null_mut()));
+
+            let mut p1 = *b"test_file_path\0";
+            let mut p2 = *b"file_path_test\0";
+            let mut p3 = *b"path_test_file\0";
+
+            let buf = buflist_new(
+                p1.as_mut_ptr().cast(),
+                p1.as_mut_ptr().cast(),
+                1,
+                BLN_LISTED,
+            );
+            assert!(buf_valid(buf));
+            close_buffer(ptr::null_mut(), buf, 0, false, false, false);
+            assert!(buf_valid(buf));
+            close_buffer(ptr::null_mut(), buf, DOBUF_UNLOAD, false, false, false);
+            assert!(buf_valid(buf));
+            close_buffer(ptr::null_mut(), buf, DOBUF_WIPE, false, false, false);
+            assert!(!buf_valid(buf));
+
+            let findpat = |pat: &CStr, allow_unlisted: bool| -> c_int {
+                buflist_findpat(pat.as_ptr(), ptr::null(), allow_unlisted, false, false)
+            };
+
+            let buf1 = buflist_new(
+                p1.as_mut_ptr().cast(),
+                p1.as_mut_ptr().cast(),
+                1,
+                BLN_LISTED,
+            );
+            let buf2 = buflist_new(
+                p2.as_mut_ptr().cast(),
+                p2.as_mut_ptr().cast(),
+                1,
+                BLN_LISTED,
+            );
+            let buf3 = buflist_new(
+                p3.as_mut_ptr().cast(),
+                p3.as_mut_ptr().cast(),
+                1,
+                BLN_LISTED,
+            );
+
+            assert_eq!(findpat(c"test_file_path", false), (*buf1).b_fnum);
+            assert_eq!(findpat(c"test", false), (*buf1).b_fnum);
+            assert_eq!(findpat(c"file", false), (*buf2).b_fnum);
+            assert_eq!(findpat(c"path", false), (*buf3).b_fnum);
+            assert_eq!(findpat(c"_test_", false), (*buf3).b_fnum);
+
+            // Include / ignore unlisted buffers based on the flag
+            close_buffer(ptr::null_mut(), buf3, DOBUF_DEL, false, false, false);
+            assert_eq!(findpat(c"_test_", false), -1);
+            assert_eq!(findpat(c"_test_", true), (*buf3).b_fnum);
+            close_buffer(ptr::null_mut(), buf3, DOBUF_WIPE, false, false, false);
+            assert_eq!(findpat(c"_test_", false), -1);
+            assert_eq!(findpat(c"_test_", true), -1);
+
+            // Unlisted vs listed preference
+            close_buffer(ptr::null_mut(), buf1, DOBUF_DEL, false, false, false);
+            assert_eq!(findpat(c"test", false), (*buf2).b_fnum);
+            assert_eq!(findpat(c"test", true), (*buf2).b_fnum);
+            close_buffer(ptr::null_mut(), buf2, DOBUF_DEL, false, false, false);
+            assert_eq!(findpat(c"test", true), (*buf1).b_fnum);
+            assert_eq!(findpat(c"test", false), -1);
+
+            close_buffer(ptr::null_mut(), buf1, DOBUF_WIPE, false, false, false);
+            close_buffer(ptr::null_mut(), buf2, DOBUF_WIPE, false, false, false);
+
+            emsg_skip -= 1;
         }
     }
 }

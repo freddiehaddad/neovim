@@ -14,12 +14,13 @@ pub(crate) const fn bytes_to_chars<const N: usize>(b: &[u8; N]) -> [c_char; N] {
 
 macro_rules! def_err {
     ($name:ident, $s:literal) => {
-        #[unsafe(no_mangle)]
         pub static $name: [c_char; $s.len()] = bytes_to_chars($s);
     };
 }
 
+#[cfg(test)]
 def_err!(e_abort, b"E470: Command aborted\0");
+#[cfg(test)]
 def_err!(e_afterinit, b"E905: Cannot set this option after startup\0");
 def_err!(e_api_spawn_failed, b"E903: Could not spawn API job\0");
 def_err!(e_argreq, b"E471: Argument required\0");
@@ -68,6 +69,7 @@ def_err!(e_isadir2, b"E17: \"%s\" is a directory\0");
 def_err!(e_no_spell, b"E756: Spell checking is not possible\0");
 def_err!(e_invchan, b"E900: Invalid channel id\0");
 def_err!(e_invchanjob, b"E900: Invalid channel id: not a job\0");
+#[cfg(test)]
 def_err!(e_jobtblfull, b"E901: Job table is full\0");
 def_err!(e_jobspawn, b"E903: Process failed to start: %s: \"%s\"\0");
 def_err!(e_channotpty, b"E904: channel is not a pty\0");
@@ -198,6 +200,7 @@ def_err!(
 def_err!(e_screenmode, b"E359: Screen mode setting not supported\0");
 def_err!(e_scroll, b"E49: Invalid scroll size\0");
 def_err!(e_shellempty, b"E91: 'shell' option is empty\0");
+#[cfg(test)]
 def_err!(e_signdata, b"E255: Couldn't read in sign data!\0");
 def_err!(e_swapclose, b"E72: Close error on swap file\0");
 def_err!(e_command_too_complex, b"E74: Command too complex\0");
@@ -207,6 +210,7 @@ def_err!(e_toomany, b"E77: Too many file names (glob not allowed)\0");
 def_err!(e_trailing, b"E488: Trailing characters\0");
 def_err!(e_trailing_arg, b"E488: Trailing characters: %s\0");
 def_err!(e_umark, b"E78: Unknown mark\0");
+#[cfg(any(unix, test))]
 def_err!(e_wildexpand, b"E79: Cannot expand wildcards\0");
 def_err!(
     e_winheight,
@@ -259,6 +263,7 @@ def_err!(
 def_err!(e_invalpat, b"E682: Invalid search pattern or delimiter\0");
 def_err!(e_bufloaded, b"E139: File is loaded in another buffer\0");
 def_err!(e_notset, b"E764: Option '%s' is not set\0");
+#[cfg(test)]
 def_err!(e_invalidreg, b"E850: Invalid register name\0");
 def_err!(e_dirnotf, b"E919: Directory not found in '%s': \"%s\"\0");
 def_err!(
@@ -290,6 +295,7 @@ def_err!(
 );
 def_err!(e_listarg, b"E686: Argument of %s must be a List\0");
 def_err!(e_unsupportedoption, b"E519: Option not supported\0");
+#[cfg(test)]
 def_err!(e_fnametoolong, b"E856: Filename too long\0");
 def_err!(
     e_using_float_as_string,
@@ -490,5 +496,16 @@ mod tests {
         assert_eq!(&invarg.to_bytes()[4..], b": Invalid argument");
         let lmsg = unsafe { CStr::from_ptr(line_msg.as_ptr()) };
         assert_eq!(lmsg.to_bytes(), b" line ");
+        for ptr in [
+            e_afterinit.as_ptr(),
+            e_jobtblfull.as_ptr(),
+            e_signdata.as_ptr(),
+            e_wildexpand.as_ptr(),
+            e_invalidreg.as_ptr(),
+            e_fnametoolong.as_ptr(),
+        ] {
+            let s = unsafe { CStr::from_ptr(ptr).to_bytes() };
+            assert!(s.starts_with(b"E"));
+        }
     }
 }

@@ -1222,8 +1222,7 @@ pub unsafe fn mb_string2cells_len(str_: *const c_char, size: usize) -> usize {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_ptr2char(p_in: *const c_char) -> c_int {
+pub unsafe fn utf_ptr2char(p_in: *const c_char) -> c_int {
     unsafe {
         let p = p_in.cast::<u8>();
         let v0 = u32::from(*p);
@@ -1399,8 +1398,7 @@ pub unsafe fn utfc_ptrlen2schar(p: *const c_char, mut len: c_int, firstc: *mut c
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_ptr2len(p_in: *const c_char) -> c_int {
+pub unsafe fn utf_ptr2len(p_in: *const c_char) -> c_int {
     unsafe {
         let p = p_in.cast::<u8>();
         if *p == 0 {
@@ -1437,8 +1435,7 @@ pub unsafe fn utf_ptr2len_len(p: *const c_char, size: c_int) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utfc_ptr2len(p: *const c_char) -> c_int {
+pub unsafe fn utfc_ptr2len(p: *const c_char) -> c_int {
     unsafe {
         let b0 = *p.cast::<u8>();
         if b0 == 0 {
@@ -3180,12 +3177,7 @@ pub unsafe fn f_iconv(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn convert_setup(
-    vcp: *mut vimconv_T,
-    from: *mut c_char,
-    to: *mut c_char,
-) -> c_int {
+pub unsafe fn convert_setup(vcp: *mut vimconv_T, from: *mut c_char, to: *mut c_char) -> c_int {
     unsafe { convert_setup_ext(vcp, from, true, to, true) }
 }
 

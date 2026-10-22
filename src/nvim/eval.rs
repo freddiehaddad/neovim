@@ -2267,8 +2267,7 @@ pub unsafe fn clear_evalarg(evalarg: *mut evalarg_T, eap: *mut exarg_T) {
 }
 
 /// Handle zero level expression.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn eval0(
+pub unsafe fn eval0(
     arg: *mut c_char,
     rettv: *mut typval_T,
     eap: *mut exarg_T,
@@ -7801,6 +7800,60 @@ mod tests {
             assert!(val.is_infinite() && val.is_sign_negative());
             assert_eq!(string2float(c"nan".as_ptr(), &raw mut val), 3);
             assert!(val.is_nan());
+        }
+    }
+
+    #[test]
+    fn test_null_typval_from_unexistent_env_and_null_vimvars() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        unsafe {
+            crate::main_init::ensure_test_editor_init();
+
+            let mut expr1 = *b"$XXX_UNEXISTENT_VAR_XXX\0";
+            let mut rettv = tv_initial_value();
+            let mut evalarg = EVALARG_EVALUATE;
+            assert_eq!(
+                eval0(
+                    expr1.as_mut_ptr().cast(),
+                    &raw mut rettv,
+                    ptr::null_mut(),
+                    &raw mut evalarg
+                ),
+                OK
+            );
+            assert_eq!(rettv.v_type, VarType::VAR_STRING);
+            assert!(rettv.vval.v_string.is_null());
+            tv_clear(&raw mut rettv);
+
+            let mut expr2 = *b"v:_null_list\0";
+            assert_eq!(
+                eval0(
+                    expr2.as_mut_ptr().cast(),
+                    &raw mut rettv,
+                    ptr::null_mut(),
+                    &raw mut evalarg
+                ),
+                OK
+            );
+            assert_eq!(rettv.v_type, VarType::VAR_LIST);
+            assert!(rettv.vval.v_list.is_null());
+            tv_clear(&raw mut rettv);
+
+            let mut expr3 = *b"v:_null_dict\0";
+            assert_eq!(
+                eval0(
+                    expr3.as_mut_ptr().cast(),
+                    &raw mut rettv,
+                    ptr::null_mut(),
+                    &raw mut evalarg
+                ),
+                OK
+            );
+            assert_eq!(rettv.v_type, VarType::VAR_DICT);
+            assert!(rettv.vval.v_dict.is_null());
+            tv_clear(&raw mut rettv);
         }
     }
 }

@@ -122,43 +122,22 @@ pub static mut vterm_primary_device_attr: [c_char; 9] = [
 
 #[repr(C)]
 pub struct VTermStateFallbacks {
-    pub control: Option<unsafe extern "C" fn(control: u8, user: *mut c_void) -> c_int>,
-    pub csi: Option<
-        unsafe extern "C" fn(
-            leader: *const c_char,
-            args: *const c_long,
-            argcount: c_int,
-            intermed: *const c_char,
-            command: c_char,
-            user: *mut c_void,
-        ) -> c_int,
-    >,
-    pub osc: Option<
-        unsafe extern "C" fn(command: c_int, frag: VTermStringFragment, user: *mut c_void) -> c_int,
-    >,
-    pub dcs: Option<
-        unsafe extern "C" fn(
-            command: *const c_char,
-            commandlen: usize,
-            frag: VTermStringFragment,
-            user: *mut c_void,
-        ) -> c_int,
-    >,
-    pub apc: Option<unsafe extern "C" fn(frag: VTermStringFragment, user: *mut c_void) -> c_int>,
-    pub pm: Option<unsafe extern "C" fn(frag: VTermStringFragment, user: *mut c_void) -> c_int>,
-    pub sos: Option<unsafe extern "C" fn(frag: VTermStringFragment, user: *mut c_void) -> c_int>,
+    pub control: Option<unsafe fn(control: u8, user: *mut c_void) -> c_int>,
+    pub csi: Option<crate::vterm::parser::VTermCsiFn>,
+    pub osc:
+        Option<unsafe fn(command: c_int, frag: VTermStringFragment, user: *mut c_void) -> c_int>,
+    pub dcs: Option<crate::vterm::parser::VTermDcsFn>,
+    pub apc: Option<unsafe fn(frag: VTermStringFragment, user: *mut c_void) -> c_int>,
+    pub pm: Option<unsafe fn(frag: VTermStringFragment, user: *mut c_void) -> c_int>,
+    pub sos: Option<unsafe fn(frag: VTermStringFragment, user: *mut c_void) -> c_int>,
 }
 
 #[repr(C)]
 pub struct VTermSelectionCallbacks {
     pub set: Option<
-        unsafe extern "C" fn(
-            mask: VTermSelectionMask,
-            frag: VTermStringFragment,
-            user: *mut c_void,
-        ) -> c_int,
+        unsafe fn(mask: VTermSelectionMask, frag: VTermStringFragment, user: *mut c_void) -> c_int,
     >,
-    pub query: Option<unsafe extern "C" fn(mask: VTermSelectionMask, user: *mut c_void) -> c_int>,
+    pub query: Option<unsafe fn(mask: VTermSelectionMask, user: *mut c_void) -> c_int>,
 }
 
 #[inline]
@@ -296,12 +275,7 @@ unsafe fn set_tmp_selection_recvpartial(state: *mut VTermStateFull, val: u32) {
     }
 }
 
-unsafe extern "C" fn putglyph(
-    state: *mut VTermStateFull,
-    schar: schar_T,
-    width: c_int,
-    pos: VTermPos,
-) {
+unsafe fn putglyph(state: *mut VTermStateFull, schar: schar_T, width: c_int, pos: VTermPos) {
     unsafe {
         let lineinfo = (*state).lineinfo.cast::<VTermLineInfo>();
         let li = *lineinfo.add(pos.row as usize);
@@ -343,7 +317,7 @@ unsafe fn updatecursor(state: *mut VTermStateFull, oldpos: *const VTermPos, canc
     }
 }
 
-unsafe extern "C" fn erase(state: *mut VTermStateFull, rect: VTermRect, selective: c_int) {
+unsafe fn erase(state: *mut VTermStateFull, rect: VTermRect, selective: c_int) {
     unsafe {
         if rect.end_col == (*state).cols {
             let lineinfo = (*state).lineinfo.cast::<VTermLineInfo>();
@@ -626,7 +600,7 @@ unsafe fn set_lineinfo(
     }
 }
 
-unsafe extern "C" fn on_text(bytes: *const c_char, len: usize, user: *mut c_void) -> c_int {
+unsafe fn on_text(bytes: *const c_char, len: usize, user: *mut c_void) -> c_int {
     unsafe {
         let state = user.cast::<VTermStateFull>();
         let oldpos = (*state).pos;
@@ -770,7 +744,7 @@ unsafe extern "C" fn on_text(bytes: *const c_char, len: usize, user: *mut c_void
     }
 }
 
-unsafe extern "C" fn on_control(control: u8, user: *mut c_void) -> c_int {
+unsafe fn on_control(control: u8, user: *mut c_void) -> c_int {
     unsafe {
         let state = user.cast::<VTermStateFull>();
         let oldpos = (*state).pos;
@@ -926,7 +900,7 @@ unsafe fn savecursor(state: *mut VTermStateFull, save: c_int) {
     }
 }
 
-unsafe extern "C" fn on_escape(bytes: *const c_char, len: usize, user: *mut c_void) -> c_int {
+unsafe fn on_escape(bytes: *const c_char, len: usize, user: *mut c_void) -> c_int {
     unsafe {
         let state = user.cast::<VTermStateFull>();
 
@@ -1332,7 +1306,7 @@ const fn intermed(i: c_int, b: c_int) -> c_int {
     (i << 16) | b
 }
 
-unsafe extern "C" fn on_csi(
+unsafe fn on_csi(
     leader_ptr: *const c_char,
     args: *const c_long,
     argcount: c_int,
@@ -2303,7 +2277,7 @@ unsafe fn osc_selection(state: *mut VTermStateFull, frag: VTermStringFragment) {
     }
 }
 
-unsafe extern "C" fn on_osc(command: c_int, frag: VTermStringFragment, user: *mut c_void) -> c_int {
+unsafe fn on_osc(command: c_int, frag: VTermStringFragment, user: *mut c_void) -> c_int {
     unsafe {
         let state = user.cast::<VTermStateFull>();
 
@@ -2479,7 +2453,7 @@ unsafe fn request_status_string(state: *mut VTermStateFull, frag: VTermStringFra
     }
 }
 
-unsafe extern "C" fn on_dcs(
+unsafe fn on_dcs(
     command: *const c_char,
     commandlen: usize,
     frag: VTermStringFragment,
@@ -2505,7 +2479,7 @@ unsafe extern "C" fn on_dcs(
     }
 }
 
-unsafe extern "C" fn on_apc(frag: VTermStringFragment, user: *mut c_void) -> c_int {
+unsafe fn on_apc(frag: VTermStringFragment, user: *mut c_void) -> c_int {
     unsafe {
         let state = user.cast::<VTermStateFull>();
         let fallbacks = (*state).fallbacks.cast::<VTermStateFallbacks>();
@@ -2519,7 +2493,7 @@ unsafe extern "C" fn on_apc(frag: VTermStringFragment, user: *mut c_void) -> c_i
     }
 }
 
-unsafe extern "C" fn on_pm(frag: VTermStringFragment, user: *mut c_void) -> c_int {
+unsafe fn on_pm(frag: VTermStringFragment, user: *mut c_void) -> c_int {
     unsafe {
         let state = user.cast::<VTermStateFull>();
         let fallbacks = (*state).fallbacks.cast::<VTermStateFallbacks>();
@@ -2533,7 +2507,7 @@ unsafe extern "C" fn on_pm(frag: VTermStringFragment, user: *mut c_void) -> c_in
     }
 }
 
-unsafe extern "C" fn on_sos(frag: VTermStringFragment, user: *mut c_void) -> c_int {
+unsafe fn on_sos(frag: VTermStringFragment, user: *mut c_void) -> c_int {
     unsafe {
         let state = user.cast::<VTermStateFull>();
         let fallbacks = (*state).fallbacks.cast::<VTermStateFallbacks>();
@@ -2547,7 +2521,7 @@ unsafe extern "C" fn on_sos(frag: VTermStringFragment, user: *mut c_void) -> c_i
     }
 }
 
-unsafe extern "C" fn on_resize(rows: c_int, cols: c_int, user: *mut c_void) -> c_int {
+unsafe fn on_resize(rows: c_int, cols: c_int, user: *mut c_void) -> c_int {
     unsafe {
         let state = user.cast::<VTermStateFull>();
         let oldpos = (*state).pos;
@@ -2679,8 +2653,7 @@ static PARSER_CALLBACKS: VTermParserCallbacks = VTermParserCallbacks {
     resize: Some(on_resize),
 };
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_obtain_state(vt: *mut VTerm) -> *mut VTermStateFull {
+pub unsafe fn vterm_obtain_state(vt: *mut VTerm) -> *mut VTermStateFull {
     unsafe {
         if !(*vt).state.is_null() {
             return (*vt).state.cast();
@@ -2695,8 +2668,7 @@ pub unsafe extern "C" fn vterm_obtain_state(vt: *mut VTerm) -> *mut VTermStateFu
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_state_reset(state: *mut VTermStateFull, hard: c_int) {
+pub unsafe fn vterm_state_reset(state: *mut VTermStateFull, hard: c_int) {
     unsafe {
         (*state).scrollregion_top = 0;
         (*state).scrollregion_bottom = -1;
@@ -2778,8 +2750,7 @@ pub unsafe extern "C" fn vterm_state_reset(state: *mut VTermStateFull, hard: c_i
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_state_set_callbacks(
+pub unsafe fn vterm_state_set_callbacks(
     state: *mut VTermStateFull,
     callbacks: *const VTermStateCallbacks,
     user: *mut c_void,
@@ -2799,8 +2770,7 @@ pub unsafe extern "C" fn vterm_state_set_callbacks(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_state_set_unrecognised_fallbacks(
+pub unsafe fn vterm_state_set_unrecognised_fallbacks(
     state: *mut VTermStateFull,
     fallbacks: *const VTermStateFallbacks,
     user: *mut c_void,
@@ -2900,8 +2870,7 @@ pub unsafe fn vterm_state_set_termprop(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_state_focus_in(state: *mut VTermStateFull) {
+pub unsafe fn vterm_state_focus_in(state: *mut VTermStateFull) {
     unsafe {
         if ((*state).mode & MODE_REPORT_FOCUS) != 0 {
             vterm_push_output_ctrl_bytes((*state).vt, C1_CSI, b"I");
@@ -2909,8 +2878,7 @@ pub unsafe extern "C" fn vterm_state_focus_in(state: *mut VTermStateFull) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_state_focus_out(state: *mut VTermStateFull) {
+pub unsafe fn vterm_state_focus_out(state: *mut VTermStateFull) {
     unsafe {
         if ((*state).mode & MODE_REPORT_FOCUS) != 0 {
             vterm_push_output_ctrl_bytes((*state).vt, C1_CSI, b"O");
@@ -2918,16 +2886,14 @@ pub unsafe extern "C" fn vterm_state_focus_out(state: *mut VTermStateFull) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_state_get_lineinfo(
+pub unsafe fn vterm_state_get_lineinfo(
     state: *const VTermStateFull,
     row: c_int,
 ) -> *const VTermLineInfo {
     unsafe { (*state).lineinfo.cast::<VTermLineInfo>().add(row as usize) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_state_set_selection_callbacks(
+pub unsafe fn vterm_state_set_selection_callbacks(
     state: *mut VTermStateFull,
     callbacks: *const VTermSelectionCallbacks,
     user: *mut c_void,

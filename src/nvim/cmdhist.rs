@@ -95,8 +95,7 @@ pub unsafe fn get_hisidx(hist_type: c_int) -> *mut c_int {
 }
 
 /// Translate a history character to the associated `HistoryType` (`hist_char2type`).
-#[unsafe(no_mangle)]
-pub const extern "C" fn hist_char2type(c: c_int) -> c_int {
+pub const fn hist_char2type(c: c_int) -> c_int {
     match c as u8 {
         b':' => HIST_CMD,
         b'=' => HIST_EXPR,

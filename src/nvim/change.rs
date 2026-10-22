@@ -178,8 +178,7 @@ pub unsafe fn change_warning(buf: *mut buf_T, col: c_int) {
 }
 
 /// Call this function when something in a buffer is changed.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn changed(buf: *mut buf_T) {
+pub unsafe fn changed(buf: *mut buf_T) {
     unsafe {
         if (*buf).b_changed == 0 {
             let save_msg_scroll = msg_scroll;
@@ -645,8 +644,7 @@ pub unsafe fn changed_lines(
 }
 
 /// Called when the changed flag must be reset for buffer `buf`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn unchanged(buf: *mut buf_T, ff: bool, always_inc_changedtick: bool) {
+pub unsafe fn unchanged(buf: *mut buf_T, ff: bool, always_inc_changedtick: bool) {
     unsafe {
         if (*buf).b_changed != 0 || (ff && file_ff_differs(buf, false)) {
             let was_changed = (*buf).b_changed != 0;

@@ -21,8 +21,7 @@ pub(crate) const K_PATH_CMP_LITERAL: c_int = 1 << 0;
 ///
 /// # Safety
 /// `gap` must be a valid writable pointer to a `garray_T`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ga_clear(gap: *mut garray_T) {
+pub unsafe fn ga_clear(gap: *mut garray_T) {
     let gap = unsafe { &mut *gap };
     unsafe {
         xfree(gap.ga_data);
@@ -55,8 +54,7 @@ pub unsafe fn ga_clear_strings(gap: *mut garray_T) {
 ///
 /// # Safety
 /// `gap` must be a valid writable pointer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ga_init(gap: *mut garray_T, itemsize: c_int, growsize: c_int) {
+pub unsafe fn ga_init(gap: *mut garray_T, itemsize: c_int, growsize: c_int) {
     let gap_ref = unsafe { &mut *gap };
     gap_ref.ga_data = std::ptr::null_mut();
     gap_ref.ga_maxlen = 0;

@@ -3808,11 +3808,8 @@ static LONG_VERSION_BUF: [u8; 256] =
     make_cstr_buf_or(option_env!("NVIM_VERSION_LONG"), "NVIM v0.13.0-dev");
 static VERSION_BUILD_BUF: [u8; 256] = make_cstr_buf(option_env!("NVIM_VERSION_BUILD"));
 
-#[unsafe(no_mangle)]
 pub static nvim_version_major: c_int = parse_version_int(option_env!("NVIM_VERSION_MAJOR"), 0);
-#[unsafe(no_mangle)]
 pub static nvim_version_minor: c_int = parse_version_int(option_env!("NVIM_VERSION_MINOR"), 13);
-#[unsafe(no_mangle)]
 pub static nvim_version_patch: c_int = parse_version_int(option_env!("NVIM_VERSION_PATCH"), 0);
 pub const nvim_version_prerelease: bool = match option_env!("NVIM_VERSION_PRERELEASE") {
     Some(s) => !s.is_empty(),
@@ -3842,7 +3839,6 @@ pub static mut default_lib_dir: *mut c_char =
     (&raw const DEFAULT_LIB_DIR_BUF).cast::<c_char>().cast_mut();
 pub static main_exitfree: bool = env_flag_enabled(option_env!("NVIM_EXITFREE"), false);
 pub static mut longVersion: *mut c_char = (&raw const LONG_VERSION_BUF).cast::<c_char>().cast_mut();
-#[unsafe(no_mangle)]
 pub static mut nvim_version_build: *const c_char = if match option_env!("NVIM_VERSION_BUILD") {
     Some(s) => !s.is_empty(),
     None => false,

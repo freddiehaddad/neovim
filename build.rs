@@ -86,16 +86,13 @@ fn main() {
     println!("cargo:rustc-env=NVIM_API_LEVEL_COMPAT={api_compat}");
     println!("cargo:rustc-env=NVIM_API_PRERELEASE={api_prerelease}");
 
-    if env::var("VTERM_TEST_FILE").is_err() {
-        let vterm_test_file = manifest_dir
-            .join("target")
-            .join("nvim-build")
-            .join("test")
-            .join("vterm_test_output");
-        println!(
-            "cargo:rustc-env=VTERM_TEST_FILE={}",
-            vterm_test_file.display()
-        );
+    if env::var("NVIM_DEFAULT_VIM_DIR").is_err() {
+        let default_vim_dir = if cfg!(windows) {
+            "C:/Program Files/nvim/share/nvim"
+        } else {
+            "/usr/local/share/nvim"
+        };
+        println!("cargo:rustc-env=NVIM_DEFAULT_VIM_DIR={default_vim_dir}");
     }
 
     if env::var("NVIM_VERSION_LONG").is_err() {

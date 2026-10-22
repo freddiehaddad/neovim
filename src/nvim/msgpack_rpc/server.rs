@@ -66,8 +66,7 @@ unsafe fn watcher_tcp_addrinfo(watcher: *mut SocketWatcher) -> *mut c_void {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn server_init(mut listen_addr: *const c_char) -> bool {
+pub unsafe fn server_init(mut listen_addr: *const c_char) -> bool {
     unsafe {
         let mut ok = true;
         let mut must_free = false;

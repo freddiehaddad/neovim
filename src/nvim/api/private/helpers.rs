@@ -927,8 +927,7 @@ pub unsafe fn arena_take_arraybuilder(arena: *mut Arena, arr: *mut ArrayBuilder)
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn api_free_object(value: Object) {
+pub unsafe fn api_free_object(value: Object) {
     unsafe {
         match value.obj_type {
             ObjectType::kObjectTypeUnset

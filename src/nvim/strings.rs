@@ -3063,7 +3063,7 @@ unsafe fn byteidx_common(argvars: *mut typval_T, rettv: *mut typval_T, comp: boo
             }
         }
 
-        let ptr2len: unsafe extern "C" fn(*const c_char) -> c_int =
+        let ptr2len: unsafe fn(*const c_char) -> c_int =
             if comp { utf_ptr2len } else { utfc_ptr2len };
 
         let mut t = str_;
@@ -3133,7 +3133,7 @@ pub unsafe fn f_charidx(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
             }
         }
 
-        let ptr2len: unsafe extern "C" fn(*const c_char) -> c_int = if countcc != 0 {
+        let ptr2len: unsafe fn(*const c_char) -> c_int = if countcc != 0 {
             utf_ptr2len
         } else {
             utfc_ptr2len
@@ -3614,7 +3614,7 @@ pub unsafe fn f_utf16idx(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             }
         }
 
-        let ptr2len: unsafe extern "C" fn(*const c_char) -> c_int = if countcc != 0 {
+        let ptr2len: unsafe fn(*const c_char) -> c_int = if countcc != 0 {
             utf_ptr2len
         } else {
             utfc_ptr2len

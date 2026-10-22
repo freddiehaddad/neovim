@@ -262,8 +262,7 @@ unsafe fn strnicmp_ascii(a: *const c_char, b: &[u8]) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn event_init() {
+pub unsafe fn event_init() {
     unsafe {
         loop_init((&raw mut main_loop).cast(), ptr::null_mut());
         env_init();
@@ -357,8 +356,7 @@ unsafe fn early_init(paramp: *mut mparm_T) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
+pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
     unsafe {
         ARGV0 = *argv;
         to_slash_if_needed(ARGV0);
@@ -2619,6 +2617,35 @@ unsafe fn check_swap_exists_action() {
         }
         handle_swap_exists(ptr::null_mut());
     }
+}
+
+#[cfg(test)]
+pub(crate) unsafe fn ensure_test_editor_init() {
+    static INIT: std::sync::Once = std::sync::Once::new();
+    INIT.call_once(|| unsafe {
+        headless_mode = true;
+        silent_mode = true;
+        event_init();
+        estack_init();
+        cmdline_init();
+        eval_init();
+        init_path(c"nvim".as_ptr());
+        init_normal_cmds();
+        runtime_init();
+        highlight_init();
+        mc_init();
+        init_locale();
+        set_init_tablocal();
+        win_alloc_first();
+        alist_init(&raw mut global_alist);
+        global_alist.id = 0;
+        init_homedir();
+        set_init_1(true);
+        set_lang_var();
+        qf_init_stack();
+        set_init_2(true);
+        crate::highlight_group::init_highlight(true, false);
+    });
 }
 
 #[cfg(test)]

@@ -3252,8 +3252,7 @@ unsafe fn abandon_cmdline() {
 }
 
 /// `getcmdline()` - accept a command line starting with `firstc`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn getcmdline(
+pub unsafe fn getcmdline(
     firstc: c_int,
     count: c_int,
     indent: c_int,

@@ -10,7 +10,7 @@ use crate::vterm::pen::{
     VTERM_ATTR_CONCEAL, VTERM_ATTR_DIM, VTERM_ATTR_FONT, VTERM_ATTR_FOREGROUND, VTERM_ATTR_ITALIC,
     VTERM_ATTR_OVERLINE, VTERM_ATTR_REVERSE, VTERM_ATTR_SMALL, VTERM_ATTR_STRIKE,
     VTERM_ATTR_UNDERLINE, VTERM_ATTR_URI, VTermAttr, VTermProp, VTermRect, VTermStateCallbacks,
-    VTermValue, vterm_state_convert_color_to_rgb,
+    VTermValue,
 };
 use crate::vterm::state::{
     VTermStateFallbacks, vterm_obtain_state, vterm_state_get_lineinfo, vterm_state_reset,
@@ -358,34 +358,19 @@ pub struct VTermStateFields {
 
 #[repr(C)]
 pub struct VTermScreenCallbacks {
-    pub damage: Option<unsafe extern "C" fn(rect: VTermRect, user: *mut c_void) -> c_int>,
-    pub moverect:
-        Option<unsafe extern "C" fn(dest: VTermRect, src: VTermRect, user: *mut c_void) -> c_int>,
-    pub movecursor: Option<
-        unsafe extern "C" fn(
-            pos: VTermPos,
-            oldpos: VTermPos,
-            visible: c_int,
-            user: *mut c_void,
-        ) -> c_int,
-    >,
-    pub settermprop: Option<
-        unsafe extern "C" fn(prop: VTermProp, val: *mut VTermValue, user: *mut c_void) -> c_int,
-    >,
-    pub bell: Option<unsafe extern "C" fn(user: *mut c_void) -> c_int>,
-    pub resize: Option<unsafe extern "C" fn(rows: c_int, cols: c_int, user: *mut c_void) -> c_int>,
-    pub theme: Option<unsafe extern "C" fn(dark: *mut bool, user: *mut c_void) -> c_int>,
-    pub sb_pushline: Option<
-        unsafe extern "C" fn(
-            cols: c_int,
-            cells: *const VTermScreenCell,
-            user: *mut c_void,
-        ) -> c_int,
-    >,
-    pub sb_popline: Option<
-        unsafe extern "C" fn(cols: c_int, cells: *mut VTermScreenCell, user: *mut c_void) -> c_int,
-    >,
-    pub sb_clear: Option<unsafe extern "C" fn(user: *mut c_void) -> c_int>,
+    pub damage: Option<unsafe fn(rect: VTermRect, user: *mut c_void) -> c_int>,
+    pub moverect: Option<unsafe fn(dest: VTermRect, src: VTermRect, user: *mut c_void) -> c_int>,
+    pub movecursor: Option<crate::vterm::pen::VTermMoveCursorFn>,
+    pub settermprop:
+        Option<unsafe fn(prop: VTermProp, val: *mut VTermValue, user: *mut c_void) -> c_int>,
+    pub bell: Option<unsafe fn(user: *mut c_void) -> c_int>,
+    pub resize: Option<unsafe fn(rows: c_int, cols: c_int, user: *mut c_void) -> c_int>,
+    pub theme: Option<unsafe fn(dark: *mut bool, user: *mut c_void) -> c_int>,
+    pub sb_pushline:
+        Option<unsafe fn(cols: c_int, cells: *const VTermScreenCell, user: *mut c_void) -> c_int>,
+    pub sb_popline:
+        Option<unsafe fn(cols: c_int, cells: *mut VTermScreenCell, user: *mut c_void) -> c_int>,
+    pub sb_clear: Option<unsafe fn(user: *mut c_void) -> c_int>,
 }
 
 #[repr(C)]
@@ -522,7 +507,7 @@ unsafe fn damagescreen(screen: *mut VTermScreen) {
     }
 }
 
-unsafe extern "C" fn putglyph(info_ptr: *mut c_void, pos: VTermPos, user: *mut c_void) -> c_int {
+unsafe fn putglyph(info_ptr: *mut c_void, pos: VTermPos, user: *mut c_void) -> c_int {
     unsafe {
         let info = info_ptr.cast::<VTermGlyphInfo>();
         let screen = user.cast::<VTermScreen>();
@@ -576,11 +561,7 @@ unsafe fn sb_pushline_from_row(screen: *mut VTermScreen, row: c_int) {
     }
 }
 
-unsafe extern "C" fn moverect_internal(
-    dest: VTermRect,
-    src: VTermRect,
-    user: *mut c_void,
-) -> c_int {
+unsafe fn moverect_internal(dest: VTermRect, src: VTermRect, user: *mut c_void) -> c_int {
     unsafe {
         let screen = user.cast::<VTermScreen>();
 
@@ -619,7 +600,7 @@ unsafe extern "C" fn moverect_internal(
     }
 }
 
-unsafe extern "C" fn moverect_user(dest: VTermRect, src: VTermRect, user: *mut c_void) -> c_int {
+unsafe fn moverect_user(dest: VTermRect, src: VTermRect, user: *mut c_void) -> c_int {
     unsafe {
         let screen = user.cast::<VTermScreen>();
 
@@ -641,7 +622,7 @@ unsafe extern "C" fn moverect_user(dest: VTermRect, src: VTermRect, user: *mut c
     }
 }
 
-unsafe extern "C" fn erase_internal(rect: VTermRect, selective: c_int, user: *mut c_void) -> c_int {
+unsafe fn erase_internal(rect: VTermRect, selective: c_int, user: *mut c_void) -> c_int {
     unsafe {
         let screen = user.cast::<VTermScreen>();
 
@@ -673,7 +654,7 @@ unsafe extern "C" fn erase_internal(rect: VTermRect, selective: c_int, user: *mu
     }
 }
 
-unsafe extern "C" fn erase_user(rect: VTermRect, _selective: c_int, user: *mut c_void) -> c_int {
+unsafe fn erase_user(rect: VTermRect, _selective: c_int, user: *mut c_void) -> c_int {
     unsafe {
         let screen = user.cast::<VTermScreen>();
         damagerect(screen, rect);
@@ -681,14 +662,14 @@ unsafe extern "C" fn erase_user(rect: VTermRect, _selective: c_int, user: *mut c
     }
 }
 
-unsafe extern "C" fn erase(rect: VTermRect, selective: c_int, user: *mut c_void) -> c_int {
+unsafe fn erase(rect: VTermRect, selective: c_int, user: *mut c_void) -> c_int {
     unsafe {
         erase_internal(rect, selective, user);
         erase_user(rect, 0, user)
     }
 }
 
-unsafe extern "C" fn scrollrect(
+unsafe fn scrollrect(
     mut rect: VTermRect,
     downward: c_int,
     rightward: c_int,
@@ -793,12 +774,7 @@ unsafe extern "C" fn scrollrect(
     }
 }
 
-unsafe extern "C" fn movecursor(
-    pos: VTermPos,
-    oldpos: VTermPos,
-    visible: c_int,
-    user: *mut c_void,
-) -> c_int {
+unsafe fn movecursor(pos: VTermPos, oldpos: VTermPos, visible: c_int, user: *mut c_void) -> c_int {
     unsafe {
         let screen = user.cast::<VTermScreen>();
         if !(*screen).callbacks.is_null()
@@ -810,7 +786,7 @@ unsafe extern "C" fn movecursor(
     }
 }
 
-unsafe extern "C" fn setpenattr(attr: VTermAttr, val: *mut VTermValue, user: *mut c_void) -> c_int {
+unsafe fn setpenattr(attr: VTermAttr, val: *mut VTermValue, user: *mut c_void) -> c_int {
     unsafe {
         let screen = user.cast::<VTermScreen>();
         match attr {
@@ -879,11 +855,7 @@ unsafe extern "C" fn setpenattr(attr: VTermAttr, val: *mut VTermValue, user: *mu
     }
 }
 
-unsafe extern "C" fn settermprop(
-    prop: VTermProp,
-    val: *mut VTermValue,
-    user: *mut c_void,
-) -> c_int {
+unsafe fn settermprop(prop: VTermProp, val: *mut VTermValue, user: *mut c_void) -> c_int {
     unsafe {
         let screen = user.cast::<VTermScreen>();
 
@@ -918,7 +890,7 @@ unsafe extern "C" fn settermprop(
     }
 }
 
-unsafe extern "C" fn bell(user: *mut c_void) -> c_int {
+unsafe fn bell(user: *mut c_void) -> c_int {
     unsafe {
         let screen = user.cast::<VTermScreen>();
         if !(*screen).callbacks.is_null()
@@ -1235,7 +1207,7 @@ unsafe fn resize_buffer(
     }
 }
 
-unsafe extern "C" fn resize(
+unsafe fn resize(
     new_rows: c_int,
     new_cols: c_int,
     fields_ptr: *mut c_void,
@@ -1314,7 +1286,7 @@ unsafe extern "C" fn resize(
     }
 }
 
-unsafe extern "C" fn theme(dark: *mut bool, user: *mut c_void) -> c_int {
+unsafe fn theme(dark: *mut bool, user: *mut c_void) -> c_int {
     unsafe {
         let screen = user.cast::<VTermScreen>();
         if !(*screen).callbacks.is_null()
@@ -1326,7 +1298,7 @@ unsafe extern "C" fn theme(dark: *mut bool, user: *mut c_void) -> c_int {
     }
 }
 
-unsafe extern "C" fn setlineinfo(
+unsafe fn setlineinfo(
     row: c_int,
     newinfo_ptr: *const c_void,
     oldinfo_ptr: *const c_void,
@@ -1369,7 +1341,7 @@ unsafe extern "C" fn setlineinfo(
     }
 }
 
-unsafe extern "C" fn sb_clear(user: *mut c_void) -> c_int {
+unsafe fn sb_clear(user: *mut c_void) -> c_int {
     unsafe {
         let screen = user.cast::<VTermScreen>();
         if !(*screen).callbacks.is_null()
@@ -1452,8 +1424,7 @@ pub unsafe fn vterm_screen_free(screen: *mut VTermScreen) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_screen_reset(screen: *mut VTermScreen, hard: c_int) {
+pub unsafe fn vterm_screen_reset(screen: *mut VTermScreen, hard: c_int) {
     unsafe {
         (*screen).damaged.start_row = -1;
         (*screen).pending_scrollrect.start_row = -1;
@@ -1462,8 +1433,7 @@ pub unsafe extern "C" fn vterm_screen_reset(screen: *mut VTermScreen, hard: c_in
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_screen_get_cell(
+pub unsafe fn vterm_screen_get_cell(
     screen: *const VTermScreen,
     pos: VTermPos,
     cell: *mut VTermScreenCell,
@@ -1514,8 +1484,7 @@ pub unsafe extern "C" fn vterm_screen_get_cell(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_obtain_screen(vt: *mut VTerm) -> *mut VTermScreen {
+pub unsafe fn vterm_obtain_screen(vt: *mut VTerm) -> *mut VTermScreen {
     unsafe {
         if !(*vt).screen.is_null() {
             return (*vt).screen.cast();
@@ -1527,15 +1496,13 @@ pub unsafe extern "C" fn vterm_obtain_screen(vt: *mut VTerm) -> *mut VTermScreen
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_screen_enable_reflow(screen: *mut VTermScreen, reflow: bool) {
+pub unsafe fn vterm_screen_enable_reflow(screen: *mut VTermScreen, reflow: bool) {
     unsafe {
         (*screen).set_reflow(reflow);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_screen_enable_altscreen(screen: *mut VTermScreen, altscreen: c_int) {
+pub unsafe fn vterm_screen_enable_altscreen(screen: *mut VTermScreen, altscreen: c_int) {
     unsafe {
         if (*screen).buffers[BUFIDX_ALTSCREEN].is_null() && altscreen != 0 {
             let mut rows: c_int = 0;
@@ -1547,8 +1514,7 @@ pub unsafe extern "C" fn vterm_screen_enable_altscreen(screen: *mut VTermScreen,
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_screen_set_callbacks(
+pub unsafe fn vterm_screen_set_callbacks(
     screen: *mut VTermScreen,
     callbacks: *const VTermScreenCallbacks,
     user: *mut c_void,
@@ -1603,13 +1569,10 @@ pub unsafe fn vterm_screen_set_damage_merge(screen: *mut VTermScreen, size: VTer
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_screen_convert_color_to_rgb(
-    screen: *const VTermScreen,
-    col: *mut VTermColor,
-) {
+#[cfg(test)]
+pub unsafe fn vterm_screen_convert_color_to_rgb(screen: *const VTermScreen, col: *mut VTermColor) {
     unsafe {
-        vterm_state_convert_color_to_rgb((*screen).state, col);
+        crate::vterm::pen::vterm_state_convert_color_to_rgb((*screen).state, col);
     }
 }
 

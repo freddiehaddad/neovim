@@ -411,12 +411,6 @@ pub unsafe fn hash_hash_len(key: *const c_char, len: usize) -> hash_T {
     hash
 }
 
-/// Return `HI_KEY_REMOVED` sentinel address (`_hash_key_removed`).
-#[unsafe(no_mangle)]
-pub extern "C" fn _hash_key_removed() -> *const c_char {
-    &raw const hash_removed
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -517,8 +517,7 @@ unsafe fn u_entry_resized(buf: *mut buf_T, uep: *mut u_entry_T) -> bool {
 }
 
 /// Compute the hash for a buffer text into `hash[UNDO_HASH_SIZE]`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn u_compute_hash(buf: *mut buf_T, hash: *mut u8) {
+pub unsafe fn u_compute_hash(buf: *mut buf_T, hash: *mut u8) {
     unsafe {
         let mut ctx = context_sha256_T::new();
         for lnum in 1..=(*buf).b_ml.ml_line_count {
@@ -530,11 +529,7 @@ pub unsafe extern "C" fn u_compute_hash(buf: *mut buf_T, hash: *mut u8) {
 }
 
 /// Return an allocated string of the full path of the target undofile.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn u_get_undo_file_name(
-    buf_ffname: *const c_char,
-    reading: bool,
-) -> *mut c_char {
+pub unsafe fn u_get_undo_file_name(buf_ffname: *const c_char, reading: bool) -> *mut c_char {
     unsafe {
         #[cfg(unix)]
         let mut ffname = buf_ffname;
@@ -1044,13 +1039,7 @@ unsafe fn unserialize_visualinfo(bi: &mut bufinfo_T, info: *mut visualinfo_T) {
 }
 
 /// Write the undo tree in an undo file.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn u_write_undo(
-    name: *const c_char,
-    forceit: bool,
-    buf: *mut buf_T,
-    hash: *mut u8,
-) {
+pub unsafe fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, hash: *mut u8) {
     unsafe {
         let file_name = if name.is_null() {
             let f = u_get_undo_file_name((*buf).b_ffname, false);
@@ -3320,5 +3309,78 @@ mod tests {
         assert_eq!(p.lnum, 0);
         assert_eq!(p.col, 0);
         assert_eq!(p.coladd, 0);
+    }
+
+    #[test]
+    fn u_write_undo_and_hash_work() {
+        use crate::buffer::{BLN_LISTED, DOBUF_WIPE, buflist_new, close_buffer};
+        use crate::os::fs::{MAXPATHL, os_dirname};
+        use std::ffi::{CStr, CString};
+
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        unsafe {
+            crate::main_init::ensure_test_editor_init();
+            emsg_skip += 1;
+
+            let mut cwd_buf = [0 as c_char; MAXPATHL];
+            assert_eq!(os_dirname(cwd_buf.as_mut_ptr(), MAXPATHL), OK);
+            let cwd = CStr::from_ptr(cwd_buf.as_ptr()).to_str().unwrap();
+            let base = format!("{cwd}/target/ut_undo_{}", std::process::id());
+            let _ = std::fs::remove_dir_all(&base);
+            std::fs::create_dir_all(&base).unwrap();
+
+            let save_udir = p_udir;
+            let base_c = CString::new(base.clone()).unwrap();
+            p_udir = base_c.as_ptr().cast_mut();
+
+            let fpath = format!("{base}/Xtest-unit-undo");
+            std::fs::write(&fpath, b"hello\n").unwrap();
+            let mut fpath_c = CString::new(fpath.clone()).unwrap().into_bytes_with_nul();
+            let buf = buflist_new(
+                fpath_c.as_mut_ptr().cast(),
+                fpath_c.as_mut_ptr().cast(),
+                1,
+                BLN_LISTED,
+            );
+            (*buf).b_u_numhead = 1;
+
+            let mut hash = [0u8; UNDO_HASH_SIZE];
+            u_compute_hash(buf, hash.as_mut_ptr());
+
+            // Write undo file to undodir
+            u_write_undo(ptr::null(), false, buf, hash.as_mut_ptr());
+            let ufile_ptr = u_get_undo_file_name((*buf).b_ffname, false);
+            assert!(!ufile_ptr.is_null());
+            let ufile = CStr::from_ptr(ufile_ptr).to_str().unwrap().to_owned();
+            xfree(ufile_ptr.cast());
+            assert!(std::path::Path::new(&ufile).exists());
+            let _ = std::fs::remove_file(&ufile);
+
+            // Write undo file with explicit name
+            let explicit = format!("{base}/undofile.test");
+            let explicit_c = CString::new(explicit.clone()).unwrap();
+            u_write_undo(explicit_c.as_ptr(), false, buf, hash.as_mut_ptr());
+            assert!(std::path::Path::new(&explicit).exists());
+            let _ = std::fs::remove_file(&explicit);
+
+            // Force write (:wundo!) overwrites non-undo file
+            std::fs::write(&ufile, b"not an undo file").unwrap();
+            let ufile_c = CString::new(ufile.clone()).unwrap();
+            u_write_undo(ufile_c.as_ptr(), true, buf, hash.as_mut_ptr());
+            assert_ne!(std::fs::read(&ufile).unwrap(), b"not an undo file");
+            let _ = std::fs::remove_file(&ufile);
+
+            // Does not write undo file when b_u_numhead == 0
+            (*buf).b_u_numhead = 0;
+            u_write_undo(ptr::null(), false, buf, hash.as_mut_ptr());
+            assert!(!std::path::Path::new(&ufile).exists());
+
+            close_buffer(ptr::null_mut(), buf, DOBUF_WIPE, false, false, false);
+            p_udir = save_udir;
+            let _ = std::fs::remove_dir_all(&base);
+            emsg_skip -= 1;
+        }
     }
 }

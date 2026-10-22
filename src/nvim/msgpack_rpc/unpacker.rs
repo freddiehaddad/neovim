@@ -287,8 +287,7 @@ unsafe fn api_parse_exit(_parser: *mut mpack_parser_t, _node: *mut mpack_node_t)
 unsafe fn parse_nop(_parser: *mut mpack_parser_t, _node: *mut mpack_node_t) {}
 
 /// Unpack a single MessagePack value into an `Object` (`unpack`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn unpack(
+pub unsafe fn unpack(
     mut data: *const c_char,
     mut size: usize,
     arena: *mut Arena,

@@ -16,13 +16,12 @@ use crate::vterm::pen::{
 use crate::vterm::screen::vterm_screen_free;
 use crate::vterm::state::{VT_MODE_CTRL8BIT, VT_MODE_UTF8, vterm_state_free};
 
-pub type VTermOutputCallback =
-    Option<unsafe extern "C" fn(s: *const c_char, len: usize, user: *mut c_void)>;
+pub type VTermOutputCallback = Option<unsafe fn(s: *const c_char, len: usize, user: *mut c_void)>;
 
 #[repr(C)]
 pub struct VTermAllocatorFunctions {
-    pub malloc: Option<unsafe extern "C" fn(size: usize, allocdata: *mut c_void) -> *mut c_void>,
-    pub free: Option<unsafe extern "C" fn(ptr: *mut c_void, allocdata: *mut c_void)>,
+    pub malloc: Option<unsafe fn(size: usize, allocdata: *mut c_void) -> *mut c_void>,
+    pub free: Option<unsafe fn(ptr: *mut c_void, allocdata: *mut c_void)>,
 }
 
 #[repr(C)]
@@ -36,7 +35,7 @@ pub struct VTermBuilder {
     pub tmpbuffer_len: usize,
 }
 
-unsafe extern "C" fn default_malloc(size: usize, _allocdata: *mut c_void) -> *mut c_void {
+unsafe fn default_malloc(size: usize, _allocdata: *mut c_void) -> *mut c_void {
     unsafe {
         let ptr = xmalloc(size);
         if !ptr.is_null() {
@@ -46,7 +45,7 @@ unsafe extern "C" fn default_malloc(size: usize, _allocdata: *mut c_void) -> *mu
     }
 }
 
-unsafe extern "C" fn default_free(ptr: *mut c_void, _allocdata: *mut c_void) {
+unsafe fn default_free(ptr: *mut c_void, _allocdata: *mut c_void) {
     unsafe {
         xfree(ptr);
     }
@@ -58,8 +57,7 @@ static DEFAULT_ALLOCATOR: VTermAllocatorFunctions = VTermAllocatorFunctions {
 };
 
 /// Convenient shortcut for default cases.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_new(rows: c_int, cols: c_int) -> *mut VTerm {
+pub unsafe fn vterm_new(rows: c_int, cols: c_int) -> *mut VTerm {
     unsafe {
         let builder = VTermBuilder {
             ver: 0,
@@ -162,8 +160,7 @@ pub unsafe fn vterm_get_size(vt: *const VTerm, rowsp: *mut c_int, colsp: *mut c_
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_set_size(vt: *mut VTerm, rows: c_int, cols: c_int) {
+pub unsafe fn vterm_set_size(vt: *mut VTerm, rows: c_int, cols: c_int) {
     if rows < 1 || cols < 1 {
         return;
     }
@@ -181,8 +178,7 @@ pub unsafe extern "C" fn vterm_set_size(vt: *mut VTerm, rows: c_int, cols: c_int
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_set_utf8(vt: *mut VTerm, is_utf8: c_int) {
+pub unsafe fn vterm_set_utf8(vt: *mut VTerm, is_utf8: c_int) {
     unsafe {
         if is_utf8 != 0 {
             (*vt).mode |= VT_MODE_UTF8;
@@ -192,8 +188,7 @@ pub unsafe extern "C" fn vterm_set_utf8(vt: *mut VTerm, is_utf8: c_int) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vterm_output_set_callback(
+pub unsafe fn vterm_output_set_callback(
     vt: *mut VTerm,
     func: VTermOutputCallback,
     user: *mut c_void,
@@ -210,7 +205,7 @@ pub unsafe extern "C" fn vterm_output_set_callback(
 pub unsafe fn vterm_push_output_bytes(vt: *mut VTerm, bytes: *const c_char, len: usize) {
     unsafe {
         if !(*vt).outfunc.is_null() {
-            let func: unsafe extern "C" fn(*const c_char, usize, *mut c_void) =
+            let func: unsafe fn(*const c_char, usize, *mut c_void) =
                 std::mem::transmute((*vt).outfunc);
             func(bytes, len, (*vt).outdata);
             return;
@@ -353,12 +348,8 @@ pub unsafe fn vterm_scroll_rect(
     mut rect: VTermRect,
     downward: c_int,
     rightward: c_int,
-    moverect: Option<
-        unsafe extern "C" fn(src: VTermRect, dest: VTermRect, user: *mut c_void) -> c_int,
-    >,
-    eraserect: Option<
-        unsafe extern "C" fn(rect: VTermRect, selective: c_int, user: *mut c_void) -> c_int,
-    >,
+    moverect: Option<unsafe fn(src: VTermRect, dest: VTermRect, user: *mut c_void) -> c_int>,
+    eraserect: Option<unsafe fn(rect: VTermRect, selective: c_int, user: *mut c_void) -> c_int>,
     user: *mut c_void,
 ) {
     unsafe {

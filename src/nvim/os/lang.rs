@@ -17,7 +17,7 @@ use crate::memory::xstrdup;
 use crate::memory::{xfree, xstrlcpy};
 use crate::message::{semsg, smsg};
 use crate::option::set_helplang_default;
-use crate::os::env::{expand_T, os_getenv_noalloc, os_setenv};
+use crate::os::env::{expand_T, os_getenv_buf, os_getenv_noalloc, os_setenv};
 #[cfg(unix)]
 use crate::os::shell::get_cmd_output;
 use crate::path::{path_tail, path_tail_with_sep};
@@ -449,8 +449,9 @@ fn locale_candidates(locale: &str) -> Vec<String> {
 
 unsafe fn current_message_locale() -> Option<String> {
     unsafe {
+        let mut buf = [0 as c_char; 256];
         for var in [c"LANGUAGE", c"LC_ALL", c"LC_MESSAGES", c"LANG"] {
-            let p = os_getenv_noalloc(var.as_ptr());
+            let p = os_getenv_buf(var.as_ptr(), buf.as_mut_ptr(), buf.len());
             if !p.is_null()
                 && *p != 0
                 && let Ok(s) = CStr::from_ptr(p).to_str()
@@ -458,7 +459,10 @@ unsafe fn current_message_locale() -> Option<String> {
                 return Some(s.to_string());
             }
         }
-        let p = get_mess_env();
+        #[cfg(not(windows))]
+        let p = get_locale_val(LC_MESSAGES);
+        #[cfg(windows)]
+        let p = get_locale_val(LC_CTYPE);
         if !p.is_null()
             && *p != 0
             && let Ok(s) = CStr::from_ptr(p).to_str()

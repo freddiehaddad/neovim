@@ -4236,8 +4236,7 @@ pub unsafe fn incl(lp: *mut pos_T) -> c_int {
 }
 
 /// Decrements position `lp` by one character (multibyte-aware), crossing line boundaries.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn dec(lp: *mut pos_T) -> c_int {
+pub unsafe fn dec(lp: *mut pos_T) -> c_int {
     unsafe {
         (*lp).coladd = 0;
         if (*lp).col == MAXCOL {

@@ -100,7 +100,6 @@ struct UIEventCallback {
     ext_widgets: [bool; kUIGlobalCount],
 }
 
-#[unsafe(no_mangle)]
 pub static mut uis: [*mut RemoteUI; MAX_UI_COUNT] = [ptr::null_mut(); MAX_UI_COUNT];
 static mut ui_ext: [bool; kUIExtCount] = [false; kUIExtCount];
 pub static mut ui_count: usize = 0;

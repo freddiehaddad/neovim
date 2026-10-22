@@ -148,7 +148,6 @@ enum sb_clear_T {
 
 static mut confirm_msg_used: c_int = 0;
 
-#[unsafe(no_mangle)]
 pub static mut msg_hist_last: *mut MessageHistoryEntry = ptr::null_mut();
 static mut msg_hist_first: *mut MessageHistoryEntry = ptr::null_mut();
 static mut msg_hist_temp: *mut MessageHistoryEntry = ptr::null_mut();
@@ -527,8 +526,7 @@ pub unsafe fn verb_msg(s: *const c_char) -> c_int {
 /// When terminal not initialized (yet) printf("%s", ..) is used.
 ///
 /// @return  true if wait_return() not called
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn msg(s: *const c_char, hl_id: c_int) -> bool {
+pub unsafe fn msg(s: *const c_char, hl_id: c_int) -> bool {
     unsafe { msg_keep(s, hl_id, false, false) }
 }
 
@@ -1225,8 +1223,7 @@ pub unsafe fn emsg_multiline(
 }
 
 /// emsg() - display an error message
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn emsg(s: *const c_char) -> bool {
+pub unsafe fn emsg(s: *const c_char) -> bool {
     unsafe { emsg_multiline(s, c"emsg".as_ptr(), HLF_E, false) }
 }
 

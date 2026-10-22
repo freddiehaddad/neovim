@@ -217,18 +217,15 @@ fn stage_build_dir(root: &Path, profile_dir: &Path, build_dir: &Path) -> PathBuf
     } else {
         "luajit".to_string()
     };
-    let vterm_file = norm(&build_dir.join("test").join("vterm_test_output"));
     let paths_lua = format!(
         "local M = {{}}\n\
          M.translations_enabled = false\n\
          M.is_asan = false\n\
-         M.vterm_test_file = {:?}\n\
          M.test_build_dir = {:?}\n\
          M.test_source_path = {:?}\n\
          M.test_lua_prg = {:?}\n\
          M.test_luajit_prg = {:?}\n\
          return M\n",
-        vterm_file,
         norm(build_dir),
         norm(root),
         lua_prg,
@@ -436,10 +433,16 @@ fn run_lua_tests(
     {
         cmd.args(["--filter-out", &filter_out]);
     }
+    let mut has_positional = false;
     for arg in extra_args {
+        if !arg.starts_with('-') {
+            has_positional = true;
+        }
         cmd.arg(arg);
     }
-    cmd.arg(&test_path);
+    if !has_positional {
+        cmd.arg(&test_path);
+    }
 
     let status = cmd.status().expect("failed to execute test runner");
     let _ = fs::remove_dir_all(&xdg_dir);
@@ -478,9 +481,8 @@ fn print_help() {
          \x20 lintlua / formatlua         Run stylua check / format\n\
          \x20 lintdoc / lintdocurls       Run documentation linter\n\
          \x20 linterrcodes / lintcommit   Run error code / commit message linter\n\
-         \x20 test                        Run testrust, unittest, and functionaltest\n\
-         \x20 testrust                    Run Rust unit tests (cargo test)\n\
-         \x20 unittest [args...]          Run LuaJIT FFI unit tests\n\
+         \x20 test                        Run unittest and functionaltest\n\
+         \x20 unittest / testrust [args]  Run Rust unit tests (cargo test)\n\
          \x20 functionaltest [args...]    Run functional test suite\n\
          \x20 oldtest [args...]           Run legacy Vim test suite\n\
          \x20 benchmark [args...]         Run benchmark suite\n\
@@ -741,7 +743,7 @@ fn main() -> ExitCode {
                 run_status(&mut cmd, step);
             }
         }
-        "testrust" => {
+        "testrust" | "unittest" => {
             let deps_prefix = default_deps_prefix(&root);
             deps_build::ensure_deps(&root, &deps_prefix, prefer_lua, false);
             let cargo = env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
@@ -755,11 +757,10 @@ fn main() -> ExitCode {
             }
             run_status(&mut cmd, "cargo test");
         }
-        "unittest" | "functionaltest" | "benchmark" => {
+        "functionaltest" | "benchmark" => {
             let profile_dir = build_cargo_bins(&root, release, prefer_lua);
             let nvim_bin = stage_build_dir(&root, &profile_dir, &build_dir);
             let test_type = match subcmd {
-                "unittest" => "unit",
                 "functionaltest" => "functional",
                 _ => "benchmark",
             };
@@ -779,7 +780,7 @@ fn main() -> ExitCode {
         }
         "test" => {
             let exe = env::current_exe().unwrap();
-            for step in ["testrust", "unittest", "functionaltest"] {
+            for step in ["unittest", "functionaltest"] {
                 let mut cmd = Command::new(&exe);
                 cmd.current_dir(&root).arg(step);
                 if release {

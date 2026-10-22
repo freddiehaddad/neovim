@@ -1316,8 +1316,7 @@ unsafe fn insert_handle_key_post(s: *mut InsertState) {
 }
 
 /// Start inserting text.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn edit(cmdchar: c_int, startln: bool, count: c_int) -> bool {
+pub unsafe fn edit(cmdchar: c_int, startln: bool, count: c_int) -> bool {
     unsafe {
         if !(*curbuf).terminal.is_null() {
             if ex_normal_busy != 0 {

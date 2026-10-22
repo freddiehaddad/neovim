@@ -93,14 +93,12 @@ pub static mut emsg_off: c_int = 0;
 pub static mut info_message: bool = false;
 pub static mut msg_hist_off: bool = false;
 pub static mut need_clr_eos: bool = false;
-#[unsafe(no_mangle)]
 pub static mut emsg_skip: c_int = 0;
 pub static mut emsg_severe: bool = false;
 pub static mut emsg_assert_fails_msg: *mut c_char = ptr::null_mut();
 pub static mut emsg_assert_fails_lnum: c_long = 0;
 pub static mut emsg_assert_fails_context: *mut c_char = ptr::null_mut();
 pub static mut did_endif: bool = false;
-#[unsafe(no_mangle)]
 pub static mut did_emsg: c_int = 0;
 pub static mut did_beep: u64 = 0;
 pub static mut did_beep_silent: u64 = 0;
@@ -131,7 +129,6 @@ pub static mut need_rethrow: bool = false;
 pub static mut check_cstack: bool = false;
 pub static mut trylevel: c_int = 0;
 pub static mut force_abort: bool = false;
-#[unsafe(no_mangle)]
 pub static mut msg_list: *mut *mut msglist_T = ptr::null_mut();
 pub static mut suppress_errthrow: bool = false;
 pub static mut caught_stack: *mut except_T = ptr::null_mut();
@@ -147,7 +144,6 @@ pub static mut t_colors: c_int = 256;
 pub static mut include_none: c_int = 0;
 pub static mut include_default: c_int = 0;
 pub static mut include_link: c_int = 0;
-#[unsafe(no_mangle)]
 pub static mut Search: SearchState = SearchState {
     hl_match: false,
     match_lines: 0,
@@ -162,7 +158,6 @@ pub static mut need_check_timestamps: bool = false;
 pub static mut did_check_timestamps: bool = false;
 pub static mut no_check_timestamps: c_int = 0;
 pub static mut mouse_grid: c_int = 0;
-#[unsafe(no_mangle)]
 pub static mut mouse_row: c_int = 0;
 pub static mut mouse_col: c_int = 0;
 pub static mut mouse_past_bottom: bool = false;
@@ -182,7 +177,6 @@ pub static mut lastused_tabpage: *mut tabpage_T = ptr::null_mut();
 pub static mut redraw_tabline: bool = false;
 pub static mut firstbuf: *mut buf_T = ptr::null_mut();
 pub static mut lastbuf: *mut buf_T = ptr::null_mut();
-#[unsafe(no_mangle)]
 pub static mut curbuf: *mut buf_T = ptr::null_mut();
 pub static mut global_alist: alist_T = unsafe { zeroed() };
 pub static mut max_alist_id: c_int = 0;
@@ -190,9 +184,7 @@ pub static mut arg_had_last: bool = false;
 pub static mut ru_col: c_int = 0;
 pub static mut ru_wid: c_int = 0;
 pub static mut sc_col: c_int = 0;
-#[unsafe(no_mangle)]
 pub static mut starting: c_int = NO_SCREEN;
-#[unsafe(no_mangle)]
 pub static mut exiting: bool = false;
 pub static mut v_dying: c_int = 0;
 pub static mut stdin_isatty: bool = true;
@@ -203,11 +195,9 @@ pub static mut full_screen: bool = false;
 pub static mut secure: c_int = 0;
 pub static mut textlock: c_int = 0;
 pub static mut allbuf_lock: c_int = 0;
-#[unsafe(no_mangle)]
 pub static mut sandbox: c_int = 0;
 pub static mut silent_mode: bool = false;
 pub static mut exmode_active: bool = false;
-#[unsafe(no_mangle)]
 pub static mut Visual: VisualState = VisualState {
     mode: b'v' as c_int,
     ..unsafe { zeroed() }
@@ -242,10 +232,8 @@ pub static mut ins_at_eol: bool = false;
 pub static mut no_abbr: bool = true;
 pub static mut mapped_ctrl_c: c_int = 0;
 pub static mut ctrl_c_interrupts: bool = true;
-#[unsafe(no_mangle)]
 pub static mut cmdmod: cmdmod_T = unsafe { zeroed() };
 pub static mut msg_silent: c_int = 0;
-#[unsafe(no_mangle)]
 pub static mut emsg_silent: c_int = 0;
 pub static mut emsg_noredir: bool = false;
 pub static mut cmd_silent: bool = false;
@@ -253,7 +241,6 @@ pub static mut in_assert_fails: bool = false;
 pub static mut swap_exists_action: c_int = SEA_NONE;
 pub static mut swap_exists_did_quit: bool = false;
 pub static mut IObuff: [c_char; IOSIZE] = [0 as c_char; IOSIZE];
-#[unsafe(no_mangle)]
 pub static mut NameBuff: [c_char; MAXPATHL] = [0 as c_char; MAXPATHL];
 pub static mut msg_buf: [c_char; MSG_BUF_LEN] = [0 as c_char; MSG_BUF_LEN];
 pub static mut os_buf: [c_char; MAXPATHL] = [0 as c_char; MAXPATHL];
@@ -274,7 +261,6 @@ pub static mut do_redraw: bool = false;
 pub static mut must_redraw_pum: bool = false;
 pub static mut need_highlight_changed: bool = true;
 pub static mut scriptout: *mut FILE = ptr::null_mut();
-#[unsafe(no_mangle)]
 pub static mut got_int: bool = false;
 pub static mut bangredo: bool = false;
 pub static mut reg_do_extmatch: c_int = 0;
@@ -399,8 +385,6 @@ pub static mut updating_screen: bool = false;
 pub static mut redraw_not_allowed: bool = false;
 pub static mut screen_search_hl: match_T = unsafe { zeroed() };
 pub static mut search_hl_has_cursor_lnum: linenr_T = 0;
-#[unsafe(no_mangle)]
-pub static kTVCstring: usize = usize::MAX;
 pub static mut EVALARG_EVALUATE: evalarg_T = evalarg_T {
     eval_flags: 1,
     eval_getline: None,
@@ -531,7 +515,6 @@ pub static mut msg_grid_scroll_discount: c_int = 0;
 pub static mut msg_listdo_overwrite: c_int = 0;
 pub static mut ch_before_blocking_events: *mut MultiQueue = ptr::null_mut();
 pub static mut showcmd_buf: [c_char; 51] = [0; 51];
-#[unsafe(no_mangle)]
 pub static mut nvim_testing: bool = false;
 pub static mut pum_grid: ScreenGrid = SCREEN_GRID_INIT;
 pub static mut pum_want: PumWant = unsafe { zeroed() };

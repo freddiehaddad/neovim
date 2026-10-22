@@ -49,7 +49,6 @@ use std::ptr;
 pub(crate) const UI_CLIENT_STDIN_FD: c_int = 3;
 use crate::highlight::KEYSET_OPTIDX_highlight__url;
 
-#[unsafe(no_mangle)]
 pub static mut tui: *mut TUIData = ptr::null_mut();
 static mut tui_width: c_int = 0;
 static mut tui_height: c_int = 0;
