@@ -107,14 +107,14 @@ pub unsafe fn proc_size() -> usize {
 }
 
 #[inline]
-pub unsafe extern "C" fn libuv_proc_uv(proc_: *mut Proc) -> *mut uv_handle_t {
+pub unsafe fn libuv_proc_uv(proc_: *mut Proc) -> *mut uv_handle_t {
     unsafe { proc_.cast::<u8>().add(proc_size()).cast() }
 }
 
 #[inline]
 unsafe fn create_event_1(
     multiqueue: *mut MultiQueue,
-    handler: unsafe extern "C" fn(*mut *mut c_void),
+    handler: unsafe fn(*mut *mut c_void),
     arg0: *mut c_void,
 ) {
     unsafe {
@@ -427,7 +427,7 @@ unsafe extern "C" fn children_kill_cb(handle: *mut uv_timer_t) {
     }
 }
 
-unsafe extern "C" fn proc_close_event(argv: *mut *mut c_void) {
+unsafe fn proc_close_event(argv: *mut *mut c_void) {
     unsafe {
         let proc_ = *argv as *mut Proc;
         let hdr = proc_header(proc_);
@@ -547,7 +547,7 @@ unsafe fn flush_stream(proc_: *mut Proc, stream: *mut RStream) {
     }
 }
 
-unsafe extern "C" fn proc_close_handles(argv: *mut *mut c_void) {
+unsafe fn proc_close_handles(argv: *mut *mut c_void) {
     unsafe {
         let proc_ = *argv as *mut Proc;
 
@@ -579,7 +579,7 @@ unsafe extern "C" fn exit_delay_cb(_handle: *mut uv_timer_t) {
     }
 }
 
-unsafe extern "C" fn exit_event(argv: *mut *mut c_void) {
+unsafe fn exit_event(argv: *mut *mut c_void) {
     unsafe {
         let status = (*argv as isize) as c_int;
         if exit_need_delay != 0 {

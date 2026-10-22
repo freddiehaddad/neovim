@@ -478,7 +478,7 @@ pub unsafe fn socket_watcher_close(watcher: *mut SocketWatcher, cb: socket_close
     }
 }
 
-unsafe extern "C" fn connection_event(argv: *mut *mut c_void) {
+unsafe fn connection_event(argv: *mut *mut c_void) {
     unsafe {
         let watcher = *argv as *mut SocketWatcher;
         let status = (*argv.add(1) as usize) as c_int;

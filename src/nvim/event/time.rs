@@ -47,7 +47,7 @@ pub unsafe fn loop_fast_events(loop_: *mut Loop) -> *mut MultiQueue {
 #[inline]
 unsafe fn create_event(
     events: *mut MultiQueue,
-    handler: unsafe extern "C" fn(*mut *mut c_void),
+    handler: unsafe fn(*mut *mut c_void),
     watcher: *mut TimeWatcher,
 ) {
     unsafe {
@@ -105,7 +105,7 @@ pub unsafe fn time_watcher_close(watcher: *mut TimeWatcher, cb: time_cb) {
     }
 }
 
-unsafe extern "C" fn time_event(argv: *mut *mut c_void) {
+unsafe fn time_event(argv: *mut *mut c_void) {
     unsafe {
         let watcher = *argv;
         let fields = watcher_fields(watcher);
@@ -126,7 +126,7 @@ unsafe extern "C" fn time_watcher_cb(handle: *mut uv_timer_t) {
     }
 }
 
-unsafe extern "C" fn close_event(argv: *mut *mut c_void) {
+unsafe fn close_event(argv: *mut *mut c_void) {
     unsafe {
         let watcher = *argv;
         let fields = watcher_fields(watcher);

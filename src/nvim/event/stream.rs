@@ -92,7 +92,7 @@ pub unsafe fn stream_closed_ptr(stream: *mut Stream) -> *mut bool {
 }
 
 #[inline]
-pub unsafe extern "C" fn stream_uv_ptr(stream: *mut Stream) -> *mut c_void {
+pub unsafe fn stream_uv_ptr(stream: *mut Stream) -> *mut c_void {
     unsafe { stream.cast::<u8>().add(stream_uv_offset()).cast() }
 }
 

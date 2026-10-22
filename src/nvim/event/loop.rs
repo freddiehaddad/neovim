@@ -483,7 +483,7 @@ pub unsafe fn loop_queues(loop_: *mut Loop) -> *mut LoopQueuesAndChildren {
 }
 
 #[inline]
-pub unsafe extern "C" fn main_loop_ptr() -> *mut Loop {
+pub unsafe fn main_loop_ptr() -> *mut Loop {
     (&raw mut crate::globals::main_loop).cast()
 }
 
@@ -513,7 +513,7 @@ pub unsafe fn loop_children_kill_timer(loop_: *mut Loop) -> *mut uv_timer_t {
 }
 
 #[inline]
-pub unsafe extern "C" fn loop_poll_timer(loop_: *mut Loop) -> *mut uv_timer_t {
+pub unsafe fn loop_poll_timer(loop_: *mut Loop) -> *mut uv_timer_t {
     unsafe {
         loop_children_kill_timer(loop_)
             .cast::<u8>()
@@ -533,7 +533,7 @@ pub unsafe fn loop_exit_delay_timer(loop_: *mut Loop) -> *mut uv_timer_t {
 }
 
 #[inline]
-pub unsafe extern "C" fn loop_async(loop_: *mut Loop) -> *mut uv_async_t {
+pub unsafe fn loop_async(loop_: *mut Loop) -> *mut uv_async_t {
     unsafe {
         loop_exit_delay_timer(loop_)
             .cast::<u8>()
@@ -675,7 +675,7 @@ pub unsafe fn loop_schedule_deferred(loop_: *mut Loop, event: Event) {
     }
 }
 
-unsafe extern "C" fn loop_deferred_event(argv: *mut *mut c_void) {
+unsafe fn loop_deferred_event(argv: *mut *mut c_void) {
     unsafe {
         let loop_ = *argv as *mut Loop;
         let eventp = *argv.add(1) as *mut Event;
@@ -685,7 +685,7 @@ unsafe extern "C" fn loop_deferred_event(argv: *mut *mut c_void) {
     }
 }
 
-pub unsafe extern "C" fn loop_on_put(_queue: *mut MultiQueue, data: *mut c_void) {
+pub unsafe fn loop_on_put(_queue: *mut MultiQueue, data: *mut c_void) {
     unsafe {
         let loop_: *mut Loop = data;
         if *loop_recursive_ptr(loop_) != 0 {

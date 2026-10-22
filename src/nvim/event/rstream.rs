@@ -202,7 +202,7 @@ unsafe extern "C" fn fread_idle_cb(handle: *mut uv_idle_t) {
     }
 }
 
-unsafe extern "C" fn read_event(argv: *mut *mut c_void) {
+unsafe fn read_event(argv: *mut *mut c_void) {
     unsafe {
         let stream = *argv;
         let r = rstream_fields(stream);

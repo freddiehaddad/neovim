@@ -460,7 +460,7 @@ pub unsafe fn ui_client_event_connect(args: Array) {
     }
 }
 
-unsafe extern "C" fn channel_connect_event(argv: *mut *mut c_void) {
+unsafe fn channel_connect_event(argv: *mut *mut c_void) {
     unsafe {
         let server_addr = (*argv).cast::<c_char>();
         let mut err: *const c_char = c"".as_ptr();

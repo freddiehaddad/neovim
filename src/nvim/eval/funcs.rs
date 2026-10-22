@@ -3393,7 +3393,7 @@ unsafe fn getregionpos(
 
 impl pos_T {
     #[inline]
-    unsafe extern "C" fn cast(&mut self) -> *mut crate::cursor::pos_T {
+    unsafe fn cast(&mut self) -> *mut crate::cursor::pos_T {
         (self as *mut pos_T).cast()
     }
 }

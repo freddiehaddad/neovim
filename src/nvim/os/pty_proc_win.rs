@@ -453,7 +453,7 @@ mod win_impl {
         }
     }
 
-    unsafe extern "C" fn pty_proc_finish(argv: *mut *mut c_void) {
+    unsafe fn pty_proc_finish(argv: *mut *mut c_void) {
         unsafe {
             let ptyproc = *argv as *mut PtyProc;
             let proc_: *mut Proc = ptyproc.cast();

@@ -2604,7 +2604,7 @@ pub unsafe fn aucmd_defer(
     }
 }
 
-unsafe extern "C" fn deferred_event(argv: *mut *mut c_void) {
+unsafe fn deferred_event(argv: *mut *mut c_void) {
     unsafe {
         let e = (*argv).cast::<AutoCmdEvent>();
         let event = (*e).event;
@@ -2658,7 +2658,7 @@ unsafe extern "C" fn deferred_event(argv: *mut *mut c_void) {
     }
 }
 
-unsafe extern "C" fn deferred_optionset_modified(argv: *mut *mut c_void) {
+unsafe fn deferred_optionset_modified(argv: *mut *mut c_void) {
     unsafe {
         let mut err = Error {
             err_type: ErrorType::kErrorTypeNone,
@@ -3880,7 +3880,7 @@ unsafe fn arg_autocmd_flag_get(
     }
 }
 
-unsafe extern "C" fn vimresume_event(_argv: *mut *mut c_void) {
+unsafe fn vimresume_event(_argv: *mut *mut c_void) {
     unsafe {
         apply_autocmds(
             EVENT_VIMRESUME,

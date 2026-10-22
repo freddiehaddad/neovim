@@ -1191,7 +1191,7 @@ pub unsafe fn vim_str2nr(
     }
 }
 
-pub const extern "C" fn hex2nr(c: c_int) -> c_int {
+pub const fn hex2nr(c: c_int) -> c_int {
     if c >= b'a' as c_int && c <= b'f' as c_int {
         c - b'a' as c_int + 10
     } else if c >= b'A' as c_int && c <= b'F' as c_int {

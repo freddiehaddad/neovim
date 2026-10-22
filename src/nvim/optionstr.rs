@@ -138,7 +138,7 @@ pub struct optset_T {
     pub os_oldval: Object,
     pub os_newval: Object,
     pub os_prep: OptSetPrep,
-    pub os_prep_free: Option<unsafe extern "C" fn(*mut c_void)>,
+    pub os_prep_free: Option<unsafe fn(*mut c_void)>,
     pub os_value_checked: bool,
     pub os_value_changed: bool,
     pub os_restore_chartab: bool,
@@ -3068,7 +3068,7 @@ pub unsafe fn did_set_signcolumn(args: *mut optset_T) -> *const c_char {
     }
 }
 
-unsafe extern "C" fn free_spellcap_prog(prog: *mut c_void) {
+unsafe fn free_spellcap_prog(prog: *mut c_void) {
     unsafe {
         vim_regfree(prog.cast());
     }

@@ -1098,7 +1098,7 @@ unsafe fn out_data_ring(output: *const c_char, size: usize) {
     }
 }
 
-unsafe extern "C" fn out_data_event(argv: *mut *mut c_void) {
+unsafe fn out_data_event(argv: *mut *mut c_void) {
     unsafe {
         let mut need_clear = true;
         let fd = (*argv.add(2) as isize) as c_int;

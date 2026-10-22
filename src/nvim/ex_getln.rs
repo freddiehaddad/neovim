@@ -5079,7 +5079,7 @@ pub unsafe fn cmdwin_do_action(action: *const c_char) {
 }
 
 /// Deferred event: opens cmdwin after the cmdline-reader unwinds.
-unsafe extern "C" fn open_cmdwin_event(argv: *mut *mut c_void) {
+unsafe fn open_cmdwin_event(argv: *mut *mut c_void) {
     unsafe {
         let a = (*argv).cast::<CmdwinOpenArgs>();
         cmdwin_invoke(c"open".as_ptr(), (*a).firstc, (*a).content, (*a).pos);

@@ -309,7 +309,7 @@ pub unsafe fn tinput_stop(input: *mut TermInput) {
     }
 }
 
-unsafe extern "C" fn tinput_done_event(_argv: *mut *mut c_void) {
+unsafe fn tinput_done_event(_argv: *mut *mut c_void) {
     unsafe {
         os_exit(1);
     }

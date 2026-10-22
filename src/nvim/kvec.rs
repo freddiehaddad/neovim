@@ -206,7 +206,7 @@ impl<T: Copy, const N: usize> KVecWithInit<T, N> {
     ///
     /// # Safety
     /// `self` must be an initialized `KVecWithInit`.
-    pub unsafe extern "C" fn resize(&mut self, new_cap: usize) {
+    pub unsafe fn resize(&mut self, new_cap: usize) {
         let cap = new_cap.max(N);
         let init_ptr = self.init_array.as_mut_ptr();
         let elem_size = std::mem::size_of::<T>();

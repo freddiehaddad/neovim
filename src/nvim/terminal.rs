@@ -344,7 +344,7 @@ const fn cstr_slice_as_string(bytes: &'static [u8]) -> NvimString {
     }
 }
 
-unsafe extern "C" fn emit_termrequest(argv: *mut *mut c_void) {
+unsafe fn emit_termrequest(argv: *mut *mut c_void) {
     unsafe {
         let buf_handle = (*argv.add(0) as isize) as handle_T;
         let sequence = (*argv.add(1)).cast::<c_char>();
@@ -941,7 +941,7 @@ pub unsafe fn terminal_close(termpp: *mut *mut Terminal, status: c_int) {
     }
 }
 
-unsafe extern "C" fn terminal_state_change_event(argv: *mut *mut c_void) {
+unsafe fn terminal_state_change_event(argv: *mut *mut c_void) {
     unsafe {
         let buf_handle = (*argv as isize) as handle_T;
         let buf = handle_get_buffer(buf_handle);
@@ -1539,7 +1539,7 @@ unsafe fn terminal_send_key(term: *mut Terminal, mut c: c_int) {
     }
 }
 
-unsafe extern "C" fn on_sync_flush(argv: *mut *mut c_void) {
+unsafe fn on_sync_flush(argv: *mut *mut c_void) {
     unsafe {
         if exiting {
             return;
@@ -2044,7 +2044,7 @@ unsafe fn term_sb_clear(data: *mut c_void) -> c_int {
     }
 }
 
-unsafe extern "C" fn term_clipboard_set(argv: *mut *mut c_void) {
+unsafe fn term_clipboard_set(argv: *mut *mut c_void) {
     unsafe {
         let mask = (*argv.add(0) as isize) as VTermSelectionMask;
         let data = (*argv.add(1)).cast::<c_char>();

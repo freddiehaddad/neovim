@@ -370,9 +370,9 @@ unsafe extern "C" {
 }
 
 #[inline]
-unsafe extern "C" fn put_event(
+unsafe fn put_event(
     mq: *mut MultiQueue,
-    handler: unsafe extern "C" fn(*mut *mut c_void),
+    handler: unsafe fn(*mut *mut c_void),
     arg0: *mut c_void,
     arg1: *mut c_void,
 ) {
@@ -650,7 +650,7 @@ pub unsafe fn nlua_pcall(lstate: *mut lua_State, nargs: c_int, mut nresults: c_i
     }
 }
 
-unsafe extern "C" fn nlua_luv_error_event(argv: *mut *mut c_void) {
+unsafe fn nlua_luv_error_event(argv: *mut *mut c_void) {
     unsafe {
         let error = (*argv).cast::<c_char>();
         let err_type = *argv.add(1) as isize;
@@ -866,7 +866,7 @@ unsafe fn nlua_init_argv(
     }
 }
 
-unsafe extern "C" fn nlua_schedule_event(argv: *mut *mut c_void) {
+unsafe fn nlua_schedule_event(argv: *mut *mut c_void) {
     unsafe {
         let cb = *argv as isize as LuaRef;
         let ns_id = *argv.add(1) as usize as u32;
@@ -1418,7 +1418,7 @@ unsafe extern "C-unwind" fn nlua_common_free_all_mem(lstate: *mut lua_State) {
     }
 }
 
-unsafe extern "C" fn nlua_print_event(argv: *mut *mut c_void) {
+unsafe fn nlua_print_event(argv: *mut *mut c_void) {
     unsafe {
         msg_ext_no_fast();
         let raw = msg_use_printf() != 0 && redirecting() == 0 && on_print.cb_type == kCallbackNone;

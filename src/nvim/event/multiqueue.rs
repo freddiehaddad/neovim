@@ -6,7 +6,7 @@ use crate::memory::{xfree, xmalloc};
 
 pub const EVENT_HANDLER_MAX_ARGC: usize = 10;
 
-pub type argv_callback = Option<unsafe extern "C" fn(argv: *mut *mut c_void)>;
+pub type argv_callback = Option<unsafe fn(argv: *mut *mut c_void)>;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -24,7 +24,7 @@ impl Event {
     }
 }
 
-pub type PutCallback = Option<unsafe extern "C" fn(multiq: *mut MultiQueue, data: *mut c_void)>;
+pub type PutCallback = Option<unsafe fn(multiq: *mut MultiQueue, data: *mut c_void)>;
 
 #[repr(C)]
 struct MultiQueueItem {
@@ -324,7 +324,7 @@ pub unsafe fn multiqueue_size(this: *mut MultiQueue) -> usize {
     unsafe { (*this).size }
 }
 
-unsafe extern "C" fn multiqueue_oneshot_event(argv: *mut *mut c_void) {
+unsafe fn multiqueue_oneshot_event(argv: *mut *mut c_void) {
     unsafe {
         let data = (*argv).cast::<MulticastEvent>();
         if !(*data).fired {

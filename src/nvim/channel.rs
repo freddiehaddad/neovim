@@ -189,7 +189,7 @@ unsafe fn pty_height_ptr(chan: *mut Channel) -> *mut u16 {
 #[inline]
 pub unsafe fn put_event_1(
     queue: *mut MultiQueue,
-    handler: unsafe extern "C" fn(*mut *mut c_void),
+    handler: unsafe fn(*mut *mut c_void),
     a0: *mut c_void,
 ) {
     let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
@@ -208,7 +208,7 @@ pub unsafe fn put_event_1(
 #[inline]
 fn put_event_2(
     queue: *mut MultiQueue,
-    handler: unsafe extern "C" fn(*mut *mut c_void),
+    handler: unsafe fn(*mut *mut c_void),
     a0: *mut c_void,
     a1: *mut c_void,
 ) {
@@ -506,7 +506,7 @@ unsafe fn channel_destroy(chan: *mut Channel) {
     }
 }
 
-unsafe extern "C" fn free_channel_event(argv: *mut *mut c_void) {
+unsafe fn free_channel_event(argv: *mut *mut c_void) {
     unsafe {
         let chan = (*argv).cast::<Channel>();
         let _ = map_del_uint64_t_ptr_t(
@@ -1018,7 +1018,7 @@ unsafe fn schedule_channel_event(chan: *mut Channel) {
     }
 }
 
-unsafe extern "C" fn on_channel_event(args: *mut *mut c_void) {
+unsafe fn on_channel_event(args: *mut *mut c_void) {
     unsafe {
         let chan = (*args).cast::<Channel>();
         let cp = channel_prefix(chan);
@@ -1251,7 +1251,7 @@ unsafe fn term_resume(data: *mut c_void) {
     }
 }
 
-unsafe extern "C" fn term_delayed_free(argv: *mut *mut c_void) {
+unsafe fn term_delayed_free(argv: *mut *mut c_void) {
     unsafe {
         let chan = (*argv).cast::<Channel>();
         let cp = channel_prefix(chan);
@@ -1295,7 +1295,7 @@ pub unsafe fn channel_event(chan: *mut Channel, event: event_T) {
     }
 }
 
-unsafe extern "C" fn set_info_event(argv: *mut *mut c_void) {
+unsafe fn set_info_event(argv: *mut *mut c_void) {
     unsafe {
         let chan = (*argv).cast::<Channel>();
         let event = (*argv.add(1) as isize) as event_T;

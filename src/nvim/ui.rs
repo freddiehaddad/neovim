@@ -344,7 +344,7 @@ pub unsafe fn ui_pum_get_pos(
     }
 }
 
-unsafe extern "C" fn ui_refresh_event(_argv: *mut *mut c_void) {
+unsafe fn ui_refresh_event(_argv: *mut *mut c_void) {
     unsafe {
         ui_refresh();
     }

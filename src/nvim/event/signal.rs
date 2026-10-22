@@ -82,7 +82,7 @@ pub unsafe fn signal_watcher_close(watcher: *mut SignalWatcher, cb: signal_close
     }
 }
 
-unsafe extern "C" fn signal_event(argv: *mut *mut c_void) {
+unsafe fn signal_event(argv: *mut *mut c_void) {
     unsafe {
         let watcher = *argv;
         let fields = watcher_fields(watcher);

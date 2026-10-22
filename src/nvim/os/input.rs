@@ -134,7 +134,7 @@ unsafe fn parse_mouse_coords(s: *const c_char) -> Option<(c_int, c_int, usize)> 
 
 use crate::event::stream::UV_TTY;
 
-unsafe extern "C" fn cursorhold_event(_argv: *mut *mut c_void) {
+unsafe fn cursorhold_event(_argv: *mut *mut c_void) {
     unsafe {
         let event = if (State & MODE_INSERT) != 0 {
             EVENT_CURSORHOLDI

@@ -100,14 +100,14 @@ static mut connected_uis: Map<u64, *mut c_void> = Map {
 
 use crate::msgpack_rpc::packer::mpack_w2;
 
-unsafe extern "C" fn free_block_cb(block: *mut c_void) {
+unsafe fn free_block_cb(block: *mut c_void) {
     unsafe {
         free_block(block.cast());
     }
 }
 
 #[inline]
-unsafe extern "C" fn buf_pos(ui: *const RemoteUI) -> usize {
+unsafe fn buf_pos(ui: *const RemoteUI) -> usize {
     unsafe { (*ui).packer.ptr.offset_from((*ui).packer.startptr) as usize }
 }
 

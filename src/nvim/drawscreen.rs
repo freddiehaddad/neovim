@@ -1124,7 +1124,7 @@ unsafe fn recording_mode(hl_id: c_int) {
     }
 }
 
-pub unsafe extern "C" fn comp_col() {
+pub unsafe fn comp_col() {
     unsafe {
         let last_has_status = last_stl_height(false) > 0;
 

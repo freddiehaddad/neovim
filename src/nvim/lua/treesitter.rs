@@ -696,8 +696,7 @@ unsafe extern "C" {
 }
 
 #[cfg(target_os = "emscripten")]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_ts_get_parser(lang: *const c_char) -> *const TSLanguage {
+pub unsafe fn nvim_ts_get_parser(lang: *const c_char) -> *const TSLanguage {
     if lang.is_null() {
         return ptr::null();
     }
@@ -2438,6 +2437,22 @@ unsafe fn build_meta(L: *mut lua_State, tname: *const c_char, meta: *const luaL_
     }
 }
 
+unsafe extern "C" fn ts_malloc(size: usize) -> *mut c_void {
+    unsafe { xmalloc(size) }
+}
+
+unsafe extern "C" fn ts_calloc(count: usize, size: usize) -> *mut c_void {
+    unsafe { xcalloc(count, size) }
+}
+
+unsafe extern "C" fn ts_realloc(ptr: *mut c_void, size: usize) -> *mut c_void {
+    unsafe { xrealloc(ptr, size) }
+}
+
+unsafe extern "C" fn ts_free(ptr: *mut c_void) {
+    unsafe { xfree(ptr) }
+}
+
 unsafe fn tslua_init(L: *mut lua_State) {
     unsafe {
         build_meta(L, TS_META_PARSER, PARSER_META.as_ptr());
@@ -2447,7 +2462,12 @@ unsafe fn tslua_init(L: *mut lua_State) {
         build_meta(L, TS_META_QUERYCURSOR, QUERYCURSOR_META.as_ptr());
         build_meta(L, TS_META_QUERYMATCH, QUERYMATCH_META.as_ptr());
 
-        ts_set_allocator(Some(xmalloc), Some(xcalloc), Some(xrealloc), Some(xfree));
+        ts_set_allocator(
+            Some(ts_malloc),
+            Some(ts_calloc),
+            Some(ts_realloc),
+            Some(ts_free),
+        );
     }
 }
 

@@ -1255,7 +1255,7 @@ pub unsafe fn internal_error(where_: *const c_char) {
     }
 }
 
-unsafe extern "C" fn msg_semsg_event(argv: *mut *mut c_void) {
+unsafe fn msg_semsg_event(argv: *mut *mut c_void) {
     unsafe {
         let s = (*argv).cast::<c_char>();
         emsg(s);
@@ -1278,7 +1278,7 @@ pub unsafe fn msg_schedule_semsg_cstr(s: *const c_char) {
     }
 }
 
-unsafe extern "C" fn msg_semsg_multiline_event(argv: *mut *mut c_void) {
+unsafe fn msg_semsg_multiline_event(argv: *mut *mut c_void) {
     unsafe {
         let s = (*argv).cast::<c_char>();
         emsg_multiline(s, c"emsg".as_ptr(), HLF_E, true);

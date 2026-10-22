@@ -969,7 +969,7 @@ pub unsafe fn get_func_arity(
 }
 
 /// Find a function by name, return pointer to it in ufuncs.
-pub unsafe extern "C" fn find_func(name: *const c_char) -> *mut ufunc_T {
+pub unsafe fn find_func(name: *const c_char) -> *mut ufunc_T {
     unsafe {
         let hi = hash_find(&raw const func_hashtab, name);
         if !hashitem_empty(&*hi) {

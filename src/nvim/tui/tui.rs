@@ -2631,7 +2631,7 @@ pub unsafe fn tui_guess_size(tui: *mut TUIData) {
     }
 }
 
-unsafe extern "C" fn out(tui: *mut TUIData, str_: *const c_char, len: usize) {
+unsafe fn out(tui: *mut TUIData, str_: *const c_char, len: usize) {
     unsafe {
         let available = (*tui).buf.len() - (*tui).bufpos;
         if len > available {

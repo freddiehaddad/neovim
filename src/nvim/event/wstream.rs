@@ -23,7 +23,7 @@ const UV_ENOMEM: c_int = -4057;
 const UV_ENOMEM: c_int = -12;
 
 pub type uv_write_t = c_void;
-pub type wbuffer_data_finalizer = Option<unsafe extern "C" fn(data: *mut c_void)>;
+pub type wbuffer_data_finalizer = Option<unsafe fn(data: *mut c_void)>;
 
 #[repr(C)]
 pub struct WBuffer {
@@ -156,7 +156,7 @@ pub unsafe fn wstream_write(stream: *mut Stream, buffer: *mut WBuffer) -> c_int 
     }
 }
 
-pub unsafe extern "C" fn wstream_new_buffer(
+pub unsafe fn wstream_new_buffer(
     data: *mut c_char,
     size: usize,
     refcount: usize,

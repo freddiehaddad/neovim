@@ -85,8 +85,7 @@ use crate::mbyte::{
 };
 use crate::memline::{dec, ml_delete, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
 use crate::memory::{
-    MergeSortCompareFunc, mergesort_list, strequal, xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz,
-    xstrdup, xstrlcpy,
+    mergesort_list, strequal, xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xstrdup, xstrlcpy,
 };
 use crate::message::{
     emsg, internal_error, msg, msg_clr_cmdline, msg_delay, msg_ext_set_kind, msg_progress, semsg,
@@ -133,7 +132,7 @@ use crate::ui::{ui_flush, ui_has, vim_beep};
 use crate::undo::undo_allowed;
 use crate::window::{WinKind, win_T, win_valid};
 use crate::winfloat::win_float_find;
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 pub const CPT_ABBR: usize = 0;
@@ -1578,53 +1577,49 @@ unsafe fn trigger_complete_changed_event(cur: c_int) {
     }
 }
 
-unsafe fn cp_get_next(node: *mut c_void) -> *mut c_void {
-    unsafe { (*node.cast::<compl_T>()).cp_next.cast() }
+unsafe fn cp_get_next(node: *mut compl_T) -> *mut compl_T {
+    unsafe { (*node).cp_next }
 }
 
-unsafe fn cp_set_next(node: *mut c_void, next: *mut c_void) {
+unsafe fn cp_set_next(node: *mut compl_T, next: *mut compl_T) {
     unsafe {
-        (*node.cast::<compl_T>()).cp_next = next.cast();
+        (*node).cp_next = next;
     }
 }
 
-unsafe fn cp_get_prev(node: *mut c_void) -> *mut c_void {
-    unsafe { (*node.cast::<compl_T>()).cp_prev.cast() }
+unsafe fn cp_get_prev(node: *mut compl_T) -> *mut compl_T {
+    unsafe { (*node).cp_prev }
 }
 
-unsafe fn cp_set_prev(node: *mut c_void, prev: *mut c_void) {
+unsafe fn cp_set_prev(node: *mut compl_T, prev: *mut compl_T) {
     unsafe {
-        (*node.cast::<compl_T>()).cp_prev = prev.cast();
+        (*node).cp_prev = prev;
     }
 }
 
-unsafe fn cp_compare_fuzzy(a: *const c_void, b: *const c_void) -> c_int {
-    unsafe {
-        let score_a = (*a.cast::<compl_T>()).cp_score;
-        let score_b = (*b.cast::<compl_T>()).cp_score;
+fn cp_compare_fuzzy(a: &compl_T, b: &compl_T) -> c_int {
+    let score_a = a.cp_score;
+    let score_b = b.cp_score;
 
-        if score_a != score_b {
-            return if score_b > score_a { 1 } else { -1 };
-        }
-
-        (*a.cast::<compl_T>()).cp_order - (*b.cast::<compl_T>()).cp_order
+    if score_a != score_b {
+        return if score_b > score_a { 1 } else { -1 };
     }
+
+    a.cp_order - b.cp_order
 }
 
-unsafe fn cp_compare_nearest(a: *const c_void, b: *const c_void) -> c_int {
-    unsafe {
-        let score_a = (*a.cast::<compl_T>()).cp_score;
-        let score_b = (*b.cast::<compl_T>()).cp_score;
-        if score_a == FUZZY_SCORE_NONE || score_b == FUZZY_SCORE_NONE {
-            return 0;
-        }
-        if score_a > score_b {
-            1
-        } else if score_a < score_b {
-            -1
-        } else {
-            0
-        }
+fn cp_compare_nearest(a: &compl_T, b: &compl_T) -> c_int {
+    let score_a = a.cp_score;
+    let score_b = b.cp_score;
+    if score_a == FUZZY_SCORE_NONE || score_b == FUZZY_SCORE_NONE {
+        return 0;
+    }
+    if score_a > score_b {
+        1
+    } else if score_a < score_b {
+        -1
+    } else {
+        0
     }
 }
 
@@ -1739,7 +1734,7 @@ unsafe fn set_fuzzy_score() {
     }
 }
 
-unsafe fn sort_compl_match_list(compare: MergeSortCompareFunc) {
+unsafe fn sort_compl_match_list(compare: fn(&compl_T, &compl_T) -> c_int) {
     unsafe {
         if compl_first_match.is_null() || is_first_match((*compl_first_match).cp_next) {
             return;
@@ -1754,26 +1749,24 @@ unsafe fn sort_compl_match_list(compare: MergeSortCompareFunc) {
         if ptr::eq(orig_text, compl_first_match) {
             (*(*compl_first_match).cp_next).cp_prev = ptr::null_mut();
             (*compl_first_match).cp_next = mergesort_list(
-                (*compl_first_match).cp_next.cast(),
-                Some(cp_get_next),
-                Some(cp_set_next),
-                Some(cp_get_prev),
-                Some(cp_set_prev),
+                (*compl_first_match).cp_next,
+                cp_get_next,
+                cp_set_next,
+                cp_get_prev,
+                cp_set_prev,
                 compare,
-            )
-            .cast();
+            );
             (*(*compl_first_match).cp_next).cp_prev = compl_first_match;
         } else {
             (*(*orig_text).cp_prev).cp_next = ptr::null_mut();
             compl_first_match = mergesort_list(
-                compl_first_match.cast(),
-                Some(cp_get_next),
-                Some(cp_set_next),
-                Some(cp_get_prev),
-                Some(cp_set_prev),
+                compl_first_match,
+                cp_get_next,
+                cp_set_next,
+                cp_get_prev,
+                cp_set_prev,
                 compare,
-            )
-            .cast();
+            );
             let mut tail = compl_first_match;
             while !(*tail).cp_next.is_null() {
                 tail = (*tail).cp_next;
@@ -2587,7 +2580,7 @@ unsafe fn ins_compl_fuzzy_sort() {
 
         set_fuzzy_score();
         if (cur_cot_flags & kOptCotFlagNosort) == 0 {
-            sort_compl_match_list(Some(cp_compare_fuzzy));
+            sort_compl_match_list(cp_compare_fuzzy);
             if (cur_cot_flags & (kOptCotFlagNoinsert | kOptCotFlagNoselect)) == kOptCotFlagNoinsert
             {
                 let target = if compl_shows_dir_forward() {
@@ -5286,7 +5279,7 @@ unsafe fn ins_compl_get_exp(ini: *mut pos_T) -> c_int {
 
         if match_count > 0 && !ctrl_x_mode_spell() {
             if is_nearest_active() && !ins_compl_has_preinsert() {
-                sort_compl_match_list(Some(cp_compare_nearest));
+                sort_compl_match_list(cp_compare_nearest);
             }
 
             if cot_fuzzy() && ins_compl_leader_len() > 0 {

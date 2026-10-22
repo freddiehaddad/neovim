@@ -64,7 +64,7 @@ const kClientTypeMsgpackRpc: ClientType = 5;
 
 use crate::api::private::helpers::arena_string;
 
-unsafe extern "C" fn free_block_void(block: *mut c_void) {
+unsafe fn free_block_void(block: *mut c_void) {
     unsafe {
         free_block(block.cast());
     }
@@ -250,7 +250,7 @@ fn unpacker_closed(p: *const Unpacker) -> bool {
 #[inline]
 fn create_event_2(
     queue: *mut MultiQueue,
-    handler: unsafe extern "C" fn(*mut *mut c_void),
+    handler: unsafe fn(*mut *mut c_void),
     a0: *mut c_void,
     a1: *mut c_void,
 ) {
@@ -650,7 +650,7 @@ unsafe fn handle_request(channel: *mut Channel, p: *mut Unpacker, args: Array) {
     }
 }
 
-unsafe extern "C" fn request_event(argv: *mut *mut c_void) {
+unsafe fn request_event(argv: *mut *mut c_void) {
     unsafe {
         let e = (*argv).cast::<RequestEvent>();
         let channel = (*e).channel;
@@ -746,7 +746,7 @@ unsafe fn channel_write(channel: *mut Channel, buffer: *mut WBuffer) -> bool {
     }
 }
 
-unsafe extern "C" fn internal_read_event(argv: *mut *mut c_void) {
+unsafe fn internal_read_event(argv: *mut *mut c_void) {
     unsafe {
         let channel = (*argv).cast::<Channel>();
         let buffer = (*argv.add(1)).cast::<WBuffer>();
@@ -844,7 +844,7 @@ pub unsafe fn rpc_close(channel: *mut Channel) {
     }
 }
 
-unsafe extern "C" fn rpc_close_event(argv: *mut *mut c_void) {
+unsafe fn rpc_close_event(argv: *mut *mut c_void) {
     unsafe {
         let channel = (*argv).cast::<Channel>();
         assert!(!channel.is_null());

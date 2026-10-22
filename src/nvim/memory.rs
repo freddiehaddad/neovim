@@ -22,10 +22,6 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 pub const ARENA_BLOCK_SIZE: usize = 4096;
 const REUSE_MAX: usize = 4;
 
-pub type MergeSortGetFunc = Option<unsafe fn(node: *mut c_void) -> *mut c_void>;
-pub type MergeSortSetFunc = Option<unsafe fn(node: *mut c_void, target: *mut c_void)>;
-pub type MergeSortCompareFunc = Option<unsafe fn(a: *const c_void, b: *const c_void) -> c_int>;
-
 #[repr(C)]
 pub struct ConsumedBlk {
     pub prev: *mut ConsumedBlk,
@@ -149,7 +145,7 @@ pub unsafe fn verbose_try_malloc(size: usize) -> *mut c_void {
 }
 
 /// `malloc()` wrapper that never returns null (`xmalloc`).
-pub unsafe extern "C" fn xmalloc(size: usize) -> *mut c_void {
+pub unsafe fn xmalloc(size: usize) -> *mut c_void {
     let ret = unsafe { try_malloc(size) };
     if ret.is_null() {
         unsafe { out_of_memory_exit() }
@@ -158,14 +154,14 @@ pub unsafe extern "C" fn xmalloc(size: usize) -> *mut c_void {
 }
 
 /// `free()` wrapper (`xfree`).
-pub unsafe extern "C" fn xfree(ptr: *mut c_void) {
+pub unsafe fn xfree(ptr: *mut c_void) {
     unsafe {
         raw_free(ptr);
     }
 }
 
 /// `calloc()` wrapper that never returns null (`xcalloc`).
-pub unsafe extern "C" fn xcalloc(count: usize, size: usize) -> *mut c_void {
+pub unsafe fn xcalloc(count: usize, size: usize) -> *mut c_void {
     let (allocated_count, allocated_size) = if count != 0 && size != 0 {
         (count, size)
     } else {
@@ -185,7 +181,7 @@ pub unsafe extern "C" fn xcalloc(count: usize, size: usize) -> *mut c_void {
 }
 
 /// `realloc()` wrapper that never returns null (`xrealloc`).
-pub unsafe extern "C" fn xrealloc(ptr: *mut c_void, size: usize) -> *mut c_void {
+pub unsafe fn xrealloc(ptr: *mut c_void, size: usize) -> *mut c_void {
     let allocated_size = size.max(1);
     let mut ret = unsafe { raw_realloc(ptr, allocated_size) };
     if ret.is_null() {
@@ -454,20 +450,14 @@ pub unsafe fn time_to_bytes(time_val: i64, buf: *mut u8) {
 }
 
 /// Iterative $O(N \log N)$ stable merge sort for doubly-linked lists (`mergesort_list`).
-pub unsafe fn mergesort_list(
-    mut head: *mut c_void,
-    get_next: MergeSortGetFunc,
-    set_next: MergeSortSetFunc,
-    get_prev: MergeSortGetFunc,
-    set_prev: MergeSortSetFunc,
-    compare: MergeSortCompareFunc,
-) -> *mut c_void {
-    let (Some(get_next), Some(set_next), Some(get_prev), Some(set_prev), Some(compare)) =
-        (get_next, set_next, get_prev, set_prev, compare)
-    else {
-        return head;
-    };
-
+pub unsafe fn mergesort_list<T>(
+    mut head: *mut T,
+    get_next: unsafe fn(*mut T) -> *mut T,
+    set_next: unsafe fn(*mut T, *mut T),
+    get_prev: unsafe fn(*mut T) -> *mut T,
+    set_prev: unsafe fn(*mut T, *mut T),
+    compare: fn(&T, &T) -> c_int,
+) -> *mut T {
     if head.is_null() || unsafe { get_next(head).is_null() } {
         return head;
     }
@@ -481,8 +471,8 @@ pub unsafe fn mergesort_list(
 
     let mut size: c_int = 1;
     while size < n {
-        let mut new_head: *mut c_void = std::ptr::null_mut();
-        let mut tail: *mut c_void = std::ptr::null_mut();
+        let mut new_head: *mut T = std::ptr::null_mut();
+        let mut tail: *mut T = std::ptr::null_mut();
         curr = head;
 
         while !curr.is_null() {
@@ -535,15 +525,15 @@ pub unsafe fn mergesort_list(
                 }
             }
 
-            let mut merged: *mut c_void = std::ptr::null_mut();
-            let mut merged_tail: *mut c_void = std::ptr::null_mut();
+            let mut merged: *mut T = std::ptr::null_mut();
+            let mut merged_tail: *mut T = std::ptr::null_mut();
 
             while !left.is_null() || !right.is_null() {
                 let chosen = if left.is_null() {
                     let c = right;
                     right = unsafe { get_next(right) };
                     c
-                } else if right.is_null() || unsafe { compare(left, right) <= 0 } {
+                } else if right.is_null() || unsafe { compare(&*left, &*right) <= 0 } {
                     let c = left;
                     left = unsafe { get_next(left) };
                     c
