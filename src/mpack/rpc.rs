@@ -1,7 +1,7 @@
 //! MessagePack-RPC session state machine (`src/mpack/rpc.c`).
 
 use std::ffi::{c_char, c_int};
-use std::mem::{offset_of, size_of, zeroed};
+use std::mem::zeroed;
 use std::ptr;
 
 use crate::mpack::mpack_core::{
@@ -44,41 +44,69 @@ pub struct mpack_rpc_slot_s {
     pub msg: mpack_rpc_message_t,
 }
 
-#[repr(C)]
-#[derive(Copy, Clone)]
 pub struct mpack_rpc_session_t {
     pub reader: mpack_tokbuf_t,
     pub writer: mpack_tokbuf_t,
     pub receive: mpack_rpc_header_t,
     pub send: mpack_rpc_header_t,
     pub request_id: mpack_uint32_t,
-    pub capacity: mpack_uint32_t,
-    pub slots: [mpack_rpc_slot_s; MPACK_RPC_MAX_REQUESTS],
+    pub slots: Vec<mpack_rpc_slot_s>,
 }
 
-#[inline]
-pub const fn mpack_rpc_session_struct_size(c: mpack_uint32_t) -> usize {
-    offset_of!(mpack_rpc_session_t, slots) + (c as usize) * size_of::<mpack_rpc_slot_s>()
-}
-
-#[inline]
-unsafe fn session_slots_ptr(session: *mut mpack_rpc_session_t) -> *mut mpack_rpc_slot_s {
-    unsafe { (&raw mut (*session).slots).cast::<mpack_rpc_slot_s>() }
-}
-
-pub unsafe fn mpack_rpc_session_init(session: *mut mpack_rpc_session_t, capacity: mpack_uint32_t) {
+pub unsafe fn mpack_rpc_session_new(capacity: mpack_uint32_t) -> *mut mpack_rpc_session_t {
     unsafe {
-        (*session).capacity = if capacity != 0 {
-            capacity
+        let cap = if capacity != 0 {
+            capacity as usize
         } else {
-            MPACK_RPC_MAX_REQUESTS as mpack_uint32_t
+            MPACK_RPC_MAX_REQUESTS
         };
-        (*session).request_id = 0;
-        mpack_tokbuf_init(&raw mut (*session).reader);
-        mpack_tokbuf_init(&raw mut (*session).writer);
-        mpack_rpc_reset_hdr(&raw mut (*session).receive);
-        mpack_rpc_reset_hdr(&raw mut (*session).send);
-        ptr::write_bytes(session_slots_ptr(session), 0, (*session).capacity as usize);
+        let empty_slot = mpack_rpc_slot_s {
+            used: 0,
+            msg: mpack_rpc_message_t {
+                id: 0,
+                data: mpack_data_t { p: ptr::null_mut() },
+            },
+        };
+        let mut session = Box::new(mpack_rpc_session_t {
+            reader: zeroed(),
+            writer: zeroed(),
+            receive: zeroed(),
+            send: zeroed(),
+            request_id: 0,
+            slots: vec![empty_slot; cap],
+        });
+        mpack_tokbuf_init(&raw mut session.reader);
+        mpack_tokbuf_init(&raw mut session.writer);
+        mpack_rpc_reset_hdr(&raw mut session.receive);
+        mpack_rpc_reset_hdr(&raw mut session.send);
+        Box::into_raw(session)
+    }
+}
+
+pub unsafe fn mpack_rpc_session_free(session: *mut mpack_rpc_session_t) {
+    if !session.is_null() {
+        unsafe {
+            drop(Box::from_raw(session));
+        }
+    }
+}
+
+pub unsafe fn mpack_rpc_session_grow(session: *mut mpack_rpc_session_t) {
+    unsafe {
+        let new_cap = (*session).slots.len() * 2;
+        let empty_slot = mpack_rpc_slot_s {
+            used: 0,
+            msg: mpack_rpc_message_t {
+                id: 0,
+                data: mpack_data_t { p: ptr::null_mut() },
+            },
+        };
+        let old_slots = std::mem::replace(&mut (*session).slots, vec![empty_slot; new_cap]);
+        for s in old_slots {
+            if s.used != 0 {
+                mpack_rpc_put(session, s.msg);
+            }
+        }
     }
 }
 
@@ -323,28 +351,6 @@ pub unsafe fn mpack_rpc_notify(
     }
 }
 
-pub unsafe fn mpack_rpc_session_copy(dst: *mut mpack_rpc_session_t, src: *mut mpack_rpc_session_t) {
-    unsafe {
-        let dst_capacity = (*dst).capacity;
-        debug_assert!((*src).capacity <= dst_capacity);
-        ptr::copy_nonoverlapping(
-            src.cast::<u8>(),
-            dst.cast::<u8>(),
-            offset_of!(mpack_rpc_session_t, slots),
-        );
-        (*dst).capacity = dst_capacity;
-        let dst_slots = session_slots_ptr(dst);
-        let src_slots = session_slots_ptr(src);
-        ptr::write_bytes(dst_slots, 0, dst_capacity as usize);
-        for i in 0..((*src).capacity as usize) {
-            let s = *src_slots.add(i);
-            if s.used != 0 {
-                mpack_rpc_put(dst, s.msg);
-            }
-        }
-    }
-}
-
 fn mpack_rpc_request_hdr() -> mpack_rpc_header_t {
     let z = mpack_token_t {
         r#type: crate::mpack::mpack_core::MPACK_TOKEN_NONE,
@@ -382,54 +388,54 @@ fn mpack_rpc_notify_hdr() -> mpack_rpc_header_t {
 
 unsafe fn mpack_rpc_put(session: *mut mpack_rpc_session_t, msg: mpack_rpc_message_t) -> c_int {
     unsafe {
-        let mut slot: *mut mpack_rpc_slot_s = ptr::null_mut();
-        let cap = (*session).capacity;
+        let slots = &mut (*session).slots;
+        let cap = slots.len() as mpack_uint32_t;
         let mut hash = msg.id % cap;
-        let slots = session_slots_ptr(session);
+        let mut found: Option<usize> = None;
 
         for _ in 0..cap {
-            let s = slots.add(hash as usize);
-            if (*s).used == 0 || (*s).msg.id == msg.id {
-                slot = s;
+            let idx = hash as usize;
+            if slots[idx].used == 0 || slots[idx].msg.id == msg.id {
+                found = Some(idx);
                 break;
             }
             hash = if hash > 0 { hash - 1 } else { cap - 1 };
         }
 
-        if slot.is_null() {
+        let Some(idx) = found else {
             return -1;
-        }
-        if (*slot).msg.id == msg.id && (*slot).used != 0 {
+        };
+        if slots[idx].msg.id == msg.id && slots[idx].used != 0 {
             return 0;
         }
-        (*slot).msg = msg;
-        (*slot).used = 1;
+        slots[idx].msg = msg;
+        slots[idx].used = 1;
         1
     }
 }
 
 unsafe fn mpack_rpc_pop(session: *mut mpack_rpc_session_t, msg: *mut mpack_rpc_message_t) -> c_int {
     unsafe {
-        let mut slot: *mut mpack_rpc_slot_s = ptr::null_mut();
-        let cap = (*session).capacity;
+        let slots = &mut (*session).slots;
+        let cap = slots.len() as mpack_uint32_t;
         let mut hash = (*msg).id % cap;
-        let slots = session_slots_ptr(session);
+        let mut found: Option<usize> = None;
 
         for _ in 0..cap {
-            let s = slots.add(hash as usize);
-            if (*s).used != 0 && (*s).msg.id == (*msg).id {
-                slot = s;
+            let idx = hash as usize;
+            if slots[idx].used != 0 && slots[idx].msg.id == (*msg).id {
+                found = Some(idx);
                 break;
             }
             hash = if hash > 0 { hash - 1 } else { cap - 1 };
         }
 
-        if slot.is_null() {
+        let Some(idx) = found else {
             return 0;
-        }
+        };
 
-        *msg = (*slot).msg;
-        (*slot).used = 0;
+        *msg = slots[idx].msg;
+        slots[idx].used = 0;
         1
     }
 }

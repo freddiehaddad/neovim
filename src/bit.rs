@@ -243,12 +243,6 @@ mod lua_c_api {
             1
         }
     }
-
-    #[cfg(feature = "vendor-bit")]
-    #[unsafe(no_mangle)]
-    pub unsafe extern "C-unwind" fn luaopen_bit(L: *mut lua_State) -> c_int {
-        unsafe { nvim_luaopen_bit(L) }
-    }
 }
 
 #[cfg(feature = "vendor-bit")]

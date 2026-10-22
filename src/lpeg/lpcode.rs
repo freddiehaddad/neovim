@@ -1013,8 +1013,7 @@ unsafe fn peephole(compst: *mut CompileState) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C-unwind" fn compile(
+pub unsafe fn compile(
     l: *mut lua_State,
     p: *mut Pattern,
     size: uint,

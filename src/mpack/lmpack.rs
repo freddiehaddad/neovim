@@ -35,8 +35,7 @@ use crate::mpack::object::{
 use crate::mpack::rpc::{
     MPACK_RPC_NOTIFICATION, MPACK_RPC_REQUEST, MPACK_RPC_RESPONSE, mpack_rpc_message_t,
     mpack_rpc_notify, mpack_rpc_receive, mpack_rpc_reply, mpack_rpc_request,
-    mpack_rpc_session_copy, mpack_rpc_session_init, mpack_rpc_session_struct_size,
-    mpack_rpc_session_t,
+    mpack_rpc_session_free, mpack_rpc_session_grow, mpack_rpc_session_new, mpack_rpc_session_t,
 };
 use crate::strings::vim_snprintf;
 
@@ -147,21 +146,6 @@ unsafe fn lmpack_grow_parser(parser: *mut mpack_parser_t) -> *mut mpack_parser_t
             xfree(old.cast::<c_void>());
         }
         new_parser
-    }
-}
-
-unsafe fn lmpack_grow_session(session: *mut mpack_rpc_session_t) -> *mut mpack_rpc_session_t {
-    unsafe {
-        let old = session;
-        let new_capacity = (*old).capacity * 2;
-        let new_session =
-            try_malloc(mpack_rpc_session_struct_size(new_capacity)).cast::<mpack_rpc_session_t>();
-        if !new_session.is_null() {
-            mpack_rpc_session_init(new_session, new_capacity);
-            mpack_rpc_session_copy(new_session, old);
-            xfree(old.cast::<c_void>());
-        }
-        new_session
     }
 }
 
@@ -798,11 +782,7 @@ unsafe extern "C-unwind" fn lmpack_packer_pack(l: *mut lua_State) -> c_int {
 unsafe extern "C-unwind" fn lmpack_session_new(l: *mut lua_State) -> c_int {
     unsafe {
         let rv = lua_newuserdata(l, size_of::<Session>()).cast::<Session>();
-        (*rv).session = try_malloc(size_of::<mpack_rpc_session_t>()).cast::<mpack_rpc_session_t>();
-        if (*rv).session.is_null() {
-            return luaL_error(l, c"Failed to allocate memory".as_ptr());
-        }
-        mpack_rpc_session_init((*rv).session, 0);
+        (*rv).session = mpack_rpc_session_new(0);
         (*rv).L = l;
         luaL_getmetatable(l, SESSION_META_NAME.as_ptr());
         lua_setmetatable(l, -2);
@@ -834,7 +814,7 @@ unsafe extern "C-unwind" fn lmpack_session_delete(l: *mut lua_State) -> c_int {
         let session = lmpack_check_session(l, 1);
         lmpack_unref(l, (*session).reg, (*session).unpacker);
         luaL_unref(l, LUA_REGISTRYINDEX, (*session).reg);
-        xfree((*session).session.cast::<c_void>());
+        mpack_rpc_session_free((*session).session);
         0
     }
 }
@@ -984,10 +964,7 @@ unsafe extern "C-unwind" fn lmpack_session_request(l: *mut lua_State) -> c_int {
         loop {
             result = mpack_rpc_request((*session).session, &mut b, &mut bl, data);
             if result == MPACK_NOMEM {
-                (*session).session = lmpack_grow_session((*session).session);
-                if (*session).session.is_null() {
-                    return luaL_error(l, c"Failed to grow Session capacity".as_ptr());
-                }
+                mpack_rpc_session_grow((*session).session);
             } else {
                 break;
             }
@@ -1250,8 +1227,7 @@ const MPACK_FUNCTIONS: [luaL_Reg; 6] = [
     },
 ];
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C-unwind" fn luaopen_mpack(l: *mut lua_State) -> c_int {
+pub unsafe fn luaopen_mpack(l: *mut lua_State) -> c_int {
     unsafe {
         luaL_newmetatable(l, UNPACKER_META_NAME.as_ptr());
         lua_pushvalue(l, -1);

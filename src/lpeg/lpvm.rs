@@ -232,8 +232,7 @@ unsafe fn findopen_full(mut cap: *mut Capture, currindex: Index_t) -> *mut Captu
     ptr::null_mut()
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C-unwind" fn r#match(
+pub unsafe fn r#match(
     l: *mut lua_State,
     o: *const c_char,
     mut s: *const c_char,

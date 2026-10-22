@@ -64,5 +64,18 @@ mod tests {
             );
             assert_eq!(tok.length, expected_len);
         }
+
+        assert!(
+            crate::mpack::object::mpack_parser_struct_size(1)
+                >= std::mem::size_of::<crate::mpack::object::mpack_parser_t>()
+        );
+
+        unsafe {
+            let s = crate::mpack::rpc::mpack_rpc_session_new(2);
+            assert_eq!((*s).slots.len(), 2);
+            crate::mpack::rpc::mpack_rpc_session_grow(s);
+            assert_eq!((*s).slots.len(), 4);
+            crate::mpack::rpc::mpack_rpc_session_free(s);
+        }
     }
 }

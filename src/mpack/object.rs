@@ -48,7 +48,12 @@ pub type mpack_walk_cb = Option<unsafe fn(w: *mut mpack_parser_t, n: *mut mpack_
 
 #[inline]
 pub const fn mpack_parser_struct_size(c: mpack_uint32_t) -> usize {
-    offset_of!(mpack_parser_t, items) + ((c as usize) + 1) * size_of::<mpack_node_t>()
+    let min_cap = if (c as usize) < MPACK_MAX_OBJECT_DEPTH {
+        MPACK_MAX_OBJECT_DEPTH
+    } else {
+        c as usize
+    };
+    offset_of!(mpack_parser_t, items) + (min_cap + 1) * size_of::<mpack_node_t>()
 }
 
 #[inline]

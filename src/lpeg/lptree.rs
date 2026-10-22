@@ -1400,8 +1400,7 @@ const METAREG: [luaL_Reg; 10] = [
     },
 ];
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C-unwind" fn luaopen_lpeg(l: *mut lua_State) -> c_int {
+pub unsafe fn luaopen_lpeg(l: *mut lua_State) -> c_int {
     const LPEG_VERSION: &[u8] = b"LPeg 1.1.0";
     unsafe {
         luaL_newmetatable(l, PATTERN_T.as_ptr());
