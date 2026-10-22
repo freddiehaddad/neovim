@@ -130,7 +130,7 @@ use crate::runtime::{
 use crate::spell::{compile_cap_prog, did_set_spell_option, init_spell_chartab, parse_spelllang};
 use crate::spellsuggest::{spell_apply_sps, spell_check_sps};
 use crate::strings::{
-    c_strcpy, concat_str, gettext, sort_strings, strchr, strcmp, strlen, strncmp, strstr, tr,
+    concat_str, gettext, sort_strings, strchr, strcmp, strcpy, strlen, strncmp, strstr, tr,
     vim_snprintf, vim_snprintf_safelen, vim_strchr, vim_strsave_escaped,
 };
 use crate::syntax::synblock_T;
@@ -1353,7 +1353,7 @@ unsafe fn stropt_expand_envvar(
             newlen += (strlen(origval) as u32) + 1;
         }
         newval = xmalloc(newlen as usize).cast::<c_char>();
-        c_strcpy(newval, s);
+        strcpy(newval, s);
 
         newval
     }
@@ -1400,7 +1400,7 @@ unsafe fn stropt_remove_val(
     mut len: c_int,
 ) {
     unsafe {
-        c_strcpy(newval, origval);
+        strcpy(newval, origval);
         if *strval != NUL {
             if (flags & kOptFlagComma) != 0 {
                 if strval == origval {
@@ -1537,7 +1537,7 @@ unsafe fn stropt_handle_keymatch(
         }
 
         let newval_copy = xstrdup(newval);
-        c_strcpy(newval, origval);
+        strcpy(newval, origval);
 
         let mut item_start = newval_copy;
         loop {
@@ -1674,7 +1674,7 @@ unsafe fn stropt_get_newval(
 
                 if (op == OP_ADDING || op == OP_PREPENDING) && !s.is_null() {
                     op = OP_NONE;
-                    c_strcpy(newval, origval);
+                    strcpy(newval, origval);
                 }
 
                 if s.is_null() {

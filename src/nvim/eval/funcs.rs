@@ -4387,7 +4387,7 @@ pub unsafe fn f_inputrestore(_argvars: *mut typval_T, rettv: *mut typval_T, _fpt
 /// "inputsave()" function
 pub unsafe fn f_inputsave(_argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        let p = ga_append_via_ptr(&raw mut GA_USERINPUT, size_of::<tasave_T>()).cast::<tasave_T>();
+        let p = ga_append_via_ptr::<tasave_T>(&raw mut GA_USERINPUT);
         save_typeahead(p);
     }
 }

@@ -54,9 +54,8 @@ use crate::regexp::{
 };
 use crate::runtime::{DIP_ALL, DOSO_NONE, do_source, source_runtime};
 use crate::strings::{
-    gettext, memcpy, memmove, memset, sort_slice_by, strcat, strchr, strcmp, strcpy, strlen,
-    strncmp, strpbrk, vim_snprintf, vim_strchr, vim_stricmp, vim_strnicmp, vim_strnsave_up,
-    vim_strsave_up, xstrnsave,
+    gettext, sort_slice_by, strcat, strchr, strcmp, strcpy, strlen, strncmp, strpbrk, vim_snprintf,
+    vim_strchr, vim_stricmp, vim_strnicmp, vim_strnsave_up, vim_strsave_up, xstrnsave,
 };
 use crate::window::win_T;
 use std::ffi::{c_char, c_int, c_uint, c_void};
@@ -856,10 +855,14 @@ unsafe fn save_chartab(chartab: *mut c_char) {
             return;
         }
 
-        memmove(chartab.cast(), (&raw const (*syn_buf).b_chartab).cast(), 32);
-        memmove(
-            (&raw mut (*syn_buf).b_chartab).cast(),
-            (&raw const (*win_s(syn_win)).b_syn_chartab).cast(),
+        ptr::copy(
+            (&raw const (*syn_buf).b_chartab).cast::<u8>(),
+            chartab.cast::<u8>(),
+            32,
+        );
+        ptr::copy(
+            (&raw const (*win_s(syn_win)).b_syn_chartab).cast::<u8>(),
+            (&raw mut (*syn_buf).b_chartab).cast::<u8>(),
             32,
         );
     }
@@ -868,7 +871,11 @@ unsafe fn save_chartab(chartab: *mut c_char) {
 unsafe fn restore_chartab(chartab: *const c_char) {
     unsafe {
         if (*win_s(syn_win)).b_syn_isk != (&raw mut empty_string_option).cast() {
-            memmove((&raw mut (*syn_buf).b_chartab).cast(), chartab.cast(), 32);
+            ptr::copy(
+                chartab.cast::<u8>(),
+                (&raw mut (*syn_buf).b_chartab).cast::<u8>(),
+                32,
+            );
         }
     }
 }
@@ -2297,7 +2304,7 @@ unsafe fn push_current_state(idx: c_int) {
         ga_grow(&raw mut current_state, 1);
         let p = cur_state_at(current_state.ga_len);
         current_state.ga_len += 1;
-        memset(p.cast(), 0, size_of::<stateitem_T>());
+        ptr::write_bytes(p, 0, 1);
         (*p).si_idx = idx;
     }
 }
@@ -2886,11 +2893,7 @@ unsafe fn syn_cmd_iskeyword(eap: *mut exarg_T, _syncing: c_int) {
                 msg_outtrans(gettext(c"syntax iskeyword not set".as_ptr()), 0, false);
             }
         } else if vim_strnicmp(arg, c"clear".as_ptr(), 5) == 0 {
-            memmove(
-                (&raw mut (*win_s(curwin)).b_syn_chartab).cast(),
-                (&raw const (*curbuf).b_chartab).cast(),
-                32,
-            );
+            (*win_s(curwin)).b_syn_chartab = (*curbuf).b_chartab;
             clear_string_option(&raw mut (*win_s(curwin)).b_syn_isk);
         } else {
             if check_isopt(arg) == FAIL {
@@ -3000,10 +3003,10 @@ unsafe fn syn_remove_pattern(block: *mut synblock_T, idx: c_int) {
             (*block).b_syn_folditems -= 1;
         }
         syn_clear_pattern(block, idx);
-        memmove(
-            spp.cast(),
-            spp.add(1).cast(),
-            size_of::<synpat_T>() * (((*block).b_syn_patterns.ga_len - idx - 1) as usize),
+        ptr::copy(
+            spp.add(1),
+            spp,
+            ((*block).b_syn_patterns.ga_len - idx - 1) as usize,
         );
         (*block).b_syn_patterns.ga_len -= 1;
     }
@@ -3134,7 +3137,7 @@ unsafe fn syn_cmd_onoff(eap: *mut exarg_T, name: *const c_char) {
         if (*eap).skip == 0 {
             did_syntax_onoff = true;
             let mut buf = [0 as c_char; 100];
-            memcpy(buf.as_mut_ptr().cast(), c"so ".as_ptr().cast(), 4);
+            ptr::copy_nonoverlapping(c"so ".as_ptr(), buf.as_mut_ptr(), 4);
             vim_snprintf!(buf.as_mut_ptr().add(3), 100 - 3, SYNTAX_FNAME, name);
             do_cmdline_cmd(buf.as_ptr());
         }
@@ -4081,7 +4084,7 @@ unsafe fn syn_cmd_keyword(eap: *mut exarg_T, _syncing: c_int) {
                                 break;
                             }
                             let l = utfc_ptr2len(p.add(1)) as usize;
-                            memmove(p.cast(), p.add(1).cast(), l);
+                            ptr::copy(p.add(1), p, l);
                             p = p.add(l);
                         }
                         kw = kw.add(kwlen + 1);
@@ -4555,7 +4558,7 @@ unsafe fn syn_add_cluster(name: *mut c_char) -> c_int {
         ga_grow(&raw mut (*win_s(curwin)).b_syn_clusters, 1);
         let scp = syn_clstr(win_s(curwin)).offset(len as isize);
         (*win_s(curwin)).b_syn_clusters.ga_len += 1;
-        memset(scp.cast(), 0, size_of::<syn_cluster_T>());
+        ptr::write_bytes(scp, 0, 1);
         (*scp).scl_name = name;
         (*scp).scl_name_u = vim_strsave_up(name);
         (*scp).scl_list = ptr::null_mut();
@@ -5030,7 +5033,7 @@ unsafe fn copy_id_list(list: *const i16) -> *mut i16 {
         }
         let len = (count + 1) * size_of::<i16>();
         let retval = xmalloc(len).cast::<i16>();
-        memmove(retval.cast(), list.cast(), len);
+        ptr::copy(list, retval, count + 1);
         retval
     }
 }

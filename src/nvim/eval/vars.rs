@@ -77,7 +77,7 @@ use crate::register::{get_reg_contents, kGRegExprSrc, write_reg_contents};
 use crate::runtime::{new_script_item, script_autoload, script_item, script_items, scriptvar_T};
 use crate::search::set_search_direction;
 use crate::strings::{
-    c_strcpy, concat_str, gettext, strcmp, strlen, strncmp, vim_snprintf, vim_strchr,
+    concat_str, gettext, strcmp, strcpy, strlen, strncmp, vim_snprintf, vim_strchr,
 };
 use crate::version::{highest_patch, min_vim_version};
 use crate::window::{
@@ -2309,7 +2309,7 @@ pub unsafe fn cat_prefix_varname(prefix: c_int, name: *const c_char) -> *mut c_c
         }
         *varnamebuf = prefix as u8 as c_char;
         *varnamebuf.add(1) = b':' as c_char;
-        c_strcpy(varnamebuf.add(2), name);
+        strcpy(varnamebuf.add(2), name);
         varnamebuf
     }
 }

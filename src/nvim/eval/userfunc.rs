@@ -85,7 +85,7 @@ use crate::runtime::{
 };
 use crate::search::{restore_search_patterns, save_search_patterns};
 use crate::strings::{
-    c_strcpy, concat_str, gettext, memchr, strchr, strcmp, strlen, strncmp, strstr, vim_snprintf,
+    concat_str, gettext, memchr, strchr, strcmp, strcpy, strlen, strncmp, strstr, vim_snprintf,
     vim_strchr, xstrnsave,
 };
 use crate::ui::ui_has;
@@ -642,7 +642,7 @@ pub unsafe fn get_lambda_tv(
             let p = xmalloc(len).cast::<c_char>();
             *(newlines.ga_data.cast::<*mut c_char>()).add(newlines.ga_len as usize) = p;
             newlines.ga_len += 1;
-            c_strcpy(p, c"return ".as_ptr());
+            strcpy(p, c"return ".as_ptr());
             xmemcpyz(p.add(7).cast(), start.cast(), expr_len);
             if strstr(p.add(7), c"a:".as_ptr()).is_null() {
                 flags |= FC_NOARGS;
@@ -903,7 +903,7 @@ unsafe fn fname_trans_sid(
         }
         let fnamelen = fname_buflen + strlen(script_name);
         if fnamelen < FLEN_FIXED {
-            c_strcpy(fname_buf.add(fname_buflen), script_name);
+            strcpy(fname_buf.add(fname_buflen), script_name);
             fname_buf
         } else {
             let fname = xmalloc(fnamelen + 1).cast::<c_char>();
@@ -1008,7 +1008,7 @@ unsafe fn cat_func_name(buf: *mut c_char, bufsize: usize, fp: *const ufunc_T) ->
 unsafe fn add_nr_var(dp: *mut dict_T, v: *mut dictitem_T, name: *const c_char, nr: varnumber_T) {
     unsafe {
         let key_ptr = (&raw mut (*v).di_key).cast::<c_char>();
-        c_strcpy(key_ptr, name);
+        strcpy(key_ptr, name);
         (*v).di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
         hash_add(&raw mut (*dp).dv_hashtab, key_ptr);
         (*v).di_tv.v_type = VarType::VAR_NUMBER;
@@ -1293,7 +1293,7 @@ pub unsafe fn call_user_func(
             let v = fixvar_ptr.add(fixvar_idx).cast::<dictitem_T>();
             fixvar_idx += 1;
             name = (&raw mut (*v).di_key).cast::<c_char>();
-            c_strcpy(name, c"self".as_ptr());
+            strcpy(name, c"self".as_ptr());
             (*v).di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
             hash_add(&raw mut (*fc).fc_l_vars.dv_hashtab, name);
             (*v).di_tv.v_type = VarType::VAR_DICT;
@@ -1326,7 +1326,7 @@ pub unsafe fn call_user_func(
             let v = fixvar_ptr.add(fixvar_idx).cast::<dictitem_T>();
             fixvar_idx += 1;
             name = (&raw mut (*v).di_key).cast::<c_char>();
-            c_strcpy(name, c"000".as_ptr());
+            strcpy(name, c"000".as_ptr());
             (*v).di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
             hash_add(&raw mut (*fc).fc_l_avars.dv_hashtab, name);
             (*v).di_tv.v_type = VarType::VAR_LIST;
@@ -1402,7 +1402,7 @@ pub unsafe fn call_user_func(
                 let item = fixvar_ptr.add(fixvar_idx).cast::<dictitem_T>();
                 fixvar_idx += 1;
                 (*item).di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
-                c_strcpy((&raw mut (*item).di_key).cast::<c_char>(), name);
+                strcpy((&raw mut (*item).di_key).cast::<c_char>(), name);
                 item
             } else {
                 let item = tv_dict_item_alloc_len(name, namelen);
@@ -3853,11 +3853,7 @@ pub unsafe fn add_defer(name: *mut c_char, argcount_arg: c_int, argvars: *mut ty
                 10,
             );
         }
-        let dr = ga_append_via_ptr(
-            &raw mut (*current_funccal).fc_defer,
-            std::mem::size_of::<defer_T>(),
-        )
-        .cast::<defer_T>();
+        let dr = ga_append_via_ptr::<defer_T>(&raw mut (*current_funccal).fc_defer);
         (*dr).dr_name = saved_name;
         (*dr).dr_argcount = argcount;
         while argcount > 0 {
@@ -4115,7 +4111,7 @@ pub unsafe fn get_return_cmd(rettv: *mut c_void) -> *mut c_char {
         xstrlcpy(iobuff_ptr.add(8), s, IOSIZE - 8);
         let mut iobuff_len = 8 + slen;
         if iobuff_len >= IOSIZE {
-            c_strcpy(iobuff_ptr.add(IOSIZE - 4), c"...".as_ptr());
+            strcpy(iobuff_ptr.add(IOSIZE - 4), c"...".as_ptr());
             iobuff_len = IOSIZE - 1;
         }
         xfree(tofree.cast());

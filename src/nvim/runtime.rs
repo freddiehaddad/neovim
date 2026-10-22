@@ -2217,8 +2217,7 @@ pub unsafe fn expand_runtime_cmd(
             let pat_slice = std::slice::from_raw_parts(pat.cast::<u8>(), pat_len);
             for wv in &where_values {
                 if wv.to_bytes().starts_with(pat_slice) {
-                    let slot = ga_append_via_ptr(&mut ga, std::mem::size_of::<*mut c_char>())
-                        .cast::<*mut c_char>();
+                    let slot = ga_append_via_ptr::<*mut c_char>(&mut ga);
                     *slot = xstrdup(wv.as_ptr());
                 }
             }
@@ -2801,8 +2800,7 @@ unsafe fn do_source_buffer_init(
             100,
         );
         for curr_lnum in (*eap).line1..=(*eap).line2 {
-            let slot = ga_append_via_ptr(&mut (*sp).buflines, std::mem::size_of::<*mut c_char>())
-                .cast::<*mut c_char>();
+            let slot = ga_append_via_ptr::<*mut c_char>(&mut (*sp).buflines);
             *slot = xstrdup(ml_get(curr_lnum));
         }
         (*sp).buf_lnum = 0;
@@ -2822,8 +2820,7 @@ unsafe fn do_source_str_init(sp: *mut source_cookie_T, mut str_ptr: *const c_cha
         );
         while *str_ptr != NUL {
             let eol = skip_to_newline(str_ptr);
-            let slot = ga_append_via_ptr(&mut (*sp).buflines, std::mem::size_of::<*mut c_char>())
-                .cast::<*mut c_char>();
+            let slot = ga_append_via_ptr::<*mut c_char>(&mut (*sp).buflines);
             *slot = xmemdupz(
                 str_ptr.cast::<c_void>(),
                 (eol as usize) - (str_ptr as usize),
@@ -3859,9 +3856,7 @@ pub unsafe fn script_autoload(name: *const c_char, name_len: usize, reload: bool
             ret = false;
         } else {
             if i == ga_loaded.ga_len {
-                let slot =
-                    ga_append_via_ptr(&raw mut ga_loaded, std::mem::size_of::<*mut c_char>())
-                        .cast::<*mut c_char>();
+                let slot = ga_append_via_ptr::<*mut c_char>(&raw mut ga_loaded);
                 *slot = scriptname;
                 tofree = ptr::null_mut();
             }

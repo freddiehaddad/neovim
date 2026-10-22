@@ -4401,8 +4401,7 @@ unsafe fn get_next_filename_completion() {
                 let ptr = *matches.add(i as usize);
                 let score = fuzzy_match_str(ptr, leader);
                 if score != FUZZY_SCORE_NONE {
-                    *ga_append_via_ptr(&raw mut fuzzy_indices, size_of::<c_int>())
-                        .cast::<c_int>() = i;
+                    *ga_append_via_ptr::<c_int>(&raw mut fuzzy_indices) = i;
                     *compl_fuzzy_scores.add(i as usize) = score;
                 }
             }

@@ -5466,7 +5466,7 @@ unsafe fn get_loop_line(
 /// Store a line in "gap" so that a ":while" loop can execute it again.
 unsafe fn store_loop_line(gap: *mut garray_T, line: *mut c_char) {
     unsafe {
-        let p = ga_append_via_ptr(gap, size_of::<wcmd_T>()).cast::<wcmd_T>();
+        let p = ga_append_via_ptr::<wcmd_T>(gap);
         (*p).line = xstrdup(line);
         (*p).lnum = *sourcing_lnum_ptr();
     }

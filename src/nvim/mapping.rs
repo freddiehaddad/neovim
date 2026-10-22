@@ -1468,16 +1468,14 @@ pub unsafe fn ExpandMappings(
 
             if fuzzy {
                 let idx = ga.ga_len;
-                let slot = ga_append_via_ptr(&mut ga, std::mem::size_of::<fuzmatch_str_T>())
-                    .cast::<fuzmatch_str_T>();
+                let slot = ga_append_via_ptr::<fuzmatch_str_T>(&mut ga);
                 *slot = fuzmatch_str_T {
                     idx,
                     str_ptr: xstrdup(p),
                     score,
                 };
             } else {
-                let slot = ga_append_via_ptr(&mut ga, std::mem::size_of::<*mut c_char>())
-                    .cast::<*mut c_char>();
+                let slot = ga_append_via_ptr::<*mut c_char>(&mut ga);
                 *slot = xstrdup(p);
             }
         }
@@ -1521,16 +1519,14 @@ pub unsafe fn ExpandMappings(
 
                 if fuzzy {
                     let idx = ga.ga_len;
-                    let slot = ga_append_via_ptr(&mut ga, std::mem::size_of::<fuzmatch_str_T>())
-                        .cast::<fuzmatch_str_T>();
+                    let slot = ga_append_via_ptr::<fuzmatch_str_T>(&mut ga);
                     *slot = fuzmatch_str_T {
                         idx,
                         str_ptr: p,
                         score,
                     };
                 } else {
-                    let slot = ga_append_via_ptr(&mut ga, std::mem::size_of::<*mut c_char>())
-                        .cast::<*mut c_char>();
+                    let slot = ga_append_via_ptr::<*mut c_char>(&mut ga);
                     *slot = p;
                 }
                 mp = (*mp).m_next;

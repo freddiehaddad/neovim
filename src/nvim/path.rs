@@ -851,7 +851,7 @@ unsafe fn expand_path_option(
                 buflen = simplify_filename(buf);
             }
 
-            let slot = ga_append_via_ptr(gap, size_of::<*mut c_char>()).cast::<*mut c_char>();
+            let slot = ga_append_via_ptr::<*mut c_char>(gap);
             *slot = xmemdupz(buf.cast::<c_void>(), buflen).cast::<c_char>();
         }
 
@@ -1466,7 +1466,7 @@ pub unsafe fn addfile(gap: *mut garray_T, f: *mut c_char, flags: c_int) {
         if isdir && (flags & EW_ADDSLASH) != 0 {
             add_pathsep(p);
         }
-        let slot = ga_append_via_ptr(gap, size_of::<*mut c_char>()).cast::<*mut c_char>();
+        let slot = ga_append_via_ptr::<*mut c_char>(gap);
         *slot = p;
     }
 }

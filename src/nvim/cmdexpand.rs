@@ -109,7 +109,7 @@ use crate::search::{Direction, ignorecase, pat_has_uppercase, searchit};
 use crate::sign::{get_sign_name, set_context_in_sign_cmd};
 use crate::statusline::fillchar_status;
 use crate::strings::{
-    c_strcpy, gettext, sort_slice_by, sort_strings, strcase_save, strcmp, strlen, strncmp,
+    gettext, sort_slice_by, sort_strings, strcase_save, strcmp, strcpy, strlen, strncmp,
     vim_snprintf, vim_strchr, vim_strsave_escaped, xstrnsave,
 };
 use crate::syntax::{
@@ -992,7 +992,7 @@ use crate::path::vim_ispathsep;
 #[inline]
 unsafe fn ga_push<T>(gap: *mut garray_T, item: T) {
     unsafe {
-        let slot = ga_append_via_ptr(gap, std::mem::size_of::<T>()).cast::<T>();
+        let slot = ga_append_via_ptr::<T>(gap);
         ptr::write(slot, item);
     }
 }
@@ -1554,7 +1554,7 @@ unsafe fn redraw_wildmenu(
             *buf = NUL;
             len = 0;
         } else {
-            c_strcpy(buf, c"< ".as_ptr());
+            strcpy(buf, c"< ".as_ptr());
             len = 2;
         }
         clen = len as c_int;
@@ -1570,7 +1570,7 @@ unsafe fn redraw_wildmenu(
             let mut s = show_match(matches, i as usize, showtail);
             let emenu = (*xp).xp_context == EXPAND_MENUS || (*xp).xp_context == EXPAND_MENUNAMES;
             if emenu && menu_is_separator(s) {
-                c_strcpy(buf.add(len), transchar(b'|' as c_int));
+                strcpy(buf.add(len), transchar(b'|' as c_int));
                 let l = strlen(buf.add(len));
                 len += l;
                 clen += l as c_int;
@@ -1584,7 +1584,7 @@ unsafe fn redraw_wildmenu(
                         s = s.add((l - 1) as usize);
                         len += l as usize;
                     } else {
-                        c_strcpy(buf.add(len), transchar_byte(c_int::from(*s as u8)));
+                        strcpy(buf.add(len), transchar_byte(c_int::from(*s as u8)));
                         len += strlen(buf.add(len));
                     }
                     s = s.add(1);

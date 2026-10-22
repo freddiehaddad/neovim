@@ -103,7 +103,7 @@ use crate::spell::parse_spelllang;
 use crate::state::{MAP_ALL_MODES, MODE_INSERT};
 use crate::statusline::build_stl_str_hl;
 use crate::strings::{
-    c_strcpy, gettext, ngettext, sort_slice_by, strcmp, strlen, strncmp, vim_snprintf,
+    gettext, ngettext, sort_slice_by, strcmp, strcpy, strlen, strncmp, vim_snprintf,
     vim_snprintf_safelen, vim_strchr, xstrnsave,
 };
 use crate::syntax::{reset_synblock, synblock_T, syntax_clear};
@@ -4074,7 +4074,7 @@ pub unsafe fn maketitle() {
                     namelen += c_int::from(utf_cp_bounds(name, name.add(namelen as usize)).end_off);
                     name = name.add(namelen as usize);
                 }
-                c_strcpy(buf.as_mut_ptr(), name);
+                strcpy(buf.as_mut_ptr(), name);
                 trans_characters(buf.as_mut_ptr(), IOSIZE as c_int);
             }
         }

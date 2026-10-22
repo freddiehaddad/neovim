@@ -55,8 +55,8 @@ use crate::spell::{
 };
 use crate::spellsuggest::{fromto_T, idx_T, salfirst_T, salitem_T, slang_T, spelltab_T};
 use crate::strings::{
-    atoi, gettext, has_non_ascii, memchr, memcmp, memcpy, memmove, memset, sort_slice_by, strcat,
-    strcmp, strcpy, strerror, strlen, strncmp, strrchr, strstr, vim_snprintf, vim_strchr,
+    atoi, gettext, has_non_ascii, memchr, memcmp, sort_slice_by, strcat, strcmp, strcpy, strerror,
+    strlen, strncmp, strrchr, strstr, vim_snprintf, vim_strchr,
 };
 use crate::syntax::{ga_empty, hi_empty, win_s};
 use crate::ui::ui_flush;
@@ -1368,15 +1368,11 @@ unsafe fn set_sofo(lp: *mut slang_T, from: *const c_char, to: *const c_char) -> 
         let gap = &raw mut (*lp).sl_sal;
         ga_init(gap, size_of::<*mut c_int>() as c_int, 1);
         ga_grow(gap, 256);
-        memset((*gap).ga_data, 0, size_of::<*mut c_int>() * 256);
+        ptr::write_bytes((*gap).ga_data.cast::<*mut c_int>(), 0, 256);
         (*gap).ga_len = 256;
         (*lp).sl_sofo = true;
 
-        memset(
-            (&raw mut (*lp).sl_sal_first).cast(),
-            0,
-            size_of::<salfirst_T>() * 256,
-        );
+        (*lp).sl_sal_first = [0; 256];
         let mut p = from;
         let mut s = to;
         while *p != NUL && *s != NUL {
@@ -1399,11 +1395,7 @@ unsafe fn set_sofo(lp: *mut slang_T, from: *const c_char, to: *const c_char) -> 
             }
         }
 
-        memset(
-            (&raw mut (*lp).sl_sal_first).cast(),
-            0,
-            size_of::<salfirst_T>() * 256,
-        );
+        (*lp).sl_sal_first = [0; 256];
         p = from;
         s = to;
         while *p != NUL && *s != NUL {
@@ -1454,10 +1446,10 @@ unsafe fn set_sal_first(lp: *mut slang_T) {
                         i += 1;
                         n -= 1;
                         let tsal = *smp.offset((i + n) as isize);
-                        memmove(
-                            smp.offset((i + 1) as isize).cast(),
-                            smp.offset(i as isize).cast(),
-                            size_of::<salitem_T>() * (n as usize),
+                        ptr::copy(
+                            smp.offset(i as isize),
+                            smp.offset((i + 1) as isize),
+                            n as usize,
                         );
                         *smp.offset(i as isize) = tsal;
                     }
@@ -2675,7 +2667,7 @@ unsafe fn aff_process_flags(affile: *mut afffile_T, entry: *mut affentry_T) {
                 let prevp = p;
                 let flag = get_affitem((*affile).af_flagtype, &raw mut p);
                 if flag == (*affile).af_comppermit || flag == (*affile).af_compforbid {
-                    memmove(prevp.cast(), p.cast(), strlen(p) + 1);
+                    ptr::copy(p, prevp, strlen(p) + 1);
                     p = prevp;
                     if flag == (*affile).af_comppermit {
                         (*entry).ae_comppermit = 1;
@@ -3074,7 +3066,7 @@ unsafe fn spell_read_dic(
                 if *p == b'\\' as c_char
                     && (*p.add(1) == b'\\' as c_char || *p.add(1) == b'/' as c_char)
                 {
-                    memmove(p.cast(), p.add(1).cast(), strlen(p.add(1)) + 1);
+                    ptr::copy(p.add(1), p, strlen(p.add(1)) + 1);
                 } else if *p == b'/' as c_char {
                     *p = NUL;
                     afflist = p.add(1);
@@ -3905,7 +3897,9 @@ unsafe fn getroom(spin: *mut spellinfo_T, len: usize, align: bool) -> *mut c_voi
 unsafe fn getroom_save(spin: *mut spellinfo_T, s: *const c_char) -> *mut c_char {
     unsafe {
         let s_size = strlen(s) + 1;
-        memcpy(getroom(spin, s_size, false), s.cast(), s_size).cast()
+        let dst = getroom(spin, s_size, false).cast::<c_char>();
+        ptr::copy_nonoverlapping(s, dst, s_size);
+        dst
     }
 }
 
@@ -4150,7 +4144,7 @@ unsafe fn get_wordnode(spin: *mut spellinfo_T) -> *mut wordnode_T {
         } else {
             let n = (*spin).si_first_free;
             (*spin).si_first_free = (*n).wn_child;
-            memset(n.cast(), 0, size_of::<wordnode_T>());
+            ptr::write_bytes(n, 0, 1);
             (*spin).si_free_count -= 1;
             n
         }

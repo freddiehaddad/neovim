@@ -3106,8 +3106,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: *const proftime_T, timed_out: *mut c_i
                                 i += 1;
                             }
                             if i == backpos.ga_len {
-                                let p = ga_append_via_ptr(&raw mut backpos, size_of::<backpos_T>())
-                                    .cast::<backpos_T>();
+                                let p = ga_append_via_ptr::<backpos_T>(&raw mut backpos);
                                 (*p).bp_scan = scan;
                                 bp = backpos.ga_data.cast::<backpos_T>();
                             } else if reg_save_equal(&raw const (*bp.add(i as usize)).bp_pos) {

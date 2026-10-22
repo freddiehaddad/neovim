@@ -117,8 +117,8 @@ use crate::path::{
 };
 use crate::search::{BACKWARD, Direction, FORWARD, do_search, last_search_pat};
 use crate::strings::{
-    atoi, atol, c_strcpy, gettext, has_non_ascii, strcmp, strlen, vim_snprintf,
-    vim_snprintf_safelen, vim_strchr,
+    atoi, atol, gettext, has_non_ascii, strcmp, strcpy, strlen, vim_snprintf, vim_snprintf_safelen,
+    vim_strchr,
 };
 use crate::ui::ui_flush;
 use crate::undo::u_clearallandblockfree;
@@ -669,15 +669,15 @@ unsafe fn efmpat_to_regpat(
         regpat = regpat.add(1);
         #[cfg(windows)]
         if *efmpat == b'f' as c_char {
-            c_strcpy(regpat, c"\\%(\\a:\\)\\=".as_ptr());
+            strcpy(regpat, c"\\%(\\a:\\)\\=".as_ptr());
             regpat = regpat.add(10);
         }
         if *efmpat == b'f' as c_char && *efmpat.add(1) != NUL {
             if *efmpat.add(1) != b'\\' as c_char && *efmpat.add(1) != b'%' as c_char {
-                c_strcpy(regpat, c".\\{-1,}".as_ptr());
+                strcpy(regpat, c".\\{-1,}".as_ptr());
                 regpat = regpat.add(7);
             } else {
-                c_strcpy(regpat, c"\\f\\+".as_ptr());
+                strcpy(regpat, c"\\f\\+".as_ptr());
                 regpat = regpat.add(4);
             }
         } else {
@@ -1737,7 +1737,7 @@ unsafe fn qf_parse_fmt_s(rmp: *mut regmatch_T, midx: usize, fields: *mut qffield
         }
         let mut len = (*rmp).endp[midx].offset_from((*rmp).startp[midx]) as usize;
         len = len.min(CMDBUFFSIZE - 5);
-        c_strcpy((*fields).pattern, c"^\\V".as_ptr());
+        strcpy((*fields).pattern, c"^\\V".as_ptr());
         xstrlcat((*fields).pattern, (*rmp).startp[midx], len + 4);
         *(*fields).pattern.add(len + 3) = b'\\' as c_char;
         *(*fields).pattern.add(len + 4) = b'$' as c_char;
@@ -1953,7 +1953,7 @@ unsafe fn qf_parse_multiline_pfx(
                 (*qfprev).qf_text =
                     xrealloc((*qfprev).qf_text.cast(), textlen + errlen + 2).cast::<c_char>();
                 *(*qfprev).qf_text.add(textlen) = b'\n' as c_char;
-                c_strcpy((*qfprev).qf_text.add(textlen + 1), (*fields).errmsg);
+                strcpy((*qfprev).qf_text.add(textlen + 1), (*fields).errmsg);
             }
             if (*qfprev).qf_nr == -1 {
                 (*qfprev).qf_nr = (*fields).enr;
@@ -4926,7 +4926,7 @@ unsafe fn get_mef_name() -> *mut c_char {
             }
             let mef_len = strlen(p_mef);
             let name = xmalloc(mef_len + 30).cast::<c_char>();
-            c_strcpy(name, p_mef);
+            strcpy(name, p_mef);
             let off_idx = p.offset_from(p_mef) as usize;
             vim_snprintf!(
                 name.add(off_idx),

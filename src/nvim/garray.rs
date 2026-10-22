@@ -219,21 +219,21 @@ pub unsafe fn ga_append(gap: *mut garray_T, c: u8) {
     }
 }
 
-/// Grow `gap` by 1 item of `item_size` and return a pointer to the new slot (`ga_append_via_ptr`).
+/// Grow `gap` by 1 item of type `T` and return a pointer to the new slot (`ga_append_via_ptr`).
 ///
 /// # Safety
-/// `gap` must be a valid writable pointer to an initialized `garray_T`.
-pub unsafe fn ga_append_via_ptr(gap: *mut garray_T, item_size: usize) -> *mut c_void {
+/// `gap` must be a valid writable pointer to an initialized `garray_T` with `ga_itemsize == size_of::<T>()`.
+pub unsafe fn ga_append_via_ptr<T>(gap: *mut garray_T) -> *mut T {
+    debug_assert_eq!(
+        unsafe { (*gap).ga_itemsize as usize },
+        std::mem::size_of::<T>()
+    );
     unsafe {
         ga_grow(gap, 1);
         let gap_ref = &mut *gap;
         let idx = gap_ref.ga_len as usize;
         gap_ref.ga_len += 1;
-        gap_ref
-            .ga_data
-            .cast::<u8>()
-            .add(item_size * idx)
-            .cast::<c_void>()
+        gap_ref.ga_data.cast::<T>().add(idx)
     }
 }
 
@@ -287,8 +287,7 @@ mod tests {
             xfree(empty_concat.cast());
 
             for w in ["ccc", "aaa", "bbb", "aaa", "ccc"] {
-                let slot = ga_append_via_ptr(&mut ga, std::mem::size_of::<*mut c_char>())
-                    .cast::<*mut c_char>();
+                let slot = ga_append_via_ptr::<*mut c_char>(&mut ga);
                 let dup = xmallocz(w.len()).cast::<u8>();
                 std::ptr::copy_nonoverlapping(w.as_ptr(), dup, w.len());
                 *slot = dup.cast::<c_char>();

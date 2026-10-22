@@ -793,8 +793,7 @@ pub unsafe fn fuzzy_match_str_with_pos(str_ptr: *mut c_char, pat: *const c_char)
         let mut p = pat;
         while *p != 0 {
             if !ascii_iswhite(utf_ptr2char(p)) {
-                let slot =
-                    ga_append_via_ptr(match_positions, std::mem::size_of::<u32>()).cast::<u32>();
+                let slot = ga_append_via_ptr::<u32>(match_positions);
                 *slot = matches[j];
                 j += 1;
             }

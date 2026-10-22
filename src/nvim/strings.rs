@@ -103,14 +103,6 @@ pub unsafe fn tr<S: IntoCCharPtr>(s: S) -> *mut c_char {
 }
 
 #[inline]
-pub unsafe fn c_strcpy(dst: *mut c_char, src: *const c_char) {
-    unsafe {
-        let len = CStr::from_ptr(src).to_bytes_with_nul().len();
-        ptr::copy_nonoverlapping(src, dst, len);
-    }
-}
-
-#[inline]
 pub unsafe fn strmove(dst: *mut c_char, src: *const c_char) {
     unsafe {
         let len = CStr::from_ptr(src).to_bytes_with_nul().len();
@@ -734,30 +726,6 @@ fn write_fmt_to_c_buf(dst: &mut [c_char], args: std::fmt::Arguments<'_>) -> usiz
     let written = cursor.position() as usize;
     dst[written] = NUL;
     written
-}
-
-#[inline]
-pub unsafe fn memcpy(dst: *mut c_void, src: *const c_void, n: usize) -> *mut c_void {
-    if n > 0 {
-        unsafe { ptr::copy_nonoverlapping(src.cast::<u8>(), dst.cast::<u8>(), n) };
-    }
-    dst
-}
-
-#[inline]
-pub unsafe fn memmove(dst: *mut c_void, src: *const c_void, n: usize) -> *mut c_void {
-    if n > 0 {
-        unsafe { ptr::copy(src.cast::<u8>(), dst.cast::<u8>(), n) };
-    }
-    dst
-}
-
-#[inline]
-pub unsafe fn memset(s: *mut c_void, c: c_int, n: usize) -> *mut c_void {
-    if n > 0 {
-        unsafe { ptr::write_bytes(s.cast::<u8>(), c as u8, n) };
-    }
-    s
 }
 
 #[inline]
