@@ -141,8 +141,7 @@ unsafe fn count_n_matched_chars(sp: &[mmfile_t], iwhite: bool) -> c_int {
 ///
 /// # Safety
 /// If `s.ptr` is non-null and `s.size > 0`, `s.ptr` must be valid for `s.size` bytes.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn fastforward_buf_to_lnum(mut s: mmfile_t, lnum: linenr_T) -> mmfile_t {
+pub unsafe fn fastforward_buf_to_lnum(mut s: mmfile_t, lnum: linenr_T) -> mmfile_t {
     for _ in 0..(lnum - 1) {
         if s.ptr.is_null() || s.size <= 0 {
             s.ptr = std::ptr::null_mut();
@@ -338,8 +337,7 @@ fn test_charmatch_paths(
 /// # Safety
 /// `diff_blk` and `diff_len` must be valid for `ndiffs` elements, and `decisions` must be a valid
 /// writable pointer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn linematch_nbuffers(
+pub unsafe fn linematch_nbuffers(
     diff_blk: *const *const mmfile_t,
     diff_len: *const c_int,
     ndiffs: usize,

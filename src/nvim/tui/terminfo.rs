@@ -2949,8 +2949,7 @@ unsafe fn onum(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn terminfo_fmt(
+pub unsafe fn terminfo_fmt(
     buf_start: *mut c_char,
     buf_end: *mut c_char,
     mut str_: *const c_char,
@@ -3345,6 +3344,33 @@ mod tests {
             assert_eq!(ut.count_ext_str(), 1);
             assert_eq!(CStr::from_ptr(ut.get_ext_str_name(0)).to_bytes(), b"Se");
             assert_eq!(CStr::from_ptr(ut.get_ext_str(0)).to_bytes(), b"\x1b[0 q");
+        }
+    }
+
+    #[test]
+    fn terminfo_fmt_stack_overflow_fails_before_output() {
+        let mut buf = [0 as c_char; 256];
+        let mut params = [TPVAR {
+            num: 65,
+            string: ptr::null_mut(),
+        }; 9];
+        let valid_fmt = format!("{}%c\0", "%p1".repeat(20));
+        let overflow_fmt = format!("{}%c\0", "%p1".repeat(21));
+
+        unsafe {
+            let start = buf.as_mut_ptr();
+            let end = start.add(buf.len());
+            let valid_n = terminfo_fmt(start, end, valid_fmt.as_ptr().cast(), params.as_mut_ptr());
+            assert_eq!(valid_n, 1);
+            assert_eq!(buf[0] as u8, b'A');
+
+            let overflow_n = terminfo_fmt(
+                start,
+                end,
+                overflow_fmt.as_ptr().cast(),
+                params.as_mut_ptr(),
+            );
+            assert_eq!(overflow_n, 0);
         }
     }
 }

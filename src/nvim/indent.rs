@@ -387,8 +387,7 @@ pub unsafe fn get_sw_value_col(buf: *mut buf_T, col: colnr_T, left: bool) -> c_i
 }
 
 /// Return the effective softtabstop value for the current buffer (`get_sts_value`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_sts_value() -> c_int {
+pub unsafe fn get_sts_value() -> c_int {
     unsafe {
         if (*curbuf).b_p_sts < 0 {
             get_sw_value(curbuf)
@@ -439,12 +438,7 @@ pub unsafe fn indent_size_no_ts(mut ptr: *const c_char) -> c_int {
 }
 
 /// Compute the size of the indent (in window cells) in line `ptr`, using tabstops (`indent_size_ts`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn indent_size_ts(
-    mut ptr: *const c_char,
-    ts: OptInt,
-    vts: *mut colnr_T,
-) -> c_int {
+pub unsafe fn indent_size_ts(mut ptr: *const c_char, ts: OptInt, vts: *mut colnr_T) -> c_int {
     unsafe {
         debug_assert!(char2cells(b' ' as c_int) == 1);
 
@@ -1971,6 +1965,33 @@ mod tests {
             assert_eq!(tabstop_padding(4, 8, vts), 8);
             assert_eq!(tabstop_at(0, 8, vts, false), 4);
             xfree(vts.cast());
+
+            assert_eq!(
+                indent_size_ts(c"       a ".as_ptr(), 100, ptr::null_mut()),
+                7
+            );
+            assert_eq!(
+                indent_size_ts(c"   \t  \t \t\t   a ".as_ptr(), 4, ptr::null_mut()),
+                19
+            );
+            let mut empty_vts = [0 as colnr_T; 1];
+            assert_eq!(
+                indent_size_ts(
+                    c"   \t  \t \t\t       a ".as_ptr(),
+                    4,
+                    empty_vts.as_mut_ptr()
+                ),
+                23
+            );
+            let mut custom_vts = [2 as colnr_T, 7, 2];
+            assert_eq!(
+                indent_size_ts(
+                    c"      \t  \t \t\t   a ".as_ptr(),
+                    4,
+                    custom_vts.as_mut_ptr()
+                ),
+                18
+            );
         }
     }
 }

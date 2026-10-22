@@ -3845,8 +3845,7 @@ pub unsafe fn opt_keyset(
 }
 
 /// Return OK if "p" is a valid fileformat name, FAIL otherwise.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn check_ff_value(p: *mut c_char) -> c_int {
+pub unsafe fn check_ff_value(p: *mut c_char) -> c_int {
     unsafe {
         if opt_strings_flags(
             p,

@@ -68,8 +68,7 @@ unsafe fn key_matches(hi_key: *const c_char, key: *const c_char, key_len: usize)
 ///
 /// # Safety
 /// `ht` must be a valid writable pointer to a `hashtab_T`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hash_init(ht: *mut hashtab_T) {
+pub unsafe fn hash_init(ht: *mut hashtab_T) {
     unsafe {
         std::ptr::write_bytes(ht, 0, 1);
         let ht_ref = &mut *ht;
@@ -82,8 +81,7 @@ pub unsafe extern "C" fn hash_init(ht: *mut hashtab_T) {
 ///
 /// # Safety
 /// `ht` must be a valid writable pointer to an initialized `hashtab_T`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hash_clear(ht: *mut hashtab_T) {
+pub unsafe fn hash_clear(ht: *mut hashtab_T) {
     let ht_ref = unsafe { &mut *ht };
     if !std::ptr::eq(ht_ref.ht_array, ht_ref.ht_smallarray.as_ptr()) {
         unsafe {
@@ -120,8 +118,7 @@ pub unsafe fn hash_clear_all(ht: *mut hashtab_T, off: c_uint) {
 ///
 /// # Safety
 /// `ht` and `key` must be valid pointers.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hash_find(ht: *const hashtab_T, key: *const c_char) -> *mut hashitem_T {
+pub unsafe fn hash_find(ht: *const hashtab_T, key: *const c_char) -> *mut hashitem_T {
     let len = unsafe { CStr::from_ptr(key).to_bytes().len() };
     let hash = unsafe { hash_hash(key) };
     unsafe { hash_lookup(ht, key, len, hash) }
@@ -200,8 +197,7 @@ pub fn hash_debug_results() {}
 ///
 /// # Safety
 /// `ht` and `key` must be valid pointers, and `key` must outlive the entry in `ht`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hash_add(ht: *mut hashtab_T, key: *mut c_char) -> c_int {
+pub unsafe fn hash_add(ht: *mut hashtab_T, key: *mut c_char) -> c_int {
     let len = unsafe { CStr::from_ptr(key).to_bytes().len() };
     let hash = unsafe { hash_hash(key) };
     let hi = unsafe { hash_lookup(ht, key, len, hash) };
@@ -249,8 +245,7 @@ pub unsafe fn hash_add_item(
 ///
 /// # Safety
 /// `ht` and `hi` must be valid pointers, with `hi` pointing to an active item in `ht`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hash_remove(ht: *mut hashtab_T, hi: *mut hashitem_T) {
+pub unsafe fn hash_remove(ht: *mut hashtab_T, hi: *mut hashitem_T) {
     let ht_ref = unsafe { &mut *ht };
     let hi_ref = unsafe { &mut *hi };
     ht_ref.ht_used -= 1;

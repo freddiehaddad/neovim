@@ -2432,8 +2432,7 @@ fn extract_modifiers(
 }
 
 /// Try translating a `<>` name (`find_special_key`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn find_special_key(
+pub unsafe fn find_special_key(
     srcp: *mut *const c_char,
     src_len: usize,
     modp: *mut c_int,
@@ -2960,5 +2959,57 @@ mod tests {
         assert_eq!(buf[0], K_SPECIAL);
         assert_eq!(buf[1], b'a');
         assert_eq!(buf[2], 0);
+    }
+
+    #[test]
+    fn find_special_key_handles_modifiers_case_and_quotes() {
+        unsafe {
+            let mut modp: c_int = 0;
+            let mut p = c"abc".as_ptr();
+            assert_eq!(
+                find_special_key(&mut p, 3, &mut modp, 0, std::ptr::null_mut()),
+                0
+            );
+
+            p = c"<C-M-S-A>".as_ptr();
+            assert_ne!(
+                find_special_key(&mut p, 9, &mut modp, 0, std::ptr::null_mut()),
+                0
+            );
+            assert_ne!(modp, 0);
+
+            p = c"<C-A>".as_ptr();
+            let k_upper = find_special_key(&mut p, 5, &mut modp, 0, std::ptr::null_mut());
+            let m_upper = modp;
+            for variant in [c"<C-a>", c"<c-A>", c"<c-a>"] {
+                p = variant.as_ptr();
+                assert_eq!(
+                    find_special_key(&mut p, 5, &mut modp, 0, std::ptr::null_mut()),
+                    k_upper
+                );
+                assert_eq!(modp, m_upper);
+            }
+
+            p = c"<C-\">".as_ptr();
+            assert_eq!(
+                find_special_key(&mut p, 5, &mut modp, 0, std::ptr::null_mut()),
+                b'"' as c_int
+            );
+            p = c"<C-\">".as_ptr();
+            assert_eq!(
+                find_special_key(&mut p, 5, &mut modp, FSK_IN_STRING, std::ptr::null_mut()),
+                0
+            );
+            p = c"<C-\\\">".as_ptr();
+            assert_eq!(
+                find_special_key(&mut p, 6, &mut modp, 0, std::ptr::null_mut()),
+                0
+            );
+            p = c"<C-\\\">".as_ptr();
+            assert_eq!(
+                find_special_key(&mut p, 6, &mut modp, FSK_IN_STRING, std::ptr::null_mut()),
+                b'"' as c_int
+            );
+        }
     }
 }

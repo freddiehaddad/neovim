@@ -113,8 +113,7 @@ unsafe fn cstr_lossy<'a>(ptr: *const c_char) -> std::borrow::Cow<'a, str> {
 ///
 /// # Safety
 /// `err` and `name` must be valid pointers, and `val_s` must be null or a valid C string.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn api_err_invalid(
+pub unsafe fn api_err_invalid(
     err: *mut Error,
     name: *const c_char,
     val_s: *const c_char,
@@ -155,8 +154,7 @@ pub unsafe extern "C" fn api_err_invalid(
 ///
 /// # Safety
 /// `err`, `name`, and `expected` must be valid pointers; `actual` must be null or a valid C string.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn api_err_exp(
+pub unsafe fn api_err_exp(
     err: *mut Error,
     name: *const c_char,
     expected: *const c_char,
@@ -190,8 +188,7 @@ pub unsafe extern "C" fn api_err_exp(
 ///
 /// # Safety
 /// `err` and `name` must be valid pointers.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn api_err_required(err: *mut Error, name: *const c_char) {
+pub unsafe fn api_err_required(err: *mut Error, name: *const c_char) {
     let name_str = unsafe { cstr_lossy(name) };
     let has_space = name_str.as_bytes().contains(&b' ');
     let msg = if has_space {
@@ -208,12 +205,7 @@ pub unsafe extern "C" fn api_err_required(err: *mut Error, name: *const c_char) 
 ///
 /// # Safety
 /// `err`, `name`, and `name2` must be valid pointers.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn api_err_conflict(
-    err: *mut Error,
-    name: *const c_char,
-    name2: *const c_char,
-) {
+pub unsafe fn api_err_conflict(err: *mut Error, name: *const c_char, name2: *const c_char) {
     let name_str = unsafe { cstr_lossy(name) };
     let name2_str = unsafe { cstr_lossy(name2) };
     let has_space2 = name2_str.as_bytes().contains(&b' ');

@@ -36,8 +36,7 @@ pub unsafe extern "C" fn ga_clear(gap: *mut garray_T) {
 ///
 /// # Safety
 /// `gap` must be a valid writable pointer to a `garray_T` holding `*mut c_void` elements.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ga_clear_strings(gap: *mut garray_T) {
+pub unsafe fn ga_clear_strings(gap: *mut garray_T) {
     let gap_ref = unsafe { &mut *gap };
     if !gap_ref.ga_data.is_null() {
         let items = gap_ref.ga_data.cast::<*mut c_void>();
@@ -81,8 +80,7 @@ pub unsafe fn ga_set_growsize(gap: *mut garray_T, growsize: c_int) {
 ///
 /// # Safety
 /// `gap` must be a valid writable pointer to an initialized `garray_T`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ga_grow(gap: *mut garray_T, n: c_int) {
+pub unsafe fn ga_grow(gap: *mut garray_T, n: c_int) {
     let gap = unsafe { &mut *gap };
     if gap.ga_maxlen - gap.ga_len >= n {
         return;
@@ -108,8 +106,7 @@ pub unsafe extern "C" fn ga_grow(gap: *mut garray_T, n: c_int) {
 ///
 /// # Safety
 /// `gap` must be a valid writable pointer to a `garray_T` of allocated C strings.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ga_remove_duplicate_strings(gap: *mut garray_T) {
+pub unsafe fn ga_remove_duplicate_strings(gap: *mut garray_T) {
     let gap = unsafe { &mut *gap };
     let fnames = gap.ga_data.cast::<*mut c_char>();
     unsafe {
@@ -137,11 +134,7 @@ pub unsafe extern "C" fn ga_remove_duplicate_strings(gap: *mut garray_T) {
 ///
 /// # Safety
 /// `gap` must be a valid pointer to a `garray_T` of valid C strings, and `sep` must be a valid C string.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ga_concat_strings(
-    gap: *const garray_T,
-    sep: *const c_char,
-) -> *mut c_char {
+pub unsafe fn ga_concat_strings(gap: *const garray_T, sep: *const c_char) -> *mut c_char {
     let gap = unsafe { &*gap };
     let nelem = gap.ga_len.max(0) as usize;
     let strings = gap.ga_data.cast::<*const c_char>();
@@ -182,8 +175,7 @@ pub unsafe extern "C" fn ga_concat_strings(
 ///
 /// # Safety
 /// `gap` must be a valid writable pointer to a byte `garray_T`, and `s` must be null or a C string.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ga_concat(gap: *mut garray_T, s: *const c_char) {
+pub unsafe fn ga_concat(gap: *mut garray_T, s: *const c_char) {
     if s.is_null() {
         return;
     }
@@ -214,8 +206,7 @@ pub unsafe fn ga_concat_len(gap: *mut garray_T, s: *const c_char, len: usize) {
 ///
 /// # Safety
 /// `gap` must be a valid writable pointer to a byte `garray_T`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ga_append(gap: *mut garray_T, c: u8) {
+pub unsafe fn ga_append(gap: *mut garray_T, c: u8) {
     unsafe {
         ga_grow(gap, 1);
         let gap_ref = &mut *gap;
@@ -270,6 +261,40 @@ mod tests {
             assert_eq!(s, "hello world");
             ga_clear(&mut ga);
             assert!(ga.ga_data.is_null());
+
+            // Grow < growsize, > growsize, and 0
+            ga_init(&mut ga, 16, 4);
+            ga_grow(&mut ga, 0);
+            assert!(ga.ga_data.is_null());
+            assert_eq!(ga.ga_maxlen, 0);
+            ga_grow(&mut ga, 3);
+            assert_eq!(ga.ga_maxlen, 4);
+            ga_clear(&mut ga);
+
+            ga_init(&mut ga, 16, 4);
+            ga_grow(&mut ga, 5);
+            assert_eq!(ga.ga_maxlen, 5);
+            ga_clear(&mut ga);
+
+            // String array concat and duplicate removal
+            ga_init(&mut ga, std::mem::size_of::<*mut c_char>() as c_int, 1);
+            let empty_concat = ga_concat_strings(&ga, c",".as_ptr());
+            assert_eq!(CStr::from_ptr(empty_concat).to_str().unwrap(), "");
+            xfree(empty_concat.cast());
+
+            for w in ["ccc", "aaa", "bbb", "aaa", "ccc"] {
+                let slot = ga_append_via_ptr(&mut ga, std::mem::size_of::<*mut c_char>())
+                    .cast::<*mut c_char>();
+                let dup = xmallocz(w.len()).cast::<u8>();
+                std::ptr::copy_nonoverlapping(w.as_ptr(), dup, w.len());
+                *slot = dup.cast::<c_char>();
+            }
+            ga_remove_duplicate_strings(&mut ga);
+            assert_eq!(ga.ga_len, 3);
+            let joined = ga_concat_strings(&ga, c",".as_ptr());
+            assert_eq!(CStr::from_ptr(joined).to_str().unwrap(), "aaa,bbb,ccc");
+            xfree(joined.cast());
+            ga_clear_strings(&mut ga);
         }
     }
 }

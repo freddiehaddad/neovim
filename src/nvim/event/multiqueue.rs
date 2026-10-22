@@ -106,8 +106,7 @@ fn multiqueue_new_inner(
 }
 
 /// Create a new root (parentless) `MultiQueue` (`multiqueue_new`).
-#[unsafe(no_mangle)]
-pub extern "C" fn multiqueue_new(on_put: PutCallback, data: *mut c_void) -> *mut MultiQueue {
+pub fn multiqueue_new(on_put: PutCallback, data: *mut c_void) -> *mut MultiQueue {
     multiqueue_new_inner(std::ptr::null_mut(), on_put, data)
 }
 
@@ -115,8 +114,7 @@ pub extern "C" fn multiqueue_new(on_put: PutCallback, data: *mut c_void) -> *mut
 ///
 /// # Safety
 /// `parent` must be a valid pointer to a root `MultiQueue` (`parent->parent == NULL`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn multiqueue_new_child(parent: *mut MultiQueue) -> *mut MultiQueue {
+pub unsafe fn multiqueue_new_child(parent: *mut MultiQueue) -> *mut MultiQueue {
     let parent_ref = unsafe { &mut *parent };
     assert!(parent_ref.parent.is_null());
     parent_ref.size = parent_ref.size.wrapping_add(1);
@@ -127,8 +125,7 @@ pub unsafe extern "C" fn multiqueue_new_child(parent: *mut MultiQueue) -> *mut M
 ///
 /// # Safety
 /// `this` must be a valid pointer to a `MultiQueue`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn multiqueue_free(this: *mut MultiQueue) {
+pub unsafe fn multiqueue_free(this: *mut MultiQueue) {
     assert!(!this.is_null());
     unsafe {
         let q = &mut *this;
@@ -230,8 +227,7 @@ unsafe fn multiqueue_push(this: *mut MultiQueue, event: Event) {
 ///
 /// # Safety
 /// `this` must be a valid pointer to a `MultiQueue`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn multiqueue_get(this: *mut MultiQueue) -> Event {
+pub unsafe fn multiqueue_get(this: *mut MultiQueue) -> Event {
     unsafe {
         if multiqueue_empty(this) {
             Event::nil()
@@ -324,34 +320,8 @@ pub unsafe fn multiqueue_replace_parent(this: *mut MultiQueue, new_parent: *mut 
 ///
 /// # Safety
 /// `this` must be a valid pointer to a `MultiQueue`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn multiqueue_size(this: *mut MultiQueue) -> usize {
+pub unsafe fn multiqueue_size(this: *mut MultiQueue) -> usize {
     unsafe { (*this).size }
-}
-
-/// Enqueue a string pointer for unit tests (`ut_multiqueue_put`).
-///
-/// # Safety
-/// `this` must be a valid pointer to a `MultiQueue`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ut_multiqueue_put(this: *mut MultiQueue, str_: *const std::ffi::c_char) {
-    unsafe {
-        let mut ev = Event::nil();
-        ev.argv[0] = str_.cast_mut().cast();
-        multiqueue_put_event(this, ev);
-    }
-}
-
-/// Dequeue a string pointer for unit tests (`ut_multiqueue_get`).
-///
-/// # Safety
-/// `this` must be a valid pointer to a `MultiQueue`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ut_multiqueue_get(this: *mut MultiQueue) -> *const std::ffi::c_char {
-    unsafe {
-        let ev = multiqueue_get(this);
-        ev.argv[0].cast()
-    }
 }
 
 unsafe extern "C" fn multiqueue_oneshot_event(argv: *mut *mut c_void) {
@@ -418,8 +388,18 @@ mod tests {
             assert_eq!(multiqueue_get(parent).argv[0] as usize, 12);
             assert!(multiqueue_empty(parent));
 
-            multiqueue_free(c1);
+            // Child free unlinks remaining events from parent.
+            let c3 = multiqueue_new_child(parent);
+            multiqueue_put_event(c1, make_ev(101));
+            multiqueue_put_event(c2, make_ev(201));
+            multiqueue_put_event(c3, make_ev(301));
             multiqueue_free(c2);
+            assert_eq!(multiqueue_get(parent).argv[0] as usize, 101);
+            assert_eq!(multiqueue_get(c3).argv[0] as usize, 301);
+            assert!(multiqueue_empty(parent));
+
+            multiqueue_free(c1);
+            multiqueue_free(c3);
             multiqueue_free(parent);
         }
     }
