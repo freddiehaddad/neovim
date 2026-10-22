@@ -4993,6 +4993,9 @@ mod tests {
 
     #[test]
     fn test_tempdir_and_tempname() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         unsafe {
             if *crate::eval::vars::get_vim_var_str(crate::eval::vars::VV_PROGPATH) == NUL {
                 crate::eval::vars::set_vim_var_string(

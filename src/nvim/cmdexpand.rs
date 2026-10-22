@@ -772,7 +772,7 @@ const ENV_SEPCHAR: c_int = b';' as c_int;
 #[cfg(not(windows))]
 const ENV_SEPCHAR: c_int = b':' as c_int;
 
-const PATHSEPSTR: &[u8] = if cfg!(windows) { b"\\" } else { b"/" };
+const PATHSEPSTR: &[u8] = b"/";
 
 pub const WILD_FREE: c_int = 1;
 pub const WILD_EXPAND_FREE: c_int = 2;

@@ -94,7 +94,8 @@ pub struct Directory {
 }
 pub type vim_acl_T = *mut c_void;
 pub type uv_fs_buf_t = [u64; 80];
-use crate::event::r#loop::{uv_gid_t, uv_uid_t};
+#[cfg(any(unix, test))]
+use crate::event::r#loop::{uv_fs_fchown, uv_gid_t, uv_uid_t};
 
 const NODE_NORMAL: c_int = 0;
 pub(crate) const NODE_OTHER: c_int = 2;
@@ -194,12 +195,8 @@ pub(crate) const O_BINARY: c_int = 0x8000;
 pub(crate) const ENV_SEPCHAR: u8 = if cfg!(windows) { b';' } else { b':' };
 #[cfg_attr(not(windows), cfg(test))]
 pub(crate) const ENV_SEPSTR: &CStr = if cfg!(windows) { c";" } else { c":" };
-pub(crate) const PATHSEP: c_char = if cfg!(windows) {
-    b'\\' as c_char
-} else {
-    b'/' as c_char
-};
-pub(crate) const PATHSEPSTR: &CStr = if cfg!(windows) { c"\\" } else { c"/" };
+pub(crate) const PATHSEP: c_char = b'/' as c_char;
+pub(crate) const PATHSEPSTR: &CStr = c"/";
 #[cfg(not(windows))]
 const F_GETFD: c_int = 1;
 #[cfg(not(windows))]
@@ -231,6 +228,7 @@ pub struct uv_dirent_t {
     pub r#type: c_int,
 }
 
+#[cfg(unix)]
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct iovec {
@@ -338,10 +336,10 @@ use crate::math::{FAIL, OK};
 use crate::memline::kPathDeviceUNC;
 
 use crate::event::r#loop::{
-    uv_exepath, uv_fs_access, uv_fs_chmod, uv_fs_close, uv_fs_copyfile, uv_fs_fchown, uv_fs_fstat,
-    uv_fs_fsync, uv_fs_get_path, uv_fs_get_ptr, uv_fs_get_statbuf, uv_fs_lstat, uv_fs_mkdir,
-    uv_fs_mkdtemp, uv_fs_open, uv_fs_realpath, uv_fs_rename, uv_fs_rmdir, uv_fs_scandir,
-    uv_fs_scandir_next, uv_fs_stat, uv_fs_unlink,
+    uv_exepath, uv_fs_access, uv_fs_chmod, uv_fs_close, uv_fs_copyfile, uv_fs_fstat, uv_fs_fsync,
+    uv_fs_get_path, uv_fs_get_ptr, uv_fs_get_statbuf, uv_fs_lstat, uv_fs_mkdir, uv_fs_mkdtemp,
+    uv_fs_open, uv_fs_realpath, uv_fs_rename, uv_fs_rmdir, uv_fs_scandir, uv_fs_scandir_next,
+    uv_fs_stat, uv_fs_unlink,
 };
 #[cfg(unix)]
 use crate::event::r#loop::{uv_fs_chown, uv_fs_fchmod, uv_fs_utime};
@@ -428,8 +426,7 @@ pub unsafe fn os_set_errno(val: c_int) {
 }
 
 /// Changes the current directory to `path`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_chdir(path: *const c_char) -> c_int {
+pub unsafe fn os_chdir(path: *const c_char) -> c_int {
     unsafe {
         if p_verbose >= 5 {
             verbose_enter();
@@ -445,8 +442,7 @@ pub unsafe extern "C" fn os_chdir(path: *const c_char) -> c_int {
 }
 
 /// Get the name of current directory.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_dirname(buf: *mut c_char, mut len: usize) -> c_int {
+pub unsafe fn os_dirname(buf: *mut c_char, mut len: usize) -> c_int {
     unsafe {
         let error_number = uv_cwd(buf, &raw mut len);
         if error_number != 0 {
@@ -476,8 +472,7 @@ pub unsafe fn os_isrealdir(name: *const c_char) -> bool {
 }
 
 /// Check if the given path exists and is a directory.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_isdir(name: *const c_char) -> bool {
+pub unsafe fn os_isdir(name: *const c_char) -> bool {
     unsafe {
         let mode = os_getperm(name);
         if mode < 0 {
@@ -488,8 +483,7 @@ pub unsafe extern "C" fn os_isdir(name: *const c_char) -> bool {
 }
 
 /// Check what `name` is (`NODE_NORMAL`, `NODE_WRITABLE`, or `NODE_OTHER`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_nodetype(name: *const c_char) -> c_int {
+pub unsafe fn os_nodetype(name: *const c_char) -> c_int {
     #[cfg(not(windows))]
     unsafe {
         let mut statbuf = uv_stat_t::default();
@@ -534,12 +528,7 @@ pub unsafe fn os_exepath(buffer: *mut c_char, size: *mut usize) -> c_int {
 }
 
 /// Checks if the file `name` is executable.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_can_exe(
-    name: *const c_char,
-    abspath: *mut *mut c_char,
-    use_path: bool,
-) -> bool {
+pub unsafe fn os_can_exe(name: *const c_char, abspath: *mut *mut c_char, use_path: bool) -> bool {
     unsafe {
         if !use_path || gettail_dir(name) != name {
             #[cfg(windows)]
@@ -693,8 +682,7 @@ unsafe fn is_executable_in_path(name: *const c_char, abspath: *mut *mut c_char) 
 }
 
 /// Opens or creates a file and returns a file descriptor, or negative libuv error code.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_open(path: *const c_char, flags: c_int, mode: c_int) -> c_int {
+pub unsafe fn os_open(path: *const c_char, flags: c_int, mode: c_int) -> c_int {
     if path.is_null() {
         return UV_EINVAL;
     }
@@ -803,8 +791,7 @@ pub unsafe fn os_set_cloexec(fd: c_int) -> c_int {
 }
 
 /// Close a file.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_close(fd: c_int) -> c_int {
+pub unsafe fn os_close(fd: c_int) -> c_int {
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_close(ptr::null_mut(), &raw mut req, fd, ptr::null());
@@ -814,8 +801,7 @@ pub unsafe extern "C" fn os_close(fd: c_int) -> c_int {
 }
 
 /// Duplicate file descriptor.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_dup(fd: c_int) -> c_int {
+pub unsafe fn os_dup(fd: c_int) -> c_int {
     unsafe {
         loop {
             let ret = dup(fd);
@@ -861,8 +847,7 @@ pub unsafe fn os_open_stdin_fd() -> c_int {
 }
 
 /// Read from a file.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_read(
+pub unsafe fn os_read(
     fd: c_int,
     ret_eof: *mut bool,
     ret_buf: *mut c_char,
@@ -914,8 +899,8 @@ pub unsafe extern "C" fn os_read(
 }
 
 /// Read from a file to multiple buffers at once.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_readv(
+#[cfg(unix)]
+pub unsafe fn os_readv(
     fd: c_int,
     ret_eof: *mut bool,
     mut iov: *mut iovec,
@@ -979,13 +964,7 @@ pub unsafe extern "C" fn os_readv(
 }
 
 /// Write to a file.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_write(
-    fd: c_int,
-    buf: *const c_char,
-    size: usize,
-    non_blocking: bool,
-) -> isize {
+pub unsafe fn os_write(fd: c_int, buf: *const c_char, size: usize, non_blocking: bool) -> isize {
     if buf.is_null() {
         assert_eq!(size, 0);
         return 0;
@@ -1070,8 +1049,7 @@ unsafe fn os_stat(name: *const c_char, statbuf: *mut uv_stat_t) -> c_int {
 }
 
 /// Get the file permissions for a given file.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_getperm(name: *const c_char) -> i32 {
+pub unsafe fn os_getperm(name: *const c_char) -> i32 {
     unsafe {
         let mut statbuf = uv_stat_t::default();
         let stat_result = os_stat(name, &raw mut statbuf);
@@ -1084,8 +1062,7 @@ pub unsafe extern "C" fn os_getperm(name: *const c_char) -> i32 {
 }
 
 /// Set the permission of a file.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_setperm(name: *const c_char, perm: c_int) -> c_int {
+pub unsafe fn os_setperm(name: *const c_char, perm: c_int) -> c_int {
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_chmod(ptr::null_mut(), &raw mut req, name, perm, ptr::null());
@@ -1232,8 +1209,8 @@ pub unsafe fn os_chown(path: *const c_char, owner: uv_uid_t, group: uv_gid_t) ->
 }
 
 /// Changes the owner and group of an open file descriptor, like `fchown(2)`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_fchown(fd: c_int, owner: uv_uid_t, group: uv_gid_t) -> c_int {
+#[cfg_attr(not(unix), cfg(test))]
+pub unsafe fn os_fchown(fd: c_int, owner: uv_uid_t, group: uv_gid_t) -> c_int {
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_fchown(ptr::null_mut(), &raw mut req, fd, owner, group, ptr::null());
@@ -1243,8 +1220,7 @@ pub unsafe extern "C" fn os_fchown(fd: c_int, owner: uv_uid_t, group: uv_gid_t) 
 }
 
 /// Check if a path exists.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_path_exists(path: *const c_char) -> bool {
+pub unsafe fn os_path_exists(path: *const c_char) -> bool {
     unsafe {
         let mut statbuf = uv_stat_t::default();
         os_stat(path, &raw mut statbuf) == 0
@@ -1270,8 +1246,7 @@ pub unsafe fn os_file_settime(path: *const c_char, atime: f64, mtime: f64) -> c_
 }
 
 /// Check if a file is readable.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_file_is_readable(name: *const c_char) -> bool {
+pub unsafe fn os_file_is_readable(name: *const c_char) -> bool {
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_access(ptr::null_mut(), &raw mut req, name, R_OK, ptr::null());
@@ -1281,8 +1256,7 @@ pub unsafe extern "C" fn os_file_is_readable(name: *const c_char) -> bool {
 }
 
 /// Check if a file is writable (`0` = not writable, `1` = writable file, `2` = writable dir).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_file_is_writable(name: *const c_char) -> c_int {
+pub unsafe fn os_file_is_writable(name: *const c_char) -> c_int {
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_access(ptr::null_mut(), &raw mut req, name, W_OK, ptr::null());
@@ -1296,8 +1270,7 @@ pub unsafe extern "C" fn os_file_is_writable(name: *const c_char) -> c_int {
 }
 
 /// Rename a file or directory.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_rename(path: *const c_char, new_path: *const c_char) -> c_int {
+pub unsafe fn os_rename(path: *const c_char, new_path: *const c_char) -> c_int {
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_rename(ptr::null_mut(), &raw mut req, path, new_path, ptr::null());
@@ -1307,8 +1280,7 @@ pub unsafe extern "C" fn os_rename(path: *const c_char, new_path: *const c_char)
 }
 
 /// Make a directory.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_mkdir(path: *const c_char, mode: i32) -> c_int {
+pub unsafe fn os_mkdir(path: *const c_char, mode: i32) -> c_int {
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_mkdir(ptr::null_mut(), &raw mut req, path, mode, ptr::null());
@@ -1318,8 +1290,7 @@ pub unsafe extern "C" fn os_mkdir(path: *const c_char, mode: i32) -> c_int {
 }
 
 /// Make a directory, with higher levels when needed.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_mkdir_recurse(
+pub unsafe fn os_mkdir_recurse(
     dir: *const c_char,
     mode: i32,
     failed_dir: *mut *mut c_char,
@@ -1411,8 +1382,7 @@ pub unsafe fn os_mkdtemp(templ: *const c_char, path: *mut c_char) -> c_int {
 }
 
 /// Remove a directory.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_rmdir(path: *const c_char) -> c_int {
+pub unsafe fn os_rmdir(path: *const c_char) -> c_int {
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_rmdir(ptr::null_mut(), &raw mut req, path, ptr::null());
@@ -1459,8 +1429,7 @@ pub unsafe fn os_closedir(dir: *mut Directory) {
 }
 
 /// Remove a file.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_remove(path: *const c_char) -> c_int {
+pub unsafe fn os_remove(path: *const c_char) -> c_int {
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_unlink(ptr::null_mut(), &raw mut req, path, ptr::null());
@@ -1470,8 +1439,7 @@ pub unsafe extern "C" fn os_remove(path: *const c_char) -> c_int {
 }
 
 /// Get the file information for a given path.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_fileinfo(path: *const c_char, file_info: *mut FileInfo) -> bool {
+pub unsafe fn os_fileinfo(path: *const c_char, file_info: *mut FileInfo) -> bool {
     unsafe {
         *file_info = FileInfo::default();
         os_stat(path, &raw mut (*file_info).stat) == 0
@@ -1554,8 +1522,7 @@ pub unsafe fn os_fileinfo2(path: *const c_char, info: *mut FileInfo) -> bool {
 }
 
 /// Get the file information for a given path without following links.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_fileinfo_link(path: *const c_char, file_info: *mut FileInfo) -> bool {
+pub unsafe fn os_fileinfo_link(path: *const c_char, file_info: *mut FileInfo) -> bool {
     unsafe {
         *file_info = FileInfo::default();
         if path.is_null() {
@@ -1574,8 +1541,7 @@ pub unsafe extern "C" fn os_fileinfo_link(path: *const c_char, file_info: *mut F
 }
 
 /// Get the file information for a given file descriptor.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_fileinfo_fd(file_descriptor: c_int, file_info: *mut FileInfo) -> bool {
+pub unsafe fn os_fileinfo_fd(file_descriptor: c_int, file_info: *mut FileInfo) -> bool {
     unsafe {
         *file_info = FileInfo::default();
         {
@@ -1596,8 +1562,7 @@ pub unsafe extern "C" fn os_fileinfo_fd(file_descriptor: c_int, file_info: *mut 
 }
 
 /// Compare the inodes of two `FileInfo`s.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_fileinfo_id_equal(
+pub unsafe fn os_fileinfo_id_equal(
     file_info_1: *const FileInfo,
     file_info_2: *const FileInfo,
 ) -> bool {
@@ -1608,8 +1573,8 @@ pub unsafe extern "C" fn os_fileinfo_id_equal(
 }
 
 /// Get the `FileID` of a `FileInfo`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_fileinfo_id(file_info: *const FileInfo, file_id: *mut FileID) {
+#[cfg(test)]
+pub unsafe fn os_fileinfo_id(file_info: *const FileInfo, file_id: *mut FileID) {
     unsafe {
         (*file_id).inode = (*file_info).stat.st_ino;
         (*file_id).device_id = (*file_info).stat.st_dev;
@@ -1617,32 +1582,27 @@ pub unsafe extern "C" fn os_fileinfo_id(file_info: *const FileInfo, file_id: *mu
 }
 
 /// Get the inode of a `FileInfo`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_fileinfo_inode(file_info: *const FileInfo) -> u64 {
+pub unsafe fn os_fileinfo_inode(file_info: *const FileInfo) -> u64 {
     unsafe { (*file_info).stat.st_ino }
 }
 
 /// Get the size of a file from a `FileInfo`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_fileinfo_size(file_info: *const FileInfo) -> u64 {
+pub unsafe fn os_fileinfo_size(file_info: *const FileInfo) -> u64 {
     unsafe { (*file_info).stat.st_size }
 }
 
 /// Get the number of hardlinks from a `FileInfo`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_fileinfo_hardlinks(file_info: *const FileInfo) -> u64 {
+pub unsafe fn os_fileinfo_hardlinks(file_info: *const FileInfo) -> u64 {
     unsafe { (*file_info).stat.st_nlink }
 }
 
 /// Get the blocksize from a `FileInfo`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_fileinfo_blocksize(file_info: *const FileInfo) -> u64 {
+pub unsafe fn os_fileinfo_blocksize(file_info: *const FileInfo) -> u64 {
     unsafe { (*file_info).stat.st_blksize }
 }
 
 /// Get the `FileID` for a given path.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_fileid(path: *const c_char, file_id: *mut FileID) -> bool {
+pub unsafe fn os_fileid(path: *const c_char, file_id: *mut FileID) -> bool {
     unsafe {
         let mut statbuf = uv_stat_t::default();
         if os_stat(path, &raw mut statbuf) == 0 {
@@ -1656,11 +1616,7 @@ pub unsafe extern "C" fn os_fileid(path: *const c_char, file_id: *mut FileID) ->
 }
 
 /// Check if two `FileID`s are equal.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_fileid_equal(
-    file_id_1: *const FileID,
-    file_id_2: *const FileID,
-) -> bool {
+pub unsafe fn os_fileid_equal(file_id_1: *const FileID, file_id_2: *const FileID) -> bool {
     unsafe {
         (*file_id_1).inode == (*file_id_2).inode && (*file_id_1).device_id == (*file_id_2).device_id
     }
@@ -1819,6 +1775,7 @@ pub unsafe fn os_is_reparse_point_include(path: *const c_char) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ffi::CString;
 
     #[test]
     fn fileinfo_and_fileid_accessors_work() {
@@ -1844,6 +1801,210 @@ mod tests {
                 device_id: 7,
             };
             assert!(os_fileid_equal(&raw const id1, &raw const id2));
+        }
+    }
+
+    #[test]
+    fn dirname_chdir_isdir_nodetype_and_can_exe() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        unsafe {
+            let mut cwd = [0 as c_char; MAXPATHL];
+            assert_eq!(os_dirname(cwd.as_mut_ptr(), MAXPATHL), OK);
+            let cwd_len = CStr::from_ptr(cwd.as_ptr()).to_bytes().len();
+            assert!(cwd_len > 0);
+            let mut tiny = [0 as c_char; 4];
+            assert_eq!(os_dirname(tiny.as_mut_ptr(), cwd_len.min(3)), FAIL);
+
+            // os_chdir("~") fails and leaves cwd unchanged
+            assert!(!os_isdir(c"~".as_ptr()));
+            assert_ne!(os_chdir(c"~".as_ptr()), 0);
+            assert_ne!(os_chdir(c"~/".as_ptr()), 0);
+
+            assert!(!os_isdir(c"".as_ptr()));
+            assert!(!os_isdir(c"non-existing-directory-xyz".as_ptr()));
+            assert!(!os_isdir(c"/non-existing-directory-xyz".as_ptr()));
+            assert!(os_isdir(c".".as_ptr()));
+            assert!(os_isdir(c"..".as_ptr()));
+            assert!(os_isdir(cwd.as_ptr()));
+
+            assert_eq!(os_nodetype(c"non-existing-file-xyz".as_ptr()), NODE_NORMAL);
+            #[cfg(not(windows))]
+            assert_eq!(os_nodetype(c"/dev/stderr".as_ptr()), NODE_WRITABLE);
+
+            let mut abspath: *mut c_char = ptr::null_mut();
+            assert!(!os_can_exe(c".".as_ptr(), &raw mut abspath, true));
+            assert!(abspath.is_null());
+            assert!(!os_can_exe(
+                c"does-not-exist.file".as_ptr(),
+                &raw mut abspath,
+                true
+            ));
+            assert!(abspath.is_null());
+
+            #[cfg(windows)]
+            let tool = c"cmd";
+            #[cfg(not(windows))]
+            let tool = c"sh";
+            assert!(os_can_exe(tool.as_ptr(), &raw mut abspath, true));
+            assert!(!abspath.is_null());
+            assert!(crate::path::path_is_absolute(abspath));
+            xfree(abspath.cast());
+        }
+    }
+
+    #[test]
+    fn open_read_write_rename_remove_mkdir_and_permissions() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        unsafe {
+            let mut cwd_buf = [0 as c_char; MAXPATHL];
+            assert_eq!(os_dirname(cwd_buf.as_mut_ptr(), MAXPATHL), OK);
+            let cwd = CStr::from_ptr(cwd_buf.as_ptr()).to_str().unwrap();
+            let base = format!("{cwd}/target/ut_fs_{}", std::process::id());
+            let _ = std::fs::remove_dir_all(&base);
+
+            let base_c = CString::new(base.clone()).unwrap();
+            assert_eq!(os_mkdir(base_c.as_ptr(), 0o700), 0);
+            assert_ne!(os_mkdir(base_c.as_ptr(), 0o700), 0);
+            assert!(os_isdir(base_c.as_ptr()));
+            assert!(os_path_exists(base_c.as_ptr()));
+            assert!(!os_path_exists(c"non-existing-file-xyz".as_ptr()));
+            assert_eq!(os_getperm(c"non-existing-file-xyz".as_ptr()), UV_ENOENT);
+            assert!(os_getperm(base_c.as_ptr()) > 0);
+            assert_eq!(os_setperm(c"non-existing-file-xyz".as_ptr(), 0o700), FAIL);
+            assert_eq!(os_file_is_writable(base_c.as_ptr()), 2);
+
+            // os_open / os_write / os_read / os_close
+            assert_eq!(
+                os_open(c"non-existing-file-xyz".as_ptr(), O_RDWR, 0),
+                UV_ENOENT
+            );
+            assert!(os_close(-1) < 0);
+
+            let fpath = format!("{base}/test.dat");
+            let fpath_c = CString::new(fpath.clone()).unwrap();
+            let fd = os_open(fpath_c.as_ptr(), O_CREAT | O_RDWR, 0o600);
+            assert!(fd >= 0);
+            assert_eq!(
+                os_open(fpath_c.as_ptr(), O_CREAT | O_EXCL, 0o600),
+                if cfg!(windows) { -4075 } else { -17 }
+            );
+
+            let mut payload = Vec::with_capacity(4096);
+            for _ in 0..16 {
+                for b in 0..=255u8 {
+                    payload.push(b);
+                }
+            }
+            assert_eq!(os_write(fd, ptr::null(), 0, false), 0);
+            assert_eq!(
+                os_write(fd, payload.as_ptr().cast(), payload.len(), false),
+                payload.len() as isize
+            );
+            assert_eq!(os_fchown(fd, uv_uid_t::MAX, uv_gid_t::MAX), 0);
+
+            let mut fi_fd = FileInfo::default();
+            assert!(!os_fileinfo_fd(-1, &raw mut fi_fd));
+            assert!(os_fileinfo_fd(fd, &raw mut fi_fd));
+            assert_eq!(os_fileinfo_size(&raw const fi_fd), payload.len() as u64);
+            assert_eq!(os_close(fd), 0);
+
+            assert!(os_file_is_readable(fpath_c.as_ptr()));
+            assert_eq!(os_file_is_writable(fpath_c.as_ptr()), 1);
+
+            let rfd = os_open(fpath_c.as_ptr(), O_RDONLY, 0);
+            assert!(rfd >= 0);
+            let mut eof = true;
+            assert_eq!(os_read(rfd, &raw mut eof, ptr::null_mut(), 0, false), 0);
+            assert!(!eof);
+
+            let mut rbuf = vec![0u8; payload.len()];
+            assert_eq!(
+                os_read(
+                    rfd,
+                    &raw mut eof,
+                    rbuf.as_mut_ptr().cast(),
+                    rbuf.len(),
+                    false
+                ),
+                payload.len() as isize
+            );
+            assert!(!eof);
+            assert_eq!(rbuf, payload);
+            assert_eq!(
+                os_read(rfd, &raw mut eof, rbuf.as_mut_ptr().cast(), 16, false),
+                0
+            );
+            assert!(eof);
+            assert_eq!(os_close(rfd), 0);
+
+            // os_fileinfo & os_fileid
+            let mut fi = FileInfo::default();
+            assert!(!os_fileinfo(ptr::null(), &raw mut fi));
+            assert!(!os_fileinfo(c"/non-existent-xyz".as_ptr(), &raw mut fi));
+            assert!(os_fileinfo(fpath_c.as_ptr(), &raw mut fi));
+            assert!(os_fileinfo_link(fpath_c.as_ptr(), &raw mut fi));
+            assert_eq!(os_fileinfo_size(&raw const fi), payload.len() as u64);
+            assert!(os_fileinfo_blocksize(&raw const fi) > 0);
+
+            let mut fid = FileID::default();
+            assert!(!os_fileid(c"/non-existent-xyz".as_ptr(), &raw mut fid));
+            assert!(os_fileid(fpath_c.as_ptr(), &raw mut fid));
+            assert!(os_fileid_equal(&raw const fid, &raw const fid));
+
+            // os_rename & os_remove
+            let renamed = format!("{base}/renamed.dat");
+            let renamed_c = CString::new(renamed.clone()).unwrap();
+            assert_eq!(os_rename(fpath_c.as_ptr(), renamed_c.as_ptr()), OK);
+            assert!(!os_path_exists(fpath_c.as_ptr()));
+            assert!(os_path_exists(renamed_c.as_ptr()));
+            assert_eq!(os_rename(fpath_c.as_ptr(), renamed_c.as_ptr()), FAIL);
+
+            // os_mkdir_recurse & os_rmdir
+            let mut failed_dir: *mut c_char = ptr::null_mut();
+            let mut created_dir: *mut c_char = ptr::null_mut();
+            let nested = CString::new(format!("{base}/nested/1/2///")).unwrap();
+            assert_eq!(
+                os_mkdir_recurse(
+                    nested.as_ptr(),
+                    0o700,
+                    &raw mut failed_dir,
+                    &raw mut created_dir
+                ),
+                0
+            );
+            assert!(failed_dir.is_null());
+            assert!(!created_dir.is_null());
+            xfree(created_dir.cast());
+
+            // Cannot mkdir over an existing file
+            let conflict = CString::new(format!("{renamed}/sub")).unwrap();
+            assert_ne!(
+                os_mkdir_recurse(
+                    conflict.as_ptr(),
+                    0o700,
+                    &raw mut failed_dir,
+                    ptr::null_mut()
+                ),
+                0
+            );
+            assert!(!failed_dir.is_null());
+            xfree(failed_dir.cast());
+
+            assert_eq!(os_remove(renamed_c.as_ptr()), 0);
+            assert_ne!(os_remove(renamed_c.as_ptr()), 0);
+
+            let d2 = CString::new(format!("{base}/nested/1/2")).unwrap();
+            let d1 = CString::new(format!("{base}/nested/1")).unwrap();
+            let d0 = CString::new(format!("{base}/nested")).unwrap();
+            assert_eq!(os_rmdir(d2.as_ptr()), 0);
+            assert_eq!(os_rmdir(d1.as_ptr()), 0);
+            assert_eq!(os_rmdir(d0.as_ptr()), 0);
+            assert_eq!(os_rmdir(base_c.as_ptr()), 0);
+            assert_ne!(os_rmdir(base_c.as_ptr()), 0);
         }
     }
 }

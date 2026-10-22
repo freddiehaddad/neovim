@@ -565,6 +565,9 @@ pub static mut float_anchor_str: [*const c_char; 4] = [
 ];
 
 #[cfg(test)]
+pub(crate) static TEST_GLOBAL_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use std::ffi::CStr;

@@ -136,12 +136,7 @@ unsafe fn str_contains(haystack: *const c_char, needle: &[u8]) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn path_equal(
-    s1: *const c_char,
-    s2: *const c_char,
-    flags: PathCmpFlags,
-) -> bool {
+pub unsafe fn path_equal(s1: *const c_char, s2: *const c_char, flags: PathCmpFlags) -> bool {
     unsafe {
         let mut expanded_s1 = [0 as c_char; MAXPATHL];
         let mut full1 = [0 as c_char; MAXPATHL];
@@ -191,8 +186,7 @@ pub unsafe extern "C" fn path_equal(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn path_tail(fname: *const c_char) -> *mut c_char {
+pub unsafe fn path_tail(fname: *const c_char) -> *mut c_char {
     if fname.is_null() {
         return c"".as_ptr().cast_mut();
     }
@@ -210,8 +204,7 @@ pub unsafe extern "C" fn path_tail(fname: *const c_char) -> *mut c_char {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn path_tail_with_sep(fname: *mut c_char) -> *mut c_char {
+pub unsafe fn path_tail_with_sep(fname: *mut c_char) -> *mut c_char {
     unsafe {
         let past_head = get_past_head(fname);
         let mut tail = path_tail(fname);
@@ -222,11 +215,7 @@ pub unsafe extern "C" fn path_tail_with_sep(fname: *mut c_char) -> *mut c_char {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn invocation_path_tail(
-    invocation: *const c_char,
-    len: *mut usize,
-) -> *const c_char {
+pub unsafe fn invocation_path_tail(invocation: *const c_char, len: *mut usize) -> *const c_char {
     unsafe {
         let mut tail: *const c_char = get_past_head(invocation);
         let mut tail_end = tail;
@@ -255,8 +244,7 @@ pub unsafe extern "C" fn invocation_path_tail(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn path_next_component(mut fname: *const c_char) -> *const c_char {
+pub unsafe fn path_next_component(mut fname: *const c_char) -> *const c_char {
     unsafe {
         while *fname != NUL && !vim_ispathsep(*fname as c_int) {
             fname = fname.add(1);
@@ -1658,8 +1646,7 @@ pub unsafe fn path_is_url(p: *const c_char) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn path_with_url(fname: *const c_char) -> c_int {
+pub unsafe fn path_with_url(fname: *const c_char) -> c_int {
     unsafe {
         if !(*fname as u8).is_ascii_alphabetic() {
             return 0;
@@ -1686,11 +1673,7 @@ pub unsafe extern "C" fn path_with_url(fname: *const c_char) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn path_with_extension(
-    path: *const c_char,
-    extension: *const c_char,
-) -> bool {
+pub unsafe fn path_with_extension(path: *const c_char, extension: *const c_char) -> bool {
     unsafe {
         let bytes = CStr::from_ptr(path).to_bytes();
         let Some(pos) = bytes.iter().rposition(|&b| b == b'.') else {
@@ -1705,8 +1688,7 @@ pub unsafe fn vim_isAbsName(name: *const c_char) -> bool {
     unsafe { path_with_url(name) != 0 || path_is_absolute(name) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_FullName(
+pub unsafe fn vim_FullName(
     fname: *const c_char,
     buf: *mut c_char,
     len: usize,
@@ -1761,8 +1743,7 @@ pub unsafe fn fix_fname(fname: *const c_char) -> *mut c_char {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn path_fix_case(name: *mut c_char) {
+pub unsafe fn path_fix_case(name: *mut c_char) {
     unsafe {
         let mut file_info: FileInfo = std::mem::zeroed();
         if !os_fileinfo_link(name, &mut file_info) {
@@ -1853,8 +1834,7 @@ pub unsafe fn path_fold_char(ic: bool, p: *const c_char, len: *mut c_int) -> c_i
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn path_cmp(
+pub unsafe fn path_cmp(
     ic: bool,
     mut p: *const c_char,
     mut q: *const c_char,
@@ -1922,8 +1902,7 @@ pub unsafe extern "C" fn path_cmp(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn path_try_shorten_fname(full_path: *mut c_char) -> *mut c_char {
+pub unsafe fn path_try_shorten_fname(full_path: *mut c_char) -> *mut c_char {
     unsafe {
         let dirname = xmalloc(MAXPATHL).cast::<c_char>();
         let mut p = full_path;
@@ -1939,11 +1918,7 @@ pub unsafe extern "C" fn path_try_shorten_fname(full_path: *mut c_char) -> *mut 
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn path_shorten_fname(
-    full_path: *mut c_char,
-    dir_name: *mut c_char,
-) -> *mut c_char {
+pub unsafe fn path_shorten_fname(full_path: *mut c_char, dir_name: *mut c_char) -> *mut c_char {
     if full_path.is_null() {
         return ptr::null_mut();
     }
@@ -2122,12 +2097,7 @@ pub unsafe fn match_suffix(fname: *mut c_char) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn path_full_dir_name(
-    directory: *mut c_char,
-    buffer: *mut c_char,
-    len: usize,
-) -> c_int {
+pub unsafe fn path_full_dir_name(directory: *mut c_char, buffer: *mut c_char, len: usize) -> c_int {
     unsafe {
         if *directory == NUL {
             return os_dirname(buffer, len);
@@ -2155,12 +2125,7 @@ pub unsafe extern "C" fn path_full_dir_name(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn append_path(
-    path: *mut c_char,
-    to_append: *const c_char,
-    max_len: usize,
-) -> c_int {
+pub unsafe fn append_path(path: *mut c_char, to_append: *const c_char, max_len: usize) -> c_int {
     unsafe {
         let mut current_length = CStr::from_ptr(path).to_bytes().len();
         let to_append_bytes = CStr::from_ptr(to_append).to_bytes();
@@ -2268,8 +2233,7 @@ unsafe fn path_to_absolute(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn path_is_absolute(fname: *const c_char) -> bool {
+pub unsafe fn path_is_absolute(fname: *const c_char) -> bool {
     #[cfg(windows)]
     unsafe {
         if *fname == NUL {
@@ -2286,12 +2250,7 @@ pub unsafe extern "C" fn path_is_absolute(fname: *const c_char) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn path_guess_exepath(
-    argv0: *const c_char,
-    buf: *mut c_char,
-    bufsize: usize,
-) {
+pub unsafe fn path_guess_exepath(argv0: *const c_char, buf: *mut c_char, bufsize: usize) {
     unsafe {
         let path = os_getenv(c"PATH".as_ptr());
         let argv0_bytes = CStr::from_ptr(argv0).to_bytes();
@@ -2339,16 +2298,378 @@ pub unsafe extern "C" fn path_guess_exepath(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::eval::vars::{VV_PROGPATH, set_vim_var_string};
+    use std::ffi::CString;
+
+    unsafe fn init_progpath() {
+        unsafe {
+            if *crate::eval::vars::get_vim_var_str(VV_PROGPATH) == NUL {
+                set_vim_var_string(VV_PROGPATH, c"nvim".as_ptr(), -1);
+            }
+        }
+    }
 
     #[test]
-    fn path_tail_and_separators_work() {
+    fn path_tail_next_component_and_invocation_tail() {
         unsafe {
             assert!(vim_ispathsep(b'/' as c_int));
-            let s = c"/usr/local/bin/nvim";
-            let tail = path_tail(s.as_ptr());
-            assert_eq!(CStr::from_ptr(tail).to_bytes(), b"nvim");
-            let next = path_next_component(s.as_ptr().add(1));
-            assert_eq!(CStr::from_ptr(next).to_bytes(), b"local/bin/nvim");
+            assert_eq!(
+                CStr::from_ptr(path_tail(c"directory/file.txt".as_ptr())).to_bytes(),
+                b"file.txt"
+            );
+            assert_eq!(
+                CStr::from_ptr(path_tail(c"directory/".as_ptr())).to_bytes(),
+                b""
+            );
+
+            let mut s1 = *b"directory///file.txt\0";
+            assert_eq!(
+                CStr::from_ptr(path_tail_with_sep(s1.as_mut_ptr().cast())).to_bytes(),
+                b"///file.txt"
+            );
+            let mut s2 = *b"\0";
+            assert_eq!(
+                CStr::from_ptr(path_tail_with_sep(s2.as_mut_ptr().cast())).to_bytes(),
+                b""
+            );
+            let mut s3 = *b"some/directory/\0";
+            assert_eq!(
+                CStr::from_ptr(path_tail_with_sep(s3.as_mut_ptr().cast())).to_bytes(),
+                b"/"
+            );
+            let mut s4 = *b"/file.txt\0";
+            assert_eq!(
+                CStr::from_ptr(path_tail_with_sep(s4.as_mut_ptr().cast())).to_bytes(),
+                b"file.txt"
+            );
+            let mut s5 = *b"/\0";
+            assert_eq!(
+                CStr::from_ptr(path_tail_with_sep(s5.as_mut_ptr().cast())).to_bytes(),
+                b""
+            );
+
+            assert_eq!(
+                CStr::from_ptr(path_next_component(c"some/directory/file.txt".as_ptr())).to_bytes(),
+                b"directory/file.txt"
+            );
+            assert_eq!(
+                CStr::from_ptr(path_next_component(c"file.txt".as_ptr())).to_bytes(),
+                b""
+            );
+
+            let mut len = 0usize;
+            let inv = invocation_path_tail(c"directory/exe a b c".as_ptr(), &mut len);
+            assert_eq!(len, 3);
+            assert_eq!(CStr::from_ptr(inv).to_bytes(), b"exe a b c");
+            assert_eq!(
+                CStr::from_ptr(invocation_path_tail(
+                    c"directory/exe a b c".as_ptr(),
+                    ptr::null_mut()
+                ))
+                .to_bytes(),
+                b"exe a b c"
+            );
+
+            #[cfg(windows)]
+            let abs_inv = c"C:\\Users\\anyone\\bin\\z a b";
+            #[cfg(not(windows))]
+            let abs_inv = c"/usr/bin/z a b";
+            let inv2 = invocation_path_tail(abs_inv.as_ptr(), &mut len);
+            assert_eq!(len, 1);
+            assert_eq!(CStr::from_ptr(inv2).to_bytes(), b"z a b");
+
+            let inv3 = invocation_path_tail(c"exe a/b\\c".as_ptr(), &mut len);
+            assert_eq!(len, 3);
+            assert_eq!(CStr::from_ptr(inv3).to_bytes(), b"exe a/b\\c");
+        }
+    }
+
+    #[test]
+    fn path_cmp_shorten_and_append_path() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        unsafe {
+            assert_eq!(
+                path_cmp(false, c"foo/bar".as_ptr(), c"foo/bar".as_ptr(), 7),
+                0
+            );
+            assert_eq!(
+                path_cmp(false, c"foobar".as_ptr(), c"foo/bar".as_ptr(), 7),
+                1
+            );
+            assert_eq!(
+                path_cmp(false, c"foo/bar".as_ptr(), c"foobar".as_ptr(), 7),
+                -1
+            );
+            assert_ne!(
+                path_cmp(false, c"foo/bar".as_ptr(), c"foo/baz".as_ptr(), 7),
+                0
+            );
+            assert_eq!(
+                path_cmp(false, c"foo/bar".as_ptr(), c"foo/baz".as_ptr(), 6),
+                0
+            );
+            assert_eq!(path_cmp(false, c"foo".as_ptr(), c"foo/".as_ptr(), 4), 0);
+            assert_ne!(path_cmp(false, c"/".as_ptr(), c"//".as_ptr(), 2), 0);
+            assert_ne!(path_cmp(false, c"foo".as_ptr(), c"foo//".as_ptr(), 5), 0);
+            assert_ne!(path_cmp(false, c"foo/".as_ptr(), c"foo//".as_ptr(), 5), 0);
+
+            let mut dir = *b"some/very/long\0";
+            assert!(path_shorten_fname(ptr::null_mut(), dir.as_mut_ptr().cast()).is_null());
+            let mut other = *b"as/this.txt\0";
+            assert!(
+                path_shorten_fname(other.as_mut_ptr().cast(), dir.as_mut_ptr().cast()).is_null()
+            );
+            let mut trailing_dir = *b"some/very/long/\0";
+            let mut full = *b"some/very/long/directory/file.txt\0";
+            assert!(
+                path_shorten_fname(full.as_mut_ptr().cast(), trailing_dir.as_mut_ptr().cast())
+                    .is_null()
+            );
+            let shortened = path_shorten_fname(full.as_mut_ptr().cast(), dir.as_mut_ptr().cast());
+            assert_eq!(CStr::from_ptr(shortened).to_bytes(), b"directory/file.txt");
+
+            let mut full_dup = *b"some/very/long///directory/file.txt\0";
+            let shortened_dup =
+                path_shorten_fname(full_dup.as_mut_ptr().cast(), dir.as_mut_ptr().cast());
+            assert_eq!(
+                CStr::from_ptr(shortened_dup).to_bytes(),
+                b"directory/file.txt"
+            );
+
+            assert!(path_try_shorten_fname(ptr::null_mut()).is_null());
+            let mut cwd_buf = [0 as c_char; MAXPATHL];
+            assert_eq!(os_dirname(cwd_buf.as_mut_ptr(), MAXPATHL), OK);
+            let cwd_str = CStr::from_ptr(cwd_buf.as_ptr()).to_str().unwrap();
+            let mut in_cwd = CString::new(format!("{cwd_str}/subdir/file.txt"))
+                .unwrap()
+                .into_bytes_with_nul();
+            assert_eq!(
+                CStr::from_ptr(path_try_shorten_fname(in_cwd.as_mut_ptr().cast())).to_bytes(),
+                b"subdir/file.txt"
+            );
+
+            let mut buf = [0 as c_char; 100];
+            xstrlcpy(buf.as_mut_ptr(), c"path1".as_ptr(), buf.len());
+            assert_eq!(append_path(buf.as_mut_ptr(), c"path2".as_ptr(), 100), OK);
+            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b"path1/path2");
+
+            xstrlcpy(buf.as_mut_ptr(), c"path1/".as_ptr(), buf.len());
+            assert_eq!(append_path(buf.as_mut_ptr(), c"path2".as_ptr(), 100), OK);
+            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b"path1/path2");
+            assert_eq!(append_path(buf.as_mut_ptr(), c"path2".as_ptr(), 11), FAIL);
+
+            xstrlcpy(buf.as_mut_ptr(), c"path1".as_ptr(), buf.len());
+            assert_eq!(append_path(buf.as_mut_ptr(), c"".as_ptr(), 6), OK);
+            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b"path1");
+            assert_eq!(append_path(buf.as_mut_ptr(), c".".as_ptr(), 6), OK);
+            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b"path1");
+
+            buf[0] = NUL;
+            assert_eq!(append_path(buf.as_mut_ptr(), c"/path2".as_ptr(), 7), OK);
+            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b"/path2");
+        }
+    }
+
+    #[test]
+    fn path_url_extension_and_is_absolute() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        unsafe {
+            assert!(path_is_absolute(c"/some/directory/".as_ptr()));
+            #[cfg(windows)]
+            assert!(path_is_absolute(c"C:/some/directory/".as_ptr()));
+            #[cfg(not(windows))]
+            assert!(path_is_absolute(c"~/in/my/home~/directory".as_ptr()));
+            assert!(!path_is_absolute(c"not/in/my/home~/directory".as_ptr()));
+
+            let saved_fic = p_fic;
+            p_fic = 0;
+            assert!(path_with_extension(
+                c"/some/path/file.lua".as_ptr(),
+                c"lua".as_ptr()
+            ));
+            assert!(!path_with_extension(
+                c"/some/path/file.vim".as_ptr(),
+                c"lua".as_ptr()
+            ));
+            assert!(!path_with_extension(
+                c"/some/path/file".as_ptr(),
+                c"lua".as_ptr()
+            ));
+            assert!(!path_with_extension(
+                c"/some/path/file.LUA".as_ptr(),
+                c"lua".as_ptr()
+            ));
+            p_fic = 1;
+            assert!(path_with_extension(
+                c"/some/path/file.LUA".as_ptr(),
+                c"lua".as_ptr()
+            ));
+            p_fic = saved_fic;
+
+            assert_eq!(path_with_url(c"test://xyz/foo/b0".as_ptr()), 1);
+            assert_eq!(path_with_url(c"test:\\\\xyz\\foo\\b0".as_ptr()), 2);
+            assert_eq!(path_with_url(c"test123://xyz/foo/b0".as_ptr()), 1);
+            assert_eq!(path_with_url(c"test_abc://xyz/foo/b2".as_ptr()), 0);
+            assert_eq!(path_with_url(c"test+abc-123.ghi://xyz/foo/b1".as_ptr()), 1);
+            assert_eq!(path_with_url(c"-test://xyz/foo/b4".as_ptr()), 0);
+            assert_eq!(path_with_url(c"test-://xyz/foo/b5".as_ptr()), 0);
+            assert_eq!(path_with_url(c"test-C:/xyz/foo/b5".as_ptr()), 1);
+            assert_eq!(path_with_url(c"c:/xyz/foo/b5".as_ptr()), 0);
+            assert_eq!(path_with_url(c"C:/xyz/foo/b5".as_ptr()), 0);
+        }
+    }
+
+    #[test]
+    fn path_equal_fullname_full_dir_name_and_guess_exepath() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        unsafe {
+            init_progpath();
+
+            let mut cwd_buf = [0 as c_char; MAXPATHL];
+            assert_eq!(os_dirname(cwd_buf.as_mut_ptr(), MAXPATHL), OK);
+            let cwd = CStr::from_ptr(cwd_buf.as_ptr())
+                .to_str()
+                .unwrap()
+                .to_owned();
+
+            // Create a temporary directory inside target/ (within cwd)
+            let rel_dir = format!("target/ut_path_{}", std::process::id());
+            let abs_dir = format!("{cwd}/{rel_dir}");
+            let _ = std::fs::remove_dir_all(&abs_dir);
+            std::fs::create_dir_all(format!("{abs_dir}/CamelCase")).unwrap();
+            let f1_rel = format!("{rel_dir}/f1.o");
+            let f2_rel = format!("{rel_dir}/f2.o");
+            std::fs::write(format!("{abs_dir}/f1.o"), b"").unwrap();
+            std::fs::write(format!("{abs_dir}/f2.o"), b"").unwrap();
+
+            let f1_c = CString::new(f1_rel.clone()).unwrap();
+            let f2_c = CString::new(f2_rel.clone()).unwrap();
+            let f1_abs_c = CString::new(format!("{abs_dir}/f1.o")).unwrap();
+
+            assert!(path_equal(f1_c.as_ptr(), f1_c.as_ptr(), kPathCmpExpand));
+            assert!(path_equal(f1_c.as_ptr(), f1_abs_c.as_ptr(), kPathCmpExpand));
+            assert!(!path_equal(f1_c.as_ptr(), f2_c.as_ptr(), kPathCmpExpand));
+            assert!(!path_equal(
+                f1_c.as_ptr(),
+                c"nonexistent_ut_file.txt".as_ptr(),
+                kPathCmpExpand
+            ));
+            assert!(!path_equal(
+                c"nonexistent_ut_file.txt".as_ptr(),
+                c"nonexistent_ut_file.txt".as_ptr(),
+                kPathCmpExpand
+            ));
+            assert!(path_equal(
+                c"nonexistent_ut_file.txt".as_ptr(),
+                c"nonexistent_ut_file.txt".as_ptr(),
+                kPathCmpExpand | kPathCmpFull
+            ));
+
+            let saved_fic = p_fic;
+            p_fic = 0;
+            assert!(!path_equal(
+                c"Foo".as_ptr(),
+                c"foo".as_ptr(),
+                kPathCmpLiteral
+            ));
+            p_fic = 1;
+            assert!(path_equal(
+                c"Foo".as_ptr(),
+                c"foo".as_ptr(),
+                kPathCmpLiteral
+            ));
+            p_fic = saved_fic;
+
+            // path_full_dir_name
+            let mut out = [0 as c_char; MAXPATHL];
+            let mut empty = *b"\0";
+            assert_eq!(
+                path_full_dir_name(empty.as_mut_ptr().cast(), out.as_mut_ptr(), MAXPATHL),
+                OK
+            );
+            assert_eq!(CStr::from_ptr(out.as_ptr()).to_str().unwrap(), cwd);
+
+            let mut rel_c = CString::new(rel_dir.clone()).unwrap().into_bytes_with_nul();
+            assert_eq!(
+                path_full_dir_name(rel_c.as_mut_ptr().cast(), out.as_mut_ptr(), MAXPATHL),
+                OK
+            );
+            assert_eq!(CStr::from_ptr(out.as_ptr()).to_str().unwrap(), abs_dir);
+
+            let mut non_exist_abs = CString::new(format!("{abs_dir}/does_not_exist"))
+                .unwrap()
+                .into_bytes_with_nul();
+            assert_eq!(
+                path_full_dir_name(
+                    non_exist_abs.as_mut_ptr().cast(),
+                    out.as_mut_ptr(),
+                    MAXPATHL
+                ),
+                FAIL
+            );
+
+            // vim_FullName
+            assert_eq!(vim_FullName(ptr::null(), out.as_mut_ptr(), 10, true), FAIL);
+            assert_eq!(
+                vim_FullName(
+                    c"http://www.neovim.org".as_ptr(),
+                    out.as_mut_ptr(),
+                    MAXPATHL,
+                    true
+                ),
+                OK
+            );
+            assert_eq!(
+                CStr::from_ptr(out.as_ptr()).to_str().unwrap(),
+                "http://www.neovim.org"
+            );
+
+            let rel_dot = CString::new(format!("./{f1_rel}")).unwrap();
+            assert_eq!(
+                vim_FullName(rel_dot.as_ptr(), out.as_mut_ptr(), MAXPATHL, true),
+                OK
+            );
+            assert_eq!(
+                CStr::from_ptr(out.as_ptr()).to_str().unwrap(),
+                format!("{abs_dir}/f1.o")
+            );
+
+            // path_fix_case
+            let mut case_buf = CString::new(format!("{rel_dir}/camelcase"))
+                .unwrap()
+                .into_bytes_with_nul();
+            path_fix_case(case_buf.as_mut_ptr().cast());
+            #[cfg(any(windows, target_os = "macos"))]
+            assert_eq!(
+                CStr::from_ptr(case_buf.as_ptr().cast()).to_str().unwrap(),
+                format!("{rel_dir}/CamelCase")
+            );
+            #[cfg(not(any(windows, target_os = "macos")))]
+            assert_eq!(
+                CStr::from_ptr(case_buf.as_ptr().cast()).to_str().unwrap(),
+                format!("{rel_dir}/camelcase")
+            );
+
+            // path_guess_exepath
+            path_guess_exepath(c"./nvim".as_ptr(), out.as_mut_ptr(), MAXPATHL);
+            assert_eq!(
+                CStr::from_ptr(out.as_ptr()).to_str().unwrap(),
+                format!("{cwd}/./nvim")
+            );
+
+            path_guess_exepath(c"23u0293_not_in_path".as_ptr(), out.as_mut_ptr(), MAXPATHL);
+            assert_eq!(
+                CStr::from_ptr(out.as_ptr()).to_str().unwrap(),
+                "23u0293_not_in_path"
+            );
+
+            let _ = std::fs::remove_dir_all(&abs_dir);
         }
     }
 }

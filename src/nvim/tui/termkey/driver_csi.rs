@@ -425,8 +425,7 @@ unsafe fn handle_csi_m(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn termkey_interpret_mouse(
+pub unsafe fn termkey_interpret_mouse(
     _tk: *mut TermKey,
     key: *const TermKeyKey,
     event: *mut TermKeyMouseEvent,
@@ -539,8 +538,8 @@ unsafe fn handle_csi_R(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn termkey_interpret_position(
+#[cfg(test)]
+pub unsafe fn termkey_interpret_position(
     _tk: *mut TermKey,
     key: *const TermKeyKey,
     line: *mut c_int,
@@ -600,8 +599,7 @@ unsafe fn handle_csi_y(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn termkey_interpret_modereport(
+pub unsafe fn termkey_interpret_modereport(
     _tk: *mut TermKey,
     key: *const TermKeyKey,
     initial: *mut c_int,
@@ -703,8 +701,7 @@ unsafe fn parse_csi(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn termkey_interpret_csi(
+pub unsafe fn termkey_interpret_csi(
     tk: *mut TermKey,
     key: *const TermKeyKey,
     params: *mut TermKeyCsiParam,

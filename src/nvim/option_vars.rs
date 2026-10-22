@@ -104,7 +104,6 @@ pub static mut p_fenc: *mut c_char = ptr::null_mut();
 pub static mut p_fencs: *mut c_char = ptr::null_mut();
 pub static mut p_ff: *mut c_char = ptr::null_mut();
 pub static mut p_ffs: *mut c_char = ptr::null_mut();
-#[unsafe(no_mangle)]
 pub static mut p_fic: c_int = 0;
 pub static mut p_ft: *mut c_char = ptr::null_mut();
 pub static mut p_fcs: *mut c_char = ptr::null_mut();

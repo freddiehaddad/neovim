@@ -411,7 +411,6 @@ enum ExprOpAssociativity {
 pub struct SyncCStrArray<const N: usize>(pub [*const c_char; N]);
 unsafe impl<const N: usize> Sync for SyncCStrArray<N> {}
 
-#[unsafe(no_mangle)]
 pub static eltkn_cmp_type_tab: SyncCStrArray<5> = SyncCStrArray([
     c"Equal".as_ptr(),
     c"Matches".as_ptr(),
@@ -420,7 +419,6 @@ pub static eltkn_cmp_type_tab: SyncCStrArray<5> = SyncCStrArray([
     c"Identical".as_ptr(),
 ]);
 
-#[unsafe(no_mangle)]
 pub static expr_asgn_type_tab: SyncCStrArray<4> = SyncCStrArray([
     c"Plain".as_ptr(),
     c"Add".as_ptr(),
@@ -436,10 +434,8 @@ const fn build_ccs_tab() -> [*const c_char; 64] {
     tab
 }
 
-#[unsafe(no_mangle)]
 pub static ccs_tab: SyncCStrArray<64> = SyncCStrArray(build_ccs_tab());
 
-#[unsafe(no_mangle)]
 pub static east_node_type_tab: SyncCStrArray<39> = SyncCStrArray([
     c"Missing".as_ptr(),
     c"OpMissing".as_ptr(),
@@ -658,11 +654,7 @@ unsafe fn get_ccs(ret: &mut LexExprToken, bytes: &[u8]) {
 }
 
 /// Get next token for the Vimscript expression input (`viml_pexpr_next_token`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn viml_pexpr_next_token(
-    pstate: *mut ParserState,
-    flags: c_int,
-) -> LexExprToken {
+pub unsafe fn viml_pexpr_next_token(pstate: *mut ParserState, flags: c_int) -> LexExprToken {
     unsafe {
         let mut ret: LexExprToken = std::mem::zeroed();
         ret.r#type = kExprLexInvalid;
@@ -1084,8 +1076,7 @@ pub unsafe extern "C" fn viml_pexpr_next_token(
 }
 
 /// Free memory occupied by AST (`viml_pexpr_free_ast`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn viml_pexpr_free_ast(mut ast: ExprAST) {
+pub unsafe fn viml_pexpr_free_ast(mut ast: ExprAST) {
     unsafe {
         let mut ast_stack: ExprASTStack = std::mem::zeroed();
         ast_stack.init();
@@ -1696,8 +1687,7 @@ const WANT_NODE_TO_LEXER_FLAGS: [c_int; 2] = [
 const BASE_TO_PREFIX_LENGTH: [usize; 17] = [0, 0, 2, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2];
 
 /// Parse one Vimscript expression (`viml_pexpr_parse`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAST {
+pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAST {
     unsafe {
         let mut ast = ExprAST {
             err: ExprASTError {
@@ -3591,15 +3581,16 @@ pub unsafe extern "C" fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::viml::parser::parser::{parser_simple_get_line, viml_parser_destroy};
-    use std::ffi::c_void;
+    use crate::viml::parser::parser::{
+        ParserHighlight, parser_simple_get_line, viml_parser_destroy,
+    };
+    use std::ffi::{CStr, c_void};
 
-    #[test]
-    fn lex_and_parse_basic_expression() {
+    unsafe fn with_pstate<R>(input: &[u8], f: impl FnOnce(&mut ParserState) -> R) -> R {
         let lines = [
             ParserLine {
-                data: c"1 + 2 * 3".as_ptr(),
-                size: 9,
+                data: input.as_ptr().cast::<c_char>(),
+                size: input.len(),
                 allocated: false,
             },
             ParserLine {
@@ -3609,20 +3600,212 @@ mod tests {
             },
         ];
         let mut cursor = lines.as_ptr();
+        let mut colors: ParserHighlight = unsafe { std::mem::zeroed() };
+        colors.init();
         let mut pstate: ParserState = unsafe { std::mem::zeroed() };
         pstate.reader.get_line = Some(parser_simple_get_line);
         pstate.reader.cookie = (&mut cursor as *mut *const ParserLine).cast::<c_void>();
         pstate.reader.conv.vc_factor = 1;
-        pstate.reader.lines.init();
-        pstate.stack.init();
-
+        pstate.colors = &mut colors;
         unsafe {
-            let ast = viml_pexpr_parse(&mut pstate, 0);
-            assert!(ast.err.msg.is_null());
-            assert!(!ast.root.is_null());
-            assert_eq!((*ast.root).r#type, kExprNodeBinaryPlus);
-            viml_pexpr_free_ast(ast);
+            pstate.reader.lines.init();
+            pstate.stack.init();
+            let res = f(&mut pstate);
+            colors.destroy();
             viml_parser_destroy(&mut pstate);
+            res
+        }
+    }
+
+    unsafe fn lex_one(input: &[u8], flags: c_int) -> LexExprToken {
+        unsafe { with_pstate(input, |pstate| viml_pexpr_next_token(pstate, flags)) }
+    }
+
+    #[test]
+    fn lexer_tokens_and_flags() {
+        unsafe {
+            let t = lex_one(b"(", 0);
+            assert_eq!(t.r#type, kExprLexParenthesis);
+            assert!(!t.data.brc.closing);
+
+            let t = lex_one(b")]", 0);
+            assert_eq!(t.r#type, kExprLexParenthesis);
+            assert!(t.data.brc.closing);
+            assert_eq!(t.len, 1);
+
+            let t = lex_one(b"0x123", 0);
+            assert_eq!(t.r#type, kExprLexNumber);
+            assert!(!t.data.num.is_float);
+            assert_eq!(t.data.num.base, 16);
+            assert_eq!(t.data.num.val.integer, 0x123);
+
+            let t = lex_one(b"0b100111", 0);
+            assert_eq!(t.r#type, kExprLexNumber);
+            assert_eq!(t.data.num.base, 2);
+            assert_eq!(t.data.num.val.integer, 39);
+
+            let t = lex_one(b"0123", 0);
+            assert_eq!(t.r#type, kExprLexNumber);
+            assert_eq!(t.data.num.base, 8);
+            assert_eq!(t.data.num.val.integer, 83);
+
+            // Without kELFlagAllowFloat, "2.5" stops at "2".
+            let t = lex_one(b"2.5", 0);
+            assert_eq!(t.r#type, kExprLexNumber);
+            assert!(!t.data.num.is_float);
+            assert_eq!(t.len, 1);
+            assert_eq!(t.data.num.val.integer, 2);
+
+            // With kELFlagAllowFloat, "2.5e-2" parses as float.
+            let t = lex_one(b"2.5e-2", kELFlagAllowFloat);
+            assert_eq!(t.r#type, kExprLexNumber);
+            assert!(t.data.num.is_float);
+            assert_eq!(t.len, 6);
+            assert!((t.data.num.val.floating - 0.025).abs() < 1e-12);
+
+            // Comparisons and case strategies
+            let t = lex_one(b"==#", 0);
+            assert_eq!(t.r#type, kExprLexComparison);
+            assert_eq!(t.data.cmp.r#type, kExprCmpEqual);
+            assert!(!t.data.cmp.inv);
+            assert_eq!(t.data.cmp.ccs, kCCStrategyMatchCase);
+
+            let t = lex_one(b"!~?", 0);
+            assert_eq!(t.r#type, kExprLexComparison);
+            assert_eq!(t.data.cmp.r#type, kExprCmpMatches);
+            assert!(t.data.cmp.inv);
+            assert_eq!(t.data.cmp.ccs, kCCStrategyIgnoreCase);
+
+            // `is` / `isnot` with and without kELFlagIsNotCmp
+            let t = lex_one(b"isnot#", 0);
+            assert_eq!(t.r#type, kExprLexComparison);
+            assert_eq!(t.data.cmp.r#type, kExprCmpIdentical);
+            assert!(t.data.cmp.inv);
+            assert_eq!(t.data.cmp.ccs, kCCStrategyMatchCase);
+
+            let t = lex_one(b"isnot#foo", kELFlagIsNotCmp);
+            assert_eq!(t.r#type, kExprLexPlainIdentifier);
+            assert_eq!(t.len, 9);
+            assert!(t.data.var.autoload);
+
+            // Scope and kELFlagForbidScope
+            let t = lex_one(b"g:test#var", 0);
+            assert_eq!(t.r#type, kExprLexPlainIdentifier);
+            assert_eq!(t.data.var.scope, b'g' as c_int);
+            assert!(t.data.var.autoload);
+
+            let t = lex_one(b"g:test", kELFlagForbidScope);
+            assert_eq!(t.r#type, kExprLexPlainIdentifier);
+            assert_eq!(t.len, 1);
+            assert_eq!(t.data.var.scope, 0);
+
+            // Options, registers, env, strings, assignments
+            let t = lex_one(b"&l:opt", 0);
+            assert_eq!(t.r#type, kExprLexOption);
+            assert_eq!(t.data.opt.scope, b'l' as c_int);
+            assert_eq!(t.data.opt.len, 3);
+
+            let t = lex_one(b"&g:", 0);
+            assert_eq!(t.r#type, kExprLexInvalid);
+            assert_eq!(
+                CStr::from_ptr(t.data.err.msg),
+                c"E112: Option name missing: %.*s"
+            );
+
+            let t = lex_one(b"@a", 0);
+            assert_eq!(t.r#type, kExprLexRegister);
+            assert_eq!(t.data.reg.name, b'a' as c_int);
+
+            let t = lex_one(b"'x'''", 0);
+            assert_eq!(t.r#type, kExprLexSingleQuotedString);
+            assert!(t.data.str.closed);
+
+            let t = lex_one(b"\"x\\\"", 0);
+            assert_eq!(t.r#type, kExprLexDoubleQuotedString);
+            assert!(!t.data.str.closed);
+
+            let t = lex_one(b".=", 0);
+            assert_eq!(t.r#type, kExprLexAssignment);
+            assert_eq!(t.data.ass.r#type, kExprAsgnConcat);
+
+            // Peek does not advance pstate.pos
+            with_pstate(b"abc", |pstate| {
+                let t = viml_pexpr_next_token(pstate, kELFlagPeek);
+                assert_eq!(t.r#type, kExprLexPlainIdentifier);
+                assert_eq!(t.len, 3);
+                assert_eq!(pstate.pos.col, 0);
+            });
+
+            // EOC and kELFlagForbidEOC
+            let t = lex_one(b"|", 0);
+            assert_eq!(t.r#type, kExprLexEOC);
+            let t = lex_one(b"|", kELFlagForbidEOC);
+            assert_eq!(t.r#type, kExprLexInvalid);
+        }
+    }
+
+    #[test]
+    fn lex_and_parse_expressions_and_errors() {
+        unsafe {
+            // Binary precedence: 1 + 2 * 3
+            with_pstate(b"1 + 2 * 3", |pstate| {
+                let ast = viml_pexpr_parse(pstate, 0);
+                assert!(ast.err.msg.is_null());
+                assert!(!ast.root.is_null());
+                assert_eq!((*ast.root).r#type, kExprNodeBinaryPlus);
+                let left = (*ast.root).children;
+                let right = (*left).next;
+                assert_eq!((*left).r#type, kExprNodeInteger);
+                assert_eq!((*right).r#type, kExprNodeMultiplication);
+                assert!((*pstate.colors).size > 0);
+                viml_pexpr_free_ast(ast);
+            });
+
+            // Ternary, lambda, dictionary, list, call, subscript
+            with_pstate(b"cond ? {x -> [x, {'k': f(x)[0]}]} : 0", |pstate| {
+                let ast = viml_pexpr_parse(pstate, 0);
+                assert!(ast.err.msg.is_null());
+                assert_eq!((*ast.root).r#type, kExprNodeTernary);
+                viml_pexpr_free_ast(ast);
+            });
+
+            // Assignment with kExprFlagsParseLet
+            with_pstate(b"[a, b] = [1, 2]", |pstate| {
+                let ast = viml_pexpr_parse(pstate, kExprFlagsParseLet);
+                assert!(ast.err.msg.is_null());
+                assert_eq!((*ast.root).r#type, kExprNodeAssignment);
+                assert_eq!((*ast.root).data.ass.r#type, kExprAsgnPlain);
+                viml_pexpr_free_ast(ast);
+            });
+
+            with_pstate(b"a += 1", |pstate| {
+                let ast = viml_pexpr_parse(pstate, kExprFlagsParseLet);
+                assert!(ast.err.msg.is_null());
+                assert_eq!((*ast.root).r#type, kExprNodeAssignment);
+                assert_eq!((*ast.root).data.ass.r#type, kExprAsgnAdd);
+                viml_pexpr_free_ast(ast);
+            });
+
+            // Syntax errors report expected diagnostics
+            with_pstate(b"1 + (2 * 3", |pstate| {
+                let ast = viml_pexpr_parse(pstate, 0);
+                assert!(!ast.err.msg.is_null());
+                assert_eq!(
+                    CStr::from_ptr(ast.err.msg),
+                    c"E110: Missing closing parenthesis for nested expression: %.*s"
+                );
+                viml_pexpr_free_ast(ast);
+            });
+
+            with_pstate(b"cond ? 1", |pstate| {
+                let ast = viml_pexpr_parse(pstate, 0);
+                assert!(!ast.err.msg.is_null());
+                assert_eq!(
+                    CStr::from_ptr(ast.err.msg),
+                    c"E109: Missing ':' after '?': %.*s"
+                );
+                viml_pexpr_free_ast(ast);
+            });
         }
     }
 }

@@ -321,8 +321,7 @@ const KEYNAMES: &[KeyNameInit] = &[
 
 const EVNAMES: [&str; 4] = ["Unknown", "Press", "Drag", "Release"];
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn termkey_interpret_string(
+pub unsafe fn termkey_interpret_string(
     tk: *mut TermKey,
     key: *const TermKeyKey,
     strp: *mut *const c_char,
@@ -357,6 +356,7 @@ pub unsafe extern "C" fn termkey_interpret_string(
     }
 }
 
+#[cfg(test)]
 unsafe fn strpncmp_camel(
     strp: *mut *const c_char,
     strcamelp: *mut *const c_char,
@@ -491,11 +491,7 @@ unsafe fn termkey_init(tk: *mut TermKey, term: *mut TerminfoEntry) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn termkey_new_abstract(
-    term: *mut TerminfoEntry,
-    flags: c_int,
-) -> *mut TermKey {
+pub unsafe fn termkey_new_abstract(term: *mut TerminfoEntry, flags: c_int) -> *mut TermKey {
     unsafe {
         let tk = termkey_alloc();
         if tk.is_null() {
@@ -540,8 +536,7 @@ pub unsafe fn termkey_free(tk: *mut TermKey) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn termkey_destroy(tk: *mut TermKey) {
+pub unsafe fn termkey_destroy(tk: *mut TermKey) {
     unsafe {
         if (*tk).is_started != 0 {
             termkey_stop(tk);
@@ -561,8 +556,7 @@ pub unsafe fn termkey_hook_terminfo_getstr(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn termkey_start(tk: *mut TermKey) -> c_int {
+pub unsafe fn termkey_start(tk: *mut TermKey) -> c_int {
     unsafe {
         if (*tk).is_started != 0 {
             return 1;
@@ -583,8 +577,7 @@ pub unsafe extern "C" fn termkey_start(tk: *mut TermKey) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn termkey_stop(tk: *mut TermKey) -> c_int {
+pub unsafe fn termkey_stop(tk: *mut TermKey) -> c_int {
     unsafe {
         if (*tk).is_started == 0 {
             return 1;
@@ -603,8 +596,7 @@ pub unsafe extern "C" fn termkey_stop(tk: *mut TermKey) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn termkey_set_flags(tk: *mut TermKey, newflags: c_int) {
+pub unsafe fn termkey_set_flags(tk: *mut TermKey, newflags: c_int) {
     unsafe {
         (*tk).flags = newflags;
         if ((*tk).flags & TERMKEY_FLAG_SPACESYMBOL) != 0 {
@@ -615,13 +607,11 @@ pub unsafe extern "C" fn termkey_set_flags(tk: *mut TermKey, newflags: c_int) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn termkey_get_canonflags(tk: *mut TermKey) -> c_int {
+pub unsafe fn termkey_get_canonflags(tk: *mut TermKey) -> c_int {
     unsafe { (*tk).canonflags }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn termkey_set_canonflags(tk: *mut TermKey, flags: c_int) {
+pub unsafe fn termkey_set_canonflags(tk: *mut TermKey, flags: c_int) {
     unsafe {
         (*tk).canonflags = flags;
         if ((*tk).canonflags & TERMKEY_CANON_SPACESYMBOL) != 0 {
@@ -632,13 +622,11 @@ pub unsafe extern "C" fn termkey_set_canonflags(tk: *mut TermKey, flags: c_int) 
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn termkey_get_buffer_size(tk: *mut TermKey) -> usize {
+pub unsafe fn termkey_get_buffer_size(tk: *mut TermKey) -> usize {
     unsafe { (*tk).buffsize }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn termkey_set_buffer_size(tk: *mut TermKey, size: usize) -> c_int {
+pub unsafe fn termkey_set_buffer_size(tk: *mut TermKey, size: usize) -> c_int {
     unsafe {
         let buffer = xrealloc((*tk).buffer.cast(), size).cast::<c_uchar>();
         (*tk).buffer = buffer;
@@ -647,8 +635,7 @@ pub unsafe extern "C" fn termkey_set_buffer_size(tk: *mut TermKey, size: usize) 
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn termkey_get_buffer_remaining(tk: *mut TermKey) -> usize {
+pub unsafe fn termkey_get_buffer_remaining(tk: *mut TermKey) -> usize {
     unsafe { (*tk).buffsize - (*tk).buffcount }
 }
 
@@ -793,8 +780,7 @@ unsafe fn emit_codepoint(tk: *mut TermKey, codepoint: c_int, key: *mut TermKeyKe
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn termkey_canonicalise(tk: *mut TermKey, key: *mut TermKeyKey) {
+pub unsafe fn termkey_canonicalise(tk: *mut TermKey, key: *mut TermKeyKey) {
     unsafe {
         let flags = (*tk).canonflags;
 
@@ -983,8 +969,7 @@ unsafe fn peekkey_mouse(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn termkey_getkey(tk: *mut TermKey, key: *mut TermKeyKey) -> TermKeyResult {
+pub unsafe fn termkey_getkey(tk: *mut TermKey, key: *mut TermKeyKey) -> TermKeyResult {
     unsafe {
         let mut nbytes: usize = 0;
         let ret = peekkey(tk, key, 0, &mut nbytes);
@@ -1001,11 +986,7 @@ pub unsafe extern "C" fn termkey_getkey(tk: *mut TermKey, key: *mut TermKeyKey) 
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn termkey_getkey_force(
-    tk: *mut TermKey,
-    key: *mut TermKeyKey,
-) -> TermKeyResult {
+pub unsafe fn termkey_getkey_force(tk: *mut TermKey, key: *mut TermKeyKey) -> TermKeyResult {
     unsafe {
         let mut nbytes: usize = 0;
         let ret = peekkey(tk, key, 1, &mut nbytes);
@@ -1018,12 +999,7 @@ pub unsafe extern "C" fn termkey_getkey_force(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn termkey_push_bytes(
-    tk: *mut TermKey,
-    bytes: *const c_char,
-    mut len: usize,
-) -> usize {
+pub unsafe fn termkey_push_bytes(tk: *mut TermKey, bytes: *const c_char, mut len: usize) -> usize {
     unsafe {
         if (*tk).buffstart != 0 {
             std::ptr::copy(
@@ -1083,8 +1059,7 @@ pub unsafe fn termkey_register_keyname(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn termkey_get_keyname(tk: *mut TermKey, sym: TermKeySym) -> *const c_char {
+pub unsafe fn termkey_get_keyname(tk: *mut TermKey, sym: TermKeySym) -> *const c_char {
     if sym == TERMKEY_SYM_UNKNOWN {
         return c"UNKNOWN".as_ptr();
     }
@@ -1097,6 +1072,7 @@ pub unsafe extern "C" fn termkey_get_keyname(tk: *mut TermKey, sym: TermKeySym) 
     }
 }
 
+#[cfg(test)]
 unsafe fn termkey_lookup_keyname_format(
     tk: *mut TermKey,
     str_in: *const c_char,
@@ -1134,8 +1110,8 @@ unsafe fn termkey_lookup_keyname_format(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn termkey_lookup_keyname(
+#[cfg(test)]
+pub unsafe fn termkey_lookup_keyname(
     tk: *mut TermKey,
     str_in: *const c_char,
     sym: *mut TermKeySym,
@@ -1257,8 +1233,7 @@ fn camel_to_spaces(src: &[u8]) -> Vec<u8> {
     out
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn termkey_strfkey(
+pub unsafe fn termkey_strfkey(
     tk: *mut TermKey,
     buffer: *mut c_char,
     len: usize,
@@ -1424,32 +1399,365 @@ pub unsafe extern "C" fn termkey_strfkey(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tui::termkey::driver_csi::{
+        TERMKEY_MOUSE_DRAG, TERMKEY_MOUSE_PRESS, TERMKEY_MOUSE_RELEASE, TermKeyCsiParam,
+        termkey_interpret_csi, termkey_interpret_position,
+    };
+
+    unsafe fn push(tk: *mut TermKey, bytes: &[u8]) -> usize {
+        unsafe { termkey_push_bytes(tk, bytes.as_ptr().cast(), bytes.len()) }
+    }
 
     #[test]
-    fn termkey_lifecycle_push_getkey_and_strfkey() {
+    fn base_getkey_flags_and_buffer_resize() {
         unsafe {
             let tk = termkey_new_abstract(std::ptr::null_mut(), 0);
             assert!(!tk.is_null());
             assert_eq!(termkey_get_buffer_size(tk), 256);
+            assert_eq!((*tk).is_started, 1);
 
-            let input = c"\x1b[A";
-            assert_eq!(termkey_push_bytes(tk, input.as_ptr(), 3), 3);
+            termkey_stop(tk);
+            assert_eq!((*tk).is_started, 0);
+            termkey_start(tk);
+            assert_eq!((*tk).is_started, 1);
 
             let mut key: TermKeyKey = std::mem::zeroed();
+            assert_eq!(termkey_get_buffer_remaining(tk), 256);
+            assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_NONE);
+
+            assert_eq!(push(tk, b"h"), 1);
+            assert_eq!(termkey_get_buffer_remaining(tk), 255);
+            assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
+            assert_eq!(key.r#type, TERMKEY_TYPE_UNICODE);
+            assert_eq!(key.code.codepoint, i32::from(b'h'));
+            assert_eq!(key.modifiers, 0);
+            assert_eq!(CStr::from_ptr(key.utf8.as_ptr()).to_bytes(), b"h");
+            assert_eq!(termkey_get_buffer_remaining(tk), 256);
+            assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_NONE);
+
+            // Ctrl-A
+            push(tk, b"\x01");
+            assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
+            assert_eq!(key.r#type, TERMKEY_TYPE_UNICODE);
+            assert_eq!(key.code.codepoint, i32::from(b'a'));
+            assert_eq!(key.modifiers, TERMKEY_KEYMOD_CTRL);
+
+            // Partial SS3 sequence
+            assert_eq!(push(tk, b"\x1bO"), 2);
+            assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_AGAIN);
+            push(tk, b"C");
             assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
             assert_eq!(key.r#type, TERMKEY_TYPE_KEYSYM);
-            assert_eq!(key.code.sym, TERMKEY_SYM_UP);
+            assert_eq!(key.code.sym, TERMKEY_SYM_RIGHT);
 
-            let mut buf = [0 as c_char; 16];
-            let len = termkey_strfkey(
-                tk,
-                buf.as_mut_ptr(),
-                buf.len(),
-                &mut key,
-                TERMKEY_FORMAT_WRAPBRACKET,
+            // Ctrl-Escape via CSI u
+            push(tk, b"\x1b[27;5u");
+            assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
+            assert_eq!(key.r#type, TERMKEY_TYPE_KEYSYM);
+            assert_eq!(key.code.sym, TERMKEY_SYM_ESCAPE);
+            assert_eq!(key.modifiers, TERMKEY_KEYMOD_CTRL);
+
+            // Space with and without TERMKEY_FLAG_SPACESYMBOL
+            push(tk, b" ");
+            assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
+            assert_eq!(key.r#type, TERMKEY_TYPE_UNICODE);
+            assert_eq!(key.code.codepoint, i32::from(b' '));
+
+            termkey_set_flags(tk, TERMKEY_FLAG_SPACESYMBOL);
+            push(tk, b" ");
+            assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
+            assert_eq!(key.r#type, TERMKEY_TYPE_KEYSYM);
+            assert_eq!(key.code.sym, TERMKEY_SYM_SPACE);
+
+            // Buffer resize preserves buffered bytes
+            push(tk, b"h");
+            assert_eq!(termkey_set_buffer_size(tk, 512), 1);
+            assert_eq!(termkey_get_buffer_size(tk), 512);
+            assert_eq!(termkey_get_buffer_remaining(tk), 511);
+            assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
+
+            termkey_destroy(tk);
+        }
+    }
+
+    #[test]
+    fn utf8_decoding_invalid_continuations_and_partials() {
+        unsafe {
+            let tk = termkey_new_abstract(std::ptr::null_mut(), TERMKEY_FLAG_UTF8);
+            let mut key: TermKeyKey = std::mem::zeroed();
+
+            for (bytes, expected_cp) in [
+                (&b"a"[..], 0x61),
+                (&b"\xC2\xA0"[..], 0x00A0),
+                (&b"\xDF\xBF"[..], 0x07FF),
+                (&b"\xE0\xA0\x80"[..], 0x0800),
+                (&b"\xEF\xBF\xBD"[..], 0xFFFD),
+                (&b"\xF0\x90\x80\x80"[..], 0x10000),
+                (&b"\xF4\x8F\xBF\xBF"[..], 0x10FFFF),
+            ] {
+                push(tk, bytes);
+                assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
+                assert_eq!(key.r#type, TERMKEY_TYPE_UNICODE);
+                assert_eq!(key.code.codepoint, expected_cp);
+            }
+
+            // Invalid continuations yield U+FFFD followed by the trailing ASCII byte
+            for bad in [
+                &b"\xC2!"[..],
+                &b"\xE0!"[..],
+                &b"\xE0\xA0!"[..],
+                &b"\xF0!"[..],
+                &b"\xF0\x90!"[..],
+                &b"\xF0\x90\x80!"[..],
+            ] {
+                push(tk, bad);
+                assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
+                assert_eq!(key.code.codepoint, 0xFFFD);
+                assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
+                assert_eq!(key.code.codepoint, i32::from(b'!'));
+            }
+
+            // Partial 4-byte UTF-8 sequence
+            push(tk, b"\xF0");
+            assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_AGAIN);
+            push(tk, b"\x90");
+            assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_AGAIN);
+            push(tk, b"\x80");
+            assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_AGAIN);
+            push(tk, b"\x80");
+            assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
+            assert_eq!(key.code.codepoint, 0x10000);
+
+            termkey_destroy(tk);
+        }
+    }
+
+    #[test]
+    fn keyname_strfkey_and_canonicalise() {
+        unsafe {
+            let tk = termkey_new_abstract(std::ptr::null_mut(), 0);
+            let mut sym: TermKeySym = TERMKEY_SYM_UNKNOWN;
+
+            assert!(termkey_lookup_keyname(tk, c"SomeUnknownKey".as_ptr(), &mut sym).is_null());
+            let endp = termkey_lookup_keyname(tk, c"DownMore".as_ptr(), &mut sym);
+            assert!(!endp.is_null());
+            assert_eq!(CStr::from_ptr(endp).to_bytes(), b"More");
+            assert_eq!(sym, TERMKEY_SYM_DOWN);
+            assert_eq!(
+                CStr::from_ptr(termkey_get_keyname(tk, TERMKEY_SYM_SPACE)).to_bytes(),
+                b"Space"
             );
-            assert_eq!(len, 4);
-            assert_eq!(CStr::from_ptr(buf.as_ptr()), c"<Up>");
+
+            let mut buf = [0 as c_char; 32];
+            let mut key: TermKeyKey = std::mem::zeroed();
+            key.r#type = TERMKEY_TYPE_UNICODE;
+            key.code.codepoint = i32::from(b'b');
+            key.modifiers = TERMKEY_KEYMOD_CTRL;
+
+            assert_eq!(
+                termkey_strfkey(tk, buf.as_mut_ptr(), buf.len(), &mut key, 0),
+                3
+            );
+            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b"C-b");
+
+            assert_eq!(
+                termkey_strfkey(
+                    tk,
+                    buf.as_mut_ptr(),
+                    buf.len(),
+                    &mut key,
+                    TERMKEY_FORMAT_LONGMOD | TERMKEY_FORMAT_SPACEMOD | TERMKEY_FORMAT_LOWERMOD,
+                ),
+                6
+            );
+            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b"ctrl b");
+
+            assert_eq!(
+                termkey_strfkey(
+                    tk,
+                    buf.as_mut_ptr(),
+                    buf.len(),
+                    &mut key,
+                    TERMKEY_FORMAT_CARETCTRL,
+                ),
+                2
+            );
+            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b"^B");
+
+            key.r#type = TERMKEY_TYPE_KEYSYM;
+            key.code.sym = TERMKEY_SYM_PAGEUP;
+            key.modifiers = 0;
+            assert_eq!(
+                termkey_strfkey(
+                    tk,
+                    buf.as_mut_ptr(),
+                    buf.len(),
+                    &mut key,
+                    TERMKEY_FORMAT_LOWERSPACE,
+                ),
+                7
+            );
+            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b"page up");
+
+            key.r#type = TERMKEY_TYPE_FUNCTION;
+            key.code.number = 5;
+            assert_eq!(
+                termkey_strfkey(
+                    tk,
+                    buf.as_mut_ptr(),
+                    buf.len(),
+                    &mut key,
+                    TERMKEY_FORMAT_WRAPBRACKET,
+                ),
+                4
+            );
+            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b"<F5>");
+
+            // Canonicalise space symbol <-> unicode space
+            let mut k1: TermKeyKey = std::mem::zeroed();
+            k1.r#type = TERMKEY_TYPE_KEYSYM;
+            k1.code.sym = TERMKEY_SYM_SPACE;
+            termkey_canonicalise(tk, &mut k1);
+            assert_eq!(k1.r#type, TERMKEY_TYPE_UNICODE);
+            assert_eq!(k1.code.codepoint, 0x20);
+
+            termkey_set_canonflags(tk, termkey_get_canonflags(tk) | TERMKEY_CANON_SPACESYMBOL);
+            termkey_canonicalise(tk, &mut k1);
+            assert_eq!(k1.r#type, TERMKEY_TYPE_KEYSYM);
+            assert_eq!(k1.code.sym, TERMKEY_SYM_SPACE);
+
+            termkey_destroy(tk);
+        }
+    }
+
+    #[test]
+    fn mouse_position_modereport_csi_and_dcs_osc() {
+        unsafe {
+            let tk = termkey_new_abstract(std::ptr::null_mut(), 0);
+            let mut key: TermKeyKey = std::mem::zeroed();
+            let mut ev: TermKeyMouseEvent = TERMKEY_MOUSE_UNKNOWN;
+            let mut button: c_int = 0;
+            let mut line: c_int = 0;
+            let mut col: c_int = 0;
+            let mut buf = [0 as c_char; 32];
+
+            // Classic X10 mouse press, drag, release
+            push(tk, b"\x1b[M !!");
+            assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
+            assert_eq!(key.r#type, TERMKEY_TYPE_MOUSE);
+            assert_eq!(
+                termkey_interpret_mouse(tk, &key, &mut ev, &mut button, &mut line, &mut col),
+                TERMKEY_RES_KEY
+            );
+            assert_eq!((ev, button, line, col), (TERMKEY_MOUSE_PRESS, 1, 1, 1));
+            assert_eq!(
+                termkey_strfkey(
+                    tk,
+                    buf.as_mut_ptr(),
+                    buf.len(),
+                    &mut key,
+                    TERMKEY_FORMAT_MOUSE_POS,
+                ),
+                21
+            );
+            assert_eq!(
+                CStr::from_ptr(buf.as_ptr()).to_bytes(),
+                b"MousePress(1) @ (1,1)"
+            );
+
+            push(tk, b"\x1b[M@\"!");
+            assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
+            termkey_interpret_mouse(tk, &key, &mut ev, &mut button, &mut line, &mut col);
+            assert_eq!((ev, button, line, col), (TERMKEY_MOUSE_DRAG, 1, 1, 2));
+
+            // SGR wide mouse press and release
+            push(tk, b"\x1b[<0;500;300M\x1b[<0;30;30m");
+            assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
+            termkey_interpret_mouse(tk, &key, &mut ev, &mut button, &mut line, &mut col);
+            assert_eq!((ev, button, line, col), (TERMKEY_MOUSE_PRESS, 1, 300, 500));
+            assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
+            termkey_interpret_mouse(tk, &key, &mut ev, &mut button, &mut line, &mut col);
+            assert_eq!(ev, TERMKEY_MOUSE_RELEASE);
+
+            // Position report and plain CSI R (<F3>)
+            push(tk, b"\x1b[?15;7R\x1b[R");
+            assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
+            assert_eq!(key.r#type, TERMKEY_TYPE_POSITION);
+            assert_eq!(
+                termkey_interpret_position(tk, &key, &mut line, &mut col),
+                TERMKEY_RES_KEY
+            );
+            assert_eq!((line, col), (15, 7));
+
+            assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
+            assert_eq!(key.r#type, TERMKEY_TYPE_FUNCTION);
+            assert_eq!(key.code.number, 3);
+
+            // Mode report
+            let mut initial: c_int = 0;
+            let mut mode: c_int = 0;
+            let mut value: c_int = 0;
+            push(tk, b"\x1b[?1;2$y\x1b[4;1$y");
+            assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
+            assert_eq!(key.r#type, TERMKEY_TYPE_MODEREPORT);
+            assert_eq!(
+                termkey_interpret_modereport(tk, &key, &mut initial, &mut mode, &mut value),
+                TERMKEY_RES_KEY
+            );
+            assert_eq!((initial, mode, value), (b'?' as c_int, 1, 2));
+
+            assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
+            termkey_interpret_modereport(tk, &key, &mut initial, &mut mode, &mut value);
+            assert_eq!((initial, mode, value), (0, 4, 1));
+
+            // Unknown CSI
+            let mut args: [TermKeyCsiParam; 16] = std::mem::zeroed();
+            let mut nargs: usize = 16;
+            let mut command: std::ffi::c_uint = 0;
+            push(tk, b"\x1b[5;25v");
+            assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
+            assert_eq!(key.r#type, TERMKEY_TYPE_UNKNOWN_CSI);
+            assert_eq!(
+                termkey_interpret_csi(tk, &key, args.as_mut_ptr(), &mut nargs, &mut command),
+                TERMKEY_RES_KEY
+            );
+            assert_eq!((nargs, command), (2, u32::from(b'v')));
+
+            // 7-bit DCS, 8-bit DCS, 7-bit OSC, and false alarm
+            let mut strp: *const c_char = std::ptr::null();
+            push(tk, b"\x1bP1$r1 q\x1b\\");
+            assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
+            assert_eq!(key.r#type, TERMKEY_TYPE_DCS);
+            assert_eq!(
+                termkey_interpret_string(tk, &key, &mut strp),
+                TERMKEY_RES_KEY
+            );
+            assert_eq!(CStr::from_ptr(strp).to_bytes(), b"1$r1 q");
+
+            push(tk, b"\x901$r2 q\x9c");
+            assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
+            assert_eq!(key.r#type, TERMKEY_TYPE_DCS);
+            assert_eq!(
+                termkey_interpret_string(tk, &key, &mut strp),
+                TERMKEY_RES_KEY
+            );
+            assert_eq!(CStr::from_ptr(strp).to_bytes(), b"1$r2 q");
+
+            push(tk, b"\x1b]15;abc\x1b\\");
+            assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
+            assert_eq!(key.r#type, TERMKEY_TYPE_OSC);
+            assert_eq!(
+                termkey_interpret_string(tk, &key, &mut strp),
+                TERMKEY_RES_KEY
+            );
+            assert_eq!(CStr::from_ptr(strp).to_bytes(), b"15;abc");
+
+            push(tk, b"\x1bP");
+            assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_AGAIN);
+            assert_eq!(termkey_getkey_force(tk, &mut key), TERMKEY_RES_KEY);
+            assert_eq!(key.r#type, TERMKEY_TYPE_UNICODE);
+            assert_eq!(key.code.codepoint, i32::from(b'P'));
+            assert_eq!(key.modifiers, TERMKEY_KEYMOD_ALT);
 
             termkey_destroy(tk);
         }

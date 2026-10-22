@@ -678,7 +678,6 @@ const HIGHLIGHT_INIT_DARK: [&CStr; 70] = [
     c"@variable guifg=NvimLightGrey2",
 ];
 
-#[unsafe(no_mangle)]
 pub static highlight_init_cmdline: SyncCStrArray<141> = SyncCStrArray([
     c"NvimInternalError ctermfg=Red ctermbg=Red guifg=Red guibg=Red".as_ptr(),
     c"default link NvimAssignment Operator".as_ptr(),
@@ -3439,6 +3438,130 @@ mod tests {
                 .to_bytes(),
                 b"#12abef"
             );
+        }
+    }
+
+    #[test]
+    fn cmdline_highlight_definitions_link_only_to_previously_defined_groups() {
+        use std::collections::HashSet;
+        let predefined: HashSet<&str> = [
+            "Conceal",
+            "Cursor",
+            "lCursor",
+            "DiffText",
+            "ErrorMsg",
+            "IncSearch",
+            "ModeMsg",
+            "NonText",
+            "PmenuSbar",
+            "StatusLine",
+            "StatusLineNC",
+            "TabLineFill",
+            "TabLineSel",
+            "TermCursor",
+            "VertSplit",
+            "WildMenu",
+            "WinSeparator",
+            "EndOfBuffer",
+            "QuickFixLine",
+            "Substitute",
+            "Whitespace",
+            "Error",
+            "Todo",
+            "String",
+            "Character",
+            "Number",
+            "Boolean",
+            "Float",
+            "Function",
+            "Conditional",
+            "Repeat",
+            "Label",
+            "Operator",
+            "Keyword",
+            "Exception",
+            "Include",
+            "Define",
+            "Macro",
+            "PreCondit",
+            "StorageClass",
+            "Structure",
+            "Typedef",
+            "Tag",
+            "SpecialChar",
+            "Delimiter",
+            "SpecialComment",
+            "Debug",
+            "Dimmed",
+            "ColorColumn",
+            "CursorColumn",
+            "CursorLine",
+            "CursorLineNr",
+            "DiffAdd",
+            "DiffChange",
+            "DiffDelete",
+            "Directory",
+            "FoldColumn",
+            "Folded",
+            "LineNr",
+            "MatchParen",
+            "MoreMsg",
+            "Pmenu",
+            "PmenuSel",
+            "PmenuThumb",
+            "Question",
+            "Search",
+            "SignColumn",
+            "SpecialKey",
+            "SpellBad",
+            "SpellCap",
+            "SpellLocal",
+            "SpellRare",
+            "TabLine",
+            "Title",
+            "Visual",
+            "WarningMsg",
+            "Normal",
+            "Comment",
+            "Constant",
+            "Special",
+            "Identifier",
+            "Statement",
+            "PreProc",
+            "Type",
+            "Underlined",
+            "Ignore",
+        ]
+        .into_iter()
+        .collect();
+
+        let mut defined = HashSet::new();
+        let mut i = 0;
+        while !highlight_init_cmdline.0[i].is_null() {
+            let s = unsafe {
+                CStr::from_ptr(highlight_init_cmdline.0[i])
+                    .to_str()
+                    .unwrap()
+            };
+            if let Some(rest) = s.strip_prefix("default link ") {
+                let mut parts = rest.split_whitespace();
+                let new_grp = parts.next().unwrap();
+                let grp_link = parts.next().unwrap();
+                assert!(parts.next().is_none());
+                assert!(
+                    defined.contains(grp_link) || predefined.contains(grp_link),
+                    "target group {grp_link} not yet defined for {new_grp}"
+                );
+                assert!(!defined.contains(new_grp) && !predefined.contains(new_grp));
+                assert!(new_grp.starts_with("Nvim"));
+                defined.insert(new_grp);
+            } else {
+                let (new_grp, _args) = s.split_once(' ').unwrap();
+                assert!(!defined.contains(new_grp) && !predefined.contains(new_grp));
+                assert!(new_grp.starts_with("Nvim"));
+                defined.insert(new_grp);
+            }
+            i += 1;
         }
     }
 }

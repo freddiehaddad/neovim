@@ -3969,6 +3969,9 @@ mod tests {
 
     #[test]
     fn vim_strsave_escaped_unquoted_strchr_strcase_and_reverse() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         unsafe {
             crate::option_vars::cmp_flags =
                 crate::mbyte::kOptCmpFlagInternal | crate::mbyte::kOptCmpFlagKeepascii;

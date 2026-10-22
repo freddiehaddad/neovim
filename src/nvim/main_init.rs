@@ -163,9 +163,6 @@ const EDIT_QF: c_int = 4;
 const kOptShadafile: OptIndex = 259;
 const kOptVerbosefile: OptIndex = 344;
 
-#[cfg(windows)]
-const PATHSEP: u8 = b'\\';
-#[cfg(not(windows))]
 const PATHSEP: u8 = b'/';
 
 const ERR_ARG_MISSING: &CStr = c"Argument missing after";

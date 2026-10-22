@@ -403,6 +403,7 @@ unsafe extern "C" {
         gid: uv_gid_t,
         cb: *const c_void,
     ) -> c_int;
+    #[cfg_attr(not(unix), cfg(test))]
     pub fn uv_fs_fchown(
         loop_: *mut c_void,
         req: *mut crate::os::fs::uv_fs_buf_t,

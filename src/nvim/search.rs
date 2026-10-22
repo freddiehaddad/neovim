@@ -4009,6 +4009,9 @@ mod tests {
 
     #[test]
     fn pat_has_uppercase_handles_utf8_and_escapes() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         unsafe {
             let save_magic = p_magic;
             let save_cmp = cmp_flags;

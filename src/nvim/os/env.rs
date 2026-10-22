@@ -256,12 +256,7 @@ pub unsafe fn os_env_exists(name: *const c_char, nonempty: bool) -> bool {
 }
 
 /// Sets an environment variable.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_setenv(
-    name: *const c_char,
-    value: *const c_char,
-    overwrite: c_int,
-) -> c_int {
+pub unsafe fn os_setenv(name: *const c_char, value: *const c_char, overwrite: c_int) -> c_int {
     unsafe {
         if !env_name_valid(name) {
             return -1;
@@ -1246,6 +1241,9 @@ mod tests {
 
     #[test]
     fn env_name_len_and_vim_env_iter_work() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         unsafe {
             assert_eq!(env_name_len(c"FOO_123/bar".as_ptr()), 7);
             assert_eq!(env_name_len(c"-invalid".as_ptr()), 0);
