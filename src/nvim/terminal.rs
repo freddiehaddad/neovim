@@ -74,7 +74,6 @@ use crate::keycodes::{
     K_X1RELEASE, K_X2DRAG, K_X2MOUSE, K_X2RELEASE, K_ZERO, MOD_MASK_ALT, MOD_MASK_CTRL,
     MOD_MASK_SHIFT, TAB, unsimplify_key,
 };
-use crate::kvec::{KVec, StringBuilder};
 use crate::map::{
     HlAttrs, MapHash, Set, ptr_t, set_del_ptr, set_destroy, set_has_ptr, set_put_ptr,
 };
@@ -235,7 +234,7 @@ struct TermCursor {
 struct TermPending {
     resize: bool,
     cursor: bool,
-    send: *mut StringBuilder,
+    send: *mut Vec<c_char>,
     events: *mut MultiQueue,
 }
 
@@ -271,8 +270,8 @@ pub struct Terminal {
     sync_flush_pending: bool,
     color_set: [bool; 16],
     selection_buffer: *mut c_char,
-    selection: StringBuilder,
-    termrequest_buffer: StringBuilder,
+    selection: Vec<c_char>,
+    termrequest_buffer: Vec<c_char>,
     termrequest_terminator: VTermTerminator,
     refcount: usize,
 }
@@ -349,7 +348,7 @@ unsafe fn emit_termrequest(argv: *mut *mut c_void) {
         let buf_handle = (*argv.add(0) as isize) as handle_T;
         let sequence = (*argv.add(1)).cast::<c_char>();
         let sequence_length = *argv.add(2) as usize;
-        let pending_send = (*argv.add(3)).cast::<StringBuilder>();
+        let pending_send = (*argv.add(3)).cast::<Vec<c_char>>();
         let row = (*argv.add(4) as isize) as c_int;
         let col = (*argv.add(5) as isize) as c_int;
         let sb_deleted = *argv.add(6) as usize;
@@ -358,8 +357,7 @@ unsafe fn emit_termrequest(argv: *mut *mut c_void) {
         let buf = handle_get_buffer(buf_handle);
         if buf.is_null() || (*buf).terminal.is_null() {
             xfree(sequence.cast::<c_void>());
-            (*pending_send).destroy();
-            xfree(pending_send.cast::<c_void>());
+            drop(Box::from_raw(pending_send));
             return;
         }
         let term = (*buf).terminal.cast::<Terminal>();
@@ -446,14 +444,14 @@ unsafe fn emit_termrequest(argv: *mut *mut c_void) {
 
         let term_pending_send = (*term).pending.send;
         (*term).pending.send = ptr::null_mut();
-        if (*pending_send).size > 0 {
-            terminal_send(term, (*pending_send).items, (*pending_send).size);
-            (*pending_send).destroy();
+        let pending_box = Box::from_raw(pending_send);
+        if !pending_box.is_empty() {
+            terminal_send(term, pending_box.as_ptr(), pending_box.len());
         }
+        drop(pending_box);
         if term_pending_send != pending_send {
             (*term).pending.send = term_pending_send;
         }
-        xfree(pending_send.cast::<c_void>());
 
         if (*term).buf_handle == 0 && (*term).refcount == 0 {
             (*term).destroy = true;
@@ -466,17 +464,16 @@ unsafe fn emit_termrequest(argv: *mut *mut c_void) {
 
 unsafe fn schedule_termrequest(term: *mut Terminal) {
     unsafe {
-        (*term).pending.send = xmalloc(size_of::<StringBuilder>()).cast::<StringBuilder>();
-        (*(*term).pending.send).init();
+        (*term).pending.send = Box::into_raw(Box::new(Vec::new()));
 
         let line = row_to_linenr(term, (*term).cursor.row);
         let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
         argv[0] = ((*term).buf_handle as isize) as *mut c_void;
         argv[1] = xmemdup(
-            (*term).termrequest_buffer.items.cast::<c_void>(),
-            (*term).termrequest_buffer.size,
+            (*term).termrequest_buffer.as_ptr().cast::<c_void>(),
+            (*term).termrequest_buffer.len(),
         );
-        argv[2] = (*term).termrequest_buffer.size as *mut c_void;
+        argv[2] = (*term).termrequest_buffer.len() as *mut c_void;
         argv[3] = (*term).pending.send.cast::<c_void>();
         argv[4] = (line as isize) as *mut c_void;
         argv[5] = ((*term).cursor.col as isize) as *mut c_void;
@@ -531,7 +528,7 @@ unsafe fn on_osc(command: c_int, frag: VTermStringFragment, user: *mut c_void) -
         }
 
         if frag.initial() {
-            (*term).termrequest_buffer.size = 0;
+            (*term).termrequest_buffer.clear();
             let mut prefix = [0 as c_char; 32];
             let n = vim_snprintf!(
                 prefix.as_mut_ptr(),
@@ -542,10 +539,14 @@ unsafe fn on_osc(command: c_int, frag: VTermStringFragment, user: *mut c_void) -
             if n > 0 {
                 (*term)
                     .termrequest_buffer
-                    .concat_len(prefix.as_ptr(), n as usize);
+                    .extend_from_slice(&prefix[..n as usize]);
             }
         }
-        (*term).termrequest_buffer.concat_len(frag.str_, frag.len());
+        if !frag.is_empty() {
+            (*term)
+                .termrequest_buffer
+                .extend_from_slice(std::slice::from_raw_parts(frag.str_, frag.len()));
+        }
         if frag.final_() {
             (*term).termrequest_terminator = frag.terminator;
             if has_event(EVENT_TERMREQUEST) {
@@ -555,7 +556,7 @@ unsafe fn on_osc(command: c_int, frag: VTermStringFragment, user: *mut c_void) -
                 (*term).termrequest_buffer.push(NUL);
                 let off = b"\x1b]8;".len();
                 let mut attr: c_int = 0;
-                if parse_osc8((*term).termrequest_buffer.items.add(off), &mut attr) != 0 {
+                if parse_osc8((*term).termrequest_buffer.as_ptr().add(off), &mut attr) != 0 {
                     let state = vterm_obtain_state((*term).vt);
                     let mut value = VTermValue { number: attr };
                     vterm_state_set_penattr(state, VTERM_ATTR_URI, VTERM_VALUETYPE_INT, &mut value);
@@ -582,13 +583,21 @@ unsafe fn on_dcs(
         }
 
         if frag.initial() {
-            (*term).termrequest_buffer.size = 0;
+            (*term).termrequest_buffer.clear();
             (*term)
                 .termrequest_buffer
-                .concat_len(b"\x1bP".as_ptr().cast::<c_char>(), 2);
-            (*term).termrequest_buffer.concat_len(command, commandlen);
+                .extend_from_slice(&[b'\x1b' as c_char, b'P' as c_char]);
+            if commandlen > 0 {
+                (*term)
+                    .termrequest_buffer
+                    .extend_from_slice(std::slice::from_raw_parts(command, commandlen));
+            }
         }
-        (*term).termrequest_buffer.concat_len(frag.str_, frag.len());
+        if !frag.is_empty() {
+            (*term)
+                .termrequest_buffer
+                .extend_from_slice(std::slice::from_raw_parts(frag.str_, frag.len()));
+        }
         if frag.final_() {
             (*term).termrequest_terminator = frag.terminator;
             schedule_termrequest(term);
@@ -609,12 +618,14 @@ unsafe fn on_apc(frag: VTermStringFragment, user: *mut c_void) -> c_int {
         }
 
         if frag.initial() {
-            (*term).termrequest_buffer.size = 0;
+            (*term).termrequest_buffer.clear();
             (*term)
                 .termrequest_buffer
-                .concat_len(b"\x1b_".as_ptr().cast::<c_char>(), 2);
+                .extend_from_slice(&[b'\x1b' as c_char, b'_' as c_char]);
         }
-        (*term).termrequest_buffer.concat_len(frag.str_, frag.len());
+        (*term)
+            .termrequest_buffer
+            .extend_from_slice(std::slice::from_raw_parts(frag.str_, frag.len()));
         if frag.final_() {
             (*term).termrequest_terminator = frag.terminator;
             schedule_termrequest(term);
@@ -680,6 +691,8 @@ pub unsafe fn terminal_alloc(buf: *mut buf_T, mut opts: TerminalOptions) -> *mut
         }
 
         let term = xcalloc(1, size_of::<Terminal>()).cast::<Terminal>();
+        ptr::write(&raw mut (*term).selection, Vec::new());
+        ptr::write(&raw mut (*term).termrequest_buffer, Vec::new());
         (*term).opts = opts;
 
         (*term).buf_handle = (*buf).b_fnum;
@@ -1414,8 +1427,8 @@ pub unsafe fn terminal_destroy(termpp: *mut *mut Terminal) {
             xfree((*term).sb_buffer.cast::<c_void>());
             xfree((*term).title.cast::<c_void>());
             xfree((*term).selection_buffer.cast::<c_void>());
-            (*term).selection.destroy();
-            (*term).termrequest_buffer.destroy();
+            ptr::drop_in_place(&raw mut (*term).selection);
+            ptr::drop_in_place(&raw mut (*term).termrequest_buffer);
             vterm_free((*term).vt);
             multiqueue_free((*term).pending.events);
             xfree(term.cast::<c_void>());
@@ -1430,7 +1443,9 @@ unsafe fn terminal_send(term: *mut Terminal, data: *const c_char, size: usize) {
             return;
         }
         if !(*term).pending.send.is_null() {
-            (*(*term).pending.send).concat_len(data, size);
+            if size > 0 {
+                (*(*term).pending.send).extend_from_slice(std::slice::from_raw_parts(data, size));
+            }
             return;
         }
         if let Some(write_cb) = (*term).opts.write_cb {
@@ -1561,11 +1576,7 @@ pub unsafe fn terminal_receive(term: *mut Terminal, data: *const c_char, len: us
         }
 
         if (*term).opts.force_crlf {
-            let mut crlf_data = KVec {
-                size: 0,
-                capacity: 0,
-                items: ptr::null_mut(),
-            };
+            let mut crlf_data: Vec<c_char> = Vec::with_capacity(len);
             for i in 0..len {
                 let b = *data.add(i);
                 if b == b'\n' as c_char && (i == 0 || *data.add(i - 1) != b'\r' as c_char) {
@@ -1573,8 +1584,7 @@ pub unsafe fn terminal_receive(term: *mut Terminal, data: *const c_char, len: us
                 }
                 crlf_data.push(b);
             }
-            vterm_input_write((*term).vt, crlf_data.items, crlf_data.size);
-            crlf_data.destroy();
+            vterm_input_write((*term).vt, crlf_data.as_ptr(), crlf_data.len());
         } else {
             vterm_input_write((*term).vt, data, len);
         }
@@ -2091,15 +2101,19 @@ unsafe fn term_selection_set(
     unsafe {
         let term = user.cast::<Terminal>();
         if frag.initial() {
-            (*term).selection.size = 0;
+            (*term).selection.clear();
         }
 
-        (*term).selection.concat_len(frag.str_, frag.len());
+        if !frag.is_empty() {
+            (*term)
+                .selection
+                .extend_from_slice(std::slice::from_raw_parts(frag.str_, frag.len()));
+        }
 
         if frag.final_() {
             let data = xmemdupz(
-                (*term).selection.items.cast::<c_void>(),
-                (*term).selection.size,
+                (*term).selection.as_ptr().cast::<c_void>(),
+                (*term).selection.len(),
             );
             let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
             argv[0] = (mask as isize) as *mut c_void;

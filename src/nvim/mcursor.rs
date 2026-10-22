@@ -43,11 +43,10 @@ use crate::input_cmdatom::{
     CmdAtom, CmdOrigin, atom_cmd_spec, atom_composite_active, atom_composite_queued,
     atom_did_global_op, atom_key_class, atom_lhs_replay_queue, atom_push_raw, atom_suppress,
     atom_visual_reset, atom_visual_span, atoms_free, cmdarg_T, g_atoms, kAInsertSpan, kAMotion,
-    kAVisualSpan, kKeyInsFlush, sb_concat,
+    kAVisualSpan, kKeyInsFlush,
 };
 use crate::insexpand::ins_compl_active;
 use crate::keycodes::{K_COMMAND, K_SPECIAL, NL};
-use crate::kvec::{KVec, StringBuilder};
 use crate::log::{LOGLVL_DBG, g_min_log_level, logmsg};
 use crate::lua::executor::nlua_call_typval;
 use crate::mapping::REMAP_NONE;
@@ -937,19 +936,23 @@ pub unsafe fn mc_ins_cascade() {
 
         if mc_ins_span.first {
             if !Ins.did_ai && !ins.data.is_null() && ins.size > 0 {
-                let mut keys: StringBuilder = KVec::new();
+                let mut keys: Vec<c_char> = Vec::new();
                 let mut skip = 0;
                 if !mc_ins_span.vsel.is_null() {
                     assert!(ins.size >= 2 && strncmp(ins.data, c"1v".as_ptr(), 2) == 0);
-                    sb_concat(&mut keys, mc_ins_span.vsel);
+                    let vsel_len = strlen(mc_ins_span.vsel);
+                    keys.extend_from_slice(std::slice::from_raw_parts(mc_ins_span.vsel, vsel_len));
                     skip = 2;
                     mc_ins_span.vsel = ptr::null();
                 }
-                keys.concat_len(ins.data.add(skip), ins.size - skip);
+                keys.extend_from_slice(std::slice::from_raw_parts(
+                    ins.data.add(skip),
+                    ins.size - skip,
+                ));
                 keys.push(ESC);
-                keys.push(0);
                 mc_ins_span.done_len = ins.size;
-                mc_ins_span_push(keys.items, ptr::null_mut());
+                let keys_ptr = xmemdupz(keys.as_ptr().cast(), keys.len()).cast();
+                mc_ins_span_push(keys_ptr, ptr::null_mut());
                 mc_ins_preview_rebase();
             }
         } else if !ins.data.is_null() && ins.size < mc_ins_span.done_len {
@@ -1013,20 +1016,25 @@ unsafe fn mc_ins_span_flush(ins: *const NvimString, commit: bool) {
             mc_ins_preview_set(&empty);
         }
         let dlen = (*ins).size - mc_ins_span.done_len;
-        let mut keys: StringBuilder = KVec::new();
+        let mut keys: Vec<c_char> = Vec::with_capacity(dlen + 2);
         keys.push(b'i' as c_char);
-        keys.concat_len((*ins).data.add(mc_ins_span.done_len), dlen);
+        if dlen > 0 {
+            keys.extend_from_slice(std::slice::from_raw_parts(
+                (*ins).data.add(mc_ins_span.done_len),
+                dlen,
+            ));
+        }
         if !commit {
             keys.push(ESC);
         }
-        keys.push(0);
         let text = if commit && dlen > 1 {
             xmemdupz((*ins).data.add(mc_ins_span.done_len).cast(), dlen - 1).cast()
         } else {
             ptr::null_mut()
         };
         mc_ins_span.done_len = (*ins).size;
-        mc_ins_span_push(keys.items, text);
+        let keys_ptr = xmemdupz(keys.as_ptr().cast(), keys.len()).cast();
+        mc_ins_span_push(keys_ptr, text);
         if !commit {
             mc_ins_preview_rebase();
         }
@@ -1096,7 +1104,7 @@ unsafe fn mc_reg_gather() {
         let mut save = CONTEXT_INIT;
         ctx_save(&mut save, kCtxRegs);
 
-        let mut joined: [KVec<c_char>; MC_REGS.len()] = [KVec::new(); MC_REGS.len()];
+        let mut joined: [Vec<c_char>; MC_REGS.len()] = [const { Vec::new() }; MC_REGS.len()];
         for &ctx_ptr in &order {
             ctx_load(ctx_ptr, kCtxRegs, 0);
             let mut idx = 0;
@@ -1104,10 +1112,11 @@ unsafe fn mc_reg_gather() {
                 if gather[idx] {
                     let text = mc_reg_read(c_int::from(MC_REGS[idx]));
                     if *text != 0 {
-                        if joined[idx].size > 0 {
+                        if !joined[idx].is_empty() {
                             joined[idx].push(NL as c_char);
                         }
-                        sb_concat(&mut joined[idx], text);
+                        let len = strlen(text);
+                        joined[idx].extend_from_slice(std::slice::from_raw_parts(text, len));
                     }
                     xfree(text.cast());
                 }
@@ -1120,12 +1129,12 @@ unsafe fn mc_reg_gather() {
 
         let mut idx = 0;
         while MC_REGS[idx] != 0 {
-            if gather[idx] && joined[idx].size > 0 {
+            if gather[idx] && !joined[idx].is_empty() {
                 let r = c_int::from(MC_REGS[idx]);
                 write_reg_contents_ex(
                     r,
-                    joined[idx].items,
-                    joined[idx].size as isize,
+                    joined[idx].as_ptr(),
+                    joined[idx].len() as isize,
                     false,
                     crate::register::MotionType::kMTLineWise,
                     0,
@@ -1134,7 +1143,6 @@ unsafe fn mc_reg_gather() {
                     set_clipboard(NUL, get_y_previous());
                 }
             }
-            joined[idx].destroy();
             idx += 1;
         }
     }
