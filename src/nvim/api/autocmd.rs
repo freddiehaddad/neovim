@@ -604,8 +604,8 @@ pub unsafe extern "C" fn nvim_get_autocmds(
                 }
 
                 let acs = au_get_autocmds_for_event(event as event_T);
-                for i in 0..(*acs).size {
-                    let ac = &mut *(*acs).items.add(i);
+                for i in 0..(*acs).len() {
+                    let ac = &mut *(*acs).as_mut_ptr().add(i);
                     let ap = ac.pat;
                     if ap.is_null() {
                         continue;

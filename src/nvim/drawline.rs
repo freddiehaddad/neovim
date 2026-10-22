@@ -360,8 +360,8 @@ unsafe fn draw_virt_text(
         let do_eol = (*state).eol_col > -1;
 
         let end = (*state).current_end;
-        let indices = (*state).ranges_i.items;
-        let slots = (*state).slots.items;
+        let indices = (*state).ranges_i.as_ptr();
+        let slots = (*state).slots.as_mut_ptr();
 
         let mut totalWidthOfEolRightAlignedVirtText: c_int = 0;
 
@@ -1184,11 +1184,12 @@ unsafe fn has_more_inline_virt(wlv: &winlinevars_T, v: isize) -> bool {
             return true;
         }
 
-        let count = decor_state.ranges_i.size as c_int;
-        let cur_end = decor_state.current_end;
-        let fut_beg = decor_state.future_begin;
-        let indices = decor_state.ranges_i.items;
-        let slots = decor_state.slots.items;
+        let state = &raw mut decor_state;
+        let count = (*state).ranges_i.len() as c_int;
+        let cur_end = (*state).current_end;
+        let fut_beg = (*state).future_begin;
+        let indices = (*state).ranges_i.as_ptr();
+        let slots = (*state).slots.as_mut_ptr();
 
         let beg_pos = [0, fut_beg];
         let end_pos = [cur_end, count];
@@ -1197,7 +1198,7 @@ unsafe fn has_more_inline_virt(wlv: &winlinevars_T, v: isize) -> bool {
             for i in beg_pos[pos_i]..end_pos[pos_i] {
                 let item: *mut DecorRange =
                     &raw mut (*slots.add(*indices.add(i as usize) as usize)).range;
-                if (*item).start_row != decor_state.row
+                if (*item).start_row != (*state).row
                     || (*item).kind != kDecorKindVirtText
                     || (*(*item).data.vt).pos != kVPosInline
                     || (*(*item).data.vt).width == 0
@@ -1230,8 +1231,8 @@ unsafe fn handle_inline_virtual_text(
                 wlv.virt_inline_i = 0;
                 let state = &raw mut decor_state;
                 let end = (*state).current_end;
-                let indices = (*state).ranges_i.items;
-                let slots = (*state).slots.items;
+                let indices = (*state).ranges_i.as_ptr();
+                let slots = (*state).slots.as_mut_ptr();
 
                 for i in 0..end {
                     let item: *mut DecorRange =

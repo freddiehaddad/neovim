@@ -149,11 +149,10 @@ pub union DecorRangeSlot {
     pub next_free_i: c_int,
 }
 
-#[repr(C)]
 pub struct DecorState {
     pub itr: [MarkTreeIter; 1],
-    pub slots: KVec<DecorRangeSlot>,
-    pub ranges_i: KVec<c_int>,
+    pub slots: Vec<DecorRangeSlot>,
+    pub ranges_i: Vec<c_int>,
     pub current_end: c_int,
     pub future_begin: c_int,
     pub free_slot_i: c_int,
@@ -171,6 +170,33 @@ pub struct DecorState {
     pub spell: c_int,
     pub running_decor_provider: bool,
     pub itr_valid: bool,
+}
+
+impl DecorState {
+    pub const fn new() -> Self {
+        Self {
+            itr: [unsafe { std::mem::zeroed() }],
+            slots: Vec::new(),
+            ranges_i: Vec::new(),
+            current_end: 0,
+            future_begin: 0,
+            free_slot_i: 0,
+            new_range_ordering: 0,
+            win: ptr::null_mut(),
+            top_row: 0,
+            row: 0,
+            col_last: 0,
+            current: 0,
+            current_hl_eol: 0,
+            eol_col: 0,
+            conceal: 0,
+            conceal_char: 0,
+            conceal_attr: 0,
+            spell: 0,
+            running_decor_provider: false,
+            itr_valid: false,
+        }
+    }
 }
 
 #[repr(C)]
@@ -625,13 +651,6 @@ pub unsafe fn decor_check_to_be_deleted() {
     }
 }
 
-pub unsafe fn decor_state_free(state: *mut DecorState) {
-    unsafe {
-        (*state).slots.destroy();
-        (*state).ranges_i.destroy();
-    }
-}
-
 pub unsafe fn clear_virttext(text: *mut VirtText) {
     unsafe {
         for i in 0..(*text).size {
@@ -719,11 +738,11 @@ pub unsafe fn decor_redraw_reset(wp: *mut win_T, state: *mut DecorState) -> bool
         (*state).row = -1;
         (*state).win = wp;
 
-        let indices = (*state).ranges_i.items;
-        let slots = (*state).slots.items;
+        let indices = (*state).ranges_i.as_mut_ptr();
+        let slots = (*state).slots.as_mut_ptr();
 
         let beg_pos = [0, (*state).future_begin];
-        let end_pos = [(*state).current_end, (*state).ranges_i.size as c_int];
+        let end_pos = [(*state).current_end, (*state).ranges_i.len() as c_int];
 
         for pos_i in 0..2 {
             for i in beg_pos[pos_i]..end_pos[pos_i] {
@@ -735,8 +754,8 @@ pub unsafe fn decor_redraw_reset(wp: *mut win_T, state: *mut DecorState) -> bool
             }
         }
 
-        (*state).slots.size = 0;
-        (*state).ranges_i.size = 0;
+        (*state).slots.clear();
+        (*state).ranges_i.clear();
         (*state).free_slot_i = -1;
         (*state).current_end = 0;
         (*state).future_begin = 0;
@@ -807,7 +826,7 @@ pub unsafe fn decor_redraw_start(wp: *mut win_T, top_row: c_int, state: *mut Dec
 
 unsafe fn decor_state_pack(state: *mut DecorState) {
     unsafe {
-        let mut count = (*state).ranges_i.size as c_int;
+        let mut count = (*state).ranges_i.len() as c_int;
         let cur_end = (*state).current_end;
         let mut fut_beg = (*state).future_begin;
 
@@ -815,7 +834,7 @@ unsafe fn decor_state_pack(state: *mut DecorState) {
             fut_beg = cur_end;
             count = cur_end;
         } else if fut_beg != cur_end {
-            let indices = (*state).ranges_i.items;
+            let indices = (*state).ranges_i.as_mut_ptr();
             ptr::copy(
                 indices.add(fut_beg as usize),
                 indices.add(cur_end as usize),
@@ -825,7 +844,7 @@ unsafe fn decor_state_pack(state: *mut DecorState) {
             fut_beg = cur_end;
         }
 
-        (*state).ranges_i.size = count as usize;
+        (*state).ranges_i.truncate(count as usize);
         (*state).future_begin = fut_beg;
     }
 }
@@ -854,7 +873,7 @@ pub unsafe fn decor_redraw_line(wp: *mut win_T, row: c_int, state: *mut DecorSta
 
 pub unsafe fn decor_has_more_decorations(state: *mut DecorState, row: c_int) -> bool {
     unsafe {
-        if (*state).current_end != 0 || (*state).future_begin != (*state).ranges_i.size as c_int {
+        if (*state).current_end != 0 || (*state).future_begin != (*state).ranges_i.len() as c_int {
             return true;
         }
 
@@ -916,25 +935,25 @@ unsafe fn decor_range_insert(state: *mut DecorState, range: *mut DecorRange) {
         let index: c_int;
         if (*state).free_slot_i >= 0 {
             index = (*state).free_slot_i;
-            let slot = (*state).slots.items.add(index as usize);
+            let slot = (*state).slots.as_mut_ptr().add(index as usize);
             (*state).free_slot_i = (*slot).next_free_i;
             (*slot).range = *range;
         } else {
-            index = (*state).slots.size as c_int;
+            index = (*state).slots.len() as c_int;
             (*state).slots.push(DecorRangeSlot { range: *range });
         }
 
         let row = (*range).start_row;
         let col = (*range).start_col;
 
-        let count = (*state).ranges_i.size as c_int;
-        let slots = (*state).slots.items;
+        let count = (*state).ranges_i.len() as c_int;
+        let slots = (*state).slots.as_ptr();
 
         let mut begin = (*state).future_begin;
         let mut end = count;
         while begin < end {
             let mid = begin + ((end - begin) >> 1);
-            let mid_idx = *(*state).ranges_i.items.add(mid as usize);
+            let mid_idx = (*state).ranges_i.as_slice()[mid as usize];
             let mr = &raw const (*slots.add(mid_idx as usize)).range;
 
             let mrow = (*mr).start_row;
@@ -949,10 +968,7 @@ unsafe fn decor_range_insert(state: *mut DecorState, range: *mut DecorRange) {
             }
         }
 
-        (*state).ranges_i.push(0);
-        let item = (*state).ranges_i.items.add(begin as usize);
-        ptr::copy(item, item.add(1), (count - begin) as usize);
-        *item = index;
+        (*state).ranges_i.insert(begin as usize, index);
     }
 }
 
@@ -1071,8 +1087,8 @@ pub unsafe fn decor_init_draw_col(win_col: c_int, hidden: bool, item: *mut Decor
 pub unsafe fn decor_recheck_draw_col(win_col: c_int, hidden: bool, state: *mut DecorState) {
     unsafe {
         let end = (*state).current_end;
-        let indices = (*state).ranges_i.items;
-        let slots = (*state).slots.items;
+        let indices = (*state).ranges_i.as_ptr();
+        let slots = (*state).slots.as_mut_ptr();
 
         for i in 0..end {
             let r = &raw mut (*slots.add(*indices.add(i as usize) as usize)).range;
@@ -1124,10 +1140,10 @@ pub unsafe fn decor_redraw_col_impl(
             marktree_itr_next((*buf).b_marktree.as_mut_ptr(), (*state).itr.as_mut_ptr());
         }
 
-        let indices = (*state).ranges_i.items;
-        let slots = (*state).slots.items;
+        let indices = (*state).ranges_i.as_mut_ptr();
+        let slots = (*state).slots.as_mut_ptr();
 
-        let mut count = (*state).ranges_i.size as c_int;
+        let mut count = (*state).ranges_i.len() as c_int;
         let mut cur_end = (*state).current_end;
         let mut fut_beg = (*state).future_begin;
 
@@ -1259,7 +1275,7 @@ pub unsafe fn decor_redraw_col_impl(
             count = cur_end;
         }
 
-        (*state).ranges_i.size = count as usize;
+        (*state).ranges_i.truncate(count as usize);
         (*state).future_begin = fut_beg;
         (*state).current_end = cur_end;
         (*state).col_last = col_last;
@@ -1552,8 +1568,8 @@ pub unsafe fn decor_redraw_eol(
         (*state).eol_col = eol_col;
 
         let count = (*state).current_end;
-        let indices = (*state).ranges_i.items;
-        let slots = (*state).slots.items;
+        let indices = (*state).ranges_i.as_ptr();
+        let slots = (*state).slots.as_ptr();
 
         let mut has_virt_pos = false;
         for i in 0..count {

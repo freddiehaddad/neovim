@@ -286,9 +286,9 @@ pub unsafe fn decor_providers_start() {
 /// For each provider run 'win' (`decor_providers_invoke_win`).
 pub unsafe fn decor_providers_invoke_win(wp: *mut win_T) {
     unsafe {
+        let ds = &raw const decor_state;
         debug_assert!(
-            decor_state.current_end == 0
-                && decor_state.future_begin == decor_state.ranges_i.size as c_int
+            (*ds).current_end == 0 && (*ds).future_begin == (*ds).ranges_i.len() as c_int
         );
 
         if !providers_mut().is_empty() {

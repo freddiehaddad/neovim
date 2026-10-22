@@ -9,7 +9,7 @@ use crate::charset::{
 };
 use crate::cursor::{colnr_T, get_cursor_line_len, get_cursor_line_ptr, linenr_T, pos_T};
 use crate::decoration::{
-    decor_redraw_col, decor_redraw_line, decor_redraw_reset, decor_state_free,
+    decor_redraw_col, decor_redraw_line, decor_redraw_reset,
 };
 use crate::decoration_provider::decor_providers_invoke_spell;
 use crate::drawscreen::{UPD_NOT_VALID, redraw_later};
@@ -1087,9 +1087,9 @@ pub unsafe fn spell_move_to(
         let mut wrapped = false;
         let mut ret: usize = 0;
         let mut lnum = (*wp).w_cursor.lnum;
-        let saved_decor_start = ptr::read(&raw const decor_state);
+        let ds = &raw mut decor_state;
+        let saved_decor_start = std::mem::replace(&mut *ds, crate::decoration::DecorState::new());
         let mut decor_lnum: linenr_T = -1;
-        decor_state = std::mem::MaybeUninit::zeroed().assume_init();
         'theend: {
             while !got_int {
                 let mut line = ml_get_buf((*wp).w_buffer, lnum);
@@ -1240,8 +1240,7 @@ pub unsafe fn spell_move_to(
                 line_breakcheck();
             }
         }
-        decor_state_free(&raw mut decor_state);
-        decor_state = saved_decor_start;
+        *ds = saved_decor_start;
         xfree(buf.cast());
         ret
     }

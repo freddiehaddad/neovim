@@ -373,7 +373,7 @@ pub static mut hl_mode_str: [*const c_char; 4] = [
     c"combine".as_ptr(),
     c"blend".as_ptr(),
 ];
-pub static mut decor_state: DecorState = unsafe { zeroed() };
+pub static mut decor_state: DecorState = DecorState::new();
 pub static mut decor_items: Vec<DecorSignHighlight> = Vec::new();
 pub static mut diff_context: c_int = 6;
 pub static mut diff_foldcolumn: c_int = 2;

@@ -193,7 +193,7 @@ struct SearchPathItem {
 }
 
 type RuntimeSearchPath = KVec<SearchPathItem>;
-type CharVec = KVec<*mut c_char>;
+type CharVec = Vec<*mut c_char>;
 
 pub static mut exestack: garray_T = garray_T {
     ga_len: 0,
@@ -1218,7 +1218,7 @@ unsafe fn path_is_after(buf: *const c_char, buflen: usize) -> bool {
 
 unsafe fn runtime_search_path_build() -> RuntimeSearchPath {
     unsafe {
-        let mut pack_entries: KVec<NvimString> = KVec::new();
+        let mut pack_entries: Vec<NvimString> = Vec::new();
         let mut pack_used: Map<NvimString, c_int> = empty_map();
         let mut rtp_used: Set<NvimString> = empty_set();
         let mut search_path = RuntimeSearchPath::new();
@@ -1269,8 +1269,7 @@ unsafe fn runtime_search_path_build() -> RuntimeSearchPath {
 
         let sentinel_pos_in_rtp = ((rtp_entry as usize) - (p_rtp as usize)).saturating_sub(1);
 
-        for i in 0..pack_entries.size {
-            let item = *pack_entries.items.add(i);
+        for item in pack_entries {
             let h = map_get_string_int(&mut pack_used, item);
             if h == 0 {
                 expand_pack_entry(
@@ -1284,8 +1283,7 @@ unsafe fn runtime_search_path_build() -> RuntimeSearchPath {
             }
         }
 
-        for i in 0..after_path.size {
-            let ap = *after_path.items.add(i);
+        for ap in after_path {
             expand_rtp_entry(
                 &mut search_path,
                 &mut rtp_used,
@@ -1309,8 +1307,6 @@ unsafe fn runtime_search_path_build() -> RuntimeSearchPath {
             );
         }
 
-        pack_entries.destroy();
-        after_path.destroy();
         map_destroy(&mut pack_used);
         set_destroy(&mut rtp_used);
 
