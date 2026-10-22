@@ -902,7 +902,7 @@ pub unsafe fn vterm_state_set_bold_highbright(
 mod tests {
     use super::*;
     use crate::mbyte::{utf_ptr2char, utf_ptr2len};
-    use crate::vterm::encoding::{VTermEncoding, VTermEncodingType, vterm_lookup_encoding};
+    use crate::vterm::encoding::{VTermEncodingType, vterm_lookup_encoding};
     use crate::vterm::keyboard::{
         VTERM_KEY_BACKSPACE, VTERM_KEY_ENTER, VTERM_KEY_FUNCTION_0, VTERM_KEY_KP_0, VTERM_KEY_NONE,
         VTERM_KEY_TAB, VTERM_MOD_ALT, VTERM_MOD_CTRL, VTERM_MOD_SHIFT, VTermEncodingInstance,
@@ -1360,51 +1360,30 @@ mod tests {
     }
 
     unsafe fn wantencoding() -> VTermEncodingInstance {
-        unsafe {
-            let enc = vterm_lookup_encoding(VTermEncodingType::ENC_UTF8, b'u' as c_char);
-            let mut inst = VTermEncodingInstance {
-                enc: enc.cast(),
-                data: [0; 4],
-            };
-            if let Some(init_fn) = (*enc).init {
-                init_fn(enc, inst.data.as_mut_ptr().cast());
-            }
-            inst
-        }
+        let enc = vterm_lookup_encoding(VTermEncodingType::ENC_UTF8, b'u' as c_char).unwrap();
+        let mut inst = VTermEncodingInstance::default();
+        inst.init(enc);
+        inst
     }
 
     unsafe fn encin(input: &[u8], encoding: &mut VTermEncodingInstance) {
-        unsafe {
-            let len = input.len();
-            let mut cp = vec![0u32; len.max(1)];
-            let mut cpi: c_int = 0;
-            let mut pos: usize = 0;
-            let enc = encoding.enc.cast::<VTermEncoding>();
-            if let Some(decode_fn) = (*enc).decode {
-                decode_fn(
-                    enc,
-                    encoding.data.as_mut_ptr().cast(),
-                    cp.as_mut_ptr(),
-                    &raw mut cpi,
-                    len as c_int,
-                    input.as_ptr().cast(),
-                    &raw mut pos,
-                    len,
-                );
-            }
-            clear_test_output();
-            if cpi > 0 {
-                let mut out = String::from("encout ");
-                for (i, &val) in cp[..(cpi as usize)].iter().enumerate() {
-                    if i > 0 {
-                        out.push(',');
-                    }
-                    use std::fmt::Write as _;
-                    let _ = write!(out, "{val:x}");
+        let len = input.len();
+        let mut cp = vec![0u32; len.max(1)];
+        let mut cpi: c_int = 0;
+        let mut pos: usize = 0;
+        encoding.decode(&mut cp, &mut cpi, input, &mut pos);
+        clear_test_output();
+        if cpi > 0 {
+            let mut out = String::from("encout ");
+            for (i, &val) in cp[..(cpi as usize)].iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
                 }
-                out.push('\n');
-                append_test_output(out.as_bytes());
+                use std::fmt::Write as _;
+                let _ = write!(out, "{val:x}");
             }
+            out.push('\n');
+            append_test_output(out.as_bytes());
         }
     }
 

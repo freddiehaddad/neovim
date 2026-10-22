@@ -3,7 +3,7 @@
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
-use crate::memory::{xfree, xmalloc};
+use crate::memory::{xcalloc, xfree};
 use crate::vterm::mouse::VTerm;
 use crate::vterm::parser::{NORMAL, VTermParserCallbacks};
 use crate::vterm::pen::{
@@ -18,99 +18,21 @@ use crate::vterm::state::{VT_MODE_CTRL8BIT, VT_MODE_UTF8, vterm_state_free};
 
 pub type VTermOutputCallback = Option<unsafe fn(s: *const c_char, len: usize, user: *mut c_void)>;
 
-#[repr(C)]
-pub struct VTermAllocatorFunctions {
-    pub malloc: Option<unsafe fn(size: usize, allocdata: *mut c_void) -> *mut c_void>,
-    pub free: Option<unsafe fn(ptr: *mut c_void, allocdata: *mut c_void)>,
-}
-
-#[repr(C)]
-pub struct VTermBuilder {
-    pub ver: c_int,
-    pub rows: c_int,
-    pub cols: c_int,
-    pub allocator: *const VTermAllocatorFunctions,
-    pub allocdata: *mut c_void,
-    pub outbuffer_len: usize,
-    pub tmpbuffer_len: usize,
-}
-
-unsafe fn default_malloc(size: usize, _allocdata: *mut c_void) -> *mut c_void {
-    unsafe {
-        let ptr = xmalloc(size);
-        if !ptr.is_null() {
-            ptr::write_bytes(ptr.cast::<u8>(), 0, size);
-        }
-        ptr
-    }
-}
-
-unsafe fn default_free(ptr: *mut c_void, _allocdata: *mut c_void) {
-    unsafe {
-        xfree(ptr);
-    }
-}
-
-static DEFAULT_ALLOCATOR: VTermAllocatorFunctions = VTermAllocatorFunctions {
-    malloc: Some(default_malloc),
-    free: Some(default_free),
-};
-
-/// Convenient shortcut for default cases.
+/// Create a new `VTerm` instance of size `rows` x `cols` (`vterm_new`).
 pub unsafe fn vterm_new(rows: c_int, cols: c_int) -> *mut VTerm {
     unsafe {
-        let builder = VTermBuilder {
-            ver: 0,
-            rows,
-            cols,
-            allocator: ptr::null(),
-            allocdata: ptr::null_mut(),
-            outbuffer_len: 0,
-            tmpbuffer_len: 0,
-        };
-        vterm_build(&raw const builder)
-    }
-}
+        let vt = xcalloc(1, size_of::<VTerm>()).cast::<VTerm>();
 
-pub unsafe fn vterm_build(builder: *const VTermBuilder) -> *mut VTerm {
-    unsafe {
-        let allocator = if !(*builder).allocator.is_null() {
-            (*builder).allocator
-        } else {
-            &raw const DEFAULT_ALLOCATOR
-        };
-
-        let malloc_fn = (*allocator).malloc.unwrap();
-        let vt = malloc_fn(size_of::<VTerm>(), (*builder).allocdata).cast::<VTerm>();
-
-        (*vt).allocator = allocator.cast();
-        (*vt).allocdata = (*builder).allocdata;
-
-        (*vt).rows = (*builder).rows;
-        (*vt).cols = (*builder).cols;
+        (*vt).rows = rows;
+        (*vt).cols = cols;
 
         (*vt).parser.state = NORMAL;
         (*vt).parser.callbacks = ptr::null();
         (*vt).parser.cbdata = ptr::null_mut();
         (*vt).parser.emit_nul = false;
 
-        (*vt).outfunc = ptr::null_mut();
+        (*vt).outfunc = None;
         (*vt).outdata = ptr::null_mut();
-
-        (*vt).outbuffer_len = if (*builder).outbuffer_len != 0 {
-            (*builder).outbuffer_len
-        } else {
-            4096
-        };
-        (*vt).outbuffer_cur = 0;
-        (*vt).outbuffer = vterm_allocator_malloc(vt, (*vt).outbuffer_len).cast::<c_char>();
-
-        (*vt).tmpbuffer_len = if (*builder).tmpbuffer_len != 0 {
-            (*builder).tmpbuffer_len
-        } else {
-            4096
-        };
-        (*vt).tmpbuffer = vterm_allocator_malloc(vt, (*vt).tmpbuffer_len).cast::<c_char>();
 
         vt
     }
@@ -123,29 +45,10 @@ pub unsafe fn vterm_free(vt: *mut VTerm) {
         }
 
         if !(*vt).state.is_null() {
-            vterm_state_free((*vt).state.cast());
+            vterm_state_free((*vt).state);
         }
 
-        vterm_allocator_free(vt, (*vt).outbuffer.cast());
-        vterm_allocator_free(vt, (*vt).tmpbuffer.cast());
-
-        vterm_allocator_free(vt, vt.cast());
-    }
-}
-
-pub unsafe fn vterm_allocator_malloc(vt: *mut VTerm, size: usize) -> *mut c_void {
-    unsafe {
-        let allocator = (*vt).allocator.cast::<VTermAllocatorFunctions>();
-        let malloc_fn = (*allocator).malloc.unwrap();
-        malloc_fn(size, (*vt).allocdata)
-    }
-}
-
-pub unsafe fn vterm_allocator_free(vt: *mut VTerm, ptr: *mut c_void) {
-    unsafe {
-        let allocator = (*vt).allocator.cast::<VTermAllocatorFunctions>();
-        let free_fn = (*allocator).free.unwrap();
-        free_fn(ptr, (*vt).allocdata);
+        xfree(vt.cast());
     }
 }
 
@@ -194,132 +97,58 @@ pub unsafe fn vterm_output_set_callback(
     user: *mut c_void,
 ) {
     unsafe {
-        (*vt).outfunc = match func {
-            Some(f) => f as *mut c_void,
-            None => ptr::null_mut(),
-        };
+        (*vt).outfunc = func;
         (*vt).outdata = user;
     }
 }
 
 pub unsafe fn vterm_push_output_bytes(vt: *mut VTerm, bytes: *const c_char, len: usize) {
     unsafe {
-        if !(*vt).outfunc.is_null() {
-            let func: unsafe fn(*const c_char, usize, *mut c_void) =
-                std::mem::transmute((*vt).outfunc);
+        if let Some(func) = (*vt).outfunc {
             func(bytes, len, (*vt).outdata);
-            return;
         }
-
-        if len > (*vt).outbuffer_len - (*vt).outbuffer_cur {
-            return;
-        }
-
-        ptr::copy_nonoverlapping(bytes, (*vt).outbuffer.add((*vt).outbuffer_cur), len);
-        (*vt).outbuffer_cur += len;
     }
 }
 
 pub unsafe fn vterm_push_output_bytes_slice(vt: *mut VTerm, payload: &[u8]) {
     unsafe {
-        if payload.len() >= (*vt).tmpbuffer_len {
-            let len = payload.len();
-            vterm_push_output_bytes(vt, (*vt).tmpbuffer, len);
-            return;
-        }
-        ptr::copy_nonoverlapping(
-            payload.as_ptr().cast::<c_char>(),
-            (*vt).tmpbuffer,
-            payload.len(),
-        );
-        *(*vt).tmpbuffer.add(payload.len()) = 0;
-        vterm_push_output_bytes(vt, (*vt).tmpbuffer, payload.len());
+        vterm_push_output_bytes(vt, payload.as_ptr().cast::<c_char>(), payload.len());
     }
 }
 
 pub unsafe fn vterm_push_output_ctrl_bytes(vt: *mut VTerm, ctrl: u8, payload: &[u8]) {
     unsafe {
         let ctrl8bit = ((*vt).mode & VT_MODE_CTRL8BIT) != 0;
-
-        let mut cur: usize = if ctrl >= 0x80 && !ctrl8bit {
-            if (*vt).tmpbuffer_len <= 2 {
-                return;
-            }
-            *(*vt).tmpbuffer = 0x1b as c_char;
-            *(*vt).tmpbuffer.add(1) = (ctrl - 0x40) as c_char;
-            2
+        let mut buf = Vec::with_capacity(2 + payload.len());
+        if ctrl >= 0x80 && !ctrl8bit {
+            buf.push(0x1b);
+            buf.push(ctrl - 0x40);
         } else {
-            if (*vt).tmpbuffer_len <= 1 {
-                return;
-            }
-            *(*vt).tmpbuffer = ctrl as c_char;
-            1
-        };
-
-        if cur + payload.len() >= (*vt).tmpbuffer_len {
-            return;
+            buf.push(ctrl);
         }
-
-        ptr::copy_nonoverlapping(
-            payload.as_ptr().cast::<c_char>(),
-            (*vt).tmpbuffer.add(cur),
-            payload.len(),
-        );
-        cur += payload.len();
-        *(*vt).tmpbuffer.add(cur) = 0;
-
-        vterm_push_output_bytes(vt, (*vt).tmpbuffer, cur);
+        buf.extend_from_slice(payload);
+        vterm_push_output_bytes_slice(vt, &buf);
     }
 }
 
 pub unsafe fn vterm_push_output_str_bytes(vt: *mut VTerm, ctrl: u8, term: bool, payload: &[u8]) {
     unsafe {
-        let mut cur: usize = 0;
         let ctrl8bit = ((*vt).mode & VT_MODE_CTRL8BIT) != 0;
-
+        let mut buf = Vec::with_capacity(4 + payload.len());
         if ctrl != 0 {
             if ctrl >= 0x80 && !ctrl8bit {
-                if (*vt).tmpbuffer_len <= 2 {
-                    return;
-                }
-                *(*vt).tmpbuffer = 0x1b as c_char;
-                *(*vt).tmpbuffer.add(1) = (ctrl - 0x40) as c_char;
-                cur = 2;
+                buf.push(0x1b);
+                buf.push(ctrl - 0x40);
             } else {
-                if (*vt).tmpbuffer_len <= 1 {
-                    return;
-                }
-                *(*vt).tmpbuffer = ctrl as c_char;
-                cur = 1;
+                buf.push(ctrl);
             }
         }
-
-        if cur + payload.len() >= (*vt).tmpbuffer_len {
-            return;
-        }
-
-        ptr::copy_nonoverlapping(
-            payload.as_ptr().cast::<c_char>(),
-            (*vt).tmpbuffer.add(cur),
-            payload.len(),
-        );
-        cur += payload.len();
-
+        buf.extend_from_slice(payload);
         if term {
             let st: &[u8] = if ctrl8bit { b"\x9c" } else { b"\x1b\\" };
-            if cur + st.len() >= (*vt).tmpbuffer_len {
-                return;
-            }
-            ptr::copy_nonoverlapping(
-                st.as_ptr().cast::<c_char>(),
-                (*vt).tmpbuffer.add(cur),
-                st.len(),
-            );
-            cur += st.len();
+            buf.extend_from_slice(st);
         }
-
-        *(*vt).tmpbuffer.add(cur) = 0;
-        vterm_push_output_bytes(vt, (*vt).tmpbuffer, cur);
+        vterm_push_output_bytes_slice(vt, &buf);
     }
 }
 

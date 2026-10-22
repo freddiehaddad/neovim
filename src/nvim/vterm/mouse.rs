@@ -4,9 +4,8 @@ use std::ffi::{c_char, c_int, c_long, c_void};
 
 use crate::math::xctz;
 use crate::tui::termkey::termkey::fill_utf8;
-use crate::vterm::vterm::vterm_push_output_ctrl_bytes;
-
-use crate::vterm::keyboard::{C1_CSI, VTermModifier};
+use crate::vterm::keyboard::{C1_CSI, VTermModifier, VTermStateFull};
+use crate::vterm::vterm::{VTermOutputCallback, vterm_push_output_ctrl_bytes};
 
 const CSI_ARGS_MAX: usize = 32;
 pub(crate) const CSI_LEADER_MAX: usize = 16;
@@ -73,50 +72,18 @@ pub struct VTermParser {
 
 #[repr(C)]
 pub struct VTerm {
-    pub allocator: *const c_void,
-    pub allocdata: *mut c_void,
     pub rows: c_int,
     pub cols: c_int,
     pub mode: u32,
     pub parser: VTermParser,
-    pub outfunc: *mut c_void,
+    pub outfunc: VTermOutputCallback,
     pub outdata: *mut c_void,
-    pub outbuffer: *mut c_char,
-    pub outbuffer_len: usize,
-    pub outbuffer_cur: usize,
-    pub tmpbuffer: *mut c_char,
-    pub tmpbuffer_len: usize,
-    pub state: *mut VTermState,
+    pub state: *mut VTermStateFull,
     pub screen: *mut c_void,
 }
 
-#[repr(C)]
-pub struct VTermState {
-    pub vt: *mut VTerm,
-    pub callbacks: *const c_void,
-    pub cbdata: *mut c_void,
-    pub fallbacks: *const c_void,
-    pub fbdata: *mut c_void,
-    pub rows: c_int,
-    pub cols: c_int,
-    pub pos: VTermPos,
-    pub at_phantom: c_int,
-    pub scrollregion_top: c_int,
-    pub scrollregion_bottom: c_int,
-    pub scrollregion_left: c_int,
-    pub scrollregion_right: c_int,
-    pub tabstops: *mut u8,
-    pub lineinfos: [*mut c_void; 2],
-    pub lineinfo: *mut c_void,
-    pub mouse_col: c_int,
-    pub mouse_row: c_int,
-    pub mouse_buttons: c_int,
-    pub mouse_flags: c_int,
-    pub mouse_protocol: c_int,
-}
-
 unsafe fn output_mouse(
-    state: *mut VTermState,
+    state: *mut VTermStateFull,
     mut code: c_int,
     pressed: c_int,
     mut modifiers: c_int,

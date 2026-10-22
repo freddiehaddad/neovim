@@ -2,8 +2,9 @@
 
 use crate::grid::{schar_T, schar_from_ascii, schar_from_buf};
 use crate::mbyte::{utf_ClusterInfo_len, utf_char2bytes, utf_iscomposing, utf_ptr2StrCharInfo_len};
+use crate::memory::{xcalloc, xfree};
 use crate::regexp::GRAPHEME_STATE_INIT;
-use crate::vterm::encoding::{VTermEncoding, VTermEncodingType, vterm_lookup_encoding};
+use crate::vterm::encoding::{VTermEncodingType, vterm_lookup_encoding};
 use crate::vterm::keyboard::{BUFIDX_ALTSCREEN, BUFIDX_PRIMARY, C1_CSI, VTermStateFull};
 use crate::vterm::mouse::{
     MOUSE_RXVT, MOUSE_SGR, MOUSE_UTF8, MOUSE_WANT_DRAG, MOUSE_WANT_MOVE, MOUSE_X10, VTerm, VTermPos,
@@ -20,7 +21,6 @@ use crate::vterm::screen::{
     VTERM_PROP_ALTSCREEN, VTERM_PROP_REVERSE, VTermGlyphInfo, VTermLineInfo, VTermStateFields,
 };
 use crate::vterm::vterm::{
-    vterm_allocator_free, vterm_allocator_malloc, vterm_push_output_bytes,
     vterm_push_output_ctrl_bytes, vterm_push_output_str_bytes, vterm_scroll_rect,
 };
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
@@ -339,8 +339,7 @@ unsafe fn erase(state: *mut VTermStateFull, rect: VTermRect, selective: c_int) {
 
 unsafe fn vterm_state_new(vt: *mut VTerm) -> *mut VTermStateFull {
     unsafe {
-        let state =
-            vterm_allocator_malloc(vt, size_of::<VTermStateFull>()).cast::<VTermStateFull>();
+        let state = xcalloc(1, size_of::<VTermStateFull>()).cast::<VTermStateFull>();
 
         (*state).vt = vt;
 
@@ -366,23 +365,16 @@ unsafe fn vterm_state_new(vt: *mut VTerm) -> *mut VTermStateFull {
 
         (*state).combine_pos.row = -1;
 
-        (*state).tabstops =
-            vterm_allocator_malloc((*state).vt, ((*state).cols as usize).div_ceil(8)).cast::<u8>();
+        (*state).tabstops = xcalloc(1, ((*state).cols as usize).div_ceil(8)).cast::<u8>();
 
-        (*state).lineinfos[BUFIDX_PRIMARY] = vterm_allocator_malloc(
-            (*state).vt,
-            ((*state).rows as usize) * size_of::<VTermLineInfo>(),
-        );
-        (*state).lineinfos[BUFIDX_ALTSCREEN] = vterm_allocator_malloc(
-            (*state).vt,
-            ((*state).rows as usize) * size_of::<VTermLineInfo>(),
-        );
+        (*state).lineinfos[BUFIDX_PRIMARY] =
+            xcalloc(1, ((*state).rows as usize) * size_of::<VTermLineInfo>());
+        (*state).lineinfos[BUFIDX_ALTSCREEN] =
+            xcalloc(1, ((*state).rows as usize) * size_of::<VTermLineInfo>());
         (*state).lineinfo = (*state).lineinfos[BUFIDX_PRIMARY];
 
-        let utf8_enc = vterm_lookup_encoding(VTermEncodingType::ENC_UTF8, b'u' as c_char);
-        (*state).encoding_utf8.enc = utf8_enc.cast();
-        if let Some(init_fn) = (*utf8_enc).init {
-            init_fn(utf8_enc, (*state).encoding_utf8.data.as_mut_ptr().cast());
+        if let Some(utf8_enc) = vterm_lookup_encoding(VTermEncodingType::ENC_UTF8, b'u' as c_char) {
+            (*state).encoding_utf8.init(utf8_enc);
         }
 
         for stack in &mut (*state).key_encoding_stacks {
@@ -396,12 +388,12 @@ unsafe fn vterm_state_new(vt: *mut VTerm) -> *mut VTermStateFull {
 
 pub unsafe fn vterm_state_free(state: *mut VTermStateFull) {
     unsafe {
-        vterm_allocator_free((*state).vt, (*state).tabstops.cast());
-        vterm_allocator_free((*state).vt, (*state).lineinfos[BUFIDX_PRIMARY]);
+        xfree((*state).tabstops.cast());
+        xfree((*state).lineinfos[BUFIDX_PRIMARY]);
         if !(*state).lineinfos[BUFIDX_ALTSCREEN].is_null() {
-            vterm_allocator_free((*state).vt, (*state).lineinfos[BUFIDX_ALTSCREEN]);
+            xfree((*state).lineinfos[BUFIDX_ALTSCREEN]);
         }
-        vterm_allocator_free((*state).vt, state.cast());
+        xfree(state.cast());
     }
 }
 
@@ -605,8 +597,8 @@ unsafe fn on_text(bytes: *const c_char, len: usize, user: *mut c_void) -> c_int 
         let state = user.cast::<VTermStateFull>();
         let oldpos = (*state).pos;
 
-        let codepoints = (*(*state).vt).tmpbuffer.cast::<u32>();
-        let maxpoints = (*(*state).vt).tmpbuffer_len / size_of::<u32>();
+        let mut codepoints = [0u32; 1024];
+        let maxpoints = codepoints.len();
 
         let mut npoints: c_int = 0;
         let mut eaten: usize = 0;
@@ -625,23 +617,13 @@ unsafe fn on_text(bytes: *const c_char, len: usize, user: *mut c_void) -> c_int 
             encoding = &raw mut (*state).encoding_utf8;
         }
 
-        let enc = (*encoding).enc.cast::<VTermEncoding>();
-        if let Some(decode_fn) = (*enc).decode {
-            decode_fn(
-                enc,
-                (*encoding).data.as_mut_ptr().cast(),
-                codepoints,
-                &raw mut npoints,
-                if (*state).gsingle_set != 0 {
-                    1
-                } else {
-                    maxpoints as c_int
-                },
-                bytes,
-                &raw mut eaten,
-                len,
-            );
-        }
+        let cp_limit = if (*state).gsingle_set != 0 {
+            1
+        } else {
+            maxpoints
+        };
+        let bytes_slice = std::slice::from_raw_parts(bytes.cast::<u8>(), len);
+        (*encoding).decode(&mut codepoints[..cp_limit], &mut npoints, bytes_slice, &mut eaten);
 
         if npoints == 0 {
             return eaten as c_int;
@@ -661,7 +643,7 @@ unsafe fn on_text(bytes: *const c_char, len: usize, user: *mut c_void) -> c_int 
             && (*state).pos.col <= (*state).combine_pos.col + (*state).combine_width
             && utf_iscomposing(
                 (*state).grapheme_last as c_int,
-                *codepoints.add(i) as c_int,
+                codepoints[i] as c_int,
                 &raw mut (*state).grapheme_state,
             )
         {
@@ -676,15 +658,15 @@ unsafe fn on_text(bytes: *const c_char, len: usize, user: *mut c_void) -> c_int 
             loop {
                 if grapheme_len < (*state).grapheme_buf.len() - 4 {
                     grapheme_len += utf_char2bytes(
-                        *codepoints.add(i) as c_int,
+                        codepoints[i] as c_int,
                         (*state).grapheme_buf.as_mut_ptr().add(grapheme_len),
                     ) as usize;
                 }
                 i += 1;
                 if i >= npoints as usize
                     || !utf_iscomposing(
-                        *codepoints.add(i - 1) as c_int,
-                        *codepoints.add(i) as c_int,
+                        codepoints[i - 1] as c_int,
+                        codepoints[i] as c_int,
                         &raw mut grapheme_state,
                     )
                 {
@@ -720,7 +702,7 @@ unsafe fn on_text(bytes: *const c_char, len: usize, user: *mut c_void) -> c_int 
 
             if i == npoints as usize {
                 (*state).grapheme_len = grapheme_len;
-                (*state).grapheme_last = *codepoints.add(i - 1);
+                (*state).grapheme_last = codepoints[i - 1];
                 (*state).grapheme_state = grapheme_state;
                 (*state).combine_width = width;
                 (*state).combine_pos = (*state).pos;
@@ -971,12 +953,10 @@ unsafe fn on_escape(bytes: *const c_char, len: usize, user: *mut c_void) -> c_in
                     return 0;
                 }
                 let setnum = ((*bytes as u8) - 0x28) as usize;
-                let newenc = vterm_lookup_encoding(VTermEncodingType::ENC_SINGLE_94, *bytes.add(1));
-                if !newenc.is_null() {
-                    (*state).encoding[setnum].enc = newenc.cast();
-                    if let Some(init_fn) = (*newenc).init {
-                        init_fn(newenc, (*state).encoding[setnum].data.as_mut_ptr().cast());
-                    }
+                if let Some(newenc) =
+                    vterm_lookup_encoding(VTermEncodingType::ENC_SINGLE_94, *bytes.add(1))
+                {
+                    (*state).encoding[setnum].init(newenc);
                 }
                 2
             }
@@ -2353,23 +2333,7 @@ unsafe fn request_status_string(state: *mut VTermStateFull, frag: VTermStringFra
                 // Query SGR
                 let mut args = [0 as c_long; 20];
                 let argc = vterm_state_getpen(state, args.as_mut_ptr(), args.len() as c_int);
-                let mut cur: usize = 0;
-
-                let prefix: &[u8] = if ((*vt).mode & VT_MODE_CTRL8BIT) != 0 {
-                    b"\x901$r"
-                } else {
-                    b"\x1bP1$r"
-                };
-                if cur + prefix.len() >= (*vt).tmpbuffer_len {
-                    return;
-                }
-                ptr::copy_nonoverlapping(
-                    prefix.as_ptr().cast::<c_char>(),
-                    (*vt).tmpbuffer.add(cur),
-                    prefix.len(),
-                );
-                cur += prefix.len();
-
+                let mut s = String::from("1$r");
                 for argi in 0..(argc as usize) {
                     let sep = if argi == (argc as usize) - 1 {
                         ""
@@ -2378,35 +2342,11 @@ unsafe fn request_status_string(state: *mut VTermStateFull, frag: VTermStringFra
                     } else {
                         ";"
                     };
-                    let piece = format!("{}{sep}", csi_arg(args[argi]));
-                    if cur + piece.len() >= (*vt).tmpbuffer_len {
-                        return;
-                    }
-                    ptr::copy_nonoverlapping(
-                        piece.as_ptr().cast::<c_char>(),
-                        (*vt).tmpbuffer.add(cur),
-                        piece.len(),
-                    );
-                    cur += piece.len();
+                    use std::fmt::Write as _;
+                    let _ = write!(s, "{}{sep}", csi_arg(args[argi]));
                 }
-
-                let suffix: &[u8] = if ((*vt).mode & VT_MODE_CTRL8BIT) != 0 {
-                    b"m\x9c"
-                } else {
-                    b"m\x1b\\"
-                };
-                if cur + suffix.len() >= (*vt).tmpbuffer_len {
-                    return;
-                }
-                ptr::copy_nonoverlapping(
-                    suffix.as_ptr().cast::<c_char>(),
-                    (*vt).tmpbuffer.add(cur),
-                    suffix.len(),
-                );
-                cur += suffix.len();
-                *(*vt).tmpbuffer.add(cur) = 0;
-
-                vterm_push_output_bytes(vt, (*vt).tmpbuffer, cur);
+                s.push('m');
+                vterm_push_output_str_bytes(vt, C1_DCS, true, s.as_bytes());
             }
             KEY_R => {
                 // Query DECSTBM
@@ -2527,8 +2467,7 @@ unsafe fn on_resize(rows: c_int, cols: c_int, user: *mut c_void) -> c_int {
         let oldpos = (*state).pos;
 
         if cols != (*state).cols {
-            let newtabstops =
-                vterm_allocator_malloc((*state).vt, (cols as usize).div_ceil(8)).cast::<u8>();
+            let newtabstops = xcalloc(1, (cols as usize).div_ceil(8)).cast::<u8>();
 
             let mut col: c_int = 0;
             while col < (*state).cols && col < cols {
@@ -2551,7 +2490,7 @@ unsafe fn on_resize(rows: c_int, cols: c_int, user: *mut c_void) -> c_int {
                 col += 1;
             }
 
-            vterm_allocator_free((*state).vt, (*state).tabstops.cast());
+            xfree((*state).tabstops.cast());
             (*state).tabstops = newtabstops;
         }
 
@@ -2588,11 +2527,8 @@ unsafe fn on_resize(rows: c_int, cols: c_int, user: *mut c_void) -> c_int {
                     continue;
                 }
 
-                let newlineinfo = vterm_allocator_malloc(
-                    (*state).vt,
-                    (rows as usize) * size_of::<VTermLineInfo>(),
-                )
-                .cast::<VTermLineInfo>();
+                let newlineinfo =
+                    xcalloc(1, (rows as usize) * size_of::<VTermLineInfo>()).cast::<VTermLineInfo>();
 
                 let mut row: c_int = 0;
                 while row < (*state).rows && row < rows {
@@ -2605,7 +2541,7 @@ unsafe fn on_resize(rows: c_int, cols: c_int, user: *mut c_void) -> c_int {
                     row += 1;
                 }
 
-                vterm_allocator_free((*state).vt, (*state).lineinfos[bufidx]);
+                xfree((*state).lineinfos[bufidx]);
                 (*state).lineinfos[bufidx] = newlineinfo.cast();
             }
         }
@@ -2656,11 +2592,11 @@ static PARSER_CALLBACKS: VTermParserCallbacks = VTermParserCallbacks {
 pub unsafe fn vterm_obtain_state(vt: *mut VTerm) -> *mut VTermStateFull {
     unsafe {
         if !(*vt).state.is_null() {
-            return (*vt).state.cast();
+            return (*vt).state;
         }
 
         let state = vterm_state_new(vt);
-        (*vt).state = state.cast();
+        (*vt).state = state;
 
         vterm_parser_set_callbacks(vt, &raw const PARSER_CALLBACKS, state.cast());
 
@@ -2715,13 +2651,11 @@ pub unsafe fn vterm_state_reset(state: *mut VTermStateFull, hard: c_int) {
             vterm_lookup_encoding(VTermEncodingType::ENC_UTF8, b'u' as c_char)
         } else {
             vterm_lookup_encoding(VTermEncodingType::ENC_SINGLE_94, b'B' as c_char)
-        };
+        }
+        .unwrap();
 
         for enc_inst in &mut (*state).encoding {
-            enc_inst.enc = default_enc.cast();
-            if let Some(init_fn) = (*default_enc).init {
-                init_fn(default_enc, enc_inst.data.as_mut_ptr().cast());
-            }
+            enc_inst.init(default_enc);
         }
 
         (*state).gl_set = 0;
@@ -2902,7 +2836,7 @@ pub unsafe fn vterm_state_set_selection_callbacks(
 ) {
     unsafe {
         if buflen != 0 && buffer.is_null() {
-            buffer = vterm_allocator_malloc((*state).vt, buflen).cast::<c_char>();
+            buffer = xcalloc(1, buflen).cast::<c_char>();
         }
 
         (*state).selection.callbacks = callbacks.cast();

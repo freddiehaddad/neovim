@@ -3,6 +3,7 @@
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
+use crate::memory::{xcalloc, xfree};
 use crate::vterm::keyboard::{BUFIDX_ALTSCREEN, BUFIDX_PRIMARY, VTermColor, VTermStateFull};
 use crate::vterm::mouse::{VTerm, VTermPos};
 use crate::vterm::pen::{
@@ -16,9 +17,7 @@ use crate::vterm::state::{
     VTermStateFallbacks, vterm_obtain_state, vterm_state_get_lineinfo, vterm_state_reset,
     vterm_state_set_callbacks, vterm_state_set_unrecognised_fallbacks,
 };
-use crate::vterm::vterm::{
-    vterm_allocator_free, vterm_allocator_malloc, vterm_get_size, vterm_scroll_rect,
-};
+use crate::vterm::vterm::{vterm_get_size, vterm_scroll_rect};
 
 use crate::grid::schar_T;
 pub type VTermDamageSize = c_int;
@@ -440,8 +439,7 @@ pub unsafe fn getcell(screen: *const VTermScreen, row: c_int, col: c_int) -> *mu
 unsafe fn alloc_buffer(screen: *mut VTermScreen, rows: c_int, cols: c_int) -> *mut ScreenCell {
     unsafe {
         let count = (rows as usize) * (cols as usize);
-        let new_buffer: *mut ScreenCell =
-            vterm_allocator_malloc((*screen).vt, size_of::<ScreenCell>() * count).cast();
+        let new_buffer: *mut ScreenCell = xcalloc(1, size_of::<ScreenCell>() * count).cast();
 
         for i in 0..count {
             clearcell(screen, new_buffer.add(i));
@@ -927,16 +925,10 @@ unsafe fn resize_buffer(
         let old_buffer = (*screen).buffers[bufidx];
         let old_lineinfo = (*statefields).lineinfos[bufidx];
 
-        let new_buffer: *mut ScreenCell = vterm_allocator_malloc(
-            (*screen).vt,
-            size_of::<ScreenCell>() * (new_rows as usize) * (new_cols as usize),
-        )
-        .cast();
-        let new_lineinfo: *mut VTermLineInfo = vterm_allocator_malloc(
-            (*screen).vt,
-            size_of::<VTermLineInfo>() * (new_rows as usize),
-        )
-        .cast();
+        let new_buffer: *mut ScreenCell =
+            xcalloc(1, size_of::<ScreenCell>() * (new_rows as usize) * (new_cols as usize)).cast();
+        let new_lineinfo: *mut VTermLineInfo =
+            xcalloc(1, size_of::<VTermLineInfo>() * (new_rows as usize)).cast();
 
         let mut old_row = old_rows - 1;
         let mut new_row = new_rows - 1;
@@ -1195,10 +1187,10 @@ unsafe fn resize_buffer(
             }
         }
 
-        vterm_allocator_free((*screen).vt, old_buffer.cast());
+        xfree(old_buffer.cast());
         (*screen).buffers[bufidx] = new_buffer;
 
-        vterm_allocator_free((*screen).vt, old_lineinfo.cast());
+        xfree(old_lineinfo.cast());
         (*statefields).lineinfos[bufidx] = new_lineinfo;
 
         if active {
@@ -1225,27 +1217,21 @@ unsafe fn resize(
 
         if new_cols > old_cols {
             if !(*screen).sb_buffer.is_null() {
-                vterm_allocator_free((*screen).vt, (*screen).sb_buffer.cast());
+                xfree((*screen).sb_buffer.cast());
             }
 
-            (*screen).sb_buffer = vterm_allocator_malloc(
-                (*screen).vt,
-                size_of::<VTermScreenCell>() * (new_cols as usize),
-            )
-            .cast();
+            (*screen).sb_buffer =
+                xcalloc(1, size_of::<VTermScreenCell>() * (new_cols as usize)).cast();
         }
 
         resize_buffer(screen, 0, new_rows, new_cols, !altscreen_active, fields);
         if !(*screen).buffers[BUFIDX_ALTSCREEN].is_null() {
             resize_buffer(screen, 1, new_rows, new_cols, altscreen_active, fields);
         } else if new_rows != old_rows {
-            vterm_allocator_free((*screen).vt, (*fields).lineinfos[BUFIDX_ALTSCREEN].cast());
+            xfree((*fields).lineinfos[BUFIDX_ALTSCREEN].cast());
 
-            let new_lineinfo: *mut VTermLineInfo = vterm_allocator_malloc(
-                (*screen).vt,
-                size_of::<VTermLineInfo>() * (new_rows as usize),
-            )
-            .cast();
+            let new_lineinfo: *mut VTermLineInfo =
+                xcalloc(1, size_of::<VTermLineInfo>() * (new_rows as usize)).cast();
             for row in 0..(new_rows as usize) {
                 *new_lineinfo.add(row) = VTermLineInfo { flags: 0 };
             }
@@ -1264,14 +1250,11 @@ unsafe fn resize(
 
         if new_cols <= old_cols {
             if !(*screen).sb_buffer.is_null() {
-                vterm_allocator_free((*screen).vt, (*screen).sb_buffer.cast());
+                xfree((*screen).sb_buffer.cast());
             }
 
-            (*screen).sb_buffer = vterm_allocator_malloc(
-                (*screen).vt,
-                size_of::<VTermScreenCell>() * (new_cols as usize),
-            )
-            .cast();
+            (*screen).sb_buffer =
+                xcalloc(1, size_of::<VTermScreenCell>() * (new_cols as usize)).cast();
         }
 
         damagescreen(screen);
@@ -1377,7 +1360,7 @@ unsafe fn screen_new(vt: *mut VTerm) -> *mut VTermScreen {
             return ptr::null_mut();
         }
 
-        let screen: *mut VTermScreen = vterm_allocator_malloc(vt, size_of::<VTermScreen>()).cast();
+        let screen: *mut VTermScreen = xcalloc(1, size_of::<VTermScreen>()).cast();
         let mut rows: c_int = 0;
         let mut cols: c_int = 0;
 
@@ -1402,9 +1385,7 @@ unsafe fn screen_new(vt: *mut VTerm) -> *mut VTermScreen {
         (*screen).buffers[BUFIDX_PRIMARY] = alloc_buffer(screen, rows, cols);
         (*screen).buffer = (*screen).buffers[BUFIDX_PRIMARY];
 
-        (*screen).sb_buffer =
-            vterm_allocator_malloc((*screen).vt, size_of::<VTermScreenCell>() * (cols as usize))
-                .cast();
+        (*screen).sb_buffer = xcalloc(1, size_of::<VTermScreenCell>() * (cols as usize)).cast();
 
         vterm_state_set_callbacks((*screen).state, &raw const STATE_CBS, screen.cast());
 
@@ -1414,13 +1395,13 @@ unsafe fn screen_new(vt: *mut VTerm) -> *mut VTermScreen {
 
 pub unsafe fn vterm_screen_free(screen: *mut VTermScreen) {
     unsafe {
-        vterm_allocator_free((*screen).vt, (*screen).buffers[BUFIDX_PRIMARY].cast());
+        xfree((*screen).buffers[BUFIDX_PRIMARY].cast());
         if !(*screen).buffers[BUFIDX_ALTSCREEN].is_null() {
-            vterm_allocator_free((*screen).vt, (*screen).buffers[BUFIDX_ALTSCREEN].cast());
+            xfree((*screen).buffers[BUFIDX_ALTSCREEN].cast());
         }
 
-        vterm_allocator_free((*screen).vt, (*screen).sb_buffer.cast());
-        vterm_allocator_free((*screen).vt, screen.cast());
+        xfree((*screen).sb_buffer.cast());
+        xfree(screen.cast());
     }
 }
 

@@ -4,6 +4,7 @@ use crate::input::NUL;
 use std::ffi::{c_char, c_int, c_void};
 
 use crate::tui::termkey::termkey::fill_utf8;
+pub use crate::vterm::encoding::VTermEncodingInstance;
 use crate::vterm::mouse::{VTerm, VTermPos};
 use crate::vterm::vterm::{
     vterm_push_output_bytes, vterm_push_output_bytes_slice, vterm_push_output_ctrl_bytes,
@@ -36,13 +37,6 @@ const MODE_CURSOR_BIT: u32 = 1 << 1;
 const MODE_NEWLINE_BIT: u32 = 1 << 4;
 const MODE_ALT_SCREEN_BIT: u32 = 1 << 9;
 const MODE_BRACKETPASTE_BIT: u32 = 1 << 13;
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct VTermEncodingInstance {
-    pub enc: *mut c_void,
-    pub data: [u32; 4],
-}
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -516,7 +510,7 @@ pub unsafe fn vterm_keyboard_unichar(vt: *mut VTerm, mut c: u32, mut mod_: VTerm
             return;
         }
 
-        let state: *const VTermStateFull = (*vt).state.cast();
+        let state: *const VTermStateFull = (*vt).state;
         if vterm_state_get_key_encoding_disambiguate(state) {
             if (u32::from(b'A')..=u32::from(b'Z')).contains(&c) {
                 c += u32::from(b'a' - b'A');
@@ -611,7 +605,7 @@ pub unsafe fn vterm_keyboard_key(vt: *mut VTerm, key: VTermKey, mod_: VTermModif
         return;
     }
     unsafe {
-        let state: *const VTermStateFull = (*vt).state.cast();
+        let state: *const VTermStateFull = (*vt).state;
         let disambiguate = vterm_state_get_key_encoding_disambiguate(state);
 
         let mut k = if key < VTERM_KEY_FUNCTION_0 {
@@ -696,7 +690,7 @@ pub unsafe fn vterm_keyboard_key(vt: *mut VTerm, key: VTermKey, mod_: VTermModif
 
 pub unsafe fn vterm_keyboard_start_paste(vt: *mut VTerm) {
     unsafe {
-        let state: *const VTermStateFull = (*vt).state.cast();
+        let state: *const VTermStateFull = (*vt).state;
         if ((*state).mode & MODE_BRACKETPASTE_BIT) != 0 {
             vterm_push_output_ctrl_bytes(vt, C1_CSI, b"200~");
         }
@@ -705,7 +699,7 @@ pub unsafe fn vterm_keyboard_start_paste(vt: *mut VTerm) {
 
 pub unsafe fn vterm_keyboard_end_paste(vt: *mut VTerm) {
     unsafe {
-        let state: *const VTermStateFull = (*vt).state.cast();
+        let state: *const VTermStateFull = (*vt).state;
         if ((*state).mode & MODE_BRACKETPASTE_BIT) != 0 {
             vterm_push_output_ctrl_bytes(vt, C1_CSI, b"201~");
         }
