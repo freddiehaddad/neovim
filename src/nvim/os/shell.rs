@@ -73,7 +73,6 @@ use crate::change::TAB;
 use crate::channel::{STDERR_FILENO, STDOUT_FILENO, kProcTypeUv};
 use crate::diff::{kShellOptDoOut, kShellOptSilent};
 use crate::eval::typval::varnumber_T;
-use crate::kvec::StringBuilder;
 use crate::state::MODE_EXTERNCMD;
 
 const OUT_DATA_THRESHOLD: usize = 1024 * 10;
@@ -661,7 +660,7 @@ pub unsafe fn shell_argv_to_str(argv: *mut *mut c_char) -> *mut c_char {
 /// Calls the user-configured 'shell' (p_sh) for running a command or wildcard expansion.
 pub unsafe fn os_call_shell(cmd: *mut c_char, opts: c_int, extra_args: *mut c_char) -> c_int {
     unsafe {
-        let mut input = StringBuilder::new();
+        let mut input: Vec<c_char> = Vec::new();
         let mut output: *mut c_char = ptr::null_mut();
         let mut output_ptr: *mut *mut c_char = ptr::null_mut();
         let current_state = State;
@@ -675,7 +674,7 @@ pub unsafe fn os_call_shell(cmd: *mut c_char, opts: c_int, extra_args: *mut c_ch
             State = MODE_EXTERNCMD;
 
             if (opts & kShellOptWrite) != 0 {
-                read_input(&raw mut input);
+                read_input(&mut input);
             }
 
             if (opts & kShellOptRead) != 0 {
@@ -689,14 +688,18 @@ pub unsafe fn os_call_shell(cmd: *mut c_char, opts: c_int, extra_args: *mut c_ch
         let mut nread: usize = 0;
         let exitcode = do_os_system(
             shell_build_argv(cmd, extra_args),
-            input.items,
-            input.size,
+            if input.is_empty() {
+                ptr::null()
+            } else {
+                input.as_ptr()
+            },
+            input.len(),
             output_ptr,
             &raw mut nread,
             emsg_silent != 0,
             forward_output,
         );
-        input.destroy();
+        drop(input);
 
         if !output.is_null() {
             write_output(output, nread, true);
@@ -876,7 +879,7 @@ unsafe fn do_os_system(
         out_data_ring(ptr::null(), 0);
         let has_input = !input.is_null() && len > 0;
 
-        let mut buf = StringBuilder::new();
+        let mut buf: Vec<c_char> = Vec::new();
         let mut data_cb: stream_read_cb = Some(system_data_cb);
         if !nread.is_null() {
             *nread = 0;
@@ -969,14 +972,12 @@ unsafe fn do_os_system(
 
             if !output.is_null() {
                 debug_assert!(!nread.is_null());
-                if buf.size == 0 {
+                if buf.is_empty() {
                     *output = ptr::null_mut();
                     *nread = 0;
-                    buf.destroy();
                 } else {
-                    *nread = buf.size;
-                    buf.push(NUL);
-                    *output = buf.items;
+                    *nread = buf.len();
+                    *output = xmemdupz(buf.as_ptr().cast(), buf.len()).cast();
                 }
             }
 
@@ -1004,8 +1005,10 @@ unsafe fn system_data_cb(
     _eof: bool,
 ) -> usize {
     unsafe {
-        let dbuf = data.cast::<StringBuilder>();
-        (*dbuf).concat_len(buf, count);
+        if !buf.is_null() && count > 0 {
+            let dbuf = data.cast::<Vec<c_char>>();
+            (*dbuf).extend_from_slice(std::slice::from_raw_parts(buf, count));
+        }
         count
     }
 }
@@ -1227,7 +1230,7 @@ pub(crate) unsafe fn word_length(str_in: *const c_char) -> usize {
     }
 }
 
-unsafe fn read_input(buf: *mut StringBuilder) {
+unsafe fn read_input(buf: &mut Vec<c_char>) {
     unsafe {
         read_buffer_into(
             curbuf,

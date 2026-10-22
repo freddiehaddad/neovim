@@ -9351,30 +9351,8 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
             startreason,
         );
 
-        let on_stdout = CallbackReader {
-            cb: Callback {
-                data: ptr::null_mut(),
-                cb_type: kCallbackNone,
-            },
-            self_dict: ptr::null_mut(),
-            buffer: std::mem::zeroed(),
-            eof: false,
-            buffered: false,
-            fwd_err: false,
-            reader_type: ptr::null(),
-        };
-        let mut on_err = CallbackReader {
-            cb: Callback {
-                data: ptr::null_mut(),
-                cb_type: kCallbackNone,
-            },
-            self_dict: ptr::null_mut(),
-            buffer: std::mem::zeroed(),
-            eof: false,
-            buffered: false,
-            fwd_err: false,
-            reader_type: ptr::null(),
-        };
+        let on_stdout = CallbackReader::none();
+        let mut on_err = CallbackReader::none();
         #[cfg(windows)]
         {
             on_err.fwd_err = false;

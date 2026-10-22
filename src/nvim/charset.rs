@@ -2,7 +2,6 @@
 
 use crate::buffer::buf_T;
 use crate::cursor::get_cursor_line_ptr;
-use crate::garray::{ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::mbyte::{
     mb_islower, mb_isupper, mb_ptr2char_adv, mb_tolower, utf_ClusterInfo, utf_char2bytes,
@@ -499,21 +498,13 @@ pub unsafe fn str_foldcase(
     buflen: c_int,
 ) -> *mut c_char {
     unsafe {
-        let mut ga = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: ptr::null_mut(),
-        };
+        let mut vec: Vec<c_char> = Vec::new();
         let mut len = orglen;
 
         if buf.is_null() {
-            ga_init(&raw mut ga, 1, 10);
-            ga_grow(&raw mut ga, len + 1);
-            ptr::copy(str_, ga.ga_data.cast::<c_char>(), len as usize);
-            ga.ga_len = len;
-            *ga.ga_data.cast::<c_char>().add(len as usize) = NUL;
+            vec.reserve_exact((len as usize) + 1);
+            vec.extend_from_slice(std::slice::from_raw_parts(str_, len as usize));
+            vec.push(NUL);
         } else {
             if len >= buflen {
                 len = buflen - 1;
@@ -522,17 +513,17 @@ pub unsafe fn str_foldcase(
             *buf.add(len as usize) = NUL;
         }
 
-        let str_ptr = |ga_ref: &garray_T, idx: usize| -> *mut c_char {
+        let str_ptr = |vec_ref: &mut Vec<c_char>, idx: usize| -> *mut c_char {
             if buf.is_null() {
-                ga_ref.ga_data.cast::<c_char>().add(idx)
+                vec_ref.as_mut_ptr().add(idx)
             } else {
                 buf.add(idx)
             }
         };
 
         let mut i: usize = 0;
-        while *str_ptr(&ga, i) != NUL {
-            let p_cur = str_ptr(&ga, i);
+        while *str_ptr(&mut vec, i) != NUL {
+            let p_cur = str_ptr(&mut vec, i);
             let c = utf_ptr2char(p_cur);
             let olen = utf_ptr2len(p_cur);
             let mut lc = mb_tolower(c);
@@ -542,7 +533,7 @@ pub unsafe fn str_foldcase(
                 if olen != nlen {
                     if nlen > olen {
                         if buf.is_null() {
-                            ga_grow(&raw mut ga, nlen - olen + 1);
+                            vec.resize(vec.len() + (nlen - olen) as usize, 0);
                         } else if len + nlen - olen >= buflen {
                             lc = c;
                             nlen = olen;
@@ -550,26 +541,30 @@ pub unsafe fn str_foldcase(
                     }
 
                     if olen != nlen {
-                        let base = str_ptr(&ga, i);
+                        let base = str_ptr(&mut vec, i);
                         let src = base.add(olen as usize);
                         let dst = base.add(nlen as usize);
                         let tail_len = CStr::from_ptr(src).to_bytes().len() + 1;
                         ptr::copy(src, dst, tail_len);
                         if buf.is_null() {
-                            ga.ga_len += nlen - olen;
+                            if nlen < olen {
+                                vec.truncate(vec.len() - (olen - nlen) as usize);
+                            }
                         } else {
                             len += nlen - olen;
                         }
                     }
                 }
-                utf_char2bytes(lc, str_ptr(&ga, i));
+                utf_char2bytes(lc, str_ptr(&mut vec, i));
             }
 
-            i += utfc_ptr2len(str_ptr(&ga, i)) as usize;
+            i += utfc_ptr2len(str_ptr(&mut vec, i)) as usize;
         }
 
         if buf.is_null() {
-            ga.ga_data.cast::<c_char>()
+            let out = xmalloc(vec.len()).cast::<c_char>();
+            ptr::copy_nonoverlapping(vec.as_ptr(), out, vec.len());
+            out
         } else {
             buf
         }

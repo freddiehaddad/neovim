@@ -403,7 +403,7 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
             params.listen_addr.is_null() || stdin_type == UV_NAMED_PIPE || stdin_type == UV_TCP;
         if embedded_mode && stdio_rpc {
             let mut err: *const c_char = ptr::null();
-            let on_data: CallbackReader = zeroed();
+            let on_data = CallbackReader::none();
             if channel_from_stdio(true, on_data, &raw mut err) == 0 {
                 std::process::abort();
             }
@@ -1071,7 +1071,7 @@ unsafe fn server_connect(server_addr: *const c_char, errmsg: *mut *const c_char)
             *errmsg = c"no address specified".as_ptr();
             return 0;
         }
-        let on_data: CallbackReader = zeroed();
+        let on_data = CallbackReader::none();
         let mut error: *const c_char = ptr::null();
         let is_tcp = !socket_address_tcp_host_end(server_addr).is_null();
         let chan = channel_connect(is_tcp, server_addr, true, on_data, 500, &raw mut error);

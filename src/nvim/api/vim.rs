@@ -73,7 +73,6 @@ use crate::keycodes::{
     REPTERM_FROM_PART, REPTERM_NO_SPECIAL, name_to_mod_mask, replace_termcodes,
     vim_strsave_escape_ks,
 };
-use crate::kvec::StringBuilder;
 use crate::lua::converter::{Boolean, Float, LUA_NOREF, LuaRef};
 use crate::lua::executor::{
     api_free_luaref, kRetNilBool, kRetObject, nlua_call_ref, nlua_exec, nlua_get_global_ref_count,
@@ -1831,7 +1830,7 @@ pub unsafe extern "C" fn nvim_open_term(
             force_crlf,
         };
 
-        let mut contents = StringBuilder::new();
+        let mut contents: Vec<c_char> = Vec::new();
         if may_read_buffer {
             read_buffer_into(b, 1, (*b).b_ml.ml_line_count, &mut contents);
         }
@@ -1844,13 +1843,13 @@ pub unsafe extern "C" fn nvim_open_term(
         }
         channel_decref(chan);
 
-        if contents.size > 0 {
+        if !contents.is_empty() {
             let mut error: *const c_char = ptr::null();
             channel_send(
                 (*prefix).id,
-                contents.items,
-                contents.size,
-                true,
+                contents.as_mut_ptr(),
+                contents.len(),
+                false,
                 &mut error,
             );
             if !error.is_null() {

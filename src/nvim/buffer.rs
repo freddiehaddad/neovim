@@ -54,7 +54,6 @@ use crate::indent::inindent;
 use crate::indent_c::parse_cino;
 use crate::input::vgetc;
 use crate::insexpand::clear_cpt_callbacks;
-use crate::kvec::StringBuilder;
 use crate::main_init::getout;
 use crate::map::{MH_TOMBSTONE, Map, map_del, map_put_ref, mh_get, ptr_t};
 use crate::mapping::map_clear_mode;
@@ -4815,11 +4814,10 @@ pub unsafe fn read_buffer_into(
     buf: *mut buf_T,
     start: linenr_T,
     end: linenr_T,
-    sb: *mut StringBuilder,
+    sb: &mut Vec<c_char>,
 ) {
     unsafe {
         debug_assert!(!buf.is_null());
-        debug_assert!(!sb.is_null());
 
         if ((*buf).b_ml.ml_flags & ML_EMPTY) != 0 {
             return;
@@ -4836,7 +4834,7 @@ pub unsafe fn read_buffer_into(
                 len = 0;
             } else if *lp.add(written) == NL {
                 len = 1;
-                (*sb).push(NUL);
+                sb.push(NUL);
             } else {
                 let s = vim_strchr(lp.add(written), NL as c_int);
                 len = if s.is_null() {
@@ -4844,7 +4842,9 @@ pub unsafe fn read_buffer_into(
                 } else {
                     s.offset_from(lp.add(written)) as usize
                 };
-                (*sb).concat_len(lp.add(written), len);
+                if len > 0 {
+                    sb.extend_from_slice(std::slice::from_raw_parts(lp.add(written), len));
+                }
             }
 
             if len == lplen - written {
@@ -4853,7 +4853,7 @@ pub unsafe fn read_buffer_into(
                     || (lnum != (*buf).b_no_eol_lnum
                         && (lnum != (*buf).b_ml.ml_line_count || (*buf).b_p_eol != 0))
                 {
-                    (*sb).push(NL);
+                    sb.push(NL);
                 }
                 lnum += 1;
                 if lnum > end {

@@ -32,7 +32,6 @@ use crate::event::stream::{Stream, stream_closed_ptr, stream_fields, stream_may_
 use crate::event::wstream::{wstream_init, wstream_init_fd, wstream_new_buffer, wstream_write};
 #[cfg(not(windows))]
 use crate::fileio::fcntl;
-use crate::garray::{ga_clear, ga_concat_len, ga_init};
 use crate::globals::*;
 use crate::lua::converter::LuaRef;
 use crate::lua::executor::api_free_luaref;
@@ -76,11 +75,29 @@ pub type Channel = c_void;
 pub struct CallbackReader {
     pub cb: Callback,
     pub self_dict: *mut dict_T,
-    pub buffer: crate::garray::garray_T,
+    pub buffer: Vec<c_char>,
     pub eof: bool,
     pub buffered: bool,
     pub fwd_err: bool,
     pub reader_type: *const c_char,
+}
+
+impl CallbackReader {
+    #[inline]
+    pub const fn none() -> Self {
+        Self {
+            cb: Callback {
+                data: ptr::null_mut(),
+                cb_type: kCallbackNone,
+            },
+            self_dict: ptr::null_mut(),
+            buffer: Vec::new(),
+            eof: false,
+            buffered: false,
+            fwd_err: false,
+            reader_type: ptr::null(),
+        }
+    }
 }
 
 use crate::option::OptInt;
@@ -401,6 +418,8 @@ pub unsafe fn channel_alloc(r#type: ChannelStreamType) -> *mut Channel {
         let chan = xcalloc(1, channel_size()).cast::<Channel>();
         let cp = channel_prefix(chan);
         let ct = channel_tail(chan);
+        ptr::write(&raw mut (*ct).on_data, CallbackReader::none());
+        ptr::write(&raw mut (*ct).on_stderr, CallbackReader::none());
 
         if r#type == kChannelStreamStdio {
             (*cp).id = CHAN_STDIO;
@@ -469,17 +488,12 @@ pub unsafe fn channel_decref(chan: *mut Channel) {
 pub unsafe fn callback_reader_free(reader: *mut CallbackReader) {
     unsafe {
         callback_free(&raw mut (*reader).cb);
-        ga_clear(&raw mut (*reader).buffer);
+        (*reader).buffer = Vec::new();
     }
 }
 
 pub unsafe fn callback_reader_start(reader: *mut CallbackReader, r#type: *const c_char) {
     unsafe {
-        ga_init(
-            &raw mut (*reader).buffer,
-            size_of::<*mut c_char>() as c_int,
-            32,
-        );
         (*reader).reader_type = r#type;
     }
 }
@@ -996,7 +1010,11 @@ unsafe fn on_channel_output(
         }
 
         if callback_reader_set(&*reader) {
-            ga_concat_len(&raw mut (*reader).buffer, buf, count);
+            if !buf.is_null() && count > 0 {
+                (*reader)
+                    .buffer
+                    .extend_from_slice(std::slice::from_raw_parts(buf, count));
+            }
             schedule_channel_event(chan);
         }
 
@@ -1052,8 +1070,8 @@ pub unsafe fn channel_reader_callbacks(chan: *mut Channel, reader: *mut Callback
                 if !(*reader).self_dict.is_null() {
                     if tv_dict_find((*reader).self_dict, (*reader).reader_type, -1).is_null() {
                         let data = buffer_to_tv_list(
-                            (*reader).buffer.ga_data.cast(),
-                            (*reader).buffer.ga_len as usize,
+                            (*reader).buffer.as_ptr(),
+                            (*reader).buffer.len(),
                         );
                         let type_len = CStr::from_ptr((*reader).reader_type).to_bytes().len();
                         let _ = tv_dict_add_list(
@@ -1076,7 +1094,7 @@ pub unsafe fn channel_reader_callbacks(chan: *mut Channel, reader: *mut Callback
             }
         } else {
             let is_eof = (*reader).eof;
-            if (*reader).buffer.ga_len > 0 {
+            if !(*reader).buffer.is_empty() {
                 channel_callback_call(chan, reader);
             }
             if is_eof {
@@ -1140,14 +1158,14 @@ unsafe fn channel_callback_call(chan: *mut Channel, reader: *mut CallbackReader)
 
         let cb: *mut Callback = if !reader.is_null() {
             let l = buffer_to_tv_list(
-                (*reader).buffer.ga_data.cast(),
-                (*reader).buffer.ga_len as usize,
+                (*reader).buffer.as_ptr(),
+                (*reader).buffer.len(),
             );
             argv[1].v_type = VarType::VAR_LIST;
             argv[1].v_lock = VAR_UNLOCKED;
             argv[1].vval = TypvalVval { v_list: l };
             tv_list_ref(l);
-            ga_clear(&raw mut (*reader).buffer);
+            (*reader).buffer = Vec::new();
             argv[2].vval = TypvalVval {
                 v_string: (*reader).reader_type.cast_mut(),
             };
@@ -1575,24 +1593,7 @@ mod tests {
 
     #[test]
     fn callback_reader_set_checks_callback_type_or_self_dict() {
-        let mut reader = CallbackReader {
-            cb: Callback {
-                data: ptr::null_mut(),
-                cb_type: kCallbackNone,
-            },
-            self_dict: ptr::null_mut(),
-            buffer: crate::garray::garray_T {
-                ga_len: 0,
-                ga_maxlen: 0,
-                ga_itemsize: 0,
-                ga_growsize: 0,
-                ga_data: ptr::null_mut(),
-            },
-            eof: false,
-            buffered: false,
-            fwd_err: false,
-            reader_type: ptr::null(),
-        };
+        let mut reader = CallbackReader::none();
         assert!(!callback_reader_set(&reader));
         reader.cb.cb_type = 1;
         assert!(callback_reader_set(&reader));

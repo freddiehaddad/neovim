@@ -79,8 +79,8 @@ pub unsafe fn ui_client_start_server(
         }
         *args.add(args_idx) = ptr::null_mut();
 
-        let on_stdout: CallbackReader = zeroed();
-        let mut on_err: CallbackReader = zeroed();
+        let on_stdout = CallbackReader::none();
+        let mut on_err = CallbackReader::none();
         on_err.fwd_err = true;
         let on_exit: Callback = zeroed();
 
@@ -465,7 +465,7 @@ unsafe fn channel_connect_event(argv: *mut *mut c_void) {
         let server_addr = (*argv).cast::<c_char>();
         let mut err: *const c_char = c"".as_ptr();
         let is_tcp = !socket_address_tcp_host_end(server_addr).is_null();
-        let on_data: CallbackReader = zeroed();
+        let on_data = CallbackReader::none();
         let chan = channel_connect(is_tcp, server_addr, true, on_data, 50, &raw mut err);
 
         if !strequal(err, c"".as_ptr()) {
@@ -584,7 +584,7 @@ pub unsafe fn ui_client_attach_to_restarted_server(error_restart: bool) {
         } else {
             let is_tcp = !socket_address_tcp_host_end(first_arg).is_null();
             let mut err: *const c_char = ptr::null();
-            let on_data: CallbackReader = zeroed();
+            let on_data = CallbackReader::none();
             let id = channel_connect(is_tcp, first_arg, true, on_data, 50, &raw mut err);
             if !err.is_null() {
                 logmsg!(

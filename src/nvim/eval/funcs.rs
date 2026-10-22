@@ -4700,8 +4700,8 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
         let mut clear_env = false;
         let mut overlapped = false;
         let mut stdin_mode = kChannelStdinPipe;
-        let mut on_stdout: CallbackReader = std::mem::zeroed();
-        let mut on_stderr: CallbackReader = std::mem::zeroed();
+        let mut on_stdout = CallbackReader::none();
+        let mut on_stderr = CallbackReader::none();
         let mut on_exit = Callback {
             data: ptr::null_mut(),
             cb_type: kCallbackNone,
@@ -8373,7 +8373,7 @@ pub unsafe fn f_sockconnect(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
             };
 
             let mut rpc = false;
-            let mut on_data: CallbackReader = std::mem::zeroed();
+            let mut on_data = CallbackReader::none();
             if (*argvars.add(2)).v_type == VarType::VAR_DICT {
                 let opts = (*argvars.add(2)).vval.v_dict.cast::<dict_T>();
                 rpc = tv_dict_get_number(opts, c"rpc".as_ptr()) != 0;
@@ -8409,7 +8409,7 @@ pub unsafe fn f_stdioopen(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
             return;
         }
 
-        let mut on_stdin: CallbackReader = std::mem::zeroed();
+        let mut on_stdin = CallbackReader::none();
         let opts = (*argvars).vval.v_dict.cast::<dict_T>();
         let rpc = tv_dict_get_number(opts, c"rpc".as_ptr()) != 0;
 

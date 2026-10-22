@@ -10,7 +10,6 @@ use crate::eval::typval::{
     tv_dict_free, tv_get_string, typval_T,
 };
 use crate::ex_cmds::check_secure;
-use crate::garray::garray_T;
 use crate::globals::*;
 use crate::memory::{xmalloc, xstrdup};
 use crate::message::{emsg, semsg};
@@ -29,21 +28,7 @@ const fn callback_none() -> Callback {
 
 #[inline]
 const fn callback_reader_init() -> CallbackReader {
-    CallbackReader {
-        cb: callback_none(),
-        self_dict: std::ptr::null_mut(),
-        buffer: garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: std::ptr::null_mut(),
-        },
-        eof: false,
-        buffered: false,
-        fwd_err: false,
-        reader_type: std::ptr::null(),
-    }
+    CallbackReader::none()
 }
 
 /// `"rpcstart()"` function (`f_rpcstart`).
