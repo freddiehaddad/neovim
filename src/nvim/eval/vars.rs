@@ -74,7 +74,7 @@ use crate::os::env::{
     vim_unsetenv_ext,
 };
 use crate::register::{get_reg_contents, kGRegExprSrc, write_reg_contents};
-use crate::runtime::{new_script_item, script_autoload, script_item, script_items, scriptvar_T};
+use crate::runtime::{new_script_item, script_autoload, script_item, scriptvar_T};
 use crate::search::set_search_direction;
 use crate::strings::{
     concat_str, gettext, strcmp, strcpy, strlen, strncmp, vim_snprintf, vim_strchr,
@@ -672,7 +672,7 @@ pub unsafe fn evalvars_clear() {
 
         vars_clear(get_globvar_ht());
 
-        for i in 1..=script_items.ga_len {
+        for i in 1..=crate::runtime::script_items_len() {
             vars_clear(script_vars_ht(i));
         }
     }
@@ -696,7 +696,7 @@ pub unsafe fn garbage_collect_scriptvars(copyID: c_int) -> bool {
     unsafe {
         let mut abort = false;
 
-        for i in 1..=script_items.ga_len {
+        for i in 1..=crate::runtime::script_items_len() {
             abort = abort || set_ref_in_ht(script_vars_ht(i), copyID, ptr::null_mut());
         }
 
@@ -918,7 +918,7 @@ unsafe fn list_vim_vars(first: *mut c_int) {
 /// List script-local variables, if there is a script.
 unsafe fn list_script_vars(first: *mut c_int) {
     unsafe {
-        if current_sctx.sc_sid > 0 && current_sctx.sc_sid <= script_items.ga_len {
+        if crate::runtime::script_id_valid(current_sctx.sc_sid) {
             list_hashtable_vars(
                 script_vars_ht(current_sctx.sc_sid),
                 c"s:".as_ptr(),
@@ -2891,7 +2891,7 @@ unsafe fn find_var_ht_dict(
             && (current_sctx.sc_sid > 0
                 || current_sctx.sc_sid == SID_STR
                 || current_sctx.sc_sid == SID_LUA)
-            && current_sctx.sc_sid <= script_items.ga_len
+            && current_sctx.sc_sid <= crate::runtime::script_items_len()
         {
             nlua_set_sctx(&raw mut current_sctx);
             if current_sctx.sc_sid == SID_STR || current_sctx.sc_sid == SID_LUA {

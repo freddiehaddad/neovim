@@ -59,7 +59,7 @@ use crate::os::fs::MAXPATHL;
 use crate::os::input::line_breakcheck;
 use crate::os::time::{Timestamp, os_now};
 use crate::path::{FullName_save, path_tail, to_slash_save};
-use crate::profile::{estack_T, prof_child_enter, prof_child_exit, proftime_T};
+use crate::profile::{prof_child_enter, prof_child_exit, proftime_T};
 use crate::regexp::{RE_MAGIC, RE_NOBREAK, vim_regcomp, vim_regfree};
 use crate::runtime::{ETYPE_AUCMD, SID_NONE, estack_pop, estack_push, exestack, sctx_T};
 use crate::search::{restore_search_patterns, save_search_patterns};
@@ -2383,15 +2383,8 @@ pub unsafe fn autocmd_register(
             callback_copy(&raw mut ac.handler_fn, handler_fn);
         }
         ac.script_ctx = current_sctx;
-        let sourcing_lnum = if !exestack.ga_data.is_null() && exestack.ga_len > 0 {
-            (*exestack
-                .ga_data
-                .cast::<estack_T>()
-                .add((exestack.ga_len - 1) as usize))
-            .es_lnum
-        } else {
-            0
-        };
+        let es = &raw const exestack;
+        let sourcing_lnum = (*es).last().map_or(0, |top| top.es_lnum);
         ac.script_ctx.sc_lnum += sourcing_lnum;
         nlua_set_sctx(&raw mut ac.script_ctx);
         ac.once = once;
@@ -3127,12 +3120,9 @@ pub unsafe fn apply_autocmds_group(
             autocmd_busy = save_autocmd_busy;
             filechangeshell_busy = false;
             autocmd_nested = save_autocmd_nested;
-            if !exestack.ga_data.is_null() && exestack.ga_len > 0 {
-                let top = exestack
-                    .ga_data
-                    .cast::<estack_T>()
-                    .add((exestack.ga_len - 1) as usize);
-                xfree((*top).es_name.cast());
+            let es = &raw const exestack;
+            if let Some(top) = (*es).last() {
+                xfree(top.es_name.cast());
             }
             estack_pop();
             xfree(afile_orig.cast());
@@ -3265,10 +3255,8 @@ pub unsafe fn is_autocmd_blocked() -> bool {
 
 unsafe fn aucmd_next(apc: *mut AutoPatCmd) {
     unsafe {
-        let entry = exestack
-            .ga_data
-            .cast::<estack_T>()
-            .add((exestack.ga_len - 1) as usize);
+        let es = &raw mut exestack;
+        let entry = (*es).last_mut().unwrap();
 
         let acs = &raw mut autocmds[(*apc).event as usize];
         assert!((*apc).ausize <= (*acs).len());
@@ -3313,9 +3301,9 @@ unsafe fn aucmd_next(apc: *mut AutoPatCmd) {
                     verbose_leave();
                 }
 
-                xfree((*entry).es_name.cast());
-                (*entry).es_name = namep;
-                (*entry).es_info = apc.cast();
+                xfree(entry.es_name.cast());
+                entry.es_name = namep;
+                entry.es_info = apc.cast();
             }
 
             (*apc).lastpat = ap;
@@ -3325,9 +3313,9 @@ unsafe fn aucmd_next(apc: *mut AutoPatCmd) {
             return;
         }
 
-        xfree((*entry).es_name.cast());
-        (*entry).es_name = ptr::null_mut();
-        (*entry).es_info = ptr::null_mut();
+        xfree(entry.es_name.cast());
+        entry.es_name = ptr::null_mut();
+        entry.es_info = ptr::null_mut();
 
         (*apc).lastpat = ptr::null_mut();
         (*apc).auidx = usize::MAX;

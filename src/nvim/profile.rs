@@ -17,7 +17,7 @@ use crate::message::{emsg, semsg};
 use crate::os::env::{expand_T, expand_env_save_opt};
 use crate::os::fs::os_fopen;
 use crate::os::time::os_hrtime;
-use crate::runtime::{get_scriptname, script_id_valid, script_item, script_items, sourcing_lnum};
+use crate::runtime::{get_scriptname, script_id_valid, script_item, sourcing_lnum};
 use crate::strings::sort_slice_by;
 use std::ffi::{CStr, c_char, c_int, c_void};
 
@@ -90,6 +90,7 @@ use crate::globals::{IOSIZE, PROF_NONE};
 use crate::keycodes::K_SPECIAL;
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct estack_T {
     pub es_lnum: i32,
     pub es_name: *mut c_char,
@@ -259,7 +260,7 @@ pub const fn profile_cmp(tm1: proftime_T, tm2: proftime_T) -> c_int {
 /// Reset all profiling information (`profile_reset`).
 pub unsafe fn profile_reset() {
     unsafe {
-        for id in 1..=script_items.ga_len {
+        for id in 1..=crate::runtime::script_items_len() {
             let si = &mut *script_item(id);
             if si.sn_prof_on {
                 si.sn_prof_on = false;
@@ -720,7 +721,7 @@ pub unsafe fn profile_init(si: *mut scriptitem_T) {
 /// Save time when starting to invoke another script or function (`script_prof_save`).
 pub unsafe fn script_prof_save(tm: *mut proftime_T) {
     unsafe {
-        if current_sctx.sc_sid > 0 && current_sctx.sc_sid <= script_items.ga_len {
+        if script_id_valid(current_sctx.sc_sid) {
             let si = &mut *script_item(current_sctx.sc_sid);
             if si.sn_prof_on {
                 let prev_nest = si.sn_pr_nest;
@@ -759,7 +760,7 @@ pub unsafe fn script_prof_restore(tm: *const proftime_T) {
 unsafe fn script_dump_profile(fd: *mut FILE) {
     unsafe {
         let mut iobuf = [0 as c_char; IOSIZE];
-        for id in 1..=script_items.ga_len {
+        for id in 1..=crate::runtime::script_items_len() {
             let si = script_item(id);
             if (*si).sn_prof_on {
                 fprintf!(fd, c"SCRIPT  %s\n".as_ptr(), (*si).sn_name);
@@ -846,7 +847,7 @@ pub unsafe fn profile_dump() {
 /// Called when starting to read a script line (`script_line_start`).
 pub unsafe fn script_line_start() {
     unsafe {
-        if current_sctx.sc_sid <= 0 || current_sctx.sc_sid > script_items.ga_len {
+        if !script_id_valid(current_sctx.sc_sid) {
             return;
         }
         let si = script_item(current_sctx.sc_sid);
@@ -874,7 +875,7 @@ pub unsafe fn script_line_start() {
 /// Called when actually executing a script line (`script_line_exec`).
 pub unsafe fn script_line_exec() {
     unsafe {
-        if current_sctx.sc_sid <= 0 || current_sctx.sc_sid > script_items.ga_len {
+        if !script_id_valid(current_sctx.sc_sid) {
             return;
         }
         let si = &mut *script_item(current_sctx.sc_sid);
@@ -887,7 +888,7 @@ pub unsafe fn script_line_exec() {
 /// Called when done with a script line (`script_line_end`).
 pub unsafe fn script_line_end() {
     unsafe {
-        if current_sctx.sc_sid <= 0 || current_sctx.sc_sid > script_items.ga_len {
+        if !script_id_valid(current_sctx.sc_sid) {
             return;
         }
         let si = script_item(current_sctx.sc_sid);

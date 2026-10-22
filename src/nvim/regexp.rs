@@ -13,7 +13,7 @@ use crate::eval::typval::{
     tv_list_first, tv_list_init_static10, tv_list_len, typval_T,
 };
 use crate::eval::userfunc::{funcexe_T, ufunc_T};
-use crate::garray::{ga_append_via_ptr, ga_clear, ga_grow, ga_init, ga_set_growsize, garray_T};
+use crate::garray::{ga_clear, ga_grow, ga_init, ga_set_growsize, garray_T};
 use crate::globals::*;
 use crate::keycodes::{BS, CAR, ESC, K_SPECIAL, NL, NUL, TAB};
 use crate::mark::mark_get;
@@ -838,13 +838,7 @@ pub(super) static mut regstack: garray_T = garray_T {
     ga_growsize: 0,
     ga_data: ptr::null_mut(),
 };
-pub(super) static mut backpos: garray_T = garray_T {
-    ga_len: 0,
-    ga_maxlen: 0,
-    ga_itemsize: 0,
-    ga_growsize: 0,
-    ga_data: ptr::null_mut(),
-};
+static mut backpos: Vec<backpos_T> = Vec::new();
 pub(super) static mut behind_pos: regsave_T = unsafe { zeroed() };
 
 pub(super) static mut nfa_re_flags: c_int = 0;
@@ -3046,7 +3040,8 @@ pub unsafe fn vim_regfree(prog: *mut regprog_T) {
 pub unsafe fn free_regexp_stuff() {
     unsafe {
         ga_clear(&raw mut regstack);
-        ga_clear(&raw mut backpos);
+        let bp = &raw mut backpos;
+        *bp = Vec::new();
         xfree(reg_tofree.cast());
         xfree(reg_prev_sub.cast());
         xfree(post_start.cast());

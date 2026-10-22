@@ -185,8 +185,8 @@ use crate::path::{ENV_SEPCHAR, concat_fnames_realloc, to_slash_save, vim_FullNam
 use crate::plines::{getvvcol, win_chartabsize};
 use crate::popupmenu::{pum_set_event_info, pum_visible};
 use crate::profile::{
-    estack_T, funccall_T, profile_end, profile_msg, profile_setlimit, profile_signed,
-    profile_start, profile_sub, proftime_T,
+    funccall_T, profile_end, profile_msg, profile_setlimit, profile_signed, profile_start,
+    profile_sub, proftime_T,
 };
 use crate::regexp::{
     MAXCOL, NSUBEXP, NUMBUFLEN, RE_MAGIC, RE_STRING, reg_submatch, reg_submatch_list, regmatch_T,
@@ -7258,16 +7258,8 @@ pub unsafe fn f_rpcrequest(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
             save_funccal(&raw mut funccal_entry);
 
             current_sctx = provider_caller_scope.script_ctx;
-            ga_grow(&raw mut exestack, 1);
-            ptr::copy_nonoverlapping(
-                (&raw const provider_caller_scope.es_entry).cast::<estack_T>(),
-                exestack
-                    .ga_data
-                    .cast::<estack_T>()
-                    .add(exestack.ga_len as usize),
-                1,
-            );
-            exestack.ga_len += 1;
+            let es = &raw mut exestack;
+            (*es).push(provider_caller_scope.es_entry);
             autocmd_fname = provider_caller_scope.autocmd_fname;
             autocmd_match = provider_caller_scope.autocmd_match;
             autocmd_fname_full = provider_caller_scope.autocmd_fname_full;
@@ -7288,7 +7280,8 @@ pub unsafe fn f_rpcrequest(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
 
         if l_provider_call_nesting != 0 {
             current_sctx = save_current_sctx;
-            exestack.ga_len -= 1;
+            let es = &raw mut exestack;
+            (*es).pop();
             autocmd_fname = save_autocmd_fname;
             autocmd_match = save_autocmd_match;
             autocmd_fname_full = save_autocmd_fname_full;

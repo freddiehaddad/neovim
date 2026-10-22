@@ -2,7 +2,6 @@
 
 use crate::api::private::helpers::{
     HLF_E, HlMessageChunk, api_free_array, copy_string, cstr_as_string, cstr_to_string,
-    ga_take_string,
 };
 use crate::api::private::validate::{
     Array, Dict, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
@@ -172,13 +171,7 @@ static mut msg_ext_id: MsgID = Object {
     data: ObjectData { integer: 1 },
 };
 static mut msg_ext_chunks: *mut Array = ptr::null_mut();
-static mut msg_ext_last_chunk: garray_T = garray_T {
-    ga_len: 0,
-    ga_maxlen: 0,
-    ga_itemsize: 1,
-    ga_growsize: 40,
-    ga_data: ptr::null_mut(),
-};
+static mut msg_ext_last_chunk: Vec<c_char> = Vec::new();
 static mut msg_ext_last_attr: sattr_T = -1;
 static mut msg_ext_last_hl_id: c_int = 0;
 
@@ -392,7 +385,10 @@ use crate::keycodes::{k_second, k_third};
 
 #[inline]
 unsafe fn have_sourcing_info() -> bool {
-    unsafe { !exestack.ga_data.is_null() && exestack.ga_len > 0 }
+    unsafe {
+        let es = &raw const exestack;
+        !(*es).is_empty()
+    }
 }
 
 #[inline]
@@ -2935,7 +2931,12 @@ unsafe fn msg_ext_emit_chunk() {
             },
         });
         msg_ext_last_attr = -1;
-        let text = ga_take_string(&raw mut msg_ext_last_chunk);
+        let last_chunk = &raw mut msg_ext_last_chunk;
+        let text = NvimString {
+            data: xmemdupz((*last_chunk).as_ptr().cast(), (*last_chunk).len()).cast(),
+            size: (*last_chunk).len(),
+        };
+        *last_chunk = Vec::new();
         chunk.push(Object {
             obj_type: ObjectType::kObjectTypeString,
             data: ObjectData { string: text },
@@ -2975,7 +2976,10 @@ unsafe fn msg_puts_display(str_: *const c_char, maxlen: c_int, hl_id: c_int, rec
             } else {
                 xstrnlen(str_, maxlen as usize)
             };
-            ga_concat_len(&raw mut msg_ext_last_chunk, str_, len);
+            if len > 0 {
+                let last_chunk = &raw mut msg_ext_last_chunk;
+                (*last_chunk).extend_from_slice(std::slice::from_raw_parts(str_, len));
+            }
 
             let lastline = xmemrchr(str_.cast(), b'\n', len).cast::<c_char>();
             let p = if !lastline.is_null() {

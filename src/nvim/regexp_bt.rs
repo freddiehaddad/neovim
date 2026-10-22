@@ -110,7 +110,7 @@ struct regstar_T {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-struct backpos_T {
+pub(super) struct backpos_T {
     bp_scan: *mut u8,
     bp_pos: regsave_T,
 }
@@ -2154,7 +2154,7 @@ pub(super) unsafe fn bt_regfree(prog: *mut regprog_T) {
     }
 }
 
-unsafe fn reg_save(save: *mut regsave_T, gap: *mut garray_T) {
+unsafe fn reg_save(save: *mut regsave_T, bp: *const Vec<backpos_T>) {
     unsafe {
         if REG_MULTI() {
             (*save).rs_u.pos.col = rex.input.offset_from(rex.line) as colnr_T;
@@ -2162,11 +2162,11 @@ unsafe fn reg_save(save: *mut regsave_T, gap: *mut garray_T) {
         } else {
             (*save).rs_u.ptr = rex.input;
         }
-        (*save).rs_len = (*gap).ga_len;
+        (*save).rs_len = (*bp).len() as c_int;
     }
 }
 
-unsafe fn reg_restore(save: *mut regsave_T, gap: *mut garray_T) {
+unsafe fn reg_restore(save: *mut regsave_T, bp: *mut Vec<backpos_T>) {
     unsafe {
         if REG_MULTI() {
             if rex.lnum != (*save).rs_u.pos.lnum {
@@ -2177,7 +2177,7 @@ unsafe fn reg_restore(save: *mut regsave_T, gap: *mut garray_T) {
         } else {
             rex.input = (*save).rs_u.ptr;
         }
-        (*gap).ga_len = (*save).rs_len;
+        (*bp).truncate((*save).rs_len as usize);
     }
 }
 
@@ -2621,7 +2621,8 @@ unsafe fn regmatch(mut scan: *mut u8, tm: *const proftime_T, timed_out: *mut c_i
         let mut tm_count: c_int = 0;
 
         regstack.ga_len = 0;
-        backpos.ga_len = 0;
+        let bp = &raw mut backpos;
+        (*bp).clear();
 
         loop {
             reg_breakcheck();
@@ -3097,23 +3098,23 @@ unsafe fn regmatch(mut scan: *mut u8, tm: *const proftime_T, timed_out: *mut c_i
                         }
                         NOTHING => {}
                         BACK => {
-                            let mut i: c_int = 0;
-                            let mut bp = backpos.ga_data.cast::<backpos_T>();
-                            while i < backpos.ga_len {
-                                if (*bp.add(i as usize)).bp_scan == scan {
-                                    break;
+                            let bp = &raw mut backpos;
+                            let idx = if let Some(pos) = (*bp).iter().position(|item| item.bp_scan == scan) {
+                                if reg_save_equal(&raw const (*bp).as_slice()[pos].bp_pos) {
+                                    status = RA_NOMATCH;
                                 }
-                                i += 1;
-                            }
-                            if i == backpos.ga_len {
-                                let p = ga_append_via_ptr::<backpos_T>(&raw mut backpos);
-                                (*p).bp_scan = scan;
-                                bp = backpos.ga_data.cast::<backpos_T>();
-                            } else if reg_save_equal(&raw const (*bp.add(i as usize)).bp_pos) {
-                                status = RA_NOMATCH;
-                            }
+                                pos
+                            } else {
+                                let pos = (*bp).len();
+                                (*bp).push(backpos_T {
+                                    bp_scan: scan,
+                                    bp_pos: zeroed(),
+                                });
+                                pos
+                            };
                             if status != RA_NOMATCH {
-                                reg_save(&raw mut (*bp.add(i as usize)).bp_pos, &raw mut backpos);
+                                let pos_ptr = &raw mut (*bp).as_mut_slice()[idx].bp_pos;
+                                reg_save(pos_ptr, bp);
                             }
                         }
                         x if (MOPEN..=MOPEN + 9).contains(&x) => {
@@ -3870,14 +3871,9 @@ unsafe fn bt_regexec_both(
             ga_set_growsize(&raw mut regstack, REGSTACK_INITIAL * 8);
         }
 
-        if backpos.ga_data.is_null() {
-            ga_init(
-                &raw mut backpos,
-                size_of::<backpos_T>() as c_int,
-                BACKPOS_INITIAL,
-            );
-            ga_grow(&raw mut backpos, BACKPOS_INITIAL);
-            ga_set_growsize(&raw mut backpos, BACKPOS_INITIAL * 8);
+        let bp = &raw mut backpos;
+        if (*bp).capacity() == 0 {
+            (*bp).reserve(BACKPOS_INITIAL as usize);
         }
 
         let prog = if REG_MULTI() {
@@ -4025,8 +4021,9 @@ unsafe fn finish_bt_regexec(retval: c_int, col: colnr_T) -> c_int {
         if regstack.ga_maxlen > REGSTACK_INITIAL {
             ga_clear(&raw mut regstack);
         }
-        if backpos.ga_maxlen > BACKPOS_INITIAL {
-            ga_clear(&raw mut backpos);
+        let bp = &raw mut backpos;
+        if (*bp).capacity() > BACKPOS_INITIAL as usize {
+            *bp = Vec::new();
         }
 
         if retval > 0 {

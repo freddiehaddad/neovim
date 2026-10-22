@@ -195,22 +195,8 @@ struct SearchPathItem {
 type RuntimeSearchPath = KVec<SearchPathItem>;
 type CharVec = Vec<*mut c_char>;
 
-pub static mut exestack: garray_T = garray_T {
-    ga_len: 0,
-    ga_maxlen: 0,
-    ga_itemsize: std::mem::size_of::<estack_T>() as c_int,
-    ga_growsize: 50,
-    ga_data: ptr::null_mut(),
-};
-
-pub static mut script_items: garray_T = garray_T {
-    ga_len: 0,
-    ga_maxlen: 0,
-    ga_itemsize: std::mem::size_of::<*mut scriptitem_T>() as c_int,
-    ga_growsize: 20,
-    ga_data: ptr::null_mut(),
-};
-
+pub static mut exestack: Vec<estack_T> = Vec::new();
+pub static mut script_items: Vec<*mut scriptitem_T> = Vec::new();
 static mut ga_loaded: Vec<std::ffi::CString> = Vec::new();
 
 static mut last_current_SID_seq: c_int = 0;
@@ -251,35 +237,46 @@ use crate::viml::parser::parser::CONV_NONE;
 
 #[inline]
 pub unsafe fn script_item(id: scid_T) -> *mut scriptitem_T {
-    unsafe { *(script_items.ga_data as *mut *mut scriptitem_T).add((id - 1) as usize) }
+    unsafe {
+        let items = &raw const script_items;
+        (*items).as_slice()[(id - 1) as usize]
+    }
 }
 
 #[inline]
-unsafe fn set_script_item(id: scid_T, si: *mut scriptitem_T) {
+pub unsafe fn script_items_len() -> scid_T {
     unsafe {
-        *(script_items.ga_data as *mut *mut scriptitem_T).add((id - 1) as usize) = si;
+        let items = &raw const script_items;
+        (*items).len() as scid_T
     }
 }
 
 #[inline]
 pub unsafe fn script_id_valid(id: scid_T) -> bool {
-    unsafe { id > 0 && id <= script_items.ga_len }
+    unsafe { id > 0 && id <= script_items_len() }
 }
 
 #[inline]
 pub unsafe fn sourcing_name() -> *mut c_char {
-    unsafe { (*(exestack.ga_data as *const estack_T).add((exestack.ga_len - 1) as usize)).es_name }
+    unsafe {
+        let es = &raw const exestack;
+        (*es).last().unwrap().es_name
+    }
 }
 
 #[inline]
 pub unsafe fn sourcing_lnum() -> linenr_T {
-    unsafe { (*(exestack.ga_data as *const estack_T).add((exestack.ga_len - 1) as usize)).es_lnum }
+    unsafe {
+        let es = &raw const exestack;
+        (*es).last().unwrap().es_lnum
+    }
 }
 
 #[inline]
 pub unsafe fn set_sourcing_lnum(lnum: linenr_T) {
     unsafe {
-        (*(exestack.ga_data as *mut estack_T).add((exestack.ga_len - 1) as usize)).es_lnum = lnum;
+        let es = &raw mut exestack;
+        (*es).last_mut().unwrap().es_lnum = lnum;
     }
 }
 
@@ -314,27 +311,28 @@ unsafe fn map_put_string_int(map: *mut Map<NvimString, c_int>, key: NvimString, 
 /// Initialize the execution stack.
 pub unsafe fn estack_init() {
     unsafe {
-        ga_grow(&raw mut exestack, 10);
-        let entry = (exestack.ga_data as *mut estack_T).add(exestack.ga_len as usize);
-        (*entry).es_type = ETYPE_TOP;
-        (*entry).es_name = ptr::null_mut();
-        (*entry).es_lnum = 0;
-        (*entry).es_info = ptr::null_mut();
-        exestack.ga_len += 1;
+        let es = &raw mut exestack;
+        (*es).reserve(10);
+        (*es).push(estack_T {
+            es_type: ETYPE_TOP,
+            es_name: ptr::null_mut(),
+            es_lnum: 0,
+            es_info: ptr::null_mut(),
+        });
     }
 }
 
 /// Add an item to the execution stack.
 pub unsafe fn estack_push(type_: etype_T, name: *mut c_char, lnum: linenr_T) -> *mut estack_T {
     unsafe {
-        ga_grow(&raw mut exestack, 1);
-        let entry = (exestack.ga_data as *mut estack_T).add(exestack.ga_len as usize);
-        (*entry).es_type = type_;
-        (*entry).es_name = name;
-        (*entry).es_lnum = lnum;
-        (*entry).es_info = ptr::null_mut();
-        exestack.ga_len += 1;
-        entry
+        let es = &raw mut exestack;
+        (*es).push(estack_T {
+            es_type: type_,
+            es_name: name,
+            es_lnum: lnum,
+            es_info: ptr::null_mut(),
+        });
+        (*es).last_mut().map_or(ptr::null_mut(), ptr::from_mut)
     }
 }
 
@@ -356,8 +354,9 @@ pub unsafe fn estack_push_ufunc(ufunc: *mut ufunc_T, lnum: linenr_T) {
 /// Take an item off of the execution stack.
 pub unsafe fn estack_pop() {
     unsafe {
-        if exestack.ga_len > 1 {
-            exestack.ga_len -= 1;
+        let es = &raw mut exestack;
+        if (*es).len() > 1 {
+            (*es).pop();
         }
     }
 }
@@ -365,35 +364,31 @@ pub unsafe fn estack_pop() {
 /// Get the current value for <sfile> in allocated memory.
 pub unsafe fn estack_sfile(which: estack_arg_T) -> *mut c_char {
     unsafe {
-        let mut entry = (exestack.ga_data as *const estack_T).add((exestack.ga_len - 1) as usize);
-        if which == ESTACK_SFILE && (*entry).es_type != ETYPE_UFUNC {
-            return if !(*entry).es_name.is_null() {
-                xstrdup((*entry).es_name)
+        let es = &raw const exestack;
+        let last_entry = (*es).last().unwrap();
+        if which == ESTACK_SFILE && last_entry.es_type != ETYPE_UFUNC {
+            return if !last_entry.es_name.is_null() {
+                xstrdup(last_entry.es_name)
             } else {
                 ptr::null_mut()
             };
         }
 
         if which == ESTACK_SCRIPT {
-            let mut idx = exestack.ga_len - 1;
-            while idx >= 0 {
-                if (*entry).es_type == ETYPE_UFUNC || (*entry).es_type == ETYPE_AUCMD {
-                    let def_ctx = if (*entry).es_type == ETYPE_UFUNC {
-                        &(*(*entry).es_info.cast::<ufunc_T>()).uf_script_ctx
+            for entry in (*es).iter().rev() {
+                if entry.es_type == ETYPE_UFUNC || entry.es_type == ETYPE_AUCMD {
+                    let def_ctx = if entry.es_type == ETYPE_UFUNC {
+                        &(*entry.es_info.cast::<ufunc_T>()).uf_script_ctx
                     } else {
-                        &(*(*entry).es_info.cast::<AutoPatCmd>()).script_ctx
+                        &(*entry.es_info.cast::<AutoPatCmd>()).script_ctx
                     };
                     return if def_ctx.sc_sid > 0 {
                         xstrdup((*script_item(def_ctx.sc_sid)).sn_name)
                     } else {
                         ptr::null_mut()
                     };
-                } else if (*entry).es_type == ETYPE_SCRIPT {
-                    return xstrdup((*entry).es_name);
-                }
-                idx -= 1;
-                if idx >= 0 {
-                    entry = entry.sub(1);
+                } else if entry.es_type == ETYPE_SCRIPT {
+                    return xstrdup(entry.es_name);
                 }
             }
             return ptr::null_mut();
@@ -402,27 +397,27 @@ pub unsafe fn estack_sfile(which: estack_arg_T) -> *mut c_char {
         let mut ga: garray_T = std::mem::zeroed();
         ga_init(&mut ga, 1, 100);
         let mut last_type = ETYPE_SCRIPT;
-        for idx in 0..exestack.ga_len {
-            entry = (exestack.ga_data as *const estack_T).add(idx as usize);
-            if !(*entry).es_name.is_null() {
+        let es_len = (*es).len();
+        for (idx, entry) in (*es).iter().enumerate() {
+            if !entry.es_name.is_null() {
                 let mut type_name = static_cstr_as_string(c"");
-                let es_name = cstr_as_string((*entry).es_name);
-                if (*entry).es_type != last_type {
-                    match (*entry).es_type {
+                let es_name = cstr_as_string(entry.es_name);
+                if entry.es_type != last_type {
+                    match entry.es_type {
                         ETYPE_SCRIPT => type_name = static_cstr_as_string(c"script "),
                         ETYPE_UFUNC => type_name = static_cstr_as_string(c"function "),
                         _ => {}
                     }
-                    last_type = (*entry).es_type;
+                    last_type = entry.es_type;
                 }
-                let lnum = if idx == exestack.ga_len - 1 {
+                let lnum = if idx == es_len - 1 {
                     if which == ESTACK_STACK {
                         sourcing_lnum()
                     } else {
                         0
                     }
                 } else {
-                    (*entry).es_lnum
+                    entry.es_lnum
                 };
 
                 let len = es_name.size + type_name.size + 26;
@@ -437,7 +432,7 @@ pub unsafe fn estack_sfile(which: estack_arg_T) -> *mut c_char {
                         lnum,
                     ) as c_int;
                 }
-                if idx != exestack.ga_len - 1 {
+                if idx != es_len - 1 {
                     ga_concat_len(&mut ga, c"..".as_ptr(), 2);
                 }
             }
@@ -483,10 +478,10 @@ unsafe fn stacktrace_push_item(
 /// Create the stacktrace from exestack.
 pub unsafe fn stacktrace_create() -> *mut list_T {
     unsafe {
-        let l = tv_list_alloc(exestack.ga_len as isize);
+        let es = &raw const exestack;
+        let l = tv_list_alloc((*es).len() as isize);
 
-        for i in 0..exestack.ga_len {
-            let entry = &*(exestack.ga_data as *const estack_T).add(i as usize);
+        for entry in &*es {
             let mut lnum = entry.es_lnum;
 
             if entry.es_type == ETYPE_SCRIPT {
@@ -2735,14 +2730,14 @@ pub unsafe fn new_script_item(name: *mut c_char, sid_out: *mut scid_T) -> *mut s
         if !sid_out.is_null() {
             *sid_out = sid;
         }
-        ga_grow(&raw mut script_items, sid - script_items.ga_len);
-        while script_items.ga_len < sid {
+        let items = &raw mut script_items;
+        while ((*items).len() as scid_T) < sid {
             let si = xcalloc(1, std::mem::size_of::<scriptitem_T>()).cast::<scriptitem_T>();
-            script_items.ga_len += 1;
-            set_script_item(script_items.ga_len, si);
+            (*items).push(si);
+            let cur_sid = (*items).len() as scid_T;
             (*si).sn_name = ptr::null_mut();
 
-            new_script_vars(script_items.ga_len);
+            new_script_vars(cur_sid);
 
             (*si).sn_prof_on = false;
         }
@@ -3258,8 +3253,7 @@ pub unsafe fn script_is_lua(sid: scid_T) -> bool {
 /// Find an already loaded script "name".
 pub unsafe fn find_script_by_name(name: *mut c_char) -> c_int {
     unsafe {
-        debug_assert!(script_items.ga_len >= 0);
-        let mut sid = script_items.ga_len;
+        let mut sid = script_items_len();
         while sid > 0 {
             let si = script_item(sid);
             if !(*si).sn_name.is_null() && path_equal((*si).sn_name, name, kPathCmpLiteral) {
@@ -3294,7 +3288,7 @@ pub unsafe fn ex_scriptnames(eap: *mut exarg_T) {
 
         msg_ext_set_kind(c"list_cmd".as_ptr());
         let mut i = 1;
-        while i <= script_items.ga_len && !got_int {
+        while i <= script_items_len() && !got_int {
             let si = script_item(i);
             if !(*si).sn_name.is_null() {
                 home_replace(ptr::null_mut(), (*si).sn_name, namebuff, MAXPATHL, true);
@@ -3364,14 +3358,14 @@ pub unsafe fn free_scriptnames() {
     unsafe {
         profile_reset();
 
-        for i in 1..=script_items.ga_len {
-            let si = script_item(i);
+        let items = &raw mut script_items;
+        for si in (*items).drain(..) {
             xfree((*si).sn_vars);
             xfree((*si).sn_name.cast::<c_void>());
             ga_clear(&mut (*si).sn_prl_ga);
             xfree(si.cast::<c_void>());
         }
-        ga_clear(&raw mut script_items);
+        *items = Vec::new();
     }
 }
 
@@ -3429,7 +3423,7 @@ unsafe fn get_script_local_funcs(sid: scid_T) -> *mut list_T {
 /// "getscriptinfo()" function
 pub unsafe fn f_getscriptinfo(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        tv_list_alloc_ret(rettv, script_items.ga_len as isize);
+        tv_list_alloc_ret(rettv, script_items_len() as isize);
 
         if tv_check_for_opt_dict_arg(argvars, 0) == FAIL {
             return;
@@ -3472,7 +3466,7 @@ pub unsafe fn f_getscriptinfo(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
         }
 
         let mut i = if sid > 0 { sid } else { 1 };
-        while (i == sid || sid <= 0) && i <= varnumber_T::from(script_items.ga_len) {
+        while (i == sid || sid <= 0) && i <= varnumber_T::from(script_items_len()) {
             let si = script_item(i as scid_T);
 
             if !(*si).sn_name.is_null()

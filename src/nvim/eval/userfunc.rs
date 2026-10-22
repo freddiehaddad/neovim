@@ -81,7 +81,7 @@ use crate::regexp::{
 };
 use crate::runtime::{
     autoload_name, estack_pop, estack_push_ufunc, exestack, get_sourced_lnum, script_autoload,
-    script_items, set_sourcing_lnum, sourcing_lnum, sourcing_name,
+    set_sourcing_lnum, sourcing_lnum, sourcing_name,
 };
 use crate::search::{restore_search_patterns, save_search_patterns};
 use crate::strings::{
@@ -1435,7 +1435,8 @@ pub unsafe fn call_user_func(
         }
 
         estack_push_ufunc(fp, 1);
-        let estack_len_before = exestack.ga_len;
+        let es = &raw const exestack;
+        let estack_len_before = (*es).len() as c_int;
         if p_verbose >= 12 {
             no_wait_return += 1;
             verbose_enter_scroll();
@@ -2489,7 +2490,7 @@ pub unsafe fn get_scriptlocal_funcname(funcname: *mut c_char) -> *mut c_char {
             return ptr::null_mut();
         }
 
-        if !(current_sctx.sc_sid > 0 && current_sctx.sc_sid <= script_items.ga_len) {
+        if !crate::runtime::script_id_valid(current_sctx.sc_sid) {
             emsg(gettext(e_usingsid.as_ptr()));
             return ptr::null_mut();
         }

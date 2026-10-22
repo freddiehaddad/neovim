@@ -195,8 +195,8 @@ use crate::path::{
 use crate::plines::plines_m_win_fill;
 use crate::popupmenu::pum_make_popup;
 use crate::profile::{
-    estack_T, ex_profile, func_line_end, func_line_exec, func_line_start, script_line_end,
-    script_line_exec, script_line_start,
+    ex_profile, func_line_end, func_line_exec, func_line_start, script_line_end, script_line_exec,
+    script_line_start,
 };
 use crate::quickfix::{
     ex_cbelow, ex_cbottom, ex_cbuffer, ex_cc, ex_cclose, ex_cexpr, ex_cfile, ex_cnext, ex_copen,
@@ -4728,16 +4728,16 @@ fn line_getter_eq(a: LineGetter, b: LineGetter) -> bool {
 #[inline]
 unsafe fn sourcing_name_ptr() -> *mut *mut c_char {
     unsafe {
-        let data = exestack.ga_data.cast::<estack_T>();
-        &raw mut (*data.add((exestack.ga_len - 1) as usize)).es_name
+        let es = &raw mut exestack;
+        &raw mut (*es).last_mut().unwrap().es_name
     }
 }
 
 #[inline]
 unsafe fn sourcing_lnum_ptr() -> *mut linenr_T {
     unsafe {
-        let data = exestack.ga_data.cast::<estack_T>();
-        &raw mut (*data.add((exestack.ga_len - 1) as usize)).es_lnum
+        let es = &raw mut exestack;
+        &raw mut (*es).last_mut().unwrap().es_lnum
     }
 }
 

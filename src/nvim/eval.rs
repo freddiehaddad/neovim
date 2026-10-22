@@ -311,18 +311,9 @@ pub struct TimerTail {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct EstackEntryCopy {
-    pub es_lnum: i32,
-    pub es_name: *mut c_char,
-    pub es_type: c_int,
-    pub es_info: *mut c_void,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
 pub struct caller_scope {
     pub script_ctx: sctx_T,
-    pub es_entry: EstackEntryCopy,
+    pub es_entry: crate::profile::estack_T,
     pub autocmd_fname: *mut c_char,
     pub autocmd_match: *mut c_char,
     pub autocmd_fname_full: bool,
@@ -4487,17 +4478,10 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
             garbage_collect_at_exit = false;
         }
 
-        if exestack.ga_maxlen - exestack.ga_len > 500 {
-            let mut n = exestack.ga_len / 2;
-            if n < exestack.ga_growsize {
-                n = exestack.ga_growsize;
-            }
-            if exestack.ga_len + n < exestack.ga_maxlen {
-                let new_len = (exestack.ga_itemsize as usize) * ((exestack.ga_len + n) as usize);
-                let pp = xrealloc(exestack.ga_data, new_len);
-                exestack.ga_maxlen = exestack.ga_len + n;
-                exestack.ga_data = pp;
-            }
+        let es = &raw mut exestack;
+        if (*es).capacity() - (*es).len() > 500 {
+            let keep = (*es).len() + ((*es).len() / 2).max(50);
+            (*es).shrink_to(keep);
         }
 
         let copyID = get_copyID();
@@ -7348,13 +7332,10 @@ pub unsafe fn eval_call_provider(
 
         let saved_provider_caller_scope = provider_caller_scope;
         {
-            let es_ptr = exestack
-                .ga_data
-                .cast::<EstackEntryCopy>()
-                .add((exestack.ga_len - 1) as usize);
+            let es = &raw const exestack;
             provider_caller_scope = caller_scope {
                 script_ctx: current_sctx,
-                es_entry: *es_ptr,
+                es_entry: *(*es).last().unwrap(),
                 autocmd_fname,
                 autocmd_match,
                 autocmd_fname_full,

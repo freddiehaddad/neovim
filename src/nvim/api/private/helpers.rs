@@ -19,7 +19,6 @@ use crate::ex_eval::{
     ET_ERROR, discard_current_exception, except_T, free_global_msglist, get_exception_string,
     msglist_T,
 };
-use crate::garray::garray_T;
 use crate::globals::*;
 use crate::highlight_group::{highlight_num_groups, syn_check_group, syn_id2name};
 use crate::lua::converter::{Boolean, FieldHashfn, Float, KeySetLink, LuaRef, OptKeySet};
@@ -724,19 +723,6 @@ pub unsafe fn cstr_as_string(str_: *const c_char) -> NvimString {
             data: str_.cast_mut(),
             size: CStr::from_ptr(str_).to_bytes().len(),
         }
-    }
-}
-
-pub unsafe fn ga_take_string(ga: *mut garray_T) -> NvimString {
-    unsafe {
-        let str_ = NvimString {
-            data: (*ga).ga_data.cast(),
-            size: (*ga).ga_len as usize,
-        };
-        (*ga).ga_data = ptr::null_mut();
-        (*ga).ga_len = 0;
-        (*ga).ga_maxlen = 0;
-        str_
     }
 }
 
