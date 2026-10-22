@@ -2,8 +2,6 @@
 //!
 //! Ported from `src/nvim/sha256.c` and `src/nvim/sha256.h`.
 
-use std::ffi::c_char;
-
 pub const SHA256_BUFFER_SIZE: usize = 64;
 pub const SHA256_SUM_SIZE: usize = 32;
 
@@ -257,7 +255,6 @@ pub fn digest_to_hex(digest: &[u8; SHA256_SUM_SIZE]) -> [u8; SHA256_BUFFER_SIZE]
     out
 }
 
-#[cfg(test)]
 pub fn sha256_hex(buf: &[u8], salt: Option<&[u8]>) -> [u8; SHA256_BUFFER_SIZE] {
     let mut ctx = context_sha256_T::new();
     ctx.update(buf);
@@ -268,155 +265,44 @@ pub fn sha256_hex(buf: &[u8], salt: Option<&[u8]>) -> [u8; SHA256_BUFFER_SIZE] {
     digest_to_hex(&digest)
 }
 
-static mut HEXIT: [u8; SHA256_BUFFER_SIZE + 1] = [0u8; SHA256_BUFFER_SIZE + 1];
-static mut SELF_TESTED: bool = false;
-static mut SELF_TEST_FAILURES: bool = false;
-
+#[cfg(test)]
 const SELF_TEST_MSG: [&[u8]; 2] = [
     b"abc",
     b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq",
 ];
 
+#[cfg(test)]
 const SELF_TEST_VECTOR: [&[u8; SHA256_BUFFER_SIZE]; 3] = [
     b"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
     b"248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1",
     b"cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0",
 ];
 
-/// Initialize a SHA-256 context (`sha256_start`).
-///
-/// # Safety
-/// `ctx` must be null or point to writable memory for `context_sha256_T`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn sha256_start(ctx: *mut context_sha256_T) {
-    if ctx.is_null() {
-        return;
-    }
-    // Use `ptr::write` because C callers pass an uninitialized stack `context_sha256_T`.
-    unsafe {
-        ctx.write(context_sha256_T::new());
-    }
-}
-
-/// Feed `input[..length]` into the SHA-256 context (`sha256_update`).
-///
-/// # Safety
-/// `ctx` must point to an initialized `context_sha256_T`, and `input` must be valid for `length`
-/// bytes when `length > 0`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn sha256_update(
-    ctx: *mut context_sha256_T,
-    input: *const u8,
-    length: usize,
-) {
-    if ctx.is_null() || length == 0 || input.is_null() {
-        return;
-    }
-    let slice = unsafe { std::slice::from_raw_parts(input, length) };
-    let ctx_ref = unsafe { &mut *ctx };
-    ctx_ref.update(slice);
-}
-
-/// Finalize the SHA-256 context and write the 32-byte digest (`sha256_finish`).
-///
-/// # Safety
-/// `ctx` must point to an initialized `context_sha256_T`, and `digest` must point to at least
-/// `SHA256_SUM_SIZE` (32) writable bytes.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn sha256_finish(ctx: *mut context_sha256_T, digest: *mut u8) {
-    if ctx.is_null() || digest.is_null() {
-        return;
-    }
-    let ctx_ref = unsafe { &mut *ctx };
-    let digest_arr = unsafe { &mut *(digest as *mut [u8; SHA256_SUM_SIZE]) };
-    ctx_ref.finish_into(digest_arr);
-}
-
 /// Perform the FIPS-180-2 self-test (`sha256_self_test`).
-#[unsafe(no_mangle)]
-pub extern "C" fn sha256_self_test() -> bool {
-    unsafe {
-        if SELF_TESTED {
-            return !SELF_TEST_FAILURES;
-        }
-        SELF_TESTED = true;
-    }
-
-    let mut failures = false;
-
+#[cfg(test)]
+pub fn sha256_self_test() -> bool {
     for i in 0..3 {
         let output: [u8; SHA256_BUFFER_SIZE] = if i < 2 {
-            let msg = SELF_TEST_MSG[i];
-            let hex_ptr = unsafe { sha256_bytes(msg.as_ptr(), msg.len(), std::ptr::null(), 0) };
-            let hex_slice =
-                unsafe { std::slice::from_raw_parts(hex_ptr.cast::<u8>(), SHA256_BUFFER_SIZE) };
-            let mut arr = [0u8; SHA256_BUFFER_SIZE];
-            arr.copy_from_slice(hex_slice);
-            arr
+            sha256_hex(SELF_TEST_MSG[i], None)
         } else {
             let mut ctx = context_sha256_T::new();
             let buf = [b'a'; 1000];
             for _ in 0..1000 {
                 ctx.update(&buf);
             }
-            let sha256sum = ctx.finish();
-            digest_to_hex(&sha256sum)
+            digest_to_hex(&ctx.finish())
         };
 
         if &output != SELF_TEST_VECTOR[i] {
-            failures = true;
+            return false;
         }
     }
-
-    unsafe {
-        SELF_TEST_FAILURES = failures;
-    }
-    !failures
-}
-
-/// Gets the hex digest of `buf[..buf_len]` (and optional `salt[..salt_len]`) in a static buffer.
-///
-/// # Safety
-/// `buf` must be valid for `buf_len` bytes when `buf_len > 0`, and if `salt` is non-null it must
-/// be valid for `salt_len` bytes.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn sha256_bytes(
-    buf: *const u8,
-    buf_len: usize,
-    salt: *const u8,
-    salt_len: usize,
-) -> *const c_char {
-    sha256_self_test();
-
-    let mut ctx = context_sha256_T::new();
-    if buf_len > 0 && !buf.is_null() {
-        let buf_slice = unsafe { std::slice::from_raw_parts(buf, buf_len) };
-        ctx.update(buf_slice);
-    }
-    if !salt.is_null() && salt_len > 0 {
-        let salt_slice = unsafe { std::slice::from_raw_parts(salt, salt_len) };
-        ctx.update(salt_slice);
-    }
-
-    let sha256sum = ctx.finish();
-    let hex = digest_to_hex(&sha256sum);
-
-    unsafe {
-        let out_ptr = &raw mut HEXIT;
-        let out = &mut *out_ptr;
-        out[..SHA256_BUFFER_SIZE].copy_from_slice(&hex);
-        out[SHA256_BUFFER_SIZE] = 0;
-        out.as_ptr().cast::<c_char>()
-    }
+    true
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::ffi::CStr;
-    use std::sync::Mutex;
-
-    static HEX_BUF_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn context_layout_matches_c() {
@@ -427,40 +313,35 @@ mod tests {
     #[test]
     fn fips_180_2_self_test_passes() {
         assert!(sha256_self_test());
-        // Second call hits cached fast path.
-        assert!(sha256_self_test());
     }
 
     #[test]
     fn test_vectors_match_legacy_090_sha256_spec() {
-        let cases: &[(&[u8], &str)] = &[
+        let cases: &[(&[u8], &[u8; SHA256_BUFFER_SIZE])] = &[
             (
                 b"",
-                "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                b"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
             ),
             (
                 b"a",
-                "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
+                b"ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
             ),
             (
                 b"abc",
-                "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+                b"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
             ),
             (
                 b"foo\nbar",
-                "807eff6267f3f926a21d234f7b0cf867a86f47e07a532f15e8cc39ed110ca776",
+                b"807eff6267f3f926a21d234f7b0cf867a86f47e07a532f15e8cc39ed110ca776",
             ),
             (
                 b"\xde\xad\xbe\xef",
-                "5f78c33274e43fa9de5659265c1d917e25c03722dcb0b8d27db8d5feaa813953",
+                b"5f78c33274e43fa9de5659265c1d917e25c03722dcb0b8d27db8d5feaa813953",
             ),
         ];
 
         for &(input, expected) in cases {
-            let _guard = HEX_BUF_LOCK.lock().unwrap();
-            let ptr = unsafe { sha256_bytes(input.as_ptr(), input.len(), std::ptr::null(), 0) };
-            let got = unsafe { CStr::from_ptr(ptr) }.to_str().unwrap();
-            assert_eq!(got, expected);
+            assert_eq!(&sha256_hex(input, None), expected);
         }
     }
 
@@ -471,33 +352,21 @@ mod tests {
 
         let combined: Vec<u8> = [data.as_slice(), salt.as_slice()].concat();
         let expected_hex = sha256_hex(&combined, None);
+        assert_eq!(sha256_hex(data, Some(salt)), expected_hex);
 
-        {
-            let _guard = HEX_BUF_LOCK.lock().unwrap();
-            let salted_ptr =
-                unsafe { sha256_bytes(data.as_ptr(), data.len(), salt.as_ptr(), salt.len()) };
-            let salted_str = unsafe { CStr::from_ptr(salted_ptr) }.to_bytes();
-            assert_eq!(salted_str, &expected_hex);
-        }
-
-        // Verify byte-by-byte and irregular chunk updates produce identical digest.
         for chunk_size in [1, 2, 3, 7, 13, 31, 55, 56, 63, 64, 65] {
-            let mut ctx = std::mem::MaybeUninit::<context_sha256_T>::uninit();
-            unsafe {
-                sha256_start(ctx.as_mut_ptr());
-                for chunk in combined.chunks(chunk_size) {
-                    sha256_update(ctx.as_mut_ptr(), chunk.as_ptr(), chunk.len());
-                }
-                let mut digest = [0u8; SHA256_SUM_SIZE];
-                sha256_finish(ctx.as_mut_ptr(), digest.as_mut_ptr());
-                assert_eq!(digest_to_hex(&digest), expected_hex);
+            let mut ctx = context_sha256_T::new();
+            for chunk in combined.chunks(chunk_size) {
+                ctx.update(chunk);
             }
+            let mut digest = [0u8; SHA256_SUM_SIZE];
+            ctx.finish_into(&mut digest);
+            assert_eq!(digest_to_hex(&digest), expected_hex);
         }
     }
 
     #[test]
     fn test_padding_boundary_lengths() {
-        // Specifically exercise last < 56, last == 55, last == 56, last == 63, last == 64.
         for len in [0usize, 1, 54, 55, 56, 57, 63, 64, 65, 119, 120, 121, 128] {
             let input: Vec<u8> = (0..len).map(|i| (i & 0xFF) as u8).collect();
             let one_shot = sha256_hex(&input, None);

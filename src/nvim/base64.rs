@@ -1,9 +1,5 @@
 //! Base64 encoding and decoding (`src/nvim/base64.c`).
 
-use std::ffi::c_char;
-
-use crate::memory::xmalloc;
-
 const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 /// 1-based lookup table (0 indicates a byte not in the Base64 alphabet).
@@ -109,117 +105,32 @@ pub fn decode_bytes(src: &[u8]) -> Option<Vec<u8>> {
     Some(dest)
 }
 
-/// Encode a byte buffer using Base64 (`base64_encode`).
-///
-/// Returns a NUL-terminated buffer allocated with `xmalloc`.
-///
-/// # Safety
-/// `src` must be non-null and valid for `src_len` bytes when `src_len > 0`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn base64_encode(src: *const c_char, src_len: usize) -> *mut c_char {
-    assert!(!src.is_null());
-    let src_slice = if src_len == 0 {
-        &[]
-    } else {
-        unsafe { std::slice::from_raw_parts(src.cast::<u8>(), src_len) }
-    };
-
-    let encoded = encode_bytes(src_slice);
-    let out_len = encoded.len();
-    let dest = unsafe { xmalloc(out_len + 1).cast::<u8>() };
-    unsafe {
-        if out_len > 0 {
-            std::ptr::copy_nonoverlapping(encoded.as_ptr(), dest, out_len);
-        }
-        *dest.add(out_len) = 0;
-    }
-    dest.cast::<c_char>()
-}
-
-/// Decode a Base64-encoded buffer (`base64_decode`).
-///
-/// The returned buffer is NOT NUL-terminated and is allocated with `xmalloc`.
-/// On invalid input, sets `*out_lenp = 0` and returns null.
-///
-/// # Safety
-/// `src` must be non-null and valid for `src_len` bytes when `src_len > 0`.
-/// `out_lenp` must be a valid writable pointer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn base64_decode(
-    src: *const c_char,
-    src_len: usize,
-    out_lenp: *mut usize,
-) -> *mut c_char {
-    assert!(!src.is_null());
-    assert!(!out_lenp.is_null());
-
-    let src_slice = if src_len == 0 {
-        &[]
-    } else {
-        unsafe { std::slice::from_raw_parts(src.cast::<u8>(), src_len) }
-    };
-
-    let Some(decoded) = decode_bytes(src_slice) else {
-        unsafe {
-            *out_lenp = 0;
-        }
-        return std::ptr::null_mut();
-    };
-
-    let out_len = decoded.len();
-    let dest = unsafe { xmalloc(out_len).cast::<u8>() };
-    unsafe {
-        if out_len > 0 {
-            std::ptr::copy_nonoverlapping(decoded.as_ptr(), dest, out_len);
-        }
-        *out_lenp = out_len;
-    }
-    dest.cast::<c_char>()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::memory::xfree;
-    use std::ffi::{CStr, c_void};
 
     #[test]
     fn rfc4648_vectors() {
-        let vectors: &[(&[u8], &str)] = &[
-            (b"", ""),
-            (b"f", "Zg=="),
-            (b"fo", "Zm8="),
-            (b"foo", "Zm9v"),
-            (b"foob", "Zm9vYg=="),
-            (b"fooba", "Zm9vYmE="),
-            (b"foobar", "Zm9vYmFy"),
+        let vectors: &[(&[u8], &[u8])] = &[
+            (b"", b""),
+            (b"f", b"Zg=="),
+            (b"fo", b"Zm8="),
+            (b"foo", b"Zm9v"),
+            (b"foob", b"Zm9vYg=="),
+            (b"fooba", b"Zm9vYmE="),
+            (b"foobar", b"Zm9vYmFy"),
+            (b"Hello\0world", b"SGVsbG8Ad29ybGQ="),
             (
                 b"The quick brown fox jumps over the lazy dog\n",
-                "VGhlIHF1aWNrIGJyb3duIGZveCBqdW1wcyBvdmVyIHRoZSBsYXp5IGRvZwo=",
+                b"VGhlIHF1aWNrIGJyb3duIGZveCBqdW1wcyBvdmVyIHRoZSBsYXp5IGRvZwo=",
             ),
         ];
 
         for &(input, expected) in vectors {
-            unsafe {
-                let enc_ptr = base64_encode(input.as_ptr().cast::<c_char>(), input.len());
-                assert!(!enc_ptr.is_null());
-                let enc_str = CStr::from_ptr(enc_ptr).to_str().unwrap();
-                assert_eq!(enc_str, expected);
-
-                let mut out_len = usize::MAX;
-                let dec_ptr = base64_decode(
-                    expected.as_ptr().cast::<c_char>(),
-                    expected.len(),
-                    &mut out_len,
-                );
-                assert!(!dec_ptr.is_null());
-                assert_eq!(out_len, input.len());
-                let dec_slice = std::slice::from_raw_parts(dec_ptr.cast::<u8>(), out_len);
-                assert_eq!(dec_slice, input);
-
-                xfree(enc_ptr.cast::<c_void>());
-                xfree(dec_ptr.cast::<c_void>());
-            }
+            let enc = encode_bytes(input);
+            assert_eq!(enc.as_slice(), expected);
+            let dec = decode_bytes(expected).unwrap();
+            assert_eq!(dec.as_slice(), input);
         }
     }
 
@@ -261,12 +172,11 @@ mod tests {
         ];
 
         for s in invalid {
-            unsafe {
-                let mut out_len = 123usize;
-                let ptr = base64_decode(s.as_ptr().cast::<c_char>(), s.len(), &mut out_len);
-                assert!(ptr.is_null(), "expected null for invalid input {s:?}");
-                assert_eq!(out_len, 0);
-            }
+            assert_eq!(
+                decode_bytes(s.as_bytes()),
+                None,
+                "expected None for invalid input {s:?}"
+            );
         }
     }
 }

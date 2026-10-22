@@ -67,7 +67,7 @@ use crate::os::fs::{
 use crate::os::input::fast_breakcheck;
 use crate::os::time::{Timestamp, Tm, os_localtime_r, os_time, strftime, time_t};
 use crate::path::{FullName_save, concat_fnames, path_tail, vim_ispathsep, vim_ispathsep_nocolon};
-use crate::sha256::{context_sha256_T, sha256_finish, sha256_start, sha256_update};
+use crate::sha256::context_sha256_T;
 use crate::spell::spell_check_window;
 use crate::state::virtual_active;
 use crate::strings::{
@@ -520,13 +520,12 @@ unsafe fn u_entry_resized(buf: *mut buf_T, uep: *mut u_entry_T) -> bool {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn u_compute_hash(buf: *mut buf_T, hash: *mut u8) {
     unsafe {
-        let mut ctx = context_sha256_T::default();
-        sha256_start(&raw mut ctx);
+        let mut ctx = context_sha256_T::new();
         for lnum in 1..=(*buf).b_ml.ml_line_count {
             let p = ml_get_buf(buf, lnum);
-            sha256_update(&raw mut ctx, p.cast::<u8>(), strlen(p) + 1);
+            ctx.update(std::slice::from_raw_parts(p.cast::<u8>(), strlen(p) + 1));
         }
-        sha256_finish(&raw mut ctx, hash);
+        ctx.finish_into(&mut *(hash as *mut [u8; UNDO_HASH_SIZE]));
     }
 }
 

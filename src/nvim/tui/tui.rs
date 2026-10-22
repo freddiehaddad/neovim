@@ -332,7 +332,7 @@ pub unsafe fn tui_start(
         (*tui).attrs.push(HLATTRS_INIT);
 
         (*input_prefix(tui_input(tui))).tk_ti_hook_fn = Some(tui_tk_ti_getstr);
-        ugrid_init(&raw mut (*tui).grid);
+        ugrid_init(&mut (*tui).grid);
         tui_terminal_start(tui);
 
         let timer = tui_startup_delay_timer(tui);
@@ -1190,7 +1190,7 @@ pub unsafe fn tui_is_stopped(tui: *mut TUIData) -> bool {
 
 pub unsafe fn tui_free_all_mem(tui: *mut TUIData) {
     unsafe {
-        ugrid_free(&raw mut (*tui).grid);
+        ugrid_free(&mut (*tui).grid);
         (*tui).invalid_regions.destroy();
 
         for i in 0..urls.h.n_keys as usize {
@@ -1545,7 +1545,7 @@ unsafe fn cursor_goto(tui: *mut TUIData, row: c_int, col: c_int) {
 
         if row == 0 && col == 0 {
             terminfo_out(tui, kTerm_cursor_home);
-            ugrid_goto(&raw mut (*tui).grid, row, col);
+            ugrid_goto(&mut (*tui).grid, row, col);
             return;
         }
         if (*tui).grid.row >= 0 {
@@ -1563,7 +1563,7 @@ unsafe fn cursor_goto(tui: *mut TUIData, row: c_int, col: c_int) {
             if do_cr {
                 terminfo_out(tui, kTerm_carriage_return);
                 let cur_row = (*tui).grid.row;
-                ugrid_goto(&raw mut (*tui).grid, cur_row, 0);
+                ugrid_goto(&mut (*tui).grid, cur_row, 0);
             }
             if row == (*tui).grid.row {
                 if col < (*tui).grid.col
@@ -1577,7 +1577,7 @@ unsafe fn cursor_goto(tui: *mut TUIData, row: c_int, col: c_int) {
                     } else {
                         terminfo_print_num1(tui, kTerm_parm_left_cursor, n);
                     }
-                    ugrid_goto(&raw mut (*tui).grid, row, col);
+                    ugrid_goto(&mut (*tui).grid, row, col);
                     return;
                 } else if col > (*tui).grid.col {
                     let n = col - (*tui).grid.col;
@@ -1588,7 +1588,7 @@ unsafe fn cursor_goto(tui: *mut TUIData, row: c_int, col: c_int) {
                     } else {
                         terminfo_print_num1(tui, kTerm_parm_right_cursor, n);
                     }
-                    ugrid_goto(&raw mut (*tui).grid, row, col);
+                    ugrid_goto(&mut (*tui).grid, row, col);
                     return;
                 }
             }
@@ -1602,7 +1602,7 @@ unsafe fn cursor_goto(tui: *mut TUIData, row: c_int, col: c_int) {
                     } else {
                         terminfo_print_num1(tui, kTerm_parm_down_cursor, n);
                     }
-                    ugrid_goto(&raw mut (*tui).grid, row, col);
+                    ugrid_goto(&mut (*tui).grid, row, col);
                     return;
                 } else if row < (*tui).grid.row {
                     let n = (*tui).grid.row - row;
@@ -1613,14 +1613,14 @@ unsafe fn cursor_goto(tui: *mut TUIData, row: c_int, col: c_int) {
                     } else {
                         terminfo_print_num1(tui, kTerm_parm_up_cursor, n);
                     }
-                    ugrid_goto(&raw mut (*tui).grid, row, col);
+                    ugrid_goto(&mut (*tui).grid, row, col);
                     return;
                 }
             }
         }
 
         terminfo_print_num2(tui, kTerm_cursor_address, row, col);
-        ugrid_goto(&raw mut (*tui).grid, row, col);
+        ugrid_goto(&mut (*tui).grid, row, col);
     }
 }
 
@@ -1696,7 +1696,7 @@ unsafe fn clear_region(
         if (*tui).can_clear_attr && left == 0 && right == (*tui).width && bot == (*tui).height {
             if top == 0 {
                 terminfo_out(tui, kTerm_clear_screen);
-                ugrid_goto(&raw mut (*tui).grid, top, left);
+                ugrid_goto(&mut (*tui).grid, top, left);
             } else {
                 cursor_goto(tui, top, 0);
                 terminfo_out(tui, kTerm_clr_eos);
@@ -1745,7 +1745,7 @@ unsafe fn reset_scroll_region(tui: *mut TUIData, fullwidth: bool) {
 
 pub unsafe fn tui_grid_resize(tui: *mut TUIData, _g: Integer, width: Integer, height: Integer) {
     unsafe {
-        ugrid_resize(&raw mut (*tui).grid, width as c_int, height as c_int);
+        ugrid_resize(&mut (*tui).grid, width as c_int, height as c_int);
 
         for i in 0..(*tui).invalid_regions.size {
             let r = &mut *(*tui).invalid_regions.items.add(i);
@@ -1769,7 +1769,7 @@ pub unsafe fn tui_grid_resize(tui: *mut TUIData, _g: Integer, width: Integer, he
 
 pub unsafe fn tui_grid_clear(tui: *mut TUIData, _g: Integer) {
     unsafe {
-        ugrid_clear(&raw mut (*tui).grid);
+        ugrid_clear(&mut (*tui).grid);
         schar_cache_clear_if_full();
         (*tui).invalid_regions.size = 0;
         clear_region(tui, 0, (*tui).height, 0, (*tui).width, 0);
@@ -1999,7 +1999,7 @@ pub unsafe fn tui_grid_scroll(
         let fullwidth = left == 0 && right == (*tui).width - 1;
         let full_screen_scroll = fullwidth && top == 0 && bot == (*tui).height - 1;
 
-        ugrid_scroll(&raw mut (*tui).grid, top, bot, left, right, rows as c_int);
+        ugrid_scroll(&mut (*tui).grid, top, bot, left, right, rows as c_int);
 
         let has_lr_margins = (*tui).has_left_and_right_margin_mode && (*tui).can_set_lr_margin;
         let can_scroll = (*tui).can_scroll
@@ -2462,7 +2462,7 @@ pub unsafe fn tui_raw_line(
 
         if clearcol > endcol {
             ugrid_clear_chunk(
-                &raw mut (*tui).grid,
+                &mut (*tui).grid,
                 linerow as c_int,
                 endcol as c_int,
                 clearcol as c_int,

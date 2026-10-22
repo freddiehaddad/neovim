@@ -45,8 +45,7 @@ unsafe fn equal_string(a: NvimString, b: NvimString) -> bool {
 ///
 /// # Safety
 /// `set` must be a valid pointer to an initialized `Set_glyph` with `n_buckets > 0`.
-pub unsafe fn mh_find_bucket_glyph(set: *mut Set_glyph, key: NvimString, put: bool) -> u32 {
-    let set = unsafe { &mut *set };
+pub unsafe fn mh_find_bucket_glyph(set: &mut Set_glyph, key: NvimString, put: bool) -> u32 {
     let h = &mut set.h;
     let mut step: u32 = 0;
     let mask = h.n_buckets - 1;
@@ -80,67 +79,54 @@ pub unsafe fn mh_find_bucket_glyph(set: *mut Set_glyph, key: NvimString, put: bo
 }
 
 /// Return index into `set->keys` if found, `MH_TOMBSTONE` otherwise (`mh_get_glyph`).
-///
-/// # Safety
-/// `set` must be a valid pointer to a `Set_glyph`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mh_get_glyph(set: *mut Set_glyph, key: NvimString) -> u32 {
-    let set_ref = unsafe { &mut *set };
-    if set_ref.h.n_buckets == 0 {
+#[cfg(test)]
+pub unsafe fn mh_get_glyph(set: &mut Set_glyph, key: NvimString) -> u32 {
+    if set.h.n_buckets == 0 {
         return MH_TOMBSTONE;
     }
     let idx = unsafe { mh_find_bucket_glyph(set, key, false) };
     if idx != MH_TOMBSTONE {
-        unsafe { *set_ref.h.hash.add(idx as usize) - 1 }
+        unsafe { *set.h.hash.add(idx as usize) - 1 }
     } else {
         MH_TOMBSTONE
     }
 }
 
 /// Rehash all NUL-separated keys in `set->keys` (`mh_rehash_glyph`).
-///
-/// # Safety
-/// `set` must be a valid pointer to a `Set_glyph`.
-pub unsafe fn mh_rehash_glyph(set: *mut Set_glyph) {
-    let set_ref = unsafe { &mut *set };
+pub unsafe fn mh_rehash_glyph(set: &mut Set_glyph) {
     let mut k: u32 = 0;
-    while k < set_ref.h.n_keys {
-        let key_ptr = unsafe { set_ref.keys.add(k as usize) };
+    while k < set.h.n_keys {
+        let key_ptr = unsafe { set.keys.add(k as usize) };
         let key_str = unsafe { cstr_as_string(key_ptr) };
         let idx = unsafe { mh_find_bucket_glyph(set, key_str, true) };
-        if unsafe { !mh_is_empty(&set_ref.h, idx) } {
+        if unsafe { !mh_is_empty(&set.h, idx) } {
             std::process::abort();
         }
         unsafe {
-            *set_ref.h.hash.add(idx as usize) = k + 1;
+            *set.h.hash.add(idx as usize) = k + 1;
         }
         k += (key_str.size as u32) + 1;
     }
-    set_ref.h.n_occupied = set_ref.h.n_keys;
-    set_ref.h.size = set_ref.h.n_keys;
+    set.h.n_occupied = set.h.n_keys;
+    set.h.size = set.h.n_keys;
 }
 
 /// Intern `key` into `set`, returning its byte offset in `set->keys` (`mh_put_glyph`).
-///
-/// # Safety
-/// `set` and `new_status` must be valid writable pointers.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mh_put_glyph(
-    set: *mut Set_glyph,
+pub unsafe fn mh_put_glyph(
+    set: &mut Set_glyph,
     key: NvimString,
-    new_status: *mut MHPutStatus,
+    new_status: &mut MHPutStatus,
 ) -> u32 {
-    let set_ref = unsafe { &mut *set };
-    if set_ref.h.n_occupied >= set_ref.h.upper_bound {
-        let next_min = set_ref.h.n_buckets + 1;
+    if set.h.n_occupied >= set.h.upper_bound {
+        let next_min = set.h.n_buckets + 1;
         unsafe {
-            mh_realloc(&mut set_ref.h, next_min);
+            mh_realloc(&mut set.h, next_min);
             mh_rehash_glyph(set);
         }
     }
 
     let idx = unsafe { mh_find_bucket_glyph(set, key, true) };
-    let h = &mut set_ref.h;
+    let h = &mut set.h;
 
     if unsafe { mh_is_either(h, idx) } {
         h.size += 1;
@@ -153,36 +139,32 @@ pub unsafe extern "C" fn mh_put_glyph(
             while h.n_keys > h.keys_capacity {
                 h.keys_capacity = (h.keys_capacity * 2).max(64);
             }
-            set_ref.keys = unsafe {
-                xrealloc(set_ref.keys.cast::<c_void>(), h.keys_capacity as usize).cast::<c_char>()
+            set.keys = unsafe {
+                xrealloc(set.keys.cast::<c_void>(), h.keys_capacity as usize).cast::<c_char>()
             };
-            unsafe {
-                *new_status = MHPutStatus::kMHNewKeyRealloc;
-            }
+            *new_status = MHPutStatus::kMHNewKeyRealloc;
         } else {
-            unsafe {
-                *new_status = MHPutStatus::kMHNewKeyDidFit;
-            }
+            *new_status = MHPutStatus::kMHNewKeyDidFit;
         }
 
         unsafe {
             if key.size > 0 && !key.data.is_null() {
                 std::ptr::copy_nonoverlapping(
                     key.data.cast::<u8>(),
-                    set_ref.keys.add(pos as usize).cast::<u8>(),
+                    set.keys.add(pos as usize).cast::<u8>(),
                     key.size,
                 );
             }
-            *set_ref.keys.add((pos as usize) + key.size) = 0;
+            *set.keys.add((pos as usize) + key.size) = 0;
             *h.hash.add(idx as usize) = pos + 1;
         }
         pos
     } else {
+        *new_status = MHPutStatus::kMHExisting;
         unsafe {
-            *new_status = MHPutStatus::kMHExisting;
             let pos = *h.hash.add(idx as usize) - 1;
             debug_assert!(equal_string(
-                cstr_as_string(set_ref.keys.add(pos as usize)),
+                cstr_as_string(set.keys.add(pos as usize)),
                 key
             ));
             pos

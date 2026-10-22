@@ -202,7 +202,7 @@ use crate::search::{
     BACKWARD, last_csearch, last_csearch_forward, last_csearch_until, searchit, searchit_arg_T,
     set_csearch_direction, set_csearch_until, set_last_csearch,
 };
-use crate::sha256::sha256_bytes;
+use crate::sha256::sha256_hex;
 use crate::spell::{eval_soundfold, parse_spelllang, spell_check, spell_move_to};
 use crate::spellsuggest::spell_suggest_list;
 use crate::state::{MODE_CMDLINE, MODE_MAX_LENGTH, get_mode, get_was_safe_state, virtual_active};
@@ -8317,11 +8317,23 @@ pub unsafe fn f_sha256(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
             } else {
                 0
             };
-            (*rettv).vval.v_string = xstrdup(sha256_bytes(p, len, ptr::null(), 0));
+            let slice = if len > 0 && !p.is_null() {
+                std::slice::from_raw_parts(p, len)
+            } else {
+                &[]
+            };
+            let hex = sha256_hex(slice, None);
+            (*rettv).vval.v_string = xmemdupz(hex.as_ptr().cast(), hex.len()).cast();
         } else {
             let p = tv_get_string(argvars);
-            let hash = sha256_bytes(p.cast::<u8>(), strlen(p), ptr::null(), 0);
-            (*rettv).vval.v_string = xstrdup(hash);
+            let len = strlen(p);
+            let slice = if len > 0 {
+                std::slice::from_raw_parts(p.cast::<u8>(), len)
+            } else {
+                &[]
+            };
+            let hex = sha256_hex(slice, None);
+            (*rettv).vval.v_string = xmemdupz(hex.as_ptr().cast(), hex.len()).cast();
         }
     }
 }

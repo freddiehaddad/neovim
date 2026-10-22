@@ -505,8 +505,7 @@ fn can_join(c1: c_int, c2: c_int) -> bool {
 }
 
 /// Check whether `two` could be an Arabic combining character (`arabic_maycombine`).
-#[unsafe(no_mangle)]
-pub extern "C" fn arabic_maycombine(two: c_int) -> bool {
+pub fn arabic_maycombine(two: c_int) -> bool {
     if arshape_enabled() {
         matches!(
             two as u32,
@@ -518,8 +517,7 @@ pub extern "C" fn arabic_maycombine(two: c_int) -> bool {
 }
 
 /// Check whether `(one, two)` are Arabic combining characters (`arabic_combine`).
-#[unsafe(no_mangle)]
-pub extern "C" fn arabic_combine(one: c_int, two: c_int) -> bool {
+pub fn arabic_combine(one: c_int, two: c_int) -> bool {
     if one as u32 == A_LAM {
         arabic_maycombine(two)
     } else {
@@ -543,13 +541,9 @@ fn a_is_valid(c: c_int) -> bool {
 }
 
 /// Perform Arabic shaping on character `c` (`arabic_shape`).
-///
-/// # Safety
-/// `c1p` must be a valid pointer to a writable `c_int`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn arabic_shape(
+pub fn arabic_shape(
     c: c_int,
-    c1p: *mut c_int,
+    c1p: &mut c_int,
     prev_c: c_int,
     prev_c1: c_int,
     next_c: c_int,
@@ -558,7 +552,7 @@ pub unsafe extern "C" fn arabic_shape(
         return c;
     }
 
-    let c1 = unsafe { *c1p };
+    let c1 = *c1p;
     let curr_laa = arabic_combine(c, c1);
     let prev_laa = arabic_combine(prev_c, prev_c1);
 
@@ -568,9 +562,7 @@ pub unsafe extern "C" fn arabic_shape(
         } else {
             chg_c_laa2i(c1)
         };
-        unsafe {
-            *c1p = 0;
-        }
+        *c1p = 0;
         shaped
     } else {
         let Some(curr_a) = find_achar(c) else {
@@ -619,33 +611,29 @@ mod tests {
 
         // LAM + ALEF isolated -> 0xfefb, clearing *c1p
         let mut c1: c_int = A_ALEF as c_int;
-        let shaped = unsafe { arabic_shape(A_LAM as c_int, &mut c1, 0, 0, 0) };
+        let shaped = arabic_shape(A_LAM as c_int, &mut c1, 0, 0, 0);
         assert_eq!(shaped, A_S_LAM_ALEF);
         assert_eq!(c1, 0);
 
         // BEH followed by LAM+ALEF: LAM+ALEF becomes final form 0xfefc
         let mut c1_final: c_int = A_ALEF as c_int;
-        let shaped_final =
-            unsafe { arabic_shape(A_LAM as c_int, &mut c1_final, A_BEH as c_int, 0, 0) };
+        let shaped_final = arabic_shape(A_LAM as c_int, &mut c1_final, A_BEH as c_int, 0, 0);
         assert_eq!(shaped_final, A_F_LAM_ALEF);
         assert_eq!(c1_final, 0);
 
         // BEH contextual forms: isolated (0xfe8f), initial (0xfe91), medial (0xfe92), final (0xfe90)
         let mut zero: c_int = 0;
+        assert_eq!(arabic_shape(A_BEH as c_int, &mut zero, 0, 0, 0), 0xfe8f);
         assert_eq!(
-            unsafe { arabic_shape(A_BEH as c_int, &mut zero, 0, 0, 0) },
-            0xfe8f
-        );
-        assert_eq!(
-            unsafe { arabic_shape(A_BEH as c_int, &mut zero, 0, 0, A_TEH as c_int) },
+            arabic_shape(A_BEH as c_int, &mut zero, 0, 0, A_TEH as c_int),
             0xfe91
         );
         assert_eq!(
-            unsafe { arabic_shape(A_BEH as c_int, &mut zero, A_TEH as c_int, 0, A_TEH as c_int) },
+            arabic_shape(A_BEH as c_int, &mut zero, A_TEH as c_int, 0, A_TEH as c_int),
             0xfe92
         );
         assert_eq!(
-            unsafe { arabic_shape(A_BEH as c_int, &mut zero, A_TEH as c_int, 0, 0) },
+            arabic_shape(A_BEH as c_int, &mut zero, A_TEH as c_int, 0, 0),
             0xfe90
         );
     }

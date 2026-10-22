@@ -86,7 +86,7 @@ use crate::path::{
     path_shorten_fname, path_tail, path_with_url, vim_FullName, vim_ispathsep,
 };
 use crate::regexp::{RE_MAGIC, regmatch_T, regprog_T, vim_regcomp, vim_regexec, vim_regfree};
-use crate::sha256::{context_sha256_T, sha256_finish, sha256_start, sha256_update};
+use crate::sha256::context_sha256_T;
 use crate::shada::check_marks_read;
 use crate::state::{MODE_CMDLINE, MODE_NORMAL_BUSY};
 use crate::strings::{ngettext, sort_strings, strlen, tr, vim_snprintf, vim_strchr};
@@ -975,7 +975,7 @@ pub unsafe fn readfile(
         let mut p: *mut u8;
         let mut filesize: off_T = 0;
         let mut skip_read = false;
-        let mut sha_ctx: context_sha256_T = std::mem::zeroed();
+        let mut sha_ctx = context_sha256_T::new();
         let mut read_undo_file = false;
         let mut split: c_int = 0;
         let mut error = false;
@@ -1610,7 +1610,7 @@ pub unsafe fn readfile(
                         && !read_stdin
                         && !read_buffer;
                     if read_undo_file {
-                        sha256_start(&raw mut sha_ctx);
+                        sha_ctx = context_sha256_T::new();
                     }
                 }
 
@@ -2233,12 +2233,11 @@ pub unsafe fn readfile(
                                         error = true;
                                         break;
                                     }
-                                    if read_undo_file {
-                                        sha256_update(
-                                            &raw mut sha_ctx,
+                                    if read_undo_file && len > 0 {
+                                        sha_ctx.update(std::slice::from_raw_parts(
                                             line_start.cast::<u8>(),
                                             len as usize,
-                                        );
+                                        ));
                                     }
                                     lnum += 1;
                                     read_count -= 1;
@@ -2310,12 +2309,11 @@ pub unsafe fn readfile(
                                     error = true;
                                     break;
                                 }
-                                if read_undo_file {
-                                    sha256_update(
-                                        &raw mut sha_ctx,
+                                if read_undo_file && len > 0 {
+                                    sha_ctx.update(std::slice::from_raw_parts(
                                         line_start.cast::<u8>(),
                                         len as usize,
-                                    );
+                                    ));
                                 }
                                 lnum += 1;
                                 read_count -= 1;
@@ -2390,8 +2388,11 @@ pub unsafe fn readfile(
                 if ml_append(lnum, line_start, len, newfile) == FAIL {
                     error = true;
                 } else {
-                    if read_undo_file {
-                        sha256_update(&raw mut sha_ctx, line_start.cast::<u8>(), len as usize);
+                    if read_undo_file && len > 0 {
+                        sha_ctx.update(std::slice::from_raw_parts(
+                            line_start.cast::<u8>(),
+                            len as usize,
+                        ));
                     }
                     lnum += 1;
                     read_no_eol_lnum = lnum;
@@ -2692,7 +2693,7 @@ pub unsafe fn readfile(
 
             if read_undo_file {
                 let mut hash: [u8; UNDO_HASH_SIZE] = [0; UNDO_HASH_SIZE];
-                sha256_finish(&raw mut sha_ctx, hash.as_mut_ptr());
+                sha_ctx.finish_into(&mut hash);
                 u_read_undo(ptr::null_mut(), hash.as_ptr(), fname);
             }
 

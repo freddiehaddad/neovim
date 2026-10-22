@@ -53,7 +53,7 @@ use crate::os::fs::{os_chown, os_fchown, os_file_settime, os_fsetperm, s_isdir, 
 use crate::os::input::os_breakcheck;
 use crate::os::time::os_hrtime;
 use crate::path::{after_pathsep, kPathCmpLiteral, path_equal, path_tail};
-use crate::sha256::{context_sha256_T, sha256_finish, sha256_start, sha256_update};
+use crate::sha256::context_sha256_T;
 use crate::strings::{gettext, strlen, vim_snprintf, vim_snprintf_add, vim_strchr};
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush};
 use crate::undo::{curbufIsChanged, u_unchanged, u_update_save_nr, u_write_undo};
@@ -1109,7 +1109,7 @@ pub unsafe fn buf_write(
         let mut prev_got_int = got_int;
         let whole = start == 1 && end == (*buf).b_ml.ml_line_count;
         let mut write_undo_file = false;
-        let mut sha_ctx: context_sha256_T = std::mem::zeroed();
+        let mut sha_ctx = context_sha256_T::new();
         let bkc = get_bkc_flags(buf);
 
         if fname.is_null() || *fname == NUL {
@@ -1550,7 +1550,7 @@ pub unsafe fn buf_write(
                             && reset_changed
                             && !checking_conversion;
                         if write_undo_file {
-                            sha256_start(&raw mut sha_ctx);
+                            sha_ctx = context_sha256_T::new();
                         }
 
                         write_info.bw_len = 0;
@@ -1562,11 +1562,10 @@ pub unsafe fn buf_write(
                             let mut ptr = ml_get_buf(buf, lnum).sub(1);
                             if write_undo_file {
                                 let line_ptr = ptr.add(1);
-                                sha256_update(
-                                    &raw mut sha_ctx,
-                                    line_ptr.cast(),
+                                sha_ctx.update(std::slice::from_raw_parts(
+                                    line_ptr.cast::<u8>(),
                                     strlen(line_ptr) + 1,
-                                );
+                                ));
                             }
                             loop {
                                 ptr = ptr.add(1);
@@ -2070,7 +2069,7 @@ pub unsafe fn buf_write(
 
         if retval == OK && write_undo_file {
             let mut hash = [0u8; UNDO_HASH_SIZE];
-            sha256_finish(&raw mut sha_ctx, hash.as_mut_ptr());
+            sha_ctx.finish_into(&mut hash);
             u_write_undo(ptr::null(), false, buf, hash.as_mut_ptr());
         }
 

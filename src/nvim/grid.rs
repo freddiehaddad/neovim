@@ -199,7 +199,8 @@ pub unsafe fn schar_from_buf(buf: *const c_char, len: usize) -> schar_T {
                 size: len,
             };
             let mut status = MHPutStatus::kMHExisting;
-            let idx = mh_put_glyph(&raw mut glyph_cache, str_, &raw mut status);
+            let gc = &raw mut glyph_cache;
+            let idx = mh_put_glyph(&mut *gc, str_, &mut status);
             assert!(idx < 0xFF_FFFF);
             #[cfg(target_endian = "big")]
             {
@@ -396,7 +397,7 @@ pub unsafe fn line_do_arabic_shape(buf: *mut schar_T, cols: c_int) {
 
             if arabic_char(c0) {
                 let mut c1new = c1;
-                let c0new = arabic_shape(c0, &raw mut c1new, c0next, c1next, c0prev);
+                let c0new = arabic_shape(c0, &mut c1new, c0next, c1next, c0prev);
 
                 if !(c0new == c0 && c1new == c1) {
                     let mut scbuf = [0 as c_char; MAX_SCHAR_SIZE];

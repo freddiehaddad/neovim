@@ -62,34 +62,19 @@ unsafe fn clear_region(
 }
 
 /// Initialize a `UGrid` (`ugrid_init`).
-///
-/// # Safety
-/// `grid` must be a valid writable pointer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ugrid_init(grid: *mut UGrid) {
-    unsafe {
-        (*grid).cells = std::ptr::null_mut();
-    }
+pub fn ugrid_init(grid: &mut UGrid) {
+    grid.cells = std::ptr::null_mut();
 }
 
 /// Free all cell memory in `grid` (`ugrid_free`).
-///
-/// # Safety
-/// `grid` must be a valid writable pointer to an initialized `UGrid`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ugrid_free(grid: *mut UGrid) {
+pub unsafe fn ugrid_free(grid: &mut UGrid) {
     unsafe {
-        destroy_cells(&mut *grid);
+        destroy_cells(grid);
     }
 }
 
 /// Resize `grid` to `width` x `height` cells (`ugrid_resize`).
-///
-/// # Safety
-/// `grid` must be a valid writable pointer to an initialized `UGrid`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ugrid_resize(grid: *mut UGrid, width: c_int, height: c_int) {
-    let grid = unsafe { &mut *grid };
+pub unsafe fn ugrid_resize(grid: &mut UGrid, width: c_int, height: c_int) {
     unsafe {
         destroy_cells(grid);
         let h = height as usize;
@@ -104,60 +89,40 @@ pub unsafe extern "C" fn ugrid_resize(grid: *mut UGrid, width: c_int, height: c_
 }
 
 /// Clear the entire `grid` (`ugrid_clear`).
-///
-/// # Safety
-/// `grid` must be a valid writable pointer to a resized `UGrid`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ugrid_clear(grid: *mut UGrid) {
-    let grid = unsafe { &mut *grid };
+pub unsafe fn ugrid_clear(grid: &mut UGrid) {
     unsafe {
         clear_region(grid, 0, grid.height - 1, 0, grid.width - 1, 0);
     }
 }
 
 /// Clear `row` from `col` to `endcol - 1` with `attr` (`ugrid_clear_chunk`).
-///
-/// # Safety
-/// `grid` must be a valid writable pointer to a resized `UGrid`, and coordinates must be in bounds.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ugrid_clear_chunk(
-    grid: *mut UGrid,
+pub unsafe fn ugrid_clear_chunk(
+    grid: &mut UGrid,
     row: c_int,
     col: c_int,
     endcol: c_int,
     attr: sattr_T,
 ) {
-    let grid = unsafe { &mut *grid };
     unsafe {
         clear_region(grid, row, row, col, endcol - 1, attr);
     }
 }
 
 /// Move `grid` cursor to `(row, col)` (`ugrid_goto`).
-///
-/// # Safety
-/// `grid` must be a valid writable pointer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ugrid_goto(grid: *mut UGrid, row: c_int, col: c_int) {
-    let grid = unsafe { &mut *grid };
+pub fn ugrid_goto(grid: &mut UGrid, row: c_int, col: c_int) {
     grid.row = row;
     grid.col = col;
 }
 
 /// Scroll region `(top..=bot, left..=right)` by `count` rows (`ugrid_scroll`).
-///
-/// # Safety
-/// `grid` must be a valid writable pointer to a resized `UGrid`, and coordinates must be in bounds.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ugrid_scroll(
-    grid: *mut UGrid,
+pub unsafe fn ugrid_scroll(
+    grid: &mut UGrid,
     top: c_int,
     bot: c_int,
     left: c_int,
     right: c_int,
     count: c_int,
 ) {
-    let grid = unsafe { &mut *grid };
     let (start, stop, step) = if count > 0 {
         (top, bot - count + 1, 1)
     } else {

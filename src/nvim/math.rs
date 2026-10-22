@@ -77,49 +77,38 @@ pub fn xfpclassify(d: f64) -> c_int {
 }
 
 /// Return non-zero (1) if `d` is positive or negative infinity (`xisinf`).
-#[unsafe(no_mangle)]
-pub extern "C" fn xisinf(d: f64) -> c_int {
+pub fn xisinf(d: f64) -> c_int {
     c_int::from(xfpclassify(d) == FP_INFINITE)
 }
 
 /// Return non-zero (1) if `d` is NaN (`xisnan`).
-#[unsafe(no_mangle)]
-pub extern "C" fn xisnan(d: f64) -> c_int {
+pub fn xisnan(d: f64) -> c_int {
     c_int::from(xfpclassify(d) == FP_NAN)
 }
 
 /// Count trailing zeroes at the end of 64-bit bitfield (`xctz`).
-#[unsafe(no_mangle)]
-pub extern "C" fn xctz(x: u64) -> c_int {
+pub fn xctz(x: u64) -> c_int {
     x.trailing_zeros() as c_int
 }
 
 /// Count number of set bits in 64-bit bitfield (`xpopcount`).
-#[unsafe(no_mangle)]
-pub extern "C" fn xpopcount(x: u64) -> c_uint {
+pub fn xpopcount(x: u64) -> c_uint {
     x.count_ones() as c_uint
 }
 
 /// Append a decimal digit (`0..=9`) to `*value`, returning `FAIL` on `c_int` overflow
 /// (`vim_append_digit_int`).
-///
-/// # Safety
-/// `value` must be a valid pointer to a writable `c_int`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_append_digit_int(value: *mut c_int, digit: c_int) -> c_int {
-    let x = unsafe { *value };
+pub fn vim_append_digit_int(value: &mut c_int, digit: c_int) -> c_int {
+    let x = *value;
     if x > (c_int::MAX - digit) / 10 {
         return FAIL;
     }
-    unsafe {
-        *value = x * 10 + digit;
-    }
+    *value = x * 10 + digit;
     OK
 }
 
 /// Clamp a 64-bit signed integer into the range of `c_int` (`trim_to_int`).
-#[unsafe(no_mangle)]
-pub extern "C" fn trim_to_int(x: i64) -> c_int {
+pub fn trim_to_int(x: i64) -> c_int {
     x.clamp(i64::from(c_int::MIN), i64::from(c_int::MAX)) as c_int
 }
 
@@ -152,11 +141,13 @@ mod tests {
     fn bit_counts() {
         assert_eq!(xctz(0), 64);
         assert_eq!(xctz(1), 0);
+        assert_eq!(xctz(4096), 12);
         assert_eq!(xctz(1 << 40), 40);
         assert_eq!(xctz(1 << 63), 63);
 
         assert_eq!(xpopcount(0), 0);
         assert_eq!(xpopcount(u64::MAX), 64);
+        assert_eq!(xpopcount(0xf0), 4);
         assert_eq!(xpopcount(0b1010_1101), 5);
     }
 
@@ -164,10 +155,10 @@ mod tests {
     fn append_digit_and_trim() {
         let mut v: c_int = 0;
         for &d in &[2, 1, 4, 7, 4, 8, 3, 6, 4, 7] {
-            assert_eq!(unsafe { vim_append_digit_int(&mut v, d) }, OK);
+            assert_eq!(vim_append_digit_int(&mut v, d), OK);
         }
         assert_eq!(v, c_int::MAX);
-        assert_eq!(unsafe { vim_append_digit_int(&mut v, 0) }, FAIL);
+        assert_eq!(vim_append_digit_int(&mut v, 0), FAIL);
         assert_eq!(v, c_int::MAX);
 
         assert_eq!(trim_to_int(0), 0);

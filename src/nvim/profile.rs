@@ -136,20 +136,17 @@ unsafe fn prl_item(si: *mut scriptitem_T, idx: c_int) -> *mut sn_prl_T {
 }
 
 /// Gets the current time (`profile_start`).
-#[unsafe(no_mangle)]
-pub extern "C" fn profile_start() -> proftime_T {
+pub fn profile_start() -> proftime_T {
     os_hrtime()
 }
 
 /// Computes the time elapsed (`profile_end`).
-#[unsafe(no_mangle)]
-pub extern "C" fn profile_end(tm: proftime_T) -> proftime_T {
+pub fn profile_end(tm: proftime_T) -> proftime_T {
     profile_sub(os_hrtime(), tm)
 }
 
 /// Gets a static string representing time `tm` (`profile_msg`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn profile_msg(tm: proftime_T) -> *const c_char {
+pub unsafe fn profile_msg(tm: proftime_T) -> *const c_char {
     let secs = (profile_signed(tm) as f64) / NS_PER_SEC;
     let formatted = format!("{secs:10.6}");
     let bytes = formatted.as_bytes();
@@ -163,8 +160,7 @@ pub unsafe extern "C" fn profile_msg(tm: proftime_T) -> *const c_char {
 }
 
 /// Gets the time `msec` into the future (`profile_setlimit`).
-#[unsafe(no_mangle)]
-pub extern "C" fn profile_setlimit(msec: i64) -> proftime_T {
+pub fn profile_setlimit(msec: i64) -> proftime_T {
     if msec <= 0 {
         return profile_zero();
     }
@@ -174,8 +170,7 @@ pub extern "C" fn profile_setlimit(msec: i64) -> proftime_T {
 }
 
 /// Checks if current time has passed `tm` (`profile_passed_limit`).
-#[unsafe(no_mangle)]
-pub extern "C" fn profile_passed_limit(tm: proftime_T) -> bool {
+pub fn profile_passed_limit(tm: proftime_T) -> bool {
     if tm == 0 {
         return false;
     }
@@ -183,14 +178,12 @@ pub extern "C" fn profile_passed_limit(tm: proftime_T) -> bool {
 }
 
 /// Gets the zero time (`profile_zero`).
-#[unsafe(no_mangle)]
-pub const extern "C" fn profile_zero() -> proftime_T {
+pub const fn profile_zero() -> proftime_T {
     0
 }
 
 /// Divides time `tm` by `count` (`profile_divide`).
-#[unsafe(no_mangle)]
-pub extern "C" fn profile_divide(tm: proftime_T, count: c_int) -> proftime_T {
+pub fn profile_divide(tm: proftime_T, count: c_int) -> proftime_T {
     if count <= 0 {
         return profile_zero();
     }
@@ -198,20 +191,17 @@ pub extern "C" fn profile_divide(tm: proftime_T, count: c_int) -> proftime_T {
 }
 
 /// Adds time `tm2` to `tm1` (`profile_add`).
-#[unsafe(no_mangle)]
-pub const extern "C" fn profile_add(tm1: proftime_T, tm2: proftime_T) -> proftime_T {
+pub const fn profile_add(tm1: proftime_T, tm2: proftime_T) -> proftime_T {
     tm1.wrapping_add(tm2)
 }
 
 /// Subtracts time `tm2` from `tm1` (`profile_sub`).
-#[unsafe(no_mangle)]
-pub const extern "C" fn profile_sub(tm1: proftime_T, tm2: proftime_T) -> proftime_T {
+pub const fn profile_sub(tm1: proftime_T, tm2: proftime_T) -> proftime_T {
     tm1.wrapping_sub(tm2)
 }
 
 /// Adds the `self` time from the total time and the `children` time (`profile_self`).
-#[unsafe(no_mangle)]
-pub const extern "C" fn profile_self(
+pub const fn profile_self(
     self_time: proftime_T,
     total: proftime_T,
     children: proftime_T,
@@ -228,16 +218,14 @@ fn profile_get_wait() -> proftime_T {
 }
 
 /// Sets the current waittime (`profile_set_wait`).
-#[unsafe(no_mangle)]
-pub extern "C" fn profile_set_wait(wait: proftime_T) {
+pub fn profile_set_wait(wait: proftime_T) {
     unsafe {
         PROF_WAIT_TIME = wait;
     }
 }
 
 /// Subtracts the passed waittime since `tm` (`profile_sub_wait`).
-#[unsafe(no_mangle)]
-pub extern "C" fn profile_sub_wait(tm: proftime_T, tma: proftime_T) -> proftime_T {
+pub fn profile_sub_wait(tm: proftime_T, tma: proftime_T) -> proftime_T {
     let tm3 = profile_sub(profile_get_wait(), tm);
     profile_sub(tma, tm3)
 }
@@ -248,7 +236,7 @@ const fn profile_equal(tm1: proftime_T, tm2: proftime_T) -> bool {
 }
 
 /// Converts time duration `tm` to a signed integer (`profile_signed`).
-pub const extern "C" fn profile_signed(tm: proftime_T) -> i64 {
+pub const fn profile_signed(tm: proftime_T) -> i64 {
     if tm <= (i64::MAX as u64) {
         tm as i64
     } else {
@@ -257,8 +245,7 @@ pub const extern "C" fn profile_signed(tm: proftime_T) -> i64 {
 }
 
 /// Compares profiling times (`profile_cmp`).
-#[unsafe(no_mangle)]
-pub const extern "C" fn profile_cmp(tm1: proftime_T, tm2: proftime_T) -> c_int {
+pub const fn profile_cmp(tm1: proftime_T, tm2: proftime_T) -> c_int {
     if tm1 == tm2 {
         return 0;
     }
@@ -1071,9 +1058,53 @@ mod tests {
         assert_eq!(profile_cmp(10, 20), 1);
         assert_eq!(profile_cmp(20, 10), -1);
         assert_eq!(profile_cmp(10, 10), 0);
+        assert_eq!(profile_cmp(profile_zero(), profile_zero()), 0);
         unsafe {
             let msg = CStr::from_ptr(profile_msg(0)).to_str().unwrap();
             assert_eq!(msg.trim(), "0.000000");
+        }
+    }
+
+    #[test]
+    fn profile_timers_limits_and_division() {
+        let mut last = profile_start();
+        for _ in 0..100 {
+            let curr = profile_start();
+            assert!(curr >= last);
+            last = curr;
+        }
+
+        let start_outer = profile_start();
+        let start_inner = profile_start();
+        let elapsed_inner = profile_end(start_inner);
+        let elapsed_outer = profile_end(start_outer);
+        assert!(elapsed_outer >= elapsed_inner);
+
+        let divisor = 10;
+        let start = profile_start();
+        let divided = profile_divide(start, divisor);
+        assert!(profile_cmp(start, divided) <= 0);
+        let mut res = divided;
+        for _ in 1..divisor {
+            res = profile_add(res, divided);
+        }
+        let start_min = profile_sub(start, divisor as u64);
+        let start_max = profile_add(start, divisor as u64);
+        assert!(profile_cmp(start_min, res) >= 0);
+        assert!(profile_cmp(start_max, res) <= 0);
+
+        assert_eq!(profile_setlimit(0), profile_zero());
+        let future = profile_setlimit(1000);
+        let now = profile_start();
+        assert!(profile_cmp(future, now) < 0);
+        assert!(profile_passed_limit(now));
+        assert!(!profile_passed_limit(profile_add(now, now)));
+
+        unsafe {
+            let endt = profile_end(profile_start());
+            let s = CStr::from_ptr(profile_msg(endt)).to_str().unwrap().trim();
+            let (secs, _us) = s.split_once('.').unwrap();
+            assert_eq!(secs, "0");
         }
     }
 }
