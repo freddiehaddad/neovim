@@ -87,16 +87,16 @@ local function nvim_api_info()
   if not nvim_api_info_ then
     --- @type integer?, boolean?
     local level, prerelease
-    for l in io.lines('CMakeLists.txt') do
+    for l in io.lines('Cargo.toml') do
       --- @cast l string
-      if level and prerelease then
+      if level and prerelease ~= nil then
         break
       end
-      local m1 = l:match('^set%(NVIM_API_LEVEL%s+(%d+)%)')
+      local m1 = l:match('^api_level%s*=%s*(%d+)')
       if m1 then
         level = tonumber(m1) --[[@as integer]]
       end
-      local m2 = l:match('^set%(NVIM_API_PRERELEASE%s+(%w+)%)')
+      local m2 = l:match('^api_prerelease%s*=%s*(%w+)')
       if m2 then
         prerelease = m2 == 'true'
       end

@@ -1,7 +1,3 @@
-*.h.in          linguist-language=C
-*.c.in          linguist-language=C
-*CMakeLists.txt linguist-language=CMake
-
 runtime/doc/*   linguist-documentation
 runtime/doc/builtin.txt linguist-generated
 

@@ -1,10 +1,23 @@
+[workspace]
+members = [".", "src/xtask"]
+default-members = ["."]
+
 [package]
-name = "nvim-rs"
+name = "neovim"
 version = "0.1.0"
 edition = "2024"
 
+[package.metadata.nvim]
+version_major = 0
+version_minor = 13
+version_patch = 0
+version_prerelease = "-dev"
+api_level = 15
+api_level_compat = 0
+api_prerelease = true
+
 [lib]
-name = "nvim_rs"
+name = "neovim"
 path = "src/nvim/lib.rs"
 crate-type = ["rlib"]
 doctest = false

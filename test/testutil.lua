@@ -3,7 +3,7 @@ local test_assert = require('test.assert')
 ---@type test.harness
 local harness = require('test.harness')
 local uv = vim.uv
-local Paths = require('test.cmakeconfig.paths')
+local Paths = require('test.config.paths')
 
 --- Functions executing in the context of the test runner (not the current nvim test session).
 --- @class test.testutil

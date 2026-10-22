@@ -2,22 +2,30 @@ use std::env;
 use std::path::PathBuf;
 use std::process::Command;
 
-fn parse_cmake_var(cmake_text: &str, name: &str) -> Option<String> {
-    let prefix = format!("set({name} ");
-    for line in cmake_text.lines() {
+#[path = "src/deps_build.rs"]
+mod deps_build;
+
+fn parse_nvim_metadata(cargo_toml: &str, key: &str) -> Option<String> {
+    let mut in_meta = false;
+    for line in cargo_toml.lines() {
         let trimmed = line.trim();
-        if let Some(rest) = trimmed.strip_prefix(&prefix)
-            && let Some(end) = rest.find(')')
+        if trimmed.starts_with('[') {
+            in_meta = trimmed == "[package.metadata.nvim]";
+            continue;
+        }
+        if in_meta
+            && let Some((k, v)) = trimmed.split_once('=')
+            && k.trim() == key
         {
-            let val = rest[..end].trim().trim_matches('"');
-            return Some(val.to_string());
+            return Some(v.trim().trim_matches('"').to_string());
         }
     }
     None
 }
 
 fn main() {
-    println!("cargo:rerun-if-changed=CMakeLists.txt");
+    println!("cargo:rerun-if-changed=Cargo.toml");
+    println!("cargo:rerun-if-changed=deps.txt");
     println!("cargo:rerun-if-env-changed=DEPS_PREFIX");
     println!("cargo:rerun-if-env-changed=VTERM_TEST_FILE");
     println!("cargo:rerun-if-env-changed=NVIM_VERSION_MAJOR");
@@ -39,39 +47,35 @@ fn main() {
     println!("cargo:rerun-if-env-changed=NVIM_HAVE_LIBINTL");
 
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
-    let cmake_text =
-        std::fs::read_to_string(manifest_dir.join("CMakeLists.txt")).unwrap_or_default();
+    let cargo_toml = std::fs::read_to_string(manifest_dir.join("Cargo.toml")).unwrap_or_default();
 
     let ver_major = env::var("NVIM_VERSION_MAJOR")
         .ok()
-        .or_else(|| parse_cmake_var(&cmake_text, "NVIM_VERSION_MAJOR"))
-        .or_else(|| env::var("CARGO_PKG_VERSION_MAJOR").ok())
+        .or_else(|| parse_nvim_metadata(&cargo_toml, "version_major"))
         .unwrap_or_else(|| "0".to_string());
     let ver_minor = env::var("NVIM_VERSION_MINOR")
         .ok()
-        .or_else(|| parse_cmake_var(&cmake_text, "NVIM_VERSION_MINOR"))
-        .or_else(|| env::var("CARGO_PKG_VERSION_MINOR").ok())
+        .or_else(|| parse_nvim_metadata(&cargo_toml, "version_minor"))
         .unwrap_or_else(|| "13".to_string());
     let ver_patch = env::var("NVIM_VERSION_PATCH")
         .ok()
-        .or_else(|| parse_cmake_var(&cmake_text, "NVIM_VERSION_PATCH"))
-        .or_else(|| env::var("CARGO_PKG_VERSION_PATCH").ok())
+        .or_else(|| parse_nvim_metadata(&cargo_toml, "version_patch"))
         .unwrap_or_else(|| "0".to_string());
     let ver_prerelease = env::var("NVIM_VERSION_PRERELEASE")
         .ok()
-        .or_else(|| parse_cmake_var(&cmake_text, "NVIM_VERSION_PRERELEASE"))
+        .or_else(|| parse_nvim_metadata(&cargo_toml, "version_prerelease"))
         .unwrap_or_else(|| "-dev".to_string());
     let api_level = env::var("NVIM_API_LEVEL")
         .ok()
-        .or_else(|| parse_cmake_var(&cmake_text, "NVIM_API_LEVEL"))
+        .or_else(|| parse_nvim_metadata(&cargo_toml, "api_level"))
         .unwrap_or_else(|| "15".to_string());
     let api_compat = env::var("NVIM_API_LEVEL_COMPAT")
         .ok()
-        .or_else(|| parse_cmake_var(&cmake_text, "NVIM_API_LEVEL_COMPAT"))
+        .or_else(|| parse_nvim_metadata(&cargo_toml, "api_level_compat"))
         .unwrap_or_else(|| "0".to_string());
     let api_prerelease = env::var("NVIM_API_PRERELEASE")
         .ok()
-        .or_else(|| parse_cmake_var(&cmake_text, "NVIM_API_PRERELEASE"))
+        .or_else(|| parse_nvim_metadata(&cargo_toml, "api_prerelease"))
         .unwrap_or_else(|| "true".to_string());
 
     println!("cargo:rustc-env=NVIM_VERSION_MAJOR={ver_major}");
@@ -84,7 +88,8 @@ fn main() {
 
     if env::var("VTERM_TEST_FILE").is_err() {
         let vterm_test_file = manifest_dir
-            .join("build")
+            .join("target")
+            .join("nvim-build")
             .join("test")
             .join("vterm_test_output");
         println!(
@@ -162,6 +167,8 @@ fn main() {
     let deps_prefix = env::var("DEPS_PREFIX")
         .map(PathBuf::from)
         .unwrap_or_else(|_| manifest_dir.join(".deps").join("usr"));
+    let prefer_lua = env::var("CARGO_FEATURE_VENDOR_BIT").is_ok();
+    deps_build::ensure_deps(&manifest_dir, &deps_prefix, prefer_lua, false);
     let deps_lib = deps_prefix.join("lib");
 
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();

@@ -566,14 +566,14 @@ describe('vim.fs', function()
     end)
 
     it('works with a single marker', function()
-      eq_paths(test_source_path, exec_lua([[return vim.fs.root(0, 'CMakePresets.json')]]))
+      eq_paths(test_source_path, exec_lua([[return vim.fs.root(0, 'Cargo.toml')]]))
     end)
 
     it('works with multiple markers', function()
       local bufnr = api.nvim_get_current_buf()
       eq_paths(
         vim.fs.joinpath(test_source_path, 'test/functional/fixtures'),
-        exec_lua([[return vim.fs.root(..., {'CMakeLists.txt', 'CMakePresets.json'})]], bufnr)
+        exec_lua([[return vim.fs.root(..., {'bigfile.txt', 'Cargo.toml'})]], bufnr)
       )
     end)
 
@@ -582,14 +582,14 @@ describe('vim.fs', function()
       eq_paths(
         vim.fs.joinpath(test_source_path, 'test/functional'),
         exec_lua(
-          [[return vim.fs.root(..., { 'example_spec.lua', {'CMakeLists.txt', 'CMakePresets.json'}, '.luarc.json'})]],
+          [[return vim.fs.root(..., { 'example_spec.lua', {'bigfile.txt', 'Cargo.toml'}, '.luarc.json'})]],
           bufnr
         )
       )
       eq_paths(
         vim.fs.joinpath(test_source_path, 'test/functional/fixtures'),
         exec_lua(
-          [[return vim.fs.root(..., { {'CMakeLists.txt', 'CMakePresets.json'}, 'example_spec.lua', '.luarc.json'})]],
+          [[return vim.fs.root(..., { {'bigfile.txt', 'Cargo.toml'}, 'example_spec.lua', '.luarc.json'})]],
           bufnr
         )
       )
@@ -618,20 +618,20 @@ describe('vim.fs', function()
     end)
 
     it('works with a filename argument', function()
-      eq(test_source_path, exec_lua([[return vim.fs.root(..., 'CMakePresets.json')]], nvim_prog))
+      eq(test_source_path, exec_lua([[return vim.fs.root(..., 'Cargo.toml')]], nvim_prog))
     end)
 
     it('works with a relative path', function()
       eq_paths(
         test_source_path,
-        exec_lua([[return vim.fs.root(..., 'CMakePresets.json')]], vim.fs.basename(nvim_prog))
+        exec_lua([[return vim.fs.root(..., 'Cargo.toml')]], vim.fs.basename(nvim_prog))
       )
     end)
 
     it('returns CWD (absolute path) for unnamed buffers', function()
       assert(n.fn.isabsolutepath(test_source_path) == 1)
       command('new')
-      eq_paths(test_source_path, exec_lua([[return vim.fs.root(0, 'CMakePresets.json')]]))
+      eq_paths(test_source_path, exec_lua([[return vim.fs.root(0, 'Cargo.toml')]]))
     end)
 
     it("returns CWD (absolute path) for buffers with non-empty 'buftype'", function()
@@ -639,15 +639,12 @@ describe('vim.fs', function()
       command('new')
       command('set buftype=nofile')
       command('file lua://')
-      eq_paths(test_source_path, exec_lua([[return vim.fs.root(0, 'CMakePresets.json')]]))
+      eq_paths(test_source_path, exec_lua([[return vim.fs.root(0, 'Cargo.toml')]]))
     end)
 
     it('returns CWD (absolute path) if no match is found', function()
       assert(n.fn.isabsolutepath(test_source_path) == 1)
-      eq_paths(
-        test_source_path,
-        exec_lua([[return vim.fs.root('file://bogus', 'CMakePresets.json')]])
-      )
+      eq_paths(test_source_path, exec_lua([[return vim.fs.root('file://bogus', 'Cargo.toml')]]))
     end)
   end)
 

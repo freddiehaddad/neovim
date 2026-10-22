@@ -59,7 +59,7 @@ local function run_die(cmd, err_msg)
 end
 
 local nvim_src_dir = run({ 'git', 'rev-parse', '--show-toplevel' })
-local deps_file = nvim_src_dir .. '/' .. 'cmake.deps/deps.txt'
+local deps_file = nvim_src_dir .. '/' .. 'deps.txt'
 
 --- @param repo string
 --- @param ref string
