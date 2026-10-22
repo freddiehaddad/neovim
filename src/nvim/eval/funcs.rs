@@ -112,7 +112,7 @@ use crate::ex_getln::{
     VSE_NONE, get_user_input, hlf_T, text_locked, text_locked_msg, vim_strsave_fnameescape,
 };
 use crate::extmark::{TriState, kFalse, kNone, kTrue};
-use crate::garray::{ga_append, ga_append_via_ptr, ga_clear, ga_grow, ga_init, garray_T};
+use crate::garray::{ga_append, ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::grid::{
     ScreenGrid, grid_getchar, schar_T, schar_from_char, schar_get, schar_get_first_codepoint,
@@ -328,13 +328,7 @@ struct GetListLineCookie {
 }
 
 static mut INPUTSECRET_FLAG: bool = false;
-static mut GA_USERINPUT: garray_T = garray_T {
-    ga_len: 0,
-    ga_maxlen: 0,
-    ga_itemsize: size_of::<tasave_T>() as c_int,
-    ga_growsize: 4,
-    ga_data: ptr::null_mut(),
-};
+static mut GA_USERINPUT: Vec<tasave_T> = Vec::new();
 static mut HAS_WSL: TriState = kNone;
 static mut RAND_GX: u32 = 0;
 static mut RAND_GY: u32 = 0;
@@ -4367,14 +4361,9 @@ pub unsafe fn f_inputlist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
 /// "inputrestore()" function
 pub unsafe fn f_inputrestore(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        if GA_USERINPUT.ga_len > 0 {
-            GA_USERINPUT.ga_len -= 1;
-            restore_typeahead(
-                GA_USERINPUT
-                    .ga_data
-                    .cast::<tasave_T>()
-                    .add(GA_USERINPUT.ga_len as usize),
-            );
+        let userinput = &raw mut GA_USERINPUT;
+        if let Some(mut saved) = (*userinput).pop() {
+            restore_typeahead(&mut saved);
         } else if p_verbose > 1 {
             verb_msg(gettext(
                 c"called inputrestore() more often than inputsave()".as_ptr(),
@@ -4387,8 +4376,10 @@ pub unsafe fn f_inputrestore(_argvars: *mut typval_T, rettv: *mut typval_T, _fpt
 /// "inputsave()" function
 pub unsafe fn f_inputsave(_argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        let p = ga_append_via_ptr::<tasave_T>(&raw mut GA_USERINPUT);
-        save_typeahead(p);
+        let mut saved: tasave_T = std::mem::zeroed();
+        save_typeahead(&mut saved);
+        let userinput = &raw mut GA_USERINPUT;
+        (*userinput).push(saved);
     }
 }
 
@@ -5934,10 +5925,16 @@ pub unsafe fn f_mode(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
     }
 }
 
-unsafe fn may_add_state_char(gap: *mut garray_T, include: *const c_char, c: u8) {
+unsafe fn may_add_state_char(
+    buf: &mut [c_char],
+    len: &mut usize,
+    include: *const c_char,
+    c: u8,
+) {
     unsafe {
         if include.is_null() || !vim_strchr(include, c_int::from(c)).is_null() {
-            ga_append(gap, c);
+            buf[*len] = c as c_char;
+            *len += 1;
         }
     }
 }
@@ -5945,44 +5942,42 @@ unsafe fn may_add_state_char(gap: *mut garray_T, include: *const c_char, c: u8) 
 /// "state()" function
 pub unsafe fn f_state(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        let mut ga = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: ptr::null_mut(),
-        };
-        ga_init(&raw mut ga, 1, 20);
+        let mut buf = [0 as c_char; 16];
+        let mut len = 0usize;
         let mut include: *const c_char = ptr::null();
         if (*argvars).v_type != VarType::VAR_UNKNOWN {
             include = tv_get_string(argvars);
         }
 
         if !(stuff_empty() && typebuf.tb_len == 0 && using_script() == 0) {
-            may_add_state_char(&raw mut ga, include, b'm');
+            may_add_state_char(&mut buf, &mut len, include, b'm');
         }
         if op_pending() {
-            may_add_state_char(&raw mut ga, include, b'o');
+            may_add_state_char(&mut buf, &mut len, include, b'o');
         }
         if autocmd_busy {
-            may_add_state_char(&raw mut ga, include, b'x');
+            may_add_state_char(&mut buf, &mut len, include, b'x');
         }
         if ins_compl_active() {
-            may_add_state_char(&raw mut ga, include, b'a');
+            may_add_state_char(&mut buf, &mut len, include, b'a');
         }
         if !get_was_safe_state() {
-            may_add_state_char(&raw mut ga, include, b'S');
+            may_add_state_char(&mut buf, &mut len, include, b'S');
         }
         let depth = get_callback_depth();
         for _ in 0..(depth.min(3)) {
-            may_add_state_char(&raw mut ga, include, b'c');
+            may_add_state_char(&mut buf, &mut len, include, b'c');
         }
         if msg_scrolled > 0 {
-            may_add_state_char(&raw mut ga, include, b's');
+            may_add_state_char(&mut buf, &mut len, include, b's');
         }
 
         (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = ga.ga_data.cast();
+        (*rettv).vval.v_string = if len == 0 {
+            ptr::null_mut()
+        } else {
+            xmemdupz(buf.as_ptr().cast(), len).cast()
+        };
     }
 }
 

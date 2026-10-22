@@ -121,7 +121,7 @@ struct McInsSaved {
 
 struct McInsSpan {
     origin: CmdOrigin,
-    regions: KVec<u32>,
+    regions: Vec<u32>,
     active: bool,
     first: bool,
     frame: u64,
@@ -148,7 +148,7 @@ static mut mc_ins_span: McInsSpan = McInsSpan {
         tick: 0,
         maptick: 0,
     },
-    regions: KVec::new(),
+    regions: Vec::new(),
     active: false,
     first: false,
     frame: 0,
@@ -164,7 +164,35 @@ static mut mc_start: McStart = McStart {
 
 static mut mc_vsel_buf: handle_T = 0;
 static mut mc_ins_joined: bool = false;
-static mut mc_cursors: KVec<Context> = KVec::new();
+static mut mc_cursors: Vec<Context> = Vec::new();
+
+#[inline]
+unsafe fn cursors() -> &'static [Context] {
+    let ptr = &raw const mc_cursors;
+    unsafe { &*ptr }
+}
+
+#[inline]
+unsafe fn cursors_mut() -> &'static mut Vec<Context> {
+    let ptr = &raw mut mc_cursors;
+    unsafe { &mut *ptr }
+}
+
+#[inline]
+unsafe fn ins_regions() -> &'static [u32] {
+    unsafe {
+        let ptr = &raw const mc_ins_span.regions;
+        &*ptr
+    }
+}
+
+#[inline]
+unsafe fn ins_regions_mut() -> &'static mut Vec<u32> {
+    unsafe {
+        let ptr = &raw mut mc_ins_span.regions;
+        &mut *ptr
+    }
+}
 
 static mut ns_mc: u32 = 0;
 static mut ns_vcur: u32 = 0;
@@ -228,7 +256,8 @@ unsafe fn mc_session_ns() -> u32 {
 
 pub unsafe fn mc_showcmd(buf: *mut c_char, size: usize) -> usize {
     unsafe {
-        if mc_cursors.size == 0 {
+        let count = cursors().len();
+        if count == 0 {
             *buf = 0;
             return 0;
         }
@@ -237,13 +266,7 @@ pub unsafe fn mc_showcmd(buf: *mut c_char, size: usize) -> usize {
         } else {
             c"".as_ptr()
         };
-        vim_snprintf!(
-            buf,
-            size,
-            c"%s%zu\xc3\x97 ".as_ptr(),
-            prefix,
-            mc_cursors.size,
-        ) as usize
+        vim_snprintf!(buf, size, c"%s%zu\xc3\x97 ".as_ptr(), prefix, count) as usize
     }
 }
 
@@ -331,7 +354,7 @@ unsafe fn mc_sandbox_leave(sb: *mut McSandbox) {
 
 unsafe fn mc_execute(cursoridx: usize, atomidx: usize) {
     unsafe {
-        let mut ctx = *mc_cursors.items.add(cursoridx);
+        let mut ctx = cursors()[cursoridx];
         let atom = *g_atoms.items.add(atomidx);
 
         if handle_get_buffer(ctx.buf) != curbuf {
@@ -421,7 +444,7 @@ unsafe fn mc_execute(cursoridx: usize, atomidx: usize) {
 
         let wrote_regs = swap_regs && reg_max_ts(false) != regs_ts;
 
-        if cursoridx >= mc_cursors.size {
+        if cursoridx >= cursors().len() {
             return;
         }
         if !extmark_get_pos(curbuf, mc_ns(), ctx.mark, &mut ctx.pos) {
@@ -445,7 +468,7 @@ unsafe fn mc_execute(cursoridx: usize, atomidx: usize) {
             ctx.pos = (*curbuf).b_last_insert.mark;
         }
         mc_mark_upd(curbuf, &mut ctx.mark, ctx.pos);
-        *mc_cursors.items.add(cursoridx) = ctx;
+        cursors_mut()[cursoridx] = ctx;
     }
 }
 
@@ -458,7 +481,7 @@ unsafe fn mc_cascade() {
         } else {
             0
         };
-        assert!(mc_cursors.size > 0);
+        assert!(!cursors().is_empty());
         assert!(!mc_replaying());
 
         got_int = false;
@@ -469,7 +492,7 @@ unsafe fn mc_cascade() {
         }
         if edits {
             mc_cleanup(true, ptr::null(), 0);
-            if mc_cursors.size == 0 {
+            if cursors().is_empty() {
                 atoms_free(&raw mut g_atoms);
                 return;
             }
@@ -493,12 +516,12 @@ unsafe fn mc_cascade() {
                 continue;
             }
             let mut ci = 0;
-            while ci < mc_cursors.size {
+            while ci < cursors().len() {
                 line_breakcheck();
                 if got_int {
                     break 'outer;
                 }
-                if mcursor == 0 || (*mc_cursors.items.add(ci)).mark != mcursor {
+                if mcursor == 0 || cursors()[ci].mark != mcursor {
                     mc_execute(ci, ai);
                 }
                 ci += 1;
@@ -547,35 +570,34 @@ pub unsafe fn mc_clock_edge(map_edit: bool, map_moved: bool, follow: bool) {
 
 unsafe fn mc_cleanup(dedupe: bool, primary: *const pos_T, keep_mark: u32) {
     unsafe {
-        let had_cursors = mc_cursors.size > 0;
+        let had_cursors = !cursors().is_empty();
         let mut n = 0;
-        for i in 0..mc_cursors.size {
-            let ctx = mc_cursors.items.add(i);
-            let buf = handle_get_buffer((*ctx).buf);
+        for i in 0..cursors().len() {
+            let mut ctx = cursors()[i];
+            let buf = handle_get_buffer(ctx.buf);
             if buf.is_null()
-                || ((*ctx).mark != 0
-                    && !extmark_get_pos(buf, mc_ns(), (*ctx).mark, &mut (*ctx).pos))
+                || (ctx.mark != 0 && !extmark_get_pos(buf, mc_ns(), ctx.mark, &mut ctx.pos))
             {
-                ctx_free(ctx);
+                ctx_free(&mut ctx);
                 continue;
             }
             let dup = dedupe
-                && (*ctx).mark != 0
+                && ctx.mark != 0
                 && ((!curwin.is_null()
                     && buf == curbuf
                     && !primary.is_null()
-                    && equalpos((*ctx).pos, *primary)
-                    && (*ctx).mark != keep_mark)
-                    || mc_mark_at(buf, (*ctx).pos, 0) != (*ctx).mark);
+                    && equalpos(ctx.pos, *primary)
+                    && ctx.mark != keep_mark)
+                    || mc_mark_at(buf, ctx.pos, 0) != ctx.mark);
             if dup {
-                extmark_del_id(buf, mc_ns(), (*ctx).mark);
-                ctx_free(ctx);
+                extmark_del_id(buf, mc_ns(), ctx.mark);
+                ctx_free(&mut ctx);
             } else {
-                *mc_cursors.items.add(n) = *ctx;
+                cursors_mut()[n] = ctx;
                 n += 1;
             }
         }
-        mc_cursors.size = n;
+        cursors_mut().truncate(n);
         if n == 0 && had_cursors {
             ctx_free(&raw mut mc_start.ctx);
             mc_start.time = 0;
@@ -619,9 +641,9 @@ pub unsafe fn mc_ins_cascade_start(
         if mc_ins_span.active {
             let mut lo = (*curwin).w_cursor.lnum;
             let mut hi = (*curwin).w_cursor.lnum;
-            for i in 0..mc_cursors.size {
+            for ctx in cursors() {
                 let mut pos = INIT_POS;
-                if mc_ctx_resolve(mc_cursors.items.add(i), &mut pos) {
+                if mc_ctx_resolve(ctx, &mut pos) {
                     lo = lo.min(pos.lnum);
                     hi = hi.max(pos.lnum);
                 }
@@ -681,9 +703,7 @@ unsafe fn mc_ins_span_push(keys: *mut c_char, text: *mut c_char) {
 
 unsafe fn mc_ins_regions_clear() {
     unsafe {
-        while mc_ins_span.regions.size > 0 {
-            mc_ins_span.regions.size -= 1;
-            let id = *mc_ins_span.regions.items.add(mc_ins_span.regions.size);
+        while let Some(id) = ins_regions_mut().pop() {
             extmark_del_id(curbuf, mc_session_ns(), id);
         }
     }
@@ -723,13 +743,13 @@ unsafe fn mc_ins_preview_rebase() {
     unsafe {
         mc_region_mark_set(&raw mut mc_ins_span.region, (*curwin).w_cursor);
         mc_ins_regions_clear();
-        for i in 0..mc_cursors.size {
-            let ctx = mc_cursors.items.add(i);
+        for i in 0..cursors().len() {
+            let ctx = cursors()[i];
             let mut pos = INIT_POS;
             let mut mark = 0;
-            if mc_ctx_resolve(ctx, &mut pos) && (*ctx).mark != mc_ins_span.origin.mcursor {
+            if mc_ctx_resolve(&ctx, &mut pos) && ctx.mark != mc_ins_span.origin.mcursor {
                 mc_region_mark_set(&mut mark, pos);
-                crate::kvec::kv_push(&raw mut mc_ins_span.regions, mark);
+                ins_regions_mut().push(mark);
             }
         }
     }
@@ -737,8 +757,8 @@ unsafe fn mc_ins_preview_rebase() {
 
 unsafe fn mc_ins_region_first() -> MTPair {
     unsafe {
-        for i in 0..mc_ins_span.regions.size {
-            let p = extmark_from_id(curbuf, mc_session_ns(), *mc_ins_span.regions.items.add(i));
+        for &id in ins_regions() {
+            let p = extmark_from_id(curbuf, mc_session_ns(), id);
             if p.start.id != 0 {
                 return p;
             }
@@ -831,10 +851,10 @@ unsafe fn mc_ins_preview_set(new_text: *const NvimString) {
         let save_cmod_flags = cmdmod.cmod_flags;
         cmdmod.cmod_flags |= CMOD_KEEPJUMPS;
         set_vim_var_bool(VV_CASCADING, kBoolVarTrue);
-        for i in 0..mc_ins_span.regions.size {
+        for i in 0..ins_regions().len() {
             let mut rs = INIT_POS;
             let mut re = INIT_POS;
-            if !mc_region_mark_range(*mc_ins_span.regions.items.add(i), &mut rs, &mut re) {
+            if !mc_region_mark_range(ins_regions()[i], &mut rs, &mut re) {
                 continue;
             }
             mc_ins_preview_replace(rs, re, new_text);
@@ -957,10 +977,10 @@ pub unsafe fn mc_ins_cascade() {
                 api_free_string(cur);
             }
             if update && (ins_compl_active() || pum_visible()) {
-                for i in 0..mc_ins_span.regions.size {
+                for &id in ins_regions() {
                     let mut rs = INIT_POS;
                     let mut re = INIT_POS;
-                    if !mc_region_mark_range(*mc_ins_span.regions.items.add(i), &mut rs, &mut re) {
+                    if !mc_region_mark_range(id, &mut rs, &mut re) {
                         continue;
                     }
                     if !lt(end, rs)
@@ -1029,7 +1049,7 @@ unsafe fn mc_reg_read(reg: c_int) -> *mut c_char {
 
 unsafe fn mc_reg_gather() {
     unsafe {
-        if mc_cursors.size == 0 || exiting {
+        if cursors().is_empty() || exiting {
             return;
         }
         let mut gather = [false; MC_REGS.len()];
@@ -1056,36 +1076,29 @@ unsafe fn mc_reg_gather() {
         primary.pos = (*curwin).w_cursor;
         primary.regs = shada_encode_regs(false, mc_start.time);
 
-        let mut order: KVec<*mut Context> = KVec::new();
+        let mut order: Vec<*mut Context> = Vec::new();
         order.push(&mut primary);
-        for c in 0..mc_cursors.size {
-            let ctx = mc_cursors.items.add(c);
-            if (*ctx).regs.size > 0 && handle_get_buffer((*ctx).buf) == curbuf {
+        for ctx in cursors_mut().iter_mut() {
+            if ctx.regs.size > 0 && handle_get_buffer(ctx.buf) == curbuf {
                 order.push(ctx);
             }
         }
-        if order.size == 1 {
-            order.destroy();
+        if order.len() == 1 {
             api_free_string(primary.regs);
             return;
         }
-        let order_slice = std::slice::from_raw_parts_mut(order.items, order.size);
-        order_slice.sort_by(|&a, &b| {
+        order.sort_by(|&a, &b| {
             let ca = &*a;
             let cb = &*b;
-            if ca.pos.lnum != cb.pos.lnum {
-                ca.pos.lnum.cmp(&cb.pos.lnum)
-            } else {
-                ca.pos.col.cmp(&cb.pos.col)
-            }
+            ca.pos.lnum.cmp(&cb.pos.lnum).then_with(|| ca.pos.col.cmp(&cb.pos.col))
         });
 
         let mut save = CONTEXT_INIT;
         ctx_save(&mut save, kCtxRegs);
 
         let mut joined: [KVec<c_char>; MC_REGS.len()] = [KVec::new(); MC_REGS.len()];
-        for o in 0..order.size {
-            ctx_load(*order.items.add(o), kCtxRegs, 0);
+        for &ctx_ptr in &order {
+            ctx_load(ctx_ptr, kCtxRegs, 0);
             let mut idx = 0;
             while MC_REGS[idx] != 0 {
                 if gather[idx] {
@@ -1101,7 +1114,6 @@ unsafe fn mc_reg_gather() {
                 idx += 1;
             }
         }
-        order.destroy();
         api_free_string(primary.regs);
         ctx_load(&mut save, kCtxRegs, 0);
         ctx_free(&mut save);
@@ -1184,12 +1196,14 @@ pub unsafe fn mc_vsel_refresh() {
         block_on_key();
         emsg_silent += 1;
 
-        for i in 0..mc_cursors.size {
-            let ctx = mc_cursors.items.add(i);
-            if !mc_ctx_resolve(ctx, &mut (*ctx).pos) {
+        for i in 0..cursors().len() {
+            let mut pos = INIT_POS;
+            if !mc_ctx_resolve(&cursors()[i], &mut pos) {
                 continue;
             }
-            ctx_load(ctx, kCtxCursor | kCtxVisual | kCtxMarks, 0);
+            cursors_mut()[i].pos = pos;
+            let mut ctx = cursors()[i];
+            ctx_load(&mut ctx, kCtxCursor | kCtxVisual | kCtxMarks, 0);
             check_cursor(curwin);
             Visual.active = false;
             Visual.select = false;
@@ -1299,31 +1313,27 @@ pub unsafe fn mc_ins_commit() -> bool {
         }
         (*curbuf).b_last_changedtick = buf_get_changedtick(curbuf);
         (*curbuf).b_last_changedtick_i = buf_get_changedtick(curbuf);
-        for i in 0..mc_cursors.size {
-            let ctx = mc_cursors.items.add(i);
-            if !mc_ctx_resolve(ctx, &mut (*ctx).pos) {
+        for i in 0..cursors().len() {
+            let mut pos = INIT_POS;
+            if !mc_ctx_resolve(&cursors()[i], &mut pos) {
                 continue;
             }
-            if (*ctx).mark == mc_ins_span.origin.mcursor {
-                (*ctx).pos = (*curwin).w_cursor;
-            } else if (*ctx).pos.col > 0 {
-                dec(&mut (*ctx).pos);
+            let mut mark = cursors()[i].mark;
+            if mark == mc_ins_span.origin.mcursor {
+                pos = (*curwin).w_cursor;
+            } else if pos.col > 0 {
+                dec(&mut pos);
             }
-            mc_mark_upd(curbuf, &mut (*ctx).mark, (*ctx).pos);
+            mc_mark_upd(curbuf, &mut mark, pos);
+            cursors_mut()[i].pos = pos;
+            cursors_mut()[i].mark = mark;
         }
         true
     }
 }
 
 pub unsafe fn mc_buf_has_cursors(buf: *mut buf_T) -> bool {
-    unsafe {
-        for i in 0..mc_cursors.size {
-            if (*mc_cursors.items.add(i)).buf == (*buf).b_fnum {
-                return true;
-            }
-        }
-        false
-    }
+    unsafe { cursors().iter().any(|ctx| ctx.buf == (*buf).b_fnum) }
 }
 
 pub unsafe fn mc_following() -> bool {
@@ -1360,7 +1370,7 @@ unsafe fn mc_lua_enable(enable: bool) {
 
 pub unsafe fn mc_mark_at(buf: *mut buf_T, pos: pos_T, skip: u32) -> u32 {
     unsafe {
-        if mc_cursors.size == 0 {
+        if cursors().is_empty() {
             return 0;
         }
         let mut itr: MarkTreeIter = std::mem::zeroed();
@@ -1776,18 +1786,17 @@ pub unsafe fn mc_add(buf: *mut buf_T, pos: pos_T) -> *mut Context {
     unsafe {
         let existing = mc_mark_at(buf, pos, 0);
         if existing != 0 {
-            for i in 0..mc_cursors.size {
-                let ctx = mc_cursors.items.add(i);
-                if (*ctx).buf == (*buf).b_fnum && (*ctx).mark == existing {
+            for ctx in cursors_mut().iter_mut() {
+                if ctx.buf == (*buf).b_fnum && ctx.mark == existing {
                     return ctx;
                 }
             }
         }
-        let count = mc_cursors.size;
+        let count = cursors().len();
         let mut mark: u32 = 0;
         mc_mark_upd(buf, &mut mark, pos);
-        if mc_cursors.size > count {
-            mc_cursors.items.add(mc_cursors.size - 1)
+        if cursors().len() > count {
+            cursors_mut().last_mut().map_or(ptr::null_mut(), ptr::from_mut)
         } else {
             ptr::null_mut()
         }
@@ -1809,7 +1818,7 @@ pub unsafe fn mc_on_extmark_set(buf: *mut buf_T, ns_id: u32, mut id: u32, pos: p
         }
         mc_mark_upd(buf, &mut id, pos);
         atom_visual_reset();
-        if mc_cursors.size == 0 {
+        if cursors().is_empty() {
             mc_start.time = os_realtime() as Timestamp;
             ctx_save(&raw mut mc_start.ctx, kCtxRegs);
             mc_lua_enable(true);
@@ -1818,7 +1827,7 @@ pub unsafe fn mc_on_extmark_set(buf: *mut buf_T, ns_id: u32, mut id: u32, pos: p
         ctx.buf = (*buf).b_fnum;
         ctx.pos = pos;
         ctx.mark = id;
-        crate::kvec::kv_push(&raw mut mc_cursors, ctx);
+        cursors_mut().push(ctx);
     }
 }
 
@@ -1849,10 +1858,12 @@ pub unsafe fn mc_ns_clearing(buf: *mut buf_T, ns_id: u32) {
         if (ns_id != mc_ns() && ns_id != 0) || mc_replaying() {
             return;
         }
-        for i in 0..mc_cursors.size {
-            let ctx = mc_cursors.items.add(i);
-            if (*ctx).buf == (*buf).b_fnum && (*ctx).mark != 0 {
-                extmark_get_pos(buf, mc_ns(), (*ctx).mark, &mut (*ctx).pos);
+        for i in 0..cursors().len() {
+            let ctx = cursors()[i];
+            if ctx.buf == (*buf).b_fnum && ctx.mark != 0 {
+                let mut pos = ctx.pos;
+                extmark_get_pos(buf, mc_ns(), ctx.mark, &mut pos);
+                cursors_mut()[i].pos = pos;
             }
         }
     }
@@ -1864,15 +1875,11 @@ pub unsafe fn mc_ns_cleared(buf: *mut buf_T, ns_id: u32) {
             return;
         }
 
-        let mut others = false;
-        let mut i = 0;
-        while i < mc_cursors.size && !others {
-            let ctx = mc_cursors.items.add(i);
+        let others = cursors().iter().any(|ctx| {
             let mut pos = INIT_POS;
-            others = (*ctx).buf != (*buf).b_fnum
-                || ((*ctx).mark != 0 && extmark_get_pos(buf, mc_ns(), (*ctx).mark, &mut pos));
-            i += 1;
-        }
+            ctx.buf != (*buf).b_fnum
+                || (ctx.mark != 0 && extmark_get_pos(buf, mc_ns(), ctx.mark, &mut pos))
+        });
         if !others {
             mc_reg_gather();
         }
@@ -1891,17 +1898,17 @@ pub unsafe fn mc_ns_cleared(buf: *mut buf_T, ns_id: u32) {
                     false,
                 );
             }
-            for idx in 0..mc_cursors.size {
-                let ctx = mc_cursors.items.add(idx);
-                if (*ctx).buf != (*buf).b_fnum {
+            for idx in 0..cursors().len() {
+                let ctx = cursors()[idx];
+                if ctx.buf != (*buf).b_fnum {
                     continue;
                 }
                 let mut mark: u32 = 0;
-                extmark_set_pos(buf, mc_last_ns(), &mut mark, (*ctx).pos, true, false, false);
+                extmark_set_pos(buf, mc_last_ns(), &mut mark, ctx.pos, true, false, false);
             }
         }
         mc_cleanup(false, ptr::null(), 0);
-        if mc_cursors.size == 0 {
+        if cursors().is_empty() {
             atoms_free(&raw mut g_atoms);
         }
     }
@@ -1909,13 +1916,11 @@ pub unsafe fn mc_ns_cleared(buf: *mut buf_T, ns_id: u32) {
 
 pub unsafe fn mc_free_all() {
     unsafe {
-        while mc_cursors.size > 0 {
-            mc_cursors.size -= 1;
-            let mut ctx = *mc_cursors.items.add(mc_cursors.size);
+        while let Some(mut ctx) = cursors_mut().pop() {
             ctx_free(&mut ctx);
         }
-        crate::kvec::kv_destroy(&raw mut mc_cursors);
-        crate::kvec::kv_destroy(&raw mut mc_ins_span.regions);
+        *cursors_mut() = Vec::new();
+        *ins_regions_mut() = Vec::new();
         ctx_free(&raw mut mc_start.ctx);
     }
 }

@@ -19,7 +19,6 @@ use crate::errors::*;
 use crate::fileio::shorten_buf_fname;
 use crate::globals::*;
 use crate::grid::grid_adjust;
-use crate::kvec::KVec;
 use crate::memory::{xfree, xstrdup};
 use crate::message::{emsg, kZIndexMessages};
 use crate::mouse::mouse_find_win_inner;
@@ -350,7 +349,7 @@ unsafe fn float_zindex_cmp(&wa: &*mut win_T, &wb: &*mut win_T) -> c_int {
 
 pub unsafe fn win_float_remove(bang: bool, mut count: c_int) {
     unsafe {
-        let mut float_win_arr: KVec<*mut win_T> = KVec::new();
+        let mut float_win_arr: Vec<*mut win_T> = Vec::new();
         let mut wp = lastwin;
         while !wp.is_null() && (*wp).w_floating {
             if !(*wp).w_config.hide && (*wp).w_onebuf_opt.wo_wp == 0 {
@@ -358,12 +357,10 @@ pub unsafe fn win_float_remove(bang: bool, mut count: c_int) {
             }
             wp = (*wp).w_prev;
         }
-        if float_win_arr.size > 0 {
-            let slice = std::slice::from_raw_parts_mut(float_win_arr.items, float_win_arr.size);
-            sort_slice_by(slice, |a, b| float_zindex_cmp(a, b));
+        if !float_win_arr.is_empty() {
+            sort_slice_by(&mut float_win_arr, |a, b| float_zindex_cmp(a, b));
         }
-        for i in 0..float_win_arr.size {
-            let w = *float_win_arr.items.add(i);
+        for w in float_win_arr {
             if win_valid(w) && win_close(w, false, false) == FAIL {
                 break;
             }
@@ -374,7 +371,6 @@ pub unsafe fn win_float_remove(bang: bool, mut count: c_int) {
                 }
             }
         }
-        float_win_arr.destroy();
     }
 }
 

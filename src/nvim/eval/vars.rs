@@ -45,7 +45,7 @@ use crate::ex_cmds::check_secure;
 use crate::ex_docmd::{check_nextcmd, ends_excmd, exarg_T};
 use crate::ex_eval::aborting;
 use crate::extmark::{TriState, kFalse, kNone, kTrue};
-use crate::garray::{ga_append, ga_clear, ga_concat, ga_concat_len, ga_grow, ga_init, garray_T};
+use crate::garray::{ga_append, ga_clear, ga_concat, ga_concat_len, ga_init, garray_T};
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::hashtab::{
@@ -481,13 +481,7 @@ static mut varnamebuf: *mut c_char = ptr::null_mut();
 static mut varnamebuflen: usize = 0;
 
 static mut redir_lval: *mut lval_T = ptr::null_mut();
-static mut redir_ga: garray_T = garray_T {
-    ga_len: 0,
-    ga_maxlen: 0,
-    ga_itemsize: 0,
-    ga_growsize: 0,
-    ga_data: ptr::null_mut(),
-};
+static mut redir_buf: Vec<c_char> = Vec::new();
 static mut redir_endp: *mut c_char = ptr::null_mut();
 static mut redir_varname: *mut c_char = ptr::null_mut();
 
@@ -3778,11 +3772,8 @@ pub unsafe fn var_redir_start(name: *mut c_char, append: bool) -> c_int {
         redir_varname = xstrdup(name);
         redir_lval = xcalloc(1, std::mem::size_of::<lval_T>()).cast::<lval_T>();
 
-        ga_init(
-            &raw mut redir_ga,
-            std::mem::size_of::<c_char>() as c_int,
-            500,
-        );
+        let buf = &raw mut redir_buf;
+        (*buf).clear();
 
         redir_endp = get_lval(
             redir_varname,
@@ -3852,21 +3843,16 @@ pub unsafe fn var_redir_str(value: *const c_char, value_len: c_int) {
         }
 
         let len = if value_len == -1 {
-            strlen(value) as c_int
+            strlen(value)
         } else {
-            value_len
+            value_len.max(0) as usize
         };
 
-        ga_grow(&raw mut redir_ga, len);
-        ptr::copy(
-            value,
-            redir_ga
-                .ga_data
-                .cast::<c_char>()
-                .add(redir_ga.ga_len as usize),
-            len as usize,
-        );
-        redir_ga.ga_len += len;
+        if len > 0 {
+            let slice = std::slice::from_raw_parts(value, len);
+            let buf = &raw mut redir_buf;
+            (*buf).extend_from_slice(slice);
+        }
     }
 }
 
@@ -3874,13 +3860,14 @@ pub unsafe fn var_redir_str(value: *const c_char, value_len: c_int) {
 pub unsafe fn var_redir_stop() {
     unsafe {
         if !redir_lval.is_null() {
+            let buf = &raw mut redir_buf;
             if !redir_endp.is_null() {
-                ga_append(&raw mut redir_ga, 0);
+                (*buf).push(0);
                 let mut tv = typval_T {
                     v_type: VarType::VAR_STRING,
                     v_lock: 0,
                     vval: TypvalVval {
-                        v_string: redir_ga.ga_data.cast::<c_char>(),
+                        v_string: (*buf).as_mut_ptr(),
                     },
                 };
                 redir_endp = get_lval(
@@ -3905,8 +3892,7 @@ pub unsafe fn var_redir_stop() {
                 clear_lval(redir_lval);
             }
 
-            xfree(redir_ga.ga_data);
-            redir_ga.ga_data = ptr::null_mut();
+            *buf = Vec::new();
 
             xfree(redir_lval.cast());
             redir_lval = ptr::null_mut();
