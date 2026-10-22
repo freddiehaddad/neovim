@@ -1470,12 +1470,9 @@ unsafe fn put_do_autocmd(
         });
 
         if regname == c_int::from(b'.') {
-            if !last_insert_ga.ga_data.is_null() {
-                tv_list_append_string(
-                    list,
-                    last_insert_ga.ga_data.cast::<c_char>(),
-                    last_insert_ga.ga_len as isize,
-                );
+            let last_ins = &raw const last_insert_ga;
+            if !(*last_ins).is_empty() {
+                tv_list_append_string(list, (*last_ins).as_ptr(), (*last_ins).len() as isize);
             }
         } else if !insert.is_null() {
             tv_list_append_string(list, (*insert).data, (*insert).size as isize);
@@ -1641,7 +1638,8 @@ pub unsafe fn do_put(
             if has_textput_events {
                 add_last_insert -= 1;
                 if add_last_insert == 0 {
-                    ga_clear(&raw mut last_insert_ga);
+                    let last_ins = &raw mut last_insert_ga;
+                    *last_ins = Vec::new();
                 }
             }
 

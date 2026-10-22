@@ -517,13 +517,7 @@ pub static mut showcmd_buf: [c_char; 51] = [0; 51];
 pub static mut nvim_testing: bool = false;
 pub static mut pum_grid: ScreenGrid = SCREEN_GRID_INIT;
 pub static mut pum_want: PumWant = unsafe { zeroed() };
-pub static mut last_insert_ga: garray_T = garray_T {
-    ga_len: 0,
-    ga_maxlen: 0,
-    ga_itemsize: 1,
-    ga_growsize: 64,
-    ga_data: ptr::null_mut(),
-};
+pub static mut last_insert_ga: Vec<c_char> = Vec::new();
 pub static mut add_last_insert: c_int = 0;
 pub static mut tab_page_click_defs: *mut StlClickDefinition = ptr::null_mut();
 pub static mut tab_page_click_defs_size: usize = 0;

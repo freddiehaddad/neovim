@@ -217,13 +217,7 @@ struct defer_T {
 }
 
 static mut func_hashtab: hashtab_T = unsafe { std::mem::zeroed() };
-static mut funcargs: garray_T = garray_T {
-    ga_len: 0,
-    ga_maxlen: 0,
-    ga_itemsize: 0,
-    ga_growsize: 0,
-    ga_data: ptr::null_mut(),
-};
+static mut funcargs: Vec<*mut typval_T> = Vec::new();
 static mut current_funccal: *mut funccall_T = ptr::null_mut();
 static mut previous_funccal: *mut funccall_T = ptr::null_mut();
 static mut funccal_stack: *mut funccal_entry_T = ptr::null_mut();
@@ -826,27 +820,22 @@ pub unsafe fn get_func_tv(
         );
 
         if ret == OK {
-            let mut i = 0;
+            let mut i = 0usize;
 
             if get_vim_var_nr(VV_TESTING) != 0 {
-                if funcargs.ga_itemsize == 0 {
-                    ga_init(
-                        &raw mut funcargs,
-                        std::mem::size_of::<*mut typval_T>() as c_int,
-                        50,
-                    );
-                }
-                while i < argcount {
-                    ga_grow(&raw mut funcargs, 1);
-                    *(funcargs.ga_data.cast::<*mut typval_T>()).add(funcargs.ga_len as usize) =
-                        &raw mut argvars[i as usize];
-                    funcargs.ga_len += 1;
+                let fa = &raw mut funcargs;
+                while (i as c_int) < argcount {
+                    (*fa).push(&raw mut argvars[i]);
                     i += 1;
                 }
             }
             ret = call_func(name, len, rettv, argcount, argvars.as_mut_ptr(), funcexe);
 
-            funcargs.ga_len -= i;
+            if i > 0 {
+                let fa = &raw mut funcargs;
+                let new_len = (*fa).len().saturating_sub(i);
+                (*fa).truncate(new_len);
+            }
         } else if !aborting() && evaluate {
             if argcount == MAX_FUNC_ARGS as c_int {
                 emsg_funcname(c"E740: Too many arguments for function %s".as_ptr(), name);
@@ -4593,8 +4582,8 @@ pub unsafe fn set_ref_in_functions(copyID: c_int) -> bool {
 
 pub unsafe fn set_ref_in_func_args(copyID: c_int) -> bool {
     unsafe {
-        for i in 0..funcargs.ga_len {
-            let tv = *(funcargs.ga_data.cast::<*mut typval_T>()).add(i as usize);
+        let fa = &raw const funcargs;
+        for &tv in &*fa {
             if set_ref_in_item(tv, copyID, ptr::null_mut(), ptr::null_mut()) {
                 return true;
             }

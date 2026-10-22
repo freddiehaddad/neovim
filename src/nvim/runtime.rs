@@ -211,13 +211,7 @@ pub static mut script_items: garray_T = garray_T {
     ga_data: ptr::null_mut(),
 };
 
-static mut ga_loaded: garray_T = garray_T {
-    ga_len: 0,
-    ga_maxlen: 0,
-    ga_itemsize: std::mem::size_of::<*mut c_char>() as c_int,
-    ga_growsize: 4,
-    ga_data: ptr::null_mut(),
-};
+static mut ga_loaded: Vec<std::ffi::CString> = Vec::new();
 
 static mut last_current_SID_seq: c_int = 0;
 static mut last_current_SID: scid_T = 0;
@@ -3383,7 +3377,8 @@ pub unsafe fn free_scriptnames() {
 
 pub unsafe fn free_autoload_scriptnames() {
     unsafe {
-        ga_clear_strings(&raw mut ga_loaded);
+        let loaded = &raw mut ga_loaded;
+        *loaded = Vec::new();
     }
 }
 
@@ -3836,25 +3831,17 @@ pub unsafe fn script_autoload(name: *const c_char, name_len: usize, reload: bool
         }
 
         let mut ret = false;
-        let mut tofree = autoload_name(name, name_len);
+        let tofree = autoload_name(name, name_len);
         let scriptname = tofree;
 
-        let mut i: c_int = 0;
         let target_tail = CStr::from_ptr(scriptname.add(9)).to_bytes();
-        while i < ga_loaded.ga_len {
-            let loaded_entry = *(ga_loaded.ga_data as *mut *mut c_char).add(i as usize);
-            if CStr::from_ptr(loaded_entry.add(9)).to_bytes() == target_tail {
-                break;
-            }
-            i += 1;
-        }
-        if !reload && i < ga_loaded.ga_len {
-            ret = false;
-        } else {
-            if i == ga_loaded.ga_len {
-                let slot = ga_append_via_ptr::<*mut c_char>(&raw mut ga_loaded);
-                *slot = scriptname;
-                tofree = ptr::null_mut();
+        let loaded = &raw mut ga_loaded;
+        let already_loaded = (*loaded)
+            .iter()
+            .any(|entry| &entry.as_bytes()[9..] == target_tail);
+        if reload || !already_loaded {
+            if !already_loaded {
+                (*loaded).push(CStr::from_ptr(scriptname).to_owned());
             }
 
             let mut ret_sid: c_int = 0;

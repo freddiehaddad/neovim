@@ -35,7 +35,7 @@ use crate::file_search::{
 };
 use crate::fileio::{FILE, fclose, off_T, vim_fgets, vim_fseek, vim_ftell};
 use crate::fold::foldOpenCursor;
-use crate::garray::{ga_clear, ga_clear_strings, ga_grow, ga_init, garray_T};
+use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::hashtab::{
     hash_T, hash_add_item, hash_clear, hash_hash, hash_init, hash_lookup, hashitem_empty, hashtab_T,
@@ -302,13 +302,7 @@ static mut ptag_entry: taggy_T = taggy_T {
     user_data: ptr::null_mut(),
 };
 static mut tfu_in_use: bool = false;
-static mut tag_fnames: garray_T = garray_T {
-    ga_len: 0,
-    ga_maxlen: 0,
-    ga_itemsize: 0,
-    ga_growsize: 0,
-    ga_data: ptr::null_mut(),
-};
+static mut tag_fnames: Vec<std::ffi::CString> = Vec::new();
 
 static mut DO_TAG_NUM_MATCHES: c_int = 0;
 static mut DO_TAG_MAX_NUM_MATCHES: c_int = 0;
@@ -2404,12 +2398,12 @@ unsafe fn found_tagfile_cb(
     _cookie: *mut c_void,
 ) -> bool {
     unsafe {
+        let tf = &raw mut tag_fnames;
         for i in 0..num_fnames as usize {
             let tag_fname = xstrdup(*fnames.add(i));
             simplify_filename(tag_fname);
-            ga_grow(&raw mut tag_fnames, 1);
-            *(tag_fnames.ga_data.cast::<*mut c_char>()).add(tag_fnames.ga_len as usize) = tag_fname;
-            tag_fnames.ga_len += 1;
+            (*tf).push(CStr::from_ptr(tag_fname).to_owned());
+            xfree(tag_fname.cast());
 
             if !all {
                 break;
@@ -2422,7 +2416,8 @@ unsafe fn found_tagfile_cb(
 
 pub unsafe fn free_tag_stuff() {
     unsafe {
-        ga_clear_strings(&raw mut tag_fnames);
+        let tf = &raw mut tag_fnames;
+        *tf = Vec::new();
         if !curwin.is_null() {
             do_tag(ptr::null_mut(), ptr::null_mut(), DT_FREE, 0, 0, false);
         }
@@ -2447,9 +2442,9 @@ pub unsafe fn get_tagfname(tnp: *mut tagname_T, first: c_int, buf: *mut c_char) 
         }
 
         if (*curbuf).b_help {
+            let tf = &raw mut tag_fnames;
             if first != 0 {
-                ga_clear_strings(&raw mut tag_fnames);
-                ga_init(&raw mut tag_fnames, size_of::<*mut c_char>() as c_int, 10);
+                (*tf).clear();
                 do_in_runtimepath(
                     c"doc/tags doc/tags-??".as_ptr().cast_mut(),
                     DIP_ALL,
@@ -2458,8 +2453,9 @@ pub unsafe fn get_tagfname(tnp: *mut tagname_T, first: c_int, buf: *mut c_char) 
                 );
             }
 
-            if (*tnp).tn_hf_idx >= tag_fnames.ga_len {
-                if (*tnp).tn_hf_idx > tag_fnames.ga_len || *p_hf == NUL {
+            let len = (*tf).len() as c_int;
+            if (*tnp).tn_hf_idx >= len {
+                if (*tnp).tn_hf_idx > len || *p_hf == NUL {
                     return FAIL;
                 }
                 (*tnp).tn_hf_idx += 1;
@@ -2467,15 +2463,14 @@ pub unsafe fn get_tagfname(tnp: *mut tagname_T, first: c_int, buf: *mut c_char) 
                 strcpy(path_tail(buf), c"tags".as_ptr());
                 simplify_filename(buf);
 
-                for i in 0..tag_fnames.ga_len as usize {
-                    if strcmp(buf, *(tag_fnames.ga_data.cast::<*mut c_char>()).add(i)) == 0 {
-                        return FAIL;
-                    }
+                let buf_bytes = CStr::from_ptr(buf).to_bytes();
+                if (*tf).iter().any(|entry| entry.as_bytes() == buf_bytes) {
+                    return FAIL;
                 }
             } else {
                 xstrlcpy(
                     buf,
-                    *(tag_fnames.ga_data.cast::<*mut c_char>()).add((*tnp).tn_hf_idx as usize),
+                    (*tf).as_slice()[(*tnp).tn_hf_idx as usize].as_ptr(),
                     MAXPATHL,
                 );
                 (*tnp).tn_hf_idx += 1;
@@ -2549,7 +2544,8 @@ pub unsafe fn tagname_free(tnp: *mut tagname_T) {
         xfree((*tnp).tn_tags.cast());
         vim_findfile_cleanup((*tnp).tn_search_ctx);
         (*tnp).tn_search_ctx = ptr::null_mut();
-        ga_clear_strings(&raw mut tag_fnames);
+        let tf = &raw mut tag_fnames;
+        *tf = Vec::new();
     }
 }
 

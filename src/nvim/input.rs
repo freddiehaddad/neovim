@@ -262,7 +262,7 @@ static mut ungot: UngotKey = UngotKey {
     mouse_col: 0,
     stuffed: false,
 };
-static mut on_key_buf: StringBuilder = KVec::new();
+static mut on_key_buf: Vec<c_char> = Vec::new();
 static mut on_key_ignore_len: usize = 0;
 static mut on_key_blocked: c_int = 0;
 static mut typeahead_char: c_int = 0;
@@ -872,8 +872,9 @@ pub unsafe fn stuffRedoReadbuff(s: *const c_char) {
 
 pub unsafe fn stuffReadbuffLen(s: *const c_char, len: isize) {
     unsafe {
-        if add_last_insert == 1 {
-            ga_concat_len(&raw mut last_insert_ga, s, len as usize);
+        if add_last_insert == 1 && len > 0 {
+            let last_ins = &raw mut last_insert_ga;
+            (*last_ins).extend_from_slice(std::slice::from_raw_parts(s, len as usize));
         }
         add_buff(&raw mut readbuf1, s, len);
     }
@@ -1321,7 +1322,11 @@ unsafe fn gotchars(chars: *const u8, len: usize) {
                 let start_ptr = (&raw const GOTCHARS_STATE.buf)
                     .cast::<c_char>()
                     .add(on_key_ignore_len);
-                kv_concat_len(&raw mut on_key_buf, start_ptr, buflen - on_key_ignore_len);
+                let okb = &raw mut on_key_buf;
+                (*okb).extend_from_slice(std::slice::from_raw_parts(
+                    start_ptr,
+                    buflen - on_key_ignore_len,
+                ));
                 on_key_ignore_len = 0;
             } else {
                 on_key_ignore_len -= buflen;
@@ -1367,8 +1372,9 @@ unsafe fn ungetchars(len: c_int, recorded: bool) {
             last_recorded_len -= len_u;
         }
         atom_typed_del(len_u);
-        let trim = len_u.min(on_key_buf.size);
-        on_key_buf.size -= trim;
+        let okb = &raw mut on_key_buf;
+        let trim = len_u.min((*okb).len());
+        (*okb).truncate((*okb).len() - trim);
         on_key_ignore_len += len_u - trim;
     }
 }
@@ -1850,8 +1856,9 @@ pub unsafe fn vgetc() -> c_int {
 
         may_garbage_collect = false;
 
-        kv_push(&raw mut on_key_buf, NUL as c_char);
-        if on_key_blocked == 0 && nlua_exec_on_key(c, on_key_buf.items) {
+        let okb = &raw mut on_key_buf;
+        (*okb).push(NUL as c_char);
+        if on_key_blocked == 0 && nlua_exec_on_key(c, (*okb).as_mut_ptr()) {
             if c == K_COMMAND {
                 xfree(getcmdkeycmd(NUL, ptr::null_mut(), 0, false).cast());
             } else if c == K_LUA {
@@ -1861,8 +1868,7 @@ pub unsafe fn vgetc() -> c_int {
             }
             c = K_IGNORE;
         }
-        kv_destroy(&raw mut on_key_buf);
-        on_key_buf = KVec::new();
+        *okb = Vec::new();
 
         if c != K_IGNORE {
             state_no_longer_safe(c"key typed".as_ptr());
