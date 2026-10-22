@@ -1103,7 +1103,7 @@ pub unsafe fn utf_char2cells(c: c_int) -> c_int {
         if (*prop).charwidth() == 2 {
             return 2;
         }
-        if *p_ambw == b'd' as c_char && (*prop).ambiguous_width() {
+        if !p_ambw.is_null() && *p_ambw == b'd' as c_char && (*prop).ambiguous_width() {
             return 2;
         }
 
@@ -1119,8 +1119,7 @@ pub unsafe fn ptr2cells(p_in: *const c_char) -> c_int {
     unsafe { utf_ClusterInfo(utf_ptr2StrCharInfo(p_in)).cells }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_ptr2cells(p_in: *const c_char) -> c_int {
+pub unsafe fn utf_ptr2cells(p_in: *const c_char) -> c_int {
     unsafe {
         if *p_in.cast::<u8>() < 0x80 {
             return 1;
@@ -1209,8 +1208,7 @@ pub unsafe fn mb_string2cells(str_: *const c_char) -> usize {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mb_string2cells_len(str_: *const c_char, size: usize) -> usize {
+pub unsafe fn mb_string2cells_len(str_: *const c_char, size: usize) -> usize {
     unsafe {
         let mut clen = 0usize;
         let mut len = size as c_int;
@@ -1370,8 +1368,7 @@ unsafe fn schar_from_buf_first(buf: *const c_char, len: usize, first_compose: bo
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utfc_ptr2schar(p: *const c_char, firstc: *mut c_int) -> schar_T {
+pub unsafe fn utfc_ptr2schar(p: *const c_char, firstc: *mut c_int) -> schar_T {
     unsafe {
         let c = utf_ptr2char(p);
         *firstc = c;
@@ -1523,8 +1520,7 @@ pub unsafe fn utf_char2len(c: c_int) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_char2bytes(c: c_int, buf: *mut c_char) -> c_int {
+pub unsafe fn utf_char2bytes(c: c_int, buf: *mut c_char) -> c_int {
     unsafe {
         let u = c as u32;
         if c < 0x80 {
@@ -2053,8 +2049,7 @@ pub unsafe fn utf_ambiguous_width(p: *const c_char) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_fold(a: c_int) -> c_int {
+pub unsafe fn utf_fold(a: c_int) -> c_int {
     unsafe {
         if a < 0x80 {
             return if (0x41..=0x5a).contains(&a) {
@@ -2078,8 +2073,7 @@ pub unsafe extern "C" fn utf_fold(a: c_int) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mb_toupper(a: c_int) -> c_int {
+pub unsafe fn mb_toupper(a: c_int) -> c_int {
     unsafe {
         if a < 128 && (cmp_flags & kOptCmpFlagKeepascii) != 0 {
             return toupper_asc(a);
@@ -2367,8 +2361,7 @@ const fn always_break_two(bc1: u32, bc2: u32) -> bool {
                 || bc1 == UTF8PROC_BOUNDCLASS_EXTENDED_PICTOGRAPHIC))
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_head_off(base_in: *const c_char, p_in: *const c_char) -> c_int {
+pub unsafe fn utf_head_off(base_in: *const c_char, p_in: *const c_char) -> c_int {
     unsafe {
         if *p_in.cast::<u8>() < 0x80 {
             return 0;
@@ -2637,8 +2630,7 @@ pub unsafe fn mb_off_next(base: *const c_char, p: *const c_char) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn utf_cp_bounds_len(
+pub unsafe fn utf_cp_bounds_len(
     base: *const c_char,
     p_in: *const c_char,
     p_len: c_int,
@@ -3594,6 +3586,7 @@ pub unsafe fn mb_strcmp_ic(ic: bool, s1: *const c_char, s2: *const c_char) -> c_
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::grid::schar_get;
 
     #[test]
     fn utf8_char_encoding_and_bounds_work() {
@@ -3607,6 +3600,60 @@ mod tests {
             assert!(utf_printable(0x20ac));
             assert!(!utf_printable(0xd800));
             assert_eq!(enc_canon_props(c"utf-8".as_ptr()), ENC_UNICODE);
+
+            assert_eq!(utf_fold(0xddfb), 0xddfb);
+            assert_eq!(utf_fold(0xd800), 0xd800);
+            assert_eq!(utf_fold(9_000_000), 9_000_000);
+            assert_eq!(utf_fold(0), 0);
+
+            for (s, exp_cells) in [
+                (c"ำ", 1),
+                (c"ท", 1),
+                (c"ทำ", 2),
+                (c"का", 2),
+                (c"ｶ", 1),
+                (c"ｶﾞ", 2),
+                (c"ﾊﾟ", 2),
+                (c"ท่", 1),
+                (c"é", 1),
+                (c"ทำำ", 2),
+                (c"漢", 2),
+            ] {
+                assert_eq!(utf_ptr2cells(s.as_ptr()), exp_cells);
+                assert_eq!(
+                    mb_string2cells_len(s.as_ptr(), s.to_bytes().len()),
+                    exp_cells as usize
+                );
+            }
+            assert_eq!(utf_ptr2cells(c"\xff".as_ptr()), 4);
+
+            let mut firstc: c_int = 0;
+            let mut sbuf = [0 as c_char; 32];
+            let sc = utfc_ptr2schar(c")\xcc\x80\xcc\x81".as_ptr(), &mut firstc);
+            schar_get(sbuf.as_mut_ptr(), sc);
+            assert_eq!(firstc, 0x29);
+            assert_eq!(
+                CStr::from_ptr(sbuf.as_ptr()).to_bytes(),
+                b")\xcc\x80\xcc\x81"
+            );
+
+            let emoji = c"🏳️‍⚧️🧑‍🌾❤️😂🏴‍☠️";
+            let e_bytes = emoji.to_bytes();
+            let mut pos = 0usize;
+            while pos < e_bytes.len() {
+                let clen = utfc_ptr2len(emoji.as_ptr().add(pos)) as usize;
+                for p in pos..(pos + clen) {
+                    assert_eq!(
+                        utf_head_off(emoji.as_ptr(), emoji.as_ptr().add(p)),
+                        (p - pos) as c_int
+                    );
+                }
+                pos += clen;
+            }
+
+            let cp_str = c"iÀⱠ𐀀i";
+            let b0 = utf_cp_bounds_len(cp_str.as_ptr(), cp_str.as_ptr().add(2), 9);
+            assert_eq!((b0.begin_off, b0.end_off), (1, 1));
         }
     }
 }

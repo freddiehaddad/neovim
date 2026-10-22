@@ -869,11 +869,7 @@ pub unsafe fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_strsave_escaped(
-    string: *const c_char,
-    esc_chars: *const c_char,
-) -> *mut c_char {
+pub unsafe fn vim_strsave_escaped(string: *const c_char, esc_chars: *const c_char) -> *mut c_char {
     unsafe { vim_strsave_escaped_ext(string, esc_chars, b'\\' as c_char, false) }
 }
 
@@ -925,11 +921,7 @@ pub unsafe fn vim_strsave_escaped_ext(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_strnsave_unquoted(
-    string: *const c_char,
-    length: usize,
-) -> *mut c_char {
+pub unsafe fn vim_strnsave_unquoted(string: *const c_char, length: usize) -> *mut c_char {
     unsafe {
         let mut ret_length: usize = 0;
         let mut inquote = false;
@@ -1186,8 +1178,7 @@ pub unsafe fn mb_strup_buf(src: *const c_char, dst: *mut c_char) -> usize {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn strcase_save(orig: *const c_char, upper: bool) -> *mut c_char {
+pub unsafe fn strcase_save(orig: *const c_char, upper: bool) -> *mut c_char {
     unsafe {
         let mut orig_len = CStr::from_ptr(orig).to_bytes().len();
         let mut res = xmalloc(orig_len + 1).cast::<c_char>();
@@ -1299,8 +1290,7 @@ pub unsafe fn vim_strnicmp_asc(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char {
+pub unsafe fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char {
     unsafe {
         if string.is_null() || c <= 0 {
             ptr::null_mut()
@@ -2050,16 +2040,6 @@ impl IntoFmtVal for &CStr {
     fn into_fmt_val(self) -> FmtVal {
         FmtVal::Ptr(self.as_ptr().cast())
     }
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct VimFmtArg {
-    pub tag: c_int,
-    pub i: i64,
-    pub u: u64,
-    pub f: f64,
-    pub p: *const c_void,
 }
 
 #[inline]
@@ -2901,30 +2881,6 @@ pub unsafe fn vim_snprintf_fmt(
     unsafe { vim_vsnprintf_typval_inner(str_out, str_m, fmt, ptr::null_mut(), args) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_snprintf_args(
-    str_out: *mut c_char,
-    str_m: usize,
-    fmt: *const c_char,
-    args: *const VimFmtArg,
-    argc: usize,
-) -> c_int {
-    let mut vals = Vec::with_capacity(argc);
-    if !args.is_null() {
-        for idx in 0..argc {
-            let a = unsafe { *args.add(idx) };
-            let v = match a.tag {
-                1 => FmtVal::Unsigned(a.u),
-                2 => FmtVal::Float(a.f),
-                3 => FmtVal::Ptr(a.p),
-                _ => FmtVal::Signed(a.i),
-            };
-            vals.push(v);
-        }
-    }
-    unsafe { vim_snprintf_fmt(str_out, str_m, fmt, &vals) }
-}
-
 pub unsafe fn vim_snprintf_add_fmt(
     str_out: *mut c_char,
     str_m: usize,
@@ -3010,8 +2966,7 @@ pub unsafe fn vim_snprintf_typval_only(
     unsafe { vim_vsnprintf_typval_inner(str_out, str_m, fmt, tvs, &[]) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn reverse_text(s: *mut c_char) -> *mut c_char {
+pub unsafe fn reverse_text(s: *mut c_char) -> *mut c_char {
     unsafe {
         let len = CStr::from_ptr(s).to_bytes().len();
         let rev = xmalloc(len + 1).cast::<c_char>();
@@ -4009,6 +3964,95 @@ mod tests {
                 vim_snprintf_safelen!(small.as_mut_ptr(), small.len(), c"hello world".as_ptr(),);
             assert_eq!(safelen, 4);
             assert_eq!(CStr::from_ptr(small.as_ptr()).to_str().unwrap(), "hell");
+        }
+    }
+
+    #[test]
+    fn vim_strsave_escaped_unquoted_strchr_strcase_and_reverse() {
+        unsafe {
+            crate::option_vars::cmp_flags =
+                crate::mbyte::kOptCmpFlagInternal | crate::mbyte::kOptCmpFlagKeepascii;
+
+            for (s, esc, expected) in [
+                (c"abcd", c"abcd", "\\a\\b\\c\\d"),
+                (c"abcd", c"ab", "\\a\\bcd"),
+                (c"text \n text", c"", "text \n text"),
+                (c"", c"\r", ""),
+                (c"some text", c"a", "some text"),
+            ] {
+                let res = vim_strsave_escaped(s.as_ptr(), esc.as_ptr());
+                assert_eq!(CStr::from_ptr(res).to_str().unwrap(), expected);
+                xfree(res.cast());
+            }
+
+            for (s, len, expected) in [
+                (c"-c", 2usize, "-c"),
+                (c"", 0, ""),
+                (c"-c", 0, ""),
+                (c"-c", 1, "-"),
+                (c"\"-c", 2, "-"),
+                (c"\"/bin/sh\"", 9, "/bin/sh"),
+                (c"/Program\" \"Files/sh", 19, "/Program Files/sh"),
+                (c"/\"\"Program\" \"Files/sh", 21, "/Program Files/sh"),
+                (
+                    c"/\"\\\"\"Program Files\"\\\"\"/sh",
+                    25,
+                    "/\"Program Files\"/sh",
+                ),
+                (
+                    c"/\"\\\\\"Program Files\"\\\\foo\"/sh",
+                    28,
+                    "/\\Program Files\\foo/sh",
+                ),
+                (c"/Program\" Files/sh", 18, "/Program Files/sh"),
+                (c"\"", 1, ""),
+                (c"/Program\" Files/sh\\", 19, "/Program Files/sh\\"),
+                (c"/Program\\ Files/sh\\", 19, "/Program\\ Files/sh\\"),
+                (c"/Program\"\\n\"Files/sh", 20, "/Program\\nFiles/sh"),
+            ] {
+                let res = vim_strnsave_unquoted(s.as_ptr(), len);
+                assert_eq!(CStr::from_ptr(res).to_str().unwrap(), expected);
+                xfree(res.cast());
+            }
+
+            let s_abc = c"abc";
+            assert!(vim_strchr(s_abc.as_ptr(), 0).is_null());
+            assert!(vim_strchr(s_abc.as_ptr(), -1).is_null());
+            assert_eq!(
+                vim_strchr(s_abc.as_ptr(), b'b' as c_int).offset_from(s_abc.as_ptr()),
+                1
+            );
+            let s_utf = c"„«»“";
+            assert_eq!(
+                vim_strchr(s_utf.as_ptr(), 0xAB).offset_from(s_utf.as_ptr()),
+                3
+            );
+            assert_eq!(
+                vim_strchr(s_utf.as_ptr(), 0x201C).offset_from(s_utf.as_ptr()),
+                7
+            );
+            assert!(vim_strchr(s_utf.as_ptr(), 0x201D).is_null());
+
+            let overlong = c"\xc1\x81";
+            let up = strcase_save(overlong.as_ptr(), true);
+            let lo = strcase_save(overlong.as_ptr(), false);
+            assert_eq!(CStr::from_ptr(up).to_str().unwrap(), "A");
+            assert_eq!(CStr::from_ptr(lo).to_str().unwrap(), "a");
+            xfree(up.cast());
+            xfree(lo.cast());
+
+            for (inp, exp) in [
+                (b"\0" as &[u8], b"" as &[u8]),
+                (b"a\0", b"a"),
+                (b"ab\0", b"ba"),
+                ("öy nötöY\0".as_bytes(), "Yötön yö".as_bytes()),
+                (b"ab\xc0\0", b"\xc0ba"),
+                (b"ab\xc2\0", b"\xc2ba"),
+            ] {
+                let rev = reverse_text(inp.as_ptr().cast_mut().cast());
+                assert_eq!(CStr::from_ptr(rev).to_bytes(), exp);
+                xfree(rev.cast());
+            }
         }
     }
 }

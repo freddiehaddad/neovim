@@ -210,8 +210,7 @@ pub unsafe fn os_get_usernames(users: *mut garray_T) -> c_int {
 ///
 /// # Safety
 /// `s` must be valid for `len` writable bytes.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_get_username(s: *mut c_char, len: usize) -> c_int {
+pub unsafe fn os_get_username(s: *mut c_char, len: usize) -> c_int {
     #[cfg(unix)]
     let uid = unsafe { getuid() };
     #[cfg(not(unix))]

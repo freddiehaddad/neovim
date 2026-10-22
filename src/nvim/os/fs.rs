@@ -192,6 +192,7 @@ pub(crate) const CASE_INSENSITIVE_FILENAME: bool =
 #[cfg(windows)]
 pub(crate) const O_BINARY: c_int = 0x8000;
 pub(crate) const ENV_SEPCHAR: u8 = if cfg!(windows) { b';' } else { b':' };
+#[cfg_attr(not(windows), cfg(test))]
 pub(crate) const ENV_SEPSTR: &CStr = if cfg!(windows) { c";" } else { c":" };
 pub(crate) const PATHSEP: c_char = if cfg!(windows) {
     b'\\' as c_char

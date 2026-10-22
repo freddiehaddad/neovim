@@ -710,8 +710,7 @@ pub unsafe fn vim_isIDc(c: c_int) -> bool {
     unsafe { c > 0 && c < 0x100 && get_chartab((&raw const isi_chartab).cast::<u64>(), c) != 0 }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_iswordc(c: c_int) -> bool {
+pub unsafe fn vim_iswordc(c: c_int) -> bool {
     unsafe { vim_iswordc_buf(c, curbuf) }
 }
 
@@ -729,8 +728,7 @@ pub unsafe fn vim_iswordc_buf(c: c_int, buf: *mut buf_T) -> bool {
     unsafe { vim_iswordc_tab(c, (*buf).b_chartab.as_ptr()) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_iswordp(p: *const c_char) -> bool {
+pub unsafe fn vim_iswordp(p: *const c_char) -> bool {
     unsafe { vim_iswordp_buf(p, curbuf) }
 }
 
@@ -994,8 +992,7 @@ pub unsafe fn vim_isblankline(lbuf: *mut c_char) -> bool {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_str2nr(
+pub unsafe fn vim_str2nr(
     start: *const c_char,
     prep: *mut c_int,
     len: *mut c_int,
@@ -1280,6 +1277,7 @@ pub unsafe fn backslash_halve_save(mut p: *const c_char) -> *mut c_char {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::eval::STR2NR_ALL;
     use crate::keycodes::{K_UP, K_ZERO, KE_FILLER};
 
     #[test]
@@ -1287,5 +1285,159 @@ mod tests {
         assert_eq!(to_special(KS_SPECIAL, KE_FILLER as c_int), K_SPECIAL);
         assert_eq!(to_special(KS_ZERO, KE_FILLER as c_int), K_ZERO);
         assert_eq!(to_special(b'k' as c_int, b'u' as c_int), K_UP);
+    }
+
+    #[test]
+    fn vim_str2nr_parses_dec_bin_oct_hex_and_quotes() {
+        unsafe {
+            let check = |s: &CStr,
+                         what: c_int,
+                         maxlen: c_int,
+                         strict: bool,
+                         exp_len: c_int,
+                         exp_num: Option<varnumber_T>,
+                         exp_unum: Option<uvarnumber_T>,
+                         exp_pre: Option<c_int>| {
+                let mut pre: c_int = -99;
+                let mut len: c_int = -99;
+                let mut num: varnumber_T = -99;
+                let mut unum: uvarnumber_T = 99;
+                vim_str2nr(
+                    s.as_ptr(),
+                    &mut pre,
+                    &mut len,
+                    what,
+                    &mut num,
+                    &mut unum,
+                    maxlen,
+                    strict,
+                    ptr::null_mut(),
+                );
+                assert_eq!(len, exp_len, "s={s:?} what={what}");
+                if let Some(en) = exp_num {
+                    assert_eq!(num, en, "s={s:?} what={what}");
+                }
+                if let Some(eu) = exp_unum {
+                    assert_eq!(unum, eu, "s={s:?} what={what}");
+                }
+                if let Some(ep) = exp_pre {
+                    assert_eq!(pre, ep, "s={s:?} what={what}");
+                }
+            };
+
+            check(c"", STR2NR_ALL, 0, true, 0, Some(0), Some(0), Some(0));
+            check(
+                c"12345",
+                STR2NR_ALL,
+                0,
+                true,
+                5,
+                Some(12345),
+                Some(12345),
+                Some(0),
+            );
+            check(c"12345A", STR2NR_ALL, 0, true, 0, None, None, None);
+            check(
+                c"12345A",
+                STR2NR_ALL,
+                0,
+                false,
+                5,
+                Some(12345),
+                Some(12345),
+                Some(0),
+            );
+            check(c"-42", STR2NR_ALL, 3, true, 3, Some(-42), Some(42), Some(0));
+            check(
+                c"0b101",
+                STR2NR_ALL,
+                0,
+                true,
+                5,
+                Some(5),
+                Some(5),
+                Some(b'b' as c_int),
+            );
+            check(
+                c"-0B101",
+                STR2NR_ALL,
+                0,
+                true,
+                6,
+                Some(-5),
+                Some(5),
+                Some(b'B' as c_int),
+            );
+            check(
+                c"054",
+                STR2NR_ALL,
+                0,
+                true,
+                3,
+                Some(44),
+                Some(44),
+                Some(b'0' as c_int),
+            );
+            check(
+                c"0o054",
+                STR2NR_ALL,
+                0,
+                true,
+                5,
+                Some(44),
+                Some(44),
+                Some(b'o' as c_int),
+            );
+            check(
+                c"0xABCDEF",
+                STR2NR_ALL,
+                0,
+                true,
+                8,
+                Some(11259375),
+                Some(11259375),
+                Some(b'x' as c_int),
+            );
+            check(
+                c"-0X101",
+                STR2NR_ALL,
+                0,
+                true,
+                6,
+                Some(-257),
+                Some(257),
+                Some(b'X' as c_int),
+            );
+            check(
+                c"1'2'3'4",
+                STR2NR_QUOTE,
+                0,
+                true,
+                7,
+                Some(1234),
+                Some(1234),
+                Some(0),
+            );
+            check(
+                c"7''331",
+                STR2NR_QUOTE,
+                0,
+                true,
+                1,
+                Some(7),
+                Some(7),
+                Some(0),
+            );
+            check(
+                c"0xab''cd",
+                STR2NR_HEX | STR2NR_QUOTE,
+                0,
+                true,
+                4,
+                Some(171),
+                Some(171),
+                Some(b'x' as c_int),
+            );
+        }
     }
 }

@@ -8,11 +8,14 @@ use crate::api::private::validate::NvimString;
 use crate::garray::{ga_concat_len, ga_init, garray_T};
 use crate::kvec::KVec;
 use crate::map::{
-    MH_TOMBSTONE, MTDamage, MTDamagePair, Map, map_del_uint64_t_ptr_t, map_put_ref_ptr_t_ptr_t,
-    map_put_ref_uint64_t_MTDamagePair, map_put_ref_uint64_t_ptr_t, mh_get_ptr_t, mh_get_uint64_t,
-    ptr_t,
+    MH_TOMBSTONE, MTDamage, MTDamagePair, Map, map_del_uint64_t_ptr_t,
+    map_put_ref_uint64_t_MTDamagePair, map_put_ref_uint64_t_ptr_t, mh_get_uint64_t, ptr_t,
 };
-use crate::memory::{xcalloc, xfree, xmalloc, xmemdup, xrealloc};
+#[cfg(test)]
+use crate::map::{map_put_ref_ptr_t_ptr_t, mh_get_ptr_t};
+#[cfg(test)]
+use crate::memory::xmemdup;
+use crate::memory::{xcalloc, xfree, xmalloc, xrealloc};
 
 use crate::cursor::colnr_T;
 
@@ -200,6 +203,7 @@ impl Default for MarkTreeIter {
 }
 
 pub type PMapUint64 = Map<u64, ptr_t>;
+#[cfg(test)]
 pub type PMapPtr = Map<ptr_t, ptr_t>;
 pub type MTDamageMap = Map<u64, MTDamagePair>;
 
@@ -942,12 +946,7 @@ pub unsafe fn marktree_put_key(b: *mut MarkTree, mut k: MTKey) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn marktree_del_itr(
-    b: *mut MarkTree,
-    itr: *mut MarkTreeIter,
-    rev: bool,
-) -> u64 {
+pub unsafe fn marktree_del_itr(b: *mut MarkTree, itr: *mut MarkTreeIter, rev: bool) -> u64 {
     unsafe {
         let mut adjustment = 0;
 
@@ -1323,8 +1322,8 @@ unsafe fn intersect_mov(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn intersect_mov_test(
+#[cfg(test)]
+pub unsafe fn intersect_mov_test(
     x: *const u64,
     nx: usize,
     y: *const u64,
@@ -1799,8 +1798,7 @@ unsafe fn pivot_left(b: *mut MarkTree, _p_pos: MTPos, p: *mut MTNode, i: c_int) 
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn marktree_clear(b: *mut MarkTree) {
+pub unsafe fn marktree_clear(b: *mut MarkTree) {
     unsafe {
         if !(*b).root.is_null() {
             marktree_free_subtree(b, (*b).root);
@@ -1833,13 +1831,7 @@ unsafe fn marktree_free_node(b: *mut MarkTree, x: *mut MTNode) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn marktree_move(
-    b: *mut MarkTree,
-    itr: *mut MarkTreeIter,
-    row: c_int,
-    col: c_int,
-) {
+pub unsafe fn marktree_move(b: *mut MarkTree, itr: *mut MarkTreeIter, row: c_int, col: c_int) {
     unsafe {
         let mut key = *rawkey(itr);
         let x = (*itr).x;
@@ -1921,8 +1913,7 @@ pub unsafe fn marktree_restore_pair(b: *mut MarkTree, key: MTKey) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn marktree_itr_get(
+pub unsafe fn marktree_itr_get(
     b: *mut MarkTree,
     row: i32,
     col: c_int,
@@ -2016,8 +2007,8 @@ pub unsafe fn marktree_itr_get_ext(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn marktree_itr_first(b: *mut MarkTree, itr: *mut MarkTreeIter) -> bool {
+#[cfg(test)]
+pub unsafe fn marktree_itr_first(b: *mut MarkTree, itr: *mut MarkTreeIter) -> bool {
     unsafe {
         if (*b).n_keys == 0 {
             (*itr).x = std::ptr::null_mut();
@@ -2039,8 +2030,7 @@ pub unsafe extern "C" fn marktree_itr_first(b: *mut MarkTree, itr: *mut MarkTree
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn marktree_itr_next(b: *mut MarkTree, itr: *mut MarkTreeIter) -> bool {
+pub unsafe fn marktree_itr_next(b: *mut MarkTree, itr: *mut MarkTreeIter) -> bool {
     unsafe { marktree_itr_next_skip(b, itr, false, false, std::ptr::null_mut(), std::ptr::null()) }
 }
 
@@ -2114,8 +2104,7 @@ unsafe fn marktree_itr_next_skip(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn marktree_itr_get_filter(
+pub unsafe fn marktree_itr_get_filter(
     b: *mut MarkTree,
     row: i32,
     col: c_int,
@@ -2169,8 +2158,7 @@ pub unsafe fn marktree_itr_step_out_filter(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn marktree_itr_next_filter(
+pub unsafe fn marktree_itr_next_filter(
     b: *mut MarkTree,
     itr: *mut MarkTreeIter,
     stop_row: c_int,
@@ -2272,8 +2260,7 @@ pub unsafe fn marktree_itr_pos(itr: *mut MarkTreeIter) -> MTPos {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn marktree_itr_current(itr: *mut MarkTreeIter) -> MTKey {
+pub unsafe fn marktree_itr_current(itr: *mut MarkTreeIter) -> MTKey {
     unsafe {
         if !(*itr).x.is_null() {
             let mut key = *rawkey(itr);
@@ -2290,8 +2277,7 @@ unsafe fn itr_eq(itr1: *mut MarkTreeIter, itr2: *mut MarkTreeIter) -> bool {
     unsafe { std::ptr::eq(rawkey(itr1), rawkey(itr2)) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn marktree_itr_get_overlap(
+pub unsafe fn marktree_itr_get_overlap(
     b: *mut MarkTree,
     row: c_int,
     col: c_int,
@@ -2314,8 +2300,7 @@ pub unsafe extern "C" fn marktree_itr_get_overlap(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn marktree_itr_step_overlap(
+pub unsafe fn marktree_itr_step_overlap(
     b: *mut MarkTree,
     itr: *mut MarkTreeIter,
     pair: *mut MTPair,
@@ -2496,8 +2481,7 @@ unsafe fn swap_keys(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn marktree_splice(
+pub unsafe fn marktree_splice(
     b: *mut MarkTree,
     start_line: i32,
     start_col: c_int,
@@ -2799,8 +2783,7 @@ pub unsafe fn marktree_move_region(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn marktree_lookup_ns(
+pub unsafe fn marktree_lookup_ns(
     b: *mut MarkTree,
     ns: u32,
     id: u32,
@@ -2932,8 +2915,8 @@ unsafe fn marktree_itr_fix_pos(b: *mut MarkTree, itr: *mut MarkTreeIter) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn marktree_put_test(
+#[cfg(test)]
+pub unsafe fn marktree_put_test(
     b: *mut MarkTree,
     ns: u32,
     id: u32,
@@ -2963,13 +2946,8 @@ pub unsafe extern "C" fn marktree_put_test(
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn mt_right_test(key: MTKey) -> bool {
-    mt_right(key)
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn marktree_del_pair_test(b: *mut MarkTree, ns: u32, id: u32) {
+#[cfg(test)]
+pub unsafe fn marktree_del_pair_test(b: *mut MarkTree, ns: u32, id: u32) {
     unsafe {
         let mut itr = MarkTreeIter::default();
         marktree_lookup_ns(b, ns, id, false, &mut itr);
@@ -2981,8 +2959,8 @@ pub unsafe extern "C" fn marktree_del_pair_test(b: *mut MarkTree, ns: u32, id: u
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn marktree_check(b: *mut MarkTree) {
+#[cfg(test)]
+pub unsafe fn marktree_check(b: *mut MarkTree) {
     unsafe {
         if (*b).root.is_null() {
             assert_eq!((*b).n_keys, 0);
@@ -3006,6 +2984,7 @@ pub unsafe extern "C" fn marktree_check(b: *mut MarkTree) {
     }
 }
 
+#[cfg(test)]
 pub unsafe fn marktree_check_node(
     b: *mut MarkTree,
     x: *mut MTNode,
@@ -3077,8 +3056,8 @@ pub unsafe fn marktree_check_node(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn marktree_check_intersections(b: *mut MarkTree) -> bool {
+#[cfg(test)]
+pub unsafe fn marktree_check_intersections(b: *mut MarkTree) -> bool {
     unsafe {
         if (*b).root.is_null() {
             return true;
@@ -3131,6 +3110,7 @@ pub unsafe extern "C" fn marktree_check_intersections(b: *mut MarkTree) -> bool 
     }
 }
 
+#[cfg(test)]
 pub unsafe fn mt_recurse_nodes(x: *mut MTNode, checked: *mut PMapPtr) {
     unsafe {
         if (*x).intersect.size != 0 {
@@ -3163,6 +3143,7 @@ pub unsafe fn mt_recurse_nodes(x: *mut MTNode, checked: *mut PMapPtr) {
     }
 }
 
+#[cfg(test)]
 pub unsafe fn mt_recurse_nodes_compare(x: *mut MTNode, checked: *mut PMapPtr) -> bool {
     unsafe {
         let k = mh_get_ptr_t(&mut (*checked).set, x.cast());
@@ -3209,8 +3190,7 @@ unsafe fn ga_put_str(ga: *mut garray_T, s: &str) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mt_inspect(b: *mut MarkTree, keys: bool, dot: bool) -> NvimString {
+pub unsafe fn mt_inspect(b: *mut MarkTree, keys: bool, dot: bool) -> NvimString {
     unsafe {
         let mut ga = garray_T {
             ga_len: 0,
@@ -3429,6 +3409,58 @@ mod tests {
             marktree_check(&mut tree);
             marktree_clear(&mut tree);
             marktree_check(&mut tree);
+
+            // intersect_mov_test
+            let x = [1u64, 3, 4, 6, 7, 9];
+            let y = [2u64, 3, 5, 6, 8, 9];
+            let w = [0u64, 2, 5, 8, 10];
+            let mut wout = [0u64; 17];
+            let mut dout = [0u64; 17];
+            let mut nwout = wout.len();
+            let mut ndout = dout.len();
+            assert!(intersect_mov_test(
+                x.as_ptr(),
+                x.len(),
+                y.as_ptr(),
+                y.len(),
+                w.as_ptr(),
+                w.len(),
+                wout.as_mut_ptr(),
+                &mut nwout,
+                dout.as_mut_ptr(),
+                &mut ndout,
+            ));
+            assert_eq!(&wout[..nwout], &[0, 1, 4, 7, 10]);
+            assert_eq!(ndout, 0);
+
+            // Edge case splicing overlapping ranges (#37867)
+            let mut nid = 0u32;
+            let mut put_range =
+                |t: &mut MarkTree, r1: c_int, c1: c_int, g1: bool, r2: c_int, c2: c_int| {
+                    nid += 1;
+                    marktree_put_test(t, 10, nid, r1, c1, g1, r2, c2, false, false);
+                };
+            put_range(&mut tree, 190, 48, false, -1, -1);
+            put_range(&mut tree, 48, 48, true, -1, -1);
+            put_range(&mut tree, 190, 48, false, -1, -1);
+            put_range(&mut tree, 166, 48, false, 166, 48);
+            put_range(&mut tree, 48, 48, true, 48, 48);
+            put_range(&mut tree, 48, 48, true, 48, 48);
+            put_range(&mut tree, 48, 48, true, 255, 48);
+            put_range(&mut tree, 131, 48, false, 48, 48);
+            put_range(&mut tree, 131, 48, false, 48, 48);
+            put_range(&mut tree, 48, 48, true, 131, 48);
+            put_range(&mut tree, 48, 48, false, 216, 48);
+            put_range(&mut tree, 172, 48, false, 51, 48);
+            put_range(&mut tree, 131, 48, false, 131, 48);
+            put_range(&mut tree, 156, 48, false, 131, 48);
+            put_range(&mut tree, 135, 48, false, 166, 48);
+            put_range(&mut tree, 172, 48, false, 250, 48);
+            put_range(&mut tree, 48, 48, false, 143, 48);
+            assert!(marktree_check_intersections(&mut tree));
+            marktree_splice(&mut tree, 48, 0, 139, 0, 0, 0);
+            assert!(marktree_check_intersections(&mut tree));
+            marktree_clear(&mut tree);
         }
     }
 }

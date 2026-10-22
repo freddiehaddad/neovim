@@ -45,8 +45,7 @@ pub fn file_space(fp: &FileDescriptor) -> usize {
 ///
 /// # Safety
 /// `ret_fp` and `fname` must be valid pointers.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn file_open(
+pub unsafe fn file_open(
     ret_fp: *mut FileDescriptor,
     fname: *const c_char,
     flags: c_int,
@@ -110,12 +109,7 @@ pub unsafe extern "C" fn file_open(
 ///
 /// # Safety
 /// `ret_fp` must be a valid writable pointer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn file_open_fd(
-    ret_fp: *mut FileDescriptor,
-    fd: c_int,
-    flags: c_int,
-) -> c_int {
+pub unsafe fn file_open_fd(ret_fp: *mut FileDescriptor, fd: c_int, flags: c_int) -> c_int {
     let fp = unsafe { &mut *ret_fp };
     fp.wr = (flags
         & (K_FILE_CREATE
@@ -164,8 +158,7 @@ pub unsafe fn file_open_buffer(ret_fp: *mut FileDescriptor, data: *mut c_char, l
 ///
 /// # Safety
 /// `fp` must be a valid writable pointer to an initialized `FileDescriptor`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn file_close(fp: *mut FileDescriptor, do_fsync: bool) -> c_int {
+pub unsafe fn file_close(fp: *mut FileDescriptor, do_fsync: bool) -> c_int {
     let fp_ref = unsafe { &mut *fp };
     if fp_ref.fd < 0 {
         return 0;
@@ -190,8 +183,7 @@ pub unsafe extern "C" fn file_close(fp: *mut FileDescriptor, do_fsync: bool) -> 
 ///
 /// # Safety
 /// `fp` must be a valid writable pointer to an initialized `FileDescriptor`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn file_fsync(fp: *mut FileDescriptor) -> c_int {
+pub unsafe fn file_fsync(fp: *mut FileDescriptor) -> c_int {
     let fp_ref = unsafe { &mut *fp };
     if !fp_ref.wr {
         return 0;
@@ -211,8 +203,7 @@ pub unsafe extern "C" fn file_fsync(fp: *mut FileDescriptor) -> c_int {
 ///
 /// # Safety
 /// `fp` must be a valid writable pointer to an initialized `FileDescriptor`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn file_flush(fp: *mut FileDescriptor) -> c_int {
+pub unsafe fn file_flush(fp: *mut FileDescriptor) -> c_int {
     let fp = unsafe { &mut *fp };
     if !fp.wr {
         return 0;
@@ -235,12 +226,7 @@ pub unsafe extern "C" fn file_flush(fp: *mut FileDescriptor) -> c_int {
 ///
 /// # Safety
 /// `fp` must be a valid readable `FileDescriptor`, and `ret_buf` must be writable for `size` bytes.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn file_read(
-    fp: *mut FileDescriptor,
-    ret_buf: *mut c_char,
-    size: usize,
-) -> isize {
+pub unsafe fn file_read(fp: *mut FileDescriptor, ret_buf: *mut c_char, size: usize) -> isize {
     let fp = unsafe { &mut *fp };
     assert!(!fp.wr);
     let buffered = (fp.write_pos as usize).saturating_sub(fp.read_pos as usize);
@@ -376,12 +362,7 @@ pub unsafe fn file_try_read_buffered(fp: *mut FileDescriptor, size: usize) -> *m
 ///
 /// # Safety
 /// `fp` must be a valid writable `FileDescriptor`, and `buf` must be valid for `size` bytes.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn file_write(
-    fp: *mut FileDescriptor,
-    buf: *const c_char,
-    size: usize,
-) -> isize {
+pub unsafe fn file_write(fp: *mut FileDescriptor, buf: *const c_char, size: usize) -> isize {
     let fp_ref = unsafe { &mut *fp };
     assert!(fp_ref.wr);
     if size < file_space(fp_ref) {
@@ -429,8 +410,7 @@ pub unsafe extern "C" fn file_write(
 ///
 /// # Safety
 /// `fp` must be a valid readable `FileDescriptor`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn file_skip(fp: *mut FileDescriptor, size: usize) -> isize {
+pub unsafe fn file_skip(fp: *mut FileDescriptor, size: usize) -> isize {
     let fp = unsafe { &mut *fp };
     assert!(!fp.wr);
     let buffered = (fp.write_pos as usize).saturating_sub(fp.read_pos as usize);
@@ -508,5 +488,60 @@ mod tests {
             assert_eq!(fp.bytes_read, 16);
             assert_eq!(file_close(&mut fp, false), 0);
         }
+    }
+
+    #[test]
+    fn file_open_write_flush_read_and_skip_on_disk() {
+        let mut fcontents = Vec::with_capacity(4096);
+        for _ in 0..16 {
+            for b in 0..=255u8 {
+                fcontents.push(b);
+            }
+        }
+        let tmp = std::env::temp_dir().join(format!("nvim_os_fileio_test_{}", std::process::id()));
+        let _ = std::fs::remove_file(&tmp);
+        let c_path = std::ffi::CString::new(tmp.to_string_lossy().as_bytes()).unwrap();
+
+        unsafe {
+            let mut fp: FileDescriptor = std::mem::zeroed();
+            assert_eq!(
+                file_open(&mut fp, c_path.as_ptr(), K_FILE_CREATE_ONLY, 0o600),
+                0
+            );
+            assert!(fp.wr);
+            assert_eq!(
+                file_write(&mut fp, fcontents.as_ptr().cast(), fcontents.len()),
+                fcontents.len() as isize
+            );
+            assert_eq!(file_flush(&mut fp), 0);
+            assert_eq!(file_fsync(&mut fp), 0);
+            assert_eq!(file_close(&mut fp, true), 0);
+
+            assert!(file_open(&mut fp, c_path.as_ptr(), K_FILE_CREATE_ONLY, 0o600) < 0);
+
+            assert_eq!(
+                file_open(&mut fp, c_path.as_ptr(), K_FILE_READ_ONLY, 0o600),
+                0
+            );
+            assert!(!fp.wr);
+            assert_eq!(file_skip(&mut fp, 3), 3);
+            let mut buf3 = [0u8; 3];
+            assert_eq!(file_read(&mut fp, buf3.as_mut_ptr().cast(), 3), 3);
+            assert_eq!(&buf3, &fcontents[3..6]);
+            assert_eq!(file_close(&mut fp, false), 0);
+
+            assert_eq!(
+                file_open(&mut fp, c_path.as_ptr(), K_FILE_READ_ONLY, 0o600),
+                0
+            );
+            let mut all = vec![0u8; fcontents.len()];
+            assert_eq!(
+                file_read(&mut fp, all.as_mut_ptr().cast(), all.len()),
+                fcontents.len() as isize
+            );
+            assert_eq!(all, fcontents);
+            assert_eq!(file_close(&mut fp, false), 0);
+        }
+        let _ = std::fs::remove_file(&tmp);
     }
 }

@@ -14,9 +14,12 @@ use crate::lua::converter::LuaRef;
 use crate::mbyte::{utf_isalnum, utf_ptr2char, utf_ptr2len};
 #[cfg(windows)]
 use crate::mbyte::{utf_valid_string, utf16_to_utf8};
-use crate::memory::{xfree, xmalloc, xmemcpyz, xmemdupz, xmemrchr, xstrdup, xstrlcat, xstrlcpy};
+#[cfg(any(windows, test))]
+use crate::memory::xstrlcat;
+use crate::memory::{xfree, xmalloc, xmemcpyz, xmemdupz, xmemrchr, xstrdup, xstrlcpy};
 #[cfg(windows)]
 use crate::message::emsg;
+#[cfg(any(windows, test))]
 use crate::message::internal_error;
 #[cfg(windows)]
 use crate::message::semsg;
@@ -26,9 +29,11 @@ use crate::os::fs::{UV_EINVAL, UV_ENOBUFS, os_isdir};
 use crate::os::fs::{os_dirname, os_realpath};
 #[cfg(unix)]
 use crate::os::users::os_get_userdir;
+#[cfg(any(windows, test))]
+use crate::path::path_is_absolute;
 use crate::path::{
-    after_pathsep, append_path, concat_fnames, path_cmp, path_is_absolute, path_tail,
-    path_tail_with_sep, to_slash, to_slash_save, vim_ispathsep,
+    after_pathsep, append_path, concat_fnames, path_cmp, path_tail, path_tail_with_sep, to_slash,
+    to_slash_save, vim_ispathsep,
 };
 use crate::runtime::sctx_T;
 #[cfg(windows)]
@@ -43,7 +48,9 @@ const RUNTIME_DIRNAME: &CStr = c"runtime";
 
 #[cfg(windows)]
 use crate::os::fs::PATHSEPSTR;
+#[cfg(any(windows, test))]
 use crate::os::fs::{ENV_SEPCHAR, ENV_SEPSTR};
+#[cfg_attr(not(windows), cfg(test))]
 const MAX_ENVPATHLEN: usize = if cfg!(windows) {
     8192
 } else {
@@ -171,8 +178,7 @@ pub unsafe fn env_name_len(p: *const c_char) -> usize {
 }
 
 /// Like `getenv()`, but returns NULL if the variable is empty.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_getenv(name: *const c_char) -> *mut c_char {
+pub unsafe fn os_getenv(name: *const c_char) -> *mut c_char {
     unsafe {
         if !env_name_valid(name) {
             return ptr::null_mut();
@@ -202,12 +208,7 @@ pub unsafe extern "C" fn os_getenv(name: *const c_char) -> *mut c_char {
 }
 
 /// Like `getenv()`, but stores the value in `buf` instead of allocating.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_getenv_buf(
-    name: *const c_char,
-    buf: *mut c_char,
-    bufsize: usize,
-) -> *mut c_char {
+pub unsafe fn os_getenv_buf(name: *const c_char, buf: *mut c_char, bufsize: usize) -> *mut c_char {
     unsafe {
         if !env_name_valid(name) {
             return ptr::null_mut();
@@ -234,14 +235,12 @@ pub unsafe extern "C" fn os_getenv_buf(
 }
 
 /// Like `getenv()`, but use `NameBuff` instead of allocating.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_getenv_noalloc(name: *const c_char) -> *mut c_char {
+pub unsafe fn os_getenv_noalloc(name: *const c_char) -> *mut c_char {
     unsafe { os_getenv_buf(name, (&raw mut NameBuff).cast(), MAXPATHL) }
 }
 
 /// Returns true if environment variable `name` is defined (even if empty).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_env_exists(name: *const c_char, nonempty: bool) -> bool {
+pub unsafe fn os_env_exists(name: *const c_char, nonempty: bool) -> bool {
     unsafe {
         if !env_name_valid(name) {
             return false;
@@ -269,7 +268,7 @@ pub unsafe extern "C" fn os_setenv(
         }
         #[cfg(windows)]
         {
-            if overwrite == 0 && !os_env_exists(name, true) {
+            if overwrite == 0 && os_env_exists(name, true) {
                 return 0;
             }
             if *value == NUL {
@@ -300,8 +299,7 @@ pub unsafe extern "C" fn os_setenv(
 }
 
 /// Unset environment variable.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_unsetenv(name: *const c_char) -> c_int {
+pub unsafe fn os_unsetenv(name: *const c_char) -> c_int {
     unsafe {
         if !env_name_valid(name) {
             return -1;
@@ -329,8 +327,7 @@ pub unsafe fn os_free_fullenv(env: *mut *mut c_char) {
 }
 
 /// Copy name of the environment variable at `index` in the current environment variables block.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_getenvname_at_index(index: usize) -> *mut c_char {
+pub unsafe fn os_getenvname_at_index(index: usize) -> *mut c_char {
     #[cfg(windows)]
     unsafe {
         let envstrings = GetEnvironmentStringsW();
@@ -387,8 +384,7 @@ pub unsafe extern "C" fn os_getenvname_at_index(index: usize) -> *mut c_char {
 }
 
 /// Get the process ID of the Nvim process.
-#[unsafe(no_mangle)]
-pub extern "C" fn os_get_pid() -> i64 {
+pub fn os_get_pid() -> i64 {
     i64::from(std::process::id())
 }
 
@@ -396,8 +392,7 @@ pub extern "C" fn os_get_pid() -> i64 {
 pub unsafe fn os_hint_priority() {}
 
 /// Gets the hostname of the current machine.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_get_hostname(hostname: *mut c_char, size: usize) {
+pub unsafe fn os_get_hostname(hostname: *mut c_char, size: usize) {
     #[cfg(not(windows))]
     unsafe {
         if gethostname(hostname, size) < 0 {
@@ -566,8 +561,7 @@ pub unsafe fn expand_env(src: *mut c_char, dst: *mut c_char, dstlen: c_int) -> u
 }
 
 /// Expand environment variable with path name and escaping.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn expand_env_esc(
+pub unsafe fn expand_env_esc(
     srcp: *const c_char,
     mut dst: *mut c_char,
     mut dstlen: c_int,
@@ -1149,8 +1143,8 @@ pub unsafe fn get_env_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Appends the head of `fname` to `$PATH` and sets it in the environment.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_setenv_append_path(fname: *const c_char) -> bool {
+#[cfg_attr(not(windows), cfg(test))]
+pub unsafe fn os_setenv_append_path(fname: *const c_char) -> bool {
     unsafe {
         if !path_is_absolute(fname) {
             internal_error(c"os_setenv_append_path()".as_ptr());
@@ -1186,8 +1180,8 @@ pub unsafe extern "C" fn os_setenv_append_path(fname: *const c_char) -> bool {
 }
 
 /// Returns true if `sh` looks like it resolves to `"cmd.exe"`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_shell_is_cmdexe(sh: *const c_char) -> bool {
+#[cfg_attr(not(windows), cfg(test))]
+pub unsafe fn os_shell_is_cmdexe(sh: *const c_char) -> bool {
     unsafe {
         if *sh == NUL {
             return false;
@@ -1290,6 +1284,69 @@ mod tests {
             );
             assert_eq!(len, 4);
             assert!(iter.is_null());
+
+            if *crate::eval::vars::get_vim_var_str(VV_PROGPATH) == NUL {
+                crate::eval::vars::set_vim_var_string(VV_PROGPATH, c"nvim".as_ptr(), -1);
+            }
+
+            assert!(!os_env_exists(c"".as_ptr(), false));
+            assert!(!os_env_exists(c"   ".as_ptr(), true));
+            let k = c"NVIM_RUST_ENV_TEST_KEY";
+            let _ = os_unsetenv(k.as_ptr());
+            assert!(!os_env_exists(k.as_ptr(), false));
+            assert_eq!(os_setenv(k.as_ptr(), c"val1".as_ptr(), 1), 0);
+            assert!(os_env_exists(k.as_ptr(), false));
+            assert!(os_env_exists(k.as_ptr(), true));
+
+            let got = os_getenv(k.as_ptr());
+            assert_eq!(CStr::from_ptr(got).to_str().unwrap(), "val1");
+            xfree(got.cast());
+
+            assert_eq!(os_setenv(k.as_ptr(), c"val2".as_ptr(), 0), 0);
+            assert_eq!(
+                CStr::from_ptr(os_getenv_noalloc(k.as_ptr()))
+                    .to_str()
+                    .unwrap(),
+                "val1"
+            );
+            assert_eq!(os_setenv(k.as_ptr(), c"val2".as_ptr(), 1), 0);
+            assert_eq!(
+                CStr::from_ptr(os_getenv_noalloc(k.as_ptr()))
+                    .to_str()
+                    .unwrap(),
+                "val2"
+            );
+
+            let mut buf = [0 as c_char; 64];
+            assert!(!os_getenv_buf(k.as_ptr(), buf.as_mut_ptr(), buf.len()).is_null());
+            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_str().unwrap(), "val2");
+
+            expand_env_esc(
+                c"$NVIM_RUST_ENV_TEST_KEY/sub".as_ptr(),
+                buf.as_mut_ptr(),
+                buf.len() as c_int,
+                ptr::null_mut(),
+                true,
+                ptr::null_mut(),
+            );
+            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_str().unwrap(), "val2/sub");
+            let _ = os_unsetenv(k.as_ptr());
+
+            assert!(os_get_pid() > 0);
+            os_get_hostname(buf.as_mut_ptr(), buf.len());
+            assert!(!CStr::from_ptr(buf.as_ptr()).to_bytes().is_empty());
+            assert!(os_getenvname_at_index(usize::MAX).is_null());
+
+            assert!(os_shell_is_cmdexe(c"cmd.exe".as_ptr()));
+            assert!(os_shell_is_cmdexe(c"CMD".as_ptr()));
+            assert!(!os_shell_is_cmdexe(c"powershell".as_ptr()));
+
+            let abs_path = if cfg!(windows) {
+                c"C:\\foo\\bar\\baz.exe"
+            } else {
+                c"/foo/bar/baz.exe"
+            };
+            assert!(os_setenv_append_path(abs_path.as_ptr()));
         }
     }
 }
