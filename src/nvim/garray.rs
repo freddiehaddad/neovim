@@ -1,8 +1,10 @@
 //! Functions for handling growing arrays (`src/nvim/garray.c`).
 
+use crate::errors::e_resulting_text_too_long;
 use crate::memory::{xfree, xmallocz, xrealloc};
+use crate::message::emsg;
 use crate::path::path_equal;
-use crate::strings::sort_strings;
+use crate::strings::{gettext, sort_strings};
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 #[repr(C)]
@@ -192,6 +194,10 @@ pub unsafe fn ga_concat_len(gap: *mut garray_T, s: *const c_char, len: usize) {
         return;
     }
     unsafe {
+        if len > (c_int::MAX - (*gap).ga_len) as usize {
+            emsg(gettext(e_resulting_text_too_long.as_ptr()));
+            return;
+        }
         ga_grow(gap, len as c_int);
         let gap_ref = &mut *gap;
         let data = gap_ref.ga_data.cast::<u8>();

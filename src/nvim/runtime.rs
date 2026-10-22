@@ -8,7 +8,7 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{Array, Error, ErrorType, NvimString, ObjectType};
 use crate::autocmd::{
     AutoPatCmd, DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_SOURCECMD, EVENT_SOURCEPOST,
-    EVENT_SOURCEPRE, PROF_YES, apply_autocmds, funccal_entry_T, has_autocmd,
+    EVENT_SOURCEPRE, PROF_YES, apply_autocmds, funccal_entry_T, has_autocmd, has_autocmd_fullname,
 };
 use crate::charset::{
     Ctrl_V, skip_to_newline, skiptowhite, skiptowhite_esc, skipwhite, skipwhite_len,
@@ -2944,7 +2944,12 @@ unsafe fn do_source_ext(
             }
 
             if str_ptr.is_null() {
-                if has_autocmd(EVENT_SOURCECMD, fname_exp, ptr::null_mut())
+                let has_sourcecmd = if fname.is_null() {
+                    has_autocmd(EVENT_SOURCECMD, fname_exp, ptr::null_mut())
+                } else {
+                    has_autocmd_fullname(EVENT_SOURCECMD, fname_exp, ptr::null_mut())
+                };
+                if has_sourcecmd
                     && apply_autocmds(EVENT_SOURCECMD, fname_exp, fname_exp, false, curbuf)
                 {
                     retval = if aborting() { FAIL } else { OK };

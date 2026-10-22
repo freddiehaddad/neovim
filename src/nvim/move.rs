@@ -1555,14 +1555,17 @@ pub unsafe fn scrolldown(wp: *mut win_T, line_count: linenr_T, byfold: c_int) ->
             todo -= 1;
         }
 
-        while (*wp).w_topline > 1 && decor_conceal_line(wp, (*wp).w_topline - 2, false) {
-            (*wp).w_topline -= 1;
-            hasFolding(
-                wp,
-                (*wp).w_topline,
-                &raw mut (*wp).w_topline,
-                ptr::null_mut(),
-            );
+        if (*wp).w_topfill == win_get_fill(wp, (*wp).w_topline) {
+            while (*wp).w_topline > 1 && decor_conceal_line(wp, (*wp).w_topline - 2, false) {
+                (*wp).w_topline -= 1;
+                (*wp).w_topfill = 0;
+                hasFolding(
+                    wp,
+                    (*wp).w_topline,
+                    &raw mut (*wp).w_topline,
+                    ptr::null_mut(),
+                );
+            }
         }
 
         (*wp).w_wrow += done;

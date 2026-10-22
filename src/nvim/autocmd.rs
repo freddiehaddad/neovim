@@ -3507,7 +3507,12 @@ pub unsafe fn getnextac(
     }
 }
 
-pub unsafe fn has_autocmd(event: event_T, sfname: *mut c_char, buf: *mut buf_T) -> bool {
+unsafe fn has_autocmd_ext(
+    event: event_T,
+    sfname: *mut c_char,
+    buf: *mut buf_T,
+    is_full: bool,
+) -> bool {
     unsafe {
         if !has_event(event) {
             return false;
@@ -3516,7 +3521,11 @@ pub unsafe fn has_autocmd(event: event_T, sfname: *mut c_char, buf: *mut buf_T) 
         let tail = path_tail(sfname);
         let mut retval = false;
 
-        let fname = FullName_save(sfname, false);
+        let fname = if is_full {
+            xstrdup(sfname)
+        } else {
+            FullName_save(sfname, false)
+        };
         if fname.is_null() {
             return false;
         }
@@ -3547,6 +3556,14 @@ pub unsafe fn has_autocmd(event: event_T, sfname: *mut c_char, buf: *mut buf_T) 
         xfree(fname.cast());
         retval
     }
+}
+
+pub unsafe fn has_autocmd(event: event_T, sfname: *mut c_char, buf: *mut buf_T) -> bool {
+    unsafe { has_autocmd_ext(event, sfname, buf, false) }
+}
+
+pub unsafe fn has_autocmd_fullname(event: event_T, fname: *mut c_char, buf: *mut buf_T) -> bool {
+    unsafe { has_autocmd_ext(event, fname, buf, true) }
 }
 
 pub unsafe fn expand_get_augroup_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
