@@ -4604,8 +4604,9 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
                 tp = (*tp).tp_next;
             }
 
-            for i in 0..ctx_win_vec.size {
-                let cw_win = (*ctx_win_vec.items.add(i)).cw_win;
+            let vec = &raw const ctx_win_vec;
+            for i in 0..(*vec).len() {
+                let cw_win = (*vec).as_slice()[i].cw_win;
                 if !cw_win.is_null() {
                     abort = abort
                         || set_ref_in_item(

@@ -68,7 +68,6 @@ use crate::hashtab::hash_init;
 use crate::input::{beep_flush, langmap_adjust, plain_vgetc};
 use crate::insert::{Ctrl_J, Ctrl_S, Ctrl_X, beginline, cursor_down_inner, cursor_up_inner};
 use crate::keycodes::{CAR, K_BS, K_DOWN, K_KENTER, K_LEFT, K_RIGHT, K_UP, TAB};
-use crate::kvec::KVec;
 use crate::main_init::getout;
 use crate::map::{StcClick, StcClicks, map_del, map_put_ref};
 use crate::mark::{WinInfo, copy_jumplist, free_jumplist, setmark, setpcmark};
@@ -3779,24 +3778,25 @@ pub unsafe fn win_free_all() {
             win_remove(lastwin, ptr::null_mut());
             let mut dummy: c_int = 0;
             win_free_mem(wp, &raw mut dummy, ptr::null_mut());
-            for i in 0..ctx_win_vec.size {
-                if ptr::eq((*ctx_win_vec.items.add(i)).cw_win, wp) {
-                    (*ctx_win_vec.items.add(i)).cw_win = ptr::null_mut();
+            let vec = &raw mut ctx_win_vec;
+            for item in (*vec).iter_mut() {
+                if ptr::eq(item.cw_win, wp) {
+                    item.cw_win = ptr::null_mut();
                 }
             }
         }
 
-        for i in 0..ctx_win_vec.size {
-            let cw = (*ctx_win_vec.items.add(i)).cw_win;
+        let vec = &raw mut ctx_win_vec;
+        for i in 0..(*vec).len() {
+            let cw = (*vec).as_slice()[i].cw_win;
             if !cw.is_null() {
                 let mut dummy: c_int = 0;
                 win_free_mem(cw, &raw mut dummy, ptr::null_mut());
-                (*ctx_win_vec.items.add(i)).cw_win = ptr::null_mut();
+                (*vec).as_mut_slice()[i].cw_win = ptr::null_mut();
             }
         }
 
-        xfree(ctx_win_vec.items.cast());
-        ctx_win_vec = KVec::new();
+        *vec = Vec::new();
 
         while !firstwin.is_null() {
             let mut dummy: c_int = 0;
@@ -4687,7 +4687,8 @@ pub unsafe fn win_alloc_ctx_win(idx: c_int) {
         fconfig.mouse = false;
         fconfig.hide = true;
         let cw_win = win_new_float(ptr::null_mut(), true, fconfig, &raw mut err);
-        (*ctx_win_vec.items.add(idx as usize)).cw_win = cw_win;
+        let vec = &raw mut ctx_win_vec;
+        (*vec).as_mut_slice()[idx as usize].cw_win = cw_win;
         (*(*cw_win).w_buffer).b_nwindows -= 1;
         reset_binding(cw_win);
     }

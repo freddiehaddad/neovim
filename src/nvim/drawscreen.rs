@@ -1445,7 +1445,8 @@ unsafe fn win_update(wp: *mut win_T) {
         let mut syntax_tm = profile_setlimit(p_rdt);
         syn_set_timeout(&raw mut syntax_tm);
 
-        win_extmark_arr.size = 0;
+        let extmarks = &raw mut win_extmark_arr;
+        (*extmarks).clear();
 
         decor_redraw_reset(wp, &raw mut decor_state);
         decor_providers_invoke_win(wp);
@@ -2417,8 +2418,9 @@ unsafe fn win_update(wp: *mut win_T) {
             (*wp).w_old_topfill = (*wp).w_topfill;
             (*wp).w_old_botfill = (*wp).w_botfill;
 
-            for n in 0..win_extmark_arr.size {
-                let item = *win_extmark_arr.items.add(n);
+            let extmarks = &raw const win_extmark_arr;
+            for n in 0..(*extmarks).len() {
+                let item = (*extmarks).as_slice()[n];
                 ui_call_win_extmark(
                     Integer::from((*wp).w_grid_alloc.handle),
                     (*wp).handle,

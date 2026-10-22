@@ -37,14 +37,13 @@ use crate::grid::{
     sattr_T, schar_T, schar_cache_clear_if_full, schar_from_ascii, schar_get, schar_get_ascii,
 };
 use crate::highlight::HLATTRS_INIT;
-use crate::kvec::{KVec, StringBuilder};
 use crate::log::{LOGLVL_DBG, LOGLVL_ERR, LOGLVL_WRN, g_min_log_level, logmsg};
 use crate::lua::executor::{kRetObject, nlua_exec};
 use crate::map::{HlAttrs, MHPutStatus, MapHash, Set, cstr_t, mh_put};
 use crate::mbyte::{utf_ambiguous_width, utf_char2cells, utf_ptr2char};
 use crate::memory::{
     Arena, arena_finish, arena_mem_free, arena_memdupz, arena_strdup, strequal, xcalloc, xfree,
-    xrealloc, xstrdup,
+    xstrdup,
 };
 use crate::msgpack_rpc::channel::rpc_send_event;
 use crate::option::OptInt;
@@ -168,7 +167,7 @@ pub struct TUIData {
     pub winch_handle: [u64; 40],
     pub startup_delay_timer: [u64; 32],
     pub grid: UGrid,
-    pub invalid_regions: KVec<Rect>,
+    pub invalid_regions: Vec<Rect>,
     pub row: c_int,
     pub col: c_int,
     pub out_fd: c_int,
@@ -201,7 +200,7 @@ pub struct TUIData {
     pub screenshot: *mut FILE,
     pub cursor_shapes: [cursorentry_T; SHAPE_IDX_COUNT],
     pub clear_attrs: HlAttrs,
-    pub attrs: KVec<HlAttrs>,
+    pub attrs: Vec<HlAttrs>,
     pub print_attr_id: c_int,
     pub default_attr: bool,
     pub set_default_colors: bool,
@@ -218,7 +217,6 @@ pub struct TUIData {
     pub rgb: bool,
     pub screen_or_tmux: bool,
     pub url: c_int,
-    pub urlbuf: StringBuilder,
     pub ti_arena: Arena,
 }
 
@@ -291,24 +289,6 @@ unsafe fn cstr_contains(haystack: *const c_char, needle: &[u8]) -> bool {
     bytes.windows(needle.len()).any(|w| w == needle)
 }
 
-#[inline]
-unsafe fn kv_a<T: Copy>(v: &mut KVec<T>, i: usize) -> *mut T {
-    if v.capacity <= i {
-        v.size = i + 1;
-        v.capacity = (i + 1).next_power_of_two().max(1);
-        v.items = unsafe {
-            xrealloc(
-                v.items.cast::<c_void>(),
-                std::mem::size_of::<T>() * v.capacity,
-            )
-            .cast::<T>()
-        };
-    } else if v.size <= i {
-        v.size = i + 1;
-    }
-    unsafe { v.items.add(i) }
-}
-
 pub unsafe fn tui_start(
     tui_p: *mut *mut TUIData,
     width: *mut c_int,
@@ -324,12 +304,11 @@ pub unsafe fn tui_start(
         (*tui).loop_ = (&raw mut main_loop).cast::<Loop>();
         (*tui).url = -1;
 
-        (*tui).invalid_regions.init();
-        (*tui).urlbuf.init();
+        ptr::write(&raw mut (*tui).invalid_regions, Vec::new());
         signal_watcher_init((*tui).loop_, tui_winch_handle(tui), tui.cast());
         signal_watcher_start(tui_winch_handle(tui), Some(sigwinch_cb), SIGWINCH);
 
-        (*tui).attrs.push(HLATTRS_INIT);
+        ptr::write(&raw mut (*tui).attrs, vec![HLATTRS_INIT]);
 
         (*input_prefix(tui_input(tui))).tk_ti_hook_fn = Some(tui_tk_ti_getstr);
         ugrid_init(&mut (*tui).grid);
@@ -632,7 +611,7 @@ fn lookup_termdef_field(name: &[u8]) -> Option<TermdefFieldTarget> {
     }
 }
 
-unsafe fn push_termdef_err(err_arena: &mut Arena, chunks: &mut KVec<Object>, msg: &str) {
+unsafe fn push_termdef_err(err_arena: &mut Arena, chunks: &mut Array, msg: &str) {
     unsafe {
         let dup = arena_memdupz(err_arena, msg.as_ptr().cast::<c_char>(), msg.len());
         let str_val = NvimString {
@@ -678,7 +657,7 @@ unsafe fn apply_termdefs(tui: *mut TUIData) {
         }
 
         let mut err_arena = ARENA_EMPTY;
-        let mut chunks: KVec<Object> = KVec::new();
+        let mut chunks = Array::new();
         let mut err_count = 0usize;
 
         let dict = rv.data.dict;
@@ -1191,7 +1170,7 @@ pub unsafe fn tui_is_stopped(tui: *mut TUIData) -> bool {
 pub unsafe fn tui_free_all_mem(tui: *mut TUIData) {
     unsafe {
         ugrid_free(&mut (*tui).grid);
-        (*tui).invalid_regions.destroy();
+        ptr::drop_in_place(&raw mut (*tui).invalid_regions);
 
         for i in 0..urls.h.n_keys as usize {
             xfree((*urls.keys.add(i)).cast_mut().cast());
@@ -1211,8 +1190,7 @@ pub unsafe fn tui_free_all_mem(tui: *mut TUIData) {
             keys: ptr::null_mut(),
         };
 
-        (*tui).attrs.destroy();
-        (*tui).urlbuf.destroy();
+        ptr::drop_in_place(&raw mut (*tui).attrs);
         xfree(tui.cast());
     }
 }
@@ -1234,8 +1212,9 @@ unsafe fn attrs_differ(tui: *mut TUIData, id1: c_int, id2: c_int, rgb: bool) -> 
         } else if id1 < 0 || id2 < 0 {
             return true;
         }
-        let a1 = *(*tui).attrs.items.add(id1 as usize);
-        let a2 = *(*tui).attrs.items.add(id2 as usize);
+        let attrs = &(*tui).attrs;
+        let a1 = attrs[id1 as usize];
+        let a2 = attrs[id2 as usize];
 
         if a1.url != a2.url {
             return true;
@@ -1263,7 +1242,7 @@ unsafe fn update_attrs(tui: *mut TUIData, attr_id: c_int) {
             return;
         }
         (*tui).print_attr_id = attr_id;
-        let attrs = *(*tui).attrs.items.add(attr_id as usize);
+        let attrs = (*tui).attrs.as_slice()[attr_id as usize];
         let attr = if (*tui).rgb {
             attrs.rgb_ae_attr
         } else {
@@ -1445,13 +1424,9 @@ unsafe fn update_attrs(tui: *mut TUIData, attr_id: c_int) {
             if attrs.url >= 0 {
                 let url = *urls.keys.add(attrs.url as usize);
                 let url_str = CStr::from_ptr(url).to_string_lossy();
-                (*tui).urlbuf.size = 0;
                 let id: u64 = 0xE1EA_0000u64 + u64::from(attrs.url as u32);
                 let formatted = format!("\x1b]8;id={id};{url_str}\x1b\\");
-                (*tui)
-                    .urlbuf
-                    .concat_len(formatted.as_ptr().cast::<c_char>(), formatted.len());
-                out(tui, (*tui).urlbuf.items, (*tui).urlbuf.size);
+                out(tui, formatted.as_ptr().cast::<c_char>(), formatted.len());
             } else {
                 let seq = b"\x1b]8;;\x1b\\";
                 out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
@@ -1749,10 +1724,11 @@ pub unsafe fn tui_grid_resize(tui: *mut TUIData, _g: Integer, width: Integer, he
     unsafe {
         ugrid_resize(&mut (*tui).grid, width as c_int, height as c_int);
 
-        for i in 0..(*tui).invalid_regions.size {
-            let r = &mut *(*tui).invalid_regions.items.add(i);
-            r.bot = r.bot.min((*tui).grid.height);
-            r.right = r.right.min((*tui).grid.width);
+        let grid_height = (*tui).grid.height;
+        let grid_width = (*tui).grid.width;
+        for r in &mut (*tui).invalid_regions {
+            r.bot = r.bot.min(grid_height);
+            r.right = r.right.min(grid_width);
         }
 
         if (*tui).pending_resize_events == 0 && !(*tui).is_starting {
@@ -1773,7 +1749,7 @@ pub unsafe fn tui_grid_clear(tui: *mut TUIData, _g: Integer) {
     unsafe {
         ugrid_clear(&mut (*tui).grid);
         schar_cache_clear_if_full();
-        (*tui).invalid_regions.size = 0;
+        (*tui).invalid_regions.clear();
         clear_region(tui, 0, (*tui).height, 0, (*tui).width, 0);
     }
 }
@@ -1906,8 +1882,8 @@ unsafe fn tui_set_mode(tui: *mut TUIData, mode: ModeShape) {
         }
         let c = (*tui).cursor_shapes[mode as usize];
 
-        if c.id != 0 && (c.id as usize) < (*tui).attrs.size && (*tui).rgb {
-            let aep = *(*tui).attrs.items.add(c.id as usize);
+        if c.id != 0 && (c.id as usize) < (*tui).attrs.len() && (*tui).rgb {
+            let aep = (*tui).attrs.as_slice()[c.id as usize];
             (*tui).want_invisible = aep.hl_blend == 100;
             if !(*tui).want_invisible && (aep.rgb_ae_attr & HL_INVERSE) != 0 {
                 terminfo_out(tui, kTerm_reset_cursor_color);
@@ -2075,7 +2051,12 @@ pub unsafe fn tui_hl_attr_define(
         attrs.cterm_fg_color = cterm_attrs.cterm_fg_color;
         attrs.cterm_bg_color = cterm_attrs.cterm_bg_color;
 
-        *kv_a(&mut (*tui).attrs, id as usize) = attrs;
+        let idx = id as usize;
+        let tui_attrs = &mut (*tui).attrs;
+        if tui_attrs.len() <= idx {
+            tui_attrs.resize(idx + 1, HLATTRS_INIT);
+        }
+        tui_attrs[idx] = attrs;
     }
 }
 
@@ -2128,7 +2109,7 @@ pub unsafe fn tui_default_colors_set(
 
 pub unsafe fn tui_ui_send(tui: *mut TUIData, content: NvimString) {
     unsafe {
-        if (*tui).invalid_regions.size != 0 || (*tui).bufpos > 0 {
+        if !(*tui).invalid_regions.is_empty() || (*tui).bufpos > 0 {
             out(tui, content.data, content.size);
             return;
         }
@@ -2175,12 +2156,7 @@ pub unsafe fn tui_flush(tui: *mut TUIData) {
             tui_busy_stop(tui);
         }
 
-        while (*tui).invalid_regions.size != 0 {
-            (*tui).invalid_regions.size -= 1;
-            let r = *(*tui)
-                .invalid_regions
-                .items
-                .add((*tui).invalid_regions.size);
+        while let Some(r) = (*tui).invalid_regions.pop() {
             assert!(r.bot <= (*tui).grid.height && r.right <= (*tui).grid.width);
 
             for row in r.top..r.bot {
@@ -2463,7 +2439,7 @@ pub unsafe fn tui_raw_line(
 ) {
     unsafe {
         {
-            let attr_count = (*tui).attrs.size;
+            let attr_count = (*tui).attrs.len();
             let cells = &mut (*tui).grid.cells;
             let row_cells = &mut cells[linerow as usize];
             for c in startcol..endcol {
@@ -2527,20 +2503,15 @@ pub unsafe fn tui_raw_line(
 
 unsafe fn invalidate(tui: *mut TUIData, top: c_int, bot: c_int, left: c_int, right: c_int) {
     unsafe {
-        let mut intersects: *mut Rect = ptr::null_mut();
-        for i in 0..(*tui).invalid_regions.size {
-            let r = (*tui).invalid_regions.items.add(i);
-            if !(top > (*r).bot || bot < (*r).top) && !(left > (*r).right || right < (*r).left) {
-                intersects = r;
-                break;
-            }
-        }
-
-        if !intersects.is_null() {
-            (*intersects).top = top.min((*intersects).top);
-            (*intersects).bot = bot.max((*intersects).bot);
-            (*intersects).left = left.min((*intersects).left);
-            (*intersects).right = right.max((*intersects).right);
+        if let Some(intersects) = (*tui)
+            .invalid_regions
+            .iter_mut()
+            .find(|r| !(top > r.bot || bot < r.top) && !(left > r.right || right < r.left))
+        {
+            intersects.top = top.min(intersects.top);
+            intersects.bot = bot.max(intersects.bot);
+            intersects.left = left.min(intersects.left);
+            intersects.right = right.max(intersects.right);
         } else {
             (*tui).invalid_regions.push(Rect {
                 top,

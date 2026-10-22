@@ -716,40 +716,33 @@ pub unsafe fn ctx_did_chdir() {
 
 pub unsafe fn is_ctx_win(win: *mut win_T) -> bool {
     unsafe {
-        for i in 0..ctx_win_vec.size {
-            let item = *ctx_win_vec.items.add(i);
-            if item.cw_used && item.cw_win == win {
-                return true;
-            }
-        }
-        false
+        let vec = &raw const ctx_win_vec;
+        (*vec).iter().any(|item| item.cw_used && item.cw_win == win)
     }
 }
 
 unsafe fn ctx_win_prep(cs: *mut CtxSwitch, buf: *mut buf_T) -> *mut win_T {
     unsafe {
         let mut need_append = true;
+        let vec = &raw mut ctx_win_vec;
 
-        let mut idx = 0usize;
-        while idx < ctx_win_vec.size {
-            if !(*ctx_win_vec.items.add(idx)).cw_used {
-                break;
-            }
-            idx += 1;
-        }
-        if idx == ctx_win_vec.size {
-            let vec_ptr = &raw mut ctx_win_vec;
-            (*vec_ptr).push(CtxWin {
-                cw_win: ptr::null_mut(),
-                cw_used: false,
+        let idx = (*vec)
+            .iter()
+            .position(|item| !item.cw_used)
+            .unwrap_or_else(|| {
+                let idx = (*vec).len();
+                (*vec).push(CtxWin {
+                    cw_win: ptr::null_mut(),
+                    cw_used: false,
+                });
+                idx
             });
-        }
-        if (*ctx_win_vec.items.add(idx)).cw_win.is_null() {
+        if (*vec).as_slice()[idx].cw_win.is_null() {
             win_alloc_ctx_win(idx as c_int);
             need_append = false;
         }
-        let cw_win = (*ctx_win_vec.items.add(idx)).cw_win;
-        (*ctx_win_vec.items.add(idx)).cw_used = true;
+        let cw_win = (*vec).as_slice()[idx].cw_win;
+        (*vec).as_mut_slice()[idx].cw_used = true;
         (*cs).cs_ctxwin_idx = idx as c_int;
 
         (*cw_win).w_buffer = buf;
@@ -777,7 +770,8 @@ unsafe fn ctx_win_prep(cs: *mut CtxSwitch, buf: *mut buf_T) -> *mut win_T {
 
 unsafe fn ctx_win_rest(cs: *mut CtxSwitch) -> *mut win_T {
     unsafe {
-        let cwp = (*ctx_win_vec.items.add((*cs).cs_ctxwin_idx as usize)).cw_win;
+        let vec = &raw mut ctx_win_vec;
+        let cwp = (*vec).as_slice()[(*cs).cs_ctxwin_idx as usize].cw_win;
 
         block_autocmds();
         if curwin != cwp {
@@ -808,7 +802,7 @@ unsafe fn ctx_win_rest(cs: *mut CtxSwitch) -> *mut win_T {
         win_remove(curwin, ptr::null_mut());
         map_del(&raw mut window_handles, (*curwin).handle, ptr::null_mut());
 
-        (*ctx_win_vec.items.add((*cs).cs_ctxwin_idx as usize)).cw_used = false;
+        (*vec).as_mut_slice()[(*cs).cs_ctxwin_idx as usize].cw_used = false;
 
         if valid_tabpage_win(curtab) == 0 {
             close_tabpage(curtab);

@@ -359,7 +359,7 @@ pub static mut msg_loclist: *mut c_char = c"[Location List]".as_ptr().cast_mut()
 pub static mut msg_qflist: *mut c_char = c"[Quickfix List]".as_ptr().cast_mut();
 pub static mut channels: Map<u64, ptr_t> = unsafe { zeroed() };
 pub static mut on_print: Callback = unsafe { zeroed() };
-pub static mut ctx_win_vec: KVec<CtxWin> = unsafe { zeroed() };
+pub static mut ctx_win_vec: Vec<CtxWin> = Vec::new();
 pub static mut virt_text_pos_str: [*const c_char; 6] = [
     c"eol".as_ptr(),
     c"eol_right_align".as_ptr(),
@@ -380,7 +380,7 @@ pub static mut diff_context: c_int = 6;
 pub static mut diff_foldcolumn: c_int = 2;
 pub static mut diff_need_scrollbind: bool = false;
 pub static mut need_diff_redraw: bool = false;
-pub static mut win_extmark_arr: KVec<WinExtmark> = unsafe { zeroed() };
+pub static mut win_extmark_arr: Vec<WinExtmark> = Vec::new();
 pub static mut updating_screen: bool = false;
 pub static mut redraw_not_allowed: bool = false;
 pub static mut screen_search_hl: match_T = unsafe { zeroed() };
