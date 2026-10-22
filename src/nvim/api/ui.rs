@@ -17,7 +17,6 @@ use crate::event::wstream::wstream_new_buffer;
 use crate::globals::*;
 use crate::grid::{sattr_T, schar_T, schar_from_ascii, schar_get, schar_get_adv};
 use crate::highlight::{hl_get_url, hlattrs2dict, syn_attr2entry};
-use crate::kvec::KVec;
 use crate::lua::converter::{Boolean, Float};
 use crate::map::{HlAttrs, MH_TOMBSTONE, Map, MapHash, Set, map_del, map_put_ref, mh_get};
 use crate::mbyte::utf_ambiguous_width;
@@ -227,7 +226,7 @@ pub unsafe fn ui_detach_channel(chan: u64, err: *mut Error) {
 // DLLEXPORT size_t ui_detach_others(uint64_t keep_chan);
 pub unsafe fn ui_detach_others(keep_chan: u64) -> usize {
     unsafe {
-        let mut chans = KVec::<u64>::new();
+        let mut chans = Vec::<u64>::new();
         for i in 0..connected_uis.set.h.n_keys as usize {
             let chan = *connected_uis.set.keys.add(i);
             let val = *connected_uis.values.add(i);
@@ -237,12 +236,12 @@ pub unsafe fn ui_detach_others(keep_chan: u64) -> usize {
         }
 
         let mut detached: usize = 0;
-        for i in 0..chans.size {
+        for chan in chans {
             let mut err = Error {
                 err_type: ErrorType::kErrorTypeNone,
                 msg: ptr::null_mut(),
             };
-            ui_detach_channel(*chans.items.add(i), &raw mut err);
+            ui_detach_channel(chan, &raw mut err);
             if error_set(&raw const err) {
                 api_clear_error(&raw mut err);
             } else {
@@ -250,7 +249,6 @@ pub unsafe fn ui_detach_others(keep_chan: u64) -> usize {
             }
         }
 
-        chans.destroy();
         detached
     }
 }

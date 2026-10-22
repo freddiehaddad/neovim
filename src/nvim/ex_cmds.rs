@@ -75,7 +75,6 @@ use crate::indent::{get_indent, get_indent_lnum, set_indent};
 use crate::input::{redo_append_lit, redo_append_str};
 use crate::insert::beginline;
 use crate::keycodes::{CAR, ESC, NL, TAB};
-use crate::kvec::KVec;
 use crate::lua::executor::nlua_call_excmd;
 use crate::main_init::getout;
 use crate::mark::{mark_adjust, mark_adjust_nofold, set_last_cursor, setpcmark};
@@ -245,9 +244,8 @@ struct SubResult {
 }
 
 /// Collected results of a substitution for showing them in the preview window.
-#[repr(C)]
 struct PreviewLines {
-    subresults: KVec<SubResult>,
+    subresults: Vec<SubResult>,
     lines_needed: linenr_T,
 }
 
@@ -3874,26 +3872,18 @@ unsafe fn push_preview_lines(
     preview_lines: &mut PreviewLines,
     current_match: SubResult,
 ) {
-    unsafe {
-        if cmdpreview_ns > 0 {
-            let match_lines = current_match.end.lnum - current_match.start.lnum + 1;
-            if preview_lines.subresults.size > 0 {
-                let last = (*preview_lines
-                    .subresults
-                    .items
-                    .add(preview_lines.subresults.size - 1))
-                .end
-                .lnum;
-                if last == current_match.start.lnum {
-                    preview_lines.lines_needed += match_lines - 1;
-                } else {
-                    preview_lines.lines_needed += match_lines;
-                }
+    if cmdpreview_ns > 0 {
+        let match_lines = current_match.end.lnum - current_match.start.lnum + 1;
+        if let Some(last_res) = preview_lines.subresults.last() {
+            if last_res.end.lnum == current_match.start.lnum {
+                preview_lines.lines_needed += match_lines - 1;
             } else {
                 preview_lines.lines_needed += match_lines;
             }
-            preview_lines.subresults.push(current_match);
+        } else {
+            preview_lines.lines_needed += match_lines;
         }
+        preview_lines.subresults.push(current_match);
     }
 }
 
@@ -3926,7 +3916,7 @@ unsafe fn do_sub(
         let mut endcolumn = false;
         let keeppatterns = (cmdmod.cmod_flags & CMOD_KEEPPATTERNS) != 0;
         let mut preview_lines = PreviewLines {
-            subresults: KVec::new(),
+            subresults: Vec::new(),
             lines_needed: 0,
         };
         let old_cursor = (*curwin).w_cursor;
@@ -4157,7 +4147,7 @@ unsafe fn do_sub(
                 let mut sub_firstlnum: linenr_T = lnum;
                 let mut lnum_start: linenr_T;
 
-                let mut line_matches: KVec<LineData> = KVec::new();
+                let mut line_matches: Vec<LineData> = Vec::new();
 
                 if !got_match {
                     setpcmark();
@@ -4613,8 +4603,7 @@ unsafe fn do_sub(
                             }
                             ml_replace(lnum, new_start.data, true);
 
-                            for match_idx in 0..line_matches.size {
-                                let m = *line_matches.items.add(match_idx);
+                            for m in line_matches.drain(..) {
                                 extmark_splice(
                                     curbuf,
                                     m.lnum_before - 1,
@@ -4628,8 +4617,6 @@ unsafe fn do_sub(
                                     kExtmarkUndo,
                                 );
                             }
-
-                            line_matches.size = 0;
 
                             if nmatch_tl > 0 {
                                 lnum += 1;
@@ -4704,7 +4691,6 @@ unsafe fn do_sub(
                 }
                 xfree(new_start.data.cast::<c_void>());
                 api_clear_string(&mut sub_firstline);
-                line_matches.destroy();
             }
 
             line_breakcheck();
@@ -4808,7 +4794,6 @@ unsafe fn do_sub(
             }
         }
 
-        preview_lines.subresults.destroy();
         retv
     }
 }
@@ -5158,15 +5143,13 @@ unsafe fn show_sub(
 ) -> c_int {
     unsafe {
         let save_shm_p = xstrdup(p_shm);
-        let lines_size = (*preview_lines).subresults.size;
-        let lines_items = (*preview_lines).subresults.items;
+        let subresults = &(*preview_lines).subresults;
         let orig_buf = curbuf;
         let mut cmdpreview_buf: *mut buf_T = ptr::null_mut();
 
         set_option_direct(kOptShortmess, cstr_as_obj(c"F".as_ptr()), 0, SID_NONE);
 
-        for i in 0..lines_size {
-            let curres = *lines_items.add(i);
+        for curres in subresults {
             if curres.start.lnum >= old_cusr.lnum {
                 (*curwin).w_cursor.lnum = curres.start.lnum;
                 (*curwin).w_cursor.col = curres.start.col;
@@ -5184,8 +5167,7 @@ unsafe fn show_sub(
             cmdpreview_buf = buflist_findnr(cmdpreview_bufnr);
             debug_assert!(!cmdpreview_buf.is_null());
 
-            if lines_size > 0 {
-                let last_match = *lines_items.add(lines_size - 1);
+            if let Some(last_match) = subresults.last() {
                 let highest_lnum = last_match.start.lnum.max(last_match.end.lnum);
                 debug_assert!(highest_lnum > 0);
                 col_width = (f64::from(highest_lnum).log10() as c_int) + 1 + 3;
@@ -5199,8 +5181,7 @@ unsafe fn show_sub(
         let mut linenr_origbuf: linenr_T = 0;
         let mut next_linenr: linenr_T;
 
-        for matchidx in 0..lines_size {
-            let m = *lines_items.add(matchidx);
+        for &m in subresults {
 
             if !cmdpreview_buf.is_null() {
                 let mut p_start = lpos_T {

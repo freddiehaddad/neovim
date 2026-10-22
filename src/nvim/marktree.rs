@@ -6,7 +6,6 @@ use std::fmt::Write as _;
 
 use crate::api::private::validate::NvimString;
 use crate::garray::{ga_concat_len, ga_init, garray_T};
-use crate::kvec::KVec;
 use crate::map::{MH_TOMBSTONE, MTDamage, MTDamagePair, Map, map_del, map_put_ref, mh_get, ptr_t};
 #[cfg(test)]
 use crate::memory::xmemdup;
@@ -2742,7 +2741,7 @@ pub unsafe fn marktree_move_region(
             std::ptr::null_mut(),
             std::ptr::null(),
         );
-        let mut saved: KVec<MTKey> = KVec::new();
+        let mut saved: Vec<MTKey> = Vec::new();
         while !itr.x.is_null() {
             let mut k = marktree_itr_current(&mut itr);
             if !pos_leq(k.pos, end) || (k.pos.row == end.row && k.pos.col == end.col && mt_right(k))
@@ -2761,15 +2760,13 @@ pub unsafe fn marktree_move_region(
         };
         marktree_splice(b, new.row, new.col, 0, 0, size.row, size.col);
 
-        for i in 0..saved.size {
-            let mut item = *saved.items.add(i);
+        for mut item in saved {
             unrelative(new, &mut item.pos);
             marktree_put_key(b, item);
             if mt_paired(item) {
                 marktree_restore_pair(b, item);
             }
         }
-        saved.destroy();
     }
 }
 

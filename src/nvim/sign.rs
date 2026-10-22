@@ -32,7 +32,6 @@ use crate::globals::*;
 use crate::grid::{schar_T, schar_from_ascii, schar_get};
 use crate::highlight_group::{get_highlight_name_ext, syn_check_group};
 use crate::insert::beginline;
-use crate::kvec::KVec;
 use crate::map::{
     MH_TOMBSTONE, Map, MapHash, Set, cstr_t, map_del, map_put_ref, map_ref, mh_get, ptr_t,
 };
@@ -317,7 +316,7 @@ unsafe fn buf_delete_signs(
 
         let mut itr: [MarkTreeIter; 1] = std::mem::zeroed();
         let row = if atlnum > 0 { atlnum - 1 } else { 0 };
-        let mut signs: KVec<MTKey> = KVec::new();
+        let mut signs: Vec<MTKey> = Vec::new();
         let b = (*buf).b_marktree.as_mut_ptr();
 
         if atlnum > 0 {
@@ -358,12 +357,10 @@ unsafe fn buf_delete_signs(
             }
         }
 
-        if signs.size != 0 {
-            let slice = std::slice::from_raw_parts_mut(signs.items, signs.size);
-            slice.sort_by(|a, b| sign_row_cmp_slice(a, b));
-            let first = *signs.items;
+        if !signs.is_empty() {
+            signs.sort_by(|a, b| sign_row_cmp_slice(a, b));
+            let first = signs[0];
             extmark_del_id(buf, first.ns, first.id);
-            signs.destroy();
         } else if atlnum > 0 {
             return FAIL;
         }
@@ -405,7 +402,7 @@ unsafe fn sign_list_placed(rbuf: *mut buf_T, group: *mut c_char) {
 
             if ns >= 0 {
                 let mut itr: [MarkTreeIter; 1] = std::mem::zeroed();
-                let mut signs: KVec<MTKey> = KVec::new();
+                let mut signs: Vec<MTKey> = Vec::new();
                 let b = (*buf).b_marktree.as_mut_ptr();
                 marktree_itr_get(b, 0, 0, itr.as_mut_ptr());
 
@@ -420,15 +417,13 @@ unsafe fn sign_list_placed(rbuf: *mut buf_T, group: *mut c_char) {
                     marktree_itr_next(b, itr.as_mut_ptr());
                 }
 
-                if signs.size != 0 {
-                    let slice = std::slice::from_raw_parts_mut(signs.items, signs.size);
-                    slice.sort_by(|a, b| sign_row_cmp_slice(a, b));
+                if !signs.is_empty() {
+                    signs.sort_by(|a, b| sign_row_cmp_slice(a, b));
                     msg_putchar(b'\n' as c_int);
 
-                    for i in 0..signs.size {
+                    for (i, &mark) in signs.iter().enumerate() {
                         namebuf[0] = NUL;
                         groupbuf[0] = NUL;
-                        let mark = *signs.items.add(i);
 
                         let sh = decor_find_sign(mt_decor(mark));
                         if !(*sh).sign_name.is_null() {
@@ -458,11 +453,10 @@ unsafe fn sign_list_placed(rbuf: *mut buf_T, group: *mut c_char) {
                             c_int::from((*sh).priority),
                         );
                         msg_puts(lbuf.as_ptr());
-                        if i < signs.size - 1 {
+                        if i < signs.len() - 1 {
                             msg_putchar(b'\n' as c_int);
                         }
                     }
-                    signs.destroy();
                 }
             }
 
@@ -1208,7 +1202,7 @@ unsafe fn sign_get_placed_in_buf(
         }
 
         let mut itr: [MarkTreeIter; 1] = std::mem::zeroed();
-        let mut signs: KVec<MTKey> = KVec::new();
+        let mut signs: Vec<MTKey> = Vec::new();
         let b = (*buf).b_marktree.as_mut_ptr();
         marktree_itr_get(b, if lnum != 0 { lnum - 1 } else { 0 }, 0, itr.as_mut_ptr());
 
@@ -1230,13 +1224,11 @@ unsafe fn sign_get_placed_in_buf(
             marktree_itr_next(b, itr.as_mut_ptr());
         }
 
-        if signs.size != 0 {
-            let slice = std::slice::from_raw_parts_mut(signs.items, signs.size);
-            slice.sort_by(|a, b| sign_row_cmp_slice(a, b));
-            for i in 0..signs.size {
-                tv_list_append_dict(l, sign_get_placed_info_dict(*signs.items.add(i)));
+        if !signs.is_empty() {
+            signs.sort_by(|a, b| sign_row_cmp_slice(a, b));
+            for mark in signs {
+                tv_list_append_dict(l, sign_get_placed_info_dict(mark));
             }
-            signs.destroy();
         }
     }
 }

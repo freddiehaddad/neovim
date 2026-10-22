@@ -85,7 +85,6 @@ use crate::keycodes::{
     K_X2MOUSE, K_X2RELEASE, K_ZERO, KE_EVENT, KE_FILLER, KE_LUA, KE_WILD, KS_EXTRA, MOD_MASK_CTRL,
     MOD_MASK_SHIFT, NL, get_special_key_name, termcap2key,
 };
-use crate::kvec::KVec;
 use crate::lua::executor::nlua_call_typval;
 use crate::map::{MHPutStatus, Set, mh_get, mh_put, ptr_t};
 use crate::mapping::{REMAP_NONE, check_abbr, map_to_exists_mode};
@@ -311,10 +310,9 @@ struct CpWinInfo {
     save_w_p_cuc: c_int,
 }
 
-#[repr(C)]
 struct CpInfo {
-    win_info: KVec<CpWinInfo>,
-    buf_info: KVec<CpBufInfo>,
+    win_info: Vec<CpWinInfo>,
+    buf_info: Vec<CpBufInfo>,
     save_hls: bool,
     save_cmdmod: cmdmod_T,
     save_view: garray_T,
@@ -2951,12 +2949,16 @@ unsafe fn cmdpreview_close_win() {
 }
 
 /// Save current state and prepare windows and buffers for command preview.
-unsafe fn cmdpreview_prepare(cpinfo: *mut CpInfo) {
+unsafe fn cmdpreview_prepare() -> CpInfo {
     unsafe {
         let mut saved_bufs: Set<ptr_t> = std::mem::zeroed();
-
-        (*cpinfo).buf_info = KVec::new();
-        (*cpinfo).win_info = KVec::new();
+        let mut cpinfo = CpInfo {
+            win_info: Vec::new(),
+            buf_info: Vec::new(),
+            save_hls: false,
+            save_cmdmod: std::mem::zeroed(),
+            save_view: std::mem::zeroed(),
+        };
 
         let mut win = firstwin;
         while !win.is_null() {
@@ -2971,7 +2973,7 @@ unsafe fn cmdpreview_prepare(cpinfo: *mut CpInfo) {
                     cp_bufinfo.save_b_op_start = (*buf).b_op_start;
                     cp_bufinfo.save_b_op_end = (*buf).b_op_end;
                     u_checkpoint(&raw mut cp_bufinfo.undo_checkpoint, buf);
-                    (*cpinfo).buf_info.push(cp_bufinfo);
+                    cpinfo.buf_info.push(cp_bufinfo);
                     let mut status = MHPutStatus::kMHExisting;
                     mh_put(&raw mut saved_bufs, buf.cast::<c_void>(), &raw mut status);
                 }
@@ -2983,7 +2985,7 @@ unsafe fn cmdpreview_prepare(cpinfo: *mut CpInfo) {
                 cp_wininfo.save_w_p_cul = (*win).w_onebuf_opt.wo_cul;
                 cp_wininfo.save_w_p_cuc = (*win).w_onebuf_opt.wo_cuc;
 
-                (*cpinfo).win_info.push(cp_wininfo);
+                cpinfo.win_info.push(cp_wininfo);
 
                 (*win).w_onebuf_opt.wo_cul = 0;
                 (*win).w_onebuf_opt.wo_cuc = 0;
@@ -2995,9 +2997,9 @@ unsafe fn cmdpreview_prepare(cpinfo: *mut CpInfo) {
         xfree(saved_bufs.h.hash.cast::<c_void>());
         xfree(saved_bufs.keys.cast::<c_void>());
 
-        (*cpinfo).save_hls = p_hls != 0;
-        (*cpinfo).save_cmdmod = cmdmod;
-        win_size_save(&raw mut (*cpinfo).save_view);
+        cpinfo.save_hls = p_hls != 0;
+        cpinfo.save_cmdmod = cmdmod;
+        win_size_save(&raw mut cpinfo.save_view);
         save_search_patterns();
 
         p_hls = 0;
@@ -3006,14 +3008,14 @@ unsafe fn cmdpreview_prepare(cpinfo: *mut CpInfo) {
         cmdmod.cmod_flags |= CMOD_NOSWAPFILE;
 
         u_sync(true);
+        cpinfo
     }
 }
 
 /// Restore the state of buffers and windows for command preview.
-unsafe fn cmdpreview_restore_state(cpinfo: *mut CpInfo) {
+unsafe fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
     unsafe {
-        for i in 0..(*cpinfo).buf_info.size {
-            let mut cp_bufinfo = *(*cpinfo).buf_info.items.add(i);
+        for mut cp_bufinfo in cpinfo.buf_info.drain(..) {
             let buf = cp_bufinfo.buf;
 
             (*buf).b_changed = cp_bufinfo.save_b_changed;
@@ -3027,8 +3029,7 @@ unsafe fn cmdpreview_restore_state(cpinfo: *mut CpInfo) {
             (*buf).b_p_ma = cp_bufinfo.save_b_p_ma;
         }
 
-        for i in 0..(*cpinfo).win_info.size {
-            let mut cp_wininfo = *(*cpinfo).win_info.items.add(i);
+        for mut cp_wininfo in cpinfo.win_info.drain(..) {
             let win = cp_wininfo.win;
 
             (*win).w_cursor = cp_wininfo.save_w_cursor;
@@ -3040,14 +3041,12 @@ unsafe fn cmdpreview_restore_state(cpinfo: *mut CpInfo) {
             update_topline(win);
         }
 
-        cmdmod = (*cpinfo).save_cmdmod;
-        p_hls = c_int::from((*cpinfo).save_hls);
+        cmdmod = cpinfo.save_cmdmod;
+        p_hls = c_int::from(cpinfo.save_hls);
         restore_search_patterns();
-        win_size_restore(&raw mut (*cpinfo).save_view);
+        win_size_restore(&raw mut cpinfo.save_view);
 
-        ga_clear(&raw mut (*cpinfo).save_view);
-        (*cpinfo).win_info.destroy();
-        (*cpinfo).buf_info.destroy();
+        ga_clear(&raw mut cpinfo.save_view);
     }
 }
 
@@ -3086,7 +3085,6 @@ unsafe fn cmdpreview_may_show(_s: *mut CommandLineState) -> bool {
             std::mem::swap(&mut ea.line1, &mut ea.line2);
         }
 
-        let mut cpinfo: CpInfo = std::mem::zeroed();
         let mut icm_split = *p_icm == b's' as c_char;
         let mut cmdpreview_buf: *mut buf_T = ptr::null_mut();
         let mut cmdpreview_win: *mut win_T = ptr::null_mut();
@@ -3095,7 +3093,7 @@ unsafe fn cmdpreview_may_show(_s: *mut CommandLineState) -> bool {
         msg_silent += 1;
         block_autocmds();
 
-        cmdpreview_prepare(&raw mut cpinfo);
+        let mut cpinfo = cmdpreview_prepare();
 
         if icm_split {
             cmdpreview_buf = cmdpreview_open_buf();
@@ -3146,7 +3144,7 @@ unsafe fn cmdpreview_may_show(_s: *mut CommandLineState) -> bool {
             cmdpreview_close_win();
         }
 
-        cmdpreview_restore_state(&raw mut cpinfo);
+        cmdpreview_restore_state(&mut cpinfo);
 
         unblock_autocmds();
         msg_silent -= 1;
