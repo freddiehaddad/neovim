@@ -193,7 +193,7 @@ pub struct TryState {
     pub did_emsg: c_int,
 }
 
-pub type ArrayBuilder = crate::kvec::KVecWithInit<Object, 16>;
+pub type ArrayBuilder = Vec<Object>;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -742,8 +742,7 @@ pub unsafe fn ga_take_string(ga: *mut garray_T) -> NvimString {
 
 pub unsafe fn string_to_array(input: NvimString, crlf: bool, arena: *mut Arena) -> Array {
     unsafe {
-        let mut ret: ArrayBuilder = zeroed();
-        ret.init();
+        let mut ret = ArrayBuilder::new();
 
         let mut i: usize = 0;
         while i < input.size {
@@ -914,15 +913,13 @@ pub unsafe fn arena_string(arena: *mut Arena, str_: NvimString) -> NvimString {
 
 pub unsafe fn arena_take_arraybuilder(arena: *mut Arena, arr: *mut ArrayBuilder) -> Array {
     unsafe {
-        let mut ret = arena_array(arena, (*arr).size);
-        ret.size = (*arr).size;
-        if ret.size > 0 {
-            ptr::copy_nonoverlapping((*arr).items, ret.items, ret.size);
+        let len = (*arr).len();
+        let mut ret = arena_array(arena, len);
+        ret.size = len;
+        if len > 0 {
+            ptr::copy_nonoverlapping((*arr).as_ptr(), ret.items, len);
         }
-        let init_ptr = (&raw mut (*arr).init_array).cast::<Object>();
-        if (*arr).items != init_ptr {
-            xfree((*arr).items.cast());
-        }
+        *arr = Vec::new();
         ret
     }
 }

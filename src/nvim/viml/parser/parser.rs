@@ -1,6 +1,5 @@
 //! VimL parser input reader and state lifecycle (`src/nvim/viml/parser/parser.c`).
 
-use crate::kvec::KVecWithInit;
 use crate::mbyte::{string_convert, vimconv_T};
 use crate::memory::xfree;
 use std::ffi::{c_char, c_int, c_void};
@@ -24,18 +23,10 @@ pub struct ParserPosition {
     pub col: usize,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
-pub struct ParserStateItem {
-    pub item_type: c_int,
-    pub expr_type: c_int,
-}
-
-#[repr(C)]
 pub struct ParserInputReader {
     pub get_line: ParserLineGetter,
     pub cookie: *mut c_void,
-    pub lines: KVecWithInit<ParserLine, 4>,
+    pub lines: Vec<ParserLine>,
     pub conv: vimconv_T,
 }
 
@@ -47,15 +38,12 @@ pub struct ParserHighlightChunk {
     pub group: *const c_char,
 }
 
-pub type ParserHighlight = KVecWithInit<ParserHighlightChunk, 16>;
+pub type ParserHighlight = Vec<ParserHighlightChunk>;
 
-#[repr(C)]
 pub struct ParserState {
     pub reader: ParserInputReader,
     pub pos: ParserPosition,
-    pub stack: KVecWithInit<ParserStateItem, 16>,
     pub colors: *mut ParserHighlight,
-    pub can_continuate: bool,
 }
 
 /// Simple line getter reading from an array of `ParserLine` (`parser_simple_get_line`).
@@ -96,9 +84,7 @@ unsafe fn viml_preader_get_line(preader: &mut ParserInputReader, ret_pline: &mut
         }
         pline = cpline;
     }
-    unsafe {
-        preader.lines.push(pline);
-    }
+    preader.lines.push(pline);
     *ret_pline = pline;
 }
 
@@ -113,15 +99,15 @@ pub unsafe fn viml_parser_get_remaining_line(
     let pstate = unsafe { &mut *pstate };
     let ret_pline = unsafe { &mut *ret_pline };
 
-    let num_lines = pstate.reader.lines.size;
+    let num_lines = pstate.reader.lines.len();
     if pstate.pos.line == num_lines {
         unsafe {
             viml_preader_get_line(&mut pstate.reader, ret_pline);
         }
     } else {
-        *ret_pline = unsafe { pstate.reader.lines.last() };
+        *ret_pline = *pstate.reader.lines.last().unwrap();
     }
-    assert_eq!(pstate.pos.line, pstate.reader.lines.size - 1);
+    assert_eq!(pstate.pos.line, pstate.reader.lines.len() - 1);
     if !ret_pline.data.is_null() {
         ret_pline.data = unsafe { ret_pline.data.add(pstate.pos.col) };
         ret_pline.size -= pstate.pos.col;
@@ -135,18 +121,14 @@ pub unsafe fn viml_parser_get_remaining_line(
 /// `pstate` must be a valid writable pointer to an initialized `ParserState`.
 pub unsafe fn viml_parser_destroy(pstate: *mut ParserState) {
     let pstate = unsafe { &mut *pstate };
-    for i in 0..pstate.reader.lines.size {
-        let pline = unsafe { pstate.reader.lines.get(i) };
+    for pline in pstate.reader.lines.drain(..) {
         if pline.allocated {
             unsafe {
                 xfree(pline.data.cast_mut().cast::<c_void>());
             }
         }
     }
-    unsafe {
-        pstate.reader.lines.destroy();
-        pstate.stack.destroy();
-    }
+    pstate.reader.lines = Vec::new();
 }
 
 #[cfg(test)]

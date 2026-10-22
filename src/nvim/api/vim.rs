@@ -275,7 +275,6 @@ pub struct MessageData {
     pub data: Dict,
 }
 
-#[repr(C)]
 struct RuntimeCookie {
     rv: ArrayBuilder,
     arena: *mut Arena,
@@ -997,10 +996,10 @@ pub unsafe extern "C" fn nvim_get_runtime_file(
     err: *mut Error,
 ) -> Array {
     unsafe {
-        let mut cookie = std::mem::MaybeUninit::<RuntimeCookie>::zeroed();
-        let cookie_ptr = cookie.as_mut_ptr();
-        (*cookie_ptr).rv.init();
-        (*cookie_ptr).arena = arena;
+        let mut cookie = RuntimeCookie {
+            rv: ArrayBuilder::new(),
+            arena,
+        };
 
         let flags = DIP_DIRFILE | if all { DIP_ALL } else { 0 };
         let mut tstate = std::mem::zeroed::<TryState>();
@@ -1013,11 +1012,11 @@ pub unsafe extern "C" fn nvim_get_runtime_file(
             },
             flags,
             Some(find_runtime_cb),
-            cookie_ptr.cast::<c_void>(),
+            (&raw mut cookie).cast::<c_void>(),
         );
         try_leave(&tstate, err);
 
-        arena_take_arraybuilder(arena, &mut (*cookie_ptr).rv)
+        arena_take_arraybuilder(arena, &raw mut cookie.rv)
     }
 }
 

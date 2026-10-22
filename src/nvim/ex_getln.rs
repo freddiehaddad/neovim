@@ -154,8 +154,8 @@ use crate::viml::parser::expressions::{
     ExprAST, kExprFlagsDisallowEOC, viml_pexpr_free_ast, viml_pexpr_parse,
 };
 use crate::viml::parser::parser::{
-    CONV_NONE, ParserHighlight, ParserHighlightChunk, ParserInputReader, ParserLine,
-    ParserPosition, ParserState, parser_simple_get_line, viml_parser_destroy,
+    CONV_NONE, ParserHighlight, ParserInputReader, ParserLine, ParserPosition, ParserState,
+    parser_simple_get_line, viml_parser_destroy,
 };
 use crate::window::{
     WSP_BOT, close_windows, global_stl_height, lastwin_nofloating,
@@ -3589,13 +3589,12 @@ unsafe fn color_expr_cmdline(
             },
         ];
         let mut plines_p = parser_lines.as_ptr();
-        let mut colors: ParserHighlight = std::mem::zeroed();
-        colors.init();
+        let mut colors = ParserHighlight::new();
         let mut pstate = ParserState {
             reader: ParserInputReader {
                 get_line: Some(parser_simple_get_line),
                 cookie: (&raw mut plines_p).cast::<c_void>(),
-                lines: std::mem::zeroed(),
+                lines: Vec::new(),
                 conv: vimconv_T {
                     vc_type: CONV_NONE,
                     vc_factor: 1,
@@ -3604,25 +3603,20 @@ unsafe fn color_expr_cmdline(
                 },
             },
             pos: ParserPosition { line: 0, col: 0 },
-            stack: std::mem::zeroed(),
             colors: &raw mut colors,
-            can_continuate: false,
         };
-        pstate.reader.lines.init();
-        pstate.stack.init();
         let east: ExprAST = viml_pexpr_parse(&raw mut pstate, kExprFlagsDisallowEOC);
         viml_pexpr_free_ast(east);
         viml_parser_destroy(&raw mut pstate);
 
-        (*ret_ccline_colors).colors.capacity = colors.size;
+        (*ret_ccline_colors).colors.capacity = colors.len();
         (*ret_ccline_colors).colors.items = xrealloc(
             (*ret_ccline_colors).colors.items.cast::<c_void>(),
             size_of::<CmdlineColorChunk>() * (*ret_ccline_colors).colors.capacity,
         )
         .cast::<CmdlineColorChunk>();
         let mut prev_end: usize = 0;
-        for i in 0..colors.size {
-            let chunk: ParserHighlightChunk = *colors.items.add(i);
+        for chunk in colors {
             debug_assert!(chunk.start.col < c_int::MAX as usize);
             debug_assert!(chunk.end_col < c_int::MAX as usize);
             if chunk.start.col != prev_end {
@@ -3646,7 +3640,6 @@ unsafe fn color_expr_cmdline(
                 hl_id: 0,
             });
         }
-        colors.destroy();
     }
 }
 

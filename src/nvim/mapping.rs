@@ -3150,8 +3150,7 @@ pub unsafe fn modify_keymap(
 /// based on mode and buffer id.
 pub unsafe fn keymap_array(mode: NvimString, buf: *mut buf_T, arena: *mut Arena) -> Array {
     unsafe {
-        let mut mappings: ArrayBuilder = std::mem::zeroed();
-        mappings.init();
+        let mut mappings = ArrayBuilder::new();
 
         let mut p: *mut c_char = if mode.size > 0 {
             mode.data

@@ -15,7 +15,6 @@ use crate::eval::{clear_evalarg, eval0};
 use crate::ex_docmd::do_cmdline_cmd;
 use crate::garray::{ga_clear, ga_init, garray_T};
 use crate::globals::*;
-use crate::kvec::KVecWithInit;
 use crate::lua::converter::Boolean;
 use crate::memory::{Arena, xfree};
 use crate::msgpack_rpc::packer::Integer;
@@ -50,7 +49,7 @@ struct ExprASTConvStackItem {
     ret_node_p: *mut Object,
 }
 
-type ExprASTConvStack = KVecWithInit<ExprASTConvStackItem, 16>;
+type ExprASTConvStack = Vec<ExprASTConvStackItem>;
 
 static mut EVAL_RECURSIVE: c_int = 0;
 static mut CALL_FUNC_RECURSIVE: c_int = 0;
@@ -616,23 +615,28 @@ pub unsafe extern "C" fn nvim_parse_expression(
             },
         ];
         let mut plines_p = parser_lines.as_ptr();
-        let mut colors: ParserHighlight = std::mem::zeroed();
-        colors.init();
+        let mut colors = ParserHighlight::new();
         let colors_p = if hl {
-            &mut colors
+            &raw mut colors
         } else {
             std::ptr::null_mut()
         };
 
-        let mut pstate: ParserState = std::mem::zeroed();
-        pstate.reader.get_line = Some(parser_simple_get_line);
-        pstate.reader.cookie = (&mut plines_p as *mut *const ParserLine).cast::<c_void>();
-        pstate.reader.conv.vc_factor = 1;
-        pstate.pos = ParserPosition { line: 0, col: 0 };
-        pstate.colors = colors_p;
-        pstate.can_continuate = false;
-        pstate.reader.lines.init();
-        pstate.stack.init();
+        let mut pstate = ParserState {
+            reader: crate::viml::parser::parser::ParserInputReader {
+                get_line: Some(parser_simple_get_line),
+                cookie: (&raw mut plines_p).cast::<c_void>(),
+                lines: Vec::new(),
+                conv: crate::mbyte::vimconv_T {
+                    vc_type: crate::viml::parser::parser::CONV_NONE,
+                    vc_factor: 1,
+                    vc_fd: std::ptr::null_mut(),
+                    vc_fail: false,
+                },
+            },
+            pos: ParserPosition { line: 0, col: 0 },
+            colors: colors_p,
+        };
 
         let mut east = viml_pexpr_parse(&mut pstate, pflags);
 
@@ -658,9 +662,8 @@ pub unsafe extern "C" fn nvim_parse_expression(
         }
 
         if hl {
-            let mut hl_arr = arena_array(arena, colors.size);
-            for i in 0..colors.size {
-                let chunk = colors.get(i);
+            let mut hl_arr = arena_array(arena, colors.len());
+            for chunk in &colors {
                 let mut chunk_arr = arena_array(arena, 4);
                 add_c(&mut chunk_arr, integer_obj(chunk.start.line as Integer));
                 add_c(&mut chunk_arr, integer_obj(chunk.start.col as Integer));
@@ -670,22 +673,19 @@ pub unsafe extern "C" fn nvim_parse_expression(
             }
             put_c(&mut ret, c"highlight", array_obj(hl_arr));
         }
-        colors.destroy();
+        drop(colors);
 
-        let mut ast_conv_stack: ExprASTConvStack = std::mem::zeroed();
-        ast_conv_stack.init();
         let mut ast = nil_obj();
-        ast_conv_stack.push(ExprASTConvStackItem {
+        let mut ast_conv_stack: ExprASTConvStack = vec![ExprASTConvStackItem {
             node_p: &mut east.root,
             ret_node_p: &mut ast,
-        });
+        }];
 
-        while ast_conv_stack.size != 0 {
-            let cur_item = ast_conv_stack.last();
+        while let Some(&cur_item) = ast_conv_stack.last() {
             let node = *cur_item.node_p;
             if node.is_null() {
-                debug_assert_eq!(ast_conv_stack.size, 1);
-                ast_conv_stack.size -= 1;
+                debug_assert_eq!(ast_conv_stack.len(), 1);
+                ast_conv_stack.pop();
             } else {
                 if (*cur_item.ret_node_p).obj_type == ObjectType::kObjectTypeNil {
                     let nt = (*node).r#type;
@@ -722,13 +722,13 @@ pub unsafe extern "C" fn nvim_parse_expression(
                         ret_node_p: children_array.items,
                     });
                 } else if !(*node).next.is_null() {
-                    debug_assert!(ast_conv_stack.size > 1);
+                    debug_assert!(ast_conv_stack.len() > 1);
                     ast_conv_stack.push(ExprASTConvStackItem {
                         node_p: &mut (*node).next,
                         ret_node_p: cur_item.ret_node_p.add(1),
                     });
                 } else {
-                    ast_conv_stack.size -= 1;
+                    ast_conv_stack.pop();
                     put_c(
                         ret_node,
                         c"type",
@@ -865,7 +865,6 @@ pub unsafe extern "C" fn nvim_parse_expression(
                 }
             }
         }
-        ast_conv_stack.destroy();
         put_c(&mut ret, c"ast", ast);
 
         debug_assert_eq!(ret.size, ret.capacity);

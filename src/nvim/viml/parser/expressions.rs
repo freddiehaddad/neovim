@@ -4,7 +4,6 @@ use crate::charset::{
     ascii_isalpha, ascii_isdigit, ascii_iswhite, ascii_isxdigit, uvarnumber_T, vim_str2nr,
 };
 use crate::keycodes::{FSK_IN_STRING, FSK_KEYCODE, FSK_SIMPLIFY, NUL, trans_special};
-use crate::kvec::KVecWithInit;
 use crate::mbyte::{mb_copy_char, utf_char2bytes, utf_char2len, utfc_ptr2len_len};
 use crate::memory::{xfree, xmalloc, xmallocz};
 use crate::viml::parser::parser::{
@@ -361,7 +360,7 @@ pub struct ExprAST {
     pub root: *mut ExprASTNode,
 }
 
-type ExprASTStack = KVecWithInit<*mut *mut ExprASTNode, 16>;
+type ExprASTStack = Vec<*mut *mut ExprASTNode>;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ExprASTWantedNode {
@@ -377,7 +376,7 @@ enum ExprASTParseType {
     SingleAssignment = 3,
 }
 
-type ExprASTParseTypeStack = KVecWithInit<ExprASTParseType, 4>;
+type ExprASTParseTypeStack = Vec<ExprASTParseType>;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum ExprOpLvl {
@@ -578,8 +577,8 @@ fn is_opt_scope(b: u8) -> bool {
 unsafe fn viml_parser_advance(pstate: *mut ParserState, len: usize) {
     unsafe {
         let pstate = &mut *pstate;
-        debug_assert_eq!(pstate.pos.line, pstate.reader.lines.size - 1);
-        let pline = pstate.reader.lines.last();
+        debug_assert_eq!(pstate.pos.line, pstate.reader.lines.len() - 1);
+        let pline = *pstate.reader.lines.last().unwrap();
         if pstate.pos.col + len >= pline.size {
             pstate.pos.line += 1;
             pstate.pos.col = 0;
@@ -603,9 +602,9 @@ unsafe fn viml_parser_highlight(
         }
         let colors = &mut *pstate.colors;
         debug_assert!(
-            colors.size == 0
-                || colors.last().start.line < start.line
-                || colors.last().end_col <= start.col
+            colors.is_empty()
+                || colors.last().unwrap().start.line < start.line
+                || colors.last().unwrap().end_col <= start.col
         );
         colors.push(ParserHighlightChunk {
             start,
@@ -1078,17 +1077,14 @@ pub unsafe fn viml_pexpr_next_token(pstate: *mut ParserState, flags: c_int) -> L
 /// Free memory occupied by AST (`viml_pexpr_free_ast`).
 pub unsafe fn viml_pexpr_free_ast(mut ast: ExprAST) {
     unsafe {
-        let mut ast_stack: ExprASTStack = std::mem::zeroed();
-        ast_stack.init();
-        ast_stack.push(&mut ast.root);
-        while ast_stack.size != 0 {
-            let cur_node: *mut *mut ExprASTNode = ast_stack.last();
-            for i in 0..(ast_stack.size - 1) {
-                debug_assert_ne!(*ast_stack.get(i), *cur_node);
+        let mut ast_stack: ExprASTStack = vec![&mut ast.root];
+        while let Some(&cur_node) = ast_stack.last() {
+            for &prev in &ast_stack[..ast_stack.len() - 1] {
+                debug_assert_ne!(*prev, *cur_node);
             }
             if (*cur_node).is_null() {
-                debug_assert_eq!(ast_stack.size, 1);
-                ast_stack.size -= 1;
+                debug_assert_eq!(ast_stack.len(), 1);
+                ast_stack.pop();
             } else if !(**cur_node).children.is_null() {
                 let maxchildren = node_maxchildren[(**cur_node).r#type as usize];
                 debug_assert!(maxchildren > 0 && maxchildren <= 2);
@@ -1096,7 +1092,7 @@ pub unsafe fn viml_pexpr_free_ast(mut ast: ExprAST) {
             } else if !(**cur_node).next.is_null() {
                 ast_stack.push(&mut (**cur_node).next);
             } else {
-                ast_stack.size -= 1;
+                ast_stack.pop();
                 let node_type = (**cur_node).r#type;
                 if node_type == kExprNodeDoubleQuotedString
                     || node_type == kExprNodeSingleQuotedString
@@ -1107,7 +1103,6 @@ pub unsafe fn viml_pexpr_free_ast(mut ast: ExprAST) {
                 *cur_node = std::ptr::null_mut();
             }
         }
-        ast_stack.destroy();
     }
 }
 
@@ -1177,7 +1172,7 @@ unsafe fn east_set_error(
         if !(*ret_ast_err).msg.is_null() {
             return;
         }
-        let pline = *(*pstate).reader.lines.items.add(start.line);
+        let pline = (*pstate).reader.lines.as_slice()[start.line];
         (*ret_ast_err).msg = msg;
         (*ret_ast_err).arg_len = (pline.size - start.col) as c_int;
         (*ret_ast_err).arg = if pline.data.is_null() {
@@ -1201,7 +1196,7 @@ unsafe fn viml_pexpr_handle_bop(
         let mut top_node: *mut ExprASTNode = std::ptr::null_mut();
         let mut top_node_lvl = ExprOpLvl::Invalid;
         let mut top_node_ass = ExprOpAssociativity::No;
-        debug_assert!((*ast_stack).size != 0);
+        debug_assert!(!(*ast_stack).is_empty());
         let bop_node_lvl =
             if (*bop_node).r#type == kExprNodeCall || (*bop_node).r#type == kExprNodeSubscript {
                 ExprOpLvl::Subscript
@@ -1209,7 +1204,7 @@ unsafe fn viml_pexpr_handle_bop(
                 node_lvl(*bop_node)
             };
         loop {
-            let new_top_node_p = (*ast_stack).last();
+            let new_top_node_p = *(*ast_stack).last().unwrap();
             let new_top_node = *new_top_node_p;
             debug_assert!(!new_top_node.is_null());
             let new_top_node_lvl = node_lvl(*new_top_node);
@@ -1221,7 +1216,7 @@ unsafe fn viml_pexpr_handle_bop(
             {
                 break;
             }
-            (*ast_stack).size -= 1;
+            (*ast_stack).pop();
             top_node_p = new_top_node_p;
             top_node = new_top_node;
             top_node_lvl = new_top_node_lvl;
@@ -1229,7 +1224,7 @@ unsafe fn viml_pexpr_handle_bop(
             if bop_node_lvl == top_node_lvl && top_node_ass == ExprOpAssociativity::Right {
                 break;
             }
-            if (*ast_stack).size == 0 {
+            if (*ast_stack).is_empty() {
                 break;
             }
         }
@@ -1302,15 +1297,14 @@ unsafe fn parse_quoted_string(
     is_invalid: bool,
 ) {
     unsafe {
-        let pline = *(*pstate).reader.lines.items.add(token.start.line);
+        let pline = (*pstate).reader.lines.as_slice()[token.start.line];
         let s = pline.data.add(token.start.col);
         let closed_len = usize::from(token.data.str.closed);
         let e = s.add(token.len - closed_len);
         let mut p = s.add(1);
         let is_double = token.r#type == kExprLexDoubleQuotedString;
         let mut size = token.len - closed_len - 1;
-        let mut shifts: KVecWithInit<StringShift, 16> = std::mem::zeroed();
-        shifts.init();
+        let mut shifts: Vec<StringShift> = Vec::new();
 
         if !is_double {
             viml_parser_highlight(
@@ -1627,8 +1621,7 @@ unsafe fn parse_quoted_string(
                     c"NvimInvalidSingleQuotedUnknownEscape"
                 )
             };
-            for i in 0..shifts.size {
-                let cur_shift = shifts.get(i);
+            for cur_shift in &shifts {
                 if cur_shift.start > next_col {
                     viml_parser_highlight(
                         pstate,
@@ -1675,7 +1668,6 @@ unsafe fn parse_quoted_string(
                 );
             }
         }
-        shifts.destroy();
     }
 }
 
@@ -1697,13 +1689,9 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
             },
             root: std::ptr::null_mut(),
         };
-        let mut ast_stack: ExprASTStack = std::mem::zeroed();
-        ast_stack.init();
-        ast_stack.push(&mut ast.root);
+        let mut ast_stack: ExprASTStack = vec![&mut ast.root];
         let mut want_node = ExprASTWantedNode::Value;
-        let mut pt_stack: ExprASTParseTypeStack = std::mem::zeroed();
-        pt_stack.init();
-        pt_stack.push(ExprASTParseType::Expr);
+        let mut pt_stack: ExprASTParseTypeStack = vec![ExprASTParseType::Expr];
         if (flags & kExprFlagsParseLet) != 0 {
             pt_stack.push(ExprASTParseType::Assignment);
         }
@@ -1715,8 +1703,8 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
 
         'parse_loop: loop {
             let is_concat_or_subscript = want_node == ExprASTWantedNode::Value
-                && ast_stack.size > 1
-                && (**ast_stack.get(ast_stack.size - 2)).r#type == kExprNodeConcatOrSubscript;
+                && ast_stack.len() > 1
+                && (**ast_stack[ast_stack.len() - 2]).r#type == kExprNodeConcatOrSubscript;
             let lexer_additional_flags = kELFlagPeek
                 | if (flags & kExprFlagsDisallowEOC) != 0 {
                     kELFlagForbidEOC
@@ -1724,9 +1712,9 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                     0
                 }
                 | if want_node == ExprASTWantedNode::Value
-                    && (ast_stack.size == 1
-                        || ((**ast_stack.get(ast_stack.size - 2)).r#type != kExprNodeConcat
-                            && (**ast_stack.get(ast_stack.size - 2)).r#type
+                    && (ast_stack.len() == 1
+                        || ((**ast_stack[ast_stack.len() - 2]).r#type != kExprNodeConcat
+                            && (**ast_stack[ast_stack.len() - 2]).r#type
                                 != kExprNodeConcatOrSubscript))
                 {
                     kELFlagAllowFloat
@@ -1771,9 +1759,9 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                     is_invalid = false;
                     highlighted_prev_spacing = true;
                 }
-                let pline = *(*pstate).reader.lines.items.add(cur_token.start.line);
-                let top_node_p = ast_stack.last();
-                debug_assert!(ast_stack.size >= 1);
+                let pline = (*pstate).reader.lines.as_slice()[cur_token.start.line];
+                let top_node_p = *ast_stack.last().unwrap();
+                debug_assert!(!ast_stack.is_empty());
 
                 let node_is_key = is_concat_or_subscript
                     && (if cur_token.r#type == kExprLexPlainIdentifier {
@@ -1784,11 +1772,13 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                     })
                     && prev_token.r#type != kExprLexSpacing;
                 if is_concat_or_subscript && !node_is_key {
-                    (**ast_stack.get(ast_stack.size - 2)).r#type = kExprNodeConcat;
+                    let prev_idx = ast_stack.len() - 2;
+                    (**ast_stack[prev_idx]).r#type = kExprNodeConcat;
                 }
 
-                let is_single_assignment = pt_stack.last() == ExprASTParseType::SingleAssignment;
-                match pt_stack.last() {
+                let is_single_assignment =
+                    *pt_stack.last().unwrap() == ExprASTParseType::SingleAssignment;
+                match *pt_stack.last().unwrap() {
                     ExprASTParseType::Expr => {}
                     ExprASTParseType::LambdaArguments => {
                         if (want_node == ExprASTWantedNode::Operator
@@ -1813,7 +1803,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                 );
                             } else {
                                 lambda_node = std::ptr::null_mut();
-                                pt_stack.size -= 1;
+                                pt_stack.pop();
                             }
                         }
                     }
@@ -1834,7 +1824,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                 c"E15: Expected value part of assignment lvalue: %.*s".as_ptr(),
                                 cur_token.start,
                             );
-                            pt_stack.size -= 1;
+                            pt_stack.pop();
                         } else if want_node == ExprASTWantedNode::Operator
                             && tok_type != kExprLexBracket
                             && (tok_type != kExprLexFigureBrace || cur_token.data.brc.closing)
@@ -1846,7 +1836,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                     && !cur_token.data.brc.closing))
                                 && prev_token.r#type != kExprLexSpacing)
                         {
-                            if (flags & kExprFlagsMulti) != 0 && ast_stack.size == 1 {
+                            if (flags & kExprFlagsMulti) != 0 && ast_stack.len() == 1 {
                                 break 'parse_loop;
                             }
                             is_invalid = true;
@@ -1856,18 +1846,18 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                 c"E15: Expected assignment operator or subscript: %.*s".as_ptr(),
                                 cur_token.start,
                             );
-                            pt_stack.size -= 1;
+                            pt_stack.pop();
                         }
-                        debug_assert!(pt_stack.size != 0);
+                        debug_assert!(!pt_stack.is_empty());
                     }
                 }
-                debug_assert!(pt_stack.size != 0);
-                let cur_pt = pt_stack.last();
+                debug_assert!(!pt_stack.is_empty());
+                let cur_pt = *pt_stack.last().unwrap();
                 debug_assert!(lambda_node.is_null() || cur_pt == ExprASTParseType::LambdaArguments);
 
                 macro_rules! op_missing {
                     () => {{
-                        if (flags & kExprFlagsMulti) != 0 && ast_stack.size == 1 {
+                        if (flags & kExprFlagsMulti) != 0 && ast_stack.len() == 1 {
                             break 'parse_loop;
                         } else {
                             debug_assert!(!(*top_node_p).is_null());
@@ -2278,16 +2268,16 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                             debug_assert!(!lambda_node.is_null());
                             (*lambda_node).r#type = kExprNodeLambda;
                             if !(*pstate).colors.is_null() {
-                                (*(*(*pstate).colors)
-                                    .items
-                                    .add((*lambda_node).data.fig.opening_hl_idx))
-                                .group = hl_group!(is_invalid, c"NvimLambda", c"NvimInvalidLambda");
+                                (*(*pstate).colors).as_mut_slice()
+                                    [(*lambda_node).data.fig.opening_hl_idx]
+                                    .group =
+                                    hl_group!(is_invalid, c"NvimLambda", c"NvimInvalidLambda");
                             }
                         }
                         let mut valid_comma = false;
-                        if ast_stack.size >= 2 {
-                            for i in 1..ast_stack.size {
-                                let eastnode_p = ast_stack.get(ast_stack.size - i - 1);
+                        if ast_stack.len() >= 2 {
+                            for i in 1..ast_stack.len() {
+                                let eastnode_p = ast_stack[ast_stack.len() - i - 1];
                                 let eastnode_type = (**eastnode_p).r#type;
                                 let eastnode_lvl = node_lvl(**eastnode_p);
                                 if eastnode_type == kExprNodeLambda
@@ -2335,17 +2325,17 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                         let mut is_ternary = false;
                         let mut is_subscript = false;
                         let mut valid_colon = false;
-                        if ast_stack.size >= 2 {
+                        if ast_stack.len() >= 2 {
                             let mut can_be_ternary = true;
-                            for i in 1..ast_stack.size {
-                                let eastnode_p = ast_stack.get(ast_stack.size - i - 1);
+                            for i in 1..ast_stack.len() {
+                                let eastnode_p = ast_stack[ast_stack.len() - i - 1];
                                 let eastnode_type = (**eastnode_p).r#type;
                                 let eastnode_lvl = node_lvl(**eastnode_p);
                                 if can_be_ternary
                                     && eastnode_type == kExprNodeTernaryValue
                                     && !(**eastnode_p).data.ter.got_colon
                                 {
-                                    ast_stack.size -= i;
+                                    ast_stack.truncate(ast_stack.len() - i);
                                     (**eastnode_p).start = cur_token.start;
                                     (**eastnode_p).len = cur_token.len;
                                     if prev_token.r#type == kExprLexSpacing {
@@ -2363,10 +2353,9 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                 } else if eastnode_type == kExprNodeUnknownFigure {
                                     (**eastnode_p).r#type = kExprNodeDictLiteral;
                                     if !(*pstate).colors.is_null() {
-                                        (*(*(*pstate).colors)
-                                            .items
-                                            .add((**eastnode_p).data.fig.opening_hl_idx))
-                                        .group =
+                                        (*(*pstate).colors).as_mut_slice()
+                                            [(**eastnode_p).data.fig.opening_hl_idx]
+                                            .group =
                                             hl_group!(is_invalid, c"NvimDict", c"NvimInvalidDict");
                                     }
                                     valid_colon = true;
@@ -2391,8 +2380,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                         }
                         if is_subscript {
                             if want_node == ExprASTWantedNode::Value
-                                && (**ast_stack.get(ast_stack.size - 2)).r#type
-                                    == kExprNodeSubscript
+                                && (**ast_stack[ast_stack.len() - 2]).r#type == kExprNodeSubscript
                             {
                                 *top_node_p =
                                     new_node_with_cur_pos(kExprNodeMissing, cur_token, prev_token);
@@ -2468,8 +2456,8 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                     kExprLexBracket => {
                         if cur_token.data.brc.closing {
                             let mut new_top_node_p: *mut *mut ExprASTNode;
-                            ast_stack.size -= 1;
-                            if ast_stack.size == 0 {
+                            ast_stack.pop();
+                            if ast_stack.is_empty() {
                                 let cur_node = new_node_with_cur_pos(
                                     kExprNodeListLiteral,
                                     cur_token,
@@ -2496,7 +2484,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                 );
                             } else {
                                 if want_node == ExprASTWantedNode::Value {
-                                    let last_type = (**ast_stack.last()).r#type;
+                                    let last_type = (***ast_stack.last().unwrap()).r#type;
                                     if last_type != kExprNodeListLiteral
                                         && last_type != kExprNodeComma
                                         && last_type != kExprNodeColon
@@ -2512,9 +2500,8 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                     }
                                 }
                                 loop {
-                                    ast_stack.size -= 1;
-                                    new_top_node_p = *ast_stack.items.add(ast_stack.size);
-                                    if ast_stack.size == 0
+                                    new_top_node_p = ast_stack.pop().unwrap();
+                                    if ast_stack.is_empty()
                                         || (!new_top_node_p.is_null()
                                             && ((**new_top_node_p).r#type == kExprNodeListLiteral
                                                 || (**new_top_node_p).r#type == kExprNodeSubscript))
@@ -2575,17 +2562,18 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                             }
                             ast_stack.push(new_top_node_p);
                             want_node = ExprASTWantedNode::Operator;
-                            if ast_stack.size <= asgn_level {
+                            if ast_stack.len() <= asgn_level {
                                 asgn_level = 0;
                                 if cur_pt == ExprASTParseType::Expr
-                                    && pt_stack.size > 1
-                                    && pt_is_assignment(pt_stack.get(pt_stack.size - 2))
+                                    && pt_stack.len() > 1
+                                    && pt_is_assignment(pt_stack[pt_stack.len() - 2])
                                 {
-                                    pt_stack.size -= 1;
+                                    pt_stack.pop();
                                 }
                             }
-                            if cur_pt == ExprASTParseType::SingleAssignment && ast_stack.size == 1 {
-                                pt_stack.size -= 1;
+                            if cur_pt == ExprASTParseType::SingleAssignment && ast_stack.len() == 1
+                            {
+                                pt_stack.pop();
                             }
                         } else if want_node == ExprASTWantedNode::Value {
                             let cur_node =
@@ -2633,7 +2621,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                 ),
                             );
                             if pt_is_assignment(cur_pt) {
-                                asgn_level = ast_stack.size - 1;
+                                asgn_level = ast_stack.len() - 1;
                                 pt_stack.push(ExprASTParseType::Expr);
                             }
                         }
@@ -2641,8 +2629,8 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                     kExprLexFigureBrace => {
                         if cur_token.data.brc.closing {
                             let mut new_top_node_p: *mut *mut ExprASTNode;
-                            ast_stack.size -= 1;
-                            if ast_stack.size == 0 {
+                            ast_stack.pop();
+                            if ast_stack.is_empty() {
                                 let cur_node = new_node_with_cur_pos(
                                     kExprNodeUnknownFigure,
                                     cur_token,
@@ -2676,7 +2664,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                 );
                             } else {
                                 if want_node == ExprASTWantedNode::Value {
-                                    let last_type = (**ast_stack.last()).r#type;
+                                    let last_type = (***ast_stack.last().unwrap()).r#type;
                                     if last_type != kExprNodeUnknownFigure
                                         && last_type != kExprNodeComma
                                     {
@@ -2691,9 +2679,8 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                     }
                                 }
                                 loop {
-                                    ast_stack.size -= 1;
-                                    new_top_node_p = *ast_stack.items.add(ast_stack.size);
-                                    if ast_stack.size == 0
+                                    new_top_node_p = ast_stack.pop().unwrap();
+                                    if ast_stack.is_empty()
                                         || (!new_top_node_p.is_null()
                                             && ((**new_top_node_p).r#type
                                                 == kExprNodeUnknownFigure
@@ -2717,10 +2704,9 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                                 c"NvimInvalidDict"
                                             );
                                             if !(*pstate).colors.is_null() {
-                                                (*(*(*pstate).colors).items.add(
-                                                    (*new_top_node).data.fig.opening_hl_idx,
-                                                ))
-                                                .group = grp;
+                                                (*(*pstate).colors).as_mut_slice()
+                                                    [(*new_top_node).data.fig.opening_hl_idx]
+                                                    .group = grp;
                                             }
                                             viml_parser_highlight(
                                                 pstate,
@@ -2737,10 +2723,9 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                                 c"NvimInvalidCurly"
                                             );
                                             if !(*pstate).colors.is_null() {
-                                                (*(*(*pstate).colors).items.add(
-                                                    (*new_top_node).data.fig.opening_hl_idx,
-                                                ))
-                                                .group = grp;
+                                                (*(*pstate).colors).as_mut_slice()
+                                                    [(*new_top_node).data.fig.opening_hl_idx]
+                                                    .group = grp;
                                             }
                                             viml_parser_highlight(
                                                 pstate,
@@ -2763,10 +2748,9 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                                 c"NvimInvalidFigureBrace"
                                             );
                                             if !(*pstate).colors.is_null() {
-                                                (*(*(*pstate).colors).items.add(
-                                                    (*new_top_node).data.fig.opening_hl_idx,
-                                                ))
-                                                .group = grp;
+                                                (*(*pstate).colors).as_mut_slice()
+                                                    [(*new_top_node).data.fig.opening_hl_idx]
+                                                    .group = grp;
                                             }
                                             viml_parser_highlight(
                                                 pstate,
@@ -2831,12 +2815,12 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                             }
                             ast_stack.push(new_top_node_p);
                             want_node = ExprASTWantedNode::Operator;
-                            if ast_stack.size <= asgn_level
+                            if ast_stack.len() <= asgn_level
                                 && cur_pt == ExprASTParseType::Expr
-                                && pt_stack.size > 1
-                                && pt_is_assignment(pt_stack.get(pt_stack.size - 2))
+                                && pt_stack.len() > 1
+                                && pt_is_assignment(pt_stack[pt_stack.len() - 2])
                             {
-                                pt_stack.size -= 1;
+                                pt_stack.pop();
                                 asgn_level = 0;
                             }
                         } else {
@@ -2875,7 +2859,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                 };
                                 if !(*pstate).colors.is_null() {
                                     (*cur_node).data.fig.opening_hl_idx =
-                                        (*(*pstate).colors).size - 1;
+                                        (*(*pstate).colors).len() - 1;
                                 }
                                 *top_node_p = cur_node;
                                 ast_stack.push(&mut (*cur_node).children);
@@ -2899,7 +2883,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                     (*comp_node).children = *top_node_p;
                                     *top_node_p = comp_node;
                                     ast_stack.push(&mut (*(*comp_node).children).next);
-                                    let new_top_node_p = ast_stack.last();
+                                    let new_top_node_p = *ast_stack.last().unwrap();
                                     let cur_node = new_node_with_cur_pos(
                                         kExprNodeCurlyBracesIdentifier,
                                         cur_token,
@@ -2907,7 +2891,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                     );
                                     if !(*pstate).colors.is_null() {
                                         (*cur_node).data.fig.opening_hl_idx =
-                                            (*(*pstate).colors).size;
+                                            (*(*pstate).colors).len();
                                     }
                                     (*cur_node).data.fig.type_guesses.allow_lambda = false;
                                     (*cur_node).data.fig.type_guesses.allow_dict = false;
@@ -2928,29 +2912,31 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                     op_missing!();
                                 }
                             }
-                            if pt_is_assignment(cur_pt) && !pt_is_assignment(pt_stack.last()) {
-                                asgn_level = ast_stack.size - 1;
+                            if pt_is_assignment(cur_pt)
+                                && !pt_is_assignment(*pt_stack.last().unwrap())
+                            {
+                                asgn_level = ast_stack.len() - 1;
                             }
                         }
                     }
                     kExprLexArrow => {
                         if cur_pt == ExprASTParseType::LambdaArguments {
-                            pt_stack.size -= 1;
+                            pt_stack.pop();
                             if want_node == ExprASTWantedNode::Value {
-                                ast_stack.size -= 1;
+                                ast_stack.pop();
                             }
-                            while (**ast_stack.last()).r#type != kExprNodeLambda
-                                && (**ast_stack.last()).r#type != kExprNodeUnknownFigure
+                            while (***ast_stack.last().unwrap()).r#type != kExprNodeLambda
+                                && (***ast_stack.last().unwrap()).r#type != kExprNodeUnknownFigure
                             {
-                                ast_stack.size -= 1;
+                                ast_stack.pop();
                             }
-                            debug_assert_eq!(*ast_stack.last(), lambda_node);
+                            debug_assert_eq!(**ast_stack.last().unwrap(), lambda_node);
                             (*lambda_node).r#type = kExprNodeLambda;
                             if !(*pstate).colors.is_null() {
-                                (*(*(*pstate).colors)
-                                    .items
-                                    .add((*lambda_node).data.fig.opening_hl_idx))
-                                .group = hl_group!(is_invalid, c"NvimLambda", c"NvimInvalidLambda");
+                                (*(*pstate).colors).as_mut_slice()
+                                    [(*lambda_node).data.fig.opening_hl_idx]
+                                    .group =
+                                    hl_group!(is_invalid, c"NvimLambda", c"NvimInvalidLambda");
                             }
                             let cur_node =
                                 new_node_with_cur_pos(kExprNodeArrow, cur_token, prev_token);
@@ -3082,7 +3068,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                 (*comp_node).children = *top_node_p;
                                 *top_node_p = comp_node;
                                 ast_stack.push(&mut (*(*comp_node).children).next);
-                                let new_top_node_p = ast_stack.last();
+                                let new_top_node_p = *ast_stack.last().unwrap();
                                 let cur_node = new_node_with_cur_pos(
                                     kExprNodePlainIdentifier,
                                     cur_token,
@@ -3215,10 +3201,10 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                         if cur_token.data.brc.closing {
                             let mut no_paren_closing_error = false;
                             if want_node == ExprASTWantedNode::Value {
-                                if ast_stack.size > 1 {
-                                    let prev_top_node = *ast_stack.get(ast_stack.size - 2);
+                                if ast_stack.len() > 1 {
+                                    let prev_top_node = *ast_stack[ast_stack.len() - 2];
                                     if (*prev_top_node).r#type == kExprNodeCall {
-                                        ast_stack.size -= 1;
+                                        ast_stack.pop();
                                         no_paren_closing_error = true;
                                     }
                                 }
@@ -3239,16 +3225,15 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                     *top_node_p = cur_node;
                                 }
                             } else {
-                                ast_stack.size -= 1;
+                                ast_stack.pop();
                             }
                             let mut new_top_node_p: *mut *mut ExprASTNode = std::ptr::null_mut();
-                            while ast_stack.size != 0
+                            while !ast_stack.is_empty()
                                 && (new_top_node_p.is_null()
                                     || ((*(*new_top_node_p)).r#type != kExprNodeNested
                                         && (*(*new_top_node_p)).r#type != kExprNodeCall))
                             {
-                                ast_stack.size -= 1;
-                                new_top_node_p = *ast_stack.items.add(ast_stack.size);
+                                new_top_node_p = ast_stack.pop().unwrap();
                             }
                             if !new_top_node_p.is_null()
                                 && ((*(*new_top_node_p)).r#type == kExprNodeNested
@@ -3383,7 +3368,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                         let ter_val_node =
                             new_node_with_cur_pos(kExprNodeTernaryValue, cur_token, prev_token);
                         (*ter_val_node).data.ter.got_colon = false;
-                        *ast_stack.last() = ter_val_node;
+                        **ast_stack.last().unwrap() = ter_val_node;
                         ast_stack.push(&mut (*ter_val_node).children);
                     }
                     kExprLexDoubleQuotedString | kExprLexSingleQuotedString => {
@@ -3419,9 +3404,9 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                     }
                     kExprLexAssignment => {
                         if cur_pt == ExprASTParseType::Assignment {
-                            pt_stack.size -= 1;
+                            pt_stack.pop();
                         } else if cur_pt == ExprASTParseType::SingleAssignment {
-                            pt_stack.size -= 2;
+                            pt_stack.truncate(pt_stack.len() - 2);
                             is_invalid = true;
                             east_set_error(
                                 pstate,
@@ -3484,7 +3469,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
         }
 
         if want_node == ExprASTWantedNode::Value
-            && pt_stack.last() != ExprASTParseType::LambdaArguments
+            && *pt_stack.last().unwrap() != ExprASTParseType::LambdaArguments
         {
             east_set_error(
                 pstate,
@@ -3492,11 +3477,12 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                 c"E15: Expected value, got EOC: %.*s".as_ptr(),
                 (*pstate).pos,
             );
-        } else if ast_stack.size != 1 {
-            ast_stack.size -= 1;
-            while ast.err.msg.is_null() && ast_stack.size != 0 {
-                ast_stack.size -= 1;
-                let cur_node = **ast_stack.items.add(ast_stack.size);
+        } else if ast_stack.len() != 1 {
+            ast_stack.pop();
+            while ast.err.msg.is_null()
+                && let Some(node_p) = ast_stack.pop()
+            {
+                let cur_node = *node_p;
                 debug_assert!(!cur_node.is_null());
                 match (*cur_node).r#type {
                     kExprNodeOpMissing | kExprNodeMissing => {}
@@ -3573,7 +3559,6 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                 }
             }
         }
-        ast_stack.destroy();
         ast
     }
 }
@@ -3600,18 +3585,25 @@ mod tests {
             },
         ];
         let mut cursor = lines.as_ptr();
-        let mut colors: ParserHighlight = unsafe { std::mem::zeroed() };
-        colors.init();
-        let mut pstate: ParserState = unsafe { std::mem::zeroed() };
-        pstate.reader.get_line = Some(parser_simple_get_line);
-        pstate.reader.cookie = (&mut cursor as *mut *const ParserLine).cast::<c_void>();
-        pstate.reader.conv.vc_factor = 1;
-        pstate.colors = &mut colors;
+        let mut colors = ParserHighlight::new();
+        let mut pstate = ParserState {
+            reader: crate::viml::parser::parser::ParserInputReader {
+                get_line: Some(parser_simple_get_line),
+                cookie: (&mut cursor as *mut *const ParserLine).cast::<c_void>(),
+                lines: Vec::new(),
+                conv: crate::mbyte::vimconv_T {
+                    vc_type: crate::viml::parser::parser::CONV_NONE,
+                    vc_factor: 1,
+                    vc_fd: std::ptr::null_mut(),
+                    vc_fail: false,
+                },
+            },
+            pos: ParserPosition { line: 0, col: 0 },
+            colors: &mut colors,
+        };
         unsafe {
-            pstate.reader.lines.init();
-            pstate.stack.init();
             let res = f(&mut pstate);
-            colors.destroy();
+            drop(colors);
             viml_parser_destroy(&mut pstate);
             res
         }
@@ -3757,7 +3749,7 @@ mod tests {
                 let right = (*left).next;
                 assert_eq!((*left).r#type, kExprNodeInteger);
                 assert_eq!((*right).r#type, kExprNodeMultiplication);
-                assert!((*pstate.colors).size > 0);
+                assert!(!(*pstate.colors).is_empty());
                 viml_pexpr_free_ast(ast);
             });
 

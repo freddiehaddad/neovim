@@ -1,7 +1,6 @@
 //! Msgpack-RPC serializer (`src/nvim/msgpack_rpc/packer.c`).
 
 use crate::api::private::validate::{Array, NvimString, Object, ObjectData, ObjectType};
-use crate::kvec::KVecWithInit;
 use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::{api_free_luaref, nlua_funcref_str};
 use crate::memory::{xfree, xmalloc, xrealloc};
@@ -382,12 +381,7 @@ pub unsafe fn mpack_object_inner(
     mut container_idx: usize,
     packer: *mut PackerBuffer,
 ) {
-    let mut stack = std::mem::MaybeUninit::<KVecWithInit<ContainerStackItem, 2>>::zeroed();
-    let stack = unsafe {
-        let s = &mut *stack.as_mut_ptr();
-        s.init();
-        s
-    };
+    let mut stack: Vec<ContainerStackItem> = Vec::with_capacity(2);
 
     loop {
         unsafe {
@@ -460,9 +454,7 @@ pub unsafe fn mpack_object_inner(
             }
 
             if container.is_null() {
-                if stack.size > 0 {
-                    stack.size -= 1;
-                    let it = *stack.items.add(stack.size);
+                if let Some(it) = stack.pop() {
                     container = it.container;
                     container_idx = it.idx;
                 } else {
@@ -490,10 +482,6 @@ pub unsafe fn mpack_object_inner(
                 }
             }
         }
-    }
-
-    unsafe {
-        stack.destroy();
     }
 }
 

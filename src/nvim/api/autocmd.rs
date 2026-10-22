@@ -242,8 +242,7 @@ unsafe fn get_patterns_from_pattern_or_buf(
     err: *mut Error,
 ) -> Array {
     unsafe {
-        let mut patterns: ArrayBuilder = std::mem::zeroed();
-        patterns.init();
+        let mut patterns = ArrayBuilder::new();
 
         if pattern.obj_type != ObjectType::kObjectTypeNil {
             if pattern.obj_type == ObjectType::kObjectTypeString {
@@ -267,7 +266,6 @@ unsafe fn get_patterns_from_pattern_or_buf(
                     true,
                     err,
                 ) {
-                    patterns.destroy();
                     return Array {
                         items: std::ptr::null_mut(),
                         size: 0,
@@ -298,7 +296,6 @@ unsafe fn get_patterns_from_pattern_or_buf(
                     c"String or Table".as_ptr(),
                     api_typename(pattern.obj_type),
                 );
-                patterns.destroy();
                 return Array {
                     items: std::ptr::null_mut(),
                     size: 0,
@@ -308,7 +305,6 @@ unsafe fn get_patterns_from_pattern_or_buf(
         } else if has_buf {
             let b = find_buffer_by_handle(buf, err);
             if error_set(err) {
-                patterns.destroy();
                 return Array {
                     items: std::ptr::null_mut(),
                     size: 0,
@@ -393,8 +389,7 @@ pub unsafe extern "C" fn nvim_get_autocmds(
     err: *mut Error,
 ) -> Array {
     unsafe {
-        let mut autocmd_list: ArrayBuilder = std::mem::zeroed();
-        autocmd_list.init();
+        let mut autocmd_list = ArrayBuilder::new();
         let mut pattern_filters = [std::ptr::null::<c_char>(); AUCMD_MAX_PATTERNS];
         let mut buffers = Array {
             items: std::ptr::null_mut(),
