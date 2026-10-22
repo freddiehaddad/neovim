@@ -1,24 +1,22 @@
 root = true
 
 [*]
-indent_style = space
-indent_size = 2
-tab_width = 8
+charset = utf-8
 end_of_line = lf
 insert_final_newline = true
 
-[*.zig]
-indent_size = 4
+[*.{lua,vim,yml,yaml,json}]
+indent_style = space
+indent_size = 2
+tab_width = 8
 
-[*.{c,h,in,lua}]
+[*.lua]
 max_line_length = 100
 
 [src/nvim/{eval,vvars}.lua]
 max_line_length = 68
 
-[*.py]
-indent_size = 4
-
-[{Makefile,**/Makefile,*.mk,runtime/doc/*.txt}]
+[runtime/doc/*.txt]
 indent_style = tab
 indent_size = 8
+tab_width = 8
