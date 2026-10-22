@@ -14,7 +14,6 @@ use crate::eval::typval::{
     tv_list_alloc, tv_list_alloc_ret, tv_list_append_list, tv_list_append_number,
     tv_list_append_tv, tv_list_find, tv_list_len, typval_T,
 };
-use crate::garray::{ga_append_via_ptr, ga_clear, ga_init, garray_T};
 use crate::globals::*;
 use crate::insexpand::{ctrl_x_mode_whole_line, find_line_end, find_word_end, find_word_start};
 use crate::math::{FAIL, OK};
@@ -764,14 +763,11 @@ pub unsafe fn fuzzy_match_str(str_ptr: *mut c_char, pat: *const c_char) -> c_int
 }
 
 /// Fuzzy match positions of `pat` in `str` (`fuzzy_match_str_with_pos`).
-pub unsafe fn fuzzy_match_str_with_pos(str_ptr: *mut c_char, pat: *const c_char) -> *mut garray_T {
+pub unsafe fn fuzzy_match_str_with_pos(str_ptr: *mut c_char, pat: *const c_char) -> Option<Vec<u32>> {
     unsafe {
         if str_ptr.is_null() || pat.is_null() {
-            return std::ptr::null_mut();
+            return None;
         }
-
-        let match_positions = xmalloc(std::mem::size_of::<garray_T>()).cast::<garray_T>();
-        ga_init(match_positions, std::mem::size_of::<u32>() as c_int, 10);
 
         let mut score = FUZZY_SCORE_NONE;
         let mut matches = [0u32; FUZZY_MATCH_MAX_LEN];
@@ -784,23 +780,21 @@ pub unsafe fn fuzzy_match_str_with_pos(str_ptr: *mut c_char, pat: *const c_char)
             FUZZY_MATCH_MAX_LEN as c_int,
         ) || score == FUZZY_SCORE_NONE
         {
-            ga_clear(match_positions);
-            xfree(match_positions.cast::<c_void>());
-            return std::ptr::null_mut();
+            return None;
         }
 
+        let mut match_positions = Vec::with_capacity(10);
         let mut j = 0usize;
         let mut p = pat;
         while *p != 0 {
             if !ascii_iswhite(utf_ptr2char(p)) {
-                let slot = ga_append_via_ptr::<u32>(match_positions);
-                *slot = matches[j];
+                match_positions.push(matches[j]);
                 j += 1;
             }
             p = p.add(utf_ptr2len(p) as usize);
         }
 
-        match_positions
+        Some(match_positions)
     }
 }
 

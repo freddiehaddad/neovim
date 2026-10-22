@@ -112,7 +112,7 @@ use crate::ex_getln::{
     VSE_NONE, get_user_input, hlf_T, text_locked, text_locked_msg, vim_strsave_fnameescape,
 };
 use crate::extmark::{TriState, kFalse, kNone, kTrue};
-use crate::garray::{ga_append, ga_clear, ga_grow, ga_init, garray_T};
+use crate::garray::{ga_clear, ga_grow, garray_T};
 use crate::globals::*;
 use crate::grid::{
     ScreenGrid, grid_getchar, schar_T, schar_from_char, schar_get, schar_get_first_codepoint,
@@ -2252,14 +2252,7 @@ pub unsafe fn execute_common(argvars: *mut typval_T, rettv: *mut typval_T, arg_o
             msg_silent += 1;
         }
 
-        let mut capture_local = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: ptr::null_mut(),
-        };
-        ga_init(&raw mut capture_local, size_of::<c_char>() as c_int, 80);
+        let mut capture_local: Vec<c_char> = Vec::new();
         capture_ga = &raw mut capture_local;
         redir_off = false;
         if !echo_output {
@@ -2293,9 +2286,8 @@ pub unsafe fn execute_common(argvars: *mut typval_T, rettv: *mut typval_T, arg_o
             msg_col = save_msg_col;
         }
 
-        ga_append(capture_ga, NUL as u8);
         (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = (*capture_ga).ga_data.cast();
+        (*rettv).vval.v_string = xmemdupz(capture_local.as_ptr().cast(), capture_local.len()).cast();
 
         capture_ga = save_capture_ga;
     }

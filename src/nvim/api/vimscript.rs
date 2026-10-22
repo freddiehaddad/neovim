@@ -13,10 +13,9 @@ use crate::eval::typval::{VarType, dict_T, tv_clear, tv_dict_find, typval_T};
 use crate::eval::userfunc::{call_func, funcexe_T};
 use crate::eval::{clear_evalarg, eval0};
 use crate::ex_docmd::do_cmdline_cmd;
-use crate::garray::{ga_clear, ga_init, garray_T};
 use crate::globals::*;
 use crate::lua::converter::Boolean;
-use crate::memory::{Arena, xfree};
+use crate::memory::{Arena, xfree, xmemdupz};
 use crate::msgpack_rpc::packer::Integer;
 use crate::runtime::do_source_str;
 use crate::viml::parser::expressions::{
@@ -125,16 +124,9 @@ pub unsafe fn exec_impl(
         let save_redir_off = redir_off;
         let save_capture_ga = capture_ga;
         let save_msg_col = msg_col;
-        let mut capture_local = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: std::ptr::null_mut(),
-        };
+        let mut capture_local: Vec<c_char> = Vec::new();
         if (*opts).output {
-            ga_init(&mut capture_local, 1, 80);
-            capture_ga = &mut capture_local;
+            capture_ga = &raw mut capture_local;
         }
 
         let mut tstate: TryState = std::mem::zeroed();
@@ -156,22 +148,18 @@ pub unsafe fn exec_impl(
         current_sctx = save_current_sctx;
         try_leave(&tstate, err);
 
-        if !error_set(err) && (*opts).output && capture_local.ga_len > 1 {
-            let mut s = NvimString {
-                data: capture_local.ga_data.cast::<c_char>(),
-                size: capture_local.ga_len as usize,
+        if !error_set(err) && (*opts).output && capture_local.len() > 1 {
+            let slice = if capture_local[0] == b'\n' as c_char {
+                &capture_local[1..]
+            } else {
+                &capture_local[..]
             };
-            if *s.data == b'\n' as c_char {
-                std::ptr::copy(s.data.add(1), s.data, s.size - 1);
-                *s.data.add(s.size - 1) = 0;
-                s.size -= 1;
-            }
-            return s;
+            return NvimString {
+                data: xmemdupz(slice.as_ptr().cast(), slice.len()).cast(),
+                size: slice.len(),
+            };
         }
 
-        if (*opts).output {
-            ga_clear(&mut capture_local);
-        }
         NvimString {
             data: std::ptr::null_mut(),
             size: 0,

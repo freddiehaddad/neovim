@@ -238,7 +238,7 @@ pub struct buf_T {
     pub b_p_iminsert: i64,
     pub b_p_imsearch: i64,
     pub b_kmap_state: i16,
-    pub b_kmap_ga: garray_T,
+    pub b_kmap_ga: Vec<crate::digraph::kmap_T>,
     pub b_p_initialized: bool,
     pub b_p_script_ctx: [crate::runtime::sctx_T; 93],
     pub b_p_ac: c_int,
@@ -1405,6 +1405,7 @@ unsafe fn free_buffer(buf: *mut buf_T) {
         xfree((*buf).b_prompt_text.cast());
         ptr::drop_in_place(&raw mut (*buf).b_wininfo);
         ptr::drop_in_place(&raw mut (*buf).b_ucmds);
+        ptr::drop_in_place(&raw mut (*buf).b_kmap_ga);
         ptr::drop_in_place(&raw mut (*buf).update_channels);
         ptr::drop_in_place(&raw mut (*buf).update_callbacks);
         callback_free(&raw mut (*buf).b_prompt_callback);
@@ -2492,6 +2493,7 @@ pub unsafe fn buflist_new(
             buf = xcalloc(1, std::mem::size_of::<buf_T>()).cast::<buf_T>();
             ptr::write(&raw mut (*buf).b_wininfo, Vec::new());
             ptr::write(&raw mut (*buf).b_ucmds, Vec::new());
+            ptr::write(&raw mut (*buf).b_kmap_ga, Vec::new());
             ptr::write(&raw mut (*buf).update_channels, Vec::new());
             ptr::write(&raw mut (*buf).update_callbacks, Vec::new());
             (*buf).b_vars = tv_dict_alloc();
@@ -2647,7 +2649,6 @@ pub unsafe fn free_buf_options(buf: *mut buf_T, free_p_ff: bool) {
         (*buf).b_p_vts_array = ptr::null_mut();
         clear_string_option(&raw mut (*buf).b_p_keymap);
         keymap_ga_clear(&raw mut (*buf).b_kmap_ga);
-        ga_clear(&raw mut (*buf).b_kmap_ga);
         clear_string_option(&raw mut (*buf).b_p_com);
         clear_string_option(&raw mut (*buf).b_p_cms);
         clear_string_option(&raw mut (*buf).b_p_nf);

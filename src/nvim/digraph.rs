@@ -13,13 +13,12 @@ use crate::eval::typval::{
 };
 use crate::ex_docmd::{do_cmdline_cmd, exarg_T, getline_equal};
 use crate::ex_getln::putcmdline;
-use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::input::plain_vgetc;
 use crate::keycodes::{ESC, K_BS};
 use crate::mapping::{MAPTYPE_MAP, MAPTYPE_UNMAP, do_map};
 use crate::mbyte::{mb_cptr2char_adv, utf_char2bytes, utf_iscomposing_first};
-use crate::memory::{xfree, xmemdupz, xstrdup};
+use crate::memory::{xfree, xstrdup};
 use crate::message::{emsg, msg_advance, msg_ext_set_kind, msg_outtrans, msg_putchar, semsg};
 use crate::normal::add_to_showcmd;
 use crate::option_vars::*;
@@ -47,11 +46,9 @@ pub struct digr_T {
     pub result: result_T,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
 pub struct kmap_T {
-    pub from: *mut c_char,
-    pub to: *mut c_char,
+    pub from: std::ffi::CString,
+    pub to: std::ffi::CString,
 }
 
 pub(crate) const HLF_CM: c_int = 11;
@@ -2166,11 +2163,7 @@ pub unsafe fn ex_loadkeymap(eap: *mut exarg_T) {
         keymap_unload();
 
         (*curbuf).b_kmap_state = 0;
-        ga_init(
-            &raw mut (*curbuf).b_kmap_ga,
-            size_of::<kmap_T>() as c_int,
-            20,
-        );
+        (*curbuf).b_kmap_ga.clear();
 
         p_cpo = c"C".as_ptr().cast_mut();
 
@@ -2182,45 +2175,35 @@ pub unsafe fn ex_loadkeymap(eap: *mut exarg_T) {
 
             let mut p = skipwhite(line);
             if *p != b'"' as c_char && *p != NUL {
-                ga_grow(&raw mut (*curbuf).b_kmap_ga, 1);
-                let kp = (*curbuf)
-                    .b_kmap_ga
-                    .ga_data
-                    .cast::<kmap_T>()
-                    .add((*curbuf).b_kmap_ga.ga_len as usize);
-                (*curbuf).b_kmap_ga.ga_len += 1;
-
                 let mut s = skiptowhite(p);
-                (*kp).from = xmemdupz(p.cast(), s.offset_from(p) as usize).cast();
+                let from_len = s.offset_from(p) as usize;
+                let from_slice = std::slice::from_raw_parts(p.cast::<u8>(), from_len);
                 p = skipwhite(s);
                 s = skiptowhite(p);
-                (*kp).to = xmemdupz(p.cast(), s.offset_from(p) as usize).cast();
+                let to_len = s.offset_from(p) as usize;
+                let to_slice = std::slice::from_raw_parts(p.cast::<u8>(), to_len);
 
-                if CStr::from_ptr((*kp).from).to_bytes().len()
-                    + CStr::from_ptr((*kp).to).to_bytes().len()
-                    >= KMAP_LLEN
-                    || *(*kp).from == NUL
-                    || *(*kp).to == NUL
-                {
-                    if *(*kp).to == NUL {
+                if from_len + to_len >= KMAP_LLEN || from_len == 0 || to_len == 0 {
+                    if to_len == 0 {
                         emsg(gettext(c"E791: Empty keymap entry".as_ptr()));
                     }
-                    xfree((*kp).from.cast());
-                    xfree((*kp).to.cast());
-                    (*curbuf).b_kmap_ga.ga_len -= 1;
+                } else if let (Ok(from), Ok(to)) = (
+                    std::ffi::CString::new(from_slice),
+                    std::ffi::CString::new(to_slice),
+                ) {
+                    (*curbuf).b_kmap_ga.push(kmap_T { from, to });
                 }
             }
             xfree(line.cast());
         }
 
-        for i in 0..(*curbuf).b_kmap_ga.ga_len {
-            let kp = (*curbuf).b_kmap_ga.ga_data.cast::<kmap_T>().add(i as usize);
+        for kp in &(*curbuf).b_kmap_ga {
             vim_snprintf!(
                 buf.as_mut_ptr(),
                 buf.len(),
                 c"<buffer> %s %s".as_ptr(),
-                (*kp).from,
-                (*kp).to,
+                kp.from.as_ptr(),
+                kp.to.as_ptr(),
             );
             do_map(MAPTYPE_MAP, buf.as_mut_ptr(), MODE_LANGMAP, false);
         }
@@ -2233,14 +2216,9 @@ pub unsafe fn ex_loadkeymap(eap: *mut exarg_T) {
 }
 
 /// Frees the `buf_T.b_kmap_ga` field of a buffer (`keymap_ga_clear`).
-pub unsafe fn keymap_ga_clear(kmap_ga: *mut garray_T) {
+pub unsafe fn keymap_ga_clear(kmap_ga: *mut Vec<kmap_T>) {
     unsafe {
-        let kp = (*kmap_ga).ga_data.cast::<kmap_T>();
-        for i in 0..(*kmap_ga).ga_len {
-            let entry = kp.add(i as usize);
-            xfree((*entry).from.cast());
-            xfree((*entry).to.cast());
-        }
+        *kmap_ga = Vec::new();
     }
 }
 
@@ -2256,14 +2234,12 @@ unsafe fn keymap_unload() {
 
         p_cpo = c"C".as_ptr().cast_mut();
 
-        let kp = (*curbuf).b_kmap_ga.ga_data.cast::<kmap_T>();
-        for i in 0..(*curbuf).b_kmap_ga.ga_len {
-            let entry = kp.add(i as usize);
+        for entry in &(*curbuf).b_kmap_ga {
             vim_snprintf!(
                 buf.as_mut_ptr(),
                 buf.len(),
                 c"<buffer> %s".as_ptr(),
-                (*entry).from,
+                entry.from.as_ptr(),
             );
             do_map(MAPTYPE_UNMAP, buf.as_mut_ptr(), MODE_LANGMAP, false);
         }
@@ -2271,7 +2247,6 @@ unsafe fn keymap_unload() {
 
         p_cpo = save_cpo;
 
-        ga_clear(&raw mut (*curbuf).b_kmap_ga);
         (*curbuf).b_kmap_state &= !KEYMAP_LOADED;
         status_redraw_curbuf();
     }

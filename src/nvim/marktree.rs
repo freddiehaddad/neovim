@@ -5,11 +5,10 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 use std::fmt::Write as _;
 
 use crate::api::private::validate::NvimString;
-use crate::garray::{ga_concat_len, ga_init, garray_T};
 use crate::map::{MH_TOMBSTONE, MTDamage, MTDamagePair, Map, map_del, map_put_ref, mh_get, ptr_t};
 #[cfg(test)]
 use crate::memory::xmemdup;
-use crate::memory::{xcalloc, xfree, xmalloc, xrealloc};
+use crate::memory::{xcalloc, xfree, xmalloc, xmemdupz, xrealloc};
 
 use crate::cursor::colnr_T;
 
@@ -3170,36 +3169,22 @@ pub unsafe fn mt_recurse_nodes_compare(x: *mut MTNode, checked: *mut PMapPtr) ->
     }
 }
 
-#[inline]
-unsafe fn ga_put_str(ga: *mut garray_T, s: &str) {
-    unsafe {
-        ga_concat_len(ga, s.as_ptr().cast(), s.len());
-    }
-}
-
 pub unsafe fn mt_inspect(b: *mut MarkTree, keys: bool, dot: bool) -> NvimString {
     unsafe {
-        let mut ga = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: std::ptr::null_mut(),
-        };
-        ga_init(&mut ga, std::mem::size_of::<c_char>() as c_int, 80);
+        let mut out = String::new();
         let p = MTPos { row: 0, col: 0 };
         if !(*b).root.is_null() {
             if dot {
-                ga_put_str(&mut ga, "digraph D {\n\n");
-                mt_inspect_dotfile_node(b, &mut ga, (*b).root, p, std::ptr::null());
-                ga_put_str(&mut ga, "\n}");
+                out.push_str("digraph D {\n\n");
+                mt_inspect_dotfile_node(b, &mut out, (*b).root, p, std::ptr::null());
+                out.push_str("\n}");
             } else {
-                mt_inspect_node(b, &mut ga, keys, (*b).root, p);
+                mt_inspect_node(b, &mut out, keys, (*b).root, p);
             }
         }
         NvimString {
-            data: ga.ga_data.cast::<c_char>(),
-            size: ga.ga_len as usize,
+            data: xmemdupz(out.as_ptr().cast(), out.len()).cast::<c_char>(),
+            size: out.len(),
         }
     }
 }
@@ -3211,58 +3196,51 @@ const fn mt_dbg_id(id: u64) -> u64 {
 
 unsafe fn mt_inspect_node(
     _b: *mut MarkTree,
-    ga: *mut garray_T,
+    out: &mut String,
     keys: bool,
     n: *mut MTNode,
     off: MTPos,
 ) {
     unsafe {
-        let mut tmp = String::new();
-        ga_put_str(ga, "[");
+        out.push('[');
         if keys && (*n).intersect.size != 0 {
             for i in 0..(*n).intersect.size {
-                ga_put_str(ga, if i == 0 { "{" } else { ";" });
-                tmp.clear();
-                let _ = write!(tmp, "{}", mt_dbg_id(*(*n).intersect.items.add(i)));
-                ga_put_str(ga, &tmp);
+                out.push_str(if i == 0 { "{" } else { ";" });
+                let _ = write!(out, "{}", mt_dbg_id(*(*n).intersect.items.add(i)));
             }
-            ga_put_str(ga, "},");
+            out.push_str("},");
         }
         if (*n).level != 0 {
-            mt_inspect_node(_b, ga, keys, *node_ptr(n), off);
+            mt_inspect_node(_b, out, keys, *node_ptr(n), off);
         }
         for i in 0..(*n).n as usize {
             let mut p = (*n).key[i].pos;
             unrelative(off, &mut p);
-            tmp.clear();
-            let _ = write!(tmp, "{}/{}", p.row, p.col);
-            ga_put_str(ga, &tmp);
+            let _ = write!(out, "{}/{}", p.row, p.col);
             if keys {
                 let key = (*n).key[i];
-                ga_put_str(ga, ":");
+                out.push(':');
                 if mt_start(key) {
-                    ga_put_str(ga, "<");
+                    out.push('<');
                 }
-                tmp.clear();
-                let _ = write!(tmp, "{}", key.id);
-                ga_put_str(ga, &tmp);
+                let _ = write!(out, "{}", key.id);
                 if mt_end(key) {
-                    ga_put_str(ga, ">");
+                    out.push('>');
                 }
             }
             if (*n).level != 0 {
-                mt_inspect_node(_b, ga, keys, *node_ptr(n).add(i + 1), p);
+                mt_inspect_node(_b, out, keys, *node_ptr(n).add(i + 1), p);
             } else {
-                ga_put_str(ga, ",");
+                out.push(',');
             }
         }
-        ga_put_str(ga, "]");
+        out.push(']');
     }
 }
 
 unsafe fn mt_inspect_dotfile_node(
     _b: *mut MarkTree,
-    ga: *mut garray_T,
+    out: &mut String,
     n: *mut MTNode,
     off: MTPos,
     parent: *const c_char,
@@ -3291,56 +3269,43 @@ unsafe fn mt_inspect_dotfile_node(
             "MTNode".to_string()
         };
 
-        let mut tmp = String::new();
-        let _ = writeln!(tmp, "  {name_str}[shape=plaintext, label=<");
-        ga_put_str(ga, &tmp);
-        ga_put_str(
-            ga,
-            "    <table border='0' cellborder='1' cellspacing='0'>\n",
-        );
+        let _ = writeln!(out, "  {name_str}[shape=plaintext, label=<");
+        out.push_str("    <table border='0' cellborder='1' cellspacing='0'>\n");
         if (*n).intersect.size != 0 {
-            ga_put_str(ga, "    <tr><td>");
+            out.push_str("    <tr><td>");
             for i in 0..(*n).intersect.size {
                 if i > 0 {
-                    ga_put_str(ga, ", ");
+                    out.push_str(", ");
                 }
-                tmp.clear();
-                let _ = write!(tmp, "{}", mt_dbg_id(*(*n).intersect.items.add(i)));
-                ga_put_str(ga, &tmp);
+                let _ = write!(out, "{}", mt_dbg_id(*(*n).intersect.items.add(i)));
             }
-            ga_put_str(ga, "</td></tr>\n");
+            out.push_str("</td></tr>\n");
         }
 
-        ga_put_str(ga, "    <tr><td>");
+        out.push_str("    <tr><td>");
         for i in 0..(*n).n as usize {
             let k = (*n).key[i];
             if i > 0 {
-                ga_put_str(ga, ", ");
+                out.push_str(", ");
             }
-            tmp.clear();
-            let _ = write!(tmp, "{}", k.id);
-            ga_put_str(ga, &tmp);
+            let _ = write!(out, "{}", k.id);
             if mt_paired(k) {
-                ga_put_str(ga, if mt_end(k) { "e" } else { "s" });
+                out.push_str(if mt_end(k) { "e" } else { "s" });
             }
         }
-        ga_put_str(ga, "</td></tr>\n");
-        ga_put_str(ga, "    </table>\n");
-        ga_put_str(ga, ">];\n");
+        out.push_str("</td></tr>\n    </table>\n>];\n");
         if !parent.is_null() {
             let p_str = CStr::from_ptr(parent).to_string_lossy();
-            tmp.clear();
-            let _ = writeln!(tmp, "  {p_str} -> {name_str}");
-            ga_put_str(ga, &tmp);
+            let _ = writeln!(out, "  {p_str} -> {name_str}");
         }
         if (*n).level != 0 {
-            mt_inspect_dotfile_node(_b, ga, *node_ptr(n), off, namebuf.as_ptr());
+            mt_inspect_dotfile_node(_b, out, *node_ptr(n), off, namebuf.as_ptr());
         }
         for i in 0..(*n).n as usize {
             let mut p = (*n).key[i].pos;
             unrelative(off, &mut p);
             if (*n).level != 0 {
-                mt_inspect_dotfile_node(_b, ga, *node_ptr(n).add(i + 1), p, namebuf.as_ptr());
+                mt_inspect_dotfile_node(_b, out, *node_ptr(n).add(i + 1), p, namebuf.as_ptr());
             }
         }
     }

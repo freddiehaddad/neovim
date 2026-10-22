@@ -864,6 +864,7 @@ pub unsafe fn ml_recover(checkext: bool) {
         buf = xmalloc(size_of::<buf_T>()).cast::<buf_T>();
         ptr::write(&raw mut (*buf).b_wininfo, Vec::new());
         ptr::write(&raw mut (*buf).b_ucmds, Vec::new());
+        ptr::write(&raw mut (*buf).b_kmap_ga, Vec::new());
         ptr::write(&raw mut (*buf).update_channels, Vec::new());
         ptr::write(&raw mut (*buf).update_callbacks, Vec::new());
         (*buf).b_ml.ml_stack_size = 0;

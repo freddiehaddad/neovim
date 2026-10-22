@@ -23,7 +23,6 @@ use crate::eval::typval::{dict_T, tv_dict_add_bool, tv_dict_add_float, tv_dict_a
 use crate::ex_cmds::{Ctrl_C, ECMD_ONE, do_ecmd, prepare_tagpreview};
 use crate::ex_docmd::exarg_T;
 use crate::fuzzy::fuzzy_match_str_with_pos;
-use crate::garray::{ga_clear, garray_T};
 use crate::globals::*;
 use crate::grid::{
     get_win_by_grid_handle, grid_alloc, grid_assign_handle, grid_draw_border, grid_free,
@@ -557,12 +556,12 @@ unsafe fn pum_compute_text_attrs(text: *mut c_char, hlf: hlf_T, user_hlattr: c_i
         };
         let leader_len = CStr::from_ptr(leader).to_bytes().len();
 
-        let mut ga: *mut garray_T = ptr::null_mut();
+        let mut match_positions: Option<Vec<u32>> = None;
         let mut matched_len: c_int = -1;
 
         if in_fuzzy {
-            ga = fuzzy_match_str_with_pos(text, leader);
-            if ga.is_null() {
+            match_positions = fuzzy_match_str_with_pos(text, leader);
+            if match_positions.is_none() {
                 xfree(attrs.cast());
                 return ptr::null_mut();
             }
@@ -576,14 +575,11 @@ unsafe fn pum_compute_text_attrs(text: *mut c_char, hlf: hlf_T, user_hlattr: c_i
         while *ptr != NUL {
             let mut new_attr = win_hl_attr(curwin, hlf);
 
-            if !ga.is_null() {
-                for i in 0..((*ga).ga_len as usize) {
-                    if char_pos == *((*ga).ga_data.cast::<u32>().add(i)) {
-                        new_attr = win_hl_attr(curwin, if is_select { HLF_PMSI } else { HLF_PMNI });
-                        new_attr = hl_combine_attr(win_hl_attr(curwin, HLF_PMNI), new_attr);
-                        new_attr = hl_combine_attr(win_hl_attr(curwin, hlf), new_attr);
-                        break;
-                    }
+            if let Some(ref positions) = match_positions {
+                if positions.contains(&char_pos) {
+                    new_attr = win_hl_attr(curwin, if is_select { HLF_PMSI } else { HLF_PMNI });
+                    new_attr = hl_combine_attr(win_hl_attr(curwin, HLF_PMNI), new_attr);
+                    new_attr = hl_combine_attr(win_hl_attr(curwin, hlf), new_attr);
                 }
             } else {
                 if matched_len < 0 && mb_strnicmp(ptr, leader, leader_len) == 0 {
@@ -613,10 +609,6 @@ unsafe fn pum_compute_text_attrs(text: *mut c_char, hlf: hlf_T, user_hlattr: c_i
             char_pos += 1;
         }
 
-        if !ga.is_null() {
-            ga_clear(ga);
-            xfree(ga.cast());
-        }
         attrs
     }
 }

@@ -29,7 +29,7 @@ use crate::ex_docmd::{do_sleep, exarg_T};
 use crate::ex_eval::cause_errthrow;
 use crate::extmark::{TriState, kFalse, kTrue};
 use crate::fileio::{FILE, check_timestamps, fclose, fprintf, fputc, fputs, printf};
-use crate::garray::{ga_append, ga_concat, ga_concat_len, ga_init, garray_T};
+use crate::garray::{ga_append, ga_concat, ga_init, garray_T};
 use crate::globals::*;
 use crate::grid::{
     grid_adjust, grid_alloc, grid_assign_handle, grid_clear, grid_clear_line, grid_del_lines,
@@ -4042,7 +4042,7 @@ unsafe fn redir_write(str_: *const c_char, maxlen: isize) {
             if *s != NL as c_char && *s != CAR as c_char {
                 while redir_col < msg_col {
                     if !capture_ga.is_null() {
-                        ga_concat_len(capture_ga, c" ".as_ptr(), 1);
+                        (*capture_ga).push(b' ' as c_char);
                     }
                     if redir_reg != 0 {
                         write_reg_contents(redir_reg, c" ".as_ptr(), 1, 1);
@@ -4063,8 +4063,8 @@ unsafe fn redir_write(str_: *const c_char, maxlen: isize) {
             } else {
                 maxlen as usize
             };
-            if !capture_ga.is_null() {
-                ga_concat_len(capture_ga, str_, len);
+            if !capture_ga.is_null() && len > 0 {
+                (*capture_ga).extend_from_slice(std::slice::from_raw_parts(str_, len));
             }
             if redir_reg != 0 {
                 write_reg_contents(redir_reg, s, len as isize, 1);

@@ -29,7 +29,6 @@ use crate::ex_docmd::{
     replace_makeprg, set_cmd_count, undo_cmdmod,
 };
 use crate::ex_eval::aborting;
-use crate::garray::{ga_clear, ga_init, garray_T};
 use crate::globals::*;
 use crate::highlight::OptionalKeys;
 use crate::lua::converter::{Boolean, LUA_NOREF, LuaRef};
@@ -1195,15 +1194,14 @@ pub unsafe extern "C" fn nvim_cmd(
                 ea.do_ecmd_cmd = getargcmd(&mut ea.arg);
             }
 
-            let mut capture_local: garray_T = std::mem::zeroed();
+            let mut capture_local: Vec<c_char> = Vec::new();
             let save_msg_silent = msg_silent;
             let save_redir_off = redir_off;
             let save_capture_ga = capture_ga;
             let save_msg_col = msg_col;
 
             if (*opts).output {
-                ga_init(&mut capture_local, 1, 80);
-                capture_ga = &mut capture_local;
+                capture_ga = &raw mut capture_local;
             }
 
             try_wrap(err, || {
@@ -1225,20 +1223,12 @@ pub unsafe extern "C" fn nvim_cmd(
                 }
             });
 
-            if !error_set(err) && (*opts).output && capture_local.ga_len > 1 {
-                retv = cbuf_to_arena_str(
-                    arena,
-                    capture_local.ga_data.cast::<c_char>(),
-                    capture_local.ga_len as usize,
-                );
+            if !error_set(err) && (*opts).output && capture_local.len() > 1 {
+                retv = cbuf_to_arena_str(arena, capture_local.as_ptr(), capture_local.len());
                 if *retv.data == b'\n' as c_char {
                     retv.data = retv.data.add(1);
                     retv.size -= 1;
                 }
-            }
-
-            if (*opts).output {
-                ga_clear(&mut capture_local);
             }
         }
 
