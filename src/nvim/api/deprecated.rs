@@ -27,13 +27,12 @@ use crate::extmark::extmark_set;
 use crate::globals::*;
 use crate::highlight::OptionalKeys;
 use crate::highlight_group::{syn_check_group, syn_get_final_id, syn_id2attr, syn_name2id};
-use crate::kvec::StringBuilder;
 use crate::lua::converter::Boolean;
 use crate::lua::executor::{kRetObject, nlua_exec};
 use crate::marktree::{
     DECOR_HIGHLIGHT_INLINE_INIT, DECOR_PRIORITY_BASE, DecorExt, DecorInlineData, MT_FLAG_DECOR_HL,
 };
-use crate::memory::{Arena, xmalloc, xrealloc};
+use crate::memory::{Arena, xmalloc};
 use crate::message::{emsg, msg, msg_end, msg_ext_no_fast};
 use crate::msgpack_rpc::packer::Integer;
 use crate::option::{
@@ -52,8 +51,8 @@ pub struct KeyDict_empty {
     pub is_set__empty_: OptionalKeys,
 }
 
-static mut OUT_LINE_BUF: StringBuilder = StringBuilder::new();
-static mut ERR_LINE_BUF: StringBuilder = StringBuilder::new();
+static mut OUT_LINE_BUF: Vec<c_char> = Vec::new();
+static mut ERR_LINE_BUF: Vec<c_char> = Vec::new();
 
 /// @deprecated Use nvim_exec2() instead.
 /// @see nvim_exec2
@@ -1185,25 +1184,23 @@ pub unsafe extern "C" fn nvim_subscribe(_channel_id: u64, _event: NvimString) {}
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_unsubscribe(_channel_id: u64, _event: NvimString) {}
 
-unsafe fn push_char(line_buf: &mut StringBuilder, c: c_char, to_err: bool) {
+unsafe fn push_char(line_buf: &mut Vec<c_char>, c: c_char, to_err: bool) {
     unsafe {
-        if line_buf.capacity == 0 {
-            line_buf.capacity = LINE_BUFFER_MIN_SIZE;
-            line_buf.items = xrealloc(line_buf.items.cast(), LINE_BUFFER_MIN_SIZE).cast();
+        if line_buf.capacity() == 0 {
+            line_buf.reserve(LINE_BUFFER_MIN_SIZE);
         }
         if c == NL {
             line_buf.push(NUL);
             if to_err {
-                emsg(line_buf.items);
+                emsg(line_buf.as_ptr());
             } else {
-                msg(line_buf.items, 0);
+                msg(line_buf.as_ptr(), 0);
             }
             if msg_silent == 0 {
                 msg_didout = true;
             }
-            line_buf.size = 0;
-            line_buf.capacity = LINE_BUFFER_MIN_SIZE;
-            line_buf.items = xrealloc(line_buf.items.cast(), LINE_BUFFER_MIN_SIZE).cast();
+            line_buf.clear();
+            line_buf.shrink_to(LINE_BUFFER_MIN_SIZE);
         } else if c == NUL {
             line_buf.push(NL);
         } else {

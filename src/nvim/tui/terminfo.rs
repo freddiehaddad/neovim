@@ -2,8 +2,7 @@
 
 use crate::api::private::validate::NvimString;
 use crate::charset::{NUL, kv_transstr};
-use crate::kvec::{KVec, StringBuilder};
-use crate::memory::{Arena, arena_strdup, strequal};
+use crate::memory::{Arena, arena_strdup, strequal, xmemdupz};
 use crate::strings::vim_snprintf;
 use crate::tui::termkey::driver_ti::{
     TerminfoEntry, kTermCount, kTermKeyCount, kTerminfoFuncKeyMax,
@@ -2792,36 +2791,26 @@ const fn fmt_bool(val: bool) -> &'static str {
     if val { "true" } else { "false" }
 }
 
-#[inline]
-unsafe fn sb_append_str(data: &mut StringBuilder, s: &str) {
-    unsafe {
-        data.concat_len(s.as_ptr().cast::<c_char>(), s.len());
-    }
-}
-
 pub unsafe fn terminfo_info_msg(
     ti: *const TerminfoEntry,
     termname: *const c_char,
     from_db: bool,
 ) -> NvimString {
     unsafe {
-        let mut data: StringBuilder = KVec::new();
+        let mut data: Vec<u8> = Vec::new();
         let termname_bytes = if termname.is_null() {
             &b""[..]
         } else {
             CStr::from_ptr(termname).to_bytes()
         };
 
-        sb_append_str(&mut data, "&term: ");
-        data.concat_len(
-            termname_bytes.as_ptr().cast::<c_char>(),
-            termname_bytes.len(),
-        );
-        sb_append_str(&mut data, "\n");
+        data.extend_from_slice(b"&term: ");
+        data.extend_from_slice(termname_bytes);
+        data.push(b'\n');
         if from_db {
-            sb_append_str(&mut data, "using terminfo database\n\n");
+            data.extend_from_slice(b"using terminfo database\n\n");
         } else {
-            sb_append_str(&mut data, "using builtin terminfo\n\n");
+            data.extend_from_slice(b"using builtin terminfo\n\n");
         }
 
         let header = format!(
@@ -2834,15 +2823,15 @@ pub unsafe fn terminfo_info_msg(
             (*ti).columns,
             (*ti).max_colors
         );
-        sb_append_str(&mut data, &header);
+        data.extend_from_slice(header.as_bytes());
 
         for (i, &name) in STRING_NAMES.iter().enumerate() {
             let s = (*ti).defs[i];
             if !s.is_null() {
                 let prefix = format!("  {name:<31} = ");
-                sb_append_str(&mut data, &prefix);
+                data.extend_from_slice(prefix.as_bytes());
                 kv_transstr(&mut data, s, false);
-                data.push(b'\n' as c_char);
+                data.push(b'\n');
             }
         }
 
@@ -2850,15 +2839,15 @@ pub unsafe fn terminfo_info_msg(
             let s = (*ti).keys[i][0];
             if !s.is_null() {
                 let prefix = format!("  key_{name:<27} = ");
-                sb_append_str(&mut data, &prefix);
+                data.extend_from_slice(prefix.as_bytes());
                 kv_transstr(&mut data, s, false);
                 let ss = (*ti).keys[i][1];
                 if !ss.is_null() {
                     let sprefix = format!(", key_s{name} = ");
-                    sb_append_str(&mut data, &sprefix);
+                    data.extend_from_slice(sprefix.as_bytes());
                     kv_transstr(&mut data, ss, false);
                 }
-                data.push(b'\n' as c_char);
+                data.push(b'\n');
             }
         }
 
@@ -2866,16 +2855,15 @@ pub unsafe fn terminfo_info_msg(
             let s = (*ti).f_keys[i];
             if !s.is_null() {
                 let prefix = format!("  key_{name:<27} = ");
-                sb_append_str(&mut data, &prefix);
+                data.extend_from_slice(prefix.as_bytes());
                 kv_transstr(&mut data, s, false);
-                data.push(b'\n' as c_char);
+                data.push(b'\n');
             }
         }
 
-        data.push(NUL);
         NvimString {
-            data: data.items,
-            size: data.size - 1,
+            data: xmemdupz(data.as_ptr().cast(), data.len()).cast(),
+            size: data.len(),
         }
     }
 }

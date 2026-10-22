@@ -32,11 +32,10 @@ use crate::ex_eval::aborting;
 use crate::garray::{ga_clear, ga_init, garray_T};
 use crate::globals::*;
 use crate::highlight::OptionalKeys;
-use crate::kvec::StringBuilder;
 use crate::lua::converter::{Boolean, LUA_NOREF, LuaRef};
 use crate::lua::executor::{api_free_luaref, api_new_luaref};
 use crate::mbyte::mb_islower;
-use crate::memory::{Arena, arena_alloc, arena_memdupz, strequal_str, xcalloc, xfree};
+use crate::memory::{Arena, arena_alloc, arena_memdupz, strequal_str, xcalloc, xfree, xmemdupz};
 use crate::msgpack_rpc::packer::Integer;
 use crate::regexp::{RE_MAGIC, vim_regcomp};
 use crate::register::valid_yank_reg;
@@ -1269,30 +1268,29 @@ unsafe fn string_iswhite(str_val: NvimString) -> bool {
 
 unsafe fn build_cmdline_str(cmdlinep: *mut *mut c_char, eap: *mut exarg_T, args: Array) {
     unsafe {
-        let mut cmdline = StringBuilder::new();
-        cmdline.ensure_space(32);
+        let mut cmdline: Vec<u8> = Vec::with_capacity(32);
 
         if ((*eap).argt & EX_RANGE) != 0 {
             if (*eap).addr_count == 1 {
                 let s = (*eap).line2.to_string();
-                cmdline.concat_len(s.as_ptr().cast::<c_char>(), s.len());
+                cmdline.extend_from_slice(s.as_bytes());
             } else if (*eap).addr_count > 1 {
                 let s = format!("{},{}", (*eap).line1, (*eap).line2);
-                cmdline.concat_len(s.as_ptr().cast::<c_char>(), s.len());
+                cmdline.extend_from_slice(s.as_bytes());
             }
         }
 
-        let cmd_bytes = CStr::from_ptr((*eap).cmd).to_bytes();
-        cmdline.concat_len(cmd_bytes.as_ptr().cast::<c_char>(), cmd_bytes.len());
+        cmdline.extend_from_slice(CStr::from_ptr((*eap).cmd).to_bytes());
 
         for i in 0..args.size {
             let s = (*args.items.add(i)).data.string;
-            cmdline.push(b' ' as c_char);
-            cmdline.concat_len(s.data, s.size);
+            cmdline.push(b' ');
+            if s.size > 0 {
+                cmdline.extend_from_slice(std::slice::from_raw_parts(s.data.cast::<u8>(), s.size));
+            }
         }
 
-        cmdline.push(NUL);
-        *cmdlinep = cmdline.items;
+        *cmdlinep = xmemdupz(cmdline.as_ptr().cast(), cmdline.len()).cast();
     }
 }
 

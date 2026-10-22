@@ -19,7 +19,6 @@ use std::ptr;
 use crate::change::TAB;
 use crate::eval::typval::varnumber_T;
 use crate::keycodes::CAR;
-use crate::kvec::StringBuilder;
 use crate::math::{FAIL, OK};
 use crate::regexp::MAXCOL;
 pub type uvarnumber_T = u64;
@@ -473,15 +472,22 @@ pub unsafe fn transstr(s: *const c_char, untab: bool) -> *mut c_char {
     }
 }
 
-pub unsafe fn kv_transstr(str_: *mut StringBuilder, s: *const c_char, untab: bool) -> usize {
+pub unsafe fn kv_transstr(str_: &mut Vec<u8>, s: *const c_char, untab: bool) -> usize {
     unsafe {
         if s.is_null() {
             return 0;
         }
         let len = transstr_len(s, untab);
-        (*str_).ensure_space(len + 1);
-        transstr_buf(s, -1, (*str_).items.add((*str_).size), len + 1, untab);
-        (*str_).size += len;
+        let old_len = str_.len();
+        str_.resize(old_len + len + 1, 0);
+        transstr_buf(
+            s,
+            -1,
+            str_.as_mut_ptr().add(old_len).cast::<c_char>(),
+            len + 1,
+            untab,
+        );
+        str_.truncate(old_len + len);
         len
     }
 }

@@ -268,7 +268,7 @@ struct VatomStateStruct {
 }
 
 struct TypedState {
-    keys: KVec<u8>,
+    keys: Vec<u8>,
     map_start: usize,
 }
 
@@ -333,7 +333,7 @@ static mut vatom: VatomStateStruct = VatomStateStruct {
 };
 
 static mut typed: TypedState = TypedState {
-    keys: KVec::new(),
+    keys: Vec::new(),
     map_start: 0,
 };
 
@@ -425,7 +425,8 @@ pub unsafe fn atom_free_all() {
         }
         atom_composite_abort();
         crate::kvec::kv_destroy(&raw mut composite.atoms);
-        crate::kvec::kv_destroy(&raw mut typed.keys);
+        let typed_keys = &raw mut typed.keys;
+        *typed_keys = Vec::new();
         atoms_free(&raw mut vatom.atoms);
         crate::kvec::kv_destroy(&raw mut vatom.atoms);
     }
@@ -872,9 +873,10 @@ unsafe fn atom_composite_lhs() -> *mut c_char {
     unsafe {
         let mut keys: StringBuilder = KVec::new();
         sb_concat(&mut keys, ptr::addr_of!(composite.lhs).cast());
+        let typed_keys = &raw const typed.keys;
         keys.concat_len(
-            typed.keys.items.add(typed.map_start).cast(),
-            typed.keys.size - typed.map_start,
+            (*typed_keys).as_ptr().add(typed.map_start).cast(),
+            (*typed_keys).len() - typed.map_start,
         );
         keys.push(0);
         keys.items
@@ -1144,8 +1146,10 @@ pub unsafe fn atom_payload_start() {
             && (*cur_frame).payload_start == usize::MAX
             && !mc_replaying()
         {
-            (*cur_frame).payload_start = typed.keys.size;
-            (*cur_frame).payload_end = typed.keys.size;
+            let typed_keys = &raw const typed.keys;
+            let len = (*typed_keys).len();
+            (*cur_frame).payload_start = len;
+            (*cur_frame).payload_end = len;
         }
     }
 }
@@ -1157,7 +1161,8 @@ pub unsafe fn atom_payload_end() {
             && (*cur_frame).payload_start != usize::MAX
             && !mc_replaying()
         {
-            (*cur_frame).payload_end = typed.keys.size;
+            let typed_keys = &raw const typed.keys;
+            (*cur_frame).payload_end = (*typed_keys).len();
         }
     }
 }
@@ -1174,8 +1179,9 @@ unsafe fn atom_payload_append(atom: *mut CmdAtom, frame: *mut CmdFrame) {
         }
         let klen = strlen((*atom).keys);
         (*atom).keys = xrealloc((*atom).keys.cast(), klen + plen + 1).cast();
+        let typed_keys = &raw const typed.keys;
         ptr::copy_nonoverlapping(
-            typed.keys.items.add((*frame).payload_start),
+            (*typed_keys).as_ptr().add((*frame).payload_start),
             (*atom).keys.add(klen).cast(),
             plen,
         );
@@ -1200,8 +1206,9 @@ pub unsafe fn atom_typed_add(chars: *const u8, len: usize) {
         {
             return;
         }
-        for i in 0..len {
-            crate::kvec::kv_push(&raw mut typed.keys, *chars.add(i));
+        if len > 0 {
+            let typed_keys = &raw mut typed.keys;
+            (*typed_keys).extend_from_slice(std::slice::from_raw_parts(chars, len));
         }
     }
 }
@@ -1211,7 +1218,9 @@ pub unsafe fn atom_typed_del(len: usize) {
         if mc_replaying() || !atom_typed_collecting() {
             return;
         }
-        typed.keys.size -= len.min(typed.keys.size);
+        let typed_keys = &raw mut typed.keys;
+        let new_len = (*typed_keys).len().saturating_sub(len);
+        (*typed_keys).truncate(new_len);
     }
 }
 
@@ -1287,11 +1296,12 @@ pub unsafe fn atom_map_start(lhs: *const c_char, len: usize, peeked: bool) {
             atom_composite_label(lhs, len);
             return;
         }
+        let typed_keys = &raw const typed.keys;
         if atom_composite_active() {
             if get_real_state() == MODE_OP_PENDING {
                 return;
             }
-            typed.map_start = typed.keys.size;
+            typed.map_start = (*typed_keys).len();
             atom_composite_end();
         }
         let op = get_vim_var_str(VV_OP);
@@ -1300,14 +1310,14 @@ pub unsafe fn atom_map_start(lhs: *const c_char, len: usize, peeked: bool) {
             let full = concat_str(op, lhs);
             atom_composite_start(full, strlen(full));
             xfree(full.cast());
-            typed.map_start = typed.keys.size;
+            typed.map_start = (*typed_keys).len();
             return;
         }
         atom_composite_start(lhs, len);
         if peeked && !cur_frame.is_null() {
             composite.frame = (*cur_frame).id;
         }
-        typed.map_start = typed.keys.size;
+        typed.map_start = (*typed_keys).len();
     }
 }
 
@@ -1844,14 +1854,16 @@ pub unsafe fn atom_cmd_start(old: *mut CmdFrame, cmdchar: c_int) {
         {
             if !KeyTyped && consumers {
                 atom_composite_start(ptr::null(), 0);
-                typed.map_start = typed.keys.size;
+                let typed_keys = &raw const typed.keys;
+                typed.map_start = (*typed_keys).len();
                 composite.follow = kNone;
             } else {
                 composite.lhs[0] = 0;
             }
         }
         if (*old).parent.is_null() && atom_is_user_cmd() && !atom_composite_active() {
-            typed.keys.size = 0;
+            let typed_keys = &raw mut typed.keys;
+            (*typed_keys).clear();
             typed.map_start = 0;
         }
     }
