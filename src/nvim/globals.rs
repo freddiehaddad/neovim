@@ -26,7 +26,6 @@ use crate::extmark::TriState;
 use crate::fileio::FILE;
 use crate::garray::garray_T;
 use crate::grid::{GridView, ScreenGrid, sattr_T, schar_T};
-use crate::kvec::KVec;
 use crate::lua::converter::nlua_ref_state_t;
 use crate::map::{Map, Set, ptr_t};
 use crate::mapping::typebuf_T;
@@ -375,7 +374,7 @@ pub static mut hl_mode_str: [*const c_char; 4] = [
     c"blend".as_ptr(),
 ];
 pub static mut decor_state: DecorState = unsafe { zeroed() };
-pub static mut decor_items: KVec<DecorSignHighlight> = unsafe { zeroed() };
+pub static mut decor_items: Vec<DecorSignHighlight> = Vec::new();
 pub static mut diff_context: c_int = 6;
 pub static mut diff_foldcolumn: c_int = 2;
 pub static mut diff_need_scrollbind: bool = false;

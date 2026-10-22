@@ -599,14 +599,14 @@ unsafe fn sign_define_by_name(
 
         if !new_sign {
             let mut did_redraw = false;
-            for i in 0..decor_items.size {
-                let sh = decor_items.items.add(i);
-                if !(*sh).sign_name.is_null() && strcmp((*sh).sign_name, name) == 0 {
-                    (*sh).text = (*(*sp)).sn_text;
-                    (*sh).hl_id = (*(*sp)).sn_text_hl;
-                    (*sh).line_hl_id = (*(*sp)).sn_line_hl;
-                    (*sh).number_hl_id = (*(*sp)).sn_num_hl;
-                    (*sh).cursorline_hl_id = (*(*sp)).sn_cul_hl;
+            let items = &raw mut decor_items;
+            for sh in (*items).iter_mut() {
+                if !sh.sign_name.is_null() && strcmp(sh.sign_name, name) == 0 {
+                    sh.text = (*(*sp)).sn_text;
+                    sh.hl_id = (*(*sp)).sn_text_hl;
+                    sh.line_hl_id = (*(*sp)).sn_line_hl;
+                    sh.number_hl_id = (*(*sp)).sn_num_hl;
+                    sh.cursorline_hl_id = (*(*sp)).sn_cul_hl;
                     if !did_redraw {
                         let mut wp = firstwin;
                         while !wp.is_null() {

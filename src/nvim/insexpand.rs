@@ -75,7 +75,6 @@ use crate::keycodes::{
     K_MOUSELEFT, K_MOUSEMOVE, K_MOUSERIGHT, K_MOUSEUP, K_PAGEDOWN, K_PAGEUP, K_S_DOWN, K_S_TAB,
     K_S_UP, K_UP, NL, TAB,
 };
-use crate::kvec::KVec;
 use crate::lua::executor::nlua_expand_pat;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
@@ -303,7 +302,6 @@ const fn empty_nvim_string() -> NvimString {
 }
 
 use crate::api::private::helpers::cstr_as_string;
-use crate::kvec::kv_destroy;
 use crate::mbyte::{mb_ptr_adv, utf_byte2len};
 use crate::path::vim_ispathsep;
 
@@ -424,7 +422,7 @@ static mut compl_col: colnr_T = 0;
 static mut compl_ins_end_col: colnr_T = 0;
 static mut compl_longest_end_col: colnr_T = 0;
 static mut compl_orig_text: NvimString = empty_nvim_string();
-static mut compl_orig_extmarks: KVec<ExtmarkUndoObject> = KVec::new();
+static mut compl_orig_extmarks: Vec<ExtmarkUndoObject> = Vec::new();
 static mut compl_cont_mode: c_int = 0;
 static mut compl_xp: expand_T = unsafe { std::mem::zeroed() };
 static mut compl_curr_win: *mut win_T = ptr::null_mut();
@@ -2439,7 +2437,8 @@ pub unsafe fn ins_compl_clear() {
         api_clear_string(&raw mut compl_pattern);
         api_clear_string(&raw mut compl_leader);
         edit_submode_extra = ptr::null_mut();
-        kv_destroy(&raw mut compl_orig_extmarks);
+        let extmarks = &raw mut compl_orig_extmarks;
+        (*extmarks).clear();
         api_clear_string(&raw mut compl_orig_text);
         compl_enter_selects = false;
         cpt_sources_clear();
@@ -3536,11 +3535,9 @@ unsafe fn save_orig_extmarks() {
 
 unsafe fn restore_orig_extmarks() {
     unsafe {
-        let mut i = compl_orig_extmarks.size as isize - 1;
-        while i > -1 {
-            let undo_info = *compl_orig_extmarks.items.add(i as usize);
+        let extmarks = &raw const compl_orig_extmarks;
+        for &undo_info in (*extmarks).iter().rev() {
             extmark_apply_undo(undo_info, true);
-            i -= 1;
         }
     }
 }
@@ -6438,7 +6435,8 @@ unsafe fn ins_compl_start() -> c_int {
         ins_compl_fixRedoBufForLeader(ptr::null());
 
         api_clear_string(&raw mut compl_orig_text);
-        kv_destroy(&raw mut compl_orig_extmarks);
+        let extmarks = &raw mut compl_orig_extmarks;
+        (*extmarks).clear();
         compl_orig_text = cbuf_to_string(line.add(compl_col as usize), compl_length as usize);
         save_orig_extmarks();
         let mut flags = CP_ORIGINAL_TEXT;
@@ -6463,7 +6461,8 @@ unsafe fn ins_compl_start() -> c_int {
         {
             api_clear_string(&raw mut compl_pattern);
             api_clear_string(&raw mut compl_orig_text);
-            kv_destroy(&raw mut compl_orig_extmarks);
+            let extmarks = &raw mut compl_orig_extmarks;
+            (*extmarks).clear();
             Ins.did_ai = save_did_ai;
             return FAIL;
         }
@@ -6766,7 +6765,8 @@ unsafe fn quote_meta(mut dest: *mut c_char, mut src: *const c_char, mut len: c_i
 pub unsafe fn free_insexpand_stuff() {
     unsafe {
         api_clear_string(&raw mut compl_orig_text);
-        kv_destroy(&raw mut compl_orig_extmarks);
+        let extmarks = &raw mut compl_orig_extmarks;
+        *extmarks = Vec::new();
         callback_free(&raw mut p_cfu);
         callback_free(&raw mut p_ofu);
         callback_free(&raw mut p_tsrfu);

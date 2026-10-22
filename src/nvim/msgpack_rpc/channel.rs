@@ -23,7 +23,6 @@ use crate::event::rstream::{RStream, rstream_size, rstream_start};
 use crate::event::stream::Stream;
 use crate::event::wstream::{WBuffer, wstream_new_buffer, wstream_release_wbuffer, wstream_write};
 use crate::globals::*;
-use crate::kvec::KVec;
 use crate::log::logmsg;
 use crate::map::{MH_TOMBSTONE, mh_get};
 use crate::memory::{
@@ -134,7 +133,7 @@ pub struct RpcState {
     pub unpacker: *mut Unpacker,
     pub ui: *mut RemoteUI,
     pub next_request_id: u32,
-    pub call_stack: KVec<*mut ChannelCallFrame>,
+    pub call_stack: Vec<*mut ChannelCallFrame>,
     pub info: Dict,
     pub client_type: ClientType,
 }
@@ -296,7 +295,7 @@ pub unsafe fn rpc_start(channel: *mut Channel) {
             size: 0,
             capacity: 0,
         };
-        (*rpc).call_stack = KVec::new();
+        ptr::write(&raw mut (*rpc).call_stack, Vec::new());
 
         if (*cp).streamtype != kChannelStreamInternal {
             let out = channel_outstream(channel);
@@ -388,7 +387,7 @@ pub unsafe fn rpc_send_call(
                 loop_poll_events((&raw mut main_loop).cast(), -1);
             }
         }
-        (*rpc).call_stack.size -= 1;
+        (*rpc).call_stack.pop();
 
         if !(*frame_ptr).returned {
             {
@@ -499,8 +498,7 @@ unsafe fn receive_msgpack(
 
 unsafe fn find_call_frame(rpc: *mut RpcState, request_id: u32) -> *mut ChannelCallFrame {
     unsafe {
-        for i in 0..(*rpc).call_stack.size {
-            let frame = *(*rpc).call_stack.items.add((*rpc).call_stack.size - 1 - i);
+        for &frame in (*rpc).call_stack.iter().rev() {
             if (*frame).request_id == request_id {
                 return frame;
             }
@@ -531,14 +529,8 @@ unsafe fn parse_msgpack(channel: *mut Channel) {
             } else if (*p).msg_type == MessageType::kMessageTypeResponse {
                 let frame = if (*ct).rpc.client_type == kClientTypeMsgpackRpc {
                     find_call_frame(&raw mut (*ct).rpc, (*p).request_id)
-                } else if (*ct).rpc.call_stack.size > 0 {
-                    *(*ct)
-                        .rpc
-                        .call_stack
-                        .items
-                        .add((*ct).rpc.call_stack.size - 1)
                 } else {
-                    ptr::null_mut()
+                    (*ct).rpc.call_stack.last().copied().unwrap_or(ptr::null_mut())
                 };
 
                 if frame.is_null() || (*p).request_id != (*frame).request_id {
@@ -798,7 +790,7 @@ unsafe fn send_error(
 
 unsafe fn broadcast_event(name: *const c_char, args: Array) {
     unsafe {
-        let mut chans = KVec::<*mut Channel>::new();
+        let mut chans = Vec::<*mut Channel>::new();
 
         for i in 0..(channels.set.h.n_keys as usize) {
             let channel = (*channels.values.add(i)).cast::<Channel>();
@@ -807,11 +799,9 @@ unsafe fn broadcast_event(name: *const c_char, args: Array) {
             }
         }
 
-        if chans.size > 0 {
-            serialize_request(chans.items, chans.size, 0, name, args);
+        if !chans.is_empty() {
+            serialize_request(chans.as_mut_ptr(), chans.len(), 0, name, args);
         }
-
-        chans.destroy();
     }
 }
 
@@ -890,7 +880,7 @@ pub unsafe fn rpc_free(channel: *mut Channel) {
         unpacker_teardown((*ct).rpc.unpacker);
         xfree((*ct).rpc.unpacker.cast());
 
-        (*ct).rpc.call_stack.destroy();
+        ptr::drop_in_place(&raw mut (*ct).rpc.call_stack);
         api_free_dict((*ct).rpc.info);
     }
 }
@@ -911,8 +901,7 @@ unsafe fn chan_close_on_err(channel: *mut Channel, msg: *const c_char, loglevel:
         let ct = channel_tail(channel);
         let p = (*ct).rpc.unpacker;
 
-        for i in 0..(*ct).rpc.call_stack.size {
-            let frame = *(*ct).rpc.call_stack.items.add(i);
+        for &frame in &(*ct).rpc.call_stack {
             if (*frame).returned {
                 continue;
             }
@@ -1169,7 +1158,7 @@ mod tests {
                 unpacker: ptr::null_mut(),
                 ui: ptr::null_mut(),
                 next_request_id: 1,
-                call_stack: KVec::new(),
+                call_stack: Vec::new(),
                 info: Dict {
                     items: ptr::null_mut(),
                     size: 0,
@@ -1197,8 +1186,6 @@ mod tests {
             assert_eq!(find_call_frame(&raw mut rpc, 20), &raw mut f2);
             assert_eq!(find_call_frame(&raw mut rpc, 10), &raw mut f1);
             assert!(find_call_frame(&raw mut rpc, 99).is_null());
-
-            rpc.call_stack.destroy();
         }
     }
 }

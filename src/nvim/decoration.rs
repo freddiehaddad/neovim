@@ -356,9 +356,10 @@ pub unsafe fn decor_redraw(
                 vt = (*vt).next;
             }
 
+            let items = &raw const decor_items;
             let mut idx = decor.data.ext.sh_idx;
             while idx != DECOR_ID_INVALID {
-                let sh = *decor_items.items.add(idx as usize);
+                let sh = (*items).as_slice()[idx as usize];
                 decor_redraw_sh(buf, row1, row2, sh);
                 idx = sh.next;
             }
@@ -395,14 +396,14 @@ pub unsafe fn decor_redraw_sh(buf: *mut buf_T, row1: c_int, row2: c_int, sh: Dec
 
 pub unsafe fn decor_put_sh(item: DecorSignHighlight) -> u32 {
     unsafe {
+        let items = &raw mut decor_items;
         if decor_freelist != u32::MAX {
             let pos = decor_freelist;
-            decor_freelist = (*decor_items.items.add(decor_freelist as usize)).next;
-            *decor_items.items.add(pos as usize) = item;
+            decor_freelist = (*items).as_slice()[decor_freelist as usize].next;
+            (*items).as_mut_slice()[pos as usize] = item;
             pos
         } else {
-            let items = &raw mut decor_items;
-            let pos = (*items).size as u32;
+            let pos = (*items).len() as u32;
             (*items).push(item);
             pos
         }
@@ -438,10 +439,11 @@ pub unsafe fn decor_sh_from_inline(item: DecorHighlightInline) -> DecorSignHighl
 pub unsafe fn buf_put_decor(buf: *mut buf_T, decor: DecorInline, row: c_int, mut row2: c_int) {
     unsafe {
         if decor.ext && row < (*buf).b_ml.ml_line_count {
+            let items = &raw mut decor_items;
             let mut idx = decor.data.ext.sh_idx;
             row2 = row2.min((*buf).b_ml.ml_line_count - 1);
             while idx != DECOR_ID_INVALID {
-                let sh = decor_items.items.add(idx as usize);
+                let sh = (*items).as_mut_ptr().add(idx as usize);
                 buf_put_decor_sh(buf, sh, row, row2);
                 idx = (*sh).next;
             }
@@ -502,10 +504,11 @@ pub unsafe fn buf_decor_remove(
     unsafe {
         decor_redraw(buf, row1, row2, col1, decor);
         if decor.ext && row1 < (*buf).b_ml.ml_line_count {
+            let items = &raw mut decor_items;
             let mut idx = decor.data.ext.sh_idx;
             row2 = row2.min((*buf).b_ml.ml_line_count - 1);
             while idx != DECOR_ID_INVALID {
-                let sh = decor_items.items.add(idx as usize);
+                let sh = (*items).as_mut_ptr().add(idx as usize);
                 buf_remove_decor_sh(buf, row1, row2, sh);
                 idx = (*sh).next;
             }
@@ -552,8 +555,9 @@ pub unsafe fn decor_free(decor: DecorInline) {
                 }
                 vt = (*vt).next;
             }
+            let items = &raw mut decor_items;
             while idx != DECOR_ID_INVALID {
-                let sh = decor_items.items.add(idx as usize);
+                let sh = (*items).as_mut_ptr().add(idx as usize);
                 if (*sh).next == DECOR_ID_INVALID {
                     (*sh).next = to_free_sh;
                     to_free_sh = decor.data.ext.sh_idx;
@@ -580,9 +584,10 @@ unsafe fn decor_free_inner(mut vt: *mut DecorVirtText, first_idx: u32) {
             xfree(tofree.cast());
         }
 
+        let items = &raw mut decor_items;
         let mut idx = first_idx;
         while idx != DECOR_ID_INVALID {
-            let sh = decor_items.items.add(idx as usize);
+            let sh = (*items).as_mut_ptr().add(idx as usize);
             if ((*sh).flags & kSHIsSign) != 0 {
                 xfree((*sh).sign_name.cast());
                 (*sh).sign_name = ptr::null_mut();
@@ -649,18 +654,18 @@ pub unsafe fn clear_virtlines(lines: *mut VirtLines) {
 
 pub unsafe fn decor_check_invalid_glyphs() {
     unsafe {
-        for i in 0..decor_items.size {
-            let it = decor_items.items.add(i);
-            let width = if ((*it).flags & kSHIsSign) != 0 {
+        let items = &raw mut decor_items;
+        for it in (*items).iter_mut() {
+            let width = if (it.flags & kSHIsSign) != 0 {
                 SIGN_WIDTH
-            } else if ((*it).flags & kSHConceal) != 0 {
+            } else if (it.flags & kSHConceal) != 0 {
                 1
             } else {
                 0
             };
             for j in 0..width {
-                if schar_high((*it).text[j]) {
-                    (*it).text[j] = schar_from_char(schar_get_first_codepoint((*it).text[j]));
+                if schar_high(it.text[j]) {
+                    it.text[j] = schar_from_char(schar_get_first_codepoint(it.text[j]));
                 }
             }
         }
@@ -876,9 +881,10 @@ unsafe fn decor_range_add_from_inline(
                 decor_range_add_virt(state, start_row, start_col, end_row, end_col, vt, owned);
                 vt = (*vt).next;
             }
+            let items = &raw mut decor_items;
             let mut idx = decor.data.ext.sh_idx;
             while idx != DECOR_ID_INVALID {
-                let sh = decor_items.items.add(idx as usize);
+                let sh = (*items).as_mut_ptr().add(idx as usize);
                 decor_range_add_sh(
                     state, start_row, start_col, end_row, end_col, sh, owned, ns, mark_id, 0,
                 );
@@ -1373,7 +1379,7 @@ pub unsafe fn decor_redraw_signs(
         let mut pair: MTPair = std::mem::zeroed();
         let mut num_text: c_int = 0;
         let mut itr: [MarkTreeIter; 1] = std::mem::zeroed();
-        let mut signs: KVec<SignItem> = KVec::new();
+        let mut signs: Vec<SignItem> = Vec::new();
         let b = (*buf).b_marktree.as_mut_ptr();
 
         marktree_itr_get_overlap(b, row, 0, itr.as_mut_ptr());
@@ -1405,7 +1411,7 @@ pub unsafe fn decor_redraw_signs(
             marktree_itr_next_filter(b, itr.as_mut_ptr(), row + 1, 0, SIGN_FILTER.as_ptr());
         }
 
-        if signs.size != 0 {
+        if !signs.is_empty() {
             let width = if (*wp).w_minscwidth == SCL_NUM {
                 1
             } else {
@@ -1413,10 +1419,9 @@ pub unsafe fn decor_redraw_signs(
             };
             let len = width.min(num_text);
             let mut idx: usize = 0;
-            let slice = std::slice::from_raw_parts_mut(signs.items, signs.size);
-            slice.sort_by(|a, b| sign_item_cmp_slice(a, b));
+            signs.sort_by(|a, b| sign_item_cmp_slice(a, b));
 
-            for item in slice.iter() {
+            for item in &signs {
                 let sh = item.sh;
                 if !sattrs.is_null() && (idx as c_int) < len && (*sh).text[0] != 0 {
                     (*sattrs.add(idx)).text = (*sh).text;
@@ -1433,7 +1438,6 @@ pub unsafe fn decor_redraw_signs(
                     *cul_id = (*sh).cursorline_hl_id;
                 }
             }
-            signs.destroy();
         }
     }
 }
@@ -1443,12 +1447,13 @@ pub unsafe fn decor_find_sign(decor: DecorInline) -> *mut DecorSignHighlight {
         if !decor.ext {
             return ptr::null_mut();
         }
+        let items = &raw mut decor_items;
         let mut decor_id = decor.data.ext.sh_idx;
         loop {
             if decor_id == DECOR_ID_INVALID {
                 return ptr::null_mut();
             }
-            let sh = decor_items.items.add(decor_id as usize);
+            let sh = (*items).as_mut_ptr().add(decor_id as usize);
             if ((*sh).flags & kSHIsSign) != 0 {
                 return sh;
             }
@@ -1735,9 +1740,10 @@ pub unsafe fn decor_to_dict_legacy(
                 vt = (*vt).next;
             }
 
+            let items = &raw const decor_items;
             let mut idx = decor.data.ext.sh_idx;
             while idx != DECOR_ID_INVALID {
-                let sh = *decor_items.items.add(idx as usize);
+                let sh = (*items).as_slice()[idx as usize];
                 if (sh.flags & kSHIsSign) != 0 {
                     sh_sign = sh;
                 } else {
@@ -1925,9 +1931,10 @@ pub unsafe fn decor_type_flags(decor: DecorInline) -> u16 {
                 };
                 vt = (*vt).next;
             }
+            let items = &raw const decor_items;
             let mut idx = decor.data.ext.sh_idx;
             while idx != DECOR_ID_INVALID {
-                let sh = *decor_items.items.add(idx as usize);
+                let sh = (*items).as_slice()[idx as usize];
                 type_flags |= if (sh.flags & kSHIsSign) != 0 {
                     kExtmarkSign
                 } else {

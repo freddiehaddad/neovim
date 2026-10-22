@@ -1805,7 +1805,7 @@ pub unsafe extern "C" fn nvim__buf_stats(buf: Buffer, arena: *mut Arena, err: *m
             put_c(
                 &mut rv,
                 c"uhp_extmark_size",
-                integer_obj((*uhp).uh_extmark.size as Integer),
+                integer_obj((*uhp).uh_extmark.len() as Integer),
             );
         }
 

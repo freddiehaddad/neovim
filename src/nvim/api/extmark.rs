@@ -602,7 +602,7 @@ pub unsafe extern "C" fn nvim_buf_get_extmarks(
             std::mem::swap(&mut l_col, &mut u_col);
         }
 
-        let mut marks = extmark_get(
+        let marks = extmark_get(
             b,
             ns_id as u32,
             l_row,
@@ -614,38 +614,26 @@ pub unsafe extern "C" fn nvim_buf_get_extmarks(
             (*opts).overlap,
         );
 
-        rv = arena_array(arena, marks.size.min(rv_limit));
+        rv = arena_array(arena, marks.len().min(rv_limit));
         if reverse {
-            let mut i = marks.size as isize - 1;
-            while i >= 0 && rv.size < rv_limit {
+            for &mark in marks.iter().rev() {
+                if rv.size >= rv_limit {
+                    break;
+                }
                 add_c(
                     &mut rv,
-                    array_obj(extmark_to_array(
-                        *marks.items.add(i as usize),
-                        true,
-                        details,
-                        hl_name,
-                        arena,
-                    )),
+                    array_obj(extmark_to_array(mark, true, details, hl_name, arena)),
                 );
-                i -= 1;
             }
         } else {
-            for i in 0..marks.size {
+            for &mark in &marks {
                 add_c(
                     &mut rv,
-                    array_obj(extmark_to_array(
-                        *marks.items.add(i),
-                        true,
-                        details,
-                        hl_name,
-                        arena,
-                    )),
+                    array_obj(extmark_to_array(mark, true, details, hl_name, arena)),
                 );
             }
         }
 
-        marks.destroy();
         rv
     }
 }

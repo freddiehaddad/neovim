@@ -9,7 +9,6 @@ use crate::decoration::{
     decor_redraw, decor_state_invalidate, decor_type_flags, kSHUIWatched, kSHUIWatchedOverlay,
 };
 use crate::globals::*;
-use crate::kvec::KVec;
 use crate::map::{map_del, map_destroy, map_put_ref, map_ref};
 use crate::marktree::{
     DECOR_HIGHLIGHT_INLINE_INIT, DecorInlineData, MT_FLAG_DECOR_HL, MT_FLAG_DECOR_SIGNTEXT,
@@ -30,10 +29,10 @@ use std::ptr;
 pub type bcount_t = isize;
 pub type ExtmarkOp = c_int;
 pub type ExtmarkType = u16;
-pub type ExtmarkInfoArray = KVec<MTPair>;
+pub type ExtmarkInfoArray = Vec<MTPair>;
 pub type UndoObjectType = c_int;
 pub type TriState = c_int;
-pub type extmark_undo_vec_t = KVec<ExtmarkUndoObject>;
+pub type extmark_undo_vec_t = Vec<ExtmarkUndoObject>;
 
 pub(crate) const kExtmarkNOOP: ExtmarkOp = 0;
 pub(crate) const kExtmarkUndo: ExtmarkOp = 1;
@@ -496,11 +495,7 @@ pub unsafe fn extmark_get(
     overlap: bool,
 ) -> ExtmarkInfoArray {
     unsafe {
-        let mut array = ExtmarkInfoArray {
-            size: 0,
-            capacity: 0,
-            items: ptr::null_mut(),
-        };
+        let mut array = ExtmarkInfoArray::new();
         let mut itr = MarkTreeIter::default();
 
         if overlap {
@@ -509,7 +504,7 @@ pub unsafe fn extmark_get(
                 return array;
             }
 
-            while (array.size as i64) < amount {
+            while (array.len() as i64) < amount {
                 let mut pair = std::mem::zeroed();
                 if !marktree_itr_step_overlap(
                     (*buf).b_marktree.as_mut_ptr(),
@@ -535,7 +530,7 @@ pub unsafe fn extmark_get(
             );
         }
 
-        while (array.size as i64) < amount {
+        while (array.len() as i64) < amount {
             let mark = marktree_itr_current(&raw mut itr);
             if mark.pos.row < 0
                 || mark.pos.row > u_row
@@ -995,34 +990,35 @@ pub unsafe fn extmark_splice_impl(
             }
 
             let mut merged = false;
-            if old_row == 0 && new_row == 0 && (*uhp).uh_extmark.size > 0 {
-                let item = (*uhp).uh_extmark.items.add((*uhp).uh_extmark.size - 1);
-                if (*item).type_ == kExtmarkSplice {
-                    let splice = &raw mut (*item).data.splice;
-                    if (*splice).start_row == start_row
-                        && (*splice).old_row == 0
-                        && (*splice).new_row == 0
+            if old_row == 0
+                && new_row == 0
+                && let Some(item) = (*uhp).uh_extmark.last_mut()
+                && item.type_ == kExtmarkSplice
+            {
+                let splice = &raw mut item.data.splice;
+                if (*splice).start_row == start_row
+                    && (*splice).old_row == 0
+                    && (*splice).new_row == 0
+                {
+                    if old_col == 0
+                        && start_col >= (*splice).start_col
+                        && start_col <= (*splice).start_col + (*splice).new_col
                     {
-                        if old_col == 0
-                            && start_col >= (*splice).start_col
-                            && start_col <= (*splice).start_col + (*splice).new_col
-                        {
-                            (*splice).new_col += new_col;
-                            (*splice).new_byte += new_byte;
-                            merged = true;
-                        } else if new_col == 0
-                            && start_col == (*splice).start_col + (*splice).new_col
-                        {
-                            (*splice).old_col += old_col;
-                            (*splice).old_byte += old_byte;
-                            merged = true;
-                        } else if new_col == 0 && start_col + old_col == (*splice).start_col {
-                            (*splice).start_col = start_col;
-                            (*splice).start_byte = start_byte;
-                            (*splice).old_col += old_col;
-                            (*splice).old_byte += old_byte;
-                            merged = true;
-                        }
+                        (*splice).new_col += new_col;
+                        (*splice).new_byte += new_byte;
+                        merged = true;
+                    } else if new_col == 0
+                        && start_col == (*splice).start_col + (*splice).new_col
+                    {
+                        (*splice).old_col += old_col;
+                        (*splice).old_byte += old_byte;
+                        merged = true;
+                    } else if new_col == 0 && start_col + old_col == (*splice).start_col {
+                        (*splice).start_col = start_col;
+                        (*splice).start_byte = start_byte;
+                        (*splice).old_col += old_col;
+                        (*splice).old_byte += old_byte;
+                        merged = true;
                     }
                 }
             }
@@ -1162,8 +1158,7 @@ mod tests {
     #[test]
     fn extmark_undo_vec_and_map_destroy_work() {
         unsafe {
-            let mut v = extmark_undo_vec_t::new();
-            v.push(ExtmarkUndoObject {
+            let v: extmark_undo_vec_t = vec![ExtmarkUndoObject {
                 type_: kExtmarkSavePos,
                 data: ExtmarkUndoData {
                     savepos: ExtmarkSavePos {
@@ -1175,9 +1170,9 @@ mod tests {
                         invalidated: false,
                     },
                 },
-            });
-            assert_eq!(v.size, 1);
-            v.destroy();
+            }];
+            assert_eq!(v.len(), 1);
+            drop(v);
 
             let mut map: Map<u32, u32> = std::mem::zeroed();
             map_destroy(&raw mut map);

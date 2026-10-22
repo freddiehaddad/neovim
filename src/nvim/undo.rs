@@ -43,7 +43,6 @@ use crate::globals::*;
 use crate::input::beep_flush;
 use crate::input_cmdatom::{atom_did_global_op, atom_origin_pos};
 use crate::insert::beginline;
-use crate::kvec::KVec;
 use crate::mark::{fmark_T, free_fmark, mark_adjust, setpcmark};
 use crate::mbyte::utfc_ptr2len;
 use crate::mcursor::mc_undo_time;
@@ -309,7 +308,7 @@ pub unsafe fn u_savecommon(
 
             let uhp: *mut u_header_T = if get_undolevel(buf) >= 0 {
                 let p = xmalloc(size_of::<u_header_T>()).cast::<u_header_T>();
-                (*p).uh_extmark = KVec::new();
+                ptr::write(&raw mut (*p).uh_extmark, Vec::new());
                 p
             } else {
                 ptr::null_mut()
@@ -657,7 +656,7 @@ unsafe fn u_free_uhp(uhp: *mut u_header_T) {
             u_freeentry(uep, (*uep).ue_size);
             uep = nuep;
         }
-        (*uhp).uh_extmark.destroy();
+        ptr::drop_in_place(&raw mut (*uhp).uh_extmark);
         xfree(uhp.cast());
     }
 }
@@ -749,8 +748,8 @@ unsafe fn serialize_uhp(bi: &mut bufinfo_T, uhp: *mut u_header_T) -> bool {
         }
         undo_write_bytes(bi, UF_ENTRY_END_MAGIC as u64, 2);
 
-        for i in 0..(*uhp).uh_extmark.size {
-            if !serialize_extmark(bi, *(*uhp).uh_extmark.items.add(i)) {
+        for &item in &(*uhp).uh_extmark {
+            if !serialize_extmark(bi, item) {
                 return false;
             }
         }
@@ -764,6 +763,7 @@ unsafe fn unserialize_uhp(bi: &mut bufinfo_T, file_name: *const c_char) -> *mut 
     unsafe {
         let uhp = xmalloc(size_of::<u_header_T>()).cast::<u_header_T>();
         ptr::write_bytes(uhp, 0, 1);
+        ptr::write(&raw mut (*uhp).uh_extmark, Vec::new());
         (*uhp).uh_next.seq = undo_read_4c(bi);
         (*uhp).uh_prev.seq = undo_read_4c(bi);
         (*uhp).uh_alt_next.seq = undo_read_4c(bi);
@@ -835,7 +835,6 @@ unsafe fn unserialize_uhp(bi: &mut bufinfo_T, file_name: *const c_char) -> *mut 
             return ptr::null_mut();
         }
 
-        (*uhp).uh_extmark = KVec::new();
         c = undo_read_2c(bi);
         while c == UF_ENTRY_MAGIC {
             let mut error = false;
@@ -2262,14 +2261,12 @@ unsafe fn u_undoredo(undo: bool, do_buf_event: bool) {
         (*curbuf).b_op_end.lnum = (*curbuf).b_op_end.lnum.min((*curbuf).b_ml.ml_line_count);
 
         if undo {
-            let mut i = (*curhead).uh_extmark.size as isize - 1;
-            while i > -1 {
-                extmark_apply_undo(*(*curhead).uh_extmark.items.add(i as usize), undo);
-                i -= 1;
+            for &item in (*curhead).uh_extmark.iter().rev() {
+                extmark_apply_undo(item, undo);
             }
         } else {
-            for i in 0..(*curhead).uh_extmark.size {
-                extmark_apply_undo(*(*curhead).uh_extmark.items.add(i), undo);
+            for &item in &(*curhead).uh_extmark {
+                extmark_apply_undo(item, undo);
             }
         }
         if ((*curhead).uh_flags & UH_RELOAD) != 0 {
@@ -2846,7 +2843,7 @@ unsafe fn u_freeentries(buf: *mut buf_T, uhp: *mut u_header_T, uhpp: *mut *mut u
             uep = nuep;
         }
 
-        (*uhp).uh_extmark.destroy();
+        ptr::drop_in_place(&raw mut (*uhp).uh_extmark);
 
         xfree(uhp.cast());
         (*buf).b_u_numhead -= 1;
