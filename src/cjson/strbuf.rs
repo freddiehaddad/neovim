@@ -1,8 +1,9 @@
 //! String buffer routines (`src/cjson/strbuf.c`).
 
 use std::ffi::{c_char, c_int, c_void};
-use std::mem::size_of;
 use std::ptr;
+
+use crate::memory::{xfree, xmalloc, xrealloc};
 
 pub const STRBUF_DEFAULT_SIZE: usize = 1023;
 
@@ -12,12 +13,7 @@ pub struct strbuf_t {
     pub buf: *mut c_char,
     pub size: usize,
     pub length: usize,
-    pub dynamic: c_int,
-    pub reallocs: c_int,
-    pub debug: c_int,
 }
-
-use crate::memory::{xfree, xmalloc, xrealloc};
 
 fn die(msg: &str) -> ! {
     eprintln!("{msg}");
@@ -46,21 +42,9 @@ pub unsafe fn strbuf_ensure_empty_length(s: *mut strbuf_t, len: usize) {
 }
 
 #[inline]
-pub unsafe fn strbuf_empty_ptr(s: *mut strbuf_t) -> *mut c_char {
-    unsafe { (*s).buf.add((*s).length) }
-}
-
-#[inline]
 pub unsafe fn strbuf_set_length(s: *mut strbuf_t, len: c_int) {
     unsafe {
         (*s).length = len as usize;
-    }
-}
-
-#[inline]
-pub unsafe fn strbuf_extend_length(s: *mut strbuf_t, len: usize) {
-    unsafe {
-        (*s).length += len;
     }
 }
 
@@ -120,21 +104,6 @@ pub unsafe fn strbuf_string(s: *mut strbuf_t, len: *mut usize) -> *mut c_char {
     }
 }
 
-#[inline]
-unsafe fn debug_stats(s: *mut strbuf_t) {
-    unsafe {
-        if (*s).debug != 0 {
-            eprintln!(
-                "strbuf({:x}) reallocs: {}, length: {}, size: {}",
-                s as usize,
-                (*s).reallocs,
-                (*s).length,
-                (*s).size
-            );
-        }
-    }
-}
-
 pub unsafe fn strbuf_init(s: *mut strbuf_t, len: usize) {
     let size = if len == 0 {
         STRBUF_DEFAULT_SIZE
@@ -146,39 +115,18 @@ pub unsafe fn strbuf_init(s: *mut strbuf_t, len: usize) {
     };
 
     unsafe {
-        (*s).buf = ptr::null_mut();
         (*s).size = size;
         (*s).length = 0;
-        (*s).dynamic = 0;
-        (*s).reallocs = 0;
-        (*s).debug = 0;
-
         (*s).buf = xmalloc(size).cast::<c_char>();
-
         strbuf_ensure_null(s);
-    }
-}
-
-pub unsafe fn strbuf_new(len: usize) -> *mut strbuf_t {
-    unsafe {
-        let s = xmalloc(size_of::<strbuf_t>()).cast::<strbuf_t>();
-
-        strbuf_init(s, len);
-        (*s).dynamic = 1;
-        s
     }
 }
 
 pub unsafe fn strbuf_free(s: *mut strbuf_t) {
     unsafe {
-        debug_stats(s);
-
         if !(*s).buf.is_null() {
             xfree((*s).buf.cast::<c_void>());
             (*s).buf = ptr::null_mut();
-        }
-        if (*s).dynamic != 0 {
-            xfree(s.cast::<c_void>());
         }
     }
 }
@@ -218,19 +166,8 @@ unsafe fn calculate_new_size(s: *mut strbuf_t, len: usize) -> usize {
 pub unsafe fn strbuf_resize(s: *mut strbuf_t, len: usize) {
     unsafe {
         let newsize = calculate_new_size(s, len);
-
-        if (*s).debug > 1 {
-            eprintln!(
-                "strbuf({:x}) resize: {} => {}",
-                s as usize,
-                (*s).size,
-                newsize
-            );
-        }
-
         (*s).size = newsize;
         (*s).buf = xrealloc((*s).buf.cast::<c_void>(), (*s).size).cast::<c_char>();
-        (*s).reallocs += 1;
     }
 }
 

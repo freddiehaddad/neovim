@@ -2,19 +2,21 @@
 
 use std::ffi::{c_char, c_double, c_int};
 use std::io::Write;
-use std::ptr;
-
-pub const FPCONV_G_FMT_BUFSIZE: usize = 32;
 
 use crate::strings::strtod;
+
+pub const FPCONV_G_FMT_BUFSIZE: usize = 32;
 
 pub unsafe fn fpconv_strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> c_double {
     unsafe { strtod(nptr, endptr) }
 }
 
-pub unsafe fn fpconv_g_fmt(str_out: *mut c_char, num: c_double, precision: c_int) -> c_int {
+pub fn fpconv_g_fmt(
+    buf: &mut [u8; FPCONV_G_FMT_BUFSIZE],
+    num: c_double,
+    precision: c_int,
+) -> usize {
     let prec = precision.max(1) as usize;
-    let mut buf = [0u8; FPCONV_G_FMT_BUFSIZE];
     let mut pos = 0usize;
 
     if num.is_sign_negative() {
@@ -87,10 +89,5 @@ pub unsafe fn fpconv_g_fmt(str_out: *mut c_char, num: c_double, precision: c_int
     }
 
     buf[pos] = 0;
-    unsafe {
-        ptr::copy_nonoverlapping(buf.as_ptr().cast::<c_char>(), str_out, pos + 1);
-    }
-    pos as c_int
+    pos
 }
-
-pub unsafe fn fpconv_init() {}
