@@ -55,5 +55,14 @@ mod tests {
             );
             assert_eq!(mpack_unpack_uint(out_tok), 0x1_0000_0005);
         }
+
+        for (val, expected_len) in [(-128.0, 1), (-129.0, 2), (-32768.0, 2), (-32769.0, 4)] {
+            let tok = mpack_pack_number(val);
+            assert_eq!(
+                tok.r#type,
+                crate::mpack::mpack_core::mpack_token_type_t::MPACK_TOKEN_SINT
+            );
+            assert_eq!(tok.length, expected_len);
+        }
     }
 }

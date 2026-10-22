@@ -64,8 +64,7 @@ pub fn mpack_pack_float_fast(v: c_double) -> mpack_token_t {
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn mpack_pack_number(v: c_double) -> mpack_token_t {
+pub fn mpack_pack_number(v: c_double) -> mpack_token_t {
     if !(-9223372036854775808.0..18446744073709551616.0).contains(&v) {
         return mpack_pack_float_fast(v);
     }

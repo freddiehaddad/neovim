@@ -341,8 +341,7 @@ pub unsafe extern "C" fn unpack(
 }
 
 /// Initialize an `Unpacker` (`unpacker_init`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn unpacker_init(p: *mut Unpacker) {
+pub unsafe fn unpacker_init(p: *mut Unpacker) {
     unsafe {
         let p_ref = &mut *p;
         mpack_parser_init(&mut p_ref.parser, 0);
@@ -358,8 +357,7 @@ pub unsafe extern "C" fn unpacker_init(p: *mut Unpacker) {
 }
 
 /// Teardown an `Unpacker` (`unpacker_teardown`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn unpacker_teardown(p: *mut Unpacker) {
+pub unsafe fn unpacker_teardown(p: *mut Unpacker) {
     unsafe {
         let mem = arena_finish(&mut (*p).arena);
         arena_mem_free(mem);
@@ -472,8 +470,7 @@ pub unsafe fn unpacker_parse_header(p: *mut Unpacker) -> bool {
 }
 
 /// Advance the unpacker state machine (`unpacker_advance`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn unpacker_advance(p: *mut Unpacker) -> bool {
+pub unsafe fn unpacker_advance(p: *mut Unpacker) -> bool {
     unsafe {
         let p_ref = &mut *p;
         assert!(p_ref.state >= 0);
@@ -1067,6 +1064,29 @@ mod tests {
             assert_eq!(hdr.nbytes, 5);
             assert_eq!(ad.size, std::mem::size_of::<AdditionalDataHeader>() + 5);
             xfree(ad.items.cast::<c_void>());
+        }
+    }
+
+    #[test]
+    fn unpacker_handles_paused_and_empty_grid_line() {
+        unsafe {
+            let payload1: &[u8] = b"\x93\x02\xa6\x72\x65\x64\x72\x61\x77\x91\x92\xa9\x67\x72\x69\x64\x5f\x6c\x69\x6e\x65\x95\x02\x00\x00\x91\x93\xa1\x20\x00\x4d\xc2";
+            let mut unpacker: Unpacker = std::mem::zeroed();
+            unpacker_init(&mut unpacker);
+            unpacker.read_ptr = payload1.as_ptr().cast();
+            unpacker.read_size = payload1.len() - 1;
+            assert!(!unpacker_advance(&mut unpacker));
+            unpacker.read_size += 1;
+            assert!(unpacker_advance(&mut unpacker));
+            unpacker_teardown(&mut unpacker);
+
+            let payload2: &[u8] = b"\x93\x02\xa6\x72\x65\x64\x72\x61\x77\x91\x92\xa9\x67\x72\x69\x64\x5f\x6c\x69\x6e\x65\x95\x02\x00\x00\x90\xc2";
+            unpacker = std::mem::zeroed();
+            unpacker_init(&mut unpacker);
+            unpacker.read_ptr = payload2.as_ptr().cast();
+            unpacker.read_size = payload2.len();
+            assert!(unpacker_advance(&mut unpacker));
+            unpacker_teardown(&mut unpacker);
         }
     }
 }

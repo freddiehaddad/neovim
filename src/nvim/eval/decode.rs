@@ -644,8 +644,7 @@ unsafe fn parse_json_number(
 }
 
 /// Convert JSON string `buf[..buf_len]` into a Vimscript `typval_T` (`json_decode_string`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn json_decode_string(
+pub unsafe fn json_decode_string(
     buf: *const c_char,
     buf_len: usize,
     rettv: *mut typval_T,
@@ -1385,6 +1384,77 @@ mod tests {
             assert_eq!(tv.v_type, VarType::VAR_STRING);
             assert_eq!(CStr::from_ptr(tv.vval.v_string).to_str().unwrap(), "hello");
             xfree(tv.vval.v_string.cast::<c_void>());
+        }
+    }
+
+    #[test]
+    fn json_decode_string_respects_length_and_rejects_malformed_inputs() {
+        unsafe {
+            crate::globals::emsg_skip += 1;
+            let mut rettv = typval_T {
+                v_type: VarType::VAR_UNKNOWN,
+                v_lock: VAR_UNLOCKED,
+                vval: TypvalVval { v_number: 0 },
+            };
+
+            for &(s, len) in &[
+                (b"null" as &[u8], 1usize),
+                (b"true", 1),
+                (b"false", 1),
+                (b"null", 2),
+                (b"true", 2),
+                (b"false", 2),
+                (b"null", 3),
+                (b"true", 3),
+                (b"false", 3),
+                (b"false", 4),
+                (b"\"t\"", 2),
+                (b"\"\"", 1),
+                (b"]test", 1),
+                (b"[}test", 2),
+                (b"{]test", 2),
+                (b"[1,]test", 4),
+                (b"{\"1\":}test", 6),
+                (b"{\"1\"}test", 5),
+                (b",test", 1),
+                (b"[1,,1]test", 6),
+                (b"{\"1\":,}test", 7),
+                (b"{\"1\",}test", 6),
+                (b"{,}test", 3),
+                (b"[,]test", 3),
+                (b":test", 1),
+                (b"[:]test", 3),
+                (b"{:}test", 3),
+                (b"{\"1\"::1}test", 8),
+                (b"ntest", 1),
+                (b"ttest", 1),
+                (b"ftest", 1),
+                (b"\"\\test", 2),
+                (b"\"\\u\"test", 4),
+                (b"\"\\uXXXX\"est", 8),
+                (b"\"\\?\"test", 4),
+                (b"\"\t\"test", 3),
+                (b"\"\xc2\"test", 3),
+                (b"\"\xfc\x90\x80\x80\x80\x80\"test", 8),
+                (b"\"test", 1),
+                (b"-test", 1),
+                (b"-0", 1),
+                (b"-1.test", 3),
+                (b"-1.0etest", 5),
+                (b"?test", 1),
+                (b"1?test", 2),
+                (b"[1test", 2),
+            ] {
+                assert_eq!(json_decode_string(s.as_ptr().cast(), len, &mut rettv), FAIL);
+                assert_eq!(rettv.v_type, VarType::VAR_UNKNOWN);
+            }
+
+            assert_eq!(json_decode_string(c"true".as_ptr(), 4, &mut rettv), OK);
+            assert_eq!(rettv.v_type, VarType::VAR_BOOL);
+            assert_eq!(rettv.vval.v_bool, K_BOOL_VAR_TRUE as c_int);
+            tv_clear(&mut rettv);
+
+            crate::globals::emsg_skip -= 1;
         }
     }
 }

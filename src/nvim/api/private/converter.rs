@@ -277,12 +277,7 @@ unsafe fn pop_into_parent_dict(stack: &mut Vec<Object>) {
 }
 
 /// Recursively convert a Vimscript `typval_T` into an API `Object` (`vim_to_object`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_to_object(
-    obj: *mut typval_T,
-    arena: *mut Arena,
-    reuse_strdata: bool,
-) -> Object {
+pub unsafe fn vim_to_object(obj: *mut typval_T, arena: *mut Arena, reuse_strdata: bool) -> Object {
     unsafe {
         let copy_id = get_copyID();
         let mut stack: Vec<Object> = Vec::with_capacity(4);
@@ -492,6 +487,53 @@ mod tests {
             );
             assert_eq!(tv.v_type, VarType::VAR_NUMBER);
             assert_eq!(tv.vval.v_number, 99);
+
+            let obj = vim_to_object(&mut tv, std::ptr::null_mut(), false);
+            assert_eq!(obj.obj_type, ObjectType::kObjectTypeInteger);
+            assert_eq!(obj.data.integer, 99);
+
+            // NULL list -> empty Array, NULL dict -> empty Dict
+            let mut null_list = typval_T {
+                v_type: VarType::VAR_LIST,
+                v_lock: 0,
+                vval: TypvalVval {
+                    v_list: std::ptr::null_mut(),
+                },
+            };
+            let arr_obj = vim_to_object(&mut null_list, std::ptr::null_mut(), false);
+            assert_eq!(arr_obj.obj_type, ObjectType::kObjectTypeArray);
+            assert_eq!(arr_obj.data.array.size, 0);
+
+            let mut null_dict = typval_T {
+                v_type: VarType::VAR_DICT,
+                v_lock: 0,
+                vval: TypvalVval {
+                    v_dict: std::ptr::null_mut(),
+                },
+            };
+            let dict_obj = vim_to_object(&mut null_dict, std::ptr::null_mut(), false);
+            assert_eq!(dict_obj.obj_type, ObjectType::kObjectTypeDict);
+            assert_eq!(dict_obj.data.dict.size, 0);
+
+            // Self-referencing list converts nested cycle to Nil
+            let list = tv_list_alloc(1);
+            (*list).lv_refcount += 1;
+            let mut list_tv = typval_T {
+                v_type: VarType::VAR_LIST,
+                v_lock: 0,
+                vval: TypvalVval { v_list: list },
+            };
+            tv_list_append_owned_tv(list, list_tv);
+            let cyc_obj = vim_to_object(&mut list_tv, std::ptr::null_mut(), false);
+            assert_eq!(cyc_obj.obj_type, ObjectType::kObjectTypeArray);
+            assert_eq!(cyc_obj.data.array.size, 1);
+            assert_eq!(
+                (*cyc_obj.data.array.items).obj_type,
+                ObjectType::kObjectTypeNil
+            );
+            crate::api::private::helpers::api_free_object(cyc_obj);
+            (*(*list).lv_first).li_tv.v_type = VarType::VAR_UNKNOWN;
+            crate::eval::typval::tv_list_free(list);
         }
     }
 }

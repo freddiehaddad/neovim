@@ -5389,4 +5389,62 @@ mod tests {
             assert!(tv2bool(&raw const tv));
         }
     }
+
+    #[test]
+    fn test_tv_clear_shared_lists_and_dicts() {
+        unsafe {
+            // [&l [1], *l, *l]
+            let inner = tv_list_alloc(1);
+            tv_list_append_number(inner, 1);
+            let outer = tv_list_alloc(3);
+            (*outer).lv_refcount = 1;
+            for _ in 0..3 {
+                tv_list_append_list(outer, inner);
+            }
+            assert_eq!((*inner).lv_refcount, 3);
+            let mut tv = typval_T {
+                v_type: VarType::VAR_LIST,
+                v_lock: VAR_UNLOCKED,
+                vval: TypvalVval { v_list: outer },
+            };
+            tv_clear(&mut tv);
+            assert!(tv.vval.v_list.is_null());
+
+            // [&l [], *l, *l]
+            let empty_inner = tv_list_alloc(0);
+            let outer2 = tv_list_alloc(3);
+            (*outer2).lv_refcount = 1;
+            for _ in 0..3 {
+                tv_list_append_list(outer2, empty_inner);
+            }
+            assert_eq!((*empty_inner).lv_refcount, 3);
+            let mut tv2 = typval_T {
+                v_type: VarType::VAR_LIST,
+                v_lock: VAR_UNLOCKED,
+                vval: TypvalVval { v_list: outer2 },
+            };
+            tv_clear(&mut tv2);
+            assert!(tv2.vval.v_list.is_null());
+
+            // [&d {}, *d] and [&d {a: 1}, *d]
+            for with_item in [false, true] {
+                let d_inner = tv_dict_alloc();
+                if with_item {
+                    assert_eq!(tv_dict_add_nr(d_inner, c"a".as_ptr(), 1, 1), OK);
+                }
+                let outer_d = tv_list_alloc(2);
+                (*outer_d).lv_refcount = 1;
+                tv_list_append_dict(outer_d, d_inner);
+                tv_list_append_dict(outer_d, d_inner);
+                assert_eq!((*d_inner).dv_refcount, 2);
+                let mut tv_d = typval_T {
+                    v_type: VarType::VAR_LIST,
+                    v_lock: VAR_UNLOCKED,
+                    vval: TypvalVval { v_list: outer_d },
+                };
+                tv_clear(&mut tv_d);
+                assert!(tv_d.vval.v_list.is_null());
+            }
+        }
+    }
 }

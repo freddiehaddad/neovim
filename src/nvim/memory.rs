@@ -358,8 +358,7 @@ pub unsafe fn xstrlcpy(dst: *mut c_char, src: *const c_char, dsize: usize) -> us
 }
 
 /// Append `src` to `dst[..dsize]`, supporting overlapping buffers (`xstrlcat`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn xstrlcat(dst: *mut c_char, src: *const c_char, dsize: usize) -> usize {
+pub unsafe fn xstrlcat(dst: *mut c_char, src: *const c_char, dsize: usize) -> usize {
     assert!(dsize > 0);
     let dlen = unsafe { CStr::from_ptr(dst).to_bytes().len() };
     assert!(dlen < dsize);
@@ -988,11 +987,49 @@ mod tests {
 
     #[test]
     fn xstrlcat_and_arena_lifecycle() {
-        let mut buf = [0 as c_char; 8];
         unsafe {
-            assert_eq!(xstrlcpy(buf.as_mut_ptr(), c"abc".as_ptr(), buf.len()), 3);
-            assert_eq!(xstrlcat(buf.as_mut_ptr(), c"defgh".as_ptr(), buf.len()), 8);
-            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_str().unwrap(), "abcdefg");
+            let check_cat = |dst_init: &str, src: &str, dsize: usize, expected: &str| {
+                let mut buf = vec![0 as c_char; dsize];
+                std::ptr::copy_nonoverlapping(
+                    dst_init.as_ptr().cast::<c_char>(),
+                    buf.as_mut_ptr(),
+                    dst_init.len(),
+                );
+                let src_c = std::ffi::CString::new(src).unwrap();
+                assert_eq!(
+                    xstrlcat(buf.as_mut_ptr(), src_c.as_ptr(), dsize),
+                    dst_init.len() + src.len()
+                );
+                assert_eq!(CStr::from_ptr(buf.as_ptr()).to_str().unwrap(), expected);
+            };
+            check_cat("a", "b", 3, "ab");
+            check_cat("a", "b", 4096, "ab");
+            check_cat("ABCיהZ", "defgiיהZ", 4096, "ABCיהZdefgiיהZ");
+            check_cat("", "b", 4096, "b");
+            check_cat("a", "", 4096, "a");
+            check_cat("a", "b", 2, "a");
+            check_cat("", "b", 1, "");
+            check_cat("ABCיהZ", "defgiיהZ", 10, "ABCיהZd");
+
+            let check_overlap = |dst_init: &str, src_idx: usize, dsize: usize, expected: &str| {
+                let mut buf = vec![0 as c_char; dsize];
+                std::ptr::copy_nonoverlapping(
+                    dst_init.as_ptr().cast::<c_char>(),
+                    buf.as_mut_ptr(),
+                    dst_init.len(),
+                );
+                let src_ptr = buf.as_ptr().add(src_idx);
+                assert_eq!(
+                    xstrlcat(buf.as_mut_ptr(), src_ptr, dsize),
+                    dst_init.len() * 2 - src_idx
+                );
+                assert_eq!(CStr::from_ptr(buf.as_ptr()).to_str().unwrap(), expected);
+            };
+            check_overlap("abc", 0, 7, "abcabc");
+            check_overlap("abc", 0, 5, "abca");
+            check_overlap("abc", 1, 5, "abcb");
+            check_overlap("abc", 2, 10, "abcc");
+            check_overlap("abc", 0, 2343, "abcabc");
 
             let mut arena = Arena {
                 cur_blk: std::ptr::null_mut(),

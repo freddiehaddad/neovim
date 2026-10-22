@@ -851,13 +851,7 @@ pub unsafe fn msg_strtrunc(s: *const c_char, force: c_int) -> *mut c_char {
 
 /// Truncate a string "s" to "buf" with cell width "room".
 /// "s" and "buf" may be equal.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn trunc_string(
-    s: *const c_char,
-    buf: *mut c_char,
-    room_in: c_int,
-    buflen: c_int,
-) {
+pub unsafe fn trunc_string(s: *const c_char, buf: *mut c_char, room_in: c_int, buflen: c_int) {
     unsafe {
         let mut room = room_in - 3; // "..." takes 3 chars
         let mut len: c_int = 0;
@@ -4304,6 +4298,36 @@ pub unsafe fn msg_check_for_delay(check_msg_scroll: bool) {
             emsg_on_display = false;
             if check_msg_scroll {
                 msg_scroll = 0;
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn trunc_string_in_place_and_by_copy() {
+        let cases: &[(&str, &str, c_int)] = &[
+            ("text", "text", 20),
+            ("a short text", "a short text", 20),
+            ("a text that fits", "a text that fits", 34),
+            ("a text tha just fits", "a text tha just fits", 20),
+            ("a text that nott fits", "a text t...nott fits", 20),
+        ];
+
+        for &(s, expected, room) in cases {
+            unsafe {
+                let mut buf = [0 as c_char; 40];
+                let c_s = std::ffi::CString::new(s).unwrap();
+                trunc_string(c_s.as_ptr(), buf.as_mut_ptr(), room, 40);
+                assert_eq!(CStr::from_ptr(buf.as_ptr()).to_str().unwrap(), expected);
+
+                let mut inplace = [0 as c_char; 40];
+                ptr::copy_nonoverlapping(c_s.as_ptr(), inplace.as_mut_ptr(), s.len() + 1);
+                trunc_string(inplace.as_ptr(), inplace.as_mut_ptr(), room, 40);
+                assert_eq!(CStr::from_ptr(inplace.as_ptr()).to_str().unwrap(), expected);
             }
         }
     }

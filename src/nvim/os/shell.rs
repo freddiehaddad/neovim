@@ -582,11 +582,7 @@ pub unsafe fn os_expand_wildcards(
 
 /// Builds the argument vector for running the user-configured 'shell' (p_sh)
 /// with an optional command prefixed by 'shellcmdflag' (p_shcf).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn shell_build_argv(
-    cmd: *const c_char,
-    extra_args: *const c_char,
-) -> *mut *mut c_char {
+pub unsafe fn shell_build_argv(cmd: *const c_char, extra_args: *const c_char) -> *mut *mut c_char {
     unsafe {
         let argc = tokenize(p_sh, ptr::null_mut())
             + if !cmd.is_null() {
@@ -632,8 +628,7 @@ pub unsafe fn shell_free_argv(argv: *mut *mut c_char) {
 }
 
 /// Joins shell arguments from `argv` into a new string.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn shell_argv_to_str(argv: *mut *mut c_char) -> *mut c_char {
+pub unsafe fn shell_argv_to_str(argv: *mut *mut c_char) -> *mut c_char {
     unsafe {
         let mut n: usize = 0;
         let mut p = argv;
@@ -840,8 +835,7 @@ pub unsafe fn get_cmd_output(
 }
 
 /// os_system - synchronously execute a command in the shell
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_system(
+pub unsafe fn os_system(
     argv: *mut *mut c_char,
     input: *const c_char,
     len: usize,
@@ -1355,6 +1349,102 @@ mod tests {
             assert_eq!(word_length(c"foo bar".as_ptr()), 3);
             assert_eq!(word_length(c"\"foo bar\" baz".as_ptr()), 9);
             assert_eq!(word_length(c"/Program\" \"Files/zsh -f".as_ptr()), 20);
+        }
+    }
+
+    #[test]
+    fn shell_build_argv_and_argv_to_str() {
+        unsafe {
+            let save_sh = p_sh;
+            let save_shcf = p_shcf;
+            let save_sxq = p_sxq;
+            let save_sxe = p_sxe;
+
+            p_sh = c"/bin/sh".as_ptr().cast_mut();
+            p_shcf = c"-c".as_ptr().cast_mut();
+            p_sxq = c"".as_ptr().cast_mut();
+            p_sxe = c"".as_ptr().cast_mut();
+
+            let collect_argv = |cmd: *const c_char, extra: *const c_char| -> Vec<String> {
+                let res = shell_build_argv(cmd, extra);
+                let mut out = Vec::new();
+                let mut i = 0usize;
+                while !(*res.add(i)).is_null() {
+                    let s = CStr::from_ptr(*res.add(i)).to_str().unwrap().to_string();
+                    out.push(s);
+                    xfree((*res.add(i)).cast());
+                    i += 1;
+                }
+                xfree(res.cast());
+                out
+            };
+
+            assert_eq!(collect_argv(ptr::null(), ptr::null()), vec!["/bin/sh"]);
+            assert_eq!(
+                collect_argv(c"abc  def".as_ptr(), ptr::null()),
+                vec!["/bin/sh", "-c", "abc  def"]
+            );
+            assert_eq!(
+                collect_argv(ptr::null(), c"ghi  jkl".as_ptr()),
+                vec!["/bin/sh", "ghi  jkl"]
+            );
+            assert_eq!(
+                collect_argv(c"abc  def".as_ptr(), c"ghi  jkl".as_ptr()),
+                vec!["/bin/sh", "ghi  jkl", "-c", "abc  def"]
+            );
+
+            p_sh = c"/Program\" \"Files/zsh -f".as_ptr().cast_mut();
+            p_shcf = c"-x -o \"sh word split\" \"-\"c".as_ptr().cast_mut();
+            assert_eq!(
+                collect_argv(c"abc  def".as_ptr(), c"ghi  jkl".as_ptr()),
+                vec![
+                    "/Program Files/zsh",
+                    "-f",
+                    "ghi  jkl",
+                    "-x",
+                    "-o",
+                    "sh word split",
+                    "-c",
+                    "abc  def"
+                ]
+            );
+
+            p_sh = c"/bin/sh".as_ptr().cast_mut();
+            p_shcf = c"-c".as_ptr().cast_mut();
+            p_sxq = c"(".as_ptr().cast_mut();
+            p_sxe = c"\"&|<>()@^".as_ptr().cast_mut();
+            assert_eq!(
+                collect_argv(c"echo &|<>()@^".as_ptr(), ptr::null()),
+                vec!["/bin/sh", "-c", "(echo ^&^|^<^>^(^)^@^^)"]
+            );
+
+            p_sxq = c"\"(".as_ptr().cast_mut();
+            assert_eq!(
+                collect_argv(c"echo -n some text".as_ptr(), ptr::null()),
+                vec!["/bin/sh", "-c", "\"(echo -n some text)\""]
+            );
+
+            p_sxq = c"\"".as_ptr().cast_mut();
+            p_sxe = c"".as_ptr().cast_mut();
+            assert_eq!(
+                collect_argv(c"echo -n some text".as_ptr(), ptr::null()),
+                vec!["/bin/sh", "-c", "\"echo -n some text\""]
+            );
+
+            let mut argv_arr: [*mut c_char; 4] = [
+                c"foo".as_ptr().cast_mut(),
+                c"".as_ptr().cast_mut(),
+                c"bar".as_ptr().cast_mut(),
+                ptr::null_mut(),
+            ];
+            let s = shell_argv_to_str(argv_arr.as_mut_ptr());
+            assert_eq!(CStr::from_ptr(s).to_str().unwrap(), "'foo' '' 'bar'");
+            xfree(s.cast());
+
+            p_sh = save_sh;
+            p_shcf = save_shcf;
+            p_sxq = save_sxq;
+            p_sxe = save_sxe;
         }
     }
 }

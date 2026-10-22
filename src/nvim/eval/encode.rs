@@ -102,8 +102,7 @@ pub(crate) struct MPConvStackVal {
 }
 
 /// Msgpack callback for writing to `readfile()`-style list (`encode_list_write`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn encode_list_write(data: *mut c_void, buf: *const c_char, len: usize) {
+pub unsafe fn encode_list_write(data: *mut c_void, buf: *const c_char, len: usize) {
     unsafe {
         if len == 0 {
             return;
@@ -1938,6 +1937,82 @@ mod tests {
             let slice = std::slice::from_raw_parts(buf.cast::<u8>(), len);
             assert_eq!(slice, b"a\0b\nc");
             xfree(buf.cast::<c_void>());
+        }
+    }
+
+    #[test]
+    fn encode_list_write_handles_nl_and_nul_sequences() {
+        use crate::eval::typval::{tv_list_alloc, tv_list_free};
+
+        unsafe {
+            let check = |chunks: &[&[u8]], expected: &[Option<&[u8]>]| {
+                let l = tv_list_alloc(0);
+                for &chunk in chunks {
+                    encode_list_write(l.cast(), chunk.as_ptr().cast(), chunk.len());
+                }
+                assert_eq!((*l).lv_len as usize, expected.len());
+                let mut li = (*l).lv_first;
+                for &exp in expected {
+                    assert!(!li.is_null());
+                    assert_eq!((*li).li_tv.v_type, VarType::VAR_STRING);
+                    let ptr = (*li).li_tv.vval.v_string;
+                    match exp {
+                        None => assert!(ptr.is_null()),
+                        Some(bytes) => {
+                            assert!(!ptr.is_null());
+                            assert_eq!(CStr::from_ptr(ptr).to_bytes(), bytes);
+                        }
+                    }
+                    li = (*li).li_next;
+                }
+                tv_list_free(l);
+            };
+
+            check(&[b""], &[]);
+            check(&[b"abc"], &[Some(b"abc")]);
+            check(&[b"\nabc"], &[None, Some(b"abc")]);
+            check(&[b"\nabc", b"\nabc"], &[None, Some(b"abc"), Some(b"abc")]);
+            check(&[b"abc\n"], &[Some(b"abc"), None]);
+            check(&[b"abc\n", b"abc\n"], &[Some(b"abc"), Some(b"abc"), None]);
+            check(
+                &[b"\na\nb\n", b"\na\nb\n"],
+                &[
+                    None,
+                    Some(b"a"),
+                    Some(b"b"),
+                    None,
+                    Some(b"a"),
+                    Some(b"b"),
+                    None,
+                ],
+            );
+            check(
+                &[b"\0\n\0\n\0", b"\0\n\0\n\0"],
+                &[
+                    Some(b"\n"),
+                    Some(b"\n"),
+                    Some(b"\n\n"),
+                    Some(b"\n"),
+                    Some(b"\n"),
+                ],
+            );
+            check(
+                &[b"\n\0\n\0\n", b"\n\0\n\0\n"],
+                &[
+                    None,
+                    Some(b"\n"),
+                    Some(b"\n"),
+                    None,
+                    Some(b"\n"),
+                    Some(b"\n"),
+                    None,
+                ],
+            );
+            check(&[b"\n", b"\n"], &[None, None, None]);
+            check(
+                &[b"\n\n\n", b"\n\n\n"],
+                &[None, None, None, None, None, None, None],
+            );
         }
     }
 }

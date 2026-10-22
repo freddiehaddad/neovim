@@ -76,8 +76,8 @@ const DBCS_CHT: c_int = 950;
 const DBCS_CHTU: c_int = 9950;
 const DBCS_DEBUG: c_int = -1;
 
-const kOptCmpFlagInternal: c_uint = 0x01;
-const kOptCmpFlagKeepascii: c_uint = 0x02;
+pub(crate) const kOptCmpFlagInternal: c_uint = 0x01;
+pub(crate) const kOptCmpFlagKeepascii: c_uint = 0x02;
 
 const ICONV_E2BIG: c_int = 7;
 #[cfg(windows)]

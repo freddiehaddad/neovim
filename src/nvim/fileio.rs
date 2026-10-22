@@ -4430,8 +4430,7 @@ unsafe fn vim_closetempdir() {
 }
 
 /// Delete the temp directory and all files it contains.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_deltempdir() {
+pub unsafe fn vim_deltempdir() {
     unsafe {
         if VIM_TEMPDIR.is_null() {
             return;
@@ -4448,8 +4447,7 @@ pub unsafe extern "C" fn vim_deltempdir() {
 }
 
 /// Gets path to Nvim's own temp dir (ending with slash).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_gettempdir() -> *mut c_char {
+pub unsafe fn vim_gettempdir() -> *mut c_char {
     unsafe {
         static mut NOTFOUND: c_int = 0;
         if VIM_TEMPDIR.is_null() || !os_isdir(VIM_TEMPDIR) {
@@ -4510,8 +4508,7 @@ unsafe fn vim_settempdir(tempdir: *mut c_char) -> bool {
 }
 
 /// Return a unique name that can be used for a temp file.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn vim_tempname() -> *mut c_char {
+pub unsafe fn vim_tempname() -> *mut c_char {
     unsafe {
         static mut TEMP_COUNT: u64 = 0;
 
@@ -4606,8 +4603,7 @@ pub unsafe fn match_file_list(list: *mut c_char, sfname: *mut c_char, ffname: *m
 
 /// Convert the given pattern "pat" which has shell style wildcards in it, into
 /// a regular expression, and return the result in allocated memory.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn file_pat_to_reg_pat(
+pub unsafe fn file_pat_to_reg_pat(
     mut pat: *const c_char,
     mut pat_end: *const c_char,
     allow_dirs: *mut c_char,
@@ -4968,7 +4964,7 @@ mod tests {
     fn test_file_pat_to_reg_pat() {
         unsafe {
             let check = |pat: &CStr, expected: &CStr| {
-                let res = file_pat_to_reg_pat(pat.as_ptr(), ptr::null(), ptr::null_mut(), 0);
+                let res = file_pat_to_reg_pat(pat.as_ptr(), ptr::null(), ptr::null_mut(), 1);
                 assert!(!res.is_null());
                 assert_eq!(CStr::from_ptr(res), expected);
                 xfree(res.cast());
@@ -4979,8 +4975,54 @@ mod tests {
             check(c"*path*", c"path");
             check(c"foo?bar", c"^foo.bar$");
             check(c"foo*bar", c"^foo.*bar$");
+            check(c"foo\\?bar", c"^foo?bar$");
+            check(c"foo\\%bar", c"^foo%bar$");
+            check(c"foo\\,bar", c"^foo,bar$");
+            check(c"foo\\ bar", c"^foo bar$");
             check(c"foo.bar", c"^foo\\.bar$");
             check(c"foo{bar,baz}", c"^foo\\(bar\\|baz\\)$");
+            check(c"foo*******bar", c"^foo.*bar$");
+            check(c"********foobar", c"foobar$");
+            check(c"foobar********", c"^foobar");
+            check(c"^blah", c"^^blah$");
+            check(c"foo^bar", c"^foo^bar$");
+            check(c"blah$", c"^blah$$");
+            check(c"foo$bar", c"^foo$bar$");
+        }
+    }
+
+    #[test]
+    fn test_tempdir_and_tempname() {
+        unsafe {
+            if *crate::eval::vars::get_vim_var_str(crate::eval::vars::VV_PROGPATH) == NUL {
+                crate::eval::vars::set_vim_var_string(
+                    crate::eval::vars::VV_PROGPATH,
+                    c"nvim".as_ptr(),
+                    -1,
+                );
+            }
+            vim_deltempdir();
+            let dir1_ptr = vim_gettempdir();
+            assert!(!dir1_ptr.is_null());
+            let dir1 = CStr::from_ptr(dir1_ptr).to_str().unwrap().to_string();
+            assert!(!dir1.is_empty());
+            let dir2 = CStr::from_ptr(vim_gettempdir())
+                .to_str()
+                .unwrap()
+                .to_string();
+            assert_eq!(dir1, dir2);
+
+            let f1_ptr = vim_tempname();
+            let f2_ptr = vim_tempname();
+            assert!(!f1_ptr.is_null());
+            assert!(!f2_ptr.is_null());
+            let f1 = CStr::from_ptr(f1_ptr).to_str().unwrap().to_string();
+            let f2 = CStr::from_ptr(f2_ptr).to_str().unwrap().to_string();
+            assert_ne!(f1, f2);
+            assert!(f1.starts_with(&dir1));
+            xfree(f1_ptr.cast());
+            xfree(f2_ptr.cast());
+            vim_deltempdir();
         }
     }
 }

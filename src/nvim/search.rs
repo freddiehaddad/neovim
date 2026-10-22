@@ -239,8 +239,7 @@ unsafe fn find_substr(haystack: *const c_char, needle: &[u8]) -> bool {
 }
 
 /// Translate search pattern for `vim_regcomp()`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn search_regcomp(
+pub unsafe fn search_regcomp(
     mut pat: *mut c_char,
     mut patlen: usize,
     used_pat: *mut *mut c_char,
@@ -308,8 +307,7 @@ pub unsafe extern "C" fn search_regcomp(
 }
 
 /// Get search pattern used by `search_regcomp()`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_search_pat() -> *mut c_char {
+pub unsafe fn get_search_pat() -> *mut c_char {
     unsafe { mr_pattern }
 }
 
@@ -479,8 +477,7 @@ pub unsafe fn ignorecase_opt(pat: *mut c_char, ic_in: c_int, scs: c_int) -> c_in
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn pat_has_uppercase(pat: *mut c_char) -> bool {
+pub unsafe fn pat_has_uppercase(pat: *mut c_char) -> bool {
     unsafe {
         let mut p = pat;
         let mut magic_val: magic_T = MAGIC_ON;
@@ -4008,5 +4005,33 @@ mod tests {
         assert!(getfile_success(0));
         assert!(getfile_success(-1));
         assert!(!getfile_success(1));
+    }
+
+    #[test]
+    fn pat_has_uppercase_handles_utf8_and_escapes() {
+        unsafe {
+            let save_magic = p_magic;
+            let save_cmp = cmp_flags;
+            p_magic = 1;
+            cmp_flags = crate::mbyte::kOptCmpFlagInternal | crate::mbyte::kOptCmpFlagKeepascii;
+            for (pat, expected) in [
+                (c"", false),
+                (c"ä", false),
+                (c"Ä", true),
+                (c"äaÅ", true),
+                (c"\\", false),
+                (c"ab$\\", false),
+                (c"\\Ab", false),
+                (c"\\AU", true),
+                (c"\\_Ab", false),
+                (c"\\_AU", true),
+                (c"aa\\%Ab", false),
+                (c"aab\\%AU", true),
+            ] {
+                assert_eq!(pat_has_uppercase(pat.as_ptr().cast_mut()), expected);
+            }
+            p_magic = save_magic;
+            cmp_flags = save_cmp;
+        }
     }
 }

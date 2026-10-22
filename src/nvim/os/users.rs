@@ -130,8 +130,7 @@ unsafe fn add_user(users: *mut garray_T, user: *mut c_char, need_copy: bool) {
 ///
 /// # Safety
 /// `users` must be null or a valid writable pointer to a `garray_T`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_get_usernames(users: *mut garray_T) -> c_int {
+pub unsafe fn os_get_usernames(users: *mut garray_T) -> c_int {
     if users.is_null() {
         return FAIL;
     }
@@ -225,8 +224,7 @@ pub unsafe extern "C" fn os_get_username(s: *mut c_char, len: usize) -> c_int {
 ///
 /// # Safety
 /// `s` must be valid for `len` writable bytes.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_get_uname(uid: uv_uid_t, s: *mut c_char, len: usize) -> c_int {
+pub unsafe fn os_get_uname(uid: uv_uid_t, s: *mut c_char, len: usize) -> c_int {
     #[cfg(unix)]
     unsafe {
         let pw = getpwuid(uid);
@@ -246,8 +244,8 @@ pub unsafe extern "C" fn os_get_uname(uid: uv_uid_t, s: *mut c_char, len: usize)
 ///
 /// # Safety
 /// `name` must be null or a valid C string.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_get_userdir(name: *const c_char) -> *mut c_char {
+#[cfg_attr(not(unix), cfg(test))]
+pub unsafe fn os_get_userdir(name: *const c_char) -> *mut c_char {
     #[cfg(unix)]
     unsafe {
         if name.is_null() || *name == 0 {
@@ -338,6 +336,18 @@ mod tests {
             if res == FAIL {
                 assert_eq!(CStr::from_ptr(buf.as_ptr()).to_str().unwrap(), "250");
             }
+
+            assert!(os_get_userdir(c"neovim_user_not_found_test".as_ptr()).is_null());
+
+            let mut ga = garray_T {
+                ga_len: 0,
+                ga_maxlen: 0,
+                ga_itemsize: 0,
+                ga_growsize: 0,
+                ga_data: std::ptr::null_mut(),
+            };
+            assert_eq!(os_get_usernames(&mut ga), OK);
+            ga_clear_strings(&mut ga);
         }
     }
 }
