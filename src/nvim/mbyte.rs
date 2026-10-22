@@ -1501,7 +1501,7 @@ pub unsafe fn utfc_ptr2len_len(p: *const c_char, size: c_int) -> c_int {
     }
 }
 
-pub unsafe fn utf_char2len(c: c_int) -> c_int {
+pub const fn utf_char2len(c: c_int) -> c_int {
     if c < 0x80 {
         1
     } else if c < 0x800 {

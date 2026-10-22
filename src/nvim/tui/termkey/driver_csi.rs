@@ -1,8 +1,7 @@
 //! CSI / SS3 / DCS / OSC / APC driver for libtermkey (`src/nvim/tui/termkey/driver-csi.c`).
 
-use std::ffi::{c_char, c_int, c_uchar, c_uint, c_void};
+use std::ffi::{c_char, c_int, c_uchar, c_uint};
 
-use crate::memory::{xfree, xmalloc};
 use crate::tui::termkey::driver_ti::{
     TERMKEY_EVENT_PRESS, TERMKEY_EVENT_RELEASE, TERMKEY_EVENT_REPEAT, TERMKEY_EVENT_UNKNOWN,
     TERMKEY_KEYMOD_ALT, TERMKEY_KEYMOD_SHIFT, TERMKEY_RES_AGAIN, TERMKEY_RES_EOF,
@@ -17,8 +16,9 @@ use crate::tui::termkey::driver_ti::{
     TERMKEY_TYPE_DCS, TERMKEY_TYPE_FUNCTION, TERMKEY_TYPE_KEYSYM, TERMKEY_TYPE_MODEREPORT,
     TERMKEY_TYPE_MOUSE, TERMKEY_TYPE_OSC, TERMKEY_TYPE_POSITION, TERMKEY_TYPE_UNICODE,
     TERMKEY_TYPE_UNKNOWN_CSI, TermKey, TermKeyEvent, TermKeyKey, TermKeyResult, TermKeySym,
-    TermKeyType, TerminfoEntry, keyinfo,
+    TermKeyType, keyinfo,
 };
+use crate::tui::termkey::termkey::{emit_codepoint, peekkey_mouse};
 
 pub type TermKeyMouseEvent = c_int;
 pub const TERMKEY_MOUSE_UNKNOWN: TermKeyMouseEvent = 0;
@@ -35,46 +35,129 @@ pub struct TermKeyCsiParam {
     pub length: usize,
 }
 
-#[repr(C)]
+#[derive(Default)]
 pub struct TermKeyCsi {
-    pub tk: *mut TermKey,
     pub saved_string_id: c_int,
-    pub saved_string: *mut c_char,
+    pub saved_string: Vec<c_char>,
 }
-
-type CsiHandler = Option<
-    unsafe fn(
-        tk: *mut TermKey,
-        key: *mut TermKeyKey,
-        cmd: c_int,
-        params: *mut TermKeyCsiParam,
-        nparams: c_int,
-    ) -> TermKeyResult,
->;
 
 const NCSIFUNCS: usize = 35;
 
-static mut KEYINFO_INITIALISED: c_int = 0;
-static mut SS3S: [keyinfo; 64] = [keyinfo {
+const EMPTY_KEYINFO: keyinfo = keyinfo {
     r#type: 0,
     sym: TERMKEY_SYM_UNKNOWN,
     modifier_mask: 0,
     modifier_set: 0,
-}; 64];
-static mut SS3_KPALTS: [c_char; 64] = [0; 64];
-static mut CSI_HANDLERS: [CsiHandler; 64] = [None; 64];
-static mut CSI_SS3S: [keyinfo; 64] = [keyinfo {
-    r#type: 0,
-    sym: TERMKEY_SYM_UNKNOWN,
-    modifier_mask: 0,
-    modifier_set: 0,
-}; 64];
-static mut CSIFUNCS: [keyinfo; NCSIFUNCS] = [keyinfo {
-    r#type: 0,
-    sym: TERMKEY_SYM_UNKNOWN,
-    modifier_mask: 0,
-    modifier_set: 0,
-}; NCSIFUNCS];
+};
+
+const fn ki(r#type: TermKeyType, sym: TermKeySym) -> keyinfo {
+    keyinfo {
+        r#type,
+        sym,
+        modifier_mask: 0,
+        modifier_set: 0,
+    }
+}
+
+const CSI_SS3S: [keyinfo; 64] = {
+    let mut tbl = [EMPTY_KEYINFO; 64];
+    tbl[(b'A' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_UP);
+    tbl[(b'B' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_DOWN);
+    tbl[(b'C' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_RIGHT);
+    tbl[(b'D' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_LEFT);
+    tbl[(b'E' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_BEGIN);
+    tbl[(b'F' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_END);
+    tbl[(b'H' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_HOME);
+    tbl[(b'P' - 0x40) as usize] = ki(TERMKEY_TYPE_FUNCTION, 1);
+    tbl[(b'Q' - 0x40) as usize] = ki(TERMKEY_TYPE_FUNCTION, 2);
+    tbl[(b'R' - 0x40) as usize] = ki(TERMKEY_TYPE_FUNCTION, 3);
+    tbl[(b'S' - 0x40) as usize] = ki(TERMKEY_TYPE_FUNCTION, 4);
+    tbl[(b'Z' - 0x40) as usize] = keyinfo {
+        r#type: TERMKEY_TYPE_KEYSYM,
+        sym: TERMKEY_SYM_TAB,
+        modifier_mask: TERMKEY_KEYMOD_SHIFT,
+        modifier_set: TERMKEY_KEYMOD_SHIFT,
+    };
+    tbl
+};
+
+const SS3S: [keyinfo; 64] = {
+    let mut tbl = [EMPTY_KEYINFO; 64];
+    tbl[(b'M' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KPENTER);
+    tbl[(b'X' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KPEQUALS);
+    tbl[(b'j' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KPMULT);
+    tbl[(b'k' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KPPLUS);
+    tbl[(b'l' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KPCOMMA);
+    tbl[(b'm' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KPMINUS);
+    tbl[(b'n' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KPPERIOD);
+    tbl[(b'o' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KPDIV);
+    tbl[(b'p' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KP0);
+    tbl[(b'q' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KP1);
+    tbl[(b'r' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KP2);
+    tbl[(b's' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KP3);
+    tbl[(b't' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KP4);
+    tbl[(b'u' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KP5);
+    tbl[(b'v' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KP6);
+    tbl[(b'w' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KP7);
+    tbl[(b'x' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KP8);
+    tbl[(b'y' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KP9);
+    tbl
+};
+
+const SS3_KPALTS: [c_char; 64] = {
+    let mut tbl = [0 as c_char; 64];
+    tbl[(b'X' - 0x40) as usize] = b'=' as c_char;
+    tbl[(b'j' - 0x40) as usize] = b'*' as c_char;
+    tbl[(b'k' - 0x40) as usize] = b'+' as c_char;
+    tbl[(b'l' - 0x40) as usize] = b',' as c_char;
+    tbl[(b'm' - 0x40) as usize] = b'-' as c_char;
+    tbl[(b'n' - 0x40) as usize] = b'.' as c_char;
+    tbl[(b'o' - 0x40) as usize] = b'/' as c_char;
+    tbl[(b'p' - 0x40) as usize] = b'0' as c_char;
+    tbl[(b'q' - 0x40) as usize] = b'1' as c_char;
+    tbl[(b'r' - 0x40) as usize] = b'2' as c_char;
+    tbl[(b's' - 0x40) as usize] = b'3' as c_char;
+    tbl[(b't' - 0x40) as usize] = b'4' as c_char;
+    tbl[(b'u' - 0x40) as usize] = b'5' as c_char;
+    tbl[(b'v' - 0x40) as usize] = b'6' as c_char;
+    tbl[(b'w' - 0x40) as usize] = b'7' as c_char;
+    tbl[(b'x' - 0x40) as usize] = b'8' as c_char;
+    tbl[(b'y' - 0x40) as usize] = b'9' as c_char;
+    tbl
+};
+
+const CSIFUNCS: [keyinfo; NCSIFUNCS] = {
+    let mut tbl = [EMPTY_KEYINFO; NCSIFUNCS];
+    tbl[1] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_FIND);
+    tbl[2] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_INSERT);
+    tbl[3] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_DELETE);
+    tbl[4] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_SELECT);
+    tbl[5] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_PAGEUP);
+    tbl[6] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_PAGEDOWN);
+    tbl[7] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_HOME);
+    tbl[8] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_END);
+    tbl[11] = ki(TERMKEY_TYPE_FUNCTION, 1);
+    tbl[12] = ki(TERMKEY_TYPE_FUNCTION, 2);
+    tbl[13] = ki(TERMKEY_TYPE_FUNCTION, 3);
+    tbl[14] = ki(TERMKEY_TYPE_FUNCTION, 4);
+    tbl[15] = ki(TERMKEY_TYPE_FUNCTION, 5);
+    tbl[17] = ki(TERMKEY_TYPE_FUNCTION, 6);
+    tbl[18] = ki(TERMKEY_TYPE_FUNCTION, 7);
+    tbl[19] = ki(TERMKEY_TYPE_FUNCTION, 8);
+    tbl[20] = ki(TERMKEY_TYPE_FUNCTION, 9);
+    tbl[21] = ki(TERMKEY_TYPE_FUNCTION, 10);
+    tbl[23] = ki(TERMKEY_TYPE_FUNCTION, 11);
+    tbl[24] = ki(TERMKEY_TYPE_FUNCTION, 12);
+    tbl[25] = ki(TERMKEY_TYPE_FUNCTION, 13);
+    tbl[26] = ki(TERMKEY_TYPE_FUNCTION, 14);
+    tbl[28] = ki(TERMKEY_TYPE_FUNCTION, 15);
+    tbl[29] = ki(TERMKEY_TYPE_FUNCTION, 16);
+    tbl[31] = ki(TERMKEY_TYPE_FUNCTION, 17);
+    tbl[32] = ki(TERMKEY_TYPE_FUNCTION, 18);
+    tbl[33] = ki(TERMKEY_TYPE_FUNCTION, 19);
+    tbl[34] = ki(TERMKEY_TYPE_FUNCTION, 20);
+    tbl
+};
 
 #[inline]
 pub unsafe fn termkey_key_get_linecol(key: *const TermKeyKey, line: *mut c_int, col: *mut c_int) {
@@ -169,50 +252,6 @@ unsafe fn handle_csi_ss3_full(
     }
 }
 
-unsafe fn register_csi_ss3_full(
-    key_type: TermKeyType,
-    sym: TermKeySym,
-    modifier_set: c_int,
-    modifier_mask: c_int,
-    cmd: u8,
-) {
-    if !(0x40..0x80).contains(&cmd) {
-        return;
-    }
-    let idx = usize::from(cmd - 0x40);
-    unsafe {
-        CSI_SS3S[idx] = keyinfo {
-            r#type: key_type,
-            sym,
-            modifier_mask,
-            modifier_set,
-        };
-        CSI_HANDLERS[idx] = Some(handle_csi_ss3_full);
-    }
-}
-
-unsafe fn register_csi_ss3(key_type: TermKeyType, sym: TermKeySym, cmd: u8) {
-    unsafe {
-        register_csi_ss3_full(key_type, sym, 0, 0, cmd);
-    }
-}
-
-unsafe fn register_ss3kpalt(key_type: TermKeyType, sym: TermKeySym, cmd: u8, kpalt: c_char) {
-    if !(0x40..0x80).contains(&cmd) {
-        return;
-    }
-    let idx = usize::from(cmd - 0x40);
-    unsafe {
-        SS3S[idx] = keyinfo {
-            r#type: key_type,
-            sym,
-            modifier_mask: 0,
-            modifier_set: 0,
-        };
-        SS3_KPALTS[idx] = kpalt;
-    }
-}
-
 unsafe fn handle_csifunc(
     tk: *mut TermKey,
     key: *mut TermKeyKey,
@@ -277,7 +316,7 @@ unsafe fn handle_csifunc(
             }
 
             let m = (*key).modifiers;
-            ((*tk).method.emit_codepoint.unwrap_unchecked())(tk, args[2], key);
+            emit_codepoint(tk, args[2], key);
             (*key).modifiers |= m;
         } else if args[0] >= 0 && (args[0] as usize) < NCSIFUNCS {
             let idx = args[0] as usize;
@@ -294,21 +333,6 @@ unsafe fn handle_csifunc(
         }
 
         result
-    }
-}
-
-unsafe fn register_csifunc(key_type: TermKeyType, sym: TermKeySym, number: usize) {
-    if number >= NCSIFUNCS {
-        return;
-    }
-    unsafe {
-        CSIFUNCS[number] = keyinfo {
-            r#type: key_type,
-            sym,
-            modifier_mask: 0,
-            modifier_set: 0,
-        };
-        CSI_HANDLERS[usize::from(b'~' - 0x40)] = Some(handle_csifunc);
     }
 }
 
@@ -361,7 +385,7 @@ unsafe fn handle_csi_u(
 
         let m = (*key).modifiers;
         (*key).r#type = TERMKEY_TYPE_KEYSYM;
-        ((*tk).method.emit_codepoint.unwrap_unchecked())(tk, args[0], key);
+        emit_codepoint(tk, args[0], key);
         (*key).modifiers |= m;
 
         TERMKEY_RES_KEY
@@ -634,7 +658,7 @@ unsafe fn parse_csi(
 ) -> TermKeyResult {
     unsafe {
         let mut csi_end = introlen;
-        let buf = (*tk).buffer.add((*tk).buffstart);
+        let buf = (*tk).buffer.as_ptr().add((*tk).buffstart);
 
         while csi_end < (*tk).buffcount {
             let b = *buf.add(csi_end);
@@ -779,154 +803,8 @@ pub unsafe fn termkey_interpret_csi_param(
     }
 }
 
-unsafe fn register_keys() -> c_int {
-    unsafe {
-        for i in 0..64 {
-            CSI_SS3S[i].sym = TERMKEY_SYM_UNKNOWN;
-            SS3S[i].sym = TERMKEY_SYM_UNKNOWN;
-            SS3_KPALTS[i] = 0;
-        }
-        for i in 0..NCSIFUNCS {
-            (*(&raw mut CSIFUNCS).cast::<keyinfo>().add(i)).sym = TERMKEY_SYM_UNKNOWN;
-        }
-
-        register_csi_ss3(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_UP, b'A');
-        register_csi_ss3(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_DOWN, b'B');
-        register_csi_ss3(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_RIGHT, b'C');
-        register_csi_ss3(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_LEFT, b'D');
-        register_csi_ss3(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_BEGIN, b'E');
-        register_csi_ss3(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_END, b'F');
-        register_csi_ss3(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_HOME, b'H');
-        register_csi_ss3(TERMKEY_TYPE_FUNCTION, 1, b'P');
-        register_csi_ss3(TERMKEY_TYPE_FUNCTION, 2, b'Q');
-        register_csi_ss3(TERMKEY_TYPE_FUNCTION, 3, b'R');
-        register_csi_ss3(TERMKEY_TYPE_FUNCTION, 4, b'S');
-
-        register_csi_ss3_full(
-            TERMKEY_TYPE_KEYSYM,
-            TERMKEY_SYM_TAB,
-            TERMKEY_KEYMOD_SHIFT,
-            TERMKEY_KEYMOD_SHIFT,
-            b'Z',
-        );
-
-        register_ss3kpalt(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KPENTER, b'M', 0);
-        register_ss3kpalt(
-            TERMKEY_TYPE_KEYSYM,
-            TERMKEY_SYM_KPEQUALS,
-            b'X',
-            b'=' as c_char,
-        );
-        register_ss3kpalt(
-            TERMKEY_TYPE_KEYSYM,
-            TERMKEY_SYM_KPMULT,
-            b'j',
-            b'*' as c_char,
-        );
-        register_ss3kpalt(
-            TERMKEY_TYPE_KEYSYM,
-            TERMKEY_SYM_KPPLUS,
-            b'k',
-            b'+' as c_char,
-        );
-        register_ss3kpalt(
-            TERMKEY_TYPE_KEYSYM,
-            TERMKEY_SYM_KPCOMMA,
-            b'l',
-            b',' as c_char,
-        );
-        register_ss3kpalt(
-            TERMKEY_TYPE_KEYSYM,
-            TERMKEY_SYM_KPMINUS,
-            b'm',
-            b'-' as c_char,
-        );
-        register_ss3kpalt(
-            TERMKEY_TYPE_KEYSYM,
-            TERMKEY_SYM_KPPERIOD,
-            b'n',
-            b'.' as c_char,
-        );
-        register_ss3kpalt(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KPDIV, b'o', b'/' as c_char);
-        register_ss3kpalt(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KP0, b'p', b'0' as c_char);
-        register_ss3kpalt(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KP1, b'q', b'1' as c_char);
-        register_ss3kpalt(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KP2, b'r', b'2' as c_char);
-        register_ss3kpalt(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KP3, b's', b'3' as c_char);
-        register_ss3kpalt(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KP4, b't', b'4' as c_char);
-        register_ss3kpalt(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KP5, b'u', b'5' as c_char);
-        register_ss3kpalt(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KP6, b'v', b'6' as c_char);
-        register_ss3kpalt(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KP7, b'w', b'7' as c_char);
-        register_ss3kpalt(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KP8, b'x', b'8' as c_char);
-        register_ss3kpalt(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KP9, b'y', b'9' as c_char);
-
-        register_csifunc(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_FIND, 1);
-        register_csifunc(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_INSERT, 2);
-        register_csifunc(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_DELETE, 3);
-        register_csifunc(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_SELECT, 4);
-        register_csifunc(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_PAGEUP, 5);
-        register_csifunc(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_PAGEDOWN, 6);
-        register_csifunc(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_HOME, 7);
-        register_csifunc(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_END, 8);
-
-        register_csifunc(TERMKEY_TYPE_FUNCTION, 1, 11);
-        register_csifunc(TERMKEY_TYPE_FUNCTION, 2, 12);
-        register_csifunc(TERMKEY_TYPE_FUNCTION, 3, 13);
-        register_csifunc(TERMKEY_TYPE_FUNCTION, 4, 14);
-        register_csifunc(TERMKEY_TYPE_FUNCTION, 5, 15);
-        register_csifunc(TERMKEY_TYPE_FUNCTION, 6, 17);
-        register_csifunc(TERMKEY_TYPE_FUNCTION, 7, 18);
-        register_csifunc(TERMKEY_TYPE_FUNCTION, 8, 19);
-        register_csifunc(TERMKEY_TYPE_FUNCTION, 9, 20);
-        register_csifunc(TERMKEY_TYPE_FUNCTION, 10, 21);
-        register_csifunc(TERMKEY_TYPE_FUNCTION, 11, 23);
-        register_csifunc(TERMKEY_TYPE_FUNCTION, 12, 24);
-        register_csifunc(TERMKEY_TYPE_FUNCTION, 13, 25);
-        register_csifunc(TERMKEY_TYPE_FUNCTION, 14, 26);
-        register_csifunc(TERMKEY_TYPE_FUNCTION, 15, 28);
-        register_csifunc(TERMKEY_TYPE_FUNCTION, 16, 29);
-        register_csifunc(TERMKEY_TYPE_FUNCTION, 17, 31);
-        register_csifunc(TERMKEY_TYPE_FUNCTION, 18, 32);
-        register_csifunc(TERMKEY_TYPE_FUNCTION, 19, 33);
-        register_csifunc(TERMKEY_TYPE_FUNCTION, 20, 34);
-
-        CSI_HANDLERS[usize::from(b'u' - 0x40)] = Some(handle_csi_u);
-        CSI_HANDLERS[usize::from(b'M' - 0x40)] = Some(handle_csi_m);
-        CSI_HANDLERS[usize::from(b'm' - 0x40)] = Some(handle_csi_m);
-        CSI_HANDLERS[usize::from(b'R' - 0x40)] = Some(handle_csi_R);
-        CSI_HANDLERS[usize::from(b'y' - 0x40)] = Some(handle_csi_y);
-
-        KEYINFO_INITIALISED = 1;
-        1
-    }
-}
-
-pub unsafe fn new_driver_csi(tk: *mut TermKey, _term: *mut TerminfoEntry) -> *mut c_void {
-    unsafe {
-        if KEYINFO_INITIALISED == 0 && register_keys() == 0 {
-            return std::ptr::null_mut();
-        }
-
-        let csi = xmalloc(std::mem::size_of::<TermKeyCsi>()).cast::<TermKeyCsi>();
-        (*csi).tk = tk;
-        (*csi).saved_string_id = 0;
-        (*csi).saved_string = std::ptr::null_mut();
-        csi.cast::<c_void>()
-    }
-}
-
-pub unsafe fn free_driver_csi(info: *mut c_void) {
-    unsafe {
-        let csi = info.cast::<TermKeyCsi>();
-        if !(*csi).saved_string.is_null() {
-            xfree((*csi).saved_string.cast());
-        }
-        xfree(csi.cast());
-    }
-}
-
 unsafe fn peekkey_csi_csi(
     tk: *mut TermKey,
-    _csi: *mut TermKeyCsi,
     introlen: usize,
     key: *mut TermKeyKey,
     force: c_int,
@@ -954,7 +832,7 @@ unsafe fn peekkey_csi_csi(
             if force == 0 {
                 return TERMKEY_RES_AGAIN;
             }
-            ((*tk).method.emit_codepoint.unwrap_unchecked())(tk, b'[' as c_int, key);
+            emit_codepoint(tk, b'[' as c_int, key);
             (*key).modifiers |= TERMKEY_KEYMOD_ALT;
             *nbytep = introlen;
             return TERMKEY_RES_KEY;
@@ -964,7 +842,7 @@ unsafe fn peekkey_csi_csi(
             (*tk).buffstart += csi_len;
             (*tk).buffcount -= csi_len;
 
-            let mouse_result = ((*tk).method.peekkey_mouse.unwrap_unchecked())(tk, key, nbytep);
+            let mouse_result = peekkey_mouse(tk, key, nbytep);
 
             (*tk).buffstart -= csi_len;
             (*tk).buffcount += csi_len;
@@ -976,10 +854,20 @@ unsafe fn peekkey_csi_csi(
             return mouse_result;
         }
 
-        let mut result = TERMKEY_RES_NONE;
-        if let Some(handler) = CSI_HANDLERS[((cmd & 0xff) - 0x40) as usize] {
-            result = handler(tk, key, cmd as c_int, params.as_mut_ptr(), nparams as c_int);
-        }
+        let cmd_i32 = cmd as c_int;
+        let np_i32 = nparams as c_int;
+        let params_ptr = params.as_mut_ptr();
+        let result = match (cmd & 0xff) as u8 {
+            b'u' => handle_csi_u(tk, key, cmd_i32, params_ptr, np_i32),
+            b'M' | b'm' => handle_csi_m(tk, key, cmd_i32, params_ptr, np_i32),
+            b'R' => handle_csi_R(tk, key, cmd_i32, params_ptr, np_i32),
+            b'y' => handle_csi_y(tk, key, cmd_i32, params_ptr, np_i32),
+            b'~' => handle_csifunc(tk, key, cmd_i32, params_ptr, np_i32),
+            b'A'..=b'F' | b'H' | b'P'..=b'S' | b'Z' => {
+                handle_csi_ss3_full(tk, key, cmd_i32, params_ptr, np_i32)
+            }
+            _ => TERMKEY_RES_NONE,
+        };
 
         if result == TERMKEY_RES_NONE {
             (*key).r#type = TERMKEY_TYPE_UNKNOWN_CSI;
@@ -998,7 +886,6 @@ unsafe fn peekkey_csi_csi(
 
 unsafe fn peekkey_ss3(
     tk: *mut TermKey,
-    _csi: *mut TermKeyCsi,
     introlen: usize,
     key: *mut TermKeyKey,
     force: c_int,
@@ -1009,13 +896,14 @@ unsafe fn peekkey_ss3(
             if force == 0 {
                 return TERMKEY_RES_AGAIN;
             }
-            ((*tk).method.emit_codepoint.unwrap_unchecked())(tk, b'O' as c_int, key);
+            emit_codepoint(tk, b'O' as c_int, key);
             (*key).modifiers |= TERMKEY_KEYMOD_ALT;
             *nbytep = (*tk).buffcount;
             return TERMKEY_RES_KEY;
         }
 
-        let cmd = *(*tk).buffer.add((*tk).buffstart + introlen);
+        let buf = &(*tk).buffer;
+        let cmd = buf[(*tk).buffstart + introlen];
         if !(0x40..0x80).contains(&cmd) {
             return TERMKEY_RES_NONE;
         }
@@ -1050,7 +938,6 @@ unsafe fn peekkey_ss3(
 
 unsafe fn peekkey_ctrlstring(
     tk: *mut TermKey,
-    csi: *mut TermKeyCsi,
     introlen: usize,
     key: *mut TermKeyKey,
     _force: c_int,
@@ -1058,7 +945,7 @@ unsafe fn peekkey_ctrlstring(
 ) -> TermKeyResult {
     unsafe {
         let mut str_end = introlen;
-        let buf = (*tk).buffer.add((*tk).buffstart);
+        let buf = (*tk).buffer.as_ptr().add((*tk).buffstart);
 
         while str_end < (*tk).buffcount {
             let b = *buf.add(str_end);
@@ -1080,22 +967,20 @@ unsafe fn peekkey_ctrlstring(
             *nbytep += 1;
         }
 
-        if !(*csi).saved_string.is_null() {
-            xfree((*csi).saved_string.cast());
-        }
-
         let len = str_end - introlen;
-        (*csi).saved_string_id += 1;
-        (*csi).saved_string = xmalloc(len + 1).cast::<c_char>();
+        let saved_string = &mut (*tk).csi.saved_string;
+        saved_string.clear();
+        saved_string.reserve(len + 1);
+        (*tk).csi.saved_string_id += 1;
 
         let src = buf.add(introlen).cast::<c_char>();
         let mut copied = 0usize;
         while copied < len && *src.add(copied) != 0 {
-            *(*csi).saved_string.add(copied) = *src.add(copied);
+            saved_string.push(*src.add(copied));
             copied += 1;
         }
         while copied <= len {
-            *(*csi).saved_string.add(copied) = 0;
+            saved_string.push(0);
             copied += 1;
         }
 
@@ -1115,7 +1000,7 @@ unsafe fn peekkey_ctrlstring(
             }
         }
 
-        (*key).code.number = (*csi).saved_string_id;
+        (*key).code.number = (*tk).csi.saved_string_id;
         (*key).modifiers = 0;
 
         TERMKEY_RES_KEY
@@ -1124,7 +1009,6 @@ unsafe fn peekkey_ctrlstring(
 
 pub unsafe fn peekkey_csi(
     tk: *mut TermKey,
-    info: *mut c_void,
     key: *mut TermKeyKey,
     force: c_int,
     nbytep: *mut usize,
@@ -1138,8 +1022,7 @@ pub unsafe fn peekkey_csi(
             };
         }
 
-        let csi = info.cast::<TermKeyCsi>();
-        let buf = (*tk).buffer.add((*tk).buffstart);
+        let buf = (*tk).buffer.as_ptr().add((*tk).buffstart);
 
         match *buf {
             0x1b => {
@@ -1147,15 +1030,15 @@ pub unsafe fn peekkey_csi(
                     return TERMKEY_RES_NONE;
                 }
                 match *buf.add(1) {
-                    0x4f => peekkey_ss3(tk, csi, 2, key, force, nbytep),
-                    0x50 | 0x5d | 0x5f => peekkey_ctrlstring(tk, csi, 2, key, force, nbytep),
-                    0x5b => peekkey_csi_csi(tk, csi, 2, key, force, nbytep),
+                    0x4f => peekkey_ss3(tk, 2, key, force, nbytep),
+                    0x50 | 0x5d | 0x5f => peekkey_ctrlstring(tk, 2, key, force, nbytep),
+                    0x5b => peekkey_csi_csi(tk, 2, key, force, nbytep),
                     _ => TERMKEY_RES_NONE,
                 }
             }
-            0x8f => peekkey_ss3(tk, csi, 1, key, force, nbytep),
-            0x90 | 0x9d => peekkey_ctrlstring(tk, csi, 1, key, force, nbytep),
-            0x9b => peekkey_csi_csi(tk, csi, 1, key, force, nbytep),
+            0x8f => peekkey_ss3(tk, 1, key, force, nbytep),
+            0x90 | 0x9d => peekkey_ctrlstring(tk, 1, key, force, nbytep),
+            0x9b => peekkey_csi_csi(tk, 1, key, force, nbytep),
             _ => TERMKEY_RES_NONE,
         }
     }

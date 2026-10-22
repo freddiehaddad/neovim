@@ -1,9 +1,8 @@
 //! Terminfo driver for libtermkey (`src/nvim/tui/termkey/driver-ti.c`).
 
-use std::ffi::{c_char, c_int, c_uchar, c_void};
+use std::ffi::{CStr, c_char, c_int, c_void};
 
-use crate::memory::{xfree, xmalloc, xstrdup};
-use crate::tui::terminfo::{kTerm_keypad_local, kTerm_keypad_xmit};
+use crate::tui::termkey::termkey::peekkey_mouse;
 
 pub type TermKeyResult = c_int;
 pub const TERMKEY_RES_NONE: TermKeyResult = 0;
@@ -166,104 +165,82 @@ pub type TermKeyTerminfoGetstrHook = Option<
     unsafe fn(name: *const c_char, value: *const c_char, data: *mut c_void) -> *const c_char,
 >;
 
-pub type TermKeyPeekkeyFn = Option<
-    unsafe fn(
-        tk: *mut TermKey,
-        info: *mut c_void,
-        key: *mut TermKeyKey,
-        force: c_int,
-        nbytes: *mut usize,
-    ) -> TermKeyResult,
->;
-
-pub type TermKeyPeekkeySimpleFn = Option<
-    unsafe fn(
-        tk: *mut TermKey,
-        key: *mut TermKeyKey,
-        force: c_int,
-        nbytes: *mut usize,
-    ) -> TermKeyResult,
->;
-
-#[repr(C)]
-pub struct TermKeyDriver {
-    pub name: *const c_char,
-    pub new_driver: Option<unsafe fn(tk: *mut TermKey, term: *mut TerminfoEntry) -> *mut c_void>,
-    pub free_driver: Option<unsafe fn(info: *mut c_void)>,
-    pub start_driver: Option<unsafe fn(tk: *mut TermKey, info: *mut c_void) -> c_int>,
-    pub stop_driver: Option<unsafe fn(tk: *mut TermKey, info: *mut c_void) -> c_int>,
-    pub peekkey: TermKeyPeekkeyFn,
-}
-
-#[repr(C)]
-pub struct TermKeyDriverNode {
-    pub driver: *mut TermKeyDriver,
-    pub info: *mut c_void,
-    pub next: *mut TermKeyDriverNode,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct TermKeyMethods {
-    pub emit_codepoint: Option<unsafe fn(tk: *mut TermKey, codepoint: c_int, key: *mut TermKeyKey)>,
-    pub peekkey_simple: TermKeyPeekkeySimpleFn,
-    pub peekkey_mouse: Option<
-        unsafe fn(tk: *mut TermKey, key: *mut TermKeyKey, nbytes: *mut usize) -> TermKeyResult,
-    >,
-}
-
-#[repr(C)]
 pub struct TermKey {
-    pub fd: c_int,
     pub flags: c_int,
     pub canonflags: c_int,
-    pub buffer: *mut c_uchar,
+    pub buffer: Vec<u8>,
     pub buffstart: usize,
     pub buffcount: usize,
-    pub buffsize: usize,
     pub hightide: usize,
     pub ti_getstr_hook: TermKeyTerminfoGetstrHook,
     pub ti_getstr_hook_data: *mut c_void,
-    pub waittime: c_int,
     pub is_closed: c_char,
     pub is_started: c_char,
-    pub nkeynames: c_int,
-    pub keynames: *mut *const c_char,
+    pub keynames: Vec<*const c_char>,
     pub c0: [keyinfo; 32],
-    pub drivers: *mut TermKeyDriverNode,
-    pub method: TermKeyMethods,
+    pub ti: TermKeyTI,
+    pub csi: crate::tui::termkey::driver_csi::TermKeyCsi,
 }
 
-type trie_nodetype = c_int;
-const TYPE_KEY: trie_nodetype = 0;
-const TYPE_ARR: trie_nodetype = 1;
-
-#[repr(C)]
-pub struct trie_node {
-    pub r#type: trie_nodetype,
+enum TrieNode {
+    Key(keyinfo),
+    Arr {
+        min: u8,
+        max: u8,
+        children: Vec<Option<Box<TrieNode>>>,
+    },
 }
 
-#[repr(C)]
-pub struct trie_node_key {
-    pub r#type: trie_nodetype,
-    pub key: keyinfo,
+impl TrieNode {
+    fn new_arr(min: u8, max: u8) -> Self {
+        let count = if max >= min {
+            (usize::from(max) - usize::from(min)) + 1
+        } else {
+            0
+        };
+        let mut children = Vec::with_capacity(count);
+        children.resize_with(count, || None);
+        Self::Arr { min, max, children }
+    }
+
+    fn lookup_next(&self, b: u8) -> Option<&TrieNode> {
+        match self {
+            Self::Key(_) => std::process::abort(),
+            Self::Arr { min, max, children } => {
+                if b < *min || b > *max {
+                    None
+                } else {
+                    children[usize::from(b - *min)].as_deref()
+                }
+            }
+        }
+    }
+
+    fn compress(self) -> Self {
+        match self {
+            Self::Key(k) => Self::Key(k),
+            Self::Arr { mut children, .. } => {
+                let Some(min) = children.iter().position(Option::is_some) else {
+                    return Self::new_arr(1, 0);
+                };
+                let max = children.iter().rposition(Option::is_some).unwrap();
+                let compressed = children
+                    .drain(min..=max)
+                    .map(|child| child.map(|n| Box::new((*n).compress())))
+                    .collect();
+                Self::Arr {
+                    min: min as u8,
+                    max: max as u8,
+                    children: compressed,
+                }
+            }
+        }
+    }
 }
 
-#[repr(C)]
-pub struct trie_node_arr {
-    pub r#type: trie_nodetype,
-    pub min: u8,
-    pub max: u8,
-    pub arr: [*mut trie_node; 0],
-}
-
-#[repr(C)]
 pub struct TermKeyTI {
-    pub tk: *mut TermKey,
     pub ti: *mut TerminfoEntry,
-    pub root: *mut trie_node,
-    pub start_string: *mut c_char,
-    pub stop_string: *mut c_char,
+    root: Option<Box<TrieNode>>,
 }
 
 struct TiFuncEntry {
@@ -389,212 +366,70 @@ const FUNCS: &[TiFuncEntry] = &[
     },
 ];
 
-unsafe fn new_node_key(
-    node_type: TermKeyType,
-    sym: TermKeySym,
-    modmask: c_int,
-    modset: c_int,
-) -> *mut trie_node {
-    unsafe {
-        let n = xmalloc(std::mem::size_of::<trie_node_key>()).cast::<trie_node_key>();
-        (*n).r#type = TYPE_KEY;
-        (*n).key = keyinfo {
-            r#type: node_type,
-            sym,
-            modifier_mask: modmask,
-            modifier_set: modset,
+fn insert_seq(root: &mut TrieNode, seq: &[u8], info: keyinfo) {
+    let mut cur = root;
+    for (idx, &b) in seq.iter().enumerate() {
+        let is_last = idx + 1 == seq.len();
+        let TrieNode::Arr { min, max, children } = cur else {
+            std::process::abort();
         };
-        n.cast::<trie_node>()
-    }
-}
-
-unsafe fn new_node_arr(min: u8, max: u8) -> *mut trie_node {
-    unsafe {
-        let count = if max >= min {
-            (usize::from(max) - usize::from(min)) + 1
-        } else {
-            0
-        };
-        let n = xmalloc(
-            std::mem::size_of::<trie_node_arr>() + count * std::mem::size_of::<*mut trie_node>(),
-        )
-        .cast::<trie_node_arr>();
-        (*n).r#type = TYPE_ARR;
-        (*n).min = min;
-        (*n).max = max;
-        let arr_ptr = (*n).arr.as_mut_ptr();
-        for i in 0..count {
-            *arr_ptr.add(i) = std::ptr::null_mut();
+        if b < *min || b > *max {
+            std::process::abort();
         }
-        n.cast::<trie_node>()
-    }
-}
-
-unsafe fn lookup_next(n: *mut trie_node, b: u8) -> *mut trie_node {
-    unsafe {
-        match (*n).r#type {
-            TYPE_KEY => {
-                std::process::abort();
+        let slot = &mut children[usize::from(b - *min)];
+        if is_last {
+            if slot.is_none() {
+                *slot = Some(Box::new(TrieNode::Key(info)));
             }
-            TYPE_ARR => {
-                let nar = n.cast::<trie_node_arr>();
-                if b < (*nar).min || b > (*nar).max {
-                    return std::ptr::null_mut();
-                }
-                *(*nar).arr.as_ptr().add(usize::from(b - (*nar).min))
-            }
-            _ => std::ptr::null_mut(),
+            return;
         }
-    }
-}
-
-unsafe fn free_trie(n: *mut trie_node) {
-    if n.is_null() {
-        return;
-    }
-    unsafe {
-        if (*n).r#type == TYPE_ARR {
-            let nar = n.cast::<trie_node_arr>();
-            if (*nar).max >= (*nar).min {
-                let count = (usize::from((*nar).max) - usize::from((*nar).min)) + 1;
-                let arr_ptr = (*nar).arr.as_ptr();
-                for i in 0..count {
-                    let child = *arr_ptr.add(i);
-                    if !child.is_null() {
-                        free_trie(child);
-                    }
-                }
-            }
+        if slot.is_none() {
+            *slot = Some(Box::new(TrieNode::new_arr(0, 0xff)));
         }
-        xfree(n.cast());
-    }
-}
-
-unsafe fn compress_trie(n: *mut trie_node) -> *mut trie_node {
-    if n.is_null() {
-        return std::ptr::null_mut();
-    }
-    unsafe {
-        if (*n).r#type == TYPE_KEY {
-            return n;
-        }
-        let nar = n.cast::<trie_node_arr>();
-        let arr_ptr = (*nar).arr.as_ptr();
-        let mut min: usize = 0;
-        while (*arr_ptr.add(min)).is_null() {
-            if min == 255 {
-                xfree(nar.cast());
-                return new_node_arr(1, 0);
-            }
-            min += 1;
-        }
-        let mut max: usize = 0xff;
-        while (*arr_ptr.add(max)).is_null() {
-            max -= 1;
-        }
-
-        let new = new_node_arr(min as u8, max as u8).cast::<trie_node_arr>();
-        let new_arr = (*new).arr.as_mut_ptr();
-        for i in min..=max {
-            *new_arr.add(i - min) = compress_trie(*arr_ptr.add(i));
-        }
-
-        xfree(nar.cast());
-        new.cast::<trie_node>()
-    }
-}
-
-unsafe fn insert_seq(ti: *mut TermKeyTI, seq: *const c_char, node: *mut trie_node) -> c_int {
-    unsafe {
-        let mut pos = 0usize;
-        let mut p = (*ti).root;
-
-        loop {
-            let b = *seq.add(pos) as u8;
-            if b == 0 {
-                break;
-            }
-            let next = lookup_next(p, b);
-            if next.is_null() {
-                break;
-            }
-            p = next;
-            pos += 1;
-        }
-
-        loop {
-            let b = *seq.add(pos) as u8;
-            if b == 0 {
-                break;
-            }
-            let next = if *seq.add(pos + 1) != 0 {
-                new_node_arr(0, 0xff)
-            } else {
-                node
-            };
-            if next.is_null() {
-                return 0;
-            }
-
-            if (*p).r#type == TYPE_ARR {
-                let nar = p.cast::<trie_node_arr>();
-                if b < (*nar).min || b > (*nar).max {
-                    std::process::abort();
-                }
-                *(*nar).arr.as_mut_ptr().add(usize::from(b - (*nar).min)) = next;
-                p = next;
-            } else {
-                std::process::abort();
-            }
-
-            pos += 1;
-        }
-
-        1
+        cur = slot.as_deref_mut().unwrap();
     }
 }
 
 unsafe fn try_load_terminfo_key(
-    ti: *mut TermKeyTI,
+    tk: *mut TermKey,
+    root: &mut TrieNode,
     fn_nr: bool,
     key: usize,
     shift: bool,
     name: *const c_char,
-    info: &keyinfo,
+    info: keyinfo,
 ) -> bool {
     unsafe {
         let mut value: *const c_char = std::ptr::null();
+        let ti_ptr = (*tk).ti.ti;
 
-        if !(*ti).ti.is_null() {
+        if !ti_ptr.is_null() {
             if !fn_nr {
-                value = (*(*ti).ti).keys[key][usize::from(shift)];
+                value = (*ti_ptr).keys[key][usize::from(shift)];
             } else {
                 debug_assert!(!shift);
-                value = (*(*ti).ti).f_keys[key];
+                value = (*ti_ptr).f_keys[key];
             }
         }
 
-        if let Some(hook) = (*(*ti).tk).ti_getstr_hook {
-            value = hook(name, value, (*(*ti).tk).ti_getstr_hook_data);
+        if let Some(hook) = (*tk).ti_getstr_hook {
+            value = hook(name, value, (*tk).ti_getstr_hook_data);
         }
 
         if value.is_null() || value == (-1isize as *const c_char) || *value == 0 {
             return false;
         }
 
-        let node = new_node_key(info.r#type, info.sym, info.modifier_mask, info.modifier_set);
-        insert_seq(ti, value, node);
+        let seq = CStr::from_ptr(value).to_bytes();
+        insert_seq(root, seq, info);
 
         true
     }
 }
 
-unsafe fn load_terminfo(ti: *mut TermKeyTI) -> c_int {
+unsafe fn load_terminfo(tk: *mut TermKey) {
     unsafe {
-        (*ti).root = new_node_arr(0, 0xff);
-        if (*ti).root.is_null() {
-            return 0;
-        }
+        let mut root = TrieNode::new_arr(0, 0xff);
 
         for entry in FUNCS {
             let mut name_buf = [0 as c_char; 16];
@@ -609,12 +444,13 @@ unsafe fn load_terminfo(ti: *mut TermKeyTI) -> c_int {
                 modifier_set: entry.mods,
             };
             if !try_load_terminfo_key(
-                ti,
+                tk,
+                &mut root,
                 false,
                 entry.ti_key as usize,
                 false,
                 name_buf.as_ptr(),
-                &info,
+                info,
             ) {
                 continue;
             }
@@ -634,12 +470,13 @@ unsafe fn load_terminfo(ti: *mut TermKeyTI) -> c_int {
                 modifier_set: entry.mods | TERMKEY_KEYMOD_SHIFT,
             };
             try_load_terminfo_key(
-                ti,
+                tk,
+                &mut root,
                 false,
                 entry.ti_key as usize,
                 true,
                 name_buf.as_ptr(),
-                &shift_info,
+                shift_info,
             );
         }
 
@@ -655,89 +492,41 @@ unsafe fn load_terminfo(ti: *mut TermKeyTI) -> c_int {
                 modifier_mask: 0,
                 modifier_set: 0,
             };
-            if !try_load_terminfo_key(ti, true, i - 1, false, name_buf.as_ptr(), &fn_info) {
+            if !try_load_terminfo_key(tk, &mut root, true, i - 1, false, name_buf.as_ptr(), fn_info)
+            {
                 break;
             }
         }
 
-        let keypad_xmit = if !(*ti).ti.is_null() {
-            (*(*ti).ti).defs[kTerm_keypad_xmit]
-        } else {
-            std::ptr::null()
-        };
-        (*ti).start_string = if !keypad_xmit.is_null() {
-            xstrdup(keypad_xmit)
-        } else {
-            std::ptr::null_mut()
-        };
-
-        let keypad_local = if !(*ti).ti.is_null() {
-            (*(*ti).ti).defs[kTerm_keypad_local]
-        } else {
-            std::ptr::null()
-        };
-        (*ti).stop_string = if !keypad_local.is_null() {
-            xstrdup(keypad_local)
-        } else {
-            std::ptr::null_mut()
-        };
-
-        (*ti).root = compress_trie((*ti).root);
-
-        1
+        (*tk).ti.root = Some(Box::new(root.compress()));
     }
 }
 
-pub unsafe fn new_driver_ti(tk: *mut TermKey, term: *mut TerminfoEntry) -> *mut c_void {
-    unsafe {
-        let ti = xmalloc(std::mem::size_of::<TermKeyTI>()).cast::<TermKeyTI>();
-        (*ti).tk = tk;
-        (*ti).root = std::ptr::null_mut();
-        (*ti).start_string = std::ptr::null_mut();
-        (*ti).stop_string = std::ptr::null_mut();
-        (*ti).ti = term;
-        ti.cast::<c_void>()
+impl TermKeyTI {
+    pub fn new(term: *mut TerminfoEntry) -> Self {
+        Self {
+            ti: term,
+            root: None,
+        }
     }
 }
 
-pub unsafe fn start_driver_ti(_tk: *mut TermKey, info: *mut c_void) -> c_int {
+pub unsafe fn start_driver_ti(tk: *mut TermKey) -> c_int {
     unsafe {
-        let ti = info.cast::<TermKeyTI>();
-        if (*ti).root.is_null() {
-            load_terminfo(ti);
+        if (*tk).ti.root.is_none() {
+            load_terminfo(tk);
         }
         1
-    }
-}
-
-pub unsafe fn stop_driver_ti(_tk: *mut TermKey, _info: *mut c_void) -> c_int {
-    1
-}
-
-pub unsafe fn free_driver_ti(info: *mut c_void) {
-    unsafe {
-        let ti = info.cast::<TermKeyTI>();
-        free_trie((*ti).root);
-        if !(*ti).start_string.is_null() {
-            xfree((*ti).start_string.cast());
-        }
-        if !(*ti).stop_string.is_null() {
-            xfree((*ti).stop_string.cast());
-        }
-        xfree(ti.cast());
     }
 }
 
 pub unsafe fn peekkey_ti(
     tk: *mut TermKey,
-    info: *mut c_void,
     key: *mut TermKeyKey,
     force: c_int,
     nbytep: *mut usize,
 ) -> TermKeyResult {
     unsafe {
-        let ti = info.cast::<TermKeyTI>();
-
         if (*tk).buffcount == 0 {
             return if (*tk).is_closed != 0 {
                 TERMKEY_RES_EOF
@@ -746,27 +535,29 @@ pub unsafe fn peekkey_ti(
             };
         }
 
-        let mut p = (*ti).root;
+        let Some(mut p) = (*tk).ti.root.as_deref() else {
+            return TERMKEY_RES_NONE;
+        };
+
         let mut pos = 0usize;
         while pos < (*tk).buffcount {
-            let b = *(*tk).buffer.add((*tk).buffstart + pos);
-            p = lookup_next(p, b);
-            if p.is_null() {
-                break;
-            }
-
+            let buf = &(*tk).buffer;
+            let b = buf[(*tk).buffstart + pos];
+            let Some(next) = p.lookup_next(b) else {
+                return TERMKEY_RES_NONE;
+            };
+            p = next;
             pos += 1;
 
-            if (*p).r#type != TYPE_KEY {
+            let TrieNode::Key(k) = p else {
                 continue;
-            }
+            };
 
-            let nk = p.cast::<trie_node_key>();
-            if (*nk).key.r#type == TERMKEY_TYPE_MOUSE {
+            if k.r#type == TERMKEY_TYPE_MOUSE {
                 (*tk).buffstart += pos;
                 (*tk).buffcount -= pos;
 
-                let mouse_result = ((*tk).method.peekkey_mouse.unwrap_unchecked())(tk, key, nbytep);
+                let mouse_result = peekkey_mouse(tk, key, nbytep);
 
                 (*tk).buffstart -= pos;
                 (*tk).buffcount += pos;
@@ -778,14 +569,14 @@ pub unsafe fn peekkey_ti(
                 return mouse_result;
             }
 
-            (*key).r#type = (*nk).key.r#type;
-            (*key).code.sym = (*nk).key.sym;
-            (*key).modifiers = (*nk).key.modifier_set;
+            (*key).r#type = k.r#type;
+            (*key).code.sym = k.sym;
+            (*key).modifiers = k.modifier_set;
             *nbytep = pos;
             return TERMKEY_RES_KEY;
         }
 
-        if !p.is_null() && force == 0 {
+        if force == 0 {
             return TERMKEY_RES_AGAIN;
         }
 
@@ -796,16 +587,32 @@ pub unsafe fn peekkey_ti(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tui::termkey::termkey::{termkey_destroy, termkey_new_abstract};
 
     #[test]
     fn trie_insert_compress_and_lookup() {
-        let mut tk: TermKey = unsafe { std::mem::zeroed() };
-        tk.fd = -1;
+        let mut root = TrieNode::new_arr(0, 0xff);
+        insert_seq(
+            &mut root,
+            b"\x1bOP",
+            keyinfo {
+                r#type: TERMKEY_TYPE_FUNCTION,
+                sym: 1,
+                modifier_mask: 0,
+                modifier_set: 0,
+            },
+        );
+        let root = root.compress();
+        let n1 = root.lookup_next(0x1b).unwrap();
+        let n2 = n1.lookup_next(b'O').unwrap();
+        let n3 = n2.lookup_next(b'P').unwrap();
+        assert!(matches!(n3, TrieNode::Key(k) if k.sym == 1));
+        assert!(n2.lookup_next(b'Q').is_none());
+
         unsafe {
-            let info = new_driver_ti(&mut tk, std::ptr::null_mut());
-            assert_eq!(start_driver_ti(&mut tk, info), 1);
-            assert_eq!(stop_driver_ti(&mut tk, info), 1);
-            free_driver_ti(info);
+            let tk = termkey_new_abstract(std::ptr::null_mut(), 0);
+            assert_eq!(start_driver_ti(tk), 1);
+            termkey_destroy(tk);
         }
     }
 }
