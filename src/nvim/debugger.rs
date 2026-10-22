@@ -8,16 +8,16 @@ use crate::eval::{EXPR_IS, eval_expr, typval_compare, typval_tostring};
 use crate::ex_docmd::{DOCMD_EXCRESET, do_cmdline, do_cmdline_cmd, exarg_T};
 use crate::ex_getln::{getcmdline_prompt, getexline};
 use crate::fileio::file_pat_to_reg_pat;
-use crate::garray::{ga_clear, ga_grow, garray_T};
 use crate::globals::*;
 use crate::input::{restore_typeahead, save_typeahead, tasave_T};
-use crate::math::{FAIL, OK};
+use crate::math::OK;
 use crate::memory::{xfree, xmalloc, xstrdup};
 use crate::message::{emsg, msg, msg_starthere, semsg, smsg};
 use crate::os::env::{expand_env_save, home_replace};
 use crate::path::fix_fname;
 use crate::regexp::{RE_MAGIC, RE_STRING, vim_regcomp, vim_regexec_prog, vim_regfree};
 use crate::runtime::{ESTACK_NONE, estack_sfile, sourcing_lnum};
+use crate::strings::atoi;
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 const DBG_FUNC: c_int = 1;
@@ -51,21 +51,18 @@ static mut DEBUG_NEWVAL: *mut c_char = std::ptr::null_mut();
 static mut DEBUG_BREAKPOINT_NAME: *mut c_char = std::ptr::null_mut();
 static mut DEBUG_SKIPPED_NAME: *mut c_char = std::ptr::null_mut();
 
-static mut DBG_BREAKP: garray_T = garray_T {
-    ga_len: 0,
-    ga_maxlen: 0,
-    ga_itemsize: std::mem::size_of::<debuggy>() as c_int,
-    ga_growsize: 4,
-    ga_data: std::ptr::null_mut(),
-};
+static mut DBG_BREAKP: Vec<debuggy> = Vec::new();
+static mut PROF_GA: Vec<debuggy> = Vec::new();
 
-static mut PROF_GA: garray_T = garray_T {
-    ga_len: 0,
-    ga_maxlen: 0,
-    ga_itemsize: std::mem::size_of::<debuggy>() as c_int,
-    ga_growsize: 4,
-    ga_data: std::ptr::null_mut(),
-};
+#[inline]
+unsafe fn dbg_vec_mut(is_prof: bool) -> &'static mut Vec<debuggy> {
+    let ptr = if is_prof {
+        &raw mut PROF_GA
+    } else {
+        &raw mut DBG_BREAKP
+    };
+    unsafe { &mut *ptr }
+}
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -85,35 +82,6 @@ use crate::cmdexpand::EXPAND_NOTHING;
 use crate::keycodes::{K_SPECIAL, KE_SNR, KS_EXTRA};
 use crate::os::fs::MAXPATHL;
 use crate::state::MODE_NORMAL;
-
-#[inline]
-fn atoi_cstr(s: *const c_char) -> c_int {
-    let text = unsafe { CStr::from_ptr(s).to_string_lossy() };
-    let trimmed = text.trim_start();
-    let mut sign: c_int = 1;
-    let digits = if let Some(rest) = trimmed.strip_prefix('-') {
-        sign = -1;
-        rest
-    } else if let Some(rest) = trimmed.strip_prefix('+') {
-        rest
-    } else {
-        trimmed
-    };
-    let mut val: c_int = 0;
-    for b in digits.bytes() {
-        if b.is_ascii_digit() {
-            val = val.wrapping_mul(10).wrapping_add((b - b'0') as c_int);
-        } else {
-            break;
-        }
-    }
-    val.wrapping_mul(sign)
-}
-
-#[inline]
-unsafe fn debuggy_at(gap: *mut garray_T, idx: c_int) -> *mut debuggy {
-    unsafe { (*gap).ga_data.cast::<debuggy>().add(idx as usize) }
-}
 
 unsafe fn get_maxbacktrace_level(sname: *const c_char) -> c_int {
     if sname.is_null() {
@@ -152,7 +120,7 @@ unsafe fn do_checkbacktracelevel() {
 
 unsafe fn do_setdebugtracelevel(arg: *mut c_char) {
     unsafe {
-        let level = atoi_cstr(arg);
+        let level = atoi(arg);
         if *arg as u8 == b'+' || level < 0 {
             debug_backtrace_level += level;
         } else {
@@ -498,15 +466,11 @@ unsafe fn eval_expr_no_emsg(bp: &debuggy) -> *mut typval_T {
     }
 }
 
-unsafe fn dbg_parsearg(arg: *mut c_char, gap: *mut garray_T) -> c_int {
+unsafe fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
     unsafe {
         let mut p = arg;
         let mut here = false;
-        let is_prof = std::ptr::eq(gap, std::ptr::addr_of!(PROF_GA));
-
-        ga_grow(gap, 1);
-        let bp = &mut *debuggy_at(gap, (*gap).ga_len);
-        *bp = debuggy {
+        let mut bp = debuggy {
             dbg_nr: 0,
             dbg_type: 0,
             dbg_name: std::ptr::null_mut(),
@@ -525,7 +489,7 @@ unsafe fn dbg_parsearg(arg: *mut c_char, gap: *mut garray_T) -> c_int {
         } else if !is_prof && p_bytes.starts_with(b"here") {
             if (*curbuf).b_ffname.is_null() {
                 emsg(e_noname.as_ptr());
-                return FAIL;
+                return None;
             }
             bp.dbg_type = DBG_FILE;
             here = true;
@@ -533,7 +497,7 @@ unsafe fn dbg_parsearg(arg: *mut c_char, gap: *mut garray_T) -> c_int {
             bp.dbg_type = DBG_EXPR;
         } else {
             semsg!(e_invarg2.as_ptr(), p);
-            return FAIL;
+            return None;
         }
         p = skipwhite(p.add(4));
 
@@ -552,7 +516,7 @@ unsafe fn dbg_parsearg(arg: *mut c_char, gap: *mut garray_T) -> c_int {
             || (bp.dbg_type == DBG_FUNC && rem_bytes.windows(2).any(|w| w == b"()"))
         {
             semsg!(e_invarg2.as_ptr(), arg);
-            return FAIL;
+            return None;
         }
 
         if bp.dbg_type == DBG_FUNC {
@@ -566,16 +530,16 @@ unsafe fn dbg_parsearg(arg: *mut c_char, gap: *mut garray_T) -> c_int {
             bp.dbg_name = xstrdup((*curbuf).b_ffname);
         } else if bp.dbg_type == DBG_EXPR {
             bp.dbg_name = xstrdup(p);
-            bp.dbg_val = eval_expr_no_emsg(bp);
+            bp.dbg_val = eval_expr_no_emsg(&bp);
         } else {
             let q = expand_env_save(p);
             if q.is_null() {
-                return FAIL;
+                return None;
             }
             let p_exp = expand_env_save(q);
             xfree(q.cast::<c_void>());
             if p_exp.is_null() {
-                return FAIL;
+                return None;
             }
             if *p_exp as u8 != b'*' {
                 bp.dbg_name = fix_fname(p_exp);
@@ -586,9 +550,9 @@ unsafe fn dbg_parsearg(arg: *mut c_char, gap: *mut garray_T) -> c_int {
         }
 
         if bp.dbg_name.is_null() {
-            return FAIL;
+            return None;
         }
-        OK
+        Some(bp)
     }
 }
 
@@ -596,17 +560,13 @@ unsafe fn dbg_parsearg(arg: *mut c_char, gap: *mut garray_T) -> c_int {
 pub unsafe fn ex_breakadd(eap: *mut exarg_T) {
     unsafe {
         let eap = &*eap;
-        let gap = if eap.cmdidx == CMD_PROFILE {
-            std::ptr::addr_of_mut!(PROF_GA)
-        } else {
-            std::ptr::addr_of_mut!(DBG_BREAKP)
+        let is_prof = eap.cmdidx == CMD_PROFILE;
+        let gap = dbg_vec_mut(is_prof);
+
+        let Some(mut bp) = dbg_parsearg(eap.arg, is_prof) else {
+            return;
         };
 
-        if dbg_parsearg(eap.arg, gap) != OK {
-            return;
-        }
-
-        let bp = &mut *debuggy_at(gap, (*gap).ga_len);
         bp.dbg_forceit = eap.forceit;
 
         if bp.dbg_type != DBG_EXPR {
@@ -623,19 +583,17 @@ pub unsafe fn ex_breakadd(eap: *mut exarg_T) {
                 }
                 if eap.cmdidx != CMD_PROFILE {
                     LAST_BREAKP += 1;
-                    let nr = LAST_BREAKP;
-                    bp.dbg_nr = nr;
+                    bp.dbg_nr = LAST_BREAKP;
                     debug_tick += 1;
                 }
-                (*gap).ga_len += 1;
+                gap.push(bp);
             }
         } else {
             LAST_BREAKP += 1;
-            let nr = LAST_BREAKP;
-            bp.dbg_nr = nr;
-            (*gap).ga_len += 1;
+            bp.dbg_nr = LAST_BREAKP;
+            gap.push(bp);
             debug_tick += 1;
-            if std::ptr::eq(gap, std::ptr::addr_of!(DBG_BREAKP)) {
+            if !is_prof {
                 HAS_EXPR_BREAKPOINT = true;
             }
         }
@@ -651,15 +609,8 @@ pub unsafe fn ex_debuggreedy(eap: *mut exarg_T) {
 
 unsafe fn update_has_expr_breakpoint() {
     unsafe {
-        let gap = std::ptr::addr_of_mut!(DBG_BREAKP);
-        let mut found = false;
-        for i in 0..(*gap).ga_len {
-            if (*debuggy_at(gap, i)).dbg_type == DBG_EXPR {
-                found = true;
-                break;
-            }
-        }
-        HAS_EXPR_BREAKPOINT = found;
+        let bps = dbg_vec_mut(false);
+        HAS_EXPR_BREAKPOINT = bps.iter().any(|bp| bp.dbg_type == DBG_EXPR);
     }
 }
 
@@ -667,67 +618,52 @@ unsafe fn update_has_expr_breakpoint() {
 pub unsafe fn ex_breakdel(eap: *mut exarg_T) {
     unsafe {
         let eap = &*eap;
-        let mut todel: c_int = -1;
+        let mut todel: isize = -1;
         let mut del_all = false;
         let mut best_lnum: i32 = 0;
-        let gap = if eap.cmdidx == CMD_PROFDEL {
-            std::ptr::addr_of_mut!(PROF_GA)
-        } else {
-            std::ptr::addr_of_mut!(DBG_BREAKP)
-        };
+        let is_prof = eap.cmdidx == CMD_PROFDEL;
+        let gap = dbg_vec_mut(is_prof);
 
         let first_byte = *eap.arg as u8;
         if first_byte.is_ascii_digit() {
-            let nr = atoi_cstr(eap.arg);
-            for i in 0..(*gap).ga_len {
-                if (*debuggy_at(gap, i)).dbg_nr == nr {
-                    todel = i;
-                    break;
-                }
+            let nr = atoi(eap.arg);
+            if let Some(idx) = gap.iter().position(|bp| bp.dbg_nr == nr) {
+                todel = idx as isize;
             }
         } else if first_byte == b'*' {
             todel = 0;
             del_all = true;
         } else {
-            if dbg_parsearg(eap.arg, gap) == FAIL {
+            let Some(bp) = dbg_parsearg(eap.arg, is_prof) else {
                 return;
-            }
-            let bp = *debuggy_at(gap, (*gap).ga_len);
+            };
             let bp_name_bytes = CStr::from_ptr(bp.dbg_name).to_bytes();
-            for i in 0..(*gap).ga_len {
-                let bpi = &*debuggy_at(gap, i);
+            for (i, bpi) in gap.iter().enumerate() {
                 if bp.dbg_type == bpi.dbg_type
                     && CStr::from_ptr(bpi.dbg_name).to_bytes() == bp_name_bytes
                     && (bp.dbg_lnum == bpi.dbg_lnum
                         || (bp.dbg_lnum == 0 && (best_lnum == 0 || bpi.dbg_lnum < best_lnum)))
                 {
-                    todel = i;
+                    todel = i as isize;
                     best_lnum = bpi.dbg_lnum;
                 }
             }
             xfree(bp.dbg_name.cast::<c_void>());
         }
 
-        if todel < 0 {
+        if todel < 0 || (todel as usize) >= gap.len() {
             semsg!(c"E161: Breakpoint not found: %s".as_ptr(), eap.arg);
             return;
         }
 
-        while (*gap).ga_len > 0 {
-            let cur = *debuggy_at(gap, todel);
+        let idx = todel as usize;
+        while idx < gap.len() {
+            let cur = gap.remove(idx);
             xfree(cur.dbg_name.cast::<c_void>());
             if cur.dbg_type == DBG_EXPR && !cur.dbg_val.is_null() {
                 tv_free(cur.dbg_val);
             }
             vim_regfree(cur.dbg_prog);
-            (*gap).ga_len -= 1;
-            if todel < (*gap).ga_len {
-                std::ptr::copy(
-                    debuggy_at(gap, todel + 1),
-                    debuggy_at(gap, todel),
-                    ((*gap).ga_len - todel) as usize,
-                );
-            }
             if eap.cmdidx == CMD_BREAKDEL {
                 debug_tick += 1;
             }
@@ -736,10 +672,7 @@ pub unsafe fn ex_breakdel(eap: *mut exarg_T) {
             }
         }
 
-        if (*gap).ga_len == 0 {
-            ga_clear(gap);
-        }
-        if std::ptr::eq(gap, std::ptr::addr_of!(DBG_BREAKP)) {
+        if !is_prof {
             update_has_expr_breakpoint();
         }
     }
@@ -748,15 +681,14 @@ pub unsafe fn ex_breakdel(eap: *mut exarg_T) {
 /// `:breaklist` command (`ex_breaklist`).
 pub unsafe fn ex_breaklist(_eap: *mut exarg_T) {
     unsafe {
-        let gap = std::ptr::addr_of_mut!(DBG_BREAKP);
-        if (*gap).ga_len <= 0 {
+        let gap = dbg_vec_mut(false);
+        if gap.is_empty() {
             msg(c"No breakpoints defined".as_ptr(), 0);
             return;
         }
 
         let mut namebuf = [0 as c_char; MAXPATHL];
-        for i in 0..(*gap).ga_len {
-            let bp = &*debuggy_at(gap, i);
+        for bp in gap {
             if bp.dbg_type == DBG_FILE {
                 home_replace(
                     std::ptr::null(),
@@ -791,16 +723,16 @@ unsafe fn debuggy_find(
     file: bool,
     fname: *mut c_char,
     after: i32,
-    gap: *mut garray_T,
+    gap: &mut [debuggy],
+    is_prof: bool,
     fp: *mut bool,
 ) -> i32 {
     unsafe {
-        if (*gap).ga_len <= 0 {
+        if gap.is_empty() {
             return 0;
         }
 
         let mut lnum: i32 = 0;
-        let is_prof = std::ptr::eq(gap, std::ptr::addr_of!(PROF_GA));
         let name = if !file && (*fname as u8) == K_SPECIAL {
             let rest_bytes = CStr::from_ptr(fname.add(3)).to_bytes();
             let buf = xmalloc(5 + rest_bytes.len() + 1).cast::<u8>();
@@ -812,8 +744,7 @@ unsafe fn debuggy_find(
             fname
         };
 
-        for i in 0..(*gap).ga_len {
-            let bp = &mut *debuggy_at(gap, i);
+        for bp in gap.iter_mut() {
             if ((bp.dbg_type == DBG_FILE) == file)
                 && bp.dbg_type != DBG_EXPR
                 && (is_prof || (bp.dbg_lnum > after && (lnum == 0 || bp.dbg_lnum < lnum)))
@@ -881,19 +812,17 @@ unsafe fn debuggy_find(
 /// Find a breakpoint for a function or sourced file (`dbg_find_breakpoint`).
 pub unsafe fn dbg_find_breakpoint(file: bool, fname: *mut c_char, after: i32) -> i32 {
     unsafe {
-        debuggy_find(
-            file,
-            fname,
-            after,
-            std::ptr::addr_of_mut!(DBG_BREAKP),
-            std::ptr::null_mut(),
-        )
+        let gap = dbg_vec_mut(false);
+        debuggy_find(file, fname, after, gap, false, std::ptr::null_mut())
     }
 }
 
 /// Check if profiling is enabled for a function or sourced file (`has_profiling`).
 pub unsafe fn has_profiling(file: bool, fname: *mut c_char, fp: *mut bool) -> bool {
-    unsafe { debuggy_find(file, fname, 0, std::ptr::addr_of_mut!(PROF_GA), fp) != 0 }
+    unsafe {
+        let gap = dbg_vec_mut(true);
+        debuggy_find(file, fname, 0, gap, true, fp) != 0
+    }
 }
 
 /// Record that a breakpoint was encountered (`dbg_breakpoint`).

@@ -9,9 +9,7 @@ use crate::grid::{
 };
 use crate::highlight::hl_blend_attrs;
 use crate::highlight_group::{syn_check_group, syn_id2attr};
-use crate::kvec::{KVec, kv_destroy, kv_push};
 use crate::lua::converter::Boolean;
-use crate::memory::{xfree, xmalloc};
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::option_vars::*;
 use crate::os::time::os_sleep;
@@ -33,15 +31,9 @@ use crate::api::win_config::kUIMultigrid;
 use crate::msgpack_rpc::channel::RemoteUI;
 
 static mut composed_uis: c_int = 0;
-static mut layers: KVec<*mut ScreenGrid> = KVec {
-    size: 0,
-    capacity: 0,
-    items: ptr::null_mut(),
-};
-
-static mut bufsize: usize = 0;
-static mut linebuf: *mut schar_T = ptr::null_mut();
-static mut attrbuf: *mut sattr_T = ptr::null_mut();
+static mut layers: Vec<*mut ScreenGrid> = Vec::new();
+static mut linebuf: Vec<schar_T> = Vec::new();
+static mut attrbuf: Vec<sattr_T> = Vec::new();
 
 static mut chk_width: c_int = 0;
 static mut chk_height: c_int = 0;
@@ -60,20 +52,36 @@ static mut dbghl_clear: c_int = 0;
 static mut dbghl_composed: c_int = 0;
 static mut dbghl_recompose: c_int = 0;
 
+#[inline]
+unsafe fn layers_mut() -> &'static mut Vec<*mut ScreenGrid> {
+    let ptr = &raw mut layers;
+    unsafe { &mut *ptr }
+}
+
+#[inline]
+unsafe fn linebuf_mut() -> &'static mut Vec<schar_T> {
+    let ptr = &raw mut linebuf;
+    unsafe { &mut *ptr }
+}
+
+#[inline]
+unsafe fn attrbuf_mut() -> &'static mut Vec<sattr_T> {
+    let ptr = &raw mut attrbuf;
+    unsafe { &mut *ptr }
+}
+
 pub unsafe fn ui_comp_init() {
     unsafe {
-        kv_push(&raw mut layers, &raw mut default_grid);
+        layers_mut().push(&raw mut default_grid);
         curgrid = &raw mut default_grid;
     }
 }
 
 pub unsafe fn ui_comp_free_all_mem() {
     unsafe {
-        kv_destroy(&raw mut layers);
-        xfree(linebuf.cast());
-        linebuf = ptr::null_mut();
-        xfree(attrbuf.cast());
-        attrbuf = ptr::null_mut();
+        layers = Vec::new();
+        linebuf = Vec::new();
+        attrbuf = Vec::new();
     }
 }
 
@@ -97,11 +105,8 @@ pub unsafe fn ui_comp_detach(ui: *mut RemoteUI) {
     unsafe {
         composed_uis -= 1;
         if composed_uis == 0 {
-            xfree(linebuf.cast());
-            linebuf = ptr::null_mut();
-            xfree(attrbuf.cast());
-            attrbuf = ptr::null_mut();
-            bufsize = 0;
+            linebuf = Vec::new();
+            attrbuf = Vec::new();
         }
         (*ui).composed = false;
     }
@@ -114,29 +119,28 @@ pub unsafe fn ui_comp_should_draw() -> bool {
 /// Raises or lowers the layer, syncing `comp_index` with `zindex` (`ui_comp_layers_adjust`).
 pub unsafe fn ui_comp_layers_adjust(mut layer_idx: usize, raise: bool) {
     unsafe {
-        let size = layers.size;
-        let layer = *layers.items.add(layer_idx);
+        let l = layers_mut();
+        let size = l.len();
+        let layer = l[layer_idx];
 
         if raise {
-            while layer_idx < size - 1
-                && (*layer).zindex > (**layers.items.add(layer_idx + 1)).zindex
-            {
-                let next = *layers.items.add(layer_idx + 1);
-                *layers.items.add(layer_idx) = next;
+            while layer_idx < size - 1 && (*layer).zindex > (*l[layer_idx + 1]).zindex {
+                let next = l[layer_idx + 1];
+                l[layer_idx] = next;
                 (*next).comp_index = layer_idx;
                 (*next).pending_comp_index_update = true;
                 layer_idx += 1;
             }
         } else {
-            while layer_idx > 0 && (*layer).zindex < (**layers.items.add(layer_idx - 1)).zindex {
-                let prev = *layers.items.add(layer_idx - 1);
-                *layers.items.add(layer_idx) = prev;
+            while layer_idx > 0 && (*layer).zindex < (*l[layer_idx - 1]).zindex {
+                let prev = l[layer_idx - 1];
+                l[layer_idx] = prev;
                 (*prev).comp_index = layer_idx;
                 (*prev).pending_comp_index_update = true;
                 layer_idx -= 1;
             }
         }
-        *layers.items.add(layer_idx) = layer;
+        l[layer_idx] = layer;
         (*layer).comp_index = layer_idx;
         (*layer).pending_comp_index_update = true;
     }
@@ -194,32 +198,26 @@ pub unsafe fn ui_comp_put_grid(
             (*grid).comp_col = col;
         } else {
             moved = true;
-            for i in 0..layers.size {
-                debug_assert!(*layers.items.add(i) != grid);
-            }
+            let l = layers_mut();
+            debug_assert!(!l.contains(&grid));
 
-            let mut insert_at = layers.size;
-            while insert_at > 0 && (**layers.items.add(insert_at - 1)).zindex > (*grid).zindex {
+            let mut insert_at = l.len();
+            while insert_at > 0 && (*l[insert_at - 1]).zindex > (*grid).zindex {
                 insert_at -= 1;
             }
 
             if !curwin.is_null()
-                && *layers.items.add(insert_at - 1) == &raw mut (*curwin).w_grid_alloc
-                && (**layers.items.add(insert_at - 1)).zindex == (*grid).zindex
+                && l[insert_at - 1] == &raw mut (*curwin).w_grid_alloc
+                && (*l[insert_at - 1]).zindex == (*grid).zindex
                 && !on_top
             {
                 insert_at -= 1;
             }
-            kv_push(&raw mut layers, ptr::null_mut());
-            let mut i = layers.size - 1;
-            while i > insert_at {
-                let prev = *layers.items.add(i - 1);
-                *layers.items.add(i) = prev;
-                (*prev).comp_index = i;
-                (*prev).pending_comp_index_update = true;
-                i -= 1;
+            l.insert(insert_at, grid);
+            for (idx, &g) in l.iter().enumerate().skip(insert_at + 1) {
+                (*g).comp_index = idx;
+                (*g).pending_comp_index_update = true;
             }
-            *layers.items.add(insert_at) = grid;
 
             (*grid).comp_row = row;
             (*grid).comp_col = col;
@@ -252,13 +250,13 @@ pub unsafe fn ui_comp_remove_grid(grid: *mut ScreenGrid) {
             curgrid = &raw mut default_grid;
         }
 
-        for i in (*grid).comp_index..(layers.size - 1) {
-            let next = *layers.items.add(i + 1);
-            *layers.items.add(i) = next;
-            (*next).comp_index = i;
-            (*next).pending_comp_index_update = true;
+        let l = layers_mut();
+        let removed_idx = (*grid).comp_index;
+        l.remove(removed_idx);
+        for (idx, &g) in l.iter().enumerate().skip(removed_idx) {
+            (*g).comp_index = idx;
+            (*g).pending_comp_index_update = true;
         }
-        layers.size -= 1;
         (*grid).comp_index = 0;
         (*grid).pending_comp_index_update = true;
 
@@ -271,17 +269,11 @@ pub unsafe fn ui_comp_set_grid(handle: handle_T) -> bool {
         if (*curgrid).handle == handle {
             return true;
         }
-        let mut grid: *mut ScreenGrid = ptr::null_mut();
-        for i in 0..layers.size {
-            let g = *layers.items.add(i);
+        for &g in layers_mut().iter() {
             if (*g).handle == handle {
-                grid = g;
-                break;
+                curgrid = g;
+                return true;
             }
-        }
-        if !grid.is_null() {
-            curgrid = grid;
-            return true;
         }
         false
     }
@@ -289,18 +281,18 @@ pub unsafe fn ui_comp_set_grid(handle: handle_T) -> bool {
 
 pub unsafe fn ui_comp_raise_grid(grid: *mut ScreenGrid, new_index: usize) {
     unsafe {
+        let l = layers_mut();
         let old_index = (*grid).comp_index;
         for i in old_index..new_index {
-            let next = *layers.items.add(i + 1);
-            *layers.items.add(i) = next;
+            let next = l[i + 1];
+            l[i] = next;
             (*next).comp_index = i;
             (*next).pending_comp_index_update = true;
         }
-        *layers.items.add(new_index) = grid;
+        l[new_index] = grid;
         (*grid).comp_index = new_index;
         (*grid).pending_comp_index_update = true;
-        for i in old_index..new_index {
-            let grid2 = *layers.items.add(i);
+        for &grid2 in l.iter().take(new_index).skip(old_index) {
             let startcol = (*grid).comp_col.max((*grid2).comp_col);
             let endcol = ((*grid).comp_col + (*grid).cols).min((*grid2).comp_col + (*grid2).cols);
             compose_area(
@@ -322,8 +314,9 @@ pub unsafe fn ui_comp_grid_cursor_goto(grid_handle: Integer, r: Integer, c: Inte
         let cursor_col = (*curgrid).comp_col + (c as c_int);
 
         if !ptr::eq(curgrid, &raw const default_grid) {
-            let mut new_index = layers.size - 1;
-            while new_index > 1 && (**layers.items.add(new_index)).zindex > (*curgrid).zindex {
+            let l = layers_mut();
+            let mut new_index = l.len() - 1;
+            while new_index > 1 && (*l[new_index]).zindex > (*curgrid).zindex {
                 new_index -= 1;
             }
             if (*curgrid).comp_index < new_index {
@@ -340,9 +333,8 @@ pub unsafe fn ui_comp_grid_cursor_goto(grid_handle: Integer, r: Integer, c: Inte
 
 pub unsafe fn ui_comp_mouse_focus(row: c_int, col: c_int) -> *mut ScreenGrid {
     unsafe {
-        let mut i = layers.size as isize - 1;
-        while i > 0 {
-            let grid = *layers.items.add(i as usize);
+        let l = layers_mut();
+        for &grid in l.iter().skip(1).rev() {
             if (*grid).mouse_enabled
                 && row >= (*grid).comp_row
                 && row < (*grid).comp_row + (*grid).rows
@@ -351,7 +343,6 @@ pub unsafe fn ui_comp_mouse_focus(row: c_int, col: c_int) -> *mut ScreenGrid {
             {
                 return grid;
             }
-            i -= 1;
         }
         if ui_has(kUIMultigrid) {
             let mut wp = firstwin;
@@ -375,9 +366,8 @@ pub unsafe fn ui_comp_mouse_focus(row: c_int, col: c_int) -> *mut ScreenGrid {
 /// Compute which grid is on top at supplied screen coordinates (`ui_comp_get_grid_at_coord`).
 pub unsafe fn ui_comp_get_grid_at_coord(row: c_int, col: c_int) -> *mut ScreenGrid {
     unsafe {
-        let mut i = layers.size as isize - 1;
-        while i > 0 {
-            let grid = *layers.items.add(i as usize);
+        let l = layers_mut();
+        for &grid in l.iter().skip(1).rev() {
             if row >= (*grid).comp_row
                 && row < (*grid).comp_row + (*grid).rows
                 && col >= (*grid).comp_col
@@ -385,7 +375,6 @@ pub unsafe fn ui_comp_get_grid_at_coord(row: c_int, col: c_int) -> *mut ScreenGr
             {
                 return grid;
             }
-            i -= 1;
         }
 
         let mut wp = firstwin;
@@ -429,11 +418,13 @@ unsafe fn compose_line(
         let line_off = *default_grid.line_offset.add(row as usize) + (startcol as usize);
         let bg_line = default_grid.chars.add(line_off);
         let bg_attrs = default_grid.attrs.add(line_off);
+        let lbuf = linebuf_mut().as_mut_ptr();
+        let abuf = attrbuf_mut().as_mut_ptr();
+        let l = layers_mut();
 
         while (col as Integer) < endcol {
             let mut until: c_int = 0;
-            for i in 0..layers.size {
-                let g = *layers.items.add(i);
+            for &g in l.iter() {
                 let grid_width = (*g).cols.min((*g).comp_width);
                 let grid_height = (*g).rows.min((*g).comp_height);
                 if ((*g).comp_row as Integer) > row
@@ -461,8 +452,8 @@ unsafe fn compose_line(
                 let msg_sep_attr = *hl_attr_active.add(HLF_MSGSEP) as sattr_T;
                 for i in col..until {
                     let idx = (i - startcol as c_int) as usize;
-                    *linebuf.add(idx) = msg_sep_char;
-                    *attrbuf.add(idx) = msg_sep_attr;
+                    *lbuf.add(idx) = msg_sep_char;
+                    *abuf.add(idx) = msg_sep_attr;
                 }
             } else {
                 let off = *(*grid)
@@ -470,10 +461,10 @@ unsafe fn compose_line(
                     .add((row as c_int - (*grid).comp_row) as usize)
                     + (col - (*grid).comp_col) as usize;
                 let dst_idx = (col - startcol as c_int) as usize;
-                ptr::copy_nonoverlapping((*grid).chars.add(off), linebuf.add(dst_idx), n);
-                ptr::copy_nonoverlapping((*grid).attrs.add(off), attrbuf.add(dst_idx), n);
+                ptr::copy_nonoverlapping((*grid).chars.add(off), lbuf.add(dst_idx), n);
+                ptr::copy_nonoverlapping((*grid).attrs.add(off), abuf.add(dst_idx), n);
                 if (*grid).comp_col + (*grid).cols > until && *(*grid).chars.add(off + n) == 0 {
-                    *linebuf.add((until - 1 - startcol as c_int) as usize) = schar_from_ascii(b' ');
+                    *lbuf.add((until - 1 - startcol as c_int) as usize) = schar_from_ascii(b' ');
                     if (col as Integer) == startcol && n == 1 {
                         skipstart = 0;
                     }
@@ -488,48 +479,44 @@ unsafe fn compose_line(
                 while i < limit {
                     let mut width: c_int = 1;
                     let idx = i as usize;
-                    let mut thru = (*linebuf.add(idx) == schar_from_ascii(b' ')
-                        || *linebuf.add(idx) == braille_blank)
+                    let mut thru = (*lbuf.add(idx) == schar_from_ascii(b' ')
+                        || *lbuf.add(idx) == braille_blank)
                         && *bg_line.add(idx) != 0;
                     if i + 1 < end_rel && *bg_line.add(idx + 1) == 0 {
                         width = 2;
-                        thru &= *linebuf.add(idx + 1) == schar_from_ascii(b' ')
-                            || *linebuf.add(idx + 1) == braille_blank;
+                        thru &= *lbuf.add(idx + 1) == schar_from_ascii(b' ')
+                            || *lbuf.add(idx + 1) == braille_blank;
                     }
-                    *attrbuf.add(idx) =
-                        hl_blend_attrs(*bg_attrs.add(idx), *attrbuf.add(idx), &raw mut thru)
+                    *abuf.add(idx) =
+                        hl_blend_attrs(*bg_attrs.add(idx), *abuf.add(idx), &raw mut thru)
                             as sattr_T;
                     if width == 2 {
-                        *attrbuf.add(idx + 1) = hl_blend_attrs(
+                        *abuf.add(idx + 1) = hl_blend_attrs(
                             *bg_attrs.add(idx + 1),
-                            *attrbuf.add(idx + 1),
+                            *abuf.add(idx + 1),
                             &raw mut thru,
                         ) as sattr_T;
                     }
                     if thru {
-                        ptr::copy_nonoverlapping(
-                            bg_line.add(idx),
-                            linebuf.add(idx),
-                            width as usize,
-                        );
+                        ptr::copy_nonoverlapping(bg_line.add(idx), lbuf.add(idx), width as usize);
                     }
                     i += width;
                 }
             }
 
             let col_idx = (col - startcol as c_int) as usize;
-            if *linebuf.add(col_idx) == 0 {
-                *linebuf.add(col_idx) = schar_from_ascii(b' ');
+            if *lbuf.add(col_idx) == 0 {
+                *lbuf.add(col_idx) = schar_from_ascii(b' ');
                 if (col as Integer) == endcol - 1 {
                     skipend = 0;
                 }
-            } else if (col as Integer) == startcol && n > 1 && *linebuf.add(1) == 0 {
+            } else if (col as Integer) == startcol && n > 1 && *lbuf.add(1) == 0 {
                 skipstart = 0;
             }
 
             col = until;
         }
-        if *linebuf.add((endcol - startcol - 1) as usize) == 0 {
+        if *lbuf.add((endcol - startcol - 1) as usize) == 0 {
             skipend = 0;
         }
 
@@ -545,7 +532,7 @@ unsafe fn compose_line(
 
         let end_idx = ((endcol - skipend as Integer) - startcol) as c_int;
         for i in skipstart..end_idx {
-            let p = attrbuf.add(i as usize);
+            let p = abuf.add(i as usize);
             if *p < 0 {
                 if (rdb_flags & kOptRdbFlagInvalid) != 0 {
                     std::process::abort();
@@ -562,8 +549,8 @@ unsafe fn compose_line(
             endcol - (skipend as Integer),
             0,
             flags,
-            linebuf.add(skipstart as usize),
-            attrbuf.add(skipstart as usize),
+            lbuf.add(skipstart as usize),
+            abuf.add(skipstart as usize),
         );
     }
 }
@@ -589,6 +576,8 @@ unsafe fn compose_debug(
             debug_delay(endrow - startrow);
         }
 
+        let lbuf = linebuf_mut().as_ptr();
+        let abuf = attrbuf_mut().as_ptr();
         for row in (startrow as c_int)..(endrow as c_int) {
             ui_composed_call_raw_line(
                 1,
@@ -598,8 +587,8 @@ unsafe fn compose_debug(
                 endcol,
                 attr as Integer,
                 0,
-                linebuf,
-                attrbuf,
+                lbuf,
+                abuf,
             );
         }
 
@@ -794,8 +783,7 @@ pub unsafe fn ui_comp_msg_set_pos(
 /// Check if `curgrid` is covered by any other grid within the rectangle (`curgrid_covered_above`).
 unsafe fn curgrid_covered_above(top: c_int, bot: c_int, left: c_int, right: c_int) -> bool {
     unsafe {
-        for i in ((*curgrid).comp_index + 1)..layers.size {
-            let g = *layers.items.add(i);
+        for &g in layers_mut().iter().skip((*curgrid).comp_index + 1) {
             let grid_top = (*g).comp_row
                 - if ptr::eq(g, &raw const msg_grid) && msg_was_scrolled {
                     1
@@ -864,12 +852,11 @@ pub unsafe fn ui_comp_grid_resize(grid: Integer, width: Integer, height: Integer
             chk_width = width as c_int;
             chk_height = height as c_int;
             let new_bufsize = width as usize;
-            if bufsize != new_bufsize {
-                xfree(linebuf.cast());
-                xfree(attrbuf.cast());
-                linebuf = xmalloc(new_bufsize * size_of::<schar_T>()).cast();
-                attrbuf = xmalloc(new_bufsize * size_of::<sattr_T>()).cast();
-                bufsize = new_bufsize;
+            let lbuf = linebuf_mut();
+            let abuf = attrbuf_mut();
+            if lbuf.len() != new_bufsize {
+                lbuf.resize(new_bufsize, 0);
+                abuf.resize(new_bufsize, 0);
             }
         }
     }

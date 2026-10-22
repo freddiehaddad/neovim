@@ -10,7 +10,6 @@ use crate::event::socket::{
     socket_watcher_start, socket_watcher_uv_size, watcher_addr,
 };
 use crate::extmark::{TriState, kFalse, kNone, kTrue};
-use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::log::{LOGLVL_ERR, LOGLVL_WRN, logmsg};
 use crate::memory::{strequal, xcalloc, xfree, xmalloc, xstrdup, xstrlcpy};
@@ -32,14 +31,14 @@ const ENV_TEST_LOG: &CStr = c"__NVIM_TEST_LOG";
 use crate::event::stream::UV_TCP;
 use crate::globals::IOSIZE;
 
-static mut watchers: garray_T = garray_T {
-    ga_len: 0,
-    ga_maxlen: 0,
-    ga_itemsize: 0,
-    ga_growsize: 0,
-    ga_data: ptr::null_mut(),
-};
+static mut watchers: Vec<*mut SocketWatcher> = Vec::new();
 static mut server_addr_count: u32 = 0;
+
+#[inline]
+unsafe fn watchers_mut() -> &'static mut Vec<*mut SocketWatcher> {
+    let ptr = &raw mut watchers;
+    unsafe { &mut *ptr }
+}
 
 #[inline]
 unsafe fn socket_watcher_size() -> usize {
@@ -71,11 +70,7 @@ pub unsafe fn server_init(mut listen_addr: *const c_char) -> bool {
         let mut ok = true;
         let mut must_free = false;
         let mut user_arg: TriState = kTrue;
-        ga_init(
-            &raw mut watchers,
-            std::mem::size_of::<*mut SocketWatcher>() as c_int,
-            1,
-        );
+        watchers = Vec::new();
 
         if listen_addr.is_null() || *listen_addr == 0 {
             if os_env_exists(ENV_LISTEN.as_ptr(), true) {
@@ -138,26 +133,21 @@ pub unsafe fn server_init(mut listen_addr: *const c_char) -> bool {
     }
 }
 
-unsafe fn set_vservername(srvs: *const garray_T) {
+unsafe fn set_vservername(srvs: &[*mut SocketWatcher]) {
     unsafe {
-        let default_server = if (*srvs).ga_len > 0 {
-            let first = *((*srvs).ga_data.cast::<*mut SocketWatcher>());
-            watcher_addr(first).cast_const()
-        } else {
-            ptr::null()
-        };
+        let default_server = srvs
+            .first()
+            .map_or(ptr::null(), |&first| watcher_addr(first).cast_const());
         set_vim_var_string(VV_SEND_SERVER, default_server, -1);
     }
 }
 
 pub unsafe fn server_teardown() {
     unsafe {
-        let data = watchers.ga_data.cast::<*mut SocketWatcher>();
-        for i in 0..watchers.ga_len {
-            let watcher = *data.add(i as usize);
+        for &watcher in watchers_mut().iter() {
             socket_watcher_close(watcher, Some(free_server));
         }
-        ga_clear(&raw mut watchers);
+        watchers = Vec::new();
     }
 }
 
@@ -226,9 +216,7 @@ pub unsafe fn server_owns_pipe_address(address: *const c_char) -> bool {
     unsafe {
         let mut result = false;
         let path = fix_fname(address);
-        let data = watchers.ga_data.cast::<*mut SocketWatcher>();
-        for i in 0..watchers.ga_len {
-            let watcher = *data.add(i as usize);
+        for &watcher in watchers_mut().iter() {
             let addr = fix_fname(watcher_addr(watcher));
             result = strequal(path, addr);
             xfree(addr.cast());
@@ -273,9 +261,8 @@ pub unsafe fn server_start(addr: *const c_char) -> c_int {
             return result;
         }
 
-        let data = watchers.ga_data.cast::<*mut SocketWatcher>();
-        for i in 0..watchers.ga_len {
-            let existing = *data.add(i as usize);
+        let w = watchers_mut();
+        for &existing in w.iter() {
             if strcmp(watcher_addr(watcher), watcher_addr(existing)) == 0 {
                 logmsg!(
                     LOGLVL_ERR,
@@ -310,13 +297,10 @@ pub unsafe fn server_start(addr: *const c_char) -> c_int {
             return result;
         }
 
-        ga_grow(&raw mut watchers, 1);
-        let data = watchers.ga_data.cast::<*mut SocketWatcher>();
-        *data.add(watchers.ga_len as usize) = watcher;
-        watchers.ga_len += 1;
+        w.push(watcher);
 
         if strlen(get_vim_var_str(VV_SEND_SERVER)) == 0 {
-            set_vservername(&raw const watchers);
+            set_vservername(w);
         }
 
         0
@@ -325,25 +309,16 @@ pub unsafe fn server_start(addr: *const c_char) -> c_int {
 
 pub unsafe fn server_stop(endpoint: *const c_char, keep_vservername: bool) -> bool {
     unsafe {
-        let mut watcher: *mut SocketWatcher = ptr::null_mut();
-        let mut watcher_found = false;
         let mut addr: [c_char; ADDRESS_MAX_SIZE] = [0; ADDRESS_MAX_SIZE];
 
         xstrlcpy(addr.as_mut_ptr(), endpoint, addr.len());
         to_slash(addr.as_mut_ptr());
 
-        let mut idx: c_int = 0;
-        let data = watchers.ga_data.cast::<*mut SocketWatcher>();
-        while idx < watchers.ga_len {
-            watcher = *data.add(idx as usize);
-            if strcmp(addr.as_ptr(), watcher_addr(watcher)) == 0 {
-                watcher_found = true;
-                break;
-            }
-            idx += 1;
-        }
-
-        if !watcher_found {
+        let w = watchers_mut();
+        let Some(idx) = w
+            .iter()
+            .position(|&watcher| strcmp(addr.as_ptr(), watcher_addr(watcher)) == 0)
+        else {
             logmsg!(
                 LOGLVL_WRN,
                 ptr::null(),
@@ -354,17 +329,13 @@ pub unsafe fn server_stop(endpoint: *const c_char, keep_vservername: bool) -> bo
                 addr.as_ptr(),
             );
             return false;
-        }
+        };
 
+        let watcher = w.swap_remove(idx);
         socket_watcher_close(watcher, Some(free_server));
 
-        if idx != watchers.ga_len - 1 {
-            *data.add(idx as usize) = *data.add((watchers.ga_len - 1) as usize);
-        }
-        watchers.ga_len -= 1;
-
         if !keep_vservername && strequal(addr.as_ptr(), get_vim_var_str(VV_SEND_SERVER)) {
-            set_vservername(&raw const watchers);
+            set_vservername(w);
         }
 
         true
@@ -373,20 +344,15 @@ pub unsafe fn server_stop(endpoint: *const c_char, keep_vservername: bool) -> bo
 
 pub unsafe fn server_address_list(size: *mut usize) -> *mut *mut c_char {
     unsafe {
-        *size = watchers.ga_len as usize;
+        let w = watchers_mut();
+        *size = w.len();
         if *size == 0 {
             return ptr::null_mut();
         }
 
-        let addrs = xcalloc(
-            watchers.ga_len as usize,
-            std::mem::size_of::<*const c_char>(),
-        )
-        .cast::<*mut c_char>();
-        let data = watchers.ga_data.cast::<*mut SocketWatcher>();
-        for i in 0..watchers.ga_len {
-            let watcher = *data.add(i as usize);
-            *addrs.add(i as usize) = xstrdup(watcher_addr(watcher));
+        let addrs = xcalloc(w.len(), std::mem::size_of::<*const c_char>()).cast::<*mut c_char>();
+        for (i, &watcher) in w.iter().enumerate() {
+            *addrs.add(i) = xstrdup(watcher_addr(watcher));
         }
         addrs
     }

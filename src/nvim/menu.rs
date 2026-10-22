@@ -15,7 +15,6 @@ use crate::ex_docmd::{
     Ctrl_C, Ctrl_G, Ctrl_O, ends_excmd, exarg_T, exec_normal_cmd, restore_current_state,
     save_current_state,
 };
-use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::input::{REMAP_SCRIPT, ins_typebuf, tasave_T};
 use crate::keycodes::{REPTERM_DO_LT, replace_termcodes};
@@ -134,13 +133,7 @@ static mut GET_MENU_NAME_ADVANCE: bool = false;
 static mut GET_MENU_NAMES_MENU: *mut vimmenu_T = ptr::null_mut();
 static mut GET_MENU_NAMES_ADVANCE: bool = false;
 static mut GET_MENU_NAMES_TBUFFER: [c_char; TBUFFER_LEN] = [0; TBUFFER_LEN];
-static mut MENUTRANS_GA: garray_T = garray_T {
-    ga_len: 0,
-    ga_maxlen: 0,
-    ga_itemsize: 0,
-    ga_growsize: 0,
-    ga_data: ptr::null_mut(),
-};
+static mut MENUTRANS_GA: Vec<menutrans_T> = Vec::new();
 
 use crate::eval::typval::tv_dict_len;
 
@@ -1733,21 +1726,17 @@ pub unsafe fn menu_find(path_name: *const c_char) -> *mut vimmenu_T {
 pub unsafe fn ex_menutranslate(eap: *mut exarg_T) {
     unsafe {
         let mut arg = (*eap).arg;
-
-        if MENUTRANS_GA.ga_itemsize == 0 {
-            ga_init(&raw mut MENUTRANS_GA, size_of::<menutrans_T>() as c_int, 5);
-        }
+        let mt_ptr = &raw mut MENUTRANS_GA;
+        let menutrans = &mut *mt_ptr;
 
         if strncmp(arg, c"clear".as_ptr(), 5) == 0
             && ends_excmd(c_int::from(*skipwhite(arg.add(5)) as u8)) != 0
         {
-            for i in 0..MENUTRANS_GA.ga_len {
-                let mt = MENUTRANS_GA.ga_data.cast::<menutrans_T>().add(i as usize);
-                xfree((*mt).from.cast());
-                xfree((*mt).from_noamp.cast());
-                xfree((*mt).to.cast());
+            for mt in menutrans.drain(..) {
+                xfree(mt.from.cast());
+                xfree(mt.from_noamp.cast());
+                xfree(mt.to.cast());
             }
-            ga_clear(&raw mut MENUTRANS_GA);
             del_menutrans_vars();
         } else {
             let mut from = arg;
@@ -1765,15 +1754,11 @@ pub unsafe fn ex_menutranslate(eap: *mut exarg_T) {
                 menu_translate_tab_and_shift(to);
                 menu_unescape_name(from);
                 menu_unescape_name(to);
-                ga_grow(&raw mut MENUTRANS_GA, 1);
-                let tp = MENUTRANS_GA
-                    .ga_data
-                    .cast::<menutrans_T>()
-                    .add(MENUTRANS_GA.ga_len as usize);
-                MENUTRANS_GA.ga_len += 1;
-                (*tp).from = from;
-                (*tp).from_noamp = from_noamp;
-                (*tp).to = to;
+                menutrans.push(menutrans_T {
+                    from,
+                    from_noamp,
+                    to,
+                });
             }
         }
     }
@@ -1795,14 +1780,13 @@ unsafe fn menu_skip_part(mut p: *mut c_char) -> *mut c_char {
 /// Lookup part of a menu name in the translations (`menutrans_lookup`).
 unsafe fn menutrans_lookup(name: *mut c_char, len: c_int) -> *mut c_char {
     unsafe {
-        let tp = MENUTRANS_GA.ga_data.cast::<menutrans_T>();
+        let mt_ptr = &raw const MENUTRANS_GA;
+        let menutrans = &*mt_ptr;
         let u_len = len as usize;
 
-        for i in 0..MENUTRANS_GA.ga_len {
-            let entry = tp.add(i as usize);
-            if vim_strnicmp_asc(name, (*entry).from, u_len) == 0 && *(*entry).from.add(u_len) == NUL
-            {
-                return (*entry).to;
+        for entry in menutrans {
+            if vim_strnicmp_asc(name, entry.from, u_len) == 0 && *entry.from.add(u_len) == NUL {
+                return entry.to;
             }
         }
 
@@ -1810,11 +1794,10 @@ unsafe fn menutrans_lookup(name: *mut c_char, len: c_int) -> *mut c_char {
         *name.add(u_len) = NUL;
         let dname = menu_text(name, ptr::null_mut(), ptr::null_mut());
         *name.add(u_len) = c;
-        for i in 0..MENUTRANS_GA.ga_len {
-            let entry = tp.add(i as usize);
-            if vim_stricmp(dname, (*entry).from_noamp) == 0 {
+        for entry in menutrans {
+            if vim_stricmp(dname, entry.from_noamp) == 0 {
                 xfree(dname.cast());
-                return (*entry).to;
+                return entry.to;
             }
         }
         xfree(dname.cast());
