@@ -130,7 +130,7 @@ use crate::lua::executor::{
     nlua_is_table_from_lua, nlua_register_table_as_callable,
 };
 use crate::mark::{
-    WinInfo, cleanup_jumplist, get_buf_local_marks, get_global_marks, setmark_pos, setpcmark,
+    cleanup_jumplist, get_buf_local_marks, get_global_marks, setmark_pos, setpcmark,
 };
 use crate::math::{FAIL, OK, xisinf, xisnan};
 use crate::mbyte::{
@@ -2974,8 +2974,7 @@ pub unsafe fn f_getchangelist(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
             (*curwin).w_changelistidx
         } else {
             let mut idx = (*buf).b_changelistlen;
-            for i in 0..(*buf).b_wininfo.size {
-                let wip = (*(*buf).b_wininfo.items.add(i)).cast::<WinInfo>();
+            for &wip in &(*buf).b_wininfo {
                 if (*wip).wi_win == curwin {
                     idx = (*wip).wi_changelistidx;
                     break;

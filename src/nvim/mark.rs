@@ -1657,8 +1657,7 @@ pub unsafe fn mark_adjust_buf(
 
         diff_mark_adjust(buf, line1, line2, amount, amount_after);
 
-        for i in 0..(*buf).b_wininfo.size {
-            let wip = (*(*buf).b_wininfo.items.add(i)).cast::<WinInfo>();
+        for &wip in &(*buf).b_wininfo {
             if !by_term || (*wip).wi_mark.mark.lnum < (*buf).b_ml.ml_line_count {
                 one_adjust_cursor(
                     &raw mut (*wip).wi_mark.mark,
@@ -2380,6 +2379,9 @@ mod tests {
 
     #[test]
     fn global_mark_index_and_set_get_work() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         unsafe {
             assert_eq!(mark_global_index(b'A' as c_char), 0);
             assert_eq!(mark_global_index(b'Z' as c_char), 25);

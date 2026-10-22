@@ -17,7 +17,6 @@ use crate::garray::garray_T;
 use crate::globals::*;
 use crate::hashtab::hashitem_empty;
 use crate::mapping::makemap;
-use crate::mark::fmark_T;
 use crate::mbyte::utfc_ptr2len;
 use crate::memory::{xfree, xmalloc, xmemcpyz};
 use crate::message::{emsg, semsg};
@@ -59,12 +58,6 @@ const kOptSsopFlagCursor: c_uint = 0x4000;
 const kOptSsopFlagTabpages: c_uint = 0x8000;
 const kOptSsopFlagTerminal: c_uint = 0x10000;
 const kOptSsopFlagSkiprtp: c_uint = 0x20000;
-
-#[repr(C)]
-pub struct wininfo_Prefix {
-    pub wi_win: *mut win_T,
-    pub wi_mark: fmark_T,
-}
 
 static mut did_lcd: bool = false;
 
@@ -700,12 +693,10 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
                 && !(*buf).b_fname.is_null()
                 && (*buf).b_p_bl != 0
             {
-                let lnum = if (*buf).b_wininfo.size == 0 {
-                    1i64
-                } else {
-                    let wi = (*(*buf).b_wininfo.items).cast::<wininfo_Prefix>();
-                    i64::from((*wi).wi_mark.mark.lnum)
-                };
+                let lnum = (*buf)
+                    .b_wininfo
+                    .first()
+                    .map_or(1i64, |&wi| i64::from((*wi).wi_mark.mark.lnum));
                 if !write_fmt(fd, format!("badd +{lnum} "))
                     || ses_fname(fd, buf, &raw mut ssop_flags, true) == FAIL
                 {

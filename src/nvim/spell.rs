@@ -2052,6 +2052,9 @@ pub unsafe fn spell_reload() {
 pub unsafe fn open_spellbuf() -> *mut buf_T {
     unsafe {
         let buf = xcalloc(1, size_of::<buf_T>()).cast::<buf_T>();
+        ptr::write(&raw mut (*buf).b_wininfo, Vec::new());
+        ptr::write(&raw mut (*buf).update_channels, Vec::new());
+        ptr::write(&raw mut (*buf).update_callbacks, Vec::new());
         (*buf).b_spell = true;
         (*buf).b_p_swf = 1;
         if ml_open(buf) == FAIL {

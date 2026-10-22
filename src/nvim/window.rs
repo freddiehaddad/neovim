@@ -6021,10 +6021,9 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
         let mut buf = firstbuf;
         while !buf.is_null() {
             let mut wip_wp: *mut WinInfo = ptr::null_mut();
-            let mut pos_wip = (*buf).b_wininfo.size;
-            let mut pos_null = (*buf).b_wininfo.size;
-            for i in 0..(*buf).b_wininfo.size {
-                let wip = (*(*buf).b_wininfo.items.add(i)).cast::<WinInfo>();
+            let mut pos_wip = (*buf).b_wininfo.len();
+            let mut pos_null = (*buf).b_wininfo.len();
+            for (i, &wip) in (*buf).b_wininfo.iter().enumerate() {
                 if ptr::eq((*wip).wi_win, wp) {
                     wip_wp = wip;
                     pos_wip = i;
@@ -6040,20 +6039,10 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
                     deleteFoldRecurse(buf, &raw mut (*wip_wp).wi_folds);
                     (*wip_wp).wi_optset = false;
                 }
-                if pos_null < (*buf).b_wininfo.size {
+                if pos_null < (*buf).b_wininfo.len() {
                     let pos_delete = pos_null.max(pos_wip);
-                    free_wininfo(
-                        (*(*buf).b_wininfo.items.add(pos_delete)).cast::<WinInfo>(),
-                        buf,
-                    );
-                    (*buf).b_wininfo.size -= 1;
-                    if pos_delete < (*buf).b_wininfo.size {
-                        ptr::copy(
-                            (*buf).b_wininfo.items.add(pos_delete + 1),
-                            (*buf).b_wininfo.items.add(pos_delete),
-                            (*buf).b_wininfo.size - pos_delete,
-                        );
-                    }
+                    let removed = (*buf).b_wininfo.remove(pos_delete);
+                    free_wininfo(removed, buf);
                 }
             }
             buf = (*buf).b_next;

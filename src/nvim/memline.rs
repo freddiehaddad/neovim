@@ -862,6 +862,9 @@ pub unsafe fn ml_recover(checkext: bool) {
         }
 
         buf = xmalloc(size_of::<buf_T>()).cast::<buf_T>();
+        ptr::write(&raw mut (*buf).b_wininfo, Vec::new());
+        ptr::write(&raw mut (*buf).update_channels, Vec::new());
+        ptr::write(&raw mut (*buf).update_callbacks, Vec::new());
         (*buf).b_ml.ml_stack_size = 0;
         (*buf).b_ml.ml_stack = ptr::null_mut();
         (*buf).b_ml.ml_stack_top = 0;
@@ -2724,7 +2727,7 @@ pub unsafe fn ml_replace_buf_len(
             ml_flush_line(buf, false);
         }
 
-        if (*buf).update_callbacks.size != 0 {
+        if !(*buf).update_callbacks.is_empty() {
             let old_line = ml_get_buf(buf, lnum);
             ml_add_deleted_len_buf(buf, old_line, -1);
         }

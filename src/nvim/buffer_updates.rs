@@ -62,11 +62,8 @@ pub unsafe fn buf_updates_register(
             return true;
         }
 
-        let size = (*buf).update_channels.size;
-        for i in 0..size {
-            if *(*buf).update_channels.items.add(i) == channel_id {
-                return true;
-            }
+        if (*buf).update_channels.contains(&channel_id) {
+            return true;
         }
 
         (*buf).update_channels.push(channel_id);
@@ -114,7 +111,7 @@ pub unsafe fn buf_updates_register(
 }
 
 pub unsafe fn buf_updates_active(buf: *mut buf_T) -> bool {
-    unsafe { (*buf).update_channels.size != 0 || (*buf).update_callbacks.size != 0 }
+    unsafe { !(*buf).update_channels.is_empty() || !(*buf).update_callbacks.is_empty() }
 }
 
 pub unsafe fn buf_updates_send_end(buf: *mut buf_T, channelid: u64) {
@@ -131,31 +128,16 @@ pub unsafe fn buf_updates_send_end(buf: *mut buf_T, channelid: u64) {
 
 pub unsafe fn buf_updates_unregister(buf: *mut buf_T, channelid: u64) {
     unsafe {
-        let size = (*buf).update_channels.size;
+        let size = (*buf).update_channels.len();
         if size == 0 {
             return;
         }
 
-        let mut j = 0usize;
-        let mut found = 0usize;
-        for i in 0..size {
-            if *(*buf).update_channels.items.add(i) == channelid {
-                found += 1;
-            } else {
-                if i != j {
-                    *(*buf).update_channels.items.add(j) = *(*buf).update_channels.items.add(i);
-                }
-                j += 1;
-            }
-        }
-
-        if found > 0 {
-            (*buf).update_channels.size -= found;
+        (*buf).update_channels.retain(|&id| id != channelid);
+        if (*buf).update_channels.len() < size {
             buf_updates_send_end(buf, channelid);
-
-            if found == size {
-                (*buf).update_channels.destroy();
-                (*buf).update_channels.init();
+            if (*buf).update_channels.is_empty() {
+                (*buf).update_channels = Vec::new();
             }
         }
     }
@@ -163,28 +145,24 @@ pub unsafe fn buf_updates_unregister(buf: *mut buf_T, channelid: u64) {
 
 pub unsafe fn buf_free_callbacks(buf: *mut buf_T) {
     unsafe {
-        (*buf).update_channels.destroy();
-        for i in 0..(*buf).update_callbacks.size {
-            buffer_update_callbacks_free(*(*buf).update_callbacks.items.add(i));
+        (*buf).update_channels = Vec::new();
+        for cb in (*buf).update_callbacks.drain(..) {
+            buffer_update_callbacks_free(cb);
         }
-        (*buf).update_callbacks.destroy();
+        (*buf).update_callbacks = Vec::new();
     }
 }
 
 pub unsafe fn buf_updates_unload(buf: *mut buf_T, can_reload: bool) {
     unsafe {
-        let size = (*buf).update_channels.size;
-        if size > 0 {
-            for i in 0..size {
-                buf_updates_send_end(buf, *(*buf).update_channels.items.add(i));
-            }
-            (*buf).update_channels.destroy();
-            (*buf).update_channels.init();
+        for channelid in (*buf).update_channels.drain(..) {
+            buf_updates_send_end(buf, channelid);
         }
+        (*buf).update_channels = Vec::new();
 
         let mut j = 0usize;
-        for i in 0..(*buf).update_callbacks.size {
-            let cb = *(*buf).update_callbacks.items.add(i);
+        for i in 0..(*buf).update_callbacks.len() {
+            let cb = (*buf).update_callbacks.as_slice()[i];
             let mut thecb = LUA_NOREF;
             let mut keep = false;
 
@@ -220,16 +198,15 @@ pub unsafe fn buf_updates_unload(buf: *mut buf_T, can_reload: bool) {
             }
 
             if keep {
-                *(*buf).update_callbacks.items.add(j) = *(*buf).update_callbacks.items.add(i);
+                (*buf).update_callbacks.as_mut_slice()[j] = cb;
                 j += 1;
             } else {
                 buffer_update_callbacks_free(cb);
             }
         }
-        (*buf).update_callbacks.size = j;
-        if (*buf).update_callbacks.size == 0 {
-            (*buf).update_callbacks.destroy();
-            (*buf).update_callbacks.init();
+        (*buf).update_callbacks.truncate(j);
+        if (*buf).update_callbacks.is_empty() {
+            (*buf).update_callbacks = Vec::new();
         }
     }
 }
@@ -255,7 +232,7 @@ pub unsafe fn buf_updates_send_changes(
 
         let mut arena = ARENA_EMPTY;
         let mut linedata = Array::new();
-        if num_added > 0 && (*buf).update_channels.size > 0 {
+        if num_added > 0 && !(*buf).update_channels.is_empty() {
             linedata = arena_array(&mut arena, num_added as usize);
             buf_collect_lines(
                 buf,
@@ -269,8 +246,7 @@ pub unsafe fn buf_updates_send_changes(
             );
         }
 
-        for i in 0..(*buf).update_channels.size {
-            let channelid = *(*buf).update_channels.items.add(i);
+        for &channelid in &(*buf).update_channels {
             let mut items = [
                 buffer_obj((*buf).b_fnum),
                 if send_tick {
@@ -309,8 +285,8 @@ pub unsafe fn buf_updates_send_changes(
         arena_mem_free(arena_finish(&mut arena));
 
         let mut j = 0usize;
-        for i in 0..(*buf).update_callbacks.size {
-            let cb = *(*buf).update_callbacks.items.add(i);
+        for i in 0..(*buf).update_callbacks.len() {
+            let cb = (*buf).update_callbacks.as_slice()[i];
             let mut keep = true;
             if cb.on_lines != LUA_NOREF && (cb.preview || !cmdpreview) {
                 let mut items = [
@@ -351,11 +327,11 @@ pub unsafe fn buf_updates_send_changes(
                 }
             }
             if keep {
-                *(*buf).update_callbacks.items.add(j) = *(*buf).update_callbacks.items.add(i);
+                (*buf).update_callbacks.as_mut_slice()[j] = cb;
                 j += 1;
             }
         }
-        (*buf).update_callbacks.size = j;
+        (*buf).update_callbacks.truncate(j);
     }
 }
 
@@ -377,8 +353,8 @@ pub unsafe fn buf_updates_send_splice(
         }
 
         let mut j = 0usize;
-        for i in 0..(*buf).update_callbacks.size {
-            let cb = *(*buf).update_callbacks.items.add(i);
+        for i in 0..(*buf).update_callbacks.len() {
+            let cb = (*buf).update_callbacks.as_slice()[i];
             let mut keep = true;
             if cb.on_bytes != LUA_NOREF && (cb.preview || !cmdpreview) {
                 let mut items = [
@@ -418,24 +394,23 @@ pub unsafe fn buf_updates_send_splice(
                 }
             }
             if keep {
-                *(*buf).update_callbacks.items.add(j) = *(*buf).update_callbacks.items.add(i);
+                (*buf).update_callbacks.as_mut_slice()[j] = cb;
                 j += 1;
             }
         }
-        (*buf).update_callbacks.size = j;
+        (*buf).update_callbacks.truncate(j);
     }
 }
 
 pub unsafe fn buf_updates_changedtick(buf: *mut buf_T) {
     unsafe {
-        for i in 0..(*buf).update_channels.size {
-            let channel_id = *(*buf).update_channels.items.add(i);
+        for &channel_id in &(*buf).update_channels {
             buf_updates_changedtick_single(buf, channel_id);
         }
 
         let mut j = 0usize;
-        for i in 0..(*buf).update_callbacks.size {
-            let cb = *(*buf).update_callbacks.items.add(i);
+        for i in 0..(*buf).update_callbacks.len() {
+            let cb = (*buf).update_callbacks.as_slice()[i];
             let mut keep = true;
             if cb.on_changedtick != LUA_NOREF {
                 let mut items = [
@@ -466,11 +441,11 @@ pub unsafe fn buf_updates_changedtick(buf: *mut buf_T) {
                 }
             }
             if keep {
-                *(*buf).update_callbacks.items.add(j) = *(*buf).update_callbacks.items.add(i);
+                (*buf).update_callbacks.as_mut_slice()[j] = cb;
                 j += 1;
             }
         }
-        (*buf).update_callbacks.size = j;
+        (*buf).update_callbacks.truncate(j);
     }
 }
 

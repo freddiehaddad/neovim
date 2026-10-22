@@ -190,7 +190,7 @@ pub struct buf_T {
     pub b_mod_top: i32,
     pub b_mod_bot: i32,
     pub b_mod_xlines: i32,
-    pub b_wininfo: crate::kvec::KVec<*mut c_void>,
+    pub b_wininfo: Vec<*mut WinInfo>,
     pub b_mod_tick_syn: u64,
     pub b_mod_tick_decor: u64,
     pub b_mtime: i64,
@@ -414,8 +414,8 @@ pub struct buf_T {
     pub b_marktree: [crate::marktree::MarkTree; 1],
     pub b_extmark_ns: [Map<u32, u32>; 1],
     pub b_prev_line_count: c_int,
-    pub update_channels: crate::kvec::KVec<u64>,
-    pub update_callbacks: crate::kvec::KVec<BufUpdateCallbacks>,
+    pub update_channels: Vec<u64>,
+    pub update_callbacks: Vec<BufUpdateCallbacks>,
     pub update_need_codepoints: bool,
     pub deleted_bytes: usize,
     pub deleted_bytes2: usize,
@@ -1403,7 +1403,9 @@ unsafe fn free_buffer(buf: *mut buf_T) {
         aubuflocal_remove(buf);
         xfree((*buf).additional_data);
         xfree((*buf).b_prompt_text.cast());
-        (*buf).b_wininfo.destroy();
+        ptr::drop_in_place(&raw mut (*buf).b_wininfo);
+        ptr::drop_in_place(&raw mut (*buf).update_channels);
+        ptr::drop_in_place(&raw mut (*buf).update_callbacks);
         callback_free(&raw mut (*buf).b_prompt_callback);
         callback_free(&raw mut (*buf).b_prompt_interrupt);
         clear_fmark(&raw mut (*buf).b_last_cursor, 0);
@@ -1434,11 +1436,9 @@ unsafe fn free_buffer(buf: *mut buf_T) {
 
 unsafe fn clear_wininfo(buf: *mut buf_T) {
     unsafe {
-        for i in 0..(*buf).b_wininfo.size {
-            let wip = (*(*buf).b_wininfo.items.add(i)).cast::<WinInfo>();
+        for wip in (*buf).b_wininfo.drain(..) {
             free_wininfo(wip, buf);
         }
-        (*buf).b_wininfo.size = 0;
     }
 }
 
@@ -2489,6 +2489,9 @@ pub unsafe fn buflist_new(
         }
         if buf != curbuf || curbuf.is_null() {
             buf = xcalloc(1, std::mem::size_of::<buf_T>()).cast::<buf_T>();
+            ptr::write(&raw mut (*buf).b_wininfo, Vec::new());
+            ptr::write(&raw mut (*buf).update_channels, Vec::new());
+            ptr::write(&raw mut (*buf).update_callbacks, Vec::new());
             (*buf).b_vars = tv_dict_alloc();
             init_var_dict((*buf).b_vars, (&raw mut (*buf).b_bufvar).cast(), VAR_SCOPE);
             buf_init_changedtick(buf);
@@ -2503,7 +2506,7 @@ pub unsafe fn buflist_new(
 
         clear_wininfo(buf);
         let curwin_info = xcalloc(1, std::mem::size_of::<WinInfo>()).cast::<WinInfo>();
-        (*buf).b_wininfo.push(curwin_info.cast());
+        (*buf).b_wininfo.push(curwin_info);
 
         if buf == curbuf {
             free_buffer_stuff(buf, kBffInitChangedtick);
@@ -2565,10 +2568,8 @@ pub unsafe fn buflist_new(
         clrallmarks(buf, 0);
         fmarks_check_names(buf);
         (*buf).b_p_bl = c_int::from((flags & BLN_LISTED) != 0);
-        (*buf).update_channels.destroy();
-        (*buf).update_channels.init();
-        (*buf).update_callbacks.destroy();
-        (*buf).update_callbacks.init();
+        (*buf).update_channels.clear();
+        (*buf).update_callbacks.clear();
         if (flags & BLN_DUMMY) == 0 {
             let mut bufref: bufref_T = std::mem::zeroed();
             set_bufref(&raw mut bufref, buf);
@@ -3202,36 +3203,21 @@ pub unsafe fn buflist_setfpos(
     copy_options: bool,
 ) {
     unsafe {
-        let mut wip: *mut WinInfo = ptr::null_mut();
-        let mut i = 0usize;
-        while i < (*buf).b_wininfo.size {
-            wip = (*(*buf).b_wininfo.items.add(i)).cast::<WinInfo>();
-            if (*wip).wi_win == win {
-                break;
-            }
-            i += 1;
-        }
-
-        if i == (*buf).b_wininfo.size {
-            wip = xcalloc(1, std::mem::size_of::<WinInfo>()).cast::<WinInfo>();
-            (*wip).wi_win = win;
-            if lnum == 0 {
-                lnum = 1;
-            }
-        } else {
-            (*buf).b_wininfo.size -= 1;
-            if i < (*buf).b_wininfo.size {
-                ptr::copy(
-                    (*buf).b_wininfo.items.add(i + 1),
-                    (*buf).b_wininfo.items.add(i),
-                    (*buf).b_wininfo.size - i,
-                );
-            }
+        let wip = if let Some(i) = (*buf).b_wininfo.iter().position(|&w| (*w).wi_win == win) {
+            let wip = (*buf).b_wininfo.remove(i);
             if copy_options && (*wip).wi_optset {
                 clear_winopt(&raw mut (*wip).wi_opt);
                 deleteFoldRecurse(buf, &raw mut (*wip).wi_folds);
             }
-        }
+            wip
+        } else {
+            let wip = xcalloc(1, std::mem::size_of::<WinInfo>()).cast::<WinInfo>();
+            (*wip).wi_win = win;
+            if lnum == 0 {
+                lnum = 1;
+            }
+            wip
+        };
         if lnum != 0 {
             (*wip).wi_mark.mark.lnum = lnum;
             (*wip).wi_mark.mark.col = col;
@@ -3249,15 +3235,7 @@ pub unsafe fn buflist_setfpos(
             (*wip).wi_optset = true;
         }
 
-        (*buf).b_wininfo.push(ptr::null_mut());
-        if (*buf).b_wininfo.size > 1 {
-            ptr::copy(
-                (*buf).b_wininfo.items,
-                (*buf).b_wininfo.items.add(1),
-                (*buf).b_wininfo.size - 1,
-            );
-        }
-        *(*buf).b_wininfo.items = wip.cast();
+        (*buf).b_wininfo.insert(0, wip);
     }
 }
 
@@ -3284,8 +3262,7 @@ unsafe fn find_wininfo(
     skip_diff_buffer: bool,
 ) -> *mut WinInfo {
     unsafe {
-        for i in 0..(*buf).b_wininfo.size {
-            let wip = (*(*buf).b_wininfo.items.add(i)).cast::<WinInfo>();
+        for &wip in &(*buf).b_wininfo {
             if (*wip).wi_win == curwin
                 && (!skip_diff_buffer || !wininfo_other_tab_diff(wip))
                 && (!need_options || (*wip).wi_optset)
@@ -3295,8 +3272,7 @@ unsafe fn find_wininfo(
         }
 
         if skip_diff_buffer {
-            for i in 0..(*buf).b_wininfo.size {
-                let wip = (*(*buf).b_wininfo.items.add(i)).cast::<WinInfo>();
+            for &wip in &(*buf).b_wininfo {
                 if !wininfo_other_tab_diff(wip)
                     && (!need_options
                         || (*wip).wi_optset
@@ -3305,8 +3281,8 @@ unsafe fn find_wininfo(
                     return wip;
                 }
             }
-        } else if (*buf).b_wininfo.size != 0 {
-            return (*(*buf).b_wininfo.items).cast::<WinInfo>();
+        } else if let Some(&wip) = (*buf).b_wininfo.first() {
+            return wip;
         }
         ptr::null_mut()
     }

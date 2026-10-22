@@ -3212,6 +3212,9 @@ mod tests {
 
     #[test]
     fn map_mode_to_chars_and_langmap_init_work() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         unsafe {
             let mut buf = [0 as c_char; 16];
             map_mode_to_chars(MODE_NORMAL | MODE_VISUAL, buf.as_mut_ptr());

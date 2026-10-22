@@ -556,6 +556,7 @@ mod tests {
 
     #[test]
     fn default_globals_match_c_initializers() {
+        let _guard = TEST_GLOBAL_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         unsafe {
             assert_eq!({ Rows }, 24);
             assert_eq!({ Columns }, 80);

@@ -1886,6 +1886,9 @@ mod tests {
 
     #[test]
     fn hl_font_interning_handles_null_and_roundtrips() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         unsafe {
             assert_eq!(hl_add_font_idx(ptr::null()), -1);
             assert_eq!(hl_add_font_idx(c"".as_ptr()), -1);

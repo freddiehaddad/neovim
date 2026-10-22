@@ -49,11 +49,6 @@ use crate::math::{FAIL, OK};
 pub(crate) const SEA_READONLY: c_int = 4;
 
 #[repr(C)]
-struct WinInfoHead {
-    wi_win: *mut win_T,
-}
-
-#[repr(C)]
 struct cob_T {
     cob_curwin_save: *mut win_T,
     cob_aco: CtxSwitch,
@@ -92,8 +87,7 @@ pub unsafe fn find_buffer(avar: *mut typval_T) -> *mut buf_T {
 /// If there is a window for `curbuf`, make it the current window (`find_win_for_curbuf`).
 unsafe fn find_win_for_curbuf() {
     unsafe {
-        for i in 0..(*curbuf).b_wininfo.size {
-            let wip = (*((*curbuf).b_wininfo.items.add(i))).cast::<WinInfoHead>();
+        for &wip in &(*curbuf).b_wininfo {
             if !(*wip).wi_win.is_null() && (*(*wip).wi_win).w_buffer == curbuf {
                 curwin = (*wip).wi_win;
                 break;

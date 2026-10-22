@@ -78,7 +78,7 @@ use crate::kvec::{KVec, StringBuilder};
 use crate::map::{
     HlAttrs, MapHash, Set, ptr_t, set_del_ptr, set_destroy, set_has_ptr, set_put_ptr,
 };
-use crate::mark::{WinInfo, kMarkAdjustTerm, mark_adjust_buf};
+use crate::mark::{kMarkAdjustTerm, mark_adjust_buf};
 use crate::mbyte::{mb_check_adjust_col, utf_ptr2char, utf_ptr2len};
 use crate::memline::{ml_append_buf, ml_delete_buf, ml_replace_buf};
 use crate::memory::{strequal, xcalloc, xfree, xmalloc, xmemdup, xmemdupz, xrealloc, xstrdup};
@@ -1063,8 +1063,7 @@ unsafe fn unset_terminal_winopts(s: *mut TerminalState) {
             if (*(*wp).w_buffer).b_fnum != (*(*s).term).buf_handle {
                 let buf = handle_get_buffer((*(*s).term).buf_handle);
                 if !buf.is_null() {
-                    for i in 0..(*buf).b_wininfo.size {
-                        let wip = (*(*buf).b_wininfo.items.add(i)).cast::<WinInfo>();
+                    for &wip in &(*buf).b_wininfo {
                         if (*wip).wi_win == wp && (*wip).wi_optset {
                             winopts = &raw mut (*wip).wi_opt;
                             break;
@@ -2754,8 +2753,7 @@ unsafe fn adjust_topline_cursor(term: *mut Terminal, buf: *mut buf_T, added: c_i
             (*buf).b_last_cursor.mark.lnum = ml_end;
         }
 
-        for i in 0..(*buf).b_wininfo.size {
-            let wip = (*(*buf).b_wininfo.items.add(i)).cast::<WinInfo>();
+        for &wip in &(*buf).b_wininfo {
             if ml_end == (*wip).wi_mark.mark.lnum + added {
                 (*wip).wi_mark.mark.lnum = ml_end;
             }
