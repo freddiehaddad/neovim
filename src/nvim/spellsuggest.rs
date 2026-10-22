@@ -44,14 +44,14 @@ use crate::spell::{
 };
 use crate::spellfile::{MAXREGIONS, WF_NOSUGGEST, suggest_load_files};
 use crate::strings::{
-    atoi, gettext, qsort, strcat, strcmp, strcpy, strlen, strmove, strncmp, strncpy, vim_snprintf,
-    vim_strchr, xstrnsave,
+    atoi, gettext, sort_slice_by, strcat, strcmp, strcpy, strlen, strmove, strncmp, strncpy,
+    vim_snprintf, vim_strchr, xstrnsave,
 };
 use crate::syntax::synblock_T;
 use crate::ui::vim_beep;
 use crate::undo::u_save_cursor;
 use crate::viml::parser::expressions::TAB;
-use std::ffi::{c_char, c_int, c_uint, c_void};
+use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
 pub type idx_T = c_int;
 pub type salfirst_T = c_int;
@@ -2980,27 +2980,25 @@ unsafe fn rescore_one(su: *mut suginfo_T, stp: *mut suggest_T) {
         }
     }
 }
-unsafe fn sug_compare(s1: *const c_void, s2: *const c_void) -> c_int {
+unsafe fn sug_compare(p1: &suggest_T, p2: &suggest_T) -> c_int {
     unsafe {
-        let p1 = s1.cast::<suggest_T>();
-        let p2 = s2.cast::<suggest_T>();
-        let mut n = if (*p1).st_score == (*p2).st_score {
+        let mut n = if p1.st_score == p2.st_score {
             0
-        } else if (*p1).st_score > (*p2).st_score {
+        } else if p1.st_score > p2.st_score {
             1
         } else {
             -1
         };
         if n == 0 {
-            n = if (*p1).st_altscore == (*p2).st_altscore {
+            n = if p1.st_altscore == p2.st_altscore {
                 0
-            } else if (*p1).st_altscore > (*p2).st_altscore {
+            } else if p1.st_altscore > p2.st_altscore {
                 1
             } else {
                 -1
             };
             if n == 0 {
-                n = mb_stricmp((*p1).st_word, (*p2).st_word);
+                n = mb_stricmp(p1.st_word, p2.st_word);
             }
         }
         n
@@ -3011,12 +3009,11 @@ unsafe fn cleanup_suggestions(gap: *mut garray_T, maxscore: c_int, keep: c_int) 
         if (*gap).ga_len <= 0 {
             return maxscore;
         }
-        qsort(
-            (*gap).ga_data,
+        let slice = std::slice::from_raw_parts_mut(
+            (*gap).ga_data.cast::<suggest_T>(),
             (*gap).ga_len as usize,
-            size_of::<suggest_T>(),
-            sug_compare,
         );
+        sort_slice_by(slice, |a, b| sug_compare(a, b));
         if (*gap).ga_len > keep {
             let stp = sug_at(gap, 0);
             for i in keep..(*gap).ga_len {

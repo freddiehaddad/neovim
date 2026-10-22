@@ -71,10 +71,10 @@ use crate::sha256::context_sha256_T;
 use crate::spell::spell_check_window;
 use crate::state::virtual_active;
 use crate::strings::{
-    gettext, memcmp, ngettext, qsort, sort_strings, strcmp, strlen, vim_snprintf, vim_snprintf_add,
-    vim_strchr,
+    gettext, memcmp, ngettext, sort_slice_by, sort_strings, strcmp, strlen, vim_snprintf,
+    vim_snprintf_add, vim_strchr,
 };
-use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong, c_void};
+use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong};
 use std::ptr;
 
 #[cfg(unix)]
@@ -1246,10 +1246,8 @@ pub unsafe fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, 
     }
 }
 
-unsafe fn uhp_seq_cmp(v1: *const c_void, v2: *const c_void) -> c_int {
+unsafe fn uhp_seq_cmp(&u1: &*mut u_header_T, &u2: &*mut u_header_T) -> c_int {
     unsafe {
-        let u1 = *v1.cast::<*const u_header_T>();
-        let u2 = *v2.cast::<*const u_header_T>();
         if (*u1).uh_seq == (*u2).uh_seq {
             0
         } else if (*u1).uh_seq > (*u2).uh_seq {
@@ -1480,12 +1478,8 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                 }
 
                 if num_head > 0 {
-                    qsort(
-                        uhp_table.cast(),
-                        num_head as usize,
-                        size_of::<*mut u_header_T>(),
-                        uhp_seq_cmp,
-                    );
+                    let slice = std::slice::from_raw_parts_mut(uhp_table, num_head as usize);
+                    sort_slice_by(slice, |a, b| uhp_seq_cmp(a, b));
                 }
 
                 for i in 0..(num_head - 1) {

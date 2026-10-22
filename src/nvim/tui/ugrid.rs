@@ -1,9 +1,7 @@
 //! TUI screen cell grid (`src/nvim/tui/ugrid.c`).
 
 use crate::grid::{sattr_T, schar_T, schar_from_ascii};
-use std::ffi::{c_int, c_void};
-
-use crate::memory::{xcalloc, xfree, xmalloc};
+use std::ffi::c_int;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -12,32 +10,16 @@ pub struct UCell {
     pub attr: sattr_T,
 }
 
-#[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct UGrid {
     pub row: c_int,
     pub col: c_int,
     pub width: c_int,
     pub height: c_int,
-    pub cells: *mut *mut UCell,
+    pub cells: Vec<Vec<UCell>>,
 }
 
-unsafe fn destroy_cells(grid: &mut UGrid) {
-    if !grid.cells.is_null() {
-        for i in 0..grid.height.max(0) as usize {
-            unsafe {
-                let row_ptr = *grid.cells.add(i);
-                xfree(row_ptr.cast::<c_void>());
-            }
-        }
-        unsafe {
-            xfree(grid.cells.cast::<c_void>());
-        }
-        grid.cells = std::ptr::null_mut();
-    }
-}
-
-unsafe fn clear_region(
+fn clear_region(
     grid: &mut UGrid,
     top: c_int,
     bot: c_int,
@@ -51,61 +33,40 @@ unsafe fn clear_region(
     }
     let start_col = left as usize;
     let end_col = (right + 1) as usize;
-    for row in top..=bot {
-        unsafe {
-            let row_cells = *grid.cells.add(row as usize);
-            let slice =
-                std::slice::from_raw_parts_mut(row_cells.add(start_col), end_col - start_col);
-            slice.fill(UCell { data: space, attr });
-        }
+    for row in (top as usize)..=(bot as usize) {
+        grid.cells[row][start_col..end_col].fill(UCell { data: space, attr });
     }
 }
 
-/// Initialize a `UGrid` (`ugrid_init`).
+/// Initialize a `UGrid` (`ugrid_init`), including when embedded in zeroed memory.
 pub fn ugrid_init(grid: &mut UGrid) {
-    grid.cells = std::ptr::null_mut();
+    unsafe {
+        std::ptr::write(&raw mut grid.cells, Vec::new());
+    }
 }
 
 /// Free all cell memory in `grid` (`ugrid_free`).
-pub unsafe fn ugrid_free(grid: &mut UGrid) {
-    unsafe {
-        destroy_cells(grid);
-    }
+pub fn ugrid_free(grid: &mut UGrid) {
+    grid.cells = Vec::new();
 }
 
 /// Resize `grid` to `width` x `height` cells (`ugrid_resize`).
-pub unsafe fn ugrid_resize(grid: &mut UGrid, width: c_int, height: c_int) {
-    unsafe {
-        destroy_cells(grid);
-        let h = height as usize;
-        let w = width as usize;
-        grid.cells = xmalloc(h * std::mem::size_of::<*mut UCell>()).cast::<*mut UCell>();
-        for i in 0..h {
-            *grid.cells.add(i) = xcalloc(w, std::mem::size_of::<UCell>()).cast::<UCell>();
-        }
-    }
+pub fn ugrid_resize(grid: &mut UGrid, width: c_int, height: c_int) {
+    let h = height.max(0) as usize;
+    let w = width.max(0) as usize;
+    grid.cells = vec![vec![UCell::default(); w]; h];
     grid.width = width;
     grid.height = height;
 }
 
 /// Clear the entire `grid` (`ugrid_clear`).
-pub unsafe fn ugrid_clear(grid: &mut UGrid) {
-    unsafe {
-        clear_region(grid, 0, grid.height - 1, 0, grid.width - 1, 0);
-    }
+pub fn ugrid_clear(grid: &mut UGrid) {
+    clear_region(grid, 0, grid.height - 1, 0, grid.width - 1, 0);
 }
 
 /// Clear `row` from `col` to `endcol - 1` with `attr` (`ugrid_clear_chunk`).
-pub unsafe fn ugrid_clear_chunk(
-    grid: &mut UGrid,
-    row: c_int,
-    col: c_int,
-    endcol: c_int,
-    attr: sattr_T,
-) {
-    unsafe {
-        clear_region(grid, row, row, col, endcol - 1, attr);
-    }
+pub fn ugrid_clear_chunk(grid: &mut UGrid, row: c_int, col: c_int, endcol: c_int, attr: sattr_T) {
+    clear_region(grid, row, row, col, endcol - 1, attr);
 }
 
 /// Move `grid` cursor to `(row, col)` (`ugrid_goto`).
@@ -115,7 +76,7 @@ pub fn ugrid_goto(grid: &mut UGrid, row: c_int, col: c_int) {
 }
 
 /// Scroll region `(top..=bot, left..=right)` by `count` rows (`ugrid_scroll`).
-pub unsafe fn ugrid_scroll(
+pub fn ugrid_scroll(
     grid: &mut UGrid,
     top: c_int,
     bot: c_int,
@@ -130,14 +91,22 @@ pub unsafe fn ugrid_scroll(
     };
 
     assert!(right >= left && left >= 0);
-    let len = (right as usize) - (left as usize) + 1;
+    let start_col = left as usize;
+    let end_col = (right as usize) + 1;
 
     let mut i = start;
     while i != stop {
-        unsafe {
-            let target_row = (*grid.cells.add(i as usize)).add(left as usize);
-            let source_row = (*grid.cells.add((i + count) as usize)).add(left as usize);
-            std::ptr::copy_nonoverlapping(source_row, target_row, len);
+        let dst = i as usize;
+        let src = (i + count) as usize;
+        if dst != src {
+            let (dst_row, src_row) = if dst < src {
+                let (head, tail) = grid.cells.split_at_mut(src);
+                (&mut head[dst], &tail[0])
+            } else {
+                let (head, tail) = grid.cells.split_at_mut(dst);
+                (&mut tail[0], &head[src])
+            };
+            dst_row[start_col..end_col].copy_from_slice(&src_row[start_col..end_col]);
         }
         i += step;
     }
@@ -149,57 +118,45 @@ mod tests {
 
     #[test]
     fn ugrid_lifecycle_clear_and_scroll() {
-        let mut grid = UGrid {
-            row: 0,
-            col: 0,
-            width: 0,
-            height: 0,
-            cells: std::ptr::null_mut(),
-        };
+        let mut grid = UGrid::default();
 
-        unsafe {
-            ugrid_init(&mut grid);
-            assert!(grid.cells.is_null());
+        ugrid_init(&mut grid);
+        assert!(grid.cells.is_empty());
 
-            ugrid_resize(&mut grid, 4, 3);
-            assert_eq!(grid.width, 4);
-            assert_eq!(grid.height, 3);
+        ugrid_resize(&mut grid, 4, 3);
+        assert_eq!(grid.width, 4);
+        assert_eq!(grid.height, 3);
 
-            ugrid_clear(&mut grid);
-            let space = schar_from_ascii(b' ');
-            for r in 0..3 {
-                let row_ptr = *grid.cells.add(r);
-                for c in 0..4 {
-                    let cell = *row_ptr.add(c);
-                    assert_eq!(
-                        cell,
-                        UCell {
-                            data: space,
-                            attr: 0
-                        }
-                    );
-                }
+        ugrid_clear(&mut grid);
+        let space = schar_from_ascii(b' ');
+        for r in 0..3 {
+            for c in 0..4 {
+                assert_eq!(
+                    grid.cells[r][c],
+                    UCell {
+                        data: space,
+                        attr: 0
+                    }
+                );
             }
-
-            ugrid_clear_chunk(&mut grid, 1, 1, 3, 7);
-            let row1 = *grid.cells.add(1);
-            assert_eq!((*row1.add(0)).attr, 0);
-            assert_eq!((*row1.add(1)).attr, 7);
-            assert_eq!((*row1.add(2)).attr, 7);
-            assert_eq!((*row1.add(3)).attr, 0);
-
-            // Scroll up by 1 row (`count = 1`): row 0 gets row 1's contents.
-            ugrid_scroll(&mut grid, 0, 2, 0, 3, 1);
-            let row0 = *grid.cells.add(0);
-            assert_eq!((*row0.add(1)).attr, 7);
-            assert_eq!((*row0.add(2)).attr, 7);
-
-            ugrid_goto(&mut grid, 2, 3);
-            assert_eq!(grid.row, 2);
-            assert_eq!(grid.col, 3);
-
-            ugrid_free(&mut grid);
-            assert!(grid.cells.is_null());
         }
+
+        ugrid_clear_chunk(&mut grid, 1, 1, 3, 7);
+        assert_eq!(grid.cells[1][0].attr, 0);
+        assert_eq!(grid.cells[1][1].attr, 7);
+        assert_eq!(grid.cells[1][2].attr, 7);
+        assert_eq!(grid.cells[1][3].attr, 0);
+
+        // Scroll up by 1 row (`count = 1`): row 0 gets row 1's contents.
+        ugrid_scroll(&mut grid, 0, 2, 0, 3, 1);
+        assert_eq!(grid.cells[0][1].attr, 7);
+        assert_eq!(grid.cells[0][2].attr, 7);
+
+        ugrid_goto(&mut grid, 2, 3);
+        assert_eq!(grid.row, 2);
+        assert_eq!(grid.col, 3);
+
+        ugrid_free(&mut grid);
+        assert!(grid.cells.is_empty());
     }
 }

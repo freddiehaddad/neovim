@@ -31,7 +31,7 @@ use crate::option_vars::*;
 use crate::optionstr::{OptKeyDict_pvp, free_string_option, kOptPreviewpopup, opt_keyset};
 use crate::os::fs::{MAXPATHL, os_dirname};
 use crate::plines::{plines_m_win, win_max_displaywidth};
-use crate::strings::{concat_str, gettext, qsort};
+use crate::strings::{concat_str, gettext, sort_slice_by};
 use crate::ui::ui_has;
 use crate::window::{
     STATUS_HEIGHT, WinConfig, WinKind, last_status, lastwin_nofloating, merge_win_config,
@@ -39,7 +39,7 @@ use crate::window::{
     win_find_tabpage, win_free, win_init, win_remove, win_remove_status_line, win_set_buf,
     win_set_inner_size, win_valid, winframe_remove,
 };
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 const KEYSET_OPTIDX_pvp__width: u64 = 1;
@@ -334,10 +334,10 @@ pub unsafe fn win_config_float(wp: *mut win_T, mut fconfig: WinConfig) {
     }
 }
 
-unsafe fn float_zindex_cmp(a: *const c_void, b: *const c_void) -> c_int {
+unsafe fn float_zindex_cmp(&wa: &*mut win_T, &wb: &*mut win_T) -> c_int {
     unsafe {
-        let za = (**a.cast::<*mut win_T>()).w_config.zindex;
-        let zb = (**b.cast::<*mut win_T>()).w_config.zindex;
+        let za = (*wa).w_config.zindex;
+        let zb = (*wb).w_config.zindex;
         if za == zb {
             0
         } else if za < zb {
@@ -359,12 +359,8 @@ pub unsafe fn win_float_remove(bang: bool, mut count: c_int) {
             wp = (*wp).w_prev;
         }
         if float_win_arr.size > 0 {
-            qsort(
-                float_win_arr.items.cast(),
-                float_win_arr.size,
-                size_of::<*mut win_T>(),
-                float_zindex_cmp,
-            );
+            let slice = std::slice::from_raw_parts_mut(float_win_arr.items, float_win_arr.size);
+            sort_slice_by(slice, |a, b| float_zindex_cmp(a, b));
         }
         for i in 0..float_win_arr.size {
             let w = *float_win_arr.items.add(i);

@@ -134,8 +134,8 @@ use crate::shada::SubReplacementString;
 use crate::spell::parse_spelllang;
 use crate::state::{MODE_CMDLINE, MODE_INSERT, MODE_LANGMAP};
 use crate::strings::{
-    atoi, atol, concat_str, gettext, isalpha, ngettext, qsort, strcat, strchr, strcmp, strcoll,
-    strcpy, strlen, strncmp, strtod, vim_snprintf, vim_snprintf_add, vim_snprintf_safelen,
+    atoi, atol, concat_str, gettext, isalpha, ngettext, sort_slice_by, strcat, strchr, strcmp,
+    strcoll, strcpy, strlen, strncmp, strtod, vim_snprintf, vim_snprintf_add, vim_snprintf_safelen,
     vim_strchr, vim_stricmp, vim_strsave_escaped, xstrnsave,
 };
 use crate::terminal::{Terminal, terminal_check_size, terminal_running};
@@ -600,10 +600,10 @@ unsafe fn string_compare(s1: *const c_void, s2: *const c_void) -> c_int {
     }
 }
 
-unsafe fn sort_compare(s1: *const c_void, s2: *const c_void) -> c_int {
+unsafe fn sort_compare(l1: &sorti_T, l2: &sorti_T) -> c_int {
     unsafe {
-        let l1 = *s1.cast::<sorti_T>();
-        let l2 = *s2.cast::<sorti_T>();
+        let l1 = *l1;
+        let l2 = *l2;
         let result: c_int;
 
         if sort_abort {
@@ -852,12 +852,8 @@ pub unsafe fn ex_sort(eap: *mut exarg_T) {
             sortbuf1 = xmalloc(maxlen as usize + 1).cast::<c_char>();
             sortbuf2 = xmalloc(maxlen as usize + 1).cast::<c_char>();
 
-            qsort(
-                nrs.cast::<c_void>(),
-                count,
-                size_of::<sorti_T>(),
-                sort_compare,
-            );
+            let slice = std::slice::from_raw_parts_mut(nrs, count);
+            sort_slice_by(slice, |a, b| sort_compare(a, b));
 
             if sort_abort {
                 break 'sortend;

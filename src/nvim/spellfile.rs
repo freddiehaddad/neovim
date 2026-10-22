@@ -55,8 +55,8 @@ use crate::spell::{
 };
 use crate::spellsuggest::{fromto_T, idx_T, salfirst_T, salitem_T, slang_T, spelltab_T};
 use crate::strings::{
-    atoi, gettext, has_non_ascii, memchr, memcmp, memcpy, memmove, memset, qsort, strcat, strcmp,
-    strcpy, strerror, strlen, strncmp, strrchr, strstr, vim_snprintf, vim_strchr,
+    atoi, gettext, has_non_ascii, memchr, memcmp, memcpy, memmove, memset, sort_slice_by, strcat,
+    strcmp, strcpy, strerror, strlen, strncmp, strrchr, strstr, vim_snprintf, vim_strchr,
 };
 use crate::syntax::{ga_empty, hi_empty, win_s};
 use crate::ui::ui_flush;
@@ -4321,12 +4321,8 @@ unsafe extern "C-unwind" fn node_equal(n1: *mut wordnode_T, n2: *mut wordnode_T)
     }
 }
 
-unsafe fn rep_compare(s1: *const c_void, s2: *const c_void) -> c_int {
-    unsafe {
-        let p1 = s1.cast::<fromto_T>();
-        let p2 = s2.cast::<fromto_T>();
-        strcmp((*p1).ft_from, (*p2).ft_from)
-    }
+unsafe fn rep_compare(p1: &fromto_T, p2: &fromto_T) -> c_int {
+    unsafe { strcmp(p1.ft_from, p2.ft_from) }
 }
 
 unsafe fn write_vim_spell(spin: *mut spellinfo_T, fname: *mut c_char) -> c_int {
@@ -4436,12 +4432,11 @@ unsafe fn write_vim_spell(spin: *mut spellinfo_T, fname: *mut c_char) -> c_int {
             }
 
             if round != 2 {
-                qsort(
-                    (*gap).ga_data,
+                let slice = std::slice::from_raw_parts_mut(
+                    (*gap).ga_data.cast::<fromto_T>(),
                     (*gap).ga_len as usize,
-                    size_of::<fromto_T>(),
-                    rep_compare,
                 );
+                sort_slice_by(slice, |a, b| rep_compare(a, b));
             }
 
             let sect_id = if round == 1 {

@@ -326,52 +326,29 @@ pub unsafe fn atoi(s: *const c_char) -> c_int {
 }
 
 #[inline]
-pub unsafe fn qsort(
-    base: *mut c_void,
-    nmemb: usize,
-    size: usize,
-    compar: unsafe fn(*const c_void, *const c_void) -> c_int,
-) {
-    if nmemb < 2 || size == 0 {
+pub fn sort_slice_by<T, F: FnMut(&T, &T) -> c_int>(slice: &mut [T], mut compar: F) {
+    let nmemb = slice.len();
+    if nmemb < 2 {
         return;
     }
-    let bytes = base.cast::<u8>();
-    let swap_elems = |i: usize, j: usize| {
-        if i != j {
-            unsafe {
-                ptr::swap_nonoverlapping(bytes.add(i * size), bytes.add(j * size), size);
-            }
-        }
-    };
-    let sift_down = |mut root: usize, end: usize| {
+    let mut sift_down = |slice: &mut [T], mut root: usize, end: usize| {
         loop {
             let left = 2 * root + 1;
             if left >= end {
                 break;
             }
             let mut swap_idx = root;
-            unsafe {
-                if compar(
-                    bytes.add(swap_idx * size).cast(),
-                    bytes.add(left * size).cast(),
-                ) < 0
-                {
-                    swap_idx = left;
-                }
-                let right = left + 1;
-                if right < end
-                    && compar(
-                        bytes.add(swap_idx * size).cast(),
-                        bytes.add(right * size).cast(),
-                    ) < 0
-                {
-                    swap_idx = right;
-                }
+            if compar(&slice[swap_idx], &slice[left]) < 0 {
+                swap_idx = left;
+            }
+            let right = left + 1;
+            if right < end && compar(&slice[swap_idx], &slice[right]) < 0 {
+                swap_idx = right;
             }
             if swap_idx == root {
                 break;
             }
-            swap_elems(root, swap_idx);
+            slice.swap(root, swap_idx);
             root = swap_idx;
         }
     };
@@ -379,13 +356,13 @@ pub unsafe fn qsort(
     let mut start = nmemb / 2;
     while start > 0 {
         start -= 1;
-        sift_down(start, nmemb);
+        sift_down(slice, start, nmemb);
     }
     let mut end = nmemb;
     while end > 1 {
         end -= 1;
-        swap_elems(0, end);
-        sift_down(0, end);
+        slice.swap(0, end);
+        sift_down(slice, 0, end);
     }
 }
 
@@ -1317,30 +1294,20 @@ pub unsafe fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char {
     }
 }
 
-unsafe fn sort_compare(s1: *const c_void, s2: *const c_void) -> c_int {
-    unsafe {
-        let a = *s1.cast::<*const c_char>();
-        let b = *s2.cast::<*const c_char>();
-        match CStr::from_ptr(a)
-            .to_bytes()
-            .cmp(CStr::from_ptr(b).to_bytes())
-        {
-            std::cmp::Ordering::Less => -1,
-            std::cmp::Ordering::Equal => 0,
-            std::cmp::Ordering::Greater => 1,
-        }
-    }
-}
-
 pub unsafe fn sort_strings(files: *mut *mut c_char, count: c_int) {
     unsafe {
         if count > 1 && !files.is_null() {
-            qsort(
-                files.cast(),
-                count as usize,
-                size_of::<*mut c_char>(),
-                sort_compare,
-            );
+            let slice = std::slice::from_raw_parts_mut(files, count as usize);
+            sort_slice_by(slice, |&a, &b| {
+                match CStr::from_ptr(a)
+                    .to_bytes()
+                    .cmp(CStr::from_ptr(b).to_bytes())
+                {
+                    std::cmp::Ordering::Less => -1,
+                    std::cmp::Ordering::Equal => 0,
+                    std::cmp::Ordering::Greater => 1,
+                }
+            });
         }
     }
 }
@@ -3900,18 +3867,8 @@ mod tests {
             assert_eq!(strtod(c"0x1.8p+2".as_ptr(), &raw mut end), 6.0);
             assert!(strtod(c"-INF".as_ptr(), &raw mut end).is_infinite());
             assert!(strtod(c"NaN".as_ptr(), &raw mut end).is_nan());
-            unsafe fn cmp_i32(a: *const c_void, b: *const c_void) -> c_int {
-                let x = unsafe { *a.cast::<i32>() };
-                let y = unsafe { *b.cast::<i32>() };
-                x.cmp(&y) as c_int
-            }
             let mut arr = [9i32, -3, 7, 0, -3, 12, 4, 1];
-            qsort(
-                arr.as_mut_ptr().cast(),
-                arr.len(),
-                size_of::<i32>(),
-                cmp_i32,
-            );
+            sort_slice_by(&mut arr, |x, y| x.cmp(y) as c_int);
             assert_eq!(arr, [-3, -3, 0, 1, 4, 7, 9, 12]);
             let mut tok_buf = *b"en_US\nde_DE\n\0";
             let mut saveptr: *mut c_char = ptr::null_mut();

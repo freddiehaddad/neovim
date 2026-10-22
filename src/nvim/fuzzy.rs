@@ -27,7 +27,7 @@ use crate::memory::{xcalloc, xfree, xmalloc, xstrdup};
 use crate::message::semsg;
 use crate::option_vars::*;
 use crate::search::FORWARD;
-use crate::strings::qsort;
+use crate::strings::sort_slice_by;
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 pub const FUZZY_MATCH_MAX_LEN: usize = 1024;
@@ -395,10 +395,8 @@ pub unsafe fn fuzzy_match(
     }
 }
 
-unsafe fn fuzzy_match_item_compare(s1: *const c_void, s2: *const c_void) -> c_int {
+unsafe fn fuzzy_match_item_compare(item1: &fuzzyItem_T, item2: &fuzzyItem_T) -> c_int {
     unsafe {
-        let item1 = &*s1.cast::<fuzzyItem_T>();
-        let item2 = &*s2.cast::<fuzzyItem_T>();
         let v1 = item1.score;
         let v2 = item2.score;
 
@@ -563,12 +561,8 @@ unsafe fn fuzzy_match_in_list(
         }
 
         if match_count > 0 {
-            qsort(
-                items.cast::<c_void>(),
-                match_count as usize,
-                std::mem::size_of::<fuzzyItem_T>(),
-                fuzzy_match_item_compare,
-            );
+            let slice = std::slice::from_raw_parts_mut(items, match_count as usize);
+            sort_slice_by(slice, |a, b| fuzzy_match_item_compare(a, b));
 
             let mut retlist = if retmatchpos {
                 let first_li = tv_list_find(fmatchlist, 0);
@@ -722,10 +716,7 @@ pub unsafe fn f_matchfuzzypos(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
     }
 }
 
-unsafe fn fuzzy_match_str_compare(s1: *const c_void, s2: *const c_void) -> c_int {
-    let f1 = unsafe { &*s1.cast::<fuzmatch_str_T>() };
-    let f2 = unsafe { &*s2.cast::<fuzmatch_str_T>() };
-
+fn fuzzy_match_str_compare(f1: &fuzmatch_str_T, f2: &fuzmatch_str_T) -> c_int {
     if f1.score == f2.score {
         f1.idx.cmp(&f2.idx) as c_int
     } else if f1.score > f2.score {
@@ -735,9 +726,7 @@ unsafe fn fuzzy_match_str_compare(s1: *const c_void, s2: *const c_void) -> c_int
     }
 }
 
-unsafe fn fuzzy_match_func_compare(s1: *const c_void, s2: *const c_void) -> c_int {
-    let f1 = unsafe { &*s1.cast::<fuzmatch_str_T>() };
-    let f2 = unsafe { &*s2.cast::<fuzmatch_str_T>() };
+unsafe fn fuzzy_match_func_compare(f1: &fuzmatch_str_T, f2: &fuzmatch_str_T) -> c_int {
     let b1 = unsafe { *f1.str_ptr as u8 };
     let b2 = unsafe { *f2.str_ptr as u8 };
 
@@ -984,18 +973,11 @@ pub unsafe fn fuzzymatches_to_strmatches(
             let cnt = count as usize;
             *matches = xmalloc(cnt * std::mem::size_of::<*mut c_char>()).cast::<*mut c_char>();
 
-            {
-                let cmp: unsafe fn(*const c_void, *const c_void) -> c_int = if funcsort {
-                    fuzzy_match_func_compare
-                } else {
-                    fuzzy_match_str_compare
-                };
-                qsort(
-                    fuzmatch.cast::<c_void>(),
-                    cnt,
-                    std::mem::size_of::<fuzmatch_str_T>(),
-                    cmp,
-                );
+            let slice = std::slice::from_raw_parts_mut(fuzmatch, cnt);
+            if funcsort {
+                sort_slice_by(slice, |a, b| fuzzy_match_func_compare(a, b));
+            } else {
+                sort_slice_by(slice, fuzzy_match_str_compare);
             }
 
             for i in 0..cnt {

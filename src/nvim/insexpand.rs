@@ -124,7 +124,7 @@ use crate::strings::vim_strnicmp;
 #[cfg(windows)]
 use crate::strings::vim_strnicmp;
 use crate::strings::{
-    atoi, gettext, memcmp, qsort, strcat, strchr, strcmp, strcpy, strlen, strncmp, strncpy,
+    atoi, gettext, memcmp, sort_slice_by, strcat, strchr, strcmp, strcpy, strlen, strncmp, strncpy,
     strrchr, tolower, vim_snprintf, vim_strchr, vim_strsave_escaped, xstrnsave,
 };
 use crate::tag::find_tags;
@@ -4219,10 +4219,8 @@ unsafe fn get_next_tag_completion() {
     }
 }
 
-unsafe fn compare_scores(a: *const c_void, b: *const c_void) -> c_int {
+unsafe fn compare_scores(&idx_a: &c_int, &idx_b: &c_int) -> c_int {
     unsafe {
-        let idx_a = *a.cast::<c_int>();
-        let idx_b = *b.cast::<c_int>();
         let score_a = *compl_fuzzy_scores.add(idx_a as usize);
         let score_b = *compl_fuzzy_scores.add(idx_b as usize);
         if score_a == score_b {
@@ -4418,12 +4416,11 @@ unsafe fn get_next_filename_completion() {
 
             if fuzzy_indices.ga_len > 0 {
                 let fuzzy_indices_data = fuzzy_indices.ga_data.cast::<c_int>();
-                qsort(
-                    fuzzy_indices_data.cast(),
+                let slice = std::slice::from_raw_parts_mut(
+                    fuzzy_indices_data,
                     fuzzy_indices.ga_len as usize,
-                    size_of::<c_int>(),
-                    compare_scores,
                 );
+                sort_slice_by(slice, |a, b| compare_scores(a, b));
 
                 for i in 0..(fuzzy_indices.ga_len as usize) {
                     let idx = *fuzzy_indices_data.add(i) as usize;

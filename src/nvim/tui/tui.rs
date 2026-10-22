@@ -1513,18 +1513,20 @@ unsafe fn print_cell(tui: *mut TUIData, buf: *const c_char, attr: sattr_T) {
 
 unsafe fn cheap_to_print(tui: *mut TUIData, row: c_int, col: c_int, mut next: c_int) -> bool {
     unsafe {
-        let mut cell = (*(*tui).grid.cells.add(row as usize)).add(col as usize);
+        let cells = &(*tui).grid.cells;
+        let row_cells = &cells[row as usize];
+        let mut idx = col as usize;
         while next != 0 {
             next -= 1;
-            if attrs_differ(tui, (*cell).attr, (*tui).print_attr_id, (*tui).rgb)
-                && (*tui).default_attr
+            let cell = row_cells[idx];
+            if attrs_differ(tui, cell.attr, (*tui).print_attr_id, (*tui).rgb) && (*tui).default_attr
             {
                 return false;
             }
-            if schar_get_ascii((*cell).data) == 0 {
+            if schar_get_ascii(cell.data) == 0 {
                 return false;
             }
-            cell = cell.add(1);
+            idx += 1;
         }
         true
     }
@@ -1649,28 +1651,28 @@ unsafe fn print_cell_at_pos(
     tui: *mut TUIData,
     row: c_int,
     col: c_int,
-    cell: *mut UCell,
+    cell: UCell,
     is_doublewidth: bool,
 ) {
     unsafe {
-        if (*tui).grid.row == -1 && (*cell).data == 0 {
+        if (*tui).grid.row == -1 && cell.data == 0 {
             return;
         }
 
         cursor_goto(tui, row, col);
 
         let mut buf = [0 as c_char; MAX_SCHAR_SIZE];
-        schar_get(buf.as_mut_ptr(), (*cell).data);
+        schar_get(buf.as_mut_ptr(), cell.data);
         let c = utf_ptr2char(buf.as_ptr());
         let mut is_ambiwidth = utf_ambiguous_width(buf.as_ptr());
         if is_doublewidth && (is_ambiwidth || utf_char2cells(c) == 1) {
             is_ambiwidth = true;
-            update_attrs(tui, (*cell).attr);
+            update_attrs(tui, cell.attr);
             print_spaces(tui, 2);
             cursor_goto(tui, row, col);
         }
 
-        print_cell(tui, buf.as_ptr(), (*cell).attr);
+        print_cell(tui, buf.as_ptr(), cell.attr);
 
         if is_ambiwidth {
             (*tui).grid.row = -1;
@@ -2182,20 +2184,31 @@ pub unsafe fn tui_flush(tui: *mut TUIData) {
             assert!(r.bot <= (*tui).grid.height && r.right <= (*tui).grid.width);
 
             for row in r.top..r.bot {
-                let row_cells = *(*tui).grid.cells.add(row as usize);
-                let clear_attr = (*row_cells.add((r.right - 1) as usize)).attr;
+                let clear_attr = {
+                    let cells = &(*tui).grid.cells;
+                    cells[row as usize][(r.right - 1) as usize].attr
+                };
                 let mut clear_col = r.right;
                 while clear_col > 0 {
-                    let cell = row_cells.add((clear_col - 1) as usize);
-                    if !((*cell).data == schar_from_ascii(b' ') && (*cell).attr == clear_attr) {
+                    let cell = {
+                        let cells = &(*tui).grid.cells;
+                        cells[row as usize][(clear_col - 1) as usize]
+                    };
+                    if !(cell.data == schar_from_ascii(b' ') && cell.attr == clear_attr) {
                         break;
                     }
                     clear_col -= 1;
                 }
 
                 for curcol in r.left..clear_col {
-                    let cell = row_cells.add(curcol as usize);
-                    let is_double = curcol < clear_col - 1 && (*cell.add(1)).data == 0;
+                    let (cell, is_double) = {
+                        let cells = &(*tui).grid.cells;
+                        let row_cells = &cells[row as usize];
+                        (
+                            row_cells[curcol as usize],
+                            curcol < clear_col - 1 && row_cells[(curcol + 1) as usize].data == 0,
+                        )
+                    };
                     print_cell_at_pos(tui, row, curcol, cell, is_double);
                 }
                 if clear_col < r.right {
@@ -2361,7 +2374,10 @@ pub unsafe fn tui_screenshot(tui: *mut TUIData, path: NvimString) {
         for i in 0..(*tui).grid.height {
             cursor_goto(tui, i, 0);
             for j in 0..(*tui).grid.width {
-                let cell = *(*(*tui).grid.cells.add(i as usize)).add(j as usize);
+                let cell = {
+                    let cells = &(*tui).grid.cells;
+                    cells[i as usize][j as usize]
+                };
                 let mut buf = [0 as c_char; MAX_SCHAR_SIZE];
                 schar_get(buf.as_mut_ptr(), cell.data);
                 print_cell(tui, buf.as_ptr(), cell.attr);
@@ -2446,17 +2462,27 @@ pub unsafe fn tui_raw_line(
     attrs: *const sattr_T,
 ) {
     unsafe {
-        let row_cells = *(*tui).grid.cells.add(linerow as usize);
-        for c in startcol..endcol {
-            let idx = (c - startcol) as usize;
-            let cell = row_cells.add(c as usize);
-            (*cell).data = *chunk.add(idx);
-            assert!((*attrs.add(idx) as usize) < (*tui).attrs.size);
-            (*cell).attr = *attrs.add(idx);
+        {
+            let attr_count = (*tui).attrs.size;
+            let cells = &mut (*tui).grid.cells;
+            let row_cells = &mut cells[linerow as usize];
+            for c in startcol..endcol {
+                let idx = (c - startcol) as usize;
+                let cell = &mut row_cells[c as usize];
+                cell.data = *chunk.add(idx);
+                assert!((*attrs.add(idx) as usize) < attr_count);
+                cell.attr = *attrs.add(idx);
+            }
         }
         for curcol in (startcol as c_int)..(endcol as c_int) {
-            let cell = row_cells.add(curcol as usize);
-            let is_double = curcol < (endcol as c_int) - 1 && (*cell.add(1)).data == 0;
+            let (cell, is_double) = {
+                let cells = &(*tui).grid.cells;
+                let row_cells = &cells[linerow as usize];
+                (
+                    row_cells[curcol as usize],
+                    curcol < (endcol as c_int) - 1 && row_cells[(curcol + 1) as usize].data == 0,
+                )
+            };
             print_cell_at_pos(tui, linerow as c_int, curcol, cell, is_double);
         }
 
@@ -2483,19 +2509,15 @@ pub unsafe fn tui_raw_line(
             && (linerow as c_int) + 1 < (*tui).grid.height
         {
             if endcol as c_int != (*tui).grid.width {
-                let size = if (*row_cells.add(((*tui).grid.width - 1) as usize)).data == 0 {
-                    2
-                } else {
-                    1
+                let last_col = ((*tui).grid.width - 1) as usize;
+                let (target_col, cell, size) = {
+                    let cells = &(*tui).grid.cells;
+                    let row_cells = &cells[linerow as usize];
+                    let size = if row_cells[last_col].data == 0 { 2 } else { 1 };
+                    let target_col = (*tui).grid.width - size;
+                    (target_col, row_cells[target_col as usize], size)
                 };
-                let target_col = (*tui).grid.width - size;
-                print_cell_at_pos(
-                    tui,
-                    linerow as c_int,
-                    target_col,
-                    row_cells.add(target_col as usize),
-                    size == 2,
-                );
+                print_cell_at_pos(tui, linerow as c_int, target_col, cell, size == 2);
             }
 
             final_column_wrap(tui);

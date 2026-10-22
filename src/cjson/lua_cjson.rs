@@ -245,7 +245,7 @@ const fn init_char2escape() -> [*const c_char; 256] {
 const CHAR2ESCAPE: [*const c_char; 256] = init_char2escape();
 
 use crate::memory::{try_malloc, xfree, xrealloc};
-use crate::strings::{memcmp, qsort, strncmp, strtoll};
+use crate::strings::{memcmp, sort_slice_by, strncmp, strtoll};
 use std::process::abort;
 
 unsafe fn json_fetch_config(l: *mut lua_State) -> *mut json_config_t {
@@ -583,18 +583,16 @@ unsafe fn json_append_number(
     }
 }
 
-unsafe fn cmp_key_entries(a: *const c_void, b: *const c_void) -> c_int {
+unsafe fn cmp_key_entries(ka: &key_entry_t, kb: &key_entry_t) -> c_int {
     unsafe {
-        let ka = a.cast::<key_entry_t>();
-        let kb = b.cast::<key_entry_t>();
-        let min_len = (*ka).length.min((*kb).length);
+        let min_len = ka.length.min(kb.length);
         let res = memcmp(
-            (*(*ka).buf).buf.add((*ka).offset).cast::<c_void>(),
-            (*(*kb).buf).buf.add((*kb).offset).cast::<c_void>(),
+            (*ka.buf).buf.add(ka.offset).cast::<c_void>(),
+            (*kb.buf).buf.add(kb.offset).cast::<c_void>(),
             min_len,
         );
         if res == 0 {
-            ((*ka).length.wrapping_sub((*kb).length)) as c_int
+            (ka.length.wrapping_sub(kb.length)) as c_int
         } else {
             res
         }
@@ -655,12 +653,13 @@ unsafe fn json_append_object(l: *mut lua_State, ctx: *mut json_encode_t, current
             }
 
             let keys_count = (*keybuf).size - init_keybuf_size;
-            qsort(
-                (*keybuf).keys.add(init_keybuf_size).cast::<c_void>(),
-                keys_count,
-                size_of::<key_entry_t>(),
-                cmp_key_entries,
-            );
+            if keys_count > 0 {
+                let slice = std::slice::from_raw_parts_mut(
+                    (*keybuf).keys.add(init_keybuf_size),
+                    keys_count,
+                );
+                sort_slice_by(slice, |a, b| cmp_key_entries(a, b));
+            }
 
             for i in init_keybuf_size..(init_keybuf_size + keys_count) {
                 let current_key = (*keybuf).keys.add(i);

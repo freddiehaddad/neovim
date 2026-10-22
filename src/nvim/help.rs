@@ -21,12 +21,12 @@ use crate::option_vars::*;
 use crate::optionstr::{OptIndex, check_buf_options};
 use crate::os::fs::os_fopen;
 use crate::path::FreeWild;
-use crate::strings::{gettext, qsort};
+use crate::strings::{gettext, sort_slice_by};
 use crate::tag::{do_tag, find_tags};
 use crate::window::{
     WSP_BOT, WSP_HELP, WSP_TOP, win_T, win_close, win_enter, win_setheight, win_split,
 };
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::cmdexpand::TAG_MANY;
@@ -331,10 +331,8 @@ pub unsafe fn help_heuristic(
     }
 }
 
-unsafe fn help_compare(s1: *const c_void, s2: *const c_void) -> c_int {
+unsafe fn help_compare(&str1: &*mut c_char, &str2: &*mut c_char) -> c_int {
     unsafe {
-        let str1 = *s1.cast::<*const c_char>();
-        let str2 = *s2.cast::<*const c_char>();
         let b1 = CStr::from_ptr(str1).to_bytes();
         let b2 = CStr::from_ptr(str2).to_bytes();
         let p1 = CStr::from_ptr(str1.add(b1.len() + 1)).to_bytes();
@@ -408,12 +406,8 @@ pub unsafe fn find_help_tags(
         ) == OK
             && *num_matches > 0
         {
-            qsort(
-                (*matches).cast(),
-                *num_matches as usize,
-                size_of::<*mut c_char>(),
-                help_compare,
-            );
+            let slice = std::slice::from_raw_parts_mut(*matches, *num_matches as usize);
+            sort_slice_by(slice, |a, b| help_compare(a, b));
             while *num_matches > TAG_MANY {
                 *num_matches -= 1;
                 xfree((*(*matches).add(*num_matches as usize)).cast());

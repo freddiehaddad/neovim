@@ -167,8 +167,8 @@ use crate::state::{
 };
 use crate::statusline::{draw_tabline, win_redr_status};
 use crate::strings::{
-    qsort, strcat, strchr, strcpy, strlen, tr, vim_snprintf, vim_strchr, vim_strsave_shellescape,
-    xstrnsave,
+    sort_slice_by, strcat, strchr, strcpy, strlen, tr, vim_snprintf, vim_strchr,
+    vim_strsave_shellescape, xstrnsave,
 };
 use crate::syntax::{syn_stack_free_all, synblock_T};
 use crate::tag::do_tag;
@@ -191,7 +191,7 @@ use crate::window::{
     may_make_initial_scroll_size_snapshot, may_trigger_win_scrolled_resized, set_fraction, win_T,
     win_setheight,
 };
-use std::ffi::{CStr, c_char, c_int, c_long, c_longlong, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_long, c_longlong, c_uint};
 use std::ptr;
 
 #[repr(C)]
@@ -1495,23 +1495,15 @@ const nv_cmds: [nv_cmd; NV_CMDS_SIZE] = [
 static mut nv_cmd_idx: [i16; NV_CMDS_SIZE] = [0; NV_CMDS_SIZE];
 static mut nv_max_linear: c_int = 0;
 
-unsafe fn nv_compare(s1: *const c_void, s2: *const c_void) -> c_int {
-    unsafe {
-        let mut c1 = nv_cmds[*s1.cast::<i16>() as usize].cmd_char;
-        let mut c2 = nv_cmds[*s2.cast::<i16>() as usize].cmd_char;
-        if c1 < 0 {
-            c1 = -c1;
-        }
-        if c2 < 0 {
-            c2 = -c2;
-        }
-        if c1 == c2 {
-            0
-        } else if c1 > c2 {
-            1
-        } else {
-            -1
-        }
+fn nv_compare(&s1: &i16, &s2: &i16) -> c_int {
+    let c1 = nv_cmds[s1 as usize].cmd_char.abs();
+    let c2 = nv_cmds[s2 as usize].cmd_char.abs();
+    if c1 == c2 {
+        0
+    } else if c1 > c2 {
+        1
+    } else {
+        -1
     }
 }
 
@@ -1525,7 +1517,8 @@ pub unsafe fn init_normal_cmds() {
             *idx_ptr.add(i as usize) = i;
         }
 
-        qsort(idx_ptr.cast(), NV_CMDS_SIZE, size_of::<i16>(), nv_compare);
+        let slice = std::slice::from_raw_parts_mut(idx_ptr, NV_CMDS_SIZE);
+        sort_slice_by(slice, nv_compare);
 
         let mut i: i16 = 0;
         while (i as usize) < NV_CMDS_SIZE {

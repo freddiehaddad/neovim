@@ -54,9 +54,9 @@ use crate::regexp::{
 };
 use crate::runtime::{DIP_ALL, DOSO_NONE, do_source, source_runtime};
 use crate::strings::{
-    gettext, memcpy, memmove, memset, qsort, strcat, strchr, strcmp, strcpy, strlen, strncmp,
-    strpbrk, vim_snprintf, vim_strchr, vim_stricmp, vim_strnicmp, vim_strnsave_up, vim_strsave_up,
-    xstrnsave,
+    gettext, memcpy, memmove, memset, sort_slice_by, strcat, strchr, strcmp, strcpy, strlen,
+    strncmp, strpbrk, vim_snprintf, vim_strchr, vim_stricmp, vim_strnicmp, vim_strnsave_up,
+    vim_strsave_up, xstrnsave,
 };
 use crate::window::win_T;
 use std::ffi::{c_char, c_int, c_uint, c_void};
@@ -4406,20 +4406,6 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
     }
 }
 
-unsafe fn syn_compare_stub(v1: *const c_void, v2: *const c_void) -> c_int {
-    unsafe {
-        let s1 = *v1.cast::<i16>();
-        let s2 = *v2.cast::<i16>();
-        if s1 > s2 {
-            1
-        } else if s1 < s2 {
-            -1
-        } else {
-            0
-        }
-    }
-}
-
 unsafe fn syn_combine_list(clstr1: *mut *mut i16, clstr2: *mut *mut i16, list_op: c_int) {
     unsafe {
         let mut count1: usize = 0;
@@ -4452,8 +4438,8 @@ unsafe fn syn_combine_list(clstr1: *mut *mut i16, clstr2: *mut *mut i16, list_op
             g2 = g2.add(1);
         }
 
-        qsort((*clstr1).cast(), count1, size_of::<i16>(), syn_compare_stub);
-        qsort((*clstr2).cast(), count2, size_of::<i16>(), syn_compare_stub);
+        std::slice::from_raw_parts_mut(*clstr1, count1).sort_unstable();
+        std::slice::from_raw_parts_mut(*clstr2, count2).sort_unstable();
 
         for round in 1..=2 {
             g1 = *clstr1;
@@ -5097,10 +5083,6 @@ unsafe fn idl_collect(list: *mut i16, ga: *mut garray_T, seen: *mut garray_T) ->
     }
 }
 
-unsafe fn idl_id_cmp(a: *const c_void, b: *const c_void) -> c_int {
-    unsafe { (*a.cast::<i16>() as c_int) - (*b.cast::<i16>() as c_int) }
-}
-
 unsafe fn idl_get_entry(mut list: *mut i16) -> *mut idl_entry_T {
     unsafe {
         let mut cache = (*syn_block).b_idlist_cache.cast::<idl_cache_T>();
@@ -5147,7 +5129,9 @@ unsafe fn idl_get_entry(mut list: *mut i16) -> *mut idl_entry_T {
         }
         ga_clear(&raw mut seen);
         if ga.ga_len > 0 {
-            qsort(ga.ga_data, ga.ga_len as usize, size_of::<i16>(), idl_id_cmp);
+            let slice =
+                std::slice::from_raw_parts_mut(ga.ga_data.cast::<i16>(), ga.ga_len as usize);
+            slice.sort_unstable();
             (*e).idl_ids = ga.ga_data.cast::<i16>();
             (*e).idl_count = ga.ga_len;
         } else {
@@ -5691,12 +5675,8 @@ pub unsafe fn get_syntime_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     }
 }
 
-unsafe fn syn_compare_syntime(v1: *const c_void, v2: *const c_void) -> c_int {
-    unsafe {
-        let s1 = v1.cast::<time_entry_T>();
-        let s2 = v2.cast::<time_entry_T>();
-        profile_cmp((*s1).total, (*s2).total)
-    }
+fn syn_compare_syntime(s1: &time_entry_T, s2: &time_entry_T) -> c_int {
+    profile_cmp(s1.total, s2.total)
 }
 
 unsafe fn syntime_report() {
@@ -5730,12 +5710,11 @@ unsafe fn syntime_report() {
         }
 
         if ga.ga_len > 1 {
-            qsort(
-                ga.ga_data,
+            let slice = std::slice::from_raw_parts_mut(
+                ga.ga_data.cast::<time_entry_T>(),
                 ga.ga_len as usize,
-                size_of::<time_entry_T>(),
-                syn_compare_syntime,
             );
+            sort_slice_by(slice, syn_compare_syntime);
         }
 
         msg_puts_title(gettext(

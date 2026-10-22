@@ -109,8 +109,8 @@ use crate::search::{Direction, ignorecase, pat_has_uppercase, searchit};
 use crate::sign::{get_sign_name, set_context_in_sign_cmd};
 use crate::statusline::fillchar_status;
 use crate::strings::{
-    c_strcpy, gettext, qsort, sort_strings, strcase_save, strcmp, strlen, strncmp, vim_snprintf,
-    vim_strchr, vim_strsave_escaped, xstrnsave,
+    c_strcpy, gettext, sort_slice_by, sort_strings, strcase_save, strcmp, strlen, strncmp,
+    vim_snprintf, vim_strchr, vim_strsave_escaped, xstrnsave,
 };
 use crate::syntax::{
     get_syntax_name, get_syntime_arg, reset_expand_highlight, set_context_in_echohl_cmd,
@@ -1051,11 +1051,8 @@ pub unsafe fn cmdline_fuzzy_complete(fuzzystr: *const c_char) -> bool {
 
 /// Sort function for the completion matches.
 /// <SNR> functions should be sorted to the end.
-unsafe fn sort_func_compare(s1: *const c_void, s2: *const c_void) -> c_int {
+unsafe fn sort_func_compare(&p1: &*mut c_char, &p2: &*mut c_char) -> c_int {
     unsafe {
-        let p1 = *s1.cast::<*const c_char>();
-        let p2 = *s2.cast::<*const c_char>();
-
         if *p1 != b'<' as c_char && *p2 == b'<' as c_char {
             return -1;
         }
@@ -4549,12 +4546,11 @@ pub unsafe fn ExpandGeneric(
 
         if sort_matches {
             if funcsort {
-                qsort(
-                    ga.ga_data,
+                let slice = std::slice::from_raw_parts_mut(
+                    ga.ga_data.cast::<*mut c_char>(),
                     ga.ga_len as usize,
-                    std::mem::size_of::<*mut c_char>(),
-                    sort_func_compare,
                 );
+                sort_slice_by(slice, |a, b| sort_func_compare(a, b));
             } else {
                 sort_strings(ga.ga_data.cast::<*mut c_char>(), ga.ga_len);
             }

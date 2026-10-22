@@ -103,7 +103,7 @@ use crate::spell::parse_spelllang;
 use crate::state::{MAP_ALL_MODES, MODE_INSERT};
 use crate::statusline::build_stl_str_hl;
 use crate::strings::{
-    c_strcpy, gettext, ngettext, qsort, strcmp, strlen, strncmp, vim_snprintf,
+    c_strcpy, gettext, ngettext, sort_slice_by, strcmp, strlen, strncmp, vim_snprintf,
     vim_snprintf_safelen, vim_strchr, xstrnsave,
 };
 use crate::syntax::{reset_synblock, synblock_T, syntax_clear};
@@ -2957,11 +2957,8 @@ pub unsafe fn buflist_findpat(
     }
 }
 
-unsafe fn buf_time_compare(s1: *const c_void, s2: *const c_void) -> c_int {
+unsafe fn buf_time_compare(buf1: *const buf_T, buf2: *const buf_T) -> c_int {
     unsafe {
-        let buf1 = *s1.cast::<*const buf_T>();
-        let buf2 = *s2.cast::<*const buf_T>();
-
         if (*buf1).b_last_used == (*buf2).b_last_used {
             0
         } else if (*buf1).b_last_used > (*buf2).b_last_used {
@@ -3106,12 +3103,8 @@ pub unsafe fn ExpandBufnames(
         if !fuzzy {
             if !matches.is_null() {
                 if count > 1 {
-                    qsort(
-                        matches.cast(),
-                        count as usize,
-                        std::mem::size_of::<bufmatch_T>(),
-                        buf_time_compare,
-                    );
+                    let slice = std::slice::from_raw_parts_mut(matches, count as usize);
+                    sort_slice_by(slice, |a, b| buf_time_compare(a.buf, b.buf));
                 }
 
                 if (*matches).buf == curbuf {
@@ -3407,12 +3400,13 @@ pub unsafe fn buflist_list(eap: *mut exarg_T) {
                 buf = (*buf).b_next;
             }
 
-            qsort(
-                buflist.ga_data,
-                buflist.ga_len as usize,
-                std::mem::size_of::<*mut buf_T>(),
-                buf_time_compare,
-            );
+            if buflist.ga_len > 1 {
+                let slice = std::slice::from_raw_parts_mut(
+                    buflist.ga_data.cast::<*mut buf_T>(),
+                    buflist.ga_len as usize,
+                );
+                sort_slice_by(slice, |&a, &b| buf_time_compare(a, b));
+            }
 
             buflist_data = buflist.ga_data.cast::<*mut buf_T>();
             buf = if !buflist_data.is_null() {

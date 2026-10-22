@@ -18,7 +18,7 @@ use crate::os::env::{expand_T, expand_env_save_opt};
 use crate::os::fs::os_fopen;
 use crate::os::time::os_hrtime;
 use crate::runtime::{get_scriptname, script_id_valid, script_item, script_items, sourcing_lnum};
-use crate::strings::qsort;
+use crate::strings::sort_slice_by;
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 pub type proftime_T = u64;
@@ -480,20 +480,12 @@ unsafe fn prof_sort_list(
     }
 }
 
-unsafe fn prof_total_cmp(s1: *const c_void, s2: *const c_void) -> c_int {
-    unsafe {
-        let p1 = &**s1.cast::<*const ufunc_T>();
-        let p2 = &**s2.cast::<*const ufunc_T>();
-        profile_cmp(p1.uf_tm_total, p2.uf_tm_total)
-    }
+unsafe fn prof_total_cmp(&s1: &*mut ufunc_T, &s2: &*mut ufunc_T) -> c_int {
+    unsafe { profile_cmp((*s1).uf_tm_total, (*s2).uf_tm_total) }
 }
 
-unsafe fn prof_self_cmp(s1: *const c_void, s2: *const c_void) -> c_int {
-    unsafe {
-        let p1 = &**s1.cast::<*const ufunc_T>();
-        let p2 = &**s2.cast::<*const ufunc_T>();
-        profile_cmp(p1.uf_tm_self, p2.uf_tm_self)
-    }
+unsafe fn prof_self_cmp(&s1: &*mut ufunc_T, &s2: &*mut ufunc_T) -> c_int {
+    unsafe { profile_cmp((*s1).uf_tm_self, (*s2).uf_tm_self) }
 }
 
 /// Start profiling function `fp` (`func_do_profile`).
@@ -694,19 +686,11 @@ unsafe fn func_dump_profile(fd: *mut FILE) {
         }
 
         if st_len > 0 {
-            qsort(
-                sorttab.cast::<c_void>(),
-                st_len as usize,
-                std::mem::size_of::<*mut ufunc_T>(),
-                prof_total_cmp,
-            );
+            let slice = std::slice::from_raw_parts_mut(sorttab, st_len as usize);
+            sort_slice_by(slice, |a, b| prof_total_cmp(a, b));
             prof_sort_list(fd, sorttab, st_len, c"TOTAL".as_ptr(), false);
-            qsort(
-                sorttab.cast::<c_void>(),
-                st_len as usize,
-                std::mem::size_of::<*mut ufunc_T>(),
-                prof_self_cmp,
-            );
+            let slice = std::slice::from_raw_parts_mut(sorttab, st_len as usize);
+            sort_slice_by(slice, |a, b| prof_self_cmp(a, b));
             prof_sort_list(fd, sorttab, st_len, c"SELF".as_ptr(), true);
         }
 
