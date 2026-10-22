@@ -28,7 +28,6 @@ use crate::eval::last_set_msg;
 use crate::eval::vars::{do_unlet, get_var_value};
 use crate::ex_docmd::ends_excmd;
 use crate::extmark::{TriState, kFalse, kNone, kTrue};
-use crate::garray::{ga_clear, ga_grow, ga_set_growsize, garray_T};
 use crate::globals::*;
 use crate::highlight::{
     HL_ALTFONT, HL_DEFAULT, HLATTRS_INIT, HLF_COUNT, HLF_INACTIVE, HLF_NONE,
@@ -142,13 +141,7 @@ struct HlGroup {
     sg_parent: c_int,
 }
 
-static mut highlight_ga: garray_T = garray_T {
-    ga_len: 0,
-    ga_maxlen: 0,
-    ga_itemsize: 0,
-    ga_growsize: 0,
-    ga_data: ptr::null_mut(),
-};
+static mut highlight_ga: Vec<HlGroup> = Vec::new();
 static mut highlight_arena: Arena = Arena {
     cur_blk: ptr::null_mut(),
     pos: 0,
@@ -307,7 +300,18 @@ unsafe fn write_dec(buf: *mut c_char, cap: usize, val: c_int) {
 
 #[inline]
 unsafe fn hl_table() -> *mut HlGroup {
-    unsafe { highlight_ga.ga_data.cast::<HlGroup>() }
+    unsafe {
+        let ga = &raw mut highlight_ga;
+        (*ga).as_mut_ptr()
+    }
+}
+
+#[inline]
+unsafe fn hl_len() -> c_int {
+    unsafe {
+        let ga = &raw const highlight_ga;
+        (*ga).len() as c_int
+    }
 }
 
 #[inline]
@@ -821,7 +825,7 @@ pub static highlight_init_cmdline: SyncCStrArray<141> = SyncCStrArray([
 ]);
 
 pub unsafe fn highlight_num_groups() -> c_int {
-    unsafe { highlight_ga.ga_len }
+    unsafe { hl_len() }
 }
 
 pub unsafe fn highlight_group_name(id: c_int) -> *mut c_char {
@@ -1117,7 +1121,7 @@ pub unsafe fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
         if !init && ends_excmd(c_int::from(*line as u8)) != 0 {
             msg_ext_set_kind(c"list_cmd".as_ptr());
             let mut i = 1;
-            while i <= highlight_ga.ga_len && !got_int {
+            while i <= hl_len() && !got_int {
                 highlight_list_one(i);
                 i += 1;
             }
@@ -1232,7 +1236,7 @@ pub unsafe fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                 do_unlet(c"g:colors_name".as_ptr(), 13, true);
                 restore_cterm_colors();
 
-                for j in 0..highlight_ga.ga_len {
+                for j in 0..hl_len() {
                     highlight_clear(j);
                 }
                 init_highlight(true, true);
@@ -1594,10 +1598,11 @@ pub unsafe fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
 
 pub unsafe fn free_highlight() {
     unsafe {
-        for i in 0..highlight_ga.ga_len {
-            xfree((*hl_table().add(i as usize)).sg_font.cast());
+        let ga = &raw mut highlight_ga;
+        for hlg in (*ga).drain(..) {
+            xfree(hlg.sg_font.cast());
         }
-        ga_clear(&raw mut highlight_ga);
+        *ga = Vec::new();
         xfree(highlight_unames.set.keys.cast());
         xfree(highlight_unames.set.h.hash.cast());
         xfree(highlight_unames.values.cast());
@@ -1790,7 +1795,7 @@ unsafe fn hlgroup2dict(hl: *mut Dict, ns_id: NS, hl_id: c_int, arena: *mut Arena
             put_c(&mut *hl, c"default".as_ptr(), boolean_obj(true));
         }
         if link > 0 {
-            assert!(1 <= link && link <= highlight_ga.ga_len);
+            assert!(1 <= link && link <= hl_len());
             put_c(
                 &mut *hl,
                 c"link".as_ptr(),
@@ -1851,7 +1856,7 @@ pub unsafe fn ns_get_hl_defs(
         }
 
         if id != -1 {
-            if !(1 <= id && id <= highlight_ga.ga_len) {
+            if !(1 <= id && id <= hl_len()) {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
@@ -1869,8 +1874,9 @@ pub unsafe fn ns_get_hl_defs(
             return Dict::new();
         }
 
-        let mut rv = arena_dict(arena, highlight_ga.ga_len as usize);
-        for i in 1..=highlight_ga.ga_len {
+        let len = hl_len();
+        let mut rv = arena_dict(arena, len as usize);
+        for i in 1..=len {
             let mut attrs = Dict::new();
             if !hlgroup2dict(&raw mut attrs, ns_id, i, arena) {
                 continue;
@@ -1954,7 +1960,7 @@ unsafe fn highlight_list_arg(
 
 pub unsafe fn highlight_has_attr(id: c_int, flag: c_int, modec: c_int) -> *const c_char {
     unsafe {
-        if id <= 0 || id > highlight_ga.ga_len {
+        if id <= 0 || id > hl_len() {
             return ptr::null();
         }
 
@@ -1985,7 +1991,7 @@ pub unsafe fn highlight_color(id: c_int, what: *const c_char, modec: c_int) -> *
         let mut sp = false;
         let mut font = false;
 
-        if id <= 0 || id > highlight_ga.ga_len {
+        if id <= 0 || id > hl_len() {
             return ptr::null();
         }
 
@@ -2183,7 +2189,7 @@ pub unsafe fn highlight_exists(name: *const c_char) -> c_int {
 
 pub unsafe fn syn_id2name(id: c_int) -> *mut c_char {
     unsafe {
-        if id <= 0 || id > highlight_ga.ga_len {
+        if id <= 0 || id > hl_len() {
             return c"".as_ptr().cast_mut();
         }
         (*hl_table().add((id - 1) as usize)).sg_name
@@ -2229,38 +2235,35 @@ unsafe fn syn_add_group(name: *const c_char, len: usize) -> c_int {
             }
         }
 
-        if highlight_ga.ga_data.is_null() {
-            highlight_ga.ga_itemsize = size_of::<HlGroup>() as c_int;
-            ga_set_growsize(&raw mut highlight_ga, 10);
-            ga_grow(&raw mut highlight_ga, 300);
+        let ga = &raw mut highlight_ga;
+        if (*ga).capacity() == 0 {
+            (*ga).reserve(300);
         }
 
-        if highlight_ga.ga_len >= MAX_HL_ID {
+        if hl_len() >= MAX_HL_ID {
             emsg(gettext(
                 c"E849: Too many highlight and syntax groups".as_ptr(),
             ));
             return 0;
         }
 
-        ga_grow(&raw mut highlight_ga, 1);
-        let hlgp = hl_table().add(highlight_ga.ga_len as usize);
-        highlight_ga.ga_len += 1;
-        ptr::write_bytes(hlgp, 0, 1);
-        (*hlgp).sg_name = arena_memdupz(&raw mut highlight_arena, name, len);
-        (*hlgp).sg_rgb_bg = -1;
-        (*hlgp).sg_rgb_fg = -1;
-        (*hlgp).sg_rgb_sp = -1;
-        (*hlgp).sg_rgb_bg_idx = kColorIdxNone;
-        (*hlgp).sg_rgb_fg_idx = kColorIdxNone;
-        (*hlgp).sg_rgb_sp_idx = kColorIdxNone;
-        (*hlgp).sg_blend = -1;
-        (*hlgp).sg_name_u = arena_memdupz(&raw mut highlight_arena, name, len);
-        (*hlgp).sg_parent = scoped_parent;
-        (*hlgp).sg_cleared = true;
-        vim_strup((*hlgp).sg_name_u);
+        let mut hlg: HlGroup = std::mem::zeroed();
+        hlg.sg_name = arena_memdupz(&raw mut highlight_arena, name, len);
+        hlg.sg_rgb_bg = -1;
+        hlg.sg_rgb_fg = -1;
+        hlg.sg_rgb_sp = -1;
+        hlg.sg_rgb_bg_idx = kColorIdxNone;
+        hlg.sg_rgb_fg_idx = kColorIdxNone;
+        hlg.sg_rgb_sp_idx = kColorIdxNone;
+        hlg.sg_blend = -1;
+        hlg.sg_name_u = arena_memdupz(&raw mut highlight_arena, name, len);
+        hlg.sg_parent = scoped_parent;
+        hlg.sg_cleared = true;
+        vim_strup(hlg.sg_name_u);
+        (*ga).push(hlg);
 
-        let id = highlight_ga.ga_len;
-        map_put_cstr_int(&raw mut highlight_unames, (*hlgp).sg_name_u, id);
+        let id = hl_len();
+        map_put_cstr_int(&raw mut highlight_unames, hlg.sg_name_u, id);
 
         id
     }
@@ -2302,7 +2305,7 @@ pub unsafe fn syn_ns_get_final_id(ns_id: *mut c_int, hl_idp: *mut c_int) -> bool
         let mut hl_id = *hl_idp;
         let mut used = false;
 
-        if hl_id > highlight_ga.ga_len || hl_id < 1 {
+        if hl_id > hl_len() || hl_id < 1 {
             *hl_idp = 0;
             return false;
         }
@@ -2322,7 +2325,7 @@ pub unsafe fn syn_ns_get_final_id(ns_id: *mut c_int, hl_idp: *mut c_int) -> bool
                 continue;
             }
 
-            if sgp.sg_link > 0 && sgp.sg_link <= highlight_ga.ga_len {
+            if sgp.sg_link > 0 && sgp.sg_link <= hl_len() {
                 hl_id = sgp.sg_link;
             } else if sgp.sg_cleared && sgp.sg_parent > 0 {
                 hl_id = sgp.sg_parent;
@@ -2338,7 +2341,7 @@ pub unsafe fn syn_ns_get_final_id(ns_id: *mut c_int, hl_idp: *mut c_int) -> bool
 
 pub unsafe fn highlight_attr_set_all() {
     unsafe {
-        for idx in 0..highlight_ga.ga_len {
+        for idx in 0..hl_len() {
             let sgp = &mut *hl_table().add(idx as usize);
             if sgp.sg_rgb_bg_idx == kColorIdxFg {
                 sgp.sg_rgb_bg = normal_fg;
@@ -2401,7 +2404,6 @@ unsafe fn combine_stl_hlt(
         if (*hlt.add(u_idx)).sg_rgb_sp != (*hlt.add(s_idx)).sg_rgb_sp {
             (*hlt.add(dst)).sg_rgb_sp = (*hlt.add(u_idx)).sg_rgb_sp;
         }
-        highlight_ga.ga_len = hlcnt + i + 1;
         set_hl_attr(hlcnt + i);
         *table.add(i as usize) = syn_id2attr(hlcnt + i + 1);
     }
@@ -2449,8 +2451,9 @@ pub unsafe fn highlight_changed() {
             }
         }
 
-        ga_grow(&raw mut highlight_ga, 10);
-        let hlcnt = highlight_ga.ga_len;
+        let hlcnt = hl_len();
+        let ga = &raw mut highlight_ga;
+        (*ga).resize((hlcnt + 10) as usize, std::mem::zeroed());
         if id_S == -1 {
             ptr::write_bytes(hl_table().add((hlcnt + 9) as usize), 0, 1);
             id_S = hlcnt + 10;
@@ -2479,7 +2482,7 @@ pub unsafe fn highlight_changed() {
                 );
             }
         }
-        highlight_ga.ga_len = hlcnt;
+        (*ga).truncate(hlcnt as usize);
 
         decor_provider_invalidate_hl();
     }
@@ -2569,21 +2572,20 @@ pub unsafe fn get_highlight_name_ext(
             return ptr::null();
         }
 
-        if skip_cleared && idx < highlight_ga.ga_len && (*hl_table().add(idx as usize)).sg_cleared {
+        let len = hl_len();
+        if skip_cleared && idx < len && (*hl_table().add(idx as usize)).sg_cleared {
             return c"".as_ptr();
         }
 
-        if idx == highlight_ga.ga_len && include_none != 0 {
+        if idx == len && include_none != 0 {
             return c"none".as_ptr();
-        } else if idx == highlight_ga.ga_len + include_none && include_default != 0 {
+        } else if idx == len + include_none && include_default != 0 {
             return c"default".as_ptr();
-        } else if idx == highlight_ga.ga_len + include_none + include_default && include_link != 0 {
+        } else if idx == len + include_none + include_default && include_link != 0 {
             return c"link".as_ptr();
-        } else if idx == highlight_ga.ga_len + include_none + include_default + 1
-            && include_link != 0
-        {
+        } else if idx == len + include_none + include_default + 1 && include_link != 0 {
             return c"clear".as_ptr();
-        } else if idx >= highlight_ga.ga_len {
+        } else if idx >= len {
             return ptr::null();
         }
         (*hl_table().add(idx as usize)).sg_name

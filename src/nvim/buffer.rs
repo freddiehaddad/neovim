@@ -212,7 +212,7 @@ pub struct buf_T {
     pub b_chartab: [u64; 4],
     pub b_maphash: [*mut c_void; 256],
     pub b_first_abbr: *mut c_void,
-    pub b_ucmds: garray_T,
+    pub b_ucmds: Vec<crate::usercmd::ucmd_T>,
     pub b_op_start: pos_T,
     pub b_op_start_orig: pos_T,
     pub b_op_end: pos_T,
@@ -1404,6 +1404,7 @@ unsafe fn free_buffer(buf: *mut buf_T) {
         xfree((*buf).additional_data);
         xfree((*buf).b_prompt_text.cast());
         ptr::drop_in_place(&raw mut (*buf).b_wininfo);
+        ptr::drop_in_place(&raw mut (*buf).b_ucmds);
         ptr::drop_in_place(&raw mut (*buf).update_channels);
         ptr::drop_in_place(&raw mut (*buf).update_callbacks);
         callback_free(&raw mut (*buf).b_prompt_callback);
@@ -2490,6 +2491,7 @@ pub unsafe fn buflist_new(
         if buf != curbuf || curbuf.is_null() {
             buf = xcalloc(1, std::mem::size_of::<buf_T>()).cast::<buf_T>();
             ptr::write(&raw mut (*buf).b_wininfo, Vec::new());
+            ptr::write(&raw mut (*buf).b_ucmds, Vec::new());
             ptr::write(&raw mut (*buf).update_channels, Vec::new());
             ptr::write(&raw mut (*buf).update_callbacks, Vec::new());
             (*buf).b_vars = tv_dict_alloc();

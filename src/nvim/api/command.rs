@@ -42,7 +42,7 @@ use crate::register::valid_yank_reg;
 use crate::usercmd::{
     UC_BUFFER, commands_array, free_ucmd, get_user_command_name, parse_addr_type_arg,
     parse_compl_arg, uc_add_command, uc_nargs_upper_bound, uc_split_args_iter, uc_validate_name,
-    ucmd_T, ucmds,
+    ucmds,
 };
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
@@ -357,13 +357,10 @@ pub unsafe extern "C" fn nvim_parse_cmd(
         }
 
         let cmd = if ea.cmdidx == CMD_USER {
-            ucmds.ga_data.cast::<ucmd_T>().add(ea.useridx as usize)
+            let u = &raw mut ucmds;
+            (*u).as_mut_ptr().add(ea.useridx as usize)
         } else if ea.cmdidx == CMD_USER_BUF {
-            (*curbuf)
-                .b_ucmds
-                .ga_data
-                .cast::<ucmd_T>()
-                .add(ea.useridx as usize)
+            (*curbuf).b_ucmds.as_mut_ptr().add(ea.useridx as usize)
         } else {
             ptr::null_mut()
         };
@@ -1420,16 +1417,13 @@ pub unsafe extern "C" fn nvim_buf_del_user_command(buf: Buffer, name: NvimString
         };
 
         let name_bytes = CStr::from_ptr(name.data).to_bytes();
-        for i in 0..(*gap).ga_len {
-            let cmd = (*gap).ga_data.cast::<ucmd_T>().add(i as usize);
-            if CStr::from_ptr((*cmd).uc_name).to_bytes() == name_bytes {
-                free_ucmd(cmd);
-                (*gap).ga_len -= 1;
-                if i < (*gap).ga_len {
-                    ptr::copy(cmd.add(1), cmd, ((*gap).ga_len - i) as usize);
-                }
-                return;
-            }
+        if let Some(i) = (*gap)
+            .iter()
+            .position(|cmd| CStr::from_ptr(cmd.uc_name).to_bytes() == name_bytes)
+        {
+            let mut removed = (*gap).remove(i);
+            free_ucmd(&raw mut removed);
+            return;
         }
 
         api_set_error!(

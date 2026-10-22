@@ -36,7 +36,6 @@ use crate::ex_docmd::{
     EX_NEEDARG, EX_NOSPC, EX_RANGE, EX_REGSTR, EX_TRLBAR, EX_XFILE, EX_ZEROR, KE_FILLER, cmdmod_T,
     do_cmdline, ends_excmd, exarg_T,
 };
-use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::keycodes::{K_SPECIAL, KS_SPECIAL, replace_termcodes};
@@ -90,13 +89,7 @@ const E_COMPLETE_USED_WITHOUT_ALLOWING_ARGUMENTS: &CStr =
 const E_NO_SUCH_USER_DEFINED_COMMAND_IN_CURRENT_BUFFER_STR: &CStr =
     c"E1237: No such user-defined command in current buffer: %s";
 
-pub static mut ucmds: garray_T = garray_T {
-    ga_len: 0,
-    ga_maxlen: 0,
-    ga_itemsize: size_of::<ucmd_T>() as c_int,
-    ga_growsize: 4,
-    ga_data: ptr::null_mut(),
-};
+pub static mut ucmds: Vec<ucmd_T> = Vec::new();
 
 const COMMAND_COMPLETE_LEN: usize = 64;
 
@@ -208,12 +201,15 @@ const ADDR_TYPE_COMPLETE: [AddrTypeComplete; 9] = [
 
 #[inline]
 unsafe fn user_cmd(i: c_int) -> *mut ucmd_T {
-    unsafe { ucmds.ga_data.cast::<ucmd_T>().add(i as usize) }
+    unsafe {
+        let u = &raw mut ucmds;
+        (*u).as_mut_ptr().add(i as usize)
+    }
 }
 
 #[inline]
-unsafe fn user_cmd_ga(gap: *const garray_T, i: c_int) -> *mut ucmd_T {
-    unsafe { (*gap).ga_data.cast::<ucmd_T>().add(i as usize) }
+unsafe fn user_cmd_ga(gap: *const Vec<ucmd_T>, i: c_int) -> *mut ucmd_T {
+    unsafe { (*gap).as_ptr().cast_mut().add(i as usize) }
 }
 
 /// Search for a user command that matches `eap->cmd` (`find_ucmd`).
@@ -231,10 +227,10 @@ pub unsafe fn find_ucmd(
         let mut possible = false;
         let mut amb_local = false;
 
-        let mut gap: *mut garray_T = &raw mut (*(*prevwin_curwin()).w_buffer).b_ucmds;
+        let mut gap: *mut Vec<ucmd_T> = &raw mut (*(*prevwin_curwin()).w_buffer).b_ucmds;
         loop {
             let mut j: c_int = 0;
-            while j < (*gap).ga_len {
+            while (j as usize) < (*gap).len() {
                 let uc = user_cmd_ga(gap, j);
                 let mut cp = (*eap).cmd;
                 let mut np = (*uc).uc_name;
@@ -294,7 +290,7 @@ pub unsafe fn find_ucmd(
                 j += 1;
             }
 
-            if j < (*gap).ga_len || ptr::eq(gap, &raw const ucmds) {
+            if (j as usize) < (*gap).len() || ptr::eq(gap, &raw const ucmds) {
                 break;
             }
             gap = &raw mut ucmds;
@@ -422,16 +418,19 @@ pub unsafe fn expand_user_command_name(idx: c_int) -> *mut c_char {
 pub unsafe fn get_user_commands(_xp: *mut expand_T, mut idx: c_int) -> *mut c_char {
     unsafe {
         let buf = (*prevwin_curwin()).w_buffer;
+        let b_len = (*buf).b_ucmds.len() as c_int;
 
-        if idx < (*buf).b_ucmds.ga_len {
+        if idx < b_len {
             return (*user_cmd_ga(&raw const (*buf).b_ucmds, idx)).uc_name;
         }
 
-        idx -= (*buf).b_ucmds.ga_len;
-        if idx < ucmds.ga_len {
+        idx -= b_len;
+        let u = &raw const ucmds;
+        let u_len = (*u).len() as c_int;
+        if idx < u_len {
             let name = (*user_cmd(idx)).uc_name;
 
-            for i in 0..(*buf).b_ucmds.ga_len {
+            for i in 0..b_len {
                 if strcmp(name, (*user_cmd_ga(&raw const (*buf).b_ucmds, i)).uc_name) == 0 {
                     return c"".as_ptr().cast_mut();
                 }
@@ -445,12 +444,14 @@ pub unsafe fn get_user_commands(_xp: *mut expand_T, mut idx: c_int) -> *mut c_ch
 /// Get the name of user command `idx` (`get_user_command_name`).
 pub unsafe fn get_user_command_name(idx: c_int, cmdidx: c_int) -> *mut c_char {
     unsafe {
-        if cmdidx == CMD_USER && idx < ucmds.ga_len {
+        let u = &raw const ucmds;
+        let u_len = (*u).len() as c_int;
+        if cmdidx == CMD_USER && idx < u_len {
             return (*user_cmd(idx)).uc_name;
         }
         if cmdidx == CMD_USER_BUF {
             let buf = (*prevwin_curwin()).w_buffer;
-            if idx < (*buf).b_ucmds.ga_len {
+            if (idx as usize) < (*buf).b_ucmds.len() {
                 return (*user_cmd_ga(&raw const (*buf).b_ucmds, idx)).uc_name;
             }
         }
@@ -576,10 +577,10 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
         let mut found = false;
 
         msg_ext_set_kind(c"list_cmd".as_ptr());
-        let mut gap: *const garray_T = &raw const (*(*prevwin_curwin()).w_buffer).b_ucmds;
+        let mut gap: *const Vec<ucmd_T> = &raw const (*(*prevwin_curwin()).w_buffer).b_ucmds;
         loop {
             let mut i: c_int = 0;
-            while i < (*gap).ga_len {
+            while (i as usize) < (*gap).len() {
                 let cmd = user_cmd_ga(gap, i);
                 let a = (*cmd).uc_argt;
 
@@ -782,7 +783,7 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
                 }
                 i += 1;
             }
-            if ptr::eq(gap, &raw const ucmds) || i < (*gap).ga_len {
+            if ptr::eq(gap, &raw const ucmds) || (i as usize) < (*gap).len() {
                 break;
             }
             gap = &raw const ucmds;
@@ -1091,18 +1092,14 @@ pub unsafe fn uc_add_command(
             rep_buf = xstrdup(rep);
         }
 
-        let gap: *mut garray_T = if (flags & UC_BUFFER) != 0 {
-            let g = &raw mut (*curbuf).b_ucmds;
-            if (*g).ga_itemsize == 0 {
-                ga_init(g, size_of::<ucmd_T>() as c_int, 4);
-            }
-            g
+        let gap: *mut Vec<ucmd_T> = if (flags & UC_BUFFER) != 0 {
+            &raw mut (*curbuf).b_ucmds
         } else {
             &raw mut ucmds
         };
 
         let mut i: c_int = 0;
-        while i < (*gap).ga_len {
+        while (i as usize) < (*gap).len() {
             cmd = user_cmd_ga(gap, i);
             let len = CStr::from_ptr((*cmd).uc_name).to_bytes().len();
             cmp = strncmp(name, (*cmd).uc_name, name_len);
@@ -1150,16 +1147,11 @@ pub unsafe fn uc_add_command(
         }
 
         if cmp != 0 {
-            ga_grow(gap, 1);
-
             let p = xstrnsave(name, name_len);
-
+            let mut empty_ucmd: ucmd_T = std::mem::zeroed();
+            empty_ucmd.uc_name = p;
+            (*gap).insert(i as usize, empty_ucmd);
             cmd = user_cmd_ga(gap, i);
-            ptr::copy(cmd, cmd.add(1), ((*gap).ga_len - i) as usize);
-
-            (*gap).ga_len += 1;
-
-            (*cmd).uc_name = p;
         }
 
         (*cmd).uc_rep = rep_buf;
@@ -1286,19 +1278,18 @@ pub unsafe fn free_ucmd(cmd: *mut ucmd_T) {
 }
 
 /// Clear all user commands for `gap` (`uc_clear`).
-pub unsafe fn uc_clear(gap: *mut garray_T) {
+pub unsafe fn uc_clear(gap: *mut Vec<ucmd_T>) {
     unsafe {
-        for i in 0..(*gap).ga_len {
-            free_ucmd(user_cmd_ga(gap, i));
+        for mut cmd in (*gap).drain(..) {
+            free_ucmd(&raw mut cmd);
         }
-        ga_clear(gap);
+        *gap = Vec::new();
     }
 }
 
 pub unsafe fn ex_delcommand(eap: *mut exarg_T) {
     unsafe {
         let mut i: c_int;
-        let mut cmd: *mut ucmd_T = ptr::null_mut();
         let mut res: c_int = -1;
         let mut arg: *const c_char = (*eap).arg;
         let mut buffer_only = false;
@@ -1308,11 +1299,11 @@ pub unsafe fn ex_delcommand(eap: *mut exarg_T) {
             arg = skipwhite(arg.add(7));
         }
 
-        let mut gap: *mut garray_T = &raw mut (*curbuf).b_ucmds;
+        let mut gap: *mut Vec<ucmd_T> = &raw mut (*curbuf).b_ucmds;
         loop {
             i = 0;
-            while i < (*gap).ga_len {
-                cmd = user_cmd_ga(gap, i);
+            while (i as usize) < (*gap).len() {
+                let cmd = user_cmd_ga(gap, i);
                 res = strcmp(arg, (*cmd).uc_name);
                 if res <= 0 {
                     break;
@@ -1338,13 +1329,8 @@ pub unsafe fn ex_delcommand(eap: *mut exarg_T) {
             return;
         }
 
-        free_ucmd(cmd);
-
-        (*gap).ga_len -= 1;
-
-        if i < (*gap).ga_len {
-            ptr::copy(cmd.add(1), cmd, ((*gap).ga_len - i) as usize);
-        }
+        let mut removed = (*gap).remove(i as usize);
+        free_ucmd(&raw mut removed);
     }
 }
 
@@ -2033,14 +2019,14 @@ unsafe fn arena_str_obj(arena: *mut Arena, bytes: &[u8]) -> Object {
 /// defined globally if `buf` is NULL (`commands_array`).
 pub unsafe fn commands_array(buf: *mut buf_T, arena: *mut Arena) -> Dict {
     unsafe {
-        let gap: *const garray_T = if buf.is_null() {
+        let gap: *const Vec<ucmd_T> = if buf.is_null() {
             &raw const ucmds
         } else {
             &raw const (*buf).b_ucmds
         };
 
-        let mut rv = arena_dict(arena, (*gap).ga_len as usize);
-        for i in 0..(*gap).ga_len {
+        let mut rv = arena_dict(arena, (*gap).len());
+        for i in 0..((*gap).len() as c_int) {
             let mut arg_ch: u8 = 0;
             let mut d = arena_dict(arena, 16);
             let cmd = user_cmd_ga(gap, i);
