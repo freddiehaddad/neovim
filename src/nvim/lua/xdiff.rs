@@ -10,7 +10,7 @@ use crate::lua::converter::{
     luaL_error, luaL_where, nlua_pop_keydict,
 };
 use crate::lua::executor::{api_free_luaref, nlua_pushref};
-use crate::memory::{strequal, xfree};
+use crate::memory::strequal;
 use crate::xdiff::xdiffi::xdl_diff;
 use crate::xdiff::{
     XDF_HISTOGRAM_DIFF, XDF_IGNORE_CR_AT_EOL, XDF_INDENT_HEURISTIC, XDF_NEED_MINIMAL,
@@ -144,17 +144,7 @@ unsafe fn get_linematch_results(
         let ma0 = fastforward_buf_to_lnum(*ma, start_a + 1);
         let mb0 = fastforward_buf_to_lnum(*mb, start_b + 1);
 
-        let diff_begin: [*const mmfile_t; 2] = [&ma0, &mb0];
-        let diff_length: [c_int; 2] = [count_a, count_b];
-
-        let mut decisions: *mut c_int = std::ptr::null_mut();
-        let decisions_length = linematch_nbuffers(
-            diff_begin.as_ptr(),
-            diff_length.as_ptr(),
-            2,
-            &mut decisions,
-            iwhite,
-        );
+        let decisions = linematch_nbuffers(&[&ma0, &mb0], &[count_a, count_b], iwhite);
 
         let mut lnuma = start_a;
         let mut lnumb = start_b;
@@ -163,9 +153,8 @@ unsafe fn get_linematch_results(
         let mut hunkcounta = 0;
         let mut hunkcountb = 0;
 
-        for i in 0..decisions_length {
-            let dec = *decisions.add(i);
-            if i > 0 && *decisions.add(i - 1) != dec {
+        for (i, &dec) in decisions.iter().enumerate() {
+            if i > 0 && decisions[i - 1] != dec {
                 lua_pushhunk(
                     lstate,
                     hunkstarta as isize,
@@ -195,7 +184,6 @@ unsafe fn get_linematch_results(
             hunkstartb as isize,
             hunkcountb as isize,
         );
-        xfree(decisions.cast::<c_void>());
     }
 }
 

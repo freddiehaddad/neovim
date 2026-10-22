@@ -25,97 +25,51 @@ const APC: c_int = 8;
 const PM: c_int = 9;
 const SOS: c_int = 10;
 
-#[cfg(not(windows))]
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct VTermStringFragment {
     pub str_: *const c_char,
-    pub packed: u32,
-    pub terminator: VTermTerminator,
-}
-
-#[cfg(windows)]
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct VTermStringFragment {
-    pub str_: *const c_char,
-    pub len_bits: usize,
-    pub flags_bits: u8,
+    len: usize,
+    initial: bool,
+    final_: bool,
     pub terminator: VTermTerminator,
 }
 
 impl VTermStringFragment {
     #[inline]
-    pub fn new(
+    pub const fn new(
         str_: *const c_char,
         len: usize,
         initial: bool,
         final_: bool,
         terminator: VTermTerminator,
     ) -> Self {
-        #[cfg(not(windows))]
-        {
-            let packed = ((len as u32) & 0x3fff_ffff)
-                | (u32::from(initial) << 30)
-                | (u32::from(final_) << 31);
-            Self {
-                str_,
-                packed,
-                terminator,
-            }
-        }
-        #[cfg(windows)]
-        {
-            let len_bits = len & 0x3fff_ffff;
-            let flags_bits = u8::from(initial) | (u8::from(final_) << 1);
-            Self {
-                str_,
-                len_bits,
-                flags_bits,
-                terminator,
-            }
+        Self {
+            str_,
+            len,
+            initial,
+            final_,
+            terminator,
         }
     }
 
     #[inline]
     pub const fn len(&self) -> usize {
-        #[cfg(not(windows))]
-        {
-            (self.packed & 0x3fff_ffff) as usize
-        }
-        #[cfg(windows)]
-        {
-            self.len_bits & 0x3fff_ffff
-        }
+        self.len
     }
 
     #[inline]
     pub const fn is_empty(&self) -> bool {
-        self.len() == 0
+        self.len == 0
     }
 
     #[inline]
     pub const fn initial(&self) -> bool {
-        #[cfg(not(windows))]
-        {
-            ((self.packed >> 30) & 0x01) != 0
-        }
-        #[cfg(windows)]
-        {
-            (self.flags_bits & 0x01) != 0
-        }
+        self.initial
     }
 
     #[inline]
     pub const fn final_(&self) -> bool {
-        #[cfg(not(windows))]
-        {
-            ((self.packed >> 31) & 0x01) != 0
-        }
-        #[cfg(windows)]
-        {
-            ((self.flags_bits >> 1) & 0x01) != 0
-        }
+        self.final_
     }
 }
 

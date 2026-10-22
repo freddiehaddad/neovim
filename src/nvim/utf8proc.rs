@@ -2,7 +2,6 @@
 //! and extended grapheme cluster break routines (`utf8proc.c` / `utf8proc_data.c`).
 
 use std::ffi::c_int;
-use std::ptr;
 
 pub const UTF8PROC_COMPAT: c_int = 1 << 2;
 pub const UTF8PROC_COMPOSE: c_int = 1 << 3;
@@ -61,19 +60,14 @@ const UTF8PROC_HANGUL_TCOUNT: i32 = 28;
 const UTF8PROC_HANGUL_NCOUNT: i32 = 588;
 const UTF8PROC_HANGUL_SCOUNT: i32 = 11172;
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct utf8proc_property_t {
     pub category: i16,
-    pub combining_class: i16,
-    pub bidi_class: i16,
     pub decomp_type: i16,
     pub decomp_seqindex: u16,
     pub casefold_seqindex: u16,
     pub uppercase_seqindex: u16,
     pub lowercase_seqindex: u16,
-    pub titlecase_seqindex: u16,
-    pub comb_bits: u16,
     pub prop_bits: u32,
 }
 
@@ -104,30 +98,26 @@ impl utf8proc_property_t {
     }
 }
 
-const extern "C" fn p(
+const fn p(
     category: i16,
-    combining_class: i16,
-    bidi_class: i16,
+    _combining_class: i16,
+    _bidi_class: i16,
     decomp_type: i16,
     decomp_seqindex: u16,
     casefold_seqindex: u16,
     uppercase_seqindex: u16,
     lowercase_seqindex: u16,
-    titlecase_seqindex: u16,
-    comb_bits: u16,
+    _titlecase_seqindex: u16,
+    _comb_bits: u16,
     prop_bits: u32,
 ) -> utf8proc_property_t {
     utf8proc_property_t {
         category,
-        combining_class,
-        bidi_class,
         decomp_type,
         decomp_seqindex,
         casefold_seqindex,
         uppercase_seqindex,
         lowercase_seqindex,
-        titlecase_seqindex,
-        comb_bits,
         prop_bits,
     }
 }
@@ -140,9 +130,9 @@ fn unsafe_get_property(uc: i32) -> &'static utf8proc_property_t {
 }
 
 #[inline]
-pub fn utf8proc_get_property(uc: i32) -> *const utf8proc_property_t {
+pub fn utf8proc_get_property(uc: i32) -> &'static utf8proc_property_t {
     if !(0..0x110000).contains(&uc) {
-        &raw const UTF8PROC_PROPERTIES[0]
+        &UTF8PROC_PROPERTIES[0]
     } else {
         unsafe_get_property(uc)
     }
@@ -179,15 +169,15 @@ fn grapheme_break_simple(lbc: u32, tbc: u32) -> bool {
     }
 }
 
-unsafe fn grapheme_break_extended(
+fn grapheme_break_extended(
     lbc: u32,
     tbc: u32,
     licb: u32,
     ticb: u32,
-    state: *mut i32,
+    state: Option<&mut i32>,
 ) -> bool {
-    if !state.is_null() {
-        let cur = unsafe { *state };
+    if let Some(state_ref) = state {
+        let cur = *state_ref;
         let (mut state_bc, mut state_icb) = if cur == 0 {
             (lbc, licb)
         } else {
@@ -218,9 +208,7 @@ unsafe fn grapheme_break_extended(
             state_bc = tbc;
         }
 
-        unsafe {
-            *state = (state_bc + (state_icb << 8)) as i32;
-        }
+        *state_ref = (state_bc + (state_icb << 8)) as i32;
         break_permitted
     } else {
         grapheme_break_simple(lbc, tbc)
@@ -228,23 +216,21 @@ unsafe fn grapheme_break_extended(
 }
 
 #[inline]
-pub unsafe fn utf8proc_grapheme_break_stateful(c1: i32, c2: i32, state: *mut i32) -> bool {
-    let p1 = unsafe { &*utf8proc_get_property(c1) };
-    let p2 = unsafe { &*utf8proc_get_property(c2) };
-    unsafe {
-        grapheme_break_extended(
-            p1.boundclass(),
-            p2.boundclass(),
-            p1.indic_conjunct_break(),
-            p2.indic_conjunct_break(),
-            state,
-        )
-    }
+pub fn utf8proc_grapheme_break_stateful(c1: i32, c2: i32, state: Option<&mut i32>) -> bool {
+    let p1 = utf8proc_get_property(c1);
+    let p2 = utf8proc_get_property(c2);
+    grapheme_break_extended(
+        p1.boundclass(),
+        p2.boundclass(),
+        p1.indic_conjunct_break(),
+        p2.indic_conjunct_break(),
+        state,
+    )
 }
 
 #[inline]
 pub fn utf8proc_grapheme_break(c1: i32, c2: i32) -> bool {
-    unsafe { utf8proc_grapheme_break_stateful(c1, c2, ptr::null_mut()) }
+    utf8proc_grapheme_break_stateful(c1, c2, None)
 }
 
 #[inline]
@@ -264,12 +250,11 @@ fn seqindex_decode_index(seqindex: u32) -> i32 {
     seqindex_decode_entry(&mut idx)
 }
 
-unsafe fn seqindex_write_char_decomposed(
+fn seqindex_write_char_decomposed(
     seqindex: u16,
-    dst: *mut i32,
-    bufsize: isize,
+    dst: &mut [i32],
     options: c_int,
-    last_boundclass: *mut c_int,
+    mut last_boundclass: Option<&mut c_int>,
 ) -> isize {
     let mut written: isize = 0;
     let mut idx = (seqindex & 0x3FFF) as usize;
@@ -280,19 +265,13 @@ unsafe fn seqindex_write_char_decomposed(
     }
     while len >= 0 {
         let entry_cp = seqindex_decode_entry(&mut idx);
-        let next_dst = if dst.is_null() {
-            ptr::null_mut()
+        let rem_slice = if (written as usize) < dst.len() {
+            &mut dst[written as usize..]
         } else {
-            unsafe { dst.offset(written) }
+            &mut []
         };
-        let rem_buf = if bufsize > written {
-            bufsize - written
-        } else {
-            0
-        };
-        let decomp_result = unsafe {
-            utf8proc_decompose_char(entry_cp, next_dst, rem_buf, options, last_boundclass)
-        };
+        let decomp_result =
+            utf8proc_decompose_char(entry_cp, rem_slice, options, last_boundclass.as_deref_mut());
         if decomp_result < 0 {
             return decomp_result;
         }
@@ -305,7 +284,7 @@ unsafe fn seqindex_write_char_decomposed(
 
 #[inline]
 pub fn utf8proc_tolower(c: i32) -> i32 {
-    let cl = unsafe { (*utf8proc_get_property(c)).lowercase_seqindex };
+    let cl = utf8proc_get_property(c).lowercase_seqindex;
     if cl != u16::MAX {
         seqindex_decode_index(cl as u32)
     } else {
@@ -315,7 +294,7 @@ pub fn utf8proc_tolower(c: i32) -> i32 {
 
 #[inline]
 pub fn utf8proc_toupper(c: i32) -> i32 {
-    let cu = unsafe { (*utf8proc_get_property(c)).uppercase_seqindex };
+    let cu = utf8proc_get_property(c).uppercase_seqindex;
     if cu != u16::MAX {
         seqindex_decode_index(cu as u32)
     } else {
@@ -323,12 +302,11 @@ pub fn utf8proc_toupper(c: i32) -> i32 {
     }
 }
 
-pub unsafe fn utf8proc_decompose_char(
+pub fn utf8proc_decompose_char(
     uc: i32,
-    dst: *mut i32,
-    bufsize: isize,
+    dst: &mut [i32],
     options: c_int,
-    last_boundclass: *mut c_int,
+    last_boundclass: Option<&mut c_int>,
 ) -> isize {
     if !(0..0x110000).contains(&uc) {
         return UTF8PROC_ERROR_NOTASSIGNED;
@@ -339,23 +317,19 @@ pub unsafe fn utf8proc_decompose_char(
     if (options & (UTF8PROC_COMPOSE | UTF8PROC_DECOMPOSE)) != 0
         && (0..UTF8PROC_HANGUL_SCOUNT).contains(&hangul_sindex)
     {
-        if bufsize >= 1 {
-            unsafe {
-                *dst = UTF8PROC_HANGUL_LBASE + hangul_sindex / UTF8PROC_HANGUL_NCOUNT;
-                if bufsize >= 2 {
-                    *dst.add(1) = UTF8PROC_HANGUL_VBASE
-                        + (hangul_sindex % UTF8PROC_HANGUL_NCOUNT) / UTF8PROC_HANGUL_TCOUNT;
-                }
+        if !dst.is_empty() {
+            dst[0] = UTF8PROC_HANGUL_LBASE + hangul_sindex / UTF8PROC_HANGUL_NCOUNT;
+            if dst.len() >= 2 {
+                dst[1] = UTF8PROC_HANGUL_VBASE
+                    + (hangul_sindex % UTF8PROC_HANGUL_NCOUNT) / UTF8PROC_HANGUL_TCOUNT;
             }
         }
         let hangul_tindex = hangul_sindex % UTF8PROC_HANGUL_TCOUNT;
         if hangul_tindex == 0 {
             return 2;
         }
-        if bufsize >= 3 {
-            unsafe {
-                *dst.add(2) = UTF8PROC_HANGUL_TBASE + hangul_tindex;
-            }
+        if dst.len() >= 3 {
+            dst[2] = UTF8PROC_HANGUL_TBASE + hangul_tindex;
         }
         return 3;
     }
@@ -405,9 +379,7 @@ pub unsafe fn utf8proc_decompose_char(
             None
         };
         if let Some(rep) = replacement {
-            return unsafe {
-                utf8proc_decompose_char(rep, dst, bufsize, lump_opts, last_boundclass)
-            };
+            return utf8proc_decompose_char(rep, dst, lump_opts, last_boundclass);
         }
     }
     if (options & UTF8PROC_STRIPMARK) != 0
@@ -418,58 +390,44 @@ pub unsafe fn utf8proc_decompose_char(
         return 0;
     }
     if (options & UTF8PROC_CASEFOLD) != 0 && property.casefold_seqindex != u16::MAX {
-        return unsafe {
-            seqindex_write_char_decomposed(
-                property.casefold_seqindex,
-                dst,
-                bufsize,
-                options,
-                last_boundclass,
-            )
-        };
+        return seqindex_write_char_decomposed(
+            property.casefold_seqindex,
+            dst,
+            options,
+            last_boundclass,
+        );
     }
     if (options & (UTF8PROC_COMPOSE | UTF8PROC_DECOMPOSE)) != 0
         && property.decomp_seqindex != u16::MAX
         && (property.decomp_type == 0 || (options & UTF8PROC_COMPAT) != 0)
     {
-        return unsafe {
-            seqindex_write_char_decomposed(
-                property.decomp_seqindex,
-                dst,
-                bufsize,
-                options,
-                last_boundclass,
-            )
-        };
+        return seqindex_write_char_decomposed(
+            property.decomp_seqindex,
+            dst,
+            options,
+            last_boundclass,
+        );
     }
     if (options & UTF8PROC_CHARBOUND) != 0 {
-        let boundary = unsafe {
-            grapheme_break_extended(
-                0,
-                property.boundclass(),
-                0,
-                property.indic_conjunct_break(),
-                last_boundclass,
-            )
-        };
+        let boundary = grapheme_break_extended(
+            0,
+            property.boundclass(),
+            0,
+            property.indic_conjunct_break(),
+            last_boundclass,
+        );
         if boundary {
-            if bufsize >= 1 {
-                unsafe {
-                    *dst = -1;
-                }
+            if !dst.is_empty() {
+                dst[0] = -1;
             }
-            if bufsize >= 2 {
-                unsafe {
-                    *dst.add(1) = uc;
-                }
+            if dst.len() >= 2 {
+                dst[1] = uc;
             }
             return 2;
         }
     }
-    if bufsize >= 1 {
-        unsafe {
-            *dst = uc;
-        }
+    if !dst.is_empty() {
+        dst[0] = uc;
     }
     1
 }
@@ -12785,54 +12743,43 @@ mod tests {
 
     #[test]
     fn properties_case_folding_and_grapheme_breaks() {
-        unsafe {
-            assert_eq!((*utf8proc_get_property(-1)).category, UTF8PROC_CATEGORY_CN);
-            assert_eq!(
-                (*utf8proc_get_property(0x110000)).category,
-                UTF8PROC_CATEGORY_CN
-            );
-            assert_eq!(
-                (*utf8proc_get_property(b'A' as i32)).category,
-                UTF8PROC_CATEGORY_LU
-            );
-            assert_eq!(
-                (*utf8proc_get_property(0x0301)).category,
-                UTF8PROC_CATEGORY_MN
-            );
-            assert_eq!((*utf8proc_get_property(0x4E2D)).charwidth(), 2);
+        assert_eq!(utf8proc_get_property(-1).category, UTF8PROC_CATEGORY_CN);
+        assert_eq!(
+            utf8proc_get_property(0x110000).category,
+            UTF8PROC_CATEGORY_CN
+        );
+        assert_eq!(
+            utf8proc_get_property(b'A' as i32).category,
+            UTF8PROC_CATEGORY_LU
+        );
+        assert_eq!(utf8proc_get_property(0x0301).category, UTF8PROC_CATEGORY_MN);
+        assert_eq!(utf8proc_get_property(0x4E2D).charwidth(), 2);
 
-            assert_eq!(utf8proc_tolower(b'A' as i32), b'a' as i32);
-            assert_eq!(utf8proc_toupper(b'a' as i32), b'A' as i32);
-            assert_eq!(utf8proc_tolower(0x03A9), 0x03C9);
-            assert_eq!(utf8proc_toupper(0x03C9), 0x03A9);
+        assert_eq!(utf8proc_tolower(b'A' as i32), b'a' as i32);
+        assert_eq!(utf8proc_toupper(b'a' as i32), b'A' as i32);
+        assert_eq!(utf8proc_tolower(0x03A9), 0x03C9);
+        assert_eq!(utf8proc_toupper(0x03C9), 0x03A9);
 
-            let mut dst = [0i32; 4];
-            let res = utf8proc_decompose_char(
-                0x1E9E,
-                dst.as_mut_ptr(),
-                4,
-                UTF8PROC_CASEFOLD,
-                ptr::null_mut(),
-            );
-            assert_eq!(res, 2);
-            assert_eq!(&dst[..2], &[b's' as i32, b's' as i32]);
+        let mut dst = [0i32; 4];
+        let res = utf8proc_decompose_char(0x1E9E, &mut dst, UTF8PROC_CASEFOLD, None);
+        assert_eq!(res, 2);
+        assert_eq!(&dst[..2], &[b's' as i32, b's' as i32]);
 
-            assert!(!utf8proc_grapheme_break(b'\r' as i32, b'\n' as i32));
-            assert!(!utf8proc_grapheme_break(b'a' as i32, 0x0301));
-            assert!(utf8proc_grapheme_break(b'a' as i32, b'b' as i32));
+        assert!(!utf8proc_grapheme_break(b'\r' as i32, b'\n' as i32));
+        assert!(!utf8proc_grapheme_break(b'a' as i32, 0x0301));
+        assert!(utf8proc_grapheme_break(b'a' as i32, b'b' as i32));
 
-            // Regional indicator pair followed by third regional indicator
-            let mut state = 0;
-            assert!(!utf8proc_grapheme_break_stateful(
-                0x1F1FA,
-                0x1F1F8,
-                &raw mut state
-            ));
-            assert!(utf8proc_grapheme_break_stateful(
-                0x1F1F8,
-                0x1F1FA,
-                &raw mut state
-            ));
-        }
+        // Regional indicator pair followed by third regional indicator
+        let mut state = 0;
+        assert!(!utf8proc_grapheme_break_stateful(
+            0x1F1FA,
+            0x1F1F8,
+            Some(&mut state)
+        ));
+        assert!(utf8proc_grapheme_break_stateful(
+            0x1F1F8,
+            0x1F1FA,
+            Some(&mut state)
+        ));
     }
 }

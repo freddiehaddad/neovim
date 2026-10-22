@@ -4,7 +4,7 @@ use crate::api::private::helpers::api_free_object;
 use crate::api::private::validate::{Array, Error, ErrorType, NvimString, ObjectType};
 use crate::api::win_config::kUIMultigrid;
 use crate::buffer::{buf_is_empty, kUIMessages};
-use crate::charset::{NUL, ascii_isdigit, vim_strsize};
+use crate::charset::{NUL, vim_strsize};
 use crate::drawscreen::screenclear;
 use crate::ex_docmd::exarg_T;
 use crate::globals::*;
@@ -14,13 +14,12 @@ use crate::input::plain_vgetc;
 use crate::insert::HLF_8;
 use crate::lua::executor::{kRetObject, nlua_exec};
 use crate::mbyte::{utf_ptr2char, utfc_ptr2len};
-use crate::memory::{xfree, xmallocz};
 use crate::message::{msg_ext_set_kind, msg_putchar, msg_puts};
 use crate::option_vars::*;
-use crate::strings::{atoi, gettext, memchr, strchr, strstr, vim_strchr};
+use crate::strings::{gettext, memchr, strstr, vim_strchr};
 use crate::ui::ui_has;
 use crate::window::{LOWEST_WIN_ID, one_window};
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, CString, c_char, c_int};
 use std::ptr;
 
 const kShmIntro: c_int = b'I' as c_int;
@@ -3848,42 +3847,44 @@ pub static mut nvim_version_build: *const c_char = if match option_env!("NVIM_VE
     ptr::null()
 };
 
-/// Compares a version string to the current Nvim version (`has_nvim_version`).
-pub unsafe fn has_nvim_version(version_str: *const c_char) -> bool {
-    unsafe {
-        let mut p = version_str;
-        let mut minor: c_int = 0;
-        let mut patch: c_int = 0;
-
-        if !ascii_isdigit(*p) {
-            return false;
-        }
-        let major = atoi(p);
-        p = strchr(p, b'.' as c_int);
-
-        if !p.is_null() {
-            p = p.add(1);
-            if !ascii_isdigit(*p) {
-                return false;
-            }
-            minor = atoi(p);
-            p = strchr(p, b'.' as c_int);
-            if !p.is_null() {
-                p = p.add(1);
-                if !ascii_isdigit(*p) {
-                    return false;
-                }
-                patch = atoi(p);
-            }
-        }
-
-        let (cur_major, cur_minor, cur_patch) =
-            (nvim_version_major, nvim_version_minor, nvim_version_patch);
-
-        major < cur_major
-            || (major == cur_major
-                && (minor < cur_minor || (minor == cur_minor && patch <= cur_patch)))
+fn parse_leading_int(s: &[u8]) -> Option<c_int> {
+    if !s.first().is_some_and(u8::is_ascii_digit) {
+        return None;
     }
+    let mut val: c_int = 0;
+    for &b in s {
+        if !b.is_ascii_digit() {
+            break;
+        }
+        val = val.wrapping_mul(10).wrapping_add(c_int::from(b - b'0'));
+    }
+    Some(val)
+}
+
+/// Compares a version string to the current Nvim version (`has_nvim_version`).
+pub fn has_nvim_version(version_str: &[u8]) -> bool {
+    let Some(major) = parse_leading_int(version_str) else {
+        return false;
+    };
+    let mut minor: c_int = 0;
+    let mut patch: c_int = 0;
+
+    if let Some(dot1) = version_str.iter().position(|&b| b == b'.') {
+        let rest1 = &version_str[dot1 + 1..];
+        let Some(m) = parse_leading_int(rest1) else {
+            return false;
+        };
+        minor = m;
+        if let Some(dot2) = rest1.iter().position(|&b| b == b'.') {
+            let rest2 = &rest1[dot2 + 1..];
+            let Some(p) = parse_leading_int(rest2) else {
+                return false;
+            };
+            patch = p;
+        }
+    }
+
+    (major, minor, patch) <= (nvim_version_major, nvim_version_minor, nvim_version_patch)
 }
 
 pub fn min_vim_version() -> c_int {
@@ -4163,7 +4164,7 @@ pub unsafe fn intro_message(colon: bool) {
         let mut row = blanklines / 2;
         if (row >= 2 && Columns >= 50) || colon {
             for (i, &p) in lines.iter().enumerate() {
-                let mut allocated: *mut c_char = ptr::null_mut();
+                let formatted_cstr: Option<CString>;
 
                 let mesg: *const c_char = if !strstr(p, c"news".as_ptr()).is_null() {
                     let fmt_str = CStr::from_ptr(gettext(p)).to_string_lossy();
@@ -4178,10 +4179,10 @@ pub unsafe fn intro_message(colon: bool) {
                     } else {
                         fmt_str.into_owned()
                     };
-                    let bytes = formatted.as_bytes();
-                    allocated = xmallocz(bytes.len()).cast();
-                    ptr::copy_nonoverlapping(bytes.as_ptr().cast(), allocated, bytes.len());
-                    allocated
+                    formatted_cstr = CString::new(formatted).ok();
+                    formatted_cstr
+                        .as_ref()
+                        .map_or(c"".as_ptr(), |cs| cs.as_ptr())
                 } else if *p != NUL {
                     gettext(p)
                 } else {
@@ -4192,10 +4193,6 @@ pub unsafe fn intro_message(colon: bool) {
                     do_intro_line(row, mesg, colon, i < 3);
                 }
                 row += 1;
-
-                if !allocated.is_null() {
-                    xfree(allocated.cast());
-                }
             }
         }
     }
@@ -4310,12 +4307,10 @@ mod tests {
         assert!(has_vim_patch(100, 704));
         assert!(!has_vim_patch(99999, 801));
         assert!(!has_vim_patch(1, 999));
-        unsafe {
-            assert!(has_nvim_version(c"0.10.0".as_ptr()));
-            assert!(has_nvim_version(c"0.13.0".as_ptr()));
-            assert!(!has_nvim_version(c"0.14.0".as_ptr()));
-            assert!(!has_nvim_version(c"1.0.0".as_ptr()));
-            assert!(!has_nvim_version(c"invalid".as_ptr()));
-        }
+        assert!(has_nvim_version(b"0.10.0"));
+        assert!(has_nvim_version(b"0.13.0"));
+        assert!(!has_nvim_version(b"0.14.0"));
+        assert!(!has_nvim_version(b"1.0.0"));
+        assert!(!has_nvim_version(b"invalid"));
     }
 }

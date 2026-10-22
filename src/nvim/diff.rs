@@ -1952,11 +1952,7 @@ unsafe fn calculate_topfill_and_topline(
         *topline = curlinenum_to;
     }
 }
-unsafe fn apply_linematch_results(
-    dp: *mut diff_T,
-    decisions_length: usize,
-    decisions: *const c_int,
-) {
+unsafe fn apply_linematch_results(dp: *mut diff_T, decisions: &[c_int]) {
     unsafe {
         let mut line_numbers: [linenr_T; DB_COUNT] = [0; DB_COUNT];
         let mut outputmap: [usize; DB_COUNT] = [0; DB_COUNT];
@@ -1970,8 +1966,8 @@ unsafe fn apply_linematch_results(
             }
         }
         let mut dp_s = dp;
-        for i in 0..decisions_length {
-            if i != 0 && *decisions.add(i - 1) != *decisions.add(i) {
+        for (i, &dec) in decisions.iter().enumerate() {
+            if i != 0 && decisions[i - 1] != dec {
                 dp_s = diff_alloc_new(curtab, dp_s, (*dp_s).df_next);
                 (*dp_s).is_linematched = true;
                 for (j, &line_num) in line_numbers.iter().enumerate().take(DB_COUNT) {
@@ -1982,7 +1978,7 @@ unsafe fn apply_linematch_results(
                 }
             }
             for j in 0..ndiffs {
-                if (*decisions.add(i) & (1 << j)) != 0 {
+                if (dec & (1 << j)) != 0 {
                     (*dp_s).df_count[outputmap[j]] += 1;
                     line_numbers[outputmap[j]] += 1;
                 }
@@ -1997,7 +1993,6 @@ unsafe fn run_linematch_algorithm(dp: *mut diff_T) {
             ptr: ptr::null_mut(),
             size: 0,
         }; DB_COUNT];
-        let mut diffbufs: [*const mmfile_t; DB_COUNT] = [ptr::null(); DB_COUNT];
         let mut diff_length: [c_int; DB_COUNT] = [0; DB_COUNT];
         let mut ndiffs: usize = 0;
         for i in 0..DB_COUNT {
@@ -2013,26 +2008,18 @@ unsafe fn run_linematch_algorithm(dp: *mut diff_T) {
                     diffbufs_mm[ndiffs].size = 0;
                     diffbufs_mm[ndiffs].ptr = ptr::null_mut();
                 }
-                diffbufs[ndiffs] = &raw const diffbufs_mm[ndiffs];
                 diff_length[ndiffs] = (*dp).df_count[i];
                 ndiffs += 1;
             }
         }
-        let mut decisions: *mut c_int = ptr::null_mut();
+        let diffbuf_refs: Vec<&mmfile_t> = diffbufs_mm[..ndiffs].iter().collect();
         let iwhite = (diff_flags & (DIFF_IWHITEALL | DIFF_IWHITE)) != 0;
-        let decisions_length = linematch_nbuffers(
-            (&raw const diffbufs).cast(),
-            (&raw const diff_length).cast(),
-            ndiffs,
-            &raw mut decisions,
-            iwhite,
-        );
+        let decisions = linematch_nbuffers(&diffbuf_refs, &diff_length[..ndiffs], iwhite);
         for mm in diffbufs_mm.iter_mut().take(ndiffs) {
             xfree(mm.ptr.cast());
             mm.ptr = ptr::null_mut();
         }
-        apply_linematch_results(dp, decisions_length, decisions);
-        xfree(decisions.cast());
+        apply_linematch_results(dp, &decisions);
     }
 }
 pub unsafe fn diff_check_with_linestatus(

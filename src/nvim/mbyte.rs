@@ -1078,8 +1078,8 @@ pub unsafe fn mb_get_class_tab(p: *const c_char, chartab: *const u64) -> c_int {
 }
 
 #[inline]
-unsafe fn prop_is_emojilike(prop: *const utf8proc_property_t) -> bool {
-    let bc = unsafe { (*prop).boundclass() };
+fn prop_is_emojilike(prop: &utf8proc_property_t) -> bool {
+    let bc = prop.boundclass();
     bc == UTF8PROC_BOUNDCLASS_EXTENDED_PICTOGRAPHIC || bc == UTF8PROC_BOUNDCLASS_REGIONAL_INDICATOR
 }
 
@@ -1100,14 +1100,14 @@ pub unsafe fn utf_char2cells(c: c_int) -> c_int {
         }
 
         let prop = utf8proc_get_property(c);
-        if (*prop).charwidth() == 2 {
+        if prop.charwidth() == 2 {
             return 2;
         }
-        if !p_ambw.is_null() && *p_ambw == b'd' as c_char && (*prop).ambiguous_width() {
+        if !p_ambw.is_null() && *p_ambw == b'd' as c_char && prop.ambiguous_width() {
             return 2;
         }
 
-        if p_emoji != 0 && c >= 0x1f000 && !(*prop).ambiguous_width() && prop_is_emojilike(prop) {
+        if p_emoji != 0 && c >= 0x1f000 && !prop.ambiguous_width() && prop_is_emojilike(prop) {
             return 2;
         }
 
@@ -1343,7 +1343,7 @@ pub unsafe fn utf_composinglike(
         }
         let first = utf_ptr2char(p1);
         let second = utf_ptr2char(p2);
-        if !utf8proc_grapheme_break_stateful(first, second, state) {
+        if !utf8proc_grapheme_break_stateful(first, second, state.as_mut()) {
             return true;
         }
         arabic_combine(first, second)
@@ -1351,7 +1351,7 @@ pub unsafe fn utf_composinglike(
 }
 
 pub unsafe fn utf_iscomposing(c1: c_int, c2: c_int, state: *mut GraphemeState) -> bool {
-    unsafe { !utf8proc_grapheme_break_stateful(c1, c2, state) || arabic_combine(c1, c2) }
+    unsafe { !utf8proc_grapheme_break_stateful(c1, c2, state.as_mut()) || arabic_combine(c1, c2) }
 }
 
 unsafe fn schar_from_buf_first(buf: *const c_char, len: usize, first_compose: bool) -> schar_T {
@@ -1558,17 +1558,13 @@ pub unsafe fn utf_char2bytes(c: c_int, buf: *mut c_char) -> c_int {
 }
 
 pub unsafe fn utf_iscomposing_legacy(c: c_int) -> bool {
-    unsafe {
-        let prop = utf8proc_get_property(c);
-        (*prop).category == UTF8PROC_CATEGORY_MN || (*prop).category == UTF8PROC_CATEGORY_ME
-    }
+    let prop = utf8proc_get_property(c);
+    prop.category == UTF8PROC_CATEGORY_MN || prop.category == UTF8PROC_CATEGORY_ME
 }
 
 pub unsafe fn utf_isalnum(c: c_int) -> bool {
-    unsafe {
-        let prop = utf8proc_get_property(c);
-        (*prop).category >= UTF8PROC_CATEGORY_LU && (*prop).category <= UTF8PROC_CATEGORY_NO
-    }
+    let prop = utf8proc_get_property(c);
+    prop.category >= UTF8PROC_CATEGORY_LU && prop.category <= UTF8PROC_CATEGORY_NO
 }
 
 fn intable(table: &[Interval], c: c_int) -> bool {
@@ -2037,7 +2033,7 @@ pub unsafe fn utf_ambiguous_width(p: *const c_char) -> bool {
         let info = utf_ptr2CharInfo(p);
         if info.value >= 0x80 {
             let prop = utf8proc_get_property(info.value);
-            if (*prop).ambiguous_width() || prop_is_emojilike(prop) {
+            if prop.ambiguous_width() || prop_is_emojilike(prop) {
                 return true;
             }
         }
@@ -2047,27 +2043,19 @@ pub unsafe fn utf_ambiguous_width(p: *const c_char) -> bool {
 }
 
 pub unsafe fn utf_fold(a: c_int) -> c_int {
-    unsafe {
-        if a < 0x80 {
-            return if (0x41..=0x5a).contains(&a) {
-                a + 32
-            } else {
-                a
-            };
-        }
-        if a == 0xdf || a == 0x130 {
-            return a;
-        }
-        let mut result: [i32; 1] = [0];
-        let res = utf8proc_decompose_char(
-            a,
-            result.as_mut_ptr(),
-            1,
-            UTF8PROC_CASEFOLD,
-            ptr::null_mut(),
-        );
-        if res == 1 { result[0] } else { a }
+    if a < 0x80 {
+        return if (0x41..=0x5a).contains(&a) {
+            a + 32
+        } else {
+            a
+        };
     }
+    if a == 0xdf || a == 0x130 {
+        return a;
+    }
+    let mut result: [i32; 1] = [0];
+    let res = utf8proc_decompose_char(a, &mut result, UTF8PROC_CASEFOLD, None);
+    if res == 1 { result[0] } else { a }
 }
 
 pub unsafe fn mb_toupper(a: c_int) -> c_int {
@@ -2379,7 +2367,7 @@ pub unsafe fn utf_head_off(base_in: *const c_char, p_in: *const c_char) -> c_int
         }
         let safe_end = start.add(usize::from(last_len));
 
-        let mut cur_bc = (*utf8proc_get_property(cur_code)).boundclass();
+        let mut cur_bc = utf8proc_get_property(cur_code).boundclass();
         if always_break(cur_bc) || start == base {
             return p.offset_from(start) as c_int;
         }
@@ -2410,7 +2398,7 @@ pub unsafe fn utf_head_off(base_in: *const c_char, p_in: *const c_char) -> c_int
                 break;
             }
 
-            let prev_bc = (*utf8proc_get_property(prev_code)).boundclass();
+            let prev_bc = utf8proc_get_property(prev_code).boundclass();
             if always_break_two(prev_bc, cur_bc) && !arabic_combine(prev_code, cur_code) {
                 start = cur_pos;
                 break;
@@ -2488,7 +2476,7 @@ pub unsafe fn utf_ClusterInfo_impl(base: StrCharInfo, max_len: *mut c_int) -> Cl
             }
 
             if cells == 1
-                && ((*utf8proc_get_property(next_code)).boundclass()
+                && (utf8proc_get_property(next_code).boundclass()
                     == UTF8PROC_BOUNDCLASS_SPACINGMARK
                     || (next_code & !1) == 0xFF9E)
                 && base.chr.len != 1

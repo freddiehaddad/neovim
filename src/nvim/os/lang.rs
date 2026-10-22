@@ -17,7 +17,9 @@ use crate::memory::xstrdup;
 use crate::memory::{xfree, xstrlcpy};
 use crate::message::{semsg, smsg};
 use crate::option::set_helplang_default;
-use crate::os::env::{expand_T, os_getenv_buf, os_getenv_noalloc, os_setenv};
+#[cfg(windows)]
+use crate::os::env::os_getenv_noalloc;
+use crate::os::env::{expand_T, os_getenv_buf, os_setenv};
 #[cfg(unix)]
 use crate::os::shell::get_cmd_output;
 use crate::path::{path_tail, path_tail_with_sep};

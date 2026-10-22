@@ -4,7 +4,7 @@ use crate::event::r#loop::loop_poll_events;
 use crate::globals::*;
 use crate::memory::xstrlcpy;
 #[cfg(unix)]
-use crate::os::env::os_getenv_noalloc;
+use crate::os::env::os_getenv_buf;
 use crate::os::input::os_input_ready;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 
@@ -112,7 +112,8 @@ pub fn os_sleep(ms: u64) {
 pub unsafe extern "C" fn os_localtime_r(clock: *const time_t, result: *mut Tm) -> *mut Tm {
     #[cfg(unix)]
     unsafe {
-        let tz_ptr = os_getenv_noalloc(c"TZ".as_ptr());
+        let mut tz_buf = [0 as c_char; 64];
+        let tz_ptr = os_getenv_buf(c"TZ".as_ptr(), tz_buf.as_mut_ptr(), tz_buf.len());
         let tz_bytes = if tz_ptr.is_null() {
             &[][..]
         } else {

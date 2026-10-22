@@ -3856,7 +3856,7 @@ pub unsafe fn f_has(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFun
             }
         } else if vim_strnicmp(name, c"nvim-".as_ptr(), 5) == 0 {
             x = true;
-            n = has_nvim_version(name.add(5));
+            n = has_nvim_version(CStr::from_ptr(name.add(5)).to_bytes());
         } else if vim_stricmp(name, c"vim_starting".as_ptr()) == 0 {
             x = true;
             n = starting != 0;

@@ -2,8 +2,6 @@
 
 use std::ffi::c_int;
 
-use crate::memory::xmalloc;
-
 const LN_MAX_BUFS: usize = 8;
 const LN_DECISION_MAX: usize = (1 << LN_MAX_BUFS) - 1;
 const MATCH_CHAR_MAX_LEN: usize = 800;
@@ -332,25 +330,19 @@ fn test_charmatch_paths(
     diffcmppath[node_idx].df_choice_mem[lastdecision] as usize
 }
 
-/// Find an optimal alignment of lines across `ndiffs` diff buffers (`linematch_nbuffers`).
+/// Find an optimal alignment of lines across `diff_blk` diff buffers (`linematch_nbuffers`).
 ///
 /// # Safety
-/// `diff_blk` and `diff_len` must be valid for `ndiffs` elements, and `decisions` must be a valid
-/// writable pointer.
+/// Each `mmfile_t` in `diff_blk` with a non-null `ptr` and `size > 0` must be valid for `size`
+/// bytes.
 pub unsafe fn linematch_nbuffers(
-    diff_blk: *const *const mmfile_t,
-    diff_len: *const c_int,
-    ndiffs: usize,
-    decisions: *mut *mut c_int,
+    diff_blk: &[&mmfile_t],
+    diff_len: &[c_int],
     iwhite: bool,
-) -> usize {
+) -> Vec<c_int> {
+    let ndiffs = diff_blk.len();
+    assert_eq!(ndiffs, diff_len.len());
     assert!(ndiffs <= LN_MAX_BUFS);
-
-    let len_slice = if ndiffs == 0 {
-        &[]
-    } else {
-        unsafe { std::slice::from_raw_parts(diff_len, ndiffs) }
-    };
 
     let mut blks = [mmfile_t {
         ptr: std::ptr::null_mut(),
@@ -359,11 +351,11 @@ pub unsafe fn linematch_nbuffers(
     let mut memsize = 1usize;
     let mut memsize_decisions = 0usize;
 
-    for (i, &dl) in len_slice.iter().enumerate() {
+    for (i, &dl) in diff_len.iter().enumerate() {
         assert!(dl >= 0);
         memsize *= (dl as usize) + 1;
         memsize_decisions += dl as usize;
-        blks[i] = unsafe { **diff_blk.add(i) };
+        blks[i] = *diff_blk[i];
     }
 
     let n = 1usize << ndiffs;
@@ -375,45 +367,31 @@ pub unsafe fn linematch_nbuffers(
             &mut df_iters,
             0,
             &mut diffcmppath,
-            len_slice,
+            diff_len,
             &blks[..ndiffs],
             iwhite,
         );
     }
 
-    let u = unwrap_indexes(len_slice, len_slice);
+    let u = unwrap_indexes(diff_len, diff_len);
     test_charmatch_paths(&mut diffcmppath, u, 0);
 
-    let out_decisions =
-        unsafe { xmalloc(std::mem::size_of::<c_int>() * memsize_decisions).cast::<c_int>() };
-    let mut n_optimal = 0usize;
+    let mut decisions = Vec::with_capacity(memsize_decisions);
     let mut curr_idx = u;
     while diffcmppath[curr_idx].df_path_n > 0 {
         let j = diffcmppath[curr_idx].df_optimal_choice;
-        unsafe {
-            *out_decisions.add(n_optimal) = diffcmppath[curr_idx].df_choice[j];
-        }
-        n_optimal += 1;
+        decisions.push(diffcmppath[curr_idx].df_choice[j]);
         curr_idx = diffcmppath[curr_idx].df_decision[j];
     }
 
-    if n_optimal > 1 {
-        let out_slice = unsafe { std::slice::from_raw_parts_mut(out_decisions, n_optimal) };
-        out_slice.reverse();
-    }
-
-    unsafe {
-        *decisions = out_decisions;
-    }
-
-    n_optimal
+    decisions.reverse();
+    decisions
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::memory::xfree;
-    use std::ffi::{c_char, c_void};
+    use std::ffi::c_char;
 
     #[test]
     fn fastforward_and_two_buffer_linematch() {
@@ -434,16 +412,9 @@ mod tests {
             assert!(!line2.ptr.is_null());
             assert_eq!(line_slice(&line2), b"beta_modified");
 
-            let ptrs: [*const mmfile_t; 2] = [&mm1, &mm2];
-            let lens: [c_int; 2] = [3, 3];
-            let mut decisions: *mut c_int = std::ptr::null_mut();
-
-            let n = linematch_nbuffers(ptrs.as_ptr(), lens.as_ptr(), 2, &mut decisions, false);
-            assert_eq!(n, 3);
-            let dec_slice = std::slice::from_raw_parts(decisions, n);
+            let decisions = linematch_nbuffers(&[&mm1, &mm2], &[3, 3], false);
             // All 3 lines paired (1 | 2 == 3)
-            assert_eq!(dec_slice, &[3, 3, 3]);
-            xfree(decisions.cast::<c_void>());
+            assert_eq!(decisions, vec![3, 3, 3]);
         }
     }
 }
