@@ -110,11 +110,7 @@ static mut sign_map: Map<cstr_t, ptr_t> = Map {
     values: ptr::null_mut(),
 };
 
-static mut sign_ns: KVec<Integer> = KVec {
-    size: 0,
-    capacity: 0,
-    items: ptr::null_mut(),
-};
+static mut sign_ns: Vec<Integer> = Vec::new();
 
 static mut expand_what: c_int = EXP_SUBCMD;
 
@@ -179,8 +175,9 @@ unsafe fn buf_set_sign(
         if !group.is_null()
             && map_get_string_int(&raw mut namespace_ids, cstr_as_string(group)) == 0
         {
-            let ns_vec = &raw mut sign_ns;
-            (*ns_vec).push(nvim_create_namespace(cstr_as_string(group)));
+            let ns_vec_ptr = &raw mut sign_ns;
+            let ns_vec = &mut *ns_vec_ptr;
+            ns_vec.push(nvim_create_namespace(cstr_as_string(group)));
         }
 
         let ns = if !group.is_null() {
@@ -1268,14 +1265,11 @@ unsafe fn sign_get_placed(
 
 pub unsafe fn free_signs() {
     unsafe {
-        let mut names: KVec<cstr_t> = KVec::new();
-        for i in 0..sign_map.set.h.n_keys {
-            names.push(*sign_map.set.keys.add(i as usize));
+        let count = sign_map.set.h.n_keys as usize;
+        let names = std::slice::from_raw_parts(sign_map.set.keys, count).to_vec();
+        for name in names {
+            sign_undefine_by_name(name);
         }
-        for i in 0..names.size {
-            sign_undefine_by_name(*names.items.add(i));
-        }
-        names.destroy();
     }
 }
 
@@ -1289,11 +1283,15 @@ unsafe fn get_nth_sign_name(idx: c_int) -> *mut c_char {
 }
 
 unsafe fn get_nth_sign_group_name(idx: c_int) -> *mut c_char {
+    if idx < 0 {
+        return ptr::null_mut();
+    }
     unsafe {
-        if idx >= 0 && (idx as usize) < sign_ns.size {
-            return describe_ns(*sign_ns.items.add(idx as usize) as NS, c"".as_ptr()).cast_mut();
-        }
-        ptr::null_mut()
+        let ns_ptr = &raw const sign_ns;
+        let ns_slice = (*ns_ptr).as_slice();
+        ns_slice
+            .get(idx as usize)
+            .map_or(ptr::null_mut(), |&ns| describe_ns(ns as NS, c"".as_ptr()).cast_mut())
     }
 }
 

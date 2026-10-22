@@ -134,18 +134,6 @@ impl<T> Default for KVec<T> {
 }
 
 #[inline]
-pub unsafe fn kv_ensure_space<T>(v: *mut KVec<T>, len: usize) {
-    unsafe {
-        (*v).ensure_space(len);
-    }
-}
-
-#[inline]
-pub unsafe fn kv_pushp<T>(v: *mut KVec<T>) -> *mut T {
-    unsafe { (*v).pushp() }
-}
-
-#[inline]
 pub unsafe fn kv_push<T>(v: *mut KVec<T>, value: T) {
     unsafe {
         (*v).push(value);

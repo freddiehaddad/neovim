@@ -29,9 +29,7 @@ use crate::ex_docmd::{Ctrl_C, exarg_T};
 use crate::ex_session::put_eol;
 use crate::fileio::{FILE, fputc, fputs};
 use crate::fuzzy::{FUZZY_SCORE_NONE, fuzmatch_str_T, fuzzy_match_str, fuzzymatches_to_strmatches};
-use crate::garray::{
-    ga_append, ga_append_via_ptr, ga_clear, ga_concat, ga_grow, ga_init, garray_T,
-};
+use crate::garray::{ga_append, ga_append_via_ptr, ga_concat, ga_init, garray_T};
 use crate::globals::*;
 use crate::input::{REMAP_SCRIPT, ins_typebuf, noremap_keys};
 use crate::keycodes::{
@@ -192,13 +190,7 @@ static mut expand_mapmodes: c_int = 0;
 static mut expand_isabbrev: bool = false;
 static mut expand_buffer: bool = false;
 
-static mut langmap_mapga: garray_T = garray_T {
-    ga_len: 0,
-    ga_maxlen: 0,
-    ga_itemsize: 0,
-    ga_growsize: 0,
-    ga_data: ptr::null_mut(),
-};
+static mut langmap_mapga: Vec<langmap_entry_T> = Vec::new();
 
 static E_GLOBAL_ABBREVIATION_ALREADY_EXISTS_FOR_STR: &CStr =
     c"E224: Global abbreviation already exists for %s";
@@ -2732,58 +2724,22 @@ pub unsafe fn add_map(lhs: *mut c_char, rhs: *mut c_char, mode: c_int, buffer: b
 
 unsafe fn langmap_set_entry(from: c_int, to: c_int) {
     unsafe {
-        let mut entries = langmap_mapga.ga_data.cast::<langmap_entry_T>();
-        let mut a: usize = 0;
-        debug_assert!(langmap_mapga.ga_len >= 0);
-        let mut b = langmap_mapga.ga_len as usize;
-
-        while a != b {
-            let i = (a + b) / 2;
-            let d = (*entries.add(i)).from - from;
-
-            if d == 0 {
-                (*entries.add(i)).to = to;
-                return;
-            }
-            if d < 0 {
-                a = i + 1;
-            } else {
-                b = i;
-            }
+        let ptr = &raw mut langmap_mapga;
+        let entries = &mut *ptr;
+        match entries.binary_search_by_key(&from, |e| e.from) {
+            Ok(idx) => entries[idx].to = to,
+            Err(idx) => entries.insert(idx, langmap_entry_T { from, to }),
         }
-
-        ga_grow(&raw mut langmap_mapga, 1);
-
-        entries = langmap_mapga.ga_data.cast::<langmap_entry_T>().add(a);
-        ptr::copy(entries, entries.add(1), (langmap_mapga.ga_len as usize) - a);
-        langmap_mapga.ga_len += 1;
-        (*entries).from = from;
-        (*entries).to = to;
     }
 }
 
 /// Apply 'langmap' to multi-byte character "c" and return the result.
 pub unsafe fn langmap_adjust_mb(c: c_int) -> c_int {
-    unsafe {
-        let entries = langmap_mapga.ga_data.cast::<langmap_entry_T>();
-        let mut a: c_int = 0;
-        let mut b = langmap_mapga.ga_len;
-
-        while a != b {
-            let i = (a + b) / 2;
-            let d = (*entries.add(i as usize)).from - c;
-
-            if d == 0 {
-                return (*entries.add(i as usize)).to;
-            }
-            if d < 0 {
-                a = i + 1;
-            } else {
-                b = i;
-            }
-        }
-        c
-    }
+    let ptr = &raw const langmap_mapga;
+    let entries = unsafe { (*ptr).as_slice() };
+    entries
+        .binary_search_by_key(&c, |e| e.from)
+        .map_or(c, |idx| entries[idx].to)
 }
 
 pub unsafe fn langmap_init() {
@@ -2791,11 +2747,7 @@ pub unsafe fn langmap_init() {
         for i in 0..256 {
             *(&raw mut langmap_mapchar).cast::<u8>().add(i) = i as u8;
         }
-        ga_init(
-            &raw mut langmap_mapga,
-            std::mem::size_of::<langmap_entry_T>() as c_int,
-            8,
-        );
+        langmap_mapga = Vec::new();
     }
 }
 
@@ -2803,7 +2755,6 @@ pub unsafe fn langmap_init() {
 /// changed at any time!
 pub unsafe fn did_set_langmap(args: *mut optset_T) -> *const c_char {
     unsafe {
-        ga_clear(&raw mut langmap_mapga);
         langmap_init();
 
         let mut p = p_langmap;

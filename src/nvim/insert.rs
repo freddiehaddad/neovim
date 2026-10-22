@@ -98,7 +98,6 @@ use crate::keycodes::{
     K_UP, K_X1DRAG, K_X1MOUSE, K_X1RELEASE, K_X2DRAG, K_X2MOUSE, K_X2RELEASE, K_XF1, K_ZERO,
     KS_MODIFIER, NL, TAB, add_char2buf, get_special_key_name,
 };
-use crate::kvec::KVec;
 use crate::mapping::{check_abbr, map_to_exists_mode};
 use crate::mark::{mark_view_make, reset_fmark};
 use crate::marktree::kMTMetaInline;
@@ -257,7 +256,13 @@ static mut last_insert: NvimString = NvimString {
     size: 0,
 };
 static mut last_insert_skip: c_int = 0;
-static mut replace_stack: KVec<c_char> = KVec::new();
+static mut replace_stack: Vec<c_char> = Vec::new();
+
+#[inline]
+unsafe fn replace_stack_mut() -> &'static mut Vec<c_char> {
+    let ptr = &raw mut replace_stack;
+    unsafe { &mut *ptr }
+}
 
 static mut pc_status: c_int = PC_STATUS_UNSET;
 static mut pc_schar: schar_T = 0;
@@ -2102,7 +2107,7 @@ pub unsafe fn stop_arrow() -> c_int {
 unsafe fn stop_insert(end_insert_pos: *mut pos_T, esc: c_int, nomove: c_int) {
     unsafe {
         stop_redo_ins();
-        crate::kvec::kv_destroy(&raw mut replace_stack);
+        replace_stack = Vec::new();
 
         let redo = redo_keys(ptr::null());
         let added = if redo.data.is_null() {
@@ -2563,18 +2568,14 @@ unsafe fn echeck_abbr(c: c_int) -> bool {
 /// Push character that is replaced onto the replace stack.
 pub unsafe fn replace_push(str_: *mut c_char, len: usize) {
     unsafe {
-        if replace_stack.size < replace_offset as usize {
+        let stack = replace_stack_mut();
+        let off = replace_offset as usize;
+        if stack.len() < off {
             return;
         }
-        crate::kvec::kv_ensure_space(&raw mut replace_stack, len);
-        let p = replace_stack
-            .items
-            .add(replace_stack.size - replace_offset as usize);
-        if replace_offset != 0 {
-            ptr::copy(p, p.add(len), replace_offset as usize);
-        }
-        ptr::copy_nonoverlapping(str_, p, len);
-        replace_stack.size += len;
+        let pos = stack.len() - off;
+        let slice = std::slice::from_raw_parts(str_, len);
+        stack.splice(pos..pos, slice.iter().copied());
     }
 }
 
@@ -2586,13 +2587,10 @@ pub unsafe fn replace_push_nul() {
 
 unsafe fn replace_pop_if_nul() -> c_int {
     unsafe {
-        let ch = if replace_stack.size != 0 {
-            *replace_stack.items.add(replace_stack.size - 1) as u8 as c_int
-        } else {
-            -1
-        };
-        if ch == NUL as c_int {
-            replace_stack.size -= 1;
+        let stack = replace_stack_mut();
+        let ch = stack.last().map_or(-1, |&b| c_int::from(b as u8));
+        if ch == c_int::from(NUL as u8) {
+            stack.pop();
         }
         ch
     }
@@ -2600,21 +2598,15 @@ unsafe fn replace_pop_if_nul() -> c_int {
 
 pub unsafe fn replace_join(mut off: c_int) {
     unsafe {
-        let mut i = replace_stack.size as isize;
-        while {
+        let stack = replace_stack_mut();
+        let mut i = stack.len();
+        while i > 0 {
             i -= 1;
-            i >= 0
-        } {
-            if *replace_stack.items.offset(i) == NUL {
+            if stack[i] == NUL {
                 let cur_off = off;
                 off -= 1;
                 if cur_off <= 0 {
-                    replace_stack.size -= 1;
-                    ptr::copy(
-                        replace_stack.items.offset(i + 1),
-                        replace_stack.items.offset(i),
-                        replace_stack.size - (i as usize),
-                    );
+                    stack.remove(i);
                     return;
                 }
             }
@@ -2636,12 +2628,13 @@ unsafe fn replace_pop_ins() {
 
 unsafe fn mb_replace_pop_ins() {
     unsafe {
-        let len = utf_head_off(
-            replace_stack.items,
-            replace_stack.items.add(replace_stack.size - 1),
-        ) + 1;
-        replace_stack.size -= len as usize;
-        ins_bytes_len(replace_stack.items.add(replace_stack.size), len as usize);
+        let stack = replace_stack_mut();
+        let ptr = stack.as_ptr();
+        let size = stack.len();
+        let len = (utf_head_off(ptr, ptr.add(size - 1)) + 1) as usize;
+        let new_size = size - len;
+        let mut popped = stack.split_off(new_size);
+        ins_bytes_len(popped.as_mut_ptr(), len);
     }
 }
 
