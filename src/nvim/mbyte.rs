@@ -789,8 +789,7 @@ static ENC_ALIAS_TABLE: &[EncAliasEntry] = &[
     },
 ];
 
-static mut cw_table: *mut cw_interval_T = ptr::null_mut();
-static mut cw_table_size: usize = 0;
+static mut CW_TABLE: Vec<cw_interval_T> = Vec::new();
 static mut mb_unescape_buf: [c_char; 6] = [0; 6];
 static mut iconv_working: WorkingStatus = WorkingStatus::kUnknown;
 
@@ -3388,29 +3387,20 @@ pub unsafe fn string_convert_ext(
 }
 
 unsafe fn cw_value(c: c_int) -> c_int {
-    unsafe {
-        if cw_table.is_null() {
-            return 0;
-        }
-        let c64 = i64::from(c);
-        if c64 < (*cw_table).first {
-            return 0;
-        }
-        let mut bot: isize = 0;
-        let mut top: isize = (cw_table_size as isize) - 1;
-        while top >= bot {
-            let mid = ((bot + top) / 2) as usize;
-            let entry = *cw_table.add(mid);
+    let table_ptr = &raw const CW_TABLE;
+    let table = unsafe { (*table_ptr).as_slice() };
+    let c64 = i64::from(c);
+    table
+        .binary_search_by(|entry| {
             if entry.last < c64 {
-                bot = (mid as isize) + 1;
+                std::cmp::Ordering::Less
             } else if entry.first > c64 {
-                top = (mid as isize) - 1;
+                std::cmp::Ordering::Greater
             } else {
-                return c_int::from(entry.width);
+                std::cmp::Ordering::Equal
             }
-        }
-        0
-    }
+        })
+        .map_or(0, |idx| c_int::from(table[idx].width))
 }
 
 unsafe fn first_list_number(l: *const list_T) -> varnumber_T {
@@ -3428,8 +3418,8 @@ pub unsafe fn f_setcellwidths(argvars: *mut typval_T, _rettv: *mut typval_T, _fp
         }
 
         let l = (*argvars).vval.v_list;
-        let mut table: *mut cw_interval_T = ptr::null_mut();
         let table_size = tv_list_len(l) as usize;
+        let mut table: Vec<cw_interval_T> = Vec::with_capacity(table_size);
         if table_size != 0 {
             let mut ptrs: Vec<*const list_T> = Vec::with_capacity(table_size);
             let mut item: c_int = 0;
@@ -3479,40 +3469,33 @@ pub unsafe fn f_setcellwidths(argvars: *mut typval_T, _rettv: *mut typval_T, _fp
 
             ptrs.sort_by_key(|&a| first_list_number(a));
 
-            table = xmalloc(size_of::<cw_interval_T>() * table_size).cast::<cw_interval_T>();
             for (idx, &li_l) in ptrs.iter().enumerate() {
                 let lili0 = tv_list_first(li_l);
                 let n1 = (*lili0).li_tv.vval.v_number;
-                if idx > 0 && n1 <= (*table.add(idx - 1)).last {
+                if idx > 0 && n1 <= table[idx - 1].last {
                     semsg!(E_OVERLAPPING_RANGES_FOR_NR.as_ptr(), n1 as usize);
-                    xfree(table.cast());
                     return;
                 }
                 let lili1 = (*lili0).li_next;
                 let lili2 = (*lili1).li_next;
-                *table.add(idx) = cw_interval_T {
+                table.push(cw_interval_T {
                     first: n1,
                     last: (*lili1).li_tv.vval.v_number,
                     width: (*lili2).li_tv.vval.v_number as c_char,
-                };
+                });
             }
         }
 
-        let cw_table_save = cw_table;
-        let cw_table_size_save = cw_table_size;
-        cw_table = table;
-        cw_table_size = table_size;
+        let cw_ptr = &raw mut CW_TABLE;
+        let cw_table_save = std::mem::replace(&mut *cw_ptr, table);
 
         let error = check_chars_options();
         if !error.is_null() {
             emsg(error);
-            cw_table = cw_table_save;
-            cw_table_size = cw_table_size_save;
-            xfree(table.cast());
+            *cw_ptr = cw_table_save;
             return;
         }
 
-        xfree(cw_table_save.cast());
         changed_window_setting_all();
         redraw_all_later(UPD_NOT_VALID);
     }
@@ -3520,9 +3503,10 @@ pub unsafe fn f_setcellwidths(argvars: *mut typval_T, _rettv: *mut typval_T, _fp
 
 pub unsafe fn f_getcellwidths(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        tv_list_alloc_ret(rettv, cw_table_size as isize);
-        for i in 0..cw_table_size {
-            let entry_data = *cw_table.add(i);
+        let cw_ptr = &raw const CW_TABLE;
+        let table = (*cw_ptr).as_slice();
+        tv_list_alloc_ret(rettv, table.len() as isize);
+        for &entry_data in table {
             let entry = tv_list_alloc(3);
             tv_list_append_number(entry, entry_data.first);
             tv_list_append_number(entry, entry_data.last);

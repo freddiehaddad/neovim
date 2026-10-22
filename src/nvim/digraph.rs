@@ -19,7 +19,7 @@ use crate::input::plain_vgetc;
 use crate::keycodes::{ESC, K_BS};
 use crate::mapping::{MAPTYPE_MAP, MAPTYPE_UNMAP, do_map};
 use crate::mbyte::{mb_cptr2char_adv, utf_char2bytes, utf_iscomposing_first};
-use crate::memory::{xfree, xmalloc, xmemdupz, xstrdup};
+use crate::memory::{xfree, xmemdupz, xstrdup};
 use crate::message::{emsg, msg_advance, msg_ext_set_kind, msg_outtrans, msg_putchar, semsg};
 use crate::normal::add_to_showcmd;
 use crate::option_vars::*;
@@ -27,7 +27,7 @@ use crate::os::input::fast_breakcheck;
 use crate::runtime::{getsourceline, source_runtime};
 use crate::strings::{gettext, vim_snprintf};
 use crate::window::win_T;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, CString, c_char, c_int};
 use std::ptr;
 
 pub type result_T = c_int;
@@ -98,13 +98,7 @@ const E_DIGRAPH_ARGUMENT_MUST_BE_ONE_CHARACTER_STR: &CStr =
 const E_DIGRAPH_SETLIST_ARGUMENT_MUST_BE_LIST_OF_LISTS_WITH_TWO_ITEMS: &CStr =
     c"E1216: digraph_setlist() argument must be a list of lists with two items";
 
-static mut USER_DIGRAPHS: garray_T = garray_T {
-    ga_len: 0,
-    ga_maxlen: 0,
-    ga_itemsize: size_of::<digr_T>() as c_int,
-    ga_growsize: 10,
-    ga_data: ptr::null_mut(),
-};
+static mut USER_DIGRAPHS: Vec<digr_T> = Vec::new();
 
 static mut BACKSPACED: c_int = 0;
 static mut LASTCHAR: c_int = 0;
@@ -1485,7 +1479,6 @@ static DIGRAPHDEFAULT: &[digr_T] = &[
     dg(b'f', b'l', 0xfb02),
     dg(b'f', b't', 0xfb05),
     dg(b's', b't', 0xfb06),
-    dg(0, 0, 0),
 ];
 
 struct DgHeaderEntry {
@@ -1625,30 +1618,15 @@ pub unsafe fn do_digraph(mut c: c_int) -> c_int {
 }
 
 /// Find a digraph for `val` (`get_digraph_for_char`).
-pub unsafe fn get_digraph_for_char(val_arg: c_int) -> *mut c_char {
+pub unsafe fn get_digraph_for_char(val: c_int) -> *mut c_char {
     unsafe {
-        let val = val_arg;
-
-        for use_defaults in 0..=1 {
-            let mut dp = if use_defaults == 0 {
-                USER_DIGRAPHS.ga_data.cast::<digr_T>().cast_const()
-            } else {
-                DIGRAPHDEFAULT.as_ptr()
-            };
-            let mut i: c_int = 0;
-            while if use_defaults != 0 {
-                (*dp).char1 != 0
-            } else {
-                i < USER_DIGRAPHS.ga_len
-            } {
-                if (*dp).result == val {
-                    DIGRAPH_FOR_CHAR_BUF[0] = (*dp).char1 as c_char;
-                    DIGRAPH_FOR_CHAR_BUF[1] = (*dp).char2 as c_char;
-                    DIGRAPH_FOR_CHAR_BUF[2] = NUL;
-                    return &raw mut DIGRAPH_FOR_CHAR_BUF[0];
-                }
-                dp = dp.add(1);
-                i += 1;
+        let user_ptr = &raw const USER_DIGRAPHS;
+        for dp in (*user_ptr).iter().chain(DIGRAPHDEFAULT.iter()) {
+            if dp.result == val {
+                DIGRAPH_FOR_CHAR_BUF[0] = dp.char1 as c_char;
+                DIGRAPH_FOR_CHAR_BUF[1] = dp.char2 as c_char;
+                DIGRAPH_FOR_CHAR_BUF[2] = NUL;
+                return &raw mut DIGRAPH_FOR_CHAR_BUF[0];
             }
         }
         ptr::null_mut()
@@ -1694,40 +1672,25 @@ pub unsafe fn get_digraph(cmdline: bool) -> c_int {
 
 /// Lookup the pair `char1`, `char2` in the digraph tables (`getexactdigraph`).
 unsafe fn getexactdigraph(char1: c_int, char2: c_int, meta_char: bool) -> c_int {
-    unsafe {
-        let mut retval: c_int = 0;
+    if is_special(char1) || is_special(char2) {
+        return char2;
+    }
 
-        if is_special(char1) || is_special(char2) {
-            return char2;
-        }
-
-        let mut dp = USER_DIGRAPHS.ga_data.cast::<digr_T>().cast_const();
-        for _ in 0..USER_DIGRAPHS.ga_len {
-            if c_int::from((*dp).char1) == char1 && c_int::from((*dp).char2) == char2 {
-                retval = (*dp).result;
-                break;
+    let user_ptr = &raw const USER_DIGRAPHS;
+    let user_slice = unsafe { (*user_ptr).as_slice() };
+    for dp in user_slice.iter().chain(DIGRAPHDEFAULT.iter()) {
+        if c_int::from(dp.char1) == char1 && c_int::from(dp.char2) == char2 {
+            if dp.result != 0 {
+                return dp.result;
             }
-            dp = dp.add(1);
+            break;
         }
+    }
 
-        if retval == 0 {
-            dp = DIGRAPHDEFAULT.as_ptr();
-            while (*dp).char1 != 0 {
-                if c_int::from((*dp).char1) == char1 && c_int::from((*dp).char2) == char2 {
-                    retval = (*dp).result;
-                    break;
-                }
-                dp = dp.add(1);
-            }
-        }
-
-        if retval == 0 {
-            if char1 == b' ' as c_int && meta_char {
-                return char2 | 0x80;
-            }
-            return char2;
-        }
-        retval
+    if char1 == b' ' as c_int && meta_char {
+        char2 | 0x80
+    } else {
+        char2
     }
 }
 
@@ -1748,24 +1711,20 @@ pub unsafe fn digraph_get(char1: c_int, char2: c_int, meta_char: bool) -> c_int 
 /// Add a digraph to the digraph table (`registerdigraph`).
 unsafe fn registerdigraph(char1: c_int, char2: c_int, n: c_int) {
     unsafe {
-        let mut dp = USER_DIGRAPHS.ga_data.cast::<digr_T>();
-        for _ in 0..USER_DIGRAPHS.ga_len {
-            if c_int::from((*dp).char1) == char1 && c_int::from((*dp).char2) == char2 {
-                (*dp).result = n;
+        let user_ptr = &raw mut USER_DIGRAPHS;
+        let user_vec = &mut *user_ptr;
+        for dp in user_vec.iter_mut() {
+            if c_int::from(dp.char1) == char1 && c_int::from(dp.char2) == char2 {
+                dp.result = n;
                 return;
             }
-            dp = dp.add(1);
         }
 
-        ga_grow(&raw mut USER_DIGRAPHS, 1);
-        let new_dp = USER_DIGRAPHS
-            .ga_data
-            .cast::<digr_T>()
-            .add(USER_DIGRAPHS.ga_len as usize);
-        USER_DIGRAPHS.ga_len += 1;
-        (*new_dp).char1 = char1 as u8;
-        (*new_dp).char2 = char2 as u8;
-        (*new_dp).result = n;
+        user_vec.push(digr_T {
+            char1: char1 as u8,
+            char2: char2 as u8,
+            result: n,
+        });
     }
 }
 
@@ -1837,12 +1796,14 @@ pub unsafe fn listdigraphs(use_headers: bool) {
         msg_ext_set_kind(c"list_cmd".as_ptr());
         msg_putchar(b'\n' as c_int);
 
-        let mut dp = DIGRAPHDEFAULT.as_ptr();
-        while (*dp).char1 != 0 && !got_int {
+        for dp in DIGRAPHDEFAULT {
+            if got_int {
+                break;
+            }
             let tmp = digr_T {
-                char1: (*dp).char1,
-                char2: (*dp).char2,
-                result: getexactdigraph(c_int::from((*dp).char1), c_int::from((*dp).char2), false),
+                char1: dp.char1,
+                char2: dp.char2,
+                result: getexactdigraph(c_int::from(dp.char1), c_int::from(dp.char2), false),
             };
 
             if tmp.result != 0 && tmp.result != c_int::from(tmp.char2) {
@@ -1855,21 +1816,20 @@ pub unsafe fn listdigraphs(use_headers: bool) {
                     },
                 );
             }
-            dp = dp.add(1);
             fast_breakcheck();
         }
 
-        dp = USER_DIGRAPHS.ga_data.cast::<digr_T>().cast_const();
-        let mut i: c_int = 0;
-        while i < USER_DIGRAPHS.ga_len && !got_int {
+        let user_ptr = &raw const USER_DIGRAPHS;
+        for dp in (*user_ptr).as_slice() {
+            if got_int {
+                break;
+            }
             if previous >= 0 && use_headers {
                 digraph_header(gettext(c"Custom".as_ptr()));
             }
             previous = -1;
             printdigraph(dp, ptr::null_mut());
             fast_breakcheck();
-            dp = dp.add(1);
-            i += 1;
         }
     }
 }
@@ -1893,34 +1853,32 @@ unsafe fn digraph_getlist_appendpair(dp: *const digr_T, l: *mut list_T) {
 
 pub unsafe fn digraph_getlist_common(list_all: bool, rettv: *mut typval_T) {
     unsafe {
-        let cap = (size_of_val(DIGRAPHDEFAULT) as isize) + (USER_DIGRAPHS.ga_len as isize);
+        let user_ptr = &raw const USER_DIGRAPHS;
+        let user_slice = (*user_ptr).as_slice();
+        let cap = (DIGRAPHDEFAULT.len() + user_slice.len()) as isize;
         tv_list_alloc_ret(rettv, cap);
 
         if list_all {
-            let mut dp = DIGRAPHDEFAULT.as_ptr();
-            while (*dp).char1 != 0 && !got_int {
+            for dp in DIGRAPHDEFAULT {
+                if got_int {
+                    break;
+                }
                 let tmp = digr_T {
-                    char1: (*dp).char1,
-                    char2: (*dp).char2,
-                    result: getexactdigraph(
-                        c_int::from((*dp).char1),
-                        c_int::from((*dp).char2),
-                        false,
-                    ),
+                    char1: dp.char1,
+                    char2: dp.char2,
+                    result: getexactdigraph(c_int::from(dp.char1), c_int::from(dp.char2), false),
                 };
                 if tmp.result != 0 && tmp.result != c_int::from(tmp.char2) {
                     digraph_getlist_appendpair(&raw const tmp, (*rettv).vval.v_list);
                 }
-                dp = dp.add(1);
             }
         }
 
-        let mut dp = USER_DIGRAPHS.ga_data.cast::<digr_T>().cast_const();
-        let mut i: c_int = 0;
-        while i < USER_DIGRAPHS.ga_len && !got_int {
+        for dp in user_slice {
+            if got_int {
+                break;
+            }
             digraph_getlist_appendpair(dp, (*rettv).vval.v_list);
-            dp = dp.add(1);
-            i += 1;
         }
     }
 }
@@ -2161,28 +2119,15 @@ pub unsafe fn keymap_init() -> *mut c_char {
             keymap_unload();
             do_cmdline_cmd(c"unlet! b:keymap_name".as_ptr());
         } else {
-            let buflen = CStr::from_ptr((*curbuf).b_p_keymap).to_bytes().len()
-                + CStr::from_ptr(p_enc).to_bytes().len()
-                + 14;
-            let buf = xmalloc(buflen).cast::<c_char>();
-
-            vim_snprintf!(
-                buf,
-                buflen,
-                c"keymap/%s_%s.vim".as_ptr(),
-                (*curbuf).b_p_keymap,
-                p_enc,
-            );
-
-            if source_runtime(buf, 0) == FAIL {
-                vim_snprintf!(buf, buflen, c"keymap/%s.vim".as_ptr(), (*curbuf).b_p_keymap);
-
-                if source_runtime(buf, 0) == FAIL {
-                    xfree(buf.cast());
+            let kmap = CStr::from_ptr((*curbuf).b_p_keymap).to_string_lossy();
+            let enc = CStr::from_ptr(p_enc).to_string_lossy();
+            let primary = CString::new(format!("keymap/{kmap}_{enc}.vim")).unwrap_or_default();
+            if source_runtime(primary.as_ptr().cast_mut(), 0) == FAIL {
+                let fallback = CString::new(format!("keymap/{kmap}.vim")).unwrap_or_default();
+                if source_runtime(fallback.as_ptr().cast_mut(), 0) == FAIL {
                     return c"E544: Keymap file not found".as_ptr().cast_mut();
                 }
             }
-            xfree(buf.cast());
         }
 
         ptr::null_mut()
@@ -2346,27 +2291,11 @@ pub unsafe fn get_keymap_str(
 
         let old_curbuf = curbuf;
         let old_curwin = curwin;
-        let mut to_evaluate: [c_char; 14] = [
-            b'b' as c_char,
-            b':' as c_char,
-            b'k' as c_char,
-            b'e' as c_char,
-            b'y' as c_char,
-            b'm' as c_char,
-            b'a' as c_char,
-            b'p' as c_char,
-            b'_' as c_char,
-            b'n' as c_char,
-            b'a' as c_char,
-            b'm' as c_char,
-            b'e' as c_char,
-            NUL,
-        ];
 
         curbuf = (*wp).w_buffer;
         curwin = wp;
         emsg_skip += 1;
-        let s = eval_to_string(to_evaluate.as_mut_ptr(), false, false);
+        let s = eval_to_string(c"b:keymap_name".as_ptr().cast_mut(), false, false);
         let mut p: *const c_char = s;
         emsg_skip -= 1;
         curbuf = old_curbuf;

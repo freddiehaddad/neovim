@@ -2,30 +2,27 @@
 
 #[cfg(unix)]
 use crate::fileio::getuid;
-use crate::garray::{ga_clear_strings, ga_grow, ga_init, garray_T};
-use crate::math::{FAIL, OK};
+use crate::math::FAIL;
+#[cfg(unix)]
+use crate::math::OK;
 #[cfg(windows)]
 use crate::mbyte::utf16_to_utf8;
+#[cfg(windows)]
+use crate::memory::xfree;
 #[cfg(unix)]
-use crate::memory::xstrlcpy;
-use crate::memory::{xfree, xstrdup};
+use crate::memory::{xstrdup, xstrlcpy};
 #[cfg(windows)]
 use crate::message::semsg;
 #[cfg(unix)]
 use crate::os::env::os_getenv_buf;
 use crate::strings::vim_snprintf;
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, CString, c_char, c_int};
+#[cfg(windows)]
+use std::ffi::c_void;
 
 use crate::event::r#loop::uv_uid_t;
 
-static mut GA_USERS: garray_T = garray_T {
-    ga_len: 0,
-    ga_maxlen: 0,
-    ga_itemsize: 0,
-    ga_growsize: 1,
-    ga_data: std::ptr::null_mut(),
-};
-
+static mut USERS: Vec<CString> = Vec::new();
 static mut LAZY_INIT_DONE: bool = false;
 
 #[cfg(all(
@@ -101,42 +98,18 @@ unsafe extern "system" {
     fn NetApiBufferFree(buffer: *mut c_void) -> u32;
 }
 
-unsafe fn add_user(users: *mut garray_T, user: *mut c_char, need_copy: bool) {
-    let user_copy = if !user.is_null() && need_copy {
-        unsafe { xstrdup(user) }
-    } else {
-        user
-    };
-
-    if user_copy.is_null() || unsafe { *user_copy == 0 } {
-        if need_copy {
-            unsafe {
-                xfree(user_copy.cast::<c_void>());
-            }
-        }
+unsafe fn add_user(users: &mut Vec<CString>, user: *const c_char) {
+    if user.is_null() || unsafe { *user == 0 } {
         return;
     }
-
-    unsafe {
-        ga_grow(users, 1);
-        let gap = &mut *users;
-        let slot = gap.ga_data.cast::<*mut c_char>().add(gap.ga_len as usize);
-        *slot = user_copy;
-        gap.ga_len += 1;
+    if let Ok(cstr) = CString::new(unsafe { CStr::from_ptr(user).to_bytes() }) {
+        users.push(cstr);
     }
 }
 
-/// Initialize `users` garray and fill it with OS usernames (`os_get_usernames`).
-///
-/// # Safety
-/// `users` must be null or a valid writable pointer to a `garray_T`.
-pub unsafe fn os_get_usernames(users: *mut garray_T) -> c_int {
-    if users.is_null() {
-        return FAIL;
-    }
-    unsafe {
-        ga_init(users, std::mem::size_of::<*mut c_char>() as c_int, 20);
-    }
+/// Collect all OS usernames (`os_get_usernames`).
+unsafe fn collect_usernames() -> Vec<CString> {
+    let mut users = Vec::new();
 
     #[cfg(unix)]
     unsafe {
@@ -146,7 +119,7 @@ pub unsafe fn os_get_usernames(users: *mut garray_T) -> c_int {
             if pw.is_null() {
                 break;
             }
-            add_user(users, (*pw).pw_name, true);
+            add_user(&mut users, (*pw).pw_name);
         }
         endpwent();
 
@@ -154,21 +127,12 @@ pub unsafe fn os_get_usernames(users: *mut garray_T) -> c_int {
         let user_env = os_getenv_buf(c"USER".as_ptr(), user_buf.as_mut_ptr(), user_buf.len());
 
         if !user_env.is_null() && *user_env != 0 {
-            let gap = &*users;
-            let items = gap.ga_data.cast::<*mut c_char>();
-            let mut found = false;
             let env_bytes = CStr::from_ptr(user_env).to_bytes();
-            for i in 0..gap.ga_len.max(0) as usize {
-                let local_user = *items.add(i);
-                if CStr::from_ptr(local_user).to_bytes() == env_bytes {
-                    found = true;
-                    break;
-                }
-            }
+            let found = users.iter().any(|u| u.as_bytes() == env_bytes);
             if !found {
                 let pw = getpwnam(user_env);
                 if !pw.is_null() {
-                    add_user(users, (*pw).pw_name, true);
+                    add_user(&mut users, (*pw).pw_name);
                 }
             }
         }
@@ -198,13 +162,14 @@ pub unsafe fn os_get_usernames(users: *mut garray_T) -> c_int {
                     semsg!(c"utf16_to_utf8 failed: %d".as_ptr(), res);
                     break;
                 }
-                add_user(users, user, false);
+                add_user(&mut users, user);
+                xfree(user.cast::<c_void>());
             }
             NetApiBufferFree(uinfo.cast::<c_void>());
         }
     }
 
-    OK
+    users
 }
 
 /// Get the username that owns the current Nvim process (`os_get_username`).
@@ -268,7 +233,7 @@ pub unsafe fn os_get_userdir(name: *const c_char) -> *mut c_char {
 /// Must only be called during exit cleanup.
 pub unsafe fn free_users() {
     unsafe {
-        ga_clear_strings(&raw mut GA_USERS);
+        USERS = Vec::new();
     }
 }
 
@@ -278,7 +243,7 @@ unsafe fn init_users() {
             return;
         }
         LAZY_INIT_DONE = true;
-        os_get_usernames(&raw mut GA_USERS);
+        USERS = collect_usernames();
     }
 }
 
@@ -287,13 +252,16 @@ unsafe fn init_users() {
 /// # Safety
 /// Caller must ensure single-threaded access to user completion cache.
 pub unsafe fn get_users(_xp: *mut crate::os::env::expand_T, idx: c_int) -> *mut c_char {
+    if idx < 0 {
+        return std::ptr::null_mut();
+    }
     unsafe {
         init_users();
-        if idx >= 0 && idx < GA_USERS.ga_len {
-            *GA_USERS.ga_data.cast::<*mut c_char>().add(idx as usize)
-        } else {
-            std::ptr::null_mut()
-        }
+        let users_ptr = &raw const USERS;
+        let users = &*users_ptr;
+        users
+            .get(idx as usize)
+            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
     }
 }
 
@@ -305,11 +273,12 @@ pub unsafe fn match_user(name: *mut c_char) -> c_int {
     unsafe {
         init_users();
         let target = CStr::from_ptr(name).to_bytes();
-        let items = GA_USERS.ga_data.cast::<*mut c_char>();
+        let users_ptr = &raw const USERS;
+        let users = &*users_ptr;
         let mut result = 0;
 
-        for i in 0..GA_USERS.ga_len.max(0) as usize {
-            let entry = CStr::from_ptr(*items.add(i)).to_bytes();
+        for entry_cstr in users {
+            let entry = entry_cstr.as_bytes();
             if entry == target {
                 return 2;
             }
@@ -328,7 +297,6 @@ mod tests {
     #[test]
     fn get_usernames_null_returns_fail_and_uname_formats_fallback() {
         unsafe {
-            assert_eq!(os_get_usernames(std::ptr::null_mut()), FAIL);
             assert!(os_get_userdir(std::ptr::null()).is_null());
 
             let mut buf = [0 as c_char; 32];
@@ -339,15 +307,8 @@ mod tests {
 
             assert!(os_get_userdir(c"neovim_user_not_found_test".as_ptr()).is_null());
 
-            let mut ga = garray_T {
-                ga_len: 0,
-                ga_maxlen: 0,
-                ga_itemsize: 0,
-                ga_growsize: 0,
-                ga_data: std::ptr::null_mut(),
-            };
-            assert_eq!(os_get_usernames(&mut ga), OK);
-            ga_clear_strings(&mut ga);
+            let users = collect_usernames();
+            assert!(users.iter().all(|u| !u.as_bytes().is_empty()));
         }
     }
 }
