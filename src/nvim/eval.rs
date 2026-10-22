@@ -129,10 +129,7 @@ use crate::keycodes::{
     FSK_IN_STRING, FSK_KEYCODE, FSK_SIMPLIFY, K_SPECIAL, KE_SNR, KS_EXTRA, find_special_key,
     trans_special,
 };
-use crate::map::{
-    Map, MapHash, Set, map_del_uint64_t_ptr_t, map_put_ref_uint64_t_ptr_t, map_ref_uint64_t_ptr_t,
-    ptr_t,
-};
+use crate::map::{Map, MapHash, Set, map_del, map_put_ref, map_ref, ptr_t};
 use crate::mark::{mark_get, mark_global_iter, xfmark_T};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
@@ -5644,7 +5641,7 @@ unsafe fn set_ref_in_callback_reader(
 
 pub unsafe fn find_timer_by_nr(xx: varnumber_T) -> *mut timer_T {
     unsafe {
-        let ptr = map_ref_uint64_t_ptr_t(&raw mut timers, xx as u64, ptr::null_mut());
+        let ptr = map_ref(&raw mut timers, xx as u64, ptr::null_mut());
         if ptr.is_null() {
             ptr::null_mut()
         } else {
@@ -5780,7 +5777,7 @@ pub unsafe fn timer_start(timeout: i64, repeat_count: c_int, callback: *const Ca
             );
         }
 
-        let slot = map_put_ref_uint64_t_ptr_t(
+        let slot = map_put_ref(
             &raw mut timers,
             (*tt).timer_id as u64,
             ptr::null_mut(),
@@ -5812,7 +5809,7 @@ unsafe fn timer_close_cb(_tw: *mut TimeWatcher, data: *mut c_void) {
         let tt = timer_tail(timer);
         multiqueue_free((*wf).events);
         callback_free(&raw mut (*tt).callback);
-        let _ = map_del_uint64_t_ptr_t(&raw mut timers, (*tt).timer_id as u64, ptr::null_mut());
+        let _ = map_del(&raw mut timers, (*tt).timer_id as u64, ptr::null_mut());
         timer_decref(timer);
     }
 }

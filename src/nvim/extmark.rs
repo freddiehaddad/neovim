@@ -10,10 +10,7 @@ use crate::decoration::{
 };
 use crate::globals::*;
 use crate::kvec::KVec;
-use crate::map::{
-    map_del_uint32_t_uint32_t, map_destroy, map_put_ref_uint32_t_uint32_t,
-    map_ref_uint32_t_uint32_t,
-};
+use crate::map::{map_del, map_destroy, map_put_ref, map_ref};
 use crate::marktree::{
     DECOR_HIGHLIGHT_INLINE_INIT, DecorInlineData, MT_FLAG_DECOR_HL, MT_FLAG_DECOR_SIGNTEXT,
     MT_FLAG_EXTERNAL_MASK, MT_FLAG_INVALID, MTKey, MTPair, MTPos, MarkTreeIter, marktree_clear,
@@ -155,7 +152,7 @@ pub unsafe fn extmark_set(
     _err: *mut Error,
 ) {
     unsafe {
-        let ns = map_put_ref_uint32_t_uint32_t(
+        let ns = map_put_ref(
             (*buf).b_extmark_ns.as_mut_ptr(),
             ns_id,
             ptr::null_mut(),
@@ -439,8 +436,7 @@ pub unsafe fn extmark_clear(
 
         let all_ns = ns_id == 0;
         if !all_ns {
-            let ns =
-                map_ref_uint32_t_uint32_t((*buf).b_extmark_ns.as_mut_ptr(), ns_id, ptr::null_mut());
+            let ns = map_ref((*buf).b_extmark_ns.as_mut_ptr(), ns_id, ptr::null_mut());
             if ns.is_null() {
                 return false;
             }
@@ -474,7 +470,7 @@ pub unsafe fn extmark_clear(
             if all_ns {
                 map_destroy((*buf).b_extmark_ns.as_mut_ptr());
             } else {
-                map_del_uint32_t_uint32_t((*buf).b_extmark_ns.as_mut_ptr(), ns_id, ptr::null_mut());
+                map_del((*buf).b_extmark_ns.as_mut_ptr(), ns_id, ptr::null_mut());
             }
         }
 

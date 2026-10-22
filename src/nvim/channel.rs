@@ -36,7 +36,7 @@ use crate::garray::{ga_clear, ga_concat_len, ga_init};
 use crate::globals::*;
 use crate::lua::converter::LuaRef;
 use crate::lua::executor::api_free_luaref;
-use crate::map::{Map, MapHash, Set, map_del_uint64_t_ptr_t, map_put_ref_uint64_t_ptr_t};
+use crate::map::{Map, MapHash, Set, map_del, map_put_ref};
 use crate::memory::{
     Arena, arena_alloc, arena_finish, arena_mem_free, arena_memdupz, xcalloc, xfree, xmemdup,
     xstrdup,
@@ -422,7 +422,7 @@ pub unsafe fn channel_alloc(r#type: ChannelStreamType) -> *mut Channel {
         assert!((*cp).id <= (i64::MAX as u64));
 
         {
-            let slot = map_put_ref_uint64_t_ptr_t(
+            let slot = map_put_ref(
                 &raw mut channels,
                 (*cp).id,
                 ptr::null_mut(),
@@ -509,7 +509,7 @@ unsafe fn channel_destroy(chan: *mut Channel) {
 unsafe fn free_channel_event(argv: *mut *mut c_void) {
     unsafe {
         let chan = (*argv).cast::<Channel>();
-        let _ = map_del_uint64_t_ptr_t(
+        let _ = map_del(
             &raw mut channels,
             (*channel_prefix(chan)).id,
             ptr::null_mut(),
@@ -525,7 +525,7 @@ unsafe fn channel_destroy_early(chan: *mut Channel) {
         if (*cp).id != NEXT_CHAN_ID {
             std::process::abort();
         }
-        let _ = map_del_uint64_t_ptr_t(&raw mut channels, (*cp).id, ptr::null_mut());
+        let _ = map_del(&raw mut channels, (*cp).id, ptr::null_mut());
         (*cp).id = 0;
 
         (*cp).refcount -= 1;

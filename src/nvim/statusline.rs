@@ -31,7 +31,7 @@ use crate::grid::{
 use crate::highlight::{hl_attr, hl_combine_attr, win_hl_attr};
 use crate::highlight_group::{syn_id2attr, syn_name2id_len};
 use crate::keycodes::NL;
-use crate::map::{map_put_ref_int_StcClick, map_put_ref_int_StcClicks};
+use crate::map::map_put_ref;
 use crate::mbyte::{ptr2cells, utf_ptr2char, utfc_ptr2len};
 use crate::memline::{ml_find_line_or_offset, ml_get_buf, ml_get_buf_len};
 use crate::memory::{
@@ -1098,14 +1098,13 @@ pub unsafe fn build_statuscol_str(
         xfree(stc.cast());
 
         if !(*clickrec).start.is_null() {
-            let clicks = map_put_ref_int_StcClicks(
+            let clicks = map_put_ref(
                 (*wp).w_statuscol_click_defs.as_mut_ptr(),
                 lnum,
                 ptr::null_mut(),
                 ptr::null_mut(),
             );
-            let click_defs =
-                map_put_ref_int_StcClick(clicks, virtnum, ptr::null_mut(), ptr::null_mut());
+            let click_defs = map_put_ref(clicks, virtnum, ptr::null_mut(), ptr::null_mut());
             stl_clear_click_defs((*click_defs).def.cast(), (*click_defs).size);
             (*click_defs).def =
                 stl_alloc_click_defs((*click_defs).def.cast(), width, &raw mut (*click_defs).size)

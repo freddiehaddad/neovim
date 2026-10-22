@@ -20,10 +20,8 @@ use crate::highlight_group::{
 use crate::lua::converter::Boolean;
 use crate::lua::executor::{kRetObject, nlua_call_ref};
 use crate::map::{
-    ColorItem, ColorKey, HlAttrs, HlEntry, MHPutStatus, Map, Set, cstr_t,
-    map_put_ref_ColorKey_ColorItem, map_put_ref_int_ptr_t, map_put_ref_uint64_t_int,
-    map_ref_ColorKey_ColorItem, map_ref_uint64_t_int, mh_clear, mh_get_ColorKey, mh_put_HlEntry,
-    mh_put_cstr_t, ptr_t,
+    ColorItem, ColorKey, HlAttrs, HlEntry, MHPutStatus, Map, Set, cstr_t, map_put_ref, map_ref,
+    mh_clear, mh_get, mh_put, ptr_t,
 };
 use crate::memory::{Arena, arena_finish, arena_mem_free, xfree, xmalloc, xstrdup};
 use crate::message::emsg;
@@ -276,7 +274,7 @@ const fn hl_attr_key(a: c_int, b: c_int) -> u64 {
 #[inline]
 unsafe fn map_get_u64_int(map: *mut Map<u64, c_int>, key: u64) -> c_int {
     unsafe {
-        let ptr = map_ref_uint64_t_int(map, key, ptr::null_mut());
+        let ptr = map_ref(map, key, ptr::null_mut());
         if ptr.is_null() { 0 } else { *ptr }
     }
 }
@@ -284,7 +282,7 @@ unsafe fn map_get_u64_int(map: *mut Map<u64, c_int>, key: u64) -> c_int {
 #[inline]
 unsafe fn map_put_u64_int(map: *mut Map<u64, c_int>, key: u64, val: c_int) {
     unsafe {
-        let ptr = map_put_ref_uint64_t_int(map, key, ptr::null_mut(), ptr::null_mut());
+        let ptr = map_put_ref(map, key, ptr::null_mut(), ptr::null_mut());
         *ptr = val;
     }
 }
@@ -292,7 +290,7 @@ unsafe fn map_put_u64_int(map: *mut Map<u64, c_int>, key: u64, val: c_int) {
 #[inline]
 unsafe fn map_get_color(map: *mut Map<ColorKey, ColorItem>, key: ColorKey) -> ColorItem {
     unsafe {
-        let ptr = map_ref_ColorKey_ColorItem(map, key, ptr::null_mut());
+        let ptr = map_ref(map, key, ptr::null_mut());
         if ptr.is_null() {
             ColorItem {
                 attr_id: -1,
@@ -310,7 +308,7 @@ unsafe fn map_get_color(map: *mut Map<ColorKey, ColorItem>, key: ColorKey) -> Co
 #[inline]
 unsafe fn map_put_color(map: *mut Map<ColorKey, ColorItem>, key: ColorKey, val: ColorItem) {
     unsafe {
-        let ptr = map_put_ref_ColorKey_ColorItem(map, key, ptr::null_mut(), ptr::null_mut());
+        let ptr = map_put_ref(map, key, ptr::null_mut(), ptr::null_mut());
         *ptr = val;
     }
 }
@@ -318,7 +316,7 @@ unsafe fn map_put_color(map: *mut Map<ColorKey, ColorItem>, key: ColorKey, val: 
 pub unsafe fn highlight_init() {
     unsafe {
         let mut status = MHPutStatus::kMHExisting;
-        mh_put_HlEntry(
+        mh_put(
             &raw mut attr_entries,
             HlEntry {
                 attr: HLATTRS_INIT,
@@ -354,7 +352,7 @@ unsafe fn get_attr_entry(mut entry: HlEntry) -> c_int {
 
         loop {
             let mut status = MHPutStatus::kMHExisting;
-            let k = mh_put_HlEntry(&raw mut attr_entries, entry, &raw mut status);
+            let k = mh_put(&raw mut attr_entries, entry, &raw mut status);
             if status == MHPutStatus::kMHExisting {
                 return k as c_int;
             }
@@ -455,9 +453,7 @@ pub unsafe fn ns_hl_def(
             ns_id,
             syn_id: hl_id,
         };
-        if (attrs.rgb_ae_attr & HL_DEFAULT) != 0
-            && mh_get_ColorKey(&raw mut ns_hls.set, key) != u32::MAX
-        {
+        if (attrs.rgb_ae_attr & HL_DEFAULT) != 0 && mh_get(&raw mut ns_hls.set, key) != u32::MAX {
             return;
         }
         let p = get_decor_provider(ns_id, true);
@@ -786,9 +782,8 @@ pub unsafe fn update_ns_hl(ns_id: c_int) {
             return;
         }
 
-        let alloc =
-            map_put_ref_int_ptr_t(&raw mut ns_hl_attr, ns_id, ptr::null_mut(), ptr::null_mut())
-                .cast::<*mut NSHlAttr>();
+        let alloc = map_put_ref(&raw mut ns_hl_attr, ns_id, ptr::null_mut(), ptr::null_mut())
+            .cast::<*mut NSHlAttr>();
         if (*alloc).is_null() {
             *alloc = xmalloc(size_of::<NSHlAttr>()).cast();
         }
@@ -849,7 +844,7 @@ pub unsafe fn hl_add_url(attr: c_int, url: *const c_char) -> c_int {
     unsafe {
         let mut attrs = HLATTRS_INIT;
         let mut status = MHPutStatus::kMHExisting;
-        let k = mh_put_cstr_t(&raw mut urls, url, &raw mut status);
+        let k = mh_put(&raw mut urls, url, &raw mut status);
         if status != MHPutStatus::kMHExisting {
             *urls.keys.add(k as usize) = xstrdup(url);
         }
@@ -879,7 +874,7 @@ pub unsafe fn hl_add_font_idx(font_name: *const c_char) -> i32 {
             return -1;
         }
         let mut status = MHPutStatus::kMHExisting;
-        let k = mh_put_cstr_t(&raw mut fonts, font_name, &raw mut status);
+        let k = mh_put(&raw mut fonts, font_name, &raw mut status);
         if status != MHPutStatus::kMHExisting {
             *fonts.keys.add(k as usize) = xstrdup(font_name);
         }

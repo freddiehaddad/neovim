@@ -5,10 +5,7 @@ use crate::errors::*;
 use crate::event::r#loop::loop_recursive_ptr;
 use crate::fileio::{SEEK_END, SEEK_SET, close, off_T, read_eintr, vim_lseek, write_eintr};
 use crate::globals::*;
-use crate::map::{
-    MH_TOMBSTONE, Map, map_del_int64_t_int64_t, map_del_int64_t_ptr_t, map_put_ref_int64_t_int64_t,
-    map_put_ref_int64_t_ptr_t, map_ref_int64_t_int64_t, mh_get_int64_t, ptr_t,
-};
+use crate::map::{MH_TOMBSTONE, Map, map_del, map_put_ref, map_ref, mh_get, ptr_t};
 use crate::memline::{MFS_FLUSH, ml_get_buf, ml_open_file};
 use crate::memory::{xfree, xmalloc};
 use crate::message::{emsg, iemsg, semsg};
@@ -90,7 +87,7 @@ use crate::map::empty_map;
 #[inline]
 pub unsafe fn pmap_get_bhdr(map: *mut Map<i64, ptr_t>, key: i64) -> *mut bhdr_T {
     unsafe {
-        let k = mh_get_int64_t(&raw mut (*map).set, key);
+        let k = mh_get(&raw mut (*map).set, key);
         if k == MH_TOMBSTONE {
             ptr::null_mut()
         } else {
@@ -102,7 +99,7 @@ pub unsafe fn pmap_get_bhdr(map: *mut Map<i64, ptr_t>, key: i64) -> *mut bhdr_T 
 #[inline]
 unsafe fn pmap_put_bhdr(map: *mut Map<i64, ptr_t>, key: i64, val: *mut bhdr_T) {
     unsafe {
-        let slot = map_put_ref_int64_t_ptr_t(map, key, ptr::null_mut(), ptr::null_mut());
+        let slot = map_put_ref(map, key, ptr::null_mut(), ptr::null_mut());
         *slot = val.cast();
     }
 }
@@ -110,7 +107,7 @@ unsafe fn pmap_put_bhdr(map: *mut Map<i64, ptr_t>, key: i64, val: *mut bhdr_T) {
 #[inline]
 unsafe fn map_put_i64(map: *mut Map<i64, i64>, key: i64, val: i64) {
     unsafe {
-        let slot = map_put_ref_int64_t_int64_t(map, key, ptr::null_mut(), ptr::null_mut());
+        let slot = map_put_ref(map, key, ptr::null_mut(), ptr::null_mut());
         *slot = val;
     }
 }
@@ -322,7 +319,7 @@ pub unsafe fn mf_get(mfp: *mut memfile_T, nr: blocknr_T, page_count: c_uint) -> 
                 return ptr::null_mut();
             }
         } else {
-            let _ = map_del_int64_t_ptr_t(&raw mut (*mfp).mf_hash, (*hp).bh_bnum, ptr::null_mut());
+            let _ = map_del(&raw mut (*mfp).mf_hash, (*hp).bh_bnum, ptr::null_mut());
         }
 
         (*hp).bh_flags |= BH_LOCKED;
@@ -358,7 +355,7 @@ pub unsafe fn mf_put(mfp: *mut memfile_T, hp: *mut bhdr_T, dirty: bool, infile: 
 pub unsafe fn mf_free(mfp: *mut memfile_T, hp: *mut bhdr_T) {
     unsafe {
         xfree((*hp).bh_data);
-        let _ = map_del_int64_t_ptr_t(&raw mut (*mfp).mf_hash, (*hp).bh_bnum, ptr::null_mut());
+        let _ = map_del(&raw mut (*mfp).mf_hash, (*hp).bh_bnum, ptr::null_mut());
         if (*hp).bh_bnum < 0 {
             xfree(hp.cast());
             (*mfp).mf_neg_count -= 1;
@@ -466,11 +463,8 @@ pub unsafe fn mf_release_all() -> bool {
                         if ((*hp).bh_flags & BH_LOCKED) == 0
                             && (((*hp).bh_flags & BH_DIRTY) == 0 || mf_write(mfp, hp) != FAIL)
                         {
-                            let _ = map_del_int64_t_ptr_t(
-                                &raw mut (*mfp).mf_hash,
-                                (*hp).bh_bnum,
-                                ptr::null_mut(),
-                            );
+                            let _ =
+                                map_del(&raw mut (*mfp).mf_hash, (*hp).bh_bnum, ptr::null_mut());
                             mf_free_bhdr(hp);
                             retval = true;
                         } else {
@@ -649,7 +643,7 @@ unsafe fn mf_trans_add(mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
         };
 
         let old_bnum = (*hp).bh_bnum;
-        let _ = map_del_int64_t_ptr_t(&raw mut (*mfp).mf_hash, (*hp).bh_bnum, ptr::null_mut());
+        let _ = map_del(&raw mut (*mfp).mf_hash, (*hp).bh_bnum, ptr::null_mut());
         (*hp).bh_bnum = new_bnum;
         pmap_put_bhdr(&raw mut (*mfp).mf_hash, new_bnum, hp);
 
@@ -662,7 +656,7 @@ unsafe fn mf_trans_add(mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
 /// Lookup translation from trans list and delete the entry.
 pub unsafe fn mf_trans_del(mfp: *mut memfile_T, old_nr: blocknr_T) -> blocknr_T {
     unsafe {
-        let num = map_ref_int64_t_int64_t(&raw mut (*mfp).mf_trans, old_nr, ptr::null_mut());
+        let num = map_ref(&raw mut (*mfp).mf_trans, old_nr, ptr::null_mut());
         if num.is_null() {
             return old_nr;
         }
@@ -670,7 +664,7 @@ pub unsafe fn mf_trans_del(mfp: *mut memfile_T, old_nr: blocknr_T) -> blocknr_T 
         (*mfp).mf_neg_count -= 1;
         let new_bnum = *num;
 
-        let _ = map_del_int64_t_int64_t(&raw mut (*mfp).mf_trans, old_nr, ptr::null_mut());
+        let _ = map_del(&raw mut (*mfp).mf_trans, old_nr, ptr::null_mut());
 
         new_bnum
     }
@@ -820,13 +814,13 @@ mod tests {
                     assert!(!item.is_null());
                     assert_eq!((*item).bh_bnum, key);
 
-                    map_del_int64_t_ptr_t(&raw mut ht, key, ptr::null_mut());
+                    map_del(&raw mut ht, key, ptr::null_mut());
                     assert!(pmap_get_bhdr(&raw mut ht, key).is_null());
 
                     pmap_put_bhdr(&raw mut ht, key, item);
                     assert_eq!(pmap_get_bhdr(&raw mut ht, key), item);
 
-                    map_del_int64_t_ptr_t(&raw mut ht, key, ptr::null_mut());
+                    map_del(&raw mut ht, key, ptr::null_mut());
                     assert!(pmap_get_bhdr(&raw mut ht, key).is_null());
 
                     xfree(item.cast());

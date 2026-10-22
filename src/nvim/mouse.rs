@@ -35,7 +35,7 @@ use crate::keycodes::{
     K_RIGHTDRAG, K_RIGHTMOUSE, K_RIGHTRELEASE, K_X1DRAG, K_X1MOUSE, K_X1RELEASE, K_X2DRAG,
     K_X2MOUSE, K_X2RELEASE, get_mouse_button, key2termcap1,
 };
-use crate::map::{MH_TOMBSTONE, Map, StcClick, StcClicks, mh_get_int};
+use crate::map::{MH_TOMBSTONE, Map, StcClick, StcClicks, mh_get};
 use crate::mbyte::{
     mb_get_class, utf_ClusterInfo, utf_head_off, utf_ptr2StrCharInfo, utf8len_tab, utfc_ptr2len,
 };
@@ -146,7 +146,7 @@ static mut dragwin: *mut win_T = ptr::null_mut();
 #[inline]
 unsafe fn map_get_int_StcClicks(map: *mut Map<c_int, StcClicks>, key: c_int) -> StcClicks {
     unsafe {
-        let k = mh_get_int(&raw mut (*map).set, key);
+        let k = mh_get(&raw mut (*map).set, key);
         if k == MH_TOMBSTONE {
             std::mem::zeroed()
         } else {
@@ -158,7 +158,7 @@ unsafe fn map_get_int_StcClicks(map: *mut Map<c_int, StcClicks>, key: c_int) -> 
 #[inline]
 unsafe fn map_get_int_StcClick(map: *mut StcClicks, key: c_int) -> StcClick {
     unsafe {
-        let k = mh_get_int(&raw mut (*map).set, key);
+        let k = mh_get(&raw mut (*map).set, key);
         if k == MH_TOMBSTONE {
             std::mem::zeroed()
         } else {

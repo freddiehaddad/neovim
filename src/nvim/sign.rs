@@ -34,8 +34,7 @@ use crate::highlight_group::{get_highlight_name_ext, syn_check_group};
 use crate::insert::beginline;
 use crate::kvec::KVec;
 use crate::map::{
-    MH_TOMBSTONE, Map, MapHash, Set, cstr_t, map_del_cstr_t_ptr_t, map_put_ref_cstr_t_ptr_t,
-    map_ref_cstr_t_ptr_t, mh_get_cstr_t, ptr_t,
+    MH_TOMBSTONE, Map, MapHash, Set, cstr_t, map_del, map_put_ref, map_ref, mh_get, ptr_t,
 };
 use crate::mark::setpcmark;
 use crate::marktree::{
@@ -134,7 +133,7 @@ use crate::map::map_get_string_int;
 #[inline]
 unsafe fn pmap_get_sign(name: *const c_char) -> *mut sign_T {
     unsafe {
-        let ptr = map_ref_cstr_t_ptr_t(&raw mut sign_map, name, ptr::null_mut());
+        let ptr = map_ref(&raw mut sign_map, name, ptr::null_mut());
         if ptr.is_null() {
             ptr::null_mut()
         } else {
@@ -160,7 +159,7 @@ unsafe fn sign_get_name(sh: *mut DecorSignHighlight) -> *const c_char {
         let name = (*sh).sign_name;
         if name.is_null() {
             c"".as_ptr()
-        } else if mh_get_cstr_t(&raw mut sign_map.set, name) != MH_TOMBSTONE {
+        } else if mh_get(&raw mut sign_map.set, name) != MH_TOMBSTONE {
             name
         } else {
             c"[Deleted]".as_ptr()
@@ -569,7 +568,7 @@ unsafe fn sign_define_by_name(
     unsafe {
         let mut key: *mut cstr_t = ptr::null_mut();
         let mut new_sign = false;
-        let sp = map_put_ref_cstr_t_ptr_t(&raw mut sign_map, name, &raw mut key, &raw mut new_sign)
+        let sp = map_put_ref(&raw mut sign_map, name, &raw mut key, &raw mut new_sign)
             .cast::<*mut sign_T>();
 
         if new_sign {
@@ -636,7 +635,7 @@ unsafe fn sign_define_by_name(
 
 unsafe fn sign_undefine_by_name(name: *const c_char) -> c_int {
     unsafe {
-        let sp = map_del_cstr_t_ptr_t(&raw mut sign_map, name, ptr::null_mut()).cast::<sign_T>();
+        let sp = map_del(&raw mut sign_map, name, ptr::null_mut()).cast::<sign_T>();
         if sp.is_null() {
             semsg!(gettext(c"E155: Unknown sign: %s".as_ptr()), name);
             return FAIL;

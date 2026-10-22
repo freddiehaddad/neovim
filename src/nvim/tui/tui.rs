@@ -40,7 +40,7 @@ use crate::highlight::HLATTRS_INIT;
 use crate::kvec::{KVec, StringBuilder};
 use crate::log::{LOGLVL_DBG, LOGLVL_ERR, LOGLVL_WRN, g_min_log_level, logmsg};
 use crate::lua::executor::{kRetObject, nlua_exec};
-use crate::map::{HlAttrs, MHPutStatus, MapHash, Set, cstr_t, mh_put_cstr_t};
+use crate::map::{HlAttrs, MHPutStatus, MapHash, Set, cstr_t, mh_put};
 use crate::mbyte::{utf_ambiguous_width, utf_char2cells, utf_ptr2char};
 use crate::memory::{
     Arena, arena_finish, arena_mem_free, arena_memdupz, arena_strdup, strequal, xcalloc, xfree,
@@ -2055,7 +2055,7 @@ pub unsafe fn tui_add_url(_tui: *mut TUIData, url: *const c_char) -> i32 {
         }
 
         let mut status = MHPutStatus::kMHExisting;
-        let k = mh_put_cstr_t(&raw mut urls, url, &raw mut status);
+        let k = mh_put(&raw mut urls, url, &raw mut status);
         if status != MHPutStatus::kMHExisting {
             *urls.keys.add(k as usize) = xstrdup(url);
         }

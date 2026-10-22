@@ -30,8 +30,11 @@ pub struct MapHash {
 }
 
 pub type cstr_t = *const c_char;
-pub type path_t = *const c_char;
 pub type ptr_t = *mut c_void;
+
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug)]
+pub struct path_t(pub *const c_char);
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -79,7 +82,7 @@ pub const fn empty_map<K, V>() -> Map<K, V> {
 #[inline]
 pub unsafe fn pmap_get_int(map: *mut Map<c_int, ptr_t>, key: c_int) -> ptr_t {
     unsafe {
-        let ptr = map_ref_int_ptr_t(map, key, std::ptr::null_mut());
+        let ptr = map_ref(map, key, std::ptr::null_mut());
         if ptr.is_null() {
             std::ptr::null_mut()
         } else {
@@ -91,29 +94,46 @@ pub unsafe fn pmap_get_int(map: *mut Map<c_int, ptr_t>, key: c_int) -> ptr_t {
 #[inline]
 pub unsafe fn map_get_string_int(map: *mut Map<NvimString, c_int>, key: NvimString) -> c_int {
     unsafe {
-        let ptr = map_ref_String_int(map, key, std::ptr::null_mut());
+        let ptr = map_ref(map, key, std::ptr::null_mut());
         if ptr.is_null() { 0 } else { *ptr }
     }
 }
 
 #[inline]
-pub unsafe fn set_has_ptr(set: *mut Set<ptr_t>, key: ptr_t) -> bool {
-    unsafe { mh_get_ptr_t(set, key) != MH_TOMBSTONE }
+pub unsafe fn set_has<K: MapKey>(set: *mut Set<K>, key: K) -> bool {
+    unsafe { mh_get(set, key) != MH_TOMBSTONE }
 }
 
 #[inline]
-pub unsafe fn set_put_ptr(set: *mut Set<ptr_t>, key: ptr_t) -> bool {
+pub unsafe fn set_put<K: MapKey>(set: *mut Set<K>, key: K) -> bool {
     let mut status = MHPutStatus::kMHExisting;
     unsafe {
-        mh_put_ptr_t(set, key, &mut status);
+        mh_put(set, key, &mut status);
     }
     status != MHPutStatus::kMHExisting
 }
 
 #[inline]
-pub unsafe fn set_del_ptr(set: *mut Set<ptr_t>, mut key: ptr_t) {
+pub unsafe fn set_del<K: MapKey>(set: *mut Set<K>, mut key: K) {
     unsafe {
-        mh_delete_ptr_t(set, &mut key);
+        mh_delete(set, &mut key);
+    }
+}
+
+#[inline]
+pub unsafe fn set_has_ptr(set: *mut Set<ptr_t>, key: ptr_t) -> bool {
+    unsafe { set_has(set, key) }
+}
+
+#[inline]
+pub unsafe fn set_put_ptr(set: *mut Set<ptr_t>, key: ptr_t) -> bool {
+    unsafe { set_put(set, key) }
+}
+
+#[inline]
+pub unsafe fn set_del_ptr(set: *mut Set<ptr_t>, key: ptr_t) {
+    unsafe {
+        set_del(set, key);
     }
 }
 
@@ -208,7 +228,7 @@ const fn hash_u64(key: u64) -> u32 {
 }
 
 #[inline]
-unsafe fn hash_bytes(bytes: &[u8]) -> u32 {
+pub(crate) fn hash_bytes(bytes: &[u8]) -> u32 {
     let mut h: u32 = 0;
     for &b in bytes {
         h = (h << 5).wrapping_sub(h).wrapping_add(u32::from(b));
@@ -340,17 +360,223 @@ pub unsafe fn mh_is_either(h: &MapHash, i: u32) -> bool {
     v.wrapping_add(1) <= 1
 }
 
-unsafe fn set_find_bucket<K: Copy>(
-    set: &mut Set<K>,
-    key: K,
-    put: bool,
-    hash_fn: unsafe fn(K) -> u32,
-    eq_fn: unsafe fn(K, K) -> bool,
-) -> u32 {
+pub trait MapKey: Copy {
+    unsafe fn mh_hash(self) -> u32;
+    unsafe fn mh_eq(self, other: Self) -> bool;
+}
+
+impl MapKey for c_int {
+    #[inline]
+    unsafe fn mh_hash(self) -> u32 {
+        self as u32
+    }
+    #[inline]
+    unsafe fn mh_eq(self, other: Self) -> bool {
+        self == other
+    }
+}
+
+impl MapKey for u32 {
+    #[inline]
+    unsafe fn mh_hash(self) -> u32 {
+        self
+    }
+    #[inline]
+    unsafe fn mh_eq(self, other: Self) -> bool {
+        self == other
+    }
+}
+
+impl MapKey for u64 {
+    #[inline]
+    unsafe fn mh_hash(self) -> u32 {
+        hash_u64(self)
+    }
+    #[inline]
+    unsafe fn mh_eq(self, other: Self) -> bool {
+        self == other
+    }
+}
+
+impl MapKey for i64 {
+    #[inline]
+    unsafe fn mh_hash(self) -> u32 {
+        hash_u64(self as u64)
+    }
+    #[inline]
+    unsafe fn mh_eq(self, other: Self) -> bool {
+        self == other
+    }
+}
+
+impl MapKey for ptr_t {
+    #[inline]
+    unsafe fn mh_hash(self) -> u32 {
+        #[cfg(target_pointer_width = "64")]
+        {
+            hash_u64(self as u64)
+        }
+        #[cfg(target_pointer_width = "32")]
+        {
+            self as u32
+        }
+    }
+    #[inline]
+    unsafe fn mh_eq(self, other: Self) -> bool {
+        std::ptr::eq(self, other)
+    }
+}
+
+impl MapKey for cstr_t {
+    #[inline]
+    unsafe fn mh_hash(self) -> u32 {
+        unsafe { hash_cstr(self) }
+    }
+    #[inline]
+    unsafe fn mh_eq(self, other: Self) -> bool {
+        unsafe { equal_cstr(self, other) }
+    }
+}
+
+impl MapKey for path_t {
+    #[inline]
+    unsafe fn mh_hash(self) -> u32 {
+        unsafe { hash_path(self.0) }
+    }
+    #[inline]
+    unsafe fn mh_eq(self, other: Self) -> bool {
+        unsafe { equal_path(self.0, other.0) }
+    }
+}
+
+impl MapKey for NvimString {
+    #[inline]
+    unsafe fn mh_hash(self) -> u32 {
+        if self.size == 0 || self.data.is_null() {
+            0
+        } else {
+            let slice = unsafe { std::slice::from_raw_parts(self.data.cast::<u8>(), self.size) };
+            hash_bytes(slice)
+        }
+    }
+    #[inline]
+    unsafe fn mh_eq(self, other: Self) -> bool {
+        if self.size != other.size {
+            return false;
+        }
+        if self.size == 0 {
+            return true;
+        }
+        let sa = unsafe { std::slice::from_raw_parts(self.data.cast::<u8>(), self.size) };
+        let sb = unsafe { std::slice::from_raw_parts(other.data.cast::<u8>(), other.size) };
+        sa == sb
+    }
+}
+
+impl MapKey for HlEntry {
+    #[inline]
+    unsafe fn mh_hash(self) -> u32 {
+        let bytes = unsafe {
+            std::slice::from_raw_parts(
+                (&raw const self).cast::<u8>(),
+                std::mem::size_of::<HlEntry>(),
+            )
+        };
+        hash_bytes(bytes)
+    }
+    #[inline]
+    unsafe fn mh_eq(self, other: Self) -> bool {
+        self == other
+    }
+}
+
+impl MapKey for ColorKey {
+    #[inline]
+    unsafe fn mh_hash(self) -> u32 {
+        let bytes = unsafe {
+            std::slice::from_raw_parts(
+                (&raw const self).cast::<u8>(),
+                std::mem::size_of::<ColorKey>(),
+            )
+        };
+        hash_bytes(bytes)
+    }
+    #[inline]
+    unsafe fn mh_eq(self, other: Self) -> bool {
+        self == other
+    }
+}
+
+pub trait MapValue: Copy {
+    const INIT: Self;
+}
+
+impl MapValue for c_int {
+    const INIT: Self = 0;
+}
+
+impl MapValue for u32 {
+    const INIT: Self = 0;
+}
+
+impl MapValue for i64 {
+    const INIT: Self = 0;
+}
+
+impl MapValue for ptr_t {
+    const INIT: Self = std::ptr::null_mut();
+}
+
+impl MapValue for NvimString {
+    const INIT: Self = NvimString {
+        data: std::ptr::null_mut(),
+        size: 0,
+    };
+}
+
+impl MapValue for StcClick {
+    const INIT: Self = StcClick {
+        def: std::ptr::null_mut(),
+        size: 0,
+    };
+}
+
+impl MapValue for StcClicks {
+    const INIT: Self = empty_map();
+}
+
+impl MapValue for MTDamagePair {
+    const INIT: Self = MTDamagePair {
+        start: MTDamage {
+            old: std::ptr::null_mut(),
+            new: std::ptr::null_mut(),
+            old_i: 0,
+            new_i: 0,
+        },
+        end: MTDamage {
+            old: std::ptr::null_mut(),
+            new: std::ptr::null_mut(),
+            old_i: 0,
+            new_i: 0,
+        },
+    };
+}
+
+impl MapValue for ColorItem {
+    const INIT: Self = ColorItem {
+        attr_id: -1,
+        link_id: -1,
+        version: -1,
+        is_default: false,
+        link_global: false,
+    };
+}
+
+unsafe fn set_find_bucket<K: MapKey>(set: &mut Set<K>, key: K, put: bool) -> u32 {
     let h = &mut set.h;
     let mut step: u32 = 0;
     let mask = h.n_buckets - 1;
-    let k = unsafe { hash_fn(key) };
+    let k = unsafe { key.mh_hash() };
     let mut i = k & mask;
     let last = i;
     let mut site = if put { last } else { MH_TOMBSTONE };
@@ -362,7 +588,7 @@ unsafe fn set_find_bucket<K: Copy>(
             }
         } else {
             let existing = unsafe { *set.keys.add((*h.hash.add(i as usize) - 1) as usize) };
-            if unsafe { eq_fn(existing, key) } {
+            if unsafe { existing.mh_eq(key) } {
                 return i;
             }
         }
@@ -378,31 +604,10 @@ unsafe fn set_find_bucket<K: Copy>(
     site
 }
 
-unsafe fn set_get<K: Copy>(
-    set: &mut Set<K>,
-    key: K,
-    hash_fn: unsafe fn(K) -> u32,
-    eq_fn: unsafe fn(K, K) -> bool,
-) -> u32 {
-    if set.h.n_buckets == 0 {
-        return MH_TOMBSTONE;
-    }
-    let idx = unsafe { set_find_bucket(set, key, false, hash_fn, eq_fn) };
-    if idx != MH_TOMBSTONE {
-        unsafe { *set.h.hash.add(idx as usize) - 1 }
-    } else {
-        MH_TOMBSTONE
-    }
-}
-
-unsafe fn set_rehash<K: Copy>(
-    set: &mut Set<K>,
-    hash_fn: unsafe fn(K) -> u32,
-    eq_fn: unsafe fn(K, K) -> bool,
-) {
+unsafe fn set_rehash<K: MapKey>(set: &mut Set<K>) {
     for k in 0..set.h.n_keys {
         let key = unsafe { *set.keys.add(k as usize) };
-        let idx = unsafe { set_find_bucket(set, key, true, hash_fn, eq_fn) };
+        let idx = unsafe { set_find_bucket(set, key, true) };
         if unsafe { !mh_is_empty(&set.h, idx) } {
             std::process::abort();
         }
@@ -414,13 +619,21 @@ unsafe fn set_rehash<K: Copy>(
     set.h.size = set.h.n_keys;
 }
 
-unsafe fn set_put<K: Copy>(
-    set: &mut Set<K>,
-    key: K,
-    new_status: *mut MHPutStatus,
-    hash_fn: unsafe fn(K) -> u32,
-    eq_fn: unsafe fn(K, K) -> bool,
-) -> u32 {
+pub unsafe fn mh_get<K: MapKey>(set: *mut Set<K>, key: K) -> u32 {
+    let set = unsafe { &mut *set };
+    if set.h.n_buckets == 0 {
+        return MH_TOMBSTONE;
+    }
+    let idx = unsafe { set_find_bucket(set, key, false) };
+    if idx != MH_TOMBSTONE {
+        unsafe { *set.h.hash.add(idx as usize) - 1 }
+    } else {
+        MH_TOMBSTONE
+    }
+}
+
+pub unsafe fn mh_put<K: MapKey>(set: *mut Set<K>, key: K, new_status: *mut MHPutStatus) -> u32 {
+    let set = unsafe { &mut *set };
     if set.h.n_occupied >= set.h.upper_bound {
         if f64::from(set.h.size) >= f64::from(set.h.upper_bound) * 0.9 {
             let next_min = set.h.n_buckets + 1;
@@ -435,11 +648,11 @@ unsafe fn set_put<K: Copy>(
             set.h.n_occupied = 0;
         }
         unsafe {
-            set_rehash(set, hash_fn, eq_fn);
+            set_rehash(set);
         }
     }
 
-    let idx = unsafe { set_find_bucket(set, key, true, hash_fn, eq_fn) };
+    let idx = unsafe { set_find_bucket(set, key, true) };
     let h = &mut set.h;
 
     if unsafe { mh_is_either(h, idx) } {
@@ -476,7 +689,7 @@ unsafe fn set_put<K: Copy>(
         unsafe {
             *new_status = MHPutStatus::kMHExisting;
             let pos = *h.hash.add(idx as usize) - 1;
-            if !eq_fn(*set.keys.add(pos as usize), key) {
+            if !(*set.keys.add(pos as usize)).mh_eq(key) {
                 std::process::abort();
             }
             pos
@@ -484,17 +697,13 @@ unsafe fn set_put<K: Copy>(
     }
 }
 
-unsafe fn set_delete<K: Copy>(
-    set: &mut Set<K>,
-    key: *mut K,
-    hash_fn: unsafe fn(K) -> u32,
-    eq_fn: unsafe fn(K, K) -> bool,
-) -> u32 {
+pub unsafe fn mh_delete<K: MapKey>(set: *mut Set<K>, key: *mut K) -> u32 {
+    let set = unsafe { &mut *set };
     if set.h.size == 0 {
         return MH_TOMBSTONE;
     }
     let query = unsafe { *key };
-    let idx = unsafe { set_find_bucket(set, query, false, hash_fn, eq_fn) };
+    let idx = unsafe { set_find_bucket(set, query, false) };
     if idx != MH_TOMBSTONE {
         let k = unsafe { *set.h.hash.add(idx as usize) - 1 };
         unsafe {
@@ -509,7 +718,7 @@ unsafe fn set_delete<K: Copy>(
         set.h.size -= 1;
         if last != k {
             let last_key = unsafe { *set.keys.add(last as usize) };
-            let idx2 = unsafe { set_find_bucket(set, last_key, false, hash_fn, eq_fn) };
+            let idx2 = unsafe { set_find_bucket(set, last_key, false) };
             if unsafe { *set.h.hash.add(idx2 as usize) } != last + 1 {
                 std::process::abort();
             }
@@ -523,470 +732,80 @@ unsafe fn set_delete<K: Copy>(
     MH_TOMBSTONE
 }
 
-macro_rules! impl_c_set {
-    ($K:ty, $get_fn:ident, $put_fn:ident, $del_fn:ident, $hash_fn:expr, $eq_fn:expr) => {
-        pub unsafe fn $get_fn(set: *mut Set<$K>, key: $K) -> u32 {
-            unsafe { set_get(&mut *set, key, $hash_fn, $eq_fn) }
-        }
-
-        pub unsafe fn $put_fn(set: *mut Set<$K>, key: $K, new_status: *mut MHPutStatus) -> u32 {
-            unsafe { set_put(&mut *set, key, new_status, $hash_fn, $eq_fn) }
-        }
-
-        pub unsafe fn $del_fn(set: *mut Set<$K>, key: *mut $K) -> u32 {
-            unsafe { set_delete(&mut *set, key, $hash_fn, $eq_fn) }
-        }
-    };
-    ($K:ty, $get_fn:ident, $put_fn:ident, $hash_fn:expr, $eq_fn:expr) => {
-        pub unsafe fn $get_fn(set: *mut Set<$K>, key: $K) -> u32 {
-            unsafe { set_get(&mut *set, key, $hash_fn, $eq_fn) }
-        }
-
-        pub unsafe fn $put_fn(set: *mut Set<$K>, key: $K, new_status: *mut MHPutStatus) -> u32 {
-            unsafe { set_put(&mut *set, key, new_status, $hash_fn, $eq_fn) }
-        }
-    };
-    ($K:ty, $put_fn:ident, $hash_fn:expr, $eq_fn:expr) => {
-        pub unsafe fn $put_fn(set: *mut Set<$K>, key: $K, new_status: *mut MHPutStatus) -> u32 {
-            unsafe { set_put(&mut *set, key, new_status, $hash_fn, $eq_fn) }
-        }
-    };
-}
-
-macro_rules! impl_c_map_ref {
-    ($K:ty, $V:ty, $get_set_fn:ident, $ref_fn:ident) => {
-        pub unsafe fn $ref_fn(map: *mut Map<$K, $V>, key: $K, key_alloc: *mut *mut $K) -> *mut $V {
-            let map = unsafe { &mut *map };
-            let k = unsafe { $get_set_fn(&mut map.set, key) };
-            if k == MH_TOMBSTONE {
-                return std::ptr::null_mut();
-            }
-            if !key_alloc.is_null() {
-                unsafe {
-                    *key_alloc = map.set.keys.add(k as usize);
-                }
-            }
-            unsafe { map.values.add(k as usize) }
-        }
-    };
-}
-
-macro_rules! impl_c_map_put_ref {
-    ($K:ty, $V:ty, $put_set_fn:ident, $put_ref_fn:ident, $init_val:expr) => {
-        pub unsafe fn $put_ref_fn(
-            map: *mut Map<$K, $V>,
-            key: $K,
-            key_alloc: *mut *mut $K,
-            new_item: *mut bool,
-        ) -> *mut $V {
-            let map = unsafe { &mut *map };
-            let mut status = MHPutStatus::kMHExisting;
-            let k = unsafe { $put_set_fn(&mut map.set, key, &mut status) };
-            if status != MHPutStatus::kMHExisting {
-                if status == MHPutStatus::kMHNewKeyRealloc {
-                    map.values = unsafe {
-                        xrealloc(
-                            map.values.cast::<c_void>(),
-                            (map.set.h.keys_capacity as usize) * std::mem::size_of::<$V>(),
-                        )
-                        .cast::<$V>()
-                    };
-                }
-                unsafe {
-                    *map.values.add(k as usize) = $init_val;
-                }
-            }
-            if !new_item.is_null() {
-                unsafe {
-                    *new_item = status != MHPutStatus::kMHExisting;
-                }
-            }
-            if !key_alloc.is_null() {
-                unsafe {
-                    *key_alloc = map.set.keys.add(k as usize);
-                }
-            }
-            unsafe { map.values.add(k as usize) }
-        }
-    };
-}
-
-macro_rules! impl_c_map_del {
-    ($K:ty, $V:ty, $del_set_fn:ident, $del_fn:ident, $init_val:expr) => {
-        pub unsafe fn $del_fn(map: *mut Map<$K, $V>, mut key: $K, key_alloc: *mut $K) -> $V {
-            let map = unsafe { &mut *map };
-            let mut rv: $V = $init_val;
-            let k = unsafe { $del_set_fn(&mut map.set, &mut key) };
-            if k == MH_TOMBSTONE {
-                return rv;
-            }
-            if !key_alloc.is_null() {
-                unsafe {
-                    *key_alloc = key;
-                }
-            }
-            unsafe {
-                rv = *map.values.add(k as usize);
-                if k != map.set.h.n_keys {
-                    *map.values.add(k as usize) = *map.values.add(map.set.h.n_keys as usize);
-                }
-            }
-            rv
-        }
-    };
-}
-
-macro_rules! impl_c_map {
-    ($K:ty, $V:ty, $get_set_fn:ident, $put_set_fn:ident, $del_set_fn:ident, $ref_fn:ident, $put_ref_fn:ident, $del_fn:ident, $init_val:expr) => {
-        impl_c_map_ref!($K, $V, $get_set_fn, $ref_fn);
-        impl_c_map_put_ref!($K, $V, $put_set_fn, $put_ref_fn, $init_val);
-        impl_c_map_del!($K, $V, $del_set_fn, $del_fn, $init_val);
-    };
-}
-
-unsafe fn hash_int_fn(x: c_int) -> u32 {
-    x as u32
-}
-unsafe fn eq_int_fn(a: c_int, b: c_int) -> bool {
-    a == b
-}
-
-unsafe fn hash_u32_fn(x: u32) -> u32 {
-    x
-}
-unsafe fn eq_u32_fn(a: u32, b: u32) -> bool {
-    a == b
-}
-
-unsafe fn hash_u64_fn(x: u64) -> u32 {
-    hash_u64(x)
-}
-unsafe fn eq_u64_fn(a: u64, b: u64) -> bool {
-    a == b
-}
-
-unsafe fn hash_i64_fn(x: i64) -> u32 {
-    hash_u64(x as u64)
-}
-unsafe fn eq_i64_fn(a: i64, b: i64) -> bool {
-    a == b
-}
-
-unsafe fn hash_ptr_fn(x: ptr_t) -> u32 {
-    #[cfg(target_pointer_width = "64")]
-    {
-        hash_u64(x as u64)
+pub unsafe fn map_ref<K: MapKey, V>(map: *mut Map<K, V>, key: K, key_alloc: *mut *mut K) -> *mut V {
+    let map = unsafe { &mut *map };
+    let k = unsafe { mh_get(&mut map.set, key) };
+    if k == MH_TOMBSTONE {
+        return std::ptr::null_mut();
     }
-    #[cfg(target_pointer_width = "32")]
-    {
-        x as u32
+    if !key_alloc.is_null() {
+        unsafe {
+            *key_alloc = map.set.keys.add(k as usize);
+        }
     }
-}
-unsafe fn eq_ptr_fn(a: ptr_t, b: ptr_t) -> bool {
-    std::ptr::eq(a, b)
+    unsafe { map.values.add(k as usize) }
 }
 
-unsafe fn hash_string_fn(s: NvimString) -> u32 {
-    if s.size == 0 || s.data.is_null() {
-        0
-    } else {
-        let slice = unsafe { std::slice::from_raw_parts(s.data.cast::<u8>(), s.size) };
-        unsafe { hash_bytes(slice) }
+pub unsafe fn map_put_ref<K: MapKey, V: MapValue>(
+    map: *mut Map<K, V>,
+    key: K,
+    key_alloc: *mut *mut K,
+    new_item: *mut bool,
+) -> *mut V {
+    let map = unsafe { &mut *map };
+    let mut status = MHPutStatus::kMHExisting;
+    let k = unsafe { mh_put(&mut map.set, key, &mut status) };
+    if status != MHPutStatus::kMHExisting {
+        if status == MHPutStatus::kMHNewKeyRealloc {
+            map.values = unsafe {
+                xrealloc(
+                    map.values.cast::<c_void>(),
+                    (map.set.h.keys_capacity as usize) * std::mem::size_of::<V>(),
+                )
+                .cast::<V>()
+            };
+        }
+        unsafe {
+            *map.values.add(k as usize) = V::INIT;
+        }
     }
-}
-unsafe fn eq_string_fn(a: NvimString, b: NvimString) -> bool {
-    if a.size != b.size {
-        return false;
+    if !new_item.is_null() {
+        unsafe {
+            *new_item = status != MHPutStatus::kMHExisting;
+        }
     }
-    if a.size == 0 {
-        return true;
+    if !key_alloc.is_null() {
+        unsafe {
+            *key_alloc = map.set.keys.add(k as usize);
+        }
     }
-    let sa = unsafe { std::slice::from_raw_parts(a.data.cast::<u8>(), a.size) };
-    let sb = unsafe { std::slice::from_raw_parts(b.data.cast::<u8>(), b.size) };
-    sa == sb
+    unsafe { map.values.add(k as usize) }
 }
 
-unsafe fn hash_hl_entry_fn(ae: HlEntry) -> u32 {
-    let bytes = unsafe {
-        std::slice::from_raw_parts((&raw const ae).cast::<u8>(), std::mem::size_of::<HlEntry>())
-    };
-    unsafe { hash_bytes(bytes) }
+pub unsafe fn map_del<K: MapKey, V: MapValue>(
+    map: *mut Map<K, V>,
+    mut key: K,
+    key_alloc: *mut K,
+) -> V {
+    let map = unsafe { &mut *map };
+    let mut rv: V = V::INIT;
+    let k = unsafe { mh_delete(&mut map.set, &mut key) };
+    if k == MH_TOMBSTONE {
+        return rv;
+    }
+    if !key_alloc.is_null() {
+        unsafe {
+            *key_alloc = key;
+        }
+    }
+    unsafe {
+        rv = *map.values.add(k as usize);
+        if k != map.set.h.n_keys {
+            *map.values.add(k as usize) = *map.values.add(map.set.h.n_keys as usize);
+        }
+    }
+    rv
 }
-unsafe fn eq_hl_entry_fn(a: HlEntry, b: HlEntry) -> bool {
-    a == b
-}
-
-unsafe fn hash_color_key_fn(ae: ColorKey) -> u32 {
-    let bytes = unsafe {
-        std::slice::from_raw_parts(
-            (&raw const ae).cast::<u8>(),
-            std::mem::size_of::<ColorKey>(),
-        )
-    };
-    unsafe { hash_bytes(bytes) }
-}
-unsafe fn eq_color_key_fn(a: ColorKey, b: ColorKey) -> bool {
-    a == b
-}
-
-impl_c_set!(
-    c_int,
-    mh_get_int,
-    mh_put_int,
-    mh_delete_int,
-    hash_int_fn,
-    eq_int_fn
-);
-impl_c_set!(
-    ptr_t,
-    mh_get_ptr_t,
-    mh_put_ptr_t,
-    mh_delete_ptr_t,
-    hash_ptr_fn,
-    eq_ptr_fn
-);
-impl_c_set!(
-    cstr_t,
-    mh_get_cstr_t,
-    mh_put_cstr_t,
-    mh_delete_cstr_t,
-    hash_cstr,
-    equal_cstr
-);
-impl_c_set!(path_t, mh_get_path_t, mh_put_path_t, hash_path, equal_path);
-impl_c_set!(
-    NvimString,
-    mh_get_String,
-    mh_put_String,
-    mh_delete_String,
-    hash_string_fn,
-    eq_string_fn
-);
-impl_c_set!(
-    u32,
-    mh_get_uint32_t,
-    mh_put_uint32_t,
-    mh_delete_uint32_t,
-    hash_u32_fn,
-    eq_u32_fn
-);
-impl_c_set!(
-    u64,
-    mh_get_uint64_t,
-    mh_put_uint64_t,
-    mh_delete_uint64_t,
-    hash_u64_fn,
-    eq_u64_fn
-);
-impl_c_set!(
-    i64,
-    mh_get_int64_t,
-    mh_put_int64_t,
-    mh_delete_int64_t,
-    hash_i64_fn,
-    eq_i64_fn
-);
-impl_c_set!(HlEntry, mh_put_HlEntry, hash_hl_entry_fn, eq_hl_entry_fn);
-impl_c_set!(
-    ColorKey,
-    mh_get_ColorKey,
-    mh_put_ColorKey,
-    hash_color_key_fn,
-    eq_color_key_fn
-);
-
-const INIT_STRING: NvimString = NvimString {
-    data: std::ptr::null_mut(),
-    size: 0,
-};
-const INIT_STC_CLICK: StcClick = StcClick {
-    def: std::ptr::null_mut(),
-    size: 0,
-};
-const INIT_STC_CLICKS: StcClicks = Map {
-    set: Set {
-        h: MapHash {
-            n_buckets: 0,
-            size: 0,
-            n_occupied: 0,
-            upper_bound: 0,
-            n_keys: 0,
-            keys_capacity: 0,
-            hash: std::ptr::null_mut(),
-        },
-        keys: std::ptr::null_mut(),
-    },
-    values: std::ptr::null_mut(),
-};
-const INIT_MT_DAMAGE: MTDamage = MTDamage {
-    old: std::ptr::null_mut(),
-    new: std::ptr::null_mut(),
-    old_i: 0,
-    new_i: 0,
-};
-const INIT_MT_DAMAGE_PAIR: MTDamagePair = MTDamagePair {
-    start: INIT_MT_DAMAGE,
-    end: INIT_MT_DAMAGE,
-};
-const INIT_COLOR_ITEM: ColorItem = ColorItem {
-    attr_id: -1,
-    link_id: -1,
-    version: -1,
-    is_default: false,
-    link_global: false,
-};
-
-impl_c_map!(
-    c_int,
-    ptr_t,
-    mh_get_int,
-    mh_put_int,
-    mh_delete_int,
-    map_ref_int_ptr_t,
-    map_put_ref_int_ptr_t,
-    map_del_int_ptr_t,
-    std::ptr::null_mut()
-);
-impl_c_map!(
-    c_int,
-    NvimString,
-    mh_get_int,
-    mh_put_int,
-    mh_delete_int,
-    map_ref_int_String,
-    map_put_ref_int_String,
-    map_del_int_String,
-    INIT_STRING
-);
-impl_c_map_put_ref!(
-    c_int,
-    StcClick,
-    mh_put_int,
-    map_put_ref_int_StcClick,
-    INIT_STC_CLICK
-);
-impl_c_map_put_ref!(
-    c_int,
-    StcClicks,
-    mh_put_int,
-    map_put_ref_int_StcClicks,
-    INIT_STC_CLICKS
-);
-#[cfg(test)]
-impl_c_map_put_ref!(
-    ptr_t,
-    ptr_t,
-    mh_put_ptr_t,
-    map_put_ref_ptr_t_ptr_t,
-    std::ptr::null_mut()
-);
-impl_c_map!(
-    cstr_t,
-    ptr_t,
-    mh_get_cstr_t,
-    mh_put_cstr_t,
-    mh_delete_cstr_t,
-    map_ref_cstr_t_ptr_t,
-    map_put_ref_cstr_t_ptr_t,
-    map_del_cstr_t_ptr_t,
-    std::ptr::null_mut()
-);
-impl_c_map_ref!(cstr_t, c_int, mh_get_cstr_t, map_ref_cstr_t_int);
-impl_c_map_put_ref!(cstr_t, c_int, mh_put_cstr_t, map_put_ref_cstr_t_int, 0);
-impl_c_map!(
-    NvimString,
-    c_int,
-    mh_get_String,
-    mh_put_String,
-    mh_delete_String,
-    map_ref_String_int,
-    map_put_ref_String_int,
-    map_del_String_int,
-    0
-);
-impl_c_map_put_ref!(
-    u32,
-    ptr_t,
-    mh_put_uint32_t,
-    map_put_ref_uint32_t_ptr_t,
-    std::ptr::null_mut()
-);
-impl_c_map_del!(
-    u32,
-    ptr_t,
-    mh_delete_uint32_t,
-    map_del_uint32_t_ptr_t,
-    std::ptr::null_mut()
-);
-impl_c_map!(
-    u32,
-    u32,
-    mh_get_uint32_t,
-    mh_put_uint32_t,
-    mh_delete_uint32_t,
-    map_ref_uint32_t_uint32_t,
-    map_put_ref_uint32_t_uint32_t,
-    map_del_uint32_t_uint32_t,
-    0
-);
-impl_c_map!(
-    u64,
-    ptr_t,
-    mh_get_uint64_t,
-    mh_put_uint64_t,
-    mh_delete_uint64_t,
-    map_ref_uint64_t_ptr_t,
-    map_put_ref_uint64_t_ptr_t,
-    map_del_uint64_t_ptr_t,
-    std::ptr::null_mut()
-);
-impl_c_map_ref!(u64, c_int, mh_get_uint64_t, map_ref_uint64_t_int);
-impl_c_map_put_ref!(u64, c_int, mh_put_uint64_t, map_put_ref_uint64_t_int, 0);
-impl_c_map_put_ref!(
-    u64,
-    MTDamagePair,
-    mh_put_uint64_t,
-    map_put_ref_uint64_t_MTDamagePair,
-    INIT_MT_DAMAGE_PAIR
-);
-impl_c_map_put_ref!(
-    i64,
-    ptr_t,
-    mh_put_int64_t,
-    map_put_ref_int64_t_ptr_t,
-    std::ptr::null_mut()
-);
-impl_c_map_del!(
-    i64,
-    ptr_t,
-    mh_delete_int64_t,
-    map_del_int64_t_ptr_t,
-    std::ptr::null_mut()
-);
-impl_c_map!(
-    i64,
-    i64,
-    mh_get_int64_t,
-    mh_put_int64_t,
-    mh_delete_int64_t,
-    map_ref_int64_t_int64_t,
-    map_put_ref_int64_t_int64_t,
-    map_del_int64_t_int64_t,
-    0
-);
-impl_c_map_ref!(
-    ColorKey,
-    ColorItem,
-    mh_get_ColorKey,
-    map_ref_ColorKey_ColorItem
-);
-impl_c_map_put_ref!(
-    ColorKey,
-    ColorItem,
-    mh_put_ColorKey,
-    map_put_ref_ColorKey_ColorItem,
-    INIT_COLOR_ITEM
-);
 
 #[cfg(test)]
 mod tests {
@@ -994,56 +813,27 @@ mod tests {
 
     #[test]
     fn int_and_cstr_maps_put_get_delete() {
-        let mut m: Map<c_int, u32> = Map {
-            set: Set {
-                h: MapHash {
-                    n_buckets: 0,
-                    size: 0,
-                    n_occupied: 0,
-                    upper_bound: 0,
-                    n_keys: 0,
-                    keys_capacity: 0,
-                    hash: std::ptr::null_mut(),
-                },
-                keys: std::ptr::null_mut(),
-            },
-            values: std::ptr::null_mut(),
-        };
+        let mut m: Map<u32, u32> = empty_map();
 
         unsafe {
             for i in 0..30 {
                 let mut is_new = false;
-                let vp = map_put_ref_uint32_t_uint32_t(
-                    (&raw mut m).cast::<Map<u32, u32>>(),
-                    i as u32,
-                    std::ptr::null_mut(),
-                    &mut is_new,
-                );
+                let vp = map_put_ref(&raw mut m, i as u32, std::ptr::null_mut(), &mut is_new);
                 assert!(is_new);
                 *vp = (i * 10) as u32;
             }
             for i in 0..30 {
-                let vp = map_ref_uint32_t_uint32_t(
-                    (&raw mut m).cast::<Map<u32, u32>>(),
-                    i as u32,
-                    std::ptr::null_mut(),
-                );
+                let vp = map_ref(&raw mut m, i as u32, std::ptr::null_mut());
                 assert!(!vp.is_null());
                 assert_eq!(*vp, (i * 10) as u32);
             }
             for i in 0..30 {
-                let old = map_del_uint32_t_uint32_t(
-                    (&raw mut m).cast::<Map<u32, u32>>(),
-                    i as u32,
-                    std::ptr::null_mut(),
-                );
+                let old = map_del(&raw mut m, i as u32, std::ptr::null_mut());
                 assert_eq!(old, (i * 10) as u32);
             }
             assert_eq!(m.set.h.size, 0);
 
-            xfree(m.set.keys.cast::<c_void>());
-            xfree(m.set.h.hash.cast::<c_void>());
-            xfree(m.values.cast::<c_void>());
+            map_destroy(&raw mut m);
         }
     }
 }

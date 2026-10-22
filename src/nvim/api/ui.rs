@@ -19,10 +19,7 @@ use crate::grid::{sattr_T, schar_T, schar_from_ascii, schar_get, schar_get_adv};
 use crate::highlight::{hl_get_url, hlattrs2dict, syn_attr2entry};
 use crate::kvec::KVec;
 use crate::lua::converter::{Boolean, Float};
-use crate::map::{
-    HlAttrs, MH_TOMBSTONE, Map, MapHash, Set, map_del_uint64_t_ptr_t, map_put_ref_uint64_t_ptr_t,
-    mh_get_uint64_t,
-};
+use crate::map::{HlAttrs, MH_TOMBSTONE, Map, MapHash, Set, map_del, map_put_ref, mh_get};
 use crate::mbyte::utf_ambiguous_width;
 use crate::memory::{
     Arena, alloc_block, arena_finish, arena_mem_free, free_block, strequal, xcalloc, xfree,
@@ -113,7 +110,7 @@ unsafe fn buf_pos(ui: *const RemoteUI) -> usize {
 
 unsafe fn get_ui_or_err(chan_id: u64, err: *mut Error) -> *mut RemoteUI {
     unsafe {
-        let k = mh_get_uint64_t(&raw mut connected_uis.set, chan_id);
+        let k = mh_get(&raw mut connected_uis.set, chan_id);
         let ui = if k == MH_TOMBSTONE {
             ptr::null_mut()
         } else {
@@ -179,7 +176,7 @@ pub unsafe fn remote_ui_disconnect(channel_id: u64, err: *mut Error, send_error_
             push_call(ui, c"error_exit".as_ptr(), args);
             ui_flush_buf(ui, false);
         }
-        map_del_uint64_t_ptr_t(&raw mut connected_uis, channel_id, ptr::null_mut());
+        map_del(&raw mut connected_uis, channel_id, ptr::null_mut());
         ui_detach_impl(ui.cast(), channel_id);
         let chan = find_channel(channel_id);
         if !chan.is_null() && (*channel_tail(chan)).rpc.ui == ui {
@@ -328,7 +325,7 @@ pub unsafe extern "C" fn nvim_ui_attach(
     err: *mut Error,
 ) {
     unsafe {
-        if mh_get_uint64_t(&raw mut connected_uis.set, channel_id) != MH_TOMBSTONE {
+        if mh_get(&raw mut connected_uis.set, channel_id) != MH_TOMBSTONE {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
@@ -399,7 +396,7 @@ pub unsafe extern "C" fn nvim_ui_attach(
         };
         (*ui).wildmenu_active = false;
 
-        let slot = map_put_ref_uint64_t_ptr_t(
+        let slot = map_put_ref(
             &raw mut connected_uis,
             channel_id,
             ptr::null_mut(),

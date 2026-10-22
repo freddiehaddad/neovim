@@ -56,7 +56,7 @@ use crate::input::vgetc;
 use crate::insexpand::clear_cpt_callbacks;
 use crate::kvec::StringBuilder;
 use crate::main_init::getout;
-use crate::map::{MH_TOMBSTONE, Map, map_del_int_ptr_t, map_put_ref_int_ptr_t, mh_get_int, ptr_t};
+use crate::map::{MH_TOMBSTONE, Map, map_del, map_put_ref, mh_get, ptr_t};
 use crate::mapping::map_clear_mode;
 use crate::mark::{
     WinInfo, clear_fmark, clrallmarks, fmark_T, fmarks_check_names, free_fmark, mark_adjust_buf,
@@ -1390,7 +1390,7 @@ pub unsafe fn buf_freeall(buf: *mut buf_T, flags: c_int) -> bool {
 
 unsafe fn free_buffer(buf: *mut buf_T) {
     unsafe {
-        map_del_int_ptr_t(&raw mut buffer_handles, (*buf).b_fnum, ptr::null_mut());
+        map_del(&raw mut buffer_handles, (*buf).b_fnum, ptr::null_mut());
         buf_free_count += 1;
         free_buffer_stuff(buf, kBffClearWinInfo);
         if (*(*buf).b_vars).dv_refcount > DO_NOT_FREE_CNT {
@@ -2523,7 +2523,7 @@ pub unsafe fn buflist_new(
 
             (*buf).b_fnum = top_file_num;
             top_file_num += 1;
-            *map_put_ref_int_ptr_t(
+            *map_put_ref(
                 &raw mut buffer_handles,
                 (*buf).b_fnum,
                 ptr::null_mut(),
@@ -3167,7 +3167,7 @@ pub unsafe fn buflist_findnr(mut nr: c_int) -> *mut buf_T {
         if nr == 0 {
             nr = (*curwin).w_alt_fnum;
         }
-        let k = mh_get_int(&raw mut buffer_handles.set, nr);
+        let k = mh_get(&raw mut buffer_handles.set, nr);
         if k == MH_TOMBSTONE {
             ptr::null_mut()
         } else {

@@ -38,8 +38,8 @@ use crate::grid::schar_high;
 use crate::highlight::OptionalKeys;
 use crate::lua::converter::{Boolean, LUA_NOREF, LuaRef};
 use crate::map::{
-    MH_TOMBSTONE, MHPutStatus, MapHash, Set, map_put_ref_String_int, mh_delete_uint32_t,
-    mh_get_String, mh_get_uint32_t, mh_put_uint32_t, ptr_t, set_destroy, set_has_ptr, set_put_ptr,
+    MH_TOMBSTONE, MHPutStatus, MapHash, Set, map_put_ref, mh_delete, mh_get, mh_put, ptr_t,
+    set_destroy, set_has_ptr, set_put_ptr,
 };
 use crate::marktree::{
     DECOR_HIGHLIGHT_INLINE_INIT, DECOR_PRIORITY_BASE, DecorExt, DecorInlineData,
@@ -171,21 +171,21 @@ pub struct KeyDict_ns_opts {
 
 #[inline]
 unsafe fn set_has_u32(set: *mut Set<u32>, key: u32) -> bool {
-    unsafe { mh_get_uint32_t(set, key) != MH_TOMBSTONE }
+    unsafe { mh_get(set, key) != MH_TOMBSTONE }
 }
 
 #[inline]
 unsafe fn set_put_u32(set: *mut Set<u32>, key: u32) {
     unsafe {
         let mut status = MHPutStatus::kMHExisting;
-        let _ = mh_put_uint32_t(set, key, &mut status);
+        let _ = mh_put(set, key, &mut status);
     }
 }
 
 #[inline]
 unsafe fn set_del_u32(set: *mut Set<u32>, mut key: u32) {
     unsafe {
-        let _ = mh_delete_uint32_t(set, &mut key);
+        let _ = mh_delete(set, &mut key);
     }
 }
 
@@ -229,7 +229,7 @@ pub unsafe fn api_extmark_free_all_mem() {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_create_namespace(name: NvimString) -> Integer {
     unsafe {
-        let k = mh_get_String(&raw mut namespace_ids.set, name);
+        let k = mh_get(&raw mut namespace_ids.set, name);
         let mut id = if k == MH_TOMBSTONE {
             0
         } else {
@@ -242,7 +242,7 @@ pub unsafe extern "C" fn nvim_create_namespace(name: NvimString) -> Integer {
         next_namespace_id += 1;
         if name.size > 0 {
             let name_alloc = copy_string(name, ptr::null_mut());
-            let val = map_put_ref_String_int(
+            let val = map_put_ref(
                 &raw mut namespace_ids,
                 name_alloc,
                 ptr::null_mut(),

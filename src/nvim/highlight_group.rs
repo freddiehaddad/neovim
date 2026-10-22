@@ -39,9 +39,7 @@ use crate::highlight::{
 };
 use crate::lua::converter::Boolean;
 use crate::lua::executor::nlua_set_sctx;
-use crate::map::{
-    HlAttrs, Map, Set, cstr_t, empty_map_hash, map_put_ref_cstr_t_int, map_ref_cstr_t_int,
-};
+use crate::map::{HlAttrs, Map, Set, cstr_t, empty_map_hash, map_put_ref, map_ref};
 use crate::math::OK;
 use crate::mbyte::{mb_stricmp, mb_strnicmp};
 use crate::memory::{
@@ -315,7 +313,7 @@ unsafe fn hl_table() -> *mut HlGroup {
 #[inline]
 unsafe fn map_get_cstr_int(map: *mut Map<cstr_t, c_int>, key: cstr_t) -> c_int {
     unsafe {
-        let ptr = map_ref_cstr_t_int(map, key, ptr::null_mut());
+        let ptr = map_ref(map, key, ptr::null_mut());
         if ptr.is_null() { 0 } else { *ptr }
     }
 }
@@ -323,7 +321,7 @@ unsafe fn map_get_cstr_int(map: *mut Map<cstr_t, c_int>, key: cstr_t) -> c_int {
 #[inline]
 unsafe fn map_put_cstr_int(map: *mut Map<cstr_t, c_int>, key: cstr_t, val: c_int) {
     unsafe {
-        let ptr = map_put_ref_cstr_t_int(map, key, ptr::null_mut(), ptr::null_mut());
+        let ptr = map_put_ref(map, key, ptr::null_mut(), ptr::null_mut());
         *ptr = val;
     }
 }

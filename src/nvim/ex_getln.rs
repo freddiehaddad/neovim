@@ -87,7 +87,7 @@ use crate::keycodes::{
 };
 use crate::kvec::KVec;
 use crate::lua::executor::nlua_call_typval;
-use crate::map::{MHPutStatus, Set, mh_get_ptr_t, mh_put_ptr_t, ptr_t};
+use crate::map::{MHPutStatus, Set, mh_get, mh_put, ptr_t};
 use crate::mapping::{REMAP_NONE, check_abbr, map_to_exists_mode};
 use crate::mark::setpcmark;
 use crate::math::{FAIL, OK};
@@ -2963,7 +2963,7 @@ unsafe fn cmdpreview_prepare(cpinfo: *mut CpInfo) {
             let buf = (*win).w_buffer;
 
             if (*buf).b_fnum != cmdpreview_bufnr {
-                if mh_get_ptr_t(&raw mut saved_bufs, buf.cast::<c_void>()) == u32::MAX {
+                if mh_get(&raw mut saved_bufs, buf.cast::<c_void>()) == u32::MAX {
                     let mut cp_bufinfo: CpBufInfo = std::mem::zeroed();
                     cp_bufinfo.buf = buf;
                     cp_bufinfo.save_b_p_ma = (*buf).b_p_ma;
@@ -2973,7 +2973,7 @@ unsafe fn cmdpreview_prepare(cpinfo: *mut CpInfo) {
                     u_checkpoint(&raw mut cp_bufinfo.undo_checkpoint, buf);
                     (*cpinfo).buf_info.push(cp_bufinfo);
                     let mut status = MHPutStatus::kMHExisting;
-                    mh_put_ptr_t(&raw mut saved_bufs, buf.cast::<c_void>(), &raw mut status);
+                    mh_put(&raw mut saved_bufs, buf.cast::<c_void>(), &raw mut status);
                 }
 
                 let mut cp_wininfo: CpWinInfo = std::mem::zeroed();

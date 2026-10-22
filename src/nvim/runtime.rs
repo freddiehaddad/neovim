@@ -49,10 +49,7 @@ use crate::kvec::KVec;
 use crate::lua::executor::{
     kRetNilBool, nlua_exec, nlua_exec_file, nlua_exec_ga, nlua_is_deferred_safe,
 };
-use crate::map::{
-    MH_TOMBSTONE, MHPutStatus, Map, Set, map_put_ref_String_int, map_ref_String_int, mh_get_String,
-    mh_put_String,
-};
+use crate::map::{MH_TOMBSTONE, MHPutStatus, Map, Set, map_put_ref, map_ref, mh_get, mh_put};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
     convert_setup, enc_canonize, mb_prevptr, string_convert, utfc_ptr2len, vimconv_T,
@@ -301,7 +298,7 @@ unsafe fn set_put_ref_string(
 ) -> bool {
     unsafe {
         let mut status = MHPutStatus::kMHExisting;
-        let k = mh_put_String(set, key, &mut status);
+        let k = mh_put(set, key, &mut status);
         if !key_alloc.is_null() {
             *key_alloc = (*set).keys.add(k as usize);
         }
@@ -310,12 +307,12 @@ unsafe fn set_put_ref_string(
 }
 
 unsafe fn set_has_string(set: *mut Set<NvimString>, key: NvimString) -> bool {
-    unsafe { mh_get_String(set, key) != MH_TOMBSTONE }
+    unsafe { mh_get(set, key) != MH_TOMBSTONE }
 }
 
 unsafe fn map_put_string_int(map: *mut Map<NvimString, c_int>, key: NvimString, value: c_int) {
     unsafe {
-        let val = map_put_ref_String_int(map, key, ptr::null_mut(), ptr::null_mut());
+        let val = map_put_ref(map, key, ptr::null_mut(), ptr::null_mut());
         *val = value;
     }
 }
@@ -1256,7 +1253,7 @@ unsafe fn runtime_search_path_build() -> RuntimeSearchPath {
 
             expand_rtp_entry(&mut search_path, &mut rtp_used, buf, false, pos_in_rtp);
 
-            let h = map_ref_String_int(&mut pack_used, cstr_as_string(buf), ptr::null_mut());
+            let h = map_ref(&mut pack_used, cstr_as_string(buf), ptr::null_mut());
             if !h.is_null() {
                 *h += 1;
                 expand_pack_entry(

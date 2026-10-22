@@ -36,10 +36,7 @@ use crate::highlight::{highlight_use_hlstate, ui_send_all_hls};
 use crate::log::{LOGLVL_ERR, logmsg};
 use crate::lua::converter::LuaRef;
 use crate::lua::executor::{api_free_luaref, kRetNilBool, nlua_call_ref_ctx};
-use crate::map::{
-    MH_TOMBSTONE, Map, MapHash, Set, map_del_uint32_t_ptr_t, map_put_ref_uint32_t_ptr_t,
-    mh_get_uint32_t,
-};
+use crate::map::{MH_TOMBSTONE, Map, MapHash, Set, map_del, map_put_ref, mh_get};
 use crate::memory::{Arena, arena_finish, arena_mem_free, xcalloc, xfree};
 use crate::message::{
     msg, msg_ext_ui_flush, msg_schedule_semsg, msg_schedule_semsg_multiline, msg_scroll_flush,
@@ -1012,7 +1009,7 @@ pub unsafe fn ui_add_cb(ns_id: u32, cb: LuaRef, ext_widgets: *mut bool) {
             (*event_cb).ext_widgets[kUICmdline] = true;
         }
 
-        let item = map_put_ref_uint32_t_ptr_t(
+        let item = map_put_ref(
             &raw mut ui_event_cbs,
             ns_id,
             ptr::null_mut(),
@@ -1030,7 +1027,7 @@ pub unsafe fn ui_add_cb(ns_id: u32, cb: LuaRef, ext_widgets: *mut bool) {
 
 pub unsafe fn ui_remove_cb(ns_id: u32, checkerr: bool) {
     unsafe {
-        let k = mh_get_uint32_t(&raw mut ui_event_cbs.set, ns_id);
+        let k = mh_get(&raw mut ui_event_cbs.set, ns_id);
         let item = if k == MH_TOMBSTONE {
             ptr::null_mut()
         } else {
@@ -1042,7 +1039,7 @@ pub unsafe fn ui_remove_cb(ns_id: u32, checkerr: bool) {
                 (*item).errors > CB_MAX_ERROR
             })
         {
-            map_del_uint32_t_ptr_t(&raw mut ui_event_cbs, ns_id, ptr::null_mut());
+            map_del(&raw mut ui_event_cbs, ns_id, ptr::null_mut());
             free_ui_event_callback(item);
             ui_cb_update_ext();
             ui_refresh();

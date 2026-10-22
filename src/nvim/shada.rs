@@ -40,9 +40,8 @@ use crate::hashtab::{hashitem_T, hashitem_empty};
 use crate::highlight::OptionalKeys;
 use crate::lua::converter::Boolean;
 use crate::map::{
-    MH_TOMBSTONE, MHPutStatus, Map, Set, cstr_t, empty_map, empty_set, map_del_cstr_t_ptr_t,
-    map_destroy, map_put_ref_cstr_t_ptr_t, map_ref_cstr_t_ptr_t, mh_get_cstr_t, mh_get_path_t,
-    mh_put_cstr_t, mh_put_path_t, path_t, ptr_t, set_destroy, set_has_ptr, set_put_ptr,
+    MH_TOMBSTONE, MHPutStatus, Map, Set, cstr_t, empty_map, empty_set, map_del, map_destroy,
+    map_put_ref, map_ref, mh_get, mh_put, path_t, ptr_t, set_destroy, set_has_ptr, set_put_ptr,
 };
 use crate::mark::{
     EXTRA_MARKS, cleanup_jumplist, fmark_T, free_fmark, free_xfmark, mark_buffer_iter, mark_get,
@@ -622,28 +621,28 @@ const fn mark_local_index(name: c_char) -> c_int {
 
 #[inline]
 unsafe fn set_has_cstr(set: *mut Set<cstr_t>, key: cstr_t) -> bool {
-    unsafe { mh_get_cstr_t(set, key) != MH_TOMBSTONE }
+    unsafe { mh_get(set, key) != MH_TOMBSTONE }
 }
 
 #[inline]
 unsafe fn set_put_cstr(set: *mut Set<cstr_t>, key: cstr_t) -> bool {
     let mut status = MHPutStatus::kMHExisting;
     unsafe {
-        mh_put_cstr_t(set, key, &mut status);
+        mh_put(set, key, &mut status);
     }
     status != MHPutStatus::kMHExisting
 }
 
 #[inline]
-unsafe fn set_has_path(set: *mut Set<path_t>, key: path_t) -> bool {
-    unsafe { mh_get_path_t(set, key) != MH_TOMBSTONE }
+unsafe fn set_has_path(set: *mut Set<path_t>, key: *const c_char) -> bool {
+    unsafe { mh_get(set, path_t(key)) != MH_TOMBSTONE }
 }
 
 #[inline]
-unsafe fn set_put_path(set: *mut Set<path_t>, key: path_t) -> bool {
+unsafe fn set_put_path(set: *mut Set<path_t>, key: *const c_char) -> bool {
     let mut status = MHPutStatus::kMHExisting;
     unsafe {
-        mh_put_path_t(set, key, &mut status);
+        mh_put(set, path_t(key), &mut status);
     }
     status != MHPutStatus::kMHExisting
 }
@@ -674,7 +673,7 @@ unsafe fn hmll_remove(hmll: *mut HMLList, hmll_entry: *mut HMLListEntry) {
             assert!((*hmll).free_entry.is_null());
             (*hmll).free_entry = hmll_entry;
         }
-        let val = map_del_cstr_t_ptr_t(
+        let val = map_del(
             &mut (*hmll).contained_entries,
             (*hmll_entry).data.data.history_item.string,
             ptr::null_mut(),
@@ -723,7 +722,7 @@ unsafe fn hmll_insert(hmll: *mut HMLList, mut hmll_entry: *mut HMLListEntry, dat
         }
         (*target_entry).data = data;
         let mut new_item = false;
-        let val = map_put_ref_cstr_t_ptr_t(
+        let val = map_put_ref(
             &mut (*hmll).contained_entries,
             data.data.history_item.string,
             ptr::null_mut(),
@@ -919,7 +918,7 @@ unsafe fn hms_insert(hms_p: *mut HistoryMergerState, entry: ShadaEntry, do_iter:
         }
         let hmll = &mut (*hms_p).hmll;
         let mut key_alloc: *mut cstr_t = ptr::null_mut();
-        let val = map_ref_cstr_t_ptr_t(
+        let val = map_ref(
             &mut hmll.contained_entries,
             entry.data.history_item.string,
             &mut key_alloc,
@@ -1065,8 +1064,7 @@ unsafe fn find_buffer(fname_bufs: *mut Map<cstr_t, ptr_t>, fname: *const c_char)
     unsafe {
         let mut key_alloc: *mut cstr_t = ptr::null_mut();
         let mut new_item = false;
-        let r = map_put_ref_cstr_t_ptr_t(fname_bufs, fname, &mut key_alloc, &mut new_item)
-            .cast::<*mut buf_T>();
+        let r = map_put_ref(fname_bufs, fname, &mut key_alloc, &mut new_item).cast::<*mut buf_T>();
         if new_item {
             *key_alloc = xstrdup(fname);
         } else {
@@ -2076,12 +2074,7 @@ unsafe fn shada_read_when_writing(
                     let fname = entry.data.filemark.fname;
                     let mut key: *mut cstr_t = ptr::null_mut();
                     let mut new_item = false;
-                    let val = map_put_ref_cstr_t_ptr_t(
-                        &mut (*wms).file_marks,
-                        fname,
-                        &mut key,
-                        &mut new_item,
-                    );
+                    let val = map_put_ref(&mut (*wms).file_marks, fname, &mut key, &mut new_item);
                     if new_item {
                         *key = xstrdup(fname);
                     }
@@ -2806,12 +2799,8 @@ unsafe fn shada_write(
                         let fname = (*buf).b_ffname;
                         let mut map_key: *mut cstr_t = ptr::null_mut();
                         let mut new_item = false;
-                        let val = map_put_ref_cstr_t_ptr_t(
-                            &mut (*wms).file_marks,
-                            fname,
-                            &mut map_key,
-                            &mut new_item,
-                        );
+                        let val =
+                            map_put_ref(&mut (*wms).file_marks, fname, &mut map_key, &mut new_item);
                         if new_item {
                             *map_key = xstrdup(fname);
                         }

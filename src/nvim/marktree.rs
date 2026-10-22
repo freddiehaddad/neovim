@@ -7,12 +7,7 @@ use std::fmt::Write as _;
 use crate::api::private::validate::NvimString;
 use crate::garray::{ga_concat_len, ga_init, garray_T};
 use crate::kvec::KVec;
-use crate::map::{
-    MH_TOMBSTONE, MTDamage, MTDamagePair, Map, map_del_uint64_t_ptr_t,
-    map_put_ref_uint64_t_MTDamagePair, map_put_ref_uint64_t_ptr_t, mh_get_uint64_t, ptr_t,
-};
-#[cfg(test)]
-use crate::map::{map_put_ref_ptr_t_ptr_t, mh_get_ptr_t};
+use crate::map::{MH_TOMBSTONE, MTDamage, MTDamagePair, Map, map_del, map_put_ref, mh_get, ptr_t};
 #[cfg(test)]
 use crate::memory::xmemdup;
 use crate::memory::{xcalloc, xfree, xmalloc, xrealloc};
@@ -517,7 +512,7 @@ unsafe fn marktree_getp_aux(x: *const MTNode, k: MTKey, match_out: Option<&mut b
 unsafe fn refkey(b: *mut MarkTree, x: *mut MTNode, i: c_int) {
     unsafe {
         let key_id = mt_lookup_key((*x).key[i as usize]);
-        let slot = map_put_ref_uint64_t_ptr_t(
+        let slot = map_put_ref(
             (*b).id2node.as_mut_ptr(),
             key_id,
             std::ptr::null_mut(),
@@ -531,7 +526,7 @@ unsafe fn refkey(b: *mut MarkTree, x: *mut MTNode, i: c_int) {
 unsafe fn id2node(b: *mut MarkTree, id: u64) -> *mut MTNode {
     unsafe {
         let map = (*b).id2node.as_mut_ptr();
-        let k = mh_get_uint64_t(&mut (*map).set, id);
+        let k = mh_get(&mut (*map).set, id);
         if k == MH_TOMBSTONE {
             std::ptr::null_mut()
         } else {
@@ -997,7 +992,7 @@ pub unsafe fn marktree_del_itr(b: *mut MarkTree, itr: *mut MarkTreeIter, rev: bo
         (*x).n -= 1;
 
         (*b).n_keys -= 1;
-        map_del_uint64_t_ptr_t((*b).id2node.as_mut_ptr(), id, std::ptr::null_mut());
+        map_del((*b).id2node.as_mut_ptr(), id, std::ptr::null_mut());
 
         // 4.
         if adjustment == -1 {
@@ -2401,12 +2396,7 @@ unsafe fn check_damage(
 ) {
     unsafe {
         let start_id = mt_lookup_key_side(*rawkey(itr1), false);
-        let p = map_put_ref_uint64_t_MTDamagePair(
-            damage,
-            start_id,
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
-        );
+        let p = map_put_ref(damage, start_id, std::ptr::null_mut(), std::ptr::null_mut());
         let me: *mut MTDamage = if mt_end(*rawkey(itr1)) {
             &mut (*p).end
         } else {
@@ -3124,7 +3114,7 @@ pub unsafe fn mt_recurse_nodes(x: *mut MTNode, checked: *mut PMapPtr) {
             } else {
                 (*x).intersect.items
             };
-            let slot = map_put_ref_ptr_t_ptr_t(
+            let slot = map_put_ref(
                 checked,
                 x.cast(),
                 std::ptr::null_mut(),
@@ -3146,7 +3136,7 @@ pub unsafe fn mt_recurse_nodes(x: *mut MTNode, checked: *mut PMapPtr) {
 #[cfg(test)]
 pub unsafe fn mt_recurse_nodes_compare(x: *mut MTNode, checked: *mut PMapPtr) -> bool {
     unsafe {
-        let k = mh_get_ptr_t(&mut (*checked).set, x.cast());
+        let k = mh_get(&mut (*checked).set, x.cast());
         let ref_ptr: *const u64 = if k == MH_TOMBSTONE {
             std::ptr::null()
         } else {

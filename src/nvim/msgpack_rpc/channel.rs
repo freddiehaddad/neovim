@@ -25,7 +25,7 @@ use crate::event::wstream::{WBuffer, wstream_new_buffer, wstream_release_wbuffer
 use crate::globals::*;
 use crate::kvec::KVec;
 use crate::log::logmsg;
-use crate::map::{MH_TOMBSTONE, mh_get_uint64_t};
+use crate::map::{MH_TOMBSTONE, mh_get};
 use crate::memory::{
     ARENA_BLOCK_SIZE, Arena, ArenaMem, alloc_block, arena_finish, arena_mem_free, free_block,
     xcalloc, xfree, xmalloc,
@@ -233,7 +233,7 @@ pub unsafe fn channel_outstream(chan: *mut Channel) -> *mut RStream {
 #[inline]
 pub unsafe fn find_channel(id: u64) -> *mut Channel {
     unsafe {
-        let k = mh_get_uint64_t(&raw mut channels.set, id);
+        let k = mh_get(&raw mut channels.set, id);
         if k == MH_TOMBSTONE {
             ptr::null_mut()
         } else {

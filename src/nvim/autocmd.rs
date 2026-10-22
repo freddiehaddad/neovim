@@ -42,10 +42,7 @@ use crate::insexpand::ins_compl_active;
 use crate::kvec::KVec;
 use crate::lua::converter::LuaRef;
 use crate::lua::executor::{kRetNilBool, nlua_call_ref, nlua_set_sctx};
-use crate::map::{
-    Map, map_del_String_int, map_del_int_String, map_destroy, map_get_string_int,
-    map_put_ref_String_int, map_put_ref_int_String, map_ref_int_String,
-};
+use crate::map::{Map, map_del, map_destroy, map_get_string_int, map_put_ref, map_ref};
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strcmp_ic;
 use crate::memory::{xcalloc, xfree, xmalloc, xmallocz, xmemdupz, xstrdup};
@@ -1258,7 +1255,7 @@ use crate::strings::{vim_strchr, vim_stricmp, vim_strnicmp, vim_strnicmp_asc};
 
 unsafe fn map_put_name_to_id(key: NvimString, val: c_int) {
     unsafe {
-        let ptr = map_put_ref_String_int(
+        let ptr = map_put_ref(
             &raw mut map_augroup_name_to_id,
             key,
             ptr::null_mut(),
@@ -1269,7 +1266,7 @@ unsafe fn map_put_name_to_id(key: NvimString, val: c_int) {
 }
 
 unsafe fn map_get_id_to_name(key: c_int) -> NvimString {
-    let ptr = unsafe { map_ref_int_String(&raw mut map_augroup_id_to_name, key, ptr::null_mut()) };
+    let ptr = unsafe { map_ref(&raw mut map_augroup_id_to_name, key, ptr::null_mut()) };
     if ptr.is_null() {
         NvimString {
             data: ptr::null_mut(),
@@ -1282,7 +1279,7 @@ unsafe fn map_get_id_to_name(key: c_int) -> NvimString {
 
 unsafe fn map_put_id_to_name(key: c_int, val: NvimString) {
     unsafe {
-        let ptr = map_put_ref_int_String(
+        let ptr = map_put_ref(
             &raw mut map_augroup_id_to_name,
             key,
             ptr::null_mut(),
@@ -1456,7 +1453,7 @@ unsafe fn augroup_map_del(id: c_int, name: *const c_char) {
                 data: ptr::null_mut(),
                 size: 0,
             };
-            map_del_String_int(
+            map_del(
                 &raw mut map_augroup_name_to_id,
                 cstr_as_string(name),
                 &raw mut key,
@@ -1464,7 +1461,7 @@ unsafe fn augroup_map_del(id: c_int, name: *const c_char) {
             api_free_string(key);
         }
         if id > 0 {
-            let mapped = map_del_int_String(&raw mut map_augroup_id_to_name, id, ptr::null_mut());
+            let mapped = map_del(&raw mut map_augroup_id_to_name, id, ptr::null_mut());
             api_free_string(mapped);
         }
     }

@@ -19,10 +19,7 @@ use crate::lua::converter::{
     luaL_checklstring, luaL_checknumber, luaL_checkstring, luaL_checkudata, luaL_error,
     luaL_newmetatable, luaL_ref, luaL_register, luaL_unref,
 };
-use crate::map::{
-    MH_TOMBSTONE, Map, MapHash, Set, cstr_t, map_del_cstr_t_ptr_t, map_put_ref_cstr_t_ptr_t,
-    mh_get_cstr_t, ptr_t,
-};
+use crate::map::{MH_TOMBSTONE, Map, MapHash, Set, cstr_t, map_del, map_put_ref, mh_get, ptr_t};
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::memory::{strequal, xcalloc, xfree, xmalloc, xrealloc, xstrdup, xstrlcpy};
 use crate::msgpack_rpc::packer::handle_T;
@@ -656,13 +653,13 @@ unsafe extern "C" {
 
 #[inline]
 unsafe fn langs_has(lang_name: *const c_char) -> bool {
-    unsafe { mh_get_cstr_t(&raw mut LANGS.set, lang_name) != MH_TOMBSTONE }
+    unsafe { mh_get(&raw mut LANGS.set, lang_name) != MH_TOMBSTONE }
 }
 
 #[inline]
 unsafe fn langs_get(lang_name: *const c_char) -> *mut TSLanguage {
     unsafe {
-        let k = mh_get_cstr_t(&raw mut LANGS.set, lang_name);
+        let k = mh_get(&raw mut LANGS.set, lang_name);
         if k == MH_TOMBSTONE {
             ptr::null_mut()
         } else {
@@ -822,7 +819,7 @@ unsafe fn add_language(L: *mut lua_State, is_wasm: bool) -> c_int {
             );
         }
 
-        let val_slot = map_put_ref_cstr_t_ptr_t(
+        let val_slot = map_put_ref(
             &raw mut LANGS,
             xstrdup(lang_name),
             ptr::null_mut(),
@@ -841,7 +838,7 @@ unsafe extern "C-unwind" fn tslua_remove_lang(L: *mut lua_State) -> c_int {
         let present = langs_has(lang_name);
         if present {
             let mut key: cstr_t = ptr::null();
-            map_del_cstr_t_ptr_t(&raw mut LANGS, lang_name, &mut key);
+            map_del(&raw mut LANGS, lang_name, &mut key);
             xfree(key.cast_mut().cast::<c_void>());
         }
         lua_pushboolean(L, c_int::from(present));

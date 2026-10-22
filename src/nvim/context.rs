@@ -23,7 +23,7 @@ use crate::extmark::{extmark_del_id, extmark_get_pos, extmark_set_pos};
 use crate::fileio::shorten_fnames;
 use crate::globals::*;
 use crate::hashtab::{hash_init, hashitem_empty};
-use crate::map::{MH_TOMBSTONE, map_del_int_ptr_t, map_put_ref_int_ptr_t, mh_get_int};
+use crate::map::{MH_TOMBSTONE, map_del, map_put_ref, mh_get};
 use crate::mark::{fmark_T, fmarkv_T};
 use crate::memory::{Arena, strequal_str, xfree, xstrdup};
 use crate::msgpack_rpc::packer::handle_T;
@@ -195,7 +195,7 @@ static mut CTX_MARKS_NS_ID: u32 = 0;
 #[inline]
 pub unsafe fn handle_get_buffer(h: handle_T) -> *mut buf_T {
     unsafe {
-        let k = mh_get_int(&raw mut buffer_handles.set, h);
+        let k = mh_get(&raw mut buffer_handles.set, h);
         if k == MH_TOMBSTONE {
             ptr::null_mut()
         } else {
@@ -207,7 +207,7 @@ pub unsafe fn handle_get_buffer(h: handle_T) -> *mut buf_T {
 #[inline]
 pub unsafe fn handle_get_window(h: handle_T) -> *mut win_T {
     unsafe {
-        let k = mh_get_int(&raw mut window_handles.set, h);
+        let k = mh_get(&raw mut window_handles.set, h);
         if k == MH_TOMBSTONE {
             ptr::null_mut()
         } else {
@@ -761,7 +761,7 @@ unsafe fn ctx_win_prep(cs: *mut CtxSwitch, buf: *mut buf_T) -> *mut win_T {
 
         if need_append {
             win_append(lastwin, cw_win, ptr::null_mut());
-            let val = map_put_ref_int_ptr_t(
+            let val = map_put_ref(
                 &raw mut window_handles,
                 (*cw_win).handle,
                 ptr::null_mut(),
@@ -806,7 +806,7 @@ unsafe fn ctx_win_rest(cs: *mut CtxSwitch) -> *mut win_T {
 
         (*curbuf).b_nwindows -= 1;
         win_remove(curwin, ptr::null_mut());
-        map_del_int_ptr_t(&raw mut window_handles, (*curwin).handle, ptr::null_mut());
+        map_del(&raw mut window_handles, (*curwin).handle, ptr::null_mut());
 
         (*ctx_win_vec.items.add((*cs).cs_ctxwin_idx as usize)).cw_used = false;
 

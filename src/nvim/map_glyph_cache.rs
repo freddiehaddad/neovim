@@ -4,7 +4,8 @@
 use crate::api::private::helpers::cstr_as_string;
 use crate::api::private::validate::NvimString;
 use crate::map::{
-    MH_TOMBSTONE, MHPutStatus, MapHash, mh_is_del, mh_is_either, mh_is_empty, mh_realloc,
+    MH_TOMBSTONE, MHPutStatus, MapHash, hash_bytes, mh_is_del, mh_is_either, mh_is_empty,
+    mh_realloc,
 };
 use crate::memory::xrealloc;
 use std::ffi::{c_char, c_void};
@@ -18,14 +19,12 @@ pub struct Set_glyph {
 
 #[inline]
 unsafe fn hash_string(s: NvimString) -> u32 {
-    let mut h: u32 = 0;
     if s.size > 0 && !s.data.is_null() {
         let bytes = unsafe { std::slice::from_raw_parts(s.data.cast::<u8>(), s.size) };
-        for &b in bytes {
-            h = (h << 5).wrapping_sub(h).wrapping_add(u32::from(b));
-        }
+        hash_bytes(bytes)
+    } else {
+        0
     }
-    h
 }
 
 #[inline]
