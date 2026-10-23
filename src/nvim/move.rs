@@ -2755,28 +2755,30 @@ mod tests {
         assert!(equalpos(p1, p2));
 
         unsafe {
-            let mut wp: win_T = std::mem::zeroed();
-            wp.w_curswant = 42;
-            wp.w_set_curswant = true;
-            wp.w_leftcol = 4;
-            wp.w_skipcol = 8;
-            wp.w_topline = 10;
-            wp.w_topfill = 2;
-            wp.w_botline = 20;
-            wp.w_empty_rows = 3;
+            let mut wp_uninit: std::mem::MaybeUninit<win_T> = std::mem::MaybeUninit::zeroed();
+            let wp = wp_uninit.as_mut_ptr();
+            (*wp).w_curswant = 42;
+            (*wp).w_set_curswant = true;
+            (*wp).w_leftcol = 4;
+            (*wp).w_skipcol = 8;
+            (*wp).w_topline = 10;
+            (*wp).w_topfill = 2;
+            (*wp).w_botline = 20;
+            (*wp).w_empty_rows = 3;
 
             let mut vs = viewstate_T::default();
-            save_viewstate(&raw mut wp, &raw mut vs);
-            let mut wp2: win_T = std::mem::zeroed();
-            restore_viewstate(&raw mut wp2, &raw const vs);
-            assert_eq!(wp2.w_curswant, 42);
-            assert!(wp2.w_set_curswant);
-            assert_eq!(wp2.w_leftcol, 4);
-            assert_eq!(wp2.w_skipcol, 8);
-            assert_eq!(wp2.w_topline, 10);
-            assert_eq!(wp2.w_topfill, 2);
-            assert_eq!(wp2.w_botline, 20);
-            assert_eq!(wp2.w_empty_rows, 3);
+            save_viewstate(wp, &raw mut vs);
+            let mut wp2_uninit: std::mem::MaybeUninit<win_T> = std::mem::MaybeUninit::zeroed();
+            let wp2 = wp2_uninit.as_mut_ptr();
+            restore_viewstate(wp2, &raw const vs);
+            assert_eq!((*wp2).w_curswant, 42);
+            assert!((*wp2).w_set_curswant);
+            assert_eq!((*wp2).w_leftcol, 4);
+            assert_eq!((*wp2).w_skipcol, 8);
+            assert_eq!((*wp2).w_topline, 10);
+            assert_eq!((*wp2).w_topfill, 2);
+            assert_eq!((*wp2).w_botline, 20);
+            assert_eq!((*wp2).w_empty_rows, 3);
         }
     }
 }

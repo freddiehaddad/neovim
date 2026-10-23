@@ -19,8 +19,7 @@ use crate::eval::typval::{
 };
 use crate::ex_docmd::{CMOD_KEEPJUMPS, CMOD_LOCKMARKS, exarg_T};
 use crate::extmark::{ExtmarkOp, extmark_adjust, kExtmarkNOOP};
-use crate::fold::{foldMarkAdjust, hasFolding};
-use crate::garray::garray_T;
+use crate::fold::{fold_T, foldMarkAdjust, hasFolding};
 use crate::globals::*;
 use crate::insert::beginline;
 use crate::lua::executor::nlua_call_excmd;
@@ -97,7 +96,7 @@ pub struct WinInfo {
     pub wi_optset: bool,
     pub wi_opt: winopt_T,
     pub wi_fold_manual: bool,
-    pub wi_folds: garray_T,
+    pub wi_folds: Vec<fold_T>,
     pub wi_changelistidx: c_int,
 }
 

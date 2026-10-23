@@ -57,9 +57,9 @@ use crate::ex_getln::{
 use crate::file_search::{do_autocmd_dirchanged, grab_file_name};
 use crate::fileio::shorten_fnames;
 use crate::fold::{
-    clearFolding, copyFoldingState, deleteFoldRecurse, foldInitWin, getDeepestNesting, hasFolding,
+    clearFolding, copyFoldingState, deleteFoldRecurse, fold_T, foldInitWin, getDeepestNesting,
+    hasFolding,
 };
-use crate::garray::garray_T;
 use crate::globals::*;
 use crate::grid::{
     GridView, ScreenGrid, grid_adjust, grid_assign_handle, grid_clear, grid_free, win_grid_alloc,
@@ -401,7 +401,7 @@ pub struct win_T {
     pub w_lines_valid: c_int,
     pub w_lines: *mut std::ffi::c_void,
     pub w_lines_size: c_int,
-    pub w_folds: garray_T,
+    pub w_folds: Vec<fold_T>,
     pub w_fold_manual: bool,
     pub w_foldinvalid: bool,
     pub w_nrwidth: c_int,
@@ -5939,6 +5939,7 @@ pub unsafe fn free_wininfo(wip: *mut WinInfo, bp: *mut buf_T) {
             clear_winopt(&raw mut (*wip).wi_opt);
             deleteFoldRecurse(bp, &raw mut (*wip).wi_folds);
         }
+        ptr::drop_in_place(&raw mut (*wip).wi_folds);
         xfree(wip.cast());
     }
 }
