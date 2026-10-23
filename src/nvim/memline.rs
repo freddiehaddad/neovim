@@ -869,6 +869,7 @@ pub unsafe fn ml_recover(checkext: bool) {
         ptr::write(&raw mut (*buf).update_callbacks, Vec::new());
         ptr::write(&raw mut (*buf).b_s.b_syn_patterns, Vec::new());
         ptr::write(&raw mut (*buf).b_s.b_syn_clusters, Vec::new());
+        ptr::write(&raw mut (*buf).b_s.b_langp, Vec::new());
         (*buf).b_ml.ml_stack_size = 0;
         (*buf).b_ml.ml_stack = ptr::null_mut();
         (*buf).b_ml.ml_stack_top = 0;

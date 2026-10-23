@@ -1,7 +1,6 @@
 //! XDG standard directory paths (`src/nvim/os/stdpaths.c`).
 
 use crate::fileio::vim_gettempdir;
-use crate::garray::K_PATH_CMP_LITERAL;
 use crate::globals::*;
 #[cfg(unix)]
 use crate::memory::xstrdup;
@@ -14,7 +13,7 @@ use crate::os::fs::os_realpath;
 use crate::os::fs::{ENV_SEPCHAR, MAXPATHL, PATHSEP};
 #[cfg(windows)]
 use crate::path::path_to_slash;
-use crate::path::{concat_fnames_realloc, path_equal, path_is_absolute};
+use crate::path::{concat_fnames_realloc, kPathCmpLiteral, path_equal, path_is_absolute};
 use std::ffi::{CStr, CString, c_char, c_void};
 
 #[repr(C)]
@@ -126,7 +125,7 @@ unsafe fn xdg_remove_duplicate(ret: *mut c_char, sep: u8) -> *mut c_char {
             continue;
         };
         let is_dup = token_cstrs.iter().any(|existing| unsafe {
-            path_equal(existing.as_ptr(), cand.as_ptr(), K_PATH_CMP_LITERAL)
+            path_equal(existing.as_ptr(), cand.as_ptr(), kPathCmpLiteral)
         });
         if !is_dup {
             token_cstrs.push(cand);

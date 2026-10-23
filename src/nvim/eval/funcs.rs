@@ -112,7 +112,6 @@ use crate::ex_getln::{
     VSE_NONE, get_user_input, hlf_T, text_locked, text_locked_msg, vim_strsave_fnameescape,
 };
 use crate::extmark::{TriState, kFalse, kNone, kTrue};
-use crate::garray::{ga_clear, garray_T};
 use crate::globals::*;
 use crate::grid::{
     ScreenGrid, grid_getchar, schar_T, schar_from_char, schar_get, schar_get_first_codepoint,
@@ -8517,13 +8516,7 @@ pub unsafe fn f_spellbadword(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
 /// "spellsuggest()" function
 pub unsafe fn f_spellsuggest(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        let mut ga = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: ptr::null_mut(),
-        };
+        let mut ga: Vec<*mut c_char> = Vec::new();
         let wo_spell_save = (*curwin).w_onebuf_opt.wo_spell;
 
         if (*curwin).w_onebuf_opt.wo_spell == 0 {
@@ -8558,15 +8551,13 @@ pub unsafe fn f_spellsuggest(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
                 maxcount = 25;
             }
 
-            spell_suggest_list(&raw mut ga, str_.cast_mut(), maxcount, need_capital, false);
+            spell_suggest_list(&mut ga, str_.cast_mut(), maxcount, need_capital, false);
         }
 
-        tv_list_alloc_ret(rettv, ga.ga_len as isize);
-        for i in 0..(ga.ga_len as usize) {
-            let p = *ga.ga_data.cast::<*mut c_char>().add(i);
+        tv_list_alloc_ret(rettv, ga.len() as isize);
+        for p in ga {
             tv_list_append_allocated_string((*rettv).vval.v_list, p);
         }
-        ga_clear(&raw mut ga);
         (*curwin).w_onebuf_opt.wo_spell = wo_spell_save;
     }
 }

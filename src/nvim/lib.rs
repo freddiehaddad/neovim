@@ -42,7 +42,6 @@ pub(crate) mod file_search;
 pub(crate) mod fileio;
 pub(crate) mod fold;
 pub(crate) mod fuzzy;
-pub(crate) mod garray;
 pub(crate) mod globals;
 pub(crate) mod grid;
 pub(crate) mod hashtab;

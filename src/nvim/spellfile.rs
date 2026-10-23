@@ -13,7 +13,6 @@ use crate::fileio::{
     fwrite, get2c, get3c, get4c, get8ctime, put_bytes, put_time, read_string, vim_fgets,
     vim_tempname,
 };
-use crate::garray::{ga_append, ga_clear, ga_concat, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::hashtab::{
     hash_T, hash_add, hash_add_item, hash_clear, hash_clear_all, hash_find, hash_hash, hash_init,
@@ -58,7 +57,7 @@ use crate::strings::{
     atoi, gettext, has_non_ascii, memchr, memcmp, sort_slice_by, strcat, strcmp, strcpy, strerror,
     strlen, strncmp, strrchr, strstr, vim_snprintf, vim_strchr,
 };
-use crate::syntax::{ga_empty, hi_empty, win_s};
+use crate::syntax::{hi_empty, win_s};
 use crate::ui::ui_flush;
 use crate::undo::bufIsChanged;
 use std::ffi::{c_char, c_int, c_long, c_uint, c_void};
@@ -290,9 +289,9 @@ struct spellinfo_T {
     si_info: *mut c_char,
     si_region_count: c_int,
     si_region_name: [c_char; MAXREGIONS * 2 + 1],
-    si_rep: garray_T,
-    si_repsal: garray_T,
-    si_sal: garray_T,
+    si_rep: Vec<fromto_T>,
+    si_repsal: Vec<fromto_T>,
+    si_sal: Vec<fromto_T>,
     si_sofofr: *mut c_char,
     si_sofoto: *mut c_char,
     si_nosugfile: c_int,
@@ -303,19 +302,76 @@ struct spellinfo_T {
     si_commonwords: hashtab_T,
     si_sugtime: time_t,
     si_rem_accents: c_int,
-    si_map: garray_T,
+    si_map: Vec<c_char>,
     si_midword: *mut c_char,
     si_compmax: c_int,
     si_compminlen: c_int,
     si_compsylmax: c_int,
     si_compoptions: c_int,
-    si_comppat: garray_T,
+    si_comppat: Vec<*mut c_char>,
     si_compflags: *mut c_char,
     si_nobreak: c_char,
     si_syllable: *mut c_char,
-    si_prefcond: garray_T,
+    si_prefcond: Vec<*mut c_char>,
     si_newprefID: c_int,
     si_newcompID: c_int,
+}
+
+impl Default for spellinfo_T {
+    fn default() -> Self {
+        Self {
+            si_foldroot: ptr::null_mut(),
+            si_foldwcount: 0,
+            si_keeproot: ptr::null_mut(),
+            si_keepwcount: 0,
+            si_prefroot: ptr::null_mut(),
+            si_sugtree: 0,
+            si_blocks: ptr::null_mut(),
+            si_blocks_cnt: 0,
+            si_did_emsg: 0,
+            si_compress_cnt: 0,
+            si_first_free: ptr::null_mut(),
+            si_free_count: 0,
+            si_spellbuf: ptr::null_mut(),
+            si_ascii: 0,
+            si_add: 0,
+            si_clear_chartab: 0,
+            si_region: 0,
+            si_conv: unsafe { std::mem::zeroed() },
+            si_memtot: 0,
+            si_verbose: 0,
+            si_msg_count: 0,
+            si_info: ptr::null_mut(),
+            si_region_count: 0,
+            si_region_name: [0; MAXREGIONS * 2 + 1],
+            si_rep: Vec::new(),
+            si_repsal: Vec::new(),
+            si_sal: Vec::new(),
+            si_sofofr: ptr::null_mut(),
+            si_sofoto: ptr::null_mut(),
+            si_nosugfile: 0,
+            si_nosplitsugs: 0,
+            si_nocompoundsugs: 0,
+            si_followup: 0,
+            si_collapse: 0,
+            si_commonwords: unsafe { std::mem::zeroed() },
+            si_sugtime: 0,
+            si_rem_accents: 0,
+            si_map: Vec::new(),
+            si_midword: ptr::null_mut(),
+            si_compmax: 0,
+            si_compminlen: 0,
+            si_compsylmax: 0,
+            si_compoptions: 0,
+            si_comppat: Vec::new(),
+            si_compflags: ptr::null_mut(),
+            si_nobreak: 0,
+            si_syllable: ptr::null_mut(),
+            si_prefcond: Vec::new(),
+            si_newprefID: 0,
+            si_newcompID: 0,
+        }
+    }
 }
 
 use crate::fileio::ungetc;
@@ -507,14 +563,14 @@ pub unsafe fn spell_load_file(
                 SN_REP => {
                     res = read_rep_section(
                         fd,
-                        &raw mut (*lp).sl_rep,
+                        &mut (*lp).sl_rep,
                         (&raw mut (*lp).sl_rep_first).cast::<i16>(),
                     );
                 }
                 SN_REPSAL => {
                     res = read_rep_section(
                         fd,
-                        &raw mut (*lp).sl_repsal,
+                        &mut (*lp).sl_repsal,
                         (&raw mut (*lp).sl_repsal_first).cast::<i16>(),
                     );
                 }
@@ -710,11 +766,11 @@ unsafe fn tree_count_words(byts: *const u8, byts_len: c_int, idxs: *mut idx_T) {
 pub unsafe fn suggest_load_files() {
     unsafe {
         let mut buf = [0 as c_char; MAXWLEN];
-        let mut ga: garray_T = std::mem::zeroed();
+        let mut ga: Vec<u8> = Vec::new();
 
-        let mut lpi: c_int = 0;
-        while lpi < (*win_s(curwin)).b_langp.ga_len {
-            let lp = langp_entry(&raw const (*win_s(curwin)).b_langp, lpi as usize);
+        let mut lpi: usize = 0;
+        while lpi < (*win_s(curwin)).b_langp.len() {
+            let lp = langp_entry(&raw const (*win_s(curwin)).b_langp, lpi);
             let slang = (*lp).lp_slang;
             if (*slang).sl_sugtime != 0 && !(*slang).sl_sugloaded {
                 (*slang).sl_sugloaded = true;
@@ -788,19 +844,16 @@ pub unsafe fn suggest_load_files() {
                             if wcount < 0 {
                                 someerror = true;
                             } else {
-                                ga_init(&raw mut ga, 1, 100);
+                                ga.reserve(100);
                                 for wordnr in 0..wcount {
-                                    ga.ga_len = 0;
+                                    ga.clear();
                                     loop {
                                         let c = fgetc(fd);
                                         if c < 0 {
                                             someerror = true;
                                             break;
                                         }
-                                        ga_grow(&raw mut ga, 1);
-                                        *ga.ga_data.cast::<u8>().offset(ga.ga_len as isize) =
-                                            c as u8;
-                                        ga.ga_len += 1;
+                                        ga.push(c as u8);
                                         if c == NUL as c_int {
                                             break;
                                         }
@@ -811,8 +864,8 @@ pub unsafe fn suggest_load_files() {
                                     if ml_append_buf(
                                         (*slang).sl_sugbuf,
                                         wordnr as linenr_T,
-                                        ga.ga_data.cast(),
-                                        ga.ga_len,
+                                        ga.as_mut_ptr().cast(),
+                                        ga.len() as c_int,
                                         true,
                                     ) == FAIL
                                     {
@@ -820,7 +873,7 @@ pub unsafe fn suggest_load_files() {
                                         break;
                                     }
                                 }
-                                ga_clear(&raw mut ga);
+                                ga.clear();
                             }
                         }
 
@@ -952,45 +1005,40 @@ unsafe fn read_prefcond_section(fd: *mut FILE, lp: *mut slang_T) -> c_int {
     }
 }
 
-unsafe fn read_rep_section(fd: *mut FILE, gap: *mut garray_T, first: *mut i16) -> c_int {
+unsafe fn read_rep_section(fd: *mut FILE, gap: &mut Vec<fromto_T>, first: *mut i16) -> c_int {
     unsafe {
         let cnt = get2c(fd);
         if cnt < 0 {
             return SP_TRUNCERROR;
         }
 
-        ga_grow(gap, cnt);
+        gap.reserve(cnt as usize);
 
-        while (*gap).ga_len < cnt {
+        while (gap.len() as c_int) < cnt {
             let mut c: c_int = 0;
-            let ftp = (*gap)
-                .ga_data
-                .cast::<fromto_T>()
-                .offset((*gap).ga_len as isize);
-            (*ftp).ft_from = read_cnt_string(fd, 1, &raw mut c);
+            let ft_from = read_cnt_string(fd, 1, &raw mut c);
             if c < 0 {
                 return c;
             }
             if c == 0 {
                 return SP_FORMERROR;
             }
-            (*ftp).ft_to = read_cnt_string(fd, 1, &raw mut c);
+            let ft_to = read_cnt_string(fd, 1, &raw mut c);
             if c <= 0 {
-                xfree((*ftp).ft_from.cast());
+                xfree(ft_from.cast());
                 if c < 0 {
                     return c;
                 }
                 return SP_FORMERROR;
             }
-            (*gap).ga_len += 1;
+            gap.push(fromto_T { ft_from, ft_to });
         }
 
         for i in 0..256 {
             *first.add(i) = -1;
         }
-        for i in 0..(*gap).ga_len {
-            let ftp = (*gap).ga_data.cast::<fromto_T>().offset(i as isize);
-            let b = *(*ftp).ft_from as u8 as usize;
+        for (i, ftp) in gap.iter().enumerate() {
+            let b = *ftp.ft_from as u8 as usize;
             if *first.add(b) == -1 {
                 *first.add(b) = i as i16;
             }
@@ -1019,22 +1067,28 @@ unsafe fn read_sal_section(fd: *mut FILE, slang: *mut slang_T) -> c_int {
             return SP_TRUNCERROR;
         }
 
-        let gap = &raw mut (*slang).sl_sal;
-        ga_init(gap, size_of::<salitem_T>() as c_int, 10);
-        ga_grow(gap, cnt + 1);
+        let gap = &mut (*slang).sl_sal;
+        gap.clear();
+        gap.reserve((cnt + 1) as usize);
 
-        while (*gap).ga_len < cnt {
+        while (gap.len() as c_int) < cnt {
             let mut c: c_int = NUL as c_int;
-            let smp = (*gap)
-                .ga_data
-                .cast::<salitem_T>()
-                .offset((*gap).ga_len as isize);
+            let mut smp = salitem_T {
+                sm_lead: ptr::null_mut(),
+                sm_leadlen: 0,
+                sm_oneof: ptr::null_mut(),
+                sm_rules: ptr::null_mut(),
+                sm_to: ptr::null_mut(),
+                sm_lead_w: ptr::null_mut(),
+                sm_oneof_w: ptr::null_mut(),
+                sm_to_w: ptr::null_mut(),
+            };
             let mut ccnt = fgetc(fd);
             if ccnt < 0 {
                 return SP_TRUNCERROR;
             }
             let mut p = xmalloc(ccnt as usize + 2).cast::<c_char>();
-            (*smp).sm_lead = p;
+            smp.sm_lead = p;
 
             let mut i: c_int = 0;
             while i < ccnt {
@@ -1046,12 +1100,12 @@ unsafe fn read_sal_section(fd: *mut FILE, slang: *mut slang_T) -> c_int {
                 p = p.add(1);
                 i += 1;
             }
-            (*smp).sm_leadlen = p.offset_from((*smp).sm_lead) as c_int;
+            smp.sm_leadlen = p.offset_from(smp.sm_lead) as c_int;
             *p = NUL;
             p = p.add(1);
 
             if c == b'(' as c_int {
-                (*smp).sm_oneof = p;
+                smp.sm_oneof = p;
                 i += 1;
                 while i < ccnt {
                     c = fgetc(fd);
@@ -1069,10 +1123,10 @@ unsafe fn read_sal_section(fd: *mut FILE, slang: *mut slang_T) -> c_int {
                     c = fgetc(fd);
                 }
             } else {
-                (*smp).sm_oneof = ptr::null_mut();
+                smp.sm_oneof = ptr::null_mut();
             }
 
-            (*smp).sm_rules = p;
+            smp.sm_rules = p;
             if i < ccnt {
                 *p = c as u8 as c_char;
                 p = p.add(1);
@@ -1082,50 +1136,47 @@ unsafe fn read_sal_section(fd: *mut FILE, slang: *mut slang_T) -> c_int {
                 let rem = (ccnt - i) as usize;
                 let ret = spell_read_nonnul_bytes(p, rem, fd);
                 if ret != 0 {
-                    xfree((*smp).sm_lead.cast());
+                    xfree(smp.sm_lead.cast());
                     return ret;
                 }
                 p = p.add(rem);
             }
             *p = NUL;
 
-            (*smp).sm_to = read_cnt_string(fd, 1, &raw mut ccnt);
+            smp.sm_to = read_cnt_string(fd, 1, &raw mut ccnt);
             if ccnt < 0 {
-                xfree((*smp).sm_lead.cast());
+                xfree(smp.sm_lead.cast());
                 return ccnt;
             }
 
-            (*smp).sm_lead_w = mb_str2wide((*smp).sm_lead);
-            (*smp).sm_leadlen = mb_charlen((*smp).sm_lead);
-            if (*smp).sm_oneof.is_null() {
-                (*smp).sm_oneof_w = ptr::null_mut();
+            smp.sm_lead_w = mb_str2wide(smp.sm_lead);
+            smp.sm_leadlen = mb_charlen(smp.sm_lead);
+            if smp.sm_oneof.is_null() {
+                smp.sm_oneof_w = ptr::null_mut();
             } else {
-                (*smp).sm_oneof_w = mb_str2wide((*smp).sm_oneof);
+                smp.sm_oneof_w = mb_str2wide(smp.sm_oneof);
             }
-            if (*smp).sm_to.is_null() {
-                (*smp).sm_to_w = ptr::null_mut();
+            if smp.sm_to.is_null() {
+                smp.sm_to_w = ptr::null_mut();
             } else {
-                (*smp).sm_to_w = mb_str2wide((*smp).sm_to);
+                smp.sm_to_w = mb_str2wide(smp.sm_to);
             }
-            (*gap).ga_len += 1;
+            gap.push(smp);
         }
 
-        if !ga_empty(gap) {
-            let smp = (*gap)
-                .ga_data
-                .cast::<salitem_T>()
-                .offset((*gap).ga_len as isize);
+        if !gap.is_empty() {
             let p = xmalloc(1).cast::<c_char>();
             *p = NUL;
-            (*smp).sm_lead = p;
-            (*smp).sm_lead_w = mb_str2wide((*smp).sm_lead);
-            (*smp).sm_leadlen = 0;
-            (*smp).sm_oneof = ptr::null_mut();
-            (*smp).sm_oneof_w = ptr::null_mut();
-            (*smp).sm_rules = p;
-            (*smp).sm_to = ptr::null_mut();
-            (*smp).sm_to_w = ptr::null_mut();
-            (*gap).ga_len += 1;
+            gap.push(salitem_T {
+                sm_lead: p,
+                sm_lead_w: mb_str2wide(p),
+                sm_leadlen: 0,
+                sm_oneof: ptr::null_mut(),
+                sm_oneof_w: ptr::null_mut(),
+                sm_rules: p,
+                sm_to: ptr::null_mut(),
+                sm_to_w: ptr::null_mut(),
+            });
         }
 
         set_sal_first(slang);
@@ -1228,21 +1279,17 @@ unsafe fn read_compound(fd: *mut FILE, slang: *mut slang_T, len: c_int) -> c_int
             todo -= 1;
             (*slang).sl_compoptions = c;
 
-            let gap = &raw mut (*slang).sl_comppat;
+            let gap = &mut (*slang).sl_comppat;
             c = get2c(fd);
             if c < 0 {
                 return SP_TRUNCERROR;
             }
             todo -= 2;
-            ga_init(gap, size_of::<*mut c_char>() as c_int, c);
-            ga_grow(gap, c);
+            gap.clear();
+            gap.reserve(c as usize);
             while c > 0 {
                 c -= 1;
-                *(*gap)
-                    .ga_data
-                    .cast::<*mut c_char>()
-                    .offset((*gap).ga_len as isize) = read_cnt_string(fd, 1, &raw mut cnt);
-                (*gap).ga_len += 1;
+                gap.push(read_cnt_string(fd, 1, &raw mut cnt));
                 if cnt < 0 {
                     return cnt;
                 }
@@ -1363,13 +1410,10 @@ unsafe fn read_compound(fd: *mut FILE, slang: *mut slang_T, len: c_int) -> c_int
 
 unsafe fn set_sofo(lp: *mut slang_T, from: *const c_char, to: *const c_char) -> c_int {
     unsafe {
-        free_sal_items(&raw mut (*lp).sl_sal);
+        free_sal_items(lp);
 
-        let gap = &raw mut (*lp).sl_sal;
-        ga_init(gap, size_of::<*mut c_int>() as c_int, 1);
-        ga_grow(gap, 256);
-        ptr::write_bytes((*gap).ga_data.cast::<*mut c_int>(), 0, 256);
-        (*gap).ga_len = 256;
+        let gap = &mut (*lp).sl_sofo_sal;
+        gap.resize(256, ptr::null_mut());
         (*lp).sl_sofo = true;
 
         (*lp).sl_sal_first = [0; 256];
@@ -1386,11 +1430,11 @@ unsafe fn set_sofo(lp: *mut slang_T, from: *const c_char, to: *const c_char) -> 
             return SP_FORMERROR;
         }
 
-        for i in 0..256 {
+        for (i, slot) in gap.iter_mut().enumerate().take(256) {
             let count = (*lp).sl_sal_first[i];
             if count > 0 {
                 let list = xmalloc(size_of::<c_int>() * (count as usize * 2 + 1)).cast::<c_int>();
-                *(*gap).ga_data.cast::<*mut c_int>().add(i) = list;
+                *slot = list;
                 *list = 0;
             }
         }
@@ -1402,7 +1446,7 @@ unsafe fn set_sofo(lp: *mut slang_T, from: *const c_char, to: *const c_char) -> 
             let c = mb_cptr2char_adv(&raw mut p);
             let i = mb_cptr2char_adv(&raw mut s);
             if c >= 256 {
-                let mut inp = *(*gap).ga_data.cast::<*mut c_int>().add((c & 0xff) as usize);
+                let mut inp = gap[(c & 0xff) as usize];
                 while *inp != 0 {
                     inp = inp.add(1);
                 }
@@ -1422,26 +1466,27 @@ unsafe fn set_sofo(lp: *mut slang_T, from: *const c_char, to: *const c_char) -> 
 
 unsafe fn set_sal_first(lp: *mut slang_T) {
     unsafe {
-        let gap = &raw mut (*lp).sl_sal;
+        let gap = &mut (*lp).sl_sal;
         let sfirst = (&raw mut (*lp).sl_sal_first).cast::<salfirst_T>();
         for i in 0..256 {
             *sfirst.add(i) = -1;
         }
-        let smp = (*gap).ga_data.cast::<salitem_T>();
+        let smp = gap.as_mut_ptr();
+        let len = gap.len() as c_int;
         let mut i: c_int = 0;
-        while i < (*gap).ga_len {
+        while i < len {
             let c = (*(*smp.offset(i as isize)).sm_lead_w & 0xff) as usize;
             if *sfirst.add(c) == -1 {
                 *sfirst.add(c) = i;
 
-                while i + 1 < (*gap).ga_len
+                while i + 1 < len
                     && (*(*smp.offset((i + 1) as isize)).sm_lead_w & 0xff) as usize == c
                 {
                     i += 1;
                 }
 
                 let mut n: c_int = 1;
-                while i + n < (*gap).ga_len {
+                while i + n < len {
                     if (*(*smp.offset((i + n) as isize)).sm_lead_w & 0xff) as usize == c {
                         i += 1;
                         n -= 1;
@@ -1748,10 +1793,10 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
         );
         spell_message(spin, (&raw mut IObuff).cast());
 
-        let do_rep = ga_empty(&raw const (*spin).si_rep);
-        let do_repsal = ga_empty(&raw const (*spin).si_repsal);
-        let do_sal = ga_empty(&raw const (*spin).si_sal);
-        let do_mapline = ga_empty(&raw const (*spin).si_map);
+        let do_rep = (*spin).si_rep.is_empty();
+        let do_repsal = (*spin).si_repsal.is_empty();
+        let do_sal = (*spin).si_sal.is_empty();
+        let do_mapline = (*spin).si_map.is_empty();
 
         let aff = getroom(spin, size_of::<afffile_T>(), true).cast::<afffile_T>();
         hash_init(&raw mut (*aff).af_pref);
@@ -2095,24 +2140,17 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                     c"CHECKCOMPOUNDPATTERN".as_ptr(),
                     3,
                 ) {
-                    let gap = &raw mut (*spin).si_comppat;
-                    let mut i: c_int = 0;
-                    while i < (*gap).ga_len - 1 {
-                        let d = (*gap).ga_data.cast::<*mut c_char>();
-                        if strcmp(*d.offset(i as isize), items[1]) == 0
-                            && strcmp(*d.offset((i + 1) as isize), items[2]) == 0
-                        {
+                    let gap = &mut (*spin).si_comppat;
+                    let mut i: usize = 0;
+                    while i + 1 < gap.len() {
+                        if strcmp(gap[i], items[1]) == 0 && strcmp(gap[i + 1], items[2]) == 0 {
                             break;
                         }
                         i += 2;
                     }
-                    if i >= (*gap).ga_len {
-                        ga_grow(gap, 2);
-                        let d = (*gap).ga_data.cast::<*mut c_char>();
-                        *d.offset((*gap).ga_len as isize) = getroom_save(spin, items[1]);
-                        (*gap).ga_len += 1;
-                        *d.offset((*gap).ga_len as isize) = getroom_save(spin, items[2]);
-                        (*gap).ga_len += 1;
+                    if i + 1 >= gap.len() {
+                        gap.push(getroom_save(spin, items[1]));
+                        gap.push(getroom_save(spin, items[2]));
                     }
                 } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"SYLLABLE".as_ptr(), 2)
                     && syllable.is_null()
@@ -2349,32 +2387,23 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                             }
 
                             if (*aff_entry).ae_chop.is_null() {
-                                let mut idx = (*spin).si_prefcond.ga_len - 1;
+                                let prefcond = &mut (*spin).si_prefcond;
+                                let mut idx = prefcond.len() as c_int - 1;
                                 while idx >= 0 {
-                                    let p_cond = *(*spin)
-                                        .si_prefcond
-                                        .ga_data
-                                        .cast::<*mut c_char>()
-                                        .offset(idx as isize);
+                                    let p_cond = prefcond[idx as usize];
                                     if strequal(p_cond, (*aff_entry).ae_cond) {
                                         break;
                                     }
                                     idx -= 1;
                                 }
                                 if idx < 0 {
-                                    idx = (*spin).si_prefcond.ga_len;
-                                    ga_grow(&raw mut (*spin).si_prefcond, 1);
-                                    let pp = (*spin)
-                                        .si_prefcond
-                                        .ga_data
-                                        .cast::<*mut c_char>()
-                                        .offset(idx as isize);
-                                    *pp = if (*aff_entry).ae_cond.is_null() {
+                                    idx = prefcond.len() as c_int;
+                                    let cond_str = if (*aff_entry).ae_cond.is_null() {
                                         ptr::null_mut()
                                     } else {
                                         getroom_save(spin, (*aff_entry).ae_cond)
                                     };
-                                    (*spin).si_prefcond.ga_len += 1;
+                                    prefcond.push(cond_str);
                                 }
 
                                 let p_add = if (*aff_entry).ae_add.is_null() {
@@ -2462,9 +2491,9 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                         add_fromto(
                             spin,
                             if is_repsal {
-                                &raw mut (*spin).si_repsal
+                                &mut (*spin).si_repsal
                             } else {
-                                &raw mut (*spin).si_rep
+                                &mut (*spin).si_rep
                             },
                             items[1],
                             items[2],
@@ -2482,13 +2511,19 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                             );
                         }
                     } else if do_mapline {
+                        let si_map = &mut (*spin).si_map;
                         let mut p_m: *const c_char = items[1];
                         while *p_m != NUL {
                             let c = mb_ptr2char_adv(&raw mut p_m);
-                            if (!ga_empty(&raw const (*spin).si_map)
-                                && !vim_strchr((*spin).si_map.ga_data.cast(), c).is_null())
-                                || !vim_strchr(p_m, c).is_null()
-                            {
+                            let in_map = if si_map.is_empty() {
+                                false
+                            } else {
+                                si_map.push(NUL);
+                                let found = !vim_strchr(si_map.as_ptr(), c).is_null();
+                                si_map.pop();
+                                found
+                            };
+                            if in_map || !vim_strchr(p_m, c).is_null() {
                                 smsg!(
                                     0,
                                     gettext(c"Duplicate character in MAP in %s line %d".as_ptr()),
@@ -2497,8 +2532,11 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                                 );
                             }
                         }
-                        ga_concat(&raw mut (*spin).si_map, items[1]);
-                        ga_append(&raw mut (*spin).si_map, b'/');
+                        if !items[1].is_null() {
+                            let s_len = strlen(items[1]);
+                            si_map.extend_from_slice(std::slice::from_raw_parts(items[1], s_len));
+                        }
+                        si_map.push(b'/' as c_char);
                     }
                 } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"SAL".as_ptr(), 3) {
                     if do_sal {
@@ -2514,7 +2552,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                             } else {
                                 items[2]
                             };
-                            add_fromto(spin, &raw mut (*spin).si_sal, items[1], to_s);
+                            add_fromto(spin, &mut (*spin).si_sal, items[1], to_s);
                         }
                     }
                 } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"SOFOFROM".as_ptr(), 2)
@@ -2623,7 +2661,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                     },
                     fname,
                 );
-            } else if !ga_empty(&raw const (*spin).si_sal) {
+            } else if !(*spin).si_sal.is_empty() {
                 smsg!(0, gettext(c"Both SAL and SOFO lines in %s".as_ptr()), fname);
             } else {
                 aff_check_string((*spin).si_sofofr, sofofrom, c"SOFOFROM".as_ptr());
@@ -2920,18 +2958,12 @@ unsafe fn aff_check_string(spinval: *const c_char, affval: *const c_char, name: 
 
 unsafe fn add_fromto(
     spin: *mut spellinfo_T,
-    gap: *mut garray_T,
+    gap: &mut Vec<fromto_T>,
     from: *mut c_char,
     to: *mut c_char,
 ) {
     unsafe {
         let mut word = [0 as c_char; MAXWLEN];
-        ga_grow(gap, 1);
-        let ftp = (*gap)
-            .ga_data
-            .cast::<fromto_T>()
-            .offset((*gap).ga_len as isize);
-        (*gap).ga_len += 1;
         spell_casefold(
             curwin,
             from,
@@ -2939,7 +2971,7 @@ unsafe fn add_fromto(
             word.as_mut_ptr(),
             MAXWLEN as c_int,
         );
-        (*ftp).ft_from = getroom_save(spin, word.as_mut_ptr());
+        let ft_from = getroom_save(spin, word.as_mut_ptr());
         spell_casefold(
             curwin,
             to,
@@ -2947,7 +2979,8 @@ unsafe fn add_fromto(
             word.as_mut_ptr(),
             MAXWLEN as c_int,
         );
-        (*ftp).ft_to = getroom_save(spin, word.as_mut_ptr());
+        let ft_to = getroom_save(spin, word.as_mut_ptr());
+        gap.push(fromto_T { ft_from, ft_to });
     }
 }
 
@@ -4397,40 +4430,35 @@ unsafe fn write_vim_spell(spin: *mut spellinfo_T, fname: *mut c_char) -> c_int {
             fwv &= fwrite((*spin).si_midword.cast(), i, 1, fd);
         }
 
-        if !ga_empty(&raw const (*spin).si_prefcond) {
+        if !(*spin).si_prefcond.is_empty() {
             fputc(SN_PREFCOND, fd);
             fputc(SNF_REQUIRED, fd);
 
-            let l =
-                write_spell_prefcond(ptr::null_mut(), &raw mut (*spin).si_prefcond, &raw mut fwv)
-                    as usize;
+            let l = write_spell_prefcond(ptr::null_mut(), &(*spin).si_prefcond, &raw mut fwv)
+                as usize;
             put_bytes(fd, l as u64, 4);
 
-            write_spell_prefcond(fd, &raw mut (*spin).si_prefcond, &raw mut fwv);
+            write_spell_prefcond(fd, &(*spin).si_prefcond, &raw mut fwv);
         }
 
         for round in 1..=3 {
             let gap = if round == 1 {
-                &raw mut (*spin).si_rep
+                &mut (*spin).si_rep
             } else if round == 2 {
                 if !(*spin).si_sofofr.is_null() && !(*spin).si_sofoto.is_null() {
                     continue;
                 }
-                &raw mut (*spin).si_sal
+                &mut (*spin).si_sal
             } else {
-                &raw mut (*spin).si_repsal
+                &mut (*spin).si_repsal
             };
 
-            if ga_empty(gap) {
+            if gap.is_empty() {
                 continue;
             }
 
             if round != 2 {
-                let slice = std::slice::from_raw_parts_mut(
-                    (*gap).ga_data.cast::<fromto_T>(),
-                    (*gap).ga_len as usize,
-                );
-                sort_slice_by(slice, |a, b| rep_compare(a, b));
+                sort_slice_by(gap, |a, b| rep_compare(a, b));
             }
 
             let sect_id = if round == 1 {
@@ -4444,11 +4472,9 @@ unsafe fn write_vim_spell(spin: *mut spellinfo_T, fname: *mut c_char) -> c_int {
             fputc(0, fd);
 
             let mut l: usize = 2;
-            debug_assert!((*gap).ga_len >= 0);
-            for i in 0..((*gap).ga_len as usize) {
-                let ftp = (*gap).ga_data.cast::<fromto_T>().add(i);
-                l += 1 + strlen((*ftp).ft_from);
-                l += 1 + strlen((*ftp).ft_to);
+            for ftp in gap.iter() {
+                l += 1 + strlen(ftp.ft_from);
+                l += 1 + strlen(ftp.ft_to);
             }
             if round == 2 {
                 l += 1;
@@ -4469,15 +4495,10 @@ unsafe fn write_vim_spell(spin: *mut spellinfo_T, fname: *mut c_char) -> c_int {
                 fputc(i, fd);
             }
 
-            put_bytes(fd, (*gap).ga_len as u64, 2);
-            for i in 0..((*gap).ga_len as usize) {
-                let ftp = (*gap).ga_data.cast::<fromto_T>().add(i);
+            put_bytes(fd, gap.len() as u64, 2);
+            for ftp in gap.iter() {
                 for rr in 1..=2 {
-                    let p = if rr == 1 {
-                        (*ftp).ft_from
-                    } else {
-                        (*ftp).ft_to
-                    };
+                    let p = if rr == 1 { ftp.ft_from } else { ftp.ft_to };
                     let slen = strlen(p);
                     fputc(slen as c_int, fd);
                     if slen > 0 {
@@ -4527,16 +4548,16 @@ unsafe fn write_vim_spell(spin: *mut spellinfo_T, fname: *mut c_char) -> c_int {
             }
         }
 
-        if !ga_empty(&raw const (*spin).si_map) {
+        if !(*spin).si_map.is_empty() {
             fputc(SN_MAP, fd);
             fputc(0, fd);
-            let l = (*spin).si_map.ga_len as usize;
+            let l = (*spin).si_map.len();
             put_bytes(fd, l as u64, 4);
-            fwv &= fwrite((*spin).si_map.ga_data, l, 1, fd);
+            fwv &= fwrite((*spin).si_map.as_ptr().cast(), l, 1, fd);
         }
 
         if (*spin).si_nosugfile == 0
-            && (!ga_empty(&raw const (*spin).si_sal)
+            && (!(*spin).si_sal.is_empty()
                 || (!(*spin).si_sofofr.is_null() && !(*spin).si_sofoto.is_null()))
         {
             fputc(SN_SUGFILE, fd);
@@ -4564,8 +4585,7 @@ unsafe fn write_vim_spell(spin: *mut spellinfo_T, fname: *mut c_char) -> c_int {
             fputc(0, fd);
 
             let mut l = strlen((*spin).si_compflags);
-            for i in 0..((*spin).si_comppat.ga_len as usize) {
-                let p = *(*spin).si_comppat.ga_data.cast::<*mut c_char>().add(i);
+            for &p in &(*spin).si_comppat {
                 l += strlen(p) + 1;
             }
             put_bytes(fd, (l + 7) as u64, 4);
@@ -4575,9 +4595,8 @@ unsafe fn write_vim_spell(spin: *mut spellinfo_T, fname: *mut c_char) -> c_int {
             fputc((*spin).si_compsylmax, fd);
             fputc(0, fd);
             fputc((*spin).si_compoptions, fd);
-            put_bytes(fd, (*spin).si_comppat.ga_len as u64, 2);
-            for i in 0..((*spin).si_comppat.ga_len as usize) {
-                let p = *(*spin).si_comppat.ga_data.cast::<*mut c_char>().add(i);
+            put_bytes(fd, (*spin).si_comppat.len() as u64, 2);
+            for &p in &(*spin).si_comppat {
                 let plen = strlen(p);
                 fputc(plen as c_int, fd);
                 fwv &= fwrite(p.cast(), plen, 1, fd);
@@ -4918,17 +4937,15 @@ unsafe fn sug_filltree(spin: *mut spellinfo_T, slang: *mut slang_T) -> c_int {
 
 unsafe fn sug_maketable(spin: *mut spellinfo_T) -> c_int {
     unsafe {
-        let mut ga: garray_T = std::mem::zeroed();
+        let mut ga: Vec<c_char> = Vec::with_capacity(100);
         let mut res = OK;
 
         (*spin).si_spellbuf = open_spellbuf();
-        ga_init(&raw mut ga, 1, 100);
 
-        if sug_filltable(spin, (*(*spin).si_foldroot).wn_sibling, 0, &raw mut ga) == -1 {
+        if sug_filltable(spin, (*(*spin).si_foldroot).wn_sibling, 0, &mut ga) == -1 {
             res = FAIL;
         }
 
-        ga_clear(&raw mut ga);
         res
     }
 }
@@ -4937,7 +4954,7 @@ unsafe fn sug_filltable(
     spin: *mut spellinfo_T,
     node: *mut wordnode_T,
     startwordnr: c_int,
-    gap: *mut garray_T,
+    gap: &mut Vec<c_char>,
 ) -> c_int {
     unsafe {
         let mut wordnr = startwordnr;
@@ -4945,37 +4962,27 @@ unsafe fn sug_filltable(
         let mut p = node;
         while !p.is_null() {
             if (*p).wn_byte == 0 {
-                (*gap).ga_len = 0;
+                gap.clear();
                 let mut prev_nr: c_int = 0;
                 let mut np = p;
                 while !np.is_null() && (*np).wn_byte == 0 {
-                    ga_grow(gap, 10);
-
                     let mut nr =
                         (((*np).wn_flags as c_int) << 16) + ((*np).wn_region as c_int & 0xffff);
                     nr -= prev_nr;
                     prev_nr += nr;
-                    (*gap).ga_len += offset2bytes(
-                        nr,
-                        (*gap)
-                            .ga_data
-                            .cast::<c_char>()
-                            .offset((*gap).ga_len as isize),
-                    );
+                    let mut obuf = [0 as c_char; 8];
+                    let olen = offset2bytes(nr, obuf.as_mut_ptr()) as usize;
+                    gap.extend_from_slice(&obuf[..olen]);
                     np = (*np).wn_sibling;
                 }
 
-                *(*gap)
-                    .ga_data
-                    .cast::<c_char>()
-                    .offset((*gap).ga_len as isize) = NUL;
-                (*gap).ga_len += 1;
+                gap.push(NUL);
 
                 if ml_append_buf(
                     (*spin).si_spellbuf,
                     wordnr as linenr_T,
-                    (*gap).ga_data.cast(),
-                    (*gap).ga_len,
+                    gap.as_mut_ptr(),
+                    gap.len() as c_int,
                     true,
                 ) == FAIL
                 {
@@ -5113,7 +5120,7 @@ unsafe fn mkspell(
         let mut fname: *mut c_char = ptr::null_mut();
         let mut afile = [ptr::null_mut::<afffile_T>(); MAXREGIONS];
         let mut error = false;
-        let mut spin: spellinfo_T = std::mem::zeroed();
+        let mut spin = spellinfo_T::default();
 
         spell_check_msm(p_msm, true);
 
@@ -5121,20 +5128,6 @@ unsafe fn mkspell(
         spin.si_ascii = c_int::from(ascii);
         spin.si_followup = 1;
         spin.si_rem_accents = 1;
-        ga_init(&raw mut spin.si_rep, size_of::<fromto_T>() as c_int, 20);
-        ga_init(&raw mut spin.si_repsal, size_of::<fromto_T>() as c_int, 20);
-        ga_init(&raw mut spin.si_sal, size_of::<fromto_T>() as c_int, 20);
-        ga_init(&raw mut spin.si_map, size_of::<c_char>() as c_int, 100);
-        ga_init(
-            &raw mut spin.si_comppat,
-            size_of::<*mut c_char>() as c_int,
-            20,
-        );
-        ga_init(
-            &raw mut spin.si_prefcond,
-            size_of::<*mut c_char>() as c_int,
-            50,
-        );
         hash_init(&raw mut spin.si_commonwords);
         spin.si_newcompID = 127;
 
@@ -5297,12 +5290,6 @@ unsafe fn mkspell(
                     }
                 }
 
-                ga_clear(&raw mut spin.si_rep);
-                ga_clear(&raw mut spin.si_repsal);
-                ga_clear(&raw mut spin.si_sal);
-                ga_clear(&raw mut spin.si_map);
-                ga_clear(&raw mut spin.si_comppat);
-                ga_clear(&raw mut spin.si_prefcond);
                 hash_clear_all(&raw mut spin.si_commonwords, 0);
 
                 for &af in afile.iter().take(incount as usize) {
@@ -5558,7 +5545,7 @@ unsafe fn init_spellfile() {
         let mut aspath = false;
         let mut lstart = (*curbuf).b_s.b_p_spl;
 
-        if *(*win_s(curwin)).b_p_spl == NUL || ga_empty(&raw const (*win_s(curwin)).b_langp) {
+        if *(*win_s(curwin)).b_p_spl == NUL || (*win_s(curwin)).b_langp.is_empty() {
             return;
         }
 
@@ -5676,16 +5663,13 @@ unsafe fn set_spell_finish(new_st: *mut spelltab_T) -> c_int {
     }
 }
 
-unsafe fn write_spell_prefcond(fd: *mut FILE, gap: *mut garray_T, fwv: *mut usize) -> c_int {
+unsafe fn write_spell_prefcond(fd: *mut FILE, gap: &[*mut c_char], fwv: *mut usize) -> c_int {
     unsafe {
-        debug_assert!((*gap).ga_len >= 0);
-
         if !fd.is_null() {
-            put_bytes(fd, (*gap).ga_len as u64, 2);
+            put_bytes(fd, gap.len() as u64, 2);
         }
-        let mut totlen = 2 + ((*gap).ga_len as usize);
-        for i in 0..((*gap).ga_len as usize) {
-            let p = *(*gap).ga_data.cast::<*mut c_char>().add(i);
+        let mut totlen = 2 + gap.len();
+        for &p in gap {
             if !p.is_null() {
                 let len = strlen(p);
                 if !fd.is_null() {

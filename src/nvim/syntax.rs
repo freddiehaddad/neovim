@@ -16,7 +16,6 @@ use crate::ex_docmd::{
     find_nextcmd, separate_nextcmd,
 };
 use crate::fold::{foldUpdateAll, foldmethodIsSyntax};
-use crate::garray::garray_T;
 use crate::globals::*;
 use crate::hashtab::{
     hash_T, hash_add_item, hash_clear, hash_find, hash_hash, hash_init, hash_lock, hash_lookup,
@@ -106,7 +105,7 @@ pub struct synblock_T {
     pub b_sst_check_lnum: i32,
     pub b_sst_lasttick: u64,
     pub b_idlist_cache: *mut c_void,
-    pub b_langp: garray_T,
+    pub b_langp: Vec<crate::spellsuggest::langp_T>,
     pub b_spell_ismw: [bool; 256],
     pub b_spell_ismw_mb: *mut c_char,
     pub b_p_spc: *mut c_char,
@@ -421,11 +420,6 @@ static mut expand_what: c_int = EXP_SUBCMD;
 #[inline]
 pub unsafe fn win_s(wp: *mut win_T) -> *mut synblock_T {
     unsafe { (*wp).w_s.cast::<synblock_T>() }
-}
-
-#[inline]
-pub unsafe fn ga_empty(gap: *const garray_T) -> bool {
-    unsafe { (*gap).ga_len <= 0 }
 }
 
 #[inline]
@@ -2952,6 +2946,7 @@ pub unsafe fn reset_synblock(wp: *mut win_T) {
     unsafe {
         if win_s(wp) != &raw mut (*(*wp).w_buffer).b_s {
             syntax_clear(win_s(wp));
+            (*win_s(wp)).b_langp = Vec::new();
             xfree((*wp).w_s);
             (*wp).w_s = (&raw mut (*(*wp).w_buffer).b_s).cast();
         }
@@ -5294,6 +5289,7 @@ pub unsafe fn ex_ownsyntax(eap: *mut exarg_T) {
             let new_s = xcalloc(1, size_of::<synblock_T>()).cast::<synblock_T>();
             ptr::write(&raw mut (*new_s).b_syn_patterns, Vec::new());
             ptr::write(&raw mut (*new_s).b_syn_clusters, Vec::new());
+            ptr::write(&raw mut (*new_s).b_langp, Vec::new());
             (*curwin).w_s = new_s.cast();
             hash_init(&raw mut (*new_s).b_keywtab);
             hash_init(&raw mut (*new_s).b_keywtab_ic);

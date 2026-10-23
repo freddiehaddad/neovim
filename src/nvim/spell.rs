@@ -18,7 +18,6 @@ use crate::ex_cmds::do_sub_msg;
 use crate::ex_docmd::{do_cmdline_cmd, exarg_T};
 use crate::ex_getln::hlf_T;
 use crate::extmark::{TriState, kFalse, kNone, kTrue};
-use crate::garray::{ga_clear, ga_clear_strings, ga_grow, ga_init, garray_T};
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::hashtab::{
@@ -146,7 +145,7 @@ struct spelload_T {
 }
 #[repr(C)]
 #[derive(Clone, Copy)]
-struct syl_item_T {
+pub struct syl_item_T {
     sy_chars: [c_char; SY_MAXLEN],
     sy_len: c_int,
 }
@@ -208,8 +207,8 @@ unsafe fn mb_cptr_adv(p: &mut *const c_char) {
 }
 
 #[inline]
-pub unsafe fn langp_entry(ga: *const garray_T, i: usize) -> *mut langp_T {
-    unsafe { ((*ga).ga_data.cast::<langp_T>()).add(i) }
+pub unsafe fn langp_entry(ga: *const Vec<langp_T>, i: usize) -> *mut langp_T {
+    unsafe { (*ga).as_ptr().cast_mut().add(i) }
 }
 /// Main spell-checking function.
 pub unsafe fn spell_check(
@@ -224,7 +223,7 @@ pub unsafe fn spell_check(
             return 1;
         }
         let w_s = (*wp).w_s.cast::<synblock_T>();
-        if (*w_s).b_langp.ga_len <= 0 {
+        if (*w_s).b_langp.is_empty() {
             return 1;
         }
         let mut nrlen: usize = 0;
@@ -290,7 +289,7 @@ pub unsafe fn spell_check(
         }
         mi.mi_result = SP_BAD;
         mi.mi_result2 = SP_BAD;
-        for lpi in 0..((*w_s).b_langp.ga_len as usize) {
+        for lpi in 0..(*w_s).b_langp.len() {
             mi.mi_lp = langp_entry(&raw const (*w_s).b_langp, lpi);
             if (*(*mi.mi_lp).lp_slang).sl_fidxs.is_null() {
                 continue;
@@ -620,7 +619,7 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
                     ) {
                         continue;
                     }
-                    if match_checkcompoundpattern(ptr, wlen, &raw mut (*slang).sl_comppat) {
+                    if match_checkcompoundpattern(ptr, wlen, &(*slang).sl_comppat) {
                         continue;
                     }
                     if mode == FIND_COMPOUND {
@@ -717,7 +716,7 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
                         (*mip).mi_compextra += 1;
                     }
                     let w_s = (*(*mip).mi_win).w_s.cast::<synblock_T>();
-                    for lpi in 0..((*w_s).b_langp.ga_len as usize) {
+                    for lpi in 0..(*w_s).b_langp.len() {
                         if (*slang).sl_nobreak {
                             (*mip).mi_lp = langp_entry(&raw const (*w_s).b_langp, lpi);
                             if (*(*(*mip).mi_lp).lp_slang).sl_fidxs.is_null()
@@ -791,14 +790,14 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
 pub unsafe fn match_checkcompoundpattern(
     ptr: *mut c_char,
     wlen: c_int,
-    gap: *mut garray_T,
+    gap: &[*mut c_char],
 ) -> bool {
     unsafe {
-        let mut i: c_int = 0;
-        while i + 1 < (*gap).ga_len {
-            let p2 = *((*gap).ga_data.cast::<*mut c_char>()).add((i + 1) as usize);
+        let mut i: usize = 0;
+        while i + 1 < gap.len() {
+            let p2 = gap[i + 1];
             if strncmp(ptr.add(wlen as usize), p2, strlen(p2)) == 0 {
-                let p1 = *((*gap).ga_data.cast::<*mut c_char>()).add(i as usize);
+                let p1 = gap[i];
                 let len = strlen(p1) as c_int;
                 if len <= wlen && strncmp(ptr.add((wlen - len) as usize), p1, len as usize) == 0 {
                     return true;
@@ -1020,15 +1019,14 @@ pub unsafe fn spell_check_window(wp: *mut win_T) -> bool {
         let w_s = (*wp).w_s.cast::<synblock_T>();
         (*wp).w_onebuf_opt.wo_spell != 0
             && *(*w_s).b_p_spl != NUL
-            && (*w_s).b_langp.ga_len > 0
-            && !(*((*w_s).b_langp.ga_data.cast::<*mut c_char>())).is_null()
+            && !(*w_s).b_langp.is_empty()
+            && !(&(*w_s).b_langp)[0].lp_slang.is_null()
     }
 }
 pub unsafe fn no_spell_checking(wp: *mut win_T) -> bool {
     unsafe {
         let w_s = (*wp).w_s.cast::<synblock_T>();
-        if (*wp).w_onebuf_opt.wo_spell == 0 || *(*w_s).b_p_spl == NUL || (*w_s).b_langp.ga_len <= 0
-        {
+        if (*wp).w_onebuf_opt.wo_spell == 0 || *(*w_s).b_p_spl == NUL || (*w_s).b_langp.is_empty() {
             emsg(gettext((&raw const e_no_spell).cast()));
             return true;
         }
@@ -1369,11 +1367,15 @@ unsafe fn int_wordlist_spl(fname: *mut c_char) {
 pub unsafe fn slang_alloc(lang: *mut c_char) -> *mut slang_T {
     unsafe {
         let lp = xcalloc(1, size_of::<slang_T>()).cast::<slang_T>();
+        ptr::write(&raw mut (*lp).sl_comppat, Vec::new());
+        ptr::write(&raw mut (*lp).sl_syl_items, Vec::new());
+        ptr::write(&raw mut (*lp).sl_rep, Vec::new());
+        ptr::write(&raw mut (*lp).sl_sal, Vec::new());
+        ptr::write(&raw mut (*lp).sl_sofo_sal, Vec::new());
+        ptr::write(&raw mut (*lp).sl_repsal, Vec::new());
         if !lang.is_null() {
             (*lp).sl_name = xstrdup(lang);
         }
-        ga_init(&raw mut (*lp).sl_rep, size_of::<fromto_T>() as c_int, 10);
-        ga_init(&raw mut (*lp).sl_repsal, size_of::<fromto_T>() as c_int, 10);
         (*lp).sl_compmax = MAXWLEN as c_int;
         (*lp).sl_compsylmax = MAXWLEN as c_int;
         hash_init(&raw mut (*lp).sl_wordcount);
@@ -1385,6 +1387,12 @@ pub unsafe fn slang_free(lp: *mut slang_T) {
         xfree((*lp).sl_name.cast());
         xfree((*lp).sl_fname.cast());
         slang_clear(lp);
+        ptr::drop_in_place(&raw mut (*lp).sl_comppat);
+        ptr::drop_in_place(&raw mut (*lp).sl_syl_items);
+        ptr::drop_in_place(&raw mut (*lp).sl_rep);
+        ptr::drop_in_place(&raw mut (*lp).sl_sal);
+        ptr::drop_in_place(&raw mut (*lp).sl_sofo_sal);
+        ptr::drop_in_place(&raw mut (*lp).sl_repsal);
         xfree(lp.cast());
     }
 }
@@ -1397,12 +1405,16 @@ unsafe fn free_salitem(smp: *mut salitem_T) {
         xfree((*smp).sm_to_w.cast());
     }
 }
-pub unsafe fn free_sal_items(gap: *mut garray_T) {
+pub unsafe fn free_sal_items(lp: *mut slang_T) {
     unsafe {
-        for i in 0..((*gap).ga_len as usize) {
-            free_salitem(((*gap).ga_data.cast::<salitem_T>()).add(i));
+        for mut item in (*lp).sl_sal.drain(..) {
+            free_salitem(&raw mut item);
         }
-        ga_clear(gap);
+        (*lp).sl_sal = Vec::new();
+        for p in (*lp).sl_sofo_sal.drain(..) {
+            xfree(p.cast());
+        }
+        (*lp).sl_sofo_sal = Vec::new();
     }
 }
 unsafe fn free_fromto(ftp: *mut fromto_T) {
@@ -1425,23 +1437,15 @@ pub unsafe fn slang_clear(lp: *mut slang_T) {
         (*lp).sl_kidxs = ptr::null_mut();
         xfree((*lp).sl_pidxs.cast());
         (*lp).sl_pidxs = ptr::null_mut();
-        for i in 0..((*lp).sl_rep.ga_len as usize) {
-            free_fromto(((*lp).sl_rep.ga_data.cast::<fromto_T>()).add(i));
+        for mut ft in (*lp).sl_rep.drain(..) {
+            free_fromto(&raw mut ft);
         }
-        ga_clear(&raw mut (*lp).sl_rep);
-        for i in 0..((*lp).sl_repsal.ga_len as usize) {
-            free_fromto(((*lp).sl_repsal.ga_data.cast::<fromto_T>()).add(i));
+        (*lp).sl_rep = Vec::new();
+        for mut ft in (*lp).sl_repsal.drain(..) {
+            free_fromto(&raw mut ft);
         }
-        ga_clear(&raw mut (*lp).sl_repsal);
-        let gap = &raw mut (*lp).sl_sal;
-        if (*lp).sl_sofo {
-            for i in 0..((*gap).ga_len as usize) {
-                xfree(*((*gap).ga_data.cast::<*mut c_void>()).add(i));
-            }
-            ga_clear(gap);
-        } else {
-            free_sal_items(gap);
-        }
+        (*lp).sl_repsal = Vec::new();
+        free_sal_items(lp);
         for i in 0..((*lp).sl_prefixcnt as usize) {
             vim_regfree((*(*lp).sl_prefprog.add(i)).cast());
         }
@@ -1462,8 +1466,9 @@ pub unsafe fn slang_clear(lp: *mut slang_T) {
         (*lp).sl_compallflags = ptr::null_mut();
         xfree((*lp).sl_syllable.cast());
         (*lp).sl_syllable = ptr::null_mut();
-        ga_clear(&raw mut (*lp).sl_syl_items);
-        ga_clear_strings(&raw mut (*lp).sl_comppat);
+        (*lp).sl_syl_items = Vec::new();
+        crate::path::clear_cstrings(&mut (*lp).sl_comppat);
+        (*lp).sl_comppat = Vec::new();
         hash_clear_all(
             &raw mut (*lp).sl_wordcount,
             std::mem::offset_of!(wordcount_T, wc_word) as u32,
@@ -1565,11 +1570,8 @@ pub unsafe fn byte_in_str(str_: *mut u8, n: c_int) -> bool {
 }
 pub unsafe fn init_syl_tab(slang: *mut slang_T) -> c_int {
     unsafe {
-        ga_init(
-            &raw mut (*slang).sl_syl_items,
-            size_of::<syl_item_T>() as c_int,
-            4,
-        );
+        let syl_items = &mut (*slang).sl_syl_items;
+        syl_items.clear();
         let mut p = vim_strchr((*slang).sl_syllable, b'/' as c_int);
         while !p.is_null() {
             *p = NUL;
@@ -1587,12 +1589,12 @@ pub unsafe fn init_syl_tab(slang: *mut slang_T) -> c_int {
             if l >= SY_MAXLEN {
                 return SP_FORMERROR;
             }
-            ga_grow(&raw mut (*slang).sl_syl_items, 1);
-            let syl = ((*slang).sl_syl_items.ga_data.cast::<syl_item_T>())
-                .add((*slang).sl_syl_items.ga_len as usize);
-            (*slang).sl_syl_items.ga_len += 1;
-            xmemcpyz((&raw mut (*syl).sy_chars).cast(), s.cast(), l);
-            (*syl).sy_len = l as c_int;
+            let mut syl = syl_item_T {
+                sy_chars: [0; SY_MAXLEN],
+                sy_len: l as c_int,
+            };
+            xmemcpyz((&raw mut syl.sy_chars).cast(), s.cast(), l);
+            syl_items.push(syl);
         }
         OK
     }
@@ -1612,16 +1614,11 @@ unsafe fn count_syllables(slang: *mut slang_T, word: *const c_char) -> c_int {
                 continue;
             }
             let mut len: c_int = 0;
-            for i in 0..((*slang).sl_syl_items.ga_len as usize) {
-                let syl = ((*slang).sl_syl_items.ga_data.cast::<syl_item_T>()).add(i);
-                if (*syl).sy_len > len
-                    && strncmp(
-                        p,
-                        (&raw const (*syl).sy_chars).cast(),
-                        (*syl).sy_len as usize,
-                    ) == 0
+            for syl in &(*slang).sl_syl_items {
+                if syl.sy_len > len
+                    && strncmp(p, syl.sy_chars.as_ptr(), syl.sy_len as usize) == 0
                 {
-                    len = (*syl).sy_len;
+                    len = syl.sy_len;
                 }
             }
             if len != 0 {
@@ -1661,14 +1658,7 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
             return ptr::null_mut();
         }
         parse_spelllang_recursive = true;
-        let mut ga = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: ptr::null_mut(),
-        };
-        ga_init(&raw mut ga, size_of::<langp_T>() as c_int, 2);
+        let mut ga: Vec<langp_T> = Vec::with_capacity(2);
         clear_midword(wp);
         let w_s = (*wp).w_s.cast::<synblock_T>();
         let spl_copy = xstrdup((*w_s).b_p_spl);
@@ -1755,7 +1745,6 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                             ret_msg = c"E797: SpellFileMissing autocommand deleted buffer"
                                 .as_ptr()
                                 .cast_mut();
-                            ga_clear(&raw mut ga);
                             break 'theend;
                         }
                     }
@@ -1788,13 +1777,12 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                             }
                         }
                         if region_mask != 0 {
-                            ga_grow(&raw mut ga, 1);
-                            let p_ = langp_entry(&raw const ga, ga.ga_len as usize);
-                            ga.ga_len += 1;
-                            (*p_).lp_slang = slang;
-                            (*p_).lp_sallang = ptr::null_mut();
-                            (*p_).lp_replang = ptr::null_mut();
-                            (*p_).lp_region = region_mask;
+                            ga.push(langp_T {
+                                lp_slang: slang,
+                                lp_sallang: ptr::null_mut(),
+                                lp_replang: ptr::null_mut(),
+                                lp_region: region_mask,
+                            });
                             use_midword(slang, wp);
                             if (*slang).sl_nobreak {
                                 nobreak = true;
@@ -1820,14 +1808,14 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                     let len = copy_option_part(&raw mut spf, spf_ptr, MAXPATHL - 4, c",".as_ptr());
                     strcpy(spf_ptr.add(len), c".spl".as_ptr());
                     let mut c = 0;
-                    while c < ga.ga_len as usize {
-                        let p = (*(*langp_entry(&raw const ga, c)).lp_slang).sl_fname;
+                    while c < ga.len() {
+                        let p = (*ga[c].lp_slang).sl_fname;
                         if !p.is_null() && path_equal(spf_ptr, p, kPathCmpExpand as PathCmpFlags) {
                             break;
                         }
                         c += 1;
                     }
-                    if c < ga.ga_len as usize {
+                    if c < ga.len() {
                         continue;
                     }
                 }
@@ -1865,50 +1853,44 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                         }
                     }
                     if region_mask != 0 {
-                        ga_grow(&raw mut ga, 1);
-                        let p_ = langp_entry(&raw const ga, ga.ga_len as usize);
-                        ga.ga_len += 1;
-                        (*p_).lp_slang = slang;
-                        (*p_).lp_sallang = ptr::null_mut();
-                        (*p_).lp_replang = ptr::null_mut();
-                        (*p_).lp_region = region_mask;
+                        ga.push(langp_T {
+                            lp_slang: slang,
+                            lp_sallang: ptr::null_mut(),
+                            lp_replang: ptr::null_mut(),
+                            lp_region: region_mask,
+                        });
                         use_midword(slang, wp);
                     }
                 }
             }
-            ga_clear(&raw mut (*w_s).b_langp);
-            (*w_s).b_langp = ga;
-            for i in 0..(ga.ga_len as usize) {
-                let lp = langp_entry(&raw const ga, i);
-                if (*(*lp).lp_slang).sl_sal.ga_len > 0 {
-                    (*lp).lp_sallang = (*lp).lp_slang;
+            for i in 0..ga.len() {
+                let lp_slang = ga[i].lp_slang;
+                if (*lp_slang).has_sal() {
+                    ga[i].lp_sallang = lp_slang;
                 } else {
-                    for j in 0..(ga.ga_len as usize) {
-                        let lp2 = langp_entry(&raw const ga, j);
-                        if (*(*lp2).lp_slang).sl_sal.ga_len > 0
-                            && strncmp((*(*lp).lp_slang).sl_name, (*(*lp2).lp_slang).sl_name, 2)
-                                == 0
+                    for lp2 in &ga {
+                        if (*lp2.lp_slang).has_sal()
+                            && strncmp((*lp_slang).sl_name, (*lp2.lp_slang).sl_name, 2) == 0
                         {
-                            (*lp).lp_sallang = (*lp2).lp_slang;
+                            ga[i].lp_sallang = lp2.lp_slang;
                             break;
                         }
                     }
                 }
-                if (*(*lp).lp_slang).sl_rep.ga_len > 0 {
-                    (*lp).lp_replang = (*lp).lp_slang;
+                if !(*lp_slang).sl_rep.is_empty() {
+                    ga[i].lp_replang = lp_slang;
                 } else {
-                    for j in 0..(ga.ga_len as usize) {
-                        let lp2 = langp_entry(&raw const ga, j);
-                        if (*(*lp2).lp_slang).sl_rep.ga_len > 0
-                            && strncmp((*(*lp).lp_slang).sl_name, (*(*lp2).lp_slang).sl_name, 2)
-                                == 0
+                    for lp2 in &ga {
+                        if !(*lp2.lp_slang).sl_rep.is_empty()
+                            && strncmp((*lp_slang).sl_name, (*lp2.lp_slang).sl_name, 2) == 0
                         {
-                            (*lp).lp_replang = (*lp2).lp_slang;
+                            ga[i].lp_replang = lp2.lp_slang;
                             break;
                         }
                     }
                 }
             }
+            (*w_s).b_langp = ga;
             redraw_later(wp, UPD_NOT_VALID);
         }
         xfree(spl_copy.cast());
@@ -2018,7 +2000,7 @@ pub unsafe fn spell_free_all() {
     unsafe {
         let mut buf = firstbuf;
         while !buf.is_null() {
-            ga_clear(&raw mut (*buf).b_s.b_langp);
+            (*buf).b_s.b_langp = Vec::new();
             buf = (*buf).b_next;
         }
         while !first_lang.is_null() {
@@ -2058,6 +2040,7 @@ pub unsafe fn open_spellbuf() -> *mut buf_T {
         ptr::write(&raw mut (*buf).update_callbacks, Vec::new());
         ptr::write(&raw mut (*buf).b_s.b_syn_patterns, Vec::new());
         ptr::write(&raw mut (*buf).b_s.b_syn_clusters, Vec::new());
+        ptr::write(&raw mut (*buf).b_s.b_langp, Vec::new());
         (*buf).b_spell = true;
         (*buf).b_p_swf = 1;
         if ml_open(buf) == FAIL {
@@ -2414,12 +2397,11 @@ pub unsafe fn eval_soundfold(word: *const c_char) -> *mut c_char {
     unsafe {
         let w_s = (*curwin).w_s.cast::<synblock_T>();
         if (*curwin).w_onebuf_opt.wo_spell != 0 && *(*w_s).b_p_spl != NUL {
-            for lpi in 0..((*w_s).b_langp.ga_len as usize) {
-                let lp = langp_entry(&raw const (*w_s).b_langp, lpi);
-                if (*(*lp).lp_slang).sl_sal.ga_len > 0 {
+            for lp in &(*w_s).b_langp {
+                if (*lp.lp_slang).has_sal() {
                     let mut sound: [c_char; MAXWLEN] = [0; MAXWLEN];
                     spell_soundfold(
-                        (*lp).lp_slang,
+                        lp.lp_slang,
                         word.cast_mut(),
                         false,
                         (&raw mut sound).cast(),
@@ -2470,8 +2452,7 @@ unsafe fn spell_soundfold_sofo(slang: *mut slang_T, inword: *const c_char, res: 
             } else if (0..256).contains(&c) {
                 c = (*slang).sl_sal_first[c as usize];
             } else {
-                let mut ip =
-                    *((*slang).sl_sal.ga_data.cast::<*mut c_int>()).add((c & 0xff) as usize);
+                let mut ip = (&(*slang).sl_sofo_sal)[(c & 0xff) as usize];
                 if ip.is_null() {
                     c = NUL as c_int;
                 } else {
@@ -2528,7 +2509,8 @@ unsafe fn spell_soundfold_wsal(slang: *mut slang_T, inword: *const c_char, res: 
             }
         }
         word[wordlen] = 0;
-        let smp = (*slang).sl_sal.ga_data.cast::<salitem_T>();
+        let smp = (*slang).sl_sal.as_mut_ptr();
+        let sl_sal_len = (*slang).sl_sal.len() as c_int;
         let mut wres: [c_int; MAXWLEN] = [0; MAXWLEN];
         let mut k: usize = 0;
         let mut p0: c_int = -333;
@@ -2540,7 +2522,7 @@ unsafe fn spell_soundfold_wsal(slang: *mut slang_T, inword: *const c_char, res: 
             let mut n = (*slang).sl_sal_first[(c & 0xff) as usize];
             let mut z0: c_int = 0;
             if n >= 0 {
-                while n < (*slang).sl_sal.ga_len {
+                while n < sl_sal_len {
                     let cur_n = n as usize;
                     let mut ws = (*smp.add(cur_n)).sm_lead_w;
                     if (*ws & 0xff) != (c & 0xff) || *ws == 0 {
@@ -2786,18 +2768,19 @@ pub unsafe fn ex_spellinfo(_eap: *mut exarg_T) {
         msg_ext_set_kind(c"list_cmd".as_ptr());
         msg_start();
         let w_s = (*curwin).w_s.cast::<synblock_T>();
-        let mut lpi: c_int = 0;
-        while lpi < (*w_s).b_langp.ga_len && !got_int {
-            let lp = langp_entry(&raw const (*w_s).b_langp, lpi as usize);
+        let len = (*w_s).b_langp.len();
+        let mut lpi: usize = 0;
+        while lpi < len && !got_int {
+            let lp = langp_entry(&raw const (*w_s).b_langp, lpi);
             msg_puts(c"file: ".as_ptr());
             msg_puts((*(*lp).lp_slang).sl_fname);
             let p = (*(*lp).lp_slang).sl_info;
-            if lpi < (*w_s).b_langp.ga_len || !p.is_null() {
+            if lpi < len || !p.is_null() {
                 msg_putchar(b'\n' as c_int);
             }
             if !p.is_null() {
                 msg_puts(p);
-                if lpi < (*w_s).b_langp.ga_len - 1 {
+                if lpi + 1 < len {
                     msg_putchar(b'\n' as c_int);
                 }
             }
@@ -2862,7 +2845,7 @@ pub unsafe fn spell_dump_compl(
             }
         }
         let w_s = (*curwin).w_s.cast::<synblock_T>();
-        for lpi in 0..((*w_s).b_langp.ga_len as usize) {
+        for lpi in 0..(*w_s).b_langp.len() {
             let lp = langp_entry(&raw const (*w_s).b_langp, lpi);
             let p = (&raw mut (*(*lp).lp_slang).sl_regions).cast::<c_char>();
             if *p != 0 {
@@ -2886,7 +2869,7 @@ pub unsafe fn spell_dump_compl(
         } else {
             do_region = false;
         }
-        for lpi in 0..((*w_s).b_langp.ga_len as usize) {
+        for lpi in 0..(*w_s).b_langp.len() {
             let lp = langp_entry(&raw const (*w_s).b_langp, lpi);
             let slang = (*lp).lp_slang;
             if (*slang).sl_fbyts.is_null() {
@@ -3245,16 +3228,10 @@ pub unsafe fn expand_spelling(
     matchp: *mut *mut *mut c_char,
 ) -> c_int {
     unsafe {
-        let mut ga = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: ptr::null_mut(),
-        };
-        spell_suggest_list(&raw mut ga, pat, 100, spell_expand_need_cap, true);
-        *matchp = ga.ga_data.cast();
-        ga.ga_len
+        let mut ga: Vec<*mut c_char> = Vec::new();
+        spell_suggest_list(&mut ga, pat, 100, spell_expand_need_cap, true);
+        *matchp = crate::path::slice_to_xmalloc(&ga);
+        ga.len() as c_int
     }
 }
 pub unsafe fn valid_spelllang(val: *const c_char) -> bool {

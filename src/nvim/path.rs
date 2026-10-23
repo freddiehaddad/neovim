@@ -2421,7 +2421,27 @@ mod tests {
 
             let inv3 = invocation_path_tail(c"exe a/b\\c".as_ptr(), &mut len);
             assert_eq!(len, 3);
-            assert_eq!(CStr::from_ptr(inv3).to_bytes(), b"exe a/b\\c");
+            assert_eq!(
+                CStr::from_ptr(inv3).to_bytes(),
+                b"exe a/b\\c"
+            );
+
+            let mut str_vec: Vec<*mut c_char> = Vec::new();
+            let empty_concat = concat_cstrings(&str_vec, c",".as_ptr());
+            assert_eq!(CStr::from_ptr(empty_concat).to_str().unwrap(), "");
+            xfree(empty_concat.cast());
+
+            for w in ["ccc", "aaa", "bbb", "aaa", "ccc"] {
+                let dup = xmallocz(w.len()).cast::<u8>();
+                std::ptr::copy_nonoverlapping(w.as_ptr(), dup, w.len());
+                str_vec.push(dup.cast::<c_char>());
+            }
+            remove_duplicate_strings(&mut str_vec);
+            assert_eq!(str_vec.len(), 3);
+            let joined = concat_cstrings(&str_vec, c",".as_ptr());
+            assert_eq!(CStr::from_ptr(joined).to_str().unwrap(), "aaa,bbb,ccc");
+            xfree(joined.cast());
+            clear_cstrings(&mut str_vec);
         }
     }
 

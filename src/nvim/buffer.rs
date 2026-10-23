@@ -45,7 +45,6 @@ use crate::fileio::{
 };
 use crate::fold::{clearFolding, cloneFoldGrowArray, deleteFoldRecurse, foldUpdateAll};
 use crate::fuzzy::{FUZZY_SCORE_NONE, fuzmatch_str_T, fuzzy_match_str, fuzzymatches_to_strmatches};
-use crate::garray::ga_clear;
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::hashtab::{hash_find, hash_init, hash_remove};
@@ -1448,7 +1447,7 @@ unsafe fn free_buffer_stuff(buf: *mut buf_T, free_flags: c_int) {
         if (free_flags & kBffClearWinInfo) != 0 {
             clear_wininfo(buf);
             free_buf_options(buf, true);
-            ga_clear(&raw mut (*buf).b_s.b_langp);
+            (*buf).b_s.b_langp = Vec::new();
         }
         {
             let changedtick_hi = hash_find(
@@ -2497,6 +2496,7 @@ pub unsafe fn buflist_new(
             ptr::write(&raw mut (*buf).update_callbacks, Vec::new());
             ptr::write(&raw mut (*buf).b_s.b_syn_patterns, Vec::new());
             ptr::write(&raw mut (*buf).b_s.b_syn_clusters, Vec::new());
+            ptr::write(&raw mut (*buf).b_s.b_langp, Vec::new());
             (*buf).b_vars = tv_dict_alloc();
             init_var_dict((*buf).b_vars, (&raw mut (*buf).b_bufvar).cast(), VAR_SCOPE);
             buf_init_changedtick(buf);
