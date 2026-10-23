@@ -835,10 +835,7 @@ static mut backpos: Vec<backpos_T> = Vec::new();
 pub(super) static mut behind_pos: regsave_T = unsafe { zeroed() };
 
 pub(super) static mut nfa_re_flags: c_int = 0;
-pub(super) static mut post_start: *mut c_int = ptr::null_mut();
-pub(super) static mut post_start_len: usize = 0;
-pub(super) static mut post_end: *mut c_int = ptr::null_mut();
-pub(super) static mut post_ptr: *mut c_int = ptr::null_mut();
+pub(super) static mut post_vec: Vec<c_int> = Vec::new();
 pub(super) static mut nfa_reg_parse_depth: c_int = 0;
 pub(super) static mut nstate: c_int = 0;
 pub(super) static mut istate: c_int = 0;
@@ -3038,9 +3035,8 @@ pub unsafe fn free_regexp_stuff() {
         *bp = Vec::new();
         xfree(reg_tofree.cast());
         xfree(reg_prev_sub.cast());
-        xfree(post_start.cast());
-        post_start = ptr::null_mut();
-        post_start_len = 0;
+        let pv = &raw mut post_vec;
+        *pv = Vec::new();
         xfree(nfa_stack.cast());
         nfa_stack = ptr::null_mut();
         nfa_stack_len = 0;

@@ -332,7 +332,7 @@ const fn empty_dict() -> dict_T {
         dv_copydict: ptr::null_mut(),
         dv_used_next: ptr::null_mut(),
         dv_used_prev: ptr::null_mut(),
-        watchers: [ptr::null_mut(); 2],
+        watchers: Vec::new(),
         lua_table_ref: 0,
     }
 }
@@ -2954,9 +2954,7 @@ pub unsafe fn init_var_dict(dict: *mut dict_T, dict_var: *mut ScopeDictDictItem,
         (*dict_var).di_tv.v_lock = VAR_FIXED;
         (*dict_var).di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
         (*dict_var).di_key[0] = NUL;
-        let q = (&raw mut (*dict).watchers).cast::<c_void>();
-        (*dict).watchers[0] = q;
-        (*dict).watchers[1] = q;
+        ptr::write(&raw mut (*dict).watchers, Vec::new());
     }
 }
 

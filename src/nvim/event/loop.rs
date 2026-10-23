@@ -105,9 +105,7 @@ pub struct LoopQueuesAndChildren {
     pub events: *mut MultiQueue,
     pub thread_events: *mut MultiQueue,
     pub fast_events: *mut MultiQueue,
-    pub children_size: usize,
-    pub children_capacity: usize,
-    pub children_items: *mut *mut c_void,
+    pub children: Vec<*mut c_void>,
 }
 
 unsafe extern "C" {
@@ -582,9 +580,7 @@ pub unsafe fn loop_init(loop_: *mut Loop, _data: *mut c_void) {
         *loop_.cast::<*mut Loop>() = loop_;
 
         let qc = loop_queues(loop_);
-        (*qc).children_size = 0;
-        (*qc).children_capacity = 0;
-        (*qc).children_items = ptr::null_mut();
+        ptr::write(&raw mut (*qc).children, Vec::new());
         (*qc).events = multiqueue_new(Some(loop_on_put), loop_);
         (*qc).fast_events = multiqueue_new_child((*qc).events);
         (*qc).thread_events = multiqueue_new(None, ptr::null_mut());
@@ -751,7 +747,7 @@ pub unsafe fn loop_close(loop_: *mut Loop, wait: bool) -> bool {
         multiqueue_free((*qc).fast_events);
         multiqueue_free((*qc).thread_events);
         multiqueue_free((*qc).events);
-        xfree((*qc).children_items.cast());
+        ptr::drop_in_place(&raw mut (*qc).children);
         rv
     }
 }

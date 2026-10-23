@@ -290,7 +290,7 @@ pub unsafe fn api_clear_string(s: *mut NvimString) {
 
 #[inline]
 pub unsafe fn tv_dict_is_watched(d: *const dict_T) -> bool {
-    unsafe { !d.is_null() && (*d).watchers[0].cast_const() != (&raw const (*d).watchers).cast() }
+    unsafe { !d.is_null() && !(*d).watchers.is_empty() }
 }
 
 pub trait IntoDictKey {

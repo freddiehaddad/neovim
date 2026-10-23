@@ -10,7 +10,7 @@ use crate::charset::{
 };
 use crate::eval::typval::{
     Callback, EvalFuncData, TV_CSTRING, TypvalVval, VAR_UNLOCKED, VarType, blob_T, callback_copy,
-    callback_free, callback_put, dict_T, dict_watchers_queue, dictitem_T, float_T, kCallbackExpr,
+    callback_free, callback_put, dict_T, dictitem_T, float_T, kCallbackExpr,
     kCallbackFuncref, kCallbackLua, kCallbackNone, kCallbackPartial, list_T, listitem_T,
     listwatch_T, partial_T, tv_blob_alloc, tv_blob_alloc_ret, tv_blob_check_index,
     tv_blob_check_range, tv_blob_copy, tv_blob_equal, tv_blob_free, tv_blob_get, tv_blob_len,
@@ -19,7 +19,7 @@ use crate::eval::typval::{
     tv_check_str, tv_clear, tv_copy, tv_dict_add, tv_dict_add_nr, tv_dict_alloc, tv_dict_copy,
     tv_dict_equal, tv_dict_find, tv_dict_free, tv_dict_free_contents, tv_dict_free_dict,
     tv_dict_get_callback, tv_dict_get_number, tv_dict_hi2di, tv_dict_item_alloc, tv_dict_item_free,
-    tv_dict_unref, tv_dict_watcher_node_data, tv_dict_watcher_notify, tv_dict_wrong_func_name,
+    tv_dict_unref, tv_dict_watcher_notify, tv_dict_wrong_func_name,
     tv_empty_string, tv_equal, tv_get_float, tv_get_number, tv_get_number_chk, tv_get_string,
     tv_get_string_buf, tv_get_string_buf_chk, tv_get_string_chk, tv_in_free_unref_items,
     tv_initial_value, tv_is_func, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict,
@@ -4832,12 +4832,8 @@ unsafe fn set_ref_in_item_dict(
         (*newitem).prev = *ht_stack;
         *ht_stack = newitem;
 
-        let head = dict_watchers_queue(dd);
-        let mut w = (*head).next;
-        while w != head {
-            let watcher = tv_dict_watcher_node_data(w);
+        for &watcher in &(*dd).watchers {
             set_ref_in_callback(&raw mut (*watcher).callback, copyID, ht_stack, list_stack);
-            w = (*w).next;
         }
 
         false

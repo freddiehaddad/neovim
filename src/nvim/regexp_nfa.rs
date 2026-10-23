@@ -187,11 +187,8 @@ static mut nfa_time_count: c_int = 0;
 #[inline]
 unsafe fn EMIT(c: c_int) {
     unsafe {
-        if post_ptr >= post_end {
-            realloc_post_list();
-        }
-        *post_ptr = c;
-        post_ptr = post_ptr.add(1);
+        let pv = &raw mut post_vec;
+        (*pv).push(c);
     }
 }
 
@@ -208,15 +205,9 @@ unsafe fn nfa_regcomp_start(expr: *mut u8, re_flags: c_int) {
         nstate = 0;
         istate = 0;
         let nstate_max = (strlen(expr.cast()) + 1) * 25 + 1000;
-        let postfix_size = size_of::<c_int>() * nstate_max;
-
-        if post_start.is_null() || post_start_len < nstate_max {
-            xfree(post_start.cast());
-            post_start = xmalloc(postfix_size).cast();
-            post_start_len = nstate_max;
-        }
-        post_ptr = post_start;
-        post_end = post_start.add(post_start_len);
+        let pv = &raw mut post_vec;
+        (*pv).clear();
+        (*pv).reserve(nstate_max);
         wants_nfa = false;
         rex.nfa_has_zend = 0;
         rex.nfa_has_backref = 0;
@@ -321,19 +312,6 @@ unsafe fn nfa_get_match_text(start: *mut nfa_state_T) -> *mut u8 {
         }
         *s = NUL;
         ret
-    }
-}
-
-unsafe fn realloc_post_list() {
-    unsafe {
-        let old_len = post_end.offset_from(post_start) as usize;
-        let new_max = old_len * 3 / 2;
-        let pos = post_ptr.offset_from(post_start) as usize;
-        let new_start = xrealloc(post_start.cast(), new_max * size_of::<c_int>()).cast::<c_int>();
-        post_ptr = new_start.add(pos);
-        post_end = new_start.add(new_max);
-        post_start = new_start;
-        post_start_len = new_max;
     }
 }
 
@@ -1423,7 +1401,8 @@ unsafe fn nfa_regatom() -> c_int {
                             if startc == 0 {
                                 EMIT(1);
                             } else {
-                                post_ptr = post_ptr.sub(1);
+                                let pv = &raw mut post_vec;
+                                (*pv).pop();
                             }
                             EMIT(endc);
                             EMIT(NFA_RANGE);
@@ -1535,7 +1514,8 @@ unsafe fn nfa_regpiece() -> c_int {
         let mut new_state: parse_state_T = zeroed();
 
         save_parse_state(&raw mut old_state);
-        let my_post_start = post_ptr.offset_from(post_start) as c_int;
+        let pv = &raw mut post_vec;
+        let my_post_start = (*pv).len();
 
         let ret = nfa_regatom();
         if ret == FAIL {
@@ -1607,7 +1587,7 @@ unsafe fn nfa_regpiece() -> c_int {
                     EMIT(NFA_STAR_NONGREEDY);
                 }
             } else if maxval == 0 {
-                post_ptr = post_start.add(my_post_start as usize);
+                (*pv).truncate(my_post_start);
                 EMIT(NFA_EMPTY);
                 return OK;
             } else {
@@ -1618,7 +1598,7 @@ unsafe fn nfa_regpiece() -> c_int {
                 {
                     return FAIL;
                 }
-                post_ptr = post_start.add(my_post_start as usize);
+                (*pv).truncate(my_post_start);
                 save_parse_state(&raw mut new_state);
 
                 let quest = if greedy {
@@ -1628,7 +1608,7 @@ unsafe fn nfa_regpiece() -> c_int {
                 };
                 for i in 0..maxval {
                     restore_parse_state(&raw mut old_state);
-                    let old_post_pos = post_ptr.offset_from(post_start) as c_int;
+                    let old_post_pos = (*pv).len();
                     if nfa_regatom() == FAIL {
                         return FAIL;
                     }
@@ -1723,27 +1703,28 @@ unsafe fn nfa_regconcat() -> c_int {
 
 unsafe fn nfa_regbranch() -> c_int {
     unsafe {
-        let mut old_post_pos = post_ptr.offset_from(post_start) as c_int;
+        let pv = &raw const post_vec;
+        let mut old_post_pos = (*pv).len();
         if nfa_regconcat() == FAIL {
             return FAIL;
         }
         while peekchr() == Magic(b'&' as c_int) {
             skipchr();
-            if old_post_pos == post_ptr.offset_from(post_start) as c_int {
+            if old_post_pos == (*pv).len() {
                 EMIT(NFA_EMPTY);
             }
             EMIT(NFA_NOPEN);
             EMIT(NFA_PREV_ATOM_NO_WIDTH);
-            old_post_pos = post_ptr.offset_from(post_start) as c_int;
+            old_post_pos = (*pv).len();
             if nfa_regconcat() == FAIL {
                 return FAIL;
             }
-            if old_post_pos == post_ptr.offset_from(post_start) as c_int {
+            if old_post_pos == (*pv).len() {
                 EMIT(NFA_EMPTY);
             }
             EMIT(NFA_CONCAT);
         }
-        if old_post_pos == post_ptr.offset_from(post_start) as c_int {
+        if old_post_pos == (*pv).len() {
             EMIT(NFA_EMPTY);
         }
         OK
@@ -1845,13 +1826,13 @@ unsafe fn nfa_reg(paren: c_int) -> c_int {
     }
 }
 
-unsafe fn re2post() -> *mut c_int {
+unsafe fn re2post() -> bool {
     unsafe {
         if nfa_reg(REG_NOPAREN) == FAIL {
-            return ptr::null_mut();
+            return false;
         }
         EMIT(NFA_MOPEN);
-        post_start
+        true
     }
 }
 
@@ -4742,12 +4723,14 @@ pub(super) unsafe fn nfa_regcomp(expr: *mut u8, re_flags: c_int) -> *mut regprog
         init_class_tab();
         nfa_regcomp_start(expr, re_flags);
 
-        let postfix = re2post();
-        if postfix.is_null() {
+        let pv = &raw const post_vec;
+        if !re2post() {
             return cleanup_nfa_regcomp(prog);
         }
 
-        post2nfa(postfix, post_ptr, true);
+        let postfix = (*pv).as_ptr().cast_mut();
+        let post_end_ptr = postfix.add((*pv).len());
+        post2nfa(postfix, post_end_ptr, true);
 
         let prog_size =
             offset_of!(nfa_regprog_T, state) + size_of::<nfa_state_T>() * (nstate as usize);
@@ -4757,7 +4740,7 @@ pub(super) unsafe fn nfa_regcomp(expr: *mut u8, re_flags: c_int) -> *mut regprog
         (*prog).listbuf[0] = ptr::null_mut();
         (*prog).listbuf[1] = ptr::null_mut();
 
-        (*prog).start = post2nfa(postfix, post_ptr, false);
+        (*prog).start = post2nfa(postfix, post_end_ptr, false);
         if (*prog).start.is_null() {
             xfree(prog.cast());
             prog = ptr::null_mut();
@@ -4784,13 +4767,12 @@ pub(super) unsafe fn nfa_regcomp(expr: *mut u8, re_flags: c_int) -> *mut regprog
 
 unsafe fn cleanup_nfa_regcomp(prog: *mut nfa_regprog_T) -> *mut regprog_T {
     unsafe {
-        if post_start_len > NFA_POSTFIX_KEEP {
-            xfree(post_start.cast());
-            post_start = ptr::null_mut();
-            post_start_len = 0;
+        let pv = &raw mut post_vec;
+        if (*pv).capacity() > NFA_POSTFIX_KEEP {
+            *pv = Vec::new();
+        } else {
+            (*pv).clear();
         }
-        post_ptr = ptr::null_mut();
-        post_end = ptr::null_mut();
         if nfa_stack_len > NFA_STACK_KEEP {
             xfree(nfa_stack.cast());
             nfa_stack = ptr::null_mut();

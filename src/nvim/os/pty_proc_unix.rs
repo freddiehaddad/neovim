@@ -615,8 +615,8 @@ mod unix_impl {
             let loop_ = *uv_loop.cast::<*mut Loop>();
             let qc = loop_queues(loop_);
 
-            for i in 0..(*qc).children_size {
-                let proc_ = *(*qc).children_items.add(i) as *mut Proc;
+            for &p in &(*qc).children {
+                let proc_ = p as *mut Proc;
                 let hdr = proc_header(proc_);
                 let proc_t = proc_tail(proc_);
 

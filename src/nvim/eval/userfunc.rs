@@ -983,6 +983,8 @@ unsafe fn free_funccal(fc: *mut funccall_T) {
         }
         (*fc).fc_ufuncs = Vec::new();
         (*fc).fc_defer = Vec::new();
+        crate::eval::typval::tv_dict_free_watchers(&raw mut (*fc).fc_l_vars);
+        crate::eval::typval::tv_dict_free_watchers(&raw mut (*fc).fc_l_avars);
 
         func_ptr_unref((*fc).fc_func);
         xfree(fc.cast());

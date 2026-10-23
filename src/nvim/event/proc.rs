@@ -18,7 +18,7 @@ use crate::event::stream::{
 };
 use crate::globals::*;
 use crate::main_init::{os_exit, preserve_exit};
-use crate::memory::{ARENA_BLOCK_SIZE, xrealloc};
+use crate::memory::ARENA_BLOCK_SIZE;
 use crate::os::proc::os_proc_tree_kill;
 use crate::os::pty_proc::{
     pty_proc_close, pty_proc_close_master, pty_proc_flush_master, pty_proc_spawn, pty_proc_teardown,
@@ -258,20 +258,7 @@ pub unsafe fn proc_spawn(proc_: *mut Proc, in_: bool, out: bool, err: bool) -> c
         (*hdr).refcount += 1;
 
         let qc = loop_queues((*hdr).loop_);
-        if (*qc).children_size == (*qc).children_capacity {
-            (*qc).children_capacity = if (*qc).children_capacity != 0 {
-                (*qc).children_capacity << 1
-            } else {
-                8
-            };
-            (*qc).children_items = xrealloc(
-                (*qc).children_items.cast(),
-                (*qc).children_capacity * size_of::<*mut c_void>(),
-            )
-            .cast();
-        }
-        *(*qc).children_items.add((*qc).children_size) = proc_;
-        (*qc).children_size += 1;
+        (*qc).children.push(proc_);
 
         0
     }
@@ -281,8 +268,8 @@ pub unsafe fn proc_teardown(loop_: *mut Loop) {
     unsafe {
         proc_is_tearing_down = true;
         let qc = loop_queues(loop_);
-        for i in 0..(*qc).children_size {
-            let proc_ = *(*qc).children_items.add(i) as *mut Proc;
+        for &p in &(*qc).children {
+            let proc_ = p as *mut Proc;
             let hdr = proc_header(proc_);
             let tail = proc_tail(proc_);
             if (*tail).detach || (*hdr).r#type == kProcTypePty {
@@ -293,7 +280,7 @@ pub unsafe fn proc_teardown(loop_: *mut Loop) {
         }
 
         loop_process_events_until(loop_, (*qc).events, -1, || {
-            (*qc).children_size == 0 && multiqueue_empty((*qc).events)
+            (*qc).children.is_empty() && multiqueue_empty((*qc).events)
         });
         pty_proc_teardown(loop_);
     }
@@ -401,8 +388,8 @@ unsafe extern "C" fn children_kill_cb(handle: *mut uv_timer_t) {
         let loop_ = *uv_loop.cast::<*mut Loop>();
         let qc = loop_queues(loop_);
 
-        for i in 0..(*qc).children_size {
-            let proc_ = *(*qc).children_items.add(i) as *mut Proc;
+        for &p in &(*qc).children {
+            let proc_ = p as *mut Proc;
             let hdr = proc_header(proc_);
             let exited = (*hdr).status >= 0;
             if exited || (*hdr).stopped_time == 0 {
@@ -451,22 +438,8 @@ unsafe fn decref(proc_: *mut Proc) {
 
         let loop_ = (*hdr).loop_;
         let qc = loop_queues(loop_);
-        let mut idx = (*qc).children_size;
-        for i in 0..(*qc).children_size {
-            if *(*qc).children_items.add(i) == proc_ {
-                idx = i;
-                break;
-            }
-        }
-        debug_assert!(idx < (*qc).children_size);
-        if idx < (*qc).children_size - 1 {
-            ptr::copy(
-                (*qc).children_items.add(idx + 1),
-                (*qc).children_items.add(idx),
-                (*qc).children_size - (idx + 1),
-            );
-        }
-        (*qc).children_size -= 1;
+        let idx = (*qc).children.iter().position(|&p| p == proc_).unwrap();
+        (*qc).children.remove(idx);
         create_event_1((*tail).events, proc_close_event, proc_);
     }
 }

@@ -47,7 +47,7 @@ use crate::mark::{
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strnicmp;
 use crate::memory::{
-    ARENA_BLOCK_SIZE, strequal, xcalloc, xfree, xmalloc, xmemdup, xmemdupz, xrealloc, xstrdup,
+    ARENA_BLOCK_SIZE, strequal, xcalloc, xfree, xmalloc, xmemdup, xmemdupz, xstrdup,
 };
 use crate::message::{semsg, siemsg, smsg, verbose_enter, verbose_leave};
 use crate::mpack::mpack_core::MPACK_OK;
@@ -369,9 +369,17 @@ struct FileMarks {
     marks: [ShadaEntry; NLOCALMARKS],
     changes: [ShadaEntry; JUMPLISTSIZE],
     changes_size: usize,
-    additional_marks: *mut ShadaEntry,
-    additional_marks_size: usize,
+    additional_marks: Vec<ShadaEntry>,
     greatest_timestamp: Timestamp,
+}
+
+#[inline]
+unsafe fn alloc_file_marks() -> *mut FileMarks {
+    unsafe {
+        let fm = xcalloc(1, std::mem::size_of::<FileMarks>()).cast::<FileMarks>();
+        ptr::write(&raw mut (*fm).additional_marks, Vec::new());
+        fm
+    }
 }
 
 #[repr(C)]
@@ -2089,25 +2097,17 @@ unsafe fn shada_read_when_writing(
                     let fname_bytes = CStr::from_ptr(entry.data.filemark.fname)
                         .to_bytes()
                         .to_vec();
-                    let filemarks = *(*wms).file_marks.entry(fname_bytes).or_insert_with(|| {
-                        xcalloc(1, std::mem::size_of::<FileMarks>()).cast::<FileMarks>()
-                    });
+                    let filemarks = *(*wms)
+                        .file_marks
+                        .entry(fname_bytes)
+                        .or_insert_with(|| alloc_file_marks());
                     if entry.timestamp > (*filemarks).greatest_timestamp {
                         (*filemarks).greatest_timestamp = entry.timestamp;
                     }
                     if entry.entry_type == ShadaEntryType::kSDItemLocalMark {
                         let idx = mark_local_index(entry.data.filemark.name);
                         if idx < 0 {
-                            (*filemarks).additional_marks_size += 1;
-                            (*filemarks).additional_marks = xrealloc(
-                                (*filemarks).additional_marks.cast::<c_void>(),
-                                (*filemarks).additional_marks_size
-                                    * std::mem::size_of::<ShadaEntry>(),
-                            )
-                            .cast::<ShadaEntry>();
-                            *(*filemarks)
-                                .additional_marks
-                                .add((*filemarks).additional_marks_size - 1) = entry;
+                            (*filemarks).additional_marks.push(entry);
                         } else {
                             let wms_entry = &raw mut (*filemarks).marks[idx as usize];
                             let mut set_wms = true;
@@ -2818,10 +2818,10 @@ unsafe fn shada_write(
                         let mut local_marks_iter: *const c_void = ptr::null();
                         let fname = (*buf).b_ffname;
                         let fname_bytes = CStr::from_ptr(fname).to_bytes().to_vec();
-                        let filemarks =
-                            *(*wms).file_marks.entry(fname_bytes).or_insert_with(|| {
-                                xcalloc(1, std::mem::size_of::<FileMarks>()).cast::<FileMarks>()
-                            });
+                        let filemarks = *(*wms)
+                            .file_marks
+                            .entry(fname_bytes)
+                            .or_insert_with(|| alloc_file_marks());
                         loop {
                             let mut fm = std::mem::zeroed::<fmark_T>();
                             let mut name: c_char = NUL;
@@ -2980,17 +2980,15 @@ unsafe fn shada_write(
                         break 'shada_write_exit ShaDaWriteResult::kSDWriteFailed;
                     }
                 }
-                for j in 0..(*fm_ptr).additional_marks_size {
-                    let add_ptr = (*fm_ptr).additional_marks.add(j);
-                    if shada_pack_entry(&mut packer, *add_ptr, 0)
+                for mut add_entry in (*fm_ptr).additional_marks.drain(..) {
+                    if shada_pack_entry(&mut packer, add_entry, 0)
                         == ShaDaWriteResult::kSDWriteFailed
                     {
-                        shada_free_shada_entry(add_ptr);
+                        shada_free_shada_entry(&mut add_entry);
                         break 'shada_write_exit ShaDaWriteResult::kSDWriteFailed;
                     }
-                    shada_free_shada_entry(add_ptr);
+                    shada_free_shada_entry(&mut add_entry);
                 }
-                xfree((*fm_ptr).additional_marks.cast::<c_void>());
             }
 
             if dump_history {
@@ -3020,6 +3018,10 @@ unsafe fn shada_write(
             }
         }
         for (_, val) in (*wms).file_marks.drain() {
+            for mut add_entry in (*val).additional_marks.drain(..) {
+                shada_free_shada_entry(&mut add_entry);
+            }
+            ptr::drop_in_place(&raw mut (*val).additional_marks);
             xfree(val.cast::<c_void>());
         }
         ptr::drop_in_place(&raw mut (*wms).file_marks);
