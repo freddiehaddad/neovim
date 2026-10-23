@@ -771,7 +771,6 @@ pub unsafe fn free_all_mem() {
     use crate::input_cmdatom::atom_free_all;
     use crate::insert::free_last_insert;
     use crate::insexpand::free_insexpand_stuff;
-    use crate::map::{Map, MapHash, Set};
     use crate::mapping::map_clear_mode;
     use crate::mark::free_all_marks;
     use crate::mcursor::mc_free_all;
@@ -791,27 +790,6 @@ pub unsafe fn free_all_mem() {
     use crate::ui_compositor::ui_comp_free_all_mem;
     use crate::usercmd::ex_comclear;
     use crate::window::{free_tabpage, win_free_all};
-
-    unsafe fn destroy_int_pmap(map: *mut Map<c_int, *mut c_void>) {
-        unsafe {
-            xfree((*map).set.keys.cast());
-            xfree((*map).set.h.hash.cast());
-            (*map).set = Set {
-                h: MapHash {
-                    n_buckets: 0,
-                    size: 0,
-                    n_occupied: 0,
-                    upper_bound: 0,
-                    n_keys: 0,
-                    keys_capacity: 0,
-                    hash: std::ptr::null_mut(),
-                },
-                keys: std::ptr::null_mut(),
-            };
-            xfree((*map).values.cast());
-            (*map).values = std::ptr::null_mut();
-        }
-    }
 
     unsafe {
         if entered_free_all_mem {
@@ -919,9 +897,12 @@ pub unsafe fn free_all_mem() {
         atom_free_all();
         mc_free_all();
 
-        destroy_int_pmap(&raw mut buffer_handles);
-        destroy_int_pmap(&raw mut window_handles);
-        destroy_int_pmap(&raw mut tabpage_handles);
+        let bh_ptr = &raw mut buffer_handles;
+        *bh_ptr = std::collections::BTreeMap::new();
+        let wh_ptr = &raw mut window_handles;
+        *wh_ptr = std::collections::BTreeMap::new();
+        let th_ptr = &raw mut tabpage_handles;
+        *th_ptr = std::collections::BTreeMap::new();
 
         grid_free_all_mem();
         stl_clear_click_defs(tab_page_click_defs, tab_page_click_defs_size);

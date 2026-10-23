@@ -54,7 +54,7 @@ use crate::indent_c::parse_cino;
 use crate::input::vgetc;
 use crate::insexpand::clear_cpt_callbacks;
 use crate::main_init::getout;
-use crate::map::{MH_TOMBSTONE, Map, map_del, map_put_ref, mh_get, ptr_t};
+use crate::map::Map;
 use crate::mapping::map_clear_mode;
 use crate::mark::{
     WinInfo, clear_fmark, clrallmarks, fmark_T, fmarks_check_names, free_fmark, mark_adjust_buf,
@@ -64,6 +64,7 @@ use crate::mark::{
 use crate::math::{FAIL, OK};
 use crate::mbyte::utf_cp_bounds;
 use crate::mcursor::{mc_buf_clear, mc_buf_free};
+use crate::memfile::memfile_T;
 use crate::memline::{
     ml_close, ml_delete, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len, ml_open, ml_recover,
     ml_setname, ml_timestamp,
@@ -528,24 +529,6 @@ use crate::os::fs::MAXPATHL;
 use crate::search::FORWARD;
 
 #[repr(C)]
-struct memfile_head_T {
-    mf_fname: *mut c_char,
-    mf_ffname: *mut c_char,
-    mf_fd: c_int,
-    mf_flags: c_int,
-    mf_reopen: bool,
-    mf_free_first: *mut c_void,
-    mf_hash: Map<i64, ptr_t>,
-    mf_trans: Map<i64, i64>,
-    mf_blocknr_max: i64,
-    mf_blocknr_min: i64,
-    mf_neg_count: i64,
-    mf_infile_count: i64,
-    mf_page_size: c_uint,
-    mf_dirty: c_int,
-}
-
-#[repr(C)]
 struct bufmatch_T {
     buf: *mut buf_T,
     match_: *mut c_char,
@@ -762,7 +745,7 @@ pub unsafe fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int)
         }
 
         if !(*curbuf).b_ml.ml_mfp.is_null() {
-            (*(*curbuf).b_ml.ml_mfp.cast::<memfile_head_T>()).mf_dirty = MF_DIRTY_YES_NOSYNC;
+            (*(*curbuf).b_ml.ml_mfp.cast::<memfile_T>()).mf_dirty = MF_DIRTY_YES_NOSYNC;
         }
 
         set_bufref(&raw mut old_curbuf, curbuf);
@@ -853,7 +836,7 @@ pub unsafe fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int)
         }
 
         if !(*curbuf).b_ml.ml_mfp.is_null() {
-            let mfp = (*curbuf).b_ml.ml_mfp.cast::<memfile_head_T>();
+            let mfp = (*curbuf).b_ml.ml_mfp.cast::<memfile_T>();
             if (*mfp).mf_dirty == MF_DIRTY_YES_NOSYNC {
                 (*mfp).mf_dirty = MF_DIRTY_YES;
             }
@@ -1388,7 +1371,8 @@ pub unsafe fn buf_freeall(buf: *mut buf_T, flags: c_int) -> bool {
 
 unsafe fn free_buffer(buf: *mut buf_T) {
     unsafe {
-        map_del(&raw mut buffer_handles, (*buf).b_fnum, ptr::null_mut());
+        let map_ptr = &raw mut buffer_handles;
+        (*map_ptr).remove(&(*buf).b_fnum);
         buf_free_count += 1;
         free_buffer_stuff(buf, kBffClearWinInfo);
         if (*(*buf).b_vars).dv_refcount > DO_NOT_FREE_CNT {
@@ -2532,12 +2516,8 @@ pub unsafe fn buflist_new(
 
             (*buf).b_fnum = top_file_num;
             top_file_num += 1;
-            *map_put_ref(
-                &raw mut buffer_handles,
-                (*buf).b_fnum,
-                ptr::null_mut(),
-                ptr::null_mut(),
-            ) = buf.cast();
+            let map_ptr = &raw mut buffer_handles;
+            (*map_ptr).insert((*buf).b_fnum, buf);
             if top_file_num < 0 {
                 emsg(gettext(
                     c"W14: Warning: List of file names overflow".as_ptr(),
@@ -3173,12 +3153,8 @@ pub unsafe fn buflist_findnr(mut nr: c_int) -> *mut buf_T {
         if nr == 0 {
             nr = (*curwin).w_alt_fnum;
         }
-        let k = mh_get(&raw mut buffer_handles.set, nr);
-        if k == MH_TOMBSTONE {
-            ptr::null_mut()
-        } else {
-            (*buffer_handles.values.add(k as usize)).cast::<buf_T>()
-        }
+        let map_ptr = &raw const buffer_handles;
+        (*map_ptr).get(&nr).copied().unwrap_or(ptr::null_mut())
     }
 }
 

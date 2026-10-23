@@ -2,8 +2,6 @@
 
 use crate::api::private::validate::NvimString;
 use crate::memory::{xcalloc, xfree, xrealloc};
-use crate::os::fs::{CASE_INSENSITIVE_FILENAME, MAXPATHL};
-use crate::path::{path_cmp, path_fold_char, vim_ispathsep, vim_ispathsep_nocolon};
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 const UPPER_FILL: f64 = 0.77;
@@ -31,10 +29,6 @@ pub struct MapHash {
 
 pub type cstr_t = *const c_char;
 pub type ptr_t = *mut c_void;
-
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug)]
-pub struct path_t(pub *const c_char);
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -248,44 +242,6 @@ unsafe fn equal_cstr(a: *const c_char, b: *const c_char) -> bool {
     unsafe { CStr::from_ptr(a).to_bytes() == CStr::from_ptr(b).to_bytes() }
 }
 
-unsafe fn hash_path(mut p: *const c_char) -> u32 {
-    let mut h: u32 = 0;
-    if cfg!(target_os = "windows") {
-        let c0 = unsafe { *p as u8 };
-        if c0.is_ascii_alphabetic() && unsafe { *p.add(1) as u8 } == b':' {
-            p = unsafe { p.add(2) };
-        }
-    }
-    let ic = CASE_INSENSITIVE_FILENAME;
-    let start = p;
-    let mut len: c_int = 0;
-    while unsafe { *p != 0 } {
-        let cur = unsafe { *p };
-        let next = unsafe { *p.add(1) };
-        if vim_ispathsep_nocolon(c_int::from(cur as u8))
-            && next == 0
-            && !std::ptr::eq(start, p)
-            && unsafe { !vim_ispathsep(c_int::from(*p.sub(1) as u8)) }
-        {
-            break;
-        }
-        let c = unsafe { path_fold_char(ic, p, &mut len) };
-        h = (h << 5).wrapping_sub(h).wrapping_add(c as u32);
-        p = unsafe { p.add(len as usize) };
-    }
-    h
-}
-
-unsafe fn equal_path(a: *const c_char, b: *const c_char) -> bool {
-    if std::ptr::eq(a, b) {
-        return true;
-    }
-    if a.is_null() || b.is_null() {
-        return false;
-    }
-    unsafe { path_cmp(CASE_INSENSITIVE_FILENAME, a, b, MAXPATHL) == 0 }
-}
-
 #[inline]
 const fn roundup32(mut x: u32) -> u32 {
     x = x.wrapping_sub(1);
@@ -384,17 +340,6 @@ impl MapKey for u64 {
     }
 }
 
-impl MapKey for i64 {
-    #[inline]
-    unsafe fn mh_hash(self) -> u32 {
-        hash_u64(self as u64)
-    }
-    #[inline]
-    unsafe fn mh_eq(self, other: Self) -> bool {
-        self == other
-    }
-}
-
 impl MapKey for ptr_t {
     #[inline]
     unsafe fn mh_hash(self) -> u32 {
@@ -421,17 +366,6 @@ impl MapKey for cstr_t {
     #[inline]
     unsafe fn mh_eq(self, other: Self) -> bool {
         unsafe { equal_cstr(self, other) }
-    }
-}
-
-impl MapKey for path_t {
-    #[inline]
-    unsafe fn mh_hash(self) -> u32 {
-        unsafe { hash_path(self.0) }
-    }
-    #[inline]
-    unsafe fn mh_eq(self, other: Self) -> bool {
-        unsafe { equal_path(self.0, other.0) }
     }
 }
 

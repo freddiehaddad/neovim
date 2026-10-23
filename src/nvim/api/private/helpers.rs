@@ -293,8 +293,6 @@ pub unsafe fn tv_dict_is_watched(d: *const dict_T) -> bool {
     unsafe { !d.is_null() && (*d).watchers[0].cast_const() != (&raw const (*d).watchers).cast() }
 }
 
-use crate::map::pmap_get_int;
-
 pub trait IntoDictKey {
     unsafe fn into_dict_key(self) -> NvimString;
 }
@@ -610,7 +608,8 @@ pub unsafe fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf
         if buffer == 0 {
             return curbuf;
         }
-        let rv = pmap_get_int(&raw mut buffer_handles, buffer).cast::<buf_T>();
+        let map_ptr = &raw const buffer_handles;
+        let rv = (*map_ptr).get(&buffer).copied().unwrap_or(ptr::null_mut());
         if rv.is_null() {
             api_set_error!(
                 err,
@@ -630,7 +629,8 @@ pub unsafe extern "C" fn find_window_by_handle(window: Window, err: *mut Error) 
         if window == 0 {
             return curwin;
         }
-        let rv = pmap_get_int(&raw mut window_handles, window).cast::<win_T>();
+        let map_ptr = &raw const window_handles;
+        let rv = (*map_ptr).get(&window).copied().unwrap_or(ptr::null_mut());
         if rv.is_null() {
             api_set_error!(
                 err,
@@ -649,7 +649,8 @@ pub unsafe fn find_tab_by_handle(tabpage: Tabpage, err: *mut Error) -> *mut tabp
         if tabpage == 0 {
             return curtab;
         }
-        let rv = pmap_get_int(&raw mut tabpage_handles, tabpage).cast::<tabpage_T>();
+        let map_ptr = &raw const tabpage_handles;
+        let rv = (*map_ptr).get(&tabpage).copied().unwrap_or(ptr::null_mut());
         if rv.is_null() {
             api_set_error!(
                 err,

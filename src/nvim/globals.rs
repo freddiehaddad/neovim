@@ -12,6 +12,7 @@ use crate::api::private::validate::NvimString;
 use crate::api::ui::NO_SCREEN;
 use crate::arglist::alist_T;
 use crate::buffer::{MAXLNUM, SEA_NONE, buf_T, bufref_T};
+use crate::channel::Channel;
 use crate::context::CtxWin;
 use crate::cursor::{colnr_T, linenr_T, pos_T};
 use crate::drawscreen::WinExtmark;
@@ -26,7 +27,7 @@ use crate::extmark::TriState;
 use crate::fileio::FILE;
 use crate::grid::{GridView, ScreenGrid, sattr_T, schar_T};
 use crate::lua::converter::nlua_ref_state_t;
-use crate::map::{Map, Set, ptr_t};
+use crate::map::{Map, Set};
 use crate::mapping::typebuf_T;
 use crate::mark::xfmark_T;
 use crate::r#match::{SearchState, match_T};
@@ -324,9 +325,12 @@ const SCREEN_GRID_INIT: ScreenGrid = ScreenGrid {
 pub static mut namespace_ids: Map<NvimString, c_int> = unsafe { zeroed() };
 pub static mut namespace_localscope: Set<u32> = unsafe { zeroed() };
 pub static mut next_namespace_id: handle_T = 1;
-pub static mut buffer_handles: Map<c_int, ptr_t> = unsafe { zeroed() };
-pub static mut window_handles: Map<c_int, ptr_t> = unsafe { zeroed() };
-pub static mut tabpage_handles: Map<c_int, ptr_t> = unsafe { zeroed() };
+pub static mut buffer_handles: std::collections::BTreeMap<c_int, *mut buf_T> =
+    std::collections::BTreeMap::new();
+pub static mut window_handles: std::collections::BTreeMap<c_int, *mut win_T> =
+    std::collections::BTreeMap::new();
+pub static mut tabpage_handles: std::collections::BTreeMap<c_int, *mut tabpage_T> =
+    std::collections::BTreeMap::new();
 pub static mut ui_ext_names: [*const c_char; 10] = [
     c"ext_cmdline".as_ptr(),
     c"ext_popupmenu".as_ptr(),
@@ -355,7 +359,8 @@ pub static mut did_cursorhold: bool = true;
 pub static mut deferred_events: *mut MultiQueue = ptr::null_mut();
 pub static mut msg_loclist: *mut c_char = c"[Location List]".as_ptr().cast_mut();
 pub static mut msg_qflist: *mut c_char = c"[Quickfix List]".as_ptr().cast_mut();
-pub static mut channels: Map<u64, ptr_t> = unsafe { zeroed() };
+pub static mut channels: std::collections::BTreeMap<u64, *mut Channel> =
+    std::collections::BTreeMap::new();
 pub static mut on_print: Callback = unsafe { zeroed() };
 pub static mut ctx_win_vec: Vec<CtxWin> = Vec::new();
 pub static mut virt_text_pos_str: [*const c_char; 6] = [

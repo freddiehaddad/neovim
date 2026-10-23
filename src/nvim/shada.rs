@@ -39,10 +39,6 @@ use crate::globals::*;
 use crate::hashtab::{hashitem_T, hashitem_empty};
 use crate::highlight::OptionalKeys;
 use crate::lua::converter::Boolean;
-use crate::map::{
-    MH_TOMBSTONE, MHPutStatus, Map, Set, cstr_t, empty_map, empty_set, map_del, map_destroy,
-    map_put_ref, map_ref, mh_get, mh_put, path_t, ptr_t, set_destroy, set_has_ptr, set_put_ptr,
-};
 use crate::mark::{
     EXTRA_MARKS, cleanup_jumplist, fmark_T, free_fmark, free_xfmark, mark_buffer_iter, mark_get,
     mark_global_index, mark_global_iter, mark_jumplist_iter, mark_set_global, mark_set_local,
@@ -75,12 +71,14 @@ use crate::os::fileio::{
     file_try_read_buffered,
 };
 use crate::os::fs::{
-    FileInfo, UV_ENOENT, os_fileinfo, os_getperm, os_isdir, os_mkdir_recurse, os_remove,
+    CASE_INSENSITIVE_FILENAME, FileInfo, UV_ENOENT, os_fileinfo, os_getperm, os_isdir,
+    os_mkdir_recurse, os_remove,
 };
 use crate::os::stdpaths::stdpaths_user_state_subpath;
 use crate::os::time::{Timestamp, os_time};
 use crate::path::{
-    concat_fnames_realloc, kPathCmpLiteral, path_equal, path_tail_with_sep, path_try_shorten_fname,
+    concat_fnames_realloc, kPathCmpLiteral, path_cmp, path_equal, path_fold_char,
+    path_tail_with_sep, path_try_shorten_fname, vim_ispathsep, vim_ispathsep_nocolon,
 };
 use crate::regexp::{kMarkBufLocal, regtilde};
 use crate::register::{
@@ -353,7 +351,7 @@ struct HMLList {
     last_free_entry: *mut HMLListEntry,
     size: usize,
     num_entries: usize,
-    contained_entries: Map<cstr_t, ptr_t>,
+    contained_entries: std::collections::HashMap<Vec<u8>, *mut HMLListEntry>,
 }
 
 #[repr(C)]
@@ -387,8 +385,8 @@ struct WriteMergerState {
     search_pattern: ShadaEntry,
     sub_search_pattern: ShadaEntry,
     replacement: ShadaEntry,
-    dumped_variables: Set<cstr_t>,
-    file_marks: Map<cstr_t, ptr_t>,
+    dumped_variables: std::collections::HashSet<Vec<u8>>,
+    file_marks: std::collections::HashMap<Vec<u8>, *mut FileMarks>,
 }
 
 const MISSING_ENTRY: ShadaEntry = ShadaEntry {
@@ -619,48 +617,71 @@ const fn mark_local_index(name: c_char) -> c_int {
     }
 }
 
-#[inline]
-unsafe fn set_has_cstr(set: *mut Set<cstr_t>, key: cstr_t) -> bool {
-    unsafe { mh_get(set, key) != MH_TOMBSTONE }
-}
+#[derive(Clone, Copy)]
+struct PathKey(*const c_char);
 
-#[inline]
-unsafe fn set_put_cstr(set: *mut Set<cstr_t>, key: cstr_t) -> bool {
-    let mut status = MHPutStatus::kMHExisting;
-    unsafe {
-        mh_put(set, key, &mut status);
+impl PartialEq for PathKey {
+    fn eq(&self, other: &Self) -> bool {
+        if ptr::eq(self.0, other.0) {
+            return true;
+        }
+        if self.0.is_null() || other.0.is_null() {
+            return false;
+        }
+        unsafe { path_cmp(CASE_INSENSITIVE_FILENAME, self.0, other.0, MAXPATHL) == 0 }
     }
-    status != MHPutStatus::kMHExisting
 }
 
-#[inline]
-unsafe fn set_has_path(set: *mut Set<path_t>, key: *const c_char) -> bool {
-    unsafe { mh_get(set, path_t(key)) != MH_TOMBSTONE }
-}
+impl Eq for PathKey {}
 
-#[inline]
-unsafe fn set_put_path(set: *mut Set<path_t>, key: *const c_char) -> bool {
-    let mut status = MHPutStatus::kMHExisting;
-    unsafe {
-        mh_put(set, path_t(key), &mut status);
+impl std::hash::Hash for PathKey {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        let mut p = self.0;
+        let mut h: u32 = 0;
+        if cfg!(target_os = "windows") {
+            let c0 = unsafe { *p as u8 };
+            if c0.is_ascii_alphabetic() && unsafe { *p.add(1) as u8 } == b':' {
+                p = unsafe { p.add(2) };
+            }
+        }
+        let ic = CASE_INSENSITIVE_FILENAME;
+        let start = p;
+        let mut len: c_int = 0;
+        while unsafe { *p != 0 } {
+            let cur = unsafe { *p };
+            let next = unsafe { *p.add(1) };
+            if vim_ispathsep_nocolon(c_int::from(cur as u8))
+                && next == 0
+                && !ptr::eq(start, p)
+                && unsafe { !vim_ispathsep(c_int::from(*p.sub(1) as u8)) }
+            {
+                break;
+            }
+            let c = unsafe { path_fold_char(ic, p, &mut len) };
+            h = (h << 5).wrapping_sub(h).wrapping_add(c as u32);
+            p = unsafe { p.add(len as usize) };
+        }
+        state.write_u32(h);
     }
-    status != MHPutStatus::kMHExisting
 }
 
 #[inline]
 unsafe fn hmll_init(hmll: *mut HMLList, size: usize) {
     unsafe {
         let entries = xcalloc(size, std::mem::size_of::<HMLListEntry>()).cast::<HMLListEntry>();
-        *hmll = HMLList {
-            entries,
-            first: ptr::null_mut(),
-            last: ptr::null_mut(),
-            free_entry: ptr::null_mut(),
-            last_free_entry: entries,
-            size,
-            num_entries: 0,
-            contained_entries: empty_map(),
-        };
+        ptr::write(
+            hmll,
+            HMLList {
+                entries,
+                first: ptr::null_mut(),
+                last: ptr::null_mut(),
+                free_entry: ptr::null_mut(),
+                last_free_entry: entries,
+                size,
+                num_entries: 0,
+                contained_entries: std::collections::HashMap::new(),
+            },
+        );
     }
 }
 
@@ -673,12 +694,9 @@ unsafe fn hmll_remove(hmll: *mut HMLList, hmll_entry: *mut HMLListEntry) {
             assert!((*hmll).free_entry.is_null());
             (*hmll).free_entry = hmll_entry;
         }
-        let val = map_del(
-            &mut (*hmll).contained_entries,
-            (*hmll_entry).data.data.history_item.string,
-            ptr::null_mut(),
-        );
-        assert!(!val.is_null());
+        let key = CStr::from_ptr((*hmll_entry).data.data.history_item.string).to_bytes();
+        let val = (*hmll).contained_entries.remove(key);
+        assert!(val.is_some());
         if (*hmll_entry).next.is_null() {
             (*hmll).last = (*hmll_entry).prev;
         } else {
@@ -721,16 +739,10 @@ unsafe fn hmll_insert(hmll: *mut HMLList, mut hmll_entry: *mut HMLListEntry, dat
             (*hmll).free_entry = ptr::null_mut();
         }
         (*target_entry).data = data;
-        let mut new_item = false;
-        let val = map_put_ref(
-            &mut (*hmll).contained_entries,
-            data.data.history_item.string,
-            ptr::null_mut(),
-            &mut new_item,
-        );
-        if new_item {
-            *val = target_entry.cast::<c_void>();
-        }
+        let key = CStr::from_ptr(data.data.history_item.string)
+            .to_bytes()
+            .to_vec();
+        (*hmll).contained_entries.entry(key).or_insert(target_entry);
         (*hmll).num_entries += 1;
         (*target_entry).prev = hmll_entry;
         if hmll_entry.is_null() {
@@ -751,7 +763,7 @@ unsafe fn hmll_insert(hmll: *mut HMLList, mut hmll_entry: *mut HMLListEntry, dat
 #[inline]
 unsafe fn hmll_dealloc(hmll: *mut HMLList) {
     unsafe {
-        map_destroy(&mut (*hmll).contained_entries);
+        (*hmll).contained_entries = std::collections::HashMap::new();
         xfree((*hmll).entries.cast::<c_void>());
     }
 }
@@ -917,20 +929,13 @@ unsafe fn hms_insert(hms_p: *mut HistoryMergerState, entry: ShadaEntry, do_iter:
             }
         }
         let hmll = &mut (*hms_p).hmll;
-        let mut key_alloc: *mut cstr_t = ptr::null_mut();
-        let val = map_ref(
-            &mut hmll.contained_entries,
-            entry.data.history_item.string,
-            &mut key_alloc,
-        );
-        if !val.is_null() {
-            let existing_entry = (*val).cast::<HMLListEntry>();
+        let key = CStr::from_ptr(entry.data.history_item.string).to_bytes();
+        if let Some(&existing_entry) = hmll.contained_entries.get(key) {
             if entry.timestamp > (*existing_entry).data.timestamp {
                 hmll_remove(hmll, existing_entry);
             } else if !do_iter && entry.timestamp == (*existing_entry).data.timestamp {
                 shada_free_shada_entry(&mut (*existing_entry).data);
                 (*existing_entry).data = entry;
-                *key_alloc = entry.data.history_item.string;
                 return;
             } else {
                 return;
@@ -1060,26 +1065,25 @@ unsafe fn var_shada_iter(
     }
 }
 
-unsafe fn find_buffer(fname_bufs: *mut Map<cstr_t, ptr_t>, fname: *const c_char) -> *mut buf_T {
+unsafe fn find_buffer(
+    fname_bufs: &mut std::collections::HashMap<Vec<u8>, *mut buf_T>,
+    fname: *const c_char,
+) -> *mut buf_T {
     unsafe {
-        let mut key_alloc: *mut cstr_t = ptr::null_mut();
-        let mut new_item = false;
-        let r = map_put_ref(fname_bufs, fname, &mut key_alloc, &mut new_item).cast::<*mut buf_T>();
-        if new_item {
-            *key_alloc = xstrdup(fname);
-        } else {
-            return *r;
+        let key = CStr::from_ptr(fname).to_bytes();
+        if let Some(&buf) = fname_bufs.get(key) {
+            return buf;
         }
 
         let mut buf = firstbuf;
         while !buf.is_null() {
             if !(*buf).b_ffname.is_null() && path_equal(fname, (*buf).b_ffname, kPathCmpLiteral) {
-                *r = buf;
+                fname_bufs.insert(key.to_vec(), buf);
                 return buf;
             }
             buf = (*buf).b_next;
         }
-        *r = ptr::null_mut();
+        fname_bufs.insert(key.to_vec(), ptr::null_mut());
         ptr::null_mut()
     }
 }
@@ -1160,16 +1164,34 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
         if srni_flags == 0 {
             return;
         }
-        let mut hms = std::mem::zeroed::<[HistoryMergerState; HIST_COUNT]>();
+        let mut hms: [HistoryMergerState; HIST_COUNT] = std::array::from_fn(|_| HistoryMergerState {
+            hmll: HMLList {
+                entries: ptr::null_mut(),
+                first: ptr::null_mut(),
+                last: ptr::null_mut(),
+                free_entry: ptr::null_mut(),
+                last_free_entry: ptr::null_mut(),
+                size: 0,
+                num_entries: 0,
+                contained_entries: std::collections::HashMap::new(),
+            },
+            do_merge: false,
+            reading: false,
+            iter: ptr::null(),
+            last_hist_entry: MISSING_ENTRY,
+            history_type: 0,
+        });
         if (srni_flags & kSDReadHistory) != 0 {
             for (i, hm) in hms.iter_mut().enumerate().take(HIST_COUNT) {
                 hms_init(hm, i as u8, p_hi as usize, true, true);
             }
         }
         let mut cur_entry = MISSING_ENTRY;
-        let mut cl_bufs: Set<ptr_t> = empty_set();
-        let mut fname_bufs: Map<cstr_t, ptr_t> = empty_map();
-        let mut oldfiles_set: Set<path_t> = empty_set();
+        let mut cl_bufs: std::collections::HashSet<*mut buf_T> = std::collections::HashSet::new();
+        let mut fname_bufs: std::collections::HashMap<Vec<u8>, *mut buf_T> =
+            std::collections::HashMap::new();
+        let mut oldfiles_set: std::collections::HashSet<PathKey> =
+            std::collections::HashSet::new();
         if get_old_files && (oldfiles_list.is_null() || force) {
             oldfiles_list = tv_list_alloc(kListLenUnknown);
             set_vim_var_list(VV_OLDFILES, oldfiles_list);
@@ -1401,14 +1423,13 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                     shada_free_shada_entry(&mut cur_entry);
                 }
                 ShadaEntryType::kSDItemChange | ShadaEntryType::kSDItemLocalMark => {
-                    if get_old_files
-                        && !set_has_path(&mut oldfiles_set, cur_entry.data.filemark.fname)
+                    if get_old_files && !oldfiles_set.contains(&PathKey(cur_entry.data.filemark.fname))
                     {
                         let mut fname = cur_entry.data.filemark.fname;
                         if want_marks {
                             fname = xstrdup(fname);
                         }
-                        set_put_path(&mut oldfiles_set, fname);
+                        oldfiles_set.insert(PathKey(fname));
                         tv_list_append_allocated_string(oldfiles_list, fname);
                         if !want_marks {
                             cur_entry.data.filemark.fname = ptr::null_mut();
@@ -1436,7 +1457,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                             continue;
                         }
                     } else {
-                        set_put_ptr(&mut cl_bufs, buf.cast::<c_void>());
+                        cl_bufs.insert(buf);
                         let mut i = (*buf).b_changelistlen;
                         while i > 0 {
                             let jl_entry = (*buf).b_changelist[(i - 1) as usize];
@@ -1484,7 +1505,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                 hms_dealloc(hm);
             }
         }
-        if cl_bufs.h.n_occupied != 0 {
+        if !cl_bufs.is_empty() {
             let mut tp = first_tabpage;
             while !tp.is_null() {
                 let mut wp = if tp == curtab {
@@ -1493,7 +1514,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                     (*tp).tp_firstwin
                 };
                 while !wp.is_null() {
-                    if set_has_ptr(&mut cl_bufs, (*wp).w_buffer.cast::<c_void>()) {
+                    if cl_bufs.contains(&(*wp).w_buffer) {
                         (*wp).w_changelistidx = (*(*wp).w_buffer).b_changelistlen;
                     }
                     wp = (*wp).w_next;
@@ -1501,13 +1522,6 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                 tp = (*tp).tp_next;
             }
         }
-        set_destroy(&mut cl_bufs);
-        for i in 0..fname_bufs.set.h.n_keys {
-            let key = *fname_bufs.set.keys.add(i as usize);
-            xfree(key.cast_mut().cast::<c_void>());
-        }
-        map_destroy(&mut fname_bufs);
-        set_destroy(&mut oldfiles_set);
     }
 }
 
@@ -2001,7 +2015,8 @@ unsafe fn shada_read_when_writing(
                     compare_with_entry(&raw mut (*wms).registers[u_idx], entry);
                 }
                 ShadaEntryType::kSDItemVariable => {
-                    if !set_has_cstr(&mut (*wms).dumped_variables, entry.data.global_var.name) {
+                    let var_name = CStr::from_ptr(entry.data.global_var.name).to_bytes();
+                    if !(*wms).dumped_variables.contains(var_name) {
                         ret = shada_pack_entry(packer, entry, 0);
                     }
                     shada_free_shada_entry(&mut entry);
@@ -2071,17 +2086,12 @@ unsafe fn shada_read_when_writing(
                         shada_free_shada_entry(&mut entry);
                         continue;
                     }
-                    let fname = entry.data.filemark.fname;
-                    let mut key: *mut cstr_t = ptr::null_mut();
-                    let mut new_item = false;
-                    let val = map_put_ref(&mut (*wms).file_marks, fname, &mut key, &mut new_item);
-                    if new_item {
-                        *key = xstrdup(fname);
-                    }
-                    if (*val).is_null() {
-                        *val = xcalloc(1, std::mem::size_of::<FileMarks>());
-                    }
-                    let filemarks = (*val).cast::<FileMarks>();
+                    let fname_bytes = CStr::from_ptr(entry.data.filemark.fname)
+                        .to_bytes()
+                        .to_vec();
+                    let filemarks = *(*wms).file_marks.entry(fname_bytes).or_insert_with(|| {
+                        xcalloc(1, std::mem::size_of::<FileMarks>()).cast::<FileMarks>()
+                    });
                     if entry.timestamp > (*filemarks).greatest_timestamp {
                         (*filemarks).greatest_timestamp = entry.timestamp;
                     }
@@ -2107,9 +2117,6 @@ unsafe fn shada_read_when_writing(
                                     continue;
                                 }
                                 if (*wms_entry).can_free_entry {
-                                    if *key == (*wms_entry).data.filemark.fname.cast_const() {
-                                        *key = entry.data.filemark.fname;
-                                    }
                                     shada_free_shada_entry(wms_entry);
                                 }
                             } else {
@@ -2216,19 +2223,24 @@ unsafe fn shada_read_when_writing(
 }
 
 #[inline]
-unsafe fn ignore_buf(buf: *const buf_T, removable_bufs: *mut Set<ptr_t>) -> bool {
+unsafe fn ignore_buf(
+    buf: *const buf_T,
+    removable_bufs: &std::collections::HashSet<*mut buf_T>,
+) -> bool {
     unsafe {
         buf.is_null()
             || (*buf).b_ffname.is_null()
             || ((*buf).b_p_bl == 0 && (*buf).b_p_initialized)
             || bt_quickfix(buf)
             || bt_terminal(buf)
-            || set_has_ptr(removable_bufs, buf.cast_mut().cast::<c_void>())
+            || removable_bufs.contains(&buf.cast_mut())
     }
 }
 
 #[inline]
-unsafe fn shada_get_buflist(removable_bufs: *mut Set<ptr_t>) -> ShadaEntry {
+unsafe fn shada_get_buflist(
+    removable_bufs: &std::collections::HashSet<*mut buf_T>,
+) -> ShadaEntry {
     unsafe {
         let max_bufs = get_shada_parameter(b'%' as c_int);
         let mut buf_count = 0usize;
@@ -2399,12 +2411,12 @@ unsafe fn replace_numbered_mark(wms: *mut WriteMergerState, idx: usize, entry: S
 }
 
 #[inline]
-unsafe fn find_removable_bufs(removable_bufs: *mut Set<ptr_t>) {
+unsafe fn find_removable_bufs(removable_bufs: &mut std::collections::HashSet<*mut buf_T>) {
     unsafe {
         let mut buf = firstbuf;
         while !buf.is_null() {
             if !(*buf).b_ffname.is_null() && shada_removable((*buf).b_ffname) {
-                set_put_ptr(removable_bufs, buf.cast::<c_void>());
+                removable_bufs.insert(buf);
             }
             buf = (*buf).b_next;
         }
@@ -2462,6 +2474,11 @@ unsafe fn shada_write(
         }
 
         let wms = xcalloc(1, std::mem::size_of::<WriteMergerState>()).cast::<WriteMergerState>();
+        ptr::write(
+            &raw mut (*wms).dumped_variables,
+            std::collections::HashSet::new(),
+        );
+        ptr::write(&raw mut (*wms).file_marks, std::collections::HashMap::new());
         let mut dump_one_history = [false; HIST_COUNT];
         let dump_global_vars = !find_shada_parameter(b'!' as c_int).is_null();
         let mut max_reg_lines = get_shada_parameter(b'<' as c_int);
@@ -2469,7 +2486,8 @@ unsafe fn shada_write(
             max_reg_lines = get_shada_parameter(b'"' as c_int);
         }
         let dump_registers = max_reg_lines != 0;
-        let mut removable_bufs: Set<ptr_t> = empty_set();
+        let mut removable_bufs: std::collections::HashSet<*mut buf_T> =
+            std::collections::HashSet::new();
         let max_kbyte = max_kbyte_i as usize;
         let num_marked_files = get_shada_parameter(b'\'' as c_int) as usize;
         let dump_global_marks = get_shada_parameter(b'f' as c_int) != 0;
@@ -2604,7 +2622,7 @@ unsafe fn shada_write(
             }
 
             if !find_shada_parameter(b'%' as c_int).is_null() {
-                let buflist_entry = shada_get_buflist(&mut removable_bufs);
+                let buflist_entry = shada_get_buflist(&removable_bufs);
                 if shada_pack_entry(&mut packer, buflist_entry, 0)
                     == ShaDaWriteResult::kSDWriteFailed
                 {
@@ -2679,7 +2697,9 @@ unsafe fn shada_write(
                         tv_clear(&mut vartv);
                         tv_clear(&mut tgttv);
                         if spe_ret == ShaDaWriteResult::kSDWriteSuccessful {
-                            set_put_cstr(&mut (*wms).dumped_variables, name);
+                            (*wms)
+                                .dumped_variables
+                                .insert(CStr::from_ptr(name).to_bytes().to_vec());
                         }
                     }
                     if var_iter.is_null() {
@@ -2691,7 +2711,7 @@ unsafe fn shada_write(
             if num_marked_files > 0 {
                 (*wms).jumps_size = shada_init_jumps(
                     (&raw mut (*wms).jumps).cast::<ShadaEntry>(),
-                    &mut removable_bufs,
+                    &removable_bufs,
                 );
             }
 
@@ -2753,7 +2773,7 @@ unsafe fn shada_write(
                         let buf = buflist_findnr(fm.fmark.fnum);
                         if buf.is_null()
                             || (*buf).b_ffname.is_null()
-                            || set_has_ptr(&mut removable_bufs, buf.cast::<c_void>())
+                            || removable_bufs.contains(&buf)
                         {
                             if global_mark_iter.is_null() {
                                 break;
@@ -2794,20 +2814,14 @@ unsafe fn shada_write(
             if num_marked_files > 0 {
                 let mut buf = firstbuf;
                 while !buf.is_null() {
-                    if !ignore_buf(buf, &mut removable_bufs) {
+                    if !ignore_buf(buf, &removable_bufs) {
                         let mut local_marks_iter: *const c_void = ptr::null();
                         let fname = (*buf).b_ffname;
-                        let mut map_key: *mut cstr_t = ptr::null_mut();
-                        let mut new_item = false;
-                        let val =
-                            map_put_ref(&mut (*wms).file_marks, fname, &mut map_key, &mut new_item);
-                        if new_item {
-                            *map_key = xstrdup(fname);
-                        }
-                        if (*val).is_null() {
-                            *val = xcalloc(1, std::mem::size_of::<FileMarks>());
-                        }
-                        let filemarks = (*val).cast::<FileMarks>();
+                        let fname_bytes = CStr::from_ptr(fname).to_bytes().to_vec();
+                        let filemarks =
+                            *(*wms).file_marks.entry(fname_bytes).or_insert_with(|| {
+                                xcalloc(1, std::mem::size_of::<FileMarks>()).cast::<FileMarks>()
+                            });
                         loop {
                             let mut fm = std::mem::zeroed::<fmark_T>();
                             let mut name: c_char = NUL;
@@ -2870,7 +2884,7 @@ unsafe fn shada_write(
             }
 
             if dump_global_marks
-                && !ignore_buf(curbuf, &mut removable_bufs)
+                && !ignore_buf(curbuf, &removable_bufs)
                 && (*curwin).w_cursor.lnum != 0
             {
                 replace_numbered_mark(
@@ -2936,12 +2950,8 @@ unsafe fn shada_write(
                 }
             }
 
-            let file_markss_size = (*wms).file_marks.set.h.size as usize;
-            let mut all_file_markss: Vec<*mut FileMarks> = Vec::with_capacity(file_markss_size);
-            for i in 0..(*wms).file_marks.set.h.n_keys {
-                let val = *(*wms).file_marks.values.add(i as usize);
-                all_file_markss.push(val.cast::<FileMarks>());
-            }
+            let mut all_file_markss: Vec<*mut FileMarks> =
+                (*wms).file_marks.values().copied().collect();
             all_file_markss.sort_by(|&a, &b| {
                 let ta = (*a).greatest_timestamp;
                 let tb = (*b).greatest_timestamp;
@@ -3009,18 +3019,14 @@ unsafe fn shada_write(
                 hms_dealloc(&mut (*wms).hms[i]);
             }
         }
-        for i in 0..(*wms).file_marks.set.h.n_keys {
-            let stored_key = *(*wms).file_marks.set.keys.add(i as usize);
-            let val = *(*wms).file_marks.values.add(i as usize);
-            xfree(stored_key.cast_mut().cast::<c_void>());
-            xfree(val);
+        for (_, val) in (*wms).file_marks.drain() {
+            xfree(val.cast::<c_void>());
         }
-        map_destroy(&mut (*wms).file_marks);
-        set_destroy(&mut removable_bufs);
+        ptr::drop_in_place(&raw mut (*wms).file_marks);
         if let Some(flush) = packer.packer_flush {
             flush(&mut packer);
         }
-        set_destroy(&mut (*wms).dumped_variables);
+        ptr::drop_in_place(&raw mut (*wms).dumped_variables);
         xfree(wms.cast::<c_void>());
         ret
     }
@@ -4151,7 +4157,10 @@ unsafe fn shada_removable(name: *const c_char) -> bool {
 }
 
 #[inline]
-unsafe fn shada_init_jumps(jumps: *mut ShadaEntry, removable_bufs: *mut Set<ptr_t>) -> usize {
+unsafe fn shada_init_jumps(
+    jumps: *mut ShadaEntry,
+    removable_bufs: &std::collections::HashSet<*mut buf_T>,
+) -> usize {
     unsafe {
         let mut jumps_size = 0usize;
         let mut jump_iter: *const c_void = ptr::null();
@@ -4246,10 +4255,11 @@ pub unsafe fn shada_encode_regs(scale_ts: bool, since: Timestamp) -> NvimString 
 /// Gets the jumplist as a msgpack-encoded string, in shada format (`shada_encode_jumps`).
 pub unsafe fn shada_encode_jumps() -> NvimString {
     unsafe {
-        let mut removable_bufs: Set<ptr_t> = empty_set();
+        let mut removable_bufs: std::collections::HashSet<*mut buf_T> =
+            std::collections::HashSet::new();
         find_removable_bufs(&mut removable_bufs);
         let mut jumps = [MISSING_ENTRY; JUMPLISTSIZE];
-        let jumps_size = shada_init_jumps(jumps.as_mut_ptr(), &mut removable_bufs);
+        let jumps_size = shada_init_jumps(jumps.as_mut_ptr(), &removable_bufs);
         let mut packer = packer_string_buffer();
         for entry in &jumps[..jumps_size] {
             if shada_pack_pfreed_entry(&mut packer, *entry, 0) == ShaDaWriteResult::kSDWriteFailed {
@@ -4263,9 +4273,10 @@ pub unsafe fn shada_encode_jumps() -> NvimString {
 /// Gets the buffer-list as a msgpack-encoded string, in shada format (`shada_encode_buflist`).
 pub unsafe fn shada_encode_buflist() -> NvimString {
     unsafe {
-        let mut removable_bufs: Set<ptr_t> = empty_set();
+        let mut removable_bufs: std::collections::HashSet<*mut buf_T> =
+            std::collections::HashSet::new();
         find_removable_bufs(&mut removable_bufs);
-        let buflist_entry = shada_get_buflist(&mut removable_bufs);
+        let buflist_entry = shada_get_buflist(&removable_bufs);
 
         let mut packer = packer_string_buffer();
         if shada_pack_entry(&mut packer, buflist_entry, 0) == ShaDaWriteResult::kSDWriteFailed {

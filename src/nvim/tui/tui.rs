@@ -39,12 +39,13 @@ use crate::grid::{
 use crate::highlight::HLATTRS_INIT;
 use crate::log::{LOGLVL_DBG, LOGLVL_ERR, LOGLVL_WRN, g_min_log_level, logmsg};
 use crate::lua::executor::{kRetObject, nlua_exec};
-use crate::map::{HlAttrs, MHPutStatus, MapHash, Set, cstr_t, mh_put};
+use crate::map::HlAttrs;
 use crate::mbyte::{utf_ambiguous_width, utf_char2cells, utf_ptr2char};
 use crate::memory::{
     Arena, arena_finish, arena_mem_free, arena_memdupz, arena_strdup, strequal, xcalloc, xfree,
-    xstrdup,
 };
+#[cfg(windows)]
+use crate::memory::xstrdup;
 use crate::msgpack_rpc::channel::rpc_send_event;
 use crate::option::OptInt;
 #[cfg(windows)]
@@ -224,18 +225,7 @@ static mut cursor_style_enabled: bool = false;
 static mut stty_erase_buf: [c_char; 2] = [0, 0];
 static mut stty_erase_ptr: *const c_char = ptr::null();
 
-static mut urls: Set<cstr_t> = Set {
-    h: MapHash {
-        hash: ptr::null_mut(),
-        n_buckets: 0,
-        size: 0,
-        n_occupied: 0,
-        upper_bound: 0,
-        n_keys: 0,
-        keys_capacity: 0,
-    },
-    keys: ptr::null_mut(),
-};
+static mut urls: Vec<std::ffi::CString> = Vec::new();
 
 #[cfg(unix)]
 use crate::fileio::{getpgid, getpgrp, getppid, kill};
@@ -1172,23 +1162,8 @@ pub unsafe fn tui_free_all_mem(tui: *mut TUIData) {
         ugrid_free(&mut (*tui).grid);
         ptr::drop_in_place(&raw mut (*tui).invalid_regions);
 
-        for i in 0..urls.h.n_keys as usize {
-            xfree((*urls.keys.add(i)).cast_mut().cast());
-        }
-        xfree(urls.h.hash.cast());
-        xfree(urls.keys.cast());
-        urls = Set {
-            h: MapHash {
-                hash: ptr::null_mut(),
-                n_buckets: 0,
-                size: 0,
-                n_occupied: 0,
-                upper_bound: 0,
-                n_keys: 0,
-                keys_capacity: 0,
-            },
-            keys: ptr::null_mut(),
-        };
+        let urls_ptr = &raw mut urls;
+        *urls_ptr = Vec::new();
 
         ptr::drop_in_place(&raw mut (*tui).attrs);
         xfree(tui.cast());
@@ -1422,8 +1397,8 @@ unsafe fn update_attrs(tui: *mut TUIData, attr_id: c_int) {
 
         if (*tui).url != attrs.url {
             if attrs.url >= 0 {
-                let url = *urls.keys.add(attrs.url as usize);
-                let url_str = CStr::from_ptr(url).to_string_lossy();
+                let urls_ptr = &raw const urls;
+                let url_str = (*urls_ptr).as_slice()[attrs.url as usize].to_string_lossy();
                 let id: u64 = 0xE1EA_0000u64 + u64::from(attrs.url as u32);
                 let formatted = format!("\x1b]8;id={id};{url_str}\x1b\\");
                 out(tui, formatted.as_ptr().cast::<c_char>(), formatted.len());
@@ -2030,12 +2005,14 @@ pub unsafe fn tui_add_url(_tui: *mut TUIData, url: *const c_char) -> i32 {
             return -1;
         }
 
-        let mut status = MHPutStatus::kMHExisting;
-        let k = mh_put(&raw mut urls, url, &raw mut status);
-        if status != MHPutStatus::kMHExisting {
-            *urls.keys.add(k as usize) = xstrdup(url);
+        let url_cstr = CStr::from_ptr(url);
+        let urls_ptr = &raw mut urls;
+        if let Some(pos) = (*urls_ptr).iter().position(|u| u.as_c_str() == url_cstr) {
+            return pos as i32;
         }
-        k as i32
+        let idx = (*urls_ptr).len() as i32;
+        (*urls_ptr).push(url_cstr.to_owned());
+        idx
     }
 }
 

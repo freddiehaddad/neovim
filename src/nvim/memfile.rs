@@ -5,7 +5,6 @@ use crate::errors::*;
 use crate::event::r#loop::loop_recursive_ptr;
 use crate::fileio::{SEEK_END, SEEK_SET, close, off_T, read_eintr, vim_lseek, write_eintr};
 use crate::globals::*;
-use crate::map::{MH_TOMBSTONE, Map, map_del, map_put_ref, map_ref, mh_get, ptr_t};
 use crate::memline::{MFS_FLUSH, ml_get_buf, ml_open_file};
 use crate::memory::{xfree, xmalloc};
 use crate::message::{emsg, iemsg, semsg};
@@ -64,8 +63,8 @@ pub struct memfile_T {
     pub mf_flags: c_int,
     pub mf_reopen: bool,
     pub mf_free_first: *mut bhdr_T,
-    pub mf_hash: Map<i64, ptr_t>,
-    pub mf_trans: Map<i64, i64>,
+    pub mf_hash: std::collections::HashMap<i64, *mut bhdr_T>,
+    pub mf_trans: std::collections::HashMap<i64, i64>,
     pub mf_blocknr_max: blocknr_T,
     pub mf_blocknr_min: blocknr_T,
     pub mf_neg_count: blocknr_T,
@@ -82,43 +81,29 @@ unsafe fn perror_msg(msg: *const c_char) {
     }
 }
 
-use crate::map::empty_map;
+#[inline]
+pub unsafe fn pmap_get_bhdr(
+    map: *const std::collections::HashMap<i64, *mut bhdr_T>,
+    key: i64,
+) -> *mut bhdr_T {
+    unsafe { (*map).get(&key).copied().unwrap_or(ptr::null_mut()) }
+}
 
 #[inline]
-pub unsafe fn pmap_get_bhdr(map: *mut Map<i64, ptr_t>, key: i64) -> *mut bhdr_T {
+unsafe fn pmap_put_bhdr(
+    map: *mut std::collections::HashMap<i64, *mut bhdr_T>,
+    key: i64,
+    val: *mut bhdr_T,
+) {
     unsafe {
-        let k = mh_get(&raw mut (*map).set, key);
-        if k == MH_TOMBSTONE {
-            ptr::null_mut()
-        } else {
-            (*(*map).values.add(k as usize)).cast::<bhdr_T>()
-        }
+        (*map).insert(key, val);
     }
 }
 
 #[inline]
-unsafe fn pmap_put_bhdr(map: *mut Map<i64, ptr_t>, key: i64, val: *mut bhdr_T) {
+unsafe fn map_put_i64(map: *mut std::collections::HashMap<i64, i64>, key: i64, val: i64) {
     unsafe {
-        let slot = map_put_ref(map, key, ptr::null_mut(), ptr::null_mut());
-        *slot = val.cast();
-    }
-}
-
-#[inline]
-unsafe fn map_put_i64(map: *mut Map<i64, i64>, key: i64, val: i64) {
-    unsafe {
-        let slot = map_put_ref(map, key, ptr::null_mut(), ptr::null_mut());
-        *slot = val;
-    }
-}
-
-#[inline]
-unsafe fn destroy_map<K, V>(map: *mut Map<K, V>) {
-    unsafe {
-        xfree((*map).set.keys.cast());
-        xfree((*map).set.h.hash.cast());
-        xfree((*map).values.cast());
-        *map = empty_map();
+        (*map).insert(key, val);
     }
 }
 
@@ -138,8 +123,8 @@ pub unsafe fn mf_open(fname: *mut c_char, flags: c_int) -> *mut memfile_T {
 
         (*mfp).mf_free_first = ptr::null_mut();
         (*mfp).mf_dirty = MF_DIRTY_NO;
-        (*mfp).mf_hash = empty_map();
-        (*mfp).mf_trans = empty_map();
+        ptr::write(&raw mut (*mfp).mf_hash, std::collections::HashMap::new());
+        ptr::write(&raw mut (*mfp).mf_trans, std::collections::HashMap::new());
         (*mfp).mf_page_size = MEMFILE_PAGE_SIZE;
 
         if (*mfp).mf_fd >= 0 {
@@ -198,15 +183,14 @@ pub unsafe fn mf_close(mfp: *mut memfile_T, del_file: bool) {
             os_remove((*mfp).mf_fname);
         }
 
-        for i in 0..((*mfp).mf_hash.set.h.n_keys as usize) {
-            let hp = (*(*mfp).mf_hash.values.add(i)).cast::<bhdr_T>();
+        for (_, hp) in (*mfp).mf_hash.drain() {
             mf_free_bhdr(hp);
         }
         while !(*mfp).mf_free_first.is_null() {
             xfree(mf_rem_free(mfp).cast());
         }
-        destroy_map(&raw mut (*mfp).mf_hash);
-        destroy_map(&raw mut (*mfp).mf_trans);
+        ptr::drop_in_place(&raw mut (*mfp).mf_hash);
+        ptr::drop_in_place(&raw mut (*mfp).mf_trans);
         mf_free_fnames(mfp);
         xfree(mfp.cast());
     }
@@ -298,7 +282,7 @@ pub unsafe fn mf_get(mfp: *mut memfile_T, nr: blocknr_T, page_count: c_uint) -> 
             return ptr::null_mut();
         }
 
-        let mut hp = pmap_get_bhdr(&raw mut (*mfp).mf_hash, nr);
+        let mut hp = pmap_get_bhdr(&raw const (*mfp).mf_hash, nr);
         if hp.is_null() {
             if nr < 0 || nr >= (*mfp).mf_infile_count {
                 return ptr::null_mut();
@@ -319,7 +303,7 @@ pub unsafe fn mf_get(mfp: *mut memfile_T, nr: blocknr_T, page_count: c_uint) -> 
                 return ptr::null_mut();
             }
         } else {
-            let _ = map_del(&raw mut (*mfp).mf_hash, (*hp).bh_bnum, ptr::null_mut());
+            let _ = (*mfp).mf_hash.remove(&(*hp).bh_bnum);
         }
 
         (*hp).bh_flags |= BH_LOCKED;
@@ -355,7 +339,7 @@ pub unsafe fn mf_put(mfp: *mut memfile_T, hp: *mut bhdr_T, dirty: bool, infile: 
 pub unsafe fn mf_free(mfp: *mut memfile_T, hp: *mut bhdr_T) {
     unsafe {
         xfree((*hp).bh_data);
-        let _ = map_del(&raw mut (*mfp).mf_hash, (*hp).bh_bnum, ptr::null_mut());
+        let _ = (*mfp).mf_hash.remove(&(*hp).bh_bnum);
         if (*hp).bh_bnum < 0 {
             xfree(hp.cast());
             (*mfp).mf_neg_count -= 1;
@@ -380,13 +364,10 @@ pub unsafe fn mf_sync(mfp: *mut memfile_T, flags: c_int) -> c_int {
         }
 
         let mut status = OK;
-        let mut hp: *mut bhdr_T = ptr::null_mut();
+        let mut completed_all = true;
+        let blocks: Vec<*mut bhdr_T> = (*mfp).mf_hash.values().copied().collect();
 
-        let mut i: u32 = 0;
-        while i < (*mfp).mf_hash.set.h.n_keys {
-            hp = (*(*mfp).mf_hash.values.add(i as usize)).cast::<bhdr_T>();
-            i += 1;
-
+        for hp in blocks {
             if ((flags & MFS_ALL) != 0 || (*hp).bh_bnum >= 0)
                 && ((*hp).bh_flags & BH_DIRTY) != 0
                 && (status == OK || ((*hp).bh_bnum >= 0 && (*hp).bh_bnum < (*mfp).mf_infile_count))
@@ -396,12 +377,14 @@ pub unsafe fn mf_sync(mfp: *mut memfile_T, flags: c_int) -> c_int {
                 }
                 if mf_write(mfp, hp) == FAIL {
                     if status == FAIL {
+                        completed_all = false;
                         break;
                     }
                     status = FAIL;
                 }
                 if (flags & MFS_STOP) != 0 {
                     if os_char_avail() {
+                        completed_all = false;
                         break;
                     }
                 } else {
@@ -410,12 +393,13 @@ pub unsafe fn mf_sync(mfp: *mut memfile_T, flags: c_int) -> c_int {
                     }
                 }
                 if got_int {
+                    completed_all = false;
                     break;
                 }
             }
         }
 
-        if hp.is_null() || status == FAIL {
+        if completed_all || status == FAIL {
             (*mfp).mf_dirty = MF_DIRTY_NO;
         }
 
@@ -434,8 +418,7 @@ pub unsafe fn mf_sync(mfp: *mut memfile_T, flags: c_int) -> c_int {
 /// Set dirty flag for all blocks in memory file with a positive block number.
 pub unsafe fn mf_set_dirty(mfp: *mut memfile_T) {
     unsafe {
-        for i in 0..((*mfp).mf_hash.set.h.n_keys as usize) {
-            let hp = (*(*mfp).mf_hash.values.add(i)).cast::<bhdr_T>();
+        for &hp in (*mfp).mf_hash.values() {
             if (*hp).bh_bnum > 0 {
                 (*hp).bh_flags |= BH_DIRTY;
             }
@@ -457,18 +440,14 @@ pub unsafe fn mf_release_all() -> bool {
                 }
 
                 if (*mfp).mf_fd >= 0 {
-                    let mut i: usize = 0;
-                    while i < ((*mfp).mf_hash.set.h.size as usize) {
-                        let hp = (*(*mfp).mf_hash.values.add(i)).cast::<bhdr_T>();
+                    let blocks: Vec<*mut bhdr_T> = (*mfp).mf_hash.values().copied().collect();
+                    for hp in blocks {
                         if ((*hp).bh_flags & BH_LOCKED) == 0
                             && (((*hp).bh_flags & BH_DIRTY) == 0 || mf_write(mfp, hp) != FAIL)
                         {
-                            let _ =
-                                map_del(&raw mut (*mfp).mf_hash, (*hp).bh_bnum, ptr::null_mut());
+                            let _ = (*mfp).mf_hash.remove(&(*hp).bh_bnum);
                             mf_free_bhdr(hp);
                             retval = true;
-                        } else {
-                            i += 1;
                         }
                     }
                 }
@@ -550,7 +529,7 @@ unsafe fn mf_write(mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
             let mut nr = (*hp).bh_bnum;
             let hp2: *mut bhdr_T = if nr > (*mfp).mf_infile_count {
                 nr = (*mfp).mf_infile_count;
-                pmap_get_bhdr(&raw mut (*mfp).mf_hash, nr)
+                pmap_get_bhdr(&raw const (*mfp).mf_hash, nr)
             } else {
                 hp
             };
@@ -643,7 +622,7 @@ unsafe fn mf_trans_add(mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
         };
 
         let old_bnum = (*hp).bh_bnum;
-        let _ = map_del(&raw mut (*mfp).mf_hash, (*hp).bh_bnum, ptr::null_mut());
+        let _ = (*mfp).mf_hash.remove(&(*hp).bh_bnum);
         (*hp).bh_bnum = new_bnum;
         pmap_put_bhdr(&raw mut (*mfp).mf_hash, new_bnum, hp);
 
@@ -656,15 +635,11 @@ unsafe fn mf_trans_add(mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
 /// Lookup translation from trans list and delete the entry.
 pub unsafe fn mf_trans_del(mfp: *mut memfile_T, old_nr: blocknr_T) -> blocknr_T {
     unsafe {
-        let num = map_ref(&raw mut (*mfp).mf_trans, old_nr, ptr::null_mut());
-        if num.is_null() {
+        let Some(new_bnum) = (*mfp).mf_trans.remove(&old_nr) else {
             return old_nr;
-        }
+        };
 
         (*mfp).mf_neg_count -= 1;
-        let new_bnum = *num;
-
-        let _ = map_del(&raw mut (*mfp).mf_trans, old_nr, ptr::null_mut());
 
         new_bnum
     }
@@ -775,13 +750,14 @@ mod tests {
         }
 
         unsafe {
-            let mut ht: Map<i64, ptr_t> = empty_map();
+            let mut ht: std::collections::HashMap<i64, *mut bhdr_T> =
+                std::collections::HashMap::new();
             let mut items: Vec<*mut bhdr_T> = Vec::with_capacity(TEST_COUNT);
 
             for i in 0..TEST_COUNT {
-                assert_eq!(ht.set.h.size as usize, i);
+                assert_eq!(ht.len(), i);
                 let key = index_to_key(i);
-                assert!(pmap_get_bhdr(&raw mut ht, key).is_null());
+                assert!(pmap_get_bhdr(&raw const ht, key).is_null());
 
                 let item = xmalloc(size_of::<bhdr_T>()).cast::<bhdr_T>();
                 ptr::write(
@@ -794,15 +770,13 @@ mod tests {
                     },
                 );
                 pmap_put_bhdr(&raw mut ht, key, item);
-                assert_eq!(pmap_get_bhdr(&raw mut ht, key), item);
-                let num_buckets = ht.set.h.n_buckets as usize;
-                assert!(num_buckets.is_power_of_two());
+                assert_eq!(pmap_get_bhdr(&raw const ht, key), item);
                 items.push(item);
             }
 
             for i in 0..TEST_COUNT {
                 let key = index_to_key(i);
-                let item = pmap_get_bhdr(&raw mut ht, key);
+                let item = pmap_get_bhdr(&raw const ht, key);
                 assert!(!item.is_null());
                 assert_eq!((*item).bh_bnum, key);
             }
@@ -810,18 +784,18 @@ mod tests {
             for i in 0..TEST_COUNT {
                 if i % 100 < 70 {
                     let key = index_to_key(i);
-                    let item = pmap_get_bhdr(&raw mut ht, key);
+                    let item = pmap_get_bhdr(&raw const ht, key);
                     assert!(!item.is_null());
                     assert_eq!((*item).bh_bnum, key);
 
-                    map_del(&raw mut ht, key, ptr::null_mut());
-                    assert!(pmap_get_bhdr(&raw mut ht, key).is_null());
+                    ht.remove(&key);
+                    assert!(pmap_get_bhdr(&raw const ht, key).is_null());
 
                     pmap_put_bhdr(&raw mut ht, key, item);
-                    assert_eq!(pmap_get_bhdr(&raw mut ht, key), item);
+                    assert_eq!(pmap_get_bhdr(&raw const ht, key), item);
 
-                    map_del(&raw mut ht, key, ptr::null_mut());
-                    assert!(pmap_get_bhdr(&raw mut ht, key).is_null());
+                    ht.remove(&key);
+                    assert!(pmap_get_bhdr(&raw const ht, key).is_null());
 
                     xfree(item.cast());
                 }
@@ -829,7 +803,7 @@ mod tests {
 
             for i in 0..TEST_COUNT {
                 let key = index_to_key(i);
-                let item = pmap_get_bhdr(&raw mut ht, key);
+                let item = pmap_get_bhdr(&raw const ht, key);
                 if i % 100 < 70 {
                     assert!(item.is_null());
                 } else {
@@ -838,8 +812,6 @@ mod tests {
                     xfree(item.cast());
                 }
             }
-
-            destroy_map(&raw mut ht);
         }
     }
 }

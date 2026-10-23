@@ -35,10 +35,8 @@ use crate::fileio::fcntl;
 use crate::globals::*;
 use crate::lua::converter::LuaRef;
 use crate::lua::executor::api_free_luaref;
-use crate::map::{Map, MapHash, Set, map_del, map_put_ref};
 use crate::memory::{
-    Arena, arena_alloc, arena_finish, arena_mem_free, arena_memdupz, xcalloc, xfree, xmemdup,
-    xstrdup,
+    Arena, arena_finish, arena_mem_free, arena_memdupz, xcalloc, xfree, xmemdup, xstrdup,
 };
 use crate::message::semsg;
 use crate::msgpack_rpc::channel::{
@@ -248,8 +246,9 @@ use crate::api::private::helpers::add_c;
 /// Teardown the module.
 pub unsafe fn channel_teardown() {
     unsafe {
-        for i in 0..(channels.set.h.n_keys as usize) {
-            let chan = (*channels.values.add(i)).cast::<Channel>();
+        let chans_ptr = &raw const channels;
+        let all_chans: Vec<*mut Channel> = (*chans_ptr).values().copied().collect();
+        for chan in all_chans {
             channel_close((*channel_prefix(chan)).id, kChannelPartAll, ptr::null_mut());
         }
     }
@@ -257,28 +256,10 @@ pub unsafe fn channel_teardown() {
 
 pub unsafe fn channel_free_all_mem() {
     unsafe {
-        for i in 0..(channels.set.h.n_keys as usize) {
-            let chan = (*channels.values.add(i)).cast::<Channel>();
+        let chans_ptr = &raw mut channels;
+        for (_, chan) in std::mem::take(&mut *chans_ptr) {
             channel_destroy(chan);
         }
-        xfree(channels.set.keys.cast());
-        xfree(channels.set.h.hash.cast());
-        xfree(channels.values.cast());
-        channels = Map {
-            set: Set {
-                h: MapHash {
-                    n_buckets: 0,
-                    size: 0,
-                    n_occupied: 0,
-                    upper_bound: 0,
-                    n_keys: 0,
-                    keys_capacity: 0,
-                    hash: ptr::null_mut(),
-                },
-                keys: ptr::null_mut(),
-            },
-            values: ptr::null_mut(),
-        };
 
         callback_free(&raw mut on_print);
     }
@@ -441,13 +422,8 @@ pub unsafe fn channel_alloc(r#type: ChannelStreamType) -> *mut Channel {
         assert!((*cp).id <= (i64::MAX as u64));
 
         {
-            let slot = map_put_ref(
-                &raw mut channels,
-                (*cp).id,
-                ptr::null_mut(),
-                ptr::null_mut(),
-            );
-            *slot = chan.cast();
+            let chans_ptr = &raw mut channels;
+            (*chans_ptr).insert((*cp).id, chan);
         }
 
         chan
@@ -523,11 +499,8 @@ unsafe fn channel_destroy(chan: *mut Channel) {
 unsafe fn free_channel_event(argv: *mut *mut c_void) {
     unsafe {
         let chan = (*argv).cast::<Channel>();
-        let _ = map_del(
-            &raw mut channels,
-            (*channel_prefix(chan)).id,
-            ptr::null_mut(),
-        );
+        let chans_ptr = &raw mut channels;
+        let _ = (*chans_ptr).remove(&(*channel_prefix(chan)).id);
         channel_destroy(chan);
     }
 }
@@ -539,7 +512,8 @@ unsafe fn channel_destroy_early(chan: *mut Channel) {
         if (*cp).id != NEXT_CHAN_ID {
             std::process::abort();
         }
-        let _ = map_del(&raw mut channels, (*cp).id, ptr::null_mut());
+        let chans_ptr = &raw mut channels;
+        let _ = (*chans_ptr).remove(&(*cp).id);
         (*cp).id = 0;
 
         (*cp).refcount -= 1;
@@ -1556,24 +1530,11 @@ pub unsafe fn channel_info(id: u64, arena: *mut Arena) -> Dict {
 
 pub unsafe fn channel_all_info(arena: *mut Arena) -> Array {
     unsafe {
-        let count = channels.set.h.size as usize;
+        let chans_ptr = &raw const channels;
+        let mut ret = arena_array(arena, (*chans_ptr).len());
 
-        let items = arena_alloc(arena, count * size_of::<i64>(), true).cast::<i64>();
-        let mut size: usize = 0;
-        for i in 0..(channels.set.h.n_keys as usize) {
-            let id = *channels.set.keys.add(i);
-            *items.add(size) = id as i64;
-            size += 1;
-        }
-        if size > 1 {
-            let slice = std::slice::from_raw_parts_mut(items, size);
-            slice.sort_unstable();
-        }
-
-        let mut ret = arena_array(arena, size);
-
-        for i in 0..size {
-            let info = channel_info((*items.add(i)) as u64, arena);
+        for &id in (*chans_ptr).keys() {
+            let info = channel_info(id, arena);
             add_c(
                 &mut ret,
                 Object {

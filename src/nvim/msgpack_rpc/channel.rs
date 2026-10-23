@@ -24,7 +24,6 @@ use crate::event::stream::Stream;
 use crate::event::wstream::{WBuffer, wstream_new_buffer, wstream_release_wbuffer, wstream_write};
 use crate::globals::*;
 use crate::log::logmsg;
-use crate::map::{MH_TOMBSTONE, mh_get};
 use crate::memory::{
     ARENA_BLOCK_SIZE, Arena, ArenaMem, alloc_block, arena_finish, arena_mem_free, free_block,
     xcalloc, xfree, xmalloc,
@@ -232,12 +231,8 @@ pub unsafe fn channel_outstream(chan: *mut Channel) -> *mut RStream {
 #[inline]
 pub unsafe fn find_channel(id: u64) -> *mut Channel {
     unsafe {
-        let k = mh_get(&raw mut channels.set, id);
-        if k == MH_TOMBSTONE {
-            ptr::null_mut()
-        } else {
-            (*channels.values.add(k as usize)).cast::<Channel>()
-        }
+        let chans_ptr = &raw const channels;
+        (*chans_ptr).get(&id).copied().unwrap_or(ptr::null_mut())
     }
 }
 
@@ -792,8 +787,8 @@ unsafe fn broadcast_event(name: *const c_char, args: Array) {
     unsafe {
         let mut chans = Vec::<*mut Channel>::new();
 
-        for i in 0..(channels.set.h.n_keys as usize) {
-            let channel = (*channels.values.add(i)).cast::<Channel>();
+        let chans_ptr = &raw const channels;
+        for &channel in (*chans_ptr).values() {
             if (*channel_tail(channel)).is_rpc {
                 chans.push(channel);
             }
@@ -807,8 +802,8 @@ unsafe fn broadcast_event(name: *const c_char, args: Array) {
 
 unsafe fn has_undetached_rpc_chan() -> bool {
     unsafe {
-        for i in 0..(channels.set.h.n_keys as usize) {
-            let chan = (*channels.values.add(i)).cast::<Channel>();
+        let chans_ptr = &raw const channels;
+        for &chan in (*chans_ptr).values() {
             let ct = channel_tail(chan);
             if (*ct).is_rpc && !(*ct).rpc.closed && !(*ct).detach {
                 return true;

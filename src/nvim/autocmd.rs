@@ -3,7 +3,7 @@
 use crate::api::private::converter::object_to_vim;
 use crate::api::private::helpers::{
     HLF_E, api_clear_error, api_free_object, api_free_string, boolean_obj, copy_object,
-    cstr_as_obj, cstr_as_string, cstr_to_string, dict_obj, find_buffer_by_handle, integer_obj,
+    cstr_as_obj, cstr_to_string, dict_obj, find_buffer_by_handle, integer_obj,
     static_cstr_as_string, string_obj,
 };
 use crate::api::private::validate::{
@@ -41,7 +41,6 @@ use crate::input::{RedoState, restore_redobuff, save_redobuff};
 use crate::insexpand::ins_compl_active;
 use crate::lua::converter::LuaRef;
 use crate::lua::executor::{kRetNilBool, nlua_call_ref, nlua_set_sctx};
-use crate::map::{Map, map_del, map_destroy, map_get_string_int, map_put_ref, map_ref};
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strcmp_ic;
 use crate::memory::{xcalloc, xfree, xmalloc, xmallocz, xmemdupz, xstrdup};
@@ -1240,8 +1239,9 @@ static mut autocmd_nested: bool = false;
 static mut autocmd_include_groups: bool = false;
 static mut termresponse_changed: bool = false;
 static mut termresponse_chan_id: u64 = 0;
-static mut map_augroup_name_to_id: Map<NvimString, c_int> = crate::map::empty_map();
-static mut map_augroup_id_to_name: Map<c_int, NvimString> = crate::map::empty_map();
+static mut map_augroup_name_to_id: Vec<(std::ffi::CString, c_int)> = Vec::new();
+static mut map_augroup_id_to_name: std::collections::BTreeMap<c_int, std::ffi::CString> =
+    std::collections::BTreeMap::new();
 static mut apply_autocmds_nesting: c_int = 0;
 static mut filechangeshell_busy: bool = false;
 static mut pending_vimresume: TriState = kFalse;
@@ -1252,39 +1252,33 @@ static mut ft_recursive: c_int = 0;
 
 use crate::strings::{vim_strchr, vim_stricmp, vim_strnicmp, vim_strnicmp_asc};
 
-unsafe fn map_put_name_to_id(key: NvimString, val: c_int) {
+unsafe fn map_put_name_to_id(name: *const c_char, val: c_int) {
     unsafe {
-        let ptr = map_put_ref(
-            &raw mut map_augroup_name_to_id,
-            key,
-            ptr::null_mut(),
-            ptr::null_mut(),
-        );
-        *ptr = val;
-    }
-}
-
-unsafe fn map_get_id_to_name(key: c_int) -> NvimString {
-    let ptr = unsafe { map_ref(&raw mut map_augroup_id_to_name, key, ptr::null_mut()) };
-    if ptr.is_null() {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
+        let name_cstr = CStr::from_ptr(name);
+        let vec_ptr = &raw mut map_augroup_name_to_id;
+        for (existing_name, existing_val) in &mut *vec_ptr {
+            if existing_name.as_c_str() == name_cstr {
+                *existing_val = val;
+                return;
+            }
         }
-    } else {
-        unsafe { *ptr }
+        (*vec_ptr).push((name_cstr.to_owned(), val));
     }
 }
 
-unsafe fn map_put_id_to_name(key: c_int, val: NvimString) {
+unsafe fn map_get_id_to_name(key: c_int) -> *mut c_char {
     unsafe {
-        let ptr = map_put_ref(
-            &raw mut map_augroup_id_to_name,
-            key,
-            ptr::null_mut(),
-            ptr::null_mut(),
-        );
-        *ptr = val;
+        let map_ptr = &raw const map_augroup_id_to_name;
+        (*map_ptr)
+            .get(&key)
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+    }
+}
+
+unsafe fn map_put_id_to_name(key: c_int, name: *const c_char) {
+    unsafe {
+        let map_ptr = &raw mut map_augroup_id_to_name;
+        (*map_ptr).insert(key, CStr::from_ptr(name).to_owned());
     }
 }
 
@@ -1448,20 +1442,18 @@ pub unsafe fn autocmd_free_all_mem() {
 unsafe fn augroup_map_del(id: c_int, name: *const c_char) {
     unsafe {
         if !name.is_null() {
-            let mut key = NvimString {
-                data: ptr::null_mut(),
-                size: 0,
-            };
-            map_del(
-                &raw mut map_augroup_name_to_id,
-                cstr_as_string(name),
-                &raw mut key,
-            );
-            api_free_string(key);
+            let name_cstr = CStr::from_ptr(name);
+            let vec_ptr = &raw mut map_augroup_name_to_id;
+            if let Some(pos) = (*vec_ptr)
+                .iter()
+                .position(|(existing_name, _)| existing_name.as_c_str() == name_cstr)
+            {
+                (*vec_ptr).swap_remove(pos);
+            }
         }
         if id > 0 {
-            let mapped = map_del(&raw mut map_augroup_id_to_name, id, ptr::null_mut());
-            api_free_string(mapped);
+            let map_ptr = &raw mut map_augroup_id_to_name;
+            (*map_ptr).remove(&id);
         }
     }
 }
@@ -1732,10 +1724,8 @@ pub unsafe fn augroup_add(name: *const c_char) -> c_int {
 
         let next_id = next_augroup_id;
         next_augroup_id += 1;
-        let name_key = cstr_to_string(name);
-        let name_val = cstr_to_string(name);
-        map_put_name_to_id(name_key, next_id);
-        map_put_id_to_name(next_id, name_val);
+        map_put_name_to_id(name, next_id);
+        map_put_id_to_name(next_id, name);
 
         next_id
     }
@@ -1782,7 +1772,7 @@ pub unsafe fn augroup_del(name: *mut c_char, id_for_error: c_int, stupid_legacy_
                             true,
                             true,
                         );
-                        map_put_name_to_id(cstr_as_string(name), AUGROUP_DELETED);
+                        map_put_name_to_id(name, AUGROUP_DELETED);
                         augroup_map_del((*ap).group, ptr::null());
                         return;
                     }
@@ -1807,7 +1797,12 @@ pub unsafe fn augroup_del(name: *mut c_char, id_for_error: c_int, stupid_legacy_
 
 pub unsafe fn augroup_find(name: *const c_char) -> c_int {
     unsafe {
-        let existing_id = map_get_string_int(&raw mut map_augroup_name_to_id, cstr_as_string(name));
+        let name_cstr = CStr::from_ptr(name);
+        let vec_ptr = &raw const map_augroup_name_to_id;
+        let existing_id = (*vec_ptr)
+            .iter()
+            .find_map(|(k, v)| (k.as_c_str() == name_cstr).then_some(*v))
+            .unwrap_or(0);
         if existing_id == AUGROUP_DELETED || existing_id > 0 {
             existing_id
         } else {
@@ -1837,8 +1832,8 @@ pub unsafe fn augroup_name(mut group: c_int) -> *mut c_char {
         }
 
         let key = map_get_id_to_name(group);
-        if !key.data.is_null() {
-            return key.data;
+        if !key.is_null() {
+            return key;
         }
 
         get_deleted_augroup().cast_mut()
@@ -1865,13 +1860,12 @@ pub unsafe fn do_augroup(arg: *mut c_char, del_group: bool) {
             msg_start();
             msg_ext_set_kind(c"list_cmd".as_ptr());
 
-            for k in 0..map_augroup_name_to_id.set.h.n_keys as usize {
-                let name = *map_augroup_name_to_id.set.keys.add(k);
-                let value = *map_augroup_name_to_id.values.add(k);
-                if value > 0 {
-                    msg_puts(name.data);
+            let vec_ptr = &raw const map_augroup_name_to_id;
+            for (name, value) in &*vec_ptr {
+                if *value > 0 {
+                    msg_puts(name.as_ptr());
                 } else {
-                    msg_puts(augroup_name(value));
+                    msg_puts(augroup_name(*value));
                 }
                 msg_puts(c"  ".as_ptr());
             }
@@ -1893,17 +1887,11 @@ pub unsafe fn free_all_autocmds() {
             au_need_clean = false;
         }
 
-        for k in 0..map_augroup_name_to_id.set.h.n_keys as usize {
-            let name = *map_augroup_name_to_id.set.keys.add(k);
-            api_free_string(name);
-        }
-        map_destroy(&raw mut map_augroup_name_to_id);
+        let vec_ptr = &raw mut map_augroup_name_to_id;
+        *vec_ptr = Vec::new();
 
-        for k in 0..map_augroup_id_to_name.set.h.n_keys as usize {
-            let name = *map_augroup_id_to_name.values.add(k);
-            api_free_string(name);
-        }
-        map_destroy(&raw mut map_augroup_id_to_name);
+        let map_ptr = &raw mut map_augroup_id_to_name;
+        *map_ptr = std::collections::BTreeMap::new();
     }
 }
 

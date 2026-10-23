@@ -69,7 +69,7 @@ use crate::input::{beep_flush, langmap_adjust, plain_vgetc};
 use crate::insert::{Ctrl_J, Ctrl_S, Ctrl_X, beginline, cursor_down_inner, cursor_up_inner};
 use crate::keycodes::{CAR, K_BS, K_DOWN, K_KENTER, K_LEFT, K_RIGHT, K_UP, TAB};
 use crate::main_init::getout;
-use crate::map::{StcClick, StcClicks, map_del, map_put_ref};
+use crate::map::{StcClick, StcClicks};
 use crate::mark::{WinInfo, copy_jumplist, free_jumplist, setmark, setpcmark};
 use crate::r#match::clear_matches;
 use crate::math::{FAIL, OK};
@@ -4745,12 +4745,8 @@ unsafe fn alloc_tabpage() -> *mut tabpage_T {
         let tp = xcalloc(1, size_of::<tabpage_T>()).cast::<tabpage_T>();
         last_tp_handle += 1;
         (*tp).handle = last_tp_handle;
-        *map_put_ref(
-            &raw mut tabpage_handles,
-            (*tp).handle,
-            ptr::null_mut(),
-            ptr::null_mut(),
-        ) = tp.cast();
+        let map_ptr = &raw mut tabpage_handles;
+        (*map_ptr).insert((*tp).handle, tp);
 
         (*tp).tp_vars = tv_dict_alloc();
         init_var_dict((*tp).tp_vars, (&raw mut (*tp).tp_winvar).cast(), VAR_SCOPE);
@@ -4763,7 +4759,8 @@ unsafe fn alloc_tabpage() -> *mut tabpage_T {
 
 pub unsafe fn free_tabpage(tp: *mut tabpage_T) {
     unsafe {
-        map_del(&raw mut tabpage_handles, (*tp).handle, ptr::null_mut());
+        let map_ptr = &raw mut tabpage_handles;
+        (*map_ptr).remove(&(*tp).handle);
         diff_clear(tp);
         for idx in 0..SNAP_COUNT {
             clear_snapshot(tp, idx as c_int);
@@ -5862,12 +5859,8 @@ pub unsafe fn win_alloc(after: *mut win_T, hidden: bool) -> *mut win_T {
 
         last_win_id += 1;
         (*new_wp).handle = last_win_id;
-        *map_put_ref(
-            &raw mut window_handles,
-            (*new_wp).handle,
-            ptr::null_mut(),
-            ptr::null_mut(),
-        ) = new_wp.cast();
+        let map_ptr = &raw mut window_handles;
+        (*map_ptr).insert((*new_wp).handle, new_wp);
 
         (*new_wp).w_grid_alloc.mouse_enabled = true;
 
@@ -5940,7 +5933,8 @@ pub unsafe fn free_wininfo(wip: *mut WinInfo, bp: *mut buf_T) {
 
 pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
     unsafe {
-        map_del(&raw mut window_handles, (*wp).handle, ptr::null_mut());
+        let map_ptr = &raw mut window_handles;
+        (*map_ptr).remove(&(*wp).handle);
         clearFolding(wp);
 
         alist_unlink((*wp).w_alist.cast());

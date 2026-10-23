@@ -4620,8 +4620,8 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
         abort = abort || set_ref_in_functions(copyID);
 
         {
-            for i in 0..(channels.set.h.n_keys as usize) {
-                let data = (*channels.values.add(i)).cast::<Channel>();
+            let chans_ptr = &raw const channels;
+            for &data in (*chans_ptr).values() {
                 let ct = channel_tail(data);
                 set_ref_in_callback_reader(
                     &raw mut (*ct).on_data,
