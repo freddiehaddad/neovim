@@ -66,7 +66,6 @@ use crate::ex_docmd::{
 };
 use crate::ex_eval::aborting;
 use crate::extmark::extmark_clear;
-use crate::garray::{ga_append, ga_clear, ga_concat, ga_init, garray_T};
 use crate::globals::*;
 use crate::highlight_group::{syn_id2attr, syn_name2id};
 use crate::input::{
@@ -314,7 +313,7 @@ struct CpInfo {
     buf_info: Vec<CpBufInfo>,
     save_hls: bool,
     save_cmdmod: cmdmod_T,
-    save_view: garray_T,
+    save_view: Vec<c_int>,
 }
 
 #[repr(C)]
@@ -2948,7 +2947,7 @@ unsafe fn cmdpreview_prepare() -> CpInfo {
             buf_info: Vec::new(),
             save_hls: false,
             save_cmdmod: std::mem::zeroed(),
-            save_view: std::mem::zeroed(),
+            save_view: Vec::new(),
         };
 
         let mut win = firstwin;
@@ -2990,7 +2989,7 @@ unsafe fn cmdpreview_prepare() -> CpInfo {
 
         cpinfo.save_hls = p_hls != 0;
         cpinfo.save_cmdmod = cmdmod;
-        win_size_save(&raw mut cpinfo.save_view);
+        win_size_save(&mut cpinfo.save_view);
         save_search_patterns();
 
         p_hls = 0;
@@ -3035,9 +3034,7 @@ unsafe fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
         cmdmod = cpinfo.save_cmdmod;
         p_hls = c_int::from(cpinfo.save_hls);
         restore_search_patterns();
-        win_size_restore(&raw mut cpinfo.save_view);
-
-        ga_clear(&raw mut cpinfo.save_view);
+        win_size_restore(&cpinfo.save_view);
     }
 }
 
@@ -5122,32 +5119,35 @@ pub unsafe fn script_get(eap: *mut exarg_T, lenp: *mut usize) -> *mut c_char {
         }
         cmd = cmd.add(2);
 
-        let mut ga: garray_T = std::mem::zeroed();
-
         let l = heredoc_get(eap, cmd, true);
         if l.is_null() {
             return ptr::null_mut();
         }
 
-        if (*eap).skip == 0 {
-            ga_init(&raw mut ga, 1, 0x400);
-        }
+        let mut buf: Vec<u8> = if (*eap).skip == 0 {
+            Vec::with_capacity(0x400)
+        } else {
+            Vec::new()
+        };
 
         let mut li = tv_list_first(l);
         while !li.is_null() {
             if (*eap).skip == 0 {
-                ga_concat(&raw mut ga, tv_get_string(&raw const (*li).li_tv));
-                ga_append(&raw mut ga, b'\n');
+                let s = tv_get_string(&raw const (*li).li_tv);
+                if !s.is_null() {
+                    buf.extend_from_slice(CStr::from_ptr(s).to_bytes());
+                }
+                buf.push(b'\n');
             }
             li = (*li).li_next;
         }
-        *lenp = ga.ga_len as usize;
-        if (*eap).skip == 0 {
-            ga_append(&raw mut ga, NUL as u8);
-        }
-
+        *lenp = buf.len();
         tv_list_free(l);
-        ga.ga_data.cast::<c_char>()
+        if (*eap).skip == 0 {
+            xmemdupz(buf.as_ptr().cast(), buf.len()).cast::<c_char>()
+        } else {
+            ptr::null_mut()
+        }
     }
 }
 

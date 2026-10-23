@@ -122,7 +122,6 @@ use crate::file_search::{
 };
 use crate::fileio::{FILE, fclose, readfile, shorten_fnames};
 use crate::fold::{foldCreate, foldManualAllowed, hasFolding, opFoldRange};
-use crate::garray::{ga_append_via_ptr, ga_clear, ga_init, garray_T};
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::help::{ex_exusage, ex_help, ex_helpclose, ex_helptags, ex_viusage};
@@ -518,16 +517,14 @@ static mut filetype_detect: TriState = kNone;
 static mut filetype_plugin: TriState = kNone;
 static mut filetype_indent: TriState = kNone;
 
-#[repr(C)]
-#[derive(Clone, Copy)]
 struct wcmd_T {
-    line: *mut c_char,
+    line: std::ffi::CString,
     lnum: linenr_T,
 }
 
 #[repr(C)]
 struct loop_cookie {
-    lines_gap: *mut garray_T,
+    lines_gap: *mut Vec<wcmd_T>,
     current_line: c_int,
     repeating: c_int,
     lc_getline: LineGetter,
@@ -4741,17 +4738,6 @@ unsafe fn sourcing_lnum_ptr() -> *mut linenr_T {
     }
 }
 
-#[inline]
-unsafe fn clear_wcmd_ga(gap: *mut garray_T) {
-    unsafe {
-        let data = (*gap).ga_data.cast::<wcmd_T>();
-        for i in 0..(*gap).ga_len {
-            xfree((*data.add(i as usize)).line.cast());
-        }
-        ga_clear(gap);
-    }
-}
-
 unsafe fn save_dbg_stuff(dsp: *mut dbg_stuff) {
     unsafe {
         (*dsp).trylevel = trylevel;
@@ -4896,7 +4882,7 @@ pub unsafe fn do_cmdline(
         let mut retval = OK;
         let mut cstack: cstack_T = std::mem::zeroed();
         cstack.cs_idx = -1;
-        let mut lines_ga: garray_T = std::mem::zeroed();
+        let mut lines_ga: Vec<wcmd_T> = Vec::new();
         let mut current_line: c_int = 0;
         let mut fname: *mut c_char = ptr::null_mut();
         let mut breakpoint: *mut linenr_T = ptr::null_mut();
@@ -4917,8 +4903,6 @@ pub unsafe fn do_cmdline(
             msg_list = saved_msg_list;
             return FAIL;
         }
-
-        ga_init(&raw mut lines_ga, size_of::<wcmd_T>() as c_int, 10);
 
         let real_cookie = getline_cookie(fgetline, cookie);
 
@@ -4967,7 +4951,7 @@ pub unsafe fn do_cmdline(
                 did_emsg = 0;
             }
 
-            if cstack.cs_looplevel > 0 && current_line < lines_ga.ga_len {
+            if cstack.cs_looplevel > 0 && (current_line as usize) < lines_ga.len() {
                 xfree(cmdline_copy.cast());
                 cmdline_copy = ptr::null_mut();
 
@@ -4999,9 +4983,9 @@ pub unsafe fn do_cmdline(
                     *dbg_tick = debug_tick;
                 }
 
-                let wp = lines_ga.ga_data.cast::<wcmd_T>().add(current_line as usize);
-                next_cmdline = (*wp).line;
-                *sourcing_lnum_ptr() = (*wp).lnum;
+                let wp = &lines_ga[current_line as usize];
+                next_cmdline = wp.line.as_ptr().cast_mut();
+                *sourcing_lnum_ptr() = wp.lnum;
 
                 if !breakpoint.is_null() && *breakpoint != 0 && *breakpoint <= *sourcing_lnum_ptr()
                 {
@@ -5082,10 +5066,10 @@ pub unsafe fn do_cmdline(
                 cmd_loop_cookie.current_line = current_line;
                 cmd_loop_cookie.lc_getline = fgetline;
                 cmd_loop_cookie.cookie = cookie;
-                cmd_loop_cookie.repeating = c_int::from(current_line < lines_ga.ga_len);
+                cmd_loop_cookie.repeating = c_int::from((current_line as usize) < lines_ga.len());
 
-                if current_line == lines_ga.ga_len {
-                    store_loop_line(&raw mut lines_ga, next_cmdline);
+                if (current_line as usize) == lines_ga.len() {
+                    store_loop_line(&mut lines_ga, next_cmdline);
                 }
                 current_line_before = current_line;
             } else {
@@ -5165,12 +5149,12 @@ pub unsafe fn do_cmdline(
                         cstack.cs_lflags |= CSL_HAD_LOOP;
                         line_breakcheck();
 
-                        if !breakpoint.is_null() && lines_ga.ga_len > current_line {
-                            let wp = lines_ga.ga_data.cast::<wcmd_T>().add(current_line as usize);
+                        if !breakpoint.is_null() && lines_ga.len() > current_line as usize {
+                            let wp = &lines_ga[current_line as usize];
                             *breakpoint = dbg_find_breakpoint(
                                 getline_equal(fgetline, cookie, Some(getsourceline)),
                                 fname,
-                                (*wp).lnum - 1,
+                                wp.lnum - 1,
                             );
                             *dbg_tick = debug_tick;
                         }
@@ -5189,13 +5173,9 @@ pub unsafe fn do_cmdline(
             }
 
             if cstack.cs_looplevel == 0 {
-                if lines_ga.ga_len > 0 {
-                    let wp = lines_ga
-                        .ga_data
-                        .cast::<wcmd_T>()
-                        .add((lines_ga.ga_len - 1) as usize);
-                    *sourcing_lnum_ptr() = (*wp).lnum;
-                    clear_wcmd_ga(&raw mut lines_ga);
+                if let Some(wp) = lines_ga.last() {
+                    *sourcing_lnum_ptr() = wp.lnum;
+                    lines_ga.clear();
                 }
                 current_line = 0;
             }
@@ -5239,7 +5219,7 @@ pub unsafe fn do_cmdline(
 
         xfree(cmdline_copy.cast());
         did_emsg_syntax = false;
-        clear_wcmd_ga(&raw mut lines_ga);
+        drop(lines_ga);
 
         if cstack.cs_idx >= 0 {
             if !got_int
@@ -5435,8 +5415,9 @@ unsafe fn get_loop_line(
 ) -> *mut c_char {
     unsafe {
         let cp = cookie.cast::<loop_cookie>();
+        let lines = &mut *(*cp).lines_gap;
 
-        if (*cp).current_line + 1 >= (*(*cp).lines_gap).ga_len {
+        if ((*cp).current_line + 1) as usize >= lines.len() {
             if (*cp).repeating != 0 {
                 return ptr::null_mut();
             }
@@ -5446,7 +5427,7 @@ unsafe fn get_loop_line(
                 getcmdline(c, 0, indent, do_concat)
             };
             if !line.is_null() {
-                store_loop_line((*cp).lines_gap, line);
+                store_loop_line(lines, line);
                 (*cp).current_line += 1;
             }
             return line;
@@ -5454,21 +5435,19 @@ unsafe fn get_loop_line(
 
         KeyTyped = false;
         (*cp).current_line += 1;
-        let wp = (*(*cp).lines_gap)
-            .ga_data
-            .cast::<wcmd_T>()
-            .add((*cp).current_line as usize);
-        *sourcing_lnum_ptr() = (*wp).lnum;
-        xstrdup((*wp).line)
+        let wp = &lines[(*cp).current_line as usize];
+        *sourcing_lnum_ptr() = wp.lnum;
+        xstrdup(wp.line.as_ptr())
     }
 }
 
 /// Store a line in "gap" so that a ":while" loop can execute it again.
-unsafe fn store_loop_line(gap: *mut garray_T, line: *mut c_char) {
+unsafe fn store_loop_line(lines: &mut Vec<wcmd_T>, line: *const c_char) {
     unsafe {
-        let p = ga_append_via_ptr::<wcmd_T>(gap);
-        (*p).line = xstrdup(line);
-        (*p).lnum = *sourcing_lnum_ptr();
+        lines.push(wcmd_T {
+            line: CStr::from_ptr(line).to_owned(),
+            lnum: *sourcing_lnum_ptr(),
+        });
     }
 }
 

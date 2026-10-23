@@ -2546,36 +2546,37 @@ unsafe fn regrepeat(p: *mut u8, maxcount: i64) -> c_int {
 }
 
 unsafe fn regstack_push(state: regstate_T, scan: *mut u8) -> *mut regitem_T {
+    const {
+        assert!(size_of::<regitem_T>().is_multiple_of(8));
+        assert!(size_of::<regstar_T>().is_multiple_of(8));
+        assert!(size_of::<regbehind_T>().is_multiple_of(8));
+    }
     unsafe {
-        if i64::from((regstack.ga_len as c_uint) >> 10) >= p_mmp {
+        let rs = &raw mut regstack;
+        if i64::from((((*rs).len() * 8) as c_uint) >> 10) >= p_mmp {
             emsg(tr(e_pattern_uses_more_memory_than_maxmempattern.as_ptr()));
             return ptr::null_mut();
         }
-        ga_grow(&raw mut regstack, size_of::<regitem_T>() as c_int);
+        let old_len = (*rs).len();
+        (*rs).resize(old_len + size_of::<regitem_T>() / 8, 0);
 
-        let rp = regstack
-            .ga_data
-            .cast::<u8>()
-            .add(regstack.ga_len as usize)
-            .cast::<regitem_T>();
+        let rp = (*rs).as_mut_ptr().add(old_len).cast::<regitem_T>();
         (*rp).rs_state = state;
         (*rp).rs_scan = scan;
-
-        regstack.ga_len += size_of::<regitem_T>() as c_int;
         rp
     }
 }
 
 unsafe fn regstack_pop(scan: *mut *mut u8) {
     unsafe {
-        let rp = regstack
-            .ga_data
-            .cast::<u8>()
-            .add(regstack.ga_len as usize)
+        let rs = &raw mut regstack;
+        let rp = (*rs)
+            .as_mut_ptr()
+            .add((*rs).len())
             .cast::<regitem_T>()
             .sub(1);
         *scan = (*rp).rs_scan;
-        regstack.ga_len -= size_of::<regitem_T>() as c_int;
+        (*rs).truncate((*rs).len() - size_of::<regitem_T>() / 8);
     }
 }
 
@@ -2620,7 +2621,8 @@ unsafe fn regmatch(mut scan: *mut u8, tm: *const proftime_T, timed_out: *mut c_i
         let mut status: c_int;
         let mut tm_count: c_int = 0;
 
-        regstack.ga_len = 0;
+        let rs = &raw mut regstack;
+        (*rs).clear();
         let bp = &raw mut backpos;
         (*bp).clear();
 
@@ -3359,14 +3361,13 @@ unsafe fn regmatch(mut scan: *mut u8, tm: *const proftime_T, timed_out: *mut c_i
                             } else {
                                 rst.count >= rst.maxval
                             } {
-                                if i64::from((regstack.ga_len as c_uint) >> 10) >= p_mmp {
+                                if i64::from((((*rs).len() * 8) as c_uint) >> 10) >= p_mmp {
                                     emsg(
                                         tr(e_pattern_uses_more_memory_than_maxmempattern.as_ptr()),
                                     );
                                     status = RA_FAIL;
                                 } else {
-                                    ga_grow(&raw mut regstack, size_of::<regstar_T>() as c_int);
-                                    regstack.ga_len += size_of::<regstar_T>() as c_int;
+                                    (*rs).resize((*rs).len() + size_of::<regstar_T>() / 8, 0);
                                     let rp = regstack_push(
                                         if rst.minval <= rst.maxval {
                                             RS_STAR_LONG
@@ -3397,12 +3398,11 @@ unsafe fn regmatch(mut scan: *mut u8, tm: *const proftime_T, timed_out: *mut c_i
                             }
                         }
                         BEHIND | NOBEHIND => {
-                            if i64::from((regstack.ga_len as c_uint) >> 10) >= p_mmp {
+                            if i64::from((((*rs).len() * 8) as c_uint) >> 10) >= p_mmp {
                                 emsg(tr(e_pattern_uses_more_memory_than_maxmempattern.as_ptr()));
                                 status = RA_FAIL;
                             } else {
-                                ga_grow(&raw mut regstack, size_of::<regbehind_T>() as c_int);
-                                regstack.ga_len += size_of::<regbehind_T>() as c_int;
+                                (*rs).resize((*rs).len() + size_of::<regbehind_T>() / 8, 0);
                                 let rp = regstack_push(RS_BEHIND1, scan);
                                 if rp.is_null() {
                                     status = RA_FAIL;
@@ -3455,11 +3455,10 @@ unsafe fn regmatch(mut scan: *mut u8, tm: *const proftime_T, timed_out: *mut c_i
                 scan = next;
             }
 
-            while regstack.ga_len > 0 && status != RA_FAIL {
-                let rp = regstack
-                    .ga_data
-                    .cast::<u8>()
-                    .add(regstack.ga_len as usize)
+            while !(*rs).is_empty() && status != RA_FAIL {
+                let rp = (*rs)
+                    .as_mut_ptr()
+                    .add((*rs).len())
                     .cast::<regitem_T>()
                     .sub(1);
                 match (*rp).rs_state {
@@ -3599,7 +3598,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: *const proftime_T, timed_out: *mut c_i
                     RS_BEHIND1 => {
                         if status == RA_NOMATCH {
                             regstack_pop(&raw mut scan);
-                            regstack.ga_len -= size_of::<regbehind_T>() as c_int;
+                            (*rs).truncate((*rs).len() - size_of::<regbehind_T>() / 8);
                         } else {
                             let bp = rp.cast::<regbehind_T>().sub(1);
                             reg_save(&raw mut (*bp).save_after, &raw mut backpos);
@@ -3621,7 +3620,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: *const proftime_T, timed_out: *mut c_i
                                 restore_subexpr(bp);
                             }
                             regstack_pop(&raw mut scan);
-                            regstack.ga_len -= size_of::<regbehind_T>() as c_int;
+                            (*rs).truncate((*rs).len() - size_of::<regbehind_T>() / 8);
                         } else {
                             let mut no = OK;
                             let limit = OPERAND_MIN((*rp).rs_scan);
@@ -3688,7 +3687,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: *const proftime_T, timed_out: *mut c_i
                                     restore_subexpr(bp);
                                 }
                                 regstack_pop(&raw mut scan);
-                                regstack.ga_len -= size_of::<regbehind_T>() as c_int;
+                                (*rs).truncate((*rs).len() - size_of::<regbehind_T>() / 8);
                             }
                         }
                     }
@@ -3696,7 +3695,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: *const proftime_T, timed_out: *mut c_i
                         let rst = rp.cast::<regstar_T>().sub(1);
                         if status == RA_MATCH {
                             regstack_pop(&raw mut scan);
-                            regstack.ga_len -= size_of::<regstar_T>() as c_int;
+                            (*rs).truncate((*rs).len() - size_of::<regstar_T>() / 8);
                         } else {
                             if status != RA_BREAK {
                                 reg_restore(&raw mut (*rp).rs_un.regsave, &raw mut backpos);
@@ -3751,7 +3750,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: *const proftime_T, timed_out: *mut c_i
                             }
                             if status != RA_CONT {
                                 regstack_pop(&raw mut scan);
-                                regstack.ga_len -= size_of::<regstar_T>() as c_int;
+                                (*rs).truncate((*rs).len() - size_of::<regstar_T>() / 8);
                                 status = RA_NOMATCH;
                             }
                         }
@@ -3759,10 +3758,9 @@ unsafe fn regmatch(mut scan: *mut u8, tm: *const proftime_T, timed_out: *mut c_i
                     _ => {}
                 }
 
-                let top = regstack
-                    .ga_data
-                    .cast::<u8>()
-                    .add(regstack.ga_len as usize)
+                let top = (*rs)
+                    .as_mut_ptr()
+                    .add((*rs).len())
                     .cast::<regitem_T>()
                     .sub(1);
                 if status == RA_CONT || rp == top {
@@ -3774,7 +3772,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: *const proftime_T, timed_out: *mut c_i
                 continue;
             }
 
-            if regstack.ga_len == 0 || status == RA_FAIL {
+            if (*rs).is_empty() || status == RA_FAIL {
                 if scan.is_null() {
                     iemsg(tr((&raw const e_re_corr).cast()));
                 }
@@ -3865,10 +3863,9 @@ unsafe fn bt_regexec_both(
         let mut col = startcol;
         let mut retval: c_int = 0;
 
-        if regstack.ga_data.is_null() {
-            ga_init(&raw mut regstack, 1, REGSTACK_INITIAL);
-            ga_grow(&raw mut regstack, REGSTACK_INITIAL);
-            ga_set_growsize(&raw mut regstack, REGSTACK_INITIAL * 8);
+        let rs = &raw mut regstack;
+        if (*rs).capacity() == 0 {
+            (*rs).reserve((REGSTACK_INITIAL as usize) / 8);
         }
 
         let bp = &raw mut backpos;
@@ -4018,8 +4015,9 @@ unsafe fn finish_bt_regexec(retval: c_int, col: colnr_T) -> c_int {
             xfree(reg_tofree.cast());
             reg_tofree = ptr::null_mut();
         }
-        if regstack.ga_maxlen > REGSTACK_INITIAL {
-            ga_clear(&raw mut regstack);
+        let rs = &raw mut regstack;
+        if (*rs).capacity() * 8 > REGSTACK_INITIAL as usize {
+            *rs = Vec::new();
         }
         let bp = &raw mut backpos;
         if (*bp).capacity() > BACKPOS_INITIAL as usize {

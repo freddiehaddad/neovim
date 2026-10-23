@@ -38,7 +38,6 @@ use crate::event::r#loop::{uv_gid_t, uv_uid_t};
 use crate::ex_docmd::{CAR, CMOD_LOCKMARKS, exarg_T};
 use crate::ex_eval::aborting;
 use crate::fold::{foldUpdateAll, foldmethodIsManual};
-use crate::garray::{ga_clear_strings, ga_grow, ga_init, garray_T};
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::input::{stuff_empty, typebuf_typed};
@@ -89,7 +88,7 @@ use crate::regexp::{RE_MAGIC, regmatch_T, regprog_T, vim_regcomp, vim_regexec, v
 use crate::sha256::context_sha256_T;
 use crate::shada::check_marks_read;
 use crate::state::{MODE_CMDLINE, MODE_NORMAL_BUSY};
-use crate::strings::{ngettext, sort_strings, strlen, tr, vim_snprintf, vim_strchr};
+use crate::strings::{ngettext, strlen, tr, vim_snprintf, vim_strchr};
 use crate::ui::{ui_flush, ui_has};
 use crate::undo::{
     bufIsChanged, u_clearallandblockfree, u_clearline, u_compute_hash, u_find_first_changed,
@@ -4310,13 +4309,13 @@ unsafe fn vim_mktempdir() {
 
 /// Core part of "readdir()" function.
 pub unsafe fn readdir_core(
-    gap: *mut garray_T,
+    entries: &mut Vec<std::ffi::CString>,
     path: *const c_char,
     context: *mut c_void,
     checkitem: CheckItem,
 ) -> c_int {
     unsafe {
-        ga_init(gap, size_of::<*mut c_char>() as c_int, 20);
+        entries.clear();
 
         let mut dir: Directory = std::mem::zeroed();
         if !os_scandir(&raw mut dir, path) {
@@ -4343,18 +4342,13 @@ pub unsafe fn readdir_core(
             }
 
             if !ignore {
-                ga_grow(gap, 1);
-                let data = (*gap).ga_data.cast::<*mut c_char>();
-                *data.offset((*gap).ga_len as isize) = xstrdup(p);
-                (*gap).ga_len += 1;
+                entries.push(CStr::from_ptr(p).to_owned());
             }
         }
 
         os_closedir(&raw mut dir);
 
-        if (*gap).ga_len > 0 {
-            sort_strings((*gap).ga_data.cast::<*mut c_char>(), (*gap).ga_len);
-        }
+        entries.sort_unstable();
 
         OK
     }
@@ -4367,24 +4361,23 @@ pub unsafe fn delete_recursive(name: *const c_char) -> c_int {
 
         if os_isrealdir(name) {
             let exp = xstrdup(name);
-            let mut ga: garray_T = std::mem::zeroed();
-            if readdir_core(&raw mut ga, exp, ptr::null_mut(), None) == OK {
+            let mut entries: Vec<std::ffi::CString> = Vec::new();
+            if readdir_core(&mut entries, exp, ptr::null_mut(), None) == OK {
                 let namebuff_ptr = (&raw mut NameBuff).cast::<c_char>();
                 let len = vim_snprintf!(namebuff_ptr, MAXPATHL, c"%s/".as_ptr(), exp);
 
-                for i in 0..ga.ga_len {
-                    let entry = *ga.ga_data.cast::<*mut c_char>().offset(i as isize);
+                for entry in &entries {
                     vim_snprintf!(
                         namebuff_ptr.offset(len as isize),
                         MAXPATHL - (len as usize),
                         c"%s".as_ptr(),
-                        entry,
+                        entry.as_ptr(),
                     );
                     if delete_recursive(namebuff_ptr) != 0 {
                         result = -1;
                     }
                 }
-                ga_clear_strings(&raw mut ga);
+                drop(entries);
                 if os_rmdir(exp) != 0 {
                     result = -1;
                 }

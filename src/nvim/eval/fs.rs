@@ -1425,21 +1425,13 @@ pub unsafe fn f_readdir(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
 
         let path = tv_get_string(argvars);
         let expr = argvars.add(1);
-        let mut ga = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: ptr::null_mut(),
-        };
-        let ret = readdir_core(&raw mut ga, path, expr.cast(), Some(readdir_checkitem));
-        if ret == OK && ga.ga_len > 0 {
-            for i in 0..ga.ga_len {
-                let p = *(ga.ga_data.cast::<*const c_char>()).add(i as usize);
-                tv_list_append_string((*rettv).vval.v_list, p, -1);
+        let mut entries: Vec<std::ffi::CString> = Vec::new();
+        let ret = readdir_core(&mut entries, path, expr.cast(), Some(readdir_checkitem));
+        if ret == OK {
+            for entry in &entries {
+                tv_list_append_string((*rettv).vval.v_list, entry.as_ptr(), -1);
             }
         }
-        ga_clear_strings(&raw mut ga);
     }
 }
 

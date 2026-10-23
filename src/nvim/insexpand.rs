@@ -53,7 +53,6 @@ use crate::fileio::{fclose, vim_fgets};
 use crate::fuzzy::{
     FUZZY_SCORE_NONE, fuzzy_match_str, fuzzy_match_str_in_line, search_for_fuzzy_match,
 };
-use crate::garray::{ga_append_via_ptr, ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::hashtab::{
     hash_T, hash_add_item, hash_clear_all, hash_find, hash_hash, hash_init, hash_lookup,
@@ -879,28 +878,20 @@ unsafe fn ins_compl_infercase_gettext(
         }
 
         // Generate encoding specific output from wide character array.
-        let mut gap = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: ptr::null_mut(),
-        };
         let iobuff_ptr = (&raw mut IObuff).cast::<c_char>();
         let mut p = iobuff_ptr;
         let mut i: c_int = 0;
-        ga_init(&raw mut gap, 1, 500);
+        let mut gap: Vec<c_char> = Vec::new();
         while i < char_len {
-            if !gap.ga_data.is_null() {
-                ga_grow(&raw mut gap, 10);
-                p = gap.ga_data.cast::<c_char>().add(gap.ga_len as usize);
-                gap.ga_len += utf_char2bytes(*wca.add(i as usize), p);
+            if !gap.is_empty() {
+                let mut ch_buf = [0 as c_char; 6];
+                let n = utf_char2bytes(*wca.add(i as usize), ch_buf.as_mut_ptr()) as usize;
+                gap.extend_from_slice(&ch_buf[..n]);
                 i += 1;
             } else if (p.offset_from(iobuff_ptr) as usize) + 6 >= IOSIZE {
-                ga_grow(&raw mut gap, IOSIZE as c_int);
-                *p = NUL;
-                strcpy(gap.ga_data.cast::<c_char>(), iobuff_ptr);
-                gap.ga_len = p.offset_from(iobuff_ptr) as c_int;
+                let cur_len = p.offset_from(iobuff_ptr) as usize;
+                gap.reserve(IOSIZE);
+                gap.extend_from_slice(std::slice::from_raw_parts(iobuff_ptr, cur_len));
             } else {
                 p = p.add(utf_char2bytes(*wca.add(i as usize), p) as usize);
                 i += 1;
@@ -908,9 +899,10 @@ unsafe fn ins_compl_infercase_gettext(
         }
         xfree(wca.cast());
 
-        if !gap.ga_data.is_null() {
-            *tofree = gap.ga_data.cast::<c_char>();
-            return gap.ga_data.cast::<c_char>();
+        if !gap.is_empty() {
+            let out = xmemdupz(gap.as_ptr().cast(), gap.len()).cast::<c_char>();
+            *tofree = out;
+            return out;
         }
 
         *p = NUL;
@@ -4383,14 +4375,7 @@ unsafe fn get_next_filename_completion() {
         }
 
         if in_fuzzy_collect {
-            let mut fuzzy_indices = garray_T {
-                ga_len: 0,
-                ga_maxlen: 0,
-                ga_itemsize: 0,
-                ga_growsize: 0,
-                ga_data: ptr::null_mut(),
-            };
-            ga_init(&raw mut fuzzy_indices, size_of::<c_int>() as c_int, 10);
+            let mut fuzzy_indices: Vec<c_int> = Vec::with_capacity(10);
             compl_fuzzy_scores =
                 xmalloc(size_of::<c_int>() * (num_matches as usize)).cast::<c_int>();
 
@@ -4398,21 +4383,16 @@ unsafe fn get_next_filename_completion() {
                 let ptr = *matches.add(i as usize);
                 let score = fuzzy_match_str(ptr, leader);
                 if score != FUZZY_SCORE_NONE {
-                    *ga_append_via_ptr::<c_int>(&raw mut fuzzy_indices) = i;
+                    fuzzy_indices.push(i);
                     *compl_fuzzy_scores.add(i as usize) = score;
                 }
             }
 
-            if fuzzy_indices.ga_len > 0 {
-                let fuzzy_indices_data = fuzzy_indices.ga_data.cast::<c_int>();
-                let slice = std::slice::from_raw_parts_mut(
-                    fuzzy_indices_data,
-                    fuzzy_indices.ga_len as usize,
-                );
-                sort_slice_by(slice, |a, b| compare_scores(a, b));
+            if !fuzzy_indices.is_empty() {
+                sort_slice_by(&mut fuzzy_indices, |a, b| compare_scores(a, b));
 
-                for i in 0..(fuzzy_indices.ga_len as usize) {
-                    let idx = *fuzzy_indices_data.add(i) as usize;
+                for (i, &idx_c) in fuzzy_indices.iter().enumerate() {
+                    let idx = idx_c as usize;
                     let match_ = *matches.add(idx);
                     let current_score = *compl_fuzzy_scores.add(idx);
                     if ins_compl_add(
@@ -4451,7 +4431,6 @@ unsafe fn get_next_filename_completion() {
             }
 
             xfree(compl_fuzzy_scores.cast());
-            ga_clear(&raw mut fuzzy_indices);
 
             if compl_num_bests > 0 && compl_get_longest {
                 fuzzy_longest_match();

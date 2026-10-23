@@ -59,7 +59,7 @@ use crate::fileio::shorten_fnames;
 use crate::fold::{
     clearFolding, copyFoldingState, deleteFoldRecurse, foldInitWin, getDeepestNesting, hasFolding,
 };
-use crate::garray::{ga_grow, ga_init, garray_T};
+use crate::garray::garray_T;
 use crate::globals::*;
 use crate::grid::{
     GridView, ScreenGrid, grid_adjust, grid_assign_handle, grid_clear, grid_free, win_grid_alloc,
@@ -6564,41 +6564,33 @@ pub unsafe fn may_trigger_win_scrolled_resized() {
     }
 }
 
-pub unsafe fn win_size_save(gap: *mut garray_T) {
+pub unsafe fn win_size_save(gap: &mut Vec<c_int>) {
     unsafe {
-        ga_init(gap, size_of::<c_int>() as c_int, 1);
-        ga_grow(gap, win_count() * 2 + 1);
-        let data = (*gap).ga_data.cast::<c_int>();
-        *data.add((*gap).ga_len as usize) =
-            rows_avail() as c_int + global_stl_height() - last_stl_height(false);
-        (*gap).ga_len += 1;
+        gap.clear();
+        gap.reserve((win_count() * 2 + 1) as usize);
+        gap.push(rows_avail() as c_int + global_stl_height() - last_stl_height(false));
 
         let mut wp = firstwin;
         while !wp.is_null() {
-            let data = (*gap).ga_data.cast::<c_int>();
-            *data.add((*gap).ga_len as usize) = (*wp).w_width + (*wp).w_vsep_width;
-            (*gap).ga_len += 1;
-            *data.add((*gap).ga_len as usize) = (*wp).w_height;
-            (*gap).ga_len += 1;
+            gap.push((*wp).w_width + (*wp).w_vsep_width);
+            gap.push((*wp).w_height);
             wp = (*wp).w_next;
         }
     }
 }
 
-pub unsafe fn win_size_restore(gap: *mut garray_T) {
+pub unsafe fn win_size_restore(gap: &[c_int]) {
     unsafe {
-        let data = (*gap).ga_data.cast::<c_int>();
-        if win_count() * 2 + 1 == (*gap).ga_len
-            && *data == rows_avail() as c_int + global_stl_height() - last_stl_height(false)
+        if (win_count() * 2 + 1) as usize == gap.len()
+            && gap[0] == rows_avail() as c_int + global_stl_height() - last_stl_height(false)
         {
             for _ in 0..2 {
                 let mut i: usize = 1;
                 let mut wp = firstwin;
                 while !wp.is_null() {
-                    let width = *data.add(i);
-                    i += 1;
-                    let height = *data.add(i);
-                    i += 1;
+                    let width = gap[i];
+                    let height = gap[i + 1];
+                    i += 2;
                     if !(*wp).w_floating {
                         frame_setwidth((*wp).w_frame, width, true);
                         win_setheight_win(height, wp, true);
