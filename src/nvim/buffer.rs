@@ -2495,6 +2495,8 @@ pub unsafe fn buflist_new(
             ptr::write(&raw mut (*buf).b_kmap_ga, Vec::new());
             ptr::write(&raw mut (*buf).update_channels, Vec::new());
             ptr::write(&raw mut (*buf).update_callbacks, Vec::new());
+            ptr::write(&raw mut (*buf).b_s.b_syn_patterns, Vec::new());
+            ptr::write(&raw mut (*buf).b_s.b_syn_clusters, Vec::new());
             (*buf).b_vars = tv_dict_alloc();
             init_var_dict((*buf).b_vars, (&raw mut (*buf).b_bufvar).cast(), VAR_SCOPE);
             buf_init_changedtick(buf);

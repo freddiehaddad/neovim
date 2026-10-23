@@ -16,7 +16,7 @@ use crate::ex_docmd::{
     find_nextcmd, separate_nextcmd,
 };
 use crate::fold::{foldUpdateAll, foldmethodIsSyntax};
-use crate::garray::{ga_clear, ga_grow, ga_init, ga_set_growsize, garray_T};
+use crate::garray::garray_T;
 use crate::globals::*;
 use crate::hashtab::{
     hash_T, hash_add_item, hash_clear, hash_find, hash_hash, hash_init, hash_lock, hash_lookup,
@@ -80,8 +80,8 @@ pub struct synblock_T {
     pub b_syn_ic: c_int,
     pub b_syn_foldlevel: c_int,
     pub b_syn_spell: c_int,
-    pub b_syn_patterns: garray_T,
-    pub b_syn_clusters: garray_T,
+    pub b_syn_patterns: Vec<synpat_T>,
+    pub b_syn_clusters: Vec<syn_cluster_T>,
     pub b_spell_cluster_id: c_int,
     pub b_nospell_cluster_id: c_int,
     pub b_syn_containedin: c_int,
@@ -257,7 +257,7 @@ pub struct bufstate_T {
 #[derive(Clone, Copy)]
 pub union synstate_union_T {
     pub sst_stack: [bufstate_T; SST_FIX_STATES],
-    pub sst_ga: garray_T,
+    pub sst_ptr: *mut bufstate_T,
 }
 
 #[repr(C)]
@@ -275,7 +275,7 @@ pub struct synstate_T {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-struct synpat_T {
+pub struct synpat_T {
     sp_type: c_char,
     sp_syncing: bool,
     sp_syn_match_id: i16,
@@ -297,7 +297,7 @@ struct synpat_T {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-struct syn_cluster_T {
+pub struct syn_cluster_T {
     scl_name: *mut c_char,
     scl_name_u: *mut c_char,
     scl_list: *mut i16,
@@ -409,13 +409,8 @@ static mut current_lnum: linenr_T = 0;
 static mut current_col: colnr_T = 0;
 static mut current_state_stored: bool = false;
 static mut current_finished: bool = false;
-static mut current_state: garray_T = garray_T {
-    ga_len: 0,
-    ga_maxlen: 0,
-    ga_itemsize: 0,
-    ga_growsize: 0,
-    ga_data: ptr::null_mut(),
-};
+static mut current_state_valid: bool = false;
+static mut current_state: Vec<stateitem_T> = Vec::new();
 static mut current_next_list: *mut i16 = ptr::null_mut();
 static mut current_next_flags: c_int = 0;
 static mut current_line_id: c_int = 0;
@@ -440,26 +435,35 @@ pub unsafe fn hi_empty(hi: *const hashitem_T) -> bool {
 
 #[inline]
 unsafe fn syn_items(block: *mut synblock_T) -> *mut synpat_T {
-    unsafe { (*block).b_syn_patterns.ga_data.cast::<synpat_T>() }
+    unsafe { (*block).b_syn_patterns.as_mut_ptr() }
 }
 
 #[inline]
 unsafe fn syn_clstr(block: *mut synblock_T) -> *mut syn_cluster_T {
-    unsafe { (*block).b_syn_clusters.ga_data.cast::<syn_cluster_T>() }
+    unsafe { (*block).b_syn_clusters.as_mut_ptr() }
 }
 
 #[inline]
-unsafe fn syn_state_p(ssp: *mut garray_T) -> *mut bufstate_T {
-    unsafe { (*ssp).ga_data.cast::<bufstate_T>() }
+unsafe fn cur_state_len() -> c_int {
+    unsafe {
+        let cs_ptr = &raw const current_state;
+        (*cs_ptr).len() as c_int
+    }
+}
+
+#[inline]
+unsafe fn cur_state_empty() -> bool {
+    unsafe {
+        let cs_ptr = &raw const current_state;
+        (*cs_ptr).is_empty()
+    }
 }
 
 #[inline]
 unsafe fn cur_state_at(idx: c_int) -> *mut stateitem_T {
     unsafe {
-        current_state
-            .ga_data
-            .cast::<stateitem_T>()
-            .offset(idx as isize)
+        let cs_ptr = &raw mut current_state;
+        (*cs_ptr).as_mut_ptr().offset(idx as isize)
     }
 }
 
@@ -487,13 +491,13 @@ fn id_list_all() -> *mut i16 {
 }
 
 #[inline]
-unsafe fn invalid_state(ssp: *const garray_T) -> bool {
-    unsafe { (*ssp).ga_itemsize == 0 }
+unsafe fn invalid_state() -> bool {
+    unsafe { !current_state_valid }
 }
 
 #[inline]
-unsafe fn valid_state(ssp: *const garray_T) -> bool {
-    unsafe { (*ssp).ga_itemsize != 0 }
+unsafe fn valid_state() -> bool {
+    unsafe { current_state_valid }
 }
 
 /// Set the timeout used for syntax highlighting.
@@ -529,7 +533,7 @@ pub unsafe fn syntax_start(wp: *mut win_T, lnum: linenr_T) {
         }
         (*syn_block).b_sst_lasttick = display_tick;
 
-        if valid_state(&raw const current_state)
+        if valid_state()
             && current_lnum < lnum
             && current_lnum < (*syn_buf).b_ml.ml_line_count
         {
@@ -546,7 +550,7 @@ pub unsafe fn syntax_start(wp: *mut win_T, lnum: linenr_T) {
             invalidate_current_state();
         }
 
-        if invalid_state(&raw const current_state) && !(*syn_block).b_sst_array.is_null() {
+        if invalid_state() && !(*syn_block).b_sst_array.is_null() {
             let mut p = (*syn_block).b_sst_first.cast::<synstate_T>();
             while !p.is_null() {
                 if (*p).sst_lnum > lnum {
@@ -565,7 +569,7 @@ pub unsafe fn syntax_start(wp: *mut win_T, lnum: linenr_T) {
             }
         }
 
-        let first_stored = if invalid_state(&raw const current_state) {
+        let first_stored = if invalid_state() {
             syn_sync(wp, lnum, last_valid);
             if current_lnum == 1 {
                 1
@@ -634,12 +638,15 @@ pub unsafe fn syntax_start(wp: *mut win_T, lnum: linenr_T) {
 unsafe fn clear_syn_state(p: *mut synstate_T) {
     unsafe {
         if (*p).sst_stacksize > SST_FIX_STATES as c_int {
-            let gap = &raw mut (*p).sst_union.sst_ga;
-            for i in 0..(*gap).ga_len {
-                let bs = (*gap).ga_data.cast::<bufstate_T>().offset(i as isize);
-                unref_extmatch((*bs).bs_extmatch);
+            let ptr = (*p).sst_union.sst_ptr;
+            if !ptr.is_null() {
+                for i in 0..(*p).sst_stacksize {
+                    let bs = ptr.offset(i as isize);
+                    unref_extmatch((*bs).bs_extmatch);
+                }
+                xfree(ptr.cast());
+                (*p).sst_union.sst_ptr = ptr::null_mut();
             }
-            ga_clear(gap);
         } else {
             for i in 0..((*p).sst_stacksize as usize) {
                 unref_extmatch((*p).sst_union.sst_stack[i].bs_extmatch);
@@ -650,11 +657,11 @@ unsafe fn clear_syn_state(p: *mut synstate_T) {
 
 unsafe fn clear_current_state() {
     unsafe {
-        for i in 0..current_state.ga_len {
-            let si = cur_state_at(i);
-            unref_extmatch((*si).si_extmatch);
+        let cs_ptr = &raw mut current_state;
+        for si in (*cs_ptr).drain(..) {
+            unref_extmatch(si.si_extmatch);
         }
-        ga_clear(&raw mut current_state);
+        *cs_ptr = Vec::new();
     }
 }
 
@@ -711,7 +718,7 @@ unsafe fn syn_sync(wp: *mut win_T, mut start_lnum: linenr_T, last_valid: *mut sy
             (*wp).w_cursor.col = 0;
 
             if !find_start_comment((*syn_block).b_syn_sync_maxlines).is_null() {
-                let mut idx = (*syn_block).b_syn_patterns.ga_len - 1;
+                let mut idx = (*syn_block).b_syn_patterns.len() as c_int - 1;
                 while idx >= 0 {
                     let spp = syn_items(syn_block).offset(idx as isize);
                     if (*spp).sp_syn.id == (*syn_block).b_syn_sync_id
@@ -719,7 +726,7 @@ unsafe fn syn_sync(wp: *mut win_T, mut start_lnum: linenr_T, last_valid: *mut sy
                     {
                         validate_current_state();
                         push_current_state(idx);
-                        update_si_attr(current_state.ga_len - 1);
+                        update_si_attr(cur_state_len() - 1);
                         break;
                     }
                     idx -= 1;
@@ -767,8 +774,8 @@ unsafe fn syn_sync(wp: *mut win_T, mut start_lnum: linenr_T, last_valid: *mut sy
                     syn_start_line();
                     loop {
                         let had_sync_point = syn_finish_line(true);
-                        if had_sync_point && current_state.ga_len != 0 {
-                            let cur_si = cur_state_at(current_state.ga_len - 1);
+                        if had_sync_point && !cur_state_empty() {
+                            let cur_si = cur_state_at(cur_state_len() - 1);
                             if (*cur_si).si_m_endpos.lnum > start_lnum {
                                 current_lnum = end_lnum;
                                 break;
@@ -813,14 +820,14 @@ unsafe fn syn_sync(wp: *mut win_T, mut start_lnum: linenr_T, last_valid: *mut sy
                     clear_current_state();
                     if found_match_idx >= 0 {
                         push_current_state(found_match_idx);
-                        update_si_attr(current_state.ga_len - 1);
+                        update_si_attr(cur_state_len() - 1);
                     }
 
                     if (found_flags & HL_SYNC_HERE) != 0 {
                         current_lnum = found_m_endpos.lnum;
                         current_col = found_m_endpos.col;
-                        if !ga_empty(&raw const current_state) {
-                            let cur_si = cur_state_at(current_state.ga_len - 1);
+                        if !cur_state_empty() {
+                            let cur_si = cur_state_at(cur_state_len() - 1);
                             (*cur_si).si_h_startpos.lnum = found_current_lnum;
                             (*cur_si).si_h_startpos.col = found_current_col;
                             update_si_end(cur_si, current_col, true);
@@ -910,7 +917,7 @@ unsafe fn syn_start_line() {
         current_finished = false;
         current_col = 0;
 
-        if !ga_empty(&raw const current_state) {
+        if !cur_state_empty() {
             syn_update_ends(true);
             check_state_ends();
         }
@@ -923,8 +930,9 @@ unsafe fn syn_start_line() {
 
 unsafe fn syn_update_ends(startofline: bool) {
     unsafe {
+        let len = cur_state_len();
         if startofline {
-            for i in 0..current_state.ga_len {
+            for i in 0..len {
                 let cur_si = cur_state_at(i);
                 if (*cur_si).si_idx >= 0
                     && (*syn_items(syn_block).offset((*cur_si).si_idx as isize)).sp_type
@@ -940,7 +948,7 @@ unsafe fn syn_update_ends(startofline: bool) {
             }
         }
 
-        let mut i = current_state.ga_len - 1;
+        let mut i = len - 1;
         if keepend_level >= 0 {
             while i > keepend_level {
                 if ((*cur_state_at(i)).si_flags & HL_EXTEND) != 0 {
@@ -951,11 +959,11 @@ unsafe fn syn_update_ends(startofline: bool) {
         }
 
         let mut seen_keepend = false;
-        while i < current_state.ga_len {
+        while i < len {
             let cur_si = cur_state_at(i);
             if ((*cur_si).si_flags & HL_KEEPEND) != 0
                 || (seen_keepend && !startofline)
-                || (i == current_state.ga_len - 1 && startofline)
+                || (i == len - 1 && startofline)
             {
                 (*cur_si).si_h_startpos.col = 0;
                 (*cur_si).si_h_startpos.lnum = current_lnum;
@@ -1217,7 +1225,7 @@ unsafe fn store_current_state() -> *mut synstate_T {
     unsafe {
         let mut sp = syn_stack_find_entry(current_lnum);
 
-        let mut i = current_state.ga_len - 1;
+        let mut i = cur_state_len() - 1;
         while i >= 0 {
             let cur_si = cur_state_at(i);
             if (*cur_si).si_h_startpos.lnum >= current_lnum
@@ -1274,16 +1282,12 @@ unsafe fn store_current_state() -> *mut synstate_T {
         }
         if !sp.is_null() {
             clear_syn_state(sp);
-            (*sp).sst_stacksize = current_state.ga_len;
-            let bp = if current_state.ga_len > SST_FIX_STATES as c_int {
-                ga_init(
-                    &raw mut (*sp).sst_union.sst_ga,
-                    size_of::<bufstate_T>() as c_int,
-                    1,
-                );
-                ga_grow(&raw mut (*sp).sst_union.sst_ga, current_state.ga_len);
-                (*sp).sst_union.sst_ga.ga_len = current_state.ga_len;
-                syn_state_p(&raw mut (*sp).sst_union.sst_ga)
+            let len = cur_state_len();
+            (*sp).sst_stacksize = len;
+            let bp = if len > SST_FIX_STATES as c_int {
+                let p = xmalloc((len as usize) * size_of::<bufstate_T>()).cast::<bufstate_T>();
+                (*sp).sst_union.sst_ptr = p;
+                p
             } else {
                 (&raw mut (*sp).sst_union.sst_stack).cast::<bufstate_T>()
             };
@@ -1312,9 +1316,10 @@ unsafe fn load_current_state(from: *mut synstate_T) {
         validate_current_state();
         keepend_level = -1;
         if (*from).sst_stacksize != 0 {
-            ga_grow(&raw mut current_state, (*from).sst_stacksize);
+            let cs_ptr = &raw mut current_state;
+            (*cs_ptr).resize((*from).sst_stacksize as usize, std::mem::zeroed());
             let bp = if (*from).sst_stacksize > SST_FIX_STATES as c_int {
-                syn_state_p(&raw mut (*from).sst_union.sst_ga)
+                (*from).sst_union.sst_ptr
             } else {
                 (&raw mut (*from).sst_union.sst_stack).cast::<bufstate_T>()
             };
@@ -1339,7 +1344,6 @@ unsafe fn load_current_state(from: *mut synstate_T) {
                 }
                 update_si_attr(i);
             }
-            current_state.ga_len = (*from).sst_stacksize;
         }
         current_next_list = (*from).sst_next_list;
         current_next_flags = (*from).sst_next_flags;
@@ -1349,17 +1353,17 @@ unsafe fn load_current_state(from: *mut synstate_T) {
 
 unsafe fn syn_stack_equal(sp: *mut synstate_T) -> bool {
     unsafe {
-        if (*sp).sst_stacksize != current_state.ga_len || (*sp).sst_next_list != current_next_list {
+        if (*sp).sst_stacksize != cur_state_len() || (*sp).sst_next_list != current_next_list {
             return false;
         }
 
         let bp = if (*sp).sst_stacksize > SST_FIX_STATES as c_int {
-            syn_state_p(&raw mut (*sp).sst_union.sst_ga)
+            (*sp).sst_union.sst_ptr
         } else {
             (&raw mut (*sp).sst_union.sst_stack).cast::<bufstate_T>()
         };
 
-        let mut i = current_state.ga_len - 1;
+        let mut i = cur_state_len() - 1;
         while i >= 0 {
             let cur_si = cur_state_at(i);
             let b = bp.offset(i as isize);
@@ -1421,7 +1425,7 @@ pub unsafe fn syntax_end_parsing(wp: *mut win_T, lnum: linenr_T) {
 unsafe fn invalidate_current_state() {
     unsafe {
         clear_current_state();
-        current_state.ga_itemsize = 0;
+        current_state_valid = false;
         current_next_list = ptr::null_mut();
         keepend_level = -1;
     }
@@ -1429,8 +1433,7 @@ unsafe fn invalidate_current_state() {
 
 unsafe fn validate_current_state() {
     unsafe {
-        current_state.ga_itemsize = size_of::<stateitem_T>() as c_int;
-        ga_set_growsize(&raw mut current_state, 3);
+        current_state_valid = true;
     }
 }
 
@@ -1439,7 +1442,7 @@ pub unsafe fn syntax_check_changed(lnum: linenr_T) -> bool {
     unsafe {
         let mut retval = true;
 
-        if valid_state(&raw const current_state) && lnum == current_lnum + 1 {
+        if valid_state() && lnum == current_lnum + 1 {
             let sp = syn_stack_find_entry(lnum);
             if !sp.is_null() && (*sp).sst_lnum == lnum {
                 syn_finish_line(false);
@@ -1462,8 +1465,8 @@ unsafe fn syn_finish_line(syncing: bool) -> bool {
         while !current_finished {
             syn_current_attr(syncing, false, ptr::null_mut(), false);
 
-            if syncing && current_state.ga_len != 0 {
-                let cur_si = cur_state_at(current_state.ga_len - 1);
+            if syncing && !cur_state_empty() {
+                let cur_si = cur_state_at(cur_state_len() - 1);
                 if (*cur_si).si_idx >= 0
                     && ((*syn_items(syn_block).offset((*cur_si).si_idx as isize)).sp_flags
                         & (HL_SYNC_HERE | HL_SYNC_THERE))
@@ -1511,7 +1514,7 @@ pub unsafe fn get_syntax_attr(col: colnr_T, can_spell: *mut bool, keep_state: bo
             return 0;
         }
 
-        if invalid_state(&raw const current_state) {
+        if invalid_state() {
             validate_current_state();
         }
 
@@ -1561,7 +1564,7 @@ unsafe fn syn_current_attr(
 
         let mut keep_next_list: bool;
         let mut zero_width_next_list = false;
-        let mut zero_width_next_ga: garray_T = std::mem::zeroed();
+        let mut zero_width_next_ga: Vec<c_int> = Vec::new();
 
         let mut line = syn_getcurline();
         if *line.offset(current_col as isize) == NUL && current_col != 0 {
@@ -1589,8 +1592,6 @@ unsafe fn syn_current_attr(
         let do_keywords = !syncing
             && ((*syn_block).b_keywtab.ht_used > 0 || (*syn_block).b_keywtab_ic.ht_used > 0);
 
-        ga_init(&raw mut zero_width_next_ga, size_of::<c_int>() as c_int, 10);
-
         save_chartab(buf_chartab.as_mut_ptr());
 
         loop {
@@ -1598,8 +1599,8 @@ unsafe fn syn_current_attr(
             keep_next_list = false;
             let mut syn_id: c_int = 0;
 
-            if current_state.ga_len != 0 {
-                cur_si = cur_state_at(current_state.ga_len - 1);
+            if !cur_state_empty() {
+                cur_si = cur_state_at(cur_state_len() - 1);
             } else {
                 cur_si = ptr::null_mut();
             }
@@ -1631,7 +1632,8 @@ unsafe fn syn_current_attr(
                         );
                         if syn_id != 0 {
                             push_current_state(KEYWORD_IDX);
-                            cur_si = cur_state_at(current_state.ga_len - 1);
+                            let len = cur_state_len();
+                            cur_si = cur_state_at(len - 1);
                             (*cur_si).si_m_startcol = current_col;
                             (*cur_si).si_h_startpos.lnum = current_lnum;
                             (*cur_si).si_h_startpos.col = 0;
@@ -1645,21 +1647,19 @@ unsafe fn syn_current_attr(
                             (*cur_si).si_seqnr = next_seqnr;
                             next_seqnr += 1;
                             (*cur_si).si_cchar = cchar;
-                            if current_state.ga_len > 1 {
+                            if len > 1 {
                                 (*cur_si).si_flags |=
-                                    (*cur_state_at(current_state.ga_len - 2)).si_flags & HL_CONCEAL;
+                                    (*cur_state_at(len - 2)).si_flags & HL_CONCEAL;
                             }
                             (*cur_si).si_id = syn_id;
                             (*cur_si).si_trans_id = syn_id;
                             if (flags & HL_TRANSP) != 0 {
-                                if current_state.ga_len < 2 {
+                                if len < 2 {
                                     (*cur_si).si_attr = 0;
                                     (*cur_si).si_trans_id = 0;
                                 } else {
-                                    (*cur_si).si_attr =
-                                        (*cur_state_at(current_state.ga_len - 2)).si_attr;
-                                    (*cur_si).si_trans_id =
-                                        (*cur_state_at(current_state.ga_len - 2)).si_trans_id;
+                                    (*cur_si).si_attr = (*cur_state_at(len - 2)).si_attr;
+                                    (*cur_si).si_trans_id = (*cur_state_at(len - 2)).si_trans_id;
                                 }
                             } else {
                                 (*cur_si).si_attr = syn_id2attr(syn_id);
@@ -1671,11 +1671,11 @@ unsafe fn syn_current_attr(
                     }
                 }
 
-                if syn_id == 0 && (*syn_block).b_syn_patterns.ga_len != 0 {
+                if syn_id == 0 && !(*syn_block).b_syn_patterns.is_empty() {
                     if next_match_idx < 0 || next_match_col < current_col {
                         next_match_idx = 0;
                         next_match_col = MAXCOL;
-                        let mut idx = (*syn_block).b_syn_patterns.ga_len - 1;
+                        let mut idx = (*syn_block).b_syn_patterns.len() as c_int - 1;
                         while idx >= 0 {
                             let spp = syn_items(syn_block).offset(idx as isize);
                             if (*spp).sp_syncing == syncing
@@ -1748,7 +1748,7 @@ unsafe fn syn_current_attr(
                                     continue;
                                 }
 
-                                if did_match_already(idx, &raw mut zero_width_next_ga) {
+                                if did_match_already(idx, &zero_width_next_ga) {
                                     try_next_column = true;
                                     idx -= 1;
                                     continue;
@@ -1859,12 +1859,7 @@ unsafe fn syn_current_attr(
                             keep_next_list = true;
                             zero_width_next_list = true;
 
-                            ga_grow(&raw mut zero_width_next_ga, 1);
-                            *zero_width_next_ga
-                                .ga_data
-                                .cast::<c_int>()
-                                .offset(zero_width_next_ga.ga_len as isize) = next_match_idx;
-                            zero_width_next_ga.ga_len += 1;
+                            zero_width_next_ga.push(next_match_idx);
                             next_match_idx = -1;
                         } else {
                             cur_si = push_next_match();
@@ -1905,7 +1900,7 @@ unsafe fn syn_current_attr(
         current_flags = 0;
         current_seqnr = 0;
         if !cur_si.is_null() {
-            let mut idx = current_state.ga_len - 1;
+            let mut idx = cur_state_len() - 1;
             while idx >= 0 {
                 sip = cur_state_at(idx);
                 if (current_lnum > (*sip).si_h_startpos.lnum
@@ -1958,7 +1953,7 @@ unsafe fn syn_current_attr(
 
             if !syncing && !keep_state {
                 check_state_ends();
-                if !ga_empty(&raw const current_state)
+                if !cur_state_empty()
                     && *syn_getcurline().offset(current_col as isize) != NUL
                 {
                     current_col += 1;
@@ -1984,9 +1979,7 @@ unsafe fn syn_current_attr(
             }
         }
 
-        if !ga_empty(&raw const zero_width_next_ga) {
-            ga_clear(&raw mut zero_width_next_ga);
-        }
+        drop(zero_width_next_ga);
 
         unref_extmatch(re_extmatch_out);
         re_extmatch_out = ptr::null_mut();
@@ -1996,9 +1989,9 @@ unsafe fn syn_current_attr(
     }
 }
 
-unsafe fn did_match_already(idx: c_int, gap: *mut garray_T) -> bool {
+unsafe fn did_match_already(idx: c_int, gap: &[c_int]) -> bool {
     unsafe {
-        let mut i = current_state.ga_len - 1;
+        let mut i = cur_state_len() - 1;
         while i >= 0 {
             let cur_si = cur_state_at(i);
             if (*cur_si).si_m_startcol == current_col
@@ -2010,15 +2003,7 @@ unsafe fn did_match_already(idx: c_int, gap: *mut garray_T) -> bool {
             i -= 1;
         }
 
-        let mut j = (*gap).ga_len - 1;
-        while j >= 0 {
-            if *(*gap).ga_data.cast::<c_int>().offset(j as isize) == idx {
-                return true;
-            }
-            j -= 1;
-        }
-
-        false
+        gap.contains(&idx)
     }
 }
 
@@ -2027,7 +2012,8 @@ unsafe fn push_next_match() -> *mut stateitem_T {
         let spp = syn_items(syn_block).offset(next_match_idx as isize);
 
         push_current_state(next_match_idx);
-        let mut cur_si = cur_state_at(current_state.ga_len - 1);
+        let len = cur_state_len();
+        let mut cur_si = cur_state_at(len - 1);
         (*cur_si).si_h_startpos = next_match_h_startpos;
         (*cur_si).si_m_startcol = current_col;
         (*cur_si).si_m_lnum = current_lnum;
@@ -2035,8 +2021,8 @@ unsafe fn push_next_match() -> *mut stateitem_T {
         (*cur_si).si_seqnr = next_seqnr;
         next_seqnr += 1;
         (*cur_si).si_cchar = (*spp).sp_cchar;
-        if current_state.ga_len > 1 {
-            (*cur_si).si_flags |= (*cur_state_at(current_state.ga_len - 2)).si_flags & HL_CONCEAL;
+        if len > 1 {
+            (*cur_si).si_flags |= (*cur_state_at(len - 2)).si_flags & HL_CONCEAL;
         }
         (*cur_si).si_next_list = (*spp).sp_next_list;
         (*cur_si).si_extmatch = ref_extmatch(next_match_extmatch);
@@ -2052,15 +2038,16 @@ unsafe fn push_next_match() -> *mut stateitem_T {
             (*cur_si).si_end_idx = next_match_end_idx;
         }
         if keepend_level < 0 && ((*cur_si).si_flags & HL_KEEPEND) != 0 {
-            keepend_level = current_state.ga_len - 1;
+            keepend_level = len - 1;
         }
         check_keepend();
-        update_si_attr(current_state.ga_len - 1);
+        update_si_attr(len - 1);
 
         let save_flags = (*cur_si).si_flags & (HL_CONCEAL | HL_CONCEALENDS);
         if (*spp).sp_type == SPTYPE_START && (*spp).sp_syn_match_id != 0 {
             push_current_state(next_match_idx);
-            cur_si = cur_state_at(current_state.ga_len - 1);
+            let len2 = cur_state_len();
+            cur_si = cur_state_at(len2 - 1);
             (*cur_si).si_h_startpos = next_match_h_startpos;
             (*cur_si).si_m_startcol = current_col;
             (*cur_si).si_m_lnum = current_lnum;
@@ -2077,7 +2064,7 @@ unsafe fn push_next_match() -> *mut stateitem_T {
             }
             (*cur_si).si_next_list = ptr::null_mut();
             check_keepend();
-            update_si_attr(current_state.ga_len - 1);
+            update_si_attr(len2 - 1);
         }
 
         next_match_idx = -1;
@@ -2087,7 +2074,7 @@ unsafe fn push_next_match() -> *mut stateitem_T {
 
 unsafe fn check_state_ends() {
     unsafe {
-        let mut cur_si = cur_state_at(current_state.ga_len - 1);
+        let mut cur_si = cur_state_at(cur_state_len() - 1);
         loop {
             if (*cur_si).si_ends != 0
                 && ((*cur_si).si_m_endpos.lnum < current_lnum
@@ -2109,7 +2096,7 @@ unsafe fn check_state_ends() {
                     if ((*cur_si).si_flags & HL_CONCEALENDS) != 0 {
                         (*cur_si).si_flags |= HL_CONCEAL;
                     }
-                    update_si_attr(current_state.ga_len - 1);
+                    update_si_attr(cur_state_len() - 1);
 
                     current_next_list = ptr::null_mut();
                     next_match_idx = 0;
@@ -2129,18 +2116,18 @@ unsafe fn check_state_ends() {
 
                 pop_current_state();
 
-                if ga_empty(&raw const current_state) {
+                if cur_state_empty() {
                     break;
                 }
 
                 if had_extend && keepend_level >= 0 {
                     syn_update_ends(false);
-                    if ga_empty(&raw const current_state) {
+                    if cur_state_empty() {
                         break;
                     }
                 }
 
-                cur_si = cur_state_at(current_state.ga_len - 1);
+                cur_si = cur_state_at(cur_state_len() - 1);
 
                 if (*cur_si).si_idx >= 0
                     && (*syn_items(syn_block).offset((*cur_si).si_idx as isize)).sp_type
@@ -2210,7 +2197,8 @@ unsafe fn check_keepend() {
             return;
         }
 
-        let mut i = current_state.ga_len - 1;
+        let len = cur_state_len();
+        let mut i = len - 1;
         while i > keepend_level {
             if ((*cur_state_at(i)).si_flags & HL_EXTEND) != 0 {
                 break;
@@ -2220,7 +2208,7 @@ unsafe fn check_keepend() {
 
         let mut maxpos = lpos_T { lnum: 0, col: 0 };
         let mut maxpos_h = lpos_T { lnum: 0, col: 0 };
-        while i < current_state.ga_len {
+        while i < len {
             let sip = cur_state_at(i);
             if maxpos.lnum != 0 {
                 limit_pos_zero(&raw mut (*sip).si_m_endpos, &raw mut maxpos);
@@ -2301,23 +2289,22 @@ unsafe fn update_si_end(sip: *mut stateitem_T, startcol: c_int, force: bool) {
 
 unsafe fn push_current_state(idx: c_int) {
     unsafe {
-        ga_grow(&raw mut current_state, 1);
-        let p = cur_state_at(current_state.ga_len);
-        current_state.ga_len += 1;
-        ptr::write_bytes(p, 0, 1);
-        (*p).si_idx = idx;
+        let mut item: stateitem_T = std::mem::zeroed();
+        item.si_idx = idx;
+        let cs_ptr = &raw mut current_state;
+        (*cs_ptr).push(item);
     }
 }
 
 unsafe fn pop_current_state() {
     unsafe {
-        if !ga_empty(&raw const current_state) {
-            unref_extmatch((*cur_state_at(current_state.ga_len - 1)).si_extmatch);
-            current_state.ga_len -= 1;
+        let cs_ptr = &raw mut current_state;
+        if let Some(last) = (*cs_ptr).pop() {
+            unref_extmatch(last.si_extmatch);
         }
         next_match_idx = -1;
 
-        if keepend_level >= current_state.ga_len {
+        if keepend_level >= (*cs_ptr).len() as c_int {
             keepend_level = -1;
         }
     }
@@ -2375,7 +2362,7 @@ unsafe fn find_endpos(
         loop {
             let mut best_idx: c_int = -1;
             idx = start_idx;
-            while idx < (*syn_block).b_syn_patterns.ga_len {
+            while (idx as usize) < (*syn_block).b_syn_patterns.len() {
                 let mut lc_col = matchcol;
                 spp = syn_items(syn_block).offset(idx as isize);
                 if (*spp).sp_type != SPTYPE_END {
@@ -2925,19 +2912,19 @@ pub unsafe fn syntax_clear(block: *mut synblock_T) {
         clear_keywtab(&raw mut (*block).b_keywtab);
         clear_keywtab(&raw mut (*block).b_keywtab_ic);
 
-        let mut i = (*block).b_syn_patterns.ga_len - 1;
+        let mut i = (*block).b_syn_patterns.len() as c_int - 1;
         while i >= 0 {
             syn_clear_pattern(block, i);
             i -= 1;
         }
-        ga_clear(&raw mut (*block).b_syn_patterns);
+        (*block).b_syn_patterns = Vec::new();
 
-        let mut j = (*block).b_syn_clusters.ga_len - 1;
+        let mut j = (*block).b_syn_clusters.len() as c_int - 1;
         while j >= 0 {
             syn_clear_cluster(block, j);
             j -= 1;
         }
-        ga_clear(&raw mut (*block).b_syn_clusters);
+        (*block).b_syn_clusters = Vec::new();
         (*block).b_spell_cluster_id = 0;
         (*block).b_nospell_cluster_id = 0;
 
@@ -2973,7 +2960,7 @@ pub unsafe fn reset_synblock(wp: *mut win_T) {
 
 unsafe fn syntax_sync_clear() {
     unsafe {
-        let mut i = (*win_s(curwin)).b_syn_patterns.ga_len - 1;
+        let mut i = (*win_s(curwin)).b_syn_patterns.len() as c_int - 1;
         while i >= 0 {
             if (*syn_items(win_s(curwin)).offset(i as isize)).sp_syncing {
                 syn_remove_pattern(win_s(curwin), i);
@@ -3003,12 +2990,8 @@ unsafe fn syn_remove_pattern(block: *mut synblock_T, idx: c_int) {
             (*block).b_syn_folditems -= 1;
         }
         syn_clear_pattern(block, idx);
-        ptr::copy(
-            spp.add(1),
-            spp,
-            ((*block).b_syn_patterns.ga_len - idx - 1) as usize,
-        );
-        (*block).b_syn_patterns.ga_len -= 1;
+        let pats = &mut (*block).b_syn_patterns;
+        pats.remove(idx as usize);
     }
 }
 
@@ -3093,7 +3076,7 @@ unsafe fn syn_clear_one(id: c_int, syncing: bool) {
             syn_clear_keyword(id, &raw mut (*win_s(curwin)).b_keywtab_ic);
         }
 
-        let mut idx = (*win_s(curwin)).b_syn_patterns.ga_len - 1;
+        let mut idx = (*win_s(curwin)).b_syn_patterns.len() as c_int - 1;
         while idx >= 0 {
             let spp = syn_items(win_s(curwin)).offset(idx as isize);
             if (*spp).sp_syn.id as c_int == id && (*spp).sp_syncing == syncing {
@@ -3212,7 +3195,7 @@ unsafe fn syn_cmd_list(eap: *mut exarg_T, syncing: c_int) {
                 id += 1;
             }
             let mut cid: c_int = 0;
-            while cid < (*win_s(curwin)).b_syn_clusters.ga_len && !got_int {
+            while (cid as usize) < (*win_s(curwin)).b_syn_clusters.len() && !got_int {
                 syn_list_cluster(cid);
                 cid += 1;
             }
@@ -3309,7 +3292,7 @@ unsafe fn syn_list_one(id: c_int, syncing: bool, link_only: bool) {
         }
 
         let mut idx: c_int = 0;
-        while idx < (*win_s(curwin)).b_syn_patterns.ga_len && !got_int {
+        while (idx as usize) < (*win_s(curwin)).b_syn_patterns.len() && !got_int {
             let spp = syn_items(win_s(curwin)).offset(idx as isize);
             if (*spp).sp_syn.id as c_int != id || (*spp).sp_syncing != syncing {
                 idx += 1;
@@ -3341,7 +3324,7 @@ unsafe fn syn_list_one(id: c_int, syncing: bool, link_only: bool) {
                     );
                     idx += 1;
                 }
-                while idx < (*win_s(curwin)).b_syn_patterns.ga_len
+                while (idx as usize) < (*win_s(curwin)).b_syn_patterns.len()
                     && (*syn_items(win_s(curwin)).offset(idx as isize)).sp_type == SPTYPE_END
                 {
                     put_pattern(
@@ -3868,7 +3851,7 @@ unsafe fn get_syn_options(
                         *(*opt).sync_idx = NONE_IDX;
                     } else {
                         let syn_id = syn_name2id(gname);
-                        let mut i = (*win_s(curwin)).b_syn_patterns.ga_len - 1;
+                        let mut i = (*win_s(curwin)).b_syn_patterns.len() as c_int - 1;
                         while i >= 0 {
                             let spp = syn_items(win_s(curwin)).offset(i as isize);
                             if (*spp).sp_syn.id as c_int == syn_id && (*spp).sp_type == SPTYPE_START
@@ -4159,24 +4142,21 @@ unsafe fn syn_cmd_match(eap: *mut exarg_T, syncing: c_int) {
                 let syn_id = syn_check_group(arg, group_name_end.offset_from(arg) as usize);
                 if syn_id != 0 {
                     syn_incl_toplevel(syn_id, &raw mut syn_opt_arg.flags);
-                    ga_grow(&raw mut (*win_s(curwin)).b_syn_patterns, 1);
-                    let spp = syn_items(win_s(curwin))
-                        .offset((*win_s(curwin)).b_syn_patterns.ga_len as isize);
-                    (*win_s(curwin)).b_syn_patterns.ga_len += 1;
-                    *spp = item;
-                    (*spp).sp_syncing = syncing != 0;
-                    (*spp).sp_type = SPTYPE_MATCH;
-                    (*spp).sp_syn.id = syn_id as i16;
-                    (*spp).sp_syn.inc_tag = current_syn_inc_tag;
-                    (*spp).sp_flags = syn_opt_arg.flags;
-                    (*spp).sp_sync_idx = sync_idx;
-                    (*spp).sp_cont_list = syn_opt_arg.cont_list;
-                    (*spp).sp_syn.cont_in_list = syn_opt_arg.cont_in_list;
-                    (*spp).sp_cchar = conceal_char;
+                    item.sp_syncing = syncing != 0;
+                    item.sp_type = SPTYPE_MATCH;
+                    item.sp_syn.id = syn_id as i16;
+                    item.sp_syn.inc_tag = current_syn_inc_tag;
+                    item.sp_flags = syn_opt_arg.flags;
+                    item.sp_sync_idx = sync_idx;
+                    item.sp_cont_list = syn_opt_arg.cont_list;
+                    item.sp_syn.cont_in_list = syn_opt_arg.cont_in_list;
+                    item.sp_cchar = conceal_char;
                     if !syn_opt_arg.cont_in_list.is_null() {
                         (*win_s(curwin)).b_syn_containedin = 1;
                     }
-                    (*spp).sp_next_list = syn_opt_arg.next_list;
+                    item.sp_next_list = syn_opt_arg.next_list;
+                    let pats = &mut (*win_s(curwin)).b_syn_patterns;
+                    pats.push(item);
 
                     if (syn_opt_arg.flags & (HL_SYNC_HERE | HL_SYNC_THERE)) != 0 {
                         (*win_s(curwin)).b_syn_sync_flags |= SF_MATCH;
@@ -4327,11 +4307,11 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
             if ends_excmd(*rest as c_int) == 0 || (*eap).skip != 0 {
                 rest = ptr::null_mut();
             } else {
-                ga_grow(&raw mut (*win_s(curwin)).b_syn_patterns, pat_count);
                 let syn_id = syn_check_group(arg, group_name_end.offset_from(arg) as usize);
                 if syn_id != 0 {
                     syn_incl_toplevel(syn_id, &raw mut syn_opt_arg.flags);
-                    let mut idx = (*win_s(curwin)).b_syn_patterns.ga_len;
+                    let pats = &mut (*win_s(curwin)).b_syn_patterns;
+                    pats.reserve(pat_count as usize);
                     for (item, &pat_ptr) in pat_ptrs
                         .iter()
                         .enumerate()
@@ -4340,31 +4320,29 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
                     {
                         let mut ppp = pat_ptr;
                         while !ppp.is_null() {
-                            let spp = syn_items(win_s(curwin)).offset(idx as isize);
-                            *spp = *(*ppp).pp_synp;
-                            (*spp).sp_syncing = syncing != 0;
-                            (*spp).sp_type = if item == ITEM_START {
+                            let mut pat = *(*ppp).pp_synp;
+                            pat.sp_syncing = syncing != 0;
+                            pat.sp_type = if item == ITEM_START {
                                 SPTYPE_START
                             } else if item == ITEM_SKIP {
                                 SPTYPE_SKIP
                             } else {
                                 SPTYPE_END
                             };
-                            (*spp).sp_flags |= syn_opt_arg.flags;
-                            (*spp).sp_syn.id = syn_id as i16;
-                            (*spp).sp_syn.inc_tag = current_syn_inc_tag;
-                            (*spp).sp_syn_match_id = (*ppp).pp_matchgroup_id as i16;
-                            (*spp).sp_cchar = conceal_char;
+                            pat.sp_flags |= syn_opt_arg.flags;
+                            pat.sp_syn.id = syn_id as i16;
+                            pat.sp_syn.inc_tag = current_syn_inc_tag;
+                            pat.sp_syn_match_id = (*ppp).pp_matchgroup_id as i16;
+                            pat.sp_cchar = conceal_char;
                             if item == ITEM_START {
-                                (*spp).sp_cont_list = syn_opt_arg.cont_list;
-                                (*spp).sp_syn.cont_in_list = syn_opt_arg.cont_in_list;
+                                pat.sp_cont_list = syn_opt_arg.cont_list;
+                                pat.sp_syn.cont_in_list = syn_opt_arg.cont_in_list;
                                 if !syn_opt_arg.cont_in_list.is_null() {
                                     (*win_s(curwin)).b_syn_containedin = 1;
                                 }
-                                (*spp).sp_next_list = syn_opt_arg.next_list;
+                                pat.sp_next_list = syn_opt_arg.next_list;
                             }
-                            (*win_s(curwin)).b_syn_patterns.ga_len += 1;
-                            idx += 1;
+                            pats.push(pat);
                             if (syn_opt_arg.flags & HL_FOLD) != 0 {
                                 (*win_s(curwin)).b_syn_folditems += 1;
                             }
@@ -4506,7 +4484,7 @@ unsafe fn syn_combine_list(clstr1: *mut *mut i16, clstr2: *mut *mut i16, list_op
 unsafe fn syn_scl_name2id(name: *const c_char) -> c_int {
     unsafe {
         let name_u = vim_strsave_up(name);
-        let mut i = (*win_s(curwin)).b_syn_clusters.ga_len - 1;
+        let mut i = (*win_s(curwin)).b_syn_clusters.len() as c_int - 1;
         while i >= 0 {
             let clp = syn_clstr(win_s(curwin)).offset(i as isize);
             if !(*clp).scl_name_u.is_null() && strcmp(name_u, (*clp).scl_name_u) == 0 {
@@ -4543,25 +4521,19 @@ unsafe fn syn_check_cluster(pp: *const c_char, len: c_int) -> c_int {
 
 unsafe fn syn_add_cluster(name: *mut c_char) -> c_int {
     unsafe {
-        if (*win_s(curwin)).b_syn_clusters.ga_data.is_null() {
-            (*win_s(curwin)).b_syn_clusters.ga_itemsize = size_of::<syn_cluster_T>() as c_int;
-            ga_set_growsize(&raw mut (*win_s(curwin)).b_syn_clusters, 10);
-        }
-
-        let len = (*win_s(curwin)).b_syn_clusters.ga_len;
+        let len = (*win_s(curwin)).b_syn_clusters.len() as c_int;
         if len >= MAX_CLUSTER_ID {
             emsg(gettext(c"E848: Too many syntax clusters".as_ptr()));
             xfree(name.cast());
             return 0;
         }
 
-        ga_grow(&raw mut (*win_s(curwin)).b_syn_clusters, 1);
-        let scp = syn_clstr(win_s(curwin)).offset(len as isize);
-        (*win_s(curwin)).b_syn_clusters.ga_len += 1;
-        ptr::write_bytes(scp, 0, 1);
-        (*scp).scl_name = name;
-        (*scp).scl_name_u = vim_strsave_up(name);
-        (*scp).scl_list = ptr::null_mut();
+        let clusters = &mut (*win_s(curwin)).b_syn_clusters;
+        clusters.push(syn_cluster_T {
+            scl_name: name,
+            scl_name_u: vim_strsave_up(name),
+            scl_list: ptr::null_mut(),
+        });
 
         if vim_stricmp(name, c"Spell".as_ptr()) == 0 {
             (*win_s(curwin)).b_spell_cluster_id = len + SYNID_CLUSTER as c_int;
@@ -4646,12 +4618,7 @@ unsafe fn syn_cmd_cluster(eap: *mut exarg_T, _syncing: c_int) {
     }
 }
 
-unsafe fn init_syn_patterns() {
-    unsafe {
-        (*win_s(curwin)).b_syn_patterns.ga_itemsize = size_of::<synpat_T>() as c_int;
-        ga_set_growsize(&raw mut (*win_s(curwin)).b_syn_patterns, 10);
-    }
-}
+unsafe fn init_syn_patterns() {}
 
 unsafe fn get_syn_pattern(arg: *mut c_char, ci: *mut synpat_T) -> *mut c_char {
     unsafe {
@@ -5038,7 +5005,7 @@ unsafe fn copy_id_list(list: *const i16) -> *mut i16 {
     }
 }
 
-unsafe fn idl_collect(list: *mut i16, ga: *mut garray_T, seen: *mut garray_T) -> bool {
+unsafe fn idl_collect(list: *mut i16, ga: &mut Vec<i16>, seen: &mut Vec<i16>) -> bool {
     unsafe {
         if list.is_null() || list == id_list_all() {
             return false;
@@ -5050,24 +5017,9 @@ unsafe fn idl_collect(list: *mut i16, ga: *mut garray_T, seen: *mut garray_T) ->
                 return false;
             }
             if item >= SYNID_CLUSTER {
-                let mut seen_it = false;
-                for i in 0..(*seen).ga_len {
-                    if *(*seen).ga_data.cast::<i16>().offset(i as isize) == item {
-                        seen_it = true;
-                        break;
-                    }
-                }
-                if !seen_it {
-                    ga_grow(seen, 1);
-                    *(*seen)
-                        .ga_data
-                        .cast::<i16>()
-                        .offset((*seen).ga_len as isize) = item;
-                    (*seen).ga_len += 1;
-
-                    ga_grow(ga, 1);
-                    *(*ga).ga_data.cast::<i16>().offset((*ga).ga_len as isize) = item;
-                    (*ga).ga_len += 1;
+                if !seen.contains(&item) {
+                    seen.push(item);
+                    ga.push(item);
 
                     let scl_list =
                         (*syn_clstr(syn_block).offset((item - SYNID_CLUSTER) as isize)).scl_list;
@@ -5076,9 +5028,7 @@ unsafe fn idl_collect(list: *mut i16, ga: *mut garray_T, seen: *mut garray_T) ->
                     }
                 }
             } else {
-                ga_grow(ga, 1);
-                *(*ga).ga_data.cast::<i16>().offset((*ga).ga_len as isize) = item;
-                (*ga).ga_len += 1;
+                ga.push(item);
             }
             cur = cur.add(1);
         }
@@ -5120,25 +5070,16 @@ unsafe fn idl_get_entry(mut list: *mut i16) -> *mut idl_entry_T {
             list = list.add(1);
         }
 
-        let mut ga: garray_T = std::mem::zeroed();
-        let mut seen: garray_T = std::mem::zeroed();
-        ga_init(&raw mut ga, size_of::<i16>() as c_int, 50);
-        ga_init(&raw mut seen, size_of::<i16>() as c_int, 10);
-        if !idl_collect(list, &raw mut ga, &raw mut seen) {
+        let mut ga: Vec<i16> = Vec::with_capacity(50);
+        let mut seen: Vec<i16> = Vec::with_capacity(10);
+        if !idl_collect(list, &mut ga, &mut seen) {
             (*e).idl_usable = false;
-            ga_clear(&raw mut ga);
-            ga_clear(&raw mut seen);
             return e;
         }
-        ga_clear(&raw mut seen);
-        if ga.ga_len > 0 {
-            let slice =
-                std::slice::from_raw_parts_mut(ga.ga_data.cast::<i16>(), ga.ga_len as usize);
-            slice.sort_unstable();
-            (*e).idl_ids = ga.ga_data.cast::<i16>();
-            (*e).idl_count = ga.ga_len;
-        } else {
-            ga_clear(&raw mut ga);
+        if !ga.is_empty() {
+            ga.sort_unstable();
+            (*e).idl_count = ga.len() as c_int;
+            (*e).idl_ids = crate::path::slice_to_xmalloc(&ga);
         }
         e
     }
@@ -5192,9 +5133,7 @@ unsafe fn in_id_list(
             && !(*ssp).cont_in_list.is_null()
             && ((*cur_si).si_flags & HL_MATCH) == 0
         {
-            while ((*cur_si).si_flags & HL_TRANS_CONT) != 0
-                && cur_si > current_state.ga_data.cast::<stateitem_T>()
-            {
+            while ((*cur_si).si_flags & HL_TRANS_CONT) != 0 && cur_si > cur_state_at(0) {
                 cur_si = cur_si.sub(1);
             }
             if (*cur_si).si_idx >= 0 {
@@ -5353,6 +5292,8 @@ pub unsafe fn ex_ownsyntax(eap: *mut exarg_T) {
     unsafe {
         if win_s(curwin) == &raw mut (*(*curwin).w_buffer).b_s {
             let new_s = xcalloc(1, size_of::<synblock_T>()).cast::<synblock_T>();
+            ptr::write(&raw mut (*new_s).b_syn_patterns, Vec::new());
+            ptr::write(&raw mut (*new_s).b_syn_clusters, Vec::new());
             (*curwin).w_s = new_s.cast();
             hash_init(&raw mut (*new_s).b_keywtab);
             hash_init(&raw mut (*new_s).b_keywtab_ic);
@@ -5387,8 +5328,8 @@ pub unsafe fn ex_ownsyntax(eap: *mut exarg_T) {
 
 pub unsafe fn syntax_present(win: *mut win_T) -> bool {
     unsafe {
-        (*win_s(win)).b_syn_patterns.ga_len != 0
-            || (*win_s(win)).b_syn_clusters.ga_len != 0
+        !(*win_s(win)).b_syn_patterns.is_empty()
+            || !(*win_s(win)).b_syn_clusters.is_empty()
             || (*win_s(win)).b_keywtab.ht_used > 0
             || (*win_s(win)).b_keywtab_ic.ht_used > 0
     }
@@ -5514,7 +5455,7 @@ pub unsafe fn get_syntax_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
                 }
             }
             EXP_CLUSTER => {
-                if idx < (*win_s(curwin)).b_syn_clusters.ga_len {
+                if (idx as usize) < (*win_s(curwin)).b_syn_clusters.len() {
                     let xp_buf = (&raw mut (*xp).xp_buf).cast::<c_char>();
                     vim_snprintf!(
                         xp_buf,
@@ -5571,7 +5512,7 @@ pub unsafe fn syn_get_sub_char() -> c_int {
 
 pub unsafe fn syn_get_stack_item(i: c_int) -> c_int {
     unsafe {
-        if i >= current_state.ga_len {
+        if i >= cur_state_len() {
             invalidate_current_state();
             current_col = MAXCOL;
             return -1;
@@ -5583,7 +5524,7 @@ pub unsafe fn syn_get_stack_item(i: c_int) -> c_int {
 unsafe fn syn_cur_foldlevel() -> c_int {
     unsafe {
         let mut level: c_int = 0;
-        for i in 0..current_state.ga_len {
+        for i in 0..cur_state_len() {
             if ((*cur_state_at(i)).si_flags & HL_FOLD) != 0 {
                 level += 1;
             }
@@ -5661,9 +5602,8 @@ unsafe fn syntime_clear() {
             msg(gettext(msg_no_items), 0);
             return;
         }
-        for idx in 0..(*win_s(curwin)).b_syn_patterns.ga_len {
-            let spp = syn_items(win_s(curwin)).offset(idx as isize);
-            syn_clear_time(&raw mut (*spp).sp_time);
+        for pat in &mut (*win_s(curwin)).b_syn_patterns {
+            syn_clear_time(&raw mut pat.sp_time);
         }
     }
 }
@@ -5689,35 +5629,28 @@ unsafe fn syntime_report() {
             return;
         }
 
-        let mut ga: garray_T = std::mem::zeroed();
-        ga_init(&raw mut ga, size_of::<time_entry_T>() as c_int, 50);
+        let mut ga: Vec<time_entry_T> = Vec::new();
 
         let mut total_total = profile_zero();
         let mut total_count: c_int = 0;
-        for idx in 0..(*win_s(curwin)).b_syn_patterns.ga_len {
-            let spp = syn_items(win_s(curwin)).offset(idx as isize);
-            if (*spp).sp_time.count > 0 {
-                ga_grow(&raw mut ga, 1);
-                let p = ga.ga_data.cast::<time_entry_T>().offset(ga.ga_len as isize);
-                ga.ga_len += 1;
-                (*p).total = (*spp).sp_time.total;
-                total_total = profile_add(total_total, (*spp).sp_time.total);
-                (*p).count = (*spp).sp_time.count;
-                (*p).match_ = (*spp).sp_time.match_;
-                total_count += (*spp).sp_time.count;
-                (*p).slowest = (*spp).sp_time.slowest;
-                (*p).average = profile_divide((*spp).sp_time.total, (*spp).sp_time.count);
-                (*p).id = (*spp).sp_syn.id as c_int;
-                (*p).pattern = (*spp).sp_pattern;
+        for pat in &(*win_s(curwin)).b_syn_patterns {
+            if pat.sp_time.count > 0 {
+                total_total = profile_add(total_total, pat.sp_time.total);
+                total_count += pat.sp_time.count;
+                ga.push(time_entry_T {
+                    total: pat.sp_time.total,
+                    count: pat.sp_time.count,
+                    match_: pat.sp_time.match_,
+                    slowest: pat.sp_time.slowest,
+                    average: profile_divide(pat.sp_time.total, pat.sp_time.count),
+                    id: pat.sp_syn.id as c_int,
+                    pattern: pat.sp_pattern,
+                });
             }
         }
 
-        if ga.ga_len > 1 {
-            let slice = std::slice::from_raw_parts_mut(
-                ga.ga_data.cast::<time_entry_T>(),
-                ga.ga_len as usize,
-            );
-            sort_slice_by(slice, syn_compare_syntime);
+        if ga.len() > 1 {
+            sort_slice_by(&mut ga, syn_compare_syntime);
         }
 
         msg_puts_title(gettext(
@@ -5725,39 +5658,38 @@ unsafe fn syntime_report() {
                 .as_ptr(),
         ));
         msg_puts(c"\n".as_ptr());
-        let mut idx: c_int = 0;
-        while idx < ga.ga_len && !got_int {
-            let p = ga.ga_data.cast::<time_entry_T>().offset(idx as isize);
+        for p in &ga {
+            if got_int {
+                break;
+            }
 
-            msg_puts(profile_msg((*p).total));
+            msg_puts(profile_msg(p.total));
             msg_puts(c" ".as_ptr());
             msg_advance(13);
-            msg_outnum((*p).count);
+            msg_outnum(p.count);
             msg_puts(c" ".as_ptr());
             msg_advance(20);
-            msg_outnum((*p).match_);
+            msg_outnum(p.match_);
             msg_puts(c" ".as_ptr());
             msg_advance(26);
-            msg_puts(profile_msg((*p).slowest));
+            msg_puts(profile_msg(p.slowest));
             msg_puts(c" ".as_ptr());
             msg_advance(38);
-            msg_puts(profile_msg((*p).average));
+            msg_puts(profile_msg(p.average));
             msg_puts(c" ".as_ptr());
             msg_advance(50);
-            msg_outtrans(highlight_group_name((*p).id - 1), 0, false);
+            msg_outtrans(highlight_group_name(p.id - 1), 0, false);
             msg_puts(c" ".as_ptr());
 
             msg_advance(69);
             let mut len = if Columns < 80 { 20 } else { Columns - 70 };
-            let patlen = strlen((*p).pattern) as c_int;
+            let patlen = strlen(p.pattern) as c_int;
             if patlen < len {
                 len = patlen;
             }
-            msg_outtrans_len((*p).pattern, len, 0, false);
+            msg_outtrans_len(p.pattern, len, 0, false);
             msg_puts(c"\n".as_ptr());
-            idx += 1;
         }
-        ga_clear(&raw mut ga);
         if !got_int {
             msg_puts(c"\n".as_ptr());
             msg_puts(profile_msg(total_total));

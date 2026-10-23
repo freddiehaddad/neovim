@@ -61,18 +61,7 @@ pub unsafe fn ga_init(gap: *mut garray_T, itemsize: c_int, growsize: c_int) {
     gap_ref.ga_maxlen = 0;
     gap_ref.ga_len = 0;
     gap_ref.ga_itemsize = itemsize;
-    unsafe {
-        ga_set_growsize(gap, growsize);
-    }
-}
-
-/// Setter for `ga_growsize` that guarantees it is at least 1 (`ga_set_growsize`).
-///
-/// # Safety
-/// `gap` must be a valid writable pointer.
-pub unsafe fn ga_set_growsize(gap: *mut garray_T, growsize: c_int) {
-    let gap = unsafe { &mut *gap };
-    gap.ga_growsize = growsize.max(1);
+    gap_ref.ga_growsize = growsize.max(1);
 }
 
 /// Make room in growing array `gap` for at least `n` additional items (`ga_grow`).

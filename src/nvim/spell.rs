@@ -2056,6 +2056,8 @@ pub unsafe fn open_spellbuf() -> *mut buf_T {
         ptr::write(&raw mut (*buf).b_kmap_ga, Vec::new());
         ptr::write(&raw mut (*buf).update_channels, Vec::new());
         ptr::write(&raw mut (*buf).update_callbacks, Vec::new());
+        ptr::write(&raw mut (*buf).b_s.b_syn_patterns, Vec::new());
+        ptr::write(&raw mut (*buf).b_s.b_syn_clusters, Vec::new());
         (*buf).b_spell = true;
         (*buf).b_p_swf = 1;
         if ml_open(buf) == FAIL {
