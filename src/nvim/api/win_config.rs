@@ -426,7 +426,7 @@ pub unsafe extern "C" fn nvim_open_win(
                     }
                 });
                 if !wp.is_null() {
-                    (*wp).w_config = fconfig;
+                    (*wp).w_config = fconfig.clone();
                     if size > 0 {
                         if (flags & WSP_VERT) != 0 && (*wp).w_width != size {
                             win_setwidth_win(size, wp, true);
@@ -444,7 +444,7 @@ pub unsafe extern "C" fn nvim_open_win(
                     );
                     break 'cleanup;
                 }
-                wp = win_new_float(ptr::null_mut(), false, fconfig, err);
+                wp = win_new_float(ptr::null_mut(), false, fconfig.clone(), err);
             }
             if wp.is_null() {
                 if !error_set(err) {
@@ -896,7 +896,7 @@ unsafe fn win_config_split(
         if !was_split {
             clear_float_config(fconfig, false);
         }
-        merge_win_config(&mut (*win).w_config, *fconfig);
+        merge_win_config(&mut (*win).w_config, (*fconfig).clone());
         true
     }
 }
@@ -963,7 +963,7 @@ unsafe fn win_config_float_tp(
             }
 
             if !(*win).w_floating {
-                if win_new_float(win, false, *fconfig, err).is_null() {
+                if win_new_float(win, false, (*fconfig).clone(), err).is_null() {
                     break 'restore_curwin;
                 }
                 redraw_later(win, UPD_NOT_VALID);
@@ -995,7 +995,7 @@ unsafe fn win_config_float_tp(
                 set_must_redraw(UPD_NOT_VALID);
             }
 
-            win_config_float(win, *fconfig);
+            win_config_float(win, (*fconfig).clone());
             return true;
         }
 
@@ -1044,7 +1044,7 @@ pub unsafe extern "C" fn nvim_win_set_config(
         let has_split = has_key(mask, KEYSET_OPTIDX_win_config__split);
         let has_vertical = has_key(mask, KEYSET_OPTIDX_win_config__vertical);
         let old_style = (*w).w_config.style;
-        let mut fconfig = (*w).w_config;
+        let mut fconfig = (*w).w_config.clone();
 
         let to_split = (*config).relative.size == 0
             && !(has_key(mask, KEYSET_OPTIDX_win_config__external) && (*config).external)
@@ -1092,8 +1092,8 @@ unsafe fn config_put_bordertext(
 ) {
     unsafe {
         let (vt, align) = match bordertext_type {
-            kBorderTextTitle => (fconfig.title_chunks, fconfig.title_pos),
-            _ => (fconfig.footer_chunks, fconfig.footer_pos),
+            kBorderTextTitle => (&fconfig.title_chunks, fconfig.title_pos),
+            _ => (&fconfig.footer_chunks, fconfig.footer_pos),
         };
 
         let bordertext = virt_text_to_array(vt, true, arena);
@@ -1379,7 +1379,7 @@ pub unsafe fn parse_bordertext(
                 return;
             }
             let text = transstr(bordertext.data.string.data, true);
-            chunks.init();
+            chunks.clear();
             chunks.push(VirtTextChunk { text, hl_id: -1 });
             *width = mb_string2cells(text) as c_int;
         } else {
@@ -1986,7 +1986,7 @@ unsafe fn parse_win_config(
         merge_win_config(
             fconfig,
             if !wp.is_null() {
-                (*wp).w_config
+                (*wp).w_config.clone()
             } else {
                 WIN_CONFIG_INIT
             },

@@ -1214,7 +1214,7 @@ unsafe fn pum_adjust_info_position(wp: *mut win_T, width: c_int) -> bool {
         (*wp).w_config.height = plines_m_win(wp, (*wp).w_topline, count, Rows);
         (*wp).w_config.row = f64::from(PUM_ROW);
         (*wp).w_config.hide = false;
-        win_config_float(wp, (*wp).w_config);
+        win_config_float(wp, (*wp).w_config.clone());
         true
     }
 }
@@ -1270,7 +1270,7 @@ unsafe fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
             let wp = win_float_find(kWinInfo);
             if !wp.is_null() {
                 (*wp).w_config.hide = true;
-                win_config_float(wp, (*wp).w_config);
+                win_config_float(wp, (*wp).w_config.clone());
             }
         }
 

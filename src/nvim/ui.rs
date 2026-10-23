@@ -888,7 +888,7 @@ pub unsafe fn ui_grid_resize(grid_handle: handle_T, width: c_int, height: c_int,
             if width != (*wp).w_width || height != (*wp).w_height {
                 (*wp).w_config.width = width.max(1);
                 (*wp).w_config.height = height.max(1);
-                win_config_float(wp, (*wp).w_config);
+                win_config_float(wp, (*wp).w_config.clone());
             }
         } else {
             (*wp).w_height_request = height.max(0);

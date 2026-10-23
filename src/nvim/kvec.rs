@@ -37,26 +37,6 @@ impl<T> KVec<T> {
         self.items = std::ptr::null_mut();
     }
 
-    /// Ensure at least `len` additional items fit in `self` (`kv_ensure_space`).
-    ///
-    /// # Safety
-    /// `self.items` must be null or allocated by `xmalloc`/`xrealloc`.
-    #[inline]
-    pub unsafe fn ensure_space(&mut self, len: usize) {
-        if self.capacity < self.size + len {
-            let mut new_cap = self.size + len;
-            new_cap = new_cap.next_power_of_two().max(1);
-            self.capacity = new_cap;
-            self.items = unsafe {
-                xrealloc(
-                    self.items.cast::<c_void>(),
-                    std::mem::size_of::<T>() * self.capacity,
-                )
-                .cast::<T>()
-            };
-        }
-    }
-
     /// Reserve one slot at the end of `self` and return a pointer to it (`kv_pushp`).
     ///
     /// # Safety
@@ -107,23 +87,6 @@ impl<T> KVec<T> {
     }
 }
 
-impl<T: Copy> KVec<T> {
-    /// Append `len` elements from `data` (`kv_concat_len`).
-    ///
-    /// # Safety
-    /// `data` must be valid for `len` elements when `len > 0`.
-    #[inline]
-    pub unsafe fn concat_len(&mut self, data: *const T, len: usize) {
-        if len > 0 {
-            unsafe {
-                self.ensure_space(len);
-                std::ptr::copy_nonoverlapping(data, self.items.add(self.size), len);
-            }
-            self.size += len;
-        }
-    }
-}
-
 impl<T> Default for KVec<T> {
     #[inline]
     fn default() -> Self {
@@ -136,19 +99,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn kvec_push_concat_and_destroy() {
+    fn kvec_push_and_destroy() {
         unsafe {
             let mut v: KVec<i32> = KVec::new();
             for i in 0..20 {
                 v.push(i);
             }
-            v.concat_len([100, 200].as_ptr(), 2);
-            assert_eq!(v.size, 22);
+            assert_eq!(v.size, 20);
             let slice = std::slice::from_raw_parts(v.items, v.size);
             assert_eq!(slice[0], 0);
             assert_eq!(slice[19], 19);
-            assert_eq!(slice[20], 100);
-            assert_eq!(slice[21], 200);
             v.destroy();
             assert_eq!(v.size, 0);
             assert!(v.items.is_null());

@@ -3,7 +3,7 @@
 use crate::api::private::validate::NvimString;
 use crate::arabic::arabic_shape;
 use crate::cursor::{colnr_T, linenr_T};
-use crate::decoration::{VirtText, decor_check_invalid_glyphs, next_virt_text_chunk};
+use crate::decoration::{VirtTextChunk, decor_check_invalid_glyphs, next_virt_text_chunk};
 use crate::globals::*;
 use crate::highlight::{hl_apply_winblend, hl_combine_attr};
 use crate::map::{MHPutStatus, MapHash, mh_clear};
@@ -1310,7 +1310,7 @@ pub unsafe fn grid_del_lines(
 }
 
 unsafe fn grid_draw_bordertext(
-    vt: VirtText,
+    vt: &[VirtTextChunk],
     mut col: c_int,
     winbl: c_int,
     hl_attr: *const c_int,
@@ -1334,7 +1334,7 @@ unsafe fn grid_draw_bordertext(
         }
 
         let mut i: usize = 0;
-        while i < vt.size {
+        while i < vt.len() {
             let mut attr: c_int = -1;
             let mut text = next_virt_text_chunk(vt, &raw mut i, &raw mut attr);
             if text.is_null() {
@@ -1420,7 +1420,7 @@ pub unsafe fn grid_draw_border(
                 let title_col =
                     get_bordertext_col(icol, (*config).title_width, (*config).title_pos);
                 grid_draw_bordertext(
-                    (*config).title_chunks,
+                    &(*config).title_chunks,
                     title_col,
                     winbl,
                     hl_attr,
@@ -1472,7 +1472,7 @@ pub unsafe fn grid_draw_border(
                 let footer_col =
                     get_bordertext_col(icol, (*config).footer_width, (*config).footer_pos);
                 grid_draw_bordertext(
-                    (*config).footer_chunks,
+                    &(*config).footer_chunks,
                     footer_col,
                     winbl,
                     hl_attr,

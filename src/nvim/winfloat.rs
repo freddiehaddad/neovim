@@ -203,7 +203,7 @@ pub unsafe fn win_set_minimal_style(wp: *mut win_T) {
             free_string_option((*wp).w_onebuf_opt.wo_stl);
             (*wp).w_onebuf_opt.wo_stl = empty_opt;
             if (*wp).w_status_height > 0 {
-                win_config_float(wp, (*wp).w_config);
+                win_config_float(wp, (*wp).w_config.clone());
             }
         }
     }
@@ -321,12 +321,12 @@ pub unsafe fn win_config_float(wp: *mut win_T, mut fconfig: WinConfig) {
             (*wp).w_winrow = row;
             (*wp).w_wincol = col;
         } else {
-            (*wp).w_winrow = fconfig.row as c_int;
-            (*wp).w_wincol = fconfig.col as c_int;
+            (*wp).w_winrow = (*wp).w_config.row as c_int;
+            (*wp).w_wincol = (*wp).w_config.col as c_int;
         }
 
         // changing border style while keeping border only requires redrawing border
-        if fconfig.border {
+        if (*wp).w_config.border {
             (*wp).w_redr_border = true;
             redraw_later(wp, UPD_VALID);
         }
@@ -395,7 +395,7 @@ pub unsafe fn win_float_update_statusline() {
             let has_status = (*wp).w_status_height > 0;
             let should_show = *(*wp).w_onebuf_opt.wo_stl != NUL && (p_ls == 1 || p_ls == 2);
             if should_show != has_status {
-                win_config_float(wp, (*wp).w_config);
+                win_config_float(wp, (*wp).w_config.clone());
             }
             wp = (*wp).w_prev;
         }
@@ -418,7 +418,7 @@ pub unsafe fn win_reconfig_floats() {
     unsafe {
         let mut wp = lastwin;
         while !wp.is_null() && (*wp).w_floating {
-            win_config_float(wp, (*wp).w_config);
+            win_config_float(wp, (*wp).w_config.clone());
             wp = (*wp).w_prev;
         }
     }
@@ -648,7 +648,7 @@ pub unsafe fn win_float_update_preview(wp: *mut win_T) {
         (*wp).w_config.row = (row + if below { 1 } else { 0 }) as f64;
         (*wp).w_config.col = (col + if right { 1 } else { 0 }) as f64;
         (*wp).w_config.hide = false;
-        win_config_float(wp, (*wp).w_config);
+        win_config_float(wp, (*wp).w_config.clone());
     }
 }
 

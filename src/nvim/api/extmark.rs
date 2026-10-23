@@ -14,14 +14,13 @@ use crate::buffer::buf_T;
 use crate::charset::{NUL, transstr, vim_isprintc};
 use crate::decoration::{
     DECOR_ID_INVALID, DECOR_SIGN_HIGHLIGHT_INIT, DecorInline, DecorPriority, DecorVirtText,
-    DecorVirtTextData, HLGroupID, NS, VirtLine, VirtLines, VirtText, VirtTextChunk,
-    clear_virtlines, clear_virttext, decor_free, decor_put_sh, decor_put_vt, decor_range_add_sh,
-    decor_range_add_virt, decor_sh_from_inline, decor_to_dict_legacy, hl_group_name,
-    kHlModeUnknown, kSHConceal, kSHConcealLines, kSHConcealOff, kSHHlEol, kSHIsSign, kSHSpellOff,
-    kSHSpellOn, kSHUIWatched, kSHUIWatchedOverlay, kVLLeftcol, kVLOverflowAuto, kVLOverflowScroll,
-    kVLOverflowTrunc, kVLOverflowWrap, kVPosEndOfLine, kVPosEndOfLineRightAlign, kVPosInline,
-    kVPosOverlay, kVPosRightAlign, kVPosWinCol, kVTHide, kVTIsLines, kVTLinesAbove,
-    kVTRepeatLinebreak,
+    DecorVirtTextData, HLGroupID, NS, VirtLine, VirtText, VirtTextChunk, clear_virttext,
+    decor_free, decor_put_sh, decor_put_vt, decor_range_add_sh, decor_range_add_virt,
+    decor_sh_from_inline, decor_to_dict_legacy, hl_group_name, kHlModeUnknown, kSHConceal,
+    kSHConcealLines, kSHConcealOff, kSHHlEol, kSHIsSign, kSHSpellOff, kSHSpellOn, kSHUIWatched,
+    kSHUIWatchedOverlay, kVLLeftcol, kVLOverflowAuto, kVLOverflowScroll, kVLOverflowTrunc,
+    kVLOverflowWrap, kVPosEndOfLine, kVPosEndOfLineRightAlign, kVPosInline, kVPosOverlay,
+    kVPosRightAlign, kVPosWinCol, kVTHide, kVTIsLines, kVTLinesAbove, kVTRepeatLinebreak,
 };
 use crate::decoration_provider::{decor_provider_clear, get_decor_provider, kDecorProviderActive};
 use crate::drawline::kHlModeBlend;
@@ -299,14 +298,14 @@ pub unsafe fn ns_initialized(ns: u32) -> bool {
 }
 
 // DLLEXPORT Array virt_text_to_array(VirtText vt, bool hl_name, Arena *arena);
-pub unsafe fn virt_text_to_array(vt: VirtText, hl_name: bool, arena: *mut Arena) -> Array {
+pub unsafe fn virt_text_to_array(vt: &[VirtTextChunk], hl_name: bool, arena: *mut Arena) -> Array {
     unsafe {
-        let mut chunks = arena_array(arena, vt.size);
+        let mut chunks = arena_array(arena, vt.len());
         let mut i = 0usize;
-        while i < vt.size {
+        while i < vt.len() {
             let mut j = i;
-            while j < vt.size {
-                if !(*vt.items.add(j)).text.is_null() {
+            while j < vt.len() {
+                if !vt[j].text.is_null() {
                     break;
                 }
                 j += 1;
@@ -314,15 +313,15 @@ pub unsafe fn virt_text_to_array(vt: VirtText, hl_name: bool, arena: *mut Arena)
 
             let mut hl_array = arena_array(arena, if i < j { j - i + 1 } else { 0 });
             while i < j {
-                let hl_id = (*vt.items.add(i)).hl_id;
+                let hl_id = vt[i].hl_id;
                 if hl_id >= 0 {
                     add_c(&mut hl_array, hl_group_name(hl_id, hl_name));
                 }
                 i += 1;
             }
 
-            let text = (*vt.items.add(i)).text;
-            let hl_id = (*vt.items.add(i)).hl_id;
+            let text = vt[i].text;
+            let hl_id = vt[i].hl_id;
             let mut chunk = arena_array(arena, 2);
             add_c(&mut chunk, string_obj(cstr_as_string(text)));
             if hl_array.size > 0 {
@@ -774,9 +773,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
             width: 0,
             col: 0,
             pos: kVPosEndOfLine,
-            data: DecorVirtTextData {
-                virt_text: VirtText::new(),
-            },
+            data: DecorVirtTextData::empty(),
             next: ptr::null_mut(),
         };
         let mut virt_lines = DecorVirtText {
@@ -786,9 +783,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
             width: 0,
             col: 0,
             pos: kVPosEndOfLine,
-            data: DecorVirtTextData {
-                virt_lines: VirtLines::new(),
-            },
+            data: DecorVirtTextData::empty(),
             next: ptr::null_mut(),
         };
         let mut url: *mut c_char = ptr::null_mut();
@@ -1216,7 +1211,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                     subpriority = (*opts)._subpriority as DecorPriority;
                 }
 
-                if virt_text.data.virt_text.size > 0 {
+                if !virt_text.data.virt_text.is_empty() {
                     decor_range_add_virt(
                         &raw mut decor_state,
                         r,
@@ -1227,7 +1222,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                         true,
                     );
                 }
-                if virt_lines.data.virt_lines.size > 0 {
+                if !virt_lines.data.virt_lines.is_empty() {
                     decor_range_add_virt(
                         &raw mut decor_state,
                         r,
@@ -1266,13 +1261,13 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
 
                 let mut decor_flags: u16 = 0;
                 let mut decor_alloc: *mut DecorVirtText = ptr::null_mut();
-                if virt_text.data.virt_text.size > 0 {
-                    decor_alloc = decor_put_vt(virt_text, decor_alloc);
+                if !virt_text.data.virt_text.is_empty() {
                     if virt_text.pos == kVPosInline {
                         decor_flags |= MT_FLAG_DECOR_VIRT_TEXT_INLINE;
                     }
+                    decor_alloc = decor_put_vt(virt_text, decor_alloc);
                 }
-                if virt_lines.data.virt_lines.size > 0 {
+                if !virt_lines.data.virt_lines.is_empty() {
                     decor_alloc = decor_put_vt(virt_lines, decor_alloc);
                     decor_flags |= MT_FLAG_DECOR_VIRT_LINES;
                 }
@@ -1374,8 +1369,6 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
             return i64::from(id);
         }
 
-        clear_virttext(&raw mut virt_text.data.virt_text);
-        clear_virtlines(&raw mut virt_lines.data.virt_lines);
         if !url.is_null() {
             xfree(url.cast());
         }

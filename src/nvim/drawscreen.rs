@@ -10,9 +10,9 @@ use crate::cmdexpand::{cmdline_pum_display, kUICmdline};
 use crate::context::ctx_saved_curwin;
 use crate::cursor::{colnr_T, linenr_T, pos_T};
 use crate::decoration::{
-    DecorVirtText, DecorVirtTextData, NS, SCL_NUM, VirtText, VirtTextChunk,
-    buf_signcols_count_range, decor_conceal_line, decor_range_add_virt, decor_redraw_reset,
-    decor_virt_lines, kVPosWinCol, win_lines_concealed,
+    DecorVirtText, DecorVirtTextData, NS, SCL_NUM, VirtTextChunk, buf_signcols_count_range,
+    decor_conceal_line, decor_range_add_virt, decor_redraw_reset, decor_virt_lines, kVPosWinCol,
+    win_lines_concealed,
 };
 use crate::decoration_provider::{
     decor_providers_invoke_buf, decor_providers_invoke_end, decor_providers_invoke_win,
@@ -172,10 +172,6 @@ static mut default_grid_resizing: bool = false;
 static mut still_may_intro: bool = true;
 static mut win_update_recursive: bool = false;
 
-static mut suspended_chunk: VirtTextChunk = VirtTextChunk {
-    text: ptr::null_mut(),
-    hl_id: -1,
-};
 static mut suspended_virt_text: DecorVirtText = DecorVirtText {
     flags: 0,
     hl_mode: 0,
@@ -183,13 +179,7 @@ static mut suspended_virt_text: DecorVirtText = DecorVirtText {
     width: 0,
     col: 0,
     pos: kVPosWinCol,
-    data: DecorVirtTextData {
-        virt_text: VirtText {
-            size: 1,
-            capacity: 0,
-            items: ptr::null_mut(),
-        },
-    },
+    data: DecorVirtTextData::empty(),
     next: ptr::null_mut(),
 };
 
@@ -1452,17 +1442,20 @@ unsafe fn win_update(wp: *mut win_T) {
         decor_providers_invoke_win(wp);
 
         if !(*buf).terminal.is_null() && terminal_suspended((*buf).terminal.cast::<Terminal>()) {
-            suspended_chunk.text = c"[Process suspended]".as_ptr().cast_mut();
-            suspended_chunk.hl_id = -1;
-            suspended_virt_text.data.virt_text.items = &raw mut suspended_chunk;
-            suspended_virt_text.data.virt_text.size = 1;
+            let svt_ptr = &raw mut suspended_virt_text;
+            if (*svt_ptr).data.virt_text.is_empty() {
+                (*svt_ptr).data.virt_text.push(VirtTextChunk {
+                    text: crate::memory::xstrdup(c"[Process suspended]".as_ptr()),
+                    hl_id: -1,
+                });
+            }
             decor_range_add_virt(
                 &raw mut decor_state,
                 (*buf).b_ml.ml_line_count - 1,
                 0,
                 (*buf).b_ml.ml_line_count - 1,
                 0,
-                &raw mut suspended_virt_text,
+                svt_ptr,
                 false,
             );
         }

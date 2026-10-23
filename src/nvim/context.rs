@@ -761,7 +761,7 @@ unsafe fn ctx_win_prep(cs: *mut CtxSwitch, buf: *mut buf_T) -> *mut win_T {
                 ptr::null_mut(),
             );
             *val = cw_win.cast();
-            win_config_float(cw_win, (*cw_win).w_config);
+            win_config_float(cw_win, (*cw_win).w_config.clone());
         }
 
         cw_win

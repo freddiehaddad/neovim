@@ -30,7 +30,7 @@ use crate::highlight_group::{syn_check_group, syn_get_final_id, syn_id2attr, syn
 use crate::lua::converter::Boolean;
 use crate::lua::executor::{kRetObject, nlua_exec};
 use crate::marktree::{
-    DECOR_HIGHLIGHT_INLINE_INIT, DECOR_PRIORITY_BASE, DecorExt, DecorInlineData, MT_FLAG_DECOR_HL,
+    DECOR_HIGHLIGHT_INLINE_INIT, DecorExt, DecorInlineData, MT_FLAG_DECOR_HL,
 };
 use crate::memory::{Arena, xmalloc};
 use crate::message::{emsg, msg, msg_end, msg_ext_no_fast};
@@ -320,17 +320,22 @@ pub unsafe extern "C" fn nvim_buf_set_virtual_text(
         }
 
         let vt = xmalloc(std::mem::size_of::<DecorVirtText>()).cast::<DecorVirtText>();
-        *vt = DecorVirtText {
-            flags: 0,
-            hl_mode: kHlModeUnknown,
-            priority: DECOR_PRIORITY_BASE,
-            width,
-            col: 0,
-            pos: kVPosEndOfLine,
-            data: DecorVirtTextData { virt_text },
-            next: ptr::null_mut(),
-        };
-        (*vt).priority = 0;
+        ptr::write(
+            vt,
+            DecorVirtText {
+                flags: 0,
+                hl_mode: kHlModeUnknown,
+                priority: 0,
+                width,
+                col: 0,
+                pos: kVPosEndOfLine,
+                data: DecorVirtTextData {
+                    virt_text,
+                    virt_lines: Vec::new(),
+                },
+                next: ptr::null_mut(),
+            },
+        );
 
         let decor = DecorInline {
             ext: true,

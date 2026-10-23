@@ -2901,11 +2901,7 @@ pub unsafe fn f_foldtextresult(argvars: *mut typval_T, rettv: *mut typval_T, _fp
 
         let info = fold_info(curwin, lnum);
         if info.fi_lines > 0 {
-            let mut vt = VirtText {
-                size: 0,
-                capacity: 0,
-                items: ptr::null_mut(),
-            };
+            let mut vt: VirtText = Vec::new();
             let mut text = get_foldtext(
                 curwin,
                 lnum,
@@ -2917,12 +2913,12 @@ pub unsafe fn f_foldtextresult(argvars: *mut typval_T, rettv: *mut typval_T, _fp
             if ptr::eq(text, buf.as_ptr()) {
                 text = xstrdup(text);
             }
-            if vt.size > 0 {
+            if !vt.is_empty() {
                 debug_assert_eq!(*text, NUL);
                 let mut i: usize = 0;
-                while i < vt.size {
+                while i < vt.len() {
                     let mut attr: c_int = 0;
-                    let new_text = next_virt_text_chunk(vt, &mut i, &mut attr);
+                    let new_text = next_virt_text_chunk(&vt, &mut i, &mut attr);
                     if new_text.is_null() {
                         break;
                     }

@@ -20,7 +20,6 @@ use crate::grid::{schar_T, schar_from_char, schar_get, schar_get_first_codepoint
 use crate::highlight::{hl_add_url, hl_combine_attr};
 use crate::highlight_group::{syn_id2attr, syn_id2name};
 use crate::indent::tabstop_padding;
-use crate::kvec::KVec;
 use crate::marktree::{
     DECOR_HIGHLIGHT_INLINE_INIT, DecorHighlightInline, DecorInlineData,
     MT_FLAG_DECOR_CONCEAL_LINES, MT_FLAG_DECOR_EXT, MT_FLAG_DECOR_HL, MT_FLAG_DECOR_SIGNTEXT,
@@ -31,7 +30,7 @@ use crate::marktree::{
     mt_end, mt_invalid,
 };
 use crate::mbyte::{utf_ptr2cells, utfc_ptr2len};
-use crate::memory::{Arena, xcalloc, xfree, xmalloc};
+use crate::memory::{Arena, xcalloc, xfree, xmalloc, xstrdup};
 use crate::r#move::{changed_window_setting, win_col_off};
 use crate::msgpack_rpc::packer::Integer;
 use crate::regexp::MAXCOL;
@@ -207,33 +206,64 @@ pub struct DecorInline {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
 pub struct VirtTextChunk {
     pub text: *mut c_char,
     pub hl_id: c_int,
 }
 
-pub type VirtText = KVec<VirtTextChunk>;
+impl Clone for VirtTextChunk {
+    fn clone(&self) -> Self {
+        Self {
+            text: if self.text.is_null() {
+                ptr::null_mut()
+            } else {
+                unsafe { xstrdup(self.text) }
+            },
+            hl_id: self.hl_id,
+        }
+    }
+}
+
+impl Drop for VirtTextChunk {
+    fn drop(&mut self) {
+        if !self.text.is_null() {
+            unsafe {
+                xfree(self.text.cast());
+            }
+        }
+    }
+}
+
+pub type VirtText = Vec<VirtTextChunk>;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct VirtLine {
     pub line: VirtText,
     pub flags: c_int,
     pub overflow: VirtLineOverflow,
 }
 
-pub type VirtLines = KVec<VirtLine>;
+pub type VirtLines = Vec<VirtLine>;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
-pub union DecorVirtTextData {
+#[derive(Clone)]
+pub struct DecorVirtTextData {
     pub virt_text: VirtText,
     pub virt_lines: VirtLines,
 }
 
+impl DecorVirtTextData {
+    pub const fn empty() -> Self {
+        Self {
+            virt_text: Vec::new(),
+            virt_lines: Vec::new(),
+        }
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct DecorVirtText {
     pub flags: u8,
     pub hl_mode: u8,
@@ -436,11 +466,11 @@ pub unsafe fn decor_put_sh(item: DecorSignHighlight) -> u32 {
     }
 }
 
-pub unsafe fn decor_put_vt(vt: DecorVirtText, next: *mut DecorVirtText) -> *mut DecorVirtText {
+pub unsafe fn decor_put_vt(mut vt: DecorVirtText, next: *mut DecorVirtText) -> *mut DecorVirtText {
     unsafe {
+        vt.next = next;
         let decor_alloc: *mut DecorVirtText = xmalloc(size_of::<DecorVirtText>()).cast();
-        *decor_alloc = vt;
-        (*decor_alloc).next = next;
+        ptr::write(decor_alloc, vt);
         decor_alloc
     }
 }
@@ -600,13 +630,9 @@ pub unsafe fn decor_free(decor: DecorInline) {
 unsafe fn decor_free_inner(mut vt: *mut DecorVirtText, first_idx: u32) {
     unsafe {
         while !vt.is_null() {
-            if ((*vt).flags & kVTIsLines) != 0 {
-                clear_virtlines(&raw mut (*vt).data.virt_lines);
-            } else {
-                clear_virttext(&raw mut (*vt).data.virt_text);
-            }
             let tofree = vt;
             vt = (*vt).next;
+            ptr::drop_in_place(tofree);
             xfree(tofree.cast());
         }
 
@@ -653,21 +679,7 @@ pub unsafe fn decor_check_to_be_deleted() {
 
 pub unsafe fn clear_virttext(text: *mut VirtText) {
     unsafe {
-        for i in 0..(*text).size {
-            xfree((*(*text).items.add(i)).text.cast());
-        }
-        (*text).destroy();
-        *text = VirtText::new();
-    }
-}
-
-pub unsafe fn clear_virtlines(lines: *mut VirtLines) {
-    unsafe {
-        for i in 0..(*lines).size {
-            clear_virttext(&raw mut (*(*lines).items.add(i)).line);
-        }
-        (*lines).destroy();
-        *lines = VirtLines::new();
+        *text = Vec::new();
     }
 }
 
@@ -691,11 +703,15 @@ pub unsafe fn decor_check_invalid_glyphs() {
     }
 }
 
-pub unsafe fn next_virt_text_chunk(vt: VirtText, pos: *mut usize, attr: *mut c_int) -> *mut c_char {
+pub unsafe fn next_virt_text_chunk(
+    vt: &[VirtTextChunk],
+    pos: *mut usize,
+    attr: *mut c_int,
+) -> *mut c_char {
     unsafe {
         let mut text: *mut c_char = ptr::null_mut();
-        while text.is_null() && *pos < vt.size {
-            let chunk = *vt.items.add(*pos);
+        while text.is_null() && *pos < vt.len() {
+            let chunk = &vt[*pos];
             text = chunk.text;
             let hl_id = chunk.hl_id;
             if hl_id >= 0 {
@@ -748,7 +764,7 @@ pub unsafe fn decor_redraw_reset(wp: *mut win_T, state: *mut DecorState) -> bool
             for i in beg_pos[pos_i]..end_pos[pos_i] {
                 let r = &raw mut (*slots.add(*indices.add(i as usize) as usize)).range;
                 if (*r).owned && (*r).kind == kDecorKindVirtText {
-                    clear_virttext(&raw mut (*(*r).data.vt).data.virt_text);
+                    ptr::drop_in_place((*r).data.vt);
                     xfree((*r).data.vt.cast());
                 }
             }
@@ -1256,7 +1272,7 @@ pub unsafe fn decor_redraw_col_impl(
             } else {
                 if (*r).owned {
                     if (*r).kind == kDecorKindVirtText {
-                        clear_virttext(&raw mut (*(*r).data.vt).data.virt_text);
+                        ptr::drop_in_place((*r).data.vt);
                         xfree((*r).data.vt.cast());
                     } else if (*r).kind == kDecorKindHighlight {
                         xfree((*r).data.sh.url.cast_mut().cast());
@@ -1614,13 +1630,13 @@ pub unsafe fn decor_virt_line_rows(
         if row_width <= 0 {
             return 1;
         }
-        let vt = (*vl).line;
+        let vt = &(*vl).line;
         let buf = (*wp).w_buffer;
         let mut vcol: c_int = 0;
         let mut row_cells: c_int = 0;
         let mut row: c_int = 0;
-        for i in 0..vt.size {
-            let mut virt_str: *const c_char = (*vt.items.add(i)).text;
+        for chunk in vt {
+            let mut virt_str: *const c_char = chunk.text;
             if virt_str.is_null() {
                 continue;
             }
@@ -1684,8 +1700,8 @@ pub unsafe fn decor_virt_lines(
             let mut vt = mt_decor_virt(mark);
             if !mt_invalid(mark) && ns_in_win(mark.ns, wp) {
                 while !vt.is_null() {
-                    let virt_lines = (*vt).data.virt_lines;
-                    if ((*vt).flags & kVTIsLines) != 0 && virt_lines.size > 0 {
+                    let virt_lines = &(*vt).data.virt_lines;
+                    if ((*vt).flags & kVTIsLines) != 0 && !virt_lines.is_empty() {
                         let above = ((*vt).flags & kVTLinesAbove) != 0;
                         let mrow = mark.pos.row;
                         let draw_row = mrow + if above { 0 } else { 1 };
@@ -1695,11 +1711,11 @@ pub unsafe fn decor_virt_lines(
                                 || !(hasFolding(wp, mrow + 1, ptr::null_mut(), ptr::null_mut())
                                     || decor_conceal_line(wp, mrow, false)))
                         {
-                            if decor_virt_line_wrap(wp, (*virt_lines.items).overflow) {
-                                for i in 0..virt_lines.size {
+                            if decor_virt_line_wrap(wp, virt_lines[0].overflow) {
+                                for item in virt_lines {
                                     let rows = decor_virt_line_rows(
                                         wp,
-                                        virt_lines.items.add(i),
+                                        &raw const *item,
                                         0,
                                         ptr::null_mut(),
                                     );
@@ -1709,13 +1725,13 @@ pub unsafe fn decor_virt_lines(
                                     }
                                 }
                             } else {
-                                n_virt_lines += virt_lines.size as c_int;
+                                n_virt_lines += virt_lines.len() as c_int;
                                 if !num_below.is_null() && !above {
-                                    *num_below += virt_lines.size as c_int;
+                                    *num_below += virt_lines.len() as c_int;
                                 }
                             }
                             if !lines.is_null() {
-                                (*lines).concat_len(virt_lines.items, virt_lines.size);
+                                (*lines).extend_from_slice(virt_lines);
                             }
                         }
                     }
@@ -1827,7 +1843,7 @@ pub unsafe fn decor_to_dict_legacy(
                 put_c(&mut *dict, c"hl_mode".as_ptr(), cstr_as_obj(mode_str));
             }
 
-            let chunks = virt_text_to_array((*virt_text).data.virt_text, hl_name, arena);
+            let chunks = virt_text_to_array(&(*virt_text).data.virt_text, hl_name, arena);
             put_c(&mut *dict, c"virt_text".as_ptr(), array_obj(chunks));
             put_c(
                 &mut *dict,
@@ -1854,15 +1870,14 @@ pub unsafe fn decor_to_dict_legacy(
         }
 
         if !virt_lines.is_null() {
-            let vl_vec = (*virt_lines).data.virt_lines;
-            let mut all_chunks = arena_array(arena, vl_vec.size);
+            let vl_vec = &(*virt_lines).data.virt_lines;
+            let mut all_chunks = arena_array(arena, vl_vec.len());
             let mut virt_lines_flags: c_int = 0;
             let mut virt_lines_overflow: VirtLineOverflow = kVLOverflowTrunc;
-            for i in 0..vl_vec.size {
-                let vl = *vl_vec.items.add(i);
+            for vl in vl_vec {
                 virt_lines_flags = vl.flags;
                 virt_lines_overflow = vl.overflow;
-                let chunks = virt_text_to_array(vl.line, hl_name, arena);
+                let chunks = virt_text_to_array(&vl.line, hl_name, arena);
                 all_chunks.push(array_obj(chunks));
             }
             put_c(&mut *dict, c"virt_lines".as_ptr(), array_obj(all_chunks));

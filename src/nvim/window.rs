@@ -260,7 +260,7 @@ pub struct winopt_T {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct WinConfig {
     pub window: crate::api::tabpage::Window,
     pub bufpos: crate::cursor::lpos_T,
@@ -1283,12 +1283,6 @@ pub unsafe fn win_fdccol_count(wp: *mut win_T) -> c_int {
 /// Merges two window configs, freeing replaced fields if necessary.
 pub unsafe fn merge_win_config(dst: *mut WinConfig, src: WinConfig) {
     unsafe {
-        if !ptr::eq((*dst).title_chunks.items, src.title_chunks.items) {
-            clear_virttext(&raw mut (*dst).title_chunks);
-        }
-        if !ptr::eq((*dst).footer_chunks.items, src.footer_chunks.items) {
-            clear_virttext(&raw mut (*dst).footer_chunks);
-        }
         *dst = src;
     }
 }
@@ -1327,7 +1321,7 @@ pub unsafe fn ui_ext_win_position(wp: *mut win_T, validate: bool) {
             return;
         }
 
-        let c = (*wp).w_config;
+        let c = &(*wp).w_config;
         if !c.external {
             let mut grid: *mut ScreenGrid = &raw mut default_grid;
             let mut row = c.row;
@@ -5221,7 +5215,7 @@ unsafe fn tabpage_check_windows(old_curtab: *mut tabpage_T) {
         let mut wp2 = firstwin;
         while !wp2.is_null() {
             if (*wp2).w_floating && !(*wp2).w_config.external {
-                win_config_float(wp2, (*wp2).w_config);
+                win_config_float(wp2, (*wp2).w_config.clone());
             }
             (*wp2).w_pos_changed = true;
             wp2 = (*wp2).w_next;
@@ -5908,7 +5902,7 @@ pub unsafe fn win_alloc(after: *mut win_T, hidden: bool) -> *mut win_T {
         (*new_wp).w_scbind_pos = 1;
         (*new_wp).w_floating = false;
         (*new_wp).w_kind = kWinNormal;
-        (*new_wp).w_config = WIN_CONFIG_INIT;
+        ptr::write(&raw mut (*new_wp).w_config, WIN_CONFIG_INIT);
         (*new_wp).w_viewport_invalid = true;
         (*new_wp).w_viewport_last_topline = 1;
 
@@ -6675,7 +6669,7 @@ pub unsafe fn win_setheight_win(mut height: c_int, win: *mut win_T, from_top: bo
 
         if (*win).w_floating {
             (*win).w_config.height = height.max(1);
-            win_config_float(win, (*win).w_config);
+            win_config_float(win, (*win).w_config.clone());
             redraw_later(win, UPD_VALID);
         } else {
             frame_setheight(
@@ -6831,7 +6825,7 @@ pub unsafe fn win_setwidth_win(mut width: c_int, wp: *mut win_T, from_left: bool
         }
         if (*wp).w_floating {
             (*wp).w_config.width = width;
-            win_config_float(wp, (*wp).w_config);
+            win_config_float(wp, (*wp).w_config.clone());
             redraw_later(wp, UPD_NOT_VALID);
         } else {
             frame_setwidth((*wp).w_frame, width + (*wp).w_vsep_width, from_left);

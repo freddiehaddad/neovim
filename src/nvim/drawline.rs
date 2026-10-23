@@ -11,7 +11,7 @@ use crate::charset::{
 };
 use crate::cursor::{VALID_VIRTCOL, colnr_T, get_cursor_rel_lnum, linenr_T, ltoreq, pos_T};
 use crate::decoration::{
-    DecorRange, DecorVirtText, NS, SCL_NUM, SignTextAttrs, VirtLine, VirtLines, VirtText,
+    DecorRange, DecorVirtText, NS, SCL_NUM, SignTextAttrs, VirtLines, VirtText, VirtTextChunk,
     clear_virttext, decor_has_more_decorations, decor_init_draw_col, decor_recheck_draw_col,
     decor_redraw_col, decor_redraw_eol, decor_redraw_line, decor_redraw_signs,
     decor_virt_line_rows, decor_virt_lines, decor_virt_pos, decor_virt_pos_kind,
@@ -169,7 +169,7 @@ struct winlinevars_T {
     filler_lines_skip: c_int,
     sattrs: [SignTextAttrs; SIGN_SHOW_MAX],
     need_lbr: bool,
-    virt_inline: VirtText,
+    virt_inline: *const [VirtTextChunk],
     virt_inline_i: usize,
     virt_inline_hl_mode: HlMode,
     reset_extra_attr: bool,
@@ -447,7 +447,7 @@ unsafe fn draw_virt_text(
                 let col = draw_virt_text_item(
                     buf,
                     (*item).draw_col,
-                    (*vt).data.virt_text,
+                    &(*vt).data.virt_text,
                     (*vt).hl_mode,
                     max_col,
                     vcol,
@@ -470,7 +470,7 @@ unsafe fn draw_virt_text(
 unsafe fn draw_virt_text_item(
     buf: *mut buf_T,
     mut col: c_int,
-    vt: VirtText,
+    vt: &[VirtTextChunk],
     hl_mode: HlMode,
     max_col: c_int,
     mut vcol: c_int,
@@ -481,14 +481,14 @@ unsafe fn draw_virt_text_item(
         let mut virt_str: *const c_char = c"".as_ptr();
         let mut virt_attr: c_int = 0;
         let mut virt_pos: usize = 0;
-        eol_hl &= vt.size > 0 && *(*vt.items.add(vt.size - 1)).text == NUL;
+        eol_hl &= !vt.is_empty() && *vt[vt.len() - 1].text == NUL;
 
         while col < max_col {
-            if eol_hl && *virt_str == NUL && virt_pos == vt.size {
+            if eol_hl && *virt_str == NUL && virt_pos == vt.len() {
                 virt_str = c" ".as_ptr();
             }
             if skip_cells >= 0 && *virt_str == NUL {
-                if virt_pos >= vt.size {
+                if virt_pos >= vt.len() {
                     break;
                 }
                 virt_attr = 0;
@@ -1180,7 +1180,8 @@ unsafe fn set_line_attr_for_diff(wp: *mut win_T, wlv: &mut winlinevars_T) {
 
 unsafe fn has_more_inline_virt(wlv: &winlinevars_T, v: isize) -> bool {
     unsafe {
-        if wlv.virt_inline_i < wlv.virt_inline.size {
+        let virt_inline = &*wlv.virt_inline;
+        if wlv.virt_inline_i < virt_inline.len() {
             return true;
         }
 
@@ -1222,12 +1223,9 @@ unsafe fn handle_inline_virtual_text(
 ) {
     unsafe {
         while wlv.n_extra == 0 {
-            if wlv.virt_inline_i >= wlv.virt_inline.size {
-                wlv.virt_inline = VirtText {
-                    size: 0,
-                    capacity: 0,
-                    items: ptr::null_mut(),
-                };
+            let virt_inline = &*wlv.virt_inline;
+            if wlv.virt_inline_i >= virt_inline.len() {
+                wlv.virt_inline = &[];
                 wlv.virt_inline_i = 0;
                 let state = &raw mut decor_state;
                 let end = (*state).current_end;
@@ -1250,19 +1248,20 @@ unsafe fn handle_inline_virtual_text(
                     if (*item).draw_col >= -1
                         && isize::try_from((*item).start_col).unwrap_or(-1) == v
                     {
-                        wlv.virt_inline = (*(*item).data.vt).data.virt_text;
+                        wlv.virt_inline = (*(*item).data.vt).data.virt_text.as_slice();
                         wlv.virt_inline_hl_mode = (*(*item).data.vt).hl_mode;
                         (*item).draw_col = c_int::MIN;
                         break;
                     }
                 }
-                if wlv.virt_inline.size == 0 {
+                let virt_inline_after = &*wlv.virt_inline;
+                if virt_inline_after.is_empty() {
                     break;
                 }
             } else {
                 let mut attr: c_int = 0;
                 let text = next_virt_text_chunk(
-                    wlv.virt_inline,
+                    &*wlv.virt_inline,
                     &raw mut wlv.virt_inline_i,
                     &raw mut attr,
                 );
@@ -1427,11 +1426,7 @@ pub unsafe fn win_line(
 
         let mut buf_fold = [0 as c_char; FOLD_TEXT_LEN];
         let buf_fold_ptr = (&raw mut buf_fold).cast::<c_char>();
-        let mut fold_vt = VirtText {
-            size: 0,
-            capacity: 0,
-            items: ptr::null_mut(),
-        };
+        let mut fold_vt: VirtText = Vec::new();
         let mut foldtext_free: *mut c_char = ptr::null_mut();
 
         let mut cul_screenline = false;
@@ -1491,11 +1486,7 @@ pub unsafe fn win_line(
                 hl_id: 0,
             }; SIGN_SHOW_MAX],
             need_lbr: false,
-            virt_inline: VirtText {
-                size: 0,
-                capacity: 0,
-                items: ptr::null_mut(),
-            },
+            virt_inline: &[],
             virt_inline_i: 0,
             virt_inline_hl_mode: 0,
             reset_extra_attr: false,
@@ -1688,11 +1679,7 @@ pub unsafe fn win_line(
             }
             area_highlighting = true;
         }
-        let mut virt_lines = VirtLines {
-            size: 0,
-            capacity: 0,
-            items: ptr::null_mut(),
-        };
+        let mut virt_lines: VirtLines = Vec::new();
         wlv.n_virt_lines = decor_virt_lines(
             wp,
             lnum - 1,
@@ -2096,8 +2083,8 @@ pub unsafe fn win_line(
                     let virt_rows_todo = wlv.filler_todo - (wlv.filler_lines - wlv.n_virt_lines);
                     if virt_rows_todo > 0 {
                         let target_row = total_virt_rows - virt_rows_todo;
-                        while virt_line_index < virt_lines.size as c_int {
-                            let vl_ptr = virt_lines.items.add(virt_line_index as usize);
+                        while (virt_line_index as usize) < virt_lines.len() {
+                            let vl_ptr = &raw const virt_lines[virt_line_index as usize];
                             let line_rows = decor_virt_line_rows(wp, vl_ptr, 0, ptr::null_mut());
                             if target_row < virt_line_start_row + line_rows {
                                 has_virt_line = true;
@@ -3337,11 +3324,11 @@ pub unsafe fn win_line(
                         }
                     }
 
-                    if fold_vt.size > 0 {
+                    if !fold_vt.is_empty() {
                         draw_virt_text_item(
                             buf,
                             win_col_offset,
-                            fold_vt,
+                            &fold_vt,
                             kHlModeCombine,
                             view_width,
                             0,
@@ -3600,7 +3587,7 @@ pub unsafe fn win_line(
                 }
 
                 if has_virt_line {
-                    let vl: VirtLine = *virt_lines.items.add(virt_line_index as usize);
+                    let vl = &virt_lines[virt_line_index as usize];
                     let overflow = vl.overflow;
                     let virt_row_scroll = overflow == kVLOverflowScroll
                         || (overflow == kVLOverflowAuto && (*wp).w_onebuf_opt.wo_wrap == 0);
@@ -3614,7 +3601,7 @@ pub unsafe fn win_line(
                         } else {
                             win_col_offset
                         },
-                        vl.line,
+                        &vl.line,
                         kHlModeReplace,
                         view_width,
                         0,
@@ -3691,7 +3678,7 @@ pub unsafe fn win_line(
         }
 
         clear_virttext(&raw mut fold_vt);
-        virt_lines.destroy();
+        drop(virt_lines);
         xfree(foldtext_free.cast());
         wlv.row
     }

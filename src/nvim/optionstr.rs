@@ -3290,7 +3290,7 @@ unsafe fn did_set_statustabline_rulerformat(
         }
 
         if is_stl && !win.is_null() && (*win).w_floating {
-            win_config_float(win, (*win).w_config);
+            win_config_float(win, (*win).w_config.clone());
         }
 
         if rulerformat && !ui_has(kUIMessages) && *s == b'%' as c_char {
