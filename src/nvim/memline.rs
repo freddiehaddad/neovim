@@ -34,7 +34,7 @@ use crate::memfile::{
     mf_free, mf_free_fnames, mf_get, mf_need_trans, mf_new, mf_new_page_size, mf_open,
     mf_open_file, mf_put, mf_set_dirty, mf_set_fnames, mf_sync, mf_trans_del, pmap_get_bhdr,
 };
-use crate::memory::{xfree, xmalloc, xmemdupz, xrealloc, xstpcpy, xstrdup, xstrlcpy};
+use crate::memory::{xfree, xmalloc, xmemdupz, xstpcpy, xstrdup, xstrlcpy};
 use crate::message::{
     emsg, iemsg, msg, msg_end, msg_ext_set_kind, msg_multiline, msg_outnum, msg_outtrans,
     msg_putchar, msg_puts, msg_puts_hl, msg_reset_scroll, msg_start, semsg, set_keep_msg, siemsg,
@@ -71,9 +71,8 @@ use std::ptr;
 pub struct memline_T {
     pub ml_line_count: i32,
     pub ml_mfp: *mut c_void,
-    pub ml_stack: *mut c_void,
+    pub ml_stack: Vec<infoptr_T>,
     pub ml_stack_top: c_int,
-    pub ml_stack_size: c_int,
     pub ml_flags: c_int,
     pub ml_line_textlen: c_int,
     pub ml_line_lnum: i32,
@@ -84,8 +83,7 @@ pub struct memline_T {
     pub ml_locked_low: i32,
     pub ml_locked_high: i32,
     pub ml_locked_lineadd: c_int,
-    pub ml_chunksize: *mut c_void,
-    pub ml_numchunks: c_int,
+    pub ml_chunksize: Vec<chunksize_T>,
     pub ml_usedchunks: c_int,
 }
 
@@ -156,7 +154,7 @@ pub(crate) const kPathDeviceUNC: c_int = 5;
 const ENOENT: c_int = 2;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct infoptr_T {
     pub ip_bnum: blocknr_T,
     pub ip_low: linenr_T,
@@ -165,7 +163,7 @@ pub struct infoptr_T {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct chunksize_T {
     pub mlcs_numlines: c_int,
     pub mlcs_totalsize: c_int,
@@ -334,13 +332,12 @@ unsafe fn sb_push_cstr(sb: &mut Vec<u8>, s: *const c_char) {
 /// Open a new memline for `buf`.
 pub unsafe fn ml_open(buf: *mut buf_T) -> c_int {
     unsafe {
-        (*buf).b_ml.ml_stack_size = 0;
-        (*buf).b_ml.ml_stack = ptr::null_mut();
+        (*buf).b_ml.ml_stack.clear();
         (*buf).b_ml.ml_stack_top = 0;
         (*buf).b_ml.ml_locked = ptr::null_mut();
         (*buf).b_ml.ml_line_lnum = 0;
         (*buf).b_ml.ml_line_offset = 0;
-        (*buf).b_ml.ml_chunksize = ptr::null_mut();
+        (*buf).b_ml.ml_chunksize.clear();
         (*buf).b_ml.ml_usedchunks = 0;
 
         if (cmdmod.cmod_flags & CMOD_NOSWAPFILE) != 0 {
@@ -619,9 +616,8 @@ pub unsafe fn ml_close(buf: *mut buf_T, del_file: c_int) {
         {
             xfree((*buf).b_ml.ml_line_ptr.cast());
         }
-        xfree((*buf).b_ml.ml_stack);
-        xfree((*buf).b_ml.ml_chunksize);
-        (*buf).b_ml.ml_chunksize = ptr::null_mut();
+        (*buf).b_ml.ml_stack = Vec::new();
+        (*buf).b_ml.ml_chunksize = Vec::new();
         (*buf).b_ml.ml_mfp = ptr::null_mut();
 
         (*buf).b_flags &= !BF_RECOVERED;
@@ -886,8 +882,8 @@ pub unsafe fn ml_recover(checkext: bool) {
         ptr::write(&raw mut (*buf).b_s.b_syn_patterns, Vec::new());
         ptr::write(&raw mut (*buf).b_s.b_syn_clusters, Vec::new());
         ptr::write(&raw mut (*buf).b_s.b_langp, Vec::new());
-        (*buf).b_ml.ml_stack_size = 0;
-        (*buf).b_ml.ml_stack = ptr::null_mut();
+        ptr::write(&raw mut (*buf).b_ml.ml_stack, Vec::new());
+        ptr::write(&raw mut (*buf).b_ml.ml_chunksize, Vec::new());
         (*buf).b_ml.ml_stack_top = 0;
         (*buf).b_ml.ml_line_lnum = 0;
         (*buf).b_ml.ml_line_offset = 0;
@@ -1106,8 +1102,7 @@ pub unsafe fn ml_recover(checkext: bool) {
         let mut idx: c_int = 0;
         let mut error: c_int = 0;
         (*buf).b_ml.ml_stack_top = 0;
-        (*buf).b_ml.ml_stack = ptr::null_mut();
-        (*buf).b_ml.ml_stack_size = 0;
+        (*buf).b_ml.ml_stack.clear();
 
         let mut cannot_open = (*curbuf).b_ffname.is_null();
 
@@ -1193,7 +1188,7 @@ pub unsafe fn ml_recover(checkext: bool) {
                         }
 
                         let top = ml_add_stack(buf);
-                        let ip = (*buf).b_ml.ml_stack.cast::<infoptr_T>().add(top as usize);
+                        let ip = (*buf).b_ml.ml_stack.as_mut_ptr().add(top as usize);
                         (*ip).ip_bnum = bnum;
                         (*ip).ip_index = idx;
 
@@ -1330,7 +1325,7 @@ pub unsafe fn ml_recover(checkext: bool) {
             let ip = (*buf)
                 .b_ml
                 .ml_stack
-                .cast::<infoptr_T>()
+                .as_mut_ptr()
                 .add((*buf).b_ml.ml_stack_top as usize);
             bnum = (*ip).ip_bnum;
             idx = (*ip).ip_index + 1;
@@ -1431,7 +1426,8 @@ unsafe fn ml_recover_theend(
             mf_close(mfp, false);
         }
         if !buf.is_null() {
-            xfree((*buf).b_ml.ml_stack);
+            ptr::drop_in_place(&raw mut (*buf).b_ml.ml_stack);
+            ptr::drop_in_place(&raw mut (*buf).b_ml.ml_chunksize);
             xfree(buf.cast());
         }
         if serious_error && called_from_main {
@@ -2457,7 +2453,7 @@ unsafe fn ml_append_int(
                 let ip = (*buf)
                     .b_ml
                     .ml_stack
-                    .cast::<infoptr_T>()
+                    .as_mut_ptr()
                     .add(stack_idx as usize);
                 let pb_idx = (*ip).ip_index as usize;
                 hp = mf_get(mfp, (*ip).ip_bnum, 1);
@@ -2504,7 +2500,7 @@ unsafe fn ml_append_int(
                         let top_ip = (*buf)
                             .b_ml
                             .ml_stack
-                            .cast::<infoptr_T>()
+                            .as_mut_ptr()
                             .add((*buf).b_ml.ml_stack_top as usize);
                         (*top_ip).ip_high += lineadd;
                         (*buf).b_ml.ml_stack_top += 1;
@@ -2835,7 +2831,7 @@ unsafe fn ml_delete_int(buf: *mut buf_T, lnum: linenr_T, flags: c_int) -> c_int 
                 let ip = (*buf)
                     .b_ml
                     .ml_stack
-                    .cast::<infoptr_T>()
+                    .as_mut_ptr()
                     .add(stack_idx as usize);
                 idx = (*ip).ip_index;
                 hp = mf_get(mfp, (*ip).ip_bnum, 1);
@@ -2868,7 +2864,7 @@ unsafe fn ml_delete_int(buf: *mut buf_T, lnum: linenr_T, flags: c_int) -> c_int 
                         let top_ip = (*buf)
                             .b_ml
                             .ml_stack
-                            .cast::<infoptr_T>()
+                            .as_mut_ptr()
                             .add((*buf).b_ml.ml_stack_top as usize);
                         (*top_ip).ip_high += (*buf).b_ml.ml_locked_lineadd;
                     }
@@ -3171,7 +3167,7 @@ unsafe fn ml_find_line(buf: *mut buf_T, lnum: linenr_T, action: c_int) -> *mut b
         if action == ML_FIND {
             let mut top = (*buf).b_ml.ml_stack_top - 1;
             while top >= 0 {
-                let ip = (*buf).b_ml.ml_stack.cast::<infoptr_T>().add(top as usize);
+                let ip = (*buf).b_ml.ml_stack.as_mut_ptr().add(top as usize);
                 if (*ip).ip_low <= lnum && (*ip).ip_high >= lnum {
                     bnum = (*ip).ip_bnum;
                     low = (*ip).ip_low;
@@ -3218,7 +3214,7 @@ unsafe fn ml_find_line(buf: *mut buf_T, lnum: linenr_T, action: c_int) -> *mut b
             }
 
             let top = ml_add_stack(buf);
-            let ip = (*buf).b_ml.ml_stack.cast::<infoptr_T>().add(top as usize);
+            let ip = (*buf).b_ml.ml_stack.as_mut_ptr().add(top as usize);
             (*ip).ip_bnum = bnum;
             (*ip).ip_low = low;
             (*ip).ip_high = high;
@@ -3288,10 +3284,11 @@ unsafe fn ml_find_line_error_noblock(buf: *mut buf_T, action: c_int) -> *mut bhd
 unsafe fn ml_add_stack(buf: *mut buf_T) -> c_int {
     unsafe {
         let top = (*buf).b_ml.ml_stack_top;
-        if top == (*buf).b_ml.ml_stack_size {
-            (*buf).b_ml.ml_stack_size += STACK_INCR;
-            let new_size = size_of::<infoptr_T>() * ((*buf).b_ml.ml_stack_size as usize);
-            (*buf).b_ml.ml_stack = xrealloc((*buf).b_ml.ml_stack, new_size);
+        if (top as usize) == (*buf).b_ml.ml_stack.len() {
+            (*buf).b_ml.ml_stack.resize(
+                (*buf).b_ml.ml_stack.len() + (STACK_INCR as usize),
+                infoptr_T::default(),
+            );
         }
         (*buf).b_ml.ml_stack_top += 1;
         top
@@ -3303,7 +3300,7 @@ unsafe fn ml_lineadd(buf: *mut buf_T, count: c_int) {
         let mfp = (*buf).b_ml.ml_mfp.cast::<memfile_T>();
         let mut idx = (*buf).b_ml.ml_stack_top - 1;
         while idx >= 0 {
-            let ip = (*buf).b_ml.ml_stack.cast::<infoptr_T>().add(idx as usize);
+            let ip = (*buf).b_ml.ml_stack.as_mut_ptr().add(idx as usize);
             let hp = mf_get(mfp, (*ip).ip_bnum, 1);
             if hp.is_null() {
                 break;
@@ -3905,11 +3902,10 @@ unsafe fn ml_updatechunk(buf: *mut buf_T, line: linenr_T, mut len: c_int, updtyp
         if (*buf).b_ml.ml_usedchunks == -1 || len == 0 {
             return;
         }
-        if (*buf).b_ml.ml_chunksize.is_null() {
-            (*buf).b_ml.ml_chunksize = xmalloc(size_of::<chunksize_T>() * 100);
-            (*buf).b_ml.ml_numchunks = 100;
+        if (*buf).b_ml.ml_chunksize.is_empty() {
+            (*buf).b_ml.ml_chunksize.resize(100, chunksize_T::default());
             (*buf).b_ml.ml_usedchunks = 1;
-            let cs0 = (*buf).b_ml.ml_chunksize.cast::<chunksize_T>();
+            let cs0 = (*buf).b_ml.ml_chunksize.as_mut_ptr();
             (*cs0).mlcs_numlines = 1;
             (*cs0).mlcs_totalsize = 1;
             ml_upd_lastbuf = ptr::null_mut();
@@ -3917,7 +3913,7 @@ unsafe fn ml_updatechunk(buf: *mut buf_T, line: linenr_T, mut len: c_int, updtyp
 
         if updtype == ML_CHNK_UPDLINE && (*buf).b_ml.ml_line_count == 1 {
             (*buf).b_ml.ml_usedchunks = 1;
-            let cs0 = (*buf).b_ml.ml_chunksize.cast::<chunksize_T>();
+            let cs0 = (*buf).b_ml.ml_chunksize.as_mut_ptr();
             (*cs0).mlcs_numlines = 1;
             (*cs0).mlcs_totalsize = (*buf).b_ml.ml_line_textlen;
             ml_upd_lastbuf = ptr::null_mut();
@@ -3928,7 +3924,7 @@ unsafe fn ml_updatechunk(buf: *mut buf_T, line: linenr_T, mut len: c_int, updtyp
             curline = 1;
             curix = 0;
         }
-        let chunks = (*buf).b_ml.ml_chunksize.cast::<chunksize_T>();
+        let chunks = (*buf).b_ml.ml_chunksize.as_mut_ptr();
         while curix < (*buf).b_ml.ml_usedchunks - 1
             && line >= curline + (*chunks.add(curix as usize)).mlcs_numlines
         {
@@ -3944,14 +3940,14 @@ unsafe fn ml_updatechunk(buf: *mut buf_T, line: linenr_T, mut len: c_int, updtyp
         if updtype == ML_CHNK_ADDLINE {
             (*curchnk).mlcs_numlines += 1;
 
-            if (*buf).b_ml.ml_usedchunks + 1 >= (*buf).b_ml.ml_numchunks {
-                (*buf).b_ml.ml_numchunks = (*buf).b_ml.ml_numchunks * 3 / 2;
-                (*buf).b_ml.ml_chunksize = xrealloc(
-                    (*buf).b_ml.ml_chunksize,
-                    size_of::<chunksize_T>() * ((*buf).b_ml.ml_numchunks as usize),
-                );
+            if ((*buf).b_ml.ml_usedchunks + 1) as usize >= (*buf).b_ml.ml_chunksize.len() {
+                let new_len = (*buf).b_ml.ml_chunksize.len() * 3 / 2;
+                (*buf)
+                    .b_ml
+                    .ml_chunksize
+                    .resize(new_len, chunksize_T::default());
             }
-            let chunks = (*buf).b_ml.ml_chunksize.cast::<chunksize_T>();
+            let chunks = (*buf).b_ml.ml_chunksize.as_mut_ptr();
 
             if (*chunks.add(curix as usize)).mlcs_numlines >= MLCS_MAXL {
                 ptr::copy(
@@ -4026,7 +4022,7 @@ unsafe fn ml_updatechunk(buf: *mut buf_T, line: linenr_T, mut len: c_int, updtyp
             }
         } else if updtype == ML_CHNK_DELLINE {
             (*curchnk).mlcs_numlines -= 1;
-            let chunks = (*buf).b_ml.ml_chunksize.cast::<chunksize_T>();
+            let chunks = (*buf).b_ml.ml_chunksize.as_mut_ptr();
             if curix < (*buf).b_ml.ml_usedchunks - 1
                 && ((*curchnk).mlcs_numlines + (*curchnk.add(1)).mlcs_numlines) <= MLCS_MINL
             {
@@ -4084,7 +4080,7 @@ pub unsafe fn ml_find_line_or_offset(
             return (*buf).b_ml.ml_line_offset as c_int;
         }
 
-        if (*buf).b_ml.ml_usedchunks == -1 || (*buf).b_ml.ml_chunksize.is_null() || lnum < 0 {
+        if (*buf).b_ml.ml_usedchunks == -1 || (*buf).b_ml.ml_chunksize.is_empty() || lnum < 0 {
             if no_ff && !(*buf).b_ml.ml_mfp.is_null() && (lnum == 1 || lnum == 2) {
                 return lnum - 1;
             }
@@ -4099,7 +4095,7 @@ pub unsafe fn ml_find_line_or_offset(
         let mut curline: linenr_T = 1;
         let mut curix: c_int = 0;
         let mut size: c_int = 0;
-        let chunks = (*buf).b_ml.ml_chunksize.cast::<chunksize_T>();
+        let chunks = (*buf).b_ml.ml_chunksize.as_mut_ptr();
         while curix < (*buf).b_ml.ml_usedchunks - 1
             && ((lnum != 0 && lnum >= curline + (*chunks.add(curix as usize)).mlcs_numlines)
                 || (offset != 0

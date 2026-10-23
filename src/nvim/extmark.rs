@@ -890,7 +890,7 @@ pub unsafe fn extmark_splice(
 ) {
     unsafe {
         let mut offset = ml_find_line_or_offset(buf, start_row + 1, ptr::null_mut(), true);
-        if offset < 0 && (*buf).b_ml.ml_chunksize.is_null() {
+        if offset < 0 && (*buf).b_ml.ml_chunksize.is_empty() {
             offset = 0;
         }
         extmark_splice_impl(

@@ -34,8 +34,7 @@ use crate::keycodes::NL;
 use crate::mbyte::{ptr2cells, utf_ptr2char, utfc_ptr2len};
 use crate::memline::{ml_find_line_or_offset, ml_get_buf, ml_get_buf_len};
 use crate::memory::{
-    Arena, arena_finish, arena_mem_free, xcalloc, xfree, xmalloc, xmemdupz, xrealloc, xstrdup,
-    xstrlcpy,
+    Arena, arena_finish, arena_mem_free, xcalloc, xfree, xmalloc, xmemdupz, xstrdup, xstrlcpy,
 };
 use crate::message::HLF_MSG;
 use crate::message::msg_clr_eos;
@@ -1312,6 +1311,10 @@ pub unsafe extern "C" fn build_stl_str_hl(
 ) -> c_int {
     unsafe {
         static mut stl_items_len: usize = 20;
+        static mut stl_items_vec: Vec<stl_item_t> = Vec::new();
+        static mut stl_groupitems_vec: Vec<c_int> = Vec::new();
+        static mut stl_hltab_vec: Vec<stl_hlrec_t> = Vec::new();
+        static mut stl_tabtab_vec: Vec<StlClickRecord> = Vec::new();
         static mut stl_items: *mut stl_item_t = ptr::null_mut();
         static mut stl_groupitems: *mut c_int = ptr::null_mut();
         static mut stl_hltab: *mut stl_hlrec_t = ptr::null_mut();
@@ -1329,11 +1332,19 @@ pub unsafe extern "C" fn build_stl_str_hl(
             redraw_not_allowed = true;
         }
 
+        let items_vec_ptr = &raw mut stl_items_vec;
+        let groupitems_vec_ptr = &raw mut stl_groupitems_vec;
+        let hltab_vec_ptr = &raw mut stl_hltab_vec;
+        let tabtab_vec_ptr = &raw mut stl_tabtab_vec;
         if stl_items.is_null() {
-            stl_items = xmalloc(size_of::<stl_item_t>() * stl_items_len).cast();
-            stl_groupitems = xmalloc(size_of::<c_int>() * stl_items_len).cast();
-            stl_hltab = xmalloc(size_of::<stl_hlrec_t>() * (stl_items_len + 1)).cast();
-            stl_tabtab = xmalloc(size_of::<StlClickRecord>() * (stl_items_len + 1)).cast();
+            (*items_vec_ptr).resize(stl_items_len, std::mem::zeroed());
+            (*groupitems_vec_ptr).resize(stl_items_len, 0);
+            (*hltab_vec_ptr).resize(stl_items_len + 1, std::mem::zeroed());
+            (*tabtab_vec_ptr).resize(stl_items_len + 1, std::mem::zeroed());
+            stl_items = (*items_vec_ptr).as_mut_ptr();
+            stl_groupitems = (*groupitems_vec_ptr).as_mut_ptr();
+            stl_hltab = (*hltab_vec_ptr).as_mut_ptr();
+            stl_tabtab = (*tabtab_vec_ptr).as_mut_ptr();
         }
 
         let use_sandbox = if opt_idx != kOptInvalid {
@@ -1406,17 +1417,14 @@ pub unsafe extern "C" fn build_stl_str_hl(
             () => {
                 if curitem == stl_items_len as c_int {
                     let new_len = stl_items_len * 3 / 2;
-                    stl_items =
-                        xrealloc(stl_items.cast(), size_of::<stl_item_t>() * new_len).cast();
-                    stl_groupitems =
-                        xrealloc(stl_groupitems.cast(), size_of::<c_int>() * new_len).cast();
-                    stl_hltab =
-                        xrealloc(stl_hltab.cast(), size_of::<stl_hlrec_t>() * (new_len + 1)).cast();
-                    stl_tabtab = xrealloc(
-                        stl_tabtab.cast(),
-                        size_of::<StlClickRecord>() * (new_len + 1),
-                    )
-                    .cast();
+                    (*items_vec_ptr).resize(new_len, std::mem::zeroed());
+                    (*groupitems_vec_ptr).resize(new_len, 0);
+                    (*hltab_vec_ptr).resize(new_len + 1, std::mem::zeroed());
+                    (*tabtab_vec_ptr).resize(new_len + 1, std::mem::zeroed());
+                    stl_items = (*items_vec_ptr).as_mut_ptr();
+                    stl_groupitems = (*groupitems_vec_ptr).as_mut_ptr();
+                    stl_hltab = (*hltab_vec_ptr).as_mut_ptr();
+                    stl_tabtab = (*tabtab_vec_ptr).as_mut_ptr();
                     stl_items_len = new_len;
                 }
             };

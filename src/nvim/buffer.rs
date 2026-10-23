@@ -1391,6 +1391,8 @@ unsafe fn free_buffer(buf: *mut buf_T) {
         ptr::drop_in_place(&raw mut (*buf).b_extmark_ns);
         ptr::drop_in_place(&raw mut (*buf).b_s.b_keywtab);
         ptr::drop_in_place(&raw mut (*buf).b_s.b_keywtab_ic);
+        ptr::drop_in_place(&raw mut (*buf).b_ml.ml_stack);
+        ptr::drop_in_place(&raw mut (*buf).b_ml.ml_chunksize);
         ptr::drop_in_place(&raw mut (*buf).update_channels);
         ptr::drop_in_place(&raw mut (*buf).update_callbacks);
         callback_free(&raw mut (*buf).b_prompt_callback);
@@ -2500,6 +2502,8 @@ pub unsafe fn buflist_new(
             ptr::write(&raw mut (*buf).b_s.b_syn_patterns, Vec::new());
             ptr::write(&raw mut (*buf).b_s.b_syn_clusters, Vec::new());
             ptr::write(&raw mut (*buf).b_s.b_langp, Vec::new());
+            ptr::write(&raw mut (*buf).b_ml.ml_stack, Vec::new());
+            ptr::write(&raw mut (*buf).b_ml.ml_chunksize, Vec::new());
             (*buf).b_vars = tv_dict_alloc();
             init_var_dict((*buf).b_vars, (&raw mut (*buf).b_bufvar).cast(), VAR_SCOPE);
             buf_init_changedtick(buf);
