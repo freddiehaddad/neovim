@@ -579,9 +579,12 @@ pub unsafe fn msg_multiline(
 ///
 /// @param hl_msg Message chunks
 /// @param msg_data Additional data for progress messages
-unsafe fn format_progress_message(hl_msg: *mut HlMessage, msg_data: *mut MessageData) -> bool {
+unsafe fn format_progress_message(
+    hl_msg: &HlMessage,
+    msg_data: *mut MessageData,
+    updated_msg: &mut HlMessage,
+) -> bool {
     unsafe {
-        let mut updated_msg = HlMessage::new();
         // progress messages are special. displayed as "title: percent% msg"
         if (*msg_data).title.size != 0 {
             // this block draws the "title:" before the progress-message
@@ -622,15 +625,13 @@ unsafe fn format_progress_message(hl_msg: *mut HlMessage, msg_data: *mut Message
             });
         }
 
-        if updated_msg.size != 0 {
-            for i in 0..(*hl_msg).size {
-                let chunk = *(*hl_msg).items.add(i);
+        if !updated_msg.is_empty() {
+            for chunk in hl_msg {
                 updated_msg.push(HlMessageChunk {
                     text: copy_string(chunk.text, ptr::null_mut()),
                     hl_id: chunk.hl_id,
                 });
             }
-            *hl_msg = updated_msg;
             return true;
         }
         false
@@ -640,7 +641,7 @@ unsafe fn format_progress_message(hl_msg: *mut HlMessage, msg_data: *mut Message
 /// Print message chunks, each with their own highlight ID.
 pub unsafe fn msg_multihl(
     mut id: MsgID,
-    mut hl_msg: HlMessage,
+    hl_msg: &mut HlMessage,
     kind: *const c_char,
     history: bool,
     err: bool,
@@ -660,6 +661,7 @@ pub unsafe fn msg_multihl(
             std::process::abort();
         }
 
+        let mut updated_msg = HlMessage::new();
         let mut hl_msg_updated = false;
         // don't display progress message in cmd when target doesn't have cmd
         if strequal(kind, c"progress".as_ptr()) {
@@ -668,11 +670,17 @@ pub unsafe fn msg_multihl(
                 *needs_msg_clear = true;
                 return id;
             }
-            if !msg_data.is_null() && format_progress_message(&raw mut hl_msg, msg_data) {
+            if !msg_data.is_null() && format_progress_message(hl_msg, msg_data, &mut updated_msg) {
                 *needs_msg_clear = true;
                 hl_msg_updated = true;
             }
         }
+
+        let active_msg: &HlMessage = if hl_msg_updated {
+            &updated_msg
+        } else {
+            hl_msg
+        };
 
         no_wait_return += 1;
         msg_start();
@@ -683,8 +691,8 @@ pub unsafe fn msg_multihl(
         }
         if raw_for_lua_print {
             msg_special_case_for_lua_print = true;
-            assert!(hl_msg.size == 1);
-            let chunk = *hl_msg.items;
+            assert!(active_msg.len() == 1);
+            let chunk = active_msg[0];
             printf!(
                 c"%.*s\n".as_ptr(),
                 chunk.text.size as c_int,
@@ -695,8 +703,7 @@ pub unsafe fn msg_multihl(
         msg_ext_skip_flush = true;
         msg_ext_id = id;
 
-        for i in 0..hl_msg.size {
-            let chunk = *hl_msg.items.add(i);
+        for &chunk in active_msg {
             is_multihl += 1;
             if err {
                 emsg_multiline(chunk.text.data, kind, chunk.hl_id, true);
@@ -706,8 +713,13 @@ pub unsafe fn msg_multihl(
             assert!(!ui_has(kUIMessages) || kind.is_null() || msg_ext_kind == kind);
         }
 
-        if history && hl_msg.size != 0 {
-            msg_hist_add_multihl(hl_msg, false);
+        let has_chunks = !active_msg.is_empty();
+        if history && has_chunks {
+            if hl_msg_updated {
+                msg_hist_add_multihl(std::mem::take(&mut updated_msg), false);
+            } else {
+                msg_hist_add_multihl(std::mem::take(hl_msg), false);
+            }
         }
 
         msg_ext_skip_flush = false;
@@ -715,8 +727,8 @@ pub unsafe fn msg_multihl(
         no_wait_return -= 1;
         msg_end();
 
-        if hl_msg_updated && !(history && hl_msg.size != 0) {
-            hl_msg_free(hl_msg);
+        if hl_msg_updated && !(history && has_chunks) {
+            hl_msg_free(updated_msg);
         }
         // Release the id: it belongs to this message, and a String id only borrows the caller's storage
         // (often a stack buffer). Redundant unless nothing was emitted (e.g. 'msg_silent').
@@ -761,7 +773,7 @@ pub unsafe fn msg_keep(mut s: *const c_char, hl_id: c_int, keep: bool, multiline
                 || (*s != b'<' as c_char
                     && !msg_hist_last.is_null()
                     && CStr::from_ptr(s)
-                        != CStr::from_ptr((*(*msg_hist_last).msg.items).text.data)))
+                        != CStr::from_ptr((*msg_hist_last).msg.as_slice()[0].text.data)))
         {
             msg_hist_add(s, -1, hl_id);
         }
@@ -1423,7 +1435,7 @@ pub unsafe fn msg_with_id(
         };
         msg_multihl(
             id_obj,
-            chunks,
+            &mut chunks,
             kind,
             false,
             err,
@@ -1431,18 +1443,16 @@ pub unsafe fn msg_with_id(
             &raw mut clear,
             false,
         );
-        chunks.destroy();
         ui_flush();
         s
     }
 }
 
-pub unsafe fn hl_msg_free(mut hl_msg: HlMessage) {
+pub unsafe fn hl_msg_free(hl_msg: HlMessage) {
     unsafe {
-        for i in 0..hl_msg.size {
-            xfree((*hl_msg.items.add(i)).text.data.cast());
+        for chunk in hl_msg {
+            xfree(chunk.text.data.cast());
         }
-        hl_msg.destroy();
     }
 }
 
@@ -1472,24 +1482,23 @@ unsafe fn msg_hist_add(mut s: *const c_char, len: c_int, hl_id: c_int) {
             size,
         };
 
-        let mut msg = HlMessage::new();
-        msg.push(HlMessageChunk { text, hl_id });
+        let msg = vec![HlMessageChunk { text, hl_id }];
         msg_hist_add_multihl(msg, false);
     }
 }
 
-pub unsafe fn do_autocmd_progress(msg_id: MsgID, msg: HlMessage, msg_data: *mut MessageData) {
+pub unsafe fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, msg_data: *mut MessageData) {
     unsafe {
         if !has_event(EVENT_PROGRESS) {
             return;
         }
 
         let mut messages = Array::new();
-        for i in 0..msg.size {
+        for chunk in msg {
             messages.push(Object {
                 obj_type: ObjectType::kObjectTypeString,
                 data: ObjectData {
-                    string: (*msg.items.add(i)).text,
+                    string: chunk.text,
                 },
             });
         }
@@ -1617,7 +1626,7 @@ unsafe fn msg_hist_add_multihl(msg: HlMessage, temp: bool) {
 
         // Allocate an entry and add the message at the end of the history.
         let entry = xmalloc(size_of::<MessageHistoryEntry>()).cast::<MessageHistoryEntry>();
-        (*entry).msg = msg;
+        ptr::write(&raw mut (*entry).msg, msg);
         (*entry).temp = temp;
         (*entry).kind = if !msg_ext_kind.is_null() {
             xstrdup(msg_ext_kind)
@@ -1661,7 +1670,7 @@ unsafe fn msg_hist_free_msg(entry: *mut MessageHistoryEntry) {
         if entry == msg_hist_temp {
             msg_hist_temp = (*entry).next;
         }
-        hl_msg_free((*entry).msg);
+        hl_msg_free(std::mem::take(&mut (*entry).msg));
         xfree((*entry).kind.cast());
         xfree(entry.cast());
     }
@@ -1777,8 +1786,7 @@ pub unsafe fn ex_messages(eap: *mut exarg_T) {
                     },
                 });
                 let mut content = Array::new();
-                for i in 0..(*p).msg.size {
-                    let chunk = *(*p).msg.items.add(i);
+                for &chunk in &(*p).msg {
                     let mut content_entry = Array::new();
                     content_entry.push(Object {
                         obj_type: ObjectType::kObjectTypeInteger,
@@ -1829,7 +1837,7 @@ pub unsafe fn ex_messages(eap: *mut exarg_T) {
                 let mut needs_clear = false;
                 msg_multihl(
                     NIL_OBJ,
-                    (*p).msg,
+                    &mut (*p).msg,
                     (*p).kind,
                     false,
                     false,

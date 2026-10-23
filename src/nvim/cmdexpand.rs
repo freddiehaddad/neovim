@@ -57,7 +57,6 @@ use crate::highlight_group::{get_highlight_name, set_context_in_highlight_cmd};
 use crate::input::{beep_flush, char_avail, vpeekc};
 use crate::insexpand::find_word_end;
 use crate::keycodes::{K_DOWN, K_KENTER, K_LEFT, K_RIGHT, K_UP};
-use crate::kvec::KVec;
 use crate::lua::executor::{
     kRetObject, nlua_call_user_expand_func, nlua_exec, nlua_expand_get_matches, nlua_expand_pat,
 };
@@ -722,18 +721,28 @@ pub struct CmdlineColorChunk {
     pub hl_id: c_int,
 }
 
-pub type CmdlineColors = KVec<CmdlineColorChunk>;
+pub type CmdlineColors = Vec<CmdlineColorChunk>;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct ColoredCmdline {
     pub prompt_id: c_uint,
     pub cmdbuff: *mut c_char,
     pub colors: CmdlineColors,
 }
 
+impl ColoredCmdline {
+    pub const fn new() -> Self {
+        Self {
+            prompt_id: 0,
+            cmdbuff: ptr::null_mut(),
+            colors: Vec::new(),
+        }
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct CmdlineInfo {
     pub cmdbuff: *mut c_char,
     pub cmdbufflen: c_int,
@@ -760,6 +769,41 @@ pub struct CmdlineInfo {
     pub redraw_state: c_int,
     pub one_key: bool,
     pub mouse_used: *mut bool,
+}
+
+impl CmdlineInfo {
+    pub const fn new() -> Self {
+        Self {
+            cmdbuff: ptr::null_mut(),
+            cmdbufflen: 0,
+            cmdlen: 0,
+            cmdpos: 0,
+            cmdspos: 0,
+            cmdfirstc: 0,
+            cmdindent: 0,
+            cmdprompt: ptr::null_mut(),
+            hl_id: 0,
+            overstrike: 0,
+            xpc: ptr::null_mut(),
+            xp_context: 0,
+            xp_arg: ptr::null_mut(),
+            input_fn: 0,
+            cmdbuff_replaced: false,
+            prompt_id: 0,
+            highlight_callback: Callback {
+                data: ptr::null_mut(),
+                cb_type: 0,
+            },
+            last_colors: ColoredCmdline::new(),
+            level: 0,
+            prev_ccline: ptr::null_mut(),
+            special_char: 0,
+            special_shift: false,
+            redraw_state: 0,
+            one_key: false,
+            mouse_used: ptr::null_mut(),
+        }
+    }
 }
 
 pub(crate) const Ctrl_N: c_int = 14;

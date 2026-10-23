@@ -61,8 +61,8 @@ use crate::msgpack_rpc::packer::{
     packer_take_string,
 };
 use crate::msgpack_rpc::unpacker::{
-    AdditionalDataBuilder, AdditionalDataHeader, StringArray, push_additional_data, unpack_array,
-    unpack_integer, unpack_keydict, unpack_skip, unpack_string,
+    AdditionalDataBuilder, AdditionalDataHeader, StringArray, additional_data_take,
+    push_additional_data, unpack_array, unpack_integer, unpack_keydict, unpack_skip, unpack_string,
 };
 #[cfg(unix)]
 use crate::option::ROOT_UID;
@@ -167,7 +167,7 @@ pub struct KeyDict__shada_mark {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct KeyDict__shada_register {
     pub is_set___shada_register_: OptionalKeys,
     pub rc: StringArray,
@@ -3733,7 +3733,14 @@ unsafe fn shada_read_next_item(
                         }
                     }
                     ShadaEntryType::kSDItemRegister => {
-                        let mut it = std::mem::zeroed::<KeyDict__shada_register>();
+                        let mut it = KeyDict__shada_register {
+                            is_set___shada_register_: 0,
+                            rc: Vec::new(),
+                            ru: false,
+                            rt: 0,
+                            n: 0,
+                            rw: 0,
+                        };
                         if !unpack_keydict(
                             (&raw mut it).cast::<c_void>(),
                             Some(shada_register_get_field_cb),
@@ -3750,10 +3757,9 @@ unsafe fn shada_read_next_item(
                                 initial_fpos,
                                 error_alloc,
                             );
-                            it.rc.destroy();
                             break 'parse_item false;
                         }
-                        if it.rc.size == 0 {
+                        if it.rc.is_empty() {
                             semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: register entry at position %llu has rc key with missing or empty array"
@@ -3763,15 +3769,14 @@ unsafe fn shada_read_next_item(
                             );
                             break 'parse_item false;
                         }
-                        (*entry).data.reg.contents_size = it.rc.size;
+                        (*entry).data.reg.contents_size = it.rc.len();
                         (*entry).data.reg.contents =
-                            xmalloc(it.rc.size * std::mem::size_of::<NvimString>())
+                            xmalloc(it.rc.len() * std::mem::size_of::<NvimString>())
                                 .cast::<NvimString>();
-                        for j in 0..it.rc.size {
-                            *(*entry).data.reg.contents.add(j) =
-                                copy_string(*it.rc.items.add(j), ptr::null_mut());
+                        for (j, &s) in it.rc.iter().enumerate() {
+                            *(*entry).data.reg.contents.add(j) = copy_string(s, ptr::null_mut());
                         }
-                        it.rc.destroy();
+                        drop(it.rc);
 
                         if (it.is_set___shada_register_
                             & (1u64 << KEYSET_OPTIDX__shada_register__ru))
@@ -4007,11 +4012,11 @@ unsafe fn shada_read_next_item(
                                         initial_fpos,
                                         error_alloc,
                                     );
-                                    it_ad.destroy();
                                     break 'parse_item false;
                                 }
                                 let e = &mut *(*entry).data.buffer_list.buffers.add(i);
-                                e.additional_data = it_ad.items.cast::<AdditionalData>();
+                                e.additional_data =
+                                    additional_data_take(&mut it_ad).cast::<AdditionalData>();
                                 e.pos = DEFAULT_POS;
                                 if (it.is_set___shada_buflist_item_
                                     & (1u64 << KEYSET_OPTIDX__shada_buflist_item__l))
@@ -4100,14 +4105,13 @@ unsafe fn shada_read_next_item(
 
             if parse_ok {
                 (*entry).entry_type = entry_type;
-                (*entry).additional_data = ad.items.cast::<AdditionalData>();
+                (*entry).additional_data = additional_data_take(&mut ad).cast::<AdditionalData>();
                 ret = ShaDaReadResult::kSDReadStatusSuccess;
             } else {
                 (*entry).entry_type = entry_type;
                 shada_free_shada_entry(entry);
                 (*entry).entry_type = ShadaEntryType::kSDItemMissing;
                 xfree(error_alloc.cast::<c_void>());
-                ad.destroy();
             }
 
             if buf_allocated {

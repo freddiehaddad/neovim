@@ -1423,23 +1423,17 @@ unsafe fn nlua_print_event(argv: *mut *mut c_void) {
         msg_ext_no_fast();
         let raw = msg_use_printf() != 0 && redirecting() == 0 && on_print.cb_type == kCallbackNone;
 
-        let items = xmalloc(8 * size_of::<HlMessageChunk>()).cast::<HlMessageChunk>();
-        *items = HlMessageChunk {
+        let mut msg: HlMessage = vec![HlMessageChunk {
             text: NvimString {
                 data: (*argv).cast(),
                 size: (*argv.add(1) as usize).saturating_sub(1),
             },
             hl_id: 0,
-        };
-        let msg = HlMessage {
-            size: 1,
-            capacity: 8,
-            items,
-        };
+        }];
         let mut needs_clear = false;
         msg_multihl(
             OBJECT_NIL,
-            msg,
+            &mut msg,
             c"lua_print".as_ptr(),
             true,
             false,

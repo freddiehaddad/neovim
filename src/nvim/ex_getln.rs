@@ -97,8 +97,7 @@ use crate::mbyte::{
 };
 use crate::memline::{decl, incl};
 use crate::memory::{
-    Arena, arena_alloc, arena_finish, arena_mem_free, xfree, xmalloc, xmallocz, xmemdupz, xrealloc,
-    xstrdup,
+    Arena, arena_alloc, arena_finish, arena_mem_free, xfree, xmalloc, xmallocz, xmemdupz, xstrdup,
 };
 use crate::message::{
     emsg, msg, msg_check, msg_clr_eos, msg_cursor_goto, msg_grid_validate, msg_outtrans_len,
@@ -332,7 +331,7 @@ static mut last_prompt_id: c_uint = 0;
 static mut cmdline_level: c_int = 0;
 
 /// The current `cmdline_info`.
-static mut ccline: CmdlineInfo = unsafe { std::mem::zeroed() };
+static mut ccline: CmdlineInfo = CmdlineInfo::new();
 
 /// Position set by `set_cmdline_pos()`.
 static mut new_cmdpos: c_int = 0;
@@ -903,15 +902,7 @@ unsafe fn init_ccline(firstc: c_int, indent: c_int) {
         ccline.cmdlen = 0;
         *ccline.cmdbuff = NUL;
 
-        ccline.last_colors = ColoredCmdline {
-            prompt_id: 0,
-            cmdbuff: ptr::null_mut(),
-            colors: crate::cmdexpand::CmdlineColors {
-                size: 0,
-                capacity: 0,
-                items: ptr::null_mut(),
-            },
-        };
+        ccline.last_colors = ColoredCmdline::new();
         sb_text_start_cmdline();
 
         // autoindent for :insert and :append
@@ -958,15 +949,16 @@ unsafe fn command_line_enter(
         let s = &raw mut state;
         (*s).save_p_icm = xstrdup(p_icm);
         init_incsearch_state(&raw mut (*s).is_state);
-        let mut save_ccline: CmdlineInfo = std::mem::zeroed();
+        let mut save_ccline = CmdlineInfo::new();
         let mut did_save_ccline = false;
 
-        if !ccline.cmdbuff.is_null() {
+        let cc = &raw mut ccline;
+        if !(*cc).cmdbuff.is_null() {
             debug_assert!(clear_ccline);
             save_cmdline(&raw mut save_ccline);
             did_save_ccline = true;
         } else if clear_ccline {
-            ccline = std::mem::zeroed();
+            *cc = CmdlineInfo::new();
         }
 
         if (*s).firstc == -1 {
@@ -1237,10 +1229,9 @@ unsafe fn command_line_enter(
         // theend:
         xfree((*s).save_p_icm.cast::<c_void>());
         xfree(ccline.last_colors.cmdbuff.cast::<c_void>());
-        xfree(ccline.last_colors.colors.items.cast::<c_void>());
-        ccline.last_colors.colors.items = ptr::null_mut();
-        ccline.last_colors.colors.size = 0;
-        ccline.last_colors.colors.capacity = 0;
+        ccline.last_colors.cmdbuff = ptr::null_mut();
+        let lc_colors = &raw mut ccline.last_colors.colors;
+        *lc_colors = Vec::new();
 
         let p = ccline.cmdbuff;
 
@@ -3273,13 +3264,14 @@ pub unsafe fn getcmdline_prompt(
     unsafe {
         let msg_col_save = msg_col;
 
-        let mut save_ccline: CmdlineInfo = std::mem::zeroed();
+        let mut save_ccline = CmdlineInfo::new();
         let mut did_save_ccline = false;
-        if !ccline.cmdbuff.is_null() {
+        let cc = &raw mut ccline;
+        if !(*cc).cmdbuff.is_null() {
             save_cmdline(&raw mut save_ccline);
             did_save_ccline = true;
         } else {
-            ccline = std::mem::zeroed();
+            *cc = CmdlineInfo::new();
         }
         ccline.prompt_id = last_prompt_id;
         last_prompt_id = last_prompt_id.wrapping_add(1);
@@ -3609,12 +3601,7 @@ unsafe fn color_expr_cmdline(
         viml_pexpr_free_ast(east);
         viml_parser_destroy(&raw mut pstate);
 
-        (*ret_ccline_colors).colors.capacity = colors.len();
-        (*ret_ccline_colors).colors.items = xrealloc(
-            (*ret_ccline_colors).colors.items.cast::<c_void>(),
-            size_of::<CmdlineColorChunk>() * (*ret_ccline_colors).colors.capacity,
-        )
-        .cast::<CmdlineColorChunk>();
+        (*ret_ccline_colors).colors.reserve(colors.len());
         let mut prev_end: usize = 0;
         for chunk in colors {
             debug_assert!(chunk.start.col < c_int::MAX as usize);
@@ -3658,7 +3645,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
             return ret;
         }
 
-        (*ccline_colors).colors.size = 0;
+        (*ccline_colors).colors.clear();
 
         if (*colored_ccline).cmdbuff.is_null() || *(*colored_ccline).cmdbuff == NUL {
             xfree((*ccline_colors).cmdbuff.cast::<c_void>());
@@ -3910,7 +3897,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
             let _ = printed_errmsg;
 
             prev_prompt_errors += 1;
-            (*ccline_colors).colors.size = 0;
+            (*ccline_colors).colors.clear();
             redrawcmdline();
             ret = false;
         }
@@ -3949,6 +3936,7 @@ unsafe fn draw_cmdline(start: c_int, len: c_int) {
             return;
         }
 
+        let lc_colors = &raw const ccline.last_colors.colors;
         if cmdline_star > 0 {
             let mut i: c_int = 0;
             while i < len {
@@ -3956,9 +3944,8 @@ unsafe fn draw_cmdline(start: c_int, len: c_int) {
                 i += utfc_ptr2len(ccline.cmdbuff.add((start + i) as usize)) - 1;
                 i += 1;
             }
-        } else if ccline.last_colors.colors.size != 0 {
-            for i in 0..ccline.last_colors.colors.size {
-                let chunk = *ccline.last_colors.colors.items.add(i);
+        } else if !(*lc_colors).is_empty() {
+            for &chunk in &*lc_colors {
                 if chunk.end <= start {
                     continue;
                 }
@@ -3999,10 +3986,9 @@ unsafe fn ui_ext_cmdline_show(line: *mut CmdlineInfo) {
             add_c(&mut item, string_obj(cbuf_as_string(buf, len)));
             add_c(&mut item, integer_obj(0));
             add_c(&mut content, array_obj(item));
-        } else if (*line).last_colors.colors.size != 0 {
-            content = arena_array(&raw mut arena, (*line).last_colors.colors.size);
-            for i in 0..(*line).last_colors.colors.size {
-                let chunk = *(*line).last_colors.colors.items.add(i);
+        } else if !(*line).last_colors.colors.is_empty() {
+            content = arena_array(&raw mut arena, (*line).last_colors.colors.len());
+            for &chunk in &(*line).last_colors.colors {
                 let mut item = arena_array(&raw mut arena, 3);
                 add_c(
                     &mut item,
@@ -4298,17 +4284,17 @@ pub unsafe fn put_on_cmdline(str: *const c_char, mut len: c_int, redraw: bool) {
 /// Save `ccline`.
 unsafe fn save_cmdline(ccp: *mut CmdlineInfo) {
     unsafe {
-        *ccp = ccline;
-        ccline = std::mem::zeroed();
-        ccline.prev_ccline = ccp;
-        ccline.cmdbuff = ptr::null_mut();
+        let cc = &raw mut ccline;
+        *ccp = std::mem::replace(&mut *cc, CmdlineInfo::new());
+        (*cc).prev_ccline = ccp;
     }
 }
 
 /// Restore `ccline` after it has been saved with `save_cmdline()`.
 unsafe fn restore_cmdline(ccp: *mut CmdlineInfo) {
     unsafe {
-        ccline = *ccp;
+        let cc = &raw mut ccline;
+        *cc = std::mem::replace(&mut *ccp, CmdlineInfo::new());
     }
 }
 
@@ -4982,7 +4968,8 @@ pub unsafe fn get_list_range(str: *mut *mut c_char, num1: *mut c_int, num2: *mut
 
 pub unsafe fn cmdline_init() {
     unsafe {
-        ccline = std::mem::zeroed();
+        let cc = &raw mut ccline;
+        *cc = CmdlineInfo::new();
     }
 }
 

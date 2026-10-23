@@ -261,7 +261,7 @@ pub struct KeyDict_redraw {
     pub buf: Buffer,
 }
 
-pub type HlMessage = crate::kvec::KVec<HlMessageChunk>;
+pub type HlMessage = Vec<HlMessageChunk>;
 use crate::api::ui::MAX_SCHAR_SIZE;
 
 #[repr(C)]
@@ -1311,7 +1311,7 @@ pub unsafe extern "C" fn nvim_echo(
 ) -> Object {
     unsafe {
         let mut id = integer_obj(-1);
-        let hl_msg = parse_hl_msg(chunks, (*opts).err, err);
+        let mut hl_msg = parse_hl_msg(chunks, (*opts).err, err);
         if error_set(&*err) {
             hl_msg_free(hl_msg);
             return id;
@@ -1431,7 +1431,7 @@ pub unsafe extern "C" fn nvim_echo(
         msg_ext_no_fast();
         id = msg_multihl(
             (*opts).id,
-            hl_msg,
+            &mut hl_msg,
             kind,
             history,
             (*opts).err,

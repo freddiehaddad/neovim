@@ -7,7 +7,6 @@ use crate::api::private::validate::{
 };
 use crate::globals::*;
 use crate::grid::schar_from_buf;
-use crate::kvec::KVec;
 use crate::lua::converter::{Boolean, FieldHashfn, OptKeySet};
 use crate::memory::{Arena, arena_alloc, arena_finish, arena_mem_free, xstrdup};
 use crate::mpack::mpack_core::{
@@ -29,8 +28,8 @@ const EXT_OBJECT_TYPE_MAX: c_int =
     (ObjectType::kObjectTypeTabpage as c_int) - EXT_OBJECT_TYPE_SHIFT;
 const K_UNPACK_TYPE_STRING_ARRAY: c_int = -1;
 
-pub type AdditionalDataBuilder = KVec<c_char>;
-pub type StringArray = KVec<NvimString>;
+pub type AdditionalDataBuilder = Vec<c_char>;
+pub type StringArray = Vec<NvimString>;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -918,23 +917,37 @@ pub unsafe fn push_additional_data(
     size: usize,
 ) {
     let ad = unsafe { &mut *ad };
-    if ad.size == 0 {
+    if ad.is_empty() {
         let init = AdditionalDataHeader {
             nitems: 0,
             nbytes: 0,
         };
         unsafe {
-            ad.concat_len(
-                (&init as *const AdditionalDataHeader).cast::<c_char>(),
+            let hdr_slice = std::slice::from_raw_parts(
+                (&raw const init).cast::<c_char>(),
                 std::mem::size_of::<AdditionalDataHeader>(),
             );
+            ad.extend_from_slice(hdr_slice);
         }
     }
     unsafe {
-        let header = ad.items.cast::<AdditionalDataHeader>();
+        let header = ad.as_mut_ptr().cast::<AdditionalDataHeader>();
         (*header).nitems += 1;
         (*header).nbytes += size as u32;
-        ad.concat_len(data, size);
+        if !data.is_null() && size > 0 {
+            ad.extend_from_slice(std::slice::from_raw_parts(data, size));
+        }
+    }
+}
+
+#[inline]
+pub unsafe fn additional_data_take(ad: &mut AdditionalDataBuilder) -> *mut c_void {
+    if ad.is_empty() {
+        std::ptr::null_mut()
+    } else {
+        let ptr = unsafe { crate::memory::xmemdup(ad.as_ptr().cast(), ad.len()) };
+        *ad = Vec::new();
+        ptr
     }
 }
 
@@ -1030,7 +1043,7 @@ pub unsafe fn unpack_keydict(
                     return false;
                 }
                 let a = &mut *mem.cast::<StringArray>();
-                a.ensure_space(len as usize);
+                a.reserve(len as usize);
                 for _ in 0..(len as usize) {
                     let item = unpack_string(data, size);
                     if item.data.is_null() {
@@ -1050,7 +1063,6 @@ pub unsafe fn unpack_keydict(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::memory::xfree;
 
     #[test]
     fn push_additional_data_populates_header_and_payload() {
@@ -1058,11 +1070,10 @@ mod tests {
         unsafe {
             push_additional_data(&mut ad, c"abc".as_ptr(), 3);
             push_additional_data(&mut ad, c"de".as_ptr(), 2);
-            let hdr = &*(ad.items.cast::<AdditionalDataHeader>());
+            let hdr = &*(ad.as_ptr().cast::<AdditionalDataHeader>());
             assert_eq!(hdr.nitems, 2);
             assert_eq!(hdr.nbytes, 5);
-            assert_eq!(ad.size, std::mem::size_of::<AdditionalDataHeader>() + 5);
-            xfree(ad.items.cast::<c_void>());
+            assert_eq!(ad.len(), std::mem::size_of::<AdditionalDataHeader>() + 5);
         }
     }
 
