@@ -26,7 +26,6 @@ use crate::ex_session::{put_eol, put_line};
 use crate::extmark::{TriState, extmark_splice_cols, kExtmarkUndo, kFalse, kNone, kTrue};
 use crate::fileio::{FILE, fputs};
 use crate::globals::*;
-use crate::grid::wline_T;
 use crate::indent::{get_indent_buf, get_sw_value};
 use crate::mark::setpcmark;
 use crate::math::{FAIL, OK};
@@ -172,7 +171,7 @@ pub unsafe fn hasFoldingWin(
         if cache {
             let x = find_wl_entry(win, lnum);
             if x >= 0 {
-                let wl = &*((*win).w_lines as *const wline_T).add(x as usize);
+                let wl = &*(*win).w_lines.as_ptr().add(x as usize);
                 first = wl.wl_lnum;
                 last = wl.wl_foldend;
                 had_folded = wl.wl_folded;
@@ -859,7 +858,7 @@ pub unsafe fn foldInitWin(new_win: *mut win_T) {
 /// Find an entry in the win->w_lines[] array for buffer line "lnum".
 pub unsafe fn find_wl_entry(win: *mut win_T, lnum: linenr_T) -> c_int {
     unsafe {
-        let w_lines = (*win).w_lines as *const wline_T;
+        let w_lines = (*win).w_lines.as_ptr();
         for i in 0..(*win).w_lines_valid {
             let wl = &*w_lines.add(i as usize);
             if wl.wl_valid {

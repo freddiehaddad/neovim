@@ -195,7 +195,7 @@ pub unsafe fn w_endrow(wp: *const win_T) -> c_int {
 
 #[inline]
 unsafe fn w_lines_at(wp: *mut win_T, idx: usize) -> *mut wline_T {
-    unsafe { (*wp).w_lines.cast::<wline_T>().add(idx) }
+    unsafe { (*wp).w_lines.as_mut_ptr().add(idx) }
 }
 
 pub unsafe fn conceal_check_cursor_line() {

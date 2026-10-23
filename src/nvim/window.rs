@@ -398,8 +398,7 @@ pub struct win_T {
     pub w_empty_rows: c_int,
     pub w_filler_rows: c_int,
     pub w_lines_valid: c_int,
-    pub w_lines: *mut std::ffi::c_void,
-    pub w_lines_size: c_int,
+    pub w_lines: Vec<crate::grid::wline_T>,
     pub w_folds: Vec<fold_T>,
     pub w_fold_manual: bool,
     pub w_foldinvalid: bool,
@@ -5902,6 +5901,7 @@ pub unsafe fn win_alloc(after: *mut win_T, hidden: bool) -> *mut win_T {
         (*new_wp).w_ns_hl = -1;
 
         ptr::write(&raw mut (*new_wp).w_ns_set, std::collections::BTreeSet::new());
+        ptr::write(&raw mut (*new_wp).w_lines, Vec::new());
         ptr::write(&raw mut (*new_wp).w_match_head, Vec::new());
         ptr::write(&raw mut (*new_wp).w_p_cc_cols, Vec::new());
         ptr::write(&raw mut (*new_wp).w_status_click_defs, Vec::new());
@@ -5972,7 +5972,7 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
             ttp = (*ttp).tp_next;
         }
 
-        xfree((*wp).w_lines);
+        ptr::drop_in_place(&raw mut (*wp).w_lines);
 
         for i in 0..(*wp).w_tagstacklen as usize {
             tagstack_clear_entry(&raw mut (*wp).w_tagstack[i]);

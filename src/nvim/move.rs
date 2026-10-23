@@ -19,7 +19,6 @@ use crate::eval::typval::{
 use crate::eval::window::{find_win_by_nr_or_id, viewstate_T};
 use crate::fold::{foldAdjustCursor, hasFolding};
 use crate::globals::*;
-use crate::grid::wline_T;
 use crate::input::beep_flush;
 use crate::input_cmdatom::cmdarg_T;
 use crate::insert::{beginline, cursor_down, cursor_down_inner, cursor_up, cursor_up_inner};
@@ -105,7 +104,7 @@ unsafe fn comp_botline(wp: *mut win_T) {
     unsafe {
         check_cursor_moved(wp);
 
-        let w_lines = (*wp).w_lines.cast::<wline_T>();
+        let w_lines = (*wp).w_lines.as_mut_ptr();
         let use_cache = redrawing()
             && !(*(*wp).w_buffer).b_mod_set
             && dollar_vcol == -1
@@ -743,7 +742,7 @@ pub unsafe fn validate_cursor(wp: *mut win_T) {
 /// Compute `wp->w_cline_row` and `wp->w_cline_height`, based on `wp->w_topline`.
 unsafe fn curs_rows(wp: *mut win_T) {
     unsafe {
-        let w_lines = (*wp).w_lines.cast::<wline_T>();
+        let w_lines = (*wp).w_lines.as_mut_ptr();
         let all_invalid =
             !redrawing() || (*wp).w_lines_valid == 0 || (*w_lines).wl_lnum > (*wp).w_topline;
         let mut i: c_int = 0;

@@ -109,13 +109,12 @@ const E_WRITE_ERROR_IN_UNDO_FILE_STR: &CStr = c"E829: Write error in undo file: 
 const E_NOT_OPEN: &CStr = c"E828: Cannot open undo file for writing: %s";
 
 #[repr(C)]
-#[derive(Clone, Copy)]
 pub struct u_entry_T {
     pub ue_next: *mut u_entry_T,
     pub ue_top: linenr_T,
     pub ue_bot: linenr_T,
     pub ue_lcount: linenr_T,
-    pub ue_array: *mut *mut c_char,
+    pub ue_array: Vec<*mut c_char>,
     pub ue_size: linenr_T,
 }
 
@@ -452,14 +451,17 @@ pub unsafe fn u_savecommon(
         }
 
         let uep = xmalloc(size_of::<u_entry_T>()).cast::<u_entry_T>();
-        *uep = u_entry_T {
-            ue_next: ptr::null_mut(),
-            ue_top: top,
-            ue_bot: 0,
-            ue_lcount: 0,
-            ue_array: ptr::null_mut(),
-            ue_size: size,
-        };
+        ptr::write(
+            uep,
+            u_entry_T {
+                ue_next: ptr::null_mut(),
+                ue_top: top,
+                ue_bot: 0,
+                ue_lcount: 0,
+                ue_array: Vec::new(),
+                ue_size: size,
+            },
+        );
 
         let newhead = (*buf).b_u_newhead.cast::<u_header_T>();
         if newbot != 0 {
@@ -472,18 +474,15 @@ pub unsafe fn u_savecommon(
         }
 
         if size > 0 {
-            (*uep).ue_array =
-                xmalloc(size_of::<*mut c_char>() * (size as usize)).cast::<*mut c_char>();
+            (*uep).ue_array.reserve(size as usize);
             for i in 0..size {
                 fast_breakcheck();
                 if got_int {
                     u_freeentry(uep, i);
                     return FAIL;
                 }
-                *(*uep).ue_array.add(i as usize) = u_save_line_buf(buf, top + 1 + i);
+                (*uep).ue_array.push(u_save_line_buf(buf, top + 1 + i));
             }
-        } else {
-            (*uep).ue_array = ptr::null_mut();
         }
 
         (*uep).ue_next = (*newhead).uh_entry;
@@ -937,7 +936,7 @@ unsafe fn serialize_uep(bi: &mut bufinfo_T, uep: *mut u_entry_T) -> bool {
         undo_write_bytes(bi, (*uep).ue_size as u64, 4);
 
         for i in 0..(*uep).ue_size as usize {
-            let line = *(*uep).ue_array.add(i);
+            let line = *(*uep).ue_array.as_ptr().add(i);
             let len = strlen(line);
             if !undo_write_bytes(bi, len as u64, 4) {
                 return false;
@@ -957,14 +956,17 @@ unsafe fn unserialize_uep(
 ) -> *mut u_entry_T {
     unsafe {
         let uep = xmalloc(size_of::<u_entry_T>()).cast::<u_entry_T>();
-        *uep = u_entry_T {
-            ue_next: ptr::null_mut(),
-            ue_top: undo_read_4c(bi),
-            ue_bot: undo_read_4c(bi),
-            ue_lcount: undo_read_4c(bi),
-            ue_array: ptr::null_mut(),
-            ue_size: 0,
-        };
+        ptr::write(
+            uep,
+            u_entry_T {
+                ue_next: ptr::null_mut(),
+                ue_top: undo_read_4c(bi),
+                ue_bot: undo_read_4c(bi),
+                ue_lcount: undo_read_4c(bi),
+                ue_array: Vec::new(),
+                ue_size: 0,
+            },
+        );
         if (*uep).ue_top < 0 || (*uep).ue_bot < 0 || (*uep).ue_lcount < 0 {
             corruption_error(c"entry lnum".as_ptr(), file_name);
             *error = true;
@@ -978,12 +980,11 @@ unsafe fn unserialize_uep(
             return uep;
         }
 
-        let array = if (*uep).ue_size > 0 {
-            xcalloc((*uep).ue_size as usize, size_of::<*mut c_char>()).cast::<*mut c_char>()
-        } else {
-            ptr::null_mut()
-        };
-        (*uep).ue_array = array;
+        if (*uep).ue_size > 0 {
+            (*uep)
+                .ue_array
+                .resize((*uep).ue_size as usize, ptr::null_mut());
+        }
 
         for i in 0..(*uep).ue_size as usize {
             let line_len = undo_read_len(bi, c"line length".as_ptr(), file_name);
@@ -996,7 +997,7 @@ unsafe fn unserialize_uep(
                 *error = true;
                 return uep;
             }
-            *array.add(i) = line;
+            (*uep).ue_array.as_mut_slice()[i] = line;
         }
         uep
     }
@@ -2104,7 +2105,6 @@ pub unsafe fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
 
 unsafe fn u_undoredo(undo: bool, do_buf_event: bool) {
     unsafe {
-        let mut newarray: *mut *mut c_char;
         let mut newlnum: linenr_T = MAXLNUM;
         let mut new_curpos = (*curwin).w_cursor;
         let mut nuep: *mut u_entry_T;
@@ -2161,7 +2161,11 @@ unsafe fn u_undoredo(undo: bool, do_buf_event: bool) {
                 } else if top < newlnum {
                     let mut i: linenr_T = 0;
                     while i < newsize && i < oldsize {
-                        if strcmp(*(*uep).ue_array.add(i as usize), ml_get(top + 1 + i)) != 0 {
+                        if strcmp(
+                            *(*uep).ue_array.as_ptr().add(i as usize),
+                            ml_get(top + 1 + i),
+                        ) != 0
+                        {
                             break;
                         }
                         i += 1;
@@ -2177,25 +2181,23 @@ unsafe fn u_undoredo(undo: bool, do_buf_event: bool) {
             }
 
             let mut empty_buffer = false;
+            let mut newarray: Vec<*mut c_char> = Vec::new();
 
             if oldsize > 0 {
-                newarray =
-                    xmalloc(size_of::<*mut c_char>() * (oldsize as usize)).cast::<*mut c_char>();
+                newarray.resize(oldsize as usize, ptr::null_mut());
                 let mut lnum = bot - 1;
                 let mut i = oldsize;
                 while {
                     i -= 1;
                     i >= 0
                 } {
-                    *newarray.add(i as usize) = u_save_line(lnum);
+                    newarray[i as usize] = u_save_line(lnum);
                     if (*curbuf).b_ml.ml_line_count == 1 {
                         empty_buffer = true;
                     }
                     ml_delete(lnum);
                     lnum -= 1;
                 }
-            } else {
-                newarray = ptr::null_mut();
             }
 
             check_cursor_lnum(curwin);
@@ -2203,7 +2205,7 @@ unsafe fn u_undoredo(undo: bool, do_buf_event: bool) {
             if newsize != 0 {
                 for i in 0..newsize as usize {
                     let lnum = top + i as linenr_T;
-                    let line = *(*uep).ue_array.add(i);
+                    let line = *(*uep).ue_array.as_ptr().add(i);
                     if empty_buffer && lnum == 0 {
                         ml_replace(1, line, true);
                     } else {
@@ -2211,7 +2213,6 @@ unsafe fn u_undoredo(undo: bool, do_buf_event: bool) {
                     }
                     xfree(line.cast());
                 }
-                xfree((*uep).ue_array.cast());
             }
 
             if oldsize != newsize {
@@ -2644,7 +2645,7 @@ pub unsafe fn u_find_first_changed() {
         while lnum < (*curbuf).b_ml.ml_line_count && lnum <= (*uep).ue_size {
             if strcmp(
                 ml_get_buf(curbuf, lnum),
-                *(*uep).ue_array.add((lnum - 1) as usize),
+                *(*uep).ue_array.as_ptr().add((lnum - 1) as usize),
             ) != 0
             {
                 clearpos(&mut (*uhp).uh_cursor);
@@ -2843,9 +2844,9 @@ unsafe fn u_freeentry(uep: *mut u_entry_T, mut n: c_int) {
     unsafe {
         while n > 0 {
             n -= 1;
-            xfree((*(*uep).ue_array.add(n as usize)).cast());
+            xfree((*(*uep).ue_array.as_ptr().add(n as usize)).cast());
         }
-        xfree((*uep).ue_array.cast());
+        ptr::drop_in_place(&raw mut (*uep).ue_array);
         xfree(uep.cast());
     }
 }
@@ -2864,7 +2865,7 @@ pub unsafe fn u_forget_unchanged(buf: *mut buf_T) {
         }
         for i in 0..(*uep).ue_size {
             if strcmp(
-                *(*uep).ue_array.add(i as usize),
+                *(*uep).ue_array.as_ptr().add(i as usize),
                 ml_get_buf(buf, (*uep).ue_top + 1 + i),
             ) != 0
             {

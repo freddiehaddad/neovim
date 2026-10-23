@@ -25,7 +25,6 @@ use crate::extmark::{
 };
 use crate::fold::{find_wl_entry, foldUpdate, hasAnyFolding, hasFoldingWin};
 use crate::globals::*;
-use crate::grid::wline_T;
 use crate::indent::{
     copy_indent, fixthisline, get_indent, get_lisp_indent, get_sw_value, indent_size_ts, may_do_si,
     set_indent, use_indentexpr_for_lisp,
@@ -234,7 +233,7 @@ unsafe fn changed_lines_invalidate_win(
     xtra: linenr_T,
 ) {
     unsafe {
-        let w_lines = (*wp).w_lines.cast::<wline_T>();
+        let w_lines = (*wp).w_lines.as_mut_ptr();
         if (*wp).w_cursor.lnum <= lnum {
             let i = find_wl_entry(wp, lnum);
             if i >= 0 && (*wp).w_cursor.lnum > (*w_lines.add(i as usize)).wl_lnum {

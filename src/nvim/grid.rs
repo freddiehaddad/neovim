@@ -10,7 +10,7 @@ use crate::mbyte::{
     utf_ptr2StrCharInfo_len, utf_ptr2cells, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
     utfc_ptrlen2schar,
 };
-use crate::memory::{xcalloc, xfree, xmalloc};
+use crate::memory::{xfree, xmalloc};
 use crate::msgpack_rpc::packer::handle_T;
 use crate::option_vars::*;
 use crate::optionstr::check_chars_options;
@@ -81,7 +81,7 @@ pub struct CharBoundsOff {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct wline_T {
     pub wl_lnum: linenr_T,
     pub wl_size: u16,
@@ -1119,11 +1119,12 @@ pub unsafe fn win_grid_alloc(wp: *mut win_T) {
         let want_allocation = ui_has(kUIMultigrid) || (*wp).w_floating;
         let has_allocation = !(*grid_allocated).chars.is_null();
 
-        if (*wp).w_view_height > (*wp).w_lines_size {
+        if ((*wp).w_view_height as usize) + 1 > (*wp).w_lines.len() {
             (*wp).w_lines_valid = 0;
-            xfree((*wp).w_lines.cast());
-            (*wp).w_lines = xcalloc((*wp).w_view_height as usize + 1, size_of::<wline_T>()).cast();
-            (*wp).w_lines_size = (*wp).w_view_height;
+            (*wp).w_lines.clear();
+            (*wp)
+                .w_lines
+                .resize((*wp).w_view_height as usize + 1, wline_T::default());
         }
 
         let mut was_resized = false;
