@@ -43,7 +43,6 @@ use crate::ex_eval::{
     update_force_abort,
 };
 use crate::ex_getln::{getcmdline, ui_ext_cmdline_block_append, ui_ext_cmdline_block_leave};
-use crate::garray::{ga_clear_strings, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::hashtab::{
     hash_add, hash_clear, hash_find, hash_find_len, hash_init, hash_remove, hashitem_T,
@@ -101,9 +100,9 @@ pub struct ufunc_T {
     pub uf_flags: c_int,
     pub uf_calls: c_int,
     pub uf_cleared: bool,
-    pub uf_args: garray_T,
-    pub uf_def_args: garray_T,
-    pub uf_lines: garray_T,
+    pub uf_args: Vec<*mut c_char>,
+    pub uf_def_args: Vec<*mut c_char>,
+    pub uf_lines: Vec<*mut c_char>,
     pub uf_profiling: c_int,
     pub uf_prof_initialized: c_int,
     pub uf_luaref: c_int,
@@ -270,12 +269,21 @@ unsafe fn hi2uf(hi: *const hashitem_T) -> *mut ufunc_T {
 
 #[inline]
 unsafe fn funcarg(fp: *const ufunc_T, j: c_int) -> *mut c_char {
-    unsafe { *((*fp).uf_args.ga_data.cast::<*mut c_char>()).add(j as usize) }
+    unsafe { (&(*fp).uf_args)[j as usize] }
 }
 
 #[inline]
 pub unsafe fn funcline(fp: *const ufunc_T, j: c_int) -> *mut c_char {
-    unsafe { *((*fp).uf_lines.ga_data.cast::<*mut c_char>()).add(j as usize) }
+    unsafe { (&(*fp).uf_lines)[j as usize] }
+}
+
+unsafe fn clear_cstr_vec(v: &mut Vec<*mut c_char>) {
+    unsafe {
+        for p in v.drain(..) {
+            xfree(p.cast());
+        }
+        *v = Vec::new();
+    }
 }
 
 pub unsafe fn func_init() {
@@ -292,7 +300,11 @@ pub unsafe fn func_tbl_get() -> *mut hashtab_T {
 /// Get one function argument.
 /// Return a pointer to after the type.
 /// When something is wrong return "arg".
-unsafe fn one_function_arg(arg: *mut c_char, newargs: *mut garray_T, skip: bool) -> *mut c_char {
+unsafe fn one_function_arg(
+    arg: *mut c_char,
+    newargs: Option<&mut Vec<*mut c_char>>,
+    skip: bool,
+) -> *mut c_char {
     unsafe {
         let mut p = arg;
 
@@ -311,19 +323,14 @@ unsafe fn one_function_arg(arg: *mut c_char, newargs: *mut garray_T, skip: bool)
             return arg;
         }
 
-        if !newargs.is_null() {
-            ga_grow(newargs, 1);
+        if let Some(newargs) = newargs {
             let c = *p;
             *p = NUL;
             let arg_copy = xstrdup(arg);
 
             // Check for duplicate argument name.
-            for i in 0..(*newargs).ga_len {
-                if strcmp(
-                    *((*newargs).ga_data.cast::<*mut c_char>()).add(i as usize),
-                    arg_copy,
-                ) == 0
-                {
+            for &existing in newargs.iter() {
+                if strcmp(existing, arg_copy) == 0 {
                     semsg!(
                         gettext(c"E853: Duplicate argument name: %s".as_ptr()),
                         arg_copy,
@@ -332,8 +339,7 @@ unsafe fn one_function_arg(arg: *mut c_char, newargs: *mut garray_T, skip: bool)
                     return arg;
                 }
             }
-            *((*newargs).ga_data.cast::<*mut c_char>()).add((*newargs).ga_len as usize) = arg_copy;
-            (*newargs).ga_len += 1;
+            newargs.push(arg_copy);
 
             *p = c;
         }
@@ -346,22 +352,15 @@ unsafe fn one_function_arg(arg: *mut c_char, newargs: *mut garray_T, skip: bool)
 unsafe fn get_function_args(
     argp: *mut *mut c_char,
     endchar: c_char,
-    newargs: *mut garray_T,
+    mut newargs: Option<&mut Vec<*mut c_char>>,
     varargs: *mut c_int,
-    default_args: *mut garray_T,
+    mut default_args: Option<&mut Vec<*mut c_char>>,
     skip: bool,
 ) -> c_int {
     unsafe {
         let mut mustend = false;
         let mut arg = *argp;
         let mut p = arg;
-
-        if !newargs.is_null() {
-            ga_init(newargs, std::mem::size_of::<*mut c_char>() as c_int, 3);
-        }
-        if !default_args.is_null() {
-            ga_init(default_args, std::mem::size_of::<*mut c_char>() as c_int, 3);
-        }
 
         if !varargs.is_null() {
             *varargs = 0;
@@ -377,12 +376,12 @@ unsafe fn get_function_args(
                 mustend = true;
             } else {
                 arg = p;
-                p = one_function_arg(p, newargs, skip);
+                p = one_function_arg(p, newargs.as_deref_mut(), skip);
                 if p == arg {
                     break;
                 }
 
-                if *skipwhite(p) == b'=' as c_char && !default_args.is_null() {
+                if *skipwhite(p) == b'=' as c_char && default_args.is_some() {
                     let mut rettv: typval_T = std::mem::zeroed();
 
                     any_default = true;
@@ -390,17 +389,15 @@ unsafe fn get_function_args(
                     p = skipwhite(p);
                     let mut expr = p;
                     if eval1(&raw mut p, &raw mut rettv, ptr::null_mut()) != FAIL {
-                        ga_grow(default_args, 1);
-
                         while p > expr && ascii_iswhite(*p.sub(1) as c_int) {
                             p = p.sub(1);
                         }
                         let c = *p;
                         *p = NUL;
                         expr = xstrdup(expr);
-                        *((*default_args).ga_data.cast::<*mut c_char>())
-                            .add((*default_args).ga_len as usize) = expr;
-                        (*default_args).ga_len += 1;
+                        if let Some(default_args) = default_args.as_deref_mut() {
+                            default_args.push(expr);
+                        }
                         *p = c;
                     } else {
                         mustend = true;
@@ -419,11 +416,11 @@ unsafe fn get_function_args(
                             c",".as_ptr(),
                             p,
                         );
-                        if !newargs.is_null() {
-                            ga_clear_strings(newargs);
+                        if let Some(newargs) = newargs.as_deref_mut() {
+                            clear_cstr_vec(newargs);
                         }
-                        if !default_args.is_null() {
-                            ga_clear_strings(default_args);
+                        if let Some(default_args) = default_args.as_deref_mut() {
+                            clear_cstr_vec(default_args);
                         }
                         return FAIL;
                     }
@@ -444,11 +441,11 @@ unsafe fn get_function_args(
             }
         }
         if *p != endchar {
-            if !newargs.is_null() {
-                ga_clear_strings(newargs);
+            if let Some(newargs) = newargs {
+                clear_cstr_vec(newargs);
             }
-            if !default_args.is_null() {
-                ga_clear_strings(default_args);
+            if let Some(default_args) = default_args {
+                clear_cstr_vec(default_args);
             }
             return FAIL;
         }
@@ -496,6 +493,9 @@ unsafe fn alloc_ufunc(name: *const c_char, namelen: usize) -> *mut ufunc_T {
     unsafe {
         let len = std::mem::offset_of!(ufunc_T, uf_name) + namelen + 1;
         let fp = xcalloc(1, len).cast::<ufunc_T>();
+        ptr::write(&raw mut (*fp).uf_args, Vec::new());
+        ptr::write(&raw mut (*fp).uf_def_args, Vec::new());
+        ptr::write(&raw mut (*fp).uf_lines, Vec::new());
         xmemcpyz(uf2hikey(fp).cast(), name.cast(), namelen);
         (*fp).uf_namelen = namelen;
 
@@ -522,13 +522,7 @@ pub unsafe fn get_lambda_tv(
 ) -> c_int {
     unsafe {
         let evaluate = !evalarg.is_null() && ((*evalarg).eval_flags & EVAL_EVALUATE) != 0;
-        let mut newargs = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: ptr::null_mut(),
-        };
+        let mut newargs: Vec<*mut c_char> = Vec::new();
         let mut pt: *mut partial_T = ptr::null_mut();
         let mut varargs: c_int = 0;
         let old_eval_lavars = eval_lavars_used;
@@ -536,34 +530,23 @@ pub unsafe fn get_lambda_tv(
         let mut tofree: *mut c_char = ptr::null_mut();
 
         let mut s = skipwhite((*arg).add(1));
-        let mut ret = get_function_args(
-            &raw mut s,
-            b'-' as c_char,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            ptr::null_mut(),
-            true,
-        );
+        let mut ret =
+            get_function_args(&raw mut s, b'-' as c_char, None, ptr::null_mut(), None, true);
         if ret == FAIL || *s != b'>' as c_char {
             return NOTDONE;
         }
 
-        let pnewargs = if evaluate {
-            &raw mut newargs
-        } else {
-            ptr::null_mut()
-        };
         *arg = skipwhite((*arg).add(1));
         ret = get_function_args(
             arg,
             b'-' as c_char,
-            pnewargs,
+            evaluate.then_some(&mut newargs),
             &raw mut varargs,
-            ptr::null_mut(),
+            None,
             false,
         );
         if ret == FAIL || **arg != b'>' as c_char {
-            ga_clear_strings(&raw mut newargs);
+            clear_cstr_vec(&mut newargs);
             xfree(pt.cast());
             if !evalarg.is_null() && (*evalarg).eval_tofree.is_null() {
                 (*evalarg).eval_tofree = tofree;
@@ -583,7 +566,7 @@ pub unsafe fn get_lambda_tv(
         ret = skip_expr(arg, evalarg);
         let end = *arg;
         if ret == FAIL {
-            ga_clear_strings(&raw mut newargs);
+            clear_cstr_vec(&mut newargs);
             xfree(pt.cast());
             if !evalarg.is_null() && (*evalarg).eval_tofree.is_null() {
                 (*evalarg).eval_tofree = tofree;
@@ -601,7 +584,7 @@ pub unsafe fn get_lambda_tv(
         *arg = skipwhite(*arg);
         if **arg != b'}' as c_char {
             semsg!(gettext(c"E451: Expected }: %s".as_ptr()), *arg);
-            ga_clear_strings(&raw mut newargs);
+            clear_cstr_vec(&mut newargs);
             xfree(pt.cast());
             if !evalarg.is_null() && (*evalarg).eval_tofree.is_null() {
                 (*evalarg).eval_tofree = tofree;
@@ -615,38 +598,26 @@ pub unsafe fn get_lambda_tv(
 
         if evaluate {
             let mut flags = 0;
-            let mut newlines: garray_T = std::mem::zeroed();
 
             let name = get_lambda_name();
             let fp = alloc_ufunc(name.data, name.size);
             pt = xcalloc(1, std::mem::size_of::<partial_T>()).cast::<partial_T>();
 
-            ga_init(
-                &raw mut newlines,
-                std::mem::size_of::<*mut c_char>() as c_int,
-                1,
-            );
-            ga_grow(&raw mut newlines, 1);
-
             let expr_len = end.offset_from(start) as usize;
             let len = 7 + expr_len + 1;
             let p = xmalloc(len).cast::<c_char>();
-            *(newlines.ga_data.cast::<*mut c_char>()).add(newlines.ga_len as usize) = p;
-            newlines.ga_len += 1;
+            let newlines = vec![p];
             strcpy(p, c"return ".as_ptr());
             xmemcpyz(p.add(7).cast(), start.cast(), expr_len);
             if strstr(p.add(7), c"a:".as_ptr()).is_null() {
                 flags |= FC_NOARGS;
             }
 
+            let newlines_len = newlines.len() as c_int;
             (*fp).uf_refcount = 1;
             hash_add(&raw mut func_hashtab, uf2hikey(fp));
             (*fp).uf_args = newargs;
-            ga_init(
-                &raw mut (*fp).uf_def_args,
-                std::mem::size_of::<*mut c_char>() as c_int,
-                1,
-            );
+            (*fp).uf_def_args = Vec::new();
             (*fp).uf_lines = newlines;
             if !current_funccal.is_null() && eval_lavars {
                 flags |= FC_CLOSURE;
@@ -665,7 +636,7 @@ pub unsafe fn get_lambda_tv(
             (*fp).uf_flags = flags;
             (*fp).uf_calls = 0;
             (*fp).uf_script_ctx = current_sctx;
-            (*fp).uf_script_ctx.sc_lnum += sourcing_lnum() - newlines.ga_len;
+            (*fp).uf_script_ctx.sc_lnum += sourcing_lnum() - newlines_len;
 
             (*pt).pt_func = fp;
             (*pt).pt_refcount = 1;
@@ -942,8 +913,8 @@ pub unsafe fn get_func_arity(
                 return FAIL;
             }
 
-            argcount = (*ufunc).uf_args.ga_len;
-            min_argcount = (*ufunc).uf_args.ga_len - (*ufunc).uf_def_args.ga_len;
+            argcount = (*ufunc).uf_args.len() as c_int;
+            min_argcount = argcount - (*ufunc).uf_def_args.len() as c_int;
             *varargs = (*ufunc).uf_varargs != 0;
         }
 
@@ -1149,9 +1120,9 @@ unsafe fn func_remove(fp: *mut ufunc_T) -> bool {
 
 unsafe fn func_clear_items(fp: *mut ufunc_T) {
     unsafe {
-        ga_clear_strings(&raw mut (*fp).uf_args);
-        ga_clear_strings(&raw mut (*fp).uf_def_args);
-        ga_clear_strings(&raw mut (*fp).uf_lines);
+        clear_cstr_vec(&mut (*fp).uf_args);
+        clear_cstr_vec(&mut (*fp).uf_def_args);
+        clear_cstr_vec(&mut (*fp).uf_lines);
 
         if ((*fp).uf_flags & FC_LUAREF) != 0 {
             api_free_luaref((*fp).uf_luaref);
@@ -1187,6 +1158,9 @@ unsafe fn func_free(fp: *mut ufunc_T) {
 
         xfree((*fp).uf_name_exp.cast());
         (*fp).uf_name_exp = ptr::null_mut();
+        ptr::drop_in_place(&raw mut (*fp).uf_args);
+        ptr::drop_in_place(&raw mut (*fp).uf_def_args);
+        ptr::drop_in_place(&raw mut (*fp).uf_lines);
         xfree(fp.cast());
     }
 }
@@ -1289,6 +1263,8 @@ pub unsafe fn call_user_func(
             (&raw mut (*fc).fc_l_avars_var).cast(),
             VAR_SCOPE,
         );
+        let uf_args_len = (*fp).uf_args.len() as c_int;
+        let uf_def_args_len = (*fp).uf_def_args.len() as c_int;
         if ((*fp).uf_flags & FC_NOARGS) == 0 {
             let v = fixvar_ptr.add(fixvar_idx).cast::<dictitem_T>();
             fixvar_idx += 1;
@@ -1296,8 +1272,8 @@ pub unsafe fn call_user_func(
                 &raw mut (*fc).fc_l_avars,
                 v,
                 c"0".as_ptr(),
-                if argcount >= (*fp).uf_args.ga_len {
-                    varnumber_T::from(argcount - (*fp).uf_args.ga_len)
+                if argcount >= uf_args_len {
+                    varnumber_T::from(argcount - uf_args_len)
                 } else {
                     0
                 },
@@ -1338,27 +1314,26 @@ pub unsafe fn call_user_func(
         }
 
         let mut default_arg_err = false;
-        let max_i = argcount.max((*fp).uf_args.ga_len);
+        let max_i = argcount.max(uf_args_len);
         let listitems_ptr = (&raw mut (*fc).fc_l_listitems).cast::<listitem_T>();
         for i in 0..max_i {
             let mut addlocal = false;
             let mut isdefault = false;
             let mut def_rettv: typval_T = std::mem::zeroed();
 
-            let ai = i - (*fp).uf_args.ga_len;
+            let ai = i - uf_args_len;
             if ai < 0 {
                 name = funcarg(fp, i);
                 if islambda {
                     addlocal = true;
                 }
 
-                isdefault = ai + (*fp).uf_def_args.ga_len >= 0 && i >= argcount;
+                isdefault = ai + uf_def_args_len >= 0 && i >= argcount;
                 if isdefault {
                     def_rettv.v_type = VarType::VAR_NUMBER;
                     def_rettv.vval.v_number = -1;
 
-                    let mut default_expr = *((*fp).uf_def_args.ga_data.cast::<*mut c_char>())
-                        .add((ai + (*fp).uf_def_args.ga_len) as usize);
+                    let mut default_expr = (&(*fp).uf_def_args)[(ai + uf_def_args_len) as usize];
                     if eval1(
                         &raw mut default_expr,
                         &raw mut def_rettv,
@@ -1505,7 +1480,7 @@ pub unsafe fn call_user_func(
         if default_arg_err && (((*fp).uf_flags & FC_ABORT) != 0 || trylevel > 0) {
             did_emsg = 1;
         } else if islambda {
-            let mut p = (*((*fp).uf_lines.ga_data.cast::<*mut c_char>())).add(7);
+            let mut p = (&(*fp).uf_lines)[0].add(7);
             ex_nesting_level += 1;
             eval1(&raw mut p, rettv, &raw mut EVALARG_EVALUATE);
             ex_nesting_level -= 1;
@@ -1629,8 +1604,8 @@ unsafe fn func_name_refcount(name: *const c_char) -> bool {
 
 unsafe fn check_user_func_argcount(fp: *mut ufunc_T, argcount: c_int) -> c_int {
     unsafe {
-        let regular_args = (*fp).uf_args.ga_len;
-        if argcount < regular_args - (*fp).uf_def_args.ga_len {
+        let regular_args = (*fp).uf_args.len() as c_int;
+        if argcount < regular_args - (*fp).uf_def_args.len() as c_int {
             FCERR_TOOFEW
         } else if (*fp).uf_varargs == 0 && argcount > regular_args {
             FCERR_TOOMANY
@@ -2190,18 +2165,17 @@ unsafe fn list_func_head(fp: *mut ufunc_T, indent: bool, force: bool) -> c_int {
             msg_puts(uf2hikey(fp));
         }
         msg_putchar(b'(' as c_int);
+        let uf_args_len = (*fp).uf_args.len() as c_int;
+        let uf_def_args_len = (*fp).uf_def_args.len() as c_int;
         let mut j = 0;
-        while j < (*fp).uf_args.ga_len {
+        while j < uf_args_len {
             if j != 0 {
                 msg_puts(c", ".as_ptr());
             }
             msg_puts(funcarg(fp, j));
-            if j >= (*fp).uf_args.ga_len - (*fp).uf_def_args.ga_len {
+            if j >= uf_args_len - uf_def_args_len {
                 msg_puts(c" = ".as_ptr());
-                msg_puts(
-                    *((*fp).uf_def_args.ga_data.cast::<*mut c_char>())
-                        .add((j - (*fp).uf_args.ga_len + (*fp).uf_def_args.ga_len) as usize),
-                );
+                msg_puts((&(*fp).uf_def_args)[(j - uf_args_len + uf_def_args_len) as usize]);
             }
             j += 1;
         }
@@ -2627,7 +2601,7 @@ unsafe fn list_one_function(eap: *mut exarg_T, name: *mut c_char, p: *mut c_char
         }
 
         let mut j = 0;
-        while j < (*fp).uf_lines.ga_len && !got_int {
+        while j < (*fp).uf_lines.len() as c_int && !got_int {
             let line = funcline(fp, j);
             if line.is_null() {
                 j += 1;
@@ -2668,7 +2642,7 @@ unsafe fn list_one_function(eap: *mut exarg_T, name: *mut c_char, p: *mut c_char
 
 unsafe fn get_function_body(
     eap: *mut exarg_T,
-    newlines: *mut garray_T,
+    newlines: &mut Vec<*mut c_char>,
     line_arg_in: *mut c_char,
     line_to_free: *mut *mut c_char,
     show_block: bool,
@@ -2935,16 +2909,12 @@ unsafe fn get_function_body(
                 }
             }
 
-            ga_grow(newlines, 1 + sourcing_lnum_off as c_int);
             p = xstrdup(theline);
-            *((*newlines).ga_data.cast::<*mut c_char>()).add((*newlines).ga_len as usize) = p;
-            (*newlines).ga_len += 1;
+            newlines.push(p);
 
             while sourcing_lnum_off > 0 {
                 sourcing_lnum_off -= 1;
-                *((*newlines).ga_data.cast::<*mut c_char>()).add((*newlines).ga_len as usize) =
-                    ptr::null_mut();
-                (*newlines).ga_len += 1;
+                newlines.push(ptr::null_mut());
             }
 
             if !line_arg.is_null() && *line_arg == NUL {
@@ -2968,9 +2938,9 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
     unsafe {
         let mut line_to_free: *mut c_char = ptr::null_mut();
         let mut line_arg: *mut c_char = ptr::null_mut();
-        let mut newargs: garray_T = std::mem::zeroed();
-        let mut default_args: garray_T = std::mem::zeroed();
-        let mut newlines: garray_T = std::mem::zeroed();
+        let mut newargs: Vec<*mut c_char> = Vec::new();
+        let mut default_args: Vec<*mut c_char> = Vec::new();
+        let mut newlines: Vec<*mut c_char> = Vec::new();
         let mut varargs: c_int = 0;
         let mut flags: c_int = 0;
         let mut fp: *mut ufunc_T = ptr::null_mut();
@@ -3027,9 +2997,9 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
 
         macro_rules! errret_keep {
             () => {{
-                ga_clear_strings(&raw mut newargs);
-                ga_clear_strings(&raw mut default_args);
-                ga_clear_strings(&raw mut newlines);
+                clear_cstr_vec(&mut newargs);
+                clear_cstr_vec(&mut default_args);
+                clear_cstr_vec(&mut newlines);
                 ret_free!();
             }};
         }
@@ -3041,6 +3011,9 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
                     (*fp).uf_name_exp = ptr::null_mut();
                 }
                 if free_fp {
+                    ptr::drop_in_place(&raw mut (*fp).uf_args);
+                    ptr::drop_in_place(&raw mut (*fp).uf_def_args);
+                    ptr::drop_in_place(&raw mut (*fp).uf_lines);
                     xfree(fp.cast());
                 }
                 errret_keep!();
@@ -3049,18 +3022,6 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
 
         macro_rules! erret {
             () => {{
-                if !fp.is_null() {
-                    ga_init(
-                        &raw mut (*fp).uf_args,
-                        std::mem::size_of::<*mut c_char>() as c_int,
-                        1,
-                    );
-                    ga_init(
-                        &raw mut (*fp).uf_def_args,
-                        std::mem::size_of::<*mut c_char>() as c_int,
-                        1,
-                    );
-                }
                 errret_2!();
             }};
         }
@@ -3082,17 +3043,6 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
             }
         }
         p = skipwhite(p.add(1));
-
-        ga_init(
-            &raw mut newargs,
-            std::mem::size_of::<*mut c_char>() as c_int,
-            3,
-        );
-        ga_init(
-            &raw mut newlines,
-            std::mem::size_of::<*mut c_char>() as c_int,
-            3,
-        );
 
         if (*eap).skip == 0 {
             let arg = if !name.is_null() {
@@ -3136,9 +3086,9 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
         if get_function_args(
             &raw mut p,
             b')' as c_char,
-            &raw mut newargs,
+            Some(&mut newargs),
             &raw mut varargs,
-            &raw mut default_args,
+            Some(&mut default_args),
             (*eap).skip != 0,
         ) == FAIL
         {
@@ -3205,7 +3155,7 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
 
         if get_function_body(
             eap,
-            &raw mut newlines,
+            &mut newlines,
             line_arg,
             &raw mut line_to_free,
             show_block,
@@ -3321,6 +3271,9 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
                     if tv_dict_add(fudi.fd_dict, fudi.fd_di) == FAIL {
                         xfree(fudi.fd_di.cast());
                         xfree(func_name.cast());
+                        ptr::drop_in_place(&raw mut (*fp).uf_args);
+                        ptr::drop_in_place(&raw mut (*fp).uf_def_args);
+                        ptr::drop_in_place(&raw mut (*fp).uf_lines);
                         xfree(fp.cast());
                         fp = ptr::null_mut();
                         erret!();
@@ -3453,7 +3406,7 @@ pub unsafe fn get_user_func_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
                     c"(".as_ptr(),
                     IOSIZE - len as usize,
                 );
-                if (*fp).uf_varargs == 0 && (*fp).uf_args.ga_len == 0 {
+                if (*fp).uf_varargs == 0 && (*fp).uf_args.is_empty() {
                     len += 1;
                     xstrlcpy(
                         iobuff_ptr.add(len as usize),
@@ -4117,22 +4070,20 @@ pub unsafe fn get_func_line(
             func_line_end(cookie);
         }
 
-        let gap = &raw mut (*fp).uf_lines;
+        let lines = &(*fp).uf_lines;
+        let lines_len = lines.len() as c_int;
         if (((*fp).uf_flags & FC_ABORT) != 0 && did_emsg != 0 && !aborted_in_try())
             || (*fcp).fc_returned != 0
         {
             retval = ptr::null_mut();
         } else {
-            while (*fcp).fc_linenr < (*gap).ga_len
-                && (*((*gap).ga_data.cast::<*mut c_char>()).add((*fcp).fc_linenr as usize))
-                    .is_null()
-            {
+            while (*fcp).fc_linenr < lines_len && lines[(*fcp).fc_linenr as usize].is_null() {
                 (*fcp).fc_linenr += 1;
             }
-            if (*fcp).fc_linenr >= (*gap).ga_len {
+            if (*fcp).fc_linenr >= lines_len {
                 retval = ptr::null_mut();
             } else {
-                let line = *((*gap).ga_data.cast::<*mut c_char>()).add((*fcp).fc_linenr as usize);
+                let line = lines[(*fcp).fc_linenr as usize];
                 (*fcp).fc_linenr += 1;
                 retval = xstrdup(line);
                 set_sourcing_lnum((*fcp).fc_linenr);

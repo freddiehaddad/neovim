@@ -29,7 +29,6 @@ use crate::fileio::{shorten_fnames, vim_gettempdir};
 use crate::fold::{
     foldUpdate, foldUpdateAll, foldmethodIsDiff, foldmethodIsManual, hasFolding, newFoldLevel,
 };
-use crate::garray::{ga_append, ga_clear, ga_concat_len, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::linematch::linematch_nbuffers;
 use crate::mark::{mark_adjust, setpcmark};
@@ -119,14 +118,13 @@ const KEYSET_OPTIDX_dip__linematch: u64 = 11;
 const KEYSET_OPTIDX_dip__algorithm: u64 = 13;
 const KEYSET_OPTIDX_dip__foldcolumn: u64 = 16;
 #[repr(C)]
-#[derive(Clone, Copy)]
 pub struct diff_T {
     pub df_next: *mut diff_T,
     pub df_lnum: [linenr_T; DB_COUNT],
     pub df_count: [linenr_T; DB_COUNT],
     pub is_linematched: bool,
     pub has_changes: bool,
-    pub df_changes: garray_T,
+    pub df_changes: Vec<diffline_change_T>,
 }
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -151,10 +149,9 @@ struct diffin_T {
     din_mmfile: mmfile_t,
 }
 #[repr(C)]
-#[derive(Clone, Copy)]
 struct diffout_T {
     dout_fname: *mut c_char,
-    dout_ga: garray_T,
+    dout_ga: Vec<diffhunk_T>,
 }
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -165,7 +162,6 @@ struct diffhunk_T {
     count_new: c_int,
 }
 #[repr(C)]
-#[derive(Clone, Copy)]
 struct diffio_T {
     dio_orig: diffin_T,
     dio_new: diffin_T,
@@ -229,7 +225,7 @@ unsafe fn clear_diffblock(dp: *mut diff_T) {
         if dp == diff_finger_dp {
             diff_finger_dp = ptr::null_mut();
         }
-        ga_clear(&raw mut (*dp).df_changes);
+        ptr::drop_in_place(&raw mut (*dp).df_changes);
         xfree(dp.cast());
     }
 }
@@ -556,11 +552,7 @@ unsafe fn diff_alloc_new(tp: *mut tabpage_T, dprev: *mut diff_T, dp: *mut diff_T
             (*dprev).df_next = dnew;
         }
         (*dnew).has_changes = false;
-        ga_init(
-            &raw mut (*dnew).df_changes,
-            size_of::<diffline_change_T>() as c_int,
-            20,
-        );
+        ptr::write(&raw mut (*dnew).df_changes, Vec::new());
         dnew
     }
 }
@@ -714,7 +706,7 @@ unsafe fn clear_diffin(din: *mut diffin_T) {
 unsafe fn clear_diffout(dout: *mut diffout_T) {
     unsafe {
         if (*dout).dout_fname.is_null() {
-            ga_clear(&raw mut (*dout).dout_ga);
+            (*dout).dout_ga = Vec::new();
         } else {
             let _ = os_remove((*dout).dout_fname);
         }
@@ -833,11 +825,7 @@ unsafe fn diff_try_update(dio: *mut diffio_T, idx_orig: usize, eap: *mut exarg_T
     unsafe {
         'theend: {
             if (*dio).dio_internal != 0 {
-                ga_init(
-                    &raw mut (*dio).dio_diff.dout_ga,
-                    size_of::<diffhunk_T>() as c_int,
-                    100,
-                );
+                (*dio).dio_diff.dout_ga.clear();
             } else {
                 (*dio).dio_orig.din_fname = vim_tempname();
                 (*dio).dio_new.din_fname = vim_tempname();
@@ -1023,13 +1011,7 @@ pub unsafe fn ex_diffupdate(eap: *mut exarg_T) {
                 },
                 dio_diff: diffout_T {
                     dout_fname: ptr::null_mut(),
-                    dout_ga: garray_T {
-                        ga_len: 0,
-                        ga_maxlen: 0,
-                        ga_itemsize: 0,
-                        ga_growsize: 0,
-                        ga_data: ptr::null_mut(),
-                    },
+                    dout_ga: Vec::new(),
                 },
                 dio_internal: diff_internal(),
             };
@@ -1601,9 +1583,9 @@ unsafe fn extract_hunk_internal(
     line_idx: *mut c_int,
 ) -> bool {
     unsafe {
-        let eof = *line_idx >= (*dout).dout_ga.ga_len;
+        let eof = *line_idx >= (*dout).dout_ga.len() as c_int;
         if !eof {
-            *hunk = *((*dout).dout_ga.ga_data.cast::<diffhunk_T>()).add(*line_idx as usize);
+            *hunk = (&(*dout).dout_ga)[*line_idx as usize];
             *line_idx += 1;
         }
         eof
@@ -2508,7 +2490,7 @@ pub unsafe fn diff_update_line(lnum: linenr_T) {
         }
         if !dp.is_null() {
             (*dp).has_changes = false;
-            (*dp).df_changes.ga_len = 0;
+            (*dp).df_changes.clear();
         }
     }
 }
@@ -2644,7 +2626,7 @@ unsafe fn diff_find_change_simple(
 }
 unsafe fn diff_refine_inline_char_highlight(
     dp_orig: *mut diff_T,
-    linemap: *mut garray_T,
+    linemap: &[Vec<linemap_entry_T>; DB_COUNT],
     idx1: usize,
 ) {
     unsafe {
@@ -2654,17 +2636,16 @@ unsafe fn diff_refine_inline_char_highlight(
             let mut has_merged_gaps = false;
             let mut dp = dp_orig;
             while !dp.is_null() && !(*dp).df_next.is_null() {
-                let lm = &*linemap.add(idx1);
-                if (*dp).df_lnum[idx1] + (*dp).df_count[idx1] > lm.ga_len
-                    || (*(*dp).df_next).df_lnum[idx1] > lm.ga_len
+                let lm = &linemap[idx1];
+                let lm_len = lm.len() as c_int;
+                if (*dp).df_lnum[idx1] + (*dp).df_count[idx1] > lm_len
+                    || (*(*dp).df_next).df_lnum[idx1] > lm_len
                 {
                     dp = (*dp).df_next;
                     continue;
                 }
-                let entry1 = &*(lm.ga_data.cast::<linemap_entry_T>())
-                    .add(((*dp).df_lnum[idx1] + (*dp).df_count[idx1] - 1) as usize);
-                let entry2 = &*(lm.ga_data.cast::<linemap_entry_T>())
-                    .add(((*(*dp).df_next).df_lnum[idx1] - 1) as usize);
+                let entry1 = &lm[((*dp).df_lnum[idx1] + (*dp).df_count[idx1] - 1) as usize];
+                let entry2 = &lm[((*(*dp).df_next).df_lnum[idx1] - 1) as usize];
                 if entry1.lineoff != entry2.lineoff {
                     dp = (*dp).df_next;
                     continue;
@@ -2707,7 +2688,7 @@ unsafe fn diff_refine_inline_char_highlight(
 }
 unsafe fn diff_refine_inline_word_highlight(
     dp_orig: *mut diff_T,
-    linemap: *mut garray_T,
+    linemap: &[Vec<linemap_entry_T>; DB_COUNT],
     idx1: usize,
     start_lnum: linenr_T,
 ) {
@@ -2718,17 +2699,18 @@ unsafe fn diff_refine_inline_word_highlight(
             while !dp.is_null() && !(*dp).df_next.is_null() {
                 let idx_entry1 = (*dp).df_lnum[idx1] + (*dp).df_count[idx1] - 2;
                 let idx_entry2 = (*(*dp).df_next).df_lnum[idx1] - 1;
-                let lm1 = &*linemap.add(idx1);
+                let lm1 = &linemap[idx1];
+                let lm1_len = lm1.len() as c_int;
                 if idx_entry1 < 0
-                    || idx_entry1 >= lm1.ga_len
+                    || idx_entry1 >= lm1_len
                     || idx_entry2 < 0
-                    || idx_entry2 >= lm1.ga_len
+                    || idx_entry2 >= lm1_len
                 {
                     dp = (*dp).df_next;
                     continue;
                 }
-                let entry1 = &*(lm1.ga_data.cast::<linemap_entry_T>()).add(idx_entry1 as usize);
-                let entry2 = &*(lm1.ga_data.cast::<linemap_entry_T>()).add(idx_entry2 as usize);
+                let entry1 = &lm1[idx_entry1 as usize];
+                let entry2 = &lm1[idx_entry2 as usize];
                 if entry1.lineoff != entry2.lineoff {
                     dp = (*dp).df_next;
                     continue;
@@ -2759,25 +2741,18 @@ unsafe fn diff_refine_inline_word_highlight(
                 }
                 if has_content && only_non_word {
                     let mut total_change_bytes: i64 = 0;
-                    for buf_i in 0..DB_COUNT {
+                    for (buf_i, lmi) in linemap.iter().enumerate() {
                         if !(*curtab).tp_diffbuf[buf_i].is_null() {
-                            let lmi = &*linemap.add(buf_i);
                             for k in 0..(*dp).df_count[buf_i] {
                                 let idx = (*dp).df_lnum[buf_i] + k - 1;
-                                if idx < lmi.ga_len {
-                                    total_change_bytes += (*(lmi.ga_data.cast::<linemap_entry_T>())
-                                        .add(idx as usize))
-                                    .num_bytes
-                                        as i64;
+                                if let Some(entry) = lmi.get(idx as usize) {
+                                    total_change_bytes += entry.num_bytes as i64;
                                 }
                             }
                             for k in 0..(*(*dp).df_next).df_count[buf_i] {
                                 let idx = (*(*dp).df_next).df_lnum[buf_i] + k - 1;
-                                if idx < lmi.ga_len {
-                                    total_change_bytes += (*(lmi.ga_data.cast::<linemap_entry_T>())
-                                        .add(idx as usize))
-                                    .num_bytes
-                                        as i64;
+                                if let Some(entry) = lmi.get(idx as usize) {
+                                    total_change_bytes += entry.num_bytes as i64;
                                 }
                             }
                         }
@@ -2826,55 +2801,21 @@ unsafe fn diff_find_change_inline_diff(dp: *mut diff_T) {
             },
             dio_diff: diffout_T {
                 dout_fname: ptr::null_mut(),
-                dout_ga: garray_T {
-                    ga_len: 0,
-                    ga_maxlen: 0,
-                    ga_itemsize: 0,
-                    ga_growsize: 0,
-                    ga_data: ptr::null_mut(),
-                },
+                dout_ga: Vec::new(),
             },
             dio_internal: 1,
         };
-        ga_init(
-            &raw mut dio.dio_diff.dout_ga,
-            size_of::<diffhunk_T>() as c_int,
-            1000,
-        );
         diff_algorithm |= XDF_INDENT_HEURISTIC;
         let orig_diff = (*curtab).tp_first_diff;
         (*curtab).tp_first_diff = ptr::null_mut();
         let orig_diffbuf = (*curtab).tp_diffbuf;
-        let mut linemap: [garray_T; DB_COUNT] = [garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: ptr::null_mut(),
-        }; DB_COUNT];
-        let mut file1_str = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: ptr::null_mut(),
-        };
-        let mut file2_str = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: ptr::null_mut(),
-        };
-        ga_init(&raw mut file1_str, 1, 1024);
-        ga_init(&raw mut file2_str, 1, 1024);
-        for lm in &mut linemap {
-            ga_init(lm, size_of::<linemap_entry_T>() as c_int, 128);
-        }
+        let mut linemap: [Vec<linemap_entry_T>; DB_COUNT] = std::array::from_fn(|_| Vec::new());
+        let mut file1_str: Vec<u8> = Vec::new();
+        let mut file2_str: Vec<u8> = Vec::new();
         'done: {
             let mut file1_idx: isize = -1;
             for (i, lm) in linemap.iter_mut().enumerate().take(DB_COUNT) {
-                dio.dio_diff.dout_ga.ga_len = 0;
+                dio.dio_diff.dout_ga.clear();
                 let buf = (*curtab).tp_diffbuf[i];
                 if buf.is_null() || (*buf).b_ml.ml_mfp.is_null() {
                     continue;
@@ -2886,13 +2827,13 @@ unsafe fn diff_find_change_inline_diff(dp: *mut diff_T) {
                 if file1_idx == -1 {
                     file1_idx = i as isize;
                 }
-                let curstr = if file1_idx != i as isize {
-                    &raw mut file2_str
+                let curstr: &mut Vec<u8> = if file1_idx != i as isize {
+                    &mut file2_str
                 } else {
-                    &raw mut file1_str
+                    &mut file1_str
                 };
                 let mut numlines: linenr_T = 0;
-                (*curstr).ga_len = 0;
+                curstr.clear();
                 for off in 0..(*dp).df_count[i] {
                     let curline = ml_get_buf((*curtab).tp_diffbuf[i], (*dp).df_lnum[i] + off);
                     let mut in_keyword = false;
@@ -2911,7 +2852,7 @@ unsafe fn diff_find_change_inline_diff(dp: *mut diff_T) {
                             ) == 2;
                         }
                         if in_keyword && !new_in_keyword {
-                            ga_append(curstr, NL as u8);
+                            curstr.push(NL as u8);
                             numlines += 1;
                         }
                         if ascii_iswhite(*s) {
@@ -2923,8 +2864,8 @@ unsafe fn diff_find_change_inline_diff(dp: *mut diff_T) {
                                 || (diff_flags & DIFF_IWHITE) != 0)
                                 && !last_white
                             {
-                                eol_ga_len = (*curstr).ga_len;
-                                eol_linemap_len = lm.ga_len;
+                                eol_ga_len = curstr.len() as c_int;
+                                eol_linemap_len = lm.len() as c_int;
                                 eol_numlines = numlines;
                                 last_white = true;
                             }
@@ -2938,7 +2879,7 @@ unsafe fn diff_find_change_inline_diff(dp: *mut diff_T) {
                         }
                         let mut char_len: c_int = 1;
                         if *s == NL {
-                            ga_append(curstr, NUL as u8);
+                            curstr.push(NUL as u8);
                         } else {
                             char_len = utfc_ptr2len(s);
                             if ascii_iswhite(*s) && (diff_flags & DIFF_IWHITE) != 0 {
@@ -2950,75 +2891,71 @@ unsafe fn diff_find_change_inline_diff(dp: *mut diff_T) {
                                 c = utf_fold(c);
                                 let mut cbuf: [c_char; MB_MAXBYTES + 1] = [0; MB_MAXBYTES + 1];
                                 let c_fold_len = utf_char2bytes(c, (&raw mut cbuf).cast());
-                                ga_concat_len(
-                                    curstr,
-                                    (&raw const cbuf).cast(),
+                                curstr.extend_from_slice(std::slice::from_raw_parts(
+                                    cbuf.as_ptr().cast::<u8>(),
                                     c_fold_len as usize,
-                                );
+                                ));
                                 if char_len > c_len {
-                                    ga_concat_len(
-                                        curstr,
-                                        s.add(c_len as usize),
+                                    curstr.extend_from_slice(std::slice::from_raw_parts(
+                                        s.add(c_len as usize).cast::<u8>(),
                                         (char_len - c_len) as usize,
-                                    );
+                                    ));
                                 }
                             } else {
-                                ga_concat_len(curstr, s, char_len as usize);
+                                curstr.extend_from_slice(std::slice::from_raw_parts(
+                                    s.cast::<u8>(),
+                                    char_len as usize,
+                                ));
                             }
                         }
                         if !new_in_keyword {
-                            ga_append(curstr, NL as u8);
+                            curstr.push(NL as u8);
                             numlines += 1;
                         }
                         if !new_in_keyword || (new_in_keyword && !in_keyword) {
-                            let linemap_entry = linemap_entry_T {
+                            lm.push(linemap_entry_T {
                                 byte_start: s.offset_from(curline) as colnr_T,
                                 num_bytes: char_len,
                                 lineoff: off,
-                            };
-                            ga_grow(lm, 1);
-                            *(lm.ga_data.cast::<linemap_entry_T>()).add(lm.ga_len as usize) =
-                                linemap_entry;
-                            lm.ga_len += 1;
-                        } else {
-                            (*(lm.ga_data.cast::<linemap_entry_T>())
-                                .add((lm.ga_len - 1) as usize))
-                            .num_bytes += char_len;
+                            });
+                        } else if let Some(last) = lm.last_mut() {
+                            last.num_bytes += char_len;
                         }
                         in_keyword = new_in_keyword;
                         s = s.add(char_len as usize);
                     }
                     if in_keyword {
-                        ga_append(curstr, NL as u8);
+                        curstr.push(NL as u8);
                         numlines += 1;
                     }
                     if ((diff_flags & DIFF_IWHITEEOL) != 0 || (diff_flags & DIFF_IWHITE) != 0)
                         && eol_ga_len != -1
                     {
-                        (*curstr).ga_len = eol_ga_len;
-                        lm.ga_len = eol_linemap_len;
+                        curstr.truncate(eol_ga_len as usize);
+                        lm.truncate(eol_linemap_len as usize);
                         numlines = eol_numlines;
                     }
                     if (diff_flags & DIFF_IWHITEALL) == 0 {
-                        ga_append(curstr, NL as u8);
+                        curstr.push(NL as u8);
                         let _ = numlines;
-                        let linemap_entry = linemap_entry_T {
+                        lm.push(linemap_entry_T {
                             byte_start: s.offset_from(curline) as colnr_T,
                             num_bytes: size_of::<c_int>() as colnr_T,
                             lineoff: off,
-                        };
-                        ga_grow(lm, 1);
-                        *(lm.ga_data.cast::<linemap_entry_T>()).add(lm.ga_len as usize) =
-                            linemap_entry;
-                        lm.ga_len += 1;
+                        });
                     }
                 }
-                if file1_idx != i as isize {
-                    dio.dio_new.din_mmfile.ptr = (*curstr).ga_data.cast();
-                    dio.dio_new.din_mmfile.size = (*curstr).ga_len;
+                let ptr = if curstr.is_empty() {
+                    ptr::null_mut()
                 } else {
-                    dio.dio_orig.din_mmfile.ptr = (*curstr).ga_data.cast();
-                    dio.dio_orig.din_mmfile.size = (*curstr).ga_len;
+                    curstr.as_mut_ptr().cast::<c_char>()
+                };
+                if file1_idx != i as isize {
+                    dio.dio_new.din_mmfile.ptr = ptr;
+                    dio.dio_new.din_mmfile.size = curstr.len() as c_int;
+                } else {
+                    dio.dio_orig.din_mmfile.ptr = ptr;
+                    dio.dio_orig.din_mmfile.size = curstr.len() as c_int;
                 }
                 if file1_idx != i as isize {
                     let diff_status = diff_file_internal(&raw mut dio);
@@ -3033,18 +2970,14 @@ unsafe fn diff_find_change_inline_diff(dp: *mut diff_T) {
             if (diff_flags & DIFF_INLINE_WORD) != 0 && file1_idx != -1 {
                 diff_refine_inline_word_highlight(
                     new_diff,
-                    (&raw mut linemap).cast(),
+                    &linemap,
                     file1_idx as usize,
                     (*dp).df_lnum[file1_idx as usize],
                 );
             } else if (diff_flags & DIFF_INLINE_CHAR) != 0 && file1_idx != -1 {
-                diff_refine_inline_char_highlight(
-                    new_diff,
-                    (&raw mut linemap).cast(),
-                    file1_idx as usize,
-                );
+                diff_refine_inline_char_highlight(new_diff, &linemap, file1_idx as usize);
             }
-            (*dp).df_changes.ga_len = 0;
+            (*dp).df_changes.clear();
             while !new_diff.is_null() {
                 let mut change = diffline_change_T {
                     dc_start: [0; DB_COUNT],
@@ -3056,33 +2989,30 @@ unsafe fn diff_find_change_inline_diff(dp: *mut diff_T) {
                     if (*new_diff).df_lnum[i] <= 0 {
                         continue;
                     }
+                    let lm_len = lm.len() as c_int;
                     let diff_lnum = (*new_diff).df_lnum[i] - 1;
                     let diff_lnum_end = diff_lnum + (*new_diff).df_count[i];
-                    if diff_lnum >= lm.ga_len {
+                    if diff_lnum >= lm_len {
                         change.dc_start[i] = MAXCOL;
                         change.dc_start_lnum_off[i] = c_int::MAX;
                     } else {
-                        let e = &*(lm.ga_data.cast::<linemap_entry_T>()).add(diff_lnum as usize);
+                        let e = &lm[diff_lnum as usize];
                         change.dc_start[i] = e.byte_start;
                         change.dc_start_lnum_off[i] = e.lineoff;
                     }
                     if diff_lnum == diff_lnum_end {
                         change.dc_end[i] = change.dc_start[i];
                         change.dc_end_lnum_off[i] = change.dc_start_lnum_off[i];
-                    } else if diff_lnum_end > lm.ga_len {
+                    } else if diff_lnum_end > lm_len {
                         change.dc_end[i] = MAXCOL;
                         change.dc_end_lnum_off[i] = c_int::MAX;
                     } else {
-                        let e = &*(lm.ga_data.cast::<linemap_entry_T>())
-                            .add((diff_lnum_end - 1) as usize);
+                        let e = &lm[(diff_lnum_end - 1) as usize];
                         change.dc_end[i] = e.byte_start + e.num_bytes;
                         change.dc_end_lnum_off[i] = e.lineoff;
                     }
                 }
-                ga_grow(&raw mut (*dp).df_changes, 1);
-                *((*dp).df_changes.ga_data.cast::<diffline_change_T>())
-                    .add((*dp).df_changes.ga_len as usize) = change;
-                (*dp).df_changes.ga_len += 1;
+                (*dp).df_changes.push(change);
                 new_diff = (*new_diff).df_next;
             }
         }
@@ -3091,12 +3021,7 @@ unsafe fn diff_find_change_inline_diff(dp: *mut diff_T) {
         diff_clear(curtab);
         (*curtab).tp_first_diff = orig_diff;
         (*curtab).tp_diffbuf = orig_diffbuf;
-        ga_clear(&raw mut file1_str);
-        ga_clear(&raw mut file2_str);
         clear_diffout(&raw mut dio.dio_diff);
-        for lm in &mut linemap {
-            ga_clear(lm);
-        }
     }
 }
 pub unsafe fn diff_find_change(wp: *mut win_T, lnum: linenr_T, diffline: *mut diffline_T) -> bool {
@@ -3148,13 +3073,12 @@ pub unsafe fn diff_find_change(wp: *mut win_T, lnum: linenr_T, diffline: *mut di
         if !(*dp).has_changes {
             diff_find_change_inline_diff(dp);
         }
-        let changes = &raw mut (*dp).df_changes;
+        let changes_len = (*dp).df_changes.len() as c_int;
         let mut num_changes: c_int = 0;
         let mut change_idx: c_int = 0;
         (*diffline).changes = ptr::null_mut();
-        while change_idx < (*changes).ga_len {
-            let change =
-                ((*dp).df_changes.ga_data.cast::<diffline_change_T>()).add(change_idx as usize);
+        while change_idx < changes_len {
+            let change = (*dp).df_changes.as_mut_ptr().add(change_idx as usize);
             if (*change).dc_end_lnum_off[u_idx] < off {
                 change_idx += 1;
                 continue;
@@ -3172,7 +3096,7 @@ pub unsafe fn diff_find_change(wp: *mut win_T, lnum: linenr_T, diffline: *mut di
         (*diffline).bufidx = idx;
         (*diffline).lineoff = off;
         let mut added = false;
-        if num_changes == 1 && change_idx == (*dp).df_changes.ga_len {
+        if num_changes == 1 && change_idx == changes_len {
             added = true;
             for i in 0..DB_COUNT {
                 if u_idx == i {
@@ -3181,8 +3105,7 @@ pub unsafe fn diff_find_change(wp: *mut win_T, lnum: linenr_T, diffline: *mut di
                 if (*curtab).tp_diffbuf[i].is_null() {
                     continue;
                 }
-                let change = &*((*dp).df_changes.ga_data.cast::<diffline_change_T>())
-                    .add(((*dp).df_changes.ga_len - 1) as usize);
+                let change = &(&(*dp).df_changes)[(changes_len - 1) as usize];
                 if change.dc_start_lnum_off[i] != c_int::MAX {
                     added = false;
                     break;
@@ -3472,7 +3395,8 @@ unsafe fn diffgetput(
             if (*dp).df_lnum[idx_cur] > line2 + off {
                 break;
             }
-            let mut dfree: diff_T = std::mem::MaybeUninit::zeroed().assume_init();
+            let mut dfree_lnum = [0; DB_COUNT];
+            let mut dfree_count = [0; DB_COUNT];
             let mut did_free = false;
             let mut lnum = (*dp).df_lnum[idx_to];
             let mut count = (*dp).df_count[idx_to];
@@ -3544,7 +3468,8 @@ unsafe fn diffgetput(
                         i += 1;
                     }
                     if i == DB_COUNT {
-                        dfree = *dp;
+                        dfree_lnum = (*dp).df_lnum;
+                        dfree_count = (*dp).df_count;
                         did_free = true;
                         dp = diff_free(curtab, dprev, dp);
                     }
@@ -3564,7 +3489,7 @@ unsafe fn diffgetput(
                 extmark_adjust(curbuf, lnum, lnum + count - 1, MAXLNUM, added, kExtmarkUndo);
                 changed_lines(curbuf, lnum, 0, lnum + count, added, true);
                 if did_free {
-                    diff_fold_update(&raw const dfree, idx_to);
+                    diff_fold_update(&dfree_lnum, &dfree_count, idx_to);
                 }
                 if added != 0 && !valid_diff(dp) {
                     break;
@@ -3583,13 +3508,17 @@ unsafe fn diffgetput(
         }
     }
 }
-unsafe fn diff_fold_update(dp: *const diff_T, skip_idx: usize) {
+unsafe fn diff_fold_update(
+    df_lnum: &[linenr_T; DB_COUNT],
+    df_count: &[linenr_T; DB_COUNT],
+    skip_idx: usize,
+) {
     unsafe {
         let mut wp = firstwin;
         while !wp.is_null() {
             for i in 0..DB_COUNT {
                 if (*curtab).tp_diffbuf[i] == (*wp).w_buffer && i != skip_idx {
-                    foldUpdate(wp, (*dp).df_lnum[i], (*dp).df_lnum[i] + (*dp).df_count[i]);
+                    foldUpdate(wp, df_lnum[i], df_lnum[i] + df_count[i]);
                 }
             }
             wp = (*wp).w_next;
@@ -3826,15 +3755,12 @@ unsafe fn xdiff_out(
 ) -> c_int {
     unsafe {
         let dout = priv_data.cast::<diffout_T>();
-        ga_grow(&raw mut (*dout).dout_ga, 1);
-        *((*dout).dout_ga.ga_data.cast::<diffhunk_T>()).add((*dout).dout_ga.ga_len as usize) =
-            diffhunk_T {
-                lnum_orig: start_a + 1,
-                count_orig: count_a,
-                lnum_new: start_b + 1,
-                count_new: count_b,
-            };
-        (*dout).dout_ga.ga_len += 1;
+        (*dout).dout_ga.push(diffhunk_T {
+            lnum_orig: start_a + 1,
+            count_orig: count_a,
+            lnum_new: start_b + 1,
+            count_new: count_b,
+        });
         0
     }
 }

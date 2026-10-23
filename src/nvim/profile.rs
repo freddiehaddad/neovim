@@ -297,11 +297,10 @@ pub unsafe fn profile_reset() {
                     uf.uf_tm_self = profile_zero();
                     uf.uf_tm_children = profile_zero();
 
-                    for i in 0..uf.uf_lines.ga_len {
-                        let idx = i as usize;
-                        *uf.uf_tml_count.add(idx) = 0;
-                        *uf.uf_tml_total.add(idx) = 0;
-                        *uf.uf_tml_self.add(idx) = 0;
+                    for i in 0..uf.uf_lines.len() {
+                        *uf.uf_tml_count.add(i) = 0;
+                        *uf.uf_tml_total.add(i) = 0;
+                        *uf.uf_tml_self.add(i) = 0;
                     }
 
                     uf.uf_tml_start = profile_zero();
@@ -492,7 +491,7 @@ unsafe fn prof_self_cmp(&s1: &*mut ufunc_T, &s2: &*mut ufunc_T) -> c_int {
 /// Start profiling function `fp` (`func_do_profile`).
 pub unsafe fn func_do_profile(fp: *mut ufunc_T) {
     let fp = unsafe { &mut *fp };
-    let mut len = fp.uf_lines.ga_len;
+    let mut len = fp.uf_lines.len() as c_int;
 
     if fp.uf_prof_initialized == 0 {
         if len == 0 {
@@ -561,7 +560,7 @@ pub unsafe fn func_line_start(cookie: *mut c_void) {
         let fp = &mut *(*fcp).fc_func;
         let slnum = sourcing_lnum();
 
-        if fp.uf_profiling != 0 && slnum >= 1 && slnum <= fp.uf_lines.ga_len {
+        if fp.uf_profiling != 0 && slnum >= 1 && slnum <= fp.uf_lines.len() as c_int {
             fp.uf_tml_idx = slnum - 1;
             while fp.uf_tml_idx > 0 && funcline(fp, fp.uf_tml_idx).is_null() {
                 fp.uf_tml_idx -= 1;
@@ -665,7 +664,7 @@ unsafe fn func_dump_profile(fd: *mut FILE) {
                     fprintf!(fd, c"\n".as_ptr());
                     fprintf!(fd, c"count  total (s)   self (s)\n".as_ptr());
 
-                    for i in 0..(*fp).uf_lines.ga_len {
+                    for i in 0..(*fp).uf_lines.len() as c_int {
                         let line = funcline(fp, i);
                         if line.is_null() {
                             continue;

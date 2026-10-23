@@ -2141,7 +2141,7 @@ unsafe fn fill_submatch_list(
 ) -> c_int {
     unsafe {
         let listarg = argv.add(argskip as usize);
-        if (*fp).uf_varargs == 0 && (*fp).uf_args.ga_len <= argskip {
+        if (*fp).uf_varargs == 0 && ((*fp).uf_args.len() as c_int) <= argskip {
             return argskip;
         }
 
