@@ -233,12 +233,8 @@ pub unsafe fn default_grid_alloc() -> bool {
 
         grid_alloc(&raw mut default_grid, Rows, Columns, true, true);
 
-        stl_clear_click_defs(tab_page_click_defs, tab_page_click_defs_size);
-        tab_page_click_defs = stl_alloc_click_defs(
-            tab_page_click_defs,
-            Columns,
-            &raw mut tab_page_click_defs_size,
-        );
+        stl_clear_click_defs(&raw mut tab_page_click_defs);
+        stl_alloc_click_defs(&raw mut tab_page_click_defs, Columns);
 
         default_grid.comp_height = Rows;
         default_grid.comp_width = Columns;

@@ -34,7 +34,7 @@ use crate::keycodes::NL;
 use crate::mbyte::{ptr2cells, utf_ptr2char, utfc_ptr2len};
 use crate::memline::{ml_find_line_or_offset, ml_get_buf, ml_get_buf_len};
 use crate::memory::{
-    Arena, arena_finish, arena_mem_free, xcalloc, xfree, xmalloc, xmemdupz, xstrdup, xstrlcpy,
+    Arena, arena_finish, arena_mem_free, xfree, xmalloc, xmemdupz, xstrdup, xstrlcpy,
 };
 use crate::message::HLF_MSG;
 use crate::message::msg_clr_eos;
@@ -290,32 +290,33 @@ pub unsafe fn stl_connected(wp: *mut win_T) -> bool {
 }
 
 /// Clear status line, window bar or tab page line click definition table.
-pub unsafe fn stl_clear_click_defs(click_defs: *mut StlClickDefinition, click_defs_size: usize) {
+pub unsafe fn stl_clear_click_defs(click_defs: *mut Vec<StlClickDefinition>) {
     unsafe {
         if !click_defs.is_null() {
-            for i in 0..click_defs_size {
-                if i == 0 || (*click_defs.add(i)).func != (*click_defs.add(i - 1)).func {
-                    xfree((*click_defs.add(i)).func.cast());
+            let defs = &mut *click_defs;
+            let mut prev_func: *mut c_char = ptr::null_mut();
+            for def in defs.iter_mut() {
+                if !def.func.is_null() && def.func != prev_func {
+                    prev_func = def.func;
+                    xfree(def.func.cast());
                 }
+                *def = StlClickDefinition::default();
             }
-            ptr::write_bytes(click_defs, 0, click_defs_size);
         }
     }
 }
 
 /// Allocate or resize the click definitions array if needed.
 pub unsafe fn stl_alloc_click_defs(
-    mut cdp: *mut StlClickDefinition,
+    cdp: *mut Vec<StlClickDefinition>,
     width: c_int,
-    size: *mut usize,
 ) -> *mut StlClickDefinition {
     unsafe {
-        if *size < width as usize {
-            xfree(cdp.cast());
-            *size = width as usize;
-            cdp = xcalloc(*size, size_of::<StlClickDefinition>()).cast();
+        let defs = &mut *cdp;
+        if defs.len() < width as usize {
+            defs.resize(width as usize, StlClickDefinition::default());
         }
-        cdp
+        defs.as_mut_ptr()
     }
 }
 
@@ -429,7 +430,8 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
             attr = hl_attr(group);
             maxwidth = Columns;
             opt_idx = kOptTabline;
-            click_defs = tab_page_click_defs;
+            let defs = &raw mut tab_page_click_defs;
+            click_defs = (*defs).as_mut_ptr();
         } else if draw_winbar {
             opt_idx = kOptWinbar;
             stl = if *(*wp).w_onebuf_opt.wo_wbr != NUL {
@@ -459,17 +461,8 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
             group = if wp == curwin { HLF_WBR } else { HLF_WBRNC };
             attr = win_hl_attr(wp, group);
             maxwidth = (*wp).w_view_width;
-            stl_clear_click_defs(
-                (*wp).w_winbar_click_defs.cast(),
-                (*wp).w_winbar_click_defs_size,
-            );
-            (*wp).w_winbar_click_defs = stl_alloc_click_defs(
-                (*wp).w_winbar_click_defs.cast(),
-                maxwidth,
-                &raw mut (*wp).w_winbar_click_defs_size,
-            )
-            .cast();
-            click_defs = (*wp).w_winbar_click_defs.cast();
+            stl_clear_click_defs(&raw mut (*wp).w_winbar_click_defs);
+            click_defs = stl_alloc_click_defs(&raw mut (*wp).w_winbar_click_defs, maxwidth);
         } else if draw_ruler && ui_event {
             stl = p_ruf;
             opt_idx = kOptRulerformat;
@@ -539,17 +532,8 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
             }
             fillchar = fillchar_status(&raw mut group, wp);
             attr = win_hl_attr(wp, group);
-            stl_clear_click_defs(
-                (*wp).w_status_click_defs.cast(),
-                (*wp).w_status_click_defs_size,
-            );
-            (*wp).w_status_click_defs = stl_alloc_click_defs(
-                (*wp).w_status_click_defs.cast(),
-                maxwidth,
-                &raw mut (*wp).w_status_click_defs_size,
-            )
-            .cast();
-            click_defs = (*wp).w_status_click_defs.cast();
+            stl_clear_click_defs(&raw mut (*wp).w_status_click_defs);
+            click_defs = stl_alloc_click_defs(&raw mut (*wp).w_status_click_defs, maxwidth);
         }
 
         if maxwidth > 0 {
@@ -900,8 +884,9 @@ pub unsafe fn draw_tabline() {
             return;
         }
 
-        debug_assert!(tab_page_click_defs_size >= Columns as usize);
-        stl_clear_click_defs(tab_page_click_defs, tab_page_click_defs_size);
+        let defs = &raw mut tab_page_click_defs;
+        debug_assert!((*defs).len() >= Columns as usize);
+        stl_clear_click_defs(defs);
 
         if *p_tal != NUL {
             win_redr_stl_expr(ptr::null_mut(), false, false, false);
@@ -1008,7 +993,7 @@ pub unsafe fn draw_tabline() {
 
                 tabcount += 1;
                 while scol < col {
-                    *tab_page_click_defs.add(scol as usize) = StlClickDefinition {
+                    (*defs).as_mut_slice()[scol as usize] = StlClickDefinition {
                         type_: kStlClickTabSwitch,
                         tabnr: tabcount,
                         func: ptr::null_mut(),
@@ -1020,7 +1005,7 @@ pub unsafe fn draw_tabline() {
             }
 
             for scol in col..Columns {
-                *tab_page_click_defs.add(scol as usize) = StlClickDefinition {
+                (*defs).as_mut_slice()[scol as usize] = StlClickDefinition {
                     type_: kStlClickTabSwitch,
                     tabnr: 0,
                     func: ptr::null_mut(),
@@ -1047,7 +1032,7 @@ pub unsafe fn draw_tabline() {
 
             if tabcount > 1 {
                 grid_line_put_schar(Columns - 1, schar_from_ascii(b'X'), attr_nosel);
-                *tab_page_click_defs.add((Columns - 1) as usize) = StlClickDefinition {
+                (*defs).as_mut_slice()[(Columns - 1) as usize] = StlClickDefinition {
                     type_: kStlClickTabClose,
                     tabnr: 999,
                     func: ptr::null_mut(),
@@ -1097,14 +1082,10 @@ pub unsafe fn build_statuscol_str(
 
         if !(*clickrec).start.is_null() {
             let clicks = (*wp).w_statuscol_click_defs.entry(lnum).or_default();
-            let click_defs = clicks.entry(virtnum).or_insert(crate::window::StcClick {
-                def: ptr::null_mut(),
-                size: 0,
-            });
-            stl_clear_click_defs(click_defs.def.cast(), click_defs.size);
-            click_defs.def =
-                stl_alloc_click_defs(click_defs.def.cast(), width, &raw mut click_defs.size).cast();
-            stl_fill_click_defs(click_defs.def.cast(), clickrec, buf_data, width, false);
+            let click_defs = clicks.entry(virtnum).or_default();
+            stl_clear_click_defs(&raw mut *click_defs);
+            let cdp = stl_alloc_click_defs(&raw mut *click_defs, width);
+            stl_fill_click_defs(cdp, clickrec, buf_data, width, false);
         }
 
         width
@@ -2506,16 +2487,15 @@ mod tests {
     #[test]
     fn stl_alloc_and_clear_click_defs_manage_buffer() {
         unsafe {
-            let mut size: usize = 0;
-            let cdp = stl_alloc_click_defs(ptr::null_mut(), 4, &raw mut size);
+            let mut defs: Vec<StlClickDefinition> = Vec::new();
+            let cdp = stl_alloc_click_defs(&raw mut defs, 4);
             assert!(!cdp.is_null());
-            assert_eq!(size, 4);
+            assert_eq!(defs.len(), 4);
             let fn_str = xstrdup(c"MyClick".as_ptr());
-            (*cdp.add(0)).func = fn_str;
-            (*cdp.add(1)).func = fn_str;
-            stl_clear_click_defs(cdp, size);
-            assert!((*cdp.add(0)).func.is_null());
-            xfree(cdp.cast());
+            defs[0].func = fn_str;
+            defs[1].func = fn_str;
+            stl_clear_click_defs(&raw mut defs);
+            assert!(defs[0].func.is_null());
         }
     }
 

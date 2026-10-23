@@ -1521,11 +1521,12 @@ pub unsafe fn win_line(
 
             check_decor_providers = true;
 
-            wlv.color_cols = if !(*(*wp).w_buffer).terminal.is_null() {
-                ptr::null_mut()
-            } else {
-                (*wp).w_p_cc_cols
-            };
+            wlv.color_cols =
+                if !(*(*wp).w_buffer).terminal.is_null() || (*wp).w_p_cc_cols.is_empty() {
+                    ptr::null_mut()
+                } else {
+                    (*wp).w_p_cc_cols.as_mut_ptr()
+                };
             let hlc = vcol_hlc(&wlv);
             advance_color_col(&mut wlv, hlc);
 

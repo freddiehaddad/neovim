@@ -137,6 +137,16 @@ pub struct StlClickDefinition {
     pub func: *mut c_char,
 }
 
+impl Default for StlClickDefinition {
+    fn default() -> Self {
+        Self {
+            type_: kStlClickDisabled,
+            tabnr: 0,
+            func: ptr::null_mut(),
+        }
+    }
+}
+
 static mut orig_topline: linenr_T = 0;
 static mut orig_topfill: c_int = 0;
 static mut got_click: bool = false;
@@ -212,7 +222,8 @@ unsafe fn find_end_of_word(pos: *mut pos_T) {
 /// tabline if there is no tab there.
 unsafe fn move_tab_to_mouse() {
     unsafe {
-        let tabnr = (*tab_page_click_defs.add(mouse_col as usize)).tabnr;
+        let defs = &raw const tab_page_click_defs;
+        let tabnr = (*defs).as_slice()[mouse_col as usize].tabnr;
         if tabnr <= 0 {
             tabpage_move(9999);
         } else if tabnr < tabpage_index(curtab) {
@@ -619,7 +630,8 @@ pub unsafe fn do_mouse(
         };
         let old_curwin = curwin;
 
-        if !tab_page_click_defs.is_null() {
+        let defs = &raw mut tab_page_click_defs;
+        if !(*defs).is_empty() {
             if mouse_grid <= 1 && mouse_row == 0 && (*firstwin).w_winrow > 0 {
                 if is_drag {
                     if in_tab_line {
@@ -629,10 +641,10 @@ pub unsafe fn do_mouse(
                 }
 
                 if is_click && mouse_col < Columns {
-                    let tabnr = (*tab_page_click_defs.add(mouse_col as usize)).tabnr;
+                    let tabnr = (*defs).as_slice()[mouse_col as usize].tabnr;
                     in_tab_line = true;
 
-                    match (*tab_page_click_defs.add(mouse_col as usize)).type_ {
+                    match (*defs).as_slice()[mouse_col as usize].type_ {
                         kStlClickDisabled => {}
                         kStlClickTabSwitch => {
                             if which_button != MOUSE_MIDDLE {
@@ -654,7 +666,7 @@ pub unsafe fn do_mouse(
                             mouse_tab_close(tabnr);
                         }
                         kStlClickFuncRun => {
-                            call_click_def_func(tab_page_click_defs, mouse_col, which_button);
+                            call_click_def_func((*defs).as_mut_ptr(), mouse_col, which_button);
                         }
                         _ => {}
                     }
@@ -791,9 +803,17 @@ pub unsafe fn do_mouse(
             }
 
             let mut click_defs: *mut StlClickDefinition = if in_status_line {
-                (*wp).w_status_click_defs.cast()
+                if (*wp).w_status_click_defs.is_empty() {
+                    ptr::null_mut()
+                } else {
+                    (*wp).w_status_click_defs.as_mut_ptr()
+                }
             } else if in_winbar {
-                (*wp).w_winbar_click_defs.cast()
+                if (*wp).w_winbar_click_defs.is_empty() {
+                    ptr::null_mut()
+                } else {
+                    (*wp).w_winbar_click_defs.as_mut_ptr()
+                }
             } else {
                 ptr::null_mut()
             };
@@ -806,25 +826,29 @@ pub unsafe fn do_mouse(
                 let virtnum = get_vim_var_nr(VV_VIRTNUM) as c_int;
                 let Some(row_click_defs) = (*wp)
                     .w_statuscol_click_defs
-                    .get(&lnum)
-                    .and_then(|m| m.get(&virtnum))
+                    .get_mut(&lnum)
+                    .and_then(|m| m.get_mut(&virtnum))
                 else {
                     return false;
                 };
-                if click_col >= row_click_defs.size as c_int {
+                if click_col >= row_click_defs.len() as c_int {
                     return false;
                 }
-                click_defs = row_click_defs.def.cast();
+                click_defs = row_click_defs.as_mut_ptr();
             }
 
             if in_global_statusline {
-                click_defs = (*curwin).w_status_click_defs.cast();
+                click_defs = if (*curwin).w_status_click_defs.is_empty() {
+                    ptr::null_mut()
+                } else {
+                    (*curwin).w_status_click_defs.as_mut_ptr()
+                };
                 click_col = mouse_col;
             }
 
             if in_status_line {
                 let stl_wp = if in_global_statusline { curwin } else { wp };
-                if click_col >= (*stl_wp).w_status_click_defs_size as c_int {
+                if click_col >= (*stl_wp).w_status_click_defs.len() as c_int {
                     return false;
                 }
             }

@@ -72,12 +72,12 @@ use crate::main_init::getout;
 use crate::mark::{WinInfo, copy_jumplist, free_jumplist, setmark, setpcmark};
 use crate::r#match::clear_matches;
 use crate::math::{FAIL, OK};
-use crate::memory::{xcalloc, xfree, xmalloc, xmemdupz, xstrdup, xstrlcat, xstrlcpy};
+use crate::memory::{xcalloc, xfree, xmemdupz, xstrdup, xstrlcat, xstrlcpy};
 use crate::message::{
     emsg, iemsg, internal_error, kZIndexMessages, msg, msg_clr_eos_force, msg_grid_validate,
     msg_ui_flush, semsg, set_keep_msg,
 };
-use crate::mouse::{StlClickDefinition, reset_dragwin, setmouse};
+use crate::mouse::{reset_dragwin, setmouse};
 use crate::r#move::{
     changed_line_abv_curs, changed_line_abv_curs_win, curs_columns, invalidate_botline_win,
     set_topline, textpos2screenpos, update_topline, validate_botline_win, validate_cursor,
@@ -433,7 +433,7 @@ pub struct win_T {
     pub w_prevdir: *mut c_char,
     pub w_onebuf_opt: winopt_T,
     pub w_allbuf_opt: winopt_T,
-    pub w_p_cc_cols: *mut c_int,
+    pub w_p_cc_cols: Vec<c_int>,
     pub w_p_culopt_flags: u8,
     pub w_briopt_min: c_int,
     pub w_briopt_shift: c_int,
@@ -467,20 +467,12 @@ pub struct win_T {
     pub w_nrwidth_width: c_int,
     pub w_llist: *mut std::ffi::c_void,
     pub w_llist_ref: *mut std::ffi::c_void,
-    pub w_status_click_defs: *mut std::ffi::c_void,
-    pub w_status_click_defs_size: usize,
-    pub w_winbar_click_defs: *mut std::ffi::c_void,
-    pub w_winbar_click_defs_size: usize,
+    pub w_status_click_defs: Vec<crate::mouse::StlClickDefinition>,
+    pub w_winbar_click_defs: Vec<crate::mouse::StlClickDefinition>,
     pub w_statuscol_click_defs: std::collections::BTreeMap<c_int, StcClicks>,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
-pub struct StcClick {
-    pub def: *mut std::ffi::c_void,
-    pub size: usize,
-}
-
+pub type StcClick = Vec<crate::mouse::StlClickDefinition>;
 pub type StcClicks = std::collections::BTreeMap<c_int, StcClick>;
 
 #[repr(C)]
@@ -5911,6 +5903,9 @@ pub unsafe fn win_alloc(after: *mut win_T, hidden: bool) -> *mut win_T {
 
         ptr::write(&raw mut (*new_wp).w_ns_set, std::collections::BTreeSet::new());
         ptr::write(&raw mut (*new_wp).w_match_head, Vec::new());
+        ptr::write(&raw mut (*new_wp).w_p_cc_cols, Vec::new());
+        ptr::write(&raw mut (*new_wp).w_status_click_defs, Vec::new());
+        ptr::write(&raw mut (*new_wp).w_winbar_click_defs, Vec::new());
         ptr::write(
             &raw mut (*new_wp).w_statuscol_click_defs,
             std::collections::BTreeMap::new(),
@@ -5986,25 +5981,15 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
         xfree((*wp).w_localdir.cast());
         xfree((*wp).w_prevdir.cast());
 
-        stl_clear_click_defs(
-            (*wp).w_status_click_defs.cast::<StlClickDefinition>(),
-            (*wp).w_status_click_defs_size,
-        );
-        xfree((*wp).w_status_click_defs);
+        stl_clear_click_defs(&raw mut (*wp).w_status_click_defs);
+        ptr::drop_in_place(&raw mut (*wp).w_status_click_defs);
 
-        stl_clear_click_defs(
-            (*wp).w_winbar_click_defs.cast::<StlClickDefinition>(),
-            (*wp).w_winbar_click_defs_size,
-        );
-        xfree((*wp).w_winbar_click_defs);
+        stl_clear_click_defs(&raw mut (*wp).w_winbar_click_defs);
+        ptr::drop_in_place(&raw mut (*wp).w_winbar_click_defs);
 
         for (_, lnum_click_defs) in std::mem::take(&mut (*wp).w_statuscol_click_defs) {
-            for (_, row_click_defs) in lnum_click_defs {
-                stl_clear_click_defs(
-                    row_click_defs.def.cast::<StlClickDefinition>(),
-                    row_click_defs.size,
-                );
-                xfree(row_click_defs.def);
+            for (_, mut row_click_defs) in lnum_click_defs {
+                stl_clear_click_defs(&raw mut row_click_defs);
             }
         }
         ptr::drop_in_place(&raw mut (*wp).w_statuscol_click_defs);
@@ -6047,7 +6032,7 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
         free_jumplist(wp);
         qf_free_all(wp);
 
-        xfree((*wp).w_p_cc_cols.cast());
+        ptr::drop_in_place(&raw mut (*wp).w_p_cc_cols);
 
         win_free_grid(wp, false);
 
@@ -7549,13 +7534,8 @@ pub unsafe fn win_remove_status_line(wp: *mut win_T, add_hsep: bool) {
         }
         comp_col();
 
-        stl_clear_click_defs(
-            (*wp).w_status_click_defs.cast::<StlClickDefinition>(),
-            (*wp).w_status_click_defs_size,
-        );
-        xfree((*wp).w_status_click_defs);
-        (*wp).w_status_click_defs_size = 0;
-        (*wp).w_status_click_defs = ptr::null_mut();
+        stl_clear_click_defs(&raw mut (*wp).w_status_click_defs);
+        (*wp).w_status_click_defs = Vec::new();
     }
 }
 
@@ -7670,13 +7650,8 @@ pub unsafe fn set_winbar_win(wp: *mut win_T, make_room: bool, valid_cursor: bool
             win_set_inner_size(wp, valid_cursor);
 
             if winbar_height == 0 {
-                stl_clear_click_defs(
-                    (*wp).w_winbar_click_defs.cast::<StlClickDefinition>(),
-                    (*wp).w_winbar_click_defs_size,
-                );
-                xfree((*wp).w_winbar_click_defs);
-                (*wp).w_winbar_click_defs_size = 0;
-                (*wp).w_winbar_click_defs = ptr::null_mut();
+                stl_clear_click_defs(&raw mut (*wp).w_winbar_click_defs);
+                (*wp).w_winbar_click_defs = Vec::new();
             }
         }
 
@@ -8150,21 +8125,12 @@ pub unsafe fn check_colorcolumn(cc: *mut c_char, wp: *mut win_T) -> *const c_cha
             return ptr::null();
         }
 
-        xfree((*wp).w_p_cc_cols.cast());
-        if count == 0 {
-            (*wp).w_p_cc_cols = ptr::null_mut();
-        } else {
-            (*wp).w_p_cc_cols = xmalloc(size_of::<c_int>() * (count + 1)).cast::<c_int>();
+        (*wp).w_p_cc_cols.clear();
+        if count > 0 {
             color_cols[..count].sort_unstable();
-
-            let mut j: usize = 0;
-            for &cc in color_cols.iter().take(count) {
-                if j == 0 || *(*wp).w_p_cc_cols.add(j - 1) != cc {
-                    *(*wp).w_p_cc_cols.add(j) = cc;
-                    j += 1;
-                }
-            }
-            *(*wp).w_p_cc_cols.add(j) = -1;
+            (*wp).w_p_cc_cols.extend_from_slice(&color_cols[..count]);
+            (*wp).w_p_cc_cols.dedup();
+            (*wp).w_p_cc_cols.push(-1);
         }
 
         ptr::null()
