@@ -29,7 +29,6 @@ use crate::ex_docmd::{do_sleep, exarg_T};
 use crate::ex_eval::cause_errthrow;
 use crate::extmark::{TriState, kFalse, kTrue};
 use crate::fileio::{FILE, check_timestamps, fclose, fprintf, fputc, fputs, printf};
-use crate::garray::{ga_append, ga_concat, ga_init, garray_T};
 use crate::globals::*;
 use crate::grid::{
     grid_adjust, grid_alloc, grid_assign_handle, grid_clear, grid_clear_line, grid_del_lines,
@@ -2482,24 +2481,15 @@ pub unsafe fn str2special_save(
     replace_others: TriState,
 ) -> *mut c_char {
     unsafe {
-        let mut ga = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: ptr::null_mut(),
-        };
-        ga_init(&raw mut ga, 1, 40);
-
+        let mut buf: Vec<u8> = Vec::with_capacity(40);
         let mut p = str_;
         while *p != NUL {
-            ga_concat(
-                &raw mut ga,
-                str2special(&raw mut p, replace_spaces, replace_others, ptr::null_mut()),
-            );
+            let s = str2special(&raw mut p, replace_spaces, replace_others, ptr::null_mut());
+            if !s.is_null() {
+                buf.extend_from_slice(CStr::from_ptr(s).to_bytes());
+            }
         }
-        ga_append(&raw mut ga, NUL as u8);
-        ga.ga_data.cast()
+        xmemdupz(buf.as_ptr().cast(), buf.len()).cast()
     }
 }
 

@@ -14,9 +14,8 @@ use crate::eval::typval::{
     tv_list_append_number, tv_list_append_string, typval_T, varnumber_T,
 };
 use crate::ex_getln::text_or_buf_locked;
-use crate::garray::{ga_append, ga_concat_len, ga_init, garray_T};
 use crate::globals::*;
-use crate::memory::{xmallocz, xstrdup};
+use crate::memory::{xmallocz, xmemdupz, xstrdup};
 use crate::message::{emsg, semsg};
 use crate::r#move::{
     changed_window_setting, check_topfill, restore_viewstate, save_viewstate, set_topline,
@@ -982,16 +981,7 @@ pub unsafe fn f_winnr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
 /// `winrestcmd()` function (`f_winrestcmd`).
 pub unsafe fn f_winrestcmd(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        let mut ga = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: ptr::null_mut(),
-        };
-        ga_init(&raw mut ga, size_of::<c_char>() as c_int, 70);
-
-        let mut buf = String::with_capacity(50);
+        let mut buf = String::with_capacity(70);
         for _ in 0..2 {
             let mut winnr: c_int = 1;
             let mut wp = firstwin;
@@ -1000,19 +990,18 @@ pub unsafe fn f_winrestcmd(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
                     wp = (*wp).w_next;
                     continue;
                 }
-                buf.clear();
-                let _ = write!(&mut buf, ":{winnr}resize {}|", (*wp).w_height);
-                ga_concat_len(&raw mut ga, buf.as_ptr().cast(), buf.len());
-                buf.clear();
-                let _ = write!(&mut buf, "vert :{winnr}resize {}|", (*wp).w_width);
-                ga_concat_len(&raw mut ga, buf.as_ptr().cast(), buf.len());
+                let _ = write!(
+                    &mut buf,
+                    ":{winnr}resize {}|vert :{winnr}resize {}|",
+                    (*wp).w_height,
+                    (*wp).w_width
+                );
                 winnr += 1;
                 wp = (*wp).w_next;
             }
         }
-        ga_append(&raw mut ga, NUL as u8);
 
-        (*rettv).vval.v_string = ga.ga_data.cast();
+        (*rettv).vval.v_string = xmemdupz(buf.as_ptr().cast(), buf.len()).cast();
         (*rettv).v_type = VarType::VAR_STRING;
     }
 }

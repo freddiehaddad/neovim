@@ -13,7 +13,6 @@ use crate::eval::typval::{
     tv_get_string_chk, tv_list_alloc_ret, tv_list_append_number, typval_T, varnumber_T,
 };
 use crate::ex_docmd::find_cmdline_var;
-use crate::garray::{ga_append, ga_clear, ga_grow, ga_init, garray_T};
 use crate::math::{FAIL, OK, xisinf, xisnan};
 use crate::mbyte::{
     mb_copy_char, mb_cptr2char_adv, mb_ptr2char_adv, mb_string2cells, mb_tolower, mb_toupper,
@@ -3579,8 +3578,7 @@ pub unsafe fn f_tr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFunc
         if fromstr.is_null() || tostr.is_null() {
             return;
         }
-        let mut ga: garray_T = std::mem::zeroed();
-        ga_init(&raw mut ga, size_of::<c_char>() as c_int, 80);
+        let mut out: Vec<c_char> = Vec::with_capacity(80);
 
         let mut first = true;
         while *in_str != NUL {
@@ -3608,7 +3606,6 @@ pub unsafe fn f_tr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFunc
                     }
                     if *tp == NUL {
                         semsg!(gettext((&raw const e_invarg2).cast()), fromstr);
-                        ga_clear(&raw mut ga);
                         return;
                     }
                     break;
@@ -3627,24 +3624,16 @@ pub unsafe fn f_tr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFunc
                 }
                 if idx != 0 {
                     semsg!(gettext((&raw const e_invarg2).cast()), fromstr);
-                    ga_clear(&raw mut ga);
                     return;
                 }
             }
 
-            ga_grow(&raw mut ga, cplen as c_int);
-            ptr::copy(
-                cpstr,
-                ga.ga_data.cast::<c_char>().add(ga.ga_len as usize),
-                cplen,
-            );
-            ga.ga_len += cplen as c_int;
+            out.extend_from_slice(std::slice::from_raw_parts(cpstr, cplen));
 
             in_str = in_str.add(inlen);
         }
 
-        ga_append(&raw mut ga, 0);
-        (*rettv).vval.v_string = ga.ga_data.cast();
+        (*rettv).vval.v_string = xmemdupz(out.as_ptr().cast(), out.len()).cast();
     }
 }
 

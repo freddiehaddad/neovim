@@ -36,7 +36,6 @@ use crate::ex_getln::{Ctrl_A, Ctrl_F, Ctrl_L, Ctrl_R, Ctrl_W, cmdline_paste_str,
 use crate::extmark::{bcount_t, extmark_splice, extmark_splice_cols, kExtmarkNOOP, kExtmarkUndo};
 use crate::file_search::{FNAME_EXP, FNAME_HYP, FNAME_MESS, file_name_at_cursor};
 use crate::fold::hasFolding;
-use crate::garray::{ga_append, ga_clear, ga_concat_len, ga_init, ga_set_growsize, garray_T};
 use crate::globals::*;
 use crate::indent::{get_indent, preprocs_left, set_indent, tabstop_padding};
 use crate::input::{
@@ -698,8 +697,7 @@ unsafe fn execreg_line_continuation(lines: *mut NvimString, idx: *mut usize) -> 
         assert!(cmd_start > 0);
         let cmd_end = cmd_start;
 
-        let mut ga: garray_T = std::mem::zeroed();
-        ga_init(&raw mut ga, size_of::<c_char>() as c_int, 400);
+        let mut buf: Vec<c_char> = Vec::with_capacity(400);
 
         while cmd_start > 0 {
             cmd_start -= 1;
@@ -714,22 +712,21 @@ unsafe fn execreg_line_continuation(lines: *mut NvimString, idx: *mut usize) -> 
         }
 
         let mut tmp = lines.add(cmd_start);
-        ga_concat_len(&raw mut ga, (*tmp).data, (*tmp).size);
+        if !(*tmp).data.is_null() && (*tmp).size > 0 {
+            buf.extend_from_slice(std::slice::from_raw_parts((*tmp).data, (*tmp).size));
+        }
         for j in (cmd_start + 1)..=cmd_end {
             tmp = lines.add(j);
             let mut p = skipwhite((*tmp).data);
             if *p == b'\\' as c_char {
-                if ga.ga_len > 400 {
-                    ga_set_growsize(&raw mut ga, ga.ga_len.min(8000));
-                }
                 p = p.add(1);
                 let rem = ((*tmp).data as usize + (*tmp).size) - (p as usize);
-                ga_concat_len(&raw mut ga, p, rem);
+                if rem > 0 {
+                    buf.extend_from_slice(std::slice::from_raw_parts(p, rem));
+                }
             }
         }
-        ga_append(&raw mut ga, NUL as u8);
-        let str_ = xmemdupz(ga.ga_data, ga.ga_len as usize).cast::<c_char>();
-        ga_clear(&raw mut ga);
+        let str_ = xmemdupz(buf.as_ptr().cast(), buf.len()).cast::<c_char>();
 
         *idx = cmd_start;
         str_

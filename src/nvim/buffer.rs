@@ -45,7 +45,7 @@ use crate::fileio::{
 };
 use crate::fold::{clearFolding, cloneFoldGrowArray, deleteFoldRecurse, foldUpdateAll};
 use crate::fuzzy::{FUZZY_SCORE_NONE, fuzmatch_str_T, fuzzy_match_str, fuzzymatches_to_strmatches};
-use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
+use crate::garray::ga_clear;
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::hashtab::{hash_find, hash_init, hash_remove};
@@ -3361,52 +3361,33 @@ pub unsafe fn buflist_findlnum(buf: *mut buf_T) -> linenr_T {
 pub unsafe fn buflist_list(eap: *mut exarg_T) {
     unsafe {
         let mut buf = firstbuf;
-        let mut buflist: garray_T = std::mem::zeroed();
-        let mut buflist_data: *mut *mut buf_T = ptr::null_mut();
+        let mut buflist: Vec<*mut buf_T> = Vec::new();
+        let mut use_buflist = false;
+        let mut buflist_idx = 0usize;
 
         msg_ext_set_kind(c"list_cmd".as_ptr());
         if !vim_strchr((*eap).arg, b't' as c_int).is_null() {
-            ga_init(
-                &raw mut buflist,
-                std::mem::size_of::<*mut buf_T>() as c_int,
-                50,
-            );
+            use_buflist = true;
             while !buf.is_null() {
-                ga_grow(&raw mut buflist, 1);
-                *(buflist.ga_data.cast::<*mut buf_T>()).add(buflist.ga_len as usize) = buf;
-                buflist.ga_len += 1;
+                buflist.push(buf);
                 buf = (*buf).b_next;
             }
 
-            if buflist.ga_len > 1 {
-                let slice = std::slice::from_raw_parts_mut(
-                    buflist.ga_data.cast::<*mut buf_T>(),
-                    buflist.ga_len as usize,
-                );
-                sort_slice_by(slice, |&a, &b| buf_time_compare(a, b));
+            if buflist.len() > 1 {
+                sort_slice_by(&mut buflist, |&a, &b| buf_time_compare(a, b));
             }
 
-            buflist_data = buflist.ga_data.cast::<*mut buf_T>();
-            buf = if !buflist_data.is_null() {
-                *buflist_data
-            } else {
-                ptr::null_mut()
-            };
+            buf = buflist.first().copied().unwrap_or(ptr::null_mut());
         }
-        let mut p = buflist_data;
 
         while !buf.is_null() && !got_int {
             let is_terminal = !(*buf).terminal.is_null();
             let job_running = is_terminal && terminal_running((*buf).terminal.cast());
 
             let mut next_buf = || {
-                if !buflist_data.is_null() {
-                    p = p.add(1);
-                    if p < buflist_data.add(buflist.ga_len as usize) {
-                        *p
-                    } else {
-                        ptr::null_mut()
-                    }
+                if use_buflist {
+                    buflist_idx += 1;
+                    buflist.get(buflist_idx).copied().unwrap_or(ptr::null_mut())
                 } else {
                     (*buf).b_next
                 }
@@ -3534,10 +3515,6 @@ pub unsafe fn buflist_list(eap: *mut exarg_T) {
             msg_outtrans(iobuff_ptr, 0, false);
             line_breakcheck();
             buf = next_buf();
-        }
-
-        if !buflist_data.is_null() {
-            ga_clear(&raw mut buflist);
         }
     }
 }

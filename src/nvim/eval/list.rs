@@ -19,7 +19,7 @@ use crate::eval::vars::{
 };
 use crate::eval::{eval_expr_typval, get_copyID, tv_blob_set_ret};
 use crate::ex_docmd::do_cmdline_cmd;
-use crate::garray::{ga_append, ga_concat, ga_grow, ga_init, garray_T};
+use crate::garray::{ga_append, ga_grow};
 use crate::globals::*;
 use crate::hashtab::{hash_lock, hash_unlock, hashitem_empty};
 use crate::math::{FAIL, OK};
@@ -273,14 +273,7 @@ unsafe fn filter_map_string(
 
         set_vim_var_type(VV_KEY, VarType::VAR_NUMBER);
 
-        let mut ga = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: std::ptr::null_mut(),
-        };
-        ga_init(&mut ga, 1, 80);
+        let mut out: Vec<u8> = Vec::with_capacity(80);
         let mut idx: i64 = 0;
         let mut p = str_ptr;
         while *p != 0 {
@@ -313,11 +306,11 @@ unsafe fn filter_map_string(
                     tv_clear(&mut tv);
                     emsg(e_string_required.as_ptr());
                     break;
-                } else {
-                    ga_concat(&mut ga, newtv.vval.v_string);
+                } else if !newtv.vval.v_string.is_null() {
+                    out.extend_from_slice(CStr::from_ptr(newtv.vval.v_string).to_bytes());
                 }
-            } else if filtermap == FilterMap::ForEach || !rem {
-                ga_concat(&mut ga, tv.vval.v_string);
+            } else if (filtermap == FilterMap::ForEach || !rem) && !tv.vval.v_string.is_null() {
+                out.extend_from_slice(CStr::from_ptr(tv.vval.v_string).to_bytes());
             }
 
             tv_clear(&mut newtv);
@@ -326,8 +319,7 @@ unsafe fn filter_map_string(
             idx += 1;
             p = p.add(len);
         }
-        ga_append(&mut ga, 0);
-        (*rettv).vval.v_string = ga.ga_data.cast::<c_char>();
+        (*rettv).vval.v_string = xmemdupz(out.as_ptr().cast(), out.len()).cast::<c_char>();
     }
 }
 

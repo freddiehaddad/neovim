@@ -37,7 +37,6 @@ use crate::fileio::{
     get8ctime, off_T, read_eintr, vim_ftell,
 };
 use crate::fold::foldOpenCursor;
-use crate::garray::{ga_clear_strings, ga_grow, ga_init, garray_T};
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::input::beep_flush;
@@ -70,8 +69,8 @@ use crate::sha256::context_sha256_T;
 use crate::spell::spell_check_window;
 use crate::state::virtual_active;
 use crate::strings::{
-    gettext, memcmp, ngettext, sort_slice_by, sort_strings, strcmp, strlen, vim_snprintf,
-    vim_snprintf_add, vim_strchr,
+    gettext, memcmp, ngettext, sort_slice_by, strcmp, strlen, vim_snprintf, vim_snprintf_add,
+    vim_strchr,
 };
 use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong};
 use std::ptr;
@@ -2516,14 +2515,7 @@ pub unsafe fn ex_undolist(_eap: *mut exarg_T) {
         let mark = lastmark;
         lastmark += 1;
         let nomark = lastmark;
-        let mut ga = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: ptr::null_mut(),
-        };
-        ga_init(&raw mut ga, size_of::<*mut c_char>() as c_int, 20);
+        let mut lines: Vec<std::ffi::CString> = Vec::new();
 
         let iobuf_ptr = (&raw mut IObuff).cast::<c_char>();
         let mut uhp = (*curbuf).b_u_oldhead.cast::<u_header_T>();
@@ -2544,9 +2536,7 @@ pub unsafe fn ex_undolist(_eap: *mut exarg_T) {
                     }
                     vim_snprintf_add!(iobuf_ptr, IOSIZE, c"  %3d".as_ptr(), (*uhp).uh_save_nr);
                 }
-                ga_grow(&raw mut ga, 1);
-                *(ga.ga_data.cast::<*mut c_char>()).add(ga.ga_len as usize) = xstrdup(iobuf_ptr);
-                ga.ga_len += 1;
+                lines.push(CStr::from_ptr(iobuf_ptr).to_owned());
             }
 
             (*uhp).uh_walk = mark;
@@ -2581,10 +2571,10 @@ pub unsafe fn ex_undolist(_eap: *mut exarg_T) {
         }
 
         msg_ext_set_kind(c"list_cmd".as_ptr());
-        if ga.ga_len <= 0 {
+        if lines.is_empty() {
             msg(gettext(c"Nothing to undo".as_ptr()), 0);
         } else {
-            sort_strings(ga.ga_data.cast::<*mut c_char>(), ga.ga_len);
+            lines.sort_unstable();
 
             msg_start();
             msg_puts_hl(
@@ -2592,18 +2582,17 @@ pub unsafe fn ex_undolist(_eap: *mut exarg_T) {
                 HLF_T,
                 false,
             );
-            let mut i = 0;
-            while i < ga.ga_len && !got_int {
+            for line in &lines {
+                if got_int {
+                    break;
+                }
                 msg_putchar(b'\n' as c_int);
                 if got_int {
                     break;
                 }
-                msg_puts(*(ga.ga_data.cast::<*const c_char>()).add(i as usize));
-                i += 1;
+                msg_puts(line.as_ptr());
             }
             msg_end();
-
-            ga_clear_strings(&raw mut ga);
         }
     }
 }

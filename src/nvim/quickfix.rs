@@ -59,7 +59,6 @@ use crate::fileio::{
 };
 use crate::fold::{foldOpenCursor, foldUpdateAll};
 use crate::fuzzy::{FUZZY_MATCH_MAX_LEN, fuzzy_match};
-use crate::garray::{ga_append, ga_clear, ga_concat, ga_concat_len, ga_init, garray_T};
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::help::check_help_lang;
@@ -450,14 +449,7 @@ static mut qf_last_bufref: bufref_T = bufref_T {
     br_buf_free_count: 0,
 };
 
-static mut qfga: garray_T = garray_T {
-    ga_len: 0,
-    ga_maxlen: 0,
-    ga_itemsize: 0,
-    ga_growsize: 0,
-    ga_data: ptr::null_mut(),
-};
-static mut qfga_initialized: bool = false;
+static mut qfga: Vec<c_char> = Vec::new();
 
 static mut quickfix_busy: c_int = 0;
 static mut qf_delq_head: *mut qf_delq_T = ptr::null_mut();
@@ -535,23 +527,45 @@ unsafe fn tab_firstwin(tp: *const tabpage_T) -> *mut win_T {
     }
 }
 
-unsafe fn qfga_get() -> *mut garray_T {
+unsafe fn qfga_get() -> *mut Vec<c_char> {
     unsafe {
-        if !qfga_initialized {
-            qfga_initialized = true;
-            ga_init(&raw mut qfga, 1, 256);
+        let gap = &raw mut qfga;
+        if (*gap).capacity() == 0 {
+            (*gap).reserve(256);
         }
-        qfga.ga_len = 0;
-        &raw mut qfga
+        (*gap).clear();
+        gap
     }
 }
 
 unsafe fn qfga_clear() {
     unsafe {
-        if qfga.ga_maxlen > 1000 {
-            ga_clear(&raw mut qfga);
+        let gap = &raw mut qfga;
+        if (*gap).capacity() > 1000 {
+            *gap = Vec::new();
         } else {
-            qfga.ga_len = 0;
+            (*gap).clear();
+        }
+    }
+}
+
+#[inline]
+unsafe fn qfga_concat(gap: *mut Vec<c_char>, s: *const c_char) {
+    unsafe {
+        if !s.is_null() {
+            let len = strlen(s);
+            if len > 0 {
+                (*gap).extend_from_slice(std::slice::from_raw_parts(s, len));
+            }
+        }
+    }
+}
+
+#[inline]
+unsafe fn qfga_concat_len(gap: *mut Vec<c_char>, s: *const c_char, len: usize) {
+    unsafe {
+        if !s.is_null() && len > 0 {
+            (*gap).extend_from_slice(std::slice::from_raw_parts(s, len));
         }
     }
 }
@@ -3287,9 +3301,9 @@ unsafe fn qf_jump_print_msg(
             deleted_str,
             qf_types(c_int::from((*qf_ptr).qf_type), (*qf_ptr).qf_nr),
         );
-        ga_concat_len(gap, iobuff_ptr, iobufflen);
+        qfga_concat_len(gap, iobuff_ptr, iobufflen);
         qf_fmt_text(gap, skipwhite((*qf_ptr).qf_text));
-        ga_append(gap, NUL as u8);
+        (*gap).push(NUL);
 
         let i = msg_scroll;
         if curbuf == old_curbuf && (*curwin).w_cursor.lnum == old_lnum {
@@ -3299,7 +3313,7 @@ unsafe fn qf_jump_print_msg(
             msg_scroll = 0;
         }
         msg_ext_set_kind(c"quickfix".as_ptr());
-        msg_keep((*gap).ga_data.cast::<c_char>(), 0, true, false);
+        msg_keep((*gap).as_ptr(), 0, true, false);
         msg_scroll = i;
 
         qfga_clear();
@@ -3566,17 +3580,17 @@ unsafe fn qf_list_entry(qfp: *mut qfline_T, qf_idx: c_int, cursel: bool) {
         if (*qfp).qf_lnum != 0 {
             qf_range_text(gap, qfp);
         }
-        ga_concat(gap, qf_types(c_int::from((*qfp).qf_type), (*qfp).qf_nr));
-        ga_append(gap, NUL as u8);
-        if *(*gap).ga_data.cast::<c_char>() != NUL {
-            msg_puts_hl((*gap).ga_data.cast::<c_char>(), qfLine_hl_id, false);
+        qfga_concat(gap, qf_types(c_int::from((*qfp).qf_type), (*qfp).qf_nr));
+        (*gap).push(NUL);
+        if *(*gap).as_ptr() != NUL {
+            msg_puts_hl((*gap).as_ptr(), qfLine_hl_id, false);
         }
         msg_puts_hl(c":".as_ptr(), qfSep_hl_id, false);
         if !(*qfp).qf_pattern.is_null() {
             gap = qfga_get();
             qf_fmt_text(gap, (*qfp).qf_pattern);
-            ga_append(gap, NUL as u8);
-            msg_puts((*gap).ga_data.cast::<c_char>());
+            (*gap).push(NUL);
+            msg_puts((*gap).as_ptr());
             msg_puts_hl(c":".as_ptr(), qfSep_hl_id, false);
         }
         msg_puts(c" ".as_ptr());
@@ -3588,8 +3602,8 @@ unsafe fn qf_list_entry(qfp: *mut qfline_T, qf_idx: c_int, cursel: bool) {
             (*qfp).qf_text
         };
         qf_fmt_text(gap, text);
-        ga_append(gap, NUL as u8);
-        msg_prt_line((*gap).ga_data.cast::<c_char>(), false);
+        (*gap).push(NUL);
+        msg_prt_line((*gap).as_mut_ptr(), false);
     }
 }
 
@@ -3666,12 +3680,12 @@ pub unsafe fn qf_list(eap: *mut exarg_T) {
     }
 }
 
-unsafe fn qf_fmt_text(gap: *mut garray_T, text: *const c_char) {
+unsafe fn qf_fmt_text(gap: *mut Vec<c_char>, text: *const c_char) {
     unsafe {
         let mut p = text;
         while *p != NUL {
             if *p == b'\n' as c_char {
-                ga_append(gap, b' ');
+                (*gap).push(b' ' as c_char);
                 loop {
                     p = p.add(1);
                     if *p == NUL {
@@ -3682,14 +3696,14 @@ unsafe fn qf_fmt_text(gap: *mut garray_T, text: *const c_char) {
                     }
                 }
             } else {
-                ga_append(gap, *p as u8);
+                (*gap).push(*p);
                 p = p.add(1);
             }
         }
     }
 }
 
-unsafe fn qf_range_text(gap: *mut garray_T, qfp: *const qfline_T) {
+unsafe fn qf_range_text(gap: *mut Vec<c_char>, qfp: *const qfline_T) {
     unsafe {
         let buf_data = (&raw mut IObuff).cast::<c_char>();
         let mut buf_size = vim_snprintf_safelen!(buf_data, IOSIZE, c"%d".as_ptr(), (*qfp).qf_lnum);
@@ -3719,7 +3733,7 @@ unsafe fn qf_range_text(gap: *mut garray_T, qfp: *const qfline_T) {
             }
         }
 
-        ga_concat_len(gap, buf_data, buf_size);
+        qfga_concat_len(gap, buf_data, buf_size);
     }
 }
 
@@ -4442,15 +4456,15 @@ unsafe fn qf_buf_add_line(
         let gap = qfga_get();
 
         if !qftf_str.is_null() && *qftf_str != NUL {
-            ga_concat(gap, qftf_str);
+            qfga_concat(gap, qftf_str);
         } else {
             if !(*qfp).qf_module.is_null() {
-                ga_concat(gap, (*qfp).qf_module);
+                qfga_concat(gap, (*qfp).qf_module);
             } else if (*qfp).qf_fnum != 0 {
                 let errbuf = buflist_findnr((*qfp).qf_fnum);
                 if !errbuf.is_null() && !(*errbuf).b_fname.is_null() {
                     if (*qfp).qf_type == 1 {
-                        ga_concat(gap, path_tail((*errbuf).b_fname));
+                        qfga_concat(gap, path_tail((*errbuf).b_fname));
                     } else {
                         if first_bufline
                             && ((*errbuf).b_sfname.is_null()
@@ -4461,7 +4475,7 @@ unsafe fn qf_buf_add_line(
                             }
                             shorten_buf_fname(errbuf, dirname, 0);
                         }
-                        ga_concat(
+                        qfga_concat(
                             gap,
                             if (*qfp).qf_fname.is_null() {
                                 (*errbuf).b_fname
@@ -4473,20 +4487,20 @@ unsafe fn qf_buf_add_line(
                 }
             }
 
-            ga_append(gap, b'|');
+            (*gap).push(b'|' as c_char);
 
             if (*qfp).qf_lnum > 0 {
                 qf_range_text(gap, qfp);
-                ga_concat(gap, qf_types(c_int::from((*qfp).qf_type), (*qfp).qf_nr));
+                qfga_concat(gap, qf_types(c_int::from((*qfp).qf_type), (*qfp).qf_nr));
             } else if !(*qfp).qf_pattern.is_null() {
                 qf_fmt_text(gap, (*qfp).qf_pattern);
             }
-            ga_append(gap, b'|');
-            ga_append(gap, b' ');
+            (*gap).push(b'|' as c_char);
+            (*gap).push(b' ' as c_char);
 
             qf_fmt_text(
                 gap,
-                if (*gap).ga_len > 3 {
+                if (*gap).len() > 3 {
                     skipwhite((*qfp).qf_text)
                 } else {
                     (*qfp).qf_text
@@ -4494,12 +4508,12 @@ unsafe fn qf_buf_add_line(
             );
         }
 
-        ga_append(gap, NUL as u8);
+        (*gap).push(NUL);
         if ml_append_buf(
             buf,
             lnum,
-            (*gap).ga_data.cast::<c_char>(),
-            (*gap).ga_len,
+            (*gap).as_mut_ptr(),
+            (*gap).len() as colnr_T,
             false,
         ) == FAIL
         {
@@ -7954,7 +7968,8 @@ pub unsafe fn free_quickfix() {
         }
 
         callback_free(&raw mut p_qftf);
-        ga_clear(&raw mut qfga);
+        let gap = &raw mut qfga;
+        *gap = Vec::new();
     }
 }
 
