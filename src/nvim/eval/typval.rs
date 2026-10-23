@@ -23,7 +23,7 @@ use crate::eval::{
     DICT_MAXNEST, STR2NR_ALL, callback_call, callback_from_typval, func_equal, get_copyID,
     kListLenMayKnow, partial_name, partial_unref, set_selfdict, var_item_copy, var2fpos,
 };
-use crate::garray::{ga_append, ga_clear, ga_concat_len, ga_grow, ga_init, garray_T};
+use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::hashtab::{
     hash_add, hash_clear, hash_find, hash_find_len, hash_init, hash_lock, hash_remove, hash_unlock,
@@ -1362,10 +1362,10 @@ pub unsafe fn tv_list_slice_or_index(
 }
 
 unsafe fn list_join_inner(
-    gap: *mut garray_T,
+    gap: &mut Vec<c_char>,
     l: *mut list_T,
     sep: *const c_char,
-    join_gap: *mut garray_T,
+    join_vec: &mut Vec<Join>,
 ) -> c_int {
     unsafe {
         let mut sumlen: usize = 0;
@@ -1386,39 +1386,34 @@ unsafe fn list_join_inner(
             }
 
             sumlen += s.size;
-
-            ga_grow(join_gap, 1);
-            let p = (*join_gap)
-                .ga_data
-                .cast::<Join>()
-                .offset((*join_gap).ga_len as isize);
-            (*join_gap).ga_len += 1;
-            (*p).s = s;
-            (*p).tofree = s.data;
+            join_vec.push(Join {
+                s,
+                tofree: s.data,
+            });
 
             line_breakcheck();
             item = (*item).li_next;
         }
 
         let seplen = strlen(sep);
-        if (*join_gap).ga_len >= 2 {
-            sumlen += seplen * ((*join_gap).ga_len as usize - 1);
+        if join_vec.len() >= 2 {
+            sumlen += seplen * (join_vec.len() - 1);
         }
-        ga_grow(gap, (sumlen + 2) as c_int);
+        gap.reserve(sumlen + 2);
 
-        let mut i: c_int = 0;
-        while i < (*join_gap).ga_len && !got_int {
+        for p in join_vec.iter() {
+            if got_int {
+                break;
+            }
             if first {
                 first = false;
-            } else {
-                ga_concat_len(gap, sep, seplen);
+            } else if seplen > 0 {
+                gap.extend_from_slice(std::slice::from_raw_parts(sep, seplen));
             }
-            let p = (*join_gap).ga_data.cast::<Join>().offset(i as isize);
-            if !(*p).s.data.is_null() {
-                ga_concat_len(gap, (*p).s.data, (*p).s.size);
+            if !p.s.data.is_null() && p.s.size > 0 {
+                gap.extend_from_slice(std::slice::from_raw_parts(p.s.data, p.s.size));
             }
             line_breakcheck();
-            i += 1;
         }
 
         OK
@@ -1426,25 +1421,19 @@ unsafe fn list_join_inner(
 }
 
 /// Join list into a string using given separator.
-pub unsafe fn tv_list_join(gap: *mut garray_T, l: *mut list_T, sep: *const c_char) -> c_int {
+pub unsafe fn tv_list_join(gap: &mut Vec<c_char>, l: *mut list_T, sep: *const c_char) -> c_int {
     unsafe {
-        if tv_list_len_inline(l) == 0 {
+        let len = tv_list_len_inline(l);
+        if len == 0 {
             return OK;
         }
 
-        let mut join_ga: garray_T = std::mem::zeroed();
-        ga_init(
-            &raw mut join_ga,
-            size_of::<Join>() as c_int,
-            tv_list_len_inline(l),
-        );
-        let retval = list_join_inner(gap, l, sep, &raw mut join_ga);
+        let mut join_vec: Vec<Join> = Vec::with_capacity(len as usize);
+        let retval = list_join_inner(gap, l, sep, &mut join_vec);
 
-        for i in 0..join_ga.ga_len {
-            let p = join_ga.ga_data.cast::<Join>().offset(i as isize);
-            xfree((*p).tofree.cast());
+        for p in join_vec {
+            xfree(p.tofree.cast());
         }
-        ga_clear(&raw mut join_ga);
 
         retval
     }
@@ -1466,11 +1455,9 @@ pub unsafe fn f_join(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
         (*rettv).v_type = VarType::VAR_STRING;
 
         if !sep.is_null() {
-            let mut ga: garray_T = std::mem::zeroed();
-            ga_init(&raw mut ga, size_of::<c_char>() as c_int, 80);
-            tv_list_join(&raw mut ga, (*argvars).vval.v_list, sep);
-            ga_append(&raw mut ga, NUL as u8);
-            (*rettv).vval.v_string = ga.ga_data.cast::<c_char>();
+            let mut out: Vec<c_char> = Vec::with_capacity(80);
+            tv_list_join(&mut out, (*argvars).vval.v_list, sep);
+            (*rettv).vval.v_string = xmemdupz(out.as_ptr().cast(), out.len()).cast::<c_char>();
         } else {
             (*rettv).vval.v_string = ptr::null_mut();
         }
@@ -1492,8 +1479,7 @@ pub unsafe fn f_list2str(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             return;
         }
 
-        let mut ga: garray_T = std::mem::zeroed();
-        ga_init(&raw mut ga, 1, 80);
+        let mut out: Vec<c_char> = Vec::with_capacity(80);
         let mut buf: [c_char; MB_MAXBYTES + 1] = [0; MB_MAXBYTES + 1];
 
         let mut li = (*l).lv_first;
@@ -1501,12 +1487,11 @@ pub unsafe fn f_list2str(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             let n = tv_get_number(&raw const (*li).li_tv);
             let buflen = utf_char2bytes(n as c_int, buf.as_mut_ptr()) as usize;
             buf[buflen] = NUL;
-            ga_concat_len(&raw mut ga, buf.as_ptr(), buflen);
+            out.extend_from_slice(&buf[..buflen]);
             li = (*li).li_next;
         }
-        ga_append(&raw mut ga, NUL as u8);
 
-        (*rettv).vval.v_string = ga.ga_data.cast::<c_char>();
+        (*rettv).vval.v_string = xmemdupz(out.as_ptr().cast(), out.len()).cast::<c_char>();
     }
 }
 
@@ -5271,20 +5256,12 @@ mod tests {
             assert!(tv_list_equal(ptr::null_mut(), ptr::null_mut(), false));
             assert!(!tv_list_equal(l2, ptr::null_mut(), false));
 
-            let mut joined = garray_T {
-                ga_len: 0,
-                ga_maxlen: 0,
-                ga_itemsize: 0,
-                ga_growsize: 0,
-                ga_data: ptr::null_mut(),
-            };
-            ga_init(&raw mut joined, 1, 80);
-            assert_eq!(tv_list_join(&raw mut joined, l2, c", ".as_ptr()), OK);
+            let mut joined: Vec<c_char> = Vec::new();
+            assert_eq!(tv_list_join(&mut joined, l2, c", ".as_ptr()), OK);
             assert_eq!(
-                CStr::from_ptr(joined.ga_data.cast()).to_bytes(),
+                std::slice::from_raw_parts(joined.as_ptr().cast::<u8>(), joined.len()),
                 b"99, hello, world"
             );
-            ga_clear(&raw mut joined);
 
             let mut cat_tv = tv_initial_value();
             assert_eq!(tv_list_concat(l2, l2_copy, &raw mut cat_tv), OK);
@@ -5450,6 +5427,9 @@ mod tests {
 
     #[test]
     fn test_tv_clear_shared_lists_and_dicts() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         unsafe {
             // [&l [1], *l, *l]
             let inner = tv_list_alloc(1);

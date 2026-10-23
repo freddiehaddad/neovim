@@ -15,7 +15,6 @@ use crate::eval::typval::{
 };
 use crate::eval::vars::{NUM_MSGPACK_TYPES, eval_msgpack_type_lists};
 use crate::eval::{get_copyID, partial_name};
-use crate::garray::{ga_append, ga_clear, ga_concat, ga_concat_len, ga_grow, ga_init, garray_T};
 use crate::hashtab::{hashitem_T, hashitem_empty};
 use crate::keycodes::{BS, CAR, NL, TAB};
 use crate::math::{FAIL, OK};
@@ -320,20 +319,31 @@ pub unsafe fn encode_check_json_key(tv: *const typval_T) -> bool {
     }
 }
 
+#[inline]
+unsafe fn buf_concat_cstr(gap: &mut Vec<u8>, s: *const c_char) {
+    unsafe {
+        if !s.is_null() {
+            gap.extend_from_slice(CStr::from_ptr(s).to_bytes());
+        }
+    }
+}
+
+#[inline]
+unsafe fn buf_concat_len(gap: &mut Vec<u8>, s: *const c_char, len: usize) {
+    unsafe {
+        if !s.is_null() && len > 0 {
+            gap.extend_from_slice(std::slice::from_raw_parts(s.cast::<u8>(), len));
+        }
+    }
+}
+
 unsafe fn conv_error(
     msg: *const c_char,
     mpstack: &[MPConvStackVal],
     objname: *const c_char,
 ) -> c_int {
     unsafe {
-        let mut msg_ga = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: std::ptr::null_mut(),
-        };
-        ga_init(&mut msg_ga, 1, 80);
+        let mut msg_ga: Vec<u8> = Vec::with_capacity(80);
         let mut iobuf = [0 as c_char; 1025];
 
         for (i, v) in mpstack.iter().enumerate() {
@@ -357,7 +367,7 @@ unsafe fn conv_error(
                     let key = encode_tv2string(&mut key_tv, std::ptr::null_mut());
                     vim_snprintf!(iobuf.as_mut_ptr(), iobuf.len(), c"key %s".as_ptr(), key);
                     xfree(key.cast::<c_void>());
-                    ga_concat(&mut msg_ga, iobuf.as_ptr());
+                    buf_concat_cstr(&mut msg_ga, iobuf.as_ptr());
                 }
                 MPConvStackData::List { list, li } => {
                     let first = tv_list_first(list);
@@ -379,7 +389,7 @@ unsafe fn conv_error(
                             && tv_list_len((*prev_li).li_tv.vval.v_list) <= 0)
                     {
                         vim_snprintf!(iobuf.as_mut_ptr(), iobuf.len(), c"index %i".as_ptr(), idx);
-                        ga_concat(&mut msg_ga, iobuf.as_ptr());
+                        buf_concat_cstr(&mut msg_ga, iobuf.as_ptr());
                     } else {
                         let first_item = tv_list_first((*prev_li).li_tv.vval.v_list);
                         assert!(!first_item.is_null());
@@ -393,16 +403,16 @@ unsafe fn conv_error(
                             idx,
                         );
                         xfree(key.cast::<c_void>());
-                        ga_concat(&mut msg_ga, iobuf.as_ptr());
+                        buf_concat_cstr(&mut msg_ga, iobuf.as_ptr());
                     }
                 }
                 MPConvStackData::Partial { stage, .. } => match stage {
                     MPConvPartialStage::Args => std::process::abort(),
                     MPConvPartialStage::SelfDict => {
-                        ga_concat(&mut msg_ga, c"partial".as_ptr());
+                        ga_concat_literal(&mut msg_ga, b"partial");
                     }
                     MPConvPartialStage::End => {
-                        ga_concat(&mut msg_ga, c"partial self dictionary".as_ptr());
+                        ga_concat_literal(&mut msg_ga, b"partial self dictionary");
                     }
                 },
                 MPConvStackData::PartialList { arg, argv, .. } => {
@@ -413,43 +423,42 @@ unsafe fn conv_error(
                         c"argument %i".as_ptr(),
                         idx,
                     );
-                    ga_concat(&mut msg_ga, iobuf.as_ptr());
+                    buf_concat_cstr(&mut msg_ga, iobuf.as_ptr());
                 }
             }
         }
         let path_ptr = if mpstack.is_empty() {
             c"itself".as_ptr()
         } else {
-            ga_append(&mut msg_ga, 0);
-            msg_ga.ga_data.cast::<c_char>()
+            msg_ga.push(0);
+            msg_ga.as_ptr().cast::<c_char>()
         };
         semsg!(msg, objname, path_ptr);
-        ga_clear(&mut msg_ga);
         FAIL
     }
 }
 
-unsafe fn convert_to_single_quoted_string(gap: *mut garray_T, buf: *const c_char, len: usize) {
+unsafe fn convert_to_single_quoted_string(gap: &mut Vec<u8>, buf: *const c_char, len: usize) {
     unsafe {
         if buf.is_null() {
             ga_concat_literal(gap, b"''");
         } else {
             let quotes = memcnt(buf.cast::<c_void>(), b'\'' as c_char, len);
-            ga_grow(gap, (2 + len + quotes) as c_int);
-            ga_append(gap, b'\'');
+            gap.reserve(2 + len + quotes);
+            gap.push(b'\'');
             let bytes = std::slice::from_raw_parts(buf.cast::<u8>(), len);
             for &b in bytes {
                 if b == b'\'' {
-                    ga_append(gap, b'\'');
+                    gap.push(b'\'');
                 }
-                ga_append(gap, b);
+                gap.push(b);
             }
-            ga_append(gap, b'\'');
+            gap.push(b'\'');
         }
     }
 }
 
-unsafe fn convert_to_json_string(gap: *mut garray_T, buf: *const c_char, len: usize) -> c_int {
+unsafe fn convert_to_json_string(gap: &mut Vec<u8>, buf: *const c_char, len: usize) -> c_int {
     const XDIGITS: &[u8; 16] = b"0123456789ABCDEF";
 
     unsafe {
@@ -506,8 +515,8 @@ unsafe fn convert_to_json_string(gap: *mut garray_T, buf: *const c_char, len: us
             }
         }
 
-        ga_append(gap, b'"');
-        ga_grow(gap, str_len as c_int);
+        gap.push(b'"');
+        gap.reserve(str_len + 1);
         i = 0;
         while i < len {
             let ptr = buf.add(i);
@@ -528,7 +537,7 @@ unsafe fn convert_to_json_string(gap: *mut garray_T, buf: *const c_char, len: us
                 0x5c => ga_concat_literal(gap, b"\\\\"),
                 _ => {
                     if ch >= 0x20 && utf_printable(ch) {
-                        ga_concat_len(gap, ptr, shift);
+                        buf_concat_len(gap, ptr, shift);
                     } else if ch < SURROGATE_FIRST_CHAR {
                         let esc = [
                             b'\\',
@@ -563,7 +572,7 @@ unsafe fn convert_to_json_string(gap: *mut garray_T, buf: *const c_char, len: us
             }
             i += shift;
         }
-        ga_append(gap, b'"');
+        gap.push(b'"');
         OK
     }
 }
@@ -577,7 +586,7 @@ enum TextEncodeMode {
 
 enum EncodeBackend {
     Text {
-        gap: *mut garray_T,
+        gap: *mut Vec<u8>,
         mode: TextEncodeMode,
     },
     Msgpack {
@@ -632,11 +641,11 @@ impl EncodeBackend {
                 Self::Text {
                     gap,
                     mode: TextEncodeMode::String | TextEncodeMode::Echo,
-                } => ga_concat_literal(gap, b"v:null"),
+                } => ga_concat_literal(&mut *gap, b"v:null"),
                 Self::Text {
                     gap,
                     mode: TextEncodeMode::Json,
-                } => ga_concat_literal(gap, b"null"),
+                } => ga_concat_literal(&mut *gap, b"null"),
                 Self::Msgpack { packer } => mpack_nil(&mut (*packer).ptr),
             }
         }
@@ -651,9 +660,9 @@ impl EncodeBackend {
                     mode: TextEncodeMode::String | TextEncodeMode::Echo,
                 } => {
                     if val {
-                        ga_concat_literal(gap, b"v:true");
+                        ga_concat_literal(&mut *gap, b"v:true");
                     } else {
-                        ga_concat_literal(gap, b"v:false");
+                        ga_concat_literal(&mut *gap, b"v:false");
                     }
                 }
                 Self::Text {
@@ -661,9 +670,9 @@ impl EncodeBackend {
                     mode: TextEncodeMode::Json,
                 } => {
                     if val {
-                        ga_concat_literal(gap, b"true");
+                        ga_concat_literal(&mut *gap, b"true");
                     } else {
-                        ga_concat_literal(gap, b"false");
+                        ga_concat_literal(&mut *gap, b"false");
                     }
                 }
                 Self::Msgpack { packer } => mpack_bool(&mut (*packer).ptr, val),
@@ -677,7 +686,7 @@ impl EncodeBackend {
             match *self {
                 Self::Text { gap, .. } => {
                     let s = num.to_string();
-                    ga_concat_literal(gap, s.as_bytes());
+                    ga_concat_literal(&mut *gap, s.as_bytes());
                 }
                 Self::Msgpack { packer } => mpack_integer(&mut (*packer).ptr, num),
             }
@@ -693,7 +702,7 @@ impl EncodeBackend {
                     mode: TextEncodeMode::Json,
                 } => {
                     let s = num.to_string();
-                    ga_concat_literal(gap, s.as_bytes());
+                    ga_concat_literal(&mut *gap, s.as_bytes());
                 }
                 Self::Text { .. } => {}
                 Self::Msgpack { packer } => mpack_uint64(&mut (*packer).ptr, num),
@@ -710,12 +719,12 @@ impl EncodeBackend {
                     mode: TextEncodeMode::String | TextEncodeMode::Echo,
                 } => {
                     if flt.is_nan() {
-                        ga_concat_literal(gap, b"str2float('nan')");
+                        ga_concat_literal(&mut *gap, b"str2float('nan')");
                     } else if flt.is_infinite() {
                         if flt.is_sign_negative() {
-                            ga_append(gap, b'-');
+                            (*gap).push(b'-');
                         }
-                        ga_concat_literal(gap, b"str2float('inf')");
+                        ga_concat_literal(&mut *gap, b"str2float('inf')");
                     } else {
                         let mut numbuf = [0 as c_char; NUMBUFLEN];
                         let len = vim_snprintf_safelen!(
@@ -724,7 +733,7 @@ impl EncodeBackend {
                             c"%g".as_ptr(),
                             flt,
                         );
-                        ga_concat_len(gap, numbuf.as_ptr(), len);
+                        buf_concat_len(&mut *gap, numbuf.as_ptr(), len);
                     }
                     OK
                 }
@@ -746,7 +755,7 @@ impl EncodeBackend {
                             c"%g".as_ptr(),
                             flt,
                         );
-                        ga_concat_len(gap, numbuf.as_ptr(), len);
+                        buf_concat_len(&mut *gap, numbuf.as_ptr(), len);
                     }
                     OK
                 }
@@ -766,13 +775,13 @@ impl EncodeBackend {
                     gap,
                     mode: TextEncodeMode::String | TextEncodeMode::Echo,
                 } => {
-                    convert_to_single_quoted_string(gap, buf, len);
+                    convert_to_single_quoted_string(&mut *gap, buf, len);
                     OK
                 }
                 Self::Text {
                     gap,
                     mode: TextEncodeMode::Json,
-                } => convert_to_json_string(gap, buf, len),
+                } => convert_to_json_string(&mut *gap, buf, len),
                 Self::Msgpack { packer } => {
                     mpack_bin(
                         NvimString {
@@ -835,14 +844,14 @@ impl EncodeBackend {
                     mode: TextEncodeMode::String | TextEncodeMode::Echo,
                 } => {
                     if len == 0 {
-                        ga_concat_literal(gap, b"0z");
+                        ga_concat_literal(&mut *gap, b"0z");
                     } else {
-                        ga_grow(gap, 2 + 2 * len + (len - 1) / 4);
-                        ga_concat_literal(gap, b"0z");
+                        (*gap).reserve((2 + 2 * len + (len - 1) / 4) as usize);
+                        ga_concat_literal(&mut *gap, b"0z");
                         let mut numbuf = [0 as c_char; NUMBUFLEN];
                         for i in 0..len {
                             if i > 0 && (i & 3) == 0 {
-                                ga_append(gap, b'.');
+                                (*gap).push(b'.');
                             }
                             let nlen = vim_snprintf_safelen!(
                                 numbuf.as_mut_ptr(),
@@ -850,7 +859,7 @@ impl EncodeBackend {
                                 c"%02X".as_ptr(),
                                 tv_blob_get(blob, i) as c_int,
                             );
-                            ga_concat_len(gap, numbuf.as_ptr(), nlen);
+                            buf_concat_len(&mut *gap, numbuf.as_ptr(), nlen);
                         }
                     }
                 }
@@ -859,13 +868,13 @@ impl EncodeBackend {
                     mode: TextEncodeMode::Json,
                 } => {
                     if len == 0 {
-                        ga_concat_literal(gap, b"[]");
+                        ga_concat_literal(&mut *gap, b"[]");
                     } else {
-                        ga_append(gap, b'[');
+                        (*gap).push(b'[');
                         let mut numbuf = [0 as c_char; NUMBUFLEN];
                         for i in 0..len {
                             if i > 0 {
-                                ga_concat_literal(gap, b", ");
+                                ga_concat_literal(&mut *gap, b", ");
                             }
                             let nlen = vim_snprintf_safelen!(
                                 numbuf.as_mut_ptr(),
@@ -873,9 +882,9 @@ impl EncodeBackend {
                                 c"%d".as_ptr(),
                                 tv_blob_get(blob, i) as c_int,
                             );
-                            ga_concat_len(gap, numbuf.as_ptr(), nlen);
+                            buf_concat_len(&mut *gap, numbuf.as_ptr(), nlen);
                         }
-                        ga_append(gap, b']');
+                        (*gap).push(b']');
                     }
                 }
                 Self::Msgpack { packer } => {
@@ -912,14 +921,14 @@ impl EncodeBackend {
                 } => {
                     if fun.is_null() {
                         internal_error(c"string(): NULL function name".as_ptr());
-                        ga_concat_literal(gap, b"function(NULL");
+                        ga_concat_literal(&mut *gap, b"function(NULL");
                     } else {
-                        ga_concat_literal(gap, b"function(");
-                        let name_off = (*gap).ga_len as usize;
-                        ga_concat_literal(gap, prefix);
+                        ga_concat_literal(&mut *gap, b"function(");
+                        let name_off = (*gap).len();
+                        ga_concat_literal(&mut *gap, prefix);
                         let fun_len = CStr::from_ptr(fun).to_bytes().len();
-                        convert_to_single_quoted_string(gap, fun, fun_len);
-                        let data = (*gap).ga_data.cast::<u8>();
+                        convert_to_single_quoted_string(&mut *gap, fun, fun_len);
+                        let data = (*gap).as_mut_ptr();
                         *data.add(name_off) = b'\'';
                         if !prefix.is_empty() {
                             std::ptr::copy_nonoverlapping(
@@ -956,7 +965,7 @@ impl EncodeBackend {
             && len != 0
         {
             unsafe {
-                ga_concat_literal(gap, b", ");
+                ga_concat_literal(&mut *gap, b", ");
             }
         }
     }
@@ -967,7 +976,7 @@ impl EncodeBackend {
             && len != -1
         {
             unsafe {
-                ga_concat_literal(gap, b", ");
+                ga_concat_literal(&mut *gap, b", ");
             }
         }
     }
@@ -976,7 +985,7 @@ impl EncodeBackend {
     unsafe fn conv_func_end(&mut self) {
         if let Self::Text { gap, .. } = *self {
             unsafe {
-                ga_append(gap, b')');
+                (*gap).push(b')');
             }
         }
     }
@@ -985,7 +994,7 @@ impl EncodeBackend {
     unsafe fn conv_empty_list(&mut self) {
         unsafe {
             match *self {
-                Self::Text { gap, .. } => ga_concat_literal(gap, b"[]"),
+                Self::Text { gap, .. } => ga_concat_literal(&mut *gap, b"[]"),
                 Self::Msgpack { packer } => mpack_array(&mut (*packer).ptr, 0),
             }
         }
@@ -995,7 +1004,7 @@ impl EncodeBackend {
     unsafe fn conv_list_start(&mut self, len: c_int) {
         unsafe {
             match *self {
-                Self::Text { gap, .. } => ga_append(gap, b'['),
+                Self::Text { gap, .. } => (*gap).push(b'['),
                 Self::Msgpack { packer } => mpack_array(&mut (*packer).ptr, len as u32),
             }
         }
@@ -1005,7 +1014,7 @@ impl EncodeBackend {
     unsafe fn conv_list_between_items(&mut self) {
         if let Self::Text { gap, .. } = *self {
             unsafe {
-                ga_concat_literal(gap, b", ");
+                ga_concat_literal(&mut *gap, b", ");
             }
         }
     }
@@ -1014,7 +1023,7 @@ impl EncodeBackend {
     unsafe fn conv_list_end(&mut self) {
         if let Self::Text { gap, .. } = *self {
             unsafe {
-                ga_append(gap, b']');
+                (*gap).push(b']');
             }
         }
     }
@@ -1023,7 +1032,7 @@ impl EncodeBackend {
     unsafe fn conv_empty_dict(&mut self) {
         unsafe {
             match *self {
-                Self::Text { gap, .. } => ga_concat_literal(gap, b"{}"),
+                Self::Text { gap, .. } => ga_concat_literal(&mut *gap, b"{}"),
                 Self::Msgpack { packer } => mpack_map(&mut (*packer).ptr, 0),
             }
         }
@@ -1033,7 +1042,7 @@ impl EncodeBackend {
     unsafe fn conv_dict_start(&mut self, len: usize) {
         unsafe {
             match *self {
-                Self::Text { gap, .. } => ga_append(gap, b'{'),
+                Self::Text { gap, .. } => (*gap).push(b'{'),
                 Self::Msgpack { packer } => mpack_map(&mut (*packer).ptr, len as u32),
             }
         }
@@ -1043,7 +1052,7 @@ impl EncodeBackend {
     unsafe fn conv_dict_after_key(&mut self) {
         if let Self::Text { gap, .. } = *self {
             unsafe {
-                ga_concat_literal(gap, b": ");
+                ga_concat_literal(&mut *gap, b": ");
             }
         }
     }
@@ -1052,7 +1061,7 @@ impl EncodeBackend {
     unsafe fn conv_dict_between_items(&mut self) {
         if let Self::Text { gap, .. } = *self {
             unsafe {
-                ga_concat_literal(gap, b", ");
+                ga_concat_literal(&mut *gap, b", ");
             }
         }
     }
@@ -1061,7 +1070,7 @@ impl EncodeBackend {
     unsafe fn conv_dict_end(&mut self) {
         if let Self::Text { gap, .. } = *self {
             unsafe {
-                ga_append(gap, b'}');
+                (*gap).push(b'}');
             }
         }
     }
@@ -1135,7 +1144,7 @@ impl EncodeBackend {
                     }
                     let backref = find_backref();
                     let s = format!("{{E724@{backref}}}");
-                    ga_concat_literal(gap, s.as_bytes());
+                    ga_concat_literal(&mut *gap, s.as_bytes());
                     OK
                 }
                 Self::Text {
@@ -1148,7 +1157,7 @@ impl EncodeBackend {
                     } else {
                         format!("[...@{backref}]")
                     };
-                    ga_concat_literal(gap, s.as_bytes());
+                    ga_concat_literal(&mut *gap, s.as_bytes());
                     OK
                 }
                 Self::Text {
@@ -1774,7 +1783,7 @@ unsafe fn encode_vim_with_backend(
 
 /// Convert Vimscript value to `:echo` output (`encode_vim_to_echo`).
 pub unsafe fn encode_vim_to_echo(
-    gap: *mut garray_T,
+    gap: &mut Vec<u8>,
     tv: *mut typval_T,
     objname: *const c_char,
 ) -> c_int {
@@ -1802,14 +1811,7 @@ pub unsafe fn encode_vim_to_msgpack(
 /// Return a string with the string representation of a variable (`encode_tv2string`).
 pub unsafe fn encode_tv2string(tv: *mut typval_T, len: *mut usize) -> *mut c_char {
     unsafe {
-        let mut ga = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: std::ptr::null_mut(),
-        };
-        ga_init(&mut ga, 1, 80);
+        let mut ga: Vec<u8> = Vec::with_capacity(80);
         let mut backend = EncodeBackend::Text {
             gap: &mut ga,
             mode: TextEncodeMode::String,
@@ -1819,67 +1821,50 @@ pub unsafe fn encode_tv2string(tv: *mut typval_T, len: *mut usize) -> *mut c_cha
         assert_eq!(evs_ret, OK);
         DID_ECHO_STRING_EMSG = false;
         if !len.is_null() {
-            *len = ga.ga_len as usize;
+            *len = ga.len();
         }
-        ga_append(&mut ga, 0);
-        ga.ga_data.cast::<c_char>()
+        xmemdupz(ga.as_ptr().cast(), ga.len()).cast::<c_char>()
     }
 }
 
 /// Return a string with the `:echo` representation of a variable (`encode_tv2echo`).
 pub unsafe fn encode_tv2echo(tv: *mut typval_T, len: *mut usize) -> *mut c_char {
     unsafe {
-        let mut ga = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: std::ptr::null_mut(),
-        };
-        ga_init(&mut ga, 1, 80);
+        let mut ga: Vec<u8> = Vec::with_capacity(80);
         let tv_ref = &*tv;
         if tv_ref.v_type == VarType::VAR_STRING || tv_ref.v_type == VarType::VAR_FUNC {
             if !tv_ref.vval.v_string.is_null() {
-                ga_concat(&mut ga, tv_ref.vval.v_string);
+                buf_concat_cstr(&mut ga, tv_ref.vval.v_string);
             }
         } else {
             let eve_ret = encode_vim_to_echo(&mut ga, tv, c":echo argument".as_ptr());
             assert_eq!(eve_ret, OK);
         }
         if !len.is_null() {
-            *len = ga.ga_len as usize;
+            *len = ga.len();
         }
-        ga_append(&mut ga, 0);
-        ga.ga_data.cast::<c_char>()
+        xmemdupz(ga.as_ptr().cast(), ga.len()).cast::<c_char>()
     }
 }
 
 /// Return a JSON string representation of a variable (`encode_tv2json`).
 pub unsafe fn encode_tv2json(tv: *mut typval_T, len: *mut usize) -> *mut c_char {
     unsafe {
-        let mut ga = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: std::ptr::null_mut(),
-        };
-        ga_init(&mut ga, 1, 80);
+        let mut ga: Vec<u8> = Vec::with_capacity(80);
         let mut backend = EncodeBackend::Text {
             gap: &mut ga,
             mode: TextEncodeMode::Json,
         };
         let evj_ret =
             encode_vim_with_backend(&mut backend, tv, c"encode_tv2json() argument".as_ptr());
-        if evj_ret == FAIL {
-            ga_clear(&mut ga);
-        }
         DID_ECHO_STRING_EMSG = false;
-        if !len.is_null() {
-            *len = ga.ga_len as usize;
+        if evj_ret == FAIL {
+            ga.clear();
         }
-        ga_append(&mut ga, 0);
-        ga.ga_data.cast::<c_char>()
+        if !len.is_null() {
+            *len = ga.len();
+        }
+        xmemdupz(ga.as_ptr().cast(), ga.len()).cast::<c_char>()
     }
 }
 
@@ -1942,6 +1927,9 @@ mod tests {
 
     #[test]
     fn encode_list_write_handles_nl_and_nul_sequences() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         use crate::eval::typval::{tv_list_alloc, tv_list_free};
 
         unsafe {

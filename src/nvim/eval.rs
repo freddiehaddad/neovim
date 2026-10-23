@@ -121,7 +121,7 @@ use crate::event::time::{
     time_watcher_stop, watcher_fields,
 };
 use crate::ex_eval::{aborting, discard_current_exception};
-use crate::garray::{ga_append, ga_clear, ga_concat, ga_grow, ga_init, garray_T};
+use crate::garray::{ga_append, ga_clear, ga_grow};
 use crate::hashtab::{hash_init, hashitem_empty, hashtab_T};
 use crate::highlight_group::syn_name2id;
 use crate::insexpand::{set_ref_in_cpt_callbacks, set_ref_in_insexpand_funcs};
@@ -778,22 +778,14 @@ pub unsafe fn skip_expr(pp: *mut *mut c_char, evalarg: *mut evalarg_T) -> c_int 
 unsafe fn typval2string(tv: *mut typval_T, join_list: bool) -> *mut c_char {
     unsafe {
         if join_list && (*tv).v_type == VarType::VAR_LIST {
-            let mut ga = garray_T {
-                ga_len: 0,
-                ga_maxlen: 0,
-                ga_itemsize: 0,
-                ga_growsize: 0,
-                ga_data: ptr::null_mut(),
-            };
-            ga_init(&raw mut ga, size_of::<c_char>() as c_int, 80);
+            let mut out: Vec<c_char> = Vec::with_capacity(80);
             if !(*tv).vval.v_list.is_null() {
-                tv_list_join(&raw mut ga, (*tv).vval.v_list, c"\n".as_ptr());
+                tv_list_join(&mut out, (*tv).vval.v_list, c"\n".as_ptr());
                 if tv_list_len((*tv).vval.v_list) > 0 {
-                    ga_append(&raw mut ga, NL as u8);
+                    out.push(NL as c_char);
                 }
             }
-            ga_append(&raw mut ga, NUL as u8);
-            return ga.ga_data.cast::<c_char>();
+            return xmemdupz(out.as_ptr().cast(), out.len()).cast::<c_char>();
         } else if (*tv).v_type == VarType::VAR_LIST || (*tv).v_type == VarType::VAR_DICT {
             return encode_tv2string(tv, ptr::null_mut());
         }
@@ -4232,15 +4224,11 @@ pub unsafe fn eval_interp_string(
 ) -> c_int {
     unsafe {
         let mut ret: c_int;
-
-        let mut ga = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: ptr::null_mut(),
+        let mut buf: Vec<c_char> = if evaluate {
+            Vec::with_capacity(80)
+        } else {
+            Vec::new()
         };
-        ga_init(&raw mut ga, 1, 80);
 
         *arg = (*arg).add(1);
         let quote = c_int::from(**arg as u8);
@@ -4257,7 +4245,12 @@ pub unsafe fn eval_interp_string(
                 break;
             }
             if evaluate {
-                ga_concat(&raw mut ga, tv.vval.v_string);
+                if !tv.vval.v_string.is_null() {
+                    let len = strlen(tv.vval.v_string);
+                    if len > 0 {
+                        buf.extend_from_slice(std::slice::from_raw_parts(tv.vval.v_string, len));
+                    }
+                }
                 tv_clear(&raw mut tv);
             }
 
@@ -4265,7 +4258,7 @@ pub unsafe fn eval_interp_string(
                 *arg = (*arg).add(1);
                 break;
             }
-            let p = eval_one_expr_in_str(*arg, &raw mut ga, evaluate);
+            let p = eval_one_expr_in_str(*arg, &mut buf, evaluate);
             if p.is_null() {
                 ret = FAIL;
                 break;
@@ -4274,10 +4267,11 @@ pub unsafe fn eval_interp_string(
         }
 
         (*rettv).v_type = VarType::VAR_STRING;
-        if ret != FAIL && evaluate {
-            ga_append(&raw mut ga, NUL as u8);
-        }
-        (*rettv).vval.v_string = ga.ga_data.cast::<c_char>();
+        (*rettv).vval.v_string = if ret != FAIL && evaluate {
+            xmemdupz(buf.as_ptr().cast(), buf.len()).cast::<c_char>()
+        } else {
+            ptr::null_mut()
+        };
         OK
     }
 }
@@ -6937,15 +6931,8 @@ pub unsafe fn ex_execute(eap: *mut exarg_T) {
         let mut arg = (*eap).arg;
         let mut rettv = tv_initial_value();
         let mut ret = OK;
-        let mut ga = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: ptr::null_mut(),
-        };
-
-        ga_init(&raw mut ga, 1, 80);
+        let mut buf: Vec<c_char> = Vec::with_capacity(80);
+        let mut has_arg = false;
 
         if (*eap).skip != 0 {
             emsg_skip += 1;
@@ -6964,50 +6951,45 @@ pub unsafe fn ex_execute(eap: *mut exarg_T) {
                 } else {
                     encode_tv2string(&raw mut rettv, ptr::null_mut()).cast_const()
                 };
-                let len = strlen(argstr);
-                ga_grow(&raw mut ga, (len as c_int) + 2);
-                if ga.ga_len > 0 {
-                    *ga.ga_data.cast::<c_char>().add(ga.ga_len as usize) = b' ' as c_char;
-                    ga.ga_len += 1;
+                if has_arg {
+                    buf.push(b' ' as c_char);
                 }
-                ptr::copy_nonoverlapping(
-                    argstr,
-                    ga.ga_data.cast::<c_char>().add(ga.ga_len as usize),
-                    len + 1,
-                );
+                has_arg = true;
+                let len = strlen(argstr);
+                if len > 0 {
+                    buf.extend_from_slice(std::slice::from_raw_parts(argstr, len));
+                }
                 if (*eap).cmdidx != cmdidx_T::CMD_execute as c_int {
                     xfree(argstr.cast_mut().cast());
                 }
-                ga.ga_len += len as c_int;
             }
 
             tv_clear(&raw mut rettv);
             arg = skipwhite(arg);
         }
 
-        if ret != FAIL && !ga.ga_data.is_null() {
+        if ret != FAIL && has_arg {
+            buf.push(NUL);
             if (*eap).cmdidx == cmdidx_T::CMD_echomsg as c_int {
                 msg_ext_no_fast();
                 msg_ext_set_kind(c"echomsg".as_ptr());
-                msg(ga.ga_data.cast(), echo_hl_id);
+                msg(buf.as_ptr(), echo_hl_id);
             } else if (*eap).cmdidx == cmdidx_T::CMD_echoerr as c_int {
                 let save_did_emsg = did_emsg;
                 msg_ext_no_fast();
-                emsg_multiline(ga.ga_data.cast(), c"echoerr".as_ptr(), HLF_E, true);
+                emsg_multiline(buf.as_ptr(), c"echoerr".as_ptr(), HLF_E, true);
                 if !force_abort {
                     did_emsg = save_did_emsg;
                 }
             } else if (*eap).cmdidx == cmdidx_T::CMD_execute as c_int {
                 do_cmdline(
-                    ga.ga_data.cast(),
+                    buf.as_mut_ptr(),
                     (*eap).ea_getline,
                     (*eap).cookie,
                     DOCMD_NOWAIT | DOCMD_VERBOSE,
                 );
             }
         }
-
-        ga_clear(&raw mut ga);
 
         if (*eap).skip != 0 {
             emsg_skip -= 1;
@@ -7100,7 +7082,7 @@ pub unsafe fn last_set_msg(script_ctx: sctx_T) {
 
 /// Perform a substitution on "str" with pattern "pat" and substitute "sub".
 pub unsafe fn do_string_sub(
-    mut str_: *mut c_char,
+    str_: *mut c_char,
     mut len: usize,
     pat: *mut c_char,
     sub: *mut c_char,
@@ -7110,18 +7092,10 @@ pub unsafe fn do_string_sub(
 ) -> *mut c_char {
     unsafe {
         let mut regmatch: regmatch_T = std::mem::zeroed();
-        let mut ga = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: ptr::null_mut(),
-        };
+        let mut out: Option<Vec<c_char>> = None;
 
         let save_cpo = p_cpo;
         p_cpo = (&raw mut empty_string_option).cast();
-
-        ga_init(&raw mut ga, 1, 200);
 
         regmatch.rm_ic = p_ic != 0;
         regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
@@ -7138,14 +7112,11 @@ pub unsafe fn do_string_sub(
             ) {
                 if regmatch.startp[0] == regmatch.endp[0] {
                     if zero_width == regmatch.startp[0] {
-                        let i = utfc_ptr2len(tail);
-                        ptr::copy(
-                            tail,
-                            ga.ga_data.cast::<c_char>().add(ga.ga_len as usize),
-                            i as usize,
-                        );
-                        ga.ga_len += i;
-                        tail = tail.add(i as usize);
+                        let i = utfc_ptr2len(tail) as usize;
+                        if let Some(buf) = &mut out {
+                            buf.extend_from_slice(std::slice::from_raw_parts(tail, i));
+                        }
+                        tail = tail.add(i);
                         continue;
                     }
                     zero_width = regmatch.startp[0];
@@ -7153,29 +7124,26 @@ pub unsafe fn do_string_sub(
 
                 let sublen = vim_regsub(&raw mut regmatch, sub, expr, tail, 0, REGSUB_MAGIC);
                 if sublen <= 0 {
-                    ga_clear(&raw mut ga);
+                    out = None;
                     break;
                 }
-                let grow_amount = ((end as isize) - (tail as isize) + (sublen as isize)
-                    - ((regmatch.endp[0] as isize) - (regmatch.startp[0] as isize)))
-                    as c_int;
-                ga_grow(&raw mut ga, grow_amount);
+                let buf = out.get_or_insert_with(|| Vec::with_capacity(200));
 
-                let i = ((regmatch.startp[0] as usize).wrapping_sub(tail as usize)) as c_int;
-                ptr::copy(
-                    tail,
-                    ga.ga_data.cast::<c_char>().add(ga.ga_len as usize),
-                    i as usize,
-                );
+                let i = (regmatch.startp[0] as usize).wrapping_sub(tail as usize);
+                if i > 0 {
+                    buf.extend_from_slice(std::slice::from_raw_parts(tail, i));
+                }
+                let cur_len = buf.len();
+                buf.resize(cur_len + (sublen as usize), 0);
                 vim_regsub(
                     &raw mut regmatch,
                     sub,
                     expr,
-                    ga.ga_data.cast::<c_char>().add((ga.ga_len + i) as usize),
+                    buf.as_mut_ptr().add(cur_len),
                     sublen,
                     REGSUB_COPY | REGSUB_MAGIC,
                 );
-                ga.ga_len += i + sublen - 1;
+                buf.truncate(cur_len + (sublen as usize) - 1);
                 tail = regmatch.endp[0];
                 if *tail == NUL {
                     break;
@@ -7185,25 +7153,23 @@ pub unsafe fn do_string_sub(
                 }
             }
 
-            if !ga.ga_data.is_null() {
+            if let Some(buf) = &mut out {
                 let rem = (end as usize).wrapping_sub(tail as usize);
-                ptr::copy_nonoverlapping(
-                    tail,
-                    ga.ga_data.cast::<c_char>().add(ga.ga_len as usize),
-                    rem + 1,
-                );
-                ga.ga_len += rem as c_int;
+                if rem > 0 {
+                    buf.extend_from_slice(std::slice::from_raw_parts(tail, rem));
+                }
             }
 
             vim_regfree(regmatch.regprog);
         }
 
-        if !ga.ga_data.is_null() {
-            str_ = ga.ga_data.cast();
-            len = ga.ga_len as usize;
-        }
-        let ret = xstrndup(str_, len);
-        ga_clear(&raw mut ga);
+        let ret = if let Some(buf) = &out {
+            len = buf.len();
+            xstrndup(buf.as_ptr(), len)
+        } else {
+            xstrndup(str_, len)
+        };
+        drop(out);
         let empty_opt = (&raw mut empty_string_option).cast::<c_char>();
         if p_cpo == empty_opt {
             p_cpo = save_cpo;

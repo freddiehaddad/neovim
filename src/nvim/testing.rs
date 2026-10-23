@@ -18,7 +18,6 @@ use crate::eval::vars::{
 use crate::eval::{garbage_collect, pattern_match};
 use crate::ex_docmd::do_cmdline_cmd;
 use crate::fileio::{fclose, fgetc};
-use crate::garray::{ga_append, ga_clear, ga_concat, ga_concat_len, ga_init, garray_T};
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::hashtab::hashitem_empty;
@@ -48,20 +47,36 @@ enum AssertType {
 }
 
 #[inline]
-pub unsafe fn ga_concat_literal(gap: *mut garray_T, s: &[u8]) {
+pub fn ga_concat_literal(gap: &mut Vec<u8>, s: &[u8]) {
+    gap.extend_from_slice(s);
+}
+
+#[inline]
+unsafe fn buf_concat_cstr(gap: &mut Vec<u8>, s: *const c_char) {
     unsafe {
-        ga_concat_len(gap, s.as_ptr().cast::<c_char>(), s.len());
+        if !s.is_null() {
+            gap.extend_from_slice(CStr::from_ptr(s).to_bytes());
+        }
     }
 }
 
-unsafe fn prepare_assert_error(gap: *mut garray_T) {
+#[inline]
+unsafe fn buf_concat_len(gap: &mut Vec<u8>, s: *const c_char, len: usize) {
+    unsafe {
+        if !s.is_null() && len > 0 {
+            gap.extend_from_slice(std::slice::from_raw_parts(s.cast::<u8>(), len));
+        }
+    }
+}
+
+unsafe fn prepare_assert_error(gap: &mut Vec<u8>) {
     unsafe {
         let sname = estack_sfile(ESTACK_NONE);
         let slnum = sourcing_lnum();
 
-        ga_init(gap, 1, 100);
+        gap.reserve(100);
         if !sname.is_null() {
-            ga_concat(gap, sname);
+            buf_concat_cstr(gap, sname);
             if slnum > 0 {
                 ga_concat_literal(gap, b" ");
             }
@@ -77,10 +92,10 @@ unsafe fn prepare_assert_error(gap: *mut garray_T) {
     }
 }
 
-unsafe fn ga_concat_esc(gap: *mut garray_T, p: *const c_char, clen: c_int) {
+unsafe fn ga_concat_esc(gap: &mut Vec<u8>, p: *const c_char, clen: c_int) {
     unsafe {
         if clen > 1 {
-            ga_concat_len(gap, p, clen as usize);
+            buf_concat_len(gap, p, clen as usize);
             return;
         }
 
@@ -98,14 +113,14 @@ unsafe fn ga_concat_esc(gap: *mut garray_T, p: *const c_char, clen: c_int) {
                     let s = format!("\\x{:02x}", *p as c_int);
                     ga_concat_literal(gap, s.as_bytes());
                 } else {
-                    ga_append(gap, b);
+                    gap.push(b);
                 }
             }
         }
     }
 }
 
-unsafe fn ga_concat_shorten_esc(gap: *mut garray_T, str_ptr: *const c_char) {
+unsafe fn ga_concat_shorten_esc(gap: &mut Vec<u8>, str_ptr: *const c_char) {
     unsafe {
         if str_ptr.is_null() {
             ga_concat_literal(gap, b"NULL");
@@ -137,7 +152,7 @@ unsafe fn ga_concat_shorten_esc(gap: *mut garray_T, str_ptr: *const c_char) {
 }
 
 unsafe fn fill_assert_error(
-    gap: *mut garray_T,
+    gap: &mut Vec<u8>,
     opt_msg_tv: *mut typval_T,
     exp_str: *const c_char,
     exp_tv_arg: *mut typval_T,
@@ -156,7 +171,7 @@ unsafe fn fill_assert_error(
                 && (opt_msg.vval.v_string.is_null() || *opt_msg.vval.v_string == 0))
         {
             let tofree = encode_tv2echo(opt_msg_tv, std::ptr::null_mut());
-            ga_concat(gap, tofree);
+            buf_concat_cstr(gap, tofree);
             xfree(tofree.cast::<c_void>());
             ga_concat_literal(gap, b": ");
         }
@@ -274,13 +289,7 @@ unsafe fn fill_assert_error(
 unsafe fn assert_equal_common(argvars: *mut typval_T, atype: AssertType) -> c_int {
     unsafe {
         if tv_equal(argvars, argvars.add(1), false) != (atype == AssertType::Equal) {
-            let mut ga = garray_T {
-                ga_len: 0,
-                ga_maxlen: 0,
-                ga_itemsize: 0,
-                ga_growsize: 0,
-                ga_data: std::ptr::null_mut(),
-            };
+            let mut ga = Vec::new();
             prepare_assert_error(&mut ga);
             fill_assert_error(
                 &mut ga,
@@ -290,8 +299,7 @@ unsafe fn assert_equal_common(argvars: *mut typval_T, atype: AssertType) -> c_in
                 argvars.add(1),
                 atype,
             );
-            assert_error(&mut ga);
-            ga_clear(&mut ga);
+            assert_error(&ga);
             return 1;
         }
         0
@@ -309,13 +317,7 @@ unsafe fn assert_match_common(argvars: *mut typval_T, atype: AssertType) -> c_in
             && !text.is_null()
             && (pattern_match(pat, text, false) != 0) != (atype == AssertType::Match)
         {
-            let mut ga = garray_T {
-                ga_len: 0,
-                ga_maxlen: 0,
-                ga_itemsize: 0,
-                ga_growsize: 0,
-                ga_data: std::ptr::null_mut(),
-            };
+            let mut ga = Vec::new();
             prepare_assert_error(&mut ga);
             fill_assert_error(
                 &mut ga,
@@ -325,8 +327,7 @@ unsafe fn assert_match_common(argvars: *mut typval_T, atype: AssertType) -> c_in
                 argvars.add(1),
                 atype,
             );
-            assert_error(&mut ga);
-            ga_clear(&mut ga);
+            assert_error(&ga);
             return 1;
         }
         0
@@ -347,13 +348,7 @@ unsafe fn assert_bool(argvars: *mut typval_T, is_true: bool) -> c_int {
             || error)
             && (arg0.v_type != VarType::VAR_BOOL || arg0.vval.v_bool != expected_bool as c_int)
         {
-            let mut ga = garray_T {
-                ga_len: 0,
-                ga_maxlen: 0,
-                ga_itemsize: 0,
-                ga_growsize: 0,
-                ga_data: std::ptr::null_mut(),
-            };
+            let mut ga = Vec::new();
             prepare_assert_error(&mut ga);
             fill_assert_error(
                 &mut ga,
@@ -367,24 +362,23 @@ unsafe fn assert_bool(argvars: *mut typval_T, is_true: bool) -> c_int {
                 argvars,
                 AssertType::Other,
             );
-            assert_error(&mut ga);
-            ga_clear(&mut ga);
+            assert_error(&ga);
             return 1;
         }
         0
     }
 }
 
-unsafe fn assert_append_cmd_or_arg(gap: *mut garray_T, argvars: *mut typval_T, cmd: *const c_char) {
+unsafe fn assert_append_cmd_or_arg(gap: &mut Vec<u8>, argvars: *mut typval_T, cmd: *const c_char) {
     unsafe {
         if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN
             && (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN
         {
             let tofree = encode_tv2echo(argvars.add(2), std::ptr::null_mut());
-            ga_concat(gap, tofree);
+            buf_concat_cstr(gap, tofree);
             xfree(tofree.cast::<c_void>());
         } else {
-            ga_concat(gap, cmd);
+            buf_concat_cstr(gap, cmd);
         }
     }
 }
@@ -400,22 +394,15 @@ unsafe fn assert_beeps(argvars: *mut typval_T, no_beep: bool) -> c_int {
         do_cmdline_cmd(cmd);
         let beeped = did_beep != beeps;
         if if no_beep { beeped } else { !beeped } {
-            let mut ga = garray_T {
-                ga_len: 0,
-                ga_maxlen: 0,
-                ga_itemsize: 0,
-                ga_growsize: 0,
-                ga_data: std::ptr::null_mut(),
-            };
+            let mut ga = Vec::new();
             prepare_assert_error(&mut ga);
             if no_beep {
                 ga_concat_literal(&mut ga, b"command did beep: ");
             } else {
                 ga_concat_literal(&mut ga, b"command did not beep: ");
             }
-            ga_concat(&mut ga, cmd);
-            assert_error(&mut ga);
-            ga_clear(&mut ga);
+            buf_concat_cstr(&mut ga, cmd);
+            assert_error(&ga);
             ret = 1;
         }
 
@@ -530,34 +517,27 @@ unsafe fn assert_equalfile(argvars: *mut typval_T) -> c_int {
         }
 
         if iobuflen > 0 {
-            let mut ga = garray_T {
-                ga_len: 0,
-                ga_maxlen: 0,
-                ga_itemsize: 0,
-                ga_growsize: 0,
-                ga_data: std::ptr::null_mut(),
-            };
+            let mut ga = Vec::new();
             prepare_assert_error(&mut ga);
             if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
                 let tofree = encode_tv2echo(argvars.add(2), std::ptr::null_mut());
-                ga_concat(&mut ga, tofree);
+                buf_concat_cstr(&mut ga, tofree);
                 xfree(tofree.cast::<c_void>());
                 ga_concat_literal(&mut ga, b": ");
             }
-            ga_concat_len(&mut ga, iobuf.as_ptr(), iobuflen);
+            buf_concat_len(&mut ga, iobuf.as_ptr(), iobuflen);
             if lineidx > 0 {
                 line1[lineidx] = 0;
                 line2[lineidx] = 0;
                 ga_concat_literal(&mut ga, b" after \"");
-                ga_concat_len(&mut ga, line1.as_ptr(), lineidx);
+                buf_concat_len(&mut ga, line1.as_ptr(), lineidx);
                 if line1[..lineidx] != line2[..lineidx] {
                     ga_concat_literal(&mut ga, b"\" vs \"");
-                    ga_concat_len(&mut ga, line2.as_ptr(), lineidx);
+                    buf_concat_len(&mut ga, line2.as_ptr(), lineidx);
                 }
                 ga_concat_literal(&mut ga, b"\"");
             }
-            assert_error(&mut ga);
-            ga_clear(&mut ga);
+            assert_error(&ga);
             return 1;
         }
         0
@@ -592,17 +572,10 @@ pub unsafe fn f_assert_exception(
         let error = tv_get_string_chk(argvars);
         let v_exc = get_vim_var_str(VV_EXCEPTION);
         if *v_exc == 0 {
-            let mut ga = garray_T {
-                ga_len: 0,
-                ga_maxlen: 0,
-                ga_itemsize: 0,
-                ga_growsize: 0,
-                ga_data: std::ptr::null_mut(),
-            };
+            let mut ga = Vec::new();
             prepare_assert_error(&mut ga);
             ga_concat_literal(&mut ga, b"v:exception is not set");
-            assert_error(&mut ga);
-            ga_clear(&mut ga);
+            assert_error(&ga);
             (*rettv).vval.v_number = 1;
         } else if !error.is_null() {
             let exc_bytes = CStr::from_ptr(v_exc).to_bytes();
@@ -613,13 +586,7 @@ pub unsafe fn f_assert_exception(
                 exc_bytes.windows(err_bytes.len()).any(|w| w == err_bytes)
             };
             if !found {
-                let mut ga = garray_T {
-                    ga_len: 0,
-                    ga_maxlen: 0,
-                    ga_itemsize: 0,
-                    ga_growsize: 0,
-                    ga_data: std::ptr::null_mut(),
-                };
+                let mut ga = Vec::new();
                 prepare_assert_error(&mut ga);
                 fill_assert_error(
                     &mut ga,
@@ -629,8 +596,7 @@ pub unsafe fn f_assert_exception(
                     get_vim_var_tv(VV_EXCEPTION),
                     AssertType::Other,
                 );
-                assert_error(&mut ga);
-                ga_clear(&mut ga);
+                assert_error(&ga);
                 (*rettv).vval.v_number = 1;
             }
         }
@@ -668,18 +634,11 @@ pub unsafe fn f_assert_fails(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
         suppress_errthrow = false;
 
         if called_emsg == called_emsg_before {
-            let mut ga = garray_T {
-                ga_len: 0,
-                ga_maxlen: 0,
-                ga_itemsize: 0,
-                ga_growsize: 0,
-                ga_data: std::ptr::null_mut(),
-            };
+            let mut ga = Vec::new();
             prepare_assert_error(&mut ga);
             ga_concat_literal(&mut ga, b"command did not fail: ");
             assert_append_cmd_or_arg(&mut ga, argvars, cmd);
-            assert_error(&mut ga);
-            ga_clear(&mut ga);
+            assert_error(&ga);
             (*rettv).vval.v_number = 1;
         } else if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN {
             let mut buf = [0 as c_char; NUMBUFLEN];
@@ -781,13 +740,7 @@ pub unsafe fn f_assert_fails(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
                     v_lock: VAR_UNLOCKED,
                     vval: TypvalVval { v_number: 0 },
                 };
-                let mut ga = garray_T {
-                    ga_len: 0,
-                    ga_maxlen: 0,
-                    ga_itemsize: 0,
-                    ga_growsize: 0,
-                    ga_data: std::ptr::null_mut(),
-                };
+                let mut ga = Vec::new();
                 prepare_assert_error(&mut ga);
                 if error_found_index == 3 {
                     actual_tv.v_type = VarType::VAR_NUMBER;
@@ -811,8 +764,7 @@ pub unsafe fn f_assert_fails(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
                 );
                 ga_concat_literal(&mut ga, b": ");
                 assert_append_cmd_or_arg(&mut ga, argvars, cmd);
-                assert_error(&mut ga);
-                ga_clear(&mut ga);
+                assert_error(&ga);
                 (*rettv).vval.v_number = 1;
             }
         }
@@ -861,13 +813,7 @@ unsafe fn assert_inrange(argvars: *mut typval_T) -> c_int {
             let factual = tv_get_float(arg2);
 
             if factual < flower || factual > fupper {
-                let mut ga = garray_T {
-                    ga_len: 0,
-                    ga_maxlen: 0,
-                    ga_itemsize: 0,
-                    ga_growsize: 0,
-                    ga_data: std::ptr::null_mut(),
-                };
+                let mut ga = Vec::new();
                 prepare_assert_error(&mut ga);
                 let mut expected_str = [0 as c_char; 200];
                 vim_snprintf!(
@@ -885,8 +831,7 @@ unsafe fn assert_inrange(argvars: *mut typval_T) -> c_int {
                     argvars.add(2),
                     AssertType::Other,
                 );
-                assert_error(&mut ga);
-                ga_clear(&mut ga);
+                assert_error(&ga);
                 return 1;
             }
         } else {
@@ -898,13 +843,7 @@ unsafe fn assert_inrange(argvars: *mut typval_T) -> c_int {
                 return 0;
             }
             if actual < lower || actual > upper {
-                let mut ga = garray_T {
-                    ga_len: 0,
-                    ga_maxlen: 0,
-                    ga_itemsize: 0,
-                    ga_growsize: 0,
-                    ga_data: std::ptr::null_mut(),
-                };
+                let mut ga = Vec::new();
                 prepare_assert_error(&mut ga);
                 let expected_str = format!("range {lower} - {upper},\0");
                 fill_assert_error(
@@ -915,8 +854,7 @@ unsafe fn assert_inrange(argvars: *mut typval_T) -> c_int {
                     argvars.add(2),
                     AssertType::Other,
                 );
-                assert_error(&mut ga);
-                ga_clear(&mut ga);
+                assert_error(&ga);
                 return 1;
             }
         }
@@ -955,17 +893,10 @@ pub unsafe fn f_assert_notmatch(argvars: *mut typval_T, rettv: *mut typval_T, _f
 /// `"assert_report(msg)"` function (`f_assert_report`).
 pub unsafe fn f_assert_report(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        let mut ga = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: std::ptr::null_mut(),
-        };
+        let mut ga = Vec::new();
         prepare_assert_error(&mut ga);
-        ga_concat(&mut ga, tv_get_string(argvars));
-        assert_error(&mut ga);
-        ga_clear(&mut ga);
+        buf_concat_cstr(&mut ga, tv_get_string(argvars));
+        assert_error(&ga);
         (*rettv).vval.v_number = 1;
     }
 }
@@ -1009,24 +940,12 @@ mod tests {
 
     #[test]
     fn ga_concat_esc_formats_control_chars_and_printable_ascii() {
-        let mut ga = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: std::ptr::null_mut(),
-        };
+        let mut ga = Vec::new();
         unsafe {
-            ga_init(&mut ga, 1, 32);
             ga_concat_esc(&mut ga, c"\n".as_ptr(), 1);
             ga_concat_esc(&mut ga, c"\x01".as_ptr(), 1);
             ga_concat_esc(&mut ga, c"A".as_ptr(), 1);
-            ga_append(&mut ga, 0);
-            let s = CStr::from_ptr(ga.ga_data.cast::<c_char>())
-                .to_str()
-                .unwrap();
-            assert_eq!(s, "\\n\\x01A");
-            ga_clear(&mut ga);
+            assert_eq!(&ga[..], b"\\n\\x01A");
         }
     }
 }

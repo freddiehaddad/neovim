@@ -45,7 +45,6 @@ use crate::ex_cmds::check_secure;
 use crate::ex_docmd::{check_nextcmd, ends_excmd, exarg_T};
 use crate::ex_eval::aborting;
 use crate::extmark::{TriState, kFalse, kNone, kTrue};
-use crate::garray::{ga_append, ga_clear, ga_concat, ga_concat_len, ga_init, garray_T};
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::hashtab::{
@@ -932,7 +931,7 @@ unsafe fn list_script_vars(first: *mut c_int) {
 /// Evaluate one Vim expression {expr} in string "p" and append the resulting string to "gap".
 pub unsafe fn eval_one_expr_in_str(
     p: *mut c_char,
-    gap: *mut garray_T,
+    gap: &mut Vec<c_char>,
     evaluate: bool,
 ) -> *mut c_char {
     unsafe {
@@ -958,7 +957,10 @@ pub unsafe fn eval_one_expr_in_str(
             if expr_val.is_null() {
                 return ptr::null_mut();
             }
-            ga_concat(gap, expr_val);
+            let len = strlen(expr_val);
+            if len > 0 {
+                gap.extend_from_slice(std::slice::from_raw_parts(expr_val, len));
+            }
             xfree(expr_val.cast());
         }
 
@@ -969,8 +971,7 @@ pub unsafe fn eval_one_expr_in_str(
 /// Evaluate all the Vim expressions {expr} in "str" and return the resulting string in allocated memory.
 unsafe fn eval_all_expr_in_str(str_arg: *mut c_char) -> *mut c_char {
     unsafe {
-        let mut ga: garray_T = std::mem::zeroed();
-        ga_init(&raw mut ga, 1, 80);
+        let mut buf: Vec<c_char> = Vec::with_capacity(80);
         let mut p = str_arg;
 
         while *p != NUL {
@@ -986,11 +987,13 @@ unsafe fn eval_all_expr_in_str(str_arg: *mut c_char) -> *mut c_char {
                 escaped_brace = true;
             } else if *p == b'}' as c_char {
                 semsg!(gettext(e_stray_closing_curly_str.as_ptr()), str_arg);
-                ga_clear(&raw mut ga);
                 return ptr::null_mut();
             }
 
-            ga_concat_len(&raw mut ga, lit_start, p.offset_from(lit_start) as usize);
+            let lit_len = p.offset_from(lit_start) as usize;
+            if lit_len > 0 {
+                buf.extend_from_slice(std::slice::from_raw_parts(lit_start, lit_len));
+            }
 
             if *p == NUL {
                 break;
@@ -1001,15 +1004,13 @@ unsafe fn eval_all_expr_in_str(str_arg: *mut c_char) -> *mut c_char {
                 continue;
             }
 
-            p = eval_one_expr_in_str(p, &raw mut ga, true);
+            p = eval_one_expr_in_str(p, &mut buf, true);
             if p.is_null() {
-                ga_clear(&raw mut ga);
                 return ptr::null_mut();
             }
         }
-        ga_append(&raw mut ga, 0);
 
-        ga.ga_data.cast::<c_char>()
+        xmemdupz(buf.as_ptr().cast(), buf.len()).cast::<c_char>()
     }
 }
 
@@ -3715,7 +3716,7 @@ pub unsafe fn reset_v_option_vars() {
 }
 
 /// Add an assert error to v:errors.
-pub unsafe fn assert_error(gap: *mut garray_T) {
+pub unsafe fn assert_error(buf: &[u8]) {
     unsafe {
         let tv = get_vim_var_tv(VV_ERRORS);
 
@@ -3724,8 +3725,8 @@ pub unsafe fn assert_error(gap: *mut garray_T) {
         }
         tv_list_append_string(
             get_vim_var_list(VV_ERRORS),
-            (*gap).ga_data.cast::<c_char>(),
-            (*gap).ga_len as isize,
+            buf.as_ptr().cast::<c_char>(),
+            buf.len() as isize,
         );
     }
 }
