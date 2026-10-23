@@ -1,7 +1,7 @@
 //! B-tree data structure for storing marks at `(row, col)` positions and updating them
 //! to arbitrary text changes (`src/nvim/marktree.c`).
 
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::fmt::Write as _;
 
 use crate::api::private::validate::NvimString;
@@ -92,7 +92,7 @@ pub const DECOR_HIGHLIGHT_INLINE_INIT: DecorHighlightInline = DecorHighlightInli
 #[derive(Clone, Copy)]
 pub struct DecorExt {
     pub sh_idx: u32,
-    pub vt: *mut c_void,
+    pub vt: *mut crate::decoration::DecorVirtText,
 }
 
 #[repr(C)]

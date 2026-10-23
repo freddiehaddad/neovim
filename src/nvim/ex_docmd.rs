@@ -362,7 +362,7 @@ pub struct exarg_T {
     pub errmsg: *mut c_char,
     pub ea_getline: LineGetter,
     pub cookie: *mut c_void,
-    pub cstack: *mut c_void,
+    pub cstack: *mut crate::ex_eval::cstack_T,
     pub magic: ExMagic,
 }
 

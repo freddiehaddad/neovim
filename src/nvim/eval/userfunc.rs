@@ -117,7 +117,7 @@ pub struct ufunc_T {
     pub uf_tml_execed: c_int,
     pub uf_script_ctx: crate::runtime::sctx_T,
     pub uf_refcount: c_int,
-    pub uf_scoped: *mut c_void,
+    pub uf_scoped: *mut crate::profile::funccall_T,
     pub uf_name_exp: *mut c_char,
     pub uf_namelen: usize,
     pub uf_name: Vec<c_char>,

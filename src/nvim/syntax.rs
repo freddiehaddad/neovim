@@ -53,7 +53,7 @@ use crate::strings::{
     vim_strchr, vim_stricmp, vim_strnicmp, vim_strnsave_up, vim_strsave_up, xstrnsave,
 };
 use crate::window::win_T;
-use std::ffi::{c_char, c_int, c_uint, c_void};
+use std::ffi::{c_char, c_int, c_uint};
 use std::mem::size_of;
 use std::ptr;
 
@@ -92,20 +92,20 @@ pub struct synblock_T {
     pub b_syn_topgrp: c_int,
     pub b_syn_conceal: c_int,
     pub b_syn_folditems: c_int,
-    pub b_sst_array: *mut c_void,
+    pub b_sst_array: *mut synstate_T,
     pub b_sst_len: c_int,
-    pub b_sst_first: *mut c_void,
-    pub b_sst_search: *mut c_void,
-    pub b_sst_firstfree: *mut c_void,
+    pub b_sst_first: *mut synstate_T,
+    pub b_sst_search: *mut synstate_T,
+    pub b_sst_firstfree: *mut synstate_T,
     pub b_sst_freecount: c_int,
     pub b_sst_check_lnum: i32,
     pub b_sst_lasttick: u64,
-    pub b_idlist_cache: *mut c_void,
+    pub b_idlist_cache: *mut idl_entry_T,
     pub b_langp: Vec<crate::spellsuggest::langp_T>,
     pub b_spell_ismw: [bool; 256],
     pub b_spell_ismw_mb: *mut c_char,
     pub b_p_spc: *mut c_char,
-    pub b_cap_prog: *mut c_void,
+    pub b_cap_prog: *mut regprog_T,
     pub b_p_spf: *mut c_char,
     pub b_p_spl: *mut c_char,
     pub b_p_spo: *mut c_char,
@@ -341,7 +341,7 @@ struct syn_opt_arg_T {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-struct idl_entry_T {
+pub struct idl_entry_T {
     idl_key: *mut i16,
     idl_ids: *mut i16,
     idl_count: c_int,
@@ -968,12 +968,12 @@ unsafe fn syn_stack_free_block(block: *mut synblock_T) {
             return;
         }
 
-        let mut p = (*block).b_sst_first.cast::<synstate_T>();
+        let mut p = (*block).b_sst_first;
         while !p.is_null() {
             clear_syn_state(p);
             p = (*p).sst_next;
         }
-        xfree((*block).b_sst_array);
+        xfree((*block).b_sst_array.cast());
         (*block).b_sst_array = ptr::null_mut();
         (*block).b_sst_first = ptr::null_mut();
         (*block).b_sst_search = ptr::null_mut();
@@ -1020,7 +1020,7 @@ unsafe fn syn_stack_alloc() {
 
             let mut copied: usize = 0;
             if !(*syn_block).b_sst_array.is_null() {
-                let mut from = (*syn_block).b_sst_first.cast::<synstate_T>();
+                let mut from = (*syn_block).b_sst_first;
                 while !from.is_null() {
                     let to = sstp.add(copied);
                     *to = *from;
@@ -1031,14 +1031,14 @@ unsafe fn syn_stack_alloc() {
             }
             if copied > 0 {
                 (*sstp.add(copied - 1)).sst_next = ptr::null_mut();
-                (*syn_block).b_sst_first = sstp.cast();
+                (*syn_block).b_sst_first = sstp;
                 (*syn_block).b_sst_freecount = len - copied as c_int;
             } else {
                 (*syn_block).b_sst_first = ptr::null_mut();
                 (*syn_block).b_sst_freecount = len;
             }
 
-            (*syn_block).b_sst_firstfree = sstp.add(copied).cast();
+            (*syn_block).b_sst_firstfree = sstp.add(copied);
             let ulen = len as usize;
             let mut idx = copied;
             while idx + 1 < ulen {
@@ -1047,8 +1047,8 @@ unsafe fn syn_stack_alloc() {
             }
             (*sstp.add(ulen - 1)).sst_next = ptr::null_mut();
 
-            xfree((*syn_block).b_sst_array);
-            (*syn_block).b_sst_array = sstp.cast();
+            xfree((*syn_block).b_sst_array.cast());
+            (*syn_block).b_sst_array = sstp;
             (*syn_block).b_sst_len = len;
             (*syn_block).b_sst_search = ptr::null_mut();
         }

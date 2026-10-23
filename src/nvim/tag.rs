@@ -139,7 +139,7 @@ pub struct tagname_T {
     pub tn_np: *mut c_char,
     pub tn_did_filefind_init: c_int,
     pub tn_hf_idx: c_int,
-    pub tn_search_ctx: *mut c_void,
+    pub tn_search_ctx: *mut crate::file_search::ff_search_ctx_T,
 }
 
 use crate::change::{HLF_W, TAB};

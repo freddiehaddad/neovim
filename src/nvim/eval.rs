@@ -295,7 +295,7 @@ pub struct caller_scope {
     pub autocmd_match: *mut c_char,
     pub autocmd_fname_full: bool,
     pub autocmd_bufnr: c_int,
-    pub funccalp: *mut c_void,
+    pub funccalp: *mut crate::profile::funccall_T,
 }
 
 #[inline]

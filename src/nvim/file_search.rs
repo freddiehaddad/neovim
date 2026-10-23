@@ -37,7 +37,7 @@ use crate::path::{
 use crate::path::{path_to_slash, vim_FullName};
 use crate::state::save_v_event_T;
 use crate::strings::{tr, vim_snprintf, vim_strchr, xstrnsave};
-use std::ffi::{CStr, c_char, c_int, c_long, c_void};
+use std::ffi::{CStr, c_char, c_int, c_long};
 use std::ptr;
 
 use crate::ex_docmd::{CdScope, kCdCauseManual};
@@ -159,13 +159,13 @@ pub unsafe fn vim_findfile_init(
     level: c_int,
     free_visited: c_int,
     find_what: c_int,
-    search_ctx_arg: *mut c_void,
+    search_ctx_arg: *mut ff_search_ctx_T,
     tagfile: c_int,
     rel_fname: *mut c_char,
-) -> *mut c_void {
+) -> *mut ff_search_ctx_T {
     unsafe {
         let search_ctx: *mut ff_search_ctx_T = if !search_ctx_arg.is_null() {
-            search_ctx_arg.cast()
+            search_ctx_arg
         } else {
             let ctx = xcalloc(1, size_of::<ff_search_ctx_T>()).cast::<ff_search_ctx_T>();
             ptr::write(&raw mut (*ctx).ffsc_stack, Vec::new());
@@ -180,7 +180,7 @@ pub unsafe fn vim_findfile_init(
         ff_clear(search_ctx);
 
         if free_visited == c_int::from(true) {
-            vim_findfile_free_visited(search_ctx.cast());
+            vim_findfile_free_visited(search_ctx);
         } else {
             (*search_ctx).ffsc_visited_list = ff_get_visited_list(
                 filename,
@@ -188,7 +188,7 @@ pub unsafe fn vim_findfile_init(
                 &raw mut (*search_ctx).ffsc_visited_lists_list,
             );
             if (*search_ctx).ffsc_visited_list.is_null() {
-                vim_findfile_cleanup(search_ctx.cast());
+                vim_findfile_cleanup(search_ctx);
                 return ptr::null_mut();
             }
             (*search_ctx).ffsc_dir_visited_list = ff_get_visited_list(
@@ -197,7 +197,7 @@ pub unsafe fn vim_findfile_init(
                 &raw mut (*search_ctx).ffsc_dir_visited_lists_list,
             );
             if (*search_ctx).ffsc_dir_visited_list.is_null() {
-                vim_findfile_cleanup(search_ctx.cast());
+                vim_findfile_cleanup(search_ctx);
                 return ptr::null_mut();
             }
         }
@@ -231,7 +231,7 @@ pub unsafe fn vim_findfile_init(
             let handled_drive = if *path != NUL && *path.add(1) == b':' as c_char {
                 let drive: [c_char; 3] = [*path, b':' as c_char, NUL];
                 if vim_FullName(drive.as_ptr(), ff_expand_buffer.data, MAXPATHL, true) == FAIL {
-                    vim_findfile_cleanup(search_ctx.cast());
+                    vim_findfile_cleanup(search_ctx);
                     return ptr::null_mut();
                 }
                 path = path.add(2);
@@ -243,7 +243,7 @@ pub unsafe fn vim_findfile_init(
             let handled_drive = false;
 
             if !handled_drive && os_dirname(ff_expand_buffer.data, MAXPATHL) == FAIL {
-                vim_findfile_cleanup(search_ctx.cast());
+                vim_findfile_cleanup(search_ctx);
                 return ptr::null_mut();
             }
             ff_expand_buffer.size = CStr::from_ptr(ff_expand_buffer.data).to_bytes().len();
@@ -320,7 +320,7 @@ pub unsafe fn vim_findfile_init(
                                 .as_ptr()),
                             PATHSEPSTR_C.as_ptr(),
                         );
-                        vim_findfile_cleanup(search_ctx.cast());
+                        vim_findfile_cleanup(search_ctx);
                         return ptr::null_mut();
                     }
                 } else {
@@ -344,7 +344,7 @@ pub unsafe fn vim_findfile_init(
 
         if (*search_ctx).ffsc_start_dir.size + (*search_ctx).ffsc_fix_path.size + 3 >= MAXPATHL {
             emsg(tr(E_PATH_TOO_LONG_FOR_COMPLETION.as_ptr()));
-            vim_findfile_cleanup(search_ctx.cast());
+            vim_findfile_cleanup(search_ctx);
             return ptr::null_mut();
         }
 
@@ -411,7 +411,7 @@ pub unsafe fn vim_findfile_init(
                         && (len == 2 || *(*search_ctx).ffsc_fix_path.data.add(2) == PATHSEP)
                     {
                         xfree(buf.cast());
-                        vim_findfile_cleanup(search_ctx.cast());
+                        vim_findfile_cleanup(search_ctx);
                         return ptr::null_mut();
                     }
 
@@ -466,7 +466,7 @@ pub unsafe fn vim_findfile_init(
 
         ff_push(search_ctx, sptr);
         (*search_ctx).ffsc_file_to_search = cbuf_to_string(filename, filenamelen);
-        search_ctx.cast()
+        search_ctx
     }
 }
 
@@ -513,31 +513,29 @@ pub unsafe fn vim_findfile_stopdir(mut buf: *mut c_char) -> *mut c_char {
 }
 
 /// Clean up the given search context. Can handle a NULL pointer.
-pub unsafe fn vim_findfile_cleanup(ctx: *mut c_void) {
+pub unsafe fn vim_findfile_cleanup(search_ctx: *mut ff_search_ctx_T) {
     unsafe {
-        if ctx.is_null() {
+        if search_ctx.is_null() {
             return;
         }
 
-        let search_ctx = ctx.cast::<ff_search_ctx_T>();
-        vim_findfile_free_visited(ctx);
+        vim_findfile_free_visited(search_ctx);
         ff_clear(search_ctx);
         ptr::drop_in_place(&raw mut (*search_ctx).ffsc_stack);
         ptr::drop_in_place(&raw mut (*search_ctx).ffsc_visited_lists_list);
         ptr::drop_in_place(&raw mut (*search_ctx).ffsc_dir_visited_lists_list);
         ptr::drop_in_place(&raw mut (*search_ctx).ffsc_stopdirs_v);
-        xfree(ctx);
+        xfree(search_ctx.cast());
     }
 }
 
 /// Find a file in a search context.
-pub unsafe fn vim_findfile(search_ctx_arg: *mut c_void) -> *mut c_char {
+pub unsafe fn vim_findfile(search_ctx: *mut ff_search_ctx_T) -> *mut c_char {
     unsafe {
-        if search_ctx_arg.is_null() {
+        if search_ctx.is_null() {
             return ptr::null_mut();
         }
 
-        let search_ctx = search_ctx_arg.cast::<ff_search_ctx_T>();
         let mut file_path = NvimString {
             data: xmalloc(MAXPATHL).cast(),
             size: 0,
@@ -933,13 +931,12 @@ pub unsafe fn vim_findfile(search_ctx_arg: *mut c_void) -> *mut c_char {
 }
 
 /// Free the list of lists of visited files and directories.
-unsafe fn vim_findfile_free_visited(search_ctx_arg: *mut c_void) {
+unsafe fn vim_findfile_free_visited(search_ctx: *mut ff_search_ctx_T) {
     unsafe {
-        if search_ctx_arg.is_null() {
+        if search_ctx.is_null() {
             return;
         }
 
-        let search_ctx = search_ctx_arg.cast::<ff_search_ctx_T>();
         (*search_ctx).ffsc_visited_lists_list.clear();
         (*search_ctx).ffsc_dir_visited_lists_list.clear();
     }

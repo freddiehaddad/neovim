@@ -139,7 +139,7 @@ pub struct listitem_T {
 pub struct list_T {
     pub lv_first: *mut listitem_T,
     pub lv_last: *mut listitem_T,
-    pub lv_watch: *mut c_void,
+    pub lv_watch: *mut listwatch_T,
     pub lv_idx_item: *mut listitem_T,
     pub lv_copylist: *mut list_T,
     pub lv_used_next: *mut list_T,
@@ -527,16 +527,16 @@ pub unsafe fn tv_list_item_remove(l: *mut list_T, item: *mut listitem_T) -> *mut
 /// Add a watcher to a list.
 pub unsafe fn tv_list_watch_add(l: *mut list_T, lw: *mut listwatch_T) {
     unsafe {
-        (*lw).lw_next = (*l).lv_watch.cast::<listwatch_T>();
-        (*l).lv_watch = lw.cast::<c_void>();
+        (*lw).lw_next = (*l).lv_watch;
+        (*l).lv_watch = lw;
     }
 }
 
 /// Remove a watcher from a list.
 pub unsafe fn tv_list_watch_remove(l: *mut list_T, lwrem: *mut listwatch_T) {
     unsafe {
-        let mut lwp = (&raw mut (*l).lv_watch).cast::<*mut listwatch_T>();
-        let mut lw = (*l).lv_watch.cast::<listwatch_T>();
+        let mut lwp = &raw mut (*l).lv_watch;
+        let mut lw = (*l).lv_watch;
         while !lw.is_null() {
             if lw == lwrem {
                 *lwp = (*lw).lw_next;
@@ -551,7 +551,7 @@ pub unsafe fn tv_list_watch_remove(l: *mut list_T, lwrem: *mut listwatch_T) {
 /// Advance watchers to the next item.
 unsafe fn tv_list_watch_fix(l: *mut list_T, item: *const listitem_T) {
     unsafe {
-        let mut lw = (*l).lv_watch.cast::<listwatch_T>();
+        let mut lw = (*l).lv_watch;
         while !lw.is_null() {
             if ptr::eq((*lw).lw_item, item) {
                 (*lw).lw_item = (*item).li_next;

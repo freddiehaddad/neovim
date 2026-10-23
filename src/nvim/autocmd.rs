@@ -303,7 +303,7 @@ pub struct AutoCmdEvent {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct funccal_entry_T {
-    pub top_funccal: *mut c_void,
+    pub top_funccal: *mut crate::profile::funccall_T,
     pub next: *mut funccal_entry_T,
 }
 

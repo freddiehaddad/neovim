@@ -64,13 +64,13 @@ use crate::strings::xstrnsave;
 use crate::strings::{gettext, strcmp, strlen, tr, vim_strchr};
 use crate::ui::{ui_flush, ui_has};
 use crate::undo::bufIsChanged;
-use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
 use std::ptr;
 
 #[repr(C)]
 pub struct memline_T {
     pub ml_line_count: i32,
-    pub ml_mfp: *mut c_void,
+    pub ml_mfp: *mut crate::memfile::memfile_T,
     pub ml_stack: Vec<infoptr_T>,
     pub ml_stack_top: c_int,
     pub ml_flags: c_int,
@@ -79,7 +79,7 @@ pub struct memline_T {
     pub ml_line_ptr: *mut c_char,
     pub ml_line_offset: usize,
     pub ml_line_offset_ff: c_int,
-    pub ml_locked: *mut c_void,
+    pub ml_locked: *mut crate::memfile::bhdr_T,
     pub ml_locked_low: i32,
     pub ml_locked_high: i32,
     pub ml_locked_lineadd: c_int,
