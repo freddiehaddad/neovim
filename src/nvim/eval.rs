@@ -13,8 +13,9 @@ use crate::eval::typval::{
     callback_free, callback_put, dict_T, dict_watchers_queue, dictitem_T, float_T, kCallbackExpr,
     kCallbackFuncref, kCallbackLua, kCallbackNone, kCallbackPartial, list_T, listitem_T,
     listwatch_T, partial_T, tv_blob_alloc, tv_blob_alloc_ret, tv_blob_check_index,
-    tv_blob_check_range, tv_blob_copy, tv_blob_equal, tv_blob_get, tv_blob_len, tv_blob_set_append,
-    tv_blob_set_range, tv_blob_slice_or_index, tv_blob_unref, tv_check_lock, tv_check_num,
+    tv_blob_check_range, tv_blob_copy, tv_blob_equal, tv_blob_free, tv_blob_get, tv_blob_len,
+    tv_blob_set_append, tv_blob_set_range, tv_blob_slice_or_index, tv_blob_unref, tv_check_lock,
+    tv_check_num,
     tv_check_str, tv_clear, tv_copy, tv_dict_add, tv_dict_add_nr, tv_dict_alloc, tv_dict_copy,
     tv_dict_equal, tv_dict_find, tv_dict_free, tv_dict_free_contents, tv_dict_free_dict,
     tv_dict_get_callback, tv_dict_get_number, tv_dict_hi2di, tv_dict_item_alloc, tv_dict_item_free,
@@ -121,7 +122,6 @@ use crate::event::time::{
     time_watcher_stop, watcher_fields,
 };
 use crate::ex_eval::{aborting, discard_current_exception};
-use crate::garray::{ga_append, ga_clear, ga_grow};
 use crate::hashtab::{hash_init, hashitem_empty, hashtab_T};
 use crate::highlight_group::syn_name2id;
 use crate::insexpand::{set_ref_in_cpt_callbacks, set_ref_in_insexpand_funcs};
@@ -2694,22 +2694,14 @@ unsafe fn eval_addblob(tv1: *mut typval_T, tv2: *mut typval_T) {
         let totallen = len1 + len2;
 
         if totallen >= 0 && totallen <= i64::from(c_int::MAX) {
-            ga_grow(&raw mut (*b).bv_ga, totallen as c_int);
-            if len1 > 0 {
-                ptr::copy(
-                    (*b1).bv_ga.ga_data.cast::<u8>(),
-                    (*b).bv_ga.ga_data.cast::<u8>(),
-                    len1 as usize,
-                );
+            let bv = &mut (*b).bv_ga;
+            bv.reserve(totallen as usize);
+            if !b1.is_null() {
+                bv.extend_from_slice(&(*b1).bv_ga);
             }
-            if len2 > 0 {
-                ptr::copy(
-                    (*b2).bv_ga.ga_data.cast::<u8>(),
-                    (*b).bv_ga.ga_data.cast::<u8>().add(len1 as usize),
-                    len2 as usize,
-                );
+            if !b2.is_null() {
+                bv.extend_from_slice(&(*b2).bv_ga);
             }
-            (*b).bv_ga.ga_len = totallen as c_int;
         }
 
         tv_clear(tv1);
@@ -3893,8 +3885,7 @@ unsafe fn eval_number(
                             c"E973: Blob literal should have an even number of hex characters"
                                 .as_ptr(),
                         ));
-                        ga_clear(&raw mut (*blob).bv_ga);
-                        xfree(blob.cast());
+                        tv_blob_free(blob);
                     }
                     return FAIL;
                 }
@@ -3902,7 +3893,8 @@ unsafe fn eval_number(
                     let byte = ((hex2nr(c_int::from(*bp as u8)) << 4)
                         + hex2nr(c_int::from(*bp.add(1) as u8)))
                         as u8;
-                    ga_append(&raw mut (*blob).bv_ga, byte);
+                    let bv = &mut (*blob).bv_ga;
+                    bv.push(byte);
                 }
                 if *bp.add(2) == b'.' as c_char && ascii_isxdigit(*bp.add(3)) {
                     bp = bp.add(1);

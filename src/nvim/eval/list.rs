@@ -19,7 +19,6 @@ use crate::eval::vars::{
 };
 use crate::eval::{eval_expr_typval, get_copyID, tv_blob_set_ret};
 use crate::ex_docmd::do_cmdline_cmd;
-use crate::garray::{ga_append, ga_grow};
 use crate::globals::*;
 use crate::hashtab::{hash_lock, hash_unlock, hashitem_empty};
 use crate::math::{FAIL, OK};
@@ -40,7 +39,7 @@ enum FilterMap {
 #[inline]
 unsafe fn tv_blob_set(b: *mut blob_T, idx: c_int, c: u8) {
     unsafe {
-        *(*b).bv_ga.ga_data.cast::<u8>().add(idx as usize) = c;
+        (&mut (*b).bv_ga)[idx as usize] = c;
     }
 }
 
@@ -216,7 +215,7 @@ unsafe fn filter_map_blob(
 
         let mut i: c_int = 0;
         let mut idx: i64 = 0;
-        while i < (*b).bv_ga.ga_len {
+        while i < (*b).bv_ga.len() as c_int {
             let val = tv_blob_get(b, i) as i64;
             let mut tv = typval_T {
                 v_type: VarType::VAR_NUMBER,
@@ -246,10 +245,8 @@ unsafe fn filter_map_blob(
                         tv_blob_set(b_ret, i, newtv.vval.v_number as u8);
                     }
                 } else if rem {
-                    let p = (*blob_arg).bv_ga.ga_data.cast::<u8>();
-                    let tail_len = ((*b).bv_ga.ga_len - i - 1) as usize;
-                    std::ptr::copy(p.add((i + 1) as usize), p.add(i as usize), tail_len);
-                    (*b).bv_ga.ga_len -= 1;
+                    let bv = &mut (*blob_arg).bv_ga;
+                    bv.remove(i as usize);
                     i -= 1;
                 }
             }
@@ -523,7 +520,8 @@ pub unsafe fn f_add(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFun
                 let mut error = false;
                 let n = tv_get_number_chk(argvars.add(1), &mut error);
                 if !error {
-                    ga_append(&mut (*b).bv_ga, n as u8);
+                    let bv = &mut (*b).bv_ga;
+                    bv.push(n as u8);
                     tv_copy(argvars, rettv);
                 }
             }
@@ -860,15 +858,9 @@ pub unsafe fn f_insert(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
                 return;
             }
 
-            ga_grow(&mut (*b).bv_ga, 1);
-            let p = (*b).bv_ga.ga_data.cast::<u8>();
-            std::ptr::copy(
-                p.add(before as usize),
-                p.add((before + 1) as usize),
-                (len - before) as usize,
-            );
-            *p.add(before as usize) = val as u8;
-            (*b).bv_ga.ga_len += 1;
+            let _ = len;
+            let bv = &mut (*b).bv_ga;
+            bv.insert(before as usize, val as u8);
 
             tv_copy(argvars, rettv);
         } else if arg0.v_type != VarType::VAR_LIST {

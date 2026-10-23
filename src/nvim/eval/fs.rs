@@ -32,7 +32,7 @@ use crate::fileio::{
     FILE, SEEK_END, SEEK_SET, delete_recursive, fclose, file_pat_to_reg_pat, fileno, fread, off_T,
     readdir_core, vim_copyfile, vim_fseek, vim_rename, vim_tempname,
 };
-use crate::garray::{ga_clear_strings, ga_concat_strings, ga_grow, ga_init, garray_T};
+use crate::garray::{ga_clear_strings, ga_concat_strings, ga_init, garray_T};
 use crate::globals::*;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{utf_head_off, utfc_ptr2len};
@@ -1478,11 +1478,9 @@ unsafe fn read_blob(
             return OK;
         }
 
-        ga_grow(&raw mut (*blob).bv_ga, size as c_int);
-        (*blob).bv_ga.ga_len = size as c_int;
-        if fread((*blob).bv_ga.ga_data, 1, (*blob).bv_ga.ga_len as usize, fd)
-            < (*blob).bv_ga.ga_len as usize
-        {
+        let bv = &mut (*blob).bv_ga;
+        bv.resize(size as usize, 0);
+        if fread(bv.as_mut_ptr().cast(), 1, bv.len(), fd) < bv.len() {
             // An empty blob is returned on error.
             tv_blob_free((*rettv).vval.v_blob);
             (*rettv).vval.v_blob = ptr::null_mut();
@@ -2030,7 +2028,7 @@ unsafe fn write_data(fp: *mut FileDescriptor, data: *const c_char, len: usize) -
 }
 
 unsafe fn write_blob(fp: *mut FileDescriptor, blob: *const blob_T) -> bool {
-    unsafe { write_data(fp, (*blob).bv_ga.ga_data.cast(), tv_blob_len(blob) as usize) }
+    unsafe { write_data(fp, (*blob).bv_ga.as_ptr().cast(), tv_blob_len(blob) as usize) }
 }
 
 unsafe fn write_string(fp: *mut FileDescriptor, data: *const c_char) -> bool {

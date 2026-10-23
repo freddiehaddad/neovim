@@ -10,7 +10,6 @@ use crate::eval::typval::{
     tv_list_len, tv_list_ref, typval_T,
 };
 use crate::eval::vars::eval_msgpack_type_lists;
-use crate::garray::ga_concat_len;
 use crate::hashtab::hashitem_empty;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{utf_char2bytes, utf_char2len, utf_ptr2char, utf_ptr2len};
@@ -121,13 +120,13 @@ pub unsafe fn decode_string(
             vval: TypvalVval { v_number: 0 },
         };
         unsafe {
-            let b = tv_blob_alloc_ret(&mut tv);
+            let b = &mut *tv_blob_alloc_ret(&mut tv);
+            if !s.is_null() && len > 0 {
+                b.bv_ga
+                    .extend_from_slice(std::slice::from_raw_parts(s.cast::<u8>(), len));
+            }
             if s_allocated {
-                (*b).bv_ga.ga_data = s.cast_mut().cast::<c_void>();
-                (*b).bv_ga.ga_len = len as c_int;
-                (*b).bv_ga.ga_maxlen = len as c_int;
-            } else {
-                ga_concat_len(&mut (*b).bv_ga, s, len);
+                xfree(s.cast_mut().cast::<c_void>());
             }
         }
         return tv;

@@ -7,7 +7,6 @@ use crate::eval::typval::{
     tv_list_extend, typval_T,
 };
 use crate::eval::{grow_string_tv, num_divide, num_modulus};
-use crate::garray::ga_grow;
 use crate::math::{FAIL, OK};
 use crate::message::semsg;
 use crate::regexp::NUMBUFLEN;
@@ -34,19 +33,14 @@ unsafe fn tv_op_blob(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
     }
 
     unsafe {
-        let len = (*b2).bv_ga.ga_len;
-        if len > 0 {
-            ga_grow(&mut (*b1).bv_ga, len);
-            std::ptr::copy(
-                (*b2).bv_ga.ga_data.cast::<u8>(),
-                (*b1)
-                    .bv_ga
-                    .ga_data
-                    .cast::<u8>()
-                    .add((*b1).bv_ga.ga_len as usize),
-                len as usize,
-            );
-            (*b1).bv_ga.ga_len += len;
+        if !(*b2).bv_ga.is_empty() {
+            let b1_ref = &mut *b1;
+            if std::ptr::eq(b1_ref, b2) {
+                let copy = b1_ref.bv_ga.clone();
+                b1_ref.bv_ga.extend_from_slice(&copy);
+            } else {
+                b1_ref.bv_ga.extend_from_slice(&(*b2).bv_ga);
+            }
         }
     }
 

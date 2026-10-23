@@ -103,15 +103,10 @@ unsafe fn convert_one_value(
         }
         VarType::VAR_BLOB => {
             let blob = unsafe { tv.vval.v_ptr.cast::<blob_T>() };
-            let (data, len) = if blob.is_null() || unsafe { (*blob).bv_ga.ga_len <= 0 } {
+            let (data, len) = if blob.is_null() || unsafe { (*blob).bv_ga.is_empty() } {
                 (c"".as_ptr(), 0usize)
             } else {
-                unsafe {
-                    (
-                        (*blob).bv_ga.ga_data.cast::<c_char>().cast_const(),
-                        (*blob).bv_ga.ga_len as usize,
-                    )
-                }
+                unsafe { ((*blob).bv_ga.as_ptr().cast::<c_char>(), (*blob).bv_ga.len()) }
             };
             stack.push(unsafe { cbuf_to_string_obj(arena, reuse_strdata, data, len) });
         }

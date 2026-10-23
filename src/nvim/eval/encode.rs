@@ -888,10 +888,10 @@ impl EncodeBackend {
                     }
                 }
                 Self::Msgpack { packer } => {
-                    let data = if blob.is_null() {
+                    let data = if blob.is_null() || (*blob).bv_ga.is_empty() {
                         std::ptr::null_mut()
                     } else {
-                        (*blob).bv_ga.ga_data.cast::<c_char>()
+                        (*blob).bv_ga.as_ptr().cast_mut().cast::<c_char>()
                     };
                     mpack_bin(
                         NvimString {

@@ -112,7 +112,7 @@ use crate::ex_getln::{
     VSE_NONE, get_user_input, hlf_T, text_locked, text_locked_msg, vim_strsave_fnameescape,
 };
 use crate::extmark::{TriState, kFalse, kNone, kTrue};
-use crate::garray::{ga_clear, ga_grow, garray_T};
+use crate::garray::{ga_clear, garray_T};
 use crate::globals::*;
 use crate::grid::{
     ScreenGrid, grid_getchar, schar_T, schar_from_char, schar_get, schar_get_first_codepoint,
@@ -1695,7 +1695,7 @@ pub unsafe fn f_chansend(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             let b = (*argvars.add(1)).vval.v_blob.cast::<blob_T>();
             input_len = tv_blob_len(b) as isize;
             if input_len > 0 {
-                input = xmemdup((*b).bv_ga.ga_data, input_len as usize).cast();
+                input = xmemdup((*b).bv_ga.as_ptr().cast(), input_len as usize).cast();
             }
         } else {
             input = save_tv_as_string(argvars.add(1), &raw mut input_len, false, crlf);
@@ -5998,10 +5998,14 @@ pub unsafe fn f_msgpackdump(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
         if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN
             && strequal(tv_get_string(argvars.add(1)), c"B".as_ptr())
         {
-            let b = tv_blob_alloc_ret(rettv);
-            (*b).bv_ga.ga_data = data.data.cast();
-            (*b).bv_ga.ga_len = data.size as c_int;
-            (*b).bv_ga.ga_maxlen = packer.endptr.offset_from(packer.startptr) as c_int;
+            let b = &mut *tv_blob_alloc_ret(rettv);
+            if !data.data.is_null() && data.size > 0 {
+                b.bv_ga.extend_from_slice(std::slice::from_raw_parts(
+                    data.data.cast::<u8>(),
+                    data.size,
+                ));
+            }
+            api_free_string(data);
         } else {
             encode_list_write(
                 tv_list_alloc_ret(rettv, kListLenMayKnow).cast(),
@@ -6120,7 +6124,7 @@ unsafe fn msgpackparse_unpack_blob(blob: *const blob_T, ret_list: *mut list_T) {
             return;
         }
 
-        let mut data = (*blob).bv_ga.ga_data.cast::<c_char>().cast_const();
+        let mut data = (*blob).bv_ga.as_ptr().cast::<c_char>();
         let mut remaining = len as usize;
         while remaining != 0 {
             let mut tv = tv_initial_value();
@@ -6670,7 +6674,7 @@ unsafe fn repeat_blob(blob_tv: *mut typval_T, n: varnumber_T, rettv: *mut typval
         if blob.is_null() || n <= 0 {
             return;
         }
-        let slen = (*blob).bv_ga.ga_len;
+        let slen = (*blob).bv_ga.len() as c_int;
         if slen <= 0 {
             return;
         }
@@ -6679,8 +6683,8 @@ unsafe fn repeat_blob(blob_tv: *mut typval_T, n: varnumber_T, rettv: *mut typval
         }
         let len = slen * (n as c_int);
         let ret_blob = (*rettv).vval.v_blob.cast::<blob_T>();
-        ga_grow(&raw mut (*ret_blob).bv_ga, len);
-        (*ret_blob).bv_ga.ga_len = len;
+        let ret_bv = &mut (*ret_blob).bv_ga;
+        ret_bv.resize(len as usize, 0);
 
         let mut i: c_int = 0;
         while i < slen {
@@ -8286,18 +8290,8 @@ pub unsafe fn f_sha256(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
 
         if (*argvars).v_type == VarType::VAR_BLOB {
             let blob = (*argvars).vval.v_blob.cast::<blob_T>();
-            let p = if !blob.is_null() {
-                (*blob).bv_ga.ga_data.cast::<u8>()
-            } else {
-                c"".as_ptr().cast::<u8>()
-            };
-            let len = if !blob.is_null() {
-                (*blob).bv_ga.ga_len as usize
-            } else {
-                0
-            };
-            let slice = if len > 0 && !p.is_null() {
-                std::slice::from_raw_parts(p, len)
+            let slice: &[u8] = if !blob.is_null() {
+                &(*blob).bv_ga
             } else {
                 &[]
             };

@@ -922,8 +922,8 @@ unsafe fn lua_convert_one_value(
             VarType::VAR_BLOB => {
                 let blob = tv_ref.vval.v_ptr.cast::<blob_T>();
                 let len = tv_blob_len(blob) as usize;
-                let data = if !blob.is_null() {
-                    (*blob).bv_ga.ga_data.cast::<c_char>()
+                let data = if !blob.is_null() && !(*blob).bv_ga.is_empty() {
+                    (*blob).bv_ga.as_ptr().cast::<c_char>()
                 } else {
                     c"".as_ptr()
                 };

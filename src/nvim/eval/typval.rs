@@ -23,7 +23,6 @@ use crate::eval::{
     DICT_MAXNEST, STR2NR_ALL, callback_call, callback_from_typval, func_equal, get_copyID,
     kListLenMayKnow, partial_name, partial_unref, set_selfdict, var_item_copy, var2fpos,
 };
-use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::hashtab::{
     hash_add, hash_clear, hash_find, hash_find_len, hash_init, hash_lock, hash_remove, hash_unlock,
@@ -33,8 +32,7 @@ use crate::lua::converter::{LUA_NOREF, LuaRef};
 use crate::lua::executor::{api_free_luaref, api_new_luaref, nlua_funcref_str};
 use crate::mbyte::{mb_strcmp_ic, string_convert, utf_char2bytes, utfc_ptr2len, vimconv_T};
 use crate::memory::{
-    Arena, strequal, xcalloc, xfree, xmalloc, xmallocz, xmemdup, xmemdupz, xstrdup, xstrlcpy,
-    xstrndup,
+    Arena, strequal, xcalloc, xfree, xmalloc, xmallocz, xmemdupz, xstrdup, xstrlcpy, xstrndup,
 };
 use crate::message::{emsg, internal_error, semsg};
 use crate::os::input::{fast_breakcheck, line_breakcheck};
@@ -68,7 +66,7 @@ pub const kCallbackExpr: c_int = 4;
 
 #[repr(C)]
 pub struct blob_T {
-    pub bv_ga: garray_T,
+    pub bv_ga: Vec<u8>,
     pub bv_refcount: c_int,
     pub bv_lock: c_int,
 }
@@ -427,7 +425,7 @@ pub unsafe fn tv_blob_len(b: *const blob_T) -> c_int {
     if b.is_null() {
         0
     } else {
-        unsafe { (*b).bv_ga.ga_len }
+        unsafe { (*b).bv_ga.len() as c_int }
     }
 }
 
@@ -545,19 +543,19 @@ unsafe fn tv_blob_len_inline(b: *const blob_T) -> c_int {
     if b.is_null() {
         0
     } else {
-        unsafe { (*b).bv_ga.ga_len }
+        unsafe { (*b).bv_ga.len() as c_int }
     }
 }
 
 #[inline]
 unsafe fn tv_blob_get_inline(b: *const blob_T, idx: c_int) -> u8 {
-    unsafe { *(*b).bv_ga.ga_data.cast::<u8>().offset(idx as isize) }
+    unsafe { (&(*b).bv_ga)[idx as usize] }
 }
 
 #[inline]
 unsafe fn tv_blob_set_inline(blob: *mut blob_T, idx: c_int, c: u8) {
     unsafe {
-        *(*blob).bv_ga.ga_data.cast::<u8>().offset(idx as isize) = c;
+        (&mut (*blob).bv_ga)[idx as usize] = c;
     }
 }
 
@@ -3282,7 +3280,7 @@ pub unsafe fn tv_dict_set_keys_readonly(dict: *mut dict_T) {
 pub unsafe fn tv_blob_alloc() -> *mut blob_T {
     unsafe {
         let blob = xcalloc(1, size_of::<blob_T>()).cast::<blob_T>();
-        ga_init(&raw mut (*blob).bv_ga, 1, 100);
+        ptr::write(&raw mut (*blob).bv_ga, Vec::new());
         blob
     }
 }
@@ -3290,7 +3288,7 @@ pub unsafe fn tv_blob_alloc() -> *mut blob_T {
 /// Free a blob. Ignores the reference count.
 pub unsafe fn tv_blob_free(b: *mut blob_T) {
     unsafe {
-        ga_clear(&raw mut (*b).bv_ga);
+        ptr::drop_in_place(&raw mut (*b).bv_ga);
         xfree(b.cast());
     }
 }
@@ -3323,12 +3321,9 @@ pub unsafe fn tv_blob_equal(b1: *const blob_T, b2: *const blob_T) -> bool {
             return false;
         }
 
-        for i in 0..(*b1).bv_ga.ga_len {
-            if tv_blob_get_inline(b1, i) != tv_blob_get_inline(b2, i) {
-                return false;
-            }
-        }
-        true
+        let s1 = &(*b1).bv_ga;
+        let s2 = &(*b2).bv_ga;
+        s1 == s2
     }
 }
 
@@ -3362,16 +3357,9 @@ unsafe fn tv_blob_slice(
             (*rettv).vval.v_blob = ptr::null_mut();
         } else {
             let new_blob = tv_blob_alloc();
-            let slice_len = (n2 - n1 + 1) as c_int;
-            ga_grow(&raw mut (*new_blob).bv_ga, slice_len);
-            (*new_blob).bv_ga.ga_len = slice_len;
-            for i in (n1 as c_int)..=(n2 as c_int) {
-                tv_blob_set_inline(
-                    new_blob,
-                    i - (n1 as c_int),
-                    tv_blob_get_inline((*rettv).vval.v_blob, i),
-                );
-            }
+            let src_blob = (*rettv).vval.v_blob;
+            let new_bv = &mut (*new_blob).bv_ga;
+            new_bv.extend_from_slice(&(&(*src_blob).bv_ga)[(n1 as usize)..=(n2 as usize)]);
             tv_clear(rettv);
             tv_blob_set_ret_inline(rettv, new_blob);
         }
@@ -3479,13 +3467,12 @@ pub unsafe fn tv_blob_set_range(
 /// Store one byte "byte" in blob "blob" at "idx".
 pub unsafe fn tv_blob_set_append(blob: *mut blob_T, idx: c_int, byte: u8) {
     unsafe {
-        let gap = &raw mut (*blob).bv_ga;
-        if idx <= (*gap).ga_len {
-            if idx == (*gap).ga_len {
-                ga_grow(gap, 1);
-                (*gap).ga_len += 1;
-            }
-            tv_blob_set_inline(blob, idx, byte);
+        let bv = &mut (*blob).bv_ga;
+        let len = bv.len() as c_int;
+        if idx < len {
+            bv[idx as usize] = byte;
+        } else if idx == len {
+            bv.push(byte);
         }
     }
 }
@@ -3515,14 +3502,9 @@ pub unsafe fn tv_blob_remove(
                 return;
             }
             if (*argvars.add(2)).v_type == VarType::VAR_UNKNOWN {
-                let p = (*b).bv_ga.ga_data.cast::<u8>();
-                (*rettv).vval.v_number = i64::from(*p.offset(idx as isize));
-                ptr::copy(
-                    p.offset(idx as isize + 1),
-                    p.offset(idx as isize),
-                    (len - idx - 1) as usize,
-                );
-                (*b).bv_ga.ga_len -= 1;
+                let bv = &mut (*b).bv_ga;
+                let removed = bv.remove(idx as usize);
+                (*rettv).vval.v_number = i64::from(removed);
             } else {
                 let mut end = tv_get_number_chk(argvars.add(2), &raw mut error);
                 if error {
@@ -3536,26 +3518,10 @@ pub unsafe fn tv_blob_remove(
                     return;
                 }
                 let blob = tv_blob_alloc();
-                let count = (end - idx + 1) as c_int;
-                (*blob).bv_ga.ga_len = count;
-                ga_grow(&raw mut (*blob).bv_ga, count);
-
-                let p = (*b).bv_ga.ga_data.cast::<u8>();
-                ptr::copy(
-                    p.offset(idx as isize),
-                    (*blob).bv_ga.ga_data.cast::<u8>(),
-                    count as usize,
-                );
+                let src_bv = &mut (*b).bv_ga;
+                let dst_bv = &mut (*blob).bv_ga;
+                dst_bv.extend(src_bv.drain((idx as usize)..=(end as usize)));
                 tv_blob_set_ret_inline(rettv, blob);
-
-                if len - end - 1 > 0 {
-                    ptr::copy(
-                        p.offset(end as isize + 1),
-                        p.offset(idx as isize),
-                        (len - end - 1) as usize,
-                    );
-                }
-                (*b).bv_ga.ga_len -= count;
             }
         }
     }
@@ -3592,7 +3558,11 @@ pub unsafe fn f_list2blob(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
             return;
         }
 
-        ga_grow(&raw mut (*blob).bv_ga, tv_list_len_inline(l));
+        let bv = &mut (*blob).bv_ga;
+        let list_len = tv_list_len_inline(l);
+        if list_len > 0 {
+            bv.reserve(list_len as usize);
+        }
 
         let mut li = (*l).lv_first;
         while !li.is_null() {
@@ -3602,12 +3572,10 @@ pub unsafe fn f_list2blob(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
                 if !error {
                     semsg!(tr(e_invalid_value_for_blob_nr.as_ptr()), n as c_int);
                 }
-                ga_clear(&raw mut (*blob).bv_ga);
+                bv.clear();
                 return;
             }
-            let len = (*blob).bv_ga.ga_len;
-            *(*blob).bv_ga.ga_data.cast::<u8>().offset(len as isize) = n as u8;
-            (*blob).bv_ga.ga_len += 1;
+            bv.push(n as u8);
             li = (*li).li_next;
         }
     }
@@ -3791,14 +3759,8 @@ pub unsafe fn tv_blob_copy(from: *mut blob_T, to: *mut typval_T) {
         if from.is_null() {
             (*to).vval.v_blob = ptr::null_mut();
         } else {
-            tv_blob_alloc_ret(to);
-            let len = (*from).bv_ga.ga_len;
-            let dst_blob = (*to).vval.v_blob;
-            if len > 0 {
-                (*dst_blob).bv_ga.ga_data = xmemdup((*from).bv_ga.ga_data, len as usize);
-            }
-            (*dst_blob).bv_ga.ga_len = len;
-            (*dst_blob).bv_ga.ga_maxlen = len;
+            let dst_blob = &mut *tv_blob_alloc_ret(to);
+            dst_blob.bv_ga.extend_from_slice(&(*from).bv_ga);
         }
     }
 }
@@ -5150,7 +5112,7 @@ pub unsafe fn tv2bool(tv: *const typval_T) -> bool {
             VarType::VAR_BOOL => (*tv).vval.v_bool == kBoolVarTrue,
             VarType::VAR_SPECIAL => (*tv).vval.v_special != kSpecialVarNull,
             VarType::VAR_BLOB => {
-                !(*tv).vval.v_blob.is_null() && (*(*tv).vval.v_blob).bv_ga.ga_len > 0
+                !(*tv).vval.v_blob.is_null() && !(*(*tv).vval.v_blob).bv_ga.is_empty()
             }
             VarType::VAR_UNKNOWN => false,
         }
