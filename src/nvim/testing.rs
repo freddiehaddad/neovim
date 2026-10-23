@@ -4,7 +4,7 @@ use crate::api::private::converter::{K_BOOL_VAR_FALSE, K_BOOL_VAR_TRUE};
 use crate::errors::e_cant_read_file_str;
 use crate::eval::encode::{encode_tv2echo, encode_tv2string};
 use crate::eval::typval::{
-    EvalFuncData, TypvalVval, VAR_UNLOCKED, VarType, dict_T, dictitem_T,
+    EvalFuncData, TypvalVval, VAR_UNLOCKED, VarType, dict_T,
     tv_check_for_float_or_nr_arg, tv_check_for_opt_number_arg, tv_check_for_opt_string_arg,
     tv_check_for_opt_string_or_list_arg, tv_check_for_string_or_number_arg, tv_clear,
     tv_dict_add_tv, tv_dict_alloc, tv_dict_find, tv_equal, tv_get_float, tv_get_number_chk,
@@ -200,12 +200,11 @@ unsafe fn fill_assert_error(
                 (*exp_tv).vval.v_ptr = new_exp_d.cast::<c_void>();
                 (*got_tv).vval.v_ptr = new_got_d.cast::<c_void>();
 
-                let key_off = std::mem::offset_of!(dictitem_T, di_key);
                 let mut todo = (*exp_d).dv_hashtab.ht_used as c_int;
                 let mut hi = (*exp_d).dv_hashtab.ht_array;
                 while todo > 0 {
                     if !hashitem_empty(&*hi) {
-                        let di1 = (*hi).hi_key.sub(key_off).cast::<dictitem_T>();
+                        let di1 = crate::eval::typval::tv_dict_hi2di(hi);
                         let item2 = tv_dict_find(got_d, (*hi).hi_key, -1);
                         if item2.is_null()
                             || !tv_equal(&mut (*di1).di_tv, &mut (*item2).di_tv, false)
@@ -234,7 +233,7 @@ unsafe fn fill_assert_error(
                     if !hashitem_empty(&*hi) {
                         let item2 = tv_dict_find(exp_d, (*hi).hi_key, -1);
                         if item2.is_null() {
-                            let di2 = (*hi).hi_key.sub(key_off).cast::<dictitem_T>();
+                            let di2 = crate::eval::typval::tv_dict_hi2di(hi);
                             let key_len = CStr::from_ptr((*hi).hi_key).to_bytes().len();
                             tv_dict_add_tv(new_got_d, (*hi).hi_key, key_len, &mut (*di2).di_tv);
                         }

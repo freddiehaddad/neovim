@@ -4,7 +4,7 @@ use crate::charset::vim_str2nr;
 use crate::eval::encode::encode_list_write;
 use crate::eval::string2float;
 use crate::eval::typval::{
-    TypvalVval, VAR_UNLOCKED, VarType, dict_T, dictitem_T, list_T, tv_blob_alloc_ret, tv_clear,
+    TypvalVval, VAR_UNLOCKED, VarType, dict_T, list_T, tv_blob_alloc_ret, tv_clear,
     tv_dict_add, tv_dict_alloc, tv_dict_find, tv_dict_item_alloc, tv_dict_item_alloc_len,
     tv_list_alloc, tv_list_append_list, tv_list_append_number, tv_list_append_owned_tv,
     tv_list_len, tv_list_ref, typval_T,
@@ -1277,31 +1277,24 @@ unsafe fn typval_parse_exit(_parser: *mut mpack_parser_t, node: *mut mpack_node_
                             v_ptr: dict.cast::<c_void>(),
                         },
                     };
-                    let key_off = std::mem::offset_of!(dictitem_T, di_key);
                     for i in 0..len {
                         let key = (*items.add(i))[0].vval.v_string;
                         let keylen = CStr::from_ptr(key).to_bytes().len();
-                        let di = xmallocz(key_off + keylen).cast::<dictitem_T>();
-                        std::ptr::copy_nonoverlapping(
-                            key.cast::<u8>(),
-                            (*di).di_key.as_mut_ptr().cast::<u8>(),
-                            keylen,
-                        );
-                        (*di).di_tv.v_type = VarType::VAR_UNKNOWN;
+                        let di = crate::eval::typval::tv_dict_item_alloc_len(key, keylen);
                         if tv_dict_add(dict, di) == FAIL {
                             let mut todo = (*dict).dv_hashtab.ht_used;
                             let mut hi = (*dict).dv_hashtab.ht_array;
                             while todo > 0 {
                                 if !hashitem_empty(&*hi) {
                                     todo -= 1;
-                                    let d = (*hi).hi_key.sub(key_off).cast::<dictitem_T>();
+                                    let d = crate::eval::typval::tv_dict_hi2di(hi);
                                     (*d).di_tv.v_type = VarType::VAR_SPECIAL;
                                     (*d).di_tv.vval.v_number = K_SPECIAL_VAR_NULL;
                                 }
                                 hi = hi.add(1);
                             }
                             tv_clear(result);
-                            xfree(di.cast::<c_void>());
+                            crate::eval::typval::tv_dict_item_free(di);
                             can_be_dict = false;
                             break;
                         }

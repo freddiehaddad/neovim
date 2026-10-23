@@ -5,7 +5,7 @@ use crate::debugger::ex_breakadd;
 use crate::errors::e_notopen;
 use crate::eval::typval::{dict_T, dictitem_T, list_T, listitem_T, typval_T};
 use crate::eval::userfunc::{
-    FIXVAR_CNT, VAR_SHORT_LEN, defer_T, func_tbl_get, funcline, get_current_funccal, ufunc_T,
+    defer_T, func_tbl_get, funcline, get_current_funccal, ufunc_T,
 };
 use crate::eval::vars::{VV_PROFILING, set_vim_var_nr};
 use crate::event::r#loop::uv_err_name;
@@ -98,18 +98,10 @@ pub struct estack_T {
 }
 
 #[repr(C)]
-pub struct FixVarItem {
-    pub di_tv: typval_T,
-    pub di_flags: u8,
-    pub di_key: [c_char; VAR_SHORT_LEN + 1],
-}
-
-#[repr(C)]
 pub struct funccall_T {
     pub fc_func: *mut ufunc_T,
     pub fc_linenr: c_int,
     pub fc_returned: c_int,
-    pub fc_fixvar: [FixVarItem; FIXVAR_CNT],
     pub fc_l_vars: dict_T,
     pub fc_l_vars_var: dictitem_T,
     pub fc_l_avars: dict_T,

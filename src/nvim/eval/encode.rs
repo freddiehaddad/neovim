@@ -9,7 +9,7 @@ use crate::eval::decode::{
     SURROGATE_LO_END, SURROGATE_LO_START,
 };
 use crate::eval::typval::{
-    TypvalVval, VAR_UNLOCKED, VarType, blob_T, dict_T, dictitem_T, list_T, listitem_T, partial_T,
+    TypvalVval, VAR_UNLOCKED, VarType, blob_T, dict_T, list_T, listitem_T, partial_T,
     tv_blob_get, tv_blob_len, tv_dict_find, tv_list_append_allocated_string, tv_list_first,
     tv_list_idx_of_item, tv_list_last, tv_list_len, typval_T,
 };
@@ -1545,7 +1545,6 @@ unsafe fn encode_vim_with_backend(
     unsafe {
         let copy_id = get_copyID();
         let mut mpstack: Vec<MPConvStackVal> = Vec::with_capacity(8);
-        let key_off = std::mem::offset_of!(dictitem_T, di_key);
 
         if convert_one_value(backend, &mut mpstack, top_tv, copy_id, objname) == FAIL {
             return FAIL;
@@ -1573,7 +1572,7 @@ unsafe fn encode_vim_with_backend(
                     while hashitem_empty(&*hi) {
                         hi = hi.add(1);
                     }
-                    let di = (*hi).hi_key.sub(key_off).cast::<dictitem_T>();
+                    let di = crate::eval::typval::tv_dict_hi2di(hi);
                     let next_hi = hi.add(1);
                     if let MPConvStackData::Dict {
                         hi: ref mut hi_ref,

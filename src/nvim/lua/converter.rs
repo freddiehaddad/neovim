@@ -18,7 +18,7 @@ use crate::eval::encode::{
     MPConvStackValType, encode_vim_list_to_buf,
 };
 use crate::eval::typval::{
-    TypvalVval, VAR_UNLOCKED, VarType, blob_T, dict_T, dictitem_T, partial_T, tv_blob_len,
+    TypvalVval, VAR_UNLOCKED, VarType, blob_T, dict_T, partial_T, tv_blob_len,
     tv_clear, tv_copy, tv_dict_add, tv_dict_alloc, tv_dict_find, tv_dict_item_alloc_len,
     tv_list_alloc, tv_list_append_list, tv_list_append_owned_tv, tv_list_first, tv_list_last,
     tv_list_len, tv_list_ref, typval_T,
@@ -1257,7 +1257,6 @@ unsafe fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: *mut typval_T) -> c_
     unsafe {
         let copy_id = get_copyID();
         let mut mpstack: Vec<MPConvStackVal> = Vec::with_capacity(8);
-        let key_off = std::mem::offset_of!(dictitem_T, di_key);
 
         if lua_convert_one_value(lstate, &mut mpstack, top_tv, copy_id) == FAIL {
             return FAIL;
@@ -1285,7 +1284,7 @@ unsafe fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: *mut typval_T) -> c_
                     while hashitem_empty(&*hi) {
                         hi = hi.add(1);
                     }
-                    let di = (*hi).hi_key.sub(key_off).cast::<dictitem_T>();
+                    let di = crate::eval::typval::tv_dict_hi2di(hi);
                     let next_hi = hi.add(1);
                     if let MPConvStackData::Dict {
                         hi: ref mut hi_ref,

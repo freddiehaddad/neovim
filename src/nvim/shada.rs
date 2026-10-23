@@ -1058,7 +1058,7 @@ unsafe fn var_shada_iter(
             hi = iter.cast::<hashitem_T>();
         }
         let di = tv_dict_hi2di(hi);
-        *name = (&raw const (*di).di_key).cast::<c_char>();
+        *name = (*di).di_key.as_ptr();
         tv_copy(&(*di).di_tv, rettv);
         loop {
             hi = hi.add(1);

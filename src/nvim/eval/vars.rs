@@ -125,8 +125,6 @@ pub struct lval_T {
 
 pub(crate) const MAXCOL: varnumber_T = 0x7fffffff;
 
-const VIMVAR_KEY_LEN: usize = 16;
-
 const VV_COMPAT: c_char = 1;
 const VV_RO: c_char = 2;
 const VV_RO_SBX: c_char = 4;
@@ -269,39 +267,23 @@ const E_MISSING_END_MARKER_STR: &CStr = c"E990: Missing end marker '%s'";
 const E_CANNOT_USE_HEREDOC_HERE: &CStr = c"E991: Cannot use =<< here";
 
 #[repr(C)]
-#[derive(Clone, Copy)]
-struct VimVarDictItem {
-    di_tv: typval_T,
-    di_flags: u8,
-    di_key: [c_char; VIMVAR_KEY_LEN + 1],
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
 struct VimVar {
     vv_name: *const c_char,
-    vv_di: VimVarDictItem,
+    vv_di: dictitem_T,
     vv_flags: c_char,
 }
 
 const fn make_vimvar(name: &'static CStr, v_type: VarType, flags: c_char) -> VimVar {
-    let bytes = name.to_bytes();
-    let mut key = [0 as c_char; VIMVAR_KEY_LEN + 1];
-    let mut i = 0;
-    while i < bytes.len() && i < VIMVAR_KEY_LEN {
-        key[i] = bytes[i] as c_char;
-        i += 1;
-    }
     VimVar {
         vv_name: name.as_ptr(),
-        vv_di: VimVarDictItem {
+        vv_di: dictitem_T {
             di_tv: typval_T {
                 v_type,
                 v_lock: 0,
                 vval: TypvalVval { v_number: 0 },
             },
             di_flags: 0,
-            di_key: key,
+            di_key: Vec::new(),
         },
         vv_flags: flags,
     }
@@ -309,16 +291,12 @@ const fn make_vimvar(name: &'static CStr, v_type: VarType, flags: c_char) -> Vim
 
 const fn empty_hashtab() -> hashtab_T {
     hashtab_T {
-        ht_mask: 0,
+        ht_mask: HT_INIT_SIZE - 1,
         ht_used: 0,
         ht_filled: 0,
         ht_changed: 0,
         ht_locked: 0,
-        ht_array: ptr::null_mut(),
-        ht_smallarray: [hashitem_T {
-            hi_hash: 0,
-            hi_key: ptr::null_mut(),
-        }; HT_INIT_SIZE],
+        ht_array: crate::hashtab::empty_hasharray_ptr(),
     }
 }
 
@@ -345,7 +323,7 @@ const fn empty_scope_var() -> ScopeDictDictItem {
             vval: TypvalVval { v_number: 0 },
         },
         di_flags: 0,
-        di_key: [0],
+        di_key: Vec::new(),
     }
 }
 
@@ -556,12 +534,16 @@ pub unsafe fn evalvars_init() {
                 (*p).vv_di.di_flags = DI_FLAGS_FIX;
             }
 
-            let key_ptr = (&raw mut (*p).vv_di.di_key).cast::<c_char>();
+            let name_bytes = CStr::from_ptr((*p).vv_name).to_bytes_with_nul();
+            (*p).vv_di.di_key.clear();
+            (*p).vv_di
+                .di_key
+                .extend(name_bytes.iter().map(|&b| b as c_char));
             if (*p).vv_di.di_tv.v_type != VarType::VAR_UNKNOWN {
-                hash_add(&raw mut vimvardict.dv_hashtab, key_ptr);
+                hash_add(&raw mut vimvardict.dv_hashtab, &raw mut (*p).vv_di);
             }
             if ((*p).vv_flags & VV_COMPAT) != 0 {
-                hash_add(&raw mut compat_hashtab, key_ptr);
+                hash_add(&raw mut compat_hashtab, &raw mut (*p).vv_di);
             }
         }
         let vim_version = varnumber_T::from(min_vim_version());
@@ -661,6 +643,7 @@ pub unsafe fn evalvars_clear() {
                 tv_list_unref((*p).vv_di.di_tv.vval.v_list);
                 (*p).vv_di.di_tv.vval.v_list = ptr::null_mut();
             }
+            (*p).vv_di.di_key = Vec::new();
         }
 
         partial_unref(get_vim_var_partial(VV_LUA));
@@ -873,10 +856,7 @@ pub unsafe fn prepare_vimvar(idx: c_int, save_tv: *mut typval_T) {
         *save_tv = (*p).vv_di.di_tv;
         (*p).vv_di.di_tv.vval.v_string = ptr::null_mut();
         if (*p).vv_di.di_tv.v_type == VarType::VAR_UNKNOWN {
-            hash_add(
-                &raw mut vimvardict.dv_hashtab,
-                (&raw mut (*p).vv_di.di_key).cast::<c_char>(),
-            );
+            hash_add(&raw mut vimvardict.dv_hashtab, &raw mut (*p).vv_di);
         }
     }
 }
@@ -892,7 +872,7 @@ pub unsafe fn restore_vimvar(idx: c_int, save_tv: *mut typval_T) {
 
         let hi = hash_find(
             &raw const vimvardict.dv_hashtab,
-            (&raw const (*p).vv_di.di_key).cast::<c_char>(),
+            (*p).vv_di.di_key.as_ptr(),
         );
         if hashitem_empty(&*hi) {
             internal_error(c"restore_vimvar()".as_ptr());
@@ -2953,7 +2933,7 @@ pub unsafe fn init_var_dict(dict: *mut dict_T, dict_var: *mut ScopeDictDictItem,
         (*dict_var).di_tv.v_type = VarType::VAR_DICT;
         (*dict_var).di_tv.v_lock = VAR_FIXED;
         (*dict_var).di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
-        (*dict_var).di_key[0] = NUL;
+        ptr::write(&raw mut (*dict_var).di_key, Vec::new());
         ptr::write(&raw mut (*dict).watchers, Vec::new());
     }
 }
@@ -2988,6 +2968,7 @@ pub unsafe fn vars_clear_ext(ht: *mut hashtab_T, free_val: bool) {
                     tv_clear(&raw mut (*v).di_tv);
                 }
                 if ((*v).di_flags & DI_FLAGS_ALLOC) != 0 {
+                    ptr::drop_in_place(&raw mut (*v).di_key);
                     xfree(v.cast());
                 }
             }
@@ -3003,8 +2984,7 @@ unsafe fn delete_var(ht: *mut hashtab_T, hi: *mut hashitem_T) {
     unsafe {
         let di = tv_dict_hi2di(hi);
         hash_remove(ht, hi);
-        tv_clear(&raw mut (*di).di_tv);
-        xfree(di.cast());
+        crate::eval::typval::tv_dict_item_free(di);
     }
 }
 
@@ -3226,14 +3206,11 @@ pub unsafe fn set_var_const(
 
             debug_assert!(!dict.is_null());
 
-            di = xmalloc(std::mem::offset_of!(dictitem_T, di_key) + varname_len + 1)
-                .cast::<dictitem_T>();
-            ptr::copy_nonoverlapping(varname, (*di).di_key.as_mut_ptr(), varname_len + 1);
-            if hash_add(ht, (*di).di_key.as_mut_ptr()) == FAIL {
-                xfree(di.cast());
+            di = crate::eval::typval::tv_dict_item_alloc_len(varname, varname_len);
+            if hash_add(ht, di) == FAIL {
+                crate::eval::typval::tv_dict_item_free(di);
                 return;
             }
-            (*di).di_flags = DI_FLAGS_ALLOC;
             if is_const {
                 (*di).di_flags |= DI_FLAGS_LOCK;
             }

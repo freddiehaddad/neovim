@@ -5,7 +5,7 @@ use crate::autocmd::{EVENT_SESSIONWRITEPOST, EVENT_SESSIONWRITEPRE, apply_autocm
 use crate::buffer::{bt_help, bt_nofilename, bt_normal, bt_terminal, buf_T, buflist_findnr};
 use crate::charset::{NUL, ascii_isdigit};
 use crate::errors::*;
-use crate::eval::typval::{VarType, dictitem_T, tv_get_string};
+use crate::eval::typval::{VarType, tv_get_string};
 use crate::eval::vars::{VV_THIS_SESSION, get_globvar_dict, set_vim_var_string};
 use crate::eval::{VAR_FLAVOUR_SESSION, var_flavour};
 use crate::ex_docmd::{exarg_T, open_exfile, vim_mkdir_emsg};
@@ -539,9 +539,7 @@ unsafe fn store_session_globals(fd: *mut FILE) -> c_int {
         while todo > 0 {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
-                let this_var = ((*hi).hi_key as *mut u8)
-                    .sub(std::mem::offset_of!(dictitem_T, di_key))
-                    .cast::<dictitem_T>();
+                let this_var = crate::eval::typval::tv_dict_hi2di(hi);
                 let key_ptr = (*this_var).di_key.as_mut_ptr();
                 if ((*this_var).di_tv.v_type == VarType::VAR_NUMBER
                     || (*this_var).di_tv.v_type == VarType::VAR_STRING)

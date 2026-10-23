@@ -68,7 +68,7 @@ use crate::os::env::expand_T;
 use crate::os::input::line_breakcheck;
 use crate::path::{kPathCmpLiteral, path_equal};
 use crate::profile::{
-    FixVarItem, func_do_profile, func_line_end, func_line_start, funccall_T, prof_def_func,
+    func_do_profile, func_line_end, func_line_start, funccall_T, prof_def_func,
     profile_add, profile_end, profile_self, profile_start, profile_sub_wait, profile_zero,
     proftime_T, script_prof_restore, script_prof_save,
 };
@@ -148,8 +148,6 @@ pub const FCERR_NOTMETHOD: c_int = 8;
 
 const FLEN_FIXED: usize = 40;
 const MAX_FUNC_NESTING: c_int = 50;
-pub(crate) const VAR_SHORT_LEN: usize = 20;
-pub(crate) const FIXVAR_CNT: usize = 12;
 
 pub(crate) const MSG_BUF_LEN: usize = 480;
 const MSG_BUF_CLEN: c_int = (MSG_BUF_LEN / 6) as c_int;
@@ -963,15 +961,14 @@ unsafe fn cat_func_name(buf: *mut c_char, bufsize: usize, fp: *const ufunc_T) ->
 }
 
 /// Add a number variable `name` to dict `dp` with value `nr`.
-unsafe fn add_nr_var(dp: *mut dict_T, v: *mut dictitem_T, name: *const c_char, nr: varnumber_T) {
+unsafe fn add_nr_var(dp: *mut dict_T, name: *const c_char, nr: varnumber_T) {
     unsafe {
-        let key_ptr = (&raw mut (*v).di_key).cast::<c_char>();
-        strcpy(key_ptr, name);
-        (*v).di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
-        hash_add(&raw mut (*dp).dv_hashtab, key_ptr);
+        let v = tv_dict_item_alloc(name);
+        (*v).di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
         (*v).di_tv.v_type = VarType::VAR_NUMBER;
         (*v).di_tv.v_lock = VAR_FIXED;
         (*v).di_tv.vval.v_number = nr;
+        hash_add(&raw mut (*dp).dv_hashtab, v);
     }
 }
 
@@ -1204,7 +1201,6 @@ pub unsafe fn call_user_func(
 ) {
     unsafe {
         let mut using_sandbox = false;
-        let mut fixvar_idx = 0usize;
         let mut islambda = false;
         let mut numbuf = [0 as c_char; NUMBUFLEN];
         let mut name: *mut c_char;
@@ -1243,24 +1239,19 @@ pub unsafe fn call_user_func(
             islambda = true;
         }
 
-        let fixvar_ptr = (&raw mut (*fc).fc_fixvar).cast::<FixVarItem>();
-
         init_var_dict(
             &raw mut (*fc).fc_l_vars,
             (&raw mut (*fc).fc_l_vars_var).cast(),
             VAR_DEF_SCOPE,
         );
         if !selfdict.is_null() {
-            let v = fixvar_ptr.add(fixvar_idx).cast::<dictitem_T>();
-            fixvar_idx += 1;
-            name = (&raw mut (*v).di_key).cast::<c_char>();
-            strcpy(name, c"self".as_ptr());
-            (*v).di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
-            hash_add(&raw mut (*fc).fc_l_vars.dv_hashtab, name);
+            let v = tv_dict_item_alloc_len(c"self".as_ptr(), 4);
+            (*v).di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
             (*v).di_tv.v_type = VarType::VAR_DICT;
             (*v).di_tv.v_lock = VAR_UNLOCKED;
             (*v).di_tv.vval.v_dict = selfdict;
             (*selfdict).dv_refcount += 1;
+            hash_add(&raw mut (*fc).fc_l_vars.dv_hashtab, v);
         }
 
         init_var_dict(
@@ -1271,11 +1262,8 @@ pub unsafe fn call_user_func(
         let uf_args_len = (*fp).uf_args.len() as c_int;
         let uf_def_args_len = (*fp).uf_def_args.len() as c_int;
         if ((*fp).uf_flags & FC_NOARGS) == 0 {
-            let v = fixvar_ptr.add(fixvar_idx).cast::<dictitem_T>();
-            fixvar_idx += 1;
             add_nr_var(
                 &raw mut (*fc).fc_l_avars,
-                v,
                 c"0".as_ptr(),
                 if argcount >= uf_args_len {
                     varnumber_T::from(argcount - uf_args_len)
@@ -1286,33 +1274,24 @@ pub unsafe fn call_user_func(
         }
         (*fc).fc_l_avars.dv_lock = VAR_FIXED;
         if ((*fp).uf_flags & FC_NOARGS) == 0 {
-            let v = fixvar_ptr.add(fixvar_idx).cast::<dictitem_T>();
-            fixvar_idx += 1;
-            name = (&raw mut (*v).di_key).cast::<c_char>();
-            strcpy(name, c"000".as_ptr());
-            (*v).di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
-            hash_add(&raw mut (*fc).fc_l_avars.dv_hashtab, name);
+            let v = tv_dict_item_alloc_len(c"000".as_ptr(), 3);
+            (*v).di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
             (*v).di_tv.v_type = VarType::VAR_LIST;
             (*v).di_tv.v_lock = VAR_FIXED;
             (*v).di_tv.vval.v_list = &raw mut (*fc).fc_l_varlist;
+            hash_add(&raw mut (*fc).fc_l_avars.dv_hashtab, v);
         }
         tv_list_init_static(&raw mut (*fc).fc_l_varlist);
         tv_list_set_lock(&raw mut (*fc).fc_l_varlist, VAR_FIXED);
 
         if ((*fp).uf_flags & FC_NOARGS) == 0 {
-            let v1 = fixvar_ptr.add(fixvar_idx).cast::<dictitem_T>();
-            fixvar_idx += 1;
             add_nr_var(
                 &raw mut (*fc).fc_l_avars,
-                v1,
                 c"firstline".as_ptr(),
                 varnumber_T::from(firstline),
             );
-            let v2 = fixvar_ptr.add(fixvar_idx).cast::<dictitem_T>();
-            fixvar_idx += 1;
             add_nr_var(
                 &raw mut (*fc).fc_l_avars,
-                v2,
                 c"lastline".as_ptr(),
                 varnumber_T::from(lastline),
             );
@@ -1360,17 +1339,8 @@ pub unsafe fn call_user_func(
                 name = numbuf.as_mut_ptr();
             }
 
-            let v = if fixvar_idx < FIXVAR_CNT && namelen <= VAR_SHORT_LEN {
-                let item = fixvar_ptr.add(fixvar_idx).cast::<dictitem_T>();
-                fixvar_idx += 1;
-                (*item).di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
-                strcpy((&raw mut (*item).di_key).cast::<c_char>(), name);
-                item
-            } else {
-                let item = tv_dict_item_alloc_len(name, namelen);
-                (*item).di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
-                item
-            };
+            let v = tv_dict_item_alloc_len(name, namelen);
+            (*v).di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
 
             (*v).di_tv = if isdefault {
                 def_rettv
@@ -1384,12 +1354,11 @@ pub unsafe fn call_user_func(
                 tv_to_free_len += 1;
             }
 
-            let key_ptr = (&raw mut (*v).di_key).cast::<c_char>();
             if addlocal {
                 tv_copy(&raw const (*v).di_tv, &raw mut (*v).di_tv);
-                hash_add(&raw mut (*fc).fc_l_vars.dv_hashtab, key_ptr);
+                hash_add(&raw mut (*fc).fc_l_vars.dv_hashtab, v);
             } else {
-                hash_add(&raw mut (*fc).fc_l_avars.dv_hashtab, key_ptr);
+                hash_add(&raw mut (*fc).fc_l_avars.dv_hashtab, v);
             }
 
             if ai >= 0 && (ai as usize) < MAX_FUNC_ARGS {
@@ -3271,7 +3240,7 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
                 if fudi.fd_di.is_null() {
                     fudi.fd_di = tv_dict_item_alloc(fudi.fd_newkey);
                     if tv_dict_add(fudi.fd_dict, fudi.fd_di) == FAIL {
-                        xfree(fudi.fd_di.cast());
+                        crate::eval::typval::tv_dict_item_free(fudi.fd_di);
                         xfree(func_name.cast());
                         ptr::drop_in_place(&raw mut (*fp).uf_args);
                         ptr::drop_in_place(&raw mut (*fp).uf_def_args);

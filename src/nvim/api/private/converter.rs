@@ -6,7 +6,7 @@ use crate::api::private::validate::{
 };
 use crate::eval::decode::decode_string;
 use crate::eval::typval::{
-    TypvalVval, VAR_UNLOCKED, VarType, blob_T, dict_T, dictitem_T, list_T, listitem_T, partial_T,
+    TypvalVval, VAR_UNLOCKED, VarType, blob_T, dict_T, list_T, listitem_T, partial_T,
     tv_dict_add, tv_dict_alloc, tv_dict_item_alloc, tv_list_alloc, tv_list_append_owned_tv,
     typval_T,
 };
@@ -277,7 +277,6 @@ pub unsafe fn vim_to_object(obj: *mut typval_T, arena: *mut Arena, reuse_strdata
         let copy_id = get_copyID();
         let mut stack: Vec<Object> = Vec::with_capacity(4);
         let mut mpstack: Vec<ConvStackEntry> = Vec::new();
-        let key_off = std::mem::offset_of!(dictitem_T, di_key);
 
         convert_one_value(&mut stack, &mut mpstack, arena, reuse_strdata, obj, copy_id);
 
@@ -331,7 +330,7 @@ pub unsafe fn vim_to_object(obj: *mut typval_T, arena: *mut Arena, reuse_strdata
                     *hi = (*hi).add(1);
                     *todo -= 1;
 
-                    let di = (*cur_hi).hi_key.sub(key_off).cast::<dictitem_T>();
+                    let di = crate::eval::typval::tv_dict_hi2di(cur_hi);
                     let key_ptr = (*di).di_key.as_ptr();
                     let key_len = CStr::from_ptr(key_ptr).to_bytes().len();
                     let key_obj = cbuf_to_string_obj(arena, reuse_strdata, key_ptr, key_len);

@@ -133,13 +133,7 @@ pub struct bufref_T {
     pub br_buf_free_count: c_int,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct ChangedtickDictItem {
-    pub di_tv: typval_T,
-    pub di_flags: u8,
-    pub di_key: [c_char; 12],
-}
+pub type ChangedtickDictItem = crate::eval::typval::dictitem_T;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -1381,6 +1375,7 @@ unsafe fn free_buffer(buf: *mut buf_T) {
             );
         }
         unref_var_dict((*buf).b_vars);
+        ptr::drop_in_place(&raw mut (*buf).changedtick_di.di_key);
         aubuflocal_remove(buf);
         xfree((*buf).additional_data);
         xfree((*buf).b_prompt_text.cast());
@@ -2382,22 +2377,14 @@ pub unsafe fn no_write_message_nobang(buf: *const buf_T) {
 #[inline]
 unsafe fn buf_init_changedtick(buf: *mut buf_T) {
     unsafe {
-        let mut key = [0 as c_char; 12];
-        let src = b"changedtick\0";
-        for i in 0..12 {
-            key[i] = src[i] as c_char;
-        }
-        (*buf).changedtick_di = ChangedtickDictItem {
-            di_tv: typval_T {
-                v_type: VarType::VAR_NUMBER,
-                v_lock: VAR_FIXED,
-                vval: TypvalVval {
-                    v_number: buf_get_changedtick(buf),
-                },
+        (*buf).changedtick_di.di_tv = typval_T {
+            v_type: VarType::VAR_NUMBER,
+            v_lock: VAR_FIXED,
+            vval: TypvalVval {
+                v_number: buf_get_changedtick(buf),
             },
-            di_flags: DI_FLAGS_RO | DI_FLAGS_FIX,
-            di_key: key,
         };
+        (*buf).changedtick_di.di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
         tv_dict_add((*buf).b_vars, (&raw mut (*buf).changedtick_di).cast());
     }
 }
@@ -2506,6 +2493,10 @@ pub unsafe fn buflist_new(
             ptr::write(&raw mut (*buf).b_ml.ml_chunksize, Vec::new());
             (*buf).b_vars = tv_dict_alloc();
             init_var_dict((*buf).b_vars, (&raw mut (*buf).b_bufvar).cast(), VAR_SCOPE);
+            ptr::write(
+                &raw mut (*buf).changedtick_di.di_key,
+                b"changedtick\0".iter().map(|&b| b as c_char).collect(),
+            );
             buf_init_changedtick(buf);
         }
 
@@ -4777,7 +4768,7 @@ pub unsafe fn buf_set_changedtick(buf: *mut buf_T, changedtick: varnumber_T) {
             (*buf).b_locked += 1;
             tv_dict_watcher_notify(
                 (*buf).b_vars,
-                (&raw const (*buf).changedtick_di.di_key).cast(),
+                (*buf).changedtick_di.di_key.as_ptr(),
                 &raw mut (*buf).changedtick_di.di_tv,
                 &raw const old_val as *mut _,
             );

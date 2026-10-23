@@ -17,7 +17,7 @@ use crate::cursor::{check_cursor, linenr_T, pos_T};
 use crate::drawscreen::{UPD_VALID, redraw_later};
 use crate::errors::*;
 use crate::eval::typval::{
-    TypvalVval, VAR_UNLOCKED, VarType, callback_free, dict_T, dictitem_T, kCallbackNone, list_T,
+    TypvalVval, VAR_UNLOCKED, VarType, callback_free, dict_T, kCallbackNone, list_T,
     tv_clear, tv_dict_add_bool, tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str,
     tv_dict_add_str_len, tv_dict_alloc, tv_dict_alloc_lock, tv_dict_find, tv_dict_get_number,
     tv_dict_get_string, tv_get_number, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict,
@@ -1327,7 +1327,6 @@ unsafe fn find_tagfunc_tags(
             return FAIL;
         }
         let taglist = rettv.vval.v_list;
-        let key_off = std::mem::offset_of!(dictitem_T, di_key);
 
         let mut li = (*taglist).lv_first;
         while !li.is_null() {
@@ -1351,7 +1350,7 @@ unsafe fn find_tagfunc_tags(
                 while todo > 0 {
                     if !hashitem_empty(&*hi) {
                         todo -= 1;
-                        let di = (*hi).hi_key.sub(key_off).cast::<dictitem_T>();
+                        let di = crate::eval::typval::tv_dict_hi2di(hi);
                         let dict_key = (*hi).hi_key;
                         let tv = &raw mut (*di).di_tv;
 
@@ -1441,7 +1440,7 @@ unsafe fn find_tagfunc_tags(
                         while todo > 0 {
                             if !hashitem_empty(&*hi) {
                                 todo -= 1;
-                                let di = (*hi).hi_key.sub(key_off).cast::<dictitem_T>();
+                                let di = crate::eval::typval::tv_dict_hi2di(hi);
                                 let dict_key = (*hi).hi_key;
                                 let tv = &raw mut (*di).di_tv;
 

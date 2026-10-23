@@ -1794,7 +1794,7 @@ pub unsafe fn set_var_lval(
 
                 let di = tv_dict_item_alloc((*lp).ll_newkey);
                 if tv_dict_add((*(*lp).ll_tv).vval.v_dict, di) == FAIL {
-                    xfree(di.cast());
+                    tv_dict_item_free(di);
                     return;
                 }
                 (*lp).ll_tv = &raw mut (*di).di_tv;
@@ -1827,7 +1827,7 @@ pub unsafe fn set_var_lval(
                     tv_dict_watcher_notify(dict, (*lp).ll_newkey, (*lp).ll_tv, ptr::null_mut());
                 } else {
                     let di_ = (*lp).ll_di;
-                    let key_ptr = (&raw const (*di_).di_key).cast::<c_char>();
+                    let key_ptr = (*di_).di_key.as_ptr();
                     tv_dict_watcher_notify(dict, key_ptr, (*lp).ll_tv, &raw mut oldtv);
                     tv_clear(&raw mut oldtv);
                 }
@@ -5622,7 +5622,7 @@ pub unsafe fn add_timer_info(rettv: *mut typval_T, timer: *mut timer_T) {
 
         let di = tv_dict_item_alloc(c"callback".as_ptr());
         if tv_dict_add(dict, di) == FAIL {
-            xfree(di.cast());
+            tv_dict_item_free(di);
         } else {
             callback_put(&raw mut (*tt).callback, &raw mut (*di).di_tv);
         }

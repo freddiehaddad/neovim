@@ -5,7 +5,7 @@ use crate::errors::*;
 use crate::eval::fs::K_LIST_LEN_UNKNOWN;
 use crate::eval::typval::{
     EvalFuncData, TV_TRANSLATE, TypvalVval, VAR_LOCKED, VAR_UNLOCKED, VarType, blob_T, dict_T,
-    dictitem_T, list_T, listitem_T, tv_blob_copy, tv_blob_get, tv_blob_len, tv_blob_remove,
+    list_T, listitem_T, tv_blob_copy, tv_blob_get, tv_blob_len, tv_blob_remove,
     tv_check_for_string_or_list_or_blob_arg, tv_clear, tv_copy, tv_dict_add_tv, tv_dict_alloc_ret,
     tv_dict_copy, tv_dict_extend, tv_dict_item_remove, tv_dict_remove, tv_dict_unref, tv_equal,
     tv_get_bool_chk, tv_get_number_chk, tv_get_string, tv_get_string_chk, tv_list_alloc_ret,
@@ -125,13 +125,12 @@ unsafe fn filter_map_dict(
         }
         hash_lock(&mut (*d).dv_hashtab);
 
-        let key_off = std::mem::offset_of!(dictitem_T, di_key);
         let mut todo = (*d).dv_hashtab.ht_used;
         let mut hi = (*d).dv_hashtab.ht_array;
         while todo > 0 {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
-                let di = (*hi).hi_key.sub(key_off).cast::<dictitem_T>();
+                let di = crate::eval::typval::tv_dict_hi2di(hi);
                 if filtermap == FilterMap::Map
                     && (value_check_lock((*di).di_tv.v_lock, arg_errmsg, TV_TRANSLATE)
                         || var_check_ro((*di).di_flags as c_int, arg_errmsg, TV_TRANSLATE))
@@ -596,13 +595,12 @@ unsafe fn count_dict(d: *mut dict_T, needle: *mut typval_T, ic: bool) -> i64 {
             return 0;
         }
         let mut n: i64 = 0;
-        let key_off = std::mem::offset_of!(dictitem_T, di_key);
         let mut todo = (*d).dv_hashtab.ht_used;
         let mut hi = (*d).dv_hashtab.ht_array;
         while todo > 0 {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
-                let di = (*hi).hi_key.sub(key_off).cast::<dictitem_T>();
+                let di = crate::eval::typval::tv_dict_hi2di(hi);
                 if tv_equal(&mut (*di).di_tv, needle, ic) {
                     n += 1;
                 }

@@ -40,7 +40,6 @@ use crate::strings::{
     sort_slice_by, strcmp, strcoll, strlen, strncmp, strtod, tr, vim_snprintf, vim_stricmp,
 };
 use std::ffi::{CStr, c_char, c_int, c_void};
-use std::mem::offset_of;
 use std::ptr;
 
 use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO};
@@ -157,16 +156,10 @@ pub struct list_T {
 pub struct dictitem_T {
     pub di_tv: typval_T,
     pub di_flags: u8,
-    pub di_key: [c_char; 1],
+    pub di_key: Vec<c_char>,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct ScopeDictDictItem {
-    pub di_tv: typval_T,
-    pub di_flags: u8,
-    pub di_key: [c_char; 1],
-}
+pub type ScopeDictDictItem = dictitem_T;
 
 #[repr(C)]
 pub struct dict_T {
@@ -303,12 +296,7 @@ pub unsafe fn nlua_clear_ref(r: &mut LuaRef) {
 
 #[inline]
 pub unsafe fn tv_dict_hi2di(hi: *const hashitem_T) -> *mut dictitem_T {
-    unsafe {
-        (*hi)
-            .hi_key
-            .sub(offset_of!(dictitem_T, di_key))
-            .cast::<dictitem_T>()
-    }
+    unsafe { (*hi).hi_di }
 }
 
 #[inline]
@@ -2439,11 +2427,13 @@ pub unsafe fn tv_dict_watcher_notify(
 /// Allocate a dictionary item.
 pub unsafe fn tv_dict_item_alloc_len(key: *const c_char, key_len: usize) -> *mut dictitem_T {
     unsafe {
-        let alloc_size = size_of::<dictitem_T>().max(offset_of!(dictitem_T, di_key) + key_len + 1);
-        let di = xmalloc(alloc_size).cast::<dictitem_T>();
-        let key_dst = (&raw mut (*di).di_key).cast::<c_char>();
-        ptr::copy_nonoverlapping(key, key_dst, key_len);
-        *key_dst.add(key_len) = NUL;
+        let di = xmalloc(size_of::<dictitem_T>()).cast::<dictitem_T>();
+        let mut key_vec = Vec::with_capacity(key_len + 1);
+        if key_len > 0 {
+            key_vec.extend_from_slice(std::slice::from_raw_parts(key, key_len));
+        }
+        key_vec.push(NUL);
+        ptr::write(&raw mut (*di).di_key, key_vec);
         (*di).di_flags = DI_FLAGS_ALLOC;
         (*di).di_tv.v_lock = VAR_UNLOCKED;
         (*di).di_tv.v_type = VarType::VAR_UNKNOWN;
@@ -2461,6 +2451,7 @@ pub unsafe fn tv_dict_item_free(item: *mut dictitem_T) {
     unsafe {
         tv_clear(&raw mut (*item).di_tv);
         if ((*item).di_flags & DI_FLAGS_ALLOC) != 0 {
+            ptr::drop_in_place(&raw mut (*item).di_key);
             xfree(item.cast());
         }
     }
@@ -2469,7 +2460,7 @@ pub unsafe fn tv_dict_item_free(item: *mut dictitem_T) {
 /// Make a copy of a dictionary item.
 pub unsafe fn tv_dict_item_copy(di: *mut dictitem_T) -> *mut dictitem_T {
     unsafe {
-        let key_ptr = (&raw const (*di).di_key).cast::<c_char>();
+        let key_ptr = (*di).di_key.as_ptr();
         let new_di = tv_dict_item_alloc(key_ptr);
         tv_copy(&raw const (*di).di_tv, &raw mut (*new_di).di_tv);
         new_di
@@ -2479,7 +2470,7 @@ pub unsafe fn tv_dict_item_copy(di: *mut dictitem_T) -> *mut dictitem_T {
 /// Remove item from dictionary and free it.
 pub unsafe fn tv_dict_item_remove(dict: *mut dict_T, item: *mut dictitem_T) {
     unsafe {
-        let key_ptr = (&raw const (*item).di_key).cast::<c_char>();
+        let key_ptr = (*item).di_key.as_ptr();
         let hi = hash_find(&raw const (*dict).dv_hashtab, key_ptr);
         if hashitem_empty(&*hi) {
             semsg!(tr(e_intern2.as_ptr()), c"tv_dict_item_remove()".as_ptr());
@@ -2675,7 +2666,7 @@ pub unsafe fn tv_dict_to_env(denv: *mut dict_T) -> *mut *mut c_char {
                     let var = tv_dict_hi2di(hi);
                     let str_ = tv_get_string(&raw const (*var).di_tv);
                     debug_assert!(!str_.is_null());
-                    let key_ptr = (&raw const (*var).di_key).cast::<c_char>();
+                    let key_ptr = (*var).di_key.as_ptr();
                     let key_len = strlen(key_ptr);
                     let val_len = strlen(str_);
                     let len = key_len + val_len + 2;
@@ -2789,11 +2780,11 @@ pub unsafe fn tv_dict_wrong_func_name(
 /// Add item to dictionary.
 pub unsafe fn tv_dict_add(d: *mut dict_T, item: *mut dictitem_T) -> c_int {
     unsafe {
-        let key_ptr = (&raw mut (*item).di_key).cast::<c_char>();
+        let key_ptr = (*item).di_key.as_mut_ptr();
         if tv_dict_wrong_func_name(d, &raw mut (*item).di_tv, key_ptr) != 0 {
             return FAIL;
         }
-        hash_add(&raw mut (*d).dv_hashtab, key_ptr)
+        hash_add(&raw mut (*d).dv_hashtab, item)
     }
 }
 
@@ -3023,7 +3014,7 @@ pub unsafe fn tv_dict_extend(d1: *mut dict_T, d2: *mut dict_T, action: *const c_
             if !hashitem_empty(&*hi2) {
                 todo -= 1;
                 let di2 = tv_dict_hi2di(hi2);
-                let key2 = (&raw const (*di2).di_key).cast::<c_char>();
+                let key2 = (*di2).di_key.as_ptr();
                 let di1 = tv_dict_find(d1, key2, -1);
                 if (*d1).dv_scope != VAR_NO_SCOPE && !valid_varname(key2) {
                     break;
@@ -3035,7 +3026,7 @@ pub unsafe fn tv_dict_extend(d1: *mut dict_T, d2: *mut dict_T, action: *const c_
                             hash_remove(&raw mut (*d2).dv_hashtab, hi2);
                             tv_dict_watcher_notify(
                                 d1,
-                                (&raw const (*new_di).di_key).cast::<c_char>(),
+                                (*new_di).di_key.as_ptr(),
                                 &raw mut (*new_di).di_tv,
                                 ptr::null_mut(),
                             );
@@ -3047,7 +3038,7 @@ pub unsafe fn tv_dict_extend(d1: *mut dict_T, d2: *mut dict_T, action: *const c_
                         } else if watched {
                             tv_dict_watcher_notify(
                                 d1,
-                                (&raw const (*new_di).di_key).cast::<c_char>(),
+                                (*new_di).di_key.as_ptr(),
                                 &raw mut (*new_di).di_tv,
                                 ptr::null_mut(),
                             );
@@ -3077,7 +3068,7 @@ pub unsafe fn tv_dict_extend(d1: *mut dict_T, d2: *mut dict_T, action: *const c_
                     if watched {
                         tv_dict_watcher_notify(
                             d1,
-                            (&raw const (*di1).di_key).cast::<c_char>(),
+                            (*di1).di_key.as_ptr(),
                             &raw mut (*di1).di_tv,
                             &raw mut oldtv,
                         );
@@ -3116,7 +3107,7 @@ pub unsafe fn tv_dict_equal(d1: *mut dict_T, d2: *mut dict_T, ic: bool) -> bool 
             if !hashitem_empty(&*hi) {
                 todo -= 1;
                 let di1 = tv_dict_hi2di(hi);
-                let key1 = (&raw const (*di1).di_key).cast::<c_char>();
+                let key1 = (*di1).di_key.as_ptr();
                 let di2 = tv_dict_find(d2, key1, -1);
                 if di2.is_null() {
                     return false;
@@ -3157,7 +3148,7 @@ pub unsafe fn tv_dict_copy(
                     break;
                 }
                 let di = tv_dict_hi2di(hi);
-                let key_ptr = (&raw mut (*di).di_key).cast::<c_char>();
+                let key_ptr = (*di).di_key.as_mut_ptr();
                 let new_di = if conv.is_null() || (*conv).vc_type == CONV_NONE {
                     tv_dict_item_alloc(key_ptr)
                 } else {
@@ -3180,7 +3171,7 @@ pub unsafe fn tv_dict_copy(
                         copyID,
                     ) == FAIL
                     {
-                        xfree(new_di.cast());
+                        tv_dict_item_free(new_di);
                         break;
                     }
                 } else {
@@ -3570,7 +3561,7 @@ unsafe fn tv_dict2list(argvars: *mut typval_T, rettv: *mut typval_T, what: DictL
             if !hashitem_empty(&*hi) {
                 todo -= 1;
                 let di = tv_dict_hi2di(hi);
-                let key_ptr = (&raw const (*di).di_key).cast::<c_char>();
+                let key_ptr = (*di).di_key.as_ptr();
                 let mut tv_item = tv_initial_value();
 
                 match what {
