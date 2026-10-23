@@ -67,7 +67,6 @@ use crate::fold::{
     foldUpdateAll, foldmethodIsDiff, foldmethodIsIndent, foldmethodIsSyntax, newFoldLevel,
 };
 use crate::fuzzy::{FUZZY_SCORE_NONE, fuzmatch_str_T, fuzzy_match_str, fuzzymatches_to_strmatches};
-use crate::garray::{ga_clear_strings, ga_concat_strings, ga_grow, ga_init, garray_T};
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::highlight::{HL_GLOBAL, hl_invalidate_blends, ns_hl_def};
@@ -130,7 +129,7 @@ use crate::runtime::{
 use crate::spell::{compile_cap_prog, did_set_spell_option, init_spell_chartab, parse_spelllang};
 use crate::spellsuggest::{spell_apply_sps, spell_check_sps};
 use crate::strings::{
-    concat_str, gettext, sort_strings, strchr, strcmp, strcpy, strlen, strncmp, strstr, tr,
+    concat_str, gettext, strchr, strcmp, strcpy, strlen, strncmp, strstr, tr,
     vim_snprintf, vim_snprintf_safelen, vim_strchr, vim_strsave_escaped,
 };
 use crate::syntax::synblock_T;
@@ -666,12 +665,23 @@ unsafe fn optval_type_name(t: ObjectType) -> *const c_char {
 }
 
 #[inline]
-unsafe fn ga_append_ptr(gap: *mut garray_T, item: *mut c_char) {
+unsafe fn join_cstrings(items: &[std::ffi::CString], sep: &[u8]) -> *mut c_char {
     unsafe {
-        ga_grow(gap, 1);
-        let data = (*gap).ga_data.cast::<*mut c_char>();
-        *data.add((*gap).ga_len as usize) = item;
-        (*gap).ga_len += 1;
+        if items.is_empty() {
+            return xstrdup(c"".as_ptr());
+        }
+        let mut total = sep.len() * (items.len() - 1);
+        for item in items {
+            total += item.to_bytes().len();
+        }
+        let mut out: Vec<u8> = Vec::with_capacity(total);
+        for (i, item) in items.iter().enumerate() {
+            if i > 0 {
+                out.extend_from_slice(sep);
+            }
+            out.extend_from_slice(item.to_bytes());
+        }
+        xmemdupz(out.as_ptr().cast(), out.len()).cast()
     }
 }
 
@@ -723,16 +733,9 @@ unsafe fn set_init_default_backupskip() {
         #[cfg(not(unix))]
         let names: [*const c_char; 3] = [c"TMPDIR".as_ptr(), c"TEMP".as_ptr(), c"TMP".as_ptr()];
 
-        let mut ga = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: ptr::null_mut(),
-        };
+        let mut buf: Vec<c_char> = Vec::new();
         let opt_idx = kOptBackupskip;
 
-        ga_init(&raw mut ga, 1, 100);
         for &name in &names {
             #[cfg(unix)]
             let mut mustfree = true;
@@ -775,7 +778,6 @@ unsafe fn set_init_default_backupskip() {
 
                 let itemsize = plen + usize::from(!has_trailing_path_sep) + 2;
                 let item = xmalloc(itemsize).cast::<c_char>();
-                let itemseplen: usize = if ga.ga_len == 0 { 0 } else { 1 };
 
                 let itemlen = vim_snprintf!(
                     item,
@@ -790,25 +792,24 @@ unsafe fn set_init_default_backupskip() {
                 ) as usize;
 
                 if find_dup_item(
-                    ga.ga_data.cast(),
+                    if buf.is_empty() {
+                        ptr::null()
+                    } else {
+                        buf.as_ptr()
+                    },
                     item,
                     itemlen,
                     (*get_option(opt_idx)).flags,
                 )
                 .is_null()
                 {
-                    ga_grow(&raw mut ga, (itemseplen + itemlen + 1) as c_int);
-                    ga.ga_len += vim_snprintf!(
-                        ga.ga_data.cast::<c_char>().add(ga.ga_len as usize),
-                        itemseplen + itemlen + 1,
-                        c"%s%s".as_ptr(),
-                        if itemseplen > 0 {
-                            c",".as_ptr()
-                        } else {
-                            c"".as_ptr()
-                        },
-                        item,
-                    );
+                    if !buf.is_empty() {
+                        // Replace trailing NUL with ','
+                        let last = buf.len() - 1;
+                        buf[last] = b',' as c_char;
+                    }
+                    buf.extend_from_slice(std::slice::from_raw_parts(item, itemlen));
+                    buf.push(NUL);
                 }
                 xfree(item.cast());
             }
@@ -816,8 +817,9 @@ unsafe fn set_init_default_backupskip() {
                 xfree(p.cast());
             }
         }
-        if !ga.ga_data.is_null() {
-            set_string_default(kOptBackupskip, ga.ga_data.cast(), true);
+        if !buf.is_empty() {
+            let default_str = xmemdupz(buf.as_ptr().cast(), buf.len() - 1).cast::<c_char>();
+            set_string_default(kOptBackupskip, default_str, true);
         }
     }
 }
@@ -5503,55 +5505,30 @@ pub unsafe fn optval_from_obj(
         let mut str_ptr: *mut c_char = if o.obj_type == ObjectType::kObjectTypeString {
             xstrdup(o.data.string.data)
         } else if o.obj_type == ObjectType::kObjectTypeArray {
-            let mut ga = garray_T {
-                ga_len: 0,
-                ga_maxlen: 0,
-                ga_itemsize: 0,
-                ga_growsize: 0,
-                ga_data: ptr::null_mut(),
-            };
-            ga_init(&raw mut ga, std::mem::size_of::<*mut c_char>() as c_int, 4);
+            let mut items: Vec<std::ffi::CString> = Vec::with_capacity(o.data.array.size);
             for ai in 0..o.data.array.size {
                 let item = *o.data.array.items.add(ai);
                 if item.obj_type != ObjectType::kObjectTypeString {
                     *error = true;
-                    ga_clear_strings(&raw mut ga);
                     return nil_obj();
                 }
-                let mut dup = false;
-                if !allow_dup {
-                    let ga_items = ga.ga_data.cast::<*mut c_char>();
-                    for j in 0..ga.ga_len as usize {
-                        if strequal(*ga_items.add(j), item.data.string.data) {
-                            dup = true;
-                            break;
-                        }
-                    }
+                let s_cstr = CStr::from_ptr(item.data.string.data);
+                if !allow_dup && items.iter().any(|existing| existing.as_c_str() == s_cstr) {
+                    continue;
                 }
-                if !dup {
-                    ga_append_ptr(&raw mut ga, xstrdup(item.data.string.data));
-                }
+                items.push(s_cstr.to_owned());
             }
-            let s = ga_concat_strings(
-                &raw const ga,
+            join_cstrings(
+                &items,
                 if is_flaglist && !is_comma {
-                    c"".as_ptr()
+                    b""
                 } else {
-                    c",".as_ptr()
+                    b","
                 },
-            );
-            ga_clear_strings(&raw mut ga);
-            s
+            )
         } else {
-            let mut ga = garray_T {
-                ga_len: 0,
-                ga_maxlen: 0,
-                ga_itemsize: 0,
-                ga_growsize: 0,
-                ga_data: ptr::null_mut(),
-            };
             let dict = o.data.dict;
-            ga_init(&raw mut ga, std::mem::size_of::<*mut c_char>() as c_int, 4);
+            let mut items: Vec<std::ffi::CString> = Vec::with_capacity(dict.size);
             for di in 0..dict.size {
                 let k = (*dict.items.add(di)).key;
                 let v = (*dict.items.add(di)).value;
@@ -5559,41 +5536,41 @@ pub unsafe fn optval_from_obj(
                     if !(v.obj_type == ObjectType::kObjectTypeNil
                         || (v.obj_type == ObjectType::kObjectTypeBoolean && !v.data.boolean))
                     {
-                        ga_append_ptr(&raw mut ga, xstrdup(k.data));
+                        items.push(CStr::from_ptr(k.data).to_owned());
                     }
                 } else if v.obj_type == ObjectType::kObjectTypeString {
                     let kv = concat_str(k.data, c":".as_ptr());
-                    ga_append_ptr(&raw mut ga, concat_str(kv, v.data.string.data));
+                    let full = concat_str(kv, v.data.string.data);
+                    items.push(CStr::from_ptr(full).to_owned());
                     xfree(kv.cast());
+                    xfree(full.cast());
                 } else if v.obj_type == ObjectType::kObjectTypeInteger {
                     let num_s = format!(":{}\0", v.data.integer);
                     let kv = concat_str(k.data, num_s.as_ptr().cast());
-                    ga_append_ptr(&raw mut ga, kv);
+                    items.push(CStr::from_ptr(kv).to_owned());
+                    xfree(kv.cast());
                 } else if v.obj_type == ObjectType::kObjectTypeBoolean
                     || v.obj_type == ObjectType::kObjectTypeNil
                 {
                     if v.obj_type == ObjectType::kObjectTypeBoolean && v.data.boolean {
-                        ga_append_ptr(&raw mut ga, xstrdup(k.data));
+                        items.push(CStr::from_ptr(k.data).to_owned());
                     }
                 } else {
                     *error = true;
-                    ga_clear_strings(&raw mut ga);
                     return nil_obj();
                 }
             }
-            if ga.ga_len > 0 && (is_map || is_comma) {
-                sort_strings(ga.ga_data.cast(), ga.ga_len);
+            if !items.is_empty() && (is_map || is_comma) {
+                items.sort_unstable();
             }
-            let s = ga_concat_strings(
-                &raw const ga,
+            join_cstrings(
+                &items,
                 if is_flaglist && !is_comma {
-                    c"".as_ptr()
+                    b""
                 } else {
-                    c",".as_ptr()
+                    b","
                 },
-            );
-            ga_clear_strings(&raw mut ga);
-            s
+            )
         };
 
         if op == OP_REMOVING && is_map && strchr(str_ptr, b':' as c_int).is_null() {
@@ -8346,14 +8323,7 @@ pub unsafe fn ExpandSettingSubtract(
             let option_copy = xstrdup(option_val);
             let mut next_val = option_copy;
 
-            let mut ga = garray_T {
-                ga_len: 0,
-                ga_maxlen: 0,
-                ga_itemsize: 0,
-                ga_growsize: 0,
-                ga_data: ptr::null_mut(),
-            };
-            ga_init(&raw mut ga, std::mem::size_of::<*mut c_char>() as c_int, 10);
+            let mut results: Vec<*mut c_char> = Vec::with_capacity(10);
 
             loop {
                 let item = next_val;
@@ -8371,7 +8341,7 @@ pub unsafe fn ExpandSettingSubtract(
 
                 if *item != NUL && vim_regexec(regmatch.cast(), item, 0) {
                     let buf = escape_option_str_cmdline(item);
-                    ga_append_ptr(&raw mut ga, buf);
+                    results.push(buf);
                 }
 
                 if next_val.is_null() {
@@ -8381,8 +8351,16 @@ pub unsafe fn ExpandSettingSubtract(
 
             xfree(option_copy.cast());
 
-            *matches = ga.ga_data.cast();
-            *numMatches = ga.ga_len;
+            if results.is_empty() {
+                *matches = ptr::null_mut();
+                *numMatches = 0;
+            } else {
+                let out =
+                    xmalloc(results.len() * std::mem::size_of::<*mut c_char>()).cast::<*mut c_char>();
+                ptr::copy_nonoverlapping(results.as_ptr(), out, results.len());
+                *matches = out;
+                *numMatches = results.len() as c_int;
+            }
             return OK;
         } else if (option_flags & kOptFlagFlagList) != 0 {
             if *(*xp).xp_pattern != NUL {
@@ -9063,6 +9041,9 @@ mod tests {
 
     #[test]
     fn find_option_and_find_option_len_resolve_names_and_abbreviations() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         unsafe {
             assert_eq!(find_option(c"number".as_ptr()), kOptNumber);
             assert_eq!(find_option(c"nu".as_ptr()), kOptNumber);

@@ -29,7 +29,6 @@ use crate::ex_docmd::{Ctrl_C, exarg_T};
 use crate::ex_session::put_eol;
 use crate::fileio::{FILE, fputc, fputs};
 use crate::fuzzy::{FUZZY_SCORE_NONE, fuzmatch_str_T, fuzzy_match_str, fuzzymatches_to_strmatches};
-use crate::garray::{ga_append, ga_append_via_ptr, ga_concat, ga_init, garray_T};
 use crate::globals::*;
 use crate::input::{REMAP_SCRIPT, ins_typebuf, noremap_keys};
 use crate::keycodes::{
@@ -46,7 +45,8 @@ use crate::mbyte::{
     mb_prevptr, mb_unescape, utf_char2bytes, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
 };
 use crate::memory::{
-    Arena, arena_alloc, arena_finish, arena_mem_free, xcalloc, xfree, xmemcpyz, xstrdup, xstrlcpy,
+    Arena, arena_alloc, arena_finish, arena_mem_free, xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz,
+    xstrdup, xstrlcpy,
 };
 use crate::message::{
     emsg, iemsg, message_filtered, msg, msg_clr_eos, msg_ext_set_kind, msg_outtrans,
@@ -1294,8 +1294,7 @@ pub unsafe fn map_to_exists_mode(rhs: *const c_char, mode: c_int, abbr: bool) ->
 unsafe fn translate_mapping(str_in: *const c_char, cpo_val: *const c_char) -> *mut c_char {
     unsafe {
         let mut str_ptr = str_in.cast::<u8>();
-        let mut ga: garray_T = std::mem::zeroed();
-        ga_init(&mut ga, 1, 40);
+        let mut buf: Vec<u8> = Vec::with_capacity(40);
 
         let cpo_bslash = !vim_strchr(cpo_val, kCpoBslash).is_null();
 
@@ -1319,7 +1318,10 @@ unsafe fn translate_mapping(str_in: *const c_char, cpo_val: *const c_char) -> *m
                     str_ptr = str_ptr.add(2);
                 }
                 if is_special(c) || modifiers != 0 {
-                    ga_concat(&mut ga, get_special_key_name(c, modifiers));
+                    let s = get_special_key_name(c, modifiers);
+                    if !s.is_null() {
+                        buf.extend_from_slice(CStr::from_ptr(s).to_bytes());
+                    }
                     str_ptr = str_ptr.add(1);
                     continue;
                 }
@@ -1332,16 +1334,15 @@ unsafe fn translate_mapping(str_in: *const c_char, cpo_val: *const c_char) -> *m
                 || c == b'<' as c_int
                 || (c == b'\\' as c_int && !cpo_bslash)
             {
-                ga_append(&mut ga, if cpo_bslash { Ctrl_V as u8 } else { b'\\' });
+                buf.push(if cpo_bslash { Ctrl_V as u8 } else { b'\\' });
             }
 
             if c != 0 {
-                ga_append(&mut ga, c as u8);
+                buf.push(c as u8);
             }
             str_ptr = str_ptr.add(1);
         }
-        ga_append(&mut ga, 0);
-        ga.ga_data.cast::<c_char>()
+        xmemdupz(buf.as_ptr().cast(), buf.len()).cast::<c_char>()
     }
 }
 
@@ -1427,12 +1428,8 @@ pub unsafe fn ExpandMappings(
         *numMatches = 0;
         *matches = ptr::null_mut();
 
-        let mut ga: garray_T = std::mem::zeroed();
-        if !fuzzy {
-            ga_init(&mut ga, std::mem::size_of::<*mut c_char>() as c_int, 3);
-        } else {
-            ga_init(&mut ga, std::mem::size_of::<fuzmatch_str_T>() as c_int, 3);
-        }
+        let mut str_matches: Vec<*mut c_char> = Vec::new();
+        let mut fuz_matches: Vec<fuzmatch_str_T> = Vec::new();
 
         for i in 0..7 {
             let p: *const c_char = match i {
@@ -1459,16 +1456,14 @@ pub unsafe fn ExpandMappings(
             }
 
             if fuzzy {
-                let idx = ga.ga_len;
-                let slot = ga_append_via_ptr::<fuzmatch_str_T>(&mut ga);
-                *slot = fuzmatch_str_T {
+                let idx = fuz_matches.len() as c_int;
+                fuz_matches.push(fuzmatch_str_T {
                     idx,
                     str_ptr: xstrdup(p),
                     score,
-                };
+                });
             } else {
-                let slot = ga_append_via_ptr::<*mut c_char>(&mut ga);
-                *slot = xstrdup(p);
+                str_matches.push(xstrdup(p));
             }
         }
 
@@ -1510,36 +1505,40 @@ pub unsafe fn ExpandMappings(
                 }
 
                 if fuzzy {
-                    let idx = ga.ga_len;
-                    let slot = ga_append_via_ptr::<fuzmatch_str_T>(&mut ga);
-                    *slot = fuzmatch_str_T {
+                    let idx = fuz_matches.len() as c_int;
+                    fuz_matches.push(fuzmatch_str_T {
                         idx,
                         str_ptr: p,
                         score,
-                    };
+                    });
                 } else {
-                    let slot = ga_append_via_ptr::<*mut c_char>(&mut ga);
-                    *slot = p;
+                    str_matches.push(p);
                 }
                 mp = (*mp).m_next;
             }
         }
 
-        if ga.ga_len == 0 {
+        if if fuzzy {
+            fuz_matches.is_empty()
+        } else {
+            str_matches.is_empty()
+        } {
             return FAIL;
         }
 
         if !fuzzy {
-            *matches = ga.ga_data.cast::<*mut c_char>();
-            *numMatches = ga.ga_len;
+            let len = str_matches.len();
+            let out = xmalloc(len * std::mem::size_of::<*mut c_char>()).cast::<*mut c_char>();
+            ptr::copy_nonoverlapping(str_matches.as_ptr(), out, len);
+            *matches = out;
+            *numMatches = len as c_int;
         } else {
-            fuzzymatches_to_strmatches(
-                ga.ga_data.cast::<fuzmatch_str_T>(),
-                matches,
-                ga.ga_len,
-                false,
-            );
-            *numMatches = ga.ga_len;
+            let len = fuz_matches.len();
+            let fuz_ptr =
+                xmalloc(len * std::mem::size_of::<fuzmatch_str_T>()).cast::<fuzmatch_str_T>();
+            ptr::copy_nonoverlapping(fuz_matches.as_ptr(), fuz_ptr, len);
+            fuzzymatches_to_strmatches(fuz_ptr, matches, len as c_int, false);
+            *numMatches = len as c_int;
         }
 
         let mut count = *numMatches;

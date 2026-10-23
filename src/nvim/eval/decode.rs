@@ -1389,6 +1389,9 @@ mod tests {
 
     #[test]
     fn json_decode_string_respects_length_and_rejects_malformed_inputs() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         unsafe {
             crate::globals::emsg_skip += 1;
             let mut rettv = typval_T {

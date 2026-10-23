@@ -3555,6 +3555,9 @@ mod tests {
 
     #[test]
     fn utf8_char_encoding_and_bounds_work() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         unsafe {
             let mut buf = [0 as c_char; 8];
             let len = utf_char2bytes(0x20ac, buf.as_mut_ptr());

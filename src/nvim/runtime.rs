@@ -37,17 +37,14 @@ use crate::ex_eval::{CSTP_FINISH, aborting, cleanup_conditionals, cstack_T, repo
 use crate::fileio::{EINTR, FILE, O_RDONLY, fclose, fdopen, fgets};
 #[cfg(windows)]
 use crate::fileio::{EOL_DOS, EOL_UNIX, EOL_UNKNOWN};
-use crate::garray::{
-    ga_append, ga_append_via_ptr, ga_clear, ga_clear_strings, ga_concat, ga_concat_len, ga_grow,
-    ga_init, ga_remove_duplicate_strings, ga_set_growsize, garray_T,
-};
+use crate::garray::{ga_append_via_ptr, ga_clear, ga_init, ga_remove_duplicate_strings, garray_T};
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::hashtab::hashitem_empty;
 use crate::input::openscript;
 use crate::kvec::KVec;
 use crate::lua::executor::{
-    kRetNilBool, nlua_exec, nlua_exec_file, nlua_exec_ga, nlua_is_deferred_safe,
+    kRetNilBool, nlua_exec, nlua_exec_file, nlua_exec_lines, nlua_is_deferred_safe,
 };
 use crate::map::{MH_TOMBSTONE, MHPutStatus, Map, Set, map_put_ref, map_ref, mh_get, mh_put};
 use crate::math::{FAIL, OK};
@@ -162,7 +159,6 @@ pub struct scriptvar_T {
     pub sv_dict: dict_T,
 }
 
-#[repr(C)]
 struct source_cookie_T {
     fp: *mut FILE,
     nextline: *mut c_char,
@@ -170,7 +166,7 @@ struct source_cookie_T {
     finished: bool,
     source_from_buf_or_str: bool,
     buf_lnum: c_int,
-    buflines: garray_T,
+    buflines: Vec<std::ffi::CString>,
     #[cfg(windows)]
     fileformat: c_int,
     #[cfg(windows)]
@@ -180,6 +176,34 @@ struct source_cookie_T {
     dbg_tick: c_int,
     level: c_int,
     conv: vimconv_T,
+}
+
+impl source_cookie_T {
+    const fn new() -> Self {
+        Self {
+            fp: ptr::null_mut(),
+            nextline: ptr::null_mut(),
+            sourcing_lnum: 0,
+            finished: false,
+            source_from_buf_or_str: false,
+            buf_lnum: 0,
+            buflines: Vec::new(),
+            #[cfg(windows)]
+            fileformat: 0,
+            #[cfg(windows)]
+            error: false,
+            breakpoint: 0,
+            fname: ptr::null_mut(),
+            dbg_tick: 0,
+            level: 0,
+            conv: vimconv_T {
+                vc_type: 0,
+                vc_factor: 0,
+                vc_fd: ptr::null_mut(),
+                vc_fail: false,
+            },
+        }
+    }
 }
 
 #[repr(C)]
@@ -394,8 +418,7 @@ pub unsafe fn estack_sfile(which: estack_arg_T) -> *mut c_char {
             return ptr::null_mut();
         }
 
-        let mut ga: garray_T = std::mem::zeroed();
-        ga_init(&mut ga, 1, 100);
+        let mut buf: Vec<c_char> = Vec::new();
         let mut last_type = ETYPE_SCRIPT;
         let es_len = (*es).len();
         for (idx, entry) in (*es).iter().enumerate() {
@@ -420,28 +443,36 @@ pub unsafe fn estack_sfile(which: estack_arg_T) -> *mut c_char {
                     entry.es_lnum
                 };
 
-                let len = es_name.size + type_name.size + 26;
-                ga_grow(&mut ga, len as c_int);
-                ga_concat_len(&mut ga, type_name.data, type_name.size);
-                ga_concat_len(&mut ga, es_name.data, es_name.size);
+                if !type_name.data.is_null() && type_name.size > 0 {
+                    buf.extend_from_slice(std::slice::from_raw_parts(
+                        type_name.data,
+                        type_name.size,
+                    ));
+                }
+                if !es_name.data.is_null() && es_name.size > 0 {
+                    buf.extend_from_slice(std::slice::from_raw_parts(es_name.data, es_name.size));
+                }
                 if lnum != 0 {
-                    ga.ga_len += vim_snprintf_safelen!(
-                        (ga.ga_data as *mut c_char).add(ga.ga_len as usize),
-                        (ga.ga_maxlen - ga.ga_len) as usize,
+                    let mut lnum_buf = [0 as c_char; 32];
+                    let n = vim_snprintf_safelen!(
+                        lnum_buf.as_mut_ptr(),
+                        lnum_buf.len(),
                         c"[%d]".as_ptr(),
                         lnum,
-                    ) as c_int;
+                    );
+                    buf.extend_from_slice(&lnum_buf[..n]);
                 }
                 if idx != es_len - 1 {
-                    ga_concat_len(&mut ga, c"..".as_ptr(), 2);
+                    buf.extend_from_slice(std::slice::from_raw_parts(c"..".as_ptr(), 2));
                 }
             }
         }
 
-        if !ga.ga_data.is_null() {
-            ga_append(&mut ga, 0);
+        if buf.is_empty() {
+            ptr::null_mut()
+        } else {
+            xmemdupz(buf.as_ptr().cast(), buf.len()).cast::<c_char>()
         }
-        ga.ga_data.cast::<c_char>()
     }
 }
 
@@ -2699,8 +2730,7 @@ unsafe fn fopen_noinh_readbin(filename: *const c_char) -> *mut FILE {
 }
 
 unsafe fn concat_continued_line(
-    ga: *mut garray_T,
-    init_growsize: c_int,
+    ga: &mut Vec<c_char>,
     p: *const c_char,
     mut len: usize,
 ) -> bool {
@@ -2714,10 +2744,9 @@ unsafe fn concat_continued_line(
         if slice.is_empty() || slice[0] != b'\\' {
             return false;
         }
-        if (*ga).ga_len > init_growsize {
-            ga_set_growsize(ga, (*ga).ga_len.min(8000));
+        if len > 1 {
+            ga.extend_from_slice(std::slice::from_raw_parts(line.add(1), len - 1));
         }
-        ga_concat_len(ga, line.add(1), len - 1);
         true
     }
 }
@@ -2779,14 +2808,11 @@ unsafe fn do_source_buffer_init(
             xstrdup(iobuff)
         };
 
-        ga_init(
-            &mut (*sp).buflines,
-            std::mem::size_of::<*mut c_char>() as c_int,
-            100,
-        );
+        (*sp).buflines.clear();
         for curr_lnum in (*eap).line1..=(*eap).line2 {
-            let slot = ga_append_via_ptr::<*mut c_char>(&mut (*sp).buflines);
-            *slot = xstrdup(ml_get(curr_lnum));
+            (*sp)
+                .buflines
+                .push(CStr::from_ptr(ml_get(curr_lnum)).to_owned());
         }
         (*sp).buf_lnum = 0;
         (*sp).source_from_buf_or_str = true;
@@ -2798,19 +2824,14 @@ unsafe fn do_source_buffer_init(
 
 unsafe fn do_source_str_init(sp: *mut source_cookie_T, mut str_ptr: *const c_char) {
     unsafe {
-        ga_init(
-            &mut (*sp).buflines,
-            std::mem::size_of::<*mut c_char>() as c_int,
-            100,
-        );
+        (*sp).buflines.clear();
         while *str_ptr != NUL {
             let eol = skip_to_newline(str_ptr);
-            let slot = ga_append_via_ptr::<*mut c_char>(&mut (*sp).buflines);
-            *slot = xmemdupz(
-                str_ptr.cast::<c_void>(),
-                (eol as usize) - (str_ptr as usize),
-            )
-            .cast::<c_char>();
+            let slice =
+                std::slice::from_raw_parts(str_ptr.cast::<u8>(), (eol as usize) - (str_ptr as usize));
+            (*sp)
+                .buflines
+                .push(std::ffi::CString::new(slice).unwrap_or_default());
             str_ptr = eol.add(usize::from(*eol != NUL));
         }
         (*sp).buf_lnum = 0;
@@ -2871,7 +2892,7 @@ unsafe fn do_source_ext(
     str_ptr: *const c_char,
 ) -> c_int {
     unsafe {
-        let mut cookie: source_cookie_T = std::mem::zeroed();
+        let mut cookie = source_cookie_T::new();
         let mut firstline: *mut u8 = ptr::null_mut();
         let mut retval = FAIL;
         let save_debug_break_level = debug_break_level;
@@ -3120,7 +3141,7 @@ unsafe fn do_source_ext(
                     || (!(*curbuf).b_fname.is_null()
                         && path_with_extension((*curbuf).b_fname, c"lua".as_ptr())))
             {
-                nlua_exec_ga(&mut cookie.buflines, fname_exp);
+                nlua_exec_lines(&cookie.buflines, fname_exp);
             } else if !si.is_null() && (*si).sn_lua {
                 nlua_exec_file(fname_exp);
             } else {
@@ -3202,7 +3223,7 @@ unsafe fn do_source_ext(
                 fclose(cookie.fp);
             }
             if cookie.source_from_buf_or_str {
-                ga_clear_strings(&mut cookie.buflines);
+                cookie.buflines.clear();
             }
             xfree(cookie.nextline.cast::<c_void>());
             xfree(firstline.cast::<c_void>());
@@ -3547,13 +3568,12 @@ pub unsafe fn getsourceline(
                         && *p.add(1) == b'\\' as c_char
                         && *p.add(2) == b' ' as c_char)
                 {
-                    let mut ga: garray_T = std::mem::zeroed();
-                    ga_init(&mut ga, 1, 400);
-                    ga_concat(&mut ga, line);
+                    let line_len = CStr::from_ptr(line).to_bytes().len();
+                    let mut buf: Vec<c_char> = Vec::with_capacity(400);
+                    buf.extend_from_slice(std::slice::from_raw_parts(line, line_len));
                     while !(*sp).nextline.is_null()
                         && concat_continued_line(
-                            &mut ga,
-                            400,
+                            &mut buf,
                             (*sp).nextline,
                             CStr::from_ptr((*sp).nextline).to_bytes().len(),
                         )
@@ -3561,9 +3581,8 @@ pub unsafe fn getsourceline(
                         xfree((*sp).nextline.cast::<c_void>());
                         (*sp).nextline = get_one_sourceline(sp);
                     }
-                    ga_append(&mut ga, 0);
                     xfree(line.cast::<c_void>());
-                    line = ga.ga_data.cast::<c_char>();
+                    line = xmemdupz(buf.as_ptr().cast(), buf.len()).cast::<c_char>();
                 }
             }
         }
@@ -3591,45 +3610,35 @@ pub unsafe fn getsourceline(
 
 unsafe fn get_one_sourceline(sp: *mut source_cookie_T) -> *mut c_char {
     unsafe {
-        let mut ga: garray_T = std::mem::zeroed();
+        let mut buf: Vec<c_char> = Vec::with_capacity(250);
         let mut have_read = false;
-
-        ga_init(&mut ga, 1, 250);
 
         (*sp).sourcing_lnum += 1;
         loop {
-            ga_grow(&mut ga, 120);
             #[cfg(windows)]
-            let mut len: c_int;
+            let mut len: usize;
             #[cfg(not(windows))]
-            let len: c_int;
-            let buf: *mut c_char;
+            let len: usize;
+            let mut filled_chunk = false;
             if (*sp).source_from_buf_or_str {
-                if (*sp).buf_lnum >= (*sp).buflines.ga_len {
+                if ((*sp).buf_lnum as usize) >= (*sp).buflines.len() {
                     break;
                 }
-                ga_concat(
-                    &mut ga,
-                    *((*sp).buflines.ga_data as *mut *mut c_char).add((*sp).buf_lnum as usize),
-                );
+                let line_bytes = (*sp).buflines.as_slice()[(*sp).buf_lnum as usize].to_bytes();
+                buf.extend_from_slice(std::slice::from_raw_parts(
+                    line_bytes.as_ptr().cast::<c_char>(),
+                    line_bytes.len(),
+                ));
                 (*sp).buf_lnum += 1;
-                ga_grow(&mut ga, 1);
-                buf = ga.ga_data.cast::<c_char>();
-                *buf.add(ga.ga_len as usize) = NUL;
-                ga.ga_len += 1;
-                len = ga.ga_len;
+                buf.push(NUL);
+                len = buf.len();
             } else {
-                buf = ga.ga_data.cast::<c_char>();
+                let start = buf.len();
+                buf.resize(start + 120, 0);
                 let mut eof = false;
                 loop {
                     *errno_ptr() = 0;
-                    if fgets(
-                        buf.add(ga.ga_len as usize),
-                        ga.ga_maxlen - ga.ga_len,
-                        (*sp).fp,
-                    )
-                    .is_null()
-                    {
+                    if fgets(buf.as_mut_ptr().add(start), 120, (*sp).fp).is_null() {
                         if *errno_ptr() == EINTR {
                             continue;
                         }
@@ -3638,46 +3647,48 @@ unsafe fn get_one_sourceline(sp: *mut source_cookie_T) -> *mut c_char {
                     break;
                 }
                 if eof {
+                    buf.truncate(start);
                     break;
                 }
-                len = ga.ga_len
-                    + CStr::from_ptr(buf.add(ga.ga_len as usize)).to_bytes().len() as c_int;
+                let read_len = CStr::from_ptr(buf.as_ptr().add(start)).to_bytes().len();
+                filled_chunk = read_len == 119;
+                len = start + read_len;
+                buf.truncate(len);
             }
 
             #[cfg(windows)]
             {
-                if (len == 1 || (len >= 2 && *buf.add((len - 2) as usize) == b'\n' as c_char))
+                if (len == 1 || (len >= 2 && buf[len - 2] == b'\n' as c_char))
                     && (*sp).fileformat == EOL_DOS
-                    && *buf.add((len - 1) as usize) == Ctrl_Z
+                    && buf[len - 1] == Ctrl_Z
                 {
-                    *buf.add((len - 1) as usize) = NUL;
+                    buf.truncate(len - 1);
                     break;
                 }
             }
 
             have_read = true;
-            ga.ga_len = len;
 
             if !(*sp).source_from_buf_or_str
-                && ga.ga_maxlen - ga.ga_len == 1
-                && *buf.add((len - 1) as usize) != b'\n' as c_char
+                && filled_chunk
+                && buf[len - 1] != b'\n' as c_char
             {
                 continue;
             }
 
-            if len >= 1 && *buf.add((len - 1) as usize) == b'\n' as c_char {
+            if len >= 1 && buf[len - 1] == b'\n' as c_char {
                 #[cfg(windows)]
                 {
-                    let has_cr = len >= 2 && *buf.add((len - 2) as usize) == b'\r' as c_char;
+                    let has_cr = len >= 2 && buf[len - 2] == b'\r' as c_char;
                     if (*sp).fileformat == EOL_UNKNOWN {
                         (*sp).fileformat = if has_cr { EOL_DOS } else { EOL_UNIX };
                     }
 
                     if (*sp).fileformat == EOL_DOS {
                         if has_cr {
-                            *buf.add((len - 2) as usize) = b'\n' as c_char;
+                            buf[len - 2] = b'\n' as c_char;
                             len -= 1;
-                            ga.ga_len -= 1;
+                            buf.truncate(len);
                         } else {
                             if !(*sp).error {
                                 msg_source(*hl_attr_active.add(HLF_W));
@@ -3692,16 +3703,16 @@ unsafe fn get_one_sourceline(sp: *mut source_cookie_T) -> *mut c_char {
                     }
                 }
 
-                let mut c = len - 2;
-                while c >= 0 && *buf.add(c as usize) == Ctrl_V {
+                let mut c = (len as isize) - 2;
+                while c >= 0 && buf[c as usize] == Ctrl_V {
                     c -= 1;
                 }
-                if (len & 1) != (c & 1) {
+                if ((len as isize) & 1) != (c & 1) {
                     (*sp).sourcing_lnum += 1;
                     continue;
                 }
 
-                *buf.add((len - 1) as usize) = NUL;
+                buf.truncate(len - 1);
             }
 
             line_breakcheck();
@@ -3709,10 +3720,12 @@ unsafe fn get_one_sourceline(sp: *mut source_cookie_T) -> *mut c_char {
         }
 
         if have_read {
-            return ga.ga_data.cast::<c_char>();
+            if buf.last() == Some(&NUL) {
+                buf.pop();
+            }
+            return xmemdupz(buf.as_ptr().cast(), buf.len()).cast::<c_char>();
         }
 
-        xfree(ga.ga_data);
         ptr::null_mut()
     }
 }

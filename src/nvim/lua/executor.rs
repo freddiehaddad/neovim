@@ -32,9 +32,6 @@ use crate::ex_getln::{
     ui_ext_cmdline_block_append, ui_ext_cmdline_block_leave,
 };
 use crate::fileio::fprintf;
-use crate::garray::{
-    ga_append, ga_clear, ga_concat_len, ga_concat_strings, ga_grow, ga_init, garray_T,
-};
 use crate::globals::*;
 use crate::input::vgetc;
 use crate::keycodes::{special_to_buf, vim_unescape_ks};
@@ -328,13 +325,7 @@ pub static mut active_lstate: *mut lua_State = ptr::null_mut();
 
 static mut REQUIRE_REF: LuaRef = LUA_REFNIL;
 static mut MAIN_THREAD: uv_thread_t = 0;
-static mut EXPAND_RESULT_ARRAY: garray_T = garray_T {
-    ga_len: 0,
-    ga_maxlen: 0,
-    ga_itemsize: 0,
-    ga_growsize: 0,
-    ga_data: ptr::null_mut(),
-};
+static mut EXPAND_RESULT_ARRAY: Vec<*mut c_char> = Vec::new();
 
 use crate::api::buffer::LUA_INTERNAL_CALL;
 use crate::api::private::dispatch::nlua_add_api_functions;
@@ -1449,15 +1440,14 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> c_int {
         let nargs = lua_gettop(lstate);
         lua_getglobal(lstate, c"tostring".as_ptr());
         let mut errmsg_len: usize = 0;
-        let mut msg_ga: garray_T = zeroed();
-        ga_init(&raw mut msg_ga, 1, 80);
+        let mut msg_vec: Vec<c_char> = Vec::with_capacity(80);
         let mut curargidx: c_int = 1;
         while curargidx <= nargs {
             lua_pushvalue(lstate, -1);
             lua_pushvalue(lstate, curargidx);
             if lua_pcall(lstate, 1, 1, 0) != 0 || lua_type(lstate, -1) != LUA_TSTRING {
                 let errmsg = nlua_get_error(lstate, &raw mut errmsg_len);
-                ga_clear(&raw mut msg_ga);
+                drop(msg_vec);
                 let buff = xmalloc(IOSIZE).cast::<c_char>();
                 let fmt = gettext(c"E5114: Converting print argument #%i: %.*s".as_ptr());
                 let len = vim_snprintf!(buff, IOSIZE, fmt, curargidx, errmsg_len as c_int, errmsg)
@@ -1469,14 +1459,18 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> c_int {
 
             let mut len: usize = 0;
             let s = lua_tolstring(lstate, -1, &raw mut len);
-            ga_concat_len(&raw mut msg_ga, s, len);
+            if !s.is_null() && len > 0 {
+                msg_vec.extend_from_slice(std::slice::from_raw_parts(s, len));
+            }
             if curargidx < nargs {
-                ga_append(&raw mut msg_ga, b' ');
+                msg_vec.push(b' ' as c_char);
             }
             lua_pop(lstate, 1);
             curargidx += 1;
         }
-        ga_append(&raw mut msg_ga, 0);
+        let msg_len = msg_vec.len() + 1;
+        let msg_data = xmemdupz(msg_vec.as_ptr().cast(), msg_vec.len());
+        drop(msg_vec);
 
         lua_getfield(lstate, LUA_REGISTRYINDEX, c"nvim.thread".as_ptr());
         let is_thread = lua_toboolean(lstate, -1) != 0;
@@ -1487,20 +1481,19 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> c_int {
                 handler: Some(nlua_print_event),
                 argv: [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC],
             };
-            ev.argv[0] = msg_ga.ga_data;
-            ev.argv[1] = msg_ga.ga_len as isize as *mut c_void;
+            ev.argv[0] = msg_data;
+            ev.argv[1] = msg_len as *mut c_void;
             loop_schedule_deferred((&raw mut main_loop).cast(), ev);
         } else if IN_FAST_CALLBACK != 0 {
             let queues = loop_queues((&raw mut main_loop).cast());
             put_event(
                 (*queues).events,
                 nlua_print_event,
-                msg_ga.ga_data,
-                msg_ga.ga_len as isize as *mut c_void,
+                msg_data,
+                msg_len as *mut c_void,
             );
         } else {
-            let mut argv: [*mut c_void; 2] =
-                [msg_ga.ga_data, msg_ga.ga_len as isize as *mut c_void];
+            let mut argv: [*mut c_void; 2] = [msg_data, msg_len as *mut c_void];
             nlua_print_event(argv.as_mut_ptr());
         }
         0
@@ -2041,12 +2034,26 @@ unsafe fn nlua_exec_typval(
     }
 }
 
-pub unsafe fn nlua_exec_ga(ga: *mut garray_T, name: *mut c_char) {
+pub unsafe fn nlua_exec_lines(lines: &[std::ffi::CString], name: *mut c_char) {
     unsafe {
-        let code = ga_concat_strings(ga, c"\n".as_ptr());
-        let len = CStr::from_ptr(code).to_bytes().len();
-        nlua_exec_typval(code, len, name, ptr::null_mut(), 0, false, ptr::null_mut());
-        xfree(code.cast());
+        let mut code: Vec<u8> = Vec::new();
+        for (i, line) in lines.iter().enumerate() {
+            if i > 0 {
+                code.push(b'\n');
+            }
+            code.extend_from_slice(line.to_bytes());
+        }
+        let len = code.len();
+        code.push(0);
+        nlua_exec_typval(
+            code.as_ptr().cast(),
+            len,
+            name,
+            ptr::null_mut(),
+            0,
+            false,
+            ptr::null_mut(),
+        );
     }
 }
 
@@ -2563,15 +2570,14 @@ pub unsafe fn nlua_expand_pat(xp: *mut expand_T) {
             size: 0,
         };
         let prefix_len = nlua_pop_Integer(lstate, &raw mut arena, &raw mut err) as isize;
+        let er = &raw mut EXPAND_RESULT_ARRAY;
         if !error_set(&raw const err) && prefix_len <= patlen {
             let completions = nlua_pop_Array(lstate, &raw mut arena, &raw mut err);
             if !error_set(&raw const err) {
-                ga_clear(&raw mut EXPAND_RESULT_ARRAY);
-                ga_init(
-                    &raw mut EXPAND_RESULT_ARRAY,
-                    size_of::<*mut c_char>() as c_int,
-                    80,
-                );
+                for &p in &*er {
+                    xfree(p.cast());
+                }
+                *er = Vec::with_capacity(completions.size);
 
                 let mut all_strings = true;
                 for i in 0..completions.size {
@@ -2580,13 +2586,7 @@ pub unsafe fn nlua_expand_pat(xp: *mut expand_T) {
                         all_strings = false;
                         break;
                     }
-                    ga_grow(&raw mut EXPAND_RESULT_ARRAY, 1);
-                    let slot = EXPAND_RESULT_ARRAY
-                        .ga_data
-                        .cast::<*mut c_char>()
-                        .add(EXPAND_RESULT_ARRAY.ga_len as usize);
-                    *slot = string_to_cstr(v.data.string);
-                    EXPAND_RESULT_ARRAY.ga_len += 1;
+                    (*er).push(string_to_cstr(v.data.string));
                 }
 
                 if all_strings {
@@ -2598,7 +2598,10 @@ pub unsafe fn nlua_expand_pat(xp: *mut expand_T) {
         }
 
         if status == FAIL {
-            ga_clear(&raw mut EXPAND_RESULT_ARRAY);
+            for &p in &*er {
+                xfree(p.cast());
+            }
+            *er = Vec::new();
         }
     }
 }
@@ -2608,15 +2611,18 @@ pub unsafe fn nlua_expand_get_matches(
     results: *mut *mut *mut c_char,
 ) -> c_int {
     unsafe {
-        *results = EXPAND_RESULT_ARRAY.ga_data.cast();
-        *num_results = EXPAND_RESULT_ARRAY.ga_len;
-        EXPAND_RESULT_ARRAY = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: ptr::null_mut(),
-        };
+        let er = &raw mut EXPAND_RESULT_ARRAY;
+        if (*er).is_empty() {
+            *results = ptr::null_mut();
+            *num_results = 0;
+        } else {
+            let len = (*er).len();
+            let out = xmalloc(len * size_of::<*mut c_char>()).cast::<*mut c_char>();
+            ptr::copy_nonoverlapping((*er).as_ptr(), out, len);
+            *results = out;
+            *num_results = len as c_int;
+        }
+        *er = Vec::new();
         c_int::from(*num_results > 0)
     }
 }

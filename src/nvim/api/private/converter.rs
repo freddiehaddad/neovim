@@ -471,6 +471,9 @@ mod tests {
 
     #[test]
     fn scalar_object_to_vim_conversions() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let mut tv = typval_T {
             v_type: VarType::VAR_UNKNOWN,
             v_lock: 0,

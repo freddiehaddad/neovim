@@ -1543,6 +1543,9 @@ mod tests {
 
     #[test]
     fn schar_roundtrip_ascii_and_unicode() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         unsafe {
             let sc_a = schar_from_ascii(b'A');
             assert_eq!(schar_get_ascii(sc_a), b'A' as c_char);
