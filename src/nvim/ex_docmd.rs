@@ -11852,7 +11852,7 @@ unsafe fn ex_normal(eap: *mut exarg_T) {
         }
 
         ex_normal_busy += 1;
-        let mut save_state: save_state_T = std::mem::zeroed();
+        let mut save_state = save_state_T::new();
         save_current_state(&raw mut save_state);
 
         loop {

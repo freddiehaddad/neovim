@@ -1,10 +1,8 @@
-//! C-ABI compatible `kvec_t` and `kvec_withinit_t` containers (`src/klib/kvec.h`).
+//! C-ABI compatible `kvec_t` container (`src/klib/kvec.h`).
 
-use std::ffi::{c_char, c_void};
+use std::ffi::c_void;
 
 use crate::memory::{xfree, xrealloc};
-
-pub type StringBuilder = KVec<c_char>;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -130,27 +128,6 @@ impl<T> Default for KVec<T> {
     #[inline]
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[inline]
-pub unsafe fn kv_push<T>(v: *mut KVec<T>, value: T) {
-    unsafe {
-        (*v).push(value);
-    }
-}
-
-#[inline]
-pub unsafe fn kv_concat_len<T: Copy>(v: *mut KVec<T>, data: *const T, len: usize) {
-    unsafe {
-        (*v).concat_len(data, len);
-    }
-}
-
-#[inline]
-pub unsafe fn kv_destroy<T>(v: *mut KVec<T>) {
-    unsafe {
-        (*v).destroy();
     }
 }
 

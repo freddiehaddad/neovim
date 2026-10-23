@@ -25,7 +25,6 @@ use crate::ex_getln::{
 };
 use crate::extmark::{TriState, kFalse, kNone};
 use crate::fileio::fputc;
-use crate::garray::{ga_append, ga_clear, ga_concat_len, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::input_cmdatom::{
     CmdSpec, atom_cmdline_set, atom_composite_abort, atom_map_start, atom_payload_end,
@@ -44,7 +43,6 @@ use crate::keycodes::{
     KE_PLUG, KE_SNR, KS_EXTRA, KS_MODIFIER, MOD_MASK_ALT, MOD_MASK_CTRL, MOD_MASK_SHIFT, NL, TAB,
     special_to_buf, termcap2key,
 };
-use crate::kvec::{KVec, StringBuilder, kv_concat_len, kv_destroy, kv_push};
 use crate::lua::executor::{kRetNilBool, nlua_call_ref, nlua_exec_on_key};
 use crate::mapping::{
     MAXMAPLEN, REMAP_NONE, REMAP_YES, eval_map_expr, get_buf_maphash_list, get_maphash_list,
@@ -131,17 +129,17 @@ const E_LUA_MAPPING_GONE: &CStr = c"E5117: Lua mapping no longer exists";
 
 /// Readahead ("stuff") buffer.
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct StuffBuf {
-    pub keys: StringBuilder,
+    pub keys: Vec<c_char>,
     pub read: usize,
     pub insert: usize,
 }
 
 impl StuffBuf {
-    const fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
-            keys: KVec::new(),
+            keys: Vec::new(),
             read: 0,
             insert: 0,
         }
@@ -150,38 +148,24 @@ impl StuffBuf {
 
 /// Dot-repeat state: the pending change and the previous one.
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct RedoState {
     pub cur: CmdSpec,
     pub old: CmdSpec,
 }
 
 impl RedoState {
-    const fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
-            cur: CmdSpec {
-                count: 0,
-                regname: 0,
-                op: 0,
-                op_extra: 0,
-                motion_force: 0,
-                cmd: 0,
-                cmd2: 0,
-                cmdarg: 0,
-                body: KVec::new(),
-            },
-            old: CmdSpec {
-                count: 0,
-                regname: 0,
-                op: 0,
-                op_extra: 0,
-                motion_force: 0,
-                cmd: 0,
-                cmd2: 0,
-                cmdarg: 0,
-                body: KVec::new(),
-            },
+            cur: CmdSpec::new(),
+            old: CmdSpec::new(),
         }
+    }
+}
+
+impl Default for RedoState {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -199,12 +183,40 @@ pub struct UngotKey {
 
 /// Struct to hold the saved typeahead for `save_typeahead()`.
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct tasave_T {
     pub save_typebuf: typebuf_T,
     pub ungot: UngotKey,
     pub save_readbuf1: StuffBuf,
     pub save_readbuf2: StuffBuf,
+}
+
+impl tasave_T {
+    pub const fn new() -> Self {
+        Self {
+            save_typebuf: typebuf_T {
+                tb_buf: ptr::null_mut(),
+                tb_noremap: ptr::null_mut(),
+                tb_buflen: 0,
+                tb_off: 0,
+                tb_len: 0,
+                tb_maplen: 0,
+                tb_silent: 0,
+                tb_no_abbr_cnt: 0,
+                tb_change_cnt: 0,
+            },
+            ungot: UngotKey {
+                c: 0,
+                mod_mask: 0,
+                mouse_grid: 0,
+                mouse_row: 0,
+                mouse_col: 0,
+                stuffed: false,
+            },
+            save_readbuf1: StuffBuf::new(),
+            save_readbuf2: StuffBuf::new(),
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -251,7 +263,7 @@ static mut scriptin: [FileDescriptor; NSCRIPT] = [const {
     }
 }; NSCRIPT];
 static mut redobuff: RedoState = RedoState::new();
-static mut recordbuff: StringBuilder = KVec::new();
+static mut recordbuff: Vec<c_char> = Vec::new();
 static mut readbuf1: StuffBuf = StuffBuf::new();
 static mut readbuf2: StuffBuf = StuffBuf::new();
 static mut ungot: UngotKey = UngotKey {
@@ -332,7 +344,6 @@ pub(crate) unsafe fn langmap_adjust(c: &mut c_int, condition: bool) {
 /// Frees the buffer's memory; it becomes empty.
 unsafe fn free_buff(buf: *mut StuffBuf) {
     unsafe {
-        (*buf).keys.destroy();
         *buf = StuffBuf::new();
     }
 }
@@ -340,10 +351,10 @@ unsafe fn free_buff(buf: *mut StuffBuf) {
 /// Gets the contents of the record buffer as a string (typeahead encoding) and clears the buffer.
 pub unsafe fn get_recorded() -> *mut c_char {
     unsafe {
-        let mut len = recordbuff.size;
-        kv_push(&raw mut recordbuff, NUL as c_char);
-        let p = recordbuff.items;
-        recordbuff = KVec::new();
+        let rb = &raw mut recordbuff;
+        let mut len = (*rb).len();
+        let p = xmemdupz((*rb).as_ptr().cast(), len).cast::<c_char>();
+        *rb = Vec::new();
 
         if len >= last_recorded_len {
             len -= last_recorded_len;
@@ -358,7 +369,7 @@ pub unsafe fn get_recorded() -> *mut c_char {
     }
 }
 
-unsafe fn redo_prefix(spec: *const CmdSpec, buf: *mut StringBuilder, replay: bool) {
+unsafe fn redo_prefix(spec: *const CmdSpec, buf: &mut Vec<c_char>, replay: bool) {
     unsafe {
         if (*spec).regname != 0 {
             sb_add_char(buf, b'"' as c_int);
@@ -376,13 +387,13 @@ unsafe fn redo_prefix(spec: *const CmdSpec, buf: *mut StringBuilder, replay: boo
                 (*spec).count as c_int,
             );
             if n > 0 {
-                (*buf).concat_len(numbuf.as_ptr(), n as usize);
+                buf.extend_from_slice(&numbuf[..n as usize]);
             }
         }
     }
 }
 
-unsafe fn redo_chars(spec: *const CmdSpec, buf: *mut StringBuilder, arg_meta: bool) {
+unsafe fn redo_chars(spec: *const CmdSpec, buf: &mut Vec<c_char>, arg_meta: bool) {
     unsafe {
         if (*spec).op != NUL {
             sb_add_char(buf, (*spec).op);
@@ -405,20 +416,18 @@ unsafe fn redo_chars(spec: *const CmdSpec, buf: *mut StringBuilder, arg_meta: bo
     }
 }
 
-unsafe fn sb_take_string(buf: *mut StringBuilder) -> NvimString {
+unsafe fn sb_take_string(buf: &mut Vec<c_char>) -> NvimString {
     unsafe {
-        if (*buf).size == 0 {
-            (*buf).destroy();
+        if buf.is_empty() {
+            *buf = Vec::new();
             return NvimString {
                 data: ptr::null_mut(),
                 size: 0,
             };
         }
-        let len = (*buf).size;
-        assert!(!(*buf).items.is_null());
-        (*buf).push(NUL as c_char);
-        let items = (*buf).items;
-        *buf = KVec::new();
+        let len = buf.len();
+        let items = xmemdupz(buf.as_ptr().cast(), len).cast();
+        *buf = Vec::new();
         NvimString {
             data: items,
             size: len,
@@ -435,23 +444,22 @@ pub unsafe fn redo_keys(spec: *const CmdSpec) -> NvimString {
             &raw const redobuff.cur
         };
 
-        let mut buf: StringBuilder = KVec::new();
-        redo_prefix(spec, &raw mut buf, false);
-        if (*spec).body.size > 0 {
-            buf.concat_len((*spec).body.items, (*spec).body.size);
+        let mut buf: Vec<c_char> = Vec::new();
+        redo_prefix(spec, &mut buf, false);
+        if !(*spec).body.is_empty() {
+            buf.extend_from_slice(&(*spec).body);
         } else {
-            redo_chars(spec, &raw mut buf, false);
+            redo_chars(spec, &mut buf, false);
         }
-        sb_take_string(&raw mut buf)
+        sb_take_string(&mut buf)
     }
 }
 
 /// Gets the pending change's `CmdSpec` (without `body`).
 pub unsafe fn redo_spec() -> CmdSpec {
     unsafe {
-        let mut spec = redobuff.cur;
-        spec.body = KVec::new();
-        spec
+        let cur = &raw const redobuff.cur;
+        (*cur).without_body()
     }
 }
 
@@ -464,11 +472,9 @@ unsafe fn add_buff(buf: *mut StuffBuf, s: *const c_char, mut slen: isize) {
             return;
         }
         let slen_u = slen as usize;
-        (*buf).keys.ensure_space(slen_u);
-        let at = (*buf).keys.items.add((*buf).insert);
-        ptr::copy(at, at.add(slen_u), (*buf).keys.size - (*buf).insert);
-        ptr::copy_nonoverlapping(s, at, slen_u);
-        (*buf).keys.size += slen_u;
+        let slice = std::slice::from_raw_parts(s, slen_u);
+        let insert = (*buf).insert;
+        (*buf).keys.splice(insert..insert, slice.iter().copied());
         (*buf).insert += slen_u;
     }
 }
@@ -522,20 +528,18 @@ unsafe fn add_char_buff(buf: *mut StuffBuf, c: c_int) {
     }
 }
 
-unsafe fn sb_add_byte(sb: *mut StringBuilder, c: c_int) {
-    unsafe {
-        let mut temp = [0 as c_char; 4];
-        let templen = key_byte_encode(c, &mut temp) as usize;
-        (*sb).concat_len(temp.as_ptr(), templen);
-    }
+fn sb_add_byte(sb: &mut Vec<c_char>, c: c_int) {
+    let mut temp = [0 as c_char; 4];
+    let templen = key_byte_encode(c, &mut temp) as usize;
+    sb.extend_from_slice(&temp[..templen]);
 }
 
-/// Dual of `add_char_buff()`, for a `StringBuilder`.
-pub unsafe fn sb_add_char(sb: *mut StringBuilder, c: c_int) {
+/// Dual of `add_char_buff()`, for a byte buffer.
+pub unsafe fn sb_add_char(sb: &mut Vec<c_char>, c: c_int) {
     unsafe {
         let mut temp = [0 as c_char; MB_MAXBYTES * 3 + 1];
         let len = key_char_encode(c, temp.as_mut_ptr());
-        (*sb).concat_len(temp.as_ptr(), len);
+        sb.extend_from_slice(&temp[..len]);
     }
 }
 
@@ -551,16 +555,16 @@ unsafe fn read_readbuffers(advance: bool) -> c_int {
 
 unsafe fn read_readbuf(buf: *mut StuffBuf, advance: bool) -> c_int {
     unsafe {
-        if (*buf).read == (*buf).keys.size {
+        if (*buf).read == (*buf).keys.len() {
             return NUL;
         }
 
-        let c = *(*buf).keys.items.add((*buf).read) as u8 as c_int;
+        let c = (*buf).keys.as_slice()[(*buf).read] as u8 as c_int;
 
         if advance {
             (*buf).read += 1;
-            if (*buf).read == (*buf).keys.size {
-                (*buf).keys.size = 0;
+            if (*buf).read == (*buf).keys.len() {
+                (*buf).keys.clear();
                 (*buf).read = 0;
                 (*buf).insert = 0;
             } else {
@@ -580,12 +584,19 @@ unsafe fn start_stuff() {
 
 /// Returns true if the readahead ("stuff") buffer is empty.
 pub unsafe fn stuff_empty() -> bool {
-    unsafe { readbuf1.keys.size == 0 && readbuf2.keys.size == 0 }
+    unsafe {
+        let k1 = &raw const readbuf1.keys;
+        let k2 = &raw const readbuf2.keys;
+        (*k1).is_empty() && (*k2).is_empty()
+    }
 }
 
 /// Returns true if `readbuf1` is empty.
 pub unsafe fn readbuf1_empty() -> bool {
-    unsafe { readbuf1.keys.size == 0 }
+    unsafe {
+        let k1 = &raw const readbuf1.keys;
+        (*k1).is_empty()
+    }
 }
 
 /// Set a typeahead character that won't be flushed.
@@ -604,7 +615,8 @@ pub unsafe fn flush_buffers(flush_typeahead: flush_buffers_T) {
             atom_composite_abort();
         }
 
-        if readbuf2.keys.size > 0 && Visual.active {
+        let k2 = &raw const readbuf2.keys;
+        if !(*k2).is_empty() && Visual.active {
             Visual.need_end = true;
         }
         free_buff(&raw mut readbuf1);
@@ -666,23 +678,21 @@ pub unsafe fn beep_flush() {
 /// Starts capturing a new change.
 pub unsafe fn redo_new(spec: CmdSpec) {
     unsafe {
-        assert_eq!(spec.body.size, 0);
+        assert!(spec.body.is_empty());
         if block_redo {
             return;
         }
 
-        kv_destroy(&raw mut redobuff.old.body);
-        redobuff.old = redobuff.cur;
-        redobuff.cur = spec;
+        let rb = &raw mut redobuff;
+        (*rb).old = std::mem::replace(&mut (*rb).cur, spec);
     }
 }
 
 /// Frees both redo buffers.
 pub unsafe fn redo_free_all() {
     unsafe {
-        kv_destroy(&raw mut redobuff.cur.body);
-        kv_destroy(&raw mut redobuff.old.body);
-        redobuff = RedoState::new();
+        let rb = &raw mut redobuff;
+        *rb = RedoState::new();
     }
 }
 
@@ -692,18 +702,19 @@ pub unsafe fn prep_redo(as_atom: bool, arg_meta: bool, spec: CmdSpec) {
         if as_atom {
             atom_redo_prepped();
         }
-        redo_new(spec);
+        redo_new(spec.without_body());
         if block_redo {
             return;
         }
-        redo_chars(&raw const spec, &raw mut redobuff.cur.body, arg_meta);
+        let body = &raw mut redobuff.cur.body;
+        redo_chars(&raw const spec, &mut *body, arg_meta);
     }
 }
 
 /// Prepare for redo of a Visual-mode command.
 pub unsafe fn prep_redo_visual(keys: *const c_char, len: usize, spec: CmdSpec) {
     unsafe {
-        let mut stored = spec;
+        let mut stored = spec.without_body();
         stored.regname = 0;
         stored.count = 0;
         atom_redo_prepped();
@@ -711,9 +722,12 @@ pub unsafe fn prep_redo_visual(keys: *const c_char, len: usize, spec: CmdSpec) {
         if block_redo {
             return;
         }
-        kv_concat_len(&raw mut redobuff.cur.body, keys, len);
-        redo_prefix(&raw const spec, &raw mut redobuff.cur.body, false);
-        redo_chars(&raw const spec, &raw mut redobuff.cur.body, false);
+        let body = &raw mut redobuff.cur.body;
+        if !keys.is_null() && len > 0 {
+            (*body).extend_from_slice(std::slice::from_raw_parts(keys, len));
+        }
+        redo_prefix(&raw const spec, &mut *body, false);
+        redo_chars(&raw const spec, &mut *body, false);
     }
 }
 
@@ -725,9 +739,8 @@ pub unsafe fn redo_cancel() {
         }
 
         atom_redo_cancel();
-        kv_destroy(&raw mut redobuff.cur.body);
-        redobuff.cur = redobuff.old;
-        redobuff.old = CmdSpec::default();
+        let rb = &raw mut redobuff;
+        (*rb).cur = std::mem::take(&mut (*rb).old);
         free_buff(&raw mut readbuf1);
         free_buff(&raw mut readbuf2);
     }
@@ -736,23 +749,17 @@ pub unsafe fn redo_cancel() {
 /// Saves the redo state to `save_redo` and detaches it.
 pub unsafe fn save_redobuff(save_redo: *mut RedoState) {
     unsafe {
-        *save_redo = redobuff;
-        redobuff.cur.body = KVec::new();
-        redobuff.old = CmdSpec::default();
-        kv_concat_len(
-            &raw mut redobuff.cur.body,
-            (*save_redo).cur.body.items,
-            (*save_redo).cur.body.size,
-        );
+        let rb = &raw mut redobuff;
+        (*save_redo).cur = (*rb).cur.clone();
+        (*save_redo).old = std::mem::take(&mut (*rb).old);
     }
 }
 
 /// Restores the redo state from `save_redo`.
 pub unsafe fn restore_redobuff(save_redo: *mut RedoState) {
     unsafe {
-        kv_destroy(&raw mut redobuff.cur.body);
-        kv_destroy(&raw mut redobuff.old.body);
-        redobuff = *save_redo;
+        let rb = &raw mut redobuff;
+        *rb = std::mem::take(&mut *save_redo);
     }
 }
 
@@ -761,13 +768,16 @@ pub unsafe fn redo_append_str(s: *const c_char, len: isize) {
     unsafe {
         if !block_redo {
             let slen = if len < 0 { strlen(s) } else { len as usize };
-            kv_concat_len(&raw mut redobuff.cur.body, s, slen);
+            if !s.is_null() && slen > 0 {
+                let body = &raw mut redobuff.cur.body;
+                (*body).extend_from_slice(std::slice::from_raw_parts(s, slen));
+            }
         }
     }
 }
 
 /// Appends `str` to `buf` literally, escaping special characters with CTRL-V.
-pub unsafe fn sb_add_lit(buf: *mut StringBuilder, str_: *const c_char, len: c_int) {
+pub unsafe fn sb_add_lit(buf: &mut Vec<c_char>, str_: *const c_char, len: c_int) {
     unsafe {
         let mut s = str_;
         while if len < 0 {
@@ -788,7 +798,7 @@ pub unsafe fn sb_add_lit(buf: *mut StringBuilder, str_: *const c_char, len: c_in
             }
             if s > start {
                 let n = s.offset_from(start) as usize;
-                (*buf).concat_len(start, n);
+                buf.extend_from_slice(std::slice::from_raw_parts(start, n));
             }
 
             if *s == NUL as c_char || (len >= 0 && s.offset_from(str_) >= len as isize) {
@@ -804,7 +814,7 @@ pub unsafe fn sb_add_lit(buf: *mut StringBuilder, str_: *const c_char, len: c_in
             }
 
             if *s == NUL as c_char && c == b'0' as c_int {
-                (*buf).concat_len(c"048".as_ptr(), 3);
+                buf.extend_from_slice(std::slice::from_raw_parts(c"048".as_ptr(), 3));
             } else {
                 sb_add_char(buf, c);
             }
@@ -818,16 +828,17 @@ pub unsafe fn redo_append_lit(str_: *const c_char, len: c_int) {
         if block_redo {
             return;
         }
-        sb_add_lit(&raw mut redobuff.cur.body, str_, len);
+        let body = &raw mut redobuff.cur.body;
+        sb_add_lit(&mut *body, str_, len);
     }
 }
 
 /// Appends `s` to `buf`, leaving 3-byte special key codes unmodified and escaping other K_SPECIAL bytes.
-pub unsafe fn sb_add_spec(buf: *mut StringBuilder, mut s: *const c_char) {
+pub unsafe fn sb_add_spec(buf: &mut Vec<c_char>, mut s: *const c_char) {
     unsafe {
         while *s != NUL as c_char {
             if *s as u8 == K_SPECIAL && *s.add(1) != NUL as c_char && *s.add(2) != NUL as c_char {
-                (*buf).concat_len(s, 3);
+                buf.extend_from_slice(std::slice::from_raw_parts(s, 3));
                 s = s.add(3);
             } else {
                 let c = mb_cptr2char_adv(&raw mut s);
@@ -843,7 +854,8 @@ pub unsafe fn redo_append_spec(s: *const c_char) {
         if block_redo {
             return;
         }
-        sb_add_spec(&raw mut redobuff.cur.body, s);
+        let body = &raw mut redobuff.cur.body;
+        sb_add_spec(&mut *body, s);
     }
 }
 
@@ -851,7 +863,8 @@ pub unsafe fn redo_append_spec(s: *const c_char) {
 pub unsafe fn redo_append_char(c: c_int) {
     unsafe {
         if !block_redo {
-            sb_add_char(&raw mut redobuff.cur.body, c);
+            let body = &raw mut redobuff.cur.body;
+            sb_add_char(&mut *body, c);
         }
     }
 }
@@ -945,30 +958,29 @@ pub unsafe fn start_redo(count: c_int, old_redo: bool) -> c_int {
         } else {
             &raw mut redobuff.cur
         };
-        if (*rd).body.size == 0 && (*rd).regname == 0 && (*rd).count == 0 {
+        if (*rd).body.is_empty() && (*rd).regname == 0 && (*rd).count == 0 {
             return FAIL;
         }
 
-        let mut spec = *rd;
-        spec.body = KVec::new();
+        let mut spec = (*rd).without_body();
         if spec.regname >= b'1' as c_int && spec.regname < b'9' as c_int {
             spec.regname += 1;
         }
         if count != 0 {
             spec.count = c_long::from(count);
         }
-        let mut prefix: StringBuilder = KVec::new();
-        redo_prefix(&raw const spec, &raw mut prefix, true);
-        add_buff(&raw mut readbuf2, prefix.items, prefix.size as isize);
-        prefix.destroy();
+        let mut prefix: Vec<c_char> = Vec::new();
+        redo_prefix(&raw const spec, &mut prefix, true);
+        add_buff(&raw mut readbuf2, prefix.as_ptr(), prefix.len() as isize);
+        drop(prefix);
         if spec.regname == b'=' as c_int {
             cmd_silent = true;
         }
 
         add_buff(
             &raw mut readbuf2,
-            (*rd).body.items,
-            (*rd).body.size as isize,
+            (*rd).body.as_ptr(),
+            (*rd).body.len() as isize,
         );
         OK
     }
@@ -977,13 +989,14 @@ pub unsafe fn start_redo(count: c_int, old_redo: bool) -> c_int {
 /// Repeats the last insert (`R`, `o`, `O`, `a`, `A`, `i` or `I` command).
 pub unsafe fn start_redo_ins() -> c_int {
     unsafe {
-        if redobuff.cur.body.size == 0 {
+        let body = &raw const redobuff.cur.body;
+        if (*body).is_empty() {
             return FAIL;
         }
         start_stuff();
 
-        let mut p = redobuff.cur.body.items.cast_const();
-        let end = p.add(redobuff.cur.body.size);
+        let mut p = (*body).as_ptr();
+        let end = p.add((*body).len());
         while p < end {
             if *p as u8 == K_SPECIAL && end.offset_from(p) >= 3 {
                 p = p.add(3);
@@ -1333,11 +1346,11 @@ unsafe fn gotchars(chars: *const u8, len: usize) {
             }
 
             if reg_recording != 0 {
-                kv_concat_len(
-                    &raw mut recordbuff,
+                let rb = &raw mut recordbuff;
+                (*rb).extend_from_slice(std::slice::from_raw_parts(
                     (&raw const GOTCHARS_STATE.buf).cast::<c_char>(),
                     buflen,
-                );
+                ));
                 last_recorded_len += buflen;
             }
 
@@ -1367,8 +1380,9 @@ unsafe fn ungetchars(len: c_int, recorded: bool) {
             return;
         }
         let len_u = len as usize;
-        if recorded && reg_recording != 0 && recordbuff.size >= len_u {
-            recordbuff.size -= len_u;
+        let rb = &raw mut recordbuff;
+        if recorded && reg_recording != 0 && (*rb).len() >= len_u {
+            (*rb).truncate((*rb).len() - len_u);
             last_recorded_len -= len_u;
         }
         atom_typed_del(len_u);
@@ -1446,10 +1460,10 @@ pub unsafe fn save_typeahead(tp: *mut tasave_T) {
         (*tp).ungot = ungot;
         ungot.c = -1;
 
-        (*tp).save_readbuf1 = readbuf1;
-        readbuf1 = StuffBuf::new();
-        (*tp).save_readbuf2 = readbuf2;
-        readbuf2 = StuffBuf::new();
+        let rb1 = &raw mut readbuf1;
+        let rb2 = &raw mut readbuf2;
+        (*tp).save_readbuf1 = std::mem::replace(&mut *rb1, StuffBuf::new());
+        (*tp).save_readbuf2 = std::mem::replace(&mut *rb2, StuffBuf::new());
     }
 }
 
@@ -1460,10 +1474,10 @@ pub unsafe fn restore_typeahead(tp: *mut tasave_T) {
         typebuf = (*tp).save_typebuf;
         ungot = (*tp).ungot;
 
-        free_buff(&raw mut readbuf1);
-        readbuf1 = (*tp).save_readbuf1;
-        free_buff(&raw mut readbuf2);
-        readbuf2 = (*tp).save_readbuf2;
+        let rb1 = &raw mut readbuf1;
+        let rb2 = &raw mut readbuf2;
+        *rb1 = std::mem::replace(&mut (*tp).save_readbuf1, StuffBuf::new());
+        *rb2 = std::mem::replace(&mut (*tp).save_readbuf2, StuffBuf::new());
     }
 }
 
@@ -3253,25 +3267,15 @@ pub unsafe fn getcmdkeycmd(
     _do_concat: bool,
 ) -> *mut c_char {
     unsafe {
-        let mut line_ga = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: ptr::null_mut(),
-        };
+        let mut line: Vec<u8> = Vec::new();
         let mut c1: c_int = -1;
         let mut cmod: c_int = 0;
         let mut aborted = false;
-
-        ga_init(&raw mut line_ga, 1, 32);
 
         no_mapping += 1;
 
         got_int = false;
         while c1 != NUL && !aborted {
-            ga_grow(&raw mut line_ga, 32);
-
             if vgetorpeek(false) == NUL {
                 emsg(gettext(E_CMD_MAPPING_MUST_END_WITH_CR.as_ptr()));
                 aborted = true;
@@ -3302,19 +3306,15 @@ pub unsafe fn getcmdkeycmd(
                 ));
                 aborted = true;
             } else if c1 == K_SNR {
-                ga_concat_len(&raw mut line_ga, c"<SNR>".as_ptr(), 5);
+                line.extend_from_slice(b"<SNR>");
             } else {
                 if cmod != 0 {
-                    ga_append(&raw mut line_ga, K_SPECIAL);
-                    ga_append(&raw mut line_ga, KS_MODIFIER);
-                    ga_append(&raw mut line_ga, cmod as u8);
+                    line.extend_from_slice(&[K_SPECIAL, KS_MODIFIER, cmod as u8]);
                 }
                 if is_special(c1) {
-                    ga_append(&raw mut line_ga, K_SPECIAL);
-                    ga_append(&raw mut line_ga, k_second(c1));
-                    ga_append(&raw mut line_ga, k_third(c1));
+                    line.extend_from_slice(&[K_SPECIAL, k_second(c1), k_third(c1)]);
                 } else {
-                    ga_append(&raw mut line_ga, c1 as u8);
+                    line.push(c1 as u8);
                 }
             }
 
@@ -3324,60 +3324,49 @@ pub unsafe fn getcmdkeycmd(
         no_mapping -= 1;
 
         if aborted {
-            ga_clear(&raw mut line_ga);
-        } else if promptc == b':' as c_int {
-            atom_cmdline_set(
-                K_COMMAND,
-                line_ga.ga_data.cast::<c_char>(),
-                line_ga.ga_len as usize,
-            );
+            ptr::null_mut()
+        } else {
+            let out = xmemdupz(line.as_ptr().cast(), line.len()).cast::<c_char>();
+            if promptc == b':' as c_int {
+                atom_cmdline_set(K_COMMAND, out, line.len());
+            }
+            out
         }
-
-        line_ga.ga_data.cast::<c_char>()
     }
 }
 
 /// Handle a Lua mapping: get its id from typeahead and execute its callback.
 pub unsafe fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
     unsafe {
-        let mut line_ga = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 0,
-            ga_growsize: 0,
-            ga_data: ptr::null_mut(),
-        };
+        let mut line: Vec<c_char> = Vec::new();
         let mut c1: c_int = -1;
         let mut aborted = false;
-
-        ga_init(&raw mut line_ga, 1, 32);
 
         no_mapping += 1;
 
         got_int = false;
         while c1 != NUL && !aborted {
-            ga_grow(&raw mut line_ga, 32);
             c1 = vgetorpeek(true);
             if got_int {
                 aborted = true;
             } else if c1 == b'\r' as c_int || c1 == b'\n' as c_int {
                 c1 = NUL;
             } else {
-                ga_append(&raw mut line_ga, c1 as u8);
+                line.push(c1 as c_char);
             }
         }
 
         no_mapping -= 1;
 
         if aborted || discard {
-            ga_clear(&raw mut line_ga);
             return !aborted;
         }
 
-        let id = atoi(line_ga.ga_data.cast::<c_char>());
+        line.push(NUL as c_char);
+        let id = atoi(line.as_ptr());
+        drop(line);
         let ref_ = map_luaid_get(id);
         if ref_ == LUA_NOREF {
-            ga_clear(&raw mut line_ga);
             emsg(gettext(E_LUA_MAPPING_GONE.as_ptr()));
             return false;
         }
@@ -3407,7 +3396,6 @@ pub unsafe fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
             api_clear_error(&raw mut err);
         }
 
-        ga_clear(&raw mut line_ga);
         true
     }
 }
@@ -3426,6 +3414,9 @@ pub unsafe fn paste_store(channel_id: u64, state: TriState, str_: NvimString, cr
             return;
         }
 
+        let rbody = &raw mut redobuff.cur.body;
+        let recbuf = &raw mut recordbuff;
+
         if state != kNone {
             let c = if state == kFalse {
                 K_PASTE_START
@@ -3436,10 +3427,10 @@ pub unsafe fn paste_store(channel_id: u64, state: TriState, str_: NvimString, cr
                 if state == kFalse && (State & MODE_INSERT) == 0 {
                     redo_new(CmdSpec::default());
                 }
-                sb_add_char(&raw mut redobuff.cur.body, c);
+                sb_add_char(&mut *rbody, c);
             }
             if need_record {
-                sb_add_char(&raw mut recordbuff, c);
+                sb_add_char(&mut *recbuf, c);
             }
             return;
         }
@@ -3460,11 +3451,12 @@ pub unsafe fn paste_store(channel_id: u64, state: TriState, str_: NvimString, cr
 
             if s > start {
                 let n = s.offset_from(start) as usize;
+                let slice = std::slice::from_raw_parts(start, n);
                 if need_redo {
-                    kv_concat_len(&raw mut redobuff.cur.body, start, n);
+                    (*rbody).extend_from_slice(slice);
                 }
                 if need_record {
-                    kv_concat_len(&raw mut recordbuff, start, n);
+                    (*recbuf).extend_from_slice(slice);
                 }
             }
 
@@ -3478,10 +3470,10 @@ pub unsafe fn paste_store(channel_id: u64, state: TriState, str_: NvimString, cr
                     c = NL;
                 }
                 if need_redo {
-                    sb_add_byte(&raw mut redobuff.cur.body, c);
+                    sb_add_byte(&mut *rbody, c);
                 }
                 if need_record {
-                    sb_add_byte(&raw mut recordbuff, c);
+                    sb_add_byte(&mut *recbuf, c);
                 }
             }
         }
@@ -3491,20 +3483,13 @@ pub unsafe fn paste_store(channel_id: u64, state: TriState, str_: NvimString, cr
 /// Gets a paste stored by `paste_store()` from typeahead and repeats it.
 pub unsafe fn paste_repeat(count: c_int) {
     unsafe {
-        let mut ga = garray_T {
-            ga_len: 0,
-            ga_maxlen: 0,
-            ga_itemsize: 1,
-            ga_growsize: 32,
-            ga_data: ptr::null_mut(),
-        };
+        let mut buf: Vec<u8> = Vec::new();
         let mut aborted = false;
 
         no_mapping += 1;
 
         got_int = false;
         while !aborted {
-            ga_grow(&raw mut ga, 32);
             let mut c1 = vgetorpeek(true) as u8;
             if c1 == K_SPECIAL {
                 c1 = vgetorpeek(true) as u8;
@@ -3513,16 +3498,14 @@ pub unsafe fn paste_repeat(count: c_int) {
                 if c == K_PASTE_END {
                     break;
                 } else if c == K_ZERO {
-                    ga_append(&raw mut ga, NUL as u8);
+                    buf.push(NUL as u8);
                 } else if c == K_SPECIAL as c_int {
-                    ga_append(&raw mut ga, K_SPECIAL);
+                    buf.push(K_SPECIAL);
                 } else {
-                    ga_append(&raw mut ga, K_SPECIAL);
-                    ga_append(&raw mut ga, c1);
-                    ga_append(&raw mut ga, c2);
+                    buf.extend_from_slice(&[K_SPECIAL, c1, c2]);
                 }
             } else {
-                ga_append(&raw mut ga, c1);
+                buf.push(c1);
             }
             aborted = got_int;
         }
@@ -3530,8 +3513,8 @@ pub unsafe fn paste_repeat(count: c_int) {
         no_mapping -= 1;
 
         let str_ = NvimString {
-            data: ga.ga_data.cast::<c_char>(),
-            size: ga.ga_len as usize,
+            data: buf.as_mut_ptr().cast::<c_char>(),
+            size: buf.len(),
         };
         let mut arena = Arena {
             cur_blk: ptr::null_mut(),
@@ -3557,7 +3540,6 @@ pub unsafe fn paste_repeat(count: c_int) {
         }
         api_clear_error(&raw mut err);
         arena_mem_free(arena_finish(&raw mut arena));
-        ga_clear(&raw mut ga);
     }
 }
 

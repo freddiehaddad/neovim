@@ -111,6 +111,22 @@ struct McSandbox {
     visual: VisualState,
 }
 
+impl McSandbox {
+    unsafe fn new() -> Self {
+        unsafe {
+            Self {
+                primary: CONTEXT_INIT,
+                cursor_mark: 0,
+                topline_mark: 0,
+                view: std::mem::zeroed(),
+                sst: save_state_T::new(),
+                redo: RedoState::new(),
+                visual: std::mem::zeroed(),
+            }
+        }
+    }
+}
+
 #[repr(C)]
 struct McInsSaved {
     ins: InsState,
@@ -354,7 +370,11 @@ unsafe fn mc_sandbox_leave(sb: *mut McSandbox) {
 unsafe fn mc_execute(cursoridx: usize, atomidx: usize) {
     unsafe {
         let mut ctx = cursors()[cursoridx];
-        let atom = *g_atoms.items.add(atomidx);
+        let (atom_keys, atom_type, atom_cmd, atom_cmd2, atom_remap) = {
+            let ga = &raw const g_atoms;
+            let a = &(*ga).as_slice()[atomidx];
+            (a.keys, a.r#type, a.spec.cmd, a.spec.cmd2, a.remap)
+        };
 
         if handle_get_buffer(ctx.buf) != curbuf {
             return;
@@ -363,11 +383,11 @@ unsafe fn mc_execute(cursoridx: usize, atomidx: usize) {
         if ctx.mark != 0 && !extmark_get_pos(curbuf, mc_ns(), ctx.mark, &mut ctx.pos) {
             return;
         }
-        if ctx.visual.vi_start.lnum == 0 && strncmp(atom.keys, c"gv".as_ptr(), 2) == 0 {
+        if ctx.visual.vi_start.lnum == 0 && strncmp(atom_keys, c"gv".as_ptr(), 2) == 0 {
             return;
         }
 
-        let swap_regs = atom.r#type != kAMotion;
+        let swap_regs = atom_type != kAMotion;
         let mut regs_ts: Timestamp = 0;
         if swap_regs {
             if reg_max_ts(false) >= mc_start.time {
@@ -379,13 +399,13 @@ unsafe fn mc_execute(cursoridx: usize, atomidx: usize) {
             regs_ts = reg_max_ts(false);
         }
 
-        let mark_cmd = if atom.spec.cmd == b'g' as c_int {
-            atom.spec.cmd2
+        let mark_cmd = if atom_cmd == b'g' as c_int {
+            atom_cmd2
         } else {
-            atom.spec.cmd
+            atom_cmd
         };
-        let swap_marks = atom.r#type != kAMotion
-            || atom.remap
+        let swap_marks = atom_type != kAMotion
+            || atom_remap
             || mark_cmd == b'\'' as c_int
             || mark_cmd == b'`' as c_int;
 
@@ -399,31 +419,31 @@ unsafe fn mc_execute(cursoridx: usize, atomidx: usize) {
             0,
         );
 
-        if atom.r#type == kAInsertSpan {
+        if atom_type == kAInsertSpan {
             check_pos(curbuf, &mut (*curwin).w_cursor);
         } else {
             check_cursor(curwin);
         }
 
-        if atom.r#type == kAVisualSpan {
+        if atom_type == kAVisualSpan {
             Visual.active = false;
             Visual.select = false;
         }
 
-        if atom.r#type == kAInsertSpan {
+        if atom_type == kAInsertSpan {
             State = MODE_INSERT;
         }
 
         let beeps = did_beep;
         let tick = buf_get_changedtick(curbuf);
-        let mode_str = if atom.remap {
+        let mode_str = if atom_remap {
             c"ix".as_ptr()
         } else {
             c"nix".as_ptr()
         };
-        nvim_feedkeys(cstr_as_string(atom.keys), cstr_as_string(mode_str), false);
+        nvim_feedkeys(cstr_as_string(atom_keys), cstr_as_string(mode_str), false);
 
-        if atom.r#type == kAInsertSpan
+        if atom_type == kAInsertSpan
             && mc_ins_span.first
             && did_beep != beeps
             && buf_get_changedtick(curbuf) == tick
@@ -433,7 +453,7 @@ unsafe fn mc_execute(cursoridx: usize, atomidx: usize) {
         }
 
         if Visual.active {
-            if atom.r#type == kAVisualSpan {
+            if atom_type == kAVisualSpan {
                 (*curbuf).b_visual = visualinfo();
                 (*curbuf).b_visual_mode_eval = Visual.mode;
             }
@@ -463,7 +483,7 @@ unsafe fn mc_execute(cursoridx: usize, atomidx: usize) {
             },
         );
 
-        if atom.r#type == kAInsertSpan && (*curbuf).b_last_insert.mark.lnum > 0 {
+        if atom_type == kAInsertSpan && (*curbuf).b_last_insert.mark.lnum > 0 {
             ctx.pos = (*curbuf).b_last_insert.mark;
         }
         mc_mark_upd(curbuf, &mut ctx.mark, ctx.pos);
@@ -473,8 +493,9 @@ unsafe fn mc_execute(cursoridx: usize, atomidx: usize) {
 
 unsafe fn mc_cascade() {
     unsafe {
-        assert!(g_atoms.size >= 1);
-        let origin = &(*g_atoms.items).origin;
+        let ga = &raw mut g_atoms;
+        assert!(!(*ga).is_empty());
+        let origin = (*ga).as_slice()[0].origin;
         let mcursor = if origin.buf.br_buf == curbuf {
             origin.mcursor
         } else {
@@ -486,13 +507,13 @@ unsafe fn mc_cascade() {
         got_int = false;
 
         let mut edits = false;
-        for i in 0..g_atoms.size {
-            edits |= (*g_atoms.items.add(i)).r#type != kAMotion;
+        for i in 0..(*ga).len() {
+            edits |= (*ga).as_slice()[i].r#type != kAMotion;
         }
         if edits {
             mc_cleanup(true, ptr::null(), 0);
             if cursors().is_empty() {
-                atoms_free(&raw mut g_atoms);
+                atoms_free(ga);
                 return;
             }
         }
@@ -503,11 +524,11 @@ unsafe fn mc_cascade() {
             mc_mark_upd(curbuf, &mut mark, (*curwin).w_cursor);
         }
 
-        let mut sb: McSandbox = std::mem::zeroed();
+        let mut sb = McSandbox::new();
         mc_sandbox_enter(&mut sb, edits);
 
-        'outer: for ai in 0..g_atoms.size {
-            let atom = g_atoms.items.add(ai);
+        'outer: for ai in 0..(*ga).len() {
+            let atom = (*ga).as_mut_ptr().add(ai);
             if !(*atom).origin.buf.br_buf.is_null()
                 && (!bufref_valid(&raw mut (*atom).origin.buf)
                     || (*atom).origin.buf.br_buf != curbuf)
@@ -527,7 +548,7 @@ unsafe fn mc_cascade() {
             }
         }
 
-        atoms_free(&raw mut g_atoms);
+        atoms_free(ga);
         let bufnr = sb.primary.buf;
         mc_sandbox_leave(&mut sb);
 
@@ -543,25 +564,26 @@ unsafe fn mc_cascade() {
 
 pub unsafe fn mc_clock_edge(map_edit: bool, map_moved: bool, follow: bool) {
     unsafe {
+        let ga = &raw mut g_atoms;
         if (map_edit || (follow && map_moved && !Visual.active))
             && !atom_composite_queued()
-            && g_atoms.size == 0
+            && (*ga).is_empty()
             && atom_composite_active()
             && mc_buf_has_cursors(curbuf)
         {
             atom_lhs_replay_queue();
         }
-        if mc_buf_has_cursors(curbuf) && g_atoms.size > 0 {
+        if mc_buf_has_cursors(curbuf) && !(*ga).is_empty() {
             let mut has_edit = map_edit;
             let mut i = 0;
-            while !has_edit && i < g_atoms.size {
-                has_edit = (*g_atoms.items.add(i)).r#type != kAMotion;
+            while !has_edit && i < (*ga).len() {
+                has_edit = (*ga).as_slice()[i].r#type != kAMotion;
                 i += 1;
             }
             if has_edit || follow || Visual.active {
                 mc_cascade();
             } else {
-                atoms_free(&raw mut g_atoms);
+                atoms_free(ga);
             }
         }
     }
@@ -892,11 +914,12 @@ unsafe fn mc_ins_keys_nonliteral(keys: *const c_char, len: usize) -> bool {
 
 pub unsafe fn mc_ins_cascade_restart() {
     unsafe {
+        let ga = &raw const g_atoms;
         if !mc_ins_span.active
             || mc_replaying()
             || (State & MODE_INSERT) == 0
             || !mc_buf_has_cursors(curbuf)
-            || g_atoms.size != 0
+            || !(*ga).is_empty()
         {
             return;
         }
@@ -1198,7 +1221,7 @@ pub unsafe fn mc_vsel_refresh() {
             return;
         }
 
-        let mut sb: McSandbox = std::mem::zeroed();
+        let mut sb = McSandbox::new();
         mc_sandbox_enter(&mut sb, false);
         block_autocmds();
         block_on_key();
@@ -1415,7 +1438,7 @@ unsafe fn mc_zq_step(keys: *const c_char, pos: pos_T) -> pos_T {
         atom_suppress(true);
         block_autocmds();
         block_on_key();
-        let mut sst: save_state_T = std::mem::zeroed();
+        let mut sst = save_state_T::new();
         save_current_state(&mut sst);
         let beeps = did_beep_silent;
         exec_normal_cmd(keys.cast_mut(), REMAP_NONE, true);

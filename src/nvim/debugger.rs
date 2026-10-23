@@ -179,7 +179,7 @@ pub unsafe fn do_debug(cmd: *mut c_char) {
         let save_msg_silent = msg_silent;
         let save_emsg_silent = emsg_silent;
         let save_redir_off = redir_off;
-        let mut typeaheadbuf: tasave_T = std::mem::zeroed();
+        let mut typeaheadbuf = tasave_T::new();
         let mut typeahead_saved = false;
         let mut save_ignore_script = false;
         let mut cmdline: *mut c_char = std::ptr::null_mut();

@@ -2098,7 +2098,7 @@ unsafe fn normal_finish_command(s: *mut NormalState, frame: *mut CmdFrame) {
 
 unsafe fn normal_execute(state: *mut VimState, key: c_int) -> c_int {
     unsafe {
-        let mut frame: CmdFrame = std::mem::zeroed();
+        let mut frame = CmdFrame::new();
         atom_cmd_start(&raw mut frame, key);
 
         let s = state.cast::<NormalState>();
@@ -5739,7 +5739,7 @@ unsafe fn nv_replace(cap: *mut cmdarg_T) {
 
             invoke_edit(cap, 1, b'r' as c_int, 0);
         } else {
-            let mut spec: CmdSpec = std::mem::zeroed();
+            let mut spec = CmdSpec::new();
             spec.regname = (*(*cap).oap).regname;
             spec.count = c_long::from((*cap).count1);
             spec.cmd = b'r' as c_int;
@@ -7595,7 +7595,7 @@ unsafe fn nv_put_opt(cap: *mut cmdarg_T, fix_indent: bool) {
         }
         let mut vatom_prepped = false;
         if Visual.active {
-            let mut spec: CmdSpec = std::mem::zeroed();
+            let mut spec = CmdSpec::new();
             spec.regname = (*(*cap).oap).regname;
             spec.count = c_long::from((*cap).count0);
             spec.cmd = (*cap).cmdchar;

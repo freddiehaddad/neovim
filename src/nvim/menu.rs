@@ -111,7 +111,7 @@ use crate::math::{FAIL, OK};
 use crate::regexp::{MAXCOL, NUMBUFLEN};
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct save_state_T {
     pub save_msg_scroll: c_int,
     pub save_restart_edit: c_int,
@@ -122,6 +122,22 @@ pub struct save_state_T {
     pub save_reg_executing: c_int,
     pub save_pending_end_reg_executing: bool,
     pub tabuf: tasave_T,
+}
+
+impl save_state_T {
+    pub const fn new() -> Self {
+        Self {
+            save_msg_scroll: 0,
+            save_restart_edit: 0,
+            save_msg_didout: false,
+            save_State: 0,
+            save_finish_op: false,
+            save_opcount: 0,
+            save_reg_executing: 0,
+            save_pending_end_reg_executing: false,
+            tabuf: tasave_T::new(),
+        }
+    }
 }
 
 static mut MENUS_LOCKED: c_int = 0;
@@ -1565,7 +1581,7 @@ pub unsafe fn execute_menu(eap: *const exarg_T, menu: *mut vimmenu_T, mode_idx: 
         let u_idx = idx as usize;
         if !(*menu).strings[u_idx].is_null() && ((*menu).modes & (1 << idx)) != 0 {
             if eap.is_null() || current_sctx.sc_sid != 0 {
-                let mut save_state: save_state_T = std::mem::zeroed();
+                let mut save_state = save_state_T::new();
                 ex_normal_busy += 1;
                 save_current_state(&raw mut save_state);
                 exec_normal_cmd(

@@ -2830,7 +2830,7 @@ pub unsafe fn apply_autocmds_group(
         let mut retval = false;
         let mut wait_time: proftime_T = 0;
         let mut did_save_redobuff = false;
-        let mut save_redo: RedoState = std::mem::zeroed();
+        let mut save_redo = RedoState::new();
         let save_KeyTyped = KeyTyped;
         let mut aco: CtxSwitch = std::mem::zeroed();
 

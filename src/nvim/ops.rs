@@ -3516,7 +3516,7 @@ unsafe fn op_function(oap: *const oparg_T) {
             let save_finish_op = finish_op;
             finish_op = false;
 
-            let mut save_redo: RedoState = std::mem::zeroed();
+            let mut save_redo = RedoState::new();
             save_redobuff(&raw mut save_redo);
 
             let mut rettv: typval_T = std::mem::zeroed();

@@ -4367,7 +4367,7 @@ pub unsafe fn f_inputrestore(_argvars: *mut typval_T, rettv: *mut typval_T, _fpt
 /// "inputsave()" function
 pub unsafe fn f_inputsave(_argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        let mut saved: tasave_T = std::mem::zeroed();
+        let mut saved = tasave_T::new();
         save_typeahead(&mut saved);
         let userinput = &raw mut GA_USERINPUT;
         (*userinput).push(saved);

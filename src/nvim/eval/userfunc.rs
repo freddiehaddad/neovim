@@ -1238,7 +1238,7 @@ pub unsafe fn call_user_func(
         let mut call_start: proftime_T = 0;
         let mut started_profiling = false;
         let mut did_save_redo = false;
-        let mut save_redo: RedoState = std::mem::zeroed();
+        let mut save_redo = RedoState::new();
 
         if i64::from(call_depth) >= p_mfd {
             emsg(gettext(
