@@ -62,8 +62,6 @@ pub(crate) mod log;
 pub(crate) mod lpeg;
 pub(crate) mod lua;
 pub mod main_init;
-pub(crate) mod map;
-pub(crate) mod map_glyph_cache;
 pub(crate) mod mapping;
 pub(crate) mod mark;
 pub(crate) mod marktree;

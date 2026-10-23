@@ -85,7 +85,7 @@ use crate::keycodes::{
 use crate::log::logmsg;
 use crate::lua::converter::LuaRef;
 use crate::lua::executor::{api_free_luaref, api_new_luaref, nlua_funcref_str, nlua_set_sctx};
-use crate::map::HlAttrs;
+use crate::highlight::HlAttrs;
 use crate::mapping::{langmap_init, put_escstr};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{enc_locale, utfc_ptr2len};

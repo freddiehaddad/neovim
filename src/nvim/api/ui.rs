@@ -16,9 +16,8 @@ use crate::event::multiqueue::{multiqueue_empty, multiqueue_process_events};
 use crate::event::wstream::wstream_new_buffer;
 use crate::globals::*;
 use crate::grid::{sattr_T, schar_T, schar_from_ascii, schar_get, schar_get_adv};
-use crate::highlight::{hl_get_url, hlattrs2dict, syn_attr2entry};
+use crate::highlight::{HlAttrs, hl_get_url, hlattrs2dict, syn_attr2entry};
 use crate::lua::converter::{Boolean, Float};
-use crate::map::HlAttrs;
 use crate::mbyte::utf_ambiguous_width;
 use crate::memory::{
     Arena, alloc_block, arena_finish, arena_mem_free, free_block, strequal, xcalloc, xfree,

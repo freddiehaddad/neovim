@@ -1200,8 +1200,8 @@ pub unsafe fn ui_call_default_colors_set(
 
 pub unsafe fn ui_call_hl_attr_define(
     id: Integer,
-    rgb_attrs: crate::map::HlAttrs,
-    cterm_attrs: crate::map::HlAttrs,
+    rgb_attrs: crate::highlight::HlAttrs,
+    cterm_attrs: crate::highlight::HlAttrs,
     info: Array,
 ) {
     ui_call_loop!(true, c"hl_attr_define", |ui| {

@@ -1,13 +1,10 @@
 //! Low-level functions to manipulate individual character cells on the screen grid (`src/nvim/grid.c`).
 
-use crate::api::private::validate::NvimString;
 use crate::arabic::arabic_shape;
 use crate::cursor::{colnr_T, linenr_T};
 use crate::decoration::{VirtTextChunk, decor_check_invalid_glyphs, next_virt_text_chunk};
 use crate::globals::*;
 use crate::highlight::{hl_apply_winblend, hl_combine_attr};
-use crate::map::{MHPutStatus, MapHash, mh_clear};
-use crate::map_glyph_cache::{Set_glyph, mh_put_glyph};
 use crate::mbyte::{
     mb_string2cells, ptr2cells, utf_ClusterInfo_len, utf_char2bytes, utf_char2len, utf_cp_bounds,
     utf_ptr2StrCharInfo_len, utf_ptr2cells, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
@@ -96,18 +93,9 @@ pub struct wline_T {
 
 static mut linebuf_size: usize = 0;
 
-static mut glyph_cache: Set_glyph = Set_glyph {
-    h: MapHash {
-        n_buckets: 0,
-        size: 0,
-        n_occupied: 0,
-        upper_bound: 0,
-        n_keys: 0,
-        keys_capacity: 0,
-        hash: ptr::null_mut(),
-    },
-    keys: ptr::null_mut(),
-};
+static mut glyph_cache_keys: Vec<c_char> = Vec::new();
+static mut glyph_cache_offsets: std::collections::BTreeMap<Vec<u8>, u32> =
+    std::collections::BTreeMap::new();
 
 static mut grid_line_grid: *mut ScreenGrid = ptr::null_mut();
 static mut grid_line_row: c_int = -1;
@@ -193,13 +181,18 @@ pub unsafe fn schar_from_buf(buf: *const c_char, len: usize) -> schar_T {
             ptr::copy_nonoverlapping(buf.cast::<u8>(), (&raw mut sc).cast::<u8>(), len);
             sc
         } else {
-            let str_ = NvimString {
-                data: buf.cast_mut(),
-                size: len,
+            let bytes = std::slice::from_raw_parts(buf.cast::<u8>(), len);
+            let keys_ptr = &raw mut glyph_cache_keys;
+            let offsets_ptr = &raw mut glyph_cache_offsets;
+            let idx = if let Some(&existing_idx) = (*offsets_ptr).get(bytes) {
+                existing_idx
+            } else {
+                let new_idx = (*keys_ptr).len() as u32;
+                (*keys_ptr).extend(bytes.iter().map(|&b| b as c_char));
+                (*keys_ptr).push(0);
+                (*offsets_ptr).insert(bytes.to_vec(), new_idx);
+                new_idx
             };
-            let mut status = MHPutStatus::kMHExisting;
-            let gc = &raw mut glyph_cache;
-            let idx = mh_put_glyph(&mut *gc, str_, &mut status);
             assert!(idx < 0xFF_FFFF);
             #[cfg(target_endian = "big")]
             {
@@ -215,7 +208,8 @@ pub unsafe fn schar_from_buf(buf: *const c_char, len: usize) -> schar_T {
 
 pub unsafe fn schar_cache_clear_if_full() -> bool {
     unsafe {
-        if glyph_cache.h.n_keys > (1 << 21) {
+        let keys_ptr = &raw const glyph_cache_keys;
+        if (*keys_ptr).len() > (1 << 21) {
             schar_cache_clear();
             return true;
         }
@@ -226,7 +220,10 @@ pub unsafe fn schar_cache_clear_if_full() -> bool {
 pub unsafe fn schar_cache_clear() {
     unsafe {
         decor_check_invalid_glyphs();
-        mh_clear(&raw mut glyph_cache.h);
+        let keys_ptr = &raw mut glyph_cache_keys;
+        (*keys_ptr).clear();
+        let offsets_ptr = &raw mut glyph_cache_offsets;
+        (*offsets_ptr).clear();
 
         if !check_chars_options().is_null() {
             std::process::abort();
@@ -259,9 +256,10 @@ pub unsafe fn schar_get_adv(buf_out: *mut *mut c_char, sc: schar_T) -> usize {
     unsafe {
         let len: usize;
         if schar_high(sc) {
-            let idx = schar_idx(sc);
-            assert!(idx < glyph_cache.h.n_keys);
-            let key_ptr = glyph_cache.keys.add(idx as usize);
+            let idx = schar_idx(sc) as usize;
+            let keys_ptr = &raw const glyph_cache_keys;
+            assert!(idx < (*keys_ptr).len());
+            let key_ptr = (*keys_ptr).as_ptr().add(idx);
             len = CStr::from_ptr(key_ptr).to_bytes().len();
             ptr::copy_nonoverlapping(key_ptr, *buf_out, len);
         } else {
@@ -277,9 +275,10 @@ pub unsafe fn schar_get_adv(buf_out: *mut *mut c_char, sc: schar_T) -> usize {
 pub unsafe fn schar_len(sc: schar_T) -> usize {
     unsafe {
         if schar_high(sc) {
-            let idx = schar_idx(sc);
-            assert!(idx < glyph_cache.h.n_keys);
-            CStr::from_ptr(glyph_cache.keys.add(idx as usize))
+            let idx = schar_idx(sc) as usize;
+            let keys_ptr = &raw const glyph_cache_keys;
+            assert!(idx < (*keys_ptr).len());
+            CStr::from_ptr((*keys_ptr).as_ptr().add(idx))
                 .to_bytes()
                 .len()
         } else {
@@ -308,9 +307,10 @@ pub unsafe fn schar_cells(sc: schar_T) -> c_int {
 #[inline]
 unsafe fn schar_get_first_byte(sc: schar_T) -> c_char {
     unsafe {
-        assert!(!(schar_high(sc) && schar_idx(sc) >= glyph_cache.h.n_keys));
+        let keys_ptr = &raw const glyph_cache_keys;
+        assert!(!(schar_high(sc) && (schar_idx(sc) as usize) >= (*keys_ptr).len()));
         if schar_high(sc) {
-            *glyph_cache.keys.add(schar_idx(sc) as usize)
+            (*keys_ptr).as_slice()[schar_idx(sc) as usize]
         } else {
             *(&raw const sc).cast::<c_char>()
         }
@@ -1101,20 +1101,10 @@ pub unsafe fn grid_free_all_mem() {
         xfree(linebuf_attr.cast());
         xfree(linebuf_vcol.cast());
         xfree(linebuf_scratch.cast());
-        xfree(glyph_cache.keys.cast());
-        xfree(glyph_cache.h.hash.cast());
-        glyph_cache = Set_glyph {
-            h: MapHash {
-                n_buckets: 0,
-                size: 0,
-                n_occupied: 0,
-                upper_bound: 0,
-                n_keys: 0,
-                keys_capacity: 0,
-                hash: ptr::null_mut(),
-            },
-            keys: ptr::null_mut(),
-        };
+        let keys_ptr = &raw mut glyph_cache_keys;
+        *keys_ptr = Vec::new();
+        let offsets_ptr = &raw mut glyph_cache_offsets;
+        *offsets_ptr = std::collections::BTreeMap::new();
     }
 }
 

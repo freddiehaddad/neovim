@@ -19,11 +19,7 @@ use crate::highlight_group::{
 };
 use crate::lua::converter::Boolean;
 use crate::lua::executor::{kRetObject, nlua_call_ref};
-use crate::map::{
-    ColorItem, ColorKey, HlAttrs, HlEntry, MHPutStatus, Map, Set, cstr_t, map_put_ref, map_ref,
-    mh_clear, mh_get, mh_put, ptr_t,
-};
-use crate::memory::{Arena, arena_finish, arena_mem_free, xfree, xmalloc, xstrdup};
+use crate::memory::{Arena, arena_finish, arena_mem_free, xfree, xmalloc};
 use crate::message::emsg;
 use crate::msgpack_rpc::packer::Integer;
 use crate::option::check_blending;
@@ -177,59 +173,68 @@ pub struct KeyDict_highlight_cterm {
     pub nocombine: Boolean,
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct HlAttrs {
+    pub rgb_ae_attr: i32,
+    pub cterm_ae_attr: i32,
+    pub rgb_fg_color: i32,
+    pub rgb_bg_color: i32,
+    pub rgb_sp_color: i32,
+    pub cterm_fg_color: i16,
+    pub cterm_bg_color: i16,
+    pub hl_blend: i32,
+    pub url: i32,
+    pub font: i32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct HlEntry {
+    pub attr: HlAttrs,
+    pub kind: c_int,
+    pub id1: c_int,
+    pub id2: c_int,
+    pub winid: c_int,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ColorKey {
+    pub ns_id: c_int,
+    pub syn_id: c_int,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct ColorItem {
+    pub attr_id: c_int,
+    pub link_id: c_int,
+    pub version: c_int,
+    pub is_default: bool,
+    pub link_global: bool,
+}
+
 type NSHlAttr = [c_int; HLF_COUNT];
 
 use crate::api::private::helpers::has_key;
-use crate::map::{empty_map_hash, map_destroy, pmap_get_int, set_destroy};
 
 static mut hlstate_active: bool = false;
-static mut attr_entries: Set<HlEntry> = Set {
-    h: empty_map_hash(),
-    keys: ptr::null_mut(),
-};
-static mut combine_attr_entries: Map<u64, c_int> = Map {
-    set: Set {
-        h: empty_map_hash(),
-        keys: ptr::null_mut(),
-    },
-    values: ptr::null_mut(),
-};
-static mut blend_attr_entries: Map<u64, c_int> = Map {
-    set: Set {
-        h: empty_map_hash(),
-        keys: ptr::null_mut(),
-    },
-    values: ptr::null_mut(),
-};
-static mut blendthrough_attr_entries: Map<u64, c_int> = Map {
-    set: Set {
-        h: empty_map_hash(),
-        keys: ptr::null_mut(),
-    },
-    values: ptr::null_mut(),
-};
-static mut urls: Set<cstr_t> = Set {
-    h: empty_map_hash(),
-    keys: ptr::null_mut(),
-};
-static mut fonts: Set<cstr_t> = Set {
-    h: empty_map_hash(),
-    keys: ptr::null_mut(),
-};
-static mut ns_hls: Map<ColorKey, ColorItem> = Map {
-    set: Set {
-        h: empty_map_hash(),
-        keys: ptr::null_mut(),
-    },
-    values: ptr::null_mut(),
-};
-static mut ns_hl_attr: Map<c_int, ptr_t> = Map {
-    set: Set {
-        h: empty_map_hash(),
-        keys: ptr::null_mut(),
-    },
-    values: ptr::null_mut(),
-};
+static mut attr_entries: Vec<HlEntry> = Vec::new();
+static mut attr_entry_ids: std::collections::BTreeMap<HlEntry, u32> =
+    std::collections::BTreeMap::new();
+static mut combine_attr_entries: std::collections::BTreeMap<u64, c_int> =
+    std::collections::BTreeMap::new();
+static mut blend_attr_entries: std::collections::BTreeMap<u64, c_int> =
+    std::collections::BTreeMap::new();
+static mut blendthrough_attr_entries: std::collections::BTreeMap<u64, c_int> =
+    std::collections::BTreeMap::new();
+static mut urls: Vec<std::ffi::CString> = Vec::new();
+static mut fonts: Vec<std::ffi::CString> = Vec::new();
+static mut ns_hls: std::collections::BTreeMap<ColorKey, ColorItem> =
+    std::collections::BTreeMap::new();
+static mut ns_hl_attr: std::collections::BTreeMap<c_int, *mut NSHlAttr> =
+    std::collections::BTreeMap::new();
 
 static mut get_attr_entry_recursive: bool = false;
 static mut ns_get_hl_recursive: c_int = 0;
@@ -272,61 +277,66 @@ const fn hl_attr_key(a: c_int, b: c_int) -> u64 {
 }
 
 #[inline]
-unsafe fn map_get_u64_int(map: *mut Map<u64, c_int>, key: u64) -> c_int {
+unsafe fn map_get_u64_int(
+    map: *const std::collections::BTreeMap<u64, c_int>,
+    key: u64,
+) -> c_int {
+    unsafe { (*map).get(&key).copied().unwrap_or(0) }
+}
+
+#[inline]
+unsafe fn map_put_u64_int(
+    map: *mut std::collections::BTreeMap<u64, c_int>,
+    key: u64,
+    val: c_int,
+) {
     unsafe {
-        let ptr = map_ref(map, key, ptr::null_mut());
-        if ptr.is_null() { 0 } else { *ptr }
+        (*map).insert(key, val);
     }
 }
 
 #[inline]
-unsafe fn map_put_u64_int(map: *mut Map<u64, c_int>, key: u64, val: c_int) {
+unsafe fn map_get_color(
+    map: *const std::collections::BTreeMap<ColorKey, ColorItem>,
+    key: ColorKey,
+) -> ColorItem {
     unsafe {
-        let ptr = map_put_ref(map, key, ptr::null_mut(), ptr::null_mut());
-        *ptr = val;
+        (*map).get(&key).copied().unwrap_or(ColorItem {
+            attr_id: -1,
+            link_id: -1,
+            version: -1,
+            is_default: false,
+            link_global: false,
+        })
     }
 }
 
 #[inline]
-unsafe fn map_get_color(map: *mut Map<ColorKey, ColorItem>, key: ColorKey) -> ColorItem {
+unsafe fn map_put_color(
+    map: *mut std::collections::BTreeMap<ColorKey, ColorItem>,
+    key: ColorKey,
+    val: ColorItem,
+) {
     unsafe {
-        let ptr = map_ref(map, key, ptr::null_mut());
-        if ptr.is_null() {
-            ColorItem {
-                attr_id: -1,
-                link_id: -1,
-                version: -1,
-                is_default: false,
-                link_global: false,
-            }
-        } else {
-            *ptr
-        }
-    }
-}
-
-#[inline]
-unsafe fn map_put_color(map: *mut Map<ColorKey, ColorItem>, key: ColorKey, val: ColorItem) {
-    unsafe {
-        let ptr = map_put_ref(map, key, ptr::null_mut(), ptr::null_mut());
-        *ptr = val;
+        (*map).insert(key, val);
     }
 }
 
 pub unsafe fn highlight_init() {
     unsafe {
-        let mut status = MHPutStatus::kMHExisting;
-        mh_put(
-            &raw mut attr_entries,
-            HlEntry {
+        let entries_ptr = &raw mut attr_entries;
+        let ids_ptr = &raw mut attr_entry_ids;
+        if (*entries_ptr).is_empty() {
+            let entry = HlEntry {
                 attr: HLATTRS_INIT,
                 kind: kHlInvalid,
                 id1: 0,
                 id2: 0,
                 winid: 0,
-            },
-            &raw mut status,
-        );
+            };
+            (*entries_ptr).push(entry);
+            (*ids_ptr).insert(entry, 0);
+        }
     }
 }
 
@@ -351,13 +361,13 @@ unsafe fn get_attr_entry(mut entry: HlEntry) -> c_int {
         }
 
         loop {
-            let mut status = MHPutStatus::kMHExisting;
-            let k = mh_put(&raw mut attr_entries, entry, &raw mut status);
-            if status == MHPutStatus::kMHExisting {
+            let entries_ptr = &raw mut attr_entries;
+            let ids_ptr = &raw mut attr_entry_ids;
+            if let Some(&k) = (*ids_ptr).get(&entry) {
                 return k as c_int;
             }
 
-            if attr_entries.h.size > MAX_TYPENR {
+            if (*entries_ptr).len() as u32 >= MAX_TYPENR {
                 if get_attr_entry_recursive || retried {
                     emsg(gettext(
                         c"E424: Too many different highlighting attributes in use".as_ptr(),
@@ -375,6 +385,10 @@ unsafe fn get_attr_entry(mut entry: HlEntry) -> c_int {
                 continue;
             }
 
+            let k = (*entries_ptr).len() as u32;
+            (*entries_ptr).push(entry);
+            (*ids_ptr).insert(entry, k);
+
             let id = k as c_int;
             let mut arena = Arena {
                 cur_blk: ptr::null_mut(),
@@ -391,14 +405,16 @@ unsafe fn get_attr_entry(mut entry: HlEntry) -> c_int {
 
 pub unsafe fn ui_send_all_hls(ui: *mut RemoteUI) {
     unsafe {
-        for i in 1..(attr_entries.h.size as usize) {
+        let entries_ptr = &raw const attr_entries;
+        let len = (*entries_ptr).len();
+        for i in 1..len {
             let mut arena = Arena {
                 cur_blk: ptr::null_mut(),
                 pos: 0,
                 size: 0,
             };
             let inspect = hl_inspect(i as c_int, &raw mut arena);
-            let attr = (*attr_entries.keys.add(i)).attr;
+            let attr = (*entries_ptr).as_slice()[i].attr;
             remote_ui_hl_attr_define(ui, i as Integer, attr, attr, inspect);
             arena_mem_free(arena_finish(&raw mut arena));
         }
@@ -453,7 +469,8 @@ pub unsafe fn ns_hl_def(
             ns_id,
             syn_id: hl_id,
         };
-        if (attrs.rgb_ae_attr & HL_DEFAULT) != 0 && mh_get(&raw mut ns_hls.set, key) != u32::MAX {
+        let ns_hls_ptr = &raw const ns_hls;
+        if (attrs.rgb_ae_attr & HL_DEFAULT) != 0 && (*ns_hls_ptr).contains_key(&key) {
             return;
         }
         let p = get_decor_provider(ns_id, true);
@@ -604,8 +621,10 @@ pub unsafe fn hl_check_ns() -> bool {
         hl_attr_active = (&raw mut highlight_attr).cast::<c_int>();
         if ns > 0 {
             update_ns_hl(ns);
-            let hl_def = pmap_get_int(&raw mut ns_hl_attr, ns).cast::<NSHlAttr>();
-            if !hl_def.is_null() {
+            let ns_hl_attr_ptr = &raw const ns_hl_attr;
+            if let Some(&hl_def) = (*ns_hl_attr_ptr).get(&ns)
+                && !hl_def.is_null()
+            {
                 hl_attr_active = (*hl_def).as_mut_ptr();
             }
         }
@@ -678,7 +697,8 @@ pub unsafe fn hl_get_ui_attr(
 
 pub unsafe fn hl_apply_winblend(winbl: c_int, mut attr: c_int) -> c_int {
     unsafe {
-        let mut entry = *attr_entries.keys.add(attr as usize);
+        let entries_ptr = &raw const attr_entries;
+        let mut entry = (*entries_ptr).as_slice()[attr as usize];
         if entry.attr.hl_blend == -1 && winbl > 0 {
             entry.attr.hl_blend = winbl;
             attr = get_attr_entry(entry);
@@ -695,7 +715,11 @@ pub unsafe fn update_window_hl(wp: *mut win_T, invalid: bool) {
         if ns_id != (*wp).w_ns_hl_active {
             (*wp).w_ns_hl_active = ns_id;
 
-            let hl_def_ptr = pmap_get_int(&raw mut ns_hl_attr, ns_id).cast::<NSHlAttr>();
+            let ns_hl_attr_ptr = &raw const ns_hl_attr;
+            let hl_def_ptr = (*ns_hl_attr_ptr)
+                .get(&ns_id)
+                .copied()
+                .unwrap_or(ptr::null_mut());
             if !hl_def_ptr.is_null() {
                 (*wp).w_ns_hl_attr = (*hl_def_ptr).as_mut_ptr();
             } else {
@@ -782,12 +806,11 @@ pub unsafe fn update_ns_hl(ns_id: c_int) {
             return;
         }
 
-        let alloc = map_put_ref(&raw mut ns_hl_attr, ns_id, ptr::null_mut(), ptr::null_mut())
-            .cast::<*mut NSHlAttr>();
-        if (*alloc).is_null() {
-            *alloc = xmalloc(size_of::<NSHlAttr>()).cast();
-        }
-        let hl_attrs = (*(*alloc)).as_mut_ptr();
+        let ns_hl_attr_ptr = &raw mut ns_hl_attr;
+        let alloc = (*ns_hl_attr_ptr)
+            .entry(ns_id)
+            .or_insert_with(|| xmalloc(size_of::<NSHlAttr>()).cast::<NSHlAttr>());
+        let hl_attrs = (**alloc).as_mut_ptr();
 
         for hlf in 1..HLF_COUNT {
             let name = *(&raw const hlf_names).cast::<*const c_char>().add(hlf);
@@ -843,11 +866,15 @@ pub unsafe fn hl_get_underline() -> c_int {
 pub unsafe fn hl_add_url(attr: c_int, url: *const c_char) -> c_int {
     unsafe {
         let mut attrs = HLATTRS_INIT;
-        let mut status = MHPutStatus::kMHExisting;
-        let k = mh_put(&raw mut urls, url, &raw mut status);
-        if status != MHPutStatus::kMHExisting {
-            *urls.keys.add(k as usize) = xstrdup(url);
-        }
+        let url_cstr = CStr::from_ptr(url);
+        let urls_ptr = &raw mut urls;
+        let k = if let Some(pos) = (*urls_ptr).iter().position(|u| u.as_c_str() == url_cstr) {
+            pos
+        } else {
+            let idx = (*urls_ptr).len();
+            (*urls_ptr).push(url_cstr.to_owned());
+            idx
+        };
         attrs.url = k as i32;
 
         let new = get_attr_entry(HlEntry {
@@ -863,8 +890,8 @@ pub unsafe fn hl_add_url(attr: c_int, url: *const c_char) -> c_int {
 
 pub unsafe fn hl_get_url(index: u32) -> *const c_char {
     unsafe {
-        assert!(!urls.keys.is_null());
-        *urls.keys.add(index as usize)
+        let urls_ptr = &raw const urls;
+        (*urls_ptr).as_slice()[index as usize].as_ptr()
     }
 }
 
@@ -873,21 +900,24 @@ pub unsafe fn hl_add_font_idx(font_name: *const c_char) -> i32 {
         if font_name.is_null() || *font_name == 0 {
             return -1;
         }
-        let mut status = MHPutStatus::kMHExisting;
-        let k = mh_put(&raw mut fonts, font_name, &raw mut status);
-        if status != MHPutStatus::kMHExisting {
-            *fonts.keys.add(k as usize) = xstrdup(font_name);
+        let font_cstr = CStr::from_ptr(font_name);
+        let fonts_ptr = &raw mut fonts;
+        if let Some(pos) = (*fonts_ptr).iter().position(|f| f.as_c_str() == font_cstr) {
+            return pos as i32;
         }
-        k as i32
+        let idx = (*fonts_ptr).len() as i32;
+        (*fonts_ptr).push(font_cstr.to_owned());
+        idx
     }
 }
 
 pub unsafe fn hl_get_font(index: i32) -> *const c_char {
     unsafe {
-        if index < 0 || fonts.keys.is_null() {
+        let fonts_ptr = &raw const fonts;
+        if index < 0 || (index as usize) >= (*fonts_ptr).len() {
             return ptr::null();
         }
-        *fonts.keys.add(index as usize)
+        (*fonts_ptr).as_slice()[index as usize].as_ptr()
     }
 }
 
@@ -905,17 +935,20 @@ pub unsafe fn hl_get_term_attr(aep: *mut HlAttrs) -> c_int {
 
 pub unsafe fn clear_hl_tables(reinit: bool) {
     unsafe {
-        for i in 0..urls.h.n_keys {
-            xfree((*urls.keys.add(i as usize)).cast_mut().cast());
-        }
-
+        let entries_ptr = &raw mut attr_entries;
+        let ids_ptr = &raw mut attr_entry_ids;
+        let combine_ptr = &raw mut combine_attr_entries;
+        let blend_ptr = &raw mut blend_attr_entries;
+        let blendthrough_ptr = &raw mut blendthrough_attr_entries;
+        let urls_ptr = &raw mut urls;
         if reinit {
-            mh_clear(&raw mut attr_entries.h);
+            (*entries_ptr).clear();
+            (*ids_ptr).clear();
             highlight_init();
-            mh_clear(&raw mut combine_attr_entries.set.h);
-            mh_clear(&raw mut blend_attr_entries.set.h);
-            mh_clear(&raw mut blendthrough_attr_entries.set.h);
-            mh_clear(&raw mut urls.h);
+            (*combine_ptr).clear();
+            (*blend_ptr).clear();
+            (*blendthrough_ptr).clear();
+            (*urls_ptr).clear();
             ptr::write_bytes(
                 (&raw mut highlight_attr_last).cast::<u8>(),
                 0xFF,
@@ -925,24 +958,30 @@ pub unsafe fn clear_hl_tables(reinit: bool) {
             highlight_changed();
             screen_invalidate_highlights();
         } else {
-            for i in 0..fonts.h.n_keys {
-                xfree((*fonts.keys.add(i as usize)).cast_mut().cast());
+            *entries_ptr = Vec::new();
+            *ids_ptr = std::collections::BTreeMap::new();
+            *combine_ptr = std::collections::BTreeMap::new();
+            *blend_ptr = std::collections::BTreeMap::new();
+            *blendthrough_ptr = std::collections::BTreeMap::new();
+            let ns_hls_ptr = &raw mut ns_hls;
+            *ns_hls_ptr = std::collections::BTreeMap::new();
+            let ns_hl_attr_ptr = &raw mut ns_hl_attr;
+            for (_, ptr) in std::mem::take(&mut *ns_hl_attr_ptr) {
+                xfree(ptr.cast());
             }
-            set_destroy(&raw mut attr_entries);
-            map_destroy(&raw mut combine_attr_entries);
-            map_destroy(&raw mut blend_attr_entries);
-            map_destroy(&raw mut blendthrough_attr_entries);
-            map_destroy(&raw mut ns_hls);
-            set_destroy(&raw mut urls);
-            set_destroy(&raw mut fonts);
+            *urls_ptr = Vec::new();
+            let fonts_ptr = &raw mut fonts;
+            *fonts_ptr = Vec::new();
         }
     }
 }
 
 pub unsafe fn hl_invalidate_blends() {
     unsafe {
-        mh_clear(&raw mut blend_attr_entries.set.h);
-        mh_clear(&raw mut blendthrough_attr_entries.set.h);
+        let blend_ptr = &raw mut blend_attr_entries;
+        (*blend_ptr).clear();
+        let blendthrough_ptr = &raw mut blendthrough_attr_entries;
+        (*blendthrough_ptr).clear();
         highlight_changed();
         update_window_hl(curwin, true);
     }
@@ -1228,10 +1267,11 @@ const fn hl_cterm2rgb_color(nr: c_int) -> c_int {
 
 pub unsafe fn syn_attr2entry(attr: c_int) -> HlAttrs {
     unsafe {
-        if attr <= 0 || attr >= attr_entries.h.size as c_int {
+        let entries_ptr = &raw const attr_entries;
+        if attr <= 0 || (attr as usize) >= (*entries_ptr).len() {
             return HLATTRS_INIT;
         }
-        (*attr_entries.keys.add(attr as usize)).attr
+        (*entries_ptr).as_slice()[attr as usize].attr
     }
 }
 
@@ -1252,7 +1292,8 @@ pub unsafe fn hl_get_attr_by_id(
             return dic;
         }
 
-        if attr_id < 0 || attr_id >= Integer::from(attr_entries.h.size) {
+        let entries_ptr = &raw const attr_entries;
+        if attr_id < 0 || (attr_id as usize) >= (*entries_ptr).len() {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
@@ -1827,11 +1868,12 @@ pub unsafe fn hl_inspect(attr: c_int, arena: *mut Arena) -> Array {
 
 unsafe fn hl_inspect_size(attr: c_int) -> usize {
     unsafe {
-        if attr <= 0 || attr >= attr_entries.h.size as c_int {
+        let entries_ptr = &raw const attr_entries;
+        if attr <= 0 || (attr as usize) >= (*entries_ptr).len() {
             return 0;
         }
 
-        let e = *attr_entries.keys.add(attr as usize);
+        let e = (*entries_ptr).as_slice()[attr as usize];
         if e.kind == kHlCombine || e.kind == kHlBlend || e.kind == kHlBlendThrough {
             return hl_inspect_size(e.id1) + hl_inspect_size(e.id2);
         }
@@ -1841,11 +1883,12 @@ unsafe fn hl_inspect_size(attr: c_int) -> usize {
 
 unsafe fn hl_inspect_impl(arr: *mut Array, attr: c_int, arena: *mut Arena) {
     unsafe {
-        if attr <= 0 || attr >= attr_entries.h.size as c_int {
+        let entries_ptr = &raw const attr_entries;
+        if attr <= 0 || (attr as usize) >= (*entries_ptr).len() {
             return;
         }
 
-        let e = *attr_entries.keys.add(attr as usize);
+        let e = (*entries_ptr).as_slice()[attr as usize];
         let mut item: Dict;
         match e.kind {
             kHlSyntax => {

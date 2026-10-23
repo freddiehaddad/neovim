@@ -34,11 +34,10 @@ use crate::highlight::{
     KEYSET_OPTIDX_highlight__bg, KEYSET_OPTIDX_highlight__fg, KEYSET_OPTIDX_highlight__font,
     KEYSET_OPTIDX_highlight__sp, KEYSET_OPTIDX_highlight__update, KeyDict_highlight, OptionalKeys,
     RgbValue, hl_add_font_idx, hl_get_font, hl_get_syn_attr, hl_get_ui_attr, hlattrs2dict,
-    ns_get_hl, syn_attr2entry,
+    ns_get_hl, syn_attr2entry, HlAttrs,
 };
 use crate::lua::converter::Boolean;
 use crate::lua::executor::nlua_set_sctx;
-use crate::map::{HlAttrs, Map, Set, cstr_t, empty_map_hash, map_put_ref, map_ref};
 use crate::math::OK;
 use crate::mbyte::{mb_stricmp, mb_strnicmp};
 use crate::memory::{
@@ -147,13 +146,8 @@ static mut highlight_arena: Arena = Arena {
     pos: 0,
     size: 0,
 };
-static mut highlight_unames: Map<cstr_t, c_int> = Map {
-    set: Set {
-        h: empty_map_hash(),
-        keys: ptr::null_mut(),
-    },
-    values: ptr::null_mut(),
-};
+static mut highlight_unames: std::collections::BTreeMap<Vec<u8>, c_int> =
+    std::collections::BTreeMap::new();
 static mut had_both: bool = false;
 static mut load_colors_recursive: bool = false;
 static mut highlight_color_name: [c_char; 20] = [0; 20];
@@ -311,22 +305,6 @@ unsafe fn hl_len() -> c_int {
     unsafe {
         let ga = &raw const highlight_ga;
         (*ga).len() as c_int
-    }
-}
-
-#[inline]
-unsafe fn map_get_cstr_int(map: *mut Map<cstr_t, c_int>, key: cstr_t) -> c_int {
-    unsafe {
-        let ptr = map_ref(map, key, ptr::null_mut());
-        if ptr.is_null() { 0 } else { *ptr }
-    }
-}
-
-#[inline]
-unsafe fn map_put_cstr_int(map: *mut Map<cstr_t, c_int>, key: cstr_t, val: c_int) {
-    unsafe {
-        let ptr = map_put_ref(map, key, ptr::null_mut(), ptr::null_mut());
-        *ptr = val;
     }
 }
 
@@ -1603,16 +1581,8 @@ pub unsafe fn free_highlight() {
             xfree(hlg.sg_font.cast());
         }
         *ga = Vec::new();
-        xfree(highlight_unames.set.keys.cast());
-        xfree(highlight_unames.set.h.hash.cast());
-        xfree(highlight_unames.values.cast());
-        highlight_unames = Map {
-            set: Set {
-                h: empty_map_hash(),
-                keys: ptr::null_mut(),
-            },
-            values: ptr::null_mut(),
-        };
+        let unames_ptr = &raw mut highlight_unames;
+        *unames_ptr = std::collections::BTreeMap::new();
         arena_mem_free(arena_finish(&raw mut highlight_arena));
     }
 }
@@ -2169,7 +2139,11 @@ pub unsafe fn syn_name2id_len(name: *const c_char, len: usize) -> c_int {
         vim_memcpy_up(name_u.as_mut_ptr(), name, len);
         name_u[len] = NUL;
 
-        map_get_cstr_int(&raw mut highlight_unames, name_u.as_ptr())
+        let unames_ptr = &raw const highlight_unames;
+        (*unames_ptr)
+            .get(CStr::from_ptr(name_u.as_ptr()).to_bytes())
+            .copied()
+            .unwrap_or(0)
     }
 }
 
@@ -2263,7 +2237,8 @@ unsafe fn syn_add_group(name: *const c_char, len: usize) -> c_int {
         (*ga).push(hlg);
 
         let id = hl_len();
-        map_put_cstr_int(&raw mut highlight_unames, hlg.sg_name_u, id);
+        let unames_ptr = &raw mut highlight_unames;
+        (*unames_ptr).insert(CStr::from_ptr(hlg.sg_name_u).to_bytes().to_vec(), id);
 
         id
     }

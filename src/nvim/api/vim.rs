@@ -78,7 +78,7 @@ use crate::lua::executor::{
     api_free_luaref, kRetNilBool, kRetObject, nlua_call_ref, nlua_exec, nlua_get_global_ref_count,
     nlua_is_deferred_safe,
 };
-use crate::map::HlAttrs;
+use crate::highlight::HlAttrs;
 use crate::mapping::{MAPTYPE_MAP, REMAP_NONE, REMAP_YES, keymap_array, modify_keymap};
 use crate::mark::mark_get_global;
 use crate::math::{FAIL, xpopcount};
