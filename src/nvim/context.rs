@@ -22,7 +22,7 @@ use crate::ex_docmd::do_cmdline_cmd;
 use crate::extmark::{extmark_del_id, extmark_get_pos, extmark_set_pos};
 use crate::fileio::shorten_fnames;
 use crate::globals::*;
-use crate::hashtab::{hash_init, hashitem_empty};
+use crate::hashtab::hash_init;
 use crate::mark::{fmark_T, fmarkv_T};
 use crate::memory::{Arena, strequal_str, xfree, xstrdup};
 use crate::msgpack_rpc::packer::handle_T;
@@ -347,38 +347,30 @@ pub unsafe fn ctx_save(ctx: *mut Context, flags: CtxStateFlags) {
             };
 
             let ht = func_tbl_get();
-            let mut todo = (*ht).ht_used;
-            let mut idx = 0usize;
-            while todo > 0 {
-                let hi = &*(*ht).ht_array.add(idx);
-                idx += 1;
-                if !hashitem_empty(hi) {
-                    todo -= 1;
-                    let name_bytes = CStr::from_ptr(hi.hi_key).to_bytes();
-                    let islambda = name_bytes.starts_with(b"<lambda>");
-                    let isscript = !name_bytes.is_empty() && name_bytes[0] == K_SPECIAL;
+            for name_bytes in (*ht).keys() {
+                let islambda = name_bytes.starts_with(b"<lambda>");
+                let isscript = !name_bytes.is_empty() && name_bytes[0] == K_SPECIAL;
 
-                    if !islambda && (!scriptonly || isscript) {
-                        let mut cmd_vec = Vec::with_capacity(6 + name_bytes.len() + 1);
-                        cmd_vec.extend_from_slice(b"func! ");
-                        cmd_vec.extend_from_slice(name_bytes);
-                        let cmd_len = cmd_vec.len();
-                        cmd_vec.push(0);
-                        let mut opts = KeyDict_exec_opts { output: true };
-                        let func_body = exec_impl(
-                            VIML_INTERNAL_CALL,
-                            NvimString {
-                                data: cmd_vec.as_mut_ptr().cast::<c_char>(),
-                                size: cmd_len,
-                            },
-                            &mut opts,
-                            &mut err,
-                        );
-                        if !error_set(&err) {
-                            (*ctx).funcs.push(string_obj(func_body));
-                        }
-                        api_clear_error(&mut err);
+                if !islambda && (!scriptonly || isscript) {
+                    let mut cmd_vec = Vec::with_capacity(6 + name_bytes.len() + 1);
+                    cmd_vec.extend_from_slice(b"func! ");
+                    cmd_vec.extend_from_slice(name_bytes);
+                    let cmd_len = cmd_vec.len();
+                    cmd_vec.push(0);
+                    let mut opts = KeyDict_exec_opts { output: true };
+                    let func_body = exec_impl(
+                        VIML_INTERNAL_CALL,
+                        NvimString {
+                            data: cmd_vec.as_mut_ptr().cast::<c_char>(),
+                            size: cmd_len,
+                        },
+                        &mut opts,
+                        &mut err,
+                    );
+                    if !error_set(&err) {
+                        (*ctx).funcs.push(string_obj(func_body));
                     }
+                    api_clear_error(&mut err);
                 }
             }
         }

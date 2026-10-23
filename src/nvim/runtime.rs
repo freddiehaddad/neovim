@@ -39,7 +39,6 @@ use crate::fileio::{EINTR, FILE, O_RDONLY, fclose, fdopen, fgets};
 use crate::fileio::{EOL_DOS, EOL_UNIX, EOL_UNKNOWN};
 use crate::globals::IOSIZE;
 use crate::globals::*;
-use crate::hashtab::hashitem_empty;
 use crate::input::openscript;
 use crate::lua::executor::{
     kRetNilBool, nlua_exec, nlua_exec_file, nlua_exec_lines, nlua_is_deferred_safe,
@@ -3341,26 +3340,17 @@ pub unsafe fn get_sourced_lnum(fgetline: LineGetter, cookie: *mut c_void) -> lin
 unsafe fn get_script_local_funcs(sid: scid_T) -> *mut list_T {
     unsafe {
         let functbl = func_tbl_get();
-        let l = tv_list_alloc((*functbl).ht_used as isize);
+        let l = tv_list_alloc((*functbl).len() as isize);
 
-        let mut todo = (*functbl).ht_used;
-        let mut hi = (*functbl).ht_array;
-        while todo > 0 {
-            if !hashitem_empty(&*hi) {
-                todo -= 1;
-                let fp = ((*hi).hi_key as *const u8)
-                    .sub(std::mem::offset_of!(ufunc_T, uf_name))
-                    .cast::<ufunc_T>();
-                if (*fp).uf_script_ctx.sc_sid == sid {
-                    let name = if !(*fp).uf_name_exp.is_null() {
-                        (*fp).uf_name_exp
-                    } else {
-                        (*fp).uf_name.as_ptr()
-                    };
-                    tv_list_append_string(l, name, -1);
-                }
+        for &fp in (*functbl).values() {
+            if (*fp).uf_script_ctx.sc_sid == sid {
+                let name = if !(*fp).uf_name_exp.is_null() {
+                    (*fp).uf_name_exp
+                } else {
+                    (*fp).uf_name.as_ptr()
+                };
+                tv_list_append_string(l, name, -1);
             }
-            hi = hi.add(1);
         }
 
         l

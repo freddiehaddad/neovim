@@ -12,7 +12,6 @@ use crate::event::r#loop::uv_err_name;
 use crate::ex_docmd::exarg_T;
 use crate::fileio::{FILE, fclose, fopen, fprintf, vim_fgets};
 use crate::globals::*;
-use crate::hashtab::hashitem_empty;
 use crate::memory::{xcalloc, xfree, xmalloc};
 use crate::message::{emsg, semsg};
 use crate::os::env::{expand_T, expand_env_save_opt};
@@ -282,35 +281,27 @@ pub unsafe fn profile_reset() {
         }
 
         let functbl = func_tbl_get();
-        let mut todo = (*functbl).ht_used;
-        let mut hi = (*functbl).ht_array;
-        let uf_name_off = std::mem::offset_of!(ufunc_T, uf_name);
+        for &fp in (*functbl).values() {
+            let uf = &mut *fp;
+            if uf.uf_prof_initialized != 0 {
+                uf.uf_profiling = 0;
+                uf.uf_tm_count = 0;
+                uf.uf_tm_total = profile_zero();
+                uf.uf_tm_self = profile_zero();
+                uf.uf_tm_children = profile_zero();
 
-        while todo > 0 {
-            if !hashitem_empty(&*hi) {
-                todo -= 1;
-                let uf = &mut *(*hi).hi_key.sub(uf_name_off).cast::<ufunc_T>();
-                if uf.uf_prof_initialized != 0 {
-                    uf.uf_profiling = 0;
-                    uf.uf_tm_count = 0;
-                    uf.uf_tm_total = profile_zero();
-                    uf.uf_tm_self = profile_zero();
-                    uf.uf_tm_children = profile_zero();
-
-                    for i in 0..uf.uf_lines.len() {
-                        *uf.uf_tml_count.add(i) = 0;
-                        *uf.uf_tml_total.add(i) = 0;
-                        *uf.uf_tml_self.add(i) = 0;
-                    }
-
-                    uf.uf_tml_start = profile_zero();
-                    uf.uf_tml_children = profile_zero();
-                    uf.uf_tml_wait = profile_zero();
-                    uf.uf_tml_idx = -1;
-                    uf.uf_tml_execed = 0;
+                for i in 0..uf.uf_lines.len() {
+                    *uf.uf_tml_count.add(i) = 0;
+                    *uf.uf_tml_total.add(i) = 0;
+                    *uf.uf_tml_self.add(i) = 0;
                 }
+
+                uf.uf_tml_start = profile_zero();
+                uf.uf_tml_children = profile_zero();
+                uf.uf_tml_wait = profile_zero();
+                uf.uf_tml_idx = -1;
+                uf.uf_tml_execed = 0;
             }
-            hi = hi.add(1);
         }
 
         xfree(PROFILE_FNAME.cast::<c_void>());
@@ -609,30 +600,25 @@ unsafe fn func_dump_profile(fd: *mut FILE) {
     unsafe {
         let functbl = func_tbl_get();
         let mut st_len: c_int = 0;
-        let mut todo = (*functbl).ht_used as c_int;
+        let todo = (*functbl).len();
         if todo == 0 {
             return;
         }
 
         let sorttab =
-            xmalloc(std::mem::size_of::<*mut ufunc_T>() * (todo as usize)).cast::<*mut ufunc_T>();
-        let uf_name_off = std::mem::offset_of!(ufunc_T, uf_name);
-        let mut hi = (*functbl).ht_array;
+            xmalloc(std::mem::size_of::<*mut ufunc_T>() * todo).cast::<*mut ufunc_T>();
 
-        while todo > 0 {
-            if !hashitem_empty(&*hi) {
-                todo -= 1;
-                let fp = (*hi).hi_key.sub(uf_name_off).cast::<ufunc_T>();
-                if (*fp).uf_prof_initialized != 0 {
-                    *sorttab.add(st_len as usize) = fp;
-                    st_len += 1;
+        for &fp in (*functbl).values() {
+            if (*fp).uf_prof_initialized != 0 {
+                *sorttab.add(st_len as usize) = fp;
+                st_len += 1;
 
-                    let name_ptr = (*fp).uf_name.as_ptr();
-                    if (*name_ptr as u8) == K_SPECIAL {
-                        fprintf!(fd, c"FUNCTION  <SNR>%s()\n".as_ptr(), name_ptr.add(3));
-                    } else {
-                        fprintf!(fd, c"FUNCTION  %s()\n".as_ptr(), name_ptr);
-                    }
+                let name_ptr = (*fp).uf_name.as_ptr();
+                if (*name_ptr as u8) == K_SPECIAL {
+                    fprintf!(fd, c"FUNCTION  <SNR>%s()\n".as_ptr(), name_ptr.add(3));
+                } else {
+                    fprintf!(fd, c"FUNCTION  %s()\n".as_ptr(), name_ptr);
+                }
                     if (*fp).uf_script_ctx.sc_sid != 0 {
                         let mut should_free = false;
                         let p = get_scriptname((*fp).uf_script_ctx, &mut should_free);
@@ -680,9 +666,7 @@ unsafe fn func_dump_profile(fd: *mut FILE) {
                         fprintf!(fd, c"%s\n".as_ptr(), line);
                     }
                     fprintf!(fd, c"\n".as_ptr());
-                }
             }
-            hi = hi.add(1);
         }
 
         if st_len > 0 {

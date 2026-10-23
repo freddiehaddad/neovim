@@ -44,10 +44,7 @@ use crate::ex_eval::{
 };
 use crate::ex_getln::{getcmdline, ui_ext_cmdline_block_append, ui_ext_cmdline_block_leave};
 use crate::globals::*;
-use crate::hashtab::{
-    hash_add, hash_clear, hash_find, hash_find_len, hash_init, hash_remove, hashitem_T,
-    hashitem_empty, hashtab_T,
-};
+use crate::hashtab::{hash_add, hash_find_len, hashitem_T, hashitem_empty, hashtab_T};
 use crate::input::{RedoState, restore_redobuff, save_redobuff};
 use crate::insexpand::ins_compl_active;
 use crate::keycodes::{K_SPECIAL, KE_SNR, KS_EXTRA};
@@ -215,7 +212,9 @@ pub(crate) struct defer_T {
     pub(crate) dr_argcount: c_int,
 }
 
-static mut func_hashtab: hashtab_T = unsafe { std::mem::zeroed() };
+static mut func_hashtab: std::collections::BTreeMap<Vec<u8>, *mut ufunc_T> =
+    std::collections::BTreeMap::new();
+static mut func_hashtab_changed: c_int = 0;
 static mut funcargs: Vec<*mut typval_T> = Vec::new();
 static mut current_funccal: *mut funccall_T = ptr::null_mut();
 static mut previous_funccal: *mut funccall_T = ptr::null_mut();
@@ -227,7 +226,7 @@ static mut call_depth: c_int = 0;
 static mut func_nr: c_int = 0;
 static mut get_uf_done: usize = 0;
 static mut get_uf_changed: c_int = 0;
-static mut get_uf_hi: *mut hashitem_T = ptr::null_mut();
+static mut get_uf_items: Vec<*mut ufunc_T> = Vec::new();
 
 const E_FUNCEXTS: &CStr = c"E122: Function %s already exists, add ! to replace it";
 const E_FUNCDICT: &CStr = c"E717: Dictionary entry already exists";
@@ -253,18 +252,19 @@ unsafe fn uf2hikey(fp: *const ufunc_T) -> *mut c_char {
     unsafe { (&raw const (*fp).uf_name).cast_mut().cast::<c_char>() }
 }
 
-#[inline]
-unsafe fn hikey2uf(p: *const c_char) -> *mut ufunc_T {
+unsafe fn func_hashtab_add(fp: *mut ufunc_T) -> c_int {
     unsafe {
-        p.byte_sub(std::mem::offset_of!(ufunc_T, uf_name))
-            .cast_mut()
-            .cast::<ufunc_T>()
+        let key_ptr = uf2hikey(fp);
+        let key = CStr::from_ptr(key_ptr).to_bytes();
+        let ht = &raw mut func_hashtab;
+        if (*ht).contains_key(key) {
+            crate::siemsg!(c"Duplicate key in hash table: \"%s\"".as_ptr(), key_ptr);
+            return FAIL;
+        }
+        (*ht).insert(key.to_vec(), fp);
+        func_hashtab_changed = func_hashtab_changed.wrapping_add(1);
+        OK
     }
-}
-
-#[inline]
-unsafe fn hi2uf(hi: *const hashitem_T) -> *mut ufunc_T {
-    unsafe { hikey2uf((*hi).hi_key) }
 }
 
 #[inline]
@@ -286,14 +286,10 @@ unsafe fn clear_cstr_vec(v: &mut Vec<*mut c_char>) {
     }
 }
 
-pub unsafe fn func_init() {
-    unsafe {
-        hash_init(&raw mut func_hashtab);
-    }
-}
+pub unsafe fn func_init() {}
 
 /// Return the function hash table.
-pub unsafe fn func_tbl_get() -> *mut hashtab_T {
+pub unsafe fn func_tbl_get() -> *mut std::collections::BTreeMap<Vec<u8>, *mut ufunc_T> {
     &raw mut func_hashtab
 }
 
@@ -615,7 +611,7 @@ pub unsafe fn get_lambda_tv(
 
             let newlines_len = newlines.len() as c_int;
             (*fp).uf_refcount = 1;
-            hash_add(&raw mut func_hashtab, uf2hikey(fp));
+            func_hashtab_add(fp);
             (*fp).uf_args = newargs;
             (*fp).uf_def_args = Vec::new();
             (*fp).uf_lines = newlines;
@@ -927,12 +923,15 @@ pub unsafe fn get_func_arity(
 
 /// Find a function by name, return pointer to it in ufuncs.
 pub unsafe fn find_func(name: *const c_char) -> *mut ufunc_T {
+    if name.is_null() {
+        return ptr::null_mut();
+    }
     unsafe {
-        let hi = hash_find(&raw const func_hashtab, name);
-        if !hashitem_empty(&*hi) {
-            return hi2uf(hi);
-        }
-        ptr::null_mut()
+        let ht = &raw const func_hashtab;
+        (*ht)
+            .get(CStr::from_ptr(name).to_bytes())
+            .copied()
+            .unwrap_or(ptr::null_mut())
     }
 }
 
@@ -1108,13 +1107,14 @@ unsafe fn funccal_unref(fc: *mut funccall_T, fp: *mut ufunc_T, force: bool) {
 /// Remove the function from the function hashtable.
 unsafe fn func_remove(fp: *mut ufunc_T) -> bool {
     unsafe {
-        let hi = hash_find(&raw const func_hashtab, uf2hikey(fp));
-        if hashitem_empty(&*hi) {
-            return false;
+        let ht = &raw mut func_hashtab;
+        let key = CStr::from_ptr(uf2hikey(fp)).to_bytes();
+        if (*ht).remove(key).is_some() {
+            func_hashtab_changed = func_hashtab_changed.wrapping_add(1);
+            true
+        } else {
+            false
         }
-
-        hash_remove(&raw mut func_hashtab, hi);
-        true
     }
 }
 
@@ -1698,49 +1698,48 @@ pub unsafe fn free_all_functions() {
             }
         }
 
-        let mut skipped: usize;
-        let mut todo = 1usize;
-        while todo > 0 {
-            todo = func_hashtab.ht_used;
-            let mut hi = func_hashtab.ht_array;
-            while todo > 0 {
-                if !hashitem_empty(&*hi) {
-                    let fp = hi2uf(hi);
-                    if !func_name_refcount(uf2hikey(fp)) {
-                        let changed = func_hashtab.ht_changed;
-                        func_clear(fp, true);
-                        if changed != func_hashtab.ht_changed {
-                            break;
-                        }
-                    }
-                    todo -= 1;
-                }
-                hi = hi.add(1);
-            }
-        }
-
-        skipped = 0;
-        while func_hashtab.ht_used > skipped {
-            todo = func_hashtab.ht_used;
-            let mut hi = func_hashtab.ht_array;
-            while todo > 0 {
-                if !hashitem_empty(&*hi) {
-                    todo -= 1;
-                    let fp = hi2uf(hi);
-                    if func_name_refcount(uf2hikey(fp)) {
-                        skipped += 1;
-                    } else {
-                        func_free(fp);
-                        skipped = 0;
+        loop {
+            let mut restarted = false;
+            let ht = &raw const func_hashtab;
+            let funcs: Vec<*mut ufunc_T> = (*ht).values().copied().collect();
+            for fp in funcs {
+                if !func_name_refcount(uf2hikey(fp)) {
+                    let changed = func_hashtab_changed;
+                    func_clear(fp, true);
+                    if changed != func_hashtab_changed {
+                        restarted = true;
                         break;
                     }
                 }
-                hi = hi.add(1);
+            }
+            if !restarted {
+                break;
+            }
+        }
+
+        let mut skipped = 0usize;
+        loop {
+            let ht = &raw const func_hashtab;
+            if (*ht).len() <= skipped {
+                break;
+            }
+            let funcs: Vec<*mut ufunc_T> = (*ht).values().copied().collect();
+            for fp in funcs {
+                if func_name_refcount(uf2hikey(fp)) {
+                    skipped += 1;
+                } else {
+                    func_free(fp);
+                    skipped = 0;
+                    break;
+                }
             }
         }
         if skipped == 0 {
-            hash_clear(&raw mut func_hashtab);
+            let ht = &raw mut func_hashtab;
+            *ht = std::collections::BTreeMap::new();
         }
+        let items_ptr = &raw mut get_uf_items;
+        *items_ptr = Vec::new();
     }
 }
 
@@ -2133,7 +2132,7 @@ pub unsafe fn printable_func_name(fp: *mut ufunc_T) -> *mut c_char {
 
 unsafe fn function_list_modified(prev_ht_changed: c_int) -> bool {
     unsafe {
-        if prev_ht_changed != func_hashtab.ht_changed {
+        if prev_ht_changed != func_hashtab_changed {
             emsg(gettext(E_FUNCTION_LIST_WAS_MODIFIED.as_ptr()));
             return true;
         }
@@ -2143,7 +2142,7 @@ unsafe fn function_list_modified(prev_ht_changed: c_int) -> bool {
 
 unsafe fn list_func_head(fp: *mut ufunc_T, indent: bool, force: bool) -> c_int {
     unsafe {
-        let prev_ht_changed = func_hashtab.ht_changed;
+        let prev_ht_changed = func_hashtab_changed;
 
         msg_start();
 
@@ -2516,32 +2515,29 @@ pub unsafe fn save_function_name(
 
 unsafe fn list_functions(regmatch: *mut regmatch_T) {
     unsafe {
-        let prev_ht_changed = func_hashtab.ht_changed;
-        let mut todo = func_hashtab.ht_used;
-        let ht_array = func_hashtab.ht_array;
+        let prev_ht_changed = func_hashtab_changed;
+        let ht = &raw const func_hashtab;
+        let funcs: Vec<*mut ufunc_T> = (*ht).values().copied().collect();
 
         msg_ext_set_kind(c"list_cmd".as_ptr());
-        let mut hi = ht_array;
-        while todo > 0 && !got_int {
-            if !hashitem_empty(&*hi) {
-                let fp = hi2uf(hi);
-                todo -= 1;
-                let matches = if regmatch.is_null() {
-                    !message_filtered(uf2hikey(fp)) && !func_name_refcount(uf2hikey(fp))
-                } else {
-                    !(*uf2hikey(fp) as u8).is_ascii_digit()
-                        && vim_regexec(regmatch, uf2hikey(fp), 0)
-                };
-                if matches {
-                    if list_func_head(fp, false, false) == FAIL {
-                        return;
-                    }
-                    if function_list_modified(prev_ht_changed) {
-                        return;
-                    }
+        for fp in funcs {
+            if got_int {
+                break;
+            }
+            let matches = if regmatch.is_null() {
+                !message_filtered(uf2hikey(fp)) && !func_name_refcount(uf2hikey(fp))
+            } else {
+                !(*uf2hikey(fp) as u8).is_ascii_digit()
+                    && vim_regexec(regmatch, uf2hikey(fp), 0)
+            };
+            if matches {
+                if list_func_head(fp, false, false) == FAIL {
+                    return;
+                }
+                if function_list_modified(prev_ht_changed) {
+                    return;
                 }
             }
-            hi = hi.add(1);
         }
     }
 }
@@ -2593,7 +2589,7 @@ unsafe fn list_one_function(eap: *mut exarg_T, name: *mut c_char, p: *mut c_char
             return ptr::null_mut();
         }
 
-        let prev_ht_changed = func_hashtab.ht_changed;
+        let prev_ht_changed = func_hashtab_changed;
 
         msg_ext_set_kind(c"list_cmd".as_ptr());
         if list_func_head(fp, (*eap).forceit == 0, (*eap).forceit != 0) != OK {
@@ -3288,9 +3284,9 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
             }
 
             if overwrite {
-                let hi = hash_find(&raw const func_hashtab, name);
-                (*hi).hi_key = uf2hikey(fp);
-            } else if hash_add(&raw mut func_hashtab, uf2hikey(fp)) == FAIL {
+                let ht = &raw mut func_hashtab;
+                (*ht).insert(CStr::from_ptr(name).to_bytes().to_vec(), fp);
+            } else if func_hashtab_add(fp) == FAIL {
                 free_fp = true;
                 erret!();
             }
@@ -3373,20 +3369,15 @@ pub unsafe fn get_user_func_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx == 0 {
             get_uf_done = 0;
-            get_uf_hi = func_hashtab.ht_array;
-            get_uf_changed = func_hashtab.ht_changed;
+            let ht = &raw const func_hashtab;
+            let items_ptr = &raw mut get_uf_items;
+            *items_ptr = (*ht).values().copied().collect();
+            get_uf_changed = func_hashtab_changed;
         }
-        debug_assert!(!get_uf_hi.is_null());
-        if get_uf_changed == func_hashtab.ht_changed && get_uf_done < func_hashtab.ht_used {
-            let prev_done = get_uf_done;
+        let items_ptr = &raw const get_uf_items;
+        if get_uf_changed == func_hashtab_changed && get_uf_done < (*items_ptr).len() {
+            let fp = (*items_ptr).as_slice()[get_uf_done];
             get_uf_done += 1;
-            if prev_done > 0 {
-                get_uf_hi = get_uf_hi.add(1);
-            }
-            while hashitem_empty(&*get_uf_hi) {
-                get_uf_hi = get_uf_hi.add(1);
-            }
-            let fp = hi2uf(get_uf_hi);
 
             if ((*fp).uf_flags & FC_DICT) != 0
                 || strncmp(uf2hikey(fp), c"<lambda>".as_ptr(), 8) == 0
@@ -4503,18 +4494,14 @@ pub unsafe fn set_ref_in_call_stack(copyID: c_int) -> bool {
 
 pub unsafe fn set_ref_in_functions(copyID: c_int) -> bool {
     unsafe {
-        let mut todo = func_hashtab.ht_used as c_int;
-        let mut hi = func_hashtab.ht_array;
-        while todo > 0 && !got_int {
-            if !hashitem_empty(&*hi) {
-                todo -= 1;
-                let fp = hi2uf(hi);
-                if !func_name_refcount(uf2hikey(fp)) && set_ref_in_func(ptr::null_mut(), fp, copyID)
-                {
-                    return true;
-                }
+        let ht = &raw const func_hashtab;
+        for &fp in (*ht).values() {
+            if got_int {
+                break;
             }
-            hi = hi.add(1);
+            if !func_name_refcount(uf2hikey(fp)) && set_ref_in_func(ptr::null_mut(), fp, copyID) {
+                return true;
+            }
         }
         false
     }
@@ -4577,7 +4564,7 @@ pub unsafe fn register_luafunc(ref_: LuaRef) -> *mut c_char {
         (*fp).uf_script_ctx = current_sctx;
         (*fp).uf_luaref = ref_;
 
-        hash_add(&raw mut func_hashtab, uf2hikey(fp));
+        func_hashtab_add(fp);
 
         uf2hikey(fp)
     }
