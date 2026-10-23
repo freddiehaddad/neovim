@@ -129,7 +129,6 @@ use crate::keycodes::{
     FSK_IN_STRING, FSK_KEYCODE, FSK_SIMPLIFY, K_SPECIAL, KE_SNR, KS_EXTRA, find_special_key,
     trans_special,
 };
-use crate::map::{Map, MapHash, Set, map_del, map_put_ref, map_ref, ptr_t};
 use crate::mark::{mark_get, mark_global_iter, xfmark_T};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
@@ -256,21 +255,8 @@ static mut VAR2FPOS_POS: pos_T = pos_T {
     coladd: 0,
 };
 
-static mut timers: Map<u64, ptr_t> = Map {
-    set: Set {
-        h: MapHash {
-            n_buckets: 0,
-            size: 0,
-            n_occupied: 0,
-            upper_bound: 0,
-            n_keys: 0,
-            keys_capacity: 0,
-            hash: ptr::null_mut(),
-        },
-        keys: ptr::null_mut(),
-    },
-    values: ptr::null_mut(),
-};
+static mut timers: std::collections::BTreeMap<u64, *mut timer_T> =
+    std::collections::BTreeMap::new();
 
 /// Info used by a `:for` loop.
 #[repr(C)]
@@ -4658,8 +4644,8 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
             }
         }
 
-        for i in 0..(timers.set.h.n_keys as usize) {
-            let timer = (*timers.values.add(i)).cast::<timer_T>();
+        let timers_ptr = &raw const timers;
+        for &timer in (*timers_ptr).values() {
             let tt = timer_tail(timer);
             set_ref_in_callback(
                 &raw mut (*tt).callback,
@@ -5612,12 +5598,8 @@ unsafe fn set_ref_in_callback_reader(
 
 pub unsafe fn find_timer_by_nr(xx: varnumber_T) -> *mut timer_T {
     unsafe {
-        let ptr = map_ref(&raw mut timers, xx as u64, ptr::null_mut());
-        if ptr.is_null() {
-            ptr::null_mut()
-        } else {
-            (*ptr).cast()
-        }
+        let timers_ptr = &raw const timers;
+        (*timers_ptr).get(&(xx as u64)).copied().unwrap_or(ptr::null_mut())
     }
 }
 
@@ -5653,9 +5635,9 @@ pub unsafe fn add_timer_info(rettv: *mut typval_T, timer: *mut timer_T) {
 
 pub unsafe fn add_timer_info_all(rettv: *mut typval_T) {
     unsafe {
-        tv_list_alloc_ret(rettv, timers.set.h.size as isize);
-        for i in 0..(timers.set.h.n_keys as usize) {
-            let timer = (*timers.values.add(i)).cast::<timer_T>();
+        let timers_ptr = &raw const timers;
+        tv_list_alloc_ret(rettv, (*timers_ptr).len() as isize);
+        for &timer in (*timers_ptr).values() {
             let tt = timer_tail(timer);
             if !(*tt).stopped || (*tt).refcount > 1 {
                 add_timer_info(rettv, timer);
@@ -5748,13 +5730,8 @@ pub unsafe fn timer_start(timeout: i64, repeat_count: c_int, callback: *const Ca
             );
         }
 
-        let slot = map_put_ref(
-            &raw mut timers,
-            (*tt).timer_id as u64,
-            ptr::null_mut(),
-            ptr::null_mut(),
-        );
-        *slot = timer.cast();
+        let timers_ptr = &raw mut timers;
+        (*timers_ptr).insert((*tt).timer_id as u64, timer);
         (*tt).timer_id as u64
     }
 }
@@ -5780,7 +5757,8 @@ unsafe fn timer_close_cb(_tw: *mut TimeWatcher, data: *mut c_void) {
         let tt = timer_tail(timer);
         multiqueue_free((*wf).events);
         callback_free(&raw mut (*tt).callback);
-        let _ = map_del(&raw mut timers, (*tt).timer_id as u64, ptr::null_mut());
+        let timers_ptr = &raw mut timers;
+        let _ = (*timers_ptr).remove(&((*tt).timer_id as u64));
         timer_decref(timer);
     }
 }
@@ -5797,8 +5775,9 @@ unsafe fn timer_decref(timer: *mut timer_T) {
 
 pub unsafe fn timer_stop_all() {
     unsafe {
-        for i in 0..(timers.set.h.n_keys as usize) {
-            let timer = (*timers.values.add(i)).cast::<timer_T>();
+        let timers_ptr = &raw const timers;
+        let all_timers: Vec<*mut timer_T> = (*timers_ptr).values().copied().collect();
+        for timer in all_timers {
             timer_stop(timer);
         }
     }

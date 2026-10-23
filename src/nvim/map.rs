@@ -114,13 +114,6 @@ pub unsafe fn set_put<K: MapKey>(set: *mut Set<K>, key: K) -> bool {
 }
 
 #[inline]
-pub unsafe fn set_del<K: MapKey>(set: *mut Set<K>, mut key: K) {
-    unsafe {
-        mh_delete(set, &mut key);
-    }
-}
-
-#[inline]
 pub unsafe fn set_has_ptr(set: *mut Set<ptr_t>, key: ptr_t) -> bool {
     unsafe { set_has(set, key) }
 }
@@ -128,13 +121,6 @@ pub unsafe fn set_has_ptr(set: *mut Set<ptr_t>, key: ptr_t) -> bool {
 #[inline]
 pub unsafe fn set_put_ptr(set: *mut Set<ptr_t>, key: ptr_t) -> bool {
     unsafe { set_put(set, key) }
-}
-
-#[inline]
-pub unsafe fn set_del_ptr(set: *mut Set<ptr_t>, key: ptr_t) {
-    unsafe {
-        set_del(set, key);
-    }
 }
 
 #[inline]

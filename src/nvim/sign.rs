@@ -32,9 +32,6 @@ use crate::globals::*;
 use crate::grid::{schar_T, schar_from_ascii, schar_get};
 use crate::highlight_group::{get_highlight_name_ext, syn_check_group};
 use crate::insert::beginline;
-use crate::map::{
-    MH_TOMBSTONE, Map, MapHash, Set, cstr_t, map_del, map_put_ref, map_ref, mh_get, ptr_t,
-};
 use crate::mark::setpcmark;
 use crate::marktree::{
     DecorExt, DecorInlineData, MT_FLAG_DECOR_SIGNHL, MT_FLAG_DECOR_SIGNTEXT, MTKey, MTPair,
@@ -93,21 +90,7 @@ use crate::eval::userfunc::MSG_BUF_LEN;
 use crate::math::{FAIL, OK};
 use crate::os::env::expand_T;
 
-static mut sign_map: Map<cstr_t, ptr_t> = Map {
-    set: Set {
-        h: MapHash {
-            n_buckets: 0,
-            size: 0,
-            n_occupied: 0,
-            upper_bound: 0,
-            n_keys: 0,
-            keys_capacity: 0,
-            hash: ptr::null_mut(),
-        },
-        keys: ptr::null_mut(),
-    },
-    values: ptr::null_mut(),
-};
+static mut sign_map: Vec<*mut sign_T> = Vec::new();
 
 static mut sign_ns: Vec<Integer> = Vec::new();
 
@@ -127,13 +110,17 @@ use crate::map::map_get_string_int;
 
 #[inline]
 unsafe fn pmap_get_sign(name: *const c_char) -> *mut sign_T {
+    if name.is_null() {
+        return ptr::null_mut();
+    }
     unsafe {
-        let ptr = map_ref(&raw mut sign_map, name, ptr::null_mut());
-        if ptr.is_null() {
-            ptr::null_mut()
-        } else {
-            (*ptr).cast::<sign_T>()
+        let sm_ptr = &raw const sign_map;
+        for &sp in &*sm_ptr {
+            if strcmp((*sp).sn_name, name) == 0 {
+                return sp;
+            }
         }
+        ptr::null_mut()
     }
 }
 
@@ -154,7 +141,7 @@ unsafe fn sign_get_name(sh: *mut DecorSignHighlight) -> *const c_char {
         let name = (*sh).sign_name;
         if name.is_null() {
             c"".as_ptr()
-        } else if mh_get(&raw mut sign_map.set, name) != MH_TOMBSTONE {
+        } else if !pmap_get_sign(name).is_null() {
             name
         } else {
             c"[Deleted]".as_ptr()
@@ -557,35 +544,36 @@ unsafe fn sign_define_by_name(
     prio: c_int,
 ) -> c_int {
     unsafe {
-        let mut key: *mut cstr_t = ptr::null_mut();
-        let mut new_sign = false;
-        let sp = map_put_ref(&raw mut sign_map, name, &raw mut key, &raw mut new_sign)
-            .cast::<*mut sign_T>();
-
-        if new_sign {
-            *key = xstrdup(name);
-            *sp = xcalloc(1, size_of::<sign_T>()).cast();
-            (*(*sp)).sn_name = (*key).cast_mut();
-        }
+        let existing = pmap_get_sign(name);
+        let new_sign = existing.is_null();
+        let sp = if new_sign {
+            let new_sp = xcalloc(1, size_of::<sign_T>()).cast::<sign_T>();
+            (*new_sp).sn_name = xstrdup(name);
+            let sm_ptr = &raw mut sign_map;
+            (*sm_ptr).push(new_sp);
+            new_sp
+        } else {
+            existing
+        };
 
         if !icon.is_null() {
-            xfree((*(*sp)).sn_icon.cast());
-            (*(*sp)).sn_icon = xstrdup(icon);
-            backslash_halve((*(*sp)).sn_icon);
+            xfree((*sp).sn_icon.cast());
+            (*sp).sn_icon = xstrdup(icon);
+            backslash_halve((*sp).sn_icon);
         }
 
-        if !text.is_null() && init_sign_text(*sp, (*(*sp)).sn_text.as_mut_ptr(), text) == FAIL {
+        if !text.is_null() && init_sign_text(sp, (*sp).sn_text.as_mut_ptr(), text) == FAIL {
             return FAIL;
         }
 
-        (*(*sp)).sn_priority = prio;
+        (*sp).sn_priority = prio;
 
         let args = [linehl, texthl, culhl, numhl];
         let hls = [
-            &raw mut (*(*sp)).sn_line_hl,
-            &raw mut (*(*sp)).sn_text_hl,
-            &raw mut (*(*sp)).sn_cul_hl,
-            &raw mut (*(*sp)).sn_num_hl,
+            &raw mut (*sp).sn_line_hl,
+            &raw mut (*sp).sn_text_hl,
+            &raw mut (*sp).sn_cul_hl,
+            &raw mut (*sp).sn_num_hl,
         ];
         for i in 0..4 {
             if !args[i].is_null() {
@@ -602,11 +590,11 @@ unsafe fn sign_define_by_name(
             let items = &raw mut decor_items;
             for sh in (*items).iter_mut() {
                 if !sh.sign_name.is_null() && strcmp(sh.sign_name, name) == 0 {
-                    sh.text = (*(*sp)).sn_text;
-                    sh.hl_id = (*(*sp)).sn_text_hl;
-                    sh.line_hl_id = (*(*sp)).sn_line_hl;
-                    sh.number_hl_id = (*(*sp)).sn_num_hl;
-                    sh.cursorline_hl_id = (*(*sp)).sn_cul_hl;
+                    sh.text = (*sp).sn_text;
+                    sh.hl_id = (*sp).sn_text_hl;
+                    sh.line_hl_id = (*sp).sn_line_hl;
+                    sh.number_hl_id = (*sp).sn_num_hl;
+                    sh.cursorline_hl_id = (*sp).sn_cul_hl;
                     if !did_redraw {
                         let mut wp = firstwin;
                         while !wp.is_null() {
@@ -626,11 +614,12 @@ unsafe fn sign_define_by_name(
 
 unsafe fn sign_undefine_by_name(name: *const c_char) -> c_int {
     unsafe {
-        let sp = map_del(&raw mut sign_map, name, ptr::null_mut()).cast::<sign_T>();
-        if sp.is_null() {
+        let sm_ptr = &raw mut sign_map;
+        let Some(pos) = (*sm_ptr).iter().position(|&sp| strcmp((*sp).sn_name, name) == 0) else {
             semsg!(gettext(c"E155: Unknown sign: %s".as_ptr()), name);
             return FAIL;
-        }
+        };
+        let sp = (*sm_ptr).swap_remove(pos);
 
         xfree((*sp).sn_name.cast());
         xfree((*sp).sn_icon.cast());
@@ -1048,8 +1037,8 @@ pub unsafe fn ex_sign(eap: *mut exarg_T) {
 
         if idx <= SIGNCMD_LIST {
             if idx == SIGNCMD_LIST && *arg == NUL {
-                for i in 0..sign_map.set.h.n_keys {
-                    let sp = (*sign_map.values.add(i as usize)).cast::<sign_T>();
+                let sm_ptr = &raw const sign_map;
+                for &sp in &*sm_ptr {
                     sign_list_defined(sp);
                 }
             } else if *arg == NUL {
@@ -1257,18 +1246,23 @@ unsafe fn sign_get_placed(
 
 pub unsafe fn free_signs() {
     unsafe {
-        let count = sign_map.set.h.n_keys as usize;
-        let names = std::slice::from_raw_parts(sign_map.set.keys, count).to_vec();
-        for name in names {
-            sign_undefine_by_name(name);
+        let sm_ptr = &raw mut sign_map;
+        for sp in (*sm_ptr).drain(..) {
+            xfree((*sp).sn_name.cast());
+            xfree((*sp).sn_icon.cast());
+            xfree(sp.cast());
         }
+        *sm_ptr = Vec::new();
     }
 }
 
 unsafe fn get_nth_sign_name(idx: c_int) -> *mut c_char {
     unsafe {
-        if idx >= 0 && (idx as u32) < sign_map.set.h.n_keys {
-            return (*sign_map.set.keys.add(idx as usize)).cast_mut();
+        let sm_ptr = &raw const sign_map;
+        if let Ok(idx_usize) = usize::try_from(idx)
+            && let Some(&sp) = (*sm_ptr).as_slice().get(idx_usize)
+        {
+            return (*sp).sn_name;
         }
         ptr::null_mut()
     }
@@ -1503,8 +1497,8 @@ pub unsafe fn f_sign_getdefined(argvars: *mut typval_T, rettv: *mut typval_T, _f
         tv_list_alloc_ret(rettv, 0);
 
         if (*argvars).v_type == VarType::VAR_UNKNOWN {
-            for i in 0..sign_map.set.h.n_keys {
-                let sp = (*sign_map.values.add(i as usize)).cast::<sign_T>();
+            let sm_ptr = &raw const sign_map;
+            for &sp in &*sm_ptr {
                 tv_list_append_dict((*rettv).vval.v_list, sign_get_info_dict(sp));
             }
         } else {

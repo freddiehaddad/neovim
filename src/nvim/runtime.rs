@@ -2,7 +2,7 @@
 
 use crate::api::private::helpers::{
     SID_API_CLIENT, SID_LUA, add_c, api_clear_error, arena_array, arena_dict, arena_string,
-    boolean_obj, cstr_as_obj, cstr_as_string, cstr_to_string, dict_obj, integer_obj, put_c,
+    boolean_obj, cstr_as_obj, cstr_as_string, dict_obj, integer_obj, put_c,
     static_cstr_as_string, string_obj,
 };
 use crate::api::private::validate::{Array, Error, ErrorType, NvimString, ObjectType};
@@ -44,7 +44,6 @@ use crate::input::openscript;
 use crate::lua::executor::{
     kRetNilBool, nlua_exec, nlua_exec_file, nlua_exec_lines, nlua_is_deferred_safe,
 };
-use crate::map::{MH_TOMBSTONE, MHPutStatus, Map, Set, map_put_ref, map_ref, mh_get, mh_put};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
     convert_setup, enc_canonize, mb_prevptr, string_convert, utfc_ptr2len, vimconv_T,
@@ -292,34 +291,6 @@ pub unsafe fn set_sourcing_lnum(lnum: linenr_T) {
     unsafe {
         let es = &raw mut exestack;
         (*es).last_mut().unwrap().es_lnum = lnum;
-    }
-}
-
-use crate::map::{empty_map, empty_set, map_destroy, map_get_string_int, set_destroy};
-
-unsafe fn set_put_ref_string(
-    set: *mut Set<NvimString>,
-    key: NvimString,
-    key_alloc: *mut *mut NvimString,
-) -> bool {
-    unsafe {
-        let mut status = MHPutStatus::kMHExisting;
-        let k = mh_put(set, key, &mut status);
-        if !key_alloc.is_null() {
-            *key_alloc = (*set).keys.add(k as usize);
-        }
-        status != MHPutStatus::kMHExisting
-    }
-}
-
-unsafe fn set_has_string(set: *mut Set<NvimString>, key: NvimString) -> bool {
-    unsafe { mh_get(set, key) != MH_TOMBSTONE }
-}
-
-unsafe fn map_put_string_int(map: *mut Map<NvimString, c_int>, key: NvimString, value: c_int) {
-    unsafe {
-        let val = map_put_ref(map, key, ptr::null_mut(), ptr::null_mut());
-        *val = value;
     }
 }
 
@@ -1111,17 +1082,15 @@ pub unsafe fn do_in_path_and_pp(
 
 unsafe fn push_path(
     search_path: &mut RuntimeSearchPath,
-    rtp_used: *mut Set<NvimString>,
+    rtp_used: &mut std::collections::HashSet<Vec<u8>>,
     entry: *mut c_char,
     after: bool,
     pos_in_rtp: usize,
 ) -> bool {
     unsafe {
-        let mut key_alloc: *mut NvimString = ptr::null_mut();
-        if set_put_ref_string(rtp_used, cstr_as_string(entry), &mut key_alloc) {
-            *key_alloc = cstr_to_string(entry);
+        if rtp_used.insert(CStr::from_ptr(entry).to_bytes().to_vec()) {
             search_path.push(SearchPathItem {
-                path: (*key_alloc).data,
+                path: xstrdup(entry),
                 after,
                 pack_inserted: false,
                 has_lua: kNone,
@@ -1135,13 +1104,13 @@ unsafe fn push_path(
 
 unsafe fn expand_rtp_entry(
     search_path: &mut RuntimeSearchPath,
-    rtp_used: *mut Set<NvimString>,
+    rtp_used: &mut std::collections::HashSet<Vec<u8>>,
     entry: *mut c_char,
     after: bool,
     pos_in_rtp: usize,
 ) {
     unsafe {
-        if set_has_string(rtp_used, cstr_as_string(entry)) {
+        if rtp_used.contains(CStr::from_ptr(entry).to_bytes()) {
             return;
         }
 
@@ -1176,7 +1145,7 @@ unsafe fn expand_rtp_entry(
 
 unsafe fn expand_pack_entry(
     search_path: &mut RuntimeSearchPath,
-    rtp_used: *mut Set<NvimString>,
+    rtp_used: &mut std::collections::HashSet<Vec<u8>>,
     after_path: &mut CharVec,
     pack_entry: *const c_char,
     pack_entry_len: usize,
@@ -1217,8 +1186,9 @@ unsafe fn path_is_after(buf: *const c_char, buflen: usize) -> bool {
 unsafe fn runtime_search_path_build() -> RuntimeSearchPath {
     unsafe {
         let mut pack_entries: Vec<NvimString> = Vec::new();
-        let mut pack_used: Map<NvimString, c_int> = empty_map();
-        let mut rtp_used: Set<NvimString> = empty_set();
+        let mut pack_used: std::collections::HashMap<Vec<u8>, c_int> =
+            std::collections::HashMap::new();
+        let mut rtp_used: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
         let mut search_path = RuntimeSearchPath::new();
         let mut after_path = CharVec::new();
 
@@ -1234,7 +1204,10 @@ unsafe fn runtime_search_path_build() -> RuntimeSearchPath {
             };
 
             pack_entries.push(the_entry);
-            map_put_string_int(&mut pack_used, the_entry, 0);
+            pack_used.insert(
+                std::slice::from_raw_parts(cur_entry.cast::<u8>(), buflen).to_vec(),
+                0,
+            );
         }
 
         let mut rtp_entry = p_rtp;
@@ -1251,8 +1224,7 @@ unsafe fn runtime_search_path_build() -> RuntimeSearchPath {
 
             expand_rtp_entry(&mut search_path, &mut rtp_used, buf, false, pos_in_rtp);
 
-            let h = map_ref(&mut pack_used, cstr_as_string(buf), ptr::null_mut());
-            if !h.is_null() {
+            if let Some(h) = pack_used.get_mut(CStr::from_ptr(buf).to_bytes()) {
                 *h += 1;
                 expand_pack_entry(
                     &mut search_path,
@@ -1268,7 +1240,8 @@ unsafe fn runtime_search_path_build() -> RuntimeSearchPath {
         let sentinel_pos_in_rtp = ((rtp_entry as usize) - (p_rtp as usize)).saturating_sub(1);
 
         for item in pack_entries {
-            let h = map_get_string_int(&mut pack_used, item);
+            let item_bytes = std::slice::from_raw_parts(item.data.cast::<u8>(), item.size);
+            let h = pack_used.get(item_bytes).copied().unwrap_or(0);
             if h == 0 {
                 expand_pack_entry(
                     &mut search_path,
@@ -1304,9 +1277,6 @@ unsafe fn runtime_search_path_build() -> RuntimeSearchPath {
                 pos_in_rtp,
             );
         }
-
-        map_destroy(&mut pack_used);
-        set_destroy(&mut rtp_used);
 
         search_path
     }

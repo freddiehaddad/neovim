@@ -19,9 +19,8 @@ use crate::lua::converter::{
     luaL_checklstring, luaL_checknumber, luaL_checkstring, luaL_checkudata, luaL_error,
     luaL_newmetatable, luaL_ref, luaL_register, luaL_unref,
 };
-use crate::map::{MH_TOMBSTONE, Map, MapHash, Set, cstr_t, map_del, map_put_ref, mh_get, ptr_t};
 use crate::memline::{ml_get_buf, ml_get_buf_len};
-use crate::memory::{strequal, xcalloc, xfree, xmalloc, xrealloc, xstrdup, xstrlcpy};
+use crate::memory::{strequal, xcalloc, xfree, xmalloc, xrealloc, xstrlcpy};
 use crate::msgpack_rpc::packer::handle_T;
 use crate::os::dl::UvLib;
 use crate::os::time::os_hrtime;
@@ -202,21 +201,8 @@ struct TSLuaParserCallbackPayload {
     timeout_threshold_ns: u64,
 }
 
-static mut LANGS: Map<cstr_t, ptr_t> = Map {
-    set: Set {
-        h: MapHash {
-            n_buckets: 0,
-            size: 0,
-            n_occupied: 0,
-            upper_bound: 0,
-            n_keys: 0,
-            keys_capacity: 0,
-            hash: ptr::null_mut(),
-        },
-        keys: ptr::null_mut(),
-    },
-    values: ptr::null_mut(),
-};
+static mut LANGS: std::collections::BTreeMap<Vec<u8>, *mut TSLanguage> =
+    std::collections::BTreeMap::new();
 
 static mut INPUT_BUF: [c_char; BUFSIZE] = [0; BUFSIZE];
 
@@ -653,18 +639,26 @@ unsafe extern "C" {
 
 #[inline]
 unsafe fn langs_has(lang_name: *const c_char) -> bool {
-    unsafe { mh_get(&raw mut LANGS.set, lang_name) != MH_TOMBSTONE }
+    if lang_name.is_null() {
+        return false;
+    }
+    unsafe {
+        let langs_ptr = &raw const LANGS;
+        (*langs_ptr).contains_key(CStr::from_ptr(lang_name).to_bytes())
+    }
 }
 
 #[inline]
 unsafe fn langs_get(lang_name: *const c_char) -> *mut TSLanguage {
+    if lang_name.is_null() {
+        return ptr::null_mut();
+    }
     unsafe {
-        let k = mh_get(&raw mut LANGS.set, lang_name);
-        if k == MH_TOMBSTONE {
-            ptr::null_mut()
-        } else {
-            (*LANGS.values.add(k as usize)).cast::<TSLanguage>()
-        }
+        let langs_ptr = &raw const LANGS;
+        (*langs_ptr)
+            .get(CStr::from_ptr(lang_name).to_bytes())
+            .copied()
+            .unwrap_or(ptr::null_mut())
     }
 }
 
@@ -819,13 +813,11 @@ unsafe fn add_language(L: *mut lua_State, is_wasm: bool) -> c_int {
             );
         }
 
-        let val_slot = map_put_ref(
-            &raw mut LANGS,
-            xstrdup(lang_name),
-            ptr::null_mut(),
-            ptr::null_mut(),
+        let langs_ptr = &raw mut LANGS;
+        (*langs_ptr).insert(
+            CStr::from_ptr(lang_name).to_bytes().to_vec(),
+            lang.cast_mut(),
         );
-        *val_slot = lang.cast_mut();
 
         lua_pushboolean(L, 1);
         1
@@ -835,12 +827,11 @@ unsafe fn add_language(L: *mut lua_State, is_wasm: bool) -> c_int {
 unsafe extern "C-unwind" fn tslua_remove_lang(L: *mut lua_State) -> c_int {
     unsafe {
         let lang_name = luaL_checkstring(L, 1);
-        let present = langs_has(lang_name);
-        if present {
-            let mut key: cstr_t = ptr::null();
-            map_del(&raw mut LANGS, lang_name, &mut key);
-            xfree(key.cast_mut().cast::<c_void>());
-        }
+        let langs_ptr = &raw mut LANGS;
+        let present = !lang_name.is_null()
+            && (*langs_ptr)
+                .remove(CStr::from_ptr(lang_name).to_bytes())
+                .is_some();
         lua_pushboolean(L, c_int::from(present));
         1
     }

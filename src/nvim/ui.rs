@@ -36,7 +36,6 @@ use crate::highlight::{highlight_use_hlstate, ui_send_all_hls};
 use crate::log::{LOGLVL_ERR, logmsg};
 use crate::lua::converter::LuaRef;
 use crate::lua::executor::{api_free_luaref, kRetNilBool, nlua_call_ref_ctx};
-use crate::map::{MH_TOMBSTONE, Map, MapHash, Set, map_del, map_put_ref, mh_get};
 use crate::memory::{Arena, arena_finish, arena_mem_free, xcalloc, xfree};
 use crate::message::{
     msg, msg_ext_ui_flush, msg_schedule_semsg, msg_schedule_semsg_multiline, msg_scroll_flush,
@@ -109,21 +108,8 @@ static mut pending_mode_info_update: bool = false;
 static mut pending_mode_update: bool = false;
 static mut cursor_grid_handle: handle_T = DEFAULT_GRID_HANDLE;
 
-static mut ui_event_cbs: Map<u32, *mut c_void> = Map {
-    set: Set {
-        h: MapHash {
-            n_buckets: 0,
-            size: 0,
-            n_occupied: 0,
-            upper_bound: 0,
-            n_keys: 0,
-            keys_capacity: 0,
-            hash: ptr::null_mut(),
-        },
-        keys: ptr::null_mut(),
-    },
-    values: ptr::null_mut(),
-};
+static mut ui_event_cbs: std::collections::BTreeMap<u32, *mut UIEventCallback> =
+    std::collections::BTreeMap::new();
 static mut ui_cb_ext: [bool; kUIExtCount] = [false; kUIExtCount];
 
 static mut has_mouse: bool = false;
@@ -144,28 +130,12 @@ pub unsafe fn ui_init() {
 
 pub unsafe fn ui_free_all_mem() {
     unsafe {
-        for i in 0..ui_event_cbs.set.h.n_keys as usize {
-            let event_cb = (*ui_event_cbs.values.add(i)).cast::<UIEventCallback>();
+        let cbs_ptr = &raw mut ui_event_cbs;
+        for (_, event_cb) in std::mem::take(&mut *cbs_ptr) {
             if !event_cb.is_null() {
                 free_ui_event_callback(event_cb);
             }
         }
-        xfree(ui_event_cbs.set.keys.cast());
-        xfree(ui_event_cbs.set.h.hash.cast());
-        ui_event_cbs.set = Set {
-            h: MapHash {
-                n_buckets: 0,
-                size: 0,
-                n_occupied: 0,
-                upper_bound: 0,
-                n_keys: 0,
-                keys_capacity: 0,
-                hash: ptr::null_mut(),
-            },
-            keys: ptr::null_mut(),
-        };
-        xfree(ui_event_cbs.values.cast());
-        ui_event_cbs.values = ptr::null_mut();
 
         multiqueue_free(resize_events);
     }
@@ -930,17 +900,18 @@ pub unsafe fn ui_call_event(name: *mut c_char, args: Array) {
 
         let mut handled = false;
         let fast = msg_ext_fast && strcmp(c"msg_show".as_ptr(), name) == 0;
-        for i in 0..ui_event_cbs.set.h.n_keys as usize {
-            ui_event_ns_id = *ui_event_cbs.set.keys.add(i);
-            let event_cb = (*ui_event_cbs.values.add(i)).cast::<UIEventCallback>();
-            if event_cb.is_null() {
+        let cbs_ptr = &raw const ui_event_cbs;
+        let entries: Vec<(u32, *mut UIEventCallback)> =
+            (*cbs_ptr).iter().map(|(&k, &v)| (k, v)).collect();
+        for (ns_id, event_cb) in entries {
+            if event_cb.is_null() || !(*cbs_ptr).contains_key(&ns_id) {
                 continue;
             }
+            ui_event_ns_id = ns_id;
             let mut err = Error {
                 err_type: ErrorType::kErrorTypeNone,
                 msg: ptr::null_mut(),
             };
-            let ns_id = ui_event_ns_id;
             let res = nlua_call_ref_ctx(
                 fast,
                 (*event_cb).cb,
@@ -977,9 +948,9 @@ unsafe fn ui_cb_update_ext() {
         let ui_cb_ext_ptr = (&raw mut ui_cb_ext).cast::<bool>();
         ptr::write_bytes(ui_cb_ext_ptr, 0, kUIExtCount);
 
+        let cbs_ptr = &raw const ui_event_cbs;
         for i in 0..kUIGlobalCount {
-            for k in 0..ui_event_cbs.set.h.n_keys as usize {
-                let event_cb = (*ui_event_cbs.values.add(k)).cast::<UIEventCallback>();
+            for &event_cb in (*cbs_ptr).values() {
                 if !event_cb.is_null() && (*event_cb).ext_widgets[i] {
                     *ui_cb_ext_ptr.add(i) = true;
                     break;
@@ -1009,16 +980,12 @@ pub unsafe fn ui_add_cb(ns_id: u32, cb: LuaRef, ext_widgets: *mut bool) {
             (*event_cb).ext_widgets[kUICmdline] = true;
         }
 
-        let item = map_put_ref(
-            &raw mut ui_event_cbs,
-            ns_id,
-            ptr::null_mut(),
-            ptr::null_mut(),
-        );
-        if !(*item).is_null() {
-            free_ui_event_callback((*item).cast::<UIEventCallback>());
+        let cbs_ptr = &raw mut ui_event_cbs;
+        if let Some(old_cb) = (*cbs_ptr).insert(ns_id, event_cb)
+            && !old_cb.is_null()
+        {
+            free_ui_event_callback(old_cb);
         }
-        *item = event_cb.cast();
 
         ui_cb_update_ext();
         ui_refresh();
@@ -1027,19 +994,15 @@ pub unsafe fn ui_add_cb(ns_id: u32, cb: LuaRef, ext_widgets: *mut bool) {
 
 pub unsafe fn ui_remove_cb(ns_id: u32, checkerr: bool) {
     unsafe {
-        let k = mh_get(&raw mut ui_event_cbs.set, ns_id);
-        let item = if k == MH_TOMBSTONE {
-            ptr::null_mut()
-        } else {
-            (*ui_event_cbs.values.add(k as usize)).cast::<UIEventCallback>()
-        };
+        let cbs_ptr = &raw mut ui_event_cbs;
+        let item = (*cbs_ptr).get(&ns_id).copied().unwrap_or(ptr::null_mut());
         if !item.is_null()
             && (!checkerr || {
                 (*item).errors += 1;
                 (*item).errors > CB_MAX_ERROR
             })
         {
-            map_del(&raw mut ui_event_cbs, ns_id, ptr::null_mut());
+            (*cbs_ptr).remove(&ns_id);
             free_ui_event_callback(item);
             ui_cb_update_ext();
             ui_refresh();

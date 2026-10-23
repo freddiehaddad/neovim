@@ -85,7 +85,6 @@ use crate::keycodes::{
     MOD_MASK_SHIFT, NL, get_special_key_name, termcap2key,
 };
 use crate::lua::executor::nlua_call_typval;
-use crate::map::{MHPutStatus, Set, mh_get, mh_put, ptr_t};
 use crate::mapping::{REMAP_NONE, check_abbr, map_to_exists_mode};
 use crate::mark::setpcmark;
 use crate::math::{FAIL, OK};
@@ -2941,7 +2940,8 @@ unsafe fn cmdpreview_close_win() {
 /// Save current state and prepare windows and buffers for command preview.
 unsafe fn cmdpreview_prepare() -> CpInfo {
     unsafe {
-        let mut saved_bufs: Set<ptr_t> = std::mem::zeroed();
+        let mut saved_bufs: std::collections::HashSet<*mut buf_T> =
+            std::collections::HashSet::new();
         let mut cpinfo = CpInfo {
             win_info: Vec::new(),
             buf_info: Vec::new(),
@@ -2955,7 +2955,7 @@ unsafe fn cmdpreview_prepare() -> CpInfo {
             let buf = (*win).w_buffer;
 
             if (*buf).b_fnum != cmdpreview_bufnr {
-                if mh_get(&raw mut saved_bufs, buf.cast::<c_void>()) == u32::MAX {
+                if saved_bufs.insert(buf) {
                     let mut cp_bufinfo: CpBufInfo = std::mem::zeroed();
                     cp_bufinfo.buf = buf;
                     cp_bufinfo.save_b_p_ma = (*buf).b_p_ma;
@@ -2964,8 +2964,6 @@ unsafe fn cmdpreview_prepare() -> CpInfo {
                     cp_bufinfo.save_b_op_end = (*buf).b_op_end;
                     u_checkpoint(&raw mut cp_bufinfo.undo_checkpoint, buf);
                     cpinfo.buf_info.push(cp_bufinfo);
-                    let mut status = MHPutStatus::kMHExisting;
-                    mh_put(&raw mut saved_bufs, buf.cast::<c_void>(), &raw mut status);
                 }
 
                 let mut cp_wininfo: CpWinInfo = std::mem::zeroed();
@@ -2983,9 +2981,6 @@ unsafe fn cmdpreview_prepare() -> CpInfo {
 
             win = (*win).w_next;
         }
-
-        xfree(saved_bufs.h.hash.cast::<c_void>());
-        xfree(saved_bufs.keys.cast::<c_void>());
 
         cpinfo.save_hls = p_hls != 0;
         cpinfo.save_cmdmod = cmdmod;

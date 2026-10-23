@@ -18,7 +18,7 @@ use crate::globals::*;
 use crate::grid::{sattr_T, schar_T, schar_from_ascii, schar_get, schar_get_adv};
 use crate::highlight::{hl_get_url, hlattrs2dict, syn_attr2entry};
 use crate::lua::converter::{Boolean, Float};
-use crate::map::{HlAttrs, MH_TOMBSTONE, Map, MapHash, Set, map_del, map_put_ref, mh_get};
+use crate::map::HlAttrs;
 use crate::mbyte::utf_ambiguous_width;
 use crate::memory::{
     Arena, alloc_block, arena_finish, arena_mem_free, free_block, strequal, xcalloc, xfree,
@@ -78,21 +78,8 @@ const DICT_INIT: Dict = Dict {
     capacity: 0,
 };
 
-static mut connected_uis: Map<u64, *mut c_void> = Map {
-    set: Set {
-        h: MapHash {
-            n_buckets: 0,
-            size: 0,
-            n_occupied: 0,
-            upper_bound: 0,
-            n_keys: 0,
-            keys_capacity: 0,
-            hash: ptr::null_mut(),
-        },
-        keys: ptr::null_mut(),
-    },
-    values: ptr::null_mut(),
-};
+static mut connected_uis: std::collections::BTreeMap<u64, *mut RemoteUI> =
+    std::collections::BTreeMap::new();
 
 use crate::msgpack_rpc::packer::mpack_w2;
 
@@ -109,12 +96,8 @@ unsafe fn buf_pos(ui: *const RemoteUI) -> usize {
 
 unsafe fn get_ui_or_err(chan_id: u64, err: *mut Error) -> *mut RemoteUI {
     unsafe {
-        let k = mh_get(&raw mut connected_uis.set, chan_id);
-        let ui = if k == MH_TOMBSTONE {
-            ptr::null_mut()
-        } else {
-            (*connected_uis.values.add(k as usize)).cast::<RemoteUI>()
-        };
+        let uis_ptr = &raw const connected_uis;
+        let ui = (*uis_ptr).get(&chan_id).copied().unwrap_or(ptr::null_mut());
         if ui.is_null() && !err.is_null() {
             api_set_error!(
                 err,
@@ -175,7 +158,8 @@ pub unsafe fn remote_ui_disconnect(channel_id: u64, err: *mut Error, send_error_
             push_call(ui, c"error_exit".as_ptr(), args);
             ui_flush_buf(ui, false);
         }
-        map_del(&raw mut connected_uis, channel_id, ptr::null_mut());
+        let uis_ptr = &raw mut connected_uis;
+        (*uis_ptr).remove(&channel_id);
         ui_detach_impl(ui.cast(), channel_id);
         let chan = find_channel(channel_id);
         if !chan.is_null() && (*channel_tail(chan)).rpc.ui == ui {
@@ -227,9 +211,8 @@ pub unsafe fn ui_detach_channel(chan: u64, err: *mut Error) {
 pub unsafe fn ui_detach_others(keep_chan: u64) -> usize {
     unsafe {
         let mut chans = Vec::<u64>::new();
-        for i in 0..connected_uis.set.h.n_keys as usize {
-            let chan = *connected_uis.set.keys.add(i);
-            let val = *connected_uis.values.add(i);
+        let uis_ptr = &raw const connected_uis;
+        for (&chan, &val) in &*uis_ptr {
             if !val.is_null() && chan != keep_chan {
                 chans.push(chan);
             }
@@ -256,28 +239,12 @@ pub unsafe fn ui_detach_others(keep_chan: u64) -> usize {
 // DLLEXPORT void remote_ui_free_all_mem(void);
 pub unsafe fn remote_ui_free_all_mem() {
     unsafe {
-        for i in 0..connected_uis.set.h.n_keys as usize {
-            let ui = (*connected_uis.values.add(i)).cast::<RemoteUI>();
+        let uis_ptr = &raw mut connected_uis;
+        for (_, ui) in std::mem::take(&mut *uis_ptr) {
             if !ui.is_null() {
                 remote_ui_destroy(ui);
             }
         }
-        xfree(connected_uis.set.keys.cast());
-        xfree(connected_uis.set.h.hash.cast());
-        connected_uis.set = Set {
-            h: MapHash {
-                n_buckets: 0,
-                size: 0,
-                n_occupied: 0,
-                upper_bound: 0,
-                n_keys: 0,
-                keys_capacity: 0,
-                hash: ptr::null_mut(),
-            },
-            keys: ptr::null_mut(),
-        };
-        xfree(connected_uis.values.cast());
-        connected_uis.values = ptr::null_mut();
     }
 }
 
@@ -323,7 +290,8 @@ pub unsafe extern "C" fn nvim_ui_attach(
     err: *mut Error,
 ) {
     unsafe {
-        if mh_get(&raw mut connected_uis.set, channel_id) != MH_TOMBSTONE {
+        let uis_ptr = &raw const connected_uis;
+        if (*uis_ptr).contains_key(&channel_id) {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
@@ -394,13 +362,8 @@ pub unsafe extern "C" fn nvim_ui_attach(
         };
         (*ui).wildmenu_active = false;
 
-        let slot = map_put_ref(
-            &raw mut connected_uis,
-            channel_id,
-            ptr::null_mut(),
-            ptr::null_mut(),
-        );
-        *slot = ui.cast();
+        let uis_ptr = &raw mut connected_uis;
+        (*uis_ptr).insert(channel_id, ui);
         current_ui = channel_id;
         ui_attach_impl(ui.cast(), channel_id);
 
@@ -490,8 +453,8 @@ pub unsafe fn remote_ui_connect(channel_id: u64, server_addr: *mut c_char, err: 
 // DLLEXPORT void remote_ui_restart(String listen_addr);
 pub unsafe fn remote_ui_restart(listen_addr: NvimString) {
     unsafe {
-        for i in 0..connected_uis.set.h.n_keys as usize {
-            let ui = (*connected_uis.values.add(i)).cast::<RemoteUI>();
+        let uis_ptr = &raw const connected_uis;
+        for &ui in (*uis_ptr).values() {
             if ui.is_null() {
                 continue;
             }

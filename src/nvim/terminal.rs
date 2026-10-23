@@ -74,9 +74,7 @@ use crate::keycodes::{
     K_X1RELEASE, K_X2DRAG, K_X2MOUSE, K_X2RELEASE, K_ZERO, MOD_MASK_ALT, MOD_MASK_CTRL,
     MOD_MASK_SHIFT, TAB, unsimplify_key,
 };
-use crate::map::{
-    HlAttrs, MapHash, Set, ptr_t, set_del_ptr, set_destroy, set_has_ptr, set_put_ptr,
-};
+use crate::map::HlAttrs;
 use crate::mark::{kMarkAdjustTerm, mark_adjust_buf};
 use crate::mbyte::{mb_check_adjust_col, utf_ptr2char, utf_ptr2len};
 use crate::memline::{ml_append_buf, ml_delete_buf, ml_replace_buf};
@@ -307,18 +305,17 @@ static mut VTERM_FALLBACKS: VTermStateFallbacks = VTermStateFallbacks {
     sos: None,
 };
 
-static mut INVALIDATED_TERMINALS: Set<ptr_t> = Set {
-    h: MapHash {
-        n_buckets: 0,
-        size: 0,
-        n_occupied: 0,
-        upper_bound: 0,
-        n_keys: 0,
-        keys_capacity: 0,
-        hash: ptr::null_mut(),
-    },
-    keys: ptr::null_mut(),
-};
+static mut INVALIDATED_TERMINALS: Vec<*mut Terminal> = Vec::new();
+
+#[inline]
+unsafe fn invalidate_terminal_add(term: *mut Terminal) {
+    unsafe {
+        let inv_ptr = &raw mut INVALIDATED_TERMINALS;
+        if !(*inv_ptr).contains(&term) {
+            (*inv_ptr).push(term);
+        }
+    }
+}
 
 #[inline]
 const fn vterm_key_function(n: c_int) -> VTermKey {
@@ -649,7 +646,8 @@ pub unsafe fn terminal_teardown() {
         time_watcher_stop(timer);
         multiqueue_free((*watcher_fields(timer)).events);
         time_watcher_close(timer, None);
-        set_destroy(&raw mut INVALIDATED_TERMINALS);
+        let inv_ptr = &raw mut INVALIDATED_TERMINALS;
+        *inv_ptr = Vec::new();
     }
 }
 
@@ -1415,11 +1413,12 @@ pub unsafe fn terminal_destroy(termpp: *mut *mut Terminal) {
         }
 
         if (*term).refcount == 0 {
-            if set_has_ptr(&raw mut INVALIDATED_TERMINALS, term.cast()) {
+            let inv_ptr = &raw mut INVALIDATED_TERMINALS;
+            if let Some(pos) = (*inv_ptr).iter().position(|&t| t == term) {
                 block_autocmds();
                 refresh_terminal(term);
                 unblock_autocmds();
-                set_del_ptr(&raw mut INVALIDATED_TERMINALS, term.cast());
+                (*inv_ptr).swap_remove(pos);
             }
             for i in 0..(*term).sb_current {
                 xfree((*(*term).sb_buffer.add(i)).cast::<c_void>());
@@ -1986,7 +1985,7 @@ unsafe fn term_sb_push(cols: c_int, cells: *const VTermScreenCell, data: *mut c_
 
         ptr::copy_nonoverlapping(cells, sbrow_cells(sbrow), c);
         if !(*term).synchronized_output {
-            set_put_ptr(&raw mut INVALIDATED_TERMINALS, term.cast());
+            invalidate_terminal_add(term);
         }
 
         1
@@ -2026,7 +2025,7 @@ unsafe fn term_sb_pop(cols: c_int, cells: *mut VTermScreenCell, data: *mut c_voi
 
         xfree(sbrow.cast::<c_void>());
         if !(*term).synchronized_output {
-            set_put_ptr(&raw mut INVALIDATED_TERMINALS, term.cast());
+            invalidate_terminal_add(term);
         }
 
         1
@@ -2423,7 +2422,7 @@ unsafe fn invalidate_terminal(term: *mut Terminal, start_row: c_int, end_row: c_
             return;
         }
 
-        set_put_ptr(&raw mut INVALIDATED_TERMINALS, term.cast());
+        invalidate_terminal_add(term);
         if !REFRESH_PENDING {
             time_watcher_start(
                 refresh_timer_ptr(),
@@ -2537,28 +2536,15 @@ unsafe fn refresh_timer_cb(_watcher: *mut TimeWatcher, _data: *mut c_void) {
         }
 
         block_autocmds();
-        let mut to_refresh = INVALIDATED_TERMINALS;
-        INVALIDATED_TERMINALS = Set {
-            h: MapHash {
-                n_buckets: 0,
-                size: 0,
-                n_occupied: 0,
-                upper_bound: 0,
-                n_keys: 0,
-                keys_capacity: 0,
-                hash: ptr::null_mut(),
-            },
-            keys: ptr::null_mut(),
-        };
+        let inv_ptr = &raw mut INVALIDATED_TERMINALS;
+        let to_refresh = std::mem::take(&mut *inv_ptr);
 
-        for i in 0..to_refresh.h.n_keys {
-            let term = (*to_refresh.keys.add(i as usize)).cast::<Terminal>();
+        for term in to_refresh {
             if !(*term).synchronized_output {
                 refresh_terminal(term);
             }
         }
 
-        set_destroy(&mut to_refresh);
         unblock_autocmds();
     }
 }
