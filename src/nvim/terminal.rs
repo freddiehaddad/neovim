@@ -78,7 +78,7 @@ use crate::highlight::HlAttrs;
 use crate::mark::{kMarkAdjustTerm, mark_adjust_buf};
 use crate::mbyte::{mb_check_adjust_col, utf_ptr2char, utf_ptr2len};
 use crate::memline::{ml_append_buf, ml_delete_buf, ml_replace_buf};
-use crate::memory::{strequal, xcalloc, xfree, xmalloc, xmemdup, xmemdupz, xrealloc, xstrdup};
+use crate::memory::{strequal, xcalloc, xfree, xmalloc, xmemdup, xmemdupz, xstrdup};
 use crate::mouse::{
     MSCR_DOWN, MSCR_LEFT, MSCR_RIGHT, MSCR_UP, do_mousescroll, mouse_find_win_inner,
 };
@@ -242,16 +242,14 @@ pub struct Terminal {
     vt: *mut VTerm,
     vts: *mut VTermScreen,
     textbuf: [c_char; TEXTBUF_SIZE],
-    sb_buffer: *mut *mut ScrollbackLine,
-    sb_current: usize,
+    sb_buffer: Vec<*mut ScrollbackLine>,
+    sb_allocated: bool,
     sb_size: usize,
     sb_pending: c_int,
     sb_deleted: usize,
     old_sb_deleted: usize,
     old_height: c_int,
-    title: *mut c_char,
-    title_len: usize,
-    title_size: usize,
+    title: Vec<c_char>,
     buf_handle: handle_T,
     in_altscreen: bool,
     suspended: bool,
@@ -659,7 +657,7 @@ unsafe fn term_output_callback(s: *const c_char, len: usize, user_data: *mut c_v
 
 unsafe fn term_may_alloc_scrollback(term: *mut Terminal, mut buf: *mut buf_T) -> bool {
     unsafe {
-        if !(*term).sb_buffer.is_null() {
+        if (*term).sb_allocated {
             return true;
         }
         if buf.is_null() {
@@ -673,8 +671,8 @@ unsafe fn term_may_alloc_scrollback(term: *mut Terminal, mut buf: *mut buf_T) ->
             (*buf).b_p_scbk = SB_MAX;
         }
         (*term).sb_size = (*buf).b_p_scbk as usize;
-        (*term).sb_buffer = xmalloc(size_of::<*mut ScrollbackLine>() * (*term).sb_size)
-            .cast::<*mut ScrollbackLine>();
+        (*term).sb_buffer.reserve((*term).sb_size);
+        (*term).sb_allocated = true;
         true
     }
 }
@@ -689,6 +687,8 @@ pub unsafe fn terminal_alloc(buf: *mut buf_T, mut opts: TerminalOptions) -> *mut
         }
 
         let term = xcalloc(1, size_of::<Terminal>()).cast::<Terminal>();
+        ptr::write(&raw mut (*term).sb_buffer, Vec::new());
+        ptr::write(&raw mut (*term).title, Vec::new());
         ptr::write(&raw mut (*term).selection, Vec::new());
         ptr::write(&raw mut (*term).termrequest_buffer, Vec::new());
         (*term).opts = opts;
@@ -774,7 +774,7 @@ pub unsafe fn terminal_open(termpp: *mut *mut Terminal, buf: *mut buf_T) {
         let mut aco: CtxSwitch = std::mem::zeroed();
         ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
 
-        if !(*term).sb_buffer.is_null() {
+        if (*term).sb_allocated {
             refresh_scrollback(term, buf);
         } else {
             debug_assert!((*term).invalid_start >= 0);
@@ -1420,11 +1420,11 @@ pub unsafe fn terminal_destroy(termpp: *mut *mut Terminal) {
                 unblock_autocmds();
                 (*inv_ptr).swap_remove(pos);
             }
-            for i in 0..(*term).sb_current {
-                xfree((*(*term).sb_buffer.add(i)).cast::<c_void>());
+            for sbrow in (*term).sb_buffer.drain(..) {
+                xfree(sbrow.cast::<c_void>());
             }
-            xfree((*term).sb_buffer.cast::<c_void>());
-            xfree((*term).title.cast::<c_void>());
+            ptr::drop_in_place(&raw mut (*term).sb_buffer);
+            ptr::drop_in_place(&raw mut (*term).title);
             xfree((*term).selection_buffer.cast::<c_void>());
             ptr::drop_in_place(&raw mut (*term).selection);
             ptr::drop_in_place(&raw mut (*term).termrequest_buffer);
@@ -1497,8 +1497,7 @@ pub unsafe fn terminal_paste(count: c_int, y_array: *mut NvimString, y_size: usi
         if !(*cur_term).streamed_paste {
             vterm_keyboard_start_paste((*cur_term).vt);
         }
-        let mut buff_len = (*y_array).size;
-        let mut buff = xmalloc(buff_len).cast::<c_char>();
+        let mut buff: Vec<c_char> = Vec::with_capacity((*y_array).size);
         for _ in 0..count {
             for j in 0..y_size {
                 if j > 0 {
@@ -1509,26 +1508,21 @@ pub unsafe fn terminal_paste(count: c_int, y_array: *mut NvimString, y_size: usi
                     terminal_send(term_now, c"\n".as_ptr(), 1);
                 }
                 let item = *y_array.add(j);
-                if item.size > buff_len {
-                    buff = xrealloc(buff.cast::<c_void>(), item.size).cast::<c_char>();
-                    buff_len = item.size;
-                }
-                let mut dst = buff;
+                buff.clear();
+                buff.reserve(item.size);
                 let mut src = item.data;
                 while *src != NUL {
                     let len = utf_ptr2len(src) as usize;
                     let c = utf_ptr2char(src);
                     if !is_filter_char(c) {
-                        ptr::copy_nonoverlapping(src, dst, len);
-                        dst = dst.add(len);
+                        buff.extend_from_slice(std::slice::from_raw_parts(src, len));
                     }
                     src = src.add(len);
                 }
                 let term_now = (*curbuf).terminal.cast::<Terminal>();
-                terminal_send(term_now, buff, dst.offset_from(buff) as usize);
+                terminal_send(term_now, buff.as_ptr(), buff.len());
             }
         }
-        xfree(buff.cast::<c_void>());
         let term_end = (*curbuf).terminal.cast::<Terminal>();
         if !(*term_end).streamed_paste {
             vterm_keyboard_end_paste((*term_end).vt);
@@ -1872,26 +1866,17 @@ unsafe fn term_settermprop(prop: VTermProp, val: *mut VTermValue, data: *mut c_v
                 }
 
                 if frag.initial() {
-                    (*term).title_len = 0;
-                    (*term).title_size = flen.max(1024);
-                    (*term).title =
-                        xmalloc(size_of::<*mut c_char>() * (*term).title_size).cast::<c_char>();
-                } else if (*term).title_len + flen > (*term).title_size {
-                    (*term).title_size *= 2;
-                    (*term).title = xrealloc(
-                        (*term).title.cast::<c_void>(),
-                        size_of::<*mut c_char>() * (*term).title_size,
-                    )
-                    .cast::<c_char>();
+                    (*term).title.clear();
+                    (*term).title.reserve(flen.max(1024));
                 }
 
-                ptr::copy_nonoverlapping(frag.str_, (*term).title.add((*term).title_len), flen);
-                (*term).title_len += flen;
+                (*term)
+                    .title
+                    .extend_from_slice(std::slice::from_raw_parts(frag.str_, flen));
 
                 if frag.final_() {
-                    buf_set_term_title(buf, (*term).title, (*term).title_len);
-                    xfree((*term).title.cast::<c_void>());
-                    (*term).title = ptr::null_mut();
+                    buf_set_term_title(buf, (*term).title.as_ptr(), (*term).title.len());
+                    (*term).title = Vec::new();
                 }
             }
             VTERM_PROP_MOUSE => {
@@ -1947,25 +1932,14 @@ unsafe fn term_sb_push(cols: c_int, cells: *const VTermScreenCell, data: *mut c_
 
         let c = cols as usize;
         let mut sbrow: *mut ScrollbackLine = ptr::null_mut();
-        if (*term).sb_current == (*term).sb_size {
-            let last = *(*term).sb_buffer.add((*term).sb_current - 1);
+        if (*term).sb_buffer.len() == (*term).sb_size {
+            let last = (*term).sb_buffer.pop().unwrap();
             if (*last).cols == c {
                 sbrow = last;
             } else {
                 xfree(last.cast::<c_void>());
             }
             (*term).sb_deleted += 1;
-            ptr::copy(
-                (*term).sb_buffer,
-                (*term).sb_buffer.add(1),
-                (*term).sb_current - 1,
-            );
-        } else if (*term).sb_current > 0 {
-            ptr::copy(
-                (*term).sb_buffer,
-                (*term).sb_buffer.add(1),
-                (*term).sb_current,
-            );
         }
 
         if sbrow.is_null() {
@@ -1974,10 +1948,7 @@ unsafe fn term_sb_push(cols: c_int, cells: *const VTermScreenCell, data: *mut c_
             (*sbrow).cols = c;
         }
 
-        *(*term).sb_buffer = sbrow;
-        if (*term).sb_current < (*term).sb_size {
-            (*term).sb_current += 1;
-        }
+        (*term).sb_buffer.insert(0, sbrow);
 
         if (*term).sb_pending < (*term).sb_size as c_int {
             (*term).sb_pending += 1;
@@ -1995,7 +1966,7 @@ unsafe fn term_sb_push(cols: c_int, cells: *const VTermScreenCell, data: *mut c_
 unsafe fn term_sb_pop(cols: c_int, cells: *mut VTermScreenCell, data: *mut c_void) -> c_int {
     unsafe {
         let term = data.cast::<Terminal>();
-        if (*term).sb_current == 0 {
+        if (*term).sb_buffer.is_empty() {
             return 0;
         }
 
@@ -2005,13 +1976,7 @@ unsafe fn term_sb_pop(cols: c_int, cells: *mut VTermScreenCell, data: *mut c_voi
             (*term).old_height += 1;
         }
 
-        let sbrow = *(*term).sb_buffer;
-        (*term).sb_current -= 1;
-        ptr::copy(
-            (*term).sb_buffer.add(1),
-            (*term).sb_buffer,
-            (*term).sb_current,
-        );
+        let sbrow = (*term).sb_buffer.remove(0);
 
         let cols_usize = cols as usize;
         let cols_to_copy = cols_usize.min((*sbrow).cols);
@@ -2035,16 +2000,16 @@ unsafe fn term_sb_pop(cols: c_int, cells: *mut VTermScreenCell, data: *mut c_voi
 unsafe fn term_sb_clear(data: *mut c_void) -> c_int {
     unsafe {
         let term = data.cast::<Terminal>();
-        if (*term).in_altscreen || (*term).sb_size == 0 || (*term).sb_current == 0 {
+        if (*term).in_altscreen || (*term).sb_size == 0 || (*term).sb_buffer.is_empty() {
             return 1;
         }
 
-        for i in 0..(*term).sb_current {
-            xfree((*(*term).sb_buffer.add(i)).cast::<c_void>());
+        let deleted_len = (*term).sb_buffer.len();
+        for sbrow in (*term).sb_buffer.drain(..) {
+            xfree(sbrow.cast::<c_void>());
         }
 
-        (*term).sb_deleted += (*term).sb_current;
-        (*term).sb_current = 0;
+        (*term).sb_deleted += deleted_len;
         (*term).sb_pending = 0;
         invalidate_terminal(term, -1, -1);
 
@@ -2393,7 +2358,7 @@ unsafe fn fetch_cell(
 ) -> bool {
     unsafe {
         if row < 0 {
-            let sbrow = *(*term).sb_buffer.add((-row - 1) as usize);
+            let sbrow = (*term).sb_buffer.as_slice()[(-row - 1) as usize];
             if (col as usize) < (*sbrow).cols {
                 *cell = *sbrow_cells(sbrow).add(col as usize);
             } else {
@@ -2570,7 +2535,7 @@ unsafe fn refresh_size(term: *mut Terminal, _buf: *mut buf_T) -> bool {
 
 pub unsafe fn on_scrollback_option_changed(term: *mut Terminal) {
     unsafe {
-        if !(*term).sb_buffer.is_null() {
+        if (*term).sb_allocated {
             refresh_terminal(term);
         }
     }
@@ -2582,17 +2547,18 @@ unsafe fn adjust_scrollback(term: *mut Terminal, buf: *mut buf_T) {
             (*buf).b_p_scbk = SB_MAX;
         }
         let scbk = (*buf).b_p_scbk as usize;
-        debug_assert!((*term).sb_current < usize::MAX);
+        debug_assert!((*term).sb_buffer.len() < usize::MAX);
         if (*term).sb_pending > 0 {
             std::process::abort();
         }
 
-        if scbk < (*term).sb_current {
-            let diff = (*term).sb_current - scbk;
+        if scbk < (*term).sb_buffer.len() {
+            let diff = (*term).sb_buffer.len() - scbk;
             for _ in 0..diff {
                 ml_delete_buf(buf, 1, false);
-                (*term).sb_current -= 1;
-                xfree((*(*term).sb_buffer.add((*term).sb_current)).cast::<c_void>());
+                if let Some(sbrow) = (*term).sb_buffer.pop() {
+                    xfree(sbrow.cast::<c_void>());
+                }
             }
             mark_adjust_buf(
                 buf,
@@ -2605,12 +2571,6 @@ unsafe fn adjust_scrollback(term: *mut Terminal, buf: *mut buf_T) {
                 kExtmarkUndo,
             );
             deleted_lines_buf(buf, 1, diff as linenr_T);
-        }
-
-        let sb_region = size_of::<*mut ScrollbackLine>() * scbk;
-        if scbk != (*term).sb_size {
-            (*term).sb_buffer = xrealloc((*term).sb_buffer.cast::<c_void>(), sb_region)
-                .cast::<*mut ScrollbackLine>();
         }
 
         (*term).sb_size = scbk;
@@ -2658,7 +2618,7 @@ unsafe fn refresh_scrollback(term: *mut Terminal, buf: *mut buf_T) {
             (*term).sb_pending -= 1;
         }
 
-        let max_line_count = (*term).sb_current as c_int + height;
+        let max_line_count = (*term).sb_buffer.len() as c_int + height;
         loop {
             if (*buf).b_ml.ml_line_count <= max_line_count {
                 break;
@@ -2764,7 +2724,7 @@ unsafe fn adjust_topline_cursor(term: *mut Terminal, buf: *mut buf_T, added: c_i
 #[inline]
 unsafe fn row_to_linenr(term: *mut Terminal, row: c_int) -> c_int {
     if row != c_int::MAX {
-        unsafe { row + (*term).sb_current as c_int + 1 }
+        unsafe { row + (*term).sb_buffer.len() as c_int + 1 }
     } else {
         c_int::MAX
     }
@@ -2772,7 +2732,7 @@ unsafe fn row_to_linenr(term: *mut Terminal, row: c_int) -> c_int {
 
 #[inline]
 unsafe fn linenr_to_row(term: *mut Terminal, linenr: c_int) -> c_int {
-    unsafe { linenr - (*term).sb_current as c_int - 1 }
+    unsafe { linenr - (*term).sb_buffer.len() as c_int - 1 }
 }
 
 #[inline]

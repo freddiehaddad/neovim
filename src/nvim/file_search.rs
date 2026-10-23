@@ -17,7 +17,7 @@ use crate::eval::vars::{VV_FNAME, set_vim_var_string};
 use crate::eval::{eval_expr_option_tv, get_v_event, restore_v_event};
 use crate::globals::*;
 use crate::mbyte::{mb_tolower, utf_head_off, utf_ptr2char, utfc_ptr2len};
-use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xrealloc, xstrdup, xstrlcpy};
+use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xstrdup, xstrlcpy};
 use crate::message::{emsg, semsg};
 use crate::normal::get_visual_text;
 use crate::option::{OPT_LOCAL, copy_option_part, was_set_insecurely};
@@ -118,7 +118,7 @@ pub struct ff_search_ctx_T {
     pub ffsc_fix_path: NvimString,
     pub ffsc_wc_path: NvimString,
     pub ffsc_level: c_int,
-    pub ffsc_stopdirs_v: *mut NvimString,
+    pub ffsc_stopdirs_v: Vec<NvimString>,
     pub ffsc_find_what: c_int,
     pub ffsc_tagfile: c_int,
 }
@@ -142,7 +142,9 @@ pub unsafe fn vim_findfile_init(
         let search_ctx: *mut ff_search_ctx_T = if !search_ctx_arg.is_null() {
             search_ctx_arg.cast()
         } else {
-            xcalloc(1, size_of::<ff_search_ctx_T>()).cast()
+            let ctx = xcalloc(1, size_of::<ff_search_ctx_T>()).cast::<ff_search_ctx_T>();
+            ptr::write(&raw mut (*ctx).ffsc_stopdirs_v, Vec::new());
+            ctx
         };
         (*search_ctx).ffsc_find_what = find_what;
         (*search_ctx).ffsc_tagfile = tagfile;
@@ -227,40 +229,29 @@ pub unsafe fn vim_findfile_init(
                 walker = walker.add(1);
             }
 
-            let mut dircount: usize = 1;
-            (*search_ctx).ffsc_stopdirs_v = xmalloc(size_of::<NvimString>()).cast();
-
             loop {
                 let helper = walker;
-                (*search_ctx).ffsc_stopdirs_v = xrealloc(
-                    (*search_ctx).ffsc_stopdirs_v.cast(),
-                    (dircount + 1) * size_of::<NvimString>(),
-                )
-                .cast();
                 walker = vim_strchr(walker, b';' as c_int);
                 let len = if !walker.is_null() {
                     walker.offset_from(helper) as usize
                 } else {
                     CStr::from_ptr(helper).to_bytes().len()
                 };
-                if *helper != NUL && !vim_isAbsName(helper) && len + 1 < MAXPATHL {
+                let dir_str = if *helper != NUL && !vim_isAbsName(helper) && len + 1 < MAXPATHL {
                     xmemcpyz(ff_expand_buffer.data.cast(), helper.cast(), len);
                     ff_expand_buffer.size = len;
-                    *(*search_ctx).ffsc_stopdirs_v.add(dircount - 1) =
-                        cstr_as_string(FullName_save(helper, len != 0));
+                    cstr_as_string(FullName_save(helper, len != 0))
                 } else {
-                    *(*search_ctx).ffsc_stopdirs_v.add(dircount - 1) = cbuf_to_string(helper, len);
-                }
+                    cbuf_to_string(helper, len)
+                };
+                (*search_ctx).ffsc_stopdirs_v.push(dir_str);
                 if !walker.is_null() {
                     walker = walker.add(1);
                 }
-                dircount += 1;
                 if walker.is_null() {
                     break;
                 }
             }
-
-            *(*search_ctx).ffsc_stopdirs_v.add(dircount - 1) = NULL_STRING;
         }
 
         (*search_ctx).ffsc_level = level;
@@ -502,6 +493,7 @@ pub unsafe fn vim_findfile_cleanup(ctx: *mut c_void) {
 
         vim_findfile_free_visited(ctx);
         ff_clear(ctx.cast());
+        ptr::drop_in_place(&raw mut (*(ctx.cast::<ff_search_ctx_T>())).ffsc_stopdirs_v);
         xfree(ctx);
     }
 }
@@ -839,7 +831,7 @@ pub unsafe fn vim_findfile(search_ctx_arg: *mut c_void) -> *mut c_char {
             }
 
             if !(*search_ctx).ffsc_start_dir.data.is_null()
-                && !(*search_ctx).ffsc_stopdirs_v.is_null()
+                && !(*search_ctx).ffsc_stopdirs_v.is_empty()
                 && !got_int
             {
                 let plen = path_end.offset_from((*search_ctx).ffsc_start_dir.data)
@@ -848,7 +840,7 @@ pub unsafe fn vim_findfile(search_ctx_arg: *mut c_void) -> *mut c_char {
                 if ff_path_in_stoplist(
                     (*search_ctx).ffsc_start_dir.data,
                     plen as usize,
-                    (*search_ctx).ffsc_stopdirs_v,
+                    &(*search_ctx).ffsc_stopdirs_v,
                 ) {
                     break;
                 }
@@ -1173,15 +1165,10 @@ unsafe fn ff_clear(search_ctx: *mut ff_search_ctx_T) {
             ff_free_stack_element(sptr);
         }
 
-        if !(*search_ctx).ffsc_stopdirs_v.is_null() {
-            let mut i: usize = 0;
-            while !(*(*search_ctx).ffsc_stopdirs_v.add(i)).data.is_null() {
-                xfree((*(*search_ctx).ffsc_stopdirs_v.add(i)).data.cast());
-                i += 1;
-            }
-            xfree((*search_ctx).ffsc_stopdirs_v.cast());
-            (*search_ctx).ffsc_stopdirs_v = ptr::null_mut();
+        for dir in (*search_ctx).ffsc_stopdirs_v.drain(..) {
+            xfree(dir.data.cast());
         }
+        (*search_ctx).ffsc_stopdirs_v = Vec::new();
 
         api_clear_string(&mut (*search_ctx).ffsc_file_to_search);
         api_clear_string(&mut (*search_ctx).ffsc_start_dir);
@@ -1194,7 +1181,7 @@ unsafe fn ff_clear(search_ctx: *mut ff_search_ctx_T) {
 unsafe fn ff_path_in_stoplist(
     path: *const c_char,
     mut path_len: usize,
-    stopdirs_v: *const NvimString,
+    stopdirs_v: &[NvimString],
 ) -> bool {
     unsafe {
         while path_len > 1 && vim_ispathsep(c_int::from(*path.add(path_len - 1) as u8)) {
@@ -1205,16 +1192,13 @@ unsafe fn ff_path_in_stoplist(
             return true;
         }
 
-        let mut i: usize = 0;
-        while !(*stopdirs_v.add(i)).data.is_null() {
-            let stopdir = *stopdirs_v.add(i);
+        for &stopdir in stopdirs_v {
             if path_cmp(p_fic != 0, stopdir.data, path, path_len) == 0
                 && (stopdir.size <= path_len
                     || vim_ispathsep(c_int::from(*stopdir.data.add(path_len) as u8)))
             {
                 return true;
             }
-            i += 1;
         }
 
         false

@@ -323,8 +323,7 @@ struct qf_delq_T {
 struct qfstate_T {
     linebuf: *mut c_char,
     linelen: usize,
-    growbuf: *mut c_char,
-    growbufsiz: usize,
+    growbuf: Vec<c_char>,
     fd: *mut FILE,
     tv: *mut typval_T,
     p_str: *mut c_char,
@@ -334,6 +333,25 @@ struct qfstate_T {
     buflnum: linenr_T,
     lnumlast: linenr_T,
     vc: vimconv_T,
+}
+
+impl Default for qfstate_T {
+    fn default() -> Self {
+        Self {
+            linebuf: ptr::null_mut(),
+            linelen: 0,
+            growbuf: Vec::new(),
+            fd: ptr::null_mut(),
+            tv: ptr::null_mut(),
+            p_str: ptr::null_mut(),
+            p_list: ptr::null_mut(),
+            p_li: ptr::null_mut(),
+            buf: ptr::null_mut(),
+            buflnum: 0,
+            lnumlast: 0,
+            vc: unsafe { std::mem::zeroed() },
+        }
+    }
 }
 
 #[repr(C)]
@@ -961,15 +979,10 @@ unsafe fn qf_grow_linebuf(state: *mut qfstate_T, newsz: usize) -> *mut c_char {
         } else {
             newsz
         };
-        if (*state).growbuf.is_null() {
-            (*state).growbuf = xmalloc((*state).linelen + 1).cast::<c_char>();
-            (*state).growbufsiz = (*state).linelen;
-        } else if (*state).linelen > (*state).growbufsiz {
-            (*state).growbuf =
-                xrealloc((*state).growbuf.cast(), (*state).linelen + 1).cast::<c_char>();
-            (*state).growbufsiz = (*state).linelen;
+        if (*state).growbuf.len() < (*state).linelen + 1 {
+            (*state).growbuf.resize((*state).linelen + 1, 0);
         }
-        (*state).growbuf
+        (*state).growbuf.as_mut_ptr()
     }
 }
 
@@ -1070,20 +1083,20 @@ unsafe fn qf_get_next_file_line(state: *mut qfstate_T) -> c_int {
         let mut discard = false;
         (*state).linelen = strlen(iobuff_ptr);
         if (*state).linelen == IOSIZE - 1 && *iobuff_ptr.add((*state).linelen - 1) != NL {
-            if (*state).growbuf.is_null() {
-                (*state).growbufsiz = 2 * (IOSIZE - 1);
-                (*state).growbuf = xmalloc((*state).growbufsiz).cast::<c_char>();
+            if (*state).growbuf.len() < 2 * (IOSIZE - 1) {
+                (*state).growbuf.resize(2 * (IOSIZE - 1), 0);
             }
 
-            ptr::copy_nonoverlapping(iobuff_ptr, (*state).growbuf, IOSIZE - 1);
+            ptr::copy_nonoverlapping(iobuff_ptr, (*state).growbuf.as_mut_ptr(), IOSIZE - 1);
             let mut growbuflen = (*state).linelen;
-            *(*state).growbuf.add(growbuflen) = NUL;
+            *(*state).growbuf.as_mut_ptr().add(growbuflen) = NUL;
 
             loop {
                 os_set_errno(0);
+                let growbufsiz = (*state).growbuf.len();
                 if fgets(
-                    (*state).growbuf.add(growbuflen),
-                    ((*state).growbufsiz - growbuflen) as c_int,
+                    (*state).growbuf.as_mut_ptr().add(growbuflen),
+                    (growbufsiz - growbuflen) as c_int,
                     (*state).fd,
                 )
                 .is_null()
@@ -1093,19 +1106,18 @@ unsafe fn qf_get_next_file_line(state: *mut qfstate_T) -> c_int {
                     }
                     break;
                 }
-                (*state).linelen = strlen((*state).growbuf.add(growbuflen));
+                (*state).linelen = strlen((*state).growbuf.as_ptr().add(growbuflen));
                 growbuflen += (*state).linelen;
-                if *(*state).growbuf.add(growbuflen - 1) == NL {
+                if *(*state).growbuf.as_ptr().add(growbuflen - 1) == NL {
                     break;
                 }
-                if (*state).growbufsiz == LINE_MAXLEN {
+                if growbufsiz == LINE_MAXLEN {
                     discard = true;
                     break;
                 }
 
-                (*state).growbufsiz = (2 * (*state).growbufsiz).min(LINE_MAXLEN);
-                (*state).growbuf =
-                    xrealloc((*state).growbuf.cast(), (*state).growbufsiz).cast::<c_char>();
+                let new_siz = (2 * growbufsiz).min(LINE_MAXLEN);
+                (*state).growbuf.resize(new_siz, 0);
             }
 
             if discard {
@@ -1123,7 +1135,7 @@ unsafe fn qf_get_next_file_line(state: *mut qfstate_T) -> c_int {
                 }
             }
 
-            (*state).linebuf = (*state).growbuf;
+            (*state).linebuf = (*state).growbuf.as_mut_ptr();
             (*state).linelen = growbuflen;
         } else {
             (*state).linebuf = iobuff_ptr;
@@ -1138,13 +1150,15 @@ unsafe fn qf_get_next_file_line(state: *mut qfstate_T) -> c_int {
             if !line.is_null() {
                 if (*state).linelen < IOSIZE {
                     xstrlcpy((*state).linebuf, line, (*state).linelen + 1);
-                    xfree(line.cast());
                 } else {
-                    xfree((*state).growbuf.cast());
-                    (*state).linebuf = line;
-                    (*state).growbuf = line;
-                    (*state).growbufsiz = (*state).linelen.min(LINE_MAXLEN);
+                    let cap = ((*state).linelen + 1).min(LINE_MAXLEN);
+                    if (*state).growbuf.len() < cap {
+                        (*state).growbuf.resize(cap, 0);
+                    }
+                    xstrlcpy((*state).growbuf.as_mut_ptr(), line, cap);
+                    (*state).linebuf = (*state).growbuf.as_mut_ptr();
                 }
+                xfree(line.cast());
             }
         }
         QF_OK
@@ -1371,7 +1385,7 @@ unsafe fn qf_cleanup_state(pstate: *mut qfstate_T) {
         if !(*pstate).fd.is_null() {
             fclose((*pstate).fd);
         }
-        xfree((*pstate).growbuf.cast());
+        (*pstate).growbuf = Vec::new();
         if (*pstate).vc.vc_type != CONV_NONE {
             convert_setup(&raw mut (*pstate).vc, ptr::null_mut(), ptr::null_mut());
         }
@@ -1392,7 +1406,7 @@ unsafe fn qf_init_ext(
     enc: *mut c_char,
 ) -> c_int {
     unsafe {
-        let mut state: qfstate_T = std::mem::zeroed();
+        let mut state = qfstate_T::default();
         let mut fields: qffields_T = std::mem::zeroed();
         let mut old_last: *mut qfline_T = ptr::null_mut();
         let mut retval: c_int = -1;
