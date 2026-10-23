@@ -271,17 +271,8 @@ struct forinfo_T {
     fi_byte_idx: c_int,
 }
 
-#[repr(C)]
-pub struct ht_stack_T {
-    pub ht: *mut hashtab_T,
-    pub prev: *mut ht_stack_T,
-}
-
-#[repr(C)]
-pub struct list_stack_T {
-    pub list: *mut list_T,
-    pub prev: *mut list_stack_T,
-}
+pub type ht_stack_T = Vec<*mut hashtab_T>;
+pub type list_stack_T = Vec<*mut list_T>;
 
 #[repr(C)]
 pub struct TimerTail {
@@ -4732,11 +4723,11 @@ unsafe fn free_unref_items(copyID: c_int) -> c_int {
 pub unsafe fn set_ref_in_ht(
     ht: *mut hashtab_T,
     copyID: c_int,
-    list_stack: *mut *mut list_stack_T,
+    list_stack: *mut list_stack_T,
 ) -> bool {
     unsafe {
         let mut abort = false;
-        let mut ht_stack: *mut ht_stack_T = ptr::null_mut();
+        let mut ht_stack: ht_stack_T = Vec::new();
 
         let mut cur_ht = ht;
         loop {
@@ -4759,14 +4750,10 @@ pub unsafe fn set_ref_in_ht(
                 }
             }
 
-            if ht_stack.is_null() {
+            let Some(next_ht) = ht_stack.pop() else {
                 break;
-            }
-
-            cur_ht = (*ht_stack).ht;
-            let tempitem = ht_stack;
-            ht_stack = (*ht_stack).prev;
-            xfree(tempitem.cast());
+            };
+            cur_ht = next_ht;
         }
 
         abort
@@ -4777,11 +4764,11 @@ pub unsafe fn set_ref_in_ht(
 pub unsafe fn set_ref_in_list_items(
     l: *mut list_T,
     copyID: c_int,
-    ht_stack: *mut *mut ht_stack_T,
+    ht_stack: *mut ht_stack_T,
 ) -> bool {
     unsafe {
         let mut abort = false;
-        let mut list_stack: *mut list_stack_T = ptr::null_mut();
+        let mut list_stack: list_stack_T = Vec::new();
 
         let mut cur_l = l;
         loop {
@@ -4797,14 +4784,10 @@ pub unsafe fn set_ref_in_list_items(
                 }
             }
 
-            if list_stack.is_null() {
+            let Some(next_l) = list_stack.pop() else {
                 break;
-            }
-
-            cur_l = (*list_stack).list;
-            let tempitem = list_stack;
-            list_stack = (*list_stack).prev;
-            xfree(tempitem.cast());
+            };
+            cur_l = next_l;
         }
 
         abort
@@ -4814,8 +4797,8 @@ pub unsafe fn set_ref_in_list_items(
 unsafe fn set_ref_in_item_dict(
     dd: *mut dict_T,
     copyID: c_int,
-    ht_stack: *mut *mut ht_stack_T,
-    list_stack: *mut *mut list_stack_T,
+    ht_stack: *mut ht_stack_T,
+    list_stack: *mut list_stack_T,
 ) -> bool {
     unsafe {
         if dd.is_null() || (*dd).dv_copyID == copyID {
@@ -4827,10 +4810,7 @@ unsafe fn set_ref_in_item_dict(
             return set_ref_in_ht(&raw mut (*dd).dv_hashtab, copyID, list_stack);
         }
 
-        let newitem = xmalloc(size_of::<ht_stack_T>()).cast::<ht_stack_T>();
-        (*newitem).ht = &raw mut (*dd).dv_hashtab;
-        (*newitem).prev = *ht_stack;
-        *ht_stack = newitem;
+        (*ht_stack).push(&raw mut (*dd).dv_hashtab);
 
         for &watcher in &(*dd).watchers {
             set_ref_in_callback(&raw mut (*watcher).callback, copyID, ht_stack, list_stack);
@@ -4843,8 +4823,8 @@ unsafe fn set_ref_in_item_dict(
 unsafe fn set_ref_in_item_list(
     ll: *mut list_T,
     copyID: c_int,
-    ht_stack: *mut *mut ht_stack_T,
-    list_stack: *mut *mut list_stack_T,
+    ht_stack: *mut ht_stack_T,
+    list_stack: *mut list_stack_T,
 ) -> bool {
     unsafe {
         if ll.is_null() || (*ll).lv_copyID == copyID {
@@ -4856,10 +4836,7 @@ unsafe fn set_ref_in_item_list(
             return set_ref_in_list_items(ll, copyID, ht_stack);
         }
 
-        let newitem = xmalloc(size_of::<list_stack_T>()).cast::<list_stack_T>();
-        (*newitem).list = ll;
-        (*newitem).prev = *list_stack;
-        *list_stack = newitem;
+        (*list_stack).push(ll);
 
         false
     }
@@ -4868,8 +4845,8 @@ unsafe fn set_ref_in_item_list(
 unsafe fn set_ref_in_item_partial(
     pt: *mut partial_T,
     copyID: c_int,
-    ht_stack: *mut *mut ht_stack_T,
-    list_stack: *mut *mut list_stack_T,
+    ht_stack: *mut ht_stack_T,
+    list_stack: *mut list_stack_T,
 ) -> bool {
     unsafe {
         if pt.is_null() || (*pt).pt_copyID == copyID {
@@ -4903,8 +4880,8 @@ unsafe fn set_ref_in_item_partial(
 pub unsafe fn set_ref_in_item(
     tv: *mut typval_T,
     copyID: c_int,
-    ht_stack: *mut *mut ht_stack_T,
-    list_stack: *mut *mut list_stack_T,
+    ht_stack: *mut ht_stack_T,
+    list_stack: *mut list_stack_T,
 ) -> bool {
     unsafe {
         match (*tv).v_type {
@@ -5549,8 +5526,8 @@ pub unsafe fn callback_call(
 pub unsafe fn set_ref_in_callback(
     callback: *mut Callback,
     copyID: c_int,
-    ht_stack: *mut *mut ht_stack_T,
-    list_stack: *mut *mut list_stack_T,
+    ht_stack: *mut ht_stack_T,
+    list_stack: *mut list_stack_T,
 ) -> bool {
     unsafe {
         if (*callback).cb_type == kCallbackPartial {
@@ -5570,8 +5547,8 @@ pub unsafe fn set_ref_in_callback(
 unsafe fn set_ref_in_callback_reader(
     reader: *mut CallbackReader,
     copyID: c_int,
-    ht_stack: *mut *mut ht_stack_T,
-    list_stack: *mut *mut list_stack_T,
+    ht_stack: *mut ht_stack_T,
+    list_stack: *mut list_stack_T,
 ) -> bool {
     unsafe {
         if set_ref_in_callback(&raw mut (*reader).cb, copyID, ht_stack, list_stack) {

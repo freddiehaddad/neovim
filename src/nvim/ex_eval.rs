@@ -80,12 +80,6 @@ const E_MULTIPLE_ELSE: &CStr = c"E583: Multiple :else";
 const E_MULTIPLE_FINALLY: &CStr = c"E607: Multiple :finally";
 
 #[repr(C)]
-pub struct eslist_T {
-    pub saved_emsg_silent: c_int,
-    pub next: *mut eslist_T,
-}
-
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub union cstack_pend_union {
     pub csp_rv: [*mut c_void; CSTACK_LEN],
@@ -102,8 +96,27 @@ pub struct cstack_T {
     pub cs_idx: c_int,
     pub cs_looplevel: c_int,
     pub cs_trylevel: c_int,
-    pub cs_emsg_silent_list: *mut eslist_T,
+    pub cs_emsg_silent_list: Vec<c_int>,
     pub cs_lflags: c_int,
+}
+
+impl Default for cstack_T {
+    fn default() -> Self {
+        Self {
+            cs_flags: [0; CSTACK_LEN],
+            cs_pending: [0; CSTACK_LEN],
+            cs_pend: cstack_pend_union {
+                csp_rv: [ptr::null_mut(); CSTACK_LEN],
+            },
+            cs_forinfo: [ptr::null_mut(); CSTACK_LEN],
+            cs_line: [0; CSTACK_LEN],
+            cs_idx: -1,
+            cs_looplevel: 0,
+            cs_trylevel: 0,
+            cs_emsg_silent_list: Vec::new(),
+            cs_lflags: 0,
+        }
+    }
 }
 
 #[repr(C)]
@@ -1117,10 +1130,7 @@ pub unsafe fn ex_try(eap: *mut exarg_T) {
                 (*cstack).cs_flags[idx] |= CSF_ACTIVE | CSF_TRUE;
 
                 if emsg_silent != 0 {
-                    let elem = xmalloc(std::mem::size_of::<eslist_T>()).cast::<eslist_T>();
-                    (*elem).saved_emsg_silent = emsg_silent;
-                    (*elem).next = (*cstack).cs_emsg_silent_list;
-                    (*cstack).cs_emsg_silent_list = elem;
+                    (*cstack).cs_emsg_silent_list.push(emsg_silent);
                     (*cstack).cs_flags[idx] |= CSF_SILENT;
                     emsg_silent = 0;
                 }
@@ -1588,10 +1598,9 @@ pub unsafe fn cleanup_conditionals(
             if ((*cstack).cs_flags[u_idx] & CSF_TRY) != 0
                 && ((*cstack).cs_flags[u_idx] & CSF_SILENT) != 0
             {
-                let elem = (*cstack).cs_emsg_silent_list;
-                (*cstack).cs_emsg_silent_list = (*elem).next;
-                emsg_silent = (*elem).saved_emsg_silent;
-                xfree(elem.cast());
+                if let Some(saved) = (*cstack).cs_emsg_silent_list.pop() {
+                    emsg_silent = saved;
+                }
                 (*cstack).cs_flags[u_idx] &= !CSF_SILENT;
             }
             if stop {

@@ -68,8 +68,8 @@ pub struct syn_time_T {
 
 #[repr(C)]
 pub struct synblock_T {
-    pub b_keywtab: std::collections::BTreeMap<Vec<u8>, *mut keyentry_T>,
-    pub b_keywtab_ic: std::collections::BTreeMap<Vec<u8>, *mut keyentry_T>,
+    pub b_keywtab: std::collections::BTreeMap<Vec<u8>, Vec<keyentry_T>>,
+    pub b_keywtab_ic: std::collections::BTreeMap<Vec<u8>, Vec<keyentry_T>>,
     pub b_syn_error: bool,
     pub b_syn_slow: bool,
     pub b_syn_ic: c_int,
@@ -230,12 +230,20 @@ pub struct sp_syn {
 
 #[repr(C)]
 pub struct keyentry_T {
-    pub ke_next: *mut keyentry_T,
     pub k_syn: sp_syn,
     pub next_list: *mut i16,
     pub flags: c_int,
     pub k_char: c_int,
     pub keyword: Vec<c_char>,
+}
+
+impl Drop for keyentry_T {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.next_list.cast());
+            xfree(self.k_syn.cont_in_list.cast());
+        }
+    }
 }
 
 #[repr(C)]
@@ -360,11 +368,9 @@ struct time_entry_T {
     pattern: *mut c_char,
 }
 
-#[repr(C)]
 struct pat_ptr_T {
-    pp_synp: *mut synpat_T,
+    pp_synp: synpat_T,
     pp_matchgroup_id: c_int,
-    pp_next: *mut pat_ptr_T,
 }
 
 static mut did_syntax_onoff: bool = false;
@@ -453,8 +459,8 @@ unsafe fn cur_state_at(idx: c_int) -> *mut stateitem_T {
 }
 
 #[inline]
-unsafe fn ke2hikey(kp: *mut keyentry_T) -> *mut c_char {
-    unsafe { (*kp).keyword.as_mut_ptr() }
+unsafe fn ke2hikey(kp: *const keyentry_T) -> *const c_char {
+    unsafe { (*kp).keyword.as_ptr() }
 }
 
 #[inline]
@@ -2652,7 +2658,7 @@ unsafe fn check_keyword_id(
         let mut keyword = [0 as c_char; MAXKEYWLEN + 1];
         xmemcpyz(keyword.as_mut_ptr().cast(), kwp.cast(), kwlen as usize);
 
-        let mut kp: *mut keyentry_T = ptr::null_mut();
+        let mut kp: *const keyentry_T = ptr::null();
 
         if !(*syn_block).b_keywtab.is_empty() {
             kp = match_keyword(
@@ -2685,32 +2691,26 @@ unsafe fn check_keyword_id(
 
 unsafe fn match_keyword(
     keyword: *mut c_char,
-    ht: &std::collections::BTreeMap<Vec<u8>, *mut keyentry_T>,
+    ht: &std::collections::BTreeMap<Vec<u8>, Vec<keyentry_T>>,
     cur_si: *mut stateitem_T,
-) -> *mut keyentry_T {
+) -> *const keyentry_T {
     unsafe {
         let key_bytes = std::ffi::CStr::from_ptr(keyword).to_bytes();
-        if let Some(&first_kp) = ht.get(key_bytes) {
-            let mut kp = first_kp;
-            while !kp.is_null() {
+        if let Some(entries) = ht.get(key_bytes) {
+            for kp in entries {
+                let mut k_syn = kp.k_syn;
                 if if !current_next_list.is_null() {
-                    in_id_list(ptr::null_mut(), current_next_list, &raw mut (*kp).k_syn, 0) != 0
+                    in_id_list(ptr::null_mut(), current_next_list, &raw mut k_syn, 0) != 0
                 } else if cur_si.is_null() {
-                    ((*kp).flags & HL_CONTAINED) == 0
+                    (kp.flags & HL_CONTAINED) == 0
                 } else {
-                    in_id_list(
-                        cur_si,
-                        (*cur_si).si_cont_list,
-                        &raw mut (*kp).k_syn,
-                        (*kp).flags,
-                    ) != 0
+                    in_id_list(cur_si, (*cur_si).si_cont_list, &raw mut k_syn, kp.flags) != 0
                 } {
                     return kp;
                 }
-                kp = (*kp).ke_next;
             }
         }
-        ptr::null_mut()
+        ptr::null()
     }
 }
 
@@ -3493,7 +3493,7 @@ unsafe fn put_pattern(s: *const c_char, c: c_int, spp: *const synpat_T, hl_id: c
 
 unsafe fn syn_list_keywords(
     id: c_int,
-    ht: &std::collections::BTreeMap<Vec<u8>, *mut keyentry_T>,
+    ht: &std::collections::BTreeMap<Vec<u8>, Vec<keyentry_T>>,
     mut did_header: bool,
     hl_id: c_int,
 ) -> bool {
@@ -3505,21 +3505,23 @@ unsafe fn syn_list_keywords(
         let mut prev_skipwhite: c_int = 0;
         let mut prev_skipempty: c_int = 0;
 
-        for &first_kp in ht.values() {
+        for entries in ht.values() {
             if got_int {
                 break;
             }
-            let mut kp = first_kp;
-            while !kp.is_null() && !got_int {
-                if (*kp).k_syn.id as c_int == id {
+            for kp in entries {
+                if got_int {
+                    break;
+                }
+                if kp.k_syn.id as c_int == id {
                     let mut outlen: c_int = 0;
                     let mut force_newline = false;
-                    if prev_contained != ((*kp).flags & HL_CONTAINED)
-                        || prev_skipnl != ((*kp).flags & HL_SKIPNL)
-                        || prev_skipwhite != ((*kp).flags & HL_SKIPWHITE)
-                        || prev_skipempty != ((*kp).flags & HL_SKIPEMPTY)
-                        || prev_cont_in_list != (*kp).k_syn.cont_in_list
-                        || prev_next_list != (*kp).next_list
+                    if prev_contained != (kp.flags & HL_CONTAINED)
+                        || prev_skipnl != (kp.flags & HL_SKIPNL)
+                        || prev_skipwhite != (kp.flags & HL_SKIPWHITE)
+                        || prev_skipempty != (kp.flags & HL_SKIPEMPTY)
+                        || prev_cont_in_list != kp.k_syn.cont_in_list
+                        || prev_next_list != kp.next_list
                     {
                         force_newline = true;
                     } else {
@@ -3534,39 +3536,38 @@ unsafe fn syn_list_keywords(
                         prev_skipempty = 0;
                     }
                     did_header = true;
-                    if prev_contained != ((*kp).flags & HL_CONTAINED) {
+                    if prev_contained != (kp.flags & HL_CONTAINED) {
                         msg_puts_hl(c"contained".as_ptr(), hl_id, false);
                         msg_putchar(b' ' as c_int);
-                        prev_contained = (*kp).flags & HL_CONTAINED;
+                        prev_contained = kp.flags & HL_CONTAINED;
                     }
-                    if !ptr::eq((*kp).k_syn.cont_in_list, prev_cont_in_list) {
-                        put_id_list(c"containedin".as_ptr(), (*kp).k_syn.cont_in_list, hl_id);
+                    if !ptr::eq(kp.k_syn.cont_in_list, prev_cont_in_list) {
+                        put_id_list(c"containedin".as_ptr(), kp.k_syn.cont_in_list, hl_id);
                         msg_putchar(b' ' as c_int);
-                        prev_cont_in_list = (*kp).k_syn.cont_in_list;
+                        prev_cont_in_list = kp.k_syn.cont_in_list;
                     }
-                    if !ptr::eq((*kp).next_list, prev_next_list) {
-                        put_id_list(c"nextgroup".as_ptr(), (*kp).next_list, hl_id);
+                    if !ptr::eq(kp.next_list, prev_next_list) {
+                        put_id_list(c"nextgroup".as_ptr(), kp.next_list, hl_id);
                         msg_putchar(b' ' as c_int);
-                        prev_next_list = (*kp).next_list;
-                        if ((*kp).flags & HL_SKIPNL) != 0 {
+                        prev_next_list = kp.next_list;
+                        if (kp.flags & HL_SKIPNL) != 0 {
                             msg_puts_hl(c"skipnl".as_ptr(), hl_id, false);
                             msg_putchar(b' ' as c_int);
-                            prev_skipnl = (*kp).flags & HL_SKIPNL;
+                            prev_skipnl = kp.flags & HL_SKIPNL;
                         }
-                        if ((*kp).flags & HL_SKIPWHITE) != 0 {
+                        if (kp.flags & HL_SKIPWHITE) != 0 {
                             msg_puts_hl(c"skipwhite".as_ptr(), hl_id, false);
                             msg_putchar(b' ' as c_int);
-                            prev_skipwhite = (*kp).flags & HL_SKIPWHITE;
+                            prev_skipwhite = kp.flags & HL_SKIPWHITE;
                         }
-                        if ((*kp).flags & HL_SKIPEMPTY) != 0 {
+                        if (kp.flags & HL_SKIPEMPTY) != 0 {
                             msg_puts_hl(c"skipempty".as_ptr(), hl_id, false);
                             msg_putchar(b' ' as c_int);
-                            prev_skipempty = (*kp).flags & HL_SKIPEMPTY;
+                            prev_skipempty = kp.flags & HL_SKIPEMPTY;
                         }
                     }
                     msg_outtrans(ke2hikey(kp), 0, false);
                 }
-                kp = (*kp).ke_next;
             }
         }
 
@@ -3576,48 +3577,16 @@ unsafe fn syn_list_keywords(
 
 unsafe fn syn_clear_keyword(
     id: c_int,
-    ht: &mut std::collections::BTreeMap<Vec<u8>, *mut keyentry_T>,
+    ht: &mut std::collections::BTreeMap<Vec<u8>, Vec<keyentry_T>>,
 ) {
-    unsafe {
-        ht.retain(|_, head| {
-            let mut kp_prev: *mut keyentry_T = ptr::null_mut();
-            let mut kp = *head;
-            while !kp.is_null() {
-                if (*kp).k_syn.id as c_int == id {
-                    let kp_next = (*kp).ke_next;
-                    if kp_prev.is_null() {
-                        *head = kp_next;
-                    } else {
-                        (*kp_prev).ke_next = kp_next;
-                    }
-                    xfree((*kp).next_list.cast());
-                    xfree((*kp).k_syn.cont_in_list.cast());
-                    ptr::drop_in_place(&raw mut (*kp).keyword);
-                    xfree(kp.cast());
-                    kp = kp_next;
-                } else {
-                    kp_prev = kp;
-                    kp = (*kp).ke_next;
-                }
-            }
-            !(*head).is_null()
-        });
-    }
+    ht.retain(|_, entries| {
+        entries.retain(|kp| kp.k_syn.id as c_int != id);
+        !entries.is_empty()
+    });
 }
 
-unsafe fn clear_keywtab(ht: &mut std::collections::BTreeMap<Vec<u8>, *mut keyentry_T>) {
-    unsafe {
-        for (_, mut kp) in std::mem::take(ht) {
-            while !kp.is_null() {
-                let kp_next = (*kp).ke_next;
-                xfree((*kp).next_list.cast());
-                xfree((*kp).k_syn.cont_in_list.cast());
-                ptr::drop_in_place(&raw mut (*kp).keyword);
-                xfree(kp.cast());
-                kp = kp_next;
-            }
-        }
-    }
+unsafe fn clear_keywtab(ht: &mut std::collections::BTreeMap<Vec<u8>, Vec<keyentry_T>>) {
+    ht.clear();
 }
 
 unsafe fn add_keyword(
@@ -3643,30 +3612,31 @@ unsafe fn add_keyword(
             (name, namelen)
         };
 
-        let kp = xmalloc(size_of::<keyentry_T>()).cast::<keyentry_T>();
         let mut kw_vec = Vec::with_capacity(name_iclen + 1);
         kw_vec.extend_from_slice(std::slice::from_raw_parts(name_ic, name_iclen));
         kw_vec.push(NUL);
-        ptr::write(&raw mut (*kp).keyword, kw_vec);
-        (*kp).k_syn.id = id as i16;
-        (*kp).k_syn.inc_tag = current_syn_inc_tag;
-        (*kp).flags = flags;
-        (*kp).k_char = conceal_char;
-        (*kp).k_syn.cont_in_list = copy_id_list(cont_in_list);
         if !cont_in_list.is_null() {
             (*win_s(curwin)).b_syn_containedin = 1;
         }
-        (*kp).next_list = copy_id_list(next_list);
+        let kp = keyentry_T {
+            k_syn: sp_syn {
+                inc_tag: current_syn_inc_tag,
+                id: id as i16,
+                cont_in_list: copy_id_list(cont_in_list),
+            },
+            next_list: copy_id_list(next_list),
+            flags,
+            k_char: conceal_char,
+            keyword: kw_vec,
+        };
 
         let ht = if (*win_s(curwin)).b_syn_ic != 0 {
             &mut (*win_s(curwin)).b_keywtab_ic
         } else {
             &mut (*win_s(curwin)).b_keywtab
         };
-        let key_bytes = std::slice::from_raw_parts(ke2hikey(kp).cast::<u8>(), name_iclen).to_vec();
-        let entry = ht.entry(key_bytes).or_insert(ptr::null_mut());
-        (*kp).ke_next = *entry;
-        *entry = kp;
+        let key_bytes = std::slice::from_raw_parts(name_ic.cast::<u8>(), name_iclen).to_vec();
+        ht.entry(key_bytes).or_default().insert(0, kp);
     }
 }
 
@@ -4141,7 +4111,7 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
         let arg = (*eap).arg;
         let mut group_name_end: *mut c_char = ptr::null_mut();
         let mut key: *mut c_char = ptr::null_mut();
-        let mut pat_ptrs = [ptr::null_mut::<pat_ptr_T>(); 3];
+        let mut pat_ptrs: [Vec<pat_ptr_T>; 3] = [Vec::new(), Vec::new(), Vec::new()];
         let mut pat_count: c_int = 0;
         let mut matchgroup_id: c_int = 0;
         let mut not_enough = false;
@@ -4187,7 +4157,7 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
             } else if strcmp(key, c"END".as_ptr()) == 0 {
                 ITEM_END
             } else if strcmp(key, c"SKIP".as_ptr()) == 0 {
-                if !pat_ptrs[ITEM_SKIP].is_null() {
+                if !pat_ptrs[ITEM_SKIP].is_empty() {
                     illegal = true;
                     break;
                 }
@@ -4222,25 +4192,28 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
                 }
                 rest = skipwhite(p);
             } else {
-                let ppp = xmalloc(size_of::<pat_ptr_T>()).cast::<pat_ptr_T>();
-                (*ppp).pp_next = pat_ptrs[item];
-                pat_ptrs[item] = ppp;
-                (*ppp).pp_synp = xcalloc(1, size_of::<synpat_T>()).cast::<synpat_T>();
+                let mut synp: synpat_T = std::mem::zeroed();
 
                 if item == ITEM_START {
                     reg_do_extmatch = REX_SET;
                 } else {
                     reg_do_extmatch = REX_USE;
                 }
-                rest = get_syn_pattern(rest, (*ppp).pp_synp);
+                rest = get_syn_pattern(rest, &raw mut synp);
                 reg_do_extmatch = 0;
                 if item == ITEM_END
                     && vim_regcomp_had_eol() != 0
                     && (syn_opt_arg.flags & HL_EXCLUDENL) == 0
                 {
-                    (*(*ppp).pp_synp).sp_flags |= HL_HAS_EOL;
+                    synp.sp_flags |= HL_HAS_EOL;
                 }
-                (*ppp).pp_matchgroup_id = matchgroup_id;
+                pat_ptrs[item].insert(
+                    0,
+                    pat_ptr_T {
+                        pp_synp: synp,
+                        pp_matchgroup_id: matchgroup_id,
+                    },
+                );
                 pat_count += 1;
             }
         }
@@ -4249,7 +4222,7 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
             rest = ptr::null_mut();
         }
 
-        if !rest.is_null() && (pat_ptrs[ITEM_START].is_null() || pat_ptrs[ITEM_END].is_null()) {
+        if !rest.is_null() && (pat_ptrs[ITEM_START].is_empty() || pat_ptrs[ITEM_END].is_empty()) {
             not_enough = true;
             rest = ptr::null_mut();
         }
@@ -4264,15 +4237,14 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
                     syn_incl_toplevel(syn_id, &raw mut syn_opt_arg.flags);
                     let pats = &mut (*win_s(curwin)).b_syn_patterns;
                     pats.reserve(pat_count as usize);
-                    for (item, &pat_ptr) in pat_ptrs
+                    for (item, pat_vec) in pat_ptrs
                         .iter()
                         .enumerate()
                         .take(ITEM_END + 1)
                         .skip(ITEM_START)
                     {
-                        let mut ppp = pat_ptr;
-                        while !ppp.is_null() {
-                            let mut pat = *(*ppp).pp_synp;
+                        for ppp in pat_vec {
+                            let mut pat = ppp.pp_synp;
                             pat.sp_syncing = syncing != 0;
                             pat.sp_type = if item == ITEM_START {
                                 SPTYPE_START
@@ -4284,7 +4256,7 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
                             pat.sp_flags |= syn_opt_arg.flags;
                             pat.sp_syn.id = syn_id as i16;
                             pat.sp_syn.inc_tag = current_syn_inc_tag;
-                            pat.sp_syn_match_id = (*ppp).pp_matchgroup_id as i16;
+                            pat.sp_syn_match_id = ppp.pp_matchgroup_id as i16;
                             pat.sp_cchar = conceal_char;
                             if item == ITEM_START {
                                 pat.sp_cont_list = syn_opt_arg.cont_list;
@@ -4298,7 +4270,6 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
                             if (syn_opt_arg.flags & HL_FOLD) != 0 {
                                 (*win_s(curwin)).b_syn_folditems += 1;
                             }
-                            ppp = (*ppp).pp_next;
                         }
                     }
 
@@ -4309,17 +4280,12 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
             }
         }
 
-        for &pat_ptr in pat_ptrs.iter().take(ITEM_END + 1).skip(ITEM_START) {
-            let mut ppp = pat_ptr;
-            while !ppp.is_null() {
-                let ppp_next = (*ppp).pp_next;
-                if !success && !(*ppp).pp_synp.is_null() {
-                    vim_regfree((*(*ppp).pp_synp).sp_prog);
-                    xfree((*(*ppp).pp_synp).sp_pattern.cast());
+        if !success {
+            for pat_vec in pat_ptrs.iter().take(ITEM_END + 1).skip(ITEM_START) {
+                for ppp in pat_vec {
+                    vim_regfree(ppp.pp_synp.sp_prog);
+                    xfree(ppp.pp_synp.sp_pattern.cast());
                 }
-                xfree((*ppp).pp_synp.cast());
-                xfree(ppp.cast());
-                ppp = ppp_next;
             }
         }
 

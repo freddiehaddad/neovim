@@ -4880,8 +4880,7 @@ pub unsafe fn do_cmdline(
         let mut did_inc = false;
         let mut did_block = false;
         let mut retval = OK;
-        let mut cstack: cstack_T = std::mem::zeroed();
-        cstack.cs_idx = -1;
+        let mut cstack = cstack_T::default();
         let mut lines_ga: Vec<wcmd_T> = Vec::new();
         let mut current_line: c_int = 0;
         let mut fname: *mut c_char = ptr::null_mut();
@@ -5310,14 +5309,7 @@ pub unsafe fn do_cmdline(
 
         msg_list = saved_msg_list;
 
-        if !cstack.cs_emsg_silent_list.is_null() {
-            let mut elem = cstack.cs_emsg_silent_list;
-            while !elem.is_null() {
-                let temp = (*elem).next;
-                xfree(elem.cast());
-                elem = temp;
-            }
-        }
+        cstack.cs_emsg_silent_list.clear();
 
         if did_inc {
             RedrawingDisabled -= 1;
@@ -6210,8 +6202,7 @@ pub unsafe fn execute_cmd(eap: *mut exarg_T, cmod: *mut cmdmod_T, preview: bool)
                 break 'end;
             }
 
-            let mut cstack: cstack_T = std::mem::zeroed();
-            cstack.cs_idx = -1;
+            let mut cstack = cstack_T::default();
             (*eap).cstack = (&raw mut cstack).cast();
 
             let _ = execute_cmd0(&raw mut retv, eap, &raw mut errormsg, preview);
