@@ -237,12 +237,6 @@ const E_CURRENT_LOCATION_LIST_WAS_CHANGED: &CStr = c"E926: Current location list
 const E_INVACT: &CStr = c"E927: Invalid action: '%s'";
 
 #[repr(C)]
-pub struct dir_stack_T {
-    pub next: *mut dir_stack_T,
-    pub dirname: *mut c_char,
-}
-
-#[repr(C)]
 pub struct qfline_T {
     pub qf_next: *mut qfline_T,
     pub qf_prev: *mut qfline_T,
@@ -282,14 +276,41 @@ pub struct qf_list_T {
     pub qf_title: *mut c_char,
     pub qf_ctx: *mut typval_T,
     pub qf_qftf_cb: Callback,
-    pub qf_dir_stack: *mut dir_stack_T,
+    pub qf_dir_stack: Vec<*mut c_char>,
     pub qf_directory: *mut c_char,
-    pub qf_file_stack: *mut dir_stack_T,
+    pub qf_file_stack: Vec<*mut c_char>,
     pub qf_currfile: *mut c_char,
     pub qf_multiline: bool,
     pub qf_multiignore: bool,
     pub qf_multiscan: bool,
     pub qf_changedtick: c_int,
+}
+
+impl Default for qf_list_T {
+    fn default() -> Self {
+        Self {
+            qf_id: 0,
+            qfl_type: 0,
+            qf_start: ptr::null_mut(),
+            qf_last: ptr::null_mut(),
+            qf_ptr: ptr::null_mut(),
+            qf_count: 0,
+            qf_index: 0,
+            qf_nonevalid: false,
+            qf_has_user_data: false,
+            qf_title: ptr::null_mut(),
+            qf_ctx: ptr::null_mut(),
+            qf_qftf_cb: unsafe { std::mem::zeroed() },
+            qf_dir_stack: Vec::new(),
+            qf_directory: ptr::null_mut(),
+            qf_file_stack: Vec::new(),
+            qf_currfile: ptr::null_mut(),
+            qf_multiline: false,
+            qf_multiignore: false,
+            qf_multiscan: false,
+            qf_changedtick: 0,
+        }
+    }
 }
 
 #[repr(C)]
@@ -306,17 +327,18 @@ pub struct qf_info_T {
 #[repr(C)]
 struct efm_T {
     prog: *mut regprog_T,
-    next: *mut efm_T,
     addr: [c_char; FMT_PATTERNS],
     prefix: c_char,
     flags: c_char,
     conthere: c_int,
 }
 
-#[repr(C)]
-struct qf_delq_T {
-    next: *mut qf_delq_T,
-    qi: *mut qf_info_T,
+impl Drop for efm_T {
+    fn drop(&mut self) {
+        unsafe {
+            vim_regfree(self.prog);
+        }
+    }
 }
 
 #[repr(C)]
@@ -490,10 +512,10 @@ static mut qf_last_bufref: bufref_T = bufref_T {
 static mut qfga: Vec<c_char> = Vec::new();
 
 static mut quickfix_busy: c_int = 0;
-static mut qf_delq_head: *mut qf_delq_T = ptr::null_mut();
-static mut fmt_start: *mut efm_T = ptr::null_mut();
+static mut qf_delq: Vec<*mut qf_info_T> = Vec::new();
+static mut fmt_start_idx: Option<usize> = None;
 
-static mut fmt_first_cache: *mut efm_T = ptr::null_mut();
+static mut fmt_cache: Vec<efm_T> = Vec::new();
 static mut last_efm_cache: *mut c_char = ptr::null_mut();
 static mut qftitle_str: [c_char; IOSIZE] = [0; IOSIZE];
 static mut qfFile_hl_id: c_int = 0;
@@ -610,7 +632,7 @@ unsafe fn qfga_concat_len(gap: *mut Vec<c_char>, s: *const c_char, len: usize) {
 
 unsafe fn qf_init_process_nextline(
     qfl: *mut qf_list_T,
-    fmt_first: *mut efm_T,
+    fmt_first: *mut [efm_T],
     state: *mut qfstate_T,
     fields: *mut qffields_T,
 ) -> c_int {
@@ -905,16 +927,10 @@ unsafe fn efm_to_regpat(
     }
 }
 
-unsafe fn free_efm_list(efm_first: *mut *mut efm_T) {
+unsafe fn free_efm_list(efm_list: *mut Vec<efm_T>) {
     unsafe {
-        let mut efm_ptr = *efm_first;
-        while !efm_ptr.is_null() {
-            *efm_first = (*efm_ptr).next;
-            vim_regfree((*efm_ptr).prog);
-            xfree(efm_ptr.cast());
-            efm_ptr = *efm_first;
-        }
-        fmt_start = ptr::null_mut();
+        (*efm_list).clear();
+        fmt_start_idx = None;
     }
 }
 
@@ -949,46 +965,47 @@ unsafe fn efm_option_part_len(efm: *const c_char) -> c_int {
     }
 }
 
-unsafe fn parse_efm_option(mut efm: *mut c_char) -> *mut efm_T {
+unsafe fn parse_efm_option(mut efm: *mut c_char) -> Vec<efm_T> {
     unsafe {
-        let mut fmt_first: *mut efm_T = ptr::null_mut();
-        let mut fmt_last: *mut efm_T = ptr::null_mut();
+        let mut fmt_list: Vec<efm_T> = Vec::new();
 
         let sz = efm_regpat_bufsz(efm);
         let fmtstr = xmalloc(sz).cast::<c_char>();
 
         let mut errored = false;
         while *efm != NUL {
-            let fmt_ptr = xcalloc(1, size_of::<efm_T>()).cast::<efm_T>();
-            if fmt_first.is_null() {
-                fmt_first = fmt_ptr;
-            } else {
-                (*fmt_last).next = fmt_ptr;
-            }
-            fmt_last = fmt_ptr;
+            let mut fmt_item = efm_T {
+                prog: ptr::null_mut(),
+                addr: [0; FMT_PATTERNS],
+                prefix: 0,
+                flags: 0,
+                conthere: 0,
+            };
 
             let len = efm_option_part_len(efm);
 
-            if efm_to_regpat(efm, len, fmt_ptr, fmtstr) == FAIL {
+            if efm_to_regpat(efm, len, &raw mut fmt_item, fmtstr) == FAIL {
                 errored = true;
                 break;
             }
-            (*fmt_ptr).prog = vim_regcomp(fmtstr, RE_MAGIC + RE_STRING);
-            if (*fmt_ptr).prog.is_null() {
+            fmt_item.prog = vim_regcomp(fmtstr, RE_MAGIC + RE_STRING);
+            if fmt_item.prog.is_null() {
                 errored = true;
                 break;
             }
+            fmt_list.push(fmt_item);
             efm = skip_to_option_part(efm.add(len as usize));
         }
 
         if errored {
-            free_efm_list(&raw mut fmt_first);
-        } else if fmt_first.is_null() {
+            free_efm_list(&raw mut fmt_list);
+        } else if fmt_list.is_empty() {
             emsg(gettext(c"E378: 'errorformat' contains no pattern".as_ptr()));
         }
 
         xfree(fmtstr.cast());
-        fmt_first
+
+        fmt_list
     }
 }
 
@@ -1245,30 +1262,30 @@ unsafe fn qf_parse_line(
     qfl: *mut qf_list_T,
     mut linebuf: *mut c_char,
     mut linelen: usize,
-    fmt_first: *mut efm_T,
+    fmt_first: *mut [efm_T],
     fields: *mut qffields_T,
 ) -> c_int {
     unsafe {
+        let fmt_len = fmt_first.len();
+        let fmt_base = fmt_first.cast::<efm_T>();
         loop {
-            let mut fmt_ptr = if fmt_start.is_null() {
-                fmt_first
-            } else {
-                let p = fmt_start;
-                fmt_start = ptr::null_mut();
-                p
-            };
+            let start_idx = fmt_start_idx;
+            fmt_start_idx = None;
+            let mut fmt_idx = start_idx.unwrap_or(0);
+            let mut fmt_ptr: *mut efm_T = ptr::null_mut();
 
             let mut idx: c_int = 0;
             let mut tail: *mut c_char = ptr::null_mut();
             let mut status;
 
             (*fields).valid = true;
-            while !fmt_ptr.is_null() {
-                idx = c_int::from((*fmt_ptr).prefix as u8);
+            while fmt_idx < fmt_len {
+                let cur_fmt = fmt_base.add(fmt_idx);
+                idx = c_int::from((*cur_fmt).prefix as u8);
                 status = qf_parse_get_fields(
                     linebuf,
                     linelen,
-                    fmt_ptr,
+                    cur_fmt,
                     fields,
                     c_int::from((*qfl).qf_multiline),
                     c_int::from((*qfl).qf_multiscan),
@@ -1278,9 +1295,10 @@ unsafe fn qf_parse_line(
                     return status;
                 }
                 if status == QF_OK {
+                    fmt_ptr = cur_fmt;
                     break;
                 }
-                fmt_ptr = (*fmt_ptr).next;
+                fmt_idx += 1;
             }
             (*qfl).qf_multiscan = false;
 
@@ -1295,13 +1313,14 @@ unsafe fn qf_parse_line(
                 if status != QF_OK {
                     return status;
                 }
+
                 if fmt_ptr.is_null() {
                     (*qfl).qf_multiline = false;
                     (*qfl).qf_multiignore = false;
                 }
             } else {
                 if (*fmt_ptr).conthere != 0 {
-                    fmt_start = fmt_ptr;
+                    fmt_start_idx = Some(fmt_idx);
                 }
 
                 if !vim_strchr(c"AEWIN".as_ptr(), idx).is_null() {
@@ -1464,23 +1483,28 @@ unsafe fn qf_init_ext(
                 errorformat
             };
 
+        let cache_ptr = &raw mut fmt_cache;
         if last_efm_cache.is_null() || strcmp(last_efm_cache, efm) != 0 {
             xfree(last_efm_cache.cast());
             last_efm_cache = ptr::null_mut();
-            free_efm_list(&raw mut fmt_first_cache);
+            free_efm_list(cache_ptr);
 
-            fmt_first_cache = parse_efm_option(efm);
-            if !fmt_first_cache.is_null() {
+            *cache_ptr = parse_efm_option(efm);
+            if !(*cache_ptr).is_empty() {
                 last_efm_cache = xstrdup(efm);
             }
         }
 
-        let mut ok = !fmt_first_cache.is_null();
+        let mut ok = !(*cache_ptr).is_empty();
         if ok {
             got_int = false;
             while !got_int {
-                let status =
-                    qf_init_process_nextline(qfl, fmt_first_cache, &raw mut state, &raw mut fields);
+                let status = qf_init_process_nextline(
+                    qfl,
+                    (*cache_ptr).as_mut_slice(),
+                    &raw mut state,
+                    &raw mut fields,
+                );
                 if status == QF_END_OF_INPUT {
                     break;
                 }
@@ -1569,10 +1593,9 @@ unsafe fn qf_pop_stack(qi: *mut qf_info_T, adjust: bool) {
             );
         }
 
-        ptr::write_bytes(
+        ptr::write(
             (*qi).qf_lists.as_mut_ptr().add(((*qi).qf_listcount - 1) as usize),
-            0,
-            1,
+            qf_list_T::default(),
         );
 
         if adjust {
@@ -1602,7 +1625,7 @@ unsafe fn qf_new_list(qi: *mut qf_info_T, qf_title: *const c_char) {
         }
 
         let qfl = qf_get_curlist(qi);
-        ptr::write_bytes(qfl, 0, 1);
+        *qfl = qf_list_T::default();
         qf_store_title(qfl, qf_title);
         (*qfl).qfl_type = (*qi).qfl_type;
         last_qf_id += 1;
@@ -2051,10 +2074,8 @@ unsafe fn qf_parse_multiline_pfx(
 
 unsafe fn locstack_queue_delreq(qi: *mut qf_info_T) {
     unsafe {
-        let q = xmalloc(size_of::<qf_delq_T>()).cast::<qf_delq_T>();
-        (*q).qi = qi;
-        (*q).next = qf_delq_head;
-        qf_delq_head = q;
+        let delq = &raw mut qf_delq;
+        (*delq).push(qi);
     }
 }
 
@@ -2147,11 +2168,9 @@ unsafe fn decr_quickfix_busy() {
     unsafe {
         quickfix_busy -= 1;
         if quickfix_busy == 0 {
-            while !qf_delq_head.is_null() {
-                let q = qf_delq_head;
-                qf_delq_head = (*q).next;
-                ll_free_all(&raw mut (*q).qi);
-                xfree(q.cast());
+            let delq = &raw mut qf_delq;
+            while let Some(mut qi) = (*delq).pop() {
+                ll_free_all(&raw mut qi);
             }
         }
     }
@@ -2306,7 +2325,7 @@ unsafe fn qf_resize_stack_base(qi: *mut qf_info_T, n: c_int) {
 
         (*qi)
             .qf_lists
-            .resize_with(n as usize, || std::mem::zeroed());
+            .resize_with(n as usize, qf_list_T::default);
         (*qi).qf_maxcount = n;
 
         qf_update_buffer(qi, ptr::null_mut());
@@ -2359,7 +2378,7 @@ unsafe fn qf_alloc_stack(qfltype: qfltype_T, n: c_int) -> *mut qf_info_T {
         (*qi).qf_lists.clear();
         (*qi)
             .qf_lists
-            .resize_with(n as usize, || std::mem::zeroed());
+            .resize_with(n as usize, qf_list_T::default);
         (*qi).qf_maxcount = n;
 
         qi
@@ -2587,123 +2606,102 @@ unsafe fn qf_get_fnum(
 
 unsafe fn qf_push_dir(
     dirbuf: *mut c_char,
-    stackptr: *mut *mut dir_stack_T,
+    stackptr: *mut Vec<*mut c_char>,
     is_file_stack: bool,
 ) -> *mut c_char {
     unsafe {
-        let mut ds_new = xmalloc(size_of::<dir_stack_T>()).cast::<dir_stack_T>();
-        (*ds_new).next = *stackptr;
-        *stackptr = ds_new;
-
-        if vim_isAbsName(dirbuf) || (**stackptr).next.is_null() || is_file_stack {
-            (**stackptr).dirname = xstrdup(dirbuf);
-        } else {
-            let dirbuf_len = strlen(dirbuf);
-            ds_new = (**stackptr).next;
-            (**stackptr).dirname = ptr::null_mut();
-            while !ds_new.is_null() {
-                let dirname = concat_fnames(
-                    cstr_as_string((*ds_new).dirname),
-                    cbuf_as_string(dirbuf, dirbuf_len),
-                    true,
-                );
-                if os_isdir(dirname.data) {
-                    xfree((**stackptr).dirname.cast());
-                    (**stackptr).dirname = dirname.data;
-                    break;
-                }
-                xfree(dirname.data.cast());
-                ds_new = (*ds_new).next;
+        let stack = &mut *stackptr;
+        if vim_isAbsName(dirbuf) || stack.is_empty() || is_file_stack {
+            let dirname = xstrdup(dirbuf);
+            if !dirname.is_null() {
+                stack.push(dirname);
             }
-
-            while (**stackptr).next != ds_new {
-                let ds_ptr = (**stackptr).next;
-                (**stackptr).next = (*ds_ptr).next;
-                xfree((*ds_ptr).dirname.cast());
-                xfree(ds_ptr.cast());
-            }
-
-            if ds_new.is_null() {
-                xfree((**stackptr).dirname.cast());
-                (**stackptr).dirname = xmemdupz(dirbuf.cast(), dirbuf_len).cast::<c_char>();
-            }
+            return dirname;
         }
 
-        if !(**stackptr).dirname.is_null() {
-            return (**stackptr).dirname;
+        let dirbuf_len = strlen(dirbuf);
+        let mut found_idx: Option<usize> = None;
+        let mut new_dirname: *mut c_char = ptr::null_mut();
+        for i in (0..stack.len()).rev() {
+            let dirname = concat_fnames(
+                cstr_as_string(stack[i]),
+                cbuf_as_string(dirbuf, dirbuf_len),
+                true,
+            );
+            if os_isdir(dirname.data) {
+                found_idx = Some(i);
+                new_dirname = dirname.data;
+                break;
+            }
+            xfree(dirname.data.cast());
         }
 
-        let ds_ptr = *stackptr;
-        *stackptr = (**stackptr).next;
-        xfree(ds_ptr.cast());
+        let truncate_to = found_idx.map_or(0, |i| i + 1);
+        for d in stack.drain(truncate_to..) {
+            xfree(d.cast());
+        }
 
-        ptr::null_mut()
+        if new_dirname.is_null() {
+            new_dirname = xmemdupz(dirbuf.cast(), dirbuf_len).cast::<c_char>();
+        }
+
+        if !new_dirname.is_null() {
+            stack.push(new_dirname);
+        }
+        new_dirname
     }
 }
 
-unsafe fn qf_pop_dir(stackptr: *mut *mut dir_stack_T) -> *mut c_char {
+unsafe fn qf_pop_dir(stackptr: *mut Vec<*mut c_char>) -> *mut c_char {
     unsafe {
-        if !(*stackptr).is_null() {
-            let ds_ptr = *stackptr;
-            *stackptr = (*ds_ptr).next;
-            xfree((*ds_ptr).dirname.cast());
-            xfree(ds_ptr.cast());
+        let stack = &mut *stackptr;
+        if let Some(top) = stack.pop() {
+            xfree(top.cast());
         }
-
-        if (*stackptr).is_null() {
-            ptr::null_mut()
-        } else {
-            (**stackptr).dirname
-        }
+        stack.last().copied().unwrap_or(ptr::null_mut())
     }
 }
 
-unsafe fn qf_clean_dir_stack(stackptr: *mut *mut dir_stack_T) {
+unsafe fn qf_clean_dir_stack(stackptr: *mut Vec<*mut c_char>) {
     unsafe {
-        while !(*stackptr).is_null() {
-            let ds_ptr = *stackptr;
-            *stackptr = (*ds_ptr).next;
-            xfree((*ds_ptr).dirname.cast());
-            xfree(ds_ptr.cast());
+        let stack = &mut *stackptr;
+        for d in stack.drain(..) {
+            xfree(d.cast());
         }
     }
 }
 
 unsafe fn qf_guess_filepath(qfl: *mut qf_list_T, filename: *mut c_char) -> *mut c_char {
     unsafe {
-        if (*qfl).qf_dir_stack.is_null() {
+        let stack = &mut (*qfl).qf_dir_stack;
+        if stack.is_empty() {
             return ptr::null_mut();
         }
 
-        let mut ds_ptr = (*(*qfl).qf_dir_stack).next;
+        let top_idx = stack.len() - 1;
+        let mut found_idx: Option<usize> = None;
         let mut fullname = NvimString {
             data: ptr::null_mut(),
             size: 0,
         };
         let filename_str = cstr_as_string(filename);
-        while !ds_ptr.is_null() {
+        for i in (0..top_idx).rev() {
             xfree(fullname.data.cast());
-            fullname = concat_fnames(cstr_as_string((*ds_ptr).dirname), filename_str, true);
+            fullname = concat_fnames(cstr_as_string(stack[i]), filename_str, true);
             if os_path_exists(fullname.data) {
+                found_idx = Some(i);
                 break;
             }
-            ds_ptr = (*ds_ptr).next;
         }
 
         xfree(fullname.data.cast());
 
-        while (*(*qfl).qf_dir_stack).next != ds_ptr {
-            let ds_tmp = (*(*qfl).qf_dir_stack).next;
-            (*(*qfl).qf_dir_stack).next = (*ds_tmp).next;
-            xfree((*ds_tmp).dirname.cast());
-            xfree(ds_tmp.cast());
+        let drain_start = found_idx.map_or(0, |i| i + 1);
+        for d in stack.drain(drain_start..top_idx) {
+            xfree(d.cast());
         }
 
-        if ds_ptr.is_null() {
-            ptr::null_mut()
-        } else {
-            (*ds_ptr).dirname
-        }
+        found_idx.map_or(ptr::null_mut(), |_| stack[stack.len() - 2])
     }
 }
 

@@ -79,7 +79,6 @@ use crate::math::{FAIL, OK};
 
 #[repr(C)]
 pub struct ff_stack_T {
-    pub ffs_prev: *mut ff_stack_T,
     pub ffs_fix_path: NvimString,
     pub ffs_wc_path: NvimString,
     pub ffs_filearray: *mut *mut c_char,
@@ -90,29 +89,55 @@ pub struct ff_stack_T {
     pub ffs_star_star_empty: c_int,
 }
 
+impl Drop for ff_stack_T {
+    fn drop(&mut self) {
+        unsafe {
+            api_clear_string(&mut self.ffs_fix_path);
+            api_clear_string(&mut self.ffs_wc_path);
+            if !self.ffs_filearray.is_null() {
+                FreeWild(self.ffs_filearray_size, self.ffs_filearray);
+            }
+        }
+    }
+}
+
 #[repr(C)]
 pub struct ff_visited_T {
-    pub ffv_next: *mut ff_visited_T,
     pub ffv_wc_path: *mut c_char,
     pub file_id_valid: bool,
     pub file_id: FileID,
     pub ffv_fname: Vec<c_char>,
 }
 
+impl Drop for ff_visited_T {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.ffv_wc_path.cast());
+        }
+    }
+}
+
 #[repr(C)]
 pub struct ff_visited_list_hdr_T {
-    pub ffvl_next: *mut ff_visited_list_hdr_T,
     pub ffvl_filename: *mut c_char,
-    pub ffvl_visited_list: *mut ff_visited_T,
+    pub ffvl_visited_list: Vec<ff_visited_T>,
+}
+
+impl Drop for ff_visited_list_hdr_T {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.ffvl_filename.cast());
+        }
+    }
 }
 
 #[repr(C)]
 pub struct ff_search_ctx_T {
-    pub ffsc_stack_ptr: *mut ff_stack_T,
+    pub ffsc_stack: Vec<ff_stack_T>,
     pub ffsc_visited_list: *mut ff_visited_list_hdr_T,
     pub ffsc_dir_visited_list: *mut ff_visited_list_hdr_T,
-    pub ffsc_visited_lists_list: *mut ff_visited_list_hdr_T,
-    pub ffsc_dir_visited_lists_list: *mut ff_visited_list_hdr_T,
+    pub ffsc_visited_lists_list: Vec<ff_visited_list_hdr_T>,
+    pub ffsc_dir_visited_lists_list: Vec<ff_visited_list_hdr_T>,
     pub ffsc_file_to_search: NvimString,
     pub ffsc_start_dir: NvimString,
     pub ffsc_fix_path: NvimString,
@@ -143,6 +168,9 @@ pub unsafe fn vim_findfile_init(
             search_ctx_arg.cast()
         } else {
             let ctx = xcalloc(1, size_of::<ff_search_ctx_T>()).cast::<ff_search_ctx_T>();
+            ptr::write(&raw mut (*ctx).ffsc_stack, Vec::new());
+            ptr::write(&raw mut (*ctx).ffsc_visited_lists_list, Vec::new());
+            ptr::write(&raw mut (*ctx).ffsc_dir_visited_lists_list, Vec::new());
             ptr::write(&raw mut (*ctx).ffsc_stopdirs_v, Vec::new());
             ctx
         };
@@ -491,9 +519,13 @@ pub unsafe fn vim_findfile_cleanup(ctx: *mut c_void) {
             return;
         }
 
+        let search_ctx = ctx.cast::<ff_search_ctx_T>();
         vim_findfile_free_visited(ctx);
-        ff_clear(ctx.cast());
-        ptr::drop_in_place(&raw mut (*(ctx.cast::<ff_search_ctx_T>())).ffsc_stopdirs_v);
+        ff_clear(search_ctx);
+        ptr::drop_in_place(&raw mut (*search_ctx).ffsc_stack);
+        ptr::drop_in_place(&raw mut (*search_ctx).ffsc_visited_lists_list);
+        ptr::drop_in_place(&raw mut (*search_ctx).ffsc_dir_visited_lists_list);
+        ptr::drop_in_place(&raw mut (*search_ctx).ffsc_stopdirs_v);
         xfree(ctx);
     }
 }
@@ -526,10 +558,10 @@ pub unsafe fn vim_findfile(search_ctx_arg: *mut c_void) -> *mut c_char {
                     break;
                 }
 
-                let stackp = ff_pop(search_ctx);
-                if stackp.is_null() {
+                let Some(mut stack_elem) = ff_pop(search_ctx) else {
                     break;
-                }
+                };
+                let stackp: *mut ff_stack_T = &raw mut stack_elem;
 
                 if (*stackp).ffs_filearray.is_null()
                     && ff_check_visited(
@@ -540,12 +572,10 @@ pub unsafe fn vim_findfile(search_ctx_arg: *mut c_void) -> *mut c_char {
                         (*stackp).ffs_wc_path.size,
                     ) == FAIL
                 {
-                    ff_free_stack_element(stackp);
                     continue;
                 }
 
                 if (*stackp).ffs_level <= 0 {
-                    ff_free_stack_element(stackp);
                     continue;
                 }
 
@@ -560,7 +590,6 @@ pub unsafe fn vim_findfile(search_ctx_arg: *mut c_void) -> *mut c_char {
                         && !(*search_ctx).ffsc_start_dir.data.is_null()
                     {
                         if (*search_ctx).ffsc_start_dir.size + 1 >= MAXPATHL {
-                            ff_free_stack_element(stackp);
                             break 'upward;
                         }
                         let add_sep = after_pathsep(
@@ -582,13 +611,11 @@ pub unsafe fn vim_findfile(search_ctx_arg: *mut c_void) -> *mut c_char {
                             },
                         ) as usize;
                         if file_path.size >= MAXPATHL {
-                            ff_free_stack_element(stackp);
                             break 'upward;
                         }
                     }
 
                     if file_path.size + (*stackp).ffs_fix_path.size + 1 >= MAXPATHL {
-                        ff_free_stack_element(stackp);
                         break 'upward;
                     }
                     let add_sep = after_pathsep(
@@ -607,7 +634,6 @@ pub unsafe fn vim_findfile(search_ctx_arg: *mut c_void) -> *mut c_char {
                         },
                     ) as usize;
                     if file_path.size >= MAXPATHL {
-                        ff_free_stack_element(stackp);
                         break 'upward;
                     }
 
@@ -621,7 +647,6 @@ pub unsafe fn vim_findfile(search_ctx_arg: *mut c_void) -> *mut c_char {
                             if *p > 0 {
                                 *p -= 1;
                                 if file_path.size + 1 >= MAXPATHL {
-                                    ff_free_stack_element(stackp);
                                     break 'upward;
                                 }
                                 *file_path.data.add(file_path.size) = b'*' as c_char;
@@ -651,7 +676,6 @@ pub unsafe fn vim_findfile(search_ctx_arg: *mut c_void) -> *mut c_char {
                             && !vim_ispathsep(c_int::from(*rest_of_wildcards.data as u8))
                         {
                             if file_path.size + 1 >= MAXPATHL {
-                                ff_free_stack_element(stackp);
                                 break 'upward;
                             }
                             *file_path.data.add(file_path.size) = *rest_of_wildcards.data;
@@ -700,7 +724,6 @@ pub unsafe fn vim_findfile(search_ctx_arg: *mut c_void) -> *mut c_char {
                             }
                             let mut len = CStr::from_ptr(entry).to_bytes().len();
                             if len + 1 + (*search_ctx).ffsc_file_to_search.size >= MAXPATHL {
-                                ff_free_stack_element(stackp);
                                 break 'upward;
                             }
                             let add_sep = after_pathsep(entry, entry.add(len)) == 0;
@@ -717,7 +740,6 @@ pub unsafe fn vim_findfile(search_ctx_arg: *mut c_void) -> *mut c_char {
                                 (*search_ctx).ffsc_file_to_search.data,
                             ) as usize;
                             if file_path.size >= MAXPATHL {
-                                ff_free_stack_element(stackp);
                                 break 'upward;
                             }
 
@@ -743,7 +765,7 @@ pub unsafe fn vim_findfile(search_ctx_arg: *mut c_void) -> *mut c_char {
                                     ) == OK
                                 {
                                     (*stackp).ffs_filearray_cur = i + 1;
-                                    ff_push(search_ctx, stackp);
+                                    ff_push(search_ctx, stack_elem);
 
                                     if path_with_url(file_path.data) == 0 {
                                         file_path.size = simplify_filename(file_path.data);
@@ -826,8 +848,6 @@ pub unsafe fn vim_findfile(search_ctx_arg: *mut c_void) -> *mut c_char {
                         );
                     }
                 }
-
-                ff_free_stack_element(stackp);
             }
 
             if !(*search_ctx).ffsc_start_dir.data.is_null()
@@ -920,59 +940,30 @@ unsafe fn vim_findfile_free_visited(search_ctx_arg: *mut c_void) {
         }
 
         let search_ctx = search_ctx_arg.cast::<ff_search_ctx_T>();
-        vim_findfile_free_visited_list(&raw mut (*search_ctx).ffsc_visited_lists_list);
-        vim_findfile_free_visited_list(&raw mut (*search_ctx).ffsc_dir_visited_lists_list);
-    }
-}
-
-unsafe fn vim_findfile_free_visited_list(list_headp: *mut *mut ff_visited_list_hdr_T) {
-    unsafe {
-        while !(*list_headp).is_null() {
-            let vp = (**list_headp).ffvl_next;
-            ff_free_visited_list((**list_headp).ffvl_visited_list);
-            xfree((**list_headp).ffvl_filename.cast());
-            xfree((*list_headp).cast());
-            *list_headp = vp;
-        }
-        *list_headp = ptr::null_mut();
-    }
-}
-
-unsafe fn ff_free_visited_list(mut vl: *mut ff_visited_T) {
-    unsafe {
-        while !vl.is_null() {
-            let vp = (*vl).ffv_next;
-            xfree((*vl).ffv_wc_path.cast());
-            ptr::drop_in_place(&raw mut (*vl).ffv_fname);
-            xfree(vl.cast());
-            vl = vp;
-        }
+        (*search_ctx).ffsc_visited_lists_list.clear();
+        (*search_ctx).ffsc_dir_visited_lists_list.clear();
     }
 }
 
 unsafe fn ff_get_visited_list(
     filename: *const c_char,
     filenamelen: usize,
-    list_headp: *mut *mut ff_visited_list_hdr_T,
+    list_headp: *mut Vec<ff_visited_list_hdr_T>,
 ) -> *mut ff_visited_list_hdr_T {
     unsafe {
-        if !(*list_headp).is_null() {
-            let mut retptr = *list_headp;
-            while !retptr.is_null() {
-                if path_equal(filename, (*retptr).ffvl_filename, kPathCmpLiteral) {
-                    return retptr;
-                }
-                retptr = (*retptr).ffvl_next;
-            }
+        if let Some(pos) = (*list_headp)
+            .iter()
+            .position(|item| path_equal(filename, item.ffvl_filename, kPathCmpLiteral))
+        {
+            return (*list_headp).as_mut_ptr().add(pos);
         }
 
-        let retptr: *mut ff_visited_list_hdr_T = xmalloc(size_of::<ff_visited_list_hdr_T>()).cast();
-        (*retptr).ffvl_visited_list = ptr::null_mut();
-        (*retptr).ffvl_filename = xmemdupz(filename.cast(), filenamelen).cast();
-        (*retptr).ffvl_next = *list_headp;
-        *list_headp = retptr;
-
-        retptr
+        (*list_headp).push(ff_visited_list_hdr_T {
+            ffvl_filename: xmemdupz(filename.cast(), filenamelen).cast(),
+            ffvl_visited_list: Vec::new(),
+        });
+        let last_idx = (*list_headp).len() - 1;
+        (*list_headp).as_mut_ptr().add(last_idx)
     }
 }
 
@@ -1015,7 +1006,7 @@ unsafe fn ff_wc_equal(s1: *const c_char, s2: *const c_char) -> bool {
 
 /// Maintain the list of already visited files and dirs.
 unsafe fn ff_check_visited(
-    visited_list: *mut *mut ff_visited_T,
+    visited_list: *mut Vec<ff_visited_T>,
     fname: *const c_char,
     fnamelen: usize,
     wc_path: *const c_char,
@@ -1037,47 +1028,44 @@ unsafe fn ff_check_visited(
             }
         }
 
-        let mut vp = *visited_list;
-        while !vp.is_null() {
+        for vp in &*visited_list {
             if ((url
                 && path_equal(
-                    (*vp).ffv_fname.as_ptr(),
+                    vp.ffv_fname.as_ptr(),
                     ff_expand_buffer.data,
                     kPathCmpLiteral,
                 ))
                 || (!url
-                    && (*vp).file_id_valid
-                    && os_fileid_equal(&raw const (*vp).file_id, &raw const file_id)))
-                && ff_wc_equal((*vp).ffv_wc_path, wc_path)
+                    && vp.file_id_valid
+                    && os_fileid_equal(&raw const vp.file_id, &raw const file_id)))
+                && ff_wc_equal(vp.ffv_wc_path, wc_path)
             {
                 return FAIL;
             }
-            vp = (*vp).ffv_next;
         }
 
-        let vp: *mut ff_visited_T = xmalloc(size_of::<ff_visited_T>()).cast();
-        ptr::write(&raw mut (*vp).ffv_fname, Vec::new());
-
+        let mut ffv_fname = Vec::new();
         if !url {
-            (*vp).file_id_valid = true;
-            (*vp).file_id = file_id;
-            (*vp).ffv_fname.push(NUL);
+            ffv_fname.push(NUL);
         } else {
-            (*vp).file_id_valid = false;
-            (*vp).ffv_fname.extend_from_slice(std::slice::from_raw_parts(
+            ffv_fname.extend_from_slice(std::slice::from_raw_parts(
                 ff_expand_buffer.data,
                 ff_expand_buffer.size + 1,
             ));
         }
 
-        if !wc_path.is_null() {
-            (*vp).ffv_wc_path = xmemdupz(wc_path.cast(), wc_pathlen).cast();
+        let ffv_wc_path = if !wc_path.is_null() {
+            xmemdupz(wc_path.cast(), wc_pathlen).cast()
         } else {
-            (*vp).ffv_wc_path = ptr::null_mut();
-        }
+            ptr::null_mut()
+        };
 
-        (*vp).ffv_next = *visited_list;
-        *visited_list = vp;
+        (*visited_list).push(ff_visited_T {
+            ffv_wc_path,
+            file_id_valid: !url,
+            file_id,
+            ffv_fname,
+        });
 
         OK
     }
@@ -1090,79 +1078,46 @@ unsafe fn ff_create_stack_element(
     mut wc_partlen: usize,
     level: c_int,
     star_star_empty: c_int,
-) -> *mut ff_stack_T {
+) -> ff_stack_T {
     unsafe {
-        let stack: *mut ff_stack_T = xmalloc(size_of::<ff_stack_T>()).cast();
-        (*stack).ffs_prev = ptr::null_mut();
-        (*stack).ffs_filearray = ptr::null_mut();
-        (*stack).ffs_filearray_size = 0;
-        (*stack).ffs_filearray_cur = 0;
-        (*stack).ffs_stage = 0;
-        (*stack).ffs_level = level;
-        (*stack).ffs_star_star_empty = star_star_empty;
-
         if fix_part.is_null() {
             fix_part = EMPTY_C.as_ptr();
             fix_partlen = 0;
         }
-        (*stack).ffs_fix_path = cbuf_to_string(fix_part, fix_partlen);
+        let ffs_fix_path = cbuf_to_string(fix_part, fix_partlen);
 
         if wc_part.is_null() {
             wc_part = EMPTY_C.as_ptr();
             wc_partlen = 0;
         }
-        (*stack).ffs_wc_path = cbuf_to_string(wc_part, wc_partlen);
+        let ffs_wc_path = cbuf_to_string(wc_part, wc_partlen);
 
-        stack
+        ff_stack_T {
+            ffs_fix_path,
+            ffs_wc_path,
+            ffs_filearray: ptr::null_mut(),
+            ffs_filearray_size: 0,
+            ffs_filearray_cur: 0,
+            ffs_stage: 0,
+            ffs_level: level,
+            ffs_star_star_empty: star_star_empty,
+        }
     }
 }
 
-unsafe fn ff_push(search_ctx: *mut ff_search_ctx_T, stack_ptr: *mut ff_stack_T) {
+unsafe fn ff_push(search_ctx: *mut ff_search_ctx_T, stack_elem: ff_stack_T) {
     unsafe {
-        if stack_ptr.is_null() {
-            return;
-        }
-        (*stack_ptr).ffs_prev = (*search_ctx).ffsc_stack_ptr;
-        (*search_ctx).ffsc_stack_ptr = stack_ptr;
+        (*search_ctx).ffsc_stack.push(stack_elem);
     }
 }
 
-unsafe fn ff_pop(search_ctx: *mut ff_search_ctx_T) -> *mut ff_stack_T {
-    unsafe {
-        let sptr = (*search_ctx).ffsc_stack_ptr;
-        if !(*search_ctx).ffsc_stack_ptr.is_null() {
-            (*search_ctx).ffsc_stack_ptr = (*(*search_ctx).ffsc_stack_ptr).ffs_prev;
-        }
-        sptr
-    }
-}
-
-unsafe fn ff_free_stack_element(stack_ptr: *mut ff_stack_T) {
-    unsafe {
-        if stack_ptr.is_null() {
-            return;
-        }
-
-        api_clear_string(&mut (*stack_ptr).ffs_fix_path);
-        api_clear_string(&mut (*stack_ptr).ffs_wc_path);
-
-        if !(*stack_ptr).ffs_filearray.is_null() {
-            FreeWild((*stack_ptr).ffs_filearray_size, (*stack_ptr).ffs_filearray);
-        }
-
-        xfree(stack_ptr.cast());
-    }
+unsafe fn ff_pop(search_ctx: *mut ff_search_ctx_T) -> Option<ff_stack_T> {
+    unsafe { (*search_ctx).ffsc_stack.pop() }
 }
 
 unsafe fn ff_clear(search_ctx: *mut ff_search_ctx_T) {
     unsafe {
-        loop {
-            let sptr = ff_pop(search_ctx);
-            if sptr.is_null() {
-                break;
-            }
-            ff_free_stack_element(sptr);
-        }
+        (*search_ctx).ffsc_stack.clear();
 
         for dir in (*search_ctx).ffsc_stopdirs_v.drain(..) {
             xfree(dir.data.cast());
