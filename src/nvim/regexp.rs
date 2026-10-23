@@ -259,7 +259,7 @@ pub(super) struct bt_regprog_T {
     pub regmust: *mut u8,
     pub regmlen: c_int,
     pub reghasz: u8,
-    pub program: [u8; 0],
+    pub program: Vec<u8>,
 }
 
 #[repr(C)]
@@ -291,7 +291,7 @@ pub(super) struct nfa_regprog_T {
     pub nsubexp: c_int,
     pub nstate: c_int,
     pub listbuf: [Vec<nfa_thread_T>; 2],
-    pub state: [nfa_state_T; 0],
+    pub state: Vec<nfa_state_T>,
 }
 
 #[repr(C)]
@@ -1781,7 +1781,7 @@ pub(super) unsafe fn prog_magic_wrong() -> bool {
             return false;
         }
         let bt_prog = prog.cast::<bt_regprog_T>();
-        if UCHARAT((&raw const (*bt_prog).program).cast::<u8>()) != REGMAGIC {
+        if UCHARAT((*bt_prog).program.as_ptr()) != REGMAGIC {
             emsg(tr((&raw const e_re_corr).cast()));
             return true;
         }

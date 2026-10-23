@@ -120,7 +120,7 @@ pub struct ufunc_T {
     pub uf_scoped: *mut c_void,
     pub uf_name_exp: *mut c_char,
     pub uf_namelen: usize,
-    pub uf_name: [c_char; 1],
+    pub uf_name: Vec<c_char>,
 }
 use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO};
 use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE, VAR_FIXED, VAR_SCOPE};
@@ -249,7 +249,7 @@ use crate::charset::toupper_asc;
 
 #[inline]
 unsafe fn uf2hikey(fp: *const ufunc_T) -> *mut c_char {
-    unsafe { (&raw const (*fp).uf_name).cast_mut().cast::<c_char>() }
+    unsafe { (*fp).uf_name.as_ptr().cast_mut() }
 }
 
 unsafe fn func_hashtab_add(fp: *mut ufunc_T) -> c_int {
@@ -487,12 +487,14 @@ unsafe fn get_lambda_name() -> NvimString {
 /// Allocate a `ufunc_T` for a function called `name`.
 unsafe fn alloc_ufunc(name: *const c_char, namelen: usize) -> *mut ufunc_T {
     unsafe {
-        let len = std::mem::offset_of!(ufunc_T, uf_name) + namelen + 1;
-        let fp = xcalloc(1, len).cast::<ufunc_T>();
+        let fp = xcalloc(1, std::mem::size_of::<ufunc_T>()).cast::<ufunc_T>();
         ptr::write(&raw mut (*fp).uf_args, Vec::new());
         ptr::write(&raw mut (*fp).uf_def_args, Vec::new());
         ptr::write(&raw mut (*fp).uf_lines, Vec::new());
-        xmemcpyz(uf2hikey(fp).cast(), name.cast(), namelen);
+        let mut name_vec = Vec::with_capacity(namelen + 1);
+        name_vec.extend_from_slice(std::slice::from_raw_parts(name, namelen));
+        name_vec.push(NUL);
+        ptr::write(&raw mut (*fp).uf_name, name_vec);
         (*fp).uf_namelen = namelen;
 
         if *name as u8 == K_SPECIAL {
@@ -937,7 +939,7 @@ pub unsafe fn find_func(name: *const c_char) -> *mut ufunc_T {
 
 #[inline]
 unsafe fn func_is_global(ufunc: *const ufunc_T) -> bool {
-    unsafe { (*ufunc).uf_name[0] as u8 != K_SPECIAL }
+    unsafe { (*ufunc).uf_name.as_slice()[0] as u8 != K_SPECIAL }
 }
 
 unsafe fn cat_func_name(buf: *mut c_char, bufsize: usize, fp: *const ufunc_T) -> c_int {
@@ -1163,6 +1165,7 @@ unsafe fn func_free(fp: *mut ufunc_T) {
         ptr::drop_in_place(&raw mut (*fp).uf_args);
         ptr::drop_in_place(&raw mut (*fp).uf_def_args);
         ptr::drop_in_place(&raw mut (*fp).uf_lines);
+        ptr::drop_in_place(&raw mut (*fp).uf_name);
         xfree(fp.cast());
     }
 }
@@ -3012,6 +3015,7 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
                     ptr::drop_in_place(&raw mut (*fp).uf_args);
                     ptr::drop_in_place(&raw mut (*fp).uf_def_args);
                     ptr::drop_in_place(&raw mut (*fp).uf_lines);
+                    ptr::drop_in_place(&raw mut (*fp).uf_name);
                     xfree(fp.cast());
                 }
                 errret_keep!();
@@ -3272,6 +3276,7 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
                         ptr::drop_in_place(&raw mut (*fp).uf_args);
                         ptr::drop_in_place(&raw mut (*fp).uf_def_args);
                         ptr::drop_in_place(&raw mut (*fp).uf_lines);
+                        ptr::drop_in_place(&raw mut (*fp).uf_name);
                         xfree(fp.cast());
                         fp = ptr::null_mut();
                         erret!();

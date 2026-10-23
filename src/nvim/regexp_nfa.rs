@@ -2,7 +2,7 @@
 
 use crate::message::{semsg, siemsg};
 use std::ffi::{CStr, c_char, c_int, c_uint};
-use std::mem::{offset_of, size_of, zeroed};
+use std::mem::{size_of, zeroed};
 use std::ptr;
 
 use super::*;
@@ -2383,7 +2383,7 @@ unsafe fn post2nfa(postfix: *mut c_int, end: *mut c_int, nfa_calc_size: bool) ->
 
 unsafe fn nfa_postprocess(prog: *mut nfa_regprog_T) {
     unsafe {
-        let states = (&raw mut (*prog).state).cast::<nfa_state_T>();
+        let states = (*prog).state.as_mut_ptr();
         for i in 0..(*prog).nstate as usize {
             let st = states.add(i);
             let c = (*st).c;
@@ -3167,7 +3167,7 @@ unsafe fn match_zref(subidx: c_int, bytelen: *mut c_int) -> bool {
 
 unsafe fn nfa_save_listids(prog: *mut nfa_regprog_T, list: *mut c_int) {
     unsafe {
-        let mut p = (&raw mut (*prog).state).cast::<nfa_state_T>();
+        let mut p = (*prog).state.as_mut_ptr();
         let mut i = (*prog).nstate;
         while {
             i -= 1;
@@ -3182,7 +3182,7 @@ unsafe fn nfa_save_listids(prog: *mut nfa_regprog_T, list: *mut c_int) {
 
 unsafe fn nfa_restore_listids(prog: *mut nfa_regprog_T, list: *const c_int) {
     unsafe {
-        let mut p = (&raw mut (*prog).state).cast::<nfa_state_T>();
+        let mut p = (*prog).state.as_mut_ptr();
         let mut i = (*prog).nstate;
         while {
             i -= 1;
@@ -4674,7 +4674,7 @@ unsafe fn nfa_regexec_both(
         }
 
         nstate = 0;
-        let states = (&raw mut (*prog).state).cast::<nfa_state_T>();
+        let states = (*prog).state.as_mut_ptr();
         for i in 0..(*prog).nstate as usize {
             let st = states.add(i);
             (*st).id = i as c_int;
@@ -4728,16 +4728,16 @@ pub(super) unsafe fn nfa_regcomp(expr: *mut u8, re_flags: c_int) -> *mut regprog
         let post_end_ptr = postfix.add((*pv).len());
         post2nfa(postfix, post_end_ptr, true);
 
-        let prog_size =
-            offset_of!(nfa_regprog_T, state) + size_of::<nfa_state_T>() * (nstate as usize);
-        prog = xmalloc(prog_size).cast::<nfa_regprog_T>();
-        state_ptr = (&raw mut (*prog).state).cast::<nfa_state_T>();
+        prog = xmalloc(size_of::<nfa_regprog_T>()).cast::<nfa_regprog_T>();
+        ptr::write(&raw mut (*prog).state, vec![zeroed(); nstate as usize]);
+        state_ptr = (*prog).state.as_mut_ptr();
         (*prog).re_in_use = false;
         ptr::write(&raw mut (*prog).listbuf, [Vec::new(), Vec::new()]);
 
         (*prog).start = post2nfa(postfix, post_end_ptr, false);
         if (*prog).start.is_null() {
             ptr::drop_in_place(&raw mut (*prog).listbuf);
+            ptr::drop_in_place(&raw mut (*prog).state);
             xfree(prog.cast());
             prog = ptr::null_mut();
             return cleanup_nfa_regcomp(prog);
@@ -4787,6 +4787,7 @@ pub(super) unsafe fn nfa_regfree(prog: *mut regprog_T) {
         xfree((*nfa_prog).match_text.cast());
         xfree((*nfa_prog).pattern.cast());
         ptr::drop_in_place(&raw mut (*nfa_prog).listbuf);
+        ptr::drop_in_place(&raw mut (*nfa_prog).state);
         xfree(prog.cast());
     }
 }

@@ -2,7 +2,7 @@
 
 use crate::message::semsg;
 use std::ffi::{c_char, c_int, c_uint};
-use std::mem::{offset_of, size_of, zeroed};
+use std::mem::{size_of, zeroed};
 use std::ptr;
 
 use super::*;
@@ -2070,14 +2070,15 @@ pub(super) unsafe fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> *mut regprog_
             return ptr::null_mut();
         }
 
-        let r =
-            xmalloc(offset_of!(bt_regprog_T, program) + regsize as usize).cast::<bt_regprog_T>();
+        let r = xmalloc(size_of::<bt_regprog_T>()).cast::<bt_regprog_T>();
+        ptr::write(&raw mut (*r).program, vec![0u8; regsize as usize]);
         (*r).re_in_use = false;
 
         regcomp_start(expr, re_flags);
-        regcode = (&raw mut (*r).program).cast::<u8>();
+        regcode = (*r).program.as_mut_ptr();
         regc(REGMAGIC);
         if reg(REG_NOPAREN, &raw mut flags).is_null() || reg_toolong != 0 {
+            ptr::drop_in_place(&raw mut (*r).program);
             xfree(r.cast());
             if reg_toolong != 0 {
                 emsg(tr(c"E339: Pattern too long".as_ptr()));
@@ -2099,7 +2100,7 @@ pub(super) unsafe fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> *mut regprog_
         }
         (*r).reghasz = re_has_z as u8;
 
-        let mut scan = (&raw mut (*r).program).cast::<u8>().add(1);
+        let mut scan = (*r).program.as_mut_ptr().add(1);
         if OP(regnext(scan)) == END {
             scan = OPERAND(scan);
 
@@ -2150,7 +2151,11 @@ pub(super) unsafe fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> *mut regprog_
 
 pub(super) unsafe fn bt_regfree(prog: *mut regprog_T) {
     unsafe {
-        xfree(prog.cast());
+        if !prog.is_null() {
+            let bt_prog = prog.cast::<bt_regprog_T>();
+            ptr::drop_in_place(&raw mut (*bt_prog).program);
+            xfree(prog.cast());
+        }
     }
 }
 
@@ -3794,7 +3799,7 @@ unsafe fn regtry(
         rex.need_clear_zsubexpr = c_int::from((*prog).reghasz == REX_SET as u8);
 
         if !regmatch(
-            (&raw mut (*prog).program).cast::<u8>().add(1),
+            (*prog).program.as_mut_ptr().add(1),
             tm,
             timed_out,
         ) {

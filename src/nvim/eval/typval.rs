@@ -2973,7 +2973,7 @@ pub unsafe fn tv_dict_add_func(
     unsafe {
         let item = tv_dict_item_alloc_len(key, key_len);
         (*item).di_tv.v_type = VarType::VAR_FUNC;
-        let name_ptr = (&raw const (*fp).uf_name).cast::<c_char>();
+        let name_ptr = (*fp).uf_name.as_ptr();
         (*item).di_tv.vval.v_string = xmemdupz(name_ptr.cast(), (*fp).uf_namelen).cast::<c_char>();
         func_ref((*item).di_tv.vval.v_string);
         if tv_dict_add(d, item) == FAIL {

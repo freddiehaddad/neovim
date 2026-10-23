@@ -4263,7 +4263,7 @@ pub unsafe fn partial_name(pt: *mut partial_T) -> *mut c_char {
             }
             if !(*pt).pt_func.is_null() {
                 let uf = (*pt).pt_func.cast::<ufunc_T>();
-                return (&raw mut (*uf).uf_name).cast::<c_char>();
+                return (*uf).uf_name.as_mut_ptr();
             }
         }
         c"".as_ptr().cast_mut()
