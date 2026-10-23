@@ -37,7 +37,7 @@ use crate::ex_eval::{CSTP_FINISH, aborting, cleanup_conditionals, cstack_T, repo
 use crate::fileio::{EINTR, FILE, O_RDONLY, fclose, fdopen, fgets};
 #[cfg(windows)]
 use crate::fileio::{EOL_DOS, EOL_UNIX, EOL_UNKNOWN};
-use crate::garray::{ga_append_via_ptr, ga_clear, ga_init, ga_remove_duplicate_strings, garray_T};
+use crate::garray::{ga_append_via_ptr, ga_init, ga_remove_duplicate_strings, garray_T};
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::hashtab::hashitem_empty;
@@ -2762,6 +2762,7 @@ pub unsafe fn new_script_item(name: *mut c_char, sid_out: *mut scid_T) -> *mut s
         let items = &raw mut script_items;
         while ((*items).len() as scid_T) < sid {
             let si = xcalloc(1, std::mem::size_of::<scriptitem_T>()).cast::<scriptitem_T>();
+            ptr::write(&raw mut (*si).sn_prl_ga, Vec::new());
             (*items).push(si);
             let cur_sid = (*items).len() as scid_T;
             (*si).sn_name = ptr::null_mut();
@@ -3383,7 +3384,7 @@ pub unsafe fn free_scriptnames() {
         for si in (*items).drain(..) {
             xfree((*si).sn_vars);
             xfree((*si).sn_name.cast::<c_void>());
-            ga_clear(&mut (*si).sn_prl_ga);
+            (*si).sn_prl_ga = Vec::new();
             xfree(si.cast::<c_void>());
         }
         *items = Vec::new();

@@ -17,7 +17,6 @@ use crate::ex_cmds2::{autowrite, check_changed};
 use crate::ex_docmd::exarg_T;
 use crate::ex_getln::gotocmdline;
 use crate::fileio::file_pat_to_reg_pat;
-use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::mark::{setmark, setpcmark};
 use crate::memory::{xcalloc, xfree, xmalloc, xstrdup};
@@ -67,9 +66,19 @@ const E_WINDOW_LAYOUT_CHANGED_UNEXPECTEDLY: &CStr = c"E249: Window layout change
 
 #[repr(C)]
 pub struct alist_T {
-    pub al_ga: garray_T,
+    pub al_ga: Vec<aentry_T>,
     pub al_refcount: c_int,
     pub id: c_int,
+}
+
+impl alist_T {
+    pub const fn new() -> Self {
+        Self {
+            al_ga: Vec::new(),
+            al_refcount: 0,
+            id: 0,
+        }
+    }
 }
 
 #[repr(C)]
@@ -99,8 +108,8 @@ unsafe fn win_alist(wp: *const win_T) -> *mut alist_T {
 }
 
 #[inline]
-unsafe fn aarglist(al: *const alist_T) -> *mut aentry_T {
-    unsafe { (*al).al_ga.ga_data.cast::<aentry_T>() }
+unsafe fn aarglist(al: *mut alist_T) -> *mut aentry_T {
+    unsafe { (*al).al_ga.as_mut_ptr() }
 }
 
 #[inline]
@@ -110,7 +119,7 @@ unsafe fn warglist(wp: *const win_T) -> *mut aentry_T {
 
 #[inline]
 unsafe fn wargcount(wp: *const win_T) -> c_int {
-    unsafe { (*win_alist(wp)).al_ga.ga_len }
+    unsafe { (*win_alist(wp)).al_ga.len() as c_int }
 }
 
 #[inline]
@@ -125,12 +134,15 @@ pub unsafe fn argcount() -> c_int {
 
 #[inline]
 pub unsafe fn garglist() -> *mut aentry_T {
-    unsafe { aarglist(&raw const global_alist) }
+    unsafe { aarglist(&raw mut global_alist) }
 }
 
 #[inline]
 pub unsafe fn gargcount() -> c_int {
-    unsafe { global_alist.al_ga.ga_len }
+    unsafe {
+        let ga = &raw const global_alist.al_ga;
+        (*ga).len() as c_int
+    }
 }
 
 unsafe fn check_arglist_locked() -> c_int {
@@ -151,18 +163,17 @@ pub unsafe fn alist_clear(al: *mut alist_T) {
         if check_arglist_locked() == FAIL {
             return;
         }
-        let entries = aarglist(al);
-        for i in 0..((*al).al_ga.ga_len as usize) {
-            xfree((*entries.add(i)).ae_fname.cast());
+        for entry in (*al).al_ga.drain(..) {
+            xfree(entry.ae_fname.cast());
         }
-        ga_clear(&raw mut (*al).al_ga);
+        (*al).al_ga = Vec::new();
     }
 }
 
 /// Init an argument list (`alist_init`).
 pub unsafe fn alist_init(al: *mut alist_T) {
     unsafe {
-        ga_init(&raw mut (*al).al_ga, size_of::<aentry_T>() as c_int, 5);
+        ptr::write(&raw mut (*al).al_ga, Vec::new());
     }
 }
 
@@ -206,7 +217,7 @@ pub unsafe fn alist_set(
         }
 
         alist_clear(al);
-        ga_grow(&raw mut (*al).al_ga, count);
+        (*al).al_ga.reserve(count.max(0) as usize);
         let mut i: c_int = 0;
         while i < count {
             if got_int {
@@ -252,15 +263,18 @@ pub unsafe fn alist_add(al: *mut alist_T, fname: *mut c_char, set_fnum: c_int) {
         arglist_locked = true;
         (*wp).w_locked += 1;
 
-        let idx = (*al).al_ga.ga_len as usize;
-        (*aarglist(al).add(idx)).ae_fname = fname;
-        if set_fnum > 0 {
-            (*aarglist(al).add(idx)).ae_fnum = buflist_add(
+        let ae_fnum = if set_fnum > 0 {
+            buflist_add(
                 fname,
                 BLN_LISTED | if set_fnum == 2 { BLN_CURBUF } else { 0 },
-            );
-        }
-        (*al).al_ga.ga_len += 1;
+            )
+        } else {
+            0
+        };
+        (*al).al_ga.push(aentry_T {
+            ae_fname: fname,
+            ae_fnum,
+        });
 
         arglist_locked = false;
         (*wp).w_locked -= 1;
@@ -298,13 +312,12 @@ unsafe fn do_one_arg(mut str_: *mut c_char) -> *mut c_char {
 }
 
 /// Separate the arguments in `str` and return a list of pointers in `gap` (`get_arglist`).
-unsafe fn get_arglist(gap: *mut garray_T, mut str_: *mut c_char, escaped: bool) {
+unsafe fn get_arglist(gap: &mut Vec<*mut c_char>, mut str_: *mut c_char, escaped: bool) {
     unsafe {
-        ga_init(gap, size_of::<*mut c_char>() as c_int, 20);
+        gap.clear();
+        gap.reserve(20);
         while *str_ != NUL {
-            ga_grow(gap, 1);
-            *((*gap).ga_data.cast::<*mut c_char>()).add((*gap).ga_len as usize) = str_;
-            (*gap).ga_len += 1;
+            gap.push(str_);
 
             if !escaped {
                 return;
@@ -322,29 +335,26 @@ pub unsafe fn get_arglist_exp(
     wig: bool,
 ) -> c_int {
     unsafe {
-        let mut ga: garray_T = std::mem::zeroed();
-        get_arglist(&raw mut ga, str_, true);
+        let mut ga: Vec<*mut c_char> = Vec::new();
+        get_arglist(&mut ga, str_, true);
 
-        let i = if wig {
+        if wig {
             expand_wildcards(
-                ga.ga_len,
-                ga.ga_data.cast(),
+                ga.len() as c_int,
+                ga.as_mut_ptr(),
                 fcountp,
                 fnamesp,
                 EW_FILE | EW_NOTFOUND | EW_NOTWILD,
             )
         } else {
             gen_expand_wildcards(
-                ga.ga_len,
-                ga.ga_data.cast(),
+                ga.len() as c_int,
+                ga.as_mut_ptr(),
                 fcountp,
                 fnamesp,
                 EW_FILE | EW_NOTFOUND | EW_NOTWILD,
             )
-        };
-
-        ga_clear(&raw mut ga);
-        i
+        }
     }
 }
 
@@ -372,28 +382,22 @@ unsafe fn alist_add_list(count: c_int, files: *mut *mut c_char, mut after: c_int
         if check_arglist_locked() != FAIL {
             let wp = curwin;
             let al = win_alist(wp);
-            ga_grow(&raw mut (*al).al_ga, count);
             after = after.clamp(0, old_argcount);
-            if after < old_argcount {
-                let entries = aarglist(al);
-                ptr::copy(
-                    entries.add(after as usize),
-                    entries.add((after + count) as usize),
-                    (old_argcount - after) as usize,
-                );
-            }
             arglist_locked = true;
             (*wp).w_locked += 1;
-            let entries = aarglist(al);
+            let mut new_entries = Vec::with_capacity(count as usize);
             for i in 0..(count as usize) {
                 let flags = BLN_LISTED | if will_edit { BLN_CURBUF } else { 0 };
                 let f = *files.add(i);
-                (*entries.add(after as usize + i)).ae_fname = f;
-                (*entries.add(after as usize + i)).ae_fnum = buflist_add(f, flags);
+                new_entries.push(aentry_T {
+                    ae_fname: f,
+                    ae_fnum: buflist_add(f, flags),
+                });
             }
+            let pos = after as usize;
+            (*al).al_ga.splice(pos..pos, new_entries);
             arglist_locked = false;
             (*wp).w_locked -= 1;
-            (*al).al_ga.ga_len += count;
             if old_argcount > 0 && (*wp).w_arg_idx >= after {
                 (*wp).w_arg_idx += count;
             }
@@ -402,14 +406,15 @@ unsafe fn alist_add_list(count: c_int, files: *mut *mut c_char, mut after: c_int
 }
 
 /// Delete the file names in `alist_ga` from the argument list (`arglist_del_files`).
-unsafe fn arglist_del_files(alist_ga: *mut garray_T) {
+unsafe fn arglist_del_files(alist_ga: &[*mut c_char]) {
     unsafe {
         let mut regmatch: regmatch_T = std::mem::zeroed();
         regmatch.rm_ic = p_fic != 0;
 
-        let mut i: c_int = 0;
-        while i < (*alist_ga).ga_len && !got_int {
-            let orig_p = *((*alist_ga).ga_data.cast::<*mut c_char>()).add(i as usize);
+        for &orig_p in alist_ga {
+            if got_int {
+                break;
+            }
             let p = file_pat_to_reg_pat(orig_p, ptr::null(), ptr::null_mut(), 0);
             if p.is_null() {
                 break;
@@ -430,14 +435,8 @@ unsafe fn arglist_del_files(alist_ga: *mut garray_T) {
                     0,
                 ) {
                     didone = true;
-                    xfree((*entries.add(match_idx as usize)).ae_fname.cast());
-                    let cur_len = argcount();
-                    ptr::copy(
-                        entries.add((match_idx + 1) as usize),
-                        entries.add(match_idx as usize),
-                        (cur_len - match_idx - 1) as usize,
-                    );
-                    (*win_alist(curwin)).al_ga.ga_len -= 1;
+                    let removed = (*win_alist(curwin)).al_ga.remove(match_idx as usize);
+                    xfree(removed.ae_fname.cast());
                     if (*curwin).w_arg_idx > match_idx {
                         (*curwin).w_arg_idx -= 1;
                     }
@@ -451,15 +450,13 @@ unsafe fn arglist_del_files(alist_ga: *mut garray_T) {
             if !didone {
                 semsg!(gettext((&raw const e_nomatch2).cast()), orig_p);
             }
-            i += 1;
         }
-        ga_clear(alist_ga);
     }
 }
 
 unsafe fn do_arglist(mut str_: *mut c_char, what: c_int, after: c_int, will_edit: bool) -> c_int {
     unsafe {
-        let mut new_ga: garray_T = std::mem::zeroed();
+        let mut new_ga: Vec<*mut c_char> = Vec::new();
         let mut exp_count: c_int = 0;
         let mut exp_files: *mut *mut c_char = ptr::null_mut();
         let mut arg_escaped = true;
@@ -476,19 +473,19 @@ unsafe fn do_arglist(mut str_: *mut c_char, what: c_int, after: c_int, will_edit
             arg_escaped = false;
         }
 
-        get_arglist(&raw mut new_ga, str_, arg_escaped);
+        get_arglist(&mut new_ga, str_, arg_escaped);
 
         if what == AL_DEL {
-            arglist_del_files(&raw mut new_ga);
+            arglist_del_files(&new_ga);
         } else {
             let i = expand_wildcards(
-                new_ga.ga_len,
-                new_ga.ga_data.cast(),
+                new_ga.len() as c_int,
+                new_ga.as_mut_ptr(),
                 &raw mut exp_count,
                 &raw mut exp_files,
                 EW_DIR | EW_FILE | EW_ADDSLASH | EW_NOTFOUND,
             );
-            ga_clear(&raw mut new_ga);
+            drop(new_ga);
             if i == FAIL || exp_count == 0 {
                 emsg(gettext((&raw const e_nomatch).cast()));
                 return FAIL;
@@ -617,17 +614,16 @@ pub unsafe fn ex_args(eap: *mut exarg_T) {
 
         if (*eap).cmdidx == CMD_arglocal {
             let al = win_alist(curwin);
-            let gap = &raw mut (*al).al_ga;
-            let gcount = gargcount();
-            ga_grow(gap, gcount);
+            let gcount = gargcount() as usize;
+            (*al).al_ga.reserve(gcount);
 
-            for i in 0..(gcount as usize) {
+            for i in 0..gcount {
                 let ge = *garglist().add(i);
                 if !ge.ae_fname.is_null() {
-                    let dst = aarglist(al).add((*gap).ga_len as usize);
-                    (*dst).ae_fname = xstrdup(ge.ae_fname);
-                    (*dst).ae_fnum = ge.ae_fnum;
-                    (*gap).ga_len += 1;
+                    (*al).al_ga.push(aentry_T {
+                        ae_fname: xstrdup(ge.ae_fname),
+                        ae_fnum: ge.ae_fnum,
+                    });
                 }
             }
         }
@@ -789,15 +785,8 @@ pub unsafe fn ex_argdedupe(_eap: *mut exarg_T) {
                 xfree(second_fullname.cast());
 
                 if dup {
-                    let entries = arglist();
-                    xfree((*entries.add(j as usize)).ae_fname.cast());
-                    let cur_len = argcount();
-                    ptr::copy(
-                        entries.add((j + 1) as usize),
-                        entries.add(j as usize),
-                        (cur_len - j - 1) as usize,
-                    );
-                    (*win_alist(curwin)).al_ga.ga_len -= 1;
+                    let removed = (*win_alist(curwin)).al_ga.remove(j as usize);
+                    xfree(removed.ae_fname.cast());
 
                     if (*curwin).w_arg_idx == j {
                         (*curwin).w_arg_idx = i;
@@ -890,17 +879,12 @@ pub unsafe fn ex_argdelete(eap: *mut exarg_T) {
                 return;
             }
 
-            let entries = arglist();
-            for i in (*eap).line1..=(*eap).line2 {
-                xfree((*entries.add((i - 1) as usize)).ae_fname.cast());
+            for removed in (*win_alist(curwin))
+                .al_ga
+                .drain(((*eap).line1 as usize - 1)..((*eap).line2 as usize))
+            {
+                xfree(removed.ae_fname.cast());
             }
-            let cur_len = argcount();
-            ptr::copy(
-                entries.add((*eap).line2 as usize),
-                entries.add(((*eap).line1 - 1) as usize),
-                (cur_len - (*eap).line2) as usize,
-            );
-            (*win_alist(curwin)).al_ga.ga_len -= n;
             if (*curwin).w_arg_idx >= (*eap).line2 {
                 (*curwin).w_arg_idx -= n;
             } else if (*curwin).w_arg_idx > (*eap).line1 {
@@ -986,7 +970,7 @@ unsafe fn arg_all_close_unused_windows(aall: *mut arg_all_state_T) {
                     i = 0;
                     while i < (*aall).opened_len {
                         let al = (*aall).alist;
-                        if i < (*al).al_ga.ga_len {
+                        if (i as usize) < (*al).al_ga.len() {
                             let entry = aarglist(al).add(i as usize);
                             if (*entry).ae_fnum == (*buf).b_fnum
                                 || path_equal(
@@ -1098,7 +1082,8 @@ unsafe fn arg_all_open_windows(aall: *mut arg_all_state_T, count: c_int) {
         let mut split_ret = OK;
         let mut i: c_int = 0;
         while i < count && !got_int {
-            if ptr::eq((*aall).alist, &raw const global_alist) && i == global_alist.al_ga.ga_len - 1
+            if ptr::eq((*aall).alist, &raw const global_alist)
+                && i == gargcount() - 1
             {
                 arg_had_last = true;
             }
@@ -1402,12 +1387,11 @@ mod tests {
     #[test]
     fn alist_init_and_clear_work() {
         unsafe {
-            let mut al: alist_T = std::mem::zeroed();
+            let mut al = alist_T::new();
             alist_init(&raw mut al);
-            assert_eq!(al.al_ga.ga_len, 0);
-            assert_eq!(al.al_ga.ga_itemsize, size_of::<aentry_T>() as c_int);
+            assert!(al.al_ga.is_empty());
             alist_clear(&raw mut al);
-            assert_eq!(al.al_ga.ga_len, 0);
+            assert!(al.al_ga.is_empty());
         }
     }
 }

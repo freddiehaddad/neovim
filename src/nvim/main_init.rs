@@ -55,7 +55,6 @@ use crate::ex_docmd::{do_cmdline_cmd, filetype_maybe_enable, filetype_plugin_ena
 use crate::ex_getln::cmdline_init;
 use crate::extmark::TriState;
 use crate::fileio::{READ_NEW, READ_STDIN, fprintf, printf, readfile, shorten_fnames};
-use crate::garray::ga_grow;
 use crate::globals::*;
 use crate::hashtab::hash_debug_results;
 use crate::highlight::highlight_init;
@@ -1687,7 +1686,6 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                 }
                 (*parmp).edit_type = EDIT_FILE;
 
-                ga_grow(&raw mut global_alist.al_ga, 1);
                 let mut p = xstrdup(arg0);
 
                 #[cfg(windows)]

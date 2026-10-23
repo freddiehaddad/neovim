@@ -1129,7 +1129,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
             (flags & kShaDaGetOldfiles) != 0 && (force || tv_list_len(oldfiles_list) == 0);
         let want_marks = (flags & kShaDaWantMarks) != 0;
         let no_opt = (flags & kShaDaNoOpt) != 0;
-        let argcount = (*(*curwin).w_alist.cast::<alist_T>()).al_ga.ga_len;
+        let argcount = (*(*curwin).w_alist.cast::<alist_T>()).al_ga.len() as c_int;
         let srni_flags: c_uint = (if (flags & kShaDaWantInfo) != 0 {
             kSDReadUndisableableData
                 | kSDReadRegisters

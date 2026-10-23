@@ -78,17 +78,12 @@ const E_COMPILER_NOT_SUPPORTED_STR: &CStr = c"E666: Compiler not supported: %s";
 
 #[inline]
 unsafe fn curwin_argcount() -> c_int {
-    unsafe { (*((*curwin).w_alist.cast::<alist_T>())).al_ga.ga_len }
+    unsafe { (*((*curwin).w_alist.cast::<alist_T>())).al_ga.len() as c_int }
 }
 
 #[inline]
 unsafe fn curwin_arglist() -> *mut aentry_T {
-    unsafe {
-        (*((*curwin).w_alist.cast::<alist_T>()))
-            .al_ga
-            .ga_data
-            .cast::<aentry_T>()
-    }
+    unsafe { (*((*curwin).w_alist.cast::<alist_T>())).al_ga.as_mut_ptr() }
 }
 
 pub unsafe fn ex_ruby(eap: *mut exarg_T) {

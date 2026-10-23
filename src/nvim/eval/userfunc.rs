@@ -43,7 +43,7 @@ use crate::ex_eval::{
     update_force_abort,
 };
 use crate::ex_getln::{getcmdline, ui_ext_cmdline_block_append, ui_ext_cmdline_block_leave};
-use crate::garray::{ga_append_via_ptr, ga_clear, ga_clear_strings, ga_grow, ga_init, garray_T};
+use crate::garray::{ga_clear_strings, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::hashtab::{
     hash_add, hash_clear, hash_find, hash_find_len, hash_init, hash_remove, hashitem_T,
@@ -210,10 +210,10 @@ pub struct EvalFuncDef {
 unsafe impl Sync for EvalFuncDef {}
 
 #[repr(C)]
-struct defer_T {
-    dr_name: *mut c_char,
-    dr_argvars: [typval_T; MAX_FUNC_ARGS + 1],
-    dr_argcount: c_int,
+pub(crate) struct defer_T {
+    pub(crate) dr_name: *mut c_char,
+    pub(crate) dr_argvars: [typval_T; MAX_FUNC_ARGS + 1],
+    pub(crate) dr_argcount: c_int,
 }
 
 static mut func_hashtab: hashtab_T = unsafe { std::mem::zeroed() };
@@ -468,10 +468,7 @@ unsafe fn register_closure(fp: *mut ufunc_T) {
         funccal_unref((*fp).uf_scoped.cast(), fp, false);
         (*fp).uf_scoped = current_funccal.cast();
         (*current_funccal).fc_refcount += 1;
-        ga_grow(&raw mut (*current_funccal).fc_ufuncs, 1);
-        *((*current_funccal).fc_ufuncs.ga_data.cast::<*mut ufunc_T>())
-            .add((*current_funccal).fc_ufuncs.ga_len as usize) = fp;
-        (*current_funccal).fc_ufuncs.ga_len += 1;
+        (*current_funccal).fc_ufuncs.push(fp);
     }
 }
 
@@ -1009,13 +1006,13 @@ unsafe fn add_nr_var(dp: *mut dict_T, v: *mut dictitem_T, name: *const c_char, n
 /// Free `fc`.
 unsafe fn free_funccal(fc: *mut funccall_T) {
     unsafe {
-        for i in 0..(*fc).fc_ufuncs.ga_len {
-            let fp = *((*fc).fc_ufuncs.ga_data.cast::<*mut ufunc_T>()).add(i as usize);
+        for &fp in &(*fc).fc_ufuncs {
             if !fp.is_null() && (*fp).uf_scoped == fc.cast() {
                 (*fp).uf_scoped = ptr::null_mut();
             }
         }
-        ga_clear(&raw mut (*fc).fc_ufuncs);
+        (*fc).fc_ufuncs = Vec::new();
+        (*fc).fc_defer = Vec::new();
 
         func_ptr_unref((*fc).fc_func);
         xfree(fc.cast());
@@ -1129,8 +1126,7 @@ unsafe fn funccal_unref(fc: *mut funccall_T, fp: *mut ufunc_T, force: bool) {
                 pfc = &raw mut (**pfc).fc_caller;
             }
         }
-        for i in 0..(*fc).fc_ufuncs.ga_len {
-            let slot = ((*fc).fc_ufuncs.ga_data.cast::<*mut ufunc_T>()).add(i as usize);
+        for slot in &mut (*fc).fc_ufuncs {
             if *slot == fp {
                 *slot = ptr::null_mut();
             }
@@ -1206,6 +1202,8 @@ unsafe fn func_clear_free(fp: *mut ufunc_T, force: bool) {
 pub unsafe fn create_funccal(fp: *mut ufunc_T, rettv: *mut typval_T) -> *mut funccall_T {
     unsafe {
         let fc = xcalloc(1, std::mem::size_of::<funccall_T>()).cast::<funccall_T>();
+        ptr::write(&raw mut (*fc).fc_defer, Vec::new());
+        ptr::write(&raw mut (*fc).fc_ufuncs, Vec::new());
         (*fc).fc_caller = current_funccal;
         current_funccal = fc;
         (*fc).fc_func = fp;
@@ -1261,11 +1259,6 @@ pub unsafe fn call_user_func(
         (*fc).fc_level = ex_nesting_level;
         (*fc).fc_breakpoint = dbg_find_breakpoint(false, uf2hikey(fp), 0);
         (*fc).fc_dbg_tick = debug_tick;
-        ga_init(
-            &raw mut (*fc).fc_ufuncs,
-            std::mem::size_of::<*mut ufunc_T>() as c_int,
-            1,
-        );
 
         if strncmp(uf2hikey(fp), c"<lambda>".as_ptr(), 8) == 0 {
             islambda = true;
@@ -3835,29 +3828,24 @@ pub unsafe fn add_defer(name: *mut c_char, argcount_arg: c_int, argvars: *mut ty
     unsafe {
         let saved_name = xstrdup(name);
         let mut argcount = argcount_arg;
-
-        if (*current_funccal).fc_defer.ga_itemsize == 0 {
-            ga_init(
-                &raw mut (*current_funccal).fc_defer,
-                std::mem::size_of::<defer_T>() as c_int,
-                10,
-            );
-        }
-        let dr = ga_append_via_ptr::<defer_T>(&raw mut (*current_funccal).fc_defer);
-        (*dr).dr_name = saved_name;
-        (*dr).dr_argcount = argcount;
+        let mut dr = defer_T {
+            dr_name: saved_name,
+            dr_argvars: std::mem::zeroed(),
+            dr_argcount: argcount,
+        };
         while argcount > 0 {
             argcount -= 1;
-            (*dr).dr_argvars[argcount as usize] = *argvars.add(argcount as usize);
+            dr.dr_argvars[argcount as usize] = *argvars.add(argcount as usize);
         }
+        (*current_funccal).fc_defer.push(dr);
     }
 }
 
 unsafe fn handle_defer_one(funccal: *mut funccall_T) {
     unsafe {
-        let mut idx = (*funccal).fc_defer.ga_len - 1;
+        let mut idx = (*funccal).fc_defer.len() as isize - 1;
         while idx >= 0 {
-            let dr = ((*funccal).fc_defer.ga_data.cast::<defer_T>()).add(idx as usize);
+            let dr = (*funccal).fc_defer.as_mut_ptr().add(idx as usize);
 
             if (*dr).dr_name.is_null() {
                 idx -= 1;
@@ -3897,7 +3885,7 @@ unsafe fn handle_defer_one(funccal: *mut funccall_T) {
             }
             idx -= 1;
         }
-        ga_clear(&raw mut (*funccal).fc_defer);
+        (*funccal).fc_defer = Vec::new();
     }
 }
 

@@ -4,12 +4,13 @@ use crate::charset::{skiptowhite, skipwhite};
 use crate::debugger::ex_breakadd;
 use crate::errors::e_notopen;
 use crate::eval::typval::{dict_T, dictitem_T, list_T, listitem_T, typval_T};
-use crate::eval::userfunc::{func_tbl_get, funcline, get_current_funccal, ufunc_T};
+use crate::eval::userfunc::{
+    FIXVAR_CNT, VAR_SHORT_LEN, defer_T, func_tbl_get, funcline, get_current_funccal, ufunc_T,
+};
 use crate::eval::vars::{VV_PROFILING, set_vim_var_nr};
 use crate::event::r#loop::uv_err_name;
 use crate::ex_docmd::exarg_T;
 use crate::fileio::{FILE, fclose, fopen, fprintf, vim_fgets};
-use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::hashtab::hashitem_empty;
 use crate::memory::{xcalloc, xfree, xmalloc};
@@ -73,7 +74,7 @@ pub struct scriptitem_T {
     pub sn_pr_self: proftime_T,
     pub sn_pr_start: proftime_T,
     pub sn_pr_children: proftime_T,
-    pub sn_prl_ga: garray_T,
+    pub sn_prl_ga: Vec<sn_prl_T>,
     pub sn_prl_start: proftime_T,
     pub sn_prl_children: proftime_T,
     pub sn_prl_wait: proftime_T,
@@ -85,7 +86,6 @@ use crate::autocmd::PROF_YES;
 use crate::charset::NL;
 use crate::cmdexpand::{EXPAND_FILES, EXPAND_NOTHING, EXPAND_PROFILE, EXPAND_USER_FUNC};
 use crate::eval::funcs::MAX_FUNC_ARGS;
-use crate::eval::userfunc::{FIXVAR_CNT, VAR_SHORT_LEN};
 use crate::globals::{IOSIZE, PROF_NONE};
 use crate::keycodes::K_SPECIAL;
 
@@ -121,19 +121,19 @@ pub struct funccall_T {
     pub fc_breakpoint: i32,
     pub fc_dbg_tick: c_int,
     pub fc_level: c_int,
-    pub fc_defer: garray_T,
+    pub fc_defer: Vec<defer_T>,
     pub fc_prof_child: proftime_T,
     pub fc_caller: *mut funccall_T,
     pub fc_refcount: c_int,
     pub fc_copyID: c_int,
-    pub fc_ufuncs: garray_T,
+    pub fc_ufuncs: Vec<*mut ufunc_T>,
 }
 
 use crate::fileio::setvbuf;
 
 #[inline]
 unsafe fn prl_item(si: *mut scriptitem_T, idx: c_int) -> *mut sn_prl_T {
-    unsafe { (*si).sn_prl_ga.ga_data.cast::<sn_prl_T>().add(idx as usize) }
+    unsafe { (*si).sn_prl_ga.as_mut_ptr().add(idx as usize) }
 }
 
 /// Gets the current time (`profile_start`).
@@ -272,7 +272,7 @@ pub unsafe fn profile_reset() {
                 si.sn_pr_self = profile_zero();
                 si.sn_pr_start = profile_zero();
                 si.sn_pr_children = profile_zero();
-                ga_clear(&mut si.sn_prl_ga);
+                si.sn_prl_ga = Vec::new();
                 si.sn_prl_start = profile_zero();
                 si.sn_prl_children = profile_zero();
                 si.sn_prl_wait = profile_zero();
@@ -705,14 +705,8 @@ pub unsafe fn profile_init(si: *mut scriptitem_T) {
     si.sn_pr_count = 0;
     si.sn_pr_total = profile_zero();
     si.sn_pr_self = profile_zero();
-
-    unsafe {
-        ga_init(
-            &mut si.sn_prl_ga,
-            std::mem::size_of::<sn_prl_T>() as c_int,
-            100,
-        );
-    }
+    si.sn_prl_ga.clear();
+    si.sn_prl_ga.reserve(100);
     si.sn_prl_idx = -1;
     si.sn_prof_on = true;
     si.sn_pr_nest = 0;
@@ -799,7 +793,7 @@ unsafe fn script_dump_profile(fd: *mut FILE) {
                             iobuf[n] = NL;
                             iobuf[n + 1] = 0;
                         }
-                        if i < (*si).sn_prl_ga.ga_len {
+                        if (i as usize) < (*si).sn_prl_ga.len() {
                             let pp = &*prl_item(si, i);
                             if pp.snp_count > 0 {
                                 fprintf!(fd, c"%5d ".as_ptr(), pp.snp_count);
@@ -853,16 +847,16 @@ pub unsafe fn script_line_start() {
         let si = script_item(current_sctx.sc_sid);
         let slnum = sourcing_lnum();
         if (*si).sn_prof_on && slnum >= 1 {
-            ga_grow(&mut (*si).sn_prl_ga, slnum - (*si).sn_prl_ga.ga_len);
             (*si).sn_prl_idx = slnum - 1;
-            while (*si).sn_prl_ga.ga_len <= (*si).sn_prl_idx
-                && (*si).sn_prl_ga.ga_len < (*si).sn_prl_ga.ga_maxlen
-            {
-                let pp = &mut *prl_item(si, (*si).sn_prl_ga.ga_len);
-                pp.snp_count = 0;
-                pp.sn_prl_total = profile_zero();
-                pp.sn_prl_self = profile_zero();
-                (*si).sn_prl_ga.ga_len += 1;
+            if (*si).sn_prl_ga.len() < slnum as usize {
+                (*si).sn_prl_ga.resize(
+                    slnum as usize,
+                    sn_prl_T {
+                        snp_count: 0,
+                        sn_prl_total: profile_zero(),
+                        sn_prl_self: profile_zero(),
+                    },
+                );
             }
             (*si).sn_prl_execed = 0;
             (*si).sn_prl_start = profile_start();
@@ -892,7 +886,10 @@ pub unsafe fn script_line_end() {
             return;
         }
         let si = script_item(current_sctx.sc_sid);
-        if (*si).sn_prof_on && (*si).sn_prl_idx >= 0 && (*si).sn_prl_idx < (*si).sn_prl_ga.ga_len {
+        if (*si).sn_prof_on
+            && (*si).sn_prl_idx >= 0
+            && ((*si).sn_prl_idx as usize) < (*si).sn_prl_ga.len()
+        {
             if (*si).sn_prl_execed != 0 {
                 let pp = &mut *prl_item(si, (*si).sn_prl_idx);
                 pp.snp_count += 1;

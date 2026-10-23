@@ -13,7 +13,6 @@ use crate::ex_getln::{VSE_NONE, vim_strsave_fnameescape};
 use crate::file_search::vim_chdirfile;
 use crate::fileio::{FILE, fclose, fputc, fputs, fwrite, shorten_fnames};
 use crate::fold::put_folds;
-use crate::garray::garray_T;
 use crate::globals::*;
 use crate::hashtab::hashitem_empty;
 use crate::mapping::makemap;
@@ -241,7 +240,7 @@ unsafe fn ses_do_win(wp: *mut win_T) -> c_int {
 unsafe fn ses_arglist(
     fd: *mut FILE,
     cmd: *const c_char,
-    gap: *mut garray_T,
+    gap: *mut Vec<aentry_T>,
     fullname: bool,
     flagp: *mut c_uint,
 ) -> c_int {
@@ -251,8 +250,8 @@ unsafe fn ses_arglist(
         if !write_fmt(fd, format!("{}\n%argdel\n", cstr_to_str(cmd))) {
             return FAIL;
         }
-        for i in 0..(*gap).ga_len {
-            let entry = (*gap).ga_data.cast::<aentry_T>().add(i as usize);
+        for i in 0..(*gap).len() {
+            let entry = (*gap).as_mut_ptr().add(i);
             let mut s = alist_name(entry);
             if !s.is_null() {
                 if fullname {
@@ -360,7 +359,7 @@ unsafe fn put_view(
             }
         }
 
-        let wargcount = (*(*wp).w_alist.cast::<alist_T>()).al_ga.ga_len;
+        let wargcount = (*(*wp).w_alist.cast::<alist_T>()).al_ga.len() as c_int;
         if (*wp).w_arg_idx != current_arg_idx
             && (*wp).w_arg_idx < wargcount
             && ptr::eq(flagp, &raw mut ssop_flags)
