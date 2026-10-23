@@ -96,7 +96,7 @@ pub struct ff_visited_T {
     pub ffv_wc_path: *mut c_char,
     pub file_id_valid: bool,
     pub file_id: FileID,
-    pub ffv_fname: [c_char; 0],
+    pub ffv_fname: Vec<c_char>,
 }
 
 #[repr(C)]
@@ -943,6 +943,7 @@ unsafe fn ff_free_visited_list(mut vl: *mut ff_visited_T) {
         while !vl.is_null() {
             let vp = (*vl).ffv_next;
             xfree((*vl).ffv_wc_path.cast());
+            ptr::drop_in_place(&raw mut (*vl).ffv_fname);
             xfree(vl.cast());
             vl = vp;
         }
@@ -1054,21 +1055,19 @@ unsafe fn ff_check_visited(
             vp = (*vp).ffv_next;
         }
 
-        let vp: *mut ff_visited_T =
-            xmalloc(std::mem::offset_of!(ff_visited_T, ffv_fname) + ff_expand_buffer.size + 1)
-                .cast();
+        let vp: *mut ff_visited_T = xmalloc(size_of::<ff_visited_T>()).cast();
+        ptr::write(&raw mut (*vp).ffv_fname, Vec::new());
 
         if !url {
             (*vp).file_id_valid = true;
             (*vp).file_id = file_id;
-            *(*vp).ffv_fname.as_mut_ptr() = NUL;
+            (*vp).ffv_fname.push(NUL);
         } else {
             (*vp).file_id_valid = false;
-            ptr::copy_nonoverlapping(
+            (*vp).ffv_fname.extend_from_slice(std::slice::from_raw_parts(
                 ff_expand_buffer.data,
-                (*vp).ffv_fname.as_mut_ptr(),
                 ff_expand_buffer.size + 1,
-            );
+            ));
         }
 
         if !wc_path.is_null() {

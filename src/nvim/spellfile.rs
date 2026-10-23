@@ -57,7 +57,7 @@ use crate::syntax::win_s;
 use crate::ui::ui_flush;
 use crate::undo::bufIsChanged;
 use std::ffi::{c_char, c_int, c_long, c_uint, c_void};
-use std::mem::{offset_of, size_of};
+use std::mem::size_of;
 use std::ptr;
 
 pub type SpellAddType = c_int;
@@ -229,7 +229,7 @@ struct compitem_T {
 struct sblock_T {
     sb_used: c_int,
     sb_next: *mut sblock_T,
-    sb_data: [c_char; 0],
+    sb_data: [c_char; SBLOCKSIZE + 1],
 }
 
 #[repr(C)]
@@ -3885,16 +3885,14 @@ unsafe fn getroom(spin: *mut spellinfo_T, len: usize, align: bool) -> *mut c_voi
         }
 
         if bl.is_null() || ((*bl).sb_used as usize + len) > SBLOCKSIZE {
-            bl = xcalloc(1, offset_of!(sblock_T, sb_data) + SBLOCKSIZE + 1).cast::<sblock_T>();
+            bl = xcalloc(1, size_of::<sblock_T>()).cast::<sblock_T>();
             (*bl).sb_next = (*spin).si_blocks;
             (*spin).si_blocks = bl;
             (*bl).sb_used = 0;
             (*spin).si_blocks_cnt += 1;
         }
 
-        let p = (&raw mut (*bl).sb_data)
-            .cast::<c_char>()
-            .add((*bl).sb_used as usize);
+        let p = (*bl).sb_data.as_mut_ptr().add((*bl).sb_used as usize);
         (*bl).sb_used += len as c_int;
         p.cast()
     }

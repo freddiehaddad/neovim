@@ -81,7 +81,7 @@ use crate::ui::{
 };
 use crate::ui_compositor::{ui_comp_put_grid, ui_comp_remove_grid};
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_ulong, c_void};
-use std::mem::{offset_of, size_of};
+use std::mem::size_of;
 use std::ptr;
 
 pub type MsgID = Object;
@@ -132,7 +132,7 @@ struct msgchunk_T {
     sb_eol: c_char,
     sb_msg_col: c_int,
     sb_hl_id: c_int,
-    sb_text: [c_char; 0],
+    sb_text: Vec<c_char>,
 }
 
 #[repr(C)]
@@ -392,7 +392,7 @@ unsafe fn have_sourcing_info() -> bool {
 
 #[inline]
 unsafe fn msgchunk_text_ptr(mp: *mut msgchunk_T) -> *mut c_char {
-    unsafe { mp.cast::<c_char>().add(offset_of!(msgchunk_T, sb_text)) }
+    unsafe { (*mp).sb_text.as_mut_ptr() }
 }
 
 /// Returns true if the given integer message-id was previously generated.
@@ -3356,13 +3356,14 @@ unsafe fn store_sb_text(
 
         if s > *sb_str {
             let text_len = s.offset_from(*sb_str) as usize;
-            let mp = xmalloc(offset_of!(msgchunk_T, sb_text) + text_len + 1).cast::<msgchunk_T>();
+            let mp = xmalloc(size_of::<msgchunk_T>()).cast::<msgchunk_T>();
             (*mp).sb_eol = finish as c_char;
             (*mp).sb_msg_col = *sb_col;
             (*mp).sb_hl_id = hl_id;
-            let dst = msgchunk_text_ptr(mp);
-            ptr::copy_nonoverlapping(*sb_str, dst, text_len);
-            *dst.add(text_len) = NUL;
+            let mut text = Vec::with_capacity(text_len + 1);
+            text.extend_from_slice(std::slice::from_raw_parts(*sb_str, text_len));
+            text.push(NUL);
+            ptr::write(&raw mut (*mp).sb_text, text);
 
             if last_msgchunk.is_null() {
                 last_msgchunk = mp;
@@ -3419,6 +3420,7 @@ pub unsafe fn sb_text_restart_cmdline() {
         }
         while !tofree.is_null() {
             let tofree_next = (*tofree).sb_next;
+            ptr::drop_in_place(&raw mut (*tofree).sb_text);
             xfree(tofree.cast());
             tofree = tofree_next;
         }
@@ -3446,6 +3448,7 @@ pub unsafe fn clear_sb_text(all: bool) {
 
         while !(*lastp).is_null() {
             let mp = (*(*lastp)).sb_prev;
+            ptr::drop_in_place(&raw mut (*(*lastp)).sb_text);
             xfree((*lastp).cast());
             *lastp = mp;
         }

@@ -78,7 +78,7 @@ use crate::highlight::HlAttrs;
 use crate::mark::{kMarkAdjustTerm, mark_adjust_buf};
 use crate::mbyte::{mb_check_adjust_col, utf_ptr2char, utf_ptr2len};
 use crate::memline::{ml_append_buf, ml_delete_buf, ml_replace_buf};
-use crate::memory::{strequal, xcalloc, xfree, xmalloc, xmemdup, xmemdupz, xstrdup};
+use crate::memory::{strequal, xcalloc, xfree, xmemdup, xmemdupz, xstrdup};
 use crate::mouse::{
     MSCR_DOWN, MSCR_LEFT, MSCR_RIGHT, MSCR_UP, do_mousescroll, mouse_find_win_inner,
 };
@@ -214,12 +214,6 @@ struct TerminalState {
 }
 
 #[repr(C)]
-struct ScrollbackLine {
-    cols: usize,
-    cells: [VTermScreenCell; 0],
-}
-
-#[repr(C)]
 struct TermCursor {
     row: c_int,
     col: c_int,
@@ -242,7 +236,7 @@ pub struct Terminal {
     vt: *mut VTerm,
     vts: *mut VTermScreen,
     textbuf: [c_char; TEXTBUF_SIZE],
-    sb_buffer: Vec<*mut ScrollbackLine>,
+    sb_buffer: Vec<Vec<VTermScreenCell>>,
     sb_allocated: bool,
     sb_size: usize,
     sb_pending: c_int,
@@ -318,11 +312,6 @@ unsafe fn invalidate_terminal_add(term: *mut Terminal) {
 #[inline]
 const fn vterm_key_function(n: c_int) -> VTermKey {
     VTERM_KEY_FUNCTION_0 + n
-}
-
-#[inline]
-unsafe fn sbrow_cells(sbrow: *mut ScrollbackLine) -> *mut VTermScreenCell {
-    unsafe { sbrow.add(1).cast::<VTermScreenCell>() }
 }
 
 #[inline]
@@ -1420,9 +1409,6 @@ pub unsafe fn terminal_destroy(termpp: *mut *mut Terminal) {
                 unblock_autocmds();
                 (*inv_ptr).swap_remove(pos);
             }
-            for sbrow in (*term).sb_buffer.drain(..) {
-                xfree(sbrow.cast::<c_void>());
-            }
             ptr::drop_in_place(&raw mut (*term).sb_buffer);
             ptr::drop_in_place(&raw mut (*term).title);
             xfree((*term).selection_buffer.cast::<c_void>());
@@ -1931,30 +1917,21 @@ unsafe fn term_sb_push(cols: c_int, cells: *const VTermScreenCell, data: *mut c_
         debug_assert!((*term).sb_size > 0);
 
         let c = cols as usize;
-        let mut sbrow: *mut ScrollbackLine = ptr::null_mut();
-        if (*term).sb_buffer.len() == (*term).sb_size {
-            let last = (*term).sb_buffer.pop().unwrap();
-            if (*last).cols == c {
-                sbrow = last;
-            } else {
-                xfree(last.cast::<c_void>());
-            }
+        let mut sbrow = if (*term).sb_buffer.len() == (*term).sb_size {
             (*term).sb_deleted += 1;
-        }
+            (*term).sb_buffer.pop().unwrap_or_default()
+        } else {
+            Vec::with_capacity(c)
+        };
 
-        if sbrow.is_null() {
-            sbrow = xmalloc(size_of::<ScrollbackLine>() + c * size_of::<VTermScreenCell>())
-                .cast::<ScrollbackLine>();
-            (*sbrow).cols = c;
-        }
-
+        sbrow.clear();
+        sbrow.extend_from_slice(std::slice::from_raw_parts(cells, c));
         (*term).sb_buffer.insert(0, sbrow);
 
         if (*term).sb_pending < (*term).sb_size as c_int {
             (*term).sb_pending += 1;
         }
 
-        ptr::copy_nonoverlapping(cells, sbrow_cells(sbrow), c);
         if !(*term).synchronized_output {
             invalidate_terminal_add(term);
         }
@@ -1979,16 +1956,15 @@ unsafe fn term_sb_pop(cols: c_int, cells: *mut VTermScreenCell, data: *mut c_voi
         let sbrow = (*term).sb_buffer.remove(0);
 
         let cols_usize = cols as usize;
-        let cols_to_copy = cols_usize.min((*sbrow).cols);
+        let cols_to_copy = cols_usize.min(sbrow.len());
 
-        ptr::copy_nonoverlapping(sbrow_cells(sbrow), cells, cols_to_copy);
+        ptr::copy_nonoverlapping(sbrow.as_ptr(), cells, cols_to_copy);
         for col in cols_to_copy..cols_usize {
             let cell = cells.add(col);
             (*cell).schar = 0;
             (*cell).width = 1;
         }
 
-        xfree(sbrow.cast::<c_void>());
         if !(*term).synchronized_output {
             invalidate_terminal_add(term);
         }
@@ -2005,9 +1981,7 @@ unsafe fn term_sb_clear(data: *mut c_void) -> c_int {
         }
 
         let deleted_len = (*term).sb_buffer.len();
-        for sbrow in (*term).sb_buffer.drain(..) {
-            xfree(sbrow.cast::<c_void>());
-        }
+        (*term).sb_buffer.clear();
 
         (*term).sb_deleted += deleted_len;
         (*term).sb_pending = 0;
@@ -2358,9 +2332,9 @@ unsafe fn fetch_cell(
 ) -> bool {
     unsafe {
         if row < 0 {
-            let sbrow = (*term).sb_buffer.as_slice()[(-row - 1) as usize];
-            if (col as usize) < (*sbrow).cols {
-                *cell = *sbrow_cells(sbrow).add(col as usize);
+            let sbrow = &(*term).sb_buffer.as_slice()[(-row - 1) as usize];
+            if (col as usize) < sbrow.len() {
+                *cell = sbrow[col as usize];
             } else {
                 *cell = VTermScreenCell {
                     schar: 0,
@@ -2556,9 +2530,7 @@ unsafe fn adjust_scrollback(term: *mut Terminal, buf: *mut buf_T) {
             let diff = (*term).sb_buffer.len() - scbk;
             for _ in 0..diff {
                 ml_delete_buf(buf, 1, false);
-                if let Some(sbrow) = (*term).sb_buffer.pop() {
-                    xfree(sbrow.cast::<c_void>());
-                }
+                (*term).sb_buffer.pop();
             }
             mark_adjust_buf(
                 buf,

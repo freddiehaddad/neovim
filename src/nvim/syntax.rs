@@ -49,12 +49,12 @@ use crate::regexp::{
 };
 use crate::runtime::{DIP_ALL, DOSO_NONE, do_source, source_runtime};
 use crate::strings::{
-    gettext, sort_slice_by, strcat, strchr, strcmp, strcpy, strlen, strncmp, strpbrk, vim_snprintf,
+    gettext, sort_slice_by, strcat, strchr, strcmp, strlen, strncmp, strpbrk, vim_snprintf,
     vim_strchr, vim_stricmp, vim_strnicmp, vim_strnsave_up, vim_strsave_up, xstrnsave,
 };
 use crate::window::win_T;
 use std::ffi::{c_char, c_int, c_uint, c_void};
-use std::mem::{offset_of, size_of};
+use std::mem::size_of;
 use std::ptr;
 
 #[repr(C)]
@@ -235,7 +235,7 @@ pub struct keyentry_T {
     pub next_list: *mut i16,
     pub flags: c_int,
     pub k_char: c_int,
-    pub keyword: [c_char; 0],
+    pub keyword: Vec<c_char>,
 }
 
 #[repr(C)]
@@ -454,7 +454,7 @@ unsafe fn cur_state_at(idx: c_int) -> *mut stateitem_T {
 
 #[inline]
 unsafe fn ke2hikey(kp: *mut keyentry_T) -> *mut c_char {
-    unsafe { (&raw mut (*kp).keyword).cast::<c_char>() }
+    unsafe { (*kp).keyword.as_mut_ptr() }
 }
 
 #[inline]
@@ -3592,6 +3592,7 @@ unsafe fn syn_clear_keyword(
                     }
                     xfree((*kp).next_list.cast());
                     xfree((*kp).k_syn.cont_in_list.cast());
+                    ptr::drop_in_place(&raw mut (*kp).keyword);
                     xfree(kp.cast());
                     kp = kp_next;
                 } else {
@@ -3611,6 +3612,7 @@ unsafe fn clear_keywtab(ht: &mut std::collections::BTreeMap<Vec<u8>, *mut keyent
                 let kp_next = (*kp).ke_next;
                 xfree((*kp).next_list.cast());
                 xfree((*kp).k_syn.cont_in_list.cast());
+                ptr::drop_in_place(&raw mut (*kp).keyword);
                 xfree(kp.cast());
                 kp = kp_next;
             }
@@ -3641,8 +3643,11 @@ unsafe fn add_keyword(
             (name, namelen)
         };
 
-        let kp = xmalloc(offset_of!(keyentry_T, keyword) + name_iclen + 1).cast::<keyentry_T>();
-        strcpy(ke2hikey(kp), name_ic);
+        let kp = xmalloc(size_of::<keyentry_T>()).cast::<keyentry_T>();
+        let mut kw_vec = Vec::with_capacity(name_iclen + 1);
+        kw_vec.extend_from_slice(std::slice::from_raw_parts(name_ic, name_iclen));
+        kw_vec.push(NUL);
+        ptr::write(&raw mut (*kp).keyword, kw_vec);
         (*kp).k_syn.id = id as i16;
         (*kp).k_syn.inc_tag = current_syn_inc_tag;
         (*kp).flags = flags;
