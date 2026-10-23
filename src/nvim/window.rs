@@ -449,7 +449,7 @@ pub struct win_T {
     pub w_jumplistlen: c_int,
     pub w_jumplistidx: c_int,
     pub w_changelistidx: c_int,
-    pub w_match_head: *mut std::ffi::c_void,
+    pub w_match_head: Vec<crate::r#match::matchitem_T>,
     pub w_next_match_id: c_int,
     pub w_tagstack: [crate::tag::taggy_T; 20],
     pub w_tagstackidx: c_int,
@@ -5910,6 +5910,7 @@ pub unsafe fn win_alloc(after: *mut win_T, hidden: bool) -> *mut win_T {
         (*new_wp).w_ns_hl = -1;
 
         ptr::write(&raw mut (*new_wp).w_ns_set, std::collections::BTreeSet::new());
+        ptr::write(&raw mut (*new_wp).w_match_head, Vec::new());
         ptr::write(
             &raw mut (*new_wp).w_statuscol_click_defs,
             std::collections::BTreeMap::new(),
@@ -6042,6 +6043,7 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
         clear_virttext(&raw mut (*wp).w_config.footer_chunks);
 
         clear_matches(wp);
+        ptr::drop_in_place(&raw mut (*wp).w_match_head);
         free_jumplist(wp);
         qf_free_all(wp);
 

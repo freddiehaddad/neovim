@@ -113,22 +113,25 @@ pub(crate) const NIL_OBJ: Object = Object {
 };
 
 /// Message history for `:messages`
-#[repr(C)]
 pub struct MessageHistoryEntry {
-    pub next: *mut MessageHistoryEntry,
-    pub prev: *mut MessageHistoryEntry,
     pub msg: HlMessage,
     pub kind: *mut c_char,
     pub temp: bool,
     pub append: bool,
 }
 
+impl Drop for MessageHistoryEntry {
+    fn drop(&mut self) {
+        unsafe {
+            hl_msg_free(std::mem::take(&mut self.msg));
+            xfree(self.kind.cast());
+        }
+    }
+}
+
 // To be able to scroll back at the "more" and "hit-enter" prompts we need to
 // store the displayed text and remember where screen lines start.
-#[repr(C)]
 struct msgchunk_T {
-    sb_next: *mut msgchunk_T,
-    sb_prev: *mut msgchunk_T,
     sb_eol: c_char,
     sb_msg_col: c_int,
     sb_hl_id: c_int,
@@ -146,9 +149,9 @@ enum sb_clear_T {
 
 static mut confirm_msg_used: c_int = 0;
 
-pub static mut msg_hist_last: *mut MessageHistoryEntry = ptr::null_mut();
-static mut msg_hist_first: *mut MessageHistoryEntry = ptr::null_mut();
-static mut msg_hist_temp: *mut MessageHistoryEntry = ptr::null_mut();
+static mut msg_hist: std::collections::VecDeque<MessageHistoryEntry> =
+    std::collections::VecDeque::new();
+static mut msg_hist_temp_idx: Option<usize> = None;
 static mut msg_hist_len: c_int = 0;
 static mut msg_hist_max: c_int = 500;
 
@@ -202,7 +205,7 @@ static mut redir_col: c_int = 0;
 
 static mut STR2SPECIAL_BUF: [c_char; 7] = [0; 7];
 
-static mut last_msgchunk: *mut msgchunk_T = ptr::null_mut();
+static mut msgchunks: Vec<msgchunk_T> = Vec::new();
 static mut do_clear_sb_text: sb_clear_T = sb_clear_T::SB_CLEAR_NONE;
 
 static mut DO_MORE_PROMPT_ENTERED: bool = false;
@@ -388,11 +391,6 @@ unsafe fn have_sourcing_info() -> bool {
         let es = &raw const exestack;
         !(*es).is_empty()
     }
-}
-
-#[inline]
-unsafe fn msgchunk_text_ptr(mp: *mut msgchunk_T) -> *mut c_char {
-    unsafe { (*mp).sb_text.as_mut_ptr() }
 }
 
 /// Returns true if the given integer message-id was previously generated.
@@ -767,12 +765,13 @@ pub unsafe fn msg_keep(mut s: *const c_char, hl_id: c_int, keep: bool, multiline
         MSG_KEEP_ENTERED += 1;
 
         // Add message to history unless it's a multihl, repeated kept or truncated message.
+        let hist = &raw const msg_hist;
         if is_multihl == 0
             && (s != keep_msg.cast_const()
                 || (*s != b'<' as c_char
-                    && !msg_hist_last.is_null()
-                    && CStr::from_ptr(s)
-                        != CStr::from_ptr((*msg_hist_last).msg.as_slice()[0].text.data)))
+                    && (*hist).back().is_some_and(|last| {
+                        CStr::from_ptr(s) != CStr::from_ptr(last.msg.as_slice()[0].text.data)
+                    })))
         {
             msg_hist_add(s, -1, hl_id);
         }
@@ -1623,76 +1622,61 @@ unsafe fn msg_hist_add_multihl(msg: HlMessage, temp: bool) {
             return;
         }
 
-        // Allocate an entry and add the message at the end of the history.
-        let entry = xmalloc(size_of::<MessageHistoryEntry>()).cast::<MessageHistoryEntry>();
-        ptr::write(&raw mut (*entry).msg, msg);
-        (*entry).temp = temp;
-        (*entry).kind = if !msg_ext_kind.is_null() {
-            xstrdup(msg_ext_kind)
-        } else {
-            ptr::null_mut()
-        };
-        (*entry).prev = msg_hist_last;
-        (*entry).next = ptr::null_mut();
-        (*entry).append = msg_ext_append;
-
-        if msg_hist_first.is_null() {
-            msg_hist_first = entry;
+        let hist = &raw mut msg_hist;
+        let temp_idx = msg_hist_temp_idx;
+        if temp_idx.is_none() {
+            msg_hist_temp_idx = Some((*hist).len());
         }
-        if !msg_hist_last.is_null() {
-            (*msg_hist_last).next = entry;
-        }
-        if msg_hist_temp.is_null() {
-            msg_hist_temp = entry;
-        }
+        (*hist).push_back(MessageHistoryEntry {
+            msg,
+            kind: if !msg_ext_kind.is_null() {
+                xstrdup(msg_ext_kind)
+            } else {
+                ptr::null_mut()
+            },
+            temp,
+            append: msg_ext_append,
+        });
 
         msg_hist_len += c_int::from(!temp);
-        msg_hist_last = entry;
         msg_ext_history = true;
 
         msg_hist_clear(msg_hist_max);
     }
 }
 
-unsafe fn msg_hist_free_msg(entry: *mut MessageHistoryEntry) {
-    unsafe {
-        if (*entry).next.is_null() {
-            msg_hist_last = (*entry).prev;
-        } else {
-            (*(*entry).next).prev = (*entry).prev;
-        }
-        if (*entry).prev.is_null() {
-            msg_hist_first = (*entry).next;
-        } else {
-            (*(*entry).prev).next = (*entry).next;
-        }
-        if entry == msg_hist_temp {
-            msg_hist_temp = (*entry).next;
-        }
-        hl_msg_free(std::mem::take(&mut (*entry).msg));
-        xfree((*entry).kind.cast());
-        xfree(entry.cast());
-    }
-}
-
 /// Delete oldest messages from the history until there are "keep" messages.
 pub unsafe fn msg_hist_clear(keep: c_int) {
     unsafe {
-        while msg_hist_len > keep || (keep == 0 && !msg_hist_first.is_null()) {
-            msg_hist_len -= c_int::from(!(*msg_hist_first).temp);
-            msg_hist_free_msg(msg_hist_first);
+        let hist = &raw mut msg_hist;
+        while msg_hist_len > keep || (keep == 0 && !(*hist).is_empty()) {
+            if let Some(entry) = (*hist).pop_front() {
+                msg_hist_len -= c_int::from(!entry.temp);
+                if let Some(idx) = msg_hist_temp_idx {
+                    msg_hist_temp_idx = Some(idx.saturating_sub(1));
+                }
+            }
+        }
+        if (*hist).is_empty() {
+            msg_hist_temp_idx = None;
         }
     }
 }
 
 pub unsafe fn msg_hist_clear_temp() {
     unsafe {
-        while !msg_hist_temp.is_null() {
-            let next = (*msg_hist_temp).next;
-            if (*msg_hist_temp).temp {
-                msg_hist_free_msg(msg_hist_temp);
+        let temp_idx = msg_hist_temp_idx;
+        msg_hist_temp_idx = None;
+        if let Some(start_idx) = temp_idx {
+            let hist = &raw mut msg_hist;
+            let mut i = start_idx;
+            while i < (*hist).len() {
+                if (&(*hist))[i].temp {
+                    (*hist).remove(i);
+                } else {
+                    i += 1;
+                }
             }
-            msg_hist_temp = next;
         }
     }
 }
@@ -1758,22 +1742,24 @@ pub unsafe fn ex_messages(eap: *mut exarg_T) {
         }
 
         let mut entries = Array::new();
-        let mut p = if (*eap).skip != 0 {
-            msg_hist_temp
+        let hist = &raw mut msg_hist;
+        let mut idx = if (*eap).skip != 0 {
+            msg_hist_temp_idx.unwrap_or((*hist).len())
         } else {
-            msg_hist_first
+            0
         };
         let mut skip = if (*eap).addr_count != 0 {
             msg_hist_len - (*eap).line2 as c_int
         } else {
             0
         };
-        while !p.is_null() {
+        while idx < (*hist).len() {
+            let p: *mut MessageHistoryEntry = &raw mut (&mut (*hist))[idx];
+            idx += 1;
             // Skip over count or temporary "g<" messages.
             let prev_skip = skip;
             skip -= 1;
             if ((*p).temp && (*eap).skip == 0) || prev_skip > 0 {
-                p = (*p).next;
                 continue;
             }
             if ui_has(kUIMessages) && msg_silent == 0 {
@@ -1846,7 +1832,6 @@ pub unsafe fn ex_messages(eap: *mut exarg_T) {
                 );
                 msg_silent -= c_int::from(ui_has(kUIMessages));
             }
-            p = (*p).next;
         }
         if entries.size > 0 {
             ui_call_msg_history_show(entries, (*eap).skip != 0);
@@ -3354,28 +3339,22 @@ unsafe fn store_sb_text(
             do_clear_sb_text = sb_clear_T::SB_CLEAR_NONE;
         }
 
+        let chunks = &raw mut msgchunks;
         if s > *sb_str {
             let text_len = s.offset_from(*sb_str) as usize;
-            let mp = xmalloc(size_of::<msgchunk_T>()).cast::<msgchunk_T>();
-            (*mp).sb_eol = finish as c_char;
-            (*mp).sb_msg_col = *sb_col;
-            (*mp).sb_hl_id = hl_id;
             let mut text = Vec::with_capacity(text_len + 1);
             text.extend_from_slice(std::slice::from_raw_parts(*sb_str, text_len));
             text.push(NUL);
-            ptr::write(&raw mut (*mp).sb_text, text);
-
-            if last_msgchunk.is_null() {
-                last_msgchunk = mp;
-                (*mp).sb_prev = ptr::null_mut();
-            } else {
-                (*mp).sb_prev = last_msgchunk;
-                (*last_msgchunk).sb_next = mp;
-                last_msgchunk = mp;
-            }
-            (*mp).sb_next = ptr::null_mut();
-        } else if finish != 0 && !last_msgchunk.is_null() {
-            (*last_msgchunk).sb_eol = 1;
+            (*chunks).push(msgchunk_T {
+                sb_eol: finish as c_char,
+                sb_msg_col: *sb_col,
+                sb_hl_id: hl_id,
+                sb_text: text,
+            });
+        } else if finish != 0
+            && let Some(last) = (*chunks).last_mut()
+        {
+            last.sb_eol = 1;
         }
 
         *sb_str = s;
@@ -3409,20 +3388,16 @@ pub unsafe fn sb_text_restart_cmdline() {
     unsafe {
         do_clear_sb_text = sb_clear_T::SB_CLEAR_CMDLINE_BUSY;
 
-        if last_msgchunk.is_null() || (*last_msgchunk).sb_eol != 0 {
+        let chunks = &raw mut msgchunks;
+        let Some(last) = (*chunks).last() else {
+            return;
+        };
+        if last.sb_eol != 0 {
             return;
         }
 
-        let mut tofree = msg_sb_start(last_msgchunk);
-        last_msgchunk = (*tofree).sb_prev;
-        if !last_msgchunk.is_null() {
-            (*last_msgchunk).sb_next = ptr::null_mut();
-        }
-        while !tofree.is_null() {
-            let tofree_next = (*tofree).sb_next;
-            ptr::drop_in_place(&raw mut (*tofree).sb_text);
-            xfree(tofree.cast());
-            tofree = tofree_next;
+        if let Some(start_idx) = msg_sb_start(Some((*chunks).len() - 1)) {
+            (*chunks).truncate(start_idx);
         }
     }
 }
@@ -3437,20 +3412,13 @@ pub unsafe fn sb_text_end_cmdline() {
 /// Clear any text remembered for scrolling back.
 pub unsafe fn clear_sb_text(all: bool) {
     unsafe {
-        let lastp: *mut *mut msgchunk_T = if all {
-            &raw mut last_msgchunk
-        } else {
-            if last_msgchunk.is_null() {
-                return;
-            }
-            &raw mut (*msg_sb_start(last_msgchunk)).sb_prev
-        };
-
-        while !(*lastp).is_null() {
-            let mp = (*(*lastp)).sb_prev;
-            ptr::drop_in_place(&raw mut (*(*lastp)).sb_text);
-            xfree((*lastp).cast());
-            *lastp = mp;
+        let chunks = &raw mut msgchunks;
+        if all {
+            (*chunks).clear();
+        } else if !(*chunks).is_empty()
+            && let Some(start_idx) = msg_sb_start(Some((*chunks).len() - 1))
+        {
+            (*chunks).drain(0..start_idx);
         }
     }
 }
@@ -3465,8 +3433,9 @@ pub unsafe fn show_sb_text() {
             ex_messages(&raw mut ea);
             return;
         }
-        let mp = msg_sb_start(last_msgchunk);
-        if mp.is_null() || (*mp).sb_prev.is_null() {
+        let chunks = &raw const msgchunks;
+        let mp = msg_sb_start((*chunks).len().checked_sub(1));
+        if mp.is_none_or(|idx| idx == 0) {
             vim_beep(kOptBoFlagMess);
         } else {
             do_more_prompt(b'G' as c_int);
@@ -3476,40 +3445,50 @@ pub unsafe fn show_sb_text() {
 }
 
 /// Move to the start of screen line in already displayed text.
-unsafe fn msg_sb_start(mps: *mut msgchunk_T) -> *mut msgchunk_T {
+unsafe fn msg_sb_start(mps: Option<usize>) -> Option<usize> {
     unsafe {
-        let mut mp = mps;
-        while !mp.is_null() && !(*mp).sb_prev.is_null() && (*(*mp).sb_prev).sb_eol == 0 {
-            mp = (*mp).sb_prev;
+        let chunks = &raw const msgchunks;
+        let mut idx = mps?;
+        while idx > 0 && (*chunks).as_slice()[idx - 1].sb_eol == 0 {
+            idx -= 1;
         }
-        mp
+        Some(idx)
     }
 }
 
 /// Mark the last message chunk as finishing the line.
 pub unsafe fn msg_sb_eol() {
     unsafe {
-        if !last_msgchunk.is_null() {
-            (*last_msgchunk).sb_eol = 1;
+        let chunks = &raw mut msgchunks;
+        if let Some(last) = (*chunks).last_mut() {
+            last.sb_eol = 1;
         }
     }
 }
 
 /// Display a screen line from previously displayed text at row "row".
-unsafe fn disp_sb_line(row: c_int, smp: *mut msgchunk_T) -> *mut msgchunk_T {
+unsafe fn disp_sb_line(row: c_int, smp: usize) -> Option<usize> {
     unsafe {
-        let mut mp = smp;
+        let chunks = &raw mut msgchunks;
+        let mut idx = smp;
         loop {
             msg_row = row;
-            msg_col = (*mp).sb_msg_col;
-            let p = msgchunk_text_ptr(mp);
-            msg_puts_display(p, -1, (*mp).sb_hl_id, 1);
-            if (*mp).sb_eol != 0 || (*mp).sb_next.is_null() {
+            let chunk = &mut (*chunks).as_mut_slice()[idx];
+            msg_col = chunk.sb_msg_col;
+            let p = chunk.sb_text.as_mut_ptr();
+            let hl_id = chunk.sb_hl_id;
+            let eol = chunk.sb_eol;
+            msg_puts_display(p, -1, hl_id, 1);
+            if eol != 0 || idx + 1 >= (*chunks).len() {
                 break;
             }
-            mp = (*mp).sb_next;
+            idx += 1;
         }
-        (*mp).sb_next
+        if idx + 1 < (*chunks).len() {
+            Some(idx + 1)
+        } else {
+            None
+        }
     }
 }
 
@@ -3579,7 +3558,7 @@ unsafe fn do_more_prompt(typed_char: c_int) -> bool {
         let oldState = State;
         let mut retval = false;
         let mut to_redraw = false;
-        let mut mp_last: *mut msgchunk_T = ptr::null_mut();
+        let mut mp_last: Option<usize> = None;
 
         let no_need_more =
             (headless_mode && !embedded_mode && ui_active() == 0) || input_unanswerable();
@@ -3589,11 +3568,15 @@ unsafe fn do_more_prompt(typed_char: c_int) -> bool {
         }
         DO_MORE_PROMPT_ENTERED = true;
 
+        let chunks = &raw const msgchunks;
         if typed_char == b'G' as c_int {
-            mp_last = msg_sb_start(last_msgchunk);
+            mp_last = msg_sb_start((*chunks).len().checked_sub(1));
             let mut i = 0;
-            while i < Rows - 2 && !mp_last.is_null() && !(*mp_last).sb_prev.is_null() {
-                mp_last = msg_sb_start((*mp_last).sb_prev);
+            while i < Rows - 2
+                && let Some(idx) = mp_last
+                && idx > 0
+            {
+                mp_last = msg_sb_start(Some(idx - 1));
                 i += 1;
             }
         }
@@ -3677,31 +3660,41 @@ unsafe fn do_more_prompt(typed_char: c_int) -> bool {
 
             if toscroll != 0 || to_redraw {
                 if toscroll < 0 || to_redraw {
-                    let mut mp = if mp_last.is_null() {
-                        msg_sb_start(last_msgchunk)
-                    } else if !(*mp_last).sb_prev.is_null() {
-                        msg_sb_start((*mp_last).sb_prev)
+                    let mut mp = if let Some(last_idx) = mp_last {
+                        if last_idx > 0 {
+                            msg_sb_start(Some(last_idx - 1))
+                        } else {
+                            None
+                        }
                     } else {
-                        ptr::null_mut()
+                        msg_sb_start((*chunks).len().checked_sub(1))
                     };
 
                     let mut i = 0;
-                    while i < Rows - 2 && !mp.is_null() && !(*mp).sb_prev.is_null() {
-                        mp = msg_sb_start((*mp).sb_prev);
+                    while i < Rows - 2
+                        && let Some(idx) = mp
+                        && idx > 0
+                    {
+                        mp = msg_sb_start(Some(idx - 1));
                         i += 1;
                     }
 
-                    if !mp.is_null() && (!(*mp).sb_prev.is_null() || to_redraw) {
+                    if let Some(mp_idx) = mp
+                        && (mp_idx > 0 || to_redraw)
+                    {
                         let mut i = 0;
                         while i > toscroll {
-                            if mp.is_null() || (*mp).sb_prev.is_null() {
+                            let Some(cur_idx) = mp else {
+                                break;
+                            };
+                            if cur_idx == 0 {
                                 break;
                             }
-                            mp = msg_sb_start((*mp).sb_prev);
-                            if mp_last.is_null() {
-                                mp_last = msg_sb_start(last_msgchunk);
+                            mp = msg_sb_start(Some(cur_idx - 1));
+                            if let Some(last_idx) = mp_last {
+                                mp_last = msg_sb_start(last_idx.checked_sub(1));
                             } else {
-                                mp_last = msg_sb_start((*mp_last).sb_prev);
+                                mp_last = msg_sb_start((*chunks).len().checked_sub(1));
                             }
                             i -= 1;
                         }
@@ -3709,7 +3702,9 @@ unsafe fn do_more_prompt(typed_char: c_int) -> bool {
                         if toscroll == -1 && !to_redraw {
                             grid_ins_lines(&raw mut msg_grid, 0, 1, Rows, 0, Columns);
                             grid_clear(&raw mut msg_grid_adj, 0, 1, 0, Columns, hl_attr(HLF_MSG));
-                            disp_sb_line(0, mp);
+                            if let Some(cur_idx) = mp {
+                                disp_sb_line(0, cur_idx);
+                            }
                         } else {
                             grid_clear(
                                 &raw mut msg_grid_adj,
@@ -3720,8 +3715,10 @@ unsafe fn do_more_prompt(typed_char: c_int) -> bool {
                                 hl_attr(HLF_MSG),
                             );
                             let mut i = 0;
-                            while !mp.is_null() && i < Rows - 1 {
-                                mp = disp_sb_line(i, mp);
+                            while let Some(cur_idx) = mp
+                                && i < Rows - 1
+                            {
+                                mp = disp_sb_line(i, cur_idx);
                                 msg_scrolled += 1;
                                 i += 1;
                             }
@@ -3734,7 +3731,9 @@ unsafe fn do_more_prompt(typed_char: c_int) -> bool {
                         msg_scroll_up(true, false);
                         msg_scrolled += 1;
                     }
-                    while toscroll > 0 && !mp_last.is_null() {
+                    while toscroll > 0
+                        && let Some(last_idx) = mp_last
+                    {
                         if msg_do_throttle() && !msg_grid.throttled {
                             msg_scrolled_at_flush -= 1;
                             msg_grid_scroll_discount += 1;
@@ -3749,7 +3748,7 @@ unsafe fn do_more_prompt(typed_char: c_int) -> bool {
                             Columns,
                             hl_attr(HLF_MSG),
                         );
-                        mp_last = disp_sb_line(Rows - 2, mp_last);
+                        mp_last = disp_sb_line(Rows - 2, last_idx);
                         toscroll -= 1;
                     }
                 }

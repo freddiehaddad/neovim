@@ -20,7 +20,7 @@ use crate::globals::*;
 use crate::highlight_group::{syn_check_group, syn_id2attr, syn_id2name, syn_name2id};
 use crate::mbyte::{utf_char2bytes, utf_ptr2char, utfc_ptr2len};
 use crate::memline::ml_get_buf;
-use crate::memory::{xcalloc, xfree, xmemdupz, xstrdup};
+use crate::memory::{xfree, xmemdupz, xstrdup};
 use crate::message::{emsg, semsg};
 use crate::option_vars::*;
 use crate::profile::{profile_passed_limit, profile_setlimit, proftime_T};
@@ -61,7 +61,7 @@ pub struct match_T {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct llpos_T {
     pub lnum: linenr_T,
     pub col: colnr_T,
@@ -70,19 +70,26 @@ pub struct llpos_T {
 
 #[repr(C)]
 pub struct matchitem_T {
-    pub mit_next: *mut matchitem_T,
     pub mit_id: c_int,
     pub mit_priority: c_int,
     pub mit_pattern: *mut c_char,
     pub mit_match: regmmatch_T,
-    pub mit_pos_array: *mut llpos_T,
-    pub mit_pos_count: c_int,
+    pub mit_pos: Vec<llpos_T>,
     pub mit_pos_cur: c_int,
     pub mit_toplnum: linenr_T,
     pub mit_botlnum: linenr_T,
     pub mit_hl: match_T,
     pub mit_hlg_id: c_int,
     pub mit_conceal_char: c_int,
+}
+
+impl Drop for matchitem_T {
+    fn drop(&mut self) {
+        unsafe {
+            vim_regfree(self.mit_match.regprog);
+            xfree(self.mit_pattern.cast());
+        }
+    }
 }
 
 #[repr(C)]
@@ -127,16 +134,12 @@ unsafe fn match_add(
             id = (*wp).w_next_match_id;
             (*wp).w_next_match_id += 1;
         } else {
-            let mut cur = (*wp).w_match_head.cast::<matchitem_T>();
-            while !cur.is_null() {
-                if (*cur).mit_id == id {
-                    semsg!(
-                        gettext(c"E801: ID already taken: %lld".as_ptr()),
-                        i64::from(id),
-                    );
-                    return -1;
-                }
-                cur = (*cur).mit_next;
+            if (*wp).w_match_head.iter().any(|cur| cur.mit_id == id) {
+                semsg!(
+                    gettext(c"E801: ID already taken: %lld".as_ptr()),
+                    i64::from(id),
+                );
+                return -1;
             }
 
             if (*wp).w_next_match_id < id + 100 {
@@ -157,27 +160,38 @@ unsafe fn match_add(
             }
         }
 
-        let m: *mut matchitem_T = xcalloc(1, size_of::<matchitem_T>()).cast();
         let pos_len = tv_list_len(pos_list);
-        if pos_len > 0 {
-            (*m).mit_pos_array = xcalloc(pos_len as usize, size_of::<llpos_T>()).cast();
-            (*m).mit_pos_count = pos_len;
-        }
-        (*m).mit_id = id;
-        (*m).mit_priority = prio;
-        (*m).mit_pattern = if pat.is_null() {
-            ptr::null_mut()
-        } else {
-            xstrdup(pat)
-        };
-        (*m).mit_hlg_id = hlg_id;
-        (*m).mit_match.regprog = regprog;
-        (*m).mit_match.rmm_ic = 0;
-        (*m).mit_match.rmm_maxcol = 0;
-        (*m).mit_conceal_char = if conceal_char.is_null() {
-            0
-        } else {
-            utf_ptr2char(conceal_char)
+        let mut m = matchitem_T {
+            mit_id: id,
+            mit_priority: prio,
+            mit_pattern: if pat.is_null() {
+                ptr::null_mut()
+            } else {
+                xstrdup(pat)
+            },
+            mit_match: regmmatch_T {
+                regprog,
+                startpos: [crate::cursor::lpos_T { lnum: 0, col: 0 }; 10],
+                endpos: [crate::cursor::lpos_T { lnum: 0, col: 0 }; 10],
+                rmm_matchcol: 0,
+                rmm_ic: 0,
+                rmm_maxcol: 0,
+            },
+            mit_pos: if pos_len > 0 {
+                vec![llpos_T::default(); pos_len as usize]
+            } else {
+                Vec::new()
+            },
+            mit_pos_cur: 0,
+            mit_toplnum: 0,
+            mit_botlnum: 0,
+            mit_hl: std::mem::zeroed(),
+            mit_hlg_id: hlg_id,
+            mit_conceal_char: if conceal_char.is_null() {
+                0
+            } else {
+                utf_ptr2char(conceal_char)
+            },
         };
 
         if !pos_list.is_null() {
@@ -213,7 +227,7 @@ unsafe fn match_add(
                         li = (*li).li_next;
                         continue;
                     }
-                    (*(*m).mit_pos_array.add(i)).lnum = lnum;
+                    m.mit_pos[i].lnum = lnum;
                     subli = (*subli).li_next;
                     if !subli.is_null() {
                         col =
@@ -240,16 +254,16 @@ unsafe fn match_add(
                             }
                         }
                     }
-                    (*(*m).mit_pos_array.add(i)).col = col;
-                    (*(*m).mit_pos_array.add(i)).len = len;
+                    m.mit_pos[i].col = col;
+                    m.mit_pos[i].len = len;
                 } else if (*li).li_tv.v_type == VarType::VAR_NUMBER {
                     if (*li).li_tv.vval.v_number <= 0 {
                         li = (*li).li_next;
                         continue;
                     }
-                    (*(*m).mit_pos_array.add(i)).lnum = (*li).li_tv.vval.v_number as linenr_T;
-                    (*(*m).mit_pos_array.add(i)).col = 0;
-                    (*(*m).mit_pos_array.add(i)).len = 0;
+                    m.mit_pos[i].lnum = (*li).li_tv.vval.v_number as linenr_T;
+                    m.mit_pos[i].col = 0;
+                    m.mit_pos[i].len = 0;
                 } else {
                     semsg!(
                         gettext(c"E5031: List or number required at position %d".as_ptr()),
@@ -269,33 +283,23 @@ unsafe fn match_add(
             }
 
             if failed {
-                vim_regfree(regprog);
-                xfree((*m).mit_pattern.cast());
-                xfree((*m).mit_pos_array.cast());
-                xfree(m.cast());
                 return -1;
             }
 
             if toplnum != 0 {
                 redraw_win_range_later(wp, toplnum, botlnum);
-                (*m).mit_toplnum = toplnum;
-                (*m).mit_botlnum = botlnum;
+                m.mit_toplnum = toplnum;
+                m.mit_botlnum = botlnum;
                 rtype = UPD_VALID;
             }
         }
 
-        let mut cur = (*wp).w_match_head.cast::<matchitem_T>();
-        let mut prev = cur;
-        while !cur.is_null() && prio >= (*cur).mit_priority {
-            prev = cur;
-            cur = (*cur).mit_next;
-        }
-        if cur == prev {
-            (*wp).w_match_head = m.cast();
-        } else {
-            (*prev).mit_next = m;
-        }
-        (*m).mit_next = cur;
+        let insert_idx = (*wp)
+            .w_match_head
+            .iter()
+            .position(|cur| prio < cur.mit_priority)
+            .unwrap_or((*wp).w_match_head.len());
+        (*wp).w_match_head.insert(insert_idx, m);
 
         redraw_later(wp, rtype);
         id
@@ -305,8 +309,6 @@ unsafe fn match_add(
 /// Delete match with ID `id` in the match list of window `wp` (`match_delete`).
 unsafe fn match_delete(wp: *mut win_T, id: c_int, perr: bool) -> c_int {
     unsafe {
-        let mut cur = (*wp).w_match_head.cast::<matchitem_T>();
-        let mut prev = cur;
         let mut rtype = UPD_SOME_VALID;
 
         if id < 1 {
@@ -320,29 +322,17 @@ unsafe fn match_delete(wp: *mut win_T, id: c_int, perr: bool) -> c_int {
             }
             return -1;
         }
-        while !cur.is_null() && (*cur).mit_id != id {
-            prev = cur;
-            cur = (*cur).mit_next;
-        }
-        if cur.is_null() {
+        let Some(idx) = (*wp).w_match_head.iter().position(|cur| cur.mit_id == id) else {
             if perr {
                 semsg!(gettext(c"E803: ID not found: %lld".as_ptr()), i64::from(id));
             }
             return -1;
-        }
-        if cur == prev {
-            (*wp).w_match_head = (*cur).mit_next.cast();
-        } else {
-            (*prev).mit_next = (*cur).mit_next;
-        }
-        vim_regfree((*cur).mit_match.regprog);
-        xfree((*cur).mit_pattern.cast());
-        if (*cur).mit_toplnum != 0 {
-            redraw_win_range_later(wp, (*cur).mit_toplnum, (*cur).mit_botlnum);
+        };
+        let cur = (*wp).w_match_head.remove(idx);
+        if cur.mit_toplnum != 0 {
+            redraw_win_range_later(wp, cur.mit_toplnum, cur.mit_botlnum);
             rtype = UPD_VALID;
         }
-        xfree((*cur).mit_pos_array.cast());
-        xfree(cur.cast());
         redraw_later(wp, rtype);
         0
     }
@@ -351,15 +341,7 @@ unsafe fn match_delete(wp: *mut win_T, id: c_int, perr: bool) -> c_int {
 /// Delete all matches in the match list of window `wp` (`clear_matches`).
 pub unsafe fn clear_matches(wp: *mut win_T) {
     unsafe {
-        while !(*wp).w_match_head.is_null() {
-            let head = (*wp).w_match_head.cast::<matchitem_T>();
-            let m = (*head).mit_next;
-            vim_regfree((*head).mit_match.regprog);
-            xfree((*head).mit_pattern.cast());
-            xfree((*head).mit_pos_array.cast());
-            xfree(head.cast());
-            (*wp).w_match_head = m.cast();
-        }
+        (*wp).w_match_head.clear();
         redraw_later(wp, UPD_SOME_VALID);
     }
 }
@@ -367,30 +349,29 @@ pub unsafe fn clear_matches(wp: *mut win_T) {
 /// Get match from ID `id` in window `wp` (`get_match`).
 unsafe fn get_match(wp: *mut win_T, id: c_int) -> *mut matchitem_T {
     unsafe {
-        let mut cur = (*wp).w_match_head.cast::<matchitem_T>();
-        while !cur.is_null() && (*cur).mit_id != id {
-            cur = (*cur).mit_next;
-        }
-        cur
+        (*wp)
+            .w_match_head
+            .iter_mut()
+            .find(|cur| cur.mit_id == id)
+            .map_or(ptr::null_mut(), |cur| &raw mut *cur)
     }
 }
 
 /// Init for calling `prepare_search_hl()` (`init_search_hl`).
 pub unsafe fn init_search_hl(wp: *mut win_T, search_hl: *mut match_T) {
     unsafe {
-        let mut cur = (*wp).w_match_head.cast::<matchitem_T>();
-        while !cur.is_null() {
-            (*cur).mit_hl.rm = (*cur).mit_match;
-            (*cur).mit_hl.attr = if (*cur).mit_hlg_id == 0 {
+        let buf = (*wp).w_buffer;
+        for cur in &mut (*wp).w_match_head {
+            cur.mit_hl.rm = cur.mit_match;
+            cur.mit_hl.attr = if cur.mit_hlg_id == 0 {
                 0
             } else {
-                syn_id2attr((*cur).mit_hlg_id)
+                syn_id2attr(cur.mit_hlg_id)
             };
-            (*cur).mit_hl.buf = (*wp).w_buffer;
-            (*cur).mit_hl.lnum = 0;
-            (*cur).mit_hl.first_lnum = 0;
-            (*cur).mit_hl.tm = profile_setlimit(p_rdt);
-            cur = (*cur).mit_next;
+            cur.mit_hl.buf = buf;
+            cur.mit_hl.lnum = 0;
+            cur.mit_hl.first_lnum = 0;
+            cur.mit_hl.tm = profile_setlimit(p_rdt);
         }
         (*search_hl).buf = (*wp).w_buffer;
         (*search_hl).lnum = 0;
@@ -409,8 +390,9 @@ unsafe fn next_search_hl_pos(
         let mut found: isize = -1;
 
         (*shl).lnum = 0;
-        for i in (*match_item).mit_pos_cur..(*match_item).mit_pos_count {
-            let pos = (*match_item).mit_pos_array.add(i as usize);
+        let pos_count = (*match_item).mit_pos.len() as c_int;
+        for i in (*match_item).mit_pos_cur..pos_count {
+            let pos = (*match_item).mit_pos.as_mut_ptr().add(i as usize);
             if (*pos).lnum == 0 {
                 break;
             }
@@ -419,7 +401,7 @@ unsafe fn next_search_hl_pos(
             }
             if (*pos).lnum == lnum {
                 if found >= 0 {
-                    let found_pos = (*match_item).mit_pos_array.add(found as usize);
+                    let found_pos = (*match_item).mit_pos.as_mut_ptr().add(found as usize);
                     if (*pos).col < (*found_pos).col {
                         ptr::swap(pos, found_pos);
                     }
@@ -430,7 +412,7 @@ unsafe fn next_search_hl_pos(
         }
         (*match_item).mit_pos_cur = 0;
         if found >= 0 {
-            let found_pos = *(*match_item).mit_pos_array.add(found as usize);
+            let found_pos = *(*match_item).mit_pos.as_ptr().add(found as usize);
             let start = if found_pos.col == 0 {
                 0
             } else {
@@ -558,11 +540,17 @@ unsafe fn next_search_hl(
 /// Advance to the match in window `wp` line `lnum` or past it (`prepare_search_hl`).
 pub unsafe fn prepare_search_hl(wp: *mut win_T, search_hl: *mut match_T, lnum: linenr_T) {
     unsafe {
-        let mut cur = (*wp).w_match_head.cast::<matchitem_T>();
+        let mut idx = 0usize;
+        let len = (*wp).w_match_head.len();
         let mut shl: *mut match_T;
         let mut shl_flag = false;
 
-        while !cur.is_null() || !shl_flag {
+        while idx < len || !shl_flag {
+            let cur: *mut matchitem_T = if idx < len {
+                (*wp).w_match_head.as_mut_ptr().add(idx)
+            } else {
+                ptr::null_mut()
+            };
             if !shl_flag {
                 shl = search_hl;
                 shl_flag = true;
@@ -614,7 +602,7 @@ pub unsafe fn prepare_search_hl(wp: *mut win_T, search_hl: *mut match_T, lnum: l
                 }
             }
             if shl != search_hl && !cur.is_null() {
-                cur = (*cur).mit_next;
+                idx += 1;
             }
         }
     }
@@ -644,12 +632,18 @@ pub unsafe fn prepare_search_hl_line(
     search_attr_from_match: *mut bool,
 ) -> bool {
     unsafe {
-        let mut cur = (*wp).w_match_head.cast::<matchitem_T>();
+        let mut idx = 0usize;
+        let len = (*wp).w_match_head.len();
         let mut shl: *mut match_T;
         let mut shl_flag = false;
         let mut area_highlighting = false;
 
-        while !cur.is_null() || !shl_flag {
+        while idx < len || !shl_flag {
+            let cur: *mut matchitem_T = if idx < len {
+                (*wp).w_match_head.as_mut_ptr().add(idx)
+            } else {
+                ptr::null_mut()
+            };
             if !shl_flag {
                 shl = search_hl;
                 shl_flag = true;
@@ -713,7 +707,7 @@ pub unsafe fn prepare_search_hl_line(
                 area_highlighting = true;
             }
             if shl != search_hl && !cur.is_null() {
-                cur = (*cur).mit_next;
+                idx += 1;
             }
         }
         area_highlighting
@@ -734,11 +728,17 @@ pub unsafe fn update_search_hl(
     search_attr_from_match: *mut bool,
 ) -> c_int {
     unsafe {
-        let mut cur = (*wp).w_match_head.cast::<matchitem_T>();
+        let mut idx = 0usize;
+        let len = (*wp).w_match_head.len();
         let mut shl: *mut match_T;
         let mut shl_flag = false;
 
-        while !cur.is_null() || !shl_flag {
+        while idx < len || !shl_flag {
+            let cur: *mut matchitem_T = if idx < len {
+                (*wp).w_match_head.as_mut_ptr().add(idx)
+            } else {
+                ptr::null_mut()
+            };
             if !shl_flag && (cur.is_null() || (*cur).mit_priority > SEARCH_HL_PRIORITY) {
                 shl = search_hl;
                 shl_flag = true;
@@ -817,15 +817,20 @@ pub unsafe fn update_search_hl(
                 break;
             }
             if shl != search_hl && !cur.is_null() {
-                cur = (*cur).mit_next;
+                idx += 1;
             }
         }
 
         *search_attr_from_match = false;
         let mut search_attr = (*search_hl).attr_cur;
-        cur = (*wp).w_match_head.cast::<matchitem_T>();
+        idx = 0;
         shl_flag = false;
-        while !cur.is_null() || !shl_flag {
+        while idx < len || !shl_flag {
+            let cur: *mut matchitem_T = if idx < len {
+                (*wp).w_match_head.as_mut_ptr().add(idx)
+            } else {
+                ptr::null_mut()
+            };
             if !shl_flag && (cur.is_null() || (*cur).mit_priority > SEARCH_HL_PRIORITY) {
                 shl = search_hl;
                 shl_flag = true;
@@ -838,7 +843,7 @@ pub unsafe fn update_search_hl(
                 *search_attr_from_match = shl != search_hl;
             }
             if shl != search_hl && !cur.is_null() {
-                cur = (*cur).mit_next;
+                idx += 1;
             }
         }
         if *(*line).add(col as usize) == NUL && ((*wp).w_onebuf_opt.wo_list != 0 && !lcs_eol_todo) {
@@ -870,15 +875,13 @@ pub unsafe fn get_prevcol_hl_flag(
         {
             return true;
         }
-        let mut cur = (*wp).w_match_head.cast::<matchitem_T>();
-        while !cur.is_null() {
-            if !(*cur).mit_hl.is_addpos
-                && (prevcol == (*cur).mit_hl.startcol
-                    || (prevcol > (*cur).mit_hl.startcol && (*cur).mit_hl.endcol == MAXCOL))
+        for cur in &(*wp).w_match_head {
+            if !cur.mit_hl.is_addpos
+                && (prevcol == cur.mit_hl.startcol
+                    || (prevcol > cur.mit_hl.startcol && cur.mit_hl.endcol == MAXCOL))
             {
                 return true;
             }
-            cur = (*cur).mit_next;
         }
         false
     }
@@ -892,11 +895,17 @@ pub unsafe fn get_search_match_hl(
     char_attr: *mut c_int,
 ) {
     unsafe {
-        let mut cur = (*wp).w_match_head.cast::<matchitem_T>();
+        let mut idx = 0usize;
+        let len = (*wp).w_match_head.len();
         let mut shl: *mut match_T;
         let mut shl_flag = false;
 
-        while !cur.is_null() || !shl_flag {
+        while idx < len || !shl_flag {
+            let cur: *mut matchitem_T = if idx < len {
+                (*wp).w_match_head.as_mut_ptr().add(idx)
+            } else {
+                ptr::null_mut()
+            };
             if !shl_flag && (cur.is_null() || (*cur).mit_priority > SEARCH_HL_PRIORITY) {
                 shl = search_hl;
                 shl_flag = true;
@@ -907,7 +916,7 @@ pub unsafe fn get_search_match_hl(
                 *char_attr = (*shl).attr;
             }
             if shl != search_hl && !cur.is_null() {
-                cur = (*cur).mit_next;
+                idx += 1;
             }
         }
     }
@@ -964,12 +973,10 @@ pub unsafe fn f_getmatches(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
             return;
         }
 
-        let mut cur = (*win).w_match_head.cast::<matchitem_T>();
-        while !cur.is_null() {
+        for cur in &(*win).w_match_head {
             let dict = tv_dict_alloc();
-            if (*cur).mit_match.regprog.is_null() {
-                for i in 0..(*cur).mit_pos_count {
-                    let llpos = &*(*cur).mit_pos_array.add(i as usize);
+            if cur.mit_match.regprog.is_null() {
+                for (i, llpos) in cur.mit_pos.iter().enumerate() {
                     if llpos.lnum == 0 {
                         break;
                     }
@@ -980,30 +987,29 @@ pub unsafe fn f_getmatches(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
                         tv_list_append_number(l, llpos.len as varnumber_T);
                     }
                     let mut buf = [0 as c_char; 30];
-                    let len = vim_snprintf!(buf.as_mut_ptr(), 30, c"pos%d".as_ptr(), i + 1);
+                    let len = vim_snprintf!(buf.as_mut_ptr(), 30, c"pos%d".as_ptr(), (i + 1) as c_int);
                     tv_dict_add_list(dict, buf.as_ptr(), len as usize, l);
                 }
             } else {
-                tv_dict_add_str(dict, c"pattern".as_ptr(), 7, (*cur).mit_pattern);
+                tv_dict_add_str(dict, c"pattern".as_ptr(), 7, cur.mit_pattern);
             }
-            tv_dict_add_str(dict, c"group".as_ptr(), 5, syn_id2name((*cur).mit_hlg_id));
+            tv_dict_add_str(dict, c"group".as_ptr(), 5, syn_id2name(cur.mit_hlg_id));
             tv_dict_add_nr(
                 dict,
                 c"priority".as_ptr(),
                 8,
-                (*cur).mit_priority as varnumber_T,
+                cur.mit_priority as varnumber_T,
             );
-            tv_dict_add_nr(dict, c"id".as_ptr(), 2, (*cur).mit_id as varnumber_T);
+            tv_dict_add_nr(dict, c"id".as_ptr(), 2, cur.mit_id as varnumber_T);
 
-            if (*cur).mit_conceal_char != 0 {
+            if cur.mit_conceal_char != 0 {
                 let mut buf = [0 as c_char; MB_MAXCHAR + 1];
-                let buflen = utf_char2bytes((*cur).mit_conceal_char, buf.as_mut_ptr());
+                let buflen = utf_char2bytes(cur.mit_conceal_char, buf.as_mut_ptr());
                 buf[buflen as usize] = NUL;
                 tv_dict_add_str_len(dict, c"conceal".as_ptr(), 7, buf.as_ptr(), buflen);
             }
 
             tv_list_append_dict((*rettv).vval.v_list, dict);
-            cur = (*cur).mit_next;
         }
     }
 }

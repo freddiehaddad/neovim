@@ -41,7 +41,7 @@ use crate::highlight_group::highlight_changed;
 use crate::input::char_avail;
 use crate::insexpand::ins_compl_show_pum;
 use crate::marktree::{DECOR_PRIORITY_BASE, kMTMetaSignText};
-use crate::r#match::{init_search_hl, matchitem_T, prepare_search_hl};
+use crate::r#match::{init_search_hl, prepare_search_hl};
 use crate::mbyte::{utf_ptr2cells, utf_ptr2char};
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::message::{
@@ -1530,16 +1530,10 @@ unsafe fn win_update(wp: *mut win_T) {
                 {
                     top_to_mod = true;
                 } else {
-                    let mut cur = (*wp).w_match_head.cast::<matchitem_T>();
-                    while !cur.is_null() {
-                        if !(*cur).mit_match.regprog.is_null()
-                            && re_multiline((*cur).mit_match.regprog) != 0
-                        {
-                            top_to_mod = true;
-                            break;
-                        }
-                        cur = (*cur).mit_next;
-                    }
+                    top_to_mod = (*wp).w_match_head.iter().any(|cur| {
+                        !cur.mit_match.regprog.is_null()
+                            && re_multiline(cur.mit_match.regprog) != 0
+                    });
                 }
             }
 
@@ -1967,7 +1961,7 @@ unsafe fn win_update(wp: *mut win_T) {
                                         && syntax_present(wp)
                                         && ((foldmethodIsSyntax(wp) && hasAnyFolding(wp) != 0)
                                             || syntax_check_changed(lnum)))
-                                    || (!(*wp).w_match_head.is_null()
+                                    || (!(*wp).w_match_head.is_empty()
                                         && (*buf).b_mod_set
                                         && (*buf).b_mod_xlines != 0)))))
                     || lnum == (*wp).w_cursorline
