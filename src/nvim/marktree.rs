@@ -5,9 +5,7 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 use std::fmt::Write as _;
 
 use crate::api::private::validate::NvimString;
-#[cfg(test)]
-use crate::memory::xmemdup;
-use crate::memory::{xcalloc, xfree, xmalloc, xmemdupz, xrealloc};
+use crate::memory::{xcalloc, xfree, xmemdupz};
 
 use crate::cursor::colnr_T;
 
@@ -132,14 +130,7 @@ pub struct MTPair {
     pub end_right_gravity: bool,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct Intersection {
-    pub size: usize,
-    pub capacity: usize,
-    pub items: *mut u64,
-    pub init_array: [u64; 4],
-}
+pub type Intersection = Vec<u64>;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -223,7 +214,7 @@ pub struct MTDamagePair {
 
 pub type PMapUint64 = std::collections::BTreeMap<u64, *mut MTNode>;
 #[cfg(test)]
-pub type PMapPtr = std::collections::BTreeMap<*mut MTNode, *mut u64>;
+pub type PMapPtr = std::collections::BTreeMap<*mut MTNode, Vec<u64>>;
 pub type MTDamageMap = std::collections::BTreeMap<u64, MTDamagePair>;
 
 #[repr(C)]
@@ -413,97 +404,6 @@ unsafe fn rawkey(itr: *mut MarkTreeIter) -> *mut MTKey {
 }
 
 #[inline]
-unsafe fn kvi_init(v: *mut Intersection) {
-    unsafe {
-        (*v).capacity = 4;
-        (*v).size = 0;
-        (*v).items = (*v).init_array.as_mut_ptr();
-    }
-}
-
-#[inline]
-unsafe fn kvi_resize(v: *mut Intersection, s: usize) {
-    unsafe {
-        let new_cap = s.max(4);
-        (*v).capacity = new_cap;
-        let init_ptr = (*v).init_array.as_mut_ptr();
-        if new_cap == 4 {
-            if (*v).items != init_ptr {
-                std::ptr::copy_nonoverlapping((*v).items, init_ptr, (*v).size);
-                xfree((*v).items.cast());
-                (*v).items = init_ptr;
-            }
-        } else if (*v).items == init_ptr {
-            let buf = xmalloc(new_cap * std::mem::size_of::<u64>()).cast::<u64>();
-            std::ptr::copy_nonoverlapping(init_ptr, buf, (*v).size);
-            (*v).items = buf;
-        } else {
-            (*v).items =
-                xrealloc((*v).items.cast(), new_cap * std::mem::size_of::<u64>()).cast::<u64>();
-        }
-    }
-}
-
-#[inline]
-unsafe fn kvi_ensure_more_space(v: *mut Intersection, len: usize) {
-    unsafe {
-        let needed = (*v).size + len;
-        if (*v).capacity < needed {
-            let mut cap = needed - 1;
-            cap |= cap >> 1;
-            cap |= cap >> 2;
-            cap |= cap >> 4;
-            cap |= cap >> 8;
-            cap |= cap >> 16;
-            cap += 1;
-            kvi_resize(v, cap);
-        }
-    }
-}
-
-#[inline]
-unsafe fn kvi_pushp(v: *mut Intersection) -> *mut u64 {
-    unsafe {
-        if (*v).size == (*v).capacity {
-            let new_cap = (*v).capacity << 1;
-            kvi_resize(v, new_cap);
-        }
-        let idx = (*v).size;
-        (*v).size = idx + 1;
-        (*v).items.add(idx)
-    }
-}
-
-#[inline]
-unsafe fn kvi_push(v: *mut Intersection, x: u64) {
-    unsafe {
-        *kvi_pushp(v) = x;
-    }
-}
-
-#[inline]
-unsafe fn kvi_copy(v1: *mut Intersection, v0: *const Intersection) {
-    unsafe {
-        if (*v1).capacity < (*v0).size {
-            kvi_resize(v1, (*v0).size);
-        }
-        (*v1).size = (*v0).size;
-        std::ptr::copy_nonoverlapping((*v0).items, (*v1).items, (*v0).size);
-    }
-}
-
-#[inline]
-unsafe fn kvi_destroy(v: *mut Intersection) {
-    unsafe {
-        let init_ptr = (*v).init_array.as_mut_ptr();
-        if (*v).items != init_ptr {
-            xfree((*v).items.cast());
-            (*v).items = std::ptr::null_mut();
-        }
-    }
-}
-
-#[inline]
 unsafe fn marktree_getp_aux(x: *const MTNode, k: MTKey, match_out: Option<&mut bool>) -> c_int {
     let mut dummy_match = false;
     let m = match_out.unwrap_or(&mut dummy_match);
@@ -567,7 +467,7 @@ unsafe fn split_node(b: *mut MarkTree, x: *mut MTNode, i: c_int, next: MTKey) {
             MARKTREE_END_FLAG
         };
 
-        kvi_copy(&mut (*z).intersect, &(*y).intersect);
+        (*z).intersect.clone_from(&(*y).intersect);
 
         if (*y).level == 0 {
             let pi = pseudo_index(y, 0);
@@ -729,75 +629,30 @@ pub unsafe fn marktree_put(
     }
 }
 
-unsafe fn intersection_has(x: *const Intersection, id: u64) -> bool {
-    unsafe {
-        for i in 0..(*x).size {
-            let item = *(*x).items.add(i);
-            if item == id {
-                return true;
-            } else if item >= id {
-                return false;
-            }
-        }
-        false
-    }
-}
-
-unsafe fn intersect_item_pos(x: *mut MTNode, id: u64) -> usize {
-    unsafe {
-        let mut lo = 0usize;
-        let mut hi = (*x).intersect.size;
-        while lo < hi {
-            let mid = lo + (hi - lo) / 2;
-            if *(*x).intersect.items.add(mid) < id {
-                lo = mid + 1;
-            } else {
-                hi = mid;
-            }
-        }
-        lo
-    }
+fn intersection_has(x: &Intersection, id: u64) -> bool {
+    x.binary_search(&id).is_ok()
 }
 
 unsafe fn intersect_node(_b: *mut MarkTree, x: *mut MTNode, id: u64) {
     debug_assert_eq!(id & MARKTREE_END_FLAG, 0);
     unsafe {
-        let sz = (*x).intersect.size;
-        if sz == 0 || *(*x).intersect.items.add(sz - 1) < id {
-            kvi_push(&mut (*x).intersect, id);
-            return;
-        }
-        let i = intersect_item_pos(x, id);
-        kvi_pushp(&mut (*x).intersect);
-        let new_sz = (*x).intersect.size;
-        std::ptr::copy(
-            (*x).intersect.items.add(i),
-            (*x).intersect.items.add(i + 1),
-            new_sz - i - 1,
-        );
-        *(*x).intersect.items.add(i) = id;
+        let pos = (*x).intersect.partition_point(|&item| item < id);
+        (*x).intersect.insert(pos, id);
     }
 }
 
 unsafe fn unintersect_node(_b: *mut MarkTree, x: *mut MTNode, id: u64, strict: bool) {
     debug_assert_eq!(id & MARKTREE_END_FLAG, 0);
     unsafe {
-        let i = intersect_item_pos(x, id);
-        let sz = (*x).intersect.size;
-        let seen = i < sz && *(*x).intersect.items.add(i) == id;
-        if strict {
-            debug_assert!(seen);
-        }
-
-        if seen {
-            if i < sz - 1 {
-                std::ptr::copy(
-                    (*x).intersect.items.add(i + 1),
-                    (*x).intersect.items.add(i),
-                    sz - i - 1,
-                );
+        match (*x).intersect.binary_search(&id) {
+            Ok(i) => {
+                (*x).intersect.remove(i);
             }
-            (*x).intersect.size -= 1;
+            Err(_) => {
+                if strict {
+                    debug_assert!(false);
+                }
+            }
         }
     }
 }
@@ -869,7 +724,7 @@ unsafe fn marktree_alloc_node(b: *mut MarkTree, internal: bool) -> *mut MTNode {
             std::mem::size_of::<MTNode>()
         };
         let x = xcalloc(1, size).cast::<MTNode>();
-        kvi_init(&mut (*x).intersect);
+        std::ptr::write(&raw mut (*x).intersect, Vec::new());
         (*b).n_nodes += 1;
         x
     }
@@ -1221,117 +1076,105 @@ pub unsafe fn marktree_revise_meta(b: *mut MarkTree, itr: *mut MarkTreeIter, old
     }
 }
 
-unsafe fn intersect_merge(m: *mut Intersection, x: *mut Intersection, y: *mut Intersection) {
-    unsafe {
-        let mut xi = 0usize;
-        let mut yi = 0usize;
-        let mut xn = 0usize;
-        let mut yn = 0usize;
-        while xi < (*x).size && yi < (*y).size {
-            let xv = *(*x).items.add(xi);
-            let yv = *(*y).items.add(yi);
-            if xv == yv {
-                kvi_push(m, xv);
-                xi += 1;
-                yi += 1;
-            } else if xv < yv {
-                *(*x).items.add(xn) = xv;
-                xn += 1;
-                xi += 1;
-            } else {
-                *(*y).items.add(yn) = yv;
-                yn += 1;
-                yi += 1;
-            }
+fn intersect_merge(m: &mut Intersection, x: &mut Intersection, y: &mut Intersection) {
+    let mut xi = 0usize;
+    let mut yi = 0usize;
+    let mut xn = 0usize;
+    let mut yn = 0usize;
+    while xi < x.len() && yi < y.len() {
+        let xv = x[xi];
+        let yv = y[yi];
+        if xv == yv {
+            m.push(xv);
+            xi += 1;
+            yi += 1;
+        } else if xv < yv {
+            x[xn] = xv;
+            xn += 1;
+            xi += 1;
+        } else {
+            y[yn] = yv;
+            yn += 1;
+            yi += 1;
         }
-
-        if xi < (*x).size {
-            let rem = (*x).size - xi;
-            std::ptr::copy((*x).items.add(xi), (*x).items.add(xn), rem);
-            xn += rem;
-        }
-        if yi < (*y).size {
-            let rem = (*y).size - yi;
-            std::ptr::copy((*y).items.add(yi), (*y).items.add(yn), rem);
-            yn += rem;
-        }
-
-        (*x).size = xn;
-        (*y).size = yn;
     }
+
+    if xi < x.len() {
+        let rem = x.len() - xi;
+        x.copy_within(xi.., xn);
+        xn += rem;
+    }
+    if yi < y.len() {
+        let rem = y.len() - yi;
+        y.copy_within(yi.., yn);
+        yn += rem;
+    }
+
+    x.truncate(xn);
+    y.truncate(yn);
 }
 
-unsafe fn intersect_mov(
-    x: *mut Intersection,
-    y: *mut Intersection,
-    w: *mut Intersection,
-    d: *mut Intersection,
+fn intersect_mov(
+    x: &Intersection,
+    y: &mut Intersection,
+    w: &mut Intersection,
+    d: &mut Intersection,
 ) {
-    unsafe {
-        let mut wi = 0usize;
-        let mut yi = 0usize;
-        let mut wn = 0usize;
-        let mut yn = 0usize;
-        let mut xi = 0usize;
-        while wi < (*w).size || xi < (*x).size {
-            if wi < (*w).size && (xi >= (*x).size || *(*x).items.add(xi) >= *(*w).items.add(wi)) {
-                let wv = *(*w).items.add(wi);
-                if xi < (*x).size && *(*x).items.add(xi) == wv {
-                    xi += 1;
-                }
-                while yi < (*y).size && *(*y).items.add(yi) < wv {
-                    kvi_push(d, *(*y).items.add(yi));
-                    yi += 1;
-                }
-                if yi < (*y).size && *(*y).items.add(yi) == wv {
-                    *(*y).items.add(yn) = *(*y).items.add(yi);
-                    yn += 1;
-                    yi += 1;
-                    wi += 1;
-                } else {
-                    *(*w).items.add(wn) = wv;
+    let mut wi = 0usize;
+    let mut yi = 0usize;
+    let mut wn = 0usize;
+    let mut yn = 0usize;
+    let mut xi = 0usize;
+    while wi < w.len() || xi < x.len() {
+        if wi < w.len() && (xi >= x.len() || x[xi] >= w[wi]) {
+            let wv = w[wi];
+            if xi < x.len() && x[xi] == wv {
+                xi += 1;
+            }
+            while yi < y.len() && y[yi] < wv {
+                d.push(y[yi]);
+                yi += 1;
+            }
+            if yi < y.len() && y[yi] == wv {
+                y[yn] = y[yi];
+                yn += 1;
+                yi += 1;
+                wi += 1;
+            } else {
+                w[wn] = wv;
+                wn += 1;
+                wi += 1;
+            }
+        } else {
+            let xv = x[xi];
+            while yi < y.len() && y[yi] < xv {
+                d.push(y[yi]);
+                yi += 1;
+            }
+            if yi < y.len() && y[yi] == xv {
+                y[yn] = y[yi];
+                yn += 1;
+                yi += 1;
+                xi += 1;
+            } else {
+                if wi == wn {
+                    w.insert(wn, xv);
                     wn += 1;
                     wi += 1;
-                }
-            } else {
-                let xv = *(*x).items.add(xi);
-                while yi < (*y).size && *(*y).items.add(yi) < xv {
-                    kvi_push(d, *(*y).items.add(yi));
-                    yi += 1;
-                }
-                if yi < (*y).size && *(*y).items.add(yi) == xv {
-                    *(*y).items.add(yn) = *(*y).items.add(yi);
-                    yn += 1;
-                    yi += 1;
-                    xi += 1;
                 } else {
-                    if wi == wn {
-                        let n = (*w).size - wn;
-                        kvi_pushp(w);
-                        if n > 0 {
-                            std::ptr::copy((*w).items.add(wn), (*w).items.add(wn + 1), n);
-                        }
-                        *(*w).items.add(wi) = xv;
-                        wn += 1;
-                        wi += 1;
-                    } else {
-                        debug_assert!(wn < wi);
-                        *(*w).items.add(wn) = xv;
-                        wn += 1;
-                    }
-                    xi += 1;
+                    debug_assert!(wn < wi);
+                    w[wn] = xv;
+                    wn += 1;
                 }
+                xi += 1;
             }
         }
-        if yi < (*y).size {
-            let n = (*y).size - yi;
-            kvi_ensure_more_space(d, n);
-            std::ptr::copy_nonoverlapping((*y).items.add(yi), (*d).items.add((*d).size), n);
-            (*d).size += n;
-        }
-        (*w).size = wn;
-        (*y).size = yn;
     }
+    if yi < y.len() {
+        d.extend_from_slice(&y[yi..]);
+    }
+    w.truncate(wn);
+    y.truncate(yn);
 }
 
 #[cfg(test)]
@@ -1348,159 +1191,122 @@ pub unsafe fn intersect_mov_test(
     ndout: *mut usize,
 ) -> bool {
     unsafe {
-        let mut xi = Intersection {
-            size: nx,
-            capacity: 0,
-            items: x.cast_mut(),
-            init_array: [0; 4],
+        let xi = if nx == 0 {
+            Vec::new()
+        } else {
+            std::slice::from_raw_parts(x, nx).to_vec()
         };
-        let mut yi = Intersection {
-            size: ny,
-            capacity: 0,
-            items: y.cast_mut(),
-            init_array: [0; 4],
+        let mut yi = if ny == 0 {
+            Vec::new()
+        } else {
+            std::slice::from_raw_parts(y, ny).to_vec()
         };
+        let mut w = if nwin == 0 {
+            Vec::new()
+        } else {
+            std::slice::from_raw_parts(win, nwin).to_vec()
+        };
+        let mut d = Vec::new();
 
-        let mut w = Intersection {
-            size: 0,
-            capacity: 4,
-            items: std::ptr::null_mut(),
-            init_array: [0; 4],
-        };
-        kvi_init(&mut w);
-        for i in 0..nwin {
-            kvi_push(&mut w, *win.add(i));
-        }
-        let mut d = Intersection {
-            size: 0,
-            capacity: 4,
-            items: std::ptr::null_mut(),
-            init_array: [0; 4],
-        };
-        kvi_init(&mut d);
+        intersect_mov(&xi, &mut yi, &mut w, &mut d);
 
-        intersect_mov(&mut xi, &mut yi, &mut w, &mut d);
-
-        if w.size > *nwout || d.size > *ndout {
-            kvi_destroy(&mut w);
-            kvi_destroy(&mut d);
+        if w.len() > *nwout || d.len() > *ndout {
             return false;
         }
 
-        std::ptr::copy_nonoverlapping(w.items, wout, w.size);
-        *nwout = w.size;
+        std::ptr::copy_nonoverlapping(w.as_ptr(), wout, w.len());
+        *nwout = w.len();
 
-        std::ptr::copy_nonoverlapping(d.items, dout, d.size);
-        *ndout = d.size;
+        std::ptr::copy_nonoverlapping(d.as_ptr(), dout, d.len());
+        *ndout = d.len();
 
-        kvi_destroy(&mut w);
-        kvi_destroy(&mut d);
         true
     }
 }
 
-unsafe fn intersect_common(i: *mut Intersection, x: *const Intersection, y: *const Intersection) {
-    unsafe {
-        let mut xi = 0usize;
-        let mut yi = 0usize;
-        while xi < (*x).size && yi < (*y).size {
-            let xv = *(*x).items.add(xi);
-            let yv = *(*y).items.add(yi);
-            if xv == yv {
-                kvi_push(i, xv);
-                xi += 1;
-                yi += 1;
-            } else if xv < yv {
-                xi += 1;
-            } else {
-                yi += 1;
-            }
+fn intersect_common(i: &mut Intersection, x: &Intersection, y: &Intersection) {
+    let mut xi = 0usize;
+    let mut yi = 0usize;
+    while xi < x.len() && yi < y.len() {
+        let xv = x[xi];
+        let yv = y[yi];
+        if xv == yv {
+            i.push(xv);
+            xi += 1;
+            yi += 1;
+        } else if xv < yv {
+            xi += 1;
+        } else {
+            yi += 1;
         }
     }
 }
 
-unsafe fn intersect_add(x: *mut Intersection, y: *const Intersection) {
-    unsafe {
-        let mut xi = 0usize;
-        let mut yi = 0usize;
-        while xi < (*x).size && yi < (*y).size {
-            let xv = *(*x).items.add(xi);
-            let yv = *(*y).items.add(yi);
-            if xv == yv {
-                xi += 1;
-                yi += 1;
-            } else if yv < xv {
-                let n = (*x).size - xi;
-                kvi_pushp(x);
-                std::ptr::copy((*x).items.add(xi), (*x).items.add(xi + 1), n);
-                *(*x).items.add(xi) = yv;
-                xi += 1;
-                yi += 1;
-            } else {
-                xi += 1;
-            }
+fn intersect_add(x: &mut Intersection, y: &Intersection) {
+    let mut xi = 0usize;
+    let mut yi = 0usize;
+    while xi < x.len() && yi < y.len() {
+        let xv = x[xi];
+        let yv = y[yi];
+        if xv == yv {
+            xi += 1;
+            yi += 1;
+        } else if yv < xv {
+            x.insert(xi, yv);
+            xi += 1;
+            yi += 1;
+        } else {
+            xi += 1;
         }
-        if yi < (*y).size {
-            let n = (*y).size - yi;
-            kvi_ensure_more_space(x, n);
-            std::ptr::copy_nonoverlapping((*y).items.add(yi), (*x).items.add((*x).size), n);
-            (*x).size += n;
-        }
+    }
+    if yi < y.len() {
+        x.extend_from_slice(&y[yi..]);
     }
 }
 
-unsafe fn intersect_sub(x: *mut Intersection, y: *const Intersection) {
-    unsafe {
-        let mut xi = 0usize;
-        let mut yi = 0usize;
-        let mut xn = 0usize;
-        while xi < (*x).size && yi < (*y).size {
-            let xv = *(*x).items.add(xi);
-            let yv = *(*y).items.add(yi);
-            if xv == yv {
-                xi += 1;
-                yi += 1;
-            } else if xv < yv {
-                *(*x).items.add(xn) = xv;
-                xn += 1;
-                xi += 1;
-            } else {
-                yi += 1;
-            }
+fn intersect_sub(x: &mut Intersection, y: &Intersection) {
+    let mut xi = 0usize;
+    let mut yi = 0usize;
+    let mut xn = 0usize;
+    while xi < x.len() && yi < y.len() {
+        let xv = x[xi];
+        let yv = y[yi];
+        if xv == yv {
+            xi += 1;
+            yi += 1;
+        } else if xv < yv {
+            x[xn] = xv;
+            xn += 1;
+            xi += 1;
+        } else {
+            yi += 1;
         }
-        if xi < (*x).size {
-            let n = (*x).size - xi;
-            if xn < xi {
-                std::ptr::copy((*x).items.add(xi), (*x).items.add(xn), n);
-            }
-            xn += n;
-        }
-        (*x).size = xn;
     }
+    if xi < x.len() {
+        let n = x.len() - xi;
+        if xn < xi {
+            x.copy_within(xi.., xn);
+        }
+        xn += n;
+    }
+    x.truncate(xn);
 }
 
 unsafe fn bubble_up(x: *mut MTNode) {
     unsafe {
-        let mut xi = Intersection {
-            size: 0,
-            capacity: 4,
-            items: std::ptr::null_mut(),
-            init_array: [0; 4],
-        };
-        kvi_init(&mut xi);
+        let mut xi = Vec::new();
         let x_ptr = node_ptr(x);
         intersect_common(
             &mut xi,
             &(**x_ptr).intersect,
             &(**x_ptr.add((*x).n as usize)).intersect,
         );
-        if xi.size != 0 {
+        if !xi.is_empty() {
             for i in 0..((*x).n as usize + 1) {
                 intersect_sub(&mut (**x_ptr.add(i)).intersect, &xi);
             }
             intersect_add(&mut (*x).intersect, &xi);
         }
-        kvi_destroy(&mut xi);
     }
 }
 
@@ -1511,13 +1317,7 @@ unsafe fn merge_node(b: *mut MarkTree, p: *mut MTNode, i: c_int) -> *mut MTNode 
         let p_meta = node_meta(p);
         let x = *p_ptr.add(i_usize);
         let y = *p_ptr.add(i_usize + 1);
-        let mut mi = Intersection {
-            size: 0,
-            capacity: 4,
-            items: std::ptr::null_mut(),
-            init_array: [0; 4],
-        };
-        kvi_init(&mut mi);
+        let mut mi = Vec::new();
 
         intersect_merge(&mut mi, &mut (*x).intersect, &mut (*y).intersect);
 
@@ -1546,8 +1346,8 @@ unsafe fn merge_node(b: *mut MarkTree, p: *mut MTNode, i: c_int) -> *mut MTNode 
             std::ptr::copy(y_ptr, x_ptr.add(xn + 1), yn + 1);
             std::ptr::copy(y_meta, x_meta.add(xn + 1), yn + 1);
             for k in 0..(xn + 1) {
-                for idx in 0..(*x).intersect.size {
-                    intersect_node(b, *x_ptr.add(k), *(*x).intersect.items.add(idx));
+                for &id in &(*x).intersect {
+                    intersect_node(b, *x_ptr.add(k), id);
                 }
             }
             for ky in 0..(yn + 1) {
@@ -1555,8 +1355,8 @@ unsafe fn merge_node(b: *mut MarkTree, p: *mut MTNode, i: c_int) -> *mut MTNode 
                 let child = *x_ptr.add(k);
                 (*child).parent = x;
                 (*child).p_idx = k as i16;
-                for idx in 0..(*y).intersect.size {
-                    intersect_node(b, child, *(*y).intersect.items.add(idx));
+                for &id in &(*y).intersect {
+                    intersect_node(b, child, id);
                 }
             }
         }
@@ -1579,27 +1379,9 @@ unsafe fn merge_node(b: *mut MarkTree, p: *mut MTNode, i: c_int) -> *mut MTNode 
         (*p).n -= 1;
         marktree_free_node(b, y);
 
-        kvi_destroy(&mut (*x).intersect);
-        kvi_move(&mut (*x).intersect, &mut mi);
+        (*x).intersect = mi;
 
         x
-    }
-}
-
-pub unsafe fn kvi_move(dest: *mut Intersection, src: *mut Intersection) {
-    unsafe {
-        (*dest).size = (*src).size;
-        (*dest).capacity = (*src).capacity;
-        if (*src).items == (*src).init_array.as_mut_ptr() {
-            std::ptr::copy_nonoverlapping(
-                (*src).init_array.as_ptr(),
-                (*dest).init_array.as_mut_ptr(),
-                (*src).size,
-            );
-            (*dest).items = (*dest).init_array.as_mut_ptr();
-        } else {
-            (*dest).items = (*src).items;
-        }
     }
 }
 
@@ -1665,26 +1447,19 @@ unsafe fn pivot_right(b: *mut MarkTree, _p_pos: MTPos, p: *mut MTNode, i: c_int)
         }
 
         if (*x).level != 0 {
-            let mut d = Intersection {
-                size: 0,
-                capacity: 4,
-                items: std::ptr::null_mut(),
-                init_array: [0; 4],
-            };
-            kvi_init(&mut d);
+            let mut d = Vec::new();
             let y_ptr = node_ptr(y);
             intersect_mov(
-                &mut (*x).intersect,
+                &(*x).intersect,
                 &mut (*y).intersect,
                 &mut (**y_ptr).intersect,
                 &mut d,
             );
-            if d.size != 0 {
+            if !d.is_empty() {
                 for yi in 1..((*y).n as usize + 1) {
                     intersect_add(&mut (**y_ptr.add(yi)).intersect, &d);
                 }
             }
-            kvi_destroy(&mut d);
 
             bubble_up(x);
         } else {
@@ -1766,26 +1541,19 @@ unsafe fn pivot_left(b: *mut MarkTree, _p_pos: MTPos, p: *mut MTNode, i: c_int) 
         (*y).n -= 1;
 
         if (*x).level != 0 {
-            let mut d = Intersection {
-                size: 0,
-                capacity: 4,
-                items: std::ptr::null_mut(),
-                init_array: [0; 4],
-            };
-            kvi_init(&mut d);
+            let mut d = Vec::new();
             let x_ptr = node_ptr(x);
             intersect_mov(
-                &mut (*y).intersect,
+                &(*y).intersect,
                 &mut (*x).intersect,
                 &mut (**x_ptr.add((*x).n as usize)).intersect,
                 &mut d,
             );
-            if d.size != 0 {
+            if !d.is_empty() {
                 for xi in 0..(*x).n as usize {
                     intersect_add(&mut (**x_ptr.add(xi)).intersect, &d);
                 }
             }
-            kvi_destroy(&mut d);
 
             bubble_up(y);
         } else {
@@ -1837,7 +1605,7 @@ pub unsafe fn marktree_free_subtree(b: *mut MarkTree, x: *mut MTNode) {
 
 unsafe fn marktree_free_node(b: *mut MarkTree, x: *mut MTNode) {
     unsafe {
-        kvi_destroy(&mut (*x).intersect);
+        std::ptr::drop_in_place(&raw mut (*x).intersect);
         xfree(x.cast());
         (*b).n_nodes -= 1;
     }
@@ -2319,8 +2087,8 @@ pub unsafe fn marktree_itr_step_overlap(
 ) -> bool {
     unsafe {
         while (*itr).i == -1 {
-            if (*itr).intersect_idx < (*(*itr).x).intersect.size {
-                let id = *(*(*itr).x).intersect.items.add((*itr).intersect_idx);
+            if (*itr).intersect_idx < (*(*itr).x).intersect.len() {
+                let id = (*(*itr).x).intersect.as_slice()[(*itr).intersect_idx];
                 (*itr).intersect_idx += 1;
                 *pair = mtpair_from(
                     marktree_lookup(b, id, std::ptr::null_mut()),
@@ -3100,32 +2868,15 @@ pub unsafe fn marktree_check_intersections(b: *mut MarkTree) -> bool {
 
         // 3. for each node check if the recreated intersection
         // matches the old checked[x] intersection.
-        let status = mt_recurse_nodes_compare((*b).root, &checked);
-
-        for (_, val) in checked {
-            xfree(val.cast());
-        }
-
-        status
+        mt_recurse_nodes_compare((*b).root, &checked)
     }
 }
 
 #[cfg(test)]
 pub unsafe fn mt_recurse_nodes(x: *mut MTNode, checked: &mut PMapPtr) {
     unsafe {
-        if (*x).intersect.size != 0 {
-            kvi_push(&mut (*x).intersect, u64::MAX);
-            let val: *mut u64 = if (*x).intersect.items == (*x).intersect.init_array.as_mut_ptr() {
-                xmemdup(
-                    (*x).intersect.items.cast(),
-                    (*x).intersect.size * std::mem::size_of::<u64>(),
-                )
-                .cast::<u64>()
-            } else {
-                (*x).intersect.items
-            };
-            checked.insert(x, val);
-            kvi_init(&mut (*x).intersect);
+        if !(*x).intersect.is_empty() {
+            checked.insert(x, std::mem::take(&mut (*x).intersect));
         }
 
         if (*x).level != 0 {
@@ -3140,24 +2891,8 @@ pub unsafe fn mt_recurse_nodes(x: *mut MTNode, checked: &mut PMapPtr) {
 #[cfg(test)]
 pub unsafe fn mt_recurse_nodes_compare(x: *mut MTNode, checked: &PMapPtr) -> bool {
     unsafe {
-        let ref_ptr: *const u64 = checked
-            .get(&x)
-            .map_or(std::ptr::null(), |&p| p.cast_const());
-        if !ref_ptr.is_null() {
-            let mut i = 0usize;
-            loop {
-                let rv = *ref_ptr.add(i);
-                if rv == u64::MAX {
-                    if i != (*x).intersect.size {
-                        return false;
-                    }
-                    break;
-                } else if (*x).intersect.size <= i || rv != *(*x).intersect.items.add(i) {
-                    return false;
-                }
-                i += 1;
-            }
-        } else if (*x).intersect.size != 0 {
+        let expected = checked.get(&x).map_or(&[][..], |v| v.as_slice());
+        if (*x).intersect.as_slice() != expected {
             return false;
         }
 
@@ -3208,10 +2943,10 @@ unsafe fn mt_inspect_node(
 ) {
     unsafe {
         out.push('[');
-        if keys && (*n).intersect.size != 0 {
-            for i in 0..(*n).intersect.size {
+        if keys && !(*n).intersect.is_empty() {
+            for (i, &id) in (*n).intersect.iter().enumerate() {
                 out.push_str(if i == 0 { "{" } else { ";" });
-                let _ = write!(out, "{}", mt_dbg_id(*(*n).intersect.items.add(i)));
+                let _ = write!(out, "{}", mt_dbg_id(id));
             }
             out.push_str("},");
         }
@@ -3276,13 +3011,13 @@ unsafe fn mt_inspect_dotfile_node(
 
         let _ = writeln!(out, "  {name_str}[shape=plaintext, label=<");
         out.push_str("    <table border='0' cellborder='1' cellspacing='0'>\n");
-        if (*n).intersect.size != 0 {
+        if !(*n).intersect.is_empty() {
             out.push_str("    <tr><td>");
-            for i in 0..(*n).intersect.size {
+            for (i, &id) in (*n).intersect.iter().enumerate() {
                 if i > 0 {
                     out.push_str(", ");
                 }
-                let _ = write!(out, "{}", mt_dbg_id(*(*n).intersect.items.add(i)));
+                let _ = write!(out, "{}", mt_dbg_id(id));
             }
             out.push_str("</td></tr>\n");
         }

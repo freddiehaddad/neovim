@@ -36,9 +36,7 @@ use crate::file_search::{
 use crate::fileio::{FILE, fclose, off_T, vim_fgets, vim_fseek, vim_ftell};
 use crate::fold::foldOpenCursor;
 use crate::globals::*;
-use crate::hashtab::{
-    hash_T, hash_add_item, hash_clear, hash_hash, hash_init, hash_lookup, hashitem_empty, hashtab_T,
-};
+use crate::hashtab::hashitem_empty;
 use crate::help::{
     DT_HELP, TAG_HELP, TAG_KEEP_LANG, TAG_NAMES, TAG_NO_TAGFUNC, TAG_REGEXP, TAG_VERBOSE,
     help_heuristic,
@@ -275,7 +273,7 @@ struct findtags_state_T {
     is_txt: bool,
     match_count: c_int,
     ga_match: [Vec<*mut c_char>; MT_COUNT],
-    ht_match: [hashtab_T; MT_COUNT],
+    ht_match: [std::collections::HashSet<Vec<u8>>; MT_COUNT],
 }
 
 impl findtags_state_T {
@@ -303,7 +301,7 @@ impl findtags_state_T {
                 is_txt: false,
                 match_count: 0,
                 ga_match: [const { Vec::new() }; MT_COUNT],
-                ht_match: std::mem::zeroed(),
+                ht_match: std::array::from_fn(|_| std::collections::HashSet::new()),
             }
         }
     }
@@ -1522,7 +1520,7 @@ unsafe fn findtags_state_init(
 
         for mtt in 0..MT_COUNT {
             (*st).ga_match[mtt].clear();
-            hash_init(&raw mut (*st).ht_match[mtt]);
+            (*st).ht_match[mtt].clear();
         }
     }
 }
@@ -1976,7 +1974,6 @@ unsafe fn findtags_add_match(
     tagpp: &mut tagptrs_T,
     margs: &findtags_match_args_T,
     buf_ffname: *mut c_char,
-    hash: *mut hash_T,
 ) {
     unsafe {
         let name_only = ((*st).flags & TAG_NAMES) != 0;
@@ -2067,10 +2064,8 @@ unsafe fn findtags_add_match(
         }
 
         if !mfp.is_null() {
-            *hash = hash_hash(mfp);
-            let hi = hash_lookup(&raw mut (*st).ht_match[mtt], mfp, strlen(mfp), *hash);
-            if hashitem_empty(&*hi) {
-                hash_add_item(&raw mut (*st).ht_match[mtt], hi, mfp, *hash);
+            let mfp_bytes = CStr::from_ptr(mfp).to_bytes().to_vec();
+            if (*st).ht_match[mtt].insert(mfp_bytes) {
                 (*st).ga_match[mtt].push(mfp);
                 (*st).match_count += 1;
             } else {
@@ -2088,7 +2083,6 @@ unsafe fn findtags_get_all_tags(
     unsafe {
         let mut tagp = tagptrs_T::default();
         let mut search_info = tagsearch_info_T::default();
-        let mut hash: hash_T = 0;
 
         loop {
             if (*st).state == tagsearch_state_T::TS_BINARY
@@ -2164,7 +2158,7 @@ unsafe fn findtags_get_all_tags(
             }
 
             if findtags_match_tag(st, &mut tagp, margs) {
-                findtags_add_match(st, &mut tagp, margs, buf_ffname, &raw mut hash);
+                findtags_add_match(st, &mut tagp, margs, buf_ffname);
             }
         }
     }
@@ -2258,7 +2252,7 @@ unsafe fn findtags_copy_matches(
             }
 
             (*st).ga_match[mtt] = Vec::new();
-            hash_clear(&raw mut (*st).ht_match[mtt]);
+            (*st).ht_match[mtt].clear();
         }
 
         *matchesp = matches;

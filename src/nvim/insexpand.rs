@@ -54,10 +54,6 @@ use crate::fuzzy::{
     FUZZY_SCORE_NONE, fuzzy_match_str, fuzzy_match_str_in_line, search_for_fuzzy_match,
 };
 use crate::globals::*;
-use crate::hashtab::{
-    hash_T, hash_add_item, hash_clear_all, hash_find, hash_hash, hash_init, hash_lookup,
-    hash_remove, hashitem_T, hashitem_empty, hashtab_T,
-};
 use crate::highlight_group::{syn_check_group, syn_id2attr, syn_id2name, syn_name2attr};
 use crate::indent::{get_indent, inindent};
 use crate::indent_c::{KEY_COMPLETE, do_c_expr_indent, in_cinkeys};
@@ -83,7 +79,7 @@ use crate::mbyte::{
 };
 use crate::memline::{dec, ml_delete, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
 use crate::memory::{
-    mergesort_list, strequal, xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xstrdup, xstrlcpy,
+    mergesort_list, strequal, xcalloc, xfree, xmalloc, xmemdupz, xstrdup, xstrlcpy,
 };
 use crate::message::{
     emsg, internal_error, msg, msg_clr_cmdline, msg_delay, msg_ext_set_kind, msg_progress, semsg,
@@ -350,19 +346,6 @@ struct ins_compl_next_state_T {
     func_cb: *mut Callback,
 }
 
-#[repr(C)]
-struct complstr_T {
-    cse_count: c_int,
-    cse_str: [c_char; 1],
-}
-
-const CSE_OFF: usize = std::mem::offset_of!(complstr_T, cse_str);
-
-#[inline]
-unsafe fn hi2cse(hi: *mut hashitem_T) -> *mut complstr_T {
-    unsafe { (*hi).hi_key.byte_sub(CSE_OFF).cast::<complstr_T>() }
-}
-
 /// Structure for completion source (in `'cpt'` option) information (`cpt_source_T`).
 #[repr(C)]
 struct cpt_source_T {
@@ -391,7 +374,8 @@ static mut compl_shown_match: *mut compl_T = ptr::null_mut();
 static mut compl_old_match: *mut compl_T = ptr::null_mut();
 static mut compl_preselect_match: *mut compl_T = ptr::null_mut();
 
-static mut compl_strings_ht: hashtab_T = unsafe { std::mem::zeroed() };
+static mut compl_strings_ht: std::collections::BTreeMap<Vec<u8>, c_int> =
+    std::collections::BTreeMap::new();
 
 static mut compl_best_matches: *mut *mut compl_T = ptr::null_mut();
 static mut compl_num_bests: c_int = 0;
@@ -463,25 +447,12 @@ unsafe fn decay_compl_timeout() {
 }
 
 /// Count the string of a new match in the duplicate-check hashtab.
-/// "hash" is the hash of "str" when it is not zero.
-unsafe fn compl_strings_add(str_ptr: *const c_char, len: usize, mut hash: hash_T) {
+unsafe fn compl_strings_add(str_ptr: *const c_char, len: usize) {
     unsafe {
-        if compl_strings_ht.ht_array.is_null() {
-            hash_init(&raw mut compl_strings_ht);
-        }
-        if hash == 0 {
-            hash = hash_hash(str_ptr);
-        }
-        let hi = hash_lookup(&raw mut compl_strings_ht, str_ptr, len, hash);
-        if hashitem_empty(&*hi) {
-            let entry = xmalloc(CSE_OFF + len + 1).cast::<complstr_T>();
-            (*entry).cse_count = 1;
-            let entry_str = (&raw mut (*entry).cse_str).cast::<c_char>();
-            xmemcpyz(entry_str.cast(), str_ptr.cast(), len);
-            hash_add_item(&raw mut compl_strings_ht, hi, entry_str, hash);
-        } else {
-            (*hi2cse(hi)).cse_count += 1;
-        }
+        let bytes = std::slice::from_raw_parts(str_ptr.cast::<u8>(), len);
+        let key_len = bytes.iter().position(|&b| b == 0).unwrap_or(len);
+        let ht_ptr = &raw mut compl_strings_ht;
+        *(*ht_ptr).entry(bytes[..key_len].to_vec()).or_insert(0) += 1;
     }
 }
 
@@ -1038,8 +1009,6 @@ unsafe fn ins_compl_add(
             cdir
         };
         let mut flags = flags_arg;
-        let mut new_str: *mut c_char = ptr::null_mut();
-        let mut str_hash: hash_T = 0;
 
         if (flags & CP_FAST) != 0 {
             fast_breakcheck();
@@ -1058,19 +1027,11 @@ unsafe fn ins_compl_add(
         }
 
         // If the same match is already present, don't add it.
-        if !compl_first_match.is_null() && !adup && compl_strings_ht.ht_used > 0 {
-            let mut keybuf: [c_char; 128] = [0; 128];
-            let key = if (len as usize) < keybuf.len() {
-                ptr::copy(str_ptr, keybuf.as_mut_ptr(), len as usize);
-                keybuf[len as usize] = NUL;
-                keybuf.as_mut_ptr()
-            } else {
-                new_str = xstrnsave(str_ptr, len as usize);
-                new_str
-            };
-            str_hash = hash_hash(key);
-            let hi = hash_lookup(&raw mut compl_strings_ht, key, len as usize, str_hash);
-            if !hashitem_empty(&*hi) {
+        let ht_ptr = &raw const compl_strings_ht;
+        if !compl_first_match.is_null() && !adup && !(*ht_ptr).is_empty() {
+            let bytes = std::slice::from_raw_parts(str_ptr.cast::<u8>(), len as usize);
+            let key_len = bytes.iter().position(|&b| b == 0).unwrap_or(len as usize);
+            if (*ht_ptr).contains_key(&bytes[..key_len]) {
                 if is_nearest_active() && score > 0 {
                     let mut match_ = compl_first_match;
                     loop {
@@ -1090,7 +1051,6 @@ unsafe fn ins_compl_add(
                         }
                     }
                 }
-                xfree(new_str.cast());
                 if cptext_allocated {
                     free_cptext(cptext);
                 }
@@ -1108,9 +1068,7 @@ unsafe fn ins_compl_add(
             -1
         };
         (*match_).cp_order = -1;
-        if new_str.is_null() {
-            new_str = xstrnsave(str_ptr, len as usize);
-        }
+        let new_str = xstrnsave(str_ptr, len as usize);
         (*match_).cp_str = cbuf_as_string(new_str, len as usize);
         (*match_).cp_commit_chars = commit_chars;
         (*match_).cp_preselect = preselect;
@@ -1206,7 +1164,7 @@ unsafe fn ins_compl_add(
         compl_curr_match = match_;
 
         if !match_at_original_text(match_) {
-            compl_strings_add((*match_).cp_str.data, (*match_).cp_str.size, str_hash);
+            compl_strings_add((*match_).cp_str.data, (*match_).cp_str.size);
         }
 
         if compl_get_longest
@@ -2359,17 +2317,16 @@ pub unsafe fn find_line_end(ptr: *mut c_char) -> *mut c_char {
 
 unsafe fn ins_compl_item_free(match_: *mut compl_T) {
     unsafe {
-        if compl_strings_ht.ht_used > 0
+        let ht_ptr = &raw mut compl_strings_ht;
+        if !(*ht_ptr).is_empty()
             && !(*match_).cp_str.data.is_null()
             && !match_at_original_text(match_)
         {
-            let hi = hash_find(&raw const compl_strings_ht, (*match_).cp_str.data);
-            if !hashitem_empty(&*hi) {
-                let entry = hi2cse(hi);
-                (*entry).cse_count -= 1;
-                if (*entry).cse_count <= 0 {
-                    hash_remove(&raw mut compl_strings_ht, hi);
-                    xfree(entry.cast());
+            let key = CStr::from_ptr((*match_).cp_str.data).to_bytes();
+            if let Some(count) = (*ht_ptr).get_mut(key) {
+                *count -= 1;
+                if *count <= 0 {
+                    (*ht_ptr).remove(key);
                 }
             }
         }
@@ -2396,8 +2353,8 @@ unsafe fn ins_compl_free() {
         ins_compl_del_pum();
         pum_clear();
 
-        hash_clear_all(&raw mut compl_strings_ht, CSE_OFF as c_uint);
-        hash_init(&raw mut compl_strings_ht);
+        let ht_ptr = &raw mut compl_strings_ht;
+        (*ht_ptr).clear();
 
         compl_curr_match = compl_first_match;
         loop {

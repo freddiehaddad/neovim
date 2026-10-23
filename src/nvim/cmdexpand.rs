@@ -47,9 +47,7 @@ use crate::fuzzy::{
 };
 use crate::globals::*;
 use crate::grid::{grid_line_fill, grid_line_flush, grid_line_puts, grid_line_start};
-use crate::hashtab::{
-    hash_T, hash_add_item, hash_clear, hash_hash, hash_init, hash_lookup, hashitem_empty, hashtab_T,
-};
+
 use crate::help::{cleanup_help_tags, find_help_tags};
 use crate::highlight::{hl_attr, win_hl_attr};
 use crate::highlight_group::{get_highlight_name, set_context_in_highlight_cmd};
@@ -4595,7 +4593,7 @@ unsafe fn expand_shellcmd_onedir(
     matches: *mut *mut *mut c_char,
     numMatches: *mut c_int,
     flags: c_int,
-    ht: *mut hashtab_T,
+    found_ht: &mut std::collections::HashSet<Vec<u8>>,
     gap: &mut Vec<*mut c_char>,
 ) {
     unsafe {
@@ -4610,12 +4608,11 @@ unsafe fn expand_shellcmd_onedir(
             let namelen = strlen(name);
 
             if namelen > pathlen {
-                let hash: hash_T = hash_hash(name.add(pathlen));
-                let hi = hash_lookup(ht, name.add(pathlen), namelen - pathlen, hash);
-                if hashitem_empty(&*hi) {
+                let tail_bytes =
+                    std::slice::from_raw_parts(name.add(pathlen).cast::<u8>(), namelen - pathlen);
+                if found_ht.insert(tail_bytes.to_vec()) {
                     ptr::copy(name.add(pathlen), name, namelen - pathlen + 1);
                     gap.push(name);
-                    hash_add_item(ht, hi, name, hash);
                     name = ptr::null_mut();
                 }
             }
@@ -4674,8 +4671,7 @@ unsafe fn expand_shellcmd(
             }
         }
 
-        let mut found_ht: hashtab_T = std::mem::zeroed();
-        hash_init(&raw mut found_ht);
+        let mut found_ht: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
         s = path;
         loop {
             let mut pathlen: usize;
@@ -4729,7 +4725,7 @@ unsafe fn expand_shellcmd(
                     matches,
                     numMatches,
                     flags,
-                    &raw mut found_ht,
+                    &mut found_ht,
                     &mut ga,
                 );
             }
@@ -4747,7 +4743,6 @@ unsafe fn expand_shellcmd(
         if mustfree {
             xfree(path.cast());
         }
-        hash_clear(&raw mut found_ht);
     }
 }
 
