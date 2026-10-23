@@ -30,7 +30,7 @@ use crate::marktree::{
     mt_end, mt_invalid,
 };
 use crate::mbyte::{utf_ptr2cells, utfc_ptr2len};
-use crate::memory::{Arena, xcalloc, xfree, xmalloc, xstrdup};
+use crate::memory::{Arena, xcalloc, xfree, xstrdup};
 use crate::r#move::{changed_window_setting, win_col_off};
 use crate::msgpack_rpc::packer::Integer;
 use crate::regexp::MAXCOL;
@@ -467,12 +467,8 @@ pub unsafe fn decor_put_sh(item: DecorSignHighlight) -> u32 {
 }
 
 pub unsafe fn decor_put_vt(mut vt: DecorVirtText, next: *mut DecorVirtText) -> *mut DecorVirtText {
-    unsafe {
-        vt.next = next;
-        let decor_alloc: *mut DecorVirtText = xmalloc(size_of::<DecorVirtText>()).cast();
-        ptr::write(decor_alloc, vt);
-        decor_alloc
-    }
+    vt.next = next;
+    Box::into_raw(Box::new(vt))
 }
 
 pub unsafe fn decor_sh_from_inline(item: DecorHighlightInline) -> DecorSignHighlight {
@@ -632,8 +628,7 @@ unsafe fn decor_free_inner(mut vt: *mut DecorVirtText, first_idx: u32) {
         while !vt.is_null() {
             let tofree = vt;
             vt = (*vt).next;
-            ptr::drop_in_place(tofree);
-            xfree(tofree.cast());
+            drop(Box::from_raw(tofree));
         }
 
         let items = &raw mut decor_items;

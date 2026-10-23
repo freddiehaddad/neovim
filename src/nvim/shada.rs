@@ -336,22 +336,22 @@ struct ShadaEntry {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 struct HMLListEntry {
     data: ShadaEntry,
-    next: *mut HMLListEntry,
-    prev: *mut HMLListEntry,
+    next: Option<usize>,
+    prev: Option<usize>,
 }
 
-#[repr(C)]
 struct HMLList {
-    entries: *mut HMLListEntry,
-    first: *mut HMLListEntry,
-    last: *mut HMLListEntry,
-    free_entry: *mut HMLListEntry,
-    last_free_entry: *mut HMLListEntry,
+    entries: Vec<HMLListEntry>,
+    first: Option<usize>,
+    last: Option<usize>,
+    free_entry: Option<usize>,
+    last_free_entry: usize,
     size: usize,
     num_entries: usize,
-    contained_entries: std::collections::HashMap<Vec<u8>, *mut HMLListEntry>,
+    contained_entries: std::collections::HashMap<Vec<u8>, usize>,
 }
 
 #[repr(C)]
@@ -676,15 +676,21 @@ impl std::hash::Hash for PathKey {
 #[inline]
 unsafe fn hmll_init(hmll: *mut HMLList, size: usize) {
     unsafe {
-        let entries = xcalloc(size, std::mem::size_of::<HMLListEntry>()).cast::<HMLListEntry>();
         ptr::write(
             hmll,
             HMLList {
-                entries,
-                first: ptr::null_mut(),
-                last: ptr::null_mut(),
-                free_entry: ptr::null_mut(),
-                last_free_entry: entries,
+                entries: vec![
+                    HMLListEntry {
+                        data: MISSING_ENTRY,
+                        next: None,
+                        prev: None,
+                    };
+                    size
+                ],
+                first: None,
+                last: None,
+                free_entry: None,
+                last_free_entry: 0,
                 size,
                 num_entries: 0,
                 contained_entries: std::collections::HashMap::new(),
@@ -694,76 +700,76 @@ unsafe fn hmll_init(hmll: *mut HMLList, size: usize) {
 }
 
 #[inline]
-unsafe fn hmll_remove(hmll: *mut HMLList, hmll_entry: *mut HMLListEntry) {
+unsafe fn hmll_remove(hmll: &mut HMLList, entry_idx: usize) {
     unsafe {
-        if hmll_entry == (*hmll).last_free_entry.sub(1) {
-            (*hmll).last_free_entry = (*hmll).last_free_entry.sub(1);
+        if entry_idx + 1 == hmll.last_free_entry {
+            hmll.last_free_entry -= 1;
         } else {
-            assert!((*hmll).free_entry.is_null());
-            (*hmll).free_entry = hmll_entry;
+            assert!(hmll.free_entry.is_none());
+            hmll.free_entry = Some(entry_idx);
         }
-        let key = CStr::from_ptr((*hmll_entry).data.data.history_item.string).to_bytes();
-        let val = (*hmll).contained_entries.remove(key);
+        let next_idx = hmll.entries[entry_idx].next;
+        let prev_idx = hmll.entries[entry_idx].prev;
+        let key_ptr = hmll.entries[entry_idx].data.data.history_item.string;
+        let key = CStr::from_ptr(key_ptr).to_bytes();
+        let val = hmll.contained_entries.remove(key);
         assert!(val.is_some());
-        if (*hmll_entry).next.is_null() {
-            (*hmll).last = (*hmll_entry).prev;
+        if let Some(n) = next_idx {
+            hmll.entries[n].prev = prev_idx;
         } else {
-            (*(*hmll_entry).next).prev = (*hmll_entry).prev;
+            hmll.last = prev_idx;
         }
-        if (*hmll_entry).prev.is_null() {
-            (*hmll).first = (*hmll_entry).next;
+        if let Some(p) = prev_idx {
+            hmll.entries[p].next = next_idx;
         } else {
-            (*(*hmll_entry).prev).next = (*hmll_entry).next;
+            hmll.first = next_idx;
         }
-        (*hmll).num_entries -= 1;
-        shada_free_shada_entry(&mut (*hmll_entry).data);
+        hmll.num_entries -= 1;
+        shada_free_shada_entry(&mut hmll.entries[entry_idx].data);
     }
 }
 
 #[inline]
-unsafe fn hmll_insert(hmll: *mut HMLList, mut hmll_entry: *mut HMLListEntry, data: ShadaEntry) {
+unsafe fn hmll_insert(hmll: &mut HMLList, mut after_idx: Option<usize>, data: ShadaEntry) {
     unsafe {
-        if (*hmll).num_entries == (*hmll).size {
-            if hmll_entry == (*hmll).first {
-                hmll_entry = ptr::null_mut();
+        if hmll.num_entries == hmll.size {
+            if after_idx == hmll.first {
+                after_idx = None;
             }
-            assert!(!(*hmll).first.is_null());
-            hmll_remove(hmll, (*hmll).first);
+            let first_idx = hmll.first.expect("hmll.first must be Some when full");
+            hmll_remove(hmll, first_idx);
         }
-        let target_entry: *mut HMLListEntry;
-        if (*hmll).free_entry.is_null() {
-            assert!(
-                ((*hmll).last_free_entry.offset_from((*hmll).entries) as usize)
-                    == (*hmll).num_entries
-            );
-            target_entry = (*hmll).last_free_entry;
-            (*hmll).last_free_entry = (*hmll).last_free_entry.add(1);
+        let target_idx = if let Some(free_idx) = hmll.free_entry.take() {
+            assert!(hmll.last_free_entry - 1 == hmll.num_entries);
+            free_idx
         } else {
-            assert!(
-                ((*hmll).last_free_entry.offset_from((*hmll).entries) as usize) - 1
-                    == (*hmll).num_entries
-            );
-            target_entry = (*hmll).free_entry;
-            (*hmll).free_entry = ptr::null_mut();
-        }
-        (*target_entry).data = data;
+            assert!(hmll.last_free_entry == hmll.num_entries);
+            let idx = hmll.last_free_entry;
+            hmll.last_free_entry += 1;
+            idx
+        };
+        hmll.entries[target_idx].data = data;
         let key = CStr::from_ptr(data.data.history_item.string)
             .to_bytes()
             .to_vec();
-        (*hmll).contained_entries.entry(key).or_insert(target_entry);
-        (*hmll).num_entries += 1;
-        (*target_entry).prev = hmll_entry;
-        if hmll_entry.is_null() {
-            (*target_entry).next = (*hmll).first;
-            (*hmll).first = target_entry;
+        hmll.contained_entries.entry(key).or_insert(target_idx);
+        hmll.num_entries += 1;
+        hmll.entries[target_idx].prev = after_idx;
+        let next_idx = if let Some(after) = after_idx {
+            let next = hmll.entries[after].next;
+            hmll.entries[target_idx].next = next;
+            hmll.entries[after].next = Some(target_idx);
+            next
         } else {
-            (*target_entry).next = (*hmll_entry).next;
-            (*hmll_entry).next = target_entry;
-        }
-        if (*target_entry).next.is_null() {
-            (*hmll).last = target_entry;
+            let next = hmll.first;
+            hmll.entries[target_idx].next = next;
+            hmll.first = Some(target_idx);
+            next
+        };
+        if let Some(n) = next_idx {
+            hmll.entries[n].prev = Some(target_idx);
         } else {
-            (*(*target_entry).next).prev = target_entry;
+            hmll.last = Some(target_idx);
         }
     }
 }
@@ -772,7 +778,7 @@ unsafe fn hmll_insert(hmll: *mut HMLList, mut hmll_entry: *mut HMLListEntry, dat
 unsafe fn hmll_dealloc(hmll: *mut HMLList) {
     unsafe {
         (*hmll).contained_entries = std::collections::HashMap::new();
-        xfree((*hmll).entries.cast::<c_void>());
+        (*hmll).entries = Vec::new();
     }
 }
 
@@ -938,23 +944,24 @@ unsafe fn hms_insert(hms_p: *mut HistoryMergerState, entry: ShadaEntry, do_iter:
         }
         let hmll = &mut (*hms_p).hmll;
         let key = CStr::from_ptr(entry.data.history_item.string).to_bytes();
-        if let Some(&existing_entry) = hmll.contained_entries.get(key) {
-            if entry.timestamp > (*existing_entry).data.timestamp {
-                hmll_remove(hmll, existing_entry);
-            } else if !do_iter && entry.timestamp == (*existing_entry).data.timestamp {
-                shada_free_shada_entry(&mut (*existing_entry).data);
-                (*existing_entry).data = entry;
+        if let Some(&existing_idx) = hmll.contained_entries.get(key) {
+            let existing_ts = hmll.entries[existing_idx].data.timestamp;
+            if entry.timestamp > existing_ts {
+                hmll_remove(hmll, existing_idx);
+            } else if !do_iter && entry.timestamp == existing_ts {
+                shada_free_shada_entry(&mut hmll.entries[existing_idx].data);
+                hmll.entries[existing_idx].data = entry;
                 return;
             } else {
                 return;
             }
         }
         let mut insert_after = hmll.last;
-        while !insert_after.is_null() {
-            if (*insert_after).data.timestamp <= entry.timestamp {
+        while let Some(idx) = insert_after {
+            if hmll.entries[idx].data.timestamp <= entry.timestamp {
                 break;
             }
-            insert_after = (*insert_after).prev;
+            insert_after = hmll.entries[idx].prev;
         }
         hmll_insert(hmll, insert_after, entry);
     }
@@ -1009,16 +1016,18 @@ unsafe fn hms_to_he_array(
 ) {
     unsafe {
         let mut hist = hist_array;
-        let mut cur_entry = (*hms_p).hmll.first;
-        while !cur_entry.is_null() {
-            (*hist).timestamp = (*cur_entry).data.timestamp;
+        let hmll = &(*hms_p).hmll;
+        let mut cur_idx = hmll.first;
+        while let Some(idx) = cur_idx {
+            let cur_entry = &hmll.entries[idx];
+            (*hist).timestamp = cur_entry.data.timestamp;
             (*hist).hisnum = (hist.offset_from(hist_array) as c_int) + 1;
-            let s = (*cur_entry).data.data.history_item.string;
+            let s = cur_entry.data.data.history_item.string;
             (*hist).hisstr = s;
             (*hist).hisstrlen = CStr::from_ptr(s).to_bytes().len();
-            (*hist).additional_data = (*cur_entry).data.additional_data;
+            (*hist).additional_data = cur_entry.data.additional_data;
             hist = hist.add(1);
-            cur_entry = (*cur_entry).next;
+            cur_idx = cur_entry.next;
         }
         *new_hisnum = hist.offset_from(hist_array) as c_int;
         *new_hisidx = *new_hisnum - 1;
@@ -1174,11 +1183,11 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
         }
         let mut hms: [HistoryMergerState; HIST_COUNT] = std::array::from_fn(|_| HistoryMergerState {
             hmll: HMLList {
-                entries: ptr::null_mut(),
-                first: ptr::null_mut(),
-                last: ptr::null_mut(),
-                free_entry: ptr::null_mut(),
-                last_free_entry: ptr::null_mut(),
+                entries: Vec::new(),
+                first: None,
+                last: None,
+                free_entry: None,
+                last_free_entry: 0,
                 size: 0,
                 num_entries: 0,
                 contained_entries: std::collections::HashMap::new(),
@@ -2995,14 +3004,15 @@ unsafe fn shada_write(
                 for (i, &dump_one) in dump_one_history.iter().enumerate().take(HIST_COUNT) {
                     if dump_one {
                         hms_insert_whole_neovim_history(&mut (*wms).hms[i]);
-                        let mut cur_entry = (*wms).hms[i].hmll.first;
-                        while !cur_entry.is_null() {
-                            if shada_pack_pfreed_entry(&mut packer, (*cur_entry).data, max_kbyte)
+                        let mut cur_idx = (*wms).hms[i].hmll.first;
+                        while let Some(idx) = cur_idx {
+                            let cur_entry = (*wms).hms[i].hmll.entries.as_slice()[idx];
+                            if shada_pack_pfreed_entry(&mut packer, cur_entry.data, max_kbyte)
                                 == ShaDaWriteResult::kSDWriteFailed
                             {
                                 break 'shada_write_exit ShaDaWriteResult::kSDWriteFailed;
                             }
-                            cur_entry = (*cur_entry).next;
+                            cur_idx = cur_entry.next;
                         }
                     }
                 }

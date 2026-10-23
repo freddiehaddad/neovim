@@ -191,14 +191,13 @@ struct afffile_T {
     af_nosuggest: c_uint,
     af_pfxpostpone: c_int,
     af_ignoreextra: bool,
-    af_pref: std::collections::BTreeMap<Vec<u8>, *mut affheader_T>,
-    af_suff: std::collections::BTreeMap<Vec<u8>, *mut affheader_T>,
-    af_comp: std::collections::BTreeMap<Vec<u8>, *mut compitem_T>,
+    af_pref: std::collections::BTreeMap<Vec<u8>, affheader_T>,
+    af_suff: std::collections::BTreeMap<Vec<u8>, affheader_T>,
+    af_comp: std::collections::BTreeMap<Vec<u8>, compitem_T>,
 }
 
 #[repr(C)]
 struct affentry_T {
-    ae_next: *mut affentry_T,
     ae_chop: *mut c_char,
     ae_add: *mut c_char,
     ae_flags: *mut c_char,
@@ -208,6 +207,14 @@ struct affentry_T {
     ae_comppermit: c_char,
 }
 
+impl Drop for affentry_T {
+    fn drop(&mut self) {
+        unsafe {
+            vim_regfree(self.ae_prog);
+        }
+    }
+}
+
 #[repr(C)]
 struct affheader_T {
     ah_key: [c_char; AH_KEY_LEN],
@@ -215,7 +222,7 @@ struct affheader_T {
     ah_newID: c_int,
     ah_combine: c_int,
     ah_follows: c_int,
-    ah_first: *mut affentry_T,
+    ah_entries: Vec<affentry_T>,
 }
 
 #[repr(C)]
@@ -227,8 +234,7 @@ struct compitem_T {
 
 #[repr(C)]
 struct sblock_T {
-    sb_used: c_int,
-    sb_next: *mut sblock_T,
+    sb_used: usize,
     sb_data: [c_char; SBLOCKSIZE + 1],
 }
 
@@ -267,7 +273,7 @@ struct spellinfo_T {
     si_keepwcount: c_int,
     si_prefroot: *mut wordnode_T,
     si_sugtree: c_int,
-    si_blocks: *mut sblock_T,
+    si_blocks: Vec<Box<sblock_T>>,
     si_blocks_cnt: c_int,
     si_did_emsg: c_int,
     si_compress_cnt: c_int,
@@ -322,7 +328,7 @@ impl Default for spellinfo_T {
             si_keepwcount: 0,
             si_prefroot: ptr::null_mut(),
             si_sugtree: 0,
-            si_blocks: ptr::null_mut(),
+            si_blocks: Vec::new(),
             si_blocks_cnt: 0,
             si_did_emsg: 0,
             si_compress_cnt: 0,
@@ -2175,8 +2181,8 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
 
                     xstrlcpy(key.as_mut_ptr(), items[1], AH_KEY_LEN);
                     let key_bytes = std::ffi::CStr::from_ptr(key.as_ptr()).to_bytes();
-                    if let Some(&existing_aff) = tp.get(key_bytes) {
-                        cur_aff = existing_aff;
+                    if let Some(existing_aff) = tp.get_mut(key_bytes) {
+                        cur_aff = &raw mut *existing_aff;
                         if (*cur_aff).ah_combine != c_int::from(*items[2] == b'Y' as c_char) {
                             smsg!(
                                 0,
@@ -2199,20 +2205,18 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                             );
                         }
                     } else {
-                        cur_aff = getroom(spin, size_of::<affheader_T>(), true).cast();
-                        (*cur_aff).ah_flag =
-                            affitem2flag((*aff).af_flagtype, items[1], fname, lnum);
-                        if (*cur_aff).ah_flag == 0 || strlen(items[1]) >= AH_KEY_LEN {
+                        let ah_flag = affitem2flag((*aff).af_flagtype, items[1], fname, lnum);
+                        if ah_flag == 0 || strlen(items[1]) >= AH_KEY_LEN {
                             break;
                         }
-                        if (*cur_aff).ah_flag == (*aff).af_bad
-                            || (*cur_aff).ah_flag == (*aff).af_rare
-                            || (*cur_aff).ah_flag == (*aff).af_keepcase
-                            || (*cur_aff).ah_flag == (*aff).af_needaffix
-                            || (*cur_aff).ah_flag == (*aff).af_circumfix
-                            || (*cur_aff).ah_flag == (*aff).af_nosuggest
-                            || (*cur_aff).ah_flag == (*aff).af_needcomp
-                            || (*cur_aff).ah_flag == (*aff).af_comproot
+                        if ah_flag == (*aff).af_bad
+                            || ah_flag == (*aff).af_rare
+                            || ah_flag == (*aff).af_keepcase
+                            || ah_flag == (*aff).af_needaffix
+                            || ah_flag == (*aff).af_circumfix
+                            || ah_flag == (*aff).af_nosuggest
+                            || ah_flag == (*aff).af_needcomp
+                            || ah_flag == (*aff).af_comproot
                         {
                             smsg!(
                                 0,
@@ -2225,9 +2229,16 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                                 items[1],
                             );
                         }
-                        strcpy((&raw mut (*cur_aff).ah_key).cast(), items[1]);
-                        tp.insert(key_bytes.to_vec(), cur_aff);
-                        (*cur_aff).ah_combine = c_int::from(*items[2] == b'Y' as c_char);
+                        let mut new_ah = affheader_T {
+                            ah_key: [0; AH_KEY_LEN],
+                            ah_flag,
+                            ah_newID: 0,
+                            ah_combine: c_int::from(*items[2] == b'Y' as c_char),
+                            ah_follows: 0,
+                            ah_entries: Vec::new(),
+                        };
+                        strcpy(new_ah.ah_key.as_mut_ptr(), items[1]);
+                        cur_aff = &raw mut *tp.entry(key_bytes.to_vec()).or_insert(new_ah);
                     }
 
                     if itemcnt > lasti && strcmp(items[lasti], c"S".as_ptr()) == 0 {
@@ -2280,8 +2291,16 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                     }
 
                     aff_todo -= 1;
-                    let aff_entry =
-                        getroom(spin, size_of::<affentry_T>(), true).cast::<affentry_T>();
+                    let mut aff_entry_val = affentry_T {
+                        ae_chop: ptr::null_mut(),
+                        ae_add: ptr::null_mut(),
+                        ae_flags: ptr::null_mut(),
+                        ae_cond: ptr::null_mut(),
+                        ae_prog: ptr::null_mut(),
+                        ae_compforbid: 0,
+                        ae_comppermit: 0,
+                    };
+                    let aff_entry: *mut affentry_T = &raw mut aff_entry_val;
 
                     if strcmp(items[2], c"0".as_ptr()) != 0 {
                         (*aff_entry).ae_chop = getroom_save(spin, items[2]);
@@ -2300,8 +2319,8 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                         || !(has_non_ascii((*aff_entry).ae_chop)
                             || has_non_ascii((*aff_entry).ae_add))
                     {
-                        (*aff_entry).ae_next = (*cur_aff).ah_first;
-                        (*cur_aff).ah_first = aff_entry;
+                        (*cur_aff).ah_entries.insert(0, aff_entry_val);
+                        let aff_entry: *mut affentry_T = (*cur_aff).ah_entries.as_mut_ptr();
 
                         if strcmp(items[4], c".".as_ptr()) != 0 {
                             let mut buf = [0 as c_char; MAXLINELEN];
@@ -2823,12 +2842,15 @@ unsafe fn process_compflags(spin: *mut spellinfo_T, aff: *mut afffile_T, compfla
                         cur.offset_from(prevp) as usize,
                     );
                     let key_bytes = std::ffi::CStr::from_ptr(key.as_ptr()).to_bytes();
-                    let id = if let Some(&ci) = (*aff).af_comp.get(key_bytes) {
-                        (*ci).ci_newID
+                    let id = if let Some(ci) = (*aff).af_comp.get(key_bytes) {
+                        ci.ci_newID
                     } else {
-                        let ci = getroom(spin, size_of::<compitem_T>(), true).cast::<compitem_T>();
-                        strcpy((&raw mut (*ci).ci_key).cast(), key.as_ptr());
-                        (*ci).ci_flag = flag;
+                        let mut ci = compitem_T {
+                            ci_key: [0; AH_KEY_LEN],
+                            ci_flag: flag,
+                            ci_newID: 0,
+                        };
+                        strcpy(ci.ci_key.as_mut_ptr(), key.as_ptr());
                         let mut new_id: c_int;
                         loop {
                             check_renumber(spin);
@@ -2838,7 +2860,7 @@ unsafe fn process_compflags(spin: *mut spellinfo_T, aff: *mut afffile_T, compfla
                                 break;
                             }
                         }
-                        (*ci).ci_newID = new_id;
+                        ci.ci_newID = new_id;
                         (*aff).af_comp.insert(key_bytes.to_vec(), ci);
                         new_id
                     };
@@ -2980,17 +3002,6 @@ unsafe fn sal_to_bool(s: *const c_char) -> bool {
 unsafe fn spell_free_aff(aff: *mut afffile_T) {
     unsafe {
         xfree((*aff).af_enc.cast());
-
-        for ht in [&(*aff).af_pref, &(*aff).af_suff] {
-            for &ah in ht.values() {
-                let mut ae = (*ah).ah_first;
-                while !ae.is_null() {
-                    vim_regfree((*ae).ae_prog);
-                    ae = (*ae).ae_next;
-                }
-            }
-        }
-
         ptr::drop_in_place(&raw mut (*aff).af_pref);
         ptr::drop_in_place(&raw mut (*aff).af_suff);
         ptr::drop_in_place(&raw mut (*aff).af_comp);
@@ -3307,8 +3318,8 @@ unsafe fn get_pfxlist(
                     p.offset_from(prevp) as usize,
                 );
                 let key_bytes = std::ffi::CStr::from_ptr(key.as_ptr()).to_bytes();
-                if let Some(&ah) = (*affile).af_pref.get(key_bytes) {
-                    let id = (*ah).ah_newID;
+                if let Some(ah) = (*affile).af_pref.get(key_bytes) {
+                    let id = ah.ah_newID;
                     if id != 0 && store_afflist_add(store_afflist, cntp, id) == FAIL {
                         return FAIL;
                     }
@@ -3341,8 +3352,8 @@ unsafe fn get_compflags(
                     p.offset_from(prevp) as usize,
                 );
                 let key_bytes = std::ffi::CStr::from_ptr(key.as_ptr()).to_bytes();
-                if let Some(&ci) = (*affile).af_comp.get(key_bytes)
-                    && store_afflist_add(store_afflist, cntp, (*ci).ci_newID) == FAIL
+                if let Some(ci) = (*affile).af_comp.get(key_bytes)
+                    && store_afflist_add(store_afflist, cntp, ci.ci_newID) == FAIL
                 {
                     return FAIL;
                 }
@@ -3360,8 +3371,8 @@ unsafe fn store_aff_word(
     word: *mut c_char,
     afflist: *mut c_char,
     affile: *mut afffile_T,
-    ht: *const std::collections::BTreeMap<Vec<u8>, *mut affheader_T>,
-    xht: *const std::collections::BTreeMap<Vec<u8>, *mut affheader_T>,
+    ht: *const std::collections::BTreeMap<Vec<u8>, affheader_T>,
+    xht: *const std::collections::BTreeMap<Vec<u8>, affheader_T>,
     condit: c_int,
     flags: c_int,
     pfxlist: *mut c_char,
@@ -3374,16 +3385,17 @@ unsafe fn store_aff_word(
         let mut pfx_pfxlist = [0 as c_char; MAXWLEN];
         let wordlen = strlen(word);
 
-        for &ah in (*ht).values() {
+        for ah_ref in (*ht).values() {
             if retval != OK {
                 break;
             }
+            let ah: *const affheader_T = &raw const *ah_ref;
             {
                 if ((condit & CONDIT_COMB) == 0 || (*ah).ah_combine != 0)
                     && flag_in_afflist((*affile).af_flagtype, afflist, (*ah).ah_flag)
                 {
-                    let mut ae = (*ah).ah_first;
-                    while !ae.is_null() {
+                    for ae_ref in &(*ah).ah_entries {
+                        let ae: *mut affentry_T = (&raw const *ae_ref).cast_mut();
                         if (!xht.is_null()
                             || (*affile).af_pfxpostpone == 0
                             || !(*ae).ae_chop.is_null()
@@ -3645,7 +3657,6 @@ unsafe fn store_aff_word(
                                 retval = FAIL;
                             }
                         }
-                        ae = (*ae).ae_next;
                     }
                 }
             }
@@ -3876,24 +3887,27 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
 
 unsafe fn getroom(spin: *mut spellinfo_T, len: usize, align: bool) -> *mut c_void {
     unsafe {
-        let mut bl = (*spin).si_blocks;
         debug_assert!(len <= SBLOCKSIZE);
 
-        if align && !bl.is_null() {
+        if align && let Some(bl) = (*spin).si_blocks.last_mut() {
             let align_mask = size_of::<*mut c_char>() - 1;
-            (*bl).sb_used = (((*bl).sb_used as usize + align_mask) & !align_mask) as c_int;
+            bl.sb_used = (bl.sb_used + align_mask) & !align_mask;
         }
 
-        if bl.is_null() || ((*bl).sb_used as usize + len) > SBLOCKSIZE {
-            bl = xcalloc(1, size_of::<sblock_T>()).cast::<sblock_T>();
-            (*bl).sb_next = (*spin).si_blocks;
-            (*spin).si_blocks = bl;
-            (*bl).sb_used = 0;
+        if (*spin)
+            .si_blocks
+            .last()
+            .is_none_or(|bl| bl.sb_used + len > SBLOCKSIZE)
+        {
+            let mut boxed = Box::<sblock_T>::new_uninit();
+            ptr::write_bytes(boxed.as_mut_ptr(), 0, 1);
+            (*spin).si_blocks.push(boxed.assume_init());
             (*spin).si_blocks_cnt += 1;
         }
 
-        let p = (*bl).sb_data.as_mut_ptr().add((*bl).sb_used as usize);
-        (*bl).sb_used += len as c_int;
+        let bl = (*spin).si_blocks.last_mut().unwrap();
+        let p = bl.sb_data.as_mut_ptr().add(bl.sb_used);
+        bl.sb_used += len;
         p.cast()
     }
 }
@@ -3904,16 +3918,6 @@ unsafe fn getroom_save(spin: *mut spellinfo_T, s: *const c_char) -> *mut c_char 
         let dst = getroom(spin, s_size, false).cast::<c_char>();
         ptr::copy_nonoverlapping(s, dst, s_size);
         dst
-    }
-}
-
-unsafe fn free_blocks(mut bl: *mut sblock_T) {
-    unsafe {
-        while !bl.is_null() {
-            let next = (*bl).sb_next;
-            xfree(bl.cast());
-            bl = next;
-        }
     }
 }
 
@@ -4782,7 +4786,7 @@ unsafe fn spell_make_sugfile(spin: *mut spellinfo_T, wfname: *mut c_char) {
             free_slang = true;
         }
 
-        (*spin).si_blocks = ptr::null_mut();
+        (*spin).si_blocks.clear();
         (*spin).si_blocks_cnt = 0;
         (*spin).si_compress_cnt = 0;
         (*spin).si_free_count = 0;
@@ -4812,7 +4816,7 @@ unsafe fn spell_make_sugfile(spin: *mut spellinfo_T, wfname: *mut c_char) {
         if free_slang {
             slang_free(slang);
         }
-        free_blocks((*spin).si_blocks);
+        (*spin).si_blocks.clear();
         close_spellbuf((*spin).si_spellbuf);
     }
 }
@@ -5260,7 +5264,7 @@ unsafe fn mkspell(
                     }
                 }
 
-                free_blocks(spin.si_blocks);
+                spin.si_blocks.clear();
 
                 if spin.si_sugtime != 0 && !error && !got_int {
                     spell_make_sugfile(&raw mut spin, wfname);
