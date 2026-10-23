@@ -22,7 +22,7 @@ use crate::mbyte::{
     utf_head_off, utf_iscomposing_legacy, utf_ptr2char, utf_ptr2len, utf_strnicmp, utfc_ptr2len,
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
-use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xrealloc, xstrdup};
+use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xstrdup};
 use crate::message::{emsg, iemsg, internal_error, msg_puts, semsg, verbose_enter, verbose_leave};
 use crate::option_vars::*;
 use crate::os::input::fast_breakcheck;
@@ -31,7 +31,7 @@ use crate::profile::{profile_passed_limit, proftime_T};
 pub(super) use crate::strings::{strcpy, strlen, strncmp, strncpy};
 use crate::strings::{tr, xstrnsave};
 use crate::window::win_T;
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 pub(super) use std::mem::{size_of, zeroed};
 use std::ptr;
 
@@ -290,7 +290,7 @@ pub(super) struct nfa_regprog_T {
     pub pattern: *mut c_char,
     pub nsubexp: c_int,
     pub nstate: c_int,
-    pub listbuf: [*mut c_void; 2],
+    pub listbuf: [Vec<nfa_thread_T>; 2],
     pub state: [nfa_state_T; 0],
 }
 
@@ -458,11 +458,9 @@ pub(super) struct nfa_thread_T {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
 pub(super) struct nfa_list_T {
-    pub t: *mut nfa_thread_T,
+    pub t: Vec<nfa_thread_T>,
     pub n: c_int,
-    pub len: c_int,
     pub id: c_int,
     pub has_pim: c_int,
 }
@@ -842,8 +840,7 @@ pub(super) static mut istate: c_int = 0;
 pub(super) static mut nfa_endp: *mut save_se_T = ptr::null_mut();
 pub(super) static mut nfa_ll_index: usize = 0;
 pub(super) static mut state_ptr: *mut nfa_state_T = ptr::null_mut();
-pub(super) static mut nfa_stack: *mut Frag_T = ptr::null_mut();
-pub(super) static mut nfa_stack_len: c_int = 0;
+pub(super) static mut nfa_stack: Vec<Frag_T> = Vec::new();
 
 pub(super) const BT_REGENGINE: regengine_T = regengine_T {
     regcomp: bt_regcomp,
@@ -3037,9 +3034,8 @@ pub unsafe fn free_regexp_stuff() {
         xfree(reg_prev_sub.cast());
         let pv = &raw mut post_vec;
         *pv = Vec::new();
-        xfree(nfa_stack.cast());
-        nfa_stack = ptr::null_mut();
-        nfa_stack_len = 0;
+        let ns = &raw mut nfa_stack;
+        *ns = Vec::new();
     }
 }
 
