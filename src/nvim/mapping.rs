@@ -220,7 +220,7 @@ pub unsafe fn get_maphash_list(state: c_int, c: c_int) -> *mut mapblock_T {
 
 /// Get the buffer-local hashed map list for "state" and first character "c".
 pub unsafe fn get_buf_maphash_list(state: c_int, c: c_int) -> *mut mapblock_T {
-    unsafe { (*curbuf).b_maphash[map_hash(state, c as u8)].cast::<mapblock_T>() }
+    unsafe { (*curbuf).b_maphash[map_hash(state, c as u8)] }
 }
 
 /// Finds the Lua mapping whose `m_str` embeds `id`.
@@ -264,11 +264,7 @@ pub unsafe fn map_luaid_get(n: c_int) -> LuaRef {
                 );
             }
             if mp.is_null() {
-                mp = map_luaid_scan(
-                    (&raw const (*fb).b_first_abbr).cast::<*mut mapblock_T>(),
-                    1,
-                    n,
-                );
+                mp = map_luaid_scan(&raw const (*fb).b_first_abbr, 1, n);
             }
             fb = (*fb).b_next;
         }
@@ -714,7 +710,7 @@ unsafe fn buf_do_map(
             global_maphash
         };
         let abbr_table = if args.buffer {
-            (&raw mut (*buf).b_first_abbr).cast::<*mut mapblock_T>()
+            &raw mut (*buf).b_first_abbr
         } else {
             &raw mut first_abbr
         };
@@ -864,9 +860,9 @@ unsafe fn buf_do_map(
                             if hash != 0 {
                                 break;
                             }
-                            (*buf).b_first_abbr.cast::<mapblock_T>()
+                            (*buf).b_first_abbr
                         } else {
-                            (*buf).b_maphash[hash].cast::<mapblock_T>()
+                            (*buf).b_maphash[hash]
                         };
                         while !mp.is_null() && !got_int {
                             if (*mp).m_simplified == 0 && ((*mp).m_mode & mode) != 0 {
@@ -1170,7 +1166,7 @@ pub unsafe fn map_clear_mode(buf: *mut buf_T, mode: c_int, local: bool, abbr: bo
                     break;
                 }
                 if local {
-                    (&raw mut (*buf).b_first_abbr).cast::<*mut mapblock_T>()
+                    &raw mut (*buf).b_first_abbr
                 } else {
                     &raw mut first_abbr
                 }
@@ -1265,12 +1261,12 @@ pub unsafe fn map_to_exists_mode(rhs: *const c_char, mode: c_int, abbr: bool) ->
                         break;
                     }
                     if exp_buffer {
-                        (*curbuf).b_first_abbr.cast::<mapblock_T>()
+                        (*curbuf).b_first_abbr
                     } else {
                         first_abbr
                     }
                 } else if exp_buffer {
-                    (*curbuf).b_maphash[hash].cast::<mapblock_T>()
+                    (*curbuf).b_maphash[hash]
                 } else {
                     *(&raw const maphash).cast::<*mut mapblock_T>().add(hash)
                 };
@@ -1815,12 +1811,12 @@ pub unsafe fn makemap(fd: *mut FILE, buf: *mut buf_T) -> c_int {
                         break;
                     }
                     if !buf.is_null() {
-                        (*buf).b_first_abbr.cast::<mapblock_T>()
+                        (*buf).b_first_abbr
                     } else {
                         first_abbr
                     }
                 } else if !buf.is_null() {
-                    (*buf).b_maphash[hash].cast::<mapblock_T>()
+                    (*buf).b_maphash[hash]
                 } else {
                     *(&raw const maphash).cast::<*mut mapblock_T>().add(hash)
                 };
@@ -2545,7 +2541,7 @@ pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: Eva
             (&raw mut maphash).cast::<*mut mapblock_T>()
         };
         let abbr_table = if buffer {
-            (&raw mut (*curbuf).b_first_abbr).cast::<*mut mapblock_T>()
+            &raw mut (*curbuf).b_first_abbr
         } else {
             &raw mut first_abbr
         };
@@ -3170,12 +3166,12 @@ pub unsafe fn keymap_array(mode: NvimString, buf: *mut buf_T, arena: *mut Arena)
         for i in 0..limit {
             let mut current_maphash: *const mapblock_T = if is_abbrev {
                 if !buf.is_null() {
-                    (*buf).b_first_abbr.cast::<mapblock_T>()
+                    (*buf).b_first_abbr
                 } else {
                     first_abbr
                 }
             } else if !buf.is_null() {
-                (*buf).b_maphash[i].cast::<mapblock_T>()
+                (*buf).b_maphash[i]
             } else {
                 *(&raw const maphash).cast::<*mut mapblock_T>().add(i)
             };

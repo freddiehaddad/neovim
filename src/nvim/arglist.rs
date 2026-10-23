@@ -104,7 +104,7 @@ static mut arglist_locked: bool = false;
 
 #[inline]
 unsafe fn win_alist(wp: *const win_T) -> *mut alist_T {
-    unsafe { (*wp).w_alist.cast::<alist_T>() }
+    unsafe { (*wp).w_alist }
 }
 
 #[inline]
@@ -198,7 +198,7 @@ pub unsafe fn alist_new() {
         max_alist_id += 1;
         (*al).id = max_alist_id;
         alist_init(al);
-        (*curwin).w_alist = al.cast();
+        (*curwin).w_alist = al;
     }
 }
 
@@ -579,7 +579,7 @@ pub unsafe fn ex_args(eap: *mut exarg_T) {
             }
             alist_unlink(win_alist(curwin));
             if (*eap).cmdidx == CMD_argglobal {
-                (*curwin).w_alist = (&raw mut global_alist).cast();
+                (*curwin).w_alist = &raw mut global_alist;
             } else {
                 alist_new();
             }
@@ -1002,7 +1002,7 @@ unsafe fn arg_all_close_unused_windows(aall: *mut arg_all_state_T) {
 
                                 if win_alist(wp) != al {
                                     alist_unlink(win_alist(wp));
-                                    (*wp).w_alist = al.cast();
+                                    (*wp).w_alist = al;
                                     (*al).al_refcount += 1;
                                 }
                                 break;

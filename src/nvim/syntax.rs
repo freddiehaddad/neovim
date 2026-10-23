@@ -421,7 +421,7 @@ static mut expand_what: c_int = EXP_SUBCMD;
 
 #[inline]
 pub unsafe fn win_s(wp: *mut win_T) -> *mut synblock_T {
-    unsafe { (*wp).w_s.cast::<synblock_T>() }
+    unsafe { (*wp).w_s }
 }
 
 #[inline]
@@ -2925,8 +2925,8 @@ pub unsafe fn reset_synblock(wp: *mut win_T) {
         if win_s(wp) != &raw mut (*(*wp).w_buffer).b_s {
             syntax_clear(win_s(wp));
             (*win_s(wp)).b_langp = Vec::new();
-            xfree((*wp).w_s);
-            (*wp).w_s = (&raw mut (*(*wp).w_buffer).b_s).cast();
+            xfree((*wp).w_s.cast());
+            (*wp).w_s = &raw mut (*(*wp).w_buffer).b_s;
         }
     }
 }
@@ -5221,7 +5221,7 @@ pub unsafe fn ex_ownsyntax(eap: *mut exarg_T) {
             ptr::write(&raw mut (*new_s).b_syn_patterns, Vec::new());
             ptr::write(&raw mut (*new_s).b_syn_clusters, Vec::new());
             ptr::write(&raw mut (*new_s).b_langp, Vec::new());
-            (*curwin).w_s = new_s.cast();
+            (*curwin).w_s = new_s;
             (*curwin).w_onebuf_opt.wo_spell = 0;
             clear_string_option(&raw mut (*new_s).b_p_spc);
             clear_string_option(&raw mut (*new_s).b_p_spf);

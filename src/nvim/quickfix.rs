@@ -121,7 +121,7 @@ use crate::strings::{
 };
 use crate::ui::ui_flush;
 use crate::undo::u_clearallandblockfree;
-use std::ffi::{CStr, c_char, c_int, c_longlong, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_longlong, c_uint};
 use std::ptr;
 
 use crate::api::vim::HLF_N;
@@ -2388,17 +2388,16 @@ unsafe fn qf_alloc_stack(qfltype: qfltype_T, n: c_int) -> *mut qf_info_T {
 unsafe fn ll_get_or_alloc_list(wp: *mut win_T) -> *mut qf_info_T {
     unsafe {
         if is_ll_window(wp) {
-            return (*wp).w_llist_ref.cast::<qf_info_T>();
+            return (*wp).w_llist_ref;
         }
 
-        ll_free_all((&raw mut (*wp).w_llist_ref).cast::<*mut qf_info_T>());
+        ll_free_all(&raw mut (*wp).w_llist_ref);
 
         if (*wp).w_llist.is_null() {
-            (*wp).w_llist =
-                qf_alloc_stack(QFLT_LOCATION, (*wp).w_onebuf_opt.wo_lhi as c_int).cast::<c_void>();
+            (*wp).w_llist = qf_alloc_stack(QFLT_LOCATION, (*wp).w_onebuf_opt.wo_lhi as c_int);
         }
 
-        (*wp).w_llist.cast::<qf_info_T>()
+        (*wp).w_llist
     }
 }
 
@@ -2526,7 +2525,7 @@ pub unsafe fn copy_loclist_stack(from: *mut win_T, to: *mut win_T) {
         }
 
         let to_ll = qf_alloc_stack(QFLT_LOCATION, (*from).w_onebuf_opt.wo_lhi as c_int);
-        (*to).w_llist = to_ll.cast::<c_void>();
+        (*to).w_llist = to_ll;
         (*to).w_onebuf_opt.wo_lhi = i64::from((*to_ll).qf_maxcount);
         (*to_ll).qf_listcount = (*qi).qf_listcount;
 
@@ -2898,7 +2897,7 @@ unsafe fn qf_find_help_win() -> *mut win_T {
 
 unsafe fn win_set_loclist(wp: *mut win_T, qi: *mut qf_info_T) {
     unsafe {
-        (*wp).w_llist = qi.cast::<c_void>();
+        (*wp).w_llist = qi;
         (*qi).qf_refcount += 1;
     }
 }
@@ -4128,7 +4127,7 @@ unsafe fn qf_open_new_cwindow(qi: *mut qf_info_T, height: c_int) -> c_int {
         reset_binding(curwin);
 
         if is_ll_stack(qi) {
-            (*curwin).w_llist_ref = qi.cast::<c_void>();
+            (*curwin).w_llist_ref = qi;
             (*qi).qf_refcount += 1;
         }
 
@@ -7364,9 +7363,9 @@ unsafe fn qf_free_stack(mut wp: *mut win_T, qi: *mut qf_info_T) {
             let new_ll = qf_alloc_stack(QFLT_LOCATION, (*wp).w_onebuf_opt.wo_lhi as c_int);
             (*new_ll).qf_bufnr = (*(*qfwin).w_buffer).b_fnum;
 
-            ll_free_all((&raw mut (*qfwin).w_llist_ref).cast::<*mut qf_info_T>());
+            ll_free_all(&raw mut (*qfwin).w_llist_ref);
 
-            (*qfwin).w_llist_ref = new_ll.cast::<c_void>();
+            (*qfwin).w_llist_ref = new_ll;
             if wp != qfwin {
                 win_set_loclist(wp, new_ll);
             }
@@ -7970,12 +7969,12 @@ pub unsafe fn ex_helpgrep(eap: *mut exarg_T) {
         decr_quickfix_busy();
 
         if (*eap).cmdidx == CMD_lhelpgrep {
-            if !bt_help((*curwin).w_buffer) || (*curwin).w_llist.cast::<qf_info_T>() == qi {
+            if !bt_help((*curwin).w_buffer) || (*curwin).w_llist == qi {
                 if new_qi {
                     ll_free_all(&raw mut qi);
                 }
             } else if (*curwin).w_llist.is_null() && new_qi {
-                (*curwin).w_llist = qi.cast::<c_void>();
+                (*curwin).w_llist = qi;
             }
         }
     }

@@ -2998,10 +2998,9 @@ pub unsafe fn do_ecmd(
                             auto_buf = true;
                         } else {
                             if (*curwin).w_buffer.is_null()
-                                || (*curwin).w_s.cast::<synblock_T>()
-                                    == &raw mut (*(*curwin).w_buffer).b_s
+                                || (*curwin).w_s == &raw mut (*(*curwin).w_buffer).b_s
                             {
-                                (*curwin).w_s = (&raw mut (*buf).b_s).cast::<c_void>();
+                                (*curwin).w_s = &raw mut (*buf).b_s;
                             }
 
                             if !(*curwin).w_buffer.is_null() {

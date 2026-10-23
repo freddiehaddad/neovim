@@ -10,7 +10,7 @@ use crate::api::win_config::{
     kFloatRelativeLaststatus, kFloatRelativeTabline, kFloatRelativeWindow, kUIMultigrid,
     kWinStyleMinimal,
 };
-use crate::arglist::{alist_T, alist_unlink};
+use crate::arglist::alist_unlink;
 use crate::autocmd::{
     AUGROUP_ALL, EVENT_BUFENTER, EVENT_BUFLEAVE, EVENT_TABCLOSED, EVENT_TABCLOSEDPRE,
     EVENT_TABENTER, EVENT_TABLEAVE, EVENT_TABMOVED, EVENT_TABNEW, EVENT_TABNEWENTERED,
@@ -312,7 +312,7 @@ pub struct frame_T {
 pub struct win_T {
     pub handle: handle_T,
     pub w_buffer: *mut buf_T,
-    pub w_s: *mut std::ffi::c_void,
+    pub w_s: *mut crate::syntax::synblock_T,
     pub w_ns_hl: c_int,
     pub w_ns_hl_winhl: c_int,
     pub w_ns_hl_active: c_int,
@@ -425,7 +425,7 @@ pub struct win_T {
     pub w_stl_visual_mode: c_int,
     pub w_stl_visual_pos: pos_T,
     pub w_alt_fnum: c_int,
-    pub w_alist: *mut std::ffi::c_void,
+    pub w_alist: *mut crate::arglist::alist_T,
     pub w_arg_idx: c_int,
     pub w_arg_idx_invalid: bool,
     pub w_localdir: *mut c_char,
@@ -464,8 +464,8 @@ pub struct win_T {
     pub w_nrwidth_line_count: i32,
     pub w_statuscol_line_count: i32,
     pub w_nrwidth_width: c_int,
-    pub w_llist: *mut std::ffi::c_void,
-    pub w_llist_ref: *mut std::ffi::c_void,
+    pub w_llist: *mut crate::quickfix::qf_info_T,
+    pub w_llist_ref: *mut crate::quickfix::qf_info_T,
     pub w_status_click_defs: Vec<crate::mouse::StlClickDefinition>,
     pub w_winbar_click_defs: Vec<crate::mouse::StlClickDefinition>,
     pub w_statuscol_click_defs: std::collections::BTreeMap<c_int, StcClicks>,
@@ -478,7 +478,7 @@ pub type StcClicks = std::collections::BTreeMap<c_int, StcClick>;
 pub struct tabpage_T {
     pub handle: handle_T,
     pub tp_next: *mut tabpage_T,
-    pub tp_topframe: *mut std::ffi::c_void,
+    pub tp_topframe: *mut frame_T,
     pub tp_curwin: *mut win_T,
     pub tp_prevwin: *mut win_T,
     pub tp_firstwin: *mut win_T,
@@ -487,11 +487,11 @@ pub struct tabpage_T {
     pub tp_old_Columns: i64,
     pub tp_ch_used: i64,
     pub tp_did_tabclosedpre: bool,
-    pub tp_first_diff: *mut std::ffi::c_void,
+    pub tp_first_diff: *mut crate::diff::diff_T,
     pub tp_diffbuf: [*mut buf_T; 8],
     pub tp_diff_invalid: c_int,
     pub tp_diff_update: c_int,
-    pub tp_snapshot: [*mut std::ffi::c_void; 3],
+    pub tp_snapshot: [*mut frame_T; 3],
     pub tp_winvar: crate::eval::typval::ScopeDictDictItem,
     pub tp_vars: *mut dict_T,
     pub tp_localdir: *mut c_char,
@@ -2132,7 +2132,7 @@ pub unsafe fn win_split_ins(
 pub unsafe fn win_init(newp: *mut win_T, oldp: *mut win_T, flags: c_int) {
     unsafe {
         (*newp).w_buffer = (*oldp).w_buffer;
-        (*newp).w_s = (&raw mut (*(*oldp).w_buffer).b_s).cast();
+        (*newp).w_s = &raw mut (*(*oldp).w_buffer).b_s;
         (*(*oldp).w_buffer).b_nwindows += 1;
         (*newp).w_cursor = (*oldp).w_cursor;
         (*newp).w_valid = 0;
@@ -2200,7 +2200,7 @@ pub unsafe fn win_init(newp: *mut win_T, oldp: *mut win_T, flags: c_int) {
 unsafe fn win_init_some(newp: *mut win_T, oldp: *mut win_T) {
     unsafe {
         (*newp).w_alist = (*oldp).w_alist;
-        (*(*newp).w_alist.cast::<alist_T>()).al_refcount += 1;
+        (*(*newp).w_alist).al_refcount += 1;
         (*newp).w_arg_idx = (*oldp).w_arg_idx;
 
         win_copy_options(oldp, newp);
@@ -4639,7 +4639,7 @@ pub unsafe fn close_others(message: c_int, forceit: c_int, ignore_pinned: bool) 
 
 pub unsafe fn unuse_tabpage(tp: *mut tabpage_T) {
     unsafe {
-        (*tp).tp_topframe = topframe.cast();
+        (*tp).tp_topframe = topframe;
         (*tp).tp_firstwin = firstwin;
         (*tp).tp_lastwin = lastwin;
         (*tp).tp_curwin = curwin;
@@ -4650,7 +4650,7 @@ pub unsafe fn unuse_tabpage(tp: *mut tabpage_T) {
 pub unsafe fn use_tabpage(tp: *mut tabpage_T) {
     unsafe {
         curtab = tp;
-        topframe = (*curtab).tp_topframe.cast();
+        topframe = (*curtab).tp_topframe;
         firstwin = (*curtab).tp_firstwin;
         lastwin = (*curtab).tp_lastwin;
         curwin = (*curtab).tp_curwin;
@@ -4696,9 +4696,9 @@ unsafe fn win_alloc_firstwin(oldwin: *mut win_T) -> c_int {
                 return FAIL;
             }
             (*curwin).w_buffer = curbuf;
-            (*curwin).w_s = (&raw mut (*curbuf).b_s).cast();
+            (*curwin).w_s = &raw mut (*curbuf).b_s;
             (*curbuf).b_nwindows = 1;
-            (*curwin).w_alist = (&raw mut global_alist).cast();
+            (*curwin).w_alist = &raw mut global_alist;
             curwin_init();
         } else {
             win_init(curwin, oldwin, 0);
@@ -7740,7 +7740,7 @@ pub unsafe fn min_rows(tp: *mut tabpage_T) -> c_int {
             return MIN_LINES;
         }
 
-        let mut total = frame_minheight((*tp).tp_topframe.cast(), ptr::null_mut());
+        let mut total = frame_minheight((*tp).tp_topframe, ptr::null_mut());
         total += tabline_height() + global_stl_height();
         if (if ptr::eq(tp, curtab) {
             p_ch
@@ -7763,7 +7763,7 @@ pub unsafe fn min_rows_for_all_tabpages() -> c_int {
         let mut total: c_int = 0;
         let mut tp = first_tabpage;
         while !tp.is_null() {
-            let mut n = frame_minheight((*tp).tp_topframe.cast(), ptr::null_mut());
+            let mut n = frame_minheight((*tp).tp_topframe, ptr::null_mut());
             if (if ptr::eq(tp, curtab) {
                 p_ch
             } else {
@@ -7890,10 +7890,7 @@ pub unsafe fn reset_lnums() {
 pub unsafe fn make_snapshot(idx: c_int) {
     unsafe {
         clear_snapshot(curtab, idx);
-        make_snapshot_rec(
-            topframe,
-            (&raw mut (*curtab).tp_snapshot[idx as usize]).cast::<*mut frame_T>(),
-        );
+        make_snapshot_rec(topframe, &raw mut (*curtab).tp_snapshot[idx as usize]);
     }
 }
 
@@ -7917,7 +7914,7 @@ unsafe fn make_snapshot_rec(fr: *mut frame_T, frp: *mut *mut frame_T) {
 
 unsafe fn clear_snapshot(tp: *mut tabpage_T, idx: c_int) {
     unsafe {
-        clear_snapshot_rec((*tp).tp_snapshot[idx as usize].cast::<frame_T>());
+        clear_snapshot_rec((*tp).tp_snapshot[idx as usize]);
         (*tp).tp_snapshot[idx as usize] = ptr::null_mut();
     }
 }
@@ -7953,7 +7950,7 @@ unsafe fn get_snapshot_curwin_rec(ft: *mut frame_T) -> *mut win_T {
 
 unsafe fn get_snapshot_curwin(idx: c_int) -> *mut win_T {
     unsafe {
-        let sn = (*curtab).tp_snapshot[idx as usize].cast::<frame_T>();
+        let sn = (*curtab).tp_snapshot[idx as usize];
         if sn.is_null() {
             return ptr::null_mut();
         }
@@ -7963,7 +7960,7 @@ unsafe fn get_snapshot_curwin(idx: c_int) -> *mut win_T {
 
 pub unsafe fn restore_snapshot(idx: c_int, close_curwin: c_int) {
     unsafe {
-        let sn = (*curtab).tp_snapshot[idx as usize].cast::<frame_T>();
+        let sn = (*curtab).tp_snapshot[idx as usize];
         if !sn.is_null()
             && (*sn).fr_width == (*topframe).fr_width
             && (*sn).fr_height == (*topframe).fr_height

@@ -2,7 +2,7 @@
 
 use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO, cstr_as_string, tv_dict_is_watched};
 use crate::api::win_config::{UIExtension, kCtxNoDisplay, kWinStyleMinimal};
-use crate::arglist::{ML_EMPTY, alist_T, check_arg_idx};
+use crate::arglist::{ML_EMPTY, check_arg_idx};
 use crate::autocmd::{
     EVENT_BUFADD, EVENT_BUFDELETE, EVENT_BUFENTER, EVENT_BUFHIDDEN, EVENT_BUFLEAVE, EVENT_BUFNEW,
     EVENT_BUFUNLOAD, EVENT_BUFWINENTER, EVENT_BUFWINLEAVE, EVENT_BUFWIPEOUT, EVENT_STDINREADPOST,
@@ -202,8 +202,8 @@ pub struct buf_T {
     pub b_changelistlen: c_int,
     pub b_new_change: bool,
     pub b_chartab: [u64; 4],
-    pub b_maphash: [*mut c_void; 256],
-    pub b_first_abbr: *mut c_void,
+    pub b_maphash: [*mut crate::mapping::mapblock_T; 256],
+    pub b_first_abbr: *mut crate::mapping::mapblock_T,
     pub b_ucmds: Vec<crate::usercmd::ucmd_T>,
     pub b_op_start: pos_T,
     pub b_op_start_orig: pos_T,
@@ -213,9 +213,9 @@ pub struct buf_T {
     pub b_did_filetype: bool,
     pub b_keep_filetype: bool,
     pub b_au_did_filetype: bool,
-    pub b_u_oldhead: *mut c_void,
-    pub b_u_newhead: *mut c_void,
-    pub b_u_curhead: *mut c_void,
+    pub b_u_oldhead: *mut crate::undo::u_header_T,
+    pub b_u_newhead: *mut crate::undo::u_header_T,
+    pub b_u_curhead: *mut crate::undo::u_header_T,
     pub b_u_numhead: c_int,
     pub b_u_synced: bool,
     pub b_u_seq_last: c_int,
@@ -2250,7 +2250,7 @@ unsafe fn enter_buffer(buf: *mut buf_T) {
             diff_buf_add(curbuf);
         }
 
-        (*curwin).w_s = (&raw mut (*curbuf).b_s).cast();
+        (*curwin).w_s = &raw mut (*curbuf).b_s;
 
         (*curwin).w_cursor.lnum = 1;
         (*curwin).w_cursor.col = 0;
@@ -2307,7 +2307,7 @@ unsafe fn enter_buffer(buf: *mut buf_T) {
         }
         if !(*curbuf).b_help
             && (*curwin).w_onebuf_opt.wo_spell != 0
-            && *(*(*curwin).w_s.cast::<synblock_T>()).b_p_spl != NUL
+            && *(*(*curwin).w_s).b_p_spl != NUL
         {
             parse_spelllang(curwin);
         }
@@ -4111,7 +4111,7 @@ pub unsafe fn get_rel_pos(wp: *mut win_T, buf: *mut c_char, buflen: c_int) -> c_
 /// Append `(2 of 8)` to `buf[]`, if editing more than one file.
 pub unsafe fn append_arg_number(wp: *mut win_T, buf: *mut c_char, buflen: usize) -> c_int {
     unsafe {
-        let argcount = (*(*curwin).w_alist.cast::<alist_T>()).al_ga.len() as c_int;
+        let argcount = (*(*curwin).w_alist).al_ga.len() as c_int;
         if argcount <= 1 {
             return 0;
         }

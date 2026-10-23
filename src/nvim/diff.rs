@@ -238,7 +238,7 @@ unsafe fn diff_scan_start(tp: *mut tabpage_T, idx: c_int, lnum: linenr_T) -> *mu
         {
             return diff_finger_dp;
         }
-        (*tp).tp_first_diff.cast::<diff_T>()
+        (*tp).tp_first_diff
     }
 }
 unsafe fn diff_scan_remember(tp: *mut tabpage_T, idx: c_int, lnum: linenr_T, dp: *mut diff_T) {
@@ -249,7 +249,7 @@ unsafe fn diff_scan_remember(tp: *mut tabpage_T, idx: c_int, lnum: linenr_T, dp:
         diff_finger_dp = if !dp.is_null() {
             dp
         } else {
-            (*tp).tp_first_diff.cast::<diff_T>()
+            (*tp).tp_first_diff
         };
     }
 }
@@ -518,7 +518,7 @@ unsafe fn diff_mark_adjust_tp(
             }
         }
         dprev = ptr::null_mut();
-        dp = (*tp).tp_first_diff.cast::<diff_T>();
+        dp = (*tp).tp_first_diff;
         while !dp.is_null() {
             let mut i = 0;
             while i < DB_COUNT {
@@ -547,7 +547,7 @@ unsafe fn diff_alloc_new(tp: *mut tabpage_T, dprev: *mut diff_T, dp: *mut diff_T
         (*dnew).is_linematched = false;
         (*dnew).df_next = dp;
         if dprev.is_null() {
-            (*tp).tp_first_diff = dnew.cast();
+            (*tp).tp_first_diff = dnew;
         } else {
             (*dprev).df_next = dnew;
         }
@@ -561,7 +561,7 @@ unsafe fn diff_free(tp: *mut tabpage_T, dprev: *mut diff_T, dp: *mut diff_T) -> 
         let ret = (*dp).df_next;
         clear_diffblock(dp);
         if dprev.is_null() {
-            (*tp).tp_first_diff = ret.cast();
+            (*tp).tp_first_diff = ret;
         } else {
             (*dprev).df_next = ret;
         }
@@ -885,7 +885,7 @@ unsafe fn diff_try_update(dio: *mut diffio_T, idx_orig: usize, eap: *mut exarg_T
             for anchor_i in 0..=num_anchors {
                 let mut orig_diff: *mut diff_T = ptr::null_mut();
                 if anchor_i != 0 {
-                    orig_diff = (*curtab).tp_first_diff.cast::<diff_T>();
+                    orig_diff = (*curtab).tp_first_diff;
                     (*curtab).tp_first_diff = ptr::null_mut();
                 }
                 let mut lnum_start = if anchor_i == 0 {
@@ -901,7 +901,7 @@ unsafe fn diff_try_update(dio: *mut diffio_T, idx_orig: usize, eap: *mut exarg_T
                 let mut buf = (*curtab).tp_diffbuf[idx_orig];
                 if diff_write(buf, &raw mut (*dio).dio_orig, lnum_start, lnum_end) == FAIL {
                     if !orig_diff.is_null() {
-                        (*curtab).tp_first_diff = orig_diff.cast();
+                        (*curtab).tp_first_diff = orig_diff;
                         diff_clear(curtab);
                     }
                     break 'theend;
@@ -936,7 +936,7 @@ unsafe fn diff_try_update(dio: *mut diffio_T, idx_orig: usize, eap: *mut exarg_T
                 clear_diffin(&raw mut (*dio).dio_orig);
                 if anchor_i != 0 {
                     diff_finger_dp = ptr::null_mut();
-                    let mut dp = (*curtab).tp_first_diff.cast::<diff_T>();
+                    let mut dp = (*curtab).tp_first_diff;
                     while !dp.is_null() {
                         for (idx, anchor_row) in anchors.iter().enumerate() {
                             if anchor_row[anchor_i - 1] > 0 {
@@ -950,8 +950,8 @@ unsafe fn diff_try_update(dio: *mut diffio_T, idx_orig: usize, eap: *mut exarg_T
                         while !(*last_diff).df_next.is_null() {
                             last_diff = (*last_diff).df_next;
                         }
-                        (*last_diff).df_next = (*curtab).tp_first_diff.cast::<diff_T>();
-                        (*curtab).tp_first_diff = orig_diff.cast();
+                        (*last_diff).df_next = (*curtab).tp_first_diff;
+                        (*curtab).tp_first_diff = orig_diff;
                     }
                 }
             }

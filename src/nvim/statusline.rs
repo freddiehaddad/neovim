@@ -923,7 +923,7 @@ pub unsafe fn draw_tabline() {
                     ((*tp).tp_curwin, (*tp).tp_firstwin)
                 };
 
-                if (*tp).tp_topframe == topframe.cast() {
+                if (*tp).tp_topframe == topframe {
                     attr = hl_combine_attr(attr_fill, win_hl_attr(cwp, HLF_TPS));
                 }
                 if use_sep_chars && col > 0 {
@@ -931,7 +931,7 @@ pub unsafe fn draw_tabline() {
                     col += 1;
                 }
 
-                if (*tp).tp_topframe != topframe.cast() {
+                if (*tp).tp_topframe != topframe {
                     attr = hl_combine_attr(attr_fill, win_hl_attr(cwp, HLF_TP));
                 }
 
