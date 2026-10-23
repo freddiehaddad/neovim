@@ -1,7 +1,7 @@
 //! Handling of a hashtable with Vim-specific properties (`src/nvim/hashtab.c`).
 
 use crate::message::siemsg;
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_void};
 
 use crate::math::{FAIL, OK};
 use crate::memory::{xcalloc, xfree};
@@ -87,30 +87,6 @@ pub unsafe fn hash_clear(ht: *mut hashtab_T) {
         unsafe {
             xfree(ht_ref.ht_array.cast::<c_void>());
         }
-    }
-}
-
-/// Free the array of a hash table and all contained values at `hi_key - off` (`hash_clear_all`).
-///
-/// # Safety
-/// `ht` must be a valid writable pointer to an initialized `hashtab_T`, and every active `hi_key`
-/// must sit at offset `off` inside an `xmalloc`-allocated object.
-pub unsafe fn hash_clear_all(ht: *mut hashtab_T, off: c_uint) {
-    let ht_ref = unsafe { &mut *ht };
-    let mut todo = ht_ref.ht_used;
-    let mut hi = ht_ref.ht_array;
-    while todo > 0 {
-        let item = unsafe { &*hi };
-        if !hashitem_empty(item) {
-            unsafe {
-                xfree(item.hi_key.sub(off as usize).cast::<c_void>());
-            }
-            todo -= 1;
-        }
-        hi = unsafe { hi.add(1) };
-    }
-    unsafe {
-        hash_clear(ht);
     }
 }
 

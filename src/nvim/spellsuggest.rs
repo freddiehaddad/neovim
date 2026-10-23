@@ -1,6 +1,6 @@
 //! Functions for spelling suggestions (`src/nvim/spellsuggest.c`).
 use crate::buffer::buf_T;
-use crate::change::{MB_MAXCHAR, inserted_bytes};
+use crate::change::inserted_bytes;
 use crate::charset::{NUL, ascii_isdigit, ascii_iswhite, getdigits_int, skiptowhite, skipwhite};
 use crate::cursor::{check_cursor, colnr_T, get_cursor_line_len, get_cursor_line_ptr};
 use crate::errors::*;
@@ -12,10 +12,6 @@ use crate::eval::typval::{
 use crate::eval::vars::{eval_spell_expr, get_spellword};
 use crate::fileio::{fclose, vim_fgets};
 use crate::globals::*;
-use crate::hashtab::{
-    hash_T, hash_add_item, hash_clear, hash_clear_all, hash_find, hash_hash, hash_init,
-    hash_lookup, hashitem_empty, hashtab_T,
-};
 use crate::input::{beep_flush, prep_redo, redo_append_char, redo_append_lit, vgetc};
 use crate::input_cmdatom::CmdSpec;
 use crate::lua::executor::nlua_call_typval;
@@ -141,7 +137,7 @@ pub struct slang_T {
     pub sl_info: *mut c_char,
     pub sl_regions: [c_char; MAXREGIONS * 2 + 1],
     pub sl_midword: *mut c_char,
-    pub sl_wordcount: hashtab_T,
+    pub sl_wordcount: std::collections::BTreeMap<Vec<u8>, u16>,
     pub sl_compmax: c_int,
     pub sl_compminlen: c_int,
     pub sl_compsylmax: c_int,
@@ -176,9 +172,9 @@ pub struct slang_T {
     pub sl_sugbuf: *mut buf_T,
     pub sl_sugloaded: bool,
     pub sl_has_map: bool,
-    pub sl_map_hash: hashtab_T,
+    pub sl_map_hash: std::collections::BTreeMap<c_int, c_int>,
     pub sl_map_array: [c_int; 256],
-    pub sl_sounddone: hashtab_T,
+    pub sl_sounddone: std::collections::BTreeMap<Vec<u8>, i16>,
 }
 
 impl slang_T {
@@ -205,11 +201,6 @@ pub struct spelltab_T {
     pub st_upper: [u8; 256],
 }
 #[repr(C)]
-pub struct wordcount_T {
-    pub wc_count: u16,
-    pub wc_word: [c_char; 0],
-}
-#[repr(C)]
 struct suginfo_T {
     su_ga: Vec<suggest_T>,
     su_maxcount: c_int,
@@ -222,7 +213,7 @@ struct suginfo_T {
     su_badword: [c_char; MAXWLEN],
     su_fbadword: [c_char; MAXWLEN],
     su_sal_badword: [c_char; MAXWLEN],
-    su_banned: hashtab_T,
+    su_banned: std::collections::HashSet<Vec<u8>>,
     su_sallang: *mut slang_T,
 }
 
@@ -240,7 +231,7 @@ impl Default for suginfo_T {
             su_badword: [0; MAXWLEN],
             su_fbadword: [0; MAXWLEN],
             su_sal_badword: [0; MAXWLEN],
-            su_banned: unsafe { std::mem::zeroed() },
+            su_banned: std::collections::HashSet::new(),
             su_sallang: ptr::null_mut(),
         }
     }
@@ -330,11 +321,6 @@ impl Default for trystate_T {
     }
 }
 #[repr(C)]
-struct sftword_T {
-    sft_score: i16,
-    sft_word: [u8; 0],
-}
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 struct limitscore_T {
     badi: c_int,
@@ -378,7 +364,7 @@ unsafe fn mb_cptr_back(s: *const c_char, p: &mut *const c_char) {
 
 #[inline]
 unsafe fn was_banned(su: *mut suginfo_T, word: *const c_char) -> bool {
-    unsafe { !hashitem_empty(&*hash_find(&raw mut (*su).su_banned, word)) }
+    unsafe { (*su).su_banned.contains(std::ffi::CStr::from_ptr(word).to_bytes()) }
 }
 #[inline]
 unsafe fn sug_at(ga: *const Vec<suggest_T>, i: usize) -> *mut suggest_T {
@@ -420,17 +406,15 @@ unsafe fn score_wordcount_adj(
     split: bool,
 ) -> c_int {
     unsafe {
-        let hi = hash_find(&raw mut (*slang).sl_wordcount, word);
-        if hashitem_empty(&*hi) {
+        let Some(&wc_count) = (*slang)
+            .sl_wordcount
+            .get(std::ffi::CStr::from_ptr(word).to_bytes())
+        else {
             return score;
-        }
-        let wc = (*hi)
-            .hi_key
-            .sub(std::mem::offset_of!(wordcount_T, wc_word))
-            .cast::<wordcount_T>();
-        let bonus = if (*wc).wc_count < SCORE_THRES2 {
+        };
+        let bonus = if wc_count < SCORE_THRES2 {
             SCORE_COMMON1
-        } else if (*wc).wc_count < SCORE_THRES3 {
+        } else if wc_count < SCORE_THRES3 {
             SCORE_COMMON2
         } else {
             SCORE_COMMON3
@@ -865,7 +849,6 @@ unsafe fn spell_find_suggest(
         if *badptr == NUL {
             return;
         }
-        hash_init(&raw mut (*su).su_banned);
         (*su).su_badptr = badptr;
         if badlen != 0 {
             (*su).su_badlen = badlen;
@@ -1099,7 +1082,7 @@ unsafe fn spell_find_cleanup(su: *mut suginfo_T) {
             xfree(stp.st_word.cast());
         }
         (*su).su_sga = Vec::new();
-        hash_clear_all(&raw mut (*su).su_banned, 0);
+        (*su).su_banned.clear();
     }
 }
 unsafe fn suggest_try_special(su: *mut suginfo_T) {
@@ -2503,7 +2486,7 @@ unsafe fn suggest_try_soundalike_prep() {
             let lp = langp_entry(&raw const (*w_s).b_langp, lpi);
             let slang = (*lp).lp_slang;
             if (*slang).has_sal() && !(*slang).sl_sbyts.is_null() {
-                hash_init(&raw mut (*slang).sl_sounddone);
+                (*slang).sl_sounddone.clear();
             }
         }
     }
@@ -2534,21 +2517,7 @@ unsafe fn suggest_try_soundalike_finish() {
             let lp = langp_entry(&raw const (*w_s).b_langp, lpi);
             let slang = (*lp).lp_slang;
             if (*slang).has_sal() && !(*slang).sl_sbyts.is_null() {
-                let mut todo = (*slang).sl_sounddone.ht_used as isize;
-                let mut hi = (*slang).sl_sounddone.ht_array;
-                while todo > 0 {
-                    if !hashitem_empty(&*hi) {
-                        let sft = (*hi)
-                            .hi_key
-                            .sub(std::mem::offset_of!(sftword_T, sft_word))
-                            .cast::<sftword_T>();
-                        xfree(sft.cast());
-                        todo -= 1;
-                    }
-                    hi = hi.add(1);
-                }
-                hash_clear(&raw mut (*slang).sl_sounddone);
-                hash_init(&raw mut (*slang).sl_sounddone);
+                (*slang).sl_sounddone.clear();
             }
         }
     }
@@ -2562,25 +2531,16 @@ unsafe fn add_sound_suggest(
     unsafe {
         let slang = (*lp).lp_slang;
         let mut theword: [c_char; MAXWLEN] = [0; MAXWLEN];
-        let hash: hash_T = hash_hash(goodword);
-        let goodword_len = strlen(goodword);
-        let hi = hash_lookup(&raw mut (*slang).sl_sounddone, goodword, goodword_len, hash);
-        if hashitem_empty(&*hi) {
-            let sft_off = std::mem::offset_of!(sftword_T, sft_word);
-            let sft = xmalloc(sft_off + goodword_len + 1).cast::<sftword_T>();
-            (*sft).sft_score = score as i16;
-            let sft_word_ptr = sft.cast::<u8>().add(sft_off).cast::<c_char>();
-            ptr::copy_nonoverlapping(goodword, sft_word_ptr, goodword_len + 1);
-            hash_add_item(&raw mut (*slang).sl_sounddone, hi, sft_word_ptr, hash);
-        } else {
-            let sft = (*hi)
-                .hi_key
-                .sub(std::mem::offset_of!(sftword_T, sft_word))
-                .cast::<sftword_T>();
-            if score >= (*sft).sft_score as c_int {
+        let goodword_bytes = std::ffi::CStr::from_ptr(goodword).to_bytes();
+        if let Some(prev_score) = (*slang).sl_sounddone.get_mut(goodword_bytes) {
+            if score >= *prev_score as c_int {
                 return;
             }
-            (*sft).sft_score = score as i16;
+            *prev_score = score as i16;
+        } else {
+            (*slang)
+                .sl_sounddone
+                .insert(goodword_bytes.to_vec(), score as i16);
         }
         let sfwordnr = soundfold_find(slang, goodword);
         if sfwordnr < 0 {
@@ -2769,16 +2729,8 @@ unsafe fn soundfold_find(slang: *mut slang_T, word: *mut c_char) -> c_int {
 }
 unsafe fn similar_chars(slang: *mut slang_T, c1: c_int, c2: c_int) -> bool {
     unsafe {
-        let mut buf: [c_char; MB_MAXCHAR + 1] = [0; MB_MAXCHAR + 1];
         let m1 = if c1 >= 256 {
-            let blen = utf_char2bytes(c1, (&raw mut buf).cast()) as usize;
-            buf[blen] = 0;
-            let hi = hash_find(&raw mut (*slang).sl_map_hash, (&raw const buf).cast());
-            if hashitem_empty(&*hi) {
-                0
-            } else {
-                utf_ptr2char((*hi).hi_key.add(strlen((*hi).hi_key) + 1))
-            }
+            (*slang).sl_map_hash.get(&c1).copied().unwrap_or(0)
         } else if c1 >= 0 {
             (*slang).sl_map_array[c1 as usize]
         } else {
@@ -2788,14 +2740,7 @@ unsafe fn similar_chars(slang: *mut slang_T, c1: c_int, c2: c_int) -> bool {
             return false;
         }
         let m2 = if c2 >= 256 {
-            let blen = utf_char2bytes(c2, (&raw mut buf).cast()) as usize;
-            buf[blen] = 0;
-            let hi = hash_find(&raw mut (*slang).sl_map_hash, (&raw const buf).cast());
-            if hashitem_empty(&*hi) {
-                0
-            } else {
-                utf_ptr2char((*hi).hi_key.add(strlen((*hi).hi_key) + 1))
-            }
+            (*slang).sl_map_hash.get(&c2).copied().unwrap_or(0)
         } else if c2 >= 0 {
             (*slang).sl_map_array[c2 as usize]
         } else {
@@ -2939,14 +2884,10 @@ unsafe fn check_suggestions(su: *mut suginfo_T, gap: *mut Vec<suggest_T>) {
 }
 unsafe fn add_banned(su: *mut suginfo_T, word: *mut c_char) {
     unsafe {
-        let hash: hash_T = hash_hash(word);
-        let word_len = strlen(word);
-        let hi = hash_lookup(&raw mut (*su).su_banned, word, word_len, hash);
-        if !hashitem_empty(&*hi) {
-            return;
+        let word_bytes = std::ffi::CStr::from_ptr(word).to_bytes();
+        if !(*su).su_banned.contains(word_bytes) {
+            (*su).su_banned.insert(word_bytes.to_vec());
         }
-        let s = xmemdupz(word.cast(), word_len).cast::<c_char>();
-        hash_add_item(&raw mut (*su).su_banned, hi, s, hash);
     }
 }
 unsafe fn rescore_suggestions(su: *mut suginfo_T) {

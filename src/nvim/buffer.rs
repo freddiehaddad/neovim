@@ -1389,6 +1389,8 @@ unsafe fn free_buffer(buf: *mut buf_T) {
         ptr::drop_in_place(&raw mut (*buf).b_kmap_ga);
         ptr::drop_in_place(&raw mut (*buf).b_marktree);
         ptr::drop_in_place(&raw mut (*buf).b_extmark_ns);
+        ptr::drop_in_place(&raw mut (*buf).b_s.b_keywtab);
+        ptr::drop_in_place(&raw mut (*buf).b_s.b_keywtab_ic);
         ptr::drop_in_place(&raw mut (*buf).update_channels);
         ptr::drop_in_place(&raw mut (*buf).update_callbacks);
         callback_free(&raw mut (*buf).b_prompt_callback);
@@ -2487,6 +2489,14 @@ pub unsafe fn buflist_new(
             );
             ptr::write(&raw mut (*buf).update_channels, Vec::new());
             ptr::write(&raw mut (*buf).update_callbacks, Vec::new());
+            ptr::write(
+                &raw mut (*buf).b_s.b_keywtab,
+                std::collections::BTreeMap::new(),
+            );
+            ptr::write(
+                &raw mut (*buf).b_s.b_keywtab_ic,
+                std::collections::BTreeMap::new(),
+            );
             ptr::write(&raw mut (*buf).b_s.b_syn_patterns, Vec::new());
             ptr::write(&raw mut (*buf).b_s.b_syn_clusters, Vec::new());
             ptr::write(&raw mut (*buf).b_s.b_langp, Vec::new());
@@ -2543,9 +2553,6 @@ pub unsafe fn buflist_new(
         (*curwin_info).wi_mark = INIT_FMARK;
         (*curwin_info).wi_mark.mark.lnum = lnum;
         (*curwin_info).wi_win = curwin;
-
-        hash_init(&raw mut (*buf).b_s.b_keywtab);
-        hash_init(&raw mut (*buf).b_s.b_keywtab_ic);
 
         (*buf).b_fname = (*buf).b_sfname;
         if !file_id_valid {

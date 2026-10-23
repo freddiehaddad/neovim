@@ -14,14 +14,10 @@ use crate::fileio::{
     vim_tempname,
 };
 use crate::globals::*;
-use crate::hashtab::{
-    hash_T, hash_add, hash_add_item, hash_clear, hash_clear_all, hash_find, hash_hash, hash_init,
-    hash_lookup, hashitem_T, hashtab_T,
-};
 use crate::mbyte::{
     convert_setup, enc_canonize, mb_charlen, mb_cptr2char_adv, mb_ptr_adv, mb_ptr_back,
-    mb_ptr2char_adv, string_convert, utf_char2bytes, utf_char2len, utf_ptr2char, utf_ptr2len,
-    utf_valid_string, utfc_ptr2len, vimconv_T,
+    mb_ptr2char_adv, string_convert, utf_char2bytes, utf_ptr2char, utf_ptr2len, utf_valid_string,
+    utfc_ptr2len, vimconv_T,
 };
 use crate::memline::{ml_append_buf, ml_get_buf, ml_get_buf_len};
 use crate::memory::{strequal, xcalloc, xfree, xmalloc, xmemcpyz, xstrdup, xstrlcat, xstrlcpy};
@@ -57,7 +53,7 @@ use crate::strings::{
     atoi, gettext, has_non_ascii, memchr, memcmp, sort_slice_by, strcat, strcmp, strcpy, strerror,
     strlen, strncmp, strrchr, strstr, vim_snprintf, vim_strchr,
 };
-use crate::syntax::{hi_empty, win_s};
+use crate::syntax::win_s;
 use crate::ui::ui_flush;
 use crate::undo::bufIsChanged;
 use std::ffi::{c_char, c_int, c_long, c_uint, c_void};
@@ -195,9 +191,9 @@ struct afffile_T {
     af_nosuggest: c_uint,
     af_pfxpostpone: c_int,
     af_ignoreextra: bool,
-    af_pref: hashtab_T,
-    af_suff: hashtab_T,
-    af_comp: hashtab_T,
+    af_pref: std::collections::BTreeMap<Vec<u8>, *mut affheader_T>,
+    af_suff: std::collections::BTreeMap<Vec<u8>, *mut affheader_T>,
+    af_comp: std::collections::BTreeMap<Vec<u8>, *mut compitem_T>,
 }
 
 #[repr(C)]
@@ -299,7 +295,7 @@ struct spellinfo_T {
     si_nocompoundsugs: c_int,
     si_followup: c_int,
     si_collapse: c_int,
-    si_commonwords: hashtab_T,
+    si_commonwords: std::collections::BTreeSet<Vec<u8>>,
     si_sugtime: time_t,
     si_rem_accents: c_int,
     si_map: Vec<c_char>,
@@ -354,7 +350,7 @@ impl Default for spellinfo_T {
             si_nocompoundsugs: 0,
             si_followup: 0,
             si_collapse: 0,
-            si_commonwords: unsafe { std::mem::zeroed() },
+            si_commonwords: std::collections::BTreeSet::new(),
             si_sugtime: 0,
             si_rem_accents: 0,
             si_map: Vec::new(),
@@ -376,21 +372,6 @@ impl Default for spellinfo_T {
 
 use crate::fileio::ungetc;
 use crate::spell::langp_entry;
-
-#[inline]
-unsafe fn hi2ah(hi: *mut hashitem_T) -> *mut affheader_T {
-    unsafe { (*hi).hi_key.cast::<affheader_T>() }
-}
-
-#[inline]
-unsafe fn hi2ci(hi: *mut hashitem_T) -> *mut compitem_T {
-    unsafe { (*hi).hi_key.cast::<compitem_T>() }
-}
-
-#[inline]
-unsafe fn hi2wn(hi: *mut hashitem_T) -> *mut wordnode_T {
-    unsafe { (*hi).hi_key.cast::<wordnode_T>() }
-}
 
 #[inline]
 unsafe fn spell_read_bytes(buf: *mut c_char, n: usize, fd: *mut FILE) -> c_int {
@@ -1799,9 +1780,18 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
         let do_mapline = (*spin).si_map.is_empty();
 
         let aff = getroom(spin, size_of::<afffile_T>(), true).cast::<afffile_T>();
-        hash_init(&raw mut (*aff).af_pref);
-        hash_init(&raw mut (*aff).af_suff);
-        hash_init(&raw mut (*aff).af_comp);
+        ptr::write(
+            &raw mut (*aff).af_pref,
+            std::collections::BTreeMap::new(),
+        );
+        ptr::write(
+            &raw mut (*aff).af_suff,
+            std::collections::BTreeMap::new(),
+        );
+        ptr::write(
+            &raw mut (*aff).af_comp,
+            std::collections::BTreeMap::new(),
+        );
 
         while !vim_fgets(rline.as_mut_ptr(), MAXLINELEN as c_int, fd) && !got_int {
             line_breakcheck();
@@ -1906,8 +1896,8 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                         || (*aff).af_comproot != 0
                         || (*aff).af_nosuggest != 0
                         || !compflags.is_null()
-                        || (*aff).af_suff.ht_used > 0
-                        || (*aff).af_pref.ht_used > 0
+                        || !(*aff).af_suff.is_empty()
+                        || !(*aff).af_pref.is_empty()
                     {
                         smsg!(
                             0,
@@ -1987,7 +1977,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                 ) && (*aff).af_compforbid == 0
                 {
                     (*aff).af_compforbid = affitem2flag((*aff).af_flagtype, items[1], fname, lnum);
-                    if (*aff).af_pref.ht_used > 0 {
+                    if !(*aff).af_pref.is_empty() {
                         smsg!(
                             0,
                             gettext(
@@ -2006,7 +1996,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                 ) && (*aff).af_comppermit == 0
                 {
                     (*aff).af_comppermit = affitem2flag((*aff).af_flagtype, items[1], fname, lnum);
-                    if (*aff).af_pref.ht_used > 0 {
+                    if !(*aff).af_pref.is_empty() {
                         smsg!(
                             0,
                             gettext(
@@ -2178,15 +2168,15 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                     let mut key = [0 as c_char; AH_KEY_LEN];
 
                     let tp = if *items[0] == b'P' as c_char {
-                        &raw mut (*aff).af_pref
+                        &mut (*aff).af_pref
                     } else {
-                        &raw mut (*aff).af_suff
+                        &mut (*aff).af_suff
                     };
 
                     xstrlcpy(key.as_mut_ptr(), items[1], AH_KEY_LEN);
-                    let hi = hash_find(tp, key.as_ptr());
-                    if !hi_empty(hi) {
-                        cur_aff = hi2ah(hi);
+                    let key_bytes = std::ffi::CStr::from_ptr(key.as_ptr()).to_bytes();
+                    if let Some(&existing_aff) = tp.get(key_bytes) {
+                        cur_aff = existing_aff;
                         if (*cur_aff).ah_combine != c_int::from(*items[2] == b'Y' as c_char) {
                             smsg!(
                                 0,
@@ -2236,7 +2226,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                             );
                         }
                         strcpy((&raw mut (*cur_aff).ah_key).cast(), items[1]);
-                        hash_add(tp, (&raw mut (*cur_aff).ah_key).cast());
+                        tp.insert(key_bytes.to_vec(), cur_aff);
                         (*cur_aff).ah_combine = c_int::from(*items[2] == b'Y' as c_char);
                     }
 
@@ -2565,10 +2555,9 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                     sofoto = getroom_save(spin, items[1]);
                 } else if strcmp(items[0], c"COMMON".as_ptr()) == 0 {
                     for &item in items.iter().take(itemcnt).skip(1) {
-                        if hi_empty(hash_find(&raw const (*spin).si_commonwords, item)) {
-                            let p_cw = xstrdup(item);
-                            hash_add(&raw mut (*spin).si_commonwords, p_cw);
-                        }
+                        (*spin)
+                            .si_commonwords
+                            .insert(std::ffi::CStr::from_ptr(item).to_bytes().to_vec());
                     }
                 } else {
                     smsg!(
@@ -2833,9 +2822,9 @@ unsafe fn process_compflags(spin: *mut spellinfo_T, aff: *mut afffile_T, compfla
                         prevp.cast(),
                         cur.offset_from(prevp) as usize,
                     );
-                    let hi = hash_find(&raw const (*aff).af_comp, key.as_ptr());
-                    let id = if !hi_empty(hi) {
-                        (*hi2ci(hi)).ci_newID
+                    let key_bytes = std::ffi::CStr::from_ptr(key.as_ptr()).to_bytes();
+                    let id = if let Some(&ci) = (*aff).af_comp.get(key_bytes) {
+                        (*ci).ci_newID
                     } else {
                         let ci = getroom(spin, size_of::<compitem_T>(), true).cast::<compitem_T>();
                         strcpy((&raw mut (*ci).ci_key).cast(), key.as_ptr());
@@ -2850,7 +2839,7 @@ unsafe fn process_compflags(spin: *mut spellinfo_T, aff: *mut afffile_T, compfla
                             }
                         }
                         (*ci).ci_newID = new_id;
-                        hash_add(&raw mut (*aff).af_comp, (&raw mut (*ci).ci_key).cast());
+                        (*aff).af_comp.insert(key_bytes.to_vec(), ci);
                         new_id
                     };
                     *tp = id as u8;
@@ -2992,26 +2981,19 @@ unsafe fn spell_free_aff(aff: *mut afffile_T) {
     unsafe {
         xfree((*aff).af_enc.cast());
 
-        for ht in [&raw mut (*aff).af_pref, &raw mut (*aff).af_suff] {
-            let mut todo = (*ht).ht_used as c_int;
-            let mut hi = (*ht).ht_array;
-            while todo > 0 {
-                if !hi_empty(hi) {
-                    todo -= 1;
-                    let ah = hi2ah(hi);
-                    let mut ae = (*ah).ah_first;
-                    while !ae.is_null() {
-                        vim_regfree((*ae).ae_prog);
-                        ae = (*ae).ae_next;
-                    }
+        for ht in [&(*aff).af_pref, &(*aff).af_suff] {
+            for &ah in ht.values() {
+                let mut ae = (*ah).ah_first;
+                while !ae.is_null() {
+                    vim_regfree((*ae).ae_prog);
+                    ae = (*ae).ae_next;
                 }
-                hi = hi.add(1);
             }
         }
 
-        hash_clear(&raw mut (*aff).af_pref);
-        hash_clear(&raw mut (*aff).af_suff);
-        hash_clear(&raw mut (*aff).af_comp);
+        ptr::drop_in_place(&raw mut (*aff).af_pref);
+        ptr::drop_in_place(&raw mut (*aff).af_suff);
+        ptr::drop_in_place(&raw mut (*aff).af_comp);
     }
 }
 
@@ -3021,7 +3003,7 @@ unsafe fn spell_read_dic(
     affile: *mut afffile_T,
 ) -> c_int {
     unsafe {
-        let mut ht: hashtab_T = std::mem::zeroed();
+        let mut ht: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
         let mut line = [0 as c_char; MAXLINELEN];
         let mut store_afflist = [0 as c_char; MAXWLEN];
         let mut lnum: c_int = 1;
@@ -3036,8 +3018,6 @@ unsafe fn spell_read_dic(
             semsg!(gettext((&raw const e_notopen).cast()), fname);
             return FAIL;
         }
-
-        hash_init(&raw mut ht);
 
         vim_snprintf!(
             (&raw mut IObuff).cast(),
@@ -3142,9 +3122,8 @@ unsafe fn spell_read_dic(
                 break;
             }
 
-            let hash: hash_T = hash_hash(dw);
-            let hi = hash_lookup(&raw const ht, dw, strlen(dw), hash);
-            if !hi_empty(hi) {
+            let dw_bytes = std::ffi::CStr::from_ptr(dw).to_bytes().to_vec();
+            if !ht.insert(dw_bytes) {
                 if p_verbose > 0 {
                     smsg!(
                         0,
@@ -3163,8 +3142,6 @@ unsafe fn spell_read_dic(
                     );
                 }
                 duplicate += 1;
-            } else {
-                hash_add_item(&raw mut ht, hi, dw, hash);
             }
 
             let mut flags: c_int = 0;
@@ -3267,7 +3244,6 @@ unsafe fn spell_read_dic(
                 fname,
             );
         }
-        hash_clear(&raw mut ht);
 
         fclose(fd);
         retval
@@ -3330,9 +3306,9 @@ unsafe fn get_pfxlist(
                     prevp.cast(),
                     p.offset_from(prevp) as usize,
                 );
-                let hi = hash_find(&raw const (*affile).af_pref, key.as_ptr());
-                if !hi_empty(hi) {
-                    let id = (*hi2ah(hi)).ah_newID;
+                let key_bytes = std::ffi::CStr::from_ptr(key.as_ptr()).to_bytes();
+                if let Some(&ah) = (*affile).af_pref.get(key_bytes) {
+                    let id = (*ah).ah_newID;
                     if id != 0 && store_afflist_add(store_afflist, cntp, id) == FAIL {
                         return FAIL;
                     }
@@ -3364,9 +3340,9 @@ unsafe fn get_compflags(
                     prevp.cast(),
                     p.offset_from(prevp) as usize,
                 );
-                let hi = hash_find(&raw const (*affile).af_comp, key.as_ptr());
-                if !hi_empty(hi)
-                    && store_afflist_add(store_afflist, cntp, (*hi2ci(hi)).ci_newID) == FAIL
+                let key_bytes = std::ffi::CStr::from_ptr(key.as_ptr()).to_bytes();
+                if let Some(&ci) = (*affile).af_comp.get(key_bytes)
+                    && store_afflist_add(store_afflist, cntp, (*ci).ci_newID) == FAIL
                 {
                     return FAIL;
                 }
@@ -3384,8 +3360,8 @@ unsafe fn store_aff_word(
     word: *mut c_char,
     afflist: *mut c_char,
     affile: *mut afffile_T,
-    ht: *mut hashtab_T,
-    xht: *mut hashtab_T,
+    ht: *const std::collections::BTreeMap<Vec<u8>, *mut affheader_T>,
+    xht: *const std::collections::BTreeMap<Vec<u8>, *mut affheader_T>,
     condit: c_int,
     flags: c_int,
     pfxlist: *mut c_char,
@@ -3398,13 +3374,11 @@ unsafe fn store_aff_word(
         let mut pfx_pfxlist = [0 as c_char; MAXWLEN];
         let wordlen = strlen(word);
 
-        let mut todo = (*ht).ht_used as c_int;
-        let mut hi = (*ht).ht_array;
-        while todo > 0 && retval == OK {
-            if !hi_empty(hi) {
-                todo -= 1;
-                let ah = hi2ah(hi);
-
+        for &ah in (*ht).values() {
+            if retval != OK {
+                break;
+            }
+            {
                 if ((condit & CONDIT_COMB) == 0 || (*ah).ah_combine != 0)
                     && flag_in_afflist((*affile).af_flagtype, afflist, (*ah).ah_flag)
                 {
@@ -3675,7 +3649,6 @@ unsafe fn store_aff_word(
                     }
                 }
             }
-            hi = hi.add(1);
         }
 
         retval
@@ -4216,15 +4189,15 @@ unsafe fn free_wordnode(spin: *mut spellinfo_T, n: *mut wordnode_T) {
 
 unsafe fn wordtree_compress(spin: *mut spellinfo_T, root: *mut wordnode_T, name: *const c_char) {
     unsafe {
-        let mut ht: hashtab_T = std::mem::zeroed();
+        let mut ht: std::collections::HashMap<[u8; 6], *mut wordnode_T> =
+            std::collections::HashMap::new();
         let mut tot: c_int = 0;
 
         if (*root).wn_sibling.is_null() {
             return;
         }
 
-        hash_init(&raw mut ht);
-        let n = node_compress(spin, (*root).wn_sibling, &raw mut ht, &raw mut tot);
+        let n = node_compress(spin, (*root).wn_sibling, &mut ht, &raw mut tot);
 
         if (*spin).si_verbose != 0 || p_verbose > 2 {
             let perc: c_long = if tot > 1_000_000 {
@@ -4246,14 +4219,13 @@ unsafe fn wordtree_compress(spin: *mut spellinfo_T, root: *mut wordnode_T, name:
             );
             spell_message(spin, (&raw mut IObuff).cast());
         }
-        hash_clear(&raw mut ht);
     }
 }
 
 unsafe fn node_compress(
     spin: *mut spellinfo_T,
     node: *mut wordnode_T,
-    ht: *mut hashtab_T,
+    ht: &mut std::collections::HashMap<[u8; 6], *mut wordnode_T>,
     tot: *mut c_int,
 ) -> c_int {
     unsafe {
@@ -4267,11 +4239,9 @@ unsafe fn node_compress(
             if !child.is_null() {
                 compressed += node_compress(spin, child, ht, tot);
 
-                let hk_ptr = (&raw mut (*child).wn_u1.hashkey).cast::<c_char>();
-                let hash = hash_hash(hk_ptr);
-                let hi = hash_lookup(ht, hk_ptr, strlen(hk_ptr), hash);
-                if !hi_empty(hi) {
-                    let mut tp = hi2wn(hi);
+                let hk = (*child).wn_u1.hashkey;
+                if let Some(&first_tp) = ht.get(&hk) {
+                    let mut tp = first_tp;
                     while !tp.is_null() {
                         if node_equal(child, tp) {
                             (*tp).wn_refs += 1;
@@ -4282,12 +4252,12 @@ unsafe fn node_compress(
                         tp = (*tp).wn_u2.next;
                     }
                     if tp.is_null() {
-                        tp = hi2wn(hi);
+                        tp = first_tp;
                         (*child).wn_u2.next = (*tp).wn_u2.next;
                         (*tp).wn_u2.next = child;
                     }
                 } else {
-                    hash_add_item(ht, hi, hk_ptr, hash);
+                    ht.insert(hk, child);
                 }
             }
             np = (*np).wn_sibling;
@@ -4523,24 +4493,19 @@ unsafe fn write_vim_spell(spin: *mut spellinfo_T, fname: *mut c_char) -> c_int {
             fwv &= fwrite((*spin).si_sofoto.cast(), l2, 1, fd);
         }
 
-        if (*spin).si_commonwords.ht_used > 0 {
+        if !(*spin).si_commonwords.is_empty() {
             fputc(SN_WORDS, fd);
             fputc(0, fd);
 
             for round in 1..=2 {
-                let mut todo = (*spin).si_commonwords.ht_used;
                 let mut len: usize = 0;
-                let mut hi = (*spin).si_commonwords.ht_array;
-                while todo > 0 {
-                    if !hi_empty(hi) {
-                        let l = strlen((*hi).hi_key) + 1;
-                        len += l;
-                        if round == 2 {
-                            fwv &= fwrite((*hi).hi_key.cast(), l, 1, fd);
-                        }
-                        todo -= 1;
+                for word in &(*spin).si_commonwords {
+                    let l = word.len() + 1;
+                    len += l;
+                    if round == 2 {
+                        fwv &= fwrite(word.as_ptr().cast(), word.len(), 1, fd);
+                        fwv &= fwrite(c"".as_ptr().cast(), 1, 1, fd);
                     }
-                    hi = hi.add(1);
                 }
                 if round == 1 {
                     put_bytes(fd, len as u64, 4);
@@ -5128,7 +5093,6 @@ unsafe fn mkspell(
         spin.si_ascii = c_int::from(ascii);
         spin.si_followup = 1;
         spin.si_rem_accents = 1;
-        hash_init(&raw mut spin.si_commonwords);
         spin.si_newcompID = 127;
 
         let innames = fnames.offset(if fcount == 1 { 0 } else { 1 });
@@ -5290,7 +5254,7 @@ unsafe fn mkspell(
                     }
                 }
 
-                hash_clear_all(&raw mut spin.si_commonwords, 0);
+                spin.si_commonwords.clear();
 
                 for &af in afile.iter().take(incount as usize) {
                     if !af.is_null() {
@@ -5699,7 +5663,7 @@ unsafe fn set_map_str(lp: *mut slang_T, map: *const c_char) {
         for i in 0..256 {
             (*lp).sl_map_array[i] = 0;
         }
-        hash_init(&raw mut (*lp).sl_map_hash);
+        (*lp).sl_map_hash.clear();
 
         let mut p = map;
         while *p != NUL {
@@ -5712,21 +5676,8 @@ unsafe fn set_map_str(lp: *mut slang_T, map: *const c_char) {
                 }
 
                 if c >= 256 {
-                    let cl = utf_char2len(c) as usize;
-                    let headcl = utf_char2len(headc) as usize;
-
-                    let b = xmalloc(cl + headcl + 2).cast::<c_char>();
-                    utf_char2bytes(c, b);
-                    *b.add(cl) = NUL;
-                    utf_char2bytes(headc, b.add(cl + 1));
-                    *b.add(cl + 1 + headcl) = NUL;
-                    let hash = hash_hash(b);
-                    let hi = hash_lookup(&raw const (*lp).sl_map_hash, b, strlen(b), hash);
-                    if hi_empty(hi) {
-                        hash_add_item(&raw mut (*lp).sl_map_hash, hi, b, hash);
-                    } else {
+                    if (*lp).sl_map_hash.insert(c, headc).is_some() {
                         emsg(gettext(e_duplicate_char_in_map_entry));
-                        xfree(b.cast());
                     }
                 } else {
                     (*lp).sl_map_array[c as usize] = headc;

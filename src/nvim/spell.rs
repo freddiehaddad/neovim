@@ -20,10 +20,6 @@ use crate::ex_getln::hlf_T;
 use crate::extmark::{TriState, kFalse, kNone, kTrue};
 use crate::globals::IOSIZE;
 use crate::globals::*;
-use crate::hashtab::{
-    hash_T, hash_add_item, hash_clear_all, hash_find, hash_hash, hash_init, hash_lookup,
-    hashitem_empty,
-};
 use crate::insexpand::{ins_compl_add_infercase, ins_compl_check_keys, ins_compl_interrupted};
 use crate::log::logmsg;
 use crate::mbyte::{
@@ -56,7 +52,7 @@ use crate::runtime::{DIP_ALL, do_in_runtimepath};
 use crate::search::{BACKWARD, Direction, FORWARD, do_search, kShmSearch};
 use crate::spellfile::spell_load_file;
 use crate::spellsuggest::{
-    fromto_T, idx_T, langp_T, salitem_T, slang_T, spell_suggest_list, spelltab_T, wordcount_T,
+    fromto_T, idx_T, langp_T, salitem_T, slang_T, spell_suggest_list, spelltab_T,
 };
 use crate::strings::{
     concat_str, gettext, strcat, strcmp, strcpy, strlen, strncmp, strstr, vim_snprintf, vim_strchr,
@@ -1367,18 +1363,29 @@ unsafe fn int_wordlist_spl(fname: *mut c_char) {
 pub unsafe fn slang_alloc(lang: *mut c_char) -> *mut slang_T {
     unsafe {
         let lp = xcalloc(1, size_of::<slang_T>()).cast::<slang_T>();
+        ptr::write(
+            &raw mut (*lp).sl_wordcount,
+            std::collections::BTreeMap::new(),
+        );
         ptr::write(&raw mut (*lp).sl_comppat, Vec::new());
         ptr::write(&raw mut (*lp).sl_syl_items, Vec::new());
         ptr::write(&raw mut (*lp).sl_rep, Vec::new());
         ptr::write(&raw mut (*lp).sl_sal, Vec::new());
         ptr::write(&raw mut (*lp).sl_sofo_sal, Vec::new());
         ptr::write(&raw mut (*lp).sl_repsal, Vec::new());
+        ptr::write(
+            &raw mut (*lp).sl_map_hash,
+            std::collections::BTreeMap::new(),
+        );
+        ptr::write(
+            &raw mut (*lp).sl_sounddone,
+            std::collections::BTreeMap::new(),
+        );
         if !lang.is_null() {
             (*lp).sl_name = xstrdup(lang);
         }
         (*lp).sl_compmax = MAXWLEN as c_int;
         (*lp).sl_compsylmax = MAXWLEN as c_int;
-        hash_init(&raw mut (*lp).sl_wordcount);
         lp
     }
 }
@@ -1387,12 +1394,15 @@ pub unsafe fn slang_free(lp: *mut slang_T) {
         xfree((*lp).sl_name.cast());
         xfree((*lp).sl_fname.cast());
         slang_clear(lp);
+        ptr::drop_in_place(&raw mut (*lp).sl_wordcount);
         ptr::drop_in_place(&raw mut (*lp).sl_comppat);
         ptr::drop_in_place(&raw mut (*lp).sl_syl_items);
         ptr::drop_in_place(&raw mut (*lp).sl_rep);
         ptr::drop_in_place(&raw mut (*lp).sl_sal);
         ptr::drop_in_place(&raw mut (*lp).sl_sofo_sal);
         ptr::drop_in_place(&raw mut (*lp).sl_repsal);
+        ptr::drop_in_place(&raw mut (*lp).sl_map_hash);
+        ptr::drop_in_place(&raw mut (*lp).sl_sounddone);
         xfree(lp.cast());
     }
 }
@@ -1469,12 +1479,8 @@ pub unsafe fn slang_clear(lp: *mut slang_T) {
         (*lp).sl_syl_items = Vec::new();
         crate::path::clear_cstrings(&mut (*lp).sl_comppat);
         (*lp).sl_comppat = Vec::new();
-        hash_clear_all(
-            &raw mut (*lp).sl_wordcount,
-            std::mem::offset_of!(wordcount_T, wc_word) as u32,
-        );
-        hash_init(&raw mut (*lp).sl_wordcount);
-        hash_clear_all(&raw mut (*lp).sl_map_hash, 0);
+        (*lp).sl_wordcount.clear();
+        (*lp).sl_map_hash.clear();
         slang_clear_sug(lp);
         (*lp).sl_compmax = MAXWLEN as c_int;
         (*lp).sl_compminlen = 0;
@@ -1527,33 +1533,19 @@ unsafe fn spell_load_cb(
 }
 pub unsafe fn count_common_word(lp: *mut slang_T, word: *mut c_char, len: c_int, count: u8) {
     unsafe {
-        let mut buf: [c_char; MAXWLEN] = [0; MAXWLEN];
-        let p: *mut c_char = if len == -1 {
-            word
-        } else if len >= MAXWLEN as c_int {
+        if len >= MAXWLEN as c_int {
             return;
-        } else {
-            xmemcpyz((&raw mut buf).cast(), word.cast(), len as usize);
-            (&raw mut buf).cast()
-        };
-        let hash: hash_T = hash_hash(p);
-        let p_len = strlen(p);
-        let hi = hash_lookup(&raw mut (*lp).sl_wordcount, p, p_len, hash);
-        if hashitem_empty(&*hi) {
-            let wc_off = std::mem::offset_of!(wordcount_T, wc_word);
-            let wc = xmalloc(wc_off + p_len + 1).cast::<wordcount_T>();
-            let wc_word_ptr = wc.cast::<u8>().add(wc_off).cast::<c_char>();
-            ptr::copy_nonoverlapping(p, wc_word_ptr, p_len + 1);
-            (*wc).wc_count = count as u16;
-            hash_add_item(&raw mut (*lp).sl_wordcount, hi, wc_word_ptr, hash);
-        } else {
-            let wc = (*hi)
-                .hi_key
-                .sub(std::mem::offset_of!(wordcount_T, wc_word))
-                .cast::<wordcount_T>();
-            let (new_count, overflow) = (*wc).wc_count.overflowing_add(count as u16);
-            (*wc).wc_count = if overflow { MAXWORDCOUNT } else { new_count };
         }
+        let bytes = if len == -1 {
+            std::ffi::CStr::from_ptr(word).to_bytes()
+        } else {
+            let slice = std::slice::from_raw_parts(word.cast::<u8>(), len as usize);
+            let actual_len = slice.iter().position(|&b| b == 0).unwrap_or(slice.len());
+            &slice[..actual_len]
+        };
+        let entry = (*lp).sl_wordcount.entry(bytes.to_vec()).or_insert(0);
+        let (new_count, overflow) = (*entry).overflowing_add(count as u16);
+        *entry = if overflow { MAXWORDCOUNT } else { new_count };
     }
 }
 pub unsafe fn byte_in_str(str_: *mut u8, n: c_int) -> bool {
@@ -2046,6 +2038,14 @@ pub unsafe fn open_spellbuf() -> *mut buf_T {
         );
         ptr::write(&raw mut (*buf).update_channels, Vec::new());
         ptr::write(&raw mut (*buf).update_callbacks, Vec::new());
+        ptr::write(
+            &raw mut (*buf).b_s.b_keywtab,
+            std::collections::BTreeMap::new(),
+        );
+        ptr::write(
+            &raw mut (*buf).b_s.b_keywtab_ic,
+            std::collections::BTreeMap::new(),
+        );
         ptr::write(&raw mut (*buf).b_s.b_syn_patterns, Vec::new());
         ptr::write(&raw mut (*buf).b_s.b_syn_clusters, Vec::new());
         ptr::write(&raw mut (*buf).b_s.b_langp, Vec::new());
@@ -3040,18 +3040,14 @@ unsafe fn dump_word(
                 p = bw_ptr;
             }
             if (dumpflags & DUMPFLAG_COUNT) != 0 {
-                let hi = hash_find(&raw mut (*slang).sl_wordcount, tw);
-                if !hashitem_empty(&*hi) {
-                    let wc = (*hi)
-                        .hi_key
-                        .sub(std::mem::offset_of!(wordcount_T, wc_word))
-                        .cast::<wordcount_T>();
+                let tw_bytes = std::ffi::CStr::from_ptr(tw).to_bytes();
+                if let Some(&wc_count) = (*slang).sl_wordcount.get(tw_bytes) {
                     vim_snprintf!(
                         (&raw mut IObuff).cast(),
                         IOSIZE,
                         c"%s\t%d".as_ptr(),
                         tw,
-                        (*wc).wc_count as c_int,
+                        wc_count as c_int,
                     );
                     p = (&raw mut IObuff).cast();
                 }
