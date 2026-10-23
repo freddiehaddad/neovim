@@ -32,7 +32,6 @@ use crate::fileio::{
     FILE, SEEK_END, SEEK_SET, delete_recursive, fclose, file_pat_to_reg_pat, fileno, fread, off_T,
     readdir_core, vim_copyfile, vim_fseek, vim_rename, vim_tempname,
 };
-use crate::garray::{ga_clear_strings, ga_concat_strings, ga_init, garray_T};
 use crate::globals::*;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{utf_head_off, utfc_ptr2len};
@@ -1157,33 +1156,25 @@ pub unsafe fn f_globpath(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
         let mut buf1 = [0 as c_char; NUMBUFLEN];
         let file = tv_get_string_buf_chk(argvars.add(1), buf1.as_mut_ptr());
         if !file.is_null() && !error {
-            let mut ga = garray_T {
-                ga_len: 0,
-                ga_maxlen: 0,
-                ga_itemsize: 0,
-                ga_growsize: 0,
-                ga_data: ptr::null_mut(),
-            };
-            ga_init(&raw mut ga, size_of::<*mut c_char>() as c_int, 10);
+            let mut ga: Vec<*mut c_char> = Vec::new();
             globpath(
                 tv_get_string(argvars).cast_mut(),
                 file.cast_mut(),
-                &raw mut ga,
+                &mut ga,
                 flags,
                 false,
             );
 
             if (*rettv).v_type == VarType::VAR_STRING {
-                (*rettv).vval.v_string = ga_concat_strings(&raw const ga, c"\n".as_ptr());
+                (*rettv).vval.v_string = crate::path::concat_cstrings(&ga, c"\n".as_ptr());
             } else {
-                tv_list_alloc_ret(rettv, ga.ga_len as isize);
-                for i in 0..ga.ga_len {
-                    let s = *(ga.ga_data.cast::<*const c_char>()).add(i as usize);
-                    tv_list_append_string((*rettv).vval.v_list, s, -1);
+                tv_list_alloc_ret(rettv, ga.len() as isize);
+                for &s in &ga {
+                    tv_list_append_string((*rettv).vval.v_list, s.cast_const(), -1);
                 }
             }
 
-            ga_clear_strings(&raw mut ga);
+            crate::path::clear_cstrings(&mut ga);
         } else {
             (*rettv).vval.v_string = ptr::null_mut();
         }

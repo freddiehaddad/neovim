@@ -1,10 +1,9 @@
 //! Functions for handling growing arrays (`src/nvim/garray.c`).
 
 use crate::errors::e_resulting_text_too_long;
-use crate::memory::{xfree, xmallocz, xrealloc};
+use crate::memory::{xfree, xrealloc};
 use crate::message::emsg;
-use crate::path::path_equal;
-use crate::strings::{gettext, sort_strings};
+use crate::strings::gettext;
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 #[repr(C)]
@@ -102,75 +101,6 @@ pub unsafe fn ga_grow(gap: *mut garray_T, n: c_int) {
     }
 }
 
-/// Sort `gap` and remove duplicate string entries (`ga_remove_duplicate_strings`).
-///
-/// # Safety
-/// `gap` must be a valid writable pointer to a `garray_T` of allocated C strings.
-pub unsafe fn ga_remove_duplicate_strings(gap: *mut garray_T) {
-    let gap = unsafe { &mut *gap };
-    let fnames = gap.ga_data.cast::<*mut c_char>();
-    unsafe {
-        sort_strings(fnames, gap.ga_len);
-    }
-
-    let mut i = gap.ga_len - 1;
-    while i > 0 {
-        let prev = unsafe { *fnames.add((i - 1) as usize) };
-        let curr = unsafe { *fnames.add(i as usize) };
-        if unsafe { path_equal(prev, curr, K_PATH_CMP_LITERAL) } {
-            unsafe {
-                xfree(curr.cast::<c_void>());
-                for j in (i + 1)..gap.ga_len {
-                    *fnames.add((j - 1) as usize) = *fnames.add(j as usize);
-                }
-            }
-            gap.ga_len -= 1;
-        }
-        i -= 1;
-    }
-}
-
-/// Concatenate all strings in `gap` separated by `sep` (`ga_concat_strings`).
-///
-/// # Safety
-/// `gap` must be a valid pointer to a `garray_T` of valid C strings, and `sep` must be a valid C string.
-pub unsafe fn ga_concat_strings(gap: *const garray_T, sep: *const c_char) -> *mut c_char {
-    let gap = unsafe { &*gap };
-    let nelem = gap.ga_len.max(0) as usize;
-    let strings = gap.ga_data.cast::<*const c_char>();
-
-    if nelem == 0 {
-        return unsafe { xmallocz(0).cast::<c_char>() };
-    }
-
-    let sep_bytes = unsafe { CStr::from_ptr(sep).to_bytes() };
-    let mut len = (nelem - 1) * sep_bytes.len();
-    for i in 0..nelem {
-        let s = unsafe { CStr::from_ptr(*strings.add(i)).to_bytes() };
-        len += s.len();
-    }
-
-    let ret = unsafe { xmallocz(len).cast::<u8>() };
-    let mut offset = 0usize;
-    for i in 0..nelem {
-        let s = unsafe { CStr::from_ptr(*strings.add(i)).to_bytes() };
-        unsafe {
-            if !s.is_empty() {
-                std::ptr::copy_nonoverlapping(s.as_ptr(), ret.add(offset), s.len());
-                offset += s.len();
-            }
-            if i + 1 < nelem && !sep_bytes.is_empty() {
-                std::ptr::copy_nonoverlapping(sep_bytes.as_ptr(), ret.add(offset), sep_bytes.len());
-                offset += sep_bytes.len();
-            }
-        }
-    }
-    unsafe {
-        *ret.add(len) = 0;
-    }
-    ret.cast::<c_char>()
-}
-
 /// Concatenate C string `s` (without trailing NUL) to byte growarray `gap` (`ga_concat`).
 ///
 /// # Safety
@@ -219,27 +149,11 @@ pub unsafe fn ga_append(gap: *mut garray_T, c: u8) {
     }
 }
 
-/// Grow `gap` by 1 item of type `T` and return a pointer to the new slot (`ga_append_via_ptr`).
-///
-/// # Safety
-/// `gap` must be a valid writable pointer to an initialized `garray_T` with `ga_itemsize == size_of::<T>()`.
-pub unsafe fn ga_append_via_ptr<T>(gap: *mut garray_T) -> *mut T {
-    debug_assert_eq!(
-        unsafe { (*gap).ga_itemsize as usize },
-        std::mem::size_of::<T>()
-    );
-    unsafe {
-        ga_grow(gap, 1);
-        let gap_ref = &mut *gap;
-        let idx = gap_ref.ga_len as usize;
-        gap_ref.ga_len += 1;
-        gap_ref.ga_data.cast::<T>().add(idx)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::memory::xmallocz;
+    use crate::path::{clear_cstrings, concat_cstrings, remove_duplicate_strings};
 
     #[test]
     fn garray_byte_and_string_operations() {
@@ -280,24 +194,23 @@ mod tests {
             assert_eq!(ga.ga_maxlen, 5);
             ga_clear(&mut ga);
 
-            // String array concat and duplicate removal
-            ga_init(&mut ga, std::mem::size_of::<*mut c_char>() as c_int, 1);
-            let empty_concat = ga_concat_strings(&ga, c",".as_ptr());
+            // String Vec concat and duplicate removal
+            let mut str_vec: Vec<*mut c_char> = Vec::new();
+            let empty_concat = concat_cstrings(&str_vec, c",".as_ptr());
             assert_eq!(CStr::from_ptr(empty_concat).to_str().unwrap(), "");
             xfree(empty_concat.cast());
 
             for w in ["ccc", "aaa", "bbb", "aaa", "ccc"] {
-                let slot = ga_append_via_ptr::<*mut c_char>(&mut ga);
                 let dup = xmallocz(w.len()).cast::<u8>();
                 std::ptr::copy_nonoverlapping(w.as_ptr(), dup, w.len());
-                *slot = dup.cast::<c_char>();
+                str_vec.push(dup.cast::<c_char>());
             }
-            ga_remove_duplicate_strings(&mut ga);
-            assert_eq!(ga.ga_len, 3);
-            let joined = ga_concat_strings(&ga, c",".as_ptr());
+            remove_duplicate_strings(&mut str_vec);
+            assert_eq!(str_vec.len(), 3);
+            let joined = concat_cstrings(&str_vec, c",".as_ptr());
             assert_eq!(CStr::from_ptr(joined).to_str().unwrap(), "aaa,bbb,ccc");
             xfree(joined.cast());
-            ga_clear_strings(&mut ga);
+            clear_cstrings(&mut str_vec);
         }
     }
 }

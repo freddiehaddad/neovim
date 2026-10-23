@@ -42,9 +42,8 @@ use crate::ex_getln::{
     get_cmdline_last_prompt_id, hlf_T, parse_pattern_and_range, put_on_cmdline, realloc_cmdbuff,
     redrawcmd, tilde_replace, vim_strsave_fnameescape,
 };
-use crate::fuzzy::{FUZZY_SCORE_NONE, fuzmatch_str_T, fuzzy_match_str, fuzzymatches_to_strmatches};
-use crate::garray::{
-    ga_append, ga_append_via_ptr, ga_clear_strings, ga_concat_len, ga_grow, ga_init, garray_T,
+use crate::fuzzy::{
+    FUZZY_SCORE_NONE, fuzmatch_str_T, fuzzy_match_str, fuzzymatches_slice_to_strmatches,
 };
 use crate::globals::*;
 use crate::grid::{grid_line_fill, grid_line_flush, grid_line_puts, grid_line_start};
@@ -1032,14 +1031,6 @@ unsafe fn c_strchr(mut s: *const c_char, c: c_char) -> *mut c_char {
 
 use crate::mbyte::ptr2cells;
 use crate::path::vim_ispathsep;
-
-#[inline]
-unsafe fn ga_push<T>(gap: *mut garray_T, item: T) {
-    unsafe {
-        let slot = ga_append_via_ptr::<T>(gap);
-        ptr::write(slot, item);
-    }
-}
 
 #[inline]
 unsafe fn show_match(matches: *mut *mut c_char, m: usize, showtail: bool) -> *mut c_char {
@@ -4504,16 +4495,8 @@ pub unsafe fn ExpandGeneric(
             return;
         };
 
-        let mut ga: garray_T = std::mem::zeroed();
-        if !fuzzy {
-            ga_init(&raw mut ga, std::mem::size_of::<*mut c_char>() as c_int, 30);
-        } else {
-            ga_init(
-                &raw mut ga,
-                std::mem::size_of::<fuzmatch_str_T>() as c_int,
-                30,
-            );
-        }
+        let mut str_ga: Vec<*mut c_char> = Vec::new();
+        let mut fuz_ga: Vec<fuzmatch_str_T> = Vec::new();
 
         let mut i: c_int = 0;
         loop {
@@ -4550,16 +4533,13 @@ pub unsafe fn ExpandGeneric(
             };
 
             if fuzzy {
-                ga_push(
-                    &raw mut ga,
-                    fuzmatch_str_T {
-                        idx: ga.ga_len,
-                        str_ptr: str_item,
-                        score,
-                    },
-                );
+                fuz_ga.push(fuzmatch_str_T {
+                    idx: fuz_ga.len() as c_int,
+                    str_ptr: str_item,
+                    score,
+                });
             } else {
-                ga_push(&raw mut ga, str_item);
+                str_ga.push(str_item);
             }
 
             if ptr::fn_addr_eq(
@@ -4573,7 +4553,7 @@ pub unsafe fn ExpandGeneric(
             }
         }
 
-        if ga.ga_len == 0 {
+        if (!fuzzy && str_ga.is_empty()) || (fuzzy && fuz_ga.is_empty()) {
             return;
         }
 
@@ -4590,27 +4570,18 @@ pub unsafe fn ExpandGeneric(
 
         if sort_matches {
             if funcsort {
-                let slice = std::slice::from_raw_parts_mut(
-                    ga.ga_data.cast::<*mut c_char>(),
-                    ga.ga_len as usize,
-                );
-                sort_slice_by(slice, |a, b| sort_func_compare(a, b));
+                sort_slice_by(&mut str_ga, |a, b| sort_func_compare(a, b));
             } else {
-                sort_strings(ga.ga_data.cast::<*mut c_char>(), ga.ga_len);
+                sort_strings(str_ga.as_mut_ptr(), str_ga.len() as c_int);
             }
         }
 
         if !fuzzy {
-            *matches = ga.ga_data.cast::<*mut c_char>();
-            *numMatches = ga.ga_len;
+            *numMatches = str_ga.len() as c_int;
+            *matches = crate::path::slice_to_xmalloc(&str_ga);
         } else {
-            fuzzymatches_to_strmatches(
-                ga.ga_data.cast::<fuzmatch_str_T>(),
-                matches,
-                ga.ga_len,
-                funcsort,
-            );
-            *numMatches = ga.ga_len;
+            *numMatches = fuz_ga.len() as c_int;
+            fuzzymatches_slice_to_strmatches(&mut fuz_ga, matches, funcsort);
         }
 
         reset_expand_highlight();
@@ -4625,14 +4596,14 @@ unsafe fn expand_shellcmd_onedir(
     numMatches: *mut c_int,
     flags: c_int,
     ht: *mut hashtab_T,
-    gap: *mut garray_T,
+    gap: &mut Vec<*mut c_char>,
 ) {
     unsafe {
         if expand_wildcards(1, &raw mut pathed_pattern, numMatches, matches, flags) != OK {
             return;
         }
 
-        ga_grow(gap, *numMatches);
+        gap.reserve(*numMatches as usize);
 
         for i in 0..(*numMatches as usize) {
             let mut name = *(*matches).add(i);
@@ -4643,8 +4614,7 @@ unsafe fn expand_shellcmd_onedir(
                 let hi = hash_lookup(ht, name.add(pathlen), namelen - pathlen, hash);
                 if hashitem_empty(&*hi) {
                     ptr::copy(name.add(pathlen), name, namelen - pathlen + 1);
-                    *((*gap).ga_data as *mut *mut c_char).add((*gap).ga_len as usize) = name;
-                    (*gap).ga_len += 1;
+                    gap.push(name);
                     hash_add_item(ht, hi, name, hash);
                     name = ptr::null_mut();
                 }
@@ -4664,7 +4634,7 @@ unsafe fn expand_shellcmd(
 ) {
     unsafe {
         let mut path: *mut c_char = ptr::null_mut();
-        let mut ga: garray_T = std::mem::zeroed();
+        let mut ga: Vec<*mut c_char> = Vec::new();
         let buf = xmalloc(MAXPATHL).cast::<c_char>();
         let mut flags = flagsarg;
         let mut did_curdir = false;
@@ -4704,7 +4674,6 @@ unsafe fn expand_shellcmd(
             }
         }
 
-        ga_init(&raw mut ga, std::mem::size_of::<*mut c_char>() as c_int, 10);
         let mut found_ht: hashtab_T = std::mem::zeroed();
         hash_init(&raw mut found_ht);
         s = path;
@@ -4761,7 +4730,7 @@ unsafe fn expand_shellcmd(
                     numMatches,
                     flags,
                     &raw mut found_ht,
-                    &raw mut ga,
+                    &mut ga,
                 );
             }
 
@@ -4770,8 +4739,8 @@ unsafe fn expand_shellcmd(
             }
             s = e;
         }
-        *matches = ga.ga_data.cast::<*mut c_char>();
-        *numMatches = ga.ga_len;
+        *numMatches = ga.len() as c_int;
+        *matches = crate::path::slice_to_xmalloc(&ga);
 
         xfree(buf.cast());
         xfree(pat.cast());
@@ -4843,16 +4812,8 @@ unsafe fn ExpandUserDefined(
             return FAIL;
         }
 
-        let mut ga: garray_T = std::mem::zeroed();
-        if !fuzzy {
-            ga_init(&raw mut ga, std::mem::size_of::<*mut c_char>() as c_int, 3);
-        } else {
-            ga_init(
-                &raw mut ga,
-                std::mem::size_of::<fuzmatch_str_T>() as c_int,
-                3,
-            );
-        }
+        let mut str_ga: Vec<*mut c_char> = Vec::new();
+        let mut fuz_ga: Vec<fuzmatch_str_T> = Vec::new();
 
         let mut s = retstr;
         while *s != NUL {
@@ -4882,16 +4843,13 @@ unsafe fn ExpandUserDefined(
                 let p = xmemdupz(s.cast(), e.offset_from(s) as usize).cast::<c_char>();
 
                 if !fuzzy {
-                    ga_push(&raw mut ga, p);
+                    str_ga.push(p);
                 } else {
-                    ga_push(
-                        &raw mut ga,
-                        fuzmatch_str_T {
-                            idx: ga.ga_len,
-                            str_ptr: p,
-                            score,
-                        },
-                    );
+                    fuz_ga.push(fuzmatch_str_T {
+                        idx: fuz_ga.len() as c_int,
+                        str_ptr: p,
+                        score,
+                    });
                 }
             }
 
@@ -4902,21 +4860,16 @@ unsafe fn ExpandUserDefined(
         }
         xfree(retstr.cast());
 
-        if ga.ga_len == 0 {
+        if (!fuzzy && str_ga.is_empty()) || (fuzzy && fuz_ga.is_empty()) {
             return OK;
         }
 
         if !fuzzy {
-            *matches = ga.ga_data.cast::<*mut c_char>();
-            *numMatches = ga.ga_len;
+            *numMatches = str_ga.len() as c_int;
+            *matches = crate::path::slice_to_xmalloc(&str_ga);
         } else {
-            fuzzymatches_to_strmatches(
-                ga.ga_data.cast::<fuzmatch_str_T>(),
-                matches,
-                ga.ga_len,
-                false,
-            );
-            *numMatches = ga.ga_len;
+            *numMatches = fuz_ga.len() as c_int;
+            fuzzymatches_slice_to_strmatches(&mut fuz_ga, matches, false);
         }
         OK
     }
@@ -4929,18 +4882,12 @@ pub unsafe fn expand_process_user_list(
     xp: *mut expand_T,
 ) {
     unsafe {
-        let mut ga: garray_T = std::mem::zeroed();
-        let mut ga_abbr: garray_T = std::mem::zeroed();
-        let mut ga_kind: garray_T = std::mem::zeroed();
-        let mut ga_menu: garray_T = std::mem::zeroed();
-        let mut ga_info: garray_T = std::mem::zeroed();
+        let mut ga: Vec<*mut c_char> = Vec::new();
+        let mut ga_abbr: Vec<*mut c_char> = Vec::new();
+        let mut ga_kind: Vec<*mut c_char> = Vec::new();
+        let mut ga_menu: Vec<*mut c_char> = Vec::new();
+        let mut ga_info: Vec<*mut c_char> = Vec::new();
         let mut have_extra = false;
-        let ptr_size = std::mem::size_of::<*mut c_char>() as c_int;
-        ga_init(&raw mut ga, ptr_size, 3);
-        ga_init(&raw mut ga_abbr, ptr_size, 3);
-        ga_init(&raw mut ga_kind, ptr_size, 3);
-        ga_init(&raw mut ga_menu, ptr_size, 3);
-        ga_init(&raw mut ga_info, ptr_size, 3);
 
         if !retlist.is_null() {
             let mut li = (*retlist).lv_first;
@@ -4978,40 +4925,28 @@ pub unsafe fn expand_process_user_list(
                     continue;
                 }
 
-                ga_push(&raw mut ga, p);
-                ga_push(&raw mut ga_abbr, abbr);
-                ga_push(&raw mut ga_kind, kind);
-                ga_push(&raw mut ga_menu, menu);
-                ga_push(&raw mut ga_info, info);
+                ga.push(p);
+                ga_abbr.push(abbr);
+                ga_kind.push(kind);
+                ga_menu.push(menu);
+                ga_info.push(info);
 
                 li = (*li).li_next;
             }
         }
 
-        *matches = ga.ga_data.cast::<*mut c_char>();
-        *numMatches = ga.ga_len;
-        if have_extra && ga.ga_len > 0 {
-            (*xp).xp_files_abbr = ga_abbr.ga_data.cast::<*mut c_char>();
-            (*xp).xp_files_kind = ga_kind.ga_data.cast::<*mut c_char>();
-            (*xp).xp_files_menu = ga_menu.ga_data.cast::<*mut c_char>();
-            (*xp).xp_files_info = ga_info.ga_data.cast::<*mut c_char>();
+        *numMatches = ga.len() as c_int;
+        *matches = crate::path::slice_to_xmalloc(&ga);
+        if have_extra && !ga.is_empty() {
+            (*xp).xp_files_abbr = crate::path::slice_to_xmalloc(&ga_abbr);
+            (*xp).xp_files_kind = crate::path::slice_to_xmalloc(&ga_kind);
+            (*xp).xp_files_menu = crate::path::slice_to_xmalloc(&ga_menu);
+            (*xp).xp_files_info = crate::path::slice_to_xmalloc(&ga_info);
         } else {
-            for i in 0..(ga_abbr.ga_len as usize) {
-                xfree((*(ga_abbr.ga_data as *mut *mut c_char).add(i)).cast());
-            }
-            xfree(ga_abbr.ga_data);
-            for i in 0..(ga_kind.ga_len as usize) {
-                xfree((*(ga_kind.ga_data as *mut *mut c_char).add(i)).cast());
-            }
-            xfree(ga_kind.ga_data);
-            for i in 0..(ga_menu.ga_len as usize) {
-                xfree((*(ga_menu.ga_data as *mut *mut c_char).add(i)).cast());
-            }
-            xfree(ga_menu.ga_data);
-            for i in 0..(ga_info.ga_len as usize) {
-                xfree((*(ga_info.ga_data as *mut *mut c_char).add(i)).cast());
-            }
-            xfree(ga_info.ga_data);
+            crate::path::clear_cstrings(&mut ga_abbr);
+            crate::path::clear_cstrings(&mut ga_kind);
+            crate::path::clear_cstrings(&mut ga_menu);
+            crate::path::clear_cstrings(&mut ga_info);
         }
     }
 }
@@ -5060,7 +4995,7 @@ unsafe fn ExpandUserLua(
 pub unsafe fn globpath(
     mut path: *mut c_char,
     file: *mut c_char,
-    ga: *mut garray_T,
+    ga: &mut Vec<*mut c_char>,
     expand_options: c_int,
     dirs: bool,
 ) {
@@ -5104,11 +5039,7 @@ pub unsafe fn globpath(
                 if num_p > 0 {
                     ExpandEscape(&raw mut xpc, buf, num_p, p, WILD_SILENT | expand_options);
 
-                    ga_grow(ga, num_p);
-                    for i in 0..(num_p as usize) {
-                        *((*ga).ga_data as *mut *mut c_char).add((*ga).ga_len as usize) = *p.add(i);
-                        (*ga).ga_len += 1;
-                    }
+                    ga.extend_from_slice(std::slice::from_raw_parts(p, num_p as usize));
                     xfree(p.cast());
                 }
             }
@@ -5601,8 +5532,7 @@ unsafe fn copy_substring_from_pos(
             return FAIL;
         }
 
-        let mut ga: garray_T = std::mem::zeroed();
-        ga_init(&raw mut ga, 1, 128);
+        let mut ga: Vec<u8> = Vec::with_capacity(128);
 
         let start_line = ml_get((*start).lnum);
         let start_ptr = start_line.add((*start).col as usize);
@@ -5613,13 +5543,15 @@ unsafe fn copy_substring_from_pos(
         } else {
             ml_get_len((*start).lnum) - (*start).col
         };
-        ga_grow(&raw mut ga, segment_len + 2);
-        ga_concat_len(&raw mut ga, start_ptr, segment_len as usize);
+        ga.extend_from_slice(std::slice::from_raw_parts(
+            start_ptr.cast::<u8>(),
+            segment_len as usize,
+        ));
         if !is_single_line {
             if exacttext {
-                ga_concat_len(&raw mut ga, c"\\n".as_ptr(), 2);
+                ga.extend_from_slice(b"\\n");
             } else {
-                ga_append(&raw mut ga, b'\n');
+                ga.push(b'\n');
             }
         }
 
@@ -5628,12 +5560,14 @@ unsafe fn copy_substring_from_pos(
             while lnum < (*end).lnum {
                 let line = ml_get(lnum);
                 let linelen = ml_get_len(lnum);
-                ga_grow(&raw mut ga, linelen + 2);
-                ga_concat_len(&raw mut ga, line, linelen as usize);
+                ga.extend_from_slice(std::slice::from_raw_parts(
+                    line.cast::<u8>(),
+                    linelen as usize,
+                ));
                 if exacttext {
-                    ga_concat_len(&raw mut ga, c"\\n".as_ptr(), 2);
+                    ga.extend_from_slice(b"\\n");
                 } else {
-                    ga_append(&raw mut ga, b'\n');
+                    ga.push(b'\n');
                 }
                 lnum += 1;
             }
@@ -5642,18 +5576,13 @@ unsafe fn copy_substring_from_pos(
         let end_line = ml_get((*end).lnum);
         let word_end = find_word_end(end_line.add((*end).col as usize));
         segment_len = word_end.offset_from(end_line) as c_int;
-        ga_grow(&raw mut ga, segment_len);
         let start_off = if is_single_line { (*end).col } else { 0 };
-        ga_concat_len(
-            &raw mut ga,
-            end_line.add(start_off as usize),
+        ga.extend_from_slice(std::slice::from_raw_parts(
+            end_line.add(start_off as usize).cast::<u8>(),
             (segment_len - start_off) as usize,
-        );
+        ));
 
-        ga_grow(&raw mut ga, 1);
-        ga_append(&raw mut ga, 0);
-
-        *match_out = ga.ga_data.cast::<c_char>();
+        *match_out = xmemdupz(ga.as_ptr().cast(), ga.len()).cast::<c_char>();
         (*match_end).lnum = (*end).lnum;
         (*match_end).col = segment_len;
 
@@ -5770,8 +5699,7 @@ unsafe fn expand_pattern_in_buf(
             | SEARCH_NFMSG
             | if has_range { SEARCH_START } else { 0 };
 
-        let mut ga: garray_T = std::mem::zeroed();
-        ga_init(&raw mut ga, std::mem::size_of::<*mut c_char>() as c_int, 10);
+        let mut ga: Vec<*mut c_char> = Vec::new();
 
         let mut end_match_pos: pos_T = std::mem::zeroed();
         let mut word_end_pos: pos_T = std::mem::zeroed();
@@ -5828,7 +5756,7 @@ unsafe fn expand_pattern_in_buf(
                     let _ = vpeekc();
                     got_int = false;
                 }
-                ga_clear_strings(&raw mut ga);
+                crate::path::clear_cstrings(&mut ga);
                 return FAIL;
             }
 
@@ -5873,18 +5801,16 @@ unsafe fn expand_pattern_in_buf(
                 m
             };
 
-            for i in 0..(ga.ga_len as usize) {
-                if strcmp(match_str, *(ga.ga_data as *mut *mut c_char).add(i)) == 0 {
+            for &existing in &ga {
+                if strcmp(match_str, existing) == 0 {
                     xfree(match_str.cast());
                     match_str = ptr::null_mut();
                     break;
                 }
             }
             if !match_str.is_null() {
-                ga_grow(&raw mut ga, 1);
-                *(ga.ga_data as *mut *mut c_char).add(ga.ga_len as usize) = match_str;
-                ga.ga_len += 1;
-                if ga.ga_len > TAG_MANY {
+                ga.push(match_str);
+                if ga.len() as c_int > TAG_MANY {
                     break;
                 }
             }
@@ -5893,8 +5819,8 @@ unsafe fn expand_pattern_in_buf(
             }
         }
 
-        *matches = ga.ga_data.cast::<*mut c_char>();
-        *numMatches = ga.ga_len;
+        *numMatches = ga.len() as c_int;
+        *matches = crate::path::slice_to_xmalloc(&ga);
         OK
     }
 }

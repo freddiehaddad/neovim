@@ -37,12 +37,10 @@ use crate::ex_eval::{CSTP_FINISH, aborting, cleanup_conditionals, cstack_T, repo
 use crate::fileio::{EINTR, FILE, O_RDONLY, fclose, fdopen, fgets};
 #[cfg(windows)]
 use crate::fileio::{EOL_DOS, EOL_UNIX, EOL_UNKNOWN};
-use crate::garray::{ga_append_via_ptr, ga_init, ga_remove_duplicate_strings, garray_T};
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::hashtab::hashitem_empty;
 use crate::input::openscript;
-use crate::kvec::KVec;
 use crate::lua::executor::{
     kRetNilBool, nlua_exec, nlua_exec_file, nlua_exec_lines, nlua_is_deferred_safe,
 };
@@ -216,7 +214,7 @@ struct SearchPathItem {
     pos_in_rtp: usize,
 }
 
-type RuntimeSearchPath = KVec<SearchPathItem>;
+type RuntimeSearchPath = Vec<SearchPathItem>;
 type CharVec = Vec<*mut c_char>;
 
 pub static mut exestack: Vec<estack_T> = Vec::new();
@@ -228,17 +226,10 @@ static mut last_current_SID: scid_T = 0;
 
 static mut runtime_search_path_valid: bool = false;
 static mut runtime_search_path_valid_thread: bool = false;
-static mut runtime_search_path_ref: *mut c_int = ptr::null_mut();
-static mut runtime_search_path: RuntimeSearchPath = RuntimeSearchPath {
-    size: 0,
-    capacity: 0,
-    items: ptr::null_mut(),
-};
-static mut runtime_search_path_thread: RuntimeSearchPath = RuntimeSearchPath {
-    size: 0,
-    capacity: 0,
-    items: ptr::null_mut(),
-};
+static mut runtime_search_path_refcount: usize = 0;
+static mut runtime_search_path_old: Vec<RuntimeSearchPath> = Vec::new();
+static mut runtime_search_path: RuntimeSearchPath = Vec::new();
+static mut runtime_search_path_thread: RuntimeSearchPath = Vec::new();
 static RUNTIME_SEARCH_PATH_MUTEX: Mutex<()> = Mutex::new(());
 
 static mut runtime_expand_flags: c_int = 0;
@@ -809,28 +800,20 @@ pub unsafe fn do_in_path(
     }
 }
 
-unsafe fn runtime_search_path_get_cached(ref_ptr: *mut c_int) -> RuntimeSearchPath {
+unsafe fn runtime_search_path_get_cached() -> *mut [SearchPathItem] {
     unsafe {
         runtime_search_path_validate();
-
-        *ref_ptr = 0;
-        if runtime_search_path_ref.is_null() {
-            *ref_ptr += 1;
-            runtime_search_path_ref = ref_ptr;
-        }
-        RuntimeSearchPath {
-            size: runtime_search_path.size,
-            capacity: runtime_search_path.capacity,
-            items: runtime_search_path.items,
-        }
+        runtime_search_path_refcount += 1;
+        let rsp_ptr = &raw mut runtime_search_path;
+        let rsp = &mut *rsp_ptr;
+        ptr::slice_from_raw_parts_mut(rsp.as_mut_ptr(), rsp.len())
     }
 }
 
-unsafe fn copy_runtime_search_path(src: &RuntimeSearchPath) -> RuntimeSearchPath {
+unsafe fn copy_runtime_search_path(src: &[SearchPathItem]) -> RuntimeSearchPath {
     unsafe {
-        let mut dst = RuntimeSearchPath::new();
-        for j in 0..src.size {
-            let item = *src.items.add(j);
+        let mut dst = Vec::with_capacity(src.len());
+        for item in src {
             dst.push(SearchPathItem {
                 path: xstrdup(item.path),
                 after: item.after,
@@ -843,13 +826,13 @@ unsafe fn copy_runtime_search_path(src: &RuntimeSearchPath) -> RuntimeSearchPath
     }
 }
 
-unsafe fn runtime_search_path_unref(mut path: RuntimeSearchPath, ref_ptr: *const c_int) {
+unsafe fn runtime_search_path_unref() {
     unsafe {
-        if *ref_ptr != 0 {
-            if ptr::eq(runtime_search_path_ref, ref_ptr) {
-                runtime_search_path_ref = ptr::null_mut();
-            } else {
-                runtime_search_path_free(&mut path);
+        runtime_search_path_refcount -= 1;
+        if runtime_search_path_refcount == 0 {
+            let old_ptr = &raw mut runtime_search_path_old;
+            for mut old_path in (*old_ptr).drain(..) {
+                runtime_search_path_free(&mut old_path);
             }
         }
     }
@@ -875,13 +858,12 @@ unsafe fn do_in_cached_path(
             verbose_leave();
         }
 
-        let mut ref_val: c_int = 0;
-        let path = runtime_search_path_get_cached(&mut ref_val);
+        let path = &*runtime_search_path_get_cached();
 
         let do_all = (flags & DIP_ALL) != 0;
 
-        for j in 0..path.size {
-            let mut item = *path.items.add(j);
+        for &item_in in path {
+            let mut item = item_in;
             let buflen = CStr::from_ptr(item.path).to_bytes().len();
 
             if (flags & (DIP_NOAFTER | DIP_AFTER)) != 0
@@ -951,7 +933,7 @@ unsafe fn do_in_cached_path(
             }
         }
 
-        runtime_search_path_unref(path, &ref_val);
+        runtime_search_path_unref();
 
         if did_one { OK } else { FAIL }
     }
@@ -959,10 +941,11 @@ unsafe fn do_in_cached_path(
 
 pub unsafe fn runtime_inspect(arena: *mut Arena) -> Array {
     unsafe {
-        let mut rv = arena_array(arena, runtime_search_path.size);
+        let rsp_ptr = &raw const runtime_search_path;
+        let rsp = &*rsp_ptr;
+        let mut rv = arena_array(arena, rsp.len());
 
-        for i in 0..runtime_search_path.size {
-            let item = &*runtime_search_path.items.add(i);
+        for item in rsp {
             let mut entry = arena_dict(arena, 5);
             put_c(&mut entry, c"path", cstr_as_obj(item.path));
             if item.after {
@@ -988,18 +971,17 @@ pub unsafe fn runtime_inspect(arena: *mut Arena) -> Array {
 
 pub unsafe fn runtime_get_named(lua: bool, pat: Array, all: bool, arena: *mut Arena) -> Array {
     unsafe {
-        let mut ref_val: c_int = 0;
-        let path = runtime_search_path_get_cached(&mut ref_val);
+        let path = &mut *runtime_search_path_get_cached();
         let rv = runtime_get_named_common(
             lua,
             pat,
             all,
-            &path,
+            path,
             (&raw mut get_named_buf).cast::<c_char>(),
             MAXPATHL,
             arena,
         );
-        runtime_search_path_unref(path, &ref_val);
+        runtime_search_path_unref();
         rv
     }
 }
@@ -1009,16 +991,13 @@ pub unsafe fn runtime_get_named_thread(lua: bool, pat: Array, all: bool) -> Arra
         let _guard = RUNTIME_SEARCH_PATH_MUTEX
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        let path = RuntimeSearchPath {
-            size: runtime_search_path_thread.size,
-            capacity: runtime_search_path_thread.capacity,
-            items: runtime_search_path_thread.items,
-        };
+        let path_ptr = &raw mut runtime_search_path_thread;
+        let path = &mut *path_ptr;
         runtime_get_named_common(
             lua,
             pat,
             all,
-            &path,
+            path,
             (&raw mut get_named_thread_buf).cast::<c_char>(),
             MAXPATHL,
             ptr::null_mut(),
@@ -1030,15 +1009,14 @@ unsafe fn runtime_get_named_common(
     lua: bool,
     pat: Array,
     all: bool,
-    path: &RuntimeSearchPath,
+    path: &mut [SearchPathItem],
     buf: *mut c_char,
     buf_len: usize,
     arena: *mut Arena,
 ) -> Array {
     unsafe {
-        let mut rv = arena_array(arena, path.size * pat.size);
-        for i in 0..path.size {
-            let item = &mut *path.items.add(i);
+        let mut rv = arena_array(arena, path.len() * pat.size);
+        for item in path.iter_mut() {
             if lua {
                 if item.has_lua == kNone {
                     let size = vim_snprintf!(buf, buf_len, c"%s/lua/".as_ptr(), item.path) as usize;
@@ -1343,11 +1321,9 @@ pub unsafe fn did_set_runtimepackpath(_args: *mut optset_T) -> *const c_char {
 
 unsafe fn runtime_search_path_free(path: &mut RuntimeSearchPath) {
     unsafe {
-        for j in 0..path.size {
-            let item = *path.items.add(j);
+        for item in path.drain(..) {
             xfree(item.path.cast::<c_void>());
         }
-        path.destroy();
     }
 }
 
@@ -1357,18 +1333,17 @@ pub unsafe fn runtime_search_path_validate() {
             return;
         }
         if !runtime_search_path_valid {
-            if runtime_search_path_ref.is_null() {
+            let new_path = runtime_search_path_build();
+            let rsp_ptr = &raw mut runtime_search_path;
+            let mut old_path = std::mem::replace(&mut *rsp_ptr, new_path);
+            if runtime_search_path_refcount == 0 {
                 msg_ext_ui_flush();
-                let mut old_path = RuntimeSearchPath {
-                    size: runtime_search_path.size,
-                    capacity: runtime_search_path.capacity,
-                    items: runtime_search_path.items,
-                };
                 runtime_search_path_free(&mut old_path);
+            } else {
+                let old_ptr = &raw mut runtime_search_path_old;
+                (*old_ptr).push(old_path);
             }
-            runtime_search_path = runtime_search_path_build();
             runtime_search_path_valid = true;
-            runtime_search_path_ref = ptr::null_mut();
             update_runtime_search_path_thread(true);
         }
     }
@@ -1383,18 +1358,10 @@ pub unsafe fn update_runtime_search_path_thread(force: bool) {
         let _guard = RUNTIME_SEARCH_PATH_MUTEX
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        let mut old_thread = RuntimeSearchPath {
-            size: runtime_search_path_thread.size,
-            capacity: runtime_search_path_thread.capacity,
-            items: runtime_search_path_thread.items,
-        };
-        runtime_search_path_free(&mut old_thread);
-        let src = RuntimeSearchPath {
-            size: runtime_search_path.size,
-            capacity: runtime_search_path.capacity,
-            items: runtime_search_path.items,
-        };
-        runtime_search_path_thread = copy_runtime_search_path(&src);
+        let thread_ptr = &raw mut runtime_search_path_thread;
+        let rsp_ptr = &raw const runtime_search_path;
+        runtime_search_path_free(&mut *thread_ptr);
+        runtime_search_path_thread = copy_runtime_search_path(&*rsp_ptr);
         drop(_guard);
         runtime_search_path_valid_thread = true;
     }
@@ -1650,7 +1617,7 @@ unsafe fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
             set_option_value_give_err(kOptRuntimepath, string_obj(new_rtp), 0);
 
             debug_assert!(!runtime_search_path_valid);
-            if was_valid && !is_pack && runtime_search_path_ref.is_null() {
+            if was_valid && !is_pack && runtime_search_path_refcount == 0 {
                 runtime_search_path_valid = true;
                 runtime_search_path_valid_thread = false;
                 let rsp_ptr = &raw mut runtime_search_path;
@@ -1662,7 +1629,7 @@ unsafe fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
                     has_lua: kNone,
                     pos_in_rtp: 0,
                 });
-                let mut i = (rsp.size as isize) - 1;
+                let mut i = (rsp.len() as isize) - 1;
 
                 if afterdir.size > 0 {
                     rsp.push(SearchPathItem {
@@ -1674,15 +1641,12 @@ unsafe fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
                     });
                     i += 1;
                     while i >= 1 {
-                        if i > 1
-                            && (*runtime_search_path.items.add((i - 2) as usize)).pos_in_rtp
-                                >= after_pos
-                        {
-                            let mut prev = *runtime_search_path.items.add((i - 2) as usize);
+                        if i > 1 && rsp[(i - 2) as usize].pos_in_rtp >= after_pos {
+                            let mut prev = rsp[(i - 2) as usize];
                             prev.pos_in_rtp += fname_len + afterdir.size + 2;
-                            *runtime_search_path.items.add(i as usize) = prev;
+                            rsp[i as usize] = prev;
                         } else {
-                            *runtime_search_path.items.add(i as usize) = SearchPathItem {
+                            rsp[i as usize] = SearchPathItem {
                                 path: xmemdupz(afterdir.data.cast::<c_void>(), afterdir.size)
                                     .cast::<c_char>(),
                                 after: true,
@@ -1698,15 +1662,12 @@ unsafe fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
                 }
 
                 while i >= 0 {
-                    if i > 0
-                        && (*runtime_search_path.items.add((i - 1) as usize)).pos_in_rtp
-                            >= first_pos
-                    {
-                        let mut prev = *runtime_search_path.items.add((i - 1) as usize);
+                    if i > 0 && rsp[(i - 1) as usize].pos_in_rtp >= first_pos {
+                        let mut prev = rsp[(i - 1) as usize];
                         prev.pos_in_rtp += fname_len + 1;
-                        *runtime_search_path.items.add(i as usize) = prev;
+                        rsp[i as usize] = prev;
                     } else {
-                        *runtime_search_path.items.add(i as usize) = SearchPathItem {
+                        rsp[i as usize] = SearchPathItem {
                             path: xmemdupz(fname.cast::<c_void>(), fname_len).cast::<c_char>(),
                             after: false,
                             pack_inserted: true,
@@ -2021,7 +1982,7 @@ unsafe fn ExpandRTDir_int(
     pat_len: usize,
     flags: c_int,
     keep_ext: bool,
-    gap: *mut garray_T,
+    gap: &mut Vec<*mut c_char>,
     dirnames: *mut *mut c_char,
 ) {
     unsafe {
@@ -2127,8 +2088,7 @@ unsafe fn ExpandRTDir_int(
             }
         }
 
-        for idx in 0..(*gap).ga_len {
-            let match_ptr = *((*gap).ga_data as *mut *mut c_char).add(idx as usize);
+        for &match_ptr in gap.iter() {
             let mut s = match_ptr;
             let mut e = s.add(CStr::from_ptr(s).to_bytes().len());
             if (e as usize) - (s as usize) > 4 && !keep_ext {
@@ -2162,11 +2122,11 @@ unsafe fn ExpandRTDir_int(
             }
         }
 
-        if (*gap).ga_len == 0 {
+        if gap.is_empty() {
             return;
         }
 
-        ga_remove_duplicate_strings(gap);
+        crate::path::remove_duplicate_strings(gap);
     }
 }
 
@@ -2182,8 +2142,7 @@ pub unsafe fn ExpandRTDir(
         *num_file = 0;
         *file = ptr::null_mut();
 
-        let mut ga: garray_T = std::mem::zeroed();
-        ga_init(&mut ga, std::mem::size_of::<*mut c_char>() as c_int, 10);
+        let mut ga: Vec<*mut c_char> = Vec::new();
 
         ExpandRTDir_int(
             pat,
@@ -2194,12 +2153,12 @@ pub unsafe fn ExpandRTDir(
             dirnames,
         );
 
-        if ga.ga_len == 0 {
+        if ga.is_empty() {
             return FAIL;
         }
 
-        *file = ga.ga_data.cast::<*mut c_char>();
-        *num_file = ga.ga_len;
+        *num_file = ga.len() as c_int;
+        *file = crate::path::slice_to_xmalloc(&ga);
         OK
     }
 }
@@ -2214,8 +2173,7 @@ pub unsafe fn expand_runtime_cmd(
         *numMatches = 0;
         *matches = ptr::null_mut();
 
-        let mut ga: garray_T = std::mem::zeroed();
-        ga_init(&mut ga, std::mem::size_of::<*mut c_char>() as c_int, 10);
+        let mut ga: Vec<*mut c_char> = Vec::new();
 
         let pat_len = CStr::from_ptr(pat).to_bytes().len();
         let mut dirnames = [c"".as_ptr() as *mut c_char, ptr::null_mut()];
@@ -2233,18 +2191,17 @@ pub unsafe fn expand_runtime_cmd(
             let pat_slice = std::slice::from_raw_parts(pat.cast::<u8>(), pat_len);
             for wv in &where_values {
                 if wv.to_bytes().starts_with(pat_slice) {
-                    let slot = ga_append_via_ptr::<*mut c_char>(&mut ga);
-                    *slot = xstrdup(wv.as_ptr());
+                    ga.push(xstrdup(wv.as_ptr()));
                 }
             }
         }
 
-        if ga.ga_len == 0 {
+        if ga.is_empty() {
             return FAIL;
         }
 
-        *matches = ga.ga_data.cast::<*mut c_char>();
-        *numMatches = ga.ga_len;
+        *numMatches = ga.len() as c_int;
+        *matches = crate::path::slice_to_xmalloc(&ga);
         OK
     }
 }
@@ -2256,12 +2213,11 @@ pub unsafe fn ExpandPackAddDir(
     file: *mut *mut *mut c_char,
 ) -> c_int {
     unsafe {
-        let mut ga: garray_T = std::mem::zeroed();
+        let mut ga: Vec<*mut c_char> = Vec::new();
 
         *num_file = 0;
         *file = ptr::null_mut();
         let pat_len = CStr::from_ptr(pat).to_bytes().len();
-        ga_init(&mut ga, std::mem::size_of::<*mut c_char>() as c_int, 10);
 
         let buflen = pat_len + 26;
         let s = xmalloc(buflen).cast::<c_char>();
@@ -2271,21 +2227,20 @@ pub unsafe fn ExpandPackAddDir(
         globpath(p_pp, s, &mut ga, 0, true);
         xfree(s.cast::<c_void>());
 
-        for i in 0..ga.ga_len {
-            let match_ptr = *(ga.ga_data as *mut *mut c_char).add(i as usize);
+        for &match_ptr in &ga {
             let tail = path_tail(match_ptr);
             let tail_len = CStr::from_ptr(tail).to_bytes().len();
             ptr::copy(tail, match_ptr, tail_len + 1);
         }
 
-        if ga.ga_len == 0 {
+        if ga.is_empty() {
             return FAIL;
         }
 
-        ga_remove_duplicate_strings(&mut ga);
+        crate::path::remove_duplicate_strings(&mut ga);
 
-        *file = ga.ga_data.cast::<*mut c_char>();
-        *num_file = ga.ga_len;
+        *num_file = ga.len() as c_int;
+        *file = crate::path::slice_to_xmalloc(&ga);
         OK
     }
 }

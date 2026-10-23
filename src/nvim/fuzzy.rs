@@ -953,6 +953,30 @@ pub unsafe fn search_for_fuzzy_match(
     }
 }
 
+/// Sort `fuzmatch` by score and copy strings into `*matches`.
+pub unsafe fn fuzzymatches_slice_to_strmatches(
+    fuzmatch: &mut [fuzmatch_str_T],
+    matches: *mut *mut *mut c_char,
+    funcsort: bool,
+) {
+    unsafe {
+        if !fuzmatch.is_empty() {
+            let cnt = fuzmatch.len();
+            *matches = xmalloc(cnt * std::mem::size_of::<*mut c_char>()).cast::<*mut c_char>();
+
+            if funcsort {
+                sort_slice_by(fuzmatch, |a, b| fuzzy_match_func_compare(a, b));
+            } else {
+                sort_slice_by(fuzmatch, fuzzy_match_str_compare);
+            }
+
+            for (i, item) in fuzmatch.iter().enumerate() {
+                *(*matches).add(i) = item.str_ptr;
+            }
+        }
+    }
+}
+
 /// Sort `fuzmatch` by score and copy strings into `*matches`, freeing `fuzmatch`
 /// (`fuzzymatches_to_strmatches`).
 pub unsafe fn fuzzymatches_to_strmatches(
@@ -963,19 +987,8 @@ pub unsafe fn fuzzymatches_to_strmatches(
 ) {
     unsafe {
         if count > 0 {
-            let cnt = count as usize;
-            *matches = xmalloc(cnt * std::mem::size_of::<*mut c_char>()).cast::<*mut c_char>();
-
-            let slice = std::slice::from_raw_parts_mut(fuzmatch, cnt);
-            if funcsort {
-                sort_slice_by(slice, |a, b| fuzzy_match_func_compare(a, b));
-            } else {
-                sort_slice_by(slice, fuzzy_match_str_compare);
-            }
-
-            for i in 0..cnt {
-                *(*matches).add(i) = (*fuzmatch.add(i)).str_ptr;
-            }
+            let slice = std::slice::from_raw_parts_mut(fuzmatch, count as usize);
+            fuzzymatches_slice_to_strmatches(slice, matches, funcsort);
         }
         xfree(fuzmatch.cast::<c_void>());
     }

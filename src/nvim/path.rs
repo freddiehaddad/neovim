@@ -7,10 +7,6 @@ use crate::diff::kShellOptSilent;
 use crate::eval::eval_to_string;
 use crate::ex_docmd::eval_vars;
 use crate::fileio::{file_pat_to_reg_pat, match_file_list};
-use crate::garray::{
-    ga_append_via_ptr, ga_clear_strings, ga_concat_strings, ga_init, ga_remove_duplicate_strings,
-    garray_T,
-};
 use crate::globals::*;
 use crate::math::{FAIL, OK};
 #[cfg(unix)]
@@ -19,7 +15,7 @@ use crate::mbyte::{mb_strcmp_ic, utf_fold, utf_head_off, utf_ptr2char, utfc_ptr2
 #[cfg(windows)]
 use crate::memory::strchrsub;
 use crate::memory::{
-    xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xrealloc, xstrdup, xstrlcat, xstrlcpy,
+    xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz, xrealloc, xstrdup, xstrlcat, xstrlcpy,
 };
 use crate::option::copy_option_part;
 use crate::option_vars::*;
@@ -36,10 +32,75 @@ use crate::os::shell::os_expand_wildcards;
 use crate::regexp::{
     RE_MAGIC, RE_NOBREAK, RE_STRING, regmatch_T, vim_regcomp, vim_regexec, vim_regfree,
 };
-use crate::strings::{concat_str, vim_snprintf, vim_strchr, vim_stricmp};
+use crate::strings::{concat_str, sort_strings, vim_snprintf, vim_strchr, vim_stricmp};
 use std::cmp::Ordering;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
+
+pub unsafe fn clear_cstrings(strings: &mut Vec<*mut c_char>) {
+    unsafe {
+        for p in strings.drain(..) {
+            xfree(p.cast::<c_void>());
+        }
+    }
+}
+
+pub unsafe fn slice_to_xmalloc<T: Copy>(items: &[T]) -> *mut T {
+    if items.is_empty() {
+        return ptr::null_mut();
+    }
+    unsafe {
+        let ptr = xmalloc(std::mem::size_of_val(items)).cast::<T>();
+        ptr::copy_nonoverlapping(items.as_ptr(), ptr, items.len());
+        ptr
+    }
+}
+
+pub unsafe fn remove_duplicate_strings(fnames: &mut Vec<*mut c_char>) {
+    if fnames.is_empty() {
+        return;
+    }
+    unsafe {
+        sort_strings(fnames.as_mut_ptr(), fnames.len() as c_int);
+        let mut i = fnames.len() - 1;
+        while i > 0 {
+            if path_equal(fnames[i - 1], fnames[i], kPathCmpLiteral) {
+                let dup = fnames.remove(i);
+                xfree(dup.cast::<c_void>());
+            }
+            i -= 1;
+        }
+    }
+}
+
+pub unsafe fn concat_cstrings(strings: &[*mut c_char], sep: *const c_char) -> *mut c_char {
+    let nelem = strings.len();
+    if nelem == 0 {
+        return unsafe { xmallocz(0).cast::<c_char>() };
+    }
+    unsafe {
+        let sep_bytes = CStr::from_ptr(sep).to_bytes();
+        let mut len = (nelem - 1) * sep_bytes.len();
+        for &s in strings {
+            len += CStr::from_ptr(s).to_bytes().len();
+        }
+        let ret = xmallocz(len).cast::<u8>();
+        let mut offset = 0usize;
+        for (i, &s) in strings.iter().enumerate() {
+            let bytes = CStr::from_ptr(s).to_bytes();
+            if !bytes.is_empty() {
+                ptr::copy_nonoverlapping(bytes.as_ptr(), ret.add(offset), bytes.len());
+                offset += bytes.len();
+            }
+            if i + 1 < nelem && !sep_bytes.is_empty() {
+                ptr::copy_nonoverlapping(sep_bytes.as_ptr(), ret.add(offset), sep_bytes.len());
+                offset += sep_bytes.len();
+            }
+        }
+        *ret.add(len) = 0;
+        ret.cast::<c_char>()
+    }
+}
 
 pub type PathCmpFlags = c_int;
 
@@ -545,19 +606,19 @@ unsafe fn scandir_next_with_dots(dir: *mut Directory) -> *const c_char {
     }
 }
 
-unsafe fn path_expand(gap: *mut garray_T, path: *const c_char, flags: c_int) -> usize {
+unsafe fn path_expand(gap: &mut Vec<*mut c_char>, path: *const c_char, flags: c_int) -> usize {
     unsafe { do_path_expand(gap, path, 0, flags, false) }
 }
 
 unsafe fn do_path_expand(
-    gap: *mut garray_T,
+    gap: &mut Vec<*mut c_char>,
     path: *const c_char,
     wildoff: usize,
     flags: c_int,
     didstar: bool,
 ) -> usize {
     unsafe {
-        let start_len = (*gap).ga_len;
+        let start_len = gap.len();
         let mut starstar = false;
 
         if STARDEPTH > 0 && (flags & EW_NOBREAK) == 0 {
@@ -732,13 +793,9 @@ unsafe fn do_path_expand(
         xfree(buf.cast::<c_void>());
         vim_regfree(regmatch.regprog);
 
-        let matches = ((*gap).ga_len - start_len) as usize;
+        let matches = gap.len() - start_len;
         if matches > 0 && !got_int {
-            let slice = std::slice::from_raw_parts_mut(
-                ((*gap).ga_data.cast::<*mut c_char>()).add(start_len as usize),
-                matches,
-            );
-            slice.sort_by(|&a, &b| {
+            gap[start_len..].sort_by(|&a, &b| {
                 let cmp = path_cmp(p_fic != 0, a, b, MAXPATHL);
                 if cmp < 0 {
                     Ordering::Less
@@ -771,16 +828,14 @@ unsafe fn find_previous_pathsep(path: *mut c_char, psep: *mut *mut c_char) -> c_
     }
 }
 
-unsafe fn is_unique(maybe_unique: *mut c_char, gap: *mut garray_T, i: c_int) -> bool {
+unsafe fn is_unique(maybe_unique: *mut c_char, gap: &[*mut c_char], i: usize) -> bool {
     unsafe {
         let candidate_len = CStr::from_ptr(maybe_unique).to_bytes().len();
-        let other_paths = (*gap).ga_data.cast::<*mut c_char>();
 
-        for j in 0..(*gap).ga_len {
+        for (j, &other) in gap.iter().enumerate() {
             if j == i {
                 continue;
             }
-            let other = *other_paths.add(j as usize);
             let other_path_len = CStr::from_ptr(other).to_bytes().len();
             if other_path_len < candidate_len {
                 continue;
@@ -799,7 +854,7 @@ unsafe fn is_unique(maybe_unique: *mut c_char, gap: *mut garray_T, i: c_int) -> 
 unsafe fn expand_path_option(
     curdir: *mut c_char,
     mut path_option: *mut c_char,
-    gap: *mut garray_T,
+    gap: &mut Vec<*mut c_char>,
 ) {
     unsafe {
         let buf = xmalloc(MAXPATHL).cast::<c_char>();
@@ -851,22 +906,19 @@ unsafe fn expand_path_option(
                 buflen = simplify_filename(buf);
             }
 
-            let slot = ga_append_via_ptr::<*mut c_char>(gap);
-            *slot = xmemdupz(buf.cast::<c_void>(), buflen).cast::<c_char>();
+            gap.push(xmemdupz(buf.cast::<c_void>(), buflen).cast::<c_char>());
         }
 
         xfree(buf.cast::<c_void>());
     }
 }
 
-unsafe fn get_path_cutoff(fname: *mut c_char, gap: *mut garray_T) -> *mut c_char {
+unsafe fn get_path_cutoff(fname: *mut c_char, gap: &[*mut c_char]) -> *mut c_char {
     unsafe {
         let mut maxlen: c_int = 0;
-        let path_part = (*gap).ga_data.cast::<*mut c_char>();
         let mut cutoff: *mut c_char = ptr::null_mut();
 
-        for i in 0..(*gap).ga_len {
-            let part = *path_part.add(i as usize);
+        for &part in gap {
             let mut j: usize = 0;
 
             while {
@@ -894,13 +946,16 @@ unsafe fn get_path_cutoff(fname: *mut c_char, gap: *mut garray_T) -> *mut c_char
     }
 }
 
-unsafe fn uniquefy_paths(gap: *mut garray_T, pattern: *mut c_char, path_option: *mut c_char) {
+unsafe fn uniquefy_paths(
+    gap: &mut Vec<*mut c_char>,
+    pattern: *mut c_char,
+    path_option: *mut c_char,
+) {
     unsafe {
         let mut sort_again = false;
-        let mut path_ga: garray_T = std::mem::zeroed();
+        let mut path_ga: Vec<*mut c_char> = Vec::new();
 
-        ga_remove_duplicate_strings(gap);
-        ga_init(&mut path_ga, size_of::<*mut c_char>() as c_int, 1);
+        remove_duplicate_strings(gap);
 
         let mut len = CStr::from_ptr(pattern).to_bytes().len();
         let file_pattern = xmalloc(len + 2).cast::<c_char>();
@@ -928,15 +983,13 @@ unsafe fn uniquefy_paths(gap: *mut garray_T, pattern: *mut c_char, path_option: 
         os_dirname(curdir, MAXPATHL);
         expand_path_option(curdir, path_option, &mut path_ga);
 
-        let fnames = (*gap).ga_data.cast::<*mut c_char>();
-        let in_curdir =
-            xcalloc((*gap).ga_len as usize, size_of::<*mut c_char>()).cast::<*mut c_char>();
+        let mut in_curdir: Vec<*mut c_char> = vec![ptr::null_mut(); gap.len()];
 
-        for i in 0..(*gap).ga_len {
+        for i in 0..gap.len() {
             if got_int {
                 break;
             }
-            let path = *fnames.add(i as usize);
+            let path = gap[i];
             let dir_end = gettail_dir(path);
 
             len = CStr::from_ptr(path).to_bytes().len();
@@ -944,10 +997,10 @@ unsafe fn uniquefy_paths(gap: *mut garray_T, pattern: *mut c_char, path_option: 
             let is_in_curdir =
                 path_cmp(p_fic != 0, curdir, path, dir_len) == 0 && *curdir.add(dir_len) == NUL;
             if is_in_curdir {
-                *in_curdir.add(i as usize) = xmemdupz(path.cast::<c_void>(), len).cast::<c_char>();
+                in_curdir[i] = xmemdupz(path.cast::<c_void>(), len).cast::<c_char>();
             }
 
-            let path_cutoff = get_path_cutoff(path, &mut path_ga);
+            let path_cutoff = get_path_cutoff(path, &path_ga);
 
             if *pattern == b'*' as c_char
                 && *pattern.add(1) == b'*' as c_char
@@ -991,11 +1044,10 @@ unsafe fn uniquefy_paths(gap: *mut garray_T, pattern: *mut c_char, path_option: 
             os_breakcheck();
         }
 
-        for i in 0..(*gap).ga_len {
+        for (i, &path) in in_curdir.iter().enumerate() {
             if got_int {
                 break;
             }
-            let path = *in_curdir.add(i as usize);
             if path.is_null() {
                 continue;
             }
@@ -1006,7 +1058,7 @@ unsafe fn uniquefy_paths(gap: *mut garray_T, pattern: *mut c_char, path_option: 
             }
             if is_unique(short_name, gap, i) {
                 let slen = CStr::from_ptr(short_name).to_bytes().len();
-                ptr::copy_nonoverlapping(short_name, *fnames.add(i as usize), slen + 1);
+                ptr::copy_nonoverlapping(short_name, gap[i], slen + 1);
                 continue;
             }
 
@@ -1021,22 +1073,19 @@ unsafe fn uniquefy_paths(gap: *mut garray_T, pattern: *mut c_char, path_option: 
                 short_name,
             );
 
-            xfree((*fnames.add(i as usize)).cast::<c_void>());
-            *fnames.add(i as usize) = rel_path;
+            xfree(gap[i].cast::<c_void>());
+            gap[i] = rel_path;
             sort_again = true;
             os_breakcheck();
         }
 
         xfree(curdir.cast::<c_void>());
-        for i in 0..(*gap).ga_len {
-            xfree((*in_curdir.add(i as usize)).cast::<c_void>());
-        }
-        xfree(in_curdir.cast::<c_void>());
-        ga_clear_strings(&mut path_ga);
+        clear_cstrings(&mut in_curdir);
+        clear_cstrings(&mut path_ga);
         vim_regfree(regmatch.regprog);
 
         if sort_again {
-            ga_remove_duplicate_strings(gap);
+            remove_duplicate_strings(gap);
         }
     }
 }
@@ -1066,9 +1115,9 @@ pub unsafe fn gettail_dir(fname: *const c_char) -> *const c_char {
     }
 }
 
-unsafe fn expand_in_path(gap: *mut garray_T, pattern: *mut c_char, flags: c_int) -> c_int {
+unsafe fn expand_in_path(gap: &mut Vec<*mut c_char>, pattern: *mut c_char, flags: c_int) -> c_int {
     unsafe {
-        let mut path_ga: garray_T = std::mem::zeroed();
+        let mut path_ga: Vec<*mut c_char> = Vec::new();
         let path_option = if *(*curbuf).b_p_path == NUL {
             p_path
         } else {
@@ -1078,20 +1127,18 @@ unsafe fn expand_in_path(gap: *mut garray_T, pattern: *mut c_char, flags: c_int)
         let curdir = xmalloc(MAXPATHL).cast::<c_char>();
         os_dirname(curdir, MAXPATHL);
 
-        ga_init(&mut path_ga, size_of::<*mut c_char>() as c_int, 1);
         if (flags & EW_CDPATH) != 0 {
             expand_path_option(curdir, p_cdpath, &mut path_ga);
         } else {
             expand_path_option(curdir, path_option, &mut path_ga);
         }
         xfree(curdir.cast::<c_void>());
-        if path_ga.ga_len == 0 {
-            ga_clear_strings(&mut path_ga);
+        if path_ga.is_empty() {
             return 0;
         }
 
-        let paths = ga_concat_strings(&path_ga, c",".as_ptr());
-        ga_clear_strings(&mut path_ga);
+        let paths = concat_cstrings(&path_ga, c",".as_ptr());
+        clear_cstrings(&mut path_ga);
 
         let mut glob_flags = 0;
         if (flags & EW_ICASE) != 0 {
@@ -1103,7 +1150,7 @@ unsafe fn expand_in_path(gap: *mut garray_T, pattern: *mut c_char, flags: c_int)
         globpath(paths, pattern, gap, glob_flags, (flags & EW_CDPATH) != 0);
         xfree(paths.cast::<c_void>());
 
-        (*gap).ga_len
+        gap.len() as c_int
     }
 }
 
@@ -1169,7 +1216,7 @@ pub unsafe fn gen_expand_wildcards(
     flags: c_int,
 ) -> c_int {
     unsafe {
-        let mut ga: garray_T = std::mem::zeroed();
+        let mut ga: Vec<*mut c_char> = Vec::new();
         let mut did_expand_in_path = false;
         let path_option = if *(*curbuf).b_p_path == NUL {
             p_path
@@ -1199,7 +1246,6 @@ pub unsafe fn gen_expand_wildcards(
         }
 
         EXPAND_RECURSIVE = true;
-        ga_init(&mut ga, size_of::<*mut c_char>() as c_int, 30);
 
         for i in 0..num_pat {
             if got_int {
@@ -1212,7 +1258,7 @@ pub unsafe fn gen_expand_wildcards(
                 add_pat = expand_backtick(&mut ga, p, flags);
                 if add_pat == -1 {
                     EXPAND_RECURSIVE = false;
-                    ga_clear_strings(&mut ga);
+                    clear_cstrings(&mut ga);
                     *num_file = 0;
                     *file = ptr::null_mut();
                     return FAIL;
@@ -1226,7 +1272,7 @@ pub unsafe fn gen_expand_wildcards(
                         #[cfg(unix)]
                         if has_env_var(p) || *p == b'~' as c_char {
                             xfree(p.cast::<c_void>());
-                            ga_clear_strings(&mut ga);
+                            clear_cstrings(&mut ga);
                             let res = os_expand_wildcards(
                                 num_pat,
                                 pat,
@@ -1274,7 +1320,7 @@ pub unsafe fn gen_expand_wildcards(
                 }
             }
 
-            if did_expand_in_path && ga.ga_len > 0 && (flags & (EW_PATH | EW_CDPATH)) != 0 {
+            if did_expand_in_path && !ga.is_empty() && (flags & (EW_PATH | EW_CDPATH)) != 0 {
                 EXPAND_RECURSIVE = false;
                 uniquefy_paths(&mut ga, p, path_option);
                 EXPAND_RECURSIVE = true;
@@ -1284,16 +1330,12 @@ pub unsafe fn gen_expand_wildcards(
             }
         }
 
-        *num_file = ga.ga_len;
-        *file = if !ga.ga_data.is_null() {
-            ga.ga_data.cast::<*mut c_char>()
-        } else {
-            ptr::null_mut()
-        };
+        *num_file = ga.len() as c_int;
+        *file = slice_to_xmalloc(&ga);
 
         EXPAND_RECURSIVE = false;
 
-        if (flags & EW_EMPTYOK) != 0 || !ga.ga_data.is_null() {
+        if (flags & EW_EMPTYOK) != 0 || !(*file).is_null() {
             OK
         } else {
             FAIL
@@ -1324,7 +1366,7 @@ unsafe fn vim_backtick(p: *const c_char) -> bool {
     }
 }
 
-unsafe fn expand_backtick(gap: *mut garray_T, pat: *mut c_char, flags: c_int) -> c_int {
+unsafe fn expand_backtick(gap: &mut Vec<*mut c_char>, pat: *mut c_char, flags: c_int) -> c_int {
     unsafe {
         let mut cnt: c_int = 0;
         let pat_len = CStr::from_ptr(pat).to_bytes().len();
@@ -1425,7 +1467,7 @@ pub unsafe fn path_to_slash_save(p: *const c_char) -> *mut c_char {
     }
 }
 
-pub unsafe fn addfile(gap: *mut garray_T, f: *mut c_char, flags: c_int) {
+pub unsafe fn addfile(gap: &mut Vec<*mut c_char>, f: *mut c_char, flags: c_int) {
     unsafe {
         let mut file_info: FileInfo = std::mem::zeroed();
 
@@ -1466,8 +1508,7 @@ pub unsafe fn addfile(gap: *mut garray_T, f: *mut c_char, flags: c_int) {
         if isdir && (flags & EW_ADDSLASH) != 0 {
             add_pathsep(p);
         }
-        let slot = ga_append_via_ptr::<*mut c_char>(gap);
-        *slot = p;
+        gap.push(p);
     }
 }
 
