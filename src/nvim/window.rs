@@ -69,7 +69,6 @@ use crate::input::{beep_flush, langmap_adjust, plain_vgetc};
 use crate::insert::{Ctrl_J, Ctrl_S, Ctrl_X, beginline, cursor_down_inner, cursor_up_inner};
 use crate::keycodes::{CAR, K_BS, K_DOWN, K_KENTER, K_LEFT, K_RIGHT, K_UP, TAB};
 use crate::main_init::getout;
-use crate::map::{StcClick, StcClicks};
 use crate::mark::{WinInfo, copy_jumplist, free_jumplist, setmark, setpcmark};
 use crate::r#match::clear_matches;
 use crate::math::{FAIL, OK};
@@ -318,7 +317,7 @@ pub struct win_T {
     pub w_ns_hl_winhl: c_int,
     pub w_ns_hl_active: c_int,
     pub w_ns_hl_attr: *mut c_int,
-    pub w_ns_set: crate::map::Set<u32>,
+    pub w_ns_set: std::collections::BTreeSet<u32>,
     pub w_hl_id_normal: c_int,
     pub w_hl_attr_normal: c_int,
     pub w_hl_attr_normalnc: c_int,
@@ -472,8 +471,17 @@ pub struct win_T {
     pub w_status_click_defs_size: usize,
     pub w_winbar_click_defs: *mut std::ffi::c_void,
     pub w_winbar_click_defs_size: usize,
-    pub w_statuscol_click_defs: [crate::map::Map<c_int, StcClicks>; 1],
+    pub w_statuscol_click_defs: std::collections::BTreeMap<c_int, StcClicks>,
 }
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct StcClick {
+    pub def: *mut std::ffi::c_void,
+    pub size: usize,
+}
+
+pub type StcClicks = std::collections::BTreeMap<c_int, StcClick>;
 
 #[repr(C)]
 pub struct tabpage_T {
@@ -5901,7 +5909,11 @@ pub unsafe fn win_alloc(after: *mut win_T, hidden: bool) -> *mut win_T {
 
         (*new_wp).w_ns_hl = -1;
 
-        (*new_wp).w_ns_set = zeroed();
+        ptr::write(&raw mut (*new_wp).w_ns_set, std::collections::BTreeSet::new());
+        ptr::write(
+            &raw mut (*new_wp).w_statuscol_click_defs,
+            std::collections::BTreeMap::new(),
+        );
 
         (*new_wp).w_onebuf_opt.wo_so = -1;
         (*new_wp).w_allbuf_opt.wo_so = -1;
@@ -5941,9 +5953,7 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
 
         block_autocmds();
 
-        xfree((*wp).w_ns_set.keys.cast());
-        xfree((*wp).w_ns_set.h.hash.cast());
-        (*wp).w_ns_set = zeroed();
+        ptr::drop_in_place(&raw mut (*wp).w_ns_set);
 
         clear_winopt(&raw mut (*wp).w_onebuf_opt);
         clear_winopt(&raw mut (*wp).w_allbuf_opt);
@@ -5987,25 +5997,16 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
         );
         xfree((*wp).w_winbar_click_defs);
 
-        let stc_map = &raw mut (*wp).w_statuscol_click_defs[0];
-        for j in 0..(*stc_map).set.h.n_keys as usize {
-            let lnum_click_defs: StcClicks = *(*stc_map).values.add(j);
-            for i in 0..lnum_click_defs.set.h.n_keys as usize {
-                let row_click_defs: StcClick = *lnum_click_defs.values.add(i);
+        for (_, lnum_click_defs) in std::mem::take(&mut (*wp).w_statuscol_click_defs) {
+            for (_, row_click_defs) in lnum_click_defs {
                 stl_clear_click_defs(
                     row_click_defs.def.cast::<StlClickDefinition>(),
                     row_click_defs.size,
                 );
                 xfree(row_click_defs.def);
             }
-            xfree(lnum_click_defs.set.keys.cast());
-            xfree(lnum_click_defs.set.h.hash.cast());
-            xfree(lnum_click_defs.values.cast());
         }
-        xfree((*stc_map).set.keys.cast());
-        xfree((*stc_map).set.h.hash.cast());
-        xfree((*stc_map).values.cast());
-        *stc_map = zeroed();
+        ptr::drop_in_place(&raw mut (*wp).w_statuscol_click_defs);
 
         let mut buf = firstbuf;
         while !buf.is_null() {

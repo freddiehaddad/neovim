@@ -106,8 +106,6 @@ const CMDS: [*const c_char; 7] = [
     ptr::null(),
 ];
 
-use crate::map::map_get_string_int;
-
 #[inline]
 unsafe fn pmap_get_sign(name: *const c_char) -> *mut sign_T {
     if name.is_null() {
@@ -124,6 +122,21 @@ unsafe fn pmap_get_sign(name: *const c_char) -> *mut sign_T {
     }
 }
 
+#[inline]
+unsafe fn find_ns_by_name(group: *const c_char) -> c_int {
+    if group.is_null() {
+        return 0;
+    }
+    unsafe {
+        let group_cstr = CStr::from_ptr(group);
+        let ns_ptr = &raw const namespace_ids;
+        (*ns_ptr)
+            .iter()
+            .find_map(|(k, v)| (k.as_c_str() == group_cstr).then_some(*v))
+            .unwrap_or(0)
+    }
+}
+
 unsafe fn group_get_ns(group: *const c_char) -> i64 {
     unsafe {
         if group.is_null() {
@@ -131,7 +144,7 @@ unsafe fn group_get_ns(group: *const c_char) -> i64 {
         } else if strcmp(group, c"*".as_ptr()) == 0 {
             return i64::from(u32::MAX);
         }
-        let ns = map_get_string_int(&raw mut namespace_ids, cstr_as_string(group));
+        let ns = find_ns_by_name(group);
         if ns != 0 { i64::from(ns) } else { -1 }
     }
 }
@@ -158,9 +171,7 @@ unsafe fn buf_set_sign(
     sp: *mut sign_T,
 ) {
     unsafe {
-        if !group.is_null()
-            && map_get_string_int(&raw mut namespace_ids, cstr_as_string(group)) == 0
-        {
+        if !group.is_null() && find_ns_by_name(group) == 0 {
             let ns_vec_ptr = &raw mut sign_ns;
             let ns_vec = &mut *ns_vec_ptr;
             ns_vec.push(nvim_create_namespace(cstr_as_string(group)));

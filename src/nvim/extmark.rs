@@ -9,7 +9,6 @@ use crate::decoration::{
     decor_redraw, decor_state_invalidate, decor_type_flags, kSHUIWatched, kSHUIWatchedOverlay,
 };
 use crate::globals::*;
-use crate::map::{map_del, map_destroy, map_put_ref, map_ref};
 use crate::marktree::{
     DECOR_HIGHLIGHT_INLINE_INIT, DecorInlineData, MT_FLAG_DECOR_HL, MT_FLAG_DECOR_SIGNTEXT,
     MT_FLAG_EXTERNAL_MASK, MT_FLAG_INVALID, MTKey, MTPair, MTPos, MarkTreeIter, marktree_clear,
@@ -151,12 +150,7 @@ pub unsafe fn extmark_set(
     _err: *mut Error,
 ) {
     unsafe {
-        let ns = map_put_ref(
-            (*buf).b_extmark_ns.as_mut_ptr(),
-            ns_id,
-            ptr::null_mut(),
-            ptr::null_mut(),
-        );
+        let ns = (*buf).b_extmark_ns.entry(ns_id).or_insert(0);
         let mut id = if !idp.is_null() { *idp } else { 0 };
         let mut created = true;
 
@@ -427,18 +421,15 @@ pub unsafe fn extmark_clear(
     u_col: colnr_T,
 ) -> bool {
     unsafe {
-        if (*buf).b_extmark_ns[0].set.h.n_keys == 0 {
+        if (*buf).b_extmark_ns.is_empty() {
             return false;
         }
 
         mc_ns_clearing(buf, ns_id);
 
         let all_ns = ns_id == 0;
-        if !all_ns {
-            let ns = map_ref((*buf).b_extmark_ns.as_mut_ptr(), ns_id, ptr::null_mut());
-            if ns.is_null() {
-                return false;
-            }
+        if !all_ns && !(*buf).b_extmark_ns.contains_key(&ns_id) {
+            return false;
         }
 
         let mut marks_cleared_any = false;
@@ -467,9 +458,9 @@ pub unsafe fn extmark_clear(
 
         if marks_cleared_all {
             if all_ns {
-                map_destroy((*buf).b_extmark_ns.as_mut_ptr());
+                (*buf).b_extmark_ns.clear();
             } else {
-                map_del((*buf).b_extmark_ns.as_mut_ptr(), ns_id, ptr::null_mut());
+                (*buf).b_extmark_ns.remove(&ns_id);
             }
         }
 
@@ -667,7 +658,7 @@ pub unsafe fn extmark_free_all(buf: *mut buf_T) {
         (*buf).b_signcols.max = 0;
         (*buf).b_signcols.count = [0; 9];
 
-        map_destroy((*buf).b_extmark_ns.as_mut_ptr());
+        (*buf).b_extmark_ns.clear();
     }
 }
 
@@ -1153,29 +1144,23 @@ pub unsafe fn extmark_move_region(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::map::Map;
 
     #[test]
     fn extmark_undo_vec_and_map_destroy_work() {
-        unsafe {
-            let v: extmark_undo_vec_t = vec![ExtmarkUndoObject {
-                type_: kExtmarkSavePos,
-                data: ExtmarkUndoData {
-                    savepos: ExtmarkSavePos {
-                        mark: 10,
-                        undo_row: 1,
-                        undo_col: 2,
-                        redo_row: 3,
-                        redo_col: 4,
-                        invalidated: false,
-                    },
+        let v: extmark_undo_vec_t = vec![ExtmarkUndoObject {
+            type_: kExtmarkSavePos,
+            data: ExtmarkUndoData {
+                savepos: ExtmarkSavePos {
+                    mark: 10,
+                    undo_row: 1,
+                    undo_col: 2,
+                    redo_row: 3,
+                    redo_col: 4,
+                    invalidated: false,
                 },
-            }];
-            assert_eq!(v.len(), 1);
-            drop(v);
-
-            let mut map: Map<u32, u32> = std::mem::zeroed();
-            map_destroy(&raw mut map);
-        }
+            },
+        }];
+        assert_eq!(v.len(), 1);
+        drop(v);
     }
 }

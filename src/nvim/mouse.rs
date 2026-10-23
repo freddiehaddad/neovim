@@ -35,7 +35,6 @@ use crate::keycodes::{
     K_RIGHTDRAG, K_RIGHTMOUSE, K_RIGHTRELEASE, K_X1DRAG, K_X1MOUSE, K_X1RELEASE, K_X2DRAG,
     K_X2MOUSE, K_X2RELEASE, get_mouse_button, key2termcap1,
 };
-use crate::map::{MH_TOMBSTONE, Map, StcClick, StcClicks, mh_get};
 use crate::mbyte::{
     mb_get_class, utf_ClusterInfo, utf_head_off, utf_ptr2StrCharInfo, utf8len_tab, utfc_ptr2len,
 };
@@ -142,30 +141,6 @@ static mut orig_topline: linenr_T = 0;
 static mut orig_topfill: c_int = 0;
 static mut got_click: bool = false;
 static mut dragwin: *mut win_T = ptr::null_mut();
-
-#[inline]
-unsafe fn map_get_int_StcClicks(map: *mut Map<c_int, StcClicks>, key: c_int) -> StcClicks {
-    unsafe {
-        let k = mh_get(&raw mut (*map).set, key);
-        if k == MH_TOMBSTONE {
-            std::mem::zeroed()
-        } else {
-            *(*map).values.add(k as usize)
-        }
-    }
-}
-
-#[inline]
-unsafe fn map_get_int_StcClick(map: *mut StcClicks, key: c_int) -> StcClick {
-    unsafe {
-        let k = mh_get(&raw mut (*map).set, key);
-        if k == MH_TOMBSTONE {
-            std::mem::zeroed()
-        } else {
-            *(*map).values.add(k as usize)
-        }
-    }
-}
 
 /// Get class of a character for selection: same class means same word.
 /// 0: blank
@@ -829,9 +804,13 @@ pub unsafe fn do_mouse(
             if in_statuscol {
                 let lnum = get_vim_var_nr(VV_LNUM) as c_int;
                 let virtnum = get_vim_var_nr(VV_VIRTNUM) as c_int;
-                let mut lnum_click_defs =
-                    map_get_int_StcClicks((*wp).w_statuscol_click_defs.as_mut_ptr(), lnum);
-                let row_click_defs = map_get_int_StcClick(&raw mut lnum_click_defs, virtnum);
+                let Some(row_click_defs) = (*wp)
+                    .w_statuscol_click_defs
+                    .get(&lnum)
+                    .and_then(|m| m.get(&virtnum))
+                else {
+                    return false;
+                };
                 if click_col >= row_click_defs.size as c_int {
                     return false;
                 }

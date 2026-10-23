@@ -54,7 +54,6 @@ use crate::indent_c::parse_cino;
 use crate::input::vgetc;
 use crate::insexpand::clear_cpt_callbacks;
 use crate::main_init::getout;
-use crate::map::Map;
 use crate::mapping::map_clear_mode;
 use crate::mark::{
     WinInfo, clear_fmark, clrallmarks, fmark_T, fmarks_check_names, free_fmark, mark_adjust_buf,
@@ -411,7 +410,7 @@ pub struct buf_T {
     pub additional_data: *mut c_void,
     pub b_mapped_ctrl_c: c_int,
     pub b_marktree: [crate::marktree::MarkTree; 1],
-    pub b_extmark_ns: [Map<u32, u32>; 1],
+    pub b_extmark_ns: std::collections::BTreeMap<u32, u32>,
     pub b_prev_line_count: c_int,
     pub update_channels: Vec<u64>,
     pub update_callbacks: Vec<BufUpdateCallbacks>,
@@ -1388,6 +1387,8 @@ unsafe fn free_buffer(buf: *mut buf_T) {
         ptr::drop_in_place(&raw mut (*buf).b_wininfo);
         ptr::drop_in_place(&raw mut (*buf).b_ucmds);
         ptr::drop_in_place(&raw mut (*buf).b_kmap_ga);
+        ptr::drop_in_place(&raw mut (*buf).b_marktree);
+        ptr::drop_in_place(&raw mut (*buf).b_extmark_ns);
         ptr::drop_in_place(&raw mut (*buf).update_channels);
         ptr::drop_in_place(&raw mut (*buf).update_callbacks);
         callback_free(&raw mut (*buf).b_prompt_callback);
@@ -2476,6 +2477,14 @@ pub unsafe fn buflist_new(
             ptr::write(&raw mut (*buf).b_wininfo, Vec::new());
             ptr::write(&raw mut (*buf).b_ucmds, Vec::new());
             ptr::write(&raw mut (*buf).b_kmap_ga, Vec::new());
+            ptr::write(
+                &raw mut (*buf).b_marktree,
+                [crate::marktree::MarkTree::new()],
+            );
+            ptr::write(
+                &raw mut (*buf).b_extmark_ns,
+                std::collections::BTreeMap::new(),
+            );
             ptr::write(&raw mut (*buf).update_channels, Vec::new());
             ptr::write(&raw mut (*buf).update_callbacks, Vec::new());
             ptr::write(&raw mut (*buf).b_s.b_syn_patterns, Vec::new());

@@ -8,7 +8,6 @@ use std::ptr;
 use crate::decoration::{DecorSignHighlight, DecorState, NS};
 use crate::ex_docmd::cmdmod_T;
 
-use crate::api::private::validate::NvimString;
 use crate::api::ui::NO_SCREEN;
 use crate::arglist::alist_T;
 use crate::buffer::{MAXLNUM, SEA_NONE, buf_T, bufref_T};
@@ -27,7 +26,6 @@ use crate::extmark::TriState;
 use crate::fileio::FILE;
 use crate::grid::{GridView, ScreenGrid, sattr_T, schar_T};
 use crate::lua::converter::nlua_ref_state_t;
-use crate::map::{Map, Set};
 use crate::mapping::typebuf_T;
 use crate::mark::xfmark_T;
 use crate::r#match::{SearchState, match_T};
@@ -322,8 +320,9 @@ const SCREEN_GRID_INIT: ScreenGrid = ScreenGrid {
     ..unsafe { zeroed() }
 };
 
-pub static mut namespace_ids: Map<NvimString, c_int> = unsafe { zeroed() };
-pub static mut namespace_localscope: Set<u32> = unsafe { zeroed() };
+pub static mut namespace_ids: Vec<(std::ffi::CString, c_int)> = Vec::new();
+pub static mut namespace_localscope: std::collections::BTreeSet<u32> =
+    std::collections::BTreeSet::new();
 pub static mut next_namespace_id: handle_T = 1;
 pub static mut buffer_handles: std::collections::BTreeMap<c_int, *mut buf_T> =
     std::collections::BTreeMap::new();

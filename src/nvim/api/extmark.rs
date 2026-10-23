@@ -2,8 +2,8 @@
 
 use crate::api::private::helpers::{
     MAXLNUM, add_c, api_set_error, api_typename, arena_array, arena_dict, array_obj, boolean_obj,
-    copy_string, cstr_as_string, dict_obj, error_set, find_buffer_by_handle, find_window_by_handle,
-    has_key, integer_obj, object_to_hl_id, put_c, string_obj, string_to_cstr,
+    cstr_as_string, dict_obj, error_set, find_buffer_by_handle, find_window_by_handle, has_key,
+    integer_obj, object_to_hl_id, put_c, string_obj, string_to_cstr,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType, api_err_exp,
@@ -36,10 +36,6 @@ use crate::globals::*;
 use crate::grid::schar_high;
 use crate::highlight::OptionalKeys;
 use crate::lua::converter::{Boolean, LUA_NOREF, LuaRef};
-use crate::map::{
-    MH_TOMBSTONE, MHPutStatus, MapHash, Set, map_put_ref, mh_delete, mh_get, mh_put, ptr_t,
-    set_destroy, set_has_ptr, set_put_ptr,
-};
 use crate::marktree::{
     DECOR_HIGHLIGHT_INLINE_INIT, DECOR_PRIORITY_BASE, DecorExt, DecorInlineData,
     MT_FLAG_DECOR_CONCEAL_LINES, MT_FLAG_DECOR_HL, MT_FLAG_DECOR_SIGNHL, MT_FLAG_DECOR_SIGNTEXT,
@@ -169,46 +165,23 @@ pub struct KeyDict_ns_opts {
 }
 
 #[inline]
-unsafe fn set_has_u32(set: *mut Set<u32>, key: u32) -> bool {
-    unsafe { mh_get(set, key) != MH_TOMBSTONE }
-}
-
-#[inline]
-unsafe fn set_put_u32(set: *mut Set<u32>, key: u32) {
-    unsafe {
-        let mut status = MHPutStatus::kMHExisting;
-        let _ = mh_put(set, key, &mut status);
-    }
-}
-
-#[inline]
-unsafe fn set_del_u32(set: *mut Set<u32>, mut key: u32) {
-    unsafe {
-        let _ = mh_delete(set, &mut key);
-    }
-}
-
-#[inline]
 pub unsafe fn ns_in_win(ns_id: u32, wp: *mut win_T) -> bool {
     unsafe {
-        if !set_has_u32(&raw mut namespace_localscope, ns_id) {
+        let local_ptr = &raw const namespace_localscope;
+        if !(*local_ptr).contains(&ns_id) {
             return true;
         }
-        set_has_u32(&raw mut (*wp).w_ns_set, ns_id)
+        (*wp).w_ns_set.contains(&ns_id)
     }
 }
 
 // DLLEXPORT void api_extmark_free_all_mem(void);
 pub unsafe fn api_extmark_free_all_mem() {
     unsafe {
-        for i in 0..namespace_ids.set.h.n_keys {
-            let name = *namespace_ids.set.keys.add(i as usize);
-            xfree(name.data.cast());
-        }
-        set_destroy(&raw mut namespace_ids.set);
-        xfree(namespace_ids.values.cast());
-        namespace_ids.values = ptr::null_mut();
-        set_destroy(&raw mut namespace_localscope);
+        let ns_ptr = &raw mut namespace_ids;
+        *ns_ptr = Vec::new();
+        let local_ptr = &raw mut namespace_localscope;
+        *local_ptr = std::collections::BTreeSet::new();
     }
 }
 
@@ -228,26 +201,24 @@ pub unsafe fn api_extmark_free_all_mem() {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_create_namespace(name: NvimString) -> Integer {
     unsafe {
-        let k = mh_get(&raw mut namespace_ids.set, name);
-        let mut id = if k == MH_TOMBSTONE {
-            0
+        let name_bytes = if name.size == 0 || name.data.is_null() {
+            &[][..]
         } else {
-            *namespace_ids.values.add(k as usize)
+            std::slice::from_raw_parts(name.data.cast::<u8>(), name.size)
         };
-        if id > 0 {
-            return i64::from(id);
+        let ns_ptr = &raw mut namespace_ids;
+        if !name_bytes.is_empty()
+            && let Some((_, id)) = (*ns_ptr).iter().find(|(k, _)| k.as_bytes() == name_bytes)
+        {
+            return i64::from(*id);
         }
-        id = next_namespace_id;
+        let id = next_namespace_id;
         next_namespace_id += 1;
-        if name.size > 0 {
-            let name_alloc = copy_string(name, ptr::null_mut());
-            let val = map_put_ref(
-                &raw mut namespace_ids,
-                name_alloc,
-                ptr::null_mut(),
-                ptr::null_mut(),
-            );
-            *val = id;
+        if !name_bytes.is_empty() {
+            (*ns_ptr).push((
+                std::ffi::CString::from_vec_unchecked(name_bytes.to_vec()),
+                id,
+            ));
         }
         i64::from(id)
     }
@@ -261,13 +232,12 @@ pub unsafe extern "C" fn nvim_create_namespace(name: NvimString) -> Integer {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_get_namespaces(arena: *mut Arena) -> Dict {
     unsafe {
-        let mut retval = arena_dict(arena, namespace_ids.set.h.size as usize);
-        for i in 0..namespace_ids.set.h.n_keys {
-            let name = *namespace_ids.set.keys.add(i as usize);
-            let id = *namespace_ids.values.add(i as usize);
+        let ns_ptr = &raw const namespace_ids;
+        let mut retval = arena_dict(arena, (*ns_ptr).len());
+        for (name, id) in &*ns_ptr {
             *retval.items.add(retval.size) = KeyValuePair {
-                key: cstr_as_string(name.data),
-                value: integer_obj(i64::from(id)),
+                key: cstr_as_string(name.as_ptr()),
+                value: integer_obj(i64::from(*id)),
             };
             retval.size += 1;
         }
@@ -278,11 +248,10 @@ pub unsafe extern "C" fn nvim_get_namespaces(arena: *mut Arena) -> Dict {
 // DLLEXPORT const char *describe_ns(NS ns_id, const char *unknown);
 pub unsafe fn describe_ns(ns_id: NS, unknown: *const c_char) -> *const c_char {
     unsafe {
-        for i in 0..namespace_ids.set.h.n_keys {
-            let name = *namespace_ids.set.keys.add(i as usize);
-            let id = *namespace_ids.values.add(i as usize);
-            if id == ns_id && name.size > 0 {
-                return name.data;
+        let ns_ptr = &raw const namespace_ids;
+        for (name, id) in &*ns_ptr {
+            if *id == ns_id && !name.as_bytes().is_empty() {
+                return name.as_ptr();
             }
         }
         unknown
@@ -1764,26 +1733,15 @@ pub unsafe extern "C" fn nvim__ns_set(ns_id: Integer, opts: *mut KeyDict_ns_opts
                 set_scoped = false;
             }
 
-            let mut windows = Set::<ptr_t> {
-                h: MapHash {
-                    n_buckets: 0,
-                    size: 0,
-                    n_occupied: 0,
-                    upper_bound: 0,
-                    n_keys: 0,
-                    keys_capacity: 0,
-                    hash: ptr::null_mut(),
-                },
-                keys: ptr::null_mut(),
-            };
+            let mut windows: std::collections::HashSet<*mut win_T> =
+                std::collections::HashSet::new();
             for i in 0..(*opts).wins.size {
                 let win = (*(*opts).wins.items.add(i)).data.integer;
                 let wp = find_window_by_handle(win as Window, err);
                 if wp.is_null() {
-                    set_destroy(&mut windows);
                     return;
                 }
-                set_put_ptr(&mut windows, wp.cast());
+                windows.insert(wp);
             }
 
             let mut tp = first_tabpage;
@@ -1794,54 +1752,29 @@ pub unsafe extern "C" fn nvim__ns_set(ns_id: Integer, opts: *mut KeyDict_ns_opts
                     (*tp).tp_firstwin
                 };
                 while !wp.is_null() {
-                    if set_has_ptr(&mut windows, wp.cast())
-                        && !set_has_u32(&raw mut (*wp).w_ns_set, ns_id as u32)
+                    if windows.contains(&wp)
+                        && (*wp).w_ns_set.insert(ns_id as u32)
+                        && (*(*wp).w_buffer).b_extmark_ns.contains_key(&(ns_id as u32))
                     {
-                        set_put_u32(&raw mut (*wp).w_ns_set, ns_id as u32);
-                        if set_has_u32(&raw mut (*(*wp).w_buffer).b_extmark_ns[0].set, ns_id as u32)
-                        {
-                            changed_window_setting(wp);
-                        }
+                        changed_window_setting(wp);
                     }
 
-                    if set_has_u32(&raw mut (*wp).w_ns_set, ns_id as u32)
-                        && !set_has_ptr(&mut windows, wp.cast())
+                    if !windows.contains(&wp)
+                        && (*wp).w_ns_set.remove(&(ns_id as u32))
+                        && (*(*wp).w_buffer).b_extmark_ns.contains_key(&(ns_id as u32))
                     {
-                        set_del_u32(&raw mut (*wp).w_ns_set, ns_id as u32);
-                        if set_has_u32(&raw mut (*(*wp).w_buffer).b_extmark_ns[0].set, ns_id as u32)
-                        {
-                            changed_window_setting(wp);
-                        }
-                    }
-                    wp = (*wp).w_next;
-                }
-                tp = (*tp).tp_next;
-            }
-
-            set_destroy(&mut windows);
-        }
-
-        if set_scoped && !set_has_u32(&raw mut namespace_localscope, ns_id as u32) {
-            set_put_u32(&raw mut namespace_localscope, ns_id as u32);
-
-            let mut tp = first_tabpage;
-            while !tp.is_null() {
-                let mut wp = if tp == curtab {
-                    firstwin
-                } else {
-                    (*tp).tp_firstwin
-                };
-                while !wp.is_null() {
-                    if set_has_u32(&raw mut (*(*wp).w_buffer).b_extmark_ns[0].set, ns_id as u32) {
                         changed_window_setting(wp);
                     }
                     wp = (*wp).w_next;
                 }
                 tp = (*tp).tp_next;
             }
-        } else if !set_scoped && set_has_u32(&raw mut namespace_localscope, ns_id as u32) {
-            set_del_u32(&raw mut namespace_localscope, ns_id as u32);
+        }
 
+        let local_ptr = &raw mut namespace_localscope;
+        if (set_scoped && (*local_ptr).insert(ns_id as u32))
+            || (!set_scoped && (*local_ptr).remove(&(ns_id as u32)))
+        {
             let mut tp = first_tabpage;
             while !tp.is_null() {
                 let mut wp = if tp == curtab {
@@ -1850,7 +1783,7 @@ pub unsafe extern "C" fn nvim__ns_set(ns_id: Integer, opts: *mut KeyDict_ns_opts
                     (*tp).tp_firstwin
                 };
                 while !wp.is_null() {
-                    if set_has_u32(&raw mut (*(*wp).w_buffer).b_extmark_ns[0].set, ns_id as u32) {
+                    if (*(*wp).w_buffer).b_extmark_ns.contains_key(&(ns_id as u32)) {
                         changed_window_setting(wp);
                     }
                     wp = (*wp).w_next;
@@ -1883,7 +1816,8 @@ pub unsafe extern "C" fn nvim__ns_get(
             return opts;
         }
 
-        if !set_has_u32(&raw mut namespace_localscope, ns_id as u32) {
+        let local_ptr = &raw const namespace_localscope;
+        if !(*local_ptr).contains(&(ns_id as u32)) {
             return opts;
         }
 
@@ -1896,7 +1830,7 @@ pub unsafe extern "C" fn nvim__ns_get(
                 (*tp).tp_firstwin
             };
             while !wp.is_null() {
-                if set_has_u32(&raw mut (*wp).w_ns_set, ns_id as u32) {
+                if (*wp).w_ns_set.contains(&(ns_id as u32)) {
                     count += 1;
                 }
                 wp = (*wp).w_next;
@@ -1914,7 +1848,7 @@ pub unsafe extern "C" fn nvim__ns_get(
                 (*tp).tp_firstwin
             };
             while !wp.is_null() {
-                if set_has_u32(&raw mut (*wp).w_ns_set, ns_id as u32) {
+                if (*wp).w_ns_set.contains(&(ns_id as u32)) {
                     windows.push(integer_obj(i64::from((*wp).handle)));
                 }
                 wp = (*wp).w_next;

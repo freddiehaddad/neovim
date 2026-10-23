@@ -865,6 +865,14 @@ pub unsafe fn ml_recover(checkext: bool) {
         ptr::write(&raw mut (*buf).b_wininfo, Vec::new());
         ptr::write(&raw mut (*buf).b_ucmds, Vec::new());
         ptr::write(&raw mut (*buf).b_kmap_ga, Vec::new());
+        ptr::write(
+            &raw mut (*buf).b_marktree,
+            [crate::marktree::MarkTree::new()],
+        );
+        ptr::write(
+            &raw mut (*buf).b_extmark_ns,
+            std::collections::BTreeMap::new(),
+        );
         ptr::write(&raw mut (*buf).update_channels, Vec::new());
         ptr::write(&raw mut (*buf).update_callbacks, Vec::new());
         ptr::write(&raw mut (*buf).b_s.b_syn_patterns, Vec::new());

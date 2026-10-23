@@ -5,7 +5,6 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 use std::fmt::Write as _;
 
 use crate::api::private::validate::NvimString;
-use crate::map::{MH_TOMBSTONE, MTDamage, MTDamagePair, Map, map_del, map_put_ref, mh_get, ptr_t};
 #[cfg(test)]
 use crate::memory::xmemdup;
 use crate::memory::{xcalloc, xfree, xmalloc, xmemdupz, xrealloc};
@@ -195,10 +194,37 @@ impl Default for MarkTreeIter {
     }
 }
 
-pub type PMapUint64 = Map<u64, ptr_t>;
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct MTDamage {
+    pub old: *mut MTNode,
+    pub new: *mut MTNode,
+    pub old_i: c_int,
+    pub new_i: c_int,
+}
+
+impl Default for MTDamage {
+    fn default() -> Self {
+        Self {
+            old: std::ptr::null_mut(),
+            new: std::ptr::null_mut(),
+            old_i: 0,
+            new_i: 0,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default)]
+pub struct MTDamagePair {
+    pub start: MTDamage,
+    pub end: MTDamage,
+}
+
+pub type PMapUint64 = std::collections::BTreeMap<u64, *mut MTNode>;
 #[cfg(test)]
-pub type PMapPtr = Map<ptr_t, ptr_t>;
-pub type MTDamageMap = Map<u64, MTDamagePair>;
+pub type PMapPtr = std::collections::BTreeMap<*mut MTNode, *mut u64>;
+pub type MTDamageMap = std::collections::BTreeMap<u64, MTDamagePair>;
 
 #[repr(C)]
 pub struct MarkTree {
@@ -206,7 +232,19 @@ pub struct MarkTree {
     pub meta_root: [u32; kMTMetaCount],
     pub n_keys: usize,
     pub n_nodes: usize,
-    pub id2node: [PMapUint64; 1],
+    pub id2node: PMapUint64,
+}
+
+impl MarkTree {
+    pub const fn new() -> Self {
+        Self {
+            root: std::ptr::null_mut(),
+            meta_root: [0; kMTMetaCount],
+            n_keys: 0,
+            n_nodes: 0,
+            id2node: std::collections::BTreeMap::new(),
+        }
+    }
 }
 
 #[inline]
@@ -466,16 +504,6 @@ unsafe fn kvi_destroy(v: *mut Intersection) {
 }
 
 #[inline]
-unsafe fn map_destroy_generic<K, V>(map: *mut Map<K, V>) {
-    unsafe {
-        xfree((*map).set.keys.cast());
-        xfree((*map).set.h.hash.cast());
-        xfree((*map).values.cast());
-        *map = std::mem::zeroed();
-    }
-}
-
-#[inline]
 unsafe fn marktree_getp_aux(x: *const MTNode, k: MTKey, match_out: Option<&mut bool>) -> c_int {
     let mut dummy_match = false;
     let m = match_out.unwrap_or(&mut dummy_match);
@@ -510,26 +538,17 @@ unsafe fn marktree_getp_aux(x: *const MTNode, k: MTKey, match_out: Option<&mut b
 unsafe fn refkey(b: *mut MarkTree, x: *mut MTNode, i: c_int) {
     unsafe {
         let key_id = mt_lookup_key((*x).key[i as usize]);
-        let slot = map_put_ref(
-            (*b).id2node.as_mut_ptr(),
-            key_id,
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
-        );
-        *slot = x.cast();
+        (*b).id2node.insert(key_id, x);
     }
 }
 
 #[inline]
 unsafe fn id2node(b: *mut MarkTree, id: u64) -> *mut MTNode {
     unsafe {
-        let map = (*b).id2node.as_mut_ptr();
-        let k = mh_get(&mut (*map).set, id);
-        if k == MH_TOMBSTONE {
-            std::ptr::null_mut()
-        } else {
-            (*(*map).values.add(k as usize)).cast::<MTNode>()
-        }
+        (*b).id2node
+            .get(&id)
+            .copied()
+            .unwrap_or(std::ptr::null_mut())
     }
 }
 
@@ -990,7 +1009,7 @@ pub unsafe fn marktree_del_itr(b: *mut MarkTree, itr: *mut MarkTreeIter, rev: bo
         (*x).n -= 1;
 
         (*b).n_keys -= 1;
-        map_del((*b).id2node.as_mut_ptr(), id, std::ptr::null_mut());
+        (*b).id2node.remove(&id);
 
         // 4.
         if adjustment == -1 {
@@ -1797,7 +1816,7 @@ pub unsafe fn marktree_clear(b: *mut MarkTree) {
             marktree_free_subtree(b, (*b).root);
             (*b).root = std::ptr::null_mut();
         }
-        map_destroy_generic((*b).id2node.as_mut_ptr());
+        (*b).id2node.clear();
         (*b).n_keys = 0;
         (*b).meta_root = [0; kMTMetaCount];
         debug_assert_eq!((*b).n_nodes, 0);
@@ -2388,22 +2407,22 @@ pub unsafe fn marktree_itr_step_overlap(
 
 unsafe fn check_damage(
     _b: *mut MarkTree,
-    damage: *mut MTDamageMap,
+    damage: &mut MTDamageMap,
     itr1: *mut MarkTreeIter,
     itr2: *mut MarkTreeIter,
 ) {
     unsafe {
         let start_id = mt_lookup_key_side(*rawkey(itr1), false);
-        let p = map_put_ref(damage, start_id, std::ptr::null_mut(), std::ptr::null_mut());
-        let me: *mut MTDamage = if mt_end(*rawkey(itr1)) {
-            &mut (*p).end
+        let p = damage.entry(start_id).or_default();
+        let me: &mut MTDamage = if mt_end(*rawkey(itr1)) {
+            &mut p.end
         } else {
-            &mut (*p).start
+            &mut p.start
         };
-        debug_assert!((*me).new.is_null());
+        debug_assert!(me.new.is_null());
         *me = MTDamage {
-            old: (*itr1).x.cast(),
-            new: (*itr2).x.cast(),
+            old: (*itr1).x,
+            new: (*itr2).x,
             old_i: (*itr1).i,
             new_i: (*itr2).i,
         };
@@ -2414,7 +2433,7 @@ unsafe fn swap_keys(
     b: *mut MarkTree,
     itr1: *mut MarkTreeIter,
     itr2: *mut MarkTreeIter,
-    damage: *mut MTDamageMap,
+    damage: &mut MTDamageMap,
 ) {
     unsafe {
         if (*(*itr1).x).level != 0 || (*itr1).x != (*itr2).x {
@@ -2542,7 +2561,7 @@ pub unsafe fn marktree_splice(
 
         let mut past_right = false;
         let mut moved = false;
-        let mut damage: MTDamageMap = std::mem::zeroed();
+        let mut damage: MTDamageMap = MTDamageMap::new();
 
         if may_delete {
             'outer1: while !itr.x.is_null() && !past_right {
@@ -2670,24 +2689,22 @@ pub unsafe fn marktree_splice(
             );
         }
 
-        for idx in 0..damage.set.h.n_keys as usize {
-            let start_id = *damage.set.keys.add(idx);
-            let d = *damage.values.add(idx);
+        for (start_id, d) in damage {
             if !d.start.old.is_null() && !d.end.old.is_null() {
-                marktree_itr_set_node(b, &mut itr, d.start.old.cast(), d.start.old_i);
-                marktree_itr_set_node(b, &mut enditr, d.end.old.cast(), d.end.old_i);
+                marktree_itr_set_node(b, &mut itr, d.start.old, d.start.old_i);
+                marktree_itr_set_node(b, &mut enditr, d.end.old, d.end.old_i);
                 marktree_intersect_pair(b, start_id, &mut itr, &mut enditr, true);
-                marktree_itr_set_node(b, &mut itr, d.start.new.cast(), d.start.new_i);
-                marktree_itr_set_node(b, &mut enditr, d.end.new.cast(), d.end.new_i);
+                marktree_itr_set_node(b, &mut itr, d.start.new, d.start.new_i);
+                marktree_itr_set_node(b, &mut enditr, d.end.new, d.end.new_i);
                 marktree_intersect_pair(b, start_id, &mut itr, &mut enditr, false);
             } else if !d.start.old.is_null() {
                 let mut endpos = MarkTreeIter::default();
                 marktree_lookup(b, start_id | MARKTREE_END_FLAG, &mut endpos);
                 if !endpos.x.is_null() {
-                    marktree_itr_set_node(b, &mut itr, d.start.old.cast(), d.start.old_i);
+                    marktree_itr_set_node(b, &mut itr, d.start.old, d.start.old_i);
                     enditr = endpos;
                     marktree_intersect_pair(b, start_id, &mut itr, &mut enditr, true);
-                    marktree_itr_set_node(b, &mut itr, d.start.new.cast(), d.start.new_i);
+                    marktree_itr_set_node(b, &mut itr, d.start.new, d.start.new_i);
                     enditr = endpos;
                     marktree_intersect_pair(b, start_id, &mut itr, &mut enditr, false);
                 }
@@ -2696,15 +2713,14 @@ pub unsafe fn marktree_splice(
                 marktree_lookup(b, start_id, &mut startpos);
                 if !startpos.x.is_null() {
                     itr = startpos;
-                    marktree_itr_set_node(b, &mut enditr, d.end.old.cast(), d.end.old_i);
+                    marktree_itr_set_node(b, &mut enditr, d.end.old, d.end.old_i);
                     marktree_intersect_pair(b, start_id, &mut itr, &mut enditr, true);
                     itr = startpos;
-                    marktree_itr_set_node(b, &mut enditr, d.end.new.cast(), d.end.new_i);
+                    marktree_itr_set_node(b, &mut enditr, d.end.new, d.end.new_i);
                     marktree_intersect_pair(b, start_id, &mut itr, &mut enditr, false);
                 }
             }
         }
-        map_destroy_generic(&mut damage);
 
         moved
     }
@@ -2951,7 +2967,7 @@ pub unsafe fn marktree_check(b: *mut MarkTree) {
         if (*b).root.is_null() {
             assert_eq!((*b).n_keys, 0);
             assert_eq!((*b).n_nodes, 0);
-            assert_eq!((*b).id2node[0].set.h.size, 0);
+            assert_eq!((*b).id2node.len(), 0);
             return;
         }
 
@@ -2966,7 +2982,7 @@ pub unsafe fn marktree_check(b: *mut MarkTree) {
             (*b).meta_root.as_ptr(),
         );
         assert_eq!((*b).n_keys, nkeys);
-        assert_eq!((*b).n_keys, (*b).id2node[0].set.h.size as usize);
+        assert_eq!((*b).n_keys, (*b).id2node.len());
     }
 }
 
@@ -3048,7 +3064,7 @@ pub unsafe fn marktree_check_intersections(b: *mut MarkTree) -> bool {
         if (*b).root.is_null() {
             return true;
         }
-        let mut checked: PMapPtr = std::mem::zeroed();
+        let mut checked: PMapPtr = PMapPtr::new();
 
         // 1. move x->intersect to checked[x] and reinit x->intersect
         mt_recurse_nodes((*b).root, &mut checked);
@@ -3084,20 +3100,18 @@ pub unsafe fn marktree_check_intersections(b: *mut MarkTree) -> bool {
 
         // 3. for each node check if the recreated intersection
         // matches the old checked[x] intersection.
-        let status = mt_recurse_nodes_compare((*b).root, &mut checked);
+        let status = mt_recurse_nodes_compare((*b).root, &checked);
 
-        for idx in 0..checked.set.h.n_keys as usize {
-            let val = *checked.values.add(idx);
-            xfree(val);
+        for (_, val) in checked {
+            xfree(val.cast());
         }
-        map_destroy_generic(&mut checked);
 
         status
     }
 }
 
 #[cfg(test)]
-pub unsafe fn mt_recurse_nodes(x: *mut MTNode, checked: *mut PMapPtr) {
+pub unsafe fn mt_recurse_nodes(x: *mut MTNode, checked: &mut PMapPtr) {
     unsafe {
         if (*x).intersect.size != 0 {
             kvi_push(&mut (*x).intersect, u64::MAX);
@@ -3110,13 +3124,7 @@ pub unsafe fn mt_recurse_nodes(x: *mut MTNode, checked: *mut PMapPtr) {
             } else {
                 (*x).intersect.items
             };
-            let slot = map_put_ref(
-                checked,
-                x.cast(),
-                std::ptr::null_mut(),
-                std::ptr::null_mut(),
-            );
-            *slot = val.cast();
+            checked.insert(x, val);
             kvi_init(&mut (*x).intersect);
         }
 
@@ -3130,14 +3138,11 @@ pub unsafe fn mt_recurse_nodes(x: *mut MTNode, checked: *mut PMapPtr) {
 }
 
 #[cfg(test)]
-pub unsafe fn mt_recurse_nodes_compare(x: *mut MTNode, checked: *mut PMapPtr) -> bool {
+pub unsafe fn mt_recurse_nodes_compare(x: *mut MTNode, checked: &PMapPtr) -> bool {
     unsafe {
-        let k = mh_get(&mut (*checked).set, x.cast());
-        let ref_ptr: *const u64 = if k == MH_TOMBSTONE {
-            std::ptr::null()
-        } else {
-            (*(*checked).values.add(k as usize)).cast::<u64>()
-        };
+        let ref_ptr: *const u64 = checked
+            .get(&x)
+            .map_or(std::ptr::null(), |&p| p.cast_const());
         if !ref_ptr.is_null() {
             let mut i = 0usize;
             loop {
@@ -3317,7 +3322,7 @@ mod tests {
 
     #[test]
     fn marktree_put_splice_lookup_and_check() {
-        let mut tree: MarkTree = unsafe { std::mem::zeroed() };
+        let mut tree = MarkTree::new();
         unsafe {
             for i in 1..=30u32 {
                 marktree_put_test(

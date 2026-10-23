@@ -65,8 +65,9 @@ pub const fn empty_set<K>() -> Set<K> {
     }
 }
 
+#[cfg(test)]
 #[inline]
-pub const fn empty_map<K, V>() -> Map<K, V> {
+const fn empty_map<K, V>() -> Map<K, V> {
     Map {
         set: empty_set(),
         values: std::ptr::null_mut(),
@@ -83,38 +84,6 @@ pub unsafe fn pmap_get_int(map: *mut Map<c_int, ptr_t>, key: c_int) -> ptr_t {
             *ptr
         }
     }
-}
-
-#[inline]
-pub unsafe fn map_get_string_int(map: *mut Map<NvimString, c_int>, key: NvimString) -> c_int {
-    unsafe {
-        let ptr = map_ref(map, key, std::ptr::null_mut());
-        if ptr.is_null() { 0 } else { *ptr }
-    }
-}
-
-#[inline]
-pub unsafe fn set_has<K: MapKey>(set: *mut Set<K>, key: K) -> bool {
-    unsafe { mh_get(set, key) != MH_TOMBSTONE }
-}
-
-#[inline]
-pub unsafe fn set_put<K: MapKey>(set: *mut Set<K>, key: K) -> bool {
-    let mut status = MHPutStatus::kMHExisting;
-    unsafe {
-        mh_put(set, key, &mut status);
-    }
-    status != MHPutStatus::kMHExisting
-}
-
-#[inline]
-pub unsafe fn set_has_ptr(set: *mut Set<ptr_t>, key: ptr_t) -> bool {
-    unsafe { set_has(set, key) }
-}
-
-#[inline]
-pub unsafe fn set_put_ptr(set: *mut Set<ptr_t>, key: ptr_t) -> bool {
-    unsafe { set_put(set, key) }
 }
 
 #[inline]
@@ -176,31 +145,6 @@ pub struct ColorItem {
     pub is_default: bool,
     pub link_global: bool,
 }
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
-pub struct MTDamage {
-    pub old: *mut c_void,
-    pub new: *mut c_void,
-    pub old_i: c_int,
-    pub new_i: c_int,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
-pub struct MTDamagePair {
-    pub start: MTDamage,
-    pub end: MTDamage,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
-pub struct StcClick {
-    pub def: *mut c_void,
-    pub size: usize,
-}
-
-pub type StcClicks = Map<c_int, StcClick>;
 
 #[inline]
 const fn hash_u64(key: u64) -> u32 {
@@ -447,41 +391,6 @@ impl MapValue for ptr_t {
     const INIT: Self = std::ptr::null_mut();
 }
 
-impl MapValue for NvimString {
-    const INIT: Self = NvimString {
-        data: std::ptr::null_mut(),
-        size: 0,
-    };
-}
-
-impl MapValue for StcClick {
-    const INIT: Self = StcClick {
-        def: std::ptr::null_mut(),
-        size: 0,
-    };
-}
-
-impl MapValue for StcClicks {
-    const INIT: Self = empty_map();
-}
-
-impl MapValue for MTDamagePair {
-    const INIT: Self = MTDamagePair {
-        start: MTDamage {
-            old: std::ptr::null_mut(),
-            new: std::ptr::null_mut(),
-            old_i: 0,
-            new_i: 0,
-        },
-        end: MTDamage {
-            old: std::ptr::null_mut(),
-            new: std::ptr::null_mut(),
-            old_i: 0,
-            new_i: 0,
-        },
-    };
-}
-
 impl MapValue for ColorItem {
     const INIT: Self = ColorItem {
         attr_id: -1,
@@ -617,41 +526,6 @@ pub unsafe fn mh_put<K: MapKey>(set: *mut Set<K>, key: K, new_status: *mut MHPut
     }
 }
 
-pub unsafe fn mh_delete<K: MapKey>(set: *mut Set<K>, key: *mut K) -> u32 {
-    let set = unsafe { &mut *set };
-    if set.h.size == 0 {
-        return MH_TOMBSTONE;
-    }
-    let query = unsafe { *key };
-    let idx = unsafe { set_find_bucket(set, query, false) };
-    if idx != MH_TOMBSTONE {
-        let k = unsafe { *set.h.hash.add(idx as usize) - 1 };
-        unsafe {
-            *set.h.hash.add(idx as usize) = MH_TOMBSTONE;
-        }
-
-        set.h.n_keys -= 1;
-        let last = set.h.n_keys;
-        unsafe {
-            *key = *set.keys.add(k as usize);
-        }
-        set.h.size -= 1;
-        if last != k {
-            let last_key = unsafe { *set.keys.add(last as usize) };
-            let idx2 = unsafe { set_find_bucket(set, last_key, false) };
-            if unsafe { *set.h.hash.add(idx2 as usize) } != last + 1 {
-                std::process::abort();
-            }
-            unsafe {
-                *set.h.hash.add(idx2 as usize) = k + 1;
-                *set.keys.add(k as usize) = last_key;
-            }
-        }
-        return k;
-    }
-    MH_TOMBSTONE
-}
-
 pub unsafe fn map_ref<K: MapKey, V>(map: *mut Map<K, V>, key: K, key_alloc: *mut *mut K) -> *mut V {
     let map = unsafe { &mut *map };
     let k = unsafe { mh_get(&mut map.set, key) };
@@ -702,31 +576,6 @@ pub unsafe fn map_put_ref<K: MapKey, V: MapValue>(
     unsafe { map.values.add(k as usize) }
 }
 
-pub unsafe fn map_del<K: MapKey, V: MapValue>(
-    map: *mut Map<K, V>,
-    mut key: K,
-    key_alloc: *mut K,
-) -> V {
-    let map = unsafe { &mut *map };
-    let mut rv: V = V::INIT;
-    let k = unsafe { mh_delete(&mut map.set, &mut key) };
-    if k == MH_TOMBSTONE {
-        return rv;
-    }
-    if !key_alloc.is_null() {
-        unsafe {
-            *key_alloc = key;
-        }
-    }
-    unsafe {
-        rv = *map.values.add(k as usize);
-        if k != map.set.h.n_keys {
-            *map.values.add(k as usize) = *map.values.add(map.set.h.n_keys as usize);
-        }
-    }
-    rv
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -747,11 +596,6 @@ mod tests {
                 assert!(!vp.is_null());
                 assert_eq!(*vp, (i * 10) as u32);
             }
-            for i in 0..30 {
-                let old = map_del(&raw mut m, i as u32, std::ptr::null_mut());
-                assert_eq!(old, (i * 10) as u32);
-            }
-            assert_eq!(m.set.h.size, 0);
 
             map_destroy(&raw mut m);
         }
