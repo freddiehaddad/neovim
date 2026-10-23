@@ -2721,6 +2721,7 @@ unsafe fn common_function(argvars: *mut typval_T, rettv: *mut typval_T, is_funcr
                 }
                 if dict_idx > 0 || arg_idx > 0 || !arg_pt.is_null() || is_funcref {
                     let pt = xcalloc(1, size_of::<partial_T>()).cast::<partial_T>();
+                    ptr::write(&raw mut (*pt).pt_argv, Vec::new());
                     if arg_idx > 0 || (!arg_pt.is_null() && (*arg_pt).pt_argc > 0) {
                         let arg_len = if arg_pt.is_null() {
                             0
@@ -2729,20 +2730,24 @@ unsafe fn common_function(argvars: *mut typval_T, rettv: *mut typval_T, is_funcr
                         };
                         let lv_len = tv_list_len(list);
                         (*pt).pt_argc = arg_len + lv_len;
-                        (*pt).pt_argv =
-                            xmalloc(size_of::<typval_T>() * ((*pt).pt_argc as usize)).cast();
+                        (*pt)
+                            .pt_argv
+                            .resize((*pt).pt_argc as usize, std::mem::zeroed());
                         let mut i: c_int = 0;
                         while i < arg_len {
                             tv_copy(
-                                (*arg_pt).pt_argv.add(i as usize),
-                                (*pt).pt_argv.add(i as usize),
+                                (*arg_pt).pt_argv.as_ptr().add(i as usize),
+                                (*pt).pt_argv.as_mut_ptr().add(i as usize),
                             );
                             i += 1;
                         }
                         if lv_len > 0 {
                             let mut li = tv_list_first(list);
                             while !li.is_null() {
-                                tv_copy(&raw const (*li).li_tv, (*pt).pt_argv.add(i as usize));
+                                tv_copy(
+                                    &raw const (*li).li_tv,
+                                    (*pt).pt_argv.as_mut_ptr().add(i as usize),
+                                );
                                 i += 1;
                                 li = (*li).li_next;
                             }
@@ -2852,7 +2857,7 @@ pub unsafe fn f_get(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFun
                 }
             }
         } else if tv_is_func(*argvars) {
-            let mut fref_pt: partial_T = std::mem::zeroed();
+            let mut fref_pt = partial_T::default();
             let pt: *mut partial_T = if (*argvars).v_type == VarType::VAR_PARTIAL {
                 (*argvars).vval.v_ptr.cast()
             } else {
@@ -2889,7 +2894,7 @@ pub unsafe fn f_get(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFun
                     (*rettv).v_type = VarType::VAR_LIST;
                     tv_list_alloc_ret(rettv, (*pt).pt_argc as isize);
                     for i in 0..((*pt).pt_argc as usize) {
-                        tv_list_append_tv((*rettv).vval.v_list, (*pt).pt_argv.add(i));
+                        tv_list_append_tv((*rettv).vval.v_list, (*pt).pt_argv.as_mut_ptr().add(i));
                     }
                 } else if strcmp(what, c"arity".as_ptr()) == 0 {
                     let mut required: c_int = 0;

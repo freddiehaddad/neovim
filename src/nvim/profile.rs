@@ -12,7 +12,7 @@ use crate::event::r#loop::uv_err_name;
 use crate::ex_docmd::exarg_T;
 use crate::fileio::{FILE, fclose, fopen, fprintf, vim_fgets};
 use crate::globals::*;
-use crate::memory::{xcalloc, xfree, xmalloc};
+use crate::memory::{xfree, xmalloc};
 use crate::message::{emsg, semsg};
 use crate::os::env::{expand_T, expand_env_save_opt};
 use crate::os::fs::os_fopen;
@@ -282,11 +282,9 @@ pub unsafe fn profile_reset() {
                 uf.uf_tm_self = profile_zero();
                 uf.uf_tm_children = profile_zero();
 
-                for i in 0..uf.uf_lines.len() {
-                    *uf.uf_tml_count.add(i) = 0;
-                    *uf.uf_tml_total.add(i) = 0;
-                    *uf.uf_tml_self.add(i) = 0;
-                }
+                uf.uf_tml_count.fill(0);
+                uf.uf_tml_total.fill(0);
+                uf.uf_tml_self.fill(0);
 
                 uf.uf_tml_start = profile_zero();
                 uf.uf_tml_children = profile_zero();
@@ -485,18 +483,14 @@ pub unsafe fn func_do_profile(fp: *mut ufunc_T) {
         fp.uf_tm_total = profile_zero();
 
         let count_len = len as usize;
-        unsafe {
-            if fp.uf_tml_count.is_null() {
-                fp.uf_tml_count = xcalloc(count_len, std::mem::size_of::<c_int>()).cast::<c_int>();
-            }
-            if fp.uf_tml_total.is_null() {
-                fp.uf_tml_total =
-                    xcalloc(count_len, std::mem::size_of::<proftime_T>()).cast::<proftime_T>();
-            }
-            if fp.uf_tml_self.is_null() {
-                fp.uf_tml_self =
-                    xcalloc(count_len, std::mem::size_of::<proftime_T>()).cast::<proftime_T>();
-            }
+        if fp.uf_tml_count.is_empty() {
+            fp.uf_tml_count.resize(count_len, 0);
+        }
+        if fp.uf_tml_total.is_empty() {
+            fp.uf_tml_total.resize(count_len, 0);
+        }
+        if fp.uf_tml_self.is_empty() {
+            fp.uf_tml_self.resize(count_len, 0);
         }
 
         fp.uf_tml_idx = -1;
@@ -573,16 +567,14 @@ pub unsafe fn func_line_end(cookie: *mut c_void) {
     if fp.uf_profiling != 0 && fp.uf_tml_idx >= 0 {
         if fp.uf_tml_execed != 0 {
             let idx = fp.uf_tml_idx as usize;
-            unsafe {
-                *fp.uf_tml_count.add(idx) += 1;
-                fp.uf_tml_start = profile_sub_wait(fp.uf_tml_wait, profile_end(fp.uf_tml_start));
-                *fp.uf_tml_total.add(idx) = profile_add(*fp.uf_tml_total.add(idx), fp.uf_tml_start);
-                *fp.uf_tml_self.add(idx) = profile_self(
-                    *fp.uf_tml_self.add(idx),
-                    fp.uf_tml_start,
-                    fp.uf_tml_children,
-                );
-            }
+            fp.uf_tml_count[idx] += 1;
+            fp.uf_tml_start = profile_sub_wait(fp.uf_tml_wait, profile_end(fp.uf_tml_start));
+            fp.uf_tml_total[idx] = profile_add(fp.uf_tml_total[idx], fp.uf_tml_start);
+            fp.uf_tml_self[idx] = profile_self(
+                fp.uf_tml_self[idx],
+                fp.uf_tml_start,
+                fp.uf_tml_children,
+            );
         }
         fp.uf_tml_idx = -1;
     }
@@ -650,9 +642,9 @@ unsafe fn func_dump_profile(fd: *mut FILE) {
                         let idx = i as usize;
                         prof_func_line(
                             fd,
-                            *(*fp).uf_tml_count.add(idx),
-                            &*(*fp).uf_tml_total.add(idx),
-                            &*(*fp).uf_tml_self.add(idx),
+                            (*fp).uf_tml_count.as_slice()[idx],
+                            &(*fp).uf_tml_total.as_slice()[idx],
+                            &(*fp).uf_tml_self.as_slice()[idx],
                             true,
                         );
                         fprintf!(fd, c"%s\n".as_ptr(), line);

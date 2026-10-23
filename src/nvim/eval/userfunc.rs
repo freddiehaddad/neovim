@@ -107,9 +107,9 @@ pub struct ufunc_T {
     pub uf_tm_total: u64,
     pub uf_tm_self: u64,
     pub uf_tm_children: u64,
-    pub uf_tml_count: *mut c_int,
-    pub uf_tml_total: *mut u64,
-    pub uf_tml_self: *mut u64,
+    pub uf_tml_count: Vec<c_int>,
+    pub uf_tml_total: Vec<u64>,
+    pub uf_tml_self: Vec<u64>,
     pub uf_tml_start: u64,
     pub uf_tml_children: u64,
     pub uf_tml_wait: u64,
@@ -489,6 +489,9 @@ unsafe fn alloc_ufunc(name: *const c_char, namelen: usize) -> *mut ufunc_T {
         ptr::write(&raw mut (*fp).uf_args, Vec::new());
         ptr::write(&raw mut (*fp).uf_def_args, Vec::new());
         ptr::write(&raw mut (*fp).uf_lines, Vec::new());
+        ptr::write(&raw mut (*fp).uf_tml_count, Vec::new());
+        ptr::write(&raw mut (*fp).uf_tml_total, Vec::new());
+        ptr::write(&raw mut (*fp).uf_tml_self, Vec::new());
         let mut name_vec = Vec::with_capacity(namelen + 1);
         name_vec.extend_from_slice(std::slice::from_raw_parts(name, namelen));
         name_vec.push(NUL);
@@ -598,6 +601,7 @@ pub unsafe fn get_lambda_tv(
             let name = get_lambda_name();
             let fp = alloc_ufunc(name.data, name.size);
             pt = xcalloc(1, std::mem::size_of::<partial_T>()).cast::<partial_T>();
+            ptr::write(&raw mut (*pt).pt_argv, Vec::new());
 
             let expr_len = end.offset_from(start) as usize;
             let len = 7 + expr_len + 1;
@@ -1130,12 +1134,9 @@ unsafe fn func_clear_items(fp: *mut ufunc_T) {
             (*fp).uf_luaref = LUA_NOREF;
         }
 
-        xfree((*fp).uf_tml_count.cast());
-        (*fp).uf_tml_count = ptr::null_mut();
-        xfree((*fp).uf_tml_total.cast());
-        (*fp).uf_tml_total = ptr::null_mut();
-        xfree((*fp).uf_tml_self.cast());
-        (*fp).uf_tml_self = ptr::null_mut();
+        (*fp).uf_tml_count.clear();
+        (*fp).uf_tml_total.clear();
+        (*fp).uf_tml_self.clear();
     }
 }
 
@@ -1162,6 +1163,9 @@ unsafe fn func_free(fp: *mut ufunc_T) {
         ptr::drop_in_place(&raw mut (*fp).uf_args);
         ptr::drop_in_place(&raw mut (*fp).uf_def_args);
         ptr::drop_in_place(&raw mut (*fp).uf_lines);
+        ptr::drop_in_place(&raw mut (*fp).uf_tml_count);
+        ptr::drop_in_place(&raw mut (*fp).uf_tml_total);
+        ptr::drop_in_place(&raw mut (*fp).uf_tml_self);
         ptr::drop_in_place(&raw mut (*fp).uf_name);
         xfree(fp.cast());
     }
@@ -1921,7 +1925,7 @@ pub unsafe fn call_func(
                         break;
                     }
                     tv_copy(
-                        (*partial).pt_argv.add(argv_clear as usize),
+                        (*partial).pt_argv.as_ptr().add(argv_clear as usize),
                         &raw mut argv[argv_clear as usize],
                     );
                     argv_clear += 1;
@@ -2984,6 +2988,9 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
                     ptr::drop_in_place(&raw mut (*fp).uf_args);
                     ptr::drop_in_place(&raw mut (*fp).uf_def_args);
                     ptr::drop_in_place(&raw mut (*fp).uf_lines);
+                    ptr::drop_in_place(&raw mut (*fp).uf_tml_count);
+                    ptr::drop_in_place(&raw mut (*fp).uf_tml_total);
+                    ptr::drop_in_place(&raw mut (*fp).uf_tml_self);
                     ptr::drop_in_place(&raw mut (*fp).uf_name);
                     xfree(fp.cast());
                 }
@@ -3245,6 +3252,9 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
                         ptr::drop_in_place(&raw mut (*fp).uf_args);
                         ptr::drop_in_place(&raw mut (*fp).uf_def_args);
                         ptr::drop_in_place(&raw mut (*fp).uf_lines);
+                        ptr::drop_in_place(&raw mut (*fp).uf_tml_count);
+                        ptr::drop_in_place(&raw mut (*fp).uf_tml_total);
+                        ptr::drop_in_place(&raw mut (*fp).uf_tml_self);
                         ptr::drop_in_place(&raw mut (*fp).uf_name);
                         xfree(fp.cast());
                         fp = ptr::null_mut();
@@ -3683,7 +3693,7 @@ unsafe fn ex_defer_inner(
                 partial_argc = (*partial).pt_argc;
                 for i in 0..partial_argc {
                     tv_copy(
-                        (*partial).pt_argv.add(i as usize),
+                        (*partial).pt_argv.as_ptr().add(i as usize),
                         &raw mut argvars[i as usize],
                     );
                 }
@@ -4127,6 +4137,7 @@ pub unsafe fn make_partial(selfdict: *mut dict_T, rettv: *mut typval_T) {
 
         if !fp.is_null() && ((*fp).uf_flags & FC_DICT) != 0 {
             let pt = xcalloc(1, std::mem::size_of::<partial_T>()).cast::<partial_T>();
+            ptr::write(&raw mut (*pt).pt_argv, Vec::new());
             (*pt).pt_refcount = 1;
             (*pt).pt_dict = selfdict;
             (*selfdict).dv_refcount += 1;
@@ -4143,13 +4154,12 @@ pub unsafe fn make_partial(selfdict: *mut dict_T, rettv: *mut typval_T) {
                     func_ptr_ref((*pt).pt_func);
                 }
                 if (*ret_pt).pt_argc > 0 {
-                    let arg_size = std::mem::size_of::<typval_T>() * (*ret_pt).pt_argc as usize;
-                    (*pt).pt_argv = xmalloc(arg_size).cast::<typval_T>();
                     (*pt).pt_argc = (*ret_pt).pt_argc;
+                    (*pt).pt_argv.resize((*pt).pt_argc as usize, std::mem::zeroed());
                     for i in 0..(*pt).pt_argc {
                         tv_copy(
-                            (*ret_pt).pt_argv.add(i as usize),
-                            (*pt).pt_argv.add(i as usize),
+                            (*ret_pt).pt_argv.as_ptr().add(i as usize),
+                            (*pt).pt_argv.as_mut_ptr().add(i as usize),
                         );
                     }
                 }

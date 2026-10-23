@@ -609,6 +609,7 @@ pub unsafe fn evalvars_init() {
         set_vim_var_nr(VV_ECHOSPACE, varnumber_T::from(sc_col - 1));
 
         let vvlua_partial = xcalloc(1, std::mem::size_of::<partial_T>()).cast::<partial_T>();
+        ptr::write(&raw mut (*vvlua_partial).pt_argv, Vec::new());
         (*vvlua_partial).pt_name = xmallocz(0).cast::<c_char>();
         (*vvlua_partial).pt_refcount += 1;
         set_vim_var_partial(VV_LUA, vvlua_partial);

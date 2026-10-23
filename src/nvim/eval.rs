@@ -4264,9 +4264,9 @@ pub unsafe fn partial_name(pt: *mut partial_T) -> *mut c_char {
 unsafe fn partial_free(pt: *mut partial_T) {
     unsafe {
         for i in 0..((*pt).pt_argc as usize) {
-            tv_clear((*pt).pt_argv.add(i));
+            tv_clear((*pt).pt_argv.as_mut_ptr().add(i));
         }
-        xfree((*pt).pt_argv.cast());
+        ptr::drop_in_place(&raw mut (*pt).pt_argv);
         tv_dict_unref((*pt).pt_dict);
         if !(*pt).pt_name.is_null() {
             func_unref((*pt).pt_name);
@@ -4411,8 +4411,8 @@ pub unsafe fn func_equal(tv1: *mut typval_T, tv2: *mut typval_T, ic: bool) -> bo
         }
         for i in 0..(a1 as usize) {
             if !tv_equal(
-                (*tv_partial(tv1)).pt_argv.add(i),
-                (*tv_partial(tv2)).pt_argv.add(i),
+                (*tv_partial(tv1)).pt_argv.as_mut_ptr().add(i),
+                (*tv_partial(tv2)).pt_argv.as_mut_ptr().add(i),
                 ic,
             ) {
                 return false;
@@ -4869,7 +4869,13 @@ unsafe fn set_ref_in_item_partial(
         }
 
         for i in 0..((*pt).pt_argc as usize) {
-            abort = abort || set_ref_in_item((*pt).pt_argv.add(i), copyID, ht_stack, list_stack);
+            abort = abort
+                || set_ref_in_item(
+                    (*pt).pt_argv.as_mut_ptr().add(i),
+                    copyID,
+                    ht_stack,
+                    list_stack,
+                );
         }
 
         abort

@@ -100,7 +100,7 @@ pub struct synblock_T {
     pub b_sst_freecount: c_int,
     pub b_sst_check_lnum: i32,
     pub b_sst_lasttick: u64,
-    pub b_idlist_cache: *mut idl_entry_T,
+    pub b_idlist_cache: Option<Box<idl_cache_T>>,
     pub b_langp: Vec<crate::spellsuggest::langp_T>,
     pub b_spell_ismw: [bool; 256],
     pub b_spell_ismw_mb: *mut c_char,
@@ -339,18 +339,16 @@ struct syn_opt_arg_T {
     next_list: *mut i16,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Default)]
 pub struct idl_entry_T {
     idl_key: *mut i16,
-    idl_ids: *mut i16,
-    idl_count: c_int,
+    idl_ids: Vec<i16>,
     idl_marker: i16,
     idl_usable: bool,
 }
 
-#[repr(C)]
-struct idl_cache_T {
+#[derive(Default)]
+pub struct idl_cache_T {
     ent: [idl_entry_T; IDL_CACHE_SIZE],
     round: c_int,
     last: c_int,
@@ -4956,29 +4954,25 @@ unsafe fn idl_collect(list: *mut i16, ga: &mut Vec<i16>, seen: &mut Vec<i16>) ->
 
 unsafe fn idl_get_entry(mut list: *mut i16) -> *mut idl_entry_T {
     unsafe {
-        let mut cache = (*syn_block).b_idlist_cache.cast::<idl_cache_T>();
-        if cache.is_null() {
-            cache = xcalloc(1, size_of::<idl_cache_T>()).cast::<idl_cache_T>();
-            (*syn_block).b_idlist_cache = cache.cast();
-        }
-        let last = (*cache).last as usize;
-        if (*cache).ent[last].idl_key == list {
-            return &raw mut (*cache).ent[last];
+        let cache = (*syn_block)
+            .b_idlist_cache
+            .get_or_insert_with(|| Box::new(idl_cache_T::default()));
+        let last = cache.last as usize;
+        if cache.ent[last].idl_key == list {
+            return &raw mut cache.ent[last];
         }
         for i in 0..IDL_CACHE_SIZE {
-            if (*cache).ent[i].idl_key == list {
-                (*cache).last = i as c_int;
-                return &raw mut (*cache).ent[i];
+            if cache.ent[i].idl_key == list {
+                cache.last = i as c_int;
+                return &raw mut cache.ent[i];
             }
         }
 
-        let round = (*cache).round as usize;
-        (*cache).last = (*cache).round;
-        let e = &raw mut (*cache).ent[round];
-        (*cache).round = ((*cache).round + 1) % (IDL_CACHE_SIZE as c_int);
-        xfree((*e).idl_ids.cast());
-        (*e).idl_ids = ptr::null_mut();
-        (*e).idl_count = 0;
+        let round = cache.round as usize;
+        cache.last = cache.round;
+        let e = &raw mut cache.ent[round];
+        cache.round = (cache.round + 1) % (IDL_CACHE_SIZE as c_int);
+        (*e).idl_ids.clear();
         (*e).idl_key = list;
         (*e).idl_marker = 0;
         (*e).idl_usable = true;
@@ -4996,45 +4990,19 @@ unsafe fn idl_get_entry(mut list: *mut i16) -> *mut idl_entry_T {
         }
         if !ga.is_empty() {
             ga.sort_unstable();
-            (*e).idl_count = ga.len() as c_int;
-            (*e).idl_ids = crate::path::slice_to_xmalloc(&ga);
+            (*e).idl_ids = ga;
         }
         e
     }
 }
 
 unsafe fn idl_contains(e: *const idl_entry_T, id: i16) -> bool {
-    unsafe {
-        let mut lo: c_int = 0;
-        let mut hi = (*e).idl_count - 1;
-
-        while lo <= hi {
-            let mid = (lo + hi) / 2;
-            let v = *(*e).idl_ids.offset(mid as isize);
-            if v == id {
-                return true;
-            }
-            if v < id {
-                lo = mid + 1;
-            } else {
-                hi = mid - 1;
-            }
-        }
-        false
-    }
+    unsafe { (*e).idl_ids.binary_search(&id).is_ok() }
 }
 
 unsafe fn idl_cache_clear(block: *mut synblock_T) {
     unsafe {
-        let cache = (*block).b_idlist_cache.cast::<idl_cache_T>();
-        if cache.is_null() {
-            return;
-        }
-        for i in 0..IDL_CACHE_SIZE {
-            xfree((*cache).ent[i].idl_ids.cast());
-        }
-        xfree(cache.cast());
-        (*block).b_idlist_cache = ptr::null_mut();
+        (*block).b_idlist_cache = None;
     }
 }
 

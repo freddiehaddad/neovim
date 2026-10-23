@@ -71,7 +71,6 @@ pub struct blob_T {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
 pub struct partial_T {
     pub pt_refcount: c_int,
     pub pt_copyID: c_int,
@@ -79,8 +78,23 @@ pub struct partial_T {
     pub pt_func: *mut ufunc_T,
     pub pt_auto: bool,
     pub pt_argc: c_int,
-    pub pt_argv: *mut typval_T,
+    pub pt_argv: Vec<typval_T>,
     pub pt_dict: *mut dict_T,
+}
+
+impl Default for partial_T {
+    fn default() -> Self {
+        Self {
+            pt_refcount: 0,
+            pt_copyID: 0,
+            pt_name: ptr::null_mut(),
+            pt_func: ptr::null_mut(),
+            pt_auto: false,
+            pt_argc: 0,
+            pt_argv: Vec::new(),
+            pt_dict: ptr::null_mut(),
+        }
+    }
 }
 
 #[repr(C)]
@@ -4024,8 +4038,8 @@ unsafe fn encode_vim_to_nothing(top_tv: *mut typval_T) -> c_int {
                                     tv: ptr::null_mut(),
                                     saved_copy_id: copy_id - 1,
                                     data: MPConvStackData::PartialList {
-                                        arg: (*pt).pt_argv,
-                                        argv: (*pt).pt_argv,
+                                        arg: (*pt).pt_argv.as_mut_ptr(),
+                                        argv: (*pt).pt_argv.as_mut_ptr(),
                                         todo: (*pt).pt_argc as usize,
                                     },
                                 });

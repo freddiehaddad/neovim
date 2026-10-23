@@ -1680,8 +1680,8 @@ unsafe fn encode_vim_with_backend(
                                     tv: std::ptr::null_mut(),
                                     saved_copy_id: copy_id - 1,
                                     data: MPConvStackData::PartialList {
-                                        arg: (*pt).pt_argv,
-                                        argv: (*pt).pt_argv,
+                                        arg: (*pt).pt_argv.as_mut_ptr(),
+                                        argv: (*pt).pt_argv.as_mut_ptr(),
                                         todo: (*pt).pt_argc as usize,
                                     },
                                 });
