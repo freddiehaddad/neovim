@@ -656,8 +656,7 @@ pub unsafe fn loop_schedule_fast(loop_: *mut Loop, event: Event) {
 /// event is forwarded to `Loop.events`, instead of being processed immediately.
 pub unsafe fn loop_schedule_deferred(loop_: *mut Loop, event: Event) {
     unsafe {
-        let eventp: *mut Event = xmalloc(size_of::<Event>()).cast();
-        *eventp = event;
+        let eventp = Box::into_raw(Box::new(event));
         let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
         argv[0] = loop_;
         argv[1] = eventp.cast();
@@ -674,10 +673,10 @@ pub unsafe fn loop_schedule_deferred(loop_: *mut Loop, event: Event) {
 unsafe fn loop_deferred_event(argv: *mut *mut c_void) {
     unsafe {
         let loop_ = *argv as *mut Loop;
-        let eventp = *argv.add(1) as *mut Event;
+        let eventp = (*argv.add(1)).cast::<Event>();
         let qc = loop_queues(loop_);
         multiqueue_put_event((*qc).events, *eventp);
-        xfree(eventp.cast());
+        drop(Box::from_raw(eventp));
     }
 }
 

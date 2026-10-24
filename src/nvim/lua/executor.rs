@@ -2742,18 +2742,18 @@ pub unsafe fn nlua_set_sctx(current: *mut sctx_T) {
             return;
         }
         let lstate = active_lstate;
-        let info = xmalloc(size_of::<lua_Debug>()).cast::<lua_Debug>();
+        let mut info: lua_Debug = std::mem::zeroed();
 
         let mut level: c_int = 1;
         let mut found = false;
         loop {
-            if lua_getstack(lstate, level, info) != 1 {
+            if lua_getstack(lstate, level, &raw mut info) != 1 {
                 break;
             }
-            if lua_getinfo(lstate, c"nSl".as_ptr(), info) == 0 {
+            if lua_getinfo(lstate, c"nSl".as_ptr(), &raw mut info) == 0 {
                 break;
             }
-            if *(*info).what == b'C' as c_char || *(*info).source != b'@' as c_char {
+            if *info.what == b'C' as c_char || *info.source != b'@' as c_char {
                 level += 1;
                 continue;
             }
@@ -2761,7 +2761,7 @@ pub unsafe fn nlua_set_sctx(current: *mut sctx_T) {
             break;
         }
         if found {
-            let source_path = fix_fname((*info).source.add(1));
+            let source_path = fix_fname(info.source.add(1));
             let mut sid = find_script_by_name(source_path);
             if sid > 0 {
                 xfree(source_path.cast());
@@ -2771,10 +2771,8 @@ pub unsafe fn nlua_set_sctx(current: *mut sctx_T) {
             }
             (*current).sc_sid = sid;
             (*current).sc_seq = -1;
-            (*current).sc_lnum = (*info).currentline;
+            (*current).sc_lnum = info.currentline;
         }
-
-        xfree(info.cast());
     }
 }
 

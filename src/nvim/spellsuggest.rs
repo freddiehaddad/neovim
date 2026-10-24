@@ -3148,21 +3148,20 @@ unsafe fn spell_edit_score(
         wgoodword[goodlen] = 0;
         goodlen += 1;
         let stride = badlen + 1;
-        let cnt = xmalloc(size_of::<c_int>() * stride * (goodlen + 1)).cast::<c_int>();
-        *cnt = 0;
+        let mut cnt = vec![0; stride * (goodlen + 1)];
         for j in 1..=goodlen {
-            *cnt.add(j * stride) = *cnt.add((j - 1) * stride) + SCORE_INS;
+            cnt[j * stride] = cnt[(j - 1) * stride] + SCORE_INS;
         }
         for i in 1..=badlen {
-            *cnt.add(i) = *cnt.add(i - 1) + SCORE_DEL;
+            cnt[i] = cnt[i - 1] + SCORE_DEL;
             for j in 1..=goodlen {
                 let bc = wbadword[i - 1];
                 let gc = wgoodword[j - 1];
                 let idx_ij = i + j * stride;
                 if bc == gc {
-                    *cnt.add(idx_ij) = *cnt.add((i - 1) + (j - 1) * stride);
+                    cnt[idx_ij] = cnt[(i - 1) + (j - 1) * stride];
                 } else {
-                    let prev_diag = *cnt.add((i - 1) + (j - 1) * stride);
+                    let prev_diag = cnt[(i - 1) + (j - 1) * stride];
                     let mut val = if spell_tofold(bc) == spell_tofold(gc) {
                         SCORE_ICASE + prev_diag
                     } else if !slang.is_null()
@@ -3177,21 +3176,19 @@ unsafe fn spell_edit_score(
                         let pbc = wbadword[i - 2];
                         let pgc = wgoodword[j - 2];
                         if bc == pgc && pbc == gc {
-                            let t = SCORE_SWAP + *cnt.add((i - 2) + (j - 2) * stride);
+                            let t = SCORE_SWAP + cnt[(i - 2) + (j - 2) * stride];
                             val = val.min(t);
                         }
                     }
-                    let t_del = SCORE_DEL + *cnt.add((i - 1) + j * stride);
+                    let t_del = SCORE_DEL + cnt[(i - 1) + j * stride];
                     val = val.min(t_del);
-                    let t_ins = SCORE_INS + *cnt.add(i + (j - 1) * stride);
+                    let t_ins = SCORE_INS + cnt[i + (j - 1) * stride];
                     val = val.min(t_ins);
-                    *cnt.add(idx_ij) = val;
+                    cnt[idx_ij] = val;
                 }
             }
         }
-        let res = *cnt.add((badlen - 1) + (goodlen - 1) * stride);
-        xfree(cnt.cast());
-        res
+        cnt[(badlen - 1) + (goodlen - 1) * stride]
     }
 }
 unsafe fn spell_edit_score_limit(

@@ -5053,7 +5053,7 @@ unsafe fn open_cmdwin_event(argv: *mut *mut c_void) {
     unsafe {
         let a = (*argv).cast::<CmdwinOpenArgs>();
         cmdwin_invoke(c"open".as_ptr(), (*a).firstc, (*a).content, (*a).pos);
-        xfree(a.cast::<c_void>());
+        drop(Box::from_raw(a));
     }
 }
 
@@ -5074,15 +5074,16 @@ unsafe fn open_cmdwin() -> c_int {
             return K_IGNORE;
         }
 
-        let a = xmalloc(size_of::<CmdwinOpenArgs>()).cast::<CmdwinOpenArgs>();
-        (*a).firstc = ft;
-        (*a).pos = ccline.cmdpos;
-
-        (*a).content = if !ccline.cmdbuff.is_null() {
+        let content = if !ccline.cmdbuff.is_null() {
             xstrnsave(ccline.cmdbuff, ccline.cmdlen as usize)
         } else {
             ptr::null_mut()
         };
+        let a = Box::into_raw(Box::new(CmdwinOpenArgs {
+            firstc: ft,
+            pos: ccline.cmdpos,
+            content,
+        }));
         ccline.cmdlen = 0;
         ccline.cmdpos = 0;
 

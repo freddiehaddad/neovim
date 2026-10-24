@@ -982,7 +982,7 @@ unsafe fn logger_gc(logger: TSLogger) {
     unsafe {
         let opts = logger.payload.cast::<TSLuaLoggerOpts>();
         luaL_unref((*opts).lstate, LUA_REGISTRYINDEX, (*opts).cb);
-        xfree(opts.cast::<c_void>());
+        drop(Box::from_raw(opts));
     }
 }
 
@@ -1308,16 +1308,15 @@ unsafe extern "C-unwind" fn parser_set_ranges(L: *mut lua_State) -> c_int {
         luaL_argcheck(L, lua_istable(L, 2), 2, c"table expected.".as_ptr());
 
         let tbl_len = lua_objlen(L, 2);
-        let ranges = xmalloc(size_of::<TSRange>() * tbl_len).cast::<TSRange>();
+        let mut ranges: Vec<TSRange> = vec![std::mem::zeroed(); tbl_len];
 
-        for index in 0..tbl_len {
+        for (index, range) in ranges.iter_mut().enumerate() {
             lua_rawgeti(L, 2, (index + 1) as c_int);
-            range_from_lua(L, ranges.add(index));
+            range_from_lua(L, range);
             lua_pop(L, 1);
         }
 
-        ts_parser_set_included_ranges(p, ranges, tbl_len as u32);
-        xfree(ranges.cast::<c_void>());
+        ts_parser_set_included_ranges(p, ranges.as_ptr(), tbl_len as u32);
 
         0
     }
@@ -1370,16 +1369,15 @@ unsafe extern "C-unwind" fn parser_set_logger(L: *mut lua_State) -> c_int {
         luaL_argcheck(L, lua_isboolean(L, 3), 3, c"boolean expected".as_ptr());
         luaL_argcheck(L, lua_isfunction(L, 4), 4, c"function expected".as_ptr());
 
-        let opts = xmalloc(size_of::<TSLuaLoggerOpts>()).cast::<TSLuaLoggerOpts>();
         lua_pushvalue(L, 4);
         let ref_ = luaL_ref(L, LUA_REGISTRYINDEX);
 
-        *opts = TSLuaLoggerOpts {
+        let opts = Box::into_raw(Box::new(TSLuaLoggerOpts {
             lex: lua_toboolean(L, 2) != 0,
             parse: lua_toboolean(L, 3) != 0,
             cb: ref_,
             lstate: L,
-        };
+        }));
 
         let logger = TSLogger {
             payload: opts.cast::<c_void>(),

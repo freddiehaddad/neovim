@@ -55,7 +55,7 @@ use crate::lua::executor::{nlua_funcref_str, nlua_set_sctx};
 use crate::math::{FAIL, OK};
 use crate::mbyte::utf_char2bytes;
 use crate::memory::{
-    strequal, xcalloc, xfree, xmalloc, xmallocz, xmemdupz, xstrdup, xstrlcat, xstrlcpy, xstrndup,
+    strequal, xfree, xmalloc, xmallocz, xmemdupz, xstrdup, xstrlcat, xstrlcpy, xstrndup,
 };
 use crate::message::{
     emsg, internal_error, message_filtered, msg_advance, msg_clr_eos, msg_ext_set_kind,
@@ -3749,7 +3749,7 @@ pub unsafe fn var_redir_start(name: *mut c_char, append: bool) -> c_int {
         }
 
         redir_varname = xstrdup(name);
-        redir_lval = xcalloc(1, std::mem::size_of::<lval_T>()).cast::<lval_T>();
+        redir_lval = Box::into_raw(Box::new(std::mem::zeroed::<lval_T>()));
 
         let buf = &raw mut redir_buf;
         (*buf).clear();
@@ -3873,7 +3873,7 @@ pub unsafe fn var_redir_stop() {
 
             *buf = Vec::new();
 
-            xfree(redir_lval.cast());
+            drop(Box::from_raw(redir_lval));
             redir_lval = ptr::null_mut();
         }
         xfree(redir_varname.cast());

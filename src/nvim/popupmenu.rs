@@ -42,7 +42,7 @@ use crate::keycodes::{
 };
 use crate::mbyte::{mb_string2cells, mb_strnicmp, ptr2cells, utf_ptr2cells, utfc_ptr2len};
 use crate::memory::{
-    Arena, arena_finish, arena_mem_free, strequal, xfree, xmalloc, xstrdup,
+    Arena, arena_finish, arena_mem_free, strequal, xfree, xstrdup,
 };
 use crate::menu::{execute_menu, get_menu_mode_flag, menu_find, menu_is_separator, vimmenu_T};
 use crate::message::emsg;
@@ -529,14 +529,18 @@ pub unsafe fn pum_display(
 }
 
 /// Computes attributes of text on the popup menu (`pum_compute_text_attrs`).
-unsafe fn pum_compute_text_attrs(text: *mut c_char, hlf: hlf_T, user_hlattr: c_int) -> *mut c_int {
+unsafe fn pum_compute_text_attrs(
+    text: *mut c_char,
+    hlf: hlf_T,
+    user_hlattr: c_int,
+) -> Option<Vec<c_int>> {
     unsafe {
         if *text == NUL
             || (hlf != HLF_PSI && hlf != HLF_PNI)
             || (win_hl_attr(curwin, HLF_PMSI) == win_hl_attr(curwin, HLF_PSI)
                 && win_hl_attr(curwin, HLF_PMNI) == win_hl_attr(curwin, HLF_PNI))
         {
-            return ptr::null_mut();
+            return None;
         }
 
         let leader = if (State & MODE_CMDLINE) != 0 {
@@ -545,10 +549,9 @@ unsafe fn pum_compute_text_attrs(text: *mut c_char, hlf: hlf_T, user_hlattr: c_i
             ins_compl_leader()
         };
         if leader.is_null() || *leader == NUL {
-            return ptr::null_mut();
+            return None;
         }
 
-        let attrs = xmalloc(size_of::<c_int>() * (vim_strsize(text) as usize)).cast::<c_int>();
         let in_fuzzy = if (State & MODE_CMDLINE) != 0 {
             cmdline_compl_is_fuzzy()
         } else {
@@ -561,12 +564,10 @@ unsafe fn pum_compute_text_attrs(text: *mut c_char, hlf: hlf_T, user_hlattr: c_i
 
         if in_fuzzy {
             match_positions = fuzzy_match_str_with_pos(text, leader);
-            if match_positions.is_none() {
-                xfree(attrs.cast());
-                return ptr::null_mut();
-            }
+            match_positions.as_ref()?;
         }
 
+        let mut attrs = vec![0; vim_strsize(text) as usize];
         let mut ptr = text as *const c_char;
         let mut cell_idx: usize = 0;
         let mut char_pos: u32 = 0;
@@ -601,7 +602,7 @@ unsafe fn pum_compute_text_attrs(text: *mut c_char, hlf: hlf_T, user_hlattr: c_i
 
             let char_cells = utf_ptr2cells(ptr) as usize;
             for i in 0..char_cells {
-                *attrs.add(cell_idx + i) = new_attr;
+                attrs[cell_idx + i] = new_attr;
             }
             cell_idx += char_cells;
 
@@ -609,7 +610,7 @@ unsafe fn pum_compute_text_attrs(text: *mut c_char, hlf: hlf_T, user_hlattr: c_i
             char_pos += 1;
         }
 
-        attrs
+        Some(attrs)
     }
 }
 
@@ -910,14 +911,15 @@ pub unsafe fn pum_redraw() {
                             *p = saved;
                         }
 
-                        let mut attrs: *mut c_int = ptr::null_mut();
-                        if item_type == CPT_ABBR {
-                            attrs = pum_compute_text_attrs(
+                        let attrs = if item_type == CPT_ABBR {
+                            pum_compute_text_attrs(
                                 st,
                                 hlf,
                                 (*PUM_ARRAY.add(idx as usize)).pum_user_abbr_hlattr,
-                            );
-                        }
+                            )
+                        } else {
+                            None
+                        };
 
                         if PUM_RL {
                             let mut rt = reverse_text(st);
@@ -944,16 +946,16 @@ pub unsafe fn pum_redraw() {
                                 }
                             }
 
-                            if attrs.is_null() {
-                                grid_line_puts(grid_col - cells + 1, rt, -1, attr);
-                            } else {
+                            if let Some(ref attrs_vec) = attrs {
                                 pum_grid_puts_with_attrs(
                                     grid_col - cells + 1,
                                     cells,
                                     rt,
                                     -1,
-                                    attrs,
+                                    attrs_vec.as_ptr(),
                                 );
+                            } else {
+                                grid_line_puts(grid_col - cells + 1, rt, -1, attr);
                             }
 
                             xfree(rt_start.cast());
@@ -982,18 +984,20 @@ pub unsafe fn pum_redraw() {
                                 width = displayed;
                             }
 
-                            if attrs.is_null() {
-                                grid_line_puts(grid_col, st, -1, attr);
+                            if let Some(ref attrs_vec) = attrs {
+                                pum_grid_puts_with_attrs(
+                                    grid_col,
+                                    cells,
+                                    st,
+                                    -1,
+                                    attrs_vec.as_ptr(),
+                                );
                             } else {
-                                pum_grid_puts_with_attrs(grid_col, cells, st, -1, attrs);
+                                grid_line_puts(grid_col, st, -1, attr);
                             }
 
                             xfree(st.cast());
                             grid_col += width;
-                        }
-
-                        if !attrs.is_null() {
-                            xfree(attrs.cast());
                         }
 
                         if *p != TAB {

@@ -26,7 +26,6 @@ use crate::globals::*;
 use crate::log::logmsg;
 use crate::memory::{
     ARENA_BLOCK_SIZE, Arena, ArenaMem, alloc_block, arena_finish, arena_mem_free, free_block,
-    xfree, xmalloc,
 };
 use crate::message::semsg;
 use crate::msgpack_rpc::packer::{
@@ -590,18 +589,19 @@ unsafe fn handle_request(channel: *mut Channel, p: *mut Unpacker, args: Array) {
         }
 
         let cp = channel_prefix(channel);
-        let evdata = xmalloc(size_of::<RequestEvent>()).cast::<RequestEvent>();
-        (*evdata).r#type = (*p).msg_type;
-        (*evdata).channel = channel;
-        (*evdata).handler = (*p).handler;
-        (*evdata).args = args;
-        (*evdata).used_mem = (*p).arena;
+        let evdata = Box::into_raw(Box::new(RequestEvent {
+            r#type: (*p).msg_type,
+            channel,
+            handler: (*p).handler,
+            args,
+            used_mem: (*p).arena,
+            request_id: (*p).request_id,
+        }));
         (*p).arena = Arena {
             cur_blk: ptr::null_mut(),
             pos: 0,
             size: 0,
         };
-        (*evdata).request_id = (*p).request_id;
         channel_incref(channel);
 
         if (*p).handler.fast {
@@ -671,7 +671,7 @@ unsafe fn request_event(argv: *mut *mut c_void) {
 
         arena_mem_free(arena_finish(&raw mut (*e).used_mem));
         channel_decref(channel);
-        xfree(e.cast());
+        drop(Box::from_raw(e));
         api_clear_error(&raw mut error);
     }
 }

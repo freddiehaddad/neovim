@@ -162,14 +162,12 @@ pub unsafe fn wstream_new_buffer(
     refcount: usize,
     cb: wbuffer_data_finalizer,
 ) -> *mut WBuffer {
-    unsafe {
-        let rv = xmalloc(std::mem::size_of::<WBuffer>()).cast::<WBuffer>();
-        (*rv).size = size;
-        (*rv).refcount = refcount;
-        (*rv).cb = cb;
-        (*rv).data = data;
-        rv
-    }
+    Box::into_raw(Box::new(WBuffer {
+        size,
+        refcount,
+        cb,
+        data,
+    }))
 }
 
 unsafe extern "C" fn write_cb(req: *mut uv_write_t, status: c_int) {
@@ -204,7 +202,7 @@ pub unsafe fn wstream_release_wbuffer(buffer: *mut WBuffer) {
             if let Some(cb) = (*buffer).cb {
                 cb((*buffer).data.cast());
             }
-            xfree(buffer.cast());
+            drop(Box::from_raw(buffer));
         }
     }
 }

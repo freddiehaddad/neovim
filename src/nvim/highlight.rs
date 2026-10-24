@@ -19,7 +19,7 @@ use crate::highlight_group::{
 };
 use crate::lua::converter::Boolean;
 use crate::lua::executor::{kRetObject, nlua_call_ref};
-use crate::memory::{Arena, arena_finish, arena_mem_free, xfree, xmalloc};
+use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::message::emsg;
 use crate::msgpack_rpc::packer::Integer;
 use crate::option::check_blending;
@@ -809,7 +809,7 @@ pub unsafe fn update_ns_hl(ns_id: c_int) {
         let ns_hl_attr_ptr = &raw mut ns_hl_attr;
         let alloc = (*ns_hl_attr_ptr)
             .entry(ns_id)
-            .or_insert_with(|| xmalloc(size_of::<NSHlAttr>()).cast::<NSHlAttr>());
+            .or_insert_with(|| Box::into_raw(Box::new([0; HLF_COUNT])));
         let hl_attrs = (**alloc).as_mut_ptr();
 
         for hlf in 1..HLF_COUNT {
@@ -967,7 +967,7 @@ pub unsafe fn clear_hl_tables(reinit: bool) {
             *ns_hls_ptr = std::collections::BTreeMap::new();
             let ns_hl_attr_ptr = &raw mut ns_hl_attr;
             for (_, ptr) in std::mem::take(&mut *ns_hl_attr_ptr) {
-                xfree(ptr.cast());
+                drop(Box::from_raw(ptr));
             }
             *urls_ptr = Vec::new();
             let fonts_ptr = &raw mut fonts;

@@ -583,19 +583,16 @@ pub unsafe fn func_line_end(cookie: *mut c_void) {
 unsafe fn func_dump_profile(fd: *mut FILE) {
     unsafe {
         let functbl = func_tbl_get();
-        let mut st_len: c_int = 0;
         let todo = (*functbl).len();
         if todo == 0 {
             return;
         }
 
-        let sorttab =
-            xmalloc(std::mem::size_of::<*mut ufunc_T>() * todo).cast::<*mut ufunc_T>();
+        let mut sorttab: Vec<*mut ufunc_T> = Vec::with_capacity(todo);
 
         for &fp in (*functbl).values() {
             if (*fp).uf_prof_initialized != 0 {
-                *sorttab.add(st_len as usize) = fp;
-                st_len += 1;
+                sorttab.push(fp);
 
                 let name_ptr = (*fp).uf_name.as_ptr();
                 if (*name_ptr as u8) == K_SPECIAL {
@@ -653,16 +650,13 @@ unsafe fn func_dump_profile(fd: *mut FILE) {
             }
         }
 
-        if st_len > 0 {
-            let slice = std::slice::from_raw_parts_mut(sorttab, st_len as usize);
-            sort_slice_by(slice, |a, b| prof_total_cmp(a, b));
-            prof_sort_list(fd, sorttab, st_len, c"TOTAL".as_ptr(), false);
-            let slice = std::slice::from_raw_parts_mut(sorttab, st_len as usize);
-            sort_slice_by(slice, |a, b| prof_self_cmp(a, b));
-            prof_sort_list(fd, sorttab, st_len, c"SELF".as_ptr(), true);
+        if !sorttab.is_empty() {
+            let st_len = sorttab.len() as c_int;
+            sort_slice_by(&mut sorttab, |a, b| prof_total_cmp(a, b));
+            prof_sort_list(fd, sorttab.as_mut_ptr(), st_len, c"TOTAL".as_ptr(), false);
+            sort_slice_by(&mut sorttab, |a, b| prof_self_cmp(a, b));
+            prof_sort_list(fd, sorttab.as_mut_ptr(), st_len, c"SELF".as_ptr(), true);
         }
-
-        xfree(sorttab.cast::<c_void>());
     }
 }
 

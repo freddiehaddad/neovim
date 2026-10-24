@@ -338,15 +338,9 @@ pub unsafe fn can_abandon(buf: *mut buf_T, forceit: bool) -> bool {
     }
 }
 
-unsafe fn add_bufnum(bufnrs: *mut c_int, bufnump: *mut c_int, nr: c_int) {
-    unsafe {
-        for i in 0..(*bufnump as usize) {
-            if *bufnrs.add(i) == nr {
-                return;
-            }
-        }
-        *bufnrs.add(*bufnump as usize) = nr;
-        *bufnump += 1;
+fn add_bufnum(bufnrs: &mut Vec<c_int>, nr: c_int) {
+    if !bufnrs.contains(&nr) {
+        bufnrs.push(nr);
     }
 }
 
@@ -365,15 +359,13 @@ pub unsafe fn check_changed_any(hidden: bool, unload: bool) -> bool {
             return false;
         }
 
-        let bufnrs: *mut c_int = xmalloc(size_of::<c_int>() * bufcount).cast();
-
-        *bufnrs = (*curbuf).b_fnum;
-        let mut bufnum: c_int = 1;
+        let mut bufnrs = Vec::with_capacity(bufcount);
+        bufnrs.push((*curbuf).b_fnum);
 
         let mut wp = firstwin;
         while !wp.is_null() {
             if (*wp).w_buffer != curbuf {
-                add_bufnum(bufnrs, &raw mut bufnum, (*(*wp).w_buffer).b_fnum);
+                add_bufnum(&mut bufnrs, (*(*wp).w_buffer).b_fnum);
             }
             wp = (*wp).w_next;
         }
@@ -383,7 +375,7 @@ pub unsafe fn check_changed_any(hidden: bool, unload: bool) -> bool {
             if tp != curtab {
                 let mut wp2 = first_win_in_tab(tp);
                 while !wp2.is_null() {
-                    add_bufnum(bufnrs, &raw mut bufnum, (*(*wp2).w_buffer).b_fnum);
+                    add_bufnum(&mut bufnrs, (*(*wp2).w_buffer).b_fnum);
                     wp2 = (*wp2).w_next;
                 }
             }
@@ -392,14 +384,14 @@ pub unsafe fn check_changed_any(hidden: bool, unload: bool) -> bool {
 
         let mut b = firstbuf;
         while !b.is_null() {
-            add_bufnum(bufnrs, &raw mut bufnum, (*b).b_fnum);
+            add_bufnum(&mut bufnrs, (*b).b_fnum);
             b = (*b).b_next;
         }
 
         let mut buf: *mut buf_T = ptr::null_mut();
-        let mut i: c_int = 0;
-        while i < bufnum {
-            buf = buflist_findnr(*bufnrs.add(i as usize));
+        let mut i: usize = 0;
+        while i < bufnrs.len() {
+            buf = buflist_findnr(bufnrs[i]);
             if !buf.is_null() && (!hidden || (*buf).b_nwindows == 0) && bufIsChanged(buf) {
                 let mut bufref: bufref_T = std::mem::zeroed();
                 set_bufref(&raw mut bufref, buf);
@@ -415,7 +407,7 @@ pub unsafe fn check_changed_any(hidden: bool, unload: bool) -> bool {
             i += 1;
         }
 
-        if i < bufnum {
+        if i < bufnrs.len() {
             ret = true;
             exiting = false;
             if p_confirm == 0 && (cmdmod.cmod_flags & CMOD_CONFIRM) == 0 {
@@ -476,7 +468,6 @@ pub unsafe fn check_changed_any(hidden: bool, unload: bool) -> bool {
             }
         }
 
-        xfree(bufnrs.cast());
         ret
     }
 }

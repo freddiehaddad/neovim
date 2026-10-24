@@ -258,9 +258,9 @@ unsafe fn match_positions(
             return SCORE_MIN;
         }
 
-        let block = xmalloc(std::mem::size_of::<f64>() * MATCH_MAX_LEN * n * 2).cast::<f64>();
-        let d_base = block;
-        let m_base = block.add(MATCH_MAX_LEN * n);
+        let mut block = vec![0.0f64; MATCH_MAX_LEN * n * 2];
+        let d_base = block.as_mut_ptr();
+        let m_base = d_base.add(MATCH_MAX_LEN * n);
 
         match_row(&match_st, 0, d_base, m_base, d_base, m_base);
         for i in 1..n {
@@ -299,9 +299,7 @@ unsafe fn match_positions(
             }
         }
 
-        let result = *m_base.add((n - 1) * MATCH_MAX_LEN + (m - 1));
-        xfree(block.cast::<c_void>());
-        result
+        *m_base.add((n - 1) * MATCH_MAX_LEN + (m - 1))
     }
 }
 

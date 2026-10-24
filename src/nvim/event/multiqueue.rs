@@ -2,8 +2,6 @@
 
 use std::ffi::{c_int, c_void};
 
-use crate::memory::{xfree, xmalloc};
-
 pub const EVENT_HANDLER_MAX_ARGC: usize = 10;
 
 pub type argv_callback = Option<unsafe fn(argv: *mut *mut c_void)>;
@@ -91,18 +89,14 @@ fn multiqueue_new_inner(
     on_put: PutCallback,
     data: *mut c_void,
 ) -> *mut MultiQueue {
-    let rv = unsafe { xmalloc(std::mem::size_of::<MultiQueue>()).cast::<MultiQueue>() };
-    unsafe {
-        rv.write(MultiQueue {
-            parent,
-            head: std::ptr::null_mut(),
-            tail: std::ptr::null_mut(),
-            on_put,
-            data,
-            size: 0,
-        });
-    }
-    rv
+    Box::into_raw(Box::new(MultiQueue {
+        parent,
+        head: std::ptr::null_mut(),
+        tail: std::ptr::null_mut(),
+        on_put,
+        data,
+        size: 0,
+    }))
 }
 
 /// Create a new root (parentless) `MultiQueue` (`multiqueue_new`).
@@ -135,13 +129,13 @@ pub unsafe fn multiqueue_free(this: *mut MultiQueue) {
             if !q.parent.is_null() && !(*curr).parent_item.is_null() {
                 let pitem = (*curr).parent_item;
                 unlink(&mut *q.parent, pitem);
-                xfree(pitem.cast::<c_void>());
+                drop(Box::from_raw(pitem));
             }
             unlink(q, curr);
-            xfree(curr.cast::<c_void>());
+            drop(Box::from_raw(curr));
             curr = next;
         }
-        xfree(this.cast::<c_void>());
+        drop(Box::from_raw(this));
     }
 }
 
@@ -160,7 +154,7 @@ unsafe fn multiqueueitem_get_event(
             let ev = (*child).event;
             if remove {
                 unlink(linked_ref, child);
-                xfree(child.cast::<c_void>());
+                drop(Box::from_raw(child));
             }
             ev
         } else {
@@ -169,7 +163,7 @@ unsafe fn multiqueueitem_get_event(
                 if !owner.parent.is_null() {
                     unlink(&mut *owner.parent, pitem);
                 }
-                xfree(pitem.cast::<c_void>());
+                drop(Box::from_raw(pitem));
                 (*item).parent_item = std::ptr::null_mut();
             }
             (*item).event
@@ -186,7 +180,7 @@ unsafe fn multiqueue_remove(this: *mut MultiQueue) -> Event {
         assert!(!(*h).link || q.parent.is_null());
         let ev = multiqueueitem_get_event(q, h, true);
         q.size = q.size.wrapping_sub(1);
-        xfree(h.cast::<c_void>());
+        drop(Box::from_raw(h));
         ev
     }
 }
@@ -194,27 +188,25 @@ unsafe fn multiqueue_remove(this: *mut MultiQueue) -> Event {
 unsafe fn multiqueue_push(this: *mut MultiQueue, event: Event) {
     unsafe {
         let q = &mut *this;
-        let item = xmalloc(std::mem::size_of::<MultiQueueItem>()).cast::<MultiQueueItem>();
-        item.write(MultiQueueItem {
+        let item = Box::into_raw(Box::new(MultiQueueItem {
             link: false,
             queue: std::ptr::null_mut(),
             event,
             parent_item: std::ptr::null_mut(),
             prev: std::ptr::null_mut(),
             next: std::ptr::null_mut(),
-        });
+        }));
         push_tail(q, item);
 
         if !q.parent.is_null() {
-            let pitem = xmalloc(std::mem::size_of::<MultiQueueItem>()).cast::<MultiQueueItem>();
-            pitem.write(MultiQueueItem {
+            let pitem = Box::into_raw(Box::new(MultiQueueItem {
                 link: true,
                 queue: this,
                 event: Event::nil(),
                 parent_item: std::ptr::null_mut(),
                 prev: std::ptr::null_mut(),
                 next: std::ptr::null_mut(),
-            });
+            }));
             (*item).parent_item = pitem;
             push_tail(&mut *q.parent, pitem);
         }
@@ -335,21 +327,18 @@ unsafe fn multiqueue_oneshot_event(argv: *mut *mut c_void) {
         }
         (*data).refcount -= 1;
         if (*data).refcount == 0 {
-            xfree(data.cast::<c_void>());
+            drop(Box::from_raw(data));
         }
     }
 }
 
 /// Create a one-shot multicast event safe to enqueue on `num` queues (`event_create_oneshot`).
 pub fn event_create_oneshot(ev: Event, num: c_int) -> Event {
-    let data = unsafe { xmalloc(std::mem::size_of::<MulticastEvent>()).cast::<MulticastEvent>() };
-    unsafe {
-        data.write(MulticastEvent {
-            event: ev,
-            fired: false,
-            refcount: num,
-        });
-    }
+    let data = Box::into_raw(Box::new(MulticastEvent {
+        event: ev,
+        fired: false,
+        refcount: num,
+    }));
     let mut out = Event::nil();
     out.handler = Some(multiqueue_oneshot_event);
     out.argv[0] = data.cast::<c_void>();
