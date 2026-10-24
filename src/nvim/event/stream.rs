@@ -1,17 +1,16 @@
 //! Low-level libuv stream wrapper (`src/nvim/event/stream.c`).
 
 use crate::event::r#loop::{
-    Loop, UV_RUN_NOWAIT, uv_close, uv_guess_handle, uv_handle_size, uv_handle_t, uv_is_closing,
-    uv_loop_close, uv_loop_init, uv_loop_t, uv_pipe_init, uv_pipe_open, uv_run,
+    Loop, UV_RUN_NOWAIT, uv_close, uv_guess_handle, uv_handle_t, uv_is_closing, uv_loop_close,
+    uv_loop_init, uv_loop_t, uv_pipe_init, uv_pipe_open, uv_run,
 };
 #[cfg(windows)]
-use crate::event::r#loop::{uv_tty_init, uv_tty_set_mode};
+use crate::event::r#loop::{uv_handle_size, uv_tty_init, uv_tty_set_mode};
 use crate::event::multiqueue::MultiQueue;
 use crate::log::{LOGLVL_DBG, LOGLVL_WRN, g_min_log_level, logmsg};
 use std::ffi::{c_int, c_void};
 use std::ptr;
 
-pub const UV_IDLE: c_int = 6;
 pub const UV_NAMED_PIPE: c_int = 7;
 #[cfg(windows)]
 pub const UV_STREAM: c_int = 11;
@@ -27,7 +26,6 @@ const UV_TTY_MODE_RAW: c_int = 1;
 #[cfg(windows)]
 pub(crate) const ENABLE_VIRTUAL_TERMINAL_INPUT: u32 = 0x0200;
 
-pub type Stream = c_void;
 pub type uv_stream_t = c_void;
 pub type uv_pipe_t = c_void;
 pub type uv_idle_t = c_void;
@@ -36,8 +34,13 @@ pub type uv_tty_t = c_void;
 pub type stream_close_cb = Option<unsafe fn(stream: *mut Stream, data: *mut c_void)>;
 pub type stream_write_cb = Option<unsafe fn(stream: *mut Stream, data: *mut c_void, status: c_int)>;
 
+#[repr(C, align(8))]
+pub struct UvStreamHandle(pub [u8; 512]);
+
 #[repr(C)]
-pub struct StreamFields {
+pub struct Stream {
+    pub closed: bool,
+    pub uv: UvStreamHandle,
     pub uvstream: *mut uv_stream_t,
     pub fd: c_int,
     pub fpos: i64,
@@ -54,56 +57,52 @@ pub struct StreamFields {
     pub maxmem: usize,
 }
 
+impl Stream {
+    pub const fn new() -> Self {
+        Self {
+            closed: false,
+            uv: UvStreamHandle([0; 512]),
+            uvstream: ptr::null_mut(),
+            fd: -1,
+            fpos: 0,
+            cb_data: ptr::null_mut(),
+            before_close_cb: None,
+            close_cb: None,
+            internal_close_cb: None,
+            close_cb_data: ptr::null_mut(),
+            internal_data: ptr::null_mut(),
+            pending_reqs: 0,
+            events: ptr::null_mut(),
+            write_cb: None,
+            curmem: 0,
+            maxmem: 0,
+        }
+    }
+}
+
 use crate::event::r#loop::{uv_idle_init, uv_stream_get_write_queue_size, uv_stream_set_blocking};
 
 #[cfg(windows)]
 use crate::os::os_win_console::{GetConsoleMode, SetConsoleMode};
 
 #[inline]
-pub unsafe fn stream_uv_offset() -> usize {
-    std::mem::size_of::<usize>()
-}
-
-#[inline]
-pub unsafe fn stream_uv_size() -> usize {
-    unsafe {
-        let sz = uv_handle_size(UV_NAMED_PIPE)
-            .max(uv_handle_size(UV_TCP))
-            .max(uv_handle_size(UV_IDLE));
-        #[cfg(windows)]
-        let sz = sz.max(uv_handle_size(UV_TTY));
-        sz
-    }
-}
-
-#[inline]
-pub unsafe fn stream_fields_offset() -> usize {
-    unsafe { stream_uv_offset() + stream_uv_size() }
-}
-
-#[inline]
-pub unsafe fn stream_size() -> usize {
-    unsafe { stream_fields_offset() + std::mem::size_of::<StreamFields>() }
+pub const unsafe fn stream_size() -> usize {
+    std::mem::size_of::<Stream>()
 }
 
 #[inline]
 pub unsafe fn stream_closed_ptr(stream: *mut Stream) -> *mut bool {
-    stream.cast::<bool>()
+    unsafe { &raw mut (*stream).closed }
 }
 
 #[inline]
 pub unsafe fn stream_uv_ptr(stream: *mut Stream) -> *mut c_void {
-    unsafe { stream.cast::<u8>().add(stream_uv_offset()).cast() }
+    unsafe { (&raw mut (*stream).uv).cast() }
 }
 
 #[inline]
-pub unsafe fn stream_fields(stream: *mut Stream) -> *mut StreamFields {
-    unsafe {
-        stream
-            .cast::<u8>()
-            .add(stream_fields_offset())
-            .cast::<StreamFields>()
-    }
+pub unsafe fn stream_fields(stream: *mut Stream) -> *mut Stream {
+    stream
 }
 
 pub unsafe fn stream_set_blocking(fd: c_int, blocking: bool) -> c_int {
@@ -135,17 +134,16 @@ pub unsafe fn stream_init(
         } else {
             fd < 0 && loop_.is_null()
         });
-        let fields = stream_fields(stream);
-        let uv_ptr = stream_uv_ptr(stream);
-        (*fields).uvstream = uvstream;
+        let uv_ptr: *mut c_void = (&raw mut (*stream).uv).cast();
+        (*stream).uvstream = uvstream;
 
         if fd >= 0 {
             let h_type = uv_guess_handle(fd);
-            (*fields).fd = fd;
+            (*stream).fd = fd;
 
             if h_type == UV_FILE {
                 uv_idle_init(loop_.cast(), uv_ptr.cast());
-                *uv_ptr.cast::<*mut c_void>() = stream;
+                *uv_ptr.cast::<*mut Stream>() = stream;
             } else {
                 #[cfg(windows)]
                 if h_type == UV_TTY {
@@ -160,12 +158,12 @@ pub unsafe fn stream_init(
                         dw_mode |= ENABLE_VIRTUAL_TERMINAL_INPUT;
                         SetConsoleMode(tty_handle, dw_mode);
                     }
-                    (*fields).uvstream = uv_ptr.cast();
+                    (*stream).uvstream = uv_ptr.cast();
                 } else {
                     assert!(h_type == UV_NAMED_PIPE || h_type == UV_TTY);
                     uv_pipe_init(loop_.cast(), uv_ptr.cast(), 0);
                     uv_pipe_open(uv_ptr.cast(), fd);
-                    (*fields).uvstream = uv_ptr.cast();
+                    (*stream).uvstream = uv_ptr.cast();
                 }
 
                 #[cfg(not(windows))]
@@ -173,31 +171,31 @@ pub unsafe fn stream_init(
                     assert!(h_type == UV_NAMED_PIPE || h_type == UV_TTY);
                     uv_pipe_init(loop_.cast(), uv_ptr.cast(), 0);
                     uv_pipe_open(uv_ptr.cast(), fd);
-                    (*fields).uvstream = uv_ptr.cast();
+                    (*stream).uvstream = uv_ptr.cast();
                 }
             }
         }
 
-        if !(*fields).uvstream.is_null() {
-            *(*fields).uvstream.cast::<*mut c_void>() = stream;
+        if !(*stream).uvstream.is_null() {
+            *(*stream).uvstream.cast::<*mut Stream>() = stream;
         }
 
-        (*fields).fpos = 0;
-        (*fields).internal_data = ptr::null_mut();
-        (*fields).curmem = 0;
-        (*fields).maxmem = 0;
-        (*fields).pending_reqs = 0;
-        (*fields).write_cb = None;
-        (*fields).close_cb = None;
-        (*fields).internal_close_cb = None;
-        *stream_closed_ptr(stream) = false;
-        (*fields).events = ptr::null_mut();
+        (*stream).fpos = 0;
+        (*stream).internal_data = ptr::null_mut();
+        (*stream).curmem = 0;
+        (*stream).maxmem = 0;
+        (*stream).pending_reqs = 0;
+        (*stream).write_cb = None;
+        (*stream).close_cb = None;
+        (*stream).internal_close_cb = None;
+        (*stream).closed = false;
+        (*stream).events = ptr::null_mut();
     }
 }
 
 pub unsafe fn stream_may_close(stream: *mut Stream) {
     unsafe {
-        if *stream_closed_ptr(stream) {
+        if (*stream).closed {
             return;
         }
         if g_min_log_level <= LOGLVL_DBG {
@@ -211,17 +209,16 @@ pub unsafe fn stream_may_close(stream: *mut Stream) {
                 stream,
             );
         }
-        *stream_closed_ptr(stream) = true;
+        (*stream).closed = true;
 
-        let fields = stream_fields(stream);
         #[cfg(windows)]
         {
-            if uv_guess_handle((*fields).fd) == UV_TTY {
-                uv_tty_set_mode(stream_uv_ptr(stream).cast(), UV_TTY_MODE_NORMAL);
+            if uv_guess_handle((*stream).fd) == UV_TTY {
+                uv_tty_set_mode((&raw mut (*stream).uv).cast(), UV_TTY_MODE_NORMAL);
             }
         }
 
-        if (*fields).pending_reqs == 0 {
+        if (*stream).pending_reqs == 0 {
             stream_close_handle(stream);
         }
     }
@@ -229,9 +226,8 @@ pub unsafe fn stream_may_close(stream: *mut Stream) {
 
 pub unsafe fn stream_close_handle(stream: *mut Stream) {
     unsafe {
-        let fields = stream_fields(stream);
-        let handle: *mut uv_handle_t = if !(*fields).uvstream.is_null() {
-            let queued = uv_stream_get_write_queue_size((*fields).uvstream);
+        let handle: *mut uv_handle_t = if !(*stream).uvstream.is_null() {
+            let queued = uv_stream_get_write_queue_size((*stream).uvstream);
             if queued > 0 {
                 logmsg!(
                     LOGLVL_WRN,
@@ -244,17 +240,17 @@ pub unsafe fn stream_close_handle(stream: *mut Stream) {
                     queued,
                 );
             }
-            (*fields).uvstream.cast()
+            (*stream).uvstream.cast()
         } else {
-            stream_uv_ptr(stream).cast()
+            (&raw mut (*stream).uv).cast()
         };
 
         assert!(!handle.is_null());
 
-        if let Some(before_close_cb) = (*fields).before_close_cb {
-            (*fields).pending_reqs += 1;
-            before_close_cb(stream, (*fields).close_cb_data);
-            (*fields).pending_reqs -= 1;
+        if let Some(before_close_cb) = (*stream).before_close_cb {
+            (*stream).pending_reqs += 1;
+            before_close_cb(stream, (*stream).close_cb_data);
+            (*stream).pending_reqs -= 1;
         }
         if uv_is_closing(handle) == 0 {
             uv_close(handle, Some(close_cb));
@@ -266,12 +262,11 @@ unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
     unsafe {
         let stream = *handle.cast::<*mut Stream>();
         if !stream.is_null() {
-            let fields = stream_fields(stream);
-            if let Some(cb) = (*fields).close_cb {
-                cb(stream, (*fields).close_cb_data);
+            if let Some(cb) = (*stream).close_cb {
+                cb(stream, (*stream).close_cb_data);
             }
-            if let Some(internal_cb) = (*fields).internal_close_cb {
-                internal_cb(stream, (*fields).internal_data);
+            if let Some(internal_cb) = (*stream).internal_close_cb {
+                internal_cb(stream, (*stream).internal_data);
             }
         }
     }

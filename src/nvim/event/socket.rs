@@ -7,10 +7,7 @@ use crate::event::r#loop::{
     uv_req_size, uv_strerror,
 };
 use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_put_event};
-use crate::event::stream::{
-    Stream, UV_TCP, stream_fields, stream_init, stream_may_close, stream_uv_ptr, uv_pipe_t,
-    uv_stream_t,
-};
+use crate::event::stream::{Stream, UV_TCP, stream_init, stream_may_close, uv_pipe_t, uv_stream_t};
 use crate::log::{LOGLVL_ERR, LOGLVL_WRN, logmsg};
 use crate::memory::{xfree, xstrdup, xstrlcpy};
 use crate::os::fs::{UV_EINVAL, UV_ENOENT, os_path_exists, os_remove};
@@ -112,9 +109,6 @@ struct UvGetaddrinfoReq([u8; 512]);
 
 #[repr(C, align(8))]
 struct UvConnectReq([u8; 512]);
-
-#[repr(C, align(8))]
-struct RStreamBuf([u8; 1024]);
 
 use crate::event::r#loop::{
     uv_accept, uv_getaddrinfo, uv_listen, uv_pipe_bind2, uv_tcp_bind, uv_tcp_connect,
@@ -281,11 +275,10 @@ unsafe fn connect_close_cb(_stream: *mut Stream, data: *mut c_void) {
 /// Check if a socket is alive by attempting to connect to it.
 unsafe fn socket_alive(loop_: *mut Loop, addr: *const c_char) -> bool {
     unsafe {
-        debug_assert!(crate::event::rstream::rstream_size() <= size_of::<RStreamBuf>());
-        let mut stream = RStreamBuf([0; 1024]);
+        let mut stream = RStream::new();
         let mut error: *const c_char = ptr::null();
 
-        let stream_ptr = (&raw mut stream).cast::<RStream>();
+        let stream_ptr: *mut RStream = &raw mut stream;
         let connected = socket_connect(loop_, stream_ptr, false, addr, 500, &raw mut error);
         if !connected {
             return false;
@@ -293,10 +286,9 @@ unsafe fn socket_alive(loop_: *mut Loop, addr: *const c_char) -> bool {
 
         let mut closed = false;
         let closed_ptr: *mut bool = &raw mut closed;
-        let fields = stream_fields(stream_ptr.cast());
-        (*fields).internal_close_cb = Some(connect_close_cb);
-        (*fields).internal_data = closed_ptr.cast();
-        stream_may_close(stream_ptr.cast());
+        stream.s.internal_close_cb = Some(connect_close_cb);
+        stream.s.internal_data = closed_ptr.cast();
+        stream_may_close(&raw mut stream.s);
         poll_main_loop_until(-1, || ptr::read_volatile(closed_ptr));
 
         true
@@ -423,7 +415,7 @@ pub unsafe fn socket_watcher_start(
 pub unsafe fn socket_watcher_accept(watcher: *mut SocketWatcher, stream: *mut RStream) -> c_int {
     unsafe {
         let uv_ptr: *mut c_void = (&raw mut (*watcher).uv).cast();
-        let client: *mut uv_stream_t = stream_uv_ptr(stream.cast()).cast();
+        let client: *mut uv_stream_t = (&raw mut (*stream).s.uv).cast();
 
         if uv_handle_get_type((*watcher).stream.cast()) == UV_TCP {
             let uv_loop = uv_handle_get_loop(uv_ptr.cast());
@@ -441,7 +433,7 @@ pub unsafe fn socket_watcher_accept(watcher: *mut SocketWatcher, stream: *mut RS
             return result;
         }
 
-        stream_init(ptr::null_mut(), stream.cast(), -1, client);
+        stream_init(ptr::null_mut(), &raw mut (*stream).s, -1, client);
         0
     }
 }
@@ -522,9 +514,9 @@ pub unsafe fn socket_connect(
         let closed_ptr: *mut bool = &raw mut closed;
         *req_ptr.cast::<*mut c_int>() = status_ptr;
 
-        let s_ptr: *mut Stream = stream.cast();
-        let uv_ptr = stream_uv_ptr(s_ptr);
-        let fields = stream_fields(s_ptr);
+        let s_ptr: *mut Stream = &raw mut (*stream).s;
+        let uv_ptr: *mut c_void = (&raw mut (*s_ptr).uv).cast();
+        let fields = s_ptr;
 
         let mut addr_req = UvGetaddrinfoReq([0; 512]);
         let addr_req_ptr = (&raw mut addr_req).cast::<uv_getaddrinfo_t>();

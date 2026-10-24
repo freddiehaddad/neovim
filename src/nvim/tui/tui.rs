@@ -21,14 +21,13 @@ use crate::event::r#loop::{
 #[cfg(windows)]
 use crate::event::r#loop::{uv_handle_get_type, uv_handle_size};
 use crate::event::multiqueue::{multiqueue_empty, multiqueue_process_events};
-use crate::event::rstream::rstream_fields;
 use crate::event::signal::{
     SignalWatcher, signal_watcher_close, signal_watcher_init, signal_watcher_start,
     signal_watcher_stop,
 };
 use crate::event::stream::stream_set_blocking;
 #[cfg(windows)]
-use crate::event::stream::{ENABLE_VIRTUAL_TERMINAL_INPUT, UV_STREAM, UV_TTY, stream_uv_ptr};
+use crate::event::stream::{ENABLE_VIRTUAL_TERMINAL_INPUT, UV_STREAM, UV_TTY};
 use crate::event::wstream::uv_buf_t;
 use crate::file_search::NULL_STRING;
 use crate::fileio::{FILE, fclose, fopen, fwrite};
@@ -55,8 +54,8 @@ use crate::os::fs::UV_EINTR;
 use crate::os::input::os_isatty;
 use crate::os::time::os_hrtime;
 use crate::tui::input::{
-    TermInput, input_loop_ptr, input_prefix, input_read_stream, input_suffix, kKeyEncodingKitty,
-    kKeyEncodingLegacy, kKeyEncodingXterm, tinput_destroy, tinput_init, tinput_start, tinput_stop,
+    TermInput, kKeyEncodingKitty, kKeyEncodingLegacy, kKeyEncodingXterm, tinput_destroy,
+    tinput_init, tinput_start, tinput_stop,
 };
 use crate::tui::termkey::driver_ti::{TerminfoEntry, kTermCount, kTerminfoFuncKeyMax};
 use crate::tui::ugrid::{
@@ -158,7 +157,7 @@ pub struct TUIData {
     pub buf: [c_char; OUTBUF_SIZE],
     pub buf_to_flush: *mut c_char,
     pub bufpos: usize,
-    pub input_storage: [u64; 768],
+    pub input: TermInput,
     pub write_loop: [u64; 256],
     pub ti: TerminfoEntry,
     pub term: *mut c_char,
@@ -246,7 +245,7 @@ use crate::os::signal::SIGWINCH;
 
 #[inline]
 unsafe fn tui_input(tui: *mut TUIData) -> *mut TermInput {
-    unsafe { (*tui).input_storage.as_mut_ptr().cast::<TermInput>() }
+    unsafe { &raw mut (*tui).input }
 }
 
 #[inline]
@@ -301,7 +300,7 @@ pub unsafe fn tui_start(
         signal_watcher_init((*tui).loop_, tui_winch_handle(tui), tui.cast());
         signal_watcher_start(tui_winch_handle(tui), Some(sigwinch_cb), SIGWINCH);
 
-        (*input_prefix(tui_input(tui))).tk_ti_hook_fn = Some(tui_tk_ti_getstr);
+        (*tui).input.tk_ti_hook_fn = Some(tui_tk_ti_getstr);
         ugrid_init(&mut (*tui).grid);
         tui_terminal_start(tui);
 
@@ -428,9 +427,7 @@ unsafe fn tui_set_key_encoding_cb(tui: *mut TUIData) {
 
 unsafe fn tui_query_kitty_keyboard(tui: *mut TUIData) {
     unsafe {
-        (*input_prefix(tui_input(tui)))
-            .callbacks
-            .primary_device_attr = Some(tui_set_key_encoding_cb);
+        (*tui).input.callbacks.primary_device_attr = Some(tui_set_key_encoding_cb);
         let seq = b"\x1b[?u\x1b[c";
         out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
     }
@@ -438,7 +435,7 @@ unsafe fn tui_query_kitty_keyboard(tui: *mut TUIData) {
 
 pub unsafe fn tui_set_key_encoding(tui: *mut TUIData) {
     unsafe {
-        match (*input_prefix(tui_input(tui))).key_encoding {
+        match (*tui).input.key_encoding {
             kKeyEncodingKitty => {
                 let seq = b"\x1b[>3u";
                 out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
@@ -455,7 +452,7 @@ pub unsafe fn tui_set_key_encoding(tui: *mut TUIData) {
 
 unsafe fn tui_reset_key_encoding(tui: *mut TUIData) {
     unsafe {
-        match (*input_prefix(tui_input(tui))).key_encoding {
+        match (*tui).input.key_encoding {
             kKeyEncodingKitty => {
                 let seq = b"\x1b[<u";
                 out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
@@ -784,7 +781,7 @@ unsafe fn terminfo_start(tui: *mut TUIData) {
 
         (*tui).out_fd = STDOUT_FILENO;
         (*tui).out_isatty = os_isatty((*tui).out_fd);
-        (*input_suffix(tui_input(tui))).tui_data = tui.cast();
+        (*tui).input.tui_data = tui.cast();
 
         (*tui).ti_arena = ARENA_EMPTY;
         assert!((*tui).term.is_null());
@@ -1048,7 +1045,7 @@ unsafe fn tui_terminal_start(tui: *mut TUIData) {
         (*tui).print_attr_id = -1;
         terminfo_start(tui);
         let input = tui_input(tui);
-        if (*input_loop_ptr(input)).is_null() {
+        if (*input).loop_.is_null() {
             tinput_init(
                 input,
                 (&raw mut main_loop).cast::<Loop>(),
@@ -1092,15 +1089,17 @@ pub unsafe fn tui_stop(tui: *mut TUIData) {
         }
 
         let input = tui_input(tui);
-        (*input_prefix(input)).callbacks.primary_device_attr = Some(tui_stop_cb);
+        (*input).callbacks.primary_device_attr = Some(tui_stop_cb);
         terminfo_disable(tui);
 
         let wait_start = os_hrtime();
         let events = (*loop_queues((*tui).loop_)).events;
-        let rs = input_read_stream(input);
+        let rs = &raw mut (*input).read_stream;
         let mut remaining: i64 = EXIT_TIMEOUT_MS;
         let mut before = if remaining > 0 { os_hrtime() } else { 0 };
-        while !((*tui).stopped || (*rstream_fields(rs)).did_eof) {
+        while !(ptr::read_volatile(&raw const (*tui).stopped)
+            || ptr::read_volatile(&raw const (*rs).did_eof))
+        {
             if !events.is_null() && !multiqueue_empty(events) {
                 multiqueue_process_events(events);
             } else {
@@ -1133,7 +1132,7 @@ pub unsafe fn tui_stop(tui: *mut TUIData) {
         (*tui).stopped = true;
 
         tui_terminal_stop(tui);
-        stream_set_blocking((*input_prefix(input)).in_fd, true);
+        stream_set_blocking((*input).in_fd, true);
         tinput_destroy(input);
         signal_watcher_stop(tui_winch_handle(tui));
         signal_watcher_close(tui_winch_handle(tui), None);
@@ -2236,9 +2235,7 @@ pub unsafe fn tui_suspend(tui: *mut TUIData) {
     unsafe {
         ui_client_detach();
         (*tui).mouse_enabled_save = (*tui).mouse_enabled;
-        (*input_prefix(tui_input(tui)))
-            .callbacks
-            .primary_device_attr = Some(tui_suspend_cb);
+        (*tui).input.callbacks.primary_device_attr = Some(tui_suspend_cb);
         terminfo_disable(tui);
     }
     #[cfg(not(unix))]
@@ -2250,7 +2247,7 @@ unsafe fn tui_suspend_cb(tui: *mut TUIData) {
     unsafe {
         let input = tui_input(tui);
         tui_terminal_stop(tui);
-        stream_set_blocking((*input_prefix(input)).in_fd, true);
+        stream_set_blocking((*input).in_fd, true);
 
         let ppid = getppid();
         if getpgid(ppid) == getpgrp() {
@@ -2263,7 +2260,7 @@ unsafe fn tui_suspend_cb(tui: *mut TUIData) {
         if (*tui).mouse_enabled_save {
             tui_mouse_on(tui);
         }
-        stream_set_blocking((*input_prefix(input)).in_fd, false);
+        stream_set_blocking((*input).in_fd, false);
         ui_client_attach((*tui).width, (*tui).height, (*tui).term, (*tui).rgb);
     }
 }
@@ -2372,9 +2369,9 @@ pub unsafe fn tui_option_set(tui: *mut TUIData, name: NvimString, value: Object)
                 rpc_send_event(ui_client_channel_id, c"nvim_ui_set_option".as_ptr(), args);
             }
         } else if strequal(name.data, c"ttimeout".as_ptr()) {
-            (*input_prefix(tui_input(tui))).ttimeout = value.data.boolean;
+            (*tui).input.ttimeout = value.data.boolean;
         } else if strequal(name.data, c"ttimeoutlen".as_ptr()) {
-            (*input_prefix(tui_input(tui))).ttimeoutlen = value.data.integer as OptInt;
+            (*tui).input.ttimeoutlen = value.data.integer as OptInt;
         } else if strequal(name.data, c"verbose".as_ptr()) {
             (*tui).verbose = value.data.integer;
         } else if strequal(name.data, c"termsync".as_ptr()) {
@@ -3027,9 +3024,9 @@ unsafe fn augment_terminfo(
         }
 
         if kitty || (vte_version != 0 && vte_version < 5400) {
-            (*input_prefix(tui_input(tui))).key_encoding = kKeyEncodingLegacy;
+            (*tui).input.key_encoding = kKeyEncodingLegacy;
         } else {
-            (*input_prefix(tui_input(tui))).key_encoding = kKeyEncodingXterm;
+            (*tui).input.key_encoding = kKeyEncodingXterm;
         }
 
         xfree(xterm_version.cast());
@@ -3166,7 +3163,7 @@ unsafe fn tui_get_stty_erase(input: *mut TermInput) -> *const c_char {
         #[cfg(unix)]
         {
             let mut t: unix_termios::termios = std::mem::zeroed();
-            if unix_termios::tcgetattr((*input_prefix(input)).in_fd, &raw mut t) != -1 {
+            if unix_termios::tcgetattr((*input).in_fd, &raw mut t) != -1 {
                 stty_erase_buf[0] = t.c_cc[unix_termios::VERASE] as c_char;
                 stty_erase_buf[1] = NUL;
                 if g_min_log_level <= LOGLVL_DBG {
@@ -3184,8 +3181,7 @@ unsafe fn tui_get_stty_erase(input: *mut TermInput) -> *const c_char {
         }
         #[cfg(windows)]
         {
-            let rs = input_read_stream(input);
-            let uv_ptr = stream_uv_ptr(rs.cast());
+            let uv_ptr: *mut c_void = (&raw mut (*input).read_stream.s.uv).cast();
             let mut dw_mode: u32 = 0;
             if uv_handle_get_type(uv_ptr.cast()) == UV_TTY {
                 let tty_handle = *uv_ptr
