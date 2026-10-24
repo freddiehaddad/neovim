@@ -291,7 +291,7 @@ unsafe fn mapblock_free(mpp: *mut *mut mapblock_T) {
             xfree((*mp).m_desc.cast::<c_void>());
         }
         *mpp = (*mp).m_next;
-        xfree(mp.cast::<c_void>());
+        drop(Box::from_raw(mp));
     }
 }
 
@@ -645,7 +645,7 @@ unsafe fn map_add(
     simplified: bool,
 ) -> *mut mapblock_T {
     unsafe {
-        let mp = xcalloc(1, std::mem::size_of::<mapblock_T>()).cast::<mapblock_T>();
+        let mp = Box::into_raw(Box::new(std::mem::zeroed::<mapblock_T>()));
 
         if *keys == Ctrl_C {
             if ptr::eq(

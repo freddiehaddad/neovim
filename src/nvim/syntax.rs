@@ -26,7 +26,7 @@ use crate::mbyte::{
     mb_ptr_adv, mb_ptr_back, mb_strcmp_ic, utf_head_off, utf_ptr2char, utfc_ptr2len,
 };
 use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
-use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xstrdup};
+use crate::memory::{xfree, xmalloc, xmemcpyz, xstrdup};
 use crate::message::{
     emsg, msg, msg_advance, msg_ext_set_kind, msg_outnum, msg_outtrans, msg_outtrans_len,
     msg_putchar, msg_puts, msg_puts_hl, msg_puts_title, semsg,
@@ -92,8 +92,7 @@ pub struct synblock_T {
     pub b_syn_topgrp: c_int,
     pub b_syn_conceal: c_int,
     pub b_syn_folditems: c_int,
-    pub b_sst_array: *mut synstate_T,
-    pub b_sst_len: c_int,
+    pub b_sst_array: Vec<synstate_T>,
     pub b_sst_first: *mut synstate_T,
     pub b_sst_search: *mut synstate_T,
     pub b_sst_firstfree: *mut synstate_T,
@@ -265,6 +264,21 @@ pub struct synstate_T {
     pub sst_next_list: *mut i16,
     pub sst_tick: disptick_T,
     pub sst_change_lnum: linenr_T,
+}
+
+impl Default for synstate_T {
+    fn default() -> Self {
+        Self {
+            sst_next: ptr::null_mut(),
+            sst_lnum: 0,
+            sst_stack: Vec::new(),
+            sst_next_flags: 0,
+            sst_stacksize: 0,
+            sst_next_list: ptr::null_mut(),
+            sst_tick: 0,
+            sst_change_lnum: 0,
+        }
+    }
 }
 
 #[repr(C)]
@@ -495,7 +509,7 @@ pub unsafe fn syntax_start(wp: *mut win_T, lnum: linenr_T) {
         syn_win = wp;
 
         syn_stack_alloc();
-        if (*syn_block).b_sst_array.is_null() {
+        if (&*syn_block).b_sst_array.is_empty() {
             return;
         }
         (*syn_block).b_sst_lasttick = display_tick;
@@ -517,7 +531,7 @@ pub unsafe fn syntax_start(wp: *mut win_T, lnum: linenr_T) {
             invalidate_current_state();
         }
 
-        if invalid_state() && !(*syn_block).b_sst_array.is_null() {
+        if invalid_state() && !(&*syn_block).b_sst_array.is_empty() {
             let mut p = (*syn_block).b_sst_first.cast::<synstate_T>();
             while !p.is_null() {
                 if (*p).sst_lnum > lnum {
@@ -547,10 +561,11 @@ pub unsafe fn syntax_start(wp: *mut win_T, lnum: linenr_T) {
             current_lnum
         };
 
-        let dist = if (*syn_block).b_sst_len <= Rows {
+        let sst_len = (&*syn_block).b_sst_array.len() as c_int;
+        let dist = if sst_len <= Rows {
             999999
         } else {
-            (*syn_buf).b_ml.ml_line_count / ((*syn_block).b_sst_len - Rows) + 1
+            (*syn_buf).b_ml.ml_line_count / (sst_len - Rows) + 1
         };
 
         while current_lnum < lnum {
@@ -942,7 +957,7 @@ unsafe fn syn_stack_free_block(block: *mut synblock_T) {
     unsafe {
         idl_cache_clear(block);
 
-        if (*block).b_sst_array.is_null() {
+        if (&*block).b_sst_array.is_empty() {
             return;
         }
 
@@ -951,11 +966,9 @@ unsafe fn syn_stack_free_block(block: *mut synblock_T) {
             clear_syn_state(p);
             p = (*p).sst_next;
         }
-        xfree((*block).b_sst_array.cast());
-        (*block).b_sst_array = ptr::null_mut();
+        (&mut *block).b_sst_array = Vec::new();
         (*block).b_sst_first = ptr::null_mut();
         (*block).b_sst_search = ptr::null_mut();
-        (*block).b_sst_len = 0;
     }
 }
 
@@ -980,36 +993,37 @@ unsafe fn syn_stack_alloc() {
     unsafe {
         let mut len = ((*syn_buf).b_ml.ml_line_count / SST_DIST + Rows * 2)
             .clamp(SST_MIN_ENTRIES, SST_MAX_ENTRIES);
-        if (*syn_block).b_sst_len > len * 2 || (*syn_block).b_sst_len < len {
+        let cur_len = (&*syn_block).b_sst_array.len() as c_int;
+        if cur_len > len * 2 || cur_len < len {
             len = (*syn_buf).b_ml.ml_line_count;
             len = ((len + len / 2) / SST_DIST + Rows * 2).clamp(SST_MIN_ENTRIES, SST_MAX_ENTRIES);
 
-            if !(*syn_block).b_sst_array.is_null() {
-                while (*syn_block).b_sst_len - (*syn_block).b_sst_freecount + 2 > len
-                    && syn_stack_cleanup()
-                {}
-                if len < (*syn_block).b_sst_len - (*syn_block).b_sst_freecount + 2 {
-                    len = (*syn_block).b_sst_len - (*syn_block).b_sst_freecount + 2;
+            if !(&*syn_block).b_sst_array.is_empty() {
+                while cur_len - (*syn_block).b_sst_freecount + 2 > len && syn_stack_cleanup() {}
+                if len < cur_len - (*syn_block).b_sst_freecount + 2 {
+                    len = cur_len - (*syn_block).b_sst_freecount + 2;
                 }
             }
 
             debug_assert!(len >= 0);
-            let sstp = xcalloc(len as usize, size_of::<synstate_T>()).cast::<synstate_T>();
+            let ulen = len as usize;
+            let mut new_vec: Vec<synstate_T> = Vec::with_capacity(ulen);
+            new_vec.resize_with(ulen, synstate_T::default);
+            let sstp = new_vec.as_mut_ptr();
 
             let mut copied: usize = 0;
-            if !(*syn_block).b_sst_array.is_null() {
+            if !(&*syn_block).b_sst_array.is_empty() {
                 let mut from = (*syn_block).b_sst_first;
                 while !from.is_null() {
-                    let to = sstp.add(copied);
                     let next_from = (*from).sst_next;
-                    ptr::copy_nonoverlapping(from, to, 1);
-                    (*to).sst_next = to.add(1);
+                    new_vec[copied] = std::mem::take(&mut *from);
+                    new_vec[copied].sst_next = sstp.add(copied + 1);
                     copied += 1;
                     from = next_from;
                 }
             }
             if copied > 0 {
-                (*sstp.add(copied - 1)).sst_next = ptr::null_mut();
+                new_vec[copied - 1].sst_next = ptr::null_mut();
                 (*syn_block).b_sst_first = sstp;
                 (*syn_block).b_sst_freecount = len - copied as c_int;
             } else {
@@ -1018,21 +1032,15 @@ unsafe fn syn_stack_alloc() {
             }
 
             (*syn_block).b_sst_firstfree = sstp.add(copied);
-            let ulen = len as usize;
-            let mut idx = copied;
-            while idx < ulen {
-                ptr::write(&raw mut (*sstp.add(idx)).sst_stack, Vec::new());
-                if idx + 1 < ulen {
-                    (*sstp.add(idx)).sst_next = sstp.add(idx + 1);
+            for (idx, item) in new_vec.iter_mut().enumerate().skip(copied) {
+                item.sst_next = if idx + 1 < ulen {
+                    sstp.add(idx + 1)
                 } else {
-                    (*sstp.add(idx)).sst_next = ptr::null_mut();
-                }
-                idx += 1;
+                    ptr::null_mut()
+                };
             }
 
-            xfree((*syn_block).b_sst_array.cast());
-            (*syn_block).b_sst_array = sstp;
-            (*syn_block).b_sst_len = len;
+            (&mut *syn_block).b_sst_array = new_vec;
             (*syn_block).b_sst_search = ptr::null_mut();
         }
     }
@@ -1100,10 +1108,11 @@ unsafe fn syn_stack_cleanup() -> bool {
             return retval;
         }
 
-        let dist = if (*syn_block).b_sst_len <= Rows {
+        let sst_len = (&*syn_block).b_sst_array.len() as c_int;
+        let dist = if sst_len <= Rows {
             999999
         } else {
-            (*syn_buf).b_ml.ml_line_count / ((*syn_block).b_sst_len - Rows) + 1
+            (*syn_buf).b_ml.ml_line_count / (sst_len - Rows) + 1
         };
 
         let mut tick = (*syn_block).b_sst_lasttick;
@@ -1449,7 +1458,7 @@ pub unsafe fn get_syntax_attr(col: colnr_T, can_spell: *mut bool, keep_state: bo
             };
         }
 
-        if (*syn_block).b_sst_array.is_null() {
+        if (&*syn_block).b_sst_array.is_empty() {
             return 0;
         }
 
@@ -5155,6 +5164,7 @@ pub unsafe fn ex_ownsyntax(eap: *mut exarg_T) {
             );
             ptr::write(&raw mut (*new_s).b_syn_patterns, Vec::new());
             ptr::write(&raw mut (*new_s).b_syn_clusters, Vec::new());
+            ptr::write(&raw mut (*new_s).b_sst_array, Vec::new());
             ptr::write(&raw mut (*new_s).b_langp, Vec::new());
             ptr::write(&raw mut (*new_s).b_idlist_cache, None);
             let _ = Box::into_raw(new_s_uninit);

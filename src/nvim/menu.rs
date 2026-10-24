@@ -19,7 +19,7 @@ use crate::globals::*;
 use crate::input::{REMAP_SCRIPT, ins_typebuf, tasave_T};
 use crate::keycodes::{REPTERM_DO_LT, replace_termcodes};
 use crate::mbyte::{utf_char2bytes, utfc_ptr2len};
-use crate::memory::{xcalloc, xfree, xmalloc, xmemdupz, xstrdup, xstrlcpy};
+use crate::memory::{xfree, xmalloc, xmemdupz, xstrdup, xstrlcpy};
 use crate::message::{
     emsg, msg_outnum, msg_outtrans, msg_outtrans_special, msg_putchar, msg_puts, msg_puts_hl,
     msg_puts_title, semsg, str2special_save,
@@ -472,7 +472,7 @@ unsafe fn add_menu_path(
                     return cleanup_erret(path_name, dname, parent, root_menu_ptr);
                 }
 
-                menu = xcalloc(1, size_of::<vimmenu_T>()).cast::<vimmenu_T>();
+                menu = Box::into_raw(Box::new(std::mem::zeroed::<vimmenu_T>()));
                 (*menu).modes = modes;
                 (*menu).enabled = MENU_ALL_MODES;
                 (*menu).name = xstrdup(name);
@@ -709,7 +709,7 @@ unsafe fn free_menu(menup: *mut *mut vimmenu_T) {
         for i in 0..MENU_MODES {
             free_menu_string(menu, i);
         }
-        xfree(menu.cast());
+        drop(Box::from_raw(menu));
     }
 }
 

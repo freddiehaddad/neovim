@@ -2198,7 +2198,7 @@ unsafe fn qf_add_entry(
 ) -> c_int {
     unsafe {
         let buf: *mut buf_T;
-        let qfp = xmalloc(size_of::<qfline_T>()).cast::<qfline_T>();
+        let qfp = Box::into_raw(Box::new(std::mem::zeroed::<qfline_T>()));
         let mut fullname: *mut c_char = ptr::null_mut();
 
         if bufnum != 0 {
@@ -3870,7 +3870,7 @@ unsafe fn qf_free_items(qfl: *mut qf_list_T) {
                 xfree((*qfp).qf_pattern.cast());
                 tv_clear(&raw mut (*qfp).qf_user_data);
                 stop = qfp == qfpnext;
-                xfree(qfp.cast());
+                drop(Box::from_raw(qfp));
                 if stop {
                     (*qfl).qf_count = 1;
                 } else {

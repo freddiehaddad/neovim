@@ -43,7 +43,7 @@ use crate::lua::converter::LuaRef;
 use crate::lua::executor::{kRetNilBool, nlua_call_ref, nlua_set_sctx};
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strcmp_ic;
-use crate::memory::{xcalloc, xfree, xmalloc, xmallocz, xmemdupz, xstrdup};
+use crate::memory::{xcalloc, xfree, xmallocz, xmemdupz, xstrdup};
 use crate::message::{
     emsg, give_warning, msg_advance, msg_clr_eos, msg_end, msg_ext_set_kind, msg_outtrans,
     msg_putchar, msg_puts, msg_puts_hl, msg_puts_title, msg_start, semsg, smsg, verbose_enter,
@@ -1620,7 +1620,7 @@ unsafe fn aucmd_del(ac: *mut AutoCmd) {
                 xfree((*(*ac).pat).pat.cast());
                 (*(*ac).pat).pat = ptr::null_mut();
                 vim_regfree((*(*ac).pat).reg_prog);
-                xfree((*ac).pat.cast());
+                drop(Box::from_raw((*ac).pat));
             }
         }
         (*ac).pat = ptr::null_mut();
@@ -2302,7 +2302,7 @@ pub unsafe fn autocmd_register(
         }
 
         if ap.is_null() {
-            ap = xmalloc(size_of::<AutoPat>()).cast::<AutoPat>();
+            ap = Box::into_raw(Box::new(std::mem::zeroed::<AutoPat>()));
             if is_buflocal {
                 (*ap).buflocal_nr = buflocal_nr;
                 (*ap).reg_prog = ptr::null_mut();
@@ -2321,7 +2321,7 @@ pub unsafe fn autocmd_register(
                 }
                 xfree(reg_pat.cast());
                 if reg_pat.is_null() || (*ap).reg_prog.is_null() {
-                    xfree(ap.cast());
+                    drop(Box::from_raw(ap));
                     return FAIL;
                 }
             }
@@ -2535,27 +2535,27 @@ pub unsafe fn aucmd_defer(
     data: *mut Object,
 ) {
     unsafe {
-        let evdata = xmalloc(size_of::<AutoCmdEvent>()).cast::<AutoCmdEvent>();
-        (*evdata).event = event;
-        (*evdata).fname = if !fname.is_null() {
-            xstrdup(fname)
-        } else {
-            ptr::null_mut()
-        };
-        (*evdata).fname_io = if !fname_io.is_null() {
-            xstrdup(fname_io)
-        } else {
-            ptr::null_mut()
-        };
-        (*evdata).group = group;
-        (*evdata).buf = (*buf).b_fnum;
-        (*evdata).eap = eap;
-        if !data.is_null() {
-            (*evdata).data = xmalloc(size_of::<Object>()).cast::<Object>();
-            *(*evdata).data = copy_object(*data, ptr::null_mut());
-        } else {
-            (*evdata).data = ptr::null_mut();
-        }
+        let evdata = Box::into_raw(Box::new(AutoCmdEvent {
+            event,
+            fname: if !fname.is_null() {
+                xstrdup(fname)
+            } else {
+                ptr::null_mut()
+            },
+            fname_io: if !fname_io.is_null() {
+                xstrdup(fname_io)
+            } else {
+                ptr::null_mut()
+            },
+            group,
+            buf: (*buf).b_fnum,
+            eap,
+            data: if !data.is_null() {
+                Box::into_raw(Box::new(copy_object(*data, ptr::null_mut())))
+            } else {
+                ptr::null_mut()
+            },
+        }));
 
         let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
         argv[0] = evdata.cast();
@@ -2617,9 +2617,9 @@ unsafe fn deferred_event(argv: *mut *mut c_void) {
         xfree(fname_io.cast());
         if !data.is_null() {
             api_free_object(*data);
-            xfree(data.cast());
+            drop(Box::from_raw(data));
         }
-        xfree(e.cast());
+        drop(Box::from_raw(e));
     }
 }
 

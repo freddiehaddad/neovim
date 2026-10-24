@@ -183,7 +183,7 @@ pub unsafe fn alist_unlink(al: *mut alist_T) {
             (*al).al_refcount -= 1;
             if (*al).al_refcount <= 0 {
                 alist_clear(al);
-                xfree(al.cast());
+                drop(Box::from_raw(al));
             }
         }
     }
@@ -192,11 +192,12 @@ pub unsafe fn alist_unlink(al: *mut alist_T) {
 /// Create a new argument list and use it for the current window (`alist_new`).
 pub unsafe fn alist_new() {
     unsafe {
-        let al: *mut alist_T = xmalloc(size_of::<alist_T>()).cast();
-        (*al).al_refcount = 1;
         max_alist_id += 1;
-        (*al).id = max_alist_id;
-        alist_init(al);
+        let al = Box::into_raw(Box::new(alist_T {
+            al_ga: Vec::new(),
+            al_refcount: 1,
+            id: max_alist_id,
+        }));
         (*curwin).w_alist = al;
     }
 }

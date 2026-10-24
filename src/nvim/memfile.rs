@@ -192,7 +192,7 @@ pub unsafe fn mf_close(mfp: *mut memfile_T, del_file: bool) {
             mf_free_bhdr(hp);
         }
         while !(*mfp).mf_free_first.is_null() {
-            xfree(mf_rem_free(mfp).cast());
+            drop(Box::from_raw(mf_rem_free(mfp)));
         }
         mf_free_fnames(mfp);
         drop(Box::from_raw(mfp));
@@ -463,17 +463,19 @@ pub unsafe fn mf_release_all() -> bool {
 
 unsafe fn mf_alloc_bhdr(mfp: *mut memfile_T, page_count: c_uint) -> *mut bhdr_T {
     unsafe {
-        let hp = xmalloc(size_of::<bhdr_T>()).cast::<bhdr_T>();
-        (*hp).bh_data = xmalloc(((*mfp).mf_page_size as usize) * (page_count as usize));
-        (*hp).bh_page_count = page_count;
-        hp
+        Box::into_raw(Box::new(bhdr_T {
+            bh_bnum: 0,
+            bh_data: xmalloc(((*mfp).mf_page_size as usize) * (page_count as usize)),
+            bh_page_count: page_count,
+            bh_flags: 0,
+        }))
     }
 }
 
 unsafe fn mf_free_bhdr(hp: *mut bhdr_T) {
     unsafe {
         xfree((*hp).bh_data);
-        xfree(hp.cast());
+        drop(Box::from_raw(hp));
     }
 }
 

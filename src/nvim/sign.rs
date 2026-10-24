@@ -40,7 +40,7 @@ use crate::marktree::{
     mt_decor, mt_decor_sign, mt_end,
 };
 use crate::mbyte::{utf_ptr2cells, utfc_ptr2len, utfc_ptr2schar};
-use crate::memory::{xcalloc, xfree, xstrdup};
+use crate::memory::{xfree, xstrdup};
 use crate::message::{
     emsg, msg_outtrans, msg_putchar, msg_puts, msg_puts_hl, msg_puts_title, semsg, smsg,
 };
@@ -558,7 +558,7 @@ unsafe fn sign_define_by_name(
         let existing = pmap_get_sign(name);
         let new_sign = existing.is_null();
         let sp = if new_sign {
-            let new_sp = xcalloc(1, size_of::<sign_T>()).cast::<sign_T>();
+            let new_sp = Box::into_raw(Box::new(std::mem::zeroed::<sign_T>()));
             (*new_sp).sn_name = xstrdup(name);
             let sm_ptr = &raw mut sign_map;
             (*sm_ptr).push(new_sp);
@@ -634,7 +634,7 @@ unsafe fn sign_undefine_by_name(name: *const c_char) -> c_int {
 
         xfree((*sp).sn_name.cast());
         xfree((*sp).sn_icon.cast());
-        xfree(sp.cast());
+        drop(Box::from_raw(sp));
         OK
     }
 }
@@ -1261,7 +1261,7 @@ pub unsafe fn free_signs() {
         for sp in (*sm_ptr).drain(..) {
             xfree((*sp).sn_name.cast());
             xfree((*sp).sn_icon.cast());
-            xfree(sp.cast());
+            drop(Box::from_raw(sp));
         }
         *sm_ptr = Vec::new();
     }

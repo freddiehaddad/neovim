@@ -2146,7 +2146,7 @@ unsafe fn tv_dict_watcher_free(watcher: *mut DictWatcher) {
     unsafe {
         callback_free(&raw mut (*watcher).callback);
         xfree((*watcher).key_pattern.cast());
-        xfree(watcher.cast());
+        drop(Box::from_raw(watcher));
     }
 }
 
@@ -2161,12 +2161,13 @@ pub unsafe fn tv_dict_watcher_add(
         if dict.is_null() {
             return;
         }
-        let watcher = xmalloc(size_of::<DictWatcher>()).cast::<DictWatcher>();
-        (*watcher).key_pattern = xmemdupz(key_pattern.cast(), key_pattern_len).cast::<c_char>();
-        (*watcher).key_pattern_len = key_pattern_len;
-        (*watcher).callback = callback;
-        (*watcher).busy = false;
-        (*watcher).needs_free = false;
+        let watcher = Box::into_raw(Box::new(DictWatcher {
+            key_pattern: xmemdupz(key_pattern.cast(), key_pattern_len).cast::<c_char>(),
+            key_pattern_len,
+            callback,
+            busy: false,
+            needs_free: false,
+        }));
         (*dict).watchers.push(watcher);
     }
 }

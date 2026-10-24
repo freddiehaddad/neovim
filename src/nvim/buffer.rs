@@ -446,6 +446,7 @@ impl buf_T {
             );
             ptr::write(&raw mut (*buf).b_s.b_syn_patterns, Vec::new());
             ptr::write(&raw mut (*buf).b_s.b_syn_clusters, Vec::new());
+            ptr::write(&raw mut (*buf).b_s.b_sst_array, Vec::new());
             ptr::write(&raw mut (*buf).b_s.b_langp, Vec::new());
             ptr::write(&raw mut (*buf).b_s.b_idlist_cache, None);
             ptr::write(&raw mut (*buf).b_ml.ml_stack, Vec::new());

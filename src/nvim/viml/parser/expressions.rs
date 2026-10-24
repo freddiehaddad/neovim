@@ -1099,7 +1099,7 @@ pub unsafe fn viml_pexpr_free_ast(mut ast: ExprAST) {
                 {
                     xfree((**cur_node).data.str.value.cast());
                 }
-                xfree((*cur_node).cast());
+                drop(Box::from_raw(*cur_node));
                 *cur_node = std::ptr::null_mut();
             }
         }
@@ -1109,11 +1109,11 @@ pub unsafe fn viml_pexpr_free_ast(mut ast: ExprAST) {
 #[inline]
 unsafe fn viml_pexpr_new_node(node_type: ExprASTNodeType) -> *mut ExprASTNode {
     unsafe {
-        let ret = xmalloc(std::mem::size_of::<ExprASTNode>()).cast::<ExprASTNode>();
-        (*ret).r#type = node_type;
-        (*ret).children = std::ptr::null_mut();
-        (*ret).next = std::ptr::null_mut();
-        ret
+        let mut ret = Box::new(std::mem::zeroed::<ExprASTNode>());
+        ret.r#type = node_type;
+        ret.children = std::ptr::null_mut();
+        ret.next = std::ptr::null_mut();
+        Box::into_raw(ret)
     }
 }
 

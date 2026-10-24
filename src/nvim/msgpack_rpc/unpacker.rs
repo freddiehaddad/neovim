@@ -782,14 +782,15 @@ pub unsafe fn unpacker_parse_redraw(p: *mut Unpacker) -> bool {
                     p.grid_line_event.clear_width = repeat;
                 } else {
                     let sc = schar_from_buf(cellbuf, cellsize);
+                    let char_buf = &raw const grid_line_buf_char;
                     for _ in 0..repeat {
-                        if p.grid_line_event.coloff >= (grid_line_buf_size as c_int) {
+                        if p.grid_line_event.coloff >= ((*char_buf).len() as c_int) {
                             p.state = -1;
                             return false;
                         }
                         let off = p.grid_line_event.coloff as usize;
-                        *grid_line_buf_char.add(off) = sc;
-                        *grid_line_buf_attr.add(off) = p.grid_line_event.cur_attr;
+                        grid_line_buf_char[off] = sc;
+                        grid_line_buf_attr[off] = p.grid_line_event.cur_attr;
                         p.grid_line_event.coloff += 1;
                     }
                 }

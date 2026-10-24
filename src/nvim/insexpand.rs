@@ -79,7 +79,7 @@ use crate::mbyte::{
 };
 use crate::memline::{dec, ml_delete, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
 use crate::memory::{
-    mergesort_list, strequal, xcalloc, xfree, xmalloc, xmemdupz, xstrdup, xstrlcpy,
+    mergesort_list, strequal, xfree, xmalloc, xmemdupz, xstrdup, xstrlcpy,
 };
 use crate::message::{
     emsg, internal_error, msg, msg_clr_cmdline, msg_delay, msg_ext_set_kind, msg_progress, semsg,
@@ -1056,7 +1056,7 @@ unsafe fn ins_compl_add(
 
         ins_compl_del_pum();
 
-        let match_ = xcalloc(1, size_of::<compl_T>()).cast::<compl_T>();
+        let match_ = Box::into_raw(Box::new(std::mem::zeroed::<compl_T>()));
         (*match_).cp_number = if (flags & CP_ORIGINAL_TEXT) != 0 {
             0
         } else {
@@ -2332,7 +2332,7 @@ unsafe fn ins_compl_item_free(match_: *mut compl_T) {
         free_cptext((*match_).cp_text.as_ptr());
         tv_clear(&raw mut (*match_).cp_user_data);
         xfree((*match_).cp_commit_chars.cast());
-        xfree(match_.cast());
+        drop(Box::from_raw(match_));
     }
 }
 

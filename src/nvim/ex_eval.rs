@@ -15,7 +15,7 @@ use crate::eval::{
 };
 use crate::ex_docmd::{ends_excmd, exarg_T, find_nextcmd, handle_did_throw, modifier_len};
 use crate::globals::*;
-use crate::memory::{xfree, xmalloc, xrealloc, xstrdup, xstrlcpy};
+use crate::memory::{xfree, xrealloc, xstrdup, xstrlcpy};
 use crate::message::{emsg, internal_error, msg_puts, semsg, smsg, verbose_enter, verbose_leave};
 use crate::option_vars::*;
 use crate::regexp::{
@@ -249,11 +249,14 @@ pub unsafe fn cause_errthrow(
                 plist = &mut (**plist).next;
             }
 
-            let elem = xmalloc(std::mem::size_of::<msglist_T>()).cast::<msglist_T>();
-            (*elem).msg = xstrdup(mesg);
-            (*elem).multiline = multiline;
-            (*elem).next = ptr::null_mut();
-            (*elem).throw_msg = ptr::null_mut();
+            let elem = Box::into_raw(Box::new(msglist_T {
+                msg: xstrdup(mesg),
+                throw_msg: ptr::null_mut(),
+                sfile: ptr::null_mut(),
+                slnum: 0,
+                multiline,
+                next: ptr::null_mut(),
+            }));
             *plist = elem;
             if ptr::eq(plist, msg_list) || severe {
                 let tmsg = (*elem).msg;
@@ -284,7 +287,7 @@ unsafe fn free_msglist(l: *mut msglist_T) {
             let next = (*messages).next;
             xfree((*messages).msg.cast());
             xfree((*messages).sfile.cast());
-            xfree(messages.cast());
+            drop(Box::from_raw(messages));
             messages = next;
         }
     }
@@ -430,8 +433,7 @@ unsafe fn throw_exception(
             }
         }
 
-        let excp = xmalloc(std::mem::size_of::<except_T>()).cast::<except_T>();
-        ptr::write_bytes(excp, 0, 1);
+        let excp = Box::into_raw(Box::new(std::mem::zeroed::<except_T>()));
 
         if r#type == ET_ERROR {
             (*excp).messages = value.cast();
@@ -440,7 +442,7 @@ unsafe fn throw_exception(
         let mut should_free = false;
         (*excp).value = get_exception_string(value, r#type, cmdname, &mut should_free);
         if (*excp).value.is_null() && should_free {
-            xfree(excp.cast());
+            drop(Box::from_raw(excp));
             suppress_errthrow = true;
             emsg(gettext(e_outofmem.as_ptr()));
             current_exception = ptr::null_mut();
@@ -544,7 +546,7 @@ unsafe fn discard_exception(excp: *mut except_T, was_finished: bool) {
         }
         xfree((*excp).throw_name.cast());
         tv_list_unref((*excp).stacktrace);
-        xfree(excp.cast());
+        drop(Box::from_raw(excp));
     }
 }
 

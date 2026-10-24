@@ -21,7 +21,6 @@ use crate::fileio::close;
 #[cfg(not(windows))]
 use crate::fileio::dup;
 use crate::globals::*;
-use crate::grid::{sattr_T, schar_T};
 use crate::highlight::{HLATTRS_INIT, HlAttrs, KeyDict_highlight, dict2hlattrs};
 use crate::log::{LOGLVL_ERR, LOGLVL_INF, logmsg};
 use crate::main_init::os_exit;
@@ -389,14 +388,11 @@ pub unsafe fn ui_client_event_grid_resize(args: Array) {
         let height = (*args.items.add(2)).data.integer;
         tui_grid_resize(tui, grid, width, height);
 
-        if grid_line_buf_size < width as usize {
-            xfree(grid_line_buf_char.cast());
-            xfree(grid_line_buf_attr.cast());
-            grid_line_buf_size = width as usize;
-            grid_line_buf_char =
-                xmalloc(grid_line_buf_size * size_of::<schar_T>()).cast::<schar_T>();
-            grid_line_buf_attr =
-                xmalloc(grid_line_buf_size * size_of::<sattr_T>()).cast::<sattr_T>();
+        let cols = width as usize;
+        let char_buf = &raw const grid_line_buf_char;
+        if (*char_buf).len() < cols {
+            grid_line_buf_char = vec![0; cols];
+            grid_line_buf_attr = vec![0; cols];
         }
     }
 }
@@ -414,6 +410,8 @@ pub unsafe fn ui_client_event_raw_line(g: *mut GridLineEvent) {
         let clearcol = endcol + Integer::from((*g).clear_width);
         let lineflags = if (*g).wrap { kLineFlagWrap } else { 0 };
 
+        let char_buf = &raw mut grid_line_buf_char;
+        let attr_buf = &raw mut grid_line_buf_attr;
         tui_raw_line(
             tui,
             Integer::from(grid),
@@ -423,8 +421,8 @@ pub unsafe fn ui_client_event_raw_line(g: *mut GridLineEvent) {
             clearcol,
             Integer::from((*g).cur_attr),
             lineflags,
-            grid_line_buf_char,
-            grid_line_buf_attr,
+            (*char_buf).as_mut_ptr(),
+            (*attr_buf).as_mut_ptr(),
         );
     }
 }
@@ -647,8 +645,8 @@ pub unsafe fn ui_client_event_error_exit(args: Array) {
 pub unsafe fn ui_client_free_all_mem() {
     unsafe {
         tui_free_all_mem(tui);
-        xfree(grid_line_buf_char.cast());
-        xfree(grid_line_buf_attr.cast());
+        grid_line_buf_char = Vec::new();
+        grid_line_buf_attr = Vec::new();
     }
 }
 
