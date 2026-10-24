@@ -312,7 +312,6 @@ unsafe fn mb_ptr_adv_const(p: *mut *const c_char) {
 pub struct compl_T {
     pub cp_next: *mut compl_T,
     pub cp_prev: *mut compl_T,
-    pub cp_match_next: *mut compl_T,
     pub cp_str: NvimString,
     pub cp_text: [*mut c_char; CPT_COUNT],
     pub cp_user_data: typval_T,
@@ -327,6 +326,20 @@ pub struct compl_T {
     pub cp_user_abbr_hl_id: c_int,
     pub cp_user_kind_hl_id: c_int,
     pub cp_cpt_source_idx: c_int,
+}
+
+impl Drop for compl_T {
+    fn drop(&mut self) {
+        unsafe {
+            api_clear_string(&raw mut self.cp_str);
+            if (self.cp_flags & CP_FREE_FNAME) != 0 {
+                xfree(self.cp_fname.cast());
+            }
+            free_cptext(self.cp_text.as_ptr());
+            tv_clear(&raw mut self.cp_user_data);
+            xfree(self.cp_commit_chars.cast());
+        }
+    }
 }
 
 /// State information used for getting the next set of insert completion matches.
@@ -1056,62 +1069,70 @@ unsafe fn ins_compl_add(
 
         ins_compl_del_pum();
 
-        let match_ = Box::into_raw(Box::new(std::mem::zeroed::<compl_T>()));
-        (*match_).cp_number = if (flags & CP_ORIGINAL_TEXT) != 0 {
-            0
-        } else {
-            -1
-        };
-        (*match_).cp_order = -1;
         let new_str = xstrnsave(str_ptr, len as usize);
-        (*match_).cp_str = cbuf_as_string(new_str, len as usize);
-        (*match_).cp_commit_chars = commit_chars;
-        (*match_).cp_preselect = preselect;
-        if preselect
-            && compl_preselect_match.is_null()
-            && (get_cot_flags() & kOptCotFlagPreselect) != 0
-        {
-            compl_preselect_match = match_;
-        }
-
-        if !fname.is_null()
+        let cp_fname = if !fname.is_null()
             && !compl_curr_match.is_null()
             && !(*compl_curr_match).cp_fname.is_null()
             && strcmp(fname, (*compl_curr_match).cp_fname) == 0
         {
-            (*match_).cp_fname = (*compl_curr_match).cp_fname;
+            (*compl_curr_match).cp_fname
         } else if !fname.is_null() {
-            (*match_).cp_fname = xstrdup(fname);
             flags |= CP_FREE_FNAME;
+            xstrdup(fname)
         } else {
-            (*match_).cp_fname = ptr::null_mut();
-        }
-        (*match_).cp_flags = flags;
-        (*match_).cp_user_abbr_hl_id = if !user_hl.is_null() { *user_hl } else { 0 };
-        (*match_).cp_user_kind_hl_id = if !user_hl.is_null() {
-            *user_hl.add(1)
-        } else {
-            0
+            ptr::null_mut()
         };
-        (*match_).cp_score = score;
-        (*match_).cp_cpt_source_idx = cpt_sources_index;
-
+        let mut cp_text = [ptr::null_mut(); CPT_COUNT];
         if !cptext.is_null() {
-            for i in 0..CPT_COUNT {
+            for (slot, i) in cp_text.iter_mut().zip(0..CPT_COUNT) {
                 let s = *cptext.add(i);
                 if s.is_null() {
                     continue;
                 }
                 if *s != NUL {
-                    (*match_).cp_text[i] = if cptext_allocated { s } else { xstrdup(s) };
+                    *slot = if cptext_allocated { s } else { xstrdup(s) };
                 } else if cptext_allocated {
                     xfree(s.cast());
                 }
             }
         }
+        let cp_user_data = if !user_data.is_null() {
+            *user_data
+        } else {
+            crate::eval::typval::tv_initial_value()
+        };
 
-        if !user_data.is_null() {
-            (*match_).cp_user_data = *user_data;
+        let match_ = Box::into_raw(Box::new(compl_T {
+            cp_next: ptr::null_mut(),
+            cp_prev: ptr::null_mut(),
+            cp_str: cbuf_as_string(new_str, len as usize),
+            cp_text,
+            cp_user_data,
+            cp_fname,
+            cp_commit_chars: commit_chars,
+            cp_flags: flags,
+            cp_number: if (flags & CP_ORIGINAL_TEXT) != 0 {
+                0
+            } else {
+                -1
+            },
+            cp_order: -1,
+            cp_preselect: preselect,
+            cp_score: score,
+            cp_in_match_array: false,
+            cp_user_abbr_hl_id: if !user_hl.is_null() { *user_hl } else { 0 },
+            cp_user_kind_hl_id: if !user_hl.is_null() {
+                *user_hl.add(1)
+            } else {
+                0
+            },
+            cp_cpt_source_idx: cpt_sources_index,
+        }));
+        if preselect
+            && compl_preselect_match.is_null()
+            && (get_cot_flags() & kOptCotFlagPreselect) != 0
+        {
+            compl_preselect_match = match_;
         }
 
         if compl_first_match.is_null() {
@@ -1734,8 +1755,6 @@ unsafe fn get_user_highlight_attr(hl_id: c_int) -> c_int {
 
 unsafe fn ins_compl_build_pum() -> c_int {
     unsafe {
-        let mut compl_match_arraysize: c_int = 0;
-
         if ins_compl_need_restart() {
             api_clear_string(&raw mut compl_leader);
         }
@@ -1743,8 +1762,6 @@ unsafe fn ins_compl_build_pum() -> c_int {
         let compl_no_select = (get_cot_flags() & kOptCotFlagNoselect) != 0
             || (compl_autocomplete && !ins_compl_has_preinsert());
 
-        let mut match_head: *mut compl_T = ptr::null_mut();
-        let mut match_tail: *mut compl_T = ptr::null_mut();
         let is_forward = compl_shows_dir_forward();
         let cpt_sources = &raw const cpt_sources_array;
         let is_cpt_completion = !(*cpt_sources).is_empty();
@@ -1773,6 +1790,7 @@ unsafe fn ins_compl_build_pum() -> c_int {
 
         let _ = get_leader_for_startcol(ptr::null_mut(), true);
 
+        let mut items: Vec<pumitem_T> = Vec::new();
         let mut comp = compl_first_match;
         loop {
             (*comp).cp_in_match_array = false;
@@ -1804,14 +1822,24 @@ unsafe fn ins_compl_build_pum() -> c_int {
                 }
 
                 if !match_limit_exceeded {
-                    compl_match_arraysize += 1;
                     (*comp).cp_in_match_array = true;
-                    if match_head.is_null() {
-                        match_head = comp;
-                    } else {
-                        (*match_tail).cp_match_next = comp;
-                    }
-                    match_tail = comp;
+                    items.push(pumitem_T {
+                        pum_text: if !(*comp).cp_text[CPT_ABBR].is_null() {
+                            (*comp).cp_text[CPT_ABBR]
+                        } else {
+                            (*comp).cp_str.data
+                        },
+                        pum_kind: (*comp).cp_text[CPT_KIND],
+                        pum_extra: if !(*comp).cp_text[CPT_MENU].is_null() {
+                            (*comp).cp_text[CPT_MENU]
+                        } else {
+                            (*comp).cp_fname
+                        },
+                        pum_info: (*comp).cp_text[CPT_INFO],
+                        pum_cpt_source_idx: (*comp).cp_cpt_source_idx,
+                        pum_user_abbr_hlattr: get_user_highlight_attr((*comp).cp_user_abbr_hl_id),
+                        pum_user_kind_hlattr: get_user_highlight_attr((*comp).cp_user_kind_hl_id),
+                    });
 
                     if !shown_match_ok && !cot_fuzzy() {
                         if ptr::eq(comp, compl_shown_match) || did_find_shown_match {
@@ -1858,7 +1886,7 @@ unsafe fn ins_compl_build_pum() -> c_int {
             }
         }
 
-        if compl_match_arraysize == 0 {
+        if items.is_empty() {
             return -1;
         }
 
@@ -1868,32 +1896,6 @@ unsafe fn ins_compl_build_pum() -> c_int {
             cur = 0;
         }
 
-        debug_assert!(compl_match_arraysize >= 0);
-        let mut items = Vec::with_capacity(compl_match_arraysize as usize);
-
-        comp = match_head;
-        while !comp.is_null() {
-            items.push(pumitem_T {
-                pum_text: if !(*comp).cp_text[CPT_ABBR].is_null() {
-                    (*comp).cp_text[CPT_ABBR]
-                } else {
-                    (*comp).cp_str.data
-                },
-                pum_kind: (*comp).cp_text[CPT_KIND],
-                pum_extra: if !(*comp).cp_text[CPT_MENU].is_null() {
-                    (*comp).cp_text[CPT_MENU]
-                } else {
-                    (*comp).cp_fname
-                },
-                pum_info: (*comp).cp_text[CPT_INFO],
-                pum_cpt_source_idx: (*comp).cp_cpt_source_idx,
-                pum_user_abbr_hlattr: get_user_highlight_attr((*comp).cp_user_abbr_hl_id),
-                pum_user_kind_hlattr: get_user_highlight_attr((*comp).cp_user_kind_hl_id),
-            });
-            let match_next = (*comp).cp_match_next;
-            (*comp).cp_match_next = ptr::null_mut();
-            comp = match_next;
-        }
         compl_match_array = items;
 
         if !shown_match_ok {
@@ -2325,13 +2327,6 @@ unsafe fn ins_compl_item_free(match_: *mut compl_T) {
                 }
             }
         }
-        api_clear_string(&raw mut (*match_).cp_str);
-        if ((*match_).cp_flags & CP_FREE_FNAME) != 0 {
-            xfree((*match_).cp_fname.cast());
-        }
-        free_cptext((*match_).cp_text.as_ptr());
-        tv_clear(&raw mut (*match_).cp_user_data);
-        xfree((*match_).cp_commit_chars.cast());
         drop(Box::from_raw(match_));
     }
 }
