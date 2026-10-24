@@ -95,7 +95,7 @@ use crate::mcursor::{kOptFollow, mc_ins_replay_can_join};
 use crate::memfile::mf_close_file;
 use crate::memline::{ml_open_file, ml_open_files};
 use crate::memory::{
-    Arena, strequal, strnequal, xfree, xmalloc, xmemcpyz, xmemdupz, xrealloc, xstrdup,
+    Arena, strequal, strnequal, xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz, xstrdup,
     xstrlcpy,
 };
 use crate::message::{
@@ -904,11 +904,12 @@ pub unsafe fn set_init_1(clean_arg: bool) {
         set_init_default_backupskip();
         set_init_default_cdpath();
 
-        let mut backupdir = stdpaths_user_state_subpath(c"backup".as_ptr(), 2, true);
-        let backupdir_len = strlen(backupdir);
-        backupdir = xrealloc(backupdir.cast(), backupdir_len + 3).cast::<c_char>();
-        ptr::copy(backupdir, backupdir.add(2), backupdir_len + 1);
+        let raw_backupdir = stdpaths_user_state_subpath(c"backup".as_ptr(), 2, true);
+        let backupdir_len = strlen(raw_backupdir);
+        let backupdir = xmallocz(backupdir_len + 2).cast::<c_char>();
         ptr::copy_nonoverlapping(b".,".as_ptr().cast::<c_char>(), backupdir, 2);
+        ptr::copy_nonoverlapping(raw_backupdir, backupdir.add(2), backupdir_len);
+        xfree(raw_backupdir.cast());
         set_string_default(kOptBackupdir, backupdir, true);
         set_string_default(
             kOptViewdir,

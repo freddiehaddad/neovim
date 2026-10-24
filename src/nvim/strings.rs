@@ -16,11 +16,11 @@ use crate::ex_docmd::find_cmdline_var;
 use crate::math::{FAIL, OK, xisinf, xisnan};
 use crate::mbyte::{
     mb_copy_char, mb_cptr2char_adv, mb_ptr2char_adv, mb_string2cells, mb_tolower, mb_toupper,
-    utf_char2bytes, utf_char2len, utf_head_off, utf_ptr2StrCharInfo, utf_ptr2cells, utf_ptr2char,
-    utf_ptr2len, utfc_ptr2len,
+    utf_char2bytes, utf_head_off, utf_ptr2StrCharInfo, utf_ptr2cells, utf_ptr2char, utf_ptr2len,
+    utfc_ptr2len,
 };
 use crate::memory::{
-    xfree, xmalloc, xmallocz, xmemdupz, xmemscan, xrealloc, xstrchrnul, xstrlcpy,
+    xfree, xmalloc, xmallocz, xmemdupz, xmemscan, xstrchrnul, xstrlcpy,
 };
 use crate::message::{emsg, semsg};
 use crate::option::{csh_like_shell, fish_like_shell};
@@ -1080,9 +1080,8 @@ pub unsafe fn mb_strup_buf(src: *const c_char, dst: *mut c_char) -> usize {
 
 pub unsafe fn strcase_save(orig: *const c_char, upper: bool) -> *mut c_char {
     unsafe {
-        let mut orig_len = CStr::from_ptr(orig).to_bytes().len();
-        let mut res = xmalloc(orig_len + 1).cast::<c_char>();
-        let mut res_index: usize = 0;
+        let orig_len = CStr::from_ptr(orig).to_bytes().len();
+        let mut res = Vec::<c_char>::with_capacity(orig_len + 1);
         let mut p = orig;
 
         while *p != NUL {
@@ -1093,21 +1092,13 @@ pub unsafe fn strcase_save(orig: *const c_char, upper: bool) -> *mut c_char {
                 char_info.value
             };
             let newc = if upper { mb_toupper(c) } else { mb_tolower(c) };
-            let newl = utf_char2len(newc) as usize;
-
-            if res_index + newl > orig_len {
-                let new_size = res_index + newl + 1;
-                res = xrealloc(res.cast(), new_size).cast::<c_char>();
-                orig_len = new_size - 1;
-            }
-
-            utf_char2bytes(newc, res.add(res_index));
-            res_index += newl;
+            let mut mb = [0 as c_char; MB_MAXBYTES];
+            let newl = utf_char2bytes(newc, mb.as_mut_ptr()) as usize;
+            res.extend_from_slice(&mb[..newl]);
             p = p.add(char_info.len as usize);
         }
 
-        *res.add(res_index) = NUL;
-        res
+        xmemdupz(res.as_ptr().cast(), res.len()).cast::<c_char>()
     }
 }
 

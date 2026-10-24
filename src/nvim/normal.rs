@@ -114,7 +114,7 @@ use crate::mcursor::{
     mc_buf_has_cursors, mc_counter, mc_follow_set, mc_replaying, mc_showcmd, mc_toggle, mc_zq_start,
 };
 use crate::memline::{goto_byte, inc, ml_delete_flags, ml_get, ml_get_buf, ml_get_len, ml_get_pos};
-use crate::memory::{xfree, xmalloc, xmemdupz, xrealloc, xstrdup, xstrlcpy};
+use crate::memory::{xfree, xmalloc, xmemdupz, xstrdup, xstrlcpy};
 use crate::message::{
     NIL_OBJ, emsg, may_clear_sb_text, messaging, msg, msg_delay, msg_ext_set_trigger,
     msg_grid_validate, show_sb_text, wait_return,
@@ -4418,8 +4418,7 @@ unsafe fn nv_ident(cap: *mut cmdarg_T) {
         }
         let kp_ex = *kp == b':' as c_char;
         let bufsize = n * 2 + 30 + strlen(kp);
-        let mut buf: *mut c_char = xmalloc(bufsize).cast();
-        *buf = NUL;
+        let mut buf_vec = vec![0 as c_char; bufsize];
         let mut buflen: usize = 0;
 
         match cmdchar {
@@ -4428,7 +4427,7 @@ unsafe fn nv_ident(cap: *mut cmdarg_T) {
                 (*curwin).w_cursor.col = ptr.offset_from(get_cursor_line_ptr()) as colnr_T;
 
                 if !g_cmd && vim_iswordp(ptr) {
-                    strcpy(buf, c"\\<".as_ptr());
+                    strcpy(buf_vec.as_mut_ptr(), c"\\<".as_ptr());
                     buflen = 2;
                 }
                 Search.no_smartcase = true;
@@ -4441,7 +4440,7 @@ unsafe fn nv_ident(cap: *mut cmdarg_T) {
                     kp_ex,
                     &raw mut ptr,
                     n,
-                    buf,
+                    buf_vec.as_mut_ptr(),
                     bufsize,
                     &raw mut buflen,
                 );
@@ -4451,23 +4450,23 @@ unsafe fn nv_ident(cap: *mut cmdarg_T) {
             }
             c if c == b']' as c_int => {
                 tag_cmd = true;
-                strcpy(buf, c"tselect ".as_ptr());
+                strcpy(buf_vec.as_mut_ptr(), c"tselect ".as_ptr());
                 buflen = 8;
             }
             _ => {
                 tag_cmd = true;
                 if (*curbuf).b_help {
-                    strcpy(buf, c"help! ".as_ptr());
+                    strcpy(buf_vec.as_mut_ptr(), c"help! ".as_ptr());
                     buflen = 6;
                 } else if g_cmd {
-                    strcpy(buf, c"tjump ".as_ptr());
+                    strcpy(buf_vec.as_mut_ptr(), c"tjump ".as_ptr());
                     buflen = 6;
                 } else if (*cap).count0 == 0 {
-                    strcpy(buf, c"tag ".as_ptr());
+                    strcpy(buf_vec.as_mut_ptr(), c"tag ".as_ptr());
                     buflen = 4;
                 } else {
                     buflen = vim_snprintf!(
-                        buf,
+                        buf_vec.as_mut_ptr(),
                         bufsize,
                         c":%lldtag ".as_ptr(),
                         (*cap).count0 as c_longlong,
@@ -4477,7 +4476,7 @@ unsafe fn nv_ident(cap: *mut cmdarg_T) {
         }
 
         if cmdchar == b'K' as c_int && kp_helpbang && !visual_sel {
-            strcpy(buf, c"help!".as_ptr());
+            strcpy(buf_vec.as_mut_ptr(), c"help!".as_ptr());
             buflen = 5;
         } else if cmdchar == b'K' as c_int && !kp_help {
             ptr = xstrnsave(ptr, n);
@@ -4488,8 +4487,8 @@ unsafe fn nv_ident(cap: *mut cmdarg_T) {
             };
             xfree(ptr.cast());
             let plen = strlen(p);
-            buf = xrealloc(buf.cast(), buflen + plen + 1).cast();
-            strcpy(buf.add(buflen), p);
+            buf_vec.resize(buflen + plen + 1, 0);
+            strcpy(buf_vec.as_mut_ptr().add(buflen), p);
             buflen += plen;
             xfree(p.cast());
         } else {
@@ -4515,6 +4514,7 @@ unsafe fn nv_ident(cap: *mut cmdarg_T) {
                 c"\\|\"\n*?[".as_ptr()
             };
 
+            let buf = buf_vec.as_mut_ptr();
             let mut p = buf.add(buflen);
             while n > 0 {
                 n -= 1;
@@ -4539,6 +4539,7 @@ unsafe fn nv_ident(cap: *mut cmdarg_T) {
             buflen = p.offset_from(buf) as usize;
         }
 
+        let buf = buf_vec.as_mut_ptr();
         if cmdchar == b'*' as c_int || cmdchar == b'#' as c_int {
             if !g_cmd && vim_iswordp(mb_prevptr(get_cursor_line_ptr(), ptr)) {
                 strcpy(buf.add(buflen), c"\\>".as_ptr());
@@ -4575,8 +4576,6 @@ unsafe fn nv_ident(cap: *mut cmdarg_T) {
                 );
             }
         }
-
-        xfree(buf.cast());
     }
 }
 

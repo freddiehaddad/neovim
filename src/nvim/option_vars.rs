@@ -1,7 +1,6 @@
 //! Global variables for settable options (`src/nvim/option_vars.h`).
 
 use std::ffi::{c_char, c_int, c_uint};
-use std::mem::zeroed;
 use std::ptr;
 
 use crate::eval::typval::Callback;
@@ -137,9 +136,9 @@ pub static mut p_ic: c_int = 0;
 pub static mut p_iminsert: OptInt = 0;
 pub static mut p_imsearch: OptInt = 0;
 pub static mut p_inf: c_int = 0;
-pub static mut p_inex: Callback = unsafe { zeroed() };
+pub static mut p_inex: Callback = Callback::NONE;
 pub static mut p_is: c_int = 0;
-pub static mut p_inde: Callback = unsafe { zeroed() };
+pub static mut p_inde: Callback = Callback::NONE;
 pub static mut p_indk: *mut c_char = ptr::null_mut();
 pub static mut p_icm: *mut c_char = ptr::null_mut();
 pub static mut p_isf: *mut c_char = ptr::null_mut();

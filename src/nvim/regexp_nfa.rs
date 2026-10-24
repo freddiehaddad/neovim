@@ -178,7 +178,27 @@ static mut empty_frag: Frag_T = Frag_T {
     start: ptr::null_mut(),
     out: ptr::null_mut(),
 };
-static mut temp_subs: regsubs_T = unsafe { zeroed() };
+const EMPTY_REGSUB: regsub_T = regsub_T {
+    in_use: 0,
+    list: crate::regexp::regsub_list_u {
+        multi: [multipos {
+            start_lnum: 0,
+            end_lnum: 0,
+            start_col: 0,
+            end_col: 0,
+        }; NSUBEXP],
+        line: [linepos {
+            start: ptr::null_mut(),
+            end: ptr::null_mut(),
+        }; NSUBEXP],
+    },
+    orig_start_col: 0,
+};
+
+static mut temp_subs: regsubs_T = regsubs_T {
+    norm: EMPTY_REGSUB,
+    synt: EMPTY_REGSUB,
+};
 static mut nfa_match: c_int = 0;
 static mut nfa_time_limit: *mut proftime_T = ptr::null_mut();
 static mut nfa_timed_out: *mut c_int = ptr::null_mut();

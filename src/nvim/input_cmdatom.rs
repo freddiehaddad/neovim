@@ -42,7 +42,7 @@ use crate::option_vars::*;
 use crate::register::reg_max_ts;
 use crate::state::{MODE_NORMAL, MODE_OP_PENDING, get_real_state};
 use crate::strings::{
-    concat_str, strcat, strchr, strcpy, strlen, strncmp, vim_snprintf, vim_strchr,
+    concat_str, strchr, strcpy, strlen, strncmp, vim_snprintf, vim_strchr,
 };
 use crate::textformat::oparg_T;
 use crate::viml::parser::expressions::ESC;
@@ -698,16 +698,18 @@ unsafe fn atom_dict(atom: *const CmdAtom) -> Dict {
         let mut op = atom_key_name(spec.op);
         if spec.op_extra != NUL {
             let extra = atom_key_name(spec.op_extra);
-            op = xrealloc(op.cast(), strlen(op) + strlen(extra) + 1).cast();
-            strcat(op, extra);
+            let joined = crate::strings::concat_str(op, extra);
+            xfree(op.cast());
             xfree(extra.cast());
+            op = joined;
         }
         let mut cmd = atom_key_name(spec.cmd);
         if spec.cmd2 != NUL {
             let cmd2 = atom_key_name(spec.cmd2);
-            cmd = xrealloc(cmd.cast(), strlen(cmd) + strlen(cmd2) + 1).cast();
-            strcat(cmd, cmd2);
+            let joined = crate::strings::concat_str(cmd, cmd2);
+            xfree(cmd.cast());
             xfree(cmd2.cast());
+            cmd = joined;
         }
 
         let mut d = Dict {

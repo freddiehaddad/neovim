@@ -801,10 +801,43 @@ pub(super) static mut reg_cpo_lit: c_int = 0;
 pub(super) static mut reg_tofree: *mut u8 = ptr::null_mut();
 pub(super) static mut reg_tofreelen: c_uint = 0;
 
-pub(super) static mut rex: regexec_T = unsafe { zeroed() };
+pub(super) static mut rex: regexec_T = regexec_T {
+    reg_match: ptr::null_mut(),
+    reg_mmatch: ptr::null_mut(),
+    reg_startp: ptr::null_mut(),
+    reg_endp: ptr::null_mut(),
+    reg_startpos: ptr::null_mut(),
+    reg_endpos: ptr::null_mut(),
+    reg_win: ptr::null_mut(),
+    reg_buf: ptr::null_mut(),
+    reg_firstlnum: 0,
+    reg_maxline: 0,
+    reg_line_lbr: false,
+    lnum: 0,
+    line: ptr::null_mut(),
+    input: ptr::null_mut(),
+    need_clear_subexpr: 0,
+    need_clear_zsubexpr: 0,
+    reg_ic: false,
+    reg_icombine: false,
+    reg_nobreak: false,
+    reg_maxcol: 0,
+    nfa_has_zend: 0,
+    nfa_has_backref: 0,
+    nfa_nsubexpr: 0,
+    nfa_listid: 0,
+    nfa_alt_listid: 0,
+    nfa_has_zsubexpr: 0,
+};
 pub(super) static mut rex_in_use: bool = false;
 pub(super) static mut can_f_submatch: bool = false;
-pub(super) static mut rsm: regsubmatch_T = unsafe { zeroed() };
+pub(super) static mut rsm: regsubmatch_T = regsubmatch_T {
+    sm_match: ptr::null_mut(),
+    sm_mmatch: ptr::null_mut(),
+    sm_firstlnum: 0,
+    sm_maxline: 0,
+    sm_line_lbr: 0,
+};
 
 pub(super) static mut reg_startzp: [*mut u8; NSUBEXP] = [ptr::null_mut(); NSUBEXP];
 pub(super) static mut reg_endzp: [*mut u8; NSUBEXP] = [ptr::null_mut(); NSUBEXP];
@@ -827,7 +860,13 @@ pub(super) static mut one_exactly: bool = false;
 
 pub(super) static mut regstack: Vec<u64> = Vec::new();
 static mut backpos: Vec<backpos_T> = Vec::new();
-pub(super) static mut behind_pos: regsave_T = unsafe { zeroed() };
+pub(super) static mut behind_pos: regsave_T = regsave_T {
+    rs_u: regsave_u {
+        ptr: ptr::null_mut(),
+        pos: lpos_T { lnum: 0, col: 0 },
+    },
+    rs_len: 0,
+};
 
 pub(super) static mut nfa_re_flags: c_int = 0;
 pub(super) static mut post_vec: Vec<c_int> = Vec::new();
