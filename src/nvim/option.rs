@@ -5922,12 +5922,13 @@ pub unsafe fn validate_and_prepare_option_value(args: *mut optset_T) -> *const c
 
 pub unsafe fn free_option_prepared(args: *mut optset_T) {
     unsafe {
+        let prep_ptr = (*args).os_prep.as_ptr();
         if let Some(free_fn) = (*args).os_prep_free
-            && !(*args).os_prep.ptr.is_null()
+            && !prep_ptr.is_null()
         {
-            free_fn((*args).os_prep.ptr);
+            free_fn(prep_ptr);
         }
-        (*args).os_prep.ptr = ptr::null_mut();
+        (*args).os_prep = crate::optionstr::OptSetPrep::None;
         (*args).os_prep_free = None;
     }
 }
@@ -5952,9 +5953,7 @@ unsafe fn set_option(
             os_flags: opt_flags,
             os_oldval: nil_obj(),
             os_newval: value,
-            os_prep: crate::optionstr::OptSetPrep {
-                ptr: ptr::null_mut(),
-            },
+            os_prep: crate::optionstr::OptSetPrep::None,
             os_prep_free: None,
             os_value_checked: false,
             os_value_changed: false,

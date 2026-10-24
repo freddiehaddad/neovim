@@ -50,20 +50,14 @@ pub struct VTermParserDcs {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union VTermParserV {
-    pub csi: VTermParserCsi,
-    pub osc: VTermParserOsc,
-    pub dcs: VTermParserDcs,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
 pub struct VTermParser {
     pub state: c_int,
     pub in_esc: u8,
     pub intermedlen: c_int,
     pub intermed: [c_char; INTERMED_MAX],
-    pub v: VTermParserV,
+    pub csi: VTermParserCsi,
+    pub osc: VTermParserOsc,
+    pub dcs: VTermParserDcs,
     pub callbacks: *const c_void,
     pub cbdata: *mut c_void,
     pub string_initial: bool,

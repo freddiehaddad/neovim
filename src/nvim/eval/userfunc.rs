@@ -3964,7 +3964,7 @@ pub unsafe fn do_return(
             (*cstack).cs_pending[idx as usize] = CSTP_RETURN as c_char;
 
             if !is_cmd && !reanimate {
-                (*cstack).cs_pend.csp_rv[idx as usize] = rettv;
+                (*cstack).cs_rettv[idx as usize] = rettv.cast();
             } else {
                 if reanimate {
                     debug_assert!(!(*current_funccal).fc_rettv.is_null());
@@ -3973,9 +3973,9 @@ pub unsafe fn do_return(
 
                 if !rettv.is_null() {
                     let stored = Box::into_raw(Box::new(*rettv.cast::<typval_T>()));
-                    (*cstack).cs_pend.csp_rv[idx as usize] = stored.cast();
+                    (*cstack).cs_rettv[idx as usize] = stored;
                 } else {
-                    (*cstack).cs_pend.csp_rv[idx as usize] = ptr::null_mut();
+                    (*cstack).cs_rettv[idx as usize] = ptr::null_mut();
                 }
 
                 if reanimate {

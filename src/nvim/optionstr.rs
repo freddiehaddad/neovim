@@ -37,7 +37,7 @@ use crate::mark::{fmark_T, fmarkv_T};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{enc_canonize, get_encoding_name, utf_ptr2char, utfc_ptr2len, utfc_ptr2schar};
 use crate::memline::ml_setflags;
-use crate::memory::{xfree, xmalloc, xmemcpyz, xmemdup, xmemdupz, xstrdup};
+use crate::memory::{xfree, xmalloc, xmemcpyz, xmemdupz, xstrdup};
 use crate::message::{kOptMessagesopt, msg_grid_validate, verbose_open, verbose_stop};
 use crate::r#move::validate_virtcol;
 use crate::msgpack_rpc::packer::Integer;
@@ -123,11 +123,31 @@ pub struct OptDictSchema {
     pub size: usize,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
-pub union OptSetPrep {
-    pub ptr: *mut c_void,
-    pub flags: c_uint,
+pub enum OptSetPrep {
+    None,
+    Flags(c_uint),
+    Spellsuggest([c_int; 2]),
+    Wildmode([u8; 4]),
+    Ptr(*mut c_void),
+}
+
+impl OptSetPrep {
+    #[inline]
+    pub fn as_ptr(self) -> *mut c_void {
+        match self {
+            Self::Ptr(p) => p,
+            _ => ptr::null_mut(),
+        }
+    }
+
+    #[inline]
+    pub fn as_flags(self) -> c_uint {
+        match self {
+            Self::Flags(f) => f,
+            _ => 0,
+        }
+    }
 }
 
 #[repr(C)]
@@ -260,15 +280,13 @@ pub struct OptKeyDict_pvp {
     pub border: [c_char; 8],
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-union OptKeyDict {
-    briopt: OptKeyDict_briopt,
-    dip: OptKeyDict_dip,
-    mopt: OptKeyDict_mopt,
-    mousescroll: OptKeyDict_mousescroll,
-    pvp: OptKeyDict_pvp,
-}
+const _: () = {
+    const MOPT_SIZE: usize = std::mem::size_of::<OptKeyDict_mopt>();
+    assert!(MOPT_SIZE >= std::mem::size_of::<OptKeyDict_briopt>());
+    assert!(MOPT_SIZE >= std::mem::size_of::<OptKeyDict_dip>());
+    assert!(MOPT_SIZE >= std::mem::size_of::<OptKeyDict_mousescroll>());
+    assert!(MOPT_SIZE >= std::mem::size_of::<OptKeyDict_pvp>());
+};
 
 const kOptAmbiwidth: OptIndex = 2;
 const kOptBackupext: OptIndex = 18;
@@ -366,18 +384,8 @@ static mut set_opt_callback_orig_option: *mut c_char = ptr::null_mut();
 static mut set_opt_callback_func: CompleteListItemGetter = None;
 static mut expand_eiw: bool = false;
 
-static mut OPT_KEYSET_SHARED: OptKeyDict = OptKeyDict {
-    mopt: OptKeyDict_mopt {
-        is_set__mopt_: 0,
-        hit_enter: false,
-        history: 0,
-        maxheight: 0,
-        pager: [0; 256],
-        progress: [0; 2],
-        timeout: 0,
-        wait: 0,
-    },
-};
+static mut OPT_KEYSET_SHARED: [u64; std::mem::size_of::<OptKeyDict_mopt>().div_ceil(8)] =
+    [0; std::mem::size_of::<OptKeyDict_mopt>().div_ceil(8)];
 
 static mut fcs_chars: fcs_chars_T = fcs_chars_T {
     stl: 0,
@@ -2132,7 +2140,7 @@ pub unsafe fn validate_completeitemalign(args: *mut optset_T) -> *const c_char {
         if count != 3 {
             return e_invarg.as_ptr();
         }
-        (*args).os_prep.flags = new_cia_flags;
+        (*args).os_prep = OptSetPrep::Flags(new_cia_flags);
         ptr::null()
     }
 }
@@ -2140,7 +2148,7 @@ pub unsafe fn validate_completeitemalign(args: *mut optset_T) -> *const c_char {
 /// The 'completeitemalign' option is changed.
 pub unsafe fn did_set_completeitemalign(args: *mut optset_T) -> *const c_char {
     unsafe {
-        cia_flags = (*args).os_prep.flags;
+        cia_flags = (*args).os_prep.as_flags();
         ptr::null()
     }
 }
@@ -2234,9 +2242,11 @@ pub unsafe fn expand_set_cpoptions(
 pub unsafe fn validate_cursorlineopt(args: *mut optset_T) -> *const c_char {
     unsafe {
         let value = (*args).os_newval.data.string.data;
-        if *value == NUL || fill_culopt_flags(value, &raw mut (*args).os_prep.flags) != OK {
+        let mut flags: c_uint = 0;
+        if *value == NUL || fill_culopt_flags(value, &raw mut flags) != OK {
             return e_invarg.as_ptr();
         }
+        (*args).os_prep = OptSetPrep::Flags(flags);
         ptr::null()
     }
 }
@@ -2248,7 +2258,7 @@ pub unsafe fn did_set_cursorlineopt(args: *mut optset_T) -> *const c_char {
             return ptr::null();
         }
         let win = (*args).os_win;
-        (*win).w_p_culopt_flags = (*args).os_prep.flags as u8;
+        (*win).w_p_culopt_flags = (*args).os_prep.as_flags() as u8;
         ptr::null()
     }
 }
@@ -2342,7 +2352,7 @@ pub unsafe fn validate_encoding(args: *mut optset_T) -> *const c_char {
         }
 
         let value = enc_canonize((*args).os_newval.data.string.data);
-        (*args).os_prep.ptr = value.cast();
+        (*args).os_prep = OptSetPrep::Ptr(value.cast());
         (*args).os_prep_free = Some(xfree);
         if (*args).os_idx == kOptEncoding && strcmp(value, c"utf-8".as_ptr()) != 0 {
             return e_unsupportedoption.as_ptr();
@@ -2361,10 +2371,11 @@ pub unsafe fn did_set_encoding(args: *mut optset_T) -> *const c_char {
             ml_setflags(buf);
         }
 
-        if !(*args).os_prep.ptr.is_null() {
+        let prep_ptr = (*args).os_prep.as_ptr();
+        if !prep_ptr.is_null() {
             xfree((*varp).cast());
-            *varp = (*args).os_prep.ptr.cast::<c_char>();
-            (*args).os_prep.ptr = ptr::null_mut();
+            *varp = prep_ptr.cast::<c_char>();
+            (*args).os_prep = OptSetPrep::None;
         }
         if ptr::eq(varp, &raw mut p_enc) {
             spell_reload();
@@ -3094,7 +3105,7 @@ pub unsafe fn validate_spellcapcheck(args: *mut optset_T) -> *const c_char {
 
         emsg_silent = save_emsg_silent;
         suppress_errthrow = save_suppress_errthrow;
-        (*args).os_prep.ptr = prog.cast();
+        (*args).os_prep = OptSetPrep::Ptr(prog.cast());
         (*args).os_prep_free = Some(free_spellcap_prog);
         if err.err_type != ErrorType::kErrorTypeNone {
             let msg = if strncmp(err.msg, c"Vim:".as_ptr(), 4) == 0 {
@@ -3119,8 +3130,8 @@ pub unsafe fn did_set_spellcapcheck(args: *mut optset_T) -> *const c_char {
         let win = (*args).os_win;
         let ws = (*win).w_s.cast::<synblock_T>();
         vim_regfree((*ws).b_cap_prog.cast());
-        (*ws).b_cap_prog = (*args).os_prep.ptr.cast();
-        (*args).os_prep.ptr = ptr::null_mut();
+        (*ws).b_cap_prog = (*args).os_prep.as_ptr().cast();
+        (*args).os_prep = OptSetPrep::None;
         ptr::null()
     }
 }
@@ -3205,8 +3216,7 @@ pub unsafe fn validate_spellsuggest(args: *mut optset_T) -> *const c_char {
         {
             return e_invarg.as_ptr();
         }
-        (*args).os_prep.ptr = xmemdup(sps.as_ptr().cast(), std::mem::size_of_val(&sps));
-        (*args).os_prep_free = Some(xfree);
+        (*args).os_prep = OptSetPrep::Spellsuggest(sps);
         ptr::null()
     }
 }
@@ -3214,8 +3224,9 @@ pub unsafe fn validate_spellsuggest(args: *mut optset_T) -> *const c_char {
 /// The 'spellsuggest' option is changed.
 pub unsafe fn did_set_spellsuggest(args: *mut optset_T) -> *const c_char {
     unsafe {
-        let sps = (*args).os_prep.ptr.cast::<c_int>();
-        spell_apply_sps(*sps, *sps.add(1));
+        if let OptSetPrep::Spellsuggest(sps) = (*args).os_prep {
+            spell_apply_sps(sps[0], sps[1]);
+        }
         ptr::null()
     }
 }
@@ -3390,7 +3401,7 @@ pub unsafe fn validate_vartabstop(args: *mut optset_T) -> *const c_char {
 
         let mut array: *mut colnr_T = ptr::null_mut();
         let errmsg = tabstop_set(value, &raw mut array, (*args).os_errbuf.cast());
-        (*args).os_prep.ptr = array.cast();
+        (*args).os_prep = OptSetPrep::Ptr(array.cast());
         (*args).os_prep_free = Some(xfree);
         errmsg
     }
@@ -3413,8 +3424,8 @@ pub unsafe fn did_set_vartabstop(args: *mut optset_T) -> *const c_char {
             &raw mut (*buf).b_p_vts_array
         };
         xfree((*array).cast());
-        *array = (*args).os_prep.ptr.cast::<colnr_T>();
-        (*args).os_prep.ptr = ptr::null_mut();
+        *array = (*args).os_prep.as_ptr().cast::<colnr_T>();
+        (*args).os_prep = OptSetPrep::None;
         if !soft && foldmethodIsIndent(win) {
             foldUpdateAll(win);
         }
@@ -3492,8 +3503,7 @@ pub unsafe fn validate_wildmode(args: *mut optset_T) -> *const c_char {
         if check_opt_wim((*args).os_newval.data.string.data, flags.as_mut_ptr()) == FAIL {
             return e_invarg.as_ptr();
         }
-        (*args).os_prep.ptr = xmemdup(flags.as_ptr().cast(), flags.len());
-        (*args).os_prep_free = Some(xfree);
+        (*args).os_prep = OptSetPrep::Wildmode(flags);
         ptr::null()
     }
 }
@@ -3501,11 +3511,9 @@ pub unsafe fn validate_wildmode(args: *mut optset_T) -> *const c_char {
 /// The 'wildmode' option is changed.
 pub unsafe fn did_set_wildmode(args: *mut optset_T) -> *const c_char {
     unsafe {
-        ptr::copy_nonoverlapping(
-            (*args).os_prep.ptr.cast::<u8>(),
-            (&raw mut wim_flags).cast::<u8>(),
-            4,
-        );
+        if let OptSetPrep::Wildmode(flags) = (*args).os_prep {
+            wim_flags = flags;
+        }
         ptr::null()
     }
 }

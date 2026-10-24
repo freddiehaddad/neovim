@@ -239,23 +239,9 @@ struct sblock_T {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
-union wordnode_u1_T {
-    hashkey: [u8; 6],
-    index: c_int,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-union wordnode_u2_T {
-    next: *mut wordnode_T,
-    wnode: *mut wordnode_T,
-}
-
-#[repr(C)]
 struct wordnode_T {
-    wn_u1: wordnode_u1_T,
-    wn_u2: wordnode_u2_T,
+    wn_index: c_int,
+    wn_wnode: *mut wordnode_T,
     wn_child: *mut wordnode_T,
     wn_sibling: *mut wordnode_T,
     wn_refs: c_int,
@@ -4174,7 +4160,7 @@ unsafe fn wordtree_compress(spin: *mut spellinfo_T, root: *mut wordnode_T, name:
             return;
         }
 
-        let n = node_compress(spin, (*root).wn_sibling, &mut ht, &raw mut tot);
+        let (n, _) = node_compress(spin, (*root).wn_sibling, &mut ht, &raw mut tot);
 
         if (*spin).si_verbose != 0 || p_verbose > 2 {
             let perc: c_long = if tot > 1_000_000 {
@@ -4204,7 +4190,7 @@ unsafe fn node_compress(
     node: *mut wordnode_T,
     ht: &mut std::collections::HashMap<[u8; 6], *mut wordnode_T>,
     tot: *mut c_int,
-) -> c_int {
+) -> (c_int, [u8; 6]) {
     unsafe {
         let mut len: c_int = 0;
         let mut compressed: c_int = 0;
@@ -4214,9 +4200,9 @@ unsafe fn node_compress(
             len += 1;
             let child = (*np).wn_child;
             if !child.is_null() {
-                compressed += node_compress(spin, child, ht, tot);
+                let (child_compressed, hk) = node_compress(spin, child, ht, tot);
+                compressed += child_compressed;
 
-                let hk = (*child).wn_u1.hashkey;
                 if let Some(&first_tp) = ht.get(&hk) {
                     let mut tp = first_tp;
                     while !tp.is_null() {
@@ -4226,12 +4212,12 @@ unsafe fn node_compress(
                             (*np).wn_child = tp;
                             break;
                         }
-                        tp = (*tp).wn_u2.next;
+                        tp = (*tp).wn_wnode;
                     }
                     if tp.is_null() {
                         tp = first_tp;
-                        (*child).wn_u2.next = (*tp).wn_u2.next;
-                        (*tp).wn_u2.next = child;
+                        (*child).wn_wnode = (*tp).wn_wnode;
+                        (*tp).wn_wnode = child;
                     }
                 } else {
                     ht.insert(hk, child);
@@ -4241,7 +4227,8 @@ unsafe fn node_compress(
         }
         *tot += len + 1;
 
-        (*node).wn_u1.hashkey[0] = len as u8;
+        let mut hashkey = [0u8; 6];
+        hashkey[0] = len as u8;
         let mut nr: c_uint = 0;
         np = node;
         while !np.is_null() {
@@ -4257,18 +4244,18 @@ unsafe fn node_compress(
         }
 
         let mut n = nr & 0xff;
-        (*node).wn_u1.hashkey[1] = if n == 0 { 1 } else { n as u8 };
+        hashkey[1] = if n == 0 { 1 } else { n as u8 };
         n = (nr >> 8) & 0xff;
-        (*node).wn_u1.hashkey[2] = if n == 0 { 1 } else { n as u8 };
+        hashkey[2] = if n == 0 { 1 } else { n as u8 };
         n = (nr >> 16) & 0xff;
-        (*node).wn_u1.hashkey[3] = if n == 0 { 1 } else { n as u8 };
+        hashkey[3] = if n == 0 { 1 } else { n as u8 };
         n = (nr >> 24) & 0xff;
-        (*node).wn_u1.hashkey[4] = if n == 0 { 1 } else { n as u8 };
-        (*node).wn_u1.hashkey[5] = 0;
+        hashkey[4] = if n == 0 { 1 } else { n as u8 };
+        hashkey[5] = 0;
 
         veryfast_breakcheck();
 
-        compressed
+        (compressed, hashkey)
     }
 }
 
@@ -4606,8 +4593,8 @@ unsafe fn clear_node(node: *mut wordnode_T) {
         if !node.is_null() {
             let mut np = node;
             while !np.is_null() {
-                (*np).wn_u1.index = 0;
-                (*np).wn_u2.wnode = ptr::null_mut();
+                (*np).wn_index = 0;
+                (*np).wn_wnode = ptr::null_mut();
 
                 if (*np).wn_byte != 0 {
                     clear_node((*np).wn_child);
@@ -4630,7 +4617,7 @@ unsafe fn put_node(
             return 0;
         }
 
-        (*node).wn_u1.index = idx;
+        (*node).wn_index = idx;
 
         let mut siblingcount: c_int = 0;
         let mut np = node;
@@ -4686,13 +4673,13 @@ unsafe fn put_node(
                 }
             } else {
                 let child = (*np).wn_child;
-                if (*child).wn_u1.index != 0 && (*child).wn_u2.wnode != node {
+                if (*child).wn_index != 0 && (*child).wn_wnode != node {
                     if !fd.is_null() {
                         fputc(BY_INDEX, fd);
-                        put_bytes(fd, (*child).wn_u1.index as u64, 3);
+                        put_bytes(fd, (*child).wn_index as u64, 3);
                     }
-                } else if (*child).wn_u2.wnode.is_null() {
-                    (*child).wn_u2.wnode = node;
+                } else if (*child).wn_wnode.is_null() {
+                    (*child).wn_wnode = node;
                 }
 
                 if !fd.is_null() && fputc((*np).wn_byte as c_int, fd) == EOF {
@@ -4707,7 +4694,7 @@ unsafe fn put_node(
 
         np = node;
         while !np.is_null() {
-            if (*np).wn_byte != 0 && (*(*np).wn_child).wn_u2.wnode == node {
+            if (*np).wn_byte != 0 && (*(*np).wn_child).wn_wnode == node {
                 newindex = put_node(fd, (*np).wn_child, newindex, regionmask, prefixtree);
             }
             np = (*np).wn_sibling;

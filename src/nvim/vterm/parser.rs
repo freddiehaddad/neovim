@@ -131,8 +131,8 @@ unsafe fn do_csi(vt: *mut VTerm, command: c_char) {
         if !callbacks.is_null()
             && let Some(cb) = (*callbacks).csi
         {
-            let leader = if (*vt).parser.v.csi.leaderlen != 0 {
-                (*vt).parser.v.csi.leader.as_ptr()
+            let leader = if (*vt).parser.csi.leaderlen != 0 {
+                (*vt).parser.csi.leader.as_ptr()
             } else {
                 ptr::null()
             };
@@ -143,8 +143,8 @@ unsafe fn do_csi(vt: *mut VTerm, command: c_char) {
             };
             cb(
                 leader,
-                (*vt).parser.v.csi.args.as_ptr(),
-                (*vt).parser.v.csi.argi,
+                (*vt).parser.csi.args.as_ptr(),
+                (*vt).parser.csi.argi,
                 intermed,
                 command,
                 (*vt).parser.cbdata,
@@ -188,7 +188,7 @@ unsafe fn string_fragment(
                 if !callbacks.is_null()
                     && let Some(cb) = (*callbacks).osc
                 {
-                    cb((*vt).parser.v.osc.command, frag, (*vt).parser.cbdata);
+                    cb((*vt).parser.osc.command, frag, (*vt).parser.cbdata);
                 }
             }
             DCS_VTERM => {
@@ -196,8 +196,8 @@ unsafe fn string_fragment(
                     && let Some(cb) = (*callbacks).dcs
                 {
                     cb(
-                        (*vt).parser.v.dcs.command.as_ptr(),
-                        (*vt).parser.v.dcs.commandlen as usize,
+                        (*vt).parser.dcs.command.as_ptr(),
+                        (*vt).parser.dcs.commandlen as usize,
                         frag,
                         (*vt).parser.cbdata,
                     );
@@ -325,43 +325,43 @@ pub unsafe fn vterm_input_write(vt: *mut VTerm, bytes: *const c_char, len: usize
             'state_machine: {
                 if (*vt).parser.state == CSI_LEADER {
                     if (0x3c..=0x3f).contains(&c) {
-                        if ((*vt).parser.v.csi.leaderlen as usize) < CSI_LEADER_MAX - 1 {
-                            let idx = (*vt).parser.v.csi.leaderlen as usize;
-                            (*vt).parser.v.csi.leader[idx] = c as c_char;
-                            (*vt).parser.v.csi.leaderlen += 1;
+                        if ((*vt).parser.csi.leaderlen as usize) < CSI_LEADER_MAX - 1 {
+                            let idx = (*vt).parser.csi.leaderlen as usize;
+                            (*vt).parser.csi.leader[idx] = c as c_char;
+                            (*vt).parser.csi.leaderlen += 1;
                         }
                         break 'state_machine;
                     }
 
-                    (*vt).parser.v.csi.leader[(*vt).parser.v.csi.leaderlen as usize] = 0;
-                    (*vt).parser.v.csi.argi = 0;
-                    (*vt).parser.v.csi.args[0] = CSI_ARG_MISSING;
+                    (*vt).parser.csi.leader[(*vt).parser.csi.leaderlen as usize] = 0;
+                    (*vt).parser.csi.argi = 0;
+                    (*vt).parser.csi.args[0] = CSI_ARG_MISSING;
                     (*vt).parser.state = CSI_ARGS;
                 }
 
                 if (*vt).parser.state == CSI_ARGS {
                     if c.is_ascii_digit() {
-                        let argi = (*vt).parser.v.csi.argi as usize;
-                        if (*vt).parser.v.csi.args[argi] == CSI_ARG_MISSING {
-                            (*vt).parser.v.csi.args[argi] = 0;
+                        let argi = (*vt).parser.csi.argi as usize;
+                        if (*vt).parser.csi.args[argi] == CSI_ARG_MISSING {
+                            (*vt).parser.csi.args[argi] = 0;
                         }
-                        (*vt).parser.v.csi.args[argi] *= 10;
-                        (*vt).parser.v.csi.args[argi] += c_long::from(c - b'0');
+                        (*vt).parser.csi.args[argi] *= 10;
+                        (*vt).parser.csi.args[argi] += c_long::from(c - b'0');
                         break 'state_machine;
                     }
                     if c == b':' {
-                        let argi = (*vt).parser.v.csi.argi as usize;
-                        (*vt).parser.v.csi.args[argi] |= CSI_ARG_FLAG_MORE;
+                        let argi = (*vt).parser.csi.argi as usize;
+                        (*vt).parser.csi.args[argi] |= CSI_ARG_FLAG_MORE;
                         c = b';';
                     }
                     if c == b';' {
-                        (*vt).parser.v.csi.argi += 1;
-                        let argi = (*vt).parser.v.csi.argi as usize;
-                        (*vt).parser.v.csi.args[argi] = CSI_ARG_MISSING;
+                        (*vt).parser.csi.argi += 1;
+                        let argi = (*vt).parser.csi.argi as usize;
+                        (*vt).parser.csi.args[argi] = CSI_ARG_MISSING;
                         break 'state_machine;
                     }
 
-                    (*vt).parser.v.csi.argi += 1;
+                    (*vt).parser.csi.argi += 1;
                     (*vt).parser.intermedlen = 0;
                     (*vt).parser.state = CSI_INTERMED;
                 }
@@ -388,12 +388,12 @@ pub unsafe fn vterm_input_write(vt: *mut VTerm, bytes: *const c_char, len: usize
 
                 if (*vt).parser.state == OSC_COMMAND {
                     if c.is_ascii_digit() {
-                        if (*vt).parser.v.osc.command == -1 {
-                            (*vt).parser.v.osc.command = 0;
+                        if (*vt).parser.osc.command == -1 {
+                            (*vt).parser.osc.command = 0;
                         } else {
-                            (*vt).parser.v.osc.command *= 10;
+                            (*vt).parser.osc.command *= 10;
                         }
-                        (*vt).parser.v.osc.command += c_int::from(c - b'0');
+                        (*vt).parser.osc.command += c_int::from(c - b'0');
                         break 'state_machine;
                     }
                     if c == b';' {
@@ -409,10 +409,10 @@ pub unsafe fn vterm_input_write(vt: *mut VTerm, bytes: *const c_char, len: usize
                 }
 
                 if (*vt).parser.state == DCS_COMMAND {
-                    if ((*vt).parser.v.dcs.commandlen as usize) < CSI_LEADER_MAX {
-                        let idx = (*vt).parser.v.dcs.commandlen as usize;
-                        (*vt).parser.v.dcs.command[idx] = c as c_char;
-                        (*vt).parser.v.dcs.commandlen += 1;
+                    if ((*vt).parser.dcs.commandlen as usize) < CSI_LEADER_MAX {
+                        let idx = (*vt).parser.dcs.commandlen as usize;
+                        (*vt).parser.dcs.command[idx] = c as c_char;
+                        (*vt).parser.dcs.commandlen += 1;
                     }
 
                     if (0x40..=0x7e).contains(&c) {
@@ -461,7 +461,7 @@ pub unsafe fn vterm_input_write(vt: *mut VTerm, bytes: *const c_char, len: usize
                                 0x90 => {
                                     // DCS
                                     (*vt).parser.string_initial = true;
-                                    (*vt).parser.v.dcs.commandlen = 0;
+                                    (*vt).parser.dcs.commandlen = 0;
                                     (*vt).parser.state = DCS_COMMAND;
                                     string_start = ptr::null();
                                 }
@@ -473,13 +473,13 @@ pub unsafe fn vterm_input_write(vt: *mut VTerm, bytes: *const c_char, len: usize
                                 }
                                 0x9b => {
                                     // CSI
-                                    (*vt).parser.v.csi.leaderlen = 0;
+                                    (*vt).parser.csi.leaderlen = 0;
                                     (*vt).parser.state = CSI_LEADER;
                                     string_start = ptr::null();
                                 }
                                 0x9d => {
                                     // OSC
-                                    (*vt).parser.v.osc.command = -1;
+                                    (*vt).parser.osc.command = -1;
                                     (*vt).parser.string_initial = true;
                                     (*vt).parser.state = OSC_COMMAND;
                                     string_start = ptr::null();

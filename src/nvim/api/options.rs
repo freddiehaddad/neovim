@@ -756,9 +756,7 @@ pub unsafe extern "C" fn nvim_set_option_value(
                 os_flags: opt_flags,
                 os_oldval: OBJECT_NIL,
                 os_newval: merged_val,
-                os_prep: OptSetPrep {
-                    ptr: ptr::null_mut(),
-                },
+                os_prep: OptSetPrep::None,
                 os_prep_free: None,
                 os_value_checked: false,
                 os_value_changed: false,

@@ -80,17 +80,11 @@ const E_MULTIPLE_ELSE: &CStr = c"E583: Multiple :else";
 const E_MULTIPLE_FINALLY: &CStr = c"E607: Multiple :finally";
 
 #[repr(C)]
-#[derive(Clone, Copy)]
-pub union cstack_pend_union {
-    pub csp_rv: [*mut c_void; CSTACK_LEN],
-    pub csp_ex: [*mut c_void; CSTACK_LEN],
-}
-
-#[repr(C)]
 pub struct cstack_T {
     pub cs_flags: [c_int; CSTACK_LEN],
     pub cs_pending: [c_char; CSTACK_LEN],
-    pub cs_pend: cstack_pend_union,
+    pub cs_rettv: [*mut typval_T; CSTACK_LEN],
+    pub cs_exception: [*mut except_T; CSTACK_LEN],
     pub cs_forinfo: [*mut c_void; CSTACK_LEN],
     pub cs_line: [c_int; CSTACK_LEN],
     pub cs_idx: c_int,
@@ -105,9 +99,8 @@ impl Default for cstack_T {
         Self {
             cs_flags: [0; CSTACK_LEN],
             cs_pending: [0; CSTACK_LEN],
-            cs_pend: cstack_pend_union {
-                csp_rv: [ptr::null_mut(); CSTACK_LEN],
-            },
+            cs_rettv: [ptr::null_mut(); CSTACK_LEN],
+            cs_exception: [ptr::null_mut(); CSTACK_LEN],
             cs_forinfo: [ptr::null_mut(); CSTACK_LEN],
             cs_line: [0; CSTACK_LEN],
             cs_idx: -1,
@@ -1107,7 +1100,7 @@ pub unsafe fn do_throw(cstack: *mut cstack_T) {
                 }
             }
             (*cstack).cs_flags[u_idx] &= !CSF_ACTIVE;
-            (*cstack).cs_pend.csp_ex[u_idx] = current_exception.cast();
+            (*cstack).cs_exception[u_idx] = current_exception;
         }
 
         did_throw = true;
@@ -1242,8 +1235,8 @@ pub unsafe fn ex_catch(eap: *mut exarg_T) {
                 did_emsg = 0;
                 got_int = false;
                 did_throw = false;
-                catch_exception((*cstack).cs_pend.csp_ex[u_idx].cast());
-                if (*cstack).cs_pend.csp_ex[(*cstack).cs_idx as usize] != current_exception.cast() {
+                catch_exception((*cstack).cs_exception[u_idx]);
+                if (*cstack).cs_exception[(*cstack).cs_idx as usize] != current_exception {
                     internal_error(c"ex_catch()".as_ptr());
                 }
             } else {
@@ -1303,8 +1296,8 @@ pub unsafe fn ex_finally(eap: *mut exarg_T) {
             let cur_idx = (*cstack).cs_idx as usize;
             if pending == CSTP_ERROR || did_emsg != 0 || got_int || did_throw {
                 if c_int::from((*cstack).cs_pending[cur_idx]) == CSTP_RETURN {
-                    report_discard_pending(CSTP_RETURN, (*cstack).cs_pend.csp_rv[cur_idx]);
-                    discard_pending_return((*cstack).cs_pend.csp_rv[cur_idx].cast());
+                    report_discard_pending(CSTP_RETURN, (*cstack).cs_rettv[cur_idx].cast());
+                    discard_pending_return((*cstack).cs_rettv[cur_idx]);
                 }
                 if (pending == CSTP_ERROR && did_emsg == 0) || did_throw {
                     pending |= CSTP_THROW;
@@ -1317,7 +1310,7 @@ pub unsafe fn ex_finally(eap: *mut exarg_T) {
                 }
                 (*cstack).cs_pending[cur_idx] = pending as c_char;
 
-                if did_throw && (*cstack).cs_pend.csp_ex[cur_idx] != current_exception.cast() {
+                if did_throw && (*cstack).cs_exception[cur_idx] != current_exception {
                     internal_error(c"ex_finally()".as_ptr());
                 }
             }
@@ -1393,9 +1386,9 @@ pub unsafe fn ex_endtry(eap: *mut exarg_T) {
             pending = c_int::from((*cstack).cs_pending[u_idx]);
             (*cstack).cs_pending[u_idx] = CSTP_NONE as c_char;
             if pending == CSTP_RETURN {
-                rettv = (*cstack).cs_pend.csp_rv[u_idx];
+                rettv = (*cstack).cs_rettv[u_idx].cast();
             } else if (pending & CSTP_THROW) != 0 {
-                current_exception = (*cstack).cs_pend.csp_ex[u_idx].cast();
+                current_exception = (*cstack).cs_exception[u_idx];
             }
         }
 
@@ -1547,19 +1540,16 @@ pub unsafe fn cleanup_conditionals(
                             (*cstack).cs_pending[u_idx] = CSTP_NONE as c_char;
                         }
                         CSTP_RETURN => {
-                            report_discard_pending(CSTP_RETURN, (*cstack).cs_pend.csp_rv[u_idx]);
-                            discard_pending_return((*cstack).cs_pend.csp_rv[u_idx].cast());
+                            report_discard_pending(CSTP_RETURN, (*cstack).cs_rettv[u_idx].cast());
+                            discard_pending_return((*cstack).cs_rettv[u_idx]);
                             (*cstack).cs_pending[u_idx] = CSTP_NONE as c_char;
                         }
                         _ => {
                             if ((*cstack).cs_flags[u_idx] & CSF_FINALLY) != 0 {
                                 if (pend & CSTP_THROW) != 0
-                                    && !(*cstack).cs_pend.csp_ex[u_idx].is_null()
+                                    && !(*cstack).cs_exception[u_idx].is_null()
                                 {
-                                    discard_exception(
-                                        (*cstack).cs_pend.csp_ex[u_idx].cast(),
-                                        false,
-                                    );
+                                    discard_exception((*cstack).cs_exception[u_idx], false);
                                 } else {
                                     report_discard_pending(pend, ptr::null_mut());
                                 }
@@ -1574,7 +1564,7 @@ pub unsafe fn cleanup_conditionals(
                         && ((*cstack).cs_flags[u_idx] & CSF_CAUGHT) != 0
                         && ((*cstack).cs_flags[u_idx] & CSF_FINISHED) == 0
                     {
-                        finish_exception((*cstack).cs_pend.csp_ex[u_idx].cast());
+                        finish_exception((*cstack).cs_exception[u_idx]);
                         (*cstack).cs_flags[u_idx] |= CSF_FINISHED;
                     }
                     if ((*cstack).cs_flags[u_idx] & CSF_TRUE) != 0 {
