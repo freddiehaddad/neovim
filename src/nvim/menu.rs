@@ -84,17 +84,61 @@ pub struct vimmenu_T {
     pub strings: [*mut c_char; MENU_MODES],
     pub noremap: [c_int; MENU_MODES],
     pub silent: [bool; MENU_MODES],
-    pub children: *mut vimmenu_T,
+    pub children: Vec<*mut vimmenu_T>,
     pub parent: *mut vimmenu_T,
-    pub next: *mut vimmenu_T,
+}
+
+impl vimmenu_T {
+    pub const fn new() -> Self {
+        Self {
+            modes: 0,
+            enabled: 0,
+            name: ptr::null_mut(),
+            dname: ptr::null_mut(),
+            en_name: ptr::null_mut(),
+            en_dname: ptr::null_mut(),
+            mnemonic: 0,
+            actext: ptr::null_mut(),
+            priority: 0,
+            strings: [ptr::null_mut(); MENU_MODES],
+            noremap: [0; MENU_MODES],
+            silent: [false; MENU_MODES],
+            children: Vec::new(),
+            parent: ptr::null_mut(),
+        }
+    }
+}
+
+impl Drop for vimmenu_T {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.name.cast());
+            xfree(self.dname.cast());
+            xfree(self.en_name.cast());
+            xfree(self.en_dname.cast());
+            xfree(self.actext.cast());
+            for i in 0..MENU_MODES {
+                free_menu_string(self, i);
+            }
+        }
+    }
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
 struct menutrans_T {
     from: *mut c_char,
     from_noamp: *mut c_char,
     to: *mut c_char,
+}
+
+impl Drop for menutrans_T {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.from.cast());
+            xfree(self.from_noamp.cast());
+            xfree(self.to.cast());
+        }
+    }
 }
 
 use crate::change::{MB_MAXCHAR, TAB};
@@ -141,12 +185,12 @@ impl save_state_T {
 }
 
 static mut MENUS_LOCKED: c_int = 0;
-static mut EXPAND_MENU: *mut vimmenu_T = ptr::null_mut();
+static mut EXPAND_MENU: *const Vec<*mut vimmenu_T> = ptr::null();
 static mut EXPAND_MODES: c_int = 0;
 static mut EXPAND_EMENU: bool = false;
-static mut GET_MENU_NAME_MENU: *mut vimmenu_T = ptr::null_mut();
+static mut GET_MENU_NAME_IDX: usize = 0;
 static mut GET_MENU_NAME_ADVANCE: bool = false;
-static mut GET_MENU_NAMES_MENU: *mut vimmenu_T = ptr::null_mut();
+static mut GET_MENU_NAMES_IDX: usize = 0;
 static mut GET_MENU_NAMES_ADVANCE: bool = false;
 static mut GET_MENU_NAMES_TBUFFER: [c_char; TBUFFER_LEN] = [0; TBUFFER_LEN];
 static mut MENUTRANS_GA: Vec<menutrans_T> = Vec::new();
@@ -158,7 +202,7 @@ unsafe fn menu_is_winbar(name: *const c_char) -> bool {
     unsafe { strncmp(name, c"WinBar".as_ptr(), 6) == 0 }
 }
 
-unsafe fn get_root_menu(_name: *const c_char) -> *mut *mut vimmenu_T {
+unsafe fn get_root_menu(_name: *const c_char) -> *mut Vec<*mut vimmenu_T> {
     &raw mut root_menu
 }
 
@@ -295,12 +339,12 @@ pub unsafe fn ex_menu(eap: *mut exarg_T) {
                 for idx in 0..MENU_INDEX_TIP {
                     if (modes & (1 << idx)) != 0 {
                         p = popup_mode_name(menu_path, idx as usize);
-                        menu_enable_recurse(*root_menu_ptr, p, MENU_ALL_MODES, enable != 0);
+                        menu_enable_recurse(&*root_menu_ptr, p, MENU_ALL_MODES, enable != 0);
                         xfree(p.cast());
                     }
                 }
             }
-            menu_enable_recurse(*root_menu_ptr, menu_path, modes, enable != 0);
+            menu_enable_recurse(&*root_menu_ptr, menu_path, modes, enable != 0);
         } else if unmenu {
             if is_menus_locked() {
                 return;
@@ -341,7 +385,7 @@ pub unsafe fn ex_menu(eap: *mut exarg_T) {
                 );
             }
 
-            let mut menuarg: vimmenu_T = std::mem::zeroed();
+            let mut menuarg = vimmenu_T::new();
             menuarg.modes = modes;
             menuarg.noremap[0] = noremap;
             menuarg.silent[0] = silent;
@@ -375,38 +419,35 @@ unsafe fn add_menu_path(
     unsafe {
         let mut modes = (*menuarg).modes;
         let mut menu: *mut vimmenu_T = ptr::null_mut();
-        let mut dname: *mut c_char = ptr::null_mut();
+        let mut dname: *mut c_char;
         let mut pri_idx: usize = 0;
         let mut old_modes: c_int = 0;
 
         let path_name = xstrdup(menu_path);
         let root_menu_ptr = get_root_menu(menu_path);
-        let mut menup: *mut *mut vimmenu_T = root_menu_ptr;
+        let mut menup: *mut Vec<*mut vimmenu_T> = root_menu_ptr;
         let mut parent: *mut vimmenu_T = ptr::null_mut();
         let mut name = path_name;
 
         let cleanup_erret = |path_name: *mut c_char,
                              dname: *mut c_char,
                              mut parent: *mut vimmenu_T,
-                             root_menu_ptr: *mut *mut vimmenu_T|
+                             root_menu_ptr: *mut Vec<*mut vimmenu_T>|
          -> c_int {
             xfree(path_name.cast());
             xfree(dname.cast());
 
-            while !parent.is_null() && (*parent).children.is_null() {
-                let mut mp = if (*parent).parent.is_null() {
+            while !parent.is_null() && (*parent).children.is_empty() {
+                let mp = if (*parent).parent.is_null() {
                     root_menu_ptr
                 } else {
                     &raw mut (*(*parent).parent).children
                 };
-                while !(*mp).is_null() && *mp != parent {
-                    mp = &raw mut (*(*mp)).next;
-                }
-                if (*mp).is_null() {
+                let Some(idx) = (*mp).iter().position(|&m| m == parent) else {
                     break;
-                }
+                };
                 parent = (*parent).parent;
-                free_menu(mp);
+                free_menu(&mut *mp, idx);
             }
             FAIL
         };
@@ -427,11 +468,11 @@ unsafe fn add_menu_path(
                 return cleanup_erret(path_name, dname, parent, root_menu_ptr);
             }
 
-            let mut lower_pri = menup;
-            menu = *menup;
-            while !menu.is_null() {
-                if menu_name_equal(name, menu) || menu_name_equal(dname, menu) {
-                    if *next_name == NUL && !(*menu).children.is_null() {
+            let mut lower_pri_idx: usize = 0;
+            menu = ptr::null_mut();
+            for (idx, &m) in (*menup).iter().enumerate() {
+                if menu_name_equal(name, m) || menu_name_equal(dname, m) {
+                    if *next_name == NUL && !(*m).children.is_empty() {
                         if !sys_menu {
                             emsg(gettext(
                                 c"E330: Menu path must not lead to a sub-menu".as_ptr(),
@@ -439,22 +480,21 @@ unsafe fn add_menu_path(
                         }
                         return cleanup_erret(path_name, dname, parent, root_menu_ptr);
                     }
-                    if *next_name != NUL && (*menu).children.is_null() {
+                    if *next_name != NUL && (*m).children.is_empty() {
                         if !sys_menu {
                             emsg(gettext(E_NOTSUBMENU.as_ptr()));
                         }
                         return cleanup_erret(path_name, dname, parent, root_menu_ptr);
                     }
+                    menu = m;
                     break;
                 }
-                menup = &raw mut (*menu).next;
 
-                if (!parent.is_null() || menu_is_menubar((*menu).name))
-                    && (*menu).priority <= *pri_tab.add(pri_idx)
+                if (!parent.is_null() || menu_is_menubar((*m).name))
+                    && (*m).priority <= *pri_tab.add(pri_idx)
                 {
-                    lower_pri = menup;
+                    lower_pri_idx = idx + 1;
                 }
-                menu = (*menu).next;
             }
 
             if menu.is_null() {
@@ -472,7 +512,7 @@ unsafe fn add_menu_path(
                     return cleanup_erret(path_name, dname, parent, root_menu_ptr);
                 }
 
-                menu = Box::into_raw(Box::new(std::mem::zeroed::<vimmenu_T>()));
+                menu = Box::into_raw(Box::new(vimmenu_T::new()));
                 (*menu).modes = modes;
                 (*menu).enabled = MENU_ALL_MODES;
                 (*menu).name = xstrdup(name);
@@ -487,8 +527,7 @@ unsafe fn add_menu_path(
                 (*menu).priority = *pri_tab.add(pri_idx);
                 (*menu).parent = parent;
 
-                (*menu).next = *lower_pri;
-                *lower_pri = menu;
+                (*menup).insert(lower_pri_idx, menu);
 
                 old_modes = 0;
             } else {
@@ -573,25 +612,27 @@ unsafe fn add_menu_path(
 
 /// Set the (sub)menu with the given name to enabled or disabled (`menu_enable_recurse`).
 unsafe fn menu_enable_recurse(
-    mut menu: *mut vimmenu_T,
+    menus: &[*mut vimmenu_T],
     name: *mut c_char,
     modes: c_int,
     enable: bool,
 ) -> c_int {
     unsafe {
-        if menu.is_null() {
+        if menus.is_empty() {
             return OK;
         }
         let p = menu_name_skip(name);
 
-        while !menu.is_null() {
+        let mut matched = false;
+        for &menu in menus {
             if *name == NUL || *name == b'*' as c_char || menu_name_equal(name, menu) {
+                matched = true;
                 if *p != NUL {
-                    if (*menu).children.is_null() {
+                    if (*menu).children.is_empty() {
                         emsg(gettext(E_NOTSUBMENU.as_ptr()));
                         return FAIL;
                     }
-                    if menu_enable_recurse((*menu).children, p, modes, enable) == FAIL {
+                    if menu_enable_recurse(&(*menu).children, p, modes, enable) == FAIL {
                         return FAIL;
                     }
                 } else if enable {
@@ -604,9 +645,8 @@ unsafe fn menu_enable_recurse(
                     break;
                 }
             }
-            menu = (*menu).next;
         }
-        if *name != NUL && *name != b'*' as c_char && menu.is_null() {
+        if *name != NUL && *name != b'*' as c_char && !matched {
             semsg!(gettext(E_NOMENU.as_ptr()), name);
             return FAIL;
         }
@@ -617,25 +657,23 @@ unsafe fn menu_enable_recurse(
 
 /// Remove the (sub)menu with the given name from the menu hierarchy (`remove_menu`).
 unsafe fn remove_menu(
-    mut menup: *mut *mut vimmenu_T,
+    menup: *mut Vec<*mut vimmenu_T>,
     name: *mut c_char,
     modes: c_int,
     silent: bool,
 ) -> c_int {
     unsafe {
-        if (*menup).is_null() {
+        if (*menup).is_empty() {
             return OK;
         }
         let p = menu_name_skip(name);
 
-        let mut menu: *mut vimmenu_T;
-        loop {
-            menu = *menup;
-            if menu.is_null() {
-                break;
-            }
+        let mut idx: usize = 0;
+        let mut found_menu: *mut vimmenu_T = ptr::null_mut();
+        while idx < (*menup).len() {
+            let menu = (*menup).as_slice()[idx];
             if *name == NUL || menu_name_equal(name, menu) {
-                if *p != NUL && (*menu).children.is_null() {
+                if *p != NUL && (*menu).children.is_empty() {
                     if !silent {
                         emsg(gettext(E_NOTSUBMENU.as_ptr()));
                     }
@@ -653,6 +691,7 @@ unsafe fn remove_menu(
                 }
 
                 if *name != NUL {
+                    found_menu = menu;
                     break;
                 }
 
@@ -661,34 +700,31 @@ unsafe fn remove_menu(
                     free_menu_string(menu, MENU_INDEX_TIP as usize);
                 }
                 if ((*menu).modes & MENU_ALL_MODES) == 0 {
-                    free_menu(menup);
+                    free_menu(&mut *menup, idx);
                 } else {
-                    menup = &raw mut (*menu).next;
+                    idx += 1;
                 }
             } else {
-                menup = &raw mut (*menu).next;
+                idx += 1;
             }
         }
         if *name != NUL {
-            if menu.is_null() {
+            if found_menu.is_null() {
                 if !silent {
                     semsg!(gettext(E_NOMENU.as_ptr()), name);
                 }
                 return FAIL;
             }
 
-            (*menu).modes &= !modes;
-            let mut child = (*menu).children;
-            while !child.is_null() {
-                (*menu).modes |= (*child).modes;
-                child = (*child).next;
+            (*found_menu).modes &= !modes;
+            for &child in &(*found_menu).children {
+                (*found_menu).modes |= (*child).modes;
             }
             if (modes & MENU_TIP_MODE) != 0 {
-                free_menu_string(menu, MENU_INDEX_TIP as usize);
+                free_menu_string(found_menu, MENU_INDEX_TIP as usize);
             }
-            if ((*menu).modes & MENU_ALL_MODES) == 0 {
-                *menup = menu;
-                free_menu(menup);
+            if ((*found_menu).modes & MENU_ALL_MODES) == 0 {
+                free_menu(&mut *menup, idx);
             }
         }
 
@@ -696,19 +732,10 @@ unsafe fn remove_menu(
     }
 }
 
-/// Free the given menu structure and remove it from the linked list (`free_menu`).
-unsafe fn free_menu(menup: *mut *mut vimmenu_T) {
+/// Free the given menu structure and remove it from the menu list (`free_menu`).
+unsafe fn free_menu(menup: &mut Vec<*mut vimmenu_T>, idx: usize) {
     unsafe {
-        let menu = *menup;
-        *menup = (*menu).next;
-        xfree((*menu).name.cast());
-        xfree((*menu).dname.cast());
-        xfree((*menu).en_name.cast());
-        xfree((*menu).en_dname.cast());
-        xfree((*menu).actext.cast());
-        for i in 0..MENU_MODES {
-            free_menu_string(menu, i);
-        }
+        let menu = menup.remove(idx);
         drop(Box::from_raw(menu));
     }
 }
@@ -730,7 +757,7 @@ unsafe fn free_menu_string(menu: *mut vimmenu_T, idx: usize) {
 }
 
 /// Export menus recursively (`menu_get_recursive`).
-unsafe fn menu_get_recursive(mut menu: *const vimmenu_T, modes: c_int) -> *mut dict_T {
+unsafe fn menu_get_recursive(menu: *const vimmenu_T, modes: c_int) -> *mut dict_T {
     unsafe {
         if menu.is_null() || ((*menu).modes & modes) == 0 {
             return ptr::null_mut();
@@ -767,7 +794,7 @@ unsafe fn menu_get_recursive(mut menu: *const vimmenu_T, modes: c_int) -> *mut d
             );
         }
 
-        if (*menu).children.is_null() {
+        if (*menu).children.is_empty() {
             let commands = tv_dict_alloc();
             tv_dict_add_dict(dict, c"mappings".as_ptr(), 8, commands);
 
@@ -826,13 +853,11 @@ unsafe fn menu_get_recursive(mut menu: *const vimmenu_T, modes: c_int) -> *mut d
             }
         } else {
             let children_list = tv_list_alloc(kListLenMayKnow);
-            menu = (*menu).children;
-            while !menu.is_null() {
-                let d = menu_get_recursive(menu, modes);
+            for &child in &(*menu).children {
+                let d = menu_get_recursive(child, modes);
                 if tv_dict_len(d) > 0 {
                     tv_list_append_dict(children_list, d);
                 }
-                menu = (*menu).next;
             }
             tv_dict_add_list(dict, c"submenus".as_ptr(), 8, children_list);
         }
@@ -843,22 +868,23 @@ unsafe fn menu_get_recursive(mut menu: *const vimmenu_T, modes: c_int) -> *mut d
 /// Export menus matching path `path_name` (`menu_get`).
 pub unsafe fn menu_get(path_name: *mut c_char, modes: c_int, list: *mut list_T) -> bool {
     unsafe {
-        let mut menu = *get_root_menu(path_name);
+        let root = get_root_menu(path_name);
         if *path_name != NUL {
-            menu = find_menu(menu, path_name, modes);
+            let menu = find_menu(&*root, path_name, modes);
             if menu.is_null() {
                 return false;
             }
-        }
-        while !menu.is_null() {
             let d = menu_get_recursive(menu, modes);
             if !d.is_null() && tv_dict_len(d) > 0 {
                 tv_list_append_dict(list, d);
             }
-            if *path_name != NUL {
-                break;
+            return true;
+        }
+        for &menu in &*root {
+            let d = menu_get_recursive(menu, modes);
+            if !d.is_null() && tv_dict_len(d) > 0 {
+                tv_list_append_dict(list, d);
             }
-            menu = (*menu).next;
         }
         true
     }
@@ -866,7 +892,7 @@ pub unsafe fn menu_get(path_name: *mut c_char, modes: c_int, list: *mut list_T) 
 
 /// Find menu matching `path_name` and `modes` (`find_menu`).
 unsafe fn find_menu(
-    mut menu: *mut vimmenu_T,
+    mut menus: &[*mut vimmenu_T],
     path_name: *const c_char,
     modes: c_int,
 ) -> *mut vimmenu_T {
@@ -874,12 +900,14 @@ unsafe fn find_menu(
         debug_assert!(*path_name != NUL);
         let saved_name = xstrdup(path_name);
         let mut name = saved_name;
+        let mut found: *mut vimmenu_T = ptr::null_mut();
 
         while *name != NUL {
             let p = menu_name_skip(name);
-            while !menu.is_null() {
+            found = ptr::null_mut();
+            for &menu in menus {
                 if menu_name_equal(name, menu) {
-                    if *p != NUL && (*menu).children.is_null() {
+                    if *p != NUL && (*menu).children.is_empty() {
                         emsg(gettext(E_NOTSUBMENU.as_ptr()));
                         xfree(saved_name.cast());
                         return ptr::null_mut();
@@ -891,22 +919,22 @@ unsafe fn find_menu(
                         xfree(saved_name.cast());
                         return menu;
                     }
+                    found = menu;
                     break;
                 }
-                menu = (*menu).next;
             }
 
-            if menu.is_null() {
+            if found.is_null() {
                 semsg!(gettext(E_NOMENU.as_ptr()), name);
                 break;
             }
             name = p;
             debug_assert!(*name != NUL);
-            menu = (*menu).children;
+            menus = &(*found).children;
         }
 
         xfree(saved_name.cast());
-        menu
+        found
     }
 }
 
@@ -915,7 +943,7 @@ unsafe fn show_menus(path_name: *mut c_char, modes: c_int) -> c_int {
     unsafe {
         let mut menu: *mut vimmenu_T = ptr::null_mut();
         if *path_name != NUL {
-            menu = find_menu(*get_root_menu(path_name), path_name, modes);
+            menu = find_menu(&*get_root_menu(path_name), path_name, modes);
             if menu.is_null() {
                 return FAIL;
             }
@@ -930,7 +958,7 @@ unsafe fn show_menus(path_name: *mut c_char, modes: c_int) -> c_int {
 }
 
 /// Recursively show the mappings associated with the menus under the given one (`show_menus_recursive`).
-unsafe fn show_menus_recursive(mut menu: *mut vimmenu_T, modes: c_int, mut depth: c_int) {
+unsafe fn show_menus_recursive(menu: *mut vimmenu_T, modes: c_int, mut depth: c_int) {
     unsafe {
         if !menu.is_null() && ((*menu).modes & modes) == 0 {
             return;
@@ -951,7 +979,7 @@ unsafe fn show_menus_recursive(mut menu: *mut vimmenu_T, modes: c_int, mut depth
             msg_outtrans((*menu).name, HLF_D, false);
         }
 
-        if !menu.is_null() && (*menu).children.is_null() {
+        if !menu.is_null() && (*menu).children.is_empty() {
             for (bit, mode_cstr) in MENU_MODE_CHARS.iter().enumerate() {
                 if ((*menu).modes & modes & (1 << bit)) != 0 {
                     msg_putchar(b'\n' as c_int);
@@ -988,18 +1016,20 @@ unsafe fn show_menus_recursive(mut menu: *mut vimmenu_T, modes: c_int, mut depth
                 }
             }
         } else {
-            if menu.is_null() {
-                menu = root_menu;
+            let children = if menu.is_null() {
                 depth -= 1;
+                (&raw const root_menu).as_ref().unwrap().as_slice()
             } else {
-                menu = (*menu).children;
-            }
+                (*menu).children.as_slice()
+            };
 
-            while !menu.is_null() && !got_int {
-                if !menu_is_hidden((*menu).dname) {
-                    show_menus_recursive(menu, modes, depth + 1);
+            for &child in children {
+                if got_int {
+                    break;
                 }
-                menu = (*menu).next;
+                if !menu_is_hidden((*child).dname) {
+                    show_menus_recursive(child, modes, depth + 1);
+                }
             }
         }
     }
@@ -1068,7 +1098,7 @@ pub unsafe fn set_context_in_menu_cmd(
                 EXPAND_MODES = MENU_ALL_MODES;
             }
 
-            let mut menu = root_menu;
+            let mut menu_list: *const Vec<*mut vimmenu_T> = &raw const root_menu;
             if after_dot > arg {
                 let path_len = after_dot.offset_from(arg) as usize;
                 path_name = xmalloc(path_len).cast::<c_char>();
@@ -1077,24 +1107,25 @@ pub unsafe fn set_context_in_menu_cmd(
             let mut name = path_name;
             while !name.is_null() && *name != NUL {
                 p = menu_name_skip(name);
-                while !menu.is_null() {
+                let mut found: *mut vimmenu_T = ptr::null_mut();
+                for &menu in &*menu_list {
                     if menu_name_equal(name, menu) {
-                        if (*p != NUL && (*menu).children.is_null())
+                        if (*p != NUL && (*menu).children.is_empty())
                             || ((*menu).modes & EXPAND_MODES) == 0
                         {
                             xfree(path_name.cast());
                             return ptr::null_mut();
                         }
+                        found = menu;
                         break;
                     }
-                    menu = (*menu).next;
                 }
-                if menu.is_null() {
+                if found.is_null() {
                     xfree(path_name.cast());
                     return ptr::null_mut();
                 }
                 name = p;
-                menu = (*menu).children;
+                menu_list = &raw const (*found).children;
             }
             xfree(path_name.cast());
 
@@ -1104,7 +1135,7 @@ pub unsafe fn set_context_in_menu_cmd(
                 EXPAND_MENUS
             };
             (*xp).xp_pattern = after_dot;
-            EXPAND_MENU = menu;
+            EXPAND_MENU = menu_list;
         } else {
             (*xp).xp_context = EXPAND_NOTHING;
         }
@@ -1116,37 +1147,47 @@ pub unsafe fn set_context_in_menu_cmd(
 pub unsafe fn get_menu_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx == 0 {
-            GET_MENU_NAME_MENU = EXPAND_MENU;
+            GET_MENU_NAME_IDX = 0;
             GET_MENU_NAME_ADVANCE = false;
         }
 
-        while !GET_MENU_NAME_MENU.is_null()
-            && (menu_is_hidden((*GET_MENU_NAME_MENU).dname)
-                || menu_is_separator((*GET_MENU_NAME_MENU).dname)
-                || (*GET_MENU_NAME_MENU).children.is_null())
-        {
-            GET_MENU_NAME_MENU = (*GET_MENU_NAME_MENU).next;
-        }
-
-        if GET_MENU_NAME_MENU.is_null() {
+        if EXPAND_MENU.is_null() {
             return ptr::null_mut();
         }
+        let menus = (*EXPAND_MENU).as_slice();
 
-        let str_ptr = if ((*GET_MENU_NAME_MENU).modes & EXPAND_MODES) != 0 {
-            if GET_MENU_NAME_ADVANCE {
-                (*GET_MENU_NAME_MENU).en_dname
+        while GET_MENU_NAME_IDX < menus.len() {
+            let menu = menus[GET_MENU_NAME_IDX];
+            if menu_is_hidden((*menu).dname)
+                || menu_is_separator((*menu).dname)
+                || (*menu).children.is_empty()
+            {
+                GET_MENU_NAME_IDX += 1;
             } else {
-                if (*GET_MENU_NAME_MENU).en_dname.is_null() {
+                break;
+            }
+        }
+
+        if GET_MENU_NAME_IDX >= menus.len() {
+            return ptr::null_mut();
+        }
+        let menu = menus[GET_MENU_NAME_IDX];
+
+        let str_ptr = if ((*menu).modes & EXPAND_MODES) != 0 {
+            if GET_MENU_NAME_ADVANCE {
+                (*menu).en_dname
+            } else {
+                if (*menu).en_dname.is_null() {
                     GET_MENU_NAME_ADVANCE = true;
                 }
-                (*GET_MENU_NAME_MENU).dname
+                (*menu).dname
             }
         } else {
             c"".as_ptr().cast_mut()
         };
 
         if GET_MENU_NAME_ADVANCE {
-            GET_MENU_NAME_MENU = (*GET_MENU_NAME_MENU).next;
+            GET_MENU_NAME_IDX += 1;
         }
 
         GET_MENU_NAME_ADVANCE = !GET_MENU_NAME_ADVANCE;
@@ -1159,58 +1200,64 @@ pub unsafe fn get_menu_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
 pub unsafe fn get_menu_names(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx == 0 {
-            GET_MENU_NAMES_MENU = EXPAND_MENU;
+            GET_MENU_NAMES_IDX = 0;
             GET_MENU_NAMES_ADVANCE = false;
         }
 
-        while !GET_MENU_NAMES_MENU.is_null() && {
-            let dname = (*GET_MENU_NAMES_MENU).dname;
+        if EXPAND_MENU.is_null() {
+            return ptr::null_mut();
+        }
+        let menus = (*EXPAND_MENU).as_slice();
+
+        while GET_MENU_NAMES_IDX < menus.len() && {
+            let dname = (*menus[GET_MENU_NAMES_IDX]).dname;
             let dlen = CStr::from_ptr(dname).to_bytes().len();
             menu_is_hidden(dname)
                 || (EXPAND_EMENU && menu_is_separator(dname))
                 || (dlen > 0 && *dname.add(dlen - 1) == b'.' as c_char)
         } {
-            GET_MENU_NAMES_MENU = (*GET_MENU_NAMES_MENU).next;
+            GET_MENU_NAMES_IDX += 1;
         }
 
-        if GET_MENU_NAMES_MENU.is_null() {
+        if GET_MENU_NAMES_IDX >= menus.len() {
             return ptr::null_mut();
         }
+        let menu = menus[GET_MENU_NAMES_IDX];
 
-        let str_ptr = if ((*GET_MENU_NAMES_MENU).modes & EXPAND_MODES) != 0 {
-            if !(*GET_MENU_NAMES_MENU).children.is_null() {
+        let str_ptr = if ((*menu).modes & EXPAND_MODES) != 0 {
+            if !(*menu).children.is_empty() {
                 if GET_MENU_NAMES_ADVANCE {
                     xstrlcpy(
                         &raw mut GET_MENU_NAMES_TBUFFER[0],
-                        (*GET_MENU_NAMES_MENU).en_dname,
+                        (*menu).en_dname,
                         TBUFFER_LEN,
                     );
                 } else {
                     xstrlcpy(
                         &raw mut GET_MENU_NAMES_TBUFFER[0],
-                        (*GET_MENU_NAMES_MENU).dname,
+                        (*menu).dname,
                         TBUFFER_LEN,
                     );
-                    if (*GET_MENU_NAMES_MENU).en_dname.is_null() {
+                    if (*menu).en_dname.is_null() {
                         GET_MENU_NAMES_ADVANCE = true;
                     }
                 }
                 strcat(&raw mut GET_MENU_NAMES_TBUFFER[0], c"\x01".as_ptr());
                 &raw mut GET_MENU_NAMES_TBUFFER[0]
             } else if GET_MENU_NAMES_ADVANCE {
-                (*GET_MENU_NAMES_MENU).en_dname
+                (*menu).en_dname
             } else {
-                if (*GET_MENU_NAMES_MENU).en_dname.is_null() {
+                if (*menu).en_dname.is_null() {
                     GET_MENU_NAMES_ADVANCE = true;
                 }
-                (*GET_MENU_NAMES_MENU).dname
+                (*menu).dname
             }
         } else {
             c"".as_ptr().cast_mut()
         };
 
         if GET_MENU_NAMES_ADVANCE {
-            GET_MENU_NAMES_MENU = (*GET_MENU_NAMES_MENU).next;
+            GET_MENU_NAMES_IDX += 1;
         }
 
         GET_MENU_NAMES_ADVANCE = !GET_MENU_NAMES_ADVANCE;
@@ -1505,17 +1552,18 @@ pub unsafe fn show_popupmenu() {
 
         apply_autocmds(EVENT_MENUPOPUP, mode, ptr::null_mut(), false, curbuf);
 
-        let mut menu = root_menu;
-        while !menu.is_null() {
-            if strncmp(c"PopUp".as_ptr(), (*menu).name, 5) == 0
-                && strncmp((*menu).name.add(5), mode, mode_len) == 0
+        let mut menu: *mut vimmenu_T = ptr::null_mut();
+        let root_ptr = &raw const root_menu;
+        for &m in &*root_ptr {
+            if strncmp(c"PopUp".as_ptr(), (*m).name, 5) == 0
+                && strncmp((*m).name.add(5), mode, mode_len) == 0
             {
+                menu = m;
                 break;
             }
-            menu = (*menu).next;
         }
 
-        if menu.is_null() || (*menu).children.is_null() {
+        if menu.is_null() || (*menu).children.is_empty() {
             return;
         }
 
@@ -1622,43 +1670,44 @@ pub unsafe fn execute_menu(eap: *const exarg_T, menu: *mut vimmenu_T, mode_idx: 
 unsafe fn menu_getbyname(name_arg: *mut c_char) -> *mut vimmenu_T {
     unsafe {
         let saved_name = xstrdup(name_arg);
-        let mut menu = *get_root_menu(saved_name);
+        let mut menus = (&*get_root_menu(saved_name)).as_slice();
         let mut name = saved_name;
         let mut gave_emsg = false;
+        let mut found: *mut vimmenu_T = ptr::null_mut();
         while *name != NUL {
             let p = menu_name_skip(name);
+            found = ptr::null_mut();
 
-            while !menu.is_null() {
+            for &menu in menus {
                 if menu_name_equal(name, menu) {
-                    if *p == NUL && !(*menu).children.is_null() {
+                    if *p == NUL && !(*menu).children.is_empty() {
                         emsg(gettext(
                             c"E333: Menu path must lead to a menu item".as_ptr(),
                         ));
                         gave_emsg = true;
-                        menu = ptr::null_mut();
-                    } else if *p != NUL && (*menu).children.is_null() {
+                    } else if *p != NUL && (*menu).children.is_empty() {
                         emsg(gettext(E_NOTSUBMENU.as_ptr()));
-                        menu = ptr::null_mut();
+                    } else {
+                        found = menu;
                     }
                     break;
                 }
-                menu = (*menu).next;
             }
-            if menu.is_null() || *p == NUL {
+            if found.is_null() || *p == NUL {
                 break;
             }
-            menu = (*menu).children;
+            menus = (*found).children.as_slice();
             name = p;
         }
         xfree(saved_name.cast());
-        if menu.is_null() {
+        if found.is_null() {
             if !gave_emsg {
                 semsg!(gettext(c"E334: Menu not found: %s".as_ptr()), name_arg);
             }
             return ptr::null_mut();
         }
 
-        menu
+        found
     }
 }
 
@@ -1697,15 +1746,17 @@ pub unsafe fn ex_emenu(eap: *mut exarg_T) {
 /// Given a menu descriptor, e.g. `"File.New"`, find it in the menu hierarchy (`menu_find`).
 pub unsafe fn menu_find(path_name: *const c_char) -> *mut vimmenu_T {
     unsafe {
-        let mut menu = *get_root_menu(path_name);
+        let mut menus = (&*get_root_menu(path_name)).as_slice();
         let saved_name = xstrdup(path_name);
         let mut name = saved_name;
+        let mut found: *mut vimmenu_T = ptr::null_mut();
         while *name != NUL {
             let p = menu_name_skip(name);
+            found = ptr::null_mut();
 
-            while !menu.is_null() {
+            for &menu in menus {
                 if menu_name_equal(name, menu) {
-                    if (*menu).children.is_null() {
+                    if (*menu).children.is_empty() {
                         if *p == NUL {
                             emsg(gettext(c"E336: Menu path must lead to a sub-menu".as_ptr()));
                         } else {
@@ -1718,23 +1769,23 @@ pub unsafe fn menu_find(path_name: *const c_char) -> *mut vimmenu_T {
                         xfree(saved_name.cast());
                         return menu;
                     }
+                    found = menu;
                     break;
                 }
-                menu = (*menu).next;
             }
-            if menu.is_null() {
+            if found.is_null() {
                 break;
             }
 
-            menu = (*menu).children;
+            menus = (*found).children.as_slice();
             name = p;
         }
 
-        if menu.is_null() {
+        if found.is_null() {
             emsg(gettext(c"E337: Menu not found - check menu names".as_ptr()));
         }
         xfree(saved_name.cast());
-        menu
+        found
     }
 }
 
@@ -1748,11 +1799,7 @@ pub unsafe fn ex_menutranslate(eap: *mut exarg_T) {
         if strncmp(arg, c"clear".as_ptr(), 5) == 0
             && ends_excmd(c_int::from(*skipwhite(arg.add(5)) as u8)) != 0
         {
-            for mt in menutrans.drain(..) {
-                xfree(mt.from.cast());
-                xfree(mt.from_noamp.cast());
-                xfree(mt.to.cast());
-            }
+            menutrans.clear();
             del_menutrans_vars();
         } else {
             let mut from = arg;
@@ -1859,25 +1906,11 @@ unsafe fn menu_translate_tab_and_shift(arg_start: *mut c_char) -> *mut c_char {
 
 /// Get the information about a menu item in mode `modes` (`menuitem_getinfo`).
 unsafe fn menuitem_getinfo(
-    menu_name: *const c_char,
     menu: *const vimmenu_T,
     modes: c_int,
     dict: *mut dict_T,
 ) {
     unsafe {
-        if *menu_name == NUL {
-            let l = tv_list_alloc(kListLenMayKnow);
-            tv_dict_add_list(dict, c"submenus".as_ptr(), 8, l);
-            let mut topmenu = menu;
-            while !topmenu.is_null() {
-                if !menu_is_hidden((*topmenu).dname) {
-                    tv_list_append_string(l, (*topmenu).dname, -1);
-                }
-                topmenu = (*topmenu).next;
-            }
-            return;
-        }
-
         tv_dict_add_str(dict, c"name".as_ptr(), 4, (*menu).name);
         tv_dict_add_str(dict, c"display".as_ptr(), 7, (*menu).dname);
         if !(*menu).actext.is_null() {
@@ -1891,7 +1924,7 @@ unsafe fn menuitem_getinfo(
         buf[buflen as usize] = NUL;
         tv_dict_add_str_len(dict, c"shortcut".as_ptr(), 8, buf.as_ptr(), buflen);
 
-        if (*menu).children.is_null() {
+        if (*menu).children.is_empty() {
             let mut bit = 0usize;
             while bit < MENU_MODES && ((1 << bit) & modes) == 0 {
                 bit += 1;
@@ -1950,10 +1983,8 @@ unsafe fn menuitem_getinfo(
         } else {
             let l = tv_list_alloc(kListLenMayKnow);
             tv_dict_add_list(dict, c"submenus".as_ptr(), 8, l);
-            let mut child: *const vimmenu_T = (*menu).children;
-            while !child.is_null() {
+            for &child in &(*menu).children {
                 tv_list_append_string(l, (*child).dname, -1);
-                child = (*child).next;
             }
         }
     }
@@ -1986,33 +2017,54 @@ pub unsafe fn f_menu_info(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
             ptr::null_mut(),
         );
 
-        let mut menu: *const vimmenu_T = *get_root_menu(menu_name);
-        let saved_name = xstrdup(menu_name);
-        if *saved_name != NUL {
-            let mut name = saved_name;
-            while *name != NUL {
-                let p = menu_name_skip(name);
-                while !menu.is_null() {
-                    if menu_name_equal(name, menu) {
-                        break;
-                    }
-                    menu = (*menu).next;
-                }
-                if menu.is_null() || *p == NUL {
+        let mut menus = (&*get_root_menu(menu_name)).as_slice();
+        if *menu_name == NUL {
+            let mut has_mode_match = false;
+            for &topmenu in menus {
+                if ((*topmenu).modes & modes) != 0 {
+                    has_mode_match = true;
                     break;
                 }
-                menu = (*menu).children;
-                name = p;
             }
-        }
-        xfree(saved_name.cast());
-
-        if menu.is_null() {
+            if !menus.is_empty() && ((*menus[0]).modes & modes) != 0 {
+                let _ = has_mode_match;
+                let l = tv_list_alloc(kListLenMayKnow);
+                tv_dict_add_list(retdict, c"submenus".as_ptr(), 8, l);
+                for &topmenu in menus {
+                    if !menu_is_hidden((*topmenu).dname) {
+                        tv_list_append_string(l, (*topmenu).dname, -1);
+                    }
+                }
+            }
             return;
         }
 
-        if ((*menu).modes & modes) != 0 {
-            menuitem_getinfo(menu_name, menu, modes, retdict);
+        let saved_name = xstrdup(menu_name);
+        let mut found: *const vimmenu_T = ptr::null();
+        let mut name = saved_name;
+        while *name != NUL {
+            let p = menu_name_skip(name);
+            found = ptr::null();
+            for &menu in menus {
+                if menu_name_equal(name, menu) {
+                    found = menu;
+                    break;
+                }
+            }
+            if found.is_null() || *p == NUL {
+                break;
+            }
+            menus = (*found).children.as_slice();
+            name = p;
+        }
+        xfree(saved_name.cast());
+
+        if found.is_null() {
+            return;
+        }
+
+        if ((*found).modes & modes) != 0 {
+            menuitem_getinfo(found, modes, retdict);
         }
     }
 }

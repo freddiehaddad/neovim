@@ -1712,8 +1712,7 @@ unsafe fn pum_select_mouse_pos() {
 unsafe fn pum_execute_menu(menu: *mut vimmenu_T, mode: c_int) {
     unsafe {
         let mut idx: c_int = 0;
-        let mut mp = (*menu).children;
-        while !mp.is_null() {
+        for &mp in &(*menu).children {
             if ((*mp).modes & (*mp).enabled & mode) != 0 {
                 let cur_idx = idx;
                 idx += 1;
@@ -1723,7 +1722,6 @@ unsafe fn pum_execute_menu(menu: *mut vimmenu_T, mode: c_int) {
                     break;
                 }
             }
-            mp = (*mp).next;
         }
     }
 }
@@ -1735,12 +1733,10 @@ pub unsafe fn pum_show_popupmenu(menu: *mut vimmenu_T) {
         PUM_SIZE = 0;
         let mode = get_menu_mode_flag();
 
-        let mut mp = (*menu).children;
-        while !mp.is_null() {
+        for &mp in &(*menu).children {
             if menu_is_separator((*mp).dname) || ((*mp).modes & (*mp).enabled & mode) != 0 {
                 PUM_SIZE += 1;
             }
-            mp = (*mp).next;
         }
 
         if PUM_SIZE <= 0 {
@@ -1752,8 +1748,7 @@ pub unsafe fn pum_show_popupmenu(menu: *mut vimmenu_T) {
         let mut array_vec: Vec<pumitem_T> = vec![std::mem::zeroed(); PUM_SIZE as usize];
         let array = array_vec.as_mut_ptr();
 
-        mp = (*menu).children;
-        while !mp.is_null() {
+        for &mp in &(*menu).children {
             let mut s: *const c_char = ptr::null();
             if menu_is_separator((*mp).dname) {
                 s = c"".as_ptr();
@@ -1764,7 +1759,6 @@ pub unsafe fn pum_show_popupmenu(menu: *mut vimmenu_T) {
                 array_vec[idx].pum_text = xstrdup(s);
                 idx += 1;
             }
-            mp = (*mp).next;
         }
 
         PUM_ARRAY = array;

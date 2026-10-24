@@ -106,6 +106,22 @@ pub struct mapblock_T {
     pub m_replace_keycodes: bool,
 }
 
+impl Drop for mapblock_T {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.m_keys.cast::<c_void>());
+            if !self.m_alt.is_null() {
+                (*self.m_alt).m_alt = ptr::null_mut();
+            } else {
+                nlua_clear_ref(&mut self.m_luaref);
+                xfree(self.m_str.cast::<c_void>());
+                xfree(self.m_orig_str.cast::<c_void>());
+                xfree(self.m_desc.cast::<c_void>());
+            }
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct typebuf_T {
@@ -283,15 +299,6 @@ pub unsafe fn map_luaid_get(n: c_int) -> LuaRef {
 unsafe fn mapblock_free(mpp: *mut *mut mapblock_T) {
     unsafe {
         let mp = *mpp;
-        xfree((*mp).m_keys.cast::<c_void>());
-        if !(*mp).m_alt.is_null() {
-            (*(*mp).m_alt).m_alt = ptr::null_mut();
-        } else {
-            nlua_clear_ref(&mut (*mp).m_luaref);
-            xfree((*mp).m_str.cast::<c_void>());
-            xfree((*mp).m_orig_str.cast::<c_void>());
-            xfree((*mp).m_desc.cast::<c_void>());
-        }
         *mpp = (*mp).m_next;
         drop(Box::from_raw(mp));
     }
@@ -642,8 +649,6 @@ unsafe fn map_add(
     simplified: bool,
 ) -> *mut mapblock_T {
     unsafe {
-        let mp = Box::into_raw(Box::new(std::mem::zeroed::<mapblock_T>()));
-
         if *keys == Ctrl_C {
             if ptr::eq(
                 map_table,
@@ -655,27 +660,39 @@ unsafe fn map_add(
             }
         }
 
-        (*mp).m_keys = xstrdup(keys);
-        (*mp).m_str = args.rhs;
-        (*mp).m_orig_str = args.orig_rhs;
-        (*mp).m_luaref = args.rhs_lua;
-        (*mp).m_keylen = CStr::from_ptr((*mp).m_keys).to_bytes().len() as c_int;
-        (*mp).m_noremap = noremap;
-        (*mp).m_nowait = args.nowait as c_char;
-        (*mp).m_silent = args.silent as c_char;
-        (*mp).m_mode = mode;
-        (*mp).m_simplified = c_int::from(simplified);
-        (*mp).m_expr = args.expr as c_char;
-        (*mp).m_replace_keycodes = args.replace_keycodes;
-        if sid != 0 {
-            (*mp).m_script_ctx.sc_sid = sid;
-            (*mp).m_script_ctx.sc_lnum = lnum;
+        let m_keys = xstrdup(keys);
+        let m_keylen = CStr::from_ptr(m_keys).to_bytes().len() as c_int;
+        let m_script_ctx = if sid != 0 {
+            sctx_T {
+                sc_sid: sid,
+                sc_seq: 0,
+                sc_lnum: lnum,
+                sc_chan: 0,
+            }
         } else {
-            (*mp).m_script_ctx = current_sctx;
-            (*mp).m_script_ctx.sc_lnum += sourcing_lnum();
-            nlua_set_sctx(&mut (*mp).m_script_ctx);
-        }
-        (*mp).m_desc = args.desc;
+            let mut ctx = current_sctx;
+            ctx.sc_lnum += sourcing_lnum();
+            nlua_set_sctx(&mut ctx);
+            ctx
+        };
+        let mp = Box::into_raw(Box::new(mapblock_T {
+            m_next: ptr::null_mut(),
+            m_alt: ptr::null_mut(),
+            m_keys,
+            m_str: args.rhs,
+            m_orig_str: args.orig_rhs,
+            m_luaref: args.rhs_lua,
+            m_keylen,
+            m_mode: mode,
+            m_simplified: c_int::from(simplified),
+            m_noremap: noremap,
+            m_silent: args.silent as c_char,
+            m_nowait: args.nowait as c_char,
+            m_expr: args.expr as c_char,
+            m_script_ctx,
+            m_desc: args.desc,
+            m_replace_keycodes: args.replace_keycodes,
+        }));
 
         if is_abbr {
             (*mp).m_next = *abbr_table;
