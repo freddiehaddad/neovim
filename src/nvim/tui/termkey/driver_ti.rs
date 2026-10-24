@@ -135,7 +135,7 @@ pub struct TerminfoEntry {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union TermKeyKeyCode {
+pub struct TermKeyKeyCode {
     pub codepoint: c_int,
     pub number: c_int,
     pub sym: TermKeySym,
@@ -571,6 +571,7 @@ pub unsafe fn peekkey_ti(
 
             (*key).r#type = k.r#type;
             (*key).code.sym = k.sym;
+            (*key).code.number = k.sym;
             (*key).modifiers = k.modifier_set;
             *nbytep = pos;
             return TERMKEY_RES_KEY;

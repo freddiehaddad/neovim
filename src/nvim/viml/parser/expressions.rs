@@ -192,7 +192,7 @@ pub struct LexExprTokenErr {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union LexExprTokenNumVal {
+pub struct LexExprTokenNumVal {
     pub floating: float_T,
     pub integer: uvarnumber_T,
 }
@@ -213,7 +213,7 @@ pub struct LexExprTokenAss {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union LexExprTokenData {
+pub struct LexExprTokenData {
     pub cmp: LexExprTokenCmp,
     pub mul: LexExprTokenMul,
     pub brc: LexExprTokenBrc,
@@ -320,7 +320,7 @@ pub struct ExprASTNodeAss {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union ExprASTNodeData {
+pub struct ExprASTNodeData {
     pub reg: ExprASTNodeReg,
     pub fig: ExprASTNodeFig,
     pub var: ExprASTNodeVar,

@@ -241,6 +241,7 @@ unsafe fn handle_csi_ss3_full(
         let idx = (cmd - 0x40) as usize;
         (*key).r#type = CSI_SS3S[idx].r#type;
         (*key).code.sym = CSI_SS3S[idx].sym;
+        (*key).code.number = CSI_SS3S[idx].sym;
         (*key).modifiers &= !CSI_SS3S[idx].modifier_mask;
         (*key).modifiers |= CSI_SS3S[idx].modifier_set;
 
@@ -322,6 +323,7 @@ unsafe fn handle_csifunc(
             let idx = args[0] as usize;
             (*key).r#type = CSIFUNCS[idx].r#type;
             (*key).code.sym = CSIFUNCS[idx].sym;
+            (*key).code.number = CSIFUNCS[idx].sym;
             (*key).modifiers &= !CSIFUNCS[idx].modifier_mask;
             (*key).modifiers |= CSIFUNCS[idx].modifier_set;
         } else {
@@ -911,6 +913,7 @@ unsafe fn peekkey_ss3(
         let idx = usize::from(cmd - 0x40);
         (*key).r#type = CSI_SS3S[idx].r#type;
         (*key).code.sym = CSI_SS3S[idx].sym;
+        (*key).code.number = CSI_SS3S[idx].sym;
         (*key).modifiers = CSI_SS3S[idx].modifier_set;
 
         if (*key).code.sym == TERMKEY_SYM_UNKNOWN {
@@ -923,6 +926,7 @@ unsafe fn peekkey_ss3(
             } else {
                 (*key).r#type = SS3S[idx].r#type;
                 (*key).code.sym = SS3S[idx].sym;
+                (*key).code.number = SS3S[idx].sym;
                 (*key).modifiers = SS3S[idx].modifier_set;
             }
         }
