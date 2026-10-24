@@ -2,10 +2,11 @@
 
 use crate::grid::{schar_T, schar_from_ascii, schar_from_buf};
 use crate::mbyte::{utf_ClusterInfo_len, utf_char2bytes, utf_iscomposing, utf_ptr2StrCharInfo_len};
-use crate::memory::{xcalloc, xfree};
 use crate::regexp::GRAPHEME_STATE_INIT;
 use crate::vterm::encoding::{VTermEncodingType, vterm_lookup_encoding};
-use crate::vterm::keyboard::{BUFIDX_ALTSCREEN, BUFIDX_PRIMARY, C1_CSI, VTermStateFull};
+use crate::vterm::keyboard::{
+    BUFIDX_ALTSCREEN, BUFIDX_PRIMARY, C1_CSI, VTermStateFull, VTermStateSelection,
+};
 use crate::vterm::mouse::{
     MOUSE_RXVT, MOUSE_SGR, MOUSE_UTF8, MOUSE_WANT_DRAG, MOUSE_WANT_MOVE, MOUSE_X10, VTerm, VTermPos,
 };
@@ -206,7 +207,7 @@ unsafe fn scrollregion_right(state: *const VTermStateFull) -> c_int {
 #[inline]
 unsafe fn rowwidth(state: *const VTermStateFull, row: c_int) -> c_int {
     unsafe {
-        let lineinfo = (*state).lineinfo.cast::<VTermLineInfo>();
+        let lineinfo = (*state).lineinfo;
         if (*lineinfo.add(row as usize)).doublewidth() != 0 {
             (*state).cols / 2
         } else {
@@ -277,7 +278,7 @@ unsafe fn set_tmp_selection_recvpartial(state: *mut VTermStateFull, val: u32) {
 
 unsafe fn putglyph(state: *mut VTermStateFull, schar: schar_T, width: c_int, pos: VTermPos) {
     unsafe {
-        let lineinfo = (*state).lineinfo.cast::<VTermLineInfo>();
+        let lineinfo = (*state).lineinfo;
         let li = *lineinfo.add(pos.row as usize);
         let flags = ((*state).protected_cell & 0x01)
             | ((li.doublewidth() & 0x01) << 1)
@@ -320,7 +321,7 @@ unsafe fn updatecursor(state: *mut VTermStateFull, oldpos: *const VTermPos, canc
 unsafe fn erase(state: *mut VTermStateFull, rect: VTermRect, selective: c_int) {
     unsafe {
         if rect.end_col == (*state).cols {
-            let lineinfo = (*state).lineinfo.cast::<VTermLineInfo>();
+            let lineinfo = (*state).lineinfo;
             let mut row = rect.start_row + 1;
             while row < rect.end_row + 1 && row < (*state).rows {
                 (*lineinfo.add(row as usize)).set_continuation(false);
@@ -339,47 +340,77 @@ unsafe fn erase(state: *mut VTermStateFull, rect: VTermRect, selective: c_int) {
 
 unsafe fn vterm_state_new(vt: *mut VTerm) -> *mut VTermStateFull {
     unsafe {
-        let state = xcalloc(1, size_of::<VTermStateFull>()).cast::<VTermStateFull>();
-
-        (*state).vt = vt;
-
-        (*state).rows = (*vt).rows;
-        (*state).cols = (*vt).cols;
-
-        (*state).mouse_col = 0;
-        (*state).mouse_row = 0;
-        (*state).mouse_buttons = 0;
-
-        (*state).mouse_protocol = MOUSE_X10;
-
-        (*state).callbacks = ptr::null();
-        (*state).cbdata = ptr::null_mut();
-
-        (*state).selection.callbacks = ptr::null();
-        (*state).selection.user = ptr::null_mut();
-        (*state).selection.buffer = ptr::null_mut();
+        let rows = (*vt).rows;
+        let cols = (*vt).cols;
+        let state = Box::into_raw(Box::new(VTermStateFull {
+            vt,
+            callbacks: ptr::null(),
+            cbdata: ptr::null_mut(),
+            fallbacks: ptr::null(),
+            fbdata: ptr::null_mut(),
+            rows,
+            cols,
+            pos: VTermPos::default(),
+            at_phantom: 0,
+            scrollregion_top: 0,
+            scrollregion_bottom: 0,
+            scrollregion_left: 0,
+            scrollregion_right: 0,
+            tabstops: vec![0u8; (cols as usize).div_ceil(8)],
+            lineinfos: [
+                vec![VTermLineInfo::default(); rows as usize],
+                vec![VTermLineInfo::default(); rows as usize],
+            ],
+            lineinfo: ptr::null_mut(),
+            mouse_col: 0,
+            mouse_row: 0,
+            mouse_buttons: 0,
+            mouse_flags: 0,
+            mouse_protocol: MOUSE_X10,
+            grapheme_buf: [0; 32],
+            grapheme_len: 0,
+            grapheme_last: 0,
+            grapheme_state: 0,
+            combine_width: 0,
+            combine_pos: VTermPos { row: -1, col: 0 },
+            mode: 0,
+            encoding: std::mem::zeroed(),
+            encoding_utf8: std::mem::zeroed(),
+            gl_set: 0,
+            gr_set: 0,
+            gsingle_set: 0,
+            pen: Default::default(),
+            default_fg: Default::default(),
+            default_bg: Default::default(),
+            colors: Default::default(),
+            bold_is_highbright: 0,
+            protected_cell: 0,
+            saved: Default::default(),
+            tmp: Default::default(),
+            selection: VTermStateSelection {
+                callbacks: ptr::null(),
+                user: ptr::null_mut(),
+                buffer: ptr::null_mut(),
+                buflen: 0,
+            },
+            selection_owned_buffer: Vec::new(),
+            key_encoding_stacks: [
+                crate::vterm::keyboard::VTermKeyEncodingStack {
+                    items: [0; 16],
+                    size: 1,
+                },
+                crate::vterm::keyboard::VTermKeyEncodingStack {
+                    items: [0; 16],
+                    size: 1,
+                },
+            ],
+        }));
 
         vterm_state_newpen(state);
-
-        (*state).bold_is_highbright = 0;
-
-        (*state).combine_pos.row = -1;
-
-        (*state).tabstops = xcalloc(1, ((*state).cols as usize).div_ceil(8)).cast::<u8>();
-
-        (*state).lineinfos[BUFIDX_PRIMARY] =
-            xcalloc(1, ((*state).rows as usize) * size_of::<VTermLineInfo>());
-        (*state).lineinfos[BUFIDX_ALTSCREEN] =
-            xcalloc(1, ((*state).rows as usize) * size_of::<VTermLineInfo>());
-        (*state).lineinfo = (*state).lineinfos[BUFIDX_PRIMARY];
+        (*state).lineinfo = (*state).lineinfos[BUFIDX_PRIMARY].as_mut_ptr();
 
         if let Some(utf8_enc) = vterm_lookup_encoding(VTermEncodingType::ENC_UTF8, b'u' as c_char) {
             (*state).encoding_utf8.init(utf8_enc);
-        }
-
-        for stack in &mut (*state).key_encoding_stacks {
-            stack.items = [0; 16];
-            stack.size = 1;
         }
 
         state
@@ -388,12 +419,7 @@ unsafe fn vterm_state_new(vt: *mut VTerm) -> *mut VTermStateFull {
 
 pub unsafe fn vterm_state_free(state: *mut VTermStateFull) {
     unsafe {
-        xfree((*state).tabstops.cast());
-        xfree((*state).lineinfos[BUFIDX_PRIMARY]);
-        if !(*state).lineinfos[BUFIDX_ALTSCREEN].is_null() {
-            xfree((*state).lineinfos[BUFIDX_ALTSCREEN]);
-        }
-        xfree(state.cast());
+        drop(Box::from_raw(state));
     }
 }
 
@@ -425,7 +451,7 @@ unsafe fn scroll(
         // Update lineinfo if full line
         if rect.start_col == 0 && rect.end_col == (*state).cols && rightward == 0 {
             let height = rect.end_row - rect.start_row - downward.abs();
-            let lineinfo = (*state).lineinfo.cast::<VTermLineInfo>();
+            let lineinfo = (*state).lineinfo;
 
             if downward > 0 {
                 ptr::copy(
@@ -490,7 +516,7 @@ unsafe fn linefeed(state: *mut VTermStateFull) {
 unsafe fn set_col_tabstop(state: *mut VTermStateFull, col: c_int) {
     unsafe {
         let mask = 1u8 << (col & 7);
-        *(*state).tabstops.add((col >> 3) as usize) |= mask;
+        (&mut *state).tabstops[(col >> 3) as usize] |= mask;
     }
 }
 
@@ -498,7 +524,7 @@ unsafe fn set_col_tabstop(state: *mut VTermStateFull, col: c_int) {
 unsafe fn clear_col_tabstop(state: *mut VTermStateFull, col: c_int) {
     unsafe {
         let mask = 1u8 << (col & 7);
-        *(*state).tabstops.add((col >> 3) as usize) &= !mask;
+        (&mut *state).tabstops[(col >> 3) as usize] &= !mask;
     }
 }
 
@@ -506,7 +532,7 @@ unsafe fn clear_col_tabstop(state: *mut VTermStateFull, col: c_int) {
 unsafe fn is_col_tabstop(state: *const VTermStateFull, col: c_int) -> bool {
     unsafe {
         let mask = 1u8 << (col & 7);
-        (*(*state).tabstops.add((col >> 3) as usize) & mask) != 0
+        ((&*state).tabstops[(col >> 3) as usize] & mask) != 0
     }
 }
 
@@ -558,7 +584,7 @@ unsafe fn set_lineinfo(
     dhl: c_int,
 ) {
     unsafe {
-        let lineinfo = (*state).lineinfo.cast::<VTermLineInfo>();
+        let lineinfo = (*state).lineinfo;
         let mut info = *lineinfo.add(row as usize);
 
         if dwl == DWL_OFF {
@@ -683,7 +709,7 @@ unsafe fn on_text(bytes: *const c_char, len: usize, user: *mut c_void) -> c_int 
                 linefeed(state);
                 (*state).pos.col = 0;
                 (*state).at_phantom = 0;
-                let lineinfo = (*state).lineinfo.cast::<VTermLineInfo>();
+                let lineinfo = (*state).lineinfo;
                 (*lineinfo.add((*state).pos.row as usize)).set_continuation(true);
             }
 
@@ -2464,18 +2490,19 @@ unsafe fn on_sos(frag: VTermStringFragment, user: *mut c_void) -> c_int {
 unsafe fn on_resize(rows: c_int, cols: c_int, user: *mut c_void) -> c_int {
     unsafe {
         let state = user.cast::<VTermStateFull>();
-        let oldpos = (*state).pos;
+        let state_ref = &mut *state;
+        let oldpos = state_ref.pos;
 
-        if cols != (*state).cols {
-            let newtabstops = xcalloc(1, (cols as usize).div_ceil(8)).cast::<u8>();
+        if cols != state_ref.cols {
+            let mut newtabstops = vec![0u8; (cols as usize).div_ceil(8)];
 
             let mut col: c_int = 0;
-            while col < (*state).cols && col < cols {
+            while col < state_ref.cols && col < cols {
                 let mask = 1u8 << (col & 7);
-                if (*(*state).tabstops.add((col >> 3) as usize) & mask) != 0 {
-                    *newtabstops.add((col >> 3) as usize) |= mask;
+                if (state_ref.tabstops[(col >> 3) as usize] & mask) != 0 {
+                    newtabstops[(col >> 3) as usize] |= mask;
                 } else {
-                    *newtabstops.add((col >> 3) as usize) &= !mask;
+                    newtabstops[(col >> 3) as usize] &= !mask;
                 }
                 col += 1;
             }
@@ -2483,74 +2510,53 @@ unsafe fn on_resize(rows: c_int, cols: c_int, user: *mut c_void) -> c_int {
             while col < cols {
                 let mask = 1u8 << (col & 7);
                 if col % 8 == 0 {
-                    *newtabstops.add((col >> 3) as usize) |= mask;
+                    newtabstops[(col >> 3) as usize] |= mask;
                 } else {
-                    *newtabstops.add((col >> 3) as usize) &= !mask;
+                    newtabstops[(col >> 3) as usize] &= !mask;
                 }
                 col += 1;
             }
 
-            xfree((*state).tabstops.cast());
-            (*state).tabstops = newtabstops;
+            state_ref.tabstops = newtabstops;
         }
 
-        (*state).rows = rows;
-        (*state).cols = cols;
+        let old_rows = state_ref.rows;
+        state_ref.rows = rows;
+        state_ref.cols = cols;
 
-        if (*state).scrollregion_bottom > -1 && (*state).scrollregion_bottom > (*state).rows {
-            (*state).scrollregion_bottom = (*state).rows;
+        if state_ref.scrollregion_bottom > -1 && state_ref.scrollregion_bottom > state_ref.rows {
+            state_ref.scrollregion_bottom = state_ref.rows;
         }
-        if (*state).scrollregion_right > -1 && (*state).scrollregion_right > (*state).cols {
-            (*state).scrollregion_right = (*state).cols;
+        if state_ref.scrollregion_right > -1 && state_ref.scrollregion_right > state_ref.cols {
+            state_ref.scrollregion_right = state_ref.cols;
         }
 
-        let mut fields = VTermStateFields {
-            pos: (*state).pos,
-            lineinfos: [
-                (*state).lineinfos[0].cast::<VTermLineInfo>(),
-                (*state).lineinfos[1].cast::<VTermLineInfo>(),
-            ],
-        };
-
-        let callbacks = (*state).callbacks.cast::<VTermStateCallbacks>();
+        let callbacks = state_ref.callbacks.cast::<VTermStateCallbacks>();
         if !callbacks.is_null()
             && let Some(resize_cb) = (*callbacks).resize
         {
-            let _ = resize_cb(rows, cols, (&raw mut fields).cast(), (*state).cbdata);
-            (*state).pos = fields.pos;
-            (*state).lineinfos[0] = fields.lineinfos[0].cast();
-            (*state).lineinfos[1] = fields.lineinfos[1].cast();
-        } else if rows != (*state).rows {
+            let mut fields = VTermStateFields {
+                pos: state_ref.pos,
+                lineinfos: std::mem::take(&mut state_ref.lineinfos),
+            };
+            let _ = resize_cb(rows, cols, (&raw mut fields).cast(), state_ref.cbdata);
+            state_ref.pos = fields.pos;
+            state_ref.lineinfos = fields.lineinfos;
+        } else if rows != old_rows {
             for bufidx in BUFIDX_PRIMARY..=BUFIDX_ALTSCREEN {
-                let oldlineinfo = (*state).lineinfos[bufidx].cast::<VTermLineInfo>();
-                if oldlineinfo.is_null() {
+                if state_ref.lineinfos[bufidx].is_empty() {
                     continue;
                 }
-
-                let newlineinfo =
-                    xcalloc(1, (rows as usize) * size_of::<VTermLineInfo>()).cast::<VTermLineInfo>();
-
-                let mut row: c_int = 0;
-                while row < (*state).rows && row < rows {
-                    *newlineinfo.add(row as usize) = *oldlineinfo.add(row as usize);
-                    row += 1;
-                }
-
-                while row < rows {
-                    *newlineinfo.add(row as usize) = VTermLineInfo::default();
-                    row += 1;
-                }
-
-                xfree((*state).lineinfos[bufidx]);
-                (*state).lineinfos[bufidx] = newlineinfo.cast();
+                state_ref.lineinfos[bufidx].resize(rows as usize, VTermLineInfo::default());
             }
         }
 
-        (*state).lineinfo = (*state).lineinfos[if ((*state).mode & MODE_ALT_SCREEN) != 0 {
+        state_ref.lineinfo = state_ref.lineinfos[if (state_ref.mode & MODE_ALT_SCREEN) != 0 {
             BUFIDX_ALTSCREEN
         } else {
             BUFIDX_PRIMARY
-        }];
+        }]
+        .as_mut_ptr();
 
         if (*state).at_phantom != 0 && (*state).pos.col < cols - 1 {
             (*state).at_phantom = 0;
@@ -2753,12 +2759,15 @@ pub unsafe fn vterm_state_set_termprop(
                 1
             }
             VTERM_PROP_ALTSCREEN => {
-                set_mode_bit(&mut (*state).mode, MODE_ALT_SCREEN, (*val).boolean != 0);
-                (*state).lineinfo = (*state).lineinfos[if ((*state).mode & MODE_ALT_SCREEN) != 0 {
+                let state_ref = &mut *state;
+                set_mode_bit(&mut state_ref.mode, MODE_ALT_SCREEN, (*val).boolean != 0);
+                state_ref.lineinfo = state_ref.lineinfos[if (state_ref.mode & MODE_ALT_SCREEN) != 0
+                {
                     BUFIDX_ALTSCREEN
                 } else {
                     BUFIDX_PRIMARY
-                }];
+                }]
+                .as_mut_ptr();
                 if ((*state).mode & MODE_ALT_SCREEN) != 0 {
                     let rect = VTermRect {
                         start_row: 0,
@@ -2824,7 +2833,7 @@ pub unsafe fn vterm_state_get_lineinfo(
     state: *const VTermStateFull,
     row: c_int,
 ) -> *const VTermLineInfo {
-    unsafe { (*state).lineinfo.cast::<VTermLineInfo>().add(row as usize) }
+    unsafe { (*state).lineinfo.add(row as usize) }
 }
 
 pub unsafe fn vterm_state_set_selection_callbacks(
@@ -2835,14 +2844,18 @@ pub unsafe fn vterm_state_set_selection_callbacks(
     buflen: usize,
 ) {
     unsafe {
+        let state_ref = &mut *state;
         if buflen != 0 && buffer.is_null() {
-            buffer = xcalloc(1, buflen).cast::<c_char>();
+            state_ref.selection_owned_buffer = vec![0 as c_char; buflen];
+            buffer = state_ref.selection_owned_buffer.as_mut_ptr();
+        } else {
+            state_ref.selection_owned_buffer.clear();
         }
 
-        (*state).selection.callbacks = callbacks.cast();
-        (*state).selection.user = user;
-        (*state).selection.buffer = buffer;
-        (*state).selection.buflen = buflen;
+        state_ref.selection.callbacks = callbacks.cast();
+        state_ref.selection.user = user;
+        state_ref.selection.buffer = buffer;
+        state_ref.selection.buflen = buflen;
     }
 }
 

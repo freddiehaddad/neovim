@@ -98,9 +98,9 @@ pub struct VTermStateFull {
     pub scrollregion_bottom: c_int,
     pub scrollregion_left: c_int,
     pub scrollregion_right: c_int,
-    pub tabstops: *mut u8,
-    pub lineinfos: [*mut c_void; 2],
-    pub lineinfo: *mut c_void,
+    pub tabstops: Vec<u8>,
+    pub lineinfos: [Vec<crate::vterm::screen::VTermLineInfo>; 2],
+    pub lineinfo: *mut crate::vterm::screen::VTermLineInfo,
     pub mouse_col: c_int,
     pub mouse_row: c_int,
     pub mouse_buttons: c_int,
@@ -127,6 +127,7 @@ pub struct VTermStateFull {
     pub saved: VTermStateSaved,
     pub tmp: VTermStateTmp,
     pub selection: VTermStateSelection,
+    pub selection_owned_buffer: Vec<c_char>,
     pub key_encoding_stacks: [VTermKeyEncodingStack; 2],
 }
 

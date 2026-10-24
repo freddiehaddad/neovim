@@ -259,7 +259,6 @@ pub struct Terminal {
     synchronized_output: bool,
     sync_flush_pending: bool,
     color_set: [bool; 16],
-    selection_buffer: *mut c_char,
     selection: Vec<c_char>,
     termrequest_buffer: Vec<c_char>,
     termrequest_terminator: VTermTerminator,
@@ -709,12 +708,11 @@ pub unsafe fn terminal_alloc(buf: *mut buf_T, mut opts: TerminalOptions) -> *mut
             term.cast::<c_void>(),
         );
 
-        (*term).selection_buffer = xcalloc(SELECTIONBUF_SIZE, 1).cast::<c_char>();
         vterm_state_set_selection_callbacks(
             state,
             &raw const VTERM_SELECTION_CALLBACKS,
             term.cast::<c_void>(),
-            (*term).selection_buffer,
+            ptr::null_mut(),
             SELECTIONBUF_SIZE,
         );
 
@@ -1411,7 +1409,6 @@ pub unsafe fn terminal_destroy(termpp: *mut *mut Terminal) {
             }
             ptr::drop_in_place(&raw mut (*term).sb_buffer);
             ptr::drop_in_place(&raw mut (*term).title);
-            xfree((*term).selection_buffer.cast::<c_void>());
             ptr::drop_in_place(&raw mut (*term).selection);
             ptr::drop_in_place(&raw mut (*term).termrequest_buffer);
             vterm_free((*term).vt);

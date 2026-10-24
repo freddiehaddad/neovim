@@ -3,7 +3,6 @@
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
-use crate::memory::{xcalloc, xfree};
 use crate::vterm::mouse::VTerm;
 use crate::vterm::parser::{NORMAL, VTermParserCallbacks};
 use crate::vterm::pen::{
@@ -21,20 +20,17 @@ pub type VTermOutputCallback = Option<unsafe fn(s: *const c_char, len: usize, us
 /// Create a new `VTerm` instance of size `rows` x `cols` (`vterm_new`).
 pub unsafe fn vterm_new(rows: c_int, cols: c_int) -> *mut VTerm {
     unsafe {
-        let vt = xcalloc(1, size_of::<VTerm>()).cast::<VTerm>();
+        let mut vt: VTerm = std::mem::zeroed();
+        vt.rows = rows;
+        vt.cols = cols;
+        vt.parser.state = NORMAL;
+        vt.parser.callbacks = ptr::null();
+        vt.parser.cbdata = ptr::null_mut();
+        vt.parser.emit_nul = false;
+        vt.outfunc = None;
+        vt.outdata = ptr::null_mut();
 
-        (*vt).rows = rows;
-        (*vt).cols = cols;
-
-        (*vt).parser.state = NORMAL;
-        (*vt).parser.callbacks = ptr::null();
-        (*vt).parser.cbdata = ptr::null_mut();
-        (*vt).parser.emit_nul = false;
-
-        (*vt).outfunc = None;
-        (*vt).outdata = ptr::null_mut();
-
-        vt
+        Box::into_raw(Box::new(vt))
     }
 }
 
@@ -48,7 +44,7 @@ pub unsafe fn vterm_free(vt: *mut VTerm) {
             vterm_state_free((*vt).state);
         }
 
-        xfree(vt.cast());
+        drop(Box::from_raw(vt));
     }
 }
 
