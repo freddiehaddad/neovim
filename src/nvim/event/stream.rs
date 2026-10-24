@@ -45,10 +45,9 @@ pub struct Stream {
     pub fd: c_int,
     pub fpos: i64,
     pub cb_data: *mut c_void,
-    pub before_close_cb: stream_close_cb,
-    pub close_cb: stream_close_cb,
+    pub before_close_cb: Option<unsafe fn(stream: *mut Stream)>,
+    pub close_cb: Option<unsafe fn(stream: *mut Stream)>,
     pub internal_close_cb: stream_close_cb,
-    pub close_cb_data: *mut c_void,
     pub internal_data: *mut c_void,
     pub pending_reqs: usize,
     pub events: *mut MultiQueue,
@@ -69,7 +68,6 @@ impl Stream {
             before_close_cb: None,
             close_cb: None,
             internal_close_cb: None,
-            close_cb_data: ptr::null_mut(),
             internal_data: ptr::null_mut(),
             pending_reqs: 0,
             events: ptr::null_mut(),
@@ -229,7 +227,7 @@ pub unsafe fn stream_close_handle(stream: *mut Stream) {
 
         if let Some(before_close_cb) = (*stream).before_close_cb {
             (*stream).pending_reqs += 1;
-            before_close_cb(stream, (*stream).close_cb_data);
+            before_close_cb(stream);
             (*stream).pending_reqs -= 1;
         }
         if uv_is_closing(handle) == 0 {
@@ -243,7 +241,7 @@ unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
         let stream = *handle.cast::<*mut Stream>();
         if !stream.is_null() {
             if let Some(cb) = (*stream).close_cb {
-                cb(stream, (*stream).close_cb_data);
+                cb(stream);
             }
             if let Some(internal_cb) = (*stream).internal_close_cb {
                 internal_cb(stream, (*stream).internal_data);

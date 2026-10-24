@@ -3691,7 +3691,7 @@ pub unsafe fn f_gettagstack(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
     }
 }
 
-unsafe fn dummy_timer_due_cb(tw: *mut TimeWatcher, _data: *mut c_void) {
+unsafe fn dummy_timer_due_cb(tw: *mut TimeWatcher, _data: *mut crate::eval::timer_T) {
     unsafe {
         if *loop_closing_ptr((&raw mut main_loop).cast()) {
             time_watcher_stop(tw);
@@ -3700,7 +3700,7 @@ unsafe fn dummy_timer_due_cb(tw: *mut TimeWatcher, _data: *mut c_void) {
     }
 }
 
-unsafe fn dummy_timer_close_cb(tw: *mut TimeWatcher, _data: *mut c_void) {
+unsafe fn dummy_timer_close_cb(tw: *mut TimeWatcher, _data: *mut crate::eval::timer_T) {
     unsafe {
         drop(Box::from_raw(tw));
     }

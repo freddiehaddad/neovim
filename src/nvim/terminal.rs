@@ -2482,7 +2482,7 @@ unsafe fn refresh_cursor(term: *mut Terminal, cursor_visible: *mut bool) {
     }
 }
 
-unsafe fn refresh_timer_cb(_watcher: *mut TimeWatcher, _data: *mut c_void) {
+unsafe fn refresh_timer_cb(_watcher: *mut TimeWatcher, _data: *mut crate::eval::timer_T) {
     unsafe {
         REFRESH_PENDING = false;
         if exiting {

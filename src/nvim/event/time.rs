@@ -9,12 +9,12 @@ use crate::event::multiqueue::{
 use std::ffi::c_void;
 use std::ptr;
 
-pub type time_cb = Option<unsafe fn(watcher: *mut TimeWatcher, data: *mut c_void)>;
+pub type time_cb = Option<unsafe fn(watcher: *mut TimeWatcher, data: *mut crate::eval::timer_T)>;
 
 #[repr(C)]
 pub struct TimeWatcher {
     pub uv: [u64; 32],
-    pub data: *mut c_void,
+    pub data: *mut crate::eval::timer_T,
     pub cb: time_cb,
     pub close_cb: time_cb,
     pub events: *mut MultiQueue,
@@ -62,7 +62,11 @@ unsafe fn create_event(
     }
 }
 
-pub unsafe fn time_watcher_init(loop_: *mut Loop, watcher: *mut TimeWatcher, data: *mut c_void) {
+pub unsafe fn time_watcher_init(
+    loop_: *mut Loop,
+    watcher: *mut TimeWatcher,
+    data: *mut crate::eval::timer_T,
+) {
     unsafe {
         uv_timer_init(loop_.cast(), (&raw mut (*watcher).uv).cast());
         *(&raw mut (*watcher).uv).cast::<*mut TimeWatcher>() = watcher;

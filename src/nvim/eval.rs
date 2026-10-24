@@ -5587,9 +5587,8 @@ pub unsafe fn add_timer_info_all(rettv: *mut typval_T) {
 }
 
 /// Invoked on the main loop.
-pub unsafe fn timer_due_cb(_tw: *mut TimeWatcher, data: *mut c_void) {
+pub unsafe fn timer_due_cb(_tw: *mut TimeWatcher, timer: *mut timer_T) {
     unsafe {
-        let timer = data.cast::<timer_T>();
         let save_did_emsg = did_emsg;
         let called_emsg_before = called_emsg;
 
@@ -5658,7 +5657,7 @@ pub unsafe fn timer_start(timeout: i64, repeat_count: c_int, callback: *const Ca
 
         {
             let main_loop_ptr = (&raw mut main_loop).cast();
-            time_watcher_init(main_loop_ptr, &raw mut (*timer).watcher, timer.cast());
+            time_watcher_init(main_loop_ptr, &raw mut (*timer).watcher, timer);
             (*timer).watcher.events = multiqueue_new_child((*loop_queues(main_loop_ptr)).events);
             (*timer).watcher.blockable = true;
             time_watcher_start(
@@ -5688,9 +5687,8 @@ pub unsafe fn timer_stop(timer: *mut timer_T) {
     }
 }
 
-unsafe fn timer_close_cb(_tw: *mut TimeWatcher, data: *mut c_void) {
+unsafe fn timer_close_cb(_tw: *mut TimeWatcher, timer: *mut timer_T) {
     unsafe {
-        let timer = data.cast::<timer_T>();
         multiqueue_free((*timer).watcher.events);
         callback_free(&raw mut (*timer).callback);
         let timers_ptr = &raw mut timers;

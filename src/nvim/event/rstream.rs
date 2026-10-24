@@ -89,7 +89,6 @@ pub unsafe fn rstream_init(stream: *mut RStream) {
         (*stream).read_pos = (*stream).buffer;
         (*stream).write_pos = (*stream).buffer;
         (*stream).s.close_cb = Some(rstream_close_cb);
-        (*stream).s.close_cb_data = stream.cast();
     }
 }
 
@@ -288,10 +287,10 @@ unsafe fn invoke_read_cb(stream: *mut RStream, eof: bool) {
     }
 }
 
-unsafe fn rstream_close_cb(s: *mut Stream, data: *mut c_void) {
+unsafe fn rstream_close_cb(s: *mut Stream) {
     unsafe {
-        let stream = data.cast::<RStream>();
-        assert!(!stream.is_null() && ptr::eq(s, &raw mut (*stream).s));
+        let stream = s.cast::<RStream>();
+        assert!(!stream.is_null());
         if !(*stream).buffer.is_null() {
             free_block((*stream).buffer);
         }
