@@ -375,7 +375,7 @@ pub static mut msg_loclist: *mut c_char = c"[Location List]".as_ptr().cast_mut()
 pub static mut msg_qflist: *mut c_char = c"[Quickfix List]".as_ptr().cast_mut();
 pub static mut channels: std::collections::BTreeMap<u64, *mut Channel> =
     std::collections::BTreeMap::new();
-pub static mut on_print: Callback = unsafe { zeroed() };
+pub static mut on_print: Callback = Callback::NONE;
 pub static mut ctx_win_vec: Vec<CtxWin> = Vec::new();
 pub static mut virt_text_pos_str: [*const c_char; 6] = [
     c"eol".as_ptr(),

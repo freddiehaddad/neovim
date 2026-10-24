@@ -280,10 +280,7 @@ pub unsafe fn prompt_for_input(
             hl_id,
             EXPAND_NOTHING,
             std::ptr::null(),
-            Callback {
-                data: std::ptr::null_mut(),
-                cb_type: 0,
-            },
+            Callback::NONE,
             one_key,
             mouse_used,
         );

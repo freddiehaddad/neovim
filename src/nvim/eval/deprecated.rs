@@ -20,10 +20,7 @@ const K_CHANNEL_STDIN_PIPE: c_int = 0;
 
 #[inline]
 const fn callback_none() -> Callback {
-    Callback {
-        data: std::ptr::null_mut(),
-        cb_type: 0,
-    }
+    Callback::NONE
 }
 
 #[inline]
@@ -199,7 +196,7 @@ mod tests {
     #[test]
     fn callback_reader_init_defaults_to_null_and_false() {
         let r = callback_reader_init();
-        assert!(r.cb.data.is_null());
+        assert!(r.cb.data.funcref.is_null());
         assert_eq!(r.cb.cb_type, 0);
         assert!(r.self_dict.is_null());
         assert!(!r.eof);

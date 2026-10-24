@@ -20,15 +20,14 @@ use crate::autocmd::{
 };
 use crate::buffer::do_modelines;
 use crate::eval::typval::{
-    Callback, callback_free, callback_to_string, kCallbackFuncref, kCallbackLua, kCallbackNone,
-    kCallbackPartial,
+    Callback, callback_free, callback_to_string, kCallbackFuncref, kCallbackLua, kCallbackPartial,
 };
 use crate::globals::*;
-use crate::lua::converter::{LUA_NOREF, LuaRef};
+use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::{api_new_luaref, nlua_ref_is_function};
 use crate::memory::{Arena, arena_memdupz, xfree, xstrndup};
 use crate::msgpack_rpc::packer::Integer;
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 
 use crate::api::tabpage::Buffer;
 use crate::highlight::OptionalKeys;
@@ -692,7 +691,7 @@ pub unsafe extern "C" fn nvim_get_autocmds(
                         let cb = &mut ac.handler_fn;
                         match cb.cb_type {
                             kCallbackLua => {
-                                let luaref = cb.data as isize as LuaRef;
+                                let luaref = cb.data.luaref;
                                 if nlua_ref_is_function(luaref) {
                                     put_c(
                                         &mut autocmd_info,
@@ -823,10 +822,7 @@ pub unsafe extern "C" fn nvim_create_autocmd(
         let mut autocmd_id: i64 = -1;
         let mut desc: *const c_char = std::ptr::null();
         let mut handler_cmd: *mut c_char = std::ptr::null_mut();
-        let mut handler_fn = Callback {
-            data: std::ptr::null_mut(),
-            cb_type: kCallbackNone,
-        };
+        let mut handler_fn = Callback::NONE;
 
         'body: {
             let event_array = unpack_string_or_array(event, c"event".as_ptr(), true, arena, err);
@@ -856,13 +852,16 @@ pub unsafe extern "C" fn nvim_create_autocmd(
                             break 'body;
                         }
                         handler_fn.cb_type = kCallbackLua;
-                        handler_fn.data = (callback.data.luaref as isize) as *mut c_void;
+                        handler_fn.data =
+                            crate::eval::typval::CallbackData::lua(callback.data.luaref);
                         callback.data.luaref = LUA_NOREF;
                     }
                     ObjectType::kObjectTypeString => {
                         handler_fn.cb_type = kCallbackFuncref;
-                        handler_fn.data =
-                            xstrndup(callback.data.string.data, callback.data.string.size).cast();
+                        handler_fn.data = crate::eval::typval::CallbackData::funcref(xstrndup(
+                            callback.data.string.data,
+                            callback.data.string.size,
+                        ));
                     }
                     _ => {
                         api_err_exp(

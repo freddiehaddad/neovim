@@ -247,10 +247,7 @@ pub unsafe fn do_debug(cmd: *mut c_char) {
                 0,
                 EXPAND_NOTHING,
                 std::ptr::null(),
-                Callback {
-                    data: std::ptr::null_mut(),
-                    cb_type: 0,
-                },
+                Callback::NONE,
                 false,
                 std::ptr::null_mut(),
             );

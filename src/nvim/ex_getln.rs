@@ -3659,10 +3659,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
             vval: TypvalVval { v_number: 0 },
         };
 
-        let mut color_cb = Callback {
-            data: ptr::null_mut(),
-            cb_type: kCallbackNone,
-        };
+        let mut color_cb = Callback::NONE;
         let mut can_free_cb = false;
         let mut err = error_init();
         let mut err_errmsg: *const c_char = e_intern2.as_ptr();

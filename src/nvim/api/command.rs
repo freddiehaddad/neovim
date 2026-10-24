@@ -34,7 +34,7 @@ use crate::highlight::OptionalKeys;
 use crate::lua::converter::{Boolean, LUA_NOREF, LuaRef};
 use crate::lua::executor::{api_free_luaref, api_new_luaref};
 use crate::mbyte::mb_islower;
-use crate::memory::{Arena, arena_alloc, arena_memdupz, strequal_str, xcalloc, xfree, xmemdupz};
+use crate::memory::{Arena, arena_alloc, arena_memdupz, strequal_str, xfree, xmalloc, xmemdupz};
 use crate::msgpack_rpc::packer::Integer;
 use crate::regexp::{RE_MAGIC, vim_regcomp};
 use crate::register::valid_yank_reg;
@@ -901,8 +901,8 @@ pub unsafe extern "C" fn nvim_cmd(
 
             ea.argc = args.size;
             if ea.argc > 0 {
-                ea.args = xcalloc(ea.argc, std::mem::size_of::<*mut c_char>()).cast();
-                ea.arglens = xcalloc(ea.argc, std::mem::size_of::<usize>()).cast();
+                ea.args = xmalloc(ea.argc * std::mem::size_of::<*mut c_char>()).cast();
+                ea.arglens = xmalloc(ea.argc * std::mem::size_of::<usize>()).cast();
                 p = ea.arg;
                 for i in 0..ea.argc {
                     *ea.args.add(i) = p;

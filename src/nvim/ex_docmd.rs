@@ -147,8 +147,7 @@ use crate::mbyte::{get_encoding_name, mb_copy_char, utf_head_off, utfc_ptr2len};
 use crate::memfile::memfile_T;
 use crate::memline::{goto_byte, ml_clearmarked, ml_preserve, ml_recover, ml_setmarked};
 use crate::memory::{
-    ArenaMem, arena_mem_free, strequal, xcalloc, xfree, xmalloc, xmemdupz, xstrdup, xstrlcat,
-    xstrlcpy,
+    ArenaMem, arena_mem_free, strequal, xfree, xmalloc, xmemdupz, xstrdup, xstrlcat, xstrlcpy,
 };
 use crate::menu::{ex_emenu, ex_menu, ex_menutranslate, save_state_T};
 use crate::message::{
@@ -6038,20 +6037,18 @@ unsafe fn shift_cmd_args(eap: *mut exarg_T) {
 
         (*eap).argc -= 1;
         (*eap).args = if (*eap).argc > 0 {
-            xcalloc((*eap).argc, size_of::<*mut c_char>()).cast()
+            crate::path::slice_to_xmalloc(std::slice::from_raw_parts(oldargs.add(1), (*eap).argc))
         } else {
             ptr::null_mut()
         };
         (*eap).arglens = if (*eap).argc > 0 {
-            xcalloc((*eap).argc, size_of::<usize>()).cast()
+            crate::path::slice_to_xmalloc(std::slice::from_raw_parts(
+                oldarglens.add(1),
+                (*eap).argc,
+            ))
         } else {
             ptr::null_mut()
         };
-
-        for i in 0..(*eap).argc {
-            *(*eap).args.add(i) = *oldargs.add(i + 1);
-            *(*eap).arglens.add(i) = *oldarglens.add(i + 1);
-        }
 
         (*eap).arg = if (*eap).argc > 0 {
             *(*eap).args
@@ -9207,8 +9204,7 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
         let l = get_vim_var_list(VV_ARGV);
         let argc = if l.is_null() { 0 } else { (*l).lv_len };
 
-        let argv: *mut *mut c_char = xcalloc((argc as usize) + 3, size_of::<*mut c_char>()).cast();
-        let mut i: usize = 0;
+        let mut argv_vec = Vec::<*mut c_char>::with_capacity((argc as usize) + 3);
         let mut listen_arg: *mut c_char = ptr::null_mut();
 
         let mut li = if l.is_null() {
@@ -9218,6 +9214,7 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
         };
         while !li.is_null() {
             let arg = tv_get_string(&raw const (*li).li_tv);
+            let i = argv_vec.len();
             if i > 0 && strequal(arg, c"--".as_ptr()) {
                 break;
             }
@@ -9261,19 +9258,18 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
                     && !strequal(arg, c"--headless".as_ptr())
                     && !strequal(arg, c"-".as_ptr()))
             {
-                *argv.add(i) = xstrdup(arg);
-                i += 1;
-                if i == 1 {
-                    *argv.add(i) = xstrdup(c"--embed".as_ptr());
-                    i += 1;
+                argv_vec.push(xstrdup(arg));
+                if argv_vec.len() == 1 {
+                    argv_vec.push(xstrdup(c"--embed".as_ptr()));
                     if no_ui {
-                        *argv.add(i) = xstrdup(c"--headless".as_ptr());
-                        i += 1;
+                        argv_vec.push(xstrdup(c"--headless".as_ptr()));
                     }
                 }
             }
             li = (*li).li_next;
         }
+        argv_vec.push(ptr::null_mut());
+        let argv = crate::path::slice_to_xmalloc(&argv_vec);
 
         #[cfg(windows)]
         let server_stopped = {
@@ -9329,10 +9325,7 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
         {
             on_err.fwd_err = true;
         }
-        let on_exit = Callback {
-            data: ptr::null_mut(),
-            cb_type: kCallbackNone,
-        };
+        let on_exit = Callback::NONE;
         let mut exit_status: varnumber_T = 0;
 
         let channel = channel_job_start(

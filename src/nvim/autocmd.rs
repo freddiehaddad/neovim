@@ -39,7 +39,6 @@ use crate::fileio::{check_timestamps, file_pat_to_reg_pat, match_file_pat};
 use crate::globals::*;
 use crate::input::{RedoState, restore_redobuff, save_redobuff};
 use crate::insexpand::ins_compl_active;
-use crate::lua::converter::LuaRef;
 use crate::lua::executor::{kRetNilBool, nlua_call_ref, nlua_set_sctx};
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strcmp_ic;
@@ -2213,10 +2212,7 @@ pub unsafe fn do_autocmd_event(
             }
 
             if is_adding_cmd {
-                let mut handler_fn = Callback {
-                    data: ptr::null_mut(),
-                    cb_type: 0,
-                };
+                let mut handler_fn = Callback::NONE;
                 autocmd_register(
                     0,
                     event,
@@ -3387,7 +3383,7 @@ unsafe fn au_callback(ac: *const AutoCmd, apc: *const AutoPatCmd) -> bool {
                 capacity: 1,
             };
 
-            let luaref = callback.data as isize as LuaRef;
+            let luaref = callback.data.luaref;
             let result = nlua_call_ref(
                 luaref,
                 ptr::null(),

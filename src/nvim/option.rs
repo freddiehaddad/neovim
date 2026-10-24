@@ -85,7 +85,7 @@ use crate::keycodes::{
     find_special_key_in_table, get_special_key_code, get_special_key_name, termcap2key,
 };
 use crate::log::logmsg;
-use crate::lua::converter::LuaRef;
+
 use crate::lua::executor::{api_free_luaref, api_new_luaref, nlua_funcref_str, nlua_set_sctx};
 use crate::highlight::HlAttrs;
 use crate::mapping::{langmap_init, put_escstr};
@@ -5297,11 +5297,11 @@ unsafe fn opt_from_callback(cb: *mut Callback) -> Object {
     unsafe {
         match (*cb).cb_type {
             kCallbackLua => {
-                let luaref = *(&raw const (*cb).data).cast::<LuaRef>();
+                let luaref = (*cb).data.luaref;
                 return luaref_obj(api_new_luaref(luaref));
             }
             kCallbackExpr | kCallbackFuncref => {
-                return cstr_to_obj((*cb).data.cast::<c_char>());
+                return cstr_to_obj((*cb).data.funcref);
             }
             kCallbackPartial => {
                 let mut tv = std::mem::zeroed::<typval_T>();
@@ -5319,14 +5319,11 @@ unsafe fn opt_from_callback(cb: *mut Callback) -> Object {
 
 unsafe fn opt_to_callback(value: Object, is_expr: bool) -> Callback {
     unsafe {
-        let mut cb = Callback {
-            data: ptr::null_mut(),
-            cb_type: kCallbackNone,
-        };
+        let mut cb = Callback::NONE;
         match value.obj_type {
             ObjectType::kObjectTypeLuaRef => {
                 cb.cb_type = kCallbackLua;
-                *(&raw mut cb.data).cast::<LuaRef>() = api_new_luaref(value.data.luaref);
+                cb.data = crate::eval::typval::CallbackData::lua(api_new_luaref(value.data.luaref));
             }
             ObjectType::kObjectTypeString => {
                 if !is_expr {
@@ -5334,11 +5331,12 @@ unsafe fn opt_to_callback(value: Object, is_expr: bool) -> Callback {
                 } else if value.data.string.size > 0 {
                     cb.cb_type = kCallbackExpr;
                     let name = get_scriptlocal_funcname(value.data.string.data);
-                    cb.data = if !name.is_null() {
-                        name.cast()
+                    let funcref = if !name.is_null() {
+                        name
                     } else {
-                        xstrdup(value.data.string.data).cast()
+                        xstrdup(value.data.string.data)
                     };
+                    cb.data = crate::eval::typval::CallbackData::funcref(funcref);
                 }
             }
             _ => {}
@@ -5978,10 +5976,7 @@ unsafe fn set_option(
                 && ((*opt).flags & kOptFlagFunc) != 0
                 && value.data.string.size > 0
             {
-                let mut cb = Callback {
-                    data: ptr::null_mut(),
-                    cb_type: kCallbackNone,
-                };
+                let mut cb = Callback::NONE;
                 if option_set_callback_func(value.data.string.data, &raw mut cb) == FAIL {
                     errmsg = e_invarg.as_ptr();
                 }
@@ -7716,10 +7711,7 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                 (*buf).b_p_mp = empty_opt;
                 (*buf).b_p_efm = empty_opt;
                 (*buf).b_p_ep = empty_opt;
-                (*buf).b_p_ffu = Callback {
-                    data: ptr::null_mut(),
-                    cb_type: kCallbackNone,
-                };
+                (*buf).b_p_ffu = Callback::NONE;
                 (*buf).b_p_kp = empty_opt;
                 (*buf).b_p_path = empty_opt;
                 (*buf).b_p_tags = empty_opt;
@@ -7735,10 +7727,7 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                 (*buf).b_p_dict = empty_opt;
                 (*buf).b_p_dia = empty_opt;
                 (*buf).b_p_tsr = empty_opt;
-                (*buf).b_p_tsrfu = Callback {
-                    data: ptr::null_mut(),
-                    cb_type: kCallbackNone,
-                };
+                (*buf).b_p_tsrfu = Callback::NONE;
                 (*buf).b_p_qe = xstrdup(p_qe);
                 copy_opt_sctx(buf, kBufOptQuoteescape);
                 (*buf).b_p_udf = p_udf;
@@ -8542,10 +8531,7 @@ pub unsafe fn option_set_callback_func(optval: *mut c_char, optcb: *mut Callback
             Box::into_raw(Box::new(allocated))
         };
 
-        let mut cb = Callback {
-            data: ptr::null_mut(),
-            cb_type: kCallbackNone,
-        };
+        let mut cb = Callback::NONE;
         if !callback_from_typval(&raw mut cb, tv) || cb.cb_type == kCallbackNone {
             tv_free(tv);
             return FAIL;

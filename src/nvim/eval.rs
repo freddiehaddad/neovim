@@ -135,7 +135,7 @@ use crate::mbyte::{
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::memory::{
-    Arena, arena_finish, arena_mem_free, memchrsub, strchrsub, strequal, strnequal, xcalloc, xfree,
+    Arena, arena_finish, arena_mem_free, memchrsub, strchrsub, strequal, strnequal, xfree,
     xmalloc, xmemdupz, xrealloc, xstrdup, xstrndup,
 };
 use crate::msgpack_rpc::channel::find_channel;
@@ -144,7 +144,7 @@ use crate::optionstr::{OptIndex, free_string_option};
 use crate::os::env::{env_name_len, expand_T, expand_env_save, vim_getenv};
 use crate::os::fs::os_can_exe;
 use crate::os::lang::free_locales;
-use crate::os::shell::{os_system, shell_argv_to_str, shell_build_argv, shell_free_argv};
+use crate::os::shell::{os_system, shell_argv_to_str, shell_build_argv};
 use crate::profile::{prof_child_enter, prof_child_exit, proftime_T};
 use crate::state::save_v_event_T;
 use crate::tag::set_ref_in_tagfunc;
@@ -982,10 +982,7 @@ pub unsafe fn call_func_retlist(
 /// Evaluate a number-valued "expr" option ('indentexpr'/'formatexpr') via its callback.
 pub unsafe fn eval_expr_option_number(cb: *mut Callback, use_sandbox: bool) -> c_int {
     unsafe {
-        let mut copy = Callback {
-            data: ptr::null_mut(),
-            cb_type: kCallbackNone,
-        };
+        let mut copy = Callback::NONE;
         callback_copy(&raw mut copy, cb);
         if use_sandbox {
             sandbox += 1;
@@ -5179,8 +5176,8 @@ pub unsafe fn tv_to_argv(
             *cmd = exe_resolved;
         }
 
+        let mut argv = vec![ptr::null_mut::<c_char>(); (argc as usize) + 1];
         let mut i: usize = 0;
-        let argv = xcalloc((argc as usize) + 1, size_of::<*mut c_char>()).cast::<*mut c_char>();
         let mut arg = if argl.is_null() {
             ptr::null_mut()
         } else {
@@ -5189,18 +5186,20 @@ pub unsafe fn tv_to_argv(
         while !arg.is_null() {
             let a = tv_get_string_chk(tv_list_item_tv(arg));
             if a.is_null() {
-                shell_free_argv(argv);
+                for p in argv {
+                    xfree(p.cast());
+                }
                 xfree(exe_resolved.cast());
                 return ptr::null_mut();
             }
-            *argv.add(i) = xstrdup(a);
+            argv[i] = xstrdup(a);
             i += 1;
             arg = (*arg).li_next;
         }
-        xfree((*argv).cast());
-        *argv = exe_resolved;
+        xfree(argv[0].cast());
+        argv[0] = exe_resolved;
 
-        argv
+        crate::path::slice_to_xmalloc(&argv)
     }
 }
 
@@ -5339,7 +5338,7 @@ pub unsafe fn callback_from_typval(callback: *mut Callback, arg: *const typval_T
 
         if (*arg).v_type == VarType::VAR_PARTIAL && !tv_partial(arg).is_null() {
             let pt = tv_partial(arg);
-            (*callback).data = pt.cast();
+            (*callback).data = crate::eval::typval::CallbackData::partial(pt);
             (*pt).pt_refcount += 1;
             (*callback).cb_type = kCallbackPartial;
         } else if (*arg).v_type == VarType::VAR_STRING
@@ -5352,24 +5351,24 @@ pub unsafe fn callback_from_typval(callback: *mut Callback, arg: *const typval_T
             if name.is_null() {
                 r = FAIL;
             } else if *name == NUL {
-                (*callback).cb_type = kCallbackNone;
-                (*callback).data = ptr::null_mut();
+                *callback = Callback::NONE;
             } else {
-                (*callback).data = ptr::null_mut();
+                let mut funcref: *mut c_char = ptr::null_mut();
                 if (*arg).v_type == VarType::VAR_STRING {
-                    (*callback).data = get_scriptlocal_funcname(name).cast();
+                    funcref = get_scriptlocal_funcname(name);
                 }
-                if (*callback).data.is_null() {
-                    (*callback).data = xstrdup(name).cast();
+                if funcref.is_null() {
+                    funcref = xstrdup(name);
                 }
-                func_ref((*callback).data.cast());
+                func_ref(funcref);
+                (*callback).data = crate::eval::typval::CallbackData::funcref(funcref);
                 (*callback).cb_type = kCallbackFuncref;
             }
         } else if is_lua_tbl {
             {
                 let name = nlua_register_table_as_callable(arg);
                 if !name.is_null() {
-                    (*callback).data = xstrdup(name).cast();
+                    (*callback).data = crate::eval::typval::CallbackData::funcref(xstrdup(name));
                     (*callback).cb_type = kCallbackFuncref;
                 } else {
                     r = FAIL;
@@ -5378,8 +5377,7 @@ pub unsafe fn callback_from_typval(callback: *mut Callback, arg: *const typval_T
         } else if (*arg).v_type == VarType::VAR_SPECIAL
             || ((*arg).v_type == VarType::VAR_NUMBER && (*arg).vval.v_number == 0)
         {
-            (*callback).cb_type = kCallbackNone;
-            (*callback).data = ptr::null_mut();
+            *callback = Callback::NONE;
         } else {
             r = FAIL;
         }
@@ -5413,7 +5411,7 @@ pub unsafe fn callback_call(
         let mut name: *mut c_char;
         match (*callback).cb_type {
             kCallbackFuncref => {
-                name = (*callback).data.cast::<c_char>();
+                name = (*callback).data.funcref;
                 let len = strlen(name) as c_int;
                 if len >= 6 && std::slice::from_raw_parts(name.cast::<u8>(), 6) == b"v:lua." {
                     name = name.add(6);
@@ -5426,7 +5424,7 @@ pub unsafe fn callback_call(
                 }
             }
             kCallbackPartial => {
-                partial = (*callback).data.cast::<partial_T>();
+                partial = (*callback).data.partial;
                 name = partial_name(partial);
             }
             kCallbackLua => {
@@ -5445,7 +5443,7 @@ pub unsafe fn callback_call(
                     err_type: ErrorType::kErrorTypeNone,
                     msg: ptr::null_mut(),
                 };
-                let luaref = *(&raw const (*callback).data).cast::<c_int>();
+                let luaref = (*callback).data.luaref;
                 callback_depth += 1;
                 let result = nlua_call_ref(
                     luaref,
@@ -5470,7 +5468,7 @@ pub unsafe fn callback_call(
                 callback_depth += 1;
                 let evalarg_ptr = &raw mut EVALARG_EVALUATE;
                 let r = eval0_simple_funccal(
-                    skipwhite((*callback).data.cast::<c_char>()),
+                    skipwhite((*callback).data.funcref),
                     rettv,
                     ptr::null_mut(),
                     evalarg_ptr,
@@ -5516,7 +5514,7 @@ pub unsafe fn set_ref_in_callback(
                 v_type: VarType::VAR_PARTIAL,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval {
-                    v_ptr: (*callback).data,
+                    v_ptr: (*callback).data.partial.cast(),
                 },
             };
             return set_ref_in_item(&raw mut tv, copyID, ht_stack, list_stack);

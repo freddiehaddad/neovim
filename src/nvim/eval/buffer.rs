@@ -986,10 +986,7 @@ pub unsafe fn f_prompt_setcallback(
     _fptr: EvalFuncData,
 ) {
     unsafe {
-        let mut prompt_callback = Callback {
-            data: ptr::null_mut(),
-            cb_type: kCallbackNone,
-        };
+        let mut prompt_callback = Callback::NONE;
 
         if check_secure() {
             return;
@@ -1015,10 +1012,7 @@ pub unsafe fn f_prompt_setinterrupt(
     _fptr: EvalFuncData,
 ) {
     unsafe {
-        let mut interrupt_callback = Callback {
-            data: ptr::null_mut(),
-            cb_type: kCallbackNone,
-        };
+        let mut interrupt_callback = Callback::NONE;
 
         if check_secure() {
             return;

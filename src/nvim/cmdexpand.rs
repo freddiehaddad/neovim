@@ -787,10 +787,7 @@ impl CmdlineInfo {
             input_fn: 0,
             cmdbuff_replaced: false,
             prompt_id: 0,
-            highlight_callback: Callback {
-                data: ptr::null_mut(),
-                cb_type: 0,
-            },
+            highlight_callback: Callback::NONE,
             last_colors: ColoredCmdline::new(),
             level: 0,
             prev_ccline: ptr::null_mut(),

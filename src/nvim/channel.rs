@@ -83,10 +83,7 @@ impl CallbackReader {
     #[inline]
     pub const fn none() -> Self {
         Self {
-            cb: Callback {
-                data: ptr::null_mut(),
-                cb_type: kCallbackNone,
-            },
+            cb: Callback::NONE,
             self_dict: ptr::null_mut(),
             buffer: Vec::new(),
             eof: false,
@@ -416,10 +413,7 @@ pub unsafe fn channel_alloc(r#type: ChannelStreamType) -> *mut Channel {
             term: ptr::null_mut(),
             on_data: CallbackReader::none(),
             on_stderr: CallbackReader::none(),
-            on_exit: Callback {
-                data: ptr::null_mut(),
-                cb_type: kCallbackNone,
-            },
+            on_exit: Callback::NONE,
             exit_status: -1,
             callback_busy: false,
             callback_scheduled: false,

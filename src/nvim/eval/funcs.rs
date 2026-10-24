@@ -2024,10 +2024,7 @@ pub unsafe fn f_dictwatcheradd(argvars: *mut typval_T, _rettv: *mut typval_T, _f
         }
         let key_pattern_len = strlen(key_pattern);
 
-        let mut callback = Callback {
-            data: ptr::null_mut(),
-            cb_type: kCallbackNone,
-        };
+        let mut callback = Callback::NONE;
         if !callback_from_typval(&raw mut callback, argvars.add(2)) {
             semsg!(gettext(e_invarg2.as_ptr()), c"funcref".as_ptr());
             return;
@@ -2064,10 +2061,7 @@ pub unsafe fn f_dictwatcherdel(argvars: *mut typval_T, _rettv: *mut typval_T, _f
             return;
         }
 
-        let mut callback = Callback {
-            data: ptr::null_mut(),
-            cb_type: kCallbackNone,
-        };
+        let mut callback = Callback::NONE;
         if !callback_from_typval(&raw mut callback, argvars.add(2)) {
             return;
         }
@@ -4696,10 +4690,7 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
         let mut stdin_mode = kChannelStdinPipe;
         let mut on_stdout = CallbackReader::none();
         let mut on_stderr = CallbackReader::none();
-        let mut on_exit = Callback {
-            data: ptr::null_mut(),
-            cb_type: kCallbackNone,
-        };
+        let mut on_exit = Callback::NONE;
         let mut cwd: *const c_char = ptr::null();
         let mut job_env: *mut dictitem_T = ptr::null_mut();
 
@@ -9204,10 +9195,7 @@ pub unsafe fn f_timer_start(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
             }
         }
 
-        let mut callback = Callback {
-            data: ptr::null_mut(),
-            cb_type: kCallbackNone,
-        };
+        let mut callback = Callback::NONE;
         if !callback_from_typval(&raw mut callback, argvars.add(1)) {
             return;
         }

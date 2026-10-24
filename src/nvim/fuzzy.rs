@@ -625,10 +625,7 @@ unsafe fn do_fuzzymatch(argvars: *const typval_T, rettv: *mut typval_T, retmatch
             return;
         }
 
-        let mut cb = Callback {
-            data: std::ptr::null_mut(),
-            cb_type: K_CALLBACK_NONE,
-        };
+        let mut cb = Callback::NONE;
         let mut key: *const c_char = std::ptr::null();
         let mut matchseq = false;
         let mut max_matches: c_int = 0;
