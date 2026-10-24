@@ -1,7 +1,7 @@
 //! LPeg pattern trees and Lua API (`src/lpeg/lptree.c`).
 
 use std::ffi::{c_char, c_int, c_short, c_ushort, c_void};
-use std::mem::{offset_of, size_of, zeroed};
+use std::mem::{offset_of, size_of};
 use std::ptr;
 
 use crate::lpeg::lpcap::getcaptures;
@@ -323,7 +323,7 @@ unsafe fn newleaf(l: *mut lua_State, tag: TTag) -> *mut TTree {
 
 unsafe fn newcharset(l: *mut lua_State, cs: *mut byte) -> *mut TTree {
     unsafe {
-        let mut info: charsetinfo = zeroed();
+        let mut info = charsetinfo::new();
         let op = charsettype(cs, &mut info);
         match op {
             IFail => newleaf(l, TFalse),
@@ -500,8 +500,8 @@ unsafe extern "C-unwind" fn lp_seq(l: *mut lua_State) -> c_int {
 
 unsafe extern "C-unwind" fn lp_choice(l: *mut lua_State) -> c_int {
     unsafe {
-        let mut st1: Charset = zeroed();
-        let mut st2: Charset = zeroed();
+        let mut st1 = Charset::new();
+        let mut st2 = Charset::new();
         let t1 = getpatt(l, 1, ptr::null_mut());
         let t2 = getpatt(l, 2, ptr::null_mut());
         if tocharset(t1, &mut st1) != 0 && tocharset(t2, &mut st2) != 0 {
@@ -573,8 +573,8 @@ unsafe extern "C-unwind" fn lp_not(l: *mut lua_State) -> c_int {
 
 unsafe extern "C-unwind" fn lp_sub(l: *mut lua_State) -> c_int {
     unsafe {
-        let mut st1: Charset = zeroed();
-        let mut st2: Charset = zeroed();
+        let mut st1 = Charset::new();
+        let mut st2 = Charset::new();
         let mut s1: c_int = 0;
         let mut s2: c_int = 0;
         let t1 = getpatt(l, 1, &mut s1);
@@ -1161,7 +1161,7 @@ unsafe fn initposition(l: *mut lua_State, len: usize) -> usize {
 
 unsafe extern "C-unwind" fn lp_match(l: *mut lua_State) -> c_int {
     unsafe {
-        let mut capture: [Capture; INITCAPSIZE] = zeroed();
+        let mut capture: [Capture; INITCAPSIZE] = [Capture::new(); INITCAPSIZE];
         let mut len: usize = 0;
         getpatt(l, 1, ptr::null_mut());
         let p = getpattern(l, 1);

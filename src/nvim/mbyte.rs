@@ -104,6 +104,23 @@ pub struct vimconv_T {
     pub vc_fail: bool,
 }
 
+impl vimconv_T {
+    pub const fn new() -> Self {
+        Self {
+            vc_type: 0,
+            vc_factor: 0,
+            vc_fd: ptr::null_mut(),
+            vc_fail: false,
+        }
+    }
+}
+
+impl Default for vimconv_T {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Clone, Copy)]
 struct Interval {
     first: c_int,

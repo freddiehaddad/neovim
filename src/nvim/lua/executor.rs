@@ -2487,7 +2487,7 @@ pub unsafe fn nlua_exec_file(path: *const c_char) -> bool {
             lua_getglobal(lstate, c"loadfile".as_ptr());
             lua_pushstring(lstate, path);
         } else {
-            let mut stdin_dup: FileDescriptor = zeroed();
+            let mut stdin_dup = FileDescriptor::new();
             if file_open_stdin(&raw mut stdin_dup) != 0 {
                 return false;
             }

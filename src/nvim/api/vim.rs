@@ -3163,7 +3163,7 @@ pub unsafe extern "C" fn nvim_eval_statusline(
 
         let mut stc_hl_id: c_int = 0;
         let mut scl_hl_id: c_int = 0;
-        let mut statuscol = std::mem::zeroed::<statuscol_T>();
+        let mut statuscol = statuscol_T::new();
         let mut sattrs = [crate::decoration::SignTextAttrs {
             text: [0; 2],
             hl_id: 0,
@@ -3174,7 +3174,7 @@ pub unsafe extern "C" fn nvim_eval_statusline(
             let mut cul_id: c_int = 0;
             let mut num_id: c_int = 0;
             let lnum = statuscol_lnum as linenr_T;
-            let mut cursorline_fi = std::mem::zeroed::<foldinfo_T>();
+            let mut cursorline_fi = foldinfo_T::new();
             decor_redraw_signs(
                 wp,
                 (*wp).w_buffer,

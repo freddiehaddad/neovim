@@ -15,6 +15,22 @@ pub struct strbuf_t {
     pub length: usize,
 }
 
+impl strbuf_t {
+    pub const fn new() -> Self {
+        Self {
+            buf: ptr::null_mut(),
+            size: 0,
+            length: 0,
+        }
+    }
+}
+
+impl Default for strbuf_t {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn die(msg: &str) -> ! {
     eprintln!("{msg}");
     std::process::abort()

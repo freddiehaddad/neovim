@@ -734,7 +734,7 @@ unsafe fn do_path_expand(
         }
         *s = NUL;
 
-        let mut dir: Directory = std::mem::zeroed();
+        let mut dir = Directory::new();
         let dirpath = if *buf == NUL { c".".as_ptr() } else { buf };
         if os_file_is_readable(dirpath) && os_scandir(&mut dir, dirpath) {
             scandir_next_with_dots(ptr::null_mut());
@@ -1793,7 +1793,7 @@ pub unsafe fn path_fix_case(name: *mut c_char) {
 
         let name_bytes = CStr::from_ptr(name).to_bytes();
         let slash_pos = name_bytes.iter().rposition(|&b| b == b'/');
-        let mut dir: Directory = std::mem::zeroed();
+        let mut dir = Directory::new();
         let (ok, tail) = if let Some(pos) = slash_pos {
             let slash = name.add(pos);
             *slash = NUL;

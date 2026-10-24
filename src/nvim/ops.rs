@@ -477,7 +477,7 @@ unsafe fn shift_block(oap: *mut oparg_T, amount: c_int) {
         let oldcol = (*curwin).w_cursor.col;
         let sw_val = get_sw_value_indent(curbuf, left);
         let ts_val = (*curbuf).b_p_ts as c_int;
-        let mut bd: block_def = std::mem::zeroed();
+        let mut bd = block_def::new();
         let old_p_ri = p_ri;
 
         p_ri = 0;
@@ -514,7 +514,7 @@ unsafe fn shift_block(oap: *mut oparg_T, amount: c_int) {
                 }
             }
 
-            let mut csarg: CharsizeArg = std::mem::zeroed();
+            let mut csarg = CharsizeArg::new();
             let cstype: CSType = init_charsize_arg(
                 &raw mut csarg,
                 curwin,
@@ -588,7 +588,7 @@ unsafe fn shift_block(oap: *mut oparg_T, amount: c_int) {
 
             let mut non_white_col = bd.start_vcol;
 
-            let mut csarg: CharsizeArg = std::mem::zeroed();
+            let mut csarg = CharsizeArg::new();
             let mut cstype: CSType = init_charsize_arg(
                 &raw mut csarg,
                 curwin,
@@ -812,7 +812,7 @@ unsafe fn block_insert(
 /// Handle a delete operation.
 pub unsafe fn op_delete(oap: *mut oparg_T) -> c_int {
     unsafe {
-        let mut bd: block_def = std::mem::zeroed();
+        let mut bd = block_def::new();
         let old_lcount = (*curbuf).b_ml.ml_line_count;
 
         if ((*curbuf).b_ml.ml_flags & ML_EMPTY) != 0 {
@@ -1174,7 +1174,7 @@ unsafe fn replace_character(c: c_int) {
 unsafe fn op_replace(oap: *mut oparg_T, mut c: c_int) -> c_int {
     unsafe {
         let mut n: c_int;
-        let mut bd: block_def = std::mem::zeroed();
+        let mut bd = block_def::new();
         let mut after_p: Vec<c_char> = Vec::new();
         let mut had_ctrl_v_cr = false;
 
@@ -1403,7 +1403,7 @@ unsafe fn op_replace(oap: *mut oparg_T, mut c: c_int) -> c_int {
 /// Handle the (non-standard vi) tilde operator. Also for "gu", "gU" and "g?".
 pub unsafe fn op_tilde(oap: *mut oparg_T) {
     unsafe {
-        let mut bd: block_def = std::mem::zeroed();
+        let mut bd = block_def::new();
         let mut did_change = false;
 
         if u_save((*oap).start.lnum - 1, (*oap).end.lnum + 1) == FAIL {
@@ -1550,7 +1550,7 @@ pub unsafe fn op_insert(oap: *mut oparg_T, count1: c_int) {
         let mut pre_textlen: c_int = 0;
         let mut ind_pre_col: colnr_T = 0;
         let mut ind_pre_vcol: c_int = 0;
-        let mut bd: block_def = std::mem::zeroed();
+        let mut bd = block_def::new();
 
         bd.is_MAX = c_int::from((*curwin).w_curswant == MAXCOL);
 
@@ -1626,7 +1626,7 @@ pub unsafe fn op_insert(oap: *mut oparg_T, count1: c_int) {
 
         if (*oap).motion_type == kMTBlockWise {
             let mut ind_post_vcol: c_int = 0;
-            let mut bd2: block_def = std::mem::zeroed();
+            let mut bd2 = block_def::new();
             let mut did_indent = false;
 
             let ind_post_col = getwhitecols_curline() as colnr_T;
@@ -1736,7 +1736,7 @@ pub unsafe fn op_change(oap: *mut oparg_T) -> c_int {
         let mut pre_textlen: c_int = 0;
         let mut pre_indent: c_int = 0;
         let mut firstline: *mut c_char;
-        let mut bd: block_def = std::mem::zeroed();
+        let mut bd = block_def::new();
 
         let mut l = (*oap).start.col;
         if (*oap).motion_type == kMTLineWise {
@@ -2185,7 +2185,7 @@ pub unsafe fn block_prep(oap: *mut oparg_T, bdp: *mut block_def, lnum: linenr_T,
         let line = ml_get(lnum);
         let mut prev_pstart = line;
 
-        let mut csarg: CharsizeArg = std::mem::zeroed();
+        let mut csarg = CharsizeArg::new();
         let mut cstype = init_charsize_arg(&raw mut csarg, curwin, lnum, line);
         let mut ci = utf_ptr2StrCharInfo(line);
         let mut vcol = (*bdp).start_vcol;
@@ -2370,7 +2370,7 @@ pub unsafe fn getregionpos_line(
             (*ret_p2).col = MAXCOL;
             (*ret_p2).coladd = 0;
         } else {
-            let mut bd: block_def = std::mem::zeroed();
+            let mut bd = block_def::new();
 
             if region_type == kMTBlockWise {
                 block_prep(oap, &raw mut bd, lnum, false);
@@ -2513,7 +2513,7 @@ pub unsafe fn charwise_block_prep(
 
 pub unsafe fn op_addsub(oap: *mut oparg_T, Prenum1: linenr_T, g_cmd: bool) {
     unsafe {
-        let mut bd: block_def = std::mem::zeroed();
+        let mut bd = block_def::new();
         let mut change_cnt: isize = 0;
         let mut amount = Prenum1;
 
@@ -3095,8 +3095,8 @@ pub unsafe fn cursor_pos_info(dict: *mut dict_T) {
             col: 0,
             coladd: 0,
         };
-        let mut oparg: oparg_T = std::mem::zeroed();
-        let mut bd: block_def = std::mem::zeroed();
+        let mut oparg = oparg_T::new();
+        let mut bd = block_def::new();
         let l_VIsual_active = Visual.active;
         let l_VIsual_mode = Visual.mode;
 

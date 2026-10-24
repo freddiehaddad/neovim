@@ -1250,7 +1250,7 @@ pub unsafe fn mc_vsel_refresh() {
                 kMTCharWise
             };
             let mut inclusive = true;
-            let mut oa: oparg_T = std::mem::zeroed();
+            let mut oa = oparg_T::new();
             virtual_op = c_int::from(virtual_active(curwin));
             getregionpos_prep(
                 &mut s,

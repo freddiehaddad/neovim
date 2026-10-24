@@ -2,7 +2,7 @@
 
 use crate::message::semsg;
 use std::ffi::{c_char, c_int, c_uint};
-use std::mem::{size_of, zeroed};
+use std::mem::size_of;
 use std::ptr;
 
 use super::*;
@@ -99,13 +99,25 @@ static CLASSCODES: [c_int; 27] = [
 ];
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 struct regstar_T {
     nextb: c_int,
     nextb_ic: c_int,
     count: i64,
     minval: i64,
     maxval: i64,
+}
+
+impl regstar_T {
+    const fn new() -> Self {
+        Self {
+            nextb: 0,
+            nextb_ic: 0,
+            count: 0,
+            minval: 0,
+            maxval: 0,
+        }
+    }
 }
 
 #[repr(C)]
@@ -3122,7 +3134,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: *const proftime_T, timed_out: *mut c_i
                                 let pos = (*bp).len();
                                 (*bp).push(backpos_T {
                                     bp_scan: scan,
-                                    bp_pos: zeroed(),
+                                    bp_pos: regsave_T::new(),
                                 });
                                 pos
                             };
@@ -3339,7 +3351,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: *const proftime_T, timed_out: *mut c_i
                             }
                         }
                         BRACE_SIMPLE | STAR | PLUS => {
-                            let mut rst: regstar_T = zeroed();
+                            let mut rst = regstar_T::new();
                             if OP(next) == EXACTLY {
                                 rst.nextb = *OPERAND(next) as c_int;
                                 if rex.reg_ic {

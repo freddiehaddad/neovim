@@ -2564,8 +2564,8 @@ pub unsafe fn pagescroll(dir: Direction, mut count: c_int, half: bool) -> c_int 
         let prev_col = (*curwin).w_cursor.col;
         let prev_curswant = (*curwin).w_curswant;
         let prev_lnum = (*curwin).w_cursor.lnum;
-        let mut oa: oparg_T = std::mem::zeroed();
-        let mut ca: cmdarg_T = std::mem::zeroed();
+        let mut oa = oparg_T::new();
+        let mut ca = cmdarg_T::new();
         ca.oap = &raw mut oa;
 
         if half {

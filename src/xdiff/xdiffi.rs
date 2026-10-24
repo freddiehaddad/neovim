@@ -1,7 +1,7 @@
 //! Core diff algorithm (`src/xdiff/xdiffi.c`).
 
 use std::ffi::{c_char, c_int, c_long, c_ulong, c_void};
-use std::mem::{size_of, zeroed};
+use std::mem::size_of;
 use std::ptr;
 
 use crate::memory::{xfree, xmalloc};
@@ -924,7 +924,7 @@ pub unsafe fn xdl_diff(
 ) -> c_int {
     unsafe {
         let mut xscr: *mut xdchange_t = ptr::null_mut();
-        let mut xe: xdfenv_t = zeroed();
+        let mut xe = xdfenv_t::new();
         let ef: emit_func_t = if (*xecfg).hunk_func.is_some() {
             xdl_call_hunk_func
         } else {

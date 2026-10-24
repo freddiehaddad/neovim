@@ -95,12 +95,23 @@ pub type estack_arg_T = c_int;
 pub(crate) const SID_NONE: scid_T = -6;
 
 #[repr(C)]
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub struct sctx_T {
     pub sc_sid: c_int,
     pub sc_seq: c_int,
     pub sc_lnum: i32,
     pub sc_chan: u64,
+}
+
+impl sctx_T {
+    pub const fn new() -> Self {
+        Self {
+            sc_sid: 0,
+            sc_seq: 0,
+            sc_lnum: 0,
+            sc_chan: 0,
+        }
+    }
 }
 use crate::extmark::TriState;
 pub type DoInRuntimepathCB = Option<

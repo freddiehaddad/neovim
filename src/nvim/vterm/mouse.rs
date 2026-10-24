@@ -36,10 +36,33 @@ pub struct VTermParserCsi {
     pub args: [c_long; CSI_ARGS_MAX],
 }
 
+impl VTermParserCsi {
+    pub const fn new() -> Self {
+        Self {
+            leaderlen: 0,
+            leader: [0; CSI_LEADER_MAX],
+            argi: 0,
+            args: [0; CSI_ARGS_MAX],
+        }
+    }
+}
+
+impl Default for VTermParserCsi {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct VTermParserOsc {
     pub command: c_int,
+}
+
+impl VTermParserOsc {
+    pub const fn new() -> Self {
+        Self { command: 0 }
+    }
 }
 
 #[repr(C)]
@@ -47,6 +70,21 @@ pub struct VTermParserOsc {
 pub struct VTermParserDcs {
     pub commandlen: c_int,
     pub command: [c_char; CSI_LEADER_MAX],
+}
+
+impl VTermParserDcs {
+    pub const fn new() -> Self {
+        Self {
+            commandlen: 0,
+            command: [0; CSI_LEADER_MAX],
+        }
+    }
+}
+
+impl Default for VTermParserDcs {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[repr(C)]
@@ -65,6 +103,30 @@ pub struct VTermParser {
     pub emit_nul: bool,
 }
 
+impl VTermParser {
+    pub const fn new() -> Self {
+        Self {
+            state: 0,
+            in_esc: 0,
+            intermedlen: 0,
+            intermed: [0; INTERMED_MAX],
+            csi: VTermParserCsi::new(),
+            osc: VTermParserOsc::new(),
+            dcs: VTermParserDcs::new(),
+            callbacks: std::ptr::null(),
+            cbdata: std::ptr::null_mut(),
+            string_initial: false,
+            emit_nul: false,
+        }
+    }
+}
+
+impl Default for VTermParser {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 pub struct VTerm {
     pub rows: c_int,
@@ -75,6 +137,27 @@ pub struct VTerm {
     pub outdata: *mut Terminal,
     pub state: *mut VTermStateFull,
     pub screen: *mut crate::vterm::screen::VTermScreen,
+}
+
+impl VTerm {
+    pub const fn new() -> Self {
+        Self {
+            rows: 0,
+            cols: 0,
+            mode: 0,
+            parser: VTermParser::new(),
+            outfunc: None,
+            outdata: std::ptr::null_mut(),
+            state: std::ptr::null_mut(),
+            screen: std::ptr::null_mut(),
+        }
+    }
+}
+
+impl Default for VTerm {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 unsafe fn output_mouse(

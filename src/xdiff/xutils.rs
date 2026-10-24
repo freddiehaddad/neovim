@@ -473,7 +473,7 @@ pub unsafe fn xdl_fall_back_diff(
             .offset((*end_rec2).size as isize)
             .offset_from(subfile2.ptr) as c_int;
 
-        let mut env: xdfenv_t = std::mem::zeroed();
+        let mut env = xdfenv_t::new();
         if xdl_do_diff(&mut subfile1, &mut subfile2, xpp, &mut env) < 0 {
             return -1;
         }

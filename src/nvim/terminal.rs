@@ -2256,8 +2256,8 @@ unsafe fn send_mouse_event(term: *mut Terminal, mut c: c_int) -> bool {
                 curwin = mouse_win;
                 curbuf = (*curwin).w_buffer;
 
-                let mut cap: cmdarg_T = std::mem::zeroed();
-                let mut oa: oparg_T = std::mem::zeroed();
+                let mut cap = cmdarg_T::new();
+                let mut oa = oparg_T::new();
                 clear_oparg(&mut oa);
                 cap.oap = &mut oa;
                 cap.cmdchar = c;

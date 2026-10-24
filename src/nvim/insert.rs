@@ -3752,7 +3752,7 @@ unsafe fn ins_tab() -> bool {
 
             let tab = c"\t".as_ptr().cast_mut();
             let tab_v = b'\t' as i32;
-            let mut csarg = std::mem::zeroed::<CharsizeArg>();
+            let mut csarg = CharsizeArg::new();
             let mut cstype = init_charsize_arg(&raw mut csarg, curwin, 0, tab);
 
             while ascii_iswhite(*ptr as u8 as c_int) {
@@ -3957,7 +3957,7 @@ pub unsafe fn ins_copychar(lnum: linenr_T) -> c_int {
         let end_vcol = (*curwin).w_virtcol;
         let line = ml_get(lnum);
 
-        let mut csarg = std::mem::zeroed::<CharsizeArg>();
+        let mut csarg = CharsizeArg::new();
         let cstype = init_charsize_arg(&raw mut csarg, curwin, lnum, line);
         let mut ci = utf_ptr2StrCharInfo(line);
         let mut vcol: c_int = 0;

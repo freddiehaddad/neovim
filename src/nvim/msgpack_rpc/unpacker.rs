@@ -223,7 +223,7 @@ unsafe fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) 
                     }
                     let mut buf: *const c_char = (*p).ext_buf.as_ptr();
                     let mut size = (*parent).tok.length as usize;
-                    let mut ext_tok = std::mem::zeroed::<mpack_token_t>();
+                    let mut ext_tok = mpack_token_t::new();
                     let status = mpack_rtoken(&mut buf, &mut size, &mut ext_tok);
                     if status != 0 || ext_tok.r#type != mpack_token_type_t::MPACK_TOKEN_UINT {
                         *res = nil_obj();
@@ -411,7 +411,7 @@ pub unsafe fn unpacker_teardown(p: *mut Unpacker) {
 pub unsafe fn unpacker_parse_header(p: *mut Unpacker) -> bool {
     unsafe {
         let p = &mut *p;
-        let mut tok = std::mem::zeroed::<mpack_token_t>();
+        let mut tok = mpack_token_t::new();
         let mut data = p.read_ptr;
         let mut size = p.read_size;
 
@@ -638,7 +638,7 @@ unsafe fn next_type(
 pub unsafe fn unpacker_parse_redraw(p: *mut Unpacker) -> bool {
     unsafe {
         let p = &mut *p;
-        let mut tok = std::mem::zeroed::<mpack_token_t>();
+        let mut tok = mpack_token_t::new();
         let mut data = p.read_ptr;
         let mut size = p.read_size;
 
@@ -876,7 +876,7 @@ pub unsafe fn unpack_string(data: *mut *const c_char, size: *mut usize) -> NvimS
     unsafe {
         let mut data2 = *data;
         let mut size2 = *size;
-        let mut tok = std::mem::zeroed::<mpack_token_t>();
+        let mut tok = mpack_token_t::new();
 
         let result = mpack_rtoken(&mut data2, &mut size2, &mut tok);
         if result != 0
@@ -907,7 +907,7 @@ pub unsafe fn unpack_string(data: *mut *const c_char, size: *mut usize) -> NvimS
 /// Unpack a msgpack array header (`unpack_array`).
 pub unsafe fn unpack_array(data: *mut *const c_char, size: *mut usize) -> isize {
     unsafe {
-        let mut tok = std::mem::zeroed::<mpack_token_t>();
+        let mut tok = mpack_token_t::new();
         let result = mpack_rtoken(data, size, &mut tok);
         if result != 0 || tok.r#type != mpack_token_type_t::MPACK_TOKEN_ARRAY {
             return -1;
@@ -923,7 +923,7 @@ pub unsafe fn unpack_integer(
     res: *mut Integer,
 ) -> bool {
     unsafe {
-        let mut tok = std::mem::zeroed::<mpack_token_t>();
+        let mut tok = mpack_token_t::new();
         let result = mpack_rtoken(data, size, &mut tok);
         if result != 0 {
             return false;
@@ -1008,7 +1008,7 @@ pub unsafe fn unpack_keydict(
 ) -> bool {
     unsafe {
         let ks = retval.cast::<OptKeySet>();
-        let mut tok = std::mem::zeroed::<mpack_token_t>();
+        let mut tok = mpack_token_t::new();
 
         let result = mpack_rtoken(data, size, &mut tok);
         if result != 0 || tok.r#type != mpack_token_type_t::MPACK_TOKEN_MAP {

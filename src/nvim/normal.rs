@@ -4264,8 +4264,8 @@ unsafe fn nv_Zet(cap: *mut cmdarg_T) {
 
 pub unsafe fn do_nv_ident(c1: c_int, c2: c_int) {
     unsafe {
-        let mut oa: oparg_T = std::mem::zeroed();
-        let mut ca: cmdarg_T = std::mem::zeroed();
+        let mut oa = oparg_T::new();
+        let mut ca = cmdarg_T::new();
 
         clear_oparg(&raw mut oa);
         ca.oap = &raw mut oa;
@@ -7752,7 +7752,7 @@ pub unsafe fn exec_stuffed(cap: *mut cmdarg_T) {
         if text_locked() || curbuf_locked() {
             return;
         }
-        let mut oa: oparg_T = std::mem::zeroed();
+        let mut oa = oparg_T::new();
         clear_oparg(&raw mut oa);
         let oap = if !cap.is_null() {
             (*cap).oap

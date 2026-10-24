@@ -1910,7 +1910,7 @@ unsafe fn win_update(wp: *mut win_T) {
             (*wp).w_old_visual_col = 0;
         }
 
-        let mut cursorline_fi: foldinfo_T = std::mem::zeroed();
+        let mut cursorline_fi = foldinfo_T::new();
         win_update_cursorline(wp, &raw mut cursorline_fi);
         if ptr::eq(wp, curwin) {
             conceal_cursor_used = conceal_cursor_line(curwin);
@@ -2346,7 +2346,7 @@ unsafe fn win_update(wp: *mut win_T) {
                     let j = win_get_fill(wp, (*wp).w_botline);
                     if j > 0 && !(*wp).w_botfill && row < (*wp).w_view_height {
                         let mut zero_spv = spellvars_T::default();
-                        let zero_foldinfo: foldinfo_T = std::mem::zeroed();
+                        let zero_foldinfo = foldinfo_T::new();
                         row = win_line(
                             wp,
                             (*wp).w_botline,

@@ -137,13 +137,19 @@ pub struct StlClickDefinition {
     pub func: *mut c_char,
 }
 
-impl Default for StlClickDefinition {
-    fn default() -> Self {
+impl StlClickDefinition {
+    pub const fn new() -> Self {
         Self {
             type_: kStlClickDisabled,
             tabnr: 0,
             func: ptr::null_mut(),
         }
+    }
+}
+
+impl Default for StlClickDefinition {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -1219,8 +1225,8 @@ pub unsafe fn do_mousescroll(cap: *mut cmdarg_T) {
 /// of the MSCR_ values.
 pub unsafe fn ins_mousescroll(dir: c_int) {
     unsafe {
-        let mut cap: cmdarg_T = std::mem::zeroed();
-        let mut oa: oparg_T = std::mem::zeroed();
+        let mut cap = cmdarg_T::new();
+        let mut oa = oparg_T::new();
         clear_oparg(&raw mut oa);
         cap.oap = &raw mut oa;
         cap.arg = dir;
@@ -1275,8 +1281,8 @@ pub unsafe fn ins_mousescroll(dir: c_int) {
 /// Returns true when the info popup was scrolled.
 pub unsafe fn cmdline_mousescroll(dir: c_int) -> bool {
     unsafe {
-        let mut cap: cmdarg_T = std::mem::zeroed();
-        let mut oa: oparg_T = std::mem::zeroed();
+        let mut cap = cmdarg_T::new();
+        let mut oa = oparg_T::new();
         clear_oparg(&raw mut oa);
         cap.oap = &raw mut oa;
         cap.arg = dir;
@@ -2018,7 +2024,7 @@ pub unsafe fn vcol2col(
 ) -> colnr_T {
     unsafe {
         let line = ml_get_buf((*wp).w_buffer, lnum);
-        let mut csarg: CharsizeArg = std::mem::zeroed();
+        let mut csarg = CharsizeArg::new();
         let cstype: CSType = init_charsize_arg(&raw mut csarg, wp, lnum, line);
         let mut ci = utf_ptr2StrCharInfo(line);
         let mut cur_vcol: c_int = 0;

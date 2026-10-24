@@ -86,6 +86,26 @@ pub struct pumitem_T {
     pub pum_user_kind_hlattr: c_int,
 }
 
+impl pumitem_T {
+    pub const fn new() -> Self {
+        Self {
+            pum_text: ptr::null_mut(),
+            pum_kind: ptr::null_mut(),
+            pum_extra: ptr::null_mut(),
+            pum_info: ptr::null_mut(),
+            pum_cpt_source_idx: 0,
+            pum_user_abbr_hlattr: 0,
+            pum_user_kind_hlattr: 0,
+        }
+    }
+}
+
+impl Default for pumitem_T {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct PumWant {
@@ -1745,7 +1765,7 @@ pub unsafe fn pum_show_popupmenu(menu: *mut vimmenu_T) {
         }
 
         let mut idx: usize = 0;
-        let mut array_vec: Vec<pumitem_T> = vec![std::mem::zeroed(); PUM_SIZE as usize];
+        let mut array_vec: Vec<pumitem_T> = vec![pumitem_T::new(); PUM_SIZE as usize];
         let array = array_vec.as_mut_ptr();
 
         for mp in &(*menu).children {

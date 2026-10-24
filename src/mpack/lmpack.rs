@@ -1,7 +1,7 @@
 //! Lua bindings for MessagePack (`src/mpack/lmpack.c`).
 
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
-use std::mem::{size_of, zeroed};
+use std::mem::size_of;
 use std::ptr;
 
 use crate::lua::converter::{
@@ -729,7 +729,7 @@ unsafe extern "C-unwind" fn lmpack_packer_pack(l: *mut lua_State) -> c_int {
         let packer = lmpack_check_packer(l, 1);
         (*packer).L = l;
         (*packer).root = lmpack_ref(l, (*packer).reg);
-        let mut buffer: luaL_Buffer = zeroed();
+        let mut buffer = luaL_Buffer::new();
         luaL_buffinit(l, &mut buffer);
         let mut b = luaL_prepbuffer(&mut buffer);
         let mut bl = LUAL_BUFFERSIZE;
@@ -1033,7 +1033,7 @@ unsafe extern "C-unwind" fn lmpack_unpack(l: *mut lua_State) -> c_int {
         let mut len: usize = 0;
         let mut str_ptr = luaL_checklstring(l, 1, &mut len);
 
-        let mut parser: mpack_parser_t = zeroed();
+        let mut parser = mpack_parser_t::new(0);
         lua_newtable(l);
         let reg = luaL_ref(l, LUA_REGISTRYINDEX);
         let mut unpacker = LmpackUnpacker {
@@ -1082,7 +1082,7 @@ unsafe extern "C-unwind" fn lmpack_pack(l: *mut lua_State) -> c_int {
             return luaL_error(l, c"expecting exactly 1 argument".as_ptr());
         }
 
-        let mut parser: mpack_parser_t = zeroed();
+        let mut parser = mpack_parser_t::new(0);
         lua_newtable(l);
         let reg = luaL_ref(l, LUA_REGISTRYINDEX);
         let root = lmpack_ref(l, reg);
@@ -1103,7 +1103,7 @@ unsafe extern "C-unwind" fn lmpack_pack(l: *mut lua_State) -> c_int {
         lua_getfield(l, LUA_REGISTRYINDEX, EMPTY_DICT_NAME.as_ptr());
         packer.mtdict = lmpack_ref(l, packer.reg);
 
-        let mut buffer: luaL_Buffer = zeroed();
+        let mut buffer = luaL_Buffer::new();
         luaL_buffinit(l, &mut buffer);
         let mut b = luaL_prepbuffer(&mut buffer);
         let mut bl = LUAL_BUFFERSIZE;

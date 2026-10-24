@@ -1,7 +1,6 @@
 //! Capture evaluation (`src/lpeg/lpcap.c`).
 
 use std::ffi::{c_char, c_int};
-use std::mem::zeroed;
 use std::ptr;
 
 use crate::lpeg::{
@@ -402,6 +401,21 @@ struct StrAux {
     u: StrAuxU,
 }
 
+impl StrAux {
+    const fn new() -> Self {
+        Self {
+            isstring: 0,
+            u: StrAuxU { cp: ptr::null_mut() },
+        }
+    }
+}
+
+impl Default for StrAux {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 unsafe fn getstrcaps(cs: *mut CapState, cps: *mut StrAux, mut n: c_int) -> c_int {
     unsafe {
         let k = n as usize;
@@ -430,7 +444,7 @@ unsafe fn getstrcaps(cs: *mut CapState, cps: *mut StrAux, mut n: c_int) -> c_int
 
 unsafe fn stringcap(b: *mut luaL_Buffer, cs: *mut CapState) {
     unsafe {
-        let mut cps: [StrAux; MAXSTRCAPS] = zeroed();
+        let mut cps: [StrAux; MAXSTRCAPS] = [StrAux::new(); MAXSTRCAPS];
         let mut len: usize = 0;
         let cache_idx = updatecache(cs, c_int::from((*(*cs).cap).idx));
         let fmt = lua_tolstring((*cs).L, cache_idx, &mut len);
@@ -570,14 +584,14 @@ unsafe fn pushcapture(cs: *mut CapState) -> c_int {
                 1
             }
             Cstring => {
-                let mut b: luaL_Buffer = zeroed();
+                let mut b = luaL_Buffer::new();
                 luaL_buffinit(l, &mut b);
                 stringcap(&mut b, cs);
                 luaL_pushresult(&mut b);
                 1
             }
             Csubst => {
-                let mut b: luaL_Buffer = zeroed();
+                let mut b = luaL_Buffer::new();
                 luaL_buffinit(l, &mut b);
                 substcap(&mut b, cs);
                 luaL_pushresult(&mut b);

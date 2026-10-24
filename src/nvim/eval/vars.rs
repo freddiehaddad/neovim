@@ -104,6 +104,23 @@ pub struct evalarg_T {
     pub eval_tofree: *mut c_char,
 }
 
+impl evalarg_T {
+    pub const fn new() -> Self {
+        Self {
+            eval_flags: 0,
+            eval_getline: None,
+            eval_cookie: ptr::null_mut(),
+            eval_tofree: ptr::null_mut(),
+        }
+    }
+}
+
+impl Default for evalarg_T {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct lval_T {
@@ -1276,7 +1293,7 @@ pub unsafe fn ex_let(eap: *mut exarg_T) {
         if (*eap).skip != 0 {
             emsg_skip += 1;
         }
-        let mut evalarg: evalarg_T = std::mem::zeroed();
+        let mut evalarg = evalarg_T::new();
         fill_evalarg_from_eap(&raw mut evalarg, eap, (*eap).skip != 0);
         let eval_res = eval0(expr, &raw mut rettv, eap, &raw mut evalarg);
         if (*eap).skip != 0 {

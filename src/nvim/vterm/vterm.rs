@@ -20,19 +20,17 @@ pub type VTermOutputCallback = Option<unsafe fn(s: *const c_char, len: usize, us
 
 /// Create a new `VTerm` instance of size `rows` x `cols` (`vterm_new`).
 pub unsafe fn vterm_new(rows: c_int, cols: c_int) -> *mut VTerm {
-    unsafe {
-        let mut vt: VTerm = std::mem::zeroed();
-        vt.rows = rows;
-        vt.cols = cols;
-        vt.parser.state = NORMAL;
-        vt.parser.callbacks = ptr::null();
-        vt.parser.cbdata = ptr::null_mut();
-        vt.parser.emit_nul = false;
-        vt.outfunc = None;
-        vt.outdata = ptr::null_mut();
+    let mut vt = VTerm::new();
+    vt.rows = rows;
+    vt.cols = cols;
+    vt.parser.state = NORMAL;
+    vt.parser.callbacks = ptr::null();
+    vt.parser.cbdata = ptr::null_mut();
+    vt.parser.emit_nul = false;
+    vt.outfunc = None;
+    vt.outdata = ptr::null_mut();
 
-        Box::into_raw(Box::new(vt))
-    }
+    Box::into_raw(Box::new(vt))
 }
 
 pub unsafe fn vterm_free(vt: *mut VTerm) {

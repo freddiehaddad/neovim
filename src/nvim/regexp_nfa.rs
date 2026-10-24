@@ -2,7 +2,7 @@
 
 use crate::message::{semsg, siemsg};
 use std::ffi::{CStr, c_char, c_int, c_uint};
-use std::mem::{size_of, zeroed};
+use std::mem::size_of;
 use std::ptr;
 
 use super::*;
@@ -1530,8 +1530,8 @@ unsafe fn nfa_regpiece() -> c_int {
     unsafe {
         let mut minval: c_int = 0;
         let mut maxval: c_int = 0;
-        let mut old_state: parse_state_T = zeroed();
-        let mut new_state: parse_state_T = zeroed();
+        let mut old_state = parse_state_T::new();
+        let mut new_state = parse_state_T::new();
 
         save_parse_state(&raw mut old_state);
         let pv = &raw mut post_vec;
@@ -2047,7 +2047,7 @@ unsafe fn post2nfa(postfix: *mut c_int, end: *mut c_int, nfa_calc_size: bool) ->
             let ns = &raw mut nfa_stack;
             let req = nstate as usize + 1;
             if (*ns).len() < req {
-                (*ns).resize(req, zeroed());
+                (*ns).resize(req, Frag_T::new());
             }
             stack = (*ns).as_mut_ptr();
             stackp = stack;
@@ -2793,7 +2793,7 @@ unsafe fn addstate(
                         }
                         subs = &raw mut temp_subs;
                     }
-                    (*l).t.resize(newlen, zeroed());
+                    (*l).t.resize(newlen, nfa_thread_T::new());
                 }
 
                 (*state).lastlist[nfa_ll_index] = (*l).id;
@@ -2835,7 +2835,7 @@ unsafe fn addstate(
                 };
 
                 let mut save_ptr: *mut u8 = ptr::null_mut();
-                let mut save_multipos: multipos = zeroed();
+                let mut save_multipos = multipos::new();
                 let save_in_use: c_int;
 
                 if REG_MULTI() {
@@ -2919,7 +2919,7 @@ unsafe fn addstate(
                         (*sub).in_use = subidx as c_int + 1;
                     }
                     let mut save_ptr: *mut u8 = ptr::null_mut();
-                    let mut save_multipos: multipos = zeroed();
+                    let mut save_multipos = multipos::new();
                     if REG_MULTI() {
                         save_multipos = (*sub).list.multi[subidx];
                         if off == -1 {
@@ -2990,7 +2990,7 @@ unsafe fn addstate_here(
                     emsg(tr(e_pattern_uses_more_memory_than_maxmempattern.as_ptr()));
                     return ptr::null_mut();
                 }
-                (*l).t.resize(newlen, zeroed());
+                (*l).t.resize(newlen, nfa_thread_T::new());
             }
             let tp = (*l).t.as_mut_ptr();
             ptr::copy(
@@ -3239,7 +3239,7 @@ unsafe fn recursive_regmatch(
         let save_nfa_match = nfa_match;
         let save_nfa_listid = rex.nfa_listid;
         let save_nfa_endp = nfa_endp;
-        let mut endpos: save_se_T = zeroed();
+        let mut endpos = save_se_T::new();
         let mut endposp: *mut save_se_T = ptr::null_mut();
         let mut need_restore = false;
 
@@ -3524,8 +3524,8 @@ unsafe fn nfa_regmatch(
         let mut list: [nfa_list_T; 2] = if toplevel && !(*prog).listbuf[0].is_empty() {
             let mut t0 = std::mem::take(&mut (*prog).listbuf[0]);
             let mut t1 = std::mem::take(&mut (*prog).listbuf[1]);
-            t0.resize(init_len, zeroed());
-            t1.resize(init_len, zeroed());
+            t0.resize(init_len, nfa_thread_T::new());
+            t1.resize(init_len, nfa_thread_T::new());
             [
                 nfa_list_T {
                     t: t0,
@@ -3543,13 +3543,13 @@ unsafe fn nfa_regmatch(
         } else {
             [
                 nfa_list_T {
-                    t: vec![zeroed(); init_len],
+                    t: vec![nfa_thread_T::new(); init_len],
                     n: 0,
                     id: rex.nfa_listid + 1,
                     has_pim: 0,
                 },
                 nfa_list_T {
-                    t: vec![zeroed(); init_len],
+                    t: vec![nfa_thread_T::new(); init_len],
                     n: 0,
                     id: 0,
                     has_pim: 0,
@@ -3726,7 +3726,7 @@ unsafe fn nfa_regmatch(
                             }
                             (*m).norm.in_use = in_use;
                         } else {
-                            let mut pim: nfa_pim_T = zeroed();
+                            let mut pim = nfa_pim_T::new();
                             pim.state = (*t).state;
                             pim.result = NFA_PIM_TODO;
                             pim.subs.norm.in_use = 0;
@@ -4322,7 +4322,7 @@ unsafe fn nfa_regmatch(
                     } else {
                         &raw mut (*t).pim
                     };
-                    let mut pim_copy: nfa_pim_T = zeroed();
+                    let mut pim_copy = nfa_pim_T::new();
 
                     if !pim.is_null() && (clen == 0 || match_follows(add_state, 0)) {
                         let pim_c = (*(*pim).state).c;
@@ -4525,8 +4525,8 @@ unsafe fn nfa_regtry(
     timed_out: *mut c_int,
 ) -> c_int {
     unsafe {
-        let mut subs: regsubs_T = zeroed();
-        let mut m: regsubs_T = zeroed();
+        let mut subs = regsubs_T::new();
+        let mut m = regsubs_T::new();
         let start = (*prog).start;
 
         rex.input = rex.line.add(col as usize);
@@ -4765,7 +4765,7 @@ pub(super) unsafe fn nfa_regcomp(expr: *mut u8, re_flags: c_int) -> *mut regprog
             nsubexp: 0,
             nstate: 0,
             listbuf: [Vec::new(), Vec::new()],
-            state: vec![zeroed(); nstate as usize],
+            state: vec![nfa_state_T::new(); nstate as usize],
         }));
         state_ptr = (*prog).state.as_mut_ptr();
 

@@ -112,6 +112,24 @@ pub struct chastore_t {
     pub ancur: *mut chanode_t,
 }
 
+impl chastore_t {
+    pub const fn new() -> Self {
+        Self {
+            head: std::ptr::null_mut(),
+            tail: std::ptr::null_mut(),
+            isize: 0,
+            nsize: 0,
+            ancur: std::ptr::null_mut(),
+        }
+    }
+}
+
+impl Default for chastore_t {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct xrecord_t {
@@ -137,11 +155,44 @@ pub struct xdfile_t {
     pub ha: *mut c_ulong,
 }
 
+impl xdfile_t {
+    pub const fn new() -> Self {
+        Self {
+            rcha: chastore_t::new(),
+            nrec: 0,
+            hbits: 0,
+            rhash: std::ptr::null_mut(),
+            dstart: 0,
+            dend: 0,
+            recs: std::ptr::null_mut(),
+            rchg: std::ptr::null_mut(),
+            rindex: std::ptr::null_mut(),
+            nreff: 0,
+            ha: std::ptr::null_mut(),
+        }
+    }
+}
+
+impl Default for xdfile_t {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default)]
 pub struct xdfenv_t {
     pub xdf1: xdfile_t,
     pub xdf2: xdfile_t,
+}
+
+impl xdfenv_t {
+    pub const fn new() -> Self {
+        Self {
+            xdf1: xdfile_t::new(),
+            xdf2: xdfile_t::new(),
+        }
+    }
 }
 
 #[repr(C)]

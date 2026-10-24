@@ -1884,7 +1884,7 @@ pub unsafe fn win_line(
             let mut prev_ptr = ptr;
             let mut cs = CharSize::default();
 
-            let mut csarg: CharsizeArg = std::mem::zeroed();
+            let mut csarg = CharsizeArg::new();
             let cstype: CSType = init_charsize_arg(&raw mut csarg, wp, lnum, line);
             csarg.max_head_vcol = start_vcol;
             let mut vcol = wlv.vcol;
@@ -2731,7 +2731,7 @@ pub unsafe fn win_line(
                             let mb_off = utf_head_off(line, ptr.sub(1));
                             let p = ptr.sub((mb_off + 1) as usize);
 
-                            let mut csarg: CharsizeArg = std::mem::zeroed();
+                            let mut csarg = CharsizeArg::new();
                             let cstype =
                                 init_charsize_arg_skip_cur_text(&raw mut csarg, wp, lnum, line);
                             let ci = utf_ptr2StrCharInfo(p);

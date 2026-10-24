@@ -22,7 +22,7 @@ mod tests {
         assert_eq!(&fmt_buf[..fmt_len], b"-12.5");
 
         unsafe {
-            let mut sb: strbuf_t = std::mem::zeroed();
+            let mut sb = strbuf_t::new();
             strbuf_init(&mut sb, 0);
             strbuf_append_string(&mut sb, c"hello".as_ptr());
             strbuf_append_char(&mut sb, b'!' as c_char);

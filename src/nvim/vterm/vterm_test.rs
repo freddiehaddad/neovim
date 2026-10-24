@@ -1275,7 +1275,7 @@ mod tests {
         use std::fmt::Write as _;
         unsafe {
             let pos = VTermPos { row, col };
-            let mut cell: VTermScreenCell = std::mem::zeroed();
+            let mut cell = VTermScreenCell::default();
             vterm_screen_get_cell(screen, pos, &raw mut cell);
 
             let mut buf = [0u8; 32];

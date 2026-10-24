@@ -11241,7 +11241,7 @@ unsafe fn ex_wincmd(eap: *mut exarg_T) {
 
 unsafe fn ex_operators(eap: *mut exarg_T) {
     unsafe {
-        let mut oa: oparg_T = std::mem::zeroed();
+        let mut oa = oparg_T::new();
         clear_oparg(&raw mut oa);
         oa.regname = (*eap).regname;
         oa.start.lnum = (*eap).line1;
@@ -11990,7 +11990,7 @@ pub unsafe fn exec_normal_cmd(cmd: *mut c_char, remap: c_int, silent: bool) {
 
 pub unsafe fn exec_normal(was_typed: bool, use_vpeekc: bool) {
     unsafe {
-        let mut oa: oparg_T = std::mem::zeroed();
+        let mut oa = oparg_T::new();
         clear_oparg(&raw mut oa);
         finish_op = false;
         while (!stuff_empty()

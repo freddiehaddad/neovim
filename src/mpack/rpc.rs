@@ -1,7 +1,6 @@
 //! MessagePack-RPC session state machine (`src/mpack/rpc.c`).
 
 use std::ffi::{c_char, c_int};
-use std::mem::zeroed;
 use std::ptr;
 
 use crate::mpack::mpack_core::{
@@ -28,6 +27,21 @@ pub const MPACK_RPC_ERESPID: c_int = MPACK_RPC_ERROR + 4;
 pub struct mpack_rpc_header_t {
     pub toks: [mpack_token_t; 3],
     pub index: c_int,
+}
+
+impl mpack_rpc_header_t {
+    pub const fn new() -> Self {
+        Self {
+            toks: [mpack_token_t::new(); 3],
+            index: 0,
+        }
+    }
+}
+
+impl Default for mpack_rpc_header_t {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[repr(C)]
@@ -68,10 +82,10 @@ pub unsafe fn mpack_rpc_session_new(capacity: mpack_uint32_t) -> *mut mpack_rpc_
             },
         };
         let mut session = Box::new(mpack_rpc_session_t {
-            reader: zeroed(),
-            writer: zeroed(),
-            receive: zeroed(),
-            send: zeroed(),
+            reader: mpack_tokbuf_t::new(),
+            writer: mpack_tokbuf_t::new(),
+            receive: mpack_rpc_header_t::new(),
+            send: mpack_rpc_header_t::new(),
             request_id: 0,
             slots: vec![empty_slot; cap],
         });
@@ -269,7 +283,7 @@ pub unsafe fn mpack_rpc_receive(
     unsafe {
         let mut status: c_int;
         loop {
-            let mut tok: mpack_token_t = zeroed();
+            let mut tok = mpack_token_t::new();
             status = mpack_read(&raw mut (*session).reader, buf, buflen, &mut tok);
             if status != 0 {
                 break;
@@ -291,7 +305,7 @@ pub unsafe fn mpack_rpc_request(
 ) -> c_int {
     unsafe {
         let mut status = MPACK_EOF;
-        let mut tok: mpack_token_t = zeroed();
+        let mut tok = mpack_token_t::new();
         while status != 0 && *buflen != 0 {
             if (*session).writer.plen == 0 {
                 status = mpack_rpc_request_tok(session, &mut tok, data);
@@ -316,7 +330,7 @@ pub unsafe fn mpack_rpc_reply(
 ) -> c_int {
     unsafe {
         let mut status = MPACK_EOF;
-        let mut tok: mpack_token_t = zeroed();
+        let mut tok = mpack_token_t::new();
         while status != 0 && *buflen != 0 {
             if (*session).writer.plen == 0 {
                 status = mpack_rpc_reply_tok(session, &mut tok, id);
@@ -337,7 +351,7 @@ pub unsafe fn mpack_rpc_notify(
 ) -> c_int {
     unsafe {
         let mut status = MPACK_EOF;
-        let mut tok: mpack_token_t = zeroed();
+        let mut tok = mpack_token_t::new();
         while status != 0 && *buflen != 0 {
             if (*session).writer.plen == 0 {
                 status = mpack_rpc_notify_tok(session, &mut tok);

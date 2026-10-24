@@ -545,7 +545,7 @@ unsafe fn tk_getkey(tk: *mut TermKey, key: *mut TermKeyKey, force: bool) -> Term
 unsafe fn tk_getkeys(input: *mut TermInput, force: bool) {
     unsafe {
         let p = input;
-        let mut key: TermKeyKey = std::mem::zeroed();
+        let mut key = TermKeyKey::new();
         let mut result: TermKeyResult;
 
         loop {

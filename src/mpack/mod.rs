@@ -39,16 +39,16 @@ mod tests {
             let mut wbuf = [0 as c_char; 32];
             let mut wptr = wbuf.as_mut_ptr();
             let mut wlen = wbuf.len();
-            let mut wtb: mpack_tokbuf_t = std::mem::zeroed();
+            let mut wtb = mpack_tokbuf_t::new();
             mpack_tokbuf_init(&mut wtb);
             assert_eq!(mpack_write(&mut wtb, &mut wptr, &mut wlen, &tu), MPACK_OK);
 
             let written = wbuf.len() - wlen;
             let mut rptr = wbuf.as_ptr();
             let mut rlen = written;
-            let mut rtb: mpack_tokbuf_t = std::mem::zeroed();
+            let mut rtb = mpack_tokbuf_t::new();
             mpack_tokbuf_init(&mut rtb);
-            let mut out_tok: mpack_token_t = std::mem::zeroed();
+            let mut out_tok = mpack_token_t::new();
             assert_eq!(
                 mpack_read(&mut rtb, &mut rptr, &mut rlen, &mut out_tok),
                 MPACK_OK

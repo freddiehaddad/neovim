@@ -3392,7 +3392,7 @@ pub unsafe fn f_getregion(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
         };
         let mut inclusive = true;
         let mut region_type = kMTUnknown;
-        let mut oa: oparg_T = std::mem::zeroed();
+        let mut oa = oparg_T::new();
 
         if getregionpos(
             argvars,
@@ -3409,13 +3409,13 @@ pub unsafe fn f_getregion(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
 
         for lnum in p1.lnum..=p2.lnum {
             let akt = if region_type == kMTBlockWise {
-                let mut bd: block_def = std::mem::zeroed();
+                let mut bd = block_def::new();
                 block_prep(&raw mut oa, &raw mut bd, lnum, false);
                 block_def2str(&raw const bd)
             } else if region_type == kMTLineWise || (p1.lnum < lnum && lnum < p2.lnum) {
                 cbuf_to_string(ml_get(lnum), ml_get_len(lnum) as usize)
             } else {
-                let mut bd: block_def = std::mem::zeroed();
+                let mut bd = block_def::new();
                 charwise_block_prep(
                     crate::cursor::pos_T {
                         lnum: p1.lnum,
@@ -3487,7 +3487,7 @@ pub unsafe fn f_getregionpos(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
         let mut region_type = kMTUnknown;
         let mut allow_eol = false;
         let mut bounds_only = false;
-        let mut oa: oparg_T = std::mem::zeroed();
+        let mut oa = oparg_T::new();
 
         if getregionpos(
             argvars,
@@ -7217,7 +7217,7 @@ pub unsafe fn f_rpcrequest(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
             tv = tv.add(1);
         }
 
-        let mut save_current_sctx: sctx_T = std::mem::zeroed();
+        let mut save_current_sctx = sctx_T::new();
         let mut save_autocmd_fname: *mut c_char = ptr::null_mut();
         let mut save_autocmd_match: *mut c_char = ptr::null_mut();
         let mut save_autocmd_fname_full = false;
@@ -8709,7 +8709,7 @@ pub unsafe fn f_strftime(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             return;
         }
 
-        let mut conv: vimconv_T = std::mem::zeroed();
+        let mut conv = vimconv_T::new();
         conv.vc_type = CONV_NONE;
         let enc = enc_locale();
         convert_setup(&raw mut conv, p_enc, enc);
@@ -8748,7 +8748,7 @@ pub unsafe fn f_strptime(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
         let mut fmt = tv_get_string_buf(argvars, fmt_buf.as_mut_ptr()).cast_mut();
         let str_ = tv_get_string_buf(argvars.add(1), str_buf.as_mut_ptr());
 
-        let mut conv: vimconv_T = std::mem::zeroed();
+        let mut conv = vimconv_T::new();
         conv.vc_type = CONV_NONE;
         let enc = enc_locale();
         convert_setup(&raw mut conv, p_enc, enc);

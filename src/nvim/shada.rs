@@ -979,7 +979,7 @@ unsafe fn shada_read_file(file: *const c_char, flags: c_int) -> c_int {
             return FAIL;
         }
 
-        let mut sd_reader = std::mem::zeroed::<FileDescriptor>();
+        let mut sd_reader = FileDescriptor::new();
         let of_ret = file_open(&mut sd_reader, fname, K_FILE_READ_ONLY, 0);
 
         if p_verbose > 1 {
@@ -2282,7 +2282,7 @@ unsafe fn shada_read_when_writing(
                                             kPathCmpLiteral,
                                         )
                                     {
-                                        let mut fm = std::mem::zeroed::<fmark_T>();
+                                        let mut fm = fmark_T::new();
                                         mark_get(
                                             buf,
                                             curwin,
@@ -2878,7 +2878,7 @@ unsafe fn shada_write(
                 let mut digit_mark_idx = 0usize;
                 loop {
                     let mut name: c_char = NUL;
-                    let mut fm = std::mem::zeroed::<xfmark_T>();
+                    let mut fm = xfmark_T::new();
                     global_mark_iter = mark_global_iter(global_mark_iter, &mut name, &mut fm);
                     if name == NUL {
                         break;
@@ -2944,7 +2944,7 @@ unsafe fn shada_write(
                             .entry(fname_bytes)
                             .or_insert_with(alloc_file_marks);
                         loop {
-                            let mut fm = std::mem::zeroed::<fmark_T>();
+                            let mut fm = fmark_T::new();
                             let mut name: c_char = NUL;
                             local_marks_iter =
                                 mark_buffer_iter(local_marks_iter, buf, &mut name, &mut fm);
@@ -3163,8 +3163,8 @@ pub unsafe fn shada_write_file(file: *const c_char, mut nomerge: bool) -> c_int 
         }
 
         let mut tempname: *mut c_char = ptr::null_mut();
-        let mut sd_writer = std::mem::zeroed::<FileDescriptor>();
-        let mut sd_reader = std::mem::zeroed::<FileDescriptor>();
+        let mut sd_writer = FileDescriptor::new();
+        let mut sd_reader = FileDescriptor::new();
         let mut did_open_writer = false;
         let mut did_open_reader = false;
 
@@ -4288,7 +4288,7 @@ unsafe fn shada_init_jumps(
         setpcmark();
         cleanup_jumplist(curwin, false);
         loop {
-            let mut fm = std::mem::zeroed::<xfmark_T>();
+            let mut fm = xfmark_T::new();
             jump_iter = mark_jumplist_iter(jump_iter, curwin, &mut fm);
             if fm.fmark.mark.lnum == 0 {
                 siemsg!(
@@ -4460,7 +4460,7 @@ pub unsafe fn shada_read_string(string: NvimString, flags: c_int) {
         return;
     }
     unsafe {
-        let mut sd_reader = std::mem::zeroed::<FileDescriptor>();
+        let mut sd_reader = FileDescriptor::new();
         file_open_buffer(&mut sd_reader, string.data, string.size);
         shada_read(&mut sd_reader, flags);
         close_file(&mut sd_reader);

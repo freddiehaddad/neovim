@@ -1,7 +1,7 @@
 //! XDiff environment preparation (`src/xdiff/xprepare.c`).
 
 use std::ffi::{c_char, c_int, c_long, c_uint, c_ulong, c_void};
-use std::mem::{size_of, zeroed};
+use std::mem::size_of;
 use std::ptr;
 
 use crate::memory::{xfree, xmalloc, xrealloc};
@@ -268,7 +268,7 @@ pub unsafe fn xdl_prepare_env(
         let mut cf = xdlclassifier_t {
             hbits: 0,
             rchash: Vec::new(),
-            ncha: zeroed(),
+            ncha: chastore_t::new(),
             rcrecs: Vec::new(),
             flags: 0,
         };

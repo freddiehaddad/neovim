@@ -1,7 +1,7 @@
 //! JSON support for Lua (`src/cjson/lua_cjson.c`).
 
 use std::ffi::{CStr, c_char, c_double, c_int, c_longlong, c_void};
-use std::mem::{size_of, zeroed};
+use std::mem::size_of;
 use std::ptr;
 
 use crate::cjson::fpconv::{FPCONV_G_FMT_BUFSIZE, fpconv_g_fmt, fpconv_strtod};
@@ -118,6 +118,23 @@ struct keybuf_t {
     capacity: usize,
 }
 
+impl keybuf_t {
+    const fn new() -> Self {
+        Self {
+            buf: strbuf_t::new(),
+            keys: ptr::null_mut(),
+            size: 0,
+            capacity: 0,
+        }
+    }
+}
+
+impl Default for keybuf_t {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 struct json_config_t {
     encode_buf: strbuf_t,
@@ -213,6 +230,23 @@ struct json_token_t {
     index: usize,
     value: JsonTokenValue,
     string_len: usize,
+}
+
+impl json_token_t {
+    const fn new() -> Self {
+        Self {
+            r#type: T_OBJ_BEGIN,
+            index: 0,
+            value: JsonTokenValue { integer: 0 },
+            string_len: 0,
+        }
+    }
+}
+
+impl Default for json_token_t {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 const fn init_char2escape() -> [*const c_char; 256] {
@@ -799,7 +833,7 @@ unsafe extern "C-unwind" fn json_encode(l: *mut lua_State) -> c_int {
             char2escape: custom_char2escape.as_ptr(),
             indent: DEFAULT_ENCODE_INDENT,
             sort_keys: DEFAULT_ENCODE_SORT_KEYS,
-            keybuf: zeroed(),
+            keybuf: keybuf_t::new(),
         };
         let mut ctx = json_encode_t {
             options: &mut options,
@@ -1244,7 +1278,7 @@ unsafe fn json_decode_descend(l: *mut lua_State, json: *mut json_parse_t, slots:
 
 unsafe fn json_parse_object_context(l: *mut lua_State, json: *mut json_parse_t) {
     unsafe {
-        let mut token: json_token_t = zeroed();
+        let mut token = json_token_t::new();
 
         json_decode_descend(l, json, 3);
         lua_newtable(l);
@@ -1290,7 +1324,7 @@ unsafe fn json_parse_object_context(l: *mut lua_State, json: *mut json_parse_t) 
 
 unsafe fn json_parse_array_context(l: *mut lua_State, json: *mut json_parse_t) {
     unsafe {
-        let mut token: json_token_t = zeroed();
+        let mut token = json_token_t::new();
 
         json_decode_descend(l, json, 2);
         lua_newtable(l);
@@ -1401,7 +1435,7 @@ unsafe extern "C-unwind" fn json_decode(l: *mut lua_State) -> c_int {
 
         let mut json_len: usize = 0;
         let data = luaL_checklstring(l, 1, &mut json_len);
-        let mut tmp_buf: strbuf_t = zeroed();
+        let mut tmp_buf = strbuf_t::new();
         let mut json = json_parse_t {
             data,
             ptr: data,
@@ -1416,7 +1450,7 @@ unsafe extern "C-unwind" fn json_decode(l: *mut lua_State) -> c_int {
 
         strbuf_init(json.tmp, json_len);
 
-        let mut token: json_token_t = zeroed();
+        let mut token = json_token_t::new();
         json_next_token(&mut json, &mut token);
         json_process_value(l, &mut json, &mut token, (*json.options).luanil_object);
 

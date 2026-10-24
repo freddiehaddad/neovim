@@ -58,12 +58,23 @@ use std::mem::size_of;
 use std::ptr;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct syn_time_T {
     pub total: u64,
     pub slowest: u64,
     pub count: c_int,
     pub match_: c_int,
+}
+
+impl syn_time_T {
+    pub const fn new() -> Self {
+        Self {
+            total: 0,
+            slowest: 0,
+            count: 0,
+            match_: 0,
+        }
+    }
 }
 
 #[repr(C)]
@@ -278,6 +289,22 @@ pub struct sp_syn {
     pub cont_in_list: *mut i16,
 }
 
+impl sp_syn {
+    pub const fn new() -> Self {
+        Self {
+            inc_tag: 0,
+            id: 0,
+            cont_in_list: ptr::null_mut(),
+        }
+    }
+}
+
+impl Default for sp_syn {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 pub struct keyentry_T {
     pub k_syn: sp_syn,
@@ -346,12 +373,58 @@ pub struct synpat_T {
     sp_time: syn_time_T,
 }
 
+impl synpat_T {
+    pub const fn new() -> Self {
+        Self {
+            sp_type: 0,
+            sp_syncing: false,
+            sp_syn_match_id: 0,
+            sp_off_flags: 0,
+            sp_offsets: [0; SPO_COUNT],
+            sp_flags: 0,
+            sp_cchar: 0,
+            sp_ic: 0,
+            sp_sync_idx: 0,
+            sp_line_id: 0,
+            sp_startcol: 0,
+            sp_cont_list: ptr::null_mut(),
+            sp_next_list: ptr::null_mut(),
+            sp_syn: sp_syn::new(),
+            sp_pattern: ptr::null_mut(),
+            sp_prog: ptr::null_mut(),
+            sp_time: syn_time_T::new(),
+        }
+    }
+}
+
+impl Default for synpat_T {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct syn_cluster_T {
     scl_name: *mut c_char,
     scl_name_u: *mut c_char,
     scl_list: *mut i16,
+}
+
+impl syn_cluster_T {
+    pub const fn new() -> Self {
+        Self {
+            scl_name: ptr::null_mut(),
+            scl_name_u: ptr::null_mut(),
+            scl_list: ptr::null_mut(),
+        }
+    }
+}
+
+impl Default for syn_cluster_T {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[repr(C)]
@@ -375,6 +448,37 @@ struct stateitem_T {
     si_cont_list: *mut i16,
     si_next_list: *mut i16,
     si_extmatch: *mut reg_extmatch_T,
+}
+
+impl stateitem_T {
+    const fn new() -> Self {
+        Self {
+            si_idx: 0,
+            si_id: 0,
+            si_trans_id: 0,
+            si_m_lnum: 0,
+            si_m_startcol: 0,
+            si_m_endpos: lpos_T::new(),
+            si_h_startpos: lpos_T::new(),
+            si_h_endpos: lpos_T::new(),
+            si_eoe_pos: lpos_T::new(),
+            si_end_idx: 0,
+            si_ends: 0,
+            si_attr: 0,
+            si_flags: 0,
+            si_seqnr: 0,
+            si_cchar: 0,
+            si_cont_list: ptr::null_mut(),
+            si_next_list: ptr::null_mut(),
+            si_extmatch: ptr::null_mut(),
+        }
+    }
+}
+
+impl Default for stateitem_T {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 struct syn_opt_arg_T {
@@ -1259,7 +1363,7 @@ unsafe fn load_current_state(from: *const synstate_T) {
         let stacksize = (*from).sst_stack.len() as c_int;
         if stacksize != 0 {
             let cs_ptr = &raw mut current_state;
-            (*cs_ptr).resize(stacksize as usize, std::mem::zeroed());
+            (*cs_ptr).resize(stacksize as usize, stateitem_T::new());
             for (i, b) in (*from).sst_stack.iter().enumerate() {
                 let i_c = i as c_int;
                 let cur_si = cur_state_at(i_c);
@@ -2228,7 +2332,7 @@ unsafe fn update_si_end(sip: *mut stateitem_T, startcol: c_int, force: bool) {
 
 unsafe fn push_current_state(idx: c_int) {
     unsafe {
-        let mut item: stateitem_T = std::mem::zeroed();
+        let mut item = stateitem_T::new();
         item.si_idx = idx;
         let cs_ptr = &raw mut current_state;
         (*cs_ptr).push(item);
@@ -3975,7 +4079,7 @@ unsafe fn syn_cmd_match(eap: *mut exarg_T, syncing: c_int) {
     unsafe {
         let arg = (*eap).arg;
         let mut group_name_end: *mut c_char = ptr::null_mut();
-        let mut item: synpat_T = std::mem::zeroed();
+        let mut item = synpat_T::new();
         let mut sync_idx: c_int = 0;
         let mut conceal_char: c_int = NUL as c_int;
 
@@ -4150,7 +4254,7 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
                 }
                 rest = skipwhite(p);
             } else {
-                let mut synp: synpat_T = std::mem::zeroed();
+                let mut synp = synpat_T::new();
 
                 if item == ITEM_START {
                     reg_do_extmatch = REX_SET;

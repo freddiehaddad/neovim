@@ -809,7 +809,7 @@ unsafe fn report_discard_pending(pending: c_int, value: *mut c_void) {
 pub unsafe fn ex_eval(eap: *mut exarg_T) {
     unsafe {
         let mut tv: typval_T = typval_T::new();
-        let mut evalarg: evalarg_T = std::mem::zeroed();
+        let mut evalarg = evalarg_T::new();
 
         fill_evalarg_from_eap(&mut evalarg, eap, (*eap).skip != 0);
 
@@ -957,7 +957,7 @@ pub unsafe fn ex_while(eap: *mut exarg_T) {
             let result = if (*eap).cmdidx == CMD_while {
                 eval_to_bool((*eap).arg, &mut error, eap, skip, false)
             } else {
-                let mut evalarg: evalarg_T = std::mem::zeroed();
+                let mut evalarg = evalarg_T::new();
                 fill_evalarg_from_eap(&mut evalarg, eap, skip);
                 let fi = if ((*cstack).cs_lflags & CSL_HAD_LOOP) != 0 {
                     error = false;

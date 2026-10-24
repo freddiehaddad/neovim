@@ -4321,7 +4321,7 @@ pub unsafe fn readdir_core(
     unsafe {
         entries.clear();
 
-        let mut dir: Directory = std::mem::zeroed();
+        let mut dir = Directory::new();
         if !os_scandir(&raw mut dir, path) {
             smsg!(0, tr(e_notopen.as_ptr()), path);
             return FAIL;

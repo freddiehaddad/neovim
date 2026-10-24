@@ -1262,7 +1262,7 @@ mod tests {
             termkey_start(tk);
             assert_eq!((*tk).is_started, 1);
 
-            let mut key: TermKeyKey = std::mem::zeroed();
+            let mut key = TermKeyKey::new();
             assert_eq!(termkey_get_buffer_remaining(tk), 256);
             assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_NONE);
 
@@ -1325,7 +1325,7 @@ mod tests {
     fn utf8_decoding_invalid_continuations_and_partials() {
         unsafe {
             let tk = termkey_new_abstract(std::ptr::null_mut(), TERMKEY_FLAG_UTF8);
-            let mut key: TermKeyKey = std::mem::zeroed();
+            let mut key = TermKeyKey::new();
 
             for (bytes, expected_cp) in [
                 (&b"a"[..], 0x61),
@@ -1390,7 +1390,7 @@ mod tests {
             );
 
             let mut buf = [0 as c_char; 32];
-            let mut key: TermKeyKey = std::mem::zeroed();
+            let mut key = TermKeyKey::new();
             key.r#type = TERMKEY_TYPE_UNICODE;
             key.code.codepoint = i32::from(b'b');
             key.modifiers = TERMKEY_KEYMOD_CTRL;
@@ -1455,7 +1455,7 @@ mod tests {
             assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b"<F5>");
 
             // Canonicalise space symbol <-> unicode space
-            let mut k1: TermKeyKey = std::mem::zeroed();
+            let mut k1 = TermKeyKey::new();
             k1.r#type = TERMKEY_TYPE_KEYSYM;
             k1.code.sym = TERMKEY_SYM_SPACE;
             termkey_canonicalise(tk, &mut k1);
@@ -1475,7 +1475,7 @@ mod tests {
     fn mouse_position_modereport_csi_and_dcs_osc() {
         unsafe {
             let tk = termkey_new_abstract(std::ptr::null_mut(), 0);
-            let mut key: TermKeyKey = std::mem::zeroed();
+            let mut key = TermKeyKey::new();
             let mut ev: TermKeyMouseEvent = TERMKEY_MOUSE_UNKNOWN;
             let mut button: c_int = 0;
             let mut line: c_int = 0;
@@ -1552,7 +1552,7 @@ mod tests {
             assert_eq!((initial, mode, value), (0, 4, 1));
 
             // Unknown CSI
-            let mut args: [TermKeyCsiParam; 16] = std::mem::zeroed();
+            let mut args: [TermKeyCsiParam; 16] = [TermKeyCsiParam::new(); 16];
             let mut nargs: usize = 16;
             let mut command: std::ffi::c_uint = 0;
             push(tk, b"\x1b[5;25v");

@@ -36,6 +36,27 @@ pub struct FileDescriptor {
     pub bytes_read: u64,
 }
 
+impl FileDescriptor {
+    pub const fn new() -> Self {
+        Self {
+            fd: 0,
+            buffer: std::ptr::null_mut(),
+            read_pos: std::ptr::null_mut(),
+            write_pos: std::ptr::null_mut(),
+            wr: false,
+            eof: false,
+            non_blocking: false,
+            bytes_read: 0,
+        }
+    }
+}
+
+impl Default for FileDescriptor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[inline]
 pub fn file_space(fp: &FileDescriptor) -> usize {
     ((fp.buffer as usize) + ARENA_BLOCK_SIZE).saturating_sub(fp.write_pos as usize)
@@ -503,7 +524,7 @@ mod tests {
         let c_path = std::ffi::CString::new(tmp.to_string_lossy().as_bytes()).unwrap();
 
         unsafe {
-            let mut fp: FileDescriptor = std::mem::zeroed();
+            let mut fp = FileDescriptor::new();
             assert_eq!(
                 file_open(&mut fp, c_path.as_ptr(), K_FILE_CREATE_ONLY, 0o600),
                 0

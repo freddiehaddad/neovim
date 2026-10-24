@@ -1,7 +1,7 @@
 //! LPeg pattern analysis and bytecode compiler (`src/lpeg/lpcode.c`).
 
 use std::ffi::{c_int, c_short, c_void};
-use std::mem::{size_of, zeroed};
+use std::mem::size_of;
 use std::ptr;
 
 use crate::lpeg::lpcset::{charsettype, getbytefromcharset, tocharset, tree2cset};
@@ -216,7 +216,7 @@ unsafe fn getfirst(
                     return 1;
                 }
                 TChoice => {
-                    let mut csaux: Charset = zeroed();
+                    let mut csaux = Charset::new();
                     let e1 = getfirst(sib1(tree), follow, firstset);
                     let e2 = getfirst(sib2(tree), follow, &mut csaux);
                     for i in 0..CHARSETSIZE {
@@ -229,7 +229,7 @@ unsafe fn getfirst(
                         tree = sib1(tree);
                         follow = &raw const FULLSET;
                     } else {
-                        let mut csaux: Charset = zeroed();
+                        let mut csaux = Charset::new();
                         let e2 = getfirst(sib2(tree), follow, &mut csaux);
                         let e1 = getfirst(sib1(tree), &csaux, firstset);
                         return if e1 == 0 {
@@ -571,7 +571,7 @@ unsafe fn cs_equal(p: *const Instruction, info: *const charsetinfo) -> bool {
 
 unsafe fn codecharset(compst: *mut CompileState, tree: *mut TTree, tt: c_int) {
     unsafe {
-        let mut info: charsetinfo = zeroed();
+        let mut info = charsetinfo::new();
         tree2cset(tree, &mut info);
         if tt >= 0 && cs_equal(getinstr(compst, tt), &info) {
             addinstruction(compst, IAny, 0);
@@ -587,7 +587,7 @@ unsafe fn codetestset(compst: *mut CompileState, cs: *const Charset, e: c_int) -
         NOINST
     } else {
         unsafe {
-            let mut info: charsetinfo = zeroed();
+            let mut info = charsetinfo::new();
             let op = charsettype((*cs).cs.as_ptr(), &mut info);
             match op {
                 IFail => addoffsetinst(compst, IJmp),
@@ -639,8 +639,8 @@ unsafe fn codechoice(
 ) {
     unsafe {
         let emptyp2 = (*p2).tag == TTrue;
-        let mut cs1: Charset = zeroed();
-        let mut cs2: Charset = zeroed();
+        let mut cs1 = Charset::new();
+        let mut cs2 = Charset::new();
         let e1 = getfirst(p1, &raw const FULLSET, &mut cs1);
         if headfail(p1)
             || (e1 == 0 && {
@@ -759,7 +759,7 @@ unsafe fn coderepcharset(compst: *mut CompileState, tree: *mut TTree) -> bool {
                 true
             }
             TSet => {
-                let mut info: charsetinfo = zeroed();
+                let mut info = charsetinfo::new();
                 let i = addinstruction(compst, ISpan, 0);
                 tree2cset(tree, &mut info);
                 addcharset(compst, i, &info);
@@ -773,7 +773,7 @@ unsafe fn coderepcharset(compst: *mut CompileState, tree: *mut TTree) -> bool {
 unsafe fn coderep(compst: *mut CompileState, tree: *mut TTree, opt: bool, fl: *const Charset) {
     unsafe {
         if !coderepcharset(compst, tree) {
-            let mut st: Charset = zeroed();
+            let mut st = Charset::new();
             let e1 = getfirst(tree, &raw const FULLSET, &mut st);
             if headfail(tree) || (e1 == 0 && cs_disjoint(&st, &*fl)) {
                 let test = codetestset(compst, &st, 0);
@@ -801,7 +801,7 @@ unsafe fn coderep(compst: *mut CompileState, tree: *mut TTree, opt: bool, fl: *c
 
 unsafe fn codenot(compst: *mut CompileState, tree: *mut TTree) {
     unsafe {
-        let mut st: Charset = zeroed();
+        let mut st = Charset::new();
         let e = getfirst(tree, &raw const FULLSET, &mut st);
         let test = codetestset(compst, &st, e);
         if headfail(tree) {
@@ -880,7 +880,7 @@ unsafe fn codeseq1(
 ) -> c_int {
     unsafe {
         if needfollow(p1) {
-            let mut fl1: Charset = zeroed();
+            let mut fl1 = Charset::new();
             getfirst(p2, fl, &mut fl1);
             codegen(compst, p1, false, tt, &fl1);
         } else {

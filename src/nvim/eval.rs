@@ -4555,7 +4555,7 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
         {
             let mut mark_iter: *const c_void = ptr::null();
             loop {
-                let mut fm: xfmark_T = std::mem::zeroed();
+                let mut fm = xfmark_T::new();
                 let mut name: c_char = NUL;
                 mark_iter = mark_global_iter(mark_iter, &raw mut name, &raw mut fm);
                 if mark_iter.is_null() {

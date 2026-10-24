@@ -152,6 +152,29 @@ pub struct TermKeyKey {
     pub utf8: [c_char; 7],
 }
 
+impl TermKeyKey {
+    pub const fn new() -> Self {
+        Self {
+            r#type: 0,
+            code: TermKeyKeyCode {
+                codepoint: 0,
+                number: 0,
+                sym: 0,
+                mouse: [0; 4],
+            },
+            modifiers: 0,
+            event: 0,
+            utf8: [0; 7],
+        }
+    }
+}
+
+impl Default for TermKeyKey {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct keyinfo {

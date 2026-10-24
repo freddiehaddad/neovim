@@ -51,6 +51,29 @@ pub struct CharsizeArg {
     pub iter: [MarkTreeIter; 1],
 }
 
+impl CharsizeArg {
+    pub const fn new() -> Self {
+        Self {
+            win: ptr::null_mut(),
+            line: ptr::null_mut(),
+            use_tabstop: false,
+            indent_width: 0,
+            virt_row: 0,
+            skip_cur_text: false,
+            cur_text_width_left: 0,
+            cur_text_width_right: 0,
+            max_head_vcol: 0,
+            iter: [MarkTreeIter::new(); 1],
+        }
+    }
+}
+
+impl Default for CharsizeArg {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CharSize {
@@ -111,7 +134,7 @@ pub unsafe fn win_linetabsize(
     len: colnr_T,
 ) -> c_int {
     unsafe {
-        let mut csarg: CharsizeArg = std::mem::zeroed();
+        let mut csarg = CharsizeArg::new();
         let cstype = init_charsize_arg(&mut csarg, wp, lnum, line);
         if cstype == kCharsizeFast {
             linesize_fast(&csarg, 0, len)
@@ -135,7 +158,7 @@ pub unsafe fn win_chartabsize(wp: *mut win_T, p: *const c_char, col: colnr_T) ->
 
 pub unsafe fn linetabsize_col(startvcol: c_int, s: *mut c_char) -> c_int {
     unsafe {
-        let mut csarg: CharsizeArg = std::mem::zeroed();
+        let mut csarg = CharsizeArg::new();
         let cstype = init_charsize_arg(&mut csarg, curwin, 0, s);
         if cstype == kCharsizeFast {
             linesize_fast(&csarg, startvcol, MAXCOL)
@@ -700,7 +723,7 @@ pub unsafe fn getvcol(
         let line = ml_get_buf((*wp).w_buffer, (*pos).lnum);
         let end_col = (*pos).col;
 
-        let mut csarg: CharsizeArg = std::mem::zeroed();
+        let mut csarg = CharsizeArg::new();
         let mut on_nul = false;
         let cstype = init_charsize_arg(&mut csarg, wp, (*pos).lnum, line);
         csarg.max_head_vcol = -1;
@@ -918,7 +941,7 @@ pub unsafe fn plines_win_nofill(wp: *mut win_T, lnum: linenr_T, limit_winheight:
 pub unsafe fn plines_win_nofold(wp: *mut win_T, lnum: linenr_T) -> c_int {
     unsafe {
         let s = ml_get_buf((*wp).w_buffer, lnum);
-        let mut csarg: CharsizeArg = std::mem::zeroed();
+        let mut csarg = CharsizeArg::new();
         let cstype = init_charsize_arg(&mut csarg, wp, lnum, s);
         if *s == NUL && csarg.virt_row < 0 {
             return 1;
@@ -960,7 +983,7 @@ pub unsafe fn plines_win_col(wp: *mut win_T, lnum: linenr_T, column: c_long) -> 
         }
 
         let line = ml_get_buf((*wp).w_buffer, lnum);
-        let mut csarg: CharsizeArg = std::mem::zeroed();
+        let mut csarg = CharsizeArg::new();
         let cstype = init_charsize_arg(&mut csarg, wp, lnum, line);
 
         let mut vcol: colnr_T = 0;

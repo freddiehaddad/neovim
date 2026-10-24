@@ -35,6 +35,21 @@ pub struct TermKeyCsiParam {
     pub length: usize,
 }
 
+impl TermKeyCsiParam {
+    pub const fn new() -> Self {
+        Self {
+            param: std::ptr::null(),
+            length: 0,
+        }
+    }
+}
+
+impl Default for TermKeyCsiParam {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Default)]
 pub struct TermKeyCsi {
     pub saved_string_id: c_int,

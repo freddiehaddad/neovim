@@ -1,7 +1,7 @@
 //! MessagePack object tree parser and unparser (`src/mpack/object.c`).
 
 use std::ffi::{c_char, c_double, c_int, c_void};
-use std::mem::{offset_of, size_of, zeroed};
+use std::mem::{offset_of, size_of};
 use std::ptr;
 
 use crate::mpack::mpack_core::{
@@ -233,7 +233,7 @@ pub unsafe fn mpack_parse(
         }
 
         while *buflen != 0 && status != 0 {
-            let mut tok: mpack_token_t = zeroed();
+            let mut tok = mpack_token_t::new();
             let tb = &raw mut (*parser).tokbuf;
             let buf_save = *buf;
             let buflen_save = *buflen;
@@ -282,7 +282,7 @@ pub unsafe fn mpack_unparse(
         }
 
         while *buflen != 0 && status != 0 {
-            let mut tok: mpack_token_t = zeroed();
+            let mut tok = mpack_token_t::new();
             let tb = &raw mut (*parser).tokbuf;
 
             if (*tb).plen == 0 {

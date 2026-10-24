@@ -80,6 +80,32 @@ pub struct cmdarg_T {
     pub searchbuf: *mut c_char,
 }
 
+impl cmdarg_T {
+    pub const fn new() -> Self {
+        Self {
+            oap: ptr::null_mut(),
+            prechar: 0,
+            cmdchar: 0,
+            nchar: 0,
+            nchar_composing: [0; MAX_SCHAR_SIZE],
+            nchar_len: 0,
+            extra_char: 0,
+            opcount: 0,
+            count0: 0,
+            count1: 0,
+            arg: 0,
+            retval: 0,
+            searchbuf: ptr::null_mut(),
+        }
+    }
+}
+
+impl Default for cmdarg_T {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 const kCpoRedo: c_int = b'r' as c_int;
 
 pub const kAComp: c_int = 0;

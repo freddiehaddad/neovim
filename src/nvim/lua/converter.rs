@@ -71,6 +71,23 @@ pub struct luaL_Buffer {
     pub buffer: [c_char; 8192],
 }
 
+impl luaL_Buffer {
+    pub const fn new() -> Self {
+        Self {
+            p: std::ptr::null_mut(),
+            lvl: 0,
+            L: std::ptr::null_mut(),
+            buffer: [0; 8192],
+        }
+    }
+}
+
+impl Default for luaL_Buffer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 pub struct lua_Debug {
     pub event: c_int,

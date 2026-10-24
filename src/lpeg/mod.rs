@@ -50,6 +50,20 @@ pub struct Charset {
     pub cs: [byte; CHARSETSIZE],
 }
 
+impl Charset {
+    pub const fn new() -> Self {
+        Self {
+            cs: [0; CHARSETSIZE],
+        }
+    }
+}
+
+impl Default for Charset {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[inline]
 pub unsafe fn fillset(s: *mut byte, c: byte) {
     unsafe {
@@ -118,6 +132,23 @@ pub struct Capture {
     pub idx: c_ushort,
     pub kind: byte,
     pub siz: byte,
+}
+
+impl Capture {
+    pub const fn new() -> Self {
+        Self {
+            index: 0,
+            idx: 0,
+            kind: 0,
+            siz: 0,
+        }
+    }
+}
+
+impl Default for Capture {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[repr(C)]
@@ -330,6 +361,23 @@ pub struct charsetinfo {
     pub deflt: c_int,
 }
 
+impl charsetinfo {
+    pub const fn new() -> Self {
+        Self {
+            cs: ptr::null(),
+            offset: 0,
+            size: 0,
+            deflt: 0,
+        }
+    }
+}
+
+impl Default for charsetinfo {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -339,7 +387,7 @@ mod tests {
     fn test_charsettype_and_helpers() {
         unsafe {
             let mut cs = [0u8; CHARSETSIZE];
-            let mut info: charsetinfo = std::mem::zeroed();
+            let mut info = charsetinfo::new();
             assert_eq!(charsettype(cs.as_ptr(), &mut info), IFail);
 
             setchar(cs.as_mut_ptr(), b'A' as usize);

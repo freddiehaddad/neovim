@@ -1,7 +1,7 @@
 //! Histogram diff algorithm (`src/xdiff/xhistogram.c`).
 
 use std::ffi::{c_int, c_long, c_uint};
-use std::mem::{size_of, zeroed};
+use std::mem::size_of;
 use std::ptr;
 
 use crate::xdiff::xprepare::xdl_prepare_env;
@@ -271,7 +271,7 @@ unsafe fn find_lcs(
     let mut index = HistIndex {
         records: vec![ptr::null_mut(); records_size],
         line_map: vec![ptr::null_mut(); line_map_size],
-        rcha: unsafe { zeroed() },
+        rcha: chastore_t::new(),
         next_ptrs: vec![0; line_map_size],
         table_bits,
         max_chain_length: 64,

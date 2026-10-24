@@ -140,12 +140,43 @@ pub struct StlClickRecord {
     pub start: *const c_char,
 }
 
+impl StlClickRecord {
+    pub const fn new() -> Self {
+        Self {
+            def: StlClickDefinition::new(),
+            start: ptr::null(),
+        }
+    }
+}
+
+impl Default for StlClickRecord {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct stl_hlrec_t {
     pub start: *mut c_char,
     pub userhl: c_int,
     pub item: StlFlag,
+}
+
+impl stl_hlrec_t {
+    pub const fn new() -> Self {
+        Self {
+            start: ptr::null_mut(),
+            userhl: 0,
+            item: 0,
+        }
+    }
+}
+
+impl Default for stl_hlrec_t {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[repr(C)]
@@ -177,6 +208,24 @@ pub struct stl_item_t {
     pub type_: StlItemType,
 }
 
+impl stl_item_t {
+    pub const fn new() -> Self {
+        Self {
+            start: ptr::null_mut(),
+            cmd: ptr::null_mut(),
+            minwid: 0,
+            maxwid: 0,
+            type_: StlItemType::Disabled,
+        }
+    }
+}
+
+impl Default for stl_item_t {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct foldinfo_T {
@@ -184,6 +233,23 @@ pub struct foldinfo_T {
     pub fi_level: c_int,
     pub fi_low_level: c_int,
     pub fi_lines: linenr_T,
+}
+
+impl foldinfo_T {
+    pub const fn new() -> Self {
+        Self {
+            fi_lnum: 0,
+            fi_level: 0,
+            fi_low_level: 0,
+            fi_lines: 0,
+        }
+    }
+}
+
+impl Default for foldinfo_T {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 use crate::arglist::ML_EMPTY;
@@ -207,6 +273,27 @@ pub struct statuscol_T {
     pub foldinfo: foldinfo_T,
     pub fold_vcol: [colnr_T; 9],
     pub sattrs: *mut SignTextAttrs,
+}
+
+impl statuscol_T {
+    pub const fn new() -> Self {
+        Self {
+            width: 0,
+            lnum: 0,
+            sign_cul_id: 0,
+            draw: false,
+            hlrec: ptr::null_mut(),
+            foldinfo: foldinfo_T::new(),
+            fold_vcol: [0; 9],
+            sattrs: ptr::null_mut(),
+        }
+    }
+}
+
+impl Default for statuscol_T {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 static mut did_show_ext_ruler: bool = false;
@@ -1318,10 +1405,10 @@ pub unsafe extern "C" fn build_stl_str_hl(
         let hltab_vec_ptr = &raw mut stl_hltab_vec;
         let tabtab_vec_ptr = &raw mut stl_tabtab_vec;
         if stl_items.is_null() {
-            (*items_vec_ptr).resize(stl_items_len, std::mem::zeroed());
+            (*items_vec_ptr).resize(stl_items_len, stl_item_t::new());
             (*groupitems_vec_ptr).resize(stl_items_len, 0);
-            (*hltab_vec_ptr).resize(stl_items_len + 1, std::mem::zeroed());
-            (*tabtab_vec_ptr).resize(stl_items_len + 1, std::mem::zeroed());
+            (*hltab_vec_ptr).resize(stl_items_len + 1, stl_hlrec_t::new());
+            (*tabtab_vec_ptr).resize(stl_items_len + 1, StlClickRecord::new());
             stl_items = (*items_vec_ptr).as_mut_ptr();
             stl_groupitems = (*groupitems_vec_ptr).as_mut_ptr();
             stl_hltab = (*hltab_vec_ptr).as_mut_ptr();
@@ -1398,10 +1485,10 @@ pub unsafe extern "C" fn build_stl_str_hl(
             () => {
                 if curitem == stl_items_len as c_int {
                     let new_len = stl_items_len * 3 / 2;
-                    (*items_vec_ptr).resize(new_len, std::mem::zeroed());
+                    (*items_vec_ptr).resize(new_len, stl_item_t::new());
                     (*groupitems_vec_ptr).resize(new_len, 0);
-                    (*hltab_vec_ptr).resize(new_len + 1, std::mem::zeroed());
-                    (*tabtab_vec_ptr).resize(new_len + 1, std::mem::zeroed());
+                    (*hltab_vec_ptr).resize(new_len + 1, stl_hlrec_t::new());
+                    (*tabtab_vec_ptr).resize(new_len + 1, StlClickRecord::new());
                     stl_items = (*items_vec_ptr).as_mut_ptr();
                     stl_groupitems = (*groupitems_vec_ptr).as_mut_ptr();
                     stl_hltab = (*hltab_vec_ptr).as_mut_ptr();

@@ -95,6 +95,39 @@ pub struct oparg_T {
     pub excl_tr_ws: bool,
 }
 
+impl oparg_T {
+    pub const fn new() -> Self {
+        Self {
+            op_type: 0,
+            regname: 0,
+            motion_type: 0,
+            motion_force: 0,
+            use_reg_one: false,
+            inclusive: false,
+            end_adjusted: false,
+            start: pos_T::new(),
+            end: pos_T::new(),
+            cursor_start: pos_T::new(),
+            restore_cursor: false,
+            line_count: 0,
+            empty: false,
+            is_VIsual: false,
+            from_visual: false,
+            start_vcol: 0,
+            end_vcol: 0,
+            prev_opcount: 0,
+            prev_count0: 0,
+            excl_tr_ws: false,
+        }
+    }
+}
+
+impl Default for oparg_T {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct InsState {

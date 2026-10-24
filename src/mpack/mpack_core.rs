@@ -56,6 +56,24 @@ pub struct mpack_token_t {
     pub data: mpack_token_data_t,
 }
 
+impl mpack_token_t {
+    pub const fn new() -> Self {
+        Self {
+            r#type: MPACK_TOKEN_NONE,
+            length: 0,
+            data: mpack_token_data_t {
+                value: mpack_value_t { lo: 0, hi: 0 },
+            },
+        }
+    }
+}
+
+impl Default for mpack_token_t {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct mpack_tokbuf_t {
@@ -420,7 +438,7 @@ unsafe fn mpack_rblob(
             return MPACK_EOF;
         }
 
-        let mut l: mpack_token_t = std::mem::zeroed();
+        let mut l = mpack_token_t::new();
         mpack_rvalue(MPACK_TOKEN_UINT, tlen, buf, buflen, &mut l);
         (*tok).r#type = r#type;
         (*tok).length = l.data.value.lo;

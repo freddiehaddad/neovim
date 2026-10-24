@@ -140,6 +140,42 @@ struct HlGroup {
     sg_parent: c_int,
 }
 
+impl HlGroup {
+    const fn new() -> Self {
+        Self {
+            sg_name: ptr::null_mut(),
+            sg_name_u: ptr::null_mut(),
+            sg_cleared: false,
+            sg_attr: 0,
+            sg_link: 0,
+            sg_deflink: 0,
+            sg_set: 0,
+            sg_deflink_sctx: sctx_T::new(),
+            sg_script_ctx: sctx_T::new(),
+            sg_cterm: 0,
+            sg_cterm_fg: 0,
+            sg_cterm_bg: 0,
+            sg_cterm_bold: false,
+            sg_gui: 0,
+            sg_rgb_fg: 0,
+            sg_rgb_bg: 0,
+            sg_rgb_sp: 0,
+            sg_rgb_fg_idx: 0,
+            sg_rgb_bg_idx: 0,
+            sg_rgb_sp_idx: 0,
+            sg_blend: 0,
+            sg_font: ptr::null_mut(),
+            sg_parent: 0,
+        }
+    }
+}
+
+impl Default for HlGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 static mut highlight_ga: Vec<HlGroup> = Vec::new();
 static mut highlight_arena: Arena = Arena {
     cur_blk: ptr::null_mut(),
@@ -2221,7 +2257,7 @@ unsafe fn syn_add_group(name: *const c_char, len: usize) -> c_int {
             return 0;
         }
 
-        let mut hlg: HlGroup = std::mem::zeroed();
+        let mut hlg = HlGroup::new();
         hlg.sg_name = arena_memdupz(&raw mut highlight_arena, name, len);
         hlg.sg_rgb_bg = -1;
         hlg.sg_rgb_fg = -1;
@@ -2428,7 +2464,7 @@ pub unsafe fn highlight_changed() {
 
         let hlcnt = hl_len();
         let ga = &raw mut highlight_ga;
-        (*ga).resize((hlcnt + 10) as usize, std::mem::zeroed());
+        (*ga).resize((hlcnt + 10) as usize, HlGroup::new());
         if id_S == -1 {
             ptr::write_bytes(hl_table().add((hlcnt + 9) as usize), 0, 1);
             id_S = hlcnt + 10;

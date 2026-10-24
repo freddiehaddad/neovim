@@ -153,6 +153,27 @@ pub struct block_def {
     pub start_char_vcols: colnr_T,
 }
 
+impl block_def {
+    pub const fn new() -> Self {
+        Self {
+            startspaces: 0,
+            endspaces: 0,
+            textlen: 0,
+            textstart: ptr::null_mut(),
+            textcol: 0,
+            start_vcol: 0,
+            end_vcol: 0,
+            is_short: 0,
+            is_MAX: 0,
+            is_oneChar: 0,
+            pre_whitesp: 0,
+            pre_whitesp_c: 0,
+            end_char_vcols: 0,
+            start_char_vcols: 0,
+        }
+    }
+}
+
 pub const EMPTY_YANKREG: yankreg_T = yankreg_T {
     y_array: Vec::new(),
     y_allocated: false,
@@ -1961,7 +1982,7 @@ pub unsafe fn do_put(
                     let oldp = get_cursor_line_ptr();
                     let oldlen = get_cursor_line_len();
 
-                    let mut csarg: CharsizeArg = std::mem::zeroed();
+                    let mut csarg = CharsizeArg::new();
                     let mut cstype: CSType =
                         init_charsize_arg(&raw mut csarg, curwin, (*curwin).w_cursor.lnum, oldp);
                     let mut ci = utf_ptr2StrCharInfo(oldp);

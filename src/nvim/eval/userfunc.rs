@@ -3847,7 +3847,7 @@ pub unsafe fn ex_call(eap: *mut exarg_T) {
         let mut arg = (*eap).arg;
         let mut fudi: funcdict_T = std::mem::zeroed();
         let mut partial: *mut partial_T = ptr::null_mut();
-        let mut evalarg: evalarg_T = std::mem::zeroed();
+        let mut evalarg = evalarg_T::new();
 
         fill_evalarg_from_eap(&raw mut evalarg, eap, (*eap).skip != 0);
         if (*eap).skip != 0 {

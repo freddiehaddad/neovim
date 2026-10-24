@@ -144,6 +144,18 @@ impl FileInfo {
 pub struct Directory {
     pub _opaque: [u64; 88],
 }
+
+impl Directory {
+    pub const fn new() -> Self {
+        Self { _opaque: [0; 88] }
+    }
+}
+
+impl Default for Directory {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 pub type vim_acl_T = *mut c_void;
 pub type uv_fs_buf_t = [u64; 80];
 #[cfg(any(unix, test))]

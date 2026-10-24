@@ -1516,7 +1516,7 @@ pub unsafe fn openscript(name: *mut c_char, directly: bool) {
         save_typebuf();
 
         if directly {
-            let mut oa: oparg_T = std::mem::zeroed();
+            let mut oa = oparg_T::new();
             let save_State = State;
             let save_restart_edit = restart_edit;
             let save_finish_op = finish_op;
@@ -2803,7 +2803,7 @@ unsafe fn vgetorpeek(advance: bool) -> c_int {
                                     let ptr = get_cursor_line_ptr();
                                     let endptr = ptr.add((*curwin).w_cursor.col as usize);
 
-                                    let mut csarg: CharsizeArg = std::mem::zeroed();
+                                    let mut csarg = CharsizeArg::new();
                                     let cstype: CSType = init_charsize_arg(
                                         &raw mut csarg,
                                         curwin,

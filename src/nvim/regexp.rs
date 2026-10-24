@@ -32,7 +32,7 @@ pub(super) use crate::strings::{strcpy, strlen, strncmp, strncpy};
 use crate::strings::{tr, xstrnsave};
 use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int, c_uint};
-pub(super) use std::mem::{size_of, zeroed};
+pub(super) use std::mem::size_of;
 use std::ptr;
 
 #[path = "regexp_bt.rs"]
@@ -312,6 +312,25 @@ pub(super) struct nfa_state_T {
     pub val: c_int,
 }
 
+impl nfa_state_T {
+    pub(super) const fn new() -> Self {
+        Self {
+            c: 0,
+            out: ptr::null_mut(),
+            out1: ptr::null_mut(),
+            id: 0,
+            lastlist: [0; 2],
+            val: 0,
+        }
+    }
+}
+
+impl Default for nfa_state_T {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 pub(super) struct nfa_regprog_T {
     pub engine: *mut regengine_T,
@@ -357,11 +376,35 @@ pub(super) struct regsave_u {
     pub pos: lpos_T,
 }
 
+impl regsave_u {
+    pub(super) const fn new() -> Self {
+        Self {
+            ptr: ptr::null_mut(),
+            pos: lpos_T::new(),
+        }
+    }
+}
+
+impl Default for regsave_u {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub(super) struct regsave_T {
     pub rs_u: regsave_u,
     pub rs_len: c_int,
+}
+
+impl regsave_T {
+    pub(super) const fn new() -> Self {
+        Self {
+            rs_u: regsave_u::new(),
+            rs_len: 0,
+        }
+    }
 }
 
 #[repr(C)]
@@ -371,10 +414,33 @@ pub(super) struct save_se_u {
     pub pos: lpos_T,
 }
 
+impl save_se_u {
+    pub(super) const fn new() -> Self {
+        Self {
+            ptr: ptr::null_mut(),
+            pos: lpos_T::new(),
+        }
+    }
+}
+
+impl Default for save_se_u {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub(super) struct save_se_T {
     pub se_u: save_se_u,
+}
+
+impl save_se_T {
+    pub(super) const fn new() -> Self {
+        Self {
+            se_u: save_se_u::new(),
+        }
+    }
 }
 
 pub(super) type regstate_T = c_int;
@@ -394,10 +460,19 @@ pub(super) const RS_STAR_LONG: regstate_T = 12;
 pub(super) const RS_STAR_SHORT: regstate_T = 13;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub(super) struct regitem_u {
     pub sesave: save_se_T,
     pub regsave: regsave_T,
+}
+
+impl regitem_u {
+    pub(super) const fn new() -> Self {
+        Self {
+            sesave: save_se_T::new(),
+            regsave: regsave_T::new(),
+        }
+    }
 }
 
 #[repr(C)]
@@ -409,8 +484,25 @@ pub(super) struct regitem_T {
     pub rs_un: regitem_u,
 }
 
+impl regitem_T {
+    pub(super) const fn new() -> Self {
+        Self {
+            rs_state: 0,
+            rs_no: 0,
+            rs_scan: ptr::null_mut(),
+            rs_un: regitem_u::new(),
+        }
+    }
+}
+
+impl Default for regitem_T {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub(super) struct regbehind_T {
     pub save_after: regsave_T,
     pub save_behind: regsave_T,
@@ -430,13 +522,39 @@ pub(super) struct Frag_T {
     pub out: *mut Ptrlist,
 }
 
+impl Frag_T {
+    pub(super) const fn new() -> Self {
+        Self {
+            start: ptr::null_mut(),
+            out: ptr::null_mut(),
+        }
+    }
+}
+
+impl Default for Frag_T {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub(super) struct multipos {
     pub start_lnum: linenr_T,
     pub end_lnum: linenr_T,
     pub start_col: colnr_T,
     pub end_col: colnr_T,
+}
+
+impl multipos {
+    pub(super) const fn new() -> Self {
+        Self {
+            start_lnum: 0,
+            end_lnum: 0,
+            start_col: 0,
+            end_col: 0,
+        }
+    }
 }
 
 #[repr(C)]
@@ -446,6 +564,21 @@ pub(super) struct linepos {
     pub end: *mut u8,
 }
 
+impl linepos {
+    pub(super) const fn new() -> Self {
+        Self {
+            start: ptr::null_mut(),
+            end: ptr::null_mut(),
+        }
+    }
+}
+
+impl Default for linepos {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub(super) struct regsub_list_u {
@@ -453,19 +586,53 @@ pub(super) struct regsub_list_u {
     pub line: [linepos; NSUBEXP],
 }
 
+impl regsub_list_u {
+    pub(super) const fn new() -> Self {
+        Self {
+            multi: [multipos::new(); NSUBEXP],
+            line: [linepos::new(); NSUBEXP],
+        }
+    }
+}
+
+impl Default for regsub_list_u {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub(super) struct regsub_T {
     pub in_use: c_int,
     pub list: regsub_list_u,
     pub orig_start_col: colnr_T,
 }
 
+impl regsub_T {
+    pub(super) const fn new() -> Self {
+        Self {
+            in_use: 0,
+            list: regsub_list_u::new(),
+            orig_start_col: 0,
+        }
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub(super) struct regsubs_T {
     pub norm: regsub_T,
     pub synt: regsub_T,
+}
+
+impl regsubs_T {
+    pub(super) const fn new() -> Self {
+        Self {
+            norm: regsub_T::new(),
+            synt: regsub_T::new(),
+        }
+    }
 }
 
 #[repr(C)]
@@ -473,6 +640,21 @@ pub(super) struct regsubs_T {
 pub(super) struct nfa_pim_end_u {
     pub pos: lpos_T,
     pub ptr: *mut u8,
+}
+
+impl nfa_pim_end_u {
+    pub(super) const fn new() -> Self {
+        Self {
+            pos: lpos_T::new(),
+            ptr: ptr::null_mut(),
+        }
+    }
+}
+
+impl Default for nfa_pim_end_u {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[repr(C)]
@@ -484,6 +666,23 @@ pub(super) struct nfa_pim_T {
     pub end: nfa_pim_end_u,
 }
 
+impl nfa_pim_T {
+    pub(super) const fn new() -> Self {
+        Self {
+            result: 0,
+            state: ptr::null_mut(),
+            subs: regsubs_T::new(),
+            end: nfa_pim_end_u::new(),
+        }
+    }
+}
+
+impl Default for nfa_pim_T {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub(super) struct nfa_thread_T {
@@ -491,6 +690,23 @@ pub(super) struct nfa_thread_T {
     pub count: c_int,
     pub pim: nfa_pim_T,
     pub subs: regsubs_T,
+}
+
+impl nfa_thread_T {
+    pub(super) const fn new() -> Self {
+        Self {
+            state: ptr::null_mut(),
+            count: 0,
+            pim: nfa_pim_T::new(),
+            subs: regsubs_T::new(),
+        }
+    }
+}
+
+impl Default for nfa_thread_T {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[repr(C)]
@@ -515,6 +731,28 @@ pub(super) struct parse_state_T {
     pub at_start: c_int,
     pub prev_at_start: c_int,
     pub regnpar: c_int,
+}
+
+impl parse_state_T {
+    pub(super) const fn new() -> Self {
+        Self {
+            regparse: ptr::null_mut(),
+            prevchr_len: 0,
+            curchr: 0,
+            prevchr: 0,
+            prevprevchr: 0,
+            nextchr: 0,
+            at_start: 0,
+            prev_at_start: 0,
+            regnpar: 0,
+        }
+    }
+}
+
+impl Default for parse_state_T {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[repr(C)]
@@ -548,6 +786,45 @@ pub(super) struct regexec_T {
     pub nfa_has_zsubexpr: c_int,
 }
 
+impl regexec_T {
+    pub(super) const fn new() -> Self {
+        Self {
+            reg_match: ptr::null_mut(),
+            reg_mmatch: ptr::null_mut(),
+            reg_startp: ptr::null_mut(),
+            reg_endp: ptr::null_mut(),
+            reg_startpos: ptr::null_mut(),
+            reg_endpos: ptr::null_mut(),
+            reg_win: ptr::null_mut(),
+            reg_buf: ptr::null_mut(),
+            reg_firstlnum: 0,
+            reg_maxline: 0,
+            reg_line_lbr: false,
+            lnum: 0,
+            line: ptr::null_mut(),
+            input: ptr::null_mut(),
+            need_clear_subexpr: 0,
+            need_clear_zsubexpr: 0,
+            reg_ic: false,
+            reg_icombine: false,
+            reg_nobreak: false,
+            reg_maxcol: 0,
+            nfa_has_zend: 0,
+            nfa_has_backref: 0,
+            nfa_nsubexpr: 0,
+            nfa_listid: 0,
+            nfa_alt_listid: 0,
+            nfa_has_zsubexpr: 0,
+        }
+    }
+}
+
+impl Default for regexec_T {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub(super) struct regsubmatch_T {
@@ -556,6 +833,24 @@ pub(super) struct regsubmatch_T {
     pub sm_firstlnum: linenr_T,
     pub sm_maxline: linenr_T,
     pub sm_line_lbr: c_int,
+}
+
+impl regsubmatch_T {
+    pub(super) const fn new() -> Self {
+        Self {
+            sm_match: ptr::null_mut(),
+            sm_mmatch: ptr::null_mut(),
+            sm_firstlnum: 0,
+            sm_maxline: 0,
+            sm_line_lbr: 0,
+        }
+    }
+}
+
+impl Default for regsubmatch_T {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -2250,7 +2545,7 @@ pub unsafe fn vim_regsub(
     flags: c_int,
 ) -> c_int {
     unsafe {
-        let mut rex_save: regexec_T = zeroed();
+        let mut rex_save = regexec_T::new();
         let rex_in_use_save = rex_in_use;
 
         if rex_in_use {
@@ -2283,7 +2578,7 @@ pub unsafe fn vim_regsub_multi(
     flags: c_int,
 ) -> c_int {
     unsafe {
-        let mut rex_save: regexec_T = zeroed();
+        let mut rex_save = regexec_T::new();
         let rex_in_use_save = rex_in_use;
 
         if rex_in_use {
@@ -2352,7 +2647,7 @@ unsafe fn vim_regsub_both(
                 }
             } else {
                 let prev_can_f_submatch = can_f_submatch;
-                let mut rsm_save: regsubmatch_T = zeroed();
+                let mut rsm_save = regsubmatch_T::new();
 
                 xfree((*eval_slot).cast());
                 *eval_slot = ptr::null_mut();
@@ -3133,7 +3428,7 @@ unsafe fn vim_regexec_string(
     nl: bool,
 ) -> bool {
     unsafe {
-        let mut rex_save: regexec_T = zeroed();
+        let mut rex_save = regexec_T::new();
         let rex_in_use_save = rex_in_use;
 
         if (*(*rmp).regprog).re_in_use {
@@ -3227,7 +3522,7 @@ pub unsafe fn vim_regexec_multi(
     timed_out: *mut c_int,
 ) -> c_int {
     unsafe {
-        let mut rex_save: regexec_T = zeroed();
+        let mut rex_save = regexec_T::new();
         let rex_in_use_save = rex_in_use;
 
         if (*(*rmp).regprog).re_in_use {

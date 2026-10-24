@@ -1191,7 +1191,7 @@ pub unsafe fn change_indent(type_: c_int, amount: c_int, round: c_int, call_chan
             let line = get_cursor_line_ptr();
             vcol = 0;
             if *line != NUL {
-                let mut csarg: CharsizeArg = std::mem::zeroed();
+                let mut csarg = CharsizeArg::new();
                 let cstype: CSType = init_charsize_arg(&raw mut csarg, curwin, 0, line);
                 let mut ci: StrCharInfo = utf_ptr2StrCharInfo(line);
                 loop {
@@ -1729,7 +1729,7 @@ pub unsafe fn get_lisp_indent() -> c_int {
                 let mut col = (*pos).col;
 
                 let line = get_cursor_line_ptr();
-                let mut csarg: CharsizeArg = std::mem::zeroed();
+                let mut csarg = CharsizeArg::new();
                 let cstype: CSType = init_charsize_arg(&raw mut csarg, curwin, (*pos).lnum, line);
 
                 let mut sci: StrCharInfo = utf_ptr2StrCharInfo(line);

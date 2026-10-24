@@ -89,6 +89,16 @@ impl fmark_T {
         },
         additional_data: ptr::null_mut(),
     };
+
+    pub const fn new() -> Self {
+        Self::ZERO
+    }
+}
+
+impl Default for fmark_T {
+    fn default() -> Self {
+        Self::ZERO
+    }
 }
 
 #[repr(C)]
@@ -103,6 +113,16 @@ impl xfmark_T {
         fmark: fmark_T::ZERO,
         fname: ptr::null_mut(),
     };
+
+    pub const fn new() -> Self {
+        Self::ZERO
+    }
+}
+
+impl Default for xfmark_T {
+    fn default() -> Self {
+        Self::ZERO
+    }
 }
 use crate::change::TAB;
 use crate::cmdexpand::HLF_D;
@@ -691,7 +711,7 @@ pub unsafe fn mark_get_motion(buf: *mut buf_T, win: *mut win_T, name: c_int) -> 
         let slcb = listcmd_busy;
         listcmd_busy = true;
         if name == b'{' as c_int || name == b'}' as c_int {
-            let mut oa: oparg_T = std::mem::zeroed();
+            let mut oa = oparg_T::new();
             if findpar(
                 &raw mut oa.inclusive,
                 if name == b'}' as c_int {
