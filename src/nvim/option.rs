@@ -779,10 +779,10 @@ unsafe fn set_init_default_backupskip() {
                 }
 
                 let itemsize = plen + usize::from(!has_trailing_path_sep) + 2;
-                let item = xmalloc(itemsize).cast::<c_char>();
+                let mut item = vec![0 as c_char; itemsize];
 
                 let itemlen = vim_snprintf!(
-                    item,
+                    item.as_mut_ptr(),
                     itemsize,
                     c"%s%s*".as_ptr(),
                     p,
@@ -799,7 +799,7 @@ unsafe fn set_init_default_backupskip() {
                     } else {
                         buf.as_ptr()
                     },
-                    item,
+                    item.as_ptr(),
                     itemlen,
                     (*get_option(opt_idx)).flags,
                 )
@@ -810,10 +810,9 @@ unsafe fn set_init_default_backupskip() {
                         let last = buf.len() - 1;
                         buf[last] = b',' as c_char;
                     }
-                    buf.extend_from_slice(std::slice::from_raw_parts(item, itemlen));
+                    buf.extend_from_slice(&item[..itemlen]);
                     buf.push(NUL);
                 }
-                xfree(item.cast());
             }
             if mustfree {
                 xfree(p.cast());
@@ -6763,44 +6762,36 @@ unsafe fn put_set_value(
                 if !value_str.is_null() {
                     if (flags & kOptFlagExpand) != 0 {
                         let size = strlen(value_str) + 1;
-                        let buf = xmalloc(size).cast::<c_char>();
+                        let mut buf_vec = vec![0 as c_char; size];
+                        let buf = buf_vec.as_mut_ptr();
                         home_replace(ptr::null_mut(), value_str, buf, size, false);
 
                         if size >= MAXPATHL
                             && (flags & kOptFlagComma) != 0
                             && !vim_strchr(value_str, b',' as c_int).is_null()
                         {
-                            let part = xmalloc(size).cast::<c_char>();
+                            let mut part_vec = vec![0 as c_char; size];
+                            let part = part_vec.as_mut_ptr();
                             if put_eol(fd.cast()) == FAIL {
-                                xfree(buf.cast());
-                                xfree(part.cast());
                                 return FAIL;
                             }
                             let mut p = buf;
                             while *p != NUL {
                                 if fprintf!(fd, c"%s %s+=".as_ptr(), cmd, name) < 0 {
-                                    xfree(buf.cast());
-                                    xfree(part.cast());
                                     return FAIL;
                                 }
                                 copy_option_part(&raw mut p, part, size, c",".as_ptr().cast_mut());
                                 if put_escstr(fd.cast(), part, 2) == FAIL
                                     || put_eol(fd.cast()) == FAIL
                                 {
-                                    xfree(buf.cast());
-                                    xfree(part.cast());
                                     return FAIL;
                                 }
                             }
-                            xfree(buf.cast());
-                            xfree(part.cast());
                             return OK;
                         }
                         if put_escstr(fd.cast(), buf, 2) == FAIL {
-                            xfree(buf.cast());
                             return FAIL;
                         }
-                        xfree(buf.cast());
                     } else if put_escstr(fd.cast(), value_str, 2) == FAIL {
                         return FAIL;
                     }

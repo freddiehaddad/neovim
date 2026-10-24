@@ -1899,7 +1899,8 @@ pub unsafe fn ex_packadd(eap: *mut exarg_T) {
     unsafe {
         let mut res = OK;
         let len = 11 + CStr::from_ptr((*eap).arg).to_bytes().len() + 5;
-        let pat = xmallocz(len).cast::<c_char>();
+        let mut pat_vec = vec![0 as c_char; len];
+        let pat = pat_vec.as_mut_ptr();
         let cookie = if (*eap).forceit != 0 {
             (&raw mut APP_ADD_DIR).cast::<c_void>()
         } else {
@@ -1941,8 +1942,6 @@ pub unsafe fn ex_packadd(eap: *mut exarg_T) {
         );
 
         update_runtime_search_path_thread(false);
-
-        xfree(pat.cast::<c_void>());
     }
 }
 
@@ -1959,7 +1958,8 @@ unsafe fn ExpandRTDir_int(
         while !(*dirnames.add(i)).is_null() {
             let dir = *dirnames.add(i);
             let buf_len = CStr::from_ptr(dir).to_bytes().len() + pat_len + 64;
-            let buf = xmalloc(buf_len).cast::<c_char>();
+            let mut buf_vec = vec![0 as c_char; buf_len];
+            let buf = buf_vec.as_mut_ptr();
             let mut glob_flags: c_int = 0;
             let mut expand_dirs = false;
             let dir_str = if *dir != NUL { dir } else { c"".as_ptr() };
@@ -2046,7 +2046,6 @@ unsafe fn ExpandRTDir_int(
                 break;
             }
 
-            xfree(buf.cast::<c_void>());
             i += 1;
         }
 
@@ -2189,12 +2188,13 @@ pub unsafe fn ExpandPackAddDir(
         let pat_len = CStr::from_ptr(pat).to_bytes().len();
 
         let buflen = pat_len + 26;
-        let s = xmalloc(buflen).cast::<c_char>();
+        let mut s_vec = vec![0 as c_char; buflen];
+        let s = s_vec.as_mut_ptr();
         vim_snprintf!(s, buflen, c"pack/*/opt/%s*".as_ptr(), pat);
         globpath(p_pp, s, &mut ga, 0, true);
         vim_snprintf!(s, buflen, c"opt/%s*".as_ptr(), pat);
         globpath(p_pp, s, &mut ga, 0, true);
-        xfree(s.cast::<c_void>());
+        drop(s_vec);
 
         for &match_ptr in &ga {
             let tail = path_tail(match_ptr);

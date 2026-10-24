@@ -7598,9 +7598,11 @@ pub unsafe fn do_searchpair(
         let spatlen = strlen(spat);
         let epatlen = strlen(epat);
         let pat2size = spatlen + epatlen + 17;
-        let pat2 = xmalloc(pat2size).cast::<c_char>();
+        let mut pat2_vec = vec![0 as c_char; pat2size];
+        let pat2 = pat2_vec.as_mut_ptr();
         let pat3size = spatlen + strlen(mpat) + epatlen + 25;
-        let pat3 = xmalloc(pat3size).cast::<c_char>();
+        let mut pat3_vec = vec![0 as c_char; pat3size];
+        let pat3 = pat3_vec.as_mut_ptr();
         let pat2len = vim_snprintf!(
             pat2,
             pat2size,
@@ -7745,8 +7747,8 @@ pub unsafe fn do_searchpair(
             (*curwin).w_cursor = save_cursor;
         }
 
-        xfree(pat2.cast());
-        xfree(pat3.cast());
+        drop(pat2_vec);
+        drop(pat3_vec);
         if p_cpo == (&raw mut empty_string_option).cast() {
             p_cpo = save_cpo;
         } else {
@@ -9116,17 +9118,16 @@ pub unsafe fn f_tabpagebuflist(argvars: *mut typval_T, rettv: *mut typval_T, _fp
 pub unsafe fn f_tagfiles(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_list_alloc_ret(rettv, kListLenUnknown);
-        let fname = xmalloc(MAXPATHL).cast::<c_char>();
+        let mut fname = [0 as c_char; MAXPATHL];
 
         let mut first = true;
         let mut tn: tagname_T = std::mem::zeroed();
-        while get_tagfname(&raw mut tn, c_int::from(first), fname) == OK {
-            tv_list_append_string((*rettv).vval.v_list, fname, -1);
+        while get_tagfname(&raw mut tn, c_int::from(first), fname.as_mut_ptr()) == OK {
+            tv_list_append_string((*rettv).vval.v_list, fname.as_ptr(), -1);
             first = false;
         }
 
         tagname_free(&raw mut tn);
-        xfree(fname.cast());
     }
 }
 

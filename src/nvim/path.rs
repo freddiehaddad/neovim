@@ -629,7 +629,8 @@ unsafe fn do_path_expand(
         }
 
         let buflen = CStr::from_ptr(path).to_bytes().len() + MAXPATHL;
-        let buf = xmalloc(buflen).cast::<c_char>();
+        let mut buf_vec = vec![0 as c_char; buflen];
+        let buf = buf_vec.as_mut_ptr();
 
         let mut p = buf;
         let mut s = buf;
@@ -689,7 +690,6 @@ unsafe fn do_path_expand(
         let starts_with_dot = *s == b'.' as c_char;
         let pat = file_pat_to_reg_pat(s, e, ptr::null_mut(), 0);
         if pat.is_null() {
-            xfree(buf.cast::<c_void>());
             return 0;
         }
 
@@ -715,7 +715,6 @@ unsafe fn do_path_expand(
         xfree(pat.cast::<c_void>());
 
         if regmatch.regprog.is_null() && (flags & EW_NOTWILD) == 0 {
-            xfree(buf.cast::<c_void>());
             return 0;
         }
 
@@ -790,7 +789,7 @@ unsafe fn do_path_expand(
             os_closedir(&mut dir);
         }
 
-        xfree(buf.cast::<c_void>());
+        drop(buf_vec);
         vim_regfree(regmatch.regprog);
 
         let matches = gap.len() - start_len;
@@ -857,7 +856,8 @@ unsafe fn expand_path_option(
     gap: &mut Vec<*mut c_char>,
 ) {
     unsafe {
-        let buf = xmalloc(MAXPATHL).cast::<c_char>();
+        let mut buf_arr = [0 as c_char; MAXPATHL];
+        let buf = buf_arr.as_mut_ptr();
         let mut curdirlen: usize = 0;
 
         while *path_option != NUL {
@@ -908,8 +908,6 @@ unsafe fn expand_path_option(
 
             gap.push(xmemdupz(buf.cast::<c_void>(), buflen).cast::<c_char>());
         }
-
-        xfree(buf.cast::<c_void>());
     }
 }
 
@@ -958,11 +956,11 @@ unsafe fn uniquefy_paths(
         remove_duplicate_strings(gap);
 
         let mut len = CStr::from_ptr(pattern).to_bytes().len();
-        let file_pattern = xmalloc(len + 2).cast::<c_char>();
-        *file_pattern = b'*' as c_char;
-        ptr::copy_nonoverlapping(pattern, file_pattern.add(1), len + 1);
-        let pat = file_pat_to_reg_pat(file_pattern, ptr::null(), ptr::null_mut(), 0);
-        xfree(file_pattern.cast::<c_void>());
+        let mut file_pattern = Vec::with_capacity(len + 2);
+        file_pattern.push(b'*' as c_char);
+        file_pattern.extend_from_slice(std::slice::from_raw_parts(pattern, len + 1));
+        let pat = file_pat_to_reg_pat(file_pattern.as_ptr(), ptr::null(), ptr::null_mut(), 0);
+        drop(file_pattern);
         if pat.is_null() {
             return;
         }
@@ -979,7 +977,8 @@ unsafe fn uniquefy_paths(
             return;
         }
 
-        let curdir = xmalloc(MAXPATHL).cast::<c_char>();
+        let mut curdir_arr = [0 as c_char; MAXPATHL];
+        let curdir = curdir_arr.as_mut_ptr();
         os_dirname(curdir, MAXPATHL);
         expand_path_option(curdir, path_option, &mut path_ga);
 
@@ -1079,7 +1078,6 @@ unsafe fn uniquefy_paths(
             os_breakcheck();
         }
 
-        xfree(curdir.cast::<c_void>());
         clear_cstrings(&mut in_curdir);
         clear_cstrings(&mut path_ga);
         vim_regfree(regmatch.regprog);
@@ -1124,7 +1122,8 @@ unsafe fn expand_in_path(gap: &mut Vec<*mut c_char>, pattern: *mut c_char, flags
             (*curbuf).b_p_path
         };
 
-        let curdir = xmalloc(MAXPATHL).cast::<c_char>();
+        let mut curdir_arr = [0 as c_char; MAXPATHL];
+        let curdir = curdir_arr.as_mut_ptr();
         os_dirname(curdir, MAXPATHL);
 
         if (flags & EW_CDPATH) != 0 {
@@ -1132,7 +1131,6 @@ unsafe fn expand_in_path(gap: &mut Vec<*mut c_char>, pattern: *mut c_char, flags
         } else {
             expand_path_option(curdir, path_option, &mut path_ga);
         }
-        xfree(curdir.cast::<c_void>());
         if path_ga.is_empty() {
             return 0;
         }
@@ -1945,16 +1943,15 @@ pub unsafe fn path_cmp(
 
 pub unsafe fn path_try_shorten_fname(full_path: *mut c_char) -> *mut c_char {
     unsafe {
-        let dirname = xmalloc(MAXPATHL).cast::<c_char>();
+        let mut dirname = [0 as c_char; MAXPATHL];
         let mut p = full_path;
 
-        if os_dirname(dirname, MAXPATHL) == OK {
-            p = path_shorten_fname(full_path, dirname);
+        if os_dirname(dirname.as_mut_ptr(), MAXPATHL) == OK {
+            p = path_shorten_fname(full_path, dirname.as_mut_ptr());
             if p.is_null() || *p == NUL {
                 p = full_path;
             }
         }
-        xfree(dirname.cast::<c_void>());
         p
     }
 }
@@ -2210,7 +2207,8 @@ unsafe fn path_to_absolute(
 ) -> c_int {
     unsafe {
         *buf = NUL;
-        let relative_directory = xmalloc(len).cast::<c_char>();
+        let mut rel_dir_vec = vec![0 as c_char; len];
+        let relative_directory = rel_dir_vec.as_mut_ptr();
         let mut end_of_path = fname;
 
         #[cfg(windows)]
@@ -2265,11 +2263,10 @@ unsafe fn path_to_absolute(
             }
 
             if path_full_dir_name(relative_directory, buf, len) == FAIL {
-                xfree(relative_directory.cast::<c_void>());
                 return FAIL;
             }
         }
-        xfree(relative_directory.cast::<c_void>());
+        drop(rel_dir_vec);
         append_path(buf, end_of_path, len)
     }
 }
