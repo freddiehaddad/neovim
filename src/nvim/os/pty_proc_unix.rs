@@ -69,10 +69,8 @@ pub const fn wtermsig(stat: c_int) -> c_int {
 mod unix_impl {
     use super::*;
     use crate::event::r#loop::{Loop, loop_children_watcher, loop_queues, uv_signal_t};
-    use crate::event::proc::{
-        Proc, PtyProc, proc_err, proc_header, proc_in, proc_out, proc_size, proc_tail,
-    };
-    use crate::event::stream::{stream_closed_ptr, stream_uv_ptr, uv_pipe_t};
+    use crate::event::proc::{Proc, PtyProc};
+    use crate::event::stream::uv_pipe_t;
 
     #[cfg(target_os = "linux")]
     type tcflag_t = u32;
@@ -227,14 +225,6 @@ mod unix_impl {
     }
 
     #[repr(C)]
-    struct PtyProcUnixTail {
-        width: u16,
-        height: u16,
-        winsize: winsize,
-        tty_fd: c_int,
-    }
-
-    #[repr(C)]
     struct pollfd {
         fd: c_int,
         events: i16,
@@ -270,13 +260,8 @@ mod unix_impl {
     }
 
     #[inline]
-    unsafe fn pty_proc_unix_tail(ptyproc: *mut PtyProc) -> *mut PtyProcUnixTail {
-        unsafe {
-            ptyproc
-                .cast::<u8>()
-                .add(proc_size())
-                .cast::<PtyProcUnixTail>()
-        }
+    unsafe fn pty_proc_unix_tail(ptyproc: *mut PtyProc) -> *mut PtyProc {
+        ptyproc
     }
 
     /// @returns zero on success, or negative error code
@@ -286,14 +271,14 @@ mod unix_impl {
                 init_termios(&raw mut termios_default);
             }
 
-            let proc_: *mut Proc = ptyproc.cast();
-            let hdr = proc_header(proc_);
+            let proc_: *mut Proc = ptyproc;
+            let hdr = proc_;
             let ptail = pty_proc_unix_tail(ptyproc);
-            let s_in = proc_in(proc_);
-            let r_out = proc_out(proc_);
-            let r_err = proc_err(proc_);
+            let s_in = &raw mut (*proc_).r#in;
+            let r_out = &raw mut (*proc_).out;
+            let r_err = &raw mut (*proc_).err;
 
-            debug_assert!(*stream_closed_ptr(r_err.cast()));
+            debug_assert!((*r_err).s.closed);
             uv_signal_start(
                 loop_children_watcher((*hdr).loop_),
                 Some(chld_handler),
@@ -376,14 +361,14 @@ mod unix_impl {
                     break 'error;
                 }
 
-                if !*stream_closed_ptr(s_in) {
-                    status = set_duplicating_descriptor(master, stream_uv_ptr(s_in).cast());
+                if !(*s_in).closed {
+                    status = set_duplicating_descriptor(master, (&raw mut (*s_in).uv).cast());
                     if status != 0 {
                         break 'error;
                     }
                 }
-                if !*stream_closed_ptr(r_out.cast()) {
-                    status = set_duplicating_descriptor(master, stream_uv_ptr(r_out.cast()).cast());
+                if !(*r_out).s.closed {
+                    status = set_duplicating_descriptor(master, (&raw mut (*r_out).s.uv).cast());
                     if status != 0 {
                         break 'error;
                     }
@@ -423,8 +408,7 @@ mod unix_impl {
 
     pub unsafe fn pty_proc_resume(ptyproc: *mut PtyProc) {
         unsafe {
-            let hdr = proc_header(ptyproc.cast());
-            killpg((*hdr).pid, SIGCONT);
+            killpg((*ptyproc).pid, SIGCONT);
         }
     }
 
@@ -451,9 +435,8 @@ mod unix_impl {
     pub unsafe fn pty_proc_close(ptyproc: *mut PtyProc) {
         unsafe {
             pty_proc_close_master(ptyproc);
-            let proc_: *mut Proc = ptyproc.cast();
-            let proc_t = proc_tail(proc_);
-            if let Some(cb) = (*proc_t).internal_close_cb {
+            let proc_: *mut Proc = ptyproc;
+            if let Some(cb) = (*proc_).internal_close_cb {
                 cb(proc_);
             }
         }
@@ -486,8 +469,8 @@ mod unix_impl {
             signal(SIGTERM, SIG_DFL);
             signal(SIGALRM, SIG_DFL);
 
-            let proc_: *mut Proc = ptyproc.cast();
-            let hdr = proc_header(proc_);
+            let proc_: *mut Proc = ptyproc;
+            let hdr = proc_;
             if !(*hdr).cwd.is_null() {
                 let err = uv_chdir((*hdr).cwd);
                 if err != 0 {
@@ -617,8 +600,8 @@ mod unix_impl {
 
             for &p in &(*qc).children {
                 let proc_ = p as *mut Proc;
-                let hdr = proc_header(proc_);
-                let proc_t = proc_tail(proc_);
+                let hdr = proc_;
+                let proc_t = proc_;
 
                 let mut pid: c_int;
                 loop {

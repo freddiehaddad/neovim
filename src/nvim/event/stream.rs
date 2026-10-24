@@ -85,26 +85,6 @@ use crate::event::r#loop::{uv_idle_init, uv_stream_get_write_queue_size, uv_stre
 #[cfg(windows)]
 use crate::os::os_win_console::{GetConsoleMode, SetConsoleMode};
 
-#[inline]
-pub const unsafe fn stream_size() -> usize {
-    std::mem::size_of::<Stream>()
-}
-
-#[inline]
-pub unsafe fn stream_closed_ptr(stream: *mut Stream) -> *mut bool {
-    unsafe { &raw mut (*stream).closed }
-}
-
-#[inline]
-pub unsafe fn stream_uv_ptr(stream: *mut Stream) -> *mut c_void {
-    unsafe { (&raw mut (*stream).uv).cast() }
-}
-
-#[inline]
-pub unsafe fn stream_fields(stream: *mut Stream) -> *mut Stream {
-    stream
-}
-
 pub unsafe fn stream_set_blocking(fd: c_int, blocking: bool) -> c_int {
     unsafe {
         let mut loop_buf = [0u64; 256];

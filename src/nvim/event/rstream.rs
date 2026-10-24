@@ -70,16 +70,6 @@ impl RStream {
 use crate::event::r#loop::{uv_fs_read, uv_idle_start, uv_idle_stop, uv_read_start, uv_read_stop};
 
 #[inline]
-pub unsafe fn rstream_fields(stream: *mut RStream) -> *mut RStream {
-    stream
-}
-
-#[inline]
-pub const unsafe fn rstream_size() -> usize {
-    std::mem::size_of::<RStream>()
-}
-
-#[inline]
 unsafe fn rstream_space(stream: *mut RStream) -> usize {
     unsafe { ((*stream).buffer.add(ARENA_BLOCK_SIZE) as usize) - ((*stream).write_pos as usize) }
 }

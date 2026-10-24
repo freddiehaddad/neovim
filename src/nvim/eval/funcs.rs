@@ -98,7 +98,7 @@ use crate::event::multiqueue::{
     multiqueue_empty, multiqueue_free, multiqueue_new, multiqueue_process_events,
     multiqueue_replace_parent,
 };
-use crate::event::proc::{Proc, PtyProc, proc_header, proc_stop, proc_wait};
+use crate::event::proc::{Proc, PtyProc, proc_stop, proc_wait};
 use crate::event::time::{
     TimeWatcher, time_watcher_close, time_watcher_init, time_watcher_start, time_watcher_stop,
 };
@@ -153,8 +153,7 @@ use crate::r#move::{update_curswant, win_col_off};
 use crate::mpack::mpack_core::MPACK_OK;
 use crate::mpack::object::mpack_parser_t;
 use crate::msgpack_rpc::channel::{
-    channel_prefix, channel_stream_ptr, channel_tail, find_channel, get_client_info, rpc_send_call,
-    rpc_send_event,
+    find_channel, get_client_info, rpc_send_call, rpc_send_event,
 };
 use crate::msgpack_rpc::packer::{Integer, PackerBuffer, packer_string_buffer, packer_take_string};
 use crate::msgpack_rpc::server::{
@@ -433,10 +432,7 @@ unsafe fn tv_get_float_chk(tv: *const typval_T, ret_f: *mut float_T) -> bool {
 
 #[inline]
 unsafe fn proc_is_stopped(proc_: *mut Proc) -> bool {
-    unsafe {
-        let ph = proc_header(proc_);
-        (*ph).status >= 0 || (*ph).stopped_time != 0
-    }
+    unsafe { (*proc_).status >= 0 || (*proc_).stopped_time != 0 }
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of internal
@@ -1686,7 +1682,7 @@ pub unsafe fn f_chansend(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
         #[cfg(windows)]
         let crlf = {
             let chan = find_channel(id);
-            !chan.is_null() && !(*channel_tail(chan)).term.is_null()
+            !chan.is_null() && !(*chan).term.is_null()
         };
 
         if (*argvars.add(1)).v_type == VarType::VAR_BLOB {
@@ -4499,8 +4495,7 @@ pub unsafe fn f_jobpid(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
         if data.is_null() {
             return;
         }
-        let ph = proc_header(channel_stream_ptr(data).cast::<Proc>());
-        (*rettv).vval.v_number = varnumber_T::from((*ph).pid);
+        (*rettv).vval.v_number = varnumber_T::from((*data).uv.proc_.pid);
     }
 }
 
@@ -4526,14 +4521,14 @@ pub unsafe fn f_jobresize(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
             return;
         }
 
-        let proc_ptr = channel_stream_ptr(data).cast::<Proc>();
-        if (*proc_header(proc_ptr)).r#type != kProcTypePty {
+        let proc_ptr = &raw mut (*data).uv.proc_;
+        if (*proc_ptr).r#type != kProcTypePty {
             emsg(gettext(e_channotpty.as_ptr()));
             return;
         }
 
         pty_proc_resize(
-            proc_ptr.cast::<PtyProc>(),
+            proc_ptr as *mut PtyProc,
             (*argvars.add(1)).vval.v_number as u16,
             (*argvars.add(2)).vval.v_number as u16,
         );
@@ -4871,12 +4866,12 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
                 return;
             }
 
-            let pid = (*proc_header(channel_stream_ptr(chan).cast::<Proc>())).pid;
+            let pid = (*chan).uv.proc_.pid;
             let buf = curbuf;
 
             (*buf).b_p_swf = 0;
             if (*buf).b_ml.ml_mfp.is_null() && ml_open(buf) == FAIL {
-                proc_stop(channel_stream_ptr(chan).cast::<Proc>());
+                proc_stop(&raw mut (*chan).uv.proc_);
                 channel_decref(chan);
                 return;
             }
@@ -4884,7 +4879,7 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             channel_incref(chan);
             channel_terminal_alloc(buf, chan);
 
-            let ct = channel_tail(chan);
+            let ct = chan;
             'term_done: {
                 apply_autocmds(
                     EVENT_BUFFILEPRE,
@@ -4940,7 +4935,7 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
                     msg: ptr::null_mut(),
                 };
                 (*buf).b_locked += 1;
-                let cp = channel_prefix(chan);
+                let cp = chan;
                 dict_set_var(
                     (*buf).b_vars,
                     cstr_as_string(c"terminal_job_id".as_ptr()),
@@ -5005,10 +5000,10 @@ pub unsafe fn f_jobstop(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
         }
 
         let mut error: *const c_char = ptr::null();
-        if (*channel_tail(data)).is_rpc {
-            channel_close((*channel_prefix(data)).id, kChannelPartRpc, &raw mut error);
+        if (*data).is_rpc {
+            channel_close((*data).id, kChannelPartRpc, &raw mut error);
         }
-        proc_stop(channel_stream_ptr(data).cast::<Proc>());
+        proc_stop(&raw mut (*data).uv.proc_);
         (*rettv).vval.v_number = 1;
         if !error.is_null() {
             emsg(error);
@@ -5048,18 +5043,18 @@ pub unsafe fn f_jobwait(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
             } else {
                 ptr::null_mut()
             };
-            if chan.is_null() || (*channel_prefix(chan)).streamtype != kChannelStreamProc {
+            if chan.is_null() || (*chan).streamtype != kChannelStreamProc {
                 jobs[i] = ptr::null_mut();
             } else {
-                let proc_ptr = channel_stream_ptr(chan).cast::<Proc>();
+                let proc_ptr = &raw mut (*chan).uv.proc_;
                 if proc_is_stopped(proc_ptr) {
                     proc_wait(proc_ptr, -1, ptr::null_mut());
                     jobs[i] = ptr::null_mut();
                 } else {
                     jobs[i] = chan;
                     channel_incref(chan);
-                    if (*proc_header(proc_ptr)).status < 0 {
-                        let events = (*channel_prefix(chan)).events;
+                    if (*proc_ptr).status < 0 {
+                        let events = (*chan).events;
                         multiqueue_process_events(events);
                         multiqueue_replace_parent(events, waiting_jobs);
                     }
@@ -5089,11 +5084,7 @@ pub unsafe fn f_jobwait(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
             if job.is_null() {
                 continue;
             }
-            let status = proc_wait(
-                channel_stream_ptr(job).cast::<Proc>(),
-                remaining,
-                waiting_jobs,
-            );
+            let status = proc_wait(&raw mut (*job).uv.proc_, remaining, waiting_jobs);
             if status < 0 {
                 break;
             }
@@ -5110,11 +5101,11 @@ pub unsafe fn f_jobwait(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                 tv_list_append_number(rv, -3);
                 continue;
             }
-            let events = (*channel_prefix(job)).events;
+            let events = (*job).events;
             multiqueue_process_events(events);
             multiqueue_replace_parent(events, (*loop_queues(main_loop_ptr)).events);
 
-            let status = (*proc_header(channel_stream_ptr(job).cast::<Proc>())).status;
+            let status = (*job).uv.proc_.status;
             tv_list_append_number(rv, varnumber_T::from(status));
             channel_decref(job);
         }

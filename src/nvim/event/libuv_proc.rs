@@ -2,13 +2,9 @@
 
 use crate::channel::STDERR_FILENO;
 use crate::eval::typval::tv_dict_to_env;
-use crate::event::r#loop::{
-    uv_close, uv_gid_t, uv_handle_size, uv_handle_t, uv_pipe_open, uv_uid_t,
-};
-use crate::event::proc::{
-    LibuvProc, Proc, libuv_proc_uv, proc_err, proc_header, proc_in, proc_out, proc_size, proc_tail,
-};
-use crate::event::stream::{stream_closed_ptr, stream_uv_ptr, uv_pipe_t, uv_stream_t};
+use crate::event::r#loop::{uv_close, uv_gid_t, uv_handle_t, uv_pipe_open, uv_uid_t};
+use crate::event::proc::Proc;
+use crate::event::stream::{uv_pipe_t, uv_stream_t};
 use crate::globals::*;
 use crate::os::env::os_free_fullenv;
 #[cfg(windows)]
@@ -18,8 +14,6 @@ use crate::os::fs::os_close;
 use crate::path::path_to_backslash;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
-
-pub(crate) const UV_PROCESS: c_int = 10;
 
 const UV_IGNORE: c_int = 0x00;
 #[cfg(windows)]
@@ -72,32 +66,53 @@ pub struct uv_process_options_t {
     pub gid: uv_gid_t,
 }
 
+#[repr(C, align(8))]
+pub struct UvProcessHandle(pub [u8; 320]);
+
 #[repr(C)]
-pub(crate) struct LibuvProcTail {
-    pub(crate) uvopts: uv_process_options_t,
-    pub(crate) uvstdio: [uv_stdio_container_t; 4],
+pub struct LibuvProc {
+    pub proc_: Proc,
+    pub uv: UvProcessHandle,
+    pub uvopts: uv_process_options_t,
+    pub uvstdio: [uv_stdio_container_t; 4],
+}
+
+impl LibuvProc {
+    pub const fn new() -> Self {
+        Self {
+            proc_: Proc::new(),
+            uv: UvProcessHandle([0; 320]),
+            uvopts: uv_process_options_t {
+                exit_cb: None,
+                file: ptr::null(),
+                args: ptr::null_mut(),
+                env: ptr::null_mut(),
+                cwd: ptr::null(),
+                flags: 0,
+                stdio_count: 0,
+                stdio: ptr::null_mut(),
+                uid: 0,
+                gid: 0,
+            },
+            uvstdio: [uv_stdio_container_t {
+                flags: 0,
+                data: UvStdioData {
+                    stream: ptr::null_mut(),
+                },
+            }; 4],
+        }
+    }
 }
 
 use crate::event::r#loop::{uv_pipe, uv_process_get_pid, uv_spawn};
 
 #[inline]
-unsafe fn libuv_proc_tail(uvproc: *mut LibuvProc) -> *mut LibuvProcTail {
-    unsafe {
-        uvproc
-            .cast::<u8>()
-            .add(proc_size() + uv_handle_size(UV_PROCESS))
-            .cast::<LibuvProcTail>()
-    }
-}
-
-#[inline]
 pub unsafe fn proc_get_exepath(proc_: *mut Proc) -> *const c_char {
     unsafe {
-        let hdr = proc_header(proc_);
-        if !(*hdr).exepath.is_null() {
-            (*hdr).exepath
+        if !(*proc_).exepath.is_null() {
+            (*proc_).exepath
         } else {
-            *(*hdr).argv
+            *(*proc_).argv
         }
     }
 }
@@ -112,7 +127,7 @@ unsafe fn libuv_proc_stdio(
     to_close: &mut [c_int; 3],
 ) {
     unsafe {
-        let ltail = libuv_proc_tail(uvproc);
+        let ltail = uvproc;
         #[cfg(windows)]
         if win_create_pipe {
             (*ltail).uvstdio[idx].flags = UV_CREATE_PIPE
@@ -174,106 +189,99 @@ unsafe fn libuv_proc_stdio(
 /// @returns zero on success, or negative error code
 pub unsafe fn libuv_proc_spawn(uvproc: *mut LibuvProc) -> c_int {
     unsafe {
-        let proc_: *mut Proc = uvproc.cast();
-        let hdr = proc_header(proc_);
-        let ptail = proc_tail(proc_);
-        let uv = libuv_proc_uv(proc_);
-        let ltail = libuv_proc_tail(uvproc);
+        let proc_: *mut Proc = &raw mut (*uvproc).proc_;
+        let uv: *mut uv_handle_t = (&raw mut (*uvproc).uv).cast();
 
-        (*ltail).uvopts.file = proc_get_exepath(proc_);
-        (*ltail).uvopts.args = (*hdr).argv;
-        (*ltail).uvopts.flags = UV_PROCESS_WINDOWS_HIDE;
+        (*uvproc).uvopts.file = proc_get_exepath(proc_);
+        (*uvproc).uvopts.args = (*proc_).argv;
+        (*uvproc).uvopts.flags = UV_PROCESS_WINDOWS_HIDE;
 
         #[cfg(windows)]
         {
-            if os_shell_is_cmdexe(*(*hdr).argv) {
-                (*ltail).uvopts.flags |= UV_PROCESS_WINDOWS_VERBATIM_ARGUMENTS;
-                path_to_backslash(*(*hdr).argv);
+            if os_shell_is_cmdexe(*(*proc_).argv) {
+                (*uvproc).uvopts.flags |= UV_PROCESS_WINDOWS_VERBATIM_ARGUMENTS;
+                path_to_backslash(*(*proc_).argv);
             }
-            if (*ptail).detach {
-                (*ltail).uvopts.flags |= UV_PROCESS_DETACHED;
+            if (*proc_).detach {
+                (*uvproc).uvopts.flags |= UV_PROCESS_DETACHED;
             }
         }
         #[cfg(not(windows))]
         {
-            (*ltail).uvopts.flags |= UV_PROCESS_DETACHED;
+            (*uvproc).uvopts.flags |= UV_PROCESS_DETACHED;
         }
 
-        (*ltail).uvopts.exit_cb = Some(exit_cb);
-        (*ltail).uvopts.cwd = (*hdr).cwd;
+        (*uvproc).uvopts.exit_cb = Some(exit_cb);
+        (*uvproc).uvopts.cwd = (*proc_).cwd;
 
-        (*ltail).uvopts.stdio = (*ltail).uvstdio.as_mut_ptr();
-        (*ltail).uvopts.stdio_count = 3;
-        (*ltail).uvstdio[0].flags = UV_IGNORE;
-        (*ltail).uvstdio[1].flags = UV_IGNORE;
-        (*ltail).uvstdio[2].flags = UV_IGNORE;
+        (*uvproc).uvopts.stdio = (*uvproc).uvstdio.as_mut_ptr();
+        (*uvproc).uvopts.stdio_count = 3;
+        (*uvproc).uvstdio[0].flags = UV_IGNORE;
+        (*uvproc).uvstdio[1].flags = UV_IGNORE;
+        (*uvproc).uvstdio[2].flags = UV_IGNORE;
 
         if ui_client_forward_stdin {
             debug_assert_eq!(UI_CLIENT_STDIN_FD, 3);
-            (*ltail).uvopts.stdio_count = 4;
-            (*ltail).uvstdio[3].data.fd = 0;
-            (*ltail).uvstdio[3].flags = UV_INHERIT_FD;
+            (*uvproc).uvopts.stdio_count = 4;
+            (*uvproc).uvstdio[3].data.fd = 0;
+            (*uvproc).uvstdio[3].flags = UV_INHERIT_FD;
         }
         *uv.cast::<*mut Proc>() = proc_;
 
-        if !(*hdr).env.is_null() {
-            (*ltail).uvopts.env = tv_dict_to_env((*hdr).env);
+        if !(*proc_).env.is_null() {
+            (*uvproc).uvopts.env = tv_dict_to_env((*proc_).env);
         } else {
-            (*ltail).uvopts.env = ptr::null_mut();
+            (*uvproc).uvopts.env = ptr::null_mut();
         }
 
         let mut to_close = [-1 as c_int; 3];
 
-        let s_in = proc_in(proc_);
-        let r_out = proc_out(proc_);
-        let r_err = proc_err(proc_);
-
-        if !*stream_closed_ptr(s_in) {
+        if !(*proc_).r#in.closed {
             libuv_proc_stdio(
                 uvproc,
                 0,
-                stream_uv_ptr(s_in).cast(),
+                (&raw mut (*proc_).r#in.uv).cast(),
                 true,
-                (*ptail).overlapped,
-                (*ptail).stdio_noinherit,
+                (*proc_).overlapped,
+                (*proc_).stdio_noinherit,
                 &mut to_close,
             );
         }
 
-        if !*stream_closed_ptr(r_out.cast()) {
+        if !(*proc_).out.s.closed {
             libuv_proc_stdio(
                 uvproc,
                 1,
-                stream_uv_ptr(r_out.cast()).cast(),
+                (&raw mut (*proc_).out.s.uv).cast(),
                 false,
-                (*ptail).overlapped,
+                (*proc_).overlapped,
                 true,
                 &mut to_close,
             );
         }
 
-        if !*stream_closed_ptr(r_err.cast()) {
+        if !(*proc_).err.s.closed {
             libuv_proc_stdio(
                 uvproc,
                 2,
-                stream_uv_ptr(r_err.cast()).cast(),
+                (&raw mut (*proc_).err.s.uv).cast(),
                 false,
-                (*ptail).overlapped,
-                (*ptail).stdio_noinherit,
+                (*proc_).overlapped,
+                (*proc_).stdio_noinherit,
                 &mut to_close,
             );
-        } else if (*ptail).fwd_err {
-            (*ltail).uvstdio[2].flags = UV_INHERIT_FD;
-            (*ltail).uvstdio[2].data.fd = STDERR_FILENO;
+        } else if (*proc_).fwd_err {
+            (*uvproc).uvstdio[2].flags = UV_INHERIT_FD;
+            (*uvproc).uvstdio[2].data.fd = STDERR_FILENO;
         }
 
-        let status = uv_spawn((*hdr).loop_.cast(), uv.cast(), &raw const (*ltail).uvopts);
+        let status = uv_spawn((*proc_).loop_.cast(), uv.cast(), &raw const (*uvproc).uvopts);
         if status != 0 {
-            if !(*ltail).uvopts.env.is_null() {
-                os_free_fullenv((*ltail).uvopts.env);
+            if !(*uvproc).uvopts.env.is_null() {
+                os_free_fullenv((*uvproc).uvopts.env);
             }
         } else {
-            (*hdr).pid = uv_process_get_pid(uv.cast());
+            (*proc_).pid = uv_process_get_pid(uv.cast());
         }
 
         for fd in to_close {
@@ -287,20 +295,19 @@ pub unsafe fn libuv_proc_spawn(uvproc: *mut LibuvProc) -> c_int {
 
 pub unsafe fn libuv_proc_close(uvproc: *mut LibuvProc) {
     unsafe {
-        uv_close(libuv_proc_uv(uvproc.cast()), Some(close_cb));
+        uv_close((&raw mut (*uvproc).uv).cast(), Some(close_cb));
     }
 }
 
 unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
     unsafe {
         let proc_ = *handle.cast::<*mut Proc>();
-        let ptail = proc_tail(proc_);
-        if let Some(cb) = (*ptail).internal_close_cb {
+        if let Some(cb) = (*proc_).internal_close_cb {
             cb(proc_);
         }
-        let ltail = libuv_proc_tail(proc_.cast());
-        if !(*ltail).uvopts.env.is_null() {
-            os_free_fullenv((*ltail).uvopts.env);
+        let uvproc = proc_.cast::<LibuvProc>();
+        if !(*uvproc).uvopts.env.is_null() {
+            os_free_fullenv((*uvproc).uvopts.env);
         }
     }
 }
@@ -308,17 +315,15 @@ unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
 unsafe extern "C" fn exit_cb(handle: *mut uv_process_t, status: i64, term_signal: c_int) {
     unsafe {
         let proc_ = *handle.cast::<*mut Proc>();
-        let hdr = proc_header(proc_);
-        let ptail = proc_tail(proc_);
         #[cfg(windows)]
         let sig = {
             let _ = term_signal;
-            c_int::from((*hdr).exit_signal)
+            c_int::from((*proc_).exit_signal)
         };
         #[cfg(not(windows))]
         let sig = term_signal;
-        (*hdr).status = if sig != 0 { 128 + sig } else { status as c_int };
-        if let Some(cb) = (*ptail).internal_exit_cb {
+        (*proc_).status = if sig != 0 { 128 + sig } else { status as c_int };
+        if let Some(cb) = (*proc_).internal_exit_cb {
             cb(proc_);
         }
     }

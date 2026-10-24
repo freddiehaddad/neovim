@@ -87,7 +87,7 @@ use crate::eval::{
 };
 use crate::event::r#loop::{loop_poll_events, loop_queues, uv_strerror};
 use crate::event::multiqueue::{multiqueue_empty, multiqueue_process_events};
-use crate::event::proc::{Proc, proc_stop, proc_wait};
+use crate::event::proc::{proc_stop, proc_wait};
 use crate::ex_cmds::{
     BL_FIX, BL_SOL, BL_WHITE, DIALOG_MSG_SIZE, ECMD_ADDBUF, ECMD_ALTBUF, ECMD_FORCEIT, ECMD_HIDE,
     ECMD_LAST, ECMD_OLDBUF, ECMD_ONE, EXFLAG_LIST, EXFLAG_NR, EXFLAG_PRINT, RE_SUBST, SEARCH_HIS,
@@ -161,9 +161,7 @@ use crate::r#move::{
     check_cursor_moved, cursor_correct, cursor_valid, scrolldown, scrollup, update_curswant,
     update_topline, validate_cursor,
 };
-use crate::msgpack_rpc::channel::{
-    channel_prefix, channel_stream_ptr, channel_tail, find_channel, rpc_send_call,
-};
+use crate::msgpack_rpc::channel::{find_channel, rpc_send_call};
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::msgpack_rpc::server::server_start;
 use crate::normal::{
@@ -9363,7 +9361,7 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
             return;
         }
 
-        let chan_id = (*channel_prefix(channel)).id;
+        let chan_id = (*channel).id;
         let mut result_mem: ArenaMem = ptr::null_mut();
 
         'fail_2: {
@@ -9562,7 +9560,7 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
             arena_mem_free(result_mem);
         }
 
-        let proc_ptr = channel_stream_ptr(channel).cast::<Proc>();
+        let proc_ptr = &raw mut (*channel).uv.proc_;
         proc_stop(proc_ptr);
         if proc_wait(proc_ptr, -1, ptr::null_mut()) < 0 {
             let _ = emsg(c"killing new nvim server failed".as_ptr());
@@ -10352,7 +10350,7 @@ unsafe fn ex_detach(eap: *mut exarg_T) {
         }
 
         if !eap.is_null() && (*eap).forceit != 0 {
-            (*channel_tail(chan)).detach = true;
+            (*chan).detach = true;
             channel_event(chan, EVENT_CHANINFO);
             let _ = msg(
                 gettext(c"Nvim will continue running if the UI disconnects".as_ptr()),

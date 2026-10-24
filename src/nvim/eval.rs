@@ -116,7 +116,6 @@ use crate::eval::encode::{encode_list_write, encode_tv2echo, encode_tv2string};
 use crate::eval::executor::eexe_mod_op;
 use crate::eval::gc::{gc_first_dict, gc_first_list};
 use crate::event::multiqueue::{multiqueue_free, multiqueue_new_child};
-use crate::event::proc::{Proc, proc_header};
 use crate::event::time::{
     TimeWatcher, time_watcher_close, time_watcher_init, time_watcher_start, time_watcher_stop,
 };
@@ -139,7 +138,7 @@ use crate::memory::{
     Arena, arena_finish, arena_mem_free, memchrsub, strchrsub, strequal, strnequal, xcalloc, xfree,
     xmalloc, xmemdupz, xrealloc, xstrdup, xstrndup,
 };
-use crate::msgpack_rpc::channel::{channel_prefix, channel_stream_ptr, channel_tail, find_channel};
+use crate::msgpack_rpc::channel::find_channel;
 use crate::ops::set_ref_in_opfunc;
 use crate::optionstr::{OptIndex, free_string_option};
 use crate::os::env::{env_name_len, expand_T, expand_env_save, vim_getenv};
@@ -4590,7 +4589,7 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
         {
             let chans_ptr = &raw const channels;
             for &data in (*chans_ptr).values() {
-                let ct = channel_tail(data);
+                let ct = data;
                 set_ref_in_callback_reader(
                     &raw mut (*ct).on_data,
                     copyID,
@@ -7149,17 +7148,15 @@ pub unsafe fn common_job_callbacks(
 pub unsafe fn find_job(id: u64, show_error: bool) -> *mut Channel {
     unsafe {
         let data = find_channel(id);
-        let is_stopped =
-            if !data.is_null() && (*channel_prefix(data)).streamtype == kChannelStreamProc {
-                let hdr = proc_header(channel_stream_ptr(data).cast::<Proc>());
-                (*hdr).status >= 0 || (*hdr).stopped_time != 0
-            } else {
-                true
-            };
-        if data.is_null() || (*channel_prefix(data)).streamtype != kChannelStreamProc || is_stopped
-        {
+        let is_stopped = if !data.is_null() && (*data).streamtype == kChannelStreamProc {
+            let hdr = &raw const (*data).uv.proc_;
+            (*hdr).status >= 0 || (*hdr).stopped_time != 0
+        } else {
+            true
+        };
+        if data.is_null() || (*data).streamtype != kChannelStreamProc || is_stopped {
             if show_error {
-                if !data.is_null() && (*channel_prefix(data)).streamtype != kChannelStreamProc {
+                if !data.is_null() && (*data).streamtype != kChannelStreamProc {
                     emsg(gettext((&raw const e_invchanjob).cast()));
                 } else {
                     emsg(gettext((&raw const e_invchan).cast()));

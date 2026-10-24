@@ -30,8 +30,8 @@ use crate::buffer::{
     do_buffer, read_buffer_into, set_bufref,
 };
 use crate::channel::{
-    Channel, InternalState, TerminalOptions, channel_all_info, channel_alloc, channel_decref,
-    channel_event, channel_incref, channel_info, channel_send,
+    Channel, TerminalOptions, channel_all_info, channel_alloc, channel_decref, channel_event,
+    channel_incref, channel_info, channel_send,
 };
 use crate::charset::{NL, NUL};
 use crate::context::{
@@ -91,10 +91,7 @@ use crate::message::{
     verbose_stop,
 };
 use crate::r#move::{changed_window_setting, update_topline, validate_cursor, win_col_off};
-use crate::msgpack_rpc::channel::{
-    ChannelStreamType, channel_prefix, channel_stream_ptr, channel_tail, find_channel,
-    rpc_set_client_info,
-};
+use crate::msgpack_rpc::channel::{ChannelStreamType, find_channel, rpc_set_client_info};
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::msgpack_rpc::unpacker::unpack;
 use crate::normal::reset_VIsual_and_resel;
@@ -1686,13 +1683,13 @@ unsafe fn term_read_pause(_pause: bool, _data: *mut c_void) {}
 unsafe fn term_write(buf: *const c_char, size: usize, data: *mut c_void) {
     unsafe {
         let chan = data.cast::<Channel>();
-        let internal = channel_stream_ptr(chan).cast::<InternalState>();
+        let internal = &raw mut (*chan).internal;
         let cb = (*internal).cb;
         if cb == LUA_NOREF {
             return;
         }
-        let prefix = channel_prefix(chan);
-        let tail = channel_tail(chan);
+        let prefix = chan;
+        let tail = chan;
         let mut args_items = [
             integer_obj((*prefix).id as Integer),
             buffer_obj(terminal_buf((*tail).term.cast())),
@@ -1726,8 +1723,8 @@ unsafe fn term_resume(_data: *mut c_void) {}
 unsafe fn term_close(data: *mut c_void) {
     unsafe {
         let chan = data.cast::<Channel>();
-        let internal = channel_stream_ptr(chan).cast::<InternalState>();
-        let tail = channel_tail(chan);
+        let internal = &raw mut (*chan).internal;
+        let tail = chan;
         terminal_destroy((&raw mut (*tail).term).cast());
         api_free_luaref((*internal).cb);
         (*internal).cb = LUA_NOREF;
@@ -1813,9 +1810,9 @@ pub unsafe extern "C" fn nvim_open_term(
             };
 
         let chan = channel_alloc(kChannelStreamInternal);
-        let internal = channel_stream_ptr(chan).cast::<InternalState>();
-        let prefix = channel_prefix(chan);
-        let tail = channel_tail(chan);
+        let internal = &raw mut (*chan).internal;
+        let prefix = chan;
+        let tail = chan;
         (*internal).cb = cb;
         (*internal).closed = false;
         let topts = TerminalOptions {
@@ -2500,7 +2497,7 @@ pub unsafe extern "C" fn nvim_chan_set(
             return;
         }
         if ((*config).is_set__chan_set_ & (1u64 << KEYSET_OPTIDX_chan_set__detach)) != 0 {
-            (*channel_tail(channel)).detach = (*config).detach;
+            (*channel).detach = (*config).detach;
             channel_event(channel, EVENT_CHANINFO);
         }
     }

@@ -22,9 +22,7 @@ use crate::mbyte::utf_ambiguous_width;
 use crate::memory::{
     Arena, alloc_block, arena_finish, arena_mem_free, free_block, strequal, xfree,
 };
-#[cfg(windows)]
-use crate::msgpack_rpc::channel::channel_prefix;
-use crate::msgpack_rpc::channel::{RemoteUI, channel_tail, find_channel, rpc_write_raw};
+use crate::msgpack_rpc::channel::{RemoteUI, find_channel, rpc_write_raw};
 use crate::msgpack_rpc::packer::{
     Integer, PackerBuffer, handle_T, mpack_array, mpack_bool, mpack_object_array, mpack_uint,
     mpack_w,
@@ -161,8 +159,8 @@ pub unsafe fn remote_ui_disconnect(channel_id: u64, err: *mut Error, send_error_
         (*uis_ptr).remove(&channel_id);
         ui_detach_impl(ui.cast(), channel_id);
         let chan = find_channel(channel_id);
-        if !chan.is_null() && (*channel_tail(chan)).rpc.ui == ui {
-            (*channel_tail(chan)).rpc.ui = ptr::null_mut();
+        if !chan.is_null() && (*chan).rpc.ui == ui {
+            (*chan).rpc.ui = ptr::null_mut();
         }
 
         remote_ui_destroy(ui);
@@ -188,8 +186,8 @@ pub unsafe fn ui_detach_channel(chan: u64, err: *mut Error) {
             return;
         }
         #[cfg(windows)]
-        let detach_stdio = (*channel_prefix(c)).streamtype == kChannelStreamStdio;
-        (*channel_tail(c)).detach = true;
+        let detach_stdio = (*c).streamtype == kChannelStreamStdio;
+        (*c).detach = true;
         remote_ui_disconnect(chan, err, true);
         if error_set(err) {
             return;
@@ -368,7 +366,7 @@ pub unsafe extern "C" fn nvim_ui_attach(
 
         let chan = find_channel(channel_id);
         if !chan.is_null() {
-            (*channel_tail(chan)).rpc.ui = ui;
+            (*chan).rpc.ui = ui;
         }
 
         may_trigger_vim_suspend_resume(false);
@@ -458,7 +456,7 @@ pub unsafe fn remote_ui_restart(listen_addr: NvimString) {
                 continue;
             }
             let chan = find_channel((*ui).channel_id);
-            let detach_val = !chan.is_null() && (*channel_tail(chan)).detach;
+            let detach_val = !chan.is_null() && (*chan).detach;
             let mut cfg_items: [KeyValuePair; 1] = [KeyValuePair {
                 key: cstr_as_string(c"detach".as_ptr()),
                 value: boolean_obj(detach_val),

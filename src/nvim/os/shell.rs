@@ -14,11 +14,9 @@ use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, multiqueue_empty, multiqueue_free, multiqueue_new_child,
     multiqueue_put_event,
 };
-use crate::event::proc::{
-    Proc, proc_err, proc_header, proc_in, proc_out, proc_spawn, proc_stop, proc_tail, proc_wait,
-};
+use crate::event::proc::{LibuvProc, Proc, proc_spawn, proc_stop, proc_wait};
 use crate::event::rstream::{RStream, rstream_init, rstream_start, stream_read_cb};
-use crate::event::stream::{Stream, stream_fields, stream_may_close};
+use crate::event::stream::{Stream, stream_may_close};
 use crate::event::wstream::{
     wstream_init, wstream_new_buffer, wstream_set_write_cb, wstream_write,
 };
@@ -99,9 +97,6 @@ const STYLE_GLOBSTAR: c_int = 5;
 
 const HLF_SE: c_int = 72;
 const HLF_SO: c_int = 73;
-
-#[repr(C, align(8))]
-struct LibuvProcBuf([u8; 4096]);
 
 #[cfg(unix)]
 static mut did_find_nul: bool = false;
@@ -896,24 +891,19 @@ unsafe fn do_os_system(
         xstrlcpy(prog.as_mut_ptr(), *argv, MAXPATHL);
 
         let mloop = main_loop_ptr();
-        debug_assert!(
-            crate::msgpack_rpc::channel::channel_stream_union_size() <= size_of::<LibuvProcBuf>()
-        );
-        let mut uvproc = LibuvProcBuf([0; 4096]);
-        let proc_: *mut Proc = (&raw mut uvproc).cast();
-        let hdr = proc_header(proc_);
-        let ptail = proc_tail(proc_);
-        (*hdr).r#type = kProcTypeUv;
-        (*hdr).data = (&raw mut buf).cast();
-        (*hdr).loop_ = mloop;
-        (*hdr).status = -1;
-        (*stream_fields(proc_out(proc_).cast())).fd = STDOUT_FILENO;
-        (*stream_fields(proc_err(proc_).cast())).fd = STDERR_FILENO;
+        let mut uvproc = LibuvProc::new();
+        let proc_: *mut Proc = &raw mut uvproc.proc_;
+        (*proc_).r#type = kProcTypeUv;
+        (*proc_).data = (&raw mut buf).cast();
+        (*proc_).loop_ = mloop;
+        (*proc_).status = -1;
+        (*proc_).out.s.fd = STDOUT_FILENO;
+        (*proc_).err.s.fd = STDERR_FILENO;
 
         let qc = loop_queues(mloop);
         let events = multiqueue_new_child((*qc).events);
-        (*ptail).events = events;
-        (*hdr).argv = argv;
+        (*proc_).events = events;
+        (*proc_).argv = argv;
 
         'end: {
             let status = proc_spawn(proc_, has_input, true, true);
@@ -929,9 +919,9 @@ unsafe fn do_os_system(
                 break 'end;
             }
 
-            let s_in = proc_in(proc_);
-            let r_out = proc_out(proc_);
-            let r_err = proc_err(proc_);
+            let s_in = &raw mut (*proc_).r#in;
+            let r_out = &raw mut (*proc_).out;
+            let r_err = &raw mut (*proc_).err;
 
             if has_input {
                 wstream_init(s_in, 0);
@@ -1182,7 +1172,7 @@ unsafe fn out_data_cb(
         if count > 0 && out_data_decide_throttle(count) {
             out_data_ring(ptr_data, count);
         } else if count > 0 {
-            let fd = (*stream_fields(stream.cast())).fd;
+            let fd = (*stream).s.fd;
             out_data_append_to_screen(ptr_data, &raw mut count, fd, eof);
         }
         count

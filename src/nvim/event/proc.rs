@@ -1,5 +1,6 @@
 //! Process spawning, waiting, stopping, and teardown (`src/nvim/event/proc.c`).
 
+pub use crate::event::libuv_proc::LibuvProc;
 use crate::eval::typval::dict_T;
 use crate::event::libuv_proc::{libuv_proc_close, libuv_proc_spawn};
 use crate::event::r#loop::{
@@ -11,11 +12,8 @@ use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_empty, multiqueue_process_events,
     multiqueue_put_event,
 };
-use crate::event::rstream::{RStream, rstream_fields, rstream_may_close};
-use crate::event::stream::{
-    Stream, stream_closed_ptr, stream_fields, stream_init, stream_may_close, stream_size,
-    stream_uv_ptr,
-};
+use crate::event::rstream::{RStream, rstream_may_close};
+use crate::event::stream::{Stream, stream_init, stream_may_close};
 use crate::globals::*;
 use crate::main_init::{os_exit, preserve_exit};
 use crate::memory::ARENA_BLOCK_SIZE;
@@ -32,16 +30,13 @@ const KILL_TIMEOUT_MS: u64 = 2000;
 
 use crate::channel::{kProcTypePty, kProcTypeUv};
 use crate::os::signal::{SIGHUP, SIGKILL, SIGTERM};
-pub type Proc = c_void;
-pub type LibuvProc = c_void;
-pub type PtyProc = c_void;
 
 pub type proc_exit_cb = Option<unsafe fn(proc_: *mut Proc, status: c_int, data: *mut c_void)>;
 pub type proc_state_cb = Option<unsafe fn(proc_: *mut Proc, suspended: bool, data: *mut c_void)>;
 pub type internal_proc_cb = Option<unsafe fn(proc_: *mut Proc)>;
 
 #[repr(C)]
-pub struct ProcHeader {
+pub struct Proc {
     pub r#type: c_int,
     pub loop_: *mut Loop,
     pub data: *mut c_void,
@@ -54,10 +49,9 @@ pub struct ProcHeader {
     pub argv: *mut *mut c_char,
     pub exepath: *const c_char,
     pub env: *mut dict_T,
-}
-
-#[repr(C)]
-pub struct ProcTail {
+    pub r#in: Stream,
+    pub out: RStream,
+    pub err: RStream,
     pub cb: proc_exit_cb,
     pub state_cb: proc_state_cb,
     pub internal_exit_cb: internal_proc_cb,
@@ -68,47 +62,79 @@ pub struct ProcTail {
     pub fwd_err: bool,
     pub stdio_noinherit: bool,
     pub events: *mut MultiQueue,
+    pub width: u16,
+    pub height: u16,
+    #[cfg(unix)]
+    pub winsize: crate::os::pty_proc_unix::winsize,
+    #[cfg(unix)]
+    pub tty_fd: c_int,
+    #[cfg(windows)]
+    pub conpty: *mut crate::os::pty_conpty_win::conpty_t,
+    #[cfg(windows)]
+    pub finish_wait: *mut c_void,
+    #[cfg(windows)]
+    pub proc_handle: *mut c_void,
 }
+
+impl Proc {
+    pub const fn new() -> Self {
+        Self {
+            r#type: 0,
+            loop_: ptr::null_mut(),
+            data: ptr::null_mut(),
+            pid: 0,
+            status: 0,
+            refcount: 0,
+            exit_signal: 0,
+            stopped_time: 0,
+            cwd: ptr::null(),
+            argv: ptr::null_mut(),
+            exepath: ptr::null(),
+            env: ptr::null_mut(),
+            r#in: Stream::new(),
+            out: RStream::new(),
+            err: RStream::new(),
+            cb: None,
+            state_cb: None,
+            internal_exit_cb: None,
+            internal_close_cb: None,
+            closed: false,
+            detach: false,
+            overlapped: false,
+            fwd_err: false,
+            stdio_noinherit: false,
+            events: ptr::null_mut(),
+            width: 0,
+            height: 0,
+            #[cfg(unix)]
+            winsize: crate::os::pty_proc_unix::winsize {
+                ws_row: 0,
+                ws_col: 0,
+                ws_xpixel: 0,
+                ws_ypixel: 0,
+            },
+            #[cfg(unix)]
+            tty_fd: 0,
+            #[cfg(windows)]
+            conpty: ptr::null_mut(),
+            #[cfg(windows)]
+            finish_wait: ptr::null_mut(),
+            #[cfg(windows)]
+            proc_handle: ptr::null_mut(),
+        }
+    }
+}
+
+pub type PtyProc = Proc;
 
 static mut proc_is_tearing_down: bool = false;
 static mut exit_need_delay: c_int = 0;
 
 use crate::event::r#loop::{uv_recv_buffer_size, uv_unref};
-use crate::event::rstream::rstream_size;
-
-#[inline]
-pub unsafe fn proc_header(proc_: *mut Proc) -> *mut ProcHeader {
-    proc_.cast::<ProcHeader>()
-}
-
-#[inline]
-pub unsafe fn proc_in(proc_: *mut Proc) -> *mut Stream {
-    unsafe { proc_.cast::<u8>().add(size_of::<ProcHeader>()).cast() }
-}
-
-#[inline]
-pub unsafe fn proc_out(proc_: *mut Proc) -> *mut RStream {
-    unsafe { proc_in(proc_).cast::<u8>().add(stream_size()).cast() }
-}
-
-#[inline]
-pub unsafe fn proc_err(proc_: *mut Proc) -> *mut RStream {
-    unsafe { proc_out(proc_).cast::<u8>().add(rstream_size()).cast() }
-}
-
-#[inline]
-pub unsafe fn proc_tail(proc_: *mut Proc) -> *mut ProcTail {
-    unsafe { proc_err(proc_).cast::<u8>().add(rstream_size()).cast() }
-}
-
-#[inline]
-pub unsafe fn proc_size() -> usize {
-    unsafe { size_of::<ProcHeader>() + stream_size() + 2 * rstream_size() + size_of::<ProcTail>() }
-}
 
 #[inline]
 pub unsafe fn libuv_proc_uv(proc_: *mut Proc) -> *mut uv_handle_t {
-    unsafe { proc_.cast::<u8>().add(proc_size()).cast() }
+    unsafe { (&raw mut (*proc_.cast::<LibuvProc>()).uv).cast() }
 }
 
 #[inline]
@@ -174,35 +200,31 @@ unsafe fn loop_process_events_until<F: FnMut() -> bool>(
 /// @returns zero on success, or negative error code
 pub unsafe fn proc_spawn(proc_: *mut Proc, in_: bool, out: bool, err: bool) -> c_int {
     unsafe {
-        let hdr = proc_header(proc_);
-        let tail = proc_tail(proc_);
-        let s_in = proc_in(proc_);
-        let r_out = proc_out(proc_);
-        let r_err = proc_err(proc_);
-        let s_out: *mut Stream = r_out.cast();
-        let s_err: *mut Stream = r_err.cast();
+        let s_in = &raw mut (*proc_).r#in;
+        let s_out = &raw mut (*proc_).out.s;
+        let s_err = &raw mut (*proc_).err.s;
 
-        debug_assert!(!(err && (*tail).fwd_err));
+        debug_assert!(!(err && (*proc_).fwd_err));
 
         if in_ {
-            uv_pipe_init((*hdr).loop_.cast(), stream_uv_ptr(s_in).cast(), 0);
+            uv_pipe_init((*proc_).loop_.cast(), (&raw mut (*s_in).uv).cast(), 0);
         } else {
-            *stream_closed_ptr(s_in) = true;
+            (*s_in).closed = true;
         }
 
         if out {
-            uv_pipe_init((*hdr).loop_.cast(), stream_uv_ptr(s_out).cast(), 0);
+            uv_pipe_init((*proc_).loop_.cast(), (&raw mut (*s_out).uv).cast(), 0);
         } else {
-            *stream_closed_ptr(s_out) = true;
+            (*s_out).closed = true;
         }
 
         if err {
-            uv_pipe_init((*hdr).loop_.cast(), stream_uv_ptr(s_err).cast(), 0);
+            uv_pipe_init((*proc_).loop_.cast(), (&raw mut (*s_err).uv).cast(), 0);
         } else {
-            *stream_closed_ptr(s_err) = true;
+            (*s_err).closed = true;
         }
 
-        let status = match (*hdr).r#type {
+        let status = match (*proc_).r#type {
             kProcTypeUv => libuv_proc_spawn(proc_.cast()),
             kProcTypePty => pty_proc_spawn(proc_.cast()),
             _ => unreachable!(),
@@ -210,55 +232,52 @@ pub unsafe fn proc_spawn(proc_: *mut Proc, in_: bool, out: bool, err: bool) -> c
 
         if status != 0 {
             if in_ {
-                uv_close(stream_uv_ptr(s_in).cast(), None);
+                uv_close((&raw mut (*s_in).uv).cast(), None);
             }
             if out {
-                uv_close(stream_uv_ptr(s_out).cast(), None);
+                uv_close((&raw mut (*s_out).uv).cast(), None);
             }
             if err {
-                uv_close(stream_uv_ptr(s_err).cast(), None);
+                uv_close((&raw mut (*s_err).uv).cast(), None);
             }
 
-            if (*hdr).r#type == kProcTypeUv {
+            if (*proc_).r#type == kProcTypeUv {
                 uv_close(libuv_proc_uv(proc_), None);
             } else {
                 proc_close(proc_);
             }
             proc_free(proc_);
-            (*hdr).status = -1;
+            (*proc_).status = -1;
             return status;
         }
 
         if in_ {
-            stream_init(ptr::null_mut(), s_in, -1, stream_uv_ptr(s_in).cast());
-            let f_in = stream_fields(s_in);
-            (*f_in).internal_data = proc_;
-            (*f_in).internal_close_cb = Some(on_proc_stream_close);
-            (*hdr).refcount += 1;
+            stream_init(ptr::null_mut(), s_in, -1, (&raw mut (*s_in).uv).cast());
+            (*s_in).internal_data = proc_.cast();
+            (*s_in).internal_close_cb = Some(on_proc_stream_close);
+            (*proc_).refcount += 1;
         }
 
         if out {
-            stream_init(ptr::null_mut(), s_out, -1, stream_uv_ptr(s_out).cast());
-            let f_out = stream_fields(s_out);
-            (*f_out).internal_data = proc_;
-            (*f_out).internal_close_cb = Some(on_proc_stream_close);
-            (*hdr).refcount += 1;
+            stream_init(ptr::null_mut(), s_out, -1, (&raw mut (*s_out).uv).cast());
+            (*s_out).internal_data = proc_.cast();
+            (*s_out).internal_close_cb = Some(on_proc_stream_close);
+            (*proc_).refcount += 1;
         }
 
         if err {
-            stream_init(ptr::null_mut(), s_err, -1, stream_uv_ptr(s_err).cast());
-            let f_err = stream_fields(s_err);
-            (*f_err).internal_data = proc_;
-            (*f_err).internal_close_cb = Some(on_proc_stream_close);
-            (*hdr).refcount += 1;
+            stream_init(ptr::null_mut(), s_err, -1, (&raw mut (*s_err).uv).cast());
+            (*s_err).internal_data = proc_.cast();
+            (*s_err).internal_close_cb = Some(on_proc_stream_close);
+            (*proc_).refcount += 1;
         }
 
-        (*tail).internal_exit_cb = Some(on_proc_exit);
-        (*tail).internal_close_cb = Some(decref);
-        (*hdr).refcount += 1;
+        (*proc_).internal_exit_cb = Some(on_proc_exit);
+        (*proc_).internal_close_cb = Some(decref);
+        (*proc_).refcount += 1;
 
-        let qc = loop_queues((*hdr).loop_);
-        (*qc).children.push(proc_);
+        let qc = loop_queues((*proc_).loop_);
+        (*qc).children.push(proc_.cast());
 
         0
     }
@@ -270,10 +289,8 @@ pub unsafe fn proc_teardown(loop_: *mut Loop) {
         let qc = loop_queues(loop_);
         for &p in &(*qc).children {
             let proc_ = p as *mut Proc;
-            let hdr = proc_header(proc_);
-            let tail = proc_tail(proc_);
-            if (*tail).detach || (*hdr).r#type == kProcTypePty {
-                create_event_1((*qc).events, proc_close_handles, proc_);
+            if (*proc_).detach || (*proc_).r#type == kProcTypePty {
+                create_event_1((*qc).events, proc_close_handles, proc_.cast());
             } else {
                 proc_stop(proc_);
             }
@@ -288,74 +305,71 @@ pub unsafe fn proc_teardown(loop_: *mut Loop) {
 
 pub unsafe fn proc_close_streams(proc_: *mut Proc) {
     unsafe {
-        stream_may_close(proc_in(proc_));
-        rstream_may_close(proc_out(proc_));
-        rstream_may_close(proc_err(proc_));
+        stream_may_close(&raw mut (*proc_).r#in);
+        rstream_may_close(&raw mut (*proc_).out);
+        rstream_may_close(&raw mut (*proc_).err);
     }
 }
 
 /// Synchronously wait for a process to finish
 pub unsafe fn proc_wait(proc_: *mut Proc, ms: c_int, mut events: *mut MultiQueue) -> c_int {
     unsafe {
-        let hdr = proc_header(proc_);
-        let tail = proc_tail(proc_);
-        if (*hdr).refcount == 0 {
-            let status = (*hdr).status;
-            loop_process_events((*hdr).loop_, (*tail).events, 0);
+        if (*proc_).refcount == 0 {
+            let status = (*proc_).status;
+            loop_process_events((*proc_).loop_, (*proc_).events, 0);
             return status;
         }
 
         if events.is_null() {
-            events = (*tail).events;
+            events = (*proc_).events;
         }
 
-        (*hdr).refcount += 1;
-        loop_process_events_until((*hdr).loop_, events, i64::from(ms), || {
-            got_int || (*hdr).refcount == 1
+        (*proc_).refcount += 1;
+        loop_process_events_until((*proc_).loop_, events, i64::from(ms), || {
+            got_int || (*proc_).refcount == 1
         });
 
         if got_int {
             got_int = false;
             proc_stop(proc_);
             if ms == -1 {
-                loop_process_events_until((*hdr).loop_, events, -1, || (*hdr).refcount == 1);
+                loop_process_events_until((*proc_).loop_, events, -1, || (*proc_).refcount == 1);
             } else {
-                loop_process_events((*hdr).loop_, events, 0);
+                loop_process_events((*proc_).loop_, events, 0);
             }
 
-            (*hdr).status = -2;
+            (*proc_).status = -2;
         }
 
-        if (*hdr).refcount == 1 {
+        if (*proc_).refcount == 1 {
             decref(proc_);
-            if !(*tail).events.is_null() {
-                multiqueue_process_events((*tail).events);
+            if !(*proc_).events.is_null() {
+                multiqueue_process_events((*proc_).events);
             }
         } else {
-            (*hdr).refcount -= 1;
+            (*proc_).refcount -= 1;
         }
 
-        (*hdr).status
+        (*proc_).status
     }
 }
 
 /// Ask a process to terminate and eventually kill if it doesn't respond
 pub unsafe fn proc_stop(proc_: *mut Proc) {
     unsafe {
-        let hdr = proc_header(proc_);
-        let exited = (*hdr).status >= 0;
-        if exited || (*hdr).stopped_time != 0 {
+        let exited = (*proc_).status >= 0;
+        if exited || (*proc_).stopped_time != 0 {
             return;
         }
-        (*hdr).stopped_time = os_hrtime();
+        (*proc_).stopped_time = os_hrtime();
 
-        match (*hdr).r#type {
+        match (*proc_).r#type {
             kProcTypeUv => {
-                (*hdr).exit_signal = SIGTERM as u8;
-                os_proc_tree_kill((*hdr).pid, SIGTERM);
+                (*proc_).exit_signal = SIGTERM as u8;
+                os_proc_tree_kill((*proc_).pid, SIGTERM);
             }
             kProcTypePty => {
-                (*hdr).exit_signal = SIGHUP as u8;
+                (*proc_).exit_signal = SIGHUP as u8;
                 proc_close_streams(proc_);
                 pty_proc_close_master(proc_.cast());
             }
@@ -363,7 +377,7 @@ pub unsafe fn proc_stop(proc_: *mut Proc) {
         }
 
         uv_timer_start(
-            loop_children_kill_timer((*hdr).loop_),
+            loop_children_kill_timer((*proc_).loop_),
             Some(children_kill_cb),
             KILL_TIMEOUT_MS,
             0,
@@ -374,10 +388,9 @@ pub unsafe fn proc_stop(proc_: *mut Proc) {
 /// Frees process-owned resources.
 pub unsafe fn proc_free(proc_: *mut Proc) {
     unsafe {
-        let hdr = proc_header(proc_);
-        if !(*hdr).argv.is_null() {
-            shell_free_argv((*hdr).argv);
-            (*hdr).argv = ptr::null_mut();
+        if !(*proc_).argv.is_null() {
+            shell_free_argv((*proc_).argv);
+            (*proc_).argv = ptr::null_mut();
         }
     }
 }
@@ -390,21 +403,20 @@ unsafe extern "C" fn children_kill_cb(handle: *mut uv_timer_t) {
 
         for &p in &(*qc).children {
             let proc_ = p as *mut Proc;
-            let hdr = proc_header(proc_);
-            let exited = (*hdr).status >= 0;
-            if exited || (*hdr).stopped_time == 0 {
+            let exited = (*proc_).status >= 0;
+            if exited || (*proc_).stopped_time == 0 {
                 continue;
             }
-            let term_sent = (*hdr).stopped_time == u64::MAX;
-            if (*hdr).r#type != kProcTypePty || term_sent {
-                (*hdr).exit_signal = SIGKILL as u8;
-                os_proc_tree_kill((*hdr).pid, SIGKILL);
+            let term_sent = (*proc_).stopped_time == u64::MAX;
+            if (*proc_).r#type != kProcTypePty || term_sent {
+                (*proc_).exit_signal = SIGKILL as u8;
+                os_proc_tree_kill((*proc_).pid, SIGKILL);
             } else {
-                (*hdr).exit_signal = SIGTERM as u8;
-                os_proc_tree_kill((*hdr).pid, SIGTERM);
-                (*hdr).stopped_time = u64::MAX;
+                (*proc_).exit_signal = SIGTERM as u8;
+                os_proc_tree_kill((*proc_).pid, SIGTERM);
+                (*proc_).stopped_time = u64::MAX;
                 uv_timer_start(
-                    loop_children_kill_timer((*hdr).loop_),
+                    loop_children_kill_timer((*proc_).loop_),
                     Some(children_kill_cb),
                     KILL_TIMEOUT_MS,
                     0,
@@ -417,10 +429,8 @@ unsafe extern "C" fn children_kill_cb(handle: *mut uv_timer_t) {
 unsafe fn proc_close_event(argv: *mut *mut c_void) {
     unsafe {
         let proc_ = *argv as *mut Proc;
-        let hdr = proc_header(proc_);
-        let tail = proc_tail(proc_);
-        if let Some(cb) = (*tail).cb {
-            cb(proc_, (*hdr).status, (*hdr).data);
+        if let Some(cb) = (*proc_).cb {
+            cb(proc_, (*proc_).status, (*proc_).data);
         } else {
             proc_free(proc_);
         }
@@ -429,39 +439,35 @@ unsafe fn proc_close_event(argv: *mut *mut c_void) {
 
 unsafe fn decref(proc_: *mut Proc) {
     unsafe {
-        let hdr = proc_header(proc_);
-        let tail = proc_tail(proc_);
-        (*hdr).refcount -= 1;
-        if (*hdr).refcount != 0 {
+        (*proc_).refcount -= 1;
+        if (*proc_).refcount != 0 {
             return;
         }
 
-        let loop_ = (*hdr).loop_;
+        let loop_ = (*proc_).loop_;
         let qc = loop_queues(loop_);
-        let idx = (*qc).children.iter().position(|&p| p == proc_).unwrap();
+        let idx = (*qc).children.iter().position(|&p| p == proc_.cast()).unwrap();
         (*qc).children.remove(idx);
-        create_event_1((*tail).events, proc_close_event, proc_);
+        create_event_1((*proc_).events, proc_close_event, proc_.cast());
     }
 }
 
 unsafe fn proc_close(proc_: *mut Proc) {
     unsafe {
-        let hdr = proc_header(proc_);
-        let tail = proc_tail(proc_);
         if proc_is_tearing_down
-            && (*tail).closed
-            && ((*tail).detach || (*hdr).r#type == kProcTypePty)
+            && (*proc_).closed
+            && ((*proc_).detach || (*proc_).r#type == kProcTypePty)
         {
             return;
         }
-        debug_assert!(!(*tail).closed);
-        (*tail).closed = true;
+        debug_assert!(!(*proc_).closed);
+        (*proc_).closed = true;
 
-        if (*tail).detach && (*hdr).r#type == kProcTypeUv {
+        if (*proc_).detach && (*proc_).r#type == kProcTypeUv {
             uv_unref(libuv_proc_uv(proc_));
         }
 
-        match (*hdr).r#type {
+        match (*proc_).r#type {
             kProcTypeUv => libuv_proc_close(proc_.cast()),
             kProcTypePty => pty_proc_close(proc_.cast()),
             _ => unreachable!(),
@@ -471,48 +477,46 @@ unsafe fn proc_close(proc_: *mut Proc) {
 
 unsafe fn flush_stream(proc_: *mut Proc, stream: *mut RStream) {
     unsafe {
-        if stream.is_null() || *stream_closed_ptr(stream.cast()) {
+        if stream.is_null() || (*stream).s.closed {
             return;
         }
-
-        let hdr = proc_header(proc_);
-        let s_fields = stream_fields(stream.cast());
-        let r_fields = rstream_fields(stream);
 
         let mut max_bytes = usize::MAX;
         let limit_bytes = if cfg!(windows) {
             true
         } else {
-            (*hdr).r#type != kProcTypePty || proc_is_tearing_down
+            (*proc_).r#type != kProcTypePty || proc_is_tearing_down
         };
         if limit_bytes {
             let mut system_buffer_size: c_int = 0;
             let err = uv_recv_buffer_size(
-                stream_uv_ptr(stream.cast()).cast(),
+                (&raw mut (*stream).s.uv).cast(),
                 &raw mut system_buffer_size,
             );
             if err != 0 {
                 system_buffer_size = ARENA_BLOCK_SIZE as c_int;
             }
-            max_bytes = (*r_fields).num_bytes + system_buffer_size as usize;
+            max_bytes = (*stream).num_bytes + system_buffer_size as usize;
         }
 
-        while !*stream_closed_ptr(stream.cast()) && (*r_fields).num_bytes < max_bytes {
-            let num_bytes = (*r_fields).num_bytes;
+        while !ptr::read_volatile(&raw const (*stream).s.closed)
+            && ptr::read_volatile(&raw const (*stream).num_bytes) < max_bytes
+        {
+            let num_bytes = (*stream).num_bytes;
 
-            if (*hdr).r#type == kProcTypePty && !(*r_fields).did_eof {
+            if (*proc_).r#type == kProcTypePty && !(*stream).did_eof {
                 pty_proc_flush_master(proc_.cast());
             }
-            loop_poll_events((*hdr).loop_, 0);
-            if !(*s_fields).events.is_null() {
-                multiqueue_process_events((*s_fields).events);
+            loop_poll_events((*proc_).loop_, 0);
+            if !(*stream).s.events.is_null() {
+                multiqueue_process_events((*stream).s.events);
             }
 
-            if num_bytes == (*r_fields).num_bytes {
-                if let Some(read_cb) = (*r_fields).read_cb
-                    && !(*r_fields).did_eof
+            if num_bytes == (*stream).num_bytes {
+                if let Some(read_cb) = (*stream).read_cb
+                    && !(*stream).did_eof
                 {
-                    read_cb(stream, (*r_fields).buffer, 0, (*s_fields).cb_data, true);
+                    read_cb(stream, (*stream).buffer, 0, (*stream).s.cb_data, true);
                 }
                 break;
             }
@@ -525,8 +529,8 @@ unsafe fn proc_close_handles(argv: *mut *mut c_void) {
         let proc_ = *argv as *mut Proc;
 
         exit_need_delay += 1;
-        flush_stream(proc_, proc_out(proc_));
-        flush_stream(proc_, proc_err(proc_));
+        flush_stream(proc_, &raw mut (*proc_).out);
+        flush_stream(proc_, &raw mut (*proc_).err);
 
         proc_close_streams(proc_);
         proc_close(proc_);
@@ -593,21 +597,19 @@ pub unsafe fn exit_on_closed_chan(status: c_int) {
 
 unsafe fn on_proc_exit(proc_: *mut Proc) {
     unsafe {
-        let hdr = proc_header(proc_);
-        let tail = proc_tail(proc_);
-        let qc = loop_queues((*hdr).loop_);
-        let queue = if !(*tail).events.is_null() {
-            (*tail).events
+        let qc = loop_queues((*proc_).loop_);
+        let queue = if !(*proc_).events.is_null() {
+            (*proc_).events
         } else {
             (*qc).events
         };
-        create_event_1(queue, proc_close_handles, proc_);
+        create_event_1(queue, proc_close_handles, proc_.cast());
     }
 }
 
 unsafe fn on_proc_stream_close(_stream: *mut Stream, data: *mut c_void) {
     unsafe {
-        let proc_: *mut Proc = data;
+        let proc_: *mut Proc = data.cast();
         decref(proc_);
     }
 }

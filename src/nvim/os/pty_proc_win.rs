@@ -28,13 +28,9 @@ use std::ptr;
 #[cfg(windows)]
 use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event};
 #[cfg(windows)]
-use crate::event::proc::{
-    Proc, PtyProc, proc_err, proc_header, proc_in, proc_out, proc_size, proc_tail,
-};
+use crate::event::proc::{Proc, PtyProc};
 #[cfg(windows)]
-use crate::event::rstream::rstream_fields;
-#[cfg(windows)]
-use crate::event::stream::{Stream, stream_closed_ptr, stream_fields, stream_uv_ptr, uv_stream_t};
+use crate::event::stream::{Stream, uv_stream_t};
 #[cfg(windows)]
 use crate::os::pty_conpty_win::{
     conpty_t, os_conpty_free, os_conpty_init, os_conpty_set_size, os_conpty_spawn,
@@ -140,15 +136,6 @@ mod win_impl {
     const WT_EXECUTEDEFAULT: c_ulong = 0x0000_0000;
     const WT_EXECUTEONLYONCE: c_ulong = 0x0000_0008;
 
-    #[repr(C)]
-    struct PtyProcWinTail {
-        width: u16,
-        height: u16,
-        conpty: *mut conpty_t,
-        finish_wait: HANDLE,
-        proc_handle: HANDLE,
-    }
-
     unsafe extern "system" {
         fn WaitForSingleObject(hHandle: HANDLE, dwMilliseconds: DWORD) -> DWORD;
         fn RegisterWaitForSingleObject(
@@ -164,13 +151,8 @@ mod win_impl {
     }
 
     #[inline]
-    unsafe fn pty_proc_win_tail(ptyproc: *mut PtyProc) -> *mut PtyProcWinTail {
-        unsafe {
-            ptyproc
-                .cast::<u8>()
-                .add(proc_size())
-                .cast::<PtyProcWinTail>()
-        }
+    unsafe fn pty_proc_win_tail(ptyproc: *mut PtyProc) -> *mut PtyProc {
+        ptyproc
     }
 
     #[inline]
@@ -190,12 +172,11 @@ mod win_impl {
 
     unsafe extern "system" fn pty_proc_terminate_cb(context: *mut c_void, _unused: BOOLEAN) {
         unsafe {
-            let proc_: *mut Proc = context;
-            let hdr = proc_header(proc_);
+            let proc_: *mut Proc = context.cast();
             let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
             argv[0] = context;
             loop_schedule_fast(
-                (*hdr).loop_,
+                (*proc_).loop_,
                 Event {
                     handler: Some(pty_proc_finish),
                     argv,
@@ -206,12 +187,11 @@ mod win_impl {
 
     unsafe fn pty_proc_close_console(stream: *mut Stream, _data: *mut c_void) {
         unsafe {
-            let s_fields = stream_fields(stream);
-            let ptyproc: *mut PtyProc = (*s_fields).internal_data;
-            let proc_: *mut Proc = ptyproc.cast();
-            let hdr = proc_header(proc_);
-            let r_out = proc_out(proc_);
-            let r_fields = rstream_fields(r_out);
+            let ptyproc = (*stream).internal_data.cast::<PtyProc>();
+            let proc_: *mut Proc = ptyproc;
+            let hdr = proc_;
+            let r_out = &raw mut (*proc_).out;
+            let r_fields = r_out;
             let ptail = pty_proc_win_tail(ptyproc);
             if (*ptail).conpty.is_null() {
                 return;
@@ -236,12 +216,12 @@ mod win_impl {
     /// @returns zero on success, or negative error code.
     pub unsafe fn pty_proc_spawn(ptyproc: *mut PtyProc) -> c_int {
         unsafe {
-            let proc_: *mut Proc = ptyproc.cast();
-            let hdr = proc_header(proc_);
+            let proc_: *mut Proc = ptyproc;
+            let hdr = proc_;
             let ptail = pty_proc_win_tail(ptyproc);
-            let s_in = proc_in(proc_);
-            let r_out = proc_out(proc_);
-            let r_err = proc_err(proc_);
+            let s_in = &raw mut (*proc_).r#in;
+            let r_out = &raw mut (*proc_).out;
+            let r_err = &raw mut (*proc_).err;
 
             let mut status: c_int;
             let mut conpty_object: *mut conpty_t = ptr::null_mut();
@@ -256,7 +236,7 @@ mod win_impl {
             let mut env: *mut u16 = ptr::null_mut();
             let mut emsg: *const c_char = ptr::null();
 
-            debug_assert!(*stream_closed_ptr(r_err.cast()));
+            debug_assert!((*r_err).s.closed);
 
             'cleanup: {
                 if !os_has_conpty_working() {
@@ -274,21 +254,21 @@ mod win_impl {
                     break 'cleanup;
                 }
 
-                if !*stream_closed_ptr(s_in) {
+                if !(*s_in).closed {
                     in_req = xmalloc(uv_req_size(UV_CONNECT)).cast();
                     uv_pipe_connect(
                         in_req,
-                        stream_uv_ptr(s_in).cast(),
+                        (&raw mut (*s_in).uv).cast(),
                         in_name,
                         Some(pty_proc_connect_cb),
                     );
                 }
 
-                if !*stream_closed_ptr(r_out.cast()) {
+                if !(*r_out).s.closed {
                     out_req = xmalloc(uv_req_size(UV_CONNECT)).cast();
                     uv_pipe_connect(
                         out_req,
-                        stream_uv_ptr(r_out.cast()).cast(),
+                        (&raw mut (*r_out).s.uv).cast(),
                         out_name,
                         Some(pty_proc_connect_cb),
                     );
@@ -350,7 +330,7 @@ mod win_impl {
                     &raw mut (*ptail).finish_wait,
                     proc_handle,
                     Some(pty_proc_terminate_cb),
-                    ptyproc,
+                    ptyproc.cast(),
                     INFINITE,
                     WT_EXECUTEDEFAULT | WT_EXECUTEONLYONCE,
                 ) == 0
@@ -366,8 +346,7 @@ mod win_impl {
                     uv_run((*hdr).loop_.cast(), UV_RUN_ONCE);
                 }
 
-                let out_s_fields = stream_fields(r_out.cast());
-                (*out_s_fields).before_close_cb = Some(pty_proc_close_console);
+                (*r_out).s.before_close_cb = Some(pty_proc_close_console);
                 (*ptail).conpty = conpty_object;
                 (*ptail).proc_handle = proc_handle;
                 conpty_object = ptr::null_mut();
@@ -421,8 +400,8 @@ mod win_impl {
 
     pub unsafe fn pty_proc_close(ptyproc: *mut PtyProc) {
         unsafe {
-            let proc_: *mut Proc = ptyproc.cast();
-            let proc_t = proc_tail(proc_);
+            let proc_: *mut Proc = ptyproc;
+            let proc_t = proc_;
             let ptail = pty_proc_win_tail(ptyproc);
 
             pty_proc_close_master(ptyproc);
@@ -456,9 +435,9 @@ mod win_impl {
     unsafe fn pty_proc_finish(argv: *mut *mut c_void) {
         unsafe {
             let ptyproc = *argv as *mut PtyProc;
-            let proc_: *mut Proc = ptyproc.cast();
-            let hdr = proc_header(proc_);
-            let proc_t = proc_tail(proc_);
+            let proc_: *mut Proc = ptyproc;
+            let hdr = proc_;
+            let proc_t = proc_;
             let ptail = pty_proc_win_tail(ptyproc);
 
             let mut exit_code: DWORD = 0;
