@@ -17,7 +17,7 @@ use crate::eval::vars::{VV_FNAME, set_vim_var_string};
 use crate::eval::{eval_expr_option_tv, get_v_event, restore_v_event};
 use crate::globals::*;
 use crate::mbyte::{mb_tolower, utf_head_off, utf_ptr2char, utfc_ptr2len};
-use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xstrdup, xstrlcpy};
+use crate::memory::{xfree, xmalloc, xmemcpyz, xmemdupz, xstrdup, xstrlcpy};
 use crate::message::{emsg, semsg};
 use crate::normal::get_visual_text;
 use crate::option::{OPT_LOCAL, copy_option_part, was_set_insecurely};
@@ -167,12 +167,21 @@ pub unsafe fn vim_findfile_init(
         let search_ctx: *mut ff_search_ctx_T = if !search_ctx_arg.is_null() {
             search_ctx_arg
         } else {
-            let ctx = xcalloc(1, size_of::<ff_search_ctx_T>()).cast::<ff_search_ctx_T>();
-            ptr::write(&raw mut (*ctx).ffsc_stack, Vec::new());
-            ptr::write(&raw mut (*ctx).ffsc_visited_lists_list, Vec::new());
-            ptr::write(&raw mut (*ctx).ffsc_dir_visited_lists_list, Vec::new());
-            ptr::write(&raw mut (*ctx).ffsc_stopdirs_v, Vec::new());
-            ctx
+            Box::into_raw(Box::new(ff_search_ctx_T {
+                ffsc_stack: Vec::new(),
+                ffsc_visited_list: ptr::null_mut(),
+                ffsc_dir_visited_list: ptr::null_mut(),
+                ffsc_visited_lists_list: Vec::new(),
+                ffsc_dir_visited_lists_list: Vec::new(),
+                ffsc_file_to_search: NULL_STRING,
+                ffsc_start_dir: NULL_STRING,
+                ffsc_fix_path: NULL_STRING,
+                ffsc_wc_path: NULL_STRING,
+                ffsc_level: 0,
+                ffsc_stopdirs_v: Vec::new(),
+                ffsc_find_what: 0,
+                ffsc_tagfile: 0,
+            }))
         };
         (*search_ctx).ffsc_find_what = find_what;
         (*search_ctx).ffsc_tagfile = tagfile;
@@ -521,11 +530,7 @@ pub unsafe fn vim_findfile_cleanup(search_ctx: *mut ff_search_ctx_T) {
 
         vim_findfile_free_visited(search_ctx);
         ff_clear(search_ctx);
-        ptr::drop_in_place(&raw mut (*search_ctx).ffsc_stack);
-        ptr::drop_in_place(&raw mut (*search_ctx).ffsc_visited_lists_list);
-        ptr::drop_in_place(&raw mut (*search_ctx).ffsc_dir_visited_lists_list);
-        ptr::drop_in_place(&raw mut (*search_ctx).ffsc_stopdirs_v);
-        xfree(search_ctx.cast());
+        drop(Box::from_raw(search_ctx));
     }
 }
 

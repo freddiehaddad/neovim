@@ -36,7 +36,7 @@ use crate::highlight::{highlight_use_hlstate, ui_send_all_hls};
 use crate::log::{LOGLVL_ERR, logmsg};
 use crate::lua::converter::LuaRef;
 use crate::lua::executor::{api_free_luaref, kRetNilBool, nlua_call_ref_ctx};
-use crate::memory::{Arena, arena_finish, arena_mem_free, xcalloc, xfree};
+use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::message::{
     msg, msg_ext_ui_flush, msg_schedule_semsg, msg_schedule_semsg_multiline, msg_scroll_flush,
     msg_source, msg_ui_refresh,
@@ -54,7 +54,6 @@ use crate::ui_compositor::{
 use crate::window::{win_set_inner_size, win_ui_flush};
 use crate::winfloat::win_config_float;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
-use std::mem::size_of;
 use std::ptr;
 
 const MAX_UI_COUNT: usize = 16;
@@ -964,14 +963,17 @@ unsafe fn ui_cb_update_ext() {
 unsafe fn free_ui_event_callback(event_cb: *mut UIEventCallback) {
     unsafe {
         api_free_luaref((*event_cb).cb);
-        xfree(event_cb.cast());
+        drop(Box::from_raw(event_cb));
     }
 }
 
 pub unsafe fn ui_add_cb(ns_id: u32, cb: LuaRef, ext_widgets: *mut bool) {
     unsafe {
-        let event_cb = xcalloc(1, size_of::<UIEventCallback>()).cast::<UIEventCallback>();
-        (*event_cb).cb = cb;
+        let event_cb = Box::into_raw(Box::new(UIEventCallback {
+            cb,
+            errors: 0,
+            ext_widgets: [false; kUIGlobalCount],
+        }));
         ptr::copy_nonoverlapping(
             ext_widgets,
             (&raw mut (*event_cb).ext_widgets).cast::<bool>(),

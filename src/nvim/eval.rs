@@ -1835,7 +1835,7 @@ pub unsafe fn eval_for_line(
     evalarg: *mut evalarg_T,
 ) -> *mut c_void {
     unsafe {
-        let fi = xcalloc(1, size_of::<forinfo_T>()).cast::<forinfo_T>();
+        let fi = Box::into_raw(Box::new(std::mem::zeroed::<forinfo_T>()));
         let mut tv = tv_initial_value();
         let skip = ((*evalarg).eval_flags & EVAL_EVALUATE) == 0;
 
@@ -1995,7 +1995,7 @@ pub unsafe fn free_for_info(fi_void: *mut c_void) {
         } else {
             xfree((*fi).fi_string.cast());
         }
-        xfree(fi.cast());
+        drop(Box::from_raw(fi));
     }
 }
 

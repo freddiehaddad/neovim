@@ -374,12 +374,14 @@ struct FileMarks {
 }
 
 #[inline]
-unsafe fn alloc_file_marks() -> *mut FileMarks {
-    unsafe {
-        let fm = xcalloc(1, std::mem::size_of::<FileMarks>()).cast::<FileMarks>();
-        ptr::write(&raw mut (*fm).additional_marks, Vec::new());
-        fm
-    }
+fn alloc_file_marks() -> *mut FileMarks {
+    Box::into_raw(Box::new(FileMarks {
+        marks: [MISSING_ENTRY; NLOCALMARKS],
+        changes: [MISSING_ENTRY; JUMPLISTSIZE],
+        changes_size: 0,
+        additional_marks: Vec::new(),
+        greatest_timestamp: 0,
+    }))
 }
 
 #[repr(C)]
@@ -395,6 +397,40 @@ struct WriteMergerState {
     replacement: ShadaEntry,
     dumped_variables: std::collections::HashSet<Vec<u8>>,
     file_marks: std::collections::HashMap<Vec<u8>, *mut FileMarks>,
+}
+
+impl WriteMergerState {
+    fn new() -> Box<Self> {
+        Box::new(Self {
+            hms: std::array::from_fn(|_| HistoryMergerState {
+                hmll: HMLList {
+                    entries: Vec::new(),
+                    first: None,
+                    last: None,
+                    free_entry: None,
+                    last_free_entry: 0,
+                    size: 0,
+                    num_entries: 0,
+                    contained_entries: std::collections::HashMap::new(),
+                },
+                do_merge: false,
+                reading: false,
+                iter: ptr::null(),
+                last_hist_entry: MISSING_ENTRY,
+                history_type: 0,
+            }),
+            global_marks: [MISSING_ENTRY; NMARKS],
+            numbered_marks: [MISSING_ENTRY; EXTRA_MARKS],
+            registers: [MISSING_ENTRY; NUM_SAVED_REGISTERS],
+            jumps: [MISSING_ENTRY; JUMPLISTSIZE],
+            jumps_size: 0,
+            search_pattern: MISSING_ENTRY,
+            sub_search_pattern: MISSING_ENTRY,
+            replacement: MISSING_ENTRY,
+            dumped_variables: std::collections::HashSet::new(),
+            file_marks: std::collections::HashMap::new(),
+        })
+    }
 }
 
 const MISSING_ENTRY: ShadaEntry = ShadaEntry {
@@ -2112,7 +2148,7 @@ unsafe fn shada_read_when_writing(
                     let filemarks = *(*wms)
                         .file_marks
                         .entry(fname_bytes)
-                        .or_insert_with(|| alloc_file_marks());
+                        .or_insert_with(alloc_file_marks);
                     if entry.timestamp > (*filemarks).greatest_timestamp {
                         (*filemarks).greatest_timestamp = entry.timestamp;
                     }
@@ -2486,12 +2522,8 @@ unsafe fn shada_write(
             return ret;
         }
 
-        let wms = xcalloc(1, std::mem::size_of::<WriteMergerState>()).cast::<WriteMergerState>();
-        ptr::write(
-            &raw mut (*wms).dumped_variables,
-            std::collections::HashSet::new(),
-        );
-        ptr::write(&raw mut (*wms).file_marks, std::collections::HashMap::new());
+        let mut wms_box = WriteMergerState::new();
+        let wms: *mut WriteMergerState = &raw mut *wms_box;
         let mut dump_one_history = [false; HIST_COUNT];
         let dump_global_vars = !find_shada_parameter(b'!' as c_int).is_null();
         let mut max_reg_lines = get_shada_parameter(b'<' as c_int);
@@ -2834,7 +2866,7 @@ unsafe fn shada_write(
                         let filemarks = *(*wms)
                             .file_marks
                             .entry(fname_bytes)
-                            .or_insert_with(|| alloc_file_marks());
+                            .or_insert_with(alloc_file_marks);
                         loop {
                             let mut fm = std::mem::zeroed::<fmark_T>();
                             let mut name: c_char = NUL;
@@ -3035,15 +3067,11 @@ unsafe fn shada_write(
             for mut add_entry in (*val).additional_marks.drain(..) {
                 shada_free_shada_entry(&mut add_entry);
             }
-            ptr::drop_in_place(&raw mut (*val).additional_marks);
-            xfree(val.cast::<c_void>());
+            drop(Box::from_raw(val));
         }
-        ptr::drop_in_place(&raw mut (*wms).file_marks);
         if let Some(flush) = packer.packer_flush {
             flush(&mut packer);
         }
-        ptr::drop_in_place(&raw mut (*wms).dumped_variables);
-        xfree(wms.cast::<c_void>());
         ret
     }
 }
@@ -4251,10 +4279,10 @@ unsafe fn shada_init_jumps(
 /// Gets registers as a msgpack-encoded string, in shada format (`shada_encode_regs`).
 pub unsafe fn shada_encode_regs(scale_ts: bool, since: Timestamp) -> NvimString {
     unsafe {
-        let wms = xcalloc(1, std::mem::size_of::<WriteMergerState>()).cast::<WriteMergerState>();
-        shada_initialize_registers(wms, -1, scale_ts);
+        let mut wms = WriteMergerState::new();
+        shada_initialize_registers(&raw mut *wms, -1, scale_ts);
         let mut packer = packer_string_buffer();
-        for entry in (*wms).registers {
+        for entry in wms.registers {
             if entry.entry_type == ShadaEntryType::kSDItemRegister
                 && entry.timestamp >= since
                 && shada_pack_pfreed_entry(&mut packer, entry, 0)
@@ -4263,7 +4291,6 @@ pub unsafe fn shada_encode_regs(scale_ts: bool, since: Timestamp) -> NvimString 
                 std::process::abort();
             }
         }
-        xfree(wms.cast::<c_void>());
         packer_take_string(&mut packer)
     }
 }

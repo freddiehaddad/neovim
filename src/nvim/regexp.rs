@@ -22,7 +22,7 @@ use crate::mbyte::{
     utf_head_off, utf_iscomposing_legacy, utf_ptr2char, utf_ptr2len, utf_strnicmp, utfc_ptr2len,
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
-use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xstrdup};
+use crate::memory::{xfree, xmalloc, xmemcpyz, xstrdup};
 use crate::message::{emsg, iemsg, internal_error, msg_puts, semsg, verbose_enter, verbose_leave};
 use crate::option_vars::*;
 use crate::os::input::fast_breakcheck;
@@ -1637,11 +1637,10 @@ pub(super) unsafe fn reg_getline_len(lnum: linenr_T) -> colnr_T {
 }
 
 pub(super) unsafe fn make_extmatch() -> *mut reg_extmatch_T {
-    unsafe {
-        let em = xcalloc(1, size_of::<reg_extmatch_T>()).cast::<reg_extmatch_T>();
-        (*em).refcnt = 1;
-        em
-    }
+    Box::into_raw(Box::new(reg_extmatch_T {
+        refcnt: 1,
+        matches: [ptr::null_mut(); NSUBEXP],
+    }))
 }
 
 pub unsafe fn ref_extmatch(em: *mut reg_extmatch_T) -> *mut reg_extmatch_T {
@@ -1661,7 +1660,7 @@ pub unsafe fn unref_extmatch(em: *mut reg_extmatch_T) {
                 for i in 0..NSUBEXP {
                     xfree((*em).matches[i].cast());
                 }
-                xfree(em.cast());
+                drop(Box::from_raw(em));
             }
         }
     }

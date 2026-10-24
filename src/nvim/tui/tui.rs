@@ -41,7 +41,7 @@ use crate::log::{LOGLVL_DBG, LOGLVL_ERR, LOGLVL_WRN, g_min_log_level, logmsg};
 use crate::lua::executor::{kRetObject, nlua_exec};
 use crate::mbyte::{utf_ambiguous_width, utf_char2cells, utf_ptr2char};
 use crate::memory::{
-    Arena, arena_finish, arena_mem_free, arena_memdupz, arena_strdup, strequal, xcalloc, xfree,
+    Arena, arena_finish, arena_mem_free, arena_memdupz, arena_strdup, strequal, xfree,
 };
 #[cfg(windows)]
 use crate::memory::xstrdup;
@@ -286,18 +286,20 @@ pub unsafe fn tui_start(
     rgb: *mut bool,
 ) {
     unsafe {
-        let tui = xcalloc(1, size_of::<TUIData>()).cast::<TUIData>();
+        let mut tui_uninit = Box::new(std::mem::MaybeUninit::<TUIData>::zeroed());
+        let tui = tui_uninit.as_mut_ptr();
+        ptr::write(&raw mut (*tui).invalid_regions, Vec::new());
+        ptr::write(&raw mut (*tui).attrs, vec![HLATTRS_INIT]);
+        ptr::write(&raw mut (*tui).grid.cells, Vec::new());
+        let _ = Box::into_raw(tui_uninit);
         (*tui).is_starting = true;
         (*tui).screenshot = ptr::null_mut();
         (*tui).stopped = false;
         (*tui).loop_ = (&raw mut main_loop).cast::<Loop>();
         (*tui).url = -1;
 
-        ptr::write(&raw mut (*tui).invalid_regions, Vec::new());
         signal_watcher_init((*tui).loop_, tui_winch_handle(tui), tui.cast());
         signal_watcher_start(tui_winch_handle(tui), Some(sigwinch_cb), SIGWINCH);
-
-        ptr::write(&raw mut (*tui).attrs, vec![HLATTRS_INIT]);
 
         (*input_prefix(tui_input(tui))).tk_ti_hook_fn = Some(tui_tk_ti_getstr);
         ugrid_init(&mut (*tui).grid);
@@ -1159,13 +1161,11 @@ pub unsafe fn tui_is_stopped(tui: *mut TUIData) -> bool {
 pub unsafe fn tui_free_all_mem(tui: *mut TUIData) {
     unsafe {
         ugrid_free(&mut (*tui).grid);
-        ptr::drop_in_place(&raw mut (*tui).invalid_regions);
 
         let urls_ptr = &raw mut urls;
         *urls_ptr = Vec::new();
 
-        ptr::drop_in_place(&raw mut (*tui).attrs);
-        xfree(tui.cast());
+        drop(Box::from_raw(tui));
     }
 }
 

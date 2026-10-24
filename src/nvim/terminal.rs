@@ -78,7 +78,7 @@ use crate::highlight::HlAttrs;
 use crate::mark::{kMarkAdjustTerm, mark_adjust_buf};
 use crate::mbyte::{mb_check_adjust_col, utf_ptr2char, utf_ptr2len};
 use crate::memline::{ml_append_buf, ml_delete_buf, ml_replace_buf};
-use crate::memory::{strequal, xcalloc, xfree, xmemdup, xmemdupz, xstrdup};
+use crate::memory::{strequal, xfree, xmemdup, xmemdupz, xstrdup};
 use crate::mouse::{
     MSCR_DOWN, MSCR_LEFT, MSCR_RIGHT, MSCR_UP, do_mousescroll, mouse_find_win_inner,
 };
@@ -674,14 +674,39 @@ pub unsafe fn terminal_alloc(buf: *mut buf_T, mut opts: TerminalOptions) -> *mut
             opts.height = 24;
         }
 
-        let term = xcalloc(1, size_of::<Terminal>()).cast::<Terminal>();
-        ptr::write(&raw mut (*term).sb_buffer, Vec::new());
-        ptr::write(&raw mut (*term).title, Vec::new());
-        ptr::write(&raw mut (*term).selection, Vec::new());
-        ptr::write(&raw mut (*term).termrequest_buffer, Vec::new());
-        (*term).opts = opts;
-
-        (*term).buf_handle = (*buf).b_fnum;
+        let term = Box::into_raw(Box::new(Terminal {
+            opts,
+            vt: ptr::null_mut(),
+            vts: ptr::null_mut(),
+            textbuf: [0; TEXTBUF_SIZE],
+            sb_buffer: Vec::new(),
+            sb_allocated: false,
+            sb_size: 0,
+            sb_pending: 0,
+            sb_deleted: 0,
+            old_sb_deleted: 0,
+            old_height: 0,
+            title: Vec::new(),
+            buf_handle: (*buf).b_fnum,
+            in_altscreen: false,
+            suspended: false,
+            closed: false,
+            destroy: false,
+            forward_mouse: false,
+            invalid_start: 0,
+            invalid_end: 0,
+            cursor: std::mem::zeroed(),
+            pending: std::mem::zeroed(),
+            streamed_paste: false,
+            theme_updates: false,
+            synchronized_output: false,
+            sync_flush_pending: false,
+            color_set: [false; 16],
+            selection: Vec::new(),
+            termrequest_buffer: Vec::new(),
+            termrequest_terminator: 0,
+            refcount: 0,
+        }));
         (*buf).terminal = term;
         (*term).vt = vterm_new(c_int::from(opts.height), c_int::from(opts.width));
         vterm_set_utf8((*term).vt, 1);
@@ -1407,13 +1432,9 @@ pub unsafe fn terminal_destroy(termpp: *mut *mut Terminal) {
                 unblock_autocmds();
                 (*inv_ptr).swap_remove(pos);
             }
-            ptr::drop_in_place(&raw mut (*term).sb_buffer);
-            ptr::drop_in_place(&raw mut (*term).title);
-            ptr::drop_in_place(&raw mut (*term).selection);
-            ptr::drop_in_place(&raw mut (*term).termrequest_buffer);
             vterm_free((*term).vt);
             multiqueue_free((*term).pending.events);
-            xfree(term.cast::<c_void>());
+            drop(Box::from_raw(term));
             *termpp = ptr::null_mut();
         }
     }

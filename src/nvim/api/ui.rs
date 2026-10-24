@@ -20,7 +20,7 @@ use crate::highlight::{HlAttrs, hl_get_url, hlattrs2dict, syn_attr2entry};
 use crate::lua::converter::{Boolean, Float};
 use crate::mbyte::utf_ambiguous_width;
 use crate::memory::{
-    Arena, alloc_block, arena_finish, arena_mem_free, free_block, strequal, xcalloc, xfree,
+    Arena, alloc_block, arena_finish, arena_mem_free, free_block, strequal, xfree,
 };
 #[cfg(windows)]
 use crate::msgpack_rpc::channel::channel_prefix;
@@ -36,7 +36,7 @@ use crate::ui::{
     ui_refresh, ui_set_ext_option,
 };
 use std::ffi::{CStr, c_char, c_int, c_void};
-use std::mem::{size_of, zeroed};
+use std::mem::zeroed;
 use std::ptr;
 
 #[cfg(windows)]
@@ -132,7 +132,7 @@ unsafe fn remote_ui_destroy(ui: *mut RemoteUI) {
         xfree((*ui).packer.startptr.cast());
         xfree((*ui).term_name.cast());
         (*ui).term_name = ptr::null_mut();
-        xfree(ui.cast());
+        drop(Box::from_raw(ui));
     }
 }
 
@@ -316,7 +316,7 @@ pub unsafe extern "C" fn nvim_ui_attach(
             return;
         }
 
-        let ui = xcalloc(1, size_of::<RemoteUI>()).cast::<RemoteUI>();
+        let ui = Box::into_raw(Box::new(std::mem::zeroed::<RemoteUI>()));
         (*ui).channel_id = channel_id;
         (*ui).width = width as c_int;
         (*ui).height = height as c_int;
@@ -328,7 +328,7 @@ pub unsafe extern "C" fn nvim_ui_attach(
             let item = *options.items.add(i);
             ui_set_option(ui, true, item.key, item.value, err);
             if error_set(err) {
-                xfree(ui.cast());
+                remote_ui_destroy(ui);
                 return;
             }
         }

@@ -26,7 +26,7 @@ use crate::globals::*;
 use crate::log::logmsg;
 use crate::memory::{
     ARENA_BLOCK_SIZE, Arena, ArenaMem, alloc_block, arena_finish, arena_mem_free, free_block,
-    xcalloc, xfree, xmalloc,
+    xfree, xmalloc,
 };
 use crate::message::semsg;
 use crate::msgpack_rpc::packer::{
@@ -282,7 +282,7 @@ pub unsafe fn rpc_start(channel: *mut Channel) {
         (*ct).is_rpc = true;
         let rpc = &raw mut (*ct).rpc;
         (*rpc).closed = false;
-        (*rpc).unpacker = xcalloc(1, size_of::<Unpacker>()).cast::<Unpacker>();
+        (*rpc).unpacker = Box::into_raw(Box::new(std::mem::zeroed::<Unpacker>()));
         unpacker_init((*rpc).unpacker);
         (*rpc).next_request_id = 1;
         (*rpc).info = Dict {
@@ -873,7 +873,7 @@ pub unsafe fn rpc_free(channel: *mut Channel) {
     unsafe {
         let ct = channel_tail(channel);
         unpacker_teardown((*ct).rpc.unpacker);
-        xfree((*ct).rpc.unpacker.cast());
+        drop(Box::from_raw((*ct).rpc.unpacker));
 
         ptr::drop_in_place(&raw mut (*ct).rpc.call_stack);
         api_free_dict((*ct).rpc.info);

@@ -57,7 +57,7 @@ use crate::mbyte::{
     utf_ptr2cells, utf_ptr2char, utf_ptr2len, utf8len_tab, utfc_ptr2len, utfc_ptr2len_len,
 };
 use crate::memory::{
-    Arena, arena_alloc, strequal, xcalloc, xfree, xmalloc, xmemdupz, xmemrchr, xstrdup, xstrlcat,
+    Arena, arena_alloc, strequal, xfree, xmalloc, xmemdupz, xmemrchr, xstrdup, xstrlcat,
     xstrlcpy, xstrnlen,
 };
 use crate::mouse::{MOUSE_SETPOS, jump_to_mouse, setmouse};
@@ -81,7 +81,6 @@ use crate::ui::{
 };
 use crate::ui_compositor::{ui_comp_put_grid, ui_comp_remove_grid};
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_ulong, c_void};
-use std::mem::size_of;
 use std::ptr;
 
 pub type MsgID = Object;
@@ -172,7 +171,7 @@ static mut msg_ext_id: MsgID = Object {
     obj_type: ObjectType::kObjectTypeInteger,
     data: ObjectData { integer: 1 },
 };
-static mut msg_ext_chunks: *mut Array = ptr::null_mut();
+static mut msg_ext_chunks: Array = Array::new();
 static mut msg_ext_last_chunk: Vec<c_char> = Vec::new();
 static mut msg_ext_last_attr: sattr_T = -1;
 static mut msg_ext_last_hl_id: c_int = 0;
@@ -2902,9 +2901,6 @@ pub unsafe fn msg_puts_len(str_: *const c_char, len: isize, hl_id: c_int, hist: 
 
 unsafe fn msg_ext_emit_chunk() {
     unsafe {
-        if msg_ext_chunks.is_null() {
-            msg_ext_init_chunks();
-        }
         if msg_ext_last_attr == -1 {
             return;
         }
@@ -2932,7 +2928,8 @@ unsafe fn msg_ext_emit_chunk() {
                 integer: msg_ext_last_hl_id as Integer,
             },
         });
-        (*msg_ext_chunks).push(Object {
+        let chunks = &raw mut msg_ext_chunks;
+        (*chunks).push(Object {
             obj_type: ObjectType::kObjectTypeArray,
             data: ObjectData { array: chunk },
         });
@@ -3929,10 +3926,10 @@ pub unsafe fn msg_end() -> bool {
 
 /// Clear "msg_ext_chunks" before flushing so that ui_flush() does not re-emit
 /// the same message recursively.
-unsafe fn msg_ext_init_chunks() -> *mut Array {
+unsafe fn msg_ext_init_chunks() -> Array {
     unsafe {
-        let tofree = msg_ext_chunks;
-        msg_ext_chunks = xcalloc(1, size_of::<Array>()).cast();
+        let chunks = &raw mut msg_ext_chunks;
+        let tofree = std::mem::take(&mut *chunks);
         msg_col = 0;
         tofree
     }
@@ -3948,12 +3945,13 @@ pub unsafe fn msg_ext_ui_flush() {
         }
 
         msg_ext_emit_chunk();
-        if (*msg_ext_chunks).size > 0 {
+        let chunks = &raw const msg_ext_chunks;
+        if (*chunks).size > 0 {
             let tofree = msg_ext_init_chunks();
 
             ui_call_msg_show(
                 cstr_as_string(msg_ext_kind),
-                *tofree,
+                tofree,
                 msg_ext_overwrite,
                 msg_ext_history,
                 msg_ext_append,
@@ -3961,22 +3959,21 @@ pub unsafe fn msg_ext_ui_flush() {
                 cstr_as_string(msg_ext_trigger),
             );
             if msg_ext_history {
-                api_free_array(*tofree);
+                api_free_array(tofree);
             } else {
                 // Add to history as temporary message for "g<".
                 let mut msg = HlMessage::new();
-                for i in 0..(*tofree).size {
-                    let chunk = (*(*tofree).items.add(i)).data.array.items;
+                for i in 0..tofree.size {
+                    let chunk = (*tofree.items.add(i)).data.array.items;
                     msg.push(HlMessageChunk {
                         text: (*chunk.add(1)).data.string,
                         hl_id: (*chunk.add(2)).data.integer as c_int,
                     });
                     xfree(chunk.cast());
                 }
-                xfree((*tofree).items.cast());
+                xfree(tofree.items.cast());
                 msg_hist_add_multihl(msg, true);
             }
-            xfree(tofree.cast());
             msg_ext_overwrite = false;
             msg_ext_history = false;
             msg_ext_append = false;
@@ -4003,9 +4000,8 @@ pub unsafe fn msg_ext_flush_showmode() {
             SHOWMODE_CLEAR = msg_ext_last_attr != -1;
             msg_ext_emit_chunk();
             let tofree = msg_ext_init_chunks();
-            ui_call_msg_showmode(*tofree);
-            api_free_array(*tofree);
-            xfree(tofree.cast());
+            ui_call_msg_showmode(tofree);
+            api_free_array(tofree);
         }
     }
 }
