@@ -951,13 +951,9 @@ pub unsafe fn ml_recover(checkext: bool) {
             };
             (*mfp).mf_infile_count = (*mfp).mf_blocknr_max;
 
-            let new_data = xmalloc((*mfp).mf_page_size as usize);
-            ptr::copy(
-                (*hp).bh_data.cast::<u8>(),
-                new_data.cast::<u8>(),
-                previous_page_size as usize,
-            );
-            xfree((*hp).bh_data);
+            let new_data = xmalloc((*mfp).mf_page_size as usize).cast::<u8>();
+            ptr::copy((*hp).bh_data, new_data, previous_page_size as usize);
+            xfree((*hp).bh_data.cast());
             (*hp).bh_data = new_data;
             b0p = (*hp).bh_data.cast::<ZeroBlock>();
         }

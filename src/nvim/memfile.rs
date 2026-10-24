@@ -15,7 +15,7 @@ use crate::os::fs::{
 use crate::os::input::{os_breakcheck, os_char_avail};
 use crate::path::FullName_save;
 use crate::strings::{gettext, strerror};
-use std::ffi::{c_char, c_int, c_uint, c_void};
+use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
 
 pub type blocknr_T = i64;
@@ -50,7 +50,7 @@ const S_IWRITE: c_int = 0o200;
 #[repr(C)]
 pub struct bhdr_T {
     pub bh_bnum: blocknr_T,
-    pub bh_data: *mut c_void,
+    pub bh_data: *mut u8,
     pub bh_page_count: c_uint,
     pub bh_flags: c_uint,
 }
@@ -62,7 +62,7 @@ pub struct memfile_T {
     pub mf_fd: c_int,
     pub mf_flags: c_int,
     pub mf_reopen: bool,
-    pub mf_free_first: *mut bhdr_T,
+    pub mf_free_list: Vec<*mut bhdr_T>,
     pub mf_hash: std::collections::HashMap<i64, *mut bhdr_T>,
     pub mf_trans: std::collections::HashMap<i64, i64>,
     pub mf_blocknr_max: blocknr_T,
@@ -116,7 +116,7 @@ pub unsafe fn mf_open(fname: *mut c_char, flags: c_int) -> *mut memfile_T {
             mf_fd: -1,
             mf_flags: 0,
             mf_reopen: false,
-            mf_free_first: ptr::null_mut(),
+            mf_free_list: Vec::new(),
             mf_hash: std::collections::HashMap::new(),
             mf_trans: std::collections::HashMap::new(),
             mf_blocknr_max: 0,
@@ -191,8 +191,8 @@ pub unsafe fn mf_close(mfp: *mut memfile_T, del_file: bool) {
         for (_, hp) in (*mfp).mf_hash.drain() {
             mf_free_bhdr(hp);
         }
-        while !(*mfp).mf_free_first.is_null() {
-            drop(Box::from_raw(mf_rem_free(mfp)));
+        for hp in (*mfp).mf_free_list.drain(..) {
+            drop(Box::from_raw(hp));
         }
         mf_free_fnames(mfp);
         drop(Box::from_raw(mfp));
@@ -235,7 +235,7 @@ pub unsafe fn mf_new_page_size(mfp: *mut memfile_T, new_size: c_uint) {
 /// Get a new block.
 pub unsafe fn mf_new(mfp: *mut memfile_T, negative: bool, page_count: c_uint) -> *mut bhdr_T {
     unsafe {
-        let freep = (*mfp).mf_free_first;
+        let freep = (*mfp).mf_free_list.last().copied().unwrap_or(ptr::null_mut());
         let hp: *mut bhdr_T =
             if !negative && !freep.is_null() && (*freep).bh_page_count >= page_count {
                 if (*freep).bh_page_count > page_count {
@@ -245,7 +245,8 @@ pub unsafe fn mf_new(mfp: *mut memfile_T, negative: bool, page_count: c_uint) ->
                     (*freep).bh_page_count -= page_count;
                     hp
                 } else {
-                    let p = xmalloc(((*mfp).mf_page_size as usize) * (page_count as usize));
+                    let p = xmalloc(((*mfp).mf_page_size as usize) * (page_count as usize))
+                        .cast::<u8>();
                     let hp = mf_rem_free(mfp);
                     (*hp).bh_data = p;
                     hp
@@ -269,7 +270,7 @@ pub unsafe fn mf_new(mfp: *mut memfile_T, negative: bool, page_count: c_uint) ->
         pmap_put_bhdr(&raw mut (*mfp).mf_hash, (*hp).bh_bnum, hp);
 
         ptr::write_bytes(
-            (*hp).bh_data.cast::<u8>(),
+            (*hp).bh_data,
             0,
             ((*mfp).mf_page_size as usize) * (page_count as usize),
         );
@@ -341,10 +342,10 @@ pub unsafe fn mf_put(mfp: *mut memfile_T, hp: *mut bhdr_T, dirty: bool, infile: 
 /// Signal block as no longer used (may put it in the free list).
 pub unsafe fn mf_free(mfp: *mut memfile_T, hp: *mut bhdr_T) {
     unsafe {
-        xfree((*hp).bh_data);
+        xfree((*hp).bh_data.cast());
         let _ = (*mfp).mf_hash.remove(&(*hp).bh_bnum);
         if (*hp).bh_bnum < 0 {
-            xfree(hp.cast());
+            drop(Box::from_raw(hp));
             (*mfp).mf_neg_count -= 1;
         } else {
             mf_ins_free(mfp, hp);
@@ -465,7 +466,7 @@ unsafe fn mf_alloc_bhdr(mfp: *mut memfile_T, page_count: c_uint) -> *mut bhdr_T 
     unsafe {
         Box::into_raw(Box::new(bhdr_T {
             bh_bnum: 0,
-            bh_data: xmalloc(((*mfp).mf_page_size as usize) * (page_count as usize)),
+            bh_data: xmalloc(((*mfp).mf_page_size as usize) * (page_count as usize)).cast::<u8>(),
             bh_page_count: page_count,
             bh_flags: 0,
         }))
@@ -474,24 +475,20 @@ unsafe fn mf_alloc_bhdr(mfp: *mut memfile_T, page_count: c_uint) -> *mut bhdr_T 
 
 unsafe fn mf_free_bhdr(hp: *mut bhdr_T) {
     unsafe {
-        xfree((*hp).bh_data);
+        xfree((*hp).bh_data.cast());
         drop(Box::from_raw(hp));
     }
 }
 
 unsafe fn mf_ins_free(mfp: *mut memfile_T, hp: *mut bhdr_T) {
     unsafe {
-        (*hp).bh_data = (*mfp).mf_free_first.cast();
-        (*mfp).mf_free_first = hp;
+        (*hp).bh_data = ptr::null_mut();
+        (*mfp).mf_free_list.push(hp);
     }
 }
 
 unsafe fn mf_rem_free(mfp: *mut memfile_T) -> *mut bhdr_T {
-    unsafe {
-        let hp = (*mfp).mf_free_first;
-        (*mfp).mf_free_first = (*hp).bh_data.cast();
-        hp
-    }
+    unsafe { (*mfp).mf_free_list.pop().unwrap_or(ptr::null_mut()) }
 }
 
 unsafe fn mf_read(mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
@@ -508,7 +505,7 @@ unsafe fn mf_read(mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
         }
         assert!((*hp).bh_page_count <= c_uint::MAX / page_size);
         let size = (page_size * (*hp).bh_page_count) as usize;
-        let nread = read_eintr((*mfp).mf_fd, (*hp).bh_data, size);
+        let nread = read_eintr((*mfp).mf_fd, (*hp).bh_data.cast(), size);
         if (nread as usize) != size {
             perror_msg(c"E295: Read error in swap file".as_ptr());
             return FAIL;
@@ -558,7 +555,7 @@ unsafe fn mf_write(mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
                     } else {
                         (*hp2).bh_data
                     };
-                    let nwritten = write_eintr((*mfp).mf_fd, data, size);
+                    let nwritten = write_eintr((*mfp).mf_fd, data.cast(), size);
                     if (nwritten as usize) == size {
                         break;
                     }
@@ -608,7 +605,7 @@ unsafe fn mf_trans_add(mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
             return OK;
         }
 
-        let freep = (*mfp).mf_free_first;
+        let freep = (*mfp).mf_free_list.last().copied().unwrap_or(ptr::null_mut());
         let page_count = (*hp).bh_page_count;
         let new_bnum: blocknr_T = if !freep.is_null() && (*freep).bh_page_count >= page_count {
             let bnum = (*freep).bh_bnum;
@@ -617,7 +614,7 @@ unsafe fn mf_trans_add(mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
                 (*freep).bh_page_count -= page_count;
             } else {
                 let rem = mf_rem_free(mfp);
-                xfree(rem.cast());
+                drop(Box::from_raw(rem));
             }
             bnum
         } else {
