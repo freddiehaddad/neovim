@@ -8,7 +8,7 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{Array, Error, ErrorType, NvimString, ObjectType};
 use crate::autocmd::{
     DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_SOURCECMD, EVENT_SOURCEPOST,
-    EVENT_SOURCEPRE, PROF_YES, apply_autocmds, funccal_entry_T, has_autocmd, has_autocmd_fullname,
+    EVENT_SOURCEPRE, PROF_YES, apply_autocmds, has_autocmd, has_autocmd_fullname,
 };
 use crate::charset::{
     Ctrl_V, skip_to_newline, skiptowhite, skiptowhite_esc, skipwhite, skipwhite_len,
@@ -2982,11 +2982,7 @@ unsafe fn do_source_ext(
                 prof_child_enter(&mut wait_start);
             }
 
-            let mut funccalp_entry = funccal_entry_T {
-                top_funccal: ptr::null_mut(),
-                next: ptr::null_mut(),
-            };
-            save_funccal(&mut funccalp_entry);
+            save_funccal();
 
             let save_current_sctx = current_sctx;
 

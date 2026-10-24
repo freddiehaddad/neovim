@@ -106,7 +106,7 @@ use std::ptr;
 
 use crate::api::private::converter::{object_to_vim, vim_to_object};
 use crate::api::private::validate::{Error, ErrorType, NvimString, Object, ObjectData, ObjectType};
-use crate::autocmd::{DOCMD_NOWAIT, DOCMD_VERBOSE, PROF_YES, funccal_entry_T};
+use crate::autocmd::{DOCMD_NOWAIT, DOCMD_VERBOSE, PROF_YES};
 use crate::cmdexpand::{
     EXPAND_COMMANDS, EXPAND_ENV_VARS, EXPAND_EXPRESSION, EXPAND_FUNCTIONS, EXPAND_NOTHING,
     EXPAND_SETTINGS, EXPAND_USER_VARS, cmdidx_T,
@@ -801,9 +801,7 @@ pub unsafe fn eval_to_string_safe(
     use_simple_function: bool,
 ) -> *mut c_char {
     unsafe {
-        let mut funccal_entry: funccal_entry_T = std::mem::zeroed();
-
-        save_funccal(&raw mut funccal_entry);
+        save_funccal();
         {
             if use_sandbox {
                 sandbox += 1;
@@ -1012,8 +1010,7 @@ pub unsafe fn eval_expr_option_tv(
     ret_tv: *mut typval_T,
 ) -> bool {
     unsafe {
-        let mut funccal_entry: funccal_entry_T = std::mem::zeroed();
-        save_funccal(&raw mut funccal_entry);
+        save_funccal();
         {
             if use_sandbox {
                 sandbox += 1;
@@ -6961,9 +6958,7 @@ pub unsafe fn var_flavour(varname: *mut c_char) -> var_flavour_T {
 
 pub unsafe fn var_set_global(name: *const c_char, mut vartv: typval_T) {
     unsafe {
-        let mut funccall_entry: funccal_entry_T = std::mem::zeroed();
-
-        save_funccal(&raw mut funccall_entry);
+        save_funccal();
         set_var(name, strlen(name), &raw mut vartv, false);
         restore_funccal();
     }
@@ -7223,8 +7218,7 @@ pub unsafe fn eval_call_provider(
                 funccalp: get_current_funccal().cast(),
             };
         }
-        let mut funccal_entry: funccal_entry_T = std::mem::zeroed();
-        save_funccal(&raw mut funccal_entry);
+        save_funccal();
         {
             provider_call_nesting += 1;
         }

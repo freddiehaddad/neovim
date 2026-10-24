@@ -12,7 +12,7 @@ use crate::api::private::validate::{
 use crate::api::vim::nvim_feedkeys;
 use crate::autocmd::{
     DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_BUFFILEPOST, EVENT_BUFFILEPRE, apply_autocmds,
-    au_exists, autocmd_supported, funccal_entry_T,
+    au_exists, autocmd_supported,
 };
 use crate::buffer::{
     VAR_FIXED, buf_T, buf_close_terminal, buflist_findnr, buflist_findpat, kUIMessages, setfname,
@@ -7221,7 +7221,6 @@ pub unsafe fn f_rpcrequest(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
         let mut save_autocmd_match: *mut c_char = ptr::null_mut();
         let mut save_autocmd_fname_full = false;
         let mut save_autocmd_bufnr: c_int = 0;
-        let mut funccal_entry: funccal_entry_T = std::mem::zeroed();
 
         if l_provider_call_nesting != 0 {
             save_current_sctx = current_sctx;
@@ -7229,7 +7228,7 @@ pub unsafe fn f_rpcrequest(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
             save_autocmd_match = autocmd_match;
             save_autocmd_fname_full = autocmd_fname_full;
             save_autocmd_bufnr = autocmd_bufnr;
-            save_funccal(&raw mut funccal_entry);
+            save_funccal();
 
             current_sctx = provider_caller_scope.script_ctx;
             let es = &raw mut exestack;

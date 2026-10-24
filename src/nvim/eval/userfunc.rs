@@ -3,7 +3,6 @@
 use crate::api::private::validate::NvimString;
 use crate::autocmd::{
     DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_FUNCUNDEFINED, PROF_YES, apply_autocmds,
-    funccal_entry_T,
 };
 use crate::charset::{
     NUL, ascii_isalnum, ascii_islower, ascii_iswhite, getdigits, skiptowhite, skipwhite,
@@ -216,7 +215,7 @@ static mut func_hashtab_changed: c_int = 0;
 static mut funcargs: Vec<*mut typval_T> = Vec::new();
 static mut current_funccal: *mut funccall_T = ptr::null_mut();
 static mut previous_funccal: *mut funccall_T = ptr::null_mut();
-static mut funccal_stack: *mut funccal_entry_T = ptr::null_mut();
+static mut funccal_stack: Vec<*mut funccall_T> = Vec::new();
 static mut lambda_name: [c_char; 8 + NUMBUFLEN] = [0; 8 + NUMBUFLEN];
 static mut lambda_no: c_int = 0;
 static mut made_copy: c_int = 0;
@@ -1653,22 +1652,21 @@ unsafe fn call_user_func_check(
 }
 
 /// Save the current function call pointer, and set it to NULL.
-pub unsafe fn save_funccal(entry: *mut funccal_entry_T) {
+pub unsafe fn save_funccal() {
     unsafe {
-        (*entry).top_funccal = current_funccal.cast();
-        (*entry).next = funccal_stack;
-        funccal_stack = entry;
+        let stack = &raw mut funccal_stack;
+        (*stack).push(current_funccal);
         current_funccal = ptr::null_mut();
     }
 }
 
 pub unsafe fn restore_funccal() {
     unsafe {
-        if funccal_stack.is_null() {
-            iemsg(c"INTERNAL: restore_funccal()".as_ptr());
+        let stack = &raw mut funccal_stack;
+        if let Some(top) = (*stack).pop() {
+            current_funccal = top;
         } else {
-            current_funccal = (*funccal_stack).top_funccal.cast();
-            funccal_stack = (*funccal_stack).next;
+            iemsg(c"INTERNAL: restore_funccal()".as_ptr());
         }
     }
 }
@@ -1688,10 +1686,12 @@ pub unsafe fn free_all_functions() {
         while !current_funccal.is_null() {
             tv_clear((*current_funccal).fc_rettv);
             cleanup_function_call(current_funccal);
-            if current_funccal.is_null() && !funccal_stack.is_null() {
+            let stack = &raw const funccal_stack;
+            if current_funccal.is_null() && !(*stack).is_empty() {
                 restore_funccal();
             }
         }
+        funccal_stack = Vec::new();
 
         loop {
             let mut restarted = false;
@@ -3831,14 +3831,13 @@ pub unsafe fn invoke_all_defer() {
             fc = (*fc).fc_caller;
         }
 
-        let mut fce = funccal_stack;
-        while !fce.is_null() {
-            let mut fc2 = (*fce).top_funccal.cast::<funccall_T>();
+        let stack = &raw const funccal_stack;
+        for &top in (*stack).iter().rev() {
+            let mut fc2 = top;
             while !fc2.is_null() {
                 handle_defer_one(fc2);
                 fc2 = (*fc2).fc_caller;
             }
-            fce = (*fce).next;
         }
     }
 }
@@ -4464,16 +4463,15 @@ pub unsafe fn set_ref_in_call_stack(copyID: c_int) -> bool {
             fc = (*fc).fc_caller;
         }
 
-        let mut entry = funccal_stack;
-        while !entry.is_null() {
-            let mut fc2 = (*entry).top_funccal.cast::<funccall_T>();
+        let stack = &raw const funccal_stack;
+        for &top in (*stack).iter().rev() {
+            let mut fc2 = top;
             while !fc2.is_null() {
                 if set_ref_in_funccal(fc2, copyID) {
                     return true;
                 }
                 fc2 = (*fc2).fc_caller;
             }
-            entry = (*entry).next;
         }
 
         false

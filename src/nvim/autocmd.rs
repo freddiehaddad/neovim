@@ -285,7 +285,6 @@ pub struct AutoPatCmd {
     pub script_ctx: sctx_T,
     pub arg_bufnr: c_int,
     pub data: *mut Object,
-    pub next: *mut AutoPatCmd,
 }
 
 #[repr(C)]
@@ -297,13 +296,6 @@ pub struct AutoCmdEvent {
     pub group: c_int,
     pub eap: *mut exarg_T,
     pub data: *mut Object,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct funccal_entry_T {
-    pub top_funccal: *mut crate::profile::funccall_T,
-    pub next: *mut funccal_entry_T,
 }
 
 #[repr(C)]
@@ -1227,7 +1219,7 @@ static EVENT_HASH: [event_T; 150] = [
 ];
 
 static mut autocmds: [AutoCmdVec; NUM_EVENTS] = [const { Vec::new() }; NUM_EVENTS];
-static mut active_apc_list: *mut AutoPatCmd = ptr::null_mut();
+static mut active_apc_list: Vec<*mut AutoPatCmd> = Vec::new();
 static mut autocmd_winid: handle_T = 0;
 static mut next_augroup_id: c_int = 1;
 static mut deleted_augroup: *const c_char = ptr::null();
@@ -1673,12 +1665,11 @@ pub unsafe fn au_get_autocmds_for_event(event: event_T) -> *mut AutoCmdVec {
 
 pub unsafe fn aubuflocal_remove(buf: *mut buf_T) {
     unsafe {
-        let mut apc = active_apc_list;
-        while !apc.is_null() {
+        let apc_list = &raw const active_apc_list;
+        for &apc in (*apc_list).iter().rev() {
             if (*buf).b_fnum == (*apc).arg_bufnr {
                 (*apc).arg_bufnr = 0;
             }
-            apc = (*apc).next;
         }
 
         for event in 0..NUM_EVENTS as event_T {
@@ -3010,8 +3001,7 @@ pub unsafe fn apply_autocmds_group(
                 prof_child_enter(&raw mut wait_time);
             }
 
-            let mut funccal_entry: funccal_entry_T = std::mem::zeroed();
-            save_funccal(&raw mut funccal_entry);
+            save_funccal();
 
             if !autocmd_busy {
                 save_search_patterns();
@@ -3051,13 +3041,12 @@ pub unsafe fn apply_autocmds_group(
                 },
                 arg_bufnr: autocmd_bufnr,
                 data: ptr::null_mut(),
-                next: ptr::null_mut(),
             };
             aucmd_next(&raw mut patcmd);
 
             if !patcmd.lastpat.is_null() {
-                patcmd.next = active_apc_list;
-                active_apc_list = &raw mut patcmd;
+                let apc_list = &raw mut active_apc_list;
+                (*apc_list).push(&raw mut patcmd);
                 patcmd.data = data;
 
                 let save_cmdbang = get_vim_var_nr(VV_CMDBANG);
@@ -3095,8 +3084,9 @@ pub unsafe fn apply_autocmds_group(
                     set_cmdarg(ptr::null_mut(), save_cmdarg);
                     set_vim_var_nr(VV_CMDBANG, save_cmdbang);
                 }
-                if ptr::eq(active_apc_list, &raw const patcmd) {
-                    active_apc_list = patcmd.next;
+                let apc_list = &raw mut active_apc_list;
+                if (*apc_list).last().copied() == Some(&raw mut patcmd) {
+                    (*apc_list).pop();
                 }
             }
 
