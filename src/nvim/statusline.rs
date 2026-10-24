@@ -870,7 +870,7 @@ pub unsafe fn draw_tabline() {
         let use_sep_chars = t_colors < 8;
         let name_buff = (&raw mut NameBuff).cast::<c_char>();
 
-        if default_grid.chars.is_null() {
+        if !crate::grid::grid_allocated(&raw const default_grid) {
             return;
         }
         redraw_tabline = false;

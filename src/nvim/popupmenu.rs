@@ -795,7 +795,7 @@ pub unsafe fn pum_redraw() {
         PUM_INVALID = false;
         must_redraw_pum = false;
 
-        if pum_grid.chars.is_null()
+        if !crate::grid::grid_allocated(&raw const pum_grid)
             || pum_grid.rows != PUM_HEIGHT + border_width
             || pum_grid.cols != grid_width + border_width
         {
@@ -1054,29 +1054,29 @@ pub unsafe fn pum_redraw() {
                 let lcol = col_off - PUM_WIDTH + 1;
                 grid_line_fill(lcol, grid_col + 1, schar_from_ascii(b' '), orig_attr);
                 if need_fcs_trunc {
-                    *linebuf_char.add(lcol as usize) = if fcs_trunc != 0 {
+                    linebuf_char[lcol as usize] = if fcs_trunc != 0 {
                         fcs_trunc
                     } else {
                         schar_from_ascii(b'<')
                     };
-                    *linebuf_attr.add(lcol as usize) = trunc_attr;
-                    if PUM_WIDTH > 1 && *linebuf_char.add((lcol + 1) as usize) == 0 {
-                        *linebuf_char.add((lcol + 1) as usize) = schar_from_ascii(b' ');
+                    linebuf_attr[lcol as usize] = trunc_attr;
+                    if PUM_WIDTH > 1 && linebuf_char[(lcol + 1) as usize] == 0 {
+                        linebuf_char[(lcol + 1) as usize] = schar_from_ascii(b' ');
                     }
                 }
             } else {
                 let rcol = col_off + PUM_WIDTH;
                 grid_line_fill(grid_col, rcol, schar_from_ascii(b' '), orig_attr);
                 if need_fcs_trunc {
-                    if PUM_WIDTH > 1 && *linebuf_char.add((rcol - 1) as usize) == 0 {
-                        *linebuf_char.add((rcol - 2) as usize) = schar_from_ascii(b' ');
+                    if PUM_WIDTH > 1 && linebuf_char[(rcol - 1) as usize] == 0 {
+                        linebuf_char[(rcol - 2) as usize] = schar_from_ascii(b' ');
                     }
-                    *linebuf_char.add((rcol - 1) as usize) = if fcs_trunc != 0 {
+                    linebuf_char[(rcol - 1) as usize] = if fcs_trunc != 0 {
                         fcs_trunc
                     } else {
                         schar_from_ascii(b'>')
                     };
-                    *linebuf_attr.add((rcol - 1) as usize) = trunc_attr;
+                    linebuf_attr[(rcol - 1) as usize] = trunc_attr;
                 }
             }
 

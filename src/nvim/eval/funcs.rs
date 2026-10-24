@@ -7340,11 +7340,12 @@ pub unsafe fn f_screenattr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
         let mut grid: *mut ScreenGrid = ptr::null_mut();
         screenchar_adjust(&raw mut grid, &raw mut row, &raw mut col);
 
-        let c = if row < 0 || row >= (*grid).rows || col < 0 || col >= (*grid).cols {
+        let grid = &*grid;
+        let c = if row < 0 || row >= grid.rows || col < 0 || col >= grid.cols {
             -1
         } else {
-            let line_off = *(*grid).line_offset.add(row as usize);
-            *(*grid).attrs.add(line_off + (col as usize))
+            let line_off = grid.line_offset[row as usize];
+            grid.attrs[line_off + (col as usize)]
         };
         (*rettv).vval.v_number = varnumber_T::from(c);
     }

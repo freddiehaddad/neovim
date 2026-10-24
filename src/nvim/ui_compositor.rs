@@ -415,9 +415,9 @@ unsafe fn compose_line(
 
         let mut col = startcol as c_int;
         let mut grid: *mut ScreenGrid = ptr::null_mut();
-        let line_off = *default_grid.line_offset.add(row as usize) + (startcol as usize);
-        let bg_line = default_grid.chars.add(line_off);
-        let bg_attrs = default_grid.attrs.add(line_off);
+        let line_off = default_grid.line_offset[row as usize] + (startcol as usize);
+        let bg_line = &raw mut default_grid.chars[line_off];
+        let bg_attrs = &raw mut default_grid.attrs[line_off];
         let lbuf = linebuf_mut().as_mut_ptr();
         let abuf = attrbuf_mut().as_mut_ptr();
         let l = layers_mut();
@@ -456,14 +456,13 @@ unsafe fn compose_line(
                     *abuf.add(idx) = msg_sep_attr;
                 }
             } else {
-                let off = *(*grid)
-                    .line_offset
-                    .add((row as c_int - (*grid).comp_row) as usize)
-                    + (col - (*grid).comp_col) as usize;
+                let g = &*grid;
+                let off = g.line_offset[(row as c_int - g.comp_row) as usize]
+                    + (col - g.comp_col) as usize;
                 let dst_idx = (col - startcol as c_int) as usize;
-                ptr::copy_nonoverlapping((*grid).chars.add(off), lbuf.add(dst_idx), n);
-                ptr::copy_nonoverlapping((*grid).attrs.add(off), abuf.add(dst_idx), n);
-                if (*grid).comp_col + (*grid).cols > until && *(*grid).chars.add(off + n) == 0 {
+                ptr::copy_nonoverlapping(g.chars.as_ptr().add(off), lbuf.add(dst_idx), n);
+                ptr::copy_nonoverlapping(g.attrs.as_ptr().add(off), abuf.add(dst_idx), n);
+                if g.comp_col + g.cols > until && g.chars[off + n] == 0 {
                     *lbuf.add((until - 1 - startcol as c_int) as usize) = schar_from_ascii(b' ');
                     if (col as Integer) == startcol && n == 1 {
                         skipstart = 0;
@@ -827,12 +826,10 @@ pub unsafe fn ui_comp_grid_scroll(
             let start_r = (top + (-rows).max(0)) as c_int;
             let end_r = (bot - rows.max(0)) as c_int;
             for r in start_r..end_r {
-                let off = *(*curgrid)
-                    .line_offset
-                    .add((r - (*curgrid).comp_row) as usize)
-                    + (left as usize)
-                    - ((*curgrid).comp_col as usize);
-                if *(*curgrid).attrs.add(off) >= 0 {
+                let cg = &*curgrid;
+                let off = cg.line_offset[(r - cg.comp_row) as usize] + (left as usize)
+                    - (cg.comp_col as usize);
+                if cg.attrs[off] >= 0 {
                     compose_line(r as Integer, left, right, 0);
                 }
             }

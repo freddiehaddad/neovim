@@ -29,10 +29,10 @@ use crate::ex_getln::{
 use crate::fold::{fold_info, foldmethodIsSyntax, hasAnyFolding, hasFolding};
 use crate::globals::*;
 use crate::grid::{
-    grid_adjust, grid_alloc, grid_clear, grid_clear_line, grid_del_lines, grid_draw_border,
-    grid_ins_lines, grid_invalidate, grid_line_clear_end, grid_line_fill, grid_line_flush,
-    grid_line_getchar, grid_line_mirror, grid_line_put_schar, grid_line_start, schar_T,
-    schar_cache_clear_if_full, schar_from_ascii, win_grid_alloc, wline_T,
+    grid_adjust, grid_alloc, grid_allocated, grid_clear, grid_clear_line, grid_del_lines,
+    grid_draw_border, grid_ins_lines, grid_invalidate, grid_line_clear_end, grid_line_fill,
+    grid_line_flush, grid_line_getchar, grid_line_mirror, grid_line_put_schar, grid_line_start,
+    schar_T, schar_cache_clear_if_full, schar_from_ascii, win_grid_alloc, wline_T,
 };
 use crate::highlight::{
     hl_combine_attr, update_window_hl, win_bg_attr, win_check_ns_hl, win_hl_attr,
@@ -221,7 +221,7 @@ pub unsafe fn default_grid_alloc() -> bool {
         }
         default_grid_resizing = true;
 
-        if (!default_grid.chars.is_null()
+        if (grid_allocated(&raw const default_grid)
             && Rows == default_grid.rows
             && Columns == default_grid.cols)
             || Rows == 0
@@ -249,14 +249,14 @@ pub unsafe fn screenclear() {
     unsafe {
         msg_check_for_delay(false);
 
-        if starting == NO_SCREEN || default_grid.chars.is_null() {
+        if starting == NO_SCREEN || !grid_allocated(&raw const default_grid) {
             return;
         }
 
         for i in 0..default_grid.rows {
             grid_clear_line(
                 &raw mut default_grid,
-                *default_grid.line_offset.add(i as usize),
+                default_grid.line_offset[i as usize],
                 default_grid.cols,
                 true,
             );
@@ -294,7 +294,10 @@ pub unsafe fn screenclear() {
         msg_reset_scroll();
         msg_didany = false;
         msg_didout = false;
-        if *hl_attr_active.add(HLF_MSG) > 0 && msg_use_grid() && !msg_grid.chars.is_null() {
+        if *hl_attr_active.add(HLF_MSG) > 0
+            && msg_use_grid()
+            && grid_allocated(&raw const msg_grid)
+        {
             grid_invalidate(&raw mut msg_grid);
             msg_grid_validate();
             msg_grid_invalid = false;
@@ -360,7 +363,7 @@ pub unsafe fn screen_resize(mut width: c_int, mut height: c_int) {
 
         while default_grid_alloc() {
             ui_comp_set_screen_valid(false);
-            if !msg_grid.chars.is_null() {
+            if grid_allocated(&raw const msg_grid) {
                 msg_grid_invalid = true;
             }
 
@@ -405,7 +408,7 @@ pub unsafe fn screen_resize(mut width: c_int, mut height: c_int) {
                 if (State & MODE_CMDLINE) != 0 {
                     update_screen();
                 }
-                if !msg_grid.chars.is_null() {
+                if grid_allocated(&raw const msg_grid) {
                     msg_grid_validate();
                 }
                 ui_comp_set_screen_valid(true);
@@ -461,7 +464,7 @@ pub unsafe fn update_screen() -> c_int {
 
         let is_stl_global = global_stl_height() > 0;
 
-        if resizing_autocmd || default_grid.chars.is_null() {
+        if resizing_autocmd || !grid_allocated(&raw const default_grid) {
             return FAIL;
         }
 
@@ -506,12 +509,12 @@ pub unsafe fn update_screen() -> c_int {
         if msg_scrolled != 0 || msg_grid_invalid {
             clear_cmdline = true;
             let valid = (Rows - msg_scrollsize()).max(0);
-            if !msg_grid.chars.is_null() {
+            if grid_allocated(&raw const msg_grid) {
                 let limit = msg_scrollsize().min(msg_grid.rows);
                 for i in 0..limit {
                     grid_clear_line(
                         &raw mut msg_grid,
-                        *msg_grid.line_offset.add(i as usize),
+                        msg_grid.line_offset[i as usize],
                         msg_grid.cols,
                         OptInt::from(i) < p_ch,
                     );
@@ -526,7 +529,7 @@ pub unsafe fn update_screen() -> c_int {
                 while i < Rows - (p_ch as c_int) {
                     grid_clear_line(
                         &raw mut default_grid,
-                        *default_grid.line_offset.add(i as usize),
+                        default_grid.line_offset[i as usize],
                         Columns,
                         false,
                     );
@@ -637,7 +640,7 @@ pub unsafe fn update_screen() -> c_int {
 
         let mut wp = firstwin;
         while !wp.is_null() {
-            if !((*wp).w_config.hide && !(*wp).w_grid_alloc.chars.is_null()) {
+            if !((*wp).w_config.hide && !(*wp).w_grid_alloc.chars.is_empty()) {
                 update_window_hl(wp, type_ >= UPD_NOT_VALID || hl_changed);
 
                 let buf = (*wp).w_buffer;
@@ -660,7 +663,7 @@ pub unsafe fn update_screen() -> c_int {
 
         wp = firstwin;
         while !wp.is_null() {
-            if (*wp).w_config.hide && !(*wp).w_grid_alloc.chars.is_null() {
+            if (*wp).w_config.hide && !(*wp).w_grid_alloc.chars.is_empty() {
                 if ptr::eq(wp, curwin) && global_stl_height() > 0 {
                     win_redr_status(wp);
                 }
@@ -671,7 +674,7 @@ pub unsafe fn update_screen() -> c_int {
 
             if (*wp).w_redr_type == UPD_CLEAR
                 && (*wp).w_floating
-                && !(*wp).w_grid_alloc.chars.is_null()
+                && !(*wp).w_grid_alloc.chars.is_empty()
             {
                 grid_invalidate(&raw mut (*wp).w_grid_alloc);
                 (*wp).w_redr_type = UPD_NOT_VALID;

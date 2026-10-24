@@ -1466,7 +1466,9 @@ unsafe fn ins_ctrl_v() {
 
 pub unsafe fn edit_putchar(c: c_int, highlight: bool) {
     unsafe {
-        if (*curwin).w_grid_alloc.chars.is_null() && default_grid.chars.is_null() {
+        if (*curwin).w_grid_alloc.chars.is_empty()
+            && !crate::grid::grid_allocated(&raw const default_grid)
+        {
             return;
         }
 

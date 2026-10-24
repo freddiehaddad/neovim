@@ -1331,7 +1331,7 @@ pub unsafe fn ui_ext_win_position(wp: *mut win_T, validate: bool) {
                 api_clear_error(&raw mut dummy);
                 if !win.is_null() {
                     if (*win).w_pos_changed
-                        && !(*win).w_grid_alloc.chars.is_null()
+                        && !(*win).w_grid_alloc.chars.is_empty()
                         && win_valid(win)
                     {
                         ui_ext_win_position(win, validate);
@@ -5861,7 +5861,7 @@ pub unsafe fn win_alloc(after: *mut win_T, hidden: bool) -> *mut win_T {
         let map_ptr = &raw mut window_handles;
         (*map_ptr).insert((*new_wp).handle, new_wp);
 
-        (*new_wp).w_grid_alloc.mouse_enabled = true;
+        ptr::write(&raw mut (*new_wp).w_grid_alloc, SCREEN_GRID_INIT);
 
         grid_assign_handle(&raw mut (*new_wp).w_grid_alloc);
 
@@ -6057,7 +6057,9 @@ pub unsafe fn win_free_grid(wp: *mut win_T, reinit: bool) {
         }
         grid_free(&raw mut (*wp).w_grid_alloc);
         if reinit {
-            (*wp).w_grid_alloc = zeroed();
+            (*wp).w_grid_alloc = SCREEN_GRID_INIT;
+        } else {
+            ptr::drop_in_place(&raw mut (*wp).w_grid_alloc);
         }
     }
 }
@@ -8180,7 +8182,7 @@ pub unsafe fn win_ui_flush(validate: bool) {
             };
             while !wp.is_null() {
                 if ((*wp).w_pos_changed || (*wp).w_grid_alloc.pending_comp_index_update)
-                    && !(*wp).w_grid_alloc.chars.is_null()
+                    && !(*wp).w_grid_alloc.chars.is_empty()
                 {
                     if ptr::eq(tp, curtab) {
                         ui_ext_win_position(wp, validate);

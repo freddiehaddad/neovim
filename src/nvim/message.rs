@@ -424,14 +424,14 @@ pub unsafe fn msg_grid_set_pos(row: c_int, scrolled: bool) {
             msg_grid_pos_at_flush = row;
         }
         msg_grid_pos = row;
-        if !msg_grid.chars.is_null() {
+        if crate::grid::grid_allocated(&raw const msg_grid) {
             msg_grid_adj.row_offset = -row;
         }
     }
 }
 
 pub unsafe fn msg_use_grid() -> bool {
-    unsafe { !default_grid.chars.is_null() && !ui_has(kUIMessages) }
+    unsafe { crate::grid::grid_allocated(&raw const default_grid) && !ui_has(kUIMessages) }
 }
 
 pub unsafe fn msg_grid_validate() {
@@ -439,14 +439,12 @@ pub unsafe fn msg_grid_validate() {
         grid_assign_handle(&raw mut msg_grid);
         let should_alloc = msg_use_grid();
         let max_rows = Rows - p_ch as c_int;
-        if should_alloc
-            && (msg_grid.rows != Rows || msg_grid.cols != Columns || msg_grid.chars.is_null())
-        {
+        let msg_grid_empty = !crate::grid::grid_allocated(&raw const msg_grid);
+        if should_alloc && (msg_grid.rows != Rows || msg_grid.cols != Columns || msg_grid_empty) {
             grid_alloc(&raw mut msg_grid, Rows, Columns, false, true);
             msg_grid.zindex = kZIndexMessages;
 
-            xfree(msg_grid.dirty_col.cast());
-            msg_grid.dirty_col = xcalloc(Rows as usize, size_of::<c_int>()).cast();
+            msg_grid.dirty_col = vec![0; Rows as usize];
 
             // Tricky: allow resize while pager or ex mode is active
             let pos = if (State & MODE_ASKMORE) != 0 {
@@ -474,17 +472,16 @@ pub unsafe fn msg_grid_validate() {
             msg_scrolled_at_flush = msg_scrolled;
             msg_grid.mouse_enabled = false;
             msg_grid_adj.target = &raw mut msg_grid;
-        } else if !should_alloc && !msg_grid.chars.is_null() {
+        } else if !should_alloc && !msg_grid_empty {
             ui_comp_remove_grid(&raw mut msg_grid);
             grid_free(&raw mut msg_grid);
-            xfree(msg_grid.dirty_col.cast());
-            msg_grid.dirty_col = ptr::null_mut();
+            msg_grid.dirty_col = Vec::new();
             ui_call_grid_destroy(msg_grid.handle as Integer);
             msg_grid.throttled = false;
             msg_grid_adj.row_offset = 0;
             msg_grid_adj.target = &raw mut default_grid;
             redraw_cmdline = true;
-        } else if !msg_grid.chars.is_null() && msg_scrolled == 0 && msg_grid_pos != max_rows {
+        } else if !msg_grid_empty && msg_scrolled == 0 && msg_grid_pos != max_rows {
             let diff = msg_grid_pos - max_rows;
             msg_grid_set_pos(max_rows, false);
             if diff > 0 {
@@ -499,7 +496,10 @@ pub unsafe fn msg_grid_validate() {
             }
         }
 
-        if !msg_grid.chars.is_null() && msg_scrolled == 0 && cmdline_row < msg_grid_pos {
+        if crate::grid::grid_allocated(&raw const msg_grid)
+            && msg_scrolled == 0
+            && cmdline_row < msg_grid_pos
+        {
             cmdline_row = msg_grid_pos;
         }
     }
@@ -2890,7 +2890,9 @@ pub unsafe fn msg_puts_len(str_: *const c_char, len: isize, hl_id: c_int, hist: 
                 msg_col = saved_msg_col;
             }
         }
-        if msg_use_printf() == 0 || (headless_mode && !default_grid.chars.is_null()) {
+        if msg_use_printf() == 0
+            || (headless_mode && crate::grid::grid_allocated(&raw const default_grid))
+        {
             msg_puts_display(str_, len as c_int, hl_id, 0);
         }
 
@@ -3162,22 +3164,20 @@ pub unsafe fn msg_scroll_up(may_throttle: bool, zerocmd: bool) {
         if msg_grid_pos > 0 {
             msg_grid_set_pos(msg_grid_pos - 1, !zerocmd);
 
-            if zerocmd && !msg_grid.chars.is_null() {
+            if zerocmd && crate::grid::grid_allocated(&raw const msg_grid) {
                 grid_clear_line(
                     &raw mut msg_grid,
-                    *msg_grid.line_offset,
+                    msg_grid.line_offset[0],
                     msg_grid.cols,
                     false,
                 );
             }
         } else {
             grid_del_lines(&raw mut msg_grid, 0, 1, msg_grid.rows, 0, msg_grid.cols);
-            ptr::copy(
-                msg_grid.dirty_col.add(1),
-                msg_grid.dirty_col,
-                (msg_grid.rows - 1) as usize,
-            );
-            *msg_grid.dirty_col.add((msg_grid.rows - 1) as usize) = 0;
+            for i in 0..(msg_grid.rows - 1) as usize {
+                msg_grid.dirty_col[i] = msg_grid.dirty_col[i + 1];
+            }
+            msg_grid.dirty_col[(msg_grid.rows - 1) as usize] = 0;
         }
 
         grid_clear(
@@ -3227,12 +3227,12 @@ pub unsafe fn msg_scroll_flush() {
                     row,
                     false,
                     0,
-                    *msg_grid.dirty_col.add(row as usize),
+                    msg_grid.dirty_col[row as usize],
                     msg_grid.cols,
                     hl_attr(HLF_MSG),
                     false,
                 );
-                *msg_grid.dirty_col.add(row as usize) = 0;
+                msg_grid.dirty_col[row as usize] = 0;
             }
         }
         msg_scrolled_at_flush = msg_scrolled;
@@ -3249,12 +3249,12 @@ pub unsafe fn msg_reset_scroll() {
         msg_grid.throttled = false;
         msg_grid_set_pos(Rows - p_ch as c_int, false);
         clear_cmdline = true;
-        if !msg_grid.chars.is_null() {
+        if crate::grid::grid_allocated(&raw const msg_grid) {
             let limit = msg_scrollsize().min(msg_grid.rows);
             for i in 0..limit {
                 grid_clear_line(
                     &raw mut msg_grid,
-                    *msg_grid.line_offset.add(i as usize),
+                    msg_grid.line_offset[i as usize],
                     msg_grid.cols,
                     false,
                 );
@@ -3268,7 +3268,7 @@ pub unsafe fn msg_reset_scroll() {
 
 pub unsafe fn msg_ui_refresh() {
     unsafe {
-        if ui_has(kUIMultigrid) && !msg_grid.chars.is_null() {
+        if ui_has(kUIMultigrid) && crate::grid::grid_allocated(&raw const msg_grid) {
             ui_call_grid_resize(
                 msg_grid.handle as Integer,
                 msg_grid.cols as Integer,
@@ -3281,7 +3281,10 @@ pub unsafe fn msg_ui_refresh() {
 
 pub unsafe fn msg_ui_flush() {
     unsafe {
-        if ui_has(kUIMultigrid) && !msg_grid.chars.is_null() && msg_grid.pending_comp_index_update {
+        if ui_has(kUIMultigrid)
+            && crate::grid::grid_allocated(&raw const msg_grid)
+            && msg_grid.pending_comp_index_update
+        {
             ui_ext_msg_set_pos(msg_grid_pos, msg_scrolled != 0);
         }
     }
@@ -3866,7 +3869,7 @@ pub unsafe fn msg_clr_eos_force() {
             Columns
         };
 
-        if !msg_grid.chars.is_null() && msg_row < msg_grid_pos {
+        if crate::grid::grid_allocated(&raw const msg_grid) && msg_row < msg_grid_pos {
             msg_grid_validate();
             if msg_row < msg_grid_pos {
                 msg_row = msg_grid_pos;

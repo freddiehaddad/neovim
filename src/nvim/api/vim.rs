@@ -2874,7 +2874,7 @@ pub unsafe extern "C" fn nvim__inspect_cell(
         } else if grid > 1 {
             let wp = get_win_by_grid_handle(grid as handle_T);
             if !validate_int(
-                !wp.is_null() && !(*wp).w_grid_alloc.chars.is_null(),
+                !wp.is_null() && !(*wp).w_grid_alloc.chars.is_empty(),
                 c"grid handle".as_ptr(),
                 grid,
                 err,
@@ -2884,16 +2884,16 @@ pub unsafe extern "C" fn nvim__inspect_cell(
             g = &raw mut (*wp).w_grid_alloc;
         }
 
-        if row < 0 || row >= Integer::from((*g).rows) || col < 0 || col >= Integer::from((*g).cols)
-        {
+        let g = &*g;
+        if row < 0 || row >= Integer::from(g.rows) || col < 0 || col >= Integer::from(g.cols) {
             return ret;
         }
         ret = arena_array(arena, 3);
-        let off = *(*g).line_offset.add(row as usize) + (col as usize);
+        let off = g.line_offset[row as usize] + (col as usize);
         let sc_buf = arena_alloc(arena, MAX_SCHAR_SIZE, false).cast::<c_char>();
-        schar_get(sc_buf, *(*g).chars.add(off));
+        schar_get(sc_buf, g.chars[off]);
         add_c(&mut ret, cstr_as_obj(sc_buf));
-        let attr = *(*g).attrs.add(off);
+        let attr = g.attrs[off];
         add_c(
             &mut ret,
             dict_obj(hl_get_attr_by_id(Integer::from(attr), true, arena, err)),

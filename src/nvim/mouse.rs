@@ -1974,7 +1974,7 @@ unsafe fn mouse_find_grid_win(gridp: *mut c_int, rowp: *mut c_int, colp: *mut c_
         } else if *gridp > 1 {
             let wp = get_win_by_grid_handle(*gridp);
             if !wp.is_null()
-                && !(*wp).w_grid_alloc.chars.is_null()
+                && !(*wp).w_grid_alloc.chars.is_empty()
                 && !((*wp).w_floating && !(*wp).w_config.mouse)
             {
                 *rowp = (*rowp - (*wp).w_grid.row_offset).min((*wp).w_view_height - 1);
@@ -2128,22 +2128,22 @@ unsafe fn mouse_check_grid(vcolp: *mut colnr_T, flagsp: *mut c_int) {
         }
         let mut start_row: c_int = 0;
         let mut start_col: c_int = 0;
-        let gp = grid_adjust(
+        let gp = &*grid_adjust(
             &raw mut (*curwin).w_grid,
             &raw mut start_row,
             &raw mut start_col,
         );
-        if (*gp).handle != click_grid || (*gp).chars.is_null() {
+        if gp.handle != click_grid || gp.chars.is_empty() {
             return;
         }
         click_row += start_row;
         click_col += start_col;
-        if click_row < 0 || click_row >= (*gp).rows || click_col < 0 || click_col >= (*gp).cols {
+        if click_row < 0 || click_row >= gp.rows || click_col < 0 || click_col >= gp.cols {
             return;
         }
 
-        let off = *(*gp).line_offset.add(click_row as usize) + click_col as usize;
-        let col_from_screen = *(*gp).vcols.add(off);
+        let off = gp.line_offset[click_row as usize] + click_col as usize;
+        let col_from_screen = gp.vcols[off];
 
         if col_from_screen >= 0 {
             *vcolp = col_from_screen;

@@ -530,24 +530,25 @@ pub unsafe fn ui_line(
 
         ui_may_set_default_colors();
 
-        let off = *(*grid).line_offset.add(row as usize) + startcol as usize;
+        let grid = &mut *grid;
+        let off = grid.line_offset[row as usize] + startcol as usize;
         ui_call_raw_line(
-            Integer::from((*grid).handle),
+            Integer::from(grid.handle),
             Integer::from(row),
             Integer::from(startcol),
             Integer::from(endcol),
             Integer::from(clearcol),
             Integer::from(clearattr),
             flags,
-            (*grid).chars.add(off),
-            (*grid).attrs.add(off),
+            grid.chars.as_mut_ptr().add(off),
+            grid.attrs.as_mut_ptr().add(off),
         );
 
         if p_wd != 0 && (rdb_flags & kOptRdbFlagLine) != 0 {
             ui_call_grid_cursor_goto(
-                Integer::from((*grid).handle),
+                Integer::from(grid.handle),
                 Integer::from(row),
-                Integer::from(clearcol.min((*grid).cols - 1)),
+                Integer::from(clearcol.min(grid.cols - 1)),
             );
             ui_call_flush();
             os_sleep(p_wd.unsigned_abs());

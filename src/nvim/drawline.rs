@@ -519,28 +519,28 @@ unsafe fn draw_virt_text_item(
             debug_assert!(skip_cells <= 0);
             let mut through = false;
             let attr = if hl_mode == kHlModeCombine {
-                hl_combine_attr(*linebuf_attr.add(col as usize), virt_attr)
+                hl_combine_attr(linebuf_attr[col as usize], virt_attr)
             } else if hl_mode == kHlModeBlend {
                 through = *draw_str == b' ' as c_char;
-                hl_blend_attrs(*linebuf_attr.add(col as usize), virt_attr, &raw mut through)
+                hl_blend_attrs(linebuf_attr[col as usize], virt_attr, &raw mut through)
             } else {
                 virt_attr
             };
             let mut dummy: [schar_T; 2] = [schar_from_ascii(b' '), schar_from_ascii(b' ')];
             let maxcells = max_col - col;
-            if !through && *linebuf_char.add(col as usize) == 0 {
+            if !through && linebuf_char[col as usize] == 0 {
                 debug_assert!(col > 0);
-                *linebuf_char.add((col - 1) as usize) = schar_from_ascii(b' ');
-                *linebuf_char.add(col as usize) = schar_from_ascii(b' ');
+                linebuf_char[(col - 1) as usize] = schar_from_ascii(b' ');
+                linebuf_char[col as usize] = schar_from_ascii(b' ');
             }
             let dest = if through {
                 dummy.as_mut_ptr()
             } else {
-                linebuf_char.add(col as usize)
+                &raw mut linebuf_char[col as usize]
             };
             let cells = line_putchar(buf, &raw mut draw_str, dest, maxcells, vcol);
             for _ in 0..cells {
-                *linebuf_attr.add(col as usize) = attr;
+                linebuf_attr[col as usize] = attr;
                 col += 1;
             }
             if skip_cells < 0 {
@@ -570,7 +570,7 @@ unsafe fn draw_col_buf(
             let cells = line_putchar(
                 (*wp).w_buffer,
                 &raw mut ptr,
-                linebuf_char.add(wlv.off as usize),
+                &raw mut linebuf_char[wlv.off as usize],
                 (*wp).w_view_width - wlv.off,
                 wlv.off,
             );
@@ -582,8 +582,8 @@ unsafe fn draw_col_buf(
                 }
             }
             for _ in 0..cells {
-                *linebuf_attr.add(wlv.off as usize) = myattr;
-                *linebuf_vcol.add(wlv.off as usize) = if inc_vcol {
+                linebuf_attr[wlv.off as usize] = myattr;
+                linebuf_vcol[wlv.off as usize] = if inc_vcol {
                     let v = wlv.vcol;
                     wlv.vcol += 1;
                     v
@@ -603,8 +603,8 @@ unsafe fn draw_col_buf(
 unsafe fn draw_col_fill(wlv: &mut winlinevars_T, fillchar: schar_T, width: c_int, attr: c_int) {
     unsafe {
         for _ in 0..width {
-            *linebuf_char.add(wlv.off as usize) = fillchar;
-            *linebuf_attr.add(wlv.off as usize) = attr;
+            linebuf_char[wlv.off as usize] = fillchar;
+            linebuf_attr[wlv.off as usize] = attr;
             wlv.off += 1;
         }
     }
@@ -713,9 +713,9 @@ pub unsafe fn fill_foldcolumn(
                 *out_buffer.add(i as usize) = symbol;
             } else {
                 let off = *wlv_off as usize;
-                *linebuf_vcol.add(off) = vcol;
-                *linebuf_attr.add(off) = attr;
-                *linebuf_char.add(off) = symbol;
+                linebuf_vcol[off] = vcol;
+                linebuf_attr[off] = attr;
+                linebuf_char[off] = symbol;
                 *wlv_off += 1;
             }
         }
@@ -752,8 +752,8 @@ unsafe fn draw_sign(nrcol: bool, wp: *mut win_T, wlv: &mut winlinevars_T, sign_i
             draw_col_fill(wlv, schar_from_ascii(b' '), fill, attr);
             let sign_pos = wlv.off - SIGN_WIDTH - c_int::from(nrcol);
             debug_assert!(sign_pos >= 0);
-            *linebuf_char.add(sign_pos as usize) = sattr.text[0];
-            *linebuf_char.add((sign_pos + 1) as usize) = sattr.text[1];
+            linebuf_char[sign_pos as usize] = sattr.text[0];
+            linebuf_char[(sign_pos + 1) as usize] = sattr.text[1];
         } else {
             debug_assert!(!nrcol);
             draw_col_fill(wlv, schar_from_ascii(b' '), SIGN_WIDTH, scl_attr);
@@ -1064,15 +1064,15 @@ unsafe fn handle_breakindent(wp: *mut win_T, wlv: &mut winlinevars_T, gap_decor_
             let vcol_before = wlv.vcol;
 
             for _ in 0..num {
-                *linebuf_char.add(wlv.off as usize) = schar_from_ascii(b' ');
+                linebuf_char[wlv.off as usize] = schar_from_ascii(b' ');
 
                 advance_color_col(wlv, wlv.vcol);
                 let mut myattr = attr;
                 if !wlv.color_cols.is_null() && wlv.vcol == *wlv.color_cols {
                     myattr = hl_combine_attr(win_hl_attr(wp, HLF_MC), myattr);
                 }
-                *linebuf_attr.add(wlv.off as usize) = myattr;
-                *linebuf_vcol.add(wlv.off as usize) = wlv.vcol;
+                linebuf_attr[wlv.off as usize] = myattr;
+                linebuf_vcol[wlv.off as usize] = wlv.vcol;
                 wlv.vcol += 1;
                 wlv.off += 1;
             }
@@ -1314,10 +1314,10 @@ unsafe fn win_line_start(wp: *mut win_T, wlv: &mut winlinevars_T) {
         wlv.col = 0;
         wlv.off = 0;
         wlv.need_lbr = false;
-        for i in 0..(*wp).w_view_width {
-            *linebuf_char.add(i as usize) = schar_from_ascii(b' ');
-            *linebuf_attr.add(i as usize) = 0;
-            *linebuf_vcol.add(i as usize) = -1;
+        for i in 0..(*wp).w_view_width as usize {
+            linebuf_char[i] = schar_from_ascii(b' ');
+            linebuf_attr[i] = 0;
+            linebuf_vcol[i] = -1;
         }
     }
 }
@@ -3198,7 +3198,7 @@ pub unsafe fn win_line(
                             wlv.off += n;
                             wlv.col += n;
                         } else {
-                            *linebuf_char.add(wlv.off as usize) = schar_from_ascii(b' ');
+                            linebuf_char[wlv.off as usize] = schar_from_ascii(b' ');
                         }
                         if area_attr == 0 && !has_fold {
                             get_search_match_hl(
@@ -3215,8 +3215,8 @@ pub unsafe fn win_line(
                             wlv.char_attr
                         };
 
-                        *linebuf_attr.add(wlv.off as usize) = eol_attr;
-                        *linebuf_vcol.add(wlv.off as usize) = wlv.vcol;
+                        linebuf_attr[wlv.off as usize] = eol_attr;
+                        linebuf_vcol[wlv.off as usize] = wlv.vcol;
                         wlv.col += 1;
                         wlv.off += 1;
                         wlv.vcol += 1;
@@ -3249,7 +3249,7 @@ pub unsafe fn win_line(
                     }
 
                     for i in wlv.col..view_width {
-                        *linebuf_vcol.add((wlv.off + (i - wlv.col)) as usize) =
+                        linebuf_vcol[(wlv.off + (i - wlv.col)) as usize] =
                             wlv.vcol + (i - wlv.col);
                     }
 
@@ -3289,7 +3289,7 @@ pub unsafe fn win_line(
                         }
 
                         while wlv.col < view_width {
-                            *linebuf_char.add(wlv.off as usize) = schar_from_ascii(b' ');
+                            linebuf_char[wlv.off as usize] = schar_from_ascii(b' ');
 
                             let hlc = vcol_hlc(&wlv);
                             advance_color_col(&mut wlv, hlc);
@@ -3314,7 +3314,7 @@ pub unsafe fn win_line(
 
                             col_attr = hl_combine_attr(col_attr, wlv.line_attr);
 
-                            *linebuf_attr.add(wlv.off as usize) = col_attr;
+                            linebuf_attr[wlv.off as usize] = col_attr;
                             wlv.off += 1;
                             wlv.col += 1;
                             wlv.vcol += 1;
@@ -3434,25 +3434,24 @@ pub unsafe fn win_line(
                 if wlv.filler_todo > 0 {
                     // nothing
                 } else if wlv.skip_cells <= 0 {
-                    *linebuf_char.add(wlv.off as usize) = mb_schar;
+                    linebuf_char[wlv.off as usize] = mb_schar;
                     if multi_attr != 0 {
-                        *linebuf_attr.add(wlv.off as usize) = multi_attr;
+                        linebuf_attr[wlv.off as usize] = multi_attr;
                         multi_attr = 0;
                     } else {
-                        *linebuf_attr.add(wlv.off as usize) = wlv.char_attr;
+                        linebuf_attr[wlv.off as usize] = wlv.char_attr;
                     }
 
-                    *linebuf_vcol.add(wlv.off as usize) = wlv.vcol;
+                    linebuf_vcol[wlv.off as usize] = wlv.vcol;
 
                     if schar_cells(mb_schar) > 1 {
                         wlv.off += 1;
                         wlv.col += 1;
-                        *linebuf_char.add(wlv.off as usize) = 0;
-                        *linebuf_attr.add(wlv.off as usize) =
-                            *linebuf_attr.add((wlv.off - 1) as usize);
+                        linebuf_char[wlv.off as usize] = 0;
+                        linebuf_attr[wlv.off as usize] = linebuf_attr[(wlv.off - 1) as usize];
 
                         wlv.vcol += 1;
-                        *linebuf_vcol.add(wlv.off as usize) = wlv.vcol;
+                        linebuf_vcol[wlv.off as usize] = wlv.vcol;
 
                         if wlv.tocol == wlv.vcol {
                             wlv.tocol += 1;
@@ -3574,14 +3573,14 @@ pub unsafe fn win_line(
                 let mut draw_col = wlv.col - wlv.boguscols;
 
                 for i in draw_col..view_width {
-                    *linebuf_vcol.add((wlv.off + (i - draw_col)) as usize) = wlv.vcol - 1;
+                    linebuf_vcol[(wlv.off + (i - draw_col)) as usize] = wlv.vcol - 1;
                 }
 
                 if wlv.boguscols != 0 && (wlv.line_attr_lowprio != 0 || wlv.line_attr != 0) {
                     let attr = hl_combine_attr(wlv.line_attr_lowprio, wlv.line_attr);
                     while draw_col < view_width {
-                        *linebuf_char.add(wlv.off as usize) = schar_from_char(b' ' as c_int);
-                        *linebuf_attr.add(wlv.off as usize) = attr;
+                        linebuf_char[wlv.off as usize] = schar_from_char(b' ' as c_int);
+                        linebuf_attr[wlv.off as usize] = attr;
                         wlv.off += 1;
                         draw_col += 1;
                     }
@@ -3624,10 +3623,11 @@ pub unsafe fn win_line(
                 if wrap {
                     let mut current_row = wlv.row;
                     let mut dummy_col: c_int = 0;
-                    let current_grid = grid_adjust(grid, &raw mut current_row, &raw mut dummy_col);
+                    let current_grid =
+                        &mut *grid_adjust(grid, &raw mut current_row, &raw mut dummy_col);
 
-                    let next_row_off = *(*current_grid).line_offset.add((current_row + 1) as usize);
-                    *(*current_grid).attrs.add(next_row_off) = -1;
+                    let next_row_off = current_grid.line_offset[(current_row + 1) as usize];
+                    current_grid.attrs[next_row_off] = -1;
                 }
 
                 wlv.boguscols = 0;
@@ -3722,7 +3722,7 @@ unsafe fn wlv_put_linebuf(
             let mut off: c_int = 0;
             if (*wp).w_onebuf_opt.wo_nu != 0 && (*wp).w_onebuf_opt.wo_rnu != 0 {
                 while off < (*wp).w_view_width
-                    && ascii_isdigit(schar_get_ascii(*linebuf_char.add(off as usize)))
+                    && ascii_isdigit(schar_get_ascii(linebuf_char[off as usize]))
                 {
                     off += 1;
                 }
@@ -3732,11 +3732,11 @@ unsafe fn wlv_put_linebuf(
                 if off >= (*wp).w_view_width {
                     break;
                 }
-                if off + 1 < (*wp).w_view_width && *linebuf_char.add((off + 1) as usize) == 0 {
-                    *linebuf_char.add((off + 1) as usize) = schar_from_ascii(b' ');
+                if off + 1 < (*wp).w_view_width && linebuf_char[(off + 1) as usize] == 0 {
+                    linebuf_char[(off + 1) as usize] = schar_from_ascii(b' ');
                 }
-                *linebuf_char.add(off as usize) = schar_from_ascii(b'<');
-                *linebuf_attr.add(off as usize) = hl_attr(HLF_AT);
+                linebuf_char[off as usize] = schar_from_ascii(b'<');
+                linebuf_attr[off as usize] = hl_attr(HLF_AT);
                 off += 1;
             }
         }

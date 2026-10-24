@@ -314,10 +314,27 @@ pub static mut windowsVersion: [c_char; 20] = [0 as c_char; 20];
 pub static mut skip_win_fix_scroll: bool = false;
 pub static mut skip_update_topline: bool = false;
 
-const SCREEN_GRID_INIT: ScreenGrid = ScreenGrid {
+pub const SCREEN_GRID_INIT: ScreenGrid = ScreenGrid {
+    handle: 0,
+    chars: Vec::new(),
+    attrs: Vec::new(),
+    vcols: Vec::new(),
+    line_offset: Vec::new(),
+    dirty_col: Vec::new(),
+    rows: 0,
+    cols: 0,
+    valid: false,
+    throttled: false,
+    blending: false,
     mouse_enabled: true,
+    zindex: 0,
+    comp_row: 0,
+    comp_col: 0,
+    comp_width: 0,
+    comp_height: 0,
+    comp_index: 0,
+    comp_disabled: false,
     pending_comp_index_update: true,
-    ..unsafe { zeroed() }
 };
 
 pub static mut namespace_ids: Vec<(std::ffi::CString, c_int)> = Vec::new();
@@ -402,10 +419,9 @@ pub static mut default_gridview: GridView = GridView {
     col_offset: 0,
 };
 pub static mut resizing_screen: bool = false;
-pub static mut linebuf_char: *mut schar_T = ptr::null_mut();
-pub static mut linebuf_attr: *mut sattr_T = ptr::null_mut();
-pub static mut linebuf_vcol: *mut colnr_T = ptr::null_mut();
-pub static mut linebuf_scratch: *mut c_char = ptr::null_mut();
+pub static mut linebuf_char: Vec<schar_T> = Vec::new();
+pub static mut linebuf_attr: Vec<sattr_T> = Vec::new();
+pub static mut linebuf_vcol: Vec<colnr_T> = Vec::new();
 pub static mut hlf_names: [*const c_char; HLF_COUNT] = [
     ptr::null(),
     c"SpecialKey".as_ptr(),
