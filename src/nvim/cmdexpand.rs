@@ -987,8 +987,7 @@ static mut pre_incsearch_pos: pos_T = pos_T {
     coladd: 0,
 };
 
-static mut compl_match_array: *mut pumitem_T = ptr::null_mut();
-static mut compl_match_arraysize: c_int = 0;
+static mut compl_match_array: Vec<pumitem_T> = Vec::new();
 static mut compl_startcol: c_int = 0;
 static mut compl_selected: c_int = 0;
 static mut cmdline_orig: NvimString = NvimString {
@@ -1351,9 +1350,7 @@ unsafe fn cmdline_pum_create(
 ) {
     unsafe {
         debug_assert!(numMatches >= 0);
-        compl_match_array =
-            xmalloc(std::mem::size_of::<pumitem_T>() * (numMatches as usize)).cast::<pumitem_T>();
-        compl_match_arraysize = numMatches;
+        let mut items = Vec::with_capacity(numMatches as usize);
         for i in 0..(numMatches as usize) {
             let pum_text =
                 if !(*xp).xp_files_abbr.is_null() && !(*(*xp).xp_files_abbr.add(i)).is_null() {
@@ -1376,7 +1373,7 @@ unsafe fn cmdline_pum_create(
             } else {
                 ptr::null_mut()
             };
-            *compl_match_array.add(i) = pumitem_T {
+            items.push(pumitem_T {
                 pum_text,
                 pum_kind,
                 pum_extra,
@@ -1384,8 +1381,9 @@ unsafe fn cmdline_pum_create(
                 pum_cpt_source_idx: 0,
                 pum_user_abbr_hlattr: -1,
                 pum_user_kind_hlattr: -1,
-            };
+            });
         }
+        compl_match_array = items;
 
         let endpos = if showtail {
             showmatches_gettail((*xp).xp_pattern, cmdline_unchanged)
@@ -1402,9 +1400,10 @@ unsafe fn cmdline_pum_create(
 
 pub unsafe fn cmdline_pum_display(changed_array: bool) {
     unsafe {
+        let arr = &raw mut compl_match_array;
         pum_display(
-            compl_match_array,
-            compl_match_arraysize,
+            (*arr).as_mut_ptr(),
+            (*arr).len() as c_int,
             compl_selected,
             changed_array,
             compl_startcol,
@@ -1414,16 +1413,17 @@ pub unsafe fn cmdline_pum_display(changed_array: bool) {
 
 /// Returns true if the cmdline completion popup menu is being displayed.
 pub unsafe fn cmdline_pum_active() -> bool {
-    unsafe { pum_visible() && !compl_match_array.is_null() }
+    unsafe {
+        let arr = &raw const compl_match_array;
+        pum_visible() && !(*arr).is_empty()
+    }
 }
 
 /// Remove the cmdline completion popup menu (if present), free the list of items.
 pub unsafe fn cmdline_pum_remove(defer_redraw: bool) {
     unsafe {
         pum_undisplay(!defer_redraw);
-        xfree(compl_match_array.cast());
-        compl_match_array = ptr::null_mut();
-        compl_match_arraysize = 0;
+        compl_match_array = Vec::new();
     }
 }
 
@@ -1529,7 +1529,8 @@ unsafe fn redraw_wildmenu(
             return;
         }
 
-        let buf = xmalloc((Columns as usize) * MB_MAXBYTES + 1).cast::<c_char>();
+        let mut buf_vec = vec![0 as c_char; (Columns as usize) * MB_MAXBYTES + 1];
+        let buf = buf_vec.as_mut_ptr();
 
         if match_idx == -1 {
             match_idx = 0;
@@ -1691,7 +1692,6 @@ unsafe fn redraw_wildmenu(
         }
 
         win_redraw_last_status(topframe);
-        xfree(buf.cast());
     }
 }
 
@@ -1746,7 +1746,8 @@ unsafe fn get_next_or_prev_match(mode: c_int, xp: *mut expand_T) -> *mut c_char 
         }
 
         if p_wmnu != 0 {
-            if !compl_match_array.is_null() {
+            let arr = &raw const compl_match_array;
+            if !(*arr).is_empty() {
                 compl_selected = findex;
                 cmdline_pum_display(false);
             } else if cmdline_compl_use_pum(true) {
@@ -1944,7 +1945,8 @@ pub unsafe fn ExpandOne(
             xfree((*xp).xp_orig.cast());
             (*xp).xp_orig = ptr::null_mut();
 
-            if !compl_match_array.is_null() {
+            let arr = &raw const compl_match_array;
+            if !(*arr).is_empty() {
                 cmdline_pum_remove(false);
             }
         }
@@ -4632,7 +4634,8 @@ unsafe fn expand_shellcmd(
     unsafe {
         let mut path: *mut c_char = ptr::null_mut();
         let mut ga: Vec<*mut c_char> = Vec::new();
-        let buf = xmalloc(MAXPATHL).cast::<c_char>();
+        let mut buf_vec = vec![0 as c_char; MAXPATHL];
+        let buf = buf_vec.as_mut_ptr();
         let mut flags = flagsarg;
         let mut did_curdir = false;
 
@@ -4738,7 +4741,6 @@ unsafe fn expand_shellcmd(
         *numMatches = ga.len() as c_int;
         *matches = crate::path::slice_to_xmalloc(&ga);
 
-        xfree(buf.cast());
         xfree(pat.cast());
         if mustfree {
             xfree(path.cast());
@@ -4995,7 +4997,8 @@ pub unsafe fn globpath(
     dirs: bool,
 ) {
     unsafe {
-        let buf = xmalloc(MAXPATHL).cast::<c_char>();
+        let mut buf_vec = vec![0 as c_char; MAXPATHL];
+        let buf = buf_vec.as_mut_ptr();
 
         let mut xpc: expand_T = std::mem::zeroed();
         ExpandInit(&raw mut xpc);
@@ -5039,8 +5042,6 @@ pub unsafe fn globpath(
                 }
             }
         }
-
-        xfree(buf.cast());
     }
 }
 

@@ -47,7 +47,7 @@ use crate::mark::{fm_getname, fmark_T, fmarkv_T, mark_view_make, mark_view_resto
 use crate::mbyte::{
     convert_setup, mb_ptr_adv, mb_strnicmp, string_convert, utfc_ptr2len, vimconv_T,
 };
-use crate::memory::{xfree, xmalloc, xmemcpyz, xmemdupz, xrealloc, xstrdup, xstrlcat, xstrlcpy};
+use crate::memory::{xfree, xmalloc, xmemcpyz, xmemdupz, xstrdup, xstrlcat, xstrlcpy};
 use crate::message::{
     emsg, give_warning, msg, msg_delay, msg_outtrans, msg_putchar, msg_puts, msg_puts_title, semsg,
     smsg, verbose_enter, verbose_leave, wait_return,
@@ -254,10 +254,9 @@ struct findtags_match_args_T {
 struct findtags_state_T {
     state: tagsearch_state_T,
     stop_searching: bool,
-    orgpat: *mut pat_T,
-    lbuf: *mut c_char,
-    lbuf_size: c_int,
-    tag_fname: *mut c_char,
+    orgpat: pat_T,
+    lbuf: Vec<c_char>,
+    tag_fname: Vec<c_char>,
     fp: *mut FILE,
     flags: c_int,
     tag_file_sorted: c_int,
@@ -282,10 +281,21 @@ impl findtags_state_T {
             Self {
                 state: tagsearch_state_T::TS_START,
                 stop_searching: false,
-                orgpat: ptr::null_mut(),
-                lbuf: ptr::null_mut(),
-                lbuf_size: 0,
-                tag_fname: ptr::null_mut(),
+                orgpat: pat_T {
+                    pat: ptr::null_mut(),
+                    len: 0,
+                    head: ptr::null_mut(),
+                    headlen: 0,
+                    regmatch: regmatch_T {
+                        regprog: ptr::null_mut(),
+                        startp: [ptr::null_mut(); NSUBEXP],
+                        endp: [ptr::null_mut(); NSUBEXP],
+                        rm_matchcol: 0,
+                        rm_ic: false,
+                    },
+                },
+                lbuf: Vec::new(),
+                tag_fname: Vec::new(),
                 fp: ptr::null_mut(),
                 flags: 0,
                 tag_file_sorted: 0,
@@ -978,8 +988,10 @@ unsafe fn add_llist_tags(tag: *mut c_char, num_matches: c_int, matches: *mut *mu
         let mut tag_name = [0 as c_char; 128 + 1];
         let mut tagp = tagptrs_T::default();
 
-        let fname = xmalloc(MAXPATHL + 1).cast::<c_char>();
-        let cmd = xmalloc(CMDBUFFSIZE + 1).cast::<c_char>();
+        let mut fname_vec = vec![0 as c_char; MAXPATHL + 1];
+        let fname = fname_vec.as_mut_ptr();
+        let mut cmd_vec = vec![0 as c_char; CMDBUFFSIZE + 1];
+        let cmd = cmd_vec.as_mut_ptr();
         let list = tv_list_alloc(0);
 
         for i in 0..num_matches as usize {
@@ -1070,8 +1082,6 @@ unsafe fn add_llist_tags(tag: *mut c_char, num_matches: c_int, matches: *mut *mu
         set_errorlist(curwin, list, b' ' as c_int, iobuf_ptr, ptr::null_mut());
 
         tv_list_free(list);
-        xfree(fname.cast());
-        xfree(cmd.cast());
 
         OK
     }
@@ -1488,72 +1498,75 @@ unsafe fn findtags_state_init(
     mincount: c_int,
 ) {
     unsafe {
-        (*st).tag_fname = xmalloc(MAXPATHL + 1).cast::<c_char>();
-        (*st).fp = ptr::null_mut();
-        (*st).orgpat = xmalloc(size_of::<pat_T>()).cast::<pat_T>();
-        (*(*st).orgpat).pat = pat;
-        (*(*st).orgpat).len = strlen(pat) as c_int;
-        (*(*st).orgpat).head = ptr::null_mut();
-        (*(*st).orgpat).headlen = 0;
-        (*(*st).orgpat).regmatch = regmatch_T {
-            regprog: ptr::null_mut(),
-            startp: [ptr::null_mut(); NSUBEXP],
-            endp: [ptr::null_mut(); NSUBEXP],
-            rm_matchcol: 0,
-            rm_ic: false,
+        let st = &mut *st;
+        st.tag_fname = vec![0 as c_char; MAXPATHL + 1];
+        st.fp = ptr::null_mut();
+        st.orgpat = pat_T {
+            pat,
+            len: strlen(pat) as c_int,
+            head: ptr::null_mut(),
+            headlen: 0,
+            regmatch: regmatch_T {
+                regprog: ptr::null_mut(),
+                startp: [ptr::null_mut(); NSUBEXP],
+                endp: [ptr::null_mut(); NSUBEXP],
+                rm_matchcol: 0,
+                rm_ic: false,
+            },
         };
-        (*st).flags = flags;
-        (*st).tag_file_sorted = NUL as c_int;
-        (*st).help_lang_find = ptr::null_mut();
-        (*st).is_txt = false;
-        (*st).did_open = false;
-        (*st).help_only = (flags & TAG_HELP) != 0;
-        (*st).get_searchpat = false;
-        (*st).help_lang = [NUL; 3];
-        (*st).help_pri = 0;
-        (*st).mincount = mincount;
-        (*st).lbuf_size = LSIZE;
-        (*st).lbuf = xmalloc((*st).lbuf_size as usize).cast::<c_char>();
-        (*st).match_count = 0;
-        (*st).stop_searching = false;
+        st.flags = flags;
+        st.tag_file_sorted = NUL as c_int;
+        st.help_lang_find = ptr::null_mut();
+        st.is_txt = false;
+        st.did_open = false;
+        st.help_only = (flags & TAG_HELP) != 0;
+        st.get_searchpat = false;
+        st.help_lang = [NUL; 3];
+        st.help_pri = 0;
+        st.mincount = mincount;
+        st.lbuf = vec![0 as c_char; LSIZE as usize];
+        st.match_count = 0;
+        st.stop_searching = false;
 
         for mtt in 0..MT_COUNT {
-            (*st).ga_match[mtt].clear();
-            (*st).ht_match[mtt].clear();
+            st.ga_match[mtt].clear();
+            st.ht_match[mtt].clear();
         }
     }
 }
 
 unsafe fn findtags_state_free(st: *mut findtags_state_T) {
     unsafe {
-        xfree((*st).tag_fname.cast());
-        xfree((*st).lbuf.cast());
-        vim_regfree((*(*st).orgpat).regmatch.regprog);
-        xfree((*st).orgpat.cast());
+        let st = &mut *st;
+        st.tag_fname.clear();
+        st.lbuf.clear();
+        vim_regfree(st.orgpat.regmatch.regprog);
     }
 }
 
 unsafe fn findtags_in_help_init(st: *mut findtags_state_T) -> bool {
     unsafe {
-        if (*st).is_txt {
-            strcpy((*st).help_lang.as_mut_ptr(), c"en".as_ptr());
+        let st = &mut *st;
+        let tag_fname = st.tag_fname.as_ptr();
+        if st.is_txt {
+            strcpy(st.help_lang.as_mut_ptr(), c"en".as_ptr());
         } else {
-            let i = strlen((*st).tag_fname) as c_int;
-            if i > 3 && *(*st).tag_fname.add((i - 3) as usize) == b'-' as c_char {
+            let i = strlen(tag_fname) as c_int;
+            if i > 3 && *tag_fname.add((i - 3) as usize) == b'-' as c_char {
                 xmemcpyz(
-                    (*st).help_lang.as_mut_ptr().cast(),
-                    (*st).tag_fname.add((i - 2) as usize).cast(),
+                    st.help_lang.as_mut_ptr().cast(),
+                    tag_fname.add((i - 2) as usize).cast(),
                     2,
                 );
             } else {
-                strcpy((*st).help_lang.as_mut_ptr(), c"en".as_ptr());
+                strcpy(st.help_lang.as_mut_ptr(), c"en".as_ptr());
             }
         }
 
-        if !(*st).help_lang_find.is_null()
+        if !st.help_lang_find.is_null()
             && mb_strnicmp(
-                (*st).help_lang.as_ptr(),
-                (*st).help_lang_find,
+                st.help_lang.as_ptr(),
+                st.help_lang_find,
                 MAXCOL as usize,
             ) != 0
         {
@@ -1565,27 +1578,27 @@ unsafe fn findtags_in_help_init(st: *mut findtags_state_T) -> bool {
         } else {
             0
         };
-        if ((*st).flags & TAG_KEEP_LANG) != 0
-            && (*st).help_lang_find.is_null()
+        if (st.flags & TAG_KEEP_LANG) != 0
+            && st.help_lang_find.is_null()
             && !(*curbuf).b_fname.is_null()
             && fname_len > 4
             && *(*curbuf).b_fname.add((fname_len - 1) as usize) == b'x' as c_char
             && *(*curbuf).b_fname.add((fname_len - 4) as usize) == b'.' as c_char
             && mb_strnicmp(
                 (*curbuf).b_fname.add((fname_len - 3) as usize),
-                (*st).help_lang.as_ptr(),
+                st.help_lang.as_ptr(),
                 2,
             ) == 0
         {
-            (*st).help_pri = 0;
+            st.help_pri = 0;
         } else {
-            (*st).help_pri = 1;
+            st.help_pri = 1;
             let mut s = p_hlg;
             while *s != NUL {
-                if mb_strnicmp(s, (*st).help_lang.as_ptr(), 2) == 0 {
+                if mb_strnicmp(s, st.help_lang.as_ptr(), 2) == 0 {
                     break;
                 }
-                (*st).help_pri += 1;
+                st.help_pri += 1;
                 s = vim_strchr(s, b',' as c_int);
                 if s.is_null() {
                     break;
@@ -1593,9 +1606,9 @@ unsafe fn findtags_in_help_init(st: *mut findtags_state_T) -> bool {
                 s = s.add(1);
             }
             if s.is_null() || *s == NUL {
-                (*st).help_pri += 1;
-                if mb_strnicmp((*st).help_lang.as_ptr(), c"en".as_ptr(), MAXCOL as usize) != 0 {
-                    (*st).help_pri += 1;
+                st.help_pri += 1;
+                if mb_strnicmp(st.help_lang.as_ptr(), c"en".as_ptr(), MAXCOL as usize) != 0 {
+                    st.help_pri += 1;
                 }
             }
         }
@@ -1646,7 +1659,8 @@ unsafe fn findtags_get_next_line(
                 (*sinfo_p).curr_offset = offset;
             }
         } else if (*st).state == tagsearch_state_T::TS_SKIP_BACK {
-            (*sinfo_p).curr_offset -= ((*st).lbuf_size * 2) as off_T;
+            let lbuf_size = (&*st).lbuf.len() as c_int;
+            (*sinfo_p).curr_offset -= (lbuf_size * 2) as off_T;
             if (*sinfo_p).curr_offset < 0 {
                 (*sinfo_p).curr_offset = 0;
                 vim_fseek((*st).fp, 0, SEEK_SET);
@@ -1654,23 +1668,25 @@ unsafe fn findtags_get_next_line(
             }
         }
 
+        let lbuf_ptr = (&mut *st).lbuf.as_mut_ptr();
+        let lbuf_size = (&*st).lbuf.len() as c_int;
         if (*st).state == tagsearch_state_T::TS_BINARY
             || (*st).state == tagsearch_state_T::TS_SKIP_BACK
         {
             (*sinfo_p).curr_offset_used = (*sinfo_p).curr_offset;
             vim_ignored = vim_fseek((*st).fp, (*sinfo_p).curr_offset, SEEK_SET);
-            eof = vim_fgets((*st).lbuf, (*st).lbuf_size, (*st).fp);
+            eof = vim_fgets(lbuf_ptr, lbuf_size, (*st).fp);
             if !eof && (*sinfo_p).curr_offset != 0 {
                 (*sinfo_p).curr_offset = vim_ftell((*st).fp);
                 if (*sinfo_p).curr_offset == (*sinfo_p).high_offset {
                     vim_ignored = vim_fseek((*st).fp, (*sinfo_p).low_offset, SEEK_SET);
                     (*sinfo_p).curr_offset = (*sinfo_p).low_offset;
                 }
-                eof = vim_fgets((*st).lbuf, (*st).lbuf_size, (*st).fp);
+                eof = vim_fgets(lbuf_ptr, lbuf_size, (*st).fp);
             }
-            while !eof && vim_isblankline((*st).lbuf) {
+            while !eof && vim_isblankline(lbuf_ptr) {
                 (*sinfo_p).curr_offset = vim_ftell((*st).fp);
-                eof = vim_fgets((*st).lbuf, (*st).lbuf_size, (*st).fp);
+                eof = vim_fgets(lbuf_ptr, lbuf_size, (*st).fp);
             }
             if eof {
                 (*st).state = tagsearch_state_T::TS_SKIP_BACK;
@@ -1680,8 +1696,8 @@ unsafe fn findtags_get_next_line(
             }
         } else {
             loop {
-                eof = vim_fgets((*st).lbuf, (*st).lbuf_size, (*st).fp);
-                if eof || !vim_isblankline((*st).lbuf) {
+                eof = vim_fgets(lbuf_ptr, lbuf_size, (*st).fp);
+                if eof || !vim_isblankline(lbuf_ptr) {
                     break;
                 }
             }
@@ -1696,20 +1712,21 @@ unsafe fn findtags_get_next_line(
 
 unsafe fn findtags_hdr_parse(st: *mut findtags_state_T) -> bool {
     unsafe {
-        if strncmp((*st).lbuf, c"!_TAG_".as_ptr(), 6) != 0 {
+        let lbuf = (&mut *st).lbuf.as_mut_ptr();
+        if strncmp(lbuf, c"!_TAG_".as_ptr(), 6) != 0 {
             return true;
         }
 
-        if strncmp((*st).lbuf, c"!_TAG_FILE_SORTED\t".as_ptr(), 18) == 0 {
-            (*st).tag_file_sorted = *(*st).lbuf.add(18) as u8 as c_int;
+        if strncmp(lbuf, c"!_TAG_FILE_SORTED\t".as_ptr(), 18) == 0 {
+            (*st).tag_file_sorted = *lbuf.add(18) as u8 as c_int;
         }
-        if strncmp((*st).lbuf, c"!_TAG_FILE_ENCODING\t".as_ptr(), 20) == 0 {
-            let mut p = (*st).lbuf.add(20);
+        if strncmp(lbuf, c"!_TAG_FILE_ENCODING\t".as_ptr(), 20) == 0 {
+            let mut p = lbuf.add(20);
             while (*p as u8) > b' ' && (*p as u8) < 127 {
                 p = p.add(1);
             }
             *p = NUL;
-            convert_setup(&raw mut (*st).vimconv, (*st).lbuf.add(20), p_enc);
+            convert_setup(&raw mut (*st).vimconv, lbuf.add(20), p_enc);
         }
 
         false
@@ -1723,9 +1740,10 @@ unsafe fn findtags_start_state_handler(
 ) -> bool {
     unsafe {
         let noic = ((*st).flags & TAG_NOIC) != 0;
+        let lbuf = (&*st).lbuf.as_ptr();
 
-        if strncmp((*st).lbuf, c"!_TAG_".as_ptr(), 6) <= 0
-            || (*(*st).lbuf == b'!' as c_char && ascii_islower(*(*st).lbuf.add(1)))
+        if strncmp(lbuf, c"!_TAG_".as_ptr(), 6) <= 0
+            || (*lbuf == b'!' as c_char && ascii_islower(*lbuf.add(1)))
         {
             return findtags_hdr_parse(st);
         }
@@ -1737,13 +1755,12 @@ unsafe fn findtags_start_state_handler(
         } else if (*st).tag_file_sorted == b'2' as c_int {
             (*st).state = tagsearch_state_T::TS_BINARY;
             *sortic = true;
-            (*(*st).orgpat).regmatch.rm_ic = p_ic != 0 || !noic;
+            (*st).orgpat.regmatch.rm_ic = p_ic != 0 || !noic;
         } else {
             (*st).state = tagsearch_state_T::TS_LINEAR;
         }
 
-        if (*st).state == tagsearch_state_T::TS_BINARY && (*(*st).orgpat).regmatch.rm_ic && !*sortic
-        {
+        if (*st).state == tagsearch_state_T::TS_BINARY && (*st).orgpat.regmatch.rm_ic && !*sortic {
             (*st).linear = true;
             (*st).state = tagsearch_state_T::TS_LINEAR;
         }
@@ -1776,11 +1793,12 @@ unsafe fn findtags_parse_line(
 ) -> tagmatch_status_T {
     unsafe {
         let status: c_int;
+        let lbuf = (&mut *st).lbuf.as_mut_ptr();
 
-        if (*(*st).orgpat).headlen != 0 {
+        if (*st).orgpat.headlen != 0 {
             *tagpp = tagptrs_T::default();
-            tagpp.tagname = (*st).lbuf;
-            tagpp.tagname_end = vim_strchr((*st).lbuf, TAB as c_int);
+            tagpp.tagname = lbuf;
+            tagpp.tagname_end = vim_strchr(lbuf, TAB as c_int);
             if tagpp.tagname_end.is_null() {
                 return tagmatch_status_T::TAG_MATCH_FAIL;
             }
@@ -1789,10 +1807,9 @@ unsafe fn findtags_parse_line(
             if p_tl != 0 && (cmplen as OptInt) > p_tl {
                 cmplen = p_tl as c_int;
             }
-            if ((*st).flags & TAG_REGEXP) != 0 && (*(*st).orgpat).headlen < cmplen {
-                cmplen = (*(*st).orgpat).headlen;
-            } else if (*st).state == tagsearch_state_T::TS_LINEAR
-                && (*(*st).orgpat).headlen != cmplen
+            if ((*st).flags & TAG_REGEXP) != 0 && (*st).orgpat.headlen < cmplen {
+                cmplen = (*st).orgpat.headlen;
+            } else if (*st).state == tagsearch_state_T::TS_LINEAR && (*st).orgpat.headlen != cmplen
             {
                 return tagmatch_status_T::TAG_MATCH_NEXT;
             }
@@ -1807,15 +1824,15 @@ unsafe fn findtags_parse_line(
                 }
 
                 let mut tagcmp = if margs.sortic {
-                    tag_strnicmp(tagpp.tagname, (*(*st).orgpat).head, cmplen as usize)
+                    tag_strnicmp(tagpp.tagname, (*st).orgpat.head, cmplen as usize)
                 } else {
-                    strncmp(tagpp.tagname, (*(*st).orgpat).head, cmplen as usize)
+                    strncmp(tagpp.tagname, (*st).orgpat.head, cmplen as usize)
                 };
 
                 if tagcmp == 0 {
-                    if cmplen < (*(*st).orgpat).headlen {
+                    if cmplen < (*st).orgpat.headlen {
                         tagcmp = -1;
-                    } else if cmplen > (*(*st).orgpat).headlen {
+                    } else if cmplen > (*st).orgpat.headlen {
                         tagcmp = 1;
                     }
                 }
@@ -1850,7 +1867,7 @@ unsafe fn findtags_parse_line(
                 return tagmatch_status_T::TAG_MATCH_STOP;
             } else if (*st).state == tagsearch_state_T::TS_SKIP_BACK {
                 assert!(cmplen >= 0);
-                if mb_strnicmp(tagpp.tagname, (*(*st).orgpat).head, cmplen as usize) != 0 {
+                if mb_strnicmp(tagpp.tagname, (*st).orgpat.head, cmplen as usize) != 0 {
                     (*st).state = tagsearch_state_T::TS_STEP_FORWARD;
                 } else {
                     (*sinfo_p).curr_offset = (*sinfo_p).curr_offset_used;
@@ -1858,7 +1875,7 @@ unsafe fn findtags_parse_line(
                 return tagmatch_status_T::TAG_MATCH_NEXT;
             } else if (*st).state == tagsearch_state_T::TS_STEP_FORWARD {
                 assert!(cmplen >= 0);
-                if mb_strnicmp(tagpp.tagname, (*(*st).orgpat).head, cmplen as usize) != 0 {
+                if mb_strnicmp(tagpp.tagname, (*st).orgpat.head, cmplen as usize) != 0 {
                     return if vim_ftell((*st).fp) > (*sinfo_p).match_offset {
                         tagmatch_status_T::TAG_MATCH_STOP
                     } else {
@@ -1867,7 +1884,7 @@ unsafe fn findtags_parse_line(
                 }
             } else {
                 assert!(cmplen >= 0);
-                if mb_strnicmp(tagpp.tagname, (*(*st).orgpat).head, cmplen as usize) != 0 {
+                if mb_strnicmp(tagpp.tagname, (*st).orgpat.head, cmplen as usize) != 0 {
                     return tagmatch_status_T::TAG_MATCH_NEXT;
                 }
             }
@@ -1881,7 +1898,7 @@ unsafe fn findtags_parse_line(
                 status = OK;
             }
         } else {
-            status = parse_tag_line((*st).lbuf, tagpp);
+            status = parse_tag_line(lbuf, tagpp);
         }
 
         if status == FAIL {
@@ -1913,32 +1930,31 @@ unsafe fn findtags_match_tag(
         if p_tl != 0 && (cmplen as OptInt) > p_tl {
             cmplen = p_tl as c_int;
         }
-        if (*(*st).orgpat).len != cmplen {
+        if (*st).orgpat.len != cmplen {
             match_ = false;
-        } else if (*(*st).orgpat).regmatch.rm_ic {
+        } else if (*st).orgpat.regmatch.rm_ic {
             assert!(cmplen >= 0);
-            match_ = mb_strnicmp(tagpp.tagname, (*(*st).orgpat).pat, cmplen as usize) == 0;
+            match_ = mb_strnicmp(tagpp.tagname, (*st).orgpat.pat, cmplen as usize) == 0;
             if match_ {
-                margs.match_no_ic =
-                    strncmp(tagpp.tagname, (*(*st).orgpat).pat, cmplen as usize) == 0;
+                margs.match_no_ic = strncmp(tagpp.tagname, (*st).orgpat.pat, cmplen as usize) == 0;
             }
         } else {
-            match_ = strncmp(tagpp.tagname, (*(*st).orgpat).pat, cmplen as usize) == 0;
+            match_ = strncmp(tagpp.tagname, (*st).orgpat.pat, cmplen as usize) == 0;
         }
 
         margs.match_re = false;
-        if !match_ && !(*(*st).orgpat).regmatch.regprog.is_null() {
+        if !match_ && !(*st).orgpat.regmatch.regprog.is_null() {
             let cc = *tagpp.tagname_end;
             *tagpp.tagname_end = NUL;
-            match_ = vim_regexec(&raw mut (*(*st).orgpat).regmatch, tagpp.tagname, 0);
+            match_ = vim_regexec(&raw mut (*st).orgpat.regmatch, tagpp.tagname, 0);
             if match_ {
                 margs.matchoff =
-                    (*(*st).orgpat).regmatch.startp[0].offset_from(tagpp.tagname) as c_int;
-                if (*(*st).orgpat).regmatch.rm_ic {
-                    (*(*st).orgpat).regmatch.rm_ic = false;
+                    (*st).orgpat.regmatch.startp[0].offset_from(tagpp.tagname) as c_int;
+                if (*st).orgpat.regmatch.rm_ic {
+                    (*st).orgpat.regmatch.rm_ic = false;
                     margs.match_no_ic =
-                        vim_regexec(&raw mut (*(*st).orgpat).regmatch, tagpp.tagname, 0);
-                    (*(*st).orgpat).regmatch.rm_ic = true;
+                        vim_regexec(&raw mut (*st).orgpat.regmatch, tagpp.tagname, 0);
+                    (*st).orgpat.regmatch.rm_ic = true;
                 }
             }
             *tagpp.tagname_end = cc;
@@ -1951,20 +1967,18 @@ unsafe fn findtags_match_tag(
 
 unsafe fn findtags_string_convert(st: *mut findtags_state_T) {
     unsafe {
-        let conv_line = string_convert(&raw const (*st).vimconv, (*st).lbuf, ptr::null_mut());
+        let st = &mut *st;
+        let conv_line = string_convert(&raw const st.vimconv, st.lbuf.as_mut_ptr(), ptr::null_mut());
         if conv_line.is_null() {
             return;
         }
 
-        let len = strlen(conv_line) as c_int + 1;
-        if len > (*st).lbuf_size {
-            xfree((*st).lbuf.cast());
-            (*st).lbuf = conv_line;
-            (*st).lbuf_size = len;
-        } else {
-            strcpy((*st).lbuf, conv_line);
-            xfree(conv_line.cast());
+        let len = strlen(conv_line) + 1;
+        if len > st.lbuf.len() {
+            st.lbuf.resize(len, 0);
         }
+        strcpy(st.lbuf.as_mut_ptr(), conv_line);
+        xfree(conv_line.cast());
     }
 }
 
@@ -1977,9 +1991,11 @@ unsafe fn findtags_add_match(
     unsafe {
         let name_only = ((*st).flags & TAG_NAMES) != 0;
         let mfp: *mut c_char;
+        let tag_fname_ptr = (&mut *st).tag_fname.as_mut_ptr();
+        let lbuf_ptr = (&*st).lbuf.as_ptr();
 
         let is_current =
-            test_for_current(tagpp.fname, tagpp.fname_end, (*st).tag_fname, buf_ffname) != 0;
+            test_for_current(tagpp.fname, tagpp.fname_end, tag_fname_ptr, buf_ffname) != 0;
         let is_static = test_for_static(tagpp);
 
         let mut mtt = if is_static {
@@ -1990,7 +2006,7 @@ unsafe fn findtags_add_match(
             MT_GL_OTH
         };
 
-        if (*(*st).orgpat).regmatch.rm_ic && !margs.match_no_ic {
+        if (*st).orgpat.regmatch.rm_ic && !margs.match_no_ic {
             mtt += MT_IC_OFF;
         }
         if margs.match_re {
@@ -2051,15 +2067,15 @@ unsafe fn findtags_add_match(
                 }
             }
         } else {
-            let tag_fname_len = strlen((*st).tag_fname);
-            let len = tag_fname_len + strlen((*st).lbuf) + 3;
+            let tag_fname_len = strlen(tag_fname_ptr);
+            let len = tag_fname_len + strlen(lbuf_ptr) + 3;
             mfp = xmalloc(1 + len + 1).cast::<c_char>();
             let p = mfp;
             *p = (mtt + 1) as c_char;
-            strcpy(p.add(1), (*st).tag_fname);
+            strcpy(p.add(1), tag_fname_ptr);
             *p.add(tag_fname_len + 1) = TAG_SEP;
             let s = p.add(1 + tag_fname_len + 1);
-            strcpy(s, (*st).lbuf);
+            strcpy(s, lbuf_ptr);
         }
 
         if !mfp.is_null() {
@@ -2122,15 +2138,15 @@ unsafe fn findtags_get_all_tags(
                 continue;
             }
 
-            if *(*st).lbuf.add(((*st).lbuf_size - 2) as usize) != NUL {
-                (*st).lbuf_size *= 2;
-                xfree((*st).lbuf.cast());
-                (*st).lbuf = xmalloc((*st).lbuf_size as usize).cast::<c_char>();
+            let st_ref = &mut *st;
+            if st_ref.lbuf[st_ref.lbuf.len() - 2] != NUL {
+                let new_size = st_ref.lbuf.len() * 2;
+                st_ref.lbuf = vec![0 as c_char; new_size];
 
-                if (*st).state == tagsearch_state_T::TS_STEP_FORWARD
-                    || (*st).state == tagsearch_state_T::TS_LINEAR
+                if st_ref.state == tagsearch_state_T::TS_STEP_FORWARD
+                    || st_ref.state == tagsearch_state_T::TS_LINEAR
                 {
-                    vim_ignored = vim_fseek((*st).fp, search_info.curr_offset, SEEK_SET);
+                    vim_ignored = vim_fseek(st_ref.fp, search_info.curr_offset, SEEK_SET);
                 }
                 search_info.curr_offset = 0;
                 continue;
@@ -2146,7 +2162,7 @@ unsafe fn findtags_get_all_tags(
             if retval == tagmatch_status_T::TAG_MATCH_FAIL {
                 semsg!(
                     gettext(c"E431: Format error in tags file \"%s\"".as_ptr()),
-                    (*st).tag_fname,
+                    (&*st).tag_fname.as_ptr(),
                 );
                 semsg!(
                     gettext(c"Before byte %lld".as_ptr()),
@@ -2176,7 +2192,8 @@ unsafe fn findtags_in_file(st: *mut findtags_state_T, _flags: c_int, buf_ffname:
             return;
         }
 
-        (*st).fp = os_fopen((*st).tag_fname, c"r".as_ptr());
+        let tag_fname_ptr = (&*st).tag_fname.as_ptr();
+        (*st).fp = os_fopen(tag_fname_ptr, c"r".as_ptr());
         if (*st).fp.is_null() {
             return;
         }
@@ -2186,7 +2203,7 @@ unsafe fn findtags_in_file(st: *mut findtags_state_T, _flags: c_int, buf_ffname:
             smsg!(
                 0,
                 gettext(c"Searching tags file %s".as_ptr()),
-                (*st).tag_fname,
+                tag_fname_ptr,
             );
             verbose_leave();
         }
@@ -2206,7 +2223,7 @@ unsafe fn findtags_in_file(st: *mut findtags_state_T, _flags: c_int, buf_ffname:
         if margs.sort_error {
             semsg!(
                 gettext(c"E432: Tags file not sorted: %s".as_ptr()),
-                (*st).tag_fname,
+                (&*st).tag_fname.as_ptr(),
             );
         }
 
@@ -2308,25 +2325,25 @@ pub unsafe fn find_tags(
         }
 
         if (*curbuf).b_help
-            && (*st.orgpat).len > 3
-            && *pat.add(((*st.orgpat).len - 3) as usize) == b'@' as c_char
-            && ascii_isalpha(*pat.add(((*st.orgpat).len - 2) as usize))
-            && ascii_isalpha(*pat.add(((*st.orgpat).len - 1) as usize))
+            && st.orgpat.len > 3
+            && *pat.add((st.orgpat.len - 3) as usize) == b'@' as c_char
+            && ascii_isalpha(*pat.add((st.orgpat.len - 2) as usize))
+            && ascii_isalpha(*pat.add((st.orgpat.len - 1) as usize))
         {
-            saved_pat = xstrnsave(pat, ((*st.orgpat).len - 3) as usize);
-            st.help_lang_find = pat.add(((*st.orgpat).len - 2) as usize);
-            (*st.orgpat).pat = saved_pat;
-            (*st.orgpat).len -= 3;
+            saved_pat = xstrnsave(pat, (st.orgpat.len - 3) as usize);
+            st.help_lang_find = pat.add((st.orgpat.len - 2) as usize);
+            st.orgpat.pat = saved_pat;
+            st.orgpat.len -= 3;
         }
-        if p_tl != 0 && ((*st.orgpat).len as OptInt) > p_tl {
-            (*st.orgpat).len = p_tl as c_int;
+        if p_tl != 0 && (st.orgpat.len as OptInt) > p_tl {
+            st.orgpat.len = p_tl as c_int;
         }
 
         let save_emsg_off = emsg_off;
         emsg_off = 1;
-        prepare_pats(st.orgpat, has_re);
+        prepare_pats(&raw mut st.orgpat, has_re);
         emsg_off = save_emsg_off;
-        if has_re && (*st.orgpat).regmatch.regprog.is_null() {
+        if has_re && st.orgpat.regmatch.regprog.is_null() {
             retval = FAIL;
         } else {
             retval = findtags_apply_tfu(&raw mut st, pat, buf_ffname);
@@ -2349,13 +2366,13 @@ pub unsafe fn find_tags(
                     }
                 }
 
-                (*st.orgpat).regmatch.rm_ic =
-                    (p_ic != 0 || !noic) && (findall || (*st.orgpat).headlen == 0 || p_tbs == 0);
+                st.orgpat.regmatch.rm_ic =
+                    (p_ic != 0 || !noic) && (findall || st.orgpat.headlen == 0 || p_tbs == 0);
                 for round in 1..=2 {
-                    st.linear = (*st.orgpat).headlen == 0 || p_tbs == 0 || round == 2;
+                    st.linear = st.orgpat.headlen == 0 || p_tbs == 0 || round == 2;
 
                     let mut first_file: c_int = 1;
-                    while get_tagfname(&raw mut tn, first_file, st.tag_fname) == OK {
+                    while get_tagfname(&raw mut tn, first_file, st.tag_fname.as_mut_ptr()) == OK {
                         findtags_in_file(&raw mut st, flags, buf_ffname);
                         if st.stop_searching {
                             retval = OK;
@@ -2369,12 +2386,12 @@ pub unsafe fn find_tags(
                     if st.stop_searching
                         || st.linear
                         || (p_ic == 0 && noic)
-                        || (*st.orgpat).regmatch.rm_ic
+                        || st.orgpat.regmatch.rm_ic
                     {
                         break;
                     }
 
-                    (*st.orgpat).regmatch.rm_ic = true;
+                    st.orgpat.regmatch.rm_ic = true;
                 }
 
                 if !st.stop_searching {
@@ -2719,10 +2736,12 @@ unsafe fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -
         let old_KeyTyped = KeyTyped;
         let l_g_do_tagpreview = g_do_tagpreview;
         let len = matching_line_len(lbuf_arg) + 1;
-        let lbuf = xmalloc(len).cast::<c_char>();
+        let mut lbuf_vec = vec![0 as c_char; len];
+        let lbuf = lbuf_vec.as_mut_ptr();
         ptr::copy(lbuf_arg, lbuf, len);
 
-        let pbuf = xmalloc(LSIZE as usize).cast::<c_char>();
+        let mut pbuf_vec = vec![0 as c_char; LSIZE as usize];
+        let pbuf = pbuf_vec.as_mut_ptr();
 
         'erret: {
             if parse_match(lbuf, &mut tagp) == FAIL {
@@ -3001,8 +3020,6 @@ unsafe fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -
         }
 
         g_do_tagpreview = 0;
-        xfree(lbuf.cast());
-        xfree(pbuf.cast());
         xfree(tofree_fname.cast());
         xfree(full_fname.cast());
 
@@ -3140,8 +3157,7 @@ pub unsafe fn expand_tags(
     file: *mut *mut *mut c_char,
 ) -> c_int {
     unsafe {
-        let mut name_buf_size: usize = 100;
-        let mut name_buf = xmalloc(name_buf_size).cast::<c_char>();
+        let mut name_buf: Vec<c_char> = Vec::with_capacity(100);
 
         let extra_flag = if tagnames { TAG_NAMES } else { 0 };
         let ret = if *pat == b'/' as c_char {
@@ -3168,30 +3184,23 @@ pub unsafe fn expand_tags(
                 let mut t_p = tagptrs_T::default();
                 let item_ptr = *(*file).add(i);
                 parse_match(item_ptr, &mut t_p);
-                let mut len = t_p.tagname_end.offset_from(t_p.tagname) as usize;
-                if len > name_buf_size - 3 {
-                    name_buf_size = len + 3;
-                    name_buf = xrealloc(name_buf.cast(), name_buf_size).cast::<c_char>();
-                }
-
-                ptr::copy(t_p.tagname, name_buf, len);
-                *name_buf.add(len) = 0;
-                len += 1;
-                *name_buf.add(len) = if !t_p.tagkind.is_null() && *t_p.tagkind != NUL {
+                let len = t_p.tagname_end.offset_from(t_p.tagname) as usize;
+                name_buf.clear();
+                name_buf.extend_from_slice(std::slice::from_raw_parts(t_p.tagname, len));
+                name_buf.push(0);
+                name_buf.push(if !t_p.tagkind.is_null() && *t_p.tagkind != NUL {
                     *t_p.tagkind
                 } else {
                     b'f' as c_char
-                };
-                len += 1;
-                *name_buf.add(len) = 0;
-                len += 1;
+                });
+                name_buf.push(0);
+                let prefix_len = name_buf.len();
                 let fname_len = t_p.fname_end.offset_from(t_p.fname) as usize;
-                ptr::copy(t_p.fname, item_ptr.add(len), fname_len);
-                *item_ptr.add(len + fname_len) = 0;
-                ptr::copy(name_buf, item_ptr, len);
+                ptr::copy(t_p.fname, item_ptr.add(prefix_len), fname_len);
+                *item_ptr.add(prefix_len + fname_len) = 0;
+                ptr::copy_nonoverlapping(name_buf.as_ptr(), item_ptr, prefix_len);
             }
         }
-        xfree(name_buf.cast());
         ret
     }
 }
@@ -3212,7 +3221,8 @@ unsafe fn add_tag_field(
             return FAIL;
         }
         let mut len: c_int = 0;
-        let buf = xmalloc(MAXPATHL).cast::<c_char>();
+        let mut buf_vec = vec![0 as c_char; MAXPATHL];
+        let buf = buf_vec.as_mut_ptr();
         if !start.is_null() {
             if end.is_null() {
                 end = start.add(strlen(start));
@@ -3226,9 +3236,7 @@ unsafe fn add_tag_field(
             xmemcpyz(buf.cast(), start.cast(), len as usize);
         }
         *buf.add(len as usize) = NUL;
-        let retval = tv_dict_add_str(dict, field_name, strlen(field_name), buf);
-        xfree(buf.cast());
-        retval
+        tv_dict_add_str(dict, field_name, strlen(field_name), buf)
     }
 }
 

@@ -348,6 +348,7 @@ struct ins_compl_next_state_T {
 
 /// Structure for completion source (in `'cpt'` option) information (`cpt_source_T`).
 #[repr(C)]
+#[derive(Clone, Copy, Default)]
 struct cpt_source_T {
     cs_refresh_always: bool,
     cs_startcol: c_int,
@@ -377,7 +378,6 @@ static mut compl_preselect_match: *mut compl_T = ptr::null_mut();
 static mut compl_strings_ht: std::collections::BTreeMap<Vec<u8>, c_int> =
     std::collections::BTreeMap::new();
 
-static mut compl_best_matches: *mut *mut compl_T = ptr::null_mut();
 static mut compl_num_bests: c_int = 0;
 static mut compl_enter_selects: bool = false;
 static mut compl_leader: NvimString = empty_nvim_string();
@@ -425,14 +425,11 @@ static mut compl_cont_status: c_int = 0;
 static mut compl_opt_refresh_always: bool = false;
 static mut spell_bad_len: usize = 0;
 static mut compl_selected_item: c_int = -1;
-static mut compl_fuzzy_scores: *mut c_int = ptr::null_mut();
 
-static mut cpt_sources_array: *mut cpt_source_T = ptr::null_mut();
-static mut cpt_sources_count: c_int = 0;
+static mut cpt_sources_array: Vec<cpt_source_T> = Vec::new();
 static mut cpt_sources_index: c_int = -1;
 
-static mut compl_match_array: *mut pumitem_T = ptr::null_mut();
-static mut compl_match_arraysize: c_int = 0;
+static mut compl_match_array: Vec<pumitem_T> = Vec::new();
 
 static mut cpt_cb: *mut Callback = ptr::null_mut();
 static mut cpt_cb_count: c_int = 0;
@@ -794,11 +791,11 @@ unsafe fn ins_compl_infercase_gettext(
     unsafe {
         let mut has_lower = false;
 
-        let wca = xmalloc((char_len as usize) * size_of::<c_int>()).cast::<c_int>();
+        let mut wca = vec![0 as c_int; char_len as usize];
         {
             let mut p = str_ptr;
-            for i in 0..(char_len as usize) {
-                *wca.add(i) = mb_ptr2char_adv(&raw mut p);
+            for item in &mut wca {
+                *item = mb_ptr2char_adv(&raw mut p);
             }
         }
 
@@ -809,9 +806,9 @@ unsafe fn ins_compl_infercase_gettext(
                 let c = mb_ptr2char_adv(&raw mut p);
                 if mb_islower(c) {
                     has_lower = true;
-                    if mb_isupper(*wca.add(i)) {
-                        for j in (compl_char_len as usize)..(char_len as usize) {
-                            *wca.add(j) = mb_tolower(*wca.add(j));
+                    if mb_isupper(wca[i]) {
+                        for item in &mut wca[(compl_char_len as usize)..] {
+                            *item = mb_tolower(*item);
                         }
                         break;
                     }
@@ -825,9 +822,9 @@ unsafe fn ins_compl_infercase_gettext(
             let mut p = compl_orig_text.data.cast_const();
             for i in 0..(min_len as usize) {
                 let c = mb_ptr2char_adv(&raw mut p);
-                if was_letter && mb_isupper(c) && mb_islower(*wca.add(i)) {
-                    for j in (compl_char_len as usize)..(char_len as usize) {
-                        *wca.add(j) = mb_toupper(*wca.add(j));
+                if was_letter && mb_isupper(c) && mb_islower(wca[i]) {
+                    for item in &mut wca[(compl_char_len as usize)..] {
+                        *item = mb_toupper(*item);
                     }
                     break;
                 }
@@ -838,12 +835,12 @@ unsafe fn ins_compl_infercase_gettext(
         // Copy the original case of the part we typed.
         {
             let mut p = compl_orig_text.data.cast_const();
-            for i in 0..(min_len as usize) {
+            for item in &mut wca[..(min_len as usize)] {
                 let c = mb_ptr2char_adv(&raw mut p);
                 if mb_islower(c) {
-                    *wca.add(i) = mb_tolower(*wca.add(i));
+                    *item = mb_tolower(*item);
                 } else if mb_isupper(c) {
-                    *wca.add(i) = mb_toupper(*wca.add(i));
+                    *item = mb_toupper(*item);
                 }
             }
         }
@@ -856,7 +853,7 @@ unsafe fn ins_compl_infercase_gettext(
         while i < char_len {
             if !gap.is_empty() {
                 let mut ch_buf = [0 as c_char; 6];
-                let n = utf_char2bytes(*wca.add(i as usize), ch_buf.as_mut_ptr()) as usize;
+                let n = utf_char2bytes(wca[i as usize], ch_buf.as_mut_ptr()) as usize;
                 gap.extend_from_slice(&ch_buf[..n]);
                 i += 1;
             } else if (p.offset_from(iobuff_ptr) as usize) + 6 >= IOSIZE {
@@ -864,11 +861,10 @@ unsafe fn ins_compl_infercase_gettext(
                 gap.reserve(IOSIZE);
                 gap.extend_from_slice(std::slice::from_raw_parts(iobuff_ptr, cur_len));
             } else {
-                p = p.add(utf_char2bytes(*wca.add(i as usize), p) as usize);
+                p = p.add(utf_char2bytes(wca[i as usize], p) as usize);
                 i += 1;
             }
         }
-        xfree(wca.cast());
 
         if !gap.is_empty() {
             let out = xmemdupz(gap.as_ptr().cast(), gap.len()).cast::<c_char>();
@@ -1442,13 +1438,13 @@ pub unsafe fn get_cot_flags() -> c_uint {
 
 unsafe fn ins_compl_del_pum() {
     unsafe {
-        if compl_match_array.is_null() {
+        let arr = &raw mut compl_match_array;
+        if (*arr).is_empty() {
             return;
         }
 
         pum_undisplay(false);
-        xfree(compl_match_array.cast());
-        compl_match_array = ptr::null_mut();
+        *arr = Vec::new();
     }
 }
 
@@ -1603,7 +1599,8 @@ unsafe fn get_leader_for_startcol(match_: *mut compl_T, cached: bool) -> *mut Nv
             return ptr::null_mut();
         }
 
-        if cpt_sources_array.is_null() {
+        let cpt_sources = &raw const cpt_sources_array;
+        if (*cpt_sources).is_empty() {
             return &raw mut compl_leader;
         }
 
@@ -1611,7 +1608,7 @@ unsafe fn get_leader_for_startcol(match_: *mut compl_T, cached: bool) -> *mut Nv
         if cpt_idx < 0 {
             return &raw mut compl_leader;
         }
-        let startcol = (*cpt_sources_array.add(cpt_idx as usize)).cs_startcol;
+        let startcol = cpt_sources_array[cpt_idx as usize].cs_startcol;
 
         if compl_leader.data.is_null() {
             if startcol < 0 || startcol >= compl_col {
@@ -1738,7 +1735,7 @@ unsafe fn get_user_highlight_attr(hl_id: c_int) -> c_int {
 
 unsafe fn ins_compl_build_pum() -> c_int {
     unsafe {
-        compl_match_arraysize = 0;
+        let mut compl_match_arraysize: c_int = 0;
 
         if ins_compl_need_restart() {
             api_clear_string(&raw mut compl_leader);
@@ -1749,9 +1746,9 @@ unsafe fn ins_compl_build_pum() -> c_int {
 
         let mut match_head: *mut compl_T = ptr::null_mut();
         let mut match_tail: *mut compl_T = ptr::null_mut();
-        let mut match_count: *mut c_int = ptr::null_mut();
         let is_forward = compl_shows_dir_forward();
-        let is_cpt_completion = !cpt_sources_array.is_null();
+        let cpt_sources = &raw const cpt_sources_array;
+        let is_cpt_completion = !(*cpt_sources).is_empty();
 
         let mut shown_match_ok = match_at_original_text(compl_shown_match);
 
@@ -1769,9 +1766,11 @@ unsafe fn ins_compl_build_pum() -> c_int {
         let mut i: c_int = 0;
         let mut cur: c_int = -1;
 
-        if is_cpt_completion {
-            match_count = xcalloc(cpt_sources_count as usize, size_of::<c_int>()).cast::<c_int>();
-        }
+        let mut match_count = if is_cpt_completion {
+            vec![0 as c_int; (*cpt_sources).len()]
+        } else {
+            Vec::new()
+        };
 
         let _ = get_leader_for_startcol(ptr::null_mut(), true);
 
@@ -1798,9 +1797,9 @@ unsafe fn ins_compl_build_pum() -> c_int {
                 let mut match_limit_exceeded = false;
                 let cur_source = (*comp).cp_cpt_source_idx;
                 if is_forward && cur_source != -1 && is_cpt_completion {
-                    *match_count.add(cur_source as usize) += 1;
-                    let max_matches = (*cpt_sources_array.add(cur_source as usize)).cs_max_matches;
-                    if max_matches > 0 && *match_count.add(cur_source as usize) > max_matches {
+                    match_count[cur_source as usize] += 1;
+                    let max_matches = cpt_sources_array[cur_source as usize].cs_max_matches;
+                    if max_matches > 0 && match_count[cur_source as usize] > max_matches {
                         match_limit_exceeded = true;
                     }
                 }
@@ -1860,8 +1859,6 @@ unsafe fn ins_compl_build_pum() -> c_int {
             }
         }
 
-        xfree(match_count.cast());
-
         if compl_match_arraysize == 0 {
             return -1;
         }
@@ -1873,33 +1870,32 @@ unsafe fn ins_compl_build_pum() -> c_int {
         }
 
         debug_assert!(compl_match_arraysize >= 0);
-        compl_match_array =
-            xcalloc(compl_match_arraysize as usize, size_of::<pumitem_T>()).cast::<pumitem_T>();
+        let mut items = Vec::with_capacity(compl_match_arraysize as usize);
 
-        let mut idx: usize = 0;
         comp = match_head;
         while !comp.is_null() {
-            let item = &mut *compl_match_array.add(idx);
-            item.pum_text = if !(*comp).cp_text[CPT_ABBR].is_null() {
-                (*comp).cp_text[CPT_ABBR]
-            } else {
-                (*comp).cp_str.data
-            };
-            item.pum_kind = (*comp).cp_text[CPT_KIND];
-            item.pum_info = (*comp).cp_text[CPT_INFO];
-            item.pum_cpt_source_idx = (*comp).cp_cpt_source_idx;
-            item.pum_user_abbr_hlattr = get_user_highlight_attr((*comp).cp_user_abbr_hl_id);
-            item.pum_user_kind_hlattr = get_user_highlight_attr((*comp).cp_user_kind_hl_id);
-            item.pum_extra = if !(*comp).cp_text[CPT_MENU].is_null() {
-                (*comp).cp_text[CPT_MENU]
-            } else {
-                (*comp).cp_fname
-            };
-            idx += 1;
+            items.push(pumitem_T {
+                pum_text: if !(*comp).cp_text[CPT_ABBR].is_null() {
+                    (*comp).cp_text[CPT_ABBR]
+                } else {
+                    (*comp).cp_str.data
+                },
+                pum_kind: (*comp).cp_text[CPT_KIND],
+                pum_extra: if !(*comp).cp_text[CPT_MENU].is_null() {
+                    (*comp).cp_text[CPT_MENU]
+                } else {
+                    (*comp).cp_fname
+                },
+                pum_info: (*comp).cp_text[CPT_INFO],
+                pum_cpt_source_idx: (*comp).cp_cpt_source_idx,
+                pum_user_abbr_hlattr: get_user_highlight_attr((*comp).cp_user_abbr_hl_id),
+                pum_user_kind_hlattr: get_user_highlight_attr((*comp).cp_user_kind_hl_id),
+            });
             let match_next = (*comp).cp_match_next;
             (*comp).cp_match_next = ptr::null_mut();
             comp = match_next;
         }
+        compl_match_array = items;
 
         if !shown_match_ok {
             cur = -1;
@@ -1921,12 +1917,13 @@ pub unsafe fn ins_compl_show_pum() {
         let mut cur: c_int = -1;
         let mut array_changed = false;
 
-        if compl_match_array.is_null() {
+        let arr = &raw mut compl_match_array;
+        if (*arr).is_empty() {
             array_changed = true;
             cur = ins_compl_build_pum();
         } else {
-            for i in 0..(compl_match_arraysize as usize) {
-                let pum_text = (*compl_match_array.add(i)).pum_text;
+            for (i, item) in (*arr).iter().enumerate() {
+                let pum_text = item.pum_text;
                 if ptr::eq(pum_text, (*compl_shown_match).cp_str.data)
                     || ptr::eq(pum_text, (*compl_shown_match).cp_text[CPT_ABBR])
                 {
@@ -1936,7 +1933,7 @@ pub unsafe fn ins_compl_show_pum() {
             }
         }
 
-        if compl_match_array.is_null() {
+        if (*arr).is_empty() {
             if compl_started && has_event(EVENT_COMPLETECHANGED) {
                 trigger_complete_changed_event(cur);
             }
@@ -1949,8 +1946,8 @@ pub unsafe fn ins_compl_show_pum() {
         (*curwin).w_cursor.col = compl_col;
         compl_selected_item = cur;
         pum_display(
-            compl_match_array,
-            compl_match_arraysize,
+            (*arr).as_mut_ptr(),
+            (*arr).len() as c_int,
             cur,
             array_changed,
             0,
@@ -2020,7 +2017,8 @@ unsafe fn ins_compl_dictionaries(
             }
         }
 
-        let mut buf = xmalloc(LSIZE).cast::<c_char>();
+        let mut buf_vec = vec![0 as c_char; LSIZE];
+        let mut buf = buf_vec.as_mut_ptr();
         regmatch.regprog = ptr::null_mut();
 
         let save_p_scs = p_scs;
@@ -2031,17 +2029,16 @@ unsafe fn ins_compl_dictionaries(
         if ctrl_x_mode_line_or_eval() {
             let pat_esc = vim_strsave_escaped(pat, c"\\".as_ptr());
             let len = strlen(pat_esc) + 10;
-            let ptr = xmalloc(len).cast::<c_char>();
+            let mut ptr_vec = vec![0 as c_char; len];
+            let ptr = ptr_vec.as_mut_ptr();
             vim_snprintf!(ptr, len, c"^\\s*\\zs\\V%s".as_ptr(), pat_esc);
             regmatch.regprog = vim_regcomp(ptr, RE_MAGIC);
             xfree(pat_esc.cast());
-            xfree(ptr.cast());
         } else {
             regmatch.regprog = vim_regcomp(pat, if p_magic != 0 { RE_MAGIC } else { 0 });
             if regmatch.regprog.is_null() {
                 p_scs = save_p_scs;
                 vim_regfree(regmatch.regprog);
-                xfree(buf.cast());
                 return;
             }
         }
@@ -2096,7 +2093,6 @@ unsafe fn ins_compl_dictionaries(
 
         p_scs = save_p_scs;
         vim_regfree(regmatch.regprog);
-        xfree(buf.cast());
     }
 }
 
@@ -2586,7 +2582,8 @@ unsafe fn ins_compl_new_leader() {
             show_pum(save_w_wrow, save_w_leftcol);
         }
 
-        if compl_match_array.is_null() {
+        let arr = &raw const compl_match_array;
+        if (*arr).is_empty() {
             compl_enter_selects = false;
         } else if ins_compl_has_preinsert() && compl_leader.size > 0 {
             ins_compl_insert(true, false);
@@ -2842,10 +2839,11 @@ unsafe fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
             redrawWinline(curwin, (*curwin).w_cursor.lnum);
         }
 
+        let arr = &raw const compl_match_array;
         if word.data.is_null()
             && c != Ctrl_E
             && compl_used_match
-            && compl_match_array.is_null()
+            && (*arr).is_empty()
             && !compl_curr_match.is_null()
             && !(*compl_curr_match).cp_str.data.is_null()
         {
@@ -4158,26 +4156,6 @@ unsafe fn get_next_tag_completion() {
     }
 }
 
-unsafe fn compare_scores(&idx_a: &c_int, &idx_b: &c_int) -> c_int {
-    unsafe {
-        let score_a = *compl_fuzzy_scores.add(idx_a as usize);
-        let score_b = *compl_fuzzy_scores.add(idx_b as usize);
-        if score_a == score_b {
-            if idx_a == idx_b {
-                0
-            } else if idx_a < idx_b {
-                -1
-            } else {
-                1
-            }
-        } else if score_a > score_b {
-            -1
-        } else {
-            1
-        }
-    }
-}
-
 unsafe fn ins_compl_longest_insert(prefix: *const c_char) {
     unsafe {
         ins_compl_delete(false);
@@ -4213,21 +4191,20 @@ unsafe fn fuzzy_longest_match() {
         if (compl_num_bests as usize) > usize::MAX / size_of::<*mut compl_T>() {
             return;
         }
-        compl_best_matches =
-            xmalloc((compl_num_bests as usize) * size_of::<*mut compl_T>()).cast::<*mut compl_T>();
+        let mut compl_best_matches = Vec::with_capacity(compl_num_bests as usize);
 
         let mut i: c_int = 0;
         while !compl.is_null() && i < compl_num_bests {
-            *compl_best_matches.add(i as usize) = compl;
+            compl_best_matches.push(compl);
             compl = (*compl).cp_next;
             i += 1;
         }
 
-        let prefix = (**compl_best_matches).cp_str.data;
-        let mut prefix_len = (**compl_best_matches).cp_str.size as c_int;
+        let prefix = (*compl_best_matches[0]).cp_str.data;
+        let mut prefix_len = (*compl_best_matches[0]).cp_str.size as c_int;
 
-        for idx in 1..(compl_num_bests as usize) {
-            let match_str = (**compl_best_matches.add(idx)).cp_str.data;
+        for &best in &compl_best_matches[1..] {
+            let match_str = (*best).cp_str.data;
             let mut prefix_ptr = prefix;
             let mut match_ptr = match_str;
             let mut j: c_int = 0;
@@ -4256,8 +4233,6 @@ unsafe fn fuzzy_longest_match() {
             xfree(dup.cast());
         }
 
-        xfree(compl_best_matches.cast());
-        compl_best_matches = ptr::null_mut();
         compl_num_bests = 0;
     }
 }
@@ -4333,25 +4308,40 @@ unsafe fn get_next_filename_completion() {
 
         if in_fuzzy_collect {
             let mut fuzzy_indices: Vec<c_int> = Vec::with_capacity(10);
-            compl_fuzzy_scores =
-                xmalloc(size_of::<c_int>() * (num_matches as usize)).cast::<c_int>();
+            let mut compl_fuzzy_scores = vec![0 as c_int; num_matches as usize];
 
             for i in 0..num_matches {
                 let ptr = *matches.add(i as usize);
                 let score = fuzzy_match_str(ptr, leader);
                 if score != FUZZY_SCORE_NONE {
                     fuzzy_indices.push(i);
-                    *compl_fuzzy_scores.add(i as usize) = score;
+                    compl_fuzzy_scores[i as usize] = score;
                 }
             }
 
             if !fuzzy_indices.is_empty() {
-                sort_slice_by(&mut fuzzy_indices, |a, b| compare_scores(a, b));
+                sort_slice_by(&mut fuzzy_indices, |&idx_a, &idx_b| {
+                    let score_a = compl_fuzzy_scores[idx_a as usize];
+                    let score_b = compl_fuzzy_scores[idx_b as usize];
+                    if score_a == score_b {
+                        if idx_a == idx_b {
+                            0
+                        } else if idx_a < idx_b {
+                            -1
+                        } else {
+                            1
+                        }
+                    } else if score_a > score_b {
+                        -1
+                    } else {
+                        1
+                    }
+                });
 
                 for (i, &idx_c) in fuzzy_indices.iter().enumerate() {
                     let idx = idx_c as usize;
                     let match_ = *matches.add(idx);
-                    let current_score = *compl_fuzzy_scores.add(idx);
+                    let current_score = compl_fuzzy_scores[idx];
                     if ins_compl_add(
                         match_,
                         -1,
@@ -4386,8 +4376,6 @@ unsafe fn get_next_filename_completion() {
             } else if leader_len > 0 {
                 FreeWild(num_matches, matches);
             }
-
-            xfree(compl_fuzzy_scores.cast());
 
             if compl_num_bests > 0 && compl_get_longest {
                 fuzzy_longest_match();
@@ -4980,16 +4968,16 @@ unsafe fn prepare_cpt_compl_funcs() {
                 if get_userdefined_compl_info((*curwin).w_cursor.col, cb, &raw mut startcol) == FAIL
                 {
                     if startcol == -3 {
-                        (*cpt_sources_array.add(idx as usize)).cs_refresh_always = false;
+                        cpt_sources_array[idx as usize].cs_refresh_always = false;
                     } else {
                         startcol = -2;
                     }
                 } else if startcol < 0 || startcol > (*curwin).w_cursor.col {
                     startcol = (*curwin).w_cursor.col;
                 }
-                (*cpt_sources_array.add(idx as usize)).cs_startcol = startcol;
+                cpt_sources_array[idx as usize].cs_startcol = startcol;
             } else {
-                (*cpt_sources_array.add(idx as usize)).cs_startcol = -3;
+                cpt_sources_array[idx as usize].cs_startcol = -3;
             }
 
             let iobuff_ptr = (&raw mut IObuff).cast::<c_char>();
@@ -5004,7 +4992,7 @@ unsafe fn prepare_cpt_compl_funcs() {
 unsafe fn compl_source_start_timer(source_idx: c_int) {
     unsafe {
         if compl_autocomplete || p_cto > 0 {
-            (*cpt_sources_array.add(source_idx as usize)).compl_start_tv = os_hrtime();
+            cpt_sources_array[source_idx as usize].compl_start_tv = os_hrtime();
             compl_time_slice_expired = false;
         }
     }
@@ -5012,7 +5000,8 @@ unsafe fn compl_source_start_timer(source_idx: c_int) {
 
 unsafe fn advance_cpt_sources_index_safe() -> c_int {
     unsafe {
-        if cpt_sources_index >= 0 && cpt_sources_index < cpt_sources_count - 1 {
+        let cpt_sources = &raw const cpt_sources_array;
+        if cpt_sources_index >= 0 && (cpt_sources_index as usize) + 1 < (*cpt_sources).len() {
             cpt_sources_index += 1;
             return OK;
         }
@@ -5074,10 +5063,11 @@ unsafe fn ins_compl_get_exp(ini: *mut pos_T) -> c_int {
             &raw mut st.first_match_pos
         };
 
+        let cpt_sources = &raw const cpt_sources_array;
         let normal_mode_strict = ctrl_x_mode_normal()
             && !ctrl_x_mode_line_or_eval()
             && (compl_cont_status & CONT_LOCAL) == 0
-            && !cpt_sources_array.is_null();
+            && !(*cpt_sources).is_empty();
         if normal_mode_strict {
             cpt_sources_index = 0;
             if compl_autocomplete || p_cto > 0 {
@@ -5348,13 +5338,14 @@ unsafe fn ins_compl_expand_multiple(str_ptr: *mut c_char) {
 
 unsafe fn find_common_prefix(prefix_len: *mut usize, curbuf_only: bool) -> *mut c_char {
     unsafe {
-        let is_cpt_completion = !cpt_sources_array.is_null();
+        let cpt_sources = &raw const cpt_sources_array;
+        let is_cpt_completion = !(*cpt_sources).is_empty();
 
         if !is_cpt_completion {
             return ptr::null_mut();
         }
 
-        let match_count = xcalloc(cpt_sources_count as usize, size_of::<c_int>()).cast::<c_int>();
+        let mut match_count = vec![0 as c_int; (*cpt_sources).len()];
 
         let _ = get_leader_for_startcol(ptr::null_mut(), true);
 
@@ -5380,9 +5371,9 @@ unsafe fn find_common_prefix(prefix_len: *mut usize, curbuf_only: bool) -> *mut 
                 let cur_source = (*compl).cp_cpt_source_idx;
 
                 if cur_source != -1 {
-                    *match_count.add(cur_source as usize) += 1;
-                    let max_matches = (*cpt_sources_array.add(cur_source as usize)).cs_max_matches;
-                    if max_matches > 0 && *match_count.add(cur_source as usize) > max_matches {
+                    match_count[cur_source as usize] += 1;
+                    let max_matches = cpt_sources_array[cur_source as usize].cs_max_matches;
+                    if max_matches > 0 && match_count[cur_source as usize] > max_matches {
                         match_limit_exceeded = true;
                     }
                 }
@@ -5390,8 +5381,7 @@ unsafe fn find_common_prefix(prefix_len: *mut usize, curbuf_only: bool) -> *mut 
                 if !match_limit_exceeded
                     && (!curbuf_only
                         || (cur_source != -1
-                            && (*cpt_sources_array.add(cur_source as usize)).cs_flag
-                                == b'.' as c_char))
+                            && cpt_sources_array[cur_source as usize].cs_flag == b'.' as c_char))
                 {
                     if first.is_null()
                         && strncmp(
@@ -5432,8 +5422,6 @@ unsafe fn find_common_prefix(prefix_len: *mut usize, curbuf_only: bool) -> *mut 
             }
         }
 
-        xfree(match_count.cast());
-
         if len > ins_compl_leader_len() as c_int {
             debug_assert!(!first.is_null());
             if len == strlen(first) as c_int {
@@ -5466,6 +5454,7 @@ pub unsafe fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
         let leader_len = ins_compl_leader_len();
         let has_multiple = !strchr(cp_str, b'\n' as c_int).is_null();
 
+        let cpt_sources = &raw const cpt_sources_array;
         if insert_prefix {
             cp_str = find_common_prefix(&raw mut cp_str_len, false);
             if cp_str.is_null() {
@@ -5475,10 +5464,10 @@ pub unsafe fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
                     cp_str_len = (*compl_shown_match).cp_str.size;
                 }
             }
-        } else if !cpt_sources_array.is_null() {
+        } else if !(*cpt_sources).is_empty() {
             let cpt_idx = (*compl_shown_match).cp_cpt_source_idx;
             if cpt_idx >= 0 && compl_col >= 0 {
-                let startcol = (*cpt_sources_array.add(cpt_idx as usize)).cs_startcol;
+                let startcol = cpt_sources_array[cpt_idx as usize].cs_startcol;
                 if startcol >= 0 && startcol < compl_col {
                     let skip = compl_col - startcol;
                     if (skip as usize) <= cp_str_len {
@@ -5597,8 +5586,9 @@ unsafe fn find_next_completion_match(
             if todo < 0 {
                 break;
             }
+            let arr = &raw const compl_match_array;
             if compl_shows_dir_forward() && !(*compl_shown_match).cp_next.is_null() {
-                if !compl_match_array.is_null() {
+                if !(*arr).is_empty() {
                     compl_shown_match = find_next_match_in_menu();
                 } else {
                     compl_shown_match = (*compl_shown_match).cp_next;
@@ -5608,7 +5598,7 @@ unsafe fn find_next_completion_match(
                         || is_first_match(compl_shown_match));
             } else if compl_shows_dir_backward() && !(*compl_shown_match).cp_prev.is_null() {
                 found_end = is_first_match(compl_shown_match);
-                if !compl_match_array.is_null() {
+                if !(*arr).is_empty() {
                     compl_shown_match = find_next_match_in_menu();
                 } else {
                     compl_shown_match = (*compl_shown_match).cp_prev;
@@ -5749,7 +5739,8 @@ unsafe fn ins_compl_next(allow_get_expansion: bool, count: c_int, insert_match: 
         if compl_no_insert && !started && !match_at_original_text(compl_shown_match) {
             compl_enter_selects = true;
         } else {
-            compl_enter_selects = !insert_match && !compl_match_array.is_null();
+            let arr = &raw const compl_match_array;
+            compl_enter_selects = !insert_match && !(*arr).is_empty();
         }
 
         if !(*compl_shown_match).cp_fname.is_null() {
@@ -5762,7 +5753,7 @@ unsafe fn ins_compl_next(allow_get_expansion: bool, count: c_int, insert_match: 
 
 unsafe fn check_elapsed_time() {
     unsafe {
-        let start_tv = (*cpt_sources_array.add(cpt_sources_index as usize)).compl_start_tv;
+        let start_tv = cpt_sources_array[cpt_sources_index as usize].compl_start_tv;
         let elapsed_ms = (os_hrtime() - start_tv) / 1_000_000;
 
         if elapsed_ms > compl_timeout_ms {
@@ -5802,10 +5793,11 @@ pub unsafe fn ins_compl_check_keys(frequency: c_int, in_compl_func: bool) {
                 }
             }
         } else {
+            let cpt_sources = &raw const cpt_sources_array;
             let normal_mode_strict = ctrl_x_mode_normal()
                 && !ctrl_x_mode_line_or_eval()
                 && (compl_cont_status & CONT_LOCAL) == 0
-                && !cpt_sources_array.is_null()
+                && !(*cpt_sources).is_empty()
                 && cpt_sources_index >= 0;
             if normal_mode_strict && (compl_autocomplete || p_cto > 0) {
                 check_elapsed_time();
@@ -6720,10 +6712,8 @@ unsafe fn spell_back_to_badword() {
 
 unsafe fn cpt_sources_clear() {
     unsafe {
-        xfree(cpt_sources_array.cast());
-        cpt_sources_array = ptr::null_mut();
+        cpt_sources_array = Vec::new();
         cpt_sources_index = -1;
-        cpt_sources_count = 0;
     }
 }
 
@@ -6736,8 +6726,16 @@ unsafe fn setup_cpt_sources() {
             return;
         }
 
-        cpt_sources_array =
-            xcalloc(count as usize, size_of::<cpt_source_T>()).cast::<cpt_source_T>();
+        let mut sources = vec![
+            cpt_source_T {
+                cs_startcol: 0,
+                cs_max_matches: 0,
+                compl_start_tv: 0,
+                cs_flag: 0,
+                cs_refresh_always: false,
+            };
+            count as usize
+        ];
 
         let mut buf: [c_char; LSIZE] = [0; LSIZE];
         let mut idx: usize = 0;
@@ -6747,31 +6745,27 @@ unsafe fn setup_cpt_sources() {
                 p = p.add(1);
             }
             if *p != NUL {
-                (*cpt_sources_array.add(idx)).cs_flag = *p;
+                sources[idx].cs_flag = *p;
                 buf.fill(0);
                 let slen = copy_option_part(&raw mut p, buf.as_mut_ptr(), LSIZE, c",".as_ptr());
                 if slen > 0 {
                     let caret = vim_strchr(buf.as_mut_ptr(), b'^' as c_int);
                     if !caret.is_null() {
-                        (*cpt_sources_array.add(idx)).cs_max_matches = atoi(caret.add(1));
+                        sources[idx].cs_max_matches = atoi(caret.add(1));
                     }
                 }
                 idx += 1;
             }
         }
 
-        cpt_sources_count = count;
+        cpt_sources_array = sources;
     }
 }
 
 unsafe fn is_cpt_func_refresh_always() -> bool {
     unsafe {
-        for i in 0..(cpt_sources_count as usize) {
-            if (*cpt_sources_array.add(i)).cs_refresh_always {
-                return true;
-            }
-        }
-        false
+        let cpt_sources = &raw const cpt_sources_array;
+        (*cpt_sources).iter().any(|s| s.cs_refresh_always)
     }
 }
 
@@ -6860,7 +6854,7 @@ unsafe fn remove_old_matches() {
 
 unsafe fn get_cpt_func_completion_matches(cb: *mut Callback) {
     unsafe {
-        let cpt_src = &raw mut *cpt_sources_array.add(cpt_sources_index as usize);
+        let cpt_src = &raw mut cpt_sources_array[cpt_sources_index as usize];
         let startcol = (*cpt_src).cs_startcol;
 
         if startcol == -2 || startcol == -3 {
@@ -6900,7 +6894,7 @@ unsafe fn cpt_compl_refresh() {
                 break;
             }
 
-            if (*cpt_sources_array.add(cpt_sources_index as usize)).cs_refresh_always {
+            if cpt_sources_array[cpt_sources_index as usize].cs_refresh_always {
                 let cb = get_callback_if_cpt_func(p, cpt_sources_index);
                 if !cb.is_null() {
                     remove_old_matches();
@@ -6909,15 +6903,14 @@ unsafe fn cpt_compl_refresh() {
                         get_userdefined_compl_info((*curwin).w_cursor.col, cb, &raw mut startcol);
                     if ret == FAIL {
                         if startcol == -3 {
-                            (*cpt_sources_array.add(cpt_sources_index as usize))
-                                .cs_refresh_always = false;
+                            cpt_sources_array[cpt_sources_index as usize].cs_refresh_always = false;
                         } else {
                             startcol = -2;
                         }
                     } else if startcol < 0 || startcol > (*curwin).w_cursor.col {
                         startcol = (*curwin).w_cursor.col;
                     }
-                    (*cpt_sources_array.add(cpt_sources_index as usize)).cs_startcol = startcol;
+                    cpt_sources_array[cpt_sources_index as usize].cs_startcol = startcol;
                     if ret == OK {
                         compl_source_start_timer(cpt_sources_index);
                         get_cpt_func_completion_matches(cb);
