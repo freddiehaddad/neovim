@@ -64,6 +64,7 @@ impl uv_buf_t {
 #[repr(C, align(8))]
 struct UvWriteReq([u8; 256]);
 
+#[repr(C)]
 struct WRequest {
     stream: *mut Stream,
     buffer: *mut WBuffer,

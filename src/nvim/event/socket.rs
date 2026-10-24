@@ -72,8 +72,9 @@ pub struct addrinfo {
 }
 
 #[repr(C, align(8))]
-pub struct UvSocketHandle(pub [u8; 512]);
+pub struct UvSocketHandle(pub [u8; 640]);
 
+#[repr(C)]
 pub struct SocketWatcher {
     pub addr: [c_char; ADDRESS_MAX_SIZE],
     pub uv: UvSocketHandle,
@@ -88,7 +89,7 @@ impl SocketWatcher {
     pub const fn new() -> Self {
         Self {
             addr: [0; ADDRESS_MAX_SIZE],
-            uv: UvSocketHandle([0; 512]),
+            uv: UvSocketHandle([0; 640]),
             tcp_addrinfo: ptr::null_mut(),
             stream: ptr::null_mut(),
             cb: None,

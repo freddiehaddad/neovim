@@ -67,7 +67,7 @@ impl StreamInternalData {
 }
 
 #[repr(C, align(8))]
-pub struct UvStreamHandle(pub [u8; 512]);
+pub struct UvStreamHandle(pub [u8; 640]);
 
 #[repr(C)]
 pub struct Stream {
@@ -92,7 +92,7 @@ impl Stream {
     pub const fn new() -> Self {
         Self {
             closed: false,
-            uv: UvStreamHandle([0; 512]),
+            uv: UvStreamHandle([0; 640]),
             uvstream: ptr::null_mut(),
             fd: -1,
             fpos: 0,

@@ -94,7 +94,7 @@ pub struct Loop {
     pub thread_events: *mut MultiQueue,
     pub fast_events: *mut MultiQueue,
     pub children: Vec<*mut c_void>,
-    pub children_watcher: [u64; 32],
+    pub children_watcher: [u64; 40],
     pub children_kill_timer: [u64; 32],
     pub poll_timer: [u64; 32],
     pub exit_delay_timer: [u64; 32],
@@ -112,7 +112,7 @@ impl Loop {
             thread_events: ptr::null_mut(),
             fast_events: ptr::null_mut(),
             children: Vec::new(),
-            children_watcher: [0; 32],
+            children_watcher: [0; 40],
             children_kill_timer: [0; 32],
             poll_timer: [0; 32],
             exit_delay_timer: [0; 32],
@@ -762,6 +762,49 @@ unsafe extern "C" fn timer_close_cb(handle: *mut uv_handle_t) {
         let data = (*handle.cast::<*mut c_void>()).cast::<bool>();
         if !data.is_null() {
             drop(Box::from_raw(data));
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::event::libuv_proc::UvProcessHandle;
+    use crate::event::signal::SignalWatcher;
+    use crate::event::socket::UvSocketHandle;
+    use crate::event::stream::{UV_NAMED_PIPE, UV_TCP, UV_TTY, UvStreamHandle};
+    use crate::event::time::TimeWatcher;
+
+    #[test]
+    fn uv_handle_and_loop_storage_sizes_are_sufficient() {
+        const UV_ASYNC: c_int = 1;
+        const UV_IDLE: c_int = 6;
+        const UV_PROCESS: c_int = 10;
+        const UV_TIMER: c_int = 13;
+        const UV_SIGNAL: c_int = 16;
+
+        unsafe {
+            let loop_dummy = Loop::new();
+            assert!(size_of_val(&loop_dummy.uv) >= uv_loop_size());
+            assert!(size_of_val(&loop_dummy.children_watcher) >= uv_handle_size(UV_SIGNAL));
+            assert!(size_of_val(&loop_dummy.children_kill_timer) >= uv_handle_size(UV_TIMER));
+            assert!(size_of_val(&loop_dummy.poll_timer) >= uv_handle_size(UV_TIMER));
+            assert!(size_of_val(&loop_dummy.exit_delay_timer) >= uv_handle_size(UV_TIMER));
+            assert!(size_of_val(&loop_dummy.async_) >= uv_handle_size(UV_ASYNC));
+
+            let sig_dummy = SignalWatcher::zeroed();
+            assert!(size_of_val(&sig_dummy.uv) >= uv_handle_size(UV_SIGNAL));
+
+            let time_dummy = TimeWatcher::zeroed();
+            assert!(size_of_val(&time_dummy.uv) >= uv_handle_size(UV_TIMER));
+
+            let max_stream_size = uv_handle_size(UV_NAMED_PIPE)
+                .max(uv_handle_size(UV_TCP))
+                .max(uv_handle_size(UV_TTY))
+                .max(uv_handle_size(UV_IDLE));
+            assert!(size_of::<UvStreamHandle>() >= max_stream_size);
+            assert!(size_of::<UvSocketHandle>() >= max_stream_size);
+            assert!(size_of::<UvProcessHandle>() >= uv_handle_size(UV_PROCESS));
         }
     }
 }

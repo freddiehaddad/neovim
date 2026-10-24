@@ -16,7 +16,7 @@ pub type signal_close_cb =
 
 #[repr(C)]
 pub struct SignalWatcher {
-    pub uv: [u64; 32],
+    pub uv: [u64; 40],
     pub data: *mut crate::tui::tui::TUIData,
     pub cb: signal_cb,
     pub close_cb: signal_close_cb,
@@ -27,7 +27,7 @@ pub struct SignalWatcher {
 impl SignalWatcher {
     pub const fn zeroed() -> Self {
         Self {
-            uv: [0; 32],
+            uv: [0; 40],
             data: ptr::null_mut(),
             cb: None,
             close_cb: None,
