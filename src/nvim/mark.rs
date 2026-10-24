@@ -74,11 +74,35 @@ pub struct fmark_T {
     pub additional_data: *mut crate::search::AdditionalData,
 }
 
+impl fmark_T {
+    pub const ZERO: Self = Self {
+        mark: pos_T {
+            lnum: 0,
+            col: 0,
+            coladd: 0,
+        },
+        fnum: 0,
+        timestamp: 0,
+        view: fmarkv_T {
+            topline_offset: 0,
+            skipcol: 0,
+        },
+        additional_data: ptr::null_mut(),
+    };
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct xfmark_T {
     pub fmark: fmark_T,
     pub fname: *mut c_char,
+}
+
+impl xfmark_T {
+    pub const ZERO: Self = Self {
+        fmark: fmark_T::ZERO,
+        fname: ptr::null_mut(),
+    };
 }
 use crate::change::TAB;
 use crate::cmdexpand::HLF_D;

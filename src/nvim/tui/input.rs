@@ -87,6 +87,30 @@ pub struct TermInput {
     pub key_buffer_len: usize,
 }
 
+impl TermInput {
+    pub const fn new() -> Self {
+        Self {
+            in_fd: 0,
+            paste: 0,
+            ttimeout: false,
+            callbacks: TermInputCallbacks {
+                primary_device_attr: None,
+            },
+            key_encoding: kKeyEncodingLegacy,
+            ttimeoutlen: 0,
+            tk: ptr::null_mut(),
+            tk_ti_hook_fn: None,
+            timer_handle: [0; 32],
+            bg_query_timer: [0; 32],
+            loop_: ptr::null_mut(),
+            read_stream: RStream::new(),
+            tui_data: ptr::null_mut(),
+            key_buffer: [0; KEY_BUFFER_SIZE],
+            key_buffer_len: 0,
+        }
+    }
+}
+
 static mut LAST_PRESSED_BUTTON: c_int = 0;
 
 use crate::event::r#loop::uv_timer_get_due_in;

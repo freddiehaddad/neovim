@@ -244,6 +244,16 @@ pub struct dictitem_T {
     pub di_key: Vec<c_char>,
 }
 
+impl dictitem_T {
+    pub const fn new() -> Self {
+        Self {
+            di_tv: tv_initial_value(),
+            di_flags: 0,
+            di_key: Vec::new(),
+        }
+    }
+}
+
 pub type ScopeDictDictItem = dictitem_T;
 
 #[repr(C)]
@@ -258,6 +268,23 @@ pub struct dict_T {
     pub dv_used_prev: *mut dict_T,
     pub watchers: Vec<*mut DictWatcher>,
     pub lua_table_ref: c_int,
+}
+
+impl dict_T {
+    pub const fn new() -> Self {
+        Self {
+            dv_lock: 0,
+            dv_scope: 0,
+            dv_refcount: 0,
+            dv_copyID: 0,
+            dv_hashtab: crate::hashtab::hashtab_T::new(),
+            dv_copydict: ptr::null_mut(),
+            dv_used_next: ptr::null_mut(),
+            dv_used_prev: ptr::null_mut(),
+            watchers: Vec::new(),
+            lua_table_ref: 0,
+        }
+    }
 }
 
 const ITEM_COMPARE_FAIL: c_int = 999;

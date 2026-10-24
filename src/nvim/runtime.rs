@@ -155,6 +155,15 @@ pub struct scriptvar_T {
     pub sv_dict: dict_T,
 }
 
+impl scriptvar_T {
+    pub const fn new() -> Self {
+        Self {
+            sv_var: ScopeDictDictItem::new(),
+            sv_dict: dict_T::new(),
+        }
+    }
+}
+
 struct source_cookie_T {
     fp: *mut FILE,
     nextline: *mut c_char,

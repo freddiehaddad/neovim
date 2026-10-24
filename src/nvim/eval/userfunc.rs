@@ -1191,16 +1191,7 @@ unsafe fn func_clear_free(fp: *mut ufunc_T, force: bool) {
 /// Allocate a `funccall_T`, link it in `current_funccal` and fill in `fp` and `rettv`.
 pub unsafe fn create_funccal(fp: *mut ufunc_T, rettv: *mut typval_T) -> *mut funccall_T {
     unsafe {
-        let mut fc_uninit = Box::new(std::mem::MaybeUninit::<funccall_T>::zeroed());
-        let fc = fc_uninit.as_mut_ptr();
-        ptr::write(&raw mut (*fc).fc_defer, Vec::new());
-        ptr::write(&raw mut (*fc).fc_ufuncs, Vec::new());
-        ptr::write(&raw mut (*fc).fc_l_vars.watchers, Vec::new());
-        ptr::write(&raw mut (*fc).fc_l_vars_var.di_key, Vec::new());
-        ptr::write(&raw mut (*fc).fc_l_avars.watchers, Vec::new());
-        ptr::write(&raw mut (*fc).fc_l_avars_var.di_key, Vec::new());
-        ptr::write(&raw mut (*fc).fc_l_varlist.lv_watch, Vec::new());
-        let _ = Box::into_raw(fc_uninit);
+        let fc = Box::into_raw(Box::new(funccall_T::new()));
         (*fc).fc_caller = current_funccal;
         current_funccal = fc;
         (*fc).fc_func = fp;

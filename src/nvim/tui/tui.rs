@@ -221,6 +221,98 @@ pub struct TUIData {
     pub ti_arena: Arena,
 }
 
+impl TUIData {
+    pub fn new() -> Self {
+        Self {
+            loop_: (&raw mut main_loop).cast::<Loop>(),
+            buf: [0; OUTBUF_SIZE],
+            buf_to_flush: ptr::null_mut(),
+            bufpos: 0,
+            input: TermInput::new(),
+            write_loop: [0; 256],
+            ti: TerminfoEntry::new(),
+            term: ptr::null_mut(),
+            output_handle: [0; 80],
+            out_isatty: false,
+            winch_handle: SignalWatcher::zeroed(),
+            startup_delay_timer: [0; 32],
+            grid: UGrid::default(),
+            invalid_regions: Vec::new(),
+            row: 0,
+            col: 0,
+            out_fd: 0,
+            pending_resize_events: 0,
+            terminfo_found_in_db: false,
+            can_change_scroll_region: false,
+            has_left_and_right_margin_mode: false,
+            has_sync_mode: false,
+            can_set_lr_margin: false,
+            can_scroll: false,
+            can_erase_chars: false,
+            immediate_wrap_after_last_column: false,
+            bce: false,
+            mouse_enabled: false,
+            mouse_move_enabled: false,
+            mouse_enabled_save: false,
+            title_enabled: false,
+            sync_output: false,
+            sync_output_active: false,
+            busy: false,
+            is_invisible: false,
+            want_invisible: false,
+            set_cursor_color_as_str: false,
+            cursor_has_color: false,
+            is_starting: true,
+            resize_events_enabled: false,
+            modes_grapheme_clusters: false,
+            modes_theme_updates: false,
+            modes_resize_events: false,
+            screenshot: ptr::null_mut(),
+            cursor_shapes: [cursorentry_T {
+                full_name: ptr::null(),
+                shape: CursorShape::SHAPE_BLOCK,
+                mshape: 0,
+                percentage: 0,
+                blinkwait: 0,
+                blinkon: 0,
+                blinkoff: 0,
+                id: 0,
+                id_lm: 0,
+                name: ptr::null(),
+                used_for: 0,
+            }; SHAPE_IDX_COUNT],
+            clear_attrs: HLATTRS_INIT,
+            attrs: vec![HLATTRS_INIT],
+            print_attr_id: 0,
+            default_attr: false,
+            set_default_colors: false,
+            can_clear_attr: false,
+            showing_mode: 0,
+            verbose: 0,
+            terminfo_ext: TerminfoExt {
+                enable_focus_reporting: ptr::null(),
+                disable_focus_reporting: ptr::null(),
+                reset_scroll_region: ptr::null(),
+                enter_altfont_mode: ptr::null(),
+            },
+            can_set_title: false,
+            can_set_underline_color: false,
+            can_resize_screen: false,
+            stopped: false,
+            width: 0,
+            height: 0,
+            rgb: false,
+            screen_or_tmux: false,
+            url: -1,
+            ti_arena: Arena {
+                cur_blk: ptr::null_mut(),
+                pos: 0,
+                size: 0,
+            },
+        }
+    }
+}
+
 static mut cursor_style_enabled: bool = false;
 static mut stty_erase_buf: [c_char; 2] = [0, 0];
 static mut stty_erase_ptr: *const c_char = ptr::null();
@@ -287,17 +379,7 @@ pub unsafe fn tui_start(
     rgb: *mut bool,
 ) {
     unsafe {
-        let mut tui_uninit = Box::new(std::mem::MaybeUninit::<TUIData>::zeroed());
-        let tui = tui_uninit.as_mut_ptr();
-        ptr::write(&raw mut (*tui).invalid_regions, Vec::new());
-        ptr::write(&raw mut (*tui).attrs, vec![HLATTRS_INIT]);
-        ptr::write(&raw mut (*tui).grid.cells, Vec::new());
-        let _ = Box::into_raw(tui_uninit);
-        (*tui).is_starting = true;
-        (*tui).screenshot = ptr::null_mut();
-        (*tui).stopped = false;
-        (*tui).loop_ = (&raw mut main_loop).cast::<Loop>();
-        (*tui).url = -1;
+        let tui = Box::into_raw(Box::new(TUIData::new()));
 
         signal_watcher_init((*tui).loop_, tui_winch_handle(tui), tui);
         signal_watcher_start(tui_winch_handle(tui), Some(sigwinch_cb), SIGWINCH);

@@ -613,6 +613,12 @@ pub enum unibi_string {
 
 unsafe impl Sync for TerminfoEntry {}
 
+impl TerminfoEntry {
+    pub const fn new() -> Self {
+        empty_entry(false, 0, 0, 0)
+    }
+}
+
 const fn empty_entry(
     back_color_erase: bool,
     max_colors: c_int,

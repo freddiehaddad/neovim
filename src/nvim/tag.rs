@@ -90,6 +90,16 @@ pub struct taggy_T {
     pub user_data: *mut c_char,
 }
 
+impl taggy_T {
+    pub const ZERO: Self = Self {
+        tagname: ptr::null_mut(),
+        fmark: fmark_T::ZERO,
+        cur_match: 0,
+        cur_fnum: 0,
+        user_data: ptr::null_mut(),
+    };
+}
+
 const LSIZE: c_int = 512;
 const TAGSTACKSIZE: c_int = 20;
 

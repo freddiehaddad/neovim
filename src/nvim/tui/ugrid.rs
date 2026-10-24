@@ -38,11 +38,9 @@ fn clear_region(
     }
 }
 
-/// Initialize a `UGrid` (`ugrid_init`), including when embedded in zeroed memory.
+/// Initialize a `UGrid` (`ugrid_init`).
 pub fn ugrid_init(grid: &mut UGrid) {
-    unsafe {
-        std::ptr::write(&raw mut grid.cells, Vec::new());
-    }
+    grid.cells.clear();
 }
 
 /// Free all cell memory in `grid` (`ugrid_free`).

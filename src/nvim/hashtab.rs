@@ -39,6 +39,19 @@ pub struct hashtab_T {
     pub ht_array: *mut hashitem_T,
 }
 
+impl hashtab_T {
+    pub const fn new() -> Self {
+        Self {
+            ht_mask: 0,
+            ht_used: 0,
+            ht_filled: 0,
+            ht_changed: 0,
+            ht_locked: 0,
+            ht_array: std::ptr::null_mut(),
+        }
+    }
+}
+
 static mut EMPTY_HASHARRAY: [hashitem_T; HT_INIT_SIZE] = [hashitem_T {
     hi_hash: 0,
     hi_key: std::ptr::null_mut(),

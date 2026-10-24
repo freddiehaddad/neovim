@@ -258,6 +258,84 @@ pub struct winopt_T {
     pub wo_script_ctx: [crate::runtime::sctx_T; K_WIN_OPT_COUNT],
 }
 
+impl winopt_T {
+    pub const ZERO: Self = Self {
+        wo_arab: 0,
+        wo_bri: 0,
+        wo_briopt: ptr::null_mut(),
+        wo_diff: 0,
+        wo_fdc: ptr::null_mut(),
+        wo_eiw: ptr::null_mut(),
+        wo_fdc_save: ptr::null_mut(),
+        wo_fen: 0,
+        wo_fen_save: 0,
+        wo_fdi: ptr::null_mut(),
+        wo_fdl: 0,
+        wo_fdl_save: 0,
+        wo_fdm: ptr::null_mut(),
+        wo_fdm_save: ptr::null_mut(),
+        wo_fml: 0,
+        wo_fdn: 0,
+        wo_fde: crate::eval::typval::Callback::NONE,
+        wo_fdt: crate::eval::typval::Callback::NONE,
+        wo_fmr: ptr::null_mut(),
+        wo_lbr: 0,
+        wo_list: 0,
+        wo_nu: 0,
+        wo_rnu: 0,
+        wo_ve: ptr::null_mut(),
+        wo_ve_flags: 0,
+        wo_nuw: 0,
+        wo_wfb: 0,
+        wo_wfh: 0,
+        wo_wfw: 0,
+        wo_wp: 0,
+        wo_pvw: 0,
+        wo_lhi: 0,
+        wo_rl: 0,
+        wo_rlc: ptr::null_mut(),
+        wo_scr: 0,
+        wo_sms: 0,
+        wo_spell: 0,
+        wo_cuc: 0,
+        wo_cul: 0,
+        wo_culopt: ptr::null_mut(),
+        wo_cc: ptr::null_mut(),
+        wo_sbr: ptr::null_mut(),
+        wo_stc: ptr::null_mut(),
+        wo_stl: ptr::null_mut(),
+        wo_wbr: ptr::null_mut(),
+        wo_scb: 0,
+        wo_diff_saved: 0,
+        wo_scb_save: 0,
+        wo_wrap: 0,
+        wo_wrap_save: 0,
+        wo_cocu: ptr::null_mut(),
+        wo_cole: 0,
+        wo_crb: 0,
+        wo_crb_save: 0,
+        wo_scl: ptr::null_mut(),
+        wo_siso: 0,
+        wo_so: 0,
+        wo_sop: 0,
+        wo_winhl: ptr::null_mut(),
+        wo_lcs: ptr::null_mut(),
+        wo_fcs: ptr::null_mut(),
+        wo_winbl: 0,
+        wo_wrap_flags: 0,
+        wo_stl_flags: 0,
+        wo_wbr_flags: 0,
+        wo_fde_flags: 0,
+        wo_fdt_flags: 0,
+        wo_script_ctx: [crate::runtime::sctx_T {
+            sc_sid: 0,
+            sc_seq: 0,
+            sc_lnum: 0,
+            sc_chan: 0,
+        }; K_WIN_OPT_COUNT],
+    };
+}
+
 #[repr(C)]
 #[derive(Clone)]
 pub struct WinConfig {
@@ -471,6 +549,229 @@ pub struct win_T {
     pub w_statuscol_click_defs: std::collections::BTreeMap<c_int, StcClicks>,
 }
 
+impl win_T {
+    pub const fn new() -> Self {
+        const ZERO_POS: pos_T = pos_T {
+            lnum: 0,
+            col: 0,
+            coladd: 0,
+        };
+        Self {
+            handle: 0,
+            w_buffer: ptr::null_mut(),
+            w_s: ptr::null_mut(),
+            w_ns_hl: 0,
+            w_ns_hl_winhl: 0,
+            w_ns_hl_active: 0,
+            w_ns_hl_attr: ptr::null_mut(),
+            w_ns_set: std::collections::BTreeSet::new(),
+            w_hl_id_normal: 0,
+            w_hl_attr_normal: 0,
+            w_hl_attr_normalnc: 0,
+            w_hl_needs_update: 0,
+            w_prev: ptr::null_mut(),
+            w_next: ptr::null_mut(),
+            w_locked: 0,
+            w_frame: ptr::null_mut(),
+            w_cursor: pos_T {
+                lnum: 1,
+                col: 0,
+                coladd: 0,
+            },
+            w_curswant: 0,
+            w_set_curswant: false,
+            w_cursorline: 0,
+            w_last_cursorline: 0,
+            w_old_visual_mode: 0,
+            w_old_cursor_lnum: 0,
+            w_old_cursor_fcol: 0,
+            w_old_cursor_lcol: 0,
+            w_old_visual_lnum: 0,
+            w_old_visual_col: 0,
+            w_old_curswant: 0,
+            w_last_cursor_lnum_rnu: 0,
+            w_p_lcs_chars: lcs_chars_T {
+                eol: 0,
+                ext: 0,
+                prec: 0,
+                nbsp: 0,
+                space: 0,
+                tab1: 0,
+                tab2: 0,
+                tab3: 0,
+                leadtab1: 0,
+                leadtab2: 0,
+                leadtab3: 0,
+                lead: 0,
+                trail: 0,
+                multispace: ptr::null_mut(),
+                leadmultispace: ptr::null_mut(),
+                conceal: 0,
+            },
+            w_p_fcs_chars: fcs_chars_T {
+                stl: 0,
+                stlnc: 0,
+                wbr: 0,
+                horiz: 0,
+                horizup: 0,
+                horizdown: 0,
+                vert: 0,
+                vertleft: 0,
+                vertright: 0,
+                verthoriz: 0,
+                fold: 0,
+                foldopen: 0,
+                foldclosed: 0,
+                foldsep: 0,
+                foldinner: 0,
+                diff: 0,
+                msgsep: 0,
+                eob: 0,
+                lastline: 0,
+                trunc: 0,
+                truncrl: 0,
+            },
+            w_topline: 1,
+            w_topline_was_set: false,
+            w_topfill: 0,
+            w_old_topfill: 0,
+            w_botfill: false,
+            w_old_botfill: false,
+            w_leftcol: 0,
+            w_skipcol: 0,
+            w_last_topline: 0,
+            w_last_topfill: 0,
+            w_last_leftcol: 0,
+            w_last_skipcol: 0,
+            w_last_width: 0,
+            w_last_height: 0,
+            w_winrow: 0,
+            w_height: 0,
+            w_prev_winrow: 0,
+            w_prev_height: 0,
+            w_status_height: 0,
+            w_winbar_height: 0,
+            w_wincol: 0,
+            w_width: 0,
+            w_hsep_height: 0,
+            w_vsep_width: 0,
+            w_save_cursor: pos_save_T {
+                w_topline_save: 0,
+                w_topline_corr: 0,
+                w_cursor_save: ZERO_POS,
+                w_cursor_corr: ZERO_POS,
+            },
+            w_do_win_fix_cursor: false,
+            w_wantline: 0,
+            w_wantcol: 0,
+            w_winrow_off: 0,
+            w_wincol_off: 0,
+            w_view_height: 0,
+            w_view_width: 0,
+            w_height_request: 0,
+            w_width_request: 0,
+            w_border_adj: [0; 4],
+            w_height_outer: 0,
+            w_width_outer: 0,
+            w_valid: 0,
+            w_valid_cursor: ZERO_POS,
+            w_valid_leftcol: 0,
+            w_valid_skipcol: 0,
+            w_viewport_invalid: true,
+            w_viewport_last_topline: 1,
+            w_viewport_last_botline: 0,
+            w_viewport_last_topfill: 0,
+            w_viewport_last_skipcol: 0,
+            w_cline_height: 0,
+            w_cline_folded: false,
+            w_cline_row: 0,
+            w_virtcol: 0,
+            w_wrow: 0,
+            w_wcol: 0,
+            w_wcol_conceal_off: 0,
+            w_botline: 2,
+            w_empty_rows: 0,
+            w_filler_rows: 0,
+            w_lines_valid: 0,
+            w_lines: Vec::new(),
+            w_folds: Vec::new(),
+            w_fold_manual: false,
+            w_foldinvalid: false,
+            w_nrwidth: 0,
+            w_scwidth: 0,
+            w_minscwidth: 0,
+            w_maxscwidth: 0,
+            w_redr_type: 0,
+            w_upd_rows: 0,
+            w_redraw_top: 0,
+            w_redraw_bot: 0,
+            w_redr_status: false,
+            w_redr_border: false,
+            w_redr_statuscol: false,
+            w_display_tick: 0,
+            w_stl_cursor: ZERO_POS,
+            w_stl_virtcol: 0,
+            w_stl_topline: 0,
+            w_stl_line_count: 0,
+            w_stl_topfill: 0,
+            w_stl_empty: 0,
+            w_stl_recording: 0,
+            w_stl_state: 0,
+            w_stl_visual_mode: 0,
+            w_stl_visual_pos: ZERO_POS,
+            w_alt_fnum: 0,
+            w_alist: ptr::null_mut(),
+            w_arg_idx: 0,
+            w_arg_idx_invalid: false,
+            w_localdir: ptr::null_mut(),
+            w_prevdir: ptr::null_mut(),
+            w_onebuf_opt: winopt_T::ZERO,
+            w_allbuf_opt: winopt_T::ZERO,
+            w_p_cc_cols: Vec::new(),
+            w_p_culopt_flags: 0,
+            w_briopt_min: 0,
+            w_briopt_shift: 0,
+            w_briopt_sbr: false,
+            w_briopt_list: 0,
+            w_briopt_vcol: 0,
+            w_scbind_pos: 1,
+            w_winvar: crate::eval::typval::ScopeDictDictItem::new(),
+            w_vars: ptr::null_mut(),
+            w_pcmark: ZERO_POS,
+            w_prev_pcmark: ZERO_POS,
+            w_jumplist: [crate::mark::xfmark_T::ZERO; 100],
+            w_jumplistlen: 0,
+            w_jumplistidx: 0,
+            w_changelistidx: 0,
+            w_match_head: Vec::new(),
+            w_next_match_id: 0,
+            w_tagstack: [crate::tag::taggy_T::ZERO; 20],
+            w_tagstackidx: 0,
+            w_tagstacklen: 0,
+            w_grid: GridView {
+                target: ptr::null_mut(),
+                row_offset: 0,
+                col_offset: 0,
+            },
+            w_grid_alloc: SCREEN_GRID_INIT,
+            w_pos_changed: false,
+            w_floating: false,
+            w_kind: kWinNormal,
+            w_config: WIN_CONFIG_INIT,
+            w_fraction: 0,
+            w_prev_fraction_row: 0,
+            w_nrwidth_line_count: 0,
+            w_statuscol_line_count: 0,
+            w_nrwidth_width: 0,
+            w_llist: ptr::null_mut(),
+            w_llist_ref: ptr::null_mut(),
+            w_status_click_defs: Vec::new(),
+            w_winbar_click_defs: Vec::new(),
+            w_statuscol_click_defs: std::collections::BTreeMap::new(),
+        }
+    }
+}
+
 pub type StcClick = Vec<crate::mouse::StlClickDefinition>;
 pub type StcClicks = std::collections::BTreeMap<c_int, StcClick>;
 
@@ -496,6 +797,33 @@ pub struct tabpage_T {
     pub tp_vars: *mut dict_T,
     pub tp_localdir: *mut c_char,
     pub tp_prevdir: *mut c_char,
+}
+
+impl tabpage_T {
+    pub const fn new() -> Self {
+        Self {
+            handle: 0,
+            tp_next: ptr::null_mut(),
+            tp_topframe: ptr::null_mut(),
+            tp_curwin: ptr::null_mut(),
+            tp_prevwin: ptr::null_mut(),
+            tp_firstwin: ptr::null_mut(),
+            tp_lastwin: ptr::null_mut(),
+            tp_old_Rows_avail: 0,
+            tp_old_Columns: 0,
+            tp_ch_used: 0,
+            tp_did_tabclosedpre: false,
+            tp_diffs: Vec::new(),
+            tp_diffbuf: [ptr::null_mut(); 8],
+            tp_diff_invalid: 1,
+            tp_diff_update: 0,
+            tp_snapshot: [ptr::null_mut(); 3],
+            tp_winvar: crate::eval::typval::ScopeDictDictItem::new(),
+            tp_vars: ptr::null_mut(),
+            tp_localdir: ptr::null_mut(),
+            tp_prevdir: ptr::null_mut(),
+        }
+    }
 }
 
 use crate::api::vim::kCdScopeGlobal;
@@ -4741,11 +5069,7 @@ pub unsafe fn win_init_size() {
 
 unsafe fn alloc_tabpage() -> *mut tabpage_T {
     unsafe {
-        let mut tp_uninit = Box::new(std::mem::MaybeUninit::<tabpage_T>::zeroed());
-        let tp = tp_uninit.as_mut_ptr();
-        ptr::write(&raw mut (*tp).tp_diffs, Vec::new());
-        ptr::write(&raw mut (*tp).tp_winvar.di_key, Vec::new());
-        let _ = Box::into_raw(tp_uninit);
+        let tp = Box::into_raw(Box::new(tabpage_T::new()));
         last_tp_handle += 1;
         (*tp).handle = last_tp_handle;
         let map_ptr = &raw mut tabpage_handles;
@@ -4753,7 +5077,6 @@ unsafe fn alloc_tabpage() -> *mut tabpage_T {
 
         (*tp).tp_vars = tv_dict_alloc();
         init_var_dict((*tp).tp_vars, (&raw mut (*tp).tp_winvar).cast(), VAR_SCOPE);
-        (*tp).tp_diff_invalid = 1;
         (*tp).tp_ch_used = p_ch;
 
         tp
@@ -5858,22 +6181,7 @@ pub unsafe fn buf_jump_open_tab(buf: *mut buf_T) -> *mut win_T {
 
 pub unsafe fn win_alloc(after: *mut win_T, hidden: bool) -> *mut win_T {
     unsafe {
-        let mut wp_uninit = Box::new(std::mem::MaybeUninit::<win_T>::zeroed());
-        let new_wp = wp_uninit.as_mut_ptr();
-        ptr::write(&raw mut (*new_wp).w_grid_alloc, SCREEN_GRID_INIT);
-        ptr::write(&raw mut (*new_wp).w_config, WIN_CONFIG_INIT);
-        ptr::write(&raw mut (*new_wp).w_ns_set, std::collections::BTreeSet::new());
-        ptr::write(&raw mut (*new_wp).w_lines, Vec::new());
-        ptr::write(&raw mut (*new_wp).w_match_head, Vec::new());
-        ptr::write(&raw mut (*new_wp).w_p_cc_cols, Vec::new());
-        ptr::write(&raw mut (*new_wp).w_status_click_defs, Vec::new());
-        ptr::write(&raw mut (*new_wp).w_winbar_click_defs, Vec::new());
-        ptr::write(
-            &raw mut (*new_wp).w_statuscol_click_defs,
-            std::collections::BTreeMap::new(),
-        );
-        ptr::write(&raw mut (*new_wp).w_folds, Vec::new());
-        let _ = Box::into_raw(wp_uninit);
+        let new_wp = Box::into_raw(Box::new(win_T::new()));
 
         last_win_id += 1;
         (*new_wp).handle = last_win_id;
@@ -5901,18 +6209,7 @@ pub unsafe fn win_alloc(after: *mut win_T, hidden: bool) -> *mut win_T {
             win_append(after, new_wp, tp);
         }
 
-        (*new_wp).w_wincol = 0;
         (*new_wp).w_width = Columns;
-
-        (*new_wp).w_topline = 1;
-        (*new_wp).w_topfill = 0;
-        (*new_wp).w_botline = 2;
-        (*new_wp).w_cursor.lnum = 1;
-        (*new_wp).w_scbind_pos = 1;
-        (*new_wp).w_floating = false;
-        (*new_wp).w_kind = kWinNormal;
-        (*new_wp).w_viewport_invalid = true;
-        (*new_wp).w_viewport_last_topline = 1;
 
         (*new_wp).w_ns_hl = -1;
 

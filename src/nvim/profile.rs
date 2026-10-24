@@ -144,6 +144,36 @@ pub struct funccall_T {
     pub fc_ufuncs: Vec<*mut ufunc_T>,
 }
 
+impl funccall_T {
+    pub const fn new() -> Self {
+        Self {
+            fc_func: std::ptr::null_mut(),
+            fc_linenr: 0,
+            fc_returned: 0,
+            fc_l_vars: dict_T::new(),
+            fc_l_vars_var: dictitem_T::new(),
+            fc_l_avars: dict_T::new(),
+            fc_l_avars_var: dictitem_T::new(),
+            fc_l_varlist: list_T::new(),
+            fc_l_listitems: [listitem_T {
+                li_next: std::ptr::null_mut(),
+                li_prev: std::ptr::null_mut(),
+                li_tv: crate::eval::typval::tv_initial_value(),
+            }; MAX_FUNC_ARGS],
+            fc_rettv: std::ptr::null_mut(),
+            fc_breakpoint: 0,
+            fc_dbg_tick: 0,
+            fc_level: 0,
+            fc_defer: Vec::new(),
+            fc_prof_child: 0,
+            fc_caller: std::ptr::null_mut(),
+            fc_refcount: 0,
+            fc_copyID: 0,
+            fc_ufuncs: Vec::new(),
+        }
+    }
+}
+
 use crate::fileio::setvbuf;
 
 #[inline]

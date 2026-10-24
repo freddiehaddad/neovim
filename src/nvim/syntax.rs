@@ -112,6 +112,60 @@ pub struct synblock_T {
     pub b_syn_isk: *mut c_char,
 }
 
+impl synblock_T {
+    pub const fn new() -> Self {
+        Self {
+            b_keywtab: std::collections::BTreeMap::new(),
+            b_keywtab_ic: std::collections::BTreeMap::new(),
+            b_syn_error: false,
+            b_syn_slow: false,
+            b_syn_ic: 0,
+            b_syn_foldlevel: 0,
+            b_syn_spell: 0,
+            b_syn_patterns: Vec::new(),
+            b_syn_clusters: Vec::new(),
+            b_spell_cluster_id: 0,
+            b_nospell_cluster_id: 0,
+            b_syn_containedin: 0,
+            b_syn_sync_flags: 0,
+            b_syn_sync_id: 0,
+            b_syn_sync_minlines: 0,
+            b_syn_sync_maxlines: 0,
+            b_syn_sync_linebreaks: 0,
+            b_syn_linecont_pat: ptr::null_mut(),
+            b_syn_linecont_prog: ptr::null_mut(),
+            b_syn_linecont_time: syn_time_T {
+                total: 0,
+                slowest: 0,
+                count: 0,
+                match_: 0,
+            },
+            b_syn_linecont_ic: 0,
+            b_syn_topgrp: 0,
+            b_syn_conceal: 0,
+            b_syn_folditems: 0,
+            b_sst_array: Vec::new(),
+            b_sst_max: 0,
+            b_sst_search: 0,
+            b_sst_check_lnum: 0,
+            b_sst_lasttick: 0,
+            b_idlist_cache: None,
+            b_langp: Vec::new(),
+            b_spell_ismw: [false; 256],
+            b_spell_ismw_mb: ptr::null_mut(),
+            b_p_spc: ptr::null_mut(),
+            b_cap_prog: ptr::null_mut(),
+            b_p_spf: ptr::null_mut(),
+            b_p_spl: ptr::null_mut(),
+            b_p_spo: ptr::null_mut(),
+            b_p_spo_flags: 0,
+            b_cjk: 0,
+            b_syn_chartab: [0; 4],
+            b_syn_isk: ptr::null_mut(),
+        }
+    }
+}
+
 use crate::ex_getln::disptick_T;
 
 pub const HL_CONTAINED: c_int = 0x01;
@@ -5080,22 +5134,7 @@ pub unsafe fn ex_syntax(eap: *mut exarg_T) {
 pub unsafe fn ex_ownsyntax(eap: *mut exarg_T) {
     unsafe {
         if win_s(curwin) == &raw mut (*(*curwin).w_buffer).b_s {
-            let mut new_s_uninit = Box::new(std::mem::MaybeUninit::<synblock_T>::zeroed());
-            let new_s = new_s_uninit.as_mut_ptr();
-            ptr::write(
-                &raw mut (*new_s).b_keywtab,
-                std::collections::BTreeMap::new(),
-            );
-            ptr::write(
-                &raw mut (*new_s).b_keywtab_ic,
-                std::collections::BTreeMap::new(),
-            );
-            ptr::write(&raw mut (*new_s).b_syn_patterns, Vec::new());
-            ptr::write(&raw mut (*new_s).b_syn_clusters, Vec::new());
-            ptr::write(&raw mut (*new_s).b_sst_array, Vec::new());
-            ptr::write(&raw mut (*new_s).b_langp, Vec::new());
-            ptr::write(&raw mut (*new_s).b_idlist_cache, None);
-            let _ = Box::into_raw(new_s_uninit);
+            let new_s = Box::into_raw(Box::new(synblock_T::new()));
             (*curwin).w_s = new_s;
             (*curwin).w_onebuf_opt.wo_spell = 0;
             clear_string_option(&raw mut (*new_s).b_p_spc);

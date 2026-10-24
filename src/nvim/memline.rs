@@ -87,6 +87,29 @@ pub struct memline_T {
     pub ml_usedchunks: c_int,
 }
 
+impl memline_T {
+    pub const fn new() -> Self {
+        Self {
+            ml_line_count: 0,
+            ml_mfp: ptr::null_mut(),
+            ml_stack: Vec::new(),
+            ml_stack_top: 0,
+            ml_flags: 0,
+            ml_line_textlen: 0,
+            ml_line_lnum: 0,
+            ml_line_ptr: ptr::null_mut(),
+            ml_line_offset: 0,
+            ml_line_offset_ff: 0,
+            ml_locked: ptr::null_mut(),
+            ml_locked_low: 0,
+            ml_locked_high: 0,
+            ml_locked_lineadd: 0,
+            ml_chunksize: Vec::new(),
+            ml_usedchunks: 0,
+        }
+    }
+}
+
 pub(crate) const ML_LINE_DIRTY: c_int = 0x02;
 
 #[cfg(unix)]

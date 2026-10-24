@@ -2910,10 +2910,8 @@ pub unsafe fn get_var_value(name: *const c_char) -> *mut c_char {
 /// Allocate a new hashtab for a sourced script.
 pub unsafe fn new_script_vars(id: scid_T) {
     unsafe {
-        let mut sv_uninit = Box::new(std::mem::MaybeUninit::<scriptvar_T>::zeroed());
-        let sv = sv_uninit.as_mut_ptr();
+        let sv = Box::into_raw(Box::new(scriptvar_T::new()));
         init_var_dict(&raw mut (*sv).sv_dict, &raw mut (*sv).sv_var, VAR_SCOPE);
-        let _ = Box::into_raw(sv_uninit);
         (*script_item(id)).sn_vars = sv;
     }
 }
@@ -2930,8 +2928,8 @@ pub unsafe fn init_var_dict(dict: *mut dict_T, dict_var: *mut ScopeDictDictItem,
         (*dict_var).di_tv.v_type = VarType::VAR_DICT;
         (*dict_var).di_tv.v_lock = VAR_FIXED;
         (*dict_var).di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
-        ptr::write(&raw mut (*dict_var).di_key, Vec::new());
-        ptr::write(&raw mut (*dict).watchers, Vec::new());
+        (*dict_var).di_key.clear();
+        (*dict).watchers.clear();
     }
 }
 
