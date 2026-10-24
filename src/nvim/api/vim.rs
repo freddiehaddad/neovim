@@ -2711,7 +2711,6 @@ pub unsafe extern "C" fn nvim_get_proc_children(
 ) -> Array {
     unsafe {
         let mut rvobj = Array::new();
-        let mut proc_list: *mut c_int = ptr::null_mut();
 
         if !validate_int(
             pid > 0 && pid <= Integer::from(c_int::MAX),
@@ -2722,42 +2721,42 @@ pub unsafe extern "C" fn nvim_get_proc_children(
             return rvobj;
         }
 
-        let mut proc_count: usize = 0;
-        let rv = os_proc_children(pid as c_int, &mut proc_list, &mut proc_count);
-        if rv == 2 {
-            let mut a_items = [integer_obj(pid)];
-            let a = Array {
-                items: a_items.as_mut_ptr(),
-                size: 1,
-                capacity: 1,
-            };
-            let o = nlua_exec(
-                static_cstr_as_string(c"return vim._os_proc_children(...)"),
-                ptr::null(),
-                a,
-                kRetObject,
-                arena,
-                err,
-            );
-            if o.obj_type == ObjectType::kObjectTypeArray {
-                rvobj = o.data.array;
-            } else if !error_set(&*err) {
-                api_set_error!(
+        match os_proc_children(pid as c_int) {
+            Err(rv) => {
+                let mut a_items = [integer_obj(pid)];
+                let a = Array {
+                    items: a_items.as_mut_ptr(),
+                    size: 1,
+                    capacity: 1,
+                };
+                let o = nlua_exec(
+                    static_cstr_as_string(c"return vim._os_proc_children(...)"),
+                    ptr::null(),
+                    a,
+                    kRetObject,
+                    arena,
                     err,
-                    ErrorType::kErrorTypeException,
-                    c"Failed to get process children. pid=%lld error=%d".as_ptr(),
-                    pid,
-                    rv,
                 );
+                if o.obj_type == ObjectType::kObjectTypeArray {
+                    rvobj = o.data.array;
+                } else if !error_set(&*err) {
+                    api_set_error!(
+                        err,
+                        ErrorType::kErrorTypeException,
+                        c"Failed to get process children. pid=%lld error=%d".as_ptr(),
+                        pid,
+                        rv,
+                    );
+                }
             }
-        } else {
-            rvobj = arena_array(arena, proc_count);
-            for i in 0..proc_count {
-                add_c(&mut rvobj, integer_obj(Integer::from(*proc_list.add(i))));
+            Ok(children) => {
+                rvobj = arena_array(arena, children.len());
+                for child_pid in children {
+                    add_c(&mut rvobj, integer_obj(Integer::from(child_pid)));
+                }
             }
         }
 
-        xfree(proc_list.cast::<c_void>());
         rvobj
     }
 }

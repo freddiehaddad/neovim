@@ -47,7 +47,7 @@ use crate::mark::{
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strnicmp;
 use crate::memory::{
-    ARENA_BLOCK_SIZE, strequal, xcalloc, xfree, xmalloc, xmemdup, xmemdupz, xstrdup,
+    ARENA_BLOCK_SIZE, strequal, xfree, xmalloc, xmemdup, xmemdupz, xstrdup,
 };
 use crate::message::{semsg, siemsg, smsg, verbose_enter, verbose_leave};
 use crate::mpack::mpack_core::MPACK_OK;
@@ -269,9 +269,8 @@ struct ShadaHistoryItem {
 struct ShadaReg {
     name: c_char,
     reg_type: u8,
-    contents: *mut NvimString,
+    contents: *mut Vec<NvimString>,
     is_unnamed: bool,
-    contents_size: usize,
     width: usize,
 }
 
@@ -307,8 +306,7 @@ struct BufferListBuffer {
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct ShadaBufferList {
-    size: usize,
-    buffers: *mut BufferListBuffer,
+    buffers: *mut Vec<BufferListBuffer>,
 }
 
 #[repr(C)]
@@ -521,7 +519,6 @@ fn sd_default_value(t: ShadaEntryType) -> ShadaEntry {
                     reg_type: MotionType::kMTCharWise as u8,
                     contents: ptr::null_mut(),
                     is_unnamed: false,
-                    contents_size: 0,
                     width: 0,
                 },
             },
@@ -577,7 +574,6 @@ fn sd_default_value(t: ShadaEntryType) -> ShadaEntry {
             timestamp: 0,
             data: ShadaEntryData {
                 buffer_list: ShadaBufferList {
-                    size: 0,
                     buffers: ptr::null_mut(),
                 },
             },
@@ -1356,7 +1352,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                             continue;
                         }
                     }
-                    let y_array = std::slice::from_raw_parts(r.contents, r.contents_size).to_vec();
+                    let y_array = (*r.contents).clone();
                     if op_reg_set(
                         r.name,
                         yankreg_T {
@@ -1369,7 +1365,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                         },
                         r.is_unnamed,
                     ) {
-                        xfree(r.contents.cast::<c_void>());
+                        drop(Box::from_raw(r.contents));
                     } else {
                         shada_free_shada_entry(&mut cur_entry);
                     }
@@ -1451,29 +1447,30 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                 }
                 ShadaEntryType::kSDItemBufferList => {
                     let bl = cur_entry.data.buffer_list;
-                    for i in 0..bl.size {
-                        let item = &mut *bl.buffers.add(i);
-                        let sfname = path_try_shorten_fname(item.fname);
-                        let buf = buflist_new(item.fname, sfname, 0, BLN_LISTED);
-                        if !buf.is_null() {
-                            free_fmark((*buf).b_last_cursor);
-                            (*buf).b_last_cursor = fmark_T {
-                                mark: item.pos,
-                                fnum: 0,
-                                timestamp: os_time(),
-                                view: INIT_FMARKV,
-                                additional_data: ptr::null_mut(),
-                            };
-                            buflist_setfpos(
-                                buf,
-                                curwin,
-                                (*buf).b_last_cursor.mark.lnum,
-                                (*buf).b_last_cursor.mark.col,
-                                false,
-                            );
-                            xfree((*buf).additional_data);
-                            (*buf).additional_data = item.additional_data;
-                            item.additional_data = ptr::null_mut();
+                    if !bl.buffers.is_null() {
+                        for item in &mut *bl.buffers {
+                            let sfname = path_try_shorten_fname(item.fname);
+                            let buf = buflist_new(item.fname, sfname, 0, BLN_LISTED);
+                            if !buf.is_null() {
+                                free_fmark((*buf).b_last_cursor);
+                                (*buf).b_last_cursor = fmark_T {
+                                    mark: item.pos,
+                                    fnum: 0,
+                                    timestamp: os_time(),
+                                    view: INIT_FMARKV,
+                                    additional_data: ptr::null_mut(),
+                                };
+                                buflist_setfpos(
+                                    buf,
+                                    curwin,
+                                    (*buf).b_last_cursor.mark.lnum,
+                                    (*buf).b_last_cursor.mark.col,
+                                    false,
+                                );
+                                xfree((*buf).additional_data);
+                                (*buf).additional_data = item.additional_data;
+                                item.additional_data = ptr::null_mut();
+                            }
                         }
                     }
                     shada_free_shada_entry(&mut cur_entry);
@@ -1827,9 +1824,14 @@ unsafe fn shada_pack_entry(
                     + additional_data_len(entry.additional_data);
                 mpack_map(&mut sbuf.ptr, entry_map_size);
                 mpack_str(static_cstr_as_string(c"rc"), &mut sbuf);
-                mpack_array(&mut sbuf.ptr, r.contents_size as u32);
-                for i in 0..r.contents_size {
-                    mpack_bin(*r.contents.add(i), &mut sbuf);
+                let contents = if r.contents.is_null() {
+                    &[][..]
+                } else {
+                    (*r.contents).as_slice()
+                };
+                mpack_array(&mut sbuf.ptr, contents.len() as u32);
+                for &s in contents {
+                    mpack_bin(s, &mut sbuf);
                 }
                 mpack_str(static_cstr_as_string(c"n"), &mut sbuf);
                 mpack_uint(&mut sbuf.ptr, u32::from(r.name as u8));
@@ -1849,9 +1851,13 @@ unsafe fn shada_pack_entry(
             }
             ShadaEntryType::kSDItemBufferList => {
                 let bl = entry.data.buffer_list;
-                mpack_array(&mut sbuf.ptr, bl.size as u32);
-                for i in 0..bl.size {
-                    let b = *bl.buffers.add(i);
+                let buffers = if bl.buffers.is_null() {
+                    &[][..]
+                } else {
+                    (*bl.buffers).as_slice()
+                };
+                mpack_array(&mut sbuf.ptr, buffers.len() as u32);
+                for &b in buffers {
                     let entry_map_size = 1
                         + u32::from(b.pos.lnum != DEFAULT_POS.lnum)
                         + u32::from(b.pos.col != DEFAULT_POS.col)
@@ -2291,33 +2297,18 @@ unsafe fn shada_get_buflist(
 ) -> ShadaEntry {
     unsafe {
         let max_bufs = get_shada_parameter(b'%' as c_int);
-        let mut buf_count = 0usize;
+        let mut buffers = Vec::new();
         let mut buf = firstbuf;
         while !buf.is_null() {
-            if !ignore_buf(buf, removable_bufs)
-                && (*buf).b_p_bl != 0
-                && (max_bufs < 0 || buf_count < (max_bufs as usize))
-            {
-                buf_count += 1;
-            }
-            buf = (*buf).b_next;
-        }
-
-        let buffers =
-            xmalloc(buf_count * std::mem::size_of::<BufferListBuffer>()).cast::<BufferListBuffer>();
-        let mut i = 0usize;
-        buf = firstbuf;
-        while !buf.is_null() {
             if !ignore_buf(buf, removable_bufs) && (*buf).b_p_bl != 0 {
-                if i >= buf_count {
+                if max_bufs >= 0 && buffers.len() >= (max_bufs as usize) {
                     break;
                 }
-                *buffers.add(i) = BufferListBuffer {
+                buffers.push(BufferListBuffer {
                     pos: (*buf).b_last_cursor.mark,
                     fname: (*buf).b_ffname,
                     additional_data: (*buf).additional_data,
-                };
-                i += 1;
+                });
             }
             buf = (*buf).b_next;
         }
@@ -2328,8 +2319,7 @@ unsafe fn shada_get_buflist(
             timestamp: os_time(),
             data: ShadaEntryData {
                 buffer_list: ShadaBufferList {
-                    size: buf_count,
-                    buffers,
+                    buffers: Box::into_raw(Box::new(buffers)),
                 },
             },
             additional_data: ptr::null_mut(),
@@ -2422,8 +2412,7 @@ unsafe fn shada_initialize_registers(
                 },
                 data: ShadaEntryData {
                     reg: ShadaReg {
-                        contents: reg_ref.y_array.as_ptr().cast_mut(),
-                        contents_size: reg_ref.y_array.len(),
+                        contents: (&raw const reg_ref.y_array).cast_mut(),
                         reg_type: reg_ref.y_type as u8,
                         width: if reg_ref.y_type == MotionType::kMTBlockWise {
                             reg_ref.y_width as usize
@@ -2668,13 +2657,11 @@ unsafe fn shada_write(
 
             if !find_shada_parameter(b'%' as c_int).is_null() {
                 let buflist_entry = shada_get_buflist(&removable_bufs);
-                if shada_pack_entry(&mut packer, buflist_entry, 0)
-                    == ShaDaWriteResult::kSDWriteFailed
-                {
-                    xfree(buflist_entry.data.buffer_list.buffers.cast::<c_void>());
+                let pack_res = shada_pack_entry(&mut packer, buflist_entry, 0);
+                drop(Box::from_raw(buflist_entry.data.buffer_list.buffers));
+                if pack_res == ShaDaWriteResult::kSDWriteFailed {
                     break 'shada_write_exit ShaDaWriteResult::kSDWriteFailed;
                 }
-                xfree(buflist_entry.data.buffer_list.buffers.cast::<c_void>());
             }
 
             if dump_global_vars {
@@ -3390,10 +3377,11 @@ unsafe fn shada_free_shada_entry(entry: *mut ShadaEntry) {
                 api_free_string((*entry).data.search_pattern.pat);
             }
             ShadaEntryType::kSDItemRegister => {
-                for i in 0..(*entry).data.reg.contents_size {
-                    api_free_string(*(*entry).data.reg.contents.add(i));
+                if !(*entry).data.reg.contents.is_null() {
+                    for s in *Box::from_raw((*entry).data.reg.contents) {
+                        api_free_string(s);
+                    }
                 }
-                xfree((*entry).data.reg.contents.cast::<c_void>());
             }
             ShadaEntryType::kSDItemHistoryEntry => {
                 xfree((*entry).data.history_item.string.cast::<c_void>());
@@ -3406,12 +3394,12 @@ unsafe fn shada_free_shada_entry(entry: *mut ShadaEntry) {
                 xfree((*entry).data.sub_string.sub.cast::<c_void>());
             }
             ShadaEntryType::kSDItemBufferList => {
-                for i in 0..(*entry).data.buffer_list.size {
-                    let b = *(*entry).data.buffer_list.buffers.add(i);
-                    xfree(b.fname.cast::<c_void>());
-                    xfree(b.additional_data);
+                if !(*entry).data.buffer_list.buffers.is_null() {
+                    for b in *Box::from_raw((*entry).data.buffer_list.buffers) {
+                        xfree(b.fname.cast::<c_void>());
+                        xfree(b.additional_data);
+                    }
                 }
-                xfree((*entry).data.buffer_list.buffers.cast::<c_void>());
             }
         }
         xfree((*entry).additional_data);
@@ -3819,14 +3807,10 @@ unsafe fn shada_read_next_item(
                             );
                             break 'parse_item false;
                         }
-                        (*entry).data.reg.contents_size = it.rc.len();
-                        (*entry).data.reg.contents =
-                            xmalloc(it.rc.len() * std::mem::size_of::<NvimString>())
-                                .cast::<NvimString>();
-                        for (j, &s) in it.rc.iter().enumerate() {
-                            *(*entry).data.reg.contents.add(j) = copy_string(s, ptr::null_mut());
+                        for s in &mut it.rc {
+                            *s = copy_string(*s, ptr::null_mut());
                         }
-                        drop(it.rc);
+                        (*entry).data.reg.contents = Box::into_raw(Box::new(it.rc));
 
                         if (it.is_set___shada_register_
                             & (1u64 << KEYSET_OPTIDX__shada_register__ru))
@@ -4039,11 +4023,9 @@ unsafe fn shada_read_next_item(
                         }
                         if len > 0 {
                             let ulen = len as usize;
-                            (*entry).data.buffer_list.buffers =
-                                xcalloc(ulen, std::mem::size_of::<BufferListBuffer>())
-                                    .cast::<BufferListBuffer>();
-                            for i in 0..ulen {
-                                (*entry).data.buffer_list.size += 1;
+                            let buffers = Box::into_raw(Box::new(Vec::with_capacity(ulen)));
+                            (*entry).data.buffer_list.buffers = buffers;
+                            for _ in 0..ulen {
                                 let mut it = std::mem::zeroed::<KeyDict__shada_buflist_item>();
                                 let mut it_ad = AdditionalDataBuilder::new();
                                 if !unpack_keydict(
@@ -4064,10 +4046,12 @@ unsafe fn shada_read_next_item(
                                     );
                                     break 'parse_item false;
                                 }
-                                let e = &mut *(*entry).data.buffer_list.buffers.add(i);
-                                e.additional_data =
-                                    additional_data_take(&mut it_ad).cast::<AdditionalData>();
-                                e.pos = DEFAULT_POS;
+                                let mut e = BufferListBuffer {
+                                    pos: DEFAULT_POS,
+                                    fname: ptr::null_mut(),
+                                    additional_data: additional_data_take(&mut it_ad)
+                                        .cast::<AdditionalData>(),
+                                };
                                 if (it.is_set___shada_buflist_item_
                                     & (1u64 << KEYSET_OPTIDX__shada_buflist_item__l))
                                     != 0
@@ -4088,6 +4072,7 @@ unsafe fn shada_read_next_item(
                                     #[cfg(windows)]
                                     path_to_slash(e.fname);
                                 }
+                                (*buffers).push(e);
                                 if e.pos.lnum <= 0 {
                                     semsg!(
                                         gettext(
@@ -4325,7 +4310,7 @@ pub unsafe fn shada_encode_buflist() -> NvimString {
         if shada_pack_entry(&mut packer, buflist_entry, 0) == ShaDaWriteResult::kSDWriteFailed {
             std::process::abort();
         }
-        xfree(buflist_entry.data.buffer_list.buffers.cast::<c_void>());
+        drop(Box::from_raw(buflist_entry.data.buffer_list.buffers));
         packer_take_string(&mut packer)
     }
 }

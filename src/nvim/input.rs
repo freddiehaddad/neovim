@@ -54,7 +54,7 @@ use crate::mbyte::{
 };
 use crate::mcursor::mc_replaying;
 use crate::memline::ml_sync_all;
-use crate::memory::{Arena, arena_finish, arena_mem_free, xfree, xmalloc, xmemdupz, xrealloc};
+use crate::memory::{Arena, arena_finish, arena_mem_free, xfree, xmalloc, xmemdupz};
 use crate::message::{emsg, internal_error, semsg, semsg_multiline};
 use crate::mouse::{is_mouse_key, mouse_comp_pos, mouse_find_win_inner};
 use crate::r#move::{validate_cursor, win_col_off};
@@ -3188,7 +3188,7 @@ pub unsafe fn fix_input_buffer(buf: *mut u8, mut len: c_int) -> c_int {
 /// Get a key stroke directly from the user.
 pub unsafe fn get_keystroke(events: *mut MultiQueue) -> c_int {
     unsafe {
-        let mut buf: *mut u8 = ptr::null_mut();
+        let mut buf: Vec<u8> = vec![0; 150];
         let mut buflen: c_int = 150;
         let mut len: c_int = 0;
         let mut n: c_int;
@@ -3199,23 +3199,21 @@ pub unsafe fn get_keystroke(events: *mut MultiQueue) -> c_int {
         loop {
             ui_flush();
             let mut maxlen = (buflen - 6 - len) / 3;
-            if buf.is_null() {
-                buf = xmalloc(buflen as usize).cast::<u8>();
-            } else if maxlen < 10 {
+            if maxlen < 10 {
                 buflen += 100;
-                buf = xrealloc(buf.cast(), buflen as usize).cast::<u8>();
+                buf.resize(buflen as usize, 0);
                 maxlen = (buflen - 6 - len) / 3;
             }
 
             n = input_get(
-                buf.add(len as usize),
+                buf.as_mut_ptr().add(len as usize),
                 maxlen,
                 if len == 0 { -1 } else { 100 },
                 0,
                 events,
             );
             if n > 0 {
-                n = fix_input_buffer(buf.add(len as usize), n);
+                n = fix_input_buffer(buf.as_mut_ptr().add(len as usize), n);
                 len += n;
             }
 
@@ -3226,19 +3224,19 @@ pub unsafe fn get_keystroke(events: *mut MultiQueue) -> c_int {
                 continue;
             }
 
-            n = *buf as c_int;
+            n = buf[0] as c_int;
             if n == K_SPECIAL as c_int {
-                n = to_special(*buf.add(1) as c_int, *buf.add(2) as c_int);
-                if *buf.add(1) == KS_MODIFIER
+                n = to_special(buf[1] as c_int, buf[2] as c_int);
+                if buf[1] == KS_MODIFIER
                     || n == K_IGNORE
                     || (is_mouse_key(n) && n != K_LEFTMOUSE)
                 {
-                    if *buf.add(1) == KS_MODIFIER {
-                        mod_mask = *buf.add(2) as c_int;
+                    if buf[1] == KS_MODIFIER {
+                        mod_mask = buf[2] as c_int;
                     }
                     len -= 3;
                     if len > 0 {
-                        ptr::copy(buf.add(3), buf, len as usize);
+                        buf.copy_within(3..(3 + len as usize), 0);
                     }
                     continue;
                 }
@@ -3248,11 +3246,10 @@ pub unsafe fn get_keystroke(events: *mut MultiQueue) -> c_int {
                 continue;
             }
             let term_idx = if len >= buflen { buflen - 1 } else { len } as usize;
-            *buf.add(term_idx) = NUL as u8;
-            n = utf_ptr2char(buf.cast());
+            buf[term_idx] = NUL as u8;
+            n = utf_ptr2char(buf.as_ptr().cast());
             break;
         }
-        xfree(buf.cast());
 
         mapped_ctrl_c = save_mapped_ctrl_c;
         merge_modifiers(n, &raw mut mod_mask)

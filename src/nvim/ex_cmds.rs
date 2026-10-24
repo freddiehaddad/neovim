@@ -5173,8 +5173,7 @@ unsafe fn show_sub(
             }
         }
 
-        let mut str: *mut c_char = ptr::null_mut();
-        let mut old_line_size: colnr_T = 0;
+        let mut str_buf: Vec<c_char> = Vec::new();
         let mut line_size: colnr_T = 0;
         let mut linenr_preview: linenr_T = 0;
         let mut linenr_origbuf: linenr_T = 0;
@@ -5219,12 +5218,11 @@ unsafe fn show_sub(
                         line = ml_get_buf(orig_buf, next_linenr);
                         line_size = ml_get_buf_len(orig_buf, next_linenr) + col_width + 1;
 
-                        if line_size > old_line_size {
-                            str =
-                                xrealloc(str.cast::<c_void>(), line_size as usize).cast::<c_char>();
-                            old_line_size = line_size;
+                        if (line_size as usize) > str_buf.len() {
+                            str_buf.resize(line_size as usize, 0);
                         }
                     }
+                    let str = str_buf.as_mut_ptr();
                     vim_snprintf!(
                         str,
                         line_size as usize,
@@ -5254,8 +5252,6 @@ unsafe fn show_sub(
             }
             bufhl_add_hl_pos_offset(orig_buf, cmdpreview_ns, hl_id, m.start, m.end, 0);
         }
-
-        xfree(str.cast::<c_void>());
 
         set_option_direct(kOptShortmess, cstr_as_obj(save_shm_p), 0, SID_NONE);
         xfree(save_shm_p.cast::<c_void>());

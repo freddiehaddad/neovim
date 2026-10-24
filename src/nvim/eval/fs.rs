@@ -35,7 +35,7 @@ use crate::fileio::{
 use crate::globals::*;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{utf_head_off, utfc_ptr2len};
-use crate::memory::{xfree, xmalloc, xmemdupz, xrealloc, xstrdup, xstrlcpy};
+use crate::memory::{xfree, xmalloc, xmemdupz, xstrdup, xstrlcpy};
 #[cfg(unix)]
 use crate::memory::{xmallocz, xstrlcat};
 use crate::message::{emsg, semsg};
@@ -1488,9 +1488,7 @@ unsafe fn read_file_or_blob(argvars: *mut typval_T, rettv: *mut typval_T, always
         let mut blob = always_blob;
         let mut buf = [0 as c_char; (IOSIZE / 256) * 256]; // rounded to avoid odd + 1
         let io_size = buf.len();
-        let mut prev: *mut c_char = ptr::null_mut(); // previously read bytes, if any
-        let mut prevlen: isize = 0; // length of data in prev
-        let mut prevsize: isize = 0; // size of prev buffer
+        let mut prev: Vec<c_char> = Vec::new(); // previously read bytes, if any
         let mut maxline: i64 = MAXLNUM;
         let mut offset: off_T = 0;
         let mut size: off_T = -1;
@@ -1555,7 +1553,7 @@ unsafe fn read_file_or_blob(argvars: *mut typval_T, rettv: *mut typval_T, always
             let mut p = buf_ptr; // Position in buf.
             let mut start = buf_ptr; // Start of current line.
             while (p as usize) < (buf_ptr.offset(readlen) as usize)
-                || (readlen <= 0 && (prevlen > 0 || binary))
+                || (readlen <= 0 && (!prev.is_empty() || binary))
             {
                 if readlen <= 0 || *p == b'\n' as c_char {
                     let mut len = (p as usize).wrapping_sub(start as usize);
@@ -1567,25 +1565,21 @@ unsafe fn read_file_or_blob(argvars: *mut typval_T, rettv: *mut typval_T, always
                         }
                         // removal may cross back to the "prev" string
                         if len == 0 {
-                            while prevlen > 0 && *prev.offset(prevlen - 1) == b'\r' as c_char {
-                                prevlen -= 1;
+                            while prev.last() == Some(&(b'\r' as c_char)) {
+                                prev.pop();
                             }
                         }
                     }
-                    let s: *mut c_char = if prevlen == 0 {
+                    let s: *mut c_char = if prev.is_empty() {
                         debug_assert!(len < c_int::MAX as usize);
                         xmemdupz(start.cast(), len).cast()
                     } else {
-                        // Change "prev" buffer to be the right size.  This way
-                        // the bytes are only copied once, and very long lines are
-                        // allocated only once.
-                        let new_s: *mut c_char =
-                            xrealloc(prev.cast(), prevlen as usize + len + 1).cast();
-                        ptr::copy_nonoverlapping(start, new_s.offset(prevlen), len);
-                        *new_s.add(prevlen as usize + len) = NUL;
-                        prev = ptr::null_mut(); // the list will own the string
-                        prevlen = 0;
-                        prevsize = 0;
+                        let prevlen = prev.len();
+                        let new_s: *mut c_char = xmalloc(prevlen + len + 1).cast();
+                        ptr::copy_nonoverlapping(prev.as_ptr(), new_s, prevlen);
+                        ptr::copy_nonoverlapping(start, new_s.add(prevlen), len);
+                        *new_s.add(prevlen + len) = NUL;
+                        prev.clear();
                         new_s
                     };
 
@@ -1618,17 +1612,15 @@ unsafe fn read_file_or_blob(argvars: *mut typval_T, rettv: *mut typval_T, always
                     // when finding the BF and check the previous two bytes.
                     let back1 = if (p as usize) >= (buf_ptr.add(1) as usize) {
                         *p.sub(1)
-                    } else if prevlen >= 1 {
-                        *prev.offset(prevlen - 1)
                     } else {
-                        NUL
+                        prev.last().copied().unwrap_or(NUL)
                     };
                     let back2 = if (p as usize) >= (buf_ptr.add(2) as usize) {
                         *p.sub(2)
-                    } else if p == buf_ptr.add(1) && prevlen >= 1 {
-                        *prev.offset(prevlen - 1)
-                    } else if prevlen >= 2 {
-                        *prev.offset(prevlen - 2)
+                    } else if p == buf_ptr.add(1) {
+                        prev.last().copied().unwrap_or(NUL)
+                    } else if prev.len() >= 2 {
+                        prev[prev.len() - 2]
                     } else {
                         NUL
                     };
@@ -1642,20 +1634,19 @@ unsafe fn read_file_or_blob(argvars: *mut typval_T, rettv: *mut typval_T, always
                             start = p.add(1);
                         } else {
                             // have to shuffle buf to close gap
-                            let mut adjust_prevlen: isize = 0;
+                            let mut adjust_prevlen: usize = 0;
 
                             if (dest as usize) < (buf_ptr as usize) {
                                 // adjust_prevlen must be 1 or 2.
-                                adjust_prevlen =
-                                    (buf_ptr as usize).wrapping_sub(dest as usize) as isize;
+                                adjust_prevlen = (buf_ptr as usize).wrapping_sub(dest as usize);
                                 dest = buf_ptr;
                             }
                             let p_off = (p as usize).wrapping_sub(buf_ptr as usize) as isize;
                             if readlen > p_off + 1 {
                                 ptr::copy(p.add(1), dest, (readlen - p_off - 1) as usize);
                             }
-                            readlen -= 3 - adjust_prevlen;
-                            prevlen -= adjust_prevlen;
+                            readlen -= 3 - adjust_prevlen as isize;
+                            prev.truncate(prev.len() - adjust_prevlen);
                             p = dest.sub(1);
                         }
                     }
@@ -1667,29 +1658,11 @@ unsafe fn read_file_or_blob(argvars: *mut typval_T, rettv: *mut typval_T, always
                 break;
             }
             if (start as usize) < (p as usize) {
-                let part_len = (p as usize).wrapping_sub(start as usize) as isize;
-                // There's part of a line in buf, store it in "prev".
-                if part_len + prevlen >= prevsize {
-                    if prevsize == 0 {
-                        prevsize = part_len;
-                    } else {
-                        let grow50pc = (prevsize * 3) / 2;
-                        let growmin = part_len * 2 + prevlen;
-                        prevsize = if grow50pc > growmin {
-                            grow50pc
-                        } else {
-                            growmin
-                        };
-                    }
-                    prev = xrealloc(prev.cast(), prevsize as usize).cast();
-                }
-                // Add the line part to end of "prev".
-                ptr::copy(start, prev.offset(prevlen), part_len as usize);
-                prevlen += part_len;
+                let part_len = (p as usize).wrapping_sub(start as usize);
+                prev.extend_from_slice(std::slice::from_raw_parts(start, part_len));
             }
         }
 
-        xfree(prev.cast());
         fclose(fd);
     }
 }
@@ -1832,7 +1805,7 @@ pub unsafe fn f_resolve(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                         // symlink with the resolved name in the same directory.
                         let p_len = strlen(p);
                         let buf_len = strlen(buf);
-                        p = xrealloc(p.cast(), p_len + buf_len + 1).cast();
+                        p = crate::memory::xrealloc(p.cast(), p_len + buf_len + 1).cast();
                         ptr::copy_nonoverlapping(buf, path_tail(p), buf_len + 1);
                     } else {
                         xfree(p.cast());

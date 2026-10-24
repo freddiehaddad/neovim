@@ -7,10 +7,11 @@ use crate::eval::funcs::PROCESS_ALL_ACCESS;
 use crate::event::r#loop::uv_kill;
 #[cfg(windows)]
 use crate::memory::Arena;
-use crate::memory::xrealloc;
 #[cfg(windows)]
 use std::ffi::{CStr, c_char};
-use std::ffi::{c_int, c_void};
+use std::ffi::c_int;
+#[cfg(target_os = "windows")]
+use std::ffi::c_void;
 
 #[cfg(target_os = "windows")]
 use crate::api::private::validate::{Dict, NvimString};
@@ -135,45 +136,28 @@ pub fn os_proc_tree_kill(pid: c_int, sig: c_int) -> bool {
 }
 
 /// Get the immediate child PIDs of `ppid` (`os_proc_children`).
-///
-/// # Safety
-/// `proc_list` and `proc_count` must be valid writable pointers.
-pub unsafe fn os_proc_children(
-    ppid: c_int,
-    proc_list: *mut *mut c_int,
-    proc_count: *mut usize,
-) -> c_int {
+pub fn os_proc_children(ppid: c_int) -> Result<Vec<c_int>, c_int> {
     if ppid < 0 {
-        return 2;
+        return Err(2);
     }
 
-    let mut temp: *mut c_int = std::ptr::null_mut();
-    unsafe {
-        *proc_list = std::ptr::null_mut();
-        *proc_count = 0;
-    }
+    #[allow(unused_mut)]
+    let mut temp: Vec<c_int> = Vec::new();
 
     #[cfg(target_os = "windows")]
     unsafe {
         let h = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
         if h == INVALID_HANDLE_VALUE {
-            return 2;
+            return Err(2);
         }
         let mut pe = ProcessEntry32::zeroed();
         if Process32First(h, &mut pe) == 0 {
             CloseHandle(h);
-            return 2;
+            return Err(2);
         }
         loop {
             if pe.th32_parent_process_id == ppid as u32 {
-                let count = *proc_count;
-                temp = xrealloc(
-                    temp.cast::<c_void>(),
-                    (count + 1) * std::mem::size_of::<c_int>(),
-                )
-                .cast::<c_int>();
-                *temp.add(count) = pe.th32_process_id as c_int;
-                *proc_count = count + 1;
+                temp.push(pe.th32_process_id as c_int);
             }
             if Process32Next(h, &mut pe) == 0 {
                 break;
@@ -186,28 +170,16 @@ pub unsafe fn os_proc_children(
     {
         let path = format!("/proc/{ppid}/task/{ppid}/children");
         let Ok(contents) = std::fs::read_to_string(&path) else {
-            return 2;
+            return Err(2);
         };
         for tok in contents.split_ascii_whitespace() {
             if let Ok(match_pid) = tok.parse::<c_int>() {
-                unsafe {
-                    let count = *proc_count;
-                    temp = xrealloc(
-                        temp.cast::<c_void>(),
-                        (count + 1) * std::mem::size_of::<c_int>(),
-                    )
-                    .cast::<c_int>();
-                    *temp.add(count) = match_pid;
-                    *proc_count = count + 1;
-                }
+                temp.push(match_pid);
             }
         }
     }
 
-    unsafe {
-        *proc_list = temp;
-    }
-    0
+    Ok(temp)
 }
 
 #[cfg(target_os = "windows")]
@@ -317,11 +289,7 @@ mod tests {
 
     #[test]
     fn negative_ppid_returns_error_and_running_checks_pid() {
-        let mut list: *mut c_int = std::ptr::null_mut();
-        let mut count: usize = 99;
-        unsafe {
-            assert_eq!(os_proc_children(-1, &mut list, &mut count), 2);
-        }
+        assert_eq!(os_proc_children(-1), Err(2));
         assert!(os_proc_running(std::process::id() as c_int));
         assert!(!os_proc_running(c_int::MAX));
     }
