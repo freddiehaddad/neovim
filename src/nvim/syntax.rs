@@ -2895,7 +2895,7 @@ pub unsafe fn reset_synblock(wp: *mut win_T) {
         if win_s(wp) != &raw mut (*(*wp).w_buffer).b_s {
             syntax_clear(win_s(wp));
             (*win_s(wp)).b_langp = Vec::new();
-            xfree((*wp).w_s.cast());
+            drop(Box::from_raw((*wp).w_s));
             (*wp).w_s = &raw mut (*(*wp).w_buffer).b_s;
         }
     }
@@ -5143,7 +5143,8 @@ pub unsafe fn ex_syntax(eap: *mut exarg_T) {
 pub unsafe fn ex_ownsyntax(eap: *mut exarg_T) {
     unsafe {
         if win_s(curwin) == &raw mut (*(*curwin).w_buffer).b_s {
-            let new_s = xcalloc(1, size_of::<synblock_T>()).cast::<synblock_T>();
+            let mut new_s_uninit = Box::new(std::mem::MaybeUninit::<synblock_T>::zeroed());
+            let new_s = new_s_uninit.as_mut_ptr();
             ptr::write(
                 &raw mut (*new_s).b_keywtab,
                 std::collections::BTreeMap::new(),
@@ -5155,6 +5156,8 @@ pub unsafe fn ex_ownsyntax(eap: *mut exarg_T) {
             ptr::write(&raw mut (*new_s).b_syn_patterns, Vec::new());
             ptr::write(&raw mut (*new_s).b_syn_clusters, Vec::new());
             ptr::write(&raw mut (*new_s).b_langp, Vec::new());
+            ptr::write(&raw mut (*new_s).b_idlist_cache, None);
+            let _ = Box::into_raw(new_s_uninit);
             (*curwin).w_s = new_s;
             (*curwin).w_onebuf_opt.wo_spell = 0;
             clear_string_option(&raw mut (*new_s).b_p_spc);

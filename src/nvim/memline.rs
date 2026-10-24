@@ -857,38 +857,7 @@ pub unsafe fn ml_recover(checkext: bool) {
             getout(1);
         }
 
-        buf = xmalloc(size_of::<buf_T>()).cast::<buf_T>();
-        ptr::write(&raw mut (*buf).b_wininfo, Vec::new());
-        ptr::write(&raw mut (*buf).b_ucmds, Vec::new());
-        ptr::write(&raw mut (*buf).b_kmap_ga, Vec::new());
-        ptr::write(
-            &raw mut (*buf).b_marktree,
-            [crate::marktree::MarkTree::new()],
-        );
-        ptr::write(
-            &raw mut (*buf).b_extmark_ns,
-            std::collections::BTreeMap::new(),
-        );
-        ptr::write(&raw mut (*buf).update_channels, Vec::new());
-        ptr::write(&raw mut (*buf).update_callbacks, Vec::new());
-        ptr::write(
-            &raw mut (*buf).b_s.b_keywtab,
-            std::collections::BTreeMap::new(),
-        );
-        ptr::write(
-            &raw mut (*buf).b_s.b_keywtab_ic,
-            std::collections::BTreeMap::new(),
-        );
-        ptr::write(&raw mut (*buf).b_s.b_syn_patterns, Vec::new());
-        ptr::write(&raw mut (*buf).b_s.b_syn_clusters, Vec::new());
-        ptr::write(&raw mut (*buf).b_s.b_langp, Vec::new());
-        ptr::write(&raw mut (*buf).b_ml.ml_stack, Vec::new());
-        ptr::write(&raw mut (*buf).b_ml.ml_chunksize, Vec::new());
-        (*buf).b_ml.ml_stack_top = 0;
-        (*buf).b_ml.ml_line_lnum = 0;
-        (*buf).b_ml.ml_line_offset = 0;
-        (*buf).b_ml.ml_locked = ptr::null_mut();
-        (*buf).b_ml.ml_flags = 0;
+        buf = buf_T::alloc();
 
         let p = xstrdup(fname_used);
         mfp = mf_open(fname_used, O_RDONLY);
@@ -1426,9 +1395,7 @@ unsafe fn ml_recover_theend(
             mf_close(mfp, false);
         }
         if !buf.is_null() {
-            ptr::drop_in_place(&raw mut (*buf).b_ml.ml_stack);
-            ptr::drop_in_place(&raw mut (*buf).b_ml.ml_chunksize);
-            xfree(buf.cast());
+            drop(Box::from_raw(buf));
         }
         if serious_error && called_from_main {
             ml_close(curbuf, 1);

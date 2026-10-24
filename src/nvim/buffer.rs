@@ -68,7 +68,7 @@ use crate::memline::{
     ml_close, ml_delete, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len, ml_open, ml_recover,
     ml_setname, ml_timestamp,
 };
-use crate::memory::{entered_free_all_mem, xcalloc, xfree, xmalloc, xstrdup, xstrlcpy};
+use crate::memory::{entered_free_all_mem, xfree, xmalloc, xstrdup, xstrlcpy};
 use crate::message::{
     emsg, message_filtered, msg, msg_delay, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts,
     msg_start, msg_trunc, semsg, set_keep_msg, smsg,
@@ -415,6 +415,47 @@ pub struct buf_T {
     pub flush_count: c_int,
     pub b_localdir: *mut c_char,
     pub b_prevdir: *mut c_char,
+}
+
+impl buf_T {
+    pub unsafe fn alloc() -> *mut Self {
+        unsafe {
+            let mut buf_uninit = Box::new(std::mem::MaybeUninit::<Self>::zeroed());
+            let buf = buf_uninit.as_mut_ptr();
+            ptr::write(&raw mut (*buf).b_wininfo, Vec::new());
+            ptr::write(&raw mut (*buf).b_ucmds, Vec::new());
+            ptr::write(&raw mut (*buf).b_kmap_ga, Vec::new());
+            ptr::write(
+                &raw mut (*buf).b_marktree,
+                [crate::marktree::MarkTree::new()],
+            );
+            ptr::write(
+                &raw mut (*buf).b_extmark_ns,
+                std::collections::BTreeMap::new(),
+            );
+            ptr::write(&raw mut (*buf).update_channels, Vec::new());
+            ptr::write(&raw mut (*buf).update_callbacks, Vec::new());
+            ptr::write(&raw mut (*buf).b_p_cpt_cb, Vec::new());
+            ptr::write(
+                &raw mut (*buf).b_s.b_keywtab,
+                std::collections::BTreeMap::new(),
+            );
+            ptr::write(
+                &raw mut (*buf).b_s.b_keywtab_ic,
+                std::collections::BTreeMap::new(),
+            );
+            ptr::write(&raw mut (*buf).b_s.b_syn_patterns, Vec::new());
+            ptr::write(&raw mut (*buf).b_s.b_syn_clusters, Vec::new());
+            ptr::write(&raw mut (*buf).b_s.b_langp, Vec::new());
+            ptr::write(&raw mut (*buf).b_s.b_idlist_cache, None);
+            ptr::write(&raw mut (*buf).b_ml.ml_stack, Vec::new());
+            ptr::write(&raw mut (*buf).b_ml.ml_chunksize, Vec::new());
+            ptr::write(&raw mut (*buf).b_bufvar.di_key, Vec::new());
+            ptr::write(&raw mut (*buf).changedtick_di.di_key, Vec::new());
+            let _ = Box::into_raw(buf_uninit);
+            buf
+        }
+    }
 }
 
 pub const GETF_SETMARK: c_int = 0x01;
@@ -1374,22 +1415,9 @@ unsafe fn free_buffer(buf: *mut buf_T) {
             );
         }
         unref_var_dict((*buf).b_vars);
-        ptr::drop_in_place(&raw mut (*buf).changedtick_di.di_key);
         aubuflocal_remove(buf);
         xfree((*buf).additional_data);
         xfree((*buf).b_prompt_text.cast());
-        ptr::drop_in_place(&raw mut (*buf).b_wininfo);
-        ptr::drop_in_place(&raw mut (*buf).b_ucmds);
-        ptr::drop_in_place(&raw mut (*buf).b_kmap_ga);
-        ptr::drop_in_place(&raw mut (*buf).b_marktree);
-        ptr::drop_in_place(&raw mut (*buf).b_extmark_ns);
-        ptr::drop_in_place(&raw mut (*buf).b_s.b_keywtab);
-        ptr::drop_in_place(&raw mut (*buf).b_s.b_keywtab_ic);
-        ptr::drop_in_place(&raw mut (*buf).b_ml.ml_stack);
-        ptr::drop_in_place(&raw mut (*buf).b_ml.ml_chunksize);
-        ptr::drop_in_place(&raw mut (*buf).update_channels);
-        ptr::drop_in_place(&raw mut (*buf).update_callbacks);
-        ptr::drop_in_place(&raw mut (*buf).b_p_cpt_cb);
         callback_free(&raw mut (*buf).b_prompt_callback);
         callback_free(&raw mut (*buf).b_prompt_interrupt);
         clear_fmark(&raw mut (*buf).b_last_cursor, 0);
@@ -1410,7 +1438,7 @@ unsafe fn free_buffer(buf: *mut buf_T) {
             (*buf).b_next = au_pending_free_buf;
             au_pending_free_buf = buf;
         } else {
-            xfree(buf.cast());
+            drop(Box::from_raw(buf));
             if curbuf == buf {
                 curbuf = ptr::null_mut();
             }
@@ -2464,40 +2492,11 @@ pub unsafe fn buflist_new(
             }
         }
         if buf != curbuf || curbuf.is_null() {
-            buf = xcalloc(1, std::mem::size_of::<buf_T>()).cast::<buf_T>();
-            ptr::write(&raw mut (*buf).b_wininfo, Vec::new());
-            ptr::write(&raw mut (*buf).b_ucmds, Vec::new());
-            ptr::write(&raw mut (*buf).b_kmap_ga, Vec::new());
-            ptr::write(
-                &raw mut (*buf).b_marktree,
-                [crate::marktree::MarkTree::new()],
-            );
-            ptr::write(
-                &raw mut (*buf).b_extmark_ns,
-                std::collections::BTreeMap::new(),
-            );
-            ptr::write(&raw mut (*buf).update_channels, Vec::new());
-            ptr::write(&raw mut (*buf).update_callbacks, Vec::new());
-            ptr::write(&raw mut (*buf).b_p_cpt_cb, Vec::new());
-            ptr::write(
-                &raw mut (*buf).b_s.b_keywtab,
-                std::collections::BTreeMap::new(),
-            );
-            ptr::write(
-                &raw mut (*buf).b_s.b_keywtab_ic,
-                std::collections::BTreeMap::new(),
-            );
-            ptr::write(&raw mut (*buf).b_s.b_syn_patterns, Vec::new());
-            ptr::write(&raw mut (*buf).b_s.b_syn_clusters, Vec::new());
-            ptr::write(&raw mut (*buf).b_s.b_langp, Vec::new());
-            ptr::write(&raw mut (*buf).b_ml.ml_stack, Vec::new());
-            ptr::write(&raw mut (*buf).b_ml.ml_chunksize, Vec::new());
+            buf = buf_T::alloc();
             (*buf).b_vars = tv_dict_alloc();
             init_var_dict((*buf).b_vars, (&raw mut (*buf).b_bufvar).cast(), VAR_SCOPE);
-            ptr::write(
-                &raw mut (*buf).changedtick_di.di_key,
-                b"changedtick\0".iter().map(|&b| b as c_char).collect(),
-            );
+            (*buf).changedtick_di.di_key =
+                b"changedtick\0".iter().map(|&b| b as c_char).collect();
             buf_init_changedtick(buf);
         }
 

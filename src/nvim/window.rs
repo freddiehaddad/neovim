@@ -72,7 +72,7 @@ use crate::main_init::getout;
 use crate::mark::{WinInfo, copy_jumplist, free_jumplist, setmark, setpcmark};
 use crate::r#match::clear_matches;
 use crate::math::{FAIL, OK};
-use crate::memory::{xcalloc, xfree, xmemdupz, xstrdup, xstrlcat, xstrlcpy};
+use crate::memory::{xfree, xmemdupz, xstrdup, xstrlcat, xstrlcpy};
 use crate::message::{
     emsg, iemsg, internal_error, kZIndexMessages, msg, msg_clr_eos_force, msg_grid_validate,
     msg_ui_flush, semsg, set_keep_msg,
@@ -1902,7 +1902,7 @@ pub unsafe fn win_split_ins(
             }
         }
         if (*curfrp).fr_parent.is_null() || (*(*curfrp).fr_parent).fr_layout != layout {
-            let mut frp = xcalloc(1, size_of::<frame_T>()).cast::<frame_T>();
+            let mut frp = Box::into_raw(Box::new(std::mem::zeroed::<frame_T>()));
             ptr::copy_nonoverlapping(curfrp, frp, 1);
             (*curfrp).fr_layout = layout;
             (*frp).fr_parent = curfrp;
@@ -3739,7 +3739,7 @@ unsafe fn win_free_mem(win: *mut win_T, dirp: *mut c_int, tp: *mut tabpage_T) ->
         if !(*win).w_floating {
             let frp = (*win).w_frame;
             wp = winframe_remove(win, dirp, tp, ptr::null_mut());
-            xfree(frp.cast());
+            drop(Box::from_raw(frp));
         } else {
             *dirp = b'h' as c_int;
             wp = win_float_find_altwin(win, tp);
@@ -3961,7 +3961,7 @@ unsafe fn frame_flatten(mut frp: *mut frame_T) {
         if ptr::eq((*topframe).fr_child, frp) {
             (*topframe).fr_child = frp2;
         }
-        xfree(frp.cast());
+        drop(Box::from_raw(frp));
 
         frp = (*frp2).fr_parent;
         if !frp.is_null() && (*frp).fr_layout == (*frp2).fr_layout {
@@ -3988,7 +3988,7 @@ unsafe fn frame_flatten(mut frp: *mut frame_T) {
             if ptr::eq((*topframe).fr_child, frp2) {
                 (*topframe).fr_child = frp;
             }
-            xfree(frp2.cast());
+            drop(Box::from_raw(frp2));
         }
     }
 }
@@ -4716,10 +4716,10 @@ unsafe fn win_alloc_firstwin(oldwin: *mut win_T) -> c_int {
 
 unsafe fn new_frame(wp: *mut win_T) {
     unsafe {
-        let frp = xcalloc(1, size_of::<frame_T>()).cast::<frame_T>();
-        (*wp).w_frame = frp;
-        (*frp).fr_layout = FR_LEAF;
-        (*frp).fr_win = wp;
+        let mut frp = Box::new(std::mem::zeroed::<frame_T>());
+        frp.fr_layout = FR_LEAF;
+        frp.fr_win = wp;
+        (*wp).w_frame = Box::into_raw(frp);
     }
 }
 
@@ -4741,7 +4741,10 @@ pub unsafe fn win_init_size() {
 
 unsafe fn alloc_tabpage() -> *mut tabpage_T {
     unsafe {
-        let tp = xcalloc(1, size_of::<tabpage_T>()).cast::<tabpage_T>();
+        let mut tp_uninit = Box::new(std::mem::MaybeUninit::<tabpage_T>::zeroed());
+        let tp = tp_uninit.as_mut_ptr();
+        ptr::write(&raw mut (*tp).tp_winvar.di_key, Vec::new());
+        let _ = Box::into_raw(tp_uninit);
         last_tp_handle += 1;
         (*tp).handle = last_tp_handle;
         let map_ptr = &raw mut tabpage_handles;
@@ -4774,7 +4777,7 @@ pub unsafe fn free_tabpage(tp: *mut tabpage_T) {
 
         xfree((*tp).tp_localdir.cast());
         xfree((*tp).tp_prevdir.cast());
-        xfree(tp.cast());
+        drop(Box::from_raw(tp));
     }
 }
 
@@ -4795,7 +4798,7 @@ pub unsafe fn win_new_tabpage(
 
         if enter {
             if leave_tabpage(curbuf, true) == FAIL {
-                xfree(newtp.cast());
+                free_tabpage(newtp);
                 return ptr::null_mut();
             }
         } else {
@@ -5854,14 +5857,27 @@ pub unsafe fn buf_jump_open_tab(buf: *mut buf_T) -> *mut win_T {
 
 pub unsafe fn win_alloc(after: *mut win_T, hidden: bool) -> *mut win_T {
     unsafe {
-        let new_wp = xcalloc(1, size_of::<win_T>()).cast::<win_T>();
+        let mut wp_uninit = Box::new(std::mem::MaybeUninit::<win_T>::zeroed());
+        let new_wp = wp_uninit.as_mut_ptr();
+        ptr::write(&raw mut (*new_wp).w_grid_alloc, SCREEN_GRID_INIT);
+        ptr::write(&raw mut (*new_wp).w_config, WIN_CONFIG_INIT);
+        ptr::write(&raw mut (*new_wp).w_ns_set, std::collections::BTreeSet::new());
+        ptr::write(&raw mut (*new_wp).w_lines, Vec::new());
+        ptr::write(&raw mut (*new_wp).w_match_head, Vec::new());
+        ptr::write(&raw mut (*new_wp).w_p_cc_cols, Vec::new());
+        ptr::write(&raw mut (*new_wp).w_status_click_defs, Vec::new());
+        ptr::write(&raw mut (*new_wp).w_winbar_click_defs, Vec::new());
+        ptr::write(
+            &raw mut (*new_wp).w_statuscol_click_defs,
+            std::collections::BTreeMap::new(),
+        );
+        ptr::write(&raw mut (*new_wp).w_folds, Vec::new());
+        let _ = Box::into_raw(wp_uninit);
 
         last_win_id += 1;
         (*new_wp).handle = last_win_id;
         let map_ptr = &raw mut window_handles;
         (*map_ptr).insert((*new_wp).handle, new_wp);
-
-        ptr::write(&raw mut (*new_wp).w_grid_alloc, SCREEN_GRID_INIT);
 
         grid_assign_handle(&raw mut (*new_wp).w_grid_alloc);
 
@@ -5894,22 +5910,10 @@ pub unsafe fn win_alloc(after: *mut win_T, hidden: bool) -> *mut win_T {
         (*new_wp).w_scbind_pos = 1;
         (*new_wp).w_floating = false;
         (*new_wp).w_kind = kWinNormal;
-        ptr::write(&raw mut (*new_wp).w_config, WIN_CONFIG_INIT);
         (*new_wp).w_viewport_invalid = true;
         (*new_wp).w_viewport_last_topline = 1;
 
         (*new_wp).w_ns_hl = -1;
-
-        ptr::write(&raw mut (*new_wp).w_ns_set, std::collections::BTreeSet::new());
-        ptr::write(&raw mut (*new_wp).w_lines, Vec::new());
-        ptr::write(&raw mut (*new_wp).w_match_head, Vec::new());
-        ptr::write(&raw mut (*new_wp).w_p_cc_cols, Vec::new());
-        ptr::write(&raw mut (*new_wp).w_status_click_defs, Vec::new());
-        ptr::write(&raw mut (*new_wp).w_winbar_click_defs, Vec::new());
-        ptr::write(
-            &raw mut (*new_wp).w_statuscol_click_defs,
-            std::collections::BTreeMap::new(),
-        );
 
         (*new_wp).w_onebuf_opt.wo_so = -1;
         (*new_wp).w_allbuf_opt.wo_so = -1;
@@ -5948,7 +5952,7 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
 
         block_autocmds();
 
-        ptr::drop_in_place(&raw mut (*wp).w_ns_set);
+        (*wp).w_ns_set.clear();
 
         clear_winopt(&raw mut (*wp).w_onebuf_opt);
         clear_winopt(&raw mut (*wp).w_allbuf_opt);
@@ -5971,7 +5975,7 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
             ttp = (*ttp).tp_next;
         }
 
-        ptr::drop_in_place(&raw mut (*wp).w_lines);
+        (*wp).w_lines.clear();
 
         for i in 0..(*wp).w_tagstacklen as usize {
             tagstack_clear_entry(&raw mut (*wp).w_tagstack[i]);
@@ -5981,17 +5985,13 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
         xfree((*wp).w_prevdir.cast());
 
         stl_clear_click_defs(&raw mut (*wp).w_status_click_defs);
-        ptr::drop_in_place(&raw mut (*wp).w_status_click_defs);
-
         stl_clear_click_defs(&raw mut (*wp).w_winbar_click_defs);
-        ptr::drop_in_place(&raw mut (*wp).w_winbar_click_defs);
 
         for (_, lnum_click_defs) in std::mem::take(&mut (*wp).w_statuscol_click_defs) {
             for (_, mut row_click_defs) in lnum_click_defs {
                 stl_clear_click_defs(&raw mut row_click_defs);
             }
         }
-        ptr::drop_in_place(&raw mut (*wp).w_statuscol_click_defs);
 
         let mut buf = firstbuf;
         while !buf.is_null() {
@@ -6027,11 +6027,10 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
         clear_virttext(&raw mut (*wp).w_config.footer_chunks);
 
         clear_matches(wp);
-        ptr::drop_in_place(&raw mut (*wp).w_match_head);
         free_jumplist(wp);
         qf_free_all(wp);
 
-        ptr::drop_in_place(&raw mut (*wp).w_p_cc_cols);
+        (*wp).w_p_cc_cols.clear();
 
         win_free_grid(wp, false);
 
@@ -6042,7 +6041,7 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
             (*wp).w_next = au_pending_free_win;
             au_pending_free_win = wp;
         } else {
-            xfree(wp.cast());
+            drop(Box::from_raw(wp));
         }
 
         unblock_autocmds();
@@ -6057,8 +6056,6 @@ pub unsafe fn win_free_grid(wp: *mut win_T, reinit: bool) {
         grid_free(&raw mut (*wp).w_grid_alloc);
         if reinit {
             (*wp).w_grid_alloc = SCREEN_GRID_INIT;
-        } else {
-            ptr::drop_in_place(&raw mut (*wp).w_grid_alloc);
         }
     }
 }
@@ -7897,10 +7894,11 @@ pub unsafe fn make_snapshot(idx: c_int) {
 
 unsafe fn make_snapshot_rec(fr: *mut frame_T, frp: *mut *mut frame_T) {
     unsafe {
-        *frp = xcalloc(1, size_of::<frame_T>()).cast::<frame_T>();
-        (**frp).fr_layout = (*fr).fr_layout;
-        (**frp).fr_width = (*fr).fr_width;
-        (**frp).fr_height = (*fr).fr_height;
+        let mut new_fr = Box::new(std::mem::zeroed::<frame_T>());
+        new_fr.fr_layout = (*fr).fr_layout;
+        new_fr.fr_width = (*fr).fr_width;
+        new_fr.fr_height = (*fr).fr_height;
+        *frp = Box::into_raw(new_fr);
         if !(*fr).fr_next.is_null() {
             make_snapshot_rec((*fr).fr_next, &raw mut (**frp).fr_next);
         }
@@ -7927,7 +7925,7 @@ unsafe fn clear_snapshot_rec(fr: *mut frame_T) {
         }
         clear_snapshot_rec((*fr).fr_next);
         clear_snapshot_rec((*fr).fr_child);
-        xfree(fr.cast());
+        drop(Box::from_raw(fr));
     }
 }
 

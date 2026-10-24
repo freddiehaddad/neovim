@@ -30,7 +30,7 @@ use crate::mbyte::{
 use crate::memline::{
     ml_append, ml_close, ml_delete, ml_get_buf, ml_get_buf_len, ml_open, ml_open_file, ml_replace,
 };
-use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xstrdup, xstrlcpy};
+use crate::memory::{xfree, xmalloc, xmemcpyz, xmemdupz, xstrdup, xstrlcpy};
 use crate::message::{
     emsg, give_warning, msg_end, msg_ext_set_kind, msg_putchar, msg_puts, msg_start, semsg, smsg,
 };
@@ -2035,33 +2035,7 @@ pub unsafe fn spell_reload() {
 }
 pub unsafe fn open_spellbuf() -> *mut buf_T {
     unsafe {
-        let buf = xcalloc(1, size_of::<buf_T>()).cast::<buf_T>();
-        ptr::write(&raw mut (*buf).b_wininfo, Vec::new());
-        ptr::write(&raw mut (*buf).b_ucmds, Vec::new());
-        ptr::write(&raw mut (*buf).b_kmap_ga, Vec::new());
-        ptr::write(
-            &raw mut (*buf).b_marktree,
-            [crate::marktree::MarkTree::new()],
-        );
-        ptr::write(
-            &raw mut (*buf).b_extmark_ns,
-            std::collections::BTreeMap::new(),
-        );
-        ptr::write(&raw mut (*buf).update_channels, Vec::new());
-        ptr::write(&raw mut (*buf).update_callbacks, Vec::new());
-        ptr::write(
-            &raw mut (*buf).b_s.b_keywtab,
-            std::collections::BTreeMap::new(),
-        );
-        ptr::write(
-            &raw mut (*buf).b_s.b_keywtab_ic,
-            std::collections::BTreeMap::new(),
-        );
-        ptr::write(&raw mut (*buf).b_s.b_syn_patterns, Vec::new());
-        ptr::write(&raw mut (*buf).b_s.b_syn_clusters, Vec::new());
-        ptr::write(&raw mut (*buf).b_s.b_langp, Vec::new());
-        ptr::write(&raw mut (*buf).b_ml.ml_stack, Vec::new());
-        ptr::write(&raw mut (*buf).b_ml.ml_chunksize, Vec::new());
+        let buf = buf_T::alloc();
         (*buf).b_spell = true;
         (*buf).b_p_swf = 1;
         if ml_open(buf) == FAIL {
@@ -2084,7 +2058,7 @@ pub unsafe fn close_spellbuf(buf: *mut buf_T) {
             return;
         }
         ml_close(buf, 1);
-        xfree(buf.cast());
+        drop(Box::from_raw(buf));
     }
 }
 pub unsafe fn clear_spell_chartab(sp: *mut spelltab_T) {

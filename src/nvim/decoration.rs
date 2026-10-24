@@ -759,8 +759,7 @@ pub unsafe fn decor_redraw_reset(wp: *mut win_T, state: *mut DecorState) -> bool
             for i in beg_pos[pos_i]..end_pos[pos_i] {
                 let r = &raw mut (*slots.add(*indices.add(i as usize) as usize)).range;
                 if (*r).owned && (*r).kind == kDecorKindVirtText {
-                    ptr::drop_in_place((*r).data.vt);
-                    xfree((*r).data.vt.cast());
+                    drop(Box::from_raw((*r).data.vt));
                 }
             }
         }
@@ -1267,8 +1266,7 @@ pub unsafe fn decor_redraw_col_impl(
             } else {
                 if (*r).owned {
                     if (*r).kind == kDecorKindVirtText {
-                        ptr::drop_in_place((*r).data.vt);
-                        xfree((*r).data.vt.cast());
+                        drop(Box::from_raw((*r).data.vt));
                     } else if (*r).kind == kDecorKindHighlight {
                         xfree((*r).data.sh.url.cast_mut().cast());
                     }

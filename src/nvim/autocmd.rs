@@ -3138,12 +3138,12 @@ pub unsafe fn apply_autocmds_group(
                 (*curbuf).b_did_filetype = false;
                 while !au_pending_free_buf.is_null() {
                     let b = (*au_pending_free_buf).b_next;
-                    xfree(au_pending_free_buf.cast());
+                    drop(Box::from_raw(au_pending_free_buf));
                     au_pending_free_buf = b;
                 }
                 while !au_pending_free_win.is_null() {
                     let w = (*au_pending_free_win).w_next;
-                    xfree(au_pending_free_win.cast());
+                    drop(Box::from_raw(au_pending_free_win));
                     au_pending_free_win = w;
                 }
             }
