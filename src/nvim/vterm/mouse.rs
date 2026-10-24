@@ -58,7 +58,7 @@ pub struct VTermParser {
     pub csi: VTermParserCsi,
     pub osc: VTermParserOsc,
     pub dcs: VTermParserDcs,
-    pub callbacks: *const c_void,
+    pub callbacks: *const crate::vterm::parser::VTermParserCallbacks,
     pub cbdata: *mut c_void,
     pub string_initial: bool,
     pub emit_nul: bool,
@@ -73,7 +73,7 @@ pub struct VTerm {
     pub outfunc: VTermOutputCallback,
     pub outdata: *mut c_void,
     pub state: *mut VTermStateFull,
-    pub screen: *mut c_void,
+    pub screen: *mut crate::vterm::screen::VTermScreen,
 }
 
 unsafe fn output_mouse(

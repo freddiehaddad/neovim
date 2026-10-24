@@ -1,6 +1,6 @@
 //! Terminfo driver for libtermkey (`src/nvim/tui/termkey/driver-ti.c`).
 
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 
 use crate::tui::termkey::termkey::peekkey_mouse;
 
@@ -162,7 +162,11 @@ pub struct keyinfo {
 }
 
 pub type TermKeyTerminfoGetstrHook = Option<
-    unsafe fn(name: *const c_char, value: *const c_char, data: *mut c_void) -> *const c_char,
+    unsafe fn(
+        name: *const c_char,
+        value: *const c_char,
+        data: *mut crate::tui::input::TermInput,
+    ) -> *const c_char,
 >;
 
 pub struct TermKey {
@@ -173,7 +177,7 @@ pub struct TermKey {
     pub buffcount: usize,
     pub hightide: usize,
     pub ti_getstr_hook: TermKeyTerminfoGetstrHook,
-    pub ti_getstr_hook_data: *mut c_void,
+    pub ti_getstr_hook_data: *mut crate::tui::input::TermInput,
     pub is_closed: c_char,
     pub is_started: c_char,
     pub keynames: Vec<*const c_char>,

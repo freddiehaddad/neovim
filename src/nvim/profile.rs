@@ -88,13 +88,37 @@ use crate::eval::funcs::MAX_FUNC_ARGS;
 use crate::globals::{IOSIZE, PROF_NONE};
 use crate::keycodes::K_SPECIAL;
 
-#[repr(C)]
+#[derive(Clone, Copy)]
+pub enum EStackInfo {
+    None,
+    Ufunc(*mut ufunc_T),
+    AuCmd(*mut crate::autocmd::AutoPatCmd),
+}
+
+impl EStackInfo {
+    #[inline]
+    pub const fn ufunc(self) -> *mut ufunc_T {
+        match self {
+            Self::Ufunc(p) => p,
+            _ => std::ptr::null_mut(),
+        }
+    }
+
+    #[inline]
+    pub const fn aucmd(self) -> *mut crate::autocmd::AutoPatCmd {
+        match self {
+            Self::AuCmd(p) => p,
+            _ => std::ptr::null_mut(),
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct estack_T {
     pub es_lnum: i32,
     pub es_name: *mut c_char,
     pub es_type: c_int,
-    pub es_info: *mut c_void,
+    pub es_info: EStackInfo,
 }
 
 #[repr(C)]

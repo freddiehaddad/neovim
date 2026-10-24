@@ -29,7 +29,7 @@ use crate::viml::parser::parser::{
     ParserHighlight, ParserLine, ParserPosition, ParserState, parser_simple_get_line,
     viml_parser_destroy,
 };
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 
 const API_INTEGER_MAX: u64 = i64::MAX as u64;
 
@@ -613,7 +613,7 @@ pub unsafe extern "C" fn nvim_parse_expression(
         let mut pstate = ParserState {
             reader: crate::viml::parser::parser::ParserInputReader {
                 get_line: Some(parser_simple_get_line),
-                cookie: (&raw mut plines_p).cast::<c_void>(),
+                cookie: &raw mut plines_p,
                 lines: Vec::new(),
                 conv: crate::mbyte::vimconv_T {
                     vc_type: crate::viml::parser::parser::CONV_NONE,

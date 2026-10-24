@@ -3577,7 +3577,7 @@ unsafe fn color_expr_cmdline(
         let mut pstate = ParserState {
             reader: ParserInputReader {
                 get_line: Some(parser_simple_get_line),
-                cookie: (&raw mut plines_p).cast::<c_void>(),
+                cookie: &raw mut plines_p,
                 lines: Vec::new(),
                 conv: vimconv_T {
                     vc_type: CONV_NONE,

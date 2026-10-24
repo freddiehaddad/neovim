@@ -14,7 +14,8 @@ pub struct ParserLine {
     pub allocated: bool,
 }
 
-pub type ParserLineGetter = Option<unsafe fn(cookie: *mut c_void, ret_pline: *mut ParserLine)>;
+pub type ParserLineGetter =
+    Option<unsafe fn(cookie: *mut *const ParserLine, ret_pline: *mut ParserLine)>;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -25,7 +26,7 @@ pub struct ParserPosition {
 
 pub struct ParserInputReader {
     pub get_line: ParserLineGetter,
-    pub cookie: *mut c_void,
+    pub cookie: *mut *const ParserLine,
     pub lines: Vec<ParserLine>,
     pub conv: vimconv_T,
 }
@@ -50,9 +51,11 @@ pub struct ParserState {
 ///
 /// # Safety
 /// `cookie` must point to a `*const ParserLine` cursor, and `ret_pline` must be writable.
-pub unsafe fn parser_simple_get_line(cookie: *mut c_void, ret_pline: *mut ParserLine) {
+pub unsafe fn parser_simple_get_line(
+    plines_p: *mut *const ParserLine,
+    ret_pline: *mut ParserLine,
+) {
     unsafe {
-        let plines_p = cookie.cast::<*const ParserLine>();
         *ret_pline = **plines_p;
         *plines_p = (*plines_p).add(1);
     }
@@ -156,15 +159,9 @@ mod tests {
             allocated: false,
         };
         unsafe {
-            parser_simple_get_line(
-                (&mut cursor as *mut *const ParserLine).cast::<c_void>(),
-                &mut out,
-            );
+            parser_simple_get_line(&mut cursor, &mut out);
             assert_eq!(out.size, 9);
-            parser_simple_get_line(
-                (&mut cursor as *mut *const ParserLine).cast::<c_void>(),
-                &mut out,
-            );
+            parser_simple_get_line(&mut cursor, &mut out);
             assert!(out.data.is_null());
         }
     }

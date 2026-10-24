@@ -1863,7 +1863,7 @@ fn frag(start: *mut nfa_state_T, out: *mut Ptrlist) -> Frag_T {
 unsafe fn list1(outp: *mut *mut nfa_state_T) -> *mut Ptrlist {
     unsafe {
         let l = outp.cast::<Ptrlist>();
-        (*l).next = ptr::null_mut();
+        (*l).0 = ptr::null_mut();
         l
     }
 }
@@ -1871,8 +1871,8 @@ unsafe fn list1(outp: *mut *mut nfa_state_T) -> *mut Ptrlist {
 unsafe fn patch(mut l: *mut Ptrlist, s: *mut nfa_state_T) {
     unsafe {
         while !l.is_null() {
-            let next = (*l).next;
-            (*l).s = s;
+            let next = (*l).0;
+            *l.cast::<*mut nfa_state_T>() = s;
             l = next;
         }
     }
@@ -1881,10 +1881,10 @@ unsafe fn patch(mut l: *mut Ptrlist, s: *mut nfa_state_T) {
 unsafe fn append(mut l1: *mut Ptrlist, l2: *mut Ptrlist) -> *mut Ptrlist {
     unsafe {
         let oldl1 = l1;
-        while !(*l1).next.is_null() {
-            l1 = (*l1).next;
+        while !(*l1).0.is_null() {
+            l1 = (*l1).0;
         }
-        (*l1).next = l2;
+        (*l1).0 = l2;
         oldl1
     }
 }

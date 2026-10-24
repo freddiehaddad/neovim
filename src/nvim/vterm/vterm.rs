@@ -4,7 +4,7 @@ use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
 use crate::vterm::mouse::VTerm;
-use crate::vterm::parser::{NORMAL, VTermParserCallbacks};
+use crate::vterm::parser::NORMAL;
 use crate::vterm::pen::{
     VTERM_ATTR_BACKGROUND, VTERM_ATTR_BASELINE, VTERM_ATTR_BLINK, VTERM_ATTR_BOLD,
     VTERM_ATTR_CONCEAL, VTERM_ATTR_DIM, VTERM_ATTR_FONT, VTERM_ATTR_FOREGROUND, VTERM_ATTR_ITALIC,
@@ -37,7 +37,7 @@ pub unsafe fn vterm_new(rows: c_int, cols: c_int) -> *mut VTerm {
 pub unsafe fn vterm_free(vt: *mut VTerm) {
     unsafe {
         if !(*vt).screen.is_null() {
-            vterm_screen_free((*vt).screen.cast());
+            vterm_screen_free((*vt).screen);
         }
 
         if !(*vt).state.is_null() {
@@ -68,7 +68,7 @@ pub unsafe fn vterm_set_size(vt: *mut VTerm, rows: c_int, cols: c_int) {
         (*vt).rows = rows;
         (*vt).cols = cols;
 
-        let callbacks = (*vt).parser.callbacks.cast::<VTermParserCallbacks>();
+        let callbacks = (*vt).parser.callbacks;
         if !callbacks.is_null()
             && let Some(resize_cb) = (*callbacks).resize
         {

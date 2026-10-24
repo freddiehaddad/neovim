@@ -3291,7 +3291,7 @@ unsafe fn aucmd_next(apc: *mut AutoPatCmd) {
 
                 xfree(entry.es_name.cast());
                 entry.es_name = namep;
-                entry.es_info = apc.cast();
+                entry.es_info = crate::profile::EStackInfo::AuCmd(apc);
             }
 
             (*apc).lastpat = ap;
@@ -3303,7 +3303,7 @@ unsafe fn aucmd_next(apc: *mut AutoPatCmd) {
 
         xfree(entry.es_name.cast());
         entry.es_name = ptr::null_mut();
-        entry.es_info = ptr::null_mut();
+        entry.es_info = crate::profile::EStackInfo::None;
 
         (*apc).lastpat = ptr::null_mut();
         (*apc).auidx = usize::MAX;

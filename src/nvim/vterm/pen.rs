@@ -483,7 +483,7 @@ unsafe fn setpenattr(
     val: *mut VTermValue,
 ) {
     unsafe {
-        let callbacks = (*state).callbacks.cast::<VTermStateCallbacks>();
+        let callbacks = (*state).callbacks;
         if !callbacks.is_null()
             && let Some(cb) = (*callbacks).setpenattr
         {
@@ -1002,7 +1002,7 @@ pub unsafe fn vterm_state_set_penattr(
             _ => return 0,
         }
 
-        let callbacks = (*state).callbacks.cast::<VTermStateCallbacks>();
+        let callbacks = (*state).callbacks;
         if !callbacks.is_null()
             && let Some(cb) = (*callbacks).setpenattr
         {

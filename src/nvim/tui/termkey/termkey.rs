@@ -27,7 +27,7 @@ use crate::tui::termkey::driver_ti::{
     TERMKEY_TYPE_UNICODE, TERMKEY_TYPE_UNKNOWN_CSI, TermKey, TermKeyKey, TermKeyResult, TermKeySym,
     TermKeyTI, TermKeyTerminfoGetstrHook, TerminfoEntry, keyinfo, peekkey_ti, start_driver_ti,
 };
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 
 pub const TERMKEY_FLAG_NOINTERPRET: c_int = 1 << 0;
 pub const TERMKEY_FLAG_UTF8: c_int = 1 << 3;
@@ -423,7 +423,7 @@ pub unsafe fn termkey_destroy(tk: *mut TermKey) {
 pub unsafe fn termkey_hook_terminfo_getstr(
     tk: *mut TermKey,
     hookfn: TermKeyTerminfoGetstrHook,
-    data: *mut c_void,
+    data: *mut crate::tui::input::TermInput,
 ) {
     unsafe {
         (*tk).ti_getstr_hook = hookfn;

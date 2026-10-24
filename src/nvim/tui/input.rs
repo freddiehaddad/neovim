@@ -193,7 +193,7 @@ pub unsafe fn tinput_init(input: *mut TermInput, loop_: *mut Loop, ti: *mut Term
             TERMKEY_FLAG_UTF8 | TERMKEY_FLAG_NOSTART | TERMKEY_FLAG_KEEPC0,
         );
         termkey_set_buffer_size((*input).tk, INPUT_BUFFER_SIZE);
-        termkey_hook_terminfo_getstr((*input).tk, (*input).tk_ti_hook_fn, input.cast());
+        termkey_hook_terminfo_getstr((*input).tk, (*input).tk_ti_hook_fn, input);
         termkey_start((*input).tk);
 
         let curflags = termkey_get_canonflags((*input).tk);

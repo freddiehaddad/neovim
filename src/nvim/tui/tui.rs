@@ -3203,10 +3203,9 @@ unsafe fn tui_get_stty_erase(input: *mut TermInput) -> *const c_char {
 unsafe fn tui_tk_ti_getstr(
     name: *const c_char,
     value: *const c_char,
-    data: *mut c_void,
+    input: *mut TermInput,
 ) -> *const c_char {
     unsafe {
-        let input = data.cast::<TermInput>();
         if stty_erase_ptr.is_null() {
             stty_erase_ptr = tui_get_stty_erase(input);
         }

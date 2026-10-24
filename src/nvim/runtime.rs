@@ -7,7 +7,7 @@ use crate::api::private::helpers::{
 };
 use crate::api::private::validate::{Array, Error, ErrorType, NvimString, ObjectType};
 use crate::autocmd::{
-    AutoPatCmd, DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_SOURCECMD, EVENT_SOURCEPOST,
+    DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_SOURCECMD, EVENT_SOURCEPOST,
     EVENT_SOURCEPRE, PROF_YES, apply_autocmds, funccal_entry_T, has_autocmd, has_autocmd_fullname,
 };
 use crate::charset::{
@@ -302,7 +302,7 @@ pub unsafe fn estack_init() {
             es_type: ETYPE_TOP,
             es_name: ptr::null_mut(),
             es_lnum: 0,
-            es_info: ptr::null_mut(),
+            es_info: crate::profile::EStackInfo::None,
         });
     }
 }
@@ -315,7 +315,7 @@ pub unsafe fn estack_push(type_: etype_T, name: *mut c_char, lnum: linenr_T) -> 
             es_type: type_,
             es_name: name,
             es_lnum: lnum,
-            es_info: ptr::null_mut(),
+            es_info: crate::profile::EStackInfo::None,
         });
         (*es).last_mut().map_or(ptr::null_mut(), ptr::from_mut)
     }
@@ -331,7 +331,7 @@ pub unsafe fn estack_push_ufunc(ufunc: *mut ufunc_T, lnum: linenr_T) {
         };
         let entry = estack_push(ETYPE_UFUNC, name, lnum);
         if !entry.is_null() {
-            (*entry).es_info = ufunc.cast::<c_void>();
+            (*entry).es_info = crate::profile::EStackInfo::Ufunc(ufunc);
         }
     }
 }
@@ -363,9 +363,9 @@ pub unsafe fn estack_sfile(which: estack_arg_T) -> *mut c_char {
             for entry in (*es).iter().rev() {
                 if entry.es_type == ETYPE_UFUNC || entry.es_type == ETYPE_AUCMD {
                     let def_ctx = if entry.es_type == ETYPE_UFUNC {
-                        &(*entry.es_info.cast::<ufunc_T>()).uf_script_ctx
+                        &(*entry.es_info.ufunc()).uf_script_ctx
                     } else {
-                        &(*entry.es_info.cast::<AutoPatCmd>()).script_ctx
+                        &(*entry.es_info.aucmd()).script_ctx
                     };
                     return if def_ctx.sc_sid > 0 {
                         xstrdup((*script_item(def_ctx.sc_sid)).sn_name)
@@ -479,7 +479,7 @@ pub unsafe fn stacktrace_create() -> *mut list_T {
             if entry.es_type == ETYPE_SCRIPT {
                 stacktrace_push_item(l, ptr::null_mut(), ptr::null(), lnum, entry.es_name);
             } else if entry.es_type == ETYPE_UFUNC {
-                let fp = entry.es_info.cast::<ufunc_T>();
+                let fp = entry.es_info.ufunc();
                 let sctx = (*fp).uf_script_ctx;
                 let filepath = if sctx.sc_sid > 0 {
                     get_scriptname(sctx, ptr::null_mut())
@@ -489,7 +489,7 @@ pub unsafe fn stacktrace_create() -> *mut list_T {
                 lnum += sctx.sc_lnum;
                 stacktrace_push_item(l, fp, ptr::null(), lnum, filepath);
             } else if entry.es_type == ETYPE_AUCMD {
-                let sctx = (*entry.es_info.cast::<AutoPatCmd>()).script_ctx;
+                let sctx = (*entry.es_info.aucmd()).script_ctx;
                 let filepath = if sctx.sc_sid > 0 {
                     get_scriptname(sctx, ptr::null_mut())
                 } else {

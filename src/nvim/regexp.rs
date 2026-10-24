@@ -313,7 +313,7 @@ pub struct regengine_T {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub(super) union regsave_u {
+pub(super) struct regsave_u {
     pub ptr: *mut u8,
     pub pos: lpos_T,
 }
@@ -327,7 +327,7 @@ pub(super) struct regsave_T {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub(super) union save_se_u {
+pub(super) struct save_se_u {
     pub ptr: *mut u8,
     pub pos: lpos_T,
 }
@@ -356,7 +356,7 @@ pub(super) const RS_STAR_SHORT: regstate_T = 13;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub(super) union regitem_u {
+pub(super) struct regitem_u {
     pub sesave: save_se_T,
     pub regsave: regsave_T,
 }
@@ -380,12 +380,9 @@ pub(super) struct regbehind_T {
     pub save_end: [save_se_T; NSUBEXP],
 }
 
-#[repr(C)]
+#[repr(transparent)]
 #[derive(Clone, Copy)]
-pub(super) union Ptrlist {
-    pub next: *mut Ptrlist,
-    pub s: *mut nfa_state_T,
-}
+pub(super) struct Ptrlist(pub *mut Ptrlist);
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -412,7 +409,7 @@ pub(super) struct linepos {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub(super) union regsub_list_u {
+pub(super) struct regsub_list_u {
     pub multi: [multipos; NSUBEXP],
     pub line: [linepos; NSUBEXP],
 }
@@ -434,7 +431,7 @@ pub(super) struct regsubs_T {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub(super) union nfa_pim_end_u {
+pub(super) struct nfa_pim_end_u {
     pub pos: lpos_T,
     pub ptr: *mut u8,
 }

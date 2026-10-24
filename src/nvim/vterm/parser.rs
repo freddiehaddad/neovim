@@ -116,7 +116,7 @@ fn is_string_state(state: c_int) -> bool {
 
 unsafe fn do_control(vt: *mut VTerm, control: u8) {
     unsafe {
-        let callbacks = (*vt).parser.callbacks.cast::<VTermParserCallbacks>();
+        let callbacks = (*vt).parser.callbacks;
         if !callbacks.is_null()
             && let Some(cb) = (*callbacks).control
         {
@@ -127,7 +127,7 @@ unsafe fn do_control(vt: *mut VTerm, control: u8) {
 
 unsafe fn do_csi(vt: *mut VTerm, command: c_char) {
     unsafe {
-        let callbacks = (*vt).parser.callbacks.cast::<VTermParserCallbacks>();
+        let callbacks = (*vt).parser.callbacks;
         if !callbacks.is_null()
             && let Some(cb) = (*callbacks).csi
         {
@@ -162,7 +162,7 @@ unsafe fn do_escape(vt: *mut VTerm, command: c_char) {
         len += 1;
         seq[len] = 0;
 
-        let callbacks = (*vt).parser.callbacks.cast::<VTermParserCallbacks>();
+        let callbacks = (*vt).parser.callbacks;
         if !callbacks.is_null()
             && let Some(cb) = (*callbacks).escape
         {
@@ -181,7 +181,7 @@ unsafe fn string_fragment(
     unsafe {
         let frag =
             VTermStringFragment::new(str_, len, (*vt).parser.string_initial, final_, terminator);
-        let callbacks = (*vt).parser.callbacks.cast::<VTermParserCallbacks>();
+        let callbacks = (*vt).parser.callbacks;
 
         match (*vt).parser.state {
             OSC => {
@@ -502,7 +502,7 @@ pub unsafe fn vterm_input_write(vt: *mut VTerm, bytes: *const c_char, len: usize
                             }
                         } else {
                             let mut eaten: usize = 0;
-                            let callbacks = (*vt).parser.callbacks.cast::<VTermParserCallbacks>();
+                            let callbacks = (*vt).parser.callbacks;
                             if !callbacks.is_null()
                                 && let Some(cb) = (*callbacks).text
                             {
@@ -543,7 +543,7 @@ pub unsafe fn vterm_parser_set_callbacks(
     user: *mut c_void,
 ) {
     unsafe {
-        (*vt).parser.callbacks = callbacks.cast();
+        (*vt).parser.callbacks = callbacks;
         (*vt).parser.cbdata = user;
     }
 }

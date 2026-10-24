@@ -3569,7 +3569,7 @@ mod tests {
     use crate::viml::parser::parser::{
         ParserHighlight, parser_simple_get_line, viml_parser_destroy,
     };
-    use std::ffi::{CStr, c_void};
+    use std::ffi::CStr;
 
     unsafe fn with_pstate<R>(input: &[u8], f: impl FnOnce(&mut ParserState) -> R) -> R {
         let lines = [
@@ -3589,7 +3589,7 @@ mod tests {
         let mut pstate = ParserState {
             reader: crate::viml::parser::parser::ParserInputReader {
                 get_line: Some(parser_simple_get_line),
-                cookie: (&mut cursor as *mut *const ParserLine).cast::<c_void>(),
+                cookie: &mut cursor,
                 lines: Vec::new(),
                 conv: crate::mbyte::vimconv_T {
                     vc_type: crate::viml::parser::parser::CONV_NONE,

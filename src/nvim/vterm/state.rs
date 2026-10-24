@@ -289,7 +289,7 @@ unsafe fn putglyph(state: *mut VTermStateFull, schar: schar_T, width: c_int, pos
             flags,
         };
 
-        let callbacks = (*state).callbacks.cast::<VTermStateCallbacks>();
+        let callbacks = (*state).callbacks;
         if !callbacks.is_null()
             && let Some(cb) = (*callbacks).putglyph
         {
@@ -308,7 +308,7 @@ unsafe fn updatecursor(state: *mut VTermStateFull, oldpos: *const VTermPos, canc
             (*state).at_phantom = 0;
         }
 
-        let callbacks = (*state).callbacks.cast::<VTermStateCallbacks>();
+        let callbacks = (*state).callbacks;
         if !callbacks.is_null()
             && let Some(cb) = (*callbacks).movecursor
         {
@@ -329,7 +329,7 @@ unsafe fn erase(state: *mut VTermStateFull, rect: VTermRect, selective: c_int) {
             }
         }
 
-        let callbacks = (*state).callbacks.cast::<VTermStateCallbacks>();
+        let callbacks = (*state).callbacks;
         if !callbacks.is_null()
             && let Some(cb) = (*callbacks).erase
         {
@@ -474,7 +474,7 @@ unsafe fn scroll(
             }
         }
 
-        let callbacks = (*state).callbacks.cast::<VTermStateCallbacks>();
+        let callbacks = (*state).callbacks;
         if !callbacks.is_null()
             && let Some(cb) = (*callbacks).scrollrect
             && cb(rect, downward, rightward, (*state).cbdata) != 0
@@ -601,7 +601,7 @@ unsafe fn set_lineinfo(
             info.set_doubleheight(DHL_BOTTOM as u32);
         }
 
-        let callbacks = (*state).callbacks.cast::<VTermStateCallbacks>();
+        let callbacks = (*state).callbacks;
         let cb_ok = !callbacks.is_null()
             && (*callbacks).setlineinfo.is_some_and(|cb| {
                 cb(
@@ -760,7 +760,7 @@ unsafe fn on_control(control: u8, user: *mut c_void) -> c_int {
         match control {
             0x07 => {
                 // BEL - ECMA-48 8.3.3
-                let callbacks = (*state).callbacks.cast::<VTermStateCallbacks>();
+                let callbacks = (*state).callbacks;
                 if !callbacks.is_null()
                     && let Some(cb) = (*callbacks).bell
                 {
@@ -833,7 +833,7 @@ unsafe fn on_control(control: u8, user: *mut c_void) -> c_int {
                 (*state).gsingle_set = 3;
             }
             _ => {
-                let fallbacks = (*state).fallbacks.cast::<VTermStateFallbacks>();
+                let fallbacks = (*state).fallbacks;
                 if !fallbacks.is_null()
                     && let Some(cb) = (*fallbacks).control
                     && cb(control, (*state).fbdata) != 0
@@ -1011,7 +1011,7 @@ unsafe fn on_escape(bytes: *const c_char, len: usize, user: *mut c_void) -> c_in
                 // RIS - ECMA-48 8.3.105
                 let oldpos = (*state).pos;
                 vterm_state_reset(state, 1);
-                let callbacks = (*state).callbacks.cast::<VTermStateCallbacks>();
+                let callbacks = (*state).callbacks;
                 if !callbacks.is_null()
                     && let Some(cb) = (*callbacks).movecursor
                 {
@@ -1515,7 +1515,7 @@ unsafe fn on_csi(
                         erase(state, rect, selective);
                     }
                     3 => {
-                        let callbacks = (*state).callbacks.cast::<VTermStateCallbacks>();
+                        let callbacks = (*state).callbacks;
                         if !callbacks.is_null()
                             && let Some(cb) = (*callbacks).sb_clear
                             && cb((*state).cbdata) != 0
@@ -1817,7 +1817,7 @@ unsafe fn on_csi(
                         vterm_push_output_ctrl_bytes((*state).vt, C1_CSI, s.as_bytes());
                     }
                     996 => {
-                        let callbacks = (*state).callbacks.cast::<VTermStateCallbacks>();
+                        let callbacks = (*state).callbacks;
                         if !callbacks.is_null()
                             && let Some(cb) = (*callbacks).theme
                             && cb(&raw mut dark, (*state).cbdata) != 0
@@ -2010,7 +2010,7 @@ unsafe fn on_csi(
                 }
             }
             _ => {
-                let fallbacks = (*state).fallbacks.cast::<VTermStateFallbacks>();
+                let fallbacks = (*state).fallbacks;
                 if !fallbacks.is_null()
                     && let Some(cb) = (*fallbacks).csi
                     && cb(
@@ -2131,10 +2131,7 @@ unsafe fn osc_selection(state: *mut VTermStateFull, frag: VTermStringFragment) {
             frag_len -= 1;
         }
 
-        let sel_callbacks = (*state)
-            .selection
-            .callbacks
-            .cast::<VTermSelectionCallbacks>();
+        let sel_callbacks = (*state).selection.callbacks;
 
         if frag_len == 0 {
             if frag_final
@@ -2304,7 +2301,7 @@ unsafe fn on_osc(command: c_int, frag: VTermStringFragment, user: *mut c_void) -
             _ => {}
         }
 
-        let fallbacks = (*state).fallbacks.cast::<VTermStateFallbacks>();
+        let fallbacks = (*state).fallbacks;
         if !fallbacks.is_null()
             && let Some(cb) = (*fallbacks).osc
             && cb(command, frag, (*state).fbdata) != 0
@@ -2432,7 +2429,7 @@ unsafe fn on_dcs(
             request_status_string(state, frag);
             return 1;
         } else {
-            let fallbacks = (*state).fallbacks.cast::<VTermStateFallbacks>();
+            let fallbacks = (*state).fallbacks;
             if !fallbacks.is_null()
                 && let Some(cb) = (*fallbacks).dcs
                 && cb(command, commandlen, frag, (*state).fbdata) != 0
@@ -2448,7 +2445,7 @@ unsafe fn on_dcs(
 unsafe fn on_apc(frag: VTermStringFragment, user: *mut c_void) -> c_int {
     unsafe {
         let state = user.cast::<VTermStateFull>();
-        let fallbacks = (*state).fallbacks.cast::<VTermStateFallbacks>();
+        let fallbacks = (*state).fallbacks;
         if !fallbacks.is_null()
             && let Some(cb) = (*fallbacks).apc
             && cb(frag, (*state).fbdata) != 0
@@ -2462,7 +2459,7 @@ unsafe fn on_apc(frag: VTermStringFragment, user: *mut c_void) -> c_int {
 unsafe fn on_pm(frag: VTermStringFragment, user: *mut c_void) -> c_int {
     unsafe {
         let state = user.cast::<VTermStateFull>();
-        let fallbacks = (*state).fallbacks.cast::<VTermStateFallbacks>();
+        let fallbacks = (*state).fallbacks;
         if !fallbacks.is_null()
             && let Some(cb) = (*fallbacks).pm
             && cb(frag, (*state).fbdata) != 0
@@ -2476,7 +2473,7 @@ unsafe fn on_pm(frag: VTermStringFragment, user: *mut c_void) -> c_int {
 unsafe fn on_sos(frag: VTermStringFragment, user: *mut c_void) -> c_int {
     unsafe {
         let state = user.cast::<VTermStateFull>();
-        let fallbacks = (*state).fallbacks.cast::<VTermStateFallbacks>();
+        let fallbacks = (*state).fallbacks;
         if !fallbacks.is_null()
             && let Some(cb) = (*fallbacks).sos
             && cb(frag, (*state).fbdata) != 0
@@ -2531,7 +2528,7 @@ unsafe fn on_resize(rows: c_int, cols: c_int, user: *mut c_void) -> c_int {
             state_ref.scrollregion_right = state_ref.cols;
         }
 
-        let callbacks = state_ref.callbacks.cast::<VTermStateCallbacks>();
+        let callbacks = state_ref.callbacks;
         if !callbacks.is_null()
             && let Some(resize_cb) = (*callbacks).resize
         {
@@ -2644,7 +2641,7 @@ pub unsafe fn vterm_state_reset(state: *mut VTermStateFull, hard: c_int) {
             set_lineinfo(state, row, FORCE, DWL_OFF, DHL_OFF);
         }
 
-        let callbacks = (*state).callbacks.cast::<VTermStateCallbacks>();
+        let callbacks = (*state).callbacks;
         if !callbacks.is_null()
             && let Some(cb) = (*callbacks).initpen
         {
@@ -2697,7 +2694,7 @@ pub unsafe fn vterm_state_set_callbacks(
 ) {
     unsafe {
         if !callbacks.is_null() {
-            (*state).callbacks = callbacks.cast();
+            (*state).callbacks = callbacks;
             (*state).cbdata = user;
 
             if let Some(cb) = (*callbacks).initpen {
@@ -2717,7 +2714,7 @@ pub unsafe fn vterm_state_set_unrecognised_fallbacks(
 ) {
     unsafe {
         if !fallbacks.is_null() {
-            (*state).fallbacks = fallbacks.cast();
+            (*state).fallbacks = fallbacks;
             (*state).fbdata = user;
         } else {
             (*state).fallbacks = ptr::null();
@@ -2732,7 +2729,7 @@ pub unsafe fn vterm_state_set_termprop(
     val: *mut VTermValue,
 ) -> c_int {
     unsafe {
-        let callbacks = (*state).callbacks.cast::<VTermStateCallbacks>();
+        let callbacks = (*state).callbacks;
         if !callbacks.is_null()
             && let Some(cb) = (*callbacks).settermprop
             && cb(prop, val, (*state).cbdata) == 0
@@ -2852,7 +2849,7 @@ pub unsafe fn vterm_state_set_selection_callbacks(
             state_ref.selection_owned_buffer.clear();
         }
 
-        state_ref.selection.callbacks = callbacks.cast();
+        state_ref.selection.callbacks = callbacks;
         state_ref.selection.user = user;
         state_ref.selection.buffer = buffer;
         state_ref.selection.buflen = buflen;

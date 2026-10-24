@@ -70,7 +70,7 @@ pub struct VTermStateTmp {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct VTermStateSelection {
-    pub callbacks: *const c_void,
+    pub callbacks: *const crate::vterm::state::VTermSelectionCallbacks,
     pub user: *mut c_void,
     pub buffer: *mut c_char,
     pub buflen: usize,
@@ -86,9 +86,9 @@ pub struct VTermKeyEncodingStack {
 #[repr(C)]
 pub struct VTermStateFull {
     pub vt: *mut VTerm,
-    pub callbacks: *const c_void,
+    pub callbacks: *const crate::vterm::pen::VTermStateCallbacks,
     pub cbdata: *mut c_void,
-    pub fallbacks: *const c_void,
+    pub fallbacks: *const crate::vterm::state::VTermStateFallbacks,
     pub fbdata: *mut c_void,
     pub rows: c_int,
     pub cols: c_int,

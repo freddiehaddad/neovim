@@ -1456,11 +1456,10 @@ pub unsafe fn vterm_screen_get_cell(
 pub unsafe fn vterm_obtain_screen(vt: *mut VTerm) -> *mut VTermScreen {
     unsafe {
         if !(*vt).screen.is_null() {
-            return (*vt).screen.cast();
+            return (*vt).screen;
         }
-
         let screen = screen_new(vt);
-        (*vt).screen = screen.cast();
+        (*vt).screen = screen;
         screen
     }
 }
