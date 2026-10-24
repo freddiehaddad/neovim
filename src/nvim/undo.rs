@@ -26,9 +26,9 @@ use crate::event::r#loop::uv_strerror;
 use crate::ex_docmd::{UNDO_HASH_SIZE, exarg_T, expr_map_locked};
 use crate::ex_getln::{text_locked, text_locked_msg};
 use crate::extmark::{
-    ExtmarkMove, ExtmarkSplice, ExtmarkUndoData, ExtmarkUndoObject, UndoObjectType,
-    extmark_apply_undo, extmark_splice_cols, extmark_undo_vec_t, kExtmarkMove, kExtmarkNOOP,
-    kExtmarkSplice, kExtmarkUndo,
+    ExtmarkMove, ExtmarkSplice, ExtmarkUndoObject, UndoObjectType, extmark_apply_undo,
+    extmark_splice_cols, extmark_undo_vec_t, kExtmarkMove, kExtmarkNOOP, kExtmarkSplice,
+    kExtmarkUndo,
 };
 #[cfg(unix)]
 use crate::fileio::getuid;
@@ -879,26 +879,30 @@ unsafe fn unserialize_uhp(bi: &mut bufinfo_T, file_name: *const c_char) -> *mut 
 
 unsafe fn serialize_extmark(bi: &mut bufinfo_T, extup: ExtmarkUndoObject) -> bool {
     unsafe {
-        if extup.type_ == kExtmarkSplice {
-            undo_write_bytes(bi, UF_ENTRY_MAGIC as u64, 2);
-            undo_write_bytes(bi, extup.type_ as u64, 4);
-            if !undo_write(
-                bi,
-                (&raw const extup.data.splice).cast::<u8>().cast_mut(),
-                size_of::<ExtmarkSplice>(),
-            ) {
-                return false;
+        match extup {
+            ExtmarkUndoObject::Splice(splice) => {
+                undo_write_bytes(bi, UF_ENTRY_MAGIC as u64, 2);
+                undo_write_bytes(bi, kExtmarkSplice as u64, 4);
+                if !undo_write(
+                    bi,
+                    (&raw const splice).cast::<u8>().cast_mut(),
+                    size_of::<ExtmarkSplice>(),
+                ) {
+                    return false;
+                }
             }
-        } else if extup.type_ == kExtmarkMove {
-            undo_write_bytes(bi, UF_ENTRY_MAGIC as u64, 2);
-            undo_write_bytes(bi, extup.type_ as u64, 4);
-            if !undo_write(
-                bi,
-                (&raw const extup.data.move_).cast::<u8>().cast_mut(),
-                size_of::<ExtmarkMove>(),
-            ) {
-                return false;
+            ExtmarkUndoObject::Move(move_) => {
+                undo_write_bytes(bi, UF_ENTRY_MAGIC as u64, 2);
+                undo_write_bytes(bi, kExtmarkMove as u64, 4);
+                if !undo_write(
+                    bi,
+                    (&raw const move_).cast::<u8>().cast_mut(),
+                    size_of::<ExtmarkMove>(),
+                ) {
+                    return false;
+                }
             }
+            ExtmarkUndoObject::SavePos(_) => {}
         }
         true
     }
@@ -915,19 +919,13 @@ unsafe fn unserialize_extmark(
             if !undo_read(bi, (&raw mut splice).cast::<u8>(), size_of::<ExtmarkSplice>()) {
                 return None;
             }
-            Some(ExtmarkUndoObject {
-                type_,
-                data: ExtmarkUndoData { splice },
-            })
+            Some(ExtmarkUndoObject::Splice(splice))
         } else if type_ == kExtmarkMove {
             let mut move_: ExtmarkMove = std::mem::zeroed();
             if !undo_read(bi, (&raw mut move_).cast::<u8>(), size_of::<ExtmarkMove>()) {
                 return None;
             }
-            Some(ExtmarkUndoObject {
-                type_,
-                data: ExtmarkUndoData { move_ },
-            })
+            Some(ExtmarkUndoObject::Move(move_))
         } else {
             None
         }

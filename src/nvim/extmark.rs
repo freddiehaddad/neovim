@@ -46,7 +46,6 @@ pub(crate) const kTrue: c_int = 1;
 
 pub(crate) const kExtmarkSplice: UndoObjectType = 0;
 pub(crate) const kExtmarkMove: UndoObjectType = 1;
-const kExtmarkSavePos: UndoObjectType = 3;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -87,19 +86,11 @@ pub struct ExtmarkSavePos {
     pub invalidated: bool,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
-pub union ExtmarkUndoData {
-    pub splice: ExtmarkSplice,
-    pub move_: ExtmarkMove,
-    pub savepos: ExtmarkSavePos,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct ExtmarkUndoObject {
-    pub type_: UndoObjectType,
-    pub data: ExtmarkUndoData,
+pub enum ExtmarkUndoObject {
+    Splice(ExtmarkSplice),
+    Move(ExtmarkMove),
+    SavePos(ExtmarkSavePos),
 }
 
 /// Records a raw mark's position in the open undo block, for `extmark_apply_undo()` to replay.
@@ -116,19 +107,16 @@ unsafe fn extmark_push_savepos(
         if uhp.is_null() {
             return;
         }
-        (*uhp).uh_extmark.push(ExtmarkUndoObject {
-            type_: kExtmarkSavePos,
-            data: ExtmarkUndoData {
-                savepos: ExtmarkSavePos {
-                    mark,
-                    undo_row,
-                    undo_col,
-                    redo_row,
-                    redo_col,
-                    invalidated: false,
-                },
-            },
-        });
+        (*uhp)
+            .uh_extmark
+            .push(ExtmarkUndoObject::SavePos(ExtmarkSavePos {
+                mark,
+                undo_row,
+                undo_col,
+                redo_row,
+                redo_col,
+                invalidated: false,
+            }));
     }
 }
 
@@ -734,10 +722,7 @@ pub unsafe fn extmark_splice_delete(
                     redo_row: -1,
                     redo_col: -1,
                 };
-                (*uvp).push(ExtmarkUndoObject {
-                    type_: kExtmarkSavePos,
-                    data: ExtmarkUndoData { savepos: pos },
-                });
+                (*uvp).push(ExtmarkUndoObject::SavePos(pos));
             }
 
             marktree_itr_next((*buf).b_marktree.as_mut_ptr(), &raw mut itr);
@@ -748,80 +733,81 @@ pub unsafe fn extmark_splice_delete(
 /// Undo or redo an extmark operation (`extmark_apply_undo`).
 pub unsafe fn extmark_apply_undo(undo_info: ExtmarkUndoObject, undo: bool) {
     unsafe {
-        if undo_info.type_ == kExtmarkSplice {
-            let splice = undo_info.data.splice;
-            if undo {
-                extmark_splice_impl(
-                    curbuf,
-                    splice.start_row,
-                    splice.start_col,
-                    splice.start_byte,
-                    splice.new_row,
-                    splice.new_col,
-                    splice.new_byte,
-                    splice.old_row,
-                    splice.old_col,
-                    splice.old_byte,
-                    kExtmarkNoUndo,
-                );
-            } else {
-                extmark_splice_impl(
-                    curbuf,
-                    splice.start_row,
-                    splice.start_col,
-                    splice.start_byte,
-                    splice.old_row,
-                    splice.old_col,
-                    splice.old_byte,
-                    splice.new_row,
-                    splice.new_col,
-                    splice.new_byte,
-                    kExtmarkNoUndo,
-                );
+        match undo_info {
+            ExtmarkUndoObject::Splice(splice) => {
+                if undo {
+                    extmark_splice_impl(
+                        curbuf,
+                        splice.start_row,
+                        splice.start_col,
+                        splice.start_byte,
+                        splice.new_row,
+                        splice.new_col,
+                        splice.new_byte,
+                        splice.old_row,
+                        splice.old_col,
+                        splice.old_byte,
+                        kExtmarkNoUndo,
+                    );
+                } else {
+                    extmark_splice_impl(
+                        curbuf,
+                        splice.start_row,
+                        splice.start_col,
+                        splice.start_byte,
+                        splice.old_row,
+                        splice.old_col,
+                        splice.old_byte,
+                        splice.new_row,
+                        splice.new_col,
+                        splice.new_byte,
+                        kExtmarkNoUndo,
+                    );
+                }
             }
-        } else if undo_info.type_ == kExtmarkSavePos {
-            let pos = undo_info.data.savepos;
-            if undo && pos.undo_row >= 0 {
-                extmark_setraw(
-                    curbuf,
-                    pos.mark,
-                    pos.undo_row,
-                    pos.undo_col,
-                    pos.invalidated,
-                );
-            } else if !undo && pos.redo_row >= 0 {
-                extmark_setraw(curbuf, pos.mark, pos.redo_row, pos.redo_col, true);
+            ExtmarkUndoObject::SavePos(pos) => {
+                if undo && pos.undo_row >= 0 {
+                    extmark_setraw(
+                        curbuf,
+                        pos.mark,
+                        pos.undo_row,
+                        pos.undo_col,
+                        pos.invalidated,
+                    );
+                } else if !undo && pos.redo_row >= 0 {
+                    extmark_setraw(curbuf, pos.mark, pos.redo_row, pos.redo_col, true);
+                }
             }
-        } else if undo_info.type_ == kExtmarkMove {
-            let move_ = undo_info.data.move_;
-            if undo {
-                extmark_move_region(
-                    curbuf,
-                    move_.new_row,
-                    move_.new_col,
-                    move_.new_byte,
-                    move_.extent_row,
-                    move_.extent_col,
-                    move_.extent_byte,
-                    move_.start_row,
-                    move_.start_col,
-                    move_.start_byte,
-                    kExtmarkNoUndo,
-                );
-            } else {
-                extmark_move_region(
-                    curbuf,
-                    move_.start_row,
-                    move_.start_col,
-                    move_.start_byte,
-                    move_.extent_row,
-                    move_.extent_col,
-                    move_.extent_byte,
-                    move_.new_row,
-                    move_.new_col,
-                    move_.new_byte,
-                    kExtmarkNoUndo,
-                );
+            ExtmarkUndoObject::Move(move_) => {
+                if undo {
+                    extmark_move_region(
+                        curbuf,
+                        move_.new_row,
+                        move_.new_col,
+                        move_.new_byte,
+                        move_.extent_row,
+                        move_.extent_col,
+                        move_.extent_byte,
+                        move_.start_row,
+                        move_.start_col,
+                        move_.start_byte,
+                        kExtmarkNoUndo,
+                    );
+                } else {
+                    extmark_move_region(
+                        curbuf,
+                        move_.start_row,
+                        move_.start_col,
+                        move_.start_byte,
+                        move_.extent_row,
+                        move_.extent_col,
+                        move_.extent_byte,
+                        move_.new_row,
+                        move_.new_col,
+                        move_.new_byte,
+                        kExtmarkNoUndo,
+                    );
+                }
             }
         }
     }
@@ -983,34 +969,28 @@ pub unsafe fn extmark_splice_impl(
             let mut merged = false;
             if old_row == 0
                 && new_row == 0
-                && let Some(item) = (*uhp).uh_extmark.last_mut()
-                && item.type_ == kExtmarkSplice
+                && let Some(ExtmarkUndoObject::Splice(splice)) = (*uhp).uh_extmark.last_mut()
+                && splice.start_row == start_row
+                && splice.old_row == 0
+                && splice.new_row == 0
             {
-                let splice = &raw mut item.data.splice;
-                if (*splice).start_row == start_row
-                    && (*splice).old_row == 0
-                    && (*splice).new_row == 0
+                if old_col == 0
+                    && start_col >= splice.start_col
+                    && start_col <= splice.start_col + splice.new_col
                 {
-                    if old_col == 0
-                        && start_col >= (*splice).start_col
-                        && start_col <= (*splice).start_col + (*splice).new_col
-                    {
-                        (*splice).new_col += new_col;
-                        (*splice).new_byte += new_byte;
-                        merged = true;
-                    } else if new_col == 0
-                        && start_col == (*splice).start_col + (*splice).new_col
-                    {
-                        (*splice).old_col += old_col;
-                        (*splice).old_byte += old_byte;
-                        merged = true;
-                    } else if new_col == 0 && start_col + old_col == (*splice).start_col {
-                        (*splice).start_col = start_col;
-                        (*splice).start_byte = start_byte;
-                        (*splice).old_col += old_col;
-                        (*splice).old_byte += old_byte;
-                        merged = true;
-                    }
+                    splice.new_col += new_col;
+                    splice.new_byte += new_byte;
+                    merged = true;
+                } else if new_col == 0 && start_col == splice.start_col + splice.new_col {
+                    splice.old_col += old_col;
+                    splice.old_byte += old_byte;
+                    merged = true;
+                } else if new_col == 0 && start_col + old_col == splice.start_col {
+                    splice.start_col = start_col;
+                    splice.start_byte = start_byte;
+                    splice.old_col += old_col;
+                    splice.old_byte += old_byte;
+                    merged = true;
                 }
             }
 
@@ -1026,10 +1006,7 @@ pub unsafe fn extmark_splice_impl(
                     old_byte,
                     new_byte,
                 };
-                (*uhp).uh_extmark.push(ExtmarkUndoObject {
-                    type_: kExtmarkSplice,
-                    data: ExtmarkUndoData { splice },
-                });
+                (*uhp).uh_extmark.push(ExtmarkUndoObject::Splice(splice));
             }
         }
     }
@@ -1133,10 +1110,7 @@ pub unsafe fn extmark_move_region(
                 extent_byte,
                 new_byte,
             };
-            (*uhp).uh_extmark.push(ExtmarkUndoObject {
-                type_: kExtmarkMove,
-                data: ExtmarkUndoData { move_ },
-            });
+            (*uhp).uh_extmark.push(ExtmarkUndoObject::Move(move_));
         }
     }
 }
@@ -1147,19 +1121,14 @@ mod tests {
 
     #[test]
     fn extmark_undo_vec_and_map_destroy_work() {
-        let v: extmark_undo_vec_t = vec![ExtmarkUndoObject {
-            type_: kExtmarkSavePos,
-            data: ExtmarkUndoData {
-                savepos: ExtmarkSavePos {
-                    mark: 10,
-                    undo_row: 1,
-                    undo_col: 2,
-                    redo_row: 3,
-                    redo_col: 4,
-                    invalidated: false,
-                },
-            },
-        }];
+        let v: extmark_undo_vec_t = vec![ExtmarkUndoObject::SavePos(ExtmarkSavePos {
+            mark: 10,
+            undo_row: 1,
+            undo_col: 2,
+            redo_row: 3,
+            redo_col: 4,
+            invalidated: false,
+        })];
         assert_eq!(v.len(), 1);
         drop(v);
     }

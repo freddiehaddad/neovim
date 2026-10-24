@@ -249,33 +249,23 @@ struct PreviewLines {
     lines_needed: linenr_T,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
-struct SortLine {
-    start_col_nr: varnumber_T,
-    end_col_nr: varnumber_T,
+enum SortKey {
+    Line {
+        start_col_nr: varnumber_T,
+        end_col_nr: varnumber_T,
+    },
+    Num {
+        value: varnumber_T,
+        is_number: bool,
+    },
+    Float(float_T),
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct SortNum {
-    value: varnumber_T,
-    is_number: bool,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-union SortUnion {
-    line: SortLine,
-    num: SortNum,
-    value_flt: float_T,
-}
-
-#[repr(C)]
 #[derive(Clone, Copy)]
 struct sorti_T {
     lnum: linenr_T,
-    st_u: SortUnion,
+    st_u: SortKey,
 }
 
 #[repr(C)]
@@ -616,46 +606,57 @@ unsafe fn sort_compare(
             sort_abort = true;
         }
 
-        if sort_nr != 0 {
-            if l1.st_u.num.is_number != l2.st_u.num.is_number {
-                result = if l1.st_u.num.is_number && !l2.st_u.num.is_number {
-                    1
+        match (l1.st_u, l2.st_u) {
+            (
+                SortKey::Num {
+                    value: v1,
+                    is_number: is_num1,
+                },
+                SortKey::Num {
+                    value: v2,
+                    is_number: is_num2,
+                },
+            ) => {
+                if is_num1 != is_num2 {
+                    result = if is_num1 && !is_num2 { 1 } else { -1 };
+                } else if v1 == v2 {
+                    result = 0;
+                } else if v1 > v2 {
+                    result = 1;
                 } else {
-                    -1
-                };
-            } else if l1.st_u.num.value == l2.st_u.num.value {
-                result = 0;
-            } else if l1.st_u.num.value > l2.st_u.num.value {
-                result = 1;
-            } else {
-                result = -1;
+                    result = -1;
+                }
             }
-        } else if sort_flt {
-            if l1.st_u.value_flt == l2.st_u.value_flt {
-                result = 0;
-            } else if l1.st_u.value_flt > l2.st_u.value_flt {
-                result = 1;
-            } else {
-                result = -1;
+            (SortKey::Float(f1), SortKey::Float(f2)) => {
+                if f1 == f2 {
+                    result = 0;
+                } else if f1 > f2 {
+                    result = 1;
+                } else {
+                    result = -1;
+                }
             }
-        } else {
-            let len1 = (l1.st_u.line.end_col_nr - l1.st_u.line.start_col_nr) as usize;
-            ptr::copy_nonoverlapping(
-                ml_get(l1.lnum).add(l1.st_u.line.start_col_nr as usize),
-                sortbuf1,
-                len1 + 1,
-            );
-            *sortbuf1.add(len1) = NUL;
+            (
+                SortKey::Line {
+                    start_col_nr: s1,
+                    end_col_nr: e1,
+                },
+                SortKey::Line {
+                    start_col_nr: s2,
+                    end_col_nr: e2,
+                },
+            ) => {
+                let len1 = (e1 - s1) as usize;
+                ptr::copy_nonoverlapping(ml_get(l1.lnum).add(s1 as usize), sortbuf1, len1 + 1);
+                *sortbuf1.add(len1) = NUL;
 
-            let len2 = (l2.st_u.line.end_col_nr - l2.st_u.line.start_col_nr) as usize;
-            ptr::copy_nonoverlapping(
-                ml_get(l2.lnum).add(l2.st_u.line.start_col_nr as usize),
-                sortbuf2,
-                len2 + 1,
-            );
-            *sortbuf2.add(len2) = NUL;
+                let len2 = (e2 - s2) as usize;
+                ptr::copy_nonoverlapping(ml_get(l2.lnum).add(s2 as usize), sortbuf2, len2 + 1);
+                *sortbuf2.add(len2) = NUL;
 
-            result = string_compare(sortbuf1.cast::<c_void>(), sortbuf2.cast::<c_void>());
+                result = string_compare(sortbuf1.cast::<c_void>(), sortbuf2.cast::<c_void>());
+            }
+            _ => unreachable!(),
         }
 
         if result == 0 {
@@ -683,8 +684,7 @@ pub unsafe fn ex_sort(eap: *mut exarg_T) {
             return;
         }
         regmatch.regprog = ptr::null_mut();
-        let mut nrs_vec: Vec<sorti_T> = vec![std::mem::zeroed(); count];
-        let nrs = nrs_vec.as_mut_ptr();
+        let mut nrs_vec: Vec<sorti_T> = Vec::with_capacity(count);
 
         sort_abort = false;
         sort_ic = false;
@@ -780,13 +780,12 @@ pub unsafe fn ex_sort(eap: *mut exarg_T) {
                     end_col = 0;
                 }
 
-                let idx = (lnum - (*eap).line1) as usize;
-                if sort_nr != 0 || sort_flt {
+                let st_u = if sort_nr != 0 || sort_flt {
                     let s2 = s.add(end_col as usize);
                     let c = *s2;
                     *s2 = NUL;
                     let p = s.add(start_col as usize);
-                    if sort_nr != 0 {
+                    let key = if sort_nr != 0 {
                         if (sort_what & STR2NR_HEX) != 0 {
                             s = skiptohex(p);
                         } else if (sort_what & STR2NR_BIN) != 0 {
@@ -798,10 +797,10 @@ pub unsafe fn ex_sort(eap: *mut exarg_T) {
                             s = s.sub(1);
                         }
                         if *s == NUL {
-                            (*nrs.add(idx)).st_u.num = SortNum {
+                            SortKey::Num {
                                 is_number: false,
                                 value: 0,
-                            };
+                            }
                         } else {
                             let mut val: varnumber_T = 0;
                             vim_str2nr(
@@ -815,10 +814,10 @@ pub unsafe fn ex_sort(eap: *mut exarg_T) {
                                 false,
                                 ptr::null_mut(),
                             );
-                            (*nrs.add(idx)).st_u.num = SortNum {
+                            SortKey::Num {
                                 is_number: true,
                                 value: val,
-                            };
+                            }
                         }
                     } else {
                         s = skipwhite(p);
@@ -827,20 +826,21 @@ pub unsafe fn ex_sort(eap: *mut exarg_T) {
                         }
 
                         if *s == NUL {
-                            (*nrs.add(idx)).st_u.value_flt = -c_double::MAX;
+                            SortKey::Float(-c_double::MAX)
                         } else {
-                            (*nrs.add(idx)).st_u.value_flt = strtod(s, ptr::null_mut());
+                            SortKey::Float(strtod(s, ptr::null_mut()))
                         }
-                    }
+                    };
                     *s2 = c;
+                    key
                 } else {
-                    (*nrs.add(idx)).st_u.line = SortLine {
+                    SortKey::Line {
                         start_col_nr: start_col as varnumber_T,
                         end_col_nr: end_col as varnumber_T,
-                    };
-                }
+                    }
+                };
 
-                (*nrs.add(idx)).lnum = lnum;
+                nrs_vec.push(sorti_T { lnum, st_u });
 
                 if !regmatch.regprog.is_null() {
                     fast_breakcheck();
@@ -866,11 +866,11 @@ pub unsafe fn ex_sort(eap: *mut exarg_T) {
 
             let mut lnum = (*eap).line2;
             while i < count {
-                let get_lnum = (*nrs.add(if (*eap).forceit != 0 {
+                let get_lnum = nrs_vec[if (*eap).forceit != 0 {
                     count - i - 1
                 } else {
                     i
-                }))
+                }]
                 .lnum;
 
                 if get_lnum + (count as linenr_T - 1) != lnum {
@@ -2413,17 +2413,15 @@ pub unsafe fn check_overwrite(
             }
 
             if other && emsg_silent == 0 {
-                let dir: *mut c_char;
+                let mut dir = [0 as c_char; MAXPATHL];
                 if *p_dir == NUL {
-                    dir = xmalloc(5).cast::<c_char>();
-                    strcpy(dir, c".".as_ptr());
+                    dir[0] = b'.' as c_char;
+                    dir[1] = NUL;
                 } else {
-                    dir = xmalloc(MAXPATHL).cast::<c_char>();
                     let mut p = p_dir;
-                    copy_option_part(&raw mut p, dir, MAXPATHL, c",".as_ptr());
+                    copy_option_part(&raw mut p, dir.as_mut_ptr(), MAXPATHL, c",".as_ptr());
                 }
-                let swapname = makeswapname(fname, ffname, curbuf, dir);
-                xfree(dir.cast::<c_void>());
+                let swapname = makeswapname(fname, ffname, curbuf, dir.as_mut_ptr());
                 if os_path_exists(swapname) {
                     if p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
                         let mut buff: [c_char; DIALOG_MSG_SIZE] = [0; DIALOG_MSG_SIZE];

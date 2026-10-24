@@ -242,11 +242,28 @@ struct sortinfo_T {
     item_compare_keys_ready: bool,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
-union ListSortKey {
-    inum: varnumber_T,
-    fnum: f64,
+enum ListSortKey {
+    Int(varnumber_T),
+    Float(f64),
+}
+
+impl ListSortKey {
+    #[inline]
+    fn as_int(self) -> varnumber_T {
+        match self {
+            Self::Int(v) => v,
+            Self::Float(_) => 0,
+        }
+    }
+
+    #[inline]
+    fn as_float(self) -> f64 {
+        match self {
+            Self::Float(v) => v,
+            Self::Int(_) => 0.0,
+        }
+    }
 }
 
 #[repr(C)]
@@ -1528,12 +1545,12 @@ unsafe fn item_compare(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool) 
 
         if (*SORTINFO).item_compare_numbers {
             let v1 = if (*SORTINFO).item_compare_keys_ready {
-                si1.key.inum
+                si1.key.as_int()
             } else {
                 tv_get_number(tv1)
             };
             let v2 = if (*SORTINFO).item_compare_keys_ready {
-                si2.key.inum
+                si2.key.as_int()
             } else {
                 tv_get_number(tv2)
             };
@@ -1553,12 +1570,12 @@ unsafe fn item_compare(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool) 
 
         if (*SORTINFO).item_compare_float {
             let v1 = if (*SORTINFO).item_compare_keys_ready {
-                si1.key.fnum
+                si1.key.as_float()
             } else {
                 tv_get_float(tv1)
             };
             let v2 = if (*SORTINFO).item_compare_keys_ready {
-                si2.key.fnum
+                si2.key.as_float()
             } else {
                 tv_get_float(tv2)
             };
@@ -1577,8 +1594,8 @@ unsafe fn item_compare(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool) 
         }
 
         if (*SORTINFO).item_compare_numeric && (*SORTINFO).item_compare_keys_ready {
-            let n1 = si1.key.fnum;
-            let n2 = si2.key.fnum;
+            let n1 = si1.key.as_float();
+            let n2 = si2.key.as_float();
 
             res = if n1 == n2 {
                 0
@@ -1736,25 +1753,26 @@ unsafe fn sort_compute_keys(ptrs: &mut [ListSortItem], info: *mut sortinfo_T) {
     unsafe {
         if (*info).item_compare_numbers {
             for si in ptrs.iter_mut() {
-                si.key.inum = tv_get_number(&raw const (*si.item).li_tv);
+                si.key = ListSortKey::Int(tv_get_number(&raw const (*si.item).li_tv));
             }
         } else if (*info).item_compare_float {
             for si in ptrs.iter_mut() {
-                si.key.fnum = tv_get_float(&raw const (*si.item).li_tv);
+                si.key = ListSortKey::Float(tv_get_float(&raw const (*si.item).li_tv));
             }
         } else {
             for si in ptrs.iter_mut() {
                 let tv = &raw mut (*si.item).li_tv;
                 if (*tv).v_type == VarType::VAR_STRING {
-                    si.key.fnum = 0.0;
+                    si.key = ListSortKey::Float(0.0);
                 } else {
                     let p = encode_tv2string(tv, ptr::null_mut());
-                    si.key.fnum = if p.is_null() {
+                    let f = if p.is_null() {
                         0.0
                     } else {
                         strtod(p, ptr::null_mut())
                     };
                     xfree(p.cast());
+                    si.key = ListSortKey::Float(f);
                 }
             }
         }
@@ -1773,7 +1791,7 @@ unsafe fn do_sort(l: *mut list_T, info: *mut sortinfo_T) {
             ptrs.push(ListSortItem {
                 item: li,
                 idx: i,
-                key: ListSortKey { inum: 0 },
+                key: ListSortKey::Int(0),
             });
             i += 1;
             li = (*li).li_next;
@@ -1835,12 +1853,12 @@ unsafe fn do_uniq(l: *mut list_T, info: *mut sortinfo_T) {
             let prev_si = ListSortItem {
                 item: prev_li,
                 idx: 0,
-                key: ListSortKey { inum: 0 },
+                key: ListSortKey::Int(0),
             };
             let cur_si = ListSortItem {
                 item: li,
                 idx: 0,
-                key: ListSortKey { inum: 0 },
+                key: ListSortKey::Int(0),
             };
             if item_compare_func(&prev_si, &cur_si) == 0 {
                 li = tv_list_item_remove(l, li);

@@ -1745,13 +1745,12 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
         if (*parmp).n_commands > 0 {
             let cmd0_bytes = CStr::from_ptr((*parmp).commands[0]).to_bytes();
             let swcmd_len = cmd0_bytes.len() + 2;
-            let swcmd = xmalloc(swcmd_len + 1).cast::<u8>();
-            *swcmd = b':';
-            ptr::copy_nonoverlapping(cmd0_bytes.as_ptr(), swcmd.add(1), cmd0_bytes.len());
-            *swcmd.add(1 + cmd0_bytes.len()) = b'\r';
-            *swcmd.add(swcmd_len) = 0;
-            set_vim_var_string(VV_SWAPCOMMAND, swcmd.cast(), swcmd_len as isize);
-            xfree(swcmd.cast());
+            let mut swcmd = Vec::with_capacity(swcmd_len + 1);
+            swcmd.push(b':');
+            swcmd.extend_from_slice(cmd0_bytes);
+            swcmd.push(b'\r');
+            swcmd.push(0);
+            set_vim_var_string(VV_SWAPCOMMAND, swcmd.as_ptr().cast(), swcmd_len as isize);
         }
 
         time_msg_if_enabled(c"parsing arguments".as_ptr());
@@ -2249,29 +2248,17 @@ unsafe fn do_system_initialization() {
                     break;
                 }
                 let path_len = dir_len + 1 + appname_bytes.len() + sysinit_suffix.len();
-                let vimrc = xmalloc(path_len).cast::<u8>();
-                ptr::copy_nonoverlapping(dir.cast::<u8>(), vimrc, dir_len);
-                let mut cur_len = dir_len;
-                if *vimrc.add(cur_len - 1) != PATHSEP {
-                    *vimrc.add(cur_len) = PATHSEP;
-                    cur_len += 1;
+                let mut vimrc = Vec::with_capacity(path_len);
+                vimrc.extend_from_slice(std::slice::from_raw_parts(dir.cast::<u8>(), dir_len));
+                if vimrc.last() != Some(&PATHSEP) {
+                    vimrc.push(PATHSEP);
                 }
-                ptr::copy_nonoverlapping(
-                    appname_bytes.as_ptr(),
-                    vimrc.add(cur_len),
-                    appname_bytes.len(),
-                );
-                ptr::copy_nonoverlapping(
-                    sysinit_suffix.as_ptr(),
-                    vimrc.add(cur_len + appname_bytes.len()),
-                    sysinit_suffix.len(),
-                );
-                if do_source(vimrc.cast(), false, DOSO_NONE, ptr::null_mut()) != FAIL {
-                    xfree(vimrc.cast());
+                vimrc.extend_from_slice(appname_bytes);
+                vimrc.extend_from_slice(&sysinit_suffix);
+                if do_source(vimrc.as_mut_ptr().cast(), false, DOSO_NONE, ptr::null_mut()) != FAIL {
                     xfree(config_dirs.cast());
                     return;
                 }
-                xfree(vimrc.cast());
                 if iter.is_null() {
                     break;
                 }
@@ -2351,63 +2338,57 @@ unsafe fn do_user_initialization() -> bool {
                 }
 
                 let init_lua_len = dir_len + 1 + appname_bytes.len() + init_lua_suffix.len();
-                let init_lua = xmalloc(init_lua_len).cast::<u8>();
-                ptr::copy_nonoverlapping(dir.cast::<u8>(), init_lua, dir_len);
-                *init_lua.add(dir_len) = PATHSEP;
-                ptr::copy_nonoverlapping(
-                    appname_bytes.as_ptr(),
-                    init_lua.add(dir_len + 1),
-                    appname_bytes.len(),
-                );
-                ptr::copy_nonoverlapping(
-                    init_lua_suffix.as_ptr(),
-                    init_lua.add(dir_len + 1 + appname_bytes.len()),
-                    init_lua_suffix.len(),
-                );
+                let mut init_lua = Vec::with_capacity(init_lua_len);
+                init_lua.extend_from_slice(std::slice::from_raw_parts(dir.cast::<u8>(), dir_len));
+                init_lua.push(PATHSEP);
+                init_lua.extend_from_slice(appname_bytes);
+                init_lua.extend_from_slice(&init_lua_suffix);
 
                 let init_vim_len = dir_len + 1 + appname_bytes.len() + init_vim_suffix.len();
-                let init_vim = xmalloc(init_vim_len).cast::<u8>();
-                ptr::copy_nonoverlapping(dir.cast::<u8>(), init_vim, dir_len);
-                *init_vim.add(dir_len) = PATHSEP;
-                ptr::copy_nonoverlapping(
-                    appname_bytes.as_ptr(),
-                    init_vim.add(dir_len + 1),
-                    appname_bytes.len(),
-                );
-                ptr::copy_nonoverlapping(
-                    init_vim_suffix.as_ptr(),
-                    init_vim.add(dir_len + 1 + appname_bytes.len()),
-                    init_vim_suffix.len(),
-                );
+                let mut init_vim = Vec::with_capacity(init_vim_len);
+                init_vim.extend_from_slice(std::slice::from_raw_parts(dir.cast::<u8>(), dir_len));
+                init_vim.push(PATHSEP);
+                init_vim.extend_from_slice(appname_bytes);
+                init_vim.extend_from_slice(&init_vim_suffix);
 
-                if os_path_exists(init_lua.cast())
-                    && do_source(init_lua.cast(), true, DOSO_VIMRC, ptr::null_mut()) != 0
+                if os_path_exists(init_lua.as_ptr().cast())
+                    && do_source(
+                        init_lua.as_mut_ptr().cast(),
+                        true,
+                        DOSO_VIMRC,
+                        ptr::null_mut(),
+                    ) != 0
                 {
-                    if os_path_exists(init_vim.cast()) {
+                    if os_path_exists(init_vim.as_ptr().cast()) {
                         semsg!(
                             (&raw const e_conflicting_configs).cast(),
-                            init_lua,
-                            init_vim,
+                            init_lua.as_ptr(),
+                            init_vim.as_ptr(),
                         );
                     }
-                    xfree(init_vim.cast());
-                    xfree(init_lua.cast());
                     xfree(config_dirs.cast());
                     do_exrc = p_exrc != 0;
                     return do_exrc;
                 }
-                xfree(init_lua.cast());
 
-                if do_source(init_vim.cast(), true, DOSO_VIMRC, ptr::null_mut()) != FAIL {
+                if do_source(
+                    init_vim.as_mut_ptr().cast(),
+                    true,
+                    DOSO_VIMRC,
+                    ptr::null_mut(),
+                ) != FAIL
+                {
                     do_exrc = p_exrc != 0;
                     if do_exrc {
-                        do_exrc = !path_equal(c".nvimrc".as_ptr(), init_vim.cast(), kPathCmpExpand);
+                        do_exrc = !path_equal(
+                            c".nvimrc".as_ptr(),
+                            init_vim.as_ptr().cast(),
+                            kPathCmpExpand,
+                        );
                     }
-                    xfree(init_vim.cast());
                     xfree(config_dirs.cast());
                     return do_exrc;
                 }
-                xfree(init_vim.cast());
 
                 if iter.is_null() {
                     break;
