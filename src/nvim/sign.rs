@@ -202,12 +202,10 @@ unsafe fn buf_set_sign(
 
         let decor = DecorInline {
             ext: true,
-            data: DecorInlineData {
-                ext: DecorExt {
-                    sh_idx: decor_put_sh(sign),
-                    vt: ptr::null_mut(),
-                },
-            },
+            data: DecorInlineData::Ext(DecorExt {
+                sh_idx: decor_put_sh(sign),
+                vt: ptr::null_mut(),
+            }),
         };
         extmark_set(
             buf,

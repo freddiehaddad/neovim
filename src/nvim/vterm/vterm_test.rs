@@ -483,16 +483,16 @@ pub unsafe fn state_settermprop(
         let mut out = Vec::new();
         let errcode = match vterm_get_prop_type(prop) {
             VTERM_VALUETYPE_BOOL => {
-                let s = if (*val).boolean != 0 { "true" } else { "false" };
+                let s = if (*val).boolean() != 0 { "true" } else { "false" };
                 let _ = writeln!(out, "settermprop {prop} {s}");
                 1
             }
             VTERM_VALUETYPE_INT => {
-                let _ = writeln!(out, "settermprop {prop} {}", (*val).number);
+                let _ = writeln!(out, "settermprop {prop} {}", (*val).number());
                 1
             }
             VTERM_VALUETYPE_STRING => {
-                let frag = (*val).string;
+                let frag = (*val).string();
                 let _ = write!(
                     out,
                     "settermprop {prop} {}\"",
@@ -504,7 +504,7 @@ pub unsafe fn state_settermprop(
             }
             VTERM_VALUETYPE_COLOR => {
                 let _ = write!(out, "settermprop {prop} ");
-                format_color_bytes(&mut out, &(*val).color);
+                format_color_bytes(&mut out, &(*val).color());
                 out.push(b'\n');
                 1
             }
@@ -535,20 +535,20 @@ pub unsafe fn state_erase(rect: VTermRect, selective: c_int, _user: *mut c_void)
 pub unsafe fn state_setpenattr(attr: VTermAttr, val: *mut VTermValue, _user: *mut c_void) -> c_int {
     unsafe {
         match attr {
-            VTERM_ATTR_BOLD => STATE_PEN.bold = (*val).boolean,
-            VTERM_ATTR_UNDERLINE => STATE_PEN.underline = (*val).number,
-            VTERM_ATTR_ITALIC => STATE_PEN.italic = (*val).boolean,
-            VTERM_ATTR_BLINK => STATE_PEN.blink = (*val).boolean,
-            VTERM_ATTR_REVERSE => STATE_PEN.reverse = (*val).boolean,
-            VTERM_ATTR_CONCEAL => STATE_PEN.conceal = (*val).boolean,
-            VTERM_ATTR_STRIKE => STATE_PEN.strike = (*val).boolean,
-            VTERM_ATTR_FONT => STATE_PEN.font = (*val).number,
-            VTERM_ATTR_SMALL => STATE_PEN.small = (*val).boolean,
-            VTERM_ATTR_BASELINE => STATE_PEN.baseline = (*val).number,
-            VTERM_ATTR_DIM => STATE_PEN.dim = (*val).boolean,
-            VTERM_ATTR_OVERLINE => STATE_PEN.overline = (*val).boolean,
-            VTERM_ATTR_FOREGROUND => STATE_PEN.foreground = (*val).color,
-            VTERM_ATTR_BACKGROUND => STATE_PEN.background = (*val).color,
+            VTERM_ATTR_BOLD => STATE_PEN.bold = (*val).boolean(),
+            VTERM_ATTR_UNDERLINE => STATE_PEN.underline = (*val).number(),
+            VTERM_ATTR_ITALIC => STATE_PEN.italic = (*val).boolean(),
+            VTERM_ATTR_BLINK => STATE_PEN.blink = (*val).boolean(),
+            VTERM_ATTR_REVERSE => STATE_PEN.reverse = (*val).boolean(),
+            VTERM_ATTR_CONCEAL => STATE_PEN.conceal = (*val).boolean(),
+            VTERM_ATTR_STRIKE => STATE_PEN.strike = (*val).boolean(),
+            VTERM_ATTR_FONT => STATE_PEN.font = (*val).number(),
+            VTERM_ATTR_SMALL => STATE_PEN.small = (*val).boolean(),
+            VTERM_ATTR_BASELINE => STATE_PEN.baseline = (*val).number(),
+            VTERM_ATTR_DIM => STATE_PEN.dim = (*val).boolean(),
+            VTERM_ATTR_OVERLINE => STATE_PEN.overline = (*val).boolean(),
+            VTERM_ATTR_FOREGROUND => STATE_PEN.foreground = (*val).color(),
+            VTERM_ATTR_BACKGROUND => STATE_PEN.background = (*val).color(),
             VTERM_N_ATTRS => return 0,
             _ => {}
         }
@@ -647,63 +647,63 @@ pub unsafe fn vterm_state_get_penattr(
         let pen = &(*state).pen;
         match attr {
             VTERM_ATTR_BOLD => {
-                (*val).boolean = pen.bold() as c_int;
+                *val = VTermValue::Boolean(pen.bold() as c_int);
                 1
             }
             VTERM_ATTR_UNDERLINE => {
-                (*val).number = pen.underline() as c_int;
+                *val = VTermValue::Number(pen.underline() as c_int);
                 1
             }
             VTERM_ATTR_ITALIC => {
-                (*val).boolean = pen.italic() as c_int;
+                *val = VTermValue::Boolean(pen.italic() as c_int);
                 1
             }
             VTERM_ATTR_BLINK => {
-                (*val).boolean = pen.blink() as c_int;
+                *val = VTermValue::Boolean(pen.blink() as c_int);
                 1
             }
             VTERM_ATTR_REVERSE => {
-                (*val).boolean = pen.reverse() as c_int;
+                *val = VTermValue::Boolean(pen.reverse() as c_int);
                 1
             }
             VTERM_ATTR_CONCEAL => {
-                (*val).boolean = pen.conceal() as c_int;
+                *val = VTermValue::Boolean(pen.conceal() as c_int);
                 1
             }
             VTERM_ATTR_STRIKE => {
-                (*val).boolean = pen.strike() as c_int;
+                *val = VTermValue::Boolean(pen.strike() as c_int);
                 1
             }
             VTERM_ATTR_FONT => {
-                (*val).number = pen.font() as c_int;
+                *val = VTermValue::Number(pen.font() as c_int);
                 1
             }
             VTERM_ATTR_FOREGROUND => {
-                (*val).color = pen.fg;
+                *val = VTermValue::Color(pen.fg);
                 1
             }
             VTERM_ATTR_BACKGROUND => {
-                (*val).color = pen.bg;
+                *val = VTermValue::Color(pen.bg);
                 1
             }
             VTERM_ATTR_SMALL => {
-                (*val).boolean = pen.small() as c_int;
+                *val = VTermValue::Boolean(pen.small() as c_int);
                 1
             }
             VTERM_ATTR_BASELINE => {
-                (*val).number = pen.baseline() as c_int;
+                *val = VTermValue::Number(pen.baseline() as c_int);
                 1
             }
             VTERM_ATTR_URI => {
-                (*val).number = pen.uri;
+                *val = VTermValue::Number(pen.uri);
                 1
             }
             VTERM_ATTR_DIM => {
-                (*val).boolean = pen.dim() as c_int;
+                *val = VTermValue::Boolean(pen.dim() as c_int);
                 1
             }
             VTERM_ATTR_OVERLINE => {
-                (*val).boolean = pen.overline() as c_int;
+                *val = VTermValue::Boolean(pen.overline() as c_int);
                 1
             }
             _ => 0,
@@ -1185,9 +1185,9 @@ mod tests {
             _ => unreachable!(),
         };
         unsafe {
-            let mut val: VTermValue = std::mem::zeroed();
+            let mut val = VTermValue::Boolean(0);
             vterm_state_get_penattr(state, attr, &raw mut val);
-            assert_eq!(val.boolean, expected);
+            assert_eq!(val.boolean(), expected);
         }
     }
 

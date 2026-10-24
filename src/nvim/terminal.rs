@@ -541,7 +541,7 @@ unsafe fn on_osc(command: c_int, frag: VTermStringFragment, user: *mut c_void) -
                 let mut attr: c_int = 0;
                 if parse_osc8((*term).termrequest_buffer.as_ptr().add(off), &mut attr) != 0 {
                     let state = vterm_obtain_state((*term).vt);
-                    let mut value = VTermValue { number: attr };
+                    let mut value = VTermValue::Number(attr);
                     vterm_state_set_penattr(state, VTERM_ATTR_URI, VTERM_VALUETYPE_INT, &mut value);
                 }
             }
@@ -746,15 +746,13 @@ pub unsafe fn terminal_alloc(buf: *mut buf_T, mut opts: TerminalOptions) -> *mut
             CursorShape::SHAPE_HOR => VTERM_PROP_CURSORSHAPE_UNDERLINE,
             CursorShape::SHAPE_VER => VTERM_PROP_CURSORSHAPE_BAR_LEFT,
         };
-        let mut cursor_shape = VTermValue { number: shape_num };
+        let mut cursor_shape = VTermValue::Number(shape_num);
         vterm_state_set_termprop(state, VTERM_PROP_CURSORSHAPE, &mut cursor_shape);
 
-        let mut cursor_blink = VTermValue {
-            boolean: c_int::from(
-                shape_table[SHAPE_IDX_TERM].blinkon != 0
-                    && shape_table[SHAPE_IDX_TERM].blinkoff != 0,
-            ),
-        };
+        let mut cursor_blink = VTermValue::Boolean(c_int::from(
+            shape_table[SHAPE_IDX_TERM].blinkon != 0
+                && shape_table[SHAPE_IDX_TERM].blinkoff != 0,
+        ));
         vterm_state_set_termprop(state, VTERM_PROP_CURSORBLINK, &mut cursor_blink);
 
         (*term).invalid_start = 0;
@@ -1853,15 +1851,15 @@ unsafe fn term_settermprop(prop: VTermProp, val: *mut VTermValue, data: *mut c_v
 
         match prop {
             VTERM_PROP_ALTSCREEN => {
-                (*term).in_altscreen = (*val).boolean != 0;
+                (*term).in_altscreen = (*val).boolean() != 0;
             }
             VTERM_PROP_CURSORVISIBLE => {
-                (*term).cursor.visible = (*val).boolean != 0;
+                (*term).cursor.visible = (*val).boolean() != 0;
                 invalidate_terminal(term, -1, -1);
             }
             VTERM_PROP_TITLE => {
                 let buf = handle_get_buffer((*term).buf_handle);
-                let frag = (*val).string;
+                let frag = (*val).string();
                 let flen = frag.len();
 
                 if frag.initial() && frag.final_() {
@@ -1884,24 +1882,24 @@ unsafe fn term_settermprop(prop: VTermProp, val: *mut VTermValue, data: *mut c_v
                 }
             }
             VTERM_PROP_MOUSE => {
-                (*term).forward_mouse = (*val).number != 0;
+                (*term).forward_mouse = (*val).number() != 0;
             }
             VTERM_PROP_CURSORBLINK => {
-                (*term).cursor.blink = (*val).boolean != 0;
+                (*term).cursor.blink = (*val).boolean() != 0;
                 (*term).pending.cursor = true;
                 invalidate_terminal(term, -1, -1);
             }
             VTERM_PROP_CURSORSHAPE => {
-                (*term).cursor.shape = (*val).number;
+                (*term).cursor.shape = (*val).number();
                 (*term).pending.cursor = true;
                 invalidate_terminal(term, -1, -1);
             }
             VTERM_PROP_THEMEUPDATES => {
-                (*term).theme_updates = (*val).boolean != 0;
+                (*term).theme_updates = (*val).boolean() != 0;
             }
             VTERM_PROP_SYNCOUTPUT => {
-                (*term).synchronized_output = (*val).boolean != 0;
-                if (*val).boolean == 0 {
+                (*term).synchronized_output = (*val).boolean() != 0;
+                if (*val).boolean() == 0 {
                     (*term).sync_flush_pending = true;
                 }
             }

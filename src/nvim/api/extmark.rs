@@ -1279,9 +1279,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
 
                 let mut decor = DecorInline {
                     ext: false,
-                    data: DecorInlineData {
-                        hl: DECOR_HIGHLIGHT_INLINE_INIT,
-                    },
+                    data: DecorInlineData::Hl(DECOR_HIGHLIGHT_INLINE_INIT),
                 };
                 if !decor_alloc.is_null()
                     || decor_indexed != DECOR_ID_INVALID
@@ -1295,12 +1293,12 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                         decor_indexed = decor_put_sh(sh);
                     }
                     decor.ext = true;
-                    decor.data.ext = DecorExt {
+                    decor.data = DecorInlineData::Ext(DecorExt {
                         sh_idx: decor_indexed,
                         vt: decor_alloc.cast(),
-                    };
+                    });
                 } else {
-                    decor.data.hl = hl;
+                    decor.data = DecorInlineData::Hl(hl);
                 }
 
                 if has_hl {
@@ -1875,9 +1873,7 @@ mod tests {
             ns: 3,
             id: 4,
             flags: MT_FLAG_RIGHT_GRAVITY | MT_FLAG_PAIRED | MT_FLAG_INVALIDATE,
-            decor_data: DecorInlineData {
-                hl: DECOR_HIGHLIGHT_INLINE_INIT,
-            },
+            decor_data: DecorInlineData::Hl(DECOR_HIGHLIGHT_INLINE_INIT),
         };
         assert!(mt_right(key));
         assert!(mt_paired(key));

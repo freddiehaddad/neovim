@@ -584,12 +584,10 @@ pub unsafe fn extmark_set_pos(
     unsafe {
         let mut decor = DecorInline {
             ext: false,
-            data: DecorInlineData {
-                hl: DECOR_HIGHLIGHT_INLINE_INIT,
-            },
+            data: DecorInlineData::Hl(DECOR_HIGHLIGHT_INLINE_INIT),
         };
         if ui_watched {
-            decor.data.hl.flags = kSHUIWatched | kSHUIWatchedOverlay;
+            decor.data.hl_mut().flags = kSHUIWatched | kSHUIWatchedOverlay;
         }
         extmark_set(
             buf,

@@ -853,7 +853,7 @@ unsafe fn on_control(control: u8, user: *mut c_void) -> c_int {
 #[inline]
 unsafe fn settermprop_bool(state: *mut VTermStateFull, prop: VTermProp, v: c_int) -> c_int {
     unsafe {
-        let mut val = VTermValue { boolean: v };
+        let mut val = VTermValue::Boolean(v);
         vterm_state_set_termprop(state, prop, &raw mut val)
     }
 }
@@ -861,7 +861,7 @@ unsafe fn settermprop_bool(state: *mut VTermStateFull, prop: VTermProp, v: c_int
 #[inline]
 unsafe fn settermprop_int(state: *mut VTermStateFull, prop: VTermProp, v: c_int) -> c_int {
     unsafe {
-        let mut val = VTermValue { number: v };
+        let mut val = VTermValue::Number(v);
         vterm_state_set_termprop(state, prop, &raw mut val)
     }
 }
@@ -873,7 +873,7 @@ unsafe fn settermprop_string(
     frag: VTermStringFragment,
 ) -> c_int {
     unsafe {
-        let mut val = VTermValue { string: frag };
+        let mut val = VTermValue::String(frag);
         vterm_state_set_termprop(state, prop, &raw mut val)
     }
 }
@@ -2743,24 +2743,24 @@ pub unsafe fn vterm_state_set_termprop(
         match prop {
             VTERM_PROP_TITLE | VTERM_PROP_ICONNAME => 1,
             VTERM_PROP_CURSORVISIBLE => {
-                set_mode_bit(&mut (*state).mode, MODE_CURSOR_VISIBLE, (*val).boolean != 0);
+                set_mode_bit(&mut (*state).mode, MODE_CURSOR_VISIBLE, (*val).boolean() != 0);
                 1
             }
             VTERM_PROP_CURSORBLINK => {
-                set_mode_bit(&mut (*state).mode, MODE_CURSOR_BLINK, (*val).boolean != 0);
+                set_mode_bit(&mut (*state).mode, MODE_CURSOR_BLINK, (*val).boolean() != 0);
                 1
             }
             VTERM_PROP_CURSORSHAPE => {
-                set_cursor_shape(&mut (*state).mode, (*val).number as u32);
+                set_cursor_shape(&mut (*state).mode, (*val).number() as u32);
                 1
             }
             VTERM_PROP_REVERSE => {
-                set_mode_bit(&mut (*state).mode, MODE_SCREEN, (*val).boolean != 0);
+                set_mode_bit(&mut (*state).mode, MODE_SCREEN, (*val).boolean() != 0);
                 1
             }
             VTERM_PROP_ALTSCREEN => {
                 let state_ref = &mut *state;
-                set_mode_bit(&mut state_ref.mode, MODE_ALT_SCREEN, (*val).boolean != 0);
+                set_mode_bit(&mut state_ref.mode, MODE_ALT_SCREEN, (*val).boolean() != 0);
                 state_ref.lineinfo = state_ref.lineinfos[if (state_ref.mode & MODE_ALT_SCREEN) != 0
                 {
                     BUFIDX_ALTSCREEN
@@ -2781,30 +2781,30 @@ pub unsafe fn vterm_state_set_termprop(
             }
             VTERM_PROP_MOUSE => {
                 (*state).mouse_flags = 0;
-                if (*val).number != 0 {
+                if (*val).number() != 0 {
                     (*state).mouse_flags |= MOUSE_WANT_CLICK;
                 }
-                if (*val).number == VTERM_PROP_MOUSE_DRAG {
+                if (*val).number() == VTERM_PROP_MOUSE_DRAG {
                     (*state).mouse_flags |= MOUSE_WANT_DRAG;
                 }
-                if (*val).number == VTERM_PROP_MOUSE_MOVE {
+                if (*val).number() == VTERM_PROP_MOUSE_MOVE {
                     (*state).mouse_flags |= MOUSE_WANT_MOVE;
                 }
                 1
             }
             VTERM_PROP_FOCUSREPORT => {
-                set_mode_bit(&mut (*state).mode, MODE_REPORT_FOCUS, (*val).boolean != 0);
+                set_mode_bit(&mut (*state).mode, MODE_REPORT_FOCUS, (*val).boolean() != 0);
                 1
             }
             VTERM_PROP_THEMEUPDATES => {
-                set_mode_bit(&mut (*state).mode, MODE_THEME_UPDATES, (*val).boolean != 0);
+                set_mode_bit(&mut (*state).mode, MODE_THEME_UPDATES, (*val).boolean() != 0);
                 1
             }
             VTERM_PROP_SYNCOUTPUT => {
                 set_mode_bit(
                     &mut (*state).mode,
                     MODE_SYNCHRONIZED_OUTPUT,
-                    (*val).boolean != 0,
+                    (*val).boolean() != 0,
                 );
                 1
             }

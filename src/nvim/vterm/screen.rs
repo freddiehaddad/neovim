@@ -789,63 +789,63 @@ unsafe fn setpenattr(attr: VTermAttr, val: *mut VTermValue, user: *mut c_void) -
         let screen = user.cast::<VTermScreen>();
         match attr {
             VTERM_ATTR_BOLD => {
-                (*screen).pen.set_bold((*val).boolean as u32);
+                (*screen).pen.set_bold((*val).boolean() as u32);
                 1
             }
             VTERM_ATTR_UNDERLINE => {
-                (*screen).pen.set_underline((*val).number as u32);
+                (*screen).pen.set_underline((*val).number() as u32);
                 1
             }
             VTERM_ATTR_ITALIC => {
-                (*screen).pen.set_italic((*val).boolean as u32);
+                (*screen).pen.set_italic((*val).boolean() as u32);
                 1
             }
             VTERM_ATTR_BLINK => {
-                (*screen).pen.set_blink((*val).boolean as u32);
+                (*screen).pen.set_blink((*val).boolean() as u32);
                 1
             }
             VTERM_ATTR_REVERSE => {
-                (*screen).pen.set_reverse((*val).boolean as u32);
+                (*screen).pen.set_reverse((*val).boolean() as u32);
                 1
             }
             VTERM_ATTR_CONCEAL => {
-                (*screen).pen.set_conceal((*val).boolean as u32);
+                (*screen).pen.set_conceal((*val).boolean() as u32);
                 1
             }
             VTERM_ATTR_STRIKE => {
-                (*screen).pen.set_strike((*val).boolean as u32);
+                (*screen).pen.set_strike((*val).boolean() as u32);
                 1
             }
             VTERM_ATTR_FONT => {
-                (*screen).pen.set_font((*val).number as u32);
+                (*screen).pen.set_font((*val).number() as u32);
                 1
             }
             VTERM_ATTR_FOREGROUND => {
-                (*screen).pen.fg = (*val).color;
+                (*screen).pen.fg = (*val).color();
                 1
             }
             VTERM_ATTR_BACKGROUND => {
-                (*screen).pen.bg = (*val).color;
+                (*screen).pen.bg = (*val).color();
                 1
             }
             VTERM_ATTR_SMALL => {
-                (*screen).pen.set_small((*val).boolean as u32);
+                (*screen).pen.set_small((*val).boolean() as u32);
                 1
             }
             VTERM_ATTR_BASELINE => {
-                (*screen).pen.set_baseline((*val).number as u32);
+                (*screen).pen.set_baseline((*val).number() as u32);
                 1
             }
             VTERM_ATTR_URI => {
-                (*screen).pen.uri = (*val).number;
+                (*screen).pen.uri = (*val).number();
                 1
             }
             VTERM_ATTR_DIM => {
-                (*screen).pen.set_dim((*val).boolean as u32);
+                (*screen).pen.set_dim((*val).boolean() as u32);
                 1
             }
             VTERM_ATTR_OVERLINE => {
-                (*screen).pen.set_overline((*val).boolean as u32);
+                (*screen).pen.set_overline((*val).boolean() as u32);
                 1
             }
             _ => 0,
@@ -859,20 +859,20 @@ unsafe fn settermprop(prop: VTermProp, val: *mut VTermValue, user: *mut c_void) 
 
         match prop {
             VTERM_PROP_ALTSCREEN => {
-                if (*val).boolean != 0 && (&*screen).buffers[BUFIDX_ALTSCREEN].is_empty() {
+                if (*val).boolean() != 0 && (&*screen).buffers[BUFIDX_ALTSCREEN].is_empty() {
                     return 0;
                 }
-                (*screen).buffer = if (*val).boolean != 0 {
+                (*screen).buffer = if (*val).boolean() != 0 {
                     (&mut *screen).buffers[BUFIDX_ALTSCREEN].as_mut_ptr()
                 } else {
                     (&mut *screen).buffers[BUFIDX_PRIMARY].as_mut_ptr()
                 };
-                if (*val).boolean == 0 {
+                if (*val).boolean() == 0 {
                     damagescreen(screen);
                 }
             }
             VTERM_PROP_REVERSE => {
-                (*screen).set_global_reverse((*val).boolean as u32);
+                (*screen).set_global_reverse((*val).boolean() as u32);
                 damagescreen(screen);
             }
             _ => {}

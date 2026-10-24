@@ -48,13 +48,46 @@ const VTERM_BASELINE_LOWER: u32 = 2;
 pub(crate) const CSI_ARG_FLAG_MORE_U32: u32 = 1u32 << 31;
 pub(crate) const CSI_ARG_MASK_U32: u32 = !(1u32 << 31);
 
-#[repr(C)]
 #[derive(Clone, Copy)]
-pub union VTermValue {
-    pub boolean: c_int,
-    pub number: c_int,
-    pub string: VTermStringFragment,
-    pub color: VTermColor,
+pub enum VTermValue {
+    Boolean(c_int),
+    Number(c_int),
+    String(VTermStringFragment),
+    Color(VTermColor),
+}
+
+impl VTermValue {
+    #[inline]
+    pub const fn boolean(self) -> c_int {
+        match self {
+            Self::Boolean(v) | Self::Number(v) => v,
+            _ => 0,
+        }
+    }
+
+    #[inline]
+    pub const fn number(self) -> c_int {
+        match self {
+            Self::Number(v) | Self::Boolean(v) => v,
+            _ => 0,
+        }
+    }
+
+    #[inline]
+    pub const fn string(self) -> VTermStringFragment {
+        match self {
+            Self::String(s) => s,
+            _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub const fn color(self) -> VTermColor {
+        match self {
+            Self::Color(c) => c,
+            _ => unreachable!(),
+        }
+    }
 }
 
 #[repr(C)]
@@ -460,21 +493,21 @@ unsafe fn setpenattr(
 }
 
 unsafe fn setpenattr_bool(state: *mut VTermStateFull, attr: VTermAttr, boolean: c_int) {
-    let mut val = VTermValue { boolean };
+    let mut val = VTermValue::Boolean(boolean);
     unsafe {
         setpenattr(state, attr, VTERM_VALUETYPE_BOOL, &raw mut val);
     }
 }
 
 unsafe fn setpenattr_int(state: *mut VTermStateFull, attr: VTermAttr, number: c_int) {
-    let mut val = VTermValue { number };
+    let mut val = VTermValue::Number(number);
     unsafe {
         setpenattr(state, attr, VTERM_VALUETYPE_INT, &raw mut val);
     }
 }
 
 unsafe fn setpenattr_col(state: *mut VTermStateFull, attr: VTermAttr, color: VTermColor) {
-    let mut val = VTermValue { color };
+    let mut val = VTermValue::Color(color);
     unsafe {
         setpenattr(state, attr, VTERM_VALUETYPE_COLOR, &raw mut val);
     }
@@ -951,21 +984,21 @@ pub unsafe fn vterm_state_set_penattr(
         }
 
         match attr {
-            VTERM_ATTR_BOLD => (*state).pen.set_bold((*val).boolean as u32),
-            VTERM_ATTR_UNDERLINE => (*state).pen.set_underline((*val).number as u32),
-            VTERM_ATTR_ITALIC => (*state).pen.set_italic((*val).boolean as u32),
-            VTERM_ATTR_BLINK => (*state).pen.set_blink((*val).boolean as u32),
-            VTERM_ATTR_REVERSE => (*state).pen.set_reverse((*val).boolean as u32),
-            VTERM_ATTR_CONCEAL => (*state).pen.set_conceal((*val).boolean as u32),
-            VTERM_ATTR_STRIKE => (*state).pen.set_strike((*val).boolean as u32),
-            VTERM_ATTR_FONT => (*state).pen.set_font((*val).number as u32),
-            VTERM_ATTR_FOREGROUND => (*state).pen.fg = (*val).color,
-            VTERM_ATTR_BACKGROUND => (*state).pen.bg = (*val).color,
-            VTERM_ATTR_SMALL => (*state).pen.set_small((*val).boolean as u32),
-            VTERM_ATTR_BASELINE => (*state).pen.set_baseline((*val).number as u32),
-            VTERM_ATTR_URI => (*state).pen.uri = (*val).number,
-            VTERM_ATTR_DIM => (*state).pen.set_dim((*val).boolean as u32),
-            VTERM_ATTR_OVERLINE => (*state).pen.set_overline((*val).boolean as u32),
+            VTERM_ATTR_BOLD => (*state).pen.set_bold((*val).boolean() as u32),
+            VTERM_ATTR_UNDERLINE => (*state).pen.set_underline((*val).number() as u32),
+            VTERM_ATTR_ITALIC => (*state).pen.set_italic((*val).boolean() as u32),
+            VTERM_ATTR_BLINK => (*state).pen.set_blink((*val).boolean() as u32),
+            VTERM_ATTR_REVERSE => (*state).pen.set_reverse((*val).boolean() as u32),
+            VTERM_ATTR_CONCEAL => (*state).pen.set_conceal((*val).boolean() as u32),
+            VTERM_ATTR_STRIKE => (*state).pen.set_strike((*val).boolean() as u32),
+            VTERM_ATTR_FONT => (*state).pen.set_font((*val).number() as u32),
+            VTERM_ATTR_FOREGROUND => (*state).pen.fg = (*val).color(),
+            VTERM_ATTR_BACKGROUND => (*state).pen.bg = (*val).color(),
+            VTERM_ATTR_SMALL => (*state).pen.set_small((*val).boolean() as u32),
+            VTERM_ATTR_BASELINE => (*state).pen.set_baseline((*val).number() as u32),
+            VTERM_ATTR_URI => (*state).pen.uri = (*val).number(),
+            VTERM_ATTR_DIM => (*state).pen.set_dim((*val).boolean() as u32),
+            VTERM_ATTR_OVERLINE => (*state).pen.set_overline((*val).boolean() as u32),
             _ => return 0,
         }
 

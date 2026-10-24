@@ -95,11 +95,39 @@ pub struct DecorExt {
     pub vt: *mut crate::decoration::DecorVirtText,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
-pub union DecorInlineData {
-    pub hl: DecorHighlightInline,
-    pub ext: DecorExt,
+pub enum DecorInlineData {
+    Hl(DecorHighlightInline),
+    Ext(DecorExt),
+}
+
+impl DecorInlineData {
+    #[inline]
+    pub const fn hl(self) -> DecorHighlightInline {
+        match self {
+            Self::Hl(hl) => hl,
+            Self::Ext(_) => DECOR_HIGHLIGHT_INLINE_INIT,
+        }
+    }
+
+    #[inline]
+    pub fn hl_mut(&mut self) -> &mut DecorHighlightInline {
+        match self {
+            Self::Hl(hl) => hl,
+            Self::Ext(_) => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub const fn ext(self) -> DecorExt {
+        match self {
+            Self::Ext(ext) => ext,
+            Self::Hl(_) => DecorExt {
+                sh_idx: u32::MAX,
+                vt: std::ptr::null_mut(),
+            },
+        }
+    }
 }
 
 #[repr(C)]
@@ -117,9 +145,7 @@ pub const MT_INVALID_KEY: MTKey = MTKey {
     ns: 0,
     id: 0,
     flags: 0,
-    decor_data: DecorInlineData {
-        hl: DECOR_HIGHLIGHT_INLINE_INIT,
-    },
+    decor_data: DecorInlineData::Hl(DECOR_HIGHLIGHT_INLINE_INIT),
 };
 
 #[repr(C)]
@@ -1758,9 +1784,7 @@ pub unsafe fn marktree_itr_get_ext(
             } else {
                 0
             },
-            decor_data: DecorInlineData {
-                hl: DECOR_HIGHLIGHT_INLINE_INIT,
-            },
+            decor_data: DecorInlineData::Hl(DECOR_HIGHLIGHT_INLINE_INIT),
         };
         (*itr).pos = MTPos { row: 0, col: 0 };
         (*itr).x = (*b).root;
@@ -2128,9 +2152,7 @@ pub unsafe fn marktree_itr_step_overlap(
                 ns: 0,
                 id: 0,
                 flags: 0,
-                decor_data: DecorInlineData {
-                    hl: DECOR_HIGHLIGHT_INLINE_INIT,
-                },
+                decor_data: DecorInlineData::Hl(DECOR_HIGHLIGHT_INLINE_INIT),
             };
             (*itr).i = marktree_getp_aux((*itr).x, k, None) + 1;
 
@@ -2727,9 +2749,7 @@ pub unsafe fn marktree_put_test(
         ns,
         id,
         flags,
-        decor_data: DecorInlineData {
-            hl: DECOR_HIGHLIGHT_INLINE_INIT,
-        },
+        decor_data: DecorInlineData::Hl(DECOR_HIGHLIGHT_INLINE_INIT),
     };
     unsafe {
         marktree_put(b, key, end_row, end_col, end_right);

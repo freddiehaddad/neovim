@@ -5,7 +5,7 @@ use crate::buffer::buf_T;
 use crate::charset::{NUL, vim_isprintc, vim_strsize};
 use crate::cursor::{colnr_T, linenr_T, lt, ltoreq, pos_T};
 use crate::decoration::{
-    DecorVirtText, decor_conceal_line, decor_virt_lines, kMTFilterSelect, kVPosInline, kVTIsLines,
+    decor_conceal_line, decor_virt_lines, kMTFilterSelect, kVPosInline, kVTIsLines,
 };
 use crate::diff::{diff_check_fill, diffopt_filler};
 use crate::fold::{hasFolding, hasFoldingWin, lineFolded};
@@ -237,7 +237,7 @@ unsafe fn inline_virt_text_width(
             } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, wp) {
                 let decor = mt_decor(mark);
                 let mut vt = if decor.ext {
-                    decor.data.ext.vt.cast::<DecorVirtText>()
+                    decor.data.ext().vt
                 } else {
                     ptr::null_mut()
                 };
@@ -302,7 +302,7 @@ pub unsafe fn charsize_regular(
                 } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, wp) {
                     let decor = mt_decor(mark);
                     let mut vt = if decor.ext {
-                        decor.data.ext.vt.cast::<DecorVirtText>()
+                        decor.data.ext().vt
                     } else {
                         ptr::null_mut()
                     };

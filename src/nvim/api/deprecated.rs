@@ -235,11 +235,9 @@ pub unsafe extern "C" fn nvim_buf_add_highlight(
 
         let mut decor = DecorInline {
             ext: false,
-            data: DecorInlineData {
-                hl: DECOR_HIGHLIGHT_INLINE_INIT,
-            },
+            data: DecorInlineData::Hl(DECOR_HIGHLIGHT_INLINE_INIT),
         };
-        decor.data.hl.hl_id = hl_id;
+        decor.data.hl_mut().hl_id = hl_id;
 
         extmark_set(
             buf,
@@ -338,12 +336,10 @@ pub unsafe extern "C" fn nvim_buf_set_virtual_text(
 
         let decor = DecorInline {
             ext: true,
-            data: DecorInlineData {
-                ext: DecorExt {
-                    sh_idx: DECOR_ID_INVALID,
-                    vt: vt.cast(),
-                },
-            },
+            data: DecorInlineData::Ext(DecorExt {
+                sh_idx: DECOR_ID_INVALID,
+                vt: vt.cast(),
+            }),
         };
 
         extmark_set(

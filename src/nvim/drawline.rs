@@ -367,15 +367,15 @@ unsafe fn draw_virt_text(
 
         for i in 0..end {
             let item: *mut DecorRange =
-                &raw mut (*slots.add(*indices.add(i as usize) as usize)).range;
+                (*slots.add(*indices.add(i as usize) as usize)).range_mut();
             if !((*item).start_row == (*state).row && decor_virt_pos(item)) {
                 continue;
             }
 
             let mut vt: *mut DecorVirtText = ptr::null_mut();
             if (*item).kind == kDecorKindVirtText {
-                debug_assert!(!(*item).data.vt.is_null());
-                vt = (*item).data.vt;
+                debug_assert!(!(*item).data.vt().is_null());
+                vt = (*item).data.vt();
             }
             if decor_virt_pos(item) && (*item).draw_col == -1 {
                 let mut updated = true;
@@ -386,7 +386,7 @@ unsafe fn draw_virt_text(
                     if totalWidthOfEolRightAlignedVirtText == 0 {
                         for j in i..end {
                             let lookaheadItem: *mut DecorRange =
-                                &raw mut (*slots.add(*indices.add(j as usize) as usize)).range;
+                                (*slots.add(*indices.add(j as usize) as usize)).range_mut();
 
                             if (*lookaheadItem).start_row != (*state).row
                                 || !decor_virt_pos(lookaheadItem)
@@ -397,8 +397,8 @@ unsafe fn draw_virt_text(
 
                             let mut lookaheadVt: *mut DecorVirtText = ptr::null_mut();
                             if (*lookaheadItem).kind == kDecorKindVirtText {
-                                debug_assert!(!(*lookaheadItem).data.vt.is_null());
-                                lookaheadVt = (*lookaheadItem).data.vt;
+                                debug_assert!(!(*lookaheadItem).data.vt().is_null());
+                                lookaheadVt = (*lookaheadItem).data.vt();
                             }
 
                             if decor_virt_pos_kind(lookaheadItem) == kVPosEndOfLineRightAlign {
@@ -433,9 +433,10 @@ unsafe fn draw_virt_text(
                 continue;
             }
             if (*item).kind == kDecorKindUIWatched {
+                let ui = (*item).data.ui();
                 let m = WinExtmark {
-                    ns_id: (*item).data.ui.ns_id as NS,
-                    mark_id: u64::from((*item).data.ui.mark_id),
+                    ns_id: ui.ns_id as NS,
+                    mark_id: u64::from(ui.mark_id),
                     win_row,
                     win_col: (*item).draw_col,
                 };
@@ -1198,11 +1199,11 @@ unsafe fn has_more_inline_virt(wlv: &winlinevars_T, v: isize) -> bool {
         for pos_i in 0..2 {
             for i in beg_pos[pos_i]..end_pos[pos_i] {
                 let item: *mut DecorRange =
-                    &raw mut (*slots.add(*indices.add(i as usize) as usize)).range;
+                    (*slots.add(*indices.add(i as usize) as usize)).range_mut();
                 if (*item).start_row != (*state).row
                     || (*item).kind != kDecorKindVirtText
-                    || (*(*item).data.vt).pos != kVPosInline
-                    || (*(*item).data.vt).width == 0
+                    || (*(*item).data.vt()).pos != kVPosInline
+                    || (*(*item).data.vt()).width == 0
                 {
                     continue;
                 }
@@ -1234,22 +1235,22 @@ unsafe fn handle_inline_virtual_text(
 
                 for i in 0..end {
                     let item: *mut DecorRange =
-                        &raw mut (*slots.add(*indices.add(i as usize) as usize)).range;
+                        (*slots.add(*indices.add(i as usize) as usize)).range_mut();
                     if (*item).draw_col == -3 {
                         decor_init_draw_col(wlv.off, selected, item);
                     }
                     if (*item).start_row != (*state).row
                         || (*item).kind != kDecorKindVirtText
-                        || (*(*item).data.vt).pos != kVPosInline
-                        || (*(*item).data.vt).width == 0
+                        || (*(*item).data.vt()).pos != kVPosInline
+                        || (*(*item).data.vt()).width == 0
                     {
                         continue;
                     }
                     if (*item).draw_col >= -1
                         && isize::try_from((*item).start_col).unwrap_or(-1) == v
                     {
-                        wlv.virt_inline = (*(*item).data.vt).data.virt_text.as_slice();
-                        wlv.virt_inline_hl_mode = (*(*item).data.vt).hl_mode;
+                        wlv.virt_inline = (*(*item).data.vt()).data.virt_text.as_slice();
+                        wlv.virt_inline_hl_mode = (*(*item).data.vt()).hl_mode;
                         (*item).draw_col = c_int::MIN;
                         break;
                     }

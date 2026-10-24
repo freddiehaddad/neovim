@@ -85,9 +85,7 @@ use std::ptr;
 
 const DECOR_INLINE_INIT: DecorInline = DecorInline {
     ext: false,
-    data: DecorInlineData {
-        hl: DECOR_HIGHLIGHT_INLINE_INIT,
-    },
+    data: DecorInlineData::Hl(DECOR_HIGHLIGHT_INLINE_INIT),
 };
 
 pub(crate) const kOptFollow: c_int = 114;
@@ -1190,7 +1188,7 @@ unsafe fn mc_vsel_mark(
 ) {
     unsafe {
         let mut decor = DECOR_INLINE_INIT;
-        decor.data.hl.hl_id = syn_check_group(c"MCursorVisual".as_ptr(), 13);
+        decor.data.hl_mut().hl_id = syn_check_group(c"MCursorVisual".as_ptr(), 13);
         let mut mark: u32 = 0;
         extmark_set(
             curbuf,
