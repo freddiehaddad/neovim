@@ -198,10 +198,13 @@ pub(crate) const SEEK_END: c_int = 2;
 static E_AUCHANGEDBUF: &CStr = c"E812: Autocommands changed buffer or buffer name";
 static MSG_IS_A_DIRECTORY: &CStr = c"is a directory";
 
+#[cfg(unix)]
+type DIR = c_void;
+
 static mut ALREADY_WARNED: bool = false;
 static mut VIM_TEMPDIR: *mut c_char = ptr::null_mut();
 #[cfg(unix)]
-static mut VIM_TEMPDIR_DP: *mut c_void = ptr::null_mut();
+static mut VIM_TEMPDIR_DP: *mut DIR = ptr::null_mut();
 
 use crate::arglist::ML_EMPTY;
 use crate::charset::{NL, NUL};
@@ -311,11 +314,11 @@ unsafe extern "C" {
     #[cfg(not(windows))]
     fn symlink(target: *const c_char, linkpath: *const c_char) -> c_int;
     #[cfg(not(windows))]
-    fn opendir(name: *const c_char) -> *mut c_void;
+    fn opendir(name: *const c_char) -> *mut DIR;
     #[cfg(not(windows))]
-    fn closedir(dirp: *mut c_void) -> c_int;
+    fn closedir(dirp: *mut DIR) -> c_int;
     #[cfg(not(windows))]
-    fn dirfd(dirp: *mut c_void) -> c_int;
+    fn dirfd(dirp: *mut DIR) -> c_int;
     #[cfg(not(windows))]
     fn flock(fd: c_int, operation: c_int) -> c_int;
 }

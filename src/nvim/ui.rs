@@ -95,9 +95,8 @@ struct UIEventCallback {
     ext_widgets: [bool; kUIGlobalCount],
 }
 
-pub static mut uis: [*mut RemoteUI; MAX_UI_COUNT] = [ptr::null_mut(); MAX_UI_COUNT];
+pub static mut uis: Vec<*mut RemoteUI> = Vec::new();
 static mut ui_ext: [bool; kUIExtCount] = [false; kUIExtCount];
-pub static mut ui_count: usize = 0;
 static mut ui_mode_idx: c_int = SHAPE_IDX_N;
 static mut cursor_row: c_int = 0;
 static mut cursor_col: c_int = 0;
@@ -135,6 +134,7 @@ pub unsafe fn ui_free_all_mem() {
                 free_ui_event_callback(event_cb);
             }
         }
+        uis = Vec::new();
 
         multiqueue_free(resize_events);
     }
@@ -145,9 +145,8 @@ pub unsafe fn ui_rgb_attached() -> bool {
         if p_tgc != 0 {
             return true;
         }
-        let uis_ptr = (&raw const uis).cast::<*mut RemoteUI>();
-        for i in 0..ui_count {
-            let ui = *uis_ptr.add(i);
+        let uis_ptr = &raw const uis;
+        for &ui in &*uis_ptr {
             let is_tui = (*ui).stdin_tty || (*ui).stdout_tty;
             if !is_tui && (*ui).rgb {
                 return true;
@@ -159,9 +158,8 @@ pub unsafe fn ui_rgb_attached() -> bool {
 
 pub unsafe fn ui_gui_attached() -> bool {
     unsafe {
-        let uis_ptr = (&raw const uis).cast::<*mut RemoteUI>();
-        for i in 0..ui_count {
-            let ui = *uis_ptr.add(i);
+        let uis_ptr = &raw const uis;
+        for &ui in &*uis_ptr {
             let is_tui = (*ui).stdin_tty || (*ui).stdout_tty;
             if !is_tui {
                 return true;
@@ -173,9 +171,8 @@ pub unsafe fn ui_gui_attached() -> bool {
 
 pub unsafe fn ui_override() -> bool {
     unsafe {
-        let uis_ptr = (&raw const uis).cast::<*mut RemoteUI>();
-        for i in 0..ui_count {
-            let ui = *uis_ptr.add(i);
+        let uis_ptr = &raw const uis;
+        for &ui in &*uis_ptr {
             if (*ui).r#override {
                 return true;
             }
@@ -185,7 +182,10 @@ pub unsafe fn ui_override() -> bool {
 }
 
 pub unsafe fn ui_active() -> usize {
-    unsafe { ui_count }
+    unsafe {
+        let uis_ptr = &raw const uis;
+        (*uis_ptr).len()
+    }
 }
 
 pub unsafe fn ui_refresh() {
@@ -199,10 +199,9 @@ pub unsafe fn ui_refresh() {
         let active = ui_active() != 0;
         let mut ext_widgets = [active; kUIExtCount];
         let inclusive = ui_override();
-        let uis_ptr = (&raw const uis).cast::<*mut RemoteUI>();
+        let uis_ptr = &raw const uis;
 
-        for i in 0..ui_count {
-            let ui = *uis_ptr.add(i);
+        for &ui in &*uis_ptr {
             width = width.min((*ui).width);
             height = height.min((*ui).height);
             for (j, widget) in ext_widgets.iter_mut().enumerate().take(kUIExtCount) {
@@ -272,9 +271,9 @@ pub unsafe fn ui_refresh() {
 pub unsafe fn ui_pum_get_height() -> c_int {
     unsafe {
         let mut pum_height: c_int = 0;
-        let uis_ptr = (&raw const uis).cast::<*mut RemoteUI>();
-        for i in 0..ui_count {
-            let ui_pum_height = (*(*uis_ptr.add(i))).pum_nlines;
+        let uis_ptr = &raw const uis;
+        for &ui in &*uis_ptr {
+            let ui_pum_height = (*ui).pum_nlines;
             if ui_pum_height != 0 {
                 pum_height = if pum_height != 0 {
                     pum_height.min(ui_pum_height)
@@ -294,9 +293,8 @@ pub unsafe fn ui_pum_get_pos(
     pcol: *mut f64,
 ) -> bool {
     unsafe {
-        let uis_ptr = (&raw const uis).cast::<*mut RemoteUI>();
-        for i in 0..ui_count {
-            let ui = *uis_ptr.add(i);
+        let uis_ptr = &raw const uis;
+        for &ui in &*uis_ptr {
             if !(*ui).pum_pos {
                 continue;
             }
@@ -404,20 +402,24 @@ pub unsafe fn vim_beep(val: c_uint) {
 
 pub unsafe fn do_autocmd_uienter_all() {
     unsafe {
-        let uis_ptr = (&raw const uis).cast::<*mut RemoteUI>();
-        for i in 0..ui_count {
-            do_autocmd_uienter((*(*uis_ptr.add(i))).channel_id, true);
+        let uis_ptr = &raw const uis;
+        for &ui in &*uis_ptr {
+            do_autocmd_uienter((*ui).channel_id, true);
         }
     }
 }
 
 pub unsafe fn ui_can_attach_more() -> bool {
-    unsafe { ui_count < MAX_UI_COUNT }
+    unsafe {
+        let uis_ptr = &raw const uis;
+        (*uis_ptr).len() < MAX_UI_COUNT
+    }
 }
 
 pub unsafe fn ui_attach_impl(ui: *mut RemoteUI, chanid: u64) {
     unsafe {
-        if ui_count >= MAX_UI_COUNT {
+        let uis_ptr = &raw mut uis;
+        if (*uis_ptr).len() >= MAX_UI_COUNT {
             std::process::abort();
         }
         if !(*ui).ui_ext[kUIMultigrid] && !(*ui).ui_ext[kUIFloatDebug] && ui_client_channel_id == 0
@@ -425,8 +427,7 @@ pub unsafe fn ui_attach_impl(ui: *mut RemoteUI, chanid: u64) {
             ui_comp_attach(ui.cast());
         }
 
-        *(&raw mut uis).cast::<*mut RemoteUI>().add(ui_count) = ui;
-        ui_count += 1;
+        (*uis_ptr).push(ui);
         ui_refresh_options();
         resettitle();
 
@@ -458,30 +459,16 @@ pub unsafe fn ui_attach_impl(ui: *mut RemoteUI, chanid: u64) {
 
 pub unsafe fn ui_detach_impl(ui: *mut RemoteUI, chanid: u64) {
     unsafe {
-        if ui_count > MAX_UI_COUNT {
+        let uis_ptr = &raw mut uis;
+        if (*uis_ptr).len() > MAX_UI_COUNT {
             std::process::abort();
         }
-        let uis_ptr = (&raw mut uis).cast::<*mut RemoteUI>();
-        let mut shift_index = MAX_UI_COUNT;
-
-        for i in 0..ui_count {
-            if *uis_ptr.add(i) == ui {
-                shift_index = i;
-                break;
-            }
-        }
-
-        if shift_index >= MAX_UI_COUNT {
+        let Some(shift_index) = (*uis_ptr).iter().position(|&u| u == ui) else {
             std::process::abort();
-        }
+        };
+        (*uis_ptr).remove(shift_index);
 
-        while shift_index < ui_count - 1 {
-            *uis_ptr.add(shift_index) = *uis_ptr.add(shift_index + 1);
-            shift_index += 1;
-        }
-
-        ui_count -= 1;
-        if ui_count != 0 && !exiting {
+        if !(*uis_ptr).is_empty() && !exiting {
             ui_schedule_refresh();
         }
 
@@ -771,12 +758,11 @@ pub unsafe fn ui_has(ext: UIExtension) -> bool {
 
 pub unsafe fn ui_array(arena: *mut Arena) -> Array {
     unsafe {
-        let mut all_uis = arena_array(arena, ui_count);
-        let uis_ptr = (&raw const uis).cast::<*mut RemoteUI>();
+        let uis_ptr = &raw const uis;
+        let mut all_uis = arena_array(arena, (*uis_ptr).len());
         let ext_names_ptr = (&raw const ui_ext_names).cast::<*const c_char>();
 
-        for i in 0..ui_count {
-            let ui = *uis_ptr.add(i);
+        for &ui in &*uis_ptr {
             let mut info = arena_dict(arena, 10 + kUIExtCount);
             let mut put_info = |k: *const c_char, v: Object| {
                 *info.items.add(info.size) = KeyValuePair {
@@ -935,9 +921,9 @@ pub unsafe fn ui_call_event(name: *mut c_char, args: Array) {
         textlock = save_textlock;
 
         if !handled {
-            let uis_ptr = (&raw const uis).cast::<*mut RemoteUI>();
-            for i in 0..ui_count {
-                remote_ui_event(*uis_ptr.add(i), name, args);
+            let uis_ptr = &raw const uis;
+            for &ui in &*uis_ptr {
+                remote_ui_event(ui, name, args);
             }
         }
     }
@@ -1098,9 +1084,8 @@ macro_rules! ui_call_loop {
     ($cond:expr, $funname:literal, |$ui:ident| $call:expr) => {
         unsafe {
             let mut any_call = false;
-            let uis_ptr = (&raw const uis).cast::<*mut RemoteUI>();
-            for i in 0..ui_count {
-                let $ui = *uis_ptr.add(i);
+            let uis_ptr = &raw const uis;
+            for &$ui in &*uis_ptr {
                 if $cond {
                     $call;
                     any_call = true;

@@ -15,11 +15,27 @@ pub type PackerBufferFlush = Option<unsafe fn(buffer: *mut PackerBuffer)>;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
+pub struct PackerData {
+    pub ui: *mut crate::msgpack_rpc::channel::RemoteUI,
+    pub file: *mut crate::os::fileio::FileDescriptor,
+    pub chans: *mut *mut crate::msgpack_rpc::channel::Channel,
+}
+
+impl PackerData {
+    pub const NONE: Self = Self {
+        ui: std::ptr::null_mut(),
+        file: std::ptr::null_mut(),
+        chans: std::ptr::null_mut(),
+    };
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
 pub struct PackerBuffer {
     pub startptr: *mut c_char,
     pub ptr: *mut c_char,
     pub endptr: *mut c_char,
-    pub anydata: *mut c_void,
+    pub anydata: PackerData,
     pub anyint: i64,
     pub packer_flush: PackerBufferFlush,
 }
@@ -504,7 +520,7 @@ pub fn packer_string_buffer() -> PackerBuffer {
         startptr: alloc,
         ptr: alloc,
         endptr: unsafe { alloc.add(INITIAL_SIZE) },
-        anydata: std::ptr::null_mut(),
+        anydata: PackerData::NONE,
         anyint: 0,
         packer_flush: Some(flush_string_buffer),
     }

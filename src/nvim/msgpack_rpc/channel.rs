@@ -919,7 +919,7 @@ unsafe fn serialize_request(
             startptr: ptr::null_mut(),
             ptr: ptr::null_mut(),
             endptr: ptr::null_mut(),
-            anydata: ptr::null_mut(),
+            anydata: crate::msgpack_rpc::packer::PackerData::NONE,
             anyint: 0,
             packer_flush: None,
         };
@@ -988,7 +988,7 @@ pub unsafe fn serialize_response(
             startptr: ptr::null_mut(),
             ptr: ptr::null_mut(),
             endptr: ptr::null_mut(),
-            anydata: ptr::null_mut(),
+            anydata: crate::msgpack_rpc::packer::PackerData::NONE,
             anyint: 0,
             packer_flush: None,
         };
@@ -1029,7 +1029,10 @@ unsafe fn packer_buffer_init_channels(
         (*packer).ptr = (*packer).startptr;
         (*packer).endptr = (*packer).startptr.add(ARENA_BLOCK_SIZE);
         (*packer).packer_flush = Some(channel_flush_callback);
-        (*packer).anydata = chans.cast();
+        (*packer).anydata = crate::msgpack_rpc::packer::PackerData {
+            chans,
+            ..crate::msgpack_rpc::packer::PackerData::NONE
+        };
         (*packer).anyint = nchans as i64;
     }
 }
@@ -1044,7 +1047,7 @@ unsafe fn packer_buffer_finish_channels(packer: *mut PackerBuffer) {
                 (*packer).anyint as usize,
                 Some(free_block_void),
             );
-            let chans = (*packer).anydata.cast::<*mut Channel>();
+            let chans = (*packer).anydata.chans;
             for i in 0..((*packer).anyint as usize) {
                 let _ = channel_write(*chans.add(i), buf);
             }
@@ -1058,7 +1061,7 @@ unsafe fn channel_flush_callback(packer: *mut PackerBuffer) {
     unsafe {
         packer_buffer_finish_channels(packer);
         packer_buffer_init_channels(
-            (*packer).anydata.cast::<*mut Channel>(),
+            (*packer).anydata.chans,
             (*packer).anyint as usize,
             packer,
         );
