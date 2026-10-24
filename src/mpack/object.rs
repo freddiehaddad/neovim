@@ -44,6 +44,38 @@ pub struct mpack_parser_t {
     pub items: [mpack_node_t; MPACK_MAX_OBJECT_DEPTH + 1],
 }
 
+impl mpack_parser_t {
+    pub const fn new(capacity: mpack_uint32_t) -> Self {
+        let zero_node = mpack_node_t {
+            tok: mpack_token_t {
+                r#type: crate::mpack::mpack_core::MPACK_TOKEN_NONE,
+                length: 0,
+                data: crate::mpack::mpack_core::mpack_token_data_t {
+                    value: crate::mpack::mpack_core::mpack_value_t { lo: 0, hi: 0 },
+                },
+            },
+            pos: 0,
+            key_visited: 0,
+            data: [mpack_data_t { p: ptr::null_mut() }; 2],
+        };
+        let mut items = [zero_node; MPACK_MAX_OBJECT_DEPTH + 1];
+        items[0].pos = usize::MAX;
+        Self {
+            data: mpack_data_t { p: ptr::null_mut() },
+            size: 0,
+            capacity: if capacity != 0 {
+                capacity
+            } else {
+                MPACK_MAX_OBJECT_DEPTH as mpack_uint32_t
+            },
+            status: 0,
+            exiting: 0,
+            tokbuf: mpack_tokbuf_t::new(),
+            items,
+        }
+    }
+}
+
 pub type mpack_walk_cb = Option<unsafe fn(w: *mut mpack_parser_t, n: *mut mpack_node_t)>;
 
 #[inline]

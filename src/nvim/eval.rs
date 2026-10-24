@@ -864,7 +864,7 @@ pub unsafe fn eval_expr_ext(
     use_simple_function: bool,
 ) -> *mut typval_T {
     unsafe {
-        let mut tv = Box::into_raw(Box::new(std::mem::zeroed::<typval_T>()));
+        let mut tv = Box::into_raw(Box::new(tv_initial_value()));
         let mut evalarg = evalarg_T {
             eval_flags: 0,
             eval_getline: None,
@@ -1810,7 +1810,16 @@ pub unsafe fn eval_for_line(
     evalarg: *mut evalarg_T,
 ) -> *mut forinfo_T {
     unsafe {
-        let fi = Box::into_raw(Box::new(std::mem::zeroed::<forinfo_T>()));
+        let fi = Box::into_raw(Box::new(forinfo_T {
+            fi_lw: listwatch_T { lw_item: ptr::null_mut() },
+            fi_list: ptr::null_mut(),
+            fi_bi: 0,
+            fi_byte_idx: 0,
+            fi_blob: ptr::null_mut(),
+            fi_string: ptr::null_mut(),
+            fi_varcount: 0,
+            fi_semicolon: 0,
+        }));
         let mut tv = tv_initial_value();
         let skip = ((*evalarg).eval_flags & EVAL_EVALUATE) == 0;
 

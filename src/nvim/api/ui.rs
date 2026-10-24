@@ -314,13 +314,48 @@ pub unsafe extern "C" fn nvim_ui_attach(
             return;
         }
 
-        let ui = Box::into_raw(Box::new(std::mem::zeroed::<RemoteUI>()));
-        (*ui).channel_id = channel_id;
-        (*ui).width = width as c_int;
-        (*ui).height = height as c_int;
-        (*ui).pum_row = -1.0;
-        (*ui).pum_col = -1.0;
-        (*ui).rgb = true;
+        let ui = Box::into_raw(Box::new(RemoteUI {
+            rgb: true,
+            r#override: false,
+            composed: false,
+            ui_ext: [false; kUIExtCount],
+            width: width as c_int,
+            height: height as c_int,
+            pum_nlines: 0,
+            pum_pos: false,
+            pum_row: -1.0,
+            pum_col: -1.0,
+            pum_height: 0.0,
+            pum_width: 0.0,
+            term_name: ptr::null_mut(),
+            term_background: ptr::null_mut(),
+            term_colors: 0,
+            stdin_tty: false,
+            stdout_tty: false,
+            channel_id,
+            packer: crate::msgpack_rpc::packer::PackerBuffer {
+                startptr: ptr::null_mut(),
+                ptr: ptr::null_mut(),
+                endptr: ptr::null_mut(),
+                packer_flush: None,
+                anydata: crate::msgpack_rpc::packer::PackerData::NONE,
+                anyint: 0,
+            },
+            cur_event: ptr::null(),
+            nevents_pos: ptr::null_mut(),
+            ncalls_pos: ptr::null_mut(),
+            nevents: 0,
+            ncalls: 0,
+            flushed_events: false,
+            incomplete_event: false,
+            ncells_pending: 0,
+            hl_id: 0,
+            cursor_row: 0,
+            cursor_col: 0,
+            client_row: 0,
+            client_col: -1,
+            wildmenu_active: false,
+        }));
 
         for i in 0..options.size {
             let item = *options.items.add(i);

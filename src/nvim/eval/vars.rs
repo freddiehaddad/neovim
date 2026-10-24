@@ -3740,7 +3740,22 @@ pub unsafe fn var_redir_start(name: *mut c_char, append: bool) -> c_int {
         }
 
         redir_varname = xstrdup(name);
-        redir_lval = Box::into_raw(Box::new(std::mem::zeroed::<lval_T>()));
+        redir_lval = Box::into_raw(Box::new(lval_T {
+            ll_name: ptr::null(),
+            ll_name_len: 0,
+            ll_exp_name: ptr::null_mut(),
+            ll_tv: ptr::null_mut(),
+            ll_li: ptr::null_mut(),
+            ll_list: ptr::null_mut(),
+            ll_range: false,
+            ll_empty2: false,
+            ll_n1: 0,
+            ll_n2: 0,
+            ll_dict: ptr::null_mut(),
+            ll_di: ptr::null_mut(),
+            ll_newkey: ptr::null_mut(),
+            ll_blob: ptr::null_mut(),
+        }));
 
         let buf = &raw mut redir_buf;
         (*buf).clear();

@@ -85,6 +85,15 @@ pub struct AutoPat {
     pub allow_dirs: c_char,
 }
 
+impl Drop for AutoPat {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.pat.cast());
+            vim_regfree(self.reg_prog);
+        }
+    }
+}
+
 #[repr(C)]
 pub struct AutoCmd {
     pub pat: *mut AutoPat,
@@ -1608,9 +1617,6 @@ unsafe fn aucmd_del(ac: *mut AutoCmd) {
         if !(*ac).pat.is_null() {
             (*(*ac).pat).refcount -= 1;
             if (*(*ac).pat).refcount == 0 {
-                xfree((*(*ac).pat).pat.cast());
-                (*(*ac).pat).pat = ptr::null_mut();
-                vim_regfree((*(*ac).pat).reg_prog);
                 drop(Box::from_raw((*ac).pat));
             }
         }
@@ -1787,6 +1793,9 @@ pub unsafe fn augroup_del(name: *mut c_char, id_for_error: c_int, stupid_legacy_
 
 pub unsafe fn augroup_find(name: *const c_char) -> c_int {
     unsafe {
+        if name.is_null() {
+            return AUGROUP_ERROR;
+        }
         let name_cstr = CStr::from_ptr(name);
         let vec_ptr = &raw const map_augroup_name_to_id;
         let existing_id = (*vec_ptr)
@@ -2289,33 +2298,37 @@ pub unsafe fn autocmd_register(
         }
 
         if ap.is_null() {
-            ap = Box::into_raw(Box::new(std::mem::zeroed::<AutoPat>()));
-            if is_buflocal {
-                (*ap).buflocal_nr = buflocal_nr;
-                (*ap).reg_prog = ptr::null_mut();
+            let mut allow_dirs: c_char = 0;
+            let reg_prog = if is_buflocal {
+                ptr::null_mut()
             } else {
-                (*ap).buflocal_nr = 0;
                 let reg_pat = file_pat_to_reg_pat(
                     pat,
                     pat.add(patlen as usize),
-                    &raw mut (*ap).allow_dirs,
+                    &raw mut allow_dirs,
                     1,
                 );
-                if !reg_pat.is_null() {
-                    (*ap).reg_prog = vim_regcomp(reg_pat, RE_MAGIC | RE_NOBREAK);
+                let prog = if !reg_pat.is_null() {
+                    vim_regcomp(reg_pat, RE_MAGIC | RE_NOBREAK)
                 } else {
-                    (*ap).reg_prog = ptr::null_mut();
-                }
+                    ptr::null_mut()
+                };
                 xfree(reg_pat.cast());
-                if reg_pat.is_null() || (*ap).reg_prog.is_null() {
-                    drop(Box::from_raw(ap));
+                if reg_pat.is_null() || prog.is_null() {
                     return FAIL;
                 }
-            }
+                prog
+            };
 
-            (*ap).refcount = 0;
-            (*ap).pat = xmemdupz(pat.cast(), patlen as usize).cast::<c_char>();
-            (*ap).patlen = patlen;
+            ap = Box::into_raw(Box::new(AutoPat {
+                refcount: 0,
+                pat: xmemdupz(pat.cast(), patlen as usize).cast::<c_char>(),
+                reg_prog,
+                group: 0,
+                patlen,
+                buflocal_nr: if is_buflocal { buflocal_nr } else { 0 },
+                allow_dirs,
+            }));
 
             if event == EVENT_MODECHANGED && !has_event(EVENT_MODECHANGED) {
                 get_mode((&raw mut last_mode).cast::<c_char>());

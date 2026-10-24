@@ -81,6 +81,15 @@ pub struct sign_T {
     pub sn_priority: c_int,
 }
 
+impl Drop for sign_T {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.sn_name.cast());
+            xfree(self.sn_icon.cast());
+        }
+    }
+}
+
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::cmdexpand::{
     EXPAND_BUFFERS, EXPAND_FILES, EXPAND_HIGHLIGHT, EXPAND_NOTHING, EXPAND_SIGN, HLF_D,
@@ -90,7 +99,7 @@ use crate::eval::userfunc::MSG_BUF_LEN;
 use crate::math::{FAIL, OK};
 use crate::os::env::expand_T;
 
-static mut sign_map: Vec<*mut sign_T> = Vec::new();
+static mut sign_map: Vec<sign_T> = Vec::new();
 
 static mut sign_ns: Vec<Integer> = Vec::new();
 
@@ -112,9 +121,9 @@ unsafe fn pmap_get_sign(name: *const c_char) -> *mut sign_T {
         return ptr::null_mut();
     }
     unsafe {
-        let sm_ptr = &raw const sign_map;
-        for &sp in &*sm_ptr {
-            if strcmp((*sp).sn_name, name) == 0 {
+        let sm_ptr = &raw mut sign_map;
+        for sp in &mut *sm_ptr {
+            if strcmp(sp.sn_name, name) == 0 {
                 return sp;
             }
         }
@@ -556,11 +565,18 @@ unsafe fn sign_define_by_name(
         let existing = pmap_get_sign(name);
         let new_sign = existing.is_null();
         let sp = if new_sign {
-            let new_sp = Box::into_raw(Box::new(std::mem::zeroed::<sign_T>()));
-            (*new_sp).sn_name = xstrdup(name);
             let sm_ptr = &raw mut sign_map;
-            (*sm_ptr).push(new_sp);
-            new_sp
+            (*sm_ptr).push(sign_T {
+                sn_name: xstrdup(name),
+                sn_icon: ptr::null_mut(),
+                sn_text: [0; SIGN_WIDTH],
+                sn_line_hl: 0,
+                sn_text_hl: 0,
+                sn_cul_hl: 0,
+                sn_num_hl: 0,
+                sn_priority: 0,
+            });
+            (*sm_ptr).last_mut().unwrap() as *mut sign_T
         } else {
             existing
         };
@@ -624,15 +640,11 @@ unsafe fn sign_define_by_name(
 unsafe fn sign_undefine_by_name(name: *const c_char) -> c_int {
     unsafe {
         let sm_ptr = &raw mut sign_map;
-        let Some(pos) = (*sm_ptr).iter().position(|&sp| strcmp((*sp).sn_name, name) == 0) else {
+        let Some(pos) = (*sm_ptr).iter().position(|sp| strcmp(sp.sn_name, name) == 0) else {
             semsg!(gettext(c"E155: Unknown sign: %s".as_ptr()), name);
             return FAIL;
         };
-        let sp = (*sm_ptr).swap_remove(pos);
-
-        xfree((*sp).sn_name.cast());
-        xfree((*sp).sn_icon.cast());
-        drop(Box::from_raw(sp));
+        (*sm_ptr).swap_remove(pos);
         OK
     }
 }
@@ -1046,8 +1058,8 @@ pub unsafe fn ex_sign(eap: *mut exarg_T) {
 
         if idx <= SIGNCMD_LIST {
             if idx == SIGNCMD_LIST && *arg == NUL {
-                let sm_ptr = &raw const sign_map;
-                for &sp in &*sm_ptr {
+                let sm_ptr = &raw mut sign_map;
+                for sp in &mut *sm_ptr {
                     sign_list_defined(sp);
                 }
             } else if *arg == NUL {
@@ -1255,13 +1267,7 @@ unsafe fn sign_get_placed(
 
 pub unsafe fn free_signs() {
     unsafe {
-        let sm_ptr = &raw mut sign_map;
-        for sp in (*sm_ptr).drain(..) {
-            xfree((*sp).sn_name.cast());
-            xfree((*sp).sn_icon.cast());
-            drop(Box::from_raw(sp));
-        }
-        *sm_ptr = Vec::new();
+        sign_map = Vec::new();
     }
 }
 
@@ -1269,9 +1275,9 @@ unsafe fn get_nth_sign_name(idx: c_int) -> *mut c_char {
     unsafe {
         let sm_ptr = &raw const sign_map;
         if let Ok(idx_usize) = usize::try_from(idx)
-            && let Some(&sp) = (*sm_ptr).as_slice().get(idx_usize)
+            && let Some(sp) = (*sm_ptr).as_slice().get(idx_usize)
         {
-            return (*sp).sn_name;
+            return sp.sn_name;
         }
         ptr::null_mut()
     }
@@ -1506,8 +1512,8 @@ pub unsafe fn f_sign_getdefined(argvars: *mut typval_T, rettv: *mut typval_T, _f
         tv_list_alloc_ret(rettv, 0);
 
         if (*argvars).v_type == VarType::VAR_UNKNOWN {
-            let sm_ptr = &raw const sign_map;
-            for &sp in &*sm_ptr {
+            let sm_ptr = &raw mut sign_map;
+            for sp in &mut *sm_ptr {
                 tv_list_append_dict((*rettv).vval.v_list, sign_get_info_dict(sp));
             }
         } else {

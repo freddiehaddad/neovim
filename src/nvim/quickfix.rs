@@ -31,8 +31,9 @@ use crate::eval::typval::{
     tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len, tv_dict_add_tv,
     tv_dict_alloc, tv_dict_alloc_lock, tv_dict_alloc_ret, tv_dict_find, tv_dict_get_bool,
     tv_dict_get_number, tv_dict_get_string, tv_dict_get_tv, tv_dict_item_alloc_len,
-    tv_dict_item_free, tv_dict_unref, tv_free, tv_get_number_chk, tv_get_string_chk, tv_list_alloc,
-    tv_list_alloc_ret, tv_list_append_dict, tv_list_first, tv_list_len, tv_list_ref, tv_list_unref,
+    tv_dict_item_free, tv_dict_unref, tv_free, tv_get_number_chk, tv_get_string_chk,
+    tv_initial_value, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict, tv_list_first,
+    tv_list_len, tv_list_ref, tv_list_unref,
     typval_T, varnumber_T,
 };
 use crate::eval::vars::set_internal_string_var;
@@ -255,6 +256,42 @@ pub struct qfline_T {
     pub qf_type: c_char,
     pub qf_user_data: typval_T,
     pub qf_valid: c_char,
+}
+
+impl qfline_T {
+    pub const fn new() -> Self {
+        Self {
+            qf_next: ptr::null_mut(),
+            qf_prev: ptr::null_mut(),
+            qf_lnum: 0,
+            qf_end_lnum: 0,
+            qf_fnum: 0,
+            qf_col: 0,
+            qf_end_col: 0,
+            qf_nr: 0,
+            qf_module: ptr::null_mut(),
+            qf_fname: ptr::null_mut(),
+            qf_pattern: ptr::null_mut(),
+            qf_text: ptr::null_mut(),
+            qf_viscol: 0,
+            qf_cleared: 0,
+            qf_type: 0,
+            qf_user_data: tv_initial_value(),
+            qf_valid: 0,
+        }
+    }
+}
+
+impl Drop for qfline_T {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.qf_fname.cast());
+            xfree(self.qf_module.cast());
+            xfree(self.qf_text.cast());
+            xfree(self.qf_pattern.cast());
+            tv_clear(&raw mut self.qf_user_data);
+        }
+    }
 }
 
 pub type qfltype_T = c_int;
@@ -2200,7 +2237,7 @@ unsafe fn qf_add_entry(
 ) -> c_int {
     unsafe {
         let buf: *mut buf_T;
-        let qfp = Box::into_raw(Box::new(std::mem::zeroed::<qfline_T>()));
+        let qfp = Box::into_raw(Box::new(qfline_T::new()));
         let mut fullname: *mut c_char = ptr::null_mut();
 
         if bufnum != 0 {
@@ -2487,7 +2524,7 @@ unsafe fn copy_loclist(from_qfl: *mut qf_list_T, to_qfl: *mut qf_list_T) -> c_in
             (*to_qfl).qf_title = ptr::null_mut();
         }
         if !(*from_qfl).qf_ctx.is_null() {
-            (*to_qfl).qf_ctx = Box::into_raw(Box::new(std::mem::zeroed::<typval_T>()));
+            (*to_qfl).qf_ctx = Box::into_raw(Box::new(tv_initial_value()));
             tv_copy((*from_qfl).qf_ctx, (*to_qfl).qf_ctx);
         } else {
             (*to_qfl).qf_ctx = ptr::null_mut();
@@ -3866,11 +3903,6 @@ unsafe fn qf_free_items(qfl: *mut qf_list_T) {
             let qfp = (*qfl).qf_start;
             let qfpnext = (*qfp).qf_next;
             if !stop {
-                xfree((*qfp).qf_fname.cast());
-                xfree((*qfp).qf_module.cast());
-                xfree((*qfp).qf_text.cast());
-                xfree((*qfp).qf_pattern.cast());
-                tv_clear(&raw mut (*qfp).qf_user_data);
                 stop = qfp == qfpnext;
                 drop(Box::from_raw(qfp));
                 if stop {
@@ -7231,7 +7263,7 @@ unsafe fn qf_setprop_items_from_lines(
 unsafe fn qf_setprop_context(qfl: *mut qf_list_T, di: *mut dictitem_T) -> c_int {
     unsafe {
         tv_free((*qfl).qf_ctx);
-        let ctx = Box::into_raw(Box::new(std::mem::zeroed::<typval_T>()));
+        let ctx = Box::into_raw(Box::new(tv_initial_value()));
         tv_copy(&raw const (*di).di_tv, ctx);
         (*qfl).qf_ctx = ctx;
 

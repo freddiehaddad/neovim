@@ -66,6 +66,24 @@ pub struct mpack_tokbuf_t {
     pub passthrough: mpack_uint32_t,
 }
 
+impl mpack_tokbuf_t {
+    pub const fn new() -> Self {
+        Self {
+            pending: [0; MPACK_MAX_TOKEN_LEN],
+            pending_tok: mpack_token_t {
+                r#type: MPACK_TOKEN_NONE,
+                length: 0,
+                data: mpack_token_data_t {
+                    value: mpack_value_t { lo: 0, hi: 0 },
+                },
+            },
+            ppos: 0,
+            plen: 0,
+            passthrough: 0,
+        }
+    }
+}
+
 #[inline]
 unsafe fn advance(buf: *mut *const c_char, buflen: *mut usize) -> u8 {
     unsafe {

@@ -345,6 +345,58 @@ pub struct ExprASTNode {
     pub data: ExprASTNodeData,
 }
 
+impl ExprASTNode {
+    pub const fn new(node_type: ExprASTNodeType) -> Self {
+        Self {
+            r#type: node_type,
+            children: std::ptr::null_mut(),
+            next: std::ptr::null_mut(),
+            start: ParserPosition { line: 0, col: 0 },
+            len: 0,
+            data: ExprASTNodeData {
+                reg: ExprASTNodeReg { name: 0 },
+                fig: ExprASTNodeFig {
+                    type_guesses: ExprASTNodeFigTypeGuesses {
+                        allow_dict: false,
+                        allow_lambda: false,
+                        allow_ident: false,
+                    },
+                    opening_hl_idx: 0,
+                },
+                var: ExprASTNodeVar {
+                    scope: kExprVarScopeMissing,
+                    ident: std::ptr::null(),
+                    ident_len: 0,
+                },
+                ter: ExprASTNodeTer { got_colon: false },
+                cmp: ExprASTNodeCmp {
+                    r#type: kExprCmpEqual,
+                    ccs: kCCStrategyUseOption,
+                    inv: false,
+                },
+                num: ExprASTNodeNum { value: 0 },
+                flt: ExprASTNodeFlt { value: 0.0 },
+                str: ExprASTNodeStr {
+                    value: std::ptr::null_mut(),
+                    size: 0,
+                },
+                opt: ExprASTNodeOpt {
+                    ident: std::ptr::null(),
+                    ident_len: 0,
+                    scope: kExprOptScopeUnspecified,
+                },
+                env: ExprASTNodeEnv {
+                    ident: std::ptr::null(),
+                    ident_len: 0,
+                },
+                ass: ExprASTNodeAss {
+                    r#type: kExprAsgnPlain,
+                },
+            },
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExprASTError {
@@ -1108,13 +1160,7 @@ pub unsafe fn viml_pexpr_free_ast(mut ast: ExprAST) {
 
 #[inline]
 unsafe fn viml_pexpr_new_node(node_type: ExprASTNodeType) -> *mut ExprASTNode {
-    unsafe {
-        let mut ret = Box::new(std::mem::zeroed::<ExprASTNode>());
-        ret.r#type = node_type;
-        ret.children = std::ptr::null_mut();
-        ret.next = std::ptr::null_mut();
-        Box::into_raw(ret)
-    }
+    Box::into_raw(Box::new(ExprASTNode::new(node_type)))
 }
 
 #[inline]

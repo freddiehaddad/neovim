@@ -373,6 +373,7 @@ pub struct WinConfig {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct frame_T {
     pub fr_layout: c_char,
     pub fr_width: c_int,
@@ -384,6 +385,23 @@ pub struct frame_T {
     pub fr_prev: *mut frame_T,
     pub fr_child: *mut frame_T,
     pub fr_win: *mut win_T,
+}
+
+impl frame_T {
+    pub const fn new() -> Self {
+        Self {
+            fr_layout: 0,
+            fr_width: 0,
+            fr_newwidth: 0,
+            fr_height: 0,
+            fr_newheight: 0,
+            fr_parent: ptr::null_mut(),
+            fr_next: ptr::null_mut(),
+            fr_prev: ptr::null_mut(),
+            fr_child: ptr::null_mut(),
+            fr_win: ptr::null_mut(),
+        }
+    }
 }
 
 #[repr(C)]
@@ -2230,12 +2248,13 @@ pub unsafe fn win_split_ins(
             }
         }
         if (*curfrp).fr_parent.is_null() || (*(*curfrp).fr_parent).fr_layout != layout {
-            let mut frp = Box::into_raw(Box::new(std::mem::zeroed::<frame_T>()));
-            ptr::copy_nonoverlapping(curfrp, frp, 1);
+            let mut frp = Box::into_raw(Box::new(frame_T {
+                fr_parent: curfrp,
+                fr_next: ptr::null_mut(),
+                fr_prev: ptr::null_mut(),
+                ..*curfrp
+            }));
             (*curfrp).fr_layout = layout;
-            (*frp).fr_parent = curfrp;
-            (*frp).fr_next = ptr::null_mut();
-            (*frp).fr_prev = ptr::null_mut();
             (*curfrp).fr_child = frp;
             (*curfrp).fr_win = ptr::null_mut();
             curfrp = frp;
@@ -5044,10 +5063,11 @@ unsafe fn win_alloc_firstwin(oldwin: *mut win_T) -> c_int {
 
 unsafe fn new_frame(wp: *mut win_T) {
     unsafe {
-        let mut frp = Box::new(std::mem::zeroed::<frame_T>());
-        frp.fr_layout = FR_LEAF;
-        frp.fr_win = wp;
-        (*wp).w_frame = Box::into_raw(frp);
+        (*wp).w_frame = Box::into_raw(Box::new(frame_T {
+            fr_layout: FR_LEAF,
+            fr_win: wp,
+            ..frame_T::new()
+        }));
     }
 }
 
@@ -8192,11 +8212,12 @@ pub unsafe fn make_snapshot(idx: c_int) {
 
 unsafe fn make_snapshot_rec(fr: *mut frame_T, frp: *mut *mut frame_T) {
     unsafe {
-        let mut new_fr = Box::new(std::mem::zeroed::<frame_T>());
-        new_fr.fr_layout = (*fr).fr_layout;
-        new_fr.fr_width = (*fr).fr_width;
-        new_fr.fr_height = (*fr).fr_height;
-        *frp = Box::into_raw(new_fr);
+        *frp = Box::into_raw(Box::new(frame_T {
+            fr_layout: (*fr).fr_layout,
+            fr_width: (*fr).fr_width,
+            fr_height: (*fr).fr_height,
+            ..frame_T::new()
+        }));
         if !(*fr).fr_next.is_null() {
             make_snapshot_rec((*fr).fr_next, &raw mut (**frp).fr_next);
         }

@@ -339,6 +339,51 @@ pub unsafe fn unpack(
 }
 
 /// Initialize an `Unpacker` (`unpacker_init`).
+impl Unpacker {
+    pub const fn new() -> Self {
+        Self {
+            parser: mpack_parser_t::new(0),
+            reader: mpack_tokbuf_t::new(),
+            read_ptr: std::ptr::null(),
+            read_size: 0,
+            ext_buf: [0; MAX_EXT_LEN],
+            state: 0,
+            msg_type: MessageType::kMessageTypeRequest,
+            request_id: 0,
+            method_name_len: 0,
+            handler: MsgpackRpcRequestHandler {
+                name: std::ptr::null(),
+                r#fn: None,
+                fast: false,
+                ret_alloc: false,
+            },
+            error: nil_obj(),
+            result: nil_obj(),
+            unpack_error: Error {
+                err_type: ErrorType::kErrorTypeNone,
+                msg: std::ptr::null_mut(),
+            },
+            arena: empty_arena(),
+            nevents: 0,
+            ncalls: 0,
+            ui_handler: UIClientHandler {
+                name: std::ptr::null(),
+                r#fn: None,
+            },
+            grid_line_event: GridLineEvent {
+                args: [0; 3],
+                icell: 0,
+                ncells: 0,
+                coloff: 0,
+                cur_attr: 0,
+                clear_width: 0,
+                wrap: false,
+            },
+            has_grid_line_event: false,
+        }
+    }
+}
+
 pub unsafe fn unpacker_init(p: *mut Unpacker) {
     unsafe {
         let p_ref = &mut *p;

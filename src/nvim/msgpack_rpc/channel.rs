@@ -263,7 +263,7 @@ pub unsafe fn rpc_start(channel: *mut Channel) {
         (*ct).is_rpc = true;
         let rpc = &raw mut (*ct).rpc;
         (*rpc).closed = false;
-        (*rpc).unpacker = Box::into_raw(Box::new(std::mem::zeroed::<Unpacker>()));
+        (*rpc).unpacker = Box::into_raw(Box::new(Unpacker::new()));
         unpacker_init((*rpc).unpacker);
         (*rpc).next_request_id = 1;
         (*rpc).info = Dict {

@@ -108,6 +108,38 @@ pub struct conpty_t {
 }
 
 #[cfg(windows)]
+impl conpty_t {
+    pub const fn new() -> Self {
+        Self {
+            pty: std::ptr::null_mut(),
+            si_ex: STARTUPINFOEXW {
+                StartupInfo: STARTUPINFOW {
+                    cb: 0,
+                    lpReserved: std::ptr::null_mut(),
+                    lpDesktop: std::ptr::null_mut(),
+                    lpTitle: std::ptr::null_mut(),
+                    dwX: 0,
+                    dwY: 0,
+                    dwXSize: 0,
+                    dwYSize: 0,
+                    dwXCountChars: 0,
+                    dwYCountChars: 0,
+                    dwFillAttribute: 0,
+                    dwFlags: 0,
+                    wShowWindow: 0,
+                    cbReserved2: 0,
+                    lpReserved2: std::ptr::null_mut(),
+                    hStdInput: std::ptr::null_mut(),
+                    hStdOutput: std::ptr::null_mut(),
+                    hStdError: std::ptr::null_mut(),
+                },
+                lpAttributeList: std::ptr::null_mut(),
+            },
+        }
+    }
+}
+
+#[cfg(windows)]
 use crate::os::dl::UvLib;
 
 #[cfg(windows)]
@@ -254,7 +286,7 @@ pub unsafe fn os_conpty_init(
     height: u16,
 ) -> *mut conpty_t {
     unsafe {
-        let mut conpty_object = Box::into_raw(Box::new(std::mem::zeroed::<conpty_t>()));
+        let mut conpty_object = Box::into_raw(Box::new(conpty_t::new()));
         let emsg: *const c_char;
         let in_read: HANDLE;
         let mut out_write: HANDLE = INVALID_HANDLE_VALUE;
