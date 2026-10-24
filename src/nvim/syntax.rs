@@ -93,10 +93,8 @@ pub struct synblock_T {
     pub b_syn_conceal: c_int,
     pub b_syn_folditems: c_int,
     pub b_sst_array: Vec<synstate_T>,
-    pub b_sst_first: *mut synstate_T,
-    pub b_sst_search: *mut synstate_T,
-    pub b_sst_firstfree: *mut synstate_T,
-    pub b_sst_freecount: c_int,
+    pub b_sst_max: c_int,
+    pub b_sst_search: usize,
     pub b_sst_check_lnum: i32,
     pub b_sst_lasttick: u64,
     pub b_idlist_cache: Option<Box<idl_cache_T>>,
@@ -262,28 +260,14 @@ impl Drop for bufstate_T {
 }
 
 #[repr(C)]
+#[derive(Default)]
 pub struct synstate_T {
-    pub sst_next: *mut synstate_T,
     pub sst_lnum: linenr_T,
     pub sst_stack: Vec<bufstate_T>,
     pub sst_next_flags: c_int,
     pub sst_next_list: *mut i16,
     pub sst_tick: disptick_T,
     pub sst_change_lnum: linenr_T,
-}
-
-impl Default for synstate_T {
-    fn default() -> Self {
-        Self {
-            sst_next: ptr::null_mut(),
-            sst_lnum: 0,
-            sst_stack: Vec::new(),
-            sst_next_flags: 0,
-            sst_next_list: ptr::null_mut(),
-            sst_tick: 0,
-            sst_change_lnum: 0,
-        }
-    }
 }
 
 #[repr(C)]
@@ -496,9 +480,9 @@ pub unsafe fn syn_set_timeout(tm: *mut proftime_T) {
 /// Start the syntax recognition for a line.
 pub unsafe fn syntax_start(wp: *mut win_T, lnum: linenr_T) {
     unsafe {
-        let mut last_valid: *mut synstate_T = ptr::null_mut();
-        let mut last_min_valid: *mut synstate_T = ptr::null_mut();
-        let mut prev: *mut synstate_T = ptr::null_mut();
+        let mut last_valid: Option<usize> = None;
+        let mut last_min_valid: Option<usize> = None;
+        let mut prev: Option<usize> = None;
 
         current_sub_char = NUL as c_int;
 
@@ -514,7 +498,7 @@ pub unsafe fn syntax_start(wp: *mut win_T, lnum: linenr_T) {
         syn_win = wp;
 
         syn_stack_alloc();
-        if (&*syn_block).b_sst_array.is_empty() {
+        if (*syn_block).b_sst_max == 0 {
             return;
         }
         (*syn_block).b_sst_lasttick = display_tick;
@@ -536,27 +520,31 @@ pub unsafe fn syntax_start(wp: *mut win_T, lnum: linenr_T) {
             invalidate_current_state();
         }
 
-        if invalid_state() && !(&*syn_block).b_sst_array.is_empty() {
-            let mut p = (*syn_block).b_sst_first.cast::<synstate_T>();
-            while !p.is_null() {
-                if (*p).sst_lnum > lnum {
+        if invalid_state() && !(*syn_block).b_sst_array.is_empty() {
+            for (idx, p) in (*syn_block).b_sst_array.as_slice().iter().enumerate() {
+                if p.sst_lnum > lnum {
                     break;
                 }
-                if (*p).sst_change_lnum == 0 {
-                    last_valid = p;
-                    if (*p).sst_lnum >= lnum - (*syn_block).b_syn_sync_minlines {
-                        last_min_valid = p;
+                if p.sst_change_lnum == 0 {
+                    last_valid = Some(idx);
+                    if p.sst_lnum >= lnum - (*syn_block).b_syn_sync_minlines {
+                        last_min_valid = Some(idx);
                     }
                 }
-                p = (*p).sst_next;
             }
-            if !last_min_valid.is_null() {
-                load_current_state(last_min_valid);
+            if let Some(idx) = last_min_valid {
+                load_current_state(&(*syn_block).b_sst_array.as_slice()[idx]);
             }
         }
 
         let first_stored = if invalid_state() {
-            syn_sync(wp, lnum, last_valid);
+            syn_sync(
+                wp,
+                lnum,
+                last_valid.map_or(ptr::null(), |idx| {
+                    &raw const (*syn_block).b_sst_array.as_slice()[idx]
+                }),
+            );
             if current_lnum == 1 {
                 1
             } else {
@@ -566,7 +554,7 @@ pub unsafe fn syntax_start(wp: *mut win_T, lnum: linenr_T) {
             current_lnum
         };
 
-        let sst_len = (&*syn_block).b_sst_array.len() as c_int;
+        let sst_len = (*syn_block).b_sst_max;
         let dist = if sst_len <= Rows {
             999999
         } else {
@@ -579,34 +567,40 @@ pub unsafe fn syntax_start(wp: *mut win_T, lnum: linenr_T) {
             current_lnum += 1;
 
             if current_lnum >= first_stored {
-                if prev.is_null() {
+                if prev.is_none() {
                     prev = syn_stack_find_entry(current_lnum - 1);
                 }
-                let mut sp = if prev.is_null() {
-                    (*syn_block).b_sst_first.cast::<synstate_T>()
-                } else {
-                    prev
-                };
-                while !sp.is_null() && (*sp).sst_lnum < current_lnum {
-                    sp = (*sp).sst_next;
+                let mut sp_idx = prev.unwrap_or(0);
+                while sp_idx < (*syn_block).b_sst_array.len()
+                    && (*syn_block).b_sst_array.as_slice()[sp_idx].sst_lnum < current_lnum
+                {
+                    sp_idx += 1;
                 }
-                if !sp.is_null() && (*sp).sst_lnum == current_lnum && syn_stack_equal(sp) {
+                if sp_idx < (*syn_block).b_sst_array.len()
+                    && (*syn_block).b_sst_array.as_slice()[sp_idx].sst_lnum == current_lnum
+                    && syn_stack_equal(&(*syn_block).b_sst_array.as_slice()[sp_idx])
+                {
                     let parsed_lnum = current_lnum;
-                    prev = sp;
-                    while !sp.is_null() && (*sp).sst_change_lnum <= parsed_lnum {
-                        if (*sp).sst_lnum <= lnum {
-                            prev = sp;
-                        } else if (*sp).sst_change_lnum == 0 {
+                    prev = Some(sp_idx);
+                    while sp_idx < (*syn_block).b_sst_array.len()
+                        && (*syn_block).b_sst_array.as_slice()[sp_idx].sst_change_lnum
+                            <= parsed_lnum
+                    {
+                        if (*syn_block).b_sst_array.as_slice()[sp_idx].sst_lnum <= lnum {
+                            prev = Some(sp_idx);
+                        } else if (*syn_block).b_sst_array.as_slice()[sp_idx].sst_change_lnum == 0 {
                             break;
                         }
-                        (*sp).sst_change_lnum = 0;
-                        sp = (*sp).sst_next;
+                        (*syn_block).b_sst_array.as_mut_slice()[sp_idx].sst_change_lnum = 0;
+                        sp_idx += 1;
                     }
-                    load_current_state(prev);
-                } else if prev.is_null()
-                    || current_lnum == lnum
-                    || current_lnum >= (*prev).sst_lnum + dist
-                {
+                    if let Some(pi) = prev {
+                        load_current_state(&(*syn_block).b_sst_array.as_slice()[pi]);
+                    }
+                } else if prev.is_none_or(|pi| {
+                    current_lnum == lnum
+                        || current_lnum >= (*syn_block).b_sst_array.as_slice()[pi].sst_lnum + dist
+                }) {
                     prev = store_current_state();
                 }
             }
@@ -632,7 +626,7 @@ unsafe fn clear_current_state() {
     }
 }
 
-unsafe fn syn_sync(wp: *mut win_T, mut start_lnum: linenr_T, last_valid: *mut synstate_T) {
+unsafe fn syn_sync(wp: *mut win_T, mut start_lnum: linenr_T, last_valid: *const synstate_T) {
     unsafe {
         let mut found_flags: c_int = 0;
         let mut found_match_idx: c_int = 0;
@@ -952,14 +946,9 @@ unsafe fn syn_update_ends(startofline: bool) {
 unsafe fn syn_stack_free_block(block: *mut synblock_T) {
     unsafe {
         idl_cache_clear(block);
-
-        if (&*block).b_sst_array.is_empty() {
-            return;
-        }
-
         (&mut *block).b_sst_array = Vec::new();
-        (*block).b_sst_first = ptr::null_mut();
-        (*block).b_sst_search = ptr::null_mut();
+        (*block).b_sst_max = 0;
+        (*block).b_sst_search = 0;
     }
 }
 
@@ -984,55 +973,19 @@ unsafe fn syn_stack_alloc() {
     unsafe {
         let mut len = ((*syn_buf).b_ml.ml_line_count / SST_DIST + Rows * 2)
             .clamp(SST_MIN_ENTRIES, SST_MAX_ENTRIES);
-        let cur_len = (&*syn_block).b_sst_array.len() as c_int;
+        let cur_len = (*syn_block).b_sst_max;
         if cur_len > len * 2 || cur_len < len {
             len = (*syn_buf).b_ml.ml_line_count;
             len = ((len + len / 2) / SST_DIST + Rows * 2).clamp(SST_MIN_ENTRIES, SST_MAX_ENTRIES);
 
-            if !(&*syn_block).b_sst_array.is_empty() {
-                while cur_len - (*syn_block).b_sst_freecount + 2 > len && syn_stack_cleanup() {}
-                if len < cur_len - (*syn_block).b_sst_freecount + 2 {
-                    len = cur_len - (*syn_block).b_sst_freecount + 2;
-                }
+            while ((*syn_block).b_sst_array.len() as c_int) + 2 > len && syn_stack_cleanup() {}
+            let needed = ((*syn_block).b_sst_array.len() as c_int) + 2;
+            if len < needed {
+                len = needed;
             }
 
-            debug_assert!(len >= 0);
-            let ulen = len as usize;
-            let mut new_vec: Vec<synstate_T> = Vec::with_capacity(ulen);
-            new_vec.resize_with(ulen, synstate_T::default);
-            let sstp = new_vec.as_mut_ptr();
-
-            let mut copied: usize = 0;
-            if !(&*syn_block).b_sst_array.is_empty() {
-                let mut from = (*syn_block).b_sst_first;
-                while !from.is_null() {
-                    let next_from = (*from).sst_next;
-                    new_vec[copied] = std::mem::take(&mut *from);
-                    new_vec[copied].sst_next = sstp.add(copied + 1);
-                    copied += 1;
-                    from = next_from;
-                }
-            }
-            if copied > 0 {
-                new_vec[copied - 1].sst_next = ptr::null_mut();
-                (*syn_block).b_sst_first = sstp;
-                (*syn_block).b_sst_freecount = len - copied as c_int;
-            } else {
-                (*syn_block).b_sst_first = ptr::null_mut();
-                (*syn_block).b_sst_freecount = len;
-            }
-
-            (*syn_block).b_sst_firstfree = sstp.add(copied);
-            for (idx, item) in new_vec.iter_mut().enumerate().skip(copied) {
-                item.sst_next = if idx + 1 < ulen {
-                    sstp.add(idx + 1)
-                } else {
-                    ptr::null_mut()
-                };
-            }
-
-            (&mut *syn_block).b_sst_array = new_vec;
-            (*syn_block).b_sst_search = ptr::null_mut();
+            (*syn_block).b_sst_max = len;
+            (*syn_block).b_sst_search = 0;
         }
     }
 }
@@ -1056,50 +1009,45 @@ pub unsafe fn syn_stack_apply_changes(buf: *mut buf_T) {
 
 unsafe fn syn_stack_apply_changes_block(block: *mut synblock_T, buf: *mut buf_T) {
     unsafe {
-        let mut prev: *mut synstate_T = ptr::null_mut();
-        let mut p = (*block).b_sst_first.cast::<synstate_T>();
-        while !p.is_null() {
-            if (*p).sst_lnum + (*block).b_syn_sync_linebreaks > (*buf).b_mod_top {
-                let n = (*p).sst_lnum + (*buf).b_mod_xlines;
+        let mut idx = 0;
+        while idx < (*block).b_sst_array.len() {
+            let p = &mut (*block).b_sst_array.as_mut_slice()[idx];
+            if p.sst_lnum + (*block).b_syn_sync_linebreaks > (*buf).b_mod_top {
+                let n = p.sst_lnum + (*buf).b_mod_xlines;
                 if n <= (*buf).b_mod_bot {
-                    let np = (*p).sst_next;
-                    if prev.is_null() {
-                        (*block).b_sst_first = np.cast();
-                    } else {
-                        (*prev).sst_next = np;
+                    if (*block).b_sst_search == idx {
+                        (*block).b_sst_search = 0;
+                    } else if (*block).b_sst_search > idx {
+                        (*block).b_sst_search -= 1;
                     }
-                    syn_stack_free_entry(block, p);
-                    p = np;
+                    (*block).b_sst_array.remove(idx);
                     continue;
                 }
-                if (*p).sst_change_lnum != 0 && (*p).sst_change_lnum > (*buf).b_mod_top {
-                    if (*p).sst_change_lnum + (*buf).b_mod_xlines > (*buf).b_mod_top {
-                        (*p).sst_change_lnum += (*buf).b_mod_xlines;
+                if p.sst_change_lnum != 0 && p.sst_change_lnum > (*buf).b_mod_top {
+                    if p.sst_change_lnum + (*buf).b_mod_xlines > (*buf).b_mod_top {
+                        p.sst_change_lnum += (*buf).b_mod_xlines;
                     } else {
-                        (*p).sst_change_lnum = (*buf).b_mod_top;
+                        p.sst_change_lnum = (*buf).b_mod_top;
                     }
                 }
-                if (*p).sst_change_lnum == 0 || (*p).sst_change_lnum < (*buf).b_mod_bot {
-                    (*p).sst_change_lnum = (*buf).b_mod_bot;
+                if p.sst_change_lnum == 0 || p.sst_change_lnum < (*buf).b_mod_bot {
+                    p.sst_change_lnum = (*buf).b_mod_bot;
                 }
 
-                (*p).sst_lnum = n;
+                p.sst_lnum = n;
             }
-            prev = p;
-            p = (*p).sst_next;
+            idx += 1;
         }
     }
 }
 
 unsafe fn syn_stack_cleanup() -> bool {
     unsafe {
-        let mut retval = false;
-
-        if (*syn_block).b_sst_first.is_null() {
-            return retval;
+        if (*syn_block).b_sst_array.len() < 2 {
+            return false;
         }
 
-        let sst_len = (&*syn_block).b_sst_array.len() as c_int;
+        let sst_len = (*syn_block).b_sst_max;
         let dist = if sst_len <= Rows {
             999999
         } else {
@@ -1108,83 +1056,77 @@ unsafe fn syn_stack_cleanup() -> bool {
 
         let mut tick = (*syn_block).b_sst_lasttick;
         let mut above = false;
-        let mut prev = (*syn_block).b_sst_first.cast::<synstate_T>();
-        let mut p = (*prev).sst_next;
-        while !p.is_null() {
-            if (*prev).sst_lnum + dist > (*p).sst_lnum {
-                if (*p).sst_tick > (*syn_block).b_sst_lasttick {
-                    if !above || (*p).sst_tick < tick {
-                        tick = (*p).sst_tick;
+        for w in (*syn_block).b_sst_array.as_slice().windows(2) {
+            let prev = &w[0];
+            let p = &w[1];
+            if prev.sst_lnum + dist > p.sst_lnum {
+                if p.sst_tick > (*syn_block).b_sst_lasttick {
+                    if !above || p.sst_tick < tick {
+                        tick = p.sst_tick;
                     }
                     above = true;
-                } else if !above && (*p).sst_tick < tick {
-                    tick = (*p).sst_tick;
+                } else if !above && p.sst_tick < tick {
+                    tick = p.sst_tick;
                 }
             }
-            prev = p;
-            p = (*p).sst_next;
         }
 
-        prev = (*syn_block).b_sst_first.cast::<synstate_T>();
-        p = (*prev).sst_next;
-        while !p.is_null() {
-            if (*p).sst_tick == tick && (*prev).sst_lnum + dist > (*p).sst_lnum {
-                (*prev).sst_next = (*p).sst_next;
-                syn_stack_free_entry(syn_block, p);
-                p = (*prev).sst_next;
+        let mut retval = false;
+        let mut idx = 1;
+        while idx < (*syn_block).b_sst_array.len() {
+            let prev_lnum = (*syn_block).b_sst_array.as_slice()[idx - 1].sst_lnum;
+            let p = &(*syn_block).b_sst_array.as_slice()[idx];
+            if p.sst_tick == tick && prev_lnum + dist > p.sst_lnum {
+                if (*syn_block).b_sst_search == idx {
+                    (*syn_block).b_sst_search = 0;
+                } else if (*syn_block).b_sst_search > idx {
+                    (*syn_block).b_sst_search -= 1;
+                }
+                (*syn_block).b_sst_array.remove(idx);
                 retval = true;
             } else {
-                prev = p;
-                p = (*p).sst_next;
+                idx += 1;
             }
         }
         retval
     }
 }
 
-unsafe fn syn_stack_free_entry(block: *mut synblock_T, p: *mut synstate_T) {
+unsafe fn syn_stack_find_entry(lnum: linenr_T) -> Option<usize> {
     unsafe {
-        if (*block).b_sst_search == p.cast() {
-            (*block).b_sst_search = ptr::null_mut();
-        }
-        (*p).sst_stack.clear();
-        (*p).sst_next = (*block).b_sst_firstfree.cast();
-        (*block).b_sst_firstfree = p.cast();
-        (*block).b_sst_freecount += 1;
-    }
-}
-
-unsafe fn syn_stack_find_entry(lnum: linenr_T) -> *mut synstate_T {
-    unsafe {
-        let mut prev: *mut synstate_T = ptr::null_mut();
-        let mut p = (*syn_block).b_sst_first.cast::<synstate_T>();
-
-        let search = (*syn_block).b_sst_search.cast::<synstate_T>();
-        if !search.is_null() && (*search).sst_lnum <= lnum {
-            p = search;
+        let arr = (*syn_block).b_sst_array.as_slice();
+        if arr.is_empty() {
+            return None;
         }
 
-        while !p.is_null() {
-            if (*p).sst_lnum == lnum {
-                (*syn_block).b_sst_search = p.cast();
-                return p;
+        let mut idx = 0;
+        let search = (*syn_block).b_sst_search;
+        if search < arr.len() && arr[search].sst_lnum <= lnum {
+            idx = search;
+        }
+
+        let mut prev: Option<usize> = None;
+        while idx < arr.len() {
+            if arr[idx].sst_lnum == lnum {
+                (*syn_block).b_sst_search = idx;
+                return Some(idx);
             }
-            if (*p).sst_lnum > lnum {
+            if arr[idx].sst_lnum > lnum {
                 break;
             }
-            prev = p;
-            p = (*p).sst_next;
+            prev = Some(idx);
+            idx += 1;
         }
-        if !prev.is_null() {
-            (*syn_block).b_sst_search = prev.cast();
+        if let Some(p) = prev {
+            (*syn_block).b_sst_search = p;
         }
         prev
     }
 }
 
-unsafe fn store_current_state() -> *mut synstate_T {
+unsafe fn store_current_state() -> Option<usize> {
     unsafe {
-        let mut sp = syn_stack_find_entry(current_lnum);
+        let mut sp_idx = syn_stack_find_entry(current_lnum);
 
         let mut i = cur_state_len() - 1;
         while i >= 0 {
@@ -1199,55 +1141,45 @@ unsafe fn store_current_state() -> *mut synstate_T {
             i -= 1;
         }
         if i >= 0 {
-            if !sp.is_null() {
-                if (*syn_block).b_sst_first == sp.cast() {
-                    (*syn_block).b_sst_first = (*sp).sst_next.cast();
-                } else {
-                    let mut p = (*syn_block).b_sst_first.cast::<synstate_T>();
-                    while !p.is_null() {
-                        if (*p).sst_next == sp {
-                            break;
-                        }
-                        p = (*p).sst_next;
-                    }
-                    if !p.is_null() {
-                        (*p).sst_next = (*sp).sst_next;
-                    }
+            if let Some(idx) = sp_idx {
+                if (*syn_block).b_sst_search == idx {
+                    (*syn_block).b_sst_search = 0;
+                } else if (*syn_block).b_sst_search > idx {
+                    (*syn_block).b_sst_search -= 1;
                 }
-                syn_stack_free_entry(syn_block, sp);
-                sp = ptr::null_mut();
+                (*syn_block).b_sst_array.remove(idx);
+                sp_idx = None;
             }
-        } else if sp.is_null() || (*sp).sst_lnum != current_lnum {
-            if (*syn_block).b_sst_freecount == 0 {
+        } else if sp_idx.is_none_or(|idx| {
+            (*syn_block).b_sst_array.as_slice()[idx].sst_lnum != current_lnum
+        }) {
+            if ((*syn_block).b_sst_array.len() as c_int) >= (*syn_block).b_sst_max {
                 syn_stack_cleanup();
-                sp = syn_stack_find_entry(current_lnum);
+                sp_idx = syn_stack_find_entry(current_lnum);
             }
-            if (*syn_block).b_sst_freecount == 0 {
-                sp = ptr::null_mut();
+            if ((*syn_block).b_sst_array.len() as c_int) >= (*syn_block).b_sst_max {
+                sp_idx = None;
             } else {
-                let p = (*syn_block).b_sst_firstfree.cast::<synstate_T>();
-                (*syn_block).b_sst_firstfree = (*p).sst_next.cast();
-                (*syn_block).b_sst_freecount -= 1;
-                if sp.is_null() {
-                    (*p).sst_next = (*syn_block).b_sst_first.cast();
-                    (*syn_block).b_sst_first = p.cast();
-                } else {
-                    (*p).sst_next = (*sp).sst_next;
-                    (*sp).sst_next = p;
-                }
-                sp = p;
-                (*sp).sst_stack.clear();
-                (*sp).sst_lnum = current_lnum;
-                (*syn_block).b_sst_search = sp.cast();
+                let insert_idx = sp_idx.map_or(0, |idx| idx + 1);
+                (*syn_block).b_sst_array.insert(
+                    insert_idx,
+                    synstate_T {
+                        sst_lnum: current_lnum,
+                        ..synstate_T::default()
+                    },
+                );
+                (*syn_block).b_sst_search = insert_idx;
+                sp_idx = Some(insert_idx);
             }
         }
-        if !sp.is_null() {
-            (*sp).sst_stack.clear();
+        if let Some(idx) = sp_idx {
+            let sp = &mut (*syn_block).b_sst_array.as_mut_slice()[idx];
+            sp.sst_stack.clear();
             let len = cur_state_len();
-            (*sp).sst_stack.reserve(len as usize);
+            sp.sst_stack.reserve(len as usize);
             for j in 0..len {
                 let cur_si = cur_state_at(j);
-                (*sp).sst_stack.push(bufstate_T {
+                sp.sst_stack.push(bufstate_T {
                     bs_idx: (*cur_si).si_idx,
                     bs_flags: (*cur_si).si_flags,
                     bs_seqnr: (*cur_si).si_seqnr,
@@ -1255,17 +1187,17 @@ unsafe fn store_current_state() -> *mut synstate_T {
                     bs_extmatch: ref_extmatch((*cur_si).si_extmatch),
                 });
             }
-            (*sp).sst_next_flags = current_next_flags;
-            (*sp).sst_next_list = current_next_list;
-            (*sp).sst_tick = display_tick;
-            (*sp).sst_change_lnum = 0;
+            sp.sst_next_flags = current_next_flags;
+            sp.sst_next_list = current_next_list;
+            sp.sst_tick = display_tick;
+            sp.sst_change_lnum = 0;
         }
         current_state_stored = true;
-        sp
+        sp_idx
     }
 }
 
-unsafe fn load_current_state(from: *mut synstate_T) {
+unsafe fn load_current_state(from: *const synstate_T) {
     unsafe {
         clear_current_state();
         validate_current_state();
@@ -1302,7 +1234,7 @@ unsafe fn load_current_state(from: *mut synstate_T) {
     }
 }
 
-unsafe fn syn_stack_equal(sp: *mut synstate_T) -> bool {
+unsafe fn syn_stack_equal(sp: *const synstate_T) -> bool {
     unsafe {
         if (*sp).sst_stack.len() as c_int != cur_state_len()
             || (*sp).sst_next_list != current_next_list
@@ -1360,13 +1292,16 @@ pub unsafe fn syntax_end_parsing(wp: *mut win_T, lnum: linenr_T) {
         if syn_block != win_s(wp) {
             return;
         }
-        let mut sp = syn_stack_find_entry(lnum);
-        if !sp.is_null() && (*sp).sst_lnum < lnum {
-            sp = (*sp).sst_next;
-        }
+        if let Some(mut sp_idx) = syn_stack_find_entry(lnum) {
+            if (*syn_block).b_sst_array.as_slice()[sp_idx].sst_lnum < lnum {
+                sp_idx += 1;
+            }
 
-        if !sp.is_null() && (*sp).sst_change_lnum != 0 {
-            (*sp).sst_change_lnum = lnum;
+            if sp_idx < (*syn_block).b_sst_array.len()
+                && (*syn_block).b_sst_array.as_slice()[sp_idx].sst_change_lnum != 0
+            {
+                (*syn_block).b_sst_array.as_mut_slice()[sp_idx].sst_change_lnum = lnum;
+            }
         }
     }
 }
@@ -1391,18 +1326,19 @@ pub unsafe fn syntax_check_changed(lnum: linenr_T) -> bool {
     unsafe {
         let mut retval = true;
 
-        if valid_state() && lnum == current_lnum + 1 {
-            let sp = syn_stack_find_entry(lnum);
-            if !sp.is_null() && (*sp).sst_lnum == lnum {
-                syn_finish_line(false);
+        if valid_state()
+            && lnum == current_lnum + 1
+            && let Some(sp_idx) = syn_stack_find_entry(lnum)
+            && (*syn_block).b_sst_array.as_slice()[sp_idx].sst_lnum == lnum
+        {
+            syn_finish_line(false);
 
-                if syn_stack_equal(sp) {
-                    retval = false;
-                }
-
-                current_lnum += 1;
-                store_current_state();
+            if syn_stack_equal(&(*syn_block).b_sst_array.as_slice()[sp_idx]) {
+                retval = false;
             }
+
+            current_lnum += 1;
+            store_current_state();
         }
 
         retval
@@ -1450,7 +1386,7 @@ pub unsafe fn get_syntax_attr(col: colnr_T, can_spell: *mut bool, keep_state: bo
             };
         }
 
-        if (&*syn_block).b_sst_array.is_empty() {
+        if (*syn_block).b_sst_max == 0 {
             return 0;
         }
 
