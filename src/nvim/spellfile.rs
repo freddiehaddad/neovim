@@ -16,11 +16,11 @@ use crate::fileio::{
 use crate::globals::*;
 use crate::mbyte::{
     convert_setup, enc_canonize, mb_charlen, mb_cptr2char_adv, mb_ptr_adv, mb_ptr_back,
-    mb_ptr2char_adv, string_convert, utf_char2bytes, utf_ptr2char, utf_ptr2len, utf_valid_string,
+    mb_ptr2char_adv, string_convert, utf_char2bytes, utf_ptr2char, utf_valid_string,
     utfc_ptr2len, vimconv_T,
 };
 use crate::memline::{ml_append_buf, ml_get_buf, ml_get_buf_len};
-use crate::memory::{strequal, xcalloc, xfree, xmalloc, xmemcpyz, xstrdup, xstrlcat, xstrlcpy};
+use crate::memory::{strequal, xfree, xmalloc, xmemcpyz, xstrdup, xstrlcat, xstrlcpy};
 use crate::message::{
     emsg, msg, msg_clr_eos, msg_outtrans_long, msg_puts, msg_start, semsg, smsg, verbose_enter,
     verbose_leave,
@@ -630,9 +630,8 @@ pub unsafe fn spell_load_file(
         if !fail && !check_someerror {
             res = spell_read_tree(
                 fd,
-                &raw mut (*lp).sl_fbyts,
-                &raw mut (*lp).sl_fbyts_len,
-                &raw mut (*lp).sl_fidxs,
+                &mut (*lp).sl_fbyts,
+                &mut (*lp).sl_fidxs,
                 false,
                 0,
             );
@@ -644,9 +643,8 @@ pub unsafe fn spell_load_file(
         if !fail && !check_someerror {
             res = spell_read_tree(
                 fd,
-                &raw mut (*lp).sl_kbyts,
-                ptr::null_mut(),
-                &raw mut (*lp).sl_kidxs,
+                &mut (*lp).sl_kbyts,
+                &mut (*lp).sl_kidxs,
                 false,
                 0,
             );
@@ -658,11 +656,10 @@ pub unsafe fn spell_load_file(
         if !fail && !check_someerror {
             res = spell_read_tree(
                 fd,
-                &raw mut (*lp).sl_pbyts,
-                ptr::null_mut(),
-                &raw mut (*lp).sl_pidxs,
+                &mut (*lp).sl_pbyts,
+                &mut (*lp).sl_pidxs,
                 true,
-                (*lp).sl_prefixcnt,
+                (*lp).sl_prefprog.len() as c_int,
             );
             if res != 0 {
                 check_someerror = true;
@@ -815,9 +812,8 @@ pub unsafe fn suggest_load_files() {
                         let mut someerror = false;
                         if spell_read_tree(
                             fd,
-                            &raw mut (*slang).sl_sbyts,
-                            &raw mut (*slang).sl_sbyts_len,
-                            &raw mut (*slang).sl_sidxs,
+                            &mut (*slang).sl_sbyts,
+                            &mut (*slang).sl_sidxs,
                             false,
                             0,
                         ) != 0
@@ -872,14 +868,14 @@ pub unsafe fn suggest_load_files() {
                             slang_clear_sug(slang);
                         } else {
                             tree_count_words(
-                                (*slang).sl_fbyts,
-                                (*slang).sl_fbyts_len,
-                                (*slang).sl_fidxs,
+                                (*slang).sl_fbyts.as_mut_ptr(),
+                                (*slang).sl_fbyts.len() as c_int,
+                                (*slang).sl_fidxs.as_mut_ptr(),
                             );
                             tree_count_words(
-                                (*slang).sl_sbyts,
-                                (*slang).sl_sbyts_len,
-                                (*slang).sl_sidxs,
+                                (*slang).sl_sbyts.as_mut_ptr(),
+                                (*slang).sl_sbyts.len() as c_int,
+                                (*slang).sl_sidxs.as_mut_ptr(),
                             );
                         }
                     }
@@ -967,8 +963,7 @@ unsafe fn read_prefcond_section(fd: *mut FILE, lp: *mut slang_T) -> c_int {
             return SP_FORMERROR;
         }
 
-        (*lp).sl_prefprog = xcalloc(cnt as usize, size_of::<*mut regprog_T>()).cast();
-        (*lp).sl_prefixcnt = cnt;
+        (*lp).sl_prefprog.resize(cnt as usize, ptr::null_mut());
 
         for i in 0..cnt {
             let n = fgetc(fd);
@@ -984,7 +979,7 @@ unsafe fn read_prefcond_section(fd: *mut FILE, lp: *mut slang_T) -> c_int {
                     return ret;
                 }
                 buf[(n + 1) as usize] = NUL;
-                *(*lp).sl_prefprog.offset(i as isize) =
+                (*lp).sl_prefprog.as_mut_slice()[i as usize] =
                     vim_regcomp(buf.as_ptr(), RE_MAGIC | RE_STRING);
             }
         }
@@ -1400,51 +1395,23 @@ unsafe fn set_sofo(lp: *mut slang_T, from: *const c_char, to: *const c_char) -> 
         free_sal_items(lp);
 
         let gap = &mut (*lp).sl_sofo_sal;
-        gap.resize(256, ptr::null_mut());
+        gap.resize_with(256, Vec::new);
         (*lp).sl_sofo = true;
-
         (*lp).sl_sal_first = [0; 256];
+
         let mut p = from;
         let mut s = to;
         while *p != NUL && *s != NUL {
             let c = mb_cptr2char_adv(&raw mut p);
-            s = s.add(utf_ptr2len(s) as usize);
+            let i = mb_cptr2char_adv(&raw mut s);
             if c >= 256 {
-                (*lp).sl_sal_first[(c & 0xff) as usize] += 1;
+                gap[(c & 0xff) as usize].push((c, i));
+            } else {
+                (*lp).sl_sal_first[c as usize] = i;
             }
         }
         if *p != NUL || *s != NUL {
             return SP_FORMERROR;
-        }
-
-        for (i, slot) in gap.iter_mut().enumerate().take(256) {
-            let count = (*lp).sl_sal_first[i];
-            if count > 0 {
-                let list = xmalloc(size_of::<c_int>() * (count as usize * 2 + 1)).cast::<c_int>();
-                *slot = list;
-                *list = 0;
-            }
-        }
-
-        (*lp).sl_sal_first = [0; 256];
-        p = from;
-        s = to;
-        while *p != NUL && *s != NUL {
-            let c = mb_cptr2char_adv(&raw mut p);
-            let i = mb_cptr2char_adv(&raw mut s);
-            if c >= 256 {
-                let mut inp = gap[(c & 0xff) as usize];
-                while *inp != 0 {
-                    inp = inp.add(1);
-                }
-                *inp = c;
-                inp = inp.add(1);
-                *inp = i;
-                inp = inp.add(1);
-                *inp = 0;
-            } else {
-                (*lp).sl_sal_first[c as usize] = i;
-            }
         }
 
         0
@@ -1509,9 +1476,8 @@ unsafe fn mb_str2wide(s: *const c_char) -> *mut c_int {
 
 unsafe fn spell_read_tree(
     fd: *mut FILE,
-    bytsp: *mut *mut u8,
-    bytsp_len: *mut c_int,
-    idxsp: *mut *mut idx_T,
+    bytsp: &mut Vec<u8>,
+    idxsp: &mut Vec<idx_T>,
     prefixtree: bool,
     prefixcnt: c_int,
 ) -> c_int {
@@ -1527,16 +1493,21 @@ unsafe fn spell_read_tree(
             return 0;
         }
 
-        let bp = xcalloc(1, len as usize).cast::<u8>();
-        *bytsp = bp;
-        if !bytsp_len.is_null() {
-            *bytsp_len = len;
-        }
+        bytsp.clear();
+        bytsp.resize(len as usize, 0);
+        idxsp.clear();
+        idxsp.resize(len as usize, 0);
 
-        let ip = xcalloc(len as usize, size_of::<idx_T>()).cast::<idx_T>();
-        *idxsp = ip;
-
-        let idx = read_tree_node(fd, bp, ip, len, 0, prefixtree, prefixcnt, 0);
+        let idx = read_tree_node(
+            fd,
+            bytsp.as_mut_ptr(),
+            idxsp.as_mut_ptr(),
+            len,
+            0,
+            prefixtree,
+            prefixcnt,
+            0,
+        );
         if idx < 0 {
             return idx;
         }
@@ -4833,11 +4804,12 @@ unsafe fn sug_filltree(spin: *mut spellinfo_T, slang: *mut slang_T) -> c_int {
         (*spin).si_foldroot = wordtree_alloc(spin);
         (*spin).si_sugtree = 1;
 
-        let byts = (*slang).sl_fbyts;
-        let idxs = (*slang).sl_fidxs;
-        if byts.is_null() || idxs.is_null() {
+        if (*slang).sl_fbyts.is_empty() || (*slang).sl_fidxs.is_empty() {
             return FAIL;
         }
+        let fbyts_len = (*slang).sl_fbyts.len() as c_int;
+        let byts = (*slang).sl_fbyts.as_mut_ptr();
+        let idxs = (*slang).sl_fidxs.as_mut_ptr();
 
         arridx[0] = 0;
         curi[0] = 1;
@@ -4878,7 +4850,7 @@ unsafe fn sug_filltree(spin: *mut spellinfo_T, slang: *mut slang_T) -> c_int {
                     wordcount[d] += 1;
                     (*spin).si_blocks_cnt = 0;
 
-                    while n + 1 < (*slang).sl_fbyts_len && *byts.offset((n + 1) as isize) == 0 {
+                    while n + 1 < fbyts_len && *byts.offset((n + 1) as isize) == 0 {
                         n += 1;
                         curi[d] += 1;
                     }

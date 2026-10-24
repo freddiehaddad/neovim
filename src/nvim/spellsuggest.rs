@@ -127,13 +127,12 @@ pub struct slang_T {
     pub sl_name: *mut c_char,
     pub sl_fname: *mut c_char,
     pub sl_add: bool,
-    pub sl_fbyts: *mut u8,
-    pub sl_fbyts_len: c_int,
-    pub sl_fidxs: *mut idx_T,
-    pub sl_kbyts: *mut u8,
-    pub sl_kidxs: *mut idx_T,
-    pub sl_pbyts: *mut u8,
-    pub sl_pidxs: *mut idx_T,
+    pub sl_fbyts: Vec<u8>,
+    pub sl_fidxs: Vec<idx_T>,
+    pub sl_kbyts: Vec<u8>,
+    pub sl_kidxs: Vec<idx_T>,
+    pub sl_pbyts: Vec<u8>,
+    pub sl_pidxs: Vec<idx_T>,
     pub sl_info: *mut c_char,
     pub sl_regions: [c_char; MAXREGIONS * 2 + 1],
     pub sl_midword: *mut c_char,
@@ -150,12 +149,11 @@ pub struct slang_T {
     pub sl_nobreak: bool,
     pub sl_syllable: *mut c_char,
     pub sl_syl_items: Vec<crate::spell::syl_item_T>,
-    pub sl_prefixcnt: c_int,
-    pub sl_prefprog: *mut *mut crate::regexp::regprog_T,
+    pub sl_prefprog: Vec<*mut crate::regexp::regprog_T>,
     pub sl_rep: Vec<fromto_T>,
     pub sl_rep_first: [i16; 256],
     pub sl_sal: Vec<salitem_T>,
-    pub sl_sofo_sal: Vec<*mut c_int>,
+    pub sl_sofo_sal: Vec<Vec<(c_int, c_int)>>,
     pub sl_sal_first: [salfirst_T; 256],
     pub sl_followup: bool,
     pub sl_collapse: bool,
@@ -166,9 +164,8 @@ pub struct slang_T {
     pub sl_nosplitsugs: bool,
     pub sl_nocompoundsugs: bool,
     pub sl_sugtime: i64,
-    pub sl_sbyts: *mut u8,
-    pub sl_sbyts_len: c_int,
-    pub sl_sidxs: *mut idx_T,
+    pub sl_sbyts: Vec<u8>,
+    pub sl_sidxs: Vec<idx_T>,
     pub sl_sugbuf: *mut buf_T,
     pub sl_sugloaded: bool,
     pub sl_has_map: bool,
@@ -1134,7 +1131,7 @@ unsafe fn suggest_try_change(su: *mut suginfo_T) {
         let w_s = (*curwin).w_s.cast::<synblock_T>();
         for lpi in 0..(*w_s).b_langp.len() {
             let lp = langp_entry(&raw const (*w_s).b_langp, lpi);
-            if (*(*lp).lp_slang).sl_fbyts.is_null() {
+            if (*(*lp).lp_slang).sl_fbyts.is_empty() {
                 continue;
             }
             suggest_trie_walk(su, lp, (&raw mut fword).cast(), false);
@@ -1182,25 +1179,27 @@ unsafe fn suggest_trie_walk(
         stack[0] = trystate_T::default();
         stack[0].ts_curi = 1;
         if soundfold {
-            fbyts = (*slang).sl_sbyts;
+            fbyts = (*slang).sl_sbyts.as_mut_ptr();
             byts = fbyts;
-            fidxs = (*slang).sl_sidxs;
+            fidxs = (*slang).sl_sidxs.as_mut_ptr();
             idxs = fidxs;
             pbyts = ptr::null_mut();
             pidxs = ptr::null_mut();
             stack[0].ts_prefixdepth = PFD_NOPREFIX;
             stack[0].ts_state = state_T::STATE_START;
         } else {
-            fbyts = (*slang).sl_fbyts;
-            fidxs = (*slang).sl_fidxs;
-            pbyts = (*slang).sl_pbyts;
-            pidxs = (*slang).sl_pidxs;
-            if !pbyts.is_null() {
+            fbyts = (*slang).sl_fbyts.as_mut_ptr();
+            fidxs = (*slang).sl_fidxs.as_mut_ptr();
+            if !(*slang).sl_pbyts.is_empty() {
+                pbyts = (*slang).sl_pbyts.as_mut_ptr();
+                pidxs = (*slang).sl_pidxs.as_mut_ptr();
                 byts = pbyts;
                 idxs = pidxs;
                 stack[0].ts_prefixdepth = PFD_PREFIXTREE;
                 stack[0].ts_state = state_T::STATE_NOPREFIX;
             } else {
+                pbyts = ptr::null_mut();
+                pidxs = ptr::null_mut();
                 byts = fbyts;
                 idxs = fidxs;
                 stack[0].ts_prefixdepth = PFD_NOPREFIX;
@@ -1904,7 +1903,9 @@ unsafe fn suggest_trie_walk(
                     }
                     n += stack[udepth].ts_curi as c_int;
                     stack[udepth].ts_curi += 1;
-                    if byts == (*slang).sl_fbyts && n >= (*slang).sl_fbyts_len {
+                    if byts == (*slang).sl_fbyts.as_mut_ptr()
+                        && n >= (*slang).sl_fbyts.len() as c_int
+                    {
                         got_int = true;
                         continue;
                     }
@@ -2209,12 +2210,12 @@ unsafe fn find_keepcap_word(slang: *mut slang_T, fword: *mut c_char, kword: *mut
         let mut fwordidx: [c_int; MAXWLEN] = [0; MAXWLEN];
         let mut uwordidx: [c_int; MAXWLEN] = [0; MAXWLEN];
         let mut kwordlen: [c_int; MAXWLEN] = [0; MAXWLEN];
-        let byts = (*slang).sl_kbyts;
-        let idxs = (*slang).sl_kidxs;
-        if byts.is_null() {
+        if (*slang).sl_kbyts.is_empty() {
             *kword = NUL;
             return;
         }
+        let byts = (*slang).sl_kbyts.as_mut_ptr();
+        let idxs = (*slang).sl_kidxs.as_mut_ptr();
         allcap_copy(fword, (&raw mut uword).cast());
         let mut depth: isize = 0;
         while depth >= 0 {
@@ -2481,11 +2482,11 @@ unsafe fn stp_sal_score(
 }
 unsafe fn suggest_try_soundalike_prep() {
     unsafe {
-        let w_s = (*curwin).w_s.cast::<synblock_T>();
+        let w_s = (*curwin).w_s;
         for lpi in 0..(*w_s).b_langp.len() {
             let lp = langp_entry(&raw const (*w_s).b_langp, lpi);
             let slang = (*lp).lp_slang;
-            if (*slang).has_sal() && !(*slang).sl_sbyts.is_null() {
+            if (*slang).has_sal() && !(*slang).sl_sbyts.is_empty() {
                 (*slang).sl_sounddone.clear();
             }
         }
@@ -2494,11 +2495,11 @@ unsafe fn suggest_try_soundalike_prep() {
 unsafe fn suggest_try_soundalike(su: *mut suginfo_T) {
     unsafe {
         let mut salword: [c_char; MAXWLEN] = [0; MAXWLEN];
-        let w_s = (*curwin).w_s.cast::<synblock_T>();
+        let w_s = (*curwin).w_s;
         for lpi in 0..(*w_s).b_langp.len() {
             let lp = langp_entry(&raw const (*w_s).b_langp, lpi);
             let slang = (*lp).lp_slang;
-            if (*slang).has_sal() && !(*slang).sl_sbyts.is_null() {
+            if (*slang).has_sal() && !(*slang).sl_sbyts.is_empty() {
                 spell_soundfold(
                     slang,
                     (&raw mut (*su).su_fbadword).cast(),
@@ -2512,11 +2513,11 @@ unsafe fn suggest_try_soundalike(su: *mut suginfo_T) {
 }
 unsafe fn suggest_try_soundalike_finish() {
     unsafe {
-        let w_s = (*curwin).w_s.cast::<synblock_T>();
+        let w_s = (*curwin).w_s;
         for lpi in 0..(*w_s).b_langp.len() {
             let lp = langp_entry(&raw const (*w_s).b_langp, lpi);
             let slang = (*lp).lp_slang;
-            if (*slang).has_sal() && !(*slang).sl_sbyts.is_null() {
+            if (*slang).has_sal() && !(*slang).sl_sbyts.is_empty() {
                 (*slang).sl_sounddone.clear();
             }
         }
@@ -2551,8 +2552,8 @@ unsafe fn add_sound_suggest(
         let mut orgnr: c_int = 0;
         while *nrline != NUL {
             orgnr += bytes2offset(&raw mut nrline);
-            let byts = (*slang).sl_fbyts;
-            let idxs = (*slang).sl_fidxs;
+            let byts = (*slang).sl_fbyts.as_mut_ptr();
+            let idxs = (*slang).sl_fidxs.as_mut_ptr();
             let mut n: idx_T = 0;
             let mut wordcount: c_int = 0;
             let mut wlen: usize = 0;
@@ -2680,8 +2681,8 @@ unsafe fn soundfold_find(slang: *mut slang_T, word: *mut c_char) -> c_int {
         let mut wlen: usize = 0;
         let ptr = word.cast::<u8>();
         let mut wordnr: c_int = 0;
-        let byts = (*slang).sl_sbyts;
-        let idxs = (*slang).sl_sidxs;
+        let byts = (*slang).sl_sbyts.as_mut_ptr();
+        let idxs = (*slang).sl_sidxs.as_mut_ptr();
         loop {
             let mut len = *byts.add(arridx as usize) as c_int;
             arridx += 1;

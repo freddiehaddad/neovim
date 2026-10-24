@@ -287,7 +287,7 @@ pub unsafe fn spell_check(
         mi.mi_result2 = SP_BAD;
         for lpi in 0..(*w_s).b_langp.len() {
             mi.mi_lp = langp_entry(&raw const (*w_s).b_langp, lpi);
-            if (*(*mi.mi_lp).lp_slang).sl_fidxs.is_null() {
+            if (*(*mi.mi_lp).lp_slang).sl_fidxs.is_empty() {
                 continue;
             }
             find_word(&raw mut mi, FIND_FOLDWORD);
@@ -334,7 +334,7 @@ pub unsafe fn spell_check(
             {
                 let save_result = mi.mi_result;
                 mi.mi_lp = langp_entry(&raw const (*w_s).b_langp, 0);
-                if !(*(*mi.mi_lp).lp_slang).sl_fidxs.is_null() {
+                if !(*(*mi.mi_lp).lp_slang).sl_fidxs.is_empty() {
                     let mut p = mi.mi_word;
                     let mut fp = (&raw mut mi.mi_fword).cast::<c_char>();
                     loop {
@@ -422,18 +422,24 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
         let byts: *mut u8;
         let idxs: *mut idx_T;
         if mode == FIND_KEEPWORD || mode == FIND_KEEPCOMPOUND {
+            if (*slang).sl_kbyts.is_empty() {
+                return;
+            }
             ptr = (*mip).mi_word;
             flen = 9999;
-            byts = (*slang).sl_kbyts;
-            idxs = (*slang).sl_kidxs;
+            byts = (*slang).sl_kbyts.as_mut_ptr();
+            idxs = (*slang).sl_kidxs.as_mut_ptr();
             if mode == FIND_KEEPCOMPOUND {
                 wlen += (*mip).mi_compoff;
             }
         } else {
+            if (*slang).sl_fbyts.is_empty() {
+                return;
+            }
             ptr = (&raw mut (*mip).mi_fword).cast();
             flen = (*mip).mi_fwordlen;
-            byts = (*slang).sl_fbyts;
-            idxs = (*slang).sl_fidxs;
+            byts = (*slang).sl_fbyts.as_mut_ptr();
+            idxs = (*slang).sl_fidxs.as_mut_ptr();
             if mode == FIND_PREFIX {
                 wlen = (*mip).mi_prefixlen;
                 flen -= (*mip).mi_prefixlen;
@@ -441,9 +447,6 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
                 wlen = (*mip).mi_compoff;
                 flen -= (*mip).mi_compoff;
             }
-        }
-        if byts.is_null() {
-            return;
         }
         let mut arridx: idx_T = 0;
         let mut endlen: [c_int; MAXWLEN] = [0; MAXWLEN];
@@ -711,11 +714,11 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
                     if (flags & WF_COMPROOT as u32) != 0 {
                         (*mip).mi_compextra += 1;
                     }
-                    let w_s = (*(*mip).mi_win).w_s.cast::<synblock_T>();
+                    let w_s = (*(*mip).mi_win).w_s;
                     for lpi in 0..(*w_s).b_langp.len() {
                         if (*slang).sl_nobreak {
                             (*mip).mi_lp = langp_entry(&raw const (*w_s).b_langp, lpi);
-                            if (*(*(*mip).mi_lp).lp_slang).sl_fidxs.is_null()
+                            if (*(*(*mip).mi_lp).lp_slang).sl_fidxs.is_empty()
                                 || !(*(*(*mip).mi_lp).lp_slang).sl_nobreak
                             {
                                 continue;
@@ -883,7 +886,7 @@ pub unsafe fn valid_word_prefix(
         let prefid = ((flags as u32) >> 24) as c_int;
         let mut prefcnt = totprefcnt - 1;
         while prefcnt >= 0 {
-            let pidx = *(*slang).sl_pidxs.add((arridx + prefcnt) as usize);
+            let pidx = *(*slang).sl_pidxs.as_ptr().add((arridx + prefcnt) as usize);
             prefcnt -= 1;
             if prefid != (pidx & 0xff) {
                 continue;
@@ -893,8 +896,8 @@ pub unsafe fn valid_word_prefix(
             }
             let rp = (*slang)
                 .sl_prefprog
-                .add((((pidx as u32) >> 8) & 0xffff) as usize)
-                .cast::<*mut regprog_T>();
+                .as_mut_ptr()
+                .add((((pidx as u32) >> 8) & 0xffff) as usize);
             if !(*rp).is_null() {
                 if !vim_regexec_prog(rp, false, word, 0) {
                     continue;
@@ -912,17 +915,17 @@ unsafe fn find_prefix(mip: *mut matchinf_T, mode: c_int) {
         let mut arridx: idx_T = 0;
         let mut wlen: c_int = 0;
         let slang = (*(*mip).mi_lp).lp_slang;
-        let byts = (*slang).sl_pbyts;
-        if byts.is_null() {
+        if (*slang).sl_pbyts.is_empty() {
             return;
         }
+        let byts = (*slang).sl_pbyts.as_mut_ptr();
         let mut ptr = (&raw mut (*mip).mi_fword).cast::<c_char>();
         let mut flen = (*mip).mi_fwordlen;
         if mode == FIND_COMPOUND {
             ptr = ptr.add((*mip).mi_compoff as usize);
             flen -= (*mip).mi_compoff;
         }
-        let idxs = (*slang).sl_pidxs;
+        let idxs = (*slang).sl_pidxs.as_mut_ptr();
         loop {
             if flen == 0 && *(*mip).mi_fend != NUL {
                 flen = fold_more(mip);
@@ -1363,16 +1366,25 @@ unsafe fn int_wordlist_spl(fname: *mut c_char) {
 pub unsafe fn slang_alloc(lang: *mut c_char) -> *mut slang_T {
     unsafe {
         let lp = xcalloc(1, size_of::<slang_T>()).cast::<slang_T>();
+        ptr::write(&raw mut (*lp).sl_fbyts, Vec::new());
+        ptr::write(&raw mut (*lp).sl_fidxs, Vec::new());
+        ptr::write(&raw mut (*lp).sl_kbyts, Vec::new());
+        ptr::write(&raw mut (*lp).sl_kidxs, Vec::new());
+        ptr::write(&raw mut (*lp).sl_pbyts, Vec::new());
+        ptr::write(&raw mut (*lp).sl_pidxs, Vec::new());
         ptr::write(
             &raw mut (*lp).sl_wordcount,
             std::collections::BTreeMap::new(),
         );
         ptr::write(&raw mut (*lp).sl_comppat, Vec::new());
         ptr::write(&raw mut (*lp).sl_syl_items, Vec::new());
+        ptr::write(&raw mut (*lp).sl_prefprog, Vec::new());
         ptr::write(&raw mut (*lp).sl_rep, Vec::new());
         ptr::write(&raw mut (*lp).sl_sal, Vec::new());
         ptr::write(&raw mut (*lp).sl_sofo_sal, Vec::new());
         ptr::write(&raw mut (*lp).sl_repsal, Vec::new());
+        ptr::write(&raw mut (*lp).sl_sbyts, Vec::new());
+        ptr::write(&raw mut (*lp).sl_sidxs, Vec::new());
         ptr::write(
             &raw mut (*lp).sl_map_hash,
             std::collections::BTreeMap::new(),
@@ -1394,13 +1406,22 @@ pub unsafe fn slang_free(lp: *mut slang_T) {
         xfree((*lp).sl_name.cast());
         xfree((*lp).sl_fname.cast());
         slang_clear(lp);
+        ptr::drop_in_place(&raw mut (*lp).sl_fbyts);
+        ptr::drop_in_place(&raw mut (*lp).sl_fidxs);
+        ptr::drop_in_place(&raw mut (*lp).sl_kbyts);
+        ptr::drop_in_place(&raw mut (*lp).sl_kidxs);
+        ptr::drop_in_place(&raw mut (*lp).sl_pbyts);
+        ptr::drop_in_place(&raw mut (*lp).sl_pidxs);
         ptr::drop_in_place(&raw mut (*lp).sl_wordcount);
         ptr::drop_in_place(&raw mut (*lp).sl_comppat);
         ptr::drop_in_place(&raw mut (*lp).sl_syl_items);
+        ptr::drop_in_place(&raw mut (*lp).sl_prefprog);
         ptr::drop_in_place(&raw mut (*lp).sl_rep);
         ptr::drop_in_place(&raw mut (*lp).sl_sal);
         ptr::drop_in_place(&raw mut (*lp).sl_sofo_sal);
         ptr::drop_in_place(&raw mut (*lp).sl_repsal);
+        ptr::drop_in_place(&raw mut (*lp).sl_sbyts);
+        ptr::drop_in_place(&raw mut (*lp).sl_sidxs);
         ptr::drop_in_place(&raw mut (*lp).sl_map_hash);
         ptr::drop_in_place(&raw mut (*lp).sl_sounddone);
         xfree(lp.cast());
@@ -1421,9 +1442,6 @@ pub unsafe fn free_sal_items(lp: *mut slang_T) {
             free_salitem(&raw mut item);
         }
         (*lp).sl_sal = Vec::new();
-        for p in (*lp).sl_sofo_sal.drain(..) {
-            xfree(p.cast());
-        }
         (*lp).sl_sofo_sal = Vec::new();
     }
 }
@@ -1435,18 +1453,12 @@ unsafe fn free_fromto(ftp: *mut fromto_T) {
 }
 pub unsafe fn slang_clear(lp: *mut slang_T) {
     unsafe {
-        xfree((*lp).sl_fbyts.cast());
-        (*lp).sl_fbyts = ptr::null_mut();
-        xfree((*lp).sl_kbyts.cast());
-        (*lp).sl_kbyts = ptr::null_mut();
-        xfree((*lp).sl_pbyts.cast());
-        (*lp).sl_pbyts = ptr::null_mut();
-        xfree((*lp).sl_fidxs.cast());
-        (*lp).sl_fidxs = ptr::null_mut();
-        xfree((*lp).sl_kidxs.cast());
-        (*lp).sl_kidxs = ptr::null_mut();
-        xfree((*lp).sl_pidxs.cast());
-        (*lp).sl_pidxs = ptr::null_mut();
+        (*lp).sl_fbyts = Vec::new();
+        (*lp).sl_kbyts = Vec::new();
+        (*lp).sl_pbyts = Vec::new();
+        (*lp).sl_fidxs = Vec::new();
+        (*lp).sl_kidxs = Vec::new();
+        (*lp).sl_pidxs = Vec::new();
         for mut ft in (*lp).sl_rep.drain(..) {
             free_fromto(&raw mut ft);
         }
@@ -1456,12 +1468,10 @@ pub unsafe fn slang_clear(lp: *mut slang_T) {
         }
         (*lp).sl_repsal = Vec::new();
         free_sal_items(lp);
-        for i in 0..((*lp).sl_prefixcnt as usize) {
-            vim_regfree((*(*lp).sl_prefprog.add(i)).cast());
+        for prog in (*lp).sl_prefprog.drain(..) {
+            vim_regfree(prog.cast());
         }
-        (*lp).sl_prefixcnt = 0;
-        xfree((*lp).sl_prefprog.cast());
-        (*lp).sl_prefprog = ptr::null_mut();
+        (*lp).sl_prefprog = Vec::new();
         xfree((*lp).sl_info.cast());
         (*lp).sl_info = ptr::null_mut();
         xfree((*lp).sl_midword.cast());
@@ -1490,10 +1500,8 @@ pub unsafe fn slang_clear(lp: *mut slang_T) {
 }
 pub unsafe fn slang_clear_sug(lp: *mut slang_T) {
     unsafe {
-        xfree((*lp).sl_sbyts.cast());
-        (*lp).sl_sbyts = ptr::null_mut();
-        xfree((*lp).sl_sidxs.cast());
-        (*lp).sl_sidxs = ptr::null_mut();
+        (*lp).sl_sbyts = Vec::new();
+        (*lp).sl_sidxs = Vec::new();
         close_spellbuf((*lp).sl_sugbuf);
         (*lp).sl_sugbuf = ptr::null_mut();
         (*lp).sl_sugloaded = false;
@@ -2462,22 +2470,10 @@ unsafe fn spell_soundfold_sofo(slang: *mut slang_T, inword: *const c_char, res: 
             } else if (0..256).contains(&c) {
                 c = (*slang).sl_sal_first[c as usize];
             } else {
-                let mut ip = (&(*slang).sl_sofo_sal)[(c & 0xff) as usize];
-                if ip.is_null() {
-                    c = NUL as c_int;
-                } else {
-                    loop {
-                        if *ip == 0 {
-                            c = NUL as c_int;
-                            break;
-                        }
-                        if *ip == c {
-                            c = *ip.add(1);
-                            break;
-                        }
-                        ip = ip.add(2);
-                    }
-                }
+                c = (&(*slang).sl_sofo_sal)[(c & 0xff) as usize]
+                    .iter()
+                    .find(|&&(k, _)| k == c)
+                    .map_or(NUL as c_int, |&(_, v)| v);
             }
             if c != NUL as c_int && c != prevc {
                 ri += utf_char2bytes(c, res.add(ri)) as usize;
@@ -2882,7 +2878,7 @@ pub unsafe fn spell_dump_compl(
         for lpi in 0..(*w_s).b_langp.len() {
             let lp = langp_entry(&raw const (*w_s).b_langp, lpi);
             let slang = (*lp).lp_slang;
-            if (*slang).sl_fbyts.is_null() {
+            if (*slang).sl_fbyts.is_empty() {
                 continue;
             }
             if pat.is_null() {
@@ -2895,7 +2891,7 @@ pub unsafe fn spell_dump_compl(
                 let _ = ml_append(lnum, (&raw mut IObuff).cast(), 0, false);
                 lnum += 1;
             }
-            let patlen: isize = if !pat.is_null() && (*slang).sl_pbyts.is_null() {
+            let patlen: isize = if !pat.is_null() && (*slang).sl_pbyts.is_empty() {
                 strlen(pat) as isize
             } else {
                 -1
@@ -2903,14 +2899,23 @@ pub unsafe fn spell_dump_compl(
             for round in 1..=2 {
                 let (byts, idxs) = if round == 1 {
                     dumpflags &= !DUMPFLAG_KEEPCASE;
-                    ((*slang).sl_fbyts, (*slang).sl_fidxs)
+                    if (*slang).sl_fbyts.is_empty() {
+                        continue;
+                    }
+                    (
+                        (*slang).sl_fbyts.as_mut_ptr(),
+                        (*slang).sl_fidxs.as_mut_ptr(),
+                    )
                 } else {
                     dumpflags |= DUMPFLAG_KEEPCASE;
-                    ((*slang).sl_kbyts, (*slang).sl_kidxs)
+                    if (*slang).sl_kbyts.is_empty() {
+                        continue;
+                    }
+                    (
+                        (*slang).sl_kbyts.as_mut_ptr(),
+                        (*slang).sl_kidxs.as_mut_ptr(),
+                    )
                 };
-                if byts.is_null() {
-                    continue;
-                }
                 let mut depth: isize = 0;
                 arridx[0] = 0;
                 curi[0] = 1;
@@ -3094,9 +3099,9 @@ unsafe fn dump_prefixes(
             onecap_copy(word, (&raw mut word_up).cast(), true);
             has_word_up = true;
         }
-        let byts = (*slang).sl_pbyts;
-        let idxs = (*slang).sl_pidxs;
-        if !byts.is_null() {
+        if !(*slang).sl_pbyts.is_empty() {
+            let byts = (*slang).sl_pbyts.as_mut_ptr();
+            let idxs = (*slang).sl_pidxs.as_mut_ptr();
             let mut depth: isize = 0;
             arridx[0] = 0;
             curi[0] = 1;
