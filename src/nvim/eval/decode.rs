@@ -4,7 +4,7 @@ use crate::charset::vim_str2nr;
 use crate::eval::encode::encode_list_write;
 use crate::eval::string2float;
 use crate::eval::typval::{
-    TypvalVval, VAR_UNLOCKED, VarType, dict_T, list_T, tv_blob_alloc_ret, tv_clear,
+    TypvalVval, VAR_UNLOCKED, VarType, list_T, tv_blob_alloc_ret, tv_clear,
     tv_dict_add, tv_dict_alloc, tv_dict_find, tv_dict_item_alloc, tv_dict_item_alloc_len,
     tv_list_alloc, tv_list_append_list, tv_list_append_number, tv_list_append_owned_tv,
     tv_list_len, tv_list_ref, typval_T,
@@ -72,9 +72,7 @@ unsafe fn create_special_dict(rettv: *mut typval_T, mp_type: usize, val: typval_
         *rettv = typval_T {
             v_type: VarType::VAR_DICT,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval {
-                v_ptr: dict.cast::<c_void>(),
-            },
+            vval: TypvalVval { v_dict: dict },
         };
     }
 }
@@ -196,7 +194,7 @@ unsafe fn json_decoder_pop(
                 assert!(!(key.is_special_string || key.val.vval.v_string.is_null()));
                 let obj_di = tv_dict_item_alloc(key.val.vval.v_string);
                 tv_clear(&mut key.val);
-                let dict = last_container.container.vval.v_ptr.cast::<dict_T>();
+                let dict = last_container.container.vval.v_dict;
                 if tv_dict_add(dict, obj_di) == FAIL {
                     std::process::abort();
                 }
@@ -214,7 +212,7 @@ unsafe fn json_decoder_pop(
                 tv_clear(&mut v);
                 return FAIL;
             } else if !obj.didcomma && last_container.special_val.is_null() {
-                let dict = last_container.container.vval.v_ptr.cast::<dict_T>();
+                let dict = last_container.container.vval.v_dict;
                 if (*dict).dv_hashtab.ht_used != 0 {
                     semsg!(
                         c"E474: Expected comma before dictionary key: %s".as_ptr(),
@@ -225,7 +223,7 @@ unsafe fn json_decoder_pop(
                     return FAIL;
                 }
             }
-            let dict = last_container.container.vval.v_ptr.cast::<dict_T>();
+            let dict = last_container.container.vval.v_dict;
             if last_container.special_val.is_null()
                 && (obj.is_special_string
                     || obj.val.vval.v_string.is_null()
@@ -748,7 +746,7 @@ pub unsafe fn json_decode_string(
                         let last_container = *container_stack.last().unwrap();
                         let is_empty_cont = if last_container.special_val.is_null() {
                             if last_container.container.v_type == VarType::VAR_DICT {
-                                let d = last_container.container.vval.v_ptr.cast::<dict_T>();
+                                let d = last_container.container.vval.v_dict;
                                 (*d).dv_hashtab.ht_used == 0
                             } else {
                                 tv_list_len(last_container.container.vval.v_list) == 0
@@ -995,9 +993,7 @@ pub unsafe fn json_decode_string(
                             tv = typval_T {
                                 v_type: VarType::VAR_DICT,
                                 v_lock: VAR_UNLOCKED,
-                                vval: TypvalVval {
-                                    v_ptr: dict.cast::<c_void>(),
-                                },
+                                vval: TypvalVval { v_dict: dict },
                             };
                         }
                         container_stack.push(JsonContainerStackItem {
@@ -1273,9 +1269,7 @@ unsafe fn typval_parse_exit(_parser: *mut mpack_parser_t, node: *mut mpack_node_
                     *result = typval_T {
                         v_type: VarType::VAR_DICT,
                         v_lock: VAR_UNLOCKED,
-                        vval: TypvalVval {
-                            v_ptr: dict.cast::<c_void>(),
-                        },
+                        vval: TypvalVval { v_dict: dict },
                     };
                     for i in 0..len {
                         let key = (*items.add(i))[0].vval.v_string;

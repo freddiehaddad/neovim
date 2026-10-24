@@ -659,7 +659,7 @@ pub unsafe fn get_lambda_tv(
 
             (*pt).pt_func = fp;
             (*pt).pt_refcount = 1;
-            (*rettv).vval.v_ptr = pt.cast();
+            (*rettv).vval.v_partial = pt;
             (*rettv).v_type = VarType::VAR_PARTIAL;
         }
 
@@ -705,7 +705,7 @@ pub unsafe fn deref_func_name(
         }
 
         if (*tv).v_type == VarType::VAR_PARTIAL {
-            let pt = (*tv).vval.v_ptr.cast::<partial_T>();
+            let pt = (*tv).vval.v_partial;
             if pt.is_null() {
                 *lenp = 0;
                 return c"".as_ptr().cast_mut();
@@ -2278,9 +2278,9 @@ pub unsafe fn trans_function_name(
                 name = xstrdup((*lv.ll_tv).vval.v_string);
                 *pp = end.cast_mut();
             } else if (*lv.ll_tv).v_type == VarType::VAR_PARTIAL
-                && !(*lv.ll_tv).vval.v_ptr.is_null()
+                && !(*lv.ll_tv).vval.v_partial.is_null()
             {
-                let pt = (*lv.ll_tv).vval.v_ptr.cast::<partial_T>();
+                let pt = (*lv.ll_tv).vval.v_partial;
                 if is_luafunc(pt) && *end == b'.' as c_char {
                     len = check_luafunc_name(end.add(1), true);
                     if len == 0 {
@@ -4108,18 +4108,18 @@ pub unsafe fn make_partial(selfdict: *mut dict_T, rettv: *mut typval_T) {
         let mut error = 0;
 
         if (*rettv).v_type == VarType::VAR_PARTIAL
-            && !(*rettv).vval.v_ptr.is_null()
-            && !(*(*rettv).vval.v_ptr.cast::<partial_T>()).pt_func.is_null()
+            && !(*rettv).vval.v_partial.is_null()
+            && !(*(*rettv).vval.v_partial).pt_func.is_null()
         {
-            fp = (*(*rettv).vval.v_ptr.cast::<partial_T>()).pt_func;
+            fp = (*(*rettv).vval.v_partial).pt_func;
         } else {
             let mut fname =
                 if (*rettv).v_type == VarType::VAR_FUNC || (*rettv).v_type == VarType::VAR_STRING {
                     (*rettv).vval.v_string
-                } else if (*rettv).vval.v_ptr.is_null() {
+                } else if (*rettv).vval.v_partial.is_null() {
                     ptr::null_mut()
                 } else {
-                    (*(*rettv).vval.v_ptr.cast::<partial_T>()).pt_name
+                    (*(*rettv).vval.v_partial).pt_name
                 };
             if fname.is_null() {
                 (*rettv).v_type = VarType::VAR_FUNC;
@@ -4146,7 +4146,7 @@ pub unsafe fn make_partial(selfdict: *mut dict_T, rettv: *mut typval_T) {
             if (*rettv).v_type == VarType::VAR_FUNC || (*rettv).v_type == VarType::VAR_STRING {
                 (*pt).pt_name = (*rettv).vval.v_string;
             } else {
-                let ret_pt = (*rettv).vval.v_ptr.cast::<partial_T>();
+                let ret_pt = (*rettv).vval.v_partial;
                 if !(*ret_pt).pt_name.is_null() {
                     (*pt).pt_name = xstrdup((*ret_pt).pt_name);
                     func_ref((*pt).pt_name);
@@ -4167,7 +4167,7 @@ pub unsafe fn make_partial(selfdict: *mut dict_T, rettv: *mut typval_T) {
                 partial_unref(ret_pt);
             }
             (*rettv).v_type = VarType::VAR_PARTIAL;
-            (*rettv).vval.v_ptr = pt.cast();
+            (*rettv).vval.v_partial = pt;
         }
     }
 }

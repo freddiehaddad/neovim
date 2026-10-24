@@ -298,13 +298,13 @@ pub struct caller_scope {
 
 #[inline]
 unsafe fn tv_partial(tv: *const typval_T) -> *mut partial_T {
-    unsafe { (*tv).vval.v_ptr.cast::<partial_T>() }
+    unsafe { (*tv).vval.v_partial }
 }
 
 #[inline]
 unsafe fn tv_set_partial(tv: *mut typval_T, pt: *mut partial_T) {
     unsafe {
-        (*tv).vval.v_ptr = pt.cast();
+        (*tv).vval.v_partial = pt;
     }
 }
 
@@ -5504,7 +5504,7 @@ pub unsafe fn set_ref_in_callback(
                 v_type: VarType::VAR_PARTIAL,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval {
-                    v_ptr: (*callback).data.partial.cast(),
+                    v_partial: (*callback).data.partial,
                 },
             };
             return set_ref_in_item(&raw mut tv, copyID, ht_stack, list_stack);

@@ -18,7 +18,7 @@ use crate::eval::encode::{
     MPConvStackValType, encode_vim_list_to_buf,
 };
 use crate::eval::typval::{
-    TypvalVval, VAR_UNLOCKED, VarType, blob_T, dict_T, partial_T, tv_blob_len,
+    TypvalVval, VAR_UNLOCKED, VarType, tv_blob_len,
     tv_clear, tv_copy, tv_dict_add, tv_dict_alloc, tv_dict_find, tv_dict_item_alloc_len,
     tv_list_alloc, tv_list_append_list, tv_list_append_owned_tv, tv_list_first, tv_list_last,
     tv_list_len, tv_list_ref, typval_T,
@@ -595,7 +595,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                             };
                         } else {
                             let di = tv_dict_item_alloc_len(s, len);
-                            if tv_dict_add((*cur.tv).vval.v_ptr.cast::<dict_T>(), di) == FAIL {
+                            if tv_dict_add((*cur.tv).vval.v_dict, di) == FAIL {
                                 std::process::abort();
                             }
                             stack.push(cur);
@@ -715,7 +715,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                                     (*d).dv_refcount += 1;
                                     (*d).lua_table_ref = table_ref;
                                     (*cur.tv).v_type = VarType::VAR_DICT;
-                                    (*cur.tv).vval.v_ptr = d.cast::<c_void>();
+                                    (*cur.tv).vval.v_dict = d;
                                 } else {
                                     cur.special = table_props.has_string_with_nul;
                                     if table_props.has_string_with_nul {
@@ -723,11 +723,8 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                                             cur.tv,
                                             table_props.string_keys_num as isize,
                                         );
-                                        let val_di = tv_dict_find(
-                                            (*cur.tv).vval.v_ptr.cast::<dict_T>(),
-                                            c"_VAL".as_ptr(),
-                                            4,
-                                        );
+                                        let val_di =
+                                            tv_dict_find((*cur.tv).vval.v_dict, c"_VAL".as_ptr(), 4);
                                         assert!(!val_di.is_null());
                                         cur.tv = &mut (*val_di).di_tv;
                                         (*(*cur.tv).vval.v_list).lua_table_ref = table_ref;
@@ -737,7 +734,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                                         (*d).dv_refcount += 1;
                                         (*d).lua_table_ref = table_ref;
                                         (*cur.tv).v_type = VarType::VAR_DICT;
-                                        (*cur.tv).vval.v_ptr = d.cast::<c_void>();
+                                        (*cur.tv).vval.v_dict = d;
                                     }
                                     cur.container = true;
                                     cur.idx = lua_gettop(lstate);
@@ -920,7 +917,7 @@ unsafe fn lua_convert_one_value(
                 lua_pushnumber(lstate, tv_ref.vval.v_float);
             }
             VarType::VAR_BLOB => {
-                let blob = tv_ref.vval.v_ptr.cast::<blob_T>();
+                let blob = tv_ref.vval.v_blob;
                 let len = tv_blob_len(blob) as usize;
                 let data = if !blob.is_null() && !(*blob).bv_ga.is_empty() {
                     (*blob).bv_ga.as_ptr().cast::<c_char>()
@@ -943,7 +940,7 @@ unsafe fn lua_convert_one_value(
                 }
             }
             VarType::VAR_PARTIAL => {
-                let pt = tv_ref.vval.v_ptr.cast::<partial_T>();
+                let pt = tv_ref.vval.v_partial;
                 let fun = if pt.is_null() {
                     std::ptr::null_mut()
                 } else {
@@ -1003,7 +1000,7 @@ unsafe fn lua_convert_one_value(
                 }
             }
             VarType::VAR_DICT => {
-                let dict = tv_ref.vval.v_ptr.cast::<dict_T>();
+                let dict = tv_ref.vval.v_dict;
                 if dict.is_null() || (*dict).dv_hashtab.ht_used == 0 {
                     lua_conv_empty_dict(lstate);
                     return OK;
@@ -1237,7 +1234,7 @@ unsafe fn lua_convert_one_value(
                         saved_copy_id,
                         data: MPConvStackData::Dict {
                             dict,
-                            dictp: std::ptr::addr_of_mut!(tv_ref.vval.v_ptr).cast::<*mut dict_T>(),
+                            dictp: std::ptr::addr_of_mut!(tv_ref.vval.v_dict),
                             hi: (*dict).dv_hashtab.ht_array,
                             todo: (*dict).dv_hashtab.ht_used,
                         },

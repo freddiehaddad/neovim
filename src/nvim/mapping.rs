@@ -16,7 +16,7 @@ use crate::charset::{
 use crate::cmdexpand::{EXPAND_MAPPINGS, EXPAND_NOTHING, MB_MAXBYTES, cmdline_fuzzy_complete};
 use crate::errors::*;
 use crate::eval::typval::{
-    EvalFuncData, TypvalVval, VAR_UNLOCKED, VarType, dict_T, list_T, nlua_clear_ref,
+    EvalFuncData, TypvalVval, VAR_UNLOCKED, VarType, nlua_clear_ref,
     tv_check_for_dict_arg, tv_dict_alloc_ret, tv_dict_find, tv_dict_get_bool, tv_dict_get_number,
     tv_dict_get_string, tv_get_bool, tv_get_string, tv_get_string_buf, tv_get_string_buf_chk,
     tv_list_alloc_ret, tv_list_append_dict, typval_T,
@@ -2456,7 +2456,7 @@ pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: Eva
         let dict_only = (*argvars).v_type == VarType::VAR_DICT;
 
         let (which, is_abbr, d) = if dict_only {
-            let d = (*argvars).vval.v_ptr.cast::<dict_T>();
+            let d = (*argvars).vval.v_dict;
             let which = tv_dict_get_string(d, c"mode".as_ptr(), false);
             let is_abbr = tv_dict_get_bool(d, c"abbr".as_ptr(), -1) as c_int;
             if which.is_null() || is_abbr < 0 {
@@ -2473,7 +2473,7 @@ pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: Eva
             if tv_check_for_dict_arg(argvars, 2) == FAIL {
                 return;
             }
-            let d = (*argvars.add(2)).vval.v_ptr.cast::<dict_T>();
+            let d = (*argvars.add(2)).vval.v_dict;
             (which, is_abbr, d)
         };
         let mode = get_map_mode_string(which, is_abbr != 0);
@@ -2663,10 +2663,7 @@ pub unsafe fn f_maplist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                     let mut dobj = dict_obj(dict);
                     object_to_vim_take_luaref(&mut dobj, &mut d, true, ptr::null_mut());
                     debug_assert!(d.v_type == VarType::VAR_DICT);
-                    tv_list_append_dict(
-                        (*rettv).vval.v_ptr.cast::<list_T>(),
-                        d.vval.v_ptr.cast::<dict_T>(),
-                    );
+                    tv_list_append_dict((*rettv).vval.v_list, d.vval.v_dict);
                     arena_mem_free(arena_finish(&mut arena));
                     xfree(keys_buf.cast::<c_void>());
                     mp = (*mp).m_next;

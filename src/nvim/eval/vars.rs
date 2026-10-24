@@ -2274,7 +2274,7 @@ pub unsafe fn get_vim_var_str(idx: VimVarIndex) -> *mut c_char {
 }
 
 pub unsafe fn get_vim_var_partial(idx: VimVarIndex) -> *mut partial_T {
-    unsafe { (*get_vim_var_tv(idx)).vval.v_ptr.cast::<partial_T>() }
+    unsafe { (*get_vim_var_tv(idx)).vval.v_partial }
 }
 
 /// Function to concatenate a prefix and a variable name.
@@ -2466,7 +2466,7 @@ pub unsafe fn set_vim_var_dict(idx: VimVarIndex, val: *mut dict_T) {
 pub unsafe fn set_vim_var_partial(idx: VimVarIndex, val: *mut partial_T) {
     unsafe {
         let tv = get_vim_var_tv(idx);
-        (*tv).vval.v_ptr = val.cast();
+        (*tv).vval.v_partial = val;
     }
 }
 

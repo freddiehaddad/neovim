@@ -407,7 +407,7 @@ pub unsafe extern "C" fn nvim_call_dict_function(
         }
 
         'body: {
-            let self_dict = rettv.vval.v_ptr.cast::<dict_T>();
+            let self_dict = rettv.vval.v_dict;
             if rettv.v_type != VarType::VAR_DICT || self_dict.is_null() {
                 api_set_error!(
                     err,

@@ -31,15 +31,17 @@ const KILL_TIMEOUT_MS: u64 = 2000;
 use crate::channel::{kProcTypePty, kProcTypeUv};
 use crate::os::signal::{SIGHUP, SIGKILL, SIGTERM};
 
-pub type proc_exit_cb = Option<unsafe fn(proc_: *mut Proc, status: c_int, data: *mut c_void)>;
-pub type proc_state_cb = Option<unsafe fn(proc_: *mut Proc, suspended: bool, data: *mut c_void)>;
+pub type proc_exit_cb =
+    Option<unsafe fn(proc_: *mut Proc, status: c_int, data: *mut crate::channel::Channel)>;
+pub type proc_state_cb =
+    Option<unsafe fn(proc_: *mut Proc, suspended: bool, data: *mut crate::channel::Channel)>;
 pub type internal_proc_cb = Option<unsafe fn(proc_: *mut Proc)>;
 
 #[repr(C)]
 pub struct Proc {
     pub r#type: c_int,
     pub loop_: *mut Loop,
-    pub data: *mut c_void,
+    pub data: *mut crate::channel::Channel,
     pub pid: c_int,
     pub status: c_int,
     pub refcount: c_int,

@@ -3,7 +3,7 @@
 
 use crate::errors::*;
 use crate::eval::typval::{
-    TypvalVval, VarType, blob_T, tv_clear, tv_get_number, tv_get_string, tv_get_string_buf,
+    TypvalVval, VarType, tv_clear, tv_get_number, tv_get_string, tv_get_string_buf,
     tv_list_extend, typval_T,
 };
 use crate::eval::{grow_string_tv, num_divide, num_modulus};
@@ -11,21 +11,21 @@ use crate::math::{FAIL, OK};
 use crate::message::semsg;
 use crate::regexp::NUMBUFLEN;
 use crate::strings::concat_str;
-use std::ffi::{c_char, c_int, c_void};
+use std::ffi::{c_char, c_int};
 
 unsafe fn tv_op_blob(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
     if op != b'+' || tv2.v_type != VarType::VAR_BLOB {
         return FAIL;
     }
 
-    let b2 = unsafe { tv2.vval.v_ptr.cast::<blob_T>() };
+    let b2 = unsafe { tv2.vval.v_blob };
     if b2.is_null() {
         return OK;
     }
 
-    let b1 = unsafe { tv1.vval.v_ptr.cast::<blob_T>() };
+    let b1 = unsafe { tv1.vval.v_blob };
     if b1.is_null() {
-        tv1.vval.v_ptr = b2.cast::<c_void>();
+        tv1.vval.v_blob = b2;
         unsafe {
             (*b2).bv_refcount += 1;
         }

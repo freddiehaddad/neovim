@@ -6,14 +6,14 @@ use crate::errors::{e_api_spawn_failed, e_invarg, e_invarg2};
 use crate::eval::find_job;
 use crate::eval::funcs::{f_jobstart, f_jobstop};
 use crate::eval::typval::{
-    Callback, EvalFuncData, VarType, dict_T, list_T, listitem_T, tv_dict_add_bool, tv_dict_alloc,
+    Callback, EvalFuncData, VarType, list_T, listitem_T, tv_dict_add_bool, tv_dict_alloc,
     tv_dict_free, tv_get_string, typval_T,
 };
 use crate::ex_cmds::check_secure;
 use crate::globals::*;
 use crate::memory::{xmalloc, xstrdup};
 use crate::message::{emsg, semsg};
-use std::ffi::{c_char, c_int, c_void};
+use std::ffi::{c_char, c_int};
 
 const K_CHANNEL_PART_RPC: c_int = 3;
 const K_CHANNEL_STDIN_PIPE: c_int = 0;
@@ -172,7 +172,7 @@ pub unsafe fn f_termopen(argvars: *mut typval_T, rettv: *mut typval_T, fptr: Eva
         if arg1.v_type == VarType::VAR_UNKNOWN {
             must_free = true;
             arg1.v_type = VarType::VAR_DICT;
-            arg1.vval.v_ptr = tv_dict_alloc().cast::<c_void>();
+            arg1.vval.v_dict = tv_dict_alloc();
         }
 
         if arg1.v_type != VarType::VAR_DICT {
@@ -180,7 +180,7 @@ pub unsafe fn f_termopen(argvars: *mut typval_T, rettv: *mut typval_T, fptr: Eva
             return;
         }
 
-        let dict = arg1.vval.v_ptr.cast::<dict_T>();
+        let dict = arg1.vval.v_dict;
         tv_dict_add_bool(dict, c"term".as_ptr(), 4, K_BOOL_VAR_TRUE as c_int);
         f_jobstart(argvars, rettv, fptr);
         if must_free {

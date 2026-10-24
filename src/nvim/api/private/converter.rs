@@ -6,9 +6,8 @@ use crate::api::private::validate::{
 };
 use crate::eval::decode::decode_string;
 use crate::eval::typval::{
-    TypvalVval, VAR_UNLOCKED, VarType, blob_T, dict_T, list_T, listitem_T, partial_T,
-    tv_dict_add, tv_dict_alloc, tv_dict_item_alloc, tv_list_alloc, tv_list_append_owned_tv,
-    typval_T,
+    TypvalVval, VAR_UNLOCKED, VarType, dict_T, list_T, listitem_T, tv_dict_add, tv_dict_alloc,
+    tv_dict_item_alloc, tv_list_alloc, tv_list_append_owned_tv, typval_T,
 };
 use crate::eval::userfunc::{FC_LUAREF, find_func, register_luafunc};
 use crate::eval::{get_copyID, partial_name};
@@ -16,7 +15,7 @@ use crate::hashtab::{hashitem_T, hashitem_empty};
 use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::api_new_luaref;
 use crate::memory::{Arena, arena_memdupz, xstrdup};
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 
 pub(crate) const K_SPECIAL_VAR_NULL: i64 = 0;
 pub(crate) const K_BOOL_VAR_FALSE: i64 = 0;
@@ -102,7 +101,7 @@ unsafe fn convert_one_value(
             });
         }
         VarType::VAR_BLOB => {
-            let blob = unsafe { tv.vval.v_ptr.cast::<blob_T>() };
+            let blob = unsafe { tv.vval.v_blob };
             let (data, len) = if blob.is_null() || unsafe { (*blob).bv_ga.is_empty() } {
                 (c"".as_ptr(), 0usize)
             } else {
@@ -132,7 +131,7 @@ unsafe fn convert_one_value(
             stack.push(obj);
         }
         VarType::VAR_PARTIAL => {
-            let pt = unsafe { tv.vval.v_ptr.cast::<partial_T>() };
+            let pt = unsafe { tv.vval.v_partial };
             let fun = if pt.is_null() {
                 std::ptr::null()
             } else {
@@ -203,7 +202,7 @@ unsafe fn convert_one_value(
             stack.push(nil_obj());
         }
         VarType::VAR_DICT => {
-            let dict = unsafe { tv.vval.v_ptr.cast::<dict_T>() };
+            let dict = unsafe { tv.vval.v_dict };
             if dict.is_null() || unsafe { (*dict).dv_hashtab.ht_used == 0 } {
                 stack.push(Object {
                     obj_type: ObjectType::kObjectTypeDict,
@@ -439,9 +438,7 @@ pub unsafe fn object_to_vim_take_luaref(
             }
             (*dict).dv_refcount += 1;
             tv_ref.v_type = VarType::VAR_DICT;
-            tv_ref.vval = TypvalVval {
-                v_ptr: dict.cast::<c_void>(),
-            };
+            tv_ref.vval = TypvalVval { v_dict: dict };
         },
         ObjectType::kObjectTypeLuaRef => unsafe {
             let mut ref_id = obj.data.luaref;

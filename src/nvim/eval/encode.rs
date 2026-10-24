@@ -291,7 +291,7 @@ pub unsafe fn encode_check_json_key(tv: *const typval_T) -> bool {
         if tv.v_type != VarType::VAR_DICT {
             return false;
         }
-        let spdict = tv.vval.v_ptr.cast::<dict_T>();
+        let spdict = tv.vval.v_dict;
         if spdict.is_null() || (*spdict).dv_hashtab.ht_used != 2 {
             return false;
         }
@@ -1216,7 +1216,7 @@ unsafe fn convert_one_value(
                 }
             }
             VarType::VAR_BLOB => {
-                let blob = tv_ref.vval.v_ptr.cast::<blob_T>();
+                let blob = tv_ref.vval.v_blob;
                 backend.conv_blob(blob, tv_blob_len(blob));
             }
             VarType::VAR_FUNC => {
@@ -1228,7 +1228,7 @@ unsafe fn convert_one_value(
                 backend.conv_func_end();
             }
             VarType::VAR_PARTIAL => {
-                let pt = tv_ref.vval.v_ptr.cast::<partial_T>();
+                let pt = tv_ref.vval.v_partial;
                 let fun = if pt.is_null() {
                     std::ptr::null_mut()
                 } else {
@@ -1294,7 +1294,7 @@ unsafe fn convert_one_value(
                 }
             }
             VarType::VAR_DICT => {
-                let dict = tv_ref.vval.v_ptr.cast::<dict_T>();
+                let dict = tv_ref.vval.v_dict;
                 if dict.is_null() || (*dict).dv_hashtab.ht_used == 0 {
                     backend.conv_empty_dict();
                     return OK;
@@ -1523,7 +1523,7 @@ unsafe fn convert_one_value(
                         saved_copy_id,
                         data: MPConvStackData::Dict {
                             dict,
-                            dictp: std::ptr::addr_of_mut!(tv_ref.vval.v_ptr).cast::<*mut dict_T>(),
+                            dictp: std::ptr::addr_of_mut!(tv_ref.vval.v_dict),
                             hi: (*dict).dv_hashtab.ht_array,
                             todo: (*dict).dv_hashtab.ht_used,
                         },

@@ -572,7 +572,7 @@ pub unsafe fn channel_job_start(
                 return ptr::null_mut();
             }
             (*proc_ptr).r#type = kProcTypePty;
-            (*proc_ptr).data = chan.cast();
+            (*proc_ptr).data = chan;
             {
                 (*proc_ptr).loop_ = (&raw mut main_loop).cast();
             }
@@ -587,7 +587,7 @@ pub unsafe fn channel_job_start(
             }
         } else {
             (*proc_ptr).r#type = kProcTypeUv;
-            (*proc_ptr).data = chan.cast();
+            (*proc_ptr).data = chan;
             {
                 (*proc_ptr).loop_ = (&raw mut main_loop).cast();
             }
@@ -1062,9 +1062,8 @@ pub unsafe fn channel_reader_callbacks(chan: *mut Channel, reader: *mut Callback
     }
 }
 
-unsafe fn channel_proc_exit_cb(proc_: *mut Proc, status: c_int, data: *mut c_void) {
+unsafe fn channel_proc_exit_cb(proc_: *mut Proc, status: c_int, chan: *mut Channel) {
     unsafe {
-        let chan = data.cast::<Channel>();
         let cp = chan;
         let ct = chan;
 
@@ -1091,9 +1090,8 @@ unsafe fn channel_proc_exit_cb(proc_: *mut Proc, status: c_int, data: *mut c_voi
     }
 }
 
-unsafe fn channel_proc_state_cb(_proc: *mut Proc, suspended: bool, data: *mut c_void) {
+unsafe fn channel_proc_state_cb(_proc: *mut Proc, suspended: bool, chan: *mut Channel) {
     unsafe {
-        let chan = data.cast::<Channel>();
         let ct = chan;
         if !(*ct).term.is_null() {
             terminal_set_state((*ct).term, suspended);

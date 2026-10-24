@@ -894,7 +894,6 @@ unsafe fn do_os_system(
         let mut uvproc = LibuvProc::new();
         let proc_: *mut Proc = &raw mut uvproc.proc_;
         (*proc_).r#type = kProcTypeUv;
-        (*proc_).data = (&raw mut buf).cast();
         (*proc_).loop_ = mloop;
         (*proc_).status = -1;
         (*proc_).out.s.fd = STDOUT_FILENO;

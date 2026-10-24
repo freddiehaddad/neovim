@@ -1554,7 +1554,7 @@ pub unsafe fn f_call(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
         if (*argvars).v_type == VarType::VAR_FUNC {
             func = (*argvars).vval.v_string;
         } else if (*argvars).v_type == VarType::VAR_PARTIAL {
-            partial = (*argvars).vval.v_ptr.cast();
+            partial = (*argvars).vval.v_partial;
             func = partial_name(partial);
         } else if nlua_is_table_from_lua(argvars) {
             func = nlua_register_table_as_callable(argvars);
@@ -2095,7 +2095,7 @@ pub unsafe fn f_empty(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
                 n = (*argvars).vval.v_string.is_null() || *(*argvars).vval.v_string == NUL;
             }
             VarType::VAR_PARTIAL => {
-                n = (*argvars).vval.v_ptr.is_null();
+                n = (*argvars).vval.v_partial.is_null();
             }
             VarType::VAR_NUMBER => {
                 n = (*argvars).vval.v_number == 0;
@@ -2617,8 +2617,9 @@ unsafe fn common_function(argvars: *mut typval_T, rettv: *mut typval_T, is_funcr
 
         if (*argvars).v_type == VarType::VAR_FUNC {
             s = (*argvars).vval.v_string;
-        } else if (*argvars).v_type == VarType::VAR_PARTIAL && !(*argvars).vval.v_ptr.is_null() {
-            arg_pt = (*argvars).vval.v_ptr.cast();
+        } else if (*argvars).v_type == VarType::VAR_PARTIAL && !(*argvars).vval.v_partial.is_null()
+        {
+            arg_pt = (*argvars).vval.v_partial;
             s = partial_name(arg_pt);
         } else {
             s = tv_get_string(argvars).cast_mut();
@@ -2766,7 +2767,7 @@ unsafe fn common_function(argvars: *mut typval_T, rettv: *mut typval_T, is_funcr
                     }
 
                     (*rettv).v_type = VarType::VAR_PARTIAL;
-                    (*rettv).vval.v_ptr = pt.cast();
+                    (*rettv).vval.v_partial = pt;
                 } else {
                     (*rettv).v_type = VarType::VAR_FUNC;
                     (*rettv).vval.v_string = name;
@@ -2845,7 +2846,7 @@ pub unsafe fn f_get(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFun
         } else if tv_is_func(*argvars) {
             let mut fref_pt = partial_T::default();
             let pt: *mut partial_T = if (*argvars).v_type == VarType::VAR_PARTIAL {
-                (*argvars).vval.v_ptr.cast()
+                (*argvars).vval.v_partial
             } else {
                 fref_pt.pt_name = (*argvars).vval.v_string;
                 &raw mut fref_pt
@@ -4255,7 +4256,7 @@ pub unsafe fn f_indexof(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
             && ((*argvars.add(1)).vval.v_string.is_null()
                 || *(*argvars.add(1)).vval.v_string == NUL))
             || ((*argvars.add(1)).v_type == VarType::VAR_FUNC
-                && (*argvars.add(1)).vval.v_ptr.is_null())
+                && (*argvars.add(1)).vval.v_string.is_null())
         {
             return;
         }
@@ -6892,7 +6893,7 @@ pub unsafe fn f_reduce(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
         let func_name = if (*argvars.add(1)).v_type == VarType::VAR_FUNC {
             (*argvars.add(1)).vval.v_string.cast_const()
         } else if (*argvars.add(1)).v_type == VarType::VAR_PARTIAL {
-            partial_name((*argvars.add(1)).vval.v_ptr.cast())
+            partial_name((*argvars.add(1)).vval.v_partial)
         } else {
             tv_get_string(argvars.add(1))
         };

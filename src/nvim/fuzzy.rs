@@ -8,7 +8,7 @@ use crate::eval::callback_call;
 use crate::eval::decode::K_LIST_LEN_MAY_KNOW;
 use crate::eval::fs::K_LIST_LEN_UNKNOWN;
 use crate::eval::typval::{
-    Callback, EvalFuncData, TypvalVval, VAR_UNLOCKED, VarType, callback_free, dict_T, list_T,
+    Callback, EvalFuncData, TypvalVval, VAR_UNLOCKED, VarType, callback_free, list_T,
     listitem_T, tv_check_for_nonnull_dict_arg, tv_clear, tv_dict_find, tv_dict_get_callback,
     tv_dict_get_string, tv_dict_has_key, tv_dict_unref, tv_get_number_chk, tv_get_string,
     tv_list_alloc, tv_list_alloc_ret, tv_list_append_list, tv_list_append_number,
@@ -481,7 +481,7 @@ unsafe fn fuzzy_match_in_list(
             } else if tv.v_type == VarType::VAR_DICT
                 && (!key.is_null() || (*item_cb).cb_type != K_CALLBACK_NONE)
             {
-                let d = tv.vval.v_ptr.cast::<dict_T>();
+                let d = tv.vval.v_dict;
                 if !key.is_null() {
                     itemstr = tv_dict_get_string(d, key, false);
                 } else {
@@ -490,9 +490,7 @@ unsafe fn fuzzy_match_in_list(
                         typval_T {
                             v_type: VarType::VAR_DICT,
                             v_lock: VAR_UNLOCKED,
-                            vval: TypvalVval {
-                                v_ptr: d.cast::<c_void>(),
-                            },
+                            vval: TypvalVval { v_dict: d },
                         },
                         typval_T {
                             v_type: VarType::VAR_UNKNOWN,
@@ -635,7 +633,7 @@ unsafe fn do_fuzzymatch(argvars: *const typval_T, rettv: *mut typval_T, retmatch
                 return;
             }
 
-            let d = arg2.vval.v_ptr.cast::<dict_T>();
+            let d = arg2.vval.v_dict;
             let di_key = tv_dict_find(d, c"key".as_ptr(), -1);
             if !di_key.is_null() {
                 if (*di_key).di_tv.v_type != VarType::VAR_STRING

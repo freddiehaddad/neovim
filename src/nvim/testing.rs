@@ -4,7 +4,7 @@ use crate::api::private::converter::{K_BOOL_VAR_FALSE, K_BOOL_VAR_TRUE};
 use crate::errors::e_cant_read_file_str;
 use crate::eval::encode::{encode_tv2echo, encode_tv2string};
 use crate::eval::typval::{
-    EvalFuncData, TypvalVval, VAR_UNLOCKED, VarType, dict_T,
+    EvalFuncData, TypvalVval, VAR_UNLOCKED, VarType,
     tv_check_for_float_or_nr_arg, tv_check_for_opt_number_arg, tv_check_for_opt_string_arg,
     tv_check_for_opt_string_or_list_arg, tv_check_for_string_or_number_arg, tv_clear,
     tv_dict_add_tv, tv_dict_alloc, tv_dict_find, tv_equal, tv_get_float, tv_get_number_chk,
@@ -188,17 +188,17 @@ unsafe fn fill_assert_error(
             if atype != AssertType::NotEqual
                 && (*exp_tv).v_type == VarType::VAR_DICT
                 && (*got_tv).v_type == VarType::VAR_DICT
-                && !(*exp_tv).vval.v_ptr.is_null()
-                && !(*got_tv).vval.v_ptr.is_null()
+                && !(*exp_tv).vval.v_dict.is_null()
+                && !(*got_tv).vval.v_dict.is_null()
             {
-                let exp_d = (*exp_tv).vval.v_ptr.cast::<dict_T>();
-                let got_d = (*got_tv).vval.v_ptr.cast::<dict_T>();
+                let exp_d = (*exp_tv).vval.v_dict;
+                let got_d = (*got_tv).vval.v_dict;
 
                 did_copy = true;
                 let new_exp_d = tv_dict_alloc();
                 let new_got_d = tv_dict_alloc();
-                (*exp_tv).vval.v_ptr = new_exp_d.cast::<c_void>();
-                (*got_tv).vval.v_ptr = new_got_d.cast::<c_void>();
+                (*exp_tv).vval.v_dict = new_exp_d;
+                (*got_tv).vval.v_dict = new_got_d;
 
                 let mut todo = (*exp_d).dv_hashtab.ht_used as c_int;
                 let mut hi = (*exp_d).dv_hashtab.ht_array;

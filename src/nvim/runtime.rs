@@ -449,9 +449,7 @@ unsafe fn stacktrace_push_item(
         let mut tv = typval_T {
             v_type: VarType::VAR_DICT,
             v_lock: VAR_LOCKED,
-            vval: TypvalVval {
-                v_ptr: d.cast::<c_void>(),
-            },
+            vval: TypvalVval { v_dict: d },
         };
 
         if !fp.is_null() {
@@ -508,7 +506,7 @@ pub unsafe fn f_getstacktrace(_argvars: *mut typval_T, rettv: *mut typval_T, _fp
     unsafe {
         let l = stacktrace_create();
         (*rettv).v_type = VarType::VAR_LIST;
-        (*rettv).vval.v_ptr = l.cast::<c_void>();
+        (*rettv).vval.v_list = l;
         if !l.is_null() {
             (*l).lv_refcount += 1;
         }
@@ -3378,7 +3376,7 @@ pub unsafe fn f_getscriptinfo(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
             return;
         }
 
-        let l = (*rettv).vval.v_ptr.cast::<list_T>();
+        let l = (*rettv).vval.v_list;
 
         let mut regmatch: regmatch_T = std::mem::zeroed();
         regmatch.rm_ic = p_ic != 0;
@@ -3387,7 +3385,7 @@ pub unsafe fn f_getscriptinfo(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
 
         let mut pat: *mut c_char = ptr::null_mut();
         if (*argvars).v_type == VarType::VAR_DICT {
-            let arg_dict = (*argvars).vval.v_ptr.cast::<dict_T>();
+            let arg_dict = (*argvars).vval.v_dict;
             let sid_di = tv_dict_find(arg_dict, c"sid".as_ptr(), 3);
             if !sid_di.is_null() {
                 let mut error = false;

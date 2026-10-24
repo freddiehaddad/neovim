@@ -181,7 +181,7 @@ pub union TypvalVval {
     pub v_list: *mut list_T,
     pub v_dict: *mut dict_T,
     pub v_blob: *mut blob_T,
-    pub v_ptr: *mut c_void,
+    pub v_partial: *mut partial_T,
 }
 
 #[repr(C)]
@@ -1942,7 +1942,7 @@ unsafe fn parse_sort_uniq_args(argvars: *mut typval_T, info: *mut sortinfo_T) ->
         if (*argvars.add(1)).v_type == VarType::VAR_FUNC {
             (*info).item_compare_func = (*argvars.add(1)).vval.v_string;
         } else if (*argvars.add(1)).v_type == VarType::VAR_PARTIAL {
-            (*info).item_compare_partial = (*argvars.add(1)).vval.v_ptr.cast::<partial_T>();
+            (*info).item_compare_partial = (*argvars.add(1)).vval.v_partial;
         } else {
             let mut error = false;
             let nr = tv_get_number_chk(argvars.add(1), &raw mut error) as c_int;
@@ -2288,7 +2288,7 @@ pub unsafe fn callback_put(cb: *mut Callback, tv: *mut typval_T) {
             kCallbackPartial => {
                 let pt = (*cb).data.partial;
                 (*tv).v_type = VarType::VAR_PARTIAL;
-                (*tv).vval.v_ptr = pt.cast();
+                (*tv).vval.v_partial = pt;
                 (*pt).pt_refcount += 1;
             }
             kCallbackFuncref => {
@@ -3805,10 +3805,10 @@ unsafe fn nothing_conv_func_start(tv: *mut typval_T, fun: *mut c_char) -> c_int 
     unsafe {
         (*tv).v_lock = VAR_UNLOCKED;
         if (*tv).v_type == VarType::VAR_PARTIAL {
-            let pt = (*tv).vval.v_ptr.cast::<partial_T>();
+            let pt = (*tv).vval.v_partial;
             if !pt.is_null() && (*pt).pt_refcount > 1 {
                 (*pt).pt_refcount -= 1;
-                (*tv).vval.v_ptr = ptr::null_mut();
+                (*tv).vval.v_partial = ptr::null_mut();
                 return OK;
             }
         } else {
@@ -3826,7 +3826,7 @@ unsafe fn nothing_conv_func_start(tv: *mut typval_T, fun: *mut c_char) -> c_int 
 unsafe fn nothing_conv_func_end(tv: *mut typval_T, copy_id: c_int) {
     unsafe {
         if (*tv).v_type == VarType::VAR_PARTIAL {
-            let pt = (*tv).vval.v_ptr.cast::<partial_T>();
+            let pt = (*tv).vval.v_partial;
             if pt.is_null() {
                 return;
             }
@@ -3836,7 +3836,7 @@ unsafe fn nothing_conv_func_end(tv: *mut typval_T, copy_id: c_int) {
             (*pt).pt_argc = 0;
             debug_assert!((*pt).pt_refcount <= 1);
             partial_unref(pt);
-            (*tv).vval.v_ptr = ptr::null_mut();
+            (*tv).vval.v_partial = ptr::null_mut();
             debug_assert_eq!((*tv).v_lock, VAR_UNLOCKED);
         }
     }
@@ -3948,7 +3948,7 @@ unsafe fn nothing_convert_one_value(
                 let _ = nothing_conv_func_start(tv, (*tv).vval.v_string);
             }
             VarType::VAR_PARTIAL => {
-                let pt = (*tv).vval.v_ptr.cast::<partial_T>();
+                let pt = (*tv).vval.v_partial;
                 let fun = if pt.is_null() {
                     ptr::null_mut()
                 } else {
@@ -4237,7 +4237,7 @@ pub unsafe fn tv_free(tv: *mut typval_T) {
 
         match (*tv).v_type {
             VarType::VAR_PARTIAL => {
-                partial_unref((*tv).vval.v_ptr.cast::<partial_T>());
+                partial_unref((*tv).vval.v_partial);
             }
             VarType::VAR_FUNC => {
                 func_unref((*tv).vval.v_string);
@@ -4283,7 +4283,7 @@ pub unsafe fn tv_copy(from: *const typval_T, to: *mut typval_T) {
                 }
             }
             VarType::VAR_PARTIAL => {
-                let pt = (*to).vval.v_ptr.cast::<partial_T>();
+                let pt = (*to).vval.v_partial;
                 if !pt.is_null() {
                     (*pt).pt_refcount += 1;
                 }
@@ -4504,8 +4504,8 @@ pub unsafe fn tv_equal(tv1: *mut typval_T, tv2: *mut typval_T, ic: bool) -> bool
                 r
             }
             VarType::VAR_PARTIAL | VarType::VAR_FUNC => {
-                if ((*tv1).v_type == VarType::VAR_PARTIAL && (*tv1).vval.v_ptr.is_null())
-                    || ((*tv2).v_type == VarType::VAR_PARTIAL && (*tv2).vval.v_ptr.is_null())
+                if ((*tv1).v_type == VarType::VAR_PARTIAL && (*tv1).vval.v_partial.is_null())
+                    || ((*tv2).v_type == VarType::VAR_PARTIAL && (*tv2).vval.v_partial.is_null())
                 {
                     return false;
                 }
@@ -5136,7 +5136,7 @@ pub unsafe fn tv2bool(tv: *const typval_T) -> bool {
         match (*tv).v_type {
             VarType::VAR_NUMBER => (*tv).vval.v_number != 0,
             VarType::VAR_FLOAT => (*tv).vval.v_float != 0.0,
-            VarType::VAR_PARTIAL => !(*tv).vval.v_ptr.is_null(),
+            VarType::VAR_PARTIAL => !(*tv).vval.v_partial.is_null(),
             VarType::VAR_FUNC | VarType::VAR_STRING => {
                 !(*tv).vval.v_string.is_null() && *(*tv).vval.v_string != NUL
             }
