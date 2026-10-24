@@ -378,16 +378,16 @@ impl Default for qfstate_T {
 
 #[repr(C)]
 struct qffields_T {
-    namebuf: *mut c_char,
+    namebuf: Vec<c_char>,
     bnr: c_int,
-    module: *mut c_char,
+    module: Vec<c_char>,
     errmsg: Vec<c_char>,
     lnum: linenr_T,
     end_lnum: linenr_T,
     col: c_int,
     end_col: c_int,
     use_viscol: bool,
-    pattern: *mut c_char,
+    pattern: Vec<c_char>,
     enr: c_int,
     type_: c_char,
     user_data: *mut typval_T,
@@ -397,16 +397,16 @@ struct qffields_T {
 impl Default for qffields_T {
     fn default() -> Self {
         Self {
-            namebuf: ptr::null_mut(),
+            namebuf: vec![0; CMDBUFFSIZE + 1],
             bnr: 0,
-            module: ptr::null_mut(),
-            errmsg: Vec::new(),
+            module: vec![0; CMDBUFFSIZE + 1],
+            errmsg: vec![0; CMDBUFFSIZE + 1],
             lnum: 0,
             end_lnum: 0,
             col: 0,
             end_col: 0,
             use_viscol: false,
-            pattern: ptr::null_mut(),
+            pattern: vec![0; CMDBUFFSIZE + 1],
             enr: 0,
             type_: 0,
             user_data: ptr::null_mut(),
@@ -647,8 +647,8 @@ unsafe fn qf_init_process_nextline(
             return status;
         }
 
-        let fname = if *(*fields).namebuf != NUL || !(*qfl).qf_directory.is_null() {
-            (*fields).namebuf
+        let fname = if *(*fields).namebuf.as_ptr() != NUL || !(*qfl).qf_directory.is_null() {
+            (*fields).namebuf.as_mut_ptr()
         } else if !(*qfl).qf_currfile.is_null() && (*fields).valid {
             (*qfl).qf_currfile
         } else {
@@ -659,7 +659,7 @@ unsafe fn qf_init_process_nextline(
             qfl,
             (*qfl).qf_directory,
             fname,
-            (*fields).module,
+            (*fields).module.as_mut_ptr(),
             (*fields).bnr,
             (*fields).errmsg.as_mut_ptr(),
             (*fields).lnum,
@@ -667,7 +667,7 @@ unsafe fn qf_init_process_nextline(
             (*fields).col,
             (*fields).end_col,
             c_char::from((*fields).use_viscol),
-            (*fields).pattern,
+            (*fields).pattern.as_mut_ptr(),
             (*fields).enr,
             (*fields).type_,
             (*fields).user_data,
@@ -970,7 +970,7 @@ unsafe fn parse_efm_option(mut efm: *mut c_char) -> Vec<efm_T> {
         let mut fmt_list: Vec<efm_T> = Vec::new();
 
         let sz = efm_regpat_bufsz(efm);
-        let fmtstr = xmalloc(sz).cast::<c_char>();
+        let mut fmtstr = vec![0 as c_char; sz];
 
         let mut errored = false;
         while *efm != NUL {
@@ -984,11 +984,11 @@ unsafe fn parse_efm_option(mut efm: *mut c_char) -> Vec<efm_T> {
 
             let len = efm_option_part_len(efm);
 
-            if efm_to_regpat(efm, len, &raw mut fmt_item, fmtstr) == FAIL {
+            if efm_to_regpat(efm, len, &raw mut fmt_item, fmtstr.as_mut_ptr()) == FAIL {
                 errored = true;
                 break;
             }
-            fmt_item.prog = vim_regcomp(fmtstr, RE_MAGIC + RE_STRING);
+            fmt_item.prog = vim_regcomp(fmtstr.as_ptr(), RE_MAGIC + RE_STRING);
             if fmt_item.prog.is_null() {
                 errored = true;
                 break;
@@ -1002,8 +1002,6 @@ unsafe fn parse_efm_option(mut efm: *mut c_char) -> Vec<efm_T> {
         } else if fmt_list.is_empty() {
             emsg(gettext(c"E378: 'errorformat' contains no pattern".as_ptr()));
         }
-
-        xfree(fmtstr.cast());
 
         fmt_list
     }
@@ -1357,24 +1355,6 @@ unsafe fn qf_parse_line(
     }
 }
 
-unsafe fn qf_alloc_fields(pfields: *mut qffields_T) {
-    unsafe {
-        (*pfields).namebuf = xmalloc(CMDBUFFSIZE + 1).cast::<c_char>();
-        (*pfields).module = xmalloc(CMDBUFFSIZE + 1).cast::<c_char>();
-        (*pfields).errmsg.resize(CMDBUFFSIZE + 1, 0);
-        (*pfields).pattern = xmalloc(CMDBUFFSIZE + 1).cast::<c_char>();
-    }
-}
-
-unsafe fn qf_free_fields(pfields: *mut qffields_T) {
-    unsafe {
-        xfree((*pfields).namebuf.cast());
-        xfree((*pfields).module.cast());
-        (*pfields).errmsg = Vec::new();
-        xfree((*pfields).pattern.cast());
-    }
-}
-
 unsafe fn qf_setup_state(
     pstate: *mut qfstate_T,
     enc: *mut c_char,
@@ -1452,13 +1432,11 @@ unsafe fn qf_init_ext(
         xfree(qf_last_bufname.cast());
         qf_last_bufname = ptr::null_mut();
 
-        qf_alloc_fields(&raw mut fields);
         if qf_setup_state(&raw mut state, enc, efile, tv, buf, lnumfirst, lnumlast) == FAIL {
             if qf_idx == (*qi).qf_curlist {
                 qf_update_buffer(qi, old_last);
             }
             qf_cleanup_state(&raw mut state);
-            qf_free_fields(&raw mut fields);
             return retval;
         }
 
@@ -1547,7 +1525,6 @@ unsafe fn qf_init_ext(
             qf_update_buffer(qi, old_last);
         }
         qf_cleanup_state(&raw mut state);
-        qf_free_fields(&raw mut fields);
 
         retval
     }
@@ -1647,10 +1624,16 @@ unsafe fn qf_parse_fmt_f(
 
         let c = *(*rmp).endp[midx];
         *(*rmp).endp[midx] = NUL;
-        expand_env((*rmp).startp[midx], (*fields).namebuf, CMDBUFFSIZE as c_int);
+        expand_env(
+            (*rmp).startp[midx],
+            (*fields).namebuf.as_mut_ptr(),
+            CMDBUFFSIZE as c_int,
+        );
         *(*rmp).endp[midx] = c;
 
-        if !vim_strchr(c"OPQ".as_ptr(), prefix).is_null() && !os_path_exists((*fields).namebuf) {
+        if !vim_strchr(c"OPQ".as_ptr(), prefix).is_null()
+            && !os_path_exists((*fields).namebuf.as_ptr())
+        {
             return QF_FAIL;
         }
 
@@ -1813,11 +1796,12 @@ unsafe fn qf_parse_fmt_s(rmp: *mut regmatch_T, midx: usize, fields: *mut qffield
         }
         let mut len = (*rmp).endp[midx].offset_from((*rmp).startp[midx]) as usize;
         len = len.min(CMDBUFFSIZE - 5);
-        strcpy((*fields).pattern, c"^\\V".as_ptr());
-        xstrlcat((*fields).pattern, (*rmp).startp[midx], len + 4);
-        *(*fields).pattern.add(len + 3) = b'\\' as c_char;
-        *(*fields).pattern.add(len + 4) = b'$' as c_char;
-        *(*fields).pattern.add(len + 5) = NUL;
+        let pat_ptr = (*fields).pattern.as_mut_ptr();
+        strcpy(pat_ptr, c"^\\V".as_ptr());
+        xstrlcat(pat_ptr, (*rmp).startp[midx], len + 4);
+        *pat_ptr.add(len + 3) = b'\\' as c_char;
+        *pat_ptr.add(len + 4) = b'$' as c_char;
+        *pat_ptr.add(len + 5) = NUL;
         QF_OK
     }
 }
@@ -1828,8 +1812,9 @@ unsafe fn qf_parse_fmt_o(rmp: *mut regmatch_T, midx: usize, fields: *mut qffield
             return QF_FAIL;
         }
         let len = (*rmp).endp[midx].offset_from((*rmp).startp[midx]) as usize;
-        let dsize = (strlen((*fields).module) + len + 1).min(CMDBUFFSIZE);
-        xstrlcat((*fields).module, (*rmp).startp[midx], dsize);
+        let mod_ptr = (*fields).module.as_mut_ptr();
+        let dsize = (strlen(mod_ptr) + len + 1).min(CMDBUFFSIZE);
+        xstrlcat(mod_ptr, (*rmp).startp[midx], dsize);
         QF_OK
     }
 }
@@ -1913,10 +1898,10 @@ unsafe fn qf_parse_get_fields(
             return QF_FAIL;
         }
 
-        *(*fields).namebuf = NUL;
+        *(*fields).namebuf.as_mut_ptr() = NUL;
         (*fields).bnr = 0;
-        *(*fields).module = NUL;
-        *(*fields).pattern = NUL;
+        *(*fields).module.as_mut_ptr() = NUL;
+        *(*fields).pattern.as_mut_ptr() = NUL;
         if qf_multiscan == 0 {
             *(*fields).errmsg.as_mut_ptr() = NUL;
         }
@@ -1955,12 +1940,15 @@ unsafe fn qf_parse_get_fields(
 unsafe fn qf_parse_dir_pfx(idx: c_int, fields: *mut qffields_T, qfl: *mut qf_list_T) -> c_int {
     unsafe {
         if idx == c_int::from(b'D') {
-            if *(*fields).namebuf == NUL {
+            if *(*fields).namebuf.as_ptr() == NUL {
                 emsg(gettext(c"E379: Missing or empty directory name".as_ptr()));
                 return QF_FAIL;
             }
-            (*qfl).qf_directory =
-                qf_push_dir((*fields).namebuf, &raw mut (*qfl).qf_dir_stack, false);
+            (*qfl).qf_directory = qf_push_dir(
+                (*fields).namebuf.as_mut_ptr(),
+                &raw mut (*qfl).qf_dir_stack,
+                false,
+            );
             if (*qfl).qf_directory.is_null() {
                 return QF_FAIL;
             }
@@ -1980,14 +1968,17 @@ unsafe fn qf_parse_file_pfx(
 ) -> c_int {
     unsafe {
         (*fields).valid = false;
-        if *(*fields).namebuf == NUL || os_path_exists((*fields).namebuf) {
-            if *(*fields).namebuf != NUL && idx == c_int::from(b'P') {
-                (*qfl).qf_currfile =
-                    qf_push_dir((*fields).namebuf, &raw mut (*qfl).qf_file_stack, true);
+        if *(*fields).namebuf.as_ptr() == NUL || os_path_exists((*fields).namebuf.as_ptr()) {
+            if *(*fields).namebuf.as_ptr() != NUL && idx == c_int::from(b'P') {
+                (*qfl).qf_currfile = qf_push_dir(
+                    (*fields).namebuf.as_mut_ptr(),
+                    &raw mut (*qfl).qf_file_stack,
+                    true,
+                );
             } else if idx == c_int::from(b'Q') {
                 (*qfl).qf_currfile = qf_pop_dir(&raw mut (*qfl).qf_file_stack);
             }
-            *(*fields).namebuf = NUL;
+            *(*fields).namebuf.as_mut_ptr() = NUL;
             if !tail.is_null() && *tail != NUL {
                 (*qfl).qf_multiscan = true;
                 return QF_MULTISCAN;
@@ -2004,7 +1995,7 @@ unsafe fn qf_parse_line_nomatch(
     fields: *mut qffields_T,
 ) -> c_int {
     unsafe {
-        *(*fields).namebuf = NUL;
+        *(*fields).namebuf.as_mut_ptr() = NUL;
         (*fields).lnum = 0;
         (*fields).valid = false;
 
@@ -2052,8 +2043,9 @@ unsafe fn qf_parse_multiline_pfx(
                 (*qfprev).qf_end_col = (*fields).end_col;
             }
             if (*qfprev).qf_fnum == 0 {
-                let fname = if *(*fields).namebuf != NUL || !(*qfl).qf_directory.is_null() {
-                    (*fields).namebuf
+                let fname = if *(*fields).namebuf.as_ptr() != NUL || !(*qfl).qf_directory.is_null()
+                {
+                    (*fields).namebuf.as_mut_ptr()
                 } else if !(*qfl).qf_currfile.is_null() && (*fields).valid {
                     (*qfl).qf_currfile
                 } else {
@@ -5932,10 +5924,10 @@ unsafe fn vgr_process_files(
         let mut save_qfid = (*qf_get_curlist(qi)).qf_id;
         let mut duplicate_name = false;
 
-        let dirname_start = xmalloc(MAXPATHL).cast::<c_char>();
-        let dirname_now = xmalloc(MAXPATHL).cast::<c_char>();
+        let mut dirname_start = vec![0 as c_char; MAXPATHL];
+        let mut dirname_now = vec![0 as c_char; MAXPATHL];
 
-        os_dirname(dirname_start, MAXPATHL);
+        os_dirname(dirname_start.as_mut_ptr(), MAXPATHL);
 
         let mut seconds: time_t = 0;
         let mut fi: c_int = 0;
@@ -5955,7 +5947,11 @@ unsafe fn vgr_process_files(
                 duplicate_name = !buf.is_null();
                 using_dummy = true;
                 *redraw_for_dummy = true;
-                buf = vgr_load_dummy_buf(fname, dirname_start, dirname_now);
+                buf = vgr_load_dummy_buf(
+                    fname,
+                    dirname_start.as_mut_ptr(),
+                    dirname_now.as_mut_ptr(),
+                );
             } else {
                 using_dummy = false;
             }
@@ -5988,7 +5984,7 @@ unsafe fn vgr_process_files(
                         *first_match_buf = buf;
                     }
                     if duplicate_name {
-                        wipe_dummy_buffer(buf, dirname_start);
+                        wipe_dummy_buffer(buf, dirname_start.as_mut_ptr());
                         buf = ptr::null_mut();
                     } else if (cmdmod.cmod_flags & CMOD_HIDE) == 0
                         || *(*buf).b_p_bh == b'u' as c_char
@@ -5996,13 +5992,13 @@ unsafe fn vgr_process_files(
                         || *(*buf).b_p_bh == b'd' as c_char
                     {
                         if !found_match {
-                            wipe_dummy_buffer(buf, dirname_start);
+                            wipe_dummy_buffer(buf, dirname_start.as_mut_ptr());
                             buf = ptr::null_mut();
                         } else if buf != *first_match_buf
                             || ((*cmd_args).flags & VGR_NOJUMP) != 0
                             || existing_swapfile(buf)
                         {
-                            unload_dummy_buffer(buf, dirname_start);
+                            unload_dummy_buffer(buf, dirname_start.as_mut_ptr());
                             (*buf).b_flags &= !BF_DUMMY;
                             buf = ptr::null_mut();
                         }
@@ -6013,9 +6009,9 @@ unsafe fn vgr_process_files(
 
                         if buf == *first_match_buf
                             && (*target_dir).is_null()
-                            && strcmp(dirname_start, dirname_now) != 0
+                            && strcmp(dirname_start.as_ptr(), dirname_now.as_ptr()) != 0
                         {
-                            *target_dir = xstrdup(dirname_now);
+                            *target_dir = xstrdup(dirname_now.as_ptr());
                         }
 
                         let mut aco: CtxSwitch = std::mem::zeroed();
@@ -6033,8 +6029,6 @@ unsafe fn vgr_process_files(
             status = OK;
         }
 
-        xfree(dirname_now.cast());
-        xfree(dirname_start.cast());
         status
     }
 }
@@ -6145,10 +6139,10 @@ pub unsafe fn ex_vimgrep(eap: *mut exarg_T) {
 
 unsafe fn restore_start_dir(dirname_start: *mut c_char) {
     unsafe {
-        let dirname_now = xmalloc(MAXPATHL).cast::<c_char>();
+        let mut dirname_now = vec![0 as c_char; MAXPATHL];
 
-        os_dirname(dirname_now, MAXPATHL);
-        if strcmp(dirname_start, dirname_now) != 0 {
+        os_dirname(dirname_now.as_mut_ptr(), MAXPATHL);
+        if strcmp(dirname_start, dirname_now.as_ptr()) != 0 {
             let mut ea: exarg_T = std::mem::zeroed();
             ea.arg = dirname_start;
             ea.cmdidx = if (*curwin).w_localdir.is_null() {
@@ -6158,7 +6152,6 @@ unsafe fn restore_start_dir(dirname_start: *mut c_char) {
             };
             ex_cd(&raw mut ea);
         }
-        xfree(dirname_now.cast());
     }
 }
 

@@ -140,7 +140,6 @@ pub const HL_INCLUDED_TOPLEVEL: c_int = 0x80000;
 
 const SST_MIN_ENTRIES: c_int = 150;
 const SST_MAX_ENTRIES: c_int = 1000;
-const SST_FIX_STATES: usize = 7;
 const SST_DIST: c_int = 16;
 
 const SPO_MS_OFF: usize = 0;
@@ -257,18 +256,10 @@ pub struct bufstate_T {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
-pub union synstate_union_T {
-    pub sst_stack: [bufstate_T; SST_FIX_STATES],
-    pub sst_ptr: *mut bufstate_T,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
 pub struct synstate_T {
     pub sst_next: *mut synstate_T,
     pub sst_lnum: linenr_T,
-    pub sst_union: synstate_union_T,
+    pub sst_stack: Vec<bufstate_T>,
     pub sst_next_flags: c_int,
     pub sst_stacksize: c_int,
     pub sst_next_list: *mut i16,
@@ -613,21 +604,10 @@ pub unsafe fn syntax_start(wp: *mut win_T, lnum: linenr_T) {
 
 unsafe fn clear_syn_state(p: *mut synstate_T) {
     unsafe {
-        if (*p).sst_stacksize > SST_FIX_STATES as c_int {
-            let ptr = (*p).sst_union.sst_ptr;
-            if !ptr.is_null() {
-                for i in 0..(*p).sst_stacksize {
-                    let bs = ptr.offset(i as isize);
-                    unref_extmatch((*bs).bs_extmatch);
-                }
-                xfree(ptr.cast());
-                (*p).sst_union.sst_ptr = ptr::null_mut();
-            }
-        } else {
-            for i in 0..((*p).sst_stacksize as usize) {
-                unref_extmatch((*p).sst_union.sst_stack[i].bs_extmatch);
-            }
+        for bs in (*p).sst_stack.drain(..) {
+            unref_extmatch(bs.bs_extmatch);
         }
+        (*p).sst_stack = Vec::new();
     }
 }
 
@@ -1021,10 +1001,11 @@ unsafe fn syn_stack_alloc() {
                 let mut from = (*syn_block).b_sst_first;
                 while !from.is_null() {
                     let to = sstp.add(copied);
-                    *to = *from;
+                    let next_from = (*from).sst_next;
+                    ptr::copy_nonoverlapping(from, to, 1);
                     (*to).sst_next = to.add(1);
                     copied += 1;
-                    from = (*from).sst_next;
+                    from = next_from;
                 }
             }
             if copied > 0 {
@@ -1039,11 +1020,15 @@ unsafe fn syn_stack_alloc() {
             (*syn_block).b_sst_firstfree = sstp.add(copied);
             let ulen = len as usize;
             let mut idx = copied;
-            while idx + 1 < ulen {
-                (*sstp.add(idx)).sst_next = sstp.add(idx + 1);
+            while idx < ulen {
+                ptr::write(&raw mut (*sstp.add(idx)).sst_stack, Vec::new());
+                if idx + 1 < ulen {
+                    (*sstp.add(idx)).sst_next = sstp.add(idx + 1);
+                } else {
+                    (*sstp.add(idx)).sst_next = ptr::null_mut();
+                }
                 idx += 1;
             }
-            (*sstp.add(ulen - 1)).sst_next = ptr::null_mut();
 
             xfree((*syn_block).b_sst_array.cast());
             (*syn_block).b_sst_array = sstp;
@@ -1260,21 +1245,16 @@ unsafe fn store_current_state() -> *mut synstate_T {
             clear_syn_state(sp);
             let len = cur_state_len();
             (*sp).sst_stacksize = len;
-            let bp = if len > SST_FIX_STATES as c_int {
-                let p = xmalloc((len as usize) * size_of::<bufstate_T>()).cast::<bufstate_T>();
-                (*sp).sst_union.sst_ptr = p;
-                p
-            } else {
-                (&raw mut (*sp).sst_union.sst_stack).cast::<bufstate_T>()
-            };
+            (*sp).sst_stack.reserve(len as usize);
             for j in 0..(*sp).sst_stacksize {
                 let cur_si = cur_state_at(j);
-                let b = bp.offset(j as isize);
-                (*b).bs_idx = (*cur_si).si_idx;
-                (*b).bs_flags = (*cur_si).si_flags;
-                (*b).bs_seqnr = (*cur_si).si_seqnr;
-                (*b).bs_cchar = (*cur_si).si_cchar;
-                (*b).bs_extmatch = ref_extmatch((*cur_si).si_extmatch);
+                (*sp).sst_stack.push(bufstate_T {
+                    bs_idx: (*cur_si).si_idx,
+                    bs_flags: (*cur_si).si_flags,
+                    bs_seqnr: (*cur_si).si_seqnr,
+                    bs_cchar: (*cur_si).si_cchar,
+                    bs_extmatch: ref_extmatch((*cur_si).si_extmatch),
+                });
             }
             (*sp).sst_next_flags = current_next_flags;
             (*sp).sst_next_list = current_next_list;
@@ -1294,11 +1274,7 @@ unsafe fn load_current_state(from: *mut synstate_T) {
         if (*from).sst_stacksize != 0 {
             let cs_ptr = &raw mut current_state;
             (*cs_ptr).resize((*from).sst_stacksize as usize, std::mem::zeroed());
-            let bp = if (*from).sst_stacksize > SST_FIX_STATES as c_int {
-                (*from).sst_union.sst_ptr
-            } else {
-                (&raw mut (*from).sst_union.sst_stack).cast::<bufstate_T>()
-            };
+            let bp = (*from).sst_stack.as_ptr();
             for i in 0..(*from).sst_stacksize {
                 let cur_si = cur_state_at(i);
                 let b = bp.offset(i as isize);
@@ -1333,11 +1309,7 @@ unsafe fn syn_stack_equal(sp: *mut synstate_T) -> bool {
             return false;
         }
 
-        let bp = if (*sp).sst_stacksize > SST_FIX_STATES as c_int {
-            (*sp).sst_union.sst_ptr
-        } else {
-            (&raw mut (*sp).sst_union.sst_stack).cast::<bufstate_T>()
-        };
+        let bp = (*sp).sst_stack.as_ptr();
 
         let mut i = cur_state_len() - 1;
         while i >= 0 {
@@ -3891,7 +3863,6 @@ unsafe fn syn_cmd_keyword(eap: *mut exarg_T, _syncing: c_int) {
     unsafe {
         let arg = (*eap).arg;
         let mut group_name_end: *mut c_char = ptr::null_mut();
-        let mut keyword_copy: *mut c_char = ptr::null_mut();
         let mut conceal_char: c_int = NUL as c_int;
 
         let mut rest = get_group_name(arg, &raw mut group_name_end);
@@ -3903,9 +3874,8 @@ unsafe fn syn_cmd_keyword(eap: *mut exarg_T, _syncing: c_int) {
                 syn_check_group(arg, group_name_end.offset_from(arg) as usize)
             };
             if syn_id != 0 {
-                keyword_copy = xmalloc(strlen(rest) + 1).cast::<c_char>();
-            }
-            if !keyword_copy.is_null() {
+                let mut keyword_buf = vec![0 as c_char; strlen(rest) + 1];
+                let keyword_copy = keyword_buf.as_mut_ptr();
                 let mut syn_opt_arg = syn_opt_arg_T {
                     flags: 0,
                     keyword: true,
@@ -3994,7 +3964,6 @@ unsafe fn syn_cmd_keyword(eap: *mut exarg_T, _syncing: c_int) {
                     }
                 }
 
-                xfree(keyword_copy.cast());
                 xfree(syn_opt_arg.cont_in_list.cast());
                 xfree(syn_opt_arg.next_list.cast());
             }
@@ -4781,7 +4750,8 @@ unsafe fn get_id_list(
                 while *end != NUL && !ascii_iswhite(*end) && *end != b',' as c_char {
                     end = end.add(1);
                 }
-                let name = xmalloc(end.offset_from(p) as usize + 3).cast::<c_char>();
+                let mut name_buf = vec![0 as c_char; end.offset_from(p) as usize + 3];
+                let name = name_buf.as_mut_ptr();
                 xmemcpyz(name.add(1).cast(), p.cast(), end.offset_from(p) as usize);
                 let mut id: c_int;
                 if strcmp(name.add(1), c"ALLBUT".as_ptr()) == 0
@@ -4792,7 +4762,6 @@ unsafe fn get_id_list(
                     if !(**arg as u8).eq_ignore_ascii_case(&b'C') {
                         semsg!(gettext(c"E407: %s not allowed here".as_ptr()), name.add(1));
                         failed = true;
-                        xfree(name.cast());
                         break;
                     }
                     if count != 0 {
@@ -4801,7 +4770,6 @@ unsafe fn get_id_list(
                             name.add(1),
                         );
                         failed = true;
-                        xfree(name.cast());
                         break;
                     }
                     id = if *name.add(1) == b'A' as c_char {
@@ -4826,7 +4794,6 @@ unsafe fn get_id_list(
                     regmatch.regprog = vim_regcomp(name, RE_MAGIC);
                     if regmatch.regprog.is_null() {
                         failed = true;
-                        xfree(name.cast());
                         break;
                     }
 
@@ -4851,7 +4818,6 @@ unsafe fn get_id_list(
                     }
                     vim_regfree(regmatch.regprog);
                 }
-                xfree(name.cast());
                 if id == 0 {
                     semsg!(gettext(c"E409: Unknown group name: %s".as_ptr()), p);
                     failed = true;
