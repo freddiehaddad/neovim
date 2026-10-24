@@ -204,8 +204,8 @@ pub struct buf_T {
     pub b_changelistlen: c_int,
     pub b_new_change: bool,
     pub b_chartab: [u64; 4],
-    pub b_maphash: [*mut crate::mapping::mapblock_T; 256],
-    pub b_first_abbr: *mut crate::mapping::mapblock_T,
+    pub b_maphash: [Vec<*mut crate::mapping::mapblock_T>; 256],
+    pub b_first_abbr: Vec<*mut crate::mapping::mapblock_T>,
     pub b_ucmds: Vec<crate::usercmd::ucmd_T>,
     pub b_op_start: pos_T,
     pub b_op_start_orig: pos_T,
@@ -425,6 +425,8 @@ impl buf_T {
             let mut buf_uninit = Box::new(std::mem::MaybeUninit::<Self>::zeroed());
             let buf = buf_uninit.as_mut_ptr();
             ptr::write(&raw mut (*buf).b_wininfo, Vec::new());
+            ptr::write(&raw mut (*buf).b_maphash, [const { Vec::new() }; 256]);
+            ptr::write(&raw mut (*buf).b_first_abbr, Vec::new());
             ptr::write(&raw mut (*buf).b_ucmds, Vec::new());
             ptr::write(&raw mut (*buf).b_kmap_ga, Vec::new());
             ptr::write(

@@ -2296,7 +2296,6 @@ unsafe fn handle_mapping(
 ) -> c_int {
     unsafe {
         let mut mp: *mut mapblock_T = ptr::null_mut();
-        let mut mp2: *mut mapblock_T;
         let mut mp_match: *mut mapblock_T = ptr::null_mut();
         let mut mp_match_len: c_int = 0;
         let mut tb_match_len: c_int = 0;
@@ -2356,24 +2355,21 @@ unsafe fn handle_mapping(
                 nolmaplen = 0;
             }
 
-            mp = get_buf_maphash_list(local_State, tb_b1);
-            mp2 = get_maphash_list(local_State, tb_b1);
-            if mp.is_null() {
-                mp = mp2;
-                mp2 = ptr::null_mut();
-            }
-
-            while !mp.is_null() {
-                let mut key_iter: *const u8 = (*mp).m_keys.cast::<u8>().cast_const();
+            mp = ptr::null_mut();
+            for &cand in get_buf_maphash_list(local_State, tb_b1)
+                .iter()
+                .chain(get_maphash_list(local_State, tb_b1))
+            {
+                let mut key_iter: *const u8 = (*cand).m_keys.cast::<u8>().cast_const();
 
                 if char_iter(&raw mut key_iter, 0) == tb_c1
-                    && ((*mp).m_mode & local_State) != 0
-                    && (((*mp).m_mode & MODE_LANGMAP) == 0 || typebuf.tb_maplen == 0)
+                    && ((*cand).m_mode & local_State) != 0
+                    && (((*cand).m_mode & MODE_LANGMAP) == 0 || typebuf.tb_maplen == 0)
                 {
                     let mut nomap = nolmaplen;
                     let mut modifiers: c_int = 0;
                     let mut tmp_tb_iter = tb_iter;
-                    let mut mlen = key_iter.offset_from((*mp).m_keys.cast::<u8>()) as c_int;
+                    let mut mlen = key_iter.offset_from((*cand).m_keys.cast::<u8>()) as c_int;
                     let mut tb_mlen =
                         (tmp_tb_iter.offset_from(typebuf.tb_buf) as c_int) - typebuf.tb_off;
 
@@ -2404,26 +2400,20 @@ unsafe fn handle_mapping(
                             break;
                         }
 
-                        mlen = key_iter.offset_from((*mp).m_keys.cast::<u8>()) as c_int;
+                        mlen = key_iter.offset_from((*cand).m_keys.cast::<u8>()) as c_int;
                         tb_mlen =
                             (tmp_tb_iter.offset_from(typebuf.tb_buf) as c_int) - typebuf.tb_off;
                     }
 
-                    keylen = (*mp).m_keylen;
+                    keylen = (*cand).m_keylen;
                     if mlen == keylen || (mlen == typebuf.tb_len && typebuf.tb_len < keylen) {
                         let mut s = typebuf.tb_noremap.add(typebuf.tb_off as usize);
-                        let m_keys_u8 = (*mp).m_keys.cast::<u8>();
+                        let m_keys_u8 = (*cand).m_keys.cast::<u8>();
                         if *s == RM_SCRIPT
                             && (*m_keys_u8 != K_SPECIAL
                                 || *m_keys_u8.add(1) != KS_EXTRA
                                 || *m_keys_u8.add(2) != KE_SNR)
                         {
-                            if (*mp).m_next.is_null() {
-                                mp = mp2;
-                                mp2 = ptr::null_mut();
-                            } else {
-                                mp = (*mp).m_next;
-                            }
                             continue;
                         }
 
@@ -2438,40 +2428,28 @@ unsafe fn handle_mapping(
                             s = s.add(1);
                         }
                         if !is_plug_map && n >= 0 {
-                            if (*mp).m_next.is_null() {
-                                mp = mp2;
-                                mp2 = ptr::null_mut();
-                            } else {
-                                mp = (*mp).m_next;
-                            }
                             continue;
                         }
 
                         if keylen > typebuf.tb_len {
                             if !*timedout && !(!mp_match.is_null() && (*mp_match).m_nowait != 0) {
                                 keylen = KEYLEN_PART_MAP;
+                                mp = cand;
                                 break;
                             }
                         } else if keylen > mp_match_len
                             || (keylen == mp_match_len
                                 && !mp_match.is_null()
                                 && ((*mp_match).m_mode & MODE_LANGMAP) == 0
-                                && ((*mp).m_mode & MODE_LANGMAP) != 0)
+                                && ((*cand).m_mode & MODE_LANGMAP) != 0)
                         {
-                            mp_match = mp;
+                            mp_match = cand;
                             mp_match_len = keylen;
                             tb_match_len = tb_mlen;
                         }
                     } else {
                         max_mlen = max_mlen.max(mlen);
                     }
-                }
-
-                if (*mp).m_next.is_null() {
-                    mp = mp2;
-                    mp2 = ptr::null_mut();
-                } else {
-                    mp = (*mp).m_next;
                 }
             }
 

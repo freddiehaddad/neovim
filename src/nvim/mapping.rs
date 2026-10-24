@@ -88,7 +88,6 @@ const KEYSET_OPTIDX_keymap__callback: u64 = 8;
 
 #[repr(C)]
 pub struct mapblock_T {
-    pub m_next: *mut mapblock_T,
     pub m_alt: *mut mapblock_T,
     pub m_keys: *mut c_char,
     pub m_str: *mut c_char,
@@ -200,8 +199,8 @@ impl MapArguments {
     }
 }
 
-static mut first_abbr: *mut mapblock_T = ptr::null_mut();
-static mut maphash: [*mut mapblock_T; MAX_MAPHASH] = [ptr::null_mut(); MAX_MAPHASH];
+static mut first_abbr: Vec<*mut mapblock_T> = Vec::new();
+static mut maphash: [Vec<*mut mapblock_T>; MAX_MAPHASH] = [const { Vec::new() }; MAX_MAPHASH];
 static mut map_luaid: c_int = 0;
 
 static mut expand_mapmodes: c_int = 0;
@@ -232,29 +231,45 @@ const fn map_hash(mode: c_int, c1: u8) -> usize {
 use crate::keycodes::{k_second, k_third};
 
 /// Get the start of the hashed map list for "state" and first character "c".
-pub unsafe fn get_maphash_list(state: c_int, c: c_int) -> *mut mapblock_T {
-    unsafe { maphash[map_hash(state, c as u8)] }
+pub unsafe fn get_maphash_list(state: c_int, c: c_int) -> &'static [*mut mapblock_T] {
+    unsafe {
+        (&raw const maphash[map_hash(state, c as u8)])
+            .as_ref()
+            .unwrap()
+            .as_slice()
+    }
 }
 
 /// Get the buffer-local hashed map list for "state" and first character "c".
-pub unsafe fn get_buf_maphash_list(state: c_int, c: c_int) -> *mut mapblock_T {
-    unsafe { (*curbuf).b_maphash[map_hash(state, c as u8)] }
+pub unsafe fn get_buf_maphash_list(state: c_int, c: c_int) -> &'static [*mut mapblock_T] {
+    unsafe { (*curbuf).b_maphash[map_hash(state, c as u8)].as_slice() }
+}
+
+#[inline]
+unsafe fn get_map_buckets(buf: *const buf_T, is_abbrev: bool) -> &'static [Vec<*mut mapblock_T>] {
+    unsafe {
+        if is_abbrev {
+            if !buf.is_null() {
+                std::slice::from_ref(&(*buf).b_first_abbr)
+            } else {
+                std::slice::from_ref((&raw const first_abbr).as_ref().unwrap())
+            }
+        } else if !buf.is_null() {
+            &(*buf).b_maphash
+        } else {
+            (&raw const maphash).as_ref().unwrap()
+        }
+    }
 }
 
 /// Finds the Lua mapping whose `m_str` embeds `id`.
-unsafe fn map_luaid_scan(
-    mappings: *const *mut mapblock_T,
-    size: usize,
-    id: c_int,
-) -> *mut mapblock_T {
+unsafe fn map_luaid_scan(mappings: &[Vec<*mut mapblock_T>], id: c_int) -> *mut mapblock_T {
     unsafe {
-        for i in 0..size {
-            let mut mp = *mappings.add(i);
-            while !mp.is_null() {
+        for bucket in mappings {
+            for &mp in bucket {
                 if (*mp).m_luaref != LUA_NOREF && atoi((*mp).m_str.add(3)) == id {
                     return mp;
                 }
-                mp = (*mp).m_next;
             }
         }
         ptr::null_mut()
@@ -264,25 +279,19 @@ unsafe fn map_luaid_scan(
 /// Resolves a Lua-mapping id to its callback.
 pub unsafe fn map_luaid_get(n: c_int) -> LuaRef {
     unsafe {
-        let mut mp = map_luaid_scan(
-            (&raw const maphash).cast::<*mut mapblock_T>(),
-            MAX_MAPHASH,
-            n,
-        );
+        let maphash_ref = (&raw const maphash).as_ref().unwrap();
+        let first_abbr_ref = (&raw const first_abbr).as_ref().unwrap();
+        let mut mp = map_luaid_scan(maphash_ref, n);
         if mp.is_null() {
-            mp = map_luaid_scan(&raw const first_abbr, 1, n);
+            mp = map_luaid_scan(std::slice::from_ref(first_abbr_ref), n);
         }
         let mut fb = firstbuf;
         while !fb.is_null() {
             if mp.is_null() {
-                mp = map_luaid_scan(
-                    (&raw const (*fb).b_maphash).cast::<*mut mapblock_T>(),
-                    MAX_MAPHASH,
-                    n,
-                );
+                mp = map_luaid_scan(&(*fb).b_maphash, n);
             }
             if mp.is_null() {
-                mp = map_luaid_scan(&raw const (*fb).b_first_abbr, 1, n);
+                mp = map_luaid_scan(std::slice::from_ref(&(*fb).b_first_abbr), n);
             }
             fb = (*fb).b_next;
         }
@@ -295,11 +304,9 @@ pub unsafe fn map_luaid_get(n: c_int) -> LuaRef {
 }
 
 /// Delete one entry from the abbrlist or maphash[].
-/// "mpp" is a pointer to the m_next field of the PREVIOUS entry!
-unsafe fn mapblock_free(mpp: *mut *mut mapblock_T) {
+unsafe fn mapblock_free(list: &mut Vec<*mut mapblock_T>, idx: usize) {
     unsafe {
-        let mp = *mpp;
-        *mpp = (*mp).m_next;
+        let mp = list.remove(idx);
         drop(Box::from_raw(mp));
     }
 }
@@ -637,8 +644,8 @@ unsafe fn str_to_mapargs(
 
 unsafe fn map_add(
     buf: *mut buf_T,
-    map_table: *mut *mut mapblock_T,
-    abbr_table: *mut *mut mapblock_T,
+    map_table: *mut Vec<*mut mapblock_T>,
+    abbr_table: *mut Vec<*mut mapblock_T>,
     keys: *const c_char,
     args: &MapArguments,
     noremap: c_int,
@@ -652,7 +659,7 @@ unsafe fn map_add(
         if *keys == Ctrl_C {
             if ptr::eq(
                 map_table,
-                (&raw mut (*buf).b_maphash).cast::<*mut mapblock_T>(),
+                (&raw mut (*buf).b_maphash).cast::<Vec<*mut mapblock_T>>(),
             ) {
                 (*buf).b_mapped_ctrl_c |= mode;
             } else {
@@ -676,7 +683,6 @@ unsafe fn map_add(
             ctx
         };
         let mp = Box::into_raw(Box::new(mapblock_T {
-            m_next: ptr::null_mut(),
             m_alt: ptr::null_mut(),
             m_keys,
             m_str: args.rhs,
@@ -695,12 +701,10 @@ unsafe fn map_add(
         }));
 
         if is_abbr {
-            (*mp).m_next = *abbr_table;
-            *abbr_table = mp;
+            (*abbr_table).insert(0, mp);
         } else {
             let n = map_hash((*mp).m_mode, *(*mp).m_keys as u8);
-            (*mp).m_next = *map_table.add(n);
-            *map_table.add(n) = mp;
+            (*map_table.add(n)).insert(0, mp);
         }
         mp
     }
@@ -716,8 +720,8 @@ unsafe fn buf_do_map(
     unsafe {
         let mut retval: c_int = 0;
 
-        let buf_maphash = (&raw mut (*buf).b_maphash).cast::<*mut mapblock_T>();
-        let global_maphash = (&raw mut maphash).cast::<*mut mapblock_T>();
+        let buf_maphash = (&raw mut (*buf).b_maphash).cast::<Vec<*mut mapblock_T>>();
+        let global_maphash = (&raw mut maphash).cast::<Vec<*mut mapblock_T>>();
         let map_table = if args.buffer {
             buf_maphash
         } else {
@@ -837,19 +841,14 @@ unsafe fn buf_do_map(
                     && maptype != MAPTYPE_UNMAP
                 {
                     let lhs_slice = std::slice::from_raw_parts(lhs.cast::<u8>(), len as usize);
-                    for hash in 0..256 {
+                    for bucket in get_map_buckets(ptr::null(), is_abbrev) {
                         if got_int {
                             break;
                         }
-                        let mut mp = if is_abbrev {
-                            if hash != 0 {
+                        for &mp in bucket {
+                            if got_int {
                                 break;
                             }
-                            first_abbr
-                        } else {
-                            *(&raw const maphash).cast::<*mut mapblock_T>().add(hash)
-                        };
-                        while !mp.is_null() && !got_int {
                             if ((*mp).m_mode & mode) != 0 && (*mp).m_keylen == len {
                                 let mp_slice = std::slice::from_raw_parts(
                                     (*mp).m_keys.cast::<u8>(),
@@ -860,25 +859,19 @@ unsafe fn buf_do_map(
                                     break 'outer;
                                 }
                             }
-                            mp = (*mp).m_next;
                         }
                     }
                 }
 
                 if !ptr::eq(map_table, buf_maphash) && !has_rhs && maptype != MAPTYPE_UNMAP {
-                    for hash in 0..256 {
+                    for bucket in get_map_buckets(buf, is_abbrev) {
                         if got_int {
                             break;
                         }
-                        let mut mp = if is_abbrev {
-                            if hash != 0 {
+                        for &mp in bucket {
+                            if got_int {
                                 break;
                             }
-                            (*buf).b_first_abbr
-                        } else {
-                            (*buf).b_maphash[hash]
-                        };
-                        while !mp.is_null() && !got_int {
                             if (*mp).m_simplified == 0 && ((*mp).m_mode & mode) != 0 {
                                 if !has_lhs {
                                     showmap(mp, true);
@@ -898,7 +891,6 @@ unsafe fn buf_do_map(
                                     }
                                 }
                             }
-                            mp = (*mp).m_next;
                         }
                     }
                 }
@@ -926,15 +918,16 @@ unsafe fn buf_do_map(
                         if got_int {
                             break;
                         }
-                        let mut mpp = if is_abbrev {
+                        let mpp = if is_abbrev {
                             abbr_table
                         } else {
                             map_table.add(hash)
                         };
-                        while !(*mpp).is_null() && !got_int {
-                            let mp = *mpp;
+                        let mut idx: usize = 0;
+                        while idx < (*mpp).len() && !got_int {
+                            let mp = (*mpp).as_slice()[idx];
                             if ((*mp).m_mode & mode) == 0 {
-                                mpp = &raw mut (*mp).m_next;
+                                idx += 1;
                                 continue;
                             }
                             if !has_lhs {
@@ -963,7 +956,7 @@ unsafe fn buf_do_map(
                                                 || n > len
                                                 || *skipwhite(lhs.add(n as usize)) != NUL)
                                         {
-                                            mpp = &raw mut (*mp).m_next;
+                                            idx += 1;
                                             continue;
                                         }
                                         if keyround1_simplified && (*mp).m_simplified == 0 {
@@ -977,7 +970,7 @@ unsafe fn buf_do_map(
                                             did_it = true;
                                         }
                                     } else if n != len {
-                                        mpp = &raw mut (*mp).m_next;
+                                        idx += 1;
                                         continue;
                                     } else if keyround1_simplified && (*mp).m_simplified == 0 {
                                         did_it = true;
@@ -1016,20 +1009,19 @@ unsafe fn buf_do_map(
                                         }
                                     }
                                     if (*mp).m_mode == 0 {
-                                        mapblock_free(mpp);
+                                        mapblock_free(&mut *mpp, idx);
                                         continue;
                                     }
 
                                     let new_hash = map_hash((*mp).m_mode, *(*mp).m_keys as u8);
                                     if !is_abbrev && new_hash != hash {
-                                        *mpp = (*mp).m_next;
-                                        (*mp).m_next = *map_table.add(new_hash);
-                                        *map_table.add(new_hash) = mp;
+                                        (*mpp).remove(idx);
+                                        (*map_table.add(new_hash)).insert(0, mp);
                                         continue;
                                     }
                                 }
                             }
-                            mpp = &raw mut (*mp).m_next;
+                            idx += 1;
                         }
                     }
                 }
@@ -1172,10 +1164,10 @@ unsafe fn do_mapclear(mut cmdp: *mut c_char, arg: *mut c_char, forceit: c_int, a
 /// Clear all mappings in "mode".
 pub unsafe fn map_clear_mode(buf: *mut buf_T, mode: c_int, local: bool, abbr: bool) {
     unsafe {
-        let buf_maphash = (&raw mut (*buf).b_maphash).cast::<*mut mapblock_T>();
-        let global_maphash = (&raw mut maphash).cast::<*mut mapblock_T>();
+        let buf_maphash = (&raw mut (*buf).b_maphash).cast::<Vec<*mut mapblock_T>>();
+        let global_maphash = (&raw mut maphash).cast::<Vec<*mut mapblock_T>>();
         for hash in 0..256 {
-            let mut mpp = if abbr {
+            let mpp = if abbr {
                 if hash > 0 {
                     break;
                 }
@@ -1189,28 +1181,27 @@ pub unsafe fn map_clear_mode(buf: *mut buf_T, mode: c_int, local: bool, abbr: bo
             } else {
                 global_maphash.add(hash)
             };
-            while !(*mpp).is_null() {
-                let mp = *mpp;
+            let mut idx: usize = 0;
+            while idx < (*mpp).len() {
+                let mp = (*mpp).as_slice()[idx];
                 if ((*mp).m_mode & mode) != 0 {
                     (*mp).m_mode &= !mode;
                     if (*mp).m_mode == 0 {
-                        mapblock_free(mpp);
+                        mapblock_free(&mut *mpp, idx);
                         continue;
                     }
                     let new_hash = map_hash((*mp).m_mode, *(*mp).m_keys as u8);
                     if !abbr && new_hash != hash {
-                        *mpp = (*mp).m_next;
+                        (*mpp).remove(idx);
                         if local {
-                            (*mp).m_next = *buf_maphash.add(new_hash);
-                            *buf_maphash.add(new_hash) = mp;
+                            (*buf_maphash.add(new_hash)).insert(0, mp);
                         } else {
-                            (*mp).m_next = *global_maphash.add(new_hash);
-                            *global_maphash.add(new_hash) = mp;
+                            (*global_maphash.add(new_hash)).insert(0, mp);
                         }
                         continue;
                     }
                 }
-                mpp = &raw mut (*mp).m_next;
+                idx += 1;
             }
         }
     }
@@ -1266,35 +1257,15 @@ pub unsafe fn map_to_exists(str_ptr: *const c_char, modechars: *const c_char, ab
 /// Check if a map exists that has given string in the rhs.
 pub unsafe fn map_to_exists_mode(rhs: *const c_char, mode: c_int, abbr: bool) -> bool {
     unsafe {
-        let mut exp_buffer = false;
-
-        loop {
-            for hash in 0..256 {
-                let mut mp = if abbr {
-                    if hash > 0 {
-                        break;
-                    }
-                    if exp_buffer {
-                        (*curbuf).b_first_abbr
-                    } else {
-                        first_abbr
-                    }
-                } else if exp_buffer {
-                    (*curbuf).b_maphash[hash]
-                } else {
-                    *(&raw const maphash).cast::<*mut mapblock_T>().add(hash)
-                };
-                while !mp.is_null() {
+        for exp_buffer in [false, true] {
+            let b = if exp_buffer { curbuf } else { ptr::null() };
+            for bucket in get_map_buckets(b, abbr) {
+                for &mp in bucket {
                     if ((*mp).m_mode & mode) != 0 && !strstr((*mp).m_str, rhs).is_null() {
                         return true;
                     }
-                    mp = (*mp).m_next;
                 }
             }
-            if exp_buffer {
-                break;
-            }
-            exp_buffer = true;
         }
 
         false
@@ -1477,26 +1448,19 @@ pub unsafe fn ExpandMappings(
             }
         }
 
-        for hash in 0..256 {
-            let mut mp = if expand_isabbrev {
-                if hash > 0 {
-                    break;
-                }
-                first_abbr
-            } else if expand_buffer {
-                (*curbuf).b_maphash[hash].cast::<mapblock_T>()
-            } else {
-                *(&raw const maphash).cast::<*mut mapblock_T>().add(hash)
-            };
-            while !mp.is_null() {
+        let exp_buf = if !expand_isabbrev && expand_buffer {
+            curbuf
+        } else {
+            ptr::null()
+        };
+        for bucket in get_map_buckets(exp_buf, expand_isabbrev) {
+            for &mp in bucket {
                 if (*mp).m_simplified != 0 || ((*mp).m_mode & expand_mapmodes) == 0 {
-                    mp = (*mp).m_next;
                     continue;
                 }
 
                 let p = translate_mapping((*mp).m_keys, p_cpo);
                 if p.is_null() {
-                    mp = (*mp).m_next;
                     continue;
                 }
 
@@ -1510,7 +1474,6 @@ pub unsafe fn ExpandMappings(
 
                 if !match_found {
                     xfree(p.cast::<c_void>());
-                    mp = (*mp).m_next;
                     continue;
                 }
 
@@ -1524,7 +1487,6 @@ pub unsafe fn ExpandMappings(
                 } else {
                     str_matches.push(p);
                 }
-                mp = (*mp).m_next;
             }
         }
 
@@ -1630,35 +1592,26 @@ pub unsafe fn check_abbr(
         if scol < col {
             ptr_arg = ptr_arg.add(scol as usize);
             let mut len = col - scol;
-            let mut mp = (*curbuf).b_first_abbr.cast::<mapblock_T>();
-            let mut mp2 = first_abbr;
-            if mp.is_null() {
-                mp = mp2;
-                mp2 = ptr::null_mut();
-            }
-            while !mp.is_null() {
-                let mut qlen = (*mp).m_keylen;
-                let mut q = (*mp).m_keys;
+            let mut mp: *mut mapblock_T = ptr::null_mut();
+            let first_abbr_slice = (&raw const first_abbr).as_ref().unwrap().as_slice();
+            for &cand in (*curbuf).b_first_abbr.iter().chain(first_abbr_slice) {
+                let mut qlen = (*cand).m_keylen;
+                let mut q = (*cand).m_keys;
 
-                if CStr::from_ptr((*mp).m_keys).to_bytes().contains(&K_SPECIAL) {
-                    q = xstrdup((*mp).m_keys);
+                if CStr::from_ptr((*cand).m_keys).to_bytes().contains(&K_SPECIAL) {
+                    q = xstrdup((*cand).m_keys);
                     qlen = vim_unescape_ks(q) as c_int;
                 }
-                let match_found = ((*mp).m_mode & State) != 0
+                let match_found = ((*cand).m_mode & State) != 0
                     && qlen == len
                     && std::slice::from_raw_parts(q.cast::<u8>(), len as usize)
                         == std::slice::from_raw_parts(ptr_arg.cast::<u8>(), len as usize);
-                if !ptr::eq(q, (*mp).m_keys) {
+                if !ptr::eq(q, (*cand).m_keys) {
                     xfree(q.cast::<c_void>());
                 }
                 if match_found {
+                    mp = cand;
                     break;
-                }
-                if (*mp).m_next.is_null() {
-                    mp = mp2;
-                    mp2 = ptr::null_mut();
-                } else {
-                    mp = (*mp).m_next;
                 }
             }
             if !mp.is_null() {
@@ -1816,28 +1769,12 @@ pub unsafe fn makemap(fd: *mut FILE, buf: *mut buf_T) -> c_int {
         let mut did_cpo = false;
 
         for abbr in 0..2 {
-            for hash in 0..256 {
-                let mut mp = if abbr != 0 {
-                    if hash > 0 {
-                        break;
-                    }
-                    if !buf.is_null() {
-                        (*buf).b_first_abbr
-                    } else {
-                        first_abbr
-                    }
-                } else if !buf.is_null() {
-                    (*buf).b_maphash[hash]
-                } else {
-                    *(&raw const maphash).cast::<*mut mapblock_T>().add(hash)
-                };
-
-                while !mp.is_null() {
+            for bucket in get_map_buckets(buf, abbr != 0) {
+                for &mp in bucket {
                     if (*mp).m_simplified != 0
                         || (*mp).m_noremap == REMAP_SCRIPT
                         || (*mp).m_luaref != LUA_NOREF
                     {
-                        mp = (*mp).m_next;
                         continue;
                     }
 
@@ -1852,7 +1789,6 @@ pub unsafe fn makemap(fd: *mut FILE, buf: *mut buf_T) -> c_int {
                         p = p.add(1);
                     }
                     if *p != NUL {
-                        mp = (*mp).m_next;
                         continue;
                     }
 
@@ -1997,8 +1933,6 @@ pub unsafe fn makemap(fd: *mut FILE, buf: *mut buf_T) -> c_int {
                             break;
                         }
                     }
-
-                    mp = (*mp).m_next;
                 }
             }
         }
@@ -2122,22 +2056,9 @@ pub unsafe fn check_map(
 
         let len = CStr::from_ptr(keys).to_bytes().len() as c_int;
         for local in (0..=1).rev() {
-            for hash in 0..256 {
-                let mut mp = if abbr != 0 {
-                    if hash > 0 {
-                        break;
-                    }
-                    if local != 0 {
-                        (*curbuf).b_first_abbr.cast::<mapblock_T>()
-                    } else {
-                        first_abbr
-                    }
-                } else if local != 0 {
-                    (*curbuf).b_maphash[hash].cast::<mapblock_T>()
-                } else {
-                    *(&raw const maphash).cast::<*mut mapblock_T>().add(hash)
-                };
-                while !mp.is_null() {
+            let b = if local != 0 { curbuf } else { ptr::null() };
+            for bucket in get_map_buckets(b, abbr != 0) {
+                for &mp in bucket {
                     if ((*mp).m_mode & mode) != 0 && (exact == 0 || (*mp).m_keylen == len) {
                         let mut s = (*mp).m_keys;
                         let mut keylen = (*mp).m_keylen;
@@ -2167,7 +2088,6 @@ pub unsafe fn check_map(
                             };
                         }
                     }
-                    mp = (*mp).m_next;
                 }
             }
         }
@@ -2547,9 +2467,9 @@ pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: Eva
         );
 
         let map_table = if buffer {
-            (&raw mut (*curbuf).b_maphash).cast::<*mut mapblock_T>()
+            (&raw mut (*curbuf).b_maphash).cast::<Vec<*mut mapblock_T>>()
         } else {
-            (&raw mut maphash).cast::<*mut mapblock_T>()
+            (&raw mut maphash).cast::<Vec<*mut mapblock_T>>()
         };
         let abbr_table = if buffer {
             &raw mut (*curbuf).b_first_abbr
@@ -2624,24 +2544,14 @@ pub unsafe fn f_maplist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
         tv_list_alloc_ret(rettv, kListLenUnknown);
 
         for buffer_local in 0..=1 {
-            for hash in 0..256 {
-                let mut mp = if abbr {
-                    if hash > 0 {
-                        break;
-                    }
-                    if buffer_local != 0 {
-                        (*curbuf).b_first_abbr.cast::<mapblock_T>()
-                    } else {
-                        first_abbr
-                    }
-                } else if buffer_local != 0 {
-                    (*curbuf).b_maphash[hash].cast::<mapblock_T>()
-                } else {
-                    *(&raw const maphash).cast::<*mut mapblock_T>().add(hash)
-                };
-                while !mp.is_null() {
+            let b = if buffer_local != 0 {
+                curbuf
+            } else {
+                ptr::null()
+            };
+            for bucket in get_map_buckets(b, abbr) {
+                for &mp in bucket {
                     if (*mp).m_simplified != 0 {
-                        mp = (*mp).m_next;
                         continue;
                     }
 
@@ -2683,7 +2593,6 @@ pub unsafe fn f_maplist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                     tv_list_append_dict((*rettv).vval.v_list, d.vval.v_dict);
                     arena_mem_free(arena_finish(&mut arena));
                     xfree(keys_buf.cast::<c_void>());
-                    mp = (*mp).m_next;
                 }
             }
         }
@@ -3170,20 +3079,8 @@ pub unsafe fn keymap_array(mode: NvimString, buf: *mut buf_T, arena: *mut Arena)
 
         let buffer_value = if buf.is_null() { 0 } else { (*buf).b_fnum };
 
-        let limit = if is_abbrev { 1 } else { MAX_MAPHASH };
-        for i in 0..limit {
-            let mut current_maphash: *const mapblock_T = if is_abbrev {
-                if !buf.is_null() {
-                    (*buf).b_first_abbr
-                } else {
-                    first_abbr
-                }
-            } else if !buf.is_null() {
-                (*buf).b_maphash[i]
-            } else {
-                *(&raw const maphash).cast::<*mut mapblock_T>().add(i)
-            };
-            while !current_maphash.is_null() {
+        for bucket in get_map_buckets(buf, is_abbrev) {
+            for &current_maphash in bucket {
                 if (*current_maphash).m_simplified == 0
                     && (int_mode & (*current_maphash).m_mode) != 0
                 {
@@ -3201,7 +3098,6 @@ pub unsafe fn keymap_array(mode: NvimString, buf: *mut buf_T, arena: *mut Arena)
                         arena,
                     )));
                 }
-                current_maphash = (*current_maphash).m_next;
             }
         }
 
