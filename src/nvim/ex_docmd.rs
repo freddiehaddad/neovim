@@ -528,11 +528,10 @@ struct loop_cookie {
     cookie: *mut c_void,
 }
 
-#[repr(C)]
 struct dbg_stuff {
     trylevel: c_int,
     force_abort: c_int,
-    caught_stack: *mut except_T,
+    caught_stack: Vec<*mut except_T>,
     vv_exception: *mut c_char,
     vv_throwpoint: *mut c_char,
     did_emsg: c_int,
@@ -541,6 +540,24 @@ struct dbg_stuff {
     need_rethrow: c_int,
     check_cstack: c_int,
     current_exception: *mut except_T,
+}
+
+impl dbg_stuff {
+    const fn new() -> Self {
+        Self {
+            trylevel: 0,
+            force_abort: 0,
+            caught_stack: Vec::new(),
+            vv_exception: ptr::null_mut(),
+            vv_throwpoint: ptr::null_mut(),
+            did_emsg: 0,
+            got_int: 0,
+            did_throw: false,
+            need_rethrow: 0,
+            check_cstack: 0,
+            current_exception: ptr::null_mut(),
+        }
+    }
 }
 
 struct CmdModInfo {
@@ -4741,8 +4758,8 @@ unsafe fn save_dbg_stuff(dsp: *mut dbg_stuff) {
         trylevel = 0;
         (*dsp).force_abort = c_int::from(force_abort);
         force_abort = false;
-        (*dsp).caught_stack = caught_stack;
-        caught_stack = ptr::null_mut();
+        let stack = &raw mut caught_stack;
+        (*dsp).caught_stack = std::mem::take(&mut *stack);
         (*dsp).vv_exception = v_exception(ptr::null_mut());
         (*dsp).vv_throwpoint = v_throwpoint(ptr::null_mut());
 
@@ -4767,7 +4784,8 @@ unsafe fn restore_dbg_stuff(dsp: *mut dbg_stuff) {
         suppress_errthrow = false;
         trylevel = (*dsp).trylevel;
         force_abort = (*dsp).force_abort != 0;
-        caught_stack = (*dsp).caught_stack;
+        let stack = &raw mut caught_stack;
+        *stack = std::mem::take(&mut (*dsp).caught_stack);
         v_exception((*dsp).vv_exception);
         v_throwpoint((*dsp).vv_throwpoint);
         did_emsg = (*dsp).did_emsg;
@@ -4883,7 +4901,7 @@ pub unsafe fn do_cmdline(
         let mut fname: *mut c_char = ptr::null_mut();
         let mut breakpoint: *mut linenr_T = ptr::null_mut();
         let mut dbg_tick: *mut c_int = ptr::null_mut();
-        let mut debug_saved: dbg_stuff = std::mem::zeroed();
+        let mut debug_saved = dbg_stuff::new();
         let mut private_msg_list: *mut msglist_T = ptr::null_mut();
 
         let mut cmd_getline: LineGetter;

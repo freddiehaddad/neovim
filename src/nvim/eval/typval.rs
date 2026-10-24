@@ -660,7 +660,7 @@ pub unsafe extern "C" fn tv_list_alloc(_len: isize) -> *mut list_T {
             lv_watch: ptr::null_mut(),
             lv_idx_item: ptr::null_mut(),
             lv_copylist: ptr::null_mut(),
-            lv_used_next: gc_first_list.cast::<list_T>(),
+            lv_used_next: gc_first_list,
             lv_used_prev: ptr::null_mut(),
             lv_refcount: 0,
             lv_len: 0,
@@ -671,9 +671,9 @@ pub unsafe extern "C" fn tv_list_alloc(_len: isize) -> *mut list_T {
         }));
 
         if !gc_first_list.is_null() {
-            (*gc_first_list.cast::<list_T>()).lv_used_prev = list;
+            (*gc_first_list).lv_used_prev = list;
         }
-        gc_first_list = list.cast::<c_void>();
+        gc_first_list = list;
         list
     }
 }
@@ -734,7 +734,7 @@ pub unsafe fn tv_list_free_contents(l: *mut list_T) {
 pub unsafe fn tv_list_free_list(l: *mut list_T) {
     unsafe {
         if (*l).lv_used_prev.is_null() {
-            gc_first_list = (*l).lv_used_next.cast::<c_void>();
+            gc_first_list = (*l).lv_used_next;
         } else {
             (*(*l).lv_used_prev).lv_used_next = (*l).lv_used_next;
         }
@@ -2591,16 +2591,16 @@ pub unsafe fn tv_dict_alloc() -> *mut dict_T {
             dv_copyID: 0,
             dv_hashtab: std::mem::zeroed(),
             dv_copydict: ptr::null_mut(),
-            dv_used_next: gc_first_dict.cast::<dict_T>(),
+            dv_used_next: gc_first_dict,
             dv_used_prev: ptr::null_mut(),
             watchers: Vec::new(),
             lua_table_ref: LUA_NOREF,
         }));
 
         if !gc_first_dict.is_null() {
-            (*gc_first_dict.cast::<dict_T>()).dv_used_prev = d;
+            (*gc_first_dict).dv_used_prev = d;
         }
-        gc_first_dict = d.cast::<c_void>();
+        gc_first_dict = d;
 
         hash_init(&raw mut (*d).dv_hashtab);
 
@@ -2647,7 +2647,7 @@ pub unsafe fn tv_dict_free_contents(d: *mut dict_T) {
 pub unsafe fn tv_dict_free_dict(d: *mut dict_T) {
     unsafe {
         if (*d).dv_used_prev.is_null() {
-            gc_first_dict = (*d).dv_used_next.cast::<c_void>();
+            gc_first_dict = (*d).dv_used_next;
         } else {
             (*(*d).dv_used_prev).dv_used_next = (*d).dv_used_next;
         }

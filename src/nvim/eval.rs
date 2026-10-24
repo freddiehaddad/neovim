@@ -4636,7 +4636,7 @@ unsafe fn free_unref_items(copyID: c_int) -> c_int {
 
         tv_in_free_unref_items = true;
 
-        let mut dd = gc_first_dict.cast::<dict_T>();
+        let mut dd = gc_first_dict;
         while !dd.is_null() {
             if ((*dd).dv_copyID & COPYID_MASK) != (copyID & COPYID_MASK) {
                 tv_dict_free_contents(dd);
@@ -4645,7 +4645,7 @@ unsafe fn free_unref_items(copyID: c_int) -> c_int {
             dd = (*dd).dv_used_next;
         }
 
-        let mut ll = gc_first_list.cast::<list_T>();
+        let mut ll = gc_first_list;
         while !ll.is_null() {
             if (tv_list_copyid(ll) & COPYID_MASK) != (copyID & COPYID_MASK)
                 && !tv_list_has_watchers(ll)
@@ -4656,7 +4656,7 @@ unsafe fn free_unref_items(copyID: c_int) -> c_int {
             ll = (*ll).lv_used_next;
         }
 
-        let mut dd_cur = gc_first_dict.cast::<dict_T>();
+        let mut dd_cur = gc_first_dict;
         while !dd_cur.is_null() {
             let dd_next = (*dd_cur).dv_used_next;
             if ((*dd_cur).dv_copyID & COPYID_MASK) != (copyID & COPYID_MASK) {
@@ -4665,7 +4665,7 @@ unsafe fn free_unref_items(copyID: c_int) -> c_int {
             dd_cur = dd_next;
         }
 
-        let mut ll_cur = gc_first_list.cast::<list_T>();
+        let mut ll_cur = gc_first_list;
         while !ll_cur.is_null() {
             let ll_next = (*ll_cur).lv_used_next;
             if ((*ll_cur).lv_copyID & COPYID_MASK) != (copyID & COPYID_MASK)

@@ -130,7 +130,6 @@ pub struct except_T {
     pub throw_name: *mut c_char,
     pub throw_lnum: linenr_T,
     pub stacktrace: *mut list_T,
-    pub caught: *mut except_T,
 }
 
 #[repr(C)]
@@ -553,8 +552,8 @@ pub unsafe fn discard_current_exception() {
 
 unsafe fn catch_exception(excp: *mut except_T) {
     unsafe {
-        (*excp).caught = caught_stack;
-        caught_stack = excp;
+        let stack = &raw mut caught_stack;
+        (*stack).push(excp);
         set_vim_var_string(VV_EXCEPTION, (*excp).value, -1);
         set_vim_var_list(VV_STACKTRACE, (*excp).stacktrace);
         if *(*excp).throw_name != NUL {
@@ -613,28 +612,29 @@ unsafe fn catch_exception(excp: *mut except_T) {
 
 unsafe fn finish_exception(excp: *mut except_T) {
     unsafe {
-        if excp != caught_stack {
+        let stack = &raw mut caught_stack;
+        if (*stack).last().copied() != Some(excp) {
             internal_error(c"finish_exception()".as_ptr());
         }
-        caught_stack = (*caught_stack).caught;
-        if !caught_stack.is_null() {
-            set_vim_var_string(VV_EXCEPTION, (*caught_stack).value, -1);
-            set_vim_var_list(VV_STACKTRACE, (*caught_stack).stacktrace);
-            if *(*caught_stack).throw_name != NUL {
-                let iobufflen = if (*caught_stack).throw_lnum != 0 {
+        (*stack).pop();
+        if let Some(&top) = (*stack).last() {
+            set_vim_var_string(VV_EXCEPTION, (*top).value, -1);
+            set_vim_var_list(VV_STACKTRACE, (*top).stacktrace);
+            if *(*top).throw_name != NUL {
+                let iobufflen = if (*top).throw_lnum != 0 {
                     vim_snprintf_safelen!(
                         ptr::addr_of_mut!(IObuff).cast(),
                         IOSIZE,
                         gettext(c"%s, line %lld".as_ptr()),
-                        (*caught_stack).throw_name,
-                        i64::from((*caught_stack).throw_lnum),
+                        (*top).throw_name,
+                        i64::from((*top).throw_lnum),
                     )
                 } else {
                     vim_snprintf_safelen!(
                         ptr::addr_of_mut!(IObuff).cast(),
                         IOSIZE,
                         c"%s".as_ptr(),
-                        (*caught_stack).throw_name,
+                        (*top).throw_name,
                     )
                 };
                 set_vim_var_string(
