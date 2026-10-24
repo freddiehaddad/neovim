@@ -6405,8 +6405,7 @@ unsafe fn showoptions(all: bool, opt_flags: c_int) {
         const INC: c_int = 20;
         const GAP: c_int = 3;
 
-        let items = xmalloc(std::mem::size_of::<*mut vimoption_T>() * (kOptCount as usize))
-            .cast::<*mut vimoption_T>();
+        let mut items: Vec<*mut vimoption_T> = Vec::with_capacity(kOptCount as usize);
 
         msg_ext_set_kind(c"list_cmd".as_ptr());
         if (opt_flags & OPT_GLOBAL) != 0 {
@@ -6419,7 +6418,7 @@ unsafe fn showoptions(all: bool, opt_flags: c_int) {
 
         let mut run = 1;
         while run <= 2 && !got_int {
-            let mut item_count: usize = 0;
+            items.clear();
             for opt_idx in 0..kOptCount {
                 let opt = get_option(opt_idx);
                 if message_filtered((*opt).fullname) {
@@ -6446,12 +6445,12 @@ unsafe fn showoptions(all: bool, opt_flags: c_int) {
                             + 1
                     };
                     if (len <= INC - GAP && run == 1) || (len > INC - GAP && run == 2) {
-                        *items.add(item_count) = opt;
-                        item_count += 1;
+                        items.push(opt);
                     }
                 }
             }
 
+            let item_count = items.len();
             let rows = if run == 1 {
                 let mut cols = (Columns + GAP - 3) / INC;
                 if cols == 0 {
@@ -6472,7 +6471,7 @@ unsafe fn showoptions(all: bool, opt_flags: c_int) {
                 let mut i = row as usize;
                 while i < item_count {
                     msg_advance(col);
-                    showoneopt(*items.add(i), opt_flags);
+                    showoneopt(items[i], opt_flags);
                     col += INC;
                     i += rows as usize;
                 }
@@ -6481,7 +6480,6 @@ unsafe fn showoptions(all: bool, opt_flags: c_int) {
             }
             run += 1;
         }
-        xfree(items.cast());
     }
 }
 

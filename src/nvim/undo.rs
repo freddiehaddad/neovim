@@ -48,7 +48,7 @@ use crate::mcursor::mc_undo_time;
 #[cfg(unix)]
 use crate::memline::resolve_symlink;
 use crate::memline::{ml_append_flags, ml_delete, ml_get, ml_get_buf, ml_replace};
-use crate::memory::{time_to_bytes, xcalloc, xfree, xmalloc, xmallocz, xstrdup, xstrlcat};
+use crate::memory::{time_to_bytes, xfree, xmalloc, xmallocz, xstrdup, xstrlcat};
 use crate::message::{
     emsg, give_warning, iemsg, internal_error, messaging, msg, msg_end, msg_ext_set_kind,
     msg_putchar, msg_puts, msg_puts_hl, msg_start, semsg, smsg, smsg_keep, verb_msg, verbose_enter,
@@ -835,15 +835,11 @@ unsafe fn unserialize_uhp(bi: &mut bufinfo_T, file_name: *const c_char) -> *mut 
 
         c = undo_read_2c(bi);
         while c == UF_ENTRY_MAGIC {
-            let mut error = false;
-            let extup = unserialize_extmark(bi, &mut error, file_name);
-            if error {
-                xfree(extup.cast());
+            let Some(extup) = unserialize_extmark(bi, file_name) else {
                 u_free_uhp(uhp);
                 return ptr::null_mut();
-            }
-            (*uhp).uh_extmark.push(*extup);
-            xfree(extup.cast());
+            };
+            (*uhp).uh_extmark.push(extup);
             c = undo_read_2c(bi);
         }
         if c != UF_ENTRY_END_MAGIC {
@@ -885,46 +881,31 @@ unsafe fn serialize_extmark(bi: &mut bufinfo_T, extup: ExtmarkUndoObject) -> boo
 
 unsafe fn unserialize_extmark(
     bi: &mut bufinfo_T,
-    error: &mut bool,
     _filename: *const c_char,
-) -> *mut ExtmarkUndoObject {
+) -> Option<ExtmarkUndoObject> {
     unsafe {
-        let buf: *mut u8;
-        let extup = xmalloc(size_of::<ExtmarkUndoObject>()).cast::<ExtmarkUndoObject>();
         let type_ = undo_read_4c(bi) as UndoObjectType;
-        (*extup).type_ = type_;
         if type_ == kExtmarkSplice {
-            let n_elems = size_of::<ExtmarkSplice>();
-            buf = xcalloc(n_elems, 1).cast::<u8>();
-            if !undo_read(bi, buf, n_elems) {
-                xfree(extup.cast());
-                xfree(buf.cast());
-                *error = true;
-                return ptr::null_mut();
+            let mut splice: ExtmarkSplice = std::mem::zeroed();
+            if !undo_read(bi, (&raw mut splice).cast::<u8>(), size_of::<ExtmarkSplice>()) {
+                return None;
             }
-            (*extup).data = ExtmarkUndoData {
-                splice: *buf.cast::<ExtmarkSplice>(),
-            };
+            Some(ExtmarkUndoObject {
+                type_,
+                data: ExtmarkUndoData { splice },
+            })
         } else if type_ == kExtmarkMove {
-            let n_elems = size_of::<ExtmarkMove>();
-            buf = xcalloc(n_elems, 1).cast::<u8>();
-            if !undo_read(bi, buf, n_elems) {
-                xfree(extup.cast());
-                xfree(buf.cast());
-                *error = true;
-                return ptr::null_mut();
+            let mut move_: ExtmarkMove = std::mem::zeroed();
+            if !undo_read(bi, (&raw mut move_).cast::<u8>(), size_of::<ExtmarkMove>()) {
+                return None;
             }
-            (*extup).data = ExtmarkUndoData {
-                move_: *buf.cast::<ExtmarkMove>(),
-            };
+            Some(ExtmarkUndoObject {
+                type_,
+                data: ExtmarkUndoData { move_ },
+            })
         } else {
-            xfree(extup.cast());
-            *error = true;
-            return ptr::null_mut();
+            None
         }
-
-        xfree(buf.cast());
-        extup
     }
 }
 
@@ -1257,14 +1238,14 @@ unsafe fn uhp_seq_cmp(&u1: &*mut u_header_T, &u2: &*mut u_header_T) -> c_int {
     }
 }
 
-unsafe fn uhp_table_find(uhp_table: *mut *mut u_header_T, num_head: c_int, seq: c_int) -> c_int {
+unsafe fn uhp_table_find(uhp_table: &[*mut u_header_T], seq: c_int) -> c_int {
     unsafe {
         let mut lo: c_int = 0;
-        let mut hi: c_int = num_head - 1;
+        let mut hi: c_int = uhp_table.len() as c_int - 1;
 
         while lo <= hi {
             let mid = lo + (hi - lo) / 2;
-            let mid_seq = (**uhp_table.add(mid as usize)).uh_seq;
+            let mid_seq = (*uhp_table[mid as usize]).uh_seq;
             if mid_seq < seq {
                 lo = mid + 1;
             } else if mid_seq > seq {
@@ -1282,7 +1263,7 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
     unsafe {
         #[cfg(not(unix))]
         let _ = orig_name;
-        let mut uhp_table: *mut *mut u_header_T = ptr::null_mut();
+        let mut uhp_table: Vec<*mut u_header_T> = Vec::new();
         let mut line_ptr: *mut c_char = ptr::null_mut();
         let mut num_read_uhps: c_int = 0;
 
@@ -1448,7 +1429,7 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                 }
 
                 if num_head > 0 {
-                    uhp_table = xcalloc(num_head as usize, size_of::<*mut u_header_T>()).cast();
+                    uhp_table = vec![ptr::null_mut(); num_head as usize];
                 }
 
                 let mut c = undo_read_2c(&mut bi);
@@ -1462,7 +1443,7 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                     if uhp.is_null() {
                         break 'error;
                     }
-                    *uhp_table.add(num_read_uhps as usize) = uhp;
+                    uhp_table[num_read_uhps as usize] = uhp;
                     num_read_uhps += 1;
                     c = undo_read_2c(&mut bi);
                 }
@@ -1477,14 +1458,11 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                 }
 
                 if num_head > 0 {
-                    let slice = std::slice::from_raw_parts_mut(uhp_table, num_head as usize);
-                    sort_slice_by(slice, |a, b| uhp_seq_cmp(a, b));
+                    sort_slice_by(&mut uhp_table, |a, b| uhp_seq_cmp(a, b));
                 }
 
                 for i in 0..(num_head - 1) {
-                    if (**uhp_table.add(i as usize)).uh_seq
-                        == (**uhp_table.add((i + 1) as usize)).uh_seq
-                    {
+                    if (*uhp_table[i as usize]).uh_seq == (*uhp_table[(i + 1) as usize]).uh_seq {
                         corruption_error(c"duplicate uh_seq".as_ptr(), file_name);
                         break 'error;
                     }
@@ -1494,32 +1472,32 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                 let mut new_idx: c_int = -1;
                 let mut cur_idx: c_int = -1;
                 for i in 0..num_head {
-                    let uhp = *uhp_table.add(i as usize);
+                    let uhp = uhp_table[i as usize];
 
-                    let fidx_next = uhp_table_find(uhp_table, num_head, (*uhp).uh_next.seq);
+                    let fidx_next = uhp_table_find(&uhp_table, (*uhp).uh_next.seq);
                     (*uhp).uh_next.ptr = if fidx_next >= 0 && fidx_next != i {
-                        *uhp_table.add(fidx_next as usize)
+                        uhp_table[fidx_next as usize]
                     } else {
                         ptr::null_mut()
                     };
 
-                    let fidx_prev = uhp_table_find(uhp_table, num_head, (*uhp).uh_prev.seq);
+                    let fidx_prev = uhp_table_find(&uhp_table, (*uhp).uh_prev.seq);
                     (*uhp).uh_prev.ptr = if fidx_prev >= 0 && fidx_prev != i {
-                        *uhp_table.add(fidx_prev as usize)
+                        uhp_table[fidx_prev as usize]
                     } else {
                         ptr::null_mut()
                     };
 
-                    let fidx_anext = uhp_table_find(uhp_table, num_head, (*uhp).uh_alt_next.seq);
+                    let fidx_anext = uhp_table_find(&uhp_table, (*uhp).uh_alt_next.seq);
                     (*uhp).uh_alt_next.ptr = if fidx_anext >= 0 && fidx_anext != i {
-                        *uhp_table.add(fidx_anext as usize)
+                        uhp_table[fidx_anext as usize]
                     } else {
                         ptr::null_mut()
                     };
 
-                    let fidx_aprev = uhp_table_find(uhp_table, num_head, (*uhp).uh_alt_prev.seq);
+                    let fidx_aprev = uhp_table_find(&uhp_table, (*uhp).uh_alt_prev.seq);
                     (*uhp).uh_alt_prev.ptr = if fidx_aprev >= 0 && fidx_aprev != i {
-                        *uhp_table.add(fidx_aprev as usize)
+                        uhp_table[fidx_aprev as usize]
                     } else {
                         ptr::null_mut()
                     };
@@ -1539,17 +1517,17 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                 (*curbuf).b_u_oldhead = if old_idx < 0 {
                     ptr::null_mut()
                 } else {
-                    (*uhp_table.add(old_idx as usize)).cast()
+                    uhp_table[old_idx as usize]
                 };
                 (*curbuf).b_u_newhead = if new_idx < 0 {
                     ptr::null_mut()
                 } else {
-                    (*uhp_table.add(new_idx as usize)).cast()
+                    uhp_table[new_idx as usize]
                 };
                 (*curbuf).b_u_curhead = if cur_idx < 0 {
                     ptr::null_mut()
                 } else {
-                    (*uhp_table.add(cur_idx as usize)).cast()
+                    uhp_table[cur_idx as usize]
                 };
                 (*curbuf).b_u_line_ptr = line_ptr;
                 (*curbuf).b_u_line_lnum = line_lnum;
@@ -1562,7 +1540,6 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                 (*curbuf).b_u_save_nr_cur = last_save_nr;
 
                 (*curbuf).b_u_synced = true;
-                xfree(uhp_table.cast());
 
                 if !name.is_null() {
                     smsg!(
@@ -1575,14 +1552,10 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
             }
 
             xfree(line_ptr.cast());
-            if !uhp_table.is_null() {
-                for i in 0..num_read_uhps as usize {
-                    let p = *uhp_table.add(i);
-                    if !p.is_null() {
-                        u_free_uhp(p);
-                    }
+            for &p in &uhp_table[..num_read_uhps as usize] {
+                if !p.is_null() {
+                    u_free_uhp(p);
                 }
-                xfree(uhp_table.cast());
             }
         }
 

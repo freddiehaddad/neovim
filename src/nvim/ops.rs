@@ -61,7 +61,7 @@ use crate::memline::{
     dec, decl, gchar_pos, inc, ml_append, ml_get, ml_get_buf_len, ml_get_buf_mut, ml_get_len,
     ml_get_pos, ml_get_pos_len, ml_replace, ml_replace_len,
 };
-use crate::memory::{xcalloc, xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz};
+use crate::memory::{xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz};
 use crate::message::{emsg, internal_error, msg, msg_keep, msg_start, msgmore, smsg};
 use crate::mouse::setmouse;
 use crate::r#move::validate_virtcol;
@@ -1953,7 +1953,6 @@ pub unsafe fn do_join(
         let mut currsize: c_int = 0;
         let mut sumsize: c_int = 0;
         let mut ret = OK;
-        let mut comments: *mut c_int = ptr::null_mut();
         let remove_comments = use_formatoptions && has_format_option(kFoRemoveComs);
         let mut prev_was_comment = false;
         debug_assert!(count >= 1);
@@ -1966,10 +1965,14 @@ pub unsafe fn do_join(
         {
             return FAIL;
         }
-        let spaces: *mut c_char = xcalloc(count, 1).cast();
-        if remove_comments {
-            comments = xcalloc(count, size_of::<c_int>()).cast();
-        }
+        let mut spaces_vec = vec![0 as c_char; count];
+        let spaces: *mut c_char = spaces_vec.as_mut_ptr();
+        let mut comments_vec = if remove_comments {
+            vec![0 as c_int; count]
+        } else {
+            Vec::new()
+        };
+        let comments: *mut c_int = comments_vec.as_mut_ptr();
 
         let mut aborted = false;
         for t in 0..(count as linenr_T) {
@@ -2133,10 +2136,6 @@ pub unsafe fn do_join(
             (*curwin).w_set_curswant = true;
         }
 
-        xfree(spaces.cast());
-        if remove_comments {
-            xfree(comments.cast());
-        }
         ret
     }
 }

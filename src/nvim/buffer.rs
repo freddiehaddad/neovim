@@ -260,8 +260,7 @@ pub struct buf_T {
     #[cfg(windows)]
     pub b_p_csl: *mut c_char,
     pub b_p_cpt_flags: u32,
-    pub b_p_cpt_cb: *mut crate::eval::typval::Callback,
-    pub b_p_cpt_count: c_int,
+    pub b_p_cpt_cb: Vec<crate::eval::typval::Callback>,
     pub b_p_cfu: crate::eval::typval::Callback,
     pub b_p_ofu: crate::eval::typval::Callback,
     pub b_p_tfu: crate::eval::typval::Callback,
@@ -1390,6 +1389,7 @@ unsafe fn free_buffer(buf: *mut buf_T) {
         ptr::drop_in_place(&raw mut (*buf).b_ml.ml_chunksize);
         ptr::drop_in_place(&raw mut (*buf).update_channels);
         ptr::drop_in_place(&raw mut (*buf).update_callbacks);
+        ptr::drop_in_place(&raw mut (*buf).b_p_cpt_cb);
         callback_free(&raw mut (*buf).b_prompt_callback);
         callback_free(&raw mut (*buf).b_prompt_interrupt);
         clear_fmark(&raw mut (*buf).b_last_cursor, 0);
@@ -2478,6 +2478,7 @@ pub unsafe fn buflist_new(
             );
             ptr::write(&raw mut (*buf).update_channels, Vec::new());
             ptr::write(&raw mut (*buf).update_callbacks, Vec::new());
+            ptr::write(&raw mut (*buf).b_p_cpt_cb, Vec::new());
             ptr::write(
                 &raw mut (*buf).b_s.b_keywtab,
                 std::collections::BTreeMap::new(),
@@ -2667,8 +2668,7 @@ pub unsafe fn free_buf_options(buf: *mut buf_T, free_p_ff: bool) {
         callback_free(&raw mut (*buf).b_p_cfu);
         callback_free(&raw mut (*buf).b_p_ofu);
         callback_free(&raw mut (*buf).b_p_tsrfu);
-        clear_cpt_callbacks(&raw mut (*buf).b_p_cpt_cb, (*buf).b_p_cpt_count);
-        (*buf).b_p_cpt_count = 0;
+        clear_cpt_callbacks(&raw mut (*buf).b_p_cpt_cb);
         clear_string_option(&raw mut (*buf).b_p_gefm);
         clear_string_option(&raw mut (*buf).b_p_gp);
         clear_string_option(&raw mut (*buf).b_p_mp);

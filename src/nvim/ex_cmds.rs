@@ -292,8 +292,7 @@ struct LineData {
     lnum_after: linenr_T,
 }
 
-static mut sortbuf1: *mut c_char = ptr::null_mut();
-static mut sortbuf2: *mut c_char = ptr::null_mut();
+
 
 static mut sort_lc: bool = false;
 static mut sort_ic: bool = false;
@@ -598,7 +597,12 @@ unsafe fn string_compare(s1: *const c_void, s2: *const c_void) -> c_int {
     }
 }
 
-unsafe fn sort_compare(l1: &sorti_T, l2: &sorti_T) -> c_int {
+unsafe fn sort_compare(
+    l1: &sorti_T,
+    l2: &sorti_T,
+    sortbuf1: *mut c_char,
+    sortbuf2: *mut c_char,
+) -> c_int {
     unsafe {
         let l1 = *l1;
         let l2 = *l2;
@@ -678,10 +682,9 @@ pub unsafe fn ex_sort(eap: *mut exarg_T) {
         if u_save((*eap).line1 - 1, (*eap).line2 + 1) == FAIL {
             return;
         }
-        sortbuf1 = ptr::null_mut();
-        sortbuf2 = ptr::null_mut();
         regmatch.regprog = ptr::null_mut();
-        let nrs = xmalloc(count * size_of::<sorti_T>()).cast::<sorti_T>();
+        let mut nrs_vec: Vec<sorti_T> = vec![std::mem::zeroed(); count];
+        let nrs = nrs_vec.as_mut_ptr();
 
         sort_abort = false;
         sort_ic = false;
@@ -847,11 +850,12 @@ pub unsafe fn ex_sort(eap: *mut exarg_T) {
                 }
             }
 
-            sortbuf1 = xmalloc(maxlen as usize + 1).cast::<c_char>();
-            sortbuf2 = xmalloc(maxlen as usize + 1).cast::<c_char>();
+            let mut sortbuf1_vec = vec![0 as c_char; maxlen as usize + 1];
+            let sortbuf1 = sortbuf1_vec.as_mut_ptr();
+            let mut sortbuf2_vec = vec![0 as c_char; maxlen as usize + 1];
+            let sortbuf2 = sortbuf2_vec.as_mut_ptr();
 
-            let slice = std::slice::from_raw_parts_mut(nrs, count);
-            sort_slice_by(slice, |a, b| sort_compare(a, b));
+            sort_slice_by(&mut nrs_vec, |a, b| sort_compare(a, b, sortbuf1, sortbuf2));
 
             if sort_abort {
                 break 'sortend;
@@ -937,9 +941,6 @@ pub unsafe fn ex_sort(eap: *mut exarg_T) {
         }
 
         // sortend:
-        xfree(nrs.cast::<c_void>());
-        xfree(sortbuf1.cast::<c_void>());
-        xfree(sortbuf2.cast::<c_void>());
         vim_regfree(regmatch.regprog.cast::<regprog_T>());
         if got_int {
             emsg(gettext(e_interr.as_ptr()));
@@ -964,7 +965,6 @@ pub unsafe fn ex_uniq(eap: *mut exarg_T) {
         if u_save((*eap).line1 - 1, (*eap).line2 + 1) == FAIL {
             return;
         }
-        sortbuf1 = ptr::null_mut();
         regmatch.regprog = ptr::null_mut();
 
         sort_abort = false;
@@ -1033,7 +1033,8 @@ pub unsafe fn ex_uniq(eap: *mut exarg_T) {
                 }
             }
 
-            sortbuf1 = xmalloc(maxlen as usize + 1).cast::<c_char>();
+            let mut sortbuf1_vec = vec![0 as c_char; maxlen as usize + 1];
+            let sortbuf1 = sortbuf1_vec.as_mut_ptr();
 
             let mut match_continue = false;
             let mut next_is_unmatch = false;
@@ -1154,7 +1155,6 @@ pub unsafe fn ex_uniq(eap: *mut exarg_T) {
         }
 
         // uniqend:
-        xfree(sortbuf1.cast::<c_void>());
         vim_regfree(regmatch.regprog.cast::<regprog_T>());
         if got_int {
             emsg(gettext(e_interr.as_ptr()));

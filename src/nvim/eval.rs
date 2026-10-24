@@ -4511,13 +4511,9 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
                         ptr::null_mut(),
                         ptr::null_mut(),
                     );
-                if !abort && !(*buf).b_p_cpt_cb.is_null() {
-                    abort = abort
-                        || set_ref_in_cpt_callbacks(
-                            (*buf).b_p_cpt_cb.cast(),
-                            (*buf).b_p_cpt_count,
-                            copyID,
-                        );
+                if !abort && !(*buf).b_p_cpt_cb.is_empty() {
+                    abort =
+                        abort || set_ref_in_cpt_callbacks(&raw mut (*buf).b_p_cpt_cb, copyID);
                 }
                 buf = (*buf).b_next;
             }

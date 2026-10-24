@@ -431,8 +431,7 @@ static mut cpt_sources_index: c_int = -1;
 
 static mut compl_match_array: Vec<pumitem_T> = Vec::new();
 
-static mut cpt_cb: *mut Callback = ptr::null_mut();
-static mut cpt_cb_count: c_int = 0;
+static mut cpt_cb: Vec<Callback> = Vec::new();
 
 #[inline]
 unsafe fn decay_compl_timeout() {
@@ -3094,41 +3093,35 @@ unsafe fn get_cpt_sources_count(cpt: *mut c_char) -> c_int {
     }
 }
 
-pub unsafe fn clear_cpt_callbacks(callbacks: *mut *mut Callback, count: c_int) {
+pub unsafe fn clear_cpt_callbacks(callbacks: *mut Vec<Callback>) {
     unsafe {
-        if callbacks.is_null() || (*callbacks).is_null() {
+        if callbacks.is_null() {
             return;
         }
 
-        for i in 0..(count as usize) {
-            callback_free((*callbacks).add(i));
+        let callbacks = &mut *callbacks;
+        for cb in callbacks.iter_mut() {
+            callback_free(cb);
         }
-
-        xfree((*callbacks).cast());
-        *callbacks = ptr::null_mut();
+        callbacks.clear();
     }
 }
 
-unsafe fn copy_cpt_callbacks(
-    dest: *mut *mut Callback,
-    dest_cnt: *mut c_int,
-    src: *mut Callback,
-    cnt: c_int,
-) {
+unsafe fn copy_cpt_callbacks(dest: *mut Vec<Callback>, src: *mut Vec<Callback>) {
     unsafe {
-        clear_cpt_callbacks(dest, *dest_cnt);
-        *dest_cnt = 0;
+        clear_cpt_callbacks(dest);
 
-        if cnt == 0 {
+        let src = &mut *src;
+        if src.is_empty() {
             return;
         }
 
-        *dest = xcalloc(cnt as usize, size_of::<Callback>()).cast::<Callback>();
-        *dest_cnt = cnt;
+        let dest = &mut *dest;
+        dest.resize(src.len(), std::mem::zeroed());
 
-        for i in 0..(cnt as usize) {
-            if (*src.add(i)).cb_type != kCallbackNone {
-                callback_copy((*dest).add(i), src.add(i));
+        for (dst_cb, src_cb) in dest.iter_mut().zip(src.iter_mut()) {
+            if src_cb.cb_type != kCallbackNone {
+                callback_copy(dst_cb, src_cb);
             }
         }
     }
@@ -3139,27 +3132,21 @@ pub unsafe fn set_buflocal_cpt_callbacks(buf: *mut buf_T) {
         if buf.is_null() {
             return;
         }
-        copy_cpt_callbacks(
-            &raw mut (*buf).b_p_cpt_cb,
-            &raw mut (*buf).b_p_cpt_count,
-            cpt_cb,
-            cpt_cb_count,
-        );
+        copy_cpt_callbacks(&raw mut (*buf).b_p_cpt_cb, &raw mut cpt_cb);
     }
 }
 
-unsafe fn parse_cpt_callbacks(cpt: *mut c_char, cbp: *mut *mut Callback, cnt: *mut c_int) {
+unsafe fn parse_cpt_callbacks(cpt: *mut c_char, cbp: *mut Vec<Callback>) {
     unsafe {
-        clear_cpt_callbacks(cbp, *cnt);
-        *cnt = 0;
+        clear_cpt_callbacks(cbp);
 
         let count = get_cpt_sources_count(cpt);
         if count == 0 {
             return;
         }
 
-        *cbp = xcalloc(count as usize, size_of::<Callback>()).cast::<Callback>();
-        *cnt = count;
+        let cbp = &mut *cbp;
+        cbp.resize(count as usize, std::mem::zeroed());
 
         let mut buf: [c_char; LSIZE] = [0; LSIZE];
         let mut idx: usize = 0;
@@ -3175,8 +3162,8 @@ unsafe fn parse_cpt_callbacks(cpt: *mut c_char, cbp: *mut *mut Callback, cnt: *m
                     if !caret.is_null() {
                         *caret = NUL;
                     }
-                    if option_set_callback_func(buf.as_mut_ptr().add(1), (*cbp).add(idx)) != OK {
-                        (*(*cbp).add(idx)).cb_type = kCallbackNone;
+                    if option_set_callback_func(buf.as_mut_ptr().add(1), &raw mut cbp[idx]) != OK {
+                        cbp[idx].cb_type = kCallbackNone;
                     }
                 }
                 idx += 1;
@@ -3194,11 +3181,7 @@ pub unsafe fn set_cpt_callbacks(args: *mut optset_T) -> c_int {
         }
 
         if (opt_flags & OPT_GLOBAL) == 0 {
-            parse_cpt_callbacks(
-                (*curbuf).b_p_cpt,
-                &raw mut (*curbuf).b_p_cpt_cb,
-                &raw mut (*curbuf).b_p_cpt_count,
-            );
+            parse_cpt_callbacks((*curbuf).b_p_cpt, &raw mut (*curbuf).b_p_cpt_cb);
         }
 
         if (opt_flags & OPT_LOCAL) != 0 {
@@ -3206,35 +3189,24 @@ pub unsafe fn set_cpt_callbacks(args: *mut optset_T) -> c_int {
         }
 
         if (opt_flags & OPT_GLOBAL) != 0 {
-            parse_cpt_callbacks(p_cpt, &raw mut cpt_cb, &raw mut cpt_cb_count);
+            parse_cpt_callbacks(p_cpt, &raw mut cpt_cb);
             return OK;
         }
 
-        copy_cpt_callbacks(
-            &raw mut cpt_cb,
-            &raw mut cpt_cb_count,
-            (*curbuf).b_p_cpt_cb,
-            (*curbuf).b_p_cpt_count,
-        );
+        copy_cpt_callbacks(&raw mut cpt_cb, &raw mut (*curbuf).b_p_cpt_cb);
         OK
     }
 }
 
-pub unsafe fn set_ref_in_cpt_callbacks(
-    callbacks: *mut Callback,
-    count: c_int,
-    copyID: c_int,
-) -> bool {
+pub unsafe fn set_ref_in_cpt_callbacks(callbacks: *mut Vec<Callback>, copyID: c_int) -> bool {
     unsafe {
-        let mut abort = false;
-
         if callbacks.is_null() {
             return false;
         }
 
-        for i in 0..(count as usize) {
-            abort = abort
-                || set_ref_in_callback(callbacks.add(i), copyID, ptr::null_mut(), ptr::null_mut());
+        let mut abort = false;
+        for cb in &mut *callbacks {
+            abort = abort || set_ref_in_callback(cb, copyID, ptr::null_mut(), ptr::null_mut());
         }
         abort
     }
@@ -3248,7 +3220,7 @@ pub unsafe fn set_ref_in_insexpand_funcs(copyID: c_int) -> bool {
             abort || set_ref_in_callback(&raw mut p_ofu, copyID, ptr::null_mut(), ptr::null_mut());
         abort = abort
             || set_ref_in_callback(&raw mut p_tsrfu, copyID, ptr::null_mut(), ptr::null_mut());
-        abort = abort || set_ref_in_cpt_callbacks(cpt_cb, cpt_cb_count, copyID);
+        abort = abort || set_ref_in_cpt_callbacks(&raw mut cpt_cb, copyID);
         abort
     }
 }
@@ -4806,10 +4778,11 @@ unsafe fn get_callback_if_cpt_func(p: *mut c_char, idx: c_int) -> *mut Callback 
         if *p == b'F' as c_char {
             let next = *p.add(1);
             if next != b',' as c_char && next != NUL {
-                if (*curbuf).b_p_cpt_cb.is_null() || idx < 0 || idx >= (*curbuf).b_p_cpt_count {
+                let cbs = &mut (*curbuf).b_p_cpt_cb;
+                if idx < 0 || (idx as usize) >= cbs.len() {
                     return ptr::null_mut();
                 }
-                let cb = (*curbuf).b_p_cpt_cb.add(idx as usize);
+                let cb = &raw mut cbs[idx as usize];
                 return if (*cb).cb_type != kCallbackNone {
                     cb
                 } else {
@@ -6696,7 +6669,7 @@ pub unsafe fn free_insexpand_stuff() {
         callback_free(&raw mut p_cfu);
         callback_free(&raw mut p_ofu);
         callback_free(&raw mut p_tsrfu);
-        clear_cpt_callbacks(&raw mut cpt_cb, cpt_cb_count);
+        clear_cpt_callbacks(&raw mut cpt_cb);
     }
 }
 
