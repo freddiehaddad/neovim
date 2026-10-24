@@ -123,7 +123,6 @@ pub struct salitem_T {
 }
 #[repr(C)]
 pub struct slang_T {
-    pub sl_next: *mut slang_T,
     pub sl_name: *mut c_char,
     pub sl_fname: *mut c_char,
     pub sl_add: bool,

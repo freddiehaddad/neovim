@@ -145,7 +145,7 @@ pub struct syl_item_T {
     sy_chars: [c_char; SY_MAXLEN],
     sy_len: c_int,
 }
-pub static mut first_lang: *mut slang_T = ptr::null_mut();
+pub static mut first_lang: Vec<*mut slang_T> = Vec::new();
 pub static mut int_wordlist: *mut c_char = ptr::null_mut();
 pub static mut spelltab: spelltab_T = spelltab_T {
     st_isw: [false; 256],
@@ -1366,7 +1366,6 @@ unsafe fn int_wordlist_spl(fname: *mut c_char) {
 pub unsafe fn slang_alloc(lang: *mut c_char) -> *mut slang_T {
     unsafe {
         Box::into_raw(Box::new(slang_T {
-            sl_next: ptr::null_mut(),
             sl_name: if !lang.is_null() {
                 xstrdup(lang)
             } else {
@@ -1684,16 +1683,13 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                     (*w_s).b_cjk = 1;
                     continue;
                 }
-                let mut slang: *mut slang_T;
-                let filename: bool;
-                if len > 4
+                let (filename, slang) = if len > 4
                     && path_equal(
                         lang_ptr.add((len - 4) as usize),
                         c".spl".as_ptr(),
                         kPathCmpLiteral as PathCmpFlags,
                     )
                 {
-                    filename = true;
                     let p = vim_strchr(path_tail(lang_ptr), b'_' as c_int);
                     if !p.is_null()
                         && ascii_isalpha(*p.add(1))
@@ -1710,29 +1706,30 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                     } else {
                         dont_use_region = true;
                     }
-                    slang = first_lang;
-                    while !slang.is_null() {
-                        if path_equal(lang_ptr, (*slang).sl_fname, kPathCmpExpand as PathCmpFlags) {
-                            break;
-                        }
-                        slang = (*slang).sl_next;
-                    }
+                    let langs = &raw const first_lang;
+                    let slang = (*langs)
+                        .iter()
+                        .rev()
+                        .copied()
+                        .find(|&s| path_equal(lang_ptr, (*s).sl_fname, kPathCmpExpand as PathCmpFlags))
+                        .unwrap_or(ptr::null_mut());
+                    (true, slang)
                 } else {
-                    filename = false;
                     if len > 3 && lang[(len - 3) as usize] == b'_' as c_char {
                         region = lang_ptr.add((len - 2) as usize);
                         lang[(len - 3) as usize] = NUL;
                     } else {
                         dont_use_region = true;
                     }
-                    slang = first_lang;
-                    while !slang.is_null() {
-                        if mb_stricmp(lang_ptr, (*slang).sl_name) == 0 {
-                            break;
-                        }
-                        slang = (*slang).sl_next;
-                    }
-                }
+                    let langs = &raw const first_lang;
+                    let slang = (*langs)
+                        .iter()
+                        .rev()
+                        .copied()
+                        .find(|&s| mb_stricmp(lang_ptr, (*s).sl_name) == 0)
+                        .unwrap_or(ptr::null_mut());
+                    (false, slang)
+                };
                 if !region.is_null() {
                     if !use_region.is_null() && strcmp(region, use_region) != 0 {
                         dont_use_region = true;
@@ -1752,8 +1749,8 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                         }
                     }
                 }
-                slang = first_lang;
-                while !slang.is_null() {
+                let langs = &raw const first_lang;
+                for &slang in (*langs).iter().rev() {
                     let matched = if filename {
                         path_equal(lang_ptr, (*slang).sl_fname, kPathCmpExpand as PathCmpFlags)
                     } else {
@@ -1792,7 +1789,6 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                             }
                         }
                     }
-                    slang = (*slang).sl_next;
                 }
             }
             let cur_w_s = (*curwin).w_s.cast::<synblock_T>();
@@ -1822,13 +1818,13 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                         continue;
                     }
                 }
-                let mut slang = first_lang;
-                while !slang.is_null() {
-                    if path_equal(spf_ptr, (*slang).sl_fname, kPathCmpExpand as PathCmpFlags) {
-                        break;
-                    }
-                    slang = (*slang).sl_next;
-                }
+                let langs = &raw const first_lang;
+                let mut slang = (*langs)
+                    .iter()
+                    .rev()
+                    .copied()
+                    .find(|&s| path_equal(spf_ptr, (*s).sl_fname, kPathCmpExpand as PathCmpFlags))
+                    .unwrap_or(ptr::null_mut());
                 if slang.is_null() {
                     let lang_ptr = (&raw mut lang).cast::<c_char>();
                     if cur_round == 0 {
@@ -2006,9 +2002,8 @@ pub unsafe fn spell_free_all() {
             (*buf).b_s.b_langp = Vec::new();
             buf = (*buf).b_next;
         }
-        while !first_lang.is_null() {
-            let slang = first_lang;
-            first_lang = (*slang).sl_next;
+        let langs = &raw mut first_lang;
+        for slang in (*langs).drain(..).rev() {
             slang_free(slang);
         }
         spell_delete_wordlist();

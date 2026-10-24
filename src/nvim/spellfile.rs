@@ -666,8 +666,8 @@ pub unsafe fn spell_load_file(
 
         if !fail {
             if old_lp.is_null() && !lang.is_null() {
-                (*lp).sl_next = first_lang;
-                first_lang = lp;
+                let langs = &raw mut first_lang;
+                (*langs).push(lp);
             }
         } else {
             if !lang.is_null() {
@@ -1639,8 +1639,10 @@ unsafe fn spell_reload_one(fname: *mut c_char, added_word: bool) {
     unsafe {
         let mut didit = false;
 
-        let mut slang = first_lang;
-        while !slang.is_null() {
+        let langs = &raw const first_lang;
+        let len = (*langs).len();
+        for i in (0..len).rev() {
+            let slang = (*langs).as_slice()[i];
             if path_equal(fname, (*slang).sl_fname, kPathCmpExpand) {
                 slang_clear(slang);
                 if spell_load_file(fname, ptr::null_mut(), slang, false).is_null() {
@@ -1649,7 +1651,6 @@ unsafe fn spell_reload_one(fname: *mut c_char, added_word: bool) {
                 redraw_all_later(UPD_SOME_VALID);
                 didit = true;
             }
-            slang = (*slang).sl_next;
         }
 
         if added_word && !didit {
@@ -4729,15 +4730,14 @@ pub unsafe fn ex_mkspell(eap: *mut exarg_T) {
 
 unsafe fn spell_make_sugfile(spin: *mut spellinfo_T, wfname: *mut c_char) {
     unsafe {
-        let mut slang = first_lang;
+        let langs = &raw const first_lang;
+        let mut slang = (*langs)
+            .iter()
+            .rev()
+            .copied()
+            .find(|&s| path_equal(wfname, (*s).sl_fname, kPathCmpExpand))
+            .unwrap_or(ptr::null_mut());
         let mut free_slang = false;
-
-        while !slang.is_null() {
-            if path_equal(wfname, (*slang).sl_fname, kPathCmpExpand) {
-                break;
-            }
-            slang = (*slang).sl_next;
-        }
         if slang.is_null() {
             spell_message(spin, gettext(c"Reading back spell file...".as_ptr()));
             slang = spell_load_file(wfname, ptr::null_mut(), ptr::null_mut(), false);

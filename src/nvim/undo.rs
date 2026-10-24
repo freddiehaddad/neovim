@@ -115,7 +115,23 @@ pub struct u_entry_T {
     pub ue_bot: linenr_T,
     pub ue_lcount: linenr_T,
     pub ue_array: Vec<*mut c_char>,
-    pub ue_size: linenr_T,
+}
+
+impl u_entry_T {
+    #[inline]
+    pub const fn ue_size(&self) -> linenr_T {
+        self.ue_array.len() as linenr_T
+    }
+}
+
+impl Drop for u_entry_T {
+    fn drop(&mut self) {
+        unsafe {
+            for &line in self.ue_array.iter().rev() {
+                xfree(line.cast());
+            }
+        }
+    }
 }
 
 #[repr(C)]
@@ -431,14 +447,14 @@ pub unsafe fn u_savecommon(
                     }
 
                     if u_entry_resized(buf, uep)
-                        || ((*uep).ue_size > 1
+                        || ((*uep).ue_size() > 1
                             && top >= (*uep).ue_top
-                            && top + 2 <= (*uep).ue_top + (*uep).ue_size + 1)
+                            && top + 2 <= (*uep).ue_top + (*uep).ue_size() + 1)
                     {
                         break;
                     }
 
-                    if (*uep).ue_size == 1 && (*uep).ue_top == top {
+                    if (*uep).ue_size() == 1 && (*uep).ue_top == top {
                         let newhead = (*buf).b_u_newhead.cast::<u_header_T>();
                         if i > 0 {
                             u_getbot(buf);
@@ -473,7 +489,6 @@ pub unsafe fn u_savecommon(
             ue_bot: 0,
             ue_lcount: 0,
             ue_array: Vec::new(),
-            ue_size: size,
         }));
 
         let newhead = (*buf).b_u_newhead.cast::<u_header_T>();
@@ -491,7 +506,7 @@ pub unsafe fn u_savecommon(
             for i in 0..size {
                 fast_breakcheck();
                 if got_int {
-                    u_freeentry(uep, i);
+                    drop(Box::from_raw(uep));
                     return FAIL;
                 }
                 (*uep).ue_array.push(u_save_line_buf(buf, top + 1 + i));
@@ -514,7 +529,7 @@ unsafe fn u_entry_resized(buf: *mut buf_T, uep: *mut u_entry_T) -> bool {
     unsafe {
         let newhead = (*buf).b_u_newhead.cast::<u_header_T>();
         if (*newhead).uh_getbot_entry != uep {
-            (*uep).ue_top + (*uep).ue_size + 1
+            (*uep).ue_top + (*uep).ue_size() + 1
                 != if (*uep).ue_bot == 0 {
                     (*buf).b_ml.ml_line_count + 1
                 } else {
@@ -664,7 +679,7 @@ unsafe fn u_free_uhp(uhp: *mut u_header_T) {
         let mut uep = (*uhp).uh_entry;
         while !uep.is_null() {
             let nuep = (*uep).ue_next;
-            u_freeentry(uep, (*uep).ue_size);
+            drop(Box::from_raw(uep));
             uep = nuep;
         }
         drop(Box::from_raw(uhp));
@@ -927,10 +942,9 @@ unsafe fn serialize_uep(bi: &mut bufinfo_T, uep: *mut u_entry_T) -> bool {
         undo_write_bytes(bi, (*uep).ue_top as u64, 4);
         undo_write_bytes(bi, (*uep).ue_bot as u64, 4);
         undo_write_bytes(bi, (*uep).ue_lcount as u64, 4);
-        undo_write_bytes(bi, (*uep).ue_size as u64, 4);
+        undo_write_bytes(bi, (*uep).ue_size() as u64, 4);
 
-        for i in 0..(*uep).ue_size as usize {
-            let line = *(*uep).ue_array.as_ptr().add(i);
+        for &line in &(*uep).ue_array {
             let len = strlen(line);
             if !undo_write_bytes(bi, len as u64, 4) {
                 return false;
@@ -955,7 +969,6 @@ unsafe fn unserialize_uep(
             ue_bot: undo_read_4c(bi),
             ue_lcount: undo_read_4c(bi),
             ue_array: Vec::new(),
-            ue_size: 0,
         }));
         if (*uep).ue_top < 0 || (*uep).ue_bot < 0 || (*uep).ue_lcount < 0 {
             corruption_error(c"entry lnum".as_ptr(), file_name);
@@ -963,20 +976,17 @@ unsafe fn unserialize_uep(
             return uep;
         }
 
-        (*uep).ue_size = undo_read_len(bi, c"entry size".as_ptr(), file_name);
-        if (*uep).ue_size < 0 {
-            (*uep).ue_size = 0;
+        let size = undo_read_len(bi, c"entry size".as_ptr(), file_name);
+        if size < 0 {
             *error = true;
             return uep;
         }
 
-        if (*uep).ue_size > 0 {
-            (*uep)
-                .ue_array
-                .resize((*uep).ue_size as usize, ptr::null_mut());
+        if size > 0 {
+            (*uep).ue_array.reserve(size as usize);
         }
 
-        for i in 0..(*uep).ue_size as usize {
+        for _ in 0..size as usize {
             let line_len = undo_read_len(bi, c"line length".as_ptr(), file_name);
             let line = if line_len < 0 {
                 ptr::null_mut()
@@ -987,7 +997,7 @@ unsafe fn unserialize_uep(
                 *error = true;
                 return uep;
             }
-            (*uep).ue_array.as_mut_slice()[i] = line;
+            (*uep).ue_array.push(line);
         }
         uep
     }
@@ -2126,7 +2136,7 @@ unsafe fn u_undoredo(undo: bool, do_buf_event: bool) {
             }
 
             let oldsize = bot - top - 1;
-            let newsize = (*uep).ue_size;
+            let newsize = (*uep).ue_size();
 
             {
                 let lnum = (*curhead).uh_cursor.lnum;
@@ -2136,10 +2146,7 @@ unsafe fn u_undoredo(undo: bool, do_buf_event: bool) {
                 } else if top < newlnum {
                     let mut i: linenr_T = 0;
                     while i < newsize && i < oldsize {
-                        if strcmp(
-                            *(*uep).ue_array.as_ptr().add(i as usize),
-                            ml_get(top + 1 + i),
-                        ) != 0
+                        if strcmp((*uep).ue_array.as_slice()[i as usize], ml_get(top + 1 + i)) != 0
                         {
                             break;
                         }
@@ -2178,9 +2185,8 @@ unsafe fn u_undoredo(undo: bool, do_buf_event: bool) {
             check_cursor_lnum(curwin);
 
             if newsize != 0 {
-                for i in 0..newsize as usize {
+                for (i, line) in (*uep).ue_array.drain(..).enumerate() {
                     let lnum = top + i as linenr_T;
-                    let line = *(*uep).ue_array.as_ptr().add(i);
                     if empty_buffer && lnum == 0 {
                         ml_replace(1, line, true);
                     } else {
@@ -2222,7 +2228,6 @@ unsafe fn u_undoredo(undo: bool, do_buf_event: bool) {
 
             u_newcount += newsize;
             u_oldcount += oldsize;
-            (*uep).ue_size = oldsize;
             (*uep).ue_array = newarray;
             (*uep).ue_bot = top + newsize + 1;
 
@@ -2617,10 +2622,10 @@ pub unsafe fn u_find_first_changed() {
         }
 
         let mut lnum: linenr_T = 1;
-        while lnum < (*curbuf).b_ml.ml_line_count && lnum <= (*uep).ue_size {
+        while lnum < (*curbuf).b_ml.ml_line_count && lnum <= (*uep).ue_size() {
             if strcmp(
                 ml_get_buf(curbuf, lnum),
-                *(*uep).ue_array.as_ptr().add((lnum - 1) as usize),
+                (*uep).ue_array.as_slice()[(lnum - 1) as usize],
             ) != 0
             {
                 clearpos(&mut (*uhp).uh_cursor);
@@ -2629,7 +2634,7 @@ pub unsafe fn u_find_first_changed() {
             }
             lnum += 1;
         }
-        if (*curbuf).b_ml.ml_line_count != (*uep).ue_size {
+        if (*curbuf).b_ml.ml_line_count != (*uep).ue_size() {
             clearpos(&mut (*uhp).uh_cursor);
             (*uhp).uh_cursor.lnum = lnum;
         }
@@ -2688,7 +2693,7 @@ unsafe fn u_getbot(buf: *mut buf_T) {
         let bot_entry = (*newhead).uh_getbot_entry;
         if !bot_entry.is_null() {
             let extra = (*buf).b_ml.ml_line_count - (*bot_entry).ue_lcount;
-            (*bot_entry).ue_bot = (*bot_entry).ue_top + (*bot_entry).ue_size + 1 + extra;
+            (*bot_entry).ue_bot = (*bot_entry).ue_top + (*bot_entry).ue_size() + 1 + extra;
             if (*bot_entry).ue_bot < 1 || (*bot_entry).ue_bot > (*buf).b_ml.ml_line_count {
                 iemsg(gettext(E_UNDO_LINE_MISSING.as_ptr()));
                 (*bot_entry).ue_bot = (*bot_entry).ue_top + 1;
@@ -2804,22 +2809,12 @@ unsafe fn u_freeentries(buf: *mut buf_T, uhp: *mut u_header_T, uhpp: *mut *mut u
         let mut uep = (*uhp).uh_entry;
         while !uep.is_null() {
             let nuep = (*uep).ue_next;
-            u_freeentry(uep, (*uep).ue_size);
+            drop(Box::from_raw(uep));
             uep = nuep;
         }
 
         drop(Box::from_raw(uhp));
         (*buf).b_u_numhead -= 1;
-    }
-}
-
-unsafe fn u_freeentry(uep: *mut u_entry_T, mut n: c_int) {
-    unsafe {
-        while n > 0 {
-            n -= 1;
-            xfree((*(*uep).ue_array.as_ptr().add(n as usize)).cast());
-        }
-        drop(Box::from_raw(uep));
     }
 }
 
@@ -2835,9 +2830,9 @@ pub unsafe fn u_forget_unchanged(buf: *mut buf_T) {
         if uep.is_null() || !(*buf).b_u_curhead.is_null() || u_entry_resized(buf, uep) {
             return;
         }
-        for i in 0..(*uep).ue_size {
+        for i in 0..(*uep).ue_size() {
             if strcmp(
-                *(*uep).ue_array.as_ptr().add(i as usize),
+                (*uep).ue_array.as_slice()[i as usize],
                 ml_get_buf(buf, (*uep).ue_top + 1 + i),
             ) != 0
             {
@@ -2849,7 +2844,7 @@ pub unsafe fn u_forget_unchanged(buf: *mut buf_T) {
         if (*uhp).uh_getbot_entry == uep {
             (*uhp).uh_getbot_entry = ptr::null_mut();
         }
-        u_freeentry(uep, (*uep).ue_size);
+        drop(Box::from_raw(uep));
         if (*uhp).uh_entry.is_null() {
             u_forget_header(buf, uhp);
         }
