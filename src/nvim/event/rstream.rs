@@ -6,7 +6,8 @@ use crate::event::r#loop::{
 };
 use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, multiqueue_put_event};
 use crate::event::stream::{
-    Stream, UV_TTY, stream_close_handle, stream_init, stream_may_close, uv_idle_t, uv_stream_t,
+    Stream, StreamCbData, UV_TTY, stream_close_handle, stream_init, stream_may_close, uv_idle_t,
+    uv_stream_t,
 };
 use crate::event::wstream::uv_buf_t;
 use crate::log::{LOGLVL_DBG, g_min_log_level, logmsg};
@@ -20,7 +21,7 @@ pub type stream_read_cb = Option<
         stream: *mut RStream,
         read_data: *const c_char,
         count: usize,
-        data: *mut c_void,
+        data: StreamCbData,
         eof: bool,
     ) -> usize,
 >;
@@ -102,7 +103,7 @@ pub unsafe fn rstream_start_inner(stream: *mut RStream) {
     }
 }
 
-pub unsafe fn rstream_start(stream: *mut RStream, cb: stream_read_cb, data: *mut c_void) {
+pub unsafe fn rstream_start(stream: *mut RStream, cb: stream_read_cb, data: StreamCbData) {
     unsafe {
         (*stream).read_cb = cb;
         (*stream).s.cb_data = data;

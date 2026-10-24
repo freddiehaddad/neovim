@@ -85,10 +85,9 @@ pub unsafe fn wstream_init(stream: *mut Stream, maxmem: usize) {
     }
 }
 
-pub unsafe fn wstream_set_write_cb(stream: *mut Stream, cb: stream_write_cb, data: *mut c_void) {
+pub unsafe fn wstream_set_write_cb(stream: *mut Stream, cb: stream_write_cb) {
     unsafe {
         (*stream).write_cb = cb;
-        (*stream).cb_data = data;
     }
 }
 
@@ -177,7 +176,7 @@ unsafe extern "C" fn write_cb(req: *mut uv_write_t, status: c_int) {
         wstream_release_wbuffer(buffer);
 
         if let Some(cb) = (*stream).write_cb {
-            cb(stream, (*stream).cb_data, status);
+            cb(stream, status);
         }
 
         (*stream).pending_reqs -= 1;

@@ -7,7 +7,9 @@ use crate::event::r#loop::{
     uv_req_size, uv_strerror,
 };
 use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_put_event};
-use crate::event::stream::{Stream, UV_TCP, stream_init, stream_may_close, uv_pipe_t, uv_stream_t};
+use crate::event::stream::{
+    Stream, StreamInternalData, UV_TCP, stream_init, stream_may_close, uv_pipe_t, uv_stream_t,
+};
 use crate::log::{LOGLVL_ERR, LOGLVL_WRN, logmsg};
 use crate::memory::{xfree, xstrdup, xstrlcpy};
 use crate::os::fs::{UV_EINVAL, UV_ENOENT, os_path_exists, os_remove};
@@ -262,9 +264,9 @@ pub unsafe fn socket_watcher_init(
 }
 
 /// Callback after closing a Stream initialized by socket_connect().
-unsafe fn connect_close_cb(_stream: *mut Stream, data: *mut c_void) {
+unsafe fn connect_close_cb(_stream: *mut Stream, data: StreamInternalData) {
     unsafe {
-        *data.cast::<bool>() = true;
+        *data.closed = true;
     }
 }
 
@@ -283,7 +285,10 @@ unsafe fn socket_alive(loop_: *mut Loop, addr: *const c_char) -> bool {
         let mut closed = false;
         let closed_ptr: *mut bool = &raw mut closed;
         stream.s.internal_close_cb = Some(connect_close_cb);
-        stream.s.internal_data = closed_ptr.cast();
+        stream.s.internal_data = StreamInternalData {
+            closed: closed_ptr,
+            ..StreamInternalData::NONE
+        };
         stream_may_close(&raw mut stream.s);
         poll_main_loop_until(-1, || ptr::read_volatile(closed_ptr));
 
@@ -570,7 +575,10 @@ pub unsafe fn socket_connect(
                 };
                 stream_init(ptr::null_mut(), s_ptr, -1, uv_stream);
                 (*fields).internal_close_cb = Some(connect_close_cb);
-                (*fields).internal_data = closed_ptr.cast();
+                (*fields).internal_data = StreamInternalData {
+                    closed: closed_ptr,
+                    ..StreamInternalData::NONE
+                };
                 ptr::write_volatile(closed_ptr, false);
                 ptr::write_volatile(status_ptr, 1);
                 poll_main_loop_until(i64::from(timeout), || ptr::read_volatile(status_ptr) != 1);
@@ -593,7 +601,7 @@ pub unsafe fn socket_connect(
         }
 
         (*fields).internal_close_cb = None;
-        (*fields).internal_data = ptr::null_mut();
+        (*fields).internal_data = StreamInternalData::NONE;
         xfree(addr.cast());
         uv_freeaddrinfo((*getaddrinfo_req_addrinfo_ptr(addr_req_ptr)).cast());
         success

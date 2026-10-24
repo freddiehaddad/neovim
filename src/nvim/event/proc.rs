@@ -13,7 +13,7 @@ use crate::event::multiqueue::{
     multiqueue_put_event,
 };
 use crate::event::rstream::{RStream, rstream_may_close};
-use crate::event::stream::{Stream, stream_init, stream_may_close};
+use crate::event::stream::{Stream, StreamInternalData, stream_init, stream_may_close};
 use crate::globals::*;
 use crate::main_init::{os_exit, preserve_exit};
 use crate::memory::ARENA_BLOCK_SIZE;
@@ -255,21 +255,30 @@ pub unsafe fn proc_spawn(proc_: *mut Proc, in_: bool, out: bool, err: bool) -> c
 
         if in_ {
             stream_init(ptr::null_mut(), s_in, -1, (&raw mut (*s_in).uv).cast());
-            (*s_in).internal_data = proc_.cast();
+            (*s_in).internal_data = StreamInternalData {
+                proc_,
+                ..StreamInternalData::NONE
+            };
             (*s_in).internal_close_cb = Some(on_proc_stream_close);
             (*proc_).refcount += 1;
         }
 
         if out {
             stream_init(ptr::null_mut(), s_out, -1, (&raw mut (*s_out).uv).cast());
-            (*s_out).internal_data = proc_.cast();
+            (*s_out).internal_data = StreamInternalData {
+                proc_,
+                ..StreamInternalData::NONE
+            };
             (*s_out).internal_close_cb = Some(on_proc_stream_close);
             (*proc_).refcount += 1;
         }
 
         if err {
             stream_init(ptr::null_mut(), s_err, -1, (&raw mut (*s_err).uv).cast());
-            (*s_err).internal_data = proc_.cast();
+            (*s_err).internal_data = StreamInternalData {
+                proc_,
+                ..StreamInternalData::NONE
+            };
             (*s_err).internal_close_cb = Some(on_proc_stream_close);
             (*proc_).refcount += 1;
         }
@@ -609,9 +618,8 @@ unsafe fn on_proc_exit(proc_: *mut Proc) {
     }
 }
 
-unsafe fn on_proc_stream_close(_stream: *mut Stream, data: *mut c_void) {
+unsafe fn on_proc_stream_close(_stream: *mut Stream, data: StreamInternalData) {
     unsafe {
-        let proc_: *mut Proc = data.cast();
-        decref(proc_);
+        decref(data.proc_);
     }
 }

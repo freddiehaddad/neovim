@@ -20,7 +20,7 @@ use crate::event::multiqueue::{
 };
 use crate::event::proc::{LibuvProc, exit_on_closed_chan};
 use crate::event::rstream::{RStream, rstream_start};
-use crate::event::stream::Stream;
+use crate::event::stream::{Stream, StreamCbData};
 use crate::event::wstream::{WBuffer, wstream_new_buffer, wstream_release_wbuffer, wstream_write};
 use crate::globals::*;
 use crate::log::logmsg;
@@ -275,7 +275,14 @@ pub unsafe fn rpc_start(channel: *mut Channel) {
 
         if (*cp).streamtype != kChannelStreamInternal {
             let out = channel_outstream(channel);
-            rstream_start(out, Some(receive_msgpack), channel.cast());
+            rstream_start(
+                out,
+                Some(receive_msgpack),
+                StreamCbData {
+                    channel,
+                    ..StreamCbData::NONE
+                },
+            );
         }
     }
 }
@@ -439,11 +446,11 @@ unsafe fn receive_msgpack(
     _stream: *mut RStream,
     rbuf: *const c_char,
     c: usize,
-    data: *mut c_void,
+    data: StreamCbData,
     eof: bool,
 ) -> usize {
     unsafe {
-        let channel = data.cast::<Channel>();
+        let channel = data.channel;
         channel_incref(channel);
 
         let mut consumed: usize = 0;

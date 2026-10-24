@@ -487,7 +487,7 @@ pub struct tabpage_T {
     pub tp_old_Columns: i64,
     pub tp_ch_used: i64,
     pub tp_did_tabclosedpre: bool,
-    pub tp_first_diff: *mut crate::diff::diff_T,
+    pub tp_diffs: Vec<crate::diff::diff_T>,
     pub tp_diffbuf: [*mut buf_T; 8],
     pub tp_diff_invalid: c_int,
     pub tp_diff_update: c_int,
@@ -4743,6 +4743,7 @@ unsafe fn alloc_tabpage() -> *mut tabpage_T {
     unsafe {
         let mut tp_uninit = Box::new(std::mem::MaybeUninit::<tabpage_T>::zeroed());
         let tp = tp_uninit.as_mut_ptr();
+        ptr::write(&raw mut (*tp).tp_diffs, Vec::new());
         ptr::write(&raw mut (*tp).tp_winvar.di_key, Vec::new());
         let _ = Box::into_raw(tp_uninit);
         last_tp_handle += 1;

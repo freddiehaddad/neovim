@@ -16,7 +16,7 @@ use crate::event::multiqueue::{
 };
 use crate::event::proc::{LibuvProc, Proc, proc_spawn, proc_stop, proc_wait};
 use crate::event::rstream::{RStream, rstream_init, rstream_start, stream_read_cb};
-use crate::event::stream::{Stream, stream_may_close};
+use crate::event::stream::{Stream, StreamCbData, stream_may_close};
 use crate::event::wstream::{
     wstream_init, wstream_new_buffer, wstream_set_write_cb, wstream_write,
 };
@@ -926,9 +926,23 @@ unsafe fn do_os_system(
                 wstream_init(s_in, 0);
             }
             rstream_init(r_out);
-            rstream_start(r_out, data_cb, (&raw mut buf).cast());
+            rstream_start(
+                r_out,
+                data_cb,
+                StreamCbData {
+                    buf: &raw mut buf,
+                    ..StreamCbData::NONE
+                },
+            );
             rstream_init(r_err);
-            rstream_start(r_err, data_cb, (&raw mut buf).cast());
+            rstream_start(
+                r_err,
+                data_cb,
+                StreamCbData {
+                    buf: &raw mut buf,
+                    ..StreamCbData::NONE
+                },
+            );
 
             if has_input {
                 let input_buffer = wstream_new_buffer(input.cast_mut(), len, 1, None);
@@ -936,7 +950,7 @@ unsafe fn do_os_system(
                     proc_stop(proc_);
                     break 'end;
                 }
-                wstream_set_write_cb(s_in, Some(shell_write_cb), ptr::null_mut());
+                wstream_set_write_cb(s_in, Some(shell_write_cb));
             }
 
             ui_busy_start();
@@ -991,12 +1005,12 @@ unsafe fn system_data_cb(
     _stream: *mut RStream,
     buf: *const c_char,
     count: usize,
-    data: *mut c_void,
+    data: StreamCbData,
     _eof: bool,
 ) -> usize {
     unsafe {
         if !buf.is_null() && count > 0 {
-            let dbuf = data.cast::<Vec<c_char>>();
+            let dbuf = data.buf;
             (*dbuf).extend_from_slice(std::slice::from_raw_parts(buf, count));
         }
         count
@@ -1164,7 +1178,7 @@ unsafe fn out_data_cb(
     stream: *mut RStream,
     ptr_data: *const c_char,
     mut count: usize,
-    _data: *mut c_void,
+    _data: StreamCbData,
     eof: bool,
 ) -> usize {
     unsafe {
@@ -1290,7 +1304,7 @@ unsafe fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool)
     }
 }
 
-unsafe fn shell_write_cb(stream: *mut Stream, _data: *mut c_void, status: c_int) {
+unsafe fn shell_write_cb(stream: *mut Stream, status: c_int) {
     unsafe {
         if status != 0 {
             msg_schedule_semsg!(

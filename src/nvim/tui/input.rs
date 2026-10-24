@@ -10,6 +10,7 @@ use crate::event::rstream::{
     RStream, rstream_available, rstream_consume, rstream_init_fd, rstream_may_close, rstream_start,
     rstream_stop,
 };
+use crate::event::stream::StreamCbData;
 use crate::globals::*;
 use crate::main_init::os_exit;
 use crate::msgpack_rpc::channel::rpc_send_event;
@@ -225,7 +226,14 @@ pub unsafe fn tinput_destroy(input: *mut TermInput) {
 
 pub unsafe fn tinput_start(input: *mut TermInput) {
     unsafe {
-        rstream_start(&raw mut (*input).read_stream, Some(tinput_read_cb), input.cast());
+        rstream_start(
+            &raw mut (*input).read_stream,
+            Some(tinput_read_cb),
+            StreamCbData {
+                input,
+                ..StreamCbData::NONE
+            },
+        );
     }
 }
 
@@ -974,11 +982,11 @@ unsafe fn tinput_read_cb(
     _stream: *mut RStream,
     buf: *const c_char,
     count_: usize,
-    data: *mut c_void,
+    data: StreamCbData,
     eof: bool,
 ) -> usize {
     unsafe {
-        let input = data.cast::<TermInput>();
+        let input = data.input;
         let p = input;
 
         let consumed = handle_raw_buffer(input, false, buf, count_);

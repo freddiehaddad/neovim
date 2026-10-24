@@ -187,7 +187,7 @@ mod win_impl {
 
     unsafe fn pty_proc_close_console(stream: *mut Stream) {
         unsafe {
-            let ptyproc = (*stream).internal_data.cast::<PtyProc>();
+            let ptyproc = (*stream).internal_data.proc_;
             let proc_: *mut Proc = ptyproc;
             let hdr = proc_;
             let r_out = &raw mut (*proc_).out;

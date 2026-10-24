@@ -31,8 +31,40 @@ pub type uv_pipe_t = c_void;
 pub type uv_idle_t = c_void;
 pub type uv_tty_t = c_void;
 
-pub type stream_close_cb = Option<unsafe fn(stream: *mut Stream, data: *mut c_void)>;
-pub type stream_write_cb = Option<unsafe fn(stream: *mut Stream, data: *mut c_void, status: c_int)>;
+pub type stream_close_cb = Option<unsafe fn(stream: *mut Stream, data: StreamInternalData)>;
+pub type stream_write_cb = Option<unsafe fn(stream: *mut Stream, status: c_int)>;
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct StreamCbData {
+    pub channel: *mut crate::channel::Channel,
+    pub buf: *mut Vec<std::ffi::c_char>,
+    pub input: *mut crate::tui::input::TermInput,
+}
+
+impl StreamCbData {
+    pub const NONE: Self = Self {
+        channel: ptr::null_mut(),
+        buf: ptr::null_mut(),
+        input: ptr::null_mut(),
+    };
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct StreamInternalData {
+    pub channel: *mut crate::channel::Channel,
+    pub proc_: *mut crate::event::proc::Proc,
+    pub closed: *mut bool,
+}
+
+impl StreamInternalData {
+    pub const NONE: Self = Self {
+        channel: ptr::null_mut(),
+        proc_: ptr::null_mut(),
+        closed: ptr::null_mut(),
+    };
+}
 
 #[repr(C, align(8))]
 pub struct UvStreamHandle(pub [u8; 512]);
@@ -44,11 +76,11 @@ pub struct Stream {
     pub uvstream: *mut uv_stream_t,
     pub fd: c_int,
     pub fpos: i64,
-    pub cb_data: *mut c_void,
+    pub cb_data: StreamCbData,
     pub before_close_cb: Option<unsafe fn(stream: *mut Stream)>,
     pub close_cb: Option<unsafe fn(stream: *mut Stream)>,
     pub internal_close_cb: stream_close_cb,
-    pub internal_data: *mut c_void,
+    pub internal_data: StreamInternalData,
     pub pending_reqs: usize,
     pub events: *mut MultiQueue,
     pub write_cb: stream_write_cb,
@@ -64,11 +96,11 @@ impl Stream {
             uvstream: ptr::null_mut(),
             fd: -1,
             fpos: 0,
-            cb_data: ptr::null_mut(),
+            cb_data: StreamCbData::NONE,
             before_close_cb: None,
             close_cb: None,
             internal_close_cb: None,
-            internal_data: ptr::null_mut(),
+            internal_data: StreamInternalData::NONE,
             pending_reqs: 0,
             events: ptr::null_mut(),
             write_cb: None,
@@ -159,7 +191,7 @@ pub unsafe fn stream_init(
         }
 
         (*stream).fpos = 0;
-        (*stream).internal_data = ptr::null_mut();
+        (*stream).internal_data = StreamInternalData::NONE;
         (*stream).curmem = 0;
         (*stream).maxmem = 0;
         (*stream).pending_reqs = 0;

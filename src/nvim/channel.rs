@@ -27,7 +27,7 @@ use crate::event::rstream::{
     rstream_stop_inner,
 };
 use crate::event::socket::{SocketWatcher, socket_connect, socket_watcher_accept};
-use crate::event::stream::{Stream, stream_may_close};
+use crate::event::stream::{Stream, StreamCbData, StreamInternalData, stream_may_close};
 use crate::event::wstream::{wstream_init, wstream_init_fd, wstream_new_buffer, wstream_write};
 #[cfg(not(windows))]
 use crate::fileio::fcntl;
@@ -522,9 +522,9 @@ unsafe fn channel_destroy_early(chan: *mut Channel) {
     }
 }
 
-unsafe fn close_cb(_stream: *mut Stream, data: *mut c_void) {
+unsafe fn close_cb(_stream: *mut Stream, data: StreamInternalData) {
     unsafe {
-        channel_decref(data.cast());
+        channel_decref(data.channel);
     }
 }
 
@@ -668,13 +668,27 @@ pub unsafe fn channel_job_start(
             rpc_start(chan);
         } else if has_out {
             callback_reader_start(&raw mut (*ct).on_data, c"stdout".as_ptr());
-            rstream_start(&raw mut (*proc_ptr).out, Some(on_channel_data), chan.cast());
+            rstream_start(
+                &raw mut (*proc_ptr).out,
+                Some(on_channel_data),
+                StreamCbData {
+                    channel: chan,
+                    ..StreamCbData::NONE
+                },
+            );
         }
 
         if has_err {
             callback_reader_start(&raw mut (*ct).on_stderr, c"stderr".as_ptr());
             rstream_init(&raw mut (*proc_ptr).err);
-            rstream_start(&raw mut (*proc_ptr).err, Some(on_job_stderr), chan.cast());
+            rstream_start(
+                &raw mut (*proc_ptr).err,
+                Some(on_job_stderr),
+                StreamCbData {
+                    channel: chan,
+                    ..StreamCbData::NONE
+                },
+            );
         }
 
         *status_out = (*cp).id as varnumber_T;
@@ -716,7 +730,10 @@ pub unsafe fn channel_connect(
         }
 
         (*socket_stream).s.internal_close_cb = Some(close_cb);
-        (*socket_stream).s.internal_data = channel.cast();
+        (*socket_stream).s.internal_data = StreamInternalData {
+            channel,
+            ..StreamInternalData::NONE
+        };
         wstream_init(&raw mut (*socket_stream).s, 0);
         rstream_init(socket_stream);
 
@@ -725,7 +742,14 @@ pub unsafe fn channel_connect(
         } else {
             (*channel).on_data = on_output;
             callback_reader_start(&raw mut (*channel).on_data, c"data".as_ptr());
-            rstream_start(socket_stream, Some(on_channel_data), channel.cast());
+            rstream_start(
+                socket_stream,
+                Some(on_channel_data),
+                StreamCbData {
+                    channel,
+                    ..StreamCbData::NONE
+                },
+            );
         }
 
         channel_create_event(channel, address);
@@ -744,7 +768,10 @@ pub unsafe fn channel_from_connection(watcher: *mut SocketWatcher) {
             return;
         }
         (*socket_stream).s.internal_close_cb = Some(close_cb);
-        (*socket_stream).s.internal_data = channel.cast();
+        (*socket_stream).s.internal_data = StreamInternalData {
+            channel,
+            ..StreamInternalData::NONE
+        };
         wstream_init(&raw mut (*socket_stream).s, 0);
         rstream_init(socket_stream);
         rpc_start(channel);
@@ -803,7 +830,14 @@ pub unsafe fn channel_from_stdio(
         } else {
             (*channel).on_data = on_output;
             callback_reader_start(&raw mut (*channel).on_data, c"stdin".as_ptr());
-            rstream_start(stdio_in, Some(on_channel_data), channel.cast());
+            rstream_start(
+                stdio_in,
+                Some(on_channel_data),
+                StreamCbData {
+                    channel,
+                    ..StreamCbData::NONE
+                },
+            );
         }
 
         (*channel).id
@@ -918,11 +952,11 @@ pub unsafe fn on_channel_data(
     stream: *mut RStream,
     buf: *const c_char,
     count: usize,
-    data: *mut c_void,
+    data: StreamCbData,
     eof: bool,
 ) -> usize {
     unsafe {
-        let chan = data.cast::<Channel>();
+        let chan = data.channel;
         let ct = chan;
         on_channel_output(stream, chan, buf, count, eof, &raw mut (*ct).on_data)
     }
@@ -932,11 +966,11 @@ pub unsafe fn on_job_stderr(
     stream: *mut RStream,
     buf: *const c_char,
     count: usize,
-    data: *mut c_void,
+    data: StreamCbData,
     eof: bool,
 ) -> usize {
     unsafe {
-        let chan = data.cast::<Channel>();
+        let chan = data.channel;
         let ct = chan;
         on_channel_output(stream, chan, buf, count, eof, &raw mut (*ct).on_stderr)
     }
