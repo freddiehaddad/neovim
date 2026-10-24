@@ -11,11 +11,11 @@ use crate::eval::vars::{
 };
 use crate::eval::{
     clear_evalarg, eval_for_line, eval_to_bool, eval_to_string_skip, eval0, fill_evalarg_from_eap,
-    free_for_info, next_for_item,
+    forinfo_T, free_for_info, next_for_item,
 };
 use crate::ex_docmd::{ends_excmd, exarg_T, find_nextcmd, handle_did_throw, modifier_len};
 use crate::globals::*;
-use crate::memory::{xfree, xrealloc, xstrdup, xstrlcpy};
+use crate::memory::{xfree, xstrdup, xstrlcpy};
 use crate::message::{emsg, internal_error, msg_puts, semsg, smsg, verbose_enter, verbose_leave};
 use crate::option_vars::*;
 use crate::regexp::{
@@ -85,7 +85,7 @@ pub struct cstack_T {
     pub cs_pending: [c_char; CSTACK_LEN],
     pub cs_rettv: [*mut typval_T; CSTACK_LEN],
     pub cs_exception: [*mut except_T; CSTACK_LEN],
-    pub cs_forinfo: [*mut c_void; CSTACK_LEN],
+    pub cs_forinfo: [*mut forinfo_T; CSTACK_LEN],
     pub cs_line: [c_int; CSTACK_LEN],
     pub cs_idx: c_int,
     pub cs_looplevel: c_int,
@@ -231,12 +231,10 @@ pub unsafe fn cause_errthrow(
             let mut plist = msg_list;
             while !(*plist).is_null() {
                 if (**plist).next.is_null() && concat {
-                    (**plist).msg = xrealloc(
-                        (**plist).msg.cast(),
-                        strlen((**plist).msg) + strlen(mesg) + 1,
-                    )
-                    .cast();
-                    (**plist).throw_msg = strcat((**plist).msg, mesg);
+                    let joined = crate::strings::concat_str((**plist).msg, mesg);
+                    xfree((**plist).msg.cast());
+                    (**plist).msg = joined;
+                    (**plist).throw_msg = joined;
                     return true;
                 }
                 plist = &mut (**plist).next;

@@ -136,7 +136,7 @@ use crate::mbyte::{
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::memory::{
     Arena, arena_finish, arena_mem_free, memchrsub, strchrsub, strequal, strnequal, xfree,
-    xmalloc, xmemdupz, xrealloc, xstrdup, xstrndup,
+    xmalloc, xmemdupz, xstrdup, xstrndup,
 };
 use crate::msgpack_rpc::channel::find_channel;
 use crate::ops::set_ref_in_opfunc;
@@ -257,7 +257,7 @@ static mut timers: std::collections::BTreeMap<u64, *mut timer_T> =
 
 /// Info used by a `:for` loop.
 #[repr(C)]
-struct forinfo_T {
+pub struct forinfo_T {
     fi_semicolon: c_int,
     fi_varcount: c_int,
     fi_lw: listwatch_T,
@@ -1808,7 +1808,7 @@ pub unsafe fn eval_for_line(
     errp: *mut bool,
     eap: *mut exarg_T,
     evalarg: *mut evalarg_T,
-) -> *mut c_void {
+) -> *mut forinfo_T {
     unsafe {
         let fi = Box::into_raw(Box::new(std::mem::zeroed::<forinfo_T>()));
         let mut tv = tv_initial_value();
@@ -1823,7 +1823,7 @@ pub unsafe fn eval_for_line(
             false,
         );
         if expr.is_null() {
-            return fi.cast();
+            return fi;
         }
 
         expr = skipwhite(expr);
@@ -1832,7 +1832,7 @@ pub unsafe fn eval_for_line(
             || !(*expr.add(2) == NUL || ascii_iswhite(*expr.add(2)))
         {
             emsg(gettext(c"E690: Missing \"in\" after :for".as_ptr()));
-            return fi.cast();
+            return fi;
         }
 
         if skip {
@@ -1875,15 +1875,13 @@ pub unsafe fn eval_for_line(
             emsg_skip -= 1;
         }
 
-        fi.cast()
+        fi
     }
 }
 
 /// Use the first item in a ":for" list. Advance to the next.
-pub unsafe fn next_for_item(fi_void: *mut c_void, arg: *mut c_char) -> bool {
+pub unsafe fn next_for_item(fi: *mut forinfo_T, arg: *mut c_char) -> bool {
     unsafe {
-        let fi = fi_void.cast::<forinfo_T>();
-
         if !(*fi).fi_blob.is_null() {
             if (*fi).fi_bi >= tv_blob_len((*fi).fi_blob) {
                 return false;
@@ -1955,10 +1953,8 @@ pub unsafe fn next_for_item(fi_void: *mut c_void, arg: *mut c_char) -> bool {
 }
 
 /// Free the structure used to store info used by ":for".
-pub unsafe fn free_for_info(fi_void: *mut c_void) {
+pub unsafe fn free_for_info(fi: *mut forinfo_T) {
     unsafe {
-        let fi = fi_void.cast::<forinfo_T>();
-
         if fi.is_null() {
             return;
         }
@@ -2683,12 +2679,9 @@ pub unsafe fn grow_string_tv(tv1: *mut typval_T, s2: *const c_char) -> c_int {
             return FAIL;
         }
 
-        let len1 = strlen((*tv1).vval.v_string);
-        let len2 = strlen(s2);
-        let p = xrealloc((*tv1).vval.v_string.cast(), len1 + len2 + 1).cast::<c_char>();
-
-        ptr::copy(s2, p.add(len1), len2 + 1);
-        (*tv1).vval.v_string = p;
+        let joined = concat_str((*tv1).vval.v_string, s2);
+        xfree((*tv1).vval.v_string.cast());
+        (*tv1).vval.v_string = joined;
         OK
     }
 }

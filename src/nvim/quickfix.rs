@@ -91,7 +91,7 @@ use crate::memline::{
     check_need_swap, ml_append_buf, ml_delete, ml_get_buf, ml_get_buf_len, ml_open,
 };
 use crate::memory::{
-    strequal, xfree, xmalloc, xmallocz, xmemdupz, xrealloc, xstrdup, xstrlcat, xstrlcpy,
+    strequal, xfree, xmalloc, xmallocz, xmemdupz, xstrdup, xstrlcat, xstrlcpy,
 };
 use crate::message::{
     emsg, internal_error, message_filtered, msg, msg_clr_eos, msg_ext_set_kind, msg_keep,
@@ -2017,10 +2017,12 @@ unsafe fn qf_parse_multiline_pfx(
             if *(*fields).errmsg.as_ptr() != NUL {
                 let textlen = strlen((*qfprev).qf_text);
                 let errlen = strlen((*fields).errmsg.as_ptr());
-                (*qfprev).qf_text =
-                    xrealloc((*qfprev).qf_text.cast(), textlen + errlen + 2).cast::<c_char>();
-                *(*qfprev).qf_text.add(textlen) = b'\n' as c_char;
-                strcpy((*qfprev).qf_text.add(textlen + 1), (*fields).errmsg.as_ptr());
+                let new_text = xmalloc(textlen + errlen + 2).cast::<c_char>();
+                ptr::copy_nonoverlapping((*qfprev).qf_text, new_text, textlen);
+                *new_text.add(textlen) = b'\n' as c_char;
+                strcpy(new_text.add(textlen + 1), (*fields).errmsg.as_ptr());
+                xfree((*qfprev).qf_text.cast());
+                (*qfprev).qf_text = new_text;
             }
             if (*qfprev).qf_nr == -1 {
                 (*qfprev).qf_nr = (*fields).enr;

@@ -4,7 +4,7 @@ use crate::fileio::vim_gettempdir;
 use crate::globals::*;
 #[cfg(unix)]
 use crate::memory::xstrdup;
-use crate::memory::{xfree, xmemdupz, xrealloc};
+use crate::memory::{xfree, xmemdupz};
 #[cfg(unix)]
 use crate::os::env::os_env_exists;
 use crate::os::env::{expand_env_save, os_getenv, os_getenv_buf};
@@ -262,10 +262,12 @@ pub unsafe fn stdpaths_user_state_subpath(
 
     if numcommas > 0 || trailing_pathseps > 0 {
         let mut newlen = len + numcommas + trailing_pathseps;
-        ret = unsafe { xrealloc(ret.cast::<c_void>(), newlen + 1).cast::<c_char>() };
         unsafe {
+            let new_ret = crate::memory::xmallocz(newlen).cast::<c_char>();
+            std::ptr::copy_nonoverlapping(ret, new_ret, len);
+            xfree(ret.cast());
+            ret = new_ret;
             let p = ret.cast::<u8>();
-            *p.add(newlen) = 0;
             if trailing_pathseps > 0 {
                 std::ptr::write_bytes(p.add(len + numcommas), PATHSEP as u8, trailing_pathseps);
             }

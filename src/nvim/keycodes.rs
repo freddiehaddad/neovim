@@ -10,7 +10,7 @@ use crate::globals::*;
 use crate::mbyte::{
     utf_char2bytes, utf_char2len, utf_ptr2char, utf_ptr2len, utfc_ptr2len, utfc_ptr2len_len,
 };
-use crate::memory::{xmalloc, xrealloc};
+use crate::memory::{xfree, xmalloc};
 use crate::message::emsg;
 use crate::strings::{vim_snprintf, vim_strchr};
 use std::ffi::{CStr, c_char, c_int, c_uint};
@@ -2830,7 +2830,8 @@ pub unsafe fn replace_termcodes(
         *result.add(dlen) = 0;
 
         if allocated {
-            *bufp = xrealloc(result.cast(), dlen + 1).cast::<c_char>();
+            *bufp = crate::memory::xmemdupz(result.cast(), dlen).cast::<c_char>();
+            xfree(result.cast());
         }
 
         *bufp

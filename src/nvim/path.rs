@@ -15,7 +15,7 @@ use crate::mbyte::{mb_strcmp_ic, utf_fold, utf_head_off, utf_ptr2char, utfc_ptr2
 #[cfg(windows)]
 use crate::memory::strchrsub;
 use crate::memory::{
-    xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz, xrealloc, xstrdup, xstrlcat, xstrlcpy,
+    xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz, xstrdup, xstrlcat, xstrlcpy,
 };
 use crate::option::copy_option_part;
 use crate::option_vars::*;
@@ -512,8 +512,10 @@ pub unsafe fn concat_fnames_realloc(
         let len1 = CStr::from_ptr(fname1).to_bytes().len();
         let len2 = CStr::from_ptr(fname2).to_bytes().len();
         let mut len: usize = 0;
-        let reallocated = xrealloc(fname1.cast::<c_void>(), len1 + len2 + 3).cast::<c_char>();
-        do_concat_fnames(reallocated, len1, fname2, len2, sep, &mut len)
+        let dst = xmalloc(len1 + len2 + 3).cast::<c_char>();
+        ptr::copy_nonoverlapping(fname1, dst, len1 + 1);
+        xfree(fname1.cast());
+        do_concat_fnames(dst, len1, fname2, len2, sep, &mut len)
     }
 }
 

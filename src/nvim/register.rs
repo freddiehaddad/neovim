@@ -57,7 +57,7 @@ use crate::mbyte::{
 use crate::mcursor::mc_ins_cascading;
 use crate::memline::{decl, ml_append, ml_get, ml_get_buf, ml_get_len, ml_replace};
 use crate::memory::{
-    memchrsub, memcnt, xfree, xmalloc, xmallocz, xmemdupz, xrealloc, xstrdup,
+    memchrsub, memcnt, xfree, xmalloc, xmallocz, xmemdupz, xstrdup,
 };
 use crate::message::{
     emsg, emsg_invreg, message_filtered, msg, msg_ext_set_kind, msg_outtrans_len, msg_putchar,
@@ -3030,9 +3030,13 @@ pub unsafe fn write_reg_contents_ex(
                 offset = exprlen;
             }
 
-            expr_line = xrealloc(expr_line.cast(), totlen + 1).cast::<c_char>();
-            ptr::copy_nonoverlapping(str_, expr_line.add(offset), len as usize);
-            *expr_line.add(totlen) = NUL;
+            let new_expr_line = crate::memory::xmallocz(totlen).cast::<c_char>();
+            if offset > 0 {
+                ptr::copy_nonoverlapping(expr_line, new_expr_line, offset);
+            }
+            ptr::copy_nonoverlapping(str_, new_expr_line.add(offset), len as usize);
+            xfree(expr_line.cast());
+            expr_line = new_expr_line;
             return;
         }
 

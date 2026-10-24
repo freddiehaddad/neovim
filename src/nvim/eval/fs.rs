@@ -1803,10 +1803,13 @@ pub unsafe fn f_resolve(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                     if (q as usize) > (p as usize) && !path_is_absolute(buf) {
                         // Symlink is relative to directory of argument. Replace the
                         // symlink with the resolved name in the same directory.
-                        let p_len = strlen(p);
+                        let prefix_len = (q as usize) - (p as usize);
                         let buf_len = strlen(buf);
-                        p = crate::memory::xrealloc(p.cast(), p_len + buf_len + 1).cast();
-                        ptr::copy_nonoverlapping(buf, path_tail(p), buf_len + 1);
+                        let new_p: *mut c_char = xmallocz(prefix_len + buf_len).cast();
+                        ptr::copy_nonoverlapping(p, new_p, prefix_len);
+                        ptr::copy_nonoverlapping(buf, new_p.add(prefix_len), buf_len);
+                        xfree(p.cast());
+                        p = new_p;
                     } else {
                         xfree(p.cast());
                         p = xstrdup(buf);

@@ -30,7 +30,7 @@ use crate::mcursor::{
     mc_buf_has_cursors, mc_clock_edge, mc_following, mc_ins_cascade_start, mc_ins_cascaded,
     mc_ins_commit, mc_mark_at, mc_replaying, mc_vsel_clear, mc_vsel_refresh,
 };
-use crate::memory::{xfree, xmemdupz, xrealloc, xstrdup};
+use crate::memory::{xfree, xmallocz, xmemdupz, xstrdup};
 use crate::normal::{
     NV_JUMP, NV_LANG, NV_MOTION, NV_NCH_ARG, REPLACE_CR_NCHAR, VisualState, nv_is,
 };
@@ -42,7 +42,7 @@ use crate::option_vars::*;
 use crate::register::reg_max_ts;
 use crate::state::{MODE_NORMAL, MODE_OP_PENDING, get_real_state};
 use crate::strings::{
-    concat_str, strchr, strcpy, strlen, strncmp, vim_snprintf, vim_strchr,
+    concat_str, strchr, strlen, strncmp, vim_snprintf, vim_strchr,
 };
 use crate::textformat::oparg_T;
 use crate::viml::parser::expressions::ESC;
@@ -1232,14 +1232,16 @@ unsafe fn atom_payload_append(atom: *mut CmdAtom, frame: *mut CmdFrame) {
             return;
         }
         let klen = strlen((*atom).keys);
-        (*atom).keys = xrealloc((*atom).keys.cast(), klen + plen + 1).cast();
+        let new_keys = xmallocz(klen + plen).cast::<c_char>();
+        ptr::copy_nonoverlapping((*atom).keys, new_keys, klen);
         let typed_keys = &raw const typed.keys;
         ptr::copy_nonoverlapping(
             (*typed_keys).as_ptr().add((*frame).payload_start),
-            (*atom).keys.add(klen).cast(),
+            new_keys.add(klen).cast(),
             plen,
         );
-        *(*atom).keys.add(klen + plen) = 0;
+        xfree((*atom).keys.cast());
+        (*atom).keys = new_keys;
         (*frame).payload_start = usize::MAX;
     }
 }
@@ -1527,8 +1529,8 @@ unsafe fn atom_visual_end_suffix(
             let mut label: *mut c_char = ptr::null_mut();
             if emit {
                 let collected = atoms_concat_keys(&*v_atoms, 0);
-                label = xrealloc(collected.data.cast(), collected.size + strlen(suffix) + 1).cast();
-                strcpy(label.add(collected.size), suffix);
+                label = concat_str(collected.data, suffix);
+                xfree(collected.data.cast());
             }
             xfree(suffix.cast());
             atom_visual_reset();
@@ -1553,8 +1555,8 @@ unsafe fn atom_visual_end_suffix(
             return prepped;
         }
 
-        let keys: *mut c_char = xrealloc(v.data.cast(), v.size + strlen(suffix) + 1).cast();
-        strcpy(keys.add(v.size), suffix);
+        let keys = concat_str(v.data, suffix);
+        xfree(v.data.cast());
         let mut atom = CmdAtom {
             r#type: kAVisual,
             spec: if !spec.is_null() {

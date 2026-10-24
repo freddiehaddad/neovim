@@ -99,7 +99,7 @@ use crate::memline::{
     ml_find_line_or_offset, ml_firstmarked, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len,
     ml_replace, ml_replace_buf, ml_setmarked,
 };
-use crate::memory::{xfree, xmalloc, xmemdupz, xrealloc, xstrdup, xstrlcat, xstrlcpy};
+use crate::memory::{xfree, xmalloc, xmemdupz, xstrdup, xstrlcat, xstrlcpy};
 use crate::message::{
     emsg, message_filtered, messaging, msg, msg_check_for_delay, msg_clr_eos, msg_end,
     msg_ext_no_fast, msg_ext_set_kind, msg_multiline, msg_outtrans, msg_prt_line, msg_putchar,
@@ -3764,14 +3764,15 @@ unsafe fn sub_grow_buf(
             if needed_size > *new_start_size {
                 let prev_new_start_size = *new_start_size;
                 *new_start_size = needed_size + 50;
-                let added_len = *new_start_size - prev_new_start_size;
-                (*new_start).data =
-                    xrealloc((*new_start).data.cast::<c_void>(), *new_start_size).cast::<c_char>();
+                let new_data = xmalloc(*new_start_size).cast::<c_char>();
+                ptr::copy_nonoverlapping((*new_start).data, new_data, prev_new_start_size);
                 ptr::write_bytes(
-                    (*new_start).data.add(prev_new_start_size).cast::<u8>(),
+                    new_data.add(prev_new_start_size).cast::<u8>(),
                     0,
-                    added_len,
+                    *new_start_size - prev_new_start_size,
                 );
+                xfree((*new_start).data.cast());
+                (*new_start).data = new_data;
             }
         }
     }

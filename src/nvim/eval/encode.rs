@@ -19,7 +19,7 @@ use crate::hashtab::{hashitem_T, hashitem_empty};
 use crate::keycodes::{BS, CAR, NL, TAB};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{utf_char2len, utf_printable, utf_ptr2char, utf_ptr2len};
-use crate::memory::{memchrsub, memcnt, xfree, xmalloc, xmemdupz, xmemscan, xrealloc};
+use crate::memory::{memchrsub, memcnt, xfree, xmalloc, xmemdupz, xmemscan};
 use crate::message::{emsg, internal_error, semsg};
 use crate::msgpack_rpc::packer::{
     PackerBuffer, mpack_array, mpack_bin, mpack_bool, mpack_check_buffer, mpack_ext, mpack_float8,
@@ -123,12 +123,14 @@ pub unsafe fn encode_list_write(data: *mut c_void, buf: *const c_char, len: usiz
                 } else {
                     CStr::from_ptr(str_ptr).to_bytes().len()
                 };
-                let new_str =
-                    xrealloc(str_ptr.cast::<c_void>(), li_len + line_length + 1).cast::<c_char>();
+                let new_str = crate::memory::xmallocz(li_len + line_length).cast::<c_char>();
+                if !str_ptr.is_null() {
+                    std::ptr::copy_nonoverlapping(str_ptr, new_str, li_len);
+                    xfree(str_ptr.cast());
+                }
                 (*li).li_tv.vval.v_string = new_str;
                 let dst = new_str.add(li_len);
                 std::ptr::copy_nonoverlapping(buf.cast::<u8>(), dst.cast::<u8>(), line_length);
-                *dst.add(line_length) = 0;
                 memchrsub(dst.cast::<c_void>(), 0, NL as c_char, line_length);
             }
             line_end = line_end.add(1);
