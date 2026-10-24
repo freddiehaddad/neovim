@@ -5038,7 +5038,7 @@ pub unsafe fn f_jobwait(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
 
         let args = (*argvars).vval.v_list;
         let len = tv_list_len(args) as usize;
-        let jobs = xcalloc(len, size_of::<*mut Channel>()).cast::<*mut Channel>();
+        let mut jobs: Vec<*mut Channel> = vec![ptr::null_mut(); len];
         let main_loop_ptr: *mut Loop = (&raw mut main_loop).cast();
         let waiting_jobs = multiqueue_new(Some(loop_on_put), main_loop_ptr);
 
@@ -5052,14 +5052,14 @@ pub unsafe fn f_jobwait(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                 ptr::null_mut()
             };
             if chan.is_null() || (*channel_prefix(chan)).streamtype != kChannelStreamProc {
-                *jobs.add(i) = ptr::null_mut();
+                jobs[i] = ptr::null_mut();
             } else {
                 let proc_ptr = channel_stream_ptr(chan).cast::<Proc>();
                 if proc_is_stopped(proc_ptr) {
                     proc_wait(proc_ptr, -1, ptr::null_mut());
-                    *jobs.add(i) = ptr::null_mut();
+                    jobs[i] = ptr::null_mut();
                 } else {
-                    *jobs.add(i) = chan;
+                    jobs[i] = chan;
                     channel_incref(chan);
                     if (*proc_header(proc_ptr)).status < 0 {
                         let events = (*channel_prefix(chan)).events;
@@ -5085,11 +5085,10 @@ pub unsafe fn f_jobwait(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
             ui_flush();
         }
 
-        for idx in 0..len {
+        for &job in &jobs {
             if remaining == 0 {
                 break;
             }
-            let job = *jobs.add(idx);
             if job.is_null() {
                 continue;
             }
@@ -5109,8 +5108,7 @@ pub unsafe fn f_jobwait(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
         }
 
         let rv = tv_list_alloc(len as isize);
-        for idx in 0..len {
-            let job = *jobs.add(idx);
+        for &job in &jobs {
             if job.is_null() {
                 tv_list_append_number(rv, -3);
                 continue;
@@ -5125,7 +5123,6 @@ pub unsafe fn f_jobwait(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
         }
 
         multiqueue_free(waiting_jobs);
-        xfree(jobs.cast());
         if busy {
             ui_busy_stop();
         }

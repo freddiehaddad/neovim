@@ -42,7 +42,7 @@ use crate::keycodes::{
 };
 use crate::mbyte::{mb_string2cells, mb_strnicmp, ptr2cells, utf_ptr2cells, utfc_ptr2len};
 use crate::memory::{
-    Arena, arena_finish, arena_mem_free, strequal, xcalloc, xfree, xmalloc, xstrdup,
+    Arena, arena_finish, arena_mem_free, strequal, xfree, xmalloc, xstrdup,
 };
 use crate::menu::{execute_menu, get_menu_mode_flag, menu_find, menu_is_separator, vimmenu_T};
 use crate::message::emsg;
@@ -1745,7 +1745,8 @@ pub unsafe fn pum_show_popupmenu(menu: *mut vimmenu_T) {
         }
 
         let mut idx: usize = 0;
-        let array = xcalloc(PUM_SIZE as usize, size_of::<pumitem_T>()).cast::<pumitem_T>();
+        let mut array_vec: Vec<pumitem_T> = vec![std::mem::zeroed(); PUM_SIZE as usize];
+        let array = array_vec.as_mut_ptr();
 
         mp = (*menu).children;
         while !mp.is_null() {
@@ -1756,7 +1757,7 @@ pub unsafe fn pum_show_popupmenu(menu: *mut vimmenu_T) {
                 s = (*mp).dname;
             }
             if !s.is_null() {
-                (*array.add(idx)).pum_text = xstrdup(s);
+                array_vec[idx].pum_text = xstrdup(s);
                 idx += 1;
             }
             mp = (*mp).next;
@@ -1826,10 +1827,9 @@ pub unsafe fn pum_show_popupmenu(menu: *mut vimmenu_T) {
             }
         }
 
-        for i in 0..(PUM_SIZE as usize) {
-            xfree((*array.add(i)).pum_text.cast());
+        for item in &array_vec {
+            xfree(item.pum_text.cast());
         }
-        xfree(array.cast());
         pum_undisplay(true);
         if p_mousemev == 0 {
             ui_call_option_set(

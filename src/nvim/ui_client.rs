@@ -25,7 +25,7 @@ use crate::grid::{sattr_T, schar_T};
 use crate::highlight::{HLATTRS_INIT, HlAttrs, KeyDict_highlight, dict2hlattrs};
 use crate::log::{LOGLVL_ERR, LOGLVL_INF, logmsg};
 use crate::main_init::os_exit;
-use crate::memory::{Arena, strequal, xcalloc, xfree, xmalloc, xmemdupz, xstrdup};
+use crate::memory::{Arena, strequal, xfree, xmalloc, xmemdupz, xstrdup};
 use crate::msgpack_rpc::channel::rpc_send_event;
 use crate::msgpack_rpc::packer::Integer;
 use crate::msgpack_rpc::unpacker::GridLineEvent;
@@ -566,18 +566,17 @@ pub unsafe fn ui_client_attach_to_restarted_server(error_restart: bool) {
                 return;
             }
             let cmdargs = (*args.items.add(1)).data.array;
-            let argv = xcalloc(cmdargs.size + 1, size_of::<*mut c_char>()).cast::<*mut c_char>();
-            for i in 0..cmdargs.size {
+            let mut argv: Vec<*mut c_char> = vec![ptr::null_mut(); cmdargs.size + 1];
+            for (i, dst) in argv.iter_mut().enumerate().take(cmdargs.size) {
                 let item = *cmdargs.items.add(i);
                 if item.obj_type == ObjectType::kObjectTypeString {
-                    *argv.add(i) = item.data.string.data;
+                    *dst = item.data.string.data;
                 }
-                if (*argv.add(i)).is_null() {
-                    *argv.add(i) = c"".as_ptr().cast_mut();
+                if (*dst).is_null() {
+                    *dst = c"".as_ptr().cast_mut();
                 }
             }
-            let id = ui_client_start_server(first_arg, cmdargs.size, argv);
-            xfree(argv.cast());
+            let id = ui_client_start_server(first_arg, cmdargs.size, argv.as_mut_ptr());
             ui_client_error_exit = -1;
             id
         } else {

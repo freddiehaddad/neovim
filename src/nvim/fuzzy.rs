@@ -22,7 +22,7 @@ use crate::mbyte::{
     utfc_ptr2len,
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
-use crate::memory::{xcalloc, xfree, xmalloc, xstrdup};
+use crate::memory::{xfree, xmalloc, xstrdup};
 use crate::message::semsg;
 use crate::option_vars::*;
 use crate::search::FORWARD;
@@ -455,7 +455,7 @@ unsafe fn fuzzy_match_in_list(
             len = max_matches;
         }
 
-        let items = xcalloc(len as usize, std::mem::size_of::<fuzzyItem_T>()).cast::<fuzzyItem_T>();
+        let mut items: Vec<fuzzyItem_T> = Vec::with_capacity(len as usize);
         let mut match_count: c_int = 0;
         let mut matches = [0u32; FUZZY_MATCH_MAX_LEN];
 
@@ -543,15 +543,16 @@ unsafe fn fuzzy_match_in_list(
                     }
                 }
 
-                let dst = &mut *items.add(match_count as usize);
-                dst.idx = match_count;
-                dst.item = li;
-                dst.score = score;
-                dst.pat = str_ptr;
-                dst.startpos = matches[0] as c_int;
-                dst.itemstr = itemstr_copy;
-                dst.itemstr_allocated = itemstr_allocate;
-                dst.lmatchpos = match_positions_list;
+                items.push(fuzzyItem_T {
+                    idx: match_count,
+                    item: li,
+                    score,
+                    pat: str_ptr,
+                    startpos: matches[0] as c_int,
+                    itemstr: itemstr_copy,
+                    itemstr_allocated: itemstr_allocate,
+                    lmatchpos: match_positions_list,
+                });
 
                 match_count += 1;
             }
@@ -559,9 +560,8 @@ unsafe fn fuzzy_match_in_list(
             li = (*li).li_next;
         }
 
-        if match_count > 0 {
-            let slice = std::slice::from_raw_parts_mut(items, match_count as usize);
-            sort_slice_by(slice, |a, b| fuzzy_match_item_compare(a, b));
+        if !items.is_empty() {
+            sort_slice_by(&mut items, |a, b| fuzzy_match_item_compare(a, b));
 
             let mut retlist = if retmatchpos {
                 let first_li = tv_list_find(fmatchlist, 0);
@@ -571,8 +571,8 @@ unsafe fn fuzzy_match_in_list(
                 fmatchlist
             };
 
-            for i in 0..(match_count as usize) {
-                let item_li = (*items.add(i)).item;
+            for cur in &items {
+                let item_li = cur.item;
                 tv_list_append_tv(retlist, &mut (*item_li).li_tv);
             }
 
@@ -581,8 +581,7 @@ unsafe fn fuzzy_match_in_list(
                 assert!(!pos_li.is_null() && !(*pos_li).li_tv.vval.v_list.is_null());
                 retlist = (*pos_li).li_tv.vval.v_list;
 
-                for i in 0..(match_count as usize) {
-                    let cur = &mut *items.add(i);
+                for cur in &mut items {
                     assert!(!cur.lmatchpos.is_null());
                     tv_list_append_list(retlist, cur.lmatchpos);
                     cur.lmatchpos = std::ptr::null_mut();
@@ -591,20 +590,18 @@ unsafe fn fuzzy_match_in_list(
                 let score_li = tv_list_find(fmatchlist, -1);
                 assert!(!score_li.is_null() && !(*score_li).li_tv.vval.v_list.is_null());
                 retlist = (*score_li).li_tv.vval.v_list;
-                for i in 0..(match_count as usize) {
-                    tv_list_append_number(retlist, (*items.add(i)).score as i64);
+                for cur in &items {
+                    tv_list_append_number(retlist, cur.score as i64);
                 }
             }
         }
 
-        for i in 0..(match_count as usize) {
-            let cur = &*items.add(i);
+        for cur in &items {
             if cur.itemstr_allocated {
                 xfree(cur.itemstr.cast::<c_void>());
             }
             assert!(cur.lmatchpos.is_null());
         }
-        xfree(items.cast::<c_void>());
     }
 }
 
@@ -1001,7 +998,7 @@ mod tests {
     #[test]
     fn fuzzymatches_to_strmatches_sorts_snr_functions_last() {
         unsafe {
-            let fm = xcalloc(2, std::mem::size_of::<fuzmatch_str_T>()).cast::<fuzmatch_str_T>();
+            let fm = xmalloc(2 * std::mem::size_of::<fuzmatch_str_T>()).cast::<fuzmatch_str_T>();
             *fm = fuzmatch_str_T {
                 idx: 0,
                 str_ptr: xstrdup(c"<SNR>1_foo".as_ptr()),

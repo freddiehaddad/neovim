@@ -49,7 +49,7 @@ use crate::mbyte::{
     utf_ptr2char, utfc_ptr2len,
 };
 use crate::memline::{decl, inc, incl, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
-use crate::memory::{xcalloc, xfree, xmalloc, xmemdupz, xstrlcpy};
+use crate::memory::{xfree, xmalloc, xmemdupz, xstrlcpy};
 use crate::message::{
     emsg, give_warning, iemsg, messaging, msg, msg_check, msg_clr_eos, msg_end, msg_ext_set_kind,
     msg_home_replace, msg_outtrans, msg_prt_line, msg_putchar, msg_puts, msg_puts_hl,
@@ -3210,8 +3210,15 @@ pub unsafe fn find_pattern_in_path(
             }
             def_regmatch.rm_ic = false;
         }
-        let mut files: *mut SearchedFile =
-            xcalloc(max_path_depth as usize, size_of::<SearchedFile>()).cast();
+        let mut files: Vec<SearchedFile> = vec![
+            SearchedFile {
+                fp: ptr::null_mut(),
+                name: ptr::null_mut(),
+                lnum: 0,
+                matched: 0,
+            };
+            max_path_depth as usize
+        ];
         let mut old_files = max_path_depth;
         let mut depth: c_int = -1;
         let mut depth_displayed: c_int = -1;
@@ -3259,12 +3266,12 @@ pub unsafe fn find_pattern_in_path(
                         }
                         if path_equal(
                             new_fname,
-                            (*files.add(i as usize)).name,
+                            files[i as usize].name,
                             kPathCmpExpand | kPathCmpFull,
                         ) {
                             if type_ != CHECK_PATH
                                 && action == ACTION_SHOW_ALL
-                                && (*files.add(i as usize)).matched != 0
+                                && files[i as usize].matched != 0
                             {
                                 msg_putchar(b'\n' as c_int);
                                 if !got_int {
@@ -3301,7 +3308,7 @@ pub unsafe fn find_pattern_in_path(
                         for _ in 0..depth_displayed {
                             msg_puts(c"  ".as_ptr());
                         }
-                        msg_home_replace((*files.add(depth_displayed as usize)).name);
+                        msg_home_replace(files[depth_displayed as usize].name);
                         msg_puts(c" -->\n".as_ptr());
                     }
                     if !got_int {
@@ -3358,42 +3365,39 @@ pub unsafe fn find_pattern_in_path(
 
                 if !new_fname.is_null() {
                     if depth + 1 == old_files {
-                        let bigger: *mut SearchedFile =
-                            xmalloc((max_path_depth as usize) * 2 * size_of::<SearchedFile>())
-                                .cast();
-                        for idx in 0..=depth {
-                            *bigger.add(idx as usize) = *files.add(idx as usize);
-                        }
-                        for idx in (depth + 1)..(old_files + max_path_depth) {
-                            *bigger.add(idx as usize) = SearchedFile {
+                        let mut bigger = vec![
+                            SearchedFile {
                                 fp: ptr::null_mut(),
                                 name: ptr::null_mut(),
                                 lnum: 0,
                                 matched: 0,
                             };
+                            (max_path_depth as usize) * 2
+                        ];
+                        for idx in 0..=depth {
+                            bigger[idx as usize] = files[idx as usize];
                         }
                         for idx in old_files..max_path_depth {
-                            *bigger.add((idx + max_path_depth) as usize) = *files.add(idx as usize);
+                            bigger[(idx + max_path_depth) as usize] = files[idx as usize];
                         }
                         old_files += max_path_depth;
                         max_path_depth *= 2;
-                        xfree(files.cast());
                         files = bigger;
                     }
                     let fp = os_fopen(new_fname, c"r".as_ptr()).cast::<FILE>();
-                    (*files.add((depth + 1) as usize)).fp = fp;
+                    files[(depth + 1) as usize].fp = fp;
                     if fp.is_null() {
                         xfree(new_fname.cast());
                     } else {
                         depth += 1;
                         if depth == old_files {
-                            xfree((*files.add(old_files as usize)).name.cast());
+                            xfree(files[old_files as usize].name.cast());
                             old_files += 1;
                         }
-                        (*files.add(depth as usize)).name = new_fname;
+                        files[depth as usize].name = new_fname;
                         curr_fname = new_fname;
-                        (*files.add(depth as usize)).lnum = 0;
-                        (*files.add(depth as usize)).matched = 0;
+                        files[depth as usize].lnum = 0;
+                        files[depth as usize].matched = 0;
                         if action == ACTION_EXPAND && !shortmess(kShmCompletionscan) && !silent {
                             let iobuff_ptr = (&raw mut IObuff).cast::<c_char>();
                             msg_hist_off = true;
@@ -3529,7 +3533,7 @@ pub unsafe fn find_pattern_in_path(
                                         if vim_fgets(
                                             line,
                                             LSIZE as c_int,
-                                            (*files.add(depth as usize)).fp,
+                                            files[depth as usize].fp,
                                         ) {
                                             skip_add = true;
                                         }
@@ -3627,12 +3631,12 @@ pub unsafe fn find_pattern_in_path(
                                 if depth == -1 {
                                     ptr::null_mut()
                                 } else {
-                                    (*files.add(depth as usize)).fp
+                                    files[depth as usize].fp
                                 },
                                 if depth == -1 {
                                     &raw mut lnum
                                 } else {
-                                    &raw mut (*files.add(depth as usize)).lnum
+                                    &raw mut files[depth as usize].lnum
                                 },
                                 match_count,
                             );
@@ -3640,7 +3644,7 @@ pub unsafe fn find_pattern_in_path(
                         }
 
                         for idx in 0..=depth {
-                            (*files.add(idx as usize)).matched = 1;
+                            files[idx as usize].matched = 1;
                         }
                     } else {
                         count -= 1;
@@ -3660,12 +3664,12 @@ pub unsafe fn find_pattern_in_path(
                                     if depth == -1 {
                                         ptr::null_mut()
                                     } else {
-                                        (*files.add(depth as usize)).fp
+                                        files[depth as usize].fp
                                     },
                                     if depth == -1 {
                                         &raw mut lnum
                                     } else {
-                                        &raw mut (*files.add(depth as usize)).lnum
+                                        &raw mut files[depth as usize].lnum
                                     },
                                     1,
                                 );
@@ -3706,15 +3710,15 @@ pub unsafe fn find_pattern_in_path(
                                         }
                                     } else if !getfile_success(getfile(
                                         0,
-                                        (*files.add(depth as usize)).name,
+                                        files[depth as usize].name,
                                         ptr::null_mut(),
                                         true,
-                                        (*files.add(depth as usize)).lnum,
+                                        files[depth as usize].lnum,
                                         forceit,
                                     )) {
                                         stop_fpip_loop = true;
                                     } else {
-                                        (*curwin).w_cursor.lnum = (*files.add(depth as usize)).lnum;
+                                        (*curwin).w_cursor.lnum = files[depth as usize].lnum;
                                     }
                                 }
                             }
@@ -3769,22 +3773,22 @@ pub unsafe fn find_pattern_in_path(
 
             while depth >= 0 && already.is_null() && {
                 line = file_line;
-                vim_fgets(line, LSIZE as c_int, (*files.add(depth as usize)).fp)
+                vim_fgets(line, LSIZE as c_int, files[depth as usize].fp)
             } {
-                fclose((*files.add(depth as usize)).fp);
+                fclose(files[depth as usize].fp);
                 old_files -= 1;
-                (*files.add(old_files as usize)).name = (*files.add(depth as usize)).name;
-                (*files.add(old_files as usize)).matched = (*files.add(depth as usize)).matched;
+                files[old_files as usize].name = files[depth as usize].name;
+                files[old_files as usize].matched = files[depth as usize].matched;
                 depth -= 1;
                 curr_fname = if depth == -1 {
                     (*curbuf).b_fname
                 } else {
-                    (*files.add(depth as usize)).name
+                    files[depth as usize].name
                 };
                 depth_displayed = depth_displayed.min(depth);
             }
             if depth >= 0 {
-                (*files.add(depth as usize)).lnum += 1;
+                files[depth as usize].lnum += 1;
                 i = CStr::from_ptr(line).to_bytes().len() as c_int;
                 if i > 0 && *line.add((i - 1) as usize) == b'\n' as c_char {
                     i -= 1;
@@ -3805,13 +3809,12 @@ pub unsafe fn find_pattern_in_path(
         }
 
         for idx in 0..=depth {
-            fclose((*files.add(idx as usize)).fp);
-            xfree((*files.add(idx as usize)).name.cast());
+            fclose(files[idx as usize].fp);
+            xfree(files[idx as usize].name.cast());
         }
         for idx in old_files..max_path_depth {
-            xfree((*files.add(idx as usize)).name.cast());
+            xfree(files[idx as usize].name.cast());
         }
-        xfree(files.cast());
 
         if type_ == CHECK_PATH {
             if !did_show {

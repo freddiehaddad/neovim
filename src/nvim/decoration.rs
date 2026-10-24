@@ -30,7 +30,7 @@ use crate::marktree::{
     mt_end, mt_invalid,
 };
 use crate::mbyte::{utf_ptr2cells, utfc_ptr2len};
-use crate::memory::{Arena, xcalloc, xfree, xstrdup};
+use crate::memory::{Arena, xfree, xstrdup};
 use crate::r#move::{changed_window_setting, win_col_off};
 use crate::msgpack_rpc::packer::Integer;
 use crate::regexp::MAXCOL;
@@ -1501,7 +1501,7 @@ pub unsafe fn buf_signcols_count_range(
             return;
         }
 
-        let count: *mut c_int = xcalloc((row2 + 1 - row1) as usize, size_of::<c_int>()).cast();
+        let mut count = vec![0 as c_int; (row2 + 1 - row1) as usize];
         let mut itr: [MarkTreeIter; 1] = std::mem::zeroed();
         let mut pair: MTPair = std::mem::zeroed();
         let b = (*buf).b_marktree.as_mut_ptr();
@@ -1510,7 +1510,7 @@ pub unsafe fn buf_signcols_count_range(
         while marktree_itr_step_overlap(b, itr.as_mut_ptr(), &raw mut pair) {
             if (pair.start.flags & MT_FLAG_DECOR_SIGNTEXT) != 0 && !mt_invalid(pair.start) {
                 for i in row1..=row2.min(pair.end_pos.row) {
-                    *count.add((i - row1) as usize) += 1;
+                    count[(i - row1) as usize] += 1;
                 }
             }
         }
@@ -1525,15 +1525,14 @@ pub unsafe fn buf_signcols_count_range(
             if (mark.flags & MT_FLAG_DECOR_SIGNTEXT) != 0 && !mt_invalid(mark) && !mt_end(mark) {
                 let end = marktree_get_altpos(b, mark, ptr::null_mut());
                 for i in mark.pos.row..=row2.min(end.row) {
-                    *count.add((i - row1) as usize) += 1;
+                    count[(i - row1) as usize] += 1;
                 }
             }
 
             marktree_itr_next_filter(b, itr.as_mut_ptr(), row2 + 1, 0, SIGNTEXT_FILTER.as_ptr());
         }
 
-        for i in 0..(row2 + 1 - row1) {
-            let c_val = *count.add(i as usize);
+        for &c_val in &count {
             let prevwidth = SIGN_SHOW_MAX.min(c_val - add);
             if clear != kNone && prevwidth > 0 {
                 (*buf).b_signcols.count[(prevwidth - 1) as usize] -= 1;
@@ -1546,8 +1545,6 @@ pub unsafe fn buf_signcols_count_range(
                 }
             }
         }
-
-        xfree(count.cast());
     }
 }
 

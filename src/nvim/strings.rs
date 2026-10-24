@@ -20,7 +20,7 @@ use crate::mbyte::{
     utf_ptr2len, utfc_ptr2len,
 };
 use crate::memory::{
-    xcalloc, xfree, xmalloc, xmallocz, xmemdupz, xmemscan, xrealloc, xstrchrnul, xstrlcpy,
+    xfree, xmalloc, xmallocz, xmemdupz, xmemscan, xrealloc, xstrchrnul, xstrlcpy,
 };
 use crate::message::{emsg, semsg};
 use crate::option::{csh_like_shell, fish_like_shell};
@@ -30,7 +30,6 @@ use crate::plines::linetabsize_col;
 use std::ffi::{
     CStr, c_char, c_double, c_int, c_long, c_longlong, c_uint, c_ulong, c_ulonglong, c_void,
 };
-use std::mem::size_of;
 use std::ptr;
 
 const CTRL_V: c_char = 0x16;
@@ -1444,9 +1443,8 @@ unsafe fn format_typename(type_: *const c_char) -> *const c_char {
 }
 
 unsafe fn adjust_types(
-    ap_types: *mut *mut *const c_char,
+    ap_types: &mut Vec<*const c_char>,
     arg: c_int,
-    num_posarg: *mut c_int,
     type_: *const c_char,
 ) -> c_int {
     unsafe {
@@ -1455,24 +1453,11 @@ unsafe fn adjust_types(
             return FAIL;
         }
 
-        if (*ap_types).is_null() || *num_posarg < arg {
-            let new_types = if (*ap_types).is_null() {
-                xcalloc(arg as usize, size_of::<*const c_char>()).cast::<*const c_char>()
-            } else {
-                xrealloc(
-                    (*ap_types).cast(),
-                    (arg as usize) * size_of::<*const c_char>(),
-                )
-                .cast::<*const c_char>()
-            };
-            for idx in (*num_posarg as usize)..(arg as usize) {
-                *new_types.add(idx) = ptr::null();
-            }
-            *ap_types = new_types;
-            *num_posarg = arg;
+        if (arg as usize) > ap_types.len() {
+            ap_types.resize(arg as usize, ptr::null());
         }
 
-        let prev = *(*ap_types).add((arg - 1) as usize);
+        let prev = ap_types[(arg - 1) as usize];
         if !prev.is_null() {
             if *prev == b'*' as c_char || *type_ == b'*' as c_char {
                 let mut pt = type_;
@@ -1499,7 +1484,7 @@ unsafe fn adjust_types(
             }
         }
 
-        *(*ap_types).add((arg - 1) as usize) = type_;
+        ap_types[(arg - 1) as usize] = type_;
         OK
     }
 }
@@ -1546,7 +1531,6 @@ pub unsafe fn get_unsigned_int(
 }
 
 pub unsafe fn parse_fmt_types(
-    ap_types: *mut *mut *const c_char,
     num_posarg: *mut c_int,
     fmt: *const c_char,
     tvs: *mut typval_T,
@@ -1555,6 +1539,7 @@ pub unsafe fn parse_fmt_types(
         if fmt.is_null() {
             return OK;
         }
+        let mut ap_types: Vec<*const c_char> = Vec::new();
         let mut p = fmt;
         let mut any_pos = false;
         let mut any_arg = false;
@@ -1563,8 +1548,6 @@ pub unsafe fn parse_fmt_types(
             () => {
                 if any_pos && any_arg {
                     semsg!(gettext(E_CANNOT_MIX_POSITIONAL.as_ptr()), fmt);
-                    xfree((*ap_types).cast());
-                    *ap_types = ptr::null_mut();
                     *num_posarg = 0;
                     return FAIL;
                 }
@@ -1573,8 +1556,6 @@ pub unsafe fn parse_fmt_types(
 
         macro_rules! fail {
             () => {
-                xfree((*ap_types).cast());
-                *ap_types = ptr::null_mut();
                 *num_posarg = 0;
                 return FAIL;
             };
@@ -1632,7 +1613,7 @@ pub unsafe fn parse_fmt_types(
                         p = p.add(1);
                         any_pos = true;
                         check_pos_arg!();
-                        if adjust_types(ap_types, uj as c_int, num_posarg, arg) == FAIL {
+                        if adjust_types(&mut ap_types, uj as c_int, arg) == FAIL {
                             fail!();
                         }
                     } else {
@@ -1667,7 +1648,7 @@ pub unsafe fn parse_fmt_types(
                                 any_pos = true;
                                 check_pos_arg!();
                                 p = p.add(1);
-                                if adjust_types(ap_types, uj as c_int, num_posarg, arg) == FAIL {
+                                if adjust_types(&mut ap_types, uj as c_int, arg) == FAIL {
                                     fail!();
                                 }
                             } else {
@@ -1712,7 +1693,7 @@ pub unsafe fn parse_fmt_types(
                     | b'B' | b'c' | b's' | b'S' | b'p' | b'f' | b'F' | b'e' | b'E' | b'g'
                     | b'G' => {
                         if pos_arg != -1 {
-                            if adjust_types(ap_types, pos_arg, num_posarg, ptype) == FAIL {
+                            if adjust_types(&mut ap_types, pos_arg, ptype) == FAIL {
                                 fail!();
                             }
                         } else {
@@ -1734,8 +1715,9 @@ pub unsafe fn parse_fmt_types(
             }
         }
 
-        for arg_idx in 0..(*num_posarg as usize) {
-            if (*(*ap_types).add(arg_idx)).is_null() {
+        *num_posarg = ap_types.len() as c_int;
+        for (arg_idx, &ap_type) in ap_types.iter().enumerate() {
+            if ap_type.is_null() {
                 semsg!(
                     gettext(E_FMT_ARG_NR_UNUSED.as_ptr()),
                     (arg_idx + 1) as c_int,
@@ -1953,9 +1935,8 @@ unsafe fn vim_vsnprintf_typval_inner(
         let mut p = fmt;
         let mut num_posarg: c_int = 0;
         let mut arg_idx: c_int = 1;
-        let mut ap_types: *mut *const c_char = ptr::null_mut();
 
-        if parse_fmt_types(&raw mut ap_types, &raw mut num_posarg, fmt, tvs) == FAIL {
+        if parse_fmt_types(&raw mut num_posarg, fmt, tvs) == FAIL {
             return 0;
         }
 
@@ -2758,7 +2739,6 @@ unsafe fn vim_vsnprintf_typval_inner(
             }
         }
 
-        xfree(ap_types.cast());
         str_l as c_int
     }
 }

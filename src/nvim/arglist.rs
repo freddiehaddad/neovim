@@ -19,7 +19,7 @@ use crate::ex_getln::gotocmdline;
 use crate::fileio::file_pat_to_reg_pat;
 use crate::globals::*;
 use crate::mark::{setmark, setpcmark};
-use crate::memory::{xcalloc, xfree, xmalloc, xstrdup};
+use crate::memory::{xfree, xmalloc, xstrdup};
 use crate::message::{emsg, semsg};
 use crate::normal::reset_VIsual_and_resel;
 use crate::option_vars::*;
@@ -94,8 +94,7 @@ struct arg_all_state_T {
     keep_tabs: bool,
     forceit: bool,
     use_firstwin: bool,
-    opened: *mut u8,
-    opened_len: c_int,
+    opened: Vec<u8>,
     new_curwin: *mut win_T,
     new_curtab: *mut tabpage_T,
 }
@@ -958,18 +957,20 @@ unsafe fn arg_all_close_unused_windows(aall: *mut arg_all_state_T) {
                     (*wp).w_next
                 };
                 let buf = (*wp).w_buffer;
+                let aall_ref = &mut *aall;
+                let opened_len = aall_ref.opened.len() as c_int;
                 let mut i: c_int;
                 if (*buf).b_ffname.is_null()
-                    || (!(*aall).keep_tabs
+                    || (!aall_ref.keep_tabs
                         && ((*buf).b_nwindows > 1
                             || (*wp).w_width != Columns
                             || ((*wp).w_floating && !is_ctx_win(wp))))
                 {
-                    i = (*aall).opened_len;
+                    i = opened_len;
                 } else {
                     i = 0;
-                    while i < (*aall).opened_len {
-                        let al = (*aall).alist;
+                    while i < opened_len {
+                        let al = aall_ref.alist;
                         if (i as usize) < (*al).al_ga.len() {
                             let entry = aarglist(al).add(i as usize);
                             if (*entry).ae_fnum == (*buf).b_fnum
@@ -987,17 +988,17 @@ unsafe fn arg_all_close_unused_windows(aall: *mut arg_all_state_T) {
                                     }
                                 }
 
-                                if weight > c_int::from(*(*aall).opened.add(i as usize)) {
-                                    *(*aall).opened.add(i as usize) = weight as u8;
+                                if weight > c_int::from(aall_ref.opened[i as usize]) {
+                                    aall_ref.opened[i as usize] = weight as u8;
                                     if i == 0 {
-                                        if !(*aall).new_curwin.is_null() {
-                                            (*(*aall).new_curwin).w_arg_idx = (*aall).opened_len;
+                                        if !aall_ref.new_curwin.is_null() {
+                                            (*aall_ref.new_curwin).w_arg_idx = opened_len;
                                         }
-                                        (*aall).new_curwin = wp;
-                                        (*aall).new_curtab = curtab;
+                                        aall_ref.new_curwin = wp;
+                                        aall_ref.new_curtab = curtab;
                                     }
-                                } else if (*aall).keep_tabs {
-                                    i = (*aall).opened_len;
+                                } else if aall_ref.keep_tabs {
+                                    i = opened_len;
                                 }
 
                                 if win_alist(wp) != al {
@@ -1013,10 +1014,10 @@ unsafe fn arg_all_close_unused_windows(aall: *mut arg_all_state_T) {
                 }
                 (*wp).w_arg_idx = i;
 
-                if i == (*aall).opened_len
-                    && !(*aall).keep_tabs
+                if i == opened_len
+                    && !aall_ref.keep_tabs
                     && (buf_hide(buf)
-                        || (*aall).forceit
+                        || aall_ref.forceit
                         || (*buf).b_nwindows > 1
                         || !bufIsChanged(buf))
                 {
@@ -1087,7 +1088,7 @@ unsafe fn arg_all_open_windows(aall: *mut arg_all_state_T, count: c_int) {
             {
                 arg_had_last = true;
             }
-            if *(*aall).opened.add(i as usize) > 0 {
+            if (&*aall).opened[i as usize] > 0 {
                 if (*curwin).w_arg_idx != i {
                     let mut wp = firstwin;
                     while !wp.is_null() {
@@ -1180,8 +1181,7 @@ unsafe fn do_arg_all(mut count: c_int, forceit: c_int, keep_tabs: bool) {
             keep_tabs,
             forceit: forceit != 0,
             use_firstwin: false,
-            opened: xcalloc(acount as usize, 1).cast(),
-            opened_len: acount,
+            opened: vec![0u8; acount as usize],
             new_curwin: ptr::null_mut(),
             new_curtab: ptr::null_mut(),
         };
@@ -1195,8 +1195,9 @@ unsafe fn do_arg_all(mut count: c_int, forceit: c_int, keep_tabs: bool) {
 
         arg_all_close_unused_windows(&raw mut aall);
 
-        if count > aall.opened_len || count <= 0 {
-            count = aall.opened_len;
+        let opened_len = aall.opened.len() as c_int;
+        if count > opened_len || count <= 0 {
+            count = opened_len;
         }
 
         autocmd_no_enter += 1;
@@ -1233,7 +1234,6 @@ unsafe fn do_arg_all(mut count: c_int, forceit: c_int, keep_tabs: bool) {
         }
 
         autocmd_no_leave -= 1;
-        xfree(aall.opened.cast());
     }
 }
 
