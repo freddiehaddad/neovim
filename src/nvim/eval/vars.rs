@@ -608,10 +608,11 @@ pub unsafe fn evalvars_init() {
 
         set_vim_var_nr(VV_ECHOSPACE, varnumber_T::from(sc_col - 1));
 
-        let vvlua_partial = xcalloc(1, std::mem::size_of::<partial_T>()).cast::<partial_T>();
-        ptr::write(&raw mut (*vvlua_partial).pt_argv, Vec::new());
-        (*vvlua_partial).pt_name = xmallocz(0).cast::<c_char>();
-        (*vvlua_partial).pt_refcount += 1;
+        let vvlua_partial = Box::into_raw(Box::new(partial_T {
+            pt_name: xmallocz(0).cast::<c_char>(),
+            pt_refcount: 1,
+            ..partial_T::default()
+        }));
         set_vim_var_partial(VV_LUA, vvlua_partial);
 
         set_reg_var(0);
@@ -2969,8 +2970,7 @@ pub unsafe fn vars_clear_ext(ht: *mut hashtab_T, free_val: bool) {
                     tv_clear(&raw mut (*v).di_tv);
                 }
                 if ((*v).di_flags & DI_FLAGS_ALLOC) != 0 {
-                    ptr::drop_in_place(&raw mut (*v).di_key);
-                    xfree(v.cast());
+                    drop(Box::from_raw(v));
                 }
             }
             hi = hi.add(1);

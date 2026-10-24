@@ -1756,19 +1756,25 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
         let do_sal = (*spin).si_sal.is_empty();
         let do_mapline = (*spin).si_map.is_empty();
 
-        let aff = getroom(spin, size_of::<afffile_T>(), true).cast::<afffile_T>();
-        ptr::write(
-            &raw mut (*aff).af_pref,
-            std::collections::BTreeMap::new(),
-        );
-        ptr::write(
-            &raw mut (*aff).af_suff,
-            std::collections::BTreeMap::new(),
-        );
-        ptr::write(
-            &raw mut (*aff).af_comp,
-            std::collections::BTreeMap::new(),
-        );
+        let aff = Box::into_raw(Box::new(afffile_T {
+            af_enc: ptr::null_mut(),
+            af_flagtype: 0,
+            af_rare: 0,
+            af_keepcase: 0,
+            af_bad: 0,
+            af_needaffix: 0,
+            af_circumfix: 0,
+            af_needcomp: 0,
+            af_comproot: 0,
+            af_compforbid: 0,
+            af_comppermit: 0,
+            af_nosuggest: 0,
+            af_pfxpostpone: 0,
+            af_ignoreextra: false,
+            af_pref: std::collections::BTreeMap::new(),
+            af_suff: std::collections::BTreeMap::new(),
+            af_comp: std::collections::BTreeMap::new(),
+        }));
 
         while !vim_fgets(rline.as_mut_ptr(), MAXLINELEN as c_int, fd) && !got_int {
             line_breakcheck();
@@ -2973,9 +2979,7 @@ unsafe fn sal_to_bool(s: *const c_char) -> bool {
 unsafe fn spell_free_aff(aff: *mut afffile_T) {
     unsafe {
         xfree((*aff).af_enc.cast());
-        ptr::drop_in_place(&raw mut (*aff).af_pref);
-        ptr::drop_in_place(&raw mut (*aff).af_suff);
-        ptr::drop_in_place(&raw mut (*aff).af_comp);
+        drop(Box::from_raw(aff));
     }
 }
 

@@ -485,18 +485,39 @@ unsafe fn get_lambda_name() -> NvimString {
 /// Allocate a `ufunc_T` for a function called `name`.
 unsafe fn alloc_ufunc(name: *const c_char, namelen: usize) -> *mut ufunc_T {
     unsafe {
-        let fp = xcalloc(1, std::mem::size_of::<ufunc_T>()).cast::<ufunc_T>();
-        ptr::write(&raw mut (*fp).uf_args, Vec::new());
-        ptr::write(&raw mut (*fp).uf_def_args, Vec::new());
-        ptr::write(&raw mut (*fp).uf_lines, Vec::new());
-        ptr::write(&raw mut (*fp).uf_tml_count, Vec::new());
-        ptr::write(&raw mut (*fp).uf_tml_total, Vec::new());
-        ptr::write(&raw mut (*fp).uf_tml_self, Vec::new());
         let mut name_vec = Vec::with_capacity(namelen + 1);
         name_vec.extend_from_slice(std::slice::from_raw_parts(name, namelen));
         name_vec.push(NUL);
-        ptr::write(&raw mut (*fp).uf_name, name_vec);
-        (*fp).uf_namelen = namelen;
+        let fp = Box::into_raw(Box::new(ufunc_T {
+            uf_varargs: 0,
+            uf_flags: 0,
+            uf_calls: 0,
+            uf_cleared: false,
+            uf_args: Vec::new(),
+            uf_def_args: Vec::new(),
+            uf_lines: Vec::new(),
+            uf_profiling: 0,
+            uf_prof_initialized: 0,
+            uf_luaref: 0,
+            uf_tm_count: 0,
+            uf_tm_total: 0,
+            uf_tm_self: 0,
+            uf_tm_children: 0,
+            uf_tml_count: Vec::new(),
+            uf_tml_total: Vec::new(),
+            uf_tml_self: Vec::new(),
+            uf_tml_start: 0,
+            uf_tml_children: 0,
+            uf_tml_wait: 0,
+            uf_tml_idx: 0,
+            uf_tml_execed: 0,
+            uf_script_ctx: std::mem::zeroed(),
+            uf_refcount: 0,
+            uf_scoped: ptr::null_mut(),
+            uf_name_exp: ptr::null_mut(),
+            uf_namelen: namelen,
+            uf_name: name_vec,
+        }));
 
         if *name as u8 == K_SPECIAL {
             let exp_len = namelen + 3;
@@ -600,8 +621,7 @@ pub unsafe fn get_lambda_tv(
 
             let name = get_lambda_name();
             let fp = alloc_ufunc(name.data, name.size);
-            pt = xcalloc(1, std::mem::size_of::<partial_T>()).cast::<partial_T>();
-            ptr::write(&raw mut (*pt).pt_argv, Vec::new());
+            pt = Box::into_raw(Box::new(partial_T::default()));
 
             let expr_len = end.offset_from(start) as usize;
             let len = 7 + expr_len + 1;
@@ -1160,14 +1180,7 @@ unsafe fn func_free(fp: *mut ufunc_T) {
 
         xfree((*fp).uf_name_exp.cast());
         (*fp).uf_name_exp = ptr::null_mut();
-        ptr::drop_in_place(&raw mut (*fp).uf_args);
-        ptr::drop_in_place(&raw mut (*fp).uf_def_args);
-        ptr::drop_in_place(&raw mut (*fp).uf_lines);
-        ptr::drop_in_place(&raw mut (*fp).uf_tml_count);
-        ptr::drop_in_place(&raw mut (*fp).uf_tml_total);
-        ptr::drop_in_place(&raw mut (*fp).uf_tml_self);
-        ptr::drop_in_place(&raw mut (*fp).uf_name);
-        xfree(fp.cast());
+        drop(Box::from_raw(fp));
     }
 }
 
@@ -2985,14 +2998,7 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
                     (*fp).uf_name_exp = ptr::null_mut();
                 }
                 if free_fp {
-                    ptr::drop_in_place(&raw mut (*fp).uf_args);
-                    ptr::drop_in_place(&raw mut (*fp).uf_def_args);
-                    ptr::drop_in_place(&raw mut (*fp).uf_lines);
-                    ptr::drop_in_place(&raw mut (*fp).uf_tml_count);
-                    ptr::drop_in_place(&raw mut (*fp).uf_tml_total);
-                    ptr::drop_in_place(&raw mut (*fp).uf_tml_self);
-                    ptr::drop_in_place(&raw mut (*fp).uf_name);
-                    xfree(fp.cast());
+                    drop(Box::from_raw(fp));
                 }
                 errret_keep!();
             }};
@@ -3249,14 +3255,8 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
                     if tv_dict_add(fudi.fd_dict, fudi.fd_di) == FAIL {
                         crate::eval::typval::tv_dict_item_free(fudi.fd_di);
                         xfree(func_name.cast());
-                        ptr::drop_in_place(&raw mut (*fp).uf_args);
-                        ptr::drop_in_place(&raw mut (*fp).uf_def_args);
-                        ptr::drop_in_place(&raw mut (*fp).uf_lines);
-                        ptr::drop_in_place(&raw mut (*fp).uf_tml_count);
-                        ptr::drop_in_place(&raw mut (*fp).uf_tml_total);
-                        ptr::drop_in_place(&raw mut (*fp).uf_tml_self);
-                        ptr::drop_in_place(&raw mut (*fp).uf_name);
-                        xfree(fp.cast());
+                        xfree((*fp).uf_name_exp.cast());
+                        drop(Box::from_raw(fp));
                         fp = ptr::null_mut();
                         erret!();
                     }
@@ -4136,8 +4136,7 @@ pub unsafe fn make_partial(selfdict: *mut dict_T, rettv: *mut typval_T) {
         }
 
         if !fp.is_null() && ((*fp).uf_flags & FC_DICT) != 0 {
-            let pt = xcalloc(1, std::mem::size_of::<partial_T>()).cast::<partial_T>();
-            ptr::write(&raw mut (*pt).pt_argv, Vec::new());
+            let pt = Box::into_raw(Box::new(partial_T::default()));
             (*pt).pt_refcount = 1;
             (*pt).pt_dict = selfdict;
             (*selfdict).dv_refcount += 1;

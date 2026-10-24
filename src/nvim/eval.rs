@@ -4266,7 +4266,6 @@ unsafe fn partial_free(pt: *mut partial_T) {
         for i in 0..((*pt).pt_argc as usize) {
             tv_clear((*pt).pt_argv.as_mut_ptr().add(i));
         }
-        ptr::drop_in_place(&raw mut (*pt).pt_argv);
         tv_dict_unref((*pt).pt_dict);
         if !(*pt).pt_name.is_null() {
             func_unref((*pt).pt_name);
@@ -4274,7 +4273,7 @@ unsafe fn partial_free(pt: *mut partial_T) {
         } else {
             func_ptr_unref((*pt).pt_func.cast());
         }
-        xfree(pt.cast());
+        drop(Box::from_raw(pt));
     }
 }
 

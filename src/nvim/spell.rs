@@ -50,7 +50,7 @@ use crate::regexp::{
 };
 use crate::runtime::{DIP_ALL, do_in_runtimepath};
 use crate::search::{BACKWARD, Direction, FORWARD, do_search, kShmSearch};
-use crate::spellfile::spell_load_file;
+use crate::spellfile::{MAXREGIONS, spell_load_file};
 use crate::spellsuggest::{
     fromto_T, idx_T, langp_T, salitem_T, slang_T, spell_suggest_list, spelltab_T,
 };
@@ -1365,40 +1365,61 @@ unsafe fn int_wordlist_spl(fname: *mut c_char) {
 }
 pub unsafe fn slang_alloc(lang: *mut c_char) -> *mut slang_T {
     unsafe {
-        let lp = xcalloc(1, size_of::<slang_T>()).cast::<slang_T>();
-        ptr::write(&raw mut (*lp).sl_fbyts, Vec::new());
-        ptr::write(&raw mut (*lp).sl_fidxs, Vec::new());
-        ptr::write(&raw mut (*lp).sl_kbyts, Vec::new());
-        ptr::write(&raw mut (*lp).sl_kidxs, Vec::new());
-        ptr::write(&raw mut (*lp).sl_pbyts, Vec::new());
-        ptr::write(&raw mut (*lp).sl_pidxs, Vec::new());
-        ptr::write(
-            &raw mut (*lp).sl_wordcount,
-            std::collections::BTreeMap::new(),
-        );
-        ptr::write(&raw mut (*lp).sl_comppat, Vec::new());
-        ptr::write(&raw mut (*lp).sl_syl_items, Vec::new());
-        ptr::write(&raw mut (*lp).sl_prefprog, Vec::new());
-        ptr::write(&raw mut (*lp).sl_rep, Vec::new());
-        ptr::write(&raw mut (*lp).sl_sal, Vec::new());
-        ptr::write(&raw mut (*lp).sl_sofo_sal, Vec::new());
-        ptr::write(&raw mut (*lp).sl_repsal, Vec::new());
-        ptr::write(&raw mut (*lp).sl_sbyts, Vec::new());
-        ptr::write(&raw mut (*lp).sl_sidxs, Vec::new());
-        ptr::write(
-            &raw mut (*lp).sl_map_hash,
-            std::collections::BTreeMap::new(),
-        );
-        ptr::write(
-            &raw mut (*lp).sl_sounddone,
-            std::collections::BTreeMap::new(),
-        );
-        if !lang.is_null() {
-            (*lp).sl_name = xstrdup(lang);
-        }
-        (*lp).sl_compmax = MAXWLEN as c_int;
-        (*lp).sl_compsylmax = MAXWLEN as c_int;
-        lp
+        Box::into_raw(Box::new(slang_T {
+            sl_next: ptr::null_mut(),
+            sl_name: if !lang.is_null() {
+                xstrdup(lang)
+            } else {
+                ptr::null_mut()
+            },
+            sl_fname: ptr::null_mut(),
+            sl_add: false,
+            sl_fbyts: Vec::new(),
+            sl_fidxs: Vec::new(),
+            sl_kbyts: Vec::new(),
+            sl_kidxs: Vec::new(),
+            sl_pbyts: Vec::new(),
+            sl_pidxs: Vec::new(),
+            sl_info: ptr::null_mut(),
+            sl_regions: [0; MAXREGIONS * 2 + 1],
+            sl_midword: ptr::null_mut(),
+            sl_wordcount: std::collections::BTreeMap::new(),
+            sl_compmax: MAXWLEN as c_int,
+            sl_compminlen: 0,
+            sl_compsylmax: MAXWLEN as c_int,
+            sl_compoptions: 0,
+            sl_comppat: Vec::new(),
+            sl_compprog: ptr::null_mut(),
+            sl_comprules: ptr::null_mut(),
+            sl_compstartflags: ptr::null_mut(),
+            sl_compallflags: ptr::null_mut(),
+            sl_nobreak: false,
+            sl_syllable: ptr::null_mut(),
+            sl_syl_items: Vec::new(),
+            sl_prefprog: Vec::new(),
+            sl_rep: Vec::new(),
+            sl_rep_first: [0; 256],
+            sl_sal: Vec::new(),
+            sl_sofo_sal: Vec::new(),
+            sl_sal_first: [0; 256],
+            sl_followup: false,
+            sl_collapse: false,
+            sl_rem_accents: false,
+            sl_sofo: false,
+            sl_repsal: Vec::new(),
+            sl_repsal_first: [0; 256],
+            sl_nosplitsugs: false,
+            sl_nocompoundsugs: bool::default(),
+            sl_sugtime: 0,
+            sl_sbyts: Vec::new(),
+            sl_sidxs: Vec::new(),
+            sl_sugbuf: ptr::null_mut(),
+            sl_sugloaded: false,
+            sl_has_map: false,
+            sl_map_hash: std::collections::BTreeMap::new(),
+            sl_map_array: [0; 256],
+            sl_sounddone: std::collections::BTreeMap::new(),
+        }))
     }
 }
 pub unsafe fn slang_free(lp: *mut slang_T) {
@@ -1406,25 +1427,7 @@ pub unsafe fn slang_free(lp: *mut slang_T) {
         xfree((*lp).sl_name.cast());
         xfree((*lp).sl_fname.cast());
         slang_clear(lp);
-        ptr::drop_in_place(&raw mut (*lp).sl_fbyts);
-        ptr::drop_in_place(&raw mut (*lp).sl_fidxs);
-        ptr::drop_in_place(&raw mut (*lp).sl_kbyts);
-        ptr::drop_in_place(&raw mut (*lp).sl_kidxs);
-        ptr::drop_in_place(&raw mut (*lp).sl_pbyts);
-        ptr::drop_in_place(&raw mut (*lp).sl_pidxs);
-        ptr::drop_in_place(&raw mut (*lp).sl_wordcount);
-        ptr::drop_in_place(&raw mut (*lp).sl_comppat);
-        ptr::drop_in_place(&raw mut (*lp).sl_syl_items);
-        ptr::drop_in_place(&raw mut (*lp).sl_prefprog);
-        ptr::drop_in_place(&raw mut (*lp).sl_rep);
-        ptr::drop_in_place(&raw mut (*lp).sl_sal);
-        ptr::drop_in_place(&raw mut (*lp).sl_sofo_sal);
-        ptr::drop_in_place(&raw mut (*lp).sl_repsal);
-        ptr::drop_in_place(&raw mut (*lp).sl_sbyts);
-        ptr::drop_in_place(&raw mut (*lp).sl_sidxs);
-        ptr::drop_in_place(&raw mut (*lp).sl_map_hash);
-        ptr::drop_in_place(&raw mut (*lp).sl_sounddone);
-        xfree(lp.cast());
+        drop(Box::from_raw(lp));
     }
 }
 unsafe fn free_salitem(smp: *mut salitem_T) {

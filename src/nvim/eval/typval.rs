@@ -2441,17 +2441,20 @@ pub unsafe fn tv_dict_watcher_notify(
 /// Allocate a dictionary item.
 pub unsafe fn tv_dict_item_alloc_len(key: *const c_char, key_len: usize) -> *mut dictitem_T {
     unsafe {
-        let di = xmalloc(size_of::<dictitem_T>()).cast::<dictitem_T>();
         let mut key_vec = Vec::with_capacity(key_len + 1);
         if key_len > 0 {
             key_vec.extend_from_slice(std::slice::from_raw_parts(key, key_len));
         }
         key_vec.push(NUL);
-        ptr::write(&raw mut (*di).di_key, key_vec);
-        (*di).di_flags = DI_FLAGS_ALLOC;
-        (*di).di_tv.v_lock = VAR_UNLOCKED;
-        (*di).di_tv.v_type = VarType::VAR_UNKNOWN;
-        di
+        Box::into_raw(Box::new(dictitem_T {
+            di_tv: typval_T {
+                v_type: VarType::VAR_UNKNOWN,
+                v_lock: VAR_UNLOCKED,
+                vval: TypvalVval { v_number: 0 },
+            },
+            di_flags: DI_FLAGS_ALLOC,
+            di_key: key_vec,
+        }))
     }
 }
 
@@ -2465,8 +2468,7 @@ pub unsafe fn tv_dict_item_free(item: *mut dictitem_T) {
     unsafe {
         tv_clear(&raw mut (*item).di_tv);
         if ((*item).di_flags & DI_FLAGS_ALLOC) != 0 {
-            ptr::drop_in_place(&raw mut (*item).di_key);
-            xfree(item.cast());
+            drop(Box::from_raw(item));
         }
     }
 }
@@ -3227,18 +3229,17 @@ pub unsafe fn tv_dict_set_keys_readonly(dict: *mut dict_T) {
 
 /// Allocate an empty blob.
 pub unsafe fn tv_blob_alloc() -> *mut blob_T {
-    unsafe {
-        let blob = xcalloc(1, size_of::<blob_T>()).cast::<blob_T>();
-        ptr::write(&raw mut (*blob).bv_ga, Vec::new());
-        blob
-    }
+    Box::into_raw(Box::new(blob_T {
+        bv_ga: Vec::new(),
+        bv_refcount: 0,
+        bv_lock: 0,
+    }))
 }
 
 /// Free a blob. Ignores the reference count.
 pub unsafe fn tv_blob_free(b: *mut blob_T) {
     unsafe {
-        ptr::drop_in_place(&raw mut (*b).bv_ga);
-        xfree(b.cast());
+        drop(Box::from_raw(b));
     }
 }
 

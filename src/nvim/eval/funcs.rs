@@ -143,7 +143,7 @@ use crate::memline::{
 };
 use crate::memory::{
     ARENA_BLOCK_SIZE, Arena, ArenaMem, alloc_block, arena_finish, arena_mem_free, free_block,
-    strequal, strnequal, xcalloc, xfree, xmalloc, xmallocz, xmemdup, xmemdupz, xstrdup,
+    strequal, strnequal, xfree, xmalloc, xmallocz, xmemdup, xmemdupz, xstrdup,
 };
 use crate::menu::{get_menu_cmd_modes, menu_get};
 use crate::message::{
@@ -2720,8 +2720,7 @@ unsafe fn common_function(argvars: *mut typval_T, rettv: *mut typval_T, is_funcr
                     }
                 }
                 if dict_idx > 0 || arg_idx > 0 || !arg_pt.is_null() || is_funcref {
-                    let pt = xcalloc(1, size_of::<partial_T>()).cast::<partial_T>();
-                    ptr::write(&raw mut (*pt).pt_argv, Vec::new());
+                    let pt = Box::into_raw(Box::new(partial_T::default()));
                     if arg_idx > 0 || (!arg_pt.is_null() && (*arg_pt).pt_argc > 0) {
                         let arg_len = if arg_pt.is_null() {
                             0
