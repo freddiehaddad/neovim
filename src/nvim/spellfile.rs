@@ -48,7 +48,7 @@ use crate::spell::{
     parse_spelllang, slang_alloc, slang_clear, slang_clear_sug, slang_free, spell_casefold,
     spell_enc, spell_soundfold, spell_toupper, spelltab,
 };
-use crate::spellsuggest::{fromto_T, idx_T, salfirst_T, salitem_T, slang_T, spelltab_T};
+use crate::spellsuggest::{fromto_T, idx_T, salitem_T, slang_T, spelltab_T};
 use crate::strings::{
     atoi, gettext, has_non_ascii, memchr, memcmp, sort_slice_by, strcat, strcmp, strcpy, strerror,
     strlen, strncmp, strrchr, strstr, vim_snprintf, vim_strchr,
@@ -667,7 +667,7 @@ pub unsafe fn spell_load_file(
         if !fail {
             if old_lp.is_null() && !lang.is_null() {
                 let langs = &raw mut first_lang;
-                (*langs).push(lp);
+                (*langs).push(std::pin::Pin::new(Box::from_raw(lp)));
             }
         } else {
             if !lang.is_null() {
@@ -1104,7 +1104,6 @@ unsafe fn read_sal_section(fd: *mut FILE, slang: *mut slang_T) -> c_int {
                 let rem = (ccnt - i) as usize;
                 let ret = spell_read_nonnul_bytes(p, rem, fd);
                 if ret != 0 {
-                    xfree(smp.sm_lead.cast());
                     return ret;
                 }
                 p = p.add(rem);
@@ -1113,7 +1112,6 @@ unsafe fn read_sal_section(fd: *mut FILE, slang: *mut slang_T) -> c_int {
 
             smp.sm_to = read_cnt_string(fd, 1, &raw mut ccnt);
             if ccnt < 0 {
-                xfree(smp.sm_lead.cast());
                 return ccnt;
             }
 
@@ -1407,36 +1405,24 @@ unsafe fn set_sofo(lp: *mut slang_T, from: *const c_char, to: *const c_char) -> 
 unsafe fn set_sal_first(lp: *mut slang_T) {
     unsafe {
         let gap = &mut (*lp).sl_sal;
-        let sfirst = (&raw mut (*lp).sl_sal_first).cast::<salfirst_T>();
-        for i in 0..256 {
-            *sfirst.add(i) = -1;
-        }
-        let smp = gap.as_mut_ptr();
+        (*lp).sl_sal_first.fill(-1);
         let len = gap.len() as c_int;
         let mut i: c_int = 0;
         while i < len {
-            let c = (*(*smp.offset(i as isize)).sm_lead_w & 0xff) as usize;
-            if *sfirst.add(c) == -1 {
-                *sfirst.add(c) = i;
+            let c = (*gap[i as usize].sm_lead_w & 0xff) as usize;
+            if (*lp).sl_sal_first[c] == -1 {
+                (*lp).sl_sal_first[c] = i;
 
-                while i + 1 < len
-                    && (*(*smp.offset((i + 1) as isize)).sm_lead_w & 0xff) as usize == c
-                {
+                while i + 1 < len && (*gap[(i + 1) as usize].sm_lead_w & 0xff) as usize == c {
                     i += 1;
                 }
 
                 let mut n: c_int = 1;
                 while i + n < len {
-                    if (*(*smp.offset((i + n) as isize)).sm_lead_w & 0xff) as usize == c {
+                    if (*gap[(i + n) as usize].sm_lead_w & 0xff) as usize == c {
                         i += 1;
                         n -= 1;
-                        let tsal = *smp.offset((i + n) as isize);
-                        ptr::copy(
-                            smp.offset(i as isize),
-                            smp.offset((i + 1) as isize),
-                            n as usize,
-                        );
-                        *smp.offset(i as isize) = tsal;
+                        gap[i as usize..=(i + n) as usize].rotate_right(1);
                     }
                     n += 1;
                 }
@@ -1639,10 +1625,10 @@ unsafe fn spell_reload_one(fname: *mut c_char, added_word: bool) {
     unsafe {
         let mut didit = false;
 
-        let langs = &raw const first_lang;
+        let langs = &raw mut first_lang;
         let len = (*langs).len();
         for i in (0..len).rev() {
-            let slang = (*langs).as_slice()[i];
+            let slang: *mut slang_T = &raw mut *(*langs).as_mut_slice()[i];
             if path_equal(fname, (*slang).sl_fname, kPathCmpExpand) {
                 slang_clear(slang);
                 if spell_load_file(fname, ptr::null_mut(), slang, false).is_null() {
@@ -4730,13 +4716,12 @@ pub unsafe fn ex_mkspell(eap: *mut exarg_T) {
 
 unsafe fn spell_make_sugfile(spin: *mut spellinfo_T, wfname: *mut c_char) {
     unsafe {
-        let langs = &raw const first_lang;
+        let langs = &raw mut first_lang;
         let mut slang = (*langs)
-            .iter()
+            .iter_mut()
             .rev()
-            .copied()
-            .find(|&s| path_equal(wfname, (*s).sl_fname, kPathCmpExpand))
-            .unwrap_or(ptr::null_mut());
+            .find(|s| path_equal(wfname, s.sl_fname, kPathCmpExpand))
+            .map_or(ptr::null_mut(), |s| &raw mut **s);
         let mut free_slang = false;
         if slang.is_null() {
             spell_message(spin, gettext(c"Reading back spell file...".as_ptr()));

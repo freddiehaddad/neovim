@@ -110,7 +110,6 @@ pub struct fromto_T {
     pub ft_to: *mut c_char,
 }
 #[repr(C)]
-#[derive(Clone, Copy)]
 pub struct salitem_T {
     pub sm_lead: *mut c_char,
     pub sm_leadlen: c_int,
@@ -120,6 +119,27 @@ pub struct salitem_T {
     pub sm_lead_w: *mut c_int,
     pub sm_oneof_w: *mut c_int,
     pub sm_to_w: *mut c_int,
+}
+
+impl Drop for salitem_T {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.sm_lead.cast());
+            xfree(self.sm_to.cast());
+            xfree(self.sm_lead_w.cast());
+            xfree(self.sm_oneof_w.cast());
+            xfree(self.sm_to_w.cast());
+        }
+    }
+}
+impl Drop for slang_T {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.sl_name.cast());
+            xfree(self.sl_fname.cast());
+            crate::spell::slang_clear(self);
+        }
+    }
 }
 #[repr(C)]
 pub struct slang_T {

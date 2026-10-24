@@ -87,9 +87,9 @@ pub unsafe fn find_buffer(avar: *mut typval_T) -> *mut buf_T {
 /// If there is a window for `curbuf`, make it the current window (`find_win_for_curbuf`).
 unsafe fn find_win_for_curbuf() {
     unsafe {
-        for &wip in &(*curbuf).b_wininfo {
-            if !(*wip).wi_win.is_null() && (*(*wip).wi_win).w_buffer == curbuf {
-                curwin = (*wip).wi_win;
+        for wip in &(*curbuf).b_wininfo {
+            if !wip.wi_win.is_null() && (*wip.wi_win).w_buffer == curbuf {
+                curwin = wip.wi_win;
                 break;
             }
         }

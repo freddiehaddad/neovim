@@ -4783,8 +4783,8 @@ unsafe fn set_ref_in_item_dict(
 
         (*ht_stack).push(&raw mut (*dd).dv_hashtab);
 
-        for &watcher in &(*dd).watchers {
-            set_ref_in_callback(&raw mut (*watcher).callback, copyID, ht_stack, list_stack);
+        for watcher in &mut (*dd).watchers {
+            set_ref_in_callback(&raw mut watcher.callback, copyID, ht_stack, list_stack);
         }
 
         false

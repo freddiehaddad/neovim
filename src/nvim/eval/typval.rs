@@ -266,7 +266,7 @@ pub struct dict_T {
     pub dv_copydict: *mut dict_T,
     pub dv_used_next: *mut dict_T,
     pub dv_used_prev: *mut dict_T,
-    pub watchers: Vec<*mut DictWatcher>,
+    pub watchers: Vec<DictWatcher>,
     pub lua_table_ref: c_int,
 }
 
@@ -336,6 +336,15 @@ pub struct DictWatcher {
     pub key_pattern_len: usize,
     pub busy: bool,
     pub needs_free: bool,
+}
+
+impl Drop for DictWatcher {
+    fn drop(&mut self) {
+        unsafe {
+            callback_free(&raw mut self.callback);
+            xfree(self.key_pattern.cast());
+        }
+    }
 }
 
 #[repr(C)]
@@ -2259,15 +2268,6 @@ pub unsafe fn tv_list_idx_of_item(l: *const list_T, item: *const listitem_T) -> 
     }
 }
 
-/// Perform all necessary cleanup for a `DictWatcher` instance.
-unsafe fn tv_dict_watcher_free(watcher: *mut DictWatcher) {
-    unsafe {
-        callback_free(&raw mut (*watcher).callback);
-        xfree((*watcher).key_pattern.cast());
-        drop(Box::from_raw(watcher));
-    }
-}
-
 /// Add watcher to a dictionary.
 pub unsafe fn tv_dict_watcher_add(
     dict: *mut dict_T,
@@ -2279,14 +2279,13 @@ pub unsafe fn tv_dict_watcher_add(
         if dict.is_null() {
             return;
         }
-        let watcher = Box::into_raw(Box::new(DictWatcher {
+        (*dict).watchers.push(DictWatcher {
             key_pattern: xmemdupz(key_pattern.cast(), key_pattern_len).cast::<c_char>(),
             key_pattern_len,
             callback,
             busy: false,
             needs_free: false,
-        }));
-        (*dict).watchers.push(watcher);
+        });
     }
 }
 
@@ -2456,14 +2455,14 @@ pub unsafe fn tv_dict_watcher_remove(
 
         let mut matched_idx: Option<usize> = None;
         let mut queue_is_busy = false;
-        for (idx, &w) in (*dict).watchers.iter().enumerate() {
-            if (*w).busy {
+        for (idx, w) in (*dict).watchers.iter().enumerate() {
+            if w.busy {
                 queue_is_busy = true;
             }
             if matched_idx.is_none()
-                && tv_callback_equal(&raw const (*w).callback, &raw const callback)
-                && (*w).key_pattern_len == key_pattern_len
-                && std::slice::from_raw_parts((*w).key_pattern.cast::<u8>(), key_pattern_len)
+                && tv_callback_equal(&raw const w.callback, &raw const callback)
+                && w.key_pattern_len == key_pattern_len
+                && std::slice::from_raw_parts(w.key_pattern.cast::<u8>(), key_pattern_len)
                     == std::slice::from_raw_parts(key_pattern.cast::<u8>(), key_pattern_len)
             {
                 matched_idx = Some(idx);
@@ -2477,19 +2476,17 @@ pub unsafe fn tv_dict_watcher_remove(
             return false;
         };
 
-        let watcher = (*dict).watchers.as_slice()[idx];
         if queue_is_busy {
-            (*watcher).needs_free = true;
+            (&mut (*dict).watchers)[idx].needs_free = true;
         } else {
             (*dict).watchers.remove(idx);
-            tv_dict_watcher_free(watcher);
         }
         true
     }
 }
 
 /// Test if `key` matches with `watcher->key_pattern`.
-unsafe fn tv_dict_watcher_matches(watcher: *mut DictWatcher, key: *const c_char) -> bool {
+unsafe fn tv_dict_watcher_matches(watcher: *const DictWatcher, key: *const c_char) -> bool {
     unsafe {
         let len = (*watcher).key_pattern_len;
         if len > 0 && *(*watcher).key_pattern.add(len - 1) == b'*' as c_char {
@@ -2536,33 +2533,33 @@ pub unsafe fn tv_dict_watcher_notify(
 
         let mut any_needs_free = false;
         (*dict).dv_refcount += 1;
-        let watchers_snapshot = (*dict).watchers.clone();
-        for watcher in watchers_snapshot {
-            if !(*watcher).busy && tv_dict_watcher_matches(watcher, key) {
+        let len = (*dict).watchers.len();
+        for i in 0..len {
+            let matches = {
+                let w = &(&(*dict).watchers)[i];
+                !w.busy && tv_dict_watcher_matches(w, key)
+            };
+            if matches {
                 let mut rettv = tv_initial_value();
-                (*watcher).busy = true;
+                (&mut (*dict).watchers)[i].busy = true;
+                let mut cb = (&(*dict).watchers)[i].callback;
                 callback_call(
-                    &raw mut (*watcher).callback,
+                    &raw mut cb,
                     3,
                     argv.as_mut_ptr(),
                     &raw mut rettv,
                 );
-                (*watcher).busy = false;
+                let w = &mut (&mut (*dict).watchers)[i];
+                w.callback = cb;
+                w.busy = false;
                 tv_clear(&raw mut rettv);
-                if (*watcher).needs_free {
+                if w.needs_free {
                     any_needs_free = true;
                 }
             }
         }
         if any_needs_free {
-            (*dict).watchers.retain(|&watcher| {
-                if (*watcher).needs_free {
-                    tv_dict_watcher_free(watcher);
-                    false
-                } else {
-                    true
-                }
-            });
+            (*dict).watchers.retain(|watcher| !watcher.needs_free);
         }
         tv_dict_unref(dict);
 
@@ -2661,9 +2658,6 @@ pub unsafe fn tv_dict_alloc() -> *mut dict_T {
 /// Free watchers on a dictionary.
 pub unsafe fn tv_dict_free_watchers(d: *mut dict_T) {
     unsafe {
-        for watcher in (*d).watchers.drain(..) {
-            tv_dict_watcher_free(watcher);
-        }
         (*d).watchers = Vec::new();
     }
 }

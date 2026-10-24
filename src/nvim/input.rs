@@ -2356,10 +2356,11 @@ unsafe fn handle_mapping(
             }
 
             mp = ptr::null_mut();
-            for &cand in get_buf_maphash_list(local_State, tb_b1)
+            for cand in get_buf_maphash_list(local_State, tb_b1)
                 .iter()
                 .chain(get_maphash_list(local_State, tb_b1))
             {
+                let cand: *mut mapblock_T = (&raw const **cand).cast_mut();
                 let mut key_iter: *const u8 = (*cand).m_keys.cast::<u8>().cast_const();
 
                 if char_iter(&raw mut key_iter, 0) == tb_c1

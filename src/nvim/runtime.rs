@@ -225,7 +225,7 @@ type RuntimeSearchPath = Vec<SearchPathItem>;
 type CharVec = Vec<*mut c_char>;
 
 pub static mut exestack: Vec<estack_T> = Vec::new();
-pub static mut script_items: Vec<*mut scriptitem_T> = Vec::new();
+pub static mut script_items: Vec<scriptitem_T> = Vec::new();
 static mut ga_loaded: Vec<std::ffi::CString> = Vec::new();
 
 static mut last_current_SID_seq: c_int = 0;
@@ -257,11 +257,22 @@ use crate::os::fs::MAXPATHL;
 use crate::version::default_lib_dir;
 use crate::viml::parser::parser::CONV_NONE;
 
+impl Drop for scriptitem_T {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.sn_vars.is_null() {
+                drop(Box::from_raw(self.sn_vars));
+            }
+            xfree(self.sn_name.cast::<c_void>());
+        }
+    }
+}
+
 #[inline]
 pub unsafe fn script_item(id: scid_T) -> *mut scriptitem_T {
     unsafe {
-        let items = &raw const script_items;
-        (*items).as_slice()[(id - 1) as usize]
+        let items = &raw mut script_items;
+        &raw mut (*items).as_mut_slice()[(id - 1) as usize]
     }
 }
 
@@ -2692,7 +2703,7 @@ pub unsafe fn new_script_item(name: *mut c_char, sid_out: *mut scid_T) -> *mut s
         }
         let items = &raw mut script_items;
         while ((*items).len() as scid_T) < sid {
-            let si = Box::into_raw(Box::new(scriptitem_T {
+            (*items).push(scriptitem_T {
                 sn_vars: ptr::null_mut(),
                 sn_name: ptr::null_mut(),
                 sn_lua: false,
@@ -2711,8 +2722,7 @@ pub unsafe fn new_script_item(name: *mut c_char, sid_out: *mut scid_T) -> *mut s
                 sn_prl_wait: 0,
                 sn_prl_idx: 0,
                 sn_prl_execed: 0,
-            }));
-            (*items).push(si);
+            });
             let cur_sid = (*items).len() as scid_T;
 
             new_script_vars(cur_sid);
@@ -3321,16 +3331,7 @@ pub unsafe fn get_scriptname(script_ctx: sctx_T, should_free: *mut bool) -> *mut
 pub unsafe fn free_scriptnames() {
     unsafe {
         profile_reset();
-
-        let items = &raw mut script_items;
-        for si in (*items).drain(..) {
-            if !(*si).sn_vars.is_null() {
-                drop(Box::from_raw((*si).sn_vars));
-            }
-            xfree((*si).sn_name.cast::<c_void>());
-            drop(Box::from_raw(si));
-        }
-        *items = Vec::new();
+        script_items = Vec::new();
     }
 }
 

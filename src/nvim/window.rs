@@ -69,7 +69,7 @@ use crate::input::{beep_flush, langmap_adjust, plain_vgetc};
 use crate::insert::{Ctrl_J, Ctrl_S, Ctrl_X, beginline, cursor_down_inner, cursor_up_inner};
 use crate::keycodes::{CAR, K_BS, K_DOWN, K_KENTER, K_LEFT, K_RIGHT, K_UP, TAB};
 use crate::main_init::getout;
-use crate::mark::{WinInfo, copy_jumplist, free_jumplist, setmark, setpcmark};
+use crate::mark::{copy_jumplist, free_jumplist, setmark, setpcmark};
 use crate::r#match::clear_matches;
 use crate::math::{FAIL, OK};
 use crate::memory::{xfree, xmemdupz, xstrdup, xstrlcat, xstrlcpy};
@@ -6250,16 +6250,6 @@ pub unsafe fn win_alloc(after: *mut win_T, hidden: bool) -> *mut win_T {
     }
 }
 
-pub unsafe fn free_wininfo(wip: *mut WinInfo, bp: *mut buf_T) {
-    unsafe {
-        if (*wip).wi_optset {
-            clear_winopt(&raw mut (*wip).wi_opt);
-            deleteFoldRecurse(bp, &raw mut (*wip).wi_folds);
-        }
-        drop(Box::from_raw(wip));
-    }
-}
-
 pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
     unsafe {
         let map_ptr = &raw mut window_handles;
@@ -6313,29 +6303,27 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
 
         let mut buf = firstbuf;
         while !buf.is_null() {
-            let mut wip_wp: *mut WinInfo = ptr::null_mut();
-            let mut pos_wip = (*buf).b_wininfo.len();
-            let mut pos_null = (*buf).b_wininfo.len();
-            for (i, &wip) in (*buf).b_wininfo.iter().enumerate() {
-                if ptr::eq((*wip).wi_win, wp) {
-                    wip_wp = wip;
-                    pos_wip = i;
-                } else if (*wip).wi_win.is_null() {
-                    pos_null = i;
+            let mut pos_wip = None;
+            let mut pos_null = None;
+            for (i, wip) in (*buf).b_wininfo.iter().enumerate() {
+                if ptr::eq(wip.wi_win, wp) {
+                    pos_wip = Some(i);
+                } else if wip.wi_win.is_null() {
+                    pos_null = Some(i);
                 }
             }
 
-            if !wip_wp.is_null() {
-                (*wip_wp).wi_win = ptr::null_mut();
-                if (*wp).w_config.style == kWinStyleMinimal && (*wip_wp).wi_optset {
-                    clear_winopt(&raw mut (*wip_wp).wi_opt);
-                    deleteFoldRecurse(buf, &raw mut (*wip_wp).wi_folds);
-                    (*wip_wp).wi_optset = false;
+            if let Some(pw) = pos_wip {
+                let wip_wp = &mut (&mut (*buf).b_wininfo)[pw];
+                wip_wp.wi_win = ptr::null_mut();
+                if (*wp).w_config.style == kWinStyleMinimal && wip_wp.wi_optset {
+                    clear_winopt(&raw mut wip_wp.wi_opt);
+                    deleteFoldRecurse(buf, &raw mut wip_wp.wi_folds);
+                    wip_wp.wi_optset = false;
                 }
-                if pos_null < (*buf).b_wininfo.len() {
-                    let pos_delete = pos_null.max(pos_wip);
-                    let removed = (*buf).b_wininfo.remove(pos_delete);
-                    free_wininfo(removed, buf);
+                if let Some(pn) = pos_null {
+                    let pos_delete = pn.max(pw);
+                    (*buf).b_wininfo.remove(pos_delete);
                 }
             }
             buf = (*buf).b_next;

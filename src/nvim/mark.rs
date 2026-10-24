@@ -125,17 +125,25 @@ pub struct WinInfo {
 }
 
 impl WinInfo {
-    pub unsafe fn alloc() -> *mut Self {
-        unsafe {
-            Box::into_raw(Box::new(Self {
-                wi_win: ptr::null_mut(),
-                wi_mark: std::mem::zeroed(),
-                wi_optset: false,
-                wi_opt: std::mem::zeroed(),
-                wi_fold_manual: false,
-                wi_folds: Vec::new(),
-                wi_changelistidx: 0,
-            }))
+    pub const fn new() -> Self {
+        Self {
+            wi_win: ptr::null_mut(),
+            wi_mark: fmark_T::ZERO,
+            wi_optset: false,
+            wi_opt: winopt_T::ZERO,
+            wi_fold_manual: false,
+            wi_folds: Vec::new(),
+            wi_changelistidx: 0,
+        }
+    }
+}
+
+impl Drop for WinInfo {
+    fn drop(&mut self) {
+        if self.wi_optset {
+            unsafe {
+                crate::option::clear_winopt(&raw mut self.wi_opt);
+            }
         }
     }
 }
@@ -1696,10 +1704,10 @@ pub unsafe fn mark_adjust_buf(
 
         diff_mark_adjust(buf, line1, line2, amount, amount_after);
 
-        for &wip in &(*buf).b_wininfo {
-            if !by_term || (*wip).wi_mark.mark.lnum < (*buf).b_ml.ml_line_count {
+        for wip in &mut (*buf).b_wininfo {
+            if !by_term || wip.wi_mark.mark.lnum < (*buf).b_ml.ml_line_count {
                 one_adjust_cursor(
-                    &raw mut (*wip).wi_mark.mark,
+                    &raw mut wip.wi_mark.mark,
                     line1,
                     line2,
                     amount,

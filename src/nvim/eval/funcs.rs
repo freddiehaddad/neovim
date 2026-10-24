@@ -2957,9 +2957,9 @@ pub unsafe fn f_getchangelist(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
             (*curwin).w_changelistidx
         } else {
             let mut idx = (*buf).b_changelistlen;
-            for &wip in &(*buf).b_wininfo {
-                if (*wip).wi_win == curwin {
-                    idx = (*wip).wi_changelistidx;
+            for wip in &(*buf).b_wininfo {
+                if wip.wi_win == curwin {
+                    idx = wip.wi_changelistidx;
                     break;
                 }
             }

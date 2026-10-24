@@ -693,7 +693,7 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
                 let lnum = (*buf)
                     .b_wininfo
                     .first()
-                    .map_or(1i64, |&wi| i64::from((*wi).wi_mark.mark.lnum));
+                    .map_or(1i64, |wi| i64::from(wi.wi_mark.mark.lnum));
                 if !write_fmt(fd, format!("badd +{lnum} "))
                     || ses_fname(fd, buf, &raw mut ssop_flags, true) == FAIL
                 {

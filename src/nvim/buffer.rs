@@ -114,7 +114,7 @@ use crate::usercmd::uc_clear;
 use crate::version::min_vim_version;
 use crate::window::{
     WSP_BELOW, WSP_ROOM, WSP_VERT, check_can_set_curbuf_forceit, check_colorcolumn, close_windows,
-    free_wininfo, global_stl_height, goto_tabpage_tp, goto_tabpage_win, last_window,
+    global_stl_height, goto_tabpage_tp, goto_tabpage_win, last_window,
     lastwin_nofloating, one_window, reset_binding, swbuf_goto_win_with_buf, tabline_height,
     tabpage_T, tabpage_index, update_cwd, win_T, win_close, win_enter, win_locked, win_move_after,
     win_split, win_valid, win_valid_any_tab, window_layout_lock, window_layout_unlock,
@@ -184,7 +184,7 @@ pub struct buf_T {
     pub b_mod_top: i32,
     pub b_mod_bot: i32,
     pub b_mod_xlines: i32,
-    pub b_wininfo: Vec<*mut WinInfo>,
+    pub b_wininfo: Vec<WinInfo>,
     pub b_mod_tick_syn: u64,
     pub b_mod_tick_decor: u64,
     pub b_mtime: i64,
@@ -204,8 +204,8 @@ pub struct buf_T {
     pub b_changelistlen: c_int,
     pub b_new_change: bool,
     pub b_chartab: [u64; 4],
-    pub b_maphash: [Vec<*mut crate::mapping::mapblock_T>; 256],
-    pub b_first_abbr: Vec<*mut crate::mapping::mapblock_T>,
+    pub b_maphash: [Vec<std::pin::Pin<Box<crate::mapping::mapblock_T>>>; 256],
+    pub b_first_abbr: Vec<std::pin::Pin<Box<crate::mapping::mapblock_T>>>,
     pub b_ucmds: Vec<crate::usercmd::ucmd_T>,
     pub b_op_start: pos_T,
     pub b_op_start_orig: pos_T,
@@ -1701,9 +1701,7 @@ unsafe fn free_buffer(buf: *mut buf_T) {
 
 unsafe fn clear_wininfo(buf: *mut buf_T) {
     unsafe {
-        for wip in (*buf).b_wininfo.drain(..) {
-            free_wininfo(wip, buf);
-        }
+        (*buf).b_wininfo.clear();
     }
 }
 
@@ -2761,8 +2759,7 @@ pub unsafe fn buflist_new(
         }
 
         clear_wininfo(buf);
-        let curwin_info = WinInfo::alloc();
-        (*buf).b_wininfo.push(curwin_info);
+        (*buf).b_wininfo.push(WinInfo::new());
 
         if buf == curbuf {
             free_buffer_stuff(buf, kBffInitChangedtick);
@@ -2797,9 +2794,10 @@ pub unsafe fn buflist_new(
             buf_copy_options(buf, BCO_ALWAYS);
         }
 
-        (*curwin_info).wi_mark = INIT_FMARK;
-        (*curwin_info).wi_mark.mark.lnum = lnum;
-        (*curwin_info).wi_win = curwin;
+        let curwin_info = &mut (&mut (*buf).b_wininfo)[0];
+        curwin_info.wi_mark = INIT_FMARK;
+        curwin_info.wi_mark.mark.lnum = lnum;
+        curwin_info.wi_win = curwin;
 
         (*buf).b_fname = (*buf).b_sfname;
         if !file_id_valid {
@@ -3444,43 +3442,44 @@ pub unsafe fn buflist_setfpos(
     copy_options: bool,
 ) {
     unsafe {
-        let wip = if let Some(i) = (*buf).b_wininfo.iter().position(|&w| (*w).wi_win == win) {
-            let wip = (*buf).b_wininfo.remove(i);
-            if copy_options && (*wip).wi_optset {
-                clear_winopt(&raw mut (*wip).wi_opt);
-                deleteFoldRecurse(buf, &raw mut (*wip).wi_folds);
+        let mut wip = if let Some(i) = (*buf).b_wininfo.iter().position(|w| w.wi_win == win) {
+            let mut wip = (*buf).b_wininfo.remove(i);
+            if copy_options && wip.wi_optset {
+                clear_winopt(&raw mut wip.wi_opt);
+                deleteFoldRecurse(buf, &raw mut wip.wi_folds);
+                wip.wi_optset = false;
             }
             wip
         } else {
-            let wip = WinInfo::alloc();
-            (*wip).wi_win = win;
+            let mut wip = WinInfo::new();
+            wip.wi_win = win;
             if lnum == 0 {
                 lnum = 1;
             }
             wip
         };
         if lnum != 0 {
-            (*wip).wi_mark.mark.lnum = lnum;
-            (*wip).wi_mark.mark.col = col;
+            wip.wi_mark.mark.lnum = lnum;
+            wip.wi_mark.mark.col = col;
             if !win.is_null() {
-                (*wip).wi_mark.view = mark_view_make(win, (*wip).wi_mark.mark);
+                wip.wi_mark.view = mark_view_make(win, wip.wi_mark.mark);
             }
         }
         if !win.is_null() {
-            (*wip).wi_changelistidx = (*win).w_changelistidx;
+            wip.wi_changelistidx = (*win).w_changelistidx;
         }
         if copy_options && !win.is_null() {
-            copy_winopt(&raw mut (*win).w_onebuf_opt, &raw mut (*wip).wi_opt);
-            (*wip).wi_fold_manual = (*win).w_fold_manual;
-            cloneFoldGrowArray(&raw mut (*win).w_folds, &raw mut (*wip).wi_folds);
-            (*wip).wi_optset = true;
+            copy_winopt(&raw mut (*win).w_onebuf_opt, &raw mut wip.wi_opt);
+            wip.wi_fold_manual = (*win).w_fold_manual;
+            cloneFoldGrowArray(&raw mut (*win).w_folds, &raw mut wip.wi_folds);
+            wip.wi_optset = true;
         }
 
         (*buf).b_wininfo.insert(0, wip);
     }
 }
 
-unsafe fn wininfo_other_tab_diff(wip: *mut WinInfo) -> bool {
+unsafe fn wininfo_other_tab_diff(wip: *const WinInfo) -> bool {
     unsafe {
         if (*wip).wi_opt.wo_diff == 0 {
             return false;
@@ -3503,26 +3502,26 @@ unsafe fn find_wininfo(
     skip_diff_buffer: bool,
 ) -> *mut WinInfo {
     unsafe {
-        for &wip in &(*buf).b_wininfo {
-            if (*wip).wi_win == curwin
+        for wip in &mut (*buf).b_wininfo {
+            if wip.wi_win == curwin
                 && (!skip_diff_buffer || !wininfo_other_tab_diff(wip))
-                && (!need_options || (*wip).wi_optset)
+                && (!need_options || wip.wi_optset)
             {
                 return wip;
             }
         }
 
         if skip_diff_buffer {
-            for &wip in &(*buf).b_wininfo {
+            for wip in &mut (*buf).b_wininfo {
                 if !wininfo_other_tab_diff(wip)
                     && (!need_options
-                        || (*wip).wi_optset
-                        || (!(*wip).wi_win.is_null() && (*(*wip).wi_win).w_buffer == buf))
+                        || wip.wi_optset
+                        || (!wip.wi_win.is_null() && (*wip.wi_win).w_buffer == buf))
                 {
                     return wip;
                 }
             }
-        } else if let Some(&wip) = (*buf).b_wininfo.first() {
+        } else if let Some(wip) = (*buf).b_wininfo.first_mut() {
             return wip;
         }
         ptr::null_mut()

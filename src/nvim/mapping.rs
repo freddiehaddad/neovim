@@ -199,8 +199,9 @@ impl MapArguments {
     }
 }
 
-static mut first_abbr: Vec<*mut mapblock_T> = Vec::new();
-static mut maphash: [Vec<*mut mapblock_T>; MAX_MAPHASH] = [const { Vec::new() }; MAX_MAPHASH];
+static mut first_abbr: Vec<std::pin::Pin<Box<mapblock_T>>> = Vec::new();
+static mut maphash: [Vec<std::pin::Pin<Box<mapblock_T>>>; MAX_MAPHASH] =
+    [const { Vec::new() }; MAX_MAPHASH];
 static mut map_luaid: c_int = 0;
 
 static mut expand_mapmodes: c_int = 0;
@@ -231,7 +232,7 @@ const fn map_hash(mode: c_int, c1: u8) -> usize {
 use crate::keycodes::{k_second, k_third};
 
 /// Get the start of the hashed map list for "state" and first character "c".
-pub unsafe fn get_maphash_list(state: c_int, c: c_int) -> &'static [*mut mapblock_T] {
+pub unsafe fn get_maphash_list(state: c_int, c: c_int) -> &'static [std::pin::Pin<Box<mapblock_T>>] {
     unsafe {
         (&raw const maphash[map_hash(state, c as u8)])
             .as_ref()
@@ -241,12 +242,15 @@ pub unsafe fn get_maphash_list(state: c_int, c: c_int) -> &'static [*mut mapbloc
 }
 
 /// Get the buffer-local hashed map list for "state" and first character "c".
-pub unsafe fn get_buf_maphash_list(state: c_int, c: c_int) -> &'static [*mut mapblock_T] {
+pub unsafe fn get_buf_maphash_list(state: c_int, c: c_int) -> &'static [std::pin::Pin<Box<mapblock_T>>] {
     unsafe { (*curbuf).b_maphash[map_hash(state, c as u8)].as_slice() }
 }
 
 #[inline]
-unsafe fn get_map_buckets(buf: *const buf_T, is_abbrev: bool) -> &'static [Vec<*mut mapblock_T>] {
+unsafe fn get_map_buckets(
+    buf: *const buf_T,
+    is_abbrev: bool,
+) -> &'static [Vec<std::pin::Pin<Box<mapblock_T>>>] {
     unsafe {
         if is_abbrev {
             if !buf.is_null() {
@@ -263,12 +267,15 @@ unsafe fn get_map_buckets(buf: *const buf_T, is_abbrev: bool) -> &'static [Vec<*
 }
 
 /// Finds the Lua mapping whose `m_str` embeds `id`.
-unsafe fn map_luaid_scan(mappings: &[Vec<*mut mapblock_T>], id: c_int) -> *mut mapblock_T {
+unsafe fn map_luaid_scan(
+    mappings: &[Vec<std::pin::Pin<Box<mapblock_T>>>],
+    id: c_int,
+) -> *mut mapblock_T {
     unsafe {
         for bucket in mappings {
-            for &mp in bucket {
-                if (*mp).m_luaref != LUA_NOREF && atoi((*mp).m_str.add(3)) == id {
-                    return mp;
+            for mp in bucket {
+                if mp.m_luaref != LUA_NOREF && atoi(mp.m_str.add(3)) == id {
+                    return (&raw const **mp).cast_mut();
                 }
             }
         }
@@ -304,11 +311,8 @@ pub unsafe fn map_luaid_get(n: c_int) -> LuaRef {
 }
 
 /// Delete one entry from the abbrlist or maphash[].
-unsafe fn mapblock_free(list: &mut Vec<*mut mapblock_T>, idx: usize) {
-    unsafe {
-        let mp = list.remove(idx);
-        drop(Box::from_raw(mp));
-    }
+unsafe fn mapblock_free(list: &mut Vec<std::pin::Pin<Box<mapblock_T>>>, idx: usize) {
+    list.remove(idx);
 }
 
 /// Put characters to represent the map mode in a string buffer.
@@ -644,8 +648,8 @@ unsafe fn str_to_mapargs(
 
 unsafe fn map_add(
     buf: *mut buf_T,
-    map_table: *mut Vec<*mut mapblock_T>,
-    abbr_table: *mut Vec<*mut mapblock_T>,
+    map_table: *mut Vec<std::pin::Pin<Box<mapblock_T>>>,
+    abbr_table: *mut Vec<std::pin::Pin<Box<mapblock_T>>>,
     keys: *const c_char,
     args: &MapArguments,
     noremap: c_int,
@@ -659,7 +663,7 @@ unsafe fn map_add(
         if *keys == Ctrl_C {
             if ptr::eq(
                 map_table,
-                (&raw mut (*buf).b_maphash).cast::<Vec<*mut mapblock_T>>(),
+                (&raw mut (*buf).b_maphash).cast::<Vec<std::pin::Pin<Box<mapblock_T>>>>(),
             ) {
                 (*buf).b_mapped_ctrl_c |= mode;
             } else {
@@ -682,7 +686,7 @@ unsafe fn map_add(
             nlua_set_sctx(&mut ctx);
             ctx
         };
-        let mp = Box::into_raw(Box::new(mapblock_T {
+        let mut mp = Box::pin(mapblock_T {
             m_alt: ptr::null_mut(),
             m_keys,
             m_str: args.rhs,
@@ -698,15 +702,16 @@ unsafe fn map_add(
             m_script_ctx,
             m_desc: args.desc,
             m_replace_keycodes: args.replace_keycodes,
-        }));
+        });
+        let mp_ptr: *mut mapblock_T = &raw mut *mp;
 
         if is_abbr {
             (*abbr_table).insert(0, mp);
         } else {
-            let n = map_hash((*mp).m_mode, *(*mp).m_keys as u8);
+            let n = map_hash((*mp_ptr).m_mode, *(*mp_ptr).m_keys as u8);
             (*map_table.add(n)).insert(0, mp);
         }
-        mp
+        mp_ptr
     }
 }
 
@@ -720,8 +725,8 @@ unsafe fn buf_do_map(
     unsafe {
         let mut retval: c_int = 0;
 
-        let buf_maphash = (&raw mut (*buf).b_maphash).cast::<Vec<*mut mapblock_T>>();
-        let global_maphash = (&raw mut maphash).cast::<Vec<*mut mapblock_T>>();
+        let buf_maphash = (&raw mut (*buf).b_maphash).cast::<Vec<std::pin::Pin<Box<mapblock_T>>>>();
+        let global_maphash = (&raw mut maphash).cast::<Vec<std::pin::Pin<Box<mapblock_T>>>>();
         let map_table = if args.buffer {
             buf_maphash
         } else {
@@ -845,13 +850,13 @@ unsafe fn buf_do_map(
                         if got_int {
                             break;
                         }
-                        for &mp in bucket {
+                        for mp in bucket {
                             if got_int {
                                 break;
                             }
-                            if ((*mp).m_mode & mode) != 0 && (*mp).m_keylen == len {
+                            if (mp.m_mode & mode) != 0 && mp.m_keylen == len {
                                 let mp_slice = std::slice::from_raw_parts(
-                                    (*mp).m_keys.cast::<u8>(),
+                                    mp.m_keys.cast::<u8>(),
                                     len as usize,
                                 );
                                 if mp_slice == lhs_slice {
@@ -868,25 +873,25 @@ unsafe fn buf_do_map(
                         if got_int {
                             break;
                         }
-                        for &mp in bucket {
+                        for mp in bucket {
                             if got_int {
                                 break;
                             }
-                            if (*mp).m_simplified == 0 && ((*mp).m_mode & mode) != 0 {
+                            if mp.m_simplified == 0 && (mp.m_mode & mode) != 0 {
                                 if !has_lhs {
-                                    showmap(mp, true);
+                                    showmap((&raw const **mp).cast_mut(), true);
                                     did_local = true;
                                 } else {
-                                    let n = (*mp).m_keylen;
+                                    let n = mp.m_keylen;
                                     let cmp_len = n.min(len) as usize;
                                     let mp_slice = std::slice::from_raw_parts(
-                                        (*mp).m_keys.cast::<u8>(),
+                                        mp.m_keys.cast::<u8>(),
                                         cmp_len,
                                     );
                                     let lhs_slice =
                                         std::slice::from_raw_parts(lhs.cast::<u8>(), cmp_len);
                                     if mp_slice == lhs_slice {
-                                        showmap(mp, true);
+                                        showmap((&raw const **mp).cast_mut(), true);
                                         did_local = true;
                                     }
                                 }
@@ -925,7 +930,7 @@ unsafe fn buf_do_map(
                         };
                         let mut idx: usize = 0;
                         while idx < (*mpp).len() && !got_int {
-                            let mp = (*mpp).as_slice()[idx];
+                            let mp: *mut mapblock_T = &raw mut *(*mpp).as_mut_slice()[idx];
                             if ((*mp).m_mode & mode) == 0 {
                                 idx += 1;
                                 continue;
@@ -1015,8 +1020,8 @@ unsafe fn buf_do_map(
 
                                     let new_hash = map_hash((*mp).m_mode, *(*mp).m_keys as u8);
                                     if !is_abbrev && new_hash != hash {
-                                        (*mpp).remove(idx);
-                                        (*map_table.add(new_hash)).insert(0, mp);
+                                        let moved = (*mpp).remove(idx);
+                                        (*map_table.add(new_hash)).insert(0, moved);
                                         continue;
                                     }
                                 }
@@ -1164,8 +1169,8 @@ unsafe fn do_mapclear(mut cmdp: *mut c_char, arg: *mut c_char, forceit: c_int, a
 /// Clear all mappings in "mode".
 pub unsafe fn map_clear_mode(buf: *mut buf_T, mode: c_int, local: bool, abbr: bool) {
     unsafe {
-        let buf_maphash = (&raw mut (*buf).b_maphash).cast::<Vec<*mut mapblock_T>>();
-        let global_maphash = (&raw mut maphash).cast::<Vec<*mut mapblock_T>>();
+        let buf_maphash = (&raw mut (*buf).b_maphash).cast::<Vec<std::pin::Pin<Box<mapblock_T>>>>();
+        let global_maphash = (&raw mut maphash).cast::<Vec<std::pin::Pin<Box<mapblock_T>>>>();
         for hash in 0..256 {
             let mpp = if abbr {
                 if hash > 0 {
@@ -1183,7 +1188,7 @@ pub unsafe fn map_clear_mode(buf: *mut buf_T, mode: c_int, local: bool, abbr: bo
             };
             let mut idx: usize = 0;
             while idx < (*mpp).len() {
-                let mp = (*mpp).as_slice()[idx];
+                let mp: *mut mapblock_T = &raw mut *(*mpp).as_mut_slice()[idx];
                 if ((*mp).m_mode & mode) != 0 {
                     (*mp).m_mode &= !mode;
                     if (*mp).m_mode == 0 {
@@ -1192,11 +1197,11 @@ pub unsafe fn map_clear_mode(buf: *mut buf_T, mode: c_int, local: bool, abbr: bo
                     }
                     let new_hash = map_hash((*mp).m_mode, *(*mp).m_keys as u8);
                     if !abbr && new_hash != hash {
-                        (*mpp).remove(idx);
+                        let moved = (*mpp).remove(idx);
                         if local {
-                            (*buf_maphash.add(new_hash)).insert(0, mp);
+                            (*buf_maphash.add(new_hash)).insert(0, moved);
                         } else {
-                            (*global_maphash.add(new_hash)).insert(0, mp);
+                            (*global_maphash.add(new_hash)).insert(0, moved);
                         }
                         continue;
                     }
@@ -1260,8 +1265,8 @@ pub unsafe fn map_to_exists_mode(rhs: *const c_char, mode: c_int, abbr: bool) ->
         for exp_buffer in [false, true] {
             let b = if exp_buffer { curbuf } else { ptr::null() };
             for bucket in get_map_buckets(b, abbr) {
-                for &mp in bucket {
-                    if ((*mp).m_mode & mode) != 0 && !strstr((*mp).m_str, rhs).is_null() {
+                for mp in bucket {
+                    if (mp.m_mode & mode) != 0 && !strstr(mp.m_str, rhs).is_null() {
                         return true;
                     }
                 }
@@ -1454,7 +1459,8 @@ pub unsafe fn ExpandMappings(
             ptr::null()
         };
         for bucket in get_map_buckets(exp_buf, expand_isabbrev) {
-            for &mp in bucket {
+            for mp in bucket {
+                let mp: *const mapblock_T = &raw const **mp;
                 if (*mp).m_simplified != 0 || ((*mp).m_mode & expand_mapmodes) == 0 {
                     continue;
                 }
@@ -1594,7 +1600,8 @@ pub unsafe fn check_abbr(
             let mut len = col - scol;
             let mut mp: *mut mapblock_T = ptr::null_mut();
             let first_abbr_slice = (&raw const first_abbr).as_ref().unwrap().as_slice();
-            for &cand in (*curbuf).b_first_abbr.iter().chain(first_abbr_slice) {
+            for cand in (*curbuf).b_first_abbr.iter().chain(first_abbr_slice) {
+                let cand: *mut mapblock_T = (&raw const **cand).cast_mut();
                 let mut qlen = (*cand).m_keylen;
                 let mut q = (*cand).m_keys;
 
@@ -1770,7 +1777,8 @@ pub unsafe fn makemap(fd: *mut FILE, buf: *mut buf_T) -> c_int {
 
         for abbr in 0..2 {
             for bucket in get_map_buckets(buf, abbr != 0) {
-                for &mp in bucket {
+                for mp in bucket {
+                    let mp: *const mapblock_T = &raw const **mp;
                     if (*mp).m_simplified != 0
                         || (*mp).m_noremap == REMAP_SCRIPT
                         || (*mp).m_luaref != LUA_NOREF
@@ -2058,7 +2066,8 @@ pub unsafe fn check_map(
         for local in (0..=1).rev() {
             let b = if local != 0 { curbuf } else { ptr::null() };
             for bucket in get_map_buckets(b, abbr != 0) {
-                for &mp in bucket {
+                for mp in bucket {
+                    let mp: *mut mapblock_T = (&raw const **mp).cast_mut();
                     if ((*mp).m_mode & mode) != 0 && (exact == 0 || (*mp).m_keylen == len) {
                         let mut s = (*mp).m_keys;
                         let mut keylen = (*mp).m_keylen;
@@ -2467,9 +2476,9 @@ pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: Eva
         );
 
         let map_table = if buffer {
-            (&raw mut (*curbuf).b_maphash).cast::<Vec<*mut mapblock_T>>()
+            (&raw mut (*curbuf).b_maphash).cast::<Vec<std::pin::Pin<Box<mapblock_T>>>>()
         } else {
-            (&raw mut maphash).cast::<Vec<*mut mapblock_T>>()
+            (&raw mut maphash).cast::<Vec<std::pin::Pin<Box<mapblock_T>>>>()
         };
         let abbr_table = if buffer {
             &raw mut (*curbuf).b_first_abbr
@@ -2550,7 +2559,8 @@ pub unsafe fn f_maplist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                 ptr::null()
             };
             for bucket in get_map_buckets(b, abbr) {
-                for &mp in bucket {
+                for mp in bucket {
+                    let mp: *const mapblock_T = &raw const **mp;
                     if (*mp).m_simplified != 0 {
                         continue;
                     }
@@ -3080,7 +3090,8 @@ pub unsafe fn keymap_array(mode: NvimString, buf: *mut buf_T, arena: *mut Arena)
         let buffer_value = if buf.is_null() { 0 } else { (*buf).b_fnum };
 
         for bucket in get_map_buckets(buf, is_abbrev) {
-            for &current_maphash in bucket {
+            for current_maphash in bucket {
+                let current_maphash: *const mapblock_T = &raw const **current_maphash;
                 if (*current_maphash).m_simplified == 0
                     && (int_mode & (*current_maphash).m_mode) != 0
                 {

@@ -1068,9 +1068,9 @@ unsafe fn unset_terminal_winopts(s: *mut TerminalState) {
             if (*(*wp).w_buffer).b_fnum != (*(*s).term).buf_handle {
                 let buf = handle_get_buffer((*(*s).term).buf_handle);
                 if !buf.is_null() {
-                    for &wip in &(*buf).b_wininfo {
-                        if (*wip).wi_win == wp && (*wip).wi_optset {
-                            winopts = &raw mut (*wip).wi_opt;
+                    for wip in &mut (*buf).b_wininfo {
+                        if wip.wi_win == wp && wip.wi_optset {
+                            winopts = &raw mut wip.wi_opt;
                             break;
                         }
                     }
@@ -2678,9 +2678,9 @@ unsafe fn adjust_topline_cursor(term: *mut Terminal, buf: *mut buf_T, added: c_i
             (*buf).b_last_cursor.mark.lnum = ml_end;
         }
 
-        for &wip in &(*buf).b_wininfo {
-            if ml_end == (*wip).wi_mark.mark.lnum + added {
-                (*wip).wi_mark.mark.lnum = ml_end;
+        for wip in &mut (*buf).b_wininfo {
+            if ml_end == wip.wi_mark.mark.lnum + added {
+                wip.wi_mark.mark.lnum = ml_end;
             }
         }
     }
