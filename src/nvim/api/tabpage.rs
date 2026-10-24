@@ -213,7 +213,7 @@ pub unsafe extern "C" fn nvim_tabpage_set_win(tabpage: Tabpage, win: Window, err
             return;
         }
         if tp == curtab {
-            let mut tstate: TryState = std::mem::zeroed();
+            let mut tstate = TryState::new();
             try_enter(&mut tstate);
             win_goto(wp);
             try_leave(&tstate, err);
@@ -294,7 +294,7 @@ pub unsafe extern "C" fn nvim_open_tabpage(
         };
 
         let mut wp: *mut win_T = std::ptr::null_mut();
-        let mut tstate: TryState = std::mem::zeroed();
+        let mut tstate = TryState::new();
         try_enter(&mut tstate);
         let tp = win_new_tabpage(after + 1, std::ptr::null_mut(), enter, &mut wp);
         try_leave(&tstate, err);

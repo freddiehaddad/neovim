@@ -1,11 +1,13 @@
 //! VTerm keyboard event encoding (`src/nvim/vterm/keyboard.c`).
 
 use crate::input::NUL;
-use std::ffi::{c_char, c_int, c_void};
+use std::ffi::{c_char, c_int};
 
+use crate::terminal::Terminal;
 use crate::tui::termkey::termkey::fill_utf8;
 pub use crate::vterm::encoding::VTermEncodingInstance;
 use crate::vterm::mouse::{VTerm, VTermPos};
+use crate::vterm::screen::VTermScreen;
 use crate::vterm::vterm::{
     vterm_push_output_bytes, vterm_push_output_bytes_slice, vterm_push_output_ctrl_bytes,
 };
@@ -71,7 +73,7 @@ pub struct VTermStateTmp {
 #[derive(Clone, Copy)]
 pub struct VTermStateSelection {
     pub callbacks: *const crate::vterm::state::VTermSelectionCallbacks,
-    pub user: *mut c_void,
+    pub user: *mut Terminal,
     pub buffer: *mut c_char,
     pub buflen: usize,
 }
@@ -87,9 +89,9 @@ pub struct VTermKeyEncodingStack {
 pub struct VTermStateFull {
     pub vt: *mut VTerm,
     pub callbacks: *const crate::vterm::pen::VTermStateCallbacks,
-    pub cbdata: *mut c_void,
+    pub cbdata: *mut VTermScreen,
     pub fallbacks: *const crate::vterm::state::VTermStateFallbacks,
-    pub fbdata: *mut c_void,
+    pub fbdata: *mut Terminal,
     pub rows: c_int,
     pub cols: c_int,
     pub pos: VTermPos,

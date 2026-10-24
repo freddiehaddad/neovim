@@ -1,10 +1,11 @@
 //! VTerm pen and SGR color/attribute handling (`src/nvim/vterm/pen.c`).
 
-use std::ffi::{c_int, c_long, c_void};
+use std::ffi::{c_int, c_long};
 
 use crate::vterm::keyboard::{VTermColor, VTermPen, VTermStateFull};
 use crate::vterm::mouse::VTermPos;
 use crate::vterm::parser::VTermStringFragment;
+use crate::vterm::screen::{VTermGlyphInfo, VTermLineInfo, VTermScreen, VTermStateFields};
 
 pub type VTermAttr = c_int;
 pub type VTermValueType = c_int;
@@ -99,36 +100,42 @@ pub struct VTermRect {
     pub end_col: c_int,
 }
 
-pub type VTermMoveCursorFn =
-    unsafe fn(pos: VTermPos, oldpos: VTermPos, visible: c_int, user: *mut c_void) -> c_int;
+pub type VTermMoveCursorFn<T = VTermScreen> =
+    unsafe fn(pos: VTermPos, oldpos: VTermPos, visible: c_int, user: *mut T) -> c_int;
 pub type VTermScrollRectFn =
-    unsafe fn(rect: VTermRect, downward: c_int, rightward: c_int, user: *mut c_void) -> c_int;
-pub type VTermStateResizeFn =
-    unsafe fn(rows: c_int, cols: c_int, fields: *mut c_void, user: *mut c_void) -> c_int;
+    unsafe fn(rect: VTermRect, downward: c_int, rightward: c_int, user: *mut VTermScreen) -> c_int;
+pub type VTermStateResizeFn = unsafe fn(
+    rows: c_int,
+    cols: c_int,
+    fields: *mut VTermStateFields,
+    user: *mut VTermScreen,
+) -> c_int;
 pub type VTermSetLineInfoFn = unsafe fn(
     row: c_int,
-    newinfo: *const c_void,
-    oldinfo: *const c_void,
-    user: *mut c_void,
+    newinfo: *const VTermLineInfo,
+    oldinfo: *const VTermLineInfo,
+    user: *mut VTermScreen,
 ) -> c_int;
 
 #[repr(C)]
 pub struct VTermStateCallbacks {
-    pub putglyph: Option<unsafe fn(info: *mut c_void, pos: VTermPos, user: *mut c_void) -> c_int>,
+    pub putglyph:
+        Option<unsafe fn(info: *mut VTermGlyphInfo, pos: VTermPos, user: *mut VTermScreen) -> c_int>,
     pub movecursor: Option<VTermMoveCursorFn>,
     pub scrollrect: Option<VTermScrollRectFn>,
-    pub moverect: Option<unsafe fn(dest: VTermRect, src: VTermRect, user: *mut c_void) -> c_int>,
-    pub erase: Option<unsafe fn(rect: VTermRect, selective: c_int, user: *mut c_void) -> c_int>,
-    pub initpen: Option<unsafe fn(user: *mut c_void) -> c_int>,
+    pub moverect:
+        Option<unsafe fn(dest: VTermRect, src: VTermRect, user: *mut VTermScreen) -> c_int>,
+    pub erase: Option<unsafe fn(rect: VTermRect, selective: c_int, user: *mut VTermScreen) -> c_int>,
+    pub initpen: Option<unsafe fn(user: *mut VTermScreen) -> c_int>,
     pub setpenattr:
-        Option<unsafe fn(attr: VTermAttr, val: *mut VTermValue, user: *mut c_void) -> c_int>,
+        Option<unsafe fn(attr: VTermAttr, val: *mut VTermValue, user: *mut VTermScreen) -> c_int>,
     pub settermprop:
-        Option<unsafe fn(prop: VTermProp, val: *mut VTermValue, user: *mut c_void) -> c_int>,
-    pub bell: Option<unsafe fn(user: *mut c_void) -> c_int>,
+        Option<unsafe fn(prop: VTermProp, val: *mut VTermValue, user: *mut VTermScreen) -> c_int>,
+    pub bell: Option<unsafe fn(user: *mut VTermScreen) -> c_int>,
     pub resize: Option<VTermStateResizeFn>,
-    pub theme: Option<unsafe fn(dark: *mut bool, user: *mut c_void) -> c_int>,
+    pub theme: Option<unsafe fn(dark: *mut bool, user: *mut VTermScreen) -> c_int>,
     pub setlineinfo: Option<VTermSetLineInfoFn>,
-    pub sb_clear: Option<unsafe fn(user: *mut c_void) -> c_int>,
+    pub sb_clear: Option<unsafe fn(user: *mut VTermScreen) -> c_int>,
 }
 
 #[derive(Clone, Copy)]

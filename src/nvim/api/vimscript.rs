@@ -129,7 +129,7 @@ pub unsafe fn exec_impl(
             capture_ga = &raw mut capture_local;
         }
 
-        let mut tstate: TryState = std::mem::zeroed();
+        let mut tstate = TryState::new();
         try_enter(&mut tstate);
         if (*opts).output {
             msg_silent += 1;
@@ -180,7 +180,7 @@ pub unsafe fn exec_impl(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_command(cmd: NvimString, err: *mut Error) {
     unsafe {
-        let mut tstate: TryState = std::mem::zeroed();
+        let mut tstate = TryState::new();
         try_enter(&mut tstate);
         do_cmdline_cmd(cmd.data);
         try_leave(&tstate, err);
@@ -209,7 +209,7 @@ pub unsafe extern "C" fn nvim_eval(expr: NvimString, arena: *mut Arena, err: *mu
         EVAL_RECURSIVE += 1;
 
         let mut rettv: typval_T = std::mem::zeroed();
-        let mut tstate: TryState = std::mem::zeroed();
+        let mut tstate = TryState::new();
         try_enter(&mut tstate);
         let ok = eval0(
             expr.data,
@@ -293,7 +293,7 @@ unsafe fn call_function_impl(
             fe_found_var: false,
         };
 
-        let mut tstate: TryState = std::mem::zeroed();
+        let mut tstate = TryState::new();
         try_enter(&mut tstate);
         let save_current_sctx = api_set_sctx(channel_id);
         let _ = call_func(
@@ -371,7 +371,7 @@ pub unsafe extern "C" fn nvim_call_dict_function(
 
         match dict.obj_type {
             ObjectType::kObjectTypeString => {
-                let mut tstate: TryState = std::mem::zeroed();
+                let mut tstate = TryState::new();
                 try_enter(&mut tstate);
                 let eval_ret = eval0(
                     dict.data.string.data,

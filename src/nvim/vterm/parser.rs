@@ -1,8 +1,9 @@
 //! VTerm input byte stream parser (`src/nvim/vterm/parser.c`).
 
-use std::ffi::{c_char, c_int, c_long, c_void};
+use std::ffi::{c_char, c_int, c_long};
 use std::ptr;
 
+use crate::vterm::keyboard::VTermStateFull;
 use crate::vterm::mouse::{CSI_LEADER_MAX, INTERMED_MAX, VTerm};
 
 pub type VTermTerminator = c_int;
@@ -73,35 +74,37 @@ impl VTermStringFragment {
     }
 }
 
-pub type VTermCsiFn = unsafe fn(
+pub type VTermCsiFn<T = VTermStateFull> = unsafe fn(
     leader: *const c_char,
     args: *const c_long,
     argcount: c_int,
     intermed: *const c_char,
     command: c_char,
-    user: *mut c_void,
+    user: *mut T,
 ) -> c_int;
 
-pub type VTermDcsFn = unsafe fn(
+pub type VTermDcsFn<T = VTermStateFull> = unsafe fn(
     command: *const c_char,
     commandlen: usize,
     frag: VTermStringFragment,
-    user: *mut c_void,
+    user: *mut T,
 ) -> c_int;
 
 #[repr(C)]
 pub struct VTermParserCallbacks {
-    pub text: Option<unsafe fn(bytes: *const c_char, len: usize, user: *mut c_void) -> c_int>,
-    pub control: Option<unsafe fn(control: u8, user: *mut c_void) -> c_int>,
-    pub escape: Option<unsafe fn(bytes: *const c_char, len: usize, user: *mut c_void) -> c_int>,
+    pub text: Option<unsafe fn(bytes: *const c_char, len: usize, user: *mut VTermStateFull) -> c_int>,
+    pub control: Option<unsafe fn(control: u8, user: *mut VTermStateFull) -> c_int>,
+    pub escape:
+        Option<unsafe fn(bytes: *const c_char, len: usize, user: *mut VTermStateFull) -> c_int>,
     pub csi: Option<VTermCsiFn>,
-    pub osc:
-        Option<unsafe fn(command: c_int, frag: VTermStringFragment, user: *mut c_void) -> c_int>,
+    pub osc: Option<
+        unsafe fn(command: c_int, frag: VTermStringFragment, user: *mut VTermStateFull) -> c_int,
+    >,
     pub dcs: Option<VTermDcsFn>,
-    pub apc: Option<unsafe fn(frag: VTermStringFragment, user: *mut c_void) -> c_int>,
-    pub pm: Option<unsafe fn(frag: VTermStringFragment, user: *mut c_void) -> c_int>,
-    pub sos: Option<unsafe fn(frag: VTermStringFragment, user: *mut c_void) -> c_int>,
-    pub resize: Option<unsafe fn(rows: c_int, cols: c_int, user: *mut c_void) -> c_int>,
+    pub apc: Option<unsafe fn(frag: VTermStringFragment, user: *mut VTermStateFull) -> c_int>,
+    pub pm: Option<unsafe fn(frag: VTermStringFragment, user: *mut VTermStateFull) -> c_int>,
+    pub sos: Option<unsafe fn(frag: VTermStringFragment, user: *mut VTermStateFull) -> c_int>,
+    pub resize: Option<unsafe fn(rows: c_int, cols: c_int, user: *mut VTermStateFull) -> c_int>,
 }
 
 #[inline]
@@ -540,7 +543,7 @@ pub unsafe fn vterm_input_write(vt: *mut VTerm, bytes: *const c_char, len: usize
 pub unsafe fn vterm_parser_set_callbacks(
     vt: *mut VTerm,
     callbacks: *const VTermParserCallbacks,
-    user: *mut c_void,
+    user: *mut VTermStateFull,
 ) {
     unsafe {
         (*vt).parser.callbacks = callbacks;

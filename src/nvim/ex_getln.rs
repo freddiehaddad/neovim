@@ -1032,7 +1032,7 @@ unsafe fn command_line_enter(
                 tv_dict_add_str(dict, c"cmdtype".as_ptr(), 7, firstcbuf.as_ptr());
                 tv_dict_add_nr(dict, c"cmdlevel".as_ptr(), 8, ccline.level as varnumber_T);
                 tv_dict_set_keys_readonly(dict);
-                let mut tstate: TryState = std::mem::zeroed();
+                let mut tstate = TryState::new();
                 try_enter(&raw mut tstate);
                 apply_autocmds(
                     EVENT_CMDLINEENTER,
@@ -1126,7 +1126,7 @@ unsafe fn command_line_enter(
                     },
                 );
                 set_vim_var_char((*s).c);
-                let mut tstate: TryState = std::mem::zeroed();
+                let mut tstate = TryState::new();
                 try_enter(&raw mut tstate);
                 apply_autocmds(
                     EVENT_CMDLINELEAVE,
@@ -2898,7 +2898,7 @@ unsafe fn cmdpreview_open_win(cmdpreview_buf: *mut buf_T) -> *mut win_T {
         let preview_win = curwin;
         let mut err = error_init();
 
-        let mut tstate: TryState = std::mem::zeroed();
+        let mut tstate = TryState::new();
         try_enter(&raw mut tstate);
         let result = do_buffer(
             DOBUF_GOTO,
@@ -3100,7 +3100,7 @@ unsafe fn cmdpreview_may_show(_s: *mut CommandLineState) -> bool {
         cmdpreview = true;
 
         let mut err = error_init();
-        let mut tstate: TryState = std::mem::zeroed();
+        let mut tstate = TryState::new();
         try_enter(&raw mut tstate);
         cmdpreview_type = execute_cmd(&raw mut ea, &raw mut cmod, true);
         try_leave(&raw const tstate, &raw mut err);
@@ -3152,7 +3152,7 @@ unsafe fn do_autocmd_cmdlinechanged(firstc: c_int) {
             tv_dict_add_str(dict, c"cmdtype".as_ptr(), 7, firstcbuf.as_ptr());
             tv_dict_add_nr(dict, c"cmdlevel".as_ptr(), 8, ccline.level as varnumber_T);
             tv_dict_set_keys_readonly(dict);
-            let mut tstate: TryState = std::mem::zeroed();
+            let mut tstate = TryState::new();
             try_enter(&raw mut tstate);
             apply_autocmds(
                 EVENT_CMDLINECHANGED,
@@ -3677,7 +3677,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                     debug_assert!((*colored_ccline).input_fn != 0);
                     color_cb = (*colored_ccline).highlight_callback;
                 } else if (*colored_ccline).cmdfirstc == b':' as c_int {
-                    let mut tstate: TryState = std::mem::zeroed();
+                    let mut tstate = TryState::new();
                     try_enter(&raw mut tstate);
                     err_errmsg = c"E5408: Unable to get g:Nvim_color_cmdline callback: %s".as_ptr();
                     dgc_ret = tv_dict_get_callback(
@@ -3712,7 +3712,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                 }
 
                 getln_interrupted_highlight = false;
-                let mut tstate: TryState = std::mem::zeroed();
+                let mut tstate = TryState::new();
                 try_enter(&raw mut tstate);
                 err_errmsg = c"E5407: Callback has thrown an exception: %s".as_ptr();
                 let saved_msg_col = msg_col;

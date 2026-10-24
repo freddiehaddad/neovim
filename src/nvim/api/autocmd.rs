@@ -1170,7 +1170,7 @@ pub unsafe extern "C" fn nvim_create_augroup(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_del_augroup_by_id(id: Integer, err: *mut Error) {
     unsafe {
-        let mut tstate: TryState = std::mem::zeroed();
+        let mut tstate = TryState::new();
         try_enter(&mut tstate);
         augroup_del_by_id(id as c_int);
         try_leave(&tstate, err);
@@ -1187,7 +1187,7 @@ pub unsafe extern "C" fn nvim_del_augroup_by_id(id: Integer, err: *mut Error) {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_del_augroup_by_name(name: NvimString, err: *mut Error) {
     unsafe {
-        let mut tstate: TryState = std::mem::zeroed();
+        let mut tstate = TryState::new();
         try_enter(&mut tstate);
         augroup_del(name.data, -1, false);
         try_leave(&tstate, err);

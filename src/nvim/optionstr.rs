@@ -3098,7 +3098,7 @@ pub unsafe fn validate_spellcapcheck(args: *mut optset_T) -> *const c_char {
         emsg_silent = 0;
         suppress_errthrow = false;
 
-        let mut tstate: TryState = std::mem::zeroed();
+        let mut tstate = TryState::new();
         try_enter(&raw mut tstate);
         let mut errmsg = compile_cap_prog((*args).os_newval.data.string.data, &raw mut prog);
         try_leave(&raw const tstate, &raw mut err);

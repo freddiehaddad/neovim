@@ -498,9 +498,8 @@ unsafe fn parse_osc8(str_: *const c_char, attr: *mut c_int) -> c_int {
     }
 }
 
-unsafe fn on_osc(command: c_int, frag: VTermStringFragment, user: *mut c_void) -> c_int {
+unsafe fn on_osc(command: c_int, frag: VTermStringFragment, term: *mut Terminal) -> c_int {
     unsafe {
-        let term = user.cast::<Terminal>();
         if frag.str_.is_null() || frag.is_empty() {
             return 0;
         }
@@ -553,10 +552,9 @@ unsafe fn on_dcs(
     command: *const c_char,
     commandlen: usize,
     frag: VTermStringFragment,
-    user: *mut c_void,
+    term: *mut Terminal,
 ) -> c_int {
     unsafe {
-        let term = user.cast::<Terminal>();
         if command.is_null() || frag.str_.is_null() {
             return 0;
         }
@@ -588,9 +586,8 @@ unsafe fn on_dcs(
     }
 }
 
-unsafe fn on_apc(frag: VTermStringFragment, user: *mut c_void) -> c_int {
+unsafe fn on_apc(frag: VTermStringFragment, term: *mut Terminal) -> c_int {
     unsafe {
-        let term = user.cast::<Terminal>();
         if frag.str_.is_null() || frag.is_empty() {
             return 0;
         }
@@ -636,9 +633,9 @@ pub unsafe fn terminal_teardown() {
     }
 }
 
-unsafe fn term_output_callback(s: *const c_char, len: usize, user_data: *mut c_void) {
+unsafe fn term_output_callback(s: *const c_char, len: usize, term: *mut Terminal) {
     unsafe {
-        terminal_send(user_data.cast::<Terminal>(), s, len);
+        terminal_send(term, s, len);
     }
 }
 
@@ -714,28 +711,16 @@ pub unsafe fn terminal_alloc(buf: *mut buf_T, mut opts: TerminalOptions) -> *mut
         (*term).vts = vterm_obtain_screen((*term).vt);
         vterm_screen_enable_altscreen((*term).vts, 1);
         vterm_screen_enable_reflow((*term).vts, true);
-        vterm_screen_set_callbacks(
-            (*term).vts,
-            &raw const VTERM_SCREEN_CALLBACKS,
-            term.cast::<c_void>(),
-        );
-        vterm_screen_set_unrecognised_fallbacks(
-            (*term).vts,
-            &raw const VTERM_FALLBACKS,
-            term.cast::<c_void>(),
-        );
+        vterm_screen_set_callbacks((*term).vts, &raw const VTERM_SCREEN_CALLBACKS, term);
+        vterm_screen_set_unrecognised_fallbacks((*term).vts, &raw const VTERM_FALLBACKS, term);
         vterm_screen_set_damage_merge((*term).vts, VTERM_DAMAGE_SCROLL);
         vterm_screen_reset((*term).vts, 1);
-        vterm_output_set_callback(
-            (*term).vt,
-            Some(term_output_callback),
-            term.cast::<c_void>(),
-        );
+        vterm_output_set_callback((*term).vt, Some(term_output_callback), term);
 
         vterm_state_set_selection_callbacks(
             state,
             &raw const VTERM_SELECTION_CALLBACKS,
-            term.cast::<c_void>(),
+            term,
             ptr::null_mut(),
             SELECTIONBUF_SIZE,
         );
@@ -1782,17 +1767,17 @@ unsafe fn terminal_focus(term: *const Terminal, focus: bool) {
     }
 }
 
-unsafe fn term_damage(rect: VTermRect, data: *mut c_void) -> c_int {
+unsafe fn term_damage(rect: VTermRect, term: *mut Terminal) -> c_int {
     unsafe {
-        invalidate_terminal(data.cast::<Terminal>(), rect.start_row, rect.end_row);
+        invalidate_terminal(term, rect.start_row, rect.end_row);
         1
     }
 }
 
-unsafe fn term_moverect(dest: VTermRect, src: VTermRect, data: *mut c_void) -> c_int {
+unsafe fn term_moverect(dest: VTermRect, src: VTermRect, term: *mut Terminal) -> c_int {
     unsafe {
         invalidate_terminal(
-            data.cast::<Terminal>(),
+            term,
             dest.start_row.min(src.start_row),
             dest.end_row.max(src.end_row),
         );
@@ -1804,10 +1789,9 @@ unsafe fn term_movecursor(
     new_pos: VTermPos,
     _old_pos: VTermPos,
     _visible: c_int,
-    data: *mut c_void,
+    term: *mut Terminal,
 ) -> c_int {
     unsafe {
-        let term = data.cast::<Terminal>();
         (*term).cursor.row = new_pos.row;
         (*term).cursor.col = new_pos.col;
         invalidate_terminal(term, -1, -1);
@@ -1844,10 +1828,8 @@ unsafe fn buf_set_term_title(buf: *mut buf_T, title: *const c_char, len: usize) 
     }
 }
 
-unsafe fn term_settermprop(prop: VTermProp, val: *mut VTermValue, data: *mut c_void) -> c_int {
+unsafe fn term_settermprop(prop: VTermProp, val: *mut VTermValue, term: *mut Terminal) -> c_int {
     unsafe {
-        let term = data.cast::<Terminal>();
-
         match prop {
             VTERM_PROP_ALTSCREEN => {
                 (*term).in_altscreen = (*val).boolean() != 0;
@@ -1909,23 +1891,22 @@ unsafe fn term_settermprop(prop: VTermProp, val: *mut VTermValue, data: *mut c_v
     }
 }
 
-unsafe fn term_bell(_data: *mut c_void) -> c_int {
+unsafe fn term_bell(_data: *mut Terminal) -> c_int {
     unsafe {
         vim_beep(kOptBoFlagTerm);
     }
     1
 }
 
-unsafe fn term_theme(dark: *mut bool, _data: *mut c_void) -> c_int {
+unsafe fn term_theme(dark: *mut bool, _data: *mut Terminal) -> c_int {
     unsafe {
         *dark = *p_bg == b'd' as c_char;
     }
     1
 }
 
-unsafe fn term_sb_push(cols: c_int, cells: *const VTermScreenCell, data: *mut c_void) -> c_int {
+unsafe fn term_sb_push(cols: c_int, cells: *const VTermScreenCell, term: *mut Terminal) -> c_int {
     unsafe {
-        let term = data.cast::<Terminal>();
         if !term_may_alloc_scrollback(term, ptr::null_mut()) {
             return 0;
         }
@@ -1955,9 +1936,8 @@ unsafe fn term_sb_push(cols: c_int, cells: *const VTermScreenCell, data: *mut c_
     }
 }
 
-unsafe fn term_sb_pop(cols: c_int, cells: *mut VTermScreenCell, data: *mut c_void) -> c_int {
+unsafe fn term_sb_pop(cols: c_int, cells: *mut VTermScreenCell, term: *mut Terminal) -> c_int {
     unsafe {
-        let term = data.cast::<Terminal>();
         if (*term).sb_buffer.is_empty() {
             return 0;
         }
@@ -1988,9 +1968,8 @@ unsafe fn term_sb_pop(cols: c_int, cells: *mut VTermScreenCell, data: *mut c_voi
     }
 }
 
-unsafe fn term_sb_clear(data: *mut c_void) -> c_int {
+unsafe fn term_sb_clear(term: *mut Terminal) -> c_int {
     unsafe {
-        let term = data.cast::<Terminal>();
         if (*term).in_altscreen || (*term).sb_size == 0 || (*term).sb_buffer.is_empty() {
             return 1;
         }
@@ -2049,10 +2028,9 @@ unsafe fn term_clipboard_set(argv: *mut *mut c_void) {
 unsafe fn term_selection_set(
     mask: VTermSelectionMask,
     frag: VTermStringFragment,
-    user: *mut c_void,
+    term: *mut Terminal,
 ) -> c_int {
     unsafe {
-        let term = user.cast::<Terminal>();
         if frag.initial() {
             (*term).selection.clear();
         }

@@ -4902,7 +4902,7 @@ pub unsafe fn do_cmdline(
         let mut breakpoint: *mut linenr_T = ptr::null_mut();
         let mut dbg_tick: *mut c_int = ptr::null_mut();
         let mut debug_saved = dbg_stuff::new();
-        let mut private_msg_list: *mut msglist_T = ptr::null_mut();
+        let mut private_msg_list: Vec<msglist_T> = Vec::new();
 
         let mut cmd_getline: LineGetter;
         let mut cmd_cookie: *mut c_void;
@@ -5356,7 +5356,7 @@ pub unsafe fn handle_did_throw() {
     unsafe {
         debug_assert!(!current_exception.is_null());
         let mut p: *mut c_char = ptr::null_mut();
-        let mut messages: *mut msglist_T = ptr::null_mut();
+        let mut messages: Vec<msglist_T> = Vec::new();
 
         match (*current_exception).r#type {
             ET_USER => {
@@ -5369,8 +5369,7 @@ pub unsafe fn handle_did_throw() {
                 p = xstrdup((&raw const IObuff).cast());
             }
             ET_ERROR => {
-                messages = (*current_exception).messages;
-                (*current_exception).messages = ptr::null_mut();
+                messages = std::mem::take(&mut (*current_exception).messages);
             }
             ET_INTERRUPT => {}
             _ => {}
@@ -5390,19 +5389,9 @@ pub unsafe fn handle_did_throw() {
             force_abort = true;
         }
 
-        if !messages.is_null() {
-            while !messages.is_null() {
-                let next = (*messages).next;
-                let _ = emsg_multiline(
-                    (*messages).msg,
-                    c"emsg".as_ptr(),
-                    HLF_E,
-                    (*messages).multiline,
-                );
-                xfree((*messages).msg.cast());
-                xfree((*messages).sfile.cast());
-                xfree(messages.cast());
-                messages = next;
+        if !messages.is_empty() {
+            for msg in messages {
+                let _ = emsg_multiline(msg.msg, c"emsg".as_ptr(), HLF_E, msg.multiline);
             }
         } else if !p.is_null() {
             let _ = emsg(p);

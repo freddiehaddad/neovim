@@ -1219,7 +1219,7 @@ pub unsafe fn win_set_buf(win: *mut win_T, buf: *mut buf_T, err: *mut Error) {
 
         let mut switchwin: CtxSwitch = zeroed();
 
-        let mut tstate: TryState = zeroed();
+        let mut tstate = TryState::new();
         try_enter(&raw mut tstate);
         let win_ok = ctx_switch(
             &raw mut switchwin,

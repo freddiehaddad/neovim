@@ -1,8 +1,9 @@
 //! VTerm mouse event encoding (`src/nvim/vterm/mouse.c`).
 
-use std::ffi::{c_char, c_int, c_long, c_void};
+use std::ffi::{c_char, c_int, c_long};
 
 use crate::math::xctz;
+use crate::terminal::Terminal;
 use crate::tui::termkey::termkey::fill_utf8;
 use crate::vterm::keyboard::{C1_CSI, VTermModifier, VTermStateFull};
 use crate::vterm::vterm::{VTermOutputCallback, vterm_push_output_ctrl_bytes};
@@ -59,7 +60,7 @@ pub struct VTermParser {
     pub osc: VTermParserOsc,
     pub dcs: VTermParserDcs,
     pub callbacks: *const crate::vterm::parser::VTermParserCallbacks,
-    pub cbdata: *mut c_void,
+    pub cbdata: *mut VTermStateFull,
     pub string_initial: bool,
     pub emit_nul: bool,
 }
@@ -71,7 +72,7 @@ pub struct VTerm {
     pub mode: u32,
     pub parser: VTermParser,
     pub outfunc: VTermOutputCallback,
-    pub outdata: *mut c_void,
+    pub outdata: *mut Terminal,
     pub state: *mut VTermStateFull,
     pub screen: *mut crate::vterm::screen::VTermScreen,
 }

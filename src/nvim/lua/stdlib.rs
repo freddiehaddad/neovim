@@ -327,7 +327,7 @@ pub unsafe extern "C-unwind" fn nlua_regex(lstate: *mut lua_State) -> c_int {
         };
         let text = luaL_checkstring(lstate, 1);
 
-        let mut tstate: TryState = std::mem::zeroed();
+        let mut tstate = TryState::new();
         try_enter(&raw mut tstate);
         let prog = vim_regcomp(text, RE_AUTO | RE_MAGIC | RE_STRICT | RE_NOBREAK);
         try_leave(&raw const tstate, &raw mut err);
@@ -687,7 +687,7 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> c_int {
             err_type: ErrorType::kErrorTypeNone,
             msg: ptr::null_mut(),
         };
-        let mut tstate: TryState = std::mem::zeroed();
+        let mut tstate = TryState::new();
         try_enter(&raw mut tstate);
         {
             let mut cs: CtxSwitch = std::mem::zeroed();

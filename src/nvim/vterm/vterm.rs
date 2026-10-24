@@ -1,8 +1,9 @@
 //! Core VTerm instance management and output buffering (`src/nvim/vterm/vterm.c`).
 
-use std::ffi::{c_char, c_int, c_void};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
+use crate::terminal::Terminal;
 use crate::vterm::mouse::VTerm;
 use crate::vterm::parser::NORMAL;
 use crate::vterm::pen::{
@@ -12,10 +13,10 @@ use crate::vterm::pen::{
     VTERM_ATTR_UNDERLINE, VTERM_ATTR_URI, VTERM_VALUETYPE_BOOL, VTERM_VALUETYPE_COLOR,
     VTERM_VALUETYPE_INT, VTermAttr, VTermRect, VTermValueType,
 };
-use crate::vterm::screen::vterm_screen_free;
+use crate::vterm::screen::{VTermScreen, vterm_screen_free};
 use crate::vterm::state::{VT_MODE_CTRL8BIT, VT_MODE_UTF8, vterm_state_free};
 
-pub type VTermOutputCallback = Option<unsafe fn(s: *const c_char, len: usize, user: *mut c_void)>;
+pub type VTermOutputCallback = Option<unsafe fn(s: *const c_char, len: usize, user: *mut Terminal)>;
 
 /// Create a new `VTerm` instance of size `rows` x `cols` (`vterm_new`).
 pub unsafe fn vterm_new(rows: c_int, cols: c_int) -> *mut VTerm {
@@ -90,7 +91,7 @@ pub unsafe fn vterm_set_utf8(vt: *mut VTerm, is_utf8: c_int) {
 pub unsafe fn vterm_output_set_callback(
     vt: *mut VTerm,
     func: VTermOutputCallback,
-    user: *mut c_void,
+    user: *mut Terminal,
 ) {
     unsafe {
         (*vt).outfunc = func;
@@ -173,9 +174,9 @@ pub unsafe fn vterm_scroll_rect(
     mut rect: VTermRect,
     downward: c_int,
     rightward: c_int,
-    moverect: Option<unsafe fn(src: VTermRect, dest: VTermRect, user: *mut c_void) -> c_int>,
-    eraserect: Option<unsafe fn(rect: VTermRect, selective: c_int, user: *mut c_void) -> c_int>,
-    user: *mut c_void,
+    moverect: Option<unsafe fn(src: VTermRect, dest: VTermRect, user: *mut VTermScreen) -> c_int>,
+    eraserect: Option<unsafe fn(rect: VTermRect, selective: c_int, user: *mut VTermScreen) -> c_int>,
+    user: *mut VTermScreen,
 ) {
     unsafe {
         if downward.abs() >= rect.end_row - rect.start_row

@@ -356,7 +356,7 @@ pub const fn is_internal_call(channel_id: u64) -> bool {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_get_hl_id_by_name(name: NvimString, err: *mut Error) -> Integer {
     unsafe {
-        let mut tstate = std::mem::zeroed::<TryState>();
+        let mut tstate = TryState::new();
         try_enter(&mut tstate);
         let ret = syn_check_group(name.data, name.size);
         try_leave(&tstate, err);
@@ -454,7 +454,7 @@ pub unsafe extern "C" fn nvim_set_hl(
     err: *mut Error,
 ) {
     unsafe {
-        let mut tstate = std::mem::zeroed::<TryState>();
+        let mut tstate = TryState::new();
         try_enter(&mut tstate);
         let hl_id = syn_check_group(name.data, name.size);
         try_leave(&tstate, err);
@@ -998,7 +998,7 @@ pub unsafe extern "C" fn nvim_get_runtime_file(
         };
 
         let flags = DIP_DIRFILE | if all { DIP_ALL } else { 0 };
-        let mut tstate = std::mem::zeroed::<TryState>();
+        let mut tstate = TryState::new();
         try_enter(&mut tstate);
         do_in_runtimepath(
             if name.size != 0 {
@@ -1080,7 +1080,7 @@ pub unsafe extern "C" fn nvim_set_current_dir(dir: NvimString, err: *mut Error) 
         ) {
             return;
         }
-        let mut tstate = std::mem::zeroed::<TryState>();
+        let mut tstate = TryState::new();
         try_enter(&mut tstate);
         do_chdir(dir.data, kCdScopeGlobal);
         try_leave(&tstate, err);
@@ -1506,7 +1506,7 @@ pub unsafe extern "C" fn nvim_set_current_buf(buf: Buffer, err: *mut Error) {
         if b.is_null() {
             return;
         }
-        let mut tstate = std::mem::zeroed::<TryState>();
+        let mut tstate = TryState::new();
         try_enter(&mut tstate);
         do_buffer(DOBUF_GOTO, DOBUF_FIRST, FORWARD, (*b).b_fnum, 0);
         try_leave(&tstate, err);
@@ -1574,7 +1574,7 @@ pub unsafe extern "C" fn nvim_set_current_win(win: Window, err: *mut Error) {
         if w.is_null() {
             return;
         }
-        let mut tstate = std::mem::zeroed::<TryState>();
+        let mut tstate = TryState::new();
         try_enter(&mut tstate);
         if (*w).w_buffer != curbuf {
             reset_VIsual_and_resel();
@@ -1600,7 +1600,7 @@ pub unsafe extern "C" fn nvim_create_buf(
 ) -> Buffer {
     unsafe {
         let mut ret: Buffer = 0;
-        let mut tstate = std::mem::zeroed::<TryState>();
+        let mut tstate = TryState::new();
         try_enter(&mut tstate);
         'create: {
             block_autocmds();
@@ -1931,7 +1931,7 @@ pub unsafe extern "C" fn nvim_set_current_tabpage(tabpage: Tabpage, err: *mut Er
         if tp.is_null() {
             return;
         }
-        let mut tstate = std::mem::zeroed::<TryState>();
+        let mut tstate = TryState::new();
         try_enter(&mut tstate);
         goto_tabpage_tp(tp, true, true);
         try_leave(&tstate, err);
@@ -2102,7 +2102,7 @@ pub unsafe extern "C" fn nvim_put(
 
         finish_yankreg_from_object(&mut reg, false);
 
-        let mut tstate = std::mem::zeroed::<TryState>();
+        let mut tstate = TryState::new();
         try_enter(&mut tstate);
         let visual_was_active = Visual.active;
         msg_silent += 1;

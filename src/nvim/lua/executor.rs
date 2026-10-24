@@ -1721,7 +1721,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
             funcexe.fe_evaluate = true;
             let save_current_sctx = api_set_sctx(LUA_INTERNAL_CALL);
 
-            let mut tstate: TryState = zeroed();
+            let mut tstate = TryState::new();
             try_enter(&raw mut tstate);
             let _ = call_func(
                 name,

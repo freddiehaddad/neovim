@@ -1,7 +1,8 @@
 //! VTerm unit-test callback and inspection harness (`test/unit/fixtures/vterm_test.c`).
 
+use crate::terminal::Terminal;
 use crate::vterm::parser::{CSI_ARG_FLAG_MORE, CSI_ARG_MISSING, VTermStringFragment};
-use std::ffi::{c_char, c_int, c_long, c_void};
+use std::ffi::{c_char, c_int, c_long};
 use std::io::Write;
 use std::ptr;
 use std::sync::Mutex;
@@ -19,8 +20,8 @@ use crate::vterm::pen::{
     VTERM_VALUETYPE_INT, VTermAttr, VTermProp, VTermRect, VTermValue, VTermValueType,
 };
 use crate::vterm::screen::{
-    ScreenCell, VTERM_PROP_ALTSCREEN, VTERM_PROP_REVERSE, VTermGlyphInfo, VTermScreen,
-    VTermScreenCell, getcell,
+    ScreenCell, VTERM_PROP_ALTSCREEN, VTERM_PROP_REVERSE, VTermGlyphInfo, VTermLineInfo,
+    VTermScreen, VTermScreenCell, getcell,
 };
 use crate::vterm::state::{
     VTERM_PROP_CURSORBLINK, VTERM_PROP_CURSORSHAPE, VTERM_PROP_CURSORVISIBLE,
@@ -126,7 +127,11 @@ unsafe fn push_frag_bytes(out: &mut Vec<u8>, frag: VTermStringFragment) {
     }
 }
 
-pub unsafe fn parser_text(bytes: *const c_char, len: usize, _user: *mut c_void) -> c_int {
+pub unsafe fn parser_text(
+    bytes: *const c_char,
+    len: usize,
+    _user: *mut VTermStateFull,
+) -> c_int {
     let mut out = b"text ".to_vec();
     let mut i = 0usize;
     unsafe {
@@ -147,13 +152,13 @@ pub unsafe fn parser_text(bytes: *const c_char, len: usize, _user: *mut c_void) 
     i as c_int
 }
 
-pub unsafe fn parser_csi(
+pub unsafe fn parser_csi<T>(
     leader: *const c_char,
     args: *const c_long,
     argcount: c_int,
     intermed: *const c_char,
     command: c_char,
-    _user: *mut c_void,
+    _user: *mut T,
 ) -> c_int {
     let mut out = Vec::new();
     let _ = write!(out, "csi {:02x}", command as u8);
@@ -195,7 +200,7 @@ pub unsafe fn parser_csi(
     1
 }
 
-pub unsafe fn parser_osc(command: c_int, frag: VTermStringFragment, _user: *mut c_void) -> c_int {
+pub unsafe fn parser_osc<T>(command: c_int, frag: VTermStringFragment, _user: *mut T) -> c_int {
     let mut out = b"osc ".to_vec();
     if frag.initial() {
         if command == -1 {
@@ -215,11 +220,11 @@ pub unsafe fn parser_osc(command: c_int, frag: VTermStringFragment, _user: *mut 
     1
 }
 
-pub unsafe fn parser_dcs(
+pub unsafe fn parser_dcs<T>(
     command: *const c_char,
     commandlen: usize,
     frag: VTermStringFragment,
-    _user: *mut c_void,
+    _user: *mut T,
 ) -> c_int {
     let mut out = b"dcs ".to_vec();
     if frag.initial() {
@@ -240,7 +245,7 @@ pub unsafe fn parser_dcs(
     1
 }
 
-pub unsafe fn parser_apc(frag: VTermStringFragment, _user: *mut c_void) -> c_int {
+pub unsafe fn parser_apc<T>(frag: VTermStringFragment, _user: *mut T) -> c_int {
     let mut out = b"apc ".to_vec();
     if frag.initial() {
         out.push(b'[');
@@ -256,7 +261,7 @@ pub unsafe fn parser_apc(frag: VTermStringFragment, _user: *mut c_void) -> c_int
     1
 }
 
-pub unsafe fn parser_pm(frag: VTermStringFragment, _user: *mut c_void) -> c_int {
+pub unsafe fn parser_pm<T>(frag: VTermStringFragment, _user: *mut T) -> c_int {
     let mut out = b"pm ".to_vec();
     if frag.initial() {
         out.push(b'[');
@@ -272,7 +277,7 @@ pub unsafe fn parser_pm(frag: VTermStringFragment, _user: *mut c_void) -> c_int 
     1
 }
 
-pub unsafe fn parser_sos(frag: VTermStringFragment, _user: *mut c_void) -> c_int {
+pub unsafe fn parser_sos<T>(frag: VTermStringFragment, _user: *mut T) -> c_int {
     let mut out = b"sos ".to_vec();
     if frag.initial() {
         out.push(b'[');
@@ -291,7 +296,7 @@ pub unsafe fn parser_sos(frag: VTermStringFragment, _user: *mut c_void) -> c_int
 pub unsafe fn selection_set(
     mask: VTermSelectionMask,
     frag: VTermStringFragment,
-    _user: *mut c_void,
+    _user: *mut Terminal,
 ) -> c_int {
     let mut out = Vec::new();
     let _ = write!(out, "selection-set mask={mask:04X} ");
@@ -309,7 +314,7 @@ pub unsafe fn selection_set(
     1
 }
 
-pub unsafe fn selection_query(mask: VTermSelectionMask, _user: *mut c_void) -> c_int {
+pub unsafe fn selection_query(mask: VTermSelectionMask, _user: *mut Terminal) -> c_int {
     let mut out = Vec::new();
     let _ = writeln!(out, "selection-query mask={mask:04X}");
     append_test_output(&out);
@@ -337,12 +342,15 @@ unsafe fn format_schar(out: &mut Vec<u8>, schar: schar_T) {
     }
 }
 
-pub unsafe fn state_putglyph(info_ptr: *mut c_void, pos: VTermPos, _user: *mut c_void) -> c_int {
+pub unsafe fn state_putglyph(
+    info: *mut VTermGlyphInfo,
+    pos: VTermPos,
+    _user: *mut VTermScreen,
+) -> c_int {
     unsafe {
         if !want_state_putglyph {
             return 1;
         }
-        let info = info_ptr.cast::<VTermGlyphInfo>();
         let mut out = b"putglyph ".to_vec();
         format_schar(&mut out, (*info).schar);
         let _ = write!(out, " {} {},{}", (*info).width, pos.row, pos.col);
@@ -367,11 +375,11 @@ pub unsafe fn state_putglyph(info_ptr: *mut c_void, pos: VTermPos, _user: *mut c
     }
 }
 
-pub unsafe fn state_movecursor(
+pub unsafe fn state_movecursor<T>(
     pos: VTermPos,
     _oldpos: VTermPos,
     _visible: c_int,
-    _user: *mut c_void,
+    _user: *mut T,
 ) -> c_int {
     unsafe {
         state_pos = pos;
@@ -388,7 +396,7 @@ pub unsafe fn state_scrollrect(
     rect: VTermRect,
     downward: c_int,
     rightward: c_int,
-    _user: *mut c_void,
+    _user: *mut VTermScreen,
 ) -> c_int {
     unsafe {
         if !want_state_scrollrect {
@@ -405,7 +413,7 @@ pub unsafe fn state_scrollrect(
     }
 }
 
-pub unsafe fn state_moverect(dest: VTermRect, src: VTermRect, _user: *mut c_void) -> c_int {
+pub unsafe fn state_moverect<T>(dest: VTermRect, src: VTermRect, _user: *mut T) -> c_int {
     unsafe {
         if !want_state_moverect {
             return 0;
@@ -471,10 +479,10 @@ const fn vterm_get_prop_type(prop: VTermProp) -> VTermValueType {
     }
 }
 
-pub unsafe fn state_settermprop(
+pub unsafe fn state_settermprop<T>(
     prop: VTermProp,
     val: *mut VTermValue,
-    _user: *mut c_void,
+    _user: *mut T,
 ) -> c_int {
     unsafe {
         if !want_state_settermprop {
@@ -515,7 +523,7 @@ pub unsafe fn state_settermprop(
     }
 }
 
-pub unsafe fn state_erase(rect: VTermRect, selective: c_int, _user: *mut c_void) -> c_int {
+pub unsafe fn state_erase(rect: VTermRect, selective: c_int, _user: *mut VTermScreen) -> c_int {
     unsafe {
         if !want_state_erase {
             return 1;
@@ -532,7 +540,11 @@ pub unsafe fn state_erase(rect: VTermRect, selective: c_int, _user: *mut c_void)
     }
 }
 
-pub unsafe fn state_setpenattr(attr: VTermAttr, val: *mut VTermValue, _user: *mut c_void) -> c_int {
+pub unsafe fn state_setpenattr(
+    attr: VTermAttr,
+    val: *mut VTermValue,
+    _user: *mut VTermScreen,
+) -> c_int {
     unsafe {
         match attr {
             VTERM_ATTR_BOLD => STATE_PEN.bold = (*val).boolean(),
@@ -556,7 +568,7 @@ pub unsafe fn state_setpenattr(attr: VTermAttr, val: *mut VTermValue, _user: *mu
     }
 }
 
-pub unsafe fn state_sb_clear(_user: *mut c_void) -> c_int {
+pub unsafe fn state_sb_clear(_user: *mut VTermScreen) -> c_int {
     unsafe {
         if !want_state_scrollback {
             return 1;
@@ -569,7 +581,7 @@ pub unsafe fn state_sb_clear(_user: *mut c_void) -> c_int {
 pub unsafe fn screen_sb_pushline(
     cols: c_int,
     cells: *const VTermScreenCell,
-    _user: *mut c_void,
+    _user: *mut Terminal,
 ) -> c_int {
     unsafe {
         if !want_screen_scrollback {
@@ -594,7 +606,7 @@ pub unsafe fn screen_sb_pushline(
 pub unsafe fn screen_sb_popline(
     cols: c_int,
     cells: *mut VTermScreenCell,
-    _user: *mut c_void,
+    _user: *mut Terminal,
 ) -> c_int {
     unsafe {
         if !want_screen_scrollback {
@@ -616,7 +628,7 @@ pub unsafe fn screen_sb_popline(
     }
 }
 
-pub unsafe fn screen_sb_clear(_user: *mut c_void) -> c_int {
+pub unsafe fn screen_sb_clear(_user: *mut Terminal) -> c_int {
     unsafe {
         if !want_screen_scrollback {
             return 1;
@@ -626,7 +638,7 @@ pub unsafe fn screen_sb_clear(_user: *mut c_void) -> c_int {
     }
 }
 
-pub unsafe fn term_output(s: *const c_char, len: usize, _user: *mut c_void) {
+pub unsafe fn term_output(s: *const c_char, len: usize, _user: *mut Terminal) {
     let mut out = b"output ".to_vec();
     unsafe {
         for i in 0..len {
@@ -932,13 +944,17 @@ mod tests {
 
     static VTERM_TEST_LOCK: Mutex<()> = Mutex::new(());
 
-    unsafe fn parser_control(control: u8, _user: *mut c_void) -> c_int {
+    unsafe fn parser_control<T>(control: u8, _user: *mut T) -> c_int {
         let s = format!("control {control:02x}\n");
         append_test_output(s.as_bytes());
         1
     }
 
-    unsafe fn parser_escape(bytes: *const c_char, _len: usize, _user: *mut c_void) -> c_int {
+    unsafe fn parser_escape(
+        bytes: *const c_char,
+        _len: usize,
+        _user: *mut VTermStateFull,
+    ) -> c_int {
         let slice = unsafe { CStr::from_ptr(bytes).to_bytes() };
         let mut out = b"escape ".to_vec();
         out.extend_from_slice(slice);
@@ -949,9 +965,9 @@ mod tests {
 
     unsafe fn state_setlineinfo(
         _row: c_int,
-        _newinfo: *const c_void,
-        _oldinfo: *const c_void,
-        _user: *mut c_void,
+        _newinfo: *const VTermLineInfo,
+        _oldinfo: *const VTermLineInfo,
+        _user: *mut VTermScreen,
     ) -> c_int {
         1
     }

@@ -114,7 +114,6 @@ impl Default for cstack_T {
 
 #[repr(C)]
 pub struct msglist_T {
-    pub next: *mut msglist_T,
     pub msg: *mut c_char,
     pub throw_msg: *mut c_char,
     pub sfile: *mut c_char,
@@ -122,11 +121,20 @@ pub struct msglist_T {
     pub multiline: bool,
 }
 
+impl Drop for msglist_T {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.msg.cast());
+            xfree(self.sfile.cast());
+        }
+    }
+}
+
 #[repr(C)]
 pub struct except_T {
     pub r#type: except_type_T,
     pub value: *mut c_char,
-    pub messages: *mut msglist_T,
+    pub messages: Vec<msglist_T>,
     pub throw_name: *mut c_char,
     pub throw_lnum: linenr_T,
     pub stacktrace: *mut list_T,
@@ -227,29 +235,31 @@ pub unsafe fn cause_errthrow(
         }
 
         if !msg_list.is_null() {
-            let mut plist = msg_list;
-            while !(*plist).is_null() {
-                if (**plist).next.is_null() && concat {
-                    let joined = crate::strings::concat_str((**plist).msg, mesg);
-                    xfree((**plist).msg.cast());
-                    (**plist).msg = joined;
-                    (**plist).throw_msg = joined;
-                    return true;
+            let list = &mut *msg_list;
+            if concat
+                && let Some(last) = list.last_mut()
+            {
+                let old_msg = last.msg;
+                let joined = crate::strings::concat_str(old_msg, mesg);
+                xfree(old_msg.cast());
+                last.msg = joined;
+                last.throw_msg = joined;
+                if ptr::eq(list[0].throw_msg, old_msg) {
+                    list[0].throw_msg = joined;
                 }
-                plist = &mut (**plist).next;
+                return true;
             }
 
-            let elem = Box::into_raw(Box::new(msglist_T {
-                msg: xstrdup(mesg),
+            let is_first = list.is_empty();
+            let tmsg = xstrdup(mesg);
+            list.push(msglist_T {
+                msg: tmsg,
                 throw_msg: ptr::null_mut(),
-                sfile: ptr::null_mut(),
-                slnum: 0,
+                sfile: estack_sfile(ESTACK_NONE),
+                slnum: sourcing_lnum(),
                 multiline,
-                next: ptr::null_mut(),
-            }));
-            *plist = elem;
-            if ptr::eq(plist, msg_list) || severe {
-                let tmsg = (*elem).msg;
+            });
+            if is_first || severe {
                 if strncmp(tmsg, c"Vim E".as_ptr(), 5) == 0
                     && ascii_isdigit(*tmsg.add(5))
                     && ascii_isdigit(*tmsg.add(6))
@@ -257,36 +267,19 @@ pub unsafe fn cause_errthrow(
                     && *tmsg.add(8) == b':' as c_char
                     && *tmsg.add(9) == b' ' as c_char
                 {
-                    (**msg_list).throw_msg = tmsg.add(4);
+                    list[0].throw_msg = tmsg.add(4);
                 } else {
-                    (**msg_list).throw_msg = tmsg;
+                    list[0].throw_msg = tmsg;
                 }
             }
-
-            (*elem).sfile = estack_sfile(ESTACK_NONE);
-            (*elem).slnum = sourcing_lnum();
         }
         true
     }
 }
 
-unsafe fn free_msglist(l: *mut msglist_T) {
-    unsafe {
-        let mut messages = l;
-        while !messages.is_null() {
-            let next = (*messages).next;
-            xfree((*messages).msg.cast());
-            xfree((*messages).sfile.cast());
-            drop(Box::from_raw(messages));
-            messages = next;
-        }
-    }
-}
-
 pub unsafe fn free_global_msglist() {
     unsafe {
-        free_msglist(*msg_list);
-        *msg_list = ptr::null_mut();
+        (*msg_list).clear();
     }
 }
 
@@ -297,18 +290,18 @@ pub unsafe fn do_errthrow(cstack: *mut cstack_T, cmdname: *mut c_char) {
             force_abort = true;
         }
 
-        if msg_list.is_null() || (*msg_list).is_null() {
+        if msg_list.is_null() || (*msg_list).is_empty() {
             return;
         }
 
-        if throw_exception((*msg_list).cast(), ET_ERROR, cmdname) == FAIL {
-            free_msglist(*msg_list);
-        } else if !cstack.is_null() {
-            do_throw(cstack);
-        } else {
-            need_rethrow = true;
+        let mut messages = std::mem::take(&mut *msg_list);
+        if throw_exception((&raw mut messages).cast(), ET_ERROR, cmdname) != FAIL {
+            if !cstack.is_null() {
+                do_throw(cstack);
+            } else {
+                need_rethrow = true;
+            }
         }
-        *msg_list = ptr::null_mut();
     }
 }
 
@@ -423,38 +416,49 @@ unsafe fn throw_exception(
             }
         }
 
-        let excp = Box::into_raw(Box::new(std::mem::zeroed::<except_T>()));
-
-        if r#type == ET_ERROR {
-            (*excp).messages = value.cast();
-        }
+        let mut messages = if r#type == ET_ERROR {
+            std::mem::take(&mut *value.cast::<Vec<msglist_T>>())
+        } else {
+            Vec::new()
+        };
+        let msg_val = if r#type == ET_ERROR {
+            messages.as_mut_ptr().cast::<c_void>()
+        } else {
+            value
+        };
 
         let mut should_free = false;
-        (*excp).value = get_exception_string(value, r#type, cmdname, &mut should_free);
-        if (*excp).value.is_null() && should_free {
-            drop(Box::from_raw(excp));
+        let excp_value = get_exception_string(msg_val, r#type, cmdname, &mut should_free);
+        if excp_value.is_null() && should_free {
             suppress_errthrow = true;
             emsg(gettext(e_outofmem.as_ptr()));
             current_exception = ptr::null_mut();
             return FAIL;
         }
 
-        (*excp).r#type = r#type;
-        if r#type == ET_ERROR && !(*(value.cast::<msglist_T>())).sfile.is_null() {
-            let entry = value.cast::<msglist_T>();
-            (*excp).throw_name = (*entry).sfile;
-            (*entry).sfile = ptr::null_mut();
-            (*excp).throw_lnum = (*entry).slnum;
+        let (throw_name, throw_lnum) = if r#type == ET_ERROR && !messages[0].sfile.is_null() {
+            let sfile = messages[0].sfile;
+            messages[0].sfile = ptr::null_mut();
+            (sfile, messages[0].slnum)
         } else {
-            (*excp).throw_name = estack_sfile(ESTACK_NONE);
-            if (*excp).throw_name.is_null() {
-                (*excp).throw_name = xstrdup(c"".as_ptr());
+            let mut sfile = estack_sfile(ESTACK_NONE);
+            if sfile.is_null() {
+                sfile = xstrdup(c"".as_ptr());
             }
-            (*excp).throw_lnum = sourcing_lnum();
-        }
+            (sfile, sourcing_lnum())
+        };
 
-        (*excp).stacktrace = stacktrace_create();
-        tv_list_ref((*excp).stacktrace);
+        let stacktrace = stacktrace_create();
+        tv_list_ref(stacktrace);
+
+        let excp = Box::into_raw(Box::new(except_T {
+            r#type,
+            value: excp_value,
+            messages,
+            throw_name,
+            throw_lnum,
+            stacktrace,
+        }));
 
         if p_verbose >= 13 || debug_break_level > 0 {
             let save_msg_silent = msg_silent;
@@ -530,9 +534,6 @@ unsafe fn discard_exception(excp: *mut except_T, was_finished: bool) {
         }
         if (*excp).r#type != ET_INTERRUPT {
             xfree((*excp).value.cast());
-        }
-        if (*excp).r#type == ET_ERROR {
-            free_msglist((*excp).messages);
         }
         xfree((*excp).throw_name.cast());
         tv_list_unref((*excp).stacktrace);

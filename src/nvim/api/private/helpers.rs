@@ -181,15 +181,28 @@ pub unsafe fn array_add(a: &mut Array, item: Object) {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
 pub struct TryState {
     pub current_exception: *mut except_T,
-    pub private_msg_list: *mut msglist_T,
-    pub msg_list: *const *const msglist_T,
+    pub private_msg_list: Vec<msglist_T>,
+    pub msg_list: *mut Vec<msglist_T>,
     pub got_int: c_int,
     pub did_throw: bool,
     pub need_rethrow: c_int,
     pub did_emsg: c_int,
+}
+
+impl TryState {
+    pub const fn new() -> Self {
+        Self {
+            current_exception: ptr::null_mut(),
+            private_msg_list: Vec::new(),
+            msg_list: ptr::null_mut(),
+            got_int: 0,
+            did_throw: false,
+            need_rethrow: 0,
+            did_emsg: 0,
+        }
+    }
 }
 
 pub type ArrayBuilder = Vec<Object>;
@@ -255,7 +268,7 @@ pub unsafe fn cstr_to_arena_obj(arena: *mut Arena, s: *const c_char) -> Object {
 #[inline]
 pub unsafe fn try_wrap<F: FnOnce()>(err: *mut Error, f: F) {
     unsafe {
-        let mut tstate: TryState = zeroed();
+        let mut tstate = TryState::new();
         try_enter(&raw mut tstate);
         f();
         try_leave(&raw const tstate, err);
@@ -349,15 +362,18 @@ pub unsafe fn error_set(e: *const Error) -> bool {
 /// Start block that may cause Vimscript exceptions while evaluating another code (`try_enter`).
 pub unsafe fn try_enter(tstate: *mut TryState) {
     unsafe {
-        *tstate = TryState {
-            current_exception,
-            msg_list: msg_list.cast(),
-            private_msg_list: ptr::null_mut(),
-            got_int: c_int::from(got_int),
-            did_throw,
-            need_rethrow: c_int::from(need_rethrow),
-            did_emsg,
-        };
+        ptr::write(
+            tstate,
+            TryState {
+                current_exception,
+                private_msg_list: Vec::new(),
+                msg_list,
+                got_int: c_int::from(got_int),
+                did_throw,
+                need_rethrow: c_int::from(need_rethrow),
+                did_emsg,
+            },
+        );
         msg_list = &raw mut (*tstate).private_msg_list;
         current_exception = ptr::null_mut();
         got_int = false;
@@ -387,10 +403,10 @@ pub unsafe fn try_leave(tstate: *const TryState, err: *mut Error) {
                 c"Keyboard interrupt".as_ptr(),
             );
             got_int = false;
-        } else if !msg_list.is_null() && !(*msg_list).is_null() {
+        } else if !msg_list.is_null() && !(*msg_list).is_empty() {
             let mut should_free = false;
             let msg = get_exception_string(
-                (*msg_list).cast(),
+                (*msg_list).as_mut_ptr().cast(),
                 ET_ERROR,
                 ptr::null_mut(),
                 &raw mut should_free,
@@ -431,7 +447,7 @@ pub unsafe fn try_leave(tstate: *const TryState, err: *mut Error) {
             discard_current_exception();
         }
 
-        msg_list = (*tstate).msg_list.cast_mut().cast();
+        msg_list = (*tstate).msg_list;
         current_exception = (*tstate).current_exception;
         got_int = (*tstate).got_int != 0;
         did_throw = (*tstate).did_throw;

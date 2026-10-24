@@ -342,7 +342,7 @@ unsafe fn tv_list_latest_copy(l: *const list_T) -> *mut list_T {
 
 #[inline]
 unsafe fn tv_list_has_watchers(l: *const list_T) -> bool {
-    unsafe { !(*l).lv_watch.is_null() }
+    unsafe { !(*l).lv_watch.is_empty() }
 }
 
 #[inline]

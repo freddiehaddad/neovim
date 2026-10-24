@@ -1903,7 +1903,7 @@ mod tests {
         let list = list_T {
             lv_first: &mut li1,
             lv_last: &mut li2,
-            lv_watch: std::ptr::null_mut(),
+            lv_watch: Vec::new(),
             lv_idx_item: std::ptr::null_mut(),
             lv_copylist: std::ptr::null_mut(),
             lv_used_next: std::ptr::null_mut(),

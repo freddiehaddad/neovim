@@ -1199,6 +1199,7 @@ pub unsafe fn create_funccal(fp: *mut ufunc_T, rettv: *mut typval_T) -> *mut fun
         ptr::write(&raw mut (*fc).fc_l_vars_var.di_key, Vec::new());
         ptr::write(&raw mut (*fc).fc_l_avars.watchers, Vec::new());
         ptr::write(&raw mut (*fc).fc_l_avars_var.di_key, Vec::new());
+        ptr::write(&raw mut (*fc).fc_l_varlist.lv_watch, Vec::new());
         let _ = Box::into_raw(fc_uninit);
         (*fc).fc_caller = current_funccal;
         current_funccal = fc;

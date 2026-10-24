@@ -2333,7 +2333,7 @@ unsafe fn vim_regsub_both(
                 if !expr.is_null() {
                     let mut argv: [typval_T; 2] = zeroed();
                     let mut rettv: typval_T = zeroed();
-                    let mut matchList: staticList10_T = zeroed();
+                    let mut matchList = staticList10_T::new();
                     rettv.v_type = VarType::VAR_STRING;
                     rettv.vval.v_string = ptr::null_mut();
                     argv[0].v_type = VarType::VAR_LIST;

@@ -193,6 +193,7 @@ pub struct typval_T {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct listitem_T {
     pub li_next: *mut listitem_T,
     pub li_prev: *mut listitem_T,
@@ -203,7 +204,7 @@ pub struct listitem_T {
 pub struct list_T {
     pub lv_first: *mut listitem_T,
     pub lv_last: *mut listitem_T,
-    pub lv_watch: *mut listwatch_T,
+    pub lv_watch: Vec<*mut listwatch_T>,
     pub lv_idx_item: *mut listitem_T,
     pub lv_copylist: *mut list_T,
     pub lv_used_next: *mut list_T,
@@ -214,6 +215,26 @@ pub struct list_T {
     pub lv_copyID: c_int,
     pub lv_lock: c_int,
     pub lua_table_ref: c_int,
+}
+
+impl list_T {
+    pub const fn new() -> Self {
+        Self {
+            lv_first: ptr::null_mut(),
+            lv_last: ptr::null_mut(),
+            lv_watch: Vec::new(),
+            lv_idx_item: ptr::null_mut(),
+            lv_copylist: ptr::null_mut(),
+            lv_used_next: ptr::null_mut(),
+            lv_used_prev: ptr::null_mut(),
+            lv_refcount: 0,
+            lv_len: 0,
+            lv_idx: 0,
+            lv_copyID: 0,
+            lv_lock: 0,
+            lua_table_ref: 0,
+        }
+    }
 }
 
 #[repr(C)]
@@ -260,13 +281,25 @@ enum DictListType {
 #[repr(C)]
 pub struct listwatch_T {
     pub lw_item: *mut listitem_T,
-    pub lw_next: *mut listwatch_T,
 }
 
 #[repr(C)]
 pub struct staticList10_T {
     pub sl_list: list_T,
     pub sl_items: [listitem_T; 10],
+}
+
+impl staticList10_T {
+    pub const fn new() -> Self {
+        Self {
+            sl_list: list_T::new(),
+            sl_items: [listitem_T {
+                li_next: ptr::null_mut(),
+                li_prev: ptr::null_mut(),
+                li_tv: tv_initial_value(),
+            }; 10],
+        }
+    }
 }
 
 #[repr(C)]
@@ -616,23 +649,15 @@ pub unsafe fn tv_list_item_remove(l: *mut list_T, item: *mut listitem_T) -> *mut
 /// Add a watcher to a list.
 pub unsafe fn tv_list_watch_add(l: *mut list_T, lw: *mut listwatch_T) {
     unsafe {
-        (*lw).lw_next = (*l).lv_watch;
-        (*l).lv_watch = lw;
+        (*l).lv_watch.push(lw);
     }
 }
 
 /// Remove a watcher from a list.
 pub unsafe fn tv_list_watch_remove(l: *mut list_T, lwrem: *mut listwatch_T) {
     unsafe {
-        let mut lwp = &raw mut (*l).lv_watch;
-        let mut lw = (*l).lv_watch;
-        while !lw.is_null() {
-            if lw == lwrem {
-                *lwp = (*lw).lw_next;
-                break;
-            }
-            lwp = &raw mut (*lw).lw_next;
-            lw = (*lw).lw_next;
+        if let Some(pos) = (*l).lv_watch.iter().position(|&lw| lw == lwrem) {
+            (*l).lv_watch.remove(pos);
         }
     }
 }
@@ -640,12 +665,10 @@ pub unsafe fn tv_list_watch_remove(l: *mut list_T, lwrem: *mut listwatch_T) {
 /// Advance watchers to the next item.
 unsafe fn tv_list_watch_fix(l: *mut list_T, item: *const listitem_T) {
     unsafe {
-        let mut lw = (*l).lv_watch;
-        while !lw.is_null() {
+        for &lw in &(*l).lv_watch {
             if ptr::eq((*lw).lw_item, item) {
                 (*lw).lw_item = (*item).li_next;
             }
-            lw = (*lw).lw_next;
         }
     }
 }
@@ -657,7 +680,7 @@ pub unsafe extern "C" fn tv_list_alloc(_len: isize) -> *mut list_T {
         let list = Box::into_raw(Box::new(list_T {
             lv_first: ptr::null_mut(),
             lv_last: ptr::null_mut(),
-            lv_watch: ptr::null_mut(),
+            lv_watch: Vec::new(),
             lv_idx_item: ptr::null_mut(),
             lv_copylist: ptr::null_mut(),
             lv_used_next: gc_first_list,
@@ -682,7 +705,7 @@ pub unsafe extern "C" fn tv_list_alloc(_len: isize) -> *mut list_T {
 pub unsafe fn tv_list_init_static10(sl: *mut staticList10_T) {
     unsafe {
         const SL_SIZE: usize = 10;
-        ptr::write_bytes(sl, 0, 1);
+        *sl = staticList10_T::new();
         let l = &raw mut (*sl).sl_list;
         let items = (&raw mut (*sl).sl_items).cast::<listitem_T>();
 
@@ -708,7 +731,7 @@ pub unsafe fn tv_list_init_static10(sl: *mut staticList10_T) {
 /// Initialize static list with undefined number of elements.
 pub unsafe fn tv_list_init_static(l: *mut list_T) {
     unsafe {
-        ptr::write_bytes(l, 0, 1);
+        *l = list_T::new();
         (*l).lv_refcount = DO_NOT_FREE_CNT;
     }
 }
@@ -726,7 +749,7 @@ pub unsafe fn tv_list_free_contents(l: *mut list_T) {
         (*l).lv_len = 0;
         (*l).lv_idx_item = ptr::null_mut();
         (*l).lv_last = ptr::null_mut();
-        debug_assert!((*l).lv_watch.is_null());
+        debug_assert!((*l).lv_watch.is_empty());
     }
 }
 
@@ -5211,11 +5234,9 @@ mod tests {
             // Watchers + item_remove + drop_items + remove_items
             let mut lw1 = listwatch_T {
                 lw_item: (*l).lv_first,
-                lw_next: ptr::null_mut(),
             };
             let mut lw2 = listwatch_T {
                 lw_item: (*l).lv_last,
-                lw_next: ptr::null_mut(),
             };
             tv_list_watch_add(l, &raw mut lw1);
             tv_list_watch_add(l, &raw mut lw2);
