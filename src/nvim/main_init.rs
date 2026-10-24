@@ -138,7 +138,7 @@ use crate::window::{
 };
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::io::Write;
-use std::mem::{size_of, zeroed};
+use std::mem::zeroed;
 use std::ptr;
 
 #[cfg(windows)]
@@ -316,7 +316,7 @@ unsafe fn early_init(paramp: *mut mparm_T) {
         #[cfg(windows)]
         {
             let mut ovi: OsVersionInfoA = zeroed();
-            ovi.dwOSVersionInfoSize = size_of::<OsVersionInfoA>() as u32;
+            ovi.dwOSVersionInfoSize = std::mem::size_of::<OsVersionInfoA>() as u32;
             GetVersionExA(&raw mut ovi);
             let mut buf = Vec::with_capacity(20);
             let _ = write!(buf, "{}.{}\0", ovi.dwMajorVersion, ovi.dwMinorVersion);
@@ -1138,16 +1138,15 @@ unsafe fn remote_request(
         }
 
         let count = (argc - remote_args).max(0) as usize;
-        let args_items = if count > 0 {
-            xmalloc(count * size_of::<Object>()).cast::<Object>()
-        } else {
-            ptr::null_mut()
-        };
-        for (idx, t_argc) in (remote_args..argc).enumerate() {
-            *args_items.add(idx) = cstr_as_obj(*argv.add(t_argc as usize));
-        }
+        let mut args_vec: Vec<Object> = (remote_args..argc)
+            .map(|t_argc| cstr_as_obj(*argv.add(t_argc as usize)))
+            .collect();
         let args = Array {
-            items: args_items,
+            items: if count > 0 {
+                args_vec.as_mut_ptr()
+            } else {
+                ptr::null_mut()
+            },
             size: count,
             capacity: count,
         };
@@ -1175,7 +1174,7 @@ unsafe fn remote_request(
             size: 26,
         };
         let o = nlua_exec(s, ptr::null(), a, kRetObject, ptr::null_mut(), &raw mut err);
-        xfree(args.items.cast());
+        drop(args_vec);
         if err.err_type != ErrorType::kErrorTypeNone {
             fprintf!(stderr, c"%s\n".as_ptr(), err.msg);
             os_exit(2);

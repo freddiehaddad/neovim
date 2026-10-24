@@ -28,7 +28,9 @@ use crate::ex_cmds::check_secure;
 use crate::ex_docmd::{Ctrl_C, exarg_T};
 use crate::ex_session::put_eol;
 use crate::fileio::{FILE, fputc, fputs};
-use crate::fuzzy::{FUZZY_SCORE_NONE, fuzmatch_str_T, fuzzy_match_str, fuzzymatches_to_strmatches};
+use crate::fuzzy::{
+    FUZZY_SCORE_NONE, fuzmatch_str_T, fuzzy_match_str, fuzzymatches_slice_to_strmatches,
+};
 use crate::globals::*;
 use crate::input::{REMAP_SCRIPT, ins_typebuf, noremap_keys};
 use crate::keycodes::{
@@ -1530,10 +1532,7 @@ pub unsafe fn ExpandMappings(
             *numMatches = len as c_int;
         } else {
             let len = fuz_matches.len();
-            let fuz_ptr =
-                xmalloc(len * std::mem::size_of::<fuzmatch_str_T>()).cast::<fuzmatch_str_T>();
-            ptr::copy_nonoverlapping(fuz_matches.as_ptr(), fuz_ptr, len);
-            fuzzymatches_to_strmatches(fuz_ptr, matches, len as c_int, false);
+            fuzzymatches_slice_to_strmatches(&mut fuz_matches, matches, false);
             *numMatches = len as c_int;
         }
 

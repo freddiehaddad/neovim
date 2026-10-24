@@ -7,7 +7,6 @@ use crate::event::multiqueue::{
     multiqueue_put_event, multiqueue_size,
 };
 use crate::log::{LOGLVL_ERR, log_uv_handles, logmsg};
-use crate::memory::{xfree, xmalloc};
 use crate::os::time::os_hrtime;
 use std::ffi::{c_int, c_void};
 use std::ptr;
@@ -592,7 +591,7 @@ pub unsafe fn loop_init(loop_: *mut Loop, _data: *mut c_void) {
         let poll_timer = loop_poll_timer(loop_);
         uv_timer_init(loop_.cast(), poll_timer);
         uv_timer_init(loop_.cast(), loop_exit_delay_timer(loop_));
-        *poll_timer.cast::<*mut c_void>() = xmalloc(size_of::<bool>()); // "timeout expired" flag
+        *poll_timer.cast::<*mut c_void>() = Box::into_raw(Box::new(false)).cast(); // "timeout expired" flag
     }
 }
 
@@ -794,7 +793,9 @@ unsafe extern "C" fn timer_cb(handle: *mut uv_timer_t) {
 
 unsafe extern "C" fn timer_close_cb(handle: *mut uv_handle_t) {
     unsafe {
-        let data = *handle.cast::<*mut c_void>();
-        xfree(data);
+        let data = (*handle.cast::<*mut c_void>()).cast::<bool>();
+        if !data.is_null() {
+            drop(Box::from_raw(data));
+        }
     }
 }

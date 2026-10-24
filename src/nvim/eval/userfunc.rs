@@ -3972,8 +3972,7 @@ pub unsafe fn do_return(
                 }
 
                 if !rettv.is_null() {
-                    let stored = xmalloc(std::mem::size_of::<typval_T>()).cast::<typval_T>();
-                    *stored = *rettv.cast::<typval_T>();
+                    let stored = Box::into_raw(Box::new(*rettv.cast::<typval_T>()));
                     (*cstack).cs_pend.csp_rv[idx as usize] = stored.cast();
                 } else {
                     (*cstack).cs_pend.csp_rv[idx as usize] = ptr::null_mut();
@@ -3992,7 +3991,7 @@ pub unsafe fn do_return(
                 tv_clear((*current_funccal).fc_rettv);
                 *(*current_funccal).fc_rettv = *rettv.cast::<typval_T>();
                 if !is_cmd {
-                    xfree(rettv);
+                    drop(Box::from_raw(rettv.cast::<typval_T>()));
                 }
             }
         }

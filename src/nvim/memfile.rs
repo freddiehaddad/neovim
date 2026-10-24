@@ -764,16 +764,12 @@ mod tests {
                 let key = index_to_key(i);
                 assert!(pmap_get_bhdr(&raw const ht, key).is_null());
 
-                let item = xmalloc(size_of::<bhdr_T>()).cast::<bhdr_T>();
-                ptr::write(
-                    item,
-                    bhdr_T {
-                        bh_bnum: key,
-                        bh_data: ptr::null_mut(),
-                        bh_page_count: 1,
-                        bh_flags: 0,
-                    },
-                );
+                let item = Box::into_raw(Box::new(bhdr_T {
+                    bh_bnum: key,
+                    bh_data: ptr::null_mut(),
+                    bh_page_count: 1,
+                    bh_flags: 0,
+                }));
                 pmap_put_bhdr(&raw mut ht, key, item);
                 assert_eq!(pmap_get_bhdr(&raw const ht, key), item);
                 items.push(item);
@@ -802,7 +798,7 @@ mod tests {
                     ht.remove(&key);
                     assert!(pmap_get_bhdr(&raw const ht, key).is_null());
 
-                    xfree(item.cast());
+                    drop(Box::from_raw(item));
                 }
             }
 
@@ -814,7 +810,7 @@ mod tests {
                 } else {
                     assert!(!item.is_null());
                     assert_eq!((*item).bh_bnum, key);
-                    xfree(item.cast());
+                    drop(Box::from_raw(item));
                 }
             }
         }

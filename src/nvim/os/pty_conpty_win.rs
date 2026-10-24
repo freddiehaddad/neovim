@@ -12,7 +12,7 @@ use crate::os::os_win_console::INVALID_HANDLE_VALUE;
 use std::ffi::{c_char, c_int, c_long, c_void};
 
 #[cfg(windows)]
-use crate::memory::{xcalloc, xfree, xmalloc, xstrdup};
+use crate::memory::{xfree, xmalloc, xstrdup};
 
 #[cfg(windows)]
 use crate::os::os_win_console::{BOOL, DWORD, HANDLE};
@@ -254,7 +254,7 @@ pub unsafe fn os_conpty_init(
     height: u16,
 ) -> *mut conpty_t {
     unsafe {
-        let mut conpty_object = xcalloc(1, std::mem::size_of::<conpty_t>()).cast::<conpty_t>();
+        let mut conpty_object = Box::into_raw(Box::new(std::mem::zeroed::<conpty_t>()));
         let emsg: *const c_char;
         let in_read: HANDLE;
         let mut out_write: HANDLE = INVALID_HANDLE_VALUE;
@@ -454,8 +454,8 @@ pub unsafe fn os_conpty_free(data: *mut c_void) {
             {
                 close_fn((*conpty_object).pty);
             }
+            drop(Box::from_raw(conpty_object));
         }
-        xfree(conpty_object.cast());
     }
 }
 

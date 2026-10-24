@@ -44,7 +44,9 @@ use crate::fileio::{
     buf_check_timestamp, file_pat_to_reg_pat, prep_exarg, readfile, shorten_fnames,
 };
 use crate::fold::{clearFolding, cloneFoldGrowArray, deleteFoldRecurse, foldUpdateAll};
-use crate::fuzzy::{FUZZY_SCORE_NONE, fuzmatch_str_T, fuzzy_match_str, fuzzymatches_to_strmatches};
+use crate::fuzzy::{
+    FUZZY_SCORE_NONE, fuzmatch_str_T, fuzzy_match_str, fuzzymatches_slice_to_strmatches,
+};
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::hashtab::{hash_find, hash_init, hash_remove};
@@ -2973,7 +2975,7 @@ pub unsafe fn ExpandBufnames(
     options: c_int,
 ) -> c_int {
     unsafe {
-        let mut matches: *mut bufmatch_T = ptr::null_mut();
+        let mut matches: Vec<bufmatch_T> = Vec::new();
         let mut to_free = false;
 
         *num_file = 0;
@@ -2984,9 +2986,10 @@ pub unsafe fn ExpandBufnames(
         }
 
         let fuzzy = cmdline_fuzzy_complete(pat);
+        let use_matches = !fuzzy && (options & WILD_BUFLASTUSED) != 0;
 
         let mut patc: *mut c_char = ptr::null_mut();
-        let mut fuzmatch: *mut fuzmatch_str_T = ptr::null_mut();
+        let mut fuzmatch: Vec<fuzmatch_str_T> = Vec::new();
         let mut regmatch: regmatch_T = std::mem::zeroed();
 
         if !fuzzy {
@@ -3056,18 +3059,19 @@ pub unsafe fn ExpandBufnames(
                 };
 
                 if !fuzzy {
-                    if !matches.is_null() {
-                        (*matches.add(count as usize)).buf = buf;
-                        (*matches.add(count as usize)).match_ = p;
+                    if use_matches {
+                        matches.push(bufmatch_T { buf, match_: p });
                         count += 1;
                     } else {
                         *(*file).add(count as usize) = p;
                         count += 1;
                     }
                 } else {
-                    (*fuzmatch.add(count as usize)).idx = count;
-                    (*fuzmatch.add(count as usize)).str_ptr = p;
-                    (*fuzmatch.add(count as usize)).score = score;
+                    fuzmatch.push(fuzmatch_str_T {
+                        idx: count,
+                        str_ptr: p,
+                        score,
+                    });
                     count += 1;
                 }
                 buf = (*buf).b_next;
@@ -3078,13 +3082,11 @@ pub unsafe fn ExpandBufnames(
             if round == 1 {
                 if !fuzzy {
                     *file = xmalloc(count as usize * std::mem::size_of::<*mut c_char>()).cast();
-                    if (options & WILD_BUFLASTUSED) != 0 {
-                        matches =
-                            xmalloc(count as usize * std::mem::size_of::<bufmatch_T>()).cast();
+                    if use_matches {
+                        matches.reserve(count as usize);
                     }
                 } else {
-                    fuzmatch =
-                        xmalloc(count as usize * std::mem::size_of::<fuzmatch_str_T>()).cast();
+                    fuzmatch.reserve(count as usize);
                 }
             }
         }
@@ -3097,26 +3099,24 @@ pub unsafe fn ExpandBufnames(
         }
 
         if !fuzzy {
-            if !matches.is_null() {
+            if use_matches && !matches.is_empty() {
                 if count > 1 {
-                    let slice = std::slice::from_raw_parts_mut(matches, count as usize);
-                    sort_slice_by(slice, |a, b| buf_time_compare(a.buf, b.buf));
+                    sort_slice_by(&mut matches, |a, b| buf_time_compare(a.buf, b.buf));
                 }
 
-                if (*matches).buf == curbuf {
-                    for i in 1..count {
-                        *(*file).add((i - 1) as usize) = (*matches.add(i as usize)).match_;
+                if matches[0].buf == curbuf {
+                    for (i, item) in matches.iter().enumerate().skip(1) {
+                        *(*file).add(i - 1) = item.match_;
                     }
-                    *(*file).add((count - 1) as usize) = (*matches).match_;
+                    *(*file).add((count - 1) as usize) = matches[0].match_;
                 } else {
-                    for i in 0..count {
-                        *(*file).add(i as usize) = (*matches.add(i as usize)).match_;
+                    for (i, item) in matches.iter().enumerate() {
+                        *(*file).add(i) = item.match_;
                     }
                 }
-                xfree(matches.cast());
             }
         } else {
-            fuzzymatches_to_strmatches(fuzmatch, file, count, false);
+            fuzzymatches_slice_to_strmatches(&mut fuzmatch, file, false);
         }
 
         *num_file = count;

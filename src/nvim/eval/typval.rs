@@ -4197,7 +4197,7 @@ pub unsafe fn tv_free(tv: *mut typval_T) {
             | VarType::VAR_FLOAT
             | VarType::VAR_UNKNOWN => {}
         }
-        xfree(tv.cast());
+        drop(Box::from_raw(tv));
     }
 }
 

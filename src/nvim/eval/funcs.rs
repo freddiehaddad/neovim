@@ -7796,15 +7796,13 @@ pub unsafe fn f_searchpos(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
 /// "serverlist()" function
 pub unsafe fn f_serverlist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        let mut n: usize = 0;
-        let addrs = server_address_list(&raw mut n);
+        let addrs = server_address_list();
 
         let mut addrs_tv = tv_initial_value();
-        tv_list_alloc_ret(&raw mut addrs_tv, n as isize);
-        for i in 0..n {
-            tv_list_append_allocated_string(addrs_tv.vval.v_list, *addrs.add(i));
+        tv_list_alloc_ret(&raw mut addrs_tv, addrs.len() as isize);
+        for addr in addrs {
+            tv_list_append_allocated_string(addrs_tv.vval.v_list, addr);
         }
-        xfree(addrs.cast());
 
         let opts = if (*argvars).v_type != VarType::VAR_UNKNOWN {
             *argvars
@@ -7863,15 +7861,12 @@ pub unsafe fn f_serverstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
             return;
         }
 
-        let mut n: usize = 0;
-        let addrs = server_address_list(&raw mut n);
-        (*rettv).vval.v_string = *addrs.add(n - 1);
+        let mut addrs = server_address_list();
+        (*rettv).vval.v_string = addrs.pop().unwrap_or(ptr::null_mut());
 
-        n -= 1;
-        for i in 0..n {
-            xfree((*addrs.add(i)).cast());
+        for addr in addrs {
+            xfree(addr.cast());
         }
-        xfree(addrs.cast());
     }
 }
 
@@ -8178,43 +8173,39 @@ pub unsafe fn f_setreg(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
             let ll = (*regcontents).vval.v_list;
             let len = tv_list_len(ll) as usize;
 
-            let lstval = xmalloc(size_of::<*mut c_char>() * ((len + 1) * 2)).cast::<*mut c_char>();
-            let mut curval = lstval.cast::<*const c_char>();
-            let allocval = lstval.add(len + 2);
-            let mut curallocval = allocval;
+            let mut lstval: Vec<*const c_char> = Vec::with_capacity(len + 1);
+            let mut allocval: Vec<*mut c_char> = Vec::new();
 
             'free_lstval: {
                 let mut li = tv_list_first(ll);
                 while !li.is_null() {
                     let mut buf = [0 as c_char; NUMBUFLEN];
-                    *curval = tv_get_string_buf_chk(&raw const (*li).li_tv, buf.as_mut_ptr());
-                    if (*curval).is_null() {
+                    let mut val = tv_get_string_buf_chk(&raw const (*li).li_tv, buf.as_mut_ptr());
+                    if val.is_null() {
                         break 'free_lstval;
                     }
-                    if ptr::eq(*curval, buf.as_ptr()) {
-                        *curallocval = xstrdup(*curval);
-                        *curval = *curallocval;
-                        curallocval = curallocval.add(1);
+                    if ptr::eq(val, buf.as_ptr()) {
+                        let copied = xstrdup(val);
+                        allocval.push(copied);
+                        val = copied;
                     }
-                    curval = curval.add(1);
+                    lstval.push(val);
                     li = (*li).li_next;
                 }
-                *curval = ptr::null();
+                lstval.push(ptr::null());
 
                 write_reg_contents_lst(
                     c_int::from(regname as u8),
-                    lstval,
+                    lstval.as_mut_ptr().cast::<*mut c_char>(),
                     append,
                     yank_type,
                     block_len as colnr_T,
                 );
             }
 
-            while curallocval > allocval {
-                curallocval = curallocval.sub(1);
-                xfree((*curallocval).cast());
+            for ptr in allocval {
+                xfree(ptr.cast());
             }
-            xfree(lstval.cast());
         } else if !regcontents.is_null() {
             let strval = tv_get_string_chk(regcontents);
             if strval.is_null() {

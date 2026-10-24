@@ -2485,7 +2485,7 @@ unsafe fn copy_loclist(from_qfl: *mut qf_list_T, to_qfl: *mut qf_list_T) -> c_in
             (*to_qfl).qf_title = ptr::null_mut();
         }
         if !(*from_qfl).qf_ctx.is_null() {
-            (*to_qfl).qf_ctx = xcalloc(1, size_of::<typval_T>()).cast::<typval_T>();
+            (*to_qfl).qf_ctx = Box::into_raw(Box::new(std::mem::zeroed::<typval_T>()));
             tv_copy((*from_qfl).qf_ctx, (*to_qfl).qf_ctx);
         } else {
             (*to_qfl).qf_ctx = ptr::null_mut();
@@ -7229,7 +7229,7 @@ unsafe fn qf_setprop_items_from_lines(
 unsafe fn qf_setprop_context(qfl: *mut qf_list_T, di: *mut dictitem_T) -> c_int {
     unsafe {
         tv_free((*qfl).qf_ctx);
-        let ctx = xcalloc(1, size_of::<typval_T>()).cast::<typval_T>();
+        let ctx = Box::into_raw(Box::new(std::mem::zeroed::<typval_T>()));
         tv_copy(&raw const (*di).di_tv, ctx);
         (*qfl).qf_ctx = ctx;
 

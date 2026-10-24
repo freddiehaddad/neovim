@@ -12,7 +12,7 @@ use crate::event::socket::{
 use crate::extmark::{TriState, kFalse, kNone, kTrue};
 use crate::globals::*;
 use crate::log::{LOGLVL_ERR, LOGLVL_WRN, logmsg};
-use crate::memory::{strequal, xcalloc, xfree, xmalloc, xstrdup, xstrlcpy};
+use crate::memory::{strequal, xfree, xmalloc, xstrdup, xstrlcpy};
 use crate::os::env::{os_env_exists, os_get_pid, os_getenv, os_unsetenv};
 use crate::os::stdpaths::get_appname;
 use crate::path::{fix_fname, to_slash, to_slash_save};
@@ -342,19 +342,12 @@ pub unsafe fn server_stop(endpoint: *const c_char, keep_vservername: bool) -> bo
     }
 }
 
-pub unsafe fn server_address_list(size: *mut usize) -> *mut *mut c_char {
+pub unsafe fn server_address_list() -> Vec<*mut c_char> {
     unsafe {
-        let w = watchers_mut();
-        *size = w.len();
-        if *size == 0 {
-            return ptr::null_mut();
-        }
-
-        let addrs = xcalloc(w.len(), std::mem::size_of::<*const c_char>()).cast::<*mut c_char>();
-        for (i, &watcher) in w.iter().enumerate() {
-            *addrs.add(i) = xstrdup(watcher_addr(watcher));
-        }
-        addrs
+        watchers_mut()
+            .iter()
+            .map(|&watcher| xstrdup(watcher_addr(watcher)))
+            .collect()
     }
 }
 

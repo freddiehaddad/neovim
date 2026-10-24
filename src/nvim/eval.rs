@@ -885,7 +885,7 @@ pub unsafe fn eval_expr_ext(
     use_simple_function: bool,
 ) -> *mut typval_T {
     unsafe {
-        let mut tv = xmalloc(size_of::<typval_T>()).cast::<typval_T>();
+        let mut tv = Box::into_raw(Box::new(std::mem::zeroed::<typval_T>()));
         let mut evalarg = evalarg_T {
             eval_flags: 0,
             eval_getline: None,
@@ -905,7 +905,7 @@ pub unsafe fn eval_expr_ext(
         }
 
         if r == FAIL {
-            xfree(tv.cast());
+            drop(Box::from_raw(tv));
             tv = ptr::null_mut();
         }
 

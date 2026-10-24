@@ -66,7 +66,9 @@ use crate::fileio::{EOL_DOS, EOL_UNIX, FILE, fprintf, fputs, kOptFileencoding};
 use crate::fold::{
     foldUpdateAll, foldmethodIsDiff, foldmethodIsIndent, foldmethodIsSyntax, newFoldLevel,
 };
-use crate::fuzzy::{FUZZY_SCORE_NONE, fuzmatch_str_T, fuzzy_match_str, fuzzymatches_to_strmatches};
+use crate::fuzzy::{
+    FUZZY_SCORE_NONE, fuzmatch_str_T, fuzzy_match_str, fuzzymatches_slice_to_strmatches,
+};
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::highlight::{HL_GLOBAL, hl_invalidate_blends, ns_hl_def};
@@ -93,7 +95,7 @@ use crate::mcursor::{kOptFollow, mc_ins_replay_can_join};
 use crate::memfile::mf_close_file;
 use crate::memline::{ml_open_file, ml_open_files};
 use crate::memory::{
-    Arena, strequal, strnequal, xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xrealloc, xstrdup,
+    Arena, strequal, strnequal, xfree, xmalloc, xmemcpyz, xmemdupz, xrealloc, xstrdup,
     xstrlcpy,
 };
 use crate::message::{
@@ -8062,7 +8064,7 @@ unsafe fn match_str(
     test_only: bool,
     fuzzy: bool,
     fuzzystr: *const c_char,
-    fuzmatch: *mut fuzmatch_str_T,
+    fuzmatch: &mut Vec<fuzmatch_str_T>,
 ) -> bool {
     unsafe {
         if !fuzzy {
@@ -8076,10 +8078,11 @@ unsafe fn match_str(
             let score = fuzzy_match_str(str_arg, fuzzystr);
             if score != FUZZY_SCORE_NONE {
                 if !test_only {
-                    let fm = fuzmatch.add(idx as usize);
-                    (*fm).idx = idx;
-                    (*fm).str_ptr = xstrdup(str_arg);
-                    (*fm).score = score;
+                    fuzmatch.push(fuzmatch_str_T {
+                        idx,
+                        str_ptr: xstrdup(str_arg),
+                        score,
+                    });
                 }
                 return true;
             }
@@ -8102,7 +8105,7 @@ pub unsafe fn ExpandSettings(
         let names: [*mut c_char; 1] = [c"all".as_ptr().cast_mut()];
         let ic = (*regmatch).rm_ic;
 
-        let mut fuzmatch: *mut fuzmatch_str_T = ptr::null_mut();
+        let mut fuzmatch: Vec<fuzmatch_str_T> = Vec::new();
         let fuzzy = can_fuzzy && cmdline_fuzzy_complete(fuzzystr);
 
         for loop_idx in 0..=1 {
@@ -8117,7 +8120,7 @@ pub unsafe fn ExpandSettings(
                         loop_idx == 0,
                         fuzzy,
                         fuzzystr,
-                        fuzmatch,
+                        &mut fuzmatch,
                     ) {
                         if loop_idx == 0 {
                             num_normal += 1;
@@ -8147,7 +8150,7 @@ pub unsafe fn ExpandSettings(
                     loop_idx == 0,
                     fuzzy,
                     fuzzystr,
-                    fuzmatch,
+                    &mut fuzmatch,
                 ) {
                     if loop_idx == 0 {
                         num_normal += 1;
@@ -8177,15 +8180,13 @@ pub unsafe fn ExpandSettings(
                     *matches = xmalloc((*numMatches as usize) * std::mem::size_of::<*mut c_char>())
                         .cast::<*mut c_char>();
                 } else {
-                    fuzmatch =
-                        xmalloc((*numMatches as usize) * std::mem::size_of::<fuzmatch_str_T>())
-                            .cast::<fuzmatch_str_T>();
+                    fuzmatch.reserve(*numMatches as usize);
                 }
             }
         }
 
         if fuzzy {
-            fuzzymatches_to_strmatches(fuzmatch, matches, count, false);
+            fuzzymatches_slice_to_strmatches(&mut fuzmatch, matches, false);
         }
 
         OK
@@ -8545,10 +8546,10 @@ pub unsafe fn option_set_callback_func(optval: *mut c_char, optcb: *mut Callback
             }
             evaluated
         } else {
-            let allocated = xcalloc(1, std::mem::size_of::<typval_T>()).cast::<typval_T>();
-            (*allocated).v_type = VAR_STRING;
-            (*allocated).vval.v_string = xstrdup(optval);
-            allocated
+            let mut allocated = std::mem::zeroed::<typval_T>();
+            allocated.v_type = VAR_STRING;
+            allocated.vval.v_string = xstrdup(optval);
+            Box::into_raw(Box::new(allocated))
         };
 
         let mut cb = Callback {

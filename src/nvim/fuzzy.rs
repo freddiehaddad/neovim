@@ -972,23 +972,6 @@ pub unsafe fn fuzzymatches_slice_to_strmatches(
     }
 }
 
-/// Sort `fuzmatch` by score and copy strings into `*matches`, freeing `fuzmatch`
-/// (`fuzzymatches_to_strmatches`).
-pub unsafe fn fuzzymatches_to_strmatches(
-    fuzmatch: *mut fuzmatch_str_T,
-    matches: *mut *mut *mut c_char,
-    count: c_int,
-    funcsort: bool,
-) {
-    unsafe {
-        if count > 0 {
-            let slice = std::slice::from_raw_parts_mut(fuzmatch, count as usize);
-            fuzzymatches_slice_to_strmatches(slice, matches, funcsort);
-        }
-        xfree(fuzmatch.cast::<c_void>());
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -996,19 +979,20 @@ mod tests {
     #[test]
     fn fuzzymatches_to_strmatches_sorts_snr_functions_last() {
         unsafe {
-            let fm = xmalloc(2 * std::mem::size_of::<fuzmatch_str_T>()).cast::<fuzmatch_str_T>();
-            *fm = fuzmatch_str_T {
-                idx: 0,
-                str_ptr: xstrdup(c"<SNR>1_foo".as_ptr()),
-                score: 100,
-            };
-            *fm.add(1) = fuzmatch_str_T {
-                idx: 1,
-                str_ptr: xstrdup(c"Bar".as_ptr()),
-                score: 50,
-            };
+            let mut fm = [
+                fuzmatch_str_T {
+                    idx: 0,
+                    str_ptr: xstrdup(c"<SNR>1_foo".as_ptr()),
+                    score: 100,
+                },
+                fuzmatch_str_T {
+                    idx: 1,
+                    str_ptr: xstrdup(c"Bar".as_ptr()),
+                    score: 50,
+                },
+            ];
             let mut matches: *mut *mut c_char = std::ptr::null_mut();
-            fuzzymatches_to_strmatches(fm, &mut matches, 2, true);
+            fuzzymatches_slice_to_strmatches(&mut fm, &mut matches, true);
             assert_eq!(CStr::from_ptr(*matches).to_bytes(), b"Bar");
             assert_eq!(CStr::from_ptr(*matches.add(1)).to_bytes(), b"<SNR>1_foo");
             xfree((*matches).cast::<c_void>());
