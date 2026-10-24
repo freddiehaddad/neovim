@@ -78,9 +78,7 @@ use crate::mbyte::{
     utfc_ptr2len,
 };
 use crate::memline::{dec, ml_delete, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
-use crate::memory::{
-    mergesort_list, strequal, xfree, xmalloc, xmemdupz, xstrdup, xstrlcpy,
-};
+use crate::memory::{strequal, xfree, xmalloc, xmemdupz, xstrdup, xstrlcpy};
 use crate::message::{
     emsg, internal_error, msg, msg_clr_cmdline, msg_delay, msg_ext_set_kind, msg_progress, semsg,
 };
@@ -196,7 +194,6 @@ const CTRL_X_BUFNAMES: c_int = 18;
 const CTRL_X_REGISTER: c_int = 19;
 
 const CP_ORIGINAL_TEXT: c_int = 1;
-const CP_FREE_FNAME: c_int = 2;
 const CP_CONT_S_IPOS: c_int = 4;
 const CP_EQUAL: c_int = 8;
 const CP_ICASE: c_int = 16;
@@ -310,8 +307,6 @@ unsafe fn mb_ptr_adv_const(p: *mut *const c_char) {
 /// Structure used to store one match for insert completion (`compl_T`).
 #[repr(C)]
 pub struct compl_T {
-    pub cp_next: *mut compl_T,
-    pub cp_prev: *mut compl_T,
     pub cp_str: NvimString,
     pub cp_text: [*mut c_char; CPT_COUNT],
     pub cp_user_data: typval_T,
@@ -331,10 +326,21 @@ pub struct compl_T {
 impl Drop for compl_T {
     fn drop(&mut self) {
         unsafe {
-            api_clear_string(&raw mut self.cp_str);
-            if (self.cp_flags & CP_FREE_FNAME) != 0 {
-                xfree(self.cp_fname.cast());
+            let ht_ptr = &raw mut compl_strings_ht;
+            if !(*ht_ptr).is_empty()
+                && !self.cp_str.data.is_null()
+                && (self.cp_flags & CP_ORIGINAL_TEXT) == 0
+            {
+                let key = CStr::from_ptr(self.cp_str.data).to_bytes();
+                if let Some(count) = (*ht_ptr).get_mut(key) {
+                    *count -= 1;
+                    if *count <= 0 {
+                        (*ht_ptr).remove(key);
+                    }
+                }
             }
+            api_clear_string(&raw mut self.cp_str);
+            xfree(self.cp_fname.cast());
             free_cptext(self.cp_text.as_ptr());
             tv_clear(&raw mut self.cp_user_data);
             xfree(self.cp_commit_chars.cast());
@@ -382,11 +388,55 @@ use crate::help::{TAG_NAMES, TAG_REGEXP, TAG_VERBOSE};
 use crate::option::{OPT_GLOBAL, OPT_LOCAL};
 use crate::search::{BACKWARD, FORWARD};
 
-static mut compl_first_match: *mut compl_T = ptr::null_mut();
-static mut compl_curr_match: *mut compl_T = ptr::null_mut();
-static mut compl_shown_match: *mut compl_T = ptr::null_mut();
-static mut compl_old_match: *mut compl_T = ptr::null_mut();
-static mut compl_preselect_match: *mut compl_T = ptr::null_mut();
+static mut compl_list: Vec<compl_T> = Vec::new();
+static mut compl_is_cyclic: bool = false;
+static mut compl_curr_idx: Option<usize> = None;
+static mut compl_shown_idx: Option<usize> = None;
+static mut compl_old_idx: Option<usize> = None;
+static mut compl_preselect_idx: Option<usize> = None;
+
+#[inline]
+unsafe fn compl_next_idx(idx: usize) -> Option<usize> {
+    unsafe {
+        let len = (&raw const compl_list).as_ref().unwrap().len();
+        if idx + 1 < len {
+            Some(idx + 1)
+        } else if compl_is_cyclic && len > 0 {
+            Some(0)
+        } else {
+            None
+        }
+    }
+}
+
+#[inline]
+unsafe fn compl_prev_idx(idx: usize) -> Option<usize> {
+    unsafe {
+        let len = (&raw const compl_list).as_ref().unwrap().len();
+        if idx > 0 {
+            Some(idx - 1)
+        } else if compl_is_cyclic && len > 0 {
+            Some(len - 1)
+        } else {
+            None
+        }
+    }
+}
+
+#[inline]
+unsafe fn compl_list_mut() -> &'static mut Vec<compl_T> {
+    unsafe { (&raw mut compl_list).as_mut().unwrap() }
+}
+
+#[inline]
+unsafe fn compl_at(idx: usize) -> *mut compl_T {
+    unsafe { &raw mut compl_list_mut()[idx] }
+}
+
+#[inline]
+unsafe fn compl_opt(idx: Option<usize>) -> *mut compl_T {
+    unsafe { idx.map_or(ptr::null_mut(), |i| compl_at(i)) }
+}
 
 static mut compl_strings_ht: std::collections::BTreeMap<Vec<u8>, c_int> =
     std::collections::BTreeMap::new();
@@ -686,26 +736,20 @@ unsafe fn match_at_original_text(match_: *const compl_T) -> bool {
     unsafe { ((*match_).cp_flags & CP_ORIGINAL_TEXT) != 0 }
 }
 
-#[inline]
-unsafe fn is_first_match(match_: *const compl_T) -> bool {
-    unsafe { ptr::eq(match_, compl_first_match) }
-}
-
-/// Return the entry holding the original text, NULL if not found.
-unsafe fn find_original_text_match() -> *mut compl_T {
+/// Return the index of the entry holding the original text, None if not found.
+unsafe fn find_original_text_match_idx() -> Option<usize> {
     unsafe {
-        if compl_first_match.is_null() {
-            return ptr::null_mut();
+        let list = compl_list_mut();
+        if list.is_empty() {
+            return None;
         }
-        if match_at_original_text(compl_first_match) {
-            return compl_first_match;
+        if match_at_original_text(&list[0]) {
+            return Some(0);
         }
-        if !(*compl_first_match).cp_prev.is_null()
-            && match_at_original_text((*compl_first_match).cp_prev)
-        {
-            return (*compl_first_match).cp_prev;
+        if compl_is_cyclic && match_at_original_text(list.last().unwrap()) {
+            return Some(list.len() - 1);
         }
-        ptr::null_mut()
+        None
     }
 }
 
@@ -785,10 +829,11 @@ pub unsafe fn ins_compl_commit_char(c: c_int) -> bool {
         if c < b' ' as c_int {
             return false;
         }
-        !compl_shown_match.is_null()
-            && !match_at_original_text(compl_shown_match)
-            && !(*compl_shown_match).cp_commit_chars.is_null()
-            && !vim_strchr((*compl_shown_match).cp_commit_chars, c).is_null()
+        let shown = compl_opt(compl_shown_idx);
+        !shown.is_null()
+            && !match_at_original_text(shown)
+            && !(*shown).cp_commit_chars.is_null()
+            && !vim_strchr((*shown).cp_commit_chars, c).is_null()
     }
 }
 
@@ -982,7 +1027,7 @@ unsafe fn is_nearest_active() -> bool {
 
 /// True if a match is selected (even if it is not inserted).
 pub unsafe fn ins_compl_is_match_selected() -> bool {
-    unsafe { !compl_shown_match.is_null() && !is_first_match(compl_shown_match) }
+    unsafe { !matches!(compl_shown_idx, None | Some(0)) }
 }
 
 /// Returns true if autocomplete is active and the pre-insert effect targets the longest prefix.
@@ -1016,7 +1061,7 @@ unsafe fn ins_compl_add(
         } else {
             cdir
         };
-        let mut flags = flags_arg;
+        let flags = flags_arg;
 
         if (flags & CP_FAST) != 0 {
             fast_breakcheck();
@@ -1036,25 +1081,21 @@ unsafe fn ins_compl_add(
 
         // If the same match is already present, don't add it.
         let ht_ptr = &raw const compl_strings_ht;
-        if !compl_first_match.is_null() && !adup && !(*ht_ptr).is_empty() {
+        let list = &raw mut compl_list;
+        if !(*list).is_empty() && !adup && !(*ht_ptr).is_empty() {
             let bytes = std::slice::from_raw_parts(str_ptr.cast::<u8>(), len as usize);
             let key_len = bytes.iter().position(|&b| b == 0).unwrap_or(len as usize);
             if (*ht_ptr).contains_key(&bytes[..key_len]) {
                 if is_nearest_active() && score > 0 {
-                    let mut match_ = compl_first_match;
-                    loop {
+                    for match_ in &mut *list {
                         if !match_at_original_text(match_)
-                            && strncmp((*match_).cp_str.data, str_ptr, len as usize) == 0
-                            && ((*match_).cp_str.size as c_int <= len
-                                || *(*match_).cp_str.data.add(len as usize) == NUL)
+                            && strncmp(match_.cp_str.data, str_ptr, len as usize) == 0
+                            && (match_.cp_str.size as c_int <= len
+                                || *match_.cp_str.data.add(len as usize) == NUL)
                         {
-                            if score < (*match_).cp_score {
-                                (*match_).cp_score = score;
+                            if score < match_.cp_score {
+                                match_.cp_score = score;
                             }
-                            break;
-                        }
-                        match_ = (*match_).cp_next;
-                        if match_.is_null() || is_first_match(match_) {
                             break;
                         }
                     }
@@ -1070,14 +1111,7 @@ unsafe fn ins_compl_add(
         ins_compl_del_pum();
 
         let new_str = xstrnsave(str_ptr, len as usize);
-        let cp_fname = if !fname.is_null()
-            && !compl_curr_match.is_null()
-            && !(*compl_curr_match).cp_fname.is_null()
-            && strcmp(fname, (*compl_curr_match).cp_fname) == 0
-        {
-            (*compl_curr_match).cp_fname
-        } else if !fname.is_null() {
-            flags |= CP_FREE_FNAME;
+        let cp_fname = if !fname.is_null() {
             xstrdup(fname)
         } else {
             ptr::null_mut()
@@ -1102,9 +1136,7 @@ unsafe fn ins_compl_add(
             crate::eval::typval::tv_initial_value()
         };
 
-        let match_ = Box::into_raw(Box::new(compl_T {
-            cp_next: ptr::null_mut(),
-            cp_prev: ptr::null_mut(),
+        let match_ = compl_T {
             cp_str: cbuf_as_string(new_str, len as usize),
             cp_text,
             cp_user_data,
@@ -1127,60 +1159,53 @@ unsafe fn ins_compl_add(
                 0
             },
             cp_cpt_source_idx: cpt_sources_index,
-        }));
-        if preselect
-            && compl_preselect_match.is_null()
-            && (get_cot_flags() & kOptCotFlagPreselect) != 0
-        {
-            compl_preselect_match = match_;
-        }
+        };
 
-        if compl_first_match.is_null() {
-            (*match_).cp_next = ptr::null_mut();
-            (*match_).cp_prev = ptr::null_mut();
+        let list = compl_list_mut();
+        let insert_idx = if list.is_empty() {
+            0
         } else if cot_fuzzy() && score != FUZZY_SCORE_NONE && compl_get_longest {
-            let mut current = (*compl_first_match).cp_next;
-            let mut prev = compl_first_match;
-            let mut inserted = false;
-            while !current.is_null() && !ptr::eq(current, compl_first_match) {
-                if (*current).cp_score < score {
-                    (*match_).cp_next = current;
-                    (*match_).cp_prev = (*current).cp_prev;
-                    if !(*current).cp_prev.is_null() {
-                        (*(*current).cp_prev).cp_next = match_;
-                    }
-                    (*current).cp_prev = match_;
-                    inserted = true;
-                    break;
-                }
-                prev = current;
-                current = (*current).cp_next;
-            }
-            if !inserted {
-                (*prev).cp_next = match_;
-                (*match_).cp_prev = prev;
-                (*match_).cp_next = compl_first_match;
-                (*compl_first_match).cp_prev = match_;
+            if let Some(pos) = list[1..].iter().position(|m| m.cp_score < score) {
+                pos + 1
+            } else {
+                compl_is_cyclic = true;
+                list.len()
             }
         } else if dir == FORWARD {
-            (*match_).cp_next = (*compl_curr_match).cp_next;
-            (*match_).cp_prev = compl_curr_match;
+            compl_curr_idx.unwrap() + 1
         } else {
-            (*match_).cp_next = compl_curr_match;
-            (*match_).cp_prev = (*compl_curr_match).cp_prev;
-        }
-        if !(*match_).cp_next.is_null() {
-            (*(*match_).cp_next).cp_prev = match_;
-        }
-        if !(*match_).cp_prev.is_null() {
-            (*(*match_).cp_prev).cp_next = match_;
-        } else {
-            compl_first_match = match_;
-        }
-        compl_curr_match = match_;
+            let curr = compl_curr_idx.unwrap();
+            if curr == 0 && compl_is_cyclic {
+                list.len()
+            } else {
+                curr
+            }
+        };
 
-        if !match_at_original_text(match_) {
-            compl_strings_add((*match_).cp_str.data, (*match_).cp_str.size);
+        for idx_opt in [
+            &raw mut compl_curr_idx,
+            &raw mut compl_shown_idx,
+            &raw mut compl_old_idx,
+            &raw mut compl_preselect_idx,
+        ] {
+            if let Some(idx) = &mut *idx_opt
+                && *idx >= insert_idx
+            {
+                *idx += 1;
+            }
+        }
+        list.insert(insert_idx, match_);
+        compl_curr_idx = Some(insert_idx);
+        if preselect
+            && { compl_preselect_idx }.is_none()
+            && (get_cot_flags() & kOptCotFlagPreselect) != 0
+        {
+            compl_preselect_idx = Some(insert_idx);
+        }
+
+        let match_ptr = compl_at(insert_idx);
+        if !match_at_original_text(match_ptr) {
+            compl_strings_add((*match_ptr).cp_str.data, (*match_ptr).cp_str.size);
         }
 
         if compl_get_longest
@@ -1189,7 +1214,7 @@ unsafe fn ins_compl_add(
             && !ins_compl_preinsert_longest()
             && !ctrl_x_mode_thesaurus()
         {
-            ins_compl_longest_match(match_);
+            ins_compl_longest_match(match_ptr);
         }
 
         OK
@@ -1316,7 +1341,10 @@ pub unsafe fn ins_compl_col_range_attr(lnum: linenr_T, col: c_int) -> c_int {
 
 #[inline]
 unsafe fn ins_compl_has_multiple() -> bool {
-    unsafe { !vim_strchr((*compl_shown_match).cp_str.data, b'\n' as c_int).is_null() }
+    unsafe {
+        let shown = compl_opt(compl_shown_idx);
+        !shown.is_null() && !vim_strchr((*shown).cp_str.data, b'\n' as c_int).is_null()
+    }
 }
 
 /// Returns true if the given line number falls within the range of a multi-line completion.
@@ -1415,34 +1443,30 @@ unsafe fn ins_compl_add_matches(num_matches: c_int, matches: *mut *mut c_char, i
 /// Return the number of matches (excluding the original).
 unsafe fn ins_compl_make_cyclic() -> c_int {
     unsafe {
-        if compl_first_match.is_null() {
+        let list = &raw const compl_list;
+        if (*list).is_empty() {
             return 0;
         }
-
-        let mut match_ = compl_first_match;
-        let mut count: c_int = 0;
-        while !(*match_).cp_next.is_null() && !is_first_match((*match_).cp_next) {
-            match_ = (*match_).cp_next;
-            count += 1;
-        }
-        (*match_).cp_next = compl_first_match;
-        (*compl_first_match).cp_prev = match_;
-
-        count
+        compl_is_cyclic = true;
+        ((*list).len() - 1) as c_int
     }
 }
 
 pub unsafe fn ins_compl_has_shown_match() -> bool {
     unsafe {
-        compl_shown_match.is_null() || !ptr::eq(compl_shown_match, (*compl_shown_match).cp_next)
+        let Some(shown_idx) = compl_shown_idx else {
+            return true;
+        };
+        compl_next_idx(shown_idx) != Some(shown_idx)
     }
 }
 
 pub unsafe fn ins_compl_long_shown_match() -> bool {
     unsafe {
-        !compl_shown_match.is_null()
-            && !(*compl_shown_match).cp_str.data.is_null()
-            && ((*compl_shown_match).cp_str.size as colnr_T) > (*curwin).w_cursor.col - compl_col
+        let shown = compl_opt(compl_shown_idx);
+        !shown.is_null()
+            && !(*shown).cp_str.data.is_null()
+            && ((*shown).cp_str.size as colnr_T) > (*curwin).w_cursor.col - compl_col
     }
 }
 
@@ -1474,21 +1498,14 @@ pub unsafe fn pum_wanted() -> bool {
 
 unsafe fn pum_enough_matches() -> bool {
     unsafe {
-        let mut comp = compl_first_match;
+        let list = &raw const compl_list;
         let mut i: c_int = 0;
-        loop {
-            if comp.is_null() {
-                break;
-            }
+        for comp in &*list {
             if !match_at_original_text(comp) {
                 i += 1;
                 if i == 2 {
                     break;
                 }
-            }
-            comp = (*comp).cp_next;
-            if is_first_match(comp) {
-                break;
             }
         }
 
@@ -1517,7 +1534,7 @@ unsafe fn trigger_complete_changed_event(cur: c_int) {
         let item = if cur < 0 {
             tv_dict_alloc()
         } else {
-            ins_compl_dict_alloc(compl_curr_match)
+            ins_compl_dict_alloc(compl_opt(compl_curr_idx))
         };
         let mut save_v_event: save_v_event_T = std::mem::zeroed();
         let v_event = get_v_event(&raw mut save_v_event);
@@ -1538,26 +1555,6 @@ unsafe fn trigger_complete_changed_event(cur: c_int) {
         recursive = false;
 
         restore_v_event(v_event, &raw mut save_v_event);
-    }
-}
-
-unsafe fn cp_get_next(node: *mut compl_T) -> *mut compl_T {
-    unsafe { (*node).cp_next }
-}
-
-unsafe fn cp_set_next(node: *mut compl_T, next: *mut compl_T) {
-    unsafe {
-        (*node).cp_next = next;
-    }
-}
-
-unsafe fn cp_get_prev(node: *mut compl_T) -> *mut compl_T {
-    unsafe { (*node).cp_prev }
-}
-
-unsafe fn cp_set_prev(node: *mut compl_T, prev: *mut compl_T) {
-    unsafe {
-        (*node).cp_prev = prev;
     }
 }
 
@@ -1662,7 +1659,8 @@ unsafe fn get_leader_for_startcol(match_: *mut compl_T, cached: bool) -> *mut Nv
 
 unsafe fn set_fuzzy_score() {
     unsafe {
-        if compl_first_match.is_null() {
+        let list = &raw mut compl_list;
+        if (*list).is_empty() {
             return;
         }
 
@@ -1679,67 +1677,66 @@ unsafe fn set_fuzzy_score() {
         }
 
         let mut next: c_int = 0;
-        let mut comp = compl_first_match;
-        loop {
-            if (*comp).cp_order < 0 {
-                (*comp).cp_order = next;
+        for comp in &mut *list {
+            if comp.cp_order < 0 {
+                comp.cp_order = next;
             }
-            next = next.max((*comp).cp_order + 1);
+            next = next.max(comp.cp_order + 1);
 
             if use_leader {
                 pattern = (*get_leader_for_startcol(comp, true)).data;
             }
 
-            (*comp).cp_score = fuzzy_match_str((*comp).cp_str.data, pattern);
-            comp = (*comp).cp_next;
-            if comp.is_null() || is_first_match(comp) {
-                break;
-            }
+            comp.cp_score = fuzzy_match_str(comp.cp_str.data, pattern);
         }
     }
 }
 
 unsafe fn sort_compl_match_list(compare: fn(&compl_T, &compl_T) -> c_int) {
     unsafe {
-        if compl_first_match.is_null() || is_first_match((*compl_first_match).cp_next) {
+        let list = compl_list_mut();
+        if list.len() <= 1 {
             return;
         }
 
-        let orig_text = find_original_text_match();
-        if orig_text.is_null() {
+        let Some(orig_idx) = find_original_text_match_idx() else {
             return;
-        }
+        };
 
-        ins_compl_make_linear();
-        if ptr::eq(orig_text, compl_first_match) {
-            (*(*compl_first_match).cp_next).cp_prev = ptr::null_mut();
-            (*compl_first_match).cp_next = mergesort_list(
-                (*compl_first_match).cp_next,
-                cp_get_next,
-                cp_set_next,
-                cp_get_prev,
-                cp_set_prev,
-                compare,
-            );
-            (*(*compl_first_match).cp_next).cp_prev = compl_first_match;
+        let saved_ptrs = [
+            compl_curr_idx.map(|i| list[i].cp_str.data),
+            compl_shown_idx.map(|i| list[i].cp_str.data),
+            compl_old_idx.map(|i| list[i].cp_str.data),
+            compl_preselect_idx.map(|i| list[i].cp_str.data),
+        ];
+
+        let range = if orig_idx == 0 {
+            1..list.len()
         } else {
-            (*(*orig_text).cp_prev).cp_next = ptr::null_mut();
-            compl_first_match = mergesort_list(
-                compl_first_match,
-                cp_get_next,
-                cp_set_next,
-                cp_get_prev,
-                cp_set_prev,
-                compare,
-            );
-            let mut tail = compl_first_match;
-            while !(*tail).cp_next.is_null() {
-                tail = (*tail).cp_next;
+            0..orig_idx
+        };
+        list[range].sort_by(|a, b| {
+            let cmp = compare(a, b);
+            if cmp < 0 {
+                std::cmp::Ordering::Less
+            } else if cmp > 0 {
+                std::cmp::Ordering::Greater
+            } else {
+                std::cmp::Ordering::Equal
             }
-            (*tail).cp_next = orig_text;
-            (*orig_text).cp_prev = tail;
+        });
+
+        for (idx_opt, ptr_opt) in [
+            (&raw mut compl_curr_idx, saved_ptrs[0]),
+            (&raw mut compl_shown_idx, saved_ptrs[1]),
+            (&raw mut compl_old_idx, saved_ptrs[2]),
+            (&raw mut compl_preselect_idx, saved_ptrs[3]),
+        ] {
+            if let Some(p) = ptr_opt {
+                *idx_opt = list.iter().position(|m| ptr::eq(m.cp_str.data, p));
+            }
         }
-        let _ = ins_compl_make_cyclic();
+        compl_is_cyclic = true;
     }
 }
 
@@ -1766,19 +1763,20 @@ unsafe fn ins_compl_build_pum() -> c_int {
         let cpt_sources = &raw const cpt_sources_array;
         let is_cpt_completion = !(*cpt_sources).is_empty();
 
-        let mut shown_match_ok = match_at_original_text(compl_shown_match);
+        let list = &raw mut compl_list;
+        let mut shown_match_ok = match_at_original_text(compl_opt(compl_shown_idx));
 
         if strequal(compl_leader.data, compl_orig_text.data) && !shown_match_ok {
-            compl_shown_match = if compl_no_select {
-                compl_first_match
+            compl_shown_idx = if compl_no_select {
+                Some(0)
             } else {
-                (*compl_first_match).cp_next
+                compl_next_idx(0)
             };
         }
 
         let mut did_find_shown_match = false;
         let mut preselect_ok = false;
-        let mut shown_compl: *mut compl_T = ptr::null_mut();
+        let mut shown_compl: Option<usize> = None;
         let mut i: c_int = 0;
         let mut cur: c_int = -1;
 
@@ -1791,9 +1789,8 @@ unsafe fn ins_compl_build_pum() -> c_int {
         let _ = get_leader_for_startcol(ptr::null_mut(), true);
 
         let mut items: Vec<pumitem_T> = Vec::new();
-        let mut comp = compl_first_match;
-        loop {
-            (*comp).cp_in_match_array = false;
+        for (comp_idx, comp) in (*list).iter_mut().enumerate() {
+            comp.cp_in_match_array = false;
 
             let leader = get_leader_for_startcol(comp, true);
 
@@ -1803,16 +1800,16 @@ unsafe fn ins_compl_build_pum() -> c_int {
                 && ignorecase(compl_orig_text.data) == 0
                 && !cot_fuzzy()
             {
-                (*comp).cp_flags &= !CP_ICASE;
+                comp.cp_flags &= !CP_ICASE;
             }
 
             if !match_at_original_text(comp)
                 && ((*leader).data.is_null()
                     || ins_compl_equal_sc(comp, (*leader).data, (*leader).size)
-                    || (cot_fuzzy() && (*comp).cp_score != FUZZY_SCORE_NONE))
+                    || (cot_fuzzy() && comp.cp_score != FUZZY_SCORE_NONE))
             {
                 let mut match_limit_exceeded = false;
-                let cur_source = (*comp).cp_cpt_source_idx;
+                let cur_source = comp.cp_cpt_source_idx;
                 if is_forward && cur_source != -1 && is_cpt_completion {
                     match_count[cur_source as usize] += 1;
                     let max_matches = cpt_sources_array[cur_source as usize].cs_max_matches;
@@ -1822,47 +1819,47 @@ unsafe fn ins_compl_build_pum() -> c_int {
                 }
 
                 if !match_limit_exceeded {
-                    (*comp).cp_in_match_array = true;
+                    comp.cp_in_match_array = true;
                     items.push(pumitem_T {
-                        pum_text: if !(*comp).cp_text[CPT_ABBR].is_null() {
-                            (*comp).cp_text[CPT_ABBR]
+                        pum_text: if !comp.cp_text[CPT_ABBR].is_null() {
+                            comp.cp_text[CPT_ABBR]
                         } else {
-                            (*comp).cp_str.data
+                            comp.cp_str.data
                         },
-                        pum_kind: (*comp).cp_text[CPT_KIND],
-                        pum_extra: if !(*comp).cp_text[CPT_MENU].is_null() {
-                            (*comp).cp_text[CPT_MENU]
+                        pum_kind: comp.cp_text[CPT_KIND],
+                        pum_extra: if !comp.cp_text[CPT_MENU].is_null() {
+                            comp.cp_text[CPT_MENU]
                         } else {
-                            (*comp).cp_fname
+                            comp.cp_fname
                         },
-                        pum_info: (*comp).cp_text[CPT_INFO],
-                        pum_cpt_source_idx: (*comp).cp_cpt_source_idx,
-                        pum_user_abbr_hlattr: get_user_highlight_attr((*comp).cp_user_abbr_hl_id),
-                        pum_user_kind_hlattr: get_user_highlight_attr((*comp).cp_user_kind_hl_id),
+                        pum_info: comp.cp_text[CPT_INFO],
+                        pum_cpt_source_idx: comp.cp_cpt_source_idx,
+                        pum_user_abbr_hlattr: get_user_highlight_attr(comp.cp_user_abbr_hl_id),
+                        pum_user_kind_hlattr: get_user_highlight_attr(comp.cp_user_kind_hl_id),
                     });
 
                     if !shown_match_ok && !cot_fuzzy() {
-                        if ptr::eq(comp, compl_shown_match) || did_find_shown_match {
-                            compl_shown_match = comp;
+                        if compl_shown_idx == Some(comp_idx) || did_find_shown_match {
+                            compl_shown_idx = Some(comp_idx);
                             did_find_shown_match = true;
                             shown_match_ok = true;
                         } else {
-                            shown_compl = comp;
+                            shown_compl = Some(comp_idx);
                         }
                         cur = i;
                     } else if cot_fuzzy() {
                         if i == 0 {
-                            shown_compl = comp;
+                            shown_compl = Some(comp_idx);
                         }
 
-                        if !shown_match_ok && ptr::eq(comp, compl_shown_match) {
+                        if !shown_match_ok && compl_shown_idx == Some(comp_idx) {
                             cur = i;
                             shown_match_ok = true;
                         }
                     }
-                    if !compl_preselect_match.is_null() && (*comp).cp_preselect && !preselect_ok {
+                    if { compl_preselect_idx }.is_some() && comp.cp_preselect && !preselect_ok {
                         cur = i;
-                        compl_shown_match = comp;
+                        compl_shown_idx = Some(comp_idx);
                         shown_match_ok = true;
                         preselect_ok = true;
                     }
@@ -1870,19 +1867,15 @@ unsafe fn ins_compl_build_pum() -> c_int {
                 }
             }
 
-            if ptr::eq(comp, compl_shown_match) && !cot_fuzzy() {
+            if compl_shown_idx == Some(comp_idx) && !cot_fuzzy() {
                 did_find_shown_match = true;
                 if match_at_original_text(comp) {
                     shown_match_ok = true;
                 }
-                if !shown_match_ok && !shown_compl.is_null() {
-                    compl_shown_match = shown_compl;
+                if !shown_match_ok && shown_compl.is_some() {
+                    compl_shown_idx = shown_compl;
                     shown_match_ok = true;
                 }
-            }
-            comp = (*comp).cp_next;
-            if comp.is_null() || is_first_match(comp) {
-                break;
             }
         }
 
@@ -1891,7 +1884,7 @@ unsafe fn ins_compl_build_pum() -> c_int {
         }
 
         if cot_fuzzy() && !compl_no_select && !shown_match_ok {
-            compl_shown_match = shown_compl;
+            compl_shown_idx = shown_compl;
             shown_match_ok = true;
             cur = 0;
         }
@@ -1923,10 +1916,11 @@ pub unsafe fn ins_compl_show_pum() {
             array_changed = true;
             cur = ins_compl_build_pum();
         } else {
+            let shown = compl_opt(compl_shown_idx);
             for (i, item) in (*arr).iter().enumerate() {
                 let pum_text = item.pum_text;
-                if ptr::eq(pum_text, (*compl_shown_match).cp_str.data)
-                    || ptr::eq(pum_text, (*compl_shown_match).cp_text[CPT_ABBR])
+                if ptr::eq(pum_text, (*shown).cp_str.data)
+                    || ptr::eq(pum_text, (*shown).cp_text[CPT_ABBR])
                 {
                     cur = i as c_int;
                     break;
@@ -1959,8 +1953,8 @@ pub unsafe fn ins_compl_show_pum() {
             redrawWinline(curwin, (*curwin).w_cursor.lnum);
         }
 
-        if compl_started && !ptr::eq(compl_curr_match, compl_shown_match) {
-            compl_curr_match = compl_shown_match;
+        if compl_started && compl_curr_idx != compl_shown_idx {
+            compl_curr_idx = compl_shown_idx;
         }
 
         if has_event(EVENT_COMPLETECHANGED) {
@@ -1974,22 +1968,17 @@ pub unsafe fn compl_match_curr_select(selected: c_int) -> bool {
         if selected < 0 {
             return false;
         }
-        let mut match_ = compl_first_match;
+        let list = &raw const compl_list;
+        let curr = compl_opt(compl_curr_idx);
         let mut selected_idx: c_int = -1;
         let mut list_idx: c_int = 0;
-        loop {
+        for match_ in &*list {
             if !match_at_original_text(match_) {
-                if !compl_curr_match.is_null()
-                    && (*compl_curr_match).cp_number == (*match_).cp_number
-                {
+                if !curr.is_null() && (*curr).cp_number == match_.cp_number {
                     selected_idx = list_idx;
                     break;
                 }
                 list_idx += 1;
-            }
-            match_ = (*match_).cp_next;
-            if match_.is_null() || is_first_match(match_) {
-                break;
             }
         }
 
@@ -2226,8 +2215,8 @@ unsafe fn ins_compl_files(
                             ptr = end_ptr;
                             if compl_get_longest
                                 && ctrl_x_mode_normal()
-                                && !(*compl_first_match).cp_next.is_null()
-                                && score == (*(*compl_first_match).cp_next).cp_score
+                                && let Some(next_i) = compl_next_idx(0)
+                                && score == (*compl_at(next_i)).cp_score
                             {
                                 compl_num_bests += 1;
                             }
@@ -2312,31 +2301,13 @@ pub unsafe fn find_line_end(ptr: *mut c_char) -> *mut c_char {
     }
 }
 
-unsafe fn ins_compl_item_free(match_: *mut compl_T) {
-    unsafe {
-        let ht_ptr = &raw mut compl_strings_ht;
-        if !(*ht_ptr).is_empty()
-            && !(*match_).cp_str.data.is_null()
-            && !match_at_original_text(match_)
-        {
-            let key = CStr::from_ptr((*match_).cp_str.data).to_bytes();
-            if let Some(count) = (*ht_ptr).get_mut(key) {
-                *count -= 1;
-                if *count <= 0 {
-                    (*ht_ptr).remove(key);
-                }
-            }
-        }
-        drop(Box::from_raw(match_));
-    }
-}
-
 unsafe fn ins_compl_free() {
     unsafe {
         api_clear_string(&raw mut compl_pattern);
         api_clear_string(&raw mut compl_leader);
 
-        if compl_first_match.is_null() {
+        let list = &raw mut compl_list;
+        if (*list).is_empty() {
             return;
         }
 
@@ -2346,20 +2317,12 @@ unsafe fn ins_compl_free() {
         let ht_ptr = &raw mut compl_strings_ht;
         (*ht_ptr).clear();
 
-        compl_curr_match = compl_first_match;
-        loop {
-            let match_ = compl_curr_match;
-            compl_curr_match = (*compl_curr_match).cp_next;
-            ins_compl_item_free(match_);
-            if compl_curr_match.is_null() || is_first_match(compl_curr_match) {
-                break;
-            }
-        }
-        compl_first_match = ptr::null_mut();
-        compl_curr_match = ptr::null_mut();
-        compl_shown_match = ptr::null_mut();
-        compl_preselect_match = ptr::null_mut();
-        compl_old_match = ptr::null_mut();
+        (*list).clear();
+        compl_is_cyclic = false;
+        compl_curr_idx = None;
+        compl_shown_idx = None;
+        compl_preselect_idx = None;
+        compl_old_idx = None;
     }
 }
 
@@ -2480,13 +2443,16 @@ pub unsafe fn ins_compl_bs() -> c_int {
             (p_off - compl_col as isize) as usize,
         );
 
-        if compl_autocomplete && !compl_first_match.is_null() && !ins_compl_has_preinsert() {
-            compl_shown_match = compl_first_match;
+        if compl_autocomplete
+            && !(&raw const compl_list).as_ref().unwrap().is_empty()
+            && !ins_compl_has_preinsert()
+        {
+            compl_shown_idx = Some(0);
         }
 
         ins_compl_new_leader();
-        if !compl_shown_match.is_null() {
-            compl_curr_match = compl_shown_match;
+        if { compl_shown_idx }.is_some() {
+            compl_curr_idx = compl_shown_idx;
         }
         NUL as c_int
     }
@@ -2522,16 +2488,16 @@ unsafe fn ins_compl_fuzzy_sort() {
             if (cur_cot_flags & (kOptCotFlagNoinsert | kOptCotFlagNoselect)) == kOptCotFlagNoinsert
             {
                 let target = if compl_shows_dir_forward() {
-                    compl_first_match
+                    Some(0)
                 } else {
-                    (*compl_first_match).cp_prev
+                    compl_prev_idx(0)
                 };
-                let none_selected = ptr::eq(compl_shown_match, target);
+                let none_selected = compl_shown_idx == target;
                 if !none_selected {
-                    compl_shown_match = if !compl_autocomplete && compl_shows_dir_forward() {
-                        (*compl_first_match).cp_next
+                    compl_shown_idx = if !compl_autocomplete && compl_shows_dir_forward() {
+                        compl_next_idx(0)
                     } else {
-                        compl_first_match
+                        Some(0)
                     };
                 }
             }
@@ -2649,11 +2615,10 @@ unsafe fn ins_compl_restart() {
 
 unsafe fn ins_compl_set_original_text(str_ptr: *const c_char, len: usize) {
     unsafe {
-        let match_ = find_original_text_match();
-        if match_.is_null() {
+        let Some(orig_idx) = find_original_text_match_idx() else {
             return;
-        }
-
+        };
+        let match_ = compl_at(orig_idx);
         api_clear_string(&raw mut (*match_).cp_str);
         (*match_).cp_str = cbuf_to_string(str_ptr, len);
     }
@@ -2662,17 +2627,21 @@ unsafe fn ins_compl_set_original_text(str_ptr: *const c_char, len: usize) {
 pub unsafe fn ins_compl_addfrommatch() {
     unsafe {
         let len = (*curwin).w_cursor.col - compl_col;
-        debug_assert!(!compl_shown_match.is_null());
-        let mut p = (*compl_shown_match).cp_str.data;
-        if ((*compl_shown_match).cp_str.size as c_int) <= len {
-            if !match_at_original_text(compl_shown_match) {
+        let shown_idx = compl_shown_idx.unwrap();
+        let shown = compl_at(shown_idx);
+        let mut p = (*shown).cp_str.data;
+        if ((*shown).cp_str.size as c_int) <= len {
+            if !match_at_original_text(shown) {
                 return;
             }
 
             p = ptr::null_mut();
             let mut plen: usize = 0;
-            let mut cp = (*compl_shown_match).cp_next;
-            while !cp.is_null() && !is_first_match(cp) {
+            let mut cp_idx = compl_next_idx(shown_idx);
+            while let Some(ci) = cp_idx
+                && ci != 0
+            {
+                let cp = compl_at(ci);
                 if compl_leader.data.is_null()
                     || ins_compl_equal(cp, compl_leader.data, compl_leader.size)
                 {
@@ -2680,7 +2649,7 @@ pub unsafe fn ins_compl_addfrommatch() {
                     plen = (*cp).cp_str.size;
                     break;
                 }
-                cp = (*cp).cp_next;
+                cp_idx = compl_next_idx(ci);
             }
             if p.is_null() || (plen as c_int) <= len {
                 return;
@@ -2788,10 +2757,11 @@ unsafe fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
             ins_compl_delete(false);
         }
 
-        if !compl_curr_match.is_null() || !compl_leader.data.is_null() || c == Ctrl_E {
+        let curr = compl_opt(compl_curr_idx);
+        if !curr.is_null() || !compl_leader.data.is_null() || c == Ctrl_E {
             let mut ptr: *mut c_char = ptr::null_mut();
-            if !compl_curr_match.is_null() && compl_used_match && c != Ctrl_E {
-                ptr = (*compl_curr_match).cp_str.data;
+            if !curr.is_null() && compl_used_match && c != Ctrl_E {
+                ptr = (*curr).cp_str.data;
             }
             ins_compl_fixRedoBufForLeader(ptr);
         }
@@ -2826,7 +2796,8 @@ unsafe fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
             || (compl_enter_selects && (c == CAR || c == K_KENTER || c == NL)))
             && pum_visible()
         {
-            word = copy_string((*compl_shown_match).cp_str, ptr::null_mut());
+            let shown = compl_opt(compl_shown_idx);
+            word = copy_string((*shown).cp_str, ptr::null_mut());
             if !is_commit {
                 retval = true;
             }
@@ -2834,14 +2805,15 @@ unsafe fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
         }
 
         let arr = &raw const compl_match_array;
+        let curr = compl_opt(compl_curr_idx);
         if word.data.is_null()
             && c != Ctrl_E
             && compl_used_match
             && (*arr).is_empty()
-            && !compl_curr_match.is_null()
-            && !(*compl_curr_match).cp_str.data.is_null()
+            && !curr.is_null()
+            && !(*curr).cp_str.data.is_null()
         {
-            word = copy_string((*compl_curr_match).cp_str, ptr::null_mut());
+            word = copy_string((*curr).cp_str, ptr::null_mut());
         }
 
         if c == Ctrl_E {
@@ -2851,7 +2823,7 @@ unsafe fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
             if !compl_leader.data.is_null() {
                 p = compl_leader.data;
                 plen = compl_leader.size;
-            } else if !compl_first_match.is_null() {
+            } else if !(&raw const compl_list).as_ref().unwrap().is_empty() {
                 p = compl_orig_text.data;
                 plen = compl_orig_text.size;
             }
@@ -3515,10 +3487,12 @@ unsafe fn set_completion(mut startcol: colnr_T, list: *mut list_T) {
         let save_w_wrow = (*curwin).w_wrow;
         let save_w_leftcol = (*curwin).w_leftcol;
 
-        compl_curr_match = compl_first_match;
+        compl_curr_idx = Some(0);
         let no_select = compl_no_select || compl_longest;
-        if !compl_preselect_match.is_null() && !no_select {
-            compl_curr_match = (*compl_preselect_match).cp_prev;
+        if let Some(pre_idx) = compl_preselect_idx
+            && !no_select
+        {
+            compl_curr_idx = compl_prev_idx(pre_idx);
             ins_complete(if compl_no_insert { K_DOWN } else { Ctrl_N }, false);
         } else if compl_no_insert || no_select {
             ins_complete(K_DOWN, false);
@@ -3594,40 +3568,57 @@ unsafe fn ins_compl_mode() -> NvimString {
 unsafe fn ins_compl_update_sequence_numbers() {
     unsafe {
         let mut number: c_int = 0;
+        let Some(curr_idx) = compl_curr_idx else {
+            return;
+        };
 
         if compl_dir_forward() {
-            let mut match_ = (*compl_curr_match).cp_prev;
-            while !match_.is_null() && !is_first_match(match_) {
-                if (*match_).cp_number != -1 {
-                    number = (*match_).cp_number;
+            let mut match_idx = compl_prev_idx(curr_idx);
+            while let Some(mi) = match_idx
+                && mi != 0
+            {
+                let m = compl_at(mi);
+                if (*m).cp_number != -1 {
+                    number = (*m).cp_number;
                     break;
                 }
-                match_ = (*match_).cp_prev;
+                match_idx = compl_prev_idx(mi);
             }
-            if !match_.is_null() {
-                match_ = (*match_).cp_next;
-                while !match_.is_null() && (*match_).cp_number == -1 {
+            if let Some(mi) = match_idx {
+                match_idx = compl_next_idx(mi);
+                while let Some(cur_mi) = match_idx {
+                    let m = compl_at(cur_mi);
+                    if (*m).cp_number != -1 {
+                        break;
+                    }
                     number += 1;
-                    (*match_).cp_number = number;
-                    match_ = (*match_).cp_next;
+                    (*m).cp_number = number;
+                    match_idx = compl_next_idx(cur_mi);
                 }
             }
         } else {
             debug_assert!(compl_direction == BACKWARD);
-            let mut match_ = (*compl_curr_match).cp_next;
-            while !match_.is_null() && !is_first_match(match_) {
-                if (*match_).cp_number != -1 {
-                    number = (*match_).cp_number;
+            let mut match_idx = compl_next_idx(curr_idx);
+            while let Some(mi) = match_idx
+                && mi != 0
+            {
+                let m = compl_at(mi);
+                if (*m).cp_number != -1 {
+                    number = (*m).cp_number;
                     break;
                 }
-                match_ = (*match_).cp_next;
+                match_idx = compl_next_idx(mi);
             }
-            if !match_.is_null() {
-                match_ = (*match_).cp_prev;
-                while !match_.is_null() && (*match_).cp_number == -1 {
+            if let Some(mi) = match_idx {
+                match_idx = compl_prev_idx(mi);
+                while let Some(cur_mi) = match_idx {
+                    let m = compl_at(cur_mi);
+                    if (*m).cp_number != -1 {
+                        break;
+                    }
                     number += 1;
-                    (*match_).cp_number = number;
-                    match_ = (*match_).cp_prev;
+                    (*m).cp_number = number;
+                    match_idx = compl_prev_idx(cur_mi);
                 }
             }
         }
@@ -3791,33 +3782,28 @@ unsafe fn get_complete_info(what_list: *mut list_T, retdict: *mut dict_T) {
             }
             if ret == OK
                 && (what_flag & CI_WHAT_SELECTED) != 0
-                && !compl_curr_match.is_null()
-                && (*compl_curr_match).cp_number == -1
+                && let Some(ci) = compl_curr_idx
+                && (*compl_at(ci)).cp_number == -1
             {
                 ins_compl_update_sequence_numbers();
             }
-            if ret == OK && !compl_first_match.is_null() {
+            let list = &raw mut compl_list;
+            let curr = compl_opt(compl_curr_idx);
+            if ret == OK && !(*list).is_empty() {
                 let mut list_idx: c_int = 0;
-                let mut match_ = compl_first_match;
-                loop {
+                for match_ in &mut *list {
                     if !match_at_original_text(match_) {
-                        if has_items || (has_matches && (*match_).cp_in_match_array) {
+                        if has_items || (has_matches && match_.cp_in_match_array) {
                             let di = tv_dict_alloc();
                             tv_list_append_dict(li, di);
                             fill_complete_info_dict(di, match_, has_matches && has_items);
                         }
-                        if !compl_curr_match.is_null()
-                            && (*compl_curr_match).cp_number == (*match_).cp_number
-                        {
+                        if !curr.is_null() && (*curr).cp_number == match_.cp_number {
                             selected_idx = list_idx;
                         }
-                        if !has_matches || (*match_).cp_in_match_array {
+                        if !has_matches || match_.cp_in_match_array {
                             list_idx += 1;
                         }
-                    }
-                    match_ = (*match_).cp_next;
-                    if match_.is_null() || is_first_match(match_) {
-                        break;
                     }
                 }
             }
@@ -3846,7 +3832,7 @@ unsafe fn get_complete_info(what_list: *mut list_T, retdict: *mut dict_T) {
             }
             if ret == OK && selected_idx != -1 && has_completed {
                 let di = tv_dict_alloc();
-                fill_complete_info_dict(di, compl_curr_match, false);
+                fill_complete_info_dict(di, compl_opt(compl_curr_idx), false);
                 let _ = tv_dict_add_dict(retdict, c"completed".as_ptr(), 9, di);
             }
         }
@@ -4138,17 +4124,17 @@ unsafe fn fuzzy_longest_match() {
             return;
         }
 
-        let nn_compl = (*(*compl_first_match).cp_next).cp_next;
-        let more_candidates = !nn_compl.is_null() && !ptr::eq(nn_compl, compl_first_match);
+        let nn_idx = compl_next_idx(0).and_then(|i| compl_next_idx(i));
+        let more_candidates = nn_idx.is_some_and(|i| i != 0);
 
-        let mut compl = if ctrl_x_mode_whole_line() {
-            compl_first_match
+        let mut compl_idx = if ctrl_x_mode_whole_line() {
+            Some(0)
         } else {
-            (*compl_first_match).cp_next
+            compl_next_idx(0)
         };
         if compl_num_bests == 1 {
-            if !more_candidates {
-                ins_compl_longest_insert((*compl).cp_str.data);
+            if !more_candidates && let Some(ci) = compl_idx {
+                ins_compl_longest_insert((*compl_at(ci)).cp_str.data);
                 compl_num_bests = 0;
             }
             compl_num_bests = 0;
@@ -4161,9 +4147,11 @@ unsafe fn fuzzy_longest_match() {
         let mut compl_best_matches = Vec::with_capacity(compl_num_bests as usize);
 
         let mut i: c_int = 0;
-        while !compl.is_null() && i < compl_num_bests {
-            compl_best_matches.push(compl);
-            compl = (*compl).cp_next;
+        while let Some(ci) = compl_idx
+            && i < compl_num_bests
+        {
+            compl_best_matches.push(compl_at(ci));
+            compl_idx = compl_next_idx(ci);
             i += 1;
         }
 
@@ -4647,7 +4635,10 @@ unsafe fn get_next_default_completion(
                 score,
             ) != NOTDONE
             {
-                if in_fuzzy_collect && score == (*(*compl_first_match).cp_next).cp_score {
+                if in_fuzzy_collect
+                    && let Some(next_i) = compl_next_idx(0)
+                    && score == (*compl_at(next_i)).cp_score
+                {
                     compl_num_bests += 1;
                 }
                 found_new_match = OK;
@@ -4845,7 +4836,7 @@ unsafe fn get_next_completion_match(
             }
         }
 
-        if type_ != 0 && !ptr::eq(compl_curr_match, compl_old_match) {
+        if type_ != 0 && compl_curr_idx != compl_old_idx {
             found_new_match = OK;
         }
 
@@ -5024,7 +5015,7 @@ unsafe fn ins_compl_get_exp(ini: *mut pos_T) -> c_int {
         }
         debug_assert!(!st.ins_buf.is_null());
 
-        compl_old_match = compl_curr_match;
+        compl_old_idx = compl_curr_idx;
         st.cur_match_pos = if compl_dir_forward() {
             &raw mut st.last_match_pos
         } else {
@@ -5130,10 +5121,11 @@ unsafe fn ins_compl_get_exp(ini: *mut pos_T) -> c_int {
             }
 
             if !compl_dir_forward() {
-                while !(*compl_curr_match).cp_prev.is_null()
-                    && !match_at_original_text((*compl_curr_match).cp_prev)
+                while let Some(curr_i) = compl_curr_idx
+                    && let Some(prev_i) = compl_prev_idx(curr_i)
+                    && !match_at_original_text(compl_at(prev_i))
                 {
-                    compl_curr_match = (*compl_curr_match).cp_prev;
+                    compl_curr_idx = Some(prev_i);
                 }
             }
         }
@@ -5153,15 +5145,13 @@ unsafe fn ins_compl_get_exp(ini: *mut pos_T) -> c_int {
             fuzzy_longest_match();
         }
 
-        if !compl_old_match.is_null() {
-            compl_curr_match = if compl_dir_forward() {
-                (*compl_old_match).cp_next
+        if let Some(old_i) = compl_old_idx {
+            let next_curr = if compl_dir_forward() {
+                compl_next_idx(old_i)
             } else {
-                (*compl_old_match).cp_prev
+                compl_prev_idx(old_i)
             };
-            if compl_curr_match.is_null() {
-                compl_curr_match = compl_old_match;
-            }
+            compl_curr_idx = Some(next_curr.unwrap_or(old_i));
         }
         may_trigger_modechanged();
 
@@ -5182,27 +5172,31 @@ unsafe fn ins_compl_get_exp(ini: *mut pos_T) -> c_int {
 unsafe fn ins_compl_update_shown_match() {
     unsafe {
         let _ = get_leader_for_startcol(ptr::null_mut(), true);
-        let mut leader = get_leader_for_startcol(compl_shown_match, true);
+        let Some(mut shown_idx) = compl_shown_idx else {
+            return;
+        };
+        let mut leader = get_leader_for_startcol(compl_at(shown_idx), true);
 
-        while !ins_compl_equal(compl_shown_match, (*leader).data, (*leader).size)
-            && !(*compl_shown_match).cp_next.is_null()
-            && !is_first_match((*compl_shown_match).cp_next)
+        while !ins_compl_equal(compl_at(shown_idx), (*leader).data, (*leader).size)
+            && let Some(next_i) = compl_next_idx(shown_idx)
+            && next_i != 0
         {
-            compl_shown_match = (*compl_shown_match).cp_next;
-            leader = get_leader_for_startcol(compl_shown_match, true);
+            shown_idx = next_i;
+            compl_shown_idx = Some(shown_idx);
+            leader = get_leader_for_startcol(compl_at(shown_idx), true);
         }
 
         if compl_shows_dir_backward()
-            && !ins_compl_equal(compl_shown_match, (*leader).data, (*leader).size)
-            && ((*compl_shown_match).cp_next.is_null()
-                || is_first_match((*compl_shown_match).cp_next))
+            && !ins_compl_equal(compl_at(shown_idx), (*leader).data, (*leader).size)
+            && compl_next_idx(shown_idx).is_none_or(|ni| ni == 0)
         {
-            while !ins_compl_equal(compl_shown_match, (*leader).data, (*leader).size)
-                && !(*compl_shown_match).cp_prev.is_null()
-                && !is_first_match((*compl_shown_match).cp_prev)
+            while !ins_compl_equal(compl_at(shown_idx), (*leader).data, (*leader).size)
+                && let Some(prev_i) = compl_prev_idx(shown_idx)
+                && prev_i != 0
             {
-                compl_shown_match = (*compl_shown_match).cp_prev;
-                leader = get_leader_for_startcol(compl_shown_match, true);
+                shown_idx = prev_i;
+                compl_shown_idx = Some(shown_idx);
+                leader = get_leader_for_startcol(compl_at(shown_idx), true);
             }
         }
     }
@@ -5317,10 +5311,10 @@ unsafe fn find_common_prefix(prefix_len: *mut usize, curbuf_only: bool) -> *mut 
 
         let _ = get_leader_for_startcol(ptr::null_mut(), true);
 
-        let mut compl = compl_first_match;
+        let list = &raw mut compl_list;
         let mut first: *mut c_char = ptr::null_mut();
         let mut len: c_int = -1;
-        loop {
+        for compl in &mut *list {
             let leader = get_leader_for_startcol(compl, true);
 
             if ctrl_x_mode_normal()
@@ -5328,7 +5322,7 @@ unsafe fn find_common_prefix(prefix_len: *mut usize, curbuf_only: bool) -> *mut 
                 && !compl_orig_text.data.is_null()
                 && ignorecase(compl_orig_text.data) == 0
             {
-                (*compl).cp_flags &= !CP_ICASE;
+                compl.cp_flags &= !CP_ICASE;
             }
 
             if !match_at_original_text(compl)
@@ -5336,7 +5330,7 @@ unsafe fn find_common_prefix(prefix_len: *mut usize, curbuf_only: bool) -> *mut 
                     || ins_compl_equal_sc(compl, (*leader).data, (*leader).size))
             {
                 let mut match_limit_exceeded = false;
-                let cur_source = (*compl).cp_cpt_source_idx;
+                let cur_source = compl.cp_cpt_source_idx;
 
                 if cur_source != -1 {
                     match_count[cur_source as usize] += 1;
@@ -5354,16 +5348,16 @@ unsafe fn find_common_prefix(prefix_len: *mut usize, curbuf_only: bool) -> *mut 
                     if first.is_null()
                         && strncmp(
                             ins_compl_leader(),
-                            (*compl).cp_str.data,
+                            compl.cp_str.data,
                             ins_compl_leader_len(),
                         ) == 0
                     {
-                        first = (*compl).cp_str.data;
+                        first = compl.cp_str.data;
                         len = strlen(first) as c_int;
                     } else if !first.is_null() {
                         let mut j: c_int = 0;
                         let mut s1 = first;
-                        let mut s2 = (*compl).cp_str.data;
+                        let mut s2 = compl.cp_str.data;
 
                         while j < len && *s1 != NUL && *s2 != NUL {
                             let l1 = utf_byte2len(c_int::from(*s1 as u8));
@@ -5383,10 +5377,6 @@ unsafe fn find_common_prefix(prefix_len: *mut usize, curbuf_only: bool) -> *mut 
                         }
                     }
                 }
-            }
-            compl = (*compl).cp_next;
-            if compl.is_null() || is_first_match(compl) {
-                break;
             }
         }
 
@@ -5417,8 +5407,9 @@ pub unsafe fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
     unsafe {
         let compl_len = get_compl_len();
         let preinsert = ins_compl_has_preinsert();
-        let mut cp_str = (*compl_shown_match).cp_str.data;
-        let mut cp_str_len = (*compl_shown_match).cp_str.size;
+        let shown = compl_opt(compl_shown_idx);
+        let mut cp_str = (*shown).cp_str.data;
+        let mut cp_str_len = (*shown).cp_str.size;
         let leader_len = ins_compl_leader_len();
         let has_multiple = !strchr(cp_str, b'\n' as c_int).is_null();
 
@@ -5428,12 +5419,13 @@ pub unsafe fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
             if cp_str.is_null() {
                 cp_str = find_common_prefix(&raw mut cp_str_len, true);
                 if cp_str.is_null() {
-                    cp_str = (*compl_shown_match).cp_str.data;
-                    cp_str_len = (*compl_shown_match).cp_str.size;
+                    let shown = compl_opt(compl_shown_idx);
+                    cp_str = (*shown).cp_str.data;
+                    cp_str_len = (*shown).cp_str.size;
                 }
             }
         } else if !(*cpt_sources).is_empty() {
-            let cpt_idx = (*compl_shown_match).cp_cpt_source_idx;
+            let cpt_idx = (*shown).cp_cpt_source_idx;
             if cpt_idx >= 0 && compl_col >= 0 {
                 let startcol = cpt_sources_array[cpt_idx as usize].cs_startcol;
                 if startcol >= 0 && startcol < compl_col {
@@ -5463,10 +5455,11 @@ pub unsafe fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
                 }
             }
         }
+        let shown = compl_opt(compl_shown_idx);
         compl_used_match =
-            !(match_at_original_text(compl_shown_match) || (preinsert && !insert_prefix));
+            !(match_at_original_text(shown) || (preinsert && !insert_prefix));
 
-        let dict = ins_compl_dict_alloc(compl_shown_match);
+        let dict = ins_compl_dict_alloc(shown);
         set_vim_var_dict(VV_COMPLETED_ITEM, dict);
         compl_hi_on_autocompl_longest = insert_prefix && move_cursor;
     }
@@ -5482,7 +5475,8 @@ unsafe fn ins_compl_show_filename() {
             return;
         }
 
-        let mut s = (*compl_shown_match).cp_fname;
+        let shown = compl_opt(compl_shown_idx);
+        let mut s = (*shown).cp_fname;
         let mut e = s;
         while *e != NUL {
             space -= ptr2cells(e);
@@ -5500,7 +5494,7 @@ unsafe fn ins_compl_show_filename() {
                 IOSIZE,
                 c"%s %s%s".as_ptr(),
                 lead,
-                if s > (*compl_shown_match).cp_fname {
+                if s > (*shown).cp_fname {
                     c"<".as_ptr()
                 } else {
                     c"".as_ptr()
@@ -5514,25 +5508,30 @@ unsafe fn ins_compl_show_filename() {
     }
 }
 
-unsafe fn find_next_match_in_menu() -> *mut compl_T {
+unsafe fn find_next_match_in_menu() -> Option<usize> {
     unsafe {
         let is_forward = compl_shows_dir_forward();
-        let mut match_ = compl_shown_match;
+        let mut match_idx = compl_shown_idx?;
 
         loop {
-            match_ = if is_forward {
-                (*match_).cp_next
+            let next_opt = if is_forward {
+                compl_next_idx(match_idx)
             } else {
-                (*match_).cp_prev
+                compl_prev_idx(match_idx)
             };
-            if (*match_).cp_next.is_null()
-                || (*match_).cp_in_match_array
-                || match_at_original_text(match_)
+            let Some(ni) = next_opt else {
+                break;
+            };
+            match_idx = ni;
+            let m = compl_at(match_idx);
+            if compl_next_idx(match_idx).is_none()
+                || (*m).cp_in_match_array
+                || match_at_original_text(m)
             {
                 break;
             }
         }
-        match_
+        Some(match_idx)
     }
 }
 
@@ -5544,7 +5543,7 @@ unsafe fn find_next_completion_match(
 ) -> c_int {
     unsafe {
         let mut found_end: bool;
-        let mut found_compl: *mut compl_T = ptr::null_mut();
+        let mut found_compl: Option<usize> = None;
         let cur_cot_flags = get_cot_flags();
         let compl_no_select = (cur_cot_flags & kOptCotFlagNoselect) != 0
             || (compl_autocomplete && !ins_compl_has_preinsert());
@@ -5555,23 +5554,24 @@ unsafe fn find_next_completion_match(
                 break;
             }
             let arr = &raw const compl_match_array;
-            if compl_shows_dir_forward() && !(*compl_shown_match).cp_next.is_null() {
+            let shown_idx = compl_shown_idx.unwrap();
+            if compl_shows_dir_forward() && compl_next_idx(shown_idx).is_some() {
                 if !(*arr).is_empty() {
-                    compl_shown_match = find_next_match_in_menu();
+                    compl_shown_idx = find_next_match_in_menu();
                 } else {
-                    compl_shown_match = (*compl_shown_match).cp_next;
+                    compl_shown_idx = compl_next_idx(shown_idx);
                 }
-                found_end = !compl_first_match.is_null()
-                    && (is_first_match((*compl_shown_match).cp_next)
-                        || is_first_match(compl_shown_match));
-            } else if compl_shows_dir_backward() && !(*compl_shown_match).cp_prev.is_null() {
-                found_end = is_first_match(compl_shown_match);
+                let new_shown = compl_shown_idx.unwrap();
+                found_end = !(&raw const compl_list).as_ref().unwrap().is_empty()
+                    && (compl_next_idx(new_shown) == Some(0) || new_shown == 0);
+            } else if compl_shows_dir_backward() && compl_prev_idx(shown_idx).is_some() {
+                found_end = shown_idx == 0;
                 if !(*arr).is_empty() {
-                    compl_shown_match = find_next_match_in_menu();
+                    compl_shown_idx = find_next_match_in_menu();
                 } else {
-                    compl_shown_match = (*compl_shown_match).cp_prev;
+                    compl_shown_idx = compl_prev_idx(shown_idx);
                 }
-                found_end |= is_first_match(compl_shown_match);
+                found_end |= compl_shown_idx == Some(0);
             } else {
                 if !allow_get_expansion {
                     if advance {
@@ -5595,11 +5595,12 @@ unsafe fn find_next_completion_match(
                 *num_matches = ins_compl_get_exp(&raw mut compl_startpos);
 
                 while compl_pending != 0 && compl_direction == compl_shows_dir && advance {
-                    if compl_pending > 0 && !(*compl_shown_match).cp_next.is_null() {
-                        compl_shown_match = (*compl_shown_match).cp_next;
+                    let cur_shown = compl_shown_idx.unwrap();
+                    if compl_pending > 0 && let Some(ni) = compl_next_idx(cur_shown) {
+                        compl_shown_idx = Some(ni);
                         compl_pending -= 1;
-                    } else if compl_pending < 0 && !(*compl_shown_match).cp_prev.is_null() {
-                        compl_shown_match = (*compl_shown_match).cp_prev;
+                    } else if compl_pending < 0 && let Some(pi) = compl_prev_idx(cur_shown) {
+                        compl_shown_idx = Some(pi);
                         compl_pending += 1;
                     } else {
                         break;
@@ -5608,21 +5609,22 @@ unsafe fn find_next_completion_match(
                 found_end = false;
             }
 
-            let leader = get_leader_for_startcol(compl_shown_match, false);
+            let shown = compl_opt(compl_shown_idx);
+            let leader = get_leader_for_startcol(shown, false);
 
-            if !match_at_original_text(compl_shown_match)
+            if !match_at_original_text(shown)
                 && !(*leader).data.is_null()
-                && !ins_compl_equal(compl_shown_match, (*leader).data, (*leader).size)
-                && !(cot_fuzzy() && (*compl_shown_match).cp_score != FUZZY_SCORE_NONE)
+                && !ins_compl_equal(shown, (*leader).data, (*leader).size)
+                && !(cot_fuzzy() && (*shown).cp_score != FUZZY_SCORE_NONE)
             {
                 todo += 1;
             } else {
-                found_compl = compl_shown_match;
+                found_compl = compl_shown_idx;
             }
 
             if found_end {
-                if !found_compl.is_null() {
-                    compl_shown_match = found_compl;
+                if found_compl.is_some() {
+                    compl_shown_idx = found_compl;
                     break;
                 }
                 todo = 1;
@@ -5644,12 +5646,12 @@ unsafe fn ins_compl_next(allow_get_expansion: bool, count: c_int, insert_match: 
             || (compl_autocomplete && !ins_compl_has_preinsert());
         let compl_preinsert = ins_compl_has_preinsert();
 
-        if compl_shown_match.is_null() {
+        if { compl_shown_idx }.is_none() {
             return -1;
         }
 
         if !compl_leader.data.is_null()
-            && !match_at_original_text(compl_shown_match)
+            && !match_at_original_text(compl_opt(compl_shown_idx))
             && !cot_fuzzy()
         {
             ins_compl_update_shown_match();
@@ -5684,14 +5686,15 @@ unsafe fn ins_compl_next(allow_get_expansion: bool, count: c_int, insert_match: 
             restore_orig_extmarks();
         } else if insert_match {
             if !compl_get_longest || compl_used_match {
-                let preinsert_longest =
-                    ins_compl_preinsert_longest() && match_at_original_text(compl_shown_match);
+                let preinsert_longest = ins_compl_preinsert_longest()
+                    && match_at_original_text(compl_opt(compl_shown_idx));
                 ins_compl_insert(compl_preinsert || preinsert_longest, preinsert_longest);
             } else {
                 debug_assert!(!compl_leader.data.is_null());
                 ins_compl_insert_bytes(compl_leader.data.add(get_compl_len() as usize), -1);
             }
-            if strequal((*compl_shown_match).cp_str.data, compl_orig_text.data) {
+            let shown = compl_opt(compl_shown_idx);
+            if strequal((*shown).cp_str.data, compl_orig_text.data) {
                 restore_orig_extmarks();
             }
         } else {
@@ -5704,14 +5707,15 @@ unsafe fn ins_compl_next(allow_get_expansion: bool, count: c_int, insert_match: 
             ins_compl_delete(false);
         }
 
-        if compl_no_insert && !started && !match_at_original_text(compl_shown_match) {
+        let shown = compl_opt(compl_shown_idx);
+        if compl_no_insert && !started && !match_at_original_text(shown) {
             compl_enter_selects = true;
         } else {
             let arr = &raw const compl_match_array;
             compl_enter_selects = !insert_match && !(*arr).is_empty();
         }
 
-        if !(*compl_shown_match).cp_fname.is_null() {
+        if !(*shown).cp_fname.is_null() {
             ins_compl_show_filename();
         }
 
@@ -6377,7 +6381,7 @@ unsafe fn ins_compl_start() -> c_int {
 unsafe fn ins_compl_show_statusmsg() {
     static mut match_ref: [c_char; 81] = [0; 81];
     unsafe {
-        if is_first_match((*compl_first_match).cp_next) {
+        if compl_next_idx(0) == Some(0) {
             edit_submode_extra = if compl_status_adding() && compl_length > 1 {
                 gettext(c"Hit end of paragraph".as_ptr())
             } else {
@@ -6387,29 +6391,32 @@ unsafe fn ins_compl_show_statusmsg() {
         }
 
         if edit_submode_extra.is_null() {
-            if match_at_original_text(compl_curr_match) {
+            let curr_idx = compl_curr_idx.unwrap();
+            let curr = compl_at(curr_idx);
+            if match_at_original_text(curr) {
                 edit_submode_extra = gettext(c"Back at original".as_ptr());
                 edit_submode_highl = HLF_W;
             } else if (compl_cont_status & CONT_S_IPOS) != 0 {
                 edit_submode_extra = gettext(c"Word from other line".as_ptr());
                 edit_submode_highl = HLF_COUNT;
-            } else if ptr::eq((*compl_curr_match).cp_next, (*compl_curr_match).cp_prev) {
+            } else if compl_next_idx(curr_idx) == compl_prev_idx(curr_idx) {
                 edit_submode_extra = gettext(c"The only match".as_ptr());
                 edit_submode_highl = HLF_COUNT;
-                (*compl_curr_match).cp_number = 1;
+                (*curr).cp_number = 1;
             } else {
-                if (*compl_curr_match).cp_number == -1 {
+                if (*curr).cp_number == -1 {
                     ins_compl_update_sequence_numbers();
                 }
 
-                if (*compl_curr_match).cp_number != -1 {
+                let curr = compl_at(curr_idx);
+                if (*curr).cp_number != -1 {
                     let match_ref_ptr = (&raw mut match_ref).cast::<c_char>();
                     if compl_matches > 0 {
                         vim_snprintf!(
                             match_ref_ptr,
                             81,
                             gettext(c"match %d of %d".as_ptr()),
-                            (*compl_curr_match).cp_number,
+                            (*curr).cp_number,
                             compl_matches,
                         );
                     } else {
@@ -6417,7 +6424,7 @@ unsafe fn ins_compl_show_statusmsg() {
                             match_ref_ptr,
                             81,
                             gettext(c"match %d".as_ptr()),
-                            (*compl_curr_match).cp_number,
+                            (*curr).cp_number,
                         );
                     }
                     edit_submode_extra = match_ref_ptr;
@@ -6469,7 +6476,7 @@ pub unsafe fn ins_complete(c: c_int, enable_pum: bool) -> c_int {
 
         compl_curr_win = curwin;
         compl_curr_buf = (*curwin).w_buffer;
-        compl_shown_match = compl_curr_match;
+        compl_shown_idx = compl_curr_idx;
         compl_shows_dir = compl_direction;
         compl_num_bests = 0;
 
@@ -6484,7 +6491,7 @@ pub unsafe fn ins_complete(c: c_int, enable_pum: bool) -> c_int {
         if n > 1 {
             compl_matches = n;
         }
-        compl_curr_match = compl_shown_match;
+        compl_curr_idx = compl_shown_idx;
         compl_direction = compl_shows_dir;
 
         if got_int && global_busy == 0 {
@@ -6492,7 +6499,7 @@ pub unsafe fn ins_complete(c: c_int, enable_pum: bool) -> c_int {
             got_int = false;
         }
 
-        let no_matches_found = is_first_match((*compl_first_match).cp_next);
+        let no_matches_found = compl_next_idx(0) == Some(0);
         if no_matches_found
             && (compl_length > 1
                 || compl_status_adding()
@@ -6503,7 +6510,8 @@ pub unsafe fn ins_complete(c: c_int, enable_pum: bool) -> c_int {
             compl_cont_status &= !CONT_N_ADDS;
         }
 
-        if ((*compl_curr_match).cp_flags & CP_CONT_S_IPOS) != 0 {
+        let curr = compl_opt(compl_curr_idx);
+        if ((*curr).cp_flags & CP_CONT_S_IPOS) != 0 {
             compl_cont_status |= CONT_S_IPOS;
         } else {
             compl_cont_status &= !CONT_S_IPOS;
@@ -6739,80 +6747,63 @@ unsafe fn is_cpt_func_refresh_always() -> bool {
 
 unsafe fn ins_compl_make_linear() {
     unsafe {
-        if compl_first_match.is_null() || (*compl_first_match).cp_prev.is_null() {
-            return;
-        }
-        let m = (*compl_first_match).cp_prev;
-        (*m).cp_next = ptr::null_mut();
-        (*compl_first_match).cp_prev = ptr::null_mut();
+        compl_is_cyclic = false;
     }
 }
 
 unsafe fn remove_old_matches() {
     unsafe {
-        let mut shown_match_removed = false;
-        let forward = (*compl_first_match).cp_cpt_source_idx < 0;
-
-        if cpt_sources_index < 0 {
+        let list = compl_list_mut();
+        if list.is_empty() || cpt_sources_index < 0 {
             return;
         }
-
+        let forward = list[0].cp_cpt_source_idx < 0;
         compl_direction = if forward { FORWARD } else { BACKWARD };
         compl_shows_dir = compl_direction;
 
-        let mut current = compl_first_match;
-        while !current.is_null() {
-            if (*current).cp_cpt_source_idx == cpt_sources_index {
-                let to_delete = current;
+        let shown_ptr = compl_shown_idx.map(|i| list[i].cp_str.data);
+        let preselect_ptr = compl_preselect_idx.map(|i| list[i].cp_str.data);
+        let old_ptr = compl_old_idx.map(|i| list[i].cp_str.data);
 
-                if !shown_match_removed && ptr::eq(compl_shown_match, current) {
-                    shown_match_removed = true;
-                }
-
-                if ptr::eq(to_delete, compl_preselect_match) {
-                    compl_preselect_match = ptr::null_mut();
-                }
-
-                current = (*current).cp_next;
-
-                if ptr::eq(to_delete, compl_first_match) {
-                    compl_first_match = (*to_delete).cp_next;
-                    (*compl_first_match).cp_prev = ptr::null_mut();
-                } else if (*to_delete).cp_next.is_null() {
-                    (*(*to_delete).cp_prev).cp_next = ptr::null_mut();
-                } else {
-                    (*(*to_delete).cp_prev).cp_next = (*to_delete).cp_next;
-                    (*(*to_delete).cp_next).cp_prev = (*to_delete).cp_prev;
-                }
-                ins_compl_item_free(to_delete);
+        let mut i = 0;
+        while i < list.len() {
+            if list[i].cp_cpt_source_idx == cpt_sources_index {
+                list.remove(i);
             } else {
-                current = (*current).cp_next;
+                i += 1;
             }
         }
 
-        if shown_match_removed {
-            if forward {
-                compl_shown_match = compl_first_match;
-            } else {
-                let mut cur = compl_first_match;
-                while !(*cur).cp_next.is_null() {
-                    cur = (*cur).cp_next;
-                }
-                compl_shown_match = cur;
-            }
+        compl_preselect_idx =
+            preselect_ptr.and_then(|p| list.iter().position(|m| ptr::eq(m.cp_str.data, p)));
+        compl_old_idx =
+            old_ptr.and_then(|p| list.iter().position(|m| ptr::eq(m.cp_str.data, p)));
+
+        if let Some(sp) = shown_ptr
+            && let Some(new_shown) = list.iter().position(|m| ptr::eq(m.cp_str.data, sp))
+        {
+            compl_shown_idx = Some(new_shown);
+        } else if !list.is_empty() {
+            compl_shown_idx = Some(if forward { 0 } else { list.len() - 1 });
+        } else {
+            compl_shown_idx = None;
         }
 
-        compl_curr_match = compl_first_match;
-        let mut cur = compl_first_match;
-        while !cur.is_null() {
+        compl_curr_idx = if list.is_empty() { None } else { Some(0) };
+        for idx in 0..list.len() {
             let cond = if forward {
-                (*cur).cp_cpt_source_idx < cpt_sources_index
+                list[idx].cp_cpt_source_idx < cpt_sources_index
             } else {
-                (*cur).cp_cpt_source_idx > cpt_sources_index
+                list[idx].cp_cpt_source_idx > cpt_sources_index
             };
             if cond {
-                compl_curr_match = if forward { cur } else { (*cur).cp_next };
-                cur = (*cur).cp_next;
+                compl_curr_idx = if forward {
+                    Some(idx)
+                } else if idx + 1 < list.len() {
+                    Some(idx + 1)
+                } else {
+                    None
+                };
             } else {
                 break;
             }

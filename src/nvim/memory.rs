@@ -17,7 +17,7 @@ use crate::option_vars::*;
 use crate::register::set_expr_line;
 use crate::ui::ui_free_all_mem;
 use crate::ui_client::ui_client_free_all_mem;
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_void};
 
 pub const ARENA_BLOCK_SIZE: usize = 4096;
 const REUSE_MAX: usize = 4;
@@ -447,138 +447,6 @@ pub unsafe fn time_to_bytes(time_val: i64, buf: *mut u8) {
     unsafe {
         std::ptr::copy_nonoverlapping(bytes.as_ptr(), buf, 8);
     }
-}
-
-/// Iterative $O(N \log N)$ stable merge sort for doubly-linked lists (`mergesort_list`).
-pub unsafe fn mergesort_list<T>(
-    mut head: *mut T,
-    get_next: unsafe fn(*mut T) -> *mut T,
-    set_next: unsafe fn(*mut T, *mut T),
-    get_prev: unsafe fn(*mut T) -> *mut T,
-    set_prev: unsafe fn(*mut T, *mut T),
-    compare: fn(&T, &T) -> c_int,
-) -> *mut T {
-    if head.is_null() || unsafe { get_next(head).is_null() } {
-        return head;
-    }
-
-    let mut n: c_int = 0;
-    let mut curr = head;
-    while !curr.is_null() {
-        n += 1;
-        curr = unsafe { get_next(curr) };
-    }
-
-    let mut size: c_int = 1;
-    while size < n {
-        let mut new_head: *mut T = std::ptr::null_mut();
-        let mut tail: *mut T = std::ptr::null_mut();
-        curr = head;
-
-        while !curr.is_null() {
-            let mut left = curr;
-            let mut right = left;
-            for _ in 0..size {
-                if right.is_null() {
-                    break;
-                }
-                right = unsafe { get_next(right) };
-            }
-
-            let mut next = right;
-            for _ in 0..size {
-                if next.is_null() {
-                    break;
-                }
-                next = unsafe { get_next(next) };
-            }
-
-            let l_end = if !right.is_null() {
-                unsafe { get_prev(right) }
-            } else {
-                std::ptr::null_mut()
-            };
-            if !l_end.is_null() {
-                unsafe {
-                    set_next(l_end, std::ptr::null_mut());
-                }
-            }
-            if !right.is_null() {
-                unsafe {
-                    set_prev(right, std::ptr::null_mut());
-                }
-            }
-
-            let r_end = if !next.is_null() {
-                unsafe { get_prev(next) }
-            } else {
-                std::ptr::null_mut()
-            };
-            if !r_end.is_null() {
-                unsafe {
-                    set_next(r_end, std::ptr::null_mut());
-                }
-            }
-            if !next.is_null() {
-                unsafe {
-                    set_prev(next, std::ptr::null_mut());
-                }
-            }
-
-            let mut merged: *mut T = std::ptr::null_mut();
-            let mut merged_tail: *mut T = std::ptr::null_mut();
-
-            while !left.is_null() || !right.is_null() {
-                let chosen = if left.is_null() {
-                    let c = right;
-                    right = unsafe { get_next(right) };
-                    c
-                } else if right.is_null() || unsafe { compare(&*left, &*right) <= 0 } {
-                    let c = left;
-                    left = unsafe { get_next(left) };
-                    c
-                } else {
-                    let c = right;
-                    right = unsafe { get_next(right) };
-                    c
-                };
-
-                if !merged_tail.is_null() {
-                    unsafe {
-                        set_next(merged_tail, chosen);
-                        set_prev(chosen, merged_tail);
-                    }
-                    merged_tail = chosen;
-                } else {
-                    merged = chosen;
-                    merged_tail = chosen;
-                    unsafe {
-                        set_prev(chosen, std::ptr::null_mut());
-                    }
-                }
-            }
-
-            if new_head.is_null() {
-                new_head = merged;
-            } else {
-                unsafe {
-                    set_next(tail, merged);
-                    set_prev(merged, tail);
-                }
-            }
-
-            while unsafe { !get_next(merged_tail).is_null() } {
-                merged_tail = unsafe { get_next(merged_tail) };
-            }
-            tail = merged_tail;
-            curr = next;
-        }
-
-        head = new_head;
-        size *= 2;
-    }
-
-    head
 }
 
 /// Finish allocations in `arena` and return an `ArenaMem` handle (`arena_finish`).
