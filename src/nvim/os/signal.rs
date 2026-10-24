@@ -14,7 +14,9 @@ use crate::main_init::preserve_exit;
 use crate::memline::ml_sync_all;
 use crate::option_vars::*;
 use crate::strings::vim_snprintf;
-use std::ffi::{CStr, c_char, c_int, c_void};
+#[cfg(unix)]
+use std::ffi::c_void;
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 #[cfg(windows)]
@@ -231,7 +233,11 @@ unsafe fn deadly_signal(signum: c_int) -> ! {
     }
 }
 
-unsafe fn on_signal(_handle: *mut SignalWatcher, signum: c_int, _data: *mut c_void) {
+unsafe fn on_signal(
+    _handle: *mut SignalWatcher,
+    signum: c_int,
+    _data: *mut crate::tui::tui::TUIData,
+) {
     debug_assert!(signum >= 0);
     unsafe {
         #[cfg(target_os = "linux")]

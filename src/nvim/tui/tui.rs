@@ -65,7 +65,9 @@ use crate::tui::ugrid::{
 use crate::ui_client::ui_client_set_size;
 #[cfg(unix)]
 use crate::ui_client::{ui_client_attach, ui_client_detach};
-use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
+#[cfg(windows)]
+use std::ffi::c_void;
+use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
 use std::ptr;
 
 #[cfg(windows)]
@@ -297,7 +299,7 @@ pub unsafe fn tui_start(
         (*tui).loop_ = (&raw mut main_loop).cast::<Loop>();
         (*tui).url = -1;
 
-        signal_watcher_init((*tui).loop_, tui_winch_handle(tui), tui.cast());
+        signal_watcher_init((*tui).loop_, tui_winch_handle(tui), tui);
         signal_watcher_start(tui_winch_handle(tui), Some(sigwinch_cb), SIGWINCH);
 
         (*tui).input.tk_ti_hook_fn = Some(tui_tk_ti_getstr);
@@ -1168,9 +1170,8 @@ pub unsafe fn tui_free_all_mem(tui: *mut TUIData) {
     }
 }
 
-unsafe fn sigwinch_cb(_watcher: *mut SignalWatcher, _signum: c_int, cbdata: *mut c_void) {
+unsafe fn sigwinch_cb(_watcher: *mut SignalWatcher, _signum: c_int, tui: *mut TUIData) {
     unsafe {
-        let tui = cbdata.cast::<TUIData>();
         if tui_is_stopped(tui) || (*tui).resize_events_enabled {
             return;
         }

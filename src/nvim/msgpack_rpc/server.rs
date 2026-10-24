@@ -15,7 +15,7 @@ use crate::os::env::{os_env_exists, os_get_pid, os_getenv, os_unsetenv};
 use crate::os::stdpaths::get_appname;
 use crate::path::{fix_fname, to_slash, to_slash_save};
 use crate::strings::{strcmp, strlen, strstr, vim_snprintf};
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 #[cfg(not(windows))]
@@ -324,7 +324,7 @@ pub unsafe fn server_address_list() -> Vec<*mut c_char> {
     }
 }
 
-unsafe fn connection_cb(watcher: *mut SocketWatcher, result: c_int, _data: *mut c_void) {
+unsafe fn connection_cb(watcher: *mut SocketWatcher, result: c_int) {
     unsafe {
         if result != 0 {
             logmsg!(
@@ -343,7 +343,7 @@ unsafe fn connection_cb(watcher: *mut SocketWatcher, result: c_int, _data: *mut 
     }
 }
 
-unsafe fn free_server(watcher: *mut SocketWatcher, _data: *mut c_void) {
+unsafe fn free_server(watcher: *mut SocketWatcher) {
     unsafe {
         let _ = Box::from_raw(watcher);
     }

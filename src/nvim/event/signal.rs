@@ -8,14 +8,16 @@ use crate::event::time::loop_fast_events;
 use std::ffi::{c_int, c_void};
 use std::ptr;
 
-pub type signal_cb =
-    Option<unsafe fn(watcher: *mut SignalWatcher, signum: c_int, data: *mut c_void)>;
-pub type signal_close_cb = Option<unsafe fn(watcher: *mut SignalWatcher, data: *mut c_void)>;
+pub type signal_cb = Option<
+    unsafe fn(watcher: *mut SignalWatcher, signum: c_int, data: *mut crate::tui::tui::TUIData),
+>;
+pub type signal_close_cb =
+    Option<unsafe fn(watcher: *mut SignalWatcher, data: *mut crate::tui::tui::TUIData)>;
 
 #[repr(C)]
 pub struct SignalWatcher {
     pub uv: [u64; 32],
-    pub data: *mut c_void,
+    pub data: *mut crate::tui::tui::TUIData,
     pub cb: signal_cb,
     pub close_cb: signal_close_cb,
     pub events: *mut MultiQueue,
@@ -38,7 +40,7 @@ impl SignalWatcher {
 pub unsafe fn signal_watcher_init(
     loop_: *mut Loop,
     watcher: *mut SignalWatcher,
-    data: *mut c_void,
+    data: *mut crate::tui::tui::TUIData,
 ) {
     unsafe {
         uv_signal_init(loop_.cast(), (&raw mut (*watcher).uv).cast());

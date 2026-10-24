@@ -142,14 +142,14 @@ pub struct InternalState {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct TerminalOptions {
-    pub data: *mut c_void,
+    pub data: *mut Channel,
     pub width: u16,
     pub height: u16,
-    pub read_pause_cb: Option<unsafe fn(pause: bool, data: *mut c_void)>,
-    pub write_cb: Option<unsafe fn(buffer: *const c_char, size: usize, data: *mut c_void)>,
-    pub resize_cb: Option<unsafe fn(width: u16, height: u16, data: *mut c_void)>,
-    pub resume_cb: Option<unsafe fn(data: *mut c_void)>,
-    pub close_cb: Option<unsafe fn(data: *mut c_void)>,
+    pub read_pause_cb: Option<unsafe fn(pause: bool, data: *mut Channel)>,
+    pub write_cb: Option<unsafe fn(buffer: *const c_char, size: usize, data: *mut Channel)>,
+    pub resize_cb: Option<unsafe fn(width: u16, height: u16, data: *mut Channel)>,
+    pub resume_cb: Option<unsafe fn(data: *mut Channel)>,
+    pub close_cb: Option<unsafe fn(data: *mut Channel)>,
     pub force_crlf: bool,
 }
 
@@ -1160,7 +1160,7 @@ pub unsafe fn channel_terminal_alloc(buf: *mut buf_T, chan: *mut Channel) {
         let cp = chan;
         let ct = chan;
         let topts = TerminalOptions {
-            data: chan.cast(),
+            data: chan,
             width: (*chan).uv.proc_.width,
             height: (*chan).uv.proc_.height,
             read_pause_cb: Some(term_read_pause),
@@ -1178,9 +1178,8 @@ pub unsafe fn channel_terminal_alloc(buf: *mut buf_T, chan: *mut Channel) {
     }
 }
 
-unsafe fn term_read_pause(pause: bool, data: *mut c_void) {
+unsafe fn term_read_pause(pause: bool, chan: *mut Channel) {
     unsafe {
-        let chan = data.cast::<Channel>();
         let out_stream = &raw mut (*chan).uv.proc_.out;
         if (*out_stream).s.closed {
             return;
@@ -1193,9 +1192,8 @@ unsafe fn term_read_pause(pause: bool, data: *mut c_void) {
     }
 }
 
-unsafe fn term_write(buf: *const c_char, size: usize, data: *mut c_void) {
+unsafe fn term_write(buf: *const c_char, size: usize, chan: *mut Channel) {
     unsafe {
-        let chan = data.cast::<Channel>();
         let in_stream = &raw mut (*chan).uv.proc_.r#in;
         if (*in_stream).closed {
             return;
@@ -1210,15 +1208,13 @@ unsafe fn term_write(buf: *const c_char, size: usize, data: *mut c_void) {
     }
 }
 
-unsafe fn term_resize(width: u16, height: u16, data: *mut c_void) {
-    let chan = data.cast::<Channel>();
+unsafe fn term_resize(width: u16, height: u16, chan: *mut Channel) {
     unsafe {
         pty_proc_resize(&raw mut (*chan).uv.proc_, width, height);
     }
 }
 
-unsafe fn term_resume(data: *mut c_void) {
-    let chan = data.cast::<Channel>();
+unsafe fn term_resume(chan: *mut Channel) {
     unsafe {
         pty_proc_resume(&raw mut (*chan).uv.proc_);
     }
@@ -1242,12 +1238,11 @@ unsafe fn term_delayed_free(argv: *mut *mut c_void) {
     }
 }
 
-unsafe fn term_close(data: *mut c_void) {
+unsafe fn term_close(chan: *mut Channel) {
     unsafe {
-        let chan = data.cast::<Channel>();
         let cp = chan;
         proc_stop(&raw mut (*chan).uv.proc_);
-        put_event_1((*cp).events, term_delayed_free, data);
+        put_event_1((*cp).events, term_delayed_free, chan.cast());
     }
 }
 

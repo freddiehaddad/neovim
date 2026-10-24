@@ -51,9 +51,8 @@ use crate::event::rstream::RStream;
 pub type uv_tcp_t = c_void;
 pub type uv_getaddrinfo_t = c_void;
 
-pub type socket_cb =
-    Option<unsafe fn(watcher: *mut SocketWatcher, result: c_int, data: *mut c_void)>;
-pub type socket_close_cb = Option<unsafe fn(watcher: *mut SocketWatcher, data: *mut c_void)>;
+pub type socket_cb = Option<unsafe fn(watcher: *mut SocketWatcher, result: c_int)>;
+pub type socket_close_cb = Option<unsafe fn(watcher: *mut SocketWatcher)>;
 
 #[repr(C)]
 pub struct addrinfo {
@@ -78,7 +77,6 @@ pub struct SocketWatcher {
     pub uv: UvSocketHandle,
     pub tcp_addrinfo: *mut addrinfo,
     pub stream: *mut uv_stream_t,
-    pub data: *mut c_void,
     pub cb: socket_cb,
     pub close_cb: socket_close_cb,
     pub events: *mut MultiQueue,
@@ -91,7 +89,6 @@ impl SocketWatcher {
             uv: UvSocketHandle([0; 512]),
             tcp_addrinfo: ptr::null_mut(),
             stream: ptr::null_mut(),
-            data: ptr::null_mut(),
             cb: None,
             close_cb: None,
             events: ptr::null_mut(),
@@ -259,7 +256,6 @@ pub unsafe fn socket_watcher_init(
         (*watcher).cb = None;
         (*watcher).close_cb = None;
         (*watcher).events = ptr::null_mut();
-        (*watcher).data = ptr::null_mut();
 
         0
     }
@@ -450,7 +446,7 @@ unsafe fn connection_event(argv: *mut *mut c_void) {
         let watcher = *argv as *mut SocketWatcher;
         let status = (*argv.add(1) as usize) as c_int;
         if let Some(cb) = (*watcher).cb {
-            cb(watcher, status, (*watcher).data);
+            cb(watcher, status);
         }
     }
 }
@@ -479,7 +475,7 @@ unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
     unsafe {
         let watcher = *handle.cast::<*mut SocketWatcher>();
         if let Some(cb) = (*watcher).close_cb {
-            cb(watcher, (*watcher).data);
+            cb(watcher);
         }
     }
 }

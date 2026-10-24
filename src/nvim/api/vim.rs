@@ -1678,11 +1678,10 @@ pub unsafe extern "C" fn nvim_create_buf(
     }
 }
 
-unsafe fn term_read_pause(_pause: bool, _data: *mut c_void) {}
+unsafe fn term_read_pause(_pause: bool, _data: *mut Channel) {}
 
-unsafe fn term_write(buf: *const c_char, size: usize, data: *mut c_void) {
+unsafe fn term_write(buf: *const c_char, size: usize, chan: *mut Channel) {
     unsafe {
-        let chan = data.cast::<Channel>();
         let internal = &raw mut (*chan).internal;
         let cb = (*internal).cb;
         if cb == LUA_NOREF {
@@ -1716,13 +1715,12 @@ unsafe fn term_write(buf: *const c_char, size: usize, data: *mut c_void) {
     }
 }
 
-unsafe fn term_resize(_width: u16, _height: u16, _data: *mut c_void) {}
+unsafe fn term_resize(_width: u16, _height: u16, _data: *mut Channel) {}
 
-unsafe fn term_resume(_data: *mut c_void) {}
+unsafe fn term_resume(_data: *mut Channel) {}
 
-unsafe fn term_close(data: *mut c_void) {
+unsafe fn term_close(chan: *mut Channel) {
     unsafe {
-        let chan = data.cast::<Channel>();
         let internal = &raw mut (*chan).internal;
         let tail = chan;
         terminal_destroy((&raw mut (*tail).term).cast());
@@ -1816,7 +1814,7 @@ pub unsafe extern "C" fn nvim_open_term(
         (*internal).cb = cb;
         (*internal).closed = false;
         let topts = TerminalOptions {
-            data: chan.cast::<c_void>(),
+            data: chan,
             width: ((*curwin).w_view_width - win_col_off(curwin)).max(0) as u16,
             height: (*curwin).w_view_height as u16,
             read_pause_cb: Some(term_read_pause),
