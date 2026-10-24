@@ -2509,8 +2509,7 @@ pub unsafe fn buflist_new(
         }
 
         clear_wininfo(buf);
-        let curwin_info = xcalloc(1, std::mem::size_of::<WinInfo>()).cast::<WinInfo>();
-        ptr::write(&raw mut (*curwin_info).wi_folds, Vec::new());
+        let curwin_info = WinInfo::alloc();
         (*buf).b_wininfo.push(curwin_info);
 
         if buf == curbuf {
@@ -3203,8 +3202,7 @@ pub unsafe fn buflist_setfpos(
             }
             wip
         } else {
-            let wip = xcalloc(1, std::mem::size_of::<WinInfo>()).cast::<WinInfo>();
-            ptr::write(&raw mut (*wip).wi_folds, Vec::new());
+            let wip = WinInfo::alloc();
             (*wip).wi_win = win;
             if lnum == 0 {
                 lnum = 1;

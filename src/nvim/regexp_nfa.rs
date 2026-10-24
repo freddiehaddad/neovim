@@ -4728,17 +4728,30 @@ pub(super) unsafe fn nfa_regcomp(expr: *mut u8, re_flags: c_int) -> *mut regprog
         let post_end_ptr = postfix.add((*pv).len());
         post2nfa(postfix, post_end_ptr, true);
 
-        prog = xmalloc(size_of::<nfa_regprog_T>()).cast::<nfa_regprog_T>();
-        ptr::write(&raw mut (*prog).state, vec![zeroed(); nstate as usize]);
+        prog = Box::into_raw(Box::new(nfa_regprog_T {
+            engine: ptr::null_mut(),
+            regflags: 0,
+            re_engine: 0,
+            re_flags: 0,
+            re_in_use: false,
+            start: ptr::null_mut(),
+            reganch: 0,
+            regstart: 0,
+            match_text: ptr::null_mut(),
+            has_zend: 0,
+            has_backref: 0,
+            reghasz: 0,
+            pattern: ptr::null_mut(),
+            nsubexp: 0,
+            nstate: 0,
+            listbuf: [Vec::new(), Vec::new()],
+            state: vec![zeroed(); nstate as usize],
+        }));
         state_ptr = (*prog).state.as_mut_ptr();
-        (*prog).re_in_use = false;
-        ptr::write(&raw mut (*prog).listbuf, [Vec::new(), Vec::new()]);
 
         (*prog).start = post2nfa(postfix, post_end_ptr, false);
         if (*prog).start.is_null() {
-            ptr::drop_in_place(&raw mut (*prog).listbuf);
-            ptr::drop_in_place(&raw mut (*prog).state);
-            xfree(prog.cast());
+            drop(Box::from_raw(prog));
             prog = ptr::null_mut();
             return cleanup_nfa_regcomp(prog);
         }
@@ -4786,9 +4799,7 @@ pub(super) unsafe fn nfa_regfree(prog: *mut regprog_T) {
         let nfa_prog = prog.cast::<nfa_regprog_T>();
         xfree((*nfa_prog).match_text.cast());
         xfree((*nfa_prog).pattern.cast());
-        ptr::drop_in_place(&raw mut (*nfa_prog).listbuf);
-        ptr::drop_in_place(&raw mut (*nfa_prog).state);
-        xfree(prog.cast());
+        drop(Box::from_raw(nfa_prog));
     }
 }
 

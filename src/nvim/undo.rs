@@ -146,6 +146,40 @@ pub struct u_header_T {
     pub uh_save_nr: c_int,
 }
 
+impl u_header_T {
+    unsafe fn alloc() -> *mut Self {
+        unsafe {
+            Box::into_raw(Box::new(Self {
+                uh_next: u_header_link_T {
+                    ptr: ptr::null_mut(),
+                },
+                uh_prev: u_header_link_T {
+                    ptr: ptr::null_mut(),
+                },
+                uh_alt_next: u_header_link_T {
+                    ptr: ptr::null_mut(),
+                },
+                uh_alt_prev: u_header_link_T {
+                    ptr: ptr::null_mut(),
+                },
+                uh_seq: 0,
+                uh_walk: 0,
+                uh_entry: ptr::null_mut(),
+                uh_getbot_entry: ptr::null_mut(),
+                uh_cursor: std::mem::zeroed(),
+                uh_cursor_after: std::mem::zeroed(),
+                uh_cursor_vcol: 0,
+                uh_flags: 0,
+                uh_namedm: std::mem::zeroed(),
+                uh_extmark: Vec::new(),
+                uh_visual: std::mem::zeroed(),
+                uh_time: 0,
+                uh_save_nr: 0,
+            }))
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct UndoCheckpoint {
@@ -305,9 +339,7 @@ pub unsafe fn u_savecommon(
             (*buf).b_new_change = true;
 
             let uhp: *mut u_header_T = if get_undolevel(buf) >= 0 {
-                let p = xmalloc(size_of::<u_header_T>()).cast::<u_header_T>();
-                ptr::write(&raw mut (*p).uh_extmark, Vec::new());
-                p
+                u_header_T::alloc()
             } else {
                 ptr::null_mut()
             };
@@ -450,18 +482,14 @@ pub unsafe fn u_savecommon(
             u_getbot(buf);
         }
 
-        let uep = xmalloc(size_of::<u_entry_T>()).cast::<u_entry_T>();
-        ptr::write(
-            uep,
-            u_entry_T {
-                ue_next: ptr::null_mut(),
-                ue_top: top,
-                ue_bot: 0,
-                ue_lcount: 0,
-                ue_array: Vec::new(),
-                ue_size: size,
-            },
-        );
+        let uep = Box::into_raw(Box::new(u_entry_T {
+            ue_next: ptr::null_mut(),
+            ue_top: top,
+            ue_bot: 0,
+            ue_lcount: 0,
+            ue_array: Vec::new(),
+            ue_size: size,
+        }));
 
         let newhead = (*buf).b_u_newhead.cast::<u_header_T>();
         if newbot != 0 {
@@ -654,8 +682,7 @@ unsafe fn u_free_uhp(uhp: *mut u_header_T) {
             u_freeentry(uep, (*uep).ue_size);
             uep = nuep;
         }
-        ptr::drop_in_place(&raw mut (*uhp).uh_extmark);
-        xfree(uhp.cast());
+        drop(Box::from_raw(uhp));
     }
 }
 
@@ -759,9 +786,7 @@ unsafe fn serialize_uhp(bi: &mut bufinfo_T, uhp: *mut u_header_T) -> bool {
 
 unsafe fn unserialize_uhp(bi: &mut bufinfo_T, file_name: *const c_char) -> *mut u_header_T {
     unsafe {
-        let uhp = xmalloc(size_of::<u_header_T>()).cast::<u_header_T>();
-        ptr::write_bytes(uhp, 0, 1);
-        ptr::write(&raw mut (*uhp).uh_extmark, Vec::new());
+        let uhp = u_header_T::alloc();
         (*uhp).uh_next.seq = undo_read_4c(bi);
         (*uhp).uh_prev.seq = undo_read_4c(bi);
         (*uhp).uh_alt_next.seq = undo_read_4c(bi);
@@ -769,7 +794,7 @@ unsafe fn unserialize_uhp(bi: &mut bufinfo_T, file_name: *const c_char) -> *mut 
         (*uhp).uh_seq = undo_read_4c(bi);
         if (*uhp).uh_seq <= 0 {
             corruption_error(c"uh_seq".as_ptr(), file_name);
-            xfree(uhp.cast());
+            drop(Box::from_raw(uhp));
             return ptr::null_mut();
         }
         unserialize_pos(bi, &raw mut (*uhp).uh_cursor);
@@ -936,18 +961,14 @@ unsafe fn unserialize_uep(
     file_name: *const c_char,
 ) -> *mut u_entry_T {
     unsafe {
-        let uep = xmalloc(size_of::<u_entry_T>()).cast::<u_entry_T>();
-        ptr::write(
-            uep,
-            u_entry_T {
-                ue_next: ptr::null_mut(),
-                ue_top: undo_read_4c(bi),
-                ue_bot: undo_read_4c(bi),
-                ue_lcount: undo_read_4c(bi),
-                ue_array: Vec::new(),
-                ue_size: 0,
-            },
-        );
+        let uep = Box::into_raw(Box::new(u_entry_T {
+            ue_next: ptr::null_mut(),
+            ue_top: undo_read_4c(bi),
+            ue_bot: undo_read_4c(bi),
+            ue_lcount: undo_read_4c(bi),
+            ue_array: Vec::new(),
+            ue_size: 0,
+        }));
         if (*uep).ue_top < 0 || (*uep).ue_bot < 0 || (*uep).ue_lcount < 0 {
             corruption_error(c"entry lnum".as_ptr(), file_name);
             *error = true;
@@ -2803,9 +2824,7 @@ unsafe fn u_freeentries(buf: *mut buf_T, uhp: *mut u_header_T, uhpp: *mut *mut u
             uep = nuep;
         }
 
-        ptr::drop_in_place(&raw mut (*uhp).uh_extmark);
-
-        xfree(uhp.cast());
+        drop(Box::from_raw(uhp));
         (*buf).b_u_numhead -= 1;
     }
 }
@@ -2816,8 +2835,7 @@ unsafe fn u_freeentry(uep: *mut u_entry_T, mut n: c_int) {
             n -= 1;
             xfree((*(*uep).ue_array.as_ptr().add(n as usize)).cast());
         }
-        ptr::drop_in_place(&raw mut (*uep).ue_array);
-        xfree(uep.cast());
+        drop(Box::from_raw(uep));
     }
 }
 

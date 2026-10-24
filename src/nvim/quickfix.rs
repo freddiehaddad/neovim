@@ -2112,8 +2112,7 @@ unsafe fn qf_free_list_stack_items(qi: *mut qf_info_T) {
 unsafe fn qf_free_lists(qi: *mut qf_info_T) {
     unsafe {
         qf_free_list_stack_items(qi);
-        ptr::drop_in_place(&raw mut (*qi).qf_lists);
-        xfree(qi.cast());
+        drop(Box::from_raw(qi));
     }
 }
 
@@ -2360,10 +2359,15 @@ unsafe fn qf_alloc_stack(qfltype: qfltype_T, n: c_int) -> *mut qf_info_T {
         let qi = if qfltype == QFLT_QUICKFIX {
             &raw mut ql_info_actual
         } else {
-            let q = xcalloc(1, size_of::<qf_info_T>()).cast::<qf_info_T>();
-            ptr::write(&raw mut (*q).qf_lists, Vec::new());
-            (*q).qf_refcount += 1;
-            q
+            Box::into_raw(Box::new(qf_info_T {
+                qf_refcount: 1,
+                qf_listcount: 0,
+                qf_curlist: 0,
+                qf_maxcount: 0,
+                qf_lists: Vec::new(),
+                qfl_type: 0,
+                qf_bufnr: 0,
+            }))
         };
         (*qi).qfl_type = qfltype;
         (*qi).qf_bufnr = INVALID_QFBUFNR;

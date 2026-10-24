@@ -5934,8 +5934,7 @@ pub unsafe fn free_wininfo(wip: *mut WinInfo, bp: *mut buf_T) {
             clear_winopt(&raw mut (*wip).wi_opt);
             deleteFoldRecurse(bp, &raw mut (*wip).wi_folds);
         }
-        ptr::drop_in_place(&raw mut (*wip).wi_folds);
-        xfree(wip.cast());
+        drop(Box::from_raw(wip));
     }
 }
 

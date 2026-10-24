@@ -37,7 +37,7 @@ use crate::mbyte::{
     utf_ptr2char, utfc_ptr2len,
 };
 use crate::memline::{ml_append, ml_delete, ml_get_buf, ml_get_buf_len};
-use crate::memory::{memchrsub, strequal, xcalloc, xfree, xmalloc, xstrdup};
+use crate::memory::{memchrsub, strequal, xfree, xmalloc, xstrdup};
 use crate::message::{emsg, semsg};
 use crate::r#move::{
     changed_line_abv_curs, changed_line_abv_curs_win, changed_window_setting, check_topfill,
@@ -225,8 +225,7 @@ unsafe fn clear_diffblock(dp: *mut diff_T) {
         if dp == diff_finger_dp {
             diff_finger_dp = ptr::null_mut();
         }
-        ptr::drop_in_place(&raw mut (*dp).df_changes);
-        xfree(dp.cast());
+        drop(Box::from_raw(dp));
     }
 }
 unsafe fn diff_scan_start(tp: *mut tabpage_T, idx: c_int, lnum: linenr_T) -> *mut diff_T {
@@ -542,17 +541,20 @@ unsafe fn diff_mark_adjust_tp(
 }
 unsafe fn diff_alloc_new(tp: *mut tabpage_T, dprev: *mut diff_T, dp: *mut diff_T) -> *mut diff_T {
     unsafe {
-        let dnew = xcalloc(1, size_of::<diff_T>()).cast::<diff_T>();
+        let dnew = Box::into_raw(Box::new(diff_T {
+            df_next: dp,
+            df_lnum: [0; DB_COUNT],
+            df_count: [0; DB_COUNT],
+            is_linematched: false,
+            has_changes: false,
+            df_changes: Vec::new(),
+        }));
         diff_finger_dp = ptr::null_mut();
-        (*dnew).is_linematched = false;
-        (*dnew).df_next = dp;
         if dprev.is_null() {
             (*tp).tp_first_diff = dnew;
         } else {
             (*dprev).df_next = dnew;
         }
-        (*dnew).has_changes = false;
-        ptr::write(&raw mut (*dnew).df_changes, Vec::new());
         dnew
     }
 }

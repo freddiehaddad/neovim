@@ -100,6 +100,22 @@ pub struct WinInfo {
     pub wi_changelistidx: c_int,
 }
 
+impl WinInfo {
+    pub unsafe fn alloc() -> *mut Self {
+        unsafe {
+            Box::into_raw(Box::new(Self {
+                wi_win: ptr::null_mut(),
+                wi_mark: std::mem::zeroed(),
+                wi_optset: false,
+                wi_opt: std::mem::zeroed(),
+                wi_fold_manual: false,
+                wi_folds: Vec::new(),
+                wi_changelistidx: 0,
+            }))
+        }
+    }
+}
+
 pub(crate) const EXTRA_MARKS: usize = 10;
 const NGLOBALMARKS: usize = NMARKS + EXTRA_MARKS;
 const NMARK_LOCAL_MAX: c_int = 126;

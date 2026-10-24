@@ -2070,16 +2070,25 @@ pub(super) unsafe fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> *mut regprog_
             return ptr::null_mut();
         }
 
-        let r = xmalloc(size_of::<bt_regprog_T>()).cast::<bt_regprog_T>();
-        ptr::write(&raw mut (*r).program, vec![0u8; regsize as usize]);
-        (*r).re_in_use = false;
+        let r = Box::into_raw(Box::new(bt_regprog_T {
+            engine: ptr::null_mut(),
+            regflags: 0,
+            re_engine: 0,
+            re_flags: 0,
+            re_in_use: false,
+            regstart: 0,
+            reganch: 0,
+            regmust: ptr::null_mut(),
+            regmlen: 0,
+            reghasz: 0,
+            program: vec![0u8; regsize as usize],
+        }));
 
         regcomp_start(expr, re_flags);
         regcode = (*r).program.as_mut_ptr();
         regc(REGMAGIC);
         if reg(REG_NOPAREN, &raw mut flags).is_null() || reg_toolong != 0 {
-            ptr::drop_in_place(&raw mut (*r).program);
-            xfree(r.cast());
+            drop(Box::from_raw(r));
             if reg_toolong != 0 {
                 emsg(tr(c"E339: Pattern too long".as_ptr()));
                 rc_did_emsg = true;
@@ -2152,9 +2161,7 @@ pub(super) unsafe fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> *mut regprog_
 pub(super) unsafe fn bt_regfree(prog: *mut regprog_T) {
     unsafe {
         if !prog.is_null() {
-            let bt_prog = prog.cast::<bt_regprog_T>();
-            ptr::drop_in_place(&raw mut (*bt_prog).program);
-            xfree(prog.cast());
+            drop(Box::from_raw(prog.cast::<bt_regprog_T>()));
         }
     }
 }

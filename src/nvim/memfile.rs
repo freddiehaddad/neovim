@@ -110,22 +110,27 @@ unsafe fn map_put_i64(map: *mut std::collections::HashMap<i64, i64>, key: i64, v
 /// Open a new or existing memory block file.
 pub unsafe fn mf_open(fname: *mut c_char, flags: c_int) -> *mut memfile_T {
     unsafe {
-        let mfp = xmalloc(size_of::<memfile_T>()).cast::<memfile_T>();
+        let mfp = Box::into_raw(Box::new(memfile_T {
+            mf_fname: ptr::null_mut(),
+            mf_ffname: ptr::null_mut(),
+            mf_fd: -1,
+            mf_flags: 0,
+            mf_reopen: false,
+            mf_free_first: ptr::null_mut(),
+            mf_hash: std::collections::HashMap::new(),
+            mf_trans: std::collections::HashMap::new(),
+            mf_blocknr_max: 0,
+            mf_blocknr_min: -1,
+            mf_neg_count: 0,
+            mf_infile_count: 0,
+            mf_page_size: MEMFILE_PAGE_SIZE,
+            mf_dirty: MF_DIRTY_NO,
+        }));
 
-        if fname.is_null() {
-            (*mfp).mf_fname = ptr::null_mut();
-            (*mfp).mf_ffname = ptr::null_mut();
-            (*mfp).mf_fd = -1;
-        } else if !mf_do_open(mfp, fname, flags) {
-            xfree(mfp.cast());
+        if !fname.is_null() && !mf_do_open(mfp, fname, flags) {
+            drop(Box::from_raw(mfp));
             return ptr::null_mut();
         }
-
-        (*mfp).mf_free_first = ptr::null_mut();
-        (*mfp).mf_dirty = MF_DIRTY_NO;
-        ptr::write(&raw mut (*mfp).mf_hash, std::collections::HashMap::new());
-        ptr::write(&raw mut (*mfp).mf_trans, std::collections::HashMap::new());
-        (*mfp).mf_page_size = MEMFILE_PAGE_SIZE;
 
         if (*mfp).mf_fd >= 0 {
             let mut file_info = FileInfo::default();
@@ -189,10 +194,8 @@ pub unsafe fn mf_close(mfp: *mut memfile_T, del_file: bool) {
         while !(*mfp).mf_free_first.is_null() {
             xfree(mf_rem_free(mfp).cast());
         }
-        ptr::drop_in_place(&raw mut (*mfp).mf_hash);
-        ptr::drop_in_place(&raw mut (*mfp).mf_trans);
         mf_free_fnames(mfp);
-        xfree(mfp.cast());
+        drop(Box::from_raw(mfp));
     }
 }
 
