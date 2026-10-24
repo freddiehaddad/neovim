@@ -49,7 +49,7 @@ use crate::mbyte::{
 };
 use crate::memline::ml_get;
 use crate::memory::{
-    Arena, memcnt, strequal, try_malloc, xcalloc, xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz,
+    Arena, memcnt, strequal, try_malloc, xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz,
     xstrdup, xstrlcat, xstrlcpy,
 };
 #[cfg(windows)]
@@ -2685,15 +2685,30 @@ pub unsafe fn new_script_item(name: *mut c_char, sid_out: *mut scid_T) -> *mut s
         }
         let items = &raw mut script_items;
         while ((*items).len() as scid_T) < sid {
-            let si = xcalloc(1, std::mem::size_of::<scriptitem_T>()).cast::<scriptitem_T>();
-            ptr::write(&raw mut (*si).sn_prl_ga, Vec::new());
+            let si = Box::into_raw(Box::new(scriptitem_T {
+                sn_vars: ptr::null_mut(),
+                sn_name: ptr::null_mut(),
+                sn_lua: false,
+                sn_prof_on: false,
+                sn_pr_force: false,
+                sn_pr_child: 0,
+                sn_pr_nest: 0,
+                sn_pr_count: 0,
+                sn_pr_total: 0,
+                sn_pr_self: 0,
+                sn_pr_start: 0,
+                sn_pr_children: 0,
+                sn_prl_ga: Vec::new(),
+                sn_prl_start: 0,
+                sn_prl_children: 0,
+                sn_prl_wait: 0,
+                sn_prl_idx: 0,
+                sn_prl_execed: 0,
+            }));
             (*items).push(si);
             let cur_sid = (*items).len() as scid_T;
-            (*si).sn_name = ptr::null_mut();
 
             new_script_vars(cur_sid);
-
-            (*si).sn_prof_on = false;
         }
         let item = script_item(sid);
         (*item).sn_name = name;
@@ -3306,10 +3321,11 @@ pub unsafe fn free_scriptnames() {
 
         let items = &raw mut script_items;
         for si in (*items).drain(..) {
-            xfree((*si).sn_vars);
+            if !(*si).sn_vars.is_null() {
+                drop(Box::from_raw((*si).sn_vars));
+            }
             xfree((*si).sn_name.cast::<c_void>());
-            (*si).sn_prl_ga = Vec::new();
-            xfree(si.cast::<c_void>());
+            drop(Box::from_raw(si));
         }
         *items = Vec::new();
     }
@@ -3419,7 +3435,7 @@ pub unsafe fn f_getscriptinfo(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
                 if sid > 0 {
                     let var_dict = tv_dict_copy(
                         ptr::null(),
-                        &mut (*(*si).sn_vars.cast::<scriptvar_T>()).sv_dict,
+                        &mut (*(*si).sn_vars).sv_dict,
                         true,
                         get_copyID(),
                     );

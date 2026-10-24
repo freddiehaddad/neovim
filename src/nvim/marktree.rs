@@ -5,7 +5,7 @@ use std::ffi::{CStr, c_char, c_int};
 use std::fmt::Write as _;
 
 use crate::api::private::validate::NvimString;
-use crate::memory::{xcalloc, xfree, xmemdupz};
+use crate::memory::xmemdupz;
 
 use crate::cursor::colnr_T;
 
@@ -147,7 +147,7 @@ pub struct MTNode {
     pub intersect: Intersection,
     pub parent: *mut MTNode,
     pub key: [MTKey; 2 * MT_BRANCH_FACTOR - 1],
-    pub s: [mtnode_inner_s; 0],
+    pub inner: Option<Box<mtnode_inner_s>>,
 }
 
 #[repr(C)]
@@ -390,12 +390,24 @@ fn key_cmp(a: MTKey, b: MTKey) -> c_int {
 
 #[inline]
 unsafe fn node_ptr(x: *mut MTNode) -> *mut *mut MTNode {
-    unsafe { (*(*x).s.as_mut_ptr()).i_ptr.as_mut_ptr() }
+    unsafe {
+        (*x).inner
+            .as_deref_mut()
+            .expect("node_ptr called on leaf node")
+            .i_ptr
+            .as_mut_ptr()
+    }
 }
 
 #[inline]
 unsafe fn node_meta(x: *mut MTNode) -> *mut [u32; kMTMetaCount] {
-    unsafe { (*(*x).s.as_mut_ptr()).i_meta.as_mut_ptr() }
+    unsafe {
+        (*x).inner
+            .as_deref_mut()
+            .expect("node_meta called on leaf node")
+            .i_meta
+            .as_mut_ptr()
+    }
 }
 
 #[inline]
@@ -717,14 +729,23 @@ pub unsafe fn marktree_intersect_pair(
 
 unsafe fn marktree_alloc_node(b: *mut MarkTree, internal: bool) -> *mut MTNode {
     unsafe {
-        let ilen = std::mem::size_of::<MTNode>() + std::mem::size_of::<mtnode_inner_s>();
-        let size = if internal {
-            ilen
+        let inner = if internal {
+            Some(Box::new(mtnode_inner_s {
+                i_ptr: [std::ptr::null_mut(); 2 * MT_BRANCH_FACTOR],
+                i_meta: [[0; kMTMetaCount]; 2 * MT_BRANCH_FACTOR],
+            }))
         } else {
-            std::mem::size_of::<MTNode>()
+            None
         };
-        let x = xcalloc(1, size).cast::<MTNode>();
-        std::ptr::write(&raw mut (*x).intersect, Vec::new());
+        let x = Box::into_raw(Box::new(MTNode {
+            n: 0,
+            level: 0,
+            p_idx: 0,
+            intersect: Vec::new(),
+            parent: std::ptr::null_mut(),
+            key: [MT_INVALID_KEY; 2 * MT_BRANCH_FACTOR - 1],
+            inner,
+        }));
         (*b).n_nodes += 1;
         x
     }
@@ -1605,8 +1626,7 @@ pub unsafe fn marktree_free_subtree(b: *mut MarkTree, x: *mut MTNode) {
 
 unsafe fn marktree_free_node(b: *mut MarkTree, x: *mut MTNode) {
     unsafe {
-        std::ptr::drop_in_place(&raw mut (*x).intersect);
-        xfree(x.cast());
+        drop(Box::from_raw(x));
         (*b).n_nodes -= 1;
     }
 }

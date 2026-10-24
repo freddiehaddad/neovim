@@ -875,7 +875,7 @@ pub unsafe fn rpc_free(channel: *mut Channel) {
         unpacker_teardown((*ct).rpc.unpacker);
         drop(Box::from_raw((*ct).rpc.unpacker));
 
-        ptr::drop_in_place(&raw mut (*ct).rpc.call_stack);
+        (*ct).rpc.call_stack = Vec::new();
         api_free_dict((*ct).rpc.info);
     }
 }

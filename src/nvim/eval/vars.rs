@@ -495,7 +495,7 @@ pub unsafe fn tv_list_locked(l: *const list_T) -> VarLockStatus {
 
 #[inline]
 unsafe fn script_sv(id: scid_T) -> *mut scriptvar_T {
-    unsafe { (*script_item(id)).sn_vars.cast::<scriptvar_T>() }
+    unsafe { (*script_item(id)).sn_vars }
 }
 
 #[inline]
@@ -2917,9 +2917,11 @@ pub unsafe fn get_var_value(name: *const c_char) -> *mut c_char {
 /// Allocate a new hashtab for a sourced script.
 pub unsafe fn new_script_vars(id: scid_T) {
     unsafe {
-        let sv = xcalloc(1, std::mem::size_of::<scriptvar_T>()).cast::<scriptvar_T>();
+        let mut sv_uninit = Box::new(std::mem::MaybeUninit::<scriptvar_T>::zeroed());
+        let sv = sv_uninit.as_mut_ptr();
         init_var_dict(&raw mut (*sv).sv_dict, &raw mut (*sv).sv_var, VAR_SCOPE);
-        (*script_item(id)).sn_vars = sv.cast();
+        let _ = Box::into_raw(sv_uninit);
+        (*script_item(id)).sn_vars = sv;
     }
 }
 

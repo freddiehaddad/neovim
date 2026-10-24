@@ -32,7 +32,7 @@ use crate::lua::converter::{LUA_NOREF, LuaRef};
 use crate::lua::executor::{api_free_luaref, api_new_luaref, nlua_funcref_str};
 use crate::mbyte::{mb_strcmp_ic, string_convert, utf_char2bytes, utfc_ptr2len, vimconv_T};
 use crate::memory::{
-    Arena, strequal, xcalloc, xfree, xmalloc, xmallocz, xmemdupz, xstrdup, xstrlcpy, xstrndup,
+    Arena, strequal, xfree, xmalloc, xmallocz, xmemdupz, xstrdup, xstrlcpy, xstrndup,
 };
 use crate::message::{emsg, internal_error, semsg};
 use crate::os::input::{fast_breakcheck, line_breakcheck};
@@ -524,7 +524,15 @@ pub const fn tv_initial_value() -> typval_T {
 
 /// Allocate a list item.
 unsafe fn tv_list_item_alloc() -> *mut listitem_T {
-    unsafe { xmalloc(size_of::<listitem_T>()).cast::<listitem_T>() }
+    Box::into_raw(Box::new(listitem_T {
+        li_next: ptr::null_mut(),
+        li_prev: ptr::null_mut(),
+        li_tv: typval_T {
+            v_type: VarType::VAR_UNKNOWN,
+            v_lock: VAR_UNLOCKED,
+            vval: TypvalVval { v_number: 0 },
+        },
+    }))
 }
 
 /// Remove a list item from a List and free it.
@@ -533,7 +541,7 @@ pub unsafe fn tv_list_item_remove(l: *mut list_T, item: *mut listitem_T) -> *mut
         let next_item = (*item).li_next;
         tv_list_drop_items(l, item, item);
         tv_clear(&raw mut (*item).li_tv);
-        xfree(item.cast());
+        drop(Box::from_raw(item));
         next_item
     }
 }
@@ -579,15 +587,26 @@ unsafe fn tv_list_watch_fix(l: *mut list_T, item: *const listitem_T) {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn tv_list_alloc(_len: isize) -> *mut list_T {
     unsafe {
-        let list = xcalloc(1, size_of::<list_T>()).cast::<list_T>();
+        let list = Box::into_raw(Box::new(list_T {
+            lv_first: ptr::null_mut(),
+            lv_last: ptr::null_mut(),
+            lv_watch: ptr::null_mut(),
+            lv_idx_item: ptr::null_mut(),
+            lv_copylist: ptr::null_mut(),
+            lv_used_next: gc_first_list.cast::<list_T>(),
+            lv_used_prev: ptr::null_mut(),
+            lv_refcount: 0,
+            lv_len: 0,
+            lv_idx: 0,
+            lv_copyID: 0,
+            lv_lock: 0,
+            lua_table_ref: LUA_NOREF,
+        }));
 
         if !gc_first_list.is_null() {
             (*gc_first_list.cast::<list_T>()).lv_used_prev = list;
         }
-        (*list).lv_used_prev = ptr::null_mut();
-        (*list).lv_used_next = gc_first_list.cast::<list_T>();
         gc_first_list = list.cast::<c_void>();
-        (*list).lua_table_ref = LUA_NOREF;
         list
     }
 }
@@ -634,7 +653,7 @@ pub unsafe fn tv_list_free_contents(l: *mut list_T) {
         while !item.is_null() {
             (*l).lv_first = (*item).li_next;
             tv_clear(&raw mut (*item).li_tv);
-            xfree(item.cast());
+            drop(Box::from_raw(item));
             item = (*l).lv_first;
         }
         (*l).lv_len = 0;
@@ -657,7 +676,7 @@ pub unsafe fn tv_list_free_list(l: *mut list_T) {
         }
 
         nlua_clear_ref(&mut (*l).lua_table_ref);
-        xfree(l.cast());
+        drop(Box::from_raw(l));
     }
 }
 
@@ -718,7 +737,7 @@ pub unsafe fn tv_list_remove_items(l: *mut list_T, item: *mut listitem_T, item2:
         loop {
             tv_clear(&raw mut (*li).li_tv);
             let nli = (*li).li_next;
-            xfree(li.cast());
+            drop(Box::from_raw(li));
             if li == item2 {
                 break;
             }
@@ -929,7 +948,7 @@ pub unsafe fn tv_list_copy(
                     copyID,
                 ) == FAIL
                 {
-                    xfree(ni.cast());
+                    drop(Box::from_raw(ni));
                     tv_list_unref(copy);
                     return ptr::null_mut();
                 }
@@ -2500,23 +2519,25 @@ pub unsafe fn tv_dict_item_remove(dict: *mut dict_T, item: *mut dictitem_T) {
 /// Allocate an empty dictionary.
 pub unsafe fn tv_dict_alloc() -> *mut dict_T {
     unsafe {
-        let d = xcalloc(1, size_of::<dict_T>()).cast::<dict_T>();
+        let d = Box::into_raw(Box::new(dict_T {
+            dv_lock: VAR_UNLOCKED,
+            dv_scope: VAR_NO_SCOPE,
+            dv_refcount: 0,
+            dv_copyID: 0,
+            dv_hashtab: std::mem::zeroed(),
+            dv_copydict: ptr::null_mut(),
+            dv_used_next: gc_first_dict.cast::<dict_T>(),
+            dv_used_prev: ptr::null_mut(),
+            watchers: Vec::new(),
+            lua_table_ref: LUA_NOREF,
+        }));
 
         if !gc_first_dict.is_null() {
             (*gc_first_dict.cast::<dict_T>()).dv_used_prev = d;
         }
-        (*d).dv_used_next = gc_first_dict.cast::<dict_T>();
-        (*d).dv_used_prev = ptr::null_mut();
         gc_first_dict = d.cast::<c_void>();
 
         hash_init(&raw mut (*d).dv_hashtab);
-        (*d).dv_lock = VAR_UNLOCKED;
-        (*d).dv_scope = VAR_NO_SCOPE;
-        (*d).dv_refcount = 0;
-        (*d).dv_copyID = 0;
-        ptr::write(&raw mut (*d).watchers, Vec::new());
-
-        (*d).lua_table_ref = LUA_NOREF;
 
         d
     }
@@ -2569,9 +2590,8 @@ pub unsafe fn tv_dict_free_dict(d: *mut dict_T) {
             (*(*d).dv_used_next).dv_used_prev = (*d).dv_used_prev;
         }
 
-        ptr::drop_in_place(&raw mut (*d).watchers);
         nlua_clear_ref(&mut (*d).lua_table_ref);
-        xfree(d.cast());
+        drop(Box::from_raw(d));
     }
 }
 

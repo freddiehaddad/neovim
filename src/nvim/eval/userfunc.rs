@@ -55,7 +55,7 @@ use crate::lua::executor::{
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strnicmp;
 use crate::memory::{
-    entered_free_all_mem, xcalloc, xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz, xmemrchr, xstrdup,
+    entered_free_all_mem, xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz, xmemrchr, xstrdup,
     xstrlcpy,
 };
 use crate::message::{
@@ -1004,13 +1004,11 @@ unsafe fn free_funccal(fc: *mut funccall_T) {
                 (*fp).uf_scoped = ptr::null_mut();
             }
         }
-        (*fc).fc_ufuncs = Vec::new();
-        (*fc).fc_defer = Vec::new();
         crate::eval::typval::tv_dict_free_watchers(&raw mut (*fc).fc_l_vars);
         crate::eval::typval::tv_dict_free_watchers(&raw mut (*fc).fc_l_avars);
 
         func_ptr_unref((*fc).fc_func);
-        xfree(fc.cast());
+        drop(Box::from_raw(fc));
     }
 }
 
@@ -1194,9 +1192,15 @@ unsafe fn func_clear_free(fp: *mut ufunc_T, force: bool) {
 /// Allocate a `funccall_T`, link it in `current_funccal` and fill in `fp` and `rettv`.
 pub unsafe fn create_funccal(fp: *mut ufunc_T, rettv: *mut typval_T) -> *mut funccall_T {
     unsafe {
-        let fc = xcalloc(1, std::mem::size_of::<funccall_T>()).cast::<funccall_T>();
+        let mut fc_uninit = Box::new(std::mem::MaybeUninit::<funccall_T>::zeroed());
+        let fc = fc_uninit.as_mut_ptr();
         ptr::write(&raw mut (*fc).fc_defer, Vec::new());
         ptr::write(&raw mut (*fc).fc_ufuncs, Vec::new());
+        ptr::write(&raw mut (*fc).fc_l_vars.watchers, Vec::new());
+        ptr::write(&raw mut (*fc).fc_l_vars_var.di_key, Vec::new());
+        ptr::write(&raw mut (*fc).fc_l_avars.watchers, Vec::new());
+        ptr::write(&raw mut (*fc).fc_l_avars_var.di_key, Vec::new());
+        let _ = Box::into_raw(fc_uninit);
         (*fc).fc_caller = current_funccal;
         current_funccal = fc;
         (*fc).fc_func = fp;
@@ -3968,7 +3972,7 @@ pub unsafe fn do_return(
                 }
 
                 if !rettv.is_null() {
-                    let stored = xcalloc(1, std::mem::size_of::<typval_T>()).cast::<typval_T>();
+                    let stored = xmalloc(std::mem::size_of::<typval_T>()).cast::<typval_T>();
                     *stored = *rettv.cast::<typval_T>();
                     (*cstack).cs_pend.csp_rv[idx as usize] = stored.cast();
                 } else {

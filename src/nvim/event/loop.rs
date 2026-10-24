@@ -747,7 +747,7 @@ pub unsafe fn loop_close(loop_: *mut Loop, wait: bool) -> bool {
         multiqueue_free((*qc).fast_events);
         multiqueue_free((*qc).thread_events);
         multiqueue_free((*qc).events);
-        ptr::drop_in_place(&raw mut (*qc).children);
+        (*qc).children = Vec::new();
         rv
     }
 }
