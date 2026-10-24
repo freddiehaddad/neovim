@@ -47,20 +47,17 @@ const SIG_SETMASK: c_int = 3;
 #[cfg(unix)]
 const SIG_IGN: usize = 1;
 
-#[repr(C, align(8))]
-struct SignalWatcherBuf([u8; 512]);
-
-static mut spipe: SignalWatcherBuf = SignalWatcherBuf([0; 512]);
-static mut shup: SignalWatcherBuf = SignalWatcherBuf([0; 512]);
-static mut sint: SignalWatcherBuf = SignalWatcherBuf([0; 512]);
-static mut squit: SignalWatcherBuf = SignalWatcherBuf([0; 512]);
-static mut sterm: SignalWatcherBuf = SignalWatcherBuf([0; 512]);
+static mut spipe: SignalWatcher = SignalWatcher::zeroed();
+static mut shup: SignalWatcher = SignalWatcher::zeroed();
+static mut sint: SignalWatcher = SignalWatcher::zeroed();
+static mut squit: SignalWatcher = SignalWatcher::zeroed();
+static mut sterm: SignalWatcher = SignalWatcher::zeroed();
 #[cfg(unix)]
-static mut susr1: SignalWatcherBuf = SignalWatcherBuf([0; 512]);
-static mut swinch: SignalWatcherBuf = SignalWatcherBuf([0; 512]);
-static mut ststp: SignalWatcherBuf = SignalWatcherBuf([0; 512]);
+static mut susr1: SignalWatcher = SignalWatcher::zeroed();
+static mut swinch: SignalWatcher = SignalWatcher::zeroed();
+static mut ststp: SignalWatcher = SignalWatcher::zeroed();
 #[cfg(target_os = "linux")]
-static mut spwr: SignalWatcherBuf = SignalWatcherBuf([0; 512]);
+static mut spwr: SignalWatcher = SignalWatcher::zeroed();
 
 static mut rejecting_deadly: bool = false;
 
@@ -92,17 +89,17 @@ pub unsafe fn signal_init() {
         }
 
         let loop_ptr: *mut c_void = (&raw mut main_loop).cast();
-        signal_watcher_init(loop_ptr, (&raw mut spipe).cast(), ptr::null_mut());
-        signal_watcher_init(loop_ptr, (&raw mut shup).cast(), ptr::null_mut());
-        signal_watcher_init(loop_ptr, (&raw mut sint).cast(), ptr::null_mut());
-        signal_watcher_init(loop_ptr, (&raw mut squit).cast(), ptr::null_mut());
-        signal_watcher_init(loop_ptr, (&raw mut sterm).cast(), ptr::null_mut());
-        signal_watcher_init(loop_ptr, (&raw mut ststp).cast(), ptr::null_mut());
+        signal_watcher_init(loop_ptr, &raw mut spipe, ptr::null_mut());
+        signal_watcher_init(loop_ptr, &raw mut shup, ptr::null_mut());
+        signal_watcher_init(loop_ptr, &raw mut sint, ptr::null_mut());
+        signal_watcher_init(loop_ptr, &raw mut squit, ptr::null_mut());
+        signal_watcher_init(loop_ptr, &raw mut sterm, ptr::null_mut());
+        signal_watcher_init(loop_ptr, &raw mut ststp, ptr::null_mut());
         #[cfg(target_os = "linux")]
-        signal_watcher_init(loop_ptr, (&raw mut spwr).cast(), ptr::null_mut());
+        signal_watcher_init(loop_ptr, &raw mut spwr, ptr::null_mut());
         #[cfg(unix)]
-        signal_watcher_init(loop_ptr, (&raw mut susr1).cast(), ptr::null_mut());
-        signal_watcher_init(loop_ptr, (&raw mut swinch).cast(), ptr::null_mut());
+        signal_watcher_init(loop_ptr, &raw mut susr1, ptr::null_mut());
+        signal_watcher_init(loop_ptr, &raw mut swinch, ptr::null_mut());
         signal_start();
     }
 }
@@ -122,52 +119,52 @@ pub unsafe fn signal_teardown() {
     unsafe {
         signal_stop();
         signal_ignore_deadly();
-        signal_watcher_close((&raw mut spipe).cast(), None);
-        signal_watcher_close((&raw mut shup).cast(), None);
-        signal_watcher_close((&raw mut sint).cast(), None);
-        signal_watcher_close((&raw mut squit).cast(), None);
-        signal_watcher_close((&raw mut sterm).cast(), None);
-        signal_watcher_close((&raw mut ststp).cast(), None);
+        signal_watcher_close(&raw mut spipe, None);
+        signal_watcher_close(&raw mut shup, None);
+        signal_watcher_close(&raw mut sint, None);
+        signal_watcher_close(&raw mut squit, None);
+        signal_watcher_close(&raw mut sterm, None);
+        signal_watcher_close(&raw mut ststp, None);
         #[cfg(target_os = "linux")]
-        signal_watcher_close((&raw mut spwr).cast(), None);
+        signal_watcher_close(&raw mut spwr, None);
         #[cfg(unix)]
-        signal_watcher_close((&raw mut susr1).cast(), None);
-        signal_watcher_close((&raw mut swinch).cast(), None);
+        signal_watcher_close(&raw mut susr1, None);
+        signal_watcher_close(&raw mut swinch, None);
     }
 }
 
 pub unsafe fn signal_start() {
     unsafe {
         #[cfg(unix)]
-        signal_watcher_start((&raw mut spipe).cast(), Some(on_signal), SIGPIPE);
-        signal_watcher_start((&raw mut shup).cast(), Some(on_signal), SIGHUP);
-        signal_watcher_start((&raw mut sint).cast(), Some(on_signal), SIGINT);
-        signal_watcher_start((&raw mut squit).cast(), Some(on_signal), SIGQUIT);
-        signal_watcher_start((&raw mut sterm).cast(), Some(on_signal), SIGTERM);
+        signal_watcher_start(&raw mut spipe, Some(on_signal), SIGPIPE);
+        signal_watcher_start(&raw mut shup, Some(on_signal), SIGHUP);
+        signal_watcher_start(&raw mut sint, Some(on_signal), SIGINT);
+        signal_watcher_start(&raw mut squit, Some(on_signal), SIGQUIT);
+        signal_watcher_start(&raw mut sterm, Some(on_signal), SIGTERM);
         #[cfg(unix)]
-        signal_watcher_start((&raw mut ststp).cast(), Some(on_signal), SIGTSTP);
+        signal_watcher_start(&raw mut ststp, Some(on_signal), SIGTSTP);
         #[cfg(target_os = "linux")]
-        signal_watcher_start((&raw mut spwr).cast(), Some(on_signal), SIGPWR);
+        signal_watcher_start(&raw mut spwr, Some(on_signal), SIGPWR);
         #[cfg(unix)]
-        signal_watcher_start((&raw mut susr1).cast(), Some(on_signal), SIGUSR1);
-        signal_watcher_start((&raw mut swinch).cast(), Some(on_signal), SIGWINCH);
+        signal_watcher_start(&raw mut susr1, Some(on_signal), SIGUSR1);
+        signal_watcher_start(&raw mut swinch, Some(on_signal), SIGWINCH);
     }
 }
 
 pub unsafe fn signal_stop() {
     unsafe {
         #[cfg(unix)]
-        signal_watcher_stop((&raw mut spipe).cast());
-        signal_watcher_stop((&raw mut shup).cast());
-        signal_watcher_stop((&raw mut sint).cast());
-        signal_watcher_stop((&raw mut squit).cast());
-        signal_watcher_stop((&raw mut sterm).cast());
-        signal_watcher_stop((&raw mut ststp).cast());
+        signal_watcher_stop(&raw mut spipe);
+        signal_watcher_stop(&raw mut shup);
+        signal_watcher_stop(&raw mut sint);
+        signal_watcher_stop(&raw mut squit);
+        signal_watcher_stop(&raw mut sterm);
+        signal_watcher_stop(&raw mut ststp);
         #[cfg(target_os = "linux")]
-        signal_watcher_stop((&raw mut spwr).cast());
+        signal_watcher_stop(&raw mut spwr);
         #[cfg(unix)]
-        signal_watcher_stop((&raw mut susr1).cast());
-        signal_watcher_stop((&raw mut swinch).cast());
+        signal_watcher_stop(&raw mut susr1);
+        signal_watcher_stop(&raw mut swinch);
     }
 }
 

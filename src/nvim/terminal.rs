@@ -46,7 +46,6 @@ use crate::event::multiqueue::{
 };
 use crate::event::time::{
     TimeWatcher, time_watcher_close, time_watcher_init, time_watcher_start, time_watcher_stop,
-    watcher_fields,
 };
 use crate::ex_docmd::do_cmdline;
 use crate::globals::*;
@@ -265,7 +264,7 @@ pub struct Terminal {
     refcount: usize,
 }
 
-static mut REFRESH_TIMER: [u64; 64] = [0; 64];
+static mut REFRESH_TIMER: TimeWatcher = TimeWatcher::zeroed();
 static mut REFRESH_PENDING: bool = false;
 
 static mut VTERM_SCREEN_CALLBACKS: VTermScreenCallbacks = VTermScreenCallbacks {
@@ -315,7 +314,7 @@ const fn vterm_key_function(n: c_int) -> VTermKey {
 
 #[inline]
 unsafe fn refresh_timer_ptr() -> *mut TimeWatcher {
-    (&raw mut REFRESH_TIMER).cast::<TimeWatcher>()
+    &raw mut REFRESH_TIMER
 }
 
 #[inline]
@@ -621,7 +620,7 @@ pub unsafe fn terminal_init() {
     unsafe {
         let timer = refresh_timer_ptr();
         time_watcher_init((&raw mut main_loop).cast(), timer, ptr::null_mut());
-        (*watcher_fields(timer)).events =
+        (*timer).events =
             multiqueue_new_child((*loop_queues((&raw mut main_loop).cast())).events);
     }
 }
@@ -630,7 +629,7 @@ pub unsafe fn terminal_teardown() {
     unsafe {
         let timer = refresh_timer_ptr();
         time_watcher_stop(timer);
-        multiqueue_free((*watcher_fields(timer)).events);
+        multiqueue_free((*timer).events);
         time_watcher_close(timer, None);
         let inv_ptr = &raw mut INVALIDATED_TERMINALS;
         *inv_ptr = Vec::new();
@@ -978,7 +977,7 @@ pub unsafe fn terminal_set_state(term: *mut Terminal, suspended: bool) {
             let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
             argv[0] = ((*term).buf_handle as isize) as *mut c_void;
             multiqueue_put_event(
-                (*watcher_fields(refresh_timer_ptr())).events,
+                (*refresh_timer_ptr()).events,
                 Event {
                     handler: Some(terminal_state_change_event),
                     argv,
@@ -2392,7 +2391,7 @@ unsafe fn invalidate_terminal(term: *mut Terminal, start_row: c_int, end_row: c_
 
 pub unsafe fn terminal_check_refresh() {
     unsafe {
-        multiqueue_process_events((*watcher_fields(refresh_timer_ptr())).events);
+        multiqueue_process_events((*refresh_timer_ptr()).events);
     }
 }
 

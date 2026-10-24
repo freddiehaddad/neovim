@@ -164,7 +164,7 @@ pub struct TUIData {
     pub term: *mut c_char,
     pub output_handle: [u64; 80],
     pub out_isatty: bool,
-    pub winch_handle: [u64; 40],
+    pub winch_handle: SignalWatcher,
     pub startup_delay_timer: [u64; 32],
     pub grid: UGrid,
     pub invalid_regions: Vec<Rect>,
@@ -261,7 +261,7 @@ unsafe fn tui_output_handle(tui: *mut TUIData) -> *mut uv_handle_t {
 
 #[inline]
 unsafe fn tui_winch_handle(tui: *mut TUIData) -> *mut SignalWatcher {
-    unsafe { (*tui).winch_handle.as_mut_ptr().cast::<SignalWatcher>() }
+    unsafe { &raw mut (*tui).winch_handle }
 }
 
 #[inline]

@@ -87,12 +87,12 @@ use crate::eval::{
     find_timer_by_nr, get_callback_depth, get_copyID, get_lval, kListLenMayKnow,
     kListLenShouldKnow, kListLenUnknown, list2fpos, partial_name, save_tv_as_string,
     script_host_eval, string2float, timer_due_cb, timer_start, timer_stop, timer_stop_all,
-    timer_tail, tv_dict_set_ret, tv_to_argv, var_item_copy, var2fpos,
+    tv_dict_set_ret, tv_to_argv, var_item_copy, var2fpos,
 };
 #[cfg(unix)]
 use crate::event::r#loop::uv_kill;
 use crate::event::r#loop::{
-    Loop, loop_closing_ptr, loop_on_put, loop_poll_events, loop_queues, uv_handle_size, uv_strerror,
+    Loop, loop_closing_ptr, loop_on_put, loop_poll_events, loop_queues, uv_strerror,
 };
 use crate::event::multiqueue::{
     multiqueue_empty, multiqueue_free, multiqueue_new, multiqueue_process_events,
@@ -100,8 +100,7 @@ use crate::event::multiqueue::{
 };
 use crate::event::proc::{Proc, PtyProc, proc_header, proc_stop, proc_wait};
 use crate::event::time::{
-    TimeWatcher, TimeWatcherFields, time_watcher_close, time_watcher_init, time_watcher_start,
-    time_watcher_stop, watcher_fields,
+    TimeWatcher, time_watcher_close, time_watcher_init, time_watcher_start, time_watcher_stop,
 };
 use crate::ex_cmds::check_secure;
 use crate::ex_docmd::{
@@ -3714,7 +3713,7 @@ unsafe fn dummy_timer_due_cb(tw: *mut TimeWatcher, _data: *mut c_void) {
 
 unsafe fn dummy_timer_close_cb(tw: *mut TimeWatcher, _data: *mut c_void) {
     unsafe {
-        xfree(tw.cast());
+        drop(Box::from_raw(tw));
     }
 }
 
@@ -3744,12 +3743,11 @@ pub unsafe fn f_wait(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
         } else {
             200
         };
-        let tw = xmalloc(uv_handle_size(UV_TIMER) + size_of::<TimeWatcherFields>())
-            .cast::<TimeWatcher>();
+        let tw = Box::into_raw(Box::new(TimeWatcher::zeroed()));
 
         let main_loop_ptr: *mut Loop = (&raw mut main_loop).cast();
         time_watcher_init(main_loop_ptr, tw, ptr::null_mut());
-        (*watcher_fields(tw)).events = ptr::null_mut();
+        (*tw).events = ptr::null_mut();
         time_watcher_start(
             tw,
             Some(dummy_timer_due_cb),
@@ -9160,11 +9158,8 @@ pub unsafe fn f_timer_info(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
         }
         if (*argvars).v_type != VarType::VAR_UNKNOWN {
             let timer = find_timer_by_nr(tv_get_number(argvars));
-            if !timer.is_null() {
-                let tt = timer_tail(timer);
-                if !(*tt).stopped || (*tt).refcount > 1 {
-                    add_timer_info(rettv, timer);
-                }
+            if !timer.is_null() && (!(*timer).stopped || (*timer).refcount > 1) {
+                add_timer_info(rettv, timer);
             }
         } else {
             add_timer_info_all(rettv);
@@ -9182,18 +9177,17 @@ pub unsafe fn f_timer_pause(argvars: *mut typval_T, _unused: *mut typval_T, _fpt
         let paused = tv_get_bool(argvars.add(1)) != 0;
         let timer = find_timer_by_nr(tv_get_number(argvars));
         if !timer.is_null() {
-            let tt = timer_tail(timer);
-            if !(*tt).paused && paused {
-                time_watcher_stop(timer.cast());
-            } else if (*tt).paused && !paused {
+            if !(*timer).paused && paused {
+                time_watcher_stop(&raw mut (*timer).watcher);
+            } else if (*timer).paused && !paused {
                 time_watcher_start(
-                    timer.cast(),
+                    &raw mut (*timer).watcher,
                     Some(timer_due_cb),
-                    (*tt).timeout as u64,
-                    (*tt).timeout as u64,
+                    (*timer).timeout as u64,
+                    (*timer).timeout as u64,
                 );
             }
-            (*tt).paused = paused;
+            (*timer).paused = paused;
         }
     }
 }

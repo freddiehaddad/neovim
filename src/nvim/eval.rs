@@ -37,7 +37,7 @@ use crate::eval::vars::{
     get_vimvar_dict, lval_T, opt_to_tv, set_var, set_var_const, set_vim_var_list, set_vim_var_nr,
     skip_var_list, tv_init, valid_varname, var_check_lock, var_check_ro, var_wrong_func_name,
 };
-use crate::event::r#loop::{loop_queues, uv_handle_size};
+use crate::event::r#loop::loop_queues;
 use crate::ex_docmd::{
     CAR, check_nextcmd, cmd_has_expr_args, do_cmdline, ends_excmd, exarg_T, set_ref_in_findfunc,
 };
@@ -62,7 +62,7 @@ pub mod window;
 use crate::buffer::{NOTDONE, VAR_FIXED, bt_prompt, buf_T, buflist_findnr, kUIMessages};
 use crate::channel::{CallbackReader, Channel, callback_reader_free, kChannelStreamProc};
 use crate::errors::*;
-use crate::eval::funcs::{E_STRING_LIST_OR_BLOB_REQUIRED, UV_TIMER, get_list_line, kOptCpoptions};
+use crate::eval::funcs::{E_STRING_LIST_OR_BLOB_REQUIRED, get_list_line, kOptCpoptions};
 use crate::eval::userfunc::{
     call_func, call_simple_func, call_simple_luafunc, deref_func_name, eval_fname_script,
     find_func, free_all_functions, free_unref_funccal, func_init, func_ptr_unref, func_ref,
@@ -118,8 +118,7 @@ use crate::eval::gc::{gc_first_dict, gc_first_list};
 use crate::event::multiqueue::{multiqueue_free, multiqueue_new_child};
 use crate::event::proc::{Proc, proc_header};
 use crate::event::time::{
-    TimeWatcher, TimeWatcherFields, time_watcher_close, time_watcher_init, time_watcher_start,
-    time_watcher_stop, watcher_fields,
+    TimeWatcher, time_watcher_close, time_watcher_init, time_watcher_start, time_watcher_stop,
 };
 use crate::ex_eval::{aborting, discard_current_exception};
 use crate::hashtab::{hash_init, hashitem_empty, hashtab_T};
@@ -155,7 +154,6 @@ use crate::window::win_T;
 use crate::change::TAB;
 use crate::globals::IOSIZE;
 use crate::viml::parser::parser::CONV_NONE;
-pub type timer_T = c_void;
 pub type var_flavour_T = c_int;
 pub type exprtype_T = c_int;
 pub type glv_status_T = c_int;
@@ -275,7 +273,8 @@ pub type ht_stack_T = Vec<*mut hashtab_T>;
 pub type list_stack_T = Vec<*mut list_T>;
 
 #[repr(C)]
-pub struct TimerTail {
+pub struct timer_T {
+    pub watcher: TimeWatcher,
     pub timer_id: c_int,
     pub repeat_count: c_int,
     pub refcount: c_int,
@@ -355,23 +354,6 @@ unsafe fn tv_list_item_tv(li: *mut listitem_T) -> *mut typval_T {
 #[inline]
 unsafe fn tv_list_item_next(_l: *const list_T, li: *const listitem_T) -> *mut listitem_T {
     unsafe { (*li).li_next }
-}
-
-#[inline]
-pub(crate) unsafe fn timer_tail(timer: *mut timer_T) -> *mut TimerTail {
-    unsafe {
-        let uv_sz = uv_handle_size(UV_TIMER);
-        timer
-            .cast::<u8>()
-            .add(uv_sz + size_of::<TimeWatcherFields>())
-            .cast::<TimerTail>()
-    }
-}
-
-#[inline]
-unsafe fn timer_size() -> usize {
-    let uv_sz = unsafe { uv_handle_size(UV_TIMER) };
-    uv_sz + size_of::<TimeWatcherFields>() + size_of::<TimerTail>()
 }
 
 pub unsafe fn get_v_event(sve: *mut save_v_event_T) -> *mut dict_T {
@@ -4632,9 +4614,8 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
 
         let timers_ptr = &raw const timers;
         for &timer in (*timers_ptr).values() {
-            let tt = timer_tail(timer);
             set_ref_in_callback(
-                &raw mut (*tt).callback,
+                &raw mut (*timer).callback,
                 copyID,
                 ptr::null_mut(),
                 ptr::null_mut(),
@@ -5581,20 +5562,19 @@ pub unsafe fn add_timer_info(rettv: *mut typval_T, timer: *mut timer_T) {
     unsafe {
         let list = (*rettv).vval.v_list;
         let dict = tv_dict_alloc();
-        let tt = timer_tail(timer);
 
         tv_list_append_dict(list, dict);
-        tv_dict_add_nr(dict, c"id".as_ptr(), 2, varnumber_T::from((*tt).timer_id));
-        tv_dict_add_nr(dict, c"time".as_ptr(), 4, (*tt).timeout);
-        tv_dict_add_nr(dict, c"paused".as_ptr(), 6, varnumber_T::from((*tt).paused));
+        tv_dict_add_nr(dict, c"id".as_ptr(), 2, varnumber_T::from((*timer).timer_id));
+        tv_dict_add_nr(dict, c"time".as_ptr(), 4, (*timer).timeout);
+        tv_dict_add_nr(dict, c"paused".as_ptr(), 6, varnumber_T::from((*timer).paused));
         tv_dict_add_nr(
             dict,
             c"repeat".as_ptr(),
             6,
-            if (*tt).repeat_count < 0 {
+            if (*timer).repeat_count < 0 {
                 -1
             } else {
-                varnumber_T::from((*tt).repeat_count)
+                varnumber_T::from((*timer).repeat_count)
             },
         );
 
@@ -5602,7 +5582,7 @@ pub unsafe fn add_timer_info(rettv: *mut typval_T, timer: *mut timer_T) {
         if tv_dict_add(dict, di) == FAIL {
             tv_dict_item_free(di);
         } else {
-            callback_put(&raw mut (*tt).callback, &raw mut (*di).di_tv);
+            callback_put(&raw mut (*timer).callback, &raw mut (*di).di_tv);
         }
     }
 }
@@ -5612,8 +5592,7 @@ pub unsafe fn add_timer_info_all(rettv: *mut typval_T) {
         let timers_ptr = &raw const timers;
         tv_list_alloc_ret(rettv, (*timers_ptr).len() as isize);
         for &timer in (*timers_ptr).values() {
-            let tt = timer_tail(timer);
-            if !(*tt).stopped || (*tt).refcount > 1 {
+            if !(*timer).stopped || (*timer).refcount > 1 {
                 add_timer_info(rettv, timer);
             }
         }
@@ -5624,29 +5603,28 @@ pub unsafe fn add_timer_info_all(rettv: *mut typval_T) {
 pub unsafe fn timer_due_cb(_tw: *mut TimeWatcher, data: *mut c_void) {
     unsafe {
         let timer = data.cast::<timer_T>();
-        let tt = timer_tail(timer);
         let save_did_emsg = did_emsg;
         let called_emsg_before = called_emsg;
 
-        if (*tt).stopped || (*tt).paused {
+        if (*timer).stopped || (*timer).paused {
             return;
         }
 
-        (*tt).refcount += 1;
-        if (*tt).repeat_count >= 0 {
-            (*tt).repeat_count -= 1;
-            if (*tt).repeat_count == 0 {
+        (*timer).refcount += 1;
+        if (*timer).repeat_count >= 0 {
+            (*timer).repeat_count -= 1;
+            if (*timer).repeat_count == 0 {
                 timer_stop(timer);
             }
         }
 
         let mut argv = [tv_initial_value(), tv_initial_value()];
         argv[0].v_type = VarType::VAR_NUMBER;
-        argv[0].vval.v_number = varnumber_T::from((*tt).timer_id);
+        argv[0].vval.v_number = varnumber_T::from((*timer).timer_id);
         let mut rettv = tv_initial_value();
 
         callback_call(
-            &raw mut (*tt).callback,
+            &raw mut (*timer).callback,
             1,
             argv.as_mut_ptr(),
             &raw mut rettv,
@@ -5654,7 +5632,7 @@ pub unsafe fn timer_due_cb(_tw: *mut TimeWatcher, data: *mut c_void) {
 
         {
             if called_emsg > called_emsg_before && did_emsg != 0 {
-                (*tt).emsg_count += 1;
+                (*timer).emsg_count += 1;
                 if did_throw {
                     discard_current_exception();
                 }
@@ -5662,14 +5640,14 @@ pub unsafe fn timer_due_cb(_tw: *mut TimeWatcher, data: *mut c_void) {
             did_emsg = save_did_emsg;
         }
 
-        if (*tt).emsg_count >= 3 {
+        if (*timer).emsg_count >= 3 {
             timer_stop(timer);
         }
 
         tv_clear(&raw mut rettv);
 
-        if !(*tt).stopped && (*tt).timeout == 0 {
-            time_watcher_start(timer.cast(), Some(timer_due_cb), 0, 0);
+        if !(*timer).stopped && (*timer).timeout == 0 {
+            time_watcher_start(&raw mut (*timer).watcher, Some(timer_due_cb), 0, 0);
         }
         timer_decref(timer);
     }
@@ -5677,27 +5655,27 @@ pub unsafe fn timer_due_cb(_tw: *mut TimeWatcher, data: *mut c_void) {
 
 pub unsafe fn timer_start(timeout: i64, repeat_count: c_int, callback: *const Callback) -> u64 {
     unsafe {
-        let timer = xmalloc(timer_size()).cast::<timer_T>();
-        let tt = timer_tail(timer);
-        (*tt).refcount = 1;
-        (*tt).stopped = false;
-        (*tt).paused = false;
-        (*tt).emsg_count = 0;
-        (*tt).repeat_count = repeat_count;
-        (*tt).timeout = timeout;
         let id = last_timer_id;
         last_timer_id += 1;
-        (*tt).timer_id = id as c_int;
-        (*tt).callback = *callback;
+        let timer = Box::into_raw(Box::new(timer_T {
+            watcher: TimeWatcher::zeroed(),
+            timer_id: id as c_int,
+            repeat_count,
+            refcount: 1,
+            emsg_count: 0,
+            timeout,
+            stopped: false,
+            paused: false,
+            callback: *callback,
+        }));
 
         {
             let main_loop_ptr = (&raw mut main_loop).cast();
-            time_watcher_init(main_loop_ptr, timer.cast(), timer);
-            let wf = watcher_fields(timer.cast());
-            (*wf).events = multiqueue_new_child((*loop_queues(main_loop_ptr)).events);
-            (*wf).blockable = true;
+            time_watcher_init(main_loop_ptr, &raw mut (*timer).watcher, timer.cast());
+            (*timer).watcher.events = multiqueue_new_child((*loop_queues(main_loop_ptr)).events);
+            (*timer).watcher.blockable = true;
             time_watcher_start(
-                timer.cast(),
+                &raw mut (*timer).watcher,
                 Some(timer_due_cb),
                 timeout as u64,
                 timeout as u64,
@@ -5705,21 +5683,20 @@ pub unsafe fn timer_start(timeout: i64, repeat_count: c_int, callback: *const Ca
         }
 
         let timers_ptr = &raw mut timers;
-        (*timers_ptr).insert((*tt).timer_id as u64, timer);
-        (*tt).timer_id as u64
+        (*timers_ptr).insert((*timer).timer_id as u64, timer);
+        (*timer).timer_id as u64
     }
 }
 
 pub unsafe fn timer_stop(timer: *mut timer_T) {
     unsafe {
-        let tt = timer_tail(timer);
-        if (*tt).stopped {
+        if (*timer).stopped {
             return;
         }
-        (*tt).stopped = true;
+        (*timer).stopped = true;
         {
-            time_watcher_stop(timer.cast());
-            time_watcher_close(timer.cast(), Some(timer_close_cb));
+            time_watcher_stop(&raw mut (*timer).watcher);
+            time_watcher_close(&raw mut (*timer).watcher, Some(timer_close_cb));
         }
     }
 }
@@ -5727,22 +5704,19 @@ pub unsafe fn timer_stop(timer: *mut timer_T) {
 unsafe fn timer_close_cb(_tw: *mut TimeWatcher, data: *mut c_void) {
     unsafe {
         let timer = data.cast::<timer_T>();
-        let wf = watcher_fields(timer.cast());
-        let tt = timer_tail(timer);
-        multiqueue_free((*wf).events);
-        callback_free(&raw mut (*tt).callback);
+        multiqueue_free((*timer).watcher.events);
+        callback_free(&raw mut (*timer).callback);
         let timers_ptr = &raw mut timers;
-        let _ = (*timers_ptr).remove(&((*tt).timer_id as u64));
+        let _ = (*timers_ptr).remove(&((*timer).timer_id as u64));
         timer_decref(timer);
     }
 }
 
 unsafe fn timer_decref(timer: *mut timer_T) {
     unsafe {
-        let tt = timer_tail(timer);
-        (*tt).refcount -= 1;
-        if (*tt).refcount == 0 {
-            xfree(timer.cast());
+        (*timer).refcount -= 1;
+        if (*timer).refcount == 0 {
+            drop(Box::from_raw(timer));
         }
     }
 }
