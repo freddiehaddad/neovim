@@ -2748,7 +2748,7 @@ unsafe fn ins_reg() {
                         0
                     }) | PUT_CURSEND,
                 );
-            } else if (*reg).y_size > 1 && is_literal_register(regname) {
+            } else if (*reg).y_array.len() > 1 && is_literal_register(regname) {
                 redo_append_char(Ctrl_R);
                 redo_append_char(regname);
                 do_put(regname, ptr::null_mut(), BACKWARD, 1, PUT_CURSEND);

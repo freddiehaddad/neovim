@@ -4717,16 +4717,15 @@ unsafe fn get_register_completion() {
                 continue;
             }
 
-            let reg = copy_register(regname);
+            let mut reg = copy_register(regname);
 
-            if (*reg).y_array.is_null() || (*reg).y_size == 0 {
-                free_register(reg);
-                xfree(reg.cast());
+            if !reg.y_allocated || reg.y_array.is_empty() {
+                free_register(&raw mut reg);
                 continue;
             }
 
-            for j in 0..(*reg).y_size {
-                let str_ptr = (*(*reg).y_array.add(j)).data;
+            for j in 0..reg.y_array.len() {
+                let str_ptr = reg.y_array[j].data;
                 if str_ptr.is_null() {
                     continue;
                 }
@@ -4805,8 +4804,7 @@ unsafe fn get_register_completion() {
                 }
             }
 
-            free_register(reg);
-            xfree(reg.cast());
+            free_register(&raw mut reg);
         }
     }
 }

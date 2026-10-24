@@ -107,7 +107,7 @@ use crate::os::input::{input_blocking, input_enqueue, input_enqueue_mouse, input
 use crate::os::proc::os_proc_children;
 use crate::popupmenu::{pum_ext_select_item, pum_set_info};
 use crate::register::{
-    PUT_CURSEND, do_put, finish_yankreg_from_object, prepare_yankreg_from_object, yankreg_T,
+    PUT_CURSEND, do_put, finish_yankreg_from_object, prepare_yankreg_from_object,
 };
 use crate::runtime::{
     DIP_ALL, DIP_DIRFILE, DOSO_NONE, do_in_runtimepath, do_source, get_lib_dir, runtime_get_named,
@@ -2074,7 +2074,7 @@ pub unsafe extern "C" fn nvim_put(
     err: *mut Error,
 ) {
     unsafe {
-        let mut reg = std::mem::zeroed::<yankreg_T>();
+        let mut reg = crate::register::EMPTY_YANKREG;
         if !validate_s(
             prepare_yankreg_from_object(&mut reg, reg_type, lines.size),
             c"type".as_ptr(),
@@ -2087,9 +2087,8 @@ pub unsafe extern "C" fn nvim_put(
             return;
         }
 
-        reg.y_array = arena_alloc(arena, lines.size * std::mem::size_of::<NvimString>(), true)
-            .cast::<NvimString>();
-        reg.y_size = lines.size;
+        reg.y_array = Vec::with_capacity(lines.size);
+        reg.y_allocated = true;
         for i in 0..lines.size {
             let item = *lines.items.add(i);
             if !validate_t(
@@ -2102,7 +2101,7 @@ pub unsafe extern "C" fn nvim_put(
             }
             let line = item.data.string;
             let copied = copy_string(line, arena);
-            *reg.y_array.add(i) = copied;
+            reg.y_array.push(copied);
             memchrsub(copied.data.cast::<c_void>(), NUL, NL, line.size);
         }
 

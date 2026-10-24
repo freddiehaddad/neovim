@@ -57,7 +57,7 @@ use crate::mbyte::{
 use crate::mcursor::mc_ins_cascading;
 use crate::memline::{decl, ml_append, ml_get, ml_get_buf, ml_get_len, ml_replace};
 use crate::memory::{
-    memchrsub, memcnt, xcalloc, xfree, xmalloc, xmallocz, xmemdupz, xrealloc, xstrdup,
+    memchrsub, memcnt, xfree, xmalloc, xmallocz, xmemdupz, xrealloc, xstrdup,
 };
 use crate::message::{
     emsg, emsg_invreg, message_filtered, msg, msg_ext_set_kind, msg_outtrans_len, msg_putchar,
@@ -95,10 +95,10 @@ pub enum MotionType {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct yankreg_T {
-    pub y_array: *mut NvimString,
-    pub y_size: usize,
+    pub y_array: Vec<NvimString>,
+    pub y_allocated: bool,
     pub y_type: MotionType,
     pub y_width: c_int,
     pub timestamp: u64,
@@ -153,9 +153,9 @@ pub struct block_def {
     pub start_char_vcols: colnr_T,
 }
 
-const EMPTY_YANKREG: yankreg_T = yankreg_T {
-    y_array: ptr::null_mut(),
-    y_size: 0,
+pub const EMPTY_YANKREG: yankreg_T = yankreg_T {
+    y_array: Vec::new(),
+    y_allocated: false,
     y_type: MotionType::kMTCharWise,
     y_width: 0,
     timestamp: 0,
@@ -165,7 +165,7 @@ const EMPTY_YANKREG: yankreg_T = yankreg_T {
 static mut expr_line: *mut c_char = ptr::null_mut();
 static mut get_expr_line_nested: c_int = 0;
 static mut execreg_lastc: c_int = 0;
-static mut y_regs: [yankreg_T; NUM_REGISTERS] = [EMPTY_YANKREG; NUM_REGISTERS];
+static mut y_regs: [yankreg_T; NUM_REGISTERS] = [const { EMPTY_YANKREG }; NUM_REGISTERS];
 static mut y_previous: *mut yankreg_T = ptr::null_mut();
 static mut empty_reg: yankreg_T = EMPTY_YANKREG;
 static mut do_record_regname: c_int = 0;
@@ -223,11 +223,12 @@ pub const fn get_register_name(num: c_int) -> c_int {
 #[inline]
 pub unsafe fn reg_empty(reg: *const yankreg_T) -> bool {
     unsafe {
-        (*reg).y_array.is_null()
-            || (*reg).y_size == 0
-            || ((*reg).y_size == 1
-                && (*reg).y_type == MotionType::kMTCharWise
-                && (*(*reg).y_array).size == 0)
+        let reg = &*reg;
+        !reg.y_allocated
+            || reg.y_array.is_empty()
+            || (reg.y_array.len() == 1
+                && reg.y_type == MotionType::kMTCharWise
+                && reg.y_array[0].size == 0)
     }
 }
 
@@ -337,7 +338,7 @@ pub unsafe fn op_reg_iter(
     iter: *const c_void,
     regs: *const yankreg_T,
     name: *mut c_char,
-    reg: *mut yankreg_T,
+    reg: *mut *const yankreg_T,
     is_unnamed: *mut bool,
 ) -> *const c_void {
     unsafe {
@@ -355,7 +356,7 @@ pub unsafe fn op_reg_iter(
         }
         let iter_off = iter_reg.offset_from(regs) as c_int;
         *name = get_register_name(iter_off) as u8 as c_char;
-        *reg = *iter_reg;
+        *reg = iter_reg;
         *is_unnamed = ptr::eq(iter_reg, y_previous);
         loop {
             iter_reg = iter_reg.add(1);
@@ -373,7 +374,7 @@ pub unsafe fn op_reg_iter(
 pub unsafe fn op_global_reg_iter(
     iter: *const c_void,
     name: *mut c_char,
-    reg: *mut yankreg_T,
+    reg: *mut *const yankreg_T,
     is_unnamed: *mut bool,
 ) -> *const c_void {
     unsafe {
@@ -393,13 +394,13 @@ pub unsafe fn reg_max_ts(clipboard: bool) -> Timestamp {
         let mut iter: *const c_void = ptr::null();
         loop {
             let mut name: c_char = NUL;
-            let mut reg = EMPTY_YANKREG;
+            let mut reg: *const yankreg_T = ptr::null();
             let mut is_unnamed = false;
             iter = op_global_reg_iter(iter, &raw mut name, &raw mut reg, &raw mut is_unnamed);
             if name == NUL {
                 break;
             }
-            max_ts = max_ts.max(reg.timestamp);
+            max_ts = max_ts.max((*reg).timestamp);
             if iter.is_null() {
                 break;
             }
@@ -452,15 +453,15 @@ pub unsafe fn op_reg_set_previous(name: c_char) -> bool {
 
 pub unsafe fn update_yankreg_width(reg: *mut yankreg_T) {
     unsafe {
-        if (*reg).y_type == MotionType::kMTBlockWise {
+        let reg = &mut *reg;
+        if reg.y_type == MotionType::kMTBlockWise {
             let mut maxlen: usize = 0;
-            for i in 0..(*reg).y_size {
-                let item = *(*reg).y_array.add(i);
+            for &item in &reg.y_array {
                 let rowlen = mb_string2cells_len(item.data, item.size);
                 maxlen = maxlen.max(rowlen);
             }
             assert!(maxlen <= c_int::MAX as usize);
-            (*reg).y_width = (*reg).y_width.max((maxlen as colnr_T) - 1);
+            reg.y_width = reg.y_width.max((maxlen as colnr_T) - 1);
         }
     }
 }
@@ -511,20 +512,22 @@ pub unsafe fn yank_register_mline(regname: c_int, reg: *mut *mut yankreg_T) -> b
     }
 }
 
-pub unsafe fn copy_register(name: c_int) -> *mut yankreg_T {
+pub unsafe fn copy_register(name: c_int) -> yankreg_T {
     unsafe {
-        let reg = get_yank_register(name, YREG_PASTE);
-        let copy = xmalloc(size_of::<yankreg_T>()).cast::<yankreg_T>();
-        *copy = *reg;
-        if (*copy).y_size == 0 {
-            (*copy).y_array = ptr::null_mut();
-        } else {
-            (*copy).y_array = xcalloc((*copy).y_size, size_of::<NvimString>()).cast::<NvimString>();
-            for i in 0..(*copy).y_size {
-                *(*copy).y_array.add(i) = copy_string_global(*(*reg).y_array.add(i));
-            }
+        let reg = &*get_yank_register(name, YREG_PASTE);
+        let y_array = reg
+            .y_array
+            .iter()
+            .map(|&s| copy_string_global(s))
+            .collect();
+        yankreg_T {
+            y_array,
+            y_allocated: reg.y_allocated,
+            y_type: reg.y_type,
+            y_width: reg.y_width,
+            timestamp: reg.timestamp,
+            additional_data: reg.additional_data,
         }
-        copy
     }
 }
 
@@ -540,26 +543,25 @@ unsafe fn stuff_yank(regname: c_int, p: *mut c_char) -> c_int {
         }
 
         let plen = CStr::from_ptr(p).to_bytes().len();
-        let reg = get_yank_register(regname, YREG_YANK);
-        if is_append_register(regname) && !(*reg).y_array.is_null() {
-            let pp = (*reg).y_array.add((*reg).y_size - 1);
-            let tmplen = (*pp).size + plen;
+        let reg = &mut *get_yank_register(regname, YREG_YANK);
+        if is_append_register(regname) && reg.y_allocated && !reg.y_array.is_empty() {
+            let pp = reg.y_array.last_mut().unwrap();
+            let tmplen = pp.size + plen;
             let tmp = xmalloc(tmplen + 1).cast::<c_char>();
-            ptr::copy_nonoverlapping((*pp).data, tmp, (*pp).size);
-            ptr::copy_nonoverlapping(p, tmp.add((*pp).size), plen);
+            ptr::copy_nonoverlapping(pp.data, tmp, pp.size);
+            ptr::copy_nonoverlapping(p, tmp.add(pp.size), plen);
             *tmp.add(tmplen) = NUL;
             xfree(p.cast());
-            xfree((*pp).data.cast());
+            xfree(pp.data.cast());
             *pp = cbuf_as_string(tmp, tmplen);
         } else {
             free_register(reg);
-            (*reg).additional_data = ptr::null_mut();
-            (*reg).y_array = xmalloc(size_of::<NvimString>()).cast::<NvimString>();
-            *(*reg).y_array = cbuf_as_string(p, plen);
-            (*reg).y_size = 1;
-            (*reg).y_type = MotionType::kMTCharWise;
+            reg.additional_data = ptr::null_mut();
+            reg.y_array = vec![cbuf_as_string(p, plen)];
+            reg.y_allocated = true;
+            reg.y_type = MotionType::kMTCharWise;
         }
-        (*reg).timestamp = os_realtime() as u64;
+        reg.timestamp = os_realtime() as u64;
         OK
     }
 }
@@ -792,8 +794,8 @@ pub unsafe fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent:
             retval = put_in_typebuf(p, false, colon != 0, silent);
             xfree(p.cast());
         } else {
-            let reg = get_yank_register(regname, YREG_PASTE);
-            if (*reg).y_array.is_null() {
+            let reg = &*get_yank_register(regname, YREG_PASTE);
+            if !reg.y_allocated {
                 return FAIL;
             }
 
@@ -801,16 +803,18 @@ pub unsafe fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent:
             let is_silent = silent != 0;
 
             put_reedit_in_typebuf(silent);
-            let mut i = (*reg).y_size;
+            let mut i = reg.y_array.len();
             while i > 0 {
                 i -= 1;
-                if ((*reg).y_type == MotionType::kMTLineWise || i < (*reg).y_size - 1 || addcr != 0)
+                if (reg.y_type == MotionType::kMTLineWise
+                    || i < reg.y_array.len() - 1
+                    || addcr != 0)
                     && ins_typebuf(c"\n".as_ptr().cast_mut(), remap, 0, true, is_silent) == FAIL
                 {
                     return FAIL;
                 }
 
-                let mut str_ = (*(*reg).y_array.add(i)).data;
+                let mut str_ = reg.y_array[i].data;
                 let mut free_str = false;
                 if colon != 0 && i > 0 {
                     let p = skipwhite(str_);
@@ -819,7 +823,10 @@ pub unsafe fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent:
                             && *p.add(1) == b'\\' as c_char
                             && *p.add(2) == b' ' as c_char)
                     {
-                        str_ = execreg_line_continuation((*reg).y_array, &raw mut i);
+                        str_ = execreg_line_continuation(
+                            reg.y_array.as_ptr().cast_mut(),
+                            &raw mut i,
+                        );
                         free_str = true;
                     }
                 }
@@ -879,24 +886,25 @@ pub unsafe fn insert_reg(regname: c_int, mut reg: *mut yankreg_T, literally_arg:
             if reg.is_null() {
                 reg = get_yank_register(regname, YREG_PASTE);
             }
-            if (*reg).y_array.is_null() {
+            let reg_ref = &*reg;
+            if !reg_ref.y_allocated {
                 retval = FAIL;
             } else {
-                let put = (*reg).y_type == MotionType::kMTCharWise
+                let put = reg_ref.y_type == MotionType::kMTCharWise
                     && (regname == c_int::from(b'-')
                         || (mc_ins_cascading()
-                            && (*reg).y_size == 1
+                            && reg_ref.y_array.len() == 1
                             && (((0..=0x7f).contains(&regname)
                                 && (regname as u8).is_ascii_alphanumeric())
                                 || regname == c_int::from(b'"'))));
-                for i in 0..(*reg).y_size {
+                for i in 0..reg_ref.y_array.len() {
                     if put {
                         let mut dir = BACKWARD;
                         if (State & REPLACE_FLAG) != 0 {
                             if u_save_cursor() == FAIL {
                                 return FAIL;
                             }
-                            del_chars(mb_charlen((*(*reg).y_array).data), 1);
+                            del_chars(mb_charlen(reg_ref.y_array[0].data), 1);
                             let curpos = (*curwin).w_cursor;
                             if oneright() == FAIL {
                                 dir = FORWARD;
@@ -908,8 +916,10 @@ pub unsafe fn insert_reg(regname: c_int, mut reg: *mut yankreg_T, literally_arg:
                         redo_append_char(regname);
                         do_put(regname, ptr::null_mut(), dir, 1, PUT_CURSEND);
                     } else {
-                        stuffescaped((*(*reg).y_array.add(i)).data, literally);
-                        if (*reg).y_type == MotionType::kMTLineWise || i < (*reg).y_size - 1 {
+                        stuffescaped(reg_ref.y_array[i].data, literally);
+                        if reg_ref.y_type == MotionType::kMTLineWise
+                            || i < reg_ref.y_array.len() - 1
+                        {
                             stuffcharReadbuff(c_int::from(b'\n'));
                         }
                     }
@@ -1022,15 +1032,15 @@ pub unsafe fn cmdline_paste_reg(regname: c_int, literally_arg: bool, remcr: bool
     unsafe {
         let literally = literally_arg || is_literal_register(regname);
 
-        let reg = get_yank_register(regname, YREG_PASTE);
-        if (*reg).y_array.is_null() {
+        let reg = &*get_yank_register(regname, YREG_PASTE);
+        if !reg.y_allocated {
             return false;
         }
 
-        for i in 0..(*reg).y_size {
-            cmdline_paste_str((*(*reg).y_array.add(i)).data, literally);
+        for i in 0..reg.y_array.len() {
+            cmdline_paste_str(reg.y_array[i].data, literally);
 
-            if i < (*reg).y_size - 1 && !remcr {
+            if i < reg.y_array.len() - 1 && !remcr {
                 cmdline_paste_str(c"\r".as_ptr(), literally);
             }
 
@@ -1049,13 +1059,12 @@ pub unsafe fn shift_delete_registers(y_append: bool) {
         free_register(regs.add(9));
         let mut n = 9;
         while n > 1 {
-            *regs.add(n) = *regs.add(n - 1);
+            *regs.add(n) = std::mem::replace(&mut *regs.add(n - 1), EMPTY_YANKREG);
             n -= 1;
         }
         if !y_append {
             y_previous = regs.add(1);
         }
-        (*regs.add(1)).y_array = ptr::null_mut();
     }
 }
 
@@ -1070,16 +1079,11 @@ pub unsafe fn clear_registers() {
 
 pub unsafe fn free_register(reg: *mut yankreg_T) {
     unsafe {
-        xfree((*reg).additional_data);
-        (*reg).additional_data = ptr::null_mut();
-        if !(*reg).y_array.is_null() {
-            let mut i = (*reg).y_size;
-            while i > 0 {
-                i -= 1;
-                api_clear_string(&mut *(*reg).y_array.add(i));
-            }
-            xfree((*reg).y_array.cast());
-            (*reg).y_array = ptr::null_mut();
+        let reg = &mut *reg;
+        xfree(reg.additional_data);
+        reg.additional_data = ptr::null_mut();
+        for item in reg.y_array.iter_mut().rev() {
+            api_clear_string(item);
         }
         *reg = EMPTY_YANKREG;
     }
@@ -1098,8 +1102,8 @@ unsafe fn yank_copy_line(
         let size = (*bd).startspaces + (*bd).endspaces + (*bd).textlen;
         assert!(size >= 0);
         let mut pnew = xmallocz(size as usize).cast::<c_char>();
-        let dst = (*reg).y_array.add(y_idx);
-        (*dst).data = pnew;
+        let dst = &mut (&mut *reg).y_array[y_idx];
+        dst.data = pnew;
         ptr::write_bytes(pnew.cast::<u8>(), b' ', (*bd).startspaces as usize);
         pnew = pnew.add((*bd).startspaces as usize);
         ptr::copy((*bd).textstart, pnew, (*bd).textlen as usize);
@@ -1114,7 +1118,7 @@ unsafe fn yank_copy_line(
             }
         }
         *pnew = NUL;
-        (*dst).size = (pnew as usize) - ((*dst).data as usize);
+        dst.size = (pnew as usize) - (dst.data as usize);
     }
 }
 
@@ -1133,7 +1137,7 @@ pub unsafe fn op_yank_reg(oap: *mut oparg_T, message: bool, mut reg: *mut yankre
         let mut bd = block_def::default();
 
         let curr = reg;
-        if append && !(*reg).y_array.is_null() {
+        if append && (*reg).y_allocated {
             reg = &raw mut newreg;
         } else {
             free_register(reg);
@@ -1151,10 +1155,16 @@ pub unsafe fn op_yank_reg(oap: *mut oparg_T, message: bool, mut reg: *mut yankre
             yanklines -= 1;
         }
 
-        (*reg).y_size = yanklines;
         (*reg).y_type = yank_type;
         (*reg).y_width = 0;
-        (*reg).y_array = xcalloc(yanklines, size_of::<NvimString>()).cast::<NvimString>();
+        (*reg).y_array = vec![
+            NvimString {
+                data: ptr::null_mut(),
+                size: 0,
+            };
+            yanklines
+        ];
+        (*reg).y_allocated = true;
         (*reg).additional_data = ptr::null_mut();
         (*reg).timestamp = os_realtime() as u64;
 
@@ -1175,7 +1185,7 @@ pub unsafe fn op_yank_reg(oap: *mut oparg_T, message: bool, mut reg: *mut yankre
                     yank_copy_line(reg, &raw mut bd, y_idx, (*oap).excl_tr_ws);
                 }
                 MotionType::kMTLineWise => {
-                    *(*reg).y_array.add(y_idx) =
+                    (&mut *reg).y_array[y_idx] =
                         cbuf_to_string(ml_get(lnum), ml_get_len(lnum) as usize);
                 }
                 MotionType::kMTCharWise => {
@@ -1199,27 +1209,20 @@ pub unsafe fn op_yank_reg(oap: *mut oparg_T, message: bool, mut reg: *mut yankre
         }
 
         if !ptr::eq(curr, reg) {
-            let mut j: usize = 0;
-            let new_ptr = xmalloc(size_of::<NvimString>() * ((*curr).y_size + (*reg).y_size))
-                .cast::<NvimString>();
-            while j < (*curr).y_size {
-                *new_ptr.add(j) = *(*curr).y_array.add(j);
-                j += 1;
-            }
-            xfree((*curr).y_array.cast());
-            (*curr).y_array = new_ptr;
-
+            let curr_reg = &mut *curr;
+            let new_reg = &mut *reg;
             if yank_type == MotionType::kMTLineWise {
-                (*curr).y_type = MotionType::kMTLineWise;
+                curr_reg.y_type = MotionType::kMTLineWise;
             }
 
-            if (*curr).y_type == MotionType::kMTCharWise
+            if curr_reg.y_type == MotionType::kMTCharWise
                 && vim_strchr(p_cpo, kCpoRegappend).is_null()
+                && !curr_reg.y_array.is_empty()
+                && !new_reg.y_array.is_empty()
             {
-                let last_old = *(*curr).y_array.add((*curr).y_size - 1);
-                let first_new = *(*reg).y_array;
+                let last_old = *curr_reg.y_array.last().unwrap();
+                let first_new = new_reg.y_array[0];
                 let pnew = xmalloc(last_old.size + first_new.size + 1).cast::<c_char>();
-                j -= 1;
                 ptr::copy_nonoverlapping(last_old.data, pnew, last_old.size);
                 ptr::copy_nonoverlapping(
                     first_new.data,
@@ -1227,20 +1230,18 @@ pub unsafe fn op_yank_reg(oap: *mut oparg_T, message: bool, mut reg: *mut yankre
                     first_new.size + 1,
                 );
                 xfree(last_old.data.cast());
-                *(*curr).y_array.add(j) = cbuf_as_string(pnew, last_old.size + first_new.size);
-                j += 1;
-                api_clear_string(&mut *(*reg).y_array);
+                *curr_reg.y_array.last_mut().unwrap() =
+                    cbuf_as_string(pnew, last_old.size + first_new.size);
+                api_clear_string(&mut new_reg.y_array[0]);
                 y_idx = 1;
             } else {
                 y_idx = 0;
             }
-            while y_idx < (*reg).y_size {
-                *(*curr).y_array.add(j) = *(*reg).y_array.add(y_idx);
-                j += 1;
+            while y_idx < new_reg.y_array.len() {
+                curr_reg.y_array.push(new_reg.y_array[y_idx]);
                 y_idx += 1;
             }
-            (*curr).y_size = j;
-            xfree((*reg).y_array.cast());
+            new_reg.y_array.clear();
         }
 
         if message {
@@ -1384,9 +1385,9 @@ pub unsafe fn do_autocmd_textyankpost(oap: *mut oparg_T, reg: *mut yankreg_T) {
         let mut save_v_event: save_v_event_T = std::mem::zeroed();
         let dict = get_v_event(&raw mut save_v_event);
 
-        let list = tv_list_alloc((*reg).y_size as isize);
-        for i in 0..(*reg).y_size {
-            let item = *(*reg).y_array.add(i);
+        let reg_ref = &*reg;
+        let list = tv_list_alloc(reg_ref.y_array.len() as isize);
+        for &item in &reg_ref.y_array {
             tv_list_append_string(list, item.data, item.size as isize);
         }
         (*list).lv_lock = VAR_FIXED;
@@ -1461,7 +1462,7 @@ unsafe fn put_do_autocmd(
         let v_event = get_v_event(&raw mut save_v_event);
 
         let list = tv_list_alloc(if !reg.is_null() {
-            (*reg).y_size as isize
+            (*reg).y_array.len() as isize
         } else {
             1
         });
@@ -1474,8 +1475,7 @@ unsafe fn put_do_autocmd(
         } else if !insert.is_null() {
             tv_list_append_string(list, (*insert).data, (*insert).size as isize);
         } else {
-            for n in 0..(*reg).y_size {
-                let item = *(*reg).y_array.add(n);
+            for &item in &(&*reg).y_array {
                 tv_list_append_string(list, item.data, item.size as isize);
             }
         }
@@ -1563,10 +1563,12 @@ pub unsafe fn do_put(
         let mut totlen: usize = 0;
         let mut lnum: linenr_T;
         let mut y_type: MotionType;
-        let mut y_size: usize;
+        let y_size: usize;
         let mut y_width: c_int = 0;
         let mut vcol: colnr_T = 0;
-        let mut y_array: *mut NvimString = ptr::null_mut();
+        let y_array: *mut NvimString;
+        let mut expr_y_array: Vec<NvimString> = Vec::new();
+        let mut y_allocated = true;
         let mut nr_lines: linenr_T = 0;
         let mut allocated = false;
         let orig_start = (*curbuf).b_op_start;
@@ -1699,39 +1701,33 @@ pub unsafe fn do_put(
             insert_string.size = CStr::from_ptr(insert_string.data).to_bytes().len();
             y_type = MotionType::kMTCharWise;
             if regname == c_int::from(b'=') {
-                loop {
-                    y_size = 0;
-                    let mut ptr_ = insert_string.data;
-                    let mut ptrlen = insert_string.size;
-                    while !ptr_.is_null() {
-                        if !y_array.is_null() {
-                            (*y_array.add(y_size)).data = ptr_;
+                let mut ptr_ = insert_string.data;
+                let mut ptrlen = insert_string.size;
+                while !ptr_.is_null() {
+                    let mut tmp = vim_strchr(ptr_, c_int::from(b'\n'));
+                    if tmp.is_null() {
+                        expr_y_array.push(NvimString {
+                            data: ptr_,
+                            size: ptrlen,
+                        });
+                    } else {
+                        *tmp = NUL;
+                        let item_size = (tmp as usize) - (ptr_ as usize);
+                        expr_y_array.push(NvimString {
+                            data: ptr_,
+                            size: item_size,
+                        });
+                        ptrlen -= item_size + 1;
+                        tmp = tmp.add(1);
+                        if *tmp == NUL {
+                            y_type = MotionType::kMTLineWise;
+                            break;
                         }
-                        y_size += 1;
-                        let mut tmp = vim_strchr(ptr_, c_int::from(b'\n'));
-                        if tmp.is_null() {
-                            if !y_array.is_null() {
-                                (*y_array.add(y_size - 1)).size = ptrlen;
-                            }
-                        } else {
-                            if !y_array.is_null() {
-                                *tmp = NUL;
-                                (*y_array.add(y_size - 1)).size = (tmp as usize) - (ptr_ as usize);
-                                ptrlen -= (*y_array.add(y_size - 1)).size + 1;
-                            }
-                            tmp = tmp.add(1);
-                            if *tmp == NUL {
-                                y_type = MotionType::kMTLineWise;
-                                break;
-                            }
-                        }
-                        ptr_ = tmp;
                     }
-                    if !y_array.is_null() {
-                        break;
-                    }
-                    y_array = xmalloc(y_size * size_of::<NvimString>()).cast::<NvimString>();
+                    ptr_ = tmp;
                 }
+                y_size = expr_y_array.len();
+                y_array = expr_y_array.as_mut_ptr();
             } else {
                 y_size = 1;
                 y_array = &raw mut insert_string;
@@ -1758,10 +1754,12 @@ pub unsafe fn do_put(
                 reg = get_yank_register(regname, YREG_PASTE);
             }
 
-            y_type = (*reg).y_type;
-            y_width = (*reg).y_width;
-            y_size = (*reg).y_size;
-            y_array = (*reg).y_array;
+            let reg_ref = &mut *reg;
+            y_type = reg_ref.y_type;
+            y_width = reg_ref.y_width;
+            y_size = reg_ref.y_array.len();
+            y_allocated = reg_ref.y_allocated;
+            y_array = reg_ref.y_array.as_mut_ptr();
         }
 
         'end: {
@@ -1810,7 +1808,7 @@ pub unsafe fn do_put(
                 y_type = MotionType::kMTLineWise;
             }
 
-            if y_size == 0 || y_array.is_null() {
+            if y_size == 0 || !y_allocated {
                 semsg!(
                     gettext(c"E353: Nothing in register %s".as_ptr()),
                     if regname == 0 {
@@ -2474,9 +2472,6 @@ pub unsafe fn do_put(
         if allocated {
             xfree(insert_string.data.cast());
         }
-        if regname == c_int::from(b'=') {
-            xfree(y_array.cast());
-        }
 
         if (*curbuf).terminal.is_null() {
             Visual.active = false;
@@ -2553,16 +2548,17 @@ pub unsafe fn ex_display(eap: *mut exarg_T) {
                 continue;
             }
 
-            if !(*yb).y_array.is_null() {
+            let yb_ref = &*yb;
+            if yb_ref.y_allocated {
                 let mut do_show = false;
-                for j in 0..(*yb).y_size {
-                    if !message_filtered((*(*yb).y_array.add(j)).data) {
+                for item in &yb_ref.y_array {
+                    if !message_filtered(item.data) {
                         do_show = true;
                         break;
                     }
                 }
 
-                if do_show || (*yb).y_size == 0 {
+                if do_show || yb_ref.y_array.is_empty() {
                     msg_putchar(c_int::from(b'\n'));
                     msg_puts(c"  ".as_ptr());
                     msg_putchar(type_ch);
@@ -2573,12 +2569,12 @@ pub unsafe fn ex_display(eap: *mut exarg_T) {
 
                     let mut n = Columns - 11;
                     let mut j: usize = 0;
-                    while j < (*yb).y_size && n > 1 {
+                    while j < yb_ref.y_array.len() && n > 1 {
                         if j != 0 {
                             msg_puts_hl(c"^J".as_ptr(), hl_id, false);
                             n -= 2;
                         }
-                        let mut p: *const c_char = (*(*yb).y_array.add(j)).data;
+                        let mut p: *const c_char = yb_ref.y_array[j].data;
                         while *p != NUL {
                             n -= ptr2cells(p);
                             if n < 0 {
@@ -2590,7 +2586,7 @@ pub unsafe fn ex_display(eap: *mut exarg_T) {
                         }
                         j += 1;
                     }
-                    if n > 1 && (*yb).y_type == MotionType::kMTLineWise {
+                    if n > 1 && yb_ref.y_type == MotionType::kMTLineWise {
                         msg_puts_hl(c"^J".as_ptr(), hl_id, false);
                     }
                 }
@@ -2682,12 +2678,12 @@ pub unsafe fn get_reg_type(regname: c_int, reg_width: *mut colnr_T) -> MotionTyp
             return MotionType::kMTUnknown;
         }
 
-        let reg = get_yank_register(regname, YREG_PASTE);
-        if !(*reg).y_array.is_null() {
-            if !reg_width.is_null() && (*reg).y_type == MotionType::kMTBlockWise {
-                *reg_width = (*reg).y_width;
+        let reg = &*get_yank_register(regname, YREG_PASTE);
+        if reg.y_allocated {
+            if !reg_width.is_null() && reg.y_type == MotionType::kMTBlockWise {
+                *reg_width = reg.y_width;
             }
-            return (*reg).y_type;
+            return reg.y_type;
         }
         MotionType::kMTUnknown
     }
@@ -2736,24 +2732,23 @@ pub unsafe fn get_reg_contents(mut regname: c_int, flags: c_int) -> *mut c_void 
             return get_reg_wrap_one_line(xstrdup(retval), flags);
         }
 
-        let reg = get_yank_register(regname, YREG_PUT);
-        if (*reg).y_array.is_null() {
+        let reg = &*get_yank_register(regname, YREG_PUT);
+        if !reg.y_allocated {
             return ptr::null_mut();
         }
 
         if (flags & kGRegList) != 0 {
-            let list = tv_list_alloc((*reg).y_size as isize);
-            for i in 0..(*reg).y_size {
-                let item = *(*reg).y_array.add(i);
+            let list = tv_list_alloc(reg.y_array.len() as isize);
+            for &item in &reg.y_array {
                 tv_list_append_string(list, item.data, item.size as isize);
             }
             return list.cast::<c_void>();
         }
 
         let mut len: usize = 0;
-        for i in 0..(*reg).y_size {
-            len += (*(*reg).y_array.add(i)).size;
-            if (*reg).y_type == MotionType::kMTLineWise || i < (*reg).y_size - 1 {
+        for (i, &item) in reg.y_array.iter().enumerate() {
+            len += item.size;
+            if reg.y_type == MotionType::kMTLineWise || i < reg.y_array.len() - 1 {
                 len += 1;
             }
         }
@@ -2761,11 +2756,10 @@ pub unsafe fn get_reg_contents(mut regname: c_int, flags: c_int) -> *mut c_void 
         retval = xmalloc(len + 1).cast::<c_char>();
 
         len = 0;
-        for i in 0..(*reg).y_size {
-            let item = *(*reg).y_array.add(i);
+        for (i, &item) in reg.y_array.iter().enumerate() {
             ptr::copy_nonoverlapping(item.data, retval.add(len), item.size);
             len += item.size;
-            if (*reg).y_type == MotionType::kMTLineWise || i < (*reg).y_size - 1 {
+            if reg.y_type == MotionType::kMTLineWise || i < reg.y_array.len() - 1 {
                 *retval.add(len) = b'\n' as c_char;
                 len += 1;
             }
@@ -2806,8 +2800,9 @@ unsafe fn str_to_reg(
     str_list: bool,
 ) {
     unsafe {
-        if (*y_ptr).y_array.is_null() {
-            (*y_ptr).y_size = 0;
+        let y_reg = &mut *y_ptr;
+        if !y_reg.y_allocated {
+            y_reg.y_array.clear();
         }
 
         if yank_type == MotionType::kMTUnknown {
@@ -2839,38 +2834,32 @@ unsafe fn str_to_reg(
                 extraline = 1;
                 newlines += 1;
             }
-            if (*y_ptr).y_size > 0 && (*y_ptr).y_type == MotionType::kMTCharWise {
+            if !y_reg.y_array.is_empty() && y_reg.y_type == MotionType::kMTCharWise {
                 append = true;
                 newlines -= 1;
             }
         }
 
-        if (*y_ptr).y_size + newlines == 0 {
-            xfree((*y_ptr).y_array.cast());
-            (*y_ptr).y_array = ptr::null_mut();
+        if y_reg.y_array.len() + newlines == 0 {
+            y_reg.y_array.clear();
+            y_reg.y_allocated = false;
             return;
         }
 
-        let pp = xrealloc(
-            (*y_ptr).y_array.cast(),
-            ((*y_ptr).y_size + newlines) * size_of::<NvimString>(),
-        )
-        .cast::<NvimString>();
-        (*y_ptr).y_array = pp;
+        y_reg.y_array.reserve(newlines);
+        y_reg.y_allocated = true;
 
-        let mut lnum = (*y_ptr).y_size;
         let mut maxlen: usize = 0;
 
         if str_list {
             let mut ss = str_.cast::<*mut c_char>();
             while !(*ss).is_null() {
-                *pp.add(lnum) = cstr_to_string(*ss);
+                y_reg.y_array.push(cstr_to_string(*ss));
                 if yank_type == MotionType::kMTBlockWise {
                     let charlen = vim_strsize(*ss) as usize;
                     maxlen = maxlen.max(charlen);
                 }
                 ss = ss.add(1);
-                lnum += 1;
             }
         } else {
             let mut start = str_;
@@ -2886,45 +2875,46 @@ unsafe fn str_to_reg(
                 }
 
                 let extra = if append {
-                    lnum -= 1;
-                    (*pp.add(lnum)).size
+                    y_reg.y_array.last().unwrap().size
                 } else {
                     0
                 };
                 let s = xmallocz(line_len + extra).cast::<c_char>();
                 if extra > 0 {
-                    ptr::copy_nonoverlapping((*pp.add(lnum)).data, s, extra);
+                    ptr::copy_nonoverlapping(y_reg.y_array.last().unwrap().data, s, extra);
                 }
                 if line_len > 0 {
                     ptr::copy_nonoverlapping(start, s.add(extra), line_len);
                 }
                 let s_len = extra + line_len;
 
-                if append {
-                    xfree((*pp.add(lnum)).data.cast());
-                    append = false;
-                }
-                *pp.add(lnum) = cbuf_as_string(s, s_len);
+                let new_str = cbuf_as_string(s, s_len);
+                memchrsub(new_str.data.cast(), NUL, b'\n' as c_char, s_len);
 
-                memchrsub((*pp.add(lnum)).data.cast(), NUL, b'\n' as c_char, s_len);
+                if append {
+                    let last = y_reg.y_array.last_mut().unwrap();
+                    xfree(last.data.cast());
+                    *last = new_str;
+                    append = false;
+                } else {
+                    y_reg.y_array.push(new_str);
+                }
 
                 start = start.add(line_len + 1);
-                lnum += 1;
             }
         }
-        (*y_ptr).y_type = yank_type;
-        (*y_ptr).y_size = lnum;
-        xfree((*y_ptr).additional_data);
-        (*y_ptr).additional_data = ptr::null_mut();
-        (*y_ptr).timestamp = os_realtime() as u64;
+        y_reg.y_type = yank_type;
+        xfree(y_reg.additional_data);
+        y_reg.additional_data = ptr::null_mut();
+        y_reg.timestamp = os_realtime() as u64;
         if yank_type == MotionType::kMTBlockWise {
-            (*y_ptr).y_width = if blocklen == -1 {
+            y_reg.y_width = if blocklen == -1 {
                 (maxlen as colnr_T) - 1
             } else {
                 blocklen
             };
         } else {
-            (*y_ptr).y_width = 0;
+            y_reg.y_width = 0;
         }
     }
 }
@@ -3103,17 +3093,18 @@ pub unsafe fn prepare_yankreg_from_object(
 
 pub unsafe fn finish_yankreg_from_object(reg: *mut yankreg_T, clipboard_adjust: bool) {
     unsafe {
-        if (*reg).y_size > 0 && (*(*reg).y_array.add((*reg).y_size - 1)).size == 0 {
-            if (*reg).y_type != MotionType::kMTCharWise {
-                if (*reg).y_type == MotionType::kMTUnknown || clipboard_adjust {
-                    (*reg).y_size -= 1;
+        let reg_ref = &mut *reg;
+        if reg_ref.y_array.last().is_some_and(|last| last.size == 0) {
+            if reg_ref.y_type != MotionType::kMTCharWise {
+                if reg_ref.y_type == MotionType::kMTUnknown || clipboard_adjust {
+                    reg_ref.y_array.pop();
                 }
-                if (*reg).y_type == MotionType::kMTUnknown {
-                    (*reg).y_type = MotionType::kMTLineWise;
+                if reg_ref.y_type == MotionType::kMTUnknown {
+                    reg_ref.y_type = MotionType::kMTLineWise;
                 }
             }
-        } else if (*reg).y_type == MotionType::kMTUnknown {
-            (*reg).y_type = MotionType::kMTCharWise;
+        } else if reg_ref.y_type == MotionType::kMTUnknown {
+            reg_ref.y_type = MotionType::kMTCharWise;
         }
 
         update_yankreg_width(reg);

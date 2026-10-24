@@ -7547,7 +7547,7 @@ unsafe fn nv_put(cap: *mut cmdarg_T) {
 
 unsafe fn nv_put_opt(cap: *mut cmdarg_T, fix_indent: bool) {
     unsafe {
-        let mut savereg: *mut yankreg_T = ptr::null_mut();
+        let mut savereg: Option<yankreg_T> = None;
         let mut empty = false;
         let mut was_visual = false;
         let mut dir: c_int;
@@ -7623,7 +7623,7 @@ unsafe fn nv_put_opt(cap: *mut cmdarg_T, fix_indent: bool) {
                 || ascii_isdigit(regname)
                 || regname == b'-' as c_int
             {
-                savereg = copy_register(regname);
+                savereg = Some(copy_register(regname));
             }
 
             (*curwin).w_onebuf_opt.wo_fen = 0;
@@ -7664,11 +7664,13 @@ unsafe fn nv_put_opt(cap: *mut cmdarg_T, fix_indent: bool) {
             }
             Visual.active = true;
         }
-        do_put((*(*cap).oap).regname, savereg, dir, (*cap).count1, flags);
+        let savereg_ptr = savereg
+            .as_mut()
+            .map_or(ptr::null_mut(), |r| r as *mut yankreg_T);
+        do_put((*(*cap).oap).regname, savereg_ptr, dir, (*cap).count1, flags);
 
-        if !savereg.is_null() {
-            free_register(savereg);
-            xfree(savereg.cast());
+        if let Some(ref mut r) = savereg {
+            free_register(r);
         }
 
         if was_visual {

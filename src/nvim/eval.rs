@@ -4569,7 +4569,7 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
         {
             let mut reg_iter: *const c_void = ptr::null();
             loop {
-                let mut reg: yankreg_T = std::mem::zeroed();
+                let mut reg: *const yankreg_T = ptr::null();
                 let mut name: c_char = NUL;
                 let mut is_unnamed = false;
                 reg_iter =

@@ -1320,11 +1320,12 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                             continue;
                         }
                     }
-                    if !op_reg_set(
+                    let y_array = std::slice::from_raw_parts(r.contents, r.contents_size).to_vec();
+                    if op_reg_set(
                         r.name,
                         yankreg_T {
-                            y_array: r.contents,
-                            y_size: r.contents_size,
+                            y_array,
+                            y_allocated: true,
                             y_type,
                             y_width: r.width as colnr_T,
                             timestamp: reg_ts,
@@ -1332,6 +1333,8 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                         },
                         r.is_unnamed,
                     ) {
+                        xfree(r.contents.cast::<c_void>());
+                    } else {
                         shada_free_shada_entry(&mut cur_entry);
                     }
                 }
@@ -2358,14 +2361,15 @@ unsafe fn shada_initialize_registers(
         let mut reg_iter: *const c_void = ptr::null();
         let limit_reg_lines = max_reg_lines >= 0;
         loop {
-            let mut reg = std::mem::zeroed::<yankreg_T>();
+            let mut reg: *const yankreg_T = ptr::null();
             let mut name: c_char = NUL;
             let mut is_unnamed = false;
             reg_iter = op_global_reg_iter(reg_iter, &mut name, &mut reg, &mut is_unnamed);
             if name == NUL {
                 break;
             }
-            if limit_reg_lines && reg.y_size > (max_reg_lines as usize) {
+            let reg_ref = &*reg;
+            if limit_reg_lines && reg_ref.y_array.len() > (max_reg_lines as usize) {
                 if reg_iter.is_null() {
                     break;
                 }
@@ -2376,17 +2380,17 @@ unsafe fn shada_initialize_registers(
                 can_free_entry: false,
                 entry_type: ShadaEntryType::kSDItemRegister,
                 timestamp: if scale_ts {
-                    reg.timestamp / NS_PER_SEC
+                    reg_ref.timestamp / NS_PER_SEC
                 } else {
-                    reg.timestamp
+                    reg_ref.timestamp
                 },
                 data: ShadaEntryData {
                     reg: ShadaReg {
-                        contents: reg.y_array,
-                        contents_size: reg.y_size,
-                        reg_type: reg.y_type as u8,
-                        width: if reg.y_type == MotionType::kMTBlockWise {
-                            reg.y_width as usize
+                        contents: reg_ref.y_array.as_ptr().cast_mut(),
+                        contents_size: reg_ref.y_array.len(),
+                        reg_type: reg_ref.y_type as u8,
+                        width: if reg_ref.y_type == MotionType::kMTBlockWise {
+                            reg_ref.y_width as usize
                         } else {
                             0
                         },
@@ -2394,7 +2398,7 @@ unsafe fn shada_initialize_registers(
                         is_unnamed,
                     },
                 },
-                additional_data: reg.additional_data,
+                additional_data: reg_ref.additional_data,
             };
             if reg_iter.is_null() {
                 break;

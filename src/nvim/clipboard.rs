@@ -6,7 +6,7 @@ use crate::eval::typval::{
 };
 use crate::eval::{eval_call_provider, eval_has_provider};
 use crate::mcursor::mc_replaying;
-use crate::memory::{xcalloc, xfree, xstrdup};
+use crate::memory::{xfree, xstrdup};
 use crate::message::{emsg, msg, redirecting};
 use crate::option_vars::*;
 use crate::register::{
@@ -133,14 +133,11 @@ pub unsafe fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet:
 
         let fail_cleanup =
             |reg: &mut yankreg_T, errmsg: bool, target: *mut *mut yankreg_T| -> bool {
-                if !reg.y_array.is_null() {
-                    for i in 0..reg.y_size {
-                        xfree((*reg.y_array.add(i)).data.cast::<c_void>());
-                    }
-                    xfree(reg.y_array.cast::<c_void>());
+                for item in &mut reg.y_array {
+                    xfree(item.data.cast::<c_void>());
                 }
-                reg.y_array = std::ptr::null_mut();
-                reg.y_size = 0;
+                reg.y_array.clear();
+                reg.y_allocated = false;
                 reg.additional_data = std::ptr::null_mut();
                 reg.timestamp = 0;
                 if errmsg {
@@ -191,13 +188,12 @@ pub unsafe fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet:
         } else {
             (*lines).lv_len.max(0) as usize
         };
-        reg.y_array = xcalloc(lines_len, std::mem::size_of::<NvimString>()).cast::<NvimString>();
-        reg.y_size = lines_len;
+        reg.y_array = Vec::with_capacity(lines_len);
+        reg.y_allocated = true;
         reg.y_width = 0;
         reg.additional_data = std::ptr::null_mut();
         reg.timestamp = 0;
 
-        let mut tv_idx = 0usize;
         let mut li = if lines.is_null() {
             std::ptr::null_mut()
         } else {
@@ -208,15 +204,14 @@ pub unsafe fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet:
                 return fail_cleanup(reg, errmsg, target);
             }
             let s = (*li).li_tv.vval.v_string;
-            *reg.y_array.add(tv_idx) = cstr_to_nvim_string(s);
-            tv_idx += 1;
+            reg.y_array.push(cstr_to_nvim_string(s));
             li = (*li).li_next;
         }
 
-        if reg.y_size > 0 && (*reg.y_array.add(reg.y_size - 1)).size == 0 {
+        if reg.y_array.last().is_some_and(|last| last.size == 0) {
             if reg.y_type != MotionType::kMTCharWise {
-                xfree((*reg.y_array.add(reg.y_size - 1)).data.cast::<c_void>());
-                reg.y_size -= 1;
+                let popped = reg.y_array.pop().unwrap();
+                xfree(popped.data.cast::<c_void>());
                 if reg.y_type == MotionType::kMTUnknown {
                     reg.y_type = MotionType::kMTLineWise;
                 }
@@ -240,10 +235,9 @@ pub unsafe fn set_clipboard(mut name: c_int, reg: *mut yankreg_T) {
 
         let reg = &*reg;
         let extra = usize::from(reg.y_type != MotionType::kMTCharWise);
-        let lines = tv_list_alloc((reg.y_size + extra) as isize);
+        let lines = tv_list_alloc((reg.y_array.len() + extra) as isize);
 
-        for i in 0..reg.y_size {
-            let item = *reg.y_array.add(i);
+        for &item in &reg.y_array {
             tv_list_append_string(lines, item.data, item.size as isize);
         }
 
