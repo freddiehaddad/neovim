@@ -267,7 +267,8 @@ pub unsafe fn os_expand_wildcards(
             len += b"egin; end".len();
         }
 
-        let command: *mut c_char = xmalloc(len).cast();
+        let mut command_vec = vec![0 as c_char; len];
+        let command = command_vec.as_mut_ptr();
 
         if shell_style == STYLE_BT {
             if is_fish_shell {
@@ -377,7 +378,7 @@ pub unsafe fn os_expand_wildcards(
             os_delay(10, true);
         }
 
-        xfree(command.cast());
+        drop(command_vec);
 
         if res != 0 {
             os_remove(tempname);
@@ -426,14 +427,14 @@ pub unsafe fn os_expand_wildcards(
         }
         len = templen as usize;
         fseek(fd, 0, SEEK_SET);
-        let buffer: *mut c_char = xmalloc(len + 1).cast();
+        let mut buffer_vec = vec![0 as c_char; len + 1];
+        let buffer = buffer_vec.as_mut_ptr();
         let readlen = fread(buffer.cast(), 1, len, fd);
         fclose(fd);
         os_remove(tempname);
         if readlen != len {
             semsg!(gettext(e_cant_read_file_str.as_ptr()), tempname);
             xfree(tempname.cast());
-            xfree(buffer.cast());
             return FAIL;
         }
         xfree(tempname.cast());
@@ -496,7 +497,6 @@ pub unsafe fn os_expand_wildcards(
         debug_assert!(*buffer.add(len) == NUL || *buffer.add(len) == b'\n' as c_char);
 
         if count == 0 {
-            xfree(buffer.cast());
             if (flags & EW_NOTFOUND) != 0 {
                 save_patterns(num_pat, pat, num_file, file);
                 return OK;
@@ -562,7 +562,7 @@ pub unsafe fn os_expand_wildcards(
             *file_arr.add(j) = new_entry;
             j += 1;
         }
-        xfree(buffer.cast());
+        drop(buffer_vec);
         *num_file = j as c_int;
 
         if *num_file == 0 {

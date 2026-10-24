@@ -3913,7 +3913,8 @@ pub unsafe fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
                 mesg2 = c"".as_ptr().cast_mut();
             }
             let tbufsize = strlen(path) + strlen(mesg) + strlen(mesg2) + 3;
-            let tbuf = xmalloc(tbufsize).cast::<c_char>();
+            let mut tbuf_vec = vec![0 as c_char; tbufsize];
+            let tbuf = tbuf_vec.as_mut_ptr();
             let tbuflen = vim_snprintf!(tbuf, tbufsize, mesg, path);
             set_vim_var_string(VV_WARNINGMSG, tbuf, tbuflen as isize);
             if can_reload {
@@ -3966,7 +3967,7 @@ pub unsafe fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
                 ALREADY_WARNED = true;
             }
 
-            xfree(tbuf.cast());
+            drop(tbuf_vec);
             xfree(path.cast());
         }
 

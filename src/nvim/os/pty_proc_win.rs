@@ -481,51 +481,36 @@ mod win_impl {
         is_cmdexe: bool,
     ) -> c_int {
         unsafe {
-            let mut args: Vec<*mut c_char> = Vec::new();
-            let mut utf8_cmd_line_len: usize = 0;
+            let mut utf8_cmd_line: Vec<c_char> = Vec::new();
+            let mut arg_buf: Vec<c_char> = Vec::new();
             let mut argc: usize = 0;
 
             while !(*argv).is_null() {
-                let arg_str = *argv;
-                let buf_len = if is_cmdexe {
-                    strlen(arg_str) + 1
-                } else {
-                    strlen(arg_str) * 2 + 3
-                };
-                let arg_buf: *mut c_char = xmalloc(buf_len).cast();
-                if is_cmdexe {
-                    xstrlcpy(
-                        arg_buf,
-                        if argc == 0 {
-                            c"cmd.exe".as_ptr()
-                        } else {
-                            arg_str
-                        },
-                        buf_len,
-                    );
-                } else {
-                    quote_cmd_arg(arg_buf, buf_len, arg_str);
+                if argc > 0 {
+                    utf8_cmd_line.push(b' ' as c_char);
                 }
-                utf8_cmd_line_len += strlen(arg_buf);
-                args.push(arg_buf);
+                let arg_str = *argv;
+                if is_cmdexe {
+                    let src = if argc == 0 {
+                        c"cmd.exe".as_ptr()
+                    } else {
+                        arg_str
+                    };
+                    let src_len = strlen(src);
+                    utf8_cmd_line.extend_from_slice(std::slice::from_raw_parts(src, src_len));
+                } else {
+                    let buf_len = strlen(arg_str) * 2 + 3;
+                    arg_buf.resize(buf_len, 0);
+                    quote_cmd_arg(arg_buf.as_mut_ptr(), buf_len, arg_str);
+                    let quoted_len = strlen(arg_buf.as_ptr());
+                    utf8_cmd_line.extend_from_slice(&arg_buf[..quoted_len]);
+                }
                 argc += 1;
                 argv = argv.add(1);
             }
+            utf8_cmd_line.push(NUL);
 
-            utf8_cmd_line_len += argc;
-            let utf8_cmd_line: *mut c_char = xmalloc(utf8_cmd_line_len).cast();
-            *utf8_cmd_line = NUL;
-            for (idx, arg_buf) in args.iter().copied().enumerate() {
-                xstrlcat(utf8_cmd_line, arg_buf, utf8_cmd_line_len);
-                xfree(arg_buf.cast());
-                if idx + 1 < args.len() {
-                    xstrlcat(utf8_cmd_line, c" ".as_ptr(), utf8_cmd_line_len);
-                }
-            }
-
-            let result = utf8_to_utf16(utf8_cmd_line, -1, cmd_line);
-            xfree(utf8_cmd_line.cast());
-            result
+            utf8_to_utf16(utf8_cmd_line.as_ptr(), -1, cmd_line)
         }
     }
 

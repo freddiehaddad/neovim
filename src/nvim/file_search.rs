@@ -148,6 +148,7 @@ pub struct ff_search_ctx_T {
     pub ffsc_tagfile: c_int,
 }
 
+static mut ff_expand_buf_data: [c_char; MAXPATHL] = [0; MAXPATHL];
 static mut ff_expand_buffer: NvimString = NULL_STRING;
 
 /// Initialization routine for `vim_findfile()`.
@@ -213,7 +214,7 @@ pub unsafe fn vim_findfile_init(
 
         if ff_expand_buffer.data.is_null() {
             ff_expand_buffer.size = 0;
-            ff_expand_buffer.data = xmalloc(MAXPATHL).cast();
+            ff_expand_buffer.data = (&raw mut ff_expand_buf_data).cast();
         }
 
         if *path == b'.' as c_char
@@ -378,7 +379,8 @@ pub unsafe fn vim_findfile_init(
 
         {
             let bufsize = ff_expand_buffer.size + (*search_ctx).ffsc_fix_path.size + 1;
-            let buf: *mut c_char = xmalloc(bufsize).cast();
+            let mut buf_vec = vec![0 as c_char; bufsize];
+            let buf = buf_vec.as_mut_ptr();
 
             vim_snprintf!(
                 buf,
@@ -419,7 +421,6 @@ pub unsafe fn vim_findfile_init(
                         && *(*search_ctx).ffsc_fix_path.data.add(1) == b'.' as c_char
                         && (len == 2 || *(*search_ctx).ffsc_fix_path.data.add(2) == PATHSEP)
                     {
-                        xfree(buf.cast());
                         vim_findfile_cleanup(search_ctx);
                         return ptr::null_mut();
                     }
@@ -461,7 +462,6 @@ pub unsafe fn vim_findfile_init(
                     (*search_ctx).ffsc_wc_path.data = temp;
                 }
             }
-            xfree(buf.cast());
         }
 
         let sptr = ff_create_stack_element(
@@ -1193,7 +1193,6 @@ pub unsafe fn find_file_in_path(
 
 pub unsafe fn free_findfile() {
     unsafe {
-        xfree(ff_expand_buffer.data.cast());
         ff_expand_buffer.data = ptr::null_mut();
         ff_expand_buffer.size = 0;
     }
@@ -1369,13 +1368,12 @@ pub unsafe fn find_file_in_path_option(
                         break;
                     }
 
-                    let buf: *mut c_char = xmalloc(MAXPATHL).cast();
-                    *buf = NUL;
-                    copy_option_part(&raw mut dir, buf, MAXPATHL, c" ,".as_ptr());
+                    let mut buf = [0 as c_char; MAXPATHL];
+                    copy_option_part(&raw mut dir, buf.as_mut_ptr(), MAXPATHL, c" ,".as_ptr());
 
-                    let r_ptr = vim_findfile_stopdir(buf);
+                    let r_ptr = vim_findfile_stopdir(buf.as_mut_ptr());
                     *search_ctx = vim_findfile_init(
-                        buf,
+                        buf.as_mut_ptr(),
                         *file_to_find,
                         file_to_findlen,
                         r_ptr,
@@ -1390,7 +1388,6 @@ pub unsafe fn find_file_in_path_option(
                     if !(*search_ctx).is_null() {
                         did_findfile_init = true;
                     }
-                    xfree(buf.cast());
                 }
             }
         }

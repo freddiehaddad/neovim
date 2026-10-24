@@ -28,7 +28,7 @@ use crate::insert::{
 };
 use crate::mbyte::{utf_ClusterInfo, utf_ptr2CharInfo, utf_ptr2StrCharInfo, utfc_ptr2len};
 use crate::memline::{ml_get, ml_get_buf, ml_get_len, ml_get_pos, ml_replace};
-use crate::memory::{xfree, xmalloc, xmallocz, xmemdupz, xstrdup};
+use crate::memory::{xfree, xmalloc, xmemdupz, xstrdup};
 use crate::message::{emsg, msg_progress};
 use crate::r#move::{changed_cline_bef_curs, win_col_off, win_col_off2};
 use crate::ops::shift_line;
@@ -1221,11 +1221,10 @@ pub unsafe fn change_indent(type_: c_int, amount: c_int, round: c_int, call_chan
             if vcol != (*curwin).w_virtcol {
                 (*curwin).w_cursor.col = new_cursor_col;
                 let ptrlen = ((*curwin).w_virtcol - vcol) as usize;
-                let ptr = xmallocz(ptrlen).cast::<c_char>();
-                ptr::write_bytes(ptr.cast::<u8>(), b' ', ptrlen);
+                let mut ptr_vec = vec![b' ' as c_char; ptrlen + 1];
+                ptr_vec[ptrlen] = NUL;
                 new_cursor_col += ptrlen as c_int;
-                ins_str(ptr, ptrlen);
-                xfree(ptr.cast());
+                ins_str(ptr_vec.as_mut_ptr(), ptrlen);
             }
 
             insstart_less = MAXCOL;
