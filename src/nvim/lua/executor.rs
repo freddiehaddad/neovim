@@ -58,7 +58,7 @@ use crate::main_init::{getout, os_exit, preserve_exit};
 use crate::math::{FAIL, OK};
 use crate::memline::{ml_get_buf, ml_get_buf_len, ml_replace};
 use crate::memory::{
-    Arena, ArenaMem, arena_finish, arena_mem_free, strequal, xcalloc, xfree, xmalloc, xmallocz,
+    Arena, ArenaMem, arena_finish, arena_mem_free, strequal, xfree, xmalloc, xmallocz,
     xmemdupz, xstrdup,
 };
 use crate::message::{
@@ -556,17 +556,22 @@ unsafe fn nlua_push_eap(lstate: *mut lua_State, eap: *mut exarg_T, cmod: *const 
                 let mut end: usize = 0;
                 let mut len: usize = 0;
                 let mut i: c_int = 1;
-                let buf = xcalloc(length, size_of::<c_char>()).cast::<c_char>();
+                let mut buf = vec![0 as c_char; length];
                 let mut done = false;
                 while !done {
-                    done = uc_split_args_iter((*eap).arg, length, &raw mut end, buf, &raw mut len);
+                    done = uc_split_args_iter(
+                        (*eap).arg,
+                        length,
+                        &raw mut end,
+                        buf.as_mut_ptr(),
+                        &raw mut len,
+                    );
                     if len > 0 {
-                        lua_pushlstring(lstate, buf, len);
+                        lua_pushlstring(lstate, buf.as_ptr(), len);
                         lua_rawseti(lstate, -2, i);
                         i += 1;
                     }
                 }
-                xfree(buf.cast());
             }
             lua_setfield(lstate, -2, c"fargs".as_ptr());
         }
@@ -1448,12 +1453,17 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> c_int {
             if lua_pcall(lstate, 1, 1, 0) != 0 || lua_type(lstate, -1) != LUA_TSTRING {
                 let errmsg = nlua_get_error(lstate, &raw mut errmsg_len);
                 drop(msg_vec);
-                let buff = xmalloc(IOSIZE).cast::<c_char>();
+                let mut buff = [0 as c_char; IOSIZE];
                 let fmt = gettext(c"E5114: Converting print argument #%i: %.*s".as_ptr());
-                let len = vim_snprintf!(buff, IOSIZE, fmt, curargidx, errmsg_len as c_int, errmsg)
-                    as usize;
-                lua_pushlstring(lstate, buff, len);
-                xfree(buff.cast());
+                let len = vim_snprintf!(
+                    buff.as_mut_ptr(),
+                    IOSIZE,
+                    fmt,
+                    curargidx,
+                    errmsg_len as c_int,
+                    errmsg,
+                ) as usize;
+                lua_pushlstring(lstate, buff.as_ptr(), len);
                 return lua_error(lstate);
             }
 
@@ -1921,9 +1931,11 @@ unsafe fn nlua_exec_typval_fmt(
         static mut LCMD_BUF: [c_char; IOSIZE] = [0; IOSIZE];
         let buf_ptr = (&raw mut LCMD_BUF).cast::<c_char>();
         let mut lcmd = buf_ptr;
+        let mut lcmd_vec: Vec<c_char> = Vec::new();
         let lcmd_len = vim_snprintf!(buf_ptr, IOSIZE, fmt, bodylen as c_int, body);
         if lcmd_len as usize >= IOSIZE {
-            lcmd = xmalloc(lcmd_len as usize + 1).cast::<c_char>();
+            lcmd_vec.resize(lcmd_len as usize + 1, 0);
+            lcmd = lcmd_vec.as_mut_ptr();
             vim_snprintf!(lcmd, lcmd_len as usize + 1, fmt, bodylen as c_int, body);
         }
 
@@ -1936,10 +1948,6 @@ unsafe fn nlua_exec_typval_fmt(
             special,
             ret_tv,
         );
-
-        if !ptr::eq(lcmd, buf_ptr) {
-            xfree(lcmd.cast());
-        }
     }
 }
 
@@ -2396,10 +2404,12 @@ pub unsafe fn ex_luado(eap: *mut exarg_T) {
         let lcmd_len = cmd_len + DOSTART.len() + DOEND.len();
         static mut LCMD_BUF: [c_char; IOSIZE] = [0; IOSIZE];
         let buf_ptr = (&raw mut LCMD_BUF).cast::<c_char>();
+        let mut lcmd_vec: Vec<c_char> = Vec::new();
         let lcmd = if lcmd_len < IOSIZE {
             buf_ptr
         } else {
-            xmalloc(lcmd_len + 1).cast::<c_char>()
+            lcmd_vec.resize(lcmd_len + 1, 0);
+            lcmd_vec.as_mut_ptr()
         };
         ptr::copy_nonoverlapping(DOSTART.as_ptr(), lcmd.cast::<u8>(), DOSTART.len());
         ptr::copy_nonoverlapping(
@@ -2415,14 +2425,9 @@ pub unsafe fn ex_luado(eap: *mut exarg_T) {
 
         if luaL_loadbuffer(lstate, lcmd, lcmd_len, c":luado".as_ptr()) != 0 {
             nlua_error(lstate, gettext(c"E5109: Lua: %.*s".as_ptr()));
-            if !ptr::eq(lcmd, buf_ptr) {
-                xfree(lcmd.cast());
-            }
             return;
         }
-        if !ptr::eq(lcmd, buf_ptr) {
-            xfree(lcmd.cast());
-        }
+        drop(lcmd_vec);
         if nlua_pcall(lstate, 0, 1) != 0 {
             nlua_error(lstate, gettext(c"E5110: Lua: %.*s".as_ptr()));
             return;

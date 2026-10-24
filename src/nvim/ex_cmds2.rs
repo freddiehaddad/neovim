@@ -34,7 +34,7 @@ use crate::ex_getln::script_get;
 use crate::fileio::{buf_check_timestamp, check_timestamps};
 use crate::globals::*;
 use crate::mark::setpcmark;
-use crate::memory::{xfree, xmalloc, xstrdup};
+use crate::memory::{xfree, xstrdup};
 use crate::message::{emsg, msg, msg_source, semsg, wait_return};
 use crate::r#move::validate_cursor;
 use crate::normal::do_check_scrollbind;
@@ -782,7 +782,7 @@ pub unsafe fn ex_compiler(eap: *mut exarg_T) {
 
         let arg_len = CStr::from_ptr((*eap).arg).to_bytes().len();
         let bufsize = arg_len + 14;
-        let buf: *mut c_char = xmalloc(bufsize).cast();
+        let mut buf = vec![0 as c_char; bufsize];
 
         if (*eap).forceit != 0 {
             do_cmdline_cmd(c"command -nargs=* -keepscript CompilerSet set <args>".as_ptr());
@@ -796,11 +796,16 @@ pub unsafe fn ex_compiler(eap: *mut exarg_T) {
         do_unlet(c"g:current_compiler".as_ptr(), 18, true);
         do_unlet(c"b:current_compiler".as_ptr(), 18, true);
 
-        vim_snprintf!(buf, bufsize, c"compiler/%s.*".as_ptr(), (*eap).arg);
-        if source_runtime_vim_lua(buf, DIP_ALL) == FAIL {
+        vim_snprintf!(
+            buf.as_mut_ptr(),
+            bufsize,
+            c"compiler/%s.*".as_ptr(),
+            (*eap).arg,
+        );
+        if source_runtime_vim_lua(buf.as_mut_ptr(), DIP_ALL) == FAIL {
             semsg!(gettext(E_COMPILER_NOT_SUPPORTED_STR.as_ptr()), (*eap).arg);
         }
-        xfree(buf.cast());
+        drop(buf);
 
         do_cmdline_cmd(c":delcommand CompilerSet".as_ptr());
 

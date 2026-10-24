@@ -1287,7 +1287,8 @@ unsafe fn read_compound(fd: *mut FILE, slang: *mut slang_T, len: c_int) -> c_int
         }
         let patsize = (todo as usize) * 4 + 7;
         let flagsize = (todo as usize) + 1;
-        let pat = xmalloc(patsize).cast::<c_char>();
+        let mut pat_vec = vec![0 as c_char; patsize];
+        let pat = pat_vec.as_mut_ptr();
 
         let mut cp = xmalloc(flagsize).cast::<u8>();
         (*slang).sl_compstartflags = cp;
@@ -1313,7 +1314,6 @@ unsafe fn read_compound(fd: *mut FILE, slang: *mut slang_T, len: c_int) -> c_int
             todo -= 1;
             c = fgetc(fd);
             if c == EOF {
-                xfree(pat.cast());
                 return SP_TRUNCERROR;
             }
 
@@ -1381,7 +1381,7 @@ unsafe fn read_compound(fd: *mut FILE, slang: *mut slang_T, len: c_int) -> c_int
         }
 
         (*slang).sl_compprog = vim_regcomp(pat, RE_MAGIC + RE_STRING + RE_STRICT);
-        xfree(pat.cast());
+        drop(pat_vec);
         if (*slang).sl_compprog.is_null() {
             return SP_FORMERROR;
         }
@@ -4742,7 +4742,6 @@ pub unsafe fn ex_mkspell(eap: *mut exarg_T) {
 
 unsafe fn spell_make_sugfile(spin: *mut spellinfo_T, wfname: *mut c_char) {
     unsafe {
-        let mut fname: *mut c_char = ptr::null_mut();
         let mut slang = first_lang;
         let mut free_slang = false;
 
@@ -4779,7 +4778,8 @@ unsafe fn spell_make_sugfile(spin: *mut spellinfo_T, wfname: *mut c_char) {
             spell_message(spin, gettext(msg_compressing));
             wordtree_compress(spin, (*spin).si_foldroot, c"case-folded".as_ptr());
 
-            fname = xmalloc(MAXPATHL).cast::<c_char>();
+            let mut fname_buf = [0 as c_char; MAXPATHL];
+            let fname = fname_buf.as_mut_ptr();
             xstrlcpy(fname, wfname, MAXPATHL);
             let len = strlen(fname);
             *fname.add(len - 2) = b'u' as c_char;
@@ -4787,7 +4787,6 @@ unsafe fn spell_make_sugfile(spin: *mut spellinfo_T, wfname: *mut c_char) {
             sug_write(spin, fname);
         }
 
-        xfree(fname.cast());
         if free_slang {
             slang_free(slang);
         }
@@ -5060,7 +5059,8 @@ unsafe fn mkspell(
     added_word: bool,
 ) {
     unsafe {
-        let mut fname: *mut c_char = ptr::null_mut();
+        let mut fname_buf = [0 as c_char; MAXPATHL];
+        let mut wfname_buf = [0 as c_char; MAXPATHL];
         let mut afile = [ptr::null_mut::<afffile_T>(); MAXREGIONS];
         let mut error = false;
         let mut spin = spellinfo_T::default();
@@ -5076,7 +5076,7 @@ unsafe fn mkspell(
         let innames = fnames.offset(if fcount == 1 { 0 } else { 1 });
         let mut incount = fcount - 1;
 
-        let wfname = xmalloc(MAXPATHL).cast::<c_char>();
+        let wfname = wfname_buf.as_mut_ptr();
 
         if fcount >= 1 {
             let f0 = *fnames;
@@ -5137,7 +5137,7 @@ unsafe fn mkspell(
         } else if os_isdir(wfname) {
             semsg!(gettext((&raw const e_isadir2).cast()), wfname);
         } else {
-            fname = xmalloc(MAXPATHL).cast::<c_char>();
+            let fname = fname_buf.as_mut_ptr();
 
             let mut region_ok = true;
             for (i, slot) in afile.iter_mut().enumerate().take(incount as usize) {
@@ -5247,9 +5247,6 @@ unsafe fn mkspell(
                 }
             }
         }
-
-        xfree(fname.cast());
-        xfree(wfname.cast());
     }
 }
 
@@ -5307,7 +5304,7 @@ pub unsafe fn spell_add_word(
         let mut fd: *mut FILE = ptr::null_mut();
         let mut buf: *mut buf_T = ptr::null_mut();
         let mut new_spf = false;
-        let mut fnamebuf: *mut c_char = ptr::null_mut();
+        let mut fnamebuf_arr = [0 as c_char; MAXPATHL];
         let mut line = [0 as c_char; MAXWLEN * 2];
 
         if !valid_spell_word(word, word.offset(len as isize)) {
@@ -5333,7 +5330,7 @@ pub unsafe fn spell_add_word(
                 semsg!(gettext((&raw const e_notset).cast()), c"spellfile".as_ptr());
                 return;
             }
-            fnamebuf = xmalloc(MAXPATHL).cast::<c_char>();
+            let fnamebuf = fnamebuf_arr.as_mut_ptr();
 
             let mut spf = (*win_s(curwin)).b_p_spf;
             let mut i: c_int = 1;
@@ -5347,7 +5344,6 @@ pub unsafe fn spell_add_word(
                         gettext(c"E765: 'spellfile' does not have %d entries".as_ptr()),
                         idx,
                     );
-                    xfree(fnamebuf.cast());
                     return;
                 }
                 i += 1;
@@ -5359,7 +5355,6 @@ pub unsafe fn spell_add_word(
             }
             if !buf.is_null() && bufIsChanged(buf) {
                 emsg(gettext((&raw const e_bufloaded).cast()));
-                xfree(fnamebuf.cast());
                 return;
             }
 
@@ -5478,7 +5473,6 @@ pub unsafe fn spell_add_word(
 
             redraw_all_later(UPD_SOME_VALID);
         }
-        xfree(fnamebuf.cast());
     }
 }
 
@@ -5500,7 +5494,8 @@ unsafe fn init_spellfile() {
             lend = lend.add(1);
         }
 
-        let buf = xmalloc(MAXPATHL).cast::<c_char>();
+        let mut buf_arr = [0 as c_char; MAXPATHL];
+        let buf = buf_arr.as_mut_ptr();
         let buf_len = MAXPATHL;
 
         if !aspath {
@@ -5512,14 +5507,12 @@ unsafe fn init_spellfile() {
 
             let mut failed_dir: *mut c_char = ptr::null_mut();
             if os_mkdir_recurse(buf, 0o755, &raw mut failed_dir, ptr::null_mut()) != 0 {
-                xfree(buf.cast());
                 xfree(failed_dir.cast());
                 return;
             }
         } else {
             let plen = lend.offset_from((*curbuf).b_s.b_p_spl) as usize;
             if plen >= buf_len {
-                xfree(buf.cast());
                 return;
             }
             xmemcpyz(buf.cast(), (*curbuf).b_s.b_p_spl.cast(), plen);
@@ -5550,7 +5543,6 @@ unsafe fn init_spellfile() {
         );
 
         set_option_value_give_err(kOptSpellfile, cstr_as_obj(buf), OPT_LOCAL);
-        xfree(buf.cast());
     }
 }
 

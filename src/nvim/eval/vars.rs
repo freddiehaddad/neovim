@@ -76,7 +76,7 @@ use crate::register::{get_reg_contents, kGRegExprSrc, write_reg_contents};
 use crate::runtime::{new_script_item, script_autoload, script_item, scriptvar_T};
 use crate::search::set_search_direction;
 use crate::strings::{
-    concat_str, gettext, strcmp, strcpy, strlen, strncmp, vim_snprintf, vim_strchr,
+    concat_str, gettext, strcmp, strlen, strncmp, vim_snprintf, vim_strchr,
 };
 use crate::version::{highest_patch, min_vim_version};
 use crate::window::{
@@ -454,8 +454,7 @@ const MSGPACK_TYPE_NAMES: [&CStr; NUM_MSGPACK_TYPES] = [
 pub static mut eval_msgpack_type_lists: [*const list_T; NUM_MSGPACK_TYPES] =
     [ptr::null(); NUM_MSGPACK_TYPES];
 
-static mut varnamebuf: *mut c_char = ptr::null_mut();
-static mut varnamebuflen: usize = 0;
+static mut varnamebuf: Vec<c_char> = Vec::new();
 
 static mut redir_lval: *mut lval_T = ptr::null_mut();
 static mut redir_buf: Vec<c_char> = Vec::new();
@@ -2281,18 +2280,14 @@ pub unsafe fn get_vim_var_partial(idx: VimVarIndex) -> *mut partial_T {
 /// Function to concatenate a prefix and a variable name.
 pub unsafe fn cat_prefix_varname(prefix: c_int, name: *const c_char) -> *mut c_char {
     unsafe {
-        let mut len = strlen(name) + 3;
-
-        if len > varnamebuflen {
-            xfree(varnamebuf.cast());
-            len += 10;
-            varnamebuf = xmalloc(len).cast::<c_char>();
-            varnamebuflen = len;
-        }
-        *varnamebuf = prefix as u8 as c_char;
-        *varnamebuf.add(1) = b':' as c_char;
-        strcpy(varnamebuf.add(2), name);
-        varnamebuf
+        let name_len = strlen(name);
+        let buf = &raw mut varnamebuf;
+        (*buf).clear();
+        (*buf).reserve(name_len + 3);
+        (*buf).push(prefix as u8 as c_char);
+        (*buf).push(b':' as c_char);
+        (*buf).extend_from_slice(std::slice::from_raw_parts(name, name_len + 1));
+        (*buf).as_mut_ptr()
     }
 }
 
@@ -2379,9 +2374,7 @@ pub unsafe fn get_user_var_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
             return cat_prefix_varname(b'v' as c_int, get_vim_var_name(v));
         }
 
-        xfree(varnamebuf.cast());
-        varnamebuf = ptr::null_mut();
-        varnamebuflen = 0;
+        varnamebuf = Vec::new();
         ptr::null_mut()
     }
 }
@@ -3669,11 +3662,11 @@ unsafe fn setwinvar(argvars: *mut typval_T, off: usize) {
                 set_option_from_tv(varname.add(1), varp);
             } else {
                 let varname_len = strlen(varname);
-                let winvarname = xmalloc(varname_len + 3).cast::<c_char>();
-                ptr::copy_nonoverlapping(c"w:".as_ptr(), winvarname, 2);
-                ptr::copy_nonoverlapping(varname, winvarname.add(2), varname_len + 1);
-                set_var(winvarname, varname_len + 2, varp, true);
-                xfree(winvarname.cast());
+                let mut winvarname = Vec::with_capacity(varname_len + 3);
+                winvarname.push(b'w' as c_char);
+                winvarname.push(b':' as c_char);
+                winvarname.extend_from_slice(std::slice::from_raw_parts(varname, varname_len + 1));
+                set_var(winvarname.as_ptr(), varname_len + 2, varp, true);
             }
         }
         if need_switch_win {
@@ -3960,11 +3953,11 @@ pub unsafe fn f_settabvar(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: 
         goto_tabpage_tp(tp, false, false);
 
         let varname_len = strlen(varname);
-        let tabvarname = xmalloc(varname_len + 3).cast::<c_char>();
-        ptr::copy_nonoverlapping(c"t:".as_ptr(), tabvarname, 2);
-        ptr::copy_nonoverlapping(varname, tabvarname.add(2), varname_len + 1);
-        set_var(tabvarname, varname_len + 2, varp, true);
-        xfree(tabvarname.cast());
+        let mut tabvarname = Vec::with_capacity(varname_len + 3);
+        tabvarname.push(b't' as c_char);
+        tabvarname.push(b':' as c_char);
+        tabvarname.extend_from_slice(std::slice::from_raw_parts(varname, varname_len + 1));
+        set_var(tabvarname.as_ptr(), varname_len + 2, varp, true);
 
         if valid_tabpage(save_curtab) {
             goto_tabpage_tp(save_curtab, false, false);
@@ -4010,13 +4003,13 @@ pub unsafe fn f_setbufvar(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: 
             ctx_restore(&raw mut aco);
         } else {
             let varname_len = strlen(varname);
-            let bufvarname = xmalloc(varname_len + 3).cast::<c_char>();
+            let mut bufvarname = Vec::with_capacity(varname_len + 3);
             let save_curbuf = curbuf;
             curbuf = buf;
-            ptr::copy_nonoverlapping(c"b:".as_ptr(), bufvarname, 2);
-            ptr::copy_nonoverlapping(varname, bufvarname.add(2), varname_len + 1);
-            set_var(bufvarname, varname_len + 2, varp, true);
-            xfree(bufvarname.cast());
+            bufvarname.push(b'b' as c_char);
+            bufvarname.push(b':' as c_char);
+            bufvarname.extend_from_slice(std::slice::from_raw_parts(varname, varname_len + 1));
+            set_var(bufvarname.as_ptr(), varname_len + 2, varp, true);
             curbuf = save_curbuf;
         }
     }
