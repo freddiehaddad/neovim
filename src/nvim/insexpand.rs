@@ -470,7 +470,7 @@ static mut compl_longest_end_col: colnr_T = 0;
 static mut compl_orig_text: NvimString = empty_nvim_string();
 static mut compl_orig_extmarks: Vec<ExtmarkUndoObject> = Vec::new();
 static mut compl_cont_mode: c_int = 0;
-static mut compl_xp: expand_T = unsafe { std::mem::zeroed() };
+static mut compl_xp: expand_T = expand_T::new();
 static mut compl_curr_win: *mut win_T = ptr::null_mut();
 static mut compl_curr_buf: *mut buf_T = ptr::null_mut();
 
@@ -755,7 +755,7 @@ unsafe fn find_original_text_match_idx() -> Option<usize> {
 
 unsafe fn do_autocmd_completedone(c: c_int, mode: c_int, word: *mut NvimString) {
     unsafe {
-        let mut save_v_event: save_v_event_T = std::mem::zeroed();
+        let mut save_v_event: save_v_event_T = save_v_event_T::new();
         let v_event = get_v_event(&raw mut save_v_event);
 
         if word.is_null() || (*word).data.is_null() {
@@ -1536,7 +1536,7 @@ unsafe fn trigger_complete_changed_event(cur: c_int) {
         } else {
             ins_compl_dict_alloc(compl_opt(compl_curr_idx))
         };
-        let mut save_v_event: save_v_event_T = std::mem::zeroed();
+        let mut save_v_event: save_v_event_T = save_v_event_T::new();
         let v_event = get_v_event(&raw mut save_v_event);
         tv_dict_add_dict(v_event, c"completed_item".as_ptr(), 14, item);
         pum_set_event_info(v_event);
@@ -1994,7 +1994,7 @@ unsafe fn ins_compl_dictionaries(
 ) {
     unsafe {
         let mut dict = dict_start;
-        let mut regmatch: regmatch_T = std::mem::zeroed();
+        let mut regmatch: regmatch_T = regmatch_T::new();
         let mut files: *mut *mut c_char = ptr::null_mut();
         let mut count: c_int = 0;
         let mut dir = compl_direction;
@@ -3212,7 +3212,7 @@ unsafe fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callb
     unsafe {
         let mut matchlist: *mut list_T = ptr::null_mut();
         let mut matchdict: *mut dict_T = ptr::null_mut();
-        let mut rettv: typval_T = std::mem::zeroed();
+        let mut rettv: typval_T = typval_T::new();
         let save_State = State;
 
         debug_assert!(!curbuf.is_null());
@@ -3227,7 +3227,7 @@ unsafe fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callb
             }
         }
 
-        let mut args: [typval_T; 3] = std::mem::zeroed();
+        let mut args: [typval_T; 3] = [typval_T::new(); 3];
         args[0].v_type = VAR_NUMBER;
         args[1].v_type = VAR_STRING;
         args[2].v_type = VAR_UNKNOWN;
@@ -3305,7 +3305,7 @@ unsafe fn ins_compl_add_tv(tv: *mut typval_T, dir: Direction, fast: bool) -> c_i
         let mut cptext: [*mut c_char; CPT_COUNT] = [ptr::null_mut(); CPT_COUNT];
         let mut commit_chars: *mut c_char = ptr::null_mut();
         let mut user_hl: [c_int; 2] = [0, 0];
-        let mut user_data: typval_T = std::mem::zeroed();
+        let mut user_data: typval_T = typval_T::new();
         user_data.v_type = VAR_UNKNOWN;
 
         if (*tv).v_type == VAR_DICT && !(*tv).vval.v_dict.is_null() {
@@ -6098,7 +6098,7 @@ unsafe fn get_userdefined_compl_info(
             }
         }
 
-        let mut args: [typval_T; 3] = std::mem::zeroed();
+        let mut args: [typval_T; 3] = [typval_T::new(); 3];
         args[0].v_type = VAR_NUMBER;
         args[1].v_type = VAR_STRING;
         args[2].v_type = VAR_UNKNOWN;

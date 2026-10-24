@@ -174,7 +174,7 @@ pub struct funcexe_T {
 }
 
 impl funcexe_T {
-    const fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             fe_argv_func: None,
             fe_firstline: 0,
@@ -186,6 +186,13 @@ impl funcexe_T {
             fe_basetv: ptr::null_mut(),
             fe_found_var: false,
         }
+    }
+}
+
+impl Default for funcexe_T {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -375,7 +382,7 @@ unsafe fn get_function_args(
                 }
 
                 if *skipwhite(p) == b'=' as c_char && default_args.is_some() {
-                    let mut rettv: typval_T = std::mem::zeroed();
+                    let mut rettv: typval_T = typval_T::new();
 
                     any_default = true;
                     p = skipwhite(p).add(1);
@@ -788,7 +795,7 @@ pub unsafe fn get_func_tv(
     funcexe: *mut funcexe_T,
 ) -> c_int {
     unsafe {
-        let mut argvars: [typval_T; MAX_FUNC_ARGS + 1] = std::mem::zeroed();
+        let mut argvars: [typval_T; MAX_FUNC_ARGS + 1] = [typval_T::new(); MAX_FUNC_ARGS + 1];
         let mut argcount: c_int = 0;
         let evaluate = !evalarg.is_null() && ((*evalarg).eval_flags & EVAL_EVALUATE) != 0;
 
@@ -1315,7 +1322,7 @@ pub unsafe fn call_user_func(
         for i in 0..max_i {
             let mut addlocal = false;
             let mut isdefault = false;
-            let mut def_rettv: typval_T = std::mem::zeroed();
+            let mut def_rettv: typval_T = typval_T::new();
 
             let ai = i - uf_args_len;
             if ai < 0 {
@@ -1755,7 +1762,7 @@ pub unsafe fn func_call(
     rettv: *mut typval_T,
 ) -> c_int {
     unsafe {
-        let mut argv: [typval_T; MAX_FUNC_ARGS + 1] = std::mem::zeroed();
+        let mut argv: [typval_T; MAX_FUNC_ARGS + 1] = [typval_T::new(); MAX_FUNC_ARGS + 1];
         let mut argc = 0;
         let mut r = 0;
 
@@ -1806,7 +1813,7 @@ pub unsafe fn callback_call_retnr(
     argvars: *mut typval_T,
 ) -> varnumber_T {
     unsafe {
-        let mut rettv: typval_T = std::mem::zeroed();
+        let mut rettv: typval_T = typval_T::new();
         if !callback_call(callback, argcount, argvars, &raw mut rettv) {
             return -2;
         }
@@ -1894,7 +1901,7 @@ pub unsafe fn call_func(
         let mut argcount = argcount_in;
         let mut argvars = argvars_in;
         let mut selfdict = (*funcexe).fe_selfdict;
-        let mut argv: [typval_T; MAX_FUNC_ARGS + 1] = std::mem::zeroed();
+        let mut argv: [typval_T; MAX_FUNC_ARGS + 1] = [typval_T::new(); MAX_FUNC_ARGS + 1];
         let mut argv_clear = 0;
         let mut argv_base = 0;
         let partial = (*funcexe).fe_partial;
@@ -2046,7 +2053,7 @@ pub unsafe fn call_simple_luafunc(
         (*rettv).v_type = VarType::VAR_NUMBER;
         (*rettv).vval.v_number = 0;
 
-        let mut argvars: [typval_T; 1] = std::mem::zeroed();
+        let mut argvars: [typval_T; 1] = [typval_T::new(); 1];
         argvars[0].v_type = VarType::VAR_UNKNOWN;
         nlua_call_vlua(funcname, len, argvars.as_mut_ptr(), 0, rettv);
         OK
@@ -2081,7 +2088,7 @@ pub unsafe fn call_simple_func(funcname: *const c_char, len: usize, rettv: *mut 
         } else if ((*fp).uf_flags & FC_DELETED) != 0 {
             error = FCERR_DELETED;
         } else {
-            let mut argvars: [typval_T; 1] = std::mem::zeroed();
+            let mut argvars: [typval_T; 1] = [typval_T::new(); 1];
             argvars[0].v_type = VarType::VAR_UNKNOWN;
             let mut funcexe = funcexe_T::new();
             funcexe.fe_evaluate = true;
@@ -2204,7 +2211,7 @@ pub unsafe fn trans_function_name(
     unsafe {
         let mut name: *mut c_char = ptr::null_mut();
         let mut len: c_int;
-        let mut lv: lval_T = std::mem::zeroed();
+        let mut lv: lval_T = lval_T::new();
 
         if !fdp.is_null() {
             *fdp = funcdict_T {
@@ -2533,7 +2540,7 @@ unsafe fn list_functions_matching_pat(eap: *mut exarg_T) -> *mut c_char {
     unsafe {
         let mut p = skip_regexp((*eap).arg.add(1), b'/' as c_int, 1);
         if (*eap).skip == 0 {
-            let mut regmatch: regmatch_T = std::mem::zeroed();
+            let mut regmatch: regmatch_T = regmatch_T::new();
 
             let c = *p;
             *p = NUL;
@@ -3553,7 +3560,7 @@ unsafe fn can_free_funccal(fc: *const funccall_T, copyID: c_int) -> bool {
 pub unsafe fn ex_return(eap: *mut exarg_T) {
     unsafe {
         let arg = (*eap).arg;
-        let mut rettv: typval_T = std::mem::zeroed();
+        let mut rettv: typval_T = typval_T::new();
         let mut returning = false;
 
         if current_funccal.is_null() {
@@ -3628,7 +3635,7 @@ unsafe fn ex_call_inner(
 
             let mut funcexe = *funcexe_init;
             funcexe.fe_doesrange = &raw mut doesrange;
-            let mut rettv: typval_T = std::mem::zeroed();
+            let mut rettv: typval_T = typval_T::new();
             rettv.v_type = VarType::VAR_UNKNOWN;
             if get_func_tv(name, -1, &raw mut rettv, arg, evalarg, &raw mut funcexe) == FAIL {
                 failed = true;
@@ -3667,7 +3674,7 @@ unsafe fn ex_defer_inner(
     evalarg: *mut evalarg_T,
 ) -> c_int {
     unsafe {
-        let mut argvars: [typval_T; MAX_FUNC_ARGS + 1] = std::mem::zeroed();
+        let mut argvars: [typval_T; MAX_FUNC_ARGS + 1] = [typval_T::new(); MAX_FUNC_ARGS + 1];
         let mut partial_argc = 0;
         let mut argcount = 0;
 
@@ -3781,7 +3788,7 @@ unsafe fn handle_defer_one(funccal: *mut funccall_T) {
             let mut funcexe = funcexe_T::new();
             funcexe.fe_evaluate = true;
 
-            let mut rettv: typval_T = std::mem::zeroed();
+            let mut rettv: typval_T = typval_T::new();
             rettv.v_type = VarType::VAR_UNKNOWN;
 
             let name = (*dr).dr_name;
@@ -3844,7 +3851,7 @@ pub unsafe fn ex_call(eap: *mut exarg_T) {
 
         fill_evalarg_from_eap(&raw mut evalarg, eap, (*eap).skip != 0);
         if (*eap).skip != 0 {
-            let mut rettv: typval_T = std::mem::zeroed();
+            let mut rettv: typval_T = typval_T::new();
             emsg_skip += 1;
             if eval0((*eap).arg, &raw mut rettv, eap, &raw mut evalarg) != FAIL {
                 tv_clear(&raw mut rettv);

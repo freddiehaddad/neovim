@@ -1649,7 +1649,7 @@ pub unsafe extern "C" fn nvim_create_buf(
 
             unblock_autocmds();
 
-            let mut bufref = std::mem::zeroed::<bufref_T>();
+            let mut bufref = bufref_T::new();
             set_bufref(&mut bufref, buf);
             if apply_autocmds(EVENT_BUFNEW, ptr::null_mut(), ptr::null_mut(), false, buf)
                 && !bufref_valid(&mut bufref)

@@ -37,14 +37,21 @@ pub struct Arena {
     pub size: usize,
 }
 
-impl Default for Arena {
+impl Arena {
     #[inline]
-    fn default() -> Self {
+    pub const fn new() -> Self {
         Self {
             cur_blk: std::ptr::null_mut(),
             pos: 0,
             size: 0,
         }
+    }
+}
+
+impl Default for Arena {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
     }
 }
 

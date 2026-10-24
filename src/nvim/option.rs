@@ -5305,7 +5305,7 @@ unsafe fn opt_from_callback(cb: *mut Callback) -> Object {
                 return cstr_to_obj((*cb).data.funcref);
             }
             kCallbackPartial => {
-                let mut tv = std::mem::zeroed::<typval_T>();
+                let mut tv = typval_T::new();
                 callback_put(cb, &raw mut tv);
                 let str_ = encode_tv2string(&raw mut tv, ptr::null_mut());
                 tv_clear(&raw mut tv);
@@ -6318,7 +6318,7 @@ pub unsafe fn get_option_value_for(
     err: *mut Error,
 ) -> Object {
     unsafe {
-        let mut cs = std::mem::zeroed::<CtxSwitch>();
+        let mut cs = CtxSwitch::new();
         let mut swtab: *mut tabpage_T = ptr::null_mut();
         let ctx = if scope == kOptScopeTab {
             (&raw mut swtab).cast::<c_void>()
@@ -6367,7 +6367,7 @@ pub unsafe fn set_option_value_for(
             return;
         }
 
-        let mut cs = std::mem::zeroed::<CtxSwitch>();
+        let mut cs = CtxSwitch::new();
         let mut swtab: *mut tabpage_T = ptr::null_mut();
         let ctx = if scope == kOptScopeTab {
             (&raw mut swtab).cast::<c_void>()
@@ -8526,7 +8526,7 @@ pub unsafe fn option_set_callback_func(optval: *mut c_char, optcb: *mut Callback
             }
             evaluated
         } else {
-            let mut allocated = std::mem::zeroed::<typval_T>();
+            let mut allocated = typval_T::new();
             allocated.v_type = VAR_STRING;
             allocated.vval.v_string = xstrdup(optval);
             Box::into_raw(Box::new(allocated))

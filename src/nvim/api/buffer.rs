@@ -1426,7 +1426,7 @@ pub unsafe extern "C" fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: *
                 p_acd = 0;
             }
 
-            let mut aco: CtxSwitch = std::mem::zeroed();
+            let mut aco: CtxSwitch = CtxSwitch::new();
             ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), b.cast(), 0);
             ren_ret = rename_buffer(name.data);
             ctx_restore(&mut aco);
@@ -1738,7 +1738,7 @@ pub unsafe extern "C" fn nvim_buf_call(
         }
 
         try_wrap(err, || {
-            let mut cs: CtxSwitch = std::mem::zeroed();
+            let mut cs: CtxSwitch = CtxSwitch::new();
             ctx_switch(&mut cs, ptr::null_mut(), ptr::null_mut(), b.cast(), 0);
 
             let args = Array::new();

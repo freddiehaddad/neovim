@@ -1126,8 +1126,8 @@ pub unsafe fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, 
 
             #[cfg(unix)]
             {
-                let mut file_info_old = FileInfo::default();
-                let mut file_info_new = FileInfo::default();
+                let mut file_info_old = FileInfo::new();
+                let mut file_info_new = FileInfo::new();
                 if !(*buf).b_ffname.is_null()
                     && os_fileinfo((*buf).b_ffname, &raw mut file_info_old)
                     && os_fileinfo(file_name, &raw mut file_info_new)
@@ -1273,8 +1273,8 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
 
             #[cfg(unix)]
             {
-                let mut file_info_orig = FileInfo::default();
-                let mut file_info_undo = FileInfo::default();
+                let mut file_info_orig = FileInfo::new();
+                let mut file_info_undo = FileInfo::new();
                 if os_fileinfo(orig_name, &raw mut file_info_orig)
                     && os_fileinfo(f, &raw mut file_info_undo)
                     && file_info_orig.stat.st_uid != file_info_undo.stat.st_uid
@@ -1317,7 +1317,7 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                     break 'error;
                 }
 
-                let mut file_info = FileInfo::default();
+                let mut file_info = FileInfo::new();
                 let fsize = if os_fileinfo_fd(fileno(fp), &raw mut file_info) {
                     os_fileinfo_size(&raw const file_info) as off_T
                 } else {
@@ -3163,7 +3163,7 @@ pub unsafe fn u_rollback(uc: *mut UndoCheckpoint, buf: *mut buf_T) {
                 count += 1;
             }
 
-            let mut cs: CtxSwitch = std::mem::zeroed();
+            let mut cs: CtxSwitch = CtxSwitch::new();
             ctx_switch(&raw mut cs, ptr::null_mut(), ptr::null_mut(), buf, 0);
             if !(*curbuf).b_u_synced {
                 u_sync(true);

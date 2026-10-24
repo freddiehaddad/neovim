@@ -765,7 +765,7 @@ pub unsafe fn terminal_open(termpp: *mut *mut Terminal, buf: *mut buf_T) {
         let term = *termpp;
         debug_assert!(!term.is_null());
 
-        let mut aco: CtxSwitch = std::mem::zeroed();
+        let mut aco: CtxSwitch = CtxSwitch::new();
         ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
 
         if (*term).sb_allocated {
@@ -908,7 +908,7 @@ pub unsafe fn terminal_close(termpp: *mut *mut Terminal, status: c_int) {
         }
 
         if !buf.is_null() && !is_autocmd_blocked() {
-            let mut save_v_event: save_v_event_T = std::mem::zeroed();
+            let mut save_v_event: save_v_event_T = save_v_event_T::new();
             let dict = get_v_event(&mut save_v_event);
             tv_dict_add_nr(dict, c"status".as_ptr(), 6, i64::from(status));
             tv_dict_set_keys_readonly(dict);

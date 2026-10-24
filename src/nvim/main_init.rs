@@ -580,10 +580,10 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
         set_window_layout(&raw mut params);
 
         if recoverymode && fname.is_null() {
-            let mut items_tv: crate::eval::typval::typval_T = zeroed();
+            let mut items_tv = crate::eval::typval::typval_T::new();
             tv_list_alloc_ret(&raw mut items_tv, 0);
             recover_names(ptr::null_mut(), false, items_tv.vval.v_list);
-            let mut lua_args: [crate::eval::typval::typval_T; 2] = [items_tv, zeroed()];
+            let mut lua_args = [items_tv, crate::eval::typval::typval_T::new()];
             nlua_call_typval(
                 c"vim._core.swapfile".as_ptr(),
                 c"list_swaps".as_ptr(),
@@ -748,7 +748,7 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
                     true,
                     c"executing stdin as Ex commands".as_ptr(),
                 );
-                let mut args: [crate::eval::typval::typval_T; 1] = [zeroed()];
+                let mut args = [crate::eval::typval::typval_T::new(); 1];
                 nlua_call_typval(
                     c"vim._core.exmode".as_ptr(),
                     c"run".as_ptr(),
@@ -876,7 +876,7 @@ pub unsafe fn getout(mut exitval: c_int) -> ! {
                     }
                     let buf = (*wp).w_buffer;
                     if buf_get_changedtick(buf) != -1 {
-                        let mut bufref: bufref_T = zeroed();
+                        let mut bufref: bufref_T = bufref_T::new();
                         set_bufref(&raw mut bufref, buf);
                         apply_autocmds(
                             EVENT_BUFWINLEAVE,
@@ -899,7 +899,7 @@ pub unsafe fn getout(mut exitval: c_int) -> ! {
             let mut buf = firstbuf;
             while !buf.is_null() {
                 if !(*buf).b_ml.ml_mfp.is_null() {
-                    let mut bufref: bufref_T = zeroed();
+                    let mut bufref: bufref_T = bufref_T::new();
                     set_bufref(&raw mut bufref, buf);
                     apply_autocmds(EVENT_BUFUNLOAD, (*buf).b_fname, (*buf).b_fname, false, buf);
                     if !bufref_valid(&raw mut bufref) {

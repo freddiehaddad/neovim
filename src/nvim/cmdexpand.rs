@@ -3436,7 +3436,7 @@ unsafe fn set_context_by_cmdname(
 /// Parse one command from `buff` and set completion context in `xp`.
 unsafe fn set_one_cmd_context(xp: *mut expand_T, buff: *const c_char) -> *const c_char {
     unsafe {
-        let mut ea: exarg_T = std::mem::zeroed();
+        let mut ea: exarg_T = exarg_T::new();
         let mut context: c_int = EXPAND_NOTHING;
         let mut forceit = false;
         let mut usefilter = false;
@@ -4329,7 +4329,7 @@ unsafe fn ExpandFromContext(
     options: c_int,
 ) -> c_int {
     unsafe {
-        let mut regmatch: regmatch_T = std::mem::zeroed();
+        let mut regmatch: regmatch_T = regmatch_T::new();
         let flags = map_wildopts_to_ewflags(options);
         let fuzzy = cmdline_fuzzy_complete(pat) && cmdline_fuzzy_completion_supported(xp);
 
@@ -4753,7 +4753,7 @@ unsafe fn call_user_expand_func(
     unsafe {
         let ccline = get_cmdline_info();
         let mut keep: c_char = 0;
-        let mut args: [typval_T; 4] = std::mem::zeroed();
+        let mut args: [typval_T; 4] = [typval_T::new(); 4];
         let save_current_sctx = current_sctx;
 
         if (*xp).xp_arg.is_null() || *(*xp).xp_arg == NUL || (*xp).xp_line.is_null() {
@@ -4971,7 +4971,7 @@ unsafe fn ExpandUserLua(
     matches: *mut *mut *mut c_char,
 ) -> c_int {
     unsafe {
-        let mut rettv: typval_T = std::mem::zeroed();
+        let mut rettv: typval_T = typval_T::new();
         nlua_call_user_expand_func(xp, &raw mut rettv);
         if rettv.v_type != VarType::VAR_LIST {
             tv_clear(&raw mut rettv);
@@ -4997,7 +4997,7 @@ pub unsafe fn globpath(
         let mut buf_vec = vec![0 as c_char; MAXPATHL];
         let buf = buf_vec.as_mut_ptr();
 
-        let mut xpc: expand_T = std::mem::zeroed();
+        let mut xpc: expand_T = expand_T::new();
         ExpandInit(&raw mut xpc);
         xpc.xp_context = if dirs {
             EXPAND_DIRECTORIES
@@ -5303,7 +5303,7 @@ pub unsafe fn wildmenu_cleanup(cclp: *mut CmdlineInfo) {
 /// "getcompletion()" function.
 pub unsafe fn f_getcompletion(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        let mut xpc: expand_T = std::mem::zeroed();
+        let mut xpc: expand_T = expand_T::new();
         let mut filtered = false;
         let mut options =
             WILD_SILENT | WILD_USE_NL | WILD_ADD_SLASH | WILD_NO_BEEP | WILD_HOME_REPLACE;
@@ -5442,7 +5442,7 @@ pub unsafe fn f_getcompletiontype(
         }
 
         let pat = tv_get_string(argvars);
-        let mut xpc: expand_T = std::mem::zeroed();
+        let mut xpc: expand_T = expand_T::new();
         ExpandInit(&raw mut xpc);
 
         let cmdline_len = strlen(pat) as c_int;
@@ -5590,7 +5590,7 @@ unsafe fn is_regex_match(pat: *mut c_char, str_arg: *mut c_char) -> bool {
             return true;
         }
 
-        let mut regmatch: regmatch_T = std::mem::zeroed();
+        let mut regmatch: regmatch_T = regmatch_T::new();
 
         emsg_off += 1;
         msg_silent += 1;
@@ -5694,8 +5694,8 @@ unsafe fn expand_pattern_in_buf(
 
         let mut ga: Vec<*mut c_char> = Vec::new();
 
-        let mut end_match_pos: pos_T = std::mem::zeroed();
-        let mut word_end_pos: pos_T = std::mem::zeroed();
+        let mut end_match_pos: pos_T = pos_T::new();
+        let mut word_end_pos: pos_T = pos_T::new();
         let mut looped_around = false;
         let mut compl_started = false;
         let mut full_match: *mut c_char = ptr::null_mut();
@@ -5825,7 +5825,7 @@ mod tests {
     #[test]
     fn expand_init_and_cleanup_work() {
         unsafe {
-            let mut xp: expand_T = std::mem::zeroed();
+            let mut xp: expand_T = expand_T::new();
             ExpandInit(&raw mut xp);
             assert_eq!(xp.xp_context, EXPAND_NOTHING);
             assert_eq!(xp.xp_backslash, XP_BS_NONE);

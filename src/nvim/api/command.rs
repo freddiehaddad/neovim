@@ -301,8 +301,8 @@ pub unsafe extern "C" fn nvim_parse_cmd(
 ) -> KeyDict_cmd {
     unsafe {
         let mut result = KeyDict_cmd::default();
-        let mut ea: exarg_T = std::mem::zeroed();
-        let mut cmod: cmdmod_T = std::mem::zeroed();
+        let mut ea: exarg_T = exarg_T::new();
+        let mut cmod: cmdmod_T = cmdmod_T::new();
         let mut cmdline = arena_memdupz(arena, str_val.data, str_val.size);
         let mut errormsg: *const c_char = ptr::null();
 
@@ -617,8 +617,8 @@ pub unsafe extern "C" fn nvim_cmd(
     err: *mut Error,
 ) -> NvimString {
     unsafe {
-        let mut ea: exarg_T = std::mem::zeroed();
-        let mut cmod: cmdmod_T = std::mem::zeroed();
+        let mut ea: exarg_T = exarg_T::new();
+        let mut cmod: cmdmod_T = cmdmod_T::new();
         let mut cmdline: *mut c_char = ptr::null_mut();
         let mut errormsg: *const c_char = ptr::null();
         let mut args = Array::new();

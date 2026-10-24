@@ -156,6 +156,30 @@ pub struct MTPair {
     pub end_right_gravity: bool,
 }
 
+impl MTPair {
+    #[inline]
+    pub const fn new() -> Self {
+        Self {
+            start: MTKey {
+                pos: MTPos { row: 0, col: 0 },
+                ns: 0,
+                id: 0,
+                flags: 0,
+                decor_data: DecorInlineData::Hl(DECOR_HIGHLIGHT_INLINE_INIT),
+            },
+            end_pos: MTPos { row: 0, col: 0 },
+            end_right_gravity: false,
+        }
+    }
+}
+
+impl Default for MTPair {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub type Intersection = Vec<u64>;
 
 #[repr(C)]
@@ -196,18 +220,26 @@ pub struct MarkTreeIter {
     pub intersect_pos_x: MTPos,
 }
 
-impl Default for MarkTreeIter {
-    fn default() -> Self {
+impl MarkTreeIter {
+    #[inline]
+    pub const fn new() -> Self {
         Self {
             pos: MTPos { row: 0, col: 0 },
             lvl: 0,
             x: std::ptr::null_mut(),
             i: 0,
-            s: [MarkTreeIterState::default(); MT_MAX_DEPTH],
+            s: [MarkTreeIterState { oldcol: 0, i: 0 }; MT_MAX_DEPTH],
             intersect_idx: 0,
             intersect_pos: MTPos { row: 0, col: 0 },
             intersect_pos_x: MTPos { row: 0, col: 0 },
         }
+    }
+}
+
+impl Default for MarkTreeIter {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -657,8 +689,8 @@ pub unsafe fn marktree_put(
                 col: end_col,
             };
             marktree_put_key(b, end_key);
-            let mut itr = MarkTreeIter::default();
-            let mut end_itr = MarkTreeIter::default();
+            let mut itr = MarkTreeIter::new();
+            let mut end_itr = MarkTreeIter::new();
             marktree_lookup(b, mt_lookup_key(key), &mut itr);
             marktree_lookup(b, mt_lookup_key(end_key), &mut end_itr);
 
@@ -873,7 +905,7 @@ pub unsafe fn marktree_del_itr(b: *mut MarkTree, itr: *mut MarkTreeIter, rev: bo
         if mt_paired(raw) && (raw.flags & MT_FLAG_ORPHANED) == 0 {
             other = mt_lookup_key_side(raw, !mt_end(raw));
 
-            let mut other_itr = MarkTreeIter::default();
+            let mut other_itr = MarkTreeIter::new();
             marktree_lookup(b, other, &mut other_itr);
             (*rawkey(&mut other_itr)).flags |= MT_FLAG_ORPHANED;
             if mt_start(raw) {
@@ -1719,8 +1751,8 @@ pub unsafe fn marktree_move(b: *mut MarkTree, itr: *mut MarkTreeIter, row: c_int
 
 pub unsafe fn marktree_restore_pair(b: *mut MarkTree, key: MTKey) {
     unsafe {
-        let mut itr = MarkTreeIter::default();
-        let mut end_itr = MarkTreeIter::default();
+        let mut itr = MarkTreeIter::new();
+        let mut end_itr = MarkTreeIter::new();
         marktree_lookup(b, mt_lookup_key_side(key, false), &mut itr);
         marktree_lookup(b, mt_lookup_key_side(key, true), &mut end_itr);
         if itr.x.is_null() || end_itr.x.is_null() {
@@ -2325,8 +2357,8 @@ pub unsafe fn marktree_splice(
         let same_line = old_extent.row == 0 && new_extent.row == 0;
         unrelative(start, &mut old_extent);
         unrelative(start, &mut new_extent);
-        let mut itr = MarkTreeIter::default();
-        let mut enditr = MarkTreeIter::default();
+        let mut itr = MarkTreeIter::new();
+        let mut enditr = MarkTreeIter::new();
 
         let mut oldbase = [MTPos { row: 0, col: 0 }; MT_MAX_DEPTH];
 
@@ -2508,7 +2540,7 @@ pub unsafe fn marktree_splice(
                 marktree_itr_set_node(b, &mut enditr, d.end.new, d.end.new_i);
                 marktree_intersect_pair(b, start_id, &mut itr, &mut enditr, false);
             } else if !d.start.old.is_null() {
-                let mut endpos = MarkTreeIter::default();
+                let mut endpos = MarkTreeIter::new();
                 marktree_lookup(b, start_id | MARKTREE_END_FLAG, &mut endpos);
                 if !endpos.x.is_null() {
                     marktree_itr_set_node(b, &mut itr, d.start.old, d.start.old_i);
@@ -2519,7 +2551,7 @@ pub unsafe fn marktree_splice(
                     marktree_intersect_pair(b, start_id, &mut itr, &mut enditr, false);
                 }
             } else if !d.end.old.is_null() {
-                let mut startpos = MarkTreeIter::default();
+                let mut startpos = MarkTreeIter::new();
                 marktree_lookup(b, start_id, &mut startpos);
                 if !startpos.x.is_null() {
                     itr = startpos;
@@ -2556,7 +2588,7 @@ pub unsafe fn marktree_move_region(
         };
         let mut end = size;
         unrelative(start, &mut end);
-        let mut itr = MarkTreeIter::default();
+        let mut itr = MarkTreeIter::new();
         marktree_itr_get_ext(
             b,
             start,
@@ -2759,7 +2791,7 @@ pub unsafe fn marktree_put_test(
 #[cfg(test)]
 pub unsafe fn marktree_del_pair_test(b: *mut MarkTree, ns: u32, id: u32) {
     unsafe {
-        let mut itr = MarkTreeIter::default();
+        let mut itr = MarkTreeIter::new();
         marktree_lookup_ns(b, ns, id, false, &mut itr);
 
         let other = marktree_del_itr(b, &mut itr, false);
@@ -2879,7 +2911,7 @@ pub unsafe fn marktree_check_intersections(b: *mut MarkTree) -> bool {
 
         // 2. iterate over all marks. for each START mark of a pair,
         // intersect the nodes between the pair
-        let mut itr = MarkTreeIter::default();
+        let mut itr = MarkTreeIter::new();
         marktree_itr_first(b, &mut itr);
         loop {
             let mark = marktree_itr_current(&mut itr);
@@ -2889,7 +2921,7 @@ pub unsafe fn marktree_check_intersections(b: *mut MarkTree) -> bool {
 
             if mt_start(mark) {
                 let mut start_itr = itr;
-                let mut end_itr = MarkTreeIter::default();
+                let mut end_itr = MarkTreeIter::new();
                 let end_id = mt_lookup_id(mark.ns, mark.id, true);
                 let k = marktree_lookup(b, end_id, &mut end_itr);
                 if k.pos.row >= 0 {

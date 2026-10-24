@@ -1016,7 +1016,7 @@ unsafe fn ff_check_visited(
 ) -> c_int {
     unsafe {
         let mut url = false;
-        let mut file_id = FileID::default();
+        let mut file_id = FileID::new();
 
         if path_with_url(fname) != 0 {
             xmemcpyz(ff_expand_buffer.data.cast(), fname.cast(), fnamelen);
@@ -1568,7 +1568,7 @@ unsafe fn eval_includeexpr(ptr: *const c_char, len: usize) -> *mut c_char {
         current_sctx = (*curbuf).b_p_script_ctx[kBufOptIncludeexpr];
 
         let use_sandbox = was_set_insecurely(curwin, kOptIncludeexpr, OPT_LOCAL) != 0;
-        let mut tv: typval_T = std::mem::zeroed();
+        let mut tv: typval_T = typval_T::new();
         let mut res: *mut c_char = ptr::null_mut();
         if eval_expr_option_tv(&raw mut (*curbuf).b_p_inex, use_sandbox, &raw mut tv) {
             res = xstrdup(tv_get_string(&raw const tv));
@@ -1707,7 +1707,7 @@ pub unsafe fn do_autocmd_dirchanged(
 
         recursive = true;
 
-        let mut save_v_event: save_v_event_T = std::mem::zeroed();
+        let mut save_v_event: save_v_event_T = save_v_event_T::new();
         let dict = get_v_event(&raw mut save_v_event);
         let mut buf: [c_char; 8] = [0; 8];
 

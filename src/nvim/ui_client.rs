@@ -80,7 +80,7 @@ pub unsafe fn ui_client_start_server(
         let on_stdout = CallbackReader::none();
         let mut on_err = CallbackReader::none();
         on_err.fwd_err = true;
-        let on_exit: Callback = zeroed();
+        let on_exit: Callback = Callback::new();
 
         let mut exit_status: i64 = 0;
         let channel = channel_job_start(
@@ -123,7 +123,7 @@ pub unsafe fn ui_client_start_server(
 /// Attaches this client to the UI channel, and sets its client info (`ui_client_attach`).
 pub unsafe fn ui_client_attach(width: c_int, height: c_int, term: *mut c_char, rgb: bool) {
     unsafe {
-        let mut opts_items: [KeyValuePair; 9] = zeroed();
+        let mut opts_items: [KeyValuePair; 9] = [KeyValuePair::new(); 9];
         let mut opts = Dict {
             items: opts_items.as_mut_ptr(),
             size: 0,

@@ -456,7 +456,7 @@ pub unsafe fn charsize_regular(
                 }
             }
 
-            let mut virt_iter: [MarkTreeIter; 1] = std::mem::zeroed();
+            let mut virt_iter: [MarkTreeIter; 1] = [MarkTreeIter::new(); 1];
             let mut has_virt = if (*csarg).virt_row < 0 { 0 } else { -1 };
 
             let mut vcol2 = vcol;

@@ -908,7 +908,7 @@ unsafe fn syn_match_linecont(lnum: linenr_T) -> c_int {
             return 0;
         }
 
-        let mut regmatch: regmmatch_T = std::mem::zeroed();
+        let mut regmatch: regmmatch_T = regmmatch_T::new();
         let mut buf_chartab = [0 as c_char; 32];
         save_chartab(buf_chartab.as_mut_ptr());
 
@@ -1496,7 +1496,7 @@ unsafe fn syn_current_attr(
         let mut cchar: c_int = 0;
         let mut next_list: *mut i16 = ptr::null_mut();
         let mut found_match: bool;
-        let mut regmatch: regmmatch_T = std::mem::zeroed();
+        let mut regmatch: regmmatch_T = regmmatch_T::new();
         let mut pos = lpos_T { lnum: 0, col: 0 };
         let mut cur_extmatch: *mut reg_extmatch_T = ptr::null_mut();
         let mut buf_chartab = [0 as c_char; 32];
@@ -2290,8 +2290,8 @@ unsafe fn find_endpos(
 
         let mut matchcol = (*startpos).col;
         let start_idx = idx;
-        let mut regmatch: regmmatch_T = std::mem::zeroed();
-        let mut best_regmatch: regmmatch_T = std::mem::zeroed();
+        let mut regmatch: regmmatch_T = regmmatch_T::new();
+        let mut best_regmatch: regmmatch_T = regmmatch_T::new();
         let mut pos = lpos_T { lnum: 0, col: 0 };
         let mut had_match = false;
         let mut buf_chartab = [0 as c_char; 32];
@@ -3064,7 +3064,7 @@ unsafe fn syn_cmd_onoff(eap: *mut exarg_T, name: *const c_char) {
 pub unsafe fn syn_maybe_enable() {
     unsafe {
         if !did_syntax_onoff {
-            let mut ea: exarg_T = std::mem::zeroed();
+            let mut ea: exarg_T = exarg_T::new();
             ea.arg = c"".as_ptr().cast_mut();
             ea.skip = 0;
             syn_cmd_on(&raw mut ea, 0);
@@ -4719,7 +4719,7 @@ unsafe fn get_id_list(
         let mut p: *mut c_char = ptr::null_mut();
         let mut total_count: c_int = 0;
         let mut retval: *mut i16 = ptr::null_mut();
-        let mut regmatch: regmatch_T = std::mem::zeroed();
+        let mut regmatch: regmatch_T = regmatch_T::new();
         let mut failed = false;
 
         let mut round: c_int = 1;

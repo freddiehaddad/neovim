@@ -1379,7 +1379,7 @@ pub unsafe fn ins_redraw(ready: bool) {
             && (*curbuf).b_last_changedtick_i != buf_get_changedtick(curbuf)
             && !pum_visible()
         {
-            let mut aco = std::mem::zeroed::<CtxSwitch>();
+            let mut aco = CtxSwitch::new();
             let tick = buf_get_changedtick(curbuf);
             ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), curbuf, 0);
             apply_autocmds(
@@ -1401,7 +1401,7 @@ pub unsafe fn ins_redraw(ready: bool) {
             && (*curbuf).b_last_changedtick_pum != buf_get_changedtick(curbuf)
             && pum_visible()
         {
-            let mut aco = std::mem::zeroed::<CtxSwitch>();
+            let mut aco = CtxSwitch::new();
             let tick = buf_get_changedtick(curbuf);
             ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), curbuf, 0);
             apply_autocmds(

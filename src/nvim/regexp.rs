@@ -230,6 +230,26 @@ pub struct regmmatch_T {
     pub rmm_maxcol: colnr_T,
 }
 
+impl regmmatch_T {
+    pub const fn new() -> Self {
+        Self {
+            regprog: ptr::null_mut(),
+            startpos: [lpos_T::new(); NSUBEXP],
+            endpos: [lpos_T::new(); NSUBEXP],
+            rmm_matchcol: 0,
+            rmm_ic: 0,
+            rmm_maxcol: 0,
+        }
+    }
+}
+
+impl Default for regmmatch_T {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct regmatch_T {
@@ -238,6 +258,25 @@ pub struct regmatch_T {
     pub endp: [*mut c_char; NSUBEXP],
     pub rm_matchcol: colnr_T,
     pub rm_ic: bool,
+}
+
+impl regmatch_T {
+    pub const fn new() -> Self {
+        Self {
+            regprog: ptr::null_mut(),
+            startp: [ptr::null_mut(); NSUBEXP],
+            endp: [ptr::null_mut(); NSUBEXP],
+            rm_matchcol: 0,
+            rm_ic: false,
+        }
+    }
+}
+
+impl Default for regmatch_T {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[repr(C)]
@@ -2331,8 +2370,8 @@ unsafe fn vim_regsub_both(
                 regsub_nesting += 1;
 
                 if !expr.is_null() {
-                    let mut argv: [typval_T; 2] = zeroed();
-                    let mut rettv: typval_T = zeroed();
+                    let mut argv: [typval_T; 2] = [typval_T::new(); 2];
+                    let mut rettv: typval_T = typval_T::new();
                     let mut matchList = staticList10_T::new();
                     rettv.v_type = VarType::VAR_STRING;
                     rettv.vval.v_string = ptr::null_mut();

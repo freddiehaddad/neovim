@@ -669,7 +669,7 @@ unsafe fn sort_compare(
 /// `":sort"`.
 pub unsafe fn ex_sort(eap: *mut exarg_T) {
     unsafe {
-        let mut regmatch: regmatch_T = std::mem::zeroed();
+        let mut regmatch: regmatch_T = regmatch_T::new();
         let mut maxlen: c_int = 0;
         let mut count = ((*eap).line2 - (*eap).line1) as usize + 1;
         let mut i: usize = 0;
@@ -951,7 +951,7 @@ pub unsafe fn ex_sort(eap: *mut exarg_T) {
 /// `":uniq"`.
 pub unsafe fn ex_uniq(eap: *mut exarg_T) {
     unsafe {
-        let mut regmatch: regmatch_T = std::mem::zeroed();
+        let mut regmatch: regmatch_T = regmatch_T::new();
         let mut maxlen: c_int = 0;
         let mut count = (*eap).line2 - (*eap).line1 + 1;
         let mut keep_only_unique = false;
@@ -2517,7 +2517,7 @@ pub unsafe fn do_wqall(eap: *mut exarg_T) {
             {
                 error += 1;
             } else {
-                let mut bufref: bufref_T = std::mem::zeroed();
+                let mut bufref: bufref_T = bufref_T::new();
                 set_bufref(&raw mut bufref, buf);
                 if handle_mkdir_p_arg(eap, (*buf).b_fname) == FAIL
                     || buf_write_all(buf, (*eap).forceit != 0) == FAIL
@@ -2748,8 +2748,8 @@ pub unsafe fn do_ecmd(
         let mut new_name: *mut c_char = ptr::null_mut();
         let mut did_set_swapcommand = false;
         let mut buf: *mut buf_T;
-        let mut bufref: bufref_T = std::mem::zeroed();
-        let mut old_curbuf: bufref_T = std::mem::zeroed();
+        let mut bufref: bufref_T = bufref_T::new();
+        let mut old_curbuf: bufref_T = bufref_T::new();
         let mut free_fname: *mut c_char = ptr::null_mut();
         let mut retval = FAIL;
         let mut topline: linenr_T = 0;
@@ -3894,7 +3894,7 @@ unsafe fn do_sub(
 ) -> c_int {
     unsafe {
         let mut i: c_int;
-        let mut regmatch: regmmatch_T = std::mem::zeroed();
+        let mut regmatch: regmmatch_T = regmmatch_T::new();
         let mut sub: *mut c_char = ptr::null_mut();
         let mut pat = NvimString {
             data: ptr::null_mut(),
@@ -4881,7 +4881,7 @@ pub unsafe fn ex_global(eap: *mut exarg_T) {
         let delim: c_char;
         let pat: *mut c_char;
         let patlen: usize;
-        let mut regmatch: regmmatch_T = std::mem::zeroed();
+        let mut regmatch: regmmatch_T = regmmatch_T::new();
 
         if global_busy != 0 && ((*eap).line1 != 1 || (*eap).line2 != (*curbuf).b_ml.ml_line_count) {
             emsg(gettext(

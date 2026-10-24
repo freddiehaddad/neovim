@@ -742,7 +742,7 @@ unsafe fn set_b0_fname(b0p: *mut ZeroBlock, buf: *mut buf_T) {
                     ptr::copy_nonoverlapping((&raw const uname).cast(), fname_ptr.add(1), ulen);
                 }
             }
-            let mut file_info = FileInfo::default();
+            let mut file_info = FileInfo::new();
             if os_fileinfo((*buf).b_ffname, &raw mut file_info) {
                 long_to_char(
                     file_info.stat.st_mtim.tv_sec as c_long,
@@ -799,7 +799,7 @@ unsafe fn add_b0_fenc(b0p: *mut ZeroBlock, buf: *mut buf_T) {
 
 unsafe fn swapfile_proc_running(b0p: *const ZeroBlock, swap_fname: *const c_char) -> c_int {
     unsafe {
-        let mut st = FileInfo::default();
+        let mut st = FileInfo::new();
         let mut uptime: f64 = 0.0;
         if os_fileinfo(swap_fname, &raw mut st)
             && uv_uptime(&raw mut uptime) == 0
@@ -846,7 +846,7 @@ pub unsafe fn ml_recover(checkext: bool) {
             fname_used = xstrdup(fname);
         } else {
             directly = false;
-            let mut items_tv = std::mem::zeroed::<typval_T>();
+            let mut items_tv = typval_T::new();
             tv_list_alloc_ret(&raw mut items_tv, 0);
             recover_names(fname, true, items_tv.vval.v_list);
             let n_swaps = tv_list_len(items_tv.vval.v_list);
@@ -1024,8 +1024,8 @@ pub unsafe fn ml_recover(checkext: bool) {
         msg_putchar(b'\n' as c_int);
         msg_ext_skip_flush = false;
 
-        let mut org_file_info = FileInfo::default();
-        let mut swp_file_info = FileInfo::default();
+        let mut org_file_info = FileInfo::new();
+        let mut swp_file_info = FileInfo::new();
         let mtime = char_to_long((&raw const (*b0p).b0_mtime).cast()) as i64;
         if !(*curbuf).b_ffname.is_null()
             && os_fileinfo((*curbuf).b_ffname, &raw mut org_file_info)
@@ -1600,7 +1600,7 @@ pub unsafe fn make_percent_swname(
             return ptr::null_mut();
         }
 
-        let mut file_info = FileInfo::default();
+        let mut file_info = FileInfo::new();
         if !os_fileinfo2(fname, &raw mut file_info) {
             xfree(fname.cast());
             return ptr::null_mut();
@@ -1723,7 +1723,7 @@ unsafe fn swapfile_info(fname: *mut c_char, msg: &mut Vec<u8>) -> time_t {
         let mut b0 = std::mem::zeroed::<ZeroBlock>();
         let mut x: time_t = 0;
 
-        let mut file_info = FileInfo::default();
+        let mut file_info = FileInfo::new();
         if os_fileinfo(fname, &raw mut file_info) {
             #[cfg(unix)]
             {
@@ -1943,7 +1943,7 @@ pub unsafe fn ml_sync_all(check_file: c_int, check_char: c_int, do_fsync: bool) 
                 && mf_need_trans(mfp)
                 && !(*buf).b_ffname.is_null()
             {
-                let mut file_info = FileInfo::default();
+                let mut file_info = FileInfo::new();
                 if !os_fileinfo((*buf).b_ffname, &raw mut file_info)
                     || (*buf).b_mtime_read != file_info.stat.st_mtim.tv_sec as _
                     || (*buf).b_mtime_read_ns != file_info.stat.st_mtim.tv_nsec as _
@@ -3476,7 +3476,7 @@ unsafe fn attention_message(
         sb_push_cstr(msg, tr(c"While opening file \""));
         sb_push_cstr(msg, (*buf).b_fname);
         msg.extend_from_slice(b"\"\n");
-        let mut file_info = FileInfo::default();
+        let mut file_info = FileInfo::new();
         if !os_fileinfo((*buf).b_fname, &raw mut file_info) {
             sb_push_cstr(msg, tr(c"      CANNOT BE FOUND"));
         } else {
@@ -3572,7 +3572,7 @@ unsafe fn findswapname(
                 fname = ptr::null_mut();
                 break;
             }
-            let mut file_info = FileInfo::default();
+            let mut file_info = FileInfo::new();
             let file_or_link_found = os_fileinfo_link(fname, &raw mut file_info);
             if !file_or_link_found {
                 break;
@@ -3800,7 +3800,7 @@ unsafe fn fnamecmp_ino(fname_c: *mut c_char, fname_s: *mut c_char, ino_block0: c
         let mut buf_c = [0 as c_char; MAXPATHL];
         let mut buf_s = [0 as c_char; MAXPATHL];
 
-        let mut file_info = FileInfo::default();
+        let mut file_info = FileInfo::new();
         if os_fileinfo(fname_c, &raw mut file_info) {
             ino_c = os_fileinfo_inode(&raw const file_info);
         }

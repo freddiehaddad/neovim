@@ -184,7 +184,7 @@ pub unsafe extern "C" fn nvim_win_set_cursor(win: Window, pos: Array, err: *mut 
 
         (*w).w_set_curswant = true;
 
-        let mut switchwin: CtxSwitch = std::mem::zeroed();
+        let mut switchwin: CtxSwitch = CtxSwitch::new();
         if ctx_switch(
             &mut switchwin,
             w,
@@ -488,7 +488,7 @@ pub unsafe extern "C" fn nvim_win_call(
         let tabpage = win_find_tabpage(w);
 
         try_wrap(err, || {
-            let mut cs: CtxSwitch = std::mem::zeroed();
+            let mut cs: CtxSwitch = CtxSwitch::new();
             if ctx_switch(
                 &mut cs,
                 w,

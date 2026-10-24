@@ -30,18 +30,36 @@ pub type colnr_T = i32;
 pub type linenr_T = i32;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct pos_T {
     pub lnum: i32,
     pub col: i32,
     pub coladd: i32,
 }
 
+impl pos_T {
+    #[inline]
+    pub const fn new() -> Self {
+        Self {
+            lnum: 0,
+            col: 0,
+            coladd: 0,
+        }
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct lpos_T {
     pub lnum: i32,
     pub col: i32,
+}
+
+impl lpos_T {
+    #[inline]
+    pub const fn new() -> Self {
+        Self { lnum: 0, col: 0 }
+    }
 }
 
 #[inline]

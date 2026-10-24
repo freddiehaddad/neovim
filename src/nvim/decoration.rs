@@ -775,7 +775,7 @@ pub unsafe fn next_virt_text_chunk(
 
 pub unsafe fn decor_find_virttext(buf: *mut buf_T, row: c_int, ns_id: u64) -> *mut DecorVirtText {
     unsafe {
-        let mut itr: [MarkTreeIter; 1] = std::mem::zeroed();
+        let mut itr: [MarkTreeIter; 1] = [MarkTreeIter::new(); 1];
         marktree_itr_get((*buf).b_marktree.as_mut_ptr(), row, 0, itr.as_mut_ptr());
         loop {
             let mark = marktree_itr_current(itr.as_mut_ptr());
@@ -858,7 +858,7 @@ pub unsafe fn decor_redraw_start(wp: *mut win_T, top_row: c_int, state: *mut Dec
         ) {
             return false;
         }
-        let mut pair: MTPair = std::mem::zeroed();
+        let mut pair: MTPair = MTPair::new();
 
         while marktree_itr_step_overlap(
             (*buf).b_marktree.as_mut_ptr(),
@@ -1368,8 +1368,8 @@ pub unsafe fn decor_conceal_line(wp: *mut win_T, row: c_int, check_cursor: bool)
             return decor_providers_invoke_conceal_line(wp, row);
         }
 
-        let mut pair: MTPair = std::mem::zeroed();
-        let mut itr: [MarkTreeIter; 1] = std::mem::zeroed();
+        let mut pair: MTPair = MTPair::new();
+        let mut itr: [MarkTreeIter; 1] = [MarkTreeIter::new(); 1];
         let b = (*(*wp).w_buffer).b_marktree.as_mut_ptr();
         marktree_itr_get_overlap(b, row, 0, itr.as_mut_ptr());
         while marktree_itr_step_overlap(b, itr.as_mut_ptr(), &raw mut pair) {
@@ -1454,9 +1454,9 @@ pub unsafe fn decor_redraw_signs(
             return;
         }
 
-        let mut pair: MTPair = std::mem::zeroed();
+        let mut pair: MTPair = MTPair::new();
         let mut num_text: c_int = 0;
-        let mut itr: [MarkTreeIter; 1] = std::mem::zeroed();
+        let mut itr: [MarkTreeIter; 1] = [MarkTreeIter::new(); 1];
         let mut signs: Vec<SignItem> = Vec::new();
         let b = (*buf).b_marktree.as_mut_ptr();
 
@@ -1553,8 +1553,8 @@ pub unsafe fn buf_signcols_count_range(
         }
 
         let mut count = vec![0 as c_int; (row2 + 1 - row1) as usize];
-        let mut itr: [MarkTreeIter; 1] = std::mem::zeroed();
-        let mut pair: MTPair = std::mem::zeroed();
+        let mut itr: [MarkTreeIter; 1] = [MarkTreeIter::new(); 1];
+        let mut pair: MTPair = MTPair::new();
         let b = (*buf).b_marktree.as_mut_ptr();
 
         marktree_itr_get_overlap(b, row1, 0, itr.as_mut_ptr());
@@ -1721,7 +1721,7 @@ pub unsafe fn decor_virt_lines(
             return 0;
         }
 
-        let mut itr: [MarkTreeIter; 1] = std::mem::zeroed();
+        let mut itr: [MarkTreeIter; 1] = [MarkTreeIter::new(); 1];
         let b = (*buf).b_marktree.as_mut_ptr();
         if !marktree_itr_get_filter(
             b,

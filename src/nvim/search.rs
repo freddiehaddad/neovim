@@ -650,7 +650,7 @@ pub unsafe fn searchit(
     unsafe {
         let mut found: c_int;
         let mut lnum: linenr_T;
-        let mut regmatch: regmmatch_T = std::mem::zeroed();
+        let mut regmatch: regmmatch_T = regmmatch_T::new();
         let mut ptr_line: *mut c_char;
         let mut matchcol: colnr_T;
         let mut endpos: lpos_T;
@@ -2624,7 +2624,7 @@ unsafe fn is_zero_width(
     direction: Direction,
 ) -> c_int {
     unsafe {
-        let mut regmatch: regmmatch_T = std::mem::zeroed();
+        let mut regmatch: regmmatch_T = regmmatch_T::new();
         let mut result: c_int = -1;
         let mut pos = pos_T {
             lnum: 0,
@@ -3140,9 +3140,9 @@ pub unsafe fn find_pattern_in_path(
         let mut prev_fname: *mut c_char = ptr::null_mut();
         let mut p: *mut c_char;
         let mut define_matched: bool;
-        let mut regmatch: regmatch_T = std::mem::zeroed();
-        let mut incl_regmatch: regmatch_T = std::mem::zeroed();
-        let mut def_regmatch: regmatch_T = std::mem::zeroed();
+        let mut regmatch: regmatch_T = regmatch_T::new();
+        let mut incl_regmatch: regmatch_T = regmatch_T::new();
+        let mut def_regmatch: regmatch_T = regmatch_T::new();
         let mut matched = false;
         let mut did_show = false;
         let mut found = false;
@@ -3989,7 +3989,7 @@ mod tests {
 
     #[test]
     fn first_submatch_and_pos_helpers() {
-        let mut rm: regmmatch_T = unsafe { std::mem::zeroed() };
+        let mut rm: regmmatch_T = regmmatch_T::new();
         for i in 0..10 {
             rm.startpos[i].lnum = -1;
         }

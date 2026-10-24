@@ -1402,7 +1402,7 @@ pub unsafe fn mc_mark_at(buf: *mut buf_T, pos: pos_T, skip: u32) -> u32 {
         if cursors().is_empty() {
             return 0;
         }
-        let mut itr: MarkTreeIter = std::mem::zeroed();
+        let mut itr: MarkTreeIter = MarkTreeIter::new();
         marktree_itr_get(
             (*buf).b_marktree.as_mut_ptr(),
             pos.lnum - 1,

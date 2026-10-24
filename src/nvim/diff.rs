@@ -1325,7 +1325,7 @@ pub unsafe fn ex_diffpatch(eap: *mut exarg_T) {
             strcpy(buf, tmp_new);
             strcat(buf, c".rej".as_ptr());
             let _ = os_remove(buf);
-            let mut file_info = std::mem::MaybeUninit::<FileInfo>::zeroed().assume_init();
+            let mut file_info = FileInfo::new();
             let info_ok = os_fileinfo(tmp_new, &raw mut file_info);
             let filesize = os_fileinfo_size(&raw const file_info);
             if !info_ok || filesize == 0 {
@@ -3192,7 +3192,7 @@ pub unsafe fn nv_diffgetput(put: bool, count: usize) {
             vim_beep(kOptBoFlagOperator);
             return;
         }
-        let mut ea = std::mem::MaybeUninit::<exarg_T>::zeroed().assume_init();
+        let mut ea = exarg_T::new();
         let mut buf: [c_char; 30] = [0; 30];
         if count == 0 {
             ea.arg = c"".as_ptr().cast_mut();
@@ -3312,7 +3312,7 @@ pub unsafe fn ex_diffgetput(eap: *mut exarg_T) {
                 (*eap).line1 -= 1;
             }
         }
-        let mut aco = std::mem::MaybeUninit::<CtxSwitch>::zeroed().assume_init();
+        let mut aco = CtxSwitch::new();
         if (*eap).cmdidx != CMD_diffget {
             ctx_switch(
                 &raw mut aco,

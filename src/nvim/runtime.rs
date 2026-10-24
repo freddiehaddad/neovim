@@ -3388,7 +3388,7 @@ pub unsafe fn f_getscriptinfo(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
 
         let l = (*rettv).vval.v_list;
 
-        let mut regmatch: regmatch_T = std::mem::zeroed();
+        let mut regmatch: regmatch_T = regmatch_T::new();
         regmatch.rm_ic = p_ic != 0;
         let mut filterpat = false;
         let mut sid: varnumber_T = -1;

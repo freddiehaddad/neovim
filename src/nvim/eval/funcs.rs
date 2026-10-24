@@ -2379,7 +2379,7 @@ pub unsafe fn f_expand(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
                 options |= WILD_KEEP_ALL;
             }
             if !error {
-                let mut xpc: expand_T = std::mem::zeroed();
+                let mut xpc: expand_T = expand_T::new();
                 ExpandInit(&raw mut xpc);
                 xpc.xp_context = EXPAND_FILES;
                 if p_wic != 0 {
@@ -2450,7 +2450,7 @@ pub unsafe fn f_expandcmd(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
         (*rettv).v_type = VarType::VAR_STRING;
         let mut cmdstr = xstrdup(tv_get_string(argvars));
 
-        let mut eap: exarg_T = std::mem::zeroed();
+        let mut eap: exarg_T = exarg_T::new();
         eap.cmd = cmdstr;
         eap.arg = cmdstr;
         eap.usefilter = 0;
@@ -4392,7 +4392,7 @@ pub unsafe fn f_invert(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
 /// "islocked()" function
 pub unsafe fn f_islocked(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        let mut lv: lval_T = std::mem::zeroed();
+        let mut lv: lval_T = lval_T::new();
         (*rettv).vval.v_number = -1;
         let end = get_lval(
             tv_get_string(argvars).cast_mut(),
@@ -5330,7 +5330,7 @@ unsafe fn find_some_match(argvars: *mut typval_T, rettv: *mut typval_T, type_: S
         let mut str_: *mut c_char = ptr::null_mut();
         let mut len: i64 = 0;
         let mut expr: *mut c_char = ptr::null_mut();
-        let mut regmatch: regmatch_T = std::mem::zeroed();
+        let mut regmatch: regmatch_T = regmatch_T::new();
         let mut start: i64;
         let mut nth: i64 = 1;
         let mut startcol: colnr_T = 0;
@@ -5682,7 +5682,7 @@ pub unsafe fn f_matchbufline(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
         let save_cpo = p_cpo;
         p_cpo = (&raw mut empty_string_option).cast();
 
-        let mut regmatch: regmatch_T = std::mem::zeroed();
+        let mut regmatch: regmatch_T = regmatch_T::new();
         regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING).cast();
         if !regmatch.regprog.is_null() {
             regmatch.rm_ic = p_ic != 0;
@@ -5756,7 +5756,7 @@ pub unsafe fn f_matchstrlist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
         let save_cpo = p_cpo;
         p_cpo = (&raw mut empty_string_option).cast();
 
-        let mut regmatch: regmatch_T = std::mem::zeroed();
+        let mut regmatch: regmatch_T = regmatch_T::new();
         regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING).cast();
         if !regmatch.regprog.is_null() {
             regmatch.rm_ic = p_ic != 0;

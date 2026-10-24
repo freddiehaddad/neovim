@@ -135,6 +135,24 @@ pub struct bufref_T {
     pub br_buf_free_count: c_int,
 }
 
+impl bufref_T {
+    #[inline]
+    pub const fn new() -> Self {
+        Self {
+            br_buf: ptr::null_mut(),
+            br_fnum: 0,
+            br_buf_free_count: 0,
+        }
+    }
+}
+
+impl Default for bufref_T {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub type ChangedtickDictItem = crate::eval::typval::dictitem_T;
 
 #[repr(C)]
@@ -968,9 +986,9 @@ pub unsafe fn buf_ensure_loaded(buf: *mut buf_T) -> bool {
             return true;
         }
 
-        let mut bufref: bufref_T = std::mem::zeroed();
+        let mut bufref: bufref_T = bufref_T::new();
         set_bufref(&raw mut bufref, buf);
-        let mut aco: CtxSwitch = std::mem::zeroed();
+        let mut aco: CtxSwitch = CtxSwitch::new();
         ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
         let status = open_buffer(false, ptr::null_mut(), 0);
         ctx_restore(&raw mut aco);
@@ -984,7 +1002,7 @@ pub unsafe fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int)
     unsafe {
         let mut flags = flags_arg;
         let mut retval = OK;
-        let mut old_curbuf: bufref_T = std::mem::zeroed();
+        let mut old_curbuf: bufref_T = bufref_T::new();
         let old_tw = (*curbuf).b_p_tw;
         #[cfg(unix)]
         let mut read_fifo = false;
@@ -1161,7 +1179,7 @@ pub unsafe fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int)
             ) != 0
             && augroup_exists(c"filetypedetect".as_ptr())
         {
-            let mut bufref: bufref_T = std::mem::zeroed();
+            let mut bufref: bufref_T = bufref_T::new();
             set_bufref(&raw mut bufref, curbuf);
             do_doautocmd(
                 c"filetypedetect BufRead".as_ptr().cast_mut(),
@@ -1193,7 +1211,7 @@ pub unsafe fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int)
         }
 
         if bufref_valid(&raw mut old_curbuf) && !(*old_curbuf.br_buf).b_ml.ml_mfp.is_null() {
-            let mut aco: CtxSwitch = std::mem::zeroed();
+            let mut aco: CtxSwitch = CtxSwitch::new();
 
             ctx_switch(
                 &raw mut aco,
@@ -1366,7 +1384,7 @@ pub unsafe fn close_buffer(
             );
         }
 
-        let mut bufref: bufref_T = std::mem::zeroed();
+        let mut bufref: bufref_T = bufref_T::new();
         set_bufref(&raw mut bufref, buf);
 
         if win_valid && (*win).w_buffer == buf && (*buf).b_nwindows == 1 {
@@ -1553,7 +1571,7 @@ pub unsafe fn buf_freeall(buf: *mut buf_T, flags: c_int) -> bool {
         (*buf).b_locked += 1;
         (*buf).b_locked_split += 1;
 
-        let mut bufref: bufref_T = std::mem::zeroed();
+        let mut bufref: bufref_T = bufref_T::new();
         set_bufref(&raw mut bufref, buf);
 
         if !(*buf).terminal.is_null() {
@@ -1755,7 +1773,7 @@ pub unsafe fn goto_buffer(eap: *mut exarg_T, start: c_int, dir: c_int, count: c_
                 | cmdidx_T::CMD_sbprevious
         );
 
-        let mut old_curbuf: bufref_T = std::mem::zeroed();
+        let mut old_curbuf: bufref_T = bufref_T::new();
         set_bufref(&raw mut old_curbuf, curbuf);
 
         if swap_exists_action == SEA_NONE {
@@ -1778,7 +1796,7 @@ pub unsafe fn goto_buffer(eap: *mut exarg_T, start: c_int, dir: c_int, count: c_
         );
 
         if swap_exists_action == SEA_QUIT && *(*eap).cmd == b's' as c_char {
-            let mut cs: cleanup_T = std::mem::zeroed();
+            let mut cs: cleanup_T = cleanup_T::new();
             enter_cleanup(&raw mut cs);
             win_close(curwin, true, false);
             swap_exists_action = save_sea;
@@ -1793,7 +1811,7 @@ pub unsafe fn goto_buffer(eap: *mut exarg_T, start: c_int, dir: c_int, count: c_
 /// Handle the situation of `swap_exists_action` being set.
 pub unsafe fn handle_swap_exists(old_curbuf: *mut bufref_T) {
     unsafe {
-        let mut cs: cleanup_T = std::mem::zeroed();
+        let mut cs: cleanup_T = cleanup_T::new();
         let old_tw = (*curbuf).b_p_tw;
 
         if swap_exists_action == SEA_QUIT {
@@ -1970,7 +1988,7 @@ unsafe fn empty_curbuf(close_others: bool, forceit: c_int, action: c_int) -> c_i
             return FAIL;
         }
 
-        let mut bufref: bufref_T = std::mem::zeroed();
+        let mut bufref: bufref_T = bufref_T::new();
         set_bufref(&raw mut bufref, buf);
 
         if close_others {
@@ -2123,7 +2141,7 @@ unsafe fn do_buffer_ext(
         }
 
         if unload {
-            let mut bufref: bufref_T = std::mem::zeroed();
+            let mut bufref: bufref_T = bufref_T::new();
             if !can_unload_buffer(buf) {
                 return FAIL;
             }
@@ -2211,7 +2229,7 @@ unsafe fn do_buffer_ext(
                     && one_window(firstwin, ptr::null_mut())
                 {
                     debug_assert!((*curwin).w_floating);
-                    let mut switchwin: CtxSwitch = std::mem::zeroed();
+                    let mut switchwin: CtxSwitch = CtxSwitch::new();
                     let rv = ctx_switch(
                         &raw mut switchwin,
                         firstwin,
@@ -2380,7 +2398,7 @@ unsafe fn do_buffer_ext(
 
         if action == DOBUF_GOTO && !can_abandon(curbuf, (flags & DOBUF_FORCEIT) != 0) {
             if (p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0) && p_write != 0 {
-                let mut bufref: bufref_T = std::mem::zeroed();
+                let mut bufref: bufref_T = bufref_T::new();
                 set_bufref(&raw mut bufref, buf);
                 dialog_changed(curbuf, false);
                 if !bufref_valid(&raw mut bufref) {
@@ -2443,8 +2461,8 @@ pub unsafe fn set_curbuf(buf: *mut buf_T, action: c_int, update_jumplist: bool) 
         Visual.reselect = 0;
 
         let prevbuf = curbuf;
-        let mut newbufref: bufref_T = std::mem::zeroed();
-        let mut prevbufref: bufref_T = std::mem::zeroed();
+        let mut newbufref: bufref_T = bufref_T::new();
+        let mut prevbufref: bufref_T = bufref_T::new();
         set_bufref(&raw mut prevbufref, prevbuf);
         set_bufref(&raw mut newbufref, buf);
 
@@ -2682,7 +2700,7 @@ pub unsafe fn buflist_new(
 
         fname_expand(curbuf, &raw mut ffname, &raw mut sfname);
 
-        let mut file_id: FileID = std::mem::zeroed();
+        let mut file_id: FileID = FileID::new();
         let file_id_valid = !sfname.is_null() && os_fileid(sfname, (&raw mut file_id).cast());
         if !ffname.is_null() && (flags & (BLN_DUMMY | BLN_NEW)) == 0 {
             buf = buflist_findname_file_id(ffname, &raw mut file_id, file_id_valid);
@@ -2706,7 +2724,7 @@ pub unsafe fn buflist_new(
                 }
                 if (flags & BLN_LISTED) != 0 && (*buf).b_p_bl == 0 {
                     (*buf).b_p_bl = 1;
-                    let mut bufref: bufref_T = std::mem::zeroed();
+                    let mut bufref: bufref_T = bufref_T::new();
                     set_bufref(&raw mut bufref, buf);
                     if (flags & BLN_DUMMY) == 0
                         && apply_autocmds(
@@ -2727,7 +2745,7 @@ pub unsafe fn buflist_new(
 
         buf = ptr::null_mut();
         if (flags & BLN_CURBUF) != 0 && curbuf_reusable() {
-            let mut bufref: bufref_T = std::mem::zeroed();
+            let mut bufref: bufref_T = bufref_T::new();
 
             debug_assert!(!curbuf.is_null());
             buf = curbuf;
@@ -2818,7 +2836,7 @@ pub unsafe fn buflist_new(
         (*buf).update_channels.clear();
         (*buf).update_callbacks.clear();
         if (flags & BLN_DUMMY) == 0 {
-            let mut bufref: bufref_T = std::mem::zeroed();
+            let mut bufref: bufref_T = bufref_T::new();
             set_bufref(&raw mut bufref, buf);
             if apply_autocmds(EVENT_BUFNEW, ptr::null_mut(), ptr::null_mut(), false, buf)
                 && !bufref_valid(&raw mut bufref)
@@ -3072,7 +3090,7 @@ pub unsafe fn buflist_findname_exp(fname: *mut c_char) -> *mut buf_T {
 /// Find file in buffer list by name.
 pub unsafe fn buflist_findname(ffname: *mut c_char) -> *mut buf_T {
     unsafe {
-        let mut file_id: FileID = std::mem::zeroed();
+        let mut file_id: FileID = FileID::new();
         let file_id_valid = os_fileid(ffname, (&raw mut file_id).cast());
         buflist_findname_file_id(ffname, &raw mut file_id, file_id_valid)
     }
@@ -3139,7 +3157,7 @@ pub unsafe fn buflist_findpat(
                         p = p.add(1);
                     }
 
-                    let mut regmatch: regmatch_T = std::mem::zeroed();
+                    let mut regmatch: regmatch_T = regmatch_T::new();
                     regmatch.regprog = vim_regcomp(p, if p_magic != 0 { RE_MAGIC } else { 0 });
 
                     let mut buf = lastbuf;
@@ -3238,7 +3256,7 @@ pub unsafe fn ExpandBufnames(
 
         let mut patc: *mut c_char = ptr::null_mut();
         let mut fuzmatch: Vec<fuzmatch_str_T> = Vec::new();
-        let mut regmatch: regmatch_T = std::mem::zeroed();
+        let mut regmatch: regmatch_T = regmatch_T::new();
 
         if !fuzzy {
             if *pat == b'^' as c_char && *pat.add(1) != NUL {
@@ -3783,7 +3801,7 @@ pub unsafe fn setfname(
         let mut ffname = ffname_arg;
         let mut sfname = sfname_arg;
         let mut obuf: *mut buf_T = ptr::null_mut();
-        let mut file_id: FileID = std::mem::zeroed();
+        let mut file_id: FileID = FileID::new();
         let mut file_id_valid = false;
 
         if ffname.is_null() || *ffname == NUL {
@@ -3955,7 +3973,7 @@ unsafe fn otherfile_buf(
             return false;
         }
         {
-            let mut file_id: FileID = std::mem::zeroed();
+            let mut file_id: FileID = FileID::new();
             if file_id_p.is_null() {
                 file_id_p = &raw mut file_id;
                 file_id_valid = os_fileid(ffname, file_id_p.cast());
@@ -3977,7 +3995,7 @@ unsafe fn otherfile_buf(
 /// Set `file_id` for a buffer.
 pub unsafe fn buf_set_file_id(buf: *mut buf_T) {
     unsafe {
-        let mut file_id: FileID = std::mem::zeroed();
+        let mut file_id: FileID = FileID::new();
         if !(*buf).b_fname.is_null() && os_fileid((*buf).b_fname, (&raw mut file_id).cast()) {
             (*buf).file_id_valid = true;
             (*buf).file_id = file_id;
@@ -4541,7 +4559,7 @@ pub unsafe fn ex_buffer_all(eap: *mut exarg_T) {
             }
 
             if wp.is_null() && split_ret == OK {
-                let mut bufref: bufref_T = std::mem::zeroed();
+                let mut bufref: bufref_T = bufref_T::new();
                 set_bufref(&raw mut bufref, buf);
                 let p_ea_save = p_ea;
                 p_ea = 1;
@@ -4560,7 +4578,7 @@ pub unsafe fn ex_buffer_all(eap: *mut exarg_T) {
                     break;
                 }
                 if swap_exists_action == SEA_QUIT {
-                    let mut cs: cleanup_T = std::mem::zeroed();
+                    let mut cs: cleanup_T = cleanup_T::new();
                     enter_cleanup(&raw mut cs);
                     win_close(curwin, true, false);
                     open_wins -= 1;
@@ -4929,10 +4947,10 @@ pub unsafe fn buf_contents_changed(buf: *mut buf_T) -> bool {
             return true;
         }
 
-        let mut ea: exarg_T = std::mem::zeroed();
+        let mut ea: exarg_T = exarg_T::new();
         prep_exarg(&raw mut ea, buf);
 
-        let mut aco: CtxSwitch = std::mem::zeroed();
+        let mut aco: CtxSwitch = CtxSwitch::new();
         ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), newbuf, 0);
 
         block_autocmds();

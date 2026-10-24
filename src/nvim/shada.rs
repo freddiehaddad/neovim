@@ -2763,7 +2763,7 @@ unsafe fn shada_write(
                 let mut var_iter: *const c_void = ptr::null();
                 let cur_timestamp = os_time();
                 loop {
-                    let mut vartv = std::mem::zeroed::<typval_T>();
+                    let mut vartv = typval_T::new();
                     let mut name: *const c_char = ptr::null();
                     var_iter = var_shada_iter(var_iter, &mut name, &mut vartv, VAR_FLAVOUR_SHADA);
                     if name.is_null() {
@@ -2798,7 +2798,7 @@ unsafe fn shada_write(
                         _ => {}
                     }
                     if !skip {
-                        let mut tgttv = std::mem::zeroed::<typval_T>();
+                        let mut tgttv = typval_T::new();
                         tv_copy(&vartv, &mut tgttv);
                         let spe_ret = shada_pack_entry(
                             &mut packer,
@@ -3314,7 +3314,7 @@ pub unsafe fn shada_write_file(file: *const c_char, mut nomerge: bool) -> c_int 
             }
             let mut did_remove = false;
             if sw_ret == ShaDaWriteResult::kSDWriteSuccessful {
-                let mut old_info = std::mem::zeroed::<FileInfo>();
+                let mut old_info = FileInfo::new();
                 let is_dir = (old_info.stat.st_mode & S_IFMT) == S_IFDIR;
                 #[cfg(unix)]
                 let unix_not_writable = |info: &FileInfo| -> bool {
@@ -4412,7 +4412,7 @@ pub unsafe fn shada_encode_gvars() -> NvimString {
         let mut var_iter: *const c_void = ptr::null();
         let cur_timestamp = os_time();
         loop {
-            let mut vartv = std::mem::zeroed::<typval_T>();
+            let mut vartv = typval_T::new();
             let mut name: *const c_char = ptr::null();
             var_iter = var_shada_iter(
                 var_iter,
@@ -4424,7 +4424,7 @@ pub unsafe fn shada_encode_gvars() -> NvimString {
                 break;
             }
             if vartv.v_type != VarType::VAR_FUNC && vartv.v_type != VarType::VAR_PARTIAL {
-                let mut tgttv = std::mem::zeroed::<typval_T>();
+                let mut tgttv = typval_T::new();
                 tv_copy(&vartv, &mut tgttv);
                 let r = shada_pack_entry(
                     &mut packer,

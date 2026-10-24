@@ -408,7 +408,7 @@ unsafe fn alist_add_list(count: c_int, files: *mut *mut c_char, mut after: c_int
 /// Delete the file names in `alist_ga` from the argument list (`arglist_del_files`).
 unsafe fn arglist_del_files(alist_ga: &[*mut c_char]) {
     unsafe {
-        let mut regmatch: regmatch_T = std::mem::zeroed();
+        let mut regmatch: regmatch_T = regmatch_T::new();
         regmatch.rm_ic = p_fic != 0;
 
         for &orig_p in alist_ga {
@@ -1023,7 +1023,7 @@ unsafe fn arg_all_close_unused_windows(aall: *mut arg_all_state_T) {
                         || !bufIsChanged(buf))
                 {
                     if !buf_hide(buf) && (*buf).b_nwindows <= 1 && bufIsChanged(buf) {
-                        let mut bufref: bufref_T = std::mem::zeroed();
+                        let mut bufref: bufref_T = bufref_T::new();
                         set_bufref(&raw mut bufref, buf);
                         autowrite(buf, false);
                         if !win_valid(wp) || !bufref_valid(&raw mut bufref) {

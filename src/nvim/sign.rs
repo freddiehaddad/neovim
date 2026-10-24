@@ -319,7 +319,7 @@ unsafe fn buf_delete_signs(
             return FAIL;
         }
 
-        let mut itr: [MarkTreeIter; 1] = std::mem::zeroed();
+        let mut itr: [MarkTreeIter; 1] = [MarkTreeIter::new(); 1];
         let row = if atlnum > 0 { atlnum - 1 } else { 0 };
         let mut signs: Vec<MTKey> = Vec::new();
         let b = (*buf).b_marktree.as_mut_ptr();
@@ -329,7 +329,7 @@ unsafe fn buf_delete_signs(
                 return FAIL;
             }
 
-            let mut pair: MTPair = std::mem::zeroed();
+            let mut pair: MTPair = MTPair::new();
             while marktree_itr_step_overlap(b, itr.as_mut_ptr(), &raw mut pair) {
                 if (ns == i64::from(u32::MAX) || ns == i64::from(pair.start.ns))
                     && mt_decor_sign(pair.start)
@@ -406,7 +406,7 @@ unsafe fn sign_list_placed(rbuf: *mut buf_T, group: *mut c_char) {
             }
 
             if ns >= 0 {
-                let mut itr: [MarkTreeIter; 1] = std::mem::zeroed();
+                let mut itr: [MarkTreeIter; 1] = [MarkTreeIter::new(); 1];
                 let mut signs: Vec<MTKey> = Vec::new();
                 let b = (*buf).b_marktree.as_mut_ptr();
                 marktree_itr_get(b, 0, 0, itr.as_mut_ptr());
@@ -1174,7 +1174,7 @@ unsafe fn sign_get_placed_info_dict(mark: MTKey) -> *mut dict_T {
 pub unsafe fn get_buffer_signs(buf: *mut buf_T) -> *mut list_T {
     unsafe {
         let l = tv_list_alloc(kListLenMayKnow);
-        let mut itr: [MarkTreeIter; 1] = std::mem::zeroed();
+        let mut itr: [MarkTreeIter; 1] = [MarkTreeIter::new(); 1];
         let b = (*buf).b_marktree.as_mut_ptr();
         marktree_itr_get(b, 0, 0, itr.as_mut_ptr());
 
@@ -1211,7 +1211,7 @@ unsafe fn sign_get_placed_in_buf(
             return;
         }
 
-        let mut itr: [MarkTreeIter; 1] = std::mem::zeroed();
+        let mut itr: [MarkTreeIter; 1] = [MarkTreeIter::new(); 1];
         let mut signs: Vec<MTKey> = Vec::new();
         let b = (*buf).b_marktree.as_mut_ptr();
         marktree_itr_get(b, if lnum != 0 { lnum - 1 } else { 0 }, 0, itr.as_mut_ptr());

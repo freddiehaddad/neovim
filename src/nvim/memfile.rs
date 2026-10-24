@@ -133,7 +133,7 @@ pub unsafe fn mf_open(fname: *mut c_char, flags: c_int) -> *mut memfile_T {
         }
 
         if (*mfp).mf_fd >= 0 {
-            let mut file_info = FileInfo::default();
+            let mut file_info = FileInfo::new();
             if os_fileinfo_fd((*mfp).mf_fd, &raw mut file_info) {
                 let blocksize = os_fileinfo_blocksize(&raw const file_info);
                 if (u64::from(MIN_SWAP_PAGE_SIZE)..=MAX_SWAP_PAGE_SIZE).contains(&blocksize) {
@@ -694,7 +694,7 @@ unsafe fn mf_do_open(mfp: *mut memfile_T, fname: *mut c_char, mut flags: c_int) 
         assert!(!(*mfp).mf_fname.is_null());
 
         {
-            let mut file_info = FileInfo::default();
+            let mut file_info = FileInfo::new();
             if (flags & O_CREAT) != 0 && os_fileinfo_link((*mfp).mf_fname, &raw mut file_info) {
                 (*mfp).mf_fd = -1;
                 emsg(gettext(

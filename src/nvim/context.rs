@@ -80,6 +80,42 @@ pub struct CtxSwitch {
     pub cs_apply_acd: bool,
 }
 
+impl CtxSwitch {
+    pub const fn new() -> Self {
+        Self {
+            cs_flags: 0,
+            cs_mode: 0,
+            cs_curwin: 0,
+            cs_curwin_xtab: false,
+            cs_prevwin: 0,
+            cs_curtab: ptr::null_mut(),
+            cs_same_win: false,
+            cs_visual_active: false,
+            cs_prompt_insert: 0,
+            cs_new_curwin: 0,
+            cs_new_curbuf: crate::buffer::bufref_T::new(),
+            cs_ctxwin_idx: 0,
+            cs_target_win: 0,
+            cs_target_old_pos: pos_T::new(),
+            cs_did_chdir: false,
+            cs_dirs_tab: 0,
+            cs_w_localdir: ptr::null_mut(),
+            cs_b_localdir: ptr::null_mut(),
+            cs_tp_localdir: ptr::null_mut(),
+            cs_globaldir: ptr::null_mut(),
+            cs_cwd: ptr::null_mut(),
+            cs_apply_acd: false,
+        }
+    }
+}
+
+impl Default for CtxSwitch {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 const NUM_SAVED_REGISTERS: c_int = 37;
 
 pub(crate) const kCdCauseWindow: CdCause = 1;
@@ -458,7 +494,7 @@ unsafe fn array_to_string(array: Array, err: *mut Error) -> NvimString {
             data: ptr::null_mut(),
             size: 0,
         };
-        let mut list_tv: typval_T = std::mem::zeroed();
+        let mut list_tv: typval_T = typval_T::new();
         object_to_vim(array_obj(array), &mut list_tv, err);
 
         assert_eq!(list_tv.v_type, VarType::VAR_LIST);

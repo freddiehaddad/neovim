@@ -2105,7 +2105,7 @@ pub unsafe fn set_context_for_expression(
 pub unsafe fn pattern_match(pat: *const c_char, text: *const c_char, ic: bool) -> c_int {
     unsafe {
         let mut matches: c_int = 0;
-        let mut regmatch: regmatch_T = std::mem::zeroed();
+        let mut regmatch: regmatch_T = regmatch_T::new();
 
         let save_cpo = p_cpo;
         p_cpo = (&raw mut empty_string_option).cast();
@@ -7002,7 +7002,7 @@ pub unsafe fn do_string_sub(
     ret_len: *mut usize,
 ) -> *mut c_char {
     unsafe {
-        let mut regmatch: regmatch_T = std::mem::zeroed();
+        let mut regmatch: regmatch_T = regmatch_T::new();
         let mut out: Option<Vec<c_char>> = None;
 
         let save_cpo = p_cpo;

@@ -152,6 +152,18 @@ impl Callback {
         data: CallbackData::NONE,
         cb_type: kCallbackNone,
     };
+
+    #[inline]
+    pub const fn new() -> Self {
+        Self::NONE
+    }
+}
+
+impl Default for Callback {
+    #[inline]
+    fn default() -> Self {
+        Self::NONE
+    }
 }
 
 #[repr(C)]
@@ -190,6 +202,20 @@ pub struct typval_T {
     pub v_type: VarType,
     pub v_lock: c_int,
     pub vval: TypvalVval,
+}
+
+impl typval_T {
+    #[inline]
+    pub const fn new() -> Self {
+        tv_initial_value()
+    }
+}
+
+impl Default for typval_T {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[repr(C)]
@@ -1809,7 +1835,7 @@ unsafe fn item_compare2(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool)
         tv_copy(&raw const (*item2).li_tv, &raw mut argv[1]);
 
         let mut rettv = tv_initial_value();
-        let mut funcexe: funcexe_T = std::mem::zeroed();
+        let mut funcexe: funcexe_T = funcexe_T::new();
         funcexe.fe_evaluate = true;
         funcexe.fe_partial = partial;
         funcexe.fe_selfdict = (*SORTINFO).item_compare_selfdict;

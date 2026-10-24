@@ -146,6 +146,23 @@ pub struct cleanup_T {
     pub exception: *mut except_T,
 }
 
+impl cleanup_T {
+    #[inline]
+    pub const fn new() -> Self {
+        Self {
+            pending: 0,
+            exception: ptr::null_mut(),
+        }
+    }
+}
+
+impl Default for cleanup_T {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 pub struct exception_state_T {
     pub estate_current_exception: *mut except_T,
@@ -791,7 +808,7 @@ unsafe fn report_discard_pending(pending: c_int, value: *mut c_void) {
 
 pub unsafe fn ex_eval(eap: *mut exarg_T) {
     unsafe {
-        let mut tv: typval_T = std::mem::zeroed();
+        let mut tv: typval_T = typval_T::new();
         let mut evalarg: evalarg_T = std::mem::zeroed();
 
         fill_evalarg_from_eap(&mut evalarg, eap, (*eap).skip != 0);
@@ -1209,7 +1226,7 @@ pub unsafe fn ex_catch(eap: *mut exarg_T) {
                     let save_cpo = p_cpo;
                     p_cpo = ptr::addr_of_mut!(empty_string_option).cast();
                     emsg_off += 1;
-                    let mut regmatch: regmatch_T = std::mem::zeroed();
+                    let mut regmatch: regmatch_T = regmatch_T::new();
                     regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
                     emsg_off -= 1;
                     regmatch.rm_ic = false;

@@ -97,7 +97,7 @@ unsafe fn regex_match(
     str_: *mut c_char,
 ) -> c_int {
     unsafe {
-        let mut rm: regmatch_T = std::mem::zeroed();
+        let mut rm: regmatch_T = regmatch_T::new();
         rm.regprog = *prog;
         rm.rm_ic = false;
         let matched = vim_regexec(&raw mut rm, str_, 0);
@@ -442,14 +442,14 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> c_int {
             }
             tv_dict_item_remove(dict, di);
         } else {
-            let mut tv: typval_T = std::mem::zeroed();
+            let mut tv: typval_T = typval_T::new();
 
             lua_pushvalue(lstate, 4);
             if !nlua_pop_typval(lstate, &raw mut tv) {
                 return luaL_error(lstate, c"Couldn't convert lua value".as_ptr());
             }
 
-            let mut oldtv: typval_T = std::mem::zeroed();
+            let mut oldtv: typval_T = typval_T::new();
 
             if di.is_null() {
                 di = tv_dict_item_alloc_len(key.data, key.size);
@@ -690,7 +690,7 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> c_int {
         let mut tstate = TryState::new();
         try_enter(&raw mut tstate);
         {
-            let mut cs: CtxSwitch = std::mem::zeroed();
+            let mut cs: CtxSwitch = CtxSwitch::new();
             let mut switched = true;
 
             if !win.is_null() {

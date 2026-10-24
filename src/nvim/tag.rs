@@ -3043,7 +3043,7 @@ unsafe fn expand_tag_fname(
     expand: bool,
 ) -> *mut c_char {
     unsafe {
-        let mut xpc: expand_T = std::mem::zeroed();
+        let mut xpc: expand_T = expand_T::new();
 
         let mut fname = to_slash_save(fname_arg);
 

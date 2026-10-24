@@ -12,13 +12,20 @@ pub struct NvimString {
     pub size: usize,
 }
 
-impl Default for NvimString {
+impl NvimString {
     #[inline]
-    fn default() -> Self {
+    pub const fn new() -> Self {
         Self {
             data: std::ptr::null_mut(),
             size: 0,
         }
+    }
+}
+
+impl Default for NvimString {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -76,9 +83,9 @@ pub struct Object {
     pub data: ObjectData,
 }
 
-impl Default for Object {
+impl Object {
     #[inline]
-    fn default() -> Self {
+    pub const fn new() -> Self {
         Self {
             obj_type: ObjectType::kObjectTypeNil,
             data: ObjectData {
@@ -88,11 +95,28 @@ impl Default for Object {
     }
 }
 
+impl Default for Object {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct KeyValuePair {
     pub key: NvimString,
     pub value: Object,
+}
+
+impl KeyValuePair {
+    #[inline]
+    pub const fn new() -> Self {
+        Self {
+            key: NvimString::new(),
+            value: Object::new(),
+        }
+    }
 }
 
 pub const fn object_typename(t: ObjectType) -> &'static str {

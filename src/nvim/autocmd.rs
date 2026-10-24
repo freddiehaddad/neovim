@@ -2474,10 +2474,10 @@ pub unsafe fn do_doautocmd(
 pub unsafe fn ex_doautoall(eap: *mut exarg_T) {
     unsafe {
         let mut retval = OK;
-        let mut aco: CtxSwitch = std::mem::zeroed();
+        let mut aco: CtxSwitch = CtxSwitch::new();
         let mut arg = (*eap).arg;
         let call_do_modelines = check_nomodeline(&raw mut arg);
-        let mut bufref: bufref_T = std::mem::zeroed();
+        let mut bufref: bufref_T = bufref_T::new();
         let mut did_aucmd = false;
 
         let mut buf = firstbuf;
@@ -2585,12 +2585,12 @@ unsafe fn deferred_event(argv: *mut *mut c_void) {
         };
         let buf = find_buffer_by_handle((*e).buf, &raw mut err);
         if !buf.is_null() {
-            let mut save_v_event: save_v_event_T = std::mem::zeroed();
+            let mut save_v_event: save_v_event_T = save_v_event_T::new();
             let v_event = get_v_event(&raw mut save_v_event);
             if !data.is_null() && (*data).obj_type == ObjectType::kObjectTypeDict {
                 for i in 0..(*data).data.dict.size {
                     let item = *(*data).data.dict.items.add(i);
-                    let mut tv: typval_T = std::mem::zeroed();
+                    let mut tv: typval_T = typval_T::new();
                     object_to_vim(item.value, &raw mut tv, &raw mut err);
                     if err.err_type != ErrorType::kErrorTypeNone {
                         api_clear_error(&raw mut err);
@@ -2603,7 +2603,7 @@ unsafe fn deferred_event(argv: *mut *mut c_void) {
             tv_dict_set_keys_readonly(v_event);
 
             let win = curwin;
-            let mut aco: CtxSwitch = std::mem::zeroed();
+            let mut aco: CtxSwitch = CtxSwitch::new();
             ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
             apply_autocmds_group(
                 event, fname, fname_io, false, group, buf, win, eap, data, false,
@@ -2635,7 +2635,7 @@ unsafe fn deferred_optionset_modified(argv: *mut *mut c_void) {
             let new_val = (*argv.add(1) as usize) != 0;
             let old = boolean_obj(!new_val);
             let new = boolean_obj(new_val);
-            let mut aco: CtxSwitch = std::mem::zeroed();
+            let mut aco: CtxSwitch = CtxSwitch::new();
             ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
             apply_optionset_autocmd_now(kOptModified, OPT_LOCAL, old, old, old, new);
             ctx_restore(&raw mut aco);
@@ -2820,7 +2820,7 @@ pub unsafe fn apply_autocmds_group(
         let mut did_save_redobuff = false;
         let mut save_redo = RedoState::new();
         let save_KeyTyped = KeyTyped;
-        let mut aco: CtxSwitch = std::mem::zeroed();
+        let mut aco: CtxSwitch = CtxSwitch::new();
 
         'bypass_au: {
             if event == NUM_EVENTS as event_T || !has_event(event) || is_autocmd_blocked() {
@@ -3397,8 +3397,8 @@ unsafe fn au_callback(ac: *const AutoCmd, apc: *const AutoPatCmd) -> bool {
             );
             result.obj_type == ObjectType::kObjectTypeBoolean && result.data.boolean
         } else {
-            let mut argsin: typval_T = std::mem::zeroed();
-            let mut rettv: typval_T = std::mem::zeroed();
+            let mut argsin: typval_T = typval_T::new();
+            let mut rettv: typval_T = typval_T::new();
             callback_call(&raw mut callback, 0, &raw mut argsin, &raw mut rettv);
             false
         }
@@ -3903,7 +3903,7 @@ pub unsafe fn do_autocmd_uienter(chanid: u64, attached: bool) {
         }
         uienter_recursive = true;
 
-        let mut save_v_event: save_v_event_T = std::mem::zeroed();
+        let mut save_v_event: save_v_event_T = save_v_event_T::new();
         let dict = get_v_event(&raw mut save_v_event);
         assert!(chanid < i64::MAX as u64);
         tv_dict_add_nr(dict, c"chan".as_ptr(), 4, chanid as varnumber_T);

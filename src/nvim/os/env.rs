@@ -83,6 +83,52 @@ pub struct expand_T {
     pub xp_pre_incsearch_pos: pos_T,
 }
 
+impl expand_T {
+    pub const fn new() -> Self {
+        Self {
+            xp_pattern: ptr::null_mut(),
+            xp_context: 0,
+            xp_pattern_len: 0,
+            xp_prefix: 0,
+            xp_arg: ptr::null_mut(),
+            xp_luaref: 0,
+            xp_script_ctx: sctx_T {
+                sc_sid: 0,
+                sc_seq: 0,
+                sc_lnum: 0,
+                sc_chan: 0,
+            },
+            xp_backslash: 0,
+            #[cfg(not(windows))]
+            xp_shell: false,
+            xp_numfiles: 0,
+            xp_col: 0,
+            xp_selected: 0,
+            xp_orig: ptr::null_mut(),
+            xp_files: ptr::null_mut(),
+            xp_files_abbr: ptr::null_mut(),
+            xp_files_kind: ptr::null_mut(),
+            xp_files_menu: ptr::null_mut(),
+            xp_files_info: ptr::null_mut(),
+            xp_line: ptr::null_mut(),
+            xp_buf: [0; EXPAND_BUF_LEN],
+            xp_search_dir: 0,
+            xp_pre_incsearch_pos: pos_T {
+                lnum: 0,
+                col: 0,
+                coladd: 0,
+            },
+        }
+    }
+}
+
+impl Default for expand_T {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 static mut HOMEDIR: *mut c_char = ptr::null_mut();
 static mut HOMEDIR_BUF: [c_char; MAXPATHL] = [0; MAXPATHL];
 

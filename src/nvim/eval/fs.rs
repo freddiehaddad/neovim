@@ -261,7 +261,7 @@ pub unsafe fn modify_fname(
                 }
             }
 
-            let mut file_info = FileInfo::default();
+            let mut file_info = FileInfo::new();
             os_fileinfo2(*fnamep, &raw mut file_info);
             if *src.add(*usedlen) == b':' as c_char && *src.add(*usedlen + 1) == b'h' as c_char {
                 s = (*fnamep).add(file_info.rest_off);
@@ -596,7 +596,7 @@ pub unsafe fn f_filecopy(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
 
         let from = tv_get_string(argvars);
 
-        let mut from_info = FileInfo::default();
+        let mut from_info = FileInfo::new();
         if os_fileinfo_link(from, &raw mut from_info)
             && (s_isreg(from_info.stat.st_mode) || s_islnk(from_info.stat.st_mode))
         {
@@ -999,7 +999,7 @@ pub unsafe fn f_getfsize(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
     unsafe {
         let fname = tv_get_string(argvars);
 
-        let mut file_info = FileInfo::default();
+        let mut file_info = FileInfo::new();
         if os_fileinfo(fname, &raw mut file_info) {
             let filesize = os_fileinfo_size(&raw const file_info);
             if s_isdir(file_info.stat.st_mode) {
@@ -1023,7 +1023,7 @@ pub unsafe fn f_getftime(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
     unsafe {
         let fname = tv_get_string(argvars);
 
-        let mut file_info = FileInfo::default();
+        let mut file_info = FileInfo::new();
         if os_fileinfo(fname, &raw mut file_info) {
             (*rettv).vval.v_number = file_info.stat.st_mtim.tv_sec as varnumber_T;
         } else {
@@ -1040,7 +1040,7 @@ pub unsafe fn f_getftype(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
         let fname = tv_get_string(argvars);
 
         (*rettv).v_type = VarType::VAR_STRING;
-        let mut file_info = FileInfo::default();
+        let mut file_info = FileInfo::new();
         if os_fileinfo_link(fname, &raw mut file_info) {
             let mode = file_info.stat.st_mode;
             let t = if s_isreg(mode) {
@@ -1070,7 +1070,7 @@ pub unsafe fn f_getftype(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
 pub unsafe fn f_glob(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut options: c_int = WILD_SILENT | WILD_USE_NL;
-        let mut xpc = std::mem::MaybeUninit::<expand_T>::zeroed().assume_init();
+        let mut xpc = expand_T::new();
         let mut error = false;
 
         // When the optional second argument is non-zero, don't remove matches
@@ -1436,7 +1436,7 @@ unsafe fn read_blob(
 ) -> c_int {
     unsafe {
         let blob = (*rettv).vval.v_blob;
-        let mut file_info = FileInfo::default();
+        let mut file_info = FileInfo::new();
         if !os_fileinfo_fd(fileno(fd), &raw mut file_info) {
             return FAIL; // can't read the file, error
         }

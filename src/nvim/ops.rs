@@ -3519,7 +3519,7 @@ unsafe fn op_function(oap: *const oparg_T) {
             let mut save_redo = RedoState::new();
             save_redobuff(&raw mut save_redo);
 
-            let mut rettv: typval_T = std::mem::zeroed();
+            let mut rettv: typval_T = typval_T::new();
             if callback_call(
                 &raw mut p_opfunc,
                 1,

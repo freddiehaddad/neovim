@@ -1138,7 +1138,7 @@ unsafe fn channel_callback_call(chan: *mut Channel, reader: *mut CallbackReader)
         let cp = chan;
         let ct = chan;
 
-        let mut argv: [typval_T; 4] = std::mem::zeroed();
+        let mut argv: [typval_T; 4] = [typval_T::new(); 4];
         argv[0].v_type = VarType::VAR_NUMBER;
         argv[0].v_lock = VAR_UNLOCKED;
         argv[0].vval = TypvalVval {
@@ -1175,7 +1175,7 @@ unsafe fn channel_callback_call(chan: *mut Channel, reader: *mut CallbackReader)
         argv[2].v_lock = VAR_UNLOCKED;
 
         {
-            let mut rettv: typval_T = std::mem::zeroed();
+            let mut rettv: typval_T = typval_T::new();
             let _ = callback_call(cb, 3, argv.as_mut_ptr(), &raw mut rettv);
             tv_clear(&raw mut rettv);
         }
@@ -1298,7 +1298,7 @@ unsafe fn set_info_event(argv: *mut *mut c_void) {
         let chan = (*argv).cast::<Channel>();
         let event = (*argv.add(1) as isize) as event_T;
 
-        let mut save_v_event: save_v_event_T = std::mem::zeroed();
+        let mut save_v_event: save_v_event_T = save_v_event_T::new();
         let dict = get_v_event(&raw mut save_v_event);
         let mut arena = Arena {
             cur_blk: ptr::null_mut(),
@@ -1306,7 +1306,7 @@ unsafe fn set_info_event(argv: *mut *mut c_void) {
             size: 0,
         };
         let info = channel_info((*chan).id, &raw mut arena);
-        let mut retval: typval_T = std::mem::zeroed();
+        let mut retval: typval_T = typval_T::new();
         object_to_vim(
             Object {
                 obj_type: ObjectType::kObjectTypeDict,

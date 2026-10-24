@@ -148,7 +148,7 @@ pub unsafe fn extmark_set(
             *ns += 1;
             id = *ns;
         } else {
-            let mut itr = MarkTreeIter::default();
+            let mut itr = MarkTreeIter::new();
             let old_mark = marktree_lookup_ns(
                 (*buf).b_marktree.as_mut_ptr(),
                 ns_id,
@@ -268,7 +268,7 @@ pub unsafe fn extmark_set(
 /// Moves a raw mark back to a recorded position (`extmark_setraw`).
 unsafe fn extmark_setraw(buf: *mut buf_T, mark: u64, row: c_int, col: colnr_T, revive: bool) {
     unsafe {
-        let mut itr = MarkTreeIter::default();
+        let mut itr = MarkTreeIter::new();
         let key = marktree_lookup((*buf).b_marktree.as_mut_ptr(), mark, &raw mut itr);
         let move_ = key.pos.row != row || key.pos.col != col;
         let invalid = revive && mt_invalid(key);
@@ -341,7 +341,7 @@ unsafe fn extmark_setraw(buf: *mut buf_T, mark: u64, row: c_int, col: colnr_T, r
 /// Remove an extmark in `ns_id` by `id` (`extmark_del_id`).
 pub unsafe fn extmark_del_id(buf: *mut buf_T, ns_id: u32, id: u32) -> bool {
     unsafe {
-        let mut itr = MarkTreeIter::default();
+        let mut itr = MarkTreeIter::new();
         let key = marktree_lookup_ns(
             (*buf).b_marktree.as_mut_ptr(),
             ns_id,
@@ -423,7 +423,7 @@ pub unsafe fn extmark_clear(
         let mut marks_cleared_any = false;
         let mut marks_cleared_all = l_row == 0 && l_col == 0;
 
-        let mut itr = MarkTreeIter::default();
+        let mut itr = MarkTreeIter::new();
         marktree_itr_get((*buf).b_marktree.as_mut_ptr(), l_row, l_col, &raw mut itr);
         loop {
             let mark = marktree_itr_current(&raw mut itr);
@@ -475,7 +475,7 @@ pub unsafe fn extmark_get(
 ) -> ExtmarkInfoArray {
     unsafe {
         let mut array = ExtmarkInfoArray::new();
-        let mut itr = MarkTreeIter::default();
+        let mut itr = MarkTreeIter::new();
 
         if overlap {
             if !marktree_itr_get_overlap((*buf).b_marktree.as_mut_ptr(), l_row, l_col, &raw mut itr)
@@ -624,7 +624,7 @@ pub unsafe fn extmark_get_pos(buf: *mut buf_T, ns_id: u32, id: u32, pos: *mut po
 /// Free extmarks from the buffer (`extmark_free_all`).
 pub unsafe fn extmark_free_all(buf: *mut buf_T) {
     unsafe {
-        let mut itr = MarkTreeIter::default();
+        let mut itr = MarkTreeIter::new();
         marktree_itr_get((*buf).b_marktree.as_mut_ptr(), 0, 0, &raw mut itr);
         loop {
             let mark = marktree_itr_current(&raw mut itr);
@@ -660,7 +660,7 @@ pub unsafe fn extmark_splice_delete(
     op: ExtmarkOp,
 ) {
     unsafe {
-        let mut itr = MarkTreeIter::default();
+        let mut itr = MarkTreeIter::new();
         marktree_itr_get((*buf).b_marktree.as_mut_ptr(), l_row, l_col, &raw mut itr);
         loop {
             let mark = marktree_itr_current(&raw mut itr);

@@ -67,6 +67,23 @@ pub struct save_v_event_T {
     pub sve_hashtab: hashtab_T,
 }
 
+impl save_v_event_T {
+    #[inline]
+    pub const fn new() -> Self {
+        Self {
+            sve_did_save: false,
+            sve_hashtab: hashtab_T::new(),
+        }
+    }
+}
+
+impl Default for save_v_event_T {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 static mut was_safe: bool = false;
 
 pub unsafe fn state_enter(s: *mut VimState) {
@@ -309,7 +326,7 @@ pub unsafe fn may_trigger_modechanged() {
             return;
         }
 
-        let mut save_v_event: save_v_event_T = std::mem::zeroed();
+        let mut save_v_event: save_v_event_T = save_v_event_T::new();
         let v_event = get_v_event(&mut save_v_event);
         tv_dict_add_str(v_event, c"new_mode".as_ptr(), 8, curr_mode.as_ptr());
         tv_dict_add_str(

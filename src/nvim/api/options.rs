@@ -415,7 +415,7 @@ pub unsafe extern "C" fn nvim_get_option_value(
             return OBJECT_NIL;
         }
 
-        let mut aco: CtxSwitch = std::mem::zeroed();
+        let mut aco: CtxSwitch = CtxSwitch::new();
 
         let ftbuf = do_ft_buf(filetype, &mut aco, err);
         if error_set(err) {

@@ -407,7 +407,7 @@ pub unsafe fn decor_providers_invoke_range(
                     size: 6,
                     capacity: 0,
                 };
-                let mut res = Array::default();
+                let mut res = Array::new();
                 let status = decor_provider_invoke(
                     i as c_int,
                     c"range".as_ptr(),

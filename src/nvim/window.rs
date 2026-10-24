@@ -121,7 +121,6 @@ use crate::winfloat::{
     win_float_find_altwin, win_float_update_statusline, win_new_float, win_reconfig_floats,
 };
 use std::ffi::{CStr, c_char, c_int, c_uint};
-use std::mem::zeroed;
 use std::ptr;
 
 pub type WinKind = c_int;
@@ -1563,7 +1562,7 @@ pub unsafe fn win_set_buf(win: *mut win_T, buf: *mut buf_T, err: *mut Error) {
 
         RedrawingDisabled += 1;
 
-        let mut switchwin: CtxSwitch = zeroed();
+        let mut switchwin: CtxSwitch = CtxSwitch::new();
 
         let mut tstate = TryState::new();
         try_enter(&raw mut tstate);
@@ -3495,7 +3494,7 @@ unsafe fn win_close_buffer(win: *mut win_T, action: c_int, abort_if_last: bool) 
 
         let mut retval = false;
         if !(*win).w_buffer.is_null() {
-            let mut bufref: bufref_T = zeroed();
+            let mut bufref: bufref_T = bufref_T::new();
             set_bufref(&raw mut bufref, curbuf);
             (*win).w_locked += 1;
             retval = close_buffer(win, (*win).w_buffer, action, abort_if_last, true, true);
@@ -3654,7 +3653,7 @@ pub unsafe fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int {
             return OK;
         }
 
-        let mut bufref: bufref_T = zeroed();
+        let mut bufref: bufref_T = bufref_T::new();
         set_bufref(&raw mut bufref, (*win).w_buffer);
 
         win_close_buffer(win, if free_buf { DOBUF_UNLOAD } else { 0 }, true);
@@ -3975,7 +3974,7 @@ pub unsafe fn win_close_othertab(
             }
         }
 
-        let mut bufref: bufref_T = zeroed();
+        let mut bufref: bufref_T = bufref_T::new();
         set_bufref(&raw mut bufref, (*win).w_buffer);
 
         if !(*win).w_buffer.is_null() {
@@ -5234,7 +5233,7 @@ pub unsafe fn win_new_tabpage(
                 win_new_screen_rows();
             }
 
-            let mut switchwin: CtxSwitch = zeroed();
+            let mut switchwin: CtxSwitch = CtxSwitch::new();
             let sw_ok = ctx_switch(
                 &raw mut switchwin,
                 (*newtp).tp_curwin,
@@ -6757,7 +6756,7 @@ pub unsafe fn may_trigger_win_scrolled_resized() {
 
         let mut resize_winid = [0 as c_char; NUMBUFLEN];
         let mut resize_win: *mut win_T = ptr::null_mut();
-        let mut resize_bufref: bufref_T = zeroed();
+        let mut resize_bufref: bufref_T = bufref_T::new();
         if trigger_resize {
             resize_win = first_size_win;
             vim_snprintf!(
@@ -6771,7 +6770,7 @@ pub unsafe fn may_trigger_win_scrolled_resized() {
 
         let mut scroll_winid = [0 as c_char; NUMBUFLEN];
         let mut scroll_win: *mut win_T = ptr::null_mut();
-        let mut scroll_bufref: bufref_T = zeroed();
+        let mut scroll_bufref: bufref_T = bufref_T::new();
         if trigger_scroll {
             scroll_win = first_scroll_win;
             vim_snprintf!(
@@ -6784,7 +6783,7 @@ pub unsafe fn may_trigger_win_scrolled_resized() {
         }
 
         if trigger_resize && !windows_list.is_null() {
-            let mut save_v_event: save_v_event_T = zeroed();
+            let mut save_v_event: save_v_event_T = save_v_event_T::new();
             let v_event = get_v_event(&raw mut save_v_event);
 
             if tv_dict_add_list(v_event, c"windows".as_ptr(), 7, windows_list) == OK {
@@ -6812,7 +6811,7 @@ pub unsafe fn may_trigger_win_scrolled_resized() {
         }
 
         if trigger_scroll && !scroll_dict.is_null() {
-            let mut save_v_event: save_v_event_T = zeroed();
+            let mut save_v_event: save_v_event_T = save_v_event_T::new();
             let v_event = get_v_event(&raw mut save_v_event);
 
             tv_dict_extend(v_event, scroll_dict, c"move".as_ptr());
@@ -7989,7 +7988,7 @@ pub unsafe fn set_winbar_all(make_room: bool) {
         let mut tp = first_tabpage;
         while !tp.is_null() {
             if !ptr::eq(tp, curtab) {
-                let mut switchwin: CtxSwitch = zeroed();
+                let mut switchwin: CtxSwitch = CtxSwitch::new();
                 if ctx_switch(
                     &raw mut switchwin,
                     (*tp).tp_curwin,
@@ -8564,10 +8563,10 @@ mod tests {
     #[test]
     fn test_frame_list_helpers() {
         unsafe {
-            let mut parent: frame_T = zeroed();
-            let mut f1: frame_T = zeroed();
-            let mut f2: frame_T = zeroed();
-            let mut f3: frame_T = zeroed();
+            let mut parent: frame_T = frame_T::new();
+            let mut f1: frame_T = frame_T::new();
+            let mut f2: frame_T = frame_T::new();
+            let mut f3: frame_T = frame_T::new();
             f1.fr_parent = &raw mut parent;
             f2.fr_parent = &raw mut parent;
             f3.fr_parent = &raw mut parent;

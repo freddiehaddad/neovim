@@ -988,7 +988,7 @@ pub unsafe fn readfile(
         let mut swap_mode: c_int = -1;
         let mut fileformat: c_int = 0;
         let mut keep_fileformat = false;
-        let mut file_info: FileInfo = std::mem::zeroed();
+        let mut file_info: FileInfo = FileInfo::new();
         let mut skip_count: linenr_T = 0;
         let mut read_count: linenr_T = 0;
         let msg_save = msg_scroll;
@@ -1308,7 +1308,7 @@ pub unsafe fn readfile(
                     if swap_mode > 0 && !mfp.is_null() && !(*mfp).mf_fname.is_null() {
                         let swap_fname = (*mfp).mf_fname;
                         if (swap_mode & 0o44) == 0o40 {
-                            let mut swap_info: FileInfo = std::mem::zeroed();
+                            let mut swap_info: FileInfo = FileInfo::new();
                             if os_fileinfo(swap_fname, &raw mut swap_info)
                                 && file_info.stat.st_gid != swap_info.stat.st_gid
                                 && os_fchown(
@@ -2335,7 +2335,7 @@ pub unsafe fn readfile(
                     linerest = ptr.offset_from(line_start);
 
                     if show_msg && (progress || os_hrtime() - read_start > slow_io_ns()) {
-                        let mut info: FileInfo = std::mem::zeroed();
+                        let mut info: FileInfo = FileInfo::new();
                         let total = if os_fileinfo_fd(fd, &raw mut info) {
                             os_fileinfo_size(&raw const info)
                         } else {
@@ -3601,12 +3601,12 @@ pub unsafe fn vim_rename(from: *const c_char, to: *const c_char) -> c_int {
             }
         }
 
-        let mut from_info: FileInfo = std::mem::zeroed();
+        let mut from_info: FileInfo = FileInfo::new();
         if !os_fileinfo(from, &raw mut from_info) {
             return -1;
         }
 
-        let mut to_info: FileInfo = std::mem::zeroed();
+        let mut to_info: FileInfo = FileInfo::new();
         if os_fileinfo(to, &raw mut to_info)
             && os_fileinfo_id_equal(&raw const from_info, &raw const to_info)
         {
@@ -3643,7 +3643,7 @@ pub unsafe fn vim_copyfile(from: *const c_char, to: *const c_char) -> c_int {
     unsafe {
         #[cfg(not(windows))]
         {
-            let mut from_info: FileInfo = std::mem::zeroed();
+            let mut from_info: FileInfo = FileInfo::new();
             if os_fileinfo_link(from, &raw mut from_info) && s_islnk(from_info.stat.st_mode) {
                 let mut ret = -1;
                 let mut linkbuf: [c_char; MAXPATHL + 1] = [0; MAXPATHL + 1];
@@ -3698,7 +3698,7 @@ pub unsafe fn check_timestamps(focus: c_int) -> c_int {
             let mut buf = firstbuf;
             while !buf.is_null() {
                 if (*buf).b_nwindows > 0 {
-                    let mut bufref: bufref_T = std::mem::zeroed();
+                    let mut bufref: bufref_T = bufref_T::new();
                     set_bufref(&raw mut bufref, buf);
                     let n = buf_check_timestamp(buf);
                     didit = didit.max(n);
@@ -3776,7 +3776,7 @@ pub unsafe fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
         let orig_size = (*buf).b_orig_size;
         let orig_mode = (*buf).b_orig_mode;
 
-        let mut bufref: bufref_T = std::mem::zeroed();
+        let mut bufref: bufref_T = bufref_T::new();
         set_bufref(&raw mut bufref, buf);
 
         if !(*buf).terminal.is_null()
@@ -3789,7 +3789,7 @@ pub unsafe fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
             return 0;
         }
 
-        let mut file_info: FileInfo = std::mem::zeroed();
+        let mut file_info: FileInfo = FileInfo::new();
         let file_info_ok: bool;
         if ((*buf).b_flags & BF_NOTEDITED) == 0
             && (*buf).b_mtime != 0
@@ -3999,12 +3999,12 @@ pub unsafe fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
 /// Reload a buffer that is already loaded.
 pub unsafe fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
     unsafe {
-        let mut ea: exarg_T = std::mem::zeroed();
+        let mut ea: exarg_T = exarg_T::new();
         let old_ro = (*buf).b_p_ro;
         let savebuf: *mut buf_T;
-        let mut bufref: bufref_T = std::mem::zeroed();
+        let mut bufref: bufref_T = bufref_T::new();
         let mut saved = OK;
-        let mut aco: CtxSwitch = std::mem::zeroed();
+        let mut aco: CtxSwitch = CtxSwitch::new();
         let mut flags = READ_NEW;
 
         ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
@@ -4539,7 +4539,7 @@ pub unsafe fn match_file_pat(
     allow_dirs: c_int,
 ) -> bool {
     unsafe {
-        let mut regmatch: regmatch_T = std::mem::zeroed();
+        let mut regmatch: regmatch_T = regmatch_T::new();
         let mut result = false;
 
         regmatch.rm_ic = p_fic != 0;

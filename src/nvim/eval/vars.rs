@@ -123,6 +123,34 @@ pub struct lval_T {
     pub ll_blob: *mut blob_T,
 }
 
+impl lval_T {
+    pub const fn new() -> Self {
+        Self {
+            ll_name: ptr::null(),
+            ll_name_len: 0,
+            ll_exp_name: ptr::null_mut(),
+            ll_tv: ptr::null_mut(),
+            ll_li: ptr::null_mut(),
+            ll_list: ptr::null_mut(),
+            ll_range: false,
+            ll_empty2: false,
+            ll_n1: 0,
+            ll_n2: 0,
+            ll_dict: ptr::null_mut(),
+            ll_di: ptr::null_mut(),
+            ll_newkey: ptr::null_mut(),
+            ll_blob: ptr::null_mut(),
+        }
+    }
+}
+
+impl Default for lval_T {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub(crate) const MAXCOL: varnumber_T = 0x7fffffff;
 
 const VV_COMPAT: c_char = 1;
@@ -719,7 +747,7 @@ pub unsafe fn eval_charconvert(
         }
 
         let mut err = false;
-        let mut tv: typval_T = std::mem::zeroed();
+        let mut tv: typval_T = typval_T::new();
         let mut argv: [typval_T; 1] = [std::mem::zeroed()];
         if !callback_call(&raw mut p_ccv, 0, argv.as_mut_ptr(), &raw mut tv) {
             err = true;
@@ -752,7 +780,7 @@ pub unsafe fn eval_diff(origfile: *const c_char, newfile: *const c_char, outfile
             current_sctx = *ctx;
         }
 
-        let mut tv: typval_T = std::mem::zeroed();
+        let mut tv: typval_T = typval_T::new();
         let mut argv: [typval_T; 1] = [std::mem::zeroed()];
         if callback_call(&raw mut p_dex, 0, argv.as_mut_ptr(), &raw mut tv) {
             tv_clear(&raw mut tv);
@@ -777,7 +805,7 @@ pub unsafe fn eval_patch(origfile: *const c_char, difffile: *const c_char, outfi
             current_sctx = *ctx;
         }
 
-        let mut tv: typval_T = std::mem::zeroed();
+        let mut tv: typval_T = typval_T::new();
         let mut argv: [typval_T; 1] = [std::mem::zeroed()];
         if callback_call(&raw mut p_pex, 0, argv.as_mut_ptr(), &raw mut tv) {
             tv_clear(&raw mut tv);
@@ -793,8 +821,8 @@ pub unsafe fn eval_patch(origfile: *const c_char, difffile: *const c_char, outfi
 /// Evaluate an expression to a list with suggestions.
 pub unsafe fn eval_spell_expr(badword: *mut c_char, expr: *mut c_char) -> *mut list_T {
     unsafe {
-        let mut save_val: typval_T = std::mem::zeroed();
-        let mut rettv: typval_T = std::mem::zeroed();
+        let mut save_val: typval_T = typval_T::new();
+        let mut rettv: typval_T = typval_T::new();
         let mut list: *mut list_T = ptr::null_mut();
         let mut p = skipwhite(expr);
         let saved_sctx = current_sctx;
@@ -1169,7 +1197,7 @@ pub unsafe fn ex_let(eap: *mut exarg_T) {
     unsafe {
         let is_const = (*eap).cmdidx == cmdidx_T::CMD_const as c_int;
         let mut arg = (*eap).arg;
-        let mut rettv: typval_T = std::mem::zeroed();
+        let mut rettv: typval_T = typval_T::new();
         let mut var_count: c_int = 0;
         let mut semicolon: c_int = 0;
         let mut op: [c_char; 2] = [0; 2];
@@ -1285,7 +1313,7 @@ pub unsafe fn ex_let_vars(
 ) -> c_int {
     unsafe {
         let mut arg = arg_start;
-        let mut ltv: typval_T = std::mem::zeroed();
+        let mut ltv: typval_T = typval_T::new();
 
         if *arg != b'[' as c_char {
             if ex_let_one(arg, tv, copy != 0, is_const != 0, op, op).is_null() {
@@ -1516,7 +1544,7 @@ unsafe fn list_arg_vars(
 ) -> *const c_char {
     unsafe {
         let mut error = false;
-        let mut tv: typval_T = std::mem::zeroed();
+        let mut tv: typval_T = typval_T::new();
 
         while ends_excmd(*arg as c_int) == 0 && !got_int {
             if error || (*eap).skip != 0 {
@@ -1865,7 +1893,7 @@ unsafe fn ex_let_one(
         } else if *arg == b'@' as c_char {
             return ex_let_register(arg, tv, is_const, endchars, op);
         } else if eval_isnamec1(*arg as u8 as c_int) || *arg == b'{' as c_char {
-            let mut lv: lval_T = std::mem::zeroed();
+            let mut lv: lval_T = lval_T::new();
             let p = get_lval(arg, tv, &raw mut lv, false, false, 0, FNE_CHECK_START);
             if !p.is_null() && !lv.ll_name.is_null() {
                 if !endchars.is_null()
@@ -1928,7 +1956,7 @@ unsafe fn ex_unletlock(
         let mut arg = argstart;
         let mut name_end: *mut c_char;
         let mut error = false;
-        let mut lv: lval_T = std::mem::zeroed();
+        let mut lv: lval_T = lval_T::new();
 
         loop {
             if *arg == b'$' as c_char {
@@ -2037,7 +2065,7 @@ unsafe fn do_unlet_var(
             let di = (*lp).ll_di;
             let watched = tv_dict_is_watched(d);
             let mut key: *mut c_char = ptr::null_mut();
-            let mut oldtv: typval_T = std::mem::zeroed();
+            let mut oldtv: typval_T = typval_T::new();
 
             if watched {
                 tv_copy(&raw const (*di).di_tv, &raw mut oldtv);
@@ -2122,7 +2150,7 @@ pub unsafe fn do_unlet(name: *const c_char, name_len: usize, forceit: bool) -> c
                     return FAIL;
                 }
 
-                let mut oldtv: typval_T = std::mem::zeroed();
+                let mut oldtv: typval_T = typval_T::new();
                 let watched = tv_dict_is_watched(dict);
 
                 if watched {
@@ -3062,7 +3090,7 @@ pub unsafe fn before_set_vvar(
 ) -> bool {
     unsafe {
         if (*di).di_tv.v_type == VarType::VAR_STRING {
-            let mut oldtv: typval_T = std::mem::zeroed();
+            let mut oldtv: typval_T = typval_T::new();
             if watched {
                 tv_copy(&raw const (*di).di_tv, &raw mut oldtv);
             }
@@ -3088,7 +3116,7 @@ pub unsafe fn before_set_vvar(
             }
             return false;
         } else if (*di).di_tv.v_type == VarType::VAR_NUMBER {
-            let mut oldtv: typval_T = std::mem::zeroed();
+            let mut oldtv: typval_T = typval_T::new();
             if watched {
                 tv_copy(&raw const (*di).di_tv, &raw mut oldtv);
             }
@@ -3157,7 +3185,7 @@ pub unsafe fn set_var_const(
             return;
         }
 
-        let mut oldtv: typval_T = std::mem::zeroed();
+        let mut oldtv: typval_T = typval_T::new();
         if !di.is_null() {
             if is_const {
                 emsg(gettext(e_cannot_mod.as_ptr()));
@@ -3377,7 +3405,7 @@ unsafe fn get_var_from(
             && (htname != b'b' as c_int || !buf.is_null())
         {
             let need_switch_win = !(tp == curtab && win == curwin) && !do_change_curbuf;
-            let mut switchwin: CtxSwitch = std::mem::zeroed();
+            let mut switchwin: CtxSwitch = CtxSwitch::new();
             if !need_switch_win
                 || ctx_switch(
                     &raw mut switchwin,
@@ -3646,7 +3674,7 @@ unsafe fn setwinvar(argvars: *mut typval_T, off: usize) {
         }
 
         let need_switch_win = !(tp == curtab && win == curwin);
-        let mut switchwin: CtxSwitch = std::mem::zeroed();
+        let mut switchwin: CtxSwitch = CtxSwitch::new();
         if !need_switch_win
             || ctx_switch(
                 &raw mut switchwin,
@@ -3708,7 +3736,7 @@ pub unsafe fn var_exists(mut var: *const c_char) -> bool {
         let mut name = var;
         let len = get_name_len(&raw mut var, &raw mut tofree, true, false);
         if len > 0 {
-            let mut tv: typval_T = std::mem::zeroed();
+            let mut tv: typval_T = typval_T::new();
 
             if !tofree.is_null() {
                 name = tofree;
@@ -4010,7 +4038,7 @@ pub unsafe fn f_setbufvar(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: 
         }
 
         if *varname == b'&' as c_char {
-            let mut aco: CtxSwitch = std::mem::zeroed();
+            let mut aco: CtxSwitch = CtxSwitch::new();
             ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
             set_option_from_tv(varname.add(1), varp);
             ctx_restore(&raw mut aco);

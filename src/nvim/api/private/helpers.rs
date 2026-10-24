@@ -36,7 +36,7 @@ use crate::msgpack_rpc::unpacker::unpack;
 use crate::runtime::{script_is_lua, sctx_T};
 use crate::window::{tabpage_T, win_T};
 use std::ffi::{CStr, c_char, c_int, c_void};
-use std::mem::{size_of, zeroed};
+use std::mem::size_of;
 use std::ptr;
 
 pub(crate) const MAXLNUM: i64 = 0x7fffffff;
@@ -568,9 +568,9 @@ pub unsafe fn dict_set_var(
                 tv_dict_item_remove(dict, di);
             }
         } else {
-            let mut tv: typval_T = zeroed();
+            let mut tv: typval_T = typval_T::new();
             object_to_vim(value, &raw mut tv, err);
-            let mut oldtv: typval_T = zeroed();
+            let mut oldtv: typval_T = typval_T::new();
 
             if di.is_null() {
                 di = tv_dict_item_alloc_len(key.data, key.size);

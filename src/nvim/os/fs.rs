@@ -50,6 +50,16 @@ pub struct FileID {
     pub device_id: u64,
 }
 
+impl FileID {
+    #[inline]
+    pub const fn new() -> Self {
+        Self {
+            inode: 0,
+            device_id: 0,
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct uv_timespec_t {
@@ -86,6 +96,48 @@ pub struct FileInfo {
     pub root_off: usize,
     pub rest_off: usize,
     pub r#type: c_int,
+}
+
+impl FileInfo {
+    #[inline]
+    pub const fn new() -> Self {
+        Self {
+            stat: uv_stat_t {
+                st_dev: 0,
+                st_mode: 0,
+                st_nlink: 0,
+                st_uid: 0,
+                st_gid: 0,
+                st_rdev: 0,
+                st_ino: 0,
+                st_size: 0,
+                st_blksize: 0,
+                st_blocks: 0,
+                st_flags: 0,
+                st_gen: 0,
+                st_atim: uv_timespec_t {
+                    tv_sec: 0,
+                    tv_nsec: 0,
+                },
+                st_mtim: uv_timespec_t {
+                    tv_sec: 0,
+                    tv_nsec: 0,
+                },
+                st_ctim: uv_timespec_t {
+                    tv_sec: 0,
+                    tv_nsec: 0,
+                },
+                st_birthtim: uv_timespec_t {
+                    tv_sec: 0,
+                    tv_nsec: 0,
+                },
+            },
+            prefix_off: 0,
+            root_off: 0,
+            rest_off: 0,
+            r#type: 0,
+        }
+    }
 }
 
 #[repr(C)]
@@ -1180,7 +1232,7 @@ pub unsafe fn os_file_owned(fname: *const c_char) -> bool {
     #[cfg(not(windows))]
     unsafe {
         let uid = u64::from(getuid());
-        let mut finfo = FileInfo::default();
+        let mut finfo = FileInfo::new();
         let file_owned = os_fileinfo(fname, &raw mut finfo) && finfo.stat.st_uid == uid;
         let link_owned = os_fileinfo_link(fname, &raw mut finfo) && finfo.stat.st_uid == uid;
         file_owned && link_owned
@@ -1443,7 +1495,7 @@ pub unsafe fn os_remove(path: *const c_char) -> c_int {
 /// Get the file information for a given path.
 pub unsafe fn os_fileinfo(path: *const c_char, file_info: *mut FileInfo) -> bool {
     unsafe {
-        *file_info = FileInfo::default();
+        *file_info = FileInfo::new();
         os_stat(path, &raw mut (*file_info).stat) == 0
     }
 }
@@ -1451,7 +1503,7 @@ pub unsafe fn os_fileinfo(path: *const c_char, file_info: *mut FileInfo) -> bool
 /// Parses `path` into a `FileInfo` structure.
 pub unsafe fn os_fileinfo2(path: *const c_char, info: *mut FileInfo) -> bool {
     unsafe {
-        *info = FileInfo::default();
+        *info = FileInfo::new();
         {
             if path_with_url(path) != 0 {
                 return true;
@@ -1526,7 +1578,7 @@ pub unsafe fn os_fileinfo2(path: *const c_char, info: *mut FileInfo) -> bool {
 /// Get the file information for a given path without following links.
 pub unsafe fn os_fileinfo_link(path: *const c_char, file_info: *mut FileInfo) -> bool {
     unsafe {
-        *file_info = FileInfo::default();
+        *file_info = FileInfo::new();
         if path.is_null() {
             return false;
         }
@@ -1545,7 +1597,7 @@ pub unsafe fn os_fileinfo_link(path: *const c_char, file_info: *mut FileInfo) ->
 /// Get the file information for a given file descriptor.
 pub unsafe fn os_fileinfo_fd(file_descriptor: c_int, file_info: *mut FileInfo) -> bool {
     unsafe {
-        *file_info = FileInfo::default();
+        *file_info = FileInfo::new();
         {
             let mut request: uv_fs_buf_t = [0; 80];
             let ok = uv_fs_fstat(
@@ -1782,7 +1834,7 @@ mod tests {
     #[test]
     fn fileinfo_and_fileid_accessors_work() {
         unsafe {
-            let mut fi1 = FileInfo::default();
+            let mut fi1 = FileInfo::new();
             fi1.stat.st_ino = 42;
             fi1.stat.st_dev = 7;
             fi1.stat.st_size = 1234;
@@ -1796,7 +1848,7 @@ mod tests {
             assert_eq!(os_fileinfo_hardlinks(&raw const fi1), 2);
             assert_eq!(os_fileinfo_blocksize(&raw const fi1), 4096);
 
-            let mut id1 = FileID::default();
+            let mut id1 = FileID::new();
             os_fileinfo_id(&raw const fi1, &raw mut id1);
             let id2 = FileID {
                 inode: 42,
@@ -1908,7 +1960,7 @@ mod tests {
             );
             assert_eq!(os_fchown(fd, uv_uid_t::MAX, uv_gid_t::MAX), 0);
 
-            let mut fi_fd = FileInfo::default();
+            let mut fi_fd = FileInfo::new();
             assert!(!os_fileinfo_fd(-1, &raw mut fi_fd));
             assert!(os_fileinfo_fd(fd, &raw mut fi_fd));
             assert_eq!(os_fileinfo_size(&raw const fi_fd), payload.len() as u64);
@@ -1944,7 +1996,7 @@ mod tests {
             assert_eq!(os_close(rfd), 0);
 
             // os_fileinfo & os_fileid
-            let mut fi = FileInfo::default();
+            let mut fi = FileInfo::new();
             assert!(!os_fileinfo(ptr::null(), &raw mut fi));
             assert!(!os_fileinfo(c"/non-existent-xyz".as_ptr(), &raw mut fi));
             assert!(os_fileinfo(fpath_c.as_ptr(), &raw mut fi));
@@ -1952,7 +2004,7 @@ mod tests {
             assert_eq!(os_fileinfo_size(&raw const fi), payload.len() as u64);
             assert!(os_fileinfo_blocksize(&raw const fi) > 0);
 
-            let mut fid = FileID::default();
+            let mut fid = FileID::new();
             assert!(!os_fileid(c"/non-existent-xyz".as_ptr(), &raw mut fid));
             assert!(os_fileid(fpath_c.as_ptr(), &raw mut fid));
             assert!(os_fileid_equal(&raw const fid, &raw const fid));

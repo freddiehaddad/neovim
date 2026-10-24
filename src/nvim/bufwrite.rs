@@ -389,7 +389,7 @@ unsafe fn buf_write_do_autocmds(
         let old_line_count = (*buf).b_ml.ml_line_count;
         let msg_save = msg_scroll;
 
-        let mut aco: CtxSwitch = std::mem::zeroed();
+        let mut aco: CtxSwitch = CtxSwitch::new();
         let mut did_cmd = false;
         let mut nofile_err = false;
         let empty_memline = (*buf).b_ml.ml_mfp.is_null();
@@ -565,7 +565,7 @@ unsafe fn buf_write_do_post_autocmds(
     whole: bool,
 ) {
     unsafe {
-        let mut aco: CtxSwitch = std::mem::zeroed();
+        let mut aco: CtxSwitch = CtxSwitch::new();
         (*curbuf).b_no_eol_lnum = 0;
 
         let _ = ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
@@ -868,7 +868,7 @@ unsafe fn buf_write_make_backup(
     err: *mut Error_T,
 ) -> c_int {
     unsafe {
-        let mut file_info = FileInfo::default();
+        let mut file_info = FileInfo::new();
         let no_prepend_dot = false;
 
         if (bkc & kOptBkcFlagYes) != 0 || append {
@@ -962,7 +962,7 @@ unsafe fn buf_write_make_backup(
                         break 'nobackup;
                     }
 
-                    let mut file_info_new = FileInfo::default();
+                    let mut file_info_new = FileInfo::new();
                     if os_fileinfo(*backupp, &raw mut file_info_new) {
                         if os_fileinfo_id_equal(&raw const file_info_new, file_info_old) {
                             xfree((*backupp).cast());
@@ -1257,7 +1257,7 @@ pub unsafe fn buf_write(
         let mut file_readonly = false;
         let mut backup: *mut c_char = ptr::null_mut();
         let mut fenc_tofree: *mut c_char = ptr::null_mut();
-        let mut file_info_old = FileInfo::default();
+        let mut file_info_old = FileInfo::new();
         let mut acl: vim_acl_T = ptr::null_mut();
 
         'nofail: {
@@ -1454,7 +1454,7 @@ pub unsafe fn buf_write(
                                 if err.msg.is_null() {
                                     #[cfg(not(windows))]
                                     {
-                                        let mut file_info = FileInfo::default();
+                                        let mut file_info = FileInfo::new();
                                         if (!newfile
                                             && os_fileinfo_hardlinks(&raw const file_info_old) > 1)
                                             || (os_fileinfo_link(fname, &raw mut file_info)
@@ -1717,7 +1717,7 @@ pub unsafe fn buf_write(
 
                         #[cfg(not(windows))]
                         if !backup.is_null() && !backup_copy {
-                            let mut file_info = FileInfo::default();
+                            let mut file_info = FileInfo::new();
                             if !os_fileinfo(wfname, &raw mut file_info)
                                 || file_info.stat.st_uid != file_info_old.stat.st_uid
                                 || file_info.stat.st_gid != file_info_old.stat.st_gid

@@ -412,7 +412,7 @@ pub unsafe extern "C" fn nvim_open_win(
                     if parent.is_null() || parent == curwin {
                         wp = win_split_ins(size, flags, ptr::null_mut(), 0, ptr::null_mut());
                     } else {
-                        let mut switchwin: CtxSwitch = std::mem::zeroed();
+                        let mut switchwin: CtxSwitch = CtxSwitch::new();
                         let result = ctx_switch(
                             &mut switchwin,
                             parent,
@@ -468,7 +468,7 @@ pub unsafe extern "C" fn nvim_open_win(
             };
             set_bufref(&mut bufref, b);
             if !fconfig.noautocmd {
-                let mut switchwin: CtxSwitch = std::mem::zeroed();
+                let mut switchwin: CtxSwitch = CtxSwitch::new();
                 let result = ctx_switch(&mut switchwin, wp, tp, ptr::null_mut(), kCtxNoDisplay);
                 assert!(result);
                 if apply_autocmds_win(
@@ -832,7 +832,7 @@ unsafe fn win_config_split(
 
                 try_wrap(err, || {
                     let need_switch = !parent.is_null() && parent != curwin;
-                    let mut switchwin: CtxSwitch = std::mem::zeroed();
+                    let mut switchwin: CtxSwitch = CtxSwitch::new();
                     if need_switch {
                         let result = ctx_switch(
                             &mut switchwin,

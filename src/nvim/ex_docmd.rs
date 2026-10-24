@@ -317,7 +317,7 @@ pub(crate) const CMOD_KEEPPATTERNS: c_int = 0x1000;
 pub(crate) const CMOD_NOSWAPFILE: c_int = 0x2000;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct ExMagic {
     pub file: bool,
     pub bar: bool,
@@ -363,6 +363,58 @@ pub struct exarg_T {
     pub magic: ExMagic,
 }
 
+impl exarg_T {
+    pub const fn new() -> Self {
+        Self {
+            arg: ptr::null_mut(),
+            args: ptr::null_mut(),
+            arglens: ptr::null_mut(),
+            argc: 0,
+            nextcmd: ptr::null_mut(),
+            cmd: ptr::null_mut(),
+            cmdlinep: ptr::null_mut(),
+            cmdline_tofree: ptr::null_mut(),
+            cmdidx: 0,
+            argt: 0,
+            skip: 0,
+            forceit: 0,
+            addr_count: 0,
+            line1: 0,
+            line2: 0,
+            addr_type: 0,
+            flags: 0,
+            do_ecmd_cmd: ptr::null_mut(),
+            do_ecmd_lnum: 0,
+            append: 0,
+            usefilter: 0,
+            amount: 0,
+            regname: 0,
+            force_bin: 0,
+            read_edit: 0,
+            mkdir_p: 0,
+            force_ff: 0,
+            force_enc: 0,
+            bad_char: 0,
+            useridx: 0,
+            errmsg: ptr::null_mut(),
+            ea_getline: None,
+            cookie: ptr::null_mut(),
+            cstack: ptr::null_mut(),
+            magic: ExMagic {
+                file: false,
+                bar: false,
+            },
+        }
+    }
+}
+
+impl Default for exarg_T {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct cmdmod_T {
@@ -379,6 +431,33 @@ pub struct cmdmod_T {
     pub cmod_save_msg_silent: c_int,
     pub cmod_save_msg_scroll: c_int,
     pub cmod_did_esilent: c_int,
+}
+
+impl cmdmod_T {
+    pub const fn new() -> Self {
+        Self {
+            cmod_flags: 0,
+            cmod_split: 0,
+            cmod_tab: 0,
+            cmod_filter_pat: ptr::null_mut(),
+            cmod_filter_regmatch: regmatch_T::new(),
+            cmod_filter_force: false,
+            cmod_verbose: 0,
+            cmod_save_ei: ptr::null_mut(),
+            cmod_did_sandbox: 0,
+            cmod_verbose_save: 0,
+            cmod_save_msg_silent: 0,
+            cmod_save_msg_scroll: 0,
+            cmod_did_esilent: 0,
+        }
+    }
+}
+
+impl Default for cmdmod_T {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
 }
 use crate::api::vim::kCdScopeGlobal;
 use crate::charset::NUL;
@@ -6380,7 +6459,7 @@ unsafe fn do_one_cmd(
         let save_reg_executing = reg_executing;
         let save_pending_end_reg_executing = pending_end_reg_executing;
 
-        let mut ea: exarg_T = std::mem::zeroed();
+        let mut ea: exarg_T = exarg_T::new();
         ea.line1 = 1;
         ea.line2 = 1;
         ex_nesting_level += 1;
@@ -7526,7 +7605,7 @@ pub unsafe fn cmd_exists(name: *const c_char) -> c_int {
             }
         }
 
-        let mut ea: exarg_T = std::mem::zeroed();
+        let mut ea: exarg_T = exarg_T::new();
         ea.cmd = if *name == b'2' as c_char || *name == b'3' as c_char {
             name.add(1).cast_mut()
         } else {
@@ -7567,7 +7646,7 @@ pub unsafe fn f_fullcommand(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
         }
         name = skip_range(name, ptr::null_mut());
 
-        let mut ea: exarg_T = std::mem::zeroed();
+        let mut ea: exarg_T = exarg_T::new();
         ea.cmd = if *name == b'2' as c_char || *name == b'3' as c_char {
             name.add(1)
         } else {
@@ -8299,7 +8378,7 @@ pub unsafe fn expand_filename(
             backslash_halve((*eap).arg);
 
             if has_wildcards {
-                let mut xpc: expand_T = std::mem::zeroed();
+                let mut xpc: expand_T = expand_T::new();
                 let mut options = WILD_LIST_NOTFOUND | WILD_NOERROR | WILD_ADD_SLASH;
 
                 ExpandInit(&raw mut xpc);
@@ -9618,7 +9697,7 @@ pub unsafe fn ex_win_close(forceit: c_int, win: *mut win_T, tp: *mut tabpage_T) 
         let mut need_hide = bufIsChanged(buf) && (*buf).b_nwindows <= 1;
         if need_hide && !buf_hide(buf) && forceit == 0 {
             if (p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0) && p_write != 0 {
-                let mut bufref: bufref_T = std::mem::zeroed();
+                let mut bufref: bufref_T = bufref_T::new();
                 set_bufref(&raw mut bufref, buf);
                 dialog_changed(buf, false);
                 if bufref_valid(&raw mut bufref) && bufIsChanged(buf) {
@@ -9971,7 +10050,7 @@ unsafe fn call_findfunc(pat: *mut c_char, cmdcomplete: BoolVarValue) -> *mut lis
         }
 
         let cb = get_findfunc();
-        let mut rettv: typval_T = std::mem::zeroed();
+        let mut rettv: typval_T = typval_T::new();
         let retval = callback_call(cb, 2, args.as_mut_ptr(), &raw mut rettv);
 
         current_sctx = saved_sctx;
@@ -10195,7 +10274,7 @@ pub unsafe fn ex_splitview(eap: *mut exarg_T) {
 
 pub unsafe fn tabpage_new() {
     unsafe {
-        let mut ea: exarg_T = std::mem::zeroed();
+        let mut ea: exarg_T = exarg_T::new();
         ea.cmdidx = cmdidx_T::CMD_tabnew as c_int;
         ea.cmd = c"tabn".as_ptr().cast_mut();
         ea.arg = c"".as_ptr().cast_mut();
@@ -10647,7 +10726,7 @@ pub unsafe fn do_exedit(eap: *mut exarg_T, old_curwin: *mut win_T) {
                 if !old_curwin.is_null() {
                     let need_hide = curbufIsChanged() && (*curbuf).b_nwindows <= 1;
                     if !need_hide || buf_hide(curbuf) {
-                        let mut cs: cleanup_T = std::mem::zeroed();
+                        let mut cs: cleanup_T = cleanup_T::new();
                         enter_cleanup(&raw mut cs);
                         win_close(curwin, !need_hide && !buf_hide(curbuf), false);
                         leave_cleanup(&raw mut cs);
@@ -12782,7 +12861,7 @@ unsafe fn ex_terminal(eap: *mut exarg_T) {
                 return;
             }
             let argv = shell_build_argv(ptr::null(), ptr::null());
-            let mut shell_tv: typval_T = std::mem::zeroed();
+            let mut shell_tv: typval_T = typval_T::new();
             tv_list_alloc_ret(&raw mut shell_tv, 0);
             let mut p = argv;
             while !(*p).is_null() {

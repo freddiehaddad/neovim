@@ -659,7 +659,7 @@ pub unsafe fn f_win_execute(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
             return;
         }
 
-        let mut cs: CtxSwitch = std::mem::zeroed();
+        let mut cs: CtxSwitch = CtxSwitch::new();
         if ctx_switch(
             &raw mut cs,
             wp,

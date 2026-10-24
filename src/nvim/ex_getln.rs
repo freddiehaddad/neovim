@@ -417,13 +417,13 @@ pub unsafe fn parse_pattern_and_range(
         Search.first_line = 0;
         Search.last_line = MAXLNUM;
 
-        let mut ea: exarg_T = std::mem::zeroed();
+        let mut ea: exarg_T = exarg_T::new();
         ea.line1 = 1;
         ea.line2 = 1;
         ea.cmd = ccline.cmdbuff;
         ea.addr_type = ADDR_LINES;
 
-        let mut dummy_cmdmod: cmdmod_T = std::mem::zeroed();
+        let mut dummy_cmdmod: cmdmod_T = cmdmod_T::new();
         // Skip over command modifiers
         parse_command_modifiers(&raw mut ea, &raw mut dummy, &raw mut dummy_cmdmod, true);
 
@@ -1026,7 +1026,7 @@ unsafe fn command_line_enter(
             let mut firstcbuf: [c_char; 2] = [(*s).cmdline_type as c_char, 0];
 
             if has_event(EVENT_CMDLINEENTER) {
-                let mut save_v_event: save_v_event_T = std::mem::zeroed();
+                let mut save_v_event: save_v_event_T = save_v_event_T::new();
                 let dict = get_v_event(&raw mut save_v_event);
 
                 tv_dict_add_str(dict, c"cmdtype".as_ptr(), 7, firstcbuf.as_ptr());
@@ -1109,7 +1109,7 @@ unsafe fn command_line_enter(
             }
 
             if has_event(EVENT_CMDLINELEAVE) {
-                let mut save_v_event: save_v_event_T = std::mem::zeroed();
+                let mut save_v_event: save_v_event_T = save_v_event_T::new();
                 let dict = get_v_event(&raw mut save_v_event);
 
                 tv_dict_add_str(dict, c"cmdtype".as_ptr(), 7, firstcbuf.as_ptr());
@@ -2853,7 +2853,7 @@ unsafe fn cmdpreview_open_buf() -> *mut buf_T {
             return ptr::null_mut();
         }
 
-        let mut aco: CtxSwitch = std::mem::zeroed();
+        let mut aco: CtxSwitch = CtxSwitch::new();
         ctx_switch(
             &raw mut aco,
             ptr::null_mut(),
@@ -3036,8 +3036,8 @@ unsafe fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
 /// Show `'inccommand'` preview if command is previewable.
 unsafe fn cmdpreview_may_show(_s: *mut CommandLineState) -> bool {
     unsafe {
-        let mut ea: exarg_T = std::mem::zeroed();
-        let mut cmod: cmdmod_T = std::mem::zeroed();
+        let mut ea: exarg_T = exarg_T::new();
+        let mut cmod: cmdmod_T = cmdmod_T::new();
         let mut cmdpreview_type: c_int;
         let mut cmdline = xstrdup(ccline.cmdbuff);
         let mut errormsg: *const c_char = ptr::null();
@@ -3144,7 +3144,7 @@ unsafe fn do_autocmd_cmdlinechanged(firstc: c_int) {
     unsafe {
         if has_event(EVENT_CMDLINECHANGED) {
             let mut err = error_init();
-            let mut save_v_event: save_v_event_T = std::mem::zeroed();
+            let mut save_v_event: save_v_event_T = save_v_event_T::new();
             let dict = get_v_event(&raw mut save_v_event);
 
             let mut firstcbuf: [c_char; 2] = [firstc as c_char, 0];
@@ -5168,7 +5168,7 @@ pub unsafe fn get_user_input(
             vval: TypvalVval { v_number: 0 },
         };
         let mut xp_name: *const c_char = ptr::null();
-        let mut input_callback: Callback = std::mem::zeroed();
+        let mut input_callback: Callback = Callback::new();
         let mut prompt_buf: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
         let mut defstr_buf: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
         let mut cancelreturn_buf: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];

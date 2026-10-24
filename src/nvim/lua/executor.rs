@@ -1580,7 +1580,7 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> c_int {
         ];
         loop {
             lua_settop(lstate, 0);
-            let mut input: typval_T = zeroed();
+            let mut input: typval_T = typval_T::new();
             get_user_input(input_args.as_ptr(), &raw mut input, false, false);
 
             if ui_has(kUICmdline) {
@@ -1690,7 +1690,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
             return 1;
         }
 
-        let mut vim_args: [typval_T; (MAX_FUNC_ARGS + 1) as usize] = zeroed();
+        let mut vim_args: [typval_T; (MAX_FUNC_ARGS + 1) as usize] = [typval_T::new(); (MAX_FUNC_ARGS + 1) as usize];
         let mut i: usize = 0;
         let mut conv_failed = false;
         while (i as c_int) < nargs {
@@ -1714,8 +1714,8 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
             did_throw = false;
             did_emsg = 0;
 
-            let mut rettv: typval_T = zeroed();
-            let mut funcexe: funcexe_T = zeroed();
+            let mut rettv: typval_T = typval_T::new();
+            let mut funcexe: funcexe_T = funcexe_T::new();
             funcexe.fe_firstline = (*curwin).w_cursor.lnum;
             funcexe.fe_lastline = (*curwin).w_cursor.lnum;
             funcexe.fe_evaluate = true;

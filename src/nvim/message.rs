@@ -3427,7 +3427,7 @@ pub unsafe fn clear_sb_text(all: bool) {
 pub unsafe fn show_sb_text() {
     unsafe {
         if ui_has(kUIMessages) {
-            let mut ea: exarg_T = std::mem::zeroed();
+            let mut ea: exarg_T = exarg_T::new();
             ea.arg = c"".as_ptr().cast_mut();
             ea.skip = 1;
             ex_messages(&raw mut ea);

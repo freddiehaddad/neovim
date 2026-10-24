@@ -1717,7 +1717,7 @@ unsafe fn pum_execute_menu(menu: *mut vimmenu_T, mode: c_int) {
                 let cur_idx = idx;
                 idx += 1;
                 if cur_idx == PUM_SELECTED {
-                    let ea: exarg_T = std::mem::zeroed();
+                    let ea: exarg_T = exarg_T::new();
                     execute_menu(&raw const ea, mp, -1);
                     break;
                 }

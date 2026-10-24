@@ -333,7 +333,7 @@ unsafe fn call_click_def_func(
             },
         ];
 
-        let mut rettv: typval_T = std::mem::zeroed();
+        let mut rettv: typval_T = typval_T::new();
         call_vim_function(
             (*click_defs.add(col as usize)).func,
             argv.len() as c_int,

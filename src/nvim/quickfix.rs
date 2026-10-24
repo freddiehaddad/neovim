@@ -1963,7 +1963,7 @@ unsafe fn qf_parse_get_fields(
         (*fields).type_ = 0;
         *tail = ptr::null_mut();
 
-        let mut regmatch: regmatch_T = std::mem::zeroed();
+        let mut regmatch: regmatch_T = regmatch_T::new();
         regmatch.rm_ic = true;
         regmatch.regprog = (*fmt_ptr).prog;
         let r = vim_regexec(&raw mut regmatch, linebuf, 0);
@@ -4374,7 +4374,7 @@ unsafe fn qf_update_buffer(qi: *mut qf_info_T, old_count: usize) {
 
         incr_quickfix_busy();
 
-        let mut aco: CtxSwitch = std::mem::zeroed();
+        let mut aco: CtxSwitch = CtxSwitch::new();
         if old_count == 0 {
             ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
         }
@@ -4547,8 +4547,8 @@ unsafe fn call_qftf_func(
             cb = &raw mut (*qfl).qf_qftf_cb;
         }
         if (*cb).cb_type != kCallbackNone {
-            let mut args: [typval_T; 1] = std::mem::zeroed();
-            let mut rettv: typval_T = std::mem::zeroed();
+            let mut args: [typval_T; 1] = [typval_T::new(); 1];
+            let mut rettv: typval_T = typval_T::new();
 
             let dict = tv_dict_alloc_lock(VAR_FIXED);
             tv_dict_add_nr(
@@ -4943,7 +4943,7 @@ unsafe fn get_mef_name() -> *mut c_char {
                 mef_off,
             );
             c_strcat(name, p.add(2));
-            let mut file_info = FileInfo::default();
+            let mut file_info = FileInfo::new();
             let file_or_link_found = os_fileinfo_link(name, &raw mut file_info);
             if !file_or_link_found {
                 return name;
@@ -5781,7 +5781,7 @@ unsafe fn vgr_jump_to_match(
         }
 
         if curbuf == first_match_buf && !target_dir.is_null() {
-            let mut ea: exarg_T = std::mem::zeroed();
+            let mut ea: exarg_T = exarg_T::new();
             ea.arg = target_dir;
             ea.cmdidx = CMD_lcd;
             ex_cd(&raw mut ea);
@@ -5950,7 +5950,7 @@ unsafe fn vgr_process_files(
                             *target_dir = xstrdup(dirname_now.as_ptr());
                         }
 
-                        let mut aco: CtxSwitch = std::mem::zeroed();
+                        let mut aco: CtxSwitch = CtxSwitch::new();
                         ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
                         apply_autocmds(EVENT_FILETYPE, (*buf).b_p_ft, (*buf).b_fname, true, buf);
                         do_modelines(OPT_NOWIN);
@@ -6078,7 +6078,7 @@ unsafe fn restore_start_dir(dirname_start: *mut c_char) {
 
         os_dirname(dirname_now.as_mut_ptr(), MAXPATHL);
         if strcmp(dirname_start, dirname_now.as_ptr()) != 0 {
-            let mut ea: exarg_T = std::mem::zeroed();
+            let mut ea: exarg_T = exarg_T::new();
             ea.arg = dirname_start;
             ea.cmdidx = if (*curwin).w_localdir.is_null() {
                 CMD_cd
@@ -6102,21 +6102,21 @@ unsafe fn load_dummy_buffer(
         }
 
         let mut failed = true;
-        let mut newbufref: bufref_T = std::mem::zeroed();
+        let mut newbufref: bufref_T = bufref_T::new();
         set_bufref(&raw mut newbufref, newbuf);
 
         buf_copy_options(newbuf, BCO_ENTER | BCO_NOHELP);
 
         if ml_open(newbuf) == OK {
             (*newbuf).b_locked += 1;
-            let mut aco: CtxSwitch = std::mem::zeroed();
+            let mut aco: CtxSwitch = CtxSwitch::new();
             ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), newbuf, 0);
 
             setfname(curbuf, fname, ptr::null_mut(), false);
             check_need_swap(true);
             (*curbuf).b_flags &= !BF_DUMMY;
 
-            let mut newbuf_to_wipe: bufref_T = std::mem::zeroed();
+            let mut newbuf_to_wipe: bufref_T = bufref_T::new();
             let readfile_result = readfile(
                 fname,
                 ptr::null_mut(),
@@ -6189,7 +6189,7 @@ unsafe fn wipe_dummy_buffer(buf: *mut buf_T, dirname_start: *mut c_char) {
         }
 
         if !give_up && curbuf != buf && (*buf).b_nwindows == 0 {
-            let mut cs: cleanup_T = std::mem::zeroed();
+            let mut cs: cleanup_T = cleanup_T::new();
             enter_cleanup(&raw mut cs);
             wipe_buffer(buf, true);
             leave_cleanup(&raw mut cs);
@@ -6636,7 +6636,7 @@ unsafe fn qf_getprop_idx(qfl: *mut qf_list_T, mut eidx: c_int, retdict: *mut dic
 unsafe fn qf_getprop_qftf(qfl: *mut qf_list_T, retdict: *mut dict_T) -> c_int {
     unsafe {
         if (*qfl).qf_qftf_cb.cb_type != kCallbackNone {
-            let mut tv: typval_T = std::mem::zeroed();
+            let mut tv: typval_T = typval_T::new();
             callback_put(&raw mut (*qfl).qf_qftf_cb, &raw mut tv);
             let status = tv_dict_add_tv(retdict, c"quickfixtextfunc".as_ptr(), 16, &raw mut tv);
             tv_clear(&raw mut tv);
@@ -6746,7 +6746,7 @@ unsafe fn qf_setprop_qftf(qfl: *mut qf_list_T, di: *mut dictitem_T) -> c_int {
             return FAIL;
         }
 
-        let mut cb: Callback = std::mem::zeroed();
+        let mut cb: Callback = Callback::new();
         callback_free(&raw mut (*qfl).qf_qftf_cb);
         if callback_from_typval(&raw mut cb, &raw mut (*di).di_tv) {
             (*qfl).qf_qftf_cb = cb;
@@ -6781,7 +6781,7 @@ unsafe fn qf_add_entry_from_dict(
         if text.is_null() {
             text = xmallocz(0).cast::<c_char>();
         }
-        let mut user_data: typval_T = std::mem::zeroed();
+        let mut user_data: typval_T = typval_T::new();
         user_data.v_type = VarType::VAR_UNKNOWN;
         tv_dict_get_tv(d, c"user_data".as_ptr(), &raw mut user_data);
 
@@ -7841,7 +7841,7 @@ pub unsafe fn ex_helpgrep(eap: *mut exarg_T) {
         incr_quickfix_busy();
 
         let lang = check_help_lang((*eap).arg);
-        let mut regmatch: regmatch_T = std::mem::zeroed();
+        let mut regmatch: regmatch_T = regmatch_T::new();
         regmatch.regprog = vim_regcomp((*eap).arg, RE_MAGIC + RE_STRING);
         regmatch.rm_ic = false;
         if !regmatch.regprog.is_null() {

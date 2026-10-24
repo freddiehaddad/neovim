@@ -151,7 +151,7 @@ pub unsafe fn autowrite(buf: *mut buf_T, forceit: bool) -> c_int {
         {
             return FAIL;
         }
-        let mut bufref: bufref_T = std::mem::zeroed();
+        let mut bufref: bufref_T = bufref_T::new();
         set_bufref(&raw mut bufref, buf);
         let mut r = buf_write_all(buf, forceit);
 
@@ -172,7 +172,7 @@ pub unsafe fn autowrite_all() {
         let mut buf = firstbuf;
         while !buf.is_null() {
             if bufIsChanged(buf) && (*buf).b_p_ro == 0 && !bt_dontwrite(buf) {
-                let mut bufref: bufref_T = std::mem::zeroed();
+                let mut bufref: bufref_T = bufref_T::new();
                 set_bufref(&raw mut bufref, buf);
                 buf_write_all(buf, false);
                 if !bufref_valid(&raw mut bufref) {
@@ -189,7 +189,7 @@ pub unsafe fn autowrite_all() {
 pub unsafe fn check_changed(buf: *mut buf_T, flags: c_int) -> bool {
     unsafe {
         let forceit = (flags & CCGD_FORCEIT) != 0;
-        let mut bufref: bufref_T = std::mem::zeroed();
+        let mut bufref: bufref_T = bufref_T::new();
         set_bufref(&raw mut bufref, buf);
 
         if !forceit
@@ -233,7 +233,7 @@ pub unsafe fn check_changed(buf: *mut buf_T, flags: c_int) -> bool {
 pub unsafe fn dialog_changed(buf: *mut buf_T, checkall: bool) {
     unsafe {
         let mut buff = [0 as c_char; DIALOG_MSG_SIZE];
-        let mut ea: exarg_T = std::mem::zeroed();
+        let mut ea: exarg_T = exarg_T::new();
 
         let fname = if !(*buf).b_fname.is_null() {
             (*buf).b_fname.cast_const()
@@ -277,7 +277,7 @@ pub unsafe fn dialog_changed(buf: *mut buf_T, checkall: bool) {
             let mut buf2 = firstbuf;
             while !buf2.is_null() {
                 if bufIsChanged(buf2) && !(*buf2).b_ffname.is_null() && (*buf2).b_p_ro == 0 {
-                    let mut bufref: bufref_T = std::mem::zeroed();
+                    let mut bufref: bufref_T = bufref_T::new();
                     set_bufref(&raw mut bufref, buf2);
 
                     if !(*buf2).b_fname.is_null()
@@ -393,7 +393,7 @@ pub unsafe fn check_changed_any(hidden: bool, unload: bool) -> bool {
         while i < bufnrs.len() {
             buf = buflist_findnr(bufnrs[i]);
             if !buf.is_null() && (!hidden || (*buf).b_nwindows == 0) && bufIsChanged(buf) {
-                let mut bufref: bufref_T = std::mem::zeroed();
+                let mut bufref: bufref_T = bufref_T::new();
                 set_bufref(&raw mut bufref, buf);
 
                 if check_changed(
@@ -448,7 +448,7 @@ pub unsafe fn check_changed_any(hidden: bool, unload: bool) -> bool {
                     let mut wp = first_win_in_tab(tp);
                     while !wp.is_null() {
                         if (*wp).w_buffer == buf {
-                            let mut bufref: bufref_T = std::mem::zeroed();
+                            let mut bufref: bufref_T = bufref_T::new();
                             set_bufref(&raw mut bufref, buf);
                             goto_tabpage_win(tp, wp);
                             if !bufref_valid(&raw mut bufref) {
@@ -737,7 +737,7 @@ pub unsafe fn ex_listdo(eap: *mut exarg_T) {
 
         msg_listdo_overwrite -= 1;
         if !save_ei.is_null() {
-            let mut aco: CtxSwitch = std::mem::zeroed();
+            let mut aco: CtxSwitch = CtxSwitch::new();
 
             au_event_restore(save_ei);
 

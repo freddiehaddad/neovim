@@ -209,7 +209,7 @@ pub unsafe extern "C" fn nvim_eval(expr: NvimString, arena: *mut Arena, err: *mu
         }
         EVAL_RECURSIVE += 1;
 
-        let mut rettv: typval_T = std::mem::zeroed();
+        let mut rettv: typval_T = typval_T::new();
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
         let ok = eval0(
@@ -265,7 +265,7 @@ unsafe fn call_function_impl(
             return rv;
         }
 
-        let mut vim_args: [typval_T; MAX_FUNC_ARGS + 1] = std::mem::zeroed();
+        let mut vim_args: [typval_T; MAX_FUNC_ARGS + 1] = [typval_T::new(); MAX_FUNC_ARGS + 1];
         let mut i = 0usize;
         while i < args.size {
             object_to_vim(*args.items.add(i), &mut vim_args[i], err);
@@ -280,7 +280,7 @@ unsafe fn call_function_impl(
         }
         CALL_FUNC_RECURSIVE += 1;
 
-        let mut rettv: typval_T = std::mem::zeroed();
+        let mut rettv: typval_T = typval_T::new();
         let lnum = (*curwin).w_cursor.lnum;
         let mut funcexe = funcexe_T {
             fe_argv_func: None,
@@ -367,7 +367,7 @@ pub unsafe extern "C" fn nvim_call_dict_function(
 ) -> Object {
     unsafe {
         let mut rv = nil_obj();
-        let mut rettv: typval_T = std::mem::zeroed();
+        let mut rettv: typval_T = typval_T::new();
         let mut mustfree = false;
 
         match dict.obj_type {

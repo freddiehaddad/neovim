@@ -774,7 +774,7 @@ unsafe fn do_path_expand(
                             STARDEPTH -= 1;
                         }
                     } else {
-                        let mut file_info: FileInfo = std::mem::zeroed();
+                        let mut file_info: FileInfo = FileInfo::new();
                         if *path_end != NUL {
                             backslash_halve(buf.add(len + 1));
                         }
@@ -1469,7 +1469,7 @@ pub unsafe fn path_to_slash_save(p: *const c_char) -> *mut c_char {
 
 pub unsafe fn addfile(gap: &mut Vec<*mut c_char>, f: *mut c_char, flags: c_int) {
     unsafe {
-        let mut file_info: FileInfo = std::mem::zeroed();
+        let mut file_info: FileInfo = FileInfo::new();
 
         if (flags & EW_NOTFOUND) == 0
             && if (flags & EW_ALLLINKS) != 0 {
@@ -1576,7 +1576,7 @@ pub unsafe fn simplify_filename(filename: *mut c_char) -> usize {
                     if !stripping_disabled {
                         let saved_char = *p.sub(1);
                         *p.sub(1) = NUL;
-                        let mut file_info: FileInfo = std::mem::zeroed();
+                        let mut file_info: FileInfo = FileInfo::new();
                         if !os_fileinfo_link(filename, &mut file_info) {
                             do_strip = true;
                         }
@@ -1598,7 +1598,7 @@ pub unsafe fn simplify_filename(filename: *mut c_char) -> usize {
                             }
                             *tail = saved_char;
                             if do_strip {
-                                let mut new_file_info: FileInfo = std::mem::zeroed();
+                                let mut new_file_info: FileInfo = FileInfo::new();
                                 if p == start && relative {
                                     os_fileinfo(c".".as_ptr(), &mut new_file_info);
                                 } else {
@@ -1786,7 +1786,7 @@ pub unsafe fn fix_fname(fname: *const c_char) -> *mut c_char {
 
 pub unsafe fn path_fix_case(name: *mut c_char) {
     unsafe {
-        let mut file_info: FileInfo = std::mem::zeroed();
+        let mut file_info: FileInfo = FileInfo::new();
         if !os_fileinfo_link(name, &mut file_info) {
             return;
         }
@@ -1824,7 +1824,7 @@ pub unsafe fn path_fix_case(name: *mut c_char) {
                     entry,
                     MAXPATHL - tail_off + 1,
                 );
-                let mut file_info_new: FileInfo = std::mem::zeroed();
+                let mut file_info_new: FileInfo = FileInfo::new();
                 if os_fileinfo_link(newname.as_ptr(), &mut file_info_new)
                     && os_fileinfo_id_equal(&file_info, &file_info_new)
                 {

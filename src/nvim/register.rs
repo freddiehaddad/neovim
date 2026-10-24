@@ -589,7 +589,7 @@ pub unsafe fn do_record(c: c_int) -> c_int {
                 );
             }
         } else {
-            let mut save_v_event: save_v_event_T = std::mem::zeroed();
+            let mut save_v_event: save_v_event_T = save_v_event_T::new();
             let dict = get_v_event(&raw mut save_v_event);
 
             let p = get_recorded();
@@ -1382,7 +1382,7 @@ pub unsafe fn do_autocmd_textyankpost(oap: *mut oparg_T, reg: *mut yankreg_T) {
 
         textyankpost_recursive = true;
 
-        let mut save_v_event: save_v_event_T = std::mem::zeroed();
+        let mut save_v_event: save_v_event_T = save_v_event_T::new();
         let dict = get_v_event(&raw mut save_v_event);
 
         let reg_ref = &*reg;
@@ -1458,7 +1458,7 @@ unsafe fn put_do_autocmd(
             return;
         }
 
-        let mut save_v_event: save_v_event_T = std::mem::zeroed();
+        let mut save_v_event: save_v_event_T = save_v_event_T::new();
         let v_event = get_v_event(&raw mut save_v_event);
 
         let list = tv_list_alloc(if !reg.is_null() {
