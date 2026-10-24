@@ -11395,7 +11395,7 @@ unsafe fn ex_undo(eap: *mut exarg_T) {
             };
             let mut count: c_int = 0;
             while !uhp.is_null() && (*uhp).uh_seq > step {
-                uhp = (*uhp).uh_next.ptr;
+                uhp = (*uhp).uh_next;
                 count += 1;
             }
             if step != 0 && (uhp.is_null() || (*uhp).uh_seq < step) {

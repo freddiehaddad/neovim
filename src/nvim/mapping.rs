@@ -47,7 +47,7 @@ use crate::mbyte::{
     mb_prevptr, mb_unescape, utf_char2bytes, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
 };
 use crate::memory::{
-    Arena, arena_alloc, arena_finish, arena_mem_free, xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz,
+    Arena, arena_alloc, arena_finish, arena_mem_free, xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz,
     xstrdup, xstrlcpy,
 };
 use crate::message::{
@@ -493,17 +493,12 @@ unsafe fn set_maparg_rhs(
 
         if rhs_lua == LUA_NOREF {
             mapargs.orig_rhs_len = orig_rhs_len;
-            mapargs.orig_rhs = xcalloc(mapargs.orig_rhs_len + 1, 1).cast::<c_char>();
-            xmemcpyz(
-                mapargs.orig_rhs.cast::<c_void>(),
-                orig_rhs.cast::<c_void>(),
-                mapargs.orig_rhs_len,
-            );
+            mapargs.orig_rhs = xmemdupz(orig_rhs.cast::<c_void>(), mapargs.orig_rhs_len).cast();
             if CStr::from_ptr(orig_rhs)
                 .to_bytes()
                 .eq_ignore_ascii_case(b"<nop>")
             {
-                mapargs.rhs = xcalloc(1, 1).cast::<c_char>();
+                mapargs.rhs = xmallocz(0).cast::<c_char>();
                 mapargs.rhs_len = 0;
                 mapargs.rhs_is_noop = true;
             } else {
@@ -523,7 +518,7 @@ unsafe fn set_maparg_rhs(
             }
         } else {
             let mut tmp_buf = [0 as c_char; 64];
-            mapargs.orig_rhs = xcalloc(1, 1).cast::<c_char>();
+            mapargs.orig_rhs = xmallocz(0).cast::<c_char>();
             mapargs.orig_rhs_len = 0;
             map_luaid += 1;
             mapargs.rhs_len = vim_snprintf!(

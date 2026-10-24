@@ -1,10 +1,9 @@
 //! Handling of a hashtable with Vim-specific properties (`src/nvim/hashtab.c`).
 
 use crate::message::siemsg;
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 
 use crate::math::{FAIL, OK};
-use crate::memory::{xcalloc, xfree};
 
 pub type hash_T = usize;
 
@@ -89,18 +88,30 @@ pub unsafe fn hash_init(ht: *mut hashtab_T) {
     }
 }
 
+#[inline]
+fn alloc_hasharray(size: usize) -> *mut hashitem_T {
+    Box::into_raw(vec![hashitem_T::default(); size].into_boxed_slice()).cast::<hashitem_T>()
+}
+
+#[inline]
+unsafe fn free_hasharray(ptr: *mut hashitem_T, size: usize) {
+    if !ptr.is_null() && !std::ptr::eq(ptr, empty_hasharray_ptr()) {
+        unsafe {
+            drop(Box::from_raw(std::ptr::slice_from_raw_parts_mut(ptr, size)));
+        }
+    }
+}
+
 /// Free the array of a hash table without freeing contained values (`hash_clear`).
 ///
 /// # Safety
 /// `ht` must be a valid writable pointer to an initialized `hashtab_T`.
 pub unsafe fn hash_clear(ht: *mut hashtab_T) {
     let ht_ref = unsafe { &mut *ht };
-    if !ht_ref.ht_array.is_null() && !std::ptr::eq(ht_ref.ht_array, empty_hasharray_ptr()) {
-        unsafe {
-            xfree(ht_ref.ht_array.cast::<c_void>());
-        }
-        ht_ref.ht_array = empty_hasharray_ptr();
+    unsafe {
+        free_hasharray(ht_ref.ht_array, ht_ref.ht_mask + 1);
     }
+    ht_ref.ht_array = empty_hasharray_ptr();
 }
 
 /// Find item for NUL-terminated `key` in `ht` (`hash_find`).
@@ -220,9 +231,7 @@ pub unsafe fn hash_add_item(
     let ht_ref = unsafe { &mut *ht };
     if std::ptr::eq(ht_ref.ht_array, empty_hasharray_ptr()) {
         let offset = unsafe { hi.offset_from(ht_ref.ht_array) as usize };
-        ht_ref.ht_array = unsafe {
-            xcalloc(HT_INIT_SIZE, std::mem::size_of::<hashitem_T>()).cast::<hashitem_T>()
-        };
+        ht_ref.ht_array = alloc_hasharray(HT_INIT_SIZE);
         hi = unsafe { ht_ref.ht_array.add(offset) };
     }
     let hi_ref = unsafe { &mut *hi };
@@ -317,12 +326,10 @@ unsafe fn hash_may_resize(ht: &mut hashtab_T, mut minitems: usize) {
     }
 
     if ht.ht_used == 0 && newarray_is_small {
-        if !std::ptr::eq(ht.ht_array, empty_hasharray_ptr()) {
-            unsafe {
-                xfree(ht.ht_array.cast::<c_void>());
-            }
-            ht.ht_array = empty_hasharray_ptr();
+        unsafe {
+            free_hasharray(ht.ht_array, oldsize);
         }
+        ht.ht_array = empty_hasharray_ptr();
         ht.ht_mask = HT_INIT_SIZE - 1;
         ht.ht_filled = 0;
         ht.ht_changed += 1;
@@ -330,8 +337,7 @@ unsafe fn hash_may_resize(ht: &mut hashtab_T, mut minitems: usize) {
     }
 
     let oldarray = ht.ht_array;
-    let newarray: *mut hashitem_T =
-        unsafe { xcalloc(newsize, std::mem::size_of::<hashitem_T>()).cast::<hashitem_T>() };
+    let newarray = alloc_hasharray(newsize);
 
     let newmask = newsize - 1;
     let mut todo = ht.ht_used;
@@ -361,10 +367,8 @@ unsafe fn hash_may_resize(ht: &mut hashtab_T, mut minitems: usize) {
         olditem = unsafe { olditem.add(1) };
     }
 
-    if !std::ptr::eq(oldarray, empty_hasharray_ptr()) {
-        unsafe {
-            xfree(oldarray.cast::<c_void>());
-        }
+    unsafe {
+        free_hasharray(oldarray, oldsize);
     }
     ht.ht_array = newarray;
     ht.ht_mask = newmask;

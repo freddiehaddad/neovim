@@ -119,18 +119,11 @@ pub struct u_entry_T {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
-pub union u_header_link_T {
-    pub ptr: *mut u_header_T,
-    pub seq: c_int,
-}
-
-#[repr(C)]
 pub struct u_header_T {
-    pub uh_next: u_header_link_T,
-    pub uh_prev: u_header_link_T,
-    pub uh_alt_next: u_header_link_T,
-    pub uh_alt_prev: u_header_link_T,
+    pub uh_next: *mut u_header_T,
+    pub uh_prev: *mut u_header_T,
+    pub uh_alt_next: *mut u_header_T,
+    pub uh_alt_prev: *mut u_header_T,
     pub uh_seq: c_int,
     pub uh_walk: c_int,
     pub uh_entry: *mut u_entry_T,
@@ -150,18 +143,10 @@ impl u_header_T {
     unsafe fn alloc() -> *mut Self {
         unsafe {
             Box::into_raw(Box::new(Self {
-                uh_next: u_header_link_T {
-                    ptr: ptr::null_mut(),
-                },
-                uh_prev: u_header_link_T {
-                    ptr: ptr::null_mut(),
-                },
-                uh_alt_next: u_header_link_T {
-                    ptr: ptr::null_mut(),
-                },
-                uh_alt_prev: u_header_link_T {
-                    ptr: ptr::null_mut(),
-                },
+                uh_next: ptr::null_mut(),
+                uh_prev: ptr::null_mut(),
+                uh_alt_next: ptr::null_mut(),
+                uh_alt_prev: ptr::null_mut(),
                 uh_seq: 0,
                 uh_walk: 0,
                 uh_entry: ptr::null_mut(),
@@ -346,7 +331,7 @@ pub unsafe fn u_savecommon(
 
             let mut old_curhead = (*buf).b_u_curhead;
             if !old_curhead.is_null() {
-                (*buf).b_u_newhead = (*old_curhead).uh_next.ptr;
+                (*buf).b_u_newhead = (*old_curhead).uh_next;
                 (*buf).b_u_curhead = ptr::null_mut();
             }
 
@@ -357,11 +342,11 @@ pub unsafe fn u_savecommon(
 
                 if uhfree == old_curhead {
                     u_freebranch(buf, uhfree, &raw mut old_curhead);
-                } else if (*uhfree).uh_alt_next.ptr.is_null() {
+                } else if (*uhfree).uh_alt_next.is_null() {
                     u_freeheader(buf, uhfree, &raw mut old_curhead);
                 } else {
-                    while !(*uhfree).uh_alt_next.ptr.is_null() {
-                        uhfree = (*uhfree).uh_alt_next.ptr;
+                    while !(*uhfree).uh_alt_next.is_null() {
+                        uhfree = (*uhfree).uh_alt_next;
                     }
                     u_freebranch(buf, uhfree, &raw mut old_curhead);
                 }
@@ -375,24 +360,24 @@ pub unsafe fn u_savecommon(
                 return OK;
             }
 
-            (*uhp).uh_prev.ptr = ptr::null_mut();
-            (*uhp).uh_next.ptr = (*buf).b_u_newhead;
-            (*uhp).uh_alt_next.ptr = old_curhead;
+            (*uhp).uh_prev = ptr::null_mut();
+            (*uhp).uh_next = (*buf).b_u_newhead;
+            (*uhp).uh_alt_next = old_curhead;
             if !old_curhead.is_null() {
-                (*uhp).uh_alt_prev.ptr = (*old_curhead).uh_alt_prev.ptr;
-                if !(*uhp).uh_alt_prev.ptr.is_null() {
-                    (*(*uhp).uh_alt_prev.ptr).uh_alt_next.ptr = uhp;
+                (*uhp).uh_alt_prev = (*old_curhead).uh_alt_prev;
+                if !(*uhp).uh_alt_prev.is_null() {
+                    (*(*uhp).uh_alt_prev).uh_alt_next = uhp;
                 }
-                (*old_curhead).uh_alt_prev.ptr = uhp;
+                (*old_curhead).uh_alt_prev = uhp;
                 if (*buf).b_u_oldhead == old_curhead {
                     (*buf).b_u_oldhead = uhp;
                 }
             } else {
-                (*uhp).uh_alt_prev.ptr = ptr::null_mut();
+                (*uhp).uh_alt_prev = ptr::null_mut();
             }
 
             if !(*buf).b_u_newhead.is_null() {
-                (*(*buf).b_u_newhead).uh_prev.ptr = uhp;
+                (*(*buf).b_u_newhead).uh_prev = uhp;
             }
 
             (*buf).b_u_seq_last += 1;
@@ -741,10 +726,10 @@ unsafe fn serialize_uhp(bi: &mut bufinfo_T, uhp: *mut u_header_T) -> bool {
             return false;
         }
 
-        put_header_ptr(bi, (*uhp).uh_next.ptr);
-        put_header_ptr(bi, (*uhp).uh_prev.ptr);
-        put_header_ptr(bi, (*uhp).uh_alt_next.ptr);
-        put_header_ptr(bi, (*uhp).uh_alt_prev.ptr);
+        put_header_ptr(bi, (*uhp).uh_next);
+        put_header_ptr(bi, (*uhp).uh_prev);
+        put_header_ptr(bi, (*uhp).uh_alt_next);
+        put_header_ptr(bi, (*uhp).uh_alt_prev);
         undo_write_bytes(bi, (*uhp).uh_seq as u64, 4);
         serialize_pos(bi, (*uhp).uh_cursor);
         undo_write_bytes(bi, (*uhp).uh_cursor_vcol as u64, 4);
@@ -784,18 +769,23 @@ unsafe fn serialize_uhp(bi: &mut bufinfo_T, uhp: *mut u_header_T) -> bool {
     }
 }
 
-unsafe fn unserialize_uhp(bi: &mut bufinfo_T, file_name: *const c_char) -> *mut u_header_T {
+unsafe fn unserialize_uhp(
+    bi: &mut bufinfo_T,
+    file_name: *const c_char,
+) -> (*mut u_header_T, [c_int; 4]) {
     unsafe {
         let uhp = u_header_T::alloc();
-        (*uhp).uh_next.seq = undo_read_4c(bi);
-        (*uhp).uh_prev.seq = undo_read_4c(bi);
-        (*uhp).uh_alt_next.seq = undo_read_4c(bi);
-        (*uhp).uh_alt_prev.seq = undo_read_4c(bi);
+        let seqs = [
+            undo_read_4c(bi),
+            undo_read_4c(bi),
+            undo_read_4c(bi),
+            undo_read_4c(bi),
+        ];
         (*uhp).uh_seq = undo_read_4c(bi);
         if (*uhp).uh_seq <= 0 {
             corruption_error(c"uh_seq".as_ptr(), file_name);
             drop(Box::from_raw(uhp));
-            return ptr::null_mut();
+            return (ptr::null_mut(), [0; 4]);
         }
         unserialize_pos(bi, &raw mut (*uhp).uh_cursor);
         (*uhp).uh_cursor_vcol = undo_read_4c(bi);
@@ -814,7 +804,7 @@ unsafe fn unserialize_uhp(bi: &mut bufinfo_T, file_name: *const c_char) -> *mut 
             if len == EOF {
                 corruption_error(c"truncated".as_ptr(), file_name);
                 u_free_uhp(uhp);
-                return ptr::null_mut();
+                return (ptr::null_mut(), [0; 4]);
             }
             if len == 0 {
                 break;
@@ -848,21 +838,21 @@ unsafe fn unserialize_uhp(bi: &mut bufinfo_T, file_name: *const c_char) -> *mut 
             last_uep = uep;
             if error {
                 u_free_uhp(uhp);
-                return ptr::null_mut();
+                return (ptr::null_mut(), [0; 4]);
             }
             c = undo_read_2c(bi);
         }
         if c != UF_ENTRY_END_MAGIC {
             corruption_error(c"entry end".as_ptr(), file_name);
             u_free_uhp(uhp);
-            return ptr::null_mut();
+            return (ptr::null_mut(), [0; 4]);
         }
 
         c = undo_read_2c(bi);
         while c == UF_ENTRY_MAGIC {
             let Some(extup) = unserialize_extmark(bi, file_name) else {
                 u_free_uhp(uhp);
-                return ptr::null_mut();
+                return (ptr::null_mut(), [0; 4]);
             };
             (*uhp).uh_extmark.push(extup);
             c = undo_read_2c(bi);
@@ -870,10 +860,10 @@ unsafe fn unserialize_uhp(bi: &mut bufinfo_T, file_name: *const c_char) -> *mut 
         if c != UF_ENTRY_END_MAGIC {
             corruption_error(c"entry end".as_ptr(), file_name);
             u_free_uhp(uhp);
-            return ptr::null_mut();
+            return (ptr::null_mut(), [0; 4]);
         }
 
-        uhp
+        (uhp, seqs)
     }
 }
 
@@ -1195,21 +1185,20 @@ pub unsafe fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, 
                         }
                     }
 
-                    if !(*uhp).uh_prev.ptr.is_null() && (*(*uhp).uh_prev.ptr).uh_walk != mark {
-                        uhp = (*uhp).uh_prev.ptr;
-                    } else if !(*uhp).uh_alt_next.ptr.is_null()
-                        && (*(*uhp).uh_alt_next.ptr).uh_walk != mark
+                    if !(*uhp).uh_prev.is_null() && (*(*uhp).uh_prev).uh_walk != mark {
+                        uhp = (*uhp).uh_prev;
+                    } else if !(*uhp).uh_alt_next.is_null() && (*(*uhp).uh_alt_next).uh_walk != mark
                     {
-                        uhp = (*uhp).uh_alt_next.ptr;
-                    } else if !(*uhp).uh_next.ptr.is_null()
-                        && (*uhp).uh_alt_prev.ptr.is_null()
-                        && (*(*uhp).uh_next.ptr).uh_walk != mark
+                        uhp = (*uhp).uh_alt_next;
+                    } else if !(*uhp).uh_next.is_null()
+                        && (*uhp).uh_alt_prev.is_null()
+                        && (*(*uhp).uh_next).uh_walk != mark
                     {
-                        uhp = (*uhp).uh_next.ptr;
-                    } else if !(*uhp).uh_alt_prev.ptr.is_null() {
-                        uhp = (*uhp).uh_alt_prev.ptr;
+                        uhp = (*uhp).uh_next;
+                    } else if !(*uhp).uh_alt_prev.is_null() {
+                        uhp = (*uhp).uh_alt_prev;
                     } else {
-                        uhp = (*uhp).uh_next.ptr;
+                        uhp = (*uhp).uh_next;
                     }
                 }
 
@@ -1245,7 +1234,7 @@ pub unsafe fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, 
     }
 }
 
-unsafe fn uhp_seq_cmp(&u1: &*mut u_header_T, &u2: &*mut u_header_T) -> c_int {
+unsafe fn uhp_seq_cmp(&(u1, _): &(*mut u_header_T, [c_int; 4]), &(u2, _): &(*mut u_header_T, [c_int; 4])) -> c_int {
     unsafe {
         if (*u1).uh_seq == (*u2).uh_seq {
             0
@@ -1257,14 +1246,14 @@ unsafe fn uhp_seq_cmp(&u1: &*mut u_header_T, &u2: &*mut u_header_T) -> c_int {
     }
 }
 
-unsafe fn uhp_table_find(uhp_table: &[*mut u_header_T], seq: c_int) -> c_int {
+unsafe fn uhp_table_find(uhp_table: &[(*mut u_header_T, [c_int; 4])], seq: c_int) -> c_int {
     unsafe {
         let mut lo: c_int = 0;
         let mut hi: c_int = uhp_table.len() as c_int - 1;
 
         while lo <= hi {
             let mid = lo + (hi - lo) / 2;
-            let mid_seq = (*uhp_table[mid as usize]).uh_seq;
+            let mid_seq = (*uhp_table[mid as usize].0).uh_seq;
             if mid_seq < seq {
                 lo = mid + 1;
             } else if mid_seq > seq {
@@ -1282,7 +1271,7 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
     unsafe {
         #[cfg(not(unix))]
         let _ = orig_name;
-        let mut uhp_table: Vec<*mut u_header_T> = Vec::new();
+        let mut uhp_table: Vec<(*mut u_header_T, [c_int; 4])> = Vec::new();
         let mut line_ptr: *mut c_char = ptr::null_mut();
         let mut num_read_uhps: c_int = 0;
 
@@ -1448,7 +1437,7 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                 }
 
                 if num_head > 0 {
-                    uhp_table = vec![ptr::null_mut(); num_head as usize];
+                    uhp_table = vec![(ptr::null_mut(), [0; 4]); num_head as usize];
                 }
 
                 let mut c = undo_read_2c(&mut bi);
@@ -1458,11 +1447,11 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                         break 'error;
                     }
 
-                    let uhp = unserialize_uhp(&mut bi, file_name);
+                    let (uhp, seqs) = unserialize_uhp(&mut bi, file_name);
                     if uhp.is_null() {
                         break 'error;
                     }
-                    uhp_table[num_read_uhps as usize] = uhp;
+                    uhp_table[num_read_uhps as usize] = (uhp, seqs);
                     num_read_uhps += 1;
                     c = undo_read_2c(&mut bi);
                 }
@@ -1481,7 +1470,7 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                 }
 
                 for i in 0..(num_head - 1) {
-                    if (*uhp_table[i as usize]).uh_seq == (*uhp_table[(i + 1) as usize]).uh_seq {
+                    if (*uhp_table[i as usize].0).uh_seq == (*uhp_table[(i + 1) as usize].0).uh_seq {
                         corruption_error(c"duplicate uh_seq".as_ptr(), file_name);
                         break 'error;
                     }
@@ -1491,32 +1480,33 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                 let mut new_idx: c_int = -1;
                 let mut cur_idx: c_int = -1;
                 for i in 0..num_head {
-                    let uhp = uhp_table[i as usize];
+                    let (uhp, [next_seq, prev_seq, alt_next_seq, alt_prev_seq]) =
+                        uhp_table[i as usize];
 
-                    let fidx_next = uhp_table_find(&uhp_table, (*uhp).uh_next.seq);
-                    (*uhp).uh_next.ptr = if fidx_next >= 0 && fidx_next != i {
-                        uhp_table[fidx_next as usize]
+                    let fidx_next = uhp_table_find(&uhp_table, next_seq);
+                    (*uhp).uh_next = if fidx_next >= 0 && fidx_next != i {
+                        uhp_table[fidx_next as usize].0
                     } else {
                         ptr::null_mut()
                     };
 
-                    let fidx_prev = uhp_table_find(&uhp_table, (*uhp).uh_prev.seq);
-                    (*uhp).uh_prev.ptr = if fidx_prev >= 0 && fidx_prev != i {
-                        uhp_table[fidx_prev as usize]
+                    let fidx_prev = uhp_table_find(&uhp_table, prev_seq);
+                    (*uhp).uh_prev = if fidx_prev >= 0 && fidx_prev != i {
+                        uhp_table[fidx_prev as usize].0
                     } else {
                         ptr::null_mut()
                     };
 
-                    let fidx_anext = uhp_table_find(&uhp_table, (*uhp).uh_alt_next.seq);
-                    (*uhp).uh_alt_next.ptr = if fidx_anext >= 0 && fidx_anext != i {
-                        uhp_table[fidx_anext as usize]
+                    let fidx_anext = uhp_table_find(&uhp_table, alt_next_seq);
+                    (*uhp).uh_alt_next = if fidx_anext >= 0 && fidx_anext != i {
+                        uhp_table[fidx_anext as usize].0
                     } else {
                         ptr::null_mut()
                     };
 
-                    let fidx_aprev = uhp_table_find(&uhp_table, (*uhp).uh_alt_prev.seq);
-                    (*uhp).uh_alt_prev.ptr = if fidx_aprev >= 0 && fidx_aprev != i {
-                        uhp_table[fidx_aprev as usize]
+                    let fidx_aprev = uhp_table_find(&uhp_table, alt_prev_seq);
+                    (*uhp).uh_alt_prev = if fidx_aprev >= 0 && fidx_aprev != i {
+                        uhp_table[fidx_aprev as usize].0
                     } else {
                         ptr::null_mut()
                     };
@@ -1536,17 +1526,17 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                 (*curbuf).b_u_oldhead = if old_idx < 0 {
                     ptr::null_mut()
                 } else {
-                    uhp_table[old_idx as usize]
+                    uhp_table[old_idx as usize].0
                 };
                 (*curbuf).b_u_newhead = if new_idx < 0 {
                     ptr::null_mut()
                 } else {
-                    uhp_table[new_idx as usize]
+                    uhp_table[new_idx as usize].0
                 };
                 (*curbuf).b_u_curhead = if cur_idx < 0 {
                     ptr::null_mut()
                 } else {
-                    uhp_table[cur_idx as usize]
+                    uhp_table[cur_idx as usize].0
                 };
                 (*curbuf).b_u_line_ptr = line_ptr;
                 (*curbuf).b_u_line_lnum = line_lnum;
@@ -1571,7 +1561,7 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
             }
 
             xfree(line_ptr.cast());
-            for &p in &uhp_table[..num_read_uhps as usize] {
+            for &(p, _) in &uhp_table[..num_read_uhps as usize] {
                 if !p.is_null() {
                     u_free_uhp(p);
                 }
@@ -1752,7 +1742,7 @@ unsafe fn u_doit(startcount: c_int, quiet: bool, do_buf_event: bool) {
                 if (*curbuf).b_u_curhead.is_null() {
                     (*curbuf).b_u_curhead = (*curbuf).b_u_newhead;
                 } else if get_undolevel(curbuf) > 0 {
-                    (*curbuf).b_u_curhead = (*(*curbuf).b_u_curhead).uh_next.ptr;
+                    (*curbuf).b_u_curhead = (*(*curbuf).b_u_curhead).uh_next;
                 }
                 if (*curbuf).b_u_numhead == 0 || (*curbuf).b_u_curhead.is_null() {
                     (*curbuf).b_u_curhead = (*curbuf).b_u_oldhead;
@@ -1782,10 +1772,10 @@ unsafe fn u_doit(startcount: c_int, quiet: bool, do_buf_event: bool) {
                 u_undoredo(false, do_buf_event);
 
                 let curhead = (*curbuf).b_u_curhead;
-                if (*curhead).uh_prev.ptr.is_null() {
+                if (*curhead).uh_prev.is_null() {
                     (*curbuf).b_u_newhead = curhead;
                 }
-                (*curbuf).b_u_curhead = (*curhead).uh_prev.ptr;
+                (*curbuf).b_u_curhead = (*curhead).uh_prev;
             }
         }
         u_undo_end(undo_undoes, false, quiet);
@@ -1829,7 +1819,7 @@ pub unsafe fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
                 if step < 0 {
                     uhp = (*curbuf).b_u_curhead.cast::<u_header_T>();
                     if !uhp.is_null() {
-                        uhp = (*uhp).uh_next.ptr;
+                        uhp = (*uhp).uh_next;
                     } else {
                         uhp = (*curbuf).b_u_newhead.cast::<u_header_T>();
                     }
@@ -1932,31 +1922,31 @@ pub unsafe fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
                         break;
                     }
 
-                    if !(*uhp).uh_prev.ptr.is_null()
-                        && (*(*uhp).uh_prev.ptr).uh_walk != nomark
-                        && (*(*uhp).uh_prev.ptr).uh_walk != mark
+                    if !(*uhp).uh_prev.is_null()
+                        && (*(*uhp).uh_prev).uh_walk != nomark
+                        && (*(*uhp).uh_prev).uh_walk != mark
                     {
-                        uhp = (*uhp).uh_prev.ptr;
-                    } else if !(*uhp).uh_alt_next.ptr.is_null()
-                        && (*(*uhp).uh_alt_next.ptr).uh_walk != nomark
-                        && (*(*uhp).uh_alt_next.ptr).uh_walk != mark
+                        uhp = (*uhp).uh_prev;
+                    } else if !(*uhp).uh_alt_next.is_null()
+                        && (*(*uhp).uh_alt_next).uh_walk != nomark
+                        && (*(*uhp).uh_alt_next).uh_walk != mark
                     {
-                        uhp = (*uhp).uh_alt_next.ptr;
-                    } else if !(*uhp).uh_next.ptr.is_null()
-                        && (*uhp).uh_alt_prev.ptr.is_null()
-                        && (*(*uhp).uh_next.ptr).uh_walk != nomark
-                        && (*(*uhp).uh_next.ptr).uh_walk != mark
+                        uhp = (*uhp).uh_alt_next;
+                    } else if !(*uhp).uh_next.is_null()
+                        && (*uhp).uh_alt_prev.is_null()
+                        && (*(*uhp).uh_next).uh_walk != nomark
+                        && (*(*uhp).uh_next).uh_walk != mark
                     {
                         if uhp == (*curbuf).b_u_curhead.cast::<u_header_T>() {
                             (*uhp).uh_walk = nomark;
                         }
-                        uhp = (*uhp).uh_next.ptr;
+                        uhp = (*uhp).uh_next;
                     } else {
                         (*uhp).uh_walk = nomark;
-                        if !(*uhp).uh_alt_prev.ptr.is_null() {
-                            uhp = (*uhp).uh_alt_prev.ptr;
+                        if !(*uhp).uh_alt_prev.is_null() {
+                            uhp = (*uhp).uh_alt_prev;
                         } else {
-                            uhp = (*uhp).uh_next.ptr;
+                            uhp = (*uhp).uh_next;
                         }
                     }
                 }
@@ -2001,7 +1991,7 @@ pub unsafe fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
                 if uhp.is_null() {
                     uhp = (*curbuf).b_u_newhead.cast::<u_header_T>();
                 } else {
-                    uhp = (*uhp).uh_next.ptr;
+                    uhp = (*uhp).uh_next;
                 }
                 if uhp.is_null()
                     || (target > 0 && (*uhp).uh_walk != mark)
@@ -2025,36 +2015,32 @@ pub unsafe fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
                         break;
                     }
 
-                    while !(*uhp).uh_alt_prev.ptr.is_null()
-                        && (*(*uhp).uh_alt_prev.ptr).uh_walk == mark
-                    {
-                        uhp = (*uhp).uh_alt_prev.ptr;
+                    while !(*uhp).uh_alt_prev.is_null() && (*(*uhp).uh_alt_prev).uh_walk == mark {
+                        uhp = (*uhp).uh_alt_prev;
                     }
 
                     let mut last = uhp;
-                    while !(*last).uh_alt_next.ptr.is_null()
-                        && (*(*last).uh_alt_next.ptr).uh_walk == mark
-                    {
-                        last = (*last).uh_alt_next.ptr;
+                    while !(*last).uh_alt_next.is_null() && (*(*last).uh_alt_next).uh_walk == mark {
+                        last = (*last).uh_alt_next;
                     }
                     if last != uhp {
-                        while !(*uhp).uh_alt_prev.ptr.is_null() {
-                            uhp = (*uhp).uh_alt_prev.ptr;
+                        while !(*uhp).uh_alt_prev.is_null() {
+                            uhp = (*uhp).uh_alt_prev;
                         }
-                        if !(*last).uh_alt_next.ptr.is_null() {
-                            (*(*last).uh_alt_next.ptr).uh_alt_prev.ptr = (*last).uh_alt_prev.ptr;
+                        if !(*last).uh_alt_next.is_null() {
+                            (*(*last).uh_alt_next).uh_alt_prev = (*last).uh_alt_prev;
                         }
-                        (*(*last).uh_alt_prev.ptr).uh_alt_next.ptr = (*last).uh_alt_next.ptr;
-                        (*last).uh_alt_prev.ptr = ptr::null_mut();
-                        (*last).uh_alt_next.ptr = uhp;
-                        (*uhp).uh_alt_prev.ptr = last;
+                        (*(*last).uh_alt_prev).uh_alt_next = (*last).uh_alt_next;
+                        (*last).uh_alt_prev = ptr::null_mut();
+                        (*last).uh_alt_next = uhp;
+                        (*uhp).uh_alt_prev = last;
 
                         if (*curbuf).b_u_oldhead.cast::<u_header_T>() == uhp {
                             (*curbuf).b_u_oldhead = last.cast();
                         }
                         uhp = last;
-                        if !(*uhp).uh_next.ptr.is_null() {
-                            (*(*uhp).uh_next.ptr).uh_prev.ptr = uhp;
+                        if !(*uhp).uh_next.is_null() {
+                            (*(*uhp).uh_next).uh_prev = uhp;
                         }
                     }
                     (*curbuf).b_u_curhead = uhp.cast();
@@ -2070,17 +2056,17 @@ pub unsafe fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
 
                     u_undoredo(false, true);
 
-                    if (*uhp).uh_prev.ptr.is_null() {
+                    if (*uhp).uh_prev.is_null() {
                         (*curbuf).b_u_newhead = uhp.cast();
                     }
-                    (*curbuf).b_u_curhead = (*uhp).uh_prev.ptr.cast();
+                    (*curbuf).b_u_curhead = (*uhp).uh_prev.cast();
                     did_undo = false;
 
                     if (*uhp).uh_seq == target {
                         break;
                     }
 
-                    uhp = (*uhp).uh_prev.ptr;
+                    uhp = (*uhp).uh_prev;
                     if uhp.is_null() || (*uhp).uh_walk != mark {
                         internal_error(c"undo_time()".as_ptr());
                         break;
@@ -2336,8 +2322,8 @@ unsafe fn u_undoredo(undo: bool, do_buf_event: bool) {
 
         (*curbuf).b_u_seq_cur = (*curhead).uh_seq;
         if undo {
-            (*curbuf).b_u_seq_cur = if !(*curhead).uh_next.ptr.is_null() {
-                (*(*curhead).uh_next.ptr).uh_seq
+            (*curbuf).b_u_seq_cur = if !(*curhead).uh_next.is_null() {
+                (*(*curhead).uh_next).uh_seq
             } else {
                 0
             };
@@ -2391,13 +2377,13 @@ unsafe fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
 
         let curhead = (*curbuf).b_u_curhead.cast::<u_header_T>();
         let uhp = if !curhead.is_null() {
-            if absolute && !(*curhead).uh_next.ptr.is_null() {
+            if absolute && !(*curhead).uh_next.is_null() {
                 did_undo = false;
-                (*curhead).uh_next.ptr
+                (*curhead).uh_next
             } else if did_undo {
                 curhead
             } else {
-                (*curhead).uh_next.ptr
+                (*curhead).uh_next
             }
         } else {
             (*curbuf).b_u_newhead.cast::<u_header_T>()
@@ -2510,7 +2496,7 @@ pub unsafe fn ex_undolist(_eap: *mut exarg_T) {
         let iobuf_ptr = (&raw mut IObuff).cast::<c_char>();
         let mut uhp = (*curbuf).b_u_oldhead.cast::<u_header_T>();
         while !uhp.is_null() {
-            if (*uhp).uh_prev.ptr.is_null() && (*uhp).uh_walk != nomark && (*uhp).uh_walk != mark {
+            if (*uhp).uh_prev.is_null() && (*uhp).uh_walk != nomark && (*uhp).uh_walk != mark {
                 vim_snprintf!(
                     iobuf_ptr,
                     IOSIZE,
@@ -2531,30 +2517,30 @@ pub unsafe fn ex_undolist(_eap: *mut exarg_T) {
 
             (*uhp).uh_walk = mark;
 
-            if !(*uhp).uh_prev.ptr.is_null()
-                && (*(*uhp).uh_prev.ptr).uh_walk != nomark
-                && (*(*uhp).uh_prev.ptr).uh_walk != mark
+            if !(*uhp).uh_prev.is_null()
+                && (*(*uhp).uh_prev).uh_walk != nomark
+                && (*(*uhp).uh_prev).uh_walk != mark
             {
-                uhp = (*uhp).uh_prev.ptr;
+                uhp = (*uhp).uh_prev;
                 changes += 1;
-            } else if !(*uhp).uh_alt_next.ptr.is_null()
-                && (*(*uhp).uh_alt_next.ptr).uh_walk != nomark
-                && (*(*uhp).uh_alt_next.ptr).uh_walk != mark
+            } else if !(*uhp).uh_alt_next.is_null()
+                && (*(*uhp).uh_alt_next).uh_walk != nomark
+                && (*(*uhp).uh_alt_next).uh_walk != mark
             {
-                uhp = (*uhp).uh_alt_next.ptr;
-            } else if !(*uhp).uh_next.ptr.is_null()
-                && (*uhp).uh_alt_prev.ptr.is_null()
-                && (*(*uhp).uh_next.ptr).uh_walk != nomark
-                && (*(*uhp).uh_next.ptr).uh_walk != mark
+                uhp = (*uhp).uh_alt_next;
+            } else if !(*uhp).uh_next.is_null()
+                && (*uhp).uh_alt_prev.is_null()
+                && (*(*uhp).uh_next).uh_walk != nomark
+                && (*(*uhp).uh_next).uh_walk != mark
             {
-                uhp = (*uhp).uh_next.ptr;
+                uhp = (*uhp).uh_next;
                 changes -= 1;
             } else {
                 (*uhp).uh_walk = nomark;
-                if !(*uhp).uh_alt_prev.ptr.is_null() {
-                    uhp = (*uhp).uh_alt_prev.ptr;
+                if !(*uhp).uh_alt_prev.is_null() {
+                    uhp = (*uhp).uh_alt_prev;
                 } else {
-                    uhp = (*uhp).uh_next.ptr;
+                    uhp = (*uhp).uh_next;
                     changes -= 1;
                 }
             }
@@ -2657,7 +2643,7 @@ pub unsafe fn u_update_save_nr(buf: *mut buf_T) {
         (*buf).b_u_save_nr_cur = (*buf).b_u_save_nr_last;
         let mut uhp = (*buf).b_u_curhead;
         if !uhp.is_null() {
-            uhp = (*uhp).uh_next.ptr;
+            uhp = (*uhp).uh_next;
         } else {
             uhp = (*buf).b_u_newhead;
         }
@@ -2672,10 +2658,10 @@ unsafe fn u_unch_branch(uhp: *mut u_header_T) {
         let mut uh = uhp;
         while !uh.is_null() {
             (*uh).uh_flags |= UH_CHANGED;
-            if !(*uh).uh_alt_next.ptr.is_null() {
-                u_unch_branch((*uh).uh_alt_next.ptr);
+            if !(*uh).uh_alt_next.is_null() {
+                u_unch_branch((*uh).uh_alt_next);
             }
-            uh = (*uh).uh_prev.ptr;
+            uh = (*uh).uh_prev;
         }
     }
 }
@@ -2717,27 +2703,27 @@ unsafe fn u_getbot(buf: *mut buf_T) {
 
 unsafe fn u_freeheader(buf: *mut buf_T, uhp: *mut u_header_T, uhpp: *mut *mut u_header_T) {
     unsafe {
-        if !(*uhp).uh_alt_next.ptr.is_null() {
-            u_freebranch(buf, (*uhp).uh_alt_next.ptr, uhpp);
+        if !(*uhp).uh_alt_next.is_null() {
+            u_freebranch(buf, (*uhp).uh_alt_next, uhpp);
         }
 
-        if !(*uhp).uh_alt_prev.ptr.is_null() {
-            (*(*uhp).uh_alt_prev.ptr).uh_alt_next.ptr = ptr::null_mut();
+        if !(*uhp).uh_alt_prev.is_null() {
+            (*(*uhp).uh_alt_prev).uh_alt_next = ptr::null_mut();
         }
 
-        if (*uhp).uh_next.ptr.is_null() {
-            (*buf).b_u_oldhead = (*uhp).uh_prev.ptr;
+        if (*uhp).uh_next.is_null() {
+            (*buf).b_u_oldhead = (*uhp).uh_prev;
         } else {
-            (*(*uhp).uh_next.ptr).uh_prev.ptr = (*uhp).uh_prev.ptr;
+            (*(*uhp).uh_next).uh_prev = (*uhp).uh_prev;
         }
 
-        if (*uhp).uh_prev.ptr.is_null() {
-            (*buf).b_u_newhead = (*uhp).uh_next.ptr;
+        if (*uhp).uh_prev.is_null() {
+            (*buf).b_u_newhead = (*uhp).uh_next;
         } else {
-            let mut uhap = (*uhp).uh_prev.ptr;
+            let mut uhap = (*uhp).uh_prev;
             while !uhap.is_null() {
-                (*uhap).uh_next.ptr = (*uhp).uh_next.ptr;
-                uhap = (*uhap).uh_alt_next.ptr;
+                (*uhap).uh_next = (*uhp).uh_next;
+                uhap = (*uhap).uh_alt_next;
             }
         }
 
@@ -2754,17 +2740,17 @@ unsafe fn u_freebranch(buf: *mut buf_T, uhp: *mut u_header_T, uhpp: *mut *mut u_
             return;
         }
 
-        if !(*uhp).uh_alt_prev.ptr.is_null() {
-            (*(*uhp).uh_alt_prev.ptr).uh_alt_next.ptr = ptr::null_mut();
+        if !(*uhp).uh_alt_prev.is_null() {
+            (*(*uhp).uh_alt_prev).uh_alt_next = ptr::null_mut();
         }
 
         let mut next = uhp;
         while !next.is_null() {
             let tofree = next;
-            if !(*tofree).uh_alt_next.ptr.is_null() {
-                u_freebranch(buf, (*tofree).uh_alt_next.ptr, uhpp);
+            if !(*tofree).uh_alt_next.is_null() {
+                u_freebranch(buf, (*tofree).uh_alt_next, uhpp);
             }
-            next = (*tofree).uh_prev.ptr;
+            next = (*tofree).uh_prev;
             u_freeentries(buf, tofree, uhpp);
         }
     }
@@ -2772,22 +2758,22 @@ unsafe fn u_freebranch(buf: *mut buf_T, uhp: *mut u_header_T, uhpp: *mut *mut u_
 
 unsafe fn u_forget_header(buf: *mut buf_T, uhp: *mut u_header_T) {
     unsafe {
-        let parent = (*uhp).uh_next.ptr;
-        let alt = (*uhp).uh_alt_next.ptr;
+        let parent = (*uhp).uh_next;
+        let alt = (*uhp).uh_alt_next;
         if !alt.is_null() {
-            (*alt).uh_alt_prev.ptr = (*uhp).uh_alt_prev.ptr;
+            (*alt).uh_alt_prev = (*uhp).uh_alt_prev;
         }
-        if !(*uhp).uh_alt_prev.ptr.is_null() {
-            (*(*uhp).uh_alt_prev.ptr).uh_alt_next.ptr = alt;
+        if !(*uhp).uh_alt_prev.is_null() {
+            (*(*uhp).uh_alt_prev).uh_alt_next = alt;
         }
         if !parent.is_null() {
-            (*parent).uh_prev.ptr = alt;
+            (*parent).uh_prev = alt;
         }
         if (*buf).b_u_oldhead == uhp {
             (*buf).b_u_oldhead = alt;
         }
-        (*uhp).uh_alt_next.ptr = ptr::null_mut();
-        (*uhp).uh_alt_prev.ptr = ptr::null_mut();
+        (*uhp).uh_alt_next = ptr::null_mut();
+        (*uhp).uh_alt_prev = ptr::null_mut();
         (*buf).b_u_newhead = parent;
         (*buf).b_u_curhead = alt;
         (*buf).b_u_seq_cur = if !parent.is_null() {
@@ -3042,17 +3028,17 @@ unsafe fn u_eval_tree(buf: *mut buf_T, first_uhp: *const u_header_T) -> *mut lis
                 tv_dict_add_nr(dict, c"save".as_ptr(), 4, (*uhp).uh_save_nr as varnumber_T);
             }
 
-            if !(*uhp).uh_alt_next.ptr.is_null() {
+            if !(*uhp).uh_alt_next.is_null() {
                 tv_dict_add_list(
                     dict,
                     c"alt".as_ptr(),
                     3,
-                    u_eval_tree(buf, (*uhp).uh_alt_next.ptr),
+                    u_eval_tree(buf, (*uhp).uh_alt_next),
                 );
             }
 
             tv_list_append_dict(list, dict);
-            uhp = (*uhp).uh_prev.ptr;
+            uhp = (*uhp).uh_prev;
         }
 
         list
@@ -3214,7 +3200,7 @@ pub unsafe fn u_rollback(uc: *mut UndoCheckpoint, buf: *mut buf_T) {
                 (*buf).b_u_newhead
             };
             while !uhp.is_null() {
-                uhp = (*uhp).uh_next.ptr;
+                uhp = (*uhp).uh_next;
                 count += 1;
             }
 

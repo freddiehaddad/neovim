@@ -34,7 +34,7 @@ use crate::math::{FAIL, OK};
 use crate::mbyte::CP_UTF8;
 use crate::mbyte::{utf8len_tab_zero, utfc_ptr2len_len};
 use crate::memline::ml_append;
-use crate::memory::{xcalloc, xfree, xmalloc, xmemdupz, xstrdup, xstrlcat, xstrlcpy};
+use crate::memory::{xfree, xmalloc, xmemdupz, xstrdup, xstrlcat, xstrlcpy};
 #[cfg(unix)]
 use crate::message::msg;
 use crate::message::{
@@ -632,7 +632,8 @@ pub unsafe fn shell_argv_to_str(argv: *mut *mut c_char) -> *mut c_char {
         let mut n: usize = 0;
         let mut p = argv;
         let maxsize: usize = 256;
-        let rv: *mut c_char = xcalloc(maxsize, size_of::<c_char>()).cast();
+        let rv: *mut c_char = xmalloc(maxsize).cast();
+        *rv = NUL;
         if (*p).is_null() {
             return rv;
         }

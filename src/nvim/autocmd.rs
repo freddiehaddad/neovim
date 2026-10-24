@@ -43,7 +43,7 @@ use crate::lua::converter::LuaRef;
 use crate::lua::executor::{kRetNilBool, nlua_call_ref, nlua_set_sctx};
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strcmp_ic;
-use crate::memory::{xcalloc, xfree, xmallocz, xmemdupz, xstrdup};
+use crate::memory::{xfree, xmallocz, xmemdupz, xstrdup};
 use crate::message::{
     emsg, give_warning, msg_advance, msg_clr_eos, msg_end, msg_ext_set_kind, msg_outtrans,
     msg_putchar, msg_puts, msg_puts_hl, msg_puts_title, msg_start, semsg, smsg, verbose_enter,
@@ -3451,7 +3451,7 @@ pub unsafe fn getnextac(
                 (*(*acs).as_mut_ptr().add((*apc).auidx)).pat = ac_copy.pat;
             }
             oneshot = oneshot || rv;
-            xcalloc(1, 1).cast::<c_char>()
+            xmallocz(0).cast::<c_char>()
         };
 
         if oneshot {

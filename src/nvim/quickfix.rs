@@ -91,7 +91,7 @@ use crate::memline::{
     check_need_swap, ml_append_buf, ml_delete, ml_get_buf, ml_get_buf_len, ml_open,
 };
 use crate::memory::{
-    strequal, xcalloc, xfree, xmalloc, xmallocz, xmemdupz, xrealloc, xstrdup, xstrlcat, xstrlcpy,
+    strequal, xfree, xmalloc, xmallocz, xmemdupz, xrealloc, xstrdup, xstrlcat, xstrlcpy,
 };
 use crate::message::{
     emsg, internal_error, message_filtered, msg, msg_clr_eos, msg_ext_set_kind, msg_keep,
@@ -6848,7 +6848,7 @@ unsafe fn qf_add_entry_from_dict(
         let pattern = tv_dict_get_string(d, c"pattern".as_ptr(), true);
         let mut text = tv_dict_get_string(d, c"text".as_ptr(), true);
         if text.is_null() {
-            text = xcalloc(1, 1).cast::<c_char>();
+            text = xmallocz(0).cast::<c_char>();
         }
         let mut user_data: typval_T = std::mem::zeroed();
         user_data.v_type = VarType::VAR_UNKNOWN;
