@@ -942,13 +942,13 @@ pub unsafe fn push_additional_data(
 }
 
 #[inline]
-pub unsafe fn additional_data_take(ad: &mut AdditionalDataBuilder) -> *mut c_void {
+pub unsafe fn additional_data_take(ad: &mut AdditionalDataBuilder) -> *mut AdditionalDataHeader {
     if ad.is_empty() {
         std::ptr::null_mut()
     } else {
         let ptr = unsafe { crate::memory::xmemdup(ad.as_ptr().cast(), ad.len()) };
         *ad = Vec::new();
-        ptr
+        ptr.cast()
     }
 }
 

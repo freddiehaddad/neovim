@@ -51,7 +51,7 @@ pub struct histentry_T {
     pub hisstr: *mut c_char,
     pub hisstrlen: usize,
     pub timestamp: u64,
-    pub additional_data: *mut c_void,
+    pub additional_data: *mut crate::search::AdditionalData,
 }
 
 use crate::globals::IOSIZE;
@@ -74,7 +74,7 @@ unsafe fn clear_hist_entry(hisptr: *mut histentry_T) {
 unsafe fn hist_free_entry(hisptr: *mut histentry_T) {
     unsafe {
         xfree((*hisptr).hisstr.cast::<c_void>());
-        xfree((*hisptr).additional_data);
+        xfree((*hisptr).additional_data.cast());
         clear_hist_entry(hisptr);
     }
 }
@@ -236,7 +236,7 @@ unsafe fn in_history(
             *HISTORY[hist_type].add(last_i as usize) = *HISTORY[hist_type].add(i as usize);
             last_i = i;
         }
-        xfree(matched.additional_data);
+        xfree(matched.additional_data.cast());
         HISNUM[hist_type] += 1;
         let dst = &mut *HISTORY[hist_type].add(i as usize);
         dst.hisnum = HISNUM[hist_type];

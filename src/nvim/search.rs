@@ -78,7 +78,7 @@ use crate::strings::{atol, reverse_text, strncmp, tr, vim_snprintf, vim_strchr, 
 use crate::textformat::oparg_T;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_cursor_shape, ui_flush, ui_has, vim_beep};
 use crate::window::{reset_binding, win_T, win_enter, win_split, win_valid};
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 pub type Direction = c_int;
@@ -89,7 +89,7 @@ use crate::api::vim::HLF_N;
 use crate::cmdexpand::{HLF_D, RE_LAST, SEARCH_NOOF, SEARCH_OPT, SEARCH_PEEK, SEARCH_START};
 use crate::eval::funcs::{RE_SEARCH, SEARCH_COL, SEARCH_END, SEARCH_KEEP, kMTLineWise};
 use crate::globals::IOSIZE;
-pub type AdditionalData = c_void;
+pub type AdditionalData = crate::msgpack_rpc::unpacker::AdditionalDataHeader;
 
 const SEARCH_STAT_DEF_TIMEOUT: c_int = 40;
 const SEARCH_STAT_BUF_LEN: usize = 16;
@@ -384,7 +384,7 @@ pub unsafe fn restore_search_patterns() {
 unsafe fn free_spat(spat: *mut SearchPattern) {
     unsafe {
         xfree((*spat).pat.cast());
-        xfree((*spat).additional_data);
+        xfree((*spat).additional_data.cast());
     }
 }
 

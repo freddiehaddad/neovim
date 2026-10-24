@@ -257,8 +257,6 @@ pub(crate) const MENU_INDEX_TIP: c_int = 7;
 pub(crate) const MENU_ALL_MODES: c_int = (1 << MENU_INDEX_TIP) - 1;
 const AUTOLOAD_CHAR: c_int = b'#' as c_int;
 
-pub(crate) const UV_TIMER: c_int = 13;
-
 pub(crate) const RE_SEARCH: c_int = 0;
 
 pub(crate) const MPACK_EOF: c_int = 1;
@@ -5031,8 +5029,8 @@ pub unsafe fn f_jobwait(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
         let args = (*argvars).vval.v_list;
         let len = tv_list_len(args) as usize;
         let mut jobs: Vec<*mut Channel> = vec![ptr::null_mut(); len];
-        let main_loop_ptr: *mut Loop = (&raw mut main_loop).cast();
-        let waiting_jobs = multiqueue_new(Some(loop_on_put), main_loop_ptr);
+        let main_loop_ptr: *mut Loop = &raw mut main_loop;
+        let waiting_jobs = multiqueue_new(Some(loop_on_put), main_loop_ptr.cast());
 
         let mut i: usize = 0;
         let mut arg = tv_list_first(args);

@@ -3680,7 +3680,7 @@ pub unsafe fn sub_set_replacement(sub: SubReplacementString) {
     unsafe {
         xfree(old_sub.sub.cast::<c_void>());
         if sub.additional_data != old_sub.additional_data {
-            xfree(old_sub.additional_data);
+            xfree(old_sub.additional_data.cast());
         }
         old_sub = sub;
     }

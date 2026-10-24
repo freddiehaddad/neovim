@@ -1582,7 +1582,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                                 (*buf).b_last_cursor.mark.col,
                                 false,
                             );
-                            xfree((*buf).additional_data);
+                            xfree((*buf).additional_data.cast());
                             (*buf).additional_data = item.additional_data;
                             item.additional_data = ptr::null_mut();
                         }
@@ -1653,7 +1653,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                                 (*buf).b_changelistlen += 1;
                             }
                         } else {
-                            xfree(fm.additional_data);
+                            xfree(fm.additional_data.cast());
                         }
                     }
                     xfree(fm_data.fname.cast::<c_void>());
@@ -1745,7 +1745,7 @@ unsafe fn additional_data_len(src: *mut AdditionalData) -> u32 {
     if src.is_null() {
         0
     } else {
-        unsafe { (*src.cast::<AdditionalDataHeader>()).nitems }
+        unsafe { (*src).nitems }
     }
 }
 
@@ -1753,11 +1753,10 @@ unsafe fn additional_data_len(src: *mut AdditionalData) -> u32 {
 unsafe fn dump_additional_data(src: *mut AdditionalData, sbuf: *mut PackerBuffer) {
     if !src.is_null() {
         unsafe {
-            let hdr = src.cast::<AdditionalDataHeader>();
             let data = src
                 .cast::<c_char>()
                 .add(std::mem::size_of::<AdditionalDataHeader>());
-            mpack_raw(data, (*hdr).nbytes as usize, sbuf);
+            mpack_raw(data, (*src).nbytes as usize, sbuf);
         }
     }
 }
@@ -3483,11 +3482,11 @@ unsafe fn shada_free_shada_entry(entry: *mut ShadaEntry) {
             ShadaEntryType::kSDItemBufferList => {
                 for b in (*entry).data.buffer_list_mut().buffers.drain(..) {
                     xfree(b.fname.cast::<c_void>());
-                    xfree(b.additional_data);
+                    xfree(b.additional_data.cast());
                 }
             }
         }
-        xfree((*entry).additional_data);
+        xfree((*entry).additional_data.cast());
         (*entry).additional_data = ptr::null_mut();
     }
 }

@@ -71,7 +71,7 @@ pub struct fmark_T {
     pub fnum: c_int,
     pub timestamp: u64,
     pub view: fmarkv_T,
-    pub additional_data: *mut c_void,
+    pub additional_data: *mut crate::search::AdditionalData,
 }
 
 #[repr(C)]

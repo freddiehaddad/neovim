@@ -102,7 +102,7 @@ pub struct yankreg_T {
     pub y_type: MotionType,
     pub y_width: c_int,
     pub timestamp: u64,
-    pub additional_data: *mut c_void,
+    pub additional_data: *mut crate::search::AdditionalData,
 }
 
 const Ctrl_U: u8 = 21;
@@ -1080,7 +1080,7 @@ pub unsafe fn clear_registers() {
 pub unsafe fn free_register(reg: *mut yankreg_T) {
     unsafe {
         let reg = &mut *reg;
-        xfree(reg.additional_data);
+        xfree(reg.additional_data.cast());
         reg.additional_data = ptr::null_mut();
         for item in reg.y_array.iter_mut().rev() {
             api_clear_string(item);
@@ -2904,7 +2904,7 @@ unsafe fn str_to_reg(
             }
         }
         y_reg.y_type = yank_type;
-        xfree(y_reg.additional_data);
+        xfree(y_reg.additional_data.cast());
         y_reg.additional_data = ptr::null_mut();
         y_reg.timestamp = os_realtime() as u64;
         if yank_type == MotionType::kMTBlockWise {

@@ -47,11 +47,9 @@ pub(crate) const DFLT_COLS: c_int = 80;
 pub(crate) const PROF_NONE: c_int = 0;
 
 use crate::errors::bytes_to_chars;
+use crate::event::r#loop::Loop;
 
-#[repr(C, align(16))]
-pub struct MainLoopStorage(pub [u8; 4096]);
-
-pub static mut main_loop: MainLoopStorage = MainLoopStorage([0; 4096]);
+pub static mut main_loop: Loop = Loop::new();
 
 pub static mut g_stats: NvimStats = unsafe { zeroed() };
 pub static mut Rows: c_int = DFLT_ROWS;

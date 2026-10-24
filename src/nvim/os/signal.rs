@@ -88,7 +88,7 @@ pub unsafe fn signal_init() {
             }
         }
 
-        let loop_ptr: *mut c_void = (&raw mut main_loop).cast();
+        let loop_ptr = &raw mut main_loop;
         signal_watcher_init(loop_ptr, &raw mut spipe, ptr::null_mut());
         signal_watcher_init(loop_ptr, &raw mut shup, ptr::null_mut());
         signal_watcher_init(loop_ptr, &raw mut sint, ptr::null_mut());

@@ -120,7 +120,7 @@ use crate::window::{
     win_split, win_valid, win_valid_any_tab, window_layout_lock, window_layout_unlock,
 };
 use crate::winfloat::{win_float_update_preview, win_set_minimal_style};
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 pub(crate) const BCO_ENTER: c_int = 1;
@@ -402,7 +402,7 @@ pub struct buf_T {
     pub b_s: synblock_T,
     pub b_signcols: BufSigncols,
     pub terminal: *mut Terminal,
-    pub additional_data: *mut c_void,
+    pub additional_data: *mut crate::search::AdditionalData,
     pub b_mapped_ctrl_c: c_int,
     pub b_marktree: [crate::marktree::MarkTree; 1],
     pub b_extmark_ns: std::collections::BTreeMap<u32, u32>,
@@ -1419,7 +1419,7 @@ unsafe fn free_buffer(buf: *mut buf_T) {
         }
         unref_var_dict((*buf).b_vars);
         aubuflocal_remove(buf);
-        xfree((*buf).additional_data);
+        xfree((*buf).additional_data.cast());
         xfree((*buf).b_prompt_text.cast());
         callback_free(&raw mut (*buf).b_prompt_callback);
         callback_free(&raw mut (*buf).b_prompt_interrupt);

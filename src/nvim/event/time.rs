@@ -1,8 +1,7 @@
 //! Timer watcher wrapper around libuv `uv_timer_t` (`src/nvim/event/time.c`).
 
 use crate::event::r#loop::{
-    Loop, uv_close, uv_handle_t, uv_loop_size, uv_timer_init, uv_timer_start, uv_timer_stop,
-    uv_timer_t,
+    Loop, uv_close, uv_handle_t, uv_timer_init, uv_timer_start, uv_timer_stop, uv_timer_t,
 };
 use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_empty, multiqueue_put_event,
@@ -37,12 +36,7 @@ impl TimeWatcher {
 
 #[inline]
 pub unsafe fn loop_fast_events(loop_: *mut Loop) -> *mut MultiQueue {
-    unsafe {
-        *loop_
-            .cast::<u8>()
-            .add(uv_loop_size() + 2 * std::mem::size_of::<*mut MultiQueue>())
-            .cast::<*mut MultiQueue>()
-    }
+    unsafe { (*loop_).fast_events }
 }
 
 #[inline]

@@ -1,6 +1,5 @@
 //! Event loop wrapper around `uv_loop_t` (`src/nvim/event/loop.c`).
 
-use crate::eval::funcs::UV_TIMER;
 use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_free, multiqueue_move_events,
     multiqueue_new, multiqueue_new_child, multiqueue_process_events, multiqueue_purge_events,
@@ -10,9 +9,6 @@ use crate::log::{LOGLVL_ERR, log_uv_handles, logmsg};
 use crate::os::time::os_hrtime;
 use std::ffi::{c_int, c_void};
 use std::ptr;
-
-const UV_ASYNC: c_int = 1;
-pub(crate) const UV_SIGNAL: c_int = 16;
 
 pub(crate) const UV_RUN_DEFAULT: c_int = 0;
 pub(crate) const UV_RUN_ONCE: c_int = 1;
@@ -25,16 +21,8 @@ const UV_EBUSY: c_int = -4082;
 #[cfg(not(windows))]
 const UV_EBUSY: c_int = -16;
 
-#[cfg(any(windows, target_os = "linux"))]
-const UV_MUTEX_SIZE: usize = 40;
-#[cfg(target_os = "macos")]
-const UV_MUTEX_SIZE: usize = 64;
-#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
-const UV_MUTEX_SIZE: usize = 8;
-
 pub(crate) const NS_PER_SEC: u64 = 1_000_000_000;
 
-pub type Loop = c_void;
 pub type uv_loop_t = c_void;
 pub type uv_handle_t = c_void;
 pub type uv_signal_t = c_void;
@@ -100,11 +88,40 @@ pub struct UvTimespec64 {
 }
 
 #[repr(C)]
-pub struct LoopQueuesAndChildren {
+pub struct Loop {
+    pub uv: [u64; 192],
     pub events: *mut MultiQueue,
     pub thread_events: *mut MultiQueue,
     pub fast_events: *mut MultiQueue,
     pub children: Vec<*mut c_void>,
+    pub children_watcher: [u64; 32],
+    pub children_kill_timer: [u64; 32],
+    pub poll_timer: [u64; 32],
+    pub exit_delay_timer: [u64; 32],
+    pub async_: [u64; 32],
+    pub mutex: [u64; 16],
+    pub recursive: c_int,
+    pub closing: bool,
+}
+
+impl Loop {
+    pub const fn new() -> Self {
+        Self {
+            uv: [0; 192],
+            events: ptr::null_mut(),
+            thread_events: ptr::null_mut(),
+            fast_events: ptr::null_mut(),
+            children: Vec::new(),
+            children_watcher: [0; 32],
+            children_kill_timer: [0; 32],
+            poll_timer: [0; 32],
+            exit_delay_timer: [0; 32],
+            async_: [0; 32],
+            mutex: [0; 16],
+            recursive: 0,
+            closing: false,
+        }
+    }
 }
 
 unsafe extern "C" {
@@ -470,119 +487,72 @@ unsafe extern "C" {
 }
 
 #[inline]
-pub unsafe fn loop_queues(loop_: *mut Loop) -> *mut LoopQueuesAndChildren {
-    unsafe {
-        loop_
-            .cast::<u8>()
-            .add(uv_loop_size())
-            .cast::<LoopQueuesAndChildren>()
-    }
+pub unsafe fn loop_queues(loop_: *mut Loop) -> *mut Loop {
+    loop_
 }
 
 #[inline]
 pub unsafe fn main_loop_ptr() -> *mut Loop {
-    (&raw mut crate::globals::main_loop).cast()
+    &raw mut crate::globals::main_loop
 }
 
 #[inline]
 pub unsafe fn main_loop_events() -> *mut MultiQueue {
-    unsafe { (*loop_queues((&raw mut crate::globals::main_loop).cast())).events }
+    unsafe { crate::globals::main_loop.events }
 }
 
 #[inline]
 pub unsafe fn loop_children_watcher(loop_: *mut Loop) -> *mut uv_signal_t {
-    unsafe {
-        loop_
-            .cast::<u8>()
-            .add(uv_loop_size() + size_of::<LoopQueuesAndChildren>())
-            .cast()
-    }
+    unsafe { (&raw mut (*loop_).children_watcher).cast() }
 }
 
 #[inline]
 pub unsafe fn loop_children_kill_timer(loop_: *mut Loop) -> *mut uv_timer_t {
-    unsafe {
-        loop_children_watcher(loop_)
-            .cast::<u8>()
-            .add(uv_handle_size(UV_SIGNAL))
-            .cast()
-    }
+    unsafe { (&raw mut (*loop_).children_kill_timer).cast() }
 }
 
 #[inline]
 pub unsafe fn loop_poll_timer(loop_: *mut Loop) -> *mut uv_timer_t {
-    unsafe {
-        loop_children_kill_timer(loop_)
-            .cast::<u8>()
-            .add(uv_handle_size(UV_TIMER))
-            .cast()
-    }
+    unsafe { (&raw mut (*loop_).poll_timer).cast() }
 }
 
 #[inline]
 pub unsafe fn loop_exit_delay_timer(loop_: *mut Loop) -> *mut uv_timer_t {
-    unsafe {
-        loop_poll_timer(loop_)
-            .cast::<u8>()
-            .add(uv_handle_size(UV_TIMER))
-            .cast()
-    }
+    unsafe { (&raw mut (*loop_).exit_delay_timer).cast() }
 }
 
 #[inline]
 pub unsafe fn loop_async(loop_: *mut Loop) -> *mut uv_async_t {
-    unsafe {
-        loop_exit_delay_timer(loop_)
-            .cast::<u8>()
-            .add(uv_handle_size(UV_TIMER))
-            .cast()
-    }
+    unsafe { (&raw mut (*loop_).async_).cast() }
 }
 
 #[inline]
 pub unsafe fn loop_mutex(loop_: *mut Loop) -> *mut uv_mutex_t {
-    unsafe {
-        loop_async(loop_)
-            .cast::<u8>()
-            .add(uv_handle_size(UV_ASYNC))
-            .cast()
-    }
+    unsafe { (&raw mut (*loop_).mutex).cast() }
 }
 
 #[inline]
 pub unsafe fn loop_recursive_ptr(loop_: *mut Loop) -> *mut c_int {
-    unsafe { loop_mutex(loop_).cast::<u8>().add(UV_MUTEX_SIZE).cast() }
+    unsafe { &raw mut (*loop_).recursive }
 }
 
 #[inline]
 pub unsafe fn loop_closing_ptr(loop_: *mut Loop) -> *mut bool {
-    unsafe {
-        loop_recursive_ptr(loop_)
-            .cast::<u8>()
-            .add(size_of::<c_int>())
-            .cast()
-    }
+    unsafe { &raw mut (*loop_).closing }
 }
 
 pub unsafe fn loop_init(loop_: *mut Loop, _data: *mut c_void) {
     unsafe {
-        debug_assert!(
-            (loop_closing_ptr(loop_)
-                .cast::<u8>()
-                .offset_from(loop_.cast::<u8>()) as usize)
-                + size_of::<bool>()
-                <= size_of::<crate::globals::MainLoopStorage>()
-        );
-        uv_loop_init(loop_.cast());
-        *loop_recursive_ptr(loop_) = 0;
-        *loop_closing_ptr(loop_) = false;
+        debug_assert!(uv_loop_size() <= size_of::<[u64; 192]>());
+        uv_loop_init((&raw mut (*loop_).uv).cast());
+        (*loop_).recursive = 0;
+        (*loop_).closing = false;
         *loop_.cast::<*mut Loop>() = loop_;
 
-        let qc = loop_queues(loop_);
-        ptr::write(&raw mut (*qc).children, Vec::new());
-        (*qc).events = multiqueue_new(Some(loop_on_put), loop_);
-        (*qc).fast_events = multiqueue_new_child((*qc).events);
-        (*qc).thread_events = multiqueue_new(None, ptr::null_mut());
+        (*loop_).children.clear();
+        (*loop_).events = multiqueue_new(Some(loop_on_put), loop_.cast());
+        (*loop_).fast_events = multiqueue_new_child((*loop_).events);
+        (*loop_).thread_events = multiqueue_new(None, ptr::null_mut());
 
         uv_mutex_init(loop_mutex(loop_));
         uv_async_init(loop_.cast(), loop_async(loop_), Some(async_cb));
@@ -598,9 +568,8 @@ pub unsafe fn loop_init(loop_: *mut Loop, _data: *mut c_void) {
 /// Process `Loop.uv` events with a timeout.
 unsafe fn loop_uv_run(loop_: *mut Loop, ms: i64) -> bool {
     unsafe {
-        let rec_ptr = loop_recursive_ptr(loop_);
-        let old_rec = *rec_ptr;
-        *rec_ptr = old_rec + 1;
+        let old_rec = (*loop_).recursive;
+        (*loop_).recursive = old_rec + 1;
         if old_rec != 0 {
             std::process::abort(); // Should not re-enter uv_run
         }
@@ -622,7 +591,7 @@ unsafe fn loop_uv_run(loop_: *mut Loop, ms: i64) -> bool {
             uv_timer_stop(poll_timer);
         }
 
-        *rec_ptr -= 1; // Can re-enter uv_run now
+        (*loop_).recursive -= 1; // Can re-enter uv_run now
         *timeout_expired
     }
 }
@@ -633,8 +602,7 @@ unsafe fn loop_uv_run(loop_: *mut Loop, ms: i64) -> bool {
 pub unsafe fn loop_poll_events(loop_: *mut Loop, ms: i64) -> bool {
     unsafe {
         let timeout_expired = loop_uv_run(loop_, ms);
-        let qc = loop_queues(loop_);
-        multiqueue_process_events((*qc).fast_events);
+        multiqueue_process_events((*loop_).fast_events);
         timeout_expired
     }
 }
@@ -643,9 +611,8 @@ pub unsafe fn loop_poll_events(loop_: *mut Loop, ms: i64) -> bool {
 pub unsafe fn loop_schedule_fast(loop_: *mut Loop, event: Event) {
     unsafe {
         let mutex = loop_mutex(loop_);
-        let qc = loop_queues(loop_);
         uv_mutex_lock(mutex);
-        multiqueue_put_event((*qc).thread_events, event);
+        multiqueue_put_event((*loop_).thread_events, event);
         uv_async_send(loop_async(loop_));
         uv_mutex_unlock(mutex);
     }
@@ -657,7 +624,7 @@ pub unsafe fn loop_schedule_deferred(loop_: *mut Loop, event: Event) {
     unsafe {
         let eventp = Box::into_raw(Box::new(event));
         let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
-        argv[0] = loop_;
+        argv[0] = loop_.cast();
         argv[1] = eventp.cast();
         loop_schedule_fast(
             loop_,
@@ -673,16 +640,15 @@ unsafe fn loop_deferred_event(argv: *mut *mut c_void) {
     unsafe {
         let loop_ = *argv as *mut Loop;
         let eventp = (*argv.add(1)).cast::<Event>();
-        let qc = loop_queues(loop_);
-        multiqueue_put_event((*qc).events, *eventp);
+        multiqueue_put_event((*loop_).events, *eventp);
         drop(Box::from_raw(eventp));
     }
 }
 
 pub unsafe fn loop_on_put(_queue: *mut MultiQueue, data: *mut c_void) {
     unsafe {
-        let loop_: *mut Loop = data;
-        if *loop_recursive_ptr(loop_) != 0 {
+        let loop_: *mut Loop = data.cast();
+        if (*loop_).recursive != 0 {
             uv_stop(loop_.cast());
         }
     }
