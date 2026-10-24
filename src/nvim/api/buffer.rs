@@ -63,6 +63,7 @@ const KEYSET_OPTIDX_buf_attach__on_reload: u64 = 6;
 const KEYSET_OPTIDX_buf_attach__on_changedtick: u64 = 7;
 
 #[repr(C)]
+#[derive(Default)]
 pub struct KeyDict_buf_attach {
     pub is_set__buf_attach_: OptionalKeys,
     pub on_lines: LuaRef,
@@ -75,6 +76,7 @@ pub struct KeyDict_buf_attach {
 }
 
 #[repr(C)]
+#[derive(Default)]
 pub struct KeyDict_keymap {
     pub is_set__keymap_: OptionalKeys,
     pub noremap: Boolean,
@@ -89,12 +91,14 @@ pub struct KeyDict_keymap {
 }
 
 #[repr(C)]
+#[derive(Default)]
 pub struct KeyDict_keymap_del {
     pub is_set__keymap_del_: OptionalKeys,
     pub lhs: Boolean,
 }
 
 #[repr(C)]
+#[derive(Default)]
 pub struct KeyDict_buf_delete {
     pub is_set__buf_delete_: OptionalKeys,
     pub force: Boolean,

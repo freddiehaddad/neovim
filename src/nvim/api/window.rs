@@ -47,6 +47,7 @@ const KEYSET_OPTIDX_win_text_height__start_vcol: u64 = 5;
 const KEYSET_OPTIDX_win_resize__anchor: u64 = 1;
 
 #[repr(C)]
+#[derive(Default)]
 pub struct KeyDict_win_text_height {
     pub is_set__win_text_height_: OptionalKeys,
     pub start_row: Integer,
@@ -57,6 +58,7 @@ pub struct KeyDict_win_text_height {
 }
 
 #[repr(C)]
+#[derive(Default)]
 pub struct KeyDict_win_resize {
     pub is_set__win_resize_: OptionalKeys,
     pub anchor: NvimString,

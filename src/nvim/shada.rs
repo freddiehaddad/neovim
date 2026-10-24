@@ -146,7 +146,7 @@ const KEYSET_OPTIDX__shada_register__rw: u32 = 5;
 const KEYSET_OPTIDX__shada_search_pat__sp: u32 = 8;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct KeyDict__shada_buflist_item {
     pub is_set___shada_buflist_item_: OptionalKeys,
     pub l: Integer,
@@ -155,7 +155,7 @@ pub struct KeyDict__shada_buflist_item {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct KeyDict__shada_mark {
     pub is_set___shada_mark_: OptionalKeys,
     pub n: Integer,
@@ -165,7 +165,7 @@ pub struct KeyDict__shada_mark {
 }
 
 #[repr(C)]
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct KeyDict__shada_register {
     pub is_set___shada_register_: OptionalKeys,
     pub rc: StringArray,
@@ -176,7 +176,7 @@ pub struct KeyDict__shada_register {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct KeyDict__shada_search_pat {
     pub is_set___shada_search_pat_: OptionalKeys,
     pub magic: Boolean,

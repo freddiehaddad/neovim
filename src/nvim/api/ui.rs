@@ -34,7 +34,6 @@ use crate::ui::{
     ui_refresh, ui_set_ext_option,
 };
 use std::ffi::{CStr, c_char, c_int, c_void};
-use std::mem::zeroed;
 use std::ptr;
 
 #[cfg(windows)]
@@ -961,7 +960,7 @@ pub unsafe fn remote_ui_grid_resize(
     height: Integer,
 ) {
     unsafe {
-        let mut args_items: [Object; 3] = zeroed();
+        let mut args_items = [Object::default(); 3];
         let mut size = 0;
         if (*ui).ui_ext[kUILinegrid] {
             args_items[size] = integer_obj(grid);
@@ -1152,13 +1151,13 @@ pub unsafe fn remote_ui_hl_attr_define(
             return;
         }
 
-        let mut rgb_items: [KeyValuePair; HLATTRS_DICT_SIZE] = zeroed();
+        let mut rgb_items = [KeyValuePair::default(); HLATTRS_DICT_SIZE];
         let mut rgb = Dict {
             items: rgb_items.as_mut_ptr(),
             size: 0,
             capacity: HLATTRS_DICT_SIZE,
         };
-        let mut cterm_items: [KeyValuePair; HLATTRS_DICT_SIZE] = zeroed();
+        let mut cterm_items = [KeyValuePair::default(); HLATTRS_DICT_SIZE];
         let mut cterm = Dict {
             items: cterm_items.as_mut_ptr(),
             size: 0,
@@ -1202,7 +1201,7 @@ pub unsafe fn remote_ui_highlight_set(ui: *mut RemoteUI, id: c_int) {
             return;
         }
         (*ui).hl_id = id;
-        let mut dict_items: [KeyValuePair; HLATTRS_DICT_SIZE] = zeroed();
+        let mut dict_items = [KeyValuePair::default(); HLATTRS_DICT_SIZE];
         let mut dict = Dict {
             items: dict_items.as_mut_ptr(),
             size: 0,

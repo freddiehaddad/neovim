@@ -37,6 +37,17 @@ pub struct Arena {
     pub size: usize,
 }
 
+impl Default for Arena {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            cur_blk: std::ptr::null_mut(),
+            pos: 0,
+            size: 0,
+        }
+    }
+}
+
 unsafe extern "C" {
     #[link_name = "malloc"]
     fn crt_malloc(size: usize) -> *mut c_void;

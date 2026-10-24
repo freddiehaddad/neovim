@@ -34,6 +34,7 @@ use std::ffi::{CStr, c_char, c_int, c_uint};
 const API_INTEGER_MAX: u64 = i64::MAX as u64;
 
 #[repr(C)]
+#[derive(Default)]
 pub struct KeyDict_exec_opts {
     pub output: Boolean,
 }

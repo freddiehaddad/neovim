@@ -87,6 +87,7 @@ const KEYSET_OPTIDX_set_extmark__virt_lines_overflow: u64 = 34;
 const KEYSET_OPTIDX_ns_opts__wins: u64 = 1;
 
 #[repr(C)]
+#[derive(Default)]
 pub struct KeyDict_get_extmark {
     pub is_set__get_extmark_: OptionalKeys,
     pub details: Boolean,
@@ -94,6 +95,7 @@ pub struct KeyDict_get_extmark {
 }
 
 #[repr(C)]
+#[derive(Default)]
 pub struct KeyDict_get_extmarks {
     pub is_set__get_extmarks_: OptionalKeys,
     pub limit: Integer,
@@ -104,6 +106,7 @@ pub struct KeyDict_get_extmarks {
 }
 
 #[repr(C)]
+#[derive(Default)]
 pub struct KeyDict_set_extmark {
     pub is_set__set_extmark_: OptionalKeys,
     pub id: Integer,
@@ -144,6 +147,7 @@ pub struct KeyDict_set_extmark {
 }
 
 #[repr(C)]
+#[derive(Default)]
 pub struct KeyDict_set_decoration_provider {
     pub is_set__set_decoration_provider_: OptionalKeys,
     pub on_start: LuaRef,
@@ -158,7 +162,7 @@ pub struct KeyDict_set_decoration_provider {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct KeyDict_ns_opts {
     pub is_set__ns_opts_: OptionalKeys,
     pub wins: Array,

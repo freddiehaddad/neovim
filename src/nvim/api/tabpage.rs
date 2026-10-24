@@ -24,6 +24,7 @@ pub type Tabpage = handle_T;
 const KEYSET_OPTIDX_tabpage_config__after: u64 = 1;
 
 #[repr(C)]
+#[derive(Default)]
 pub struct KeyDict_tabpage_config {
     pub is_set__tabpage_config_: OptionalKeys,
     pub after: Integer,

@@ -54,6 +54,7 @@ use crate::math::{FAIL, OK};
 use crate::memfile::memfile_T;
 
 #[repr(C)]
+#[derive(Default)]
 pub struct KeyDict_option {
     pub is_set__option_: OptionalKeys,
     pub scope: NvimString,

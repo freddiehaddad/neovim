@@ -62,6 +62,7 @@ const KEYSET_OPTIDX_exec_autocmds__modeline: u64 = 6;
 use crate::math::FAIL;
 
 #[repr(C)]
+#[derive(Default)]
 pub struct KeyDict_get_autocmds {
     pub is_set__get_autocmds_: OptionalKeys,
     pub event: Object,
@@ -73,6 +74,7 @@ pub struct KeyDict_get_autocmds {
 }
 
 #[repr(C)]
+#[derive(Default)]
 pub struct KeyDict_create_autocmd {
     pub is_set__create_autocmd_: OptionalKeys,
     pub buffer: Buffer,
@@ -87,6 +89,7 @@ pub struct KeyDict_create_autocmd {
 }
 
 #[repr(C)]
+#[derive(Default)]
 pub struct KeyDict_clear_autocmds {
     pub is_set__clear_autocmds_: OptionalKeys,
     pub buffer: Buffer,
@@ -97,12 +100,14 @@ pub struct KeyDict_clear_autocmds {
 }
 
 #[repr(C)]
+#[derive(Default)]
 pub struct KeyDict_create_augroup {
     pub is_set__create_augroup_: OptionalKeys,
     pub clear: bool,
 }
 
 #[repr(C)]
+#[derive(Default)]
 pub struct KeyDict_exec_autocmds {
     pub is_set__exec_autocmds_: OptionalKeys,
     pub buffer: Buffer,

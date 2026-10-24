@@ -47,6 +47,7 @@ use std::ptr;
 const LINE_BUFFER_MIN_SIZE: usize = 4096;
 
 #[repr(C)]
+#[derive(Default)]
 pub struct KeyDict_empty {
     pub is_set__empty_: OptionalKeys,
 }

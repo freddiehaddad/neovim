@@ -95,7 +95,7 @@ const KEYSET_OPTIDX_get_highlight__name: u64 = 3;
 const KEYSET_OPTIDX_get_highlight__create: u64 = 4;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct KeyDict_get_highlight {
     pub is_set__get_highlight_: OptionalKeys,
     pub id: Integer,

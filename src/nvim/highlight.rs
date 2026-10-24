@@ -111,7 +111,7 @@ pub const HLATTRS_INIT: HlAttrs = HlAttrs {
 };
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct KeyDict_highlight {
     pub is_set__highlight_: OptionalKeys,
     pub altfont: Boolean,

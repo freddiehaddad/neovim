@@ -36,6 +36,7 @@ enum NluaXdiffMode {
 }
 
 #[repr(C)]
+#[derive(Default)]
 pub struct KeyDict_xdl_diff {
     pub is_set__xdl_diff_: u64,
     pub on_hunk: c_int,

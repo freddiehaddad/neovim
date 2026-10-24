@@ -87,7 +87,7 @@ use crate::math::{FAIL, OK};
 use crate::window::{WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT};
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct KeyDict_cmd {
     pub is_set__cmd_: OptionalKeys,
     pub cmd: NvimString,
@@ -104,7 +104,7 @@ pub struct KeyDict_cmd {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct KeyDict_cmd_magic {
     pub is_set__cmd_magic_: OptionalKeys,
     pub file: Boolean,
@@ -112,7 +112,7 @@ pub struct KeyDict_cmd_magic {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct KeyDict_cmd_mods {
     pub is_set__cmd_mods_: OptionalKeys,
     pub silent: Boolean,
@@ -138,7 +138,7 @@ pub struct KeyDict_cmd_mods {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct KeyDict_cmd_mods_filter {
     pub is_set__cmd_mods_filter_: OptionalKeys,
     pub pattern: NvimString,
@@ -146,13 +146,13 @@ pub struct KeyDict_cmd_mods_filter {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct KeyDict_cmd_opts {
     pub output: Boolean,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct KeyDict_user_command {
     pub is_set__user_command_: OptionalKeys,
     pub addr: Object,
@@ -170,7 +170,7 @@ pub struct KeyDict_user_command {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct KeyDict_get_commands {
     pub builtin: Boolean,
 }
@@ -300,7 +300,7 @@ pub unsafe extern "C" fn nvim_parse_cmd(
     err: *mut Error,
 ) -> KeyDict_cmd {
     unsafe {
-        let mut result: KeyDict_cmd = std::mem::zeroed();
+        let mut result = KeyDict_cmd::default();
         let mut ea: exarg_T = std::mem::zeroed();
         let mut cmod: cmdmod_T = std::mem::zeroed();
         let mut cmdline = arena_memdupz(arena, str_val.data, str_val.size);
@@ -1002,7 +1002,7 @@ pub unsafe extern "C" fn nvim_cmd(
             }
 
             if has_key(mask, KEYSET_OPTIDX_cmd__magic) {
-                let mut magic: KeyDict_cmd_magic = std::mem::zeroed();
+                let mut magic = KeyDict_cmd_magic::default();
                 if !api_dict_to_keydict(
                     (&raw mut magic).cast(),
                     Some(KeyDict_cmd_magic_get_field),
@@ -1034,7 +1034,7 @@ pub unsafe extern "C" fn nvim_cmd(
             }
 
             if has_key(mask, KEYSET_OPTIDX_cmd__mods) {
-                let mut mods: KeyDict_cmd_mods = std::mem::zeroed();
+                let mut mods = KeyDict_cmd_mods::default();
                 if !api_dict_to_keydict(
                     (&raw mut mods).cast(),
                     Some(KeyDict_cmd_mods_get_field),
@@ -1046,7 +1046,7 @@ pub unsafe extern "C" fn nvim_cmd(
 
                 let mods_mask = mods.is_set__cmd_mods_;
                 if has_key(mods_mask, KEYSET_OPTIDX_cmd_mods__filter) {
-                    let mut filter: KeyDict_cmd_mods_filter = std::mem::zeroed();
+                    let mut filter = KeyDict_cmd_mods_filter::default();
                     if !api_dict_to_keydict(
                         (&raw mut filter).cast(),
                         Some(KeyDict_cmd_mods_filter_get_field),

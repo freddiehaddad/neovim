@@ -171,21 +171,21 @@ const KEYSET_OPTIDX_redraw__range: u32 = 4;
 const KEYSET_OPTIDX_redraw__valid: u32 = 5;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct KeyDict_get_ns {
     pub is_set__get_ns_: OptionalKeys,
     pub winid: Window,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct KeyDict_runtime {
     pub is_lua: Boolean,
     pub do_source: Boolean,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct KeyDict_echo_opts {
     pub is_set__echo_opts_: OptionalKeys,
     pub err: Boolean,
@@ -201,7 +201,7 @@ pub struct KeyDict_echo_opts {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct KeyDict_open_term {
     pub is_set__open_term_: OptionalKeys,
     pub on_input: LuaRef,
@@ -209,21 +209,21 @@ pub struct KeyDict_open_term {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct KeyDict_context {
     pub is_set__context_: OptionalKeys,
     pub types: Array,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct KeyDict_chan_set {
     pub is_set__chan_set_: OptionalKeys,
     pub detach: Boolean,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct KeyDict_eval_statusline {
     pub is_set__eval_statusline_: OptionalKeys,
     pub winid: Window,
@@ -236,14 +236,14 @@ pub struct KeyDict_eval_statusline {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct KeyDict_complete_set {
     pub is_set__complete_set_: OptionalKeys,
     pub info: NvimString,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct KeyDict_redraw {
     pub is_set__redraw_: OptionalKeys,
     pub flush: Boolean,
@@ -2437,7 +2437,7 @@ pub unsafe extern "C" fn nvim_set_client_info(
     _err: *mut Error,
 ) {
     unsafe {
-        let mut info_items = [std::mem::zeroed::<KeyValuePair>(); 5];
+        let mut info_items = [KeyValuePair::default(); 5];
         let mut info = Dict {
             items: info_items.as_mut_ptr(),
             size: 0,

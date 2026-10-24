@@ -117,7 +117,7 @@ use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::charset::NUL;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct KeyDict_win_config {
     pub is_set__win_config_: OptionalKeys,
     pub external: Boolean,
@@ -1151,7 +1151,7 @@ pub unsafe extern "C" fn nvim_win_get_config(
         const WIN_SPLIT_STR: [&CStr; 4] = [c"left", c"right", c"above", c"below"];
         const WIN_STYLE_STR: [&CStr; 2] = [c"", c"minimal"];
 
-        let mut rv: KeyDict_win_config = std::mem::zeroed();
+        let mut rv = KeyDict_win_config::default();
 
         let wp = find_window_by_handle(win, err);
         if wp.is_null() {

@@ -12,6 +12,16 @@ pub struct NvimString {
     pub size: usize,
 }
 
+impl Default for NvimString {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            data: std::ptr::null_mut(),
+            size: 0,
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ErrorType {
@@ -66,8 +76,20 @@ pub struct Object {
     pub data: ObjectData,
 }
 
+impl Default for Object {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            obj_type: ObjectType::kObjectTypeNil,
+            data: ObjectData {
+                array: Array::new(),
+            },
+        }
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct KeyValuePair {
     pub key: NvimString,
     pub value: Object,
