@@ -8733,7 +8733,6 @@ pub unsafe fn f_strftime(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             (*rettv).vval.v_string = xstrdup(result_buf.as_ptr());
         }
 
-        convert_setup(&raw mut conv, ptr::null_mut(), ptr::null_mut());
         xfree(enc.cast());
     }
 }
@@ -8765,7 +8764,6 @@ pub unsafe fn f_strptime(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
         if conv.vc_type != CONV_NONE {
             xfree(fmt.cast());
         }
-        convert_setup(&raw mut conv, ptr::null_mut(), ptr::null_mut());
         xfree(enc.cast());
     }
 }

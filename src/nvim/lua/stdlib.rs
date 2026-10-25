@@ -42,8 +42,8 @@ use crate::lua::converter::{
 use crate::lua::spell::luaopen_spell;
 use crate::lua::xdiff::nlua_xdl_diff;
 use crate::mbyte::{
-    convert_setup, convert_setup_ext, enc_canonize, enc_skip, mb_stricmp, mb_utf_index_to_bytes,
-    mb_utflen, string_convert, utf_cp_bounds_len, utf_ptr2len_len, vimconv_T,
+    convert_setup_ext, enc_canonize, enc_skip, mb_stricmp, mb_utf_index_to_bytes, mb_utflen,
+    string_convert, utf_cp_bounds_len, utf_ptr2len_len, vimconv_T,
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::memory::xfree;
@@ -591,8 +591,6 @@ unsafe extern "C-unwind" fn nlua_iconv(lstate: *mut lua_State) -> c_int {
         let _ = convert_setup_ext(&raw mut vimconv, from, false, to, false);
 
         let ret = string_convert(&raw const vimconv, str_.cast_mut(), &raw mut str_len);
-
-        let _ = convert_setup(&raw mut vimconv, ptr::null_mut(), ptr::null_mut());
 
         xfree(from.cast());
         xfree(to.cast());

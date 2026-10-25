@@ -143,8 +143,30 @@ impl OptSetPrep {
     }
 
     #[inline]
-    pub fn take(&mut self) -> Self {
-        std::mem::replace(self, Self::None)
+    pub fn take_encoding(&mut self) -> *mut c_char {
+        let old = std::mem::ManuallyDrop::new(std::mem::replace(self, Self::None));
+        match *old {
+            Self::Encoding(p) => p,
+            _ => ptr::null_mut(),
+        }
+    }
+
+    #[inline]
+    pub fn take_spellcap_prog(&mut self) -> *mut regprog_T {
+        let old = std::mem::ManuallyDrop::new(std::mem::replace(self, Self::None));
+        match *old {
+            Self::SpellcapProg(p) => p,
+            _ => ptr::null_mut(),
+        }
+    }
+
+    #[inline]
+    pub fn take_tabstop(&mut self) -> *mut colnr_T {
+        let old = std::mem::ManuallyDrop::new(std::mem::replace(self, Self::None));
+        match *old {
+            Self::Tabstop(p) => p,
+            _ => ptr::null_mut(),
+        }
     }
 }
 
@@ -2363,9 +2385,8 @@ pub unsafe fn did_set_encoding(args: *mut optset_T) -> *const c_char {
             ml_setflags(buf);
         }
 
-        if let OptSetPrep::Encoding(prep_ptr) = (*args).os_prep.take()
-            && !prep_ptr.is_null()
-        {
+        let prep_ptr = (*args).os_prep.take_encoding();
+        if !prep_ptr.is_null() {
             xfree((*varp).cast());
             *varp = prep_ptr;
         }
@@ -3115,10 +3136,7 @@ pub unsafe fn did_set_spellcapcheck(args: *mut optset_T) -> *const c_char {
         let win = (*args).os_win;
         let ws = (*win).w_s.cast::<synblock_T>();
         vim_regfree((*ws).b_cap_prog.cast());
-        (*ws).b_cap_prog = match (*args).os_prep.take() {
-            OptSetPrep::SpellcapProg(p) => p,
-            _ => ptr::null_mut(),
-        };
+        (*ws).b_cap_prog = (*args).os_prep.take_spellcap_prog();
         ptr::null()
     }
 }
@@ -3410,10 +3428,7 @@ pub unsafe fn did_set_vartabstop(args: *mut optset_T) -> *const c_char {
             &raw mut (*buf).b_p_vts_array
         };
         xfree((*array).cast());
-        *array = match (*args).os_prep.take() {
-            OptSetPrep::Tabstop(p) => p,
-            _ => ptr::null_mut(),
-        };
+        *array = (*args).os_prep.take_tabstop();
         if !soft && foldmethodIsIndent(win) {
             foldUpdateAll(win);
         }

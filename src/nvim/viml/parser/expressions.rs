@@ -462,7 +462,6 @@ pub struct ExprASTNodeData {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
 pub struct ExprASTNode {
     pub r#type: ExprASTNodeType,
     pub children: *mut ExprASTNode,
@@ -470,6 +469,18 @@ pub struct ExprASTNode {
     pub start: ParserPosition,
     pub len: usize,
     pub data: ExprASTNodeData,
+}
+
+impl Drop for ExprASTNode {
+    fn drop(&mut self) {
+        if self.r#type == kExprNodeDoubleQuotedString || self.r#type == kExprNodeSingleQuotedString
+        {
+            unsafe {
+                xfree(self.data.str.value.cast());
+            }
+            self.data.str.value = std::ptr::null_mut();
+        }
+    }
 }
 
 impl ExprASTNode {
@@ -533,10 +544,36 @@ pub struct ExprASTError {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
 pub struct ExprAST {
     pub err: ExprASTError,
     pub root: *mut ExprASTNode,
+}
+
+impl Drop for ExprAST {
+    fn drop(&mut self) {
+        unsafe {
+            let mut ast_stack: ExprASTStack = vec![&mut self.root];
+            while let Some(&cur_node) = ast_stack.last() {
+                for &prev in &ast_stack[..ast_stack.len() - 1] {
+                    debug_assert_ne!(*prev, *cur_node);
+                }
+                if (*cur_node).is_null() {
+                    debug_assert_eq!(ast_stack.len(), 1);
+                    ast_stack.pop();
+                } else if !(**cur_node).children.is_null() {
+                    let maxchildren = node_maxchildren[(**cur_node).r#type as usize];
+                    debug_assert!(maxchildren > 0 && maxchildren <= 2);
+                    ast_stack.push(&mut (**cur_node).children);
+                } else if !(**cur_node).next.is_null() {
+                    ast_stack.push(&mut (**cur_node).next);
+                } else {
+                    ast_stack.pop();
+                    drop(Box::from_raw(*cur_node));
+                    *cur_node = std::ptr::null_mut();
+                }
+            }
+        }
+    }
 }
 
 type ExprASTStack = Vec<*mut *mut ExprASTNode>;
@@ -1253,38 +1290,6 @@ pub unsafe fn viml_pexpr_next_token(pstate: *mut ParserState, flags: c_int) -> L
     }
 }
 
-/// Free memory occupied by AST (`viml_pexpr_free_ast`).
-pub unsafe fn viml_pexpr_free_ast(mut ast: ExprAST) {
-    unsafe {
-        let mut ast_stack: ExprASTStack = vec![&mut ast.root];
-        while let Some(&cur_node) = ast_stack.last() {
-            for &prev in &ast_stack[..ast_stack.len() - 1] {
-                debug_assert_ne!(*prev, *cur_node);
-            }
-            if (*cur_node).is_null() {
-                debug_assert_eq!(ast_stack.len(), 1);
-                ast_stack.pop();
-            } else if !(**cur_node).children.is_null() {
-                let maxchildren = node_maxchildren[(**cur_node).r#type as usize];
-                debug_assert!(maxchildren > 0 && maxchildren <= 2);
-                ast_stack.push(&mut (**cur_node).children);
-            } else if !(**cur_node).next.is_null() {
-                ast_stack.push(&mut (**cur_node).next);
-            } else {
-                ast_stack.pop();
-                let node_type = (**cur_node).r#type;
-                if node_type == kExprNodeDoubleQuotedString
-                    || node_type == kExprNodeSingleQuotedString
-                {
-                    xfree((**cur_node).data.str.value.cast());
-                }
-                drop(Box::from_raw(*cur_node));
-                *cur_node = std::ptr::null_mut();
-            }
-        }
-    }
-}
-
 #[inline]
 unsafe fn viml_pexpr_new_node(node_type: ExprASTNodeType) -> *mut ExprASTNode {
     Box::into_raw(Box::new(ExprASTNode::new(node_type)))
@@ -1309,12 +1314,12 @@ unsafe fn new_node_with_cur_pos(
 }
 
 #[inline]
-fn node_lvl(node: ExprASTNode) -> ExprOpLvl {
+fn node_lvl(node: &ExprASTNode) -> ExprOpLvl {
     NODE_PROPS[node.r#type as usize].0
 }
 
 #[inline]
-fn node_ass(node: ExprASTNode) -> ExprOpAssociativity {
+fn node_ass(node: &ExprASTNode) -> ExprOpAssociativity {
     NODE_PROPS[node.r#type as usize].1
 }
 
@@ -1374,14 +1379,14 @@ unsafe fn viml_pexpr_handle_bop(
             if (*bop_node).r#type == kExprNodeCall || (*bop_node).r#type == kExprNodeSubscript {
                 ExprOpLvl::Subscript
             } else {
-                node_lvl(*bop_node)
+                node_lvl(&*bop_node)
             };
         loop {
             let new_top_node_p = *(*ast_stack).last().unwrap();
             let new_top_node = *new_top_node_p;
             debug_assert!(!new_top_node.is_null());
-            let new_top_node_lvl = node_lvl(*new_top_node);
-            let new_top_node_ass = node_ass(*new_top_node);
+            let new_top_node_lvl = node_lvl(&*new_top_node);
+            let new_top_node_ass = node_ass(&*new_top_node);
             if !top_node_p.is_null()
                 && (bop_node_lvl > new_top_node_lvl
                     || (bop_node_lvl == new_top_node_lvl
@@ -2452,7 +2457,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                             for i in 1..ast_stack.len() {
                                 let eastnode_p = ast_stack[ast_stack.len() - i - 1];
                                 let eastnode_type = (**eastnode_p).r#type;
-                                let eastnode_lvl = node_lvl(**eastnode_p);
+                                let eastnode_lvl = node_lvl(&**eastnode_p);
                                 if eastnode_type == kExprNodeLambda
                                     || eastnode_type == kExprNodeDictLiteral
                                     || eastnode_type == kExprNodeListLiteral
@@ -2503,7 +2508,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                             for i in 1..ast_stack.len() {
                                 let eastnode_p = ast_stack[ast_stack.len() - i - 1];
                                 let eastnode_type = (**eastnode_p).r#type;
-                                let eastnode_lvl = node_lvl(**eastnode_p);
+                                let eastnode_lvl = node_lvl(&**eastnode_p);
                                 if can_be_ternary
                                     && eastnode_type == kExprNodeTernaryValue
                                     && !(**eastnode_p).data.ter.got_colon
@@ -3739,9 +3744,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::viml::parser::parser::{
-        ParserHighlight, parser_simple_get_line, viml_parser_destroy,
-    };
+    use crate::viml::parser::parser::{ParserHighlight, ParserInputReader};
     use std::ffi::CStr;
 
     unsafe fn with_pstate<R>(input: &[u8], f: impl FnOnce(&mut ParserState) -> R) -> R {
@@ -3757,29 +3760,13 @@ mod tests {
                 allocated: false,
             },
         ];
-        let mut cursor = lines.as_ptr();
         let mut colors = ParserHighlight::new();
         let mut pstate = ParserState {
-            reader: crate::viml::parser::parser::ParserInputReader {
-                get_line: Some(parser_simple_get_line),
-                cookie: &mut cursor,
-                lines: Vec::new(),
-                conv: crate::mbyte::vimconv_T {
-                    vc_type: crate::viml::parser::parser::CONV_NONE,
-                    vc_factor: 1,
-                    vc_fd: std::ptr::null_mut(),
-                    vc_fail: false,
-                },
-            },
+            reader: ParserInputReader::new(lines.as_ptr()),
             pos: ParserPosition { line: 0, col: 0 },
             colors: &mut colors,
         };
-        unsafe {
-            let res = f(&mut pstate);
-            drop(colors);
-            viml_parser_destroy(&mut pstate);
-            res
-        }
+        f(&mut pstate)
     }
 
     unsafe fn lex_one(input: &[u8], flags: c_int) -> LexExprToken {
@@ -3923,7 +3910,6 @@ mod tests {
                 assert_eq!((*left).r#type, kExprNodeInteger);
                 assert_eq!((*right).r#type, kExprNodeMultiplication);
                 assert!(!(*pstate.colors).is_empty());
-                viml_pexpr_free_ast(ast);
             });
 
             // Ternary, lambda, dictionary, list, call, subscript
@@ -3931,7 +3917,6 @@ mod tests {
                 let ast = viml_pexpr_parse(pstate, 0);
                 assert!(ast.err.msg.is_null());
                 assert_eq!((*ast.root).r#type, kExprNodeTernary);
-                viml_pexpr_free_ast(ast);
             });
 
             // Assignment with kExprFlagsParseLet
@@ -3940,7 +3925,6 @@ mod tests {
                 assert!(ast.err.msg.is_null());
                 assert_eq!((*ast.root).r#type, kExprNodeAssignment);
                 assert_eq!((*ast.root).data.ass.r#type, kExprAsgnPlain);
-                viml_pexpr_free_ast(ast);
             });
 
             with_pstate(b"a += 1", |pstate| {
@@ -3948,7 +3932,6 @@ mod tests {
                 assert!(ast.err.msg.is_null());
                 assert_eq!((*ast.root).r#type, kExprNodeAssignment);
                 assert_eq!((*ast.root).data.ass.r#type, kExprAsgnAdd);
-                viml_pexpr_free_ast(ast);
             });
 
             // Syntax errors report expected diagnostics
@@ -3959,7 +3942,6 @@ mod tests {
                     &CStr::from_ptr(ast.err.msg).to_bytes()[4..],
                     b": Missing closing parenthesis for nested expression: %.*s"
                 );
-                viml_pexpr_free_ast(ast);
             });
 
             with_pstate(b"cond ? 1", |pstate| {
@@ -3969,7 +3951,6 @@ mod tests {
                     &CStr::from_ptr(ast.err.msg).to_bytes()[4..],
                     b": Missing ':' after '?': %.*s"
                 );
-                viml_pexpr_free_ast(ast);
             });
         }
     }

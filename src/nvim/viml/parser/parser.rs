@@ -14,9 +14,6 @@ pub struct ParserLine {
     pub allocated: bool,
 }
 
-pub type ParserLineGetter =
-    Option<unsafe fn(cookie: *mut *const ParserLine, ret_pline: *mut ParserLine)>;
-
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ParserPosition {
@@ -31,10 +28,36 @@ impl ParserPosition {
 }
 
 pub struct ParserInputReader {
-    pub get_line: ParserLineGetter,
-    pub cookie: *mut *const ParserLine,
+    pub cursor: *const ParserLine,
     pub lines: Vec<ParserLine>,
     pub conv: vimconv_T,
+}
+
+impl ParserInputReader {
+    pub const fn new(cursor: *const ParserLine) -> Self {
+        Self {
+            cursor,
+            lines: Vec::new(),
+            conv: vimconv_T {
+                vc_type: CONV_NONE,
+                vc_factor: 1,
+                vc_fd: std::ptr::null_mut(),
+                vc_fail: false,
+            },
+        }
+    }
+}
+
+impl Drop for ParserInputReader {
+    fn drop(&mut self) {
+        for pline in self.lines.drain(..) {
+            if pline.allocated {
+                unsafe {
+                    xfree(pline.data.cast_mut().cast::<c_void>());
+                }
+            }
+        }
+    }
 }
 
 #[repr(C)]
@@ -53,31 +76,20 @@ pub struct ParserState {
     pub colors: *mut ParserHighlight,
 }
 
-/// Simple line getter reading from an array of `ParserLine` (`parser_simple_get_line`).
-///
-/// # Safety
-/// `cookie` must point to a `*const ParserLine` cursor, and `ret_pline` must be writable.
-pub unsafe fn parser_simple_get_line(
-    plines_p: *mut *const ParserLine,
-    ret_pline: *mut ParserLine,
-) {
-    unsafe {
-        *ret_pline = **plines_p;
-        *plines_p = (*plines_p).add(1);
-    }
-}
-
 unsafe fn viml_preader_get_line(preader: &mut ParserInputReader, ret_pline: &mut ParserLine) {
-    let mut pline = ParserLine {
-        data: std::ptr::null(),
-        size: 0,
-        allocated: false,
-    };
-    if let Some(get_line) = preader.get_line {
+    let mut pline = if !preader.cursor.is_null() {
         unsafe {
-            get_line(preader.cookie, &mut pline);
+            let p = *preader.cursor;
+            preader.cursor = preader.cursor.add(1);
+            p
         }
-    }
+    } else {
+        ParserLine {
+            data: std::ptr::null(),
+            size: 0,
+            allocated: false,
+        }
+    };
     if preader.conv.vc_type != CONV_NONE && pline.size != 0 {
         let mut cpline = ParserLine {
             data: std::ptr::null(),
@@ -124,28 +136,12 @@ pub unsafe fn viml_parser_get_remaining_line(
     !ret_pline.data.is_null()
 }
 
-/// Free all heap memory allocated by `pstate` (`viml_parser_destroy`).
-///
-/// # Safety
-/// `pstate` must be a valid writable pointer to an initialized `ParserState`.
-pub unsafe fn viml_parser_destroy(pstate: *mut ParserState) {
-    let pstate = unsafe { &mut *pstate };
-    for pline in pstate.reader.lines.drain(..) {
-        if pline.allocated {
-            unsafe {
-                xfree(pline.data.cast_mut().cast::<c_void>());
-            }
-        }
-    }
-    pstate.reader.lines = Vec::new();
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn simple_get_line_advances_cursor() {
+    fn preader_get_line_advances_cursor() {
         let lines = [
             ParserLine {
                 data: c"let x = 1".as_ptr(),
@@ -158,16 +154,16 @@ mod tests {
                 allocated: false,
             },
         ];
-        let mut cursor = lines.as_ptr();
+        let mut reader = ParserInputReader::new(lines.as_ptr());
         let mut out = ParserLine {
             data: std::ptr::null(),
             size: 0,
             allocated: false,
         };
         unsafe {
-            parser_simple_get_line(&mut cursor, &mut out);
+            viml_preader_get_line(&mut reader, &mut out);
             assert_eq!(out.size, 9);
-            parser_simple_get_line(&mut cursor, &mut out);
+            viml_preader_get_line(&mut reader, &mut out);
             assert!(out.data.is_null());
         }
     }

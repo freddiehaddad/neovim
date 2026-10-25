@@ -96,7 +96,7 @@ const CODESET: c_int = 0;
 pub(crate) const CP_UTF8: u32 = 65001;
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug)]
 pub struct vimconv_T {
     pub vc_type: c_int,
     pub vc_factor: c_int,
@@ -118,6 +118,18 @@ impl vimconv_T {
 impl Default for vimconv_T {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Drop for vimconv_T {
+    fn drop(&mut self) {
+        if self.vc_type == CONV_ICONV && self.vc_fd != usize::MAX as *mut c_void {
+            unsafe {
+                call_iconv_close(self.vc_fd);
+            }
+        }
+        self.vc_type = CONV_NONE;
+        self.vc_fd = ptr::null_mut();
     }
 }
 
@@ -2750,7 +2762,6 @@ pub unsafe fn utf_find_illegal() {
         }
 
         xfree(tofree.cast());
-        convert_setup(&raw mut vimconv, ptr::null_mut(), ptr::null_mut());
     }
 }
 
@@ -3176,7 +3187,6 @@ pub unsafe fn f_iconv(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
                 string_convert(&raw const vimconv, str_.cast_mut(), ptr::null_mut());
         }
 
-        convert_setup(&raw mut vimconv, ptr::null_mut(), ptr::null_mut());
         xfree(from.cast());
         xfree(to.cast());
     }
@@ -3194,9 +3204,6 @@ pub unsafe fn convert_setup_ext(
     to_unicode_is_utf8: bool,
 ) -> c_int {
     unsafe {
-        if (*vcp).vc_type == CONV_ICONV && (*vcp).vc_fd != usize::MAX as *mut c_void {
-            call_iconv_close((*vcp).vc_fd);
-        }
         *vcp = vimconv_T {
             vc_type: CONV_NONE,
             vc_factor: 1,

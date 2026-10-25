@@ -220,6 +220,19 @@ impl source_cookie_T {
     }
 }
 
+impl Drop for source_cookie_T {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.fp.is_null() {
+                fclose(self.fp);
+                self.fp = ptr::null_mut();
+            }
+            xfree(self.nextline.cast::<c_void>());
+            self.nextline = ptr::null_mut();
+        }
+    }
+}
+
 #[repr(C)]
 struct SearchPathItem {
     path: *mut c_char,
@@ -3155,15 +3168,8 @@ unsafe fn do_source_ext(
             if l_do_profiling == PROF_YES {
                 prof_child_exit(&mut wait_start);
             }
-            if !cookie.fp.is_null() {
-                fclose(cookie.fp);
-            }
-            if cookie.source_from_buf_or_str {
-                cookie.buflines.clear();
-            }
-            xfree(cookie.nextline.cast::<c_void>());
             xfree(firstline.cast::<c_void>());
-            convert_setup(&mut cookie.conv, ptr::null_mut(), ptr::null_mut());
+            drop(cookie);
 
             if str_ptr.is_null() && trigger_source_post {
                 apply_autocmds(EVENT_SOURCEPOST, fname_exp, fname_exp, false, curbuf);

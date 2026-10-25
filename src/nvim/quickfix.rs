@@ -437,6 +437,17 @@ impl Default for qfstate_T {
     }
 }
 
+impl Drop for qfstate_T {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.fd.is_null() {
+                fclose(self.fd);
+                self.fd = ptr::null_mut();
+            }
+        }
+    }
+}
+
 #[repr(C)]
 struct qffields_T {
     namebuf: Vec<c_char>,
@@ -1479,18 +1490,6 @@ unsafe fn qf_setup_state(
     }
 }
 
-unsafe fn qf_cleanup_state(pstate: *mut qfstate_T) {
-    unsafe {
-        if !(*pstate).fd.is_null() {
-            fclose((*pstate).fd);
-        }
-        (*pstate).growbuf = Vec::new();
-        if (*pstate).vc.vc_type != CONV_NONE {
-            convert_setup(&raw mut (*pstate).vc, ptr::null_mut(), ptr::null_mut());
-        }
-    }
-}
-
 unsafe fn qf_init_ext(
     qi: *mut qf_info_T,
     mut qf_idx: c_int,
@@ -1517,7 +1516,6 @@ unsafe fn qf_init_ext(
             if qf_idx == (*qi).qf_curlist {
                 qf_update_buffer(qi, old_count);
             }
-            qf_cleanup_state(&raw mut state);
             return retval;
         }
 
@@ -1601,7 +1599,6 @@ unsafe fn qf_init_ext(
         if qf_idx == (*qi).qf_curlist {
             qf_update_buffer(qi, old_count);
         }
-        qf_cleanup_state(&raw mut state);
 
         retval
     }

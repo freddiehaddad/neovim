@@ -329,7 +329,6 @@ unsafe fn convert_mo_bytes_to_utf8(bytes: &[u8], charset: Option<&[u8]>) -> Vec<
                     &raw mut len,
                 )
             };
-            let _ = unsafe { convert_setup(&raw mut vc, ptr::null_mut(), ptr::null_mut()) };
             if !converted.is_null() {
                 let slice =
                     unsafe { std::slice::from_raw_parts(converted.cast::<u8>(), len) }.to_vec();

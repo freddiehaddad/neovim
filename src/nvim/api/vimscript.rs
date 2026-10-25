@@ -15,7 +15,7 @@ use crate::eval::{clear_evalarg, eval0};
 use crate::ex_docmd::do_cmdline_cmd;
 use crate::globals::*;
 use crate::lua::converter::Boolean;
-use crate::memory::{Arena, xfree, xmemdupz};
+use crate::memory::{Arena, xmemdupz};
 use crate::msgpack_rpc::packer::Integer;
 use crate::runtime::do_source_str;
 use crate::viml::parser::expressions::{
@@ -23,11 +23,10 @@ use crate::viml::parser::expressions::{
     kExprAsgnPlain, kExprFlagsDisallowEOC, kExprFlagsMulti, kExprFlagsParseLet,
     kExprNodeAssignment, kExprNodeComparison, kExprNodeDoubleQuotedString, kExprNodeEnvironment,
     kExprNodeFloat, kExprNodeInteger, kExprNodeOption, kExprNodePlainIdentifier, kExprNodePlainKey,
-    kExprNodeRegister, kExprNodeSingleQuotedString, viml_pexpr_free_ast, viml_pexpr_parse,
+    kExprNodeRegister, kExprNodeSingleQuotedString, viml_pexpr_parse,
 };
 use crate::viml::parser::parser::{
-    ParserHighlight, ParserLine, ParserPosition, ParserState, parser_simple_get_line,
-    viml_parser_destroy,
+    ParserHighlight, ParserInputReader, ParserLine, ParserPosition, ParserState,
 };
 use std::ffi::{CStr, c_char, c_int, c_uint};
 
@@ -603,7 +602,6 @@ pub unsafe extern "C" fn nvim_parse_expression(
                 allocated: false,
             },
         ];
-        let mut plines_p = parser_lines.as_ptr();
         let mut colors = ParserHighlight::new();
         let colors_p = if hl {
             &raw mut colors
@@ -612,17 +610,7 @@ pub unsafe extern "C" fn nvim_parse_expression(
         };
 
         let mut pstate = ParserState {
-            reader: crate::viml::parser::parser::ParserInputReader {
-                get_line: Some(parser_simple_get_line),
-                cookie: &raw mut plines_p,
-                lines: Vec::new(),
-                conv: crate::mbyte::vimconv_T {
-                    vc_type: crate::viml::parser::parser::CONV_NONE,
-                    vc_factor: 1,
-                    vc_fd: std::ptr::null_mut(),
-                    vc_fail: false,
-                },
-            },
+            reader: ParserInputReader::new(parser_lines.as_ptr()),
             pos: ParserPosition { line: 0, col: 0 },
             colors: colors_p,
         };
@@ -739,7 +727,6 @@ pub unsafe extern "C" fn nvim_parse_expression(
                                 (*node).data.str.size,
                             );
                             put_c(ret_node, c"svalue", str_obj);
-                            xfree((*node).data.str.value.cast());
                         }
                         kExprNodeOption => {
                             put_c(
@@ -849,7 +836,7 @@ pub unsafe extern "C" fn nvim_parse_expression(
                         (*cur_item.ret_node_p).data.dict.size,
                         (*cur_item.ret_node_p).data.dict.capacity
                     );
-                    xfree((*cur_item.node_p).cast());
+                    drop(Box::from_raw(*cur_item.node_p));
                     *cur_item.node_p = std::ptr::null_mut();
                 }
             }
@@ -857,8 +844,6 @@ pub unsafe extern "C" fn nvim_parse_expression(
         put_c(&mut ret, c"ast", ast);
 
         debug_assert_eq!(ret.size, ret.capacity);
-        viml_pexpr_free_ast(east);
-        viml_parser_destroy(&mut pstate);
         ret
     }
 }

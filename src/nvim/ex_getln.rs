@@ -91,7 +91,7 @@ use crate::math::{FAIL, OK};
 use crate::mbyte::{
     mb_cptr2char_adv, mb_get_class, mb_off_next, mb_prevptr, mb_tolower, ptr2cells, utf_char2bytes,
     utf_char2len, utf_head_off, utf_iscomposing_first, utf_ptr2cells, utf_ptr2char,
-    utf8len_tab_zero, utfc_ptr2len, vimconv_T,
+    utf8len_tab_zero, utfc_ptr2len,
 };
 use crate::memline::{decl, incl};
 use crate::memory::{
@@ -147,12 +147,9 @@ use crate::ui::{
 };
 use crate::undo::{UndoCheckpoint, u_checkpoint, u_rollback, u_sync};
 use crate::usercmd::{cmdcomplete_type_to_str, parse_compl_arg};
-use crate::viml::parser::expressions::{
-    ExprAST, kExprFlagsDisallowEOC, viml_pexpr_free_ast, viml_pexpr_parse,
-};
+use crate::viml::parser::expressions::{kExprFlagsDisallowEOC, viml_pexpr_parse};
 use crate::viml::parser::parser::{
-    CONV_NONE, ParserHighlight, ParserInputReader, ParserLine, ParserPosition, ParserState,
-    parser_simple_get_line, viml_parser_destroy,
+    ParserHighlight, ParserInputReader, ParserLine, ParserPosition, ParserState,
 };
 use crate::window::{
     WSP_BOT, close_windows, global_stl_height, lastwin_nofloating,
@@ -3662,26 +3659,14 @@ unsafe fn color_expr_cmdline(
                 allocated: false,
             },
         ];
-        let mut plines_p = parser_lines.as_ptr();
         let mut colors = ParserHighlight::new();
         let mut pstate = ParserState {
-            reader: ParserInputReader {
-                get_line: Some(parser_simple_get_line),
-                cookie: &raw mut plines_p,
-                lines: Vec::new(),
-                conv: vimconv_T {
-                    vc_type: CONV_NONE,
-                    vc_factor: 1,
-                    vc_fd: ptr::null_mut(),
-                    vc_fail: false,
-                },
-            },
+            reader: ParserInputReader::new(parser_lines.as_ptr()),
             pos: ParserPosition { line: 0, col: 0 },
             colors: &raw mut colors,
         };
-        let east: ExprAST = viml_pexpr_parse(&raw mut pstate, kExprFlagsDisallowEOC);
-        viml_pexpr_free_ast(east);
-        viml_parser_destroy(&raw mut pstate);
+        drop(viml_pexpr_parse(&raw mut pstate, kExprFlagsDisallowEOC));
+        drop(pstate);
 
         (*ret_ccline_colors).colors.reserve(colors.len());
         let mut prev_end: usize = 0;
