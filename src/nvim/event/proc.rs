@@ -21,7 +21,7 @@ use crate::os::pty_proc::{
     pty_proc_close, pty_proc_close_master, pty_proc_flush_master, pty_proc_spawn, pty_proc_teardown,
 };
 use crate::os::time::os_hrtime;
-use std::ffi::{c_char, c_int, c_void};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 const KILL_TIMEOUT_MS: u64 = 2000;
@@ -71,9 +71,9 @@ pub struct Proc {
     #[cfg(windows)]
     pub conpty: *mut crate::os::pty_conpty_win::conpty_t,
     #[cfg(windows)]
-    pub finish_wait: *mut c_void,
+    pub finish_wait: crate::os::os_win_console::HANDLE,
     #[cfg(windows)]
-    pub proc_handle: *mut c_void,
+    pub proc_handle: crate::os::os_win_console::HANDLE,
 }
 
 impl Proc {
@@ -137,6 +137,7 @@ pub type PtyProc = Proc;
 
 static mut proc_is_tearing_down: bool = false;
 static mut exit_need_delay: c_int = 0;
+static mut exit_delay_status: c_int = 0;
 
 use crate::event::r#loop::{uv_recv_buffer_size, uv_unref};
 
@@ -519,7 +520,7 @@ unsafe extern "C" fn exit_delay_cb(_handle: *mut uv_timer_t) {
         let exit_timer = loop_exit_delay_timer(mloop);
         uv_timer_stop(exit_timer);
         let qc = loop_queues(mloop);
-        let status = (*exit_timer.cast::<*mut c_void>() as isize) as c_int;
+        let status = exit_delay_status;
         multiqueue_put_event((*qc).fast_events, Event::ProcExit(status));
     }
 }
@@ -529,7 +530,7 @@ pub unsafe fn exit_event(status: c_int) {
         if exit_need_delay != 0 {
             let mloop = main_loop_ptr();
             let exit_timer = loop_exit_delay_timer(mloop);
-            *exit_timer.cast::<*mut c_void>() = (status as isize) as *mut c_void;
+            exit_delay_status = status;
             uv_timer_start(exit_timer, Some(exit_delay_cb), 0, 0);
             return;
         }

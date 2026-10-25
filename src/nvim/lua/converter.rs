@@ -2143,7 +2143,7 @@ pub unsafe extern "C-unwind" fn nlua_init_types(lstate: *mut lua_State) {
 /// Lua-specific variant of `api_dict_to_keydict` (`nlua_pop_keydict`).
 pub unsafe fn nlua_pop_keydict(
     L: *mut lua_State,
-    retval: *mut c_void,
+    retval: *mut OptKeySet,
     hashy: FieldHashfn,
     err_opt: *mut *mut c_char,
     arena: *mut Arena,
@@ -2179,8 +2179,7 @@ pub unsafe fn nlua_pop_keydict(
             }
             let field = &*field_ptr;
             if field.opt_index >= 0 {
-                let ks = retval.cast::<OptKeySet>();
-                (*ks).is_set_ |= 1u64 << (field.opt_index as u32);
+                (*retval).is_set_ |= 1u64 << (field.opt_index as u32);
             }
             let mem = retval.cast::<u8>().add(field.ptr_off);
 
@@ -2232,7 +2231,7 @@ pub unsafe fn nlua_pop_keydict(
 /// Push a `KeySet` struct as a Lua table (`nlua_push_keydict`).
 pub unsafe extern "C-unwind" fn nlua_push_keydict(
     L: *mut lua_State,
-    value: *mut c_void,
+    value: *mut OptKeySet,
     table: *mut KeySetLink,
 ) {
     unsafe {
@@ -2242,8 +2241,7 @@ pub unsafe extern "C-unwind" fn nlua_push_keydict(
             let field = &*table.add(i);
             let mut is_set = true;
             if field.opt_index >= 0 {
-                let ks = value.cast::<OptKeySet>();
-                is_set = ((*ks).is_set_ & (1u64 << (field.opt_index as u32))) != 0;
+                is_set = ((*value).is_set_ & (1u64 << (field.opt_index as u32))) != 0;
             }
             if !is_set {
                 i += 1;

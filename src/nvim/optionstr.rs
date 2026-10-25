@@ -3753,7 +3753,7 @@ pub unsafe fn opt_strings_check(
 }
 
 /// Parses a validated dict option into `out`.
-pub unsafe fn opt_fill(value: *const c_char, get_field: FieldHashfn, out: *mut c_void) {
+pub unsafe fn opt_fill(value: *const c_char, get_field: FieldHashfn, out: *mut OptKeySet) {
     unsafe {
         let Some(get_field_fn) = get_field else {
             return;
@@ -3784,7 +3784,7 @@ pub unsafe fn opt_fill(value: *const c_char, get_field: FieldHashfn, out: *mut c
                 ptr::copy_nonoverlapping(v.cast::<u8>(), field, vlen);
                 *field.add(vlen) = 0;
             }
-            (*out.cast::<OptKeySet>()).is_set_ |= 1u64 << ((*f).opt_index as u32);
+            (*out).is_set_ |= 1u64 << ((*f).opt_index as u32);
         }
     }
 }
@@ -3802,7 +3802,7 @@ pub unsafe fn opt_keyset(
         let si = opt_dict_schema(opt_idx);
         ptr::write_bytes(keyset.cast::<u8>(), 0, (*si).size);
         if !value.is_null() {
-            opt_fill(value, (*si).get_field, keyset);
+            opt_fill(value, (*si).get_field, keyset.cast());
         }
         keyset
     }

@@ -3753,7 +3753,7 @@ unsafe fn shada_read_next_item(
                         let it: *mut KeyDict__shada_search_pat =
                             (*entry).data.search_pattern_mut();
                         if !unpack_keydict(
-                            it.cast::<c_void>(),
+                            it.cast(),
                             Some(shada_search_pat_get_field_cb),
                             &mut ad,
                             &mut read_ptr,
@@ -3795,7 +3795,7 @@ unsafe fn shada_read_next_item(
                     | ShadaEntryType::kSDItemLocalMark => {
                         let mut it = KeyDict__shada_mark::default();
                         if !unpack_keydict(
-                            (&raw mut it).cast::<c_void>(),
+                            (&raw mut it).cast(),
                             Some(shada_mark_get_field_cb),
                             &mut ad,
                             &mut read_ptr,
@@ -3880,7 +3880,7 @@ unsafe fn shada_read_next_item(
                             rw: 0,
                         };
                         if !unpack_keydict(
-                            (&raw mut it).cast::<c_void>(),
+                            (&raw mut it).cast(),
                             Some(shada_register_get_field_cb),
                             &mut ad,
                             &mut read_ptr,
@@ -4130,7 +4130,7 @@ unsafe fn shada_read_next_item(
                                 let mut it = KeyDict__shada_buflist_item::default();
                                 let mut it_ad = AdditionalDataBuilder::new();
                                 if !unpack_keydict(
-                                    (&raw mut it).cast::<c_void>(),
+                                    (&raw mut it).cast(),
                                     Some(shada_buflist_item_get_field_cb),
                                     &mut it_ad,
                                     &mut read_ptr,

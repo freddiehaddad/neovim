@@ -21,7 +21,7 @@ use crate::ui_client::{
     UIClientHandler, handle_ui_client_redraw, ui_client_event_grid_line,
     ui_client_get_redraw_handler,
 };
-use std::ffi::{c_char, c_int, c_void};
+use std::ffi::{c_char, c_int};
 
 const MAX_EXT_LEN: usize = 9;
 const EXT_OBJECT_TYPE_MAX: c_int =
@@ -553,8 +553,10 @@ pub unsafe fn unpacker_advance(p: *mut Unpacker) -> bool {
                 return false;
             }
             if p_ref.msg_type == MessageType::kMessageTypeNotification
-                && p_ref.handler.r#fn.map(|f| f as *const c_void)
-                    == Some(handle_ui_client_redraw as *const c_void)
+                && p_ref
+                    .handler
+                    .r#fn
+                    .is_some_and(|f| f as *const () == handle_ui_client_redraw as *const ())
             {
                 p_ref.msg_type = MessageType::kMessageTypeRedrawEvent;
                 p_ref.state = 10;
@@ -725,9 +727,9 @@ pub unsafe fn unpacker_parse_redraw(p: *mut Unpacker) -> bool {
             p.nevents -= 1;
             p.read_ptr = data;
             p.read_size = size;
-            if p.ui_handler.r#fn.map(|f| f as *const c_void)
-                != Some(ui_client_event_grid_line as *const c_void)
-            {
+            if p.ui_handler.r#fn.is_none_or(|f| {
+                !std::ptr::fn_addr_eq(f, ui_client_event_grid_line as unsafe fn(Array))
+            }) {
                 p.state = 12;
                 return true;
             } else {
@@ -1029,7 +1031,7 @@ pub unsafe fn additional_data_take(ad: &mut AdditionalDataBuilder) -> *mut Addit
 
 /// Unpack a msgpack map into a `KeySet` struct (`unpack_keydict`).
 pub unsafe fn unpack_keydict(
-    retval: *mut c_void,
+    retval: *mut OptKeySet,
     hashy: FieldHashfn,
     ad: *mut AdditionalDataBuilder,
     data: *mut *const c_char,
@@ -1037,7 +1039,7 @@ pub unsafe fn unpack_keydict(
     error: *mut *mut c_char,
 ) -> bool {
     unsafe {
-        let ks = retval.cast::<OptKeySet>();
+        let ks = retval;
         let mut tok = mpack_token_t::new();
 
         let result = mpack_rtoken(data, size, &mut tok);

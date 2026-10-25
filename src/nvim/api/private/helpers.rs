@@ -34,7 +34,7 @@ use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::msgpack_rpc::unpacker::unpack;
 use crate::runtime::{script_is_lua, sctx_T};
 use crate::window::{tabpage_T, win_T};
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::mem::size_of;
 use std::ptr;
 
@@ -1169,7 +1169,7 @@ pub unsafe fn parse_hl_msg(chunks: Array, is_err: bool, err: *mut Error) -> HlMe
 }
 
 pub unsafe fn api_dict_to_keydict(
-    retval: *mut c_void,
+    retval: *mut OptKeySet,
     hashy: FieldHashfn,
     dict: Dict,
     err: *mut Error,
@@ -1193,8 +1193,7 @@ pub unsafe fn api_dict_to_keydict(
             }
 
             if (*field).opt_index >= 0 {
-                let ks = retval.cast::<OptKeySet>();
-                (*ks).is_set_ |= 1u64 << (*field).opt_index;
+                (*retval).is_set_ |= 1u64 << (*field).opt_index;
             }
 
             let mem = retval.cast::<u8>().add((*field).ptr_off);
@@ -1332,7 +1331,7 @@ pub unsafe fn api_dict_to_keydict(
 }
 
 pub unsafe fn api_keydict_to_dict(
-    value: *mut c_void,
+    value: *mut OptKeySet,
     table: *mut KeySetLink,
     max_size: usize,
     arena: *mut Arena,
@@ -1344,8 +1343,7 @@ pub unsafe fn api_keydict_to_dict(
             let field = table.add(i);
             let mut is_set = true;
             if (*field).opt_index >= 0 {
-                let ks = value.cast::<OptKeySet>();
-                is_set = ((*ks).is_set_ & (1u64 << (*field).opt_index)) != 0;
+                is_set = ((*value).is_set_ & (1u64 << (*field).opt_index)) != 0;
             }
             if !is_set {
                 i += 1;
@@ -1427,7 +1425,7 @@ pub unsafe fn api_luarefs_free_object(value: Object) {
     }
 }
 
-pub unsafe fn api_luarefs_free_keydict(dict: *mut c_void, table: *mut KeySetLink) {
+pub unsafe fn api_luarefs_free_keydict(dict: *mut OptKeySet, table: *mut KeySetLink) {
     unsafe {
         let mut i: usize = 0;
         while !(*table.add(i)).str.is_null() {

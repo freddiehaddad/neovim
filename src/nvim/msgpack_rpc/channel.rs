@@ -39,7 +39,7 @@ use crate::os::input::input_blocking;
 #[cfg(windows)]
 use crate::os::os_win_console::os_detach_ui_console;
 use crate::ui_client::{ui_client_attach_to_restarted_server, ui_client_event_raw_line};
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 pub type ClientType = c_int;
@@ -602,8 +602,10 @@ unsafe fn handle_request(channel: *mut Channel, p: *mut Unpacker, args: Array) {
         channel_incref(channel);
 
         if (*p).handler.fast {
-            let is_get_mode = (*p).handler.r#fn.map(|f| f as *const c_void)
-                == Some(handle_nvim_get_mode as *const c_void);
+            let is_get_mode = (*p)
+                .handler
+                .r#fn
+                .is_some_and(|f| f as *const () == handle_nvim_get_mode as *const ());
 
             if is_get_mode && !input_blocking() {
                 multiqueue_put_event(ch_before_blocking_events, Event::RpcRequest(evdata));
@@ -611,8 +613,10 @@ unsafe fn handle_request(channel: *mut Channel, p: *mut Unpacker, args: Array) {
                 request_event(evdata);
             }
         } else {
-            let is_resize = (*p).handler.r#fn.map(|f| f as *const c_void)
-                == Some(handle_nvim_ui_try_resize as *const c_void);
+            let is_resize = (*p)
+                .handler
+                .r#fn
+                .is_some_and(|f| f as *const () == handle_nvim_ui_try_resize as *const ());
 
             if is_resize {
                 let ev = event_create_oneshot(Event::RpcRequest(evdata), 2);
@@ -942,8 +946,9 @@ pub unsafe fn serialize_response(
         if (*err).err_type != ErrorType::kErrorTypeNone
             && r#type == MessageType::kMessageTypeNotification
         {
-            let is_paste = handler.r#fn.map(|f| f as *const c_void)
-                == Some(handle_nvim_paste as *const c_void);
+            let is_paste = handler
+                .r#fn
+                .is_some_and(|f| f as *const () == handle_nvim_paste as *const ());
 
             if is_paste {
                 {
