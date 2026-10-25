@@ -5756,7 +5756,7 @@ unsafe fn skip_colon_white(mut p: *const c_char, skipleadingwhite: bool) -> *mut
 
 pub unsafe fn set_cmd_addr_type(eap: *mut exarg_T, p: *mut c_char) {
     unsafe {
-        if is_user_cmdidx(std::mem::transmute::<c_int, cmdidx_T>((*eap).cmdidx)) {
+        if is_user_cmdidx(cmdidx_T::from_raw((*eap).cmdidx)) {
             return;
         }
         if (*eap).cmdidx != CMD_SIZE_I32 {
@@ -6076,7 +6076,7 @@ pub unsafe fn parse_cmdline(
                 separate_nextcmd(eap);
             } else if !skipmods
                 && (*eap).cmdidx >= 0
-                && cmd_has_expr_args(std::mem::transmute::<c_int, cmdidx_T>((*eap).cmdidx))
+                && cmd_has_expr_args(cmdidx_T::from_raw((*eap).cmdidx))
             {
                 let mut arg = (*eap).arg;
                 while *arg != NUL && *arg != b'|' as c_char && *arg != b'\n' as c_char {
@@ -6374,7 +6374,7 @@ unsafe fn skip_cmd(eap: *const exarg_T) -> bool {
             if (*eap).cmdidx < 0 || (*eap).cmdidx >= CMD_SIZE_I32 {
                 return true;
             }
-            let cmdidx = std::mem::transmute::<c_int, cmdidx_T>((*eap).cmdidx);
+            let cmdidx = cmdidx_T::from_raw((*eap).cmdidx);
             match cmdidx {
                 cmdidx_T::CMD_while
                 | cmdidx_T::CMD_endwhile
@@ -6601,7 +6601,7 @@ unsafe fn do_one_cmd(
                 break 'doend;
             }
 
-            let ni = is_cmd_ni(std::mem::transmute::<c_int, cmdidx_T>(ea.cmdidx));
+            let ni = is_cmd_ni(cmdidx_T::from_raw(ea.cmdidx));
 
             ea.forceit = c_int::from(parse_bang(&raw const ea, &raw mut p));
 
@@ -7700,7 +7700,7 @@ pub unsafe fn excmd_get_cmdidx(cmd: *const c_char, len: usize) -> cmdidx_T {
                 }
                 i += 1;
             }
-            idx = std::mem::transmute::<c_int, cmdidx_T>(i);
+            idx = cmdidx_T::from_raw(i);
         }
         idx
     }

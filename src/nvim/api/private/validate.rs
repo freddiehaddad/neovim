@@ -37,6 +37,18 @@ pub enum ErrorType {
     kErrorTypeValidation = 1,
 }
 
+impl ErrorType {
+    #[inline]
+    pub const fn from_raw(v: c_int) -> Option<Self> {
+        match v {
+            -1 => Some(Self::kErrorTypeNone),
+            0 => Some(Self::kErrorTypeException),
+            1 => Some(Self::kErrorTypeValidation),
+            _ => None,
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Debug)]
 pub struct Error {
@@ -59,6 +71,27 @@ pub enum ObjectType {
     kObjectTypeBuffer = 9,
     kObjectTypeWindow = 10,
     kObjectTypeTabpage = 11,
+}
+
+impl ObjectType {
+    #[inline]
+    pub const fn from_raw(v: c_int) -> Option<Self> {
+        match v {
+            0 => Some(Self::kObjectTypeNil),
+            1 => Some(Self::kObjectTypeBoolean),
+            2 => Some(Self::kObjectTypeInteger),
+            3 => Some(Self::kObjectTypeFloat),
+            4 => Some(Self::kObjectTypeString),
+            5 => Some(Self::kObjectTypeArray),
+            6 => Some(Self::kObjectTypeDict),
+            7 => Some(Self::kObjectTypeLuaRef),
+            8 => Some(Self::kObjectTypeUnset),
+            9 => Some(Self::kObjectTypeBuffer),
+            10 => Some(Self::kObjectTypeWindow),
+            11 => Some(Self::kObjectTypeTabpage),
+            _ => None,
+        }
+    }
 }
 
 pub type Array = KVec<Object>;

@@ -40,6 +40,19 @@ pub enum MessageType {
     kMessageTypeRedrawEvent = 3,
 }
 
+impl MessageType {
+    #[inline]
+    pub const fn from_raw(v: c_int) -> Option<Self> {
+        match v {
+            0 => Some(Self::kMessageTypeRequest),
+            1 => Some(Self::kMessageTypeResponse),
+            2 => Some(Self::kMessageTypeNotification),
+            3 => Some(Self::kMessageTypeRedrawEvent),
+            _ => None,
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct GridLineEvent {
@@ -236,10 +249,11 @@ unsafe fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) 
                         return;
                     }
                     let ext_type = (*parent).tok.data.ext_type;
-                    if (0..=EXT_OBJECT_TYPE_MAX).contains(&ext_type) {
-                        (*res).obj_type = std::mem::transmute::<c_int, ObjectType>(
-                            ext_type + EXT_OBJECT_TYPE_SHIFT,
-                        );
+                    if (0..=EXT_OBJECT_TYPE_MAX).contains(&ext_type)
+                        && let Some(obj_type) =
+                            ObjectType::from_raw(ext_type + EXT_OBJECT_TYPE_SHIFT)
+                    {
+                        (*res).obj_type = obj_type;
                         (*res).data.integer = mpack_unpack_uint(ext_tok) as i64;
                     } else {
                         *res = nil_obj();
@@ -444,62 +458,71 @@ pub unsafe fn unpacker_parse_header(p: *mut Unpacker) -> bool {
                 } else {
                     msg_type >= 2
                 };
-                if bad_type {
-                    result = MPACK_ERROR;
+                let Some(mt) = (if bad_type {
+                    None
                 } else {
-                    p.msg_type = std::mem::transmute::<i32, MessageType>(msg_type as i32);
-                    p.request_id = 0;
+                    MessageType::from_raw(msg_type as c_int)
+                }) else {
+                    api_set_error!(
+                        &mut p.unpack_error,
+                        ErrorType::kErrorTypeValidation,
+                        c"failed to decode msgpack".as_ptr(),
+                    );
+                    p.state = -1;
+                    return false;
+                };
+                p.msg_type = mt;
+                p.request_id = 0;
 
-                    if p.msg_type != MessageType::kMessageTypeNotification {
-                        result = mpack_read(&mut p.reader, &mut data, &mut size, &mut tok);
-                        if result == 0 && tok.r#type != mpack_token_type_t::MPACK_TOKEN_UINT {
-                            result = MPACK_ERROR;
-                        }
-                        if result == 0 {
-                            p.request_id = mpack_unpack_uint(tok) as u32;
-                        }
+                if p.msg_type != MessageType::kMessageTypeNotification {
+                    result = mpack_read(&mut p.reader, &mut data, &mut size, &mut tok);
+                    if result == 0 && tok.r#type != mpack_token_type_t::MPACK_TOKEN_UINT {
+                        result = MPACK_ERROR;
                     }
-
-                    if result == 0 && p.msg_type != MessageType::kMessageTypeResponse {
-                        result = mpack_read(&mut p.reader, &mut data, &mut size, &mut tok);
-                        if result == 0
-                            && ((tok.r#type != mpack_token_type_t::MPACK_TOKEN_STR
-                                && tok.r#type != mpack_token_type_t::MPACK_TOKEN_BIN)
-                                || tok.length > 100)
-                        {
-                            result = MPACK_ERROR;
-                        }
-                        if result == 0 {
-                            p.method_name_len = tok.length as usize;
-                            if p.method_name_len > 0 {
-                                result = mpack_read(&mut p.reader, &mut data, &mut size, &mut tok);
-                                if result == 0 {
-                                    assert_eq!(tok.r#type, mpack_token_type_t::MPACK_TOKEN_CHUNK);
-                                }
-                            }
-                            if result == 0 && (tok.length as usize) < p.method_name_len {
-                                result = MPACK_EOF;
-                            }
-                            if result == 0 {
-                                let name_ptr = if tok.length != 0 {
-                                    tok.data.chunk_ptr
-                                } else {
-                                    c"".as_ptr()
-                                };
-                                p.handler = msgpack_rpc_get_handler_for(
-                                    name_ptr,
-                                    tok.length as usize,
-                                    &mut p.unpack_error,
-                                );
-                            }
-                        }
-                    }
-
                     if result == 0 {
-                        p.read_ptr = data;
-                        p.read_size = size;
-                        return true;
+                        p.request_id = mpack_unpack_uint(tok) as u32;
                     }
+                }
+
+                if result == 0 && p.msg_type != MessageType::kMessageTypeResponse {
+                    result = mpack_read(&mut p.reader, &mut data, &mut size, &mut tok);
+                    if result == 0
+                        && ((tok.r#type != mpack_token_type_t::MPACK_TOKEN_STR
+                            && tok.r#type != mpack_token_type_t::MPACK_TOKEN_BIN)
+                            || tok.length > 100)
+                    {
+                        result = MPACK_ERROR;
+                    }
+                    if result == 0 {
+                        p.method_name_len = tok.length as usize;
+                        if p.method_name_len > 0 {
+                            result = mpack_read(&mut p.reader, &mut data, &mut size, &mut tok);
+                            if result == 0 {
+                                assert_eq!(tok.r#type, mpack_token_type_t::MPACK_TOKEN_CHUNK);
+                            }
+                        }
+                        if result == 0 && (tok.length as usize) < p.method_name_len {
+                            result = MPACK_EOF;
+                        }
+                        if result == 0 {
+                            let name_ptr = if tok.length != 0 {
+                                tok.data.chunk_ptr
+                            } else {
+                                c"".as_ptr()
+                            };
+                            p.handler = msgpack_rpc_get_handler_for(
+                                name_ptr,
+                                tok.length as usize,
+                                &mut p.unpack_error,
+                            );
+                        }
+                    }
+                }
+
+                if result == 0 {
+                    p.read_ptr = data;
+                    p.read_size = size;
+                    return true;
                 }
             }
         }

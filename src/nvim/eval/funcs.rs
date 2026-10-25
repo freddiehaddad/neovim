@@ -1,7 +1,6 @@
 //! Builtin Vimscript functions (`src/nvim/eval/funcs.c`).
 
 use crate::api::private::converter::{object_to_vim, object_to_vim_take_luaref, vim_to_object};
-use crate::api::private::dispatch::MsgpackRpcRequestHandler;
 use crate::api::private::helpers::{
     DI_FLAGS_LOCK, api_clear_error, api_free_object, api_free_string, api_metadata, cbuf_to_string,
     cstr_as_string, dict_set_var,
@@ -1166,11 +1165,9 @@ pub unsafe fn find_internal_func_lua(name: *const c_char) -> *const c_char {
     unsafe {
         let fdef = find_internal_func(name);
         if !fdef.is_null()
-            && (*fdef)
-                .func
-                .is_some_and(|f| f as usize == lua_wrapper as *const () as usize)
+            && let EvalFuncData::LuaFunc(lua_name) = (*fdef).data
         {
-            return (*fdef).data.cast::<c_char>();
+            return lua_name.as_ptr();
         }
         ptr::null()
     }
@@ -1283,8 +1280,9 @@ pub unsafe fn float_op_wrapper(argvars: *mut typval_T, rettv: *mut typval_T, fpt
     unsafe {
         let mut f: float_T = 0.0;
         (*rettv).v_type = VarType::VAR_FLOAT;
-        if tv_get_float_chk(argvars, &raw mut f) {
-            let func_float: unsafe fn(float_T) -> float_T = std::mem::transmute(fptr);
+        if tv_get_float_chk(argvars, &raw mut f)
+            && let EvalFuncData::FloatOp(func_float) = fptr
+        {
             (*rettv).vval.v_float = func_float(f);
         } else {
             (*rettv).vval.v_float = 0.0;
@@ -1299,7 +1297,9 @@ pub unsafe fn api_wrapper(argvars: *mut typval_T, rettv: *mut typval_T, fptr: Ev
             return;
         }
 
-        let handler = *fptr.cast::<MsgpackRpcRequestHandler>();
+        let EvalFuncData::ApiHandler(handler) = fptr else {
+            return;
+        };
         let mut args_storage = [Object {
             obj_type: ObjectType::kObjectTypeNil,
             data: ObjectData { boolean: false },
@@ -1368,12 +1368,15 @@ pub unsafe fn lua_wrapper(argvars: *mut typval_T, rettv: *mut typval_T, fptr: Ev
             tv = tv.add(1);
         }
 
+        let EvalFuncData::LuaFunc(lua_name) = fptr else {
+            return;
+        };
         let mut buf = [0 as c_char; 256];
         vim_snprintf!(
             buf.as_mut_ptr(),
             buf.len(),
             c"return require('vim._core.vimfn').%s(...)".as_ptr(),
-            fptr.cast::<c_char>(),
+            lua_name.as_ptr(),
         );
 
         let mut err = Error {
@@ -9441,58 +9444,6 @@ use crate::testing::{
 use crate::undo::{f_undofile, f_undotree};
 use crate::viml::parser::parser::CONV_NONE;
 
-unsafe fn float_op_acos(x: float_T) -> float_T {
-    x.acos()
-}
-unsafe fn float_op_asin(x: float_T) -> float_T {
-    x.asin()
-}
-unsafe fn float_op_atan(x: float_T) -> float_T {
-    x.atan()
-}
-unsafe fn float_op_ceil(x: float_T) -> float_T {
-    x.ceil()
-}
-unsafe fn float_op_cos(x: float_T) -> float_T {
-    x.cos()
-}
-unsafe fn float_op_cosh(x: float_T) -> float_T {
-    x.cosh()
-}
-unsafe fn float_op_exp(x: float_T) -> float_T {
-    x.exp()
-}
-unsafe fn float_op_floor(x: float_T) -> float_T {
-    x.floor()
-}
-unsafe fn float_op_log(x: float_T) -> float_T {
-    x.ln()
-}
-unsafe fn float_op_log10(x: float_T) -> float_T {
-    x.log10()
-}
-unsafe fn float_op_round(x: float_T) -> float_T {
-    x.round()
-}
-unsafe fn float_op_sin(x: float_T) -> float_T {
-    x.sin()
-}
-unsafe fn float_op_sinh(x: float_T) -> float_T {
-    x.sinh()
-}
-unsafe fn float_op_sqrt(x: float_T) -> float_T {
-    x.sqrt()
-}
-unsafe fn float_op_tan(x: float_T) -> float_T {
-    x.tan()
-}
-unsafe fn float_op_tanh(x: float_T) -> float_T {
-    x.tanh()
-}
-unsafe fn float_op_trunc(x: float_T) -> float_T {
-    x.trunc()
-}
-
 macro_rules! viml_fn {
     ($f:ident) => {{ { Some($f) } }};
 }
@@ -9505,7 +9456,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_id),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"or".as_ptr().cast_mut(),
@@ -9514,7 +9465,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_or),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"tr".as_ptr().cast_mut(),
@@ -9523,7 +9474,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_tr),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"abs".as_ptr().cast_mut(),
@@ -9532,7 +9483,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_abs),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"add".as_ptr().cast_mut(),
@@ -9541,7 +9492,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_add),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"and".as_ptr().cast_mut(),
@@ -9550,7 +9501,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_and),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"col".as_ptr().cast_mut(),
@@ -9559,7 +9510,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_col),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"cos".as_ptr().cast_mut(),
@@ -9568,7 +9519,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(float_op_wrapper),
-        data: float_op_cos as *const () as EvalFuncData,
+        data: EvalFuncData::FloatOp(f64::cos),
     },
     EvalFuncDef {
         name: c"exp".as_ptr().cast_mut(),
@@ -9577,7 +9528,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(float_op_wrapper),
-        data: float_op_exp as *const () as EvalFuncData,
+        data: EvalFuncData::FloatOp(f64::exp),
     },
     EvalFuncDef {
         name: c"get".as_ptr().cast_mut(),
@@ -9586,7 +9537,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_get),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"has".as_ptr().cast_mut(),
@@ -9595,7 +9546,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: true,
         func: viml_fn!(f_has),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"len".as_ptr().cast_mut(),
@@ -9604,7 +9555,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_len),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"log".as_ptr().cast_mut(),
@@ -9613,7 +9564,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(float_op_wrapper),
-        data: float_op_log as *const () as EvalFuncData,
+        data: EvalFuncData::FloatOp(f64::ln),
     },
     EvalFuncDef {
         name: c"map".as_ptr().cast_mut(),
@@ -9622,7 +9573,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_map),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"max".as_ptr().cast_mut(),
@@ -9631,7 +9582,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_max),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"min".as_ptr().cast_mut(),
@@ -9640,7 +9591,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_min),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"pow".as_ptr().cast_mut(),
@@ -9649,7 +9600,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_pow),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"sin".as_ptr().cast_mut(),
@@ -9658,7 +9609,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(float_op_wrapper),
-        data: float_op_sin as *const () as EvalFuncData,
+        data: EvalFuncData::FloatOp(f64::sin),
     },
     EvalFuncDef {
         name: c"tan".as_ptr().cast_mut(),
@@ -9667,7 +9618,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(float_op_wrapper),
-        data: float_op_tan as *const () as EvalFuncData,
+        data: EvalFuncData::FloatOp(f64::tan),
     },
     EvalFuncDef {
         name: c"xor".as_ptr().cast_mut(),
@@ -9676,7 +9627,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_xor),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"hlID".as_ptr().cast_mut(),
@@ -9685,7 +9636,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_hlID),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"glob".as_ptr().cast_mut(),
@@ -9694,7 +9645,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_glob),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"argc".as_ptr().cast_mut(),
@@ -9703,7 +9654,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_argc),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"fmod".as_ptr().cast_mut(),
@@ -9712,7 +9663,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_fmod),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"rand".as_ptr().cast_mut(),
@@ -9721,7 +9672,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_rand),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"line".as_ptr().cast_mut(),
@@ -9730,7 +9681,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_line),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"mode".as_ptr().cast_mut(),
@@ -9739,7 +9690,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_mode),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"type".as_ptr().cast_mut(),
@@ -9748,7 +9699,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_type),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"cosh".as_ptr().cast_mut(),
@@ -9757,7 +9708,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(float_op_wrapper),
-        data: float_op_cosh as *const () as EvalFuncData,
+        data: EvalFuncData::FloatOp(f64::cosh),
     },
     EvalFuncDef {
         name: c"sinh".as_ptr().cast_mut(),
@@ -9766,7 +9717,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(float_op_wrapper),
-        data: float_op_sinh as *const () as EvalFuncData,
+        data: EvalFuncData::FloatOp(f64::sinh),
     },
     EvalFuncDef {
         name: c"tanh".as_ptr().cast_mut(),
@@ -9775,7 +9726,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(float_op_wrapper),
-        data: float_op_tanh as *const () as EvalFuncData,
+        data: EvalFuncData::FloatOp(f64::tanh),
     },
     EvalFuncDef {
         name: c"call".as_ptr().cast_mut(),
@@ -9784,7 +9735,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_call),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"ceil".as_ptr().cast_mut(),
@@ -9793,7 +9744,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(float_op_wrapper),
-        data: float_op_ceil as *const () as EvalFuncData,
+        data: EvalFuncData::FloatOp(f64::ceil),
     },
     EvalFuncDef {
         name: c"eval".as_ptr().cast_mut(),
@@ -9802,7 +9753,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_eval),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"trim".as_ptr().cast_mut(),
@@ -9811,7 +9762,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_trim),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"asin".as_ptr().cast_mut(),
@@ -9820,7 +9771,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(float_op_wrapper),
-        data: float_op_asin as *const () as EvalFuncData,
+        data: EvalFuncData::FloatOp(f64::asin),
     },
     EvalFuncDef {
         name: c"atan".as_ptr().cast_mut(),
@@ -9829,7 +9780,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(float_op_wrapper),
-        data: float_op_atan as *const () as EvalFuncData,
+        data: EvalFuncData::FloatOp(f64::atan),
     },
     EvalFuncDef {
         name: c"join".as_ptr().cast_mut(),
@@ -9838,7 +9789,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_join),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"uniq".as_ptr().cast_mut(),
@@ -9847,7 +9798,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_uniq),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"acos".as_ptr().cast_mut(),
@@ -9856,7 +9807,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(float_op_wrapper),
-        data: float_op_acos as *const () as EvalFuncData,
+        data: EvalFuncData::FloatOp(f64::acos),
     },
     EvalFuncDef {
         name: c"keys".as_ptr().cast_mut(),
@@ -9865,7 +9816,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_keys),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"sort".as_ptr().cast_mut(),
@@ -9874,7 +9825,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_sort),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"sqrt".as_ptr().cast_mut(),
@@ -9883,7 +9834,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(float_op_wrapper),
-        data: float_op_sqrt as *const () as EvalFuncData,
+        data: EvalFuncData::FloatOp(f64::sqrt),
     },
     EvalFuncDef {
         name: c"wait".as_ptr().cast_mut(),
@@ -9892,7 +9843,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_wait),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"argv".as_ptr().cast_mut(),
@@ -9901,7 +9852,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_argv),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"copy".as_ptr().cast_mut(),
@@ -9910,7 +9861,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_copy),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"match".as_ptr().cast_mut(),
@@ -9919,7 +9870,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_match),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"range".as_ptr().cast_mut(),
@@ -9928,7 +9879,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_range),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"iconv".as_ptr().cast_mut(),
@@ -9937,7 +9888,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_iconv),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"chdir".as_ptr().cast_mut(),
@@ -9946,7 +9897,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_chdir),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"winnr".as_ptr().cast_mut(),
@@ -9955,7 +9906,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_winnr),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"mkdir".as_ptr().cast_mut(),
@@ -9964,7 +9915,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_mkdir),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"floor".as_ptr().cast_mut(),
@@ -9973,7 +9924,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(float_op_wrapper),
-        data: float_op_floor as *const () as EvalFuncData,
+        data: EvalFuncData::FloatOp(f64::floor),
     },
     EvalFuncDef {
         name: c"slice".as_ptr().cast_mut(),
@@ -9982,7 +9933,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_slice),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"empty".as_ptr().cast_mut(),
@@ -9991,7 +9942,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_empty),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"index".as_ptr().cast_mut(),
@@ -10000,7 +9951,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_index),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"input".as_ptr().cast_mut(),
@@ -10009,7 +9960,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_input),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"count".as_ptr().cast_mut(),
@@ -10018,7 +9969,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_count),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"log10".as_ptr().cast_mut(),
@@ -10027,7 +9978,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(float_op_wrapper),
-        data: float_op_log10 as *const () as EvalFuncData,
+        data: EvalFuncData::FloatOp(f64::log10),
     },
     EvalFuncDef {
         name: c"round".as_ptr().cast_mut(),
@@ -10036,7 +9987,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(float_op_wrapper),
-        data: float_op_round as *const () as EvalFuncData,
+        data: EvalFuncData::FloatOp(f64::round),
     },
     EvalFuncDef {
         name: c"split".as_ptr().cast_mut(),
@@ -10045,7 +9996,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_split),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"srand".as_ptr().cast_mut(),
@@ -10054,7 +10005,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_srand),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"trunc".as_ptr().cast_mut(),
@@ -10063,7 +10014,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(float_op_wrapper),
-        data: float_op_trunc as *const () as EvalFuncData,
+        data: EvalFuncData::FloatOp(f64::trunc),
     },
     EvalFuncDef {
         name: c"isinf".as_ptr().cast_mut(),
@@ -10072,7 +10023,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_isinf),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"isnan".as_ptr().cast_mut(),
@@ -10081,7 +10032,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_isnan),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"atan2".as_ptr().cast_mut(),
@@ -10090,7 +10041,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_atan2),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"items".as_ptr().cast_mut(),
@@ -10099,7 +10050,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_items),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"state".as_ptr().cast_mut(),
@@ -10108,7 +10059,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_state),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"bufnr".as_ptr().cast_mut(),
@@ -10117,7 +10068,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_bufnr),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"synID".as_ptr().cast_mut(),
@@ -10126,7 +10077,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_synID),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"sha256".as_ptr().cast_mut(),
@@ -10135,7 +10086,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_sha256),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"append".as_ptr().cast_mut(),
@@ -10144,7 +10095,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 2,
         fast: false,
         func: viml_fn!(f_append),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"bufadd".as_ptr().cast_mut(),
@@ -10153,7 +10104,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_bufadd),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"expand".as_ptr().cast_mut(),
@@ -10162,7 +10113,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_expand),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"extend".as_ptr().cast_mut(),
@@ -10171,7 +10122,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_extend),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getcwd".as_ptr().cast_mut(),
@@ -10180,7 +10131,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_getcwd),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getpid".as_ptr().cast_mut(),
@@ -10189,7 +10140,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: true,
         func: viml_fn!(f_getpid),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"jobpid".as_ptr().cast_mut(),
@@ -10198,7 +10149,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_jobpid),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"browse".as_ptr().cast_mut(),
@@ -10207,7 +10158,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_browse),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"delete".as_ptr().cast_mut(),
@@ -10216,7 +10167,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_delete),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"escape".as_ptr().cast_mut(),
@@ -10225,7 +10176,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_escape),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"reduce".as_ptr().cast_mut(),
@@ -10234,7 +10185,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_reduce),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"remove".as_ptr().cast_mut(),
@@ -10243,7 +10194,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_remove),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"rename".as_ptr().cast_mut(),
@@ -10252,7 +10203,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_rename),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"printf".as_ptr().cast_mut(),
@@ -10261,7 +10212,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 2,
         fast: false,
         func: viml_fn!(f_printf),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getreg".as_ptr().cast_mut(),
@@ -10270,7 +10221,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_getreg),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"maparg".as_ptr().cast_mut(),
@@ -10279,7 +10230,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_maparg),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"setreg".as_ptr().cast_mut(),
@@ -10288,7 +10239,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 2,
         fast: false,
         func: viml_fn!(f_setreg),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"string".as_ptr().cast_mut(),
@@ -10297,7 +10248,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_string),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"search".as_ptr().cast_mut(),
@@ -10306,7 +10257,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_search),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"pyeval".as_ptr().cast_mut(),
@@ -10315,7 +10266,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_py3eval),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"wincol".as_ptr().cast_mut(),
@@ -10324,7 +10275,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_wincol),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"system".as_ptr().cast_mut(),
@@ -10333,7 +10284,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_system),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"strlen".as_ptr().cast_mut(),
@@ -10342,7 +10293,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_strlen),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"cursor".as_ptr().cast_mut(),
@@ -10351,7 +10302,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_cursor),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"filter".as_ptr().cast_mut(),
@@ -10360,7 +10311,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_filter),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"histnr".as_ptr().cast_mut(),
@@ -10369,7 +10320,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_histnr),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"str2nr".as_ptr().cast_mut(),
@@ -10378,7 +10329,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_str2nr),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"exists".as_ptr().cast_mut(),
@@ -10387,7 +10338,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_exists),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getpos".as_ptr().cast_mut(),
@@ -10396,7 +10347,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_getpos),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"setpos".as_ptr().cast_mut(),
@@ -10405,7 +10356,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 2,
         fast: false,
         func: viml_fn!(f_setpos),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"values".as_ptr().cast_mut(),
@@ -10414,7 +10365,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_values),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"indent".as_ptr().cast_mut(),
@@ -10423,7 +10374,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_indent),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"insert".as_ptr().cast_mut(),
@@ -10432,7 +10383,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_insert),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"invert".as_ptr().cast_mut(),
@@ -10441,7 +10392,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_invert),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"mapset".as_ptr().cast_mut(),
@@ -10450,7 +10401,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_mapset),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"repeat".as_ptr().cast_mut(),
@@ -10459,7 +10410,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_repeat),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getenv".as_ptr().cast_mut(),
@@ -10468,7 +10419,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_getenv),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"setenv".as_ptr().cast_mut(),
@@ -10477,7 +10428,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 2,
         fast: false,
         func: viml_fn!(f_setenv),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"mapnew".as_ptr().cast_mut(),
@@ -10486,7 +10437,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_mapnew),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"argidx".as_ptr().cast_mut(),
@@ -10495,7 +10446,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_argidx),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"stridx".as_ptr().cast_mut(),
@@ -10504,7 +10455,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_stridx),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"bufload".as_ptr().cast_mut(),
@@ -10513,7 +10464,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_bufload),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"bufname".as_ptr().cast_mut(),
@@ -10522,7 +10473,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_bufname),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"byteidx".as_ptr().cast_mut(),
@@ -10531,7 +10482,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_byteidx),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"char2nr".as_ptr().cast_mut(),
@@ -10540,7 +10491,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_char2nr),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"charcol".as_ptr().cast_mut(),
@@ -10549,7 +10500,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_charcol),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"charidx".as_ptr().cast_mut(),
@@ -10558,7 +10509,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_charidx),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"cindent".as_ptr().cast_mut(),
@@ -10567,7 +10518,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_cindent),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"confirm".as_ptr().cast_mut(),
@@ -10576,7 +10527,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_confirm),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"environ".as_ptr().cast_mut(),
@@ -10585,7 +10536,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: true,
         func: viml_fn!(lua_wrapper),
-        data: c"f_environ".as_ptr().cast_mut().cast(),
+        data: EvalFuncData::LuaFunc(c"f_environ"),
     },
     EvalFuncDef {
         name: c"execute".as_ptr().cast_mut(),
@@ -10594,7 +10545,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_execute),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"exepath".as_ptr().cast_mut(),
@@ -10603,7 +10554,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_exepath),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"finddir".as_ptr().cast_mut(),
@@ -10612,7 +10563,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_finddir),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"flatten".as_ptr().cast_mut(),
@@ -10621,7 +10572,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_flatten),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"foreach".as_ptr().cast_mut(),
@@ -10630,7 +10581,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_foreach),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"funcref".as_ptr().cast_mut(),
@@ -10639,7 +10590,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_funcref),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getchar".as_ptr().cast_mut(),
@@ -10648,7 +10599,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_getchar),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getline".as_ptr().cast_mut(),
@@ -10657,7 +10608,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_getline),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"gettext".as_ptr().cast_mut(),
@@ -10666,7 +10617,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_gettext),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"has_key".as_ptr().cast_mut(),
@@ -10675,7 +10626,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_has_key),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"histadd".as_ptr().cast_mut(),
@@ -10684,7 +10635,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 2,
         fast: false,
         func: viml_fn!(f_histadd),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"histdel".as_ptr().cast_mut(),
@@ -10693,7 +10644,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_histdel),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"histget".as_ptr().cast_mut(),
@@ -10702,7 +10653,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_histget),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"indexof".as_ptr().cast_mut(),
@@ -10711,7 +10662,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_indexof),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"jobsend".as_ptr().cast_mut(),
@@ -10720,7 +10671,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_chansend),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"jobstop".as_ptr().cast_mut(),
@@ -10729,7 +10680,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_jobstop),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"jobwait".as_ptr().cast_mut(),
@@ -10738,7 +10689,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_jobwait),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"libcall".as_ptr().cast_mut(),
@@ -10747,7 +10698,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 3,
         fast: false,
         func: viml_fn!(f_libcall),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"luaeval".as_ptr().cast_mut(),
@@ -10756,7 +10707,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_luaeval),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"maplist".as_ptr().cast_mut(),
@@ -10765,7 +10716,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_maplist),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nr2char".as_ptr().cast_mut(),
@@ -10774,7 +10725,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_nr2char),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"py3eval".as_ptr().cast_mut(),
@@ -10783,7 +10734,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_py3eval),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"pyxeval".as_ptr().cast_mut(),
@@ -10792,7 +10743,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_py3eval),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"readdir".as_ptr().cast_mut(),
@@ -10801,7 +10752,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_readdir),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"reltime".as_ptr().cast_mut(),
@@ -10810,7 +10761,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_reltime),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"resolve".as_ptr().cast_mut(),
@@ -10819,7 +10770,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_resolve),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"reverse".as_ptr().cast_mut(),
@@ -10828,7 +10779,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_reverse),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"rpcstop".as_ptr().cast_mut(),
@@ -10837,7 +10788,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_rpcstop),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"setline".as_ptr().cast_mut(),
@@ -10846,7 +10797,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 2,
         fast: false,
         func: viml_fn!(f_setline),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"stdpath".as_ptr().cast_mut(),
@@ -10855,7 +10806,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: true,
         func: viml_fn!(f_stdpath),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"strpart".as_ptr().cast_mut(),
@@ -10864,7 +10815,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_strpart),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"strridx".as_ptr().cast_mut(),
@@ -10873,7 +10824,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_strridx),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"taglist".as_ptr().cast_mut(),
@@ -10882,7 +10833,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_taglist),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"tolower".as_ptr().cast_mut(),
@@ -10891,7 +10842,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_tolower),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"toupper".as_ptr().cast_mut(),
@@ -10900,7 +10851,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_toupper),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"virtcol".as_ptr().cast_mut(),
@@ -10909,7 +10860,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_virtcol),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"winline".as_ptr().cast_mut(),
@@ -10918,7 +10869,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_winline),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"utf16idx".as_ptr().cast_mut(),
@@ -10927,7 +10878,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_utf16idx),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"str2list".as_ptr().cast_mut(),
@@ -10936,7 +10887,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_str2list),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"api_info".as_ptr().cast_mut(),
@@ -10945,7 +10896,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: true,
         func: viml_fn!(f_api_info),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"float2nr".as_ptr().cast_mut(),
@@ -10954,7 +10905,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_float2nr),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"globpath".as_ptr().cast_mut(),
@@ -10963,7 +10914,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 2,
         fast: false,
         func: viml_fn!(f_globpath),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"winbufnr".as_ptr().cast_mut(),
@@ -10972,7 +10923,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_winbufnr),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"function".as_ptr().cast_mut(),
@@ -10981,7 +10932,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_function),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"jobclose".as_ptr().cast_mut(),
@@ -10990,7 +10941,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_chanclose),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"mapcheck".as_ptr().cast_mut(),
@@ -10999,7 +10950,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_mapcheck),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"matchadd".as_ptr().cast_mut(),
@@ -11008,7 +10959,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_matchadd),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"matcharg".as_ptr().cast_mut(),
@@ -11017,7 +10968,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_matcharg),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"matchend".as_ptr().cast_mut(),
@@ -11026,7 +10977,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_matchend),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"matchstr".as_ptr().cast_mut(),
@@ -11035,7 +10986,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_matchstr),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"strchars".as_ptr().cast_mut(),
@@ -11044,7 +10995,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_strchars),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"feedkeys".as_ptr().cast_mut(),
@@ -11053,7 +11004,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_feedkeys),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"findfile".as_ptr().cast_mut(),
@@ -11062,7 +11013,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_findfile),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"foldtext".as_ptr().cast_mut(),
@@ -11071,7 +11022,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_foldtext),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"readblob".as_ptr().cast_mut(),
@@ -11080,7 +11031,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_readblob),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"readfile".as_ptr().cast_mut(),
@@ -11089,7 +11040,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_readfile),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"filecopy".as_ptr().cast_mut(),
@@ -11098,7 +11049,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_filecopy),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getfperm".as_ptr().cast_mut(),
@@ -11107,7 +11058,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_getfperm),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getfsize".as_ptr().cast_mut(),
@@ -11116,7 +11067,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_getfsize),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getftime".as_ptr().cast_mut(),
@@ -11125,7 +11076,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_getftime),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getftype".as_ptr().cast_mut(),
@@ -11134,7 +11085,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_getftype),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"setfperm".as_ptr().cast_mut(),
@@ -11143,7 +11094,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_setfperm),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"strftime".as_ptr().cast_mut(),
@@ -11152,7 +11103,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_strftime),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"tagfiles".as_ptr().cast_mut(),
@@ -11161,7 +11112,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_tagfiles),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"perleval".as_ptr().cast_mut(),
@@ -11170,7 +11121,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_perleval),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"hasmapto".as_ptr().cast_mut(),
@@ -11179,7 +11130,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_hasmapto),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim__id".as_ptr().cast_mut(),
@@ -11188,9 +11139,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[1])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[1]),
     },
     EvalFuncDef {
         name: c"nvim_cmd".as_ptr().cast_mut(),
@@ -11199,9 +11148,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[2])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[2]),
     },
     EvalFuncDef {
         name: c"nvim_put".as_ptr().cast_mut(),
@@ -11210,9 +11157,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[3])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[3]),
     },
     EvalFuncDef {
         name: c"submatch".as_ptr().cast_mut(),
@@ -11221,7 +11166,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_submatch),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"termopen".as_ptr().cast_mut(),
@@ -11230,7 +11175,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_termopen),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"changenr".as_ptr().cast_mut(),
@@ -11239,7 +11184,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_changenr),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"chansend".as_ptr().cast_mut(),
@@ -11248,7 +11193,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_chansend),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"islocked".as_ptr().cast_mut(),
@@ -11257,7 +11202,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_islocked),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"undofile".as_ptr().cast_mut(),
@@ -11266,7 +11211,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_undofile),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"undotree".as_ptr().cast_mut(),
@@ -11275,7 +11220,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_undotree),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"complete".as_ptr().cast_mut(),
@@ -11284,7 +11229,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 2,
         fast: false,
         func: viml_fn!(f_complete),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"deepcopy".as_ptr().cast_mut(),
@@ -11293,7 +11238,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_deepcopy),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"simplify".as_ptr().cast_mut(),
@@ -11302,7 +11247,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_simplify),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"strptime".as_ptr().cast_mut(),
@@ -11311,7 +11256,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_strptime),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"swapinfo".as_ptr().cast_mut(),
@@ -11320,7 +11265,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_swapinfo),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"swapname".as_ptr().cast_mut(),
@@ -11329,7 +11274,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_swapname),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"tempname".as_ptr().cast_mut(),
@@ -11338,7 +11283,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_tempname),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"jobstart".as_ptr().cast_mut(),
@@ -11347,7 +11292,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_jobstart),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"rpcstart".as_ptr().cast_mut(),
@@ -11356,7 +11301,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_rpcstart),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"synstack".as_ptr().cast_mut(),
@@ -11365,7 +11310,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_synstack),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"hostname".as_ptr().cast_mut(),
@@ -11374,7 +11319,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: true,
         func: viml_fn!(lua_wrapper),
-        data: c"f_hostname".as_ptr().cast_mut().cast(),
+        data: EvalFuncData::LuaFunc(c"f_hostname"),
     },
     EvalFuncDef {
         name: c"keytrans".as_ptr().cast_mut(),
@@ -11383,7 +11328,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_keytrans),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"list2str".as_ptr().cast_mut(),
@@ -11392,7 +11337,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_list2str),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"strtrans".as_ptr().cast_mut(),
@@ -11401,7 +11346,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_strtrans),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"menu_get".as_ptr().cast_mut(),
@@ -11410,7 +11355,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_menu_get),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"bufwinid".as_ptr().cast_mut(),
@@ -11419,7 +11364,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_bufwinid),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"bufwinnr".as_ptr().cast_mut(),
@@ -11428,7 +11373,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_bufwinnr),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"strwidth".as_ptr().cast_mut(),
@@ -11437,7 +11382,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_strwidth),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"winwidth".as_ptr().cast_mut(),
@@ -11446,7 +11391,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_winwidth),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"hlexists".as_ptr().cast_mut(),
@@ -11455,7 +11400,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_hlexists),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"rubyeval".as_ptr().cast_mut(),
@@ -11464,7 +11409,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_rubyeval),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"blob2list".as_ptr().cast_mut(),
@@ -11473,7 +11418,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_blob2list),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"byte2line".as_ptr().cast_mut(),
@@ -11482,7 +11427,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_byte2line),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"line2byte".as_ptr().cast_mut(),
@@ -11491,7 +11436,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_line2byte),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"list2blob".as_ptr().cast_mut(),
@@ -11500,7 +11445,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_list2blob),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"synIDattr".as_ptr().cast_mut(),
@@ -11509,7 +11454,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_synIDattr),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"diff_hlID".as_ptr().cast_mut(),
@@ -11518,7 +11463,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_diff_hlID),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"menu_info".as_ptr().cast_mut(),
@@ -11527,7 +11472,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_menu_info),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_echo".as_ptr().cast_mut(),
@@ -11536,9 +11481,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[7])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[7]),
     },
     EvalFuncDef {
         name: c"nvim_eval".as_ptr().cast_mut(),
@@ -11547,9 +11490,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[9])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[9]),
     },
     EvalFuncDef {
         name: c"nvim_exec".as_ptr().cast_mut(),
@@ -11558,9 +11499,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[10])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[10]),
     },
     EvalFuncDef {
         name: c"sign_jump".as_ptr().cast_mut(),
@@ -11569,7 +11508,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_sign_jump),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"gettabvar".as_ptr().cast_mut(),
@@ -11578,7 +11517,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_gettabvar),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"libcallnr".as_ptr().cast_mut(),
@@ -11587,7 +11526,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 3,
         fast: false,
         func: viml_fn!(f_libcallnr),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"settabvar".as_ptr().cast_mut(),
@@ -11596,7 +11535,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 3,
         fast: false,
         func: viml_fn!(f_settabvar),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"tabpagenr".as_ptr().cast_mut(),
@@ -11605,7 +11544,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_tabpagenr),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"winlayout".as_ptr().cast_mut(),
@@ -11614,7 +11553,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_winlayout),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"chanclose".as_ptr().cast_mut(),
@@ -11623,7 +11562,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_chanclose),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"charclass".as_ptr().cast_mut(),
@@ -11632,7 +11571,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_charclass),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"searchpos".as_ptr().cast_mut(),
@@ -11641,7 +11580,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_searchpos),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"wordcount".as_ptr().cast_mut(),
@@ -11650,7 +11589,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_wordcount),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"soundfold".as_ptr().cast_mut(),
@@ -11659,7 +11598,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_soundfold),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getregion".as_ptr().cast_mut(),
@@ -11668,7 +11607,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_getregion),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"jobresize".as_ptr().cast_mut(),
@@ -11677,7 +11616,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_jobresize),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"screencol".as_ptr().cast_mut(),
@@ -11686,7 +11625,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_screencol),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"screenpos".as_ptr().cast_mut(),
@@ -11695,7 +11634,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_screenpos),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"screenrow".as_ptr().cast_mut(),
@@ -11704,7 +11643,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_screenrow),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"winheight".as_ptr().cast_mut(),
@@ -11713,7 +11652,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_winheight),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"writefile".as_ptr().cast_mut(),
@@ -11722,7 +11661,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_writefile),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getqflist".as_ptr().cast_mut(),
@@ -11731,7 +11670,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_getqflist),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"setqflist".as_ptr().cast_mut(),
@@ -11740,7 +11679,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_setqflist),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"str2float".as_ptr().cast_mut(),
@@ -11749,7 +11688,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_str2float),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"win_getid".as_ptr().cast_mut(),
@@ -11758,7 +11697,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_win_getid),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"matchlist".as_ptr().cast_mut(),
@@ -11767,7 +11706,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_matchlist),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"arglistid".as_ptr().cast_mut(),
@@ -11776,7 +11715,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_arglistid),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"buflisted".as_ptr().cast_mut(),
@@ -11785,7 +11724,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_buflisted),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getwinpos".as_ptr().cast_mut(),
@@ -11794,7 +11733,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_getwinpos),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getwinvar".as_ptr().cast_mut(),
@@ -11803,7 +11742,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_getwinvar),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"setwinvar".as_ptr().cast_mut(),
@@ -11812,7 +11751,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 3,
         fast: false,
         func: viml_fn!(f_setwinvar),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"foldlevel".as_ptr().cast_mut(),
@@ -11821,7 +11760,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_foldlevel),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"localtime".as_ptr().cast_mut(),
@@ -11830,7 +11769,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_localtime),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getcmdpos".as_ptr().cast_mut(),
@@ -11839,7 +11778,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_getcmdpos),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"setcmdpos".as_ptr().cast_mut(),
@@ -11848,7 +11787,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_setcmdpos),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"expandcmd".as_ptr().cast_mut(),
@@ -11857,7 +11796,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_expandcmd),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"extendnew".as_ptr().cast_mut(),
@@ -11866,7 +11805,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_extendnew),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"bufloaded".as_ptr().cast_mut(),
@@ -11875,7 +11814,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_bufloaded),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"rpcnotify".as_ptr().cast_mut(),
@@ -11884,7 +11823,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_rpcnotify),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"stdioopen".as_ptr().cast_mut(),
@@ -11893,7 +11832,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_stdioopen),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"interrupt".as_ptr().cast_mut(),
@@ -11902,7 +11841,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_interrupt),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"browsedir".as_ptr().cast_mut(),
@@ -11911,7 +11850,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_browsedir),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"inputlist".as_ptr().cast_mut(),
@@ -11920,7 +11859,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_inputlist),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"inputsave".as_ptr().cast_mut(),
@@ -11929,7 +11868,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_inputsave),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getbufvar".as_ptr().cast_mut(),
@@ -11938,7 +11877,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_getbufvar),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getcurpos".as_ptr().cast_mut(),
@@ -11947,7 +11886,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_getcurpos),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"setbufvar".as_ptr().cast_mut(),
@@ -11956,7 +11895,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 3,
         fast: false,
         func: viml_fn!(f_setbufvar),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"bufexists".as_ptr().cast_mut(),
@@ -11965,7 +11904,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_bufexists),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"timer_info".as_ptr().cast_mut(),
@@ -11974,7 +11913,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_timer_info),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"timer_stop".as_ptr().cast_mut(),
@@ -11983,7 +11922,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_timer_stop),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getcharmod".as_ptr().cast_mut(),
@@ -11992,7 +11931,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_getcharmod),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getcharpos".as_ptr().cast_mut(),
@@ -12001,7 +11940,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_getcharpos),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getcharstr".as_ptr().cast_mut(),
@@ -12010,7 +11949,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_getcharstr),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"setcharpos".as_ptr().cast_mut(),
@@ -12019,7 +11958,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 2,
         fast: false,
         func: viml_fn!(f_setcharpos),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"strcharlen".as_ptr().cast_mut(),
@@ -12028,7 +11967,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_strcharlen),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"debugbreak".as_ptr().cast_mut(),
@@ -12037,7 +11976,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_debugbreak),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"gettabinfo".as_ptr().cast_mut(),
@@ -12046,7 +11985,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_gettabinfo),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getloclist".as_ptr().cast_mut(),
@@ -12055,7 +11994,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_getloclist),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"setloclist".as_ptr().cast_mut(),
@@ -12064,7 +12003,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 2,
         fast: false,
         func: viml_fn!(f_setloclist),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getcmdline".as_ptr().cast_mut(),
@@ -12073,7 +12012,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_getcmdline),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getcmdtype".as_ptr().cast_mut(),
@@ -12082,7 +12021,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_getcmdtype),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"setcmdline".as_ptr().cast_mut(),
@@ -12091,7 +12030,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_setcmdline),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"win_id2win".as_ptr().cast_mut(),
@@ -12100,7 +12039,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_win_id2win),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"flattennew".as_ptr().cast_mut(),
@@ -12109,7 +12048,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_flattennew),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_exec2".as_ptr().cast_mut(),
@@ -12118,9 +12057,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[11])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[11]),
     },
     EvalFuncDef {
         name: c"pum_getpos".as_ptr().cast_mut(),
@@ -12129,7 +12066,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_pum_getpos),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getbufinfo".as_ptr().cast_mut(),
@@ -12138,7 +12075,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_getbufinfo),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getbufline".as_ptr().cast_mut(),
@@ -12147,7 +12084,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_getbufline),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"matchfuzzy".as_ptr().cast_mut(),
@@ -12156,7 +12093,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_matchfuzzy),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"setbufline".as_ptr().cast_mut(),
@@ -12165,7 +12102,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 3,
         fast: false,
         func: viml_fn!(f_setbufline),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getreginfo".as_ptr().cast_mut(),
@@ -12174,7 +12111,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_getreginfo),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getregtype".as_ptr().cast_mut(),
@@ -12183,7 +12120,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_getregtype),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"searchdecl".as_ptr().cast_mut(),
@@ -12192,7 +12129,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_searchdecl),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"searchpair".as_ptr().cast_mut(),
@@ -12201,7 +12138,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_searchpair),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_input".as_ptr().cast_mut(),
@@ -12210,9 +12147,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[12])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[12]),
     },
     EvalFuncDef {
         name: c"substitute".as_ptr().cast_mut(),
@@ -12221,7 +12156,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_substitute),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"foldclosed".as_ptr().cast_mut(),
@@ -12230,7 +12165,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_foldclosed),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"visualmode".as_ptr().cast_mut(),
@@ -12239,7 +12174,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_visualmode),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"reltimestr".as_ptr().cast_mut(),
@@ -12248,7 +12183,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_reltimestr),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"systemlist".as_ptr().cast_mut(),
@@ -12257,7 +12192,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_systemlist),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getwininfo".as_ptr().cast_mut(),
@@ -12266,7 +12201,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_getwininfo),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getwinposx".as_ptr().cast_mut(),
@@ -12275,7 +12210,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_getwinposx),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getwinposy".as_ptr().cast_mut(),
@@ -12284,7 +12219,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_getwinposy),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"lispindent".as_ptr().cast_mut(),
@@ -12293,7 +12228,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_lispindent),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"screenattr".as_ptr().cast_mut(),
@@ -12302,7 +12237,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_screenattr),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"screenchar".as_ptr().cast_mut(),
@@ -12311,7 +12246,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_screenchar),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"win_gotoid".as_ptr().cast_mut(),
@@ -12320,7 +12255,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_win_gotoid),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_paste".as_ptr().cast_mut(),
@@ -12329,9 +12264,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[13])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[13]),
     },
     EvalFuncDef {
         name: c"sign_place".as_ptr().cast_mut(),
@@ -12340,7 +12273,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_sign_place),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"rpcrequest".as_ptr().cast_mut(),
@@ -12349,7 +12282,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_rpcrequest),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"foreground".as_ptr().cast_mut(),
@@ -12358,7 +12291,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_foreground),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"serverlist".as_ptr().cast_mut(),
@@ -12367,7 +12300,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_serverlist),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"serverstop".as_ptr().cast_mut(),
@@ -12376,7 +12309,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_serverstop),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"pumvisible".as_ptr().cast_mut(),
@@ -12385,7 +12318,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_pumvisible),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"winrestcmd".as_ptr().cast_mut(),
@@ -12394,7 +12327,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_winrestcmd),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"executable".as_ptr().cast_mut(),
@@ -12403,7 +12336,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_executable),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getmatches".as_ptr().cast_mut(),
@@ -12412,7 +12345,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_getmatches),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"setmatches".as_ptr().cast_mut(),
@@ -12421,7 +12354,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_setmatches),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"strgetchar".as_ptr().cast_mut(),
@@ -12430,7 +12363,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_strgetchar),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"synIDtrans".as_ptr().cast_mut(),
@@ -12439,7 +12372,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_synIDtrans),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"shiftwidth".as_ptr().cast_mut(),
@@ -12448,7 +12381,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_shiftwidth),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim__stats".as_ptr().cast_mut(),
@@ -12457,9 +12390,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[19])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[19]),
     },
     EvalFuncDef {
         name: c"timer_pause".as_ptr().cast_mut(),
@@ -12468,7 +12399,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_timer_pause),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"timer_start".as_ptr().cast_mut(),
@@ -12477,7 +12408,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_timer_start),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"matchaddpos".as_ptr().cast_mut(),
@@ -12486,7 +12417,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_matchaddpos),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"strcharpart".as_ptr().cast_mut(),
@@ -12495,7 +12426,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_strcharpart),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"haslocaldir".as_ptr().cast_mut(),
@@ -12504,7 +12435,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_haslocaldir),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"msgpackdump".as_ptr().cast_mut(),
@@ -12513,7 +12444,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_msgpackdump),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"byteidxcomp".as_ptr().cast_mut(),
@@ -12522,7 +12453,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_byteidxcomp),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"inputdialog".as_ptr().cast_mut(),
@@ -12531,7 +12462,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_inputdialog),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"json_decode".as_ptr().cast_mut(),
@@ -12540,7 +12471,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_json_decode),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"matchdelete".as_ptr().cast_mut(),
@@ -12549,7 +12480,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_matchdelete),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"sign_define".as_ptr().cast_mut(),
@@ -12558,7 +12489,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_sign_define),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"fnameescape".as_ptr().cast_mut(),
@@ -12567,7 +12498,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_fnameescape),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"isdirectory".as_ptr().cast_mut(),
@@ -12576,7 +12507,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_isdirectory),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"json_encode".as_ptr().cast_mut(),
@@ -12585,7 +12516,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_json_encode),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"shellescape".as_ptr().cast_mut(),
@@ -12594,7 +12525,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_shellescape),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"win_gettype".as_ptr().cast_mut(),
@@ -12603,7 +12534,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_win_gettype),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"diff_filler".as_ptr().cast_mut(),
@@ -12612,7 +12543,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_diff_filler),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"strutf16len".as_ptr().cast_mut(),
@@ -12621,7 +12552,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_strutf16len),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"gettagstack".as_ptr().cast_mut(),
@@ -12630,7 +12561,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_gettagstack),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_get_hl".as_ptr().cast_mut(),
@@ -12639,9 +12570,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[14])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[14]),
     },
     EvalFuncDef {
         name: c"settagstack".as_ptr().cast_mut(),
@@ -12650,7 +12579,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 2,
         fast: false,
         func: viml_fn!(f_settagstack),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"pathshorten".as_ptr().cast_mut(),
@@ -12659,7 +12588,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_pathshorten),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"searchcount".as_ptr().cast_mut(),
@@ -12668,7 +12597,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_searchcount),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"highlightID".as_ptr().cast_mut(),
@@ -12677,7 +12606,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_hlID),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"win_findbuf".as_ptr().cast_mut(),
@@ -12686,7 +12615,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_win_findbuf),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"fnamemodify".as_ptr().cast_mut(),
@@ -12695,7 +12624,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_fnamemodify),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getjumplist".as_ptr().cast_mut(),
@@ -12704,7 +12633,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_getjumplist),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getfontname".as_ptr().cast_mut(),
@@ -12713,7 +12642,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_getfontname),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_notify".as_ptr().cast_mut(),
@@ -12722,9 +12651,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[18])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[18]),
     },
     EvalFuncDef {
         name: c"screenchars".as_ptr().cast_mut(),
@@ -12733,7 +12660,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_screenchars),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"fullcommand".as_ptr().cast_mut(),
@@ -12742,7 +12669,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_fullcommand),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"sockconnect".as_ptr().cast_mut(),
@@ -12751,7 +12678,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_sockconnect),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"virtcol2col".as_ptr().cast_mut(),
@@ -12760,7 +12687,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_virtcol2col),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"digraph_get".as_ptr().cast_mut(),
@@ -12769,7 +12696,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_digraph_get),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"digraph_set".as_ptr().cast_mut(),
@@ -12778,7 +12705,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_digraph_set),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"buffer_name".as_ptr().cast_mut(),
@@ -12787,7 +12714,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_bufname),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getmarklist".as_ptr().cast_mut(),
@@ -12796,7 +12723,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_getmarklist),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"glob2regpat".as_ptr().cast_mut(),
@@ -12805,7 +12732,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_glob2regpat),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"serverstart".as_ptr().cast_mut(),
@@ -12814,7 +12741,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_serverstart),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"wildtrigger".as_ptr().cast_mut(),
@@ -12823,7 +12750,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_wildtrigger),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"inputsecret".as_ptr().cast_mut(),
@@ -12832,7 +12759,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_inputsecret),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"matchstrpos".as_ptr().cast_mut(),
@@ -12841,7 +12768,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_matchstrpos),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_set_hl".as_ptr().cast_mut(),
@@ -12850,9 +12777,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[15])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[15]),
     },
     EvalFuncDef {
         name: c"preinserted".as_ptr().cast_mut(),
@@ -12861,7 +12786,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_preinserted),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"winrestview".as_ptr().cast_mut(),
@@ -12870,7 +12795,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_winrestview),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"assert_true".as_ptr().cast_mut(),
@@ -12879,7 +12804,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_assert_true),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getmousepos".as_ptr().cast_mut(),
@@ -12888,7 +12813,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_getmousepos),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"winsaveview".as_ptr().cast_mut(),
@@ -12897,7 +12822,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_winsaveview),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"win_execute".as_ptr().cast_mut(),
@@ -12906,7 +12831,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 2,
         fast: false,
         func: viml_fn!(f_win_execute),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim__ns_get".as_ptr().cast_mut(),
@@ -12915,9 +12840,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[29])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[29]),
     },
     EvalFuncDef {
         name: c"nvim__ns_set".as_ptr().cast_mut(),
@@ -12926,9 +12849,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[30])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[30]),
     },
     EvalFuncDef {
         name: c"nvim__redraw".as_ptr().cast_mut(),
@@ -12937,9 +12858,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[25])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[25]),
     },
     EvalFuncDef {
         name: c"nvim__unpack".as_ptr().cast_mut(),
@@ -12948,9 +12867,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[28])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[28]),
     },
     EvalFuncDef {
         name: c"gettabwinvar".as_ptr().cast_mut(),
@@ -12959,7 +12876,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_gettabwinvar),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"matchbufline".as_ptr().cast_mut(),
@@ -12968,7 +12885,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_matchbufline),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"settabwinvar".as_ptr().cast_mut(),
@@ -12977,7 +12894,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 4,
         fast: false,
         func: viml_fn!(f_settabwinvar),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"spellbadword".as_ptr().cast_mut(),
@@ -12986,7 +12903,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_spellbadword),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"msgpackparse".as_ptr().cast_mut(),
@@ -12995,7 +12912,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_msgpackparse),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_command".as_ptr().cast_mut(),
@@ -13004,9 +12921,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[27])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[27]),
     },
     EvalFuncDef {
         name: c"getcmdprompt".as_ptr().cast_mut(),
@@ -13015,7 +12930,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_getcmdprompt),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_del_var".as_ptr().cast_mut(),
@@ -13024,9 +12939,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[26])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[26]),
     },
     EvalFuncDef {
         name: c"complete_add".as_ptr().cast_mut(),
@@ -13035,7 +12948,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_complete_add),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"filereadable".as_ptr().cast_mut(),
@@ -13044,7 +12957,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_filereadable),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"reg_recorded".as_ptr().cast_mut(),
@@ -13053,7 +12966,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_reg_recorded),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"wildmenumode".as_ptr().cast_mut(),
@@ -13062,7 +12975,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_wildmenumode),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getregionpos".as_ptr().cast_mut(),
@@ -13071,7 +12984,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_getregionpos),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_get_var".as_ptr().cast_mut(),
@@ -13080,9 +12993,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[31])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[31]),
     },
     EvalFuncDef {
         name: c"tabpagewinnr".as_ptr().cast_mut(),
@@ -13091,7 +13002,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_tabpagewinnr),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"eventhandler".as_ptr().cast_mut(),
@@ -13100,7 +13011,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_eventhandler),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"did_filetype".as_ptr().cast_mut(),
@@ -13109,7 +13020,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: true,
         func: viml_fn!(f_did_filetype),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"swapfilelist".as_ptr().cast_mut(),
@@ -13118,7 +13029,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_swapfilelist),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"clearmatches".as_ptr().cast_mut(),
@@ -13127,7 +13038,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_clearmatches),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"reltimefloat".as_ptr().cast_mut(),
@@ -13136,7 +13047,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_reltimefloat),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"screenstring".as_ptr().cast_mut(),
@@ -13145,7 +13056,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_screenstring),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"synconcealed".as_ptr().cast_mut(),
@@ -13154,7 +13065,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_synconcealed),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nextnonblank".as_ptr().cast_mut(),
@@ -13163,7 +13074,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_nextnonblank),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"prevnonblank".as_ptr().cast_mut(),
@@ -13172,7 +13083,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_prevnonblank),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"filewritable".as_ptr().cast_mut(),
@@ -13181,7 +13092,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_filewritable),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"inputrestore".as_ptr().cast_mut(),
@@ -13190,7 +13101,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_inputrestore),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"matchstrlist".as_ptr().cast_mut(),
@@ -13199,7 +13110,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_matchstrlist),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_set_var".as_ptr().cast_mut(),
@@ -13208,9 +13119,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[32])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[32]),
     },
     EvalFuncDef {
         name: c"spellsuggest".as_ptr().cast_mut(),
@@ -13219,7 +13128,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_spellsuggest),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"assert_beeps".as_ptr().cast_mut(),
@@ -13228,7 +13137,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_assert_beeps),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"assert_equal".as_ptr().cast_mut(),
@@ -13237,7 +13146,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 2,
         fast: false,
         func: viml_fn!(f_assert_equal),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"assert_fails".as_ptr().cast_mut(),
@@ -13246,7 +13155,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_assert_fails),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"assert_false".as_ptr().cast_mut(),
@@ -13255,7 +13164,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_assert_false),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"assert_match".as_ptr().cast_mut(),
@@ -13264,7 +13173,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 2,
         fast: false,
         func: viml_fn!(f_assert_match),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_ui_send".as_ptr().cast_mut(),
@@ -13273,9 +13182,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[22])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[22]),
     },
     EvalFuncDef {
         name: c"sign_unplace".as_ptr().cast_mut(),
@@ -13284,7 +13191,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_sign_unplace),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim__id_dict".as_ptr().cast_mut(),
@@ -13293,9 +13200,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[37])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[37]),
     },
     EvalFuncDef {
         name: c"timer_stopall".as_ptr().cast_mut(),
@@ -13304,7 +13209,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_timer_stopall),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getchangelist".as_ptr().cast_mut(),
@@ -13313,7 +13218,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_getchangelist),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getcharsearch".as_ptr().cast_mut(),
@@ -13322,7 +13227,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_getcharsearch),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getstacktrace".as_ptr().cast_mut(),
@@ -13331,7 +13236,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_getstacktrace),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"setcharsearch".as_ptr().cast_mut(),
@@ -13340,7 +13245,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_setcharsearch),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_chan_set".as_ptr().cast_mut(),
@@ -13349,9 +13254,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[40])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[40]),
     },
     EvalFuncDef {
         name: c"win_screenpos".as_ptr().cast_mut(),
@@ -13360,7 +13263,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_win_screenpos),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"appendbufline".as_ptr().cast_mut(),
@@ -13369,7 +13272,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 3,
         fast: false,
         func: viml_fn!(f_appendbufline),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getcmdwintype".as_ptr().cast_mut(),
@@ -13378,7 +13281,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_getcmdwintype),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_del_mark".as_ptr().cast_mut(),
@@ -13387,9 +13290,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[45])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[45]),
     },
     EvalFuncDef {
         name: c"win_id2tabwin".as_ptr().cast_mut(),
@@ -13398,7 +13299,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_win_id2tabwin),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"complete_info".as_ptr().cast_mut(),
@@ -13407,7 +13308,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_complete_info),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"deletebufline".as_ptr().cast_mut(),
@@ -13416,7 +13317,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_deletebufline),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"reg_recording".as_ptr().cast_mut(),
@@ -13425,7 +13326,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_reg_recording),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getbufoneline".as_ptr().cast_mut(),
@@ -13434,7 +13335,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_getbufoneline),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"matchfuzzypos".as_ptr().cast_mut(),
@@ -13443,7 +13344,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_matchfuzzypos),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_feedkeys".as_ptr().cast_mut(),
@@ -13452,9 +13353,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[51])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[51]),
     },
     EvalFuncDef {
         name: c"nvim_get_mark".as_ptr().cast_mut(),
@@ -13463,9 +13362,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[46])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[46]),
     },
     EvalFuncDef {
         name: c"nvim_get_mode".as_ptr().cast_mut(),
@@ -13474,9 +13371,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[38])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[38]),
     },
     EvalFuncDef {
         name: c"nvim_get_proc".as_ptr().cast_mut(),
@@ -13485,9 +13380,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[43])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[43]),
     },
     EvalFuncDef {
         name: c"nvim_get_vvar".as_ptr().cast_mut(),
@@ -13496,9 +13389,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[34])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[34]),
     },
     EvalFuncDef {
         name: c"searchpairpos".as_ptr().cast_mut(),
@@ -13507,7 +13398,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_searchpairpos),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"foldclosedend".as_ptr().cast_mut(),
@@ -13516,7 +13407,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_foldclosedend),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getcellwidths".as_ptr().cast_mut(),
@@ -13525,7 +13416,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_getcellwidths),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_list_uis".as_ptr().cast_mut(),
@@ -13534,9 +13425,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[41])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[41]),
     },
     EvalFuncDef {
         name: c"setcellwidths".as_ptr().cast_mut(),
@@ -13545,7 +13434,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_setcellwidths),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getcompletion".as_ptr().cast_mut(),
@@ -13554,7 +13443,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_getcompletion),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_open_win".as_ptr().cast_mut(),
@@ -13563,9 +13452,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[42])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[42]),
     },
     EvalFuncDef {
         name: c"win_splitmove".as_ptr().cast_mut(),
@@ -13574,7 +13461,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_win_splitmove),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"buffer_exists".as_ptr().cast_mut(),
@@ -13583,7 +13470,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_bufexists),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"buffer_number".as_ptr().cast_mut(),
@@ -13592,7 +13479,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_bufnr),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"file_readable".as_ptr().cast_mut(),
@@ -13601,7 +13488,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_filereadable),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getscriptinfo".as_ptr().cast_mut(),
@@ -13610,7 +13497,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_getscriptinfo),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_set_vvar".as_ptr().cast_mut(),
@@ -13619,9 +13506,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[35])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[35]),
     },
     EvalFuncDef {
         name: c"nvim_strwidth".as_ptr().cast_mut(),
@@ -13630,9 +13515,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[47])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[47]),
     },
     EvalFuncDef {
         name: c"assert_nobeep".as_ptr().cast_mut(),
@@ -13641,7 +13524,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_assert_nobeep),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"assert_report".as_ptr().cast_mut(),
@@ -13650,7 +13533,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_assert_report),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"sign_undefine".as_ptr().cast_mut(),
@@ -13659,7 +13542,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_sign_undefine),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_win_hide".as_ptr().cast_mut(),
@@ -13668,9 +13551,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[39])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[39]),
     },
     EvalFuncDef {
         name: c"reg_executing".as_ptr().cast_mut(),
@@ -13679,7 +13560,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_reg_executing),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim__id_array".as_ptr().cast_mut(),
@@ -13688,9 +13569,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[53])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[53]),
     },
     EvalFuncDef {
         name: c"nvim__id_float".as_ptr().cast_mut(),
@@ -13699,9 +13578,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[54])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[54]),
     },
     EvalFuncDef {
         name: c"dictwatcheradd".as_ptr().cast_mut(),
@@ -13710,7 +13587,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_dictwatcheradd),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"dictwatcherdel".as_ptr().cast_mut(),
@@ -13719,7 +13596,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_dictwatcherdel),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"last_buffer_nr".as_ptr().cast_mut(),
@@ -13728,7 +13605,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_last_buffer_nr),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getcmdcomplpat".as_ptr().cast_mut(),
@@ -13737,7 +13614,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_getcmdcomplpat),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"complete_check".as_ptr().cast_mut(),
@@ -13746,7 +13623,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_complete_check),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"foldtextresult".as_ptr().cast_mut(),
@@ -13755,7 +13632,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_foldtextresult),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_err_write".as_ptr().cast_mut(),
@@ -13764,9 +13641,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[56])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[56]),
     },
     EvalFuncDef {
         name: c"garbagecollect".as_ptr().cast_mut(),
@@ -13775,7 +13650,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_garbagecollect),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_get_hl_ns".as_ptr().cast_mut(),
@@ -13784,9 +13659,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[59])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[59]),
     },
     EvalFuncDef {
         name: c"sign_getplaced".as_ptr().cast_mut(),
@@ -13795,7 +13668,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_sign_getplaced),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"tabpagebuflist".as_ptr().cast_mut(),
@@ -13804,7 +13677,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_tabpagebuflist),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_list_bufs".as_ptr().cast_mut(),
@@ -13813,9 +13686,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[60])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[60]),
     },
     EvalFuncDef {
         name: c"nvim_list_wins".as_ptr().cast_mut(),
@@ -13824,9 +13695,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[61])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[61]),
     },
     EvalFuncDef {
         name: c"isabsolutepath".as_ptr().cast_mut(),
@@ -13835,7 +13704,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_isabsolutepath),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_open_term".as_ptr().cast_mut(),
@@ -13844,9 +13713,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[62])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[62]),
     },
     EvalFuncDef {
         name: c"nvim_out_write".as_ptr().cast_mut(),
@@ -13855,9 +13722,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[63])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[63]),
     },
     EvalFuncDef {
         name: c"nvim_parse_cmd".as_ptr().cast_mut(),
@@ -13866,9 +13731,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[64])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[64]),
     },
     EvalFuncDef {
         name: c"sign_placelist".as_ptr().cast_mut(),
@@ -13877,7 +13740,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_sign_placelist),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_set_hl_ns".as_ptr().cast_mut(),
@@ -13886,9 +13749,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[68])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[68]),
     },
     EvalFuncDef {
         name: c"assert_inrange".as_ptr().cast_mut(),
@@ -13897,7 +13758,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 3,
         fast: false,
         func: viml_fn!(f_assert_inrange),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_win_close".as_ptr().cast_mut(),
@@ -13906,9 +13767,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[72])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[72]),
     },
     EvalFuncDef {
         name: c"windowsversion".as_ptr().cast_mut(),
@@ -13917,7 +13776,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: true,
         func: viml_fn!(f_windowsversion),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim__buf_stats".as_ptr().cast_mut(),
@@ -13926,9 +13785,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[100])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[100]),
     },
     EvalFuncDef {
         name: c"nvim_buf_attach".as_ptr().cast_mut(),
@@ -13937,9 +13794,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[83])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[83]),
     },
     EvalFuncDef {
         name: c"nvim_buf_delete".as_ptr().cast_mut(),
@@ -13948,9 +13803,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[84])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[84]),
     },
     EvalFuncDef {
         name: c"nvim_create_buf".as_ptr().cast_mut(),
@@ -13959,9 +13812,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[82])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[82]),
     },
     EvalFuncDef {
         name: c"getcmdcompltype".as_ptr().cast_mut(),
@@ -13970,7 +13821,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_getcmdcompltype),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getcmdscreenpos".as_ptr().cast_mut(),
@@ -13979,7 +13830,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_getcmdscreenpos),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_del_keymap".as_ptr().cast_mut(),
@@ -13988,9 +13839,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[91])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[91]),
     },
     EvalFuncDef {
         name: c"nvim_get_keymap".as_ptr().cast_mut(),
@@ -13999,9 +13848,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[96])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[96]),
     },
     EvalFuncDef {
         name: c"nvim_get_option".as_ptr().cast_mut(),
@@ -14010,9 +13857,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[97])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[97]),
     },
     EvalFuncDef {
         name: c"sign_getdefined".as_ptr().cast_mut(),
@@ -14021,7 +13866,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_sign_getdefined),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_list_chans".as_ptr().cast_mut(),
@@ -14030,9 +13875,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[95])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[95]),
     },
     EvalFuncDef {
         name: c"digraph_getlist".as_ptr().cast_mut(),
@@ -14041,7 +13884,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_digraph_getlist),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"digraph_setlist".as_ptr().cast_mut(),
@@ -14050,7 +13893,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_digraph_setlist),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_set_keymap".as_ptr().cast_mut(),
@@ -14059,9 +13902,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[98])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[98]),
     },
     EvalFuncDef {
         name: c"nvim_set_option".as_ptr().cast_mut(),
@@ -14070,9 +13911,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[99])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[99]),
     },
     EvalFuncDef {
         name: c"strdisplaywidth".as_ptr().cast_mut(),
@@ -14081,7 +13920,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: true,
         func: viml_fn!(f_strdisplaywidth),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"assert_notequal".as_ptr().cast_mut(),
@@ -14090,7 +13929,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 2,
         fast: false,
         func: viml_fn!(f_assert_notequal),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"assert_notmatch".as_ptr().cast_mut(),
@@ -14099,7 +13938,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 2,
         fast: false,
         func: viml_fn!(f_assert_notmatch),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"prompt_getinput".as_ptr().cast_mut(),
@@ -14108,7 +13947,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_prompt_getinput),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_win_resize".as_ptr().cast_mut(),
@@ -14117,9 +13956,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[92])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[92]),
     },
     EvalFuncDef {
         name: c"highlight_exists".as_ptr().cast_mut(),
@@ -14128,7 +13965,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_hlexists),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_del_autocmd".as_ptr().cast_mut(),
@@ -14137,9 +13974,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[108])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[108]),
     },
     EvalFuncDef {
         name: c"sign_unplacelist".as_ptr().cast_mut(),
@@ -14148,7 +13983,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_sign_unplacelist),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"assert_exception".as_ptr().cast_mut(),
@@ -14157,7 +13992,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_assert_exception),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"getcursorcharpos".as_ptr().cast_mut(),
@@ -14166,7 +14001,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_getcursorcharpos),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_get_context".as_ptr().cast_mut(),
@@ -14175,9 +14010,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[109])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[109]),
     },
     EvalFuncDef {
         name: c"setcursorcharpos".as_ptr().cast_mut(),
@@ -14186,7 +14019,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_setcursorcharpos),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_buf_del_var".as_ptr().cast_mut(),
@@ -14195,9 +14028,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[124])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[124]),
     },
     EvalFuncDef {
         name: c"nvim_win_del_var".as_ptr().cast_mut(),
@@ -14206,9 +14037,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[111])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[111]),
     },
     EvalFuncDef {
         name: c"nvim__screenshot".as_ptr().cast_mut(),
@@ -14217,9 +14046,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[121])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[121]),
     },
     EvalFuncDef {
         name: c"nvim_buf_get_var".as_ptr().cast_mut(),
@@ -14228,9 +14055,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[125])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[125]),
     },
     EvalFuncDef {
         name: c"nvim_win_get_buf".as_ptr().cast_mut(),
@@ -14239,9 +14064,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[112])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[112]),
     },
     EvalFuncDef {
         name: c"nvim_win_get_var".as_ptr().cast_mut(),
@@ -14250,9 +14073,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[113])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[113]),
     },
     EvalFuncDef {
         name: c"prompt_appendbuf".as_ptr().cast_mut(),
@@ -14261,7 +14082,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 2,
         fast: false,
         func: viml_fn!(f_prompt_appendbuf),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_buf_set_var".as_ptr().cast_mut(),
@@ -14270,9 +14091,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[126])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[126]),
     },
     EvalFuncDef {
         name: c"nvim_win_set_buf".as_ptr().cast_mut(),
@@ -14281,9 +14100,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[114])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[114]),
     },
     EvalFuncDef {
         name: c"nvim_win_set_var".as_ptr().cast_mut(),
@@ -14292,9 +14109,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[115])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[115]),
     },
     EvalFuncDef {
         name: c"cmdcomplete_info".as_ptr().cast_mut(),
@@ -14303,7 +14118,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_cmdcomplete_info),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_input_mouse".as_ptr().cast_mut(),
@@ -14312,9 +14127,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[116])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[116]),
     },
     EvalFuncDef {
         name: c"prompt_getprompt".as_ptr().cast_mut(),
@@ -14323,7 +14136,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_prompt_getprompt),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"prompt_setprompt".as_ptr().cast_mut(),
@@ -14332,7 +14145,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_prompt_setprompt),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"assert_equalfile".as_ptr().cast_mut(),
@@ -14341,7 +14154,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_assert_equalfile),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim__cmdwin_set".as_ptr().cast_mut(),
@@ -14350,9 +14163,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[107])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[107]),
     },
     EvalFuncDef {
         name: c"nvim_err_writeln".as_ptr().cast_mut(),
@@ -14361,9 +14172,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[119])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[119]),
     },
     EvalFuncDef {
         name: c"nvim__get_lib_dir".as_ptr().cast_mut(),
@@ -14372,9 +14181,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[137])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[137]),
     },
     EvalFuncDef {
         name: c"nvim__get_runtime".as_ptr().cast_mut(),
@@ -14383,9 +14190,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[146])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[146]),
     },
     EvalFuncDef {
         name: c"nvim_load_context".as_ptr().cast_mut(),
@@ -14394,9 +14199,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[140])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[140]),
     },
     EvalFuncDef {
         name: c"nvim_open_tabpage".as_ptr().cast_mut(),
@@ -14405,9 +14208,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[134])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[134]),
     },
     EvalFuncDef {
         name: c"nvim_get_autocmds".as_ptr().cast_mut(),
@@ -14416,9 +14217,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[153])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[153]),
     },
     EvalFuncDef {
         name: c"nvim_get_commands".as_ptr().cast_mut(),
@@ -14427,9 +14226,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[156])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[156]),
     },
     EvalFuncDef {
         name: c"nvim_buf_del_mark".as_ptr().cast_mut(),
@@ -14438,9 +14235,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[129])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[129]),
     },
     EvalFuncDef {
         name: c"nvim_buf_get_mark".as_ptr().cast_mut(),
@@ -14449,9 +14244,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[130])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[130]),
     },
     EvalFuncDef {
         name: c"nvim_buf_get_name".as_ptr().cast_mut(),
@@ -14460,9 +14253,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[131])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[131]),
     },
     EvalFuncDef {
         name: c"nvim_buf_get_text".as_ptr().cast_mut(),
@@ -14471,9 +14262,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[138])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[138]),
     },
     EvalFuncDef {
         name: c"nvim_get_hl_by_id".as_ptr().cast_mut(),
@@ -14482,9 +14271,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[128])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[128]),
     },
     EvalFuncDef {
         name: c"nvim_buf_is_valid".as_ptr().cast_mut(),
@@ -14493,9 +14280,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[150])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[150]),
     },
     EvalFuncDef {
         name: c"nvim_win_is_valid".as_ptr().cast_mut(),
@@ -14504,9 +14289,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[151])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[151]),
     },
     EvalFuncDef {
         name: c"nvim_buf_set_mark".as_ptr().cast_mut(),
@@ -14515,9 +14298,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[132])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[132]),
     },
     EvalFuncDef {
         name: c"nvim_buf_set_name".as_ptr().cast_mut(),
@@ -14526,9 +14307,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[133])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[133]),
     },
     EvalFuncDef {
         name: c"nvim_buf_set_text".as_ptr().cast_mut(),
@@ -14537,9 +14316,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[139])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[139]),
     },
     EvalFuncDef {
         name: c"getcompletiontype".as_ptr().cast_mut(),
@@ -14548,7 +14325,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_getcompletiontype),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim__complete_set".as_ptr().cast_mut(),
@@ -14557,9 +14334,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[172])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[172]),
     },
     EvalFuncDef {
         name: c"nvim__inspect_cell".as_ptr().cast_mut(),
@@ -14568,9 +14343,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[173])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[173]),
     },
     EvalFuncDef {
         name: c"nvim_buf_get_lines".as_ptr().cast_mut(),
@@ -14579,9 +14352,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[168])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[168]),
     },
     EvalFuncDef {
         name: c"nvim_buf_is_loaded".as_ptr().cast_mut(),
@@ -14590,9 +14361,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[170])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[170]),
     },
     EvalFuncDef {
         name: c"nvim_buf_set_lines".as_ptr().cast_mut(),
@@ -14601,9 +14370,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[175])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[175]),
     },
     EvalFuncDef {
         name: c"nvim_call_function".as_ptr().cast_mut(),
@@ -14612,9 +14379,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[160])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[160]),
     },
     EvalFuncDef {
         name: c"nvim_exec_autocmds".as_ptr().cast_mut(),
@@ -14623,9 +14388,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[161])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[161]),
     },
     EvalFuncDef {
         name: c"nvim_get_chan_info".as_ptr().cast_mut(),
@@ -14634,9 +14397,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[163])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[163]),
     },
     EvalFuncDef {
         name: c"nvim_get_color_map".as_ptr().cast_mut(),
@@ -14645,9 +14406,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[164])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[164]),
     },
     EvalFuncDef {
         name: c"nvim_list_tabpages".as_ptr().cast_mut(),
@@ -14656,9 +14415,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[162])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[162]),
     },
     EvalFuncDef {
         name: c"win_move_separator".as_ptr().cast_mut(),
@@ -14667,7 +14424,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_win_move_separator),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"prompt_setcallback".as_ptr().cast_mut(),
@@ -14676,7 +14433,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_prompt_setcallback),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_win_get_width".as_ptr().cast_mut(),
@@ -14685,9 +14442,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[169])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[169]),
     },
     EvalFuncDef {
         name: c"nvim_win_set_hl_ns".as_ptr().cast_mut(),
@@ -14696,9 +14451,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[176])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[176]),
     },
     EvalFuncDef {
         name: c"nvim_win_set_width".as_ptr().cast_mut(),
@@ -14707,9 +14460,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[177])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[177]),
     },
     EvalFuncDef {
         name: c"nvim_get_hl_by_name".as_ptr().cast_mut(),
@@ -14718,9 +14469,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[180])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[180]),
     },
     EvalFuncDef {
         name: c"nvim_set_hl_ns_fast".as_ptr().cast_mut(),
@@ -14729,9 +14478,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[181])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[181]),
     },
     EvalFuncDef {
         name: c"nvim_buf_line_count".as_ptr().cast_mut(),
@@ -14740,9 +14487,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[182])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[182]),
     },
     EvalFuncDef {
         name: c"nvim_buf_del_keymap".as_ptr().cast_mut(),
@@ -14751,9 +14496,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[183])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[183]),
     },
     EvalFuncDef {
         name: c"nvim_buf_get_keymap".as_ptr().cast_mut(),
@@ -14762,9 +14505,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[184])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[184]),
     },
     EvalFuncDef {
         name: c"nvim_buf_set_keymap".as_ptr().cast_mut(),
@@ -14773,9 +14514,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[185])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[185]),
     },
     EvalFuncDef {
         name: c"nvim_win_get_height".as_ptr().cast_mut(),
@@ -14784,9 +14523,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[186])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[186]),
     },
     EvalFuncDef {
         name: c"nvim_win_set_height".as_ptr().cast_mut(),
@@ -14795,9 +14532,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[187])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[187]),
     },
     EvalFuncDef {
         name: c"nvim_buf_get_offset".as_ptr().cast_mut(),
@@ -14806,9 +14541,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[188])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[188]),
     },
     EvalFuncDef {
         name: c"nvim_create_augroup".as_ptr().cast_mut(),
@@ -14817,9 +14550,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[189])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[189]),
     },
     EvalFuncDef {
         name: c"nvim_clear_autocmds".as_ptr().cast_mut(),
@@ -14828,9 +14559,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[192])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[192]),
     },
     EvalFuncDef {
         name: c"nvim_win_get_config".as_ptr().cast_mut(),
@@ -14839,9 +14568,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[193])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[193]),
     },
     EvalFuncDef {
         name: c"nvim_win_set_config".as_ptr().cast_mut(),
@@ -14850,9 +14577,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[194])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[194]),
     },
     EvalFuncDef {
         name: c"nvim_buf_get_option".as_ptr().cast_mut(),
@@ -14861,9 +14586,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[195])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[195]),
     },
     EvalFuncDef {
         name: c"nvim_buf_set_option".as_ptr().cast_mut(),
@@ -14872,9 +14595,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[196])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[196]),
     },
     EvalFuncDef {
         name: c"nvim_get_namespaces".as_ptr().cast_mut(),
@@ -14883,9 +14604,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[197])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[197]),
     },
     EvalFuncDef {
         name: c"nvim_win_get_option".as_ptr().cast_mut(),
@@ -14894,9 +14613,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[198])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[198]),
     },
     EvalFuncDef {
         name: c"nvim_win_set_option".as_ptr().cast_mut(),
@@ -14905,9 +14622,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[199])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[199]),
     },
     EvalFuncDef {
         name: c"prompt_setinterrupt".as_ptr().cast_mut(),
@@ -14916,7 +14631,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_prompt_setinterrupt),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"win_move_statusline".as_ptr().cast_mut(),
@@ -14925,7 +14640,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: 1,
         fast: false,
         func: viml_fn!(f_win_move_statusline),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_create_autocmd".as_ptr().cast_mut(),
@@ -14934,9 +14649,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[200])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[200]),
     },
     EvalFuncDef {
         name: c"test_write_list_log".as_ptr().cast_mut(),
@@ -14945,7 +14658,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_test_write_list_log),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_buf_get_number".as_ptr().cast_mut(),
@@ -14954,9 +14667,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[201])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[201]),
     },
     EvalFuncDef {
         name: c"nvim_command_output".as_ptr().cast_mut(),
@@ -14965,9 +14676,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[202])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[202]),
     },
     EvalFuncDef {
         name: c"nvim_win_get_cursor".as_ptr().cast_mut(),
@@ -14976,9 +14685,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[203])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[203]),
     },
     EvalFuncDef {
         name: c"nvim_win_get_number".as_ptr().cast_mut(),
@@ -14987,9 +14694,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[204])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[204]),
     },
     EvalFuncDef {
         name: c"nvim_win_set_cursor".as_ptr().cast_mut(),
@@ -14998,9 +14703,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[205])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[205]),
     },
     EvalFuncDef {
         name: c"nvim_buf_del_extmark".as_ptr().cast_mut(),
@@ -15009,9 +14712,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[206])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[206]),
     },
     EvalFuncDef {
         name: c"nvim_buf_set_extmark".as_ptr().cast_mut(),
@@ -15020,9 +14721,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[207])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[207]),
     },
     EvalFuncDef {
         name: c"nvim_win_get_tabpage".as_ptr().cast_mut(),
@@ -15031,9 +14730,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[208])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[208]),
     },
     EvalFuncDef {
         name: c"nvim_get_current_buf".as_ptr().cast_mut(),
@@ -15042,9 +14739,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[209])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[209]),
     },
     EvalFuncDef {
         name: c"nvim_set_current_buf".as_ptr().cast_mut(),
@@ -15053,9 +14748,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[210])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[210]),
     },
     EvalFuncDef {
         name: c"nvim_set_current_dir".as_ptr().cast_mut(),
@@ -15064,9 +14757,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[211])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[211]),
     },
     EvalFuncDef {
         name: c"nvim_win_text_height".as_ptr().cast_mut(),
@@ -15075,9 +14766,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[213])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[213]),
     },
     EvalFuncDef {
         name: c"nvim_eval_statusline".as_ptr().cast_mut(),
@@ -15086,9 +14775,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[214])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[214]),
     },
     EvalFuncDef {
         name: c"nvim_get_option_info".as_ptr().cast_mut(),
@@ -15097,9 +14784,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[218])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[218]),
     },
     EvalFuncDef {
         name: c"nvim_tabpage_del_var".as_ptr().cast_mut(),
@@ -15108,9 +14793,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[221])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[221]),
     },
     EvalFuncDef {
         name: c"nvim_tabpage_get_var".as_ptr().cast_mut(),
@@ -15119,9 +14802,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[222])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[222]),
     },
     EvalFuncDef {
         name: c"nvim_tabpage_set_var".as_ptr().cast_mut(),
@@ -15130,9 +14811,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[223])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[223]),
     },
     EvalFuncDef {
         name: c"nvim_get_current_win".as_ptr().cast_mut(),
@@ -15141,9 +14820,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[224])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[224]),
     },
     EvalFuncDef {
         name: c"nvim_set_current_win".as_ptr().cast_mut(),
@@ -15152,9 +14829,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[225])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[225]),
     },
     EvalFuncDef {
         name: c"nvim_tabpage_get_win".as_ptr().cast_mut(),
@@ -15163,9 +14838,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[226])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[226]),
     },
     EvalFuncDef {
         name: c"nvim_tabpage_set_win".as_ptr().cast_mut(),
@@ -15174,9 +14847,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[227])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[227]),
     },
     EvalFuncDef {
         name: c"nvim_tabpage_is_valid".as_ptr().cast_mut(),
@@ -15185,9 +14856,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[244])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[244]),
     },
     EvalFuncDef {
         name: c"nvim_del_current_line".as_ptr().cast_mut(),
@@ -15196,9 +14865,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[232])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[232]),
     },
     EvalFuncDef {
         name: c"nvim_get_current_line".as_ptr().cast_mut(),
@@ -15207,9 +14874,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[235])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[235]),
     },
     EvalFuncDef {
         name: c"nvim_set_current_line".as_ptr().cast_mut(),
@@ -15218,9 +14883,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[242])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[242]),
     },
     EvalFuncDef {
         name: c"nvim_parse_expression".as_ptr().cast_mut(),
@@ -15229,9 +14892,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[239])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[239]),
     },
     EvalFuncDef {
         name: c"nvim_buf_get_commands".as_ptr().cast_mut(),
@@ -15240,9 +14901,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[229])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[229]),
     },
     EvalFuncDef {
         name: c"nvim_buf_get_extmarks".as_ptr().cast_mut(),
@@ -15251,9 +14910,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[230])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[230]),
     },
     EvalFuncDef {
         name: c"nvim_win_get_position".as_ptr().cast_mut(),
@@ -15262,9 +14919,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[245])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[245]),
     },
     EvalFuncDef {
         name: c"nvim_get_option_info2".as_ptr().cast_mut(),
@@ -15273,9 +14928,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[236])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[236]),
     },
     EvalFuncDef {
         name: c"nvim_get_option_value".as_ptr().cast_mut(),
@@ -15284,9 +14937,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[237])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[237]),
     },
     EvalFuncDef {
         name: c"nvim_set_option_value".as_ptr().cast_mut(),
@@ -15295,9 +14946,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[243])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[243]),
     },
     EvalFuncDef {
         name: c"nvim_get_runtime_file".as_ptr().cast_mut(),
@@ -15306,9 +14955,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[238])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[238]),
     },
     EvalFuncDef {
         name: c"nvim__runtime_inspect".as_ptr().cast_mut(),
@@ -15317,9 +14964,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[228])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[228]),
     },
     EvalFuncDef {
         name: c"nvim_create_namespace".as_ptr().cast_mut(),
@@ -15328,9 +14973,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[231])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[231]),
     },
     EvalFuncDef {
         name: c"nvim_del_user_command".as_ptr().cast_mut(),
@@ -15339,9 +14982,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[233])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[233]),
     },
     EvalFuncDef {
         name: c"nvim_replace_termcodes".as_ptr().cast_mut(),
@@ -15350,9 +14991,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[255])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[255]),
     },
     EvalFuncDef {
         name: c"nvim_buf_add_highlight".as_ptr().cast_mut(),
@@ -15361,9 +15000,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[252])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[252]),
     },
     EvalFuncDef {
         name: c"nvim_tabpage_list_wins".as_ptr().cast_mut(),
@@ -15372,9 +15009,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[256])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[256]),
     },
     EvalFuncDef {
         name: c"nvim_get_hl_id_by_name".as_ptr().cast_mut(),
@@ -15383,9 +15018,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[260])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[260]),
     },
     EvalFuncDef {
         name: c"nvim_get_color_by_name".as_ptr().cast_mut(),
@@ -15394,9 +15027,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[259])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[259]),
     },
     EvalFuncDef {
         name: c"nvim_get_proc_children".as_ptr().cast_mut(),
@@ -15405,9 +15036,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[254])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[254]),
     },
     EvalFuncDef {
         name: c"nvim_del_augroup_by_id".as_ptr().cast_mut(),
@@ -15416,9 +15045,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[246])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[246]),
     },
     EvalFuncDef {
         name: c"nvim_call_dict_function".as_ptr().cast_mut(),
@@ -15427,9 +15054,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[261])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[261]),
     },
     EvalFuncDef {
         name: c"test_garbagecollect_now".as_ptr().cast_mut(),
@@ -15438,7 +15063,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(f_test_garbagecollect_now),
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
     EvalFuncDef {
         name: c"nvim_list_runtime_paths".as_ptr().cast_mut(),
@@ -15447,9 +15072,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[264])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[264]),
     },
     EvalFuncDef {
         name: c"nvim_tabpage_get_number".as_ptr().cast_mut(),
@@ -15458,9 +15081,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[265])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[265]),
     },
     EvalFuncDef {
         name: c"nvim_buf_get_changedtick".as_ptr().cast_mut(),
@@ -15469,9 +15090,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[267])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[267]),
     },
     EvalFuncDef {
         name: c"nvim_get_current_tabpage".as_ptr().cast_mut(),
@@ -15480,9 +15099,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[268])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[268]),
     },
     EvalFuncDef {
         name: c"nvim_set_current_tabpage".as_ptr().cast_mut(),
@@ -15491,9 +15108,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[269])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[269]),
     },
     EvalFuncDef {
         name: c"nvim_del_augroup_by_name".as_ptr().cast_mut(),
@@ -15502,9 +15117,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[270])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[270]),
     },
     EvalFuncDef {
         name: c"nvim_buf_clear_highlight".as_ptr().cast_mut(),
@@ -15513,9 +15126,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[271])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[271]),
     },
     EvalFuncDef {
         name: c"nvim_buf_clear_namespace".as_ptr().cast_mut(),
@@ -15524,9 +15135,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[272])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[272]),
     },
     EvalFuncDef {
         name: c"nvim_create_user_command".as_ptr().cast_mut(),
@@ -15535,9 +15144,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[273])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[273]),
     },
     EvalFuncDef {
         name: c"nvim__buf_debug_extmarks".as_ptr().cast_mut(),
@@ -15546,9 +15153,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[274])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[274]),
     },
     EvalFuncDef {
         name: c"nvim_get_all_options_info".as_ptr().cast_mut(),
@@ -15557,9 +15162,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[275])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[275]),
     },
     EvalFuncDef {
         name: c"nvim_buf_del_user_command".as_ptr().cast_mut(),
@@ -15568,9 +15171,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[276])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[276]),
     },
     EvalFuncDef {
         name: c"nvim_buf_set_virtual_text".as_ptr().cast_mut(),
@@ -15579,9 +15180,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[277])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[277]),
     },
     EvalFuncDef {
         name: c"nvim__set_restart_on_crash".as_ptr().cast_mut(),
@@ -15590,9 +15189,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[278])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[278]),
     },
     EvalFuncDef {
         name: c"nvim_buf_get_extmark_by_id".as_ptr().cast_mut(),
@@ -15601,9 +15198,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[279])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[279]),
     },
     EvalFuncDef {
         name: c"nvim_select_popupmenu_item".as_ptr().cast_mut(),
@@ -15612,9 +15207,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[280])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[280]),
     },
     EvalFuncDef {
         name: c"nvim__invalidate_glyph_cache".as_ptr().cast_mut(),
@@ -15623,9 +15216,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[281])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[281]),
     },
     EvalFuncDef {
         name: c"nvim_buf_create_user_command".as_ptr().cast_mut(),
@@ -15634,9 +15225,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: (&raw const crate::api::private::dispatch::method_handlers[282])
-            .cast_mut()
-            .cast(),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[282]),
     },
     EvalFuncDef {
         name: ptr::null_mut(),
@@ -15645,7 +15234,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: None,
-        data: ptr::null_mut(),
+        data: EvalFuncData::None,
     },
 ];
 

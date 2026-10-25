@@ -39,7 +39,7 @@ use crate::os::input::{fast_breakcheck, line_breakcheck};
 use crate::strings::{
     sort_slice_by, strcmp, strcoll, strlen, strncmp, strtod, tr, vim_snprintf, vim_stricmp,
 };
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO};
@@ -54,7 +54,15 @@ pub type float_T = f64;
 pub type varnumber_T = i64;
 pub type VarLockStatus = c_int;
 pub type BoolVarValue = c_int;
-pub type EvalFuncData = *mut c_void;
+
+#[derive(Clone, Copy, Default)]
+pub enum EvalFuncData {
+    #[default]
+    None,
+    FloatOp(fn(float_T) -> float_T),
+    ApiHandler(&'static crate::api::private::dispatch::MsgpackRpcRequestHandler),
+    LuaFunc(&'static CStr),
+}
 
 pub(crate) const VAR_UNLOCKED: c_int = 0;
 pub const kCallbackNone: c_int = 0;

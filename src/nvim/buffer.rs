@@ -1764,7 +1764,7 @@ pub unsafe fn goto_buffer(eap: *mut exarg_T, start: c_int, dir: c_int, count: c_
     unsafe {
         let save_sea = swap_exists_action;
         let skip_help_buf = matches!(
-            std::mem::transmute::<c_int, cmdidx_T>((*eap).cmdidx),
+            cmdidx_T::from_raw((*eap).cmdidx),
             cmdidx_T::CMD_bnext
                 | cmdidx_T::CMD_sbnext
                 | cmdidx_T::CMD_bNext

@@ -1202,7 +1202,8 @@ pub unsafe fn api_dict_to_keydict(
 
             let mem = retval.cast::<u8>().add((*field).ptr_off);
             let value = &raw mut (*dict.items.add(i)).value;
-            let field_type: ObjectType = std::mem::transmute((*field).key_type);
+            let field_type = ObjectType::from_raw((*field).key_type)
+                .unwrap_or(ObjectType::kObjectTypeUnset);
 
             match field_type {
                 ObjectType::kObjectTypeNil => {
@@ -1355,7 +1356,8 @@ pub unsafe fn api_keydict_to_dict(
             }
 
             let mem = value.cast::<u8>().add((*field).ptr_off);
-            let field_type: ObjectType = std::mem::transmute((*field).key_type);
+            let field_type = ObjectType::from_raw((*field).key_type)
+                .unwrap_or(ObjectType::kObjectTypeUnset);
             let val = match field_type {
                 ObjectType::kObjectTypeNil => *mem.cast::<Object>(),
                 ObjectType::kObjectTypeInteger => Object {
@@ -1434,7 +1436,8 @@ pub unsafe fn api_luarefs_free_keydict(dict: *mut c_void, table: *mut KeySetLink
         while !(*table.add(i)).str.is_null() {
             let field = table.add(i);
             let mem = dict.cast::<u8>().add((*field).ptr_off);
-            let field_type: ObjectType = std::mem::transmute((*field).key_type);
+            let field_type = ObjectType::from_raw((*field).key_type)
+                .unwrap_or(ObjectType::kObjectTypeUnset);
             match field_type {
                 ObjectType::kObjectTypeNil => api_luarefs_free_object(*mem.cast::<Object>()),
                 ObjectType::kObjectTypeLuaRef => api_free_luaref(*mem.cast::<LuaRef>()),

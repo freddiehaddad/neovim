@@ -398,11 +398,13 @@ pub unsafe fn rpc_send_call(
                 let array = res.data.array;
                 if array.size == 2
                     && (*array.items).obj_type == ObjectType::kObjectTypeInteger
-                    && ((*array.items).data.integer == (ErrorType::kErrorTypeException as i64)
-                        || (*array.items).data.integer == (ErrorType::kErrorTypeValidation as i64))
+                    && let Some(et) = ErrorType::from_raw((*array.items).data.integer as c_int)
+                    && matches!(
+                        et,
+                        ErrorType::kErrorTypeException | ErrorType::kErrorTypeValidation
+                    )
                     && (*array.items.add(1)).obj_type == ObjectType::kObjectTypeString
                 {
-                    let et: ErrorType = std::mem::transmute((*array.items).data.integer as c_int);
                     api_set_error!(
                         err,
                         et,

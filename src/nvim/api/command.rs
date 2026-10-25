@@ -328,9 +328,7 @@ pub unsafe extern "C" fn nvim_parse_cmd(
         let length = CStr::from_ptr(ea.arg).to_bytes().len();
 
         if ea.cmdidx != CMD_SIZE
-            && is_map_cmd(std::mem::transmute::<c_int, crate::cmdexpand::cmdidx_T>(
-                ea.cmdidx,
-            ))
+            && is_map_cmd(crate::cmdexpand::cmdidx_T::from_raw(ea.cmdidx))
             && *ea.arg != NUL
         {
             args = parse_map_cmd(ea.arg, arena);
@@ -690,11 +688,7 @@ pub unsafe extern "C" fn nvim_cmd(
                 break 'end;
             }
 
-            if !(range_only
-                || !is_cmd_ni(std::mem::transmute::<c_int, crate::cmdexpand::cmdidx_T>(
-                    ea.cmdidx,
-                )))
-            {
+            if !(range_only || !is_cmd_ni(crate::cmdexpand::cmdidx_T::from_raw(ea.cmdidx))) {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
@@ -726,9 +720,7 @@ pub unsafe extern "C" fn nvim_cmd(
             if range_only {
                 ea.argt = EX_RANGE | EX_SBOXOK;
             } else if !is_user_cmdidx(ea.cmdidx) {
-                ea.argt = excmd_get_argt(std::mem::transmute::<c_int, crate::cmdexpand::cmdidx_T>(
-                    ea.cmdidx,
-                ));
+                ea.argt = excmd_get_argt(crate::cmdexpand::cmdidx_T::from_raw(ea.cmdidx));
             }
 
             let mut count_from_first_arg = false;
@@ -1180,9 +1172,7 @@ pub unsafe extern "C" fn nvim_cmd(
                     let orig_arg = ea.arg;
                     let result = getargopt(&mut ea);
                     if result == FAIL
-                        && !is_cmd_ni(std::mem::transmute::<c_int, crate::cmdexpand::cmdidx_T>(
-                            ea.cmdidx,
-                        ))
+                        && !is_cmd_ni(crate::cmdexpand::cmdidx_T::from_raw(ea.cmdidx))
                     {
                         api_err_invalid(err, c"argument ".as_ptr(), orig_arg, 0, true);
                         break 'end;
