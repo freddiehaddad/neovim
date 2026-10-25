@@ -181,8 +181,8 @@ use crate::path::{ENV_SEPCHAR, concat_fnames_realloc, to_slash_save, vim_FullNam
 use crate::plines::{getvvcol, win_chartabsize};
 use crate::popupmenu::{pum_set_event_info, pum_visible};
 use crate::profile::{
-    funccall_T, profile_end, profile_msg, profile_setlimit, profile_signed, profile_start,
-    profile_sub, proftime_T,
+    profile_end, profile_msg, profile_setlimit, profile_signed, profile_start, profile_sub,
+    proftime_T,
 };
 use crate::regexp::{
     MAXCOL, NSUBEXP, NUMBUFLEN, RE_MAGIC, RE_STRING, reg_submatch, reg_submatch_list, regmatch_T,
@@ -7238,7 +7238,7 @@ pub unsafe fn f_rpcrequest(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
             autocmd_match = provider_caller_scope.autocmd_match;
             autocmd_fname_full = provider_caller_scope.autocmd_fname_full;
             autocmd_bufnr = provider_caller_scope.autocmd_bufnr;
-            set_current_funccal(provider_caller_scope.funccalp.cast::<funccall_T>());
+            set_current_funccal(provider_caller_scope.funccalp);
         }
 
         let mut err = Error {

@@ -228,8 +228,18 @@ unsafe impl Sync for EvalFuncDef {}
 #[repr(C)]
 pub(crate) struct defer_T {
     pub(crate) dr_name: *mut c_char,
-    pub(crate) dr_argvars: [typval_T; MAX_FUNC_ARGS + 1],
-    pub(crate) dr_argcount: c_int,
+    pub(crate) dr_argvars: Vec<typval_T>,
+}
+
+impl Drop for defer_T {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.dr_name.cast());
+            for tv in self.dr_argvars.iter_mut().rev() {
+                tv_clear(tv);
+            }
+        }
+    }
 }
 
 static mut func_hashtab: std::collections::BTreeMap<Vec<u8>, *mut ufunc_T> =
@@ -237,7 +247,7 @@ static mut func_hashtab: std::collections::BTreeMap<Vec<u8>, *mut ufunc_T> =
 static mut func_hashtab_changed: c_int = 0;
 static mut funcargs: Vec<*mut typval_T> = Vec::new();
 static mut current_funccal: *mut funccall_T = ptr::null_mut();
-static mut previous_funccal: *mut funccall_T = ptr::null_mut();
+static mut previous_funccal: Vec<*mut funccall_T> = Vec::new();
 static mut funccal_stack: Vec<*mut funccall_T> = Vec::new();
 static mut lambda_name: [c_char; 8 + NUMBUFLEN] = [0; 8 + NUMBUFLEN];
 static mut lambda_no: c_int = 0;
@@ -475,11 +485,11 @@ unsafe fn get_function_args(
 /// Register function "fp" as using "current_funccal" as its scope.
 unsafe fn register_closure(fp: *mut ufunc_T) {
     unsafe {
-        if (*fp).uf_scoped == current_funccal.cast() {
+        if (*fp).uf_scoped == current_funccal {
             return;
         }
-        funccal_unref((*fp).uf_scoped.cast(), fp, false);
-        (*fp).uf_scoped = current_funccal.cast();
+        funccal_unref((*fp).uf_scoped, fp, false);
+        (*fp).uf_scoped = current_funccal;
         (*current_funccal).fc_refcount += 1;
         (*current_funccal).fc_ufuncs.push(fp);
     }
@@ -1099,8 +1109,9 @@ unsafe fn cleanup_function_call(fc: *mut funccall_T) {
         if free_fc {
             drop(Box::from_raw(fc));
         } else {
-            (*fc).fc_caller = previous_funccal;
-            previous_funccal = fc;
+            (*fc).fc_caller = ptr::null_mut();
+            let pfc = &raw mut previous_funccal;
+            (*pfc).push(fc);
 
             if want_garbage_collect {
                 made_copy = 0;
@@ -1129,14 +1140,11 @@ unsafe fn funccal_unref(fc: *mut funccall_T, fp: *mut ufunc_T, force: bool) {
         } else {
             !fc_referenced(fc)
         } {
-            let mut pfc = &raw mut previous_funccal;
-            while !(*pfc).is_null() {
-                if fc == *pfc {
-                    *pfc = (*fc).fc_caller;
-                    free_funccal_contents(fc);
-                    return;
-                }
-                pfc = &raw mut (**pfc).fc_caller;
+            let pfc = &raw mut previous_funccal;
+            if let Some(pos) = (*pfc).iter().position(|&item| item == fc) {
+                (*pfc).remove(pos);
+                free_funccal_contents(fc);
+                return;
             }
         }
         for slot in &mut (*fc).fc_ufuncs {
@@ -1186,7 +1194,7 @@ unsafe fn func_clear(fp: *mut ufunc_T, force: bool) {
         (*fp).uf_cleared = true;
 
         func_clear_items(fp);
-        funccal_unref((*fp).uf_scoped.cast(), fp, force);
+        funccal_unref((*fp).uf_scoped, fp, force);
     }
 }
 
@@ -3772,17 +3780,15 @@ pub unsafe fn can_add_defer() -> bool {
 pub unsafe fn add_defer(name: *mut c_char, argcount_arg: c_int, argvars: *mut typval_T) {
     unsafe {
         let saved_name = xstrdup(name);
-        let mut argcount = argcount_arg;
-        let mut dr = defer_T {
-            dr_name: saved_name,
-            dr_argvars: [typval_T::new(); MAX_FUNC_ARGS + 1],
-            dr_argcount: argcount,
-        };
-        while argcount > 0 {
-            argcount -= 1;
-            dr.dr_argvars[argcount as usize] = *argvars.add(argcount as usize);
+        let argcount = argcount_arg as usize;
+        let mut dr_argvars = vec![typval_T::new(); argcount + 1];
+        for (i, slot) in dr_argvars.iter_mut().enumerate().take(argcount) {
+            *slot = *argvars.add(i);
         }
-        (*current_funccal).fc_defer.push(dr);
+        (*current_funccal).fc_defer.push(defer_T {
+            dr_name: saved_name,
+            dr_argvars,
+        });
     }
 }
 
@@ -3805,6 +3811,7 @@ unsafe fn handle_defer_one(funccal: *mut funccall_T) {
 
             let name = (*dr).dr_name;
             (*dr).dr_name = ptr::null_mut();
+            let argcount = ((*dr).dr_argvars.len() - 1) as c_int;
 
             let mut estate = exception_state_T::new();
             exception_state_save(&raw mut estate);
@@ -3814,7 +3821,7 @@ unsafe fn handle_defer_one(funccal: *mut funccall_T) {
                 name,
                 -1,
                 &raw mut rettv,
-                (*dr).dr_argcount,
+                argcount,
                 (*dr).dr_argvars.as_mut_ptr(),
                 &raw mut funcexe,
             );
@@ -3823,14 +3830,15 @@ unsafe fn handle_defer_one(funccal: *mut funccall_T) {
 
             tv_clear(&raw mut rettv);
             xfree(name.cast());
-            let mut i = (*dr).dr_argcount - 1;
+            let mut i = argcount - 1;
             while i >= 0 {
-                tv_clear(&raw mut (*dr).dr_argvars[i as usize]);
+                tv_clear((*dr).dr_argvars.as_mut_ptr().add(i as usize));
                 i -= 1;
             }
+            (*dr).dr_argvars.clear();
             idx -= 1;
         }
-        (*funccal).fc_defer = Vec::new();
+        (*funccal).fc_defer.clear();
     }
 }
 
@@ -4206,16 +4214,17 @@ pub unsafe fn free_unref_funccal(copyID: c_int, testing: c_int) -> bool {
         let mut did_free = false;
         let mut did_free_funccal = false;
 
-        let mut pfc = &raw mut previous_funccal;
-        while !(*pfc).is_null() {
-            if can_free_funccal(*pfc, copyID) {
-                let fc = *pfc;
-                *pfc = (*fc).fc_caller;
+        let pfc = &raw mut previous_funccal;
+        let mut i = 0usize;
+        while i < (*pfc).len() {
+            let fc = (*pfc).as_slice()[i];
+            if can_free_funccal(fc, copyID) {
+                (*pfc).remove(i);
                 free_funccal_contents(fc);
                 did_free = true;
                 did_free_funccal = true;
             } else {
-                pfc = &raw mut (**pfc).fc_caller;
+                i += 1;
             }
         }
         if did_free_funccal {
@@ -4358,7 +4367,7 @@ pub unsafe fn find_hi_in_scoped_ht(
         let namelen = strlen(name);
         let mut varname: *const c_char = ptr::null();
 
-        current_funccal = (*(*current_funccal).fc_func).uf_scoped.cast();
+        current_funccal = (*(*current_funccal).fc_func).uf_scoped;
         while !current_funccal.is_null() {
             let ht = find_var_ht(name, namelen, &raw mut varname);
             if !ht.is_null() && *varname != NUL {
@@ -4368,10 +4377,10 @@ pub unsafe fn find_hi_in_scoped_ht(
                     break;
                 }
             }
-            if current_funccal == (*(*current_funccal).fc_func).uf_scoped.cast() {
+            if current_funccal == (*(*current_funccal).fc_func).uf_scoped {
                 break;
             }
-            current_funccal = (*(*current_funccal).fc_func).uf_scoped.cast();
+            current_funccal = (*(*current_funccal).fc_func).uf_scoped;
         }
         current_funccal = old_current_funccal;
 
@@ -4393,7 +4402,7 @@ pub unsafe fn find_var_in_scoped_ht(
         let old_current_funccal = current_funccal;
         let mut varname: *const c_char = ptr::null();
 
-        current_funccal = (*(*current_funccal).fc_func).uf_scoped.cast();
+        current_funccal = (*(*current_funccal).fc_func).uf_scoped;
         while !current_funccal.is_null() {
             let ht = find_var_ht(name, namelen, &raw mut varname);
             if !ht.is_null() && *varname != NUL {
@@ -4408,10 +4417,10 @@ pub unsafe fn find_var_in_scoped_ht(
                     break;
                 }
             }
-            if current_funccal == (*(*current_funccal).fc_func).uf_scoped.cast() {
+            if current_funccal == (*(*current_funccal).fc_func).uf_scoped {
                 break;
             }
-            current_funccal = (*(*current_funccal).fc_func).uf_scoped.cast();
+            current_funccal = (*(*current_funccal).fc_func).uf_scoped;
         }
         current_funccal = old_current_funccal;
 
@@ -4421,8 +4430,8 @@ pub unsafe fn find_var_in_scoped_ht(
 
 pub unsafe fn set_ref_in_previous_funccal(copyID: c_int) -> bool {
     unsafe {
-        let mut fc = previous_funccal;
-        while !fc.is_null() {
+        let pfc = &raw const previous_funccal;
+        for &fc in (*pfc).as_slice() {
             (*fc).fc_copyID = copyID + 1;
             if set_ref_in_ht(
                 &raw mut (*fc).fc_l_vars.dv_hashtab,
@@ -4436,7 +4445,6 @@ pub unsafe fn set_ref_in_previous_funccal(copyID: c_int) -> bool {
             {
                 return true;
             }
-            fc = (*fc).fc_caller;
         }
         false
     }
@@ -4535,10 +4543,10 @@ pub unsafe fn set_ref_in_func(name: *mut c_char, fp_in: *mut ufunc_T, copyID: c_
             fp = find_func(fname);
         }
         if !fp.is_null() {
-            let mut fc = (*fp).uf_scoped.cast::<funccall_T>();
+            let mut fc = (*fp).uf_scoped;
             while !fc.is_null() {
                 abort = abort || set_ref_in_funccal(fc, copyID);
-                fc = (*(*fc).fc_func).uf_scoped.cast();
+                fc = (*(*fc).fc_func).uf_scoped;
             }
         }
         xfree(tofree.cast());
