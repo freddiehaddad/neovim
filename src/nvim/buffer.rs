@@ -165,7 +165,6 @@ pub struct BufSigncols {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
 pub struct BufUpdateCallbacks {
     pub on_lines: crate::lua::converter::LuaRef,
     pub on_bytes: crate::lua::converter::LuaRef,
@@ -174,6 +173,18 @@ pub struct BufUpdateCallbacks {
     pub on_reload: crate::lua::converter::LuaRef,
     pub utf_sizes: bool,
     pub preview: bool,
+}
+
+impl Drop for BufUpdateCallbacks {
+    fn drop(&mut self) {
+        unsafe {
+            crate::lua::executor::api_free_luaref(self.on_lines);
+            crate::lua::executor::api_free_luaref(self.on_bytes);
+            crate::lua::executor::api_free_luaref(self.on_changedtick);
+            crate::lua::executor::api_free_luaref(self.on_reload);
+            crate::lua::executor::api_free_luaref(self.on_detach);
+        }
+    }
 }
 
 #[repr(C)]

@@ -10,7 +10,7 @@ use crate::extmark::bcount_t;
 use crate::globals::*;
 use crate::log::logmsg;
 use crate::lua::converter::LUA_NOREF;
-use crate::lua::executor::{api_free_luaref, kRetNilBool, nlua_call_ref};
+use crate::lua::executor::{kRetNilBool, nlua_call_ref};
 use crate::memline::ml_flush_deleted_bytes;
 use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::msgpack_rpc::channel::rpc_send_event;
@@ -55,8 +55,9 @@ pub unsafe fn buf_updates_register(
         }
 
         if channel_id == LUA_INTERNAL_CALL {
+            let utf_sizes = cb.utf_sizes;
             (*buf).update_callbacks.push(cb);
-            if cb.utf_sizes {
+            if utf_sizes {
                 (*buf).update_need_codepoints = true;
             }
             return true;
@@ -146,9 +147,6 @@ pub unsafe fn buf_updates_unregister(buf: *mut buf_T, channelid: u64) {
 pub unsafe fn buf_free_callbacks(buf: *mut buf_T) {
     unsafe {
         (*buf).update_channels = Vec::new();
-        for cb in (*buf).update_callbacks.drain(..) {
-            buffer_update_callbacks_free(cb);
-        }
         (*buf).update_callbacks = Vec::new();
     }
 }
@@ -160,17 +158,18 @@ pub unsafe fn buf_updates_unload(buf: *mut buf_T, can_reload: bool) {
         }
         (*buf).update_channels = Vec::new();
 
-        let mut j = 0usize;
-        for i in 0..(*buf).update_callbacks.len() {
-            let cb = (*buf).update_callbacks.as_slice()[i];
+        let mut i = 0usize;
+        while i < (*buf).update_callbacks.len() {
+            let on_reload = (*buf).update_callbacks.as_slice()[i].on_reload;
+            let on_detach = (*buf).update_callbacks.as_slice()[i].on_detach;
             let mut thecb = LUA_NOREF;
             let mut keep = false;
 
-            if can_reload && cb.on_reload != LUA_NOREF {
+            if can_reload && on_reload != LUA_NOREF {
                 keep = true;
-                thecb = cb.on_reload;
-            } else if cb.on_detach != LUA_NOREF {
-                thecb = cb.on_detach;
+                thecb = on_reload;
+            } else if on_detach != LUA_NOREF {
+                thecb = on_detach;
             }
 
             if thecb != LUA_NOREF {
@@ -198,13 +197,11 @@ pub unsafe fn buf_updates_unload(buf: *mut buf_T, can_reload: bool) {
             }
 
             if keep {
-                (*buf).update_callbacks.as_mut_slice()[j] = cb;
-                j += 1;
+                i += 1;
             } else {
-                buffer_update_callbacks_free(cb);
+                (*buf).update_callbacks.remove(i);
             }
         }
-        (*buf).update_callbacks.truncate(j);
         if (*buf).update_callbacks.is_empty() {
             (*buf).update_callbacks = Vec::new();
         }
@@ -284,11 +281,13 @@ pub unsafe fn buf_updates_send_changes(
 
         arena_mem_free(arena_finish(&mut arena));
 
-        let mut j = 0usize;
-        for i in 0..(*buf).update_callbacks.len() {
-            let cb = (*buf).update_callbacks.as_slice()[i];
+        let mut i = 0usize;
+        while i < (*buf).update_callbacks.len() {
+            let on_lines = (*buf).update_callbacks.as_slice()[i].on_lines;
+            let preview = (*buf).update_callbacks.as_slice()[i].preview;
+            let utf_sizes = (*buf).update_callbacks.as_slice()[i].utf_sizes;
             let mut keep = true;
-            if cb.on_lines != LUA_NOREF && (cb.preview || !cmdpreview) {
+            if on_lines != LUA_NOREF && (preview || !cmdpreview) {
                 let mut items = [
                     buffer_obj((*buf).b_fnum),
                     if send_tick {
@@ -304,7 +303,7 @@ pub unsafe fn buf_updates_send_changes(
                     integer_obj(deleted_codeunits as Integer),
                 ];
                 let args = Array {
-                    size: if cb.utf_sizes { 8 } else { 6 },
+                    size: if utf_sizes { 8 } else { 6 },
                     capacity: 8,
                     items: items.as_mut_ptr(),
                 };
@@ -312,7 +311,7 @@ pub unsafe fn buf_updates_send_changes(
                 let mut res = OBJECT_NIL;
                 textlock_wrap(|| {
                     res = nlua_call_ref(
-                        cb.on_lines,
+                        on_lines,
                         c"lines".as_ptr(),
                         args,
                         kRetNilBool,
@@ -322,16 +321,15 @@ pub unsafe fn buf_updates_send_changes(
                 });
 
                 if luaret_truthy(res) {
-                    buffer_update_callbacks_free(cb);
                     keep = false;
                 }
             }
             if keep {
-                (*buf).update_callbacks.as_mut_slice()[j] = cb;
-                j += 1;
+                i += 1;
+            } else {
+                (*buf).update_callbacks.remove(i);
             }
         }
-        (*buf).update_callbacks.truncate(j);
     }
 }
 
@@ -352,11 +350,12 @@ pub unsafe fn buf_updates_send_splice(
             return;
         }
 
-        let mut j = 0usize;
-        for i in 0..(*buf).update_callbacks.len() {
-            let cb = (*buf).update_callbacks.as_slice()[i];
+        let mut i = 0usize;
+        while i < (*buf).update_callbacks.len() {
+            let on_bytes = (*buf).update_callbacks.as_slice()[i].on_bytes;
+            let preview = (*buf).update_callbacks.as_slice()[i].preview;
             let mut keep = true;
-            if cb.on_bytes != LUA_NOREF && (cb.preview || !cmdpreview) {
+            if on_bytes != LUA_NOREF && (preview || !cmdpreview) {
                 let mut items = [
                     buffer_obj((*buf).b_fnum),
                     integer_obj(buf_get_changedtick(buf)),
@@ -379,7 +378,7 @@ pub unsafe fn buf_updates_send_splice(
                 let mut res = OBJECT_NIL;
                 textlock_wrap(|| {
                     res = nlua_call_ref(
-                        cb.on_bytes,
+                        on_bytes,
                         c"bytes".as_ptr(),
                         args,
                         kRetNilBool,
@@ -389,16 +388,15 @@ pub unsafe fn buf_updates_send_splice(
                 });
 
                 if luaret_truthy(res) {
-                    buffer_update_callbacks_free(cb);
                     keep = false;
                 }
             }
             if keep {
-                (*buf).update_callbacks.as_mut_slice()[j] = cb;
-                j += 1;
+                i += 1;
+            } else {
+                (*buf).update_callbacks.remove(i);
             }
         }
-        (*buf).update_callbacks.truncate(j);
     }
 }
 
@@ -408,11 +406,11 @@ pub unsafe fn buf_updates_changedtick(buf: *mut buf_T) {
             buf_updates_changedtick_single(buf, channel_id);
         }
 
-        let mut j = 0usize;
-        for i in 0..(*buf).update_callbacks.len() {
-            let cb = (*buf).update_callbacks.as_slice()[i];
+        let mut i = 0usize;
+        while i < (*buf).update_callbacks.len() {
+            let on_changedtick = (*buf).update_callbacks.as_slice()[i].on_changedtick;
             let mut keep = true;
-            if cb.on_changedtick != LUA_NOREF {
+            if on_changedtick != LUA_NOREF {
                 let mut items = [
                     buffer_obj((*buf).b_fnum),
                     integer_obj(buf_get_changedtick(buf)),
@@ -426,7 +424,7 @@ pub unsafe fn buf_updates_changedtick(buf: *mut buf_T) {
                 let mut res = OBJECT_NIL;
                 textlock_wrap(|| {
                     res = nlua_call_ref(
-                        cb.on_changedtick,
+                        on_changedtick,
                         c"changedtick".as_ptr(),
                         args,
                         kRetNilBool,
@@ -436,16 +434,15 @@ pub unsafe fn buf_updates_changedtick(buf: *mut buf_T) {
                 });
 
                 if luaret_truthy(res) {
-                    buffer_update_callbacks_free(cb);
                     keep = false;
                 }
             }
             if keep {
-                (*buf).update_callbacks.as_mut_slice()[j] = cb;
-                j += 1;
+                i += 1;
+            } else {
+                (*buf).update_callbacks.remove(i);
             }
         }
-        (*buf).update_callbacks.truncate(j);
     }
 }
 
@@ -461,16 +458,6 @@ pub unsafe fn buf_updates_changedtick_single(buf: *mut buf_T, channel_id: u64) {
             items: items.as_mut_ptr(),
         };
         rpc_send_event(channel_id, c"nvim_buf_changedtick_event".as_ptr(), args);
-    }
-}
-
-pub unsafe fn buffer_update_callbacks_free(cb: BufUpdateCallbacks) {
-    unsafe {
-        api_free_luaref(cb.on_lines);
-        api_free_luaref(cb.on_bytes);
-        api_free_luaref(cb.on_changedtick);
-        api_free_luaref(cb.on_reload);
-        api_free_luaref(cb.on_detach);
     }
 }
 

@@ -38,16 +38,6 @@ fn clear_region(
     }
 }
 
-/// Initialize a `UGrid` (`ugrid_init`).
-pub fn ugrid_init(grid: &mut UGrid) {
-    grid.cells.clear();
-}
-
-/// Free all cell memory in `grid` (`ugrid_free`).
-pub fn ugrid_free(grid: &mut UGrid) {
-    grid.cells = Vec::new();
-}
-
 /// Resize `grid` to `width` x `height` cells (`ugrid_resize`).
 pub fn ugrid_resize(grid: &mut UGrid, width: c_int, height: c_int) {
     let h = height.max(0) as usize;
@@ -117,8 +107,6 @@ mod tests {
     #[test]
     fn ugrid_lifecycle_clear_and_scroll() {
         let mut grid = UGrid::default();
-
-        ugrid_init(&mut grid);
         assert!(grid.cells.is_empty());
 
         ugrid_resize(&mut grid, 4, 3);
@@ -153,8 +141,5 @@ mod tests {
         ugrid_goto(&mut grid, 2, 3);
         assert_eq!(grid.row, 2);
         assert_eq!(grid.col, 3);
-
-        ugrid_free(&mut grid);
-        assert!(grid.cells.is_empty());
     }
 }

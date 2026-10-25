@@ -94,6 +94,14 @@ impl CallbackReader {
     }
 }
 
+impl Drop for CallbackReader {
+    fn drop(&mut self) {
+        unsafe {
+            callback_free(&raw mut self.cb);
+        }
+    }
+}
+
 use crate::option::OptInt;
 
 pub(crate) const CHAN_STDERR: u64 = 2;
@@ -458,13 +466,6 @@ pub unsafe fn channel_decref(chan: *mut Channel) {
     }
 }
 
-pub unsafe fn callback_reader_free(reader: *mut CallbackReader) {
-    unsafe {
-        callback_free(&raw mut (*reader).cb);
-        (*reader).buffer = Vec::new();
-    }
-}
-
 pub unsafe fn callback_reader_start(reader: *mut CallbackReader, r#type: *const c_char) {
     unsafe {
         (*reader).reader_type = r#type;
@@ -481,8 +482,6 @@ unsafe fn channel_destroy(chan: *mut Channel) {
             proc_free(&raw mut (*chan).uv.proc_);
         }
 
-        callback_reader_free(&raw mut (*chan).on_data);
-        callback_reader_free(&raw mut (*chan).on_stderr);
         callback_free(&raw mut (*chan).on_exit);
 
         multiqueue_free((*chan).events);
@@ -1545,5 +1544,6 @@ mod tests {
         assert!(!callback_reader_set(&reader));
         reader.cb.data = crate::eval::typval::CallbackData::lua(1);
         assert!(callback_reader_set(&reader));
+        reader.cb.data = crate::eval::typval::CallbackData::None;
     }
 }

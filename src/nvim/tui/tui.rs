@@ -59,8 +59,7 @@ use crate::tui::input::{
 };
 use crate::tui::termkey::driver_ti::{TerminfoEntry, kTermCount, kTerminfoFuncKeyMax};
 use crate::tui::ugrid::{
-    UCell, UGrid, ugrid_clear, ugrid_clear_chunk, ugrid_free, ugrid_goto, ugrid_init, ugrid_resize,
-    ugrid_scroll,
+    UCell, UGrid, ugrid_clear, ugrid_clear_chunk, ugrid_goto, ugrid_resize, ugrid_scroll,
 };
 use crate::ui_client::ui_client_set_size;
 #[cfg(unix)]
@@ -385,7 +384,7 @@ pub unsafe fn tui_start(
         signal_watcher_start(tui_winch_handle(tui), Some(sigwinch_cb), SIGWINCH);
 
         (*tui).input.tk_ti_hook_fn = Some(tui_tk_ti_getstr);
-        ugrid_init(&mut (*tui).grid);
+        (*tui).grid.cells.clear();
         tui_terminal_start(tui);
 
         let timer = tui_startup_delay_timer(tui);
@@ -1247,8 +1246,6 @@ pub unsafe fn tui_is_stopped(tui: *mut TUIData) -> bool {
 
 pub unsafe fn tui_free_all_mem(tui: *mut TUIData) {
     unsafe {
-        ugrid_free(&mut (*tui).grid);
-
         let urls_ptr = &raw mut urls;
         *urls_ptr = Vec::new();
 

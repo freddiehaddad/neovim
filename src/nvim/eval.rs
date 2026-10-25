@@ -60,7 +60,7 @@ pub mod vars;
 pub mod window;
 
 use crate::buffer::{NOTDONE, VAR_FIXED, bt_prompt, buf_T, buflist_findnr, kUIMessages};
-use crate::channel::{CallbackReader, Channel, callback_reader_free, kChannelStreamProc};
+use crate::channel::{CallbackReader, Channel, kChannelStreamProc};
 use crate::errors::*;
 use crate::eval::funcs::{E_STRING_LIST_OR_BLOB_REQUIRED, kOptCpoptions};
 use crate::eval::userfunc::{
@@ -7068,11 +7068,9 @@ pub unsafe fn common_job_callbacks(
             return true;
         }
 
-        {
-            callback_reader_free(on_stdout);
-            callback_reader_free(on_stderr);
-            callback_free(on_exit);
-        }
+        *on_stdout = CallbackReader::none();
+        *on_stderr = CallbackReader::none();
+        callback_free(on_exit);
         false
     }
 }
