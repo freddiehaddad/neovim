@@ -304,7 +304,15 @@ impl list_T {
             lv_idx: 0,
             lv_copyID: 0,
             lv_lock: 0,
-            lua_table_ref: 0,
+            lua_table_ref: LUA_NOREF,
+        }
+    }
+}
+
+impl Drop for list_T {
+    fn drop(&mut self) {
+        unsafe {
+            nlua_clear_ref(&mut self.lua_table_ref);
         }
     }
 }
@@ -354,7 +362,15 @@ impl dict_T {
             dv_used_next: ptr::null_mut(),
             dv_used_prev: ptr::null_mut(),
             watchers: Vec::new(),
-            lua_table_ref: 0,
+            lua_table_ref: LUA_NOREF,
+        }
+    }
+}
+
+impl Drop for dict_T {
+    fn drop(&mut self) {
+        unsafe {
+            nlua_clear_ref(&mut self.lua_table_ref);
         }
     }
 }
@@ -533,7 +549,7 @@ static E_NON_NULL_DICT_REQUIRED_FOR_ARGUMENT_NR: &CStr =
 
 #[inline]
 pub unsafe fn nlua_clear_ref(r: &mut LuaRef) {
-    if *r != LUA_NOREF {
+    if *r != LUA_NOREF && *r != 0 {
         unsafe { api_free_luaref(*r) };
         *r = LUA_NOREF;
     }
@@ -896,7 +912,6 @@ pub unsafe fn tv_list_free_list(l: *mut list_T) {
             (*(*l).lv_used_next).lv_used_prev = (*l).lv_used_prev;
         }
 
-        nlua_clear_ref(&mut (*l).lua_table_ref);
         drop(Box::from_raw(l));
     }
 }
@@ -2751,13 +2766,6 @@ pub unsafe fn tv_dict_alloc() -> *mut dict_T {
     }
 }
 
-/// Free watchers on a dictionary.
-pub unsafe fn tv_dict_free_watchers(d: *mut dict_T) {
-    unsafe {
-        (*d).watchers = Vec::new();
-    }
-}
-
 /// Free items contained in a dictionary.
 pub unsafe fn tv_dict_free_contents(d: *mut dict_T) {
     unsafe {
@@ -2775,7 +2783,7 @@ pub unsafe fn tv_dict_free_contents(d: *mut dict_T) {
             hi = hi.add(1);
         }
 
-        tv_dict_free_watchers(d);
+        (*d).watchers.clear();
 
         hash_clear(&raw mut (*d).dv_hashtab);
         (*d).dv_hashtab.ht_locked -= 1;
@@ -2795,7 +2803,6 @@ pub unsafe fn tv_dict_free_dict(d: *mut dict_T) {
             (*(*d).dv_used_next).dv_used_prev = (*d).dv_used_prev;
         }
 
-        nlua_clear_ref(&mut (*d).lua_table_ref);
         drop(Box::from_raw(d));
     }
 }

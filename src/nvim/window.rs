@@ -5108,6 +5108,15 @@ unsafe fn alloc_tabpage() -> *mut tabpage_T {
     }
 }
 
+impl Drop for tabpage_T {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.tp_localdir.cast());
+            xfree(self.tp_prevdir.cast());
+        }
+    }
+}
+
 pub unsafe fn free_tabpage(tp: *mut tabpage_T) {
     unsafe {
         let map_ptr = &raw mut tabpage_handles;
@@ -5124,8 +5133,6 @@ pub unsafe fn free_tabpage(tp: *mut tabpage_T) {
             lastused_tabpage = ptr::null_mut();
         }
 
-        xfree((*tp).tp_localdir.cast());
-        xfree((*tp).tp_prevdir.cast());
         drop(Box::from_raw(tp));
     }
 }
@@ -6349,8 +6356,8 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
             win_remove(wp, tp);
         }
         if autocmd_busy {
-            (*wp).w_next = au_pending_free_win;
-            au_pending_free_win = wp;
+            let pending_win = &raw mut au_pending_free_win;
+            (*pending_win).push(Box::from_raw(wp));
         } else {
             drop(Box::from_raw(wp));
         }

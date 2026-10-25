@@ -148,6 +148,14 @@ pub struct ff_search_ctx_T {
     pub ffsc_tagfile: c_int,
 }
 
+impl Drop for ff_search_ctx_T {
+    fn drop(&mut self) {
+        unsafe {
+            ff_clear(self);
+        }
+    }
+}
+
 static mut ff_expand_buf_data: [c_char; MAXPATHL] = [0; MAXPATHL];
 static mut ff_expand_buffer: NvimString = NULL_STRING;
 
@@ -523,14 +531,10 @@ pub unsafe fn vim_findfile_stopdir(mut buf: *mut c_char) -> *mut c_char {
 
 /// Clean up the given search context. Can handle a NULL pointer.
 pub unsafe fn vim_findfile_cleanup(search_ctx: *mut ff_search_ctx_T) {
-    unsafe {
-        if search_ctx.is_null() {
-            return;
+    if !search_ctx.is_null() {
+        unsafe {
+            drop(Box::from_raw(search_ctx));
         }
-
-        vim_findfile_free_visited(search_ctx);
-        ff_clear(search_ctx);
-        drop(Box::from_raw(search_ctx));
     }
 }
 

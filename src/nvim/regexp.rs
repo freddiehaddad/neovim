@@ -279,10 +279,19 @@ impl Default for regmatch_T {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
 pub struct reg_extmatch_T {
     pub refcnt: i16,
     pub matches: [*mut u8; NSUBEXP],
+}
+
+impl Drop for reg_extmatch_T {
+    fn drop(&mut self) {
+        for &m in &self.matches {
+            unsafe {
+                xfree(m.cast());
+            }
+        }
+    }
 }
 
 #[repr(C)]
@@ -2026,9 +2035,6 @@ pub unsafe fn unref_extmatch(em: *mut reg_extmatch_T) {
         if !em.is_null() {
             (*em).refcnt -= 1;
             if (*em).refcnt <= 0 {
-                for i in 0..NSUBEXP {
-                    xfree((*em).matches[i].cast());
-                }
                 drop(Box::from_raw(em));
             }
         }

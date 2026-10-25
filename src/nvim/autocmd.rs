@@ -3147,16 +3147,10 @@ pub unsafe fn apply_autocmds_group(
                     restore_redobuff(&raw mut save_redo);
                 }
                 (*curbuf).b_did_filetype = false;
-                while !au_pending_free_buf.is_null() {
-                    let b = (*au_pending_free_buf).b_next;
-                    drop(Box::from_raw(au_pending_free_buf));
-                    au_pending_free_buf = b;
-                }
-                while !au_pending_free_win.is_null() {
-                    let w = (*au_pending_free_win).w_next;
-                    drop(Box::from_raw(au_pending_free_win));
-                    au_pending_free_win = w;
-                }
+                let pending_buf = &raw mut au_pending_free_buf;
+                (*pending_buf).clear();
+                let pending_win = &raw mut au_pending_free_win;
+                (*pending_win).clear();
             }
 
             if curbuf == old_curbuf

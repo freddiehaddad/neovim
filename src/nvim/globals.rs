@@ -483,8 +483,8 @@ pub static mut au_new_curbuf: bufref_T = bufref_T {
     br_fnum: 0,
     br_buf_free_count: 0,
 };
-pub static mut au_pending_free_buf: *mut buf_T = ptr::null_mut();
-pub static mut au_pending_free_win: *mut win_T = ptr::null_mut();
+pub static mut au_pending_free_buf: Vec<Box<buf_T>> = Vec::new();
+pub static mut au_pending_free_win: Vec<Box<win_T>> = Vec::new();
 pub static mut autocmd_fname: *mut c_char = ptr::null_mut();
 pub static mut autocmd_fname_full: bool = false;
 pub static mut autocmd_bufnr: c_int = 0;

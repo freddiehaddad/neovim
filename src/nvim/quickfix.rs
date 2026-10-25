@@ -2176,13 +2176,6 @@ unsafe fn qf_free_list_stack_items(qi: *mut qf_info_T) {
     }
 }
 
-unsafe fn qf_free_lists(qi: *mut qf_info_T) {
-    unsafe {
-        qf_free_list_stack_items(qi);
-        drop(Box::from_raw(qi));
-    }
-}
-
 unsafe fn ll_free_all(pqi: *mut *mut qf_info_T) {
     unsafe {
         let qi = *pqi;
@@ -2199,7 +2192,7 @@ unsafe fn ll_free_all(pqi: *mut *mut qf_info_T) {
         (*qi).qf_refcount -= 1;
         if (*qi).qf_refcount < 1 {
             wipe_qf_buffer(qi);
-            qf_free_lists(qi);
+            drop(Box::from_raw(qi));
         }
     }
 }
@@ -6407,10 +6400,9 @@ unsafe fn qf_get_list_from_lines(
         ) > 0
         {
             get_errorlist(qi, ptr::null_mut(), 0, 0, l);
-            qf_free((*qi).qf_lists.as_mut_ptr());
         }
 
-        qf_free_lists(qi);
+        drop(Box::from_raw(qi));
 
         tv_dict_add_list(retdict, c"items".as_ptr(), 5, l);
         OK

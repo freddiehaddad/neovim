@@ -326,7 +326,7 @@ pub unsafe fn unpack(
             Some(api_parse_exit),
         );
 
-        *arena = unpacker.arena;
+        *arena = std::mem::replace(&mut unpacker.arena, empty_arena());
 
         if result == MPACK_NOMEM {
             api_set_error!(

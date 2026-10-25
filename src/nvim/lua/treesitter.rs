@@ -207,6 +207,14 @@ struct TSLuaLoggerOpts {
     parse: bool,
 }
 
+impl Drop for TSLuaLoggerOpts {
+    fn drop(&mut self) {
+        unsafe {
+            luaL_unref(self.lstate, LUA_REGISTRYINDEX, self.cb);
+        }
+    }
+}
+
 #[repr(C)]
 struct TSLuaTree {
     tree: *const TSTree,
@@ -998,7 +1006,6 @@ unsafe fn logger_gc(logger: TSLogger) {
 
     unsafe {
         let opts = logger.payload.cast::<TSLuaLoggerOpts>();
-        luaL_unref((*opts).lstate, LUA_REGISTRYINDEX, (*opts).cb);
         drop(Box::from_raw(opts));
     }
 }

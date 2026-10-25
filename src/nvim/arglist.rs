@@ -81,6 +81,16 @@ impl alist_T {
     }
 }
 
+impl Drop for alist_T {
+    fn drop(&mut self) {
+        for entry in self.al_ga.drain(..) {
+            unsafe {
+                xfree(entry.ae_fname.cast());
+            }
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct aentry_T {
@@ -182,7 +192,6 @@ pub unsafe fn alist_unlink(al: *mut alist_T) {
         if !ptr::eq(al, &raw const global_alist) {
             (*al).al_refcount -= 1;
             if (*al).al_refcount <= 0 {
-                alist_clear(al);
                 drop(Box::from_raw(al));
             }
         }

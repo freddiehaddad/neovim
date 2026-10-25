@@ -1018,19 +1018,17 @@ unsafe fn add_nr_var(dp: *mut dict_T, name: *const c_char, nr: varnumber_T) {
     }
 }
 
-/// Free `fc`.
-unsafe fn free_funccal(fc: *mut funccall_T) {
-    unsafe {
-        for &fp in &(*fc).fc_ufuncs {
-            if !fp.is_null() && (*fp).uf_scoped == fc.cast() {
-                (*fp).uf_scoped = ptr::null_mut();
+impl Drop for funccall_T {
+    fn drop(&mut self) {
+        unsafe {
+            let self_ptr = std::ptr::from_mut(self).cast();
+            for &fp in &self.fc_ufuncs {
+                if !fp.is_null() && (*fp).uf_scoped == self_ptr {
+                    (*fp).uf_scoped = ptr::null_mut();
+                }
             }
+            func_ptr_unref(self.fc_func);
         }
-        crate::eval::typval::tv_dict_free_watchers(&raw mut (*fc).fc_l_vars);
-        crate::eval::typval::tv_dict_free_watchers(&raw mut (*fc).fc_l_avars);
-
-        func_ptr_unref((*fc).fc_func);
-        drop(Box::from_raw(fc));
     }
 }
 
@@ -1046,7 +1044,7 @@ unsafe fn free_funccal_contents(fc: *mut funccall_T) {
             li = (*li).li_next;
         }
 
-        free_funccal(fc);
+        drop(Box::from_raw(fc));
     }
 }
 
@@ -1099,7 +1097,7 @@ unsafe fn cleanup_function_call(fc: *mut funccall_T) {
         }
 
         if free_fc {
-            free_funccal(fc);
+            drop(Box::from_raw(fc));
         } else {
             (*fc).fc_caller = previous_funccal;
             previous_funccal = fc;

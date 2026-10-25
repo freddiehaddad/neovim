@@ -1716,8 +1716,8 @@ unsafe fn free_buffer(buf: *mut buf_T) {
         if autocmd_busy {
             (*buf).b_namedm.fill(fmark_T::new());
             (*buf).b_changelist.fill(fmark_T::new());
-            (*buf).b_next = au_pending_free_buf;
-            au_pending_free_buf = buf;
+            let pending_buf = &raw mut au_pending_free_buf;
+            (*pending_buf).push(Box::from_raw(buf));
         } else {
             drop(Box::from_raw(buf));
             if curbuf == buf {
