@@ -44,7 +44,7 @@ use crate::r#move::{
     invalidate_botline_win, validate_cursor,
 };
 use crate::normal::check_scrollbind;
-use crate::option::{set_option_direct_for, set_option_value_give_err};
+use crate::option::{OptTarget, set_option_direct_for, set_option_value_give_err};
 use crate::option_vars::*;
 use crate::optionstr::{OptIndex, OptKeyDict_dip, free_string_option, opt_keyset};
 use crate::os::env::{os_env_exists, os_unsetenv};
@@ -195,7 +195,7 @@ use crate::charset::{NL, NUL};
 use crate::cmdexpand::MB_MAXBYTES;
 use crate::extmark::{kExtmarkNOOP, kExtmarkUndo, kFalse, kNone, kTrue};
 use crate::math::{FAIL, OK};
-use crate::option::{OPT_LOCAL, kOptScopeWin};
+use crate::option::OPT_LOCAL;
 #[cfg(unix)]
 use crate::os::fs::MAXPATHL;
 use crate::regexp::MAXCOL;
@@ -1469,8 +1469,7 @@ pub unsafe fn diff_win_options(wp: *mut win_T, addbuf: bool) {
             static_cstr_as_obj(c"diff"),
             OPT_LOCAL,
             0,
-            kOptScopeWin,
-            wp.cast(),
+            OptTarget::Win(wp),
         );
         if (*wp).w_onebuf_opt.wo_diff == 0 {
             (*wp).w_onebuf_opt.wo_fen_save = (*wp).w_onebuf_opt.wo_fen;

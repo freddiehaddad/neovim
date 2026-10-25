@@ -1,6 +1,6 @@
 //! Lua bindings for MessagePack (`src/mpack/lmpack.c`).
 
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::mem::size_of;
 use std::ptr;
 
@@ -1247,7 +1247,7 @@ pub unsafe fn luaopen_mpack(l: *mut lua_State) -> c_int {
 
         lua_getfield(l, LUA_REGISTRYINDEX, NIL_NAME.as_ptr());
         if lua_isnil(l, -1) {
-            let _ = lua_newuserdata(l, size_of::<*mut c_void>());
+            let _ = lua_newuserdata(l, size_of::<usize>());
             lua_createtable(l, 0, 1);
             lua_pushstring(l, c"__tostring".as_ptr());
             lua_pushcfunction(l, Some(lmpack_nil_tostring));

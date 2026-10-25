@@ -3793,16 +3793,16 @@ pub unsafe fn opt_fill(value: *const c_char, get_field: FieldHashfn, out: *mut O
 pub unsafe fn opt_keyset(
     value: *const c_char,
     opt_idx: OptIndex,
-    mut keyset: *mut c_void,
-) -> *mut c_void {
+    mut keyset: *mut OptKeySet,
+) -> *mut OptKeySet {
     unsafe {
         if keyset.is_null() {
-            keyset = (&raw mut OPT_KEYSET_SHARED).cast::<c_void>();
+            keyset = (&raw mut OPT_KEYSET_SHARED).cast::<OptKeySet>();
         }
         let si = opt_dict_schema(opt_idx);
         ptr::write_bytes(keyset.cast::<u8>(), 0, (*si).size);
         if !value.is_null() {
-            opt_fill(value, (*si).get_field, keyset.cast());
+            opt_fill(value, (*si).get_field, keyset);
         }
         keyset
     }

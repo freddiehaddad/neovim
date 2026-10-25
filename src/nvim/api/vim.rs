@@ -95,7 +95,7 @@ use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::msgpack_rpc::unpacker::unpack;
 use crate::normal::reset_VIsual_and_resel;
 use crate::option::{
-    OPT_LOCAL, buf_copy_options, kOptBufhidden, kOptBuftype, kOptScopeBuf, set_option_direct_for,
+    OPT_LOCAL, OptTarget, buf_copy_options, kOptBufhidden, kOptBuftype, set_option_direct_for,
 };
 use crate::option_vars::*;
 use crate::optionstr::{CharBuf, check_stl_option};
@@ -1615,16 +1615,14 @@ pub unsafe extern "C" fn nvim_create_buf(
                     string_obj(static_cstr_as_string(c"hide")),
                     OPT_LOCAL,
                     0,
-                    kOptScopeBuf,
-                    buf.cast(),
+                    OptTarget::Buf(buf),
                 );
                 set_option_direct_for(
                     kOptBuftype,
                     string_obj(static_cstr_as_string(c"nofile")),
                     OPT_LOCAL,
                     0,
-                    kOptScopeBuf,
-                    buf.cast(),
+                    OptTarget::Buf(buf),
                 );
                 assert!((*(*buf).b_ml.ml_mfp.cast::<memfile_T>()).mf_fd < 0);
                 (*buf).b_p_swf = 0;

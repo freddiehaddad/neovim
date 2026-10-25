@@ -6129,23 +6129,22 @@ pub unsafe fn set_option_direct_for(
     value: Object,
     opt_flags: c_int,
     set_sid: scid_T,
-    scope: OptScope,
-    from: *mut c_void,
+    target: OptTarget,
 ) {
     unsafe {
         let save_curbuf = curbuf;
         let save_curwin = curwin;
 
-        match scope {
-            kOptScopeGlobal => {}
-            kOptScopeWin => {
-                curwin = from.cast::<win_T>();
+        match target {
+            OptTarget::Global => {}
+            OptTarget::Win(win) => {
+                curwin = win;
                 curbuf = (*curwin).w_buffer;
             }
-            kOptScopeBuf => {
-                curbuf = from.cast::<buf_T>();
+            OptTarget::Buf(buf) => {
+                curbuf = buf;
             }
-            _ => std::process::abort(),
+            OptTarget::Tab(_) => std::process::abort(),
         }
 
         set_option_direct(opt_idx, value, opt_flags, set_sid);

@@ -1,6 +1,6 @@
 //! LPeg pattern trees and Lua API (`src/lpeg/lptree.c`).
 
-use std::ffi::{c_char, c_int, c_short, c_ushort, c_void};
+use std::ffi::{c_char, c_int, c_short, c_ushort};
 use std::mem::{offset_of, size_of};
 use std::ptr;
 
@@ -1180,7 +1180,7 @@ unsafe extern "C-unwind" fn lp_match(l: *mut lua_State) -> c_int {
             c"subject too long".as_ptr(),
         );
         lua_pushnil(l);
-        lua_pushlightuserdata(l, capture.as_mut_ptr().cast::<c_void>());
+        lua_pushlightuserdata(l, capture.as_mut_ptr().cast());
         lua_getfenv(l, 1);
         let r = r#match(l, s, s.add(i), s.add(len), code, capture.as_mut_ptr(), ptop);
         if r.is_null() {

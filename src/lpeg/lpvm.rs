@@ -1,6 +1,6 @@
 //! LPeg virtual machine (`src/lpeg/lpvm.c`).
 
-use std::ffi::{c_char, c_int, c_short, c_ushort, c_void};
+use std::ffi::{c_char, c_int, c_short, c_ushort};
 use std::mem::size_of;
 use std::ptr;
 
@@ -258,7 +258,7 @@ pub unsafe fn r#match(
         (*stack).s = s;
         (*stack).caplevel = 0;
         stack = stack.add(1);
-        lua_pushlightuserdata(l, stackbase.as_mut_ptr().cast::<c_void>());
+        lua_pushlightuserdata(l, stackbase.as_mut_ptr().cast());
 
         loop {
             debug_assert!(stackidx(ptop) + ndyncap == lua_gettop(l) && ndyncap <= captop);

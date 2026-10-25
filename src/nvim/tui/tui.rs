@@ -64,13 +64,11 @@ use crate::tui::ugrid::{
 use crate::ui_client::ui_client_set_size;
 #[cfg(unix)]
 use crate::ui_client::{ui_client_attach, ui_client_detach};
-#[cfg(windows)]
-use std::ffi::c_void;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
 use std::ptr;
 
 #[cfg(windows)]
-use crate::os::os_win_console::{GetConsoleMode, os_tty_guess_term};
+use crate::os::os_win_console::{GetConsoleMode, HANDLE, os_tty_guess_term};
 use crate::tui::terminfo::*;
 
 use crate::msgpack_rpc::packer::Integer;
@@ -3265,13 +3263,13 @@ unsafe fn tui_get_stty_erase(input: *mut TermInput) -> *const c_char {
         }
         #[cfg(windows)]
         {
-            let uv_ptr: *mut c_void = (&raw mut (*input).read_stream.s.uv).cast();
+            let uv_ptr = &raw mut (*input).read_stream.s.uv;
             let mut dw_mode: u32 = 0;
             if uv_handle_get_type(uv_ptr.cast()) == UV_TTY {
                 let tty_handle = *uv_ptr
                     .cast::<u8>()
                     .add(uv_handle_size(UV_STREAM))
-                    .cast::<*mut c_void>();
+                    .cast::<HANDLE>();
                 if GetConsoleMode(tty_handle, &raw mut dw_mode) != 0
                     && (dw_mode & ENABLE_VIRTUAL_TERMINAL_INPUT) != 0
                 {
