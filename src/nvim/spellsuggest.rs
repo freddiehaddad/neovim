@@ -39,8 +39,8 @@ use crate::spell::{
 };
 use crate::spellfile::{MAXREGIONS, WF_NOSUGGEST, suggest_load_files};
 use crate::strings::{
-    atoi, gettext, sort_slice_by, strcat, strcmp, strcpy, strlen, strmove, strncmp, strncpy,
-    vim_snprintf, vim_strchr, xstrnsave,
+    atoi, gettext, strcat, strcmp, strcpy, strlen, strmove, strncmp, strncpy, vim_snprintf,
+    vim_strchr, xstrnsave,
 };
 use crate::syntax::synblock_T;
 use crate::ui::vim_beep;
@@ -2966,28 +2966,12 @@ unsafe fn rescore_one(su: *mut suginfo_T, stp: *mut suggest_T) {
         }
     }
 }
-unsafe fn sug_compare(p1: &suggest_T, p2: &suggest_T) -> c_int {
+unsafe fn sug_compare(p1: &suggest_T, p2: &suggest_T) -> std::cmp::Ordering {
     unsafe {
-        let mut n = if p1.st_score == p2.st_score {
-            0
-        } else if p1.st_score > p2.st_score {
-            1
-        } else {
-            -1
-        };
-        if n == 0 {
-            n = if p1.st_altscore == p2.st_altscore {
-                0
-            } else if p1.st_altscore > p2.st_altscore {
-                1
-            } else {
-                -1
-            };
-            if n == 0 {
-                n = mb_stricmp(p1.st_word, p2.st_word);
-            }
-        }
-        n
+        p1.st_score
+            .cmp(&p2.st_score)
+            .then_with(|| p1.st_altscore.cmp(&p2.st_altscore))
+            .then_with(|| mb_stricmp(p1.st_word, p2.st_word).cmp(&0))
     }
 }
 unsafe fn cleanup_suggestions(gap: *mut Vec<suggest_T>, maxscore: c_int, keep: c_int) -> c_int {
@@ -2996,7 +2980,7 @@ unsafe fn cleanup_suggestions(gap: *mut Vec<suggest_T>, maxscore: c_int, keep: c
         if gap.is_empty() {
             return maxscore;
         }
-        sort_slice_by(gap, |a, b| sug_compare(a, b));
+        gap.sort_unstable_by(|a, b| sug_compare(a, b));
         let keep_usize = keep.max(0) as usize;
         if gap.len() > keep_usize {
             for removed in gap.drain(keep_usize..) {

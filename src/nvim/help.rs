@@ -20,7 +20,7 @@ use crate::option::{OPT_LOCAL, OptInt, kOptBuftype, set_option_direct};
 use crate::option_vars::*;
 use crate::optionstr::{OptIndex, check_buf_options};
 use crate::os::fs::os_fopen;
-use crate::strings::{gettext, sort_slice_by};
+use crate::strings::gettext;
 use crate::tag::{do_tag, find_tags_vec};
 use crate::window::{
     WSP_BOT, WSP_HELP, WSP_TOP, win_T, win_close, win_enter, win_setheight, win_split,
@@ -327,22 +327,14 @@ pub unsafe fn help_heuristic(
     }
 }
 
-unsafe fn help_compare(&str1: &*mut c_char, &str2: &*mut c_char) -> c_int {
+unsafe fn help_compare(&str1: &*mut c_char, &str2: &*mut c_char) -> std::cmp::Ordering {
     unsafe {
         let b1 = CStr::from_ptr(str1).to_bytes();
         let b2 = CStr::from_ptr(str2).to_bytes();
         let p1 = CStr::from_ptr(str1.add(b1.len() + 1)).to_bytes();
         let p2 = CStr::from_ptr(str2.add(b2.len() + 1)).to_bytes();
 
-        match p1.cmp(p2) {
-            std::cmp::Ordering::Less => -1,
-            std::cmp::Ordering::Greater => 1,
-            std::cmp::Ordering::Equal => match b1.cmp(b2) {
-                std::cmp::Ordering::Less => -1,
-                std::cmp::Ordering::Greater => 1,
-                std::cmp::Ordering::Equal => 0,
-            },
-        }
+        p1.cmp(p2).then_with(|| b1.cmp(b2))
     }
 }
 
@@ -399,7 +391,7 @@ pub unsafe fn find_help_tags(
         ) == OK
             && !matches.is_empty()
         {
-            sort_slice_by(matches, |a, b| help_compare(a, b));
+            matches.sort_unstable_by(|a, b| help_compare(a, b));
             while matches.len() > TAG_MANY as usize {
                 if let Some(p) = matches.pop() {
                     xfree(p.cast());

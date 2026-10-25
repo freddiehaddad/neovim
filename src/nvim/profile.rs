@@ -18,7 +18,6 @@ use crate::os::env::{expand_T, expand_env_save_opt};
 use crate::os::fs::os_fopen;
 use crate::os::time::os_hrtime;
 use crate::runtime::{get_scriptname, script_id_valid, script_item, sourcing_lnum};
-use crate::strings::sort_slice_by;
 use std::ffi::{CStr, c_char, c_int};
 
 pub type proftime_T = u64;
@@ -511,12 +510,12 @@ unsafe fn prof_sort_list(
     }
 }
 
-unsafe fn prof_total_cmp(&s1: &*mut ufunc_T, &s2: &*mut ufunc_T) -> c_int {
-    unsafe { profile_cmp((*s1).uf_tm_total, (*s2).uf_tm_total) }
+unsafe fn prof_total_cmp(&s1: &*mut ufunc_T, &s2: &*mut ufunc_T) -> std::cmp::Ordering {
+    unsafe { profile_cmp((*s1).uf_tm_total, (*s2).uf_tm_total).cmp(&0) }
 }
 
-unsafe fn prof_self_cmp(&s1: &*mut ufunc_T, &s2: &*mut ufunc_T) -> c_int {
-    unsafe { profile_cmp((*s1).uf_tm_self, (*s2).uf_tm_self) }
+unsafe fn prof_self_cmp(&s1: &*mut ufunc_T, &s2: &*mut ufunc_T) -> std::cmp::Ordering {
+    unsafe { profile_cmp((*s1).uf_tm_self, (*s2).uf_tm_self).cmp(&0) }
 }
 
 /// Start profiling function `fp` (`func_do_profile`).
@@ -699,9 +698,9 @@ unsafe fn func_dump_profile(fd: *mut FILE) {
 
         if !sorttab.is_empty() {
             let st_len = sorttab.len() as c_int;
-            sort_slice_by(&mut sorttab, |a, b| prof_total_cmp(a, b));
+            sorttab.sort_unstable_by(|a, b| prof_total_cmp(a, b));
             prof_sort_list(fd, sorttab.as_mut_ptr(), st_len, c"TOTAL".as_ptr(), false);
-            sort_slice_by(&mut sorttab, |a, b| prof_self_cmp(a, b));
+            sorttab.sort_unstable_by(|a, b| prof_self_cmp(a, b));
             prof_sort_list(fd, sorttab.as_mut_ptr(), st_len, c"SELF".as_ptr(), true);
         }
     }

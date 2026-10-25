@@ -113,8 +113,8 @@ use crate::strings::vim_strnicmp;
 #[cfg(windows)]
 use crate::strings::vim_strnicmp;
 use crate::strings::{
-    atoi, gettext, memcmp, sort_slice_by, strcat, strchr, strcmp, strcpy, strlen, strncmp, strncpy,
-    strrchr, tolower, vim_snprintf, vim_strchr, vim_strsave_escaped, xstrnsave,
+    atoi, gettext, memcmp, strcat, strchr, strcmp, strcpy, strlen, strncmp, strncpy, strrchr,
+    tolower, vim_snprintf, vim_strchr, vim_strsave_escaped, xstrnsave,
 };
 use crate::tag::find_tags_vec;
 use crate::textformat::auto_format;
@@ -4296,22 +4296,10 @@ unsafe fn get_next_filename_completion() {
             }
 
             if !fuzzy_indices.is_empty() {
-                sort_slice_by(&mut fuzzy_indices, |&idx_a, &idx_b| {
+                fuzzy_indices.sort_unstable_by(|&idx_a, &idx_b| {
                     let score_a = compl_fuzzy_scores[idx_a as usize];
                     let score_b = compl_fuzzy_scores[idx_b as usize];
-                    if score_a == score_b {
-                        if idx_a == idx_b {
-                            0
-                        } else if idx_a < idx_b {
-                            -1
-                        } else {
-                            1
-                        }
-                    } else if score_a > score_b {
-                        -1
-                    } else {
-                        1
-                    }
+                    score_b.cmp(&score_a).then_with(|| idx_a.cmp(&idx_b))
                 });
 
                 for (i, &idx_c) in fuzzy_indices.iter().enumerate() {

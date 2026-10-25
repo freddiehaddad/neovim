@@ -1208,19 +1208,11 @@ pub unsafe fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char {
     }
 }
 
-pub unsafe fn sort_strings(files: *mut *mut c_char, count: c_int) {
+pub unsafe fn sort_strings(files: &mut [*mut c_char]) {
     unsafe {
-        if count > 1 && !files.is_null() {
-            let slice = std::slice::from_raw_parts_mut(files, count as usize);
-            sort_slice_by(slice, |&a, &b| {
-                match CStr::from_ptr(a)
-                    .to_bytes()
-                    .cmp(CStr::from_ptr(b).to_bytes())
-                {
-                    std::cmp::Ordering::Less => -1,
-                    std::cmp::Ordering::Equal => 0,
-                    std::cmp::Ordering::Greater => 1,
-                }
+        if files.len() > 1 {
+            files.sort_unstable_by(|&a, &b| {
+                CStr::from_ptr(a).to_bytes().cmp(CStr::from_ptr(b).to_bytes())
             });
         }
     }

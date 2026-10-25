@@ -103,8 +103,8 @@ use crate::spell::parse_spelllang;
 use crate::state::{MAP_ALL_MODES, MODE_INSERT};
 use crate::statusline::build_stl_str_hl;
 use crate::strings::{
-    gettext, ngettext, sort_slice_by, strcmp, strcpy, strlen, strncmp, vim_snprintf,
-    vim_snprintf_safelen, vim_strchr, xstrnsave,
+    gettext, ngettext, strcmp, strcpy, strlen, strncmp, vim_snprintf, vim_snprintf_safelen,
+    vim_strchr, xstrnsave,
 };
 use crate::syntax::{reset_synblock, synblock_T, syntax_clear};
 use crate::terminal::{Terminal, terminal_check_size, terminal_close, terminal_running};
@@ -3266,16 +3266,8 @@ pub unsafe fn buflist_findpat(
     }
 }
 
-unsafe fn buf_time_compare(buf1: *const buf_T, buf2: *const buf_T) -> c_int {
-    unsafe {
-        if (*buf1).b_last_used == (*buf2).b_last_used {
-            0
-        } else if (*buf1).b_last_used > (*buf2).b_last_used {
-            -1
-        } else {
-            1
-        }
-    }
+unsafe fn buf_time_compare(buf1: *const buf_T, buf2: *const buf_T) -> std::cmp::Ordering {
+    unsafe { (*buf2).b_last_used.cmp(&(*buf1).b_last_used) }
 }
 
 /// Find all buffer names that match.
@@ -3385,7 +3377,7 @@ pub unsafe fn ExpandBufnames(
         if !fuzzy {
             if use_matches && !matches.is_empty() {
                 if matches.len() > 1 {
-                    sort_slice_by(&mut matches, |a, b| buf_time_compare(a.buf, b.buf));
+                    matches.sort_unstable_by(|a, b| buf_time_compare(a.buf, b.buf));
                 }
 
                 file.reserve_exact(matches.len());
@@ -3648,7 +3640,7 @@ pub unsafe fn buflist_list(eap: *mut exarg_T) {
             }
 
             if buflist.len() > 1 {
-                sort_slice_by(&mut buflist, |&a, &b| buf_time_compare(a, b));
+                buflist.sort_unstable_by(|&a, &b| buf_time_compare(a, b));
             }
 
             buf = buflist.first().copied().unwrap_or(ptr::null_mut());

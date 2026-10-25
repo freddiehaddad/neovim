@@ -69,8 +69,7 @@ use crate::sha256::context_sha256_T;
 use crate::spell::spell_check_window;
 use crate::state::virtual_active;
 use crate::strings::{
-    gettext, memcmp, ngettext, sort_slice_by, strcmp, strlen, vim_snprintf, vim_snprintf_add,
-    vim_strchr,
+    gettext, memcmp, ngettext, strcmp, strlen, vim_snprintf, vim_snprintf_add, vim_strchr,
 };
 use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong};
 use std::ptr;
@@ -1244,18 +1243,6 @@ pub unsafe fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, 
     }
 }
 
-unsafe fn uhp_seq_cmp(&(u1, _): &(*mut u_header_T, [c_int; 4]), &(u2, _): &(*mut u_header_T, [c_int; 4])) -> c_int {
-    unsafe {
-        if (*u1).uh_seq == (*u2).uh_seq {
-            0
-        } else if (*u1).uh_seq > (*u2).uh_seq {
-            1
-        } else {
-            -1
-        }
-    }
-}
-
 unsafe fn uhp_table_find(uhp_table: &[(*mut u_header_T, [c_int; 4])], seq: c_int) -> c_int {
     unsafe {
         let mut lo: c_int = 0;
@@ -1476,7 +1463,7 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                 }
 
                 if num_head > 0 {
-                    sort_slice_by(&mut uhp_table, |a, b| uhp_seq_cmp(a, b));
+                    uhp_table.sort_unstable_by_key(|&(u, _)| (*u).uh_seq);
                 }
 
                 for i in 0..(num_head - 1) {

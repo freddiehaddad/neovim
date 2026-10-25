@@ -29,7 +29,7 @@ use crate::option_vars::*;
 use crate::optionstr::{OptKeyDict_pvp, free_string_option, kOptPreviewpopup, opt_keyset};
 use crate::os::fs::{MAXPATHL, os_dirname};
 use crate::plines::{plines_m_win, win_max_displaywidth};
-use crate::strings::{concat_str, gettext, sort_slice_by};
+use crate::strings::{concat_str, gettext};
 use crate::ui::ui_has;
 use crate::window::{
     STATUS_HEIGHT, WinConfig, WinKind, last_status, lastwin_nofloating, merge_win_config,
@@ -332,20 +332,6 @@ pub unsafe fn win_config_float(wp: *mut win_T, mut fconfig: WinConfig) {
     }
 }
 
-unsafe fn float_zindex_cmp(&wa: &*mut win_T, &wb: &*mut win_T) -> c_int {
-    unsafe {
-        let za = (*wa).w_config.zindex;
-        let zb = (*wb).w_config.zindex;
-        if za == zb {
-            0
-        } else if za < zb {
-            1
-        } else {
-            -1
-        }
-    }
-}
-
 pub unsafe fn win_float_remove(bang: bool, mut count: c_int) {
     unsafe {
         let mut float_win_arr: Vec<*mut win_T> = Vec::new();
@@ -357,7 +343,7 @@ pub unsafe fn win_float_remove(bang: bool, mut count: c_int) {
             wp = (*wp).w_prev;
         }
         if !float_win_arr.is_empty() {
-            sort_slice_by(&mut float_win_arr, |a, b| float_zindex_cmp(a, b));
+            float_win_arr.sort_unstable_by_key(|&w| std::cmp::Reverse((*w).w_config.zindex));
         }
         for w in float_win_arr {
             if win_valid(w) && win_close(w, false, false) == FAIL {

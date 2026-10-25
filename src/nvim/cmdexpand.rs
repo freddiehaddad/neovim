@@ -5195,7 +5195,7 @@ pub unsafe fn ExpandGeneric(
             if funcsort {
                 sort_slice_by(&mut str_ga, |a, b| sort_func_compare(a, b));
             } else {
-                sort_strings(str_ga.as_mut_ptr(), str_ga.len() as c_int);
+                sort_strings(&mut str_ga);
             }
         }
 

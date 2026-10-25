@@ -49,8 +49,8 @@ use crate::regexp::{
 };
 use crate::runtime::{DIP_ALL, DOSO_NONE, do_source, source_runtime};
 use crate::strings::{
-    gettext, sort_slice_by, strcat, strchr, strcmp, strlen, strncmp, strpbrk, vim_snprintf,
-    vim_strchr, vim_stricmp, vim_strnicmp, vim_strnsave_up, vim_strsave_up, xstrnsave,
+    gettext, strcat, strchr, strcmp, strlen, strncmp, strpbrk, vim_snprintf, vim_strchr,
+    vim_stricmp, vim_strnicmp, vim_strnsave_up, vim_strsave_up, xstrnsave,
 };
 use crate::window::win_T;
 use std::ffi::{c_char, c_int, c_uint};
@@ -5570,8 +5570,8 @@ pub unsafe fn get_syntime_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     }
 }
 
-fn syn_compare_syntime(s1: &time_entry_T, s2: &time_entry_T) -> c_int {
-    profile_cmp(s1.total, s2.total)
+fn syn_compare_syntime(s1: &time_entry_T, s2: &time_entry_T) -> std::cmp::Ordering {
+    profile_cmp(s1.total, s2.total).cmp(&0)
 }
 
 unsafe fn syntime_report() {
@@ -5602,7 +5602,7 @@ unsafe fn syntime_report() {
         }
 
         if ga.len() > 1 {
-            sort_slice_by(&mut ga, syn_compare_syntime);
+            ga.sort_unstable_by(syn_compare_syntime);
         }
 
         msg_puts_title(gettext(

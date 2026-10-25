@@ -167,8 +167,8 @@ use crate::state::{
 };
 use crate::statusline::{draw_tabline, win_redr_status};
 use crate::strings::{
-    sort_slice_by, strcat, strchr, strcpy, strlen, tr, vim_snprintf, vim_strchr,
-    vim_strsave_shellescape, xstrnsave,
+    strcat, strchr, strcpy, strlen, tr, vim_snprintf, vim_strchr, vim_strsave_shellescape,
+    xstrnsave,
 };
 use crate::syntax::{syn_stack_free_all, synblock_T};
 use crate::tag::do_tag;
@@ -1561,18 +1561,6 @@ const nv_cmds: [nv_cmd; NV_CMDS_SIZE] = [
 static mut nv_cmd_idx: [i16; NV_CMDS_SIZE] = [0; NV_CMDS_SIZE];
 static mut nv_max_linear: c_int = 0;
 
-fn nv_compare(&s1: &i16, &s2: &i16) -> c_int {
-    let c1 = nv_cmds[s1 as usize].cmd_char.abs();
-    let c2 = nv_cmds[s2 as usize].cmd_char.abs();
-    if c1 == c2 {
-        0
-    } else if c1 > c2 {
-        1
-    } else {
-        -1
-    }
-}
-
 /// Initialize the nv_cmd_idx[] table.
 pub unsafe fn init_normal_cmds() {
     unsafe {
@@ -1584,7 +1572,7 @@ pub unsafe fn init_normal_cmds() {
         }
 
         let slice = std::slice::from_raw_parts_mut(idx_ptr, NV_CMDS_SIZE);
-        sort_slice_by(slice, nv_compare);
+        slice.sort_unstable_by_key(|&s| nv_cmds[s as usize].cmd_char.abs());
 
         let mut i: i16 = 0;
         while (i as usize) < NV_CMDS_SIZE {

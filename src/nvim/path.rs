@@ -50,7 +50,7 @@ pub unsafe fn remove_duplicate_strings(fnames: &mut Vec<*mut c_char>) {
         return;
     }
     unsafe {
-        sort_strings(fnames.as_mut_ptr(), fnames.len() as c_int);
+        sort_strings(fnames);
         let mut i = fnames.len() - 1;
         while i > 0 {
             if path_equal(fnames[i - 1], fnames[i], kPathCmpLiteral) {

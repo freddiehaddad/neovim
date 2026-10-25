@@ -1510,7 +1510,7 @@ pub unsafe fn ExpandMappings(
 
         if matches.len() > 1 {
             if !fuzzy {
-                sort_strings(matches.as_mut_ptr(), matches.len() as c_int);
+                sort_strings(matches);
             }
 
             let mut write_idx: usize = 0;

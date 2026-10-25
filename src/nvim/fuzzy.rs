@@ -392,7 +392,10 @@ pub unsafe fn fuzzy_match(
     }
 }
 
-unsafe fn fuzzy_match_item_compare(item1: &fuzzyItem_T, item2: &fuzzyItem_T) -> c_int {
+unsafe fn fuzzy_match_item_compare(
+    item1: &fuzzyItem_T,
+    item2: &fuzzyItem_T,
+) -> std::cmp::Ordering {
     unsafe {
         let v1 = item1.score;
         let v2 = item2.score;
@@ -419,17 +422,11 @@ unsafe fn fuzzy_match_item_compare(item1: &fuzzyItem_T, item2: &fuzzyItem_T) -> 
                 false
             };
 
-            if exact_match1 == exact_match2 {
-                item1.idx.cmp(&item2.idx) as c_int
-            } else if exact_match2 {
-                1
-            } else {
-                -1
-            }
-        } else if v1 > v2 {
-            -1
+            exact_match2
+                .cmp(&exact_match1)
+                .then_with(|| item1.idx.cmp(&item2.idx))
         } else {
-            1
+            v2.cmp(&v1)
         }
     }
 }
@@ -557,7 +554,7 @@ unsafe fn fuzzy_match_in_list(
         }
 
         if !items.is_empty() {
-            sort_slice_by(&mut items, |a, b| fuzzy_match_item_compare(a, b));
+            items.sort_unstable_by(|a, b| fuzzy_match_item_compare(a, b));
 
             let mut retlist = if retmatchpos {
                 let first_li = tv_list_find(fmatchlist, 0);
@@ -705,14 +702,8 @@ pub unsafe fn f_matchfuzzypos(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
     }
 }
 
-fn fuzzy_match_str_compare(f1: &fuzmatch_str_T, f2: &fuzmatch_str_T) -> c_int {
-    if f1.score == f2.score {
-        f1.idx.cmp(&f2.idx) as c_int
-    } else if f1.score > f2.score {
-        -1
-    } else {
-        1
-    }
+fn fuzzy_match_str_compare(f1: &fuzmatch_str_T, f2: &fuzmatch_str_T) -> std::cmp::Ordering {
+    f2.score.cmp(&f1.score).then_with(|| f1.idx.cmp(&f2.idx))
 }
 
 unsafe fn fuzzy_match_func_compare(f1: &fuzmatch_str_T, f2: &fuzmatch_str_T) -> c_int {
@@ -955,7 +946,7 @@ pub unsafe fn fuzzymatches_slice_to_strmatches(
             if funcsort {
                 sort_slice_by(fuzmatch, |a, b| fuzzy_match_func_compare(a, b));
             } else {
-                sort_slice_by(fuzmatch, fuzzy_match_str_compare);
+                fuzmatch.sort_unstable_by(fuzzy_match_str_compare);
             }
 
             matches.extend(fuzmatch.iter().map(|item| item.str_ptr));
