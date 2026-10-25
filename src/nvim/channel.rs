@@ -15,10 +15,8 @@ use crate::eval::typval::{
 };
 use crate::eval::{callback_call, get_v_event, kListLenMayKnow, restore_v_event};
 use crate::event::r#loop::{loop_queues, uv_strerror};
-use crate::event::multiqueue::{Event, multiqueue_free, multiqueue_new_child, multiqueue_put_event};
-use crate::event::proc::{
-    Proc, exit_on_closed_chan, proc_free, proc_spawn, proc_stop,
-};
+use crate::event::multiqueue::{Event, multiqueue_new_child, multiqueue_put_event};
+use crate::event::proc::{Proc, exit_on_closed_chan, proc_spawn, proc_stop};
 use crate::event::rstream::{
     RStream, rstream_init, rstream_init_fd, rstream_may_close, rstream_start, rstream_start_inner,
     rstream_stop_inner,
@@ -39,8 +37,8 @@ use crate::memory::{
 use crate::message::semsg;
 pub use crate::msgpack_rpc::channel::Channel;
 use crate::msgpack_rpc::channel::{
-    ChannelPart, ChannelStreamType, RpcState, channel_instream, find_channel, rpc_close, rpc_free,
-    rpc_init, rpc_start,
+    ChannelPart, ChannelStreamType, RpcState, channel_instream, find_channel, rpc_close, rpc_init,
+    rpc_start,
 };
 use crate::msgpack_rpc::packer::Integer;
 use crate::msgpack_rpc::server::server_owns_pipe_address;
@@ -211,7 +209,7 @@ pub unsafe fn channel_free_all_mem() {
     unsafe {
         let chans_ptr = &raw mut channels;
         for (_, chan) in std::mem::take(&mut *chans_ptr) {
-            channel_destroy(chan);
+            drop(Box::from_raw(chan));
         }
 
         callback_free(&raw mut on_print);
@@ -429,28 +427,11 @@ pub unsafe fn callback_reader_start(reader: *mut CallbackReader, r#type: *const 
     }
 }
 
-unsafe fn channel_destroy(chan: *mut Channel) {
-    unsafe {
-        if (*chan).is_rpc {
-            rpc_free(chan);
-        }
-
-        if (*chan).streamtype == kChannelStreamProc {
-            proc_free(&raw mut (*chan).uv.proc_);
-        }
-
-        callback_free(&raw mut (*chan).on_exit);
-
-        multiqueue_free((*chan).events);
-        let _ = Box::from_raw(chan);
-    }
-}
-
 pub unsafe fn free_channel_event(chan: *mut Channel) {
     unsafe {
         let chans_ptr = &raw mut channels;
         let _ = (*chans_ptr).remove(&(*chan).id);
-        channel_destroy(chan);
+        drop(Box::from_raw(chan));
     }
 }
 

@@ -648,11 +648,10 @@ pub unsafe fn evalvars_init() {
 
         set_vim_var_nr(VV_ECHOSPACE, varnumber_T::from(sc_col - 1));
 
-        let vvlua_partial = Box::into_raw(Box::new(partial_T {
-            pt_name: xmallocz(0).cast::<c_char>(),
-            pt_refcount: 1,
-            ..partial_T::default()
-        }));
+        let mut vvlua_pt = partial_T::default();
+        vvlua_pt.pt_name = xmallocz(0).cast::<c_char>();
+        vvlua_pt.pt_refcount = 1;
+        let vvlua_partial = Box::into_raw(Box::new(vvlua_pt));
         set_vim_var_partial(VV_LUA, vvlua_partial);
 
         set_reg_var(0);

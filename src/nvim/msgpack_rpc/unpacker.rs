@@ -404,6 +404,15 @@ impl Unpacker {
     }
 }
 
+impl Drop for Unpacker {
+    fn drop(&mut self) {
+        unsafe {
+            let mem = arena_finish(&mut self.arena);
+            arena_mem_free(mem);
+        }
+    }
+}
+
 pub unsafe fn unpacker_init(p: *mut Unpacker) {
     unsafe {
         let p_ref = &mut *p;
@@ -416,14 +425,6 @@ pub unsafe fn unpacker_init(p: *mut Unpacker) {
         };
         p_ref.arena = empty_arena();
         p_ref.has_grid_line_event = false;
-    }
-}
-
-/// Teardown an `Unpacker` (`unpacker_teardown`).
-pub unsafe fn unpacker_teardown(p: *mut Unpacker) {
-    unsafe {
-        let mem = arena_finish(&mut (*p).arena);
-        arena_mem_free(mem);
     }
 }
 
@@ -1163,7 +1164,6 @@ mod tests {
             assert!(!unpacker_advance(&mut unpacker));
             unpacker.read_size += 1;
             assert!(unpacker_advance(&mut unpacker));
-            unpacker_teardown(&mut unpacker);
 
             let payload2: &[u8] = b"\x93\x02\xa6\x72\x65\x64\x72\x61\x77\x91\x92\xa9\x67\x72\x69\x64\x5f\x6c\x69\x6e\x65\x95\x02\x00\x00\x90\xc2";
             unpacker = Unpacker::new();
@@ -1171,7 +1171,6 @@ mod tests {
             unpacker.read_ptr = payload2.as_ptr().cast();
             unpacker.read_size = payload2.len();
             assert!(unpacker_advance(&mut unpacker));
-            unpacker_teardown(&mut unpacker);
         }
     }
 }

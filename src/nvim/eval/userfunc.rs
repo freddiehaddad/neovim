@@ -819,7 +819,7 @@ pub unsafe fn get_func_tv(
         let partial_argc = if (*funcexe).fe_partial.is_null() {
             0
         } else {
-            (*(*funcexe).fe_partial).pt_argc
+            (*(*funcexe).fe_partial).pt_argv.len() as c_int
         };
         let mut ret = get_func_arguments(
             &raw mut argp,
@@ -1192,22 +1192,21 @@ unsafe fn func_clear(fp: *mut ufunc_T, force: bool) {
     }
 }
 
-unsafe fn func_free(fp: *mut ufunc_T) {
-    unsafe {
-        if ((*fp).uf_flags & (FC_DELETED | FC_REMOVED)) == 0 {
-            func_remove(fp);
+impl Drop for ufunc_T {
+    fn drop(&mut self) {
+        unsafe {
+            if (self.uf_flags & (FC_DELETED | FC_REMOVED)) == 0 {
+                func_remove(self);
+            }
+            xfree(self.uf_name_exp.cast());
         }
-
-        xfree((*fp).uf_name_exp.cast());
-        (*fp).uf_name_exp = ptr::null_mut();
-        drop(Box::from_raw(fp));
     }
 }
 
 unsafe fn func_clear_free(fp: *mut ufunc_T, force: bool) {
     unsafe {
         func_clear(fp, force);
-        func_free(fp);
+        drop(Box::from_raw(fp));
     }
 }
 
@@ -1737,7 +1736,7 @@ pub unsafe fn free_all_functions() {
                 if func_name_refcount(uf2hikey(fp)) {
                     skipped += 1;
                 } else {
-                    func_free(fp);
+                    drop(Box::from_raw(fp));
                     skipped = 0;
                     break;
                 }
@@ -1786,7 +1785,7 @@ pub unsafe fn func_call(
             - if partial.is_null() {
                 0
             } else {
-                (*partial).pt_argc
+                (*partial).pt_argv.len() as c_int
             };
         let mut skip_call = false;
         if !list.is_null() {
@@ -1948,8 +1947,9 @@ pub unsafe fn call_func(
             if !(*partial).pt_dict.is_null() && (selfdict.is_null() || !(*partial).pt_auto) {
                 selfdict = (*partial).pt_dict;
             }
-            if error == FCERR_NONE && (*partial).pt_argc > 0 {
-                while argv_clear < (*partial).pt_argc {
+            let pt_argc = (*partial).pt_argv.len() as c_int;
+            if error == FCERR_NONE && pt_argc > 0 {
+                while argv_clear < pt_argc {
                     if argv_clear + argcount_in >= MAX_FUNC_ARGS as c_int {
                         error = FCERR_TOOMANY;
                         skip_eval = true;
@@ -1966,7 +1966,7 @@ pub unsafe fn call_func(
                         argv[(i + argv_clear) as usize] = *argvars_in.add(i as usize);
                     }
                     argvars = argv.as_mut_ptr();
-                    argcount = (*partial).pt_argc + argcount_in;
+                    argcount = pt_argc + argcount_in;
                 }
             }
         }
@@ -3706,8 +3706,8 @@ unsafe fn ex_defer_inner(
                 ));
                 return FAIL;
             }
-            if (*partial).pt_argc > 0 {
-                partial_argc = (*partial).pt_argc;
+            if !(*partial).pt_argv.is_empty() {
+                partial_argc = (*partial).pt_argv.len() as c_int;
                 for i in 0..partial_argc {
                     tv_copy(
                         (*partial).pt_argv.as_ptr().add(i as usize),
@@ -4165,13 +4165,13 @@ pub unsafe fn make_partial(selfdict: *mut dict_T, rettv: *mut typval_T) {
                     (*pt).pt_func = (*ret_pt).pt_func;
                     func_ptr_ref((*pt).pt_func);
                 }
-                if (*ret_pt).pt_argc > 0 {
-                    (*pt).pt_argc = (*ret_pt).pt_argc;
-                    (*pt).pt_argv.resize((*pt).pt_argc as usize, typval_T::new());
-                    for i in 0..(*pt).pt_argc {
+                if !(*ret_pt).pt_argv.is_empty() {
+                    let pt_argc = (*ret_pt).pt_argv.len();
+                    (*pt).pt_argv.resize(pt_argc, typval_T::new());
+                    for i in 0..pt_argc {
                         tv_copy(
-                            (*ret_pt).pt_argv.as_ptr().add(i as usize),
-                            (*pt).pt_argv.as_mut_ptr().add(i as usize),
+                            (*ret_pt).pt_argv.as_ptr().add(i),
+                            (*pt).pt_argv.as_mut_ptr().add(i),
                         );
                     }
                 }

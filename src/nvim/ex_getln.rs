@@ -415,6 +415,14 @@ pub struct CmdwinOpenArgs {
     pos: c_int,
 }
 
+impl Drop for CmdwinOpenArgs {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.content.cast());
+        }
+    }
+}
+
 /// Last value of `prompt_id`, incremented when doing new prompt.
 static mut last_prompt_id: c_uint = 0;
 
@@ -5109,7 +5117,6 @@ unsafe fn cmdwin_invoke(action: *const c_char, firstc: c_int, content: *mut c_ch
             },
             ptr::null_mut(),
         );
-        xfree(content.cast::<c_void>());
     }
 }
 

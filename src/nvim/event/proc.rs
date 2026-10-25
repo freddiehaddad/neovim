@@ -126,6 +126,17 @@ impl Proc {
     }
 }
 
+impl Drop for Proc {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.argv.is_null() {
+                shell_free_argv(self.argv);
+                self.argv = ptr::null_mut();
+            }
+        }
+    }
+}
+
 pub type PtyProc = Proc;
 
 static mut proc_is_tearing_down: bool = false;
@@ -224,7 +235,6 @@ pub unsafe fn proc_spawn(proc_: *mut Proc, in_: bool, out: bool, err: bool) -> c
             } else {
                 proc_close(proc_);
             }
-            proc_free(proc_);
             (*proc_).status = -1;
             return status;
         }
@@ -366,16 +376,6 @@ pub unsafe fn proc_stop(proc_: *mut Proc) {
     }
 }
 
-/// Frees process-owned resources.
-pub unsafe fn proc_free(proc_: *mut Proc) {
-    unsafe {
-        if !(*proc_).argv.is_null() {
-            shell_free_argv((*proc_).argv);
-            (*proc_).argv = ptr::null_mut();
-        }
-    }
-}
-
 unsafe extern "C" fn children_kill_cb(handle: *mut uv_timer_t) {
     unsafe {
         let uv_loop = uv_handle_get_loop(handle.cast());
@@ -410,8 +410,6 @@ pub unsafe fn proc_close_event(proc_: *mut Proc) {
     unsafe {
         if let Some(cb) = (*proc_).cb {
             cb(proc_, (*proc_).status, (*proc_).data);
-        } else {
-            proc_free(proc_);
         }
     }
 }

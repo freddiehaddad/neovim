@@ -1627,7 +1627,11 @@ unsafe fn encode_vim_with_backend(
                 MPConvStackData::Partial { stage, pt } => {
                     match stage {
                         MPConvPartialStage::Args => {
-                            let argc = if pt.is_null() { 0 } else { (*pt).pt_argc };
+                            let argc = if pt.is_null() {
+                                0
+                            } else {
+                                (*pt).pt_argv.len() as c_int
+                            };
                             backend.conv_func_before_args(argc);
                             if let MPConvStackData::Partial {
                                 stage: ref mut stage_ref,
@@ -1636,15 +1640,15 @@ unsafe fn encode_vim_with_backend(
                             {
                                 *stage_ref = MPConvPartialStage::SelfDict;
                             }
-                            if !pt.is_null() && (*pt).pt_argc > 0 {
-                                backend.conv_list_start((*pt).pt_argc);
+                            if argc > 0 {
+                                backend.conv_list_start(argc);
                                 mpstack.push(MPConvStackVal {
                                     tv: std::ptr::null_mut(),
                                     saved_copy_id: copy_id - 1,
                                     data: MPConvStackData::PartialList {
                                         arg: (*pt).pt_argv.as_mut_ptr(),
                                         argv: (*pt).pt_argv.as_mut_ptr(),
-                                        todo: (*pt).pt_argc as usize,
+                                        todo: argc as usize,
                                     },
                                 });
                             }

@@ -245,7 +245,7 @@ mod unix_impl {
 
     use crate::event::r#loop::{uv_chdir, uv_pipe_open, uv_signal_start, uv_signal_stop};
     use crate::fileio::{close, dup, fcntl, kill};
-    use crate::os::env::os_environ_ptr;
+    use crate::os::env::{os_environ_ptr, os_free_fullenv};
     use crate::os::signal::signal;
 
     unsafe extern "C" {
@@ -301,6 +301,9 @@ mod unix_impl {
                 ws_ypixel: 0,
             };
             uv_disable_stdio_inheritance();
+            let prog = proc_get_exepath(proc_);
+            debug_assert!(!(*hdr).env.is_null());
+            let new_env = tv_dict_to_env((*hdr).env);
             let mut master: c_int = -1;
             let pid = forkpty(
                 &raw mut master,
@@ -310,6 +313,7 @@ mod unix_impl {
             );
 
             if pid < 0 {
+                os_free_fullenv(new_env);
                 let err = os_errno();
                 let status = -err;
                 logmsg!(
@@ -323,8 +327,9 @@ mod unix_impl {
                 );
                 return status;
             } else if pid == 0 {
-                init_child(ptyproc);
+                init_child(ptyproc, prog, new_env);
             }
+            os_free_fullenv(new_env);
 
             let mut status: c_int;
             'error: {
@@ -468,7 +473,11 @@ mod unix_impl {
         }
     }
 
-    unsafe fn init_child(ptyproc: *mut PtyProc) -> ! {
+    unsafe fn init_child(
+        ptyproc: *mut PtyProc,
+        prog: *const c_char,
+        new_env: *mut *mut c_char,
+    ) -> ! {
         unsafe {
             setsid();
 
@@ -498,9 +507,6 @@ mod unix_impl {
                 }
             }
 
-            let prog = proc_get_exepath(proc_);
-            debug_assert!(!(*hdr).env.is_null());
-            let new_env = tv_dict_to_env((*hdr).env);
             *os_environ_ptr() = new_env;
             execvp(prog, (*hdr).argv.cast_const());
             let err = os_errno();

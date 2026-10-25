@@ -34,9 +34,7 @@ use crate::msgpack_rpc::packer::{
     Integer, PackerBuffer, mpack_array, mpack_integer, mpack_nil, mpack_object, mpack_object_array,
     mpack_str, mpack_uint, mpack_w,
 };
-use crate::msgpack_rpc::unpacker::{
-    MessageType, Unpacker, unpacker_advance, unpacker_init, unpacker_teardown,
-};
+use crate::msgpack_rpc::unpacker::{MessageType, Unpacker, unpacker_advance, unpacker_init};
 use crate::os::input::input_blocking;
 #[cfg(windows)]
 use crate::os::os_win_console::os_detach_ui_console;
@@ -157,6 +155,17 @@ impl RpcState {
     }
 }
 
+impl Drop for RpcState {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.unpacker.is_null() {
+                drop(Box::from_raw(self.unpacker));
+            }
+            api_free_dict(self.info);
+        }
+    }
+}
+
 #[repr(C)]
 pub struct Channel {
     pub id: u64,
@@ -180,6 +189,17 @@ pub struct Channel {
     pub callback_busy: bool,
     pub callback_scheduled: bool,
     pub did_close_event: bool,
+}
+
+impl Drop for Channel {
+    fn drop(&mut self) {
+        unsafe {
+            crate::eval::typval::callback_free(&mut self.on_exit);
+            if !self.events.is_null() {
+                multiqueue_free(self.events);
+            }
+        }
+    }
 }
 
 use crate::api::private::dispatch::{
@@ -821,17 +841,6 @@ pub unsafe fn rpc_close_event(channel: *mut Channel) {
                 }
             }
         }
-    }
-}
-
-pub unsafe fn rpc_free(channel: *mut Channel) {
-    unsafe {
-        let ct = channel;
-        unpacker_teardown((*ct).rpc.unpacker);
-        drop(Box::from_raw((*ct).rpc.unpacker));
-
-        (*ct).rpc.call_stack = Vec::new();
-        api_free_dict((*ct).rpc.info);
     }
 }
 

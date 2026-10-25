@@ -65,8 +65,8 @@ use crate::errors::*;
 use crate::eval::funcs::{E_STRING_LIST_OR_BLOB_REQUIRED, kOptCpoptions};
 use crate::eval::userfunc::{
     call_func, call_simple_func, call_simple_luafunc, deref_func_name, eval_fname_script,
-    find_func, free_all_functions, free_unref_funccal, func_init, func_ptr_unref, func_ref,
-    func_unref, funcexe_T, get_current_funccal, get_func_tv, get_funccal_args_ht, get_lambda_tv,
+    find_func, free_all_functions, free_unref_funccal, func_init, func_ref, funcexe_T,
+    get_current_funccal, get_func_tv, get_funccal_args_ht, get_lambda_tv,
     get_scriptlocal_funcname, make_partial, restore_funccal, save_funccal, set_ref_in_call_stack,
     set_ref_in_func, set_ref_in_func_args, set_ref_in_functions, set_ref_in_previous_funccal,
     ufunc_T,
@@ -3305,7 +3305,7 @@ unsafe fn eval_method(
                     && !tv_partial(&raw const ref_tv).is_null()
                 {
                     let ref_pt = tv_partial(&raw const ref_tv);
-                    if (*ref_pt).pt_argc > 0 || !(*ref_pt).pt_dict.is_null() {
+                    if !(*ref_pt).pt_argv.is_empty() || !(*ref_pt).pt_dict.is_null() {
                         if verbose {
                             emsg(gettext(E_CANNOT_USE_PARTIAL_HERE.as_ptr()));
                         }
@@ -4186,22 +4186,6 @@ pub unsafe fn partial_name(pt: *mut partial_T) -> *mut c_char {
     }
 }
 
-unsafe fn partial_free(pt: *mut partial_T) {
-    unsafe {
-        for i in 0..((*pt).pt_argc as usize) {
-            tv_clear((*pt).pt_argv.as_mut_ptr().add(i));
-        }
-        tv_dict_unref((*pt).pt_dict);
-        if !(*pt).pt_name.is_null() {
-            func_unref((*pt).pt_name);
-            xfree((*pt).pt_name.cast());
-        } else {
-            func_ptr_unref((*pt).pt_func.cast());
-        }
-        drop(Box::from_raw(pt));
-    }
-}
-
 /// Unreference a closure: decrement the reference count and free it when it
 /// becomes zero.
 pub unsafe fn partial_unref(pt: *mut partial_T) {
@@ -4212,7 +4196,7 @@ pub unsafe fn partial_unref(pt: *mut partial_T) {
 
         (*pt).pt_refcount -= 1;
         if (*pt).pt_refcount <= 0 {
-            partial_free(pt);
+            drop(Box::from_raw(pt));
         }
     }
 }
@@ -4323,12 +4307,12 @@ pub unsafe fn func_equal(tv1: *mut typval_T, tv2: *mut typval_T, ic: bool) -> bo
         let a1 = if (*tv1).v_type == VarType::VAR_FUNC {
             0
         } else {
-            (*tv_partial(tv1)).pt_argc
+            (*tv_partial(tv1)).pt_argv.len() as c_int
         };
         let a2 = if (*tv2).v_type == VarType::VAR_FUNC {
             0
         } else {
-            (*tv_partial(tv2)).pt_argc
+            (*tv_partial(tv2)).pt_argv.len() as c_int
         };
         if a1 != a2 {
             return false;
@@ -4787,7 +4771,7 @@ unsafe fn set_ref_in_item_partial(
             abort = abort || set_ref_in_item(&raw mut dtv, copyID, ht_stack, list_stack);
         }
 
-        for i in 0..((*pt).pt_argc as usize) {
+        for i in 0..(*pt).pt_argv.len() {
             abort = abort
                 || set_ref_in_item(
                     (*pt).pt_argv.as_mut_ptr().add(i),

@@ -85,7 +85,6 @@ pub struct partial_T {
     pub pt_name: *mut c_char,
     pub pt_func: *mut ufunc_T,
     pub pt_auto: bool,
-    pub pt_argc: c_int,
     pub pt_argv: Vec<typval_T>,
     pub pt_dict: *mut dict_T,
 }
@@ -98,9 +97,25 @@ impl Default for partial_T {
             pt_name: ptr::null_mut(),
             pt_func: ptr::null_mut(),
             pt_auto: false,
-            pt_argc: 0,
             pt_argv: Vec::new(),
             pt_dict: ptr::null_mut(),
+        }
+    }
+}
+
+impl Drop for partial_T {
+    fn drop(&mut self) {
+        unsafe {
+            for tv in &mut self.pt_argv {
+                tv_clear(tv);
+            }
+            tv_dict_unref(self.pt_dict);
+            if !self.pt_name.is_null() {
+                func_unref(self.pt_name);
+                xfree(self.pt_name.cast());
+            } else {
+                crate::eval::userfunc::func_ptr_unref(self.pt_func.cast());
+            }
         }
     }
 }
@@ -3958,7 +3973,7 @@ unsafe fn nothing_conv_func_end(tv: *mut typval_T, copy_id: c_int) {
             let dict = (*pt).pt_dict.cast::<dict_T>();
             debug_assert!(dict.is_null() || (*dict).dv_copyID == copy_id);
             (*pt).pt_dict = ptr::null_mut();
-            (*pt).pt_argc = 0;
+            (*pt).pt_argv.clear();
             debug_assert!((*pt).pt_refcount <= 1);
             partial_unref(pt);
             (*tv).vval.v_partial = ptr::null_mut();
@@ -4212,14 +4227,14 @@ unsafe fn encode_vim_to_nothing(top_tv: *mut typval_T) -> c_int {
                             {
                                 *stage_ref = MPConvPartialStage::SelfDict;
                             }
-                            if !pt.is_null() && (*pt).pt_argc > 0 {
+                            if !pt.is_null() && !(*pt).pt_argv.is_empty() {
                                 mpstack.push(MPConvStackVal {
                                     tv: ptr::null_mut(),
                                     saved_copy_id: copy_id - 1,
                                     data: MPConvStackData::PartialList {
                                         arg: (*pt).pt_argv.as_mut_ptr(),
                                         argv: (*pt).pt_argv.as_mut_ptr(),
-                                        todo: (*pt).pt_argc as usize,
+                                        todo: (*pt).pt_argv.len(),
                                     },
                                 });
                             }

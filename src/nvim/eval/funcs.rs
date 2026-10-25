@@ -2710,17 +2710,15 @@ unsafe fn common_function(argvars: *mut typval_T, rettv: *mut typval_T, is_funcr
                 }
                 if dict_idx > 0 || arg_idx > 0 || !arg_pt.is_null() || is_funcref {
                     let pt = Box::into_raw(Box::new(partial_T::default()));
-                    if arg_idx > 0 || (!arg_pt.is_null() && (*arg_pt).pt_argc > 0) {
+                    if arg_idx > 0 || (!arg_pt.is_null() && !(*arg_pt).pt_argv.is_empty()) {
                         let arg_len = if arg_pt.is_null() {
                             0
                         } else {
-                            (*arg_pt).pt_argc
+                            (*arg_pt).pt_argv.len() as c_int
                         };
                         let lv_len = tv_list_len(list);
-                        (*pt).pt_argc = arg_len + lv_len;
-                        (*pt)
-                            .pt_argv
-                            .resize((*pt).pt_argc as usize, typval_T::new());
+                        let pt_argc = arg_len + lv_len;
+                        (*pt).pt_argv.resize(pt_argc as usize, typval_T::new());
                         let mut i: c_int = 0;
                         while i < arg_len {
                             tv_copy(
@@ -2880,8 +2878,8 @@ pub unsafe fn f_get(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFun
                     }
                 } else if strcmp(what, c"args".as_ptr()) == 0 {
                     (*rettv).v_type = VarType::VAR_LIST;
-                    tv_list_alloc_ret(rettv, (*pt).pt_argc as isize);
-                    for i in 0..((*pt).pt_argc as usize) {
+                    tv_list_alloc_ret(rettv, (*pt).pt_argv.len() as isize);
+                    for i in 0..(*pt).pt_argv.len() {
                         tv_list_append_tv((*rettv).vval.v_list, (*pt).pt_argv.as_mut_ptr().add(i));
                     }
                 } else if strcmp(what, c"arity".as_ptr()) == 0 {
@@ -2894,15 +2892,16 @@ pub unsafe fn f_get(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFun
                     (*rettv).v_type = VarType::VAR_DICT;
                     tv_dict_alloc_ret(rettv);
                     let dict = (*rettv).vval.v_dict.cast::<dict_T>();
+                    let pt_argc = (*pt).pt_argv.len() as c_int;
 
-                    if (*pt).pt_argc >= required + optional {
+                    if pt_argc >= required + optional {
                         required = 0;
                         optional = 0;
-                    } else if (*pt).pt_argc > required {
-                        optional -= (*pt).pt_argc - required;
+                    } else if pt_argc > required {
+                        optional -= pt_argc - required;
                         required = 0;
                     } else {
-                        required -= (*pt).pt_argc;
+                        required -= pt_argc;
                     }
 
                     tv_dict_add_nr(dict, c"required".as_ptr(), 8, varnumber_T::from(required));
