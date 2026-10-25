@@ -24,7 +24,7 @@ use crate::eval::vars::{
     var_redir_str,
 };
 use crate::event::r#loop::loop_schedule_deferred;
-use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, multiqueue_process_events};
+use crate::event::multiqueue::{Event, multiqueue_process_events};
 use crate::ex_docmd::{do_sleep, exarg_T};
 use crate::ex_eval::cause_errthrow;
 use crate::extmark::{TriState, kFalse, kTrue};
@@ -80,7 +80,7 @@ use crate::ui::{
     ui_cursor_goto, ui_flush, ui_grid_cursor_goto, ui_has, ui_line, ui_refresh, vim_beep,
 };
 use crate::ui_compositor::{ui_comp_put_grid, ui_comp_remove_grid};
-use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_ulong, c_void};
+use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_ulong};
 use std::ptr;
 
 pub type MsgID = Object;
@@ -1256,9 +1256,8 @@ pub unsafe fn internal_error(where_: *const c_char) {
     }
 }
 
-unsafe fn msg_semsg_event(argv: *mut *mut c_void) {
+pub unsafe fn msg_semsg_event(s: *mut c_char) {
     unsafe {
-        let s = (*argv).cast::<c_char>();
         emsg(s);
         xfree(s.cast());
     }
@@ -1267,21 +1266,12 @@ unsafe fn msg_semsg_event(argv: *mut *mut c_void) {
 pub unsafe fn msg_schedule_semsg_cstr(s: *const c_char) {
     unsafe {
         let dup = xstrdup(s);
-        let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
-        argv[0] = dup.cast();
-        loop_schedule_deferred(
-            (&raw mut main_loop).cast(),
-            Event {
-                handler: Some(msg_semsg_event),
-                argv,
-            },
-        );
+        loop_schedule_deferred((&raw mut main_loop).cast(), Event::MsgSemsg(dup));
     }
 }
 
-unsafe fn msg_semsg_multiline_event(argv: *mut *mut c_void) {
+pub unsafe fn msg_semsg_multiline_event(s: *mut c_char) {
     unsafe {
-        let s = (*argv).cast::<c_char>();
         emsg_multiline(s, c"emsg".as_ptr(), HLF_E, true);
         xfree(s.cast());
     }
@@ -1290,15 +1280,7 @@ unsafe fn msg_semsg_multiline_event(argv: *mut *mut c_void) {
 pub unsafe fn msg_schedule_semsg_multiline_cstr(s: *const c_char) {
     unsafe {
         let dup = xstrdup(s);
-        let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
-        argv[0] = dup.cast();
-        loop_schedule_deferred(
-            (&raw mut main_loop).cast(),
-            Event {
-                handler: Some(msg_semsg_multiline_event),
-                argv,
-            },
-        );
+        loop_schedule_deferred((&raw mut main_loop).cast(), Event::MsgSemsgMultiline(dup));
     }
 }
 

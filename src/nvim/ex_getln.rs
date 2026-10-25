@@ -409,7 +409,7 @@ struct CpInfo {
 }
 
 #[repr(C)]
-struct CmdwinOpenArgs {
+pub struct CmdwinOpenArgs {
     firstc: c_int,
     content: *mut c_char,
     pos: c_int,
@@ -5121,9 +5121,8 @@ pub unsafe fn cmdwin_do_action(action: *const c_char) {
 }
 
 /// Deferred event: opens cmdwin after the cmdline-reader unwinds.
-unsafe fn open_cmdwin_event(argv: *mut *mut c_void) {
+pub unsafe fn open_cmdwin_event(a: *mut CmdwinOpenArgs) {
     unsafe {
-        let a = (*argv).cast::<CmdwinOpenArgs>();
         cmdwin_invoke(c"open".as_ptr(), (*a).firstc, (*a).content, (*a).pos);
         drop(Box::from_raw(a));
     }
@@ -5159,10 +5158,7 @@ unsafe fn open_cmdwin() -> c_int {
         ccline.cmdlen = 0;
         ccline.cmdpos = 0;
 
-        let mut ev = Event::nil();
-        ev.handler = Some(open_cmdwin_event);
-        ev.argv[0] = a.cast::<c_void>();
-        loop_schedule_deferred((&raw mut main_loop).cast(), ev);
+        loop_schedule_deferred((&raw mut main_loop).cast(), Event::CmdwinOpen(a));
         Ctrl_C
     }
 }

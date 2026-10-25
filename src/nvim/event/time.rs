@@ -3,10 +3,7 @@
 use crate::event::r#loop::{
     Loop, uv_close, uv_handle_t, uv_timer_init, uv_timer_start, uv_timer_stop, uv_timer_t,
 };
-use crate::event::multiqueue::{
-    EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_empty, multiqueue_put_event,
-};
-use std::ffi::c_void;
+use crate::event::multiqueue::{Event, MultiQueue, multiqueue_empty, multiqueue_put_event};
 use std::ptr;
 
 pub type time_cb = Option<unsafe fn(watcher: *mut TimeWatcher, data: *mut crate::eval::timer_T)>;
@@ -43,29 +40,6 @@ impl Default for TimeWatcher {
 #[inline]
 pub unsafe fn loop_fast_events(loop_: *mut Loop) -> *mut MultiQueue {
     unsafe { (*loop_).fast_events }
-}
-
-#[inline]
-unsafe fn create_event(
-    events: *mut MultiQueue,
-    handler: unsafe fn(*mut *mut c_void),
-    watcher: *mut TimeWatcher,
-) {
-    unsafe {
-        let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
-        argv[0] = watcher.cast();
-        if !events.is_null() {
-            multiqueue_put_event(
-                events,
-                Event {
-                    handler: Some(handler),
-                    argv,
-                },
-            );
-        } else {
-            handler(argv.as_mut_ptr());
-        }
-    }
 }
 
 pub unsafe fn time_watcher_init(
@@ -114,9 +88,8 @@ pub unsafe fn time_watcher_close(watcher: *mut TimeWatcher, cb: time_cb) {
     }
 }
 
-unsafe fn time_event(argv: *mut *mut c_void) {
+pub unsafe fn time_event(watcher: *mut TimeWatcher) {
     unsafe {
-        let watcher = (*argv).cast::<TimeWatcher>();
         if let Some(cb) = (*watcher).cb {
             cb(watcher, (*watcher).data);
         }
@@ -129,13 +102,16 @@ unsafe extern "C" fn time_watcher_cb(handle: *mut uv_timer_t) {
         if (*watcher).blockable && !multiqueue_empty((*watcher).events) {
             return;
         }
-        create_event((*watcher).events, time_event, watcher);
+        if !(*watcher).events.is_null() {
+            multiqueue_put_event((*watcher).events, Event::TimeWatcher(watcher));
+        } else {
+            time_event(watcher);
+        }
     }
 }
 
-unsafe fn close_event(argv: *mut *mut c_void) {
+pub unsafe fn close_event(watcher: *mut TimeWatcher) {
     unsafe {
-        let watcher = (*argv).cast::<TimeWatcher>();
         if let Some(cb) = (*watcher).close_cb {
             cb(watcher, (*watcher).data);
         }
@@ -146,7 +122,11 @@ unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
     unsafe {
         let watcher = *handle.cast::<*mut TimeWatcher>();
         if (*watcher).close_cb.is_some() {
-            create_event((*watcher).events, close_event, watcher);
+            if !(*watcher).events.is_null() {
+                multiqueue_put_event((*watcher).events, Event::TimeWatcherClose(watcher));
+            } else {
+                close_event(watcher);
+            }
         }
     }
 }

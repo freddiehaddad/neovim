@@ -4315,7 +4315,7 @@ unsafe fn vim_mktempdir() {
 pub unsafe fn readdir_core(
     entries: &mut Vec<std::ffi::CString>,
     path: *const c_char,
-    context: *mut c_void,
+    context: *mut crate::eval::typval::typval_T,
     checkitem: CheckItem,
 ) -> c_int {
     unsafe {

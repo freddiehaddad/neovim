@@ -37,9 +37,9 @@ use crate::eval::{
 };
 use crate::ex_docmd::{check_nextcmd, checkforcmd, do_cmdline, ends_excmd, exarg_T, skip_range};
 use crate::ex_eval::{
-    CSTP_RETURN, aborted_in_try, aborting, cleanup_conditionals, cstack_T, exception_state_T,
-    exception_state_clear, exception_state_restore, exception_state_save, report_make_pending,
-    update_force_abort,
+    CSTP_RETURN, PendingVal, aborted_in_try, aborting, cleanup_conditionals, cstack_T,
+    exception_state_T, exception_state_clear, exception_state_restore, exception_state_save,
+    report_make_pending, update_force_abort,
 };
 use crate::ex_getln::{getcmdline, ui_ext_cmdline_block_append, ui_ext_cmdline_block_leave};
 use crate::globals::*;
@@ -84,7 +84,7 @@ use crate::strings::{
     vim_strchr, xstrnsave,
 };
 use crate::ui::ui_has;
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 pub type VimLFunc = Option<unsafe fn(*mut typval_T, *mut typval_T, EvalFuncData)>;
@@ -3598,7 +3598,7 @@ pub unsafe fn ex_return(eap: *mut exarg_T) {
             && eval0(arg, &raw mut rettv, eap, &raw mut evalarg) != FAIL
         {
             if (*eap).skip == 0 {
-                returning = do_return(eap, false, true, (&raw mut rettv).cast());
+                returning = do_return(eap, false, true, &raw mut rettv);
             } else {
                 tv_clear(&raw mut rettv);
             }
@@ -3962,7 +3962,7 @@ pub unsafe fn do_return(
     eap: *mut exarg_T,
     reanimate: bool,
     is_cmd: bool,
-    mut rettv: *mut c_void,
+    mut rettv: *mut typval_T,
 ) -> bool {
     unsafe {
         let cstack = (*eap).cstack.cast::<cstack_T>();
@@ -3976,15 +3976,15 @@ pub unsafe fn do_return(
             (*cstack).cs_pending[idx as usize] = CSTP_RETURN as c_char;
 
             if !is_cmd && !reanimate {
-                (*cstack).cs_rettv[idx as usize] = rettv.cast();
+                (*cstack).cs_rettv[idx as usize] = rettv;
             } else {
                 if reanimate {
                     debug_assert!(!(*current_funccal).fc_rettv.is_null());
-                    rettv = (*current_funccal).fc_rettv.cast();
+                    rettv = (*current_funccal).fc_rettv;
                 }
 
                 if !rettv.is_null() {
-                    let stored = Box::into_raw(Box::new(*rettv.cast::<typval_T>()));
+                    let stored = Box::into_raw(Box::new(*rettv));
                     (*cstack).cs_rettv[idx as usize] = stored;
                 } else {
                     (*cstack).cs_rettv[idx as usize] = ptr::null_mut();
@@ -3995,15 +3995,15 @@ pub unsafe fn do_return(
                     (*(*current_funccal).fc_rettv).vval.v_number = 0;
                 }
             }
-            report_make_pending(CSTP_RETURN, rettv);
+            report_make_pending(CSTP_RETURN, PendingVal::Return(rettv));
         } else {
             (*current_funccal).fc_returned = 1;
 
             if !reanimate && !rettv.is_null() {
                 tv_clear((*current_funccal).fc_rettv);
-                *(*current_funccal).fc_rettv = *rettv.cast::<typval_T>();
+                *(*current_funccal).fc_rettv = *rettv;
                 if !is_cmd {
-                    drop(Box::from_raw(rettv.cast::<typval_T>()));
+                    drop(Box::from_raw(rettv));
                 }
             }
         }
@@ -4013,14 +4013,14 @@ pub unsafe fn do_return(
 }
 
 /// Generate a return command for producing the value of `rettv`.
-pub unsafe fn get_return_cmd(rettv: *mut c_void) -> *mut c_char {
+pub unsafe fn get_return_cmd(rettv: *mut typval_T) -> *mut c_char {
     unsafe {
         let mut s: *mut c_char = ptr::null_mut();
         let mut tofree: *mut c_char = ptr::null_mut();
         let mut slen = 0usize;
 
         if !rettv.is_null() {
-            s = encode_tv2echo(rettv.cast::<typval_T>(), ptr::null_mut());
+            s = encode_tv2echo(rettv, ptr::null_mut());
             tofree = s;
         }
         if s.is_null() {

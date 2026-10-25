@@ -66,14 +66,14 @@ use crate::runtime::script_is_lua;
 use crate::strings::concat_str;
 use crate::strings::{gettext, strlen, vim_strchr, vim_strsave_shellescape, xstrnsave};
 use crate::window::{find_tabpage, tabpage_T, win_T};
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::api::vim::kCdScopeGlobal;
 use crate::charset::{NL, NUL};
 use crate::regexp::NUMBUFLEN;
 
-pub type CheckItem = Option<unsafe fn(expr: *mut c_void, name: *const c_char) -> varnumber_T>;
+pub type CheckItem = Option<unsafe fn(expr: *mut typval_T, name: *const c_char) -> varnumber_T>;
 
 pub(crate) const K_LIST_LEN_UNKNOWN: isize = -1;
 
@@ -1368,9 +1368,8 @@ pub unsafe fn f_pathshorten(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
 }
 
 /// Evaluate "expr" (= "context") for readdir().
-unsafe fn readdir_checkitem(context: *mut c_void, name: *const c_char) -> varnumber_T {
+unsafe fn readdir_checkitem(expr: *mut typval_T, name: *const c_char) -> varnumber_T {
     unsafe {
-        let expr: *mut typval_T = context.cast();
         let tv_init = typval_T {
             v_type: VarType::VAR_UNKNOWN,
             v_lock: VAR_UNLOCKED,
@@ -1417,7 +1416,7 @@ pub unsafe fn f_readdir(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
         let path = tv_get_string(argvars);
         let expr = argvars.add(1);
         let mut entries: Vec<std::ffi::CString> = Vec::new();
-        let ret = readdir_core(&mut entries, path, expr.cast(), Some(readdir_checkitem));
+        let ret = readdir_core(&mut entries, path, expr, Some(readdir_checkitem));
         if ret == OK {
             for entry in &entries {
                 tv_list_append_string((*rettv).vval.v_list, entry.as_ptr(), -1);

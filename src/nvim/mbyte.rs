@@ -2802,9 +2802,8 @@ pub unsafe fn mb_adjust_cursor() {
     }
 }
 
-pub unsafe fn mb_check_adjust_col(win_: *mut c_void) {
+pub unsafe fn mb_check_adjust_col(win: *mut win_T) {
     unsafe {
-        let win = win_.cast::<win_T>();
         let oldcol = (*win).w_cursor.col;
 
         if oldcol != 0 {

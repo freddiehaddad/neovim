@@ -13,15 +13,13 @@ use crate::channel::channel_close;
 use crate::errors::*;
 use crate::event::r#loop::{loop_poll_events, loop_queues};
 use crate::event::multiqueue::{multiqueue_empty, multiqueue_process_events};
-use crate::event::wstream::wstream_new_buffer;
+use crate::event::wstream::{WBufferFinalizer, wstream_new_buffer};
 use crate::globals::*;
 use crate::grid::{sattr_T, schar_T, schar_from_ascii, schar_get, schar_get_adv};
 use crate::highlight::{HlAttrs, hl_get_url, hlattrs2dict, syn_attr2entry};
 use crate::lua::converter::{Boolean, Float};
 use crate::mbyte::utf_ambiguous_width;
-use crate::memory::{
-    Arena, alloc_block, arena_finish, arena_mem_free, free_block, strequal, xfree,
-};
+use crate::memory::{Arena, alloc_block, arena_finish, arena_mem_free, strequal, xfree};
 use crate::msgpack_rpc::channel::{RemoteUI, find_channel, rpc_write_raw};
 use crate::msgpack_rpc::packer::{
     Integer, PackerBuffer, handle_T, mpack_array, mpack_bool, mpack_object_array, mpack_uint,
@@ -33,7 +31,7 @@ use crate::ui::{
     ui_active, ui_attach_impl, ui_call_ui_send, ui_can_attach_more, ui_detach_impl, ui_grid_resize,
     ui_refresh, ui_set_ext_option,
 };
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 #[cfg(windows)]
@@ -78,12 +76,6 @@ static mut connected_uis: std::collections::BTreeMap<u64, *mut RemoteUI> =
     std::collections::BTreeMap::new();
 
 use crate::msgpack_rpc::packer::mpack_w2;
-
-unsafe fn free_block_cb(block: *mut c_void) {
-    unsafe {
-        free_block(block.cast());
-    }
-}
 
 #[inline]
 unsafe fn buf_pos(ui: *const RemoteUI) -> usize {
@@ -1421,7 +1413,12 @@ unsafe fn ui_flush_buf(ui: *mut RemoteUI, incomplete_event: bool) {
             (*ui).nevents_pos = ptr::null_mut();
         }
 
-        let buf = wstream_new_buffer((*ui).packer.startptr, buf_pos(ui), 1, Some(free_block_cb));
+        let buf = wstream_new_buffer(
+            (*ui).packer.startptr,
+            buf_pos(ui),
+            1,
+            WBufferFinalizer::FreeBlock,
+        );
         rpc_write_raw((*ui).channel_id, buf);
 
         (*ui).packer.startptr = ptr::null_mut();

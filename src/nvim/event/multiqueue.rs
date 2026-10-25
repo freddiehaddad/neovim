@@ -1,29 +1,159 @@
 //! Multi-level queue for selective async event processing (`src/nvim/event/multiqueue.c`).
 
 use std::collections::VecDeque;
-use std::ffi::{c_int, c_void};
+use std::ffi::{c_char, c_int};
 
-pub const EVENT_HANDLER_MAX_ARGC: usize = 10;
-
-pub type argv_callback = Option<unsafe fn(argv: *mut *mut c_void)>;
-
-#[repr(C)]
 #[derive(Clone, Copy)]
-pub struct Event {
-    pub handler: argv_callback,
-    pub argv: [*mut c_void; EVENT_HANDLER_MAX_ARGC],
+pub enum Event {
+    None,
+    Oneshot(*mut MulticastEvent),
+    LoopDeferred {
+        loop_: *mut crate::event::r#loop::Loop,
+        event: *mut Event,
+    },
+    TimeWatcher(*mut crate::event::time::TimeWatcher),
+    TimeWatcherClose(*mut crate::event::time::TimeWatcher),
+    Signal(*mut crate::event::signal::SignalWatcher),
+    RStreamRead(*mut crate::event::rstream::RStream),
+    SocketConnection {
+        watcher: *mut crate::event::socket::SocketWatcher,
+        status: c_int,
+    },
+    ProcCloseHandles(*mut crate::event::proc::Proc),
+    ProcClose(*mut crate::event::proc::Proc),
+    ProcExit(c_int),
+    AutoCmdDeferred(*mut crate::autocmd::AutoCmdEvent),
+    AutoCmdOptionSetModified {
+        bufnr: c_int,
+        new_val: bool,
+    },
+    AutoCmdVimResume,
+    ChannelFree(*mut crate::channel::Channel),
+    ChannelCallback(*mut crate::channel::Channel),
+    ChannelTermDelayedFree(*mut crate::channel::Channel),
+    ChannelSetInfo {
+        chan: *mut crate::channel::Channel,
+        event: crate::autocmd::event_T,
+    },
+    RpcRequest(*mut crate::msgpack_rpc::channel::RequestEvent),
+    RpcInternalRead {
+        channel: *mut crate::channel::Channel,
+        buffer: *mut crate::event::wstream::WBuffer,
+    },
+    RpcClose(*mut crate::channel::Channel),
+    NluaLuvError {
+        msg: *mut c_char,
+        kind: isize,
+    },
+    NluaSchedule {
+        cb: crate::lua::converter::LuaRef,
+        ns_id: u32,
+    },
+    NluaPrint {
+        data: *mut c_char,
+        len: usize,
+    },
+    MsgSemsg(*mut c_char),
+    MsgSemsgMultiline(*mut c_char),
+    CursorHold,
+    #[cfg(windows)]
+    PtyProcFinish(*mut crate::event::proc::Proc),
+    ShellOutData {
+        str_copy: *mut c_char,
+        count: usize,
+        fd: c_int,
+    },
+    TermRequest(*mut crate::terminal::TermRequestEvent),
+    TermStateChange(crate::msgpack_rpc::packer::handle_T),
+    TermSyncFlush(crate::msgpack_rpc::packer::handle_T),
+    TermClipboardSet {
+        mask: c_int,
+        data: *mut c_char,
+    },
+    TInputDone,
+    UiRefresh,
+    UiClientConnect(*mut c_char),
+    CmdwinOpen(*mut crate::ex_getln::CmdwinOpenArgs),
+    #[cfg(test)]
+    Test(usize),
 }
 
 impl Event {
     pub const fn nil() -> Self {
-        Self {
-            handler: None,
-            argv: [std::ptr::null_mut(); EVENT_HANDLER_MAX_ARGC],
+        Self::None
+    }
+
+    pub unsafe fn dispatch(self) {
+        unsafe {
+            match self {
+                Self::None => {}
+                Self::Oneshot(data) => multiqueue_oneshot_event(data),
+                Self::LoopDeferred { loop_, event } => {
+                    crate::event::r#loop::loop_deferred_event(loop_, event);
+                }
+                Self::TimeWatcher(watcher) => crate::event::time::time_event(watcher),
+                Self::TimeWatcherClose(watcher) => crate::event::time::close_event(watcher),
+                Self::Signal(watcher) => crate::event::signal::signal_event(watcher),
+                Self::RStreamRead(stream) => crate::event::rstream::read_event(stream),
+                Self::SocketConnection { watcher, status } => {
+                    crate::event::socket::connection_event(watcher, status);
+                }
+                Self::ProcCloseHandles(proc_) => crate::event::proc::proc_close_handles(proc_),
+                Self::ProcClose(proc_) => crate::event::proc::proc_close_event(proc_),
+                Self::ProcExit(status) => crate::event::proc::exit_event(status),
+                Self::AutoCmdDeferred(ev) => crate::autocmd::deferred_event(ev),
+                Self::AutoCmdOptionSetModified { bufnr, new_val } => {
+                    crate::autocmd::deferred_optionset_modified(bufnr, new_val);
+                }
+                Self::AutoCmdVimResume => crate::autocmd::vimresume_event(),
+                Self::ChannelFree(chan) => crate::channel::free_channel_event(chan),
+                Self::ChannelCallback(chan) => crate::channel::on_channel_event(chan),
+                Self::ChannelTermDelayedFree(chan) => crate::channel::term_delayed_free(chan),
+                Self::ChannelSetInfo { chan, event } => {
+                    crate::channel::set_info_event(chan, event);
+                }
+                Self::RpcRequest(ev) => crate::msgpack_rpc::channel::request_event(ev),
+                Self::RpcInternalRead { channel, buffer } => {
+                    crate::msgpack_rpc::channel::internal_read_event(channel, buffer);
+                }
+                Self::RpcClose(chan) => crate::msgpack_rpc::channel::rpc_close_event(chan),
+                Self::NluaLuvError { msg, kind } => {
+                    crate::lua::executor::nlua_luv_error_event(msg, kind);
+                }
+                Self::NluaSchedule { cb, ns_id } => {
+                    crate::lua::executor::nlua_schedule_event(cb, ns_id);
+                }
+                Self::NluaPrint { data, len } => {
+                    crate::lua::executor::nlua_print_event(data, len);
+                }
+                Self::MsgSemsg(s) => crate::message::msg_semsg_event(s),
+                Self::MsgSemsgMultiline(s) => crate::message::msg_semsg_multiline_event(s),
+                Self::CursorHold => crate::os::input::cursorhold_event(),
+                #[cfg(windows)]
+                Self::PtyProcFinish(proc_) => crate::os::pty_proc_win::pty_proc_finish(proc_),
+                Self::ShellOutData {
+                    str_copy,
+                    count,
+                    fd,
+                } => crate::os::shell::out_data_event(str_copy, count, fd),
+                Self::TermRequest(ev) => crate::terminal::emit_termrequest(ev),
+                Self::TermStateChange(buf_handle) => {
+                    crate::terminal::terminal_state_change_event(buf_handle);
+                }
+                Self::TermSyncFlush(buf_handle) => crate::terminal::on_sync_flush(buf_handle),
+                Self::TermClipboardSet { mask, data } => {
+                    crate::terminal::term_clipboard_set(mask, data);
+                }
+                Self::TInputDone => crate::tui::input::tinput_done_event(),
+                Self::UiRefresh => crate::ui::ui_refresh_event(),
+                Self::UiClientConnect(addr) => crate::ui_client::channel_connect_event(addr),
+                Self::CmdwinOpen(args) => crate::ex_getln::open_cmdwin_event(args),
+                #[cfg(test)]
+                Self::Test(_) => {}
+            }
         }
     }
 }
-
-pub type PutCallback = Option<unsafe fn(multiq: *mut MultiQueue, data: *mut c_void)>;
 
 #[derive(Clone, Copy)]
 enum QueueEntry {
@@ -35,12 +165,11 @@ enum QueueEntry {
 pub struct MultiQueue {
     parent: *mut MultiQueue,
     items: VecDeque<QueueEntry>,
-    on_put: PutCallback,
-    data: *mut c_void,
+    notify_loop: *mut crate::event::r#loop::Loop,
     size: usize,
 }
 
-struct MulticastEvent {
+pub struct MulticastEvent {
     event: Event,
     fired: bool,
     refcount: c_int,
@@ -48,21 +177,19 @@ struct MulticastEvent {
 
 fn multiqueue_new_inner(
     parent: *mut MultiQueue,
-    on_put: PutCallback,
-    data: *mut c_void,
+    notify_loop: *mut crate::event::r#loop::Loop,
 ) -> *mut MultiQueue {
     Box::into_raw(Box::new(MultiQueue {
         parent,
         items: VecDeque::new(),
-        on_put,
-        data,
+        notify_loop,
         size: 0,
     }))
 }
 
 /// Create a new root (parentless) `MultiQueue` (`multiqueue_new`).
-pub fn multiqueue_new(on_put: PutCallback, data: *mut c_void) -> *mut MultiQueue {
-    multiqueue_new_inner(std::ptr::null_mut(), on_put, data)
+pub fn multiqueue_new(notify_loop: *mut crate::event::r#loop::Loop) -> *mut MultiQueue {
+    multiqueue_new_inner(std::ptr::null_mut(), notify_loop)
 }
 
 /// Create a new child `MultiQueue` attached to `parent` (`multiqueue_new_child`).
@@ -73,7 +200,7 @@ pub unsafe fn multiqueue_new_child(parent: *mut MultiQueue) -> *mut MultiQueue {
     let parent_ref = unsafe { &mut *parent };
     assert!(parent_ref.parent.is_null());
     parent_ref.size = parent_ref.size.wrapping_add(1);
-    multiqueue_new_inner(parent, None, std::ptr::null_mut())
+    multiqueue_new_inner(parent, std::ptr::null_mut())
 }
 
 /// Free a `MultiQueue` and all queued items (`multiqueue_free`).
@@ -160,10 +287,8 @@ pub unsafe fn multiqueue_put_event(this: *mut MultiQueue, event: Event) {
     unsafe {
         multiqueue_push(this, event);
         let parent = (*this).parent;
-        if !parent.is_null()
-            && let Some(on_put) = (*parent).on_put
-        {
-            on_put(parent, (*parent).data);
+        if !parent.is_null() && !(*parent).notify_loop.is_null() {
+            crate::event::r#loop::loop_on_put((*parent).notify_loop);
         }
     }
 }
@@ -189,10 +314,8 @@ pub unsafe fn multiqueue_process_events(this: *mut MultiQueue) {
     assert!(!this.is_null());
     unsafe {
         while !multiqueue_empty(this) {
-            let mut event = multiqueue_remove(this);
-            if let Some(handler) = event.handler {
-                handler(event.argv.as_mut_ptr());
-            }
+            let event = multiqueue_remove(this);
+            event.dispatch();
         }
     }
 }
@@ -238,14 +361,11 @@ pub unsafe fn multiqueue_size(this: *mut MultiQueue) -> usize {
     unsafe { (*this).size }
 }
 
-unsafe fn multiqueue_oneshot_event(argv: *mut *mut c_void) {
+unsafe fn multiqueue_oneshot_event(data: *mut MulticastEvent) {
     unsafe {
-        let data = (*argv).cast::<MulticastEvent>();
         if !(*data).fired {
             (*data).fired = true;
-            if let Some(handler) = (*data).event.handler {
-                handler((*data).event.argv.as_mut_ptr());
-            }
+            (*data).event.dispatch();
         }
         (*data).refcount -= 1;
         if (*data).refcount == 0 {
@@ -261,10 +381,7 @@ pub fn event_create_oneshot(ev: Event, num: c_int) -> Event {
         fired: false,
         refcount: num,
     }));
-    let mut out = Event::nil();
-    out.handler = Some(multiqueue_oneshot_event);
-    out.argv[0] = data.cast::<c_void>();
-    out
+    Event::Oneshot(data)
 }
 
 #[cfg(test)]
@@ -274,14 +391,14 @@ mod tests {
     #[test]
     fn parent_and_child_interleaved_ordering() {
         unsafe {
-            let parent = multiqueue_new(None, std::ptr::null_mut());
+            let parent = multiqueue_new(std::ptr::null_mut());
             let c1 = multiqueue_new_child(parent);
             let c2 = multiqueue_new_child(parent);
 
-            let make_ev = |v: usize| {
-                let mut ev = Event::nil();
-                ev.argv[0] = v as *mut c_void;
-                ev
+            let make_ev = Event::Test;
+            let ev_val = |ev: Event| match ev {
+                Event::Test(v) => v,
+                _ => panic!("expected Event::Test"),
             };
 
             multiqueue_put_event(c1, make_ev(11));
@@ -291,12 +408,12 @@ mod tests {
             assert_eq!(multiqueue_size(c2), 1);
 
             // Pop from c2 first; should also unlink from parent.
-            assert_eq!(multiqueue_get(c2).argv[0] as usize, 21);
+            assert_eq!(ev_val(multiqueue_get(c2)), 21);
             assert_eq!(multiqueue_size(c2), 0);
 
             // Remaining in parent should be 11 then 12.
-            assert_eq!(multiqueue_get(parent).argv[0] as usize, 11);
-            assert_eq!(multiqueue_get(parent).argv[0] as usize, 12);
+            assert_eq!(ev_val(multiqueue_get(parent)), 11);
+            assert_eq!(ev_val(multiqueue_get(parent)), 12);
             assert!(multiqueue_empty(parent));
 
             // Child free unlinks remaining events from parent.
@@ -305,8 +422,8 @@ mod tests {
             multiqueue_put_event(c2, make_ev(201));
             multiqueue_put_event(c3, make_ev(301));
             multiqueue_free(c2);
-            assert_eq!(multiqueue_get(parent).argv[0] as usize, 101);
-            assert_eq!(multiqueue_get(c3).argv[0] as usize, 301);
+            assert_eq!(ev_val(multiqueue_get(parent)), 101);
+            assert_eq!(ev_val(multiqueue_get(c3)), 301);
             assert!(multiqueue_empty(parent));
 
             multiqueue_free(c1);

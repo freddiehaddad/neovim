@@ -91,7 +91,7 @@ use crate::eval::{
 #[cfg(unix)]
 use crate::event::r#loop::uv_kill;
 use crate::event::r#loop::{
-    Loop, loop_closing_ptr, loop_on_put, loop_poll_events, loop_queues, uv_strerror,
+    Loop, loop_closing_ptr, loop_poll_events, loop_queues, uv_strerror,
 };
 use crate::event::multiqueue::{
     multiqueue_empty, multiqueue_free, multiqueue_new, multiqueue_process_events,
@@ -5023,7 +5023,7 @@ pub unsafe fn f_jobwait(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
         let len = tv_list_len(args) as usize;
         let mut jobs: Vec<*mut Channel> = vec![ptr::null_mut(); len];
         let main_loop_ptr: *mut Loop = &raw mut main_loop;
-        let waiting_jobs = multiqueue_new(Some(loop_on_put), main_loop_ptr.cast());
+        let waiting_jobs = multiqueue_new(main_loop_ptr);
 
         let mut i: usize = 0;
         let mut arg = tv_list_first(args);

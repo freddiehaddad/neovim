@@ -18,14 +18,32 @@ const UV_ENOMEM: c_int = -4057;
 const UV_ENOMEM: c_int = -12;
 
 pub type uv_write_t = c_void;
-pub type wbuffer_data_finalizer = Option<unsafe fn(data: *mut c_void)>;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum WBufferFinalizer {
+    None,
+    Free,
+    FreeBlock,
+}
 
 #[repr(C)]
 pub struct WBuffer {
     pub size: usize,
     pub refcount: usize,
     pub data: *mut c_char,
-    pub cb: wbuffer_data_finalizer,
+    pub cb: WBufferFinalizer,
+}
+
+impl Drop for WBuffer {
+    fn drop(&mut self) {
+        unsafe {
+            match self.cb {
+                WBufferFinalizer::None => {}
+                WBufferFinalizer::Free => crate::memory::xfree(self.data.cast()),
+                WBufferFinalizer::FreeBlock => crate::memory::free_block(self.data),
+            }
+        }
+    }
 }
 
 #[cfg(windows)]
@@ -156,7 +174,7 @@ pub unsafe fn wstream_new_buffer(
     data: *mut c_char,
     size: usize,
     refcount: usize,
-    cb: wbuffer_data_finalizer,
+    cb: WBufferFinalizer,
 ) -> *mut WBuffer {
     Box::into_raw(Box::new(WBuffer {
         size,
@@ -194,9 +212,6 @@ pub unsafe fn wstream_release_wbuffer(buffer: *mut WBuffer) {
     unsafe {
         (*buffer).refcount -= 1;
         if (*buffer).refcount == 0 {
-            if let Some(cb) = (*buffer).cb {
-                cb((*buffer).data.cast());
-            }
             drop(Box::from_raw(buffer));
         }
     }

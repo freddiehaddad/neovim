@@ -6,7 +6,7 @@ use crate::event::r#loop::{
     uv_handle_get_loop, uv_handle_get_type, uv_handle_t, uv_pipe_connect, uv_pipe_init,
     uv_req_size, uv_strerror,
 };
-use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_put_event};
+use crate::event::multiqueue::{Event, MultiQueue, multiqueue_put_event};
 use crate::event::stream::{
     Stream, StreamInternalData, UV_TCP, stream_init, stream_may_close, uv_pipe_t, uv_stream_t,
 };
@@ -444,10 +444,8 @@ pub unsafe fn socket_watcher_close(watcher: *mut SocketWatcher, cb: socket_close
     }
 }
 
-unsafe fn connection_event(argv: *mut *mut c_void) {
+pub unsafe fn connection_event(watcher: *mut SocketWatcher, status: c_int) {
     unsafe {
-        let watcher = *argv as *mut SocketWatcher;
-        let status = (*argv.add(1) as usize) as c_int;
         if let Some(cb) = (*watcher).cb {
             cb(watcher, status);
         }
@@ -457,19 +455,13 @@ unsafe fn connection_event(argv: *mut *mut c_void) {
 unsafe extern "C" fn connection_cb(handle: *mut uv_stream_t, status: c_int) {
     unsafe {
         let watcher = *handle.cast::<*mut SocketWatcher>();
-        let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
-        argv[0] = watcher.cast();
-        argv[1] = (status as usize) as *mut c_void;
         if !(*watcher).events.is_null() {
             multiqueue_put_event(
                 (*watcher).events,
-                Event {
-                    handler: Some(connection_event),
-                    argv,
-                },
+                Event::SocketConnection { watcher, status },
             );
         } else {
-            connection_event(argv.as_mut_ptr());
+            connection_event(watcher, status);
         }
     }
 }

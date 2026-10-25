@@ -9,8 +9,7 @@ use crate::event::r#loop::{
     uv_timer_stop, uv_timer_t,
 };
 use crate::event::multiqueue::{
-    EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_empty, multiqueue_process_events,
-    multiqueue_put_event,
+    Event, MultiQueue, multiqueue_empty, multiqueue_process_events, multiqueue_put_event,
 };
 use crate::event::rstream::{RStream, rstream_may_close};
 use crate::event::stream::{Stream, StreamInternalData, stream_init, stream_may_close};
@@ -137,29 +136,6 @@ use crate::event::r#loop::{uv_recv_buffer_size, uv_unref};
 #[inline]
 pub unsafe fn libuv_proc_uv(proc_: *mut Proc) -> *mut uv_handle_t {
     unsafe { (&raw mut (*proc_.cast::<LibuvProc>()).uv).cast() }
-}
-
-#[inline]
-unsafe fn create_event_1(
-    multiqueue: *mut MultiQueue,
-    handler: unsafe fn(*mut *mut c_void),
-    arg0: *mut c_void,
-) {
-    unsafe {
-        let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
-        argv[0] = arg0;
-        if !multiqueue.is_null() {
-            multiqueue_put_event(
-                multiqueue,
-                Event {
-                    handler: Some(handler),
-                    argv,
-                },
-            );
-        } else {
-            handler(argv.as_mut_ptr());
-        }
-    }
 }
 
 #[inline]
@@ -291,7 +267,11 @@ pub unsafe fn proc_teardown(loop_: *mut Loop) {
         let qc = loop_queues(loop_);
         for &proc_ in &(*qc).children {
             if (*proc_).detach || (*proc_).r#type == kProcTypePty {
-                create_event_1((*qc).events, proc_close_handles, proc_.cast());
+                if !(*qc).events.is_null() {
+                    multiqueue_put_event((*qc).events, Event::ProcCloseHandles(proc_));
+                } else {
+                    proc_close_handles(proc_);
+                }
             } else {
                 proc_stop(proc_);
             }
@@ -426,9 +406,8 @@ unsafe extern "C" fn children_kill_cb(handle: *mut uv_timer_t) {
     }
 }
 
-unsafe fn proc_close_event(argv: *mut *mut c_void) {
+pub unsafe fn proc_close_event(proc_: *mut Proc) {
     unsafe {
-        let proc_ = *argv as *mut Proc;
         if let Some(cb) = (*proc_).cb {
             cb(proc_, (*proc_).status, (*proc_).data);
         } else {
@@ -448,7 +427,11 @@ unsafe fn decref(proc_: *mut Proc) {
         let qc = loop_queues(loop_);
         let idx = (*qc).children.iter().position(|&p| p == proc_).unwrap();
         (*qc).children.remove(idx);
-        create_event_1((*proc_).events, proc_close_event, proc_.cast());
+        if !(*proc_).events.is_null() {
+            multiqueue_put_event((*proc_).events, Event::ProcClose(proc_));
+        } else {
+            proc_close_event(proc_);
+        }
     }
 }
 
@@ -524,10 +507,8 @@ unsafe fn flush_stream(proc_: *mut Proc, stream: *mut RStream) {
     }
 }
 
-unsafe fn proc_close_handles(argv: *mut *mut c_void) {
+pub unsafe fn proc_close_handles(proc_: *mut Proc) {
     unsafe {
-        let proc_ = *argv as *mut Proc;
-
         exit_need_delay += 1;
         flush_stream(proc_, &raw mut (*proc_).out);
         flush_stream(proc_, &raw mut (*proc_).err);
@@ -544,25 +525,17 @@ unsafe extern "C" fn exit_delay_cb(_handle: *mut uv_timer_t) {
         let exit_timer = loop_exit_delay_timer(mloop);
         uv_timer_stop(exit_timer);
         let qc = loop_queues(mloop);
-        let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
-        argv[0] = *exit_timer.cast::<*mut c_void>();
-        multiqueue_put_event(
-            (*qc).fast_events,
-            Event {
-                handler: Some(exit_event),
-                argv,
-            },
-        );
+        let status = (*exit_timer.cast::<*mut c_void>() as isize) as c_int;
+        multiqueue_put_event((*qc).fast_events, Event::ProcExit(status));
     }
 }
 
-unsafe fn exit_event(argv: *mut *mut c_void) {
+pub unsafe fn exit_event(status: c_int) {
     unsafe {
-        let status = (*argv as isize) as c_int;
         if exit_need_delay != 0 {
             let mloop = main_loop_ptr();
             let exit_timer = loop_exit_delay_timer(mloop);
-            *exit_timer.cast::<*mut c_void>() = *argv;
+            *exit_timer.cast::<*mut c_void>() = (status as isize) as *mut c_void;
             uv_timer_start(exit_timer, Some(exit_delay_cb), 0, 0);
             return;
         }
@@ -583,15 +556,7 @@ unsafe fn exit_event(argv: *mut *mut c_void) {
 pub unsafe fn exit_on_closed_chan(status: c_int) {
     unsafe {
         let qc = loop_queues(main_loop_ptr());
-        let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
-        argv[0] = (status as isize) as *mut c_void;
-        multiqueue_put_event(
-            (*qc).fast_events,
-            Event {
-                handler: Some(exit_event),
-                argv,
-            },
-        );
+        multiqueue_put_event((*qc).fast_events, Event::ProcExit(status));
     }
 }
 
@@ -603,7 +568,11 @@ unsafe fn on_proc_exit(proc_: *mut Proc) {
         } else {
             (*qc).events
         };
-        create_event_1(queue, proc_close_handles, proc_.cast());
+        if !queue.is_null() {
+            multiqueue_put_event(queue, Event::ProcCloseHandles(proc_));
+        } else {
+            proc_close_handles(proc_);
+        }
     }
 }
 

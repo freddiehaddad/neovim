@@ -5,7 +5,7 @@ use crate::drawscreen::{kOptVeFlagBlock, setcursor, update_screen};
 use crate::eval::typval::{tv_dict_add_str, tv_dict_set_keys_readonly};
 use crate::eval::{get_v_event, restore_v_event};
 use crate::event::r#loop::main_loop_events;
-use crate::event::multiqueue::{Event, multiqueue_empty, multiqueue_get};
+use crate::event::multiqueue::{multiqueue_empty, multiqueue_get};
 use crate::ex_getln::{K_EVENT, cmdline_overstrike, get_cmdline_info};
 use crate::globals::*;
 use crate::hashtab::hashtab_T;
@@ -20,7 +20,7 @@ use crate::os::input::{input_available, input_get, os_breakcheck};
 use crate::strings::{strcmp, strcpy, vim_snprintf};
 use crate::ui::ui_flush;
 use crate::window::win_T;
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 pub const MODE_MAX_LENGTH: usize = 4;
@@ -171,10 +171,7 @@ pub unsafe fn state_handle_k_event() {
     unsafe {
         loop {
             let events = main_loop_events();
-            let mut event: Event = multiqueue_get(events);
-            if let Some(handler) = event.handler {
-                handler(event.argv.as_mut_ptr().cast::<*mut c_void>());
-            }
+            multiqueue_get(events).dispatch();
 
             if multiqueue_empty(main_loop_events()) {
                 return;

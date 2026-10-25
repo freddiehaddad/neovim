@@ -5,7 +5,7 @@ use crate::api::private::validate::{Array, NvimString};
 use crate::event::r#loop::{
     Loop, loop_schedule_fast, uv_close, uv_timer_init, uv_timer_start, uv_timer_stop, uv_timer_t,
 };
-use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event};
+use crate::event::multiqueue::Event;
 use crate::event::rstream::{
     RStream, rstream_available, rstream_consume, rstream_init_fd, rstream_may_close, rstream_start,
     rstream_stop,
@@ -39,7 +39,7 @@ use crate::tui::termkey::termkey::{
 use crate::tui::tui::{
     TUIData, tui_enable_extended_underline, tui_handle_term_mode, tui_query_bg_color, tui_set_size,
 };
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 use crate::channel::STDIN_FILENO;
@@ -268,7 +268,7 @@ pub unsafe fn tinput_stop(input: *mut TermInput) {
     }
 }
 
-unsafe fn tinput_done_event(_argv: *mut *mut c_void) {
+pub unsafe fn tinput_done_event() {
     unsafe {
         os_exit(1);
     }
@@ -1014,13 +1014,7 @@ unsafe fn tinput_read_cb(
         tinput_flush(input);
 
         if eof {
-            loop_schedule_fast(
-                (&raw mut main_loop).cast(),
-                Event {
-                    handler: Some(tinput_done_event),
-                    argv: [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC],
-                },
-            );
+            loop_schedule_fast((&raw mut main_loop).cast(), Event::TInputDone);
             return consumed;
         }
 

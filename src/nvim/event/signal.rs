@@ -3,9 +3,9 @@
 use crate::event::r#loop::{
     Loop, uv_close, uv_handle_t, uv_signal_init, uv_signal_start, uv_signal_stop, uv_signal_t,
 };
-use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_put_event};
+use crate::event::multiqueue::{Event, MultiQueue, multiqueue_put_event};
 use crate::event::time::loop_fast_events;
-use std::ffi::{c_int, c_void};
+use std::ffi::c_int;
 use std::ptr;
 
 pub type signal_cb = Option<
@@ -84,9 +84,8 @@ pub unsafe fn signal_watcher_close(watcher: *mut SignalWatcher, cb: signal_close
     }
 }
 
-unsafe fn signal_event(argv: *mut *mut c_void) {
+pub unsafe fn signal_event(watcher: *mut SignalWatcher) {
     unsafe {
-        let watcher = (*argv).cast::<SignalWatcher>();
         if let Some(cb) = (*watcher).cb {
             cb(watcher, (*watcher).signum, (*watcher).data);
         }
@@ -98,18 +97,10 @@ unsafe extern "C" fn signal_watcher_cb(handle: *mut uv_signal_t, signum: c_int) 
         let watcher = *handle.cast::<*mut SignalWatcher>();
         (*watcher).signum = signum;
         let events = (*watcher).events;
-        let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
-        argv[0] = watcher.cast();
         if !events.is_null() {
-            multiqueue_put_event(
-                events,
-                Event {
-                    handler: Some(signal_event),
-                    argv,
-                },
-            );
+            multiqueue_put_event(events, Event::Signal(watcher));
         } else {
-            signal_event(argv.as_mut_ptr());
+            signal_event(watcher);
         }
     }
 }

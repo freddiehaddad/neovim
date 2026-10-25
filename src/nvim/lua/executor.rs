@@ -22,8 +22,7 @@ use crate::event::r#loop::{
     loop_closing_ptr, loop_poll_events, loop_queues, loop_schedule_deferred, uv_thread_t,
 };
 use crate::event::multiqueue::{
-    EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_empty, multiqueue_process_events,
-    multiqueue_put_event,
+    Event, MultiQueue, multiqueue_empty, multiqueue_process_events, multiqueue_put_event,
 };
 use crate::ex_cmds::check_secure;
 use crate::ex_docmd::{cmdmod_T, do_cmdline, exarg_T, get_command_name};
@@ -361,20 +360,9 @@ unsafe extern "C" {
 }
 
 #[inline]
-unsafe fn put_event(
-    mq: *mut MultiQueue,
-    handler: unsafe fn(*mut *mut c_void),
-    arg0: *mut c_void,
-    arg1: *mut c_void,
-) {
+unsafe fn put_event(mq: *mut MultiQueue, ev: Event) {
     unsafe {
         if !mq.is_null() {
-            let mut ev = Event {
-                handler: Some(handler),
-                argv: [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC],
-            };
-            ev.argv[0] = arg0;
-            ev.argv[1] = arg1;
             multiqueue_put_event(mq, ev);
         }
     }
@@ -646,10 +634,8 @@ pub unsafe fn nlua_pcall(lstate: *mut lua_State, nargs: c_int, mut nresults: c_i
     }
 }
 
-unsafe fn nlua_luv_error_event(argv: *mut *mut c_void) {
+pub unsafe fn nlua_luv_error_event(error: *mut c_char, err_type: isize) {
     unsafe {
-        let error = (*argv).cast::<c_char>();
-        let err_type = *argv.add(1) as isize;
         match err_type {
             kCallback => {
                 msg_ext_no_fast();
@@ -692,13 +678,14 @@ unsafe extern "C-unwind" fn nlua_fast_cfpcall(
             let queues = loop_queues((&raw mut main_loop).cast());
             put_event(
                 (*queues).events,
-                nlua_luv_error_event,
-                if !error.is_null() {
-                    xstrdup(error).cast()
-                } else {
-                    ptr::null_mut()
+                Event::NluaLuvError {
+                    msg: if !error.is_null() {
+                        xstrdup(error)
+                    } else {
+                        ptr::null_mut()
+                    },
+                    kind: kCallback,
                 },
-                kCallback as *mut c_void,
             );
             lua_pop(lstate, 1);
             -status
@@ -774,16 +761,14 @@ unsafe fn nlua_luv_thread_common_cfpcall(
             }
             let mut len: usize = 0;
             let error = nlua_get_error(lstate, &raw mut len);
-            let mut ev = Event {
-                handler: Some(nlua_luv_error_event),
-                argv: [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC],
+            let ev = Event::NluaLuvError {
+                msg: xmemdupz(error.cast(), len).cast(),
+                kind: if is_callback {
+                    kThreadCallback
+                } else {
+                    kThread
+                },
             };
-            ev.argv[0] = xmemdupz(error.cast(), len);
-            ev.argv[1] = (if is_callback {
-                kThreadCallback
-            } else {
-                kThread
-            }) as *mut c_void;
             loop_schedule_deferred((&raw mut main_loop).cast(), ev);
             lua_pop(lstate, 1);
             -status
@@ -862,10 +847,8 @@ unsafe fn nlua_init_argv(
     }
 }
 
-unsafe fn nlua_schedule_event(argv: *mut *mut c_void) {
+pub unsafe fn nlua_schedule_event(cb: LuaRef, ns_id: u32) {
     unsafe {
-        let cb = *argv as isize as LuaRef;
-        let ns_id = *argv.add(1) as usize as u32;
         let lstate = GLOBAL_LSTATE;
 
         nlua_pushref(lstate, cb);
@@ -903,9 +886,10 @@ unsafe extern "C-unwind" fn nlua_schedule(lstate: *mut lua_State) -> c_int {
         let queues = loop_queues((&raw mut main_loop).cast());
         put_event(
             (*queues).events,
-            nlua_schedule_event,
-            cb as isize as *mut c_void,
-            ui_event_ns_id as usize as *mut c_void,
+            Event::NluaSchedule {
+                cb,
+                ns_id: ui_event_ns_id,
+            },
         );
         lua_pushnil(lstate);
         2
@@ -1412,15 +1396,15 @@ unsafe extern "C-unwind" fn nlua_common_free_all_mem(lstate: *mut lua_State) {
     }
 }
 
-unsafe fn nlua_print_event(argv: *mut *mut c_void) {
+pub unsafe fn nlua_print_event(data: *mut c_char, len: usize) {
     unsafe {
         msg_ext_no_fast();
         let raw = msg_use_printf() != 0 && redirecting() == 0 && on_print.cb_type() == kCallbackNone;
 
         let mut msg: HlMessage = vec![HlMessageChunk {
             text: NvimString {
-                data: (*argv).cast(),
-                size: (*argv.add(1) as usize).saturating_sub(1),
+                data,
+                size: len.saturating_sub(1),
             },
             hl_id: 0,
         }];
@@ -1477,7 +1461,7 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> c_int {
             curargidx += 1;
         }
         let msg_len = msg_vec.len() + 1;
-        let msg_data = xmemdupz(msg_vec.as_ptr().cast(), msg_vec.len());
+        let msg_data: *mut c_char = xmemdupz(msg_vec.as_ptr().cast(), msg_vec.len()).cast();
         drop(msg_vec);
 
         lua_getfield(lstate, LUA_REGISTRYINDEX, c"nvim.thread".as_ptr());
@@ -1485,24 +1469,24 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> c_int {
         lua_pop(lstate, 1);
 
         if is_thread {
-            let mut ev = Event {
-                handler: Some(nlua_print_event),
-                argv: [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC],
-            };
-            ev.argv[0] = msg_data;
-            ev.argv[1] = msg_len as *mut c_void;
-            loop_schedule_deferred((&raw mut main_loop).cast(), ev);
+            loop_schedule_deferred(
+                (&raw mut main_loop).cast(),
+                Event::NluaPrint {
+                    data: msg_data,
+                    len: msg_len,
+                },
+            );
         } else if IN_FAST_CALLBACK != 0 {
             let queues = loop_queues((&raw mut main_loop).cast());
             put_event(
                 (*queues).events,
-                nlua_print_event,
-                msg_data,
-                msg_len as *mut c_void,
+                Event::NluaPrint {
+                    data: msg_data,
+                    len: msg_len,
+                },
             );
         } else {
-            let mut argv: [*mut c_void; 2] = [msg_data, msg_len as *mut c_void];
-            nlua_print_event(argv.as_mut_ptr());
+            nlua_print_event(msg_data, msg_len);
         }
         0
     }

@@ -4,7 +4,7 @@ use crate::event::r#loop::{
     Loop, uv_err_name, uv_fs_get_result, uv_fs_req_cleanup, uv_fs_t, uv_handle_get_loop,
     uv_handle_get_type, uv_handle_t, uv_strerror,
 };
-use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, multiqueue_put_event};
+use crate::event::multiqueue::{Event, multiqueue_put_event};
 use crate::event::stream::{
     Stream, StreamCbData, UV_TTY, stream_close_handle, stream_init, stream_may_close, uv_idle_t,
     uv_stream_t,
@@ -13,7 +13,7 @@ use crate::event::wstream::uv_buf_t;
 use crate::log::{LOGLVL_DBG, g_min_log_level, logmsg};
 use crate::memory::{ARENA_BLOCK_SIZE, alloc_block, free_block};
 use crate::os::fs::{UV_ENOBUFS, UV_EOF};
-use std::ffi::{c_char, c_int, c_void};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 pub type stream_read_cb = Option<
@@ -208,9 +208,8 @@ unsafe extern "C" fn fread_idle_cb(handle: *mut uv_idle_t) {
     }
 }
 
-unsafe fn read_event(argv: *mut *mut c_void) {
+pub unsafe fn read_event(stream: *mut RStream) {
     unsafe {
-        let stream = (*argv).cast::<RStream>();
         (*stream).pending_read = false;
         if let Some(read_cb) = (*stream).read_cb {
             let available = rstream_available(stream);
@@ -272,18 +271,10 @@ unsafe fn invoke_read_cb(stream: *mut RStream, eof: bool) {
         (*stream).s.pending_reqs += 1;
         (*stream).pending_read = true;
         let events = (*stream).s.events;
-        let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
-        argv[0] = stream.cast();
         if !events.is_null() {
-            multiqueue_put_event(
-                events,
-                Event {
-                    handler: Some(read_event),
-                    argv,
-                },
-            );
+            multiqueue_put_event(events, Event::RStreamRead(stream));
         } else {
-            read_event(argv.as_mut_ptr());
+            read_event(stream);
         }
     }
 }

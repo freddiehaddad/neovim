@@ -302,7 +302,7 @@ unsafe fn strnicmp_ascii(a: *const c_char, b: &[u8]) -> bool {
 
 pub unsafe fn event_init() {
     unsafe {
-        loop_init((&raw mut main_loop).cast(), ptr::null_mut());
+        loop_init(&raw mut main_loop);
         env_init();
         let queues = loop_queues((&raw mut main_loop).cast());
         resize_events = multiqueue_new_child((*queues).events);

@@ -15,10 +15,7 @@ use crate::eval::typval::{
 };
 use crate::eval::{callback_call, get_v_event, kListLenMayKnow, restore_v_event};
 use crate::event::r#loop::{loop_queues, uv_strerror};
-use crate::event::multiqueue::{
-    EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_free, multiqueue_new_child,
-    multiqueue_put_event,
-};
+use crate::event::multiqueue::{Event, multiqueue_free, multiqueue_new_child, multiqueue_put_event};
 use crate::event::proc::{
     Proc, exit_on_closed_chan, proc_free, proc_spawn, proc_stop,
 };
@@ -28,7 +25,9 @@ use crate::event::rstream::{
 };
 use crate::event::socket::{SocketWatcher, socket_connect, socket_watcher_accept};
 use crate::event::stream::{Stream, StreamCbData, StreamInternalData, stream_may_close};
-use crate::event::wstream::{wstream_init, wstream_init_fd, wstream_new_buffer, wstream_write};
+use crate::event::wstream::{
+    WBufferFinalizer, wstream_init, wstream_init_fd, wstream_new_buffer, wstream_write,
+};
 #[cfg(not(windows))]
 use crate::fileio::fcntl;
 use crate::globals::*;
@@ -63,7 +62,7 @@ use crate::terminal::{
     terminal_set_state,
 };
 use crate::ui_client::ui_client_attach_to_restarted_server;
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 pub type ChannelStdinMode = c_int;
@@ -193,46 +192,6 @@ unsafe fn redirect_stderr_to_null() {
 #[inline]
 fn callback_reader_set(reader: &CallbackReader) -> bool {
     reader.cb.cb_type() != kCallbackNone || !reader.self_dict.is_null()
-}
-
-#[inline]
-pub unsafe fn put_event_1(
-    queue: *mut MultiQueue,
-    handler: unsafe fn(*mut *mut c_void),
-    a0: *mut c_void,
-) {
-    let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
-    argv[0] = a0;
-    unsafe {
-        multiqueue_put_event(
-            queue,
-            Event {
-                handler: Some(handler),
-                argv,
-            },
-        );
-    }
-}
-
-#[inline]
-fn put_event_2(
-    queue: *mut MultiQueue,
-    handler: unsafe fn(*mut *mut c_void),
-    a0: *mut c_void,
-    a1: *mut c_void,
-) {
-    let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
-    argv[0] = a0;
-    argv[1] = a1;
-    unsafe {
-        multiqueue_put_event(
-            queue,
-            Event {
-                handler: Some(handler),
-                argv,
-            },
-        );
-    }
 }
 
 use crate::api::private::helpers::add_c;
@@ -458,10 +417,8 @@ pub unsafe fn channel_decref(chan: *mut Channel) {
 
         (*chan).refcount -= 1;
         if (*chan).refcount == 0 {
-            {
-                let qc = loop_queues((&raw mut main_loop).cast());
-                put_event_1((*qc).events, free_channel_event, chan.cast());
-            }
+            let qc = loop_queues((&raw mut main_loop).cast());
+            multiqueue_put_event((*qc).events, Event::ChannelFree(chan));
         }
     }
 }
@@ -489,9 +446,8 @@ unsafe fn channel_destroy(chan: *mut Channel) {
     }
 }
 
-unsafe fn free_channel_event(argv: *mut *mut c_void) {
+pub unsafe fn free_channel_event(chan: *mut Channel) {
     unsafe {
-        let chan = (*argv).cast::<Channel>();
         let chans_ptr = &raw mut channels;
         let _ = (*chans_ptr).remove(&(*chan).id);
         channel_destroy(chan);
@@ -514,10 +470,8 @@ unsafe fn channel_destroy_early(chan: *mut Channel) {
             std::process::abort();
         }
 
-        {
-            let qc = loop_queues((&raw mut main_loop).cast());
-            put_event_1((*qc).events, free_channel_event, chan.cast());
-        }
+        let qc = loop_queues((&raw mut main_loop).cast());
+        multiqueue_put_event((*qc).events, Event::ChannelFree(chan));
     }
 }
 
@@ -902,7 +856,7 @@ pub unsafe fn channel_send(
             } else {
                 xmemdup(data.cast(), len).cast::<c_char>()
             };
-            let buf = wstream_new_buffer(buf_data, len, 1, Some(xfree));
+            let buf = wstream_new_buffer(buf_data, len, 1, WBufferFinalizer::Free);
             return if wstream_write(in_stream, buf) == 0 {
                 len
             } else {
@@ -1000,7 +954,7 @@ unsafe fn schedule_channel_event(chan: *mut Channel) {
         let ct = chan;
         if !(*ct).callback_scheduled {
             if !(*ct).callback_busy {
-                put_event_1((*cp).events, on_channel_event, chan.cast());
+                multiqueue_put_event((*cp).events, Event::ChannelCallback(chan));
                 channel_incref(chan);
             }
             (*ct).callback_scheduled = true;
@@ -1008,9 +962,8 @@ unsafe fn schedule_channel_event(chan: *mut Channel) {
     }
 }
 
-unsafe fn on_channel_event(args: *mut *mut c_void) {
+pub unsafe fn on_channel_event(chan: *mut Channel) {
     unsafe {
-        let chan = (*args).cast::<Channel>();
         let cp = chan;
         let ct = chan;
 
@@ -1027,7 +980,7 @@ unsafe fn on_channel_event(args: *mut *mut c_void) {
 
         (*ct).callback_busy = false;
         if (*ct).callback_scheduled {
-            put_event_1((*cp).events, on_channel_event, chan.cast());
+            multiqueue_put_event((*cp).events, Event::ChannelCallback(chan));
             channel_incref(chan);
         }
 
@@ -1215,7 +1168,7 @@ unsafe fn term_write(buf: *const c_char, size: usize, chan: *mut Channel) {
             xmemdup(buf.cast(), size).cast::<c_char>(),
             size,
             1,
-            Some(xfree),
+            WBufferFinalizer::Free,
         );
         let _ = wstream_write(in_stream, wbuf);
     }
@@ -1233,14 +1186,13 @@ unsafe fn term_resume(chan: *mut Channel) {
     }
 }
 
-unsafe fn term_delayed_free(argv: *mut *mut c_void) {
+pub unsafe fn term_delayed_free(chan: *mut Channel) {
     unsafe {
-        let chan = (*argv).cast::<Channel>();
         let cp = chan;
         let ct = chan;
         let proc_ptr = &raw mut (*chan).uv.proc_;
         if (*proc_ptr).r#in.pending_reqs != 0 || (*proc_ptr).out.s.pending_reqs != 0 {
-            put_event_1((*cp).events, term_delayed_free, chan.cast());
+            multiqueue_put_event((*cp).events, Event::ChannelTermDelayedFree(chan));
             return;
         }
 
@@ -1255,7 +1207,7 @@ unsafe fn term_close(chan: *mut Channel) {
     unsafe {
         let cp = chan;
         proc_stop(&raw mut (*chan).uv.proc_);
-        put_event_1((*cp).events, term_delayed_free, chan.cast());
+        multiqueue_put_event((*cp).events, Event::ChannelTermDelayedFree(chan));
     }
 }
 
@@ -1264,21 +1216,13 @@ pub unsafe fn channel_event(chan: *mut Channel, event: event_T) {
         if has_event(event) {
             channel_incref(chan);
             let qc = loop_queues((&raw mut main_loop).cast());
-            put_event_2(
-                (*qc).events,
-                set_info_event,
-                chan.cast(),
-                (event as isize) as *mut c_void,
-            );
+            multiqueue_put_event((*qc).events, Event::ChannelSetInfo { chan, event });
         }
     }
 }
 
-unsafe fn set_info_event(argv: *mut *mut c_void) {
+pub unsafe fn set_info_event(chan: *mut Channel, event: event_T) {
     unsafe {
-        let chan = (*argv).cast::<Channel>();
-        let event = (*argv.add(1) as isize) as event_T;
-
         let mut save_v_event: save_v_event_T = save_v_event_T::new();
         let dict = get_v_event(&raw mut save_v_event);
         let mut arena = Arena {

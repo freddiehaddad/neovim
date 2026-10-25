@@ -29,9 +29,7 @@ use crate::eval::vars::{
 };
 use crate::eval::{callback_call, get_v_event, last_set_msg, restore_v_event};
 use crate::event::r#loop::{Loop, loop_queues};
-use crate::event::multiqueue::{
-    EVENT_HANDLER_MAX_ARGC, Event, multiqueue_free, multiqueue_new_child, multiqueue_put_event,
-};
+use crate::event::multiqueue::{Event, multiqueue_free, multiqueue_new_child, multiqueue_put_event};
 use crate::ex_docmd::{do_cmdline, ends_excmd, exarg_T, expand_sfile};
 use crate::ex_eval::{aborting, should_abort};
 use crate::extmark::{TriState, kFalse, kNone, kTrue};
@@ -68,7 +66,7 @@ use crate::window::{
     check_lnums, check_lnums_nested, reset_lnums, snapshot_windows_scroll_size, unuse_tabpage,
     use_tabpage, win_T,
 };
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 pub type event_T = c_int;
@@ -326,6 +324,19 @@ pub struct AutoCmdEvent {
     pub group: c_int,
     pub eap: *mut exarg_T,
     pub data: *mut Object,
+}
+
+impl Drop for AutoCmdEvent {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.fname.cast());
+            xfree(self.fname_io.cast());
+            if !self.data.is_null() {
+                api_free_object(*self.data);
+                drop(Box::from_raw(self.data));
+            }
+        }
+    }
 }
 
 #[repr(C)]
@@ -2578,21 +2589,12 @@ pub unsafe fn aucmd_defer(
             },
         }));
 
-        let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
-        argv[0] = evdata.cast();
-        multiqueue_put_event(
-            deferred_events,
-            Event {
-                handler: Some(deferred_event),
-                argv,
-            },
-        );
+        multiqueue_put_event(deferred_events, Event::AutoCmdDeferred(evdata));
     }
 }
 
-unsafe fn deferred_event(argv: *mut *mut c_void) {
+pub unsafe fn deferred_event(e: *mut AutoCmdEvent) {
     unsafe {
-        let e = (*argv).cast::<AutoCmdEvent>();
         let event = (*e).event;
         let fname = (*e).fname;
         let fname_io = (*e).fname_io;
@@ -2634,26 +2636,19 @@ unsafe fn deferred_event(argv: *mut *mut c_void) {
             restore_v_event(v_event, &raw mut save_v_event);
         }
 
-        xfree(fname.cast());
-        xfree(fname_io.cast());
-        if !data.is_null() {
-            api_free_object(*data);
-            drop(Box::from_raw(data));
-        }
         drop(Box::from_raw(e));
     }
 }
 
-unsafe fn deferred_optionset_modified(argv: *mut *mut c_void) {
+pub unsafe fn deferred_optionset_modified(bufnr: c_int, new_val: bool) {
     unsafe {
         let mut err = Error {
             err_type: ErrorType::kErrorTypeNone,
             msg: ptr::null_mut(),
         };
-        let buf = find_buffer_by_handle((*argv as usize) as handle_T, &raw mut err);
+        let buf = find_buffer_by_handle(bufnr, &raw mut err);
         api_clear_error(&raw mut err);
         if !buf.is_null() {
-            let new_val = (*argv.add(1) as usize) != 0;
             let old = boolean_obj(!new_val);
             let new = boolean_obj(new_val);
             let mut aco: CtxSwitch = CtxSwitch::new();
@@ -2672,14 +2667,11 @@ pub unsafe fn aucmd_defer_modified(buf: *mut buf_T, new_val: bool) {
         {
             return;
         }
-        let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
-        argv[0] = ((*buf).b_fnum as usize) as *mut c_void;
-        argv[1] = usize::from(new_val) as *mut c_void;
         multiqueue_put_event(
             deferred_events,
-            Event {
-                handler: Some(deferred_optionset_modified),
-                argv,
+            Event::AutoCmdOptionSetModified {
+                bufnr: (*buf).b_fnum,
+                new_val,
             },
         );
     }
@@ -3876,7 +3868,7 @@ unsafe fn arg_autocmd_flag_get(
     }
 }
 
-unsafe fn vimresume_event(_argv: *mut *mut c_void) {
+pub unsafe fn vimresume_event() {
     unsafe {
         apply_autocmds(
             EVENT_VIMRESUME,
@@ -3904,13 +3896,7 @@ pub unsafe fn may_trigger_vim_suspend_resume(suspend: bool) {
         } else if !suspend && pending_vimresume == kTrue {
             pending_vimresume = kNone;
             let events = (*loop_queues((&raw mut main_loop).cast::<Loop>())).events;
-            multiqueue_put_event(
-                events,
-                Event {
-                    handler: Some(vimresume_event),
-                    argv: [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC],
-                },
-            );
+            multiqueue_put_event(events, Event::AutoCmdVimResume);
         }
     }
 }

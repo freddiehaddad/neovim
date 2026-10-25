@@ -1,8 +1,8 @@
 //! Event loop wrapper around `uv_loop_t` (`src/nvim/event/loop.c`).
 
 use crate::event::multiqueue::{
-    EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_free, multiqueue_move_events,
-    multiqueue_new, multiqueue_new_child, multiqueue_process_events, multiqueue_purge_events,
+    Event, MultiQueue, multiqueue_free, multiqueue_move_events, multiqueue_new,
+    multiqueue_new_child, multiqueue_process_events, multiqueue_purge_events,
     multiqueue_put_event, multiqueue_size,
 };
 use crate::log::{LOGLVL_ERR, log_uv_handles, logmsg};
@@ -541,7 +541,7 @@ pub unsafe fn loop_closing_ptr(loop_: *mut Loop) -> *mut bool {
     unsafe { &raw mut (*loop_).closing }
 }
 
-pub unsafe fn loop_init(loop_: *mut Loop, _data: *mut c_void) {
+pub unsafe fn loop_init(loop_: *mut Loop) {
     unsafe {
         debug_assert!(uv_loop_size() <= size_of::<[u64; 192]>());
         uv_loop_init((&raw mut (*loop_).uv).cast());
@@ -550,9 +550,9 @@ pub unsafe fn loop_init(loop_: *mut Loop, _data: *mut c_void) {
         *loop_.cast::<*mut Loop>() = loop_;
 
         (*loop_).children.clear();
-        (*loop_).events = multiqueue_new(Some(loop_on_put), loop_.cast());
+        (*loop_).events = multiqueue_new(loop_);
         (*loop_).fast_events = multiqueue_new_child((*loop_).events);
-        (*loop_).thread_events = multiqueue_new(None, ptr::null_mut());
+        (*loop_).thread_events = multiqueue_new(ptr::null_mut());
 
         uv_mutex_init(loop_mutex(loop_));
         uv_async_init(loop_.cast(), loop_async(loop_), Some(async_cb));
@@ -623,31 +623,25 @@ pub unsafe fn loop_schedule_fast(loop_: *mut Loop, event: Event) {
 pub unsafe fn loop_schedule_deferred(loop_: *mut Loop, event: Event) {
     unsafe {
         let eventp = Box::into_raw(Box::new(event));
-        let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
-        argv[0] = loop_.cast();
-        argv[1] = eventp.cast();
         loop_schedule_fast(
             loop_,
-            Event {
-                handler: Some(loop_deferred_event),
-                argv,
+            Event::LoopDeferred {
+                loop_,
+                event: eventp,
             },
         );
     }
 }
 
-unsafe fn loop_deferred_event(argv: *mut *mut c_void) {
+pub unsafe fn loop_deferred_event(loop_: *mut Loop, eventp: *mut Event) {
     unsafe {
-        let loop_ = *argv as *mut Loop;
-        let eventp = (*argv.add(1)).cast::<Event>();
         multiqueue_put_event((*loop_).events, *eventp);
         drop(Box::from_raw(eventp));
     }
 }
 
-pub unsafe fn loop_on_put(_queue: *mut MultiQueue, data: *mut c_void) {
+pub unsafe fn loop_on_put(loop_: *mut Loop) {
     unsafe {
-        let loop_: *mut Loop = data.cast();
         if (*loop_).recursive != 0 {
             uv_stop(loop_.cast());
         }

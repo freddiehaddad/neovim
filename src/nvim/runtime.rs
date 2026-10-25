@@ -31,7 +31,9 @@ use crate::eval::{eval_to_number, get_copyID};
 #[cfg(windows)]
 use crate::ex_docmd::Ctrl_Z;
 use crate::ex_docmd::{do_cmdline, do_cmdline_cmd, do_exedit, exarg_T};
-use crate::ex_eval::{CSTP_FINISH, aborting, cleanup_conditionals, cstack_T, report_make_pending};
+use crate::ex_eval::{
+    CSTP_FINISH, PendingVal, aborting, cleanup_conditionals, cstack_T, report_make_pending,
+};
 use crate::fileio::{EINTR, FILE, O_RDONLY, fclose, fdopen, fgets};
 #[cfg(windows)]
 use crate::fileio::{EOL_DOS, EOL_UNIX, EOL_UNKNOWN};
@@ -3702,7 +3704,7 @@ pub unsafe fn do_finish(eap: *mut exarg_T, reanimate: bool) {
         let idx = cleanup_conditionals(cstack, 0, 1);
         if idx >= 0 {
             (*cstack).cs_pending[idx as usize] = CSTP_FINISH as c_char;
-            report_make_pending(CSTP_FINISH, ptr::null_mut());
+            report_make_pending(CSTP_FINISH, PendingVal::None);
         } else {
             (*sp).finished = true;
         }

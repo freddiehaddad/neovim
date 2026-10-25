@@ -13,8 +13,7 @@ use crate::channel::{CallbackReader, channel_connect, channel_job_start, kChanne
 use crate::eval::typval::Callback;
 use crate::event::r#loop::{loop_poll_events, loop_queues};
 use crate::event::multiqueue::{
-    EVENT_HANDLER_MAX_ARGC, Event, multiqueue_empty, multiqueue_process_events,
-    multiqueue_put_event,
+    Event, multiqueue_empty, multiqueue_process_events, multiqueue_put_event,
 };
 use crate::event::socket::socket_address_tcp_host_end;
 use crate::fileio::close;
@@ -40,7 +39,7 @@ use crate::tui::tui::{
     tui_set_icon, tui_set_title, tui_start, tui_stop, tui_suspend, tui_ui_send, tui_update_menu,
     tui_visual_bell,
 };
-use std::ffi::{c_char, c_int, c_void};
+use std::ffi::{c_char, c_int};
 use std::mem::size_of;
 use std::ptr;
 
@@ -443,23 +442,16 @@ pub unsafe fn ui_client_event_connect(args: Array) {
 
         let s = (*args.items).data.string;
         let server_addr = xmemdupz(s.data.cast(), s.size).cast::<c_char>();
-        let mut argv: [*mut c_void; EVENT_HANDLER_MAX_ARGC] =
-            [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
-        argv[0] = server_addr.cast();
         multiqueue_put_event(
             (*loop_queues((&raw mut main_loop).cast())).fast_events,
-            Event {
-                handler: Some(channel_connect_event),
-                argv,
-            },
+            Event::UiClientConnect(server_addr),
         );
         ui_client_channel_id = u64::MAX;
     }
 }
 
-unsafe fn channel_connect_event(argv: *mut *mut c_void) {
+pub unsafe fn channel_connect_event(server_addr: *mut c_char) {
     unsafe {
-        let server_addr = (*argv).cast::<c_char>();
         let mut err: *const c_char = c"".as_ptr();
         let is_tcp = !socket_address_tcp_host_end(server_addr).is_null();
         let on_data = CallbackReader::none();

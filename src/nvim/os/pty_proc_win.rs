@@ -26,7 +26,7 @@ use std::ffi::{c_int, c_ulong, c_void};
 use std::ptr;
 
 #[cfg(windows)]
-use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event};
+use crate::event::multiqueue::Event;
 #[cfg(windows)]
 use crate::event::proc::{Proc, PtyProc};
 #[cfg(windows)]
@@ -173,15 +173,7 @@ mod win_impl {
     unsafe extern "system" fn pty_proc_terminate_cb(context: *mut c_void, _unused: BOOLEAN) {
         unsafe {
             let proc_: *mut Proc = context.cast();
-            let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
-            argv[0] = context;
-            loop_schedule_fast(
-                (*proc_).loop_,
-                Event {
-                    handler: Some(pty_proc_finish),
-                    argv,
-                },
-            );
+            loop_schedule_fast((*proc_).loop_, Event::PtyProcFinish(proc_));
         }
     }
 
@@ -432,9 +424,8 @@ mod win_impl {
         }
     }
 
-    unsafe fn pty_proc_finish(argv: *mut *mut c_void) {
+    pub unsafe fn pty_proc_finish(ptyproc: *mut PtyProc) {
         unsafe {
-            let ptyproc = *argv as *mut PtyProc;
             let proc_: *mut Proc = ptyproc;
             let hdr = proc_;
             let proc_t = proc_;

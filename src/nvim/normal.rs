@@ -2117,7 +2117,7 @@ unsafe fn normal_finish_command(s: *mut NormalState, frame: *mut CmdFrame) {
         }
 
         checkpcmark();
-        mb_check_adjust_col(curwin.cast());
+        mb_check_adjust_col(curwin);
 
         if (*curwin).w_onebuf_opt.wo_scb != 0 && (*s).toplevel {
             validate_cursor(curwin);

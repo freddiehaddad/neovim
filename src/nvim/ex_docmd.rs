@@ -103,11 +103,11 @@ use crate::ex_cmds2::{
 use crate::ex_eval::{
     CSF_ACTIVE, CSF_CAUGHT, CSF_FINALLY, CSF_FOR, CSF_THROWN, CSF_TRUE, CSF_TRY, CSF_WHILE,
     CSL_HAD_CONT, CSL_HAD_ENDLOOP, CSL_HAD_FINA, CSL_HAD_LOOP, CSTP_ERROR, CSTP_INTERRUPT,
-    CSTP_THROW, ET_ERROR, ET_INTERRUPT, ET_USER, aborting, cleanup_T, cleanup_conditionals,
-    cstack_T, discard_current_exception, do_errthrow, do_intthrow, do_throw, enter_cleanup,
-    ex_break, ex_catch, ex_continue, ex_else, ex_endfunction, ex_endif, ex_endtry, ex_endwhile,
-    ex_eval, ex_finally, ex_if, ex_throw, ex_try, ex_while, except_T, has_loop_cmd, leave_cleanup,
-    msglist_T, report_make_pending, rewind_conditionals,
+    CSTP_THROW, ET_ERROR, ET_INTERRUPT, ET_USER, PendingVal, aborting, cleanup_T,
+    cleanup_conditionals, cstack_T, discard_current_exception, do_errthrow, do_intthrow, do_throw,
+    enter_cleanup, ex_break, ex_catch, ex_continue, ex_else, ex_endfunction, ex_endif, ex_endtry,
+    ex_endwhile, ex_eval, ex_finally, ex_if, ex_throw, ex_try, ex_while, except_T, has_loop_cmd,
+    leave_cleanup, msglist_T, report_make_pending, rewind_conditionals,
 };
 use crate::ex_getln::{
     allbuf_locked, cmdpreview_get_bufnr, cmdpreview_get_ns, curbuf_locked, get_text_locked_msg,
@@ -5254,9 +5254,9 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                     c_int::from(cstack.cs_pending[cstack.cs_idx as usize])
                         & (CSTP_ERROR | CSTP_INTERRUPT | CSTP_THROW),
                     if did_throw {
-                        current_exception.cast()
+                        PendingVal::Throw(current_exception)
                     } else {
-                        ptr::null_mut()
+                        PendingVal::None
                     },
                 );
                 did_emsg = 0;

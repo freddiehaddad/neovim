@@ -140,6 +140,25 @@ pub struct except_T {
     pub stacktrace: *mut list_T,
 }
 
+impl Drop for except_T {
+    fn drop(&mut self) {
+        unsafe {
+            if self.r#type != ET_INTERRUPT {
+                xfree(self.value.cast());
+            }
+            xfree(self.throw_name.cast());
+            tv_list_unref(self.stacktrace);
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub enum PendingVal {
+    None,
+    Return(*mut typval_T),
+    Throw(*mut except_T),
+}
+
 #[repr(C)]
 pub struct cleanup_T {
     pub pending: c_int,
@@ -567,11 +586,6 @@ unsafe fn discard_exception(excp: *mut except_T, was_finished: bool) {
             xstrlcpy(ptr::addr_of_mut!(IObuff).cast(), saved_iobuff, IOSIZE);
             xfree(saved_iobuff.cast());
         }
-        if (*excp).r#type != ET_INTERRUPT {
-            xfree((*excp).value.cast());
-        }
-        xfree((*excp).throw_name.cast());
-        tv_list_unref((*excp).stacktrace);
         drop(Box::from_raw(excp));
     }
 }
@@ -724,10 +738,8 @@ pub unsafe fn exception_state_clear() {
     }
 }
 
-unsafe fn report_pending(action: c_int, pending: c_int, value: *mut c_void) {
+unsafe fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
     unsafe {
-        assert!(!value.is_null() || (pending & CSTP_THROW) == 0);
-
         let mut mesg = match action {
             RP_MAKE => gettext(c"%s made pending".as_ptr()),
             RP_RESUME => gettext(c"%s resumed".as_ptr()),
@@ -739,9 +751,20 @@ unsafe fn report_pending(action: c_int, pending: c_int, value: *mut c_void) {
             CSTP_CONTINUE => c":continue".as_ptr().cast_mut(),
             CSTP_BREAK => c":break".as_ptr().cast_mut(),
             CSTP_FINISH => c":finish".as_ptr().cast_mut(),
-            CSTP_RETURN => get_return_cmd(value),
+            CSTP_RETURN => {
+                let rettv = match value {
+                    PendingVal::Return(tv) => tv,
+                    _ => ptr::null_mut(),
+                };
+                get_return_cmd(rettv)
+            }
             _ => {
                 if (pending & CSTP_THROW) != 0 {
+                    let excp = match value {
+                        PendingVal::Throw(excp) => excp,
+                        _ => ptr::null_mut(),
+                    };
+                    assert!(!excp.is_null());
                     vim_snprintf!(
                         ptr::addr_of_mut!(IObuff).cast(),
                         IOSIZE,
@@ -749,7 +772,7 @@ unsafe fn report_pending(action: c_int, pending: c_int, value: *mut c_void) {
                         gettext(c"Exception".as_ptr()),
                     );
                     mesg = concat_str(ptr::addr_of!(IObuff).cast(), c": %s".as_ptr());
-                    (*(value.cast::<except_T>())).value
+                    (*excp).value
                 } else if (pending & CSTP_ERROR) != 0 && (pending & CSTP_INTERRUPT) != 0 {
                     gettext(c"Error and interrupt".as_ptr())
                 } else if (pending & CSTP_ERROR) != 0 {
@@ -782,7 +805,7 @@ unsafe fn report_pending(action: c_int, pending: c_int, value: *mut c_void) {
     }
 }
 
-pub unsafe fn report_make_pending(pending: c_int, value: *mut c_void) {
+pub unsafe fn report_make_pending(pending: c_int, value: PendingVal) {
     unsafe {
         if p_verbose >= 14 || debug_break_level > 0 {
             if debug_break_level <= 0 {
@@ -796,7 +819,7 @@ pub unsafe fn report_make_pending(pending: c_int, value: *mut c_void) {
     }
 }
 
-unsafe fn report_resume_pending(pending: c_int, value: *mut c_void) {
+unsafe fn report_resume_pending(pending: c_int, value: PendingVal) {
     unsafe {
         if p_verbose >= 14 || debug_break_level > 0 {
             if debug_break_level <= 0 {
@@ -810,7 +833,7 @@ unsafe fn report_resume_pending(pending: c_int, value: *mut c_void) {
     }
 }
 
-unsafe fn report_discard_pending(pending: c_int, value: *mut c_void) {
+unsafe fn report_discard_pending(pending: c_int, value: PendingVal) {
     unsafe {
         if p_verbose >= 14 || debug_break_level > 0 {
             if debug_break_level <= 0 {
@@ -1027,7 +1050,7 @@ pub unsafe fn ex_continue(eap: *mut exarg_T) {
                 (*cstack).cs_lflags |= CSL_HAD_CONT;
             } else {
                 (*cstack).cs_pending[idx as usize] = CSTP_CONTINUE as c_char;
-                report_make_pending(CSTP_CONTINUE, ptr::null_mut());
+                report_make_pending(CSTP_CONTINUE, PendingVal::None);
             }
         }
     }
@@ -1043,7 +1066,7 @@ pub unsafe fn ex_break(eap: *mut exarg_T) {
             let idx = cleanup_conditionals(cstack, CSF_WHILE | CSF_FOR, 1);
             if idx >= 0 && ((*cstack).cs_flags[idx as usize] & (CSF_WHILE | CSF_FOR)) == 0 {
                 (*cstack).cs_pending[idx as usize] = CSTP_BREAK as c_char;
-                report_make_pending(CSTP_BREAK, ptr::null_mut());
+                report_make_pending(CSTP_BREAK, PendingVal::None);
             }
         }
     }
@@ -1330,7 +1353,10 @@ pub unsafe fn ex_finally(eap: *mut exarg_T) {
             let cur_idx = (*cstack).cs_idx as usize;
             if pending == CSTP_ERROR || did_emsg != 0 || got_int || did_throw {
                 if c_int::from((*cstack).cs_pending[cur_idx]) == CSTP_RETURN {
-                    report_discard_pending(CSTP_RETURN, (*cstack).cs_rettv[cur_idx].cast());
+                    report_discard_pending(
+                        CSTP_RETURN,
+                        PendingVal::Return((*cstack).cs_rettv[cur_idx]),
+                    );
                     discard_pending_return((*cstack).cs_rettv[cur_idx]);
                 }
                 if (pending == CSTP_ERROR && did_emsg == 0) || did_throw {
@@ -1358,7 +1384,7 @@ pub unsafe fn ex_endtry(eap: *mut exarg_T) {
     unsafe {
         let mut rethrow = false;
         let mut pending: c_int = CSTP_NONE;
-        let mut rettv: *mut c_void = ptr::null_mut();
+        let mut rettv: *mut typval_T = ptr::null_mut();
         let cstack = (*eap).cstack.cast::<cstack_T>();
 
         let mut idx = (*cstack).cs_idx;
@@ -1420,7 +1446,7 @@ pub unsafe fn ex_endtry(eap: *mut exarg_T) {
             pending = c_int::from((*cstack).cs_pending[u_idx]);
             (*cstack).cs_pending[u_idx] = CSTP_NONE as c_char;
             if pending == CSTP_RETURN {
-                rettv = (*cstack).cs_rettv[u_idx].cast();
+                rettv = (*cstack).cs_rettv[u_idx];
             } else if (pending & CSTP_THROW) != 0 {
                 current_exception = (*cstack).cs_exception[u_idx];
             }
@@ -1435,11 +1461,11 @@ pub unsafe fn ex_endtry(eap: *mut exarg_T) {
 
         if !skip {
             let report_val = if pending == CSTP_RETURN {
-                rettv
+                PendingVal::Return(rettv)
             } else if (pending & CSTP_THROW) != 0 {
-                current_exception.cast()
+                PendingVal::Throw(current_exception)
             } else {
-                ptr::null_mut()
+                PendingVal::None
             };
             report_resume_pending(pending, report_val);
             match pending {
@@ -1498,7 +1524,7 @@ pub unsafe fn enter_cleanup(csp: *mut cleanup_T) {
             did_throw = false;
             need_rethrow = false;
 
-            report_make_pending(pending, (*csp).exception.cast());
+            report_make_pending(pending, PendingVal::Throw((*csp).exception));
         } else {
             (*csp).pending = CSTP_NONE;
             (*csp).exception = ptr::null_mut();
@@ -1517,7 +1543,7 @@ pub unsafe fn leave_cleanup(csp: *mut cleanup_T) {
             if (pending & CSTP_THROW) != 0 {
                 discard_exception((*csp).exception, false);
             } else {
-                report_discard_pending(pending, ptr::null_mut());
+                report_discard_pending(pending, PendingVal::None);
             }
 
             if !msg_list.is_null() {
@@ -1544,9 +1570,9 @@ pub unsafe fn leave_cleanup(csp: *mut cleanup_T) {
             report_resume_pending(
                 pending,
                 if (pending & CSTP_THROW) != 0 {
-                    current_exception.cast()
+                    PendingVal::Throw(current_exception)
                 } else {
-                    ptr::null_mut()
+                    PendingVal::None
                 },
             );
         }
@@ -1570,11 +1596,14 @@ pub unsafe fn cleanup_conditionals(
                     match pend {
                         CSTP_NONE => {}
                         CSTP_CONTINUE | CSTP_BREAK | CSTP_FINISH => {
-                            report_discard_pending(pend, ptr::null_mut());
+                            report_discard_pending(pend, PendingVal::None);
                             (*cstack).cs_pending[u_idx] = CSTP_NONE as c_char;
                         }
                         CSTP_RETURN => {
-                            report_discard_pending(CSTP_RETURN, (*cstack).cs_rettv[u_idx].cast());
+                            report_discard_pending(
+                                CSTP_RETURN,
+                                PendingVal::Return((*cstack).cs_rettv[u_idx]),
+                            );
                             discard_pending_return((*cstack).cs_rettv[u_idx]);
                             (*cstack).cs_pending[u_idx] = CSTP_NONE as c_char;
                         }
@@ -1585,7 +1614,7 @@ pub unsafe fn cleanup_conditionals(
                                 {
                                     discard_exception((*cstack).cs_exception[u_idx], false);
                                 } else {
-                                    report_discard_pending(pend, ptr::null_mut());
+                                    report_discard_pending(pend, PendingVal::None);
                                 }
                                 (*cstack).cs_pending[u_idx] = CSTP_NONE as c_char;
                             }

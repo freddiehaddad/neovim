@@ -7,8 +7,7 @@ use crate::autocmd::{
 use crate::eval::vars::{VV_USERACTIVE, set_vim_var_nr};
 use crate::event::r#loop::{loop_poll_events, main_loop_events, main_loop_ptr, uv_guess_handle};
 use crate::event::multiqueue::{
-    EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_empty, multiqueue_process_events,
-    multiqueue_put_event,
+    Event, MultiQueue, multiqueue_empty, multiqueue_process_events, multiqueue_put_event,
 };
 use crate::globals::*;
 use crate::input::{before_blocking, typebuf_changed};
@@ -25,7 +24,7 @@ use crate::option_vars::*;
 use crate::os::time::{os_hrtime, os_realtime};
 use crate::profile::{prof_input_end, prof_input_start};
 use crate::state::{MODE_INSERT, MODE_MAX_LENGTH, get_mode, get_real_state};
-use std::ffi::{c_char, c_int, c_uint, c_void};
+use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
 
 use crate::eval::typval::varnumber_T;
@@ -134,7 +133,7 @@ unsafe fn parse_mouse_coords(s: *const c_char) -> Option<(c_int, c_int, usize)> 
 
 use crate::event::stream::UV_TTY;
 
-unsafe fn cursorhold_event(_argv: *mut *mut c_void) {
+pub unsafe fn cursorhold_event() {
     unsafe {
         let event = if (State & MODE_INSERT) != 0 {
             EVENT_CURSORHOLDI
@@ -150,15 +149,7 @@ unsafe fn create_cursorhold_event(events_enabled: bool) {
     unsafe {
         let events = main_loop_events();
         debug_assert!(!events_enabled || multiqueue_empty(events));
-        let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
-        multiqueue_put_event(
-            events,
-            Event {
-                handler: Some(cursorhold_event),
-                argv,
-            },
-        );
-        let _ = &mut argv;
+        multiqueue_put_event(events, Event::CursorHold);
     }
 }
 

@@ -11,14 +11,13 @@ use crate::event::r#loop::{
     NS_PER_SEC, loop_poll_events, loop_queues, main_loop_ptr, uv_err_name, uv_strerror,
 };
 use crate::event::multiqueue::{
-    EVENT_HANDLER_MAX_ARGC, Event, multiqueue_empty, multiqueue_free, multiqueue_new_child,
-    multiqueue_put_event,
+    Event, multiqueue_empty, multiqueue_free, multiqueue_new_child, multiqueue_put_event,
 };
 use crate::event::proc::{LibuvProc, Proc, proc_spawn, proc_stop, proc_wait};
 use crate::event::rstream::{RStream, rstream_init, rstream_start, stream_read_cb};
 use crate::event::stream::{Stream, StreamCbData, stream_may_close};
 use crate::event::wstream::{
-    wstream_init, wstream_new_buffer, wstream_set_write_cb, wstream_write,
+    WBufferFinalizer, wstream_init, wstream_new_buffer, wstream_set_write_cb, wstream_write,
 };
 use crate::ex_cmds::{check_secure, kShellOptRead, kShellOptWrite, make_filter_cmd};
 use crate::ex_docmd::CAR;
@@ -63,7 +62,7 @@ use crate::strings::{
 use crate::strings::{strcat, strcpy, strstr, vim_strchr};
 use crate::tag::tag_freematch;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush, ui_has};
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::autocmd::PROF_YES;
@@ -931,7 +930,8 @@ unsafe fn do_os_system(
             rstream_start(r_err, data_cb, StreamCbData::Buf(&raw mut buf));
 
             if has_input {
-                let input_buffer = wstream_new_buffer(input.cast_mut(), len, 1, None);
+                let input_buffer =
+                    wstream_new_buffer(input.cast_mut(), len, 1, WBufferFinalizer::None);
                 if wstream_write(s_in, input_buffer) != 0 {
                     proc_stop(proc_);
                     break 'end;
@@ -1091,10 +1091,9 @@ unsafe fn out_data_ring(output: *const c_char, size: usize) {
     }
 }
 
-unsafe fn out_data_event(argv: *mut *mut c_void) {
+pub unsafe fn out_data_event(str_copy: *mut c_char, count: usize, fd: c_int) {
     unsafe {
         let mut need_clear = true;
-        let fd = (*argv.add(2) as isize) as c_int;
         let hl = if fd == STDERR_FILENO { HLF_SE } else { HLF_SO };
         msg_ext_set_kind(if fd == STDERR_FILENO {
             c"shell_err".as_ptr()
@@ -1104,11 +1103,11 @@ unsafe fn out_data_event(argv: *mut *mut c_void) {
         msg_ext_set_append(true);
         msg_ext_no_fast();
         let str_arg = NvimString {
-            data: (*argv).cast(),
-            size: *argv.add(1) as usize,
+            data: str_copy,
+            size: count,
         };
         msg_multiline(str_arg, hl, false, false, &raw mut need_clear);
-        xfree(*argv);
+        xfree(str_copy.cast());
         ui_flush();
     }
 }
@@ -1141,21 +1140,18 @@ unsafe fn out_data_append_to_screen(
         }
 
         let str_copy: *mut c_char = xmemdupz(output.cast(), *count).cast();
-        let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
-        argv[0] = str_copy.cast();
-        argv[1] = (*count) as *mut c_void;
-        argv[2] = (fd as isize) as *mut c_void;
         if ui_has(kUIMessages) {
             let qc = loop_queues(main_loop_ptr());
             multiqueue_put_event(
                 (*qc).fast_events,
-                Event {
-                    handler: Some(out_data_event),
-                    argv,
+                Event::ShellOutData {
+                    str_copy,
+                    count: *count,
+                    fd,
                 },
             );
         } else {
-            out_data_event(argv.as_mut_ptr());
+            out_data_event(str_copy, *count, fd);
         }
     }
 }

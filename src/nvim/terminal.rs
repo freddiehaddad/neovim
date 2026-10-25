@@ -41,8 +41,8 @@ use crate::eval::vars::{VV_TERMREQUEST, get_globvar_dict, set_vim_var_string};
 use crate::eval::{eval_call_provider, get_v_event, kListLenMayKnow, restore_v_event};
 use crate::event::r#loop::loop_queues;
 use crate::event::multiqueue::{
-    EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_free, multiqueue_move_events,
-    multiqueue_new, multiqueue_new_child, multiqueue_process_events, multiqueue_put_event,
+    Event, MultiQueue, multiqueue_free, multiqueue_move_events, multiqueue_new,
+    multiqueue_new_child, multiqueue_process_events, multiqueue_put_event,
 };
 use crate::event::time::{
     TimeWatcher, time_watcher_close, time_watcher_init, time_watcher_start, time_watcher_stop,
@@ -391,37 +391,46 @@ const fn cstr_slice_as_string(bytes: &'static [u8]) -> NvimString {
     }
 }
 
-unsafe fn emit_termrequest(argv: *mut *mut c_void) {
+pub struct TermRequestEvent {
+    pub buf_handle: handle_T,
+    pub sequence: *mut c_char,
+    pub sequence_length: usize,
+    pub pending_send: *mut Vec<c_char>,
+    pub row: c_int,
+    pub col: c_int,
+    pub sb_deleted: usize,
+    pub terminator: VTermTerminator,
+}
+
+impl Drop for TermRequestEvent {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.sequence.cast::<c_void>());
+        }
+    }
+}
+
+pub unsafe fn emit_termrequest(req: *mut TermRequestEvent) {
     unsafe {
-        let buf_handle = (*argv.add(0) as isize) as handle_T;
-        let sequence = (*argv.add(1)).cast::<c_char>();
-        let sequence_length = *argv.add(2) as usize;
-        let pending_send = (*argv.add(3)).cast::<Vec<c_char>>();
-        let row = (*argv.add(4) as isize) as c_int;
-        let col = (*argv.add(5) as isize) as c_int;
-        let sb_deleted = *argv.add(6) as usize;
-        let terminator = (*argv.add(7) as isize) as VTermTerminator;
+        let buf_handle = (*req).buf_handle;
+        let sequence = (*req).sequence;
+        let sequence_length = (*req).sequence_length;
+        let pending_send = (*req).pending_send;
+        let row = (*req).row;
+        let col = (*req).col;
+        let sb_deleted = (*req).sb_deleted;
+        let terminator = (*req).terminator;
 
         let buf = handle_get_buffer(buf_handle);
         if buf.is_null() || (*buf).terminal.is_null() {
-            xfree(sequence.cast::<c_void>());
             drop(Box::from_raw(pending_send));
+            drop(Box::from_raw(req));
             return;
         }
         let term = (*buf).terminal.cast::<Terminal>();
 
         if (*term).sb_pending > 0 {
-            let mut ev_argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
-            for (i, slot) in ev_argv.iter_mut().enumerate().take(8) {
-                *slot = *argv.add(i);
-            }
-            multiqueue_put_event(
-                (*term).pending.events,
-                Event {
-                    handler: Some(emit_termrequest),
-                    argv: ev_argv,
-                },
-            );
+            multiqueue_put_event((*term).pending.events, Event::TermRequest(req));
             return;
         }
 
@@ -488,7 +497,7 @@ unsafe fn emit_termrequest(argv: *mut *mut c_void) {
             false,
         );
         (*term).refcount -= 1;
-        xfree(sequence.cast::<c_void>());
+        drop(Box::from_raw(req));
 
         let term_pending_send = (*term).pending.send;
         (*term).pending.send = ptr::null_mut();
@@ -515,25 +524,24 @@ unsafe fn schedule_termrequest(term: *mut Terminal) {
         (*term).pending.send = Box::into_raw(Box::new(Vec::new()));
 
         let line = row_to_linenr(term, (*term).cursor.row);
-        let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
-        argv[0] = ((*term).buf_handle as isize) as *mut c_void;
-        argv[1] = xmemdup(
-            (*term).termrequest_buffer.as_ptr().cast::<c_void>(),
-            (*term).termrequest_buffer.len(),
-        );
-        argv[2] = (*term).termrequest_buffer.len() as *mut c_void;
-        argv[3] = (*term).pending.send.cast::<c_void>();
-        argv[4] = (line as isize) as *mut c_void;
-        argv[5] = ((*term).cursor.col as isize) as *mut c_void;
-        argv[6] = (*term).sb_deleted as *mut c_void;
-        argv[7] = ((*term).termrequest_terminator as isize) as *mut c_void;
+        let req = Box::into_raw(Box::new(TermRequestEvent {
+            buf_handle: (*term).buf_handle,
+            sequence: xmemdup(
+                (*term).termrequest_buffer.as_ptr().cast::<c_void>(),
+                (*term).termrequest_buffer.len(),
+            )
+            .cast::<c_char>(),
+            sequence_length: (*term).termrequest_buffer.len(),
+            pending_send: (*term).pending.send,
+            row: line,
+            col: (*term).cursor.col,
+            sb_deleted: (*term).sb_deleted,
+            terminator: (*term).termrequest_terminator,
+        }));
 
         multiqueue_put_event(
             (*loop_queues((&raw mut main_loop).cast())).events,
-            Event {
-                handler: Some(emit_termrequest),
-                argv,
-            },
+            Event::TermRequest(req),
         );
     }
 }
@@ -808,7 +816,7 @@ pub unsafe fn terminal_alloc(buf: *mut buf_T, mut opts: TerminalOptions) -> *mut
         (*term).invalid_start = 0;
         (*term).invalid_end = c_int::from(opts.height);
 
-        (*term).pending.events = multiqueue_new(None, ptr::null_mut());
+        (*term).pending.events = multiqueue_new(ptr::null_mut());
 
         if ((*buf).b_ml.ml_flags & ML_EMPTY) == 0 {
             let line_count = (*buf).b_ml.ml_line_count;
@@ -1012,9 +1020,8 @@ pub unsafe fn terminal_close(termpp: *mut *mut Terminal, status: c_int) {
     }
 }
 
-unsafe fn terminal_state_change_event(argv: *mut *mut c_void) {
+pub unsafe fn terminal_state_change_event(buf_handle: handle_T) {
     unsafe {
-        let buf_handle = (*argv as isize) as handle_T;
         let buf = handle_get_buffer(buf_handle);
         if !buf.is_null() && !(*buf).terminal.is_null() {
             redraw_buf_line_later(buf, (*buf).b_ml.ml_line_count, false);
@@ -1025,14 +1032,9 @@ unsafe fn terminal_state_change_event(argv: *mut *mut c_void) {
 pub unsafe fn terminal_set_state(term: *mut Terminal, suspended: bool) {
     unsafe {
         if (*term).suspended != suspended {
-            let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
-            argv[0] = ((*term).buf_handle as isize) as *mut c_void;
             multiqueue_put_event(
                 (*refresh_timer_ptr()).events,
-                Event {
-                    handler: Some(terminal_state_change_event),
-                    argv,
-                },
+                Event::TermStateChange((*term).buf_handle),
             );
         }
         (*term).suspended = suspended;
@@ -1596,12 +1598,11 @@ unsafe fn terminal_send_key(term: *mut Terminal, mut c: c_int) {
     }
 }
 
-unsafe fn on_sync_flush(argv: *mut *mut c_void) {
+pub unsafe fn on_sync_flush(buf_handle: handle_T) {
     unsafe {
         if exiting {
             return;
         }
-        let buf_handle = (*argv as isize) as handle_T;
         let buf = handle_get_buffer(buf_handle);
         if buf.is_null() || (*buf).terminal.is_null() {
             return;
@@ -1639,14 +1640,9 @@ pub unsafe fn terminal_receive(term: *mut Terminal, data: *const c_char, len: us
             vterm_get_size((*term).vt, &mut height, ptr::null_mut());
             (*term).invalid_start = 0;
             (*term).invalid_end = height;
-            let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
-            argv[0] = ((*term).buf_handle as isize) as *mut c_void;
             multiqueue_put_event(
                 (*loop_queues((&raw mut main_loop).cast())).events,
-                Event {
-                    handler: Some(on_sync_flush),
-                    argv,
-                },
+                Event::TermSyncFlush((*term).buf_handle),
             );
         }
     }
@@ -2049,11 +2045,8 @@ unsafe fn term_sb_clear(term: *mut Terminal) -> c_int {
     }
 }
 
-unsafe fn term_clipboard_set(argv: *mut *mut c_void) {
+pub unsafe fn term_clipboard_set(mask: VTermSelectionMask, data: *mut c_char) {
     unsafe {
-        let mask = (*argv.add(0) as isize) as VTermSelectionMask;
-        let data = (*argv.add(1)).cast::<c_char>();
-
         let regname: c_char = match mask as u16 {
             VTERM_SELECTION_CLIPBOARD => b'+' as c_char,
             VTERM_SELECTION_PRIMARY => b'*' as c_char,
@@ -2109,16 +2102,11 @@ unsafe fn term_selection_set(
             let data = xmemdupz(
                 (*term).selection.as_ptr().cast::<c_void>(),
                 (*term).selection.len(),
-            );
-            let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
-            argv[0] = (mask as isize) as *mut c_void;
-            argv[1] = data;
+            )
+            .cast::<c_char>();
             multiqueue_put_event(
                 (*loop_queues((&raw mut main_loop).cast())).events,
-                Event {
-                    handler: Some(term_clipboard_set),
-                    argv,
-                },
+                Event::TermClipboardSet { mask, data },
             );
         }
 
@@ -2731,7 +2719,7 @@ unsafe fn adjust_topline_cursor(term: *mut Terminal, buf: *mut buf_T, added: c_i
                     } else {
                         (*wp).w_cursor.lnum = (*wp).w_cursor.lnum.min(ml_end);
                     }
-                    mb_check_adjust_col(wp.cast());
+                    mb_check_adjust_col(wp);
                 }
                 wp = (*wp).w_next;
             }

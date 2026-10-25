@@ -26,9 +26,7 @@ use crate::buffer::resettitle;
 use crate::cursor_shape::{cursor_get_mode_idx, cursorentry_T, mode_style_array, shape_table};
 use crate::drawscreen::{DEFAULT_GRID_HANDLE, conceal_check_cursor_line, screen_resize};
 use crate::event::r#loop::uv_cwd;
-use crate::event::multiqueue::{
-    EVENT_HANDLER_MAX_ARGC, Event, multiqueue_free, multiqueue_put_event,
-};
+use crate::event::multiqueue::{Event, multiqueue_free, multiqueue_put_event};
 use crate::ex_getln::cmdline_ui_flush;
 use crate::globals::*;
 use crate::grid::{ScreenGrid, get_win_by_grid_handle, sattr_T, schar_T};
@@ -53,7 +51,7 @@ use crate::ui_compositor::{
 };
 use crate::window::{win_set_inner_size, win_ui_flush};
 use crate::winfloat::win_config_float;
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 const MAX_UI_COUNT: usize = 16;
@@ -312,7 +310,7 @@ pub unsafe fn ui_pum_get_pos(
     }
 }
 
-unsafe fn ui_refresh_event(_argv: *mut *mut c_void) {
+pub unsafe fn ui_refresh_event() {
     unsafe {
         ui_refresh();
     }
@@ -320,13 +318,7 @@ unsafe fn ui_refresh_event(_argv: *mut *mut c_void) {
 
 pub unsafe fn ui_schedule_refresh() {
     unsafe {
-        multiqueue_put_event(
-            resize_events,
-            Event {
-                handler: Some(ui_refresh_event),
-                argv: [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC],
-            },
-        );
+        multiqueue_put_event(resize_events, Event::UiRefresh);
     }
 }
 
