@@ -43,7 +43,7 @@ use crate::fileio::{
     READ_BUFFER, READ_DUMMY, READ_FIFO, READ_NEW, READ_NOFILE, READ_NOWINENTER, READ_STDIN,
     buf_check_timestamp, file_pat_to_reg_pat, prep_exarg, readfile, shorten_fnames,
 };
-use crate::fold::{clearFolding, cloneFoldGrowArray, deleteFoldRecurse, foldUpdateAll};
+use crate::fold::{clearFolding, foldUpdateAll};
 use crate::fuzzy::{
     FUZZY_SCORE_NONE, fuzmatch_str_T, fuzzy_match_str, fuzzymatches_slice_to_strmatches,
 };
@@ -2979,7 +2979,7 @@ pub unsafe fn free_buf_options(buf: *mut buf_T, free_p_ff: bool) {
         callback_free(&raw mut (*buf).b_p_cfu);
         callback_free(&raw mut (*buf).b_p_ofu);
         callback_free(&raw mut (*buf).b_p_tsrfu);
-        clear_cpt_callbacks(&raw mut (*buf).b_p_cpt_cb);
+        clear_cpt_callbacks(&mut (*buf).b_p_cpt_cb);
         clear_string_option(&raw mut (*buf).b_p_gefm);
         clear_string_option(&raw mut (*buf).b_p_gp);
         clear_string_option(&raw mut (*buf).b_p_mp);
@@ -3473,7 +3473,7 @@ pub unsafe fn buflist_setfpos(
             let mut wip = (*buf).b_wininfo.remove(i);
             if copy_options && wip.wi_optset {
                 clear_winopt(&raw mut wip.wi_opt);
-                deleteFoldRecurse(buf, &raw mut wip.wi_folds);
+                wip.wi_folds.clear();
                 wip.wi_optset = false;
             }
             wip
@@ -3498,7 +3498,7 @@ pub unsafe fn buflist_setfpos(
         if copy_options && !win.is_null() {
             copy_winopt(&raw mut (*win).w_onebuf_opt, &raw mut wip.wi_opt);
             wip.wi_fold_manual = (*win).w_fold_manual;
-            cloneFoldGrowArray(&raw mut (*win).w_folds, &raw mut wip.wi_folds);
+            wip.wi_folds.clone_from(&(*win).w_folds);
             wip.wi_optset = true;
         }
 
@@ -3572,7 +3572,7 @@ pub unsafe fn get_winopts(buf: *mut buf_T) {
             copy_winopt(&raw mut (*wp).w_onebuf_opt, &raw mut (*curwin).w_onebuf_opt);
             (*curwin).w_fold_manual = (*wp).w_fold_manual;
             (*curwin).w_foldinvalid = true;
-            cloneFoldGrowArray(&raw mut (*wp).w_folds, &raw mut (*curwin).w_folds);
+            (*curwin).w_folds.clone_from(&(*wp).w_folds);
         } else if !wip.is_null()
             && (*wip).wi_optset
             && ((*wip).wi_win.is_null()
@@ -3582,7 +3582,7 @@ pub unsafe fn get_winopts(buf: *mut buf_T) {
             copy_winopt(&raw mut (*wip).wi_opt, &raw mut (*curwin).w_onebuf_opt);
             (*curwin).w_fold_manual = (*wip).wi_fold_manual;
             (*curwin).w_foldinvalid = true;
-            cloneFoldGrowArray(&raw mut (*wip).wi_folds, &raw mut (*curwin).w_folds);
+            (*curwin).w_folds.clone_from(&(*wip).wi_folds);
         } else {
             copy_winopt(
                 &raw mut (*curwin).w_allbuf_opt,

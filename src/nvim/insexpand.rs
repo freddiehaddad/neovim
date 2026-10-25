@@ -3086,13 +3086,8 @@ unsafe fn get_cpt_sources_count(cpt: *mut c_char) -> c_int {
     }
 }
 
-pub unsafe fn clear_cpt_callbacks(callbacks: *mut Vec<Callback>) {
+pub unsafe fn clear_cpt_callbacks(callbacks: &mut Vec<Callback>) {
     unsafe {
-        if callbacks.is_null() {
-            return;
-        }
-
-        let callbacks = &mut *callbacks;
         for cb in callbacks.iter_mut() {
             callback_free(cb);
         }
@@ -3100,16 +3095,14 @@ pub unsafe fn clear_cpt_callbacks(callbacks: *mut Vec<Callback>) {
     }
 }
 
-unsafe fn copy_cpt_callbacks(dest: *mut Vec<Callback>, src: *mut Vec<Callback>) {
+unsafe fn copy_cpt_callbacks(dest: &mut Vec<Callback>, src: &mut [Callback]) {
     unsafe {
         clear_cpt_callbacks(dest);
 
-        let src = &mut *src;
         if src.is_empty() {
             return;
         }
 
-        let dest = &mut *dest;
         dest.resize(src.len(), Callback::new());
 
         for (dst_cb, src_cb) in dest.iter_mut().zip(src.iter_mut()) {
@@ -3125,11 +3118,12 @@ pub unsafe fn set_buflocal_cpt_callbacks(buf: *mut buf_T) {
         if buf.is_null() {
             return;
         }
-        copy_cpt_callbacks(&raw mut (*buf).b_p_cpt_cb, &raw mut cpt_cb);
+        let global_cb = &raw mut cpt_cb;
+        copy_cpt_callbacks(&mut (*buf).b_p_cpt_cb, &mut *global_cb);
     }
 }
 
-unsafe fn parse_cpt_callbacks(cpt: *mut c_char, cbp: *mut Vec<Callback>) {
+unsafe fn parse_cpt_callbacks(cpt: *mut c_char, cbp: &mut Vec<Callback>) {
     unsafe {
         clear_cpt_callbacks(cbp);
 
@@ -3138,7 +3132,6 @@ unsafe fn parse_cpt_callbacks(cpt: *mut c_char, cbp: *mut Vec<Callback>) {
             return;
         }
 
-        let cbp = &mut *cbp;
         cbp.resize(count as usize, Callback::new());
 
         let mut buf: [c_char; LSIZE] = [0; LSIZE];
@@ -3174,31 +3167,28 @@ pub unsafe fn set_cpt_callbacks(args: *mut optset_T) -> c_int {
         }
 
         if (opt_flags & OPT_GLOBAL) == 0 {
-            parse_cpt_callbacks((*curbuf).b_p_cpt, &raw mut (*curbuf).b_p_cpt_cb);
+            parse_cpt_callbacks((*curbuf).b_p_cpt, &mut (*curbuf).b_p_cpt_cb);
         }
 
         if (opt_flags & OPT_LOCAL) != 0 {
             return OK;
         }
 
+        let global_cb = &raw mut cpt_cb;
         if (opt_flags & OPT_GLOBAL) != 0 {
-            parse_cpt_callbacks(p_cpt, &raw mut cpt_cb);
+            parse_cpt_callbacks(p_cpt, &mut *global_cb);
             return OK;
         }
 
-        copy_cpt_callbacks(&raw mut cpt_cb, &raw mut (*curbuf).b_p_cpt_cb);
+        copy_cpt_callbacks(&mut *global_cb, &mut (*curbuf).b_p_cpt_cb);
         OK
     }
 }
 
-pub unsafe fn set_ref_in_cpt_callbacks(callbacks: *mut Vec<Callback>, copyID: c_int) -> bool {
+pub unsafe fn set_ref_in_cpt_callbacks(callbacks: &mut [Callback], copyID: c_int) -> bool {
     unsafe {
-        if callbacks.is_null() {
-            return false;
-        }
-
         let mut abort = false;
-        for cb in &mut *callbacks {
+        for cb in callbacks {
             abort = abort || set_ref_in_callback(cb, copyID, ptr::null_mut(), ptr::null_mut());
         }
         abort
@@ -3213,7 +3203,8 @@ pub unsafe fn set_ref_in_insexpand_funcs(copyID: c_int) -> bool {
             abort || set_ref_in_callback(&raw mut p_ofu, copyID, ptr::null_mut(), ptr::null_mut());
         abort = abort
             || set_ref_in_callback(&raw mut p_tsrfu, copyID, ptr::null_mut(), ptr::null_mut());
-        abort = abort || set_ref_in_cpt_callbacks(&raw mut cpt_cb, copyID);
+        let global_cb = &raw mut cpt_cb;
+        abort = abort || set_ref_in_cpt_callbacks(&mut *global_cb, copyID);
         abort
     }
 }
@@ -6676,7 +6667,8 @@ pub unsafe fn free_insexpand_stuff() {
         callback_free(&raw mut p_cfu);
         callback_free(&raw mut p_ofu);
         callback_free(&raw mut p_tsrfu);
-        clear_cpt_callbacks(&raw mut cpt_cb);
+        let global_cb = &raw mut cpt_cb;
+        clear_cpt_callbacks(&mut *global_cb);
     }
 }
 

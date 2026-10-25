@@ -32,8 +32,8 @@ use crate::profile::{profile_passed_limit, profile_setlimit, proftime_T};
 use crate::spell::{
     MAXWLEN, WF_ALLCAP, WF_BANNED, WF_CAPMASK, WF_KEEPCAP, WF_NEEDCOMP, WF_ONECAP, WF_RARE,
     WF_RAREPFX, WF_REGION, allcap_copy, byte_in_str, can_compound, captype, check_need_cap,
-    langp_entry, make_case_word, match_checkcompoundpattern, match_compoundrule, nofold_len,
-    parse_spelllang, repl_from, repl_to, spell_casefold, spell_check, spell_isupper, spell_iswordp,
+    make_case_word, match_checkcompoundpattern, match_compoundrule, nofold_len, parse_spelllang,
+    repl_from, repl_to, spell_casefold, spell_check, spell_isupper, spell_iswordp,
     spell_iswordp_nmw, spell_move_to, spell_soundfold, spell_tofold, spell_valid_case,
     valid_word_prefix,
 };
@@ -411,10 +411,6 @@ unsafe fn mb_cptr_back(s: *const c_char, p: &mut *const c_char) {
 unsafe fn was_banned(su: *mut suginfo_T, word: *const c_char) -> bool {
     unsafe { (*su).su_banned.contains(std::ffi::CStr::from_ptr(word).to_bytes()) }
 }
-#[inline]
-unsafe fn sug_at(ga: *const Vec<suggest_T>, i: usize) -> *mut suggest_T {
-    unsafe { (*ga).as_ptr().cast_mut().add(i) }
-}
 
 unsafe fn can_be_compound(
     sp: *const trystate_T,
@@ -623,34 +619,33 @@ unsafe fn select_spell_suggestion(sug: *mut suginfo_T) {
             vval: TypvalVval { v_number: 0 },
         };
         tv_list_alloc_ret(&raw mut items_tv, (*sug).su_ga.len() as isize);
-        for i in 0..(*sug).su_ga.len() {
-            let stp = sug_at(&raw const (*sug).su_ga, i);
+        for stp in &(*sug).su_ga {
             let d = tv_dict_alloc();
-            let el = (*sug).su_badlen - (*stp).st_orglen;
+            let el = (*sug).su_badlen - stp.st_orglen;
             if el > 0 {
-                let word = xmallocz(((*stp).st_wordlen + el) as usize).cast::<c_char>();
-                ptr::copy_nonoverlapping((*stp).st_word, word, (*stp).st_wordlen as usize);
+                let word = xmallocz((stp.st_wordlen + el) as usize).cast::<c_char>();
+                ptr::copy_nonoverlapping(stp.st_word, word, stp.st_wordlen as usize);
                 ptr::copy_nonoverlapping(
-                    (*sug).su_badptr.add((*stp).st_orglen as usize),
-                    word.add((*stp).st_wordlen as usize),
+                    (*sug).su_badptr.add(stp.st_orglen as usize),
+                    word.add(stp.st_wordlen as usize),
                     el as usize,
                 );
                 tv_dict_add_allocated_str(d, c"word".as_ptr(), 4, word);
             } else {
-                tv_dict_add_str(d, c"word".as_ptr(), 4, (*stp).st_word);
+                tv_dict_add_str(d, c"word".as_ptr(), 4, stp.st_word);
             }
-            if (*sug).su_badlen < (*stp).st_orglen {
-                let extra = xstrnsave((*sug).su_badptr, (*stp).st_orglen as usize);
+            if (*sug).su_badlen < stp.st_orglen {
+                let extra = xstrnsave((*sug).su_badptr, stp.st_orglen as usize);
                 tv_dict_add_allocated_str(d, c"extra".as_ptr(), 5, extra);
             }
-            tv_dict_add_nr(d, c"score".as_ptr(), 5, (*stp).st_score as i64);
+            tv_dict_add_nr(d, c"score".as_ptr(), 5, stp.st_score as i64);
             if (sps_flags & (SPS_DOUBLE | SPS_BEST)) != 0 {
-                tv_dict_add_nr(d, c"altscore".as_ptr(), 8, (*stp).st_altscore as i64);
+                tv_dict_add_nr(d, c"altscore".as_ptr(), 8, stp.st_altscore as i64);
                 tv_dict_add_bool(
                     d,
                     c"salscore".as_ptr(),
                     8,
-                    if (*stp).st_salscore {
+                    if stp.st_salscore {
                         kBoolVarTrue
                     } else {
                         kBoolVarFalse
@@ -781,30 +776,30 @@ pub unsafe fn spell_suggest(count: c_int) {
                 repl_from = ptr::null_mut();
                 xfree(repl_to.cast());
                 repl_to = ptr::null_mut();
-                let stp = sug_at(&raw const sug.su_ga, (selected - 1) as usize);
-                if sug.su_badlen > (*stp).st_orglen {
+                let stp = &sug.su_ga[(selected - 1) as usize];
+                if sug.su_badlen > stp.st_orglen {
                     repl_from = xstrnsave(sug.su_badptr, sug.su_badlen as usize);
                     vim_snprintf!(
                         (&raw mut IObuff).cast(),
                         IOSIZE,
                         c"%s%.*s".as_ptr(),
-                        (*stp).st_word,
-                        sug.su_badlen - (*stp).st_orglen,
-                        sug.su_badptr.add((*stp).st_orglen as usize),
+                        stp.st_word,
+                        sug.su_badlen - stp.st_orglen,
+                        sug.su_badptr.add(stp.st_orglen as usize),
                     );
                     repl_to = xstrdup((&raw const IObuff).cast());
                 } else {
-                    repl_from = xstrnsave(sug.su_badptr, (*stp).st_orglen as usize);
-                    repl_to = xstrdup((*stp).st_word);
+                    repl_from = xstrnsave(sug.su_badptr, stp.st_orglen as usize);
+                    repl_to = xstrdup(stp.st_word);
                 }
                 let p = xmalloc(
-                    strlen(line) - (*stp).st_orglen as usize + (*stp).st_wordlen as usize + 1,
+                    strlen(line) - stp.st_orglen as usize + stp.st_wordlen as usize + 1,
                 )
                 .cast::<c_char>();
                 let c = sug.su_badptr.offset_from(line) as c_int;
                 ptr::copy(line, p, c as usize);
-                strcpy(p.add(c as usize), (*stp).st_word);
-                strcat(p, sug.su_badptr.add((*stp).st_orglen as usize));
+                strcpy(p.add(c as usize), stp.st_word);
+                strcat(p, sug.su_badptr.add(stp.st_orglen as usize));
                 prep_redo(
                     false,
                     false,
@@ -817,7 +812,7 @@ pub unsafe fn spell_suggest(count: c_int) {
                 );
                 redo_append_lit(
                     p.add(c as usize),
-                    (*stp).st_wordlen + sug.su_badlen - (*stp).st_orglen,
+                    stp.st_wordlen + sug.su_badlen - stp.st_orglen,
                 );
                 redo_append_char(ESC);
                 let _ = ml_replace((*curwin).w_cursor.lnum, p, false);
@@ -825,8 +820,8 @@ pub unsafe fn spell_suggest(count: c_int) {
                 inserted_bytes(
                     (*curwin).w_cursor.lnum,
                     c,
-                    (*stp).st_orglen,
-                    (*stp).st_wordlen,
+                    stp.st_orglen,
+                    stp.st_wordlen,
                 );
             } else {
                 (*curwin).w_cursor = prev_cursor;
@@ -927,10 +922,9 @@ unsafe fn spell_find_suggest(
         if need_cap {
             (*su).su_badflags |= WF_ONECAP;
         }
-        for i in 0..(*curbuf).b_s.b_langp.len() {
-            let lp = langp_entry(&raw const (*curbuf).b_s.b_langp, i);
-            if !(*lp).lp_sallang.is_null() {
-                (*su).su_sallang = (*lp).lp_sallang;
+        for lp in &(*curbuf).b_s.b_langp {
+            if !lp.lp_sallang.is_null() {
+                (*su).su_sallang = lp.lp_sallang;
                 break;
             }
         }
@@ -951,7 +945,7 @@ unsafe fn spell_find_suggest(
             );
             add_suggestion(
                 su,
-                &raw mut (*su).su_ga,
+                &mut (*su).su_ga,
                 (&raw const buf).cast(),
                 (*su).su_badlen,
                 SCORE_ICASE,
@@ -1005,7 +999,7 @@ unsafe fn spell_suggest_expr(su: *mut suginfo_T, expr: *mut c_char) {
                     if score >= 0 && score <= (*su).su_maxscore {
                         add_suggestion(
                             su,
-                            &raw mut (*su).su_ga,
+                            &mut (*su).su_ga,
                             p,
                             (*su).su_badlen,
                             score,
@@ -1020,8 +1014,8 @@ unsafe fn spell_suggest_expr(su: *mut suginfo_T, expr: *mut c_char) {
             }
             tv_list_unref(list);
         }
-        check_suggestions(su, &raw mut (*su).su_ga);
-        cleanup_suggestions(&raw mut (*su).su_ga, (*su).su_maxscore, (*su).su_maxcount);
+        check_suggestions(su, &mut (*su).su_ga);
+        cleanup_suggestions(&mut (*su).su_ga, (*su).su_maxscore, (*su).su_maxcount);
     }
 }
 unsafe fn spell_suggest_file(su: *mut suginfo_T, fname: *mut c_char) {
@@ -1057,7 +1051,7 @@ unsafe fn spell_suggest_file(su: *mut suginfo_T, fname: *mut c_char) {
                 }
                 add_suggestion(
                     su,
-                    &raw mut (*su).su_ga,
+                    &mut (*su).su_ga,
                     p,
                     (*su).su_badlen,
                     SCORE_FILE,
@@ -1069,8 +1063,8 @@ unsafe fn spell_suggest_file(su: *mut suginfo_T, fname: *mut c_char) {
             }
         }
         fclose(fd);
-        check_suggestions(su, &raw mut (*su).su_ga);
-        cleanup_suggestions(&raw mut (*su).su_ga, (*su).su_maxscore, (*su).su_maxcount);
+        check_suggestions(su, &mut (*su).su_ga);
+        cleanup_suggestions(&mut (*su).su_ga, (*su).su_maxscore, (*su).su_maxcount);
     }
 }
 unsafe fn spell_suggest_intern(su: *mut suginfo_T, interactive: bool) {
@@ -1109,8 +1103,8 @@ unsafe fn spell_suggest_intern(su: *mut suginfo_T, interactive: bool) {
             if (sps_flags & SPS_BEST) != 0 {
                 rescore_suggestions(su);
             }
-            check_suggestions(su, &raw mut (*su).su_ga);
-            cleanup_suggestions(&raw mut (*su).su_ga, (*su).su_maxscore, (*su).su_maxcount);
+            check_suggestions(su, &mut (*su).su_ga);
+            cleanup_suggestions(&mut (*su).su_ga, (*su).su_maxscore, (*su).su_maxcount);
         }
     }
 }
@@ -1128,7 +1122,7 @@ unsafe fn suggest_try_special(su: *mut suginfo_T) {
             (*su).su_fbadword[len] = c;
             add_suggestion(
                 su,
-                &raw mut (*su).su_ga,
+                &mut (*su).su_ga,
                 (&raw const word).cast(),
                 (*su).su_badlen,
                 rescore(SCORE_REP, 0),
@@ -1162,7 +1156,7 @@ unsafe fn suggest_try_change(su: *mut suginfo_T) {
         }
         let w_s = (*curwin).w_s.cast::<synblock_T>();
         for lpi in 0..(*w_s).b_langp.len() {
-            let lp = langp_entry(&raw const (*w_s).b_langp, lpi);
+            let lp = (*w_s).b_langp.as_mut_ptr().add(lpi);
             if (*(*lp).lp_slang).sl_fbyts.is_empty() {
                 continue;
             }
@@ -1367,7 +1361,7 @@ unsafe fn suggest_trie_walk(
                                 if newscore <= (*su).su_maxscore {
                                     add_suggestion(
                                         su,
-                                        &raw mut (*su).su_ga,
+                                        &mut (*su).su_ga,
                                         (&raw const preword).cast(),
                                         stack[udepth].ts_splitfidx as c_int - repextra,
                                         newscore,
@@ -1561,7 +1555,7 @@ unsafe fn suggest_trie_walk(
                             if score <= (*su).su_maxscore {
                                 add_suggestion(
                                     su,
-                                    &raw mut (*su).su_ga,
+                                    &mut (*su).su_ga,
                                     (&raw const preword).cast(),
                                     stack[udepth].ts_fidx as c_int - repextra,
                                     score,
@@ -1584,7 +1578,7 @@ unsafe fn suggest_trie_walk(
                                         );
                                         add_suggestion(
                                             su,
-                                            &raw mut (*su).su_ga,
+                                            &mut (*su).su_ga,
                                             (&raw const preword).cast(),
                                             stack[udepth].ts_fidx as c_int - repextra,
                                             score + SCORE_ICASE,
@@ -2341,24 +2335,22 @@ unsafe fn score_comp_sal(su: *mut suginfo_T) {
         let sga = &mut (*su).su_sga;
         sga.reserve((*su).su_ga.len());
         let w_s = (*curwin).w_s.cast::<synblock_T>();
-        for lpi in 0..(*w_s).b_langp.len() {
-            let lp = langp_entry(&raw const (*w_s).b_langp, lpi);
-            if (*(*lp).lp_slang).has_sal() {
+        for lp in &(*w_s).b_langp {
+            if (*lp.lp_slang).has_sal() {
                 spell_soundfold(
-                    (*lp).lp_slang,
+                    lp.lp_slang,
                     (&raw mut (*su).su_fbadword).cast(),
                     true,
                     (&raw mut badsound).cast(),
                 );
-                for i in 0..(*su).su_ga.len() {
-                    let stp = sug_at(&raw const (*su).su_ga, i);
-                    let score = stp_sal_score(stp, su, (*lp).lp_slang, (&raw mut badsound).cast());
+                for stp in &(*su).su_ga {
+                    let score = stp_sal_score(stp, su, lp.lp_slang, (&raw mut badsound).cast());
                     if score < SCORE_MAXMAX {
                         let sga = &mut (*su).su_sga;
                         sga.push(suggest_T {
-                            st_word: xstrdup((*stp).st_word),
-                            st_wordlen: (*stp).st_wordlen,
-                            st_orglen: (*stp).st_orglen,
+                            st_word: xstrdup(stp.st_word),
+                            st_wordlen: stp.st_wordlen,
+                            st_orglen: stp.st_orglen,
                             st_score: score,
                             st_altscore: 0,
                             st_salscore: false,
@@ -2377,10 +2369,9 @@ unsafe fn score_combine(su: *mut suginfo_T) {
         let mut badsound: [c_char; MAXWLEN] = [0; MAXWLEN];
         let mut slang: *mut slang_T = ptr::null_mut();
         let w_s = (*curwin).w_s.cast::<synblock_T>();
-        for lpi in 0..(*w_s).b_langp.len() {
-            let lp = langp_entry(&raw const (*w_s).b_langp, lpi);
-            if (*(*lp).lp_slang).has_sal() {
-                slang = (*lp).lp_slang;
+        for lp in &(*w_s).b_langp {
+            if (*lp.lp_slang).has_sal() {
+                slang = lp.lp_slang;
                 spell_soundfold(
                     slang,
                     (&raw mut (*su).su_fbadword).cast(),
@@ -2388,7 +2379,7 @@ unsafe fn score_combine(su: *mut suginfo_T) {
                     (&raw mut badsound).cast(),
                 );
                 for i in 0..(*su).su_ga.len() {
-                    let stp = sug_at(&raw const (*su).su_ga, i);
+                    let stp = (*su).su_ga.as_mut_ptr().add(i);
                     (*stp).st_altscore = stp_sal_score(stp, su, slang, (&raw mut badsound).cast());
                     if (*stp).st_altscore == SCORE_MAXMAX {
                         (*stp).st_score = ((*stp).st_score * 3 + SCORE_BIG) / 4;
@@ -2401,24 +2392,23 @@ unsafe fn score_combine(su: *mut suginfo_T) {
             }
         }
         if slang.is_null() {
-            cleanup_suggestions(&raw mut (*su).su_ga, (*su).su_maxscore, (*su).su_maxcount);
+            cleanup_suggestions(&mut (*su).su_ga, (*su).su_maxscore, (*su).su_maxcount);
             return;
         }
-        for i in 0..(*su).su_sga.len() {
-            let stp = sug_at(&raw const (*su).su_sga, i);
-            (*stp).st_altscore =
-                spell_edit_score(slang, (&raw const (*su).su_badword).cast(), (*stp).st_word);
-            if (*stp).st_score == SCORE_MAXMAX {
-                (*stp).st_score = (SCORE_BIG * 7 + (*stp).st_altscore) / 8;
+        for stp in &mut (*su).su_sga {
+            stp.st_altscore =
+                spell_edit_score(slang, (&raw const (*su).su_badword).cast(), stp.st_word);
+            if stp.st_score == SCORE_MAXMAX {
+                stp.st_score = (SCORE_BIG * 7 + stp.st_altscore) / 8;
             } else {
-                (*stp).st_score = ((*stp).st_score * 7 + (*stp).st_altscore) / 8;
+                stp.st_score = (stp.st_score * 7 + stp.st_altscore) / 8;
             }
-            (*stp).st_salscore = true;
+            stp.st_salscore = true;
         }
-        check_suggestions(su, &raw mut (*su).su_ga);
-        cleanup_suggestions(&raw mut (*su).su_ga, (*su).su_maxscore, (*su).su_maxcount);
-        check_suggestions(su, &raw mut (*su).su_sga);
-        cleanup_suggestions(&raw mut (*su).su_sga, (*su).su_maxscore, (*su).su_maxcount);
+        check_suggestions(su, &mut (*su).su_ga);
+        cleanup_suggestions(&mut (*su).su_ga, (*su).su_maxscore, (*su).su_maxcount);
+        check_suggestions(su, &mut (*su).su_sga);
+        cleanup_suggestions(&mut (*su).su_sga, (*su).su_maxscore, (*su).su_maxcount);
         let mut ga: Vec<suggest_T> = Vec::with_capacity((*su).su_ga.len() + (*su).su_sga.len());
         let mut old_ga = std::mem::take(&mut (*su).su_ga).into_iter();
         let mut old_sga = std::mem::take(&mut (*su).su_sga).into_iter();
@@ -2511,9 +2501,8 @@ unsafe fn stp_sal_score(
 unsafe fn suggest_try_soundalike_prep() {
     unsafe {
         let w_s = (*curwin).w_s;
-        for lpi in 0..(*w_s).b_langp.len() {
-            let lp = langp_entry(&raw const (*w_s).b_langp, lpi);
-            let slang = (*lp).lp_slang;
+        for lp in &(*w_s).b_langp {
+            let slang = lp.lp_slang;
             if (*slang).has_sal() && !(*slang).sl_sbyts.is_empty() {
                 (*slang).sl_sounddone.clear();
             }
@@ -2525,7 +2514,7 @@ unsafe fn suggest_try_soundalike(su: *mut suginfo_T) {
         let mut salword: [c_char; MAXWLEN] = [0; MAXWLEN];
         let w_s = (*curwin).w_s;
         for lpi in 0..(*w_s).b_langp.len() {
-            let lp = langp_entry(&raw const (*w_s).b_langp, lpi);
+            let lp = (*w_s).b_langp.as_mut_ptr().add(lpi);
             let slang = (*lp).lp_slang;
             if (*slang).has_sal() && !(*slang).sl_sbyts.is_empty() {
                 spell_soundfold(
@@ -2542,9 +2531,8 @@ unsafe fn suggest_try_soundalike(su: *mut suginfo_T) {
 unsafe fn suggest_try_soundalike_finish() {
     unsafe {
         let w_s = (*curwin).w_s;
-        for lpi in 0..(*w_s).b_langp.len() {
-            let lp = langp_entry(&raw const (*w_s).b_langp, lpi);
-            let slang = (*lp).lp_slang;
+        for lp in &(*w_s).b_langp {
+            let slang = lp.lp_slang;
             if (*slang).has_sal() && !(*slang).sl_sbyts.is_empty() {
                 (*slang).sl_sounddone.clear();
             }
@@ -2643,7 +2631,7 @@ unsafe fn add_sound_suggest(
                     if score <= (*su).su_maxscore {
                         add_suggestion(
                             su,
-                            &raw mut (*su).su_sga,
+                            &mut (*su).su_sga,
                             p,
                             (*su).su_badlen,
                             score,
@@ -2686,7 +2674,7 @@ unsafe fn add_sound_suggest(
                         if goodscore <= (*su).su_sfmaxscore {
                             add_suggestion(
                                 su,
-                                &raw mut (*su).su_ga,
+                                &mut (*su).su_ga,
                                 p,
                                 (*su).su_badlen,
                                 goodscore,
@@ -2780,7 +2768,7 @@ unsafe fn similar_chars(slang: *mut slang_T, c1: c_int, c2: c_int) -> bool {
 }
 unsafe fn add_suggestion(
     su: *mut suginfo_T,
-    gap: *mut Vec<suggest_T>,
+    gap: &mut Vec<suggest_T>,
     goodword: *const c_char,
     badlenarg: c_int,
     score: c_int,
@@ -2810,11 +2798,11 @@ unsafe fn add_suggestion(
             return;
         }
         let mut i: c_int;
-        if (*gap).is_empty() {
+        if gap.is_empty() {
             i = -1;
         } else {
-            let mut stp = sug_at(gap, 0);
-            i = (*gap).len() as c_int - 1;
+            let mut stp = gap.as_mut_ptr();
+            i = gap.len() as c_int - 1;
             while i >= 0 {
                 if (*stp).st_wordlen == goodlen
                     && (*stp).st_orglen == badlen
@@ -2857,7 +2845,7 @@ unsafe fn add_suggestion(
             }
         }
         if i < 0 {
-            (*gap).push(suggest_T {
+            gap.push(suggest_T {
                 st_word: xmemdupz(goodword.cast(), goodlen as usize).cast(),
                 st_wordlen: goodlen,
                 st_score: score,
@@ -2867,7 +2855,7 @@ unsafe fn add_suggestion(
                 st_orglen: badlen,
                 st_slang: slang,
             });
-            if ((*gap).len() as c_int) > sug_max_count(su) {
+            if (gap.len() as c_int) > sug_max_count(su) {
                 if maxsf {
                     (*su).su_sfmaxscore =
                         cleanup_suggestions(gap, (*su).su_sfmaxscore, sug_clean_count(su));
@@ -2879,16 +2867,16 @@ unsafe fn add_suggestion(
         }
     }
 }
-unsafe fn check_suggestions(su: *mut suginfo_T, gap: *mut Vec<suggest_T>) {
+unsafe fn check_suggestions(su: *mut suginfo_T, gap: &mut Vec<suggest_T>) {
     unsafe {
         let mut longword: [c_char; MAXWLEN + 1] = [0; MAXWLEN + 1];
-        if (*gap).is_empty() {
+        if gap.is_empty() {
             return;
         }
-        let mut i = (*gap).len() as isize - 1;
+        let mut i = gap.len() as isize - 1;
         while i >= 0 {
             let ui = i as usize;
-            let st = &(&*gap)[ui];
+            let st = &gap[ui];
             xstrlcpy((&raw mut longword).cast(), st.st_word, MAXWLEN + 1);
             let len = st.st_wordlen as usize;
             xstrlcpy(
@@ -2905,7 +2893,7 @@ unsafe fn check_suggestions(su: *mut suginfo_T, gap: *mut Vec<suggest_T>) {
                 false,
             );
             if attr != HLF_COUNT {
-                (*gap).remove(ui);
+                gap.remove(ui);
             }
             i -= 1;
         }
@@ -2923,7 +2911,7 @@ unsafe fn rescore_suggestions(su: *mut suginfo_T) {
     unsafe {
         if !(*su).su_sallang.is_null() {
             for i in 0..(*su).su_ga.len() {
-                rescore_one(su, sug_at(&raw const (*su).su_ga, i));
+                rescore_one(su, (*su).su_ga.as_mut_ptr().add(i));
             }
         }
     }
@@ -2961,9 +2949,8 @@ unsafe fn sug_compare(p1: &suggest_T, p2: &suggest_T) -> std::cmp::Ordering {
             .then_with(|| mb_stricmp(p1.st_word, p2.st_word).cmp(&0))
     }
 }
-unsafe fn cleanup_suggestions(gap: *mut Vec<suggest_T>, maxscore: c_int, keep: c_int) -> c_int {
+unsafe fn cleanup_suggestions(gap: &mut Vec<suggest_T>, maxscore: c_int, keep: c_int) -> c_int {
     unsafe {
-        let gap = &mut *gap;
         if gap.is_empty() {
             return maxscore;
         }

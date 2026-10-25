@@ -200,7 +200,7 @@ pub unsafe fn vim_findfile_init(
             (*search_ctx).ffsc_visited_list = ff_get_visited_list(
                 filename,
                 filenamelen,
-                &raw mut (*search_ctx).ffsc_visited_lists_list,
+                &mut (*search_ctx).ffsc_visited_lists_list,
             );
             if (*search_ctx).ffsc_visited_list.is_null() {
                 vim_findfile_cleanup(search_ctx);
@@ -209,7 +209,7 @@ pub unsafe fn vim_findfile_init(
             (*search_ctx).ffsc_dir_visited_list = ff_get_visited_list(
                 filename,
                 filenamelen,
-                &raw mut (*search_ctx).ffsc_dir_visited_lists_list,
+                &mut (*search_ctx).ffsc_dir_visited_lists_list,
             );
             if (*search_ctx).ffsc_dir_visited_list.is_null() {
                 vim_findfile_cleanup(search_ctx);
@@ -573,7 +573,7 @@ pub unsafe fn vim_findfile(search_ctx: *mut ff_search_ctx_T) -> *mut c_char {
 
                 if (*stackp).ffs_filearray.is_empty()
                     && ff_check_visited(
-                        &raw mut (*(*search_ctx).ffsc_dir_visited_list).ffvl_visited_list,
+                        &mut (*(*search_ctx).ffsc_dir_visited_list).ffvl_visited_list,
                         (*stackp).ffs_fix_path.data,
                         (*stackp).ffs_fix_path.size,
                         (*stackp).ffs_wc_path.data,
@@ -761,8 +761,7 @@ pub unsafe fn vim_findfile(search_ctx: *mut ff_search_ctx_T) -> *mut c_char {
                                             || (((*search_ctx).ffsc_find_what == FINDFILE_DIR)
                                                 == os_isdir(file_path.data)))))
                                     && ff_check_visited(
-                                        &raw mut (*(*search_ctx).ffsc_visited_list)
-                                            .ffvl_visited_list,
+                                        &mut (*(*search_ctx).ffsc_visited_list).ffvl_visited_list,
                                         file_path.data,
                                         file_path.size,
                                         EMPTY_C.as_ptr(),
@@ -952,22 +951,22 @@ unsafe fn vim_findfile_free_visited(search_ctx: *mut ff_search_ctx_T) {
 unsafe fn ff_get_visited_list(
     filename: *const c_char,
     filenamelen: usize,
-    list_headp: *mut Vec<ff_visited_list_hdr_T>,
+    list_headp: &mut Vec<ff_visited_list_hdr_T>,
 ) -> *mut ff_visited_list_hdr_T {
     unsafe {
-        if let Some(pos) = (*list_headp)
+        if let Some(pos) = list_headp
             .iter()
             .position(|item| path_equal(filename, item.ffvl_filename, kPathCmpLiteral))
         {
-            return (*list_headp).as_mut_ptr().add(pos);
+            return list_headp.as_mut_ptr().add(pos);
         }
 
-        (*list_headp).push(ff_visited_list_hdr_T {
+        list_headp.push(ff_visited_list_hdr_T {
             ffvl_filename: xmemdupz(filename.cast(), filenamelen).cast(),
             ffvl_visited_list: Vec::new(),
         });
-        let last_idx = (*list_headp).len() - 1;
-        (*list_headp).as_mut_ptr().add(last_idx)
+        let last_idx = list_headp.len() - 1;
+        list_headp.as_mut_ptr().add(last_idx)
     }
 }
 
@@ -1010,7 +1009,7 @@ unsafe fn ff_wc_equal(s1: *const c_char, s2: *const c_char) -> bool {
 
 /// Maintain the list of already visited files and dirs.
 unsafe fn ff_check_visited(
-    visited_list: *mut Vec<ff_visited_T>,
+    visited_list: &mut Vec<ff_visited_T>,
     fname: *const c_char,
     fnamelen: usize,
     wc_path: *const c_char,
@@ -1064,7 +1063,7 @@ unsafe fn ff_check_visited(
             ptr::null_mut()
         };
 
-        (*visited_list).push(ff_visited_T {
+        visited_list.push(ff_visited_T {
             ffv_wc_path,
             file_id_valid: !url,
             file_id,

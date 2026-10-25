@@ -240,7 +240,7 @@ unsafe fn ses_do_win(wp: *mut win_T) -> c_int {
 unsafe fn ses_arglist(
     fd: *mut FILE,
     cmd: *const c_char,
-    gap: *mut Vec<aentry_T>,
+    gap: &[aentry_T],
     fullname: bool,
     flagp: *mut c_uint,
 ) -> c_int {
@@ -250,9 +250,8 @@ unsafe fn ses_arglist(
         if !write_fmt(fd, format!("{}\n%argdel\n", cstr_to_str(cmd))) {
             return FAIL;
         }
-        for i in 0..(*gap).len() {
-            let entry = (*gap).as_mut_ptr().add(i);
-            let mut s = alist_name(entry);
+        for entry in gap {
+            let mut s = alist_name((&raw const *entry).cast_mut());
             if !s.is_null() {
                 if fullname {
                     buf = xmalloc(MAXPATHL).cast();
@@ -347,7 +346,7 @@ unsafe fn put_view(
             if ses_arglist(
                 fd,
                 c"arglocal".as_ptr(),
-                &raw mut (*alist).al_ga,
+                &(*alist).al_ga,
                 ptr::eq(flagp, &raw mut vop_flags)
                     || (*flagp & kOptSsopFlagCurdir) == 0
                     || !(*tp).tp_localdir.is_null()
@@ -703,10 +702,11 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
             buf = (*buf).b_next;
         }
 
+        let ga_ptr = &raw const global_alist;
         if ses_arglist(
             fd,
             c"argglobal".as_ptr(),
-            &raw mut global_alist.al_ga,
+            &(*ga_ptr).al_ga,
             (ssop_flags & kOptSsopFlagCurdir) == 0,
             &raw mut ssop_flags,
         ) == FAIL

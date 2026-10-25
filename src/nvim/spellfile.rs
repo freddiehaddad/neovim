@@ -396,7 +396,6 @@ impl Default for spellinfo_T {
 }
 
 use crate::fileio::ungetc;
-use crate::spell::langp_entry;
 
 #[inline]
 unsafe fn spell_read_bytes(buf: *mut c_char, n: usize, fd: *mut FILE) -> c_int {
@@ -773,8 +772,8 @@ pub unsafe fn suggest_load_files() {
 
         let mut lpi: usize = 0;
         while lpi < (*win_s(curwin)).b_langp.len() {
-            let lp = langp_entry(&raw const (*win_s(curwin)).b_langp, lpi);
-            let slang = (*lp).lp_slang;
+            let lp = &(&(*win_s(curwin)).b_langp)[lpi];
+            let slang = lp.lp_slang;
             if (*slang).sl_sugtime != 0 && !(*slang).sl_sugloaded {
                 (*slang).sl_sugloaded = true;
 
@@ -5511,7 +5510,7 @@ unsafe fn init_spellfile() {
             lstart,
         );
 
-        let fname = (*(*langp_entry(&raw const (*win_s(curwin)).b_langp, 0)).lp_slang).sl_fname;
+        let fname = (*(&(*win_s(curwin)).b_langp)[0].lp_slang).sl_fname;
         let enc_suffix =
             if !fname.is_null() && !strstr(path_tail(fname), c".ascii.".as_ptr()).is_null() {
                 c"ascii".as_ptr()

@@ -245,11 +245,6 @@ unsafe fn user_cmd(i: c_int) -> *mut ucmd_T {
     }
 }
 
-#[inline]
-unsafe fn user_cmd_ga(gap: *const Vec<ucmd_T>, i: c_int) -> *mut ucmd_T {
-    unsafe { (*gap).as_ptr().cast_mut().add(i as usize) }
-}
-
 /// Search for a user command that matches `eap->cmd` (`find_ucmd`).
 pub unsafe fn find_ucmd(
     eap: *mut exarg_T,
@@ -265,13 +260,14 @@ pub unsafe fn find_ucmd(
         let mut possible = false;
         let mut amb_local = false;
 
-        let mut gap: *mut Vec<ucmd_T> = &raw mut (*(*prevwin_curwin()).w_buffer).b_ucmds;
+        let mut is_global = false;
+        let mut gap: &[ucmd_T] = &(*(*prevwin_curwin()).w_buffer).b_ucmds;
         loop {
             let mut j: c_int = 0;
-            while (j as usize) < (*gap).len() {
-                let uc = user_cmd_ga(gap, j);
+            while (j as usize) < gap.len() {
+                let uc = &gap[j as usize];
                 let mut cp = (*eap).cmd;
-                let mut np = (*uc).uc_name;
+                let mut np = uc.uc_name;
                 let mut k: c_int = 0;
                 while k < len && *np != NUL && {
                     let c1 = *cp;
@@ -284,7 +280,7 @@ pub unsafe fn find_ucmd(
                 }
                 if k == len || (*np == NUL && ascii_isdigit(*(*eap).cmd.add(k as usize))) {
                     if k == len && found && *np != NUL {
-                        if ptr::eq(gap, &raw const ucmds) {
+                        if is_global {
                             return ptr::null_mut();
                         }
                         amb_local = true;
@@ -297,22 +293,22 @@ pub unsafe fn find_ucmd(
                             possible = true;
                         }
 
-                        if ptr::eq(gap, &raw const ucmds) {
+                        if is_global {
                             (*eap).cmdidx = CMD_USER;
                         } else {
                             (*eap).cmdidx = CMD_USER_BUF;
                         }
-                        (*eap).argt = (*uc).uc_argt;
+                        (*eap).argt = uc.uc_argt;
                         (*eap).useridx = j;
-                        (*eap).addr_type = (*uc).uc_addr_type;
+                        (*eap).addr_type = uc.uc_addr_type;
 
                         if !complp.is_null() {
-                            *complp = (*uc).uc_compl;
+                            *complp = uc.uc_compl;
                         }
                         if !xp.is_null() {
-                            (*xp).xp_luaref = (*uc).uc_compl_luaref;
-                            (*xp).xp_arg = (*uc).uc_compl_arg;
-                            (*xp).xp_script_ctx = (*uc).uc_script_ctx;
+                            (*xp).xp_luaref = uc.uc_compl_luaref;
+                            (*xp).xp_arg = uc.uc_compl_arg;
+                            (*xp).xp_script_ctx = uc.uc_script_ctx;
                             (*xp).xp_script_ctx.sc_lnum += sourcing_lnum();
                         }
                         matchlen = k;
@@ -328,10 +324,12 @@ pub unsafe fn find_ucmd(
                 j += 1;
             }
 
-            if (j as usize) < (*gap).len() || ptr::eq(gap, &raw const ucmds) {
+            if (j as usize) < gap.len() || is_global {
                 break;
             }
-            gap = &raw mut ucmds;
+            is_global = true;
+            let u = &raw const ucmds;
+            gap = &*u;
         }
 
         if amb_local {
@@ -459,7 +457,7 @@ pub unsafe fn get_user_commands(_xp: *mut expand_T, mut idx: c_int) -> *mut c_ch
         let b_len = (*buf).b_ucmds.len() as c_int;
 
         if idx < b_len {
-            return (*user_cmd_ga(&raw const (*buf).b_ucmds, idx)).uc_name;
+            return (&(*buf).b_ucmds)[idx as usize].uc_name;
         }
 
         idx -= b_len;
@@ -468,8 +466,8 @@ pub unsafe fn get_user_commands(_xp: *mut expand_T, mut idx: c_int) -> *mut c_ch
         if idx < u_len {
             let name = (*user_cmd(idx)).uc_name;
 
-            for i in 0..b_len {
-                if strcmp(name, (*user_cmd_ga(&raw const (*buf).b_ucmds, i)).uc_name) == 0 {
+            for cmd in &(*buf).b_ucmds {
+                if strcmp(name, cmd.uc_name) == 0 {
                     return c"".as_ptr().cast_mut();
                 }
             }
@@ -490,7 +488,7 @@ pub unsafe fn get_user_command_name(idx: c_int, cmdidx: c_int) -> *mut c_char {
         if cmdidx == CMD_USER_BUF {
             let buf = (*prevwin_curwin()).w_buffer;
             if (idx as usize) < (*buf).b_ucmds.len() {
-                return (*user_cmd_ga(&raw const (*buf).b_ucmds, idx)).uc_name;
+                return (&(*buf).b_ucmds)[idx as usize].uc_name;
             }
         }
         ptr::null_mut()
@@ -615,15 +613,15 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
         let mut found = false;
 
         msg_ext_set_kind(c"list_cmd".as_ptr());
-        let mut gap: *const Vec<ucmd_T> = &raw const (*(*prevwin_curwin()).w_buffer).b_ucmds;
+        let mut is_global = false;
+        let mut gap: &[ucmd_T] = &(*(*prevwin_curwin()).w_buffer).b_ucmds;
         loop {
             let mut i: c_int = 0;
-            while (i as usize) < (*gap).len() {
-                let cmd = user_cmd_ga(gap, i);
-                let a = (*cmd).uc_argt;
+            while (i as usize) < gap.len() {
+                let cmd = &gap[i as usize];
+                let a = cmd.uc_argt;
 
-                if strncmp(name, (*cmd).uc_name, name_len) != 0 || message_filtered((*cmd).uc_name)
-                {
+                if strncmp(name, cmd.uc_name, name_len) != 0 || message_filtered(cmd.uc_name) {
                     i += 1;
                     continue;
                 }
@@ -648,7 +646,7 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
                     msg_putchar(b'"' as c_int);
                     len -= 1;
                 }
-                if !ptr::eq(gap, &raw const ucmds) {
+                if !is_global {
                     msg_putchar(b'b' as c_int);
                     len -= 1;
                 }
@@ -660,8 +658,8 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
                     msg_puts(c"    ".as_ptr().add(4 - len));
                 }
 
-                msg_outtrans((*cmd).uc_name, HLF_D, false);
-                len = CStr::from_ptr((*cmd).uc_name).to_bytes().len() + 4;
+                msg_outtrans(cmd.uc_name, HLF_D, false);
+                len = CStr::from_ptr(cmd.uc_name).to_bytes().len() + 4;
 
                 if len < 21 {
                     const SPACES: &CStr = c"                 ";
@@ -712,7 +710,7 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
 
                 if (a & (EX_RANGE | EX_COUNT)) != 0 {
                     if (a & EX_COUNT) != 0 {
-                        let s = format!("{}c", (*cmd).uc_def);
+                        let s = format!("{}c", cmd.uc_def);
                         let bytes = s.as_bytes();
                         let copy_len = bytes.len().min(IOSIZE - 1 - len);
                         ptr::copy_nonoverlapping(
@@ -724,8 +722,8 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
                     } else if (a & EX_DFLALL) != 0 {
                         IObuff[len] = b'%' as c_char;
                         len += 1;
-                    } else if (*cmd).uc_def >= 0 {
-                        let s = format!("{}", (*cmd).uc_def);
+                    } else if cmd.uc_def >= 0 {
+                        let s = format!("{}", cmd.uc_def);
                         let bytes = s.as_bytes();
                         let copy_len = bytes.len().min(IOSIZE - 1 - len);
                         ptr::copy_nonoverlapping(
@@ -752,7 +750,7 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
                     if entry.expand == ADDR_NONE {
                         break;
                     }
-                    if entry.expand != ADDR_LINES && entry.expand == (*cmd).uc_addr_type {
+                    if entry.expand != ADDR_LINES && entry.expand == cmd.uc_addr_type {
                         if let Some(short) = entry.shortname {
                             let bytes = short.to_bytes();
                             let copy_len = bytes.len().min(IOSIZE - 1 - len);
@@ -775,7 +773,7 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
                     }
                 }
 
-                let cmd_compl = get_command_complete((*cmd).uc_compl);
+                let cmd_compl = get_command_complete(cmd.uc_compl);
                 if !cmd_compl.is_null() {
                     let bytes = CStr::from_ptr(cmd_compl).to_bytes();
                     let copy_len = bytes.len().min(IOSIZE - 1 - len);
@@ -798,22 +796,22 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
                 IObuff[len] = NUL;
                 msg_outtrans(&raw const IObuff[0], 0, false);
 
-                if (*cmd).uc_luaref != LUA_NOREF {
-                    let fn_str = nlua_funcref_str((*cmd).uc_luaref, ptr::null_mut(), true);
+                if cmd.uc_luaref != LUA_NOREF {
+                    let fn_str = nlua_funcref_str(cmd.uc_luaref, ptr::null_mut(), true);
                     msg_puts_hl(fn_str, HLF_8, false);
                     xfree(fn_str.cast());
-                    if *(*cmd).uc_rep != NUL {
+                    if *cmd.uc_rep != NUL {
                         msg_puts(c"\n                                               ".as_ptr());
                     }
                 }
 
                 msg_outtrans_special(
-                    (*cmd).uc_rep,
+                    cmd.uc_rep,
                     false,
                     if name_len == 0 { Columns - 47 } else { 0 },
                 );
                 if p_verbose > 0 {
-                    last_set_msg((*cmd).uc_script_ctx);
+                    last_set_msg(cmd.uc_script_ctx);
                 }
                 line_breakcheck();
                 if got_int {
@@ -821,10 +819,12 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
                 }
                 i += 1;
             }
-            if ptr::eq(gap, &raw const ucmds) || (i as usize) < (*gap).len() {
+            if is_global || (i as usize) < gap.len() {
                 break;
             }
-            gap = &raw const ucmds;
+            is_global = true;
+            let u = &raw const ucmds;
+            gap = &*u;
         }
 
         if !found {
@@ -1130,15 +1130,16 @@ pub unsafe fn uc_add_command(
             rep_buf = xstrdup(rep);
         }
 
-        let gap: *mut Vec<ucmd_T> = if (flags & UC_BUFFER) != 0 {
-            &raw mut (*curbuf).b_ucmds
+        let u = &raw mut ucmds;
+        let gap: &mut Vec<ucmd_T> = if (flags & UC_BUFFER) != 0 {
+            &mut (*curbuf).b_ucmds
         } else {
-            &raw mut ucmds
+            &mut *u
         };
 
         let mut i: c_int = 0;
-        while (i as usize) < (*gap).len() {
-            cmd = user_cmd_ga(gap, i);
+        while (i as usize) < gap.len() {
+            cmd = &raw mut gap[i as usize];
             let len = CStr::from_ptr((*cmd).uc_name).to_bytes().len();
             cmp = strncmp(name, (*cmd).uc_name, name_len);
             if cmp == 0 {
@@ -1188,8 +1189,8 @@ pub unsafe fn uc_add_command(
             let p = xstrnsave(name, name_len);
             let mut empty_ucmd = ucmd_T::new();
             empty_ucmd.uc_name = p;
-            (*gap).insert(i as usize, empty_ucmd);
-            cmd = user_cmd_ga(gap, i);
+            gap.insert(i as usize, empty_ucmd);
+            cmd = &raw mut gap[i as usize];
         }
 
         (*cmd).uc_rep = rep_buf;
@@ -1316,21 +1317,23 @@ pub unsafe fn ex_delcommand(eap: *mut exarg_T) {
             arg = skipwhite(arg.add(7));
         }
 
-        let mut gap: *mut Vec<ucmd_T> = &raw mut (*curbuf).b_ucmds;
+        let mut is_global = false;
+        let mut gap: &mut Vec<ucmd_T> = &mut (*curbuf).b_ucmds;
         loop {
             i = 0;
-            while (i as usize) < (*gap).len() {
-                let cmd = user_cmd_ga(gap, i);
-                res = strcmp(arg, (*cmd).uc_name);
+            while (i as usize) < gap.len() {
+                res = strcmp(arg, gap[i as usize].uc_name);
                 if res <= 0 {
                     break;
                 }
                 i += 1;
             }
-            if ptr::eq(gap, &raw const ucmds) || res == 0 || buffer_only {
+            if is_global || res == 0 || buffer_only {
                 break;
             }
-            gap = &raw mut ucmds;
+            is_global = true;
+            let u = &raw mut ucmds;
+            gap = &mut *u;
         }
 
         if res != 0 {
@@ -1346,7 +1349,7 @@ pub unsafe fn ex_delcommand(eap: *mut exarg_T) {
             return;
         }
 
-        let _ = (*gap).remove(i as usize);
+        let _ = gap.remove(i as usize);
     }
 }
 
@@ -1901,10 +1904,10 @@ pub unsafe fn do_ucmd(eap: *mut exarg_T, preview: bool) -> c_int {
         let cmd = if (*eap).cmdidx == CMD_USER {
             user_cmd((*eap).useridx)
         } else {
-            user_cmd_ga(
-                &raw const (*(*prevwin_curwin()).w_buffer).b_ucmds,
-                (*eap).useridx,
-            )
+            (*(*prevwin_curwin()).w_buffer)
+                .b_ucmds
+                .as_mut_ptr()
+                .add((*eap).useridx as usize)
         };
 
         if preview {
@@ -2032,64 +2035,64 @@ unsafe fn arena_str_obj(arena: *mut Arena, bytes: &[u8]) -> Object {
 /// defined globally if `buf` is NULL (`commands_array`).
 pub unsafe fn commands_array(buf: *mut buf_T, arena: *mut Arena) -> Dict {
     unsafe {
-        let gap: *const Vec<ucmd_T> = if buf.is_null() {
-            &raw const ucmds
+        let u = &raw const ucmds;
+        let gap: &[ucmd_T] = if buf.is_null() {
+            &*u
         } else {
-            &raw const (*buf).b_ucmds
+            &(*buf).b_ucmds
         };
 
-        let mut rv = arena_dict(arena, (*gap).len());
-        for i in 0..((*gap).len() as c_int) {
+        let mut rv = arena_dict(arena, gap.len());
+        for cmd in gap {
             let mut arg_ch: u8 = 0;
             let mut d = arena_dict(arena, 16);
-            let cmd = user_cmd_ga(gap, i);
 
-            put_c(&mut d, c"name".as_ptr(), cstr_as_obj((*cmd).uc_name));
-            put_c(&mut d, c"definition".as_ptr(), cstr_as_obj((*cmd).uc_rep));
-            put_c(&mut d, c"desc".as_ptr(), cstr_as_obj((*cmd).uc_desc));
+            put_c(&mut d, c"name".as_ptr(), cstr_as_obj(cmd.uc_name));
+            put_c(&mut d, c"definition".as_ptr(), cstr_as_obj(cmd.uc_rep));
+            put_c(&mut d, c"desc".as_ptr(), cstr_as_obj(cmd.uc_desc));
             put_c(
                 &mut d,
                 c"script_id".as_ptr(),
-                integer_obj(i64::from((*cmd).uc_script_ctx.sc_sid)),
+                integer_obj(i64::from(cmd.uc_script_ctx.sc_sid)),
             );
             put_c(
                 &mut d,
                 c"bang".as_ptr(),
-                boolean_obj(((*cmd).uc_argt & EX_BANG) != 0),
+                boolean_obj((cmd.uc_argt & EX_BANG) != 0),
             );
             put_c(
                 &mut d,
                 c"bar".as_ptr(),
-                boolean_obj(((*cmd).uc_argt & EX_TRLBAR) != 0),
+                boolean_obj((cmd.uc_argt & EX_TRLBAR) != 0),
             );
             put_c(
                 &mut d,
                 c"register".as_ptr(),
-                boolean_obj(((*cmd).uc_argt & EX_REGSTR) != 0),
+                boolean_obj((cmd.uc_argt & EX_REGSTR) != 0),
             );
             put_c(
                 &mut d,
                 c"keepscript".as_ptr(),
-                boolean_obj(((*cmd).uc_argt & EX_KEEPSCRIPT) != 0),
+                boolean_obj((cmd.uc_argt & EX_KEEPSCRIPT) != 0),
             );
 
-            if (*cmd).uc_preview_luaref != LUA_NOREF {
+            if cmd.uc_preview_luaref != LUA_NOREF {
                 put_c(
                     &mut d,
                     c"preview".as_ptr(),
-                    luaref_obj(api_new_luaref((*cmd).uc_preview_luaref)),
+                    luaref_obj(api_new_luaref(cmd.uc_preview_luaref)),
                 );
             }
 
-            if (*cmd).uc_luaref != LUA_NOREF {
+            if cmd.uc_luaref != LUA_NOREF {
                 put_c(
                     &mut d,
                     c"callback".as_ptr(),
-                    luaref_obj(api_new_luaref((*cmd).uc_luaref)),
+                    luaref_obj(api_new_luaref(cmd.uc_luaref)),
                 );
             }
 
-            match (*cmd).uc_argt & (EX_EXTRA | EX_NOSPC | EX_NEEDARG | EX_ARGSPACE) {
+            match cmd.uc_argt & (EX_EXTRA | EX_NOSPC | EX_NEEDARG | EX_ARGSPACE) {
                 0 => arg_ch = b'0',
                 EX_EXTRA => arg_ch = b'*',
                 x if x == (EX_EXTRA | EX_NOSPC) => arg_ch = b'?',
@@ -2105,14 +2108,14 @@ pub unsafe fn commands_array(buf: *mut buf_T, arena: *mut Arena) -> Dict {
             };
             put_c(&mut d, c"nargs".as_ptr(), arena_str_obj(arena, arg_slice));
 
-            if (*cmd).uc_compl_luaref != LUA_NOREF {
+            if cmd.uc_compl_luaref != LUA_NOREF {
                 put_c(
                     &mut d,
                     c"complete".as_ptr(),
-                    luaref_obj(api_new_luaref((*cmd).uc_compl_luaref)),
+                    luaref_obj(api_new_luaref(cmd.uc_compl_luaref)),
                 );
             } else {
-                let cmd_compl = get_command_complete((*cmd).uc_compl);
+                let cmd_compl = get_command_complete(cmd.uc_compl);
                 put_c(
                     &mut d,
                     c"complete".as_ptr(),
@@ -2126,17 +2129,17 @@ pub unsafe fn commands_array(buf: *mut buf_T, arena: *mut Arena) -> Dict {
             put_c(
                 &mut d,
                 c"complete_arg".as_ptr(),
-                if (*cmd).uc_compl_arg.is_null() {
+                if cmd.uc_compl_arg.is_null() {
                     nil_obj()
                 } else {
-                    cstr_as_obj((*cmd).uc_compl_arg)
+                    cstr_as_obj(cmd.uc_compl_arg)
                 },
             );
 
             let mut obj = nil_obj();
-            if ((*cmd).uc_argt & EX_COUNT) != 0 {
-                if (*cmd).uc_def >= 0 {
-                    let s = format!("{}", (*cmd).uc_def);
+            if (cmd.uc_argt & EX_COUNT) != 0 {
+                if cmd.uc_def >= 0 {
+                    let s = format!("{}", cmd.uc_def);
                     obj = arena_str_obj(arena, s.as_bytes());
                 } else {
                     obj = cstr_as_obj(c"0".as_ptr());
@@ -2145,11 +2148,11 @@ pub unsafe fn commands_array(buf: *mut buf_T, arena: *mut Arena) -> Dict {
             put_c(&mut d, c"count".as_ptr(), obj);
 
             obj = nil_obj();
-            if ((*cmd).uc_argt & EX_RANGE) != 0 {
-                if ((*cmd).uc_argt & EX_DFLALL) != 0 {
+            if (cmd.uc_argt & EX_RANGE) != 0 {
+                if (cmd.uc_argt & EX_DFLALL) != 0 {
                     obj = cstr_as_obj(c"%".as_ptr());
-                } else if (*cmd).uc_def >= 0 {
-                    let s = format!("{}", (*cmd).uc_def);
+                } else if cmd.uc_def >= 0 {
+                    let s = format!("{}", cmd.uc_def);
                     obj = arena_str_obj(arena, s.as_bytes());
                 } else {
                     obj = cstr_as_obj(c".".as_ptr());
@@ -2162,7 +2165,7 @@ pub unsafe fn commands_array(buf: *mut buf_T, arena: *mut Arena) -> Dict {
                 if entry.expand == ADDR_NONE {
                     break;
                 }
-                if entry.expand != ADDR_LINES && entry.expand == (*cmd).uc_addr_type {
+                if entry.expand != ADDR_LINES && entry.expand == cmd.uc_addr_type {
                     if let Some(name) = entry.name {
                         obj = cstr_as_obj(name.as_ptr());
                     }
@@ -2171,7 +2174,7 @@ pub unsafe fn commands_array(buf: *mut buf_T, arena: *mut Arena) -> Dict {
             }
             put_c(&mut d, c"addr".as_ptr(), obj);
 
-            put_c(&mut rv, (*cmd).uc_name, dict_obj(d));
+            put_c(&mut rv, cmd.uc_name, dict_obj(d));
         }
         let _ = size_of::<KeyValuePair>();
         rv

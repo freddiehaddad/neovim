@@ -685,14 +685,14 @@ unsafe fn tab_firstwin(tp: *const tabpage_T) -> *mut win_T {
     }
 }
 
-unsafe fn qfga_get() -> *mut Vec<c_char> {
+unsafe fn qfga_get() -> &'static mut Vec<c_char> {
     unsafe {
         let gap = &raw mut qfga;
         if (*gap).capacity() == 0 {
             (*gap).reserve(256);
         }
         (*gap).clear();
-        gap
+        &mut *gap
     }
 }
 
@@ -708,22 +708,22 @@ unsafe fn qfga_clear() {
 }
 
 #[inline]
-unsafe fn qfga_concat(gap: *mut Vec<c_char>, s: *const c_char) {
+unsafe fn qfga_concat(gap: &mut Vec<c_char>, s: *const c_char) {
     unsafe {
         if !s.is_null() {
             let len = strlen(s);
             if len > 0 {
-                (*gap).extend_from_slice(std::slice::from_raw_parts(s, len));
+                gap.extend_from_slice(std::slice::from_raw_parts(s, len));
             }
         }
     }
 }
 
 #[inline]
-unsafe fn qfga_concat_len(gap: *mut Vec<c_char>, s: *const c_char, len: usize) {
+unsafe fn qfga_concat_len(gap: &mut Vec<c_char>, s: *const c_char, len: usize) {
     unsafe {
         if !s.is_null() && len > 0 {
-            (*gap).extend_from_slice(std::slice::from_raw_parts(s, len));
+            gap.extend_from_slice(std::slice::from_raw_parts(s, len));
         }
     }
 }
@@ -2012,14 +2012,14 @@ unsafe fn qf_parse_dir_pfx(idx: c_int, fields: *mut qffields_T, qfl: *mut qf_lis
             }
             (*qfl).qf_directory = qf_push_dir(
                 (*fields).namebuf.as_mut_ptr(),
-                &raw mut (*qfl).qf_dir_stack,
+                &mut (*qfl).qf_dir_stack,
                 false,
             );
             if (*qfl).qf_directory.is_null() {
                 return QF_FAIL;
             }
         } else if idx == c_int::from(b'X') {
-            (*qfl).qf_directory = qf_pop_dir(&raw mut (*qfl).qf_dir_stack);
+            (*qfl).qf_directory = qf_pop_dir(&mut (*qfl).qf_dir_stack);
         }
 
         QF_OK
@@ -2038,11 +2038,11 @@ unsafe fn qf_parse_file_pfx(
             if *(*fields).namebuf.as_ptr() != NUL && idx == c_int::from(b'P') {
                 (*qfl).qf_currfile = qf_push_dir(
                     (*fields).namebuf.as_mut_ptr(),
-                    &raw mut (*qfl).qf_file_stack,
+                    &mut (*qfl).qf_file_stack,
                     true,
                 );
             } else if idx == c_int::from(b'Q') {
-                (*qfl).qf_currfile = qf_pop_dir(&raw mut (*qfl).qf_file_stack);
+                (*qfl).qf_currfile = qf_pop_dir(&mut (*qfl).qf_file_stack);
             }
             *(*fields).namebuf.as_mut_ptr() = NUL;
             if !tail.is_null() && *tail != NUL {
@@ -2642,11 +2642,10 @@ unsafe fn qf_get_fnum(
 
 unsafe fn qf_push_dir(
     dirbuf: *mut c_char,
-    stackptr: *mut Vec<*mut c_char>,
+    stack: &mut Vec<*mut c_char>,
     is_file_stack: bool,
 ) -> *mut c_char {
     unsafe {
-        let stack = &mut *stackptr;
         if vim_isAbsName(dirbuf) || stack.is_empty() || is_file_stack {
             let dirname = xstrdup(dirbuf);
             if !dirname.is_null() {
@@ -2688,9 +2687,8 @@ unsafe fn qf_push_dir(
     }
 }
 
-unsafe fn qf_pop_dir(stackptr: *mut Vec<*mut c_char>) -> *mut c_char {
+unsafe fn qf_pop_dir(stack: &mut Vec<*mut c_char>) -> *mut c_char {
     unsafe {
-        let stack = &mut *stackptr;
         if let Some(top) = stack.pop() {
             xfree(top.cast());
         }
@@ -2698,9 +2696,8 @@ unsafe fn qf_pop_dir(stackptr: *mut Vec<*mut c_char>) -> *mut c_char {
     }
 }
 
-unsafe fn qf_clean_dir_stack(stackptr: *mut Vec<*mut c_char>) {
+unsafe fn qf_clean_dir_stack(stack: &mut Vec<*mut c_char>) {
     unsafe {
-        let stack = &mut *stackptr;
         for d in stack.drain(..) {
             xfree(d.cast());
         }
@@ -3353,7 +3350,7 @@ unsafe fn qf_jump_print_msg(
         );
         qfga_concat_len(gap, iobuff_ptr, iobufflen);
         qf_fmt_text(gap, skipwhite((*qf_ptr).qf_text));
-        (*gap).push(NUL);
+        gap.push(NUL);
 
         let i = msg_scroll;
         if curbuf == old_curbuf && (*curwin).w_cursor.lnum == old_lnum {
@@ -3363,7 +3360,7 @@ unsafe fn qf_jump_print_msg(
             msg_scroll = 0;
         }
         msg_ext_set_kind(c"quickfix".as_ptr());
-        msg_keep((*gap).as_ptr(), 0, true, false);
+        msg_keep(gap.as_ptr(), 0, true, false);
         msg_scroll = i;
 
         qfga_clear();
@@ -3622,16 +3619,16 @@ unsafe fn qf_list_entry(qfp: *mut qfline_T, qf_idx: c_int, cursel: bool) {
             qf_range_text(gap, qfp);
         }
         qfga_concat(gap, qf_types(c_int::from((*qfp).qf_type), (*qfp).qf_nr));
-        (*gap).push(NUL);
-        if *(*gap).as_ptr() != NUL {
-            msg_puts_hl((*gap).as_ptr(), qfLine_hl_id, false);
+        gap.push(NUL);
+        if *gap.as_ptr() != NUL {
+            msg_puts_hl(gap.as_ptr(), qfLine_hl_id, false);
         }
         msg_puts_hl(c":".as_ptr(), qfSep_hl_id, false);
         if !(*qfp).qf_pattern.is_null() {
             gap = qfga_get();
             qf_fmt_text(gap, (*qfp).qf_pattern);
-            (*gap).push(NUL);
-            msg_puts((*gap).as_ptr());
+            gap.push(NUL);
+            msg_puts(gap.as_ptr());
             msg_puts_hl(c":".as_ptr(), qfSep_hl_id, false);
         }
         msg_puts(c" ".as_ptr());
@@ -3643,8 +3640,8 @@ unsafe fn qf_list_entry(qfp: *mut qfline_T, qf_idx: c_int, cursel: bool) {
             (*qfp).qf_text
         };
         qf_fmt_text(gap, text);
-        (*gap).push(NUL);
-        msg_prt_line((*gap).as_mut_ptr(), false);
+        gap.push(NUL);
+        msg_prt_line(gap.as_mut_ptr(), false);
     }
 }
 
@@ -3721,12 +3718,12 @@ pub unsafe fn qf_list(eap: *mut exarg_T) {
     }
 }
 
-unsafe fn qf_fmt_text(gap: *mut Vec<c_char>, text: *const c_char) {
+unsafe fn qf_fmt_text(gap: &mut Vec<c_char>, text: *const c_char) {
     unsafe {
         let mut p = text;
         while *p != NUL {
             if *p == b'\n' as c_char {
-                (*gap).push(b' ' as c_char);
+                gap.push(b' ' as c_char);
                 loop {
                     p = p.add(1);
                     if *p == NUL {
@@ -3737,14 +3734,14 @@ unsafe fn qf_fmt_text(gap: *mut Vec<c_char>, text: *const c_char) {
                     }
                 }
             } else {
-                (*gap).push(*p);
+                gap.push(*p);
                 p = p.add(1);
             }
         }
     }
 }
 
-unsafe fn qf_range_text(gap: *mut Vec<c_char>, qfp: *const qfline_T) {
+unsafe fn qf_range_text(gap: &mut Vec<c_char>, qfp: *const qfline_T) {
     unsafe {
         let buf_data = (&raw mut IObuff).cast::<c_char>();
         let mut buf_size = vim_snprintf_safelen!(buf_data, IOSIZE, c"%d".as_ptr(), (*qfp).qf_lnum);
@@ -3881,9 +3878,9 @@ unsafe fn qf_free_items(qfl: *mut qf_list_T) {
         (*qfl).qf_index = 0;
         (*qfl).qf_nonevalid = true;
 
-        qf_clean_dir_stack(&raw mut (*qfl).qf_dir_stack);
+        qf_clean_dir_stack(&mut (*qfl).qf_dir_stack);
         (*qfl).qf_directory = ptr::null_mut();
-        qf_clean_dir_stack(&raw mut (*qfl).qf_file_stack);
+        qf_clean_dir_stack(&mut (*qfl).qf_file_stack);
         (*qfl).qf_currfile = ptr::null_mut();
         (*qfl).qf_multiline = false;
         (*qfl).qf_multiignore = false;
@@ -4501,7 +4498,7 @@ unsafe fn qf_buf_add_line(
                 }
             }
 
-            (*gap).push(b'|' as c_char);
+            gap.push(b'|' as c_char);
 
             if (*qfp).qf_lnum > 0 {
                 qf_range_text(gap, qfp);
@@ -4509,25 +4506,23 @@ unsafe fn qf_buf_add_line(
             } else if !(*qfp).qf_pattern.is_null() {
                 qf_fmt_text(gap, (*qfp).qf_pattern);
             }
-            (*gap).push(b'|' as c_char);
-            (*gap).push(b' ' as c_char);
+            gap.push(b'|' as c_char);
+            gap.push(b' ' as c_char);
 
-            qf_fmt_text(
-                gap,
-                if (*gap).len() > 3 {
-                    skipwhite((*qfp).qf_text)
-                } else {
-                    (*qfp).qf_text
-                },
-            );
+            let text_arg = if gap.len() > 3 {
+                skipwhite((*qfp).qf_text)
+            } else {
+                (*qfp).qf_text
+            };
+            qf_fmt_text(gap, text_arg);
         }
 
-        (*gap).push(NUL);
+        gap.push(NUL);
         if ml_append_buf(
             buf,
             lnum,
-            (*gap).as_mut_ptr(),
-            (*gap).len() as colnr_T,
+            gap.as_mut_ptr(),
+            gap.len() as colnr_T,
             false,
         ) == FAIL
         {

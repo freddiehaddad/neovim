@@ -57,8 +57,7 @@ use crate::ex_getln::{
 use crate::file_search::{do_autocmd_dirchanged, grab_file_name};
 use crate::fileio::shorten_fnames;
 use crate::fold::{
-    clearFolding, copyFoldingState, deleteFoldRecurse, fold_T, foldInitWin, getDeepestNesting,
-    hasFolding,
+    clearFolding, copyFoldingState, fold_T, foldInitWin, getDeepestNesting, hasFolding,
 };
 use crate::globals::*;
 use crate::grid::{
@@ -6313,12 +6312,12 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
         xfree((*wp).w_prevdir.cast());
         (*wp).w_prevdir = ptr::null_mut();
 
-        stl_clear_click_defs(&raw mut (*wp).w_status_click_defs);
-        stl_clear_click_defs(&raw mut (*wp).w_winbar_click_defs);
+        stl_clear_click_defs(&mut (*wp).w_status_click_defs);
+        stl_clear_click_defs(&mut (*wp).w_winbar_click_defs);
 
         for (_, lnum_click_defs) in std::mem::take(&mut (*wp).w_statuscol_click_defs) {
             for (_, mut row_click_defs) in lnum_click_defs {
-                stl_clear_click_defs(&raw mut row_click_defs);
+                stl_clear_click_defs(&mut row_click_defs);
             }
         }
 
@@ -6339,7 +6338,7 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
                 wip_wp.wi_win = ptr::null_mut();
                 if (*wp).w_config.style == kWinStyleMinimal && wip_wp.wi_optset {
                     clear_winopt(&raw mut wip_wp.wi_opt);
-                    deleteFoldRecurse(buf, &raw mut wip_wp.wi_folds);
+                    wip_wp.wi_folds.clear();
                     wip_wp.wi_optset = false;
                 }
                 if let Some(pn) = pos_null {
@@ -6388,12 +6387,12 @@ impl Drop for win_T {
             xfree(self.w_prevdir.cast());
             self.w_prevdir = ptr::null_mut();
 
-            stl_clear_click_defs(&raw mut self.w_status_click_defs);
-            stl_clear_click_defs(&raw mut self.w_winbar_click_defs);
+            stl_clear_click_defs(&mut self.w_status_click_defs);
+            stl_clear_click_defs(&mut self.w_winbar_click_defs);
 
             for (_, lnum_click_defs) in std::mem::take(&mut self.w_statuscol_click_defs) {
                 for (_, mut row_click_defs) in lnum_click_defs {
-                    stl_clear_click_defs(&raw mut row_click_defs);
+                    stl_clear_click_defs(&mut row_click_defs);
                 }
             }
 
@@ -7886,7 +7885,7 @@ pub unsafe fn win_remove_status_line(wp: *mut win_T, add_hsep: bool) {
         }
         comp_col();
 
-        stl_clear_click_defs(&raw mut (*wp).w_status_click_defs);
+        stl_clear_click_defs(&mut (*wp).w_status_click_defs);
         (*wp).w_status_click_defs = Vec::new();
     }
 }
@@ -8002,7 +8001,7 @@ pub unsafe fn set_winbar_win(wp: *mut win_T, make_room: bool, valid_cursor: bool
             win_set_inner_size(wp, valid_cursor);
 
             if winbar_height == 0 {
-                stl_clear_click_defs(&raw mut (*wp).w_winbar_click_defs);
+                stl_clear_click_defs(&mut (*wp).w_winbar_click_defs);
                 (*wp).w_winbar_click_defs = Vec::new();
             }
         }

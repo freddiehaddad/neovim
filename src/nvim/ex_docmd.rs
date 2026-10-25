@@ -593,7 +593,7 @@ struct wcmd_T {
 
 #[repr(C)]
 pub struct loop_cookie {
-    lines_gap: *mut Vec<wcmd_T>,
+    lines: Vec<wcmd_T>,
     current_line: c_int,
     repeating: c_int,
     pub lc_getline: LineGetter,
@@ -602,7 +602,7 @@ pub struct loop_cookie {
 impl loop_cookie {
     const fn new() -> Self {
         Self {
-            lines_gap: ptr::null_mut(),
+            lines: Vec::new(),
             current_line: 0,
             repeating: 0,
             lc_getline: LineGetter::None,
@@ -4969,7 +4969,6 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
         let mut did_block = false;
         let mut retval = OK;
         let mut cstack = cstack_T::default();
-        let mut lines_ga: Vec<wcmd_T> = Vec::new();
         let mut current_line: c_int = 0;
         let mut fname: *mut c_char = ptr::null_mut();
         let mut breakpoint: *mut linenr_T = ptr::null_mut();
@@ -5036,7 +5035,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                 did_emsg = 0;
             }
 
-            if cstack.cs_looplevel > 0 && (current_line as usize) < lines_ga.len() {
+            if cstack.cs_looplevel > 0 && (current_line as usize) < cmd_loop_cookie.lines.len() {
                 xfree(cmdline_copy.cast());
                 cmdline_copy = ptr::null_mut();
 
@@ -5063,7 +5062,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                     *dbg_tick = debug_tick;
                 }
 
-                let wp = &lines_ga[current_line as usize];
+                let wp = &cmd_loop_cookie.lines[current_line as usize];
                 next_cmdline = wp.line.as_ptr().cast_mut();
                 *sourcing_lnum_ptr() = wp.lnum;
 
@@ -5135,14 +5134,14 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
             let mut current_line_before: c_int = 0;
             let using_loop_cookie = cstack.cs_looplevel > 0 || has_loop_cmd(next_cmdline);
             if using_loop_cookie {
-                cmd_loop_cookie.lines_gap = &raw mut lines_ga;
                 cmd_loop_cookie.current_line = current_line;
                 cmd_loop_cookie.lc_getline = fgetline;
-                cmd_loop_cookie.repeating = c_int::from((current_line as usize) < lines_ga.len());
+                cmd_loop_cookie.repeating =
+                    c_int::from((current_line as usize) < cmd_loop_cookie.lines.len());
                 cmd_getline = LineGetter::Loop(&raw mut cmd_loop_cookie);
 
-                if (current_line as usize) == lines_ga.len() {
-                    store_loop_line(&mut lines_ga, next_cmdline);
+                if (current_line as usize) == cmd_loop_cookie.lines.len() {
+                    store_loop_line(&mut cmd_loop_cookie.lines, next_cmdline);
                 }
                 current_line_before = current_line;
             } else {
@@ -5216,8 +5215,10 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                         cstack.cs_lflags |= CSL_HAD_LOOP;
                         line_breakcheck();
 
-                        if !breakpoint.is_null() && lines_ga.len() > current_line as usize {
-                            let wp = &lines_ga[current_line as usize];
+                        if !breakpoint.is_null()
+                            && cmd_loop_cookie.lines.len() > current_line as usize
+                        {
+                            let wp = &cmd_loop_cookie.lines[current_line as usize];
                             *breakpoint =
                                 dbg_find_breakpoint(fgetline.is_source(), fname, wp.lnum - 1);
                             *dbg_tick = debug_tick;
@@ -5237,9 +5238,9 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
             }
 
             if cstack.cs_looplevel == 0 {
-                if let Some(wp) = lines_ga.last() {
+                if let Some(wp) = cmd_loop_cookie.lines.last() {
                     *sourcing_lnum_ptr() = wp.lnum;
-                    lines_ga.clear();
+                    cmd_loop_cookie.lines.clear();
                 }
                 current_line = 0;
             }
@@ -5283,7 +5284,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
 
         xfree(cmdline_copy.cast());
         did_emsg_syntax = false;
-        drop(lines_ga);
+        drop(cmd_loop_cookie);
 
         if cstack.cs_idx >= 0 {
             if !got_int
@@ -5460,7 +5461,7 @@ pub unsafe fn get_loop_line(
     do_concat: bool,
 ) -> *mut c_char {
     unsafe {
-        let lines = &mut *(*cp).lines_gap;
+        let lines = &mut (*cp).lines;
 
         if ((*cp).current_line + 1) as usize >= lines.len() {
             if (*cp).repeating != 0 {

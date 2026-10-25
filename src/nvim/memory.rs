@@ -791,8 +791,8 @@ pub unsafe fn free_all_mem() {
         *th_ptr = std::collections::BTreeMap::new();
 
         grid_free_all_mem();
-        stl_clear_click_defs(&raw mut tab_page_click_defs);
         let tp_defs = &raw mut tab_page_click_defs;
+        stl_clear_click_defs(&mut *tp_defs);
         *tp_defs = Vec::new();
 
         clear_hl_tables(false);

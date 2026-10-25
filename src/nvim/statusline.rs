@@ -377,34 +377,28 @@ pub unsafe fn stl_connected(wp: *mut win_T) -> bool {
 }
 
 /// Clear status line, window bar or tab page line click definition table.
-pub unsafe fn stl_clear_click_defs(click_defs: *mut Vec<StlClickDefinition>) {
+pub unsafe fn stl_clear_click_defs(defs: &mut [StlClickDefinition]) {
     unsafe {
-        if !click_defs.is_null() {
-            let defs = &mut *click_defs;
-            let mut prev_func: *mut c_char = ptr::null_mut();
-            for def in defs.iter_mut() {
-                if !def.func.is_null() && def.func != prev_func {
-                    prev_func = def.func;
-                    xfree(def.func.cast());
-                }
-                *def = StlClickDefinition::default();
+        let mut prev_func: *mut c_char = ptr::null_mut();
+        for def in defs.iter_mut() {
+            if !def.func.is_null() && def.func != prev_func {
+                prev_func = def.func;
+                xfree(def.func.cast());
             }
+            *def = StlClickDefinition::default();
         }
     }
 }
 
 /// Allocate or resize the click definitions array if needed.
-pub unsafe fn stl_alloc_click_defs(
-    cdp: *mut Vec<StlClickDefinition>,
+pub fn stl_alloc_click_defs(
+    defs: &mut Vec<StlClickDefinition>,
     width: c_int,
 ) -> *mut StlClickDefinition {
-    unsafe {
-        let defs = &mut *cdp;
-        if defs.len() < width as usize {
-            defs.resize(width as usize, StlClickDefinition::default());
-        }
-        defs.as_mut_ptr()
+    if defs.len() < width as usize {
+        defs.resize(width as usize, StlClickDefinition::default());
     }
+    defs.as_mut_ptr()
 }
 
 /// Fill the click definitions array if needed.
@@ -548,8 +542,8 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
             group = if wp == curwin { HLF_WBR } else { HLF_WBRNC };
             attr = win_hl_attr(wp, group);
             maxwidth = (*wp).w_view_width;
-            stl_clear_click_defs(&raw mut (*wp).w_winbar_click_defs);
-            click_defs = stl_alloc_click_defs(&raw mut (*wp).w_winbar_click_defs, maxwidth);
+            stl_clear_click_defs(&mut (*wp).w_winbar_click_defs);
+            click_defs = stl_alloc_click_defs(&mut (*wp).w_winbar_click_defs, maxwidth);
         } else if draw_ruler && ui_event {
             stl = p_ruf;
             opt_idx = kOptRulerformat;
@@ -619,8 +613,8 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
             }
             fillchar = fillchar_status(&raw mut group, wp);
             attr = win_hl_attr(wp, group);
-            stl_clear_click_defs(&raw mut (*wp).w_status_click_defs);
-            click_defs = stl_alloc_click_defs(&raw mut (*wp).w_status_click_defs, maxwidth);
+            stl_clear_click_defs(&mut (*wp).w_status_click_defs);
+            click_defs = stl_alloc_click_defs(&mut (*wp).w_status_click_defs, maxwidth);
         }
 
         if maxwidth > 0 {
@@ -973,7 +967,7 @@ pub unsafe fn draw_tabline() {
 
         let defs = &raw mut tab_page_click_defs;
         debug_assert!((*defs).len() >= Columns as usize);
-        stl_clear_click_defs(defs);
+        stl_clear_click_defs(&mut *defs);
 
         if *p_tal != NUL {
             win_redr_stl_expr(ptr::null_mut(), false, false, false);
@@ -1170,8 +1164,8 @@ pub unsafe fn build_statuscol_str(
         if !(*clickrec).start.is_null() {
             let clicks = (*wp).w_statuscol_click_defs.entry(lnum).or_default();
             let click_defs = clicks.entry(virtnum).or_default();
-            stl_clear_click_defs(&raw mut *click_defs);
-            let cdp = stl_alloc_click_defs(&raw mut *click_defs, width);
+            stl_clear_click_defs(click_defs);
+            let cdp = stl_alloc_click_defs(click_defs, width);
             stl_fill_click_defs(cdp, clickrec, buf_data, width, false);
         }
 
@@ -2575,13 +2569,13 @@ mod tests {
     fn stl_alloc_and_clear_click_defs_manage_buffer() {
         unsafe {
             let mut defs: Vec<StlClickDefinition> = Vec::new();
-            let cdp = stl_alloc_click_defs(&raw mut defs, 4);
+            let cdp = stl_alloc_click_defs(&mut defs, 4);
             assert!(!cdp.is_null());
             assert_eq!(defs.len(), 4);
             let fn_str = xstrdup(c"MyClick".as_ptr());
             defs[0].func = fn_str;
             defs[1].func = fn_str;
-            stl_clear_click_defs(&raw mut defs);
+            stl_clear_click_defs(&mut defs);
             assert!(defs[0].func.is_null());
         }
     }

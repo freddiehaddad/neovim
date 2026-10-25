@@ -234,11 +234,6 @@ unsafe fn mb_cptr_adv(p: &mut *const c_char) {
         *p = (*p).add(utfc_ptr2len(*p) as usize);
     }
 }
-
-#[inline]
-pub unsafe fn langp_entry(ga: *const Vec<langp_T>, i: usize) -> *mut langp_T {
-    unsafe { (*ga).as_ptr().cast_mut().add(i) }
-}
 /// Main spell-checking function.
 pub unsafe fn spell_check(
     wp: *mut win_T,
@@ -319,7 +314,7 @@ pub unsafe fn spell_check(
         mi.mi_result = SP_BAD;
         mi.mi_result2 = SP_BAD;
         for lpi in 0..(*w_s).b_langp.len() {
-            mi.mi_lp = langp_entry(&raw const (*w_s).b_langp, lpi);
+            mi.mi_lp = (*w_s).b_langp.as_mut_ptr().add(lpi);
             if (*(*mi.mi_lp).lp_slang).sl_fidxs.is_empty() {
                 continue;
             }
@@ -362,11 +357,9 @@ pub unsafe fn spell_check(
                 return utfc_ptr2len(ptr) as usize;
             } else if mi.mi_end == ptr {
                 mb_ptr_adv(&mut mi.mi_end);
-            } else if mi.mi_result == SP_BAD
-                && (*(*langp_entry(&raw const (*w_s).b_langp, 0)).lp_slang).sl_nobreak
-            {
+            } else if mi.mi_result == SP_BAD && (*(&(*w_s).b_langp)[0].lp_slang).sl_nobreak {
                 let save_result = mi.mi_result;
-                mi.mi_lp = langp_entry(&raw const (*w_s).b_langp, 0);
+                mi.mi_lp = (*w_s).b_langp.as_mut_ptr();
                 if !(*(*mi.mi_lp).lp_slang).sl_fidxs.is_empty() {
                     let mut p = mi.mi_word;
                     let mut fp = (&raw mut mi.mi_fword).cast::<c_char>();
@@ -750,7 +743,7 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
                     let w_s = (*(*mip).mi_win).w_s;
                     for lpi in 0..(*w_s).b_langp.len() {
                         if (*slang).sl_nobreak {
-                            (*mip).mi_lp = langp_entry(&raw const (*w_s).b_langp, lpi);
+                            (*mip).mi_lp = (*w_s).b_langp.as_mut_ptr().add(lpi);
                             if (*(*(*mip).mi_lp).lp_slang).sl_fidxs.is_empty()
                                 || !(*(*(*mip).mi_lp).lp_slang).sl_nobreak
                             {
@@ -2747,10 +2740,10 @@ pub unsafe fn ex_spellinfo(_eap: *mut exarg_T) {
         let len = (*w_s).b_langp.len();
         let mut lpi: usize = 0;
         while lpi < len && !got_int {
-            let lp = langp_entry(&raw const (*w_s).b_langp, lpi);
+            let lp = &(&(*w_s).b_langp)[lpi];
             msg_puts(c"file: ".as_ptr());
-            msg_puts((*(*lp).lp_slang).sl_fname);
-            let p = (*(*lp).lp_slang).sl_info;
+            msg_puts((*lp.lp_slang).sl_fname);
+            let p = (*lp.lp_slang).sl_info;
             if lpi < len || !p.is_null() {
                 msg_putchar(b'\n' as c_int);
             }
@@ -2821,9 +2814,8 @@ pub unsafe fn spell_dump_compl(
             }
         }
         let w_s = (*curwin).w_s.cast::<synblock_T>();
-        for lpi in 0..(*w_s).b_langp.len() {
-            let lp = langp_entry(&raw const (*w_s).b_langp, lpi);
-            let p = (&raw mut (*(*lp).lp_slang).sl_regions).cast::<c_char>();
+        for lp in &(*w_s).b_langp {
+            let p = (&raw mut (*lp.lp_slang).sl_regions).cast::<c_char>();
             if *p != 0 {
                 if region_names.is_null() {
                     region_names = p;
@@ -2846,7 +2838,7 @@ pub unsafe fn spell_dump_compl(
             do_region = false;
         }
         for lpi in 0..(*w_s).b_langp.len() {
-            let lp = langp_entry(&raw const (*w_s).b_langp, lpi);
+            let lp = (*w_s).b_langp.as_mut_ptr().add(lpi);
             let slang = (*lp).lp_slang;
             if (*slang).sl_fbyts.is_empty() {
                 continue;
