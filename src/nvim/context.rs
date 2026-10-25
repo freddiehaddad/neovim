@@ -30,7 +30,7 @@ use crate::normal::visualinfo_T;
 use crate::option::buf_copy_options;
 use crate::option_vars::*;
 use crate::os::fs::{MAXPATHL, os_chdir, os_dirname};
-use crate::register::{free_register, get_y_register};
+use crate::register::{EMPTY_YANKREG, get_y_register};
 use crate::shada::{
     kShaDaForceit, kShaDaNanos, kShaDaNoHistory, kShaDaNoOpt, kShaDaWantInfo, shada_encode_buflist,
     shada_encode_gvars, shada_encode_jumps, shada_encode_regs, shada_read_string,
@@ -450,7 +450,7 @@ pub unsafe fn ctx_load(ctx: *mut Context, flags: CtxStateFlags, loadflags: CtxLo
         if (flags & kCtxRegs) != 0 {
             if (loadflags & kCtxMergeReg) == 0 {
                 for i in 0..NUM_SAVED_REGISTERS {
-                    free_register(get_y_register(i));
+                    *get_y_register(i) = EMPTY_YANKREG;
                 }
             }
             shada_read_string(

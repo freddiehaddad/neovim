@@ -10,7 +10,7 @@ use crate::memory::{xfree, xstrdup};
 use crate::message::{emsg, msg, redirecting};
 use crate::option_vars::*;
 use crate::register::{
-    MotionType, PLUS_REGISTER, STAR_REGISTER, free_register, get_y_previous, get_y_register,
+    EMPTY_YANKREG, MotionType, PLUS_REGISTER, STAR_REGISTER, get_y_previous, get_y_register,
     update_yankreg_width, yankreg_T,
 };
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
@@ -117,7 +117,7 @@ pub unsafe fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet:
             *target = reg_ptr;
             return true;
         }
-        free_register(reg_ptr);
+        *reg_ptr = EMPTY_YANKREG;
         let reg = &mut *reg_ptr;
 
         let args = tv_list_alloc(1);

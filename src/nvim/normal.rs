@@ -131,8 +131,8 @@ use crate::r#move::{
 use crate::ops::{
     OP_CHANGE, OP_COLON, OP_DELETE, OP_FOLD, OP_FORMAT, OP_LOWER, OP_LSHIFT, OP_MCURSOR, OP_NOP,
     OP_NR_ADD, OP_NR_SUB, OP_ROT13, OP_RSHIFT, OP_TILDE, OP_UPPER, OP_YANK, adjust_cursor_eol,
-    clear_oparg, cursor_pos_info, do_join, do_pending_operator, get_extra_op_char, get_op_char,
-    get_op_type, op_addsub, op_is_change, swapchar,
+    cursor_pos_info, do_join, do_pending_operator, get_extra_op_char, get_op_char, get_op_type,
+    op_addsub, op_is_change, swapchar,
 };
 use crate::option::{
     OPT_LOCAL, OptInt, copy_option_part, get_showbreak_value, get_sidescrolloff_value,
@@ -4336,7 +4336,6 @@ pub unsafe fn do_nv_ident(c1: c_int, c2: c_int) {
         let mut oa = oparg_T::new();
         let mut ca = cmdarg_T::new();
 
-        clear_oparg(&raw mut oa);
         ca.oap = &raw mut oa;
         ca.cmdchar = c1;
         ca.nchar = c2;
@@ -7819,7 +7818,6 @@ pub unsafe fn exec_stuffed(cap: *mut cmdarg_T) {
             return;
         }
         let mut oa = oparg_T::new();
-        clear_oparg(&raw mut oa);
         let oap = if !cap.is_null() {
             (*cap).oap
         } else {

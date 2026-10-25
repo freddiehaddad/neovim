@@ -306,15 +306,6 @@ pub unsafe fn funcline(fp: *const ufunc_T, j: c_int) -> *mut c_char {
     unsafe { (&(*fp).uf_lines)[j as usize] }
 }
 
-unsafe fn clear_cstr_vec(v: &mut Vec<*mut c_char>) {
-    unsafe {
-        for p in v.drain(..) {
-            xfree(p.cast());
-        }
-        *v = Vec::new();
-    }
-}
-
 pub unsafe fn func_init() {}
 
 /// Return the function hash table.
@@ -442,10 +433,10 @@ unsafe fn get_function_args(
                             p,
                         );
                         if let Some(newargs) = newargs.as_deref_mut() {
-                            clear_cstr_vec(newargs);
+                            crate::path::clear_cstrings(newargs);
                         }
                         if let Some(default_args) = default_args.as_deref_mut() {
-                            clear_cstr_vec(default_args);
+                            crate::path::clear_cstrings(default_args);
                         }
                         return FAIL;
                     }
@@ -467,10 +458,10 @@ unsafe fn get_function_args(
         }
         if *p != endchar {
             if let Some(newargs) = newargs {
-                clear_cstr_vec(newargs);
+                crate::path::clear_cstrings(newargs);
             }
             if let Some(default_args) = default_args {
-                clear_cstr_vec(default_args);
+                crate::path::clear_cstrings(default_args);
             }
             return FAIL;
         }
@@ -597,7 +588,7 @@ pub unsafe fn get_lambda_tv(
             false,
         );
         if ret == FAIL || **arg != b'>' as c_char {
-            clear_cstr_vec(&mut newargs);
+            crate::path::clear_cstrings(&mut newargs);
             xfree(pt.cast());
             if !evalarg.is_null() && (*evalarg).eval_tofree.is_null() {
                 (*evalarg).eval_tofree = tofree;
@@ -617,7 +608,7 @@ pub unsafe fn get_lambda_tv(
         ret = skip_expr(arg, evalarg);
         let end = *arg;
         if ret == FAIL {
-            clear_cstr_vec(&mut newargs);
+            crate::path::clear_cstrings(&mut newargs);
             xfree(pt.cast());
             if !evalarg.is_null() && (*evalarg).eval_tofree.is_null() {
                 (*evalarg).eval_tofree = tofree;
@@ -635,7 +626,7 @@ pub unsafe fn get_lambda_tv(
         *arg = skipwhite(*arg);
         if **arg != b'}' as c_char {
             semsg!(gettext(c"E451: Expected }: %s".as_ptr()), *arg);
-            clear_cstr_vec(&mut newargs);
+            crate::path::clear_cstrings(&mut newargs);
             xfree(pt.cast());
             if !evalarg.is_null() && (*evalarg).eval_tofree.is_null() {
                 (*evalarg).eval_tofree = tofree;
@@ -1161,9 +1152,9 @@ unsafe fn func_remove(fp: *mut ufunc_T) -> bool {
 
 unsafe fn func_clear_items(fp: *mut ufunc_T) {
     unsafe {
-        clear_cstr_vec(&mut (*fp).uf_args);
-        clear_cstr_vec(&mut (*fp).uf_def_args);
-        clear_cstr_vec(&mut (*fp).uf_lines);
+        crate::path::clear_cstrings(&mut (*fp).uf_args);
+        crate::path::clear_cstrings(&mut (*fp).uf_def_args);
+        crate::path::clear_cstrings(&mut (*fp).uf_lines);
 
         if ((*fp).uf_flags & FC_LUAREF) != 0 {
             api_free_luaref((*fp).uf_luaref);
@@ -2989,9 +2980,9 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
 
         macro_rules! errret_keep {
             () => {{
-                clear_cstr_vec(&mut newargs);
-                clear_cstr_vec(&mut default_args);
-                clear_cstr_vec(&mut newlines);
+                crate::path::clear_cstrings(&mut newargs);
+                crate::path::clear_cstrings(&mut default_args);
+                crate::path::clear_cstrings(&mut newlines);
                 ret_free!();
             }};
         }

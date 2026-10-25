@@ -447,7 +447,7 @@ unsafe fn add_menu_path(
                     break;
                 };
                 parent = (*parent).parent;
-                free_menu(&mut *mp, idx);
+                (*mp).remove(idx);
             }
             FAIL
         };
@@ -699,7 +699,7 @@ unsafe fn remove_menu(
                     free_menu_string(menu, MENU_INDEX_TIP as usize);
                 }
                 if ((*menu).modes & MENU_ALL_MODES) == 0 {
-                    free_menu(&mut *menup, idx);
+                    (*menup).remove(idx);
                 } else {
                     idx += 1;
                 }
@@ -723,17 +723,12 @@ unsafe fn remove_menu(
                 free_menu_string(found_menu, MENU_INDEX_TIP as usize);
             }
             if ((*found_menu).modes & MENU_ALL_MODES) == 0 {
-                free_menu(&mut *menup, idx);
+                (*menup).remove(idx);
             }
         }
 
         OK
     }
-}
-
-/// Free the given menu structure and remove it from the menu list (`free_menu`).
-unsafe fn free_menu(menup: &mut Vec<vimmenu_T>, idx: usize) {
-    menup.remove(idx);
 }
 
 /// Free the `menu->strings[idx]` with the given index (`free_menu_string`).

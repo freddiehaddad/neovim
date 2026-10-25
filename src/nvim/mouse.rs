@@ -46,7 +46,7 @@ use crate::r#move::{check_topfill, pagescroll, scroll_redraw, win_col_off, win_c
 use crate::normal::{
     clearop, clearopbeep, end_visual_mode, exec_stuffed, may_start_select, nv_scroll_line,
 };
-use crate::ops::{OP_NOP, clear_oparg};
+use crate::ops::OP_NOP;
 use crate::option::get_scrolloff_value;
 use crate::option_vars::*;
 use crate::plines::{
@@ -1227,7 +1227,6 @@ pub unsafe fn ins_mousescroll(dir: c_int) {
     unsafe {
         let mut cap = cmdarg_T::new();
         let mut oa = oparg_T::new();
-        clear_oparg(&raw mut oa);
         cap.oap = &raw mut oa;
         cap.arg = dir;
 
@@ -1283,7 +1282,6 @@ pub unsafe fn cmdline_mousescroll(dir: c_int) -> bool {
     unsafe {
         let mut cap = cmdarg_T::new();
         let mut oa = oparg_T::new();
-        clear_oparg(&raw mut oa);
         cap.oap = &raw mut oa;
         cap.arg = dir;
 

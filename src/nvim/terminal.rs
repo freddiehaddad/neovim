@@ -81,7 +81,6 @@ use crate::mouse::{
 };
 use crate::r#move::{curs_columns, set_topline, validate_cursor, win_col_off};
 use crate::msgpack_rpc::packer::handle_T;
-use crate::ops::clear_oparg;
 use crate::option_vars::*;
 use crate::optionstr::free_string_option;
 use crate::state::{
@@ -2310,7 +2309,6 @@ unsafe fn send_mouse_event(term: *mut Terminal, mut c: c_int) -> bool {
 
                 let mut cap = cmdarg_T::new();
                 let mut oa = oparg_T::new();
-                clear_oparg(&mut oa);
                 cap.oap = &mut oa;
                 cap.cmdchar = c;
                 cap.arg = match c {

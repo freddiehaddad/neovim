@@ -3012,19 +3012,13 @@ pub unsafe fn do_addsub(
 
         if visual {
             (*curwin).w_cursor = save_cursor;
-        } else if did_change {
+        } else         if did_change {
             (*curwin).w_set_curswant = true;
         } else if virtual_active(curwin) {
             (*curwin).w_cursor.coladd = save_coladd;
         }
 
         did_change
-    }
-}
-
-pub unsafe fn clear_oparg(oap: *mut oparg_T) {
-    unsafe {
-        *oap = oparg_T::new();
     }
 }
 

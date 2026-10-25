@@ -4418,7 +4418,7 @@ unsafe fn get_next_cmdline_completion() {
                 }
             }
             crate::path::clear_cstrings(&mut matches);
-            free_xp_files_extra(&raw mut compl_xp, 0);
+            free_xp_files_extra(&raw mut compl_xp);
         }
     }
 }

@@ -11,7 +11,7 @@ use crate::ex_docmd::{CMOD_KEEPPATTERNS, exarg_T};
 use crate::ex_getln::{get_cmdline_firstc, get_list_range};
 use crate::globals::*;
 use crate::math::{FAIL, OK};
-use crate::memory::{xfree, xmalloc, xmallocz, xstrlcpy};
+use crate::memory::{xfree, xmallocz, xstrlcpy};
 use crate::message::{
     message_filtered, msg, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts_title, semsg,
     trunc_string,
@@ -33,7 +33,7 @@ pub const HIST_INPUT: c_int = 3;
 pub const HIST_DEBUG: c_int = 4;
 pub const HIST_COUNT: usize = 5;
 
-static mut HISTORY: [*mut histentry_T; HIST_COUNT] = [std::ptr::null_mut(); HIST_COUNT];
+static mut HISTORY: [Vec<histentry_T>; HIST_COUNT] = [const { Vec::new() }; HIST_COUNT];
 static mut HISIDX: [c_int; HIST_COUNT] = [-1; HIST_COUNT];
 static mut HISNUM: [c_int; HIST_COUNT] = [0; HIST_COUNT];
 static mut HISLEN: c_int = 0;
@@ -104,7 +104,13 @@ pub fn get_hislen() -> c_int {
 
 /// Return a pointer to a specified history table (`get_histentry`).
 pub unsafe fn get_histentry(hist_type: c_int) -> *mut histentry_T {
-    unsafe { HISTORY[hist_type as usize] }
+    unsafe {
+        if HISTORY[hist_type as usize].is_empty() {
+            std::ptr::null_mut()
+        } else {
+            HISTORY[hist_type as usize].as_mut_ptr()
+        }
+    }
 }
 
 /// Return a pointer to the current index for `hist_type` (`get_hisidx`).
@@ -144,13 +150,8 @@ pub unsafe fn init_history() {
             return;
         }
 
-        let elem_size = std::mem::size_of::<histentry_T>();
         for hist_type in 0..HIST_COUNT {
-            let temp = if newlen > 0 {
-                xmalloc((newlen as usize) * elem_size).cast::<histentry_T>()
-            } else {
-                std::ptr::null_mut()
-            };
+            let mut temp = vec![histentry_T::new(); newlen.max(0) as usize];
 
             let j = HISIDX[hist_type];
             if j >= 0 {
@@ -161,37 +162,27 @@ pub unsafe fn init_history() {
 
                 if newlen > 0 {
                     if l2 > 0 {
-                        std::ptr::copy_nonoverlapping(
-                            HISTORY[hist_type].add(i2 as usize),
-                            temp,
-                            l2 as usize,
+                        temp[..l2 as usize].copy_from_slice(
+                            &HISTORY[hist_type][i2 as usize..(i2 + l2) as usize],
                         );
                     }
                     if l1 > 0 {
-                        std::ptr::copy_nonoverlapping(
-                            HISTORY[hist_type].add(i1 as usize),
-                            temp.add(l2 as usize),
-                            l1 as usize,
+                        temp[l2 as usize..(l2 + l1) as usize].copy_from_slice(
+                            &HISTORY[hist_type][i1 as usize..(i1 + l1) as usize],
                         );
                     }
                 }
 
                 for i in 0..i1 {
-                    hist_free_entry(HISTORY[hist_type].add(i as usize));
+                    hist_free_entry(&raw mut HISTORY[hist_type][i as usize]);
                 }
                 for i in (i1 + l1)..i2 {
-                    hist_free_entry(HISTORY[hist_type].add(i as usize));
+                    hist_free_entry(&raw mut HISTORY[hist_type][i as usize]);
                 }
             }
 
             let l3 = if j < 0 { 0 } else { newlen.min(oldlen) };
-            if newlen > l3 {
-                std::slice::from_raw_parts_mut(temp.add(l3 as usize), (newlen - l3) as usize)
-                    .fill(histentry_T::new());
-            }
-
             HISIDX[hist_type] = l3 - 1;
-            xfree(HISTORY[hist_type].cast::<c_void>());
             HISTORY[hist_type] = temp;
         }
         HISLEN = newlen;
@@ -215,7 +206,7 @@ unsafe fn in_history(
         let mut i = cur_idx;
 
         loop {
-            let entry = &*HISTORY[hist_type].add(i as usize);
+            let entry = &HISTORY[hist_type][i as usize];
             if entry.hisstr.is_null() {
                 return false;
             }
@@ -242,18 +233,18 @@ unsafe fn in_history(
             return false;
         }
 
-        let matched = *HISTORY[hist_type].add(i as usize);
+        let matched = HISTORY[hist_type][i as usize];
         while i != HISIDX[hist_type] {
             i += 1;
             if i >= hislen {
                 i = 0;
             }
-            *HISTORY[hist_type].add(last_i as usize) = *HISTORY[hist_type].add(i as usize);
+            HISTORY[hist_type][last_i as usize] = HISTORY[hist_type][i as usize];
             last_i = i;
         }
         xfree(matched.additional_data.cast());
         HISNUM[hist_type] += 1;
-        let dst = &mut *HISTORY[hist_type].add(i as usize);
+        let dst = &mut HISTORY[hist_type][i as usize];
         dst.hisnum = HISNUM[hist_type];
         dst.hisstr = matched.hisstr;
         dst.hisstrlen = matched.hisstrlen;
@@ -310,7 +301,7 @@ pub unsafe fn add_to_history(
         if histype == HIST_SEARCH && in_map {
             if maptick == LAST_MAPTICK && HISIDX[HIST_SEARCH as usize] >= 0 {
                 let sidx = HISIDX[HIST_SEARCH as usize] as usize;
-                hist_free_entry(HISTORY[HIST_SEARCH as usize].add(sidx));
+                hist_free_entry(&raw mut HISTORY[HIST_SEARCH as usize][sidx]);
                 HISNUM[histype as usize] -= 1;
                 HISIDX[HIST_SEARCH as usize] -= 1;
                 if HISIDX[HIST_SEARCH as usize] < 0 {
@@ -331,7 +322,7 @@ pub unsafe fn add_to_history(
         if HISIDX[htype] == hislen {
             HISIDX[htype] = 0;
         }
-        let hisptr = &mut *HISTORY[htype].add(HISIDX[htype] as usize);
+        let hisptr = &mut HISTORY[htype][HISIDX[htype] as usize];
         hist_free_entry(hisptr);
 
         let buf = xmallocz(new_entrylen + 2).cast::<c_char>();
@@ -368,7 +359,7 @@ unsafe fn get_history_idx(histype: c_int) -> c_int {
     if idx < 0 {
         return -1;
     }
-    unsafe { (*HISTORY[histype as usize].add(idx as usize)).hisnum }
+    unsafe { HISTORY[histype as usize][idx as usize].hisnum }
 }
 
 unsafe fn calc_hist_idx(histype: c_int, num: c_int) -> c_int {
@@ -381,10 +372,10 @@ unsafe fn calc_hist_idx(histype: c_int, num: c_int) -> c_int {
         return -1;
     }
 
-    let hist = unsafe { HISTORY[histype as usize] };
+    let hist = unsafe { HISTORY[histype as usize].as_slice() };
     if num > 0 {
         let mut wrapped = false;
-        while unsafe { (*hist.add(i as usize)).hisnum } > num {
+        while hist[i as usize].hisnum > num {
             i -= 1;
             if i < 0 {
                 if wrapped {
@@ -394,10 +385,7 @@ unsafe fn calc_hist_idx(histype: c_int, num: c_int) -> c_int {
                 wrapped = true;
             }
         }
-        if i >= 0
-            && unsafe { (*hist.add(i as usize)).hisnum } == num
-            && unsafe { !(*hist.add(i as usize)).hisstr.is_null() }
-        {
+        if i >= 0 && hist[i as usize].hisnum == num && !hist[i as usize].hisstr.is_null() {
             return i;
         }
     } else if -num <= hislen {
@@ -405,7 +393,7 @@ unsafe fn calc_hist_idx(histype: c_int, num: c_int) -> c_int {
         if i < 0 {
             i += hislen;
         }
-        if unsafe { !(*hist.add(i as usize)).hisstr.is_null() } {
+        if !hist[i as usize].hisstr.is_null() {
             return i;
         }
     }
@@ -418,9 +406,8 @@ pub unsafe fn clr_history(histype: c_int) -> c_int {
     if hislen != 0 && histype >= 0 && (histype as usize) < HIST_COUNT {
         let htype = histype as usize;
         unsafe {
-            let hisptr = HISTORY[htype];
-            for i in 0..(hislen as usize) {
-                hist_free_entry(hisptr.add(i));
+            for entry in HISTORY[htype].iter_mut().take(hislen as usize) {
+                hist_free_entry(entry);
             }
             HISIDX[htype] = -1;
             HISNUM[htype] = 0;
@@ -460,7 +447,7 @@ unsafe fn del_history_entry(histype: c_int, str_ptr: *mut c_char) -> c_int {
         let mut i = idx;
         let mut last = idx;
         loop {
-            let hisptr = HISTORY[htype].add(i as usize);
+            let hisptr = &raw mut HISTORY[htype][i as usize];
             if (*hisptr).hisstr.is_null() {
                 break;
             }
@@ -469,7 +456,7 @@ unsafe fn del_history_entry(histype: c_int, str_ptr: *mut c_char) -> c_int {
                 hist_free_entry(hisptr);
             } else {
                 if i != last {
-                    *HISTORY[htype].add(last as usize) = *hisptr;
+                    HISTORY[htype][last as usize] = *hisptr;
                     clear_hist_entry(hisptr);
                 }
                 last -= 1;
@@ -486,7 +473,7 @@ unsafe fn del_history_entry(histype: c_int, str_ptr: *mut c_char) -> c_int {
             }
         }
 
-        if (*HISTORY[htype].add(idx as usize)).hisstr.is_null() {
+        if HISTORY[htype][idx as usize].hisstr.is_null() {
             HISIDX[htype] = -1;
         }
 
@@ -504,7 +491,7 @@ unsafe fn del_history_idx(histype: c_int, idx_arg: c_int) -> c_int {
         let htype = histype as usize;
         let idx = HISIDX[htype];
         let hislen = HISLEN;
-        hist_free_entry(HISTORY[htype].add(i as usize));
+        hist_free_entry(&raw mut HISTORY[htype][i as usize]);
 
         if histype == HIST_SEARCH && maptick == LAST_MAPTICK && i == idx {
             LAST_MAPTICK = -1;
@@ -512,10 +499,10 @@ unsafe fn del_history_idx(histype: c_int, idx_arg: c_int) -> c_int {
 
         while i != idx {
             let j = (i + 1) % hislen;
-            *HISTORY[htype].add(i as usize) = *HISTORY[htype].add(j as usize);
+            HISTORY[htype][i as usize] = HISTORY[htype][j as usize];
             i = j;
         }
-        clear_hist_entry(HISTORY[htype].add(idx as usize));
+        clear_hist_entry(&raw mut HISTORY[htype][idx as usize]);
         i -= 1;
         if i < 0 {
             i += hislen;
@@ -601,7 +588,7 @@ pub unsafe fn f_histget(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
             if idx < 0 {
                 (*rettv).vval.v_string = xmallocz(0).cast::<c_char>();
             } else {
-                let entry = &*HISTORY[htype as usize].add(idx as usize);
+                let entry = &HISTORY[htype as usize][idx as usize];
                 let out = xmallocz(entry.hisstrlen).cast::<c_char>();
                 let actual = CStr::from_ptr(entry.hisstr)
                     .to_bytes()
@@ -694,21 +681,21 @@ pub unsafe fn ex_history(eap: *mut exarg_T) {
             msg_puts_title(title.as_ptr().cast::<c_char>());
 
             let idx = HISIDX[histype1 as usize];
-            let hist = HISTORY[histype1 as usize];
+            let hist = HISTORY[histype1 as usize].as_slice();
             let mut j = hisidx1;
             let mut k = hisidx2;
             if j < 0 {
                 j = if -j > hislen {
                     0
                 } else {
-                    (*hist.add(((hislen + j + idx + 1) % hislen) as usize)).hisnum
+                    hist[((hislen + j + idx + 1) % hislen) as usize].hisnum
                 };
             }
             if k < 0 {
                 k = if -k > hislen {
                     0
                 } else {
-                    (*hist.add(((hislen + k + idx + 1) % hislen) as usize)).hisnum
+                    hist[((hislen + k + idx + 1) % hislen) as usize].hisnum
                 };
             }
             if idx >= 0 && j <= k {
@@ -717,7 +704,7 @@ pub unsafe fn ex_history(eap: *mut exarg_T) {
                     if i == hislen {
                         i = 0;
                     }
-                    let entry = &*hist.add(i as usize);
+                    let entry = &hist[i as usize];
                     if !entry.hisstr.is_null()
                         && entry.hisnum >= j
                         && entry.hisnum <= k
@@ -776,9 +763,9 @@ pub unsafe fn hist_iter(
             return std::ptr::null();
         }
         let hislen = HISLEN;
-        let hstart = HISTORY[htype];
-        let hlast = HISTORY[htype].add(HISIDX[htype] as usize);
-        let hend = HISTORY[htype].add((hislen - 1) as usize);
+        let hstart = HISTORY[htype].as_mut_ptr();
+        let hlast = hstart.add(HISIDX[htype] as usize);
+        let hend = hstart.add((hislen - 1) as usize);
 
         let mut hiter = if iter.is_null() {
             let mut hfirst = hlast;
@@ -826,7 +813,11 @@ pub unsafe fn hist_get_array(
         let htype = history_type as usize;
         *new_hisidx = std::ptr::addr_of_mut!(HISIDX[htype]);
         *new_hisnum = std::ptr::addr_of_mut!(HISNUM[htype]);
-        HISTORY[htype]
+        if HISTORY[htype].is_empty() {
+            std::ptr::null_mut()
+        } else {
+            HISTORY[htype].as_mut_ptr()
+        }
     }
 }
 

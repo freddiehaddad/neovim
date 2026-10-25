@@ -586,7 +586,7 @@ unsafe fn stuff_yank(regname: c_int, p: *mut c_char) -> c_int {
             xfree(pp.data.cast());
             *pp = cbuf_as_string(tmp, tmplen);
         } else {
-            free_register(reg);
+            *reg = EMPTY_YANKREG;
             reg.additional_data = ptr::null_mut();
             reg.y_array = vec![cbuf_as_string(p, plen)];
             reg.y_allocated = true;
@@ -1087,7 +1087,7 @@ pub unsafe fn cmdline_paste_reg(regname: c_int, literally_arg: bool, remcr: bool
 pub unsafe fn shift_delete_registers(y_append: bool) {
     unsafe {
         let regs = (&raw mut y_regs).cast::<yankreg_T>();
-        free_register(regs.add(9));
+        *regs.add(9) = EMPTY_YANKREG;
         let mut n = 9;
         while n > 1 {
             *regs.add(n) = std::mem::replace(&mut *regs.add(n - 1), EMPTY_YANKREG);
@@ -1103,14 +1103,8 @@ pub unsafe fn clear_registers() {
     unsafe {
         let regs = (&raw mut y_regs).cast::<yankreg_T>();
         for i in 0..NUM_REGISTERS {
-            free_register(regs.add(i));
+            *regs.add(i) = EMPTY_YANKREG;
         }
-    }
-}
-
-pub unsafe fn free_register(reg: *mut yankreg_T) {
-    unsafe {
-        *reg = EMPTY_YANKREG;
     }
 }
 
@@ -1165,7 +1159,7 @@ pub unsafe fn op_yank_reg(oap: *mut oparg_T, message: bool, mut reg: *mut yankre
         if append && (*reg).y_allocated {
             reg = &raw mut newreg;
         } else {
-            free_register(reg);
+            *reg = EMPTY_YANKREG;
         }
 
         if orig_motion == MotionType::kMTCharWise
@@ -2810,7 +2804,7 @@ unsafe fn init_write_reg(
 
         let reg = get_yank_register(name, YREG_YANK);
         if !is_append_register(name) && !must_append {
-            free_register(reg);
+            *reg = EMPTY_YANKREG;
         }
         reg
     }

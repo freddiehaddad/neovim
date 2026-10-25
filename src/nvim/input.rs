@@ -59,7 +59,6 @@ use crate::message::{emsg, internal_error, semsg, semsg_multiline};
 use crate::mouse::{is_mouse_key, mouse_comp_pos, mouse_find_win_inner};
 use crate::r#move::{validate_cursor, win_col_off};
 use crate::normal::{add_to_showcmd, normal_cmd, pop_showcmd, push_showcmd};
-use crate::ops::clear_oparg;
 use crate::option_vars::*;
 use crate::os::env::expand_env;
 use crate::os::fileio::{
@@ -341,13 +340,6 @@ pub(crate) unsafe fn langmap_adjust(c: &mut c_int, condition: bool) {
     }
 }
 
-/// Frees the buffer's memory; it becomes empty.
-unsafe fn free_buff(buf: *mut StuffBuf) {
-    unsafe {
-        *buf = StuffBuf::new();
-    }
-}
-
 /// Gets the contents of the record buffer as a string (typeahead encoding) and clears the buffer.
 pub unsafe fn get_recorded() -> *mut c_char {
     unsafe {
@@ -619,8 +611,8 @@ pub unsafe fn flush_buffers(flush_typeahead: flush_buffers_T) {
         if !(*k2).is_empty() && Visual.active {
             Visual.need_end = true;
         }
-        free_buff(&raw mut readbuf1);
-        free_buff(&raw mut readbuf2);
+        readbuf1 = StuffBuf::new();
+        readbuf2 = StuffBuf::new();
 
         if flush_typeahead == FLUSH_MINIMAL {
             if typebuf.tb_off + typebuf.tb_maplen >= typebuf.tb_buflen {
@@ -741,8 +733,8 @@ pub unsafe fn redo_cancel() {
         atom_redo_cancel();
         let rb = &raw mut redobuff;
         (*rb).cur = std::mem::take(&mut (*rb).old);
-        free_buff(&raw mut readbuf1);
-        free_buff(&raw mut readbuf2);
+        readbuf1 = StuffBuf::new();
+        readbuf2 = StuffBuf::new();
     }
 }
 
@@ -1525,7 +1517,6 @@ pub unsafe fn openscript(name: *mut c_char, directly: bool) {
             State = MODE_NORMAL;
             msg_scroll = 0;
             restart_edit = 0;
-            clear_oparg(&raw mut oa);
             finish_op = false;
 
             let oldcurscript = curscript;

@@ -2539,7 +2539,7 @@ unsafe fn find_longest_match(xp: *mut expand_T, options: c_int) -> *mut c_char {
     }
 }
 
-pub unsafe fn free_xp_files_extra(xp: *mut expand_T, _numfiles: c_int) {
+pub unsafe fn free_xp_files_extra(xp: *mut expand_T) {
     unsafe {
         crate::path::clear_cstrings(&mut (*xp).xp_files_abbr);
         crate::path::clear_cstrings(&mut (*xp).xp_files_kind);
@@ -2589,7 +2589,7 @@ pub unsafe fn ExpandOne(
 
         if (*xp).xp_numfiles != -1 && mode != WILD_ALL && mode != WILD_LONGEST {
             crate::path::clear_cstrings(&mut (*xp).xp_files);
-            free_xp_files_extra(xp, (*xp).xp_numfiles);
+            free_xp_files_extra(xp);
             (*xp).xp_numfiles = -1;
             xfree((*xp).xp_orig.cast());
             (*xp).xp_orig = ptr::null_mut();
@@ -2685,7 +2685,7 @@ pub unsafe fn ExpandInit(xp: *mut expand_T) {
 pub unsafe fn ExpandCleanup(xp: *mut expand_T) {
     unsafe {
         if (*xp).xp_numfiles >= 0 {
-            free_xp_files_extra(xp, (*xp).xp_numfiles);
+            free_xp_files_extra(xp);
             crate::path::clear_cstrings(&mut (*xp).xp_files);
             (*xp).xp_numfiles = -1;
         }
@@ -2836,7 +2836,7 @@ pub unsafe fn showmatches(
             );
             if (*xp).xp_numfiles == -1 {
                 crate::path::clear_cstrings(&mut temp_matches);
-                free_xp_files_extra(xp, 0);
+                free_xp_files_extra(xp);
             }
             return EXPAND_OK;
         }
@@ -2932,7 +2932,7 @@ pub unsafe fn showmatches(
 
         if (*xp).xp_numfiles == -1 {
             crate::path::clear_cstrings(&mut temp_matches);
-            free_xp_files_extra(xp, 0);
+            free_xp_files_extra(xp);
         }
 
         EXPAND_OK

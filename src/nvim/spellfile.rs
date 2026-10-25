@@ -44,9 +44,9 @@ use crate::spell::{
     MAXWLEN, SP_FORMERROR, WF_BANNED, WF_COMPROOT, WF_FIXCAP, WF_HAS_AFF, WF_KEEPCAP, WF_NEEDCOMP,
     WF_NOCOMPAFT, WF_NOCOMPBEF, WF_RARE, WF_REGION, WFP_NC, byte_in_str, captype,
     clear_spell_chartab, close_spellbuf, count_common_word, did_set_spelltab, e_format, first_lang,
-    free_sal_items, init_spell_chartab, init_syl_tab, int_wordlist, onecap_copy, open_spellbuf,
-    parse_spelllang, slang_alloc, slang_clear, slang_clear_sug, spell_casefold, spell_enc,
-    spell_soundfold, spell_toupper, spelltab,
+    init_spell_chartab, init_syl_tab, int_wordlist, onecap_copy, open_spellbuf, parse_spelllang,
+    slang_alloc, slang_clear, slang_clear_sug, spell_casefold, spell_enc, spell_soundfold,
+    spell_toupper, spelltab,
 };
 use crate::spellsuggest::{fromto_T, idx_T, salitem_T, slang_T, spelltab_T};
 use crate::strings::{
@@ -1405,7 +1405,8 @@ unsafe fn read_compound(fd: *mut FILE, slang: *mut slang_T, len: c_int) -> c_int
 
 unsafe fn set_sofo(lp: *mut slang_T, from: *const c_char, to: *const c_char) -> c_int {
     unsafe {
-        free_sal_items(lp);
+        (*lp).sl_sal = Vec::new();
+        (*lp).sl_sofo_sal = Vec::new();
 
         let gap = &mut (*lp).sl_sofo_sal;
         gap.resize_with(256, Vec::new);

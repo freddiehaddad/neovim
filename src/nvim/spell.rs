@@ -1452,12 +1452,6 @@ pub unsafe fn slang_alloc(lang: *mut c_char) -> *mut slang_T {
         }))
     }
 }
-pub unsafe fn free_sal_items(lp: *mut slang_T) {
-    unsafe {
-        (*lp).sl_sal = Vec::new();
-        (*lp).sl_sofo_sal = Vec::new();
-    }
-}
 pub unsafe fn slang_clear(lp: *mut slang_T) {
     unsafe {
         (*lp).sl_fbyts = Vec::new();
@@ -1468,7 +1462,8 @@ pub unsafe fn slang_clear(lp: *mut slang_T) {
         (*lp).sl_pidxs = Vec::new();
         (*lp).sl_rep = Vec::new();
         (*lp).sl_repsal = Vec::new();
-        free_sal_items(lp);
+        (*lp).sl_sal = Vec::new();
+        (*lp).sl_sofo_sal = Vec::new();
         for prog in (*lp).sl_prefprog.drain(..) {
             vim_regfree(prog.cast());
         }

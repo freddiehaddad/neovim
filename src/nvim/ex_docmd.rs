@@ -166,9 +166,7 @@ use crate::normal::{
     FIND_EVAL, FIND_IDENT, FIND_STRING, do_check_scrollbind, end_visual_mode,
     find_ident_under_cursor, get_vtopline, normal_cmd, set_cursor_for_append_to_line,
 };
-use crate::ops::{
-    OP_DELETE, OP_LSHIFT, OP_RSHIFT, OP_YANK, clear_oparg, do_join, op_delete, op_shift,
-};
+use crate::ops::{OP_DELETE, OP_LSHIFT, OP_RSHIFT, OP_YANK, do_join, op_delete, op_shift};
 use crate::option::{
     OPT_LOCAL, OptInt, ex_set, get_findfunc, get_option_sctx, get_scrolloff_value, kOptFiletype,
     set_option_direct, set_option_value_give_err,
@@ -11145,7 +11143,6 @@ unsafe fn ex_wincmd(eap: *mut exarg_T) {
 unsafe fn ex_operators(eap: *mut exarg_T) {
     unsafe {
         let mut oa = oparg_T::new();
-        clear_oparg(&raw mut oa);
         oa.regname = (*eap).regname;
         oa.start.lnum = (*eap).line1;
         oa.end.lnum = (*eap).line2;
@@ -11893,7 +11890,6 @@ pub unsafe fn exec_normal_cmd(cmd: *mut c_char, remap: c_int, silent: bool) {
 pub unsafe fn exec_normal(was_typed: bool, use_vpeekc: bool) {
     unsafe {
         let mut oa = oparg_T::new();
-        clear_oparg(&raw mut oa);
         finish_op = false;
         while (!stuff_empty()
             || ((was_typed || typebuf_typed() == 0) && typebuf.tb_len > 0)

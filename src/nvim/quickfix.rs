@@ -1025,13 +1025,6 @@ unsafe fn efm_to_regpat(
     }
 }
 
-unsafe fn free_efm_list(efm_list: *mut Vec<efm_T>) {
-    unsafe {
-        (*efm_list).clear();
-        fmt_start_idx = None;
-    }
-}
-
 unsafe fn efm_regpat_bufsz(efm: *const c_char) -> usize {
     unsafe {
         let mut sz = (FMT_PATTERNS * 3) + (strlen(efm) << 2);
@@ -1096,7 +1089,8 @@ unsafe fn parse_efm_option(mut efm: *mut c_char) -> Vec<efm_T> {
         }
 
         if errored {
-            free_efm_list(&raw mut fmt_list);
+            fmt_list.clear();
+            fmt_start_idx = None;
         } else if fmt_list.is_empty() {
             emsg(gettext(c"E378: 'errorformat' contains no pattern".as_ptr()));
         }
@@ -1550,7 +1544,8 @@ unsafe fn qf_init_ext(
         if last_efm_cache.is_null() || strcmp(last_efm_cache, efm) != 0 {
             xfree(last_efm_cache.cast());
             last_efm_cache = ptr::null_mut();
-            free_efm_list(cache_ptr);
+            (*cache_ptr).clear();
+            fmt_start_idx = None;
 
             *cache_ptr = parse_efm_option(efm);
             if !(*cache_ptr).is_empty() {
