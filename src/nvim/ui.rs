@@ -95,6 +95,14 @@ struct UIEventCallback {
     ext_widgets: [bool; kUIGlobalCount],
 }
 
+impl Drop for UIEventCallback {
+    fn drop(&mut self) {
+        unsafe {
+            api_free_luaref(self.cb);
+        }
+    }
+}
+
 pub static mut uis: Vec<*mut RemoteUI> = Vec::new();
 static mut ui_ext: [bool; kUIExtCount] = [false; kUIExtCount];
 static mut ui_mode_idx: c_int = SHAPE_IDX_N;
@@ -106,7 +114,7 @@ static mut pending_mode_info_update: bool = false;
 static mut pending_mode_update: bool = false;
 static mut cursor_grid_handle: handle_T = DEFAULT_GRID_HANDLE;
 
-static mut ui_event_cbs: std::collections::BTreeMap<u32, *mut UIEventCallback> =
+static mut ui_event_cbs: std::collections::BTreeMap<u32, UIEventCallback> =
     std::collections::BTreeMap::new();
 static mut ui_cb_ext: [bool; kUIExtCount] = [false; kUIExtCount];
 
@@ -129,11 +137,7 @@ pub unsafe fn ui_init() {
 pub unsafe fn ui_free_all_mem() {
     unsafe {
         let cbs_ptr = &raw mut ui_event_cbs;
-        for (_, event_cb) in std::mem::take(&mut *cbs_ptr) {
-            if !event_cb.is_null() {
-                free_ui_event_callback(event_cb);
-            }
-        }
+        (*cbs_ptr).clear();
         uis = Vec::new();
 
         multiqueue_free(resize_events);
@@ -887,10 +891,10 @@ pub unsafe fn ui_call_event(name: *mut c_char, args: Array) {
         let mut handled = false;
         let fast = msg_ext_fast && strcmp(c"msg_show".as_ptr(), name) == 0;
         let cbs_ptr = &raw const ui_event_cbs;
-        let entries: Vec<(u32, *mut UIEventCallback)> =
-            (*cbs_ptr).iter().map(|(&k, &v)| (k, v)).collect();
-        for (ns_id, event_cb) in entries {
-            if event_cb.is_null() || !(*cbs_ptr).contains_key(&ns_id) {
+        let entries: Vec<(u32, LuaRef)> =
+            (*cbs_ptr).iter().map(|(&k, v)| (k, v.cb)).collect();
+        for (ns_id, cb_ref) in entries {
+            if !(*cbs_ptr).contains_key(&ns_id) {
                 continue;
             }
             ui_event_ns_id = ns_id;
@@ -900,7 +904,7 @@ pub unsafe fn ui_call_event(name: *mut c_char, args: Array) {
             };
             let res = nlua_call_ref_ctx(
                 fast,
-                (*event_cb).cb,
+                cb_ref,
                 name,
                 args,
                 kRetNilBool,
@@ -936,8 +940,8 @@ unsafe fn ui_cb_update_ext() {
 
         let cbs_ptr = &raw const ui_event_cbs;
         for i in 0..kUIGlobalCount {
-            for &event_cb in (*cbs_ptr).values() {
-                if !event_cb.is_null() && (*event_cb).ext_widgets[i] {
+            for event_cb in (*cbs_ptr).values() {
+                if event_cb.ext_widgets[i] {
                     *ui_cb_ext_ptr.add(i) = true;
                     break;
                 }
@@ -946,35 +950,24 @@ unsafe fn ui_cb_update_ext() {
     }
 }
 
-unsafe fn free_ui_event_callback(event_cb: *mut UIEventCallback) {
-    unsafe {
-        api_free_luaref((*event_cb).cb);
-        drop(Box::from_raw(event_cb));
-    }
-}
-
 pub unsafe fn ui_add_cb(ns_id: u32, cb: LuaRef, ext_widgets: *mut bool) {
     unsafe {
-        let event_cb = Box::into_raw(Box::new(UIEventCallback {
+        let mut event_cb = UIEventCallback {
             cb,
             errors: 0,
             ext_widgets: [false; kUIGlobalCount],
-        }));
+        };
         ptr::copy_nonoverlapping(
             ext_widgets,
-            (&raw mut (*event_cb).ext_widgets).cast::<bool>(),
+            event_cb.ext_widgets.as_mut_ptr(),
             kUIGlobalCount,
         );
-        if (*event_cb).ext_widgets[kUIMessages] {
-            (*event_cb).ext_widgets[kUICmdline] = true;
+        if event_cb.ext_widgets[kUIMessages] {
+            event_cb.ext_widgets[kUICmdline] = true;
         }
 
         let cbs_ptr = &raw mut ui_event_cbs;
-        if let Some(old_cb) = (*cbs_ptr).insert(ns_id, event_cb)
-            && !old_cb.is_null()
-        {
-            free_ui_event_callback(old_cb);
-        }
+        (*cbs_ptr).insert(ns_id, event_cb);
 
         ui_cb_update_ext();
         ui_refresh();
@@ -984,15 +977,18 @@ pub unsafe fn ui_add_cb(ns_id: u32, cb: LuaRef, ext_widgets: *mut bool) {
 pub unsafe fn ui_remove_cb(ns_id: u32, checkerr: bool) {
     unsafe {
         let cbs_ptr = &raw mut ui_event_cbs;
-        let item = (*cbs_ptr).get(&ns_id).copied().unwrap_or(ptr::null_mut());
-        if !item.is_null()
-            && (!checkerr || {
-                (*item).errors += 1;
-                (*item).errors > CB_MAX_ERROR
-            })
-        {
+        let should_remove = if let Some(item) = (*cbs_ptr).get_mut(&ns_id) {
+            if !checkerr {
+                true
+            } else {
+                item.errors += 1;
+                item.errors > CB_MAX_ERROR
+            }
+        } else {
+            false
+        };
+        if should_remove {
             (*cbs_ptr).remove(&ns_id);
-            free_ui_event_callback(item);
             ui_cb_update_ext();
             ui_refresh();
             if checkerr {

@@ -5,7 +5,7 @@ use std::ptr;
 
 use crate::mpack::mpack_core::{
     MPACK_EOF, MPACK_OK, MPACK_TOKEN_ARRAY, MPACK_TOKEN_UINT, mpack_read, mpack_tokbuf_init,
-    mpack_tokbuf_t, mpack_token_data_t, mpack_token_t, mpack_uint32_t, mpack_value_t, mpack_write,
+    mpack_tokbuf_t, mpack_token_t, mpack_uint32_t, mpack_write,
 };
 use crate::mpack::object::{MPACK_NOMEM, mpack_data_t};
 
@@ -78,7 +78,7 @@ pub unsafe fn mpack_rpc_session_new(capacity: mpack_uint32_t) -> *mut mpack_rpc_
             used: 0,
             msg: mpack_rpc_message_t {
                 id: 0,
-                data: mpack_data_t { p: ptr::null_mut() },
+                data: mpack_data_t::new(),
             },
         };
         let mut session = Box::new(mpack_rpc_session_t {
@@ -112,7 +112,7 @@ pub unsafe fn mpack_rpc_session_grow(session: *mut mpack_rpc_session_t) {
             used: 0,
             msg: mpack_rpc_message_t {
                 id: 0,
-                data: mpack_data_t { p: ptr::null_mut() },
+                data: mpack_data_t::new(),
             },
         };
         let old_slots = std::mem::replace(&mut (*session).slots, vec![empty_slot; new_cap]);
@@ -366,17 +366,7 @@ pub unsafe fn mpack_rpc_notify(
 }
 
 fn mpack_rpc_request_hdr() -> mpack_rpc_header_t {
-    let z = mpack_token_t {
-        r#type: crate::mpack::mpack_core::MPACK_TOKEN_NONE,
-        length: 0,
-        data: mpack_token_data_t {
-            value: mpack_value_t { lo: 0, hi: 0 },
-        },
-    };
-    let mut hdr = mpack_rpc_header_t {
-        toks: [z; 3],
-        index: 0,
-    };
+    let mut hdr = mpack_rpc_header_t::new();
     hdr.toks[0].r#type = MPACK_TOKEN_ARRAY;
     hdr.toks[0].length = 4;
     hdr.toks[1].r#type = MPACK_TOKEN_UINT;

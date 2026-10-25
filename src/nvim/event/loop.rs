@@ -93,7 +93,7 @@ pub struct Loop {
     pub events: *mut MultiQueue,
     pub thread_events: *mut MultiQueue,
     pub fast_events: *mut MultiQueue,
-    pub children: Vec<*mut c_void>,
+    pub children: Vec<*mut crate::event::proc::Proc>,
     pub children_watcher: [u64; 40],
     pub children_kill_timer: [u64; 32],
     pub poll_timer: [u64; 32],

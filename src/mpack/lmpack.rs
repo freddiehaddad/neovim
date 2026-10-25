@@ -953,6 +953,7 @@ unsafe extern "C-unwind" fn lmpack_session_request(l: *mut lua_State) -> c_int {
         let mut bl = buf.len();
         let session = lmpack_check_session(l, 1);
         let data = mpack_data_t {
+            p: ptr::null_mut(),
             i: mpack_sintmax_t::from(if lua_isnoneornil(l, 2) {
                 LUA_NOREF
             } else {

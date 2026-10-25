@@ -18,9 +18,7 @@ pub fn mpack_pack_nil() -> mpack_token_t {
     mpack_token_t {
         r#type: MPACK_TOKEN_NIL,
         length: 0,
-        data: mpack_token_data_t {
-            value: mpack_value_t { lo: 0, hi: 0 },
-        },
+        data: mpack_token_data_t::new(),
     }
 }
 
@@ -33,6 +31,7 @@ pub fn mpack_pack_boolean(v: c_uint) -> mpack_token_t {
                 lo: u32::from(v != 0),
                 hi: 0,
             },
+            ..mpack_token_data_t::new()
         },
     }
 }
@@ -60,7 +59,10 @@ pub fn mpack_pack_float_fast(v: c_double) -> mpack_token_t {
     mpack_token_t {
         r#type: MPACK_TOKEN_FLOAT,
         length,
-        data: mpack_token_data_t { value },
+        data: mpack_token_data_t {
+            value,
+            ..mpack_token_data_t::new()
+        },
     }
 }
 
@@ -110,6 +112,7 @@ pub fn mpack_pack_number(v: c_double) -> mpack_token_t {
         length,
         data: mpack_token_data_t {
             value: mpack_value_t { lo, hi },
+            ..mpack_token_data_t::new()
         },
     };
 
@@ -124,7 +127,10 @@ pub fn mpack_pack_chunk(p: *const c_char, l: mpack_uint32_t) -> mpack_token_t {
     mpack_token_t {
         r#type: MPACK_TOKEN_CHUNK,
         length: l,
-        data: mpack_token_data_t { chunk_ptr: p },
+        data: mpack_token_data_t {
+            chunk_ptr: p,
+            ..mpack_token_data_t::new()
+        },
     }
 }
 
@@ -132,9 +138,7 @@ pub fn mpack_pack_str(l: mpack_uint32_t) -> mpack_token_t {
     mpack_token_t {
         r#type: MPACK_TOKEN_STR,
         length: l,
-        data: mpack_token_data_t {
-            value: mpack_value_t { lo: 0, hi: 0 },
-        },
+        data: mpack_token_data_t::new(),
     }
 }
 
@@ -142,9 +146,7 @@ pub fn mpack_pack_bin(l: mpack_uint32_t) -> mpack_token_t {
     mpack_token_t {
         r#type: MPACK_TOKEN_BIN,
         length: l,
-        data: mpack_token_data_t {
-            value: mpack_value_t { lo: 0, hi: 0 },
-        },
+        data: mpack_token_data_t::new(),
     }
 }
 
@@ -152,7 +154,10 @@ pub fn mpack_pack_ext(t: c_int, l: mpack_uint32_t) -> mpack_token_t {
     mpack_token_t {
         r#type: MPACK_TOKEN_EXT,
         length: l,
-        data: mpack_token_data_t { ext_type: t },
+        data: mpack_token_data_t {
+            ext_type: t,
+            ..mpack_token_data_t::new()
+        },
     }
 }
 
@@ -160,9 +165,7 @@ pub fn mpack_pack_array(l: mpack_uint32_t) -> mpack_token_t {
     mpack_token_t {
         r#type: MPACK_TOKEN_ARRAY,
         length: l,
-        data: mpack_token_data_t {
-            value: mpack_value_t { lo: 0, hi: 0 },
-        },
+        data: mpack_token_data_t::new(),
     }
 }
 
@@ -170,24 +173,22 @@ pub fn mpack_pack_map(l: mpack_uint32_t) -> mpack_token_t {
     mpack_token_t {
         r#type: MPACK_TOKEN_MAP,
         length: l,
-        data: mpack_token_data_t {
-            value: mpack_value_t { lo: 0, hi: 0 },
-        },
+        data: mpack_token_data_t::new(),
     }
 }
 
 pub fn mpack_unpack_boolean(t: mpack_token_t) -> bool {
-    let val = unsafe { t.data.value };
+    let val = t.data.value;
     val.lo != 0 || val.hi != 0
 }
 
 pub fn mpack_unpack_uint(t: mpack_token_t) -> mpack_uintmax_t {
-    let val = unsafe { t.data.value };
+    let val = t.data.value;
     (((val.hi as mpack_uintmax_t) << 31) << 1) | (val.lo as mpack_uintmax_t)
 }
 
 pub fn mpack_unpack_sint(t: mpack_token_t) -> mpack_sintmax_t {
-    let val = unsafe { t.data.value };
+    let val = t.data.value;
     let hi = val.hi;
     let lo = val.lo;
     let mut rv = lo as mpack_uintmax_t;
@@ -202,7 +203,7 @@ pub fn mpack_unpack_sint(t: mpack_token_t) -> mpack_sintmax_t {
 }
 
 pub fn mpack_unpack_float_fast(t: mpack_token_t) -> c_double {
-    let val = unsafe { t.data.value };
+    let val = t.data.value;
     if t.length == 4 {
         f64::from(f32::from_bits(val.lo))
     } else {
@@ -216,7 +217,7 @@ pub fn mpack_unpack_number(t: mpack_token_t) -> c_double {
         return mpack_unpack_float_fast(t);
     }
     debug_assert!(t.r#type == MPACK_TOKEN_UINT || t.r#type == MPACK_TOKEN_SINT);
-    let val = unsafe { t.data.value };
+    let val = t.data.value;
     let mut hi = val.hi;
     let mut lo = val.lo;
     if t.r#type == MPACK_TOKEN_SINT {

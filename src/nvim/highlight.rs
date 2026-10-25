@@ -233,7 +233,7 @@ static mut urls: Vec<std::ffi::CString> = Vec::new();
 static mut fonts: Vec<std::ffi::CString> = Vec::new();
 static mut ns_hls: std::collections::BTreeMap<ColorKey, ColorItem> =
     std::collections::BTreeMap::new();
-static mut ns_hl_attr: std::collections::BTreeMap<c_int, *mut NSHlAttr> =
+static mut ns_hl_attr: std::collections::BTreeMap<c_int, std::pin::Pin<Box<NSHlAttr>>> =
     std::collections::BTreeMap::new();
 
 static mut get_attr_entry_recursive: bool = false;
@@ -622,10 +622,8 @@ pub unsafe fn hl_check_ns() -> bool {
         if ns > 0 {
             update_ns_hl(ns);
             let ns_hl_attr_ptr = &raw const ns_hl_attr;
-            if let Some(&hl_def) = (*ns_hl_attr_ptr).get(&ns)
-                && !hl_def.is_null()
-            {
-                hl_attr_active = (*hl_def).as_mut_ptr();
+            if let Some(hl_def) = (*ns_hl_attr_ptr).get(&ns) {
+                hl_attr_active = hl_def.as_ptr().cast_mut();
             }
         }
         true
@@ -716,12 +714,8 @@ pub unsafe fn update_window_hl(wp: *mut win_T, invalid: bool) {
             (*wp).w_ns_hl_active = ns_id;
 
             let ns_hl_attr_ptr = &raw const ns_hl_attr;
-            let hl_def_ptr = (*ns_hl_attr_ptr)
-                .get(&ns_id)
-                .copied()
-                .unwrap_or(ptr::null_mut());
-            if !hl_def_ptr.is_null() {
-                (*wp).w_ns_hl_attr = (*hl_def_ptr).as_mut_ptr();
+            if let Some(hl_def) = (*ns_hl_attr_ptr).get(&ns_id) {
+                (*wp).w_ns_hl_attr = hl_def.as_ptr().cast_mut();
             } else {
                 (*wp).w_ns_hl_attr = ptr::null_mut();
             }
@@ -809,8 +803,8 @@ pub unsafe fn update_ns_hl(ns_id: c_int) {
         let ns_hl_attr_ptr = &raw mut ns_hl_attr;
         let alloc = (*ns_hl_attr_ptr)
             .entry(ns_id)
-            .or_insert_with(|| Box::into_raw(Box::new([0; HLF_COUNT])));
-        let hl_attrs = (**alloc).as_mut_ptr();
+            .or_insert_with(|| Box::pin([0; HLF_COUNT]));
+        let hl_attrs = alloc.as_mut_ptr();
 
         for hlf in 1..HLF_COUNT {
             let name = *(&raw const hlf_names).cast::<*const c_char>().add(hlf);
@@ -962,9 +956,7 @@ pub unsafe fn clear_hl_tables(reinit: bool) {
             let ns_hls_ptr = &raw mut ns_hls;
             *ns_hls_ptr = std::collections::BTreeMap::new();
             let ns_hl_attr_ptr = &raw mut ns_hl_attr;
-            for (_, ptr) in std::mem::take(&mut *ns_hl_attr_ptr) {
-                drop(Box::from_raw(ptr));
-            }
+            *ns_hl_attr_ptr = std::collections::BTreeMap::new();
             *urls_ptr = Vec::new();
             let fonts_ptr = &raw mut fonts;
             *fonts_ptr = Vec::new();

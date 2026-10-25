@@ -42,10 +42,26 @@ pub use mpack_token_type_t::*;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub union mpack_token_data_t {
+pub struct mpack_token_data_t {
     pub value: mpack_value_t,
     pub chunk_ptr: *const c_char,
     pub ext_type: c_int,
+}
+
+impl mpack_token_data_t {
+    pub const fn new() -> Self {
+        Self {
+            value: mpack_value_t { lo: 0, hi: 0 },
+            chunk_ptr: ptr::null(),
+            ext_type: 0,
+        }
+    }
+}
+
+impl Default for mpack_token_data_t {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[repr(C)]
@@ -61,9 +77,7 @@ impl mpack_token_t {
         Self {
             r#type: MPACK_TOKEN_NONE,
             length: 0,
-            data: mpack_token_data_t {
-                value: mpack_value_t { lo: 0, hi: 0 },
-            },
+            data: mpack_token_data_t::new(),
         }
     }
 }
@@ -88,13 +102,7 @@ impl mpack_tokbuf_t {
     pub const fn new() -> Self {
         Self {
             pending: [0; MPACK_MAX_TOKEN_LEN],
-            pending_tok: mpack_token_t {
-                r#type: MPACK_TOKEN_NONE,
-                length: 0,
-                data: mpack_token_data_t {
-                    value: mpack_value_t { lo: 0, hi: 0 },
-                },
-            },
+            pending_tok: mpack_token_t::new(),
             ppos: 0,
             plen: 0,
             passthrough: 0,

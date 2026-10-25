@@ -288,7 +288,7 @@ pub unsafe fn proc_spawn(proc_: *mut Proc, in_: bool, out: bool, err: bool) -> c
         (*proc_).refcount += 1;
 
         let qc = loop_queues((*proc_).loop_);
-        (*qc).children.push(proc_.cast());
+        (*qc).children.push(proc_);
 
         0
     }
@@ -298,8 +298,7 @@ pub unsafe fn proc_teardown(loop_: *mut Loop) {
     unsafe {
         proc_is_tearing_down = true;
         let qc = loop_queues(loop_);
-        for &p in &(*qc).children {
-            let proc_ = p as *mut Proc;
+        for &proc_ in &(*qc).children {
             if (*proc_).detach || (*proc_).r#type == kProcTypePty {
                 create_event_1((*qc).events, proc_close_handles, proc_.cast());
             } else {
@@ -412,8 +411,7 @@ unsafe extern "C" fn children_kill_cb(handle: *mut uv_timer_t) {
         let loop_ = *uv_loop.cast::<*mut Loop>();
         let qc = loop_queues(loop_);
 
-        for &p in &(*qc).children {
-            let proc_ = p as *mut Proc;
+        for &proc_ in &(*qc).children {
             let exited = (*proc_).status >= 0;
             if exited || (*proc_).stopped_time == 0 {
                 continue;
@@ -457,7 +455,7 @@ unsafe fn decref(proc_: *mut Proc) {
 
         let loop_ = (*proc_).loop_;
         let qc = loop_queues(loop_);
-        let idx = (*qc).children.iter().position(|&p| p == proc_.cast()).unwrap();
+        let idx = (*qc).children.iter().position(|&p| p == proc_).unwrap();
         (*qc).children.remove(idx);
         create_event_1((*proc_).events, proc_close_event, proc_.cast());
     }

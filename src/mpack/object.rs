@@ -1,13 +1,13 @@
 //! MessagePack object tree parser and unparser (`src/mpack/object.c`).
 
-use std::ffi::{c_char, c_double, c_int, c_void};
+use std::ffi::{c_char, c_int, c_void};
 use std::mem::{offset_of, size_of};
 use std::ptr;
 
 use crate::mpack::mpack_core::{
     MPACK_EOF, MPACK_ERROR, MPACK_OK, MPACK_TOKEN_CHUNK, MPACK_TOKEN_MAP, mpack_read,
     mpack_sintmax_t, mpack_tokbuf_init, mpack_tokbuf_t, mpack_token_t, mpack_uint32_t,
-    mpack_uintmax_t, mpack_write,
+    mpack_write,
 };
 
 pub const MPACK_MAX_OBJECT_DEPTH: usize = 32;
@@ -16,11 +16,24 @@ pub const MPACK_NOMEM: c_int = MPACK_ERROR + 1;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub union mpack_data_t {
+pub struct mpack_data_t {
     pub p: *mut c_void,
-    pub u: mpack_uintmax_t,
     pub i: mpack_sintmax_t,
-    pub d: c_double,
+}
+
+impl mpack_data_t {
+    pub const fn new() -> Self {
+        Self {
+            p: ptr::null_mut(),
+            i: 0,
+        }
+    }
+}
+
+impl Default for mpack_data_t {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[repr(C)]
@@ -38,7 +51,7 @@ impl mpack_node_t {
             tok: mpack_token_t::new(),
             pos: 0,
             key_visited: 0,
-            data: [mpack_data_t { p: ptr::null_mut() }; 2],
+            data: [mpack_data_t::new(); 2],
         }
     }
 }
@@ -63,22 +76,11 @@ pub struct mpack_parser_t {
 
 impl mpack_parser_t {
     pub const fn new(capacity: mpack_uint32_t) -> Self {
-        let zero_node = mpack_node_t {
-            tok: mpack_token_t {
-                r#type: crate::mpack::mpack_core::MPACK_TOKEN_NONE,
-                length: 0,
-                data: crate::mpack::mpack_core::mpack_token_data_t {
-                    value: crate::mpack::mpack_core::mpack_value_t { lo: 0, hi: 0 },
-                },
-            },
-            pos: 0,
-            key_visited: 0,
-            data: [mpack_data_t { p: ptr::null_mut() }; 2],
-        };
+        let zero_node = mpack_node_t::new();
         let mut items = [zero_node; MPACK_MAX_OBJECT_DEPTH + 1];
         items[0].pos = usize::MAX;
         Self {
-            data: mpack_data_t { p: ptr::null_mut() },
+            data: mpack_data_t::new(),
             size: 0,
             capacity: if capacity != 0 {
                 capacity
