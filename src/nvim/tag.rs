@@ -58,7 +58,7 @@ use crate::optionstr::free_string_option;
 use crate::os::fs::{os_fopen, os_path_exists};
 use crate::os::input::{fast_breakcheck, line_breakcheck, os_breakcheck};
 use crate::path::{
-    FreeWild, FullName_save, PathCmpFlags, kPathCmpExpand, kPathCmpFull, path_equal,
+    FullName_save, PathCmpFlags, kPathCmpExpand, kPathCmpFull, path_equal,
     path_has_wildcard, path_tail, simplify_filename, to_slash_save, vim_isAbsName,
 };
 use crate::quickfix::{CMDBUFFSIZE, kOptSwbFlagUsetab, set_errorlist};
@@ -375,9 +375,8 @@ static mut ptag_entry: taggy_T = taggy_T {
 static mut tfu_in_use: bool = false;
 static mut tag_fnames: Vec<std::ffi::CString> = Vec::new();
 
-static mut DO_TAG_NUM_MATCHES: c_int = 0;
 static mut DO_TAG_MAX_NUM_MATCHES: c_int = 0;
-static mut DO_TAG_MATCHES: *mut *mut c_char = ptr::null_mut();
+static mut DO_TAG_MATCHES: Vec<*mut c_char> = Vec::new();
 static mut DO_TAG_FLAGS: c_int = 0;
 
 use crate::charset::toupper_asc;
@@ -429,17 +428,15 @@ pub unsafe fn do_tag(
             },
             additional_data: ptr::null_mut(),
         };
-        let mut new_num_matches: c_int = 0;
-        let mut new_matches: *mut *mut c_char = ptr::null_mut();
         let use_tagstack: bool;
         let mut skip_msg = false;
         let mut buf_ffname = (*curbuf).b_ffname;
         let mut use_tfu = true;
         let mut tofree: *mut c_char = ptr::null_mut();
+        let do_tag_matches = &raw mut DO_TAG_MATCHES;
 
         if type_ == DT_FREE {
-            FreeWild(DO_TAG_NUM_MATCHES, DO_TAG_MATCHES);
-            DO_TAG_NUM_MATCHES = 0;
+            crate::path::clear_cstrings(&mut *do_tag_matches);
             return;
         }
 
@@ -458,7 +455,7 @@ pub unsafe fn do_tag(
             use_tfu = false;
         }
 
-        let prev_num_matches = DO_TAG_NUM_MATCHES;
+        let prev_num_matches = (*do_tag_matches).len() as c_int;
         free_string_option(nofile_fname);
         nofile_fname = ptr::null_mut();
 
@@ -564,8 +561,7 @@ pub unsafe fn do_tag(
                             foldOpenCursor();
                         }
 
-                        FreeWild(DO_TAG_NUM_MATCHES, DO_TAG_MATCHES);
-                        DO_TAG_NUM_MATCHES = 0;
+                        crate::path::clear_cstrings(&mut *do_tag_matches);
                         tag_freematch();
                         break 'end_do_tag;
                     }
@@ -667,7 +663,8 @@ pub unsafe fn do_tag(
 
                 let other_name = tagmatchname.is_null() || strcmp(tagmatchname, name) != 0;
                 if new_tag
-                    || (cur_match >= DO_TAG_NUM_MATCHES && DO_TAG_MAX_NUM_MATCHES != MAXCOL)
+                    || (cur_match >= (*do_tag_matches).len() as c_int
+                        && DO_TAG_MAX_NUM_MATCHES != MAXCOL)
                     || other_name
                 {
                     if other_name {
@@ -698,15 +695,15 @@ pub unsafe fn do_tag(
                         DO_TAG_FLAGS |= TAG_NO_TAGFUNC;
                     }
 
-                    if find_tags(
+                    let mut new_matches: Vec<*mut c_char> = Vec::new();
+                    if find_tags_vec(
                         name,
-                        &raw mut new_num_matches,
-                        &raw mut new_matches,
+                        &mut new_matches,
                         DO_TAG_FLAGS,
                         DO_TAG_MAX_NUM_MATCHES,
                         buf_ffname,
                     ) == OK
-                        && new_num_matches < DO_TAG_MAX_NUM_MATCHES
+                        && (new_matches.len() as c_int) < DO_TAG_MAX_NUM_MATCHES
                     {
                         DO_TAG_MAX_NUM_MATCHES = MAXCOL;
                     }
@@ -715,40 +712,34 @@ pub unsafe fn do_tag(
                         emsg(gettext(
                             E_WINDOW_UNEXPECTEDLY_CLOSE_WHILE_SEARCHING_FOR_TAGS.as_ptr(),
                         ));
-                        FreeWild(new_num_matches, new_matches);
+                        crate::path::clear_cstrings(&mut new_matches);
                         break;
                     }
 
                     if !new_tag && !other_name {
-                        let mut idx: c_int = 0;
+                        let mut idx: usize = 0;
                         let mut tagp = tagptrs_T::default();
                         let mut tagp2 = tagptrs_T::default();
 
-                        for j in 0..DO_TAG_NUM_MATCHES as usize {
-                            parse_match(*DO_TAG_MATCHES.add(j), &mut tagp);
-                            for i in idx..new_num_matches {
-                                parse_match(*new_matches.add(i as usize), &mut tagp2);
+                        for &old_match in &*do_tag_matches {
+                            parse_match(old_match, &mut tagp);
+                            for i in idx..new_matches.len() {
+                                parse_match(new_matches[i], &mut tagp2);
                                 if strcmp(tagp.tagname, tagp2.tagname) == 0 {
-                                    let p = *new_matches.add(i as usize);
-                                    let mut k = i;
-                                    while k > idx {
-                                        *new_matches.add(k as usize) =
-                                            *new_matches.add((k - 1) as usize);
-                                        k -= 1;
-                                    }
-                                    *new_matches.add(idx as usize) = p;
+                                    let p = new_matches.remove(i);
+                                    new_matches.insert(idx, p);
                                     idx += 1;
                                     break;
                                 }
                             }
                         }
                     }
-                    FreeWild(DO_TAG_NUM_MATCHES, DO_TAG_MATCHES);
-                    DO_TAG_NUM_MATCHES = new_num_matches;
-                    DO_TAG_MATCHES = new_matches;
+                    crate::path::clear_cstrings(&mut *do_tag_matches);
+                    *do_tag_matches = new_matches;
                 }
 
-                if DO_TAG_NUM_MATCHES <= 0 {
+                let do_tag_num_matches = (*do_tag_matches).len() as c_int;
+                if do_tag_num_matches <= 0 {
                     if verbose {
                         semsg!(gettext(E_TAG_NOT_FOUND_STR.as_ptr()), name);
                     }
@@ -756,30 +747,23 @@ pub unsafe fn do_tag(
                 } else {
                     if type_ == DT_TAG && *tag != NUL {
                         cur_match = if count > 0 { count - 1 } else { 0 };
-                    } else if type_ == DT_SELECT || (type_ == DT_JUMP && DO_TAG_NUM_MATCHES > 1) {
-                        select_tag_match(
-                            eap,
-                            new_tag,
-                            use_tagstack,
-                            DO_TAG_NUM_MATCHES,
-                            DO_TAG_MATCHES,
-                            name,
-                        );
+                    } else if type_ == DT_SELECT || (type_ == DT_JUMP && do_tag_num_matches > 1) {
+                        select_tag_match(eap, new_tag, use_tagstack, &*do_tag_matches, name);
                         if use_tagstack {
                             (*tagstack.add(tagstackidx as usize)).fmark = saved_fmark;
                             tagstackidx = prevtagstackidx;
                         }
                         break;
                     } else if type_ == DT_LTAG {
-                        if add_llist_tags(tag, DO_TAG_NUM_MATCHES, DO_TAG_MATCHES) == FAIL {
+                        if add_llist_tags(tag, &*do_tag_matches) == FAIL {
                             break 'end_do_tag;
                         }
                         cur_match = 0;
                     }
 
-                    if cur_match >= DO_TAG_NUM_MATCHES {
+                    if cur_match >= do_tag_num_matches {
                         if (type_ == DT_NEXT || type_ == DT_FIRST) && nofile_fname.is_null() {
-                            if DO_TAG_NUM_MATCHES == 1 {
+                            if do_tag_num_matches == 1 {
                                 emsg(gettext(c"E427: There is only one matching tag".as_ptr()));
                             } else {
                                 emsg(gettext(
@@ -788,7 +772,7 @@ pub unsafe fn do_tag(
                             }
                             skip_msg = true;
                         }
-                        cur_match = DO_TAG_NUM_MATCHES - 1;
+                        cur_match = do_tag_num_matches - 1;
                     }
                     if use_tagstack {
                         let mut tagp2 = tagptrs_T::default();
@@ -797,8 +781,10 @@ pub unsafe fn do_tag(
                         (*tagstack.add(tagstackidx as usize)).cur_fnum = cur_fnum;
 
                         if use_tfu
-                            && parse_match(*DO_TAG_MATCHES.add(cur_match as usize), &mut tagp2)
-                                == OK
+                            && parse_match(
+                                (*do_tag_matches).as_slice()[cur_match as usize],
+                                &mut tagp2,
+                            ) == OK
                             && !tagp2.user_data.is_null()
                         {
                             xfree((*tagstack.add(tagstackidx as usize)).user_data.cast());
@@ -823,12 +809,12 @@ pub unsafe fn do_tag(
                         );
                     }
 
-                    let ic =
-                        ((*(*DO_TAG_MATCHES.add(cur_match as usize)) as usize) & MT_IC_OFF) != 0;
+                    let cur_match_ptr = (*do_tag_matches).as_slice()[cur_match as usize];
+                    let ic = ((*cur_match_ptr as usize) & MT_IC_OFF) != 0;
                     if type_ != DT_TAG
                         && type_ != DT_SELECT
                         && type_ != DT_JUMP
-                        && (DO_TAG_NUM_MATCHES > 1 || ic)
+                        && (do_tag_num_matches > 1 || ic)
                         && !skip_msg
                     {
                         let iobuf_ptr = (&raw mut IObuff).cast::<c_char>();
@@ -842,7 +828,7 @@ pub unsafe fn do_tag(
                             IOSIZE,
                             gettext(c"tag %d of %d%s".as_ptr()),
                             cur_match + 1,
-                            DO_TAG_NUM_MATCHES,
+                            do_tag_num_matches,
                             more_str,
                         );
                         if ic {
@@ -852,8 +838,8 @@ pub unsafe fn do_tag(
                                 IOSIZE,
                             );
                         }
-                        if (DO_TAG_NUM_MATCHES > prev_num_matches || new_tag)
-                            && DO_TAG_NUM_MATCHES > 1
+                        if (do_tag_num_matches > prev_num_matches || new_tag)
+                            && do_tag_num_matches > 1
                         {
                             msg(iobuf_ptr, if ic { HLF_W } else { 0 });
                             msg_scroll = 1;
@@ -870,7 +856,7 @@ pub unsafe fn do_tag(
                         vim_snprintf_safelen!(iobuf_ptr, IOSIZE, c":ta %s\r".as_ptr(), name);
                     set_vim_var_string(VV_SWAPCOMMAND, iobuf_ptr, iobufflen as isize);
 
-                    let i = jumpto_tag(*DO_TAG_MATCHES.add(cur_match as usize), forceit, true);
+                    let i = jumpto_tag(cur_match_ptr, forceit, true);
 
                     set_vim_var_string(VV_SWAPCOMMAND, ptr::null(), -1);
 
@@ -878,7 +864,7 @@ pub unsafe fn do_tag(
                         if (type_ == DT_PREV && cur_match > 0)
                             || ((type_ == DT_TAG || type_ == DT_NEXT || type_ == DT_FIRST)
                                 && (DO_TAG_MAX_NUM_MATCHES != MAXCOL
-                                    || cur_match < DO_TAG_NUM_MATCHES - 1))
+                                    || cur_match < do_tag_num_matches - 1))
                         {
                             error_cur_match = cur_match;
                             if use_tagstack {
@@ -918,8 +904,7 @@ unsafe fn select_tag_match(
     eap: *mut exarg_T,
     new_tag: bool,
     use_tagstack: bool,
-    num_matches: c_int,
-    matches: *mut *mut c_char,
+    matches: &[*mut c_char],
     name: *const c_char,
 ) {
     unsafe {
@@ -931,16 +916,17 @@ unsafe fn select_tag_match(
             v_lock: VAR_UNLOCKED,
             vval: TypvalVval { v_number: 0 },
         };
-        tv_list_alloc_ret(&raw mut items_tv, num_matches as isize);
+        tv_list_alloc_ret(&raw mut items_tv, matches.len() as isize);
 
-        for i in 0..num_matches {
+        for (idx, &m) in matches.iter().enumerate() {
+            let i = idx as c_int;
             os_breakcheck();
             if got_int {
                 tv_clear(&raw mut items_tv);
                 return;
             }
             let mut tagp = tagptrs_T::default();
-            parse_match(*matches.add(i as usize), &mut tagp);
+            parse_match(m, &mut tagp);
 
             let cur = !new_tag
                 && ((g_do_tagpreview != 0 && i == ptag_entry.cur_match)
@@ -954,7 +940,7 @@ unsafe fn select_tag_match(
                 tagp.tagname,
                 tagp.tagname_end.offset_from(tagp.tagname) as c_int,
             );
-            let pri_idx = (*(*matches.add(i as usize)) as usize) & MT_MASK;
+            let pri_idx = (*m as usize) & MT_MASK;
             tv_dict_add_str(d, c"pri".as_ptr(), 3, MT_NAMES[pri_idx].as_ptr());
             if !tagp.tagkind.is_null() {
                 tv_dict_add_str_len(
@@ -1016,7 +1002,7 @@ unsafe fn select_tag_match(
 }
 
 /// Add the matching tags to the location list for the current window.
-unsafe fn add_llist_tags(tag: *mut c_char, num_matches: c_int, matches: *mut *mut c_char) -> c_int {
+unsafe fn add_llist_tags(tag: *mut c_char, matches: &[*mut c_char]) -> c_int {
     unsafe {
         let mut tag_name = [0 as c_char; 128 + 1];
         let mut tagp = tagptrs_T::default();
@@ -1027,8 +1013,8 @@ unsafe fn add_llist_tags(tag: *mut c_char, num_matches: c_int, matches: *mut *mu
         let cmd = cmd_vec.as_mut_ptr();
         let list = tv_list_alloc(0);
 
-        for i in 0..num_matches as usize {
-            parse_match(*matches.add(i), &mut tagp);
+        for &m in matches {
+            parse_match(m, &mut tagp);
 
             let mut len = (tagp.tagname_end.offset_from(tagp.tagname) as c_int).min(128);
             xmemcpyz(
@@ -2265,23 +2251,19 @@ unsafe fn findtags_in_file(st: *mut findtags_state_T, _flags: c_int, buf_ffname:
     }
 }
 
-unsafe fn findtags_copy_matches(
-    st: *mut findtags_state_T,
-    matchesp: *mut *mut *mut c_char,
-) -> c_int {
+unsafe fn findtags_copy_matches(st: *mut findtags_state_T, matches: &mut Vec<*mut c_char>) {
     unsafe {
         let name_only = ((*st).flags & TAG_NAMES) != 0;
-
-        let matches = if (*st).match_count > 0 {
-            xmalloc(((*st).match_count as usize) * size_of::<*mut c_char>()).cast::<*mut c_char>()
-        } else {
-            ptr::null_mut()
-        };
+        let keep = (*st).match_count > 0;
+        matches.clear();
+        if keep {
+            matches.reserve_exact((*st).match_count as usize);
+        }
 
         (*st).match_count = 0;
         for mtt in 0..MT_COUNT {
             for mfp in (*st).ga_match[mtt].drain(..) {
-                if matches.is_null() {
+                if !keep {
                     xfree(mfp.cast());
                 } else {
                     if !name_only {
@@ -2294,7 +2276,7 @@ unsafe fn findtags_copy_matches(
                             p = p.add(1);
                         }
                     }
-                    *matches.add((*st).match_count as usize) = mfp;
+                    matches.push(mfp);
                     (*st).match_count += 1;
                 }
             }
@@ -2302,9 +2284,6 @@ unsafe fn findtags_copy_matches(
             (*st).ga_match[mtt] = Vec::new();
             (*st).ht_match[mtt].clear();
         }
-
-        *matchesp = matches;
-        (*st).match_count
     }
 }
 
@@ -2313,6 +2292,22 @@ pub unsafe fn find_tags(
     pat: *mut c_char,
     num_matches: *mut c_int,
     matchesp: *mut *mut *mut c_char,
+    flags: c_int,
+    mincount: c_int,
+    buf_ffname: *mut c_char,
+) -> c_int {
+    unsafe {
+        let mut matches = Vec::new();
+        let retval = find_tags_vec(pat, &mut matches, flags, mincount, buf_ffname);
+        *num_matches = matches.len() as c_int;
+        *matchesp = crate::path::slice_to_xmalloc(&matches);
+        retval
+    }
+}
+
+pub unsafe fn find_tags_vec(
+    pat: *mut c_char,
+    matches: &mut Vec<*mut c_char>,
     flags: c_int,
     mincount: c_int,
     buf_ffname: *mut c_char,
@@ -2439,7 +2434,7 @@ pub unsafe fn find_tags(
             st.match_count = 0;
         }
 
-        *num_matches = findtags_copy_matches(&raw mut st, matchesp);
+        findtags_copy_matches(&raw mut st, matches);
 
         (*curbuf).b_help = help_save;
         xfree(saved_pat.cast());
@@ -3269,24 +3264,15 @@ unsafe fn add_tag_field(
 /// as a dictionary. Use `buf_fname` for priority, unless NULL.
 pub unsafe fn get_tags(list: *mut list_T, pat: *mut c_char, buf_fname: *mut c_char) -> c_int {
     unsafe {
-        let mut num_matches: c_int = 0;
-        let mut matches: *mut *mut c_char = ptr::null_mut();
+        let mut matches: Vec<*mut c_char> = Vec::new();
         let mut tp = tagptrs_T::default();
 
-        let mut ret = find_tags(
-            pat,
-            &raw mut num_matches,
-            &raw mut matches,
-            TAG_REGEXP | TAG_NOIC,
-            MAXCOL,
-            buf_fname,
-        );
-        if ret != OK || num_matches <= 0 {
+        let mut ret = find_tags_vec(pat, &mut matches, TAG_REGEXP | TAG_NOIC, MAXCOL, buf_fname);
+        if ret != OK || matches.is_empty() {
             return ret;
         }
 
-        for i in 0..num_matches as usize {
-            let match_i = *matches.add(i);
+        for match_i in matches {
             if parse_match(match_i, &mut tp) == FAIL {
                 xfree(match_i.cast());
                 continue;
@@ -3368,7 +3354,6 @@ pub unsafe fn get_tags(list: *mut list_T, pat: *mut c_char, buf_fname: *mut c_ch
 
             xfree(match_i.cast());
         }
-        xfree(matches.cast());
         ret
     }
 }

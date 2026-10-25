@@ -28,7 +28,7 @@ use crate::os::fs::{
 };
 use crate::os::input::os_breakcheck;
 use crate::path::{
-    EW_ADDSLASH, EW_DIR, EW_NOTWILD, EW_SILENT, FreeWild, FullName_save, PATHSEP, after_pathsep,
+    EW_ADDSLASH, EW_DIR, EW_NOTWILD, EW_SILENT, FullName_save, PATHSEP, after_pathsep,
     expand_wildcards, kPathCmpLiteral, path_cmp, path_equal, path_has_drive_letter, path_is_url,
     path_shorten_fname, path_tail, path_tail_with_sep, path_with_url, simplify_filename,
     vim_isAbsName, vim_ispathsep,
@@ -81,9 +81,8 @@ use crate::math::{FAIL, OK};
 pub struct ff_stack_T {
     pub ffs_fix_path: NvimString,
     pub ffs_wc_path: NvimString,
-    pub ffs_filearray: *mut *mut c_char,
-    pub ffs_filearray_size: c_int,
-    pub ffs_filearray_cur: c_int,
+    pub ffs_filearray: Vec<*mut c_char>,
+    pub ffs_filearray_cur: usize,
     pub ffs_stage: c_int,
     pub ffs_level: c_int,
     pub ffs_star_star_empty: c_int,
@@ -94,9 +93,7 @@ impl Drop for ff_stack_T {
         unsafe {
             api_clear_string(&mut self.ffs_fix_path);
             api_clear_string(&mut self.ffs_wc_path);
-            if !self.ffs_filearray.is_null() {
-                FreeWild(self.ffs_filearray_size, self.ffs_filearray);
-            }
+            crate::path::clear_cstrings(&mut self.ffs_filearray);
         }
     }
 }
@@ -570,7 +567,7 @@ pub unsafe fn vim_findfile(search_ctx: *mut ff_search_ctx_T) -> *mut c_char {
                 };
                 let stackp: *mut ff_stack_T = &raw mut stack_elem;
 
-                if (*stackp).ffs_filearray.is_null()
+                if (*stackp).ffs_filearray.is_empty()
                     && ff_check_visited(
                         &raw mut (*(*search_ctx).ffsc_dir_visited_list).ffvl_visited_list,
                         (*stackp).ffs_fix_path.data,
@@ -590,7 +587,7 @@ pub unsafe fn vim_findfile(search_ctx: *mut ff_search_ctx_T) -> *mut c_char {
                 file_path.size = 0;
 
                 let mut rest_of_wildcards: NvimString;
-                if (*stackp).ffs_filearray.is_null() {
+                if (*stackp).ffs_filearray.is_empty() {
                     let mut dirptrs: [*mut c_char; 2] = [file_path.data, ptr::null_mut()];
 
                     if !vim_isAbsName((*stackp).ffs_fix_path.data)
@@ -699,18 +696,24 @@ pub unsafe fn vim_findfile(search_ctx: *mut ff_search_ctx_T) -> *mut c_char {
                     }
 
                     if path_with_url(dirptrs[0]) != 0 {
-                        (*stackp).ffs_filearray = xmalloc(size_of::<*mut c_char>()).cast();
-                        *(*stackp).ffs_filearray =
-                            xmemdupz(dirptrs[0].cast(), file_path.size).cast();
-                        (*stackp).ffs_filearray_size = 1;
+                        (*stackp).ffs_filearray =
+                            vec![xmemdupz(dirptrs[0].cast(), file_path.size).cast()];
                     } else {
+                        let mut num_files: c_int = 0;
+                        let mut files: *mut *mut c_char = ptr::null_mut();
                         expand_wildcards(
                             if dirptrs[1].is_null() { 1 } else { 2 },
                             dirptrs.as_mut_ptr(),
-                            &raw mut (*stackp).ffs_filearray_size,
-                            &raw mut (*stackp).ffs_filearray,
+                            &raw mut num_files,
+                            &raw mut files,
                             EW_DIR | EW_ADDSLASH | EW_SILENT | EW_NOTWILD,
                         );
+                        if num_files > 0 && !files.is_null() {
+                            (*stackp).ffs_filearray.extend_from_slice(
+                                std::slice::from_raw_parts(files, num_files as usize),
+                            );
+                        }
+                        xfree(files.cast());
                     }
 
                     (*stackp).ffs_filearray_cur = 0;
@@ -724,8 +727,8 @@ pub unsafe fn vim_findfile(search_ctx: *mut ff_search_ctx_T) -> *mut c_char {
 
                 if (*stackp).ffs_stage == 0 {
                     if *rest_of_wildcards.data == NUL {
-                        for i in (*stackp).ffs_filearray_cur..(*stackp).ffs_filearray_size {
-                            let entry = *(*stackp).ffs_filearray.add(i as usize);
+                        for i in (*stackp).ffs_filearray_cur..(*stackp).ffs_filearray.len() {
+                            let entry = (*stackp).ffs_filearray.as_slice()[i];
                             if path_with_url(entry) == 0 && !os_isdir(entry) {
                                 continue;
                             }
@@ -809,8 +812,8 @@ pub unsafe fn vim_findfile(search_ctx: *mut ff_search_ctx_T) -> *mut c_char {
                             }
                         }
                     } else {
-                        for i in (*stackp).ffs_filearray_cur..(*stackp).ffs_filearray_size {
-                            let entry = *(*stackp).ffs_filearray.add(i as usize);
+                        for i in (*stackp).ffs_filearray_cur..(*stackp).ffs_filearray.len() {
+                            let entry = (*stackp).ffs_filearray.as_slice()[i];
                             if !os_isdir(entry) {
                                 continue;
                             }
@@ -834,8 +837,8 @@ pub unsafe fn vim_findfile(search_ctx: *mut ff_search_ctx_T) -> *mut c_char {
                 if *(*stackp).ffs_wc_path.data == b'*' as c_char
                     && *(*stackp).ffs_wc_path.data.add(1) == b'*' as c_char
                 {
-                    for i in (*stackp).ffs_filearray_cur..(*stackp).ffs_filearray_size {
-                        let entry = *(*stackp).ffs_filearray.add(i as usize);
+                    for i in (*stackp).ffs_filearray_cur..(*stackp).ffs_filearray.len() {
+                        let entry = (*stackp).ffs_filearray.as_slice()[i];
                         if path_equal(entry, (*stackp).ffs_fix_path.data, kPathCmpLiteral) {
                             continue;
                         }
@@ -1101,8 +1104,7 @@ unsafe fn ff_create_stack_element(
         ff_stack_T {
             ffs_fix_path,
             ffs_wc_path,
-            ffs_filearray: ptr::null_mut(),
-            ffs_filearray_size: 0,
+            ffs_filearray: Vec::new(),
             ffs_filearray_cur: 0,
             ffs_stage: 0,
             ffs_level: level,

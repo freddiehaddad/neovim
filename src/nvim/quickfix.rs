@@ -518,6 +518,14 @@ impl Default for vgr_args_T {
     }
 }
 
+impl Drop for vgr_args_T {
+    fn drop(&mut self) {
+        unsafe {
+            FreeWild(self.fcount, self.fnames);
+        }
+    }
+}
+
 struct FmtPattern {
     convchar: u8,
     pattern: &'static CStr,
@@ -6024,8 +6032,6 @@ pub unsafe fn ex_vimgrep(eap: *mut exarg_T) {
                 &raw mut first_match_buf,
                 &raw mut target_dir,
             );
-
-            FreeWild(args.fcount, args.fnames);
 
             if status == OK {
                 let qfl = qf_get_curlist(qi);
