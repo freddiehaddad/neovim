@@ -104,12 +104,23 @@ pub(crate) const kShmSearch: c_int = b's' as c_int;
 const kOptBoFlagShowmatch: c_uint = 0x2000;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct SearchOffset {
     pub dir: c_char,
     pub line: bool,
     pub end: bool,
     pub off: i64,
+}
+
+impl SearchOffset {
+    pub const fn new() -> Self {
+        Self {
+            dir: 0,
+            line: false,
+            end: false,
+            off: 0,
+        }
+    }
 }
 
 #[repr(C)]
@@ -124,6 +135,26 @@ pub struct SearchPattern {
     pub additional_data: *mut AdditionalData,
 }
 
+impl SearchPattern {
+    pub const fn new() -> Self {
+        Self {
+            pat: ptr::null_mut(),
+            patlen: 0,
+            magic: false,
+            no_scs: false,
+            timestamp: 0,
+            off: SearchOffset::new(),
+            additional_data: ptr::null_mut(),
+        }
+    }
+}
+
+impl Default for SearchPattern {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct searchit_arg_T {
@@ -131,6 +162,23 @@ pub struct searchit_arg_T {
     pub sa_tm: *mut proftime_T,
     pub sa_timed_out: c_int,
     pub sa_wrapped: c_int,
+}
+
+impl searchit_arg_T {
+    pub const fn new() -> Self {
+        Self {
+            sa_stop_lnum: 0,
+            sa_tm: ptr::null_mut(),
+            sa_timed_out: 0,
+            sa_wrapped: 0,
+        }
+    }
+}
+
+impl Default for searchit_arg_T {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[repr(C)]

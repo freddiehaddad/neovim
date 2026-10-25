@@ -152,6 +152,24 @@ pub struct tagname_T {
     pub tn_search_ctx: *mut crate::file_search::ff_search_ctx_T,
 }
 
+impl tagname_T {
+    pub const fn new() -> Self {
+        Self {
+            tn_tags: ptr::null_mut(),
+            tn_np: ptr::null_mut(),
+            tn_did_filefind_init: 0,
+            tn_hf_idx: 0,
+            tn_search_ctx: ptr::null_mut(),
+        }
+    }
+}
+
+impl Default for tagname_T {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 use crate::change::{HLF_W, TAB};
 use crate::charset::NUL;
 use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
@@ -287,42 +305,40 @@ struct findtags_state_T {
 
 impl findtags_state_T {
     unsafe fn new() -> Self {
-        unsafe {
-            Self {
-                state: tagsearch_state_T::TS_START,
-                stop_searching: false,
-                orgpat: pat_T {
-                    pat: ptr::null_mut(),
-                    len: 0,
-                    head: ptr::null_mut(),
-                    headlen: 0,
-                    regmatch: regmatch_T {
-                        regprog: ptr::null_mut(),
-                        startp: [ptr::null_mut(); NSUBEXP],
-                        endp: [ptr::null_mut(); NSUBEXP],
-                        rm_matchcol: 0,
-                        rm_ic: false,
-                    },
+        Self {
+            state: tagsearch_state_T::TS_START,
+            stop_searching: false,
+            orgpat: pat_T {
+                pat: ptr::null_mut(),
+                len: 0,
+                head: ptr::null_mut(),
+                headlen: 0,
+                regmatch: regmatch_T {
+                    regprog: ptr::null_mut(),
+                    startp: [ptr::null_mut(); NSUBEXP],
+                    endp: [ptr::null_mut(); NSUBEXP],
+                    rm_matchcol: 0,
+                    rm_ic: false,
                 },
-                lbuf: Vec::new(),
-                tag_fname: Vec::new(),
-                fp: ptr::null_mut(),
-                flags: 0,
-                tag_file_sorted: 0,
-                get_searchpat: false,
-                help_only: false,
-                did_open: false,
-                mincount: 0,
-                linear: false,
-                vimconv: std::mem::zeroed(),
-                help_lang: [0; 3],
-                help_pri: 0,
-                help_lang_find: ptr::null_mut(),
-                is_txt: false,
-                match_count: 0,
-                ga_match: [const { Vec::new() }; MT_COUNT],
-                ht_match: std::array::from_fn(|_| std::collections::HashSet::new()),
-            }
+            },
+            lbuf: Vec::new(),
+            tag_fname: Vec::new(),
+            fp: ptr::null_mut(),
+            flags: 0,
+            tag_file_sorted: 0,
+            get_searchpat: false,
+            help_only: false,
+            did_open: false,
+            mincount: 0,
+            linear: false,
+            vimconv: vimconv_T::new(),
+            help_lang: [0; 3],
+            help_pri: 0,
+            help_lang_find: ptr::null_mut(),
+            is_txt: false,
+            match_count: 0,
+            ga_match: [const { Vec::new() }; MT_COUNT],
+            ht_match: std::array::from_fn(|_| std::collections::HashSet::new()),
         }
     }
 }

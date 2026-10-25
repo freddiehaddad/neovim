@@ -106,6 +106,27 @@ pub struct AutoCmd {
     pub nested: bool,
 }
 
+impl AutoCmd {
+    pub const fn new() -> Self {
+        Self {
+            pat: ptr::null_mut(),
+            id: 0,
+            desc: ptr::null_mut(),
+            handler_cmd: ptr::null_mut(),
+            handler_fn: Callback::new(),
+            script_ctx: crate::runtime::sctx_T::new(),
+            once: false,
+            nested: false,
+        }
+    }
+}
+
+impl Default for AutoCmd {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub type AutoCmdVec = Vec<AutoCmd>;
 
 pub const AUGROUP_DEFAULT: c_int = -1;
@@ -2361,7 +2382,7 @@ pub unsafe fn autocmd_register(
 
         (*ap).refcount += 1;
 
-        let mut ac: AutoCmd = std::mem::zeroed();
+        let mut ac = AutoCmd::new();
         ac.pat = ap;
         ac.id = id;
         if !handler_cmd.is_null() {

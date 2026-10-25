@@ -2754,8 +2754,8 @@ mod tests {
         assert!(equalpos(p1, p2));
 
         unsafe {
-            let mut wp_uninit: std::mem::MaybeUninit<win_T> = std::mem::MaybeUninit::zeroed();
-            let wp = wp_uninit.as_mut_ptr();
+            let mut wp_box = win_T::new();
+            let wp: *mut win_T = &raw mut wp_box;
             (*wp).w_curswant = 42;
             (*wp).w_set_curswant = true;
             (*wp).w_leftcol = 4;
@@ -2767,8 +2767,8 @@ mod tests {
 
             let mut vs = viewstate_T::default();
             save_viewstate(wp, &raw mut vs);
-            let mut wp2_uninit: std::mem::MaybeUninit<win_T> = std::mem::MaybeUninit::zeroed();
-            let wp2 = wp2_uninit.as_mut_ptr();
+            let mut wp2_box = win_T::new();
+            let wp2: *mut win_T = &raw mut wp2_box;
             restore_viewstate(wp2, &raw const vs);
             assert_eq!((*wp2).w_curswant, 42);
             assert!((*wp2).w_set_curswant);

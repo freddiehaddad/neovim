@@ -607,6 +607,24 @@ struct loop_cookie {
     cookie: *mut c_void,
 }
 
+impl loop_cookie {
+    const fn new() -> Self {
+        Self {
+            lines_gap: ptr::null_mut(),
+            current_line: 0,
+            repeating: 0,
+            lc_getline: None,
+            cookie: ptr::null_mut(),
+        }
+    }
+}
+
+impl Default for loop_cookie {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 struct dbg_stuff {
     trylevel: c_int,
     force_abort: c_int,
@@ -4985,7 +5003,7 @@ pub unsafe fn do_cmdline(
 
         let mut cmd_getline: LineGetter;
         let mut cmd_cookie: *mut c_void;
-        let mut cmd_loop_cookie: loop_cookie = std::mem::zeroed();
+        let mut cmd_loop_cookie = loop_cookie::new();
 
         let saved_msg_list = msg_list;
         msg_list = &raw mut private_msg_list;

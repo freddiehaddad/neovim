@@ -222,6 +222,16 @@ mod unix_impl {
             c_ispeed: 0,
             c_ospeed: 0,
         };
+
+        pub const fn new() -> Self {
+            Self::ZERO
+        }
+    }
+
+    impl Default for termios {
+        fn default() -> Self {
+            Self::ZERO
+        }
     }
 
     #[repr(C)]

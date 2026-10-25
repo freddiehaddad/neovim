@@ -199,6 +199,22 @@ pub struct SubReplacementString {
     pub additional_data: *mut AdditionalData,
 }
 
+impl SubReplacementString {
+    pub const fn new() -> Self {
+        Self {
+            sub: ptr::null_mut(),
+            timestamp: 0,
+            additional_data: ptr::null_mut(),
+        }
+    }
+}
+
+impl Default for SubReplacementString {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ShadaEntryType {
@@ -1042,7 +1058,7 @@ unsafe fn shada_hist_iter(
     hist: *mut ShadaEntry,
 ) -> *const c_void {
     unsafe {
-        let mut hist_he = std::mem::zeroed::<histentry_T>();
+        let mut hist_he = histentry_T::new();
         let ret = hist_iter(iter, history_type, zero, &mut hist_he);
         if hist_he.hisstr.is_null() {
             *hist = MISSING_ENTRY;
@@ -1382,7 +1398,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                 ShadaEntryType::kSDItemSearchPattern => {
                     let sp = cur_entry.data.search_pattern();
                     if !force {
-                        let mut pat = std::mem::zeroed::<SearchPattern>();
+                        let mut pat = SearchPattern::new();
                         if sp.is_substitute_pattern {
                             get_substitute_pattern(&mut pat);
                         } else {
@@ -1422,7 +1438,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                 }
                 ShadaEntryType::kSDItemSubString => {
                     if !force {
-                        let mut sub = std::mem::zeroed::<SubReplacementString>();
+                        let mut sub = SubReplacementString::new();
                         sub_get_replacement(&mut sub);
                         if !sub.sub.is_null() && sub.timestamp >= cur_entry.timestamp {
                             shada_free_shada_entry(&mut cur_entry);
@@ -2435,7 +2451,7 @@ unsafe fn add_search_pattern(
     search_highlighted: bool,
 ) {
     unsafe {
-        let mut pat = std::mem::zeroed::<SearchPattern>();
+        let mut pat = SearchPattern::new();
         get_pattern(&mut pat);
         if !pat.pat.is_null() {
             let is_last_used = is_substitute_pattern ^ search_last_used;
@@ -2860,7 +2876,7 @@ unsafe fn shada_write(
                     search_highlighted,
                 );
 
-                let mut sub = std::mem::zeroed::<SubReplacementString>();
+                let mut sub = SubReplacementString::new();
                 sub_get_replacement(&mut sub);
                 if !sub.sub.is_null() {
                     (*wms).replacement = ShadaEntry {
@@ -3784,7 +3800,7 @@ unsafe fn shada_read_next_item(
                     | ShadaEntryType::kSDItemJump
                     | ShadaEntryType::kSDItemGlobalMark
                     | ShadaEntryType::kSDItemLocalMark => {
-                        let mut it = std::mem::zeroed::<KeyDict__shada_mark>();
+                        let mut it = KeyDict__shada_mark::default();
                         if !unpack_keydict(
                             (&raw mut it).cast::<c_void>(),
                             Some(shada_mark_get_field_cb),
@@ -4118,7 +4134,7 @@ unsafe fn shada_read_next_item(
                             let buffers = &mut (*entry).data.buffer_list_mut().buffers;
                             buffers.reserve(ulen);
                             for _ in 0..ulen {
-                                let mut it = std::mem::zeroed::<KeyDict__shada_buflist_item>();
+                                let mut it = KeyDict__shada_buflist_item::default();
                                 let mut it_ad = AdditionalDataBuilder::new();
                                 if !unpack_keydict(
                                     (&raw mut it).cast::<c_void>(),

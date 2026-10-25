@@ -311,7 +311,7 @@ unsafe fn convert_mo_bytes_to_utf8(bytes: &[u8], charset: Option<&[u8]>) -> Vec<
         return out;
     }
     if let Ok(cs_cstr) = CString::new(cs) {
-        let mut vc: vimconv_T = unsafe { std::mem::zeroed() };
+        let mut vc = vimconv_T::new();
         if unsafe {
             convert_setup(
                 &raw mut vc,

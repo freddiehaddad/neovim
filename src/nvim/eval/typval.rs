@@ -387,6 +387,29 @@ struct sortinfo_T {
     item_compare_keys_ready: bool,
 }
 
+impl sortinfo_T {
+    const fn new() -> Self {
+        Self {
+            item_compare_ic: 0,
+            item_compare_lc: false,
+            item_compare_numeric: false,
+            item_compare_numbers: false,
+            item_compare_float: false,
+            item_compare_func: ptr::null(),
+            item_compare_partial: ptr::null_mut(),
+            item_compare_selfdict: ptr::null_mut(),
+            item_compare_func_err: false,
+            item_compare_keys_ready: false,
+        }
+    }
+}
+
+impl Default for sortinfo_T {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Clone, Copy)]
 enum ListSortKey {
     Int(varnumber_T),
@@ -2096,7 +2119,7 @@ unsafe fn do_sort_uniq(argvars: *mut typval_T, rettv: *mut typval_T, sort: bool)
             return;
         }
 
-        let mut info: sortinfo_T = std::mem::zeroed();
+        let mut info = sortinfo_T::new();
         let old_sortinfo = SORTINFO;
         SORTINFO = &raw mut info;
 
@@ -2662,7 +2685,7 @@ pub unsafe fn tv_dict_alloc() -> *mut dict_T {
             dv_scope: VAR_NO_SCOPE,
             dv_refcount: 0,
             dv_copyID: 0,
-            dv_hashtab: std::mem::zeroed(),
+            dv_hashtab: crate::hashtab::hashtab_T::new(),
             dv_copydict: ptr::null_mut(),
             dv_used_next: gc_first_dict,
             dv_used_prev: ptr::null_mut(),

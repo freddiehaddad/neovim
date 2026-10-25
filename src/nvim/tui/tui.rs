@@ -234,7 +234,7 @@ impl TUIData {
             term: ptr::null_mut(),
             output_handle: [0; 80],
             out_isatty: false,
-            winch_handle: SignalWatcher::zeroed(),
+            winch_handle: SignalWatcher::new(),
             startup_delay_timer: [0; 32],
             grid: UGrid::default(),
             invalid_regions: Vec::new(),
@@ -3245,7 +3245,7 @@ unsafe fn tui_get_stty_erase(input: *mut TermInput) -> *const c_char {
     unsafe {
         #[cfg(unix)]
         {
-            let mut t: unix_termios::termios = std::mem::zeroed();
+            let mut t = unix_termios::termios::new();
             if unix_termios::tcgetattr((*input).in_fd, &raw mut t) != -1 {
                 stty_erase_buf[0] = t.c_cc[unix_termios::VERASE] as c_char;
                 stty_erase_buf[1] = NUL;

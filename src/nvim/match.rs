@@ -60,6 +60,30 @@ pub struct match_T {
     pub tm: proftime_T,
 }
 
+impl match_T {
+    pub const fn new() -> Self {
+        Self {
+            rm: regmmatch_T::new(),
+            buf: ptr::null_mut(),
+            lnum: 0,
+            attr: 0,
+            attr_cur: 0,
+            first_lnum: 0,
+            startcol: 0,
+            endcol: 0,
+            is_addpos: false,
+            has_cursor: false,
+            tm: 0,
+        }
+    }
+}
+
+impl Default for match_T {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct llpos_T {
@@ -185,7 +209,7 @@ unsafe fn match_add(
             mit_pos_cur: 0,
             mit_toplnum: 0,
             mit_botlnum: 0,
-            mit_hl: std::mem::zeroed(),
+            mit_hl: match_T::new(),
             mit_hlg_id: hlg_id,
             mit_conceal_char: if conceal_char.is_null() {
                 0

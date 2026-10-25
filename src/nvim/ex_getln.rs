@@ -239,7 +239,7 @@ const BUFFER_ESC_CHARS: &CStr = c" \t\n*?[`$\\%#'\"|!<";
 
 /// Struct to store the state of `'incsearch'` highlighting.
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 struct incsearch_state_T {
     search_start: pos_T,
     save_cursor: pos_T,
@@ -250,6 +250,22 @@ struct incsearch_state_T {
     match_end: pos_T,
     did_incsearch: bool,
     incsearch_postponed: bool,
+}
+
+impl incsearch_state_T {
+    const fn new() -> Self {
+        Self {
+            search_start: pos_T::new(),
+            save_cursor: pos_T::new(),
+            winid: 0,
+            init_viewstate: viewstate_T::new(),
+            old_viewstate: viewstate_T::new(),
+            match_start: pos_T::new(),
+            match_end: pos_T::new(),
+            did_incsearch: false,
+            incsearch_postponed: false,
+        }
+    }
 }
 
 #[repr(C)]
@@ -286,6 +302,49 @@ struct CommandLineState {
     did_hist_navigate: bool,
 }
 
+impl CommandLineState {
+    const fn new() -> Self {
+        Self {
+            state: VimState::new(),
+            firstc: 0,
+            count: 0,
+            indent: 0,
+            c: 0,
+            gotesc: false,
+            do_abbr: false,
+            lookfor: ptr::null_mut(),
+            lookforlen: 0,
+            hiscnt: 0,
+            save_hiscnt: 0,
+            histype: 0,
+            is_state: incsearch_state_T::new(),
+            did_wild_list: false,
+            wim_index: 0,
+            save_msg_scroll: 0,
+            save_State: 0,
+            prev_cmdpos: 0,
+            prev_cmdbuff: ptr::null_mut(),
+            save_p_icm: ptr::null_mut(),
+            skip_pum_redraw: false,
+            some_key_typed: false,
+            ignore_drag_release: false,
+            break_ctrl_c: false,
+            xpc: expand_T::new(),
+            b_im_ptr: ptr::null_mut(),
+            b_im_ptr_buf: ptr::null_mut(),
+            cmdline_type: 0,
+            event_cmdlineleavepre_triggered: false,
+            did_hist_navigate: false,
+        }
+    }
+}
+
+impl Default for CommandLineState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct CpBufInfo {
@@ -297,6 +356,25 @@ struct CpBufInfo {
     undo_checkpoint: UndoCheckpoint,
 }
 
+impl CpBufInfo {
+    const fn new() -> Self {
+        Self {
+            buf: ptr::null_mut(),
+            save_b_p_ma: 0,
+            save_b_changed: 0,
+            save_b_op_start: pos_T::new(),
+            save_b_op_end: pos_T::new(),
+            undo_checkpoint: UndoCheckpoint::new(),
+        }
+    }
+}
+
+impl Default for CpBufInfo {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct CpWinInfo {
@@ -305,6 +383,24 @@ struct CpWinInfo {
     save_viewstate: viewstate_T,
     save_w_p_cul: c_int,
     save_w_p_cuc: c_int,
+}
+
+impl CpWinInfo {
+    const fn new() -> Self {
+        Self {
+            win: ptr::null_mut(),
+            save_w_cursor: pos_T::new(),
+            save_viewstate: viewstate_T::new(),
+            save_w_p_cul: 0,
+            save_w_p_cuc: 0,
+        }
+    }
+}
+
+impl Default for CpWinInfo {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 struct CpInfo {
@@ -936,7 +1032,7 @@ unsafe fn command_line_enter(
 
         let save_cmdpreview = cmdpreview;
         cmdpreview = false;
-        let mut state: CommandLineState = std::mem::zeroed();
+        let mut state = CommandLineState::new();
         state.firstc = firstc;
         state.count = count;
         state.indent = indent;
@@ -1899,7 +1995,7 @@ unsafe fn may_do_command_line_next_incsearch(
         let mut searchstr = pat;
         let mut strcopy: *mut c_char = ptr::null_mut();
         let mut searchstrlen = patlen as usize;
-        let mut offset: SearchOffset = std::mem::zeroed();
+        let mut offset = SearchOffset::new();
         let mut search_flags = SEARCH_NOOF;
         let mut patlen_s = (ccline.cmdlen - skiplen) as usize;
 
@@ -2946,7 +3042,7 @@ unsafe fn cmdpreview_prepare() -> CpInfo {
             win_info: Vec::new(),
             buf_info: Vec::new(),
             save_hls: false,
-            save_cmdmod: std::mem::zeroed(),
+            save_cmdmod: cmdmod_T::new(),
             save_view: Vec::new(),
         };
 
@@ -2956,7 +3052,7 @@ unsafe fn cmdpreview_prepare() -> CpInfo {
 
             if (*buf).b_fnum != cmdpreview_bufnr {
                 if saved_bufs.insert(buf) {
-                    let mut cp_bufinfo: CpBufInfo = std::mem::zeroed();
+                    let mut cp_bufinfo = CpBufInfo::new();
                     cp_bufinfo.buf = buf;
                     cp_bufinfo.save_b_p_ma = (*buf).b_p_ma;
                     cp_bufinfo.save_b_changed = (*buf).b_changed;
@@ -2966,7 +3062,7 @@ unsafe fn cmdpreview_prepare() -> CpInfo {
                     cpinfo.buf_info.push(cp_bufinfo);
                 }
 
-                let mut cp_wininfo: CpWinInfo = std::mem::zeroed();
+                let mut cp_wininfo = CpWinInfo::new();
                 cp_wininfo.win = win;
                 cp_wininfo.save_w_cursor = (*win).w_cursor;
                 save_viewstate(win, &raw mut cp_wininfo.save_viewstate);

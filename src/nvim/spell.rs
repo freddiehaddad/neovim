@@ -133,6 +133,39 @@ struct matchinf_T {
     mi_result2: c_int,
     mi_end2: *mut c_char,
 }
+
+impl matchinf_T {
+    const fn new() -> Self {
+        Self {
+            mi_lp: ptr::null_mut(),
+            mi_word: ptr::null_mut(),
+            mi_end: ptr::null_mut(),
+            mi_fend: ptr::null_mut(),
+            mi_cend: ptr::null_mut(),
+            mi_fword: [0; MAXWLEN + 1],
+            mi_fwordlen: 0,
+            mi_prefarridx: 0,
+            mi_prefcnt: 0,
+            mi_prefixlen: 0,
+            mi_cprefixlen: 0,
+            mi_compoff: 0,
+            mi_compflags: [0; MAXWLEN],
+            mi_complen: 0,
+            mi_compextra: 0,
+            mi_result: 0,
+            mi_capflags: 0,
+            mi_win: ptr::null_mut(),
+            mi_result2: 0,
+            mi_end2: ptr::null_mut(),
+        }
+    }
+}
+
+impl Default for matchinf_T {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 #[repr(C)]
 struct spelload_T {
     sl_lang: [c_char; MAXWLEN + 1],
@@ -227,7 +260,7 @@ pub unsafe fn spell_check(
         let mut count_word = docount;
         let use_camel_case = ((*w_s).b_p_spo_flags & kOptSpoFlagCamel) != 0;
         let mut is_camel_case = false;
-        let mut mi: matchinf_T = std::mem::MaybeUninit::zeroed().assume_init();
+        let mut mi = matchinf_T::new();
         if *ptr >= b'0' as c_char && *ptr <= b'9' as c_char {
             if *ptr == b'0' as c_char
                 && (*ptr.add(1) == b'b' as c_char || *ptr.add(1) == b'B' as c_char)
@@ -317,7 +350,7 @@ pub unsafe fn spell_check(
                 }
             } else if !spell_iswordp_nmw(ptr, wp) {
                 if !capcol.is_null() && !(*w_s).b_cap_prog.is_null() {
-                    let mut regmatch: regmatch_T = std::mem::MaybeUninit::zeroed().assume_init();
+                    let mut regmatch = regmatch_T::new();
                     regmatch.regprog = (*w_s).b_cap_prog.cast();
                     regmatch.rm_ic = false;
                     let r = vim_regexec(&raw mut regmatch, ptr, 0);
@@ -2202,7 +2235,7 @@ pub unsafe fn check_need_cap(wp: *mut win_T, lnum: linenr_T, col: colnr_T) -> bo
             endcol = col;
         }
         if endcol > 0 {
-            let mut regmatch: regmatch_T = std::mem::MaybeUninit::zeroed().assume_init();
+            let mut regmatch = regmatch_T::new();
             regmatch.regprog = (*w_s).b_cap_prog.cast();
             regmatch.rm_ic = false;
             let mut p = line.add(endcol as usize);

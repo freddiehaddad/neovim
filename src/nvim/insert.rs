@@ -250,6 +250,38 @@ struct InsertState {
     nomove: bool,
 }
 
+impl InsertState {
+    const fn new() -> Self {
+        Self {
+            state: VimState::new(),
+            ca: ptr::null_mut(),
+            mincol: 0,
+            cmdchar: 0,
+            cmdchar_todo: 0,
+            ins_just_started: false,
+            startln: 0,
+            count: 0,
+            c: 0,
+            lastc: 0,
+            i: 0,
+            did_backspace: false,
+            line_is_white: false,
+            old_topline: 0,
+            old_topfill: 0,
+            inserted_space: 0,
+            replaceState: 0,
+            did_restart_edit: 0,
+            nomove: false,
+        }
+    }
+}
+
+impl Default for InsertState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 static mut compl_busy: bool = false;
 static mut last_insert: NvimString = NvimString {
     data: ptr::null_mut(),
@@ -1342,7 +1374,7 @@ pub unsafe fn edit(cmdchar: c_int, startln: bool, count: c_int) -> bool {
             return false;
         }
 
-        let mut s = std::mem::zeroed::<InsertState>();
+        let mut s = InsertState::new();
         s.state.execute = Some(insert_execute);
         s.state.check = Some(insert_check);
         s.cmdchar = cmdchar;

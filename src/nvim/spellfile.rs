@@ -325,7 +325,7 @@ impl Default for spellinfo_T {
             si_add: 0,
             si_clear_chartab: 0,
             si_region: 0,
-            si_conv: unsafe { std::mem::zeroed() },
+            si_conv: vimconv_T::new(),
             si_memtot: 0,
             si_verbose: 0,
             si_msg_count: 0,
@@ -5521,7 +5521,7 @@ unsafe fn init_spellfile() {
 unsafe fn set_spell_charflags(flags_in: *const c_char, cnt: c_int, fol: *const c_char) {
     unsafe {
         let flags = flags_in.cast::<u8>();
-        let mut new_st: spelltab_T = std::mem::zeroed();
+        let mut new_st = spelltab_T::new();
         let mut p = fol;
 
         clear_spell_chartab(&raw mut new_st);

@@ -56,6 +56,23 @@ struct cob_T {
     cob_save_VIsual_active: c_int,
 }
 
+impl cob_T {
+    const fn new() -> Self {
+        Self {
+            cob_curwin_save: ptr::null_mut(),
+            cob_aco: CtxSwitch::new(),
+            cob_using_aco: 0,
+            cob_save_VIsual_active: 0,
+        }
+    }
+}
+
+impl Default for cob_T {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Find a buffer by number or exact name (`find_buffer`).
 pub unsafe fn find_buffer(avar: *mut typval_T) -> *mut buf_T {
     unsafe {
@@ -151,7 +168,7 @@ unsafe fn set_buffer_lines(
             return;
         }
 
-        let mut cob: cob_T = std::mem::zeroed();
+        let mut cob = cob_T::new();
         if !is_curbuf {
             change_other_buffer_prepare(&raw mut cob, buf);
         }
@@ -676,7 +693,7 @@ pub unsafe fn f_deletebufline(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
         }
 
         let is_curbuf = buf == curbuf;
-        let mut cob: cob_T = std::mem::zeroed();
+        let mut cob = cob_T::new();
         if !is_curbuf {
             change_other_buffer_prepare(&raw mut cob, buf);
         }

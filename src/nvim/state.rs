@@ -52,9 +52,19 @@ pub type state_check_callback = Option<unsafe fn(state: *mut VimState) -> c_int>
 pub type state_execute_callback = Option<unsafe fn(state: *mut VimState, key: c_int) -> c_int>;
 
 #[repr(C)]
+#[derive(Clone, Copy, Default)]
 pub struct VimState {
     pub check: state_check_callback,
     pub execute: state_execute_callback,
+}
+
+impl VimState {
+    pub const fn new() -> Self {
+        Self {
+            check: None,
+            execute: None,
+        }
+    }
 }
 
 use crate::cursor::kOptVeFlagAll;

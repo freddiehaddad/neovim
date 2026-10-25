@@ -18,10 +18,16 @@ pub type ParserLineGetter =
     Option<unsafe fn(cookie: *mut *const ParserLine, ret_pline: *mut ParserLine)>;
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct ParserPosition {
     pub line: usize,
     pub col: usize,
+}
+
+impl ParserPosition {
+    pub const fn new() -> Self {
+        Self { line: 0, col: 0 }
+    }
 }
 
 pub struct ParserInputReader {

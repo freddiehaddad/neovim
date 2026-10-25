@@ -156,27 +156,25 @@ pub struct u_header_T {
 
 impl u_header_T {
     unsafe fn alloc() -> *mut Self {
-        unsafe {
-            Box::into_raw(Box::new(Self {
-                uh_next: ptr::null_mut(),
-                uh_prev: ptr::null_mut(),
-                uh_alt_next: ptr::null_mut(),
-                uh_alt_prev: ptr::null_mut(),
-                uh_seq: 0,
-                uh_walk: 0,
-                uh_entries: Vec::new(),
-                uh_getbot_entry: false,
-                uh_cursor: std::mem::zeroed(),
-                uh_cursor_after: std::mem::zeroed(),
-                uh_cursor_vcol: 0,
-                uh_flags: 0,
-                uh_namedm: std::mem::zeroed(),
-                uh_extmark: Vec::new(),
-                uh_visual: std::mem::zeroed(),
-                uh_time: 0,
-                uh_save_nr: 0,
-            }))
-        }
+        Box::into_raw(Box::new(Self {
+            uh_next: ptr::null_mut(),
+            uh_prev: ptr::null_mut(),
+            uh_alt_next: ptr::null_mut(),
+            uh_alt_prev: ptr::null_mut(),
+            uh_seq: 0,
+            uh_walk: 0,
+            uh_entries: Vec::new(),
+            uh_getbot_entry: false,
+            uh_cursor: pos_T::new(),
+            uh_cursor_after: pos_T::new(),
+            uh_cursor_vcol: 0,
+            uh_flags: 0,
+            uh_namedm: [fmark_T::new(); NMARKS],
+            uh_extmark: Vec::new(),
+            uh_visual: visualinfo_T::new(),
+            uh_time: 0,
+            uh_save_nr: 0,
+        }))
     }
 }
 
@@ -198,6 +196,34 @@ pub struct UndoCheckpoint {
     pub uc_line_colnr: colnr_T,
     pub uc_undolevels: OptInt,
     pub uc_changedtick: varnumber_T,
+}
+
+impl UndoCheckpoint {
+    pub const fn new() -> Self {
+        Self {
+            uc_oldhead: ptr::null_mut(),
+            uc_newhead: ptr::null_mut(),
+            uc_curhead: ptr::null_mut(),
+            uc_numhead: 0,
+            uc_synced: false,
+            uc_seq_last: 0,
+            uc_save_nr_last: 0,
+            uc_seq_cur: 0,
+            uc_time_cur: 0,
+            uc_save_nr_cur: 0,
+            uc_line_ptr: ptr::null_mut(),
+            uc_line_lnum: 0,
+            uc_line_colnr: 0,
+            uc_undolevels: 0,
+            uc_changedtick: 0,
+        }
+    }
+}
+
+impl Default for UndoCheckpoint {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 struct bufinfo_T {
@@ -901,13 +927,13 @@ unsafe fn unserialize_extmark(
     unsafe {
         let type_ = undo_read_4c(bi) as UndoObjectType;
         if type_ == kExtmarkSplice {
-            let mut splice: ExtmarkSplice = std::mem::zeroed();
+            let mut splice = ExtmarkSplice::new();
             if !undo_read(bi, (&raw mut splice).cast::<u8>(), size_of::<ExtmarkSplice>()) {
                 return None;
             }
             Some(ExtmarkUndoObject::Splice(splice))
         } else if type_ == kExtmarkMove {
-            let mut move_: ExtmarkMove = std::mem::zeroed();
+            let mut move_ = ExtmarkMove::new();
             if !undo_read(bi, (&raw mut move_).cast::<u8>(), size_of::<ExtmarkMove>()) {
                 return None;
             }

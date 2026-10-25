@@ -212,7 +212,35 @@ struct TerminalState {
     save_w_p_siso: OptInt,
 }
 
+impl TerminalState {
+    const fn new() -> Self {
+        Self {
+            state: VimState::new(),
+            term: ptr::null_mut(),
+            save_rd: 0,
+            close: false,
+            got_bsl: false,
+            got_bsl_o: false,
+            cursor_visible: false,
+            save_curwin_handle: 0,
+            save_w_p_cul: false,
+            save_w_p_culopt: ptr::null_mut(),
+            save_w_p_culopt_flags: 0,
+            save_w_p_cuc: 0,
+            save_w_p_so: 0,
+            save_w_p_siso: 0,
+        }
+    }
+}
+
+impl Default for TerminalState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
+#[derive(Default)]
 struct TermCursor {
     row: c_int,
     col: c_int,
@@ -221,12 +249,41 @@ struct TermCursor {
     blink: bool,
 }
 
+impl TermCursor {
+    const fn new() -> Self {
+        Self {
+            row: 0,
+            col: 0,
+            shape: 0,
+            visible: false,
+            blink: false,
+        }
+    }
+}
+
 #[repr(C)]
 struct TermPending {
     resize: bool,
     cursor: bool,
     send: *mut Vec<c_char>,
     events: *mut MultiQueue,
+}
+
+impl TermPending {
+    const fn new() -> Self {
+        Self {
+            resize: false,
+            cursor: false,
+            send: ptr::null_mut(),
+            events: ptr::null_mut(),
+        }
+    }
+}
+
+impl Default for TermPending {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[repr(C)]
@@ -264,7 +321,7 @@ pub struct Terminal {
     refcount: usize,
 }
 
-static mut REFRESH_TIMER: TimeWatcher = TimeWatcher::zeroed();
+static mut REFRESH_TIMER: TimeWatcher = TimeWatcher::new();
 static mut REFRESH_PENDING: bool = false;
 
 static mut VTERM_SCREEN_CALLBACKS: VTermScreenCallbacks = VTermScreenCallbacks {
@@ -691,8 +748,8 @@ pub unsafe fn terminal_alloc(buf: *mut buf_T, mut opts: TerminalOptions) -> *mut
             forward_mouse: false,
             invalid_start: 0,
             invalid_end: 0,
-            cursor: std::mem::zeroed(),
-            pending: std::mem::zeroed(),
+            cursor: TermCursor::new(),
+            pending: TermPending::new(),
             streamed_paste: false,
             theme_updates: false,
             synchronized_output: false,
@@ -1112,7 +1169,7 @@ pub unsafe fn terminal_enter() -> bool {
     unsafe {
         let buf = curbuf;
         debug_assert!(!(*buf).terminal.is_null());
-        let mut s: TerminalState = std::mem::zeroed();
+        let mut s = TerminalState::new();
         s.term = (*buf).terminal.cast::<Terminal>();
         s.cursor_visible = true;
         Ins.stop_insert_mode = false;
@@ -1627,7 +1684,7 @@ pub unsafe fn terminal_get_line_attributes(
 
         width = width.min(TERM_ATTRS_MAX);
         for col in 0..width {
-            let mut cell: VTermScreenCell = std::mem::zeroed();
+            let mut cell = VTermScreenCell::default();
             let color_valid = fetch_cell(term, row, col, &mut cell);
             let fg_type = cell.fg.bytes[0];
             let bg_type = cell.bg.bytes[0];
@@ -2301,7 +2358,7 @@ unsafe fn fetch_row(term: *mut Terminal, row: c_int, end_col: c_int) {
         let mut ptr = textbuf_ptr;
 
         while col < end_col {
-            let mut cell: VTermScreenCell = std::mem::zeroed();
+            let mut cell = VTermScreenCell::default();
             fetch_cell(term, row, col, &mut cell);
             if cell.schar != 0 {
                 schar_get_adv(&mut ptr, cell.schar);

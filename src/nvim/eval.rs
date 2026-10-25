@@ -5653,7 +5653,7 @@ pub unsafe fn timer_start(timeout: i64, repeat_count: c_int, callback: *const Ca
         let id = last_timer_id;
         last_timer_id += 1;
         let timer = Box::into_raw(Box::new(timer_T {
-            watcher: TimeWatcher::zeroed(),
+            watcher: TimeWatcher::new(),
             timer_id: id as c_int,
             repeat_count,
             refcount: 1,

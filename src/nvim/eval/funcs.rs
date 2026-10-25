@@ -2719,7 +2719,7 @@ unsafe fn common_function(argvars: *mut typval_T, rettv: *mut typval_T, is_funcr
                         (*pt).pt_argc = arg_len + lv_len;
                         (*pt)
                             .pt_argv
-                            .resize((*pt).pt_argc as usize, std::mem::zeroed());
+                            .resize((*pt).pt_argc as usize, typval_T::new());
                         let mut i: c_int = 0;
                         while i < arg_len {
                             tv_copy(
@@ -3732,7 +3732,7 @@ pub unsafe fn f_wait(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
         } else {
             200
         };
-        let tw = Box::into_raw(Box::new(TimeWatcher::zeroed()));
+        let tw = Box::into_raw(Box::new(TimeWatcher::new()));
 
         let main_loop_ptr: *mut Loop = (&raw mut main_loop).cast();
         time_watcher_init(main_loop_ptr, tw, ptr::null_mut());
@@ -6039,7 +6039,7 @@ unsafe fn msgpackparse_unpack_list(list: *const list_T, ret_list: *mut list_T) {
         let mut buf_size: usize = 0;
 
         let mut cur_item = tv_initial_value();
-        let mut parser: mpack_parser_t = std::mem::zeroed();
+        let mut parser = mpack_parser_t::new(0);
         mpack_parser_init(&raw mut parser, 0);
         parser.data.p = (&raw mut cur_item).cast();
 
@@ -9099,7 +9099,7 @@ pub unsafe fn f_tagfiles(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
         let mut fname = [0 as c_char; MAXPATHL];
 
         let mut first = true;
-        let mut tn: tagname_T = std::mem::zeroed();
+        let mut tn = tagname_T::new();
         while get_tagfname(&raw mut tn, c_int::from(first), fname.as_mut_ptr()) == OK {
             tv_list_append_string((*rettv).vval.v_list, fname.as_ptr(), -1);
             first = false;

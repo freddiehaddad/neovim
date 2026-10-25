@@ -848,7 +848,7 @@ pub unsafe fn ctx_switch(
     unsafe {
         assert!((wp.is_null() != buf.is_null()) || (wp.is_null() && (flags & kCtxKeepDirs) != 0));
         assert!(buf.is_null() || tp.is_null());
-        *cs = std::mem::zeroed();
+        *cs = CtxSwitch::new();
         (*cs).cs_flags = flags;
         (*cs).cs_mode = if !buf.is_null() {
             kCtxSwitchBuf

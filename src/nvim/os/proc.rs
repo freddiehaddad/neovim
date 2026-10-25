@@ -48,7 +48,7 @@ struct ProcessEntry32 {
 
 #[cfg(target_os = "windows")]
 impl ProcessEntry32 {
-    fn zeroed() -> Self {
+    const fn new() -> Self {
         Self {
             dw_size: std::mem::size_of::<Self>() as u32,
             cnt_usage: 0,
@@ -61,6 +61,13 @@ impl ProcessEntry32 {
             dw_flags: 0,
             sz_exe_file: [0; 260],
         }
+    }
+}
+
+#[cfg(target_os = "windows")]
+impl Default for ProcessEntry32 {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -83,7 +90,7 @@ unsafe fn os_proc_tree_kill_rec(proc_handle: *mut c_void, sig: c_int) -> bool {
     if pid != 0 {
         let h = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
         if h != INVALID_HANDLE_VALUE {
-            let mut pe = ProcessEntry32::zeroed();
+            let mut pe = ProcessEntry32::new();
             if unsafe { Process32First(h, &mut pe) != 0 } {
                 loop {
                     if pe.th32_parent_process_id == pid {
@@ -150,7 +157,7 @@ pub fn os_proc_children(ppid: c_int) -> Result<Vec<c_int>, c_int> {
         if h == INVALID_HANDLE_VALUE {
             return Err(2);
         }
-        let mut pe = ProcessEntry32::zeroed();
+        let mut pe = ProcessEntry32::new();
         if Process32First(h, &mut pe) == 0 {
             CloseHandle(h);
             return Err(2);
@@ -199,7 +206,7 @@ pub unsafe fn os_proc_info(pid: c_int, arena: *mut Arena) -> Dict {
         if h == INVALID_HANDLE_VALUE {
             return pinfo;
         }
-        let mut pe = ProcessEntry32::zeroed();
+        let mut pe = ProcessEntry32::new();
         if Process32First(h, &mut pe) == 0 {
             CloseHandle(h);
             return pinfo;

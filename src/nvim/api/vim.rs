@@ -475,7 +475,7 @@ pub unsafe extern "C" fn nvim_set_hl(
         let update = ((*val).is_set__highlight_ & (1u64 << KEYSET_OPTIDX_highlight__update)) != 0
             && (*val).update;
         let mut base: *mut HlAttrs = ptr::null_mut();
-        let mut base_attrs = std::mem::zeroed::<HlAttrs>();
+        let mut base_attrs = HlAttrs::default();
         if update && hl_ns_get_attrs(ns_id as c_int, hl_id, ptr::null_mut(), &mut base_attrs) {
             base = &mut base_attrs;
         }

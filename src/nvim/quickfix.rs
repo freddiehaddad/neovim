@@ -353,7 +353,7 @@ impl Default for qf_list_T {
             qf_has_user_data: false,
             qf_title: ptr::null_mut(),
             qf_ctx: ptr::null_mut(),
-            qf_qftf_cb: unsafe { std::mem::zeroed() },
+            qf_qftf_cb: Callback::new(),
             qf_dir_stack: Vec::new(),
             qf_directory: ptr::null_mut(),
             qf_file_stack: Vec::new(),
@@ -424,7 +424,7 @@ impl Default for qfstate_T {
             buf: ptr::null_mut(),
             buflnum: 0,
             lnumlast: 0,
-            vc: unsafe { std::mem::zeroed() },
+            vc: vimconv_T::new(),
         }
     }
 }
@@ -477,6 +477,26 @@ struct vgr_args_T {
     fcount: c_int,
     regmatch: regmmatch_T,
     qf_title: *mut c_char,
+}
+
+impl vgr_args_T {
+    const fn new() -> Self {
+        Self {
+            tomatch: 0,
+            spat: ptr::null_mut(),
+            flags: 0,
+            fnames: ptr::null_mut(),
+            fcount: 0,
+            regmatch: regmmatch_T::new(),
+            qf_title: ptr::null_mut(),
+        }
+    }
+}
+
+impl Default for vgr_args_T {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 struct FmtPattern {
@@ -5992,7 +6012,7 @@ pub unsafe fn ex_vimgrep(eap: *mut exarg_T) {
         let mut wp: *mut win_T = ptr::null_mut();
         let qi = qf_cmd_get_or_alloc_stack(eap, &raw mut wp);
         let mut target_dir: *mut c_char = ptr::null_mut();
-        let mut args: vgr_args_T = std::mem::zeroed();
+        let mut args = vgr_args_T::new();
         if vgr_process_args(eap, &raw mut args) != FAIL {
             if ((*eap).cmdidx != CMD_grepadd
                 && (*eap).cmdidx != CMD_lgrepadd
@@ -8068,7 +8088,7 @@ mod tests {
     #[test]
     fn qf_entry_pos_comparisons_respect_linewise_mode() {
         unsafe {
-            let mut qfp: qfline_T = std::mem::zeroed();
+            let mut qfp = qfline_T::new();
             qfp.qf_lnum = 10;
             qfp.qf_col = 5;
             let pos = pos_T {
@@ -8104,8 +8124,8 @@ mod tests {
     #[test]
     fn entry_is_closer_to_target_compares_file_line_and_column() {
         unsafe {
-            let mut e1: qfline_T = std::mem::zeroed();
-            let mut e2: qfline_T = std::mem::zeroed();
+            let mut e1 = qfline_T::new();
+            let mut e2 = qfline_T::new();
             e1.qf_fnum = 1;
             e1.qf_lnum = 12;
             e1.qf_col = 4;

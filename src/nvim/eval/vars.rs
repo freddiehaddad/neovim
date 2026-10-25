@@ -765,7 +765,7 @@ pub unsafe fn eval_charconvert(
 
         let mut err = false;
         let mut tv: typval_T = typval_T::new();
-        let mut argv: [typval_T; 1] = [std::mem::zeroed()];
+        let mut argv: [typval_T; 1] = [typval_T::new()];
         if !callback_call(&raw mut p_ccv, 0, argv.as_mut_ptr(), &raw mut tv) {
             err = true;
         } else {
@@ -798,7 +798,7 @@ pub unsafe fn eval_diff(origfile: *const c_char, newfile: *const c_char, outfile
         }
 
         let mut tv: typval_T = typval_T::new();
-        let mut argv: [typval_T; 1] = [std::mem::zeroed()];
+        let mut argv: [typval_T; 1] = [typval_T::new()];
         if callback_call(&raw mut p_dex, 0, argv.as_mut_ptr(), &raw mut tv) {
             tv_clear(&raw mut tv);
         }
@@ -823,7 +823,7 @@ pub unsafe fn eval_patch(origfile: *const c_char, difffile: *const c_char, outfi
         }
 
         let mut tv: typval_T = typval_T::new();
-        let mut argv: [typval_T; 1] = [std::mem::zeroed()];
+        let mut argv: [typval_T; 1] = [typval_T::new()];
         if callback_call(&raw mut p_pex, 0, argv.as_mut_ptr(), &raw mut tv) {
             tv_clear(&raw mut tv);
         }

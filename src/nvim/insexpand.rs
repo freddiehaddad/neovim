@@ -365,6 +365,31 @@ struct ins_compl_next_state_T {
     func_cb: *mut Callback,
 }
 
+impl ins_compl_next_state_T {
+    const fn new() -> Self {
+        Self {
+            e_cpt_copy: ptr::null_mut(),
+            e_cpt: ptr::null_mut(),
+            ins_buf: ptr::null_mut(),
+            cur_match_pos: ptr::null_mut(),
+            prev_match_pos: pos_T::new(),
+            set_match_pos: false,
+            first_match_pos: pos_T::new(),
+            last_match_pos: pos_T::new(),
+            found_all: false,
+            dict: ptr::null_mut(),
+            dict_f: 0,
+            func_cb: ptr::null_mut(),
+        }
+    }
+}
+
+impl Default for ins_compl_next_state_T {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Structure for completion source (in `'cpt'` option) information (`cpt_source_T`).
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -3084,7 +3109,7 @@ unsafe fn copy_cpt_callbacks(dest: *mut Vec<Callback>, src: *mut Vec<Callback>) 
         }
 
         let dest = &mut *dest;
-        dest.resize(src.len(), std::mem::zeroed());
+        dest.resize(src.len(), Callback::new());
 
         for (dst_cb, src_cb) in dest.iter_mut().zip(src.iter_mut()) {
             if src_cb.cb_type != kCallbackNone {
@@ -3113,7 +3138,7 @@ unsafe fn parse_cpt_callbacks(cpt: *mut c_char, cbp: *mut Vec<Callback>) {
         }
 
         let cbp = &mut *cbp;
-        cbp.resize(count as usize, std::mem::zeroed());
+        cbp.resize(count as usize, Callback::new());
 
         let mut buf: [c_char; LSIZE] = [0; LSIZE];
         let mut idx: usize = 0;
@@ -4973,7 +4998,7 @@ unsafe fn advance_cpt_sources_index_safe() -> c_int {
 }
 
 unsafe fn ins_compl_get_exp(ini: *mut pos_T) -> c_int {
-    static mut st: ins_compl_next_state_T = unsafe { std::mem::zeroed() };
+    static mut st: ins_compl_next_state_T = ins_compl_next_state_T::new();
     static mut st_cleared: bool = false;
     unsafe {
         let mut found_new_match: c_int;
@@ -4990,7 +5015,7 @@ unsafe fn ins_compl_get_exp(ini: *mut pos_T) -> c_int {
                 buf = (*buf).b_next;
             }
             if !st_cleared {
-                st = std::mem::zeroed();
+                st = ins_compl_next_state_T::new();
                 st_cleared = true;
             }
             st.found_all = false;

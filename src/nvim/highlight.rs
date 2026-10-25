@@ -174,7 +174,7 @@ pub struct KeyDict_highlight_cterm {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct HlAttrs {
     pub rgb_ae_attr: i32,
     pub cterm_ae_attr: i32,
@@ -547,7 +547,7 @@ pub unsafe fn ns_get_hl(ns_hl: *mut NS, hl_id: c_int, link: bool, nodefault: boo
             let mut attrs = HLATTRS_INIT;
             if ret.obj_type == ObjectType::kObjectTypeDict {
                 fallback = false;
-                let mut dict: KeyDict_highlight = std::mem::zeroed();
+                let mut dict = KeyDict_highlight::default();
                 if api_dict_to_keydict(
                     (&raw mut dict).cast(),
                     Some(KeyDict_highlight_get_field),

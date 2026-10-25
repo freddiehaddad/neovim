@@ -2068,7 +2068,7 @@ pub unsafe fn f_writefile(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
             return;
         }
 
-        let mut fp = std::mem::MaybeUninit::<FileDescriptor>::zeroed().assume_init();
+        let mut fp = FileDescriptor::new();
         if *fname == NUL {
             emsg(gettext(
                 c"E482: Can't open file with an empty name".as_ptr(),

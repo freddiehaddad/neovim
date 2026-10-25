@@ -77,19 +77,36 @@ const TS_META_QUERYCURSOR: *const c_char = c"treesitter_querycursor".as_ptr();
 const TS_META_QUERYMATCH: *const c_char = c"treesitter_querymatch".as_ptr();
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct TSPoint {
     pub row: u32,
     pub column: u32,
 }
 
+impl TSPoint {
+    pub const fn new() -> Self {
+        Self { row: 0, column: 0 }
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct TSRange {
     pub start_point: TSPoint,
     pub end_point: TSPoint,
     pub start_byte: u32,
     pub end_byte: u32,
+}
+
+impl TSRange {
+    pub const fn new() -> Self {
+        Self {
+            start_point: TSPoint::new(),
+            end_point: TSPoint::new(),
+            start_byte: 0,
+            end_byte: 0,
+        }
+    }
 }
 
 #[repr(C)]
@@ -1308,7 +1325,7 @@ unsafe extern "C-unwind" fn parser_set_ranges(L: *mut lua_State) -> c_int {
         luaL_argcheck(L, lua_istable(L, 2), 2, c"table expected.".as_ptr());
 
         let tbl_len = lua_objlen(L, 2);
-        let mut ranges: Vec<TSRange> = vec![std::mem::zeroed(); tbl_len];
+        let mut ranges: Vec<TSRange> = vec![TSRange::new(); tbl_len];
 
         for (index, range) in ranges.iter_mut().enumerate() {
             lua_rawgeti(L, 2, (index + 1) as c_int);

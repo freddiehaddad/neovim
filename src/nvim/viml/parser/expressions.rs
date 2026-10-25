@@ -137,35 +137,69 @@ pub const kExprFlagsDisallowEOC: c_int = 1 << 1;
 pub const kExprFlagsParseLet: c_int = 1 << 2;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct LexExprTokenCmp {
     pub r#type: ExprComparisonType,
     pub ccs: ExprCaseCompareStrategy,
     pub inv: bool,
 }
 
+impl LexExprTokenCmp {
+    pub const fn new() -> Self {
+        Self {
+            r#type: 0,
+            ccs: 0,
+            inv: false,
+        }
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct LexExprTokenMul {
     pub r#type: LexExprMulType,
 }
 
+impl LexExprTokenMul {
+    pub const fn new() -> Self {
+        Self { r#type: 0 }
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct LexExprTokenBrc {
     pub closing: bool,
 }
 
+impl LexExprTokenBrc {
+    pub const fn new() -> Self {
+        Self { closing: false }
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct LexExprTokenReg {
     pub name: c_int,
 }
 
+impl LexExprTokenReg {
+    pub const fn new() -> Self {
+        Self { name: 0 }
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct LexExprTokenStr {
     pub closed: bool,
+}
+
+impl LexExprTokenStr {
+    pub const fn new() -> Self {
+        Self { closed: false }
+    }
 }
 
 #[repr(C)]
@@ -176,11 +210,36 @@ pub struct LexExprTokenOpt {
     pub scope: ExprOptScope,
 }
 
+impl LexExprTokenOpt {
+    pub const fn new() -> Self {
+        Self {
+            name: std::ptr::null(),
+            len: 0,
+            scope: 0,
+        }
+    }
+}
+
+impl Default for LexExprTokenOpt {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct LexExprTokenVar {
     pub scope: ExprVarScope,
     pub autoload: bool,
+}
+
+impl LexExprTokenVar {
+    pub const fn new() -> Self {
+        Self {
+            scope: 0,
+            autoload: false,
+        }
+    }
 }
 
 #[repr(C)]
@@ -190,29 +249,69 @@ pub struct LexExprTokenErr {
     pub msg: *const c_char,
 }
 
+impl LexExprTokenErr {
+    pub const fn new() -> Self {
+        Self {
+            r#type: 0,
+            msg: std::ptr::null(),
+        }
+    }
+}
+
+impl Default for LexExprTokenErr {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct LexExprTokenNumVal {
     pub floating: float_T,
     pub integer: uvarnumber_T,
 }
 
+impl LexExprTokenNumVal {
+    pub const fn new() -> Self {
+        Self {
+            floating: 0.0,
+            integer: 0,
+        }
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct LexExprTokenNum {
     pub val: LexExprTokenNumVal,
     pub base: u8,
     pub is_float: bool,
 }
 
+impl LexExprTokenNum {
+    pub const fn new() -> Self {
+        Self {
+            val: LexExprTokenNumVal::new(),
+            base: 0,
+            is_float: false,
+        }
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct LexExprTokenAss {
     pub r#type: ExprAssignmentType,
 }
 
+impl LexExprTokenAss {
+    pub const fn new() -> Self {
+        Self { r#type: 0 }
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct LexExprTokenData {
     pub cmp: LexExprTokenCmp,
     pub mul: LexExprTokenMul,
@@ -226,13 +325,41 @@ pub struct LexExprTokenData {
     pub ass: LexExprTokenAss,
 }
 
+impl LexExprTokenData {
+    pub const fn new() -> Self {
+        Self {
+            cmp: LexExprTokenCmp::new(),
+            mul: LexExprTokenMul::new(),
+            brc: LexExprTokenBrc::new(),
+            reg: LexExprTokenReg::new(),
+            str: LexExprTokenStr::new(),
+            opt: LexExprTokenOpt::new(),
+            var: LexExprTokenVar::new(),
+            err: LexExprTokenErr::new(),
+            num: LexExprTokenNum::new(),
+            ass: LexExprTokenAss::new(),
+        }
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct LexExprToken {
     pub start: ParserPosition,
     pub len: usize,
     pub r#type: LexExprTokenType,
     pub data: LexExprTokenData,
+}
+
+impl LexExprToken {
+    pub const fn new() -> Self {
+        Self {
+            start: ParserPosition::new(),
+            len: 0,
+            r#type: 0,
+            data: LexExprTokenData::new(),
+        }
+    }
 }
 
 #[repr(C)]
@@ -707,7 +834,7 @@ unsafe fn get_ccs(ret: &mut LexExprToken, bytes: &[u8]) {
 /// Get next token for the Vimscript expression input (`viml_pexpr_next_token`).
 pub unsafe fn viml_pexpr_next_token(pstate: *mut ParserState, flags: c_int) -> LexExprToken {
     unsafe {
-        let mut ret: LexExprToken = std::mem::zeroed();
+        let mut ret = LexExprToken::new();
         ret.r#type = kExprLexInvalid;
         ret.start = (*pstate).pos;
 
@@ -1741,7 +1868,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
         if (flags & kExprFlagsParseLet) != 0 {
             pt_stack.push(ExprASTParseType::Assignment);
         }
-        let mut prev_token: LexExprToken = std::mem::zeroed();
+        let mut prev_token = LexExprToken::new();
         prev_token.r#type = kExprLexMissing;
         let mut highlighted_prev_spacing = false;
         let mut lambda_node: *mut ExprASTNode = std::ptr::null_mut();

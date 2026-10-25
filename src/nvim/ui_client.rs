@@ -41,7 +41,7 @@ use crate::tui::tui::{
     tui_visual_bell,
 };
 use std::ffi::{c_char, c_int, c_void};
-use std::mem::{size_of, zeroed};
+use std::mem::size_of;
 use std::ptr;
 
 pub(crate) const UI_CLIENT_STDIN_FD: c_int = 3;
@@ -341,7 +341,7 @@ pub unsafe fn ui_client_dict2hlattrs(d: Dict, rgb: bool) -> HlAttrs {
             err_type: ErrorType::kErrorTypeNone,
             msg: ptr::null_mut(),
         };
-        let mut dict: KeyDict_highlight = zeroed();
+        let mut dict = KeyDict_highlight::default();
         if !api_dict_to_keydict(
             (&raw mut dict).cast(),
             Some(highlight_get_field_cb),

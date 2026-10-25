@@ -172,6 +172,24 @@ pub struct exception_state_T {
     pub estate_did_emsg: c_int,
 }
 
+impl exception_state_T {
+    pub const fn new() -> Self {
+        Self {
+            estate_current_exception: ptr::null_mut(),
+            estate_did_throw: false,
+            estate_need_rethrow: false,
+            estate_trylevel: 0,
+            estate_did_emsg: 0,
+        }
+    }
+}
+
+impl Default for exception_state_T {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 use crate::charset::NUL;
 use crate::globals::IOSIZE;
 use crate::math::{FAIL, OK};

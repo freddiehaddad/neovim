@@ -54,6 +54,24 @@ pub struct histentry_T {
     pub additional_data: *mut crate::search::AdditionalData,
 }
 
+impl histentry_T {
+    pub const fn new() -> Self {
+        Self {
+            hisnum: 0,
+            hisstr: std::ptr::null_mut(),
+            hisstrlen: 0,
+            timestamp: 0,
+            additional_data: std::ptr::null_mut(),
+        }
+    }
+}
+
+impl Default for histentry_T {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 use crate::globals::IOSIZE;
 use crate::strings::vim_strnicmp_asc;
 

@@ -104,6 +104,31 @@ pub struct lua_Debug {
     pub _pad: [u8; 32],
 }
 
+impl lua_Debug {
+    pub const fn new() -> Self {
+        Self {
+            event: 0,
+            name: std::ptr::null(),
+            namewhat: std::ptr::null(),
+            what: std::ptr::null(),
+            source: std::ptr::null(),
+            currentline: 0,
+            nups: 0,
+            linedefined: 0,
+            lastlinedefined: 0,
+            short_src: [0; 60],
+            i_ci: 0,
+            _pad: [0; 32],
+        }
+    }
+}
+
+impl Default for lua_Debug {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub(crate) const K_NLUA_PUSH_SPECIAL: c_int = 0x01;
 const K_NLUA_PUSH_FREE_REFS: c_int = 0x02;
 

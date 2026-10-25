@@ -679,7 +679,7 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> c_int {
             g_min_log_level = log_level;
         }
         let save_cmdmod = cmdmod;
-        cmdmod = std::mem::zeroed();
+        cmdmod = crate::ex_docmd::cmdmod_T::new();
         cmdmod.cmod_flags = flags;
         apply_cmdmod(&raw mut cmdmod);
 
@@ -755,7 +755,7 @@ unsafe extern "C-unwind" fn nlua_keyparse(lstate: *mut lua_State) -> c_int {
 
         lua_newtable(lstate);
 
-        let mut data: keychord = std::mem::zeroed();
+        let mut data = keychord::new();
 
         while *p != NUL {
             let keys = str2special(&raw mut p, true, kTrue, &raw mut data);

@@ -138,7 +138,6 @@ use crate::window::{
 };
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::io::Write;
-use std::mem::zeroed;
 use std::ptr;
 
 #[cfg(windows)]
@@ -207,6 +206,47 @@ pub struct mparm_T {
     pub scriptout: *mut c_char,
     pub scriptout_append: bool,
     pub had_stdin_file: bool,
+}
+
+impl mparm_T {
+    pub const fn new() -> Self {
+        Self {
+            argc: 0,
+            argv: ptr::null_mut(),
+            use_vimrc: ptr::null_mut(),
+            clean: false,
+            n_commands: 0,
+            commands: [ptr::null_mut(); MAX_ARG_CMDS],
+            cmds_tofree: [0; MAX_ARG_CMDS],
+            n_pre_commands: 0,
+            pre_commands: [ptr::null_mut(); MAX_ARG_CMDS],
+            luaf: ptr::null_mut(),
+            lua_arg0: 0,
+            edit_type: 0,
+            tagname: ptr::null_mut(),
+            use_ef: ptr::null_mut(),
+            exmode: false,
+            input_istext: false,
+            no_swap_file: 0,
+            use_debug_break_level: 0,
+            window_count: 0,
+            window_layout: 0,
+            diff_mode: 0,
+            listen_addr: ptr::null_mut(),
+            remote: 0,
+            server_addr: ptr::null_mut(),
+            scriptin: ptr::null_mut(),
+            scriptout: ptr::null_mut(),
+            scriptout_append: false,
+            had_stdin_file: false,
+        }
+    }
+}
+
+impl Default for mparm_T {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 static mut ARGV0: *mut c_char = ptr::null_mut();
@@ -315,7 +355,7 @@ unsafe fn early_init(paramp: *mut mparm_T) {
 
         #[cfg(windows)]
         {
-            let mut ovi: OsVersionInfoA = zeroed();
+            let mut ovi = OsVersionInfoA::new();
             ovi.dwOSVersionInfoSize = std::mem::size_of::<OsVersionInfoA>() as u32;
             GetVersionExA(&raw mut ovi);
             let mut buf = Vec::with_capacity(20);
@@ -368,7 +408,7 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
         }
 
         let mut fname: *mut c_char = ptr::null_mut();
-        let mut params: mparm_T = zeroed();
+        let mut params = mparm_T::new();
 
         init_params(&raw mut params, argc, argv);
         init_startuptime(&raw mut params);
@@ -1775,7 +1815,7 @@ unsafe fn set_argf_var() {
 
 unsafe fn init_params(paramp: *mut mparm_T, argc: c_int, argv: *mut *mut c_char) {
     unsafe {
-        *paramp = zeroed();
+        *paramp = mparm_T::new();
         (*paramp).argc = argc;
         (*paramp).argv = argv;
         (*paramp).use_debug_break_level = -1;
@@ -2645,7 +2685,7 @@ mod tests {
             assert_eq!(val, 25);
             assert_eq!(idx, 3);
 
-            let mut params: mparm_T = zeroed();
+            let mut params = mparm_T::new();
             init_params(&raw mut params, 3, ptr::null_mut());
             assert_eq!(params.argc, 3);
             assert_eq!(params.window_count, -1);

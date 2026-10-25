@@ -22,7 +22,7 @@ pub struct TimeWatcher {
 }
 
 impl TimeWatcher {
-    pub const fn zeroed() -> Self {
+    pub const fn new() -> Self {
         Self {
             uv: [0; 32],
             data: ptr::null_mut(),
@@ -31,6 +31,12 @@ impl TimeWatcher {
             events: ptr::null_mut(),
             blockable: false,
         }
+    }
+}
+
+impl Default for TimeWatcher {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

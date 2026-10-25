@@ -56,6 +56,21 @@ pub struct viewstate_T {
     pub vs_empty_rows: c_int,
 }
 
+impl viewstate_T {
+    pub const fn new() -> Self {
+        Self {
+            vs_curswant: 0,
+            vs_set_curswant: false,
+            vs_leftcol: 0,
+            vs_skipcol: 0,
+            vs_topline: 0,
+            vs_topfill: 0,
+            vs_botline: 0,
+            vs_empty_rows: 0,
+        }
+    }
+}
+
 pub unsafe fn win_has_winnr(wp: *mut win_T, tp: *mut tabpage_T) -> bool {
     unsafe {
         let cur = if tp == curtab {

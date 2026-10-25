@@ -84,7 +84,7 @@ use crate::undo::u_save;
 use crate::usercmd::{uc_mods, uc_split_args_iter, ucmd_T};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::io::Write;
-use std::mem::{size_of, zeroed};
+use std::mem::size_of;
 use std::ptr;
 
 use crate::api::vim::HlMessage;
@@ -2747,7 +2747,7 @@ pub unsafe fn nlua_set_sctx(current: *mut sctx_T) {
             return;
         }
         let lstate = active_lstate;
-        let mut info: lua_Debug = std::mem::zeroed();
+        let mut info = lua_Debug::new();
 
         let mut level: c_int = 1;
         let mut found = false;
@@ -2875,7 +2875,7 @@ pub unsafe fn nlua_funcref_str(ref_: LuaRef, arena: *mut Arena, show_ref: bool) 
             if !lua_isfunction(lstate, -1) {
                 lua_pop(lstate, 1);
             } else {
-                let mut ar: lua_Debug = zeroed();
+                let mut ar = lua_Debug::new();
                 if lua_getinfo(lstate, c">S".as_ptr(), &raw mut ar) != 0
                     && *ar.source == b'@' as c_char
                     && ar.linedefined >= 0

@@ -111,16 +111,14 @@ struct McSandbox {
 
 impl McSandbox {
     unsafe fn new() -> Self {
-        unsafe {
-            Self {
-                primary: CONTEXT_INIT,
-                cursor_mark: 0,
-                topline_mark: 0,
-                view: std::mem::zeroed(),
-                sst: save_state_T::new(),
-                redo: RedoState::new(),
-                visual: std::mem::zeroed(),
-            }
+        Self {
+            primary: CONTEXT_INIT,
+            cursor_mark: 0,
+            topline_mark: 0,
+            view: viewstate_T::new(),
+            sst: save_state_T::new(),
+            redo: RedoState::new(),
+            visual: VisualState::new(),
         }
     }
 }
@@ -782,7 +780,7 @@ unsafe fn mc_ins_region_first() -> MTPair {
                 return p;
             }
         }
-        std::mem::zeroed()
+        MTPair::new()
     }
 }
 
@@ -1665,7 +1663,7 @@ pub unsafe fn mc_zq(oap: *mut oparg_T, cap: *mut cmdarg_T, origin: pos_T) {
         }
         (*curwin).w_cursor = primary;
         update_curswant();
-        let mut view: viewstate_T = std::mem::zeroed();
+        let mut view = viewstate_T::new();
         save_viewstate(curwin, &mut view);
         save_search_patterns();
 

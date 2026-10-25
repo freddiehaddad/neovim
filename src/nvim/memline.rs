@@ -238,6 +238,23 @@ struct ZeroBlock {
 }
 
 impl ZeroBlock {
+    const fn new() -> Self {
+        Self {
+            b0_id: [0; 2],
+            b0_version: [0; 10],
+            b0_page_size: [0; 4],
+            b0_mtime: [0; 4],
+            b0_ino: [0; 4],
+            b0_pid: [0; 4],
+            b0_uname: [0; B0_UNAME_SIZE],
+            b0_hname: [0; B0_HNAME_SIZE],
+            b0_fname: [0; B0_FNAME_SIZE_ORG],
+            b0_magic_long: 0,
+            b0_magic_int: 0,
+            b0_magic_short: 0,
+            b0_magic_char: 0,
+        }
+    }
     #[inline]
     fn dirty(&self) -> c_char {
         self.b0_fname[B0_FNAME_SIZE_ORG - 1]
@@ -858,7 +875,7 @@ pub unsafe fn ml_recover(checkext: bool) {
                 return;
             }
             if n_swaps > 1 {
-                let mut lua_args = [items_tv, std::mem::zeroed::<typval_T>()];
+                let mut lua_args = [items_tv, typval_T::new()];
                 nlua_call_typval(
                     c"vim._core.swapfile".as_ptr(),
                     c"select_swap".as_ptr(),
@@ -1641,7 +1658,7 @@ pub unsafe fn make_percent_swname(
 /// For Vimscript `swapinfo()`.
 pub unsafe fn swapfile_dict(fname: *const c_char, d: *mut dict_T) {
     unsafe {
-        let mut b0 = std::mem::zeroed::<ZeroBlock>();
+        let mut b0 = ZeroBlock::new();
         let fd = os_open(fname, O_RDONLY, 0);
         if fd >= 0 {
             if read_eintr(fd, (&raw mut b0).cast(), size_of::<ZeroBlock>())
@@ -1720,7 +1737,7 @@ pub unsafe fn swapfile_dict(fname: *const c_char, d: *mut dict_T) {
 unsafe fn swapfile_info(fname: *mut c_char, msg: &mut Vec<u8>) -> time_t {
     unsafe {
         assert!(!fname.is_null());
-        let mut b0 = std::mem::zeroed::<ZeroBlock>();
+        let mut b0 = ZeroBlock::new();
         let mut x: time_t = 0;
 
         let mut file_info = FileInfo::new();
@@ -1845,7 +1862,7 @@ unsafe fn swapfile_unchanged(fname: *mut c_char) -> bool {
         if fd < 0 {
             return false;
         }
-        let mut b0 = std::mem::zeroed::<ZeroBlock>();
+        let mut b0 = ZeroBlock::new();
         if read_eintr(fd, (&raw mut b0).cast(), size_of::<ZeroBlock>())
             != size_of::<ZeroBlock>() as isize
         {
@@ -3589,7 +3606,7 @@ unsafe fn findswapname(
                 && !(*buf).b_help
                 && ((*buf).b_flags & BF_DUMMY) == 0
             {
-                let mut b0 = std::mem::zeroed::<ZeroBlock>();
+                let mut b0 = ZeroBlock::new();
                 let mut differ = false;
                 let namebuff_ptr = (&raw mut NameBuff).cast::<c_char>();
 

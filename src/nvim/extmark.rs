@@ -48,7 +48,7 @@ pub(crate) const kExtmarkSplice: UndoObjectType = 0;
 pub(crate) const kExtmarkMove: UndoObjectType = 1;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct ExtmarkSplice {
     pub start_row: c_int,
     pub start_col: colnr_T,
@@ -61,8 +61,24 @@ pub struct ExtmarkSplice {
     pub new_byte: bcount_t,
 }
 
+impl ExtmarkSplice {
+    pub const fn new() -> Self {
+        Self {
+            start_row: 0,
+            start_col: 0,
+            old_row: 0,
+            old_col: 0,
+            new_row: 0,
+            new_col: 0,
+            start_byte: 0,
+            old_byte: 0,
+            new_byte: 0,
+        }
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct ExtmarkMove {
     pub start_row: c_int,
     pub start_col: c_int,
@@ -73,6 +89,22 @@ pub struct ExtmarkMove {
     pub start_byte: bcount_t,
     pub extent_byte: bcount_t,
     pub new_byte: bcount_t,
+}
+
+impl ExtmarkMove {
+    pub const fn new() -> Self {
+        Self {
+            start_row: 0,
+            start_col: 0,
+            extent_row: 0,
+            extent_col: 0,
+            new_row: 0,
+            new_col: 0,
+            start_byte: 0,
+            extent_byte: 0,
+            new_byte: 0,
+        }
+    }
 }
 
 #[repr(C)]
@@ -484,7 +516,7 @@ pub unsafe fn extmark_get(
             }
 
             while (array.len() as i64) < amount {
-                let mut pair = std::mem::zeroed();
+                let mut pair = MTPair::new();
                 if !marktree_itr_step_overlap(
                     (*buf).b_marktree.as_mut_ptr(),
                     &raw mut itr,

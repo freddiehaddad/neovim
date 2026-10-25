@@ -223,7 +223,7 @@ pub struct DecorState {
 impl DecorState {
     pub const fn new() -> Self {
         Self {
-            itr: [unsafe { std::mem::zeroed() }],
+            itr: [MarkTreeIter::new()],
             slots: Vec::new(),
             ranges_i: Vec::new(),
             current_end: 0,

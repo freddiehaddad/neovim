@@ -82,6 +82,31 @@ pub struct ucmd_T {
     pub uc_desc: *mut c_char,
 }
 
+impl ucmd_T {
+    pub const fn new() -> Self {
+        Self {
+            uc_name: ptr::null_mut(),
+            uc_argt: 0,
+            uc_rep: ptr::null_mut(),
+            uc_def: 0,
+            uc_compl: 0,
+            uc_addr_type: 0,
+            uc_script_ctx: crate::runtime::sctx_T::new(),
+            uc_compl_arg: ptr::null_mut(),
+            uc_compl_luaref: 0,
+            uc_preview_luaref: 0,
+            uc_luaref: 0,
+            uc_desc: ptr::null_mut(),
+        }
+    }
+}
+
+impl Default for ucmd_T {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 const E_ARGUMENT_REQUIRED_FOR_STR: &CStr = c"E179: Argument required for %s";
 const E_NO_SUCH_USER_DEFINED_COMMAND_STR: &CStr = c"E184: No such user-defined command: %s";
 const E_COMPLETE_USED_WITHOUT_ALLOWING_ARGUMENTS: &CStr =
@@ -1148,7 +1173,7 @@ pub unsafe fn uc_add_command(
 
         if cmp != 0 {
             let p = xstrnsave(name, name_len);
-            let mut empty_ucmd: ucmd_T = std::mem::zeroed();
+            let mut empty_ucmd = ucmd_T::new();
             empty_ucmd.uc_name = p;
             (*gap).insert(i as usize, empty_ucmd);
             cmd = user_cmd_ga(gap, i);

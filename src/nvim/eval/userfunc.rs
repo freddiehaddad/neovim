@@ -159,6 +159,22 @@ pub struct funcdict_T {
     pub fd_di: *mut dictitem_T,
 }
 
+impl funcdict_T {
+    pub const fn new() -> Self {
+        Self {
+            fd_dict: ptr::null_mut(),
+            fd_newkey: ptr::null_mut(),
+            fd_di: ptr::null_mut(),
+        }
+    }
+}
+
+impl Default for funcdict_T {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct funcexe_T {
@@ -517,7 +533,7 @@ unsafe fn alloc_ufunc(name: *const c_char, namelen: usize) -> *mut ufunc_T {
             uf_tml_wait: 0,
             uf_tml_idx: 0,
             uf_tml_execed: 0,
-            uf_script_ctx: std::mem::zeroed(),
+            uf_script_ctx: crate::runtime::sctx_T::new(),
             uf_refcount: 0,
             uf_scoped: ptr::null_mut(),
             uf_name_exp: ptr::null_mut(),
@@ -2936,7 +2952,7 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
         let mut fp: *mut ufunc_T = ptr::null_mut();
         let mut free_fp = false;
         let mut overwrite = false;
-        let mut fudi: funcdict_T = std::mem::zeroed();
+        let mut fudi = funcdict_T::new();
         let mut ht: *mut hashtab_T = ptr::null_mut();
         let mut show_block = false;
 
@@ -3405,7 +3421,7 @@ pub unsafe fn get_user_func_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
 pub unsafe fn ex_delfunction(eap: *mut exarg_T) {
     unsafe {
         let mut fp: *mut ufunc_T = ptr::null_mut();
-        let mut fudi: funcdict_T = std::mem::zeroed();
+        let mut fudi = funcdict_T::new();
 
         let mut p = (*eap).arg;
         let name = trans_function_name(
@@ -3763,7 +3779,7 @@ pub unsafe fn add_defer(name: *mut c_char, argcount_arg: c_int, argvars: *mut ty
         let mut argcount = argcount_arg;
         let mut dr = defer_T {
             dr_name: saved_name,
-            dr_argvars: std::mem::zeroed(),
+            dr_argvars: [typval_T::new(); MAX_FUNC_ARGS + 1],
             dr_argcount: argcount,
         };
         while argcount > 0 {
@@ -3794,7 +3810,7 @@ unsafe fn handle_defer_one(funccal: *mut funccall_T) {
             let name = (*dr).dr_name;
             (*dr).dr_name = ptr::null_mut();
 
-            let mut estate: exception_state_T = std::mem::zeroed();
+            let mut estate = exception_state_T::new();
             exception_state_save(&raw mut estate);
             exception_state_clear();
 
@@ -3845,7 +3861,7 @@ pub unsafe fn invoke_all_defer() {
 pub unsafe fn ex_call(eap: *mut exarg_T) {
     unsafe {
         let mut arg = (*eap).arg;
-        let mut fudi: funcdict_T = std::mem::zeroed();
+        let mut fudi = funcdict_T::new();
         let mut partial: *mut partial_T = ptr::null_mut();
         let mut evalarg = evalarg_T::new();
 
@@ -4155,7 +4171,7 @@ pub unsafe fn make_partial(selfdict: *mut dict_T, rettv: *mut typval_T) {
                 }
                 if (*ret_pt).pt_argc > 0 {
                     (*pt).pt_argc = (*ret_pt).pt_argc;
-                    (*pt).pt_argv.resize((*pt).pt_argc as usize, std::mem::zeroed());
+                    (*pt).pt_argv.resize((*pt).pt_argc as usize, typval_T::new());
                     for i in 0..(*pt).pt_argc {
                         tv_copy(
                             (*ret_pt).pt_argv.as_ptr().add(i as usize),

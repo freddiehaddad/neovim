@@ -216,6 +216,23 @@ pub struct spelltab_T {
     pub st_fold: [u8; 256],
     pub st_upper: [u8; 256],
 }
+
+impl spelltab_T {
+    pub const fn new() -> Self {
+        Self {
+            st_isw: [false; 256],
+            st_isu: [false; 256],
+            st_fold: [0; 256],
+            st_upper: [0; 256],
+        }
+    }
+}
+
+impl Default for spelltab_T {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 #[repr(C)]
 struct suginfo_T {
     su_ga: Vec<suggest_T>,

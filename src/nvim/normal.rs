@@ -195,7 +195,7 @@ use std::ffi::{CStr, c_char, c_int, c_long, c_longlong, c_uint};
 use std::ptr;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct visualinfo_T {
     pub vi_start: pos_T,
     pub vi_end: pos_T,
@@ -203,16 +203,37 @@ pub struct visualinfo_T {
     pub vi_curswant: i32,
 }
 
+impl visualinfo_T {
+    pub const fn new() -> Self {
+        Self {
+            vi_start: pos_T::new(),
+            vi_end: pos_T::new(),
+            vi_mode: 0,
+            vi_curswant: 0,
+        }
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct VisualExtent {
     pub mode: c_int,
     pub line_count: linenr_T,
     pub vcol: colnr_T,
 }
 
+impl VisualExtent {
+    pub const fn new() -> Self {
+        Self {
+            mode: 0,
+            line_count: 0,
+            vcol: 0,
+        }
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct VisualState {
     pub start: pos_T,
     pub active: bool,
@@ -224,6 +245,23 @@ pub struct VisualState {
     pub reselect: c_int,
     pub mode: c_int,
     pub resel: VisualExtent,
+}
+
+impl VisualState {
+    pub const fn new() -> Self {
+        Self {
+            start: pos_T::new(),
+            active: false,
+            select: false,
+            select_reg: 0,
+            select_exclu_adj: false,
+            restart_select: 0,
+            need_end: false,
+            reselect: 0,
+            mode: 0,
+            resel: VisualExtent::new(),
+        }
+    }
 }
 
 pub const FIND_IDENT: c_int = 1;
@@ -316,6 +354,34 @@ struct NormalState {
     c: c_int,
     old_col: c_int,
     old_pos: pos_T,
+}
+
+impl NormalState {
+    const fn new() -> Self {
+        Self {
+            state: VimState::new(),
+            command_finished: false,
+            ctrl_w: false,
+            need_flushbuf: false,
+            set_prevcount: false,
+            previous_got_int: false,
+            toplevel: false,
+            oa: oparg_T::new(),
+            ca: cmdarg_T::new(),
+            mapped_len: 0,
+            old_mapped_len: 0,
+            idx: 0,
+            c: 0,
+            old_col: 0,
+            old_pos: pos_T::new(),
+        }
+    }
+}
+
+impl Default for NormalState {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -1619,7 +1685,7 @@ pub unsafe fn op_pending() -> bool {
 /// Normal state entry point: the main loop. Never returns.
 pub unsafe fn normal_enter() {
     unsafe {
-        let mut state: NormalState = std::mem::zeroed();
+        let mut state = NormalState::new();
         normal_state_init(&raw mut state);
         let prev_oap = current_oap;
         current_oap = &raw mut state.oa;
@@ -5032,7 +5098,7 @@ unsafe fn normal_search(
     wrapped: *mut c_int,
 ) -> c_int {
     unsafe {
-        let mut sia: searchit_arg_T = std::mem::zeroed();
+        let mut sia = searchit_arg_T::new();
         let prev_cursor = (*curwin).w_cursor;
 
         (*(*cap).oap).motion_type = kMTCharWise;
@@ -7734,7 +7800,7 @@ unsafe fn nv_event(cap: *mut cmdarg_T) {
 
 pub unsafe fn normal_cmd(oap: *mut oparg_T, toplevel: bool) {
     unsafe {
-        let mut s: NormalState = std::mem::zeroed();
+        let mut s = NormalState::new();
         normal_state_init(&raw mut s);
         s.toplevel = toplevel;
         s.oa = *oap;

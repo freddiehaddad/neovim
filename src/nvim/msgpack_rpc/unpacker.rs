@@ -41,7 +41,7 @@ pub enum MessageType {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct GridLineEvent {
     pub args: [c_int; 3],
     pub icell: c_int,
@@ -73,6 +73,12 @@ pub struct Unpacker {
     pub ui_handler: UIClientHandler,
     pub grid_line_event: GridLineEvent,
     pub has_grid_line_event: bool,
+}
+
+impl Default for Unpacker {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[repr(C)]
@@ -293,7 +299,7 @@ pub unsafe fn unpack(
     err: *mut Error,
 ) -> Object {
     unsafe {
-        let mut unpacker = std::mem::zeroed::<Unpacker>();
+        let mut unpacker = Unpacker::new();
         mpack_parser_init(&mut unpacker.parser, 0);
         unpacker.parser.data.p = (&mut unpacker as *mut Unpacker).cast::<c_void>();
         unpacker.arena = *arena;
@@ -950,7 +956,7 @@ pub unsafe fn unpack_uint_or_sint(tok: mpack_token_t, res: *mut Integer) -> bool
 /// Skip one msgpack value (`unpack_skip`).
 pub unsafe fn unpack_skip(data: *mut *const c_char, size: *mut usize) -> c_int {
     unsafe {
-        let mut parser = std::mem::zeroed::<mpack_parser_t>();
+        let mut parser = mpack_parser_t::new(0);
         mpack_parser_init(&mut parser, 0);
         mpack_parse(&mut parser, data, size, Some(parse_nop), Some(parse_nop))
     }
@@ -1127,7 +1133,7 @@ mod tests {
     fn unpacker_handles_paused_and_empty_grid_line() {
         unsafe {
             let payload1: &[u8] = b"\x93\x02\xa6\x72\x65\x64\x72\x61\x77\x91\x92\xa9\x67\x72\x69\x64\x5f\x6c\x69\x6e\x65\x95\x02\x00\x00\x91\x93\xa1\x20\x00\x4d\xc2";
-            let mut unpacker: Unpacker = std::mem::zeroed();
+            let mut unpacker = Unpacker::new();
             unpacker_init(&mut unpacker);
             unpacker.read_ptr = payload1.as_ptr().cast();
             unpacker.read_size = payload1.len() - 1;
@@ -1137,7 +1143,7 @@ mod tests {
             unpacker_teardown(&mut unpacker);
 
             let payload2: &[u8] = b"\x93\x02\xa6\x72\x65\x64\x72\x61\x77\x91\x92\xa9\x67\x72\x69\x64\x5f\x6c\x69\x6e\x65\x95\x02\x00\x00\x90\xc2";
-            unpacker = std::mem::zeroed();
+            unpacker = Unpacker::new();
             unpacker_init(&mut unpacker);
             unpacker.read_ptr = payload2.as_ptr().cast();
             unpacker.read_size = payload2.len();

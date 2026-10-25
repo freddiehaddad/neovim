@@ -49,17 +49,17 @@ const SIG_SETMASK: c_int = 3;
 #[cfg(unix)]
 const SIG_IGN: usize = 1;
 
-static mut spipe: SignalWatcher = SignalWatcher::zeroed();
-static mut shup: SignalWatcher = SignalWatcher::zeroed();
-static mut sint: SignalWatcher = SignalWatcher::zeroed();
-static mut squit: SignalWatcher = SignalWatcher::zeroed();
-static mut sterm: SignalWatcher = SignalWatcher::zeroed();
+static mut spipe: SignalWatcher = SignalWatcher::new();
+static mut shup: SignalWatcher = SignalWatcher::new();
+static mut sint: SignalWatcher = SignalWatcher::new();
+static mut squit: SignalWatcher = SignalWatcher::new();
+static mut sterm: SignalWatcher = SignalWatcher::new();
 #[cfg(unix)]
-static mut susr1: SignalWatcher = SignalWatcher::zeroed();
-static mut swinch: SignalWatcher = SignalWatcher::zeroed();
-static mut ststp: SignalWatcher = SignalWatcher::zeroed();
+static mut susr1: SignalWatcher = SignalWatcher::new();
+static mut swinch: SignalWatcher = SignalWatcher::new();
+static mut ststp: SignalWatcher = SignalWatcher::new();
 #[cfg(target_os = "linux")]
-static mut spwr: SignalWatcher = SignalWatcher::zeroed();
+static mut spwr: SignalWatcher = SignalWatcher::new();
 
 static mut rejecting_deadly: bool = false;
 

@@ -320,27 +320,25 @@ pub struct CmdFrame {
 
 impl CmdFrame {
     pub unsafe fn new() -> Self {
-        unsafe {
-            Self {
-                origin: CmdOrigin::new(),
-                staged: CmdAtom::new(),
-                parent: ptr::null_mut(),
-                visual: std::mem::zeroed(),
-                keytyped: false,
-                keyclass: 0,
-                ex_normal: 0,
-                captures: 0,
-                global_ops: 0,
-                beeps: 0,
-                id: 0,
-                follow: false,
-                consumers: false,
-                reg_ts: 0,
-                payload_start: 0,
-                payload_end: 0,
-                redo_frame: 0,
-                cmdline: ptr::null_mut(),
-            }
+        Self {
+            origin: CmdOrigin::new(),
+            staged: CmdAtom::new(),
+            parent: ptr::null_mut(),
+            visual: VisualState::new(),
+            keytyped: false,
+            keyclass: 0,
+            ex_normal: 0,
+            captures: 0,
+            global_ops: 0,
+            beeps: 0,
+            id: 0,
+            follow: false,
+            consumers: false,
+            reg_ts: 0,
+            payload_start: 0,
+            payload_end: 0,
+            redo_frame: 0,
+            cmdline: ptr::null_mut(),
         }
     }
 }

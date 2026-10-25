@@ -792,10 +792,10 @@ mod tests {
             assert!(size_of_val(&loop_dummy.exit_delay_timer) >= uv_handle_size(UV_TIMER));
             assert!(size_of_val(&loop_dummy.async_) >= uv_handle_size(UV_ASYNC));
 
-            let sig_dummy = SignalWatcher::zeroed();
+            let sig_dummy = SignalWatcher::new();
             assert!(size_of_val(&sig_dummy.uv) >= uv_handle_size(UV_SIGNAL));
 
-            let time_dummy = TimeWatcher::zeroed();
+            let time_dummy = TimeWatcher::new();
             assert!(size_of_val(&time_dummy.uv) >= uv_handle_size(UV_TIMER));
 
             let max_stream_size = uv_handle_size(UV_NAMED_PIPE)

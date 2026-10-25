@@ -93,6 +93,27 @@ pub struct OsVersionInfoA {
 }
 
 #[cfg(windows)]
+impl OsVersionInfoA {
+    pub const fn new() -> Self {
+        Self {
+            dwOSVersionInfoSize: 0,
+            dwMajorVersion: 0,
+            dwMinorVersion: 0,
+            dwBuildNumber: 0,
+            dwPlatformId: 0,
+            szCSDVersion: [0; 128],
+        }
+    }
+}
+
+#[cfg(windows)]
+impl Default for OsVersionInfoA {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(windows)]
 #[link(name = "kernel32")]
 unsafe extern "system" {
     fn SetConsoleCtrlHandler(HandlerRoutine: *const c_void, Add: BOOL) -> BOOL;

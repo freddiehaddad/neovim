@@ -25,7 +25,7 @@ pub struct SignalWatcher {
 }
 
 impl SignalWatcher {
-    pub const fn zeroed() -> Self {
+    pub const fn new() -> Self {
         Self {
             uv: [0; 40],
             data: ptr::null_mut(),
@@ -34,6 +34,12 @@ impl SignalWatcher {
             events: ptr::null_mut(),
             signum: 0,
         }
+    }
+}
+
+impl Default for SignalWatcher {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

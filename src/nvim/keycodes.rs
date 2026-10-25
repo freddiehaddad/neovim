@@ -393,11 +393,23 @@ pub struct modmasktable {
 }
 
 #[repr(C)]
+#[derive(Default)]
 pub struct keychord {
     pub mods: c_int,
     pub key_mem: c_char,
     pub key: NvimString,
     pub key_alt: NvimString,
+}
+
+impl keychord {
+    pub const fn new() -> Self {
+        Self {
+            mods: 0,
+            key_mem: 0,
+            key: NvimString::new(),
+            key_alt: NvimString::new(),
+        }
+    }
 }
 
 pub static mod_mask_table: [modmasktable; 10] = [
