@@ -34,13 +34,13 @@ use crate::regexp::{
 };
 use crate::strings::{concat_str, sort_strings, vim_snprintf, vim_strchr, vim_stricmp};
 use std::cmp::Ordering;
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 pub unsafe fn clear_cstrings(strings: &mut Vec<*mut c_char>) {
     unsafe {
         for p in strings.drain(..) {
-            xfree(p.cast::<c_void>());
+            xfree(p.cast());
         }
     }
 }
@@ -55,7 +55,7 @@ pub unsafe fn remove_duplicate_strings(fnames: &mut Vec<*mut c_char>) {
         while i > 0 {
             if path_equal(fnames[i - 1], fnames[i], kPathCmpLiteral) {
                 let dup = fnames.remove(i);
-                xfree(dup.cast::<c_void>());
+                xfree(dup.cast());
             }
             i -= 1;
         }
@@ -538,7 +538,7 @@ pub unsafe fn FullName_save(fname: *const c_char, force: bool) -> *mut c_char {
     unsafe {
         let buf = xmalloc(MAXPATHL).cast::<c_char>();
         if vim_FullName(fname, buf, MAXPATHL, force) == FAIL {
-            xfree(buf.cast::<c_void>());
+            xfree(buf.cast());
             return to_slash_save(fname);
         }
         buf
@@ -703,7 +703,7 @@ unsafe fn do_path_expand(
         if (flags & (EW_NOERROR | EW_NOTWILD)) != 0 {
             emsg_silent -= 1;
         }
-        xfree(pat.cast::<c_void>());
+        xfree(pat.cast());
 
         if regmatch.regprog.is_null() && (flags & EW_NOTWILD) == 0 {
             return 0;
@@ -897,7 +897,7 @@ unsafe fn expand_path_option(
                 buflen = simplify_filename(buf);
             }
 
-            gap.push(xmemdupz(buf.cast::<c_void>(), buflen).cast::<c_char>());
+            gap.push(xmemdupz(buf.cast(), buflen).cast::<c_char>());
         }
     }
 }
@@ -963,7 +963,7 @@ unsafe fn uniquefy_paths(
             rm_matchcol: 0,
             rm_ic: true,
         };
-        xfree(pat.cast::<c_void>());
+        xfree(pat.cast());
         if regmatch.regprog.is_null() {
             return;
         }
@@ -987,7 +987,7 @@ unsafe fn uniquefy_paths(
             let is_in_curdir =
                 path_cmp(p_fic != 0, curdir, path, dir_len) == 0 && *curdir.add(dir_len) == NUL;
             if is_in_curdir {
-                in_curdir[i] = xmemdupz(path.cast::<c_void>(), len).cast::<c_char>();
+                in_curdir[i] = xmemdupz(path.cast(), len).cast::<c_char>();
             }
 
             let path_cutoff = get_path_cutoff(path, &path_ga);
@@ -1063,7 +1063,7 @@ unsafe fn uniquefy_paths(
                 short_name,
             );
 
-            xfree(gap[i].cast::<c_void>());
+            xfree(gap[i].cast());
             gap[i] = rel_path;
             sort_again = true;
             os_breakcheck();
@@ -1137,7 +1137,7 @@ unsafe fn expand_in_path(gap: &mut Vec<*mut c_char>, pattern: *mut c_char, flags
             glob_flags |= WILD_ADD_SLASH;
         }
         globpath(paths, pattern, gap, glob_flags, (flags & EW_CDPATH) != 0);
-        xfree(paths.cast::<c_void>());
+        xfree(paths.cast());
 
         gap.len() as c_int
     }
@@ -1257,7 +1257,7 @@ pub unsafe fn gen_expand_wildcards_vec(
                     } else {
                         #[cfg(unix)]
                         if has_env_var(p) || *p == b'~' as c_char {
-                            xfree(p.cast::<c_void>());
+                            xfree(p.cast());
                             clear_cstrings(file);
                             let res = os_expand_wildcards(
                                 num_pat,
@@ -1301,7 +1301,7 @@ pub unsafe fn gen_expand_wildcards_vec(
                     addfile(file, t, flags);
                 }
                 if t != p {
-                    xfree(t.cast::<c_void>());
+                    xfree(t.cast());
                 }
             }
 
@@ -1311,7 +1311,7 @@ pub unsafe fn gen_expand_wildcards_vec(
                 EXPAND_RECURSIVE = true;
             }
             if p != *pat.add(i as usize) {
-                xfree(p.cast::<c_void>());
+                xfree(p.cast());
             }
         }
 
@@ -1346,12 +1346,12 @@ pub unsafe fn expand_wildcards_vec(
                 debug_assert!(!fi.is_null());
                 debug_assert!(!ffname.is_null());
                 if match_file_list(p_wig, fi, ffname) {
-                    xfree(fi.cast::<c_void>());
+                    xfree(fi.cast());
                     files.remove(i);
                 } else {
                     i += 1;
                 }
-                xfree(ffname.cast::<c_void>());
+                xfree(ffname.cast());
             }
         }
 
@@ -1388,7 +1388,7 @@ unsafe fn expand_backtick(gap: &mut Vec<*mut c_char>, pat: *mut c_char, flags: c
     unsafe {
         let mut cnt: c_int = 0;
         let pat_len = CStr::from_ptr(pat).to_bytes().len();
-        let mut cmd = xmemdupz(pat.add(1).cast::<c_void>(), pat_len - 2).cast::<c_char>();
+        let mut cmd = xmemdupz(pat.add(1).cast(), pat_len - 2).cast::<c_char>();
 
         let buffer = if *cmd == b'=' as c_char {
             eval_to_string(cmd.add(1), true, false)
@@ -1404,7 +1404,7 @@ unsafe fn expand_backtick(gap: &mut Vec<*mut c_char>, pat: *mut c_char, flags: c
                 ptr::null_mut(),
             )
         };
-        xfree(cmd.cast::<c_void>());
+        xfree(cmd.cast());
         if buffer.is_null() {
             return -1;
         }
@@ -1429,7 +1429,7 @@ unsafe fn expand_backtick(gap: &mut Vec<*mut c_char>, pat: *mut c_char, flags: c
             }
         }
 
-        xfree(buffer.cast::<c_void>());
+        xfree(buffer.cast());
         cnt
     }
 }
@@ -2048,8 +2048,8 @@ pub unsafe fn expand_wildcards_eval(
                 eval_pat = ptr::null_mut();
                 ret = OK;
             }
-            xfree(exp_pat.cast::<c_void>());
-            xfree(eval_pat.cast::<c_void>());
+            xfree(exp_pat.cast());
+            xfree(eval_pat.cast());
         }
 
         ret
@@ -2268,13 +2268,13 @@ pub unsafe fn path_guess_exepath(argv0: *const c_char, buf: *mut c_char, bufsize
                 if dir_len + 1 > MAXPATHL {
                     continue;
                 }
-                xmemcpyz(namebuff.cast::<c_void>(), dir.cast::<c_void>(), dir_len);
+                xmemcpyz(namebuff.cast(), dir.cast(), dir_len);
                 xstrlcat(namebuff, PATHSEPSTR.as_ptr().cast::<c_char>(), MAXPATHL);
                 xstrlcat(namebuff, argv0, MAXPATHL);
                 if os_can_exe(namebuff, ptr::null_mut(), false) {
                     xstrlcpy(buf, namebuff, bufsize);
                     to_slash(buf);
-                    xfree(path.cast::<c_void>());
+                    xfree(path.cast());
                     return;
                 }
                 if iter.is_null() {
@@ -2283,7 +2283,7 @@ pub unsafe fn path_guess_exepath(argv0: *const c_char, buf: *mut c_char, bufsize
             }
             xstrlcpy(buf, argv0, bufsize);
         }
-        xfree(path.cast::<c_void>());
+        xfree(path.cast());
     }
 }
 

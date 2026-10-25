@@ -16,7 +16,7 @@ use crate::mbyte::{utf_char2bytes, utf_char2len, utf_ptr2char, utf_ptr2len};
 use crate::memory::{xfree, xmalloc, xmallocz, xmemdupz};
 use crate::message::{emsg, semsg};
 use crate::mpack::object::mpack_data_t;
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 
 pub(crate) const K_LIST_LEN_MAY_KNOW: isize = -3;
 
@@ -125,7 +125,7 @@ pub unsafe fn decode_string(
                     .extend_from_slice(std::slice::from_raw_parts(s.cast::<u8>(), len));
             }
             if s_allocated {
-                xfree(s.cast_mut().cast::<c_void>());
+                xfree(s.cast_mut().cast());
             }
         }
         return tv;
@@ -135,7 +135,7 @@ pub unsafe fn decode_string(
     let str_ptr = if s.is_null() || s_allocated {
         s.cast_mut()
     } else {
-        unsafe { xmemdupz(s.cast::<c_void>(), len).cast::<c_char>() }
+        unsafe { xmemdupz(s.cast(), len).cast::<c_char>() }
     };
     typval_T {
         v_type: VarType::VAR_STRING,
@@ -1310,7 +1310,7 @@ unsafe fn typval_parse_exit(_parser: *mut mpack_parser_t, node: *mut mpack_node_
 
                 if can_be_dict {
                     for i in 0..len {
-                        xfree((*items.add(i))[0].vval.v_string.cast::<c_void>());
+                        xfree((*items.add(i))[0].vval.v_string.cast());
                     }
                     free_map_pairs(items, len);
                     node.data[1] = mpack_data_t::Null;
@@ -1378,7 +1378,7 @@ mod tests {
             let tv = decode_string(c"hello".as_ptr(), 5, false, false);
             assert_eq!(tv.v_type, VarType::VAR_STRING);
             assert_eq!(CStr::from_ptr(tv.vval.v_string).to_str().unwrap(), "hello");
-            xfree(tv.vval.v_string.cast::<c_void>());
+            xfree(tv.vval.v_string.cast());
         }
     }
 

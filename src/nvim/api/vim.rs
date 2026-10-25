@@ -123,7 +123,7 @@ use crate::ui::{ui_array, ui_call__set_restart_on_crash_exit, ui_call_screenshot
 use crate::window::{
     global_stl_height, goto_tabpage_tp, goto_tabpage_win, win_T, win_find_tabpage,
 };
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 #[cfg(windows)]
@@ -615,7 +615,7 @@ pub unsafe extern "C" fn nvim_feedkeys(keys: NvimString, mode: NvimString, escap
         }
 
         if escape_ks {
-            xfree(keys_esc.cast::<c_void>());
+            xfree(keys_esc.cast());
         }
 
         if execute {
@@ -1616,7 +1616,7 @@ pub unsafe extern "C" fn nvim_create_buf(
                     OPT_LOCAL,
                     0,
                     kOptScopeBuf,
-                    buf.cast::<c_void>(),
+                    buf.cast(),
                 );
                 set_option_direct_for(
                     kOptBuftype,
@@ -1624,7 +1624,7 @@ pub unsafe extern "C" fn nvim_create_buf(
                     OPT_LOCAL,
                     0,
                     kOptScopeBuf,
-                    buf.cast::<c_void>(),
+                    buf.cast(),
                 );
                 assert!((*(*buf).b_ml.ml_mfp.cast::<memfile_T>()).mf_fd < 0);
                 (*buf).b_p_swf = 0;
@@ -2081,7 +2081,7 @@ pub unsafe extern "C" fn nvim_put(
             let line = item.data.string;
             let copied = copy_string(line, ptr::null_mut());
             reg.y_array.push(copied);
-            memchrsub(copied.data.cast::<c_void>(), NUL, NL, line.size);
+            memchrsub(copied.data.cast(), NUL, NL, line.size);
         }
 
         finish_yankreg_from_object(&mut reg, false);
@@ -3009,7 +3009,7 @@ pub unsafe extern "C" fn nvim_get_mark(
 
         if !exists || pos.lnum <= 0 {
             if allocated {
-                xfree(filename.cast::<c_void>());
+                xfree(filename.cast());
                 allocated = false;
             }
             filename = c"".as_ptr().cast_mut();
@@ -3028,7 +3028,7 @@ pub unsafe extern "C" fn nvim_get_mark(
         add_c(&mut rv, cstr_to_arena_obj(arena, filename));
 
         if allocated {
-            xfree(filename.cast::<c_void>());
+            xfree(filename.cast());
         }
 
         rv

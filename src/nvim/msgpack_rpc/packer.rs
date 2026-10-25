@@ -4,7 +4,7 @@ use crate::api::private::validate::{Array, NvimString, Object, ObjectData, Objec
 use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::{api_free_luaref, nlua_funcref_str};
 use crate::memory::{xfree, xmalloc, xrealloc};
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 
 pub const MPACK_ITEM_SIZE: usize = 9;
 pub(crate) const EXT_OBJECT_TYPE_SHIFT: c_int = ObjectType::kObjectTypeBuffer as c_int;
@@ -459,7 +459,7 @@ pub unsafe fn mpack_object_inner(
                         }
                     };
                     mpack_str(s, packer);
-                    xfree(repr.cast::<c_void>());
+                    xfree(repr.cast());
                 }
                 ObjectType::kObjectTypeUnset | ObjectType::kObjectTypeNil => {
                     mpack_nil(&mut (*packer).ptr);
@@ -546,7 +546,7 @@ unsafe fn flush_string_buffer(buffer: *mut PackerBuffer) {
     let new_capacity = 2 * current_capacity;
     let len = (b.ptr as usize) - (b.startptr as usize);
 
-    b.startptr = unsafe { xrealloc(b.startptr.cast::<c_void>(), new_capacity).cast::<c_char>() };
+    b.startptr = unsafe { xrealloc(b.startptr.cast(), new_capacity).cast::<c_char>() };
     b.ptr = unsafe { b.startptr.add(len) };
     b.endptr = unsafe { b.startptr.add(new_capacity) };
 }
@@ -602,7 +602,7 @@ mod tests {
                 slice,
                 &[0xe0, 0xd0, 0xdf, 42, 0xa5, b'h', b'e', b'l', b'l', b'o']
             );
-            xfree(out.data.cast::<c_void>());
+            xfree(out.data.cast());
         }
     }
 }

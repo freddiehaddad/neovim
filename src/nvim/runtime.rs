@@ -85,7 +85,7 @@ use crate::regexp::{RE_MAGIC, RE_STRING, regmatch_T, vim_regcomp, vim_regexec, v
 use crate::strings::{gettext, strstr, vim_snprintf, vim_snprintf_safelen, vim_strchr};
 use crate::usercmd::add_win_cmd_modifiers;
 use crate::viml::parser::expressions::AUTOLOAD_CHAR;
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 use std::sync::Mutex;
 
@@ -273,7 +273,7 @@ impl Drop for source_cookie_T {
                 fclose(self.fp);
                 self.fp = ptr::null_mut();
             }
-            xfree(self.nextline.cast::<c_void>());
+            xfree(self.nextline.cast());
             self.nextline = ptr::null_mut();
         }
     }
@@ -291,7 +291,7 @@ struct SearchPathItem {
 impl Drop for SearchPathItem {
     fn drop(&mut self) {
         unsafe {
-            xfree(self.path.cast::<c_void>());
+            xfree(self.path.cast());
         }
     }
 }
@@ -334,7 +334,7 @@ impl Drop for scriptitem_T {
             if !self.sn_vars.is_null() {
                 drop(Box::from_raw(self.sn_vars));
             }
-            xfree(self.sn_name.cast::<c_void>());
+            xfree(self.sn_name.cast());
         }
     }
 }
@@ -815,8 +815,8 @@ pub unsafe fn do_in_path(
                 }
             }
         }
-        xfree(buf.cast::<c_void>());
-        xfree(rtp_copy.cast::<c_void>());
+        xfree(buf.cast());
+        xfree(rtp_copy.cast());
         if !did_one && !name.is_null() {
             let basepath = if ptr::eq(path, p_rtp) {
                 c"runtimepath".as_ptr()
@@ -1305,7 +1305,7 @@ unsafe fn runtime_search_path_build() -> RuntimeSearchPath {
                 true,
                 sentinel_pos_in_rtp,
             );
-            xfree(ap.cast::<c_void>());
+            xfree(ap.cast());
         }
 
         while *rtp_entry != NUL {
@@ -1511,7 +1511,7 @@ unsafe fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
                     if path_cmp(p_fic != 0, rtp_ffname, ffname, fname_len) == 0 {
                         insp = entry;
                     }
-                    xfree(rtp_ffname.cast::<c_void>());
+                    xfree(rtp_ffname.cast());
                 }
             }
 
@@ -1620,7 +1620,7 @@ unsafe fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
                 rsp.insert(
                     idx1,
                     SearchPathItem {
-                        path: xmemdupz(fname.cast::<c_void>(), fname_len).cast::<c_char>(),
+                        path: xmemdupz(fname.cast(), fname_len).cast::<c_char>(),
                         after: false,
                         pack_inserted: true,
                         has_lua: kNone,
@@ -1640,7 +1640,7 @@ unsafe fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
                     rsp.insert(
                         idx2,
                         SearchPathItem {
-                            path: xmemdupz(afterdir.data.cast::<c_void>(), afterdir.size)
+                            path: xmemdupz(afterdir.data.cast(), afterdir.size)
                                 .cast::<c_char>(),
                             after: true,
                             pack_inserted: true,
@@ -1650,12 +1650,12 @@ unsafe fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
                     );
                 }
             }
-            xfree(new_rtp.data.cast::<c_void>());
+            xfree(new_rtp.data.cast());
             retval = OK;
         }
 
-        xfree(ffname.cast::<c_void>());
-        xfree(afterdir.data.cast::<c_void>());
+        xfree(ffname.cast());
+        xfree(afterdir.data.cast());
         retval
     }
 }
@@ -1677,9 +1677,9 @@ unsafe fn load_pack_plugin(opt: bool, fname: *mut c_char) -> c_int {
             gen_expand_wildcards_and_cb(1, &mut pat, EW_FILE, true, RuntimeCallback::SourceVimLua);
             do_cmdline_cmd(c"augroup END".as_ptr());
         }
-        xfree(cmd.cast::<c_void>());
-        xfree(pat.cast::<c_void>());
-        xfree(ffname.cast::<c_void>());
+        xfree(cmd.cast());
+        xfree(pat.cast());
+        xfree(ffname.cast());
 
         OK
     }
@@ -1836,7 +1836,7 @@ pub unsafe fn load_plugins() {
             }
 
             if !did_source_packages {
-                xfree(rtp_copy.cast::<c_void>());
+                xfree(rtp_copy.cast());
                 load_start_packages();
             }
             if !time_fd.is_null() {
@@ -2175,7 +2175,7 @@ unsafe fn compute_double_env_sep_len(
             iter = vim_env_iter(ENV_SEPCHAR, val, iter, &mut dir, &mut dir_len);
             if !dir.is_null() && dir_len > 0 {
                 ret += (dir_len
-                    + memcnt(dir.cast::<c_void>(), b',' as c_char, dir_len)
+                    + memcnt(dir.cast(), b',' as c_char, dir_len)
                     + common_suf_len
                     + usize::from(after_pathsep(dir, dir.add(dir_len)) == 0))
                     * 2
@@ -2273,8 +2273,8 @@ unsafe fn add_dir(
             debug_assert!(appname_len < IOSIZE - 6);
             let iobuff = (&raw mut IObuff).cast::<c_char>();
             xmemcpyz(
-                iobuff.cast::<c_void>(),
-                appname.cast::<c_void>(),
+                iobuff.cast(),
+                appname.cast(),
                 appname_len,
             );
             #[cfg(windows)]
@@ -2282,7 +2282,7 @@ unsafe fn add_dir(
                 xstrlcat(iobuff, c"-data".as_ptr(), IOSIZE);
                 appname_len += 5;
             }
-            xmemcpyz(dest.cast::<c_void>(), iobuff.cast::<c_void>(), appname_len);
+            xmemcpyz(dest.cast(), iobuff.cast(), appname_len);
             dest = dest.add(appname_len);
             if !suf1.is_null() {
                 *dest = PATHSEP;
@@ -2354,7 +2354,7 @@ pub unsafe fn runtimepath_default(clean_arg: bool) -> *mut c_char {
             };
             if data_len != 0 {
                 rtp_size += (data_len
-                    + memcnt(data_home.cast::<c_void>(), b',' as c_char, data_len)
+                    + memcnt(data_home.cast(), b',' as c_char, data_len)
                     + nvim_data_size
                     + 1
                     + SITE_SIZE
@@ -2369,7 +2369,7 @@ pub unsafe fn runtimepath_default(clean_arg: bool) -> *mut c_char {
             config_len = CStr::from_ptr(config_home).to_bytes().len();
             if config_len != 0 {
                 rtp_size += (config_len
-                    + memcnt(config_home.cast::<c_void>(), b',' as c_char, config_len)
+                    + memcnt(config_home.cast(), b',' as c_char, config_len)
                     + appname_len
                     + 1
                     + usize::from(after_pathsep(config_home, config_home.add(config_len)) == 0))
@@ -2382,7 +2382,7 @@ pub unsafe fn runtimepath_default(clean_arg: bool) -> *mut c_char {
             vimruntime_len = CStr::from_ptr(vimruntime).to_bytes().len();
             if vimruntime_len != 0 {
                 rtp_size += vimruntime_len
-                    + memcnt(vimruntime.cast::<c_void>(), b',' as c_char, vimruntime_len)
+                    + memcnt(vimruntime.cast(), b',' as c_char, vimruntime_len)
                     + 1;
             }
         }
@@ -2390,7 +2390,7 @@ pub unsafe fn runtimepath_default(clean_arg: bool) -> *mut c_char {
             libdir_len = CStr::from_ptr(libdir).to_bytes().len();
             if libdir_len != 0 {
                 rtp_size +=
-                    libdir_len + memcnt(libdir.cast::<c_void>(), b',' as c_char, libdir_len) + 1;
+                    libdir_len + memcnt(libdir.cast(), b',' as c_char, libdir_len) + 1;
             }
         }
         rtp_size +=
@@ -2493,12 +2493,12 @@ pub unsafe fn runtimepath_default(clean_arg: bool) -> *mut c_char {
             debug_assert_eq!((rtp_cur as usize) - (rtp as usize), rtp_size);
         }
 
-        xfree(data_dirs.cast::<c_void>());
-        xfree(config_dirs.cast::<c_void>());
-        xfree(data_home.cast::<c_void>());
-        xfree(config_home.cast::<c_void>());
-        xfree(vimruntime.cast::<c_void>());
-        xfree(libdir.cast::<c_void>());
+        xfree(data_dirs.cast());
+        xfree(config_dirs.cast());
+        xfree(data_home.cast());
+        xfree(config_home.cast());
+        xfree(vimruntime.cast());
+        xfree(libdir.cast());
 
         rtp
     }
@@ -2785,7 +2785,7 @@ unsafe fn do_source_ext(
                 return retval;
             }
             fname_exp = fix_fname(p);
-            xfree(p.cast::<c_void>());
+            xfree(p.cast());
             if fname_exp.is_null() {
                 return retval;
             }
@@ -2795,7 +2795,7 @@ unsafe fn do_source_ext(
                     gettext(c"Cannot source a directory: \"%s\"".as_ptr()),
                     fname,
                 );
-                xfree(fname_exp.cast::<c_void>());
+                xfree(fname_exp.cast());
                 return retval;
             }
         }
@@ -3026,7 +3026,7 @@ unsafe fn do_source_ext(
                     if p.is_null() {
                         p = xstrdup(firstline.add(3).cast::<c_char>());
                     }
-                    xfree(firstline.cast::<c_void>());
+                    xfree(firstline.cast());
                     firstline = p.cast::<u8>();
                 }
                 do_cmdline(
@@ -3082,7 +3082,7 @@ unsafe fn do_source_ext(
             if l_do_profiling == PROF_YES {
                 prof_child_exit(&mut wait_start);
             }
-            xfree(firstline.cast::<c_void>());
+            xfree(firstline.cast());
             drop(cookie);
 
             if str_ptr.is_null() && trigger_source_post {
@@ -3090,7 +3090,7 @@ unsafe fn do_source_ext(
             }
         }
 
-        xfree(fname_exp.cast::<c_void>());
+        xfree(fname_exp.cast());
         retval
     }
 }
@@ -3355,7 +3355,7 @@ pub unsafe fn f_getscriptinfo(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
         }
 
         vim_regfree(regmatch.regprog);
-        xfree(pat.cast::<c_void>());
+        xfree(pat.cast());
     }
 }
 
@@ -3410,10 +3410,10 @@ pub unsafe fn getsourceline(
                             CStr::from_ptr((*sp).nextline).to_bytes().len(),
                         )
                     {
-                        xfree((*sp).nextline.cast::<c_void>());
+                        xfree((*sp).nextline.cast());
                         (*sp).nextline = get_one_sourceline(sp);
                     }
-                    xfree(line.cast::<c_void>());
+                    xfree(line.cast());
                     line = xmemdupz(buf.as_ptr().cast(), buf.len()).cast::<c_char>();
                 }
             }
@@ -3422,7 +3422,7 @@ pub unsafe fn getsourceline(
         if !line.is_null() && (*sp).conv.vc_type != CONV_NONE {
             let s = string_convert(&(*sp).conv, line, ptr::null_mut());
             if !s.is_null() {
-                xfree(line.cast::<c_void>());
+                xfree(line.cast());
                 line = s;
             }
         }
@@ -3586,7 +3586,7 @@ pub unsafe fn ex_scriptencoding(eap: *mut exarg_T) {
         convert_setup(&mut (*sp).conv, name, p_enc);
 
         if !ptr::eq(name, (*eap).arg) {
-            xfree(name.cast::<c_void>());
+            xfree(name.cast());
         }
     }
 }
@@ -3686,7 +3686,7 @@ pub unsafe fn script_autoload(name: *const c_char, name_len: usize, reload: bool
             }
         }
 
-        xfree(tofree.cast::<c_void>());
+        xfree(tofree.cast());
         ret
     }
 }

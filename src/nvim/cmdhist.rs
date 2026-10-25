@@ -22,7 +22,7 @@ use crate::os::time::os_time;
 use crate::regexp::{
     NSUBEXP, NUMBUFLEN, RE_MAGIC, RE_STRING, regmatch_T, vim_regcomp, vim_regexec, vim_regfree,
 };
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 
 pub const HIST_DEFAULT: c_int = -2;
 pub const HIST_INVALID: c_int = -1;
@@ -91,7 +91,7 @@ unsafe fn clear_hist_entry(hisptr: *mut histentry_T) {
 #[inline]
 unsafe fn hist_free_entry(hisptr: *mut histentry_T) {
     unsafe {
-        xfree((*hisptr).hisstr.cast::<c_void>());
+        xfree((*hisptr).hisstr.cast());
         xfree((*hisptr).additional_data.cast());
         clear_hist_entry(hisptr);
     }

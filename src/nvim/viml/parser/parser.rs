@@ -2,7 +2,7 @@
 
 use crate::mbyte::{string_convert, vimconv_T};
 use crate::memory::xfree;
-use std::ffi::{c_char, c_int, c_void};
+use std::ffi::{c_char, c_int};
 
 pub const CONV_NONE: c_int = 0;
 
@@ -53,7 +53,7 @@ impl Drop for ParserInputReader {
         for pline in self.lines.drain(..) {
             if pline.allocated {
                 unsafe {
-                    xfree(pline.data.cast_mut().cast::<c_void>());
+                    xfree(pline.data.cast_mut().cast());
                 }
             }
         }
@@ -100,7 +100,7 @@ unsafe fn viml_preader_get_line(preader: &mut ParserInputReader, ret_pline: &mut
             unsafe { string_convert(&preader.conv, pline.data.cast_mut(), &mut cpline.size) };
         if pline.allocated {
             unsafe {
-                xfree(pline.data.cast_mut().cast::<c_void>());
+                xfree(pline.data.cast_mut().cast());
             }
         }
         pline = cpline;

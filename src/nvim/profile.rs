@@ -19,7 +19,7 @@ use crate::os::fs::os_fopen;
 use crate::os::time::os_hrtime;
 use crate::runtime::{get_scriptname, script_id_valid, script_item, sourcing_lnum};
 use crate::strings::sort_slice_by;
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 
 pub type proftime_T = u64;
 
@@ -344,7 +344,7 @@ pub unsafe fn profile_reset() {
             }
         }
 
-        xfree(PROFILE_FNAME.cast::<c_void>());
+        xfree(PROFILE_FNAME.cast());
         PROFILE_FNAME = std::ptr::null_mut();
     }
 }
@@ -359,7 +359,7 @@ pub unsafe fn ex_profile(eap: *mut exarg_T) {
 
         let arg_bytes = CStr::from_ptr(arg).to_bytes();
         if len == 5 && &arg_bytes[..5] == b"start" && *e != 0 {
-            xfree(PROFILE_FNAME.cast::<c_void>());
+            xfree(PROFILE_FNAME.cast());
             PROFILE_FNAME = expand_env_save_opt(e, true, std::ptr::null_mut());
             do_profiling = PROF_YES;
             profile_set_wait(profile_zero());
@@ -657,7 +657,7 @@ unsafe fn func_dump_profile(fd: *mut FILE) {
                             (*fp).uf_script_ctx.sc_lnum,
                         );
                         if should_free {
-                            xfree(p.cast::<c_void>());
+                            xfree(p.cast());
                         }
                     }
                     if (*fp).uf_tm_count == 1 {
@@ -1000,7 +1000,7 @@ pub unsafe fn time_init(fname: *const c_char, proc_name: *const c_char) {
         STARTUPTIME_BUF = xmalloc(BUFSIZE + 1).cast::<c_char>();
         let r = setvbuf(time_fd, STARTUPTIME_BUF, IOFBF, BUFSIZE + 1);
         if r != 0 {
-            xfree(STARTUPTIME_BUF.cast::<c_void>());
+            xfree(STARTUPTIME_BUF.cast());
             STARTUPTIME_BUF = std::ptr::null_mut();
             fclose(time_fd);
             time_fd = std::ptr::null_mut();
@@ -1028,7 +1028,7 @@ pub unsafe fn time_finish() {
         fclose(time_fd);
         time_fd = std::ptr::null_mut();
 
-        xfree(STARTUPTIME_BUF.cast::<c_void>());
+        xfree(STARTUPTIME_BUF.cast());
         STARTUPTIME_BUF = std::ptr::null_mut();
     }
 }

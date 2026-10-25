@@ -143,7 +143,7 @@ use crate::undo::{
     u_inssub, u_save, u_save_cursor, u_savecommon, u_savedel, u_savesub, u_sync, u_unchanged,
 };
 use crate::winfloat::{win_float_anchor_preview, win_float_special, win_float_update_preview};
-use std::ffi::{CStr, c_char, c_double, c_int, c_ulong, c_void};
+use std::ffi::{CStr, c_char, c_double, c_int, c_ulong};
 use std::ptr;
 
 #[cfg(not(unix))]
@@ -1193,7 +1193,7 @@ pub unsafe fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> c
         for l in line1..=line2 {
             let str = xstrnsave(ml_get(l + extra), ml_get_len(l + extra) as usize);
             ml_append(dest + l - line1, str, 0, false);
-            xfree(str.cast::<c_void>());
+            xfree(str.cast());
             if dest < line1 {
                 extra += 1;
             }
@@ -1358,7 +1358,7 @@ pub unsafe fn ex_copy(mut line1: linenr_T, mut line2: linenr_T, n: linenr_T) {
         while line1 <= line2 {
             let p = xstrnsave(ml_get(line1), ml_get_len(line1) as usize);
             ml_append((*curwin).w_cursor.lnum, p, 0, false);
-            xfree(p.cast::<c_void>());
+            xfree(p.cast());
 
             if line1 == n {
                 line1 = (*curwin).w_cursor.lnum;
@@ -1384,7 +1384,7 @@ pub unsafe fn ex_copy(mut line1: linenr_T, mut line2: linenr_T, n: linenr_T) {
 
 pub unsafe fn free_prev_shellcmd() {
     unsafe {
-        xfree(prevcmd.cast::<c_void>());
+        xfree(prevcmd.cast());
     }
 }
 
@@ -1435,7 +1435,7 @@ pub unsafe fn do_bang(
             }
             if ins_prevcmd {
                 if !prevcmd_is_set() {
-                    xfree(newcmd.cast::<c_void>());
+                    xfree(newcmd.cast());
                     return;
                 }
                 len += strlen(prevcmd);
@@ -1450,7 +1450,7 @@ pub unsafe fn do_bang(
             }
             let mut p = t.add(strlen(t));
             strcat(t, trailarg);
-            xfree(newcmd.cast::<c_void>());
+            xfree(newcmd.cast());
             newcmd = t;
 
             trailarg = ptr::null_mut();
@@ -1474,7 +1474,7 @@ pub unsafe fn do_bang(
         }
 
         if strlen(newcmd) > 0 {
-            xfree(prevcmd.cast::<c_void>());
+            xfree(prevcmd.cast());
             prevcmd = newcmd;
         } else {
             free_newcmd = true;
@@ -1489,13 +1489,13 @@ pub unsafe fn do_bang(
                 let cmd = vim_strsave_escaped(prevcmd, c"%#".as_ptr());
 
                 redo_append_lit(cmd, -1);
-                xfree(cmd.cast::<c_void>());
+                xfree(cmd.cast());
                 redo_append_str(c"\n".as_ptr(), 1);
                 bangredo = false;
             }
             if *p_shq != NUL {
                 if free_newcmd {
-                    xfree(newcmd.cast::<c_void>());
+                    xfree(newcmd.cast());
                 }
                 newcmd = xmalloc(strlen(prevcmd) + 2 * strlen(p_shq) + 1).cast::<c_char>();
                 strcpy(newcmd, p_shq);
@@ -1527,7 +1527,7 @@ pub unsafe fn do_bang(
         }
 
         if free_newcmd {
-            xfree(newcmd.cast::<c_void>());
+            xfree(newcmd.cast());
         }
     }
 }
@@ -1636,7 +1636,7 @@ unsafe fn do_filter(
             'error: {
                 if do_out {
                     if u_save(line2, line2 + 1) == FAIL {
-                        xfree(cmd_buf.cast::<c_void>());
+                        xfree(cmd_buf.cast());
                         break 'error;
                     }
                     redraw_curbuf_later(UPD_VALID);
@@ -1644,7 +1644,7 @@ unsafe fn do_filter(
                 let mut read_linecount = (*curbuf).b_ml.ml_line_count;
 
                 call_shell(cmd_buf, kShellOptFilter | shell_flags, ptr::null_mut());
-                xfree(cmd_buf.cast::<c_void>());
+                xfree(cmd_buf.cast());
 
                 did_check_timestamps = false;
                 need_check_timestamps = true;
@@ -1776,8 +1776,8 @@ unsafe fn do_filter(
         if !otmp.is_null() {
             os_remove(otmp);
         }
-        xfree(itmp.cast::<c_void>());
-        xfree(otmp.cast::<c_void>());
+        xfree(itmp.cast());
+        xfree(otmp.cast());
     }
 }
 
@@ -2082,8 +2082,8 @@ pub unsafe fn rename_buffer(new_fname: *mut c_char) -> c_int {
                 (*curwin).w_alt_fnum = (*buf).b_fnum;
             }
         }
-        xfree(fname.cast::<c_void>());
-        xfree(sfname.cast::<c_void>());
+        xfree(fname.cast());
+        xfree(sfname.cast());
         apply_autocmds(
             EVENT_BUFFILEPOST,
             ptr::null_mut(),
@@ -2361,7 +2361,7 @@ pub unsafe fn do_write(eap: *mut exarg_T) -> c_int {
             }
         }
 
-        xfree(free_fname.cast::<c_void>());
+        xfree(free_fname.cast());
         retval
     }
 }
@@ -2431,7 +2431,7 @@ pub unsafe fn check_overwrite(
                         if vim_dialog_yesno(VIM_QUESTION, ptr::null_mut(), buff.as_mut_ptr(), 2)
                             != VIM_YES
                         {
-                            xfree(swapname.cast::<c_void>());
+                            xfree(swapname.cast());
                             return FAIL;
                         }
                         (*eap).forceit = 1;
@@ -2440,11 +2440,11 @@ pub unsafe fn check_overwrite(
                             gettext(c"E768: Swap file exists: %s (:silent! overrides)".as_ptr()),
                             swapname,
                         );
-                        xfree(swapname.cast::<c_void>());
+                        xfree(swapname.cast());
                         return FAIL;
                     }
                 }
-                xfree(swapname.cast::<c_void>());
+                xfree(swapname.cast());
             }
         }
         OK
@@ -2700,7 +2700,7 @@ pub unsafe fn getfile(
             }
         }
 
-        xfree(free_me.cast::<c_void>());
+        xfree(free_me.cast());
         retval
     }
 }
@@ -2723,7 +2723,7 @@ pub unsafe fn set_swapcommand(command: *mut c_char, newlnum: linenr_T) -> bool {
             vim_snprintf_safelen!(data, valsize, c"%lldG".as_ptr(), newlnum as i64)
         };
         set_vim_var_string(VV_SWAPCOMMAND, data, size as isize);
-        xfree(data.cast::<c_void>());
+        xfree(data.cast());
         true
     }
 }
@@ -2937,7 +2937,7 @@ pub unsafe fn do_ecmd(
                         break 'theend;
                     }
                     if aborting() {
-                        xfree(new_name.cast::<c_void>());
+                        xfree(new_name.cast());
                         au_new_curbuf = save_au_new_curbuf;
                         break 'theend;
                     }
@@ -2976,7 +2976,7 @@ pub unsafe fn do_ecmd(
                         (*buf).b_locked -= 1;
 
                         if aborting() && !(*curwin).w_buffer.is_null() {
-                            xfree(new_name.cast::<c_void>());
+                            xfree(new_name.cast());
                             au_new_curbuf = save_au_new_curbuf;
                             break 'theend;
                         }
@@ -3015,7 +3015,7 @@ pub unsafe fn do_ecmd(
                         get_winopts(curbuf);
                         did_get_winopts = true;
                     }
-                    xfree(new_name.cast::<c_void>());
+                    xfree(new_name.cast());
                     au_new_curbuf = save_au_new_curbuf;
                 }
 
@@ -3066,7 +3066,7 @@ pub unsafe fn do_ecmd(
                 {
                     u_sync(false);
                     if u_savecommon(curbuf, 0, (*curbuf).b_ml.ml_line_count + 1, 0, true) == FAIL {
-                        xfree(new_name.cast::<c_void>());
+                        xfree(new_name.cast());
                         break 'theend;
                     }
                     u_unchanged(curbuf);
@@ -3080,7 +3080,7 @@ pub unsafe fn do_ecmd(
                     delbuf_msg(new_name);
                     break 'theend;
                 }
-                xfree(new_name.cast::<c_void>());
+                xfree(new_name.cast());
 
                 if buf != curbuf {
                     break 'theend;
@@ -3285,7 +3285,7 @@ pub unsafe fn do_ecmd(
         if did_set_swapcommand {
             set_vim_var_string(VV_SWAPCOMMAND, ptr::null(), -1);
         }
-        xfree(free_fname.cast::<c_void>());
+        xfree(free_fname.cast());
         retval
     }
 }
@@ -3296,7 +3296,7 @@ unsafe fn delbuf_msg(name: *mut c_char) {
             gettext(c"E143: Autocommands unexpectedly deleted new buffer %s".as_ptr()),
             if name.is_null() { c"".as_ptr() } else { name },
         );
-        xfree(name.cast::<c_void>());
+        xfree(name.cast());
         au_new_curbuf.br_buf = ptr::null_mut();
         au_new_curbuf.br_buf_free_count = 0;
     }
@@ -3318,7 +3318,7 @@ unsafe fn get_append_line(eap: *mut exarg_T, indent: c_int) -> *mut c_char {
                 p = (*eap).nextcmd.add(strlen((*eap).nextcmd));
             }
             let theline = xmemdupz(
-                (*eap).nextcmd.cast::<c_void>(),
+                (*eap).nextcmd.cast(),
                 p.offset_from((*eap).nextcmd) as usize,
             )
             .cast::<c_char>();
@@ -3363,7 +3363,7 @@ pub unsafe fn ex_append(eap: *mut exarg_T) {
                     break;
                 }
                 let end = *theline == b'.' as c_char && *theline.add(1) == NUL;
-                xfree(theline.cast::<c_void>());
+                xfree(theline.cast());
                 if end {
                     break;
                 }
@@ -3425,7 +3425,7 @@ pub unsafe fn ex_append(eap: *mut exarg_T) {
             if (*p == b'.' as c_char && *p.add(1) == NUL)
                 || (!did_undo && u_save(lnum, lnum + 1 + if empty { 1 } else { 0 }) == FAIL)
             {
-                xfree(theline.cast::<c_void>());
+                xfree(theline.cast());
                 break;
             }
 
@@ -3441,7 +3441,7 @@ pub unsafe fn ex_append(eap: *mut exarg_T) {
                 appended_lines_mark(lnum, 1);
             }
 
-            xfree(theline.cast::<c_void>());
+            xfree(theline.cast());
             lnum += 1;
 
             if empty {
@@ -3673,7 +3673,7 @@ pub unsafe fn sub_get_replacement(ret_sub: *mut SubReplacementString) {
 /// Set substitute string and timestamp.
 pub unsafe fn sub_set_replacement(sub: SubReplacementString) {
     unsafe {
-        xfree(old_sub.sub.cast::<c_void>());
+        xfree(old_sub.sub.cast());
         if sub.additional_data != old_sub.additional_data {
             xfree(old_sub.additional_data.cast());
         }
@@ -4000,7 +4000,7 @@ unsafe fn do_sub(
 
         if !sub.is_null() && sub_joining_lines(eap, pat, sub, cmd, cmdpreview_ns <= 0, keeppatterns)
         {
-            xfree(sub.cast::<c_void>());
+            xfree(sub.cast());
             return 0;
         }
 
@@ -4015,7 +4015,7 @@ unsafe fn do_sub(
             i = getdigits_int(&raw mut cmd, false, c_int::MAX);
             if i <= 0 && (*eap).skip == 0 && subflags.do_error {
                 emsg(gettext(e_zerocount.as_ptr()));
-                xfree(sub.cast::<c_void>());
+                xfree(sub.cast());
                 return 0;
             } else if i == c_int::MAX {
                 semsg!(
@@ -4023,7 +4023,7 @@ unsafe fn do_sub(
                     cmd.offset_from(count_arg) as c_int,
                     count_arg,
                 );
-                xfree(sub.cast::<c_void>());
+                xfree(sub.cast());
                 return 0;
             }
             (*eap).line1 = (*eap).line2;
@@ -4036,19 +4036,19 @@ unsafe fn do_sub(
             (*eap).nextcmd = check_nextcmd(cmd);
             if (*eap).nextcmd.is_null() {
                 semsg!(gettext(e_trailing_arg.as_ptr()), cmd);
-                xfree(sub.cast::<c_void>());
+                xfree(sub.cast());
                 return 0;
             }
         }
 
         if (*eap).skip != 0 {
-            xfree(sub.cast::<c_void>());
+            xfree(sub.cast());
             return 0;
         }
 
         if !subflags.do_count && !modifiable(curbuf) {
             emsg(gettext(e_modifiable.as_ptr()));
-            xfree(sub.cast::<c_void>());
+            xfree(sub.cast());
             return 0;
         }
 
@@ -4073,7 +4073,7 @@ unsafe fn do_sub(
             if subflags.do_error {
                 emsg(gettext(e_invcmd.as_ptr()));
             }
-            xfree(sub.cast::<c_void>());
+            xfree(sub.cast());
             return 0;
         }
 
@@ -4092,12 +4092,12 @@ unsafe fn do_sub(
 
         if *sub == b'\\' as c_char && *sub.add(1) == b'=' as c_char {
             let p = xstrdup(sub);
-            xfree(sub.cast::<c_void>());
+            xfree(sub.cast());
             sub = p;
         } else {
             let p = regtilde(sub, p_magic, cmdpreview_ns > 0);
             if p != sub {
-                xfree(sub.cast::<c_void>());
+                xfree(sub.cast());
                 sub = p;
             }
         }
@@ -4280,7 +4280,7 @@ unsafe fn do_sub(
                                 let p = xstrdup(iobuff_ptr);
                                 typed = prompt_for_input(p, HLF_R, true, ptr::null_mut());
                                 Search.hl_match = false;
-                                xfree(p.cast::<c_void>());
+                                xfree(p.cast());
 
                                 msg_didout = false;
                                 gotocmdline(true);
@@ -4355,7 +4355,7 @@ unsafe fn do_sub(
 
                             if nmatch > 1 {
                                 sub_firstlnum += nmatch - 1;
-                                xfree(sub_firstline.data.cast::<c_void>());
+                                xfree(sub_firstline.data.cast());
                                 sub_firstline = cbuf_to_string(
                                     ml_get(sub_firstlnum),
                                     ml_get_len(sub_firstlnum) as usize,
@@ -4367,7 +4367,7 @@ unsafe fn do_sub(
                                 }
                             }
                             if skip_match {
-                                xfree(sub_firstline.data.cast::<c_void>());
+                                xfree(sub_firstline.data.cast());
                                 sub_firstline = cbuf_to_string(c"".as_ptr(), 0);
                                 copycol = 0;
                             }
@@ -4463,7 +4463,7 @@ unsafe fn do_sub(
 
                             if nmatch > 1 {
                                 sub_firstlnum += nmatch - 1;
-                                xfree(sub_firstline.data.cast::<c_void>());
+                                xfree(sub_firstline.data.cast());
                                 sub_firstline = cbuf_to_string(
                                     ml_get(sub_firstlnum),
                                     ml_get_len(sub_firstlnum) as usize,
@@ -4475,7 +4475,7 @@ unsafe fn do_sub(
                                 }
                             }
                             if skip_match {
-                                xfree(sub_firstline.data.cast::<c_void>());
+                                xfree(sub_firstline.data.cast());
                                 sub_firstline = cbuf_to_string(c"".as_ptr(), 0);
                                 copycol = 0;
                             }
@@ -4644,7 +4644,7 @@ unsafe fn do_sub(
                             }
 
                             sub_firstlnum = lnum;
-                            xfree(sub_firstline.data.cast::<c_void>());
+                            xfree(sub_firstline.data.cast());
                             sub_firstline = new_start;
                             new_start = NvimString {
                                 data: ptr::null_mut(),
@@ -4682,7 +4682,7 @@ unsafe fn do_sub(
                 if did_sub {
                     sub_nlines += 1;
                 }
-                xfree(new_start.data.cast::<c_void>());
+                xfree(new_start.data.cast());
                 api_clear_string(&mut sub_firstline);
             }
 
@@ -4705,7 +4705,7 @@ unsafe fn do_sub(
             buf_updates_send_changes(curbuf, first_line, num_added, num_removed);
         }
 
-        xfree(sub_firstline.data.cast::<c_void>());
+        xfree(sub_firstline.data.cast());
 
         if subflags.do_count {
             (*curwin).w_cursor = old_cursor;
@@ -4762,7 +4762,7 @@ unsafe fn do_sub(
         }
 
         vim_regfree(regmatch.regprog);
-        xfree(sub.cast::<c_void>());
+        xfree(sub.cast());
 
         subflags.do_all = save_do_all;
         subflags.do_ask = save_do_ask;
@@ -5247,7 +5247,7 @@ unsafe fn show_sub(
         }
 
         set_option_direct(kOptShortmess, cstr_as_obj(save_shm_p), 0, SID_NONE);
-        xfree(save_shm_p.cast::<c_void>());
+        xfree(save_shm_p.cast());
 
         if preview { 2 } else { 1 }
     }

@@ -92,7 +92,7 @@ use crate::search::{
 };
 use crate::strings::{gettext, vim_strchr};
 use std::cmp::Ordering;
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 #[cfg(unix)]
@@ -780,7 +780,7 @@ use crate::os::fileio::file_space;
 
 #[inline]
 unsafe fn xmemdupz_cstr(data: *const c_char, len: usize) -> *mut c_char {
-    unsafe { xmemdupz(data.cast::<c_void>(), len).cast::<c_char>() }
+    unsafe { xmemdupz(data.cast(), len).cast::<c_char>() }
 }
 
 #[inline]
@@ -1050,10 +1050,10 @@ unsafe fn shada_read_file(file: *const c_char, flags: c_int) -> c_int {
                     uv_strerror(of_ret),
                 );
             }
-            xfree(fname.cast::<c_void>());
+            xfree(fname.cast());
             return FAIL;
         }
-        xfree(fname.cast::<c_void>());
+        xfree(fname.cast());
 
         shada_read(&mut sd_reader, flags);
         close_file(&mut sd_reader);
@@ -1520,7 +1520,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                     let fm_data = cur_entry.data.filemark();
                     let buf = find_buffer(&mut fname_bufs, fm_data.fname);
                     if !buf.is_null() {
-                        xfree(fm_data.fname.cast::<c_void>());
+                        xfree(fm_data.fname.cast());
                         cur_entry.data.filemark_mut().fname = ptr::null_mut();
                     }
                     let fm = xfmark_T {
@@ -1676,7 +1676,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                             xfree(fm.additional_data.cast());
                         }
                     }
-                    xfree(fm_data.fname.cast::<c_void>());
+                    xfree(fm_data.fname.cast());
                 }
             }
         }
@@ -1835,7 +1835,7 @@ unsafe fn shada_pack_entry(
                 if encode_vim_to_msgpack(&mut sbuf, &raw mut gv.value, vardesc.as_ptr()) == FAIL {
                     ret = ShaDaWriteResult::kSDWriteIgnError;
                     semsg!(gettext(c"E574: Failed to write variable %s".as_ptr()), gv.name);
-                    xfree(sbuf.startptr.cast::<c_void>());
+                    xfree(sbuf.startptr.cast());
                     return ret;
                 }
                 if is_blob {
@@ -2025,12 +2025,12 @@ unsafe fn shada_pack_entry(
                 mpack_raw(packed.data, packed.size, packer);
             }
             if (*packer).anyint != 0 {
-                xfree(sbuf.startptr.cast::<c_void>());
+                xfree(sbuf.startptr.cast());
                 return ret;
             }
         }
         ret = ShaDaWriteResult::kSDWriteSuccessful;
-        xfree(sbuf.startptr.cast::<c_void>());
+        xfree(sbuf.startptr.cast());
         ret
     }
 }
@@ -3222,8 +3222,8 @@ pub unsafe fn shada_write_file(file: *const c_char, mut nomerge: bool) -> c_int 
                                         ),
                                         fname,
                                     );
-                                    xfree(fname.cast::<c_void>());
-                                    xfree(tempname.cast::<c_void>());
+                                    xfree(fname.cast());
+                                    xfree(tempname.cast());
                                     if did_open_reader {
                                         close_file(&mut sd_reader);
                                     }
@@ -3267,8 +3267,8 @@ pub unsafe fn shada_write_file(file: *const c_char, mut nomerge: bool) -> c_int 
                             failed_dir,
                             uv_strerror(ret),
                         );
-                        xfree(fname.cast::<c_void>());
-                        xfree(failed_dir.cast::<c_void>());
+                        xfree(fname.cast());
+                        xfree(failed_dir.cast());
                         return FAIL;
                     }
                 }
@@ -3294,8 +3294,8 @@ pub unsafe fn shada_write_file(file: *const c_char, mut nomerge: bool) -> c_int 
         }
 
         if !did_open_writer {
-            xfree(fname.cast::<c_void>());
-            xfree(tempname.cast::<c_void>());
+            xfree(fname.cast());
+            xfree(tempname.cast());
             if did_open_reader {
                 close_file(&mut sd_reader);
             }
@@ -3419,11 +3419,11 @@ pub unsafe fn shada_write_file(file: *const c_char, mut nomerge: bool) -> c_int 
                     fname,
                 );
             }
-            xfree(tempname.cast::<c_void>());
+            xfree(tempname.cast());
         }
         close_file(&mut sd_writer);
 
-        xfree(fname.cast::<c_void>());
+        xfree(fname.cast());
         OK
     }
 }
@@ -3462,7 +3462,7 @@ unsafe fn shada_free_shada_entry(entry: *mut ShadaEntry) {
         match (*entry).entry_type {
             ShadaEntryType::kSDItemMissing => {}
             ShadaEntryType::kSDItemUnknown => {
-                xfree((*entry).data.unknown_item().contents.cast::<c_void>());
+                xfree((*entry).data.unknown_item().contents.cast());
             }
             ShadaEntryType::kSDItemHeader => {
                 api_free_dict((*entry).data.header());
@@ -3471,7 +3471,7 @@ unsafe fn shada_free_shada_entry(entry: *mut ShadaEntry) {
             | ShadaEntryType::kSDItemJump
             | ShadaEntryType::kSDItemGlobalMark
             | ShadaEntryType::kSDItemLocalMark => {
-                xfree((*entry).data.filemark().fname.cast::<c_void>());
+                xfree((*entry).data.filemark().fname.cast());
             }
             ShadaEntryType::kSDItemSearchPattern => {
                 api_free_string((*entry).data.search_pattern().pat);
@@ -3482,18 +3482,18 @@ unsafe fn shada_free_shada_entry(entry: *mut ShadaEntry) {
                 }
             }
             ShadaEntryType::kSDItemHistoryEntry => {
-                xfree((*entry).data.history_item().string.cast::<c_void>());
+                xfree((*entry).data.history_item().string.cast());
             }
             ShadaEntryType::kSDItemVariable => {
-                xfree((*entry).data.global_var().name.cast::<c_void>());
+                xfree((*entry).data.global_var().name.cast());
                 tv_clear(&mut (*entry).data.global_var_mut().value);
             }
             ShadaEntryType::kSDItemSubString => {
-                xfree((*entry).data.sub_string().sub.cast::<c_void>());
+                xfree((*entry).data.sub_string().sub.cast());
             }
             ShadaEntryType::kSDItemBufferList => {
                 for b in (*entry).data.buffer_list_mut().buffers.drain(..) {
-                    xfree(b.fname.cast::<c_void>());
+                    xfree(b.fname.cast());
                     xfree(b.additional_data.cast());
                 }
             }
@@ -3684,7 +3684,7 @@ unsafe fn shada_read_next_item(
                 buf = xmalloc(length).cast::<c_char>();
                 let fl_ret = fread_len(sd_reader, buf, length);
                 if fl_ret != ShaDaReadResult::kSDReadStatusSuccess {
-                    xfree(buf.cast::<c_void>());
+                    xfree(buf.cast());
                     return fl_ret;
                 }
             }
@@ -3696,7 +3696,7 @@ unsafe fn shada_read_next_item(
                 let status = unpack_skip(&mut read_ptr, &mut read_size);
                 let spm_ret = shada_check_status(parse_pos, status, read_size);
                 if buf_allocated {
-                    xfree(buf.cast::<c_void>());
+                    xfree(buf.cast());
                 }
                 if spm_ret != ShaDaReadResult::kSDReadStatusSuccess {
                     return spm_ret;
@@ -3711,7 +3711,7 @@ unsafe fn shada_read_next_item(
                     let spm_ret = shada_check_status(parse_pos, status, read_size);
                     if spm_ret != ShaDaReadResult::kSDReadStatusSuccess {
                         if buf_allocated {
-                            xfree(buf.cast::<c_void>());
+                            xfree(buf.cast());
                         }
                         (*entry).entry_type = ShadaEntryType::kSDItemMissing;
                         return spm_ret;
@@ -3720,7 +3720,7 @@ unsafe fn shada_read_next_item(
                 let contents = if buf_allocated {
                     buf
                 } else {
-                    xmemdup(buf.cast::<c_void>(), length).cast::<c_char>()
+                    xmemdup(buf.cast(), length).cast::<c_char>()
                 };
                 (*entry).data = ShadaEntryData::UnknownItem(ShadaUnknownItem {
                     item_type: type_u64,
@@ -4247,11 +4247,11 @@ unsafe fn shada_read_next_item(
                 (*entry).entry_type = entry_type;
                 shada_free_shada_entry(entry);
                 (*entry).entry_type = ShadaEntryType::kSDItemMissing;
-                xfree(error_alloc.cast::<c_void>());
+                xfree(error_alloc.cast());
             }
 
             if buf_allocated {
-                xfree(buf.cast::<c_void>());
+                xfree(buf.cast());
             }
             return ret;
         }
@@ -4281,7 +4281,7 @@ unsafe fn shada_removable(name: *const c_char) -> bool {
                 }
             }
         }
-        xfree(new_name.cast::<c_void>());
+        xfree(new_name.cast());
         retval
     }
 }
@@ -4303,7 +4303,7 @@ unsafe fn shada_init_jumps(
                 siemsg!(
                     c"ShaDa: mark lnum zero (ji:%p, js:%p, len:%i)".as_ptr(),
                     jump_iter,
-                    (&raw mut (*curwin).w_jumplist).cast::<c_void>(),
+                    &raw const (*curwin).w_jumplist,
                     (*curwin).w_jumplistlen,
                 );
                 if jump_iter.is_null() {

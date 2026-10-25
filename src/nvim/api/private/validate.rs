@@ -1,6 +1,6 @@
 //! API argument validation helpers (`src/nvim/api/private/validate.c`).
 
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 
 use crate::memory::{xmallocz, xrealloc};
 
@@ -121,7 +121,7 @@ impl Array {
             };
             self.items = unsafe {
                 xrealloc(
-                    self.items.cast::<c_void>(),
+                    self.items.cast(),
                     std::mem::size_of::<Object>() * self.capacity,
                 )
                 .cast::<Object>()
@@ -169,7 +169,7 @@ impl Dict {
             };
             self.items = unsafe {
                 xrealloc(
-                    self.items.cast::<c_void>(),
+                    self.items.cast(),
                     std::mem::size_of::<KeyValuePair>() * self.capacity,
                 )
                 .cast::<KeyValuePair>()
@@ -442,7 +442,6 @@ pub unsafe fn api_err_range(err: *mut Error, name: *const c_char) {
 mod tests {
     use super::*;
     use crate::memory::xfree;
-    use std::ffi::c_void;
 
     #[test]
     fn formats_validation_error_messages() {
@@ -458,7 +457,7 @@ mod tests {
                 CStr::from_ptr(err.msg).to_str().unwrap(),
                 "Invalid 'col': -1"
             );
-            xfree(err.msg.cast::<c_void>());
+            xfree(err.msg.cast());
 
             api_err_exp(
                 &mut err,
@@ -470,21 +469,21 @@ mod tests {
                 CStr::from_ptr(err.msg).to_str().unwrap(),
                 "Invalid buffer id: expected Integer, got String"
             );
-            xfree(err.msg.cast::<c_void>());
+            xfree(err.msg.cast());
 
             api_err_required(&mut err, c"width".as_ptr());
             assert_eq!(
                 CStr::from_ptr(err.msg).to_str().unwrap(),
                 "Required: 'width'"
             );
-            xfree(err.msg.cast::<c_void>());
+            xfree(err.msg.cast());
 
             api_err_conflict(&mut err, c"row".as_ptr(), c"win".as_ptr());
             assert_eq!(
                 CStr::from_ptr(err.msg).to_str().unwrap(),
                 "Conflict: 'row' not allowed with 'win'"
             );
-            xfree(err.msg.cast::<c_void>());
+            xfree(err.msg.cast());
         }
     }
 }

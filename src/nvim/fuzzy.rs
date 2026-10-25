@@ -27,7 +27,7 @@ use crate::message::semsg;
 use crate::option_vars::*;
 use crate::search::FORWARD;
 use crate::strings::sort_slice_by;
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 
 pub const FUZZY_MATCH_MAX_LEN: usize = 1024;
 pub const FUZZY_SCORE_NONE: c_int = c_int::MIN;
@@ -387,7 +387,7 @@ pub unsafe fn fuzzy_match(
             p = p.add(1);
         }
 
-        xfree(save_pat.cast::<c_void>());
+        xfree(save_pat.cast());
         num_matches != 0
     }
 }
@@ -594,7 +594,7 @@ unsafe fn fuzzy_match_in_list(
 
         for cur in &items {
             if cur.itemstr_allocated {
-                xfree(cur.itemstr.cast::<c_void>());
+                xfree(cur.itemstr.cast());
             }
             assert!(cur.lmatchpos.is_null());
         }

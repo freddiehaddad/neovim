@@ -13,7 +13,7 @@ use crate::register::{
     EMPTY_YANKREG, MotionType, PLUS_REGISTER, STAR_REGISTER, get_y_previous, get_y_register,
     update_yankreg_width, yankreg_T,
 };
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 
 const K_OPT_CB_FLAG_UNNAMED: c_uint = 0x01;
 const K_OPT_CB_FLAG_UNNAMEDPLUS: c_uint = 0x02;
@@ -134,7 +134,7 @@ pub unsafe fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet:
         let fail_cleanup =
             |reg: &mut yankreg_T, errmsg: bool, target: *mut *mut yankreg_T| -> bool {
                 for item in &mut reg.y_array {
-                    xfree(item.data.cast::<c_void>());
+                    xfree(item.data.cast());
                 }
                 reg.y_array.clear();
                 reg.y_allocated = false;
@@ -211,7 +211,7 @@ pub unsafe fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet:
         if reg.y_array.last().is_some_and(|last| last.size == 0) {
             if reg.y_type != MotionType::kMTCharWise {
                 let popped = reg.y_array.pop().unwrap();
-                xfree(popped.data.cast::<c_void>());
+                xfree(popped.data.cast());
                 if reg.y_type == MotionType::kMTUnknown {
                     reg.y_type = MotionType::kMTLineWise;
                 }

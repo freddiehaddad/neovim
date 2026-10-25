@@ -14,7 +14,7 @@ use crate::os::fs::{ENV_SEPCHAR, MAXPATHL, PATHSEP};
 #[cfg(windows)]
 use crate::path::path_to_slash;
 use crate::path::{concat_fnames_realloc, kPathCmpLiteral, path_equal, path_is_absolute};
-use std::ffi::{CStr, CString, c_char, c_void};
+use std::ffi::{CStr, CString, c_char};
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -133,7 +133,7 @@ unsafe fn xdg_remove_duplicate(ret: *mut c_char, sep: u8) -> *mut c_char {
     }
 
     unsafe {
-        xfree(ret.cast::<c_void>());
+        xfree(ret.cast());
     }
 
     if token_cstrs.is_empty() {
@@ -169,7 +169,7 @@ pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> *mut c_char {
             if !env_val.is_null() && idx == XDGVarType::kXDGCacheHome {
                 let real_path = os_realpath(env_val, std::ptr::null_mut(), MAXPATHL);
                 if !real_path.is_null() {
-                    xfree(env_val.cast::<c_void>());
+                    xfree(env_val.cast());
                     env_val = real_path;
                 }
             }
@@ -301,7 +301,7 @@ mod tests {
             let s = CStr::from_ptr(p).to_bytes();
             let expected_suffix = [b'/', b'a', b'\\', b',', b'b', PATHSEP as u8, PATHSEP as u8];
             assert!(s.ends_with(&expected_suffix));
-            xfree(p.cast::<c_void>());
+            xfree(p.cast());
         }
     }
 }

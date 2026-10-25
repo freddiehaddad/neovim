@@ -28,7 +28,7 @@ use crate::msgpack_rpc::packer::{
 use crate::regexp::NUMBUFLEN;
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 use crate::testing::ga_concat_literal;
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 
 pub(crate) const K_MP_NIL: usize = 0;
 pub(crate) const K_MP_BOOLEAN: usize = 1;
@@ -112,7 +112,7 @@ pub unsafe fn encode_list_write(list: *mut list_T, buf: *const c_char, len: usiz
         let li = tv_list_last(list);
 
         if !li.is_null() {
-            line_end = xmemscan(buf.cast::<c_void>(), NL as c_char, len)
+            line_end = xmemscan(buf.cast(), NL as c_char, len)
                 .cast_const()
                 .cast::<c_char>();
             if line_end != buf {
@@ -131,7 +131,7 @@ pub unsafe fn encode_list_write(list: *mut list_T, buf: *const c_char, len: usiz
                 (*li).li_tv.vval.v_string = new_str;
                 let dst = new_str.add(li_len);
                 std::ptr::copy_nonoverlapping(buf.cast::<u8>(), dst.cast::<u8>(), line_length);
-                memchrsub(dst.cast::<c_void>(), 0, NL as c_char, line_length);
+                memchrsub(dst.cast(), 0, NL as c_char, line_length);
             }
             line_end = line_end.add(1);
         }
@@ -139,7 +139,7 @@ pub unsafe fn encode_list_write(list: *mut list_T, buf: *const c_char, len: usiz
         while (line_end as usize) < (end as usize) {
             let line_start = line_end;
             line_end = xmemscan(
-                line_start.cast::<c_void>(),
+                line_start.cast(),
                 NL as c_char,
                 (end as usize) - (line_start as usize),
             )
@@ -148,8 +148,8 @@ pub unsafe fn encode_list_write(list: *mut list_T, buf: *const c_char, len: usiz
             let mut str_ptr: *mut c_char = std::ptr::null_mut();
             if line_end != line_start {
                 let line_length = (line_end as usize) - (line_start as usize);
-                str_ptr = xmemdupz(line_start.cast::<c_void>(), line_length).cast::<c_char>();
-                memchrsub(str_ptr.cast::<c_void>(), 0, NL as c_char, line_length);
+                str_ptr = xmemdupz(line_start.cast(), line_length).cast::<c_char>();
+                memchrsub(str_ptr.cast(), 0, NL as c_char, line_length);
             }
             tv_list_append_allocated_string(list, str_ptr);
             line_end = line_end.add(1);
@@ -368,7 +368,7 @@ unsafe fn conv_error(
                     };
                     let key = encode_tv2string(&mut key_tv, std::ptr::null_mut());
                     vim_snprintf!(iobuf.as_mut_ptr(), iobuf.len(), c"key %s".as_ptr(), key);
-                    xfree(key.cast::<c_void>());
+                    xfree(key.cast());
                     buf_concat_cstr(&mut msg_ga, iobuf.as_ptr());
                 }
                 MPConvStackData::List { list, li } | MPConvStackData::Pairs { list, li } => {
@@ -405,7 +405,7 @@ unsafe fn conv_error(
                             key,
                             idx,
                         );
-                        xfree(key.cast::<c_void>());
+                        xfree(key.cast());
                         buf_concat_cstr(&mut msg_ga, iobuf.as_ptr());
                     }
                 }
@@ -446,7 +446,7 @@ unsafe fn convert_to_single_quoted_string(gap: &mut Vec<u8>, buf: *const c_char,
         if buf.is_null() {
             ga_concat_literal(gap, b"''");
         } else {
-            let quotes = memcnt(buf.cast::<c_void>(), b'\'' as c_char, len);
+            let quotes = memcnt(buf.cast(), b'\'' as c_char, len);
             gap.reserve(2 + len + quotes);
             gap.push(b'\'');
             let bytes = std::slice::from_raw_parts(buf.cast::<u8>(), len);
@@ -1377,7 +1377,7 @@ unsafe fn convert_one_value(
                                                 &mut buf,
                                             ) {
                                                 let res = backend.conv_str_string(buf, len);
-                                                xfree(buf.cast::<c_void>());
+                                                xfree(buf.cast());
                                                 if res == FAIL {
                                                     return FAIL;
                                                 }
@@ -1477,7 +1477,7 @@ unsafe fn convert_one_value(
                                                 ) {
                                                     let res =
                                                         backend.conv_ext_string(buf, len, ext_type);
-                                                    xfree(buf.cast::<c_void>());
+                                                    xfree(buf.cast());
                                                     if res == FAIL {
                                                         return FAIL;
                                                     }
@@ -1877,7 +1877,7 @@ mod tests {
             assert_eq!(len, 5);
             let slice = std::slice::from_raw_parts(buf.cast::<u8>(), len);
             assert_eq!(slice, b"a\0b\nc");
-            xfree(buf.cast::<c_void>());
+            xfree(buf.cast());
         }
         li1.li_tv.v_type = VarType::VAR_UNKNOWN;
         li2.li_tv.v_type = VarType::VAR_UNKNOWN;

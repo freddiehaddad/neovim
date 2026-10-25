@@ -45,7 +45,7 @@ use crate::strings::{atoi, concat_str, gettext, strstr, vim_snprintf, vim_strchr
 use crate::syntax::syn_get_foldlevel;
 use crate::undo::u_save;
 use crate::window::win_T;
-use std::ffi::{CStr, c_char, c_int, c_ulong, c_void};
+use std::ffi::{CStr, c_char, c_int, c_ulong};
 use std::ptr;
 
 use crate::state::MODE_INSERT;
@@ -1386,8 +1386,8 @@ unsafe fn foldAddMarker(buf: *mut buf_T, pos: pos_T, marker: *const c_char, mark
         ptr::copy_nonoverlapping(line, newline, line_len + 1);
         let added = if p.is_null() || line_is_comment {
             xmemcpyz(
-                newline.add(line_len).cast::<c_void>(),
-                marker.cast::<c_void>(),
+                newline.add(line_len).cast(),
+                marker.cast(),
                 markerlen,
             );
             markerlen
@@ -1603,7 +1603,7 @@ pub unsafe fn get_foldtext(
                 }
                 if *p != NUL {
                     let new_p = transstr(text, true);
-                    xfree(text.cast::<c_void>());
+                    xfree(text.cast());
                     text = new_p;
                 }
             }
@@ -2922,7 +2922,7 @@ pub unsafe fn f_foldtextresult(argvars: *mut typval_T, rettv: *mut typval_T, _fp
                         break;
                     }
                     let joined = concat_str(text, new_text);
-                    xfree(text.cast::<c_void>());
+                    xfree(text.cast());
                     text = joined;
                 }
             }

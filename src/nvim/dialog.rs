@@ -15,7 +15,7 @@ use crate::message::{HLF_M, display_confirm_msg, msg_end_prompt, msg_putchar, se
 use crate::mouse::setmouse;
 use crate::os::input::input_available;
 use crate::ui::{ui_active, ui_call_busy_stop, ui_flush, ui_has, ui_mouse_has};
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 
 const DLG_BUTTON_SEP: u8 = b'\n';
 const DLG_HOTKEY_CHAR: u8 = b'&';
@@ -106,7 +106,7 @@ unsafe fn console_dialog_alloc(
             *dst.add(2 + msg_bytes.len()) = 0;
         }
 
-        xfree(confirm_buttons.cast::<c_void>());
+        xfree(confirm_buttons.cast());
         confirm_buttons = xmalloc(button_len).cast::<c_char>();
 
         xmalloc(lenhotkey).cast::<c_char>()
@@ -238,7 +238,7 @@ pub unsafe fn ask_yesno(str_ptr: *const c_char) -> c_int {
         no_wait_return -= 1;
         State = save_state;
         setmouse();
-        xfree(prompt.cast::<c_void>());
+        xfree(prompt.cast());
         r
     }
 }
@@ -312,12 +312,12 @@ pub unsafe fn prompt_for_input(
                 }
                 ret = val.wrapping_mul(sign);
             }
-            xfree(resp.cast::<c_void>());
+            xfree(resp.cast());
         }
 
         if !kmsg.is_null() {
             set_keep_msg(kmsg, keep_msg_hl_id);
-            xfree(kmsg.cast::<c_void>());
+            xfree(kmsg.cast());
         }
 
         ret
@@ -395,8 +395,8 @@ pub unsafe fn do_dialog(
             }
         }
 
-        xfree(hotkeys.cast::<c_void>());
-        xfree(confirm_msg.cast::<c_void>());
+        xfree(hotkeys.cast());
+        xfree(confirm_msg.cast());
         confirm_msg = std::ptr::null_mut();
 
         msg_silent = save_msg_silent;

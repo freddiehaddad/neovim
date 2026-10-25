@@ -56,7 +56,7 @@ use crate::strings::{
 use crate::syntax::win_s;
 use crate::ui::ui_flush;
 use crate::undo::bufIsChanged;
-use std::ffi::{c_char, c_int, c_long, c_uint, c_void};
+use std::ffi::{c_char, c_int, c_long, c_uint};
 use std::mem::size_of;
 use std::ptr;
 
@@ -3854,7 +3854,7 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
     }
 }
 
-unsafe fn getroom(spin: *mut spellinfo_T, len: usize, align: bool) -> *mut c_void {
+unsafe fn getroom(spin: *mut spellinfo_T, len: usize, align: bool) -> *mut u8 {
     unsafe {
         debug_assert!(len <= SBLOCKSIZE);
 

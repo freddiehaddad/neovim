@@ -9,7 +9,7 @@ use crate::lua::converter::{
 use crate::lua::executor::{get_global_lstate, nlua_error, nlua_pcall};
 use crate::memory::{xfree, xmemdupz};
 use crate::message::{semsg, smsg};
-use std::ffi::{CStr, c_char, c_void};
+use std::ffi::{CStr, c_char};
 
 use crate::ex_docmd::exarg_T;
 
@@ -70,7 +70,7 @@ pub unsafe fn ex_trust(eap: *mut exarg_T) {
         let arg = (*eap).arg;
         let p = skiptowhite(arg);
         let arg1_len = (p as usize) - (arg as usize);
-        let arg1 = xmemdupz(arg.cast::<c_void>(), arg1_len).cast::<c_char>();
+        let arg1 = xmemdupz(arg.cast(), arg1_len).cast::<c_char>();
         let mut action = c"allow".as_ptr();
         let mut path = skipwhite(p);
 
@@ -81,7 +81,7 @@ pub unsafe fn ex_trust(eap: *mut exarg_T) {
             action = c"remove".as_ptr();
         } else if !arg1_bytes.is_empty() {
             semsg!(e_invarg2.as_ptr(), arg1);
-            xfree(arg1.cast::<c_void>());
+            xfree(arg1.cast());
             return;
         }
 
@@ -90,7 +90,7 @@ pub unsafe fn ex_trust(eap: *mut exarg_T) {
         }
 
         nlua_trust(action, path);
-        xfree(arg1.cast::<c_void>());
+        xfree(arg1.cast());
     }
 }
 

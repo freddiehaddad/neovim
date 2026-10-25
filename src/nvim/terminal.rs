@@ -128,7 +128,7 @@ use crate::vterm::vterm::{
     vterm_set_utf8,
 };
 use crate::window::{may_trigger_win_scrolled_resized, win_T, win_valid, winopt_T};
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 use crate::arglist::ML_EMPTY;
@@ -404,7 +404,7 @@ pub struct TermRequestEvent {
 impl Drop for TermRequestEvent {
     fn drop(&mut self) {
         unsafe {
-            xfree(self.sequence.cast::<c_void>());
+            xfree(self.sequence.cast());
         }
     }
 }
@@ -526,7 +526,7 @@ unsafe fn schedule_termrequest(term: *mut Terminal) {
         let req = Box::into_raw(Box::new(TermRequestEvent {
             buf_handle: (*term).buf_handle,
             sequence: xmemdup(
-                (*term).termrequest_buffer.as_ptr().cast::<c_void>(),
+                (*term).termrequest_buffer.as_ptr().cast(),
                 (*term).termrequest_buffer.len(),
             )
             .cast::<c_char>(),
@@ -2064,7 +2064,7 @@ pub unsafe fn term_clipboard_set(mask: VTermSelectionMask, data: *mut c_char) {
             }
         }
         tv_list_append_string(lines, start, -1);
-        xfree(data.cast::<c_void>());
+        xfree(data.cast());
 
         let args = tv_list_alloc(3);
         tv_list_append_list(args, lines);
@@ -2099,7 +2099,7 @@ unsafe fn term_selection_set(
 
         if frag.final_() {
             let data = xmemdupz(
-                (*term).selection.as_ptr().cast::<c_void>(),
+                (*term).selection.as_ptr().cast(),
                 (*term).selection.len(),
             )
             .cast::<c_char>();

@@ -26,7 +26,7 @@ use crate::mbyte::{mb_strnicmp, utf_ptr2len, utfc_ptr2len};
 use crate::memory::xmemdupz;
 use crate::message::{emsg, semsg};
 use crate::strings::reverse_text;
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum FilterMap {
@@ -278,7 +278,7 @@ unsafe fn filter_map_string(
                 v_type: VarType::VAR_STRING,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval {
-                    v_string: xmemdupz(p.cast::<c_void>(), len).cast::<c_char>(),
+                    v_string: xmemdupz(p.cast(), len).cast::<c_char>(),
                 },
             };
 

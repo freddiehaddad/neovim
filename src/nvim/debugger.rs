@@ -18,7 +18,7 @@ use crate::path::fix_fname;
 use crate::regexp::{RE_MAGIC, RE_STRING, vim_regcomp, vim_regexec_prog, vim_regfree};
 use crate::runtime::{ESTACK_NONE, estack_sfile, sourcing_lnum};
 use crate::strings::atoi;
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 
 const DBG_FUNC: c_int = 1;
 const DBG_FILE: c_int = 2;
@@ -113,7 +113,7 @@ unsafe fn do_checkbacktracelevel() {
                 debug_backtrace_level = max;
                 smsg!(0, c"frame at highest level: %d".as_ptr(), max);
             }
-            xfree(sname.cast::<c_void>());
+            xfree(sname.cast());
         }
     }
 }
@@ -156,7 +156,7 @@ unsafe fn do_showbacktrace(cmd: *const c_char) {
                     break;
                 }
             }
-            xfree(sname.cast::<c_void>());
+            xfree(sname.cast());
         }
 
         let slnum = sourcing_lnum();
@@ -203,19 +203,19 @@ pub unsafe fn do_debug(cmd: *mut c_char) {
         }
         if !DEBUG_OLDVAL.is_null() {
             smsg!(0, c"Oldval = \"%s\"".as_ptr(), DEBUG_OLDVAL);
-            xfree(DEBUG_OLDVAL.cast::<c_void>());
+            xfree(DEBUG_OLDVAL.cast());
             DEBUG_OLDVAL = std::ptr::null_mut();
         }
         if !DEBUG_NEWVAL.is_null() {
             smsg!(0, c"Newval = \"%s\"".as_ptr(), DEBUG_NEWVAL);
-            xfree(DEBUG_NEWVAL.cast::<c_void>());
+            xfree(DEBUG_NEWVAL.cast());
             DEBUG_NEWVAL = std::ptr::null_mut();
         }
         let sname = estack_sfile(ESTACK_NONE);
         if !sname.is_null() {
             msg(sname, 0);
         }
-        xfree(sname.cast::<c_void>());
+        xfree(sname.cast());
         let slnum = sourcing_lnum();
         if slnum != 0 {
             let line_msg = format!("line {slnum}: %s\0");
@@ -240,7 +240,7 @@ pub unsafe fn do_debug(cmd: *mut c_char) {
             let n = debug_break_level;
             debug_break_level = -1;
 
-            xfree(cmdline.cast::<c_void>());
+            xfree(cmdline.cast());
             cmdline = getcmdline_prompt(
                 b'>' as c_int,
                 std::ptr::null(),
@@ -369,7 +369,7 @@ pub unsafe fn do_debug(cmd: *mut c_char) {
             }
             lines_left = Rows - 1;
         }
-        xfree(cmdline.cast::<c_void>());
+        xfree(cmdline.cast());
 
         RedrawingDisabled -= 1;
         no_wait_return -= 1;
@@ -533,13 +533,13 @@ unsafe fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
                 return None;
             }
             let p_exp = expand_env_save(q);
-            xfree(q.cast::<c_void>());
+            xfree(q.cast());
             if p_exp.is_null() {
                 return None;
             }
             if *p_exp as u8 != b'*' {
                 bp.dbg_name = fix_fname(p_exp);
-                xfree(p_exp.cast::<c_void>());
+                xfree(p_exp.cast());
             } else {
                 bp.dbg_name = p_exp;
             }
@@ -569,10 +569,10 @@ pub unsafe fn ex_breakadd(eap: *mut exarg_T) {
             let pat = file_pat_to_reg_pat(bp.dbg_name, std::ptr::null(), std::ptr::null_mut(), 0);
             if !pat.is_null() {
                 bp.dbg_prog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
-                xfree(pat.cast::<c_void>());
+                xfree(pat.cast());
             }
             if pat.is_null() || bp.dbg_prog.is_null() {
-                xfree(bp.dbg_name.cast::<c_void>());
+                xfree(bp.dbg_name.cast());
             } else {
                 if bp.dbg_lnum == 0 {
                     bp.dbg_lnum = 1;
@@ -644,7 +644,7 @@ pub unsafe fn ex_breakdel(eap: *mut exarg_T) {
                     best_lnum = bpi.dbg_lnum;
                 }
             }
-            xfree(bp.dbg_name.cast::<c_void>());
+            xfree(bp.dbg_name.cast());
         }
 
         if todel < 0 || (todel as usize) >= gap.len() {
@@ -655,7 +655,7 @@ pub unsafe fn ex_breakdel(eap: *mut exarg_T) {
         let idx = todel as usize;
         while idx < gap.len() {
             let cur = gap.remove(idx);
-            xfree(cur.dbg_name.cast::<c_void>());
+            xfree(cur.dbg_name.cast());
             if cur.dbg_type == DBG_EXPR && !cur.dbg_val.is_null() {
                 tv_free(cur.dbg_val);
             }
@@ -759,10 +759,10 @@ unsafe fn debuggy_find(
                 let tv = eval_expr_no_emsg(bp);
                 if !tv.is_null() {
                     if bp.dbg_val.is_null() {
-                        xfree(DEBUG_OLDVAL.cast::<c_void>());
+                        xfree(DEBUG_OLDVAL.cast());
                         DEBUG_OLDVAL = typval_tostring(std::ptr::null_mut(), true);
                         bp.dbg_val = tv;
-                        xfree(DEBUG_NEWVAL.cast::<c_void>());
+                        xfree(DEBUG_NEWVAL.cast());
                         DEBUG_NEWVAL = typval_tostring(bp.dbg_val, true);
                         line = true;
                     } else {
@@ -770,10 +770,10 @@ unsafe fn debuggy_find(
                             && (*tv).vval.v_number == 0
                         {
                             line = true;
-                            xfree(DEBUG_OLDVAL.cast::<c_void>());
+                            xfree(DEBUG_OLDVAL.cast());
                             DEBUG_OLDVAL = typval_tostring(bp.dbg_val, true);
                             let v = eval_expr_no_emsg(bp);
-                            xfree(DEBUG_NEWVAL.cast::<c_void>());
+                            xfree(DEBUG_NEWVAL.cast());
                             DEBUG_NEWVAL = typval_tostring(v, true);
                             tv_free(bp.dbg_val);
                             bp.dbg_val = v;
@@ -781,9 +781,9 @@ unsafe fn debuggy_find(
                         tv_free(tv);
                     }
                 } else if !bp.dbg_val.is_null() {
-                    xfree(DEBUG_OLDVAL.cast::<c_void>());
+                    xfree(DEBUG_OLDVAL.cast());
                     DEBUG_OLDVAL = typval_tostring(bp.dbg_val, true);
-                    xfree(DEBUG_NEWVAL.cast::<c_void>());
+                    xfree(DEBUG_NEWVAL.cast());
                     DEBUG_NEWVAL = typval_tostring(std::ptr::null_mut(), true);
                     tv_free(bp.dbg_val);
                     bp.dbg_val = std::ptr::null_mut();
@@ -798,7 +798,7 @@ unsafe fn debuggy_find(
         }
 
         if name != fname {
-            xfree(name.cast::<c_void>());
+            xfree(name.cast());
         }
 
         lnum

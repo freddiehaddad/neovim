@@ -63,7 +63,7 @@ use crate::regexp::{Ctrl_V, NUMBUFLEN, regmatch_T, vim_regexec};
 use crate::runtime::{sctx_T, sourcing_lnum};
 use crate::strings::{atoi, gettext, sort_strings, strpbrk, strstr, vim_snprintf, vim_strchr};
 use crate::viml::parser::expressions::Ctrl_H;
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::cursor::linenr_T;
@@ -108,14 +108,14 @@ pub struct mapblock_T {
 impl Drop for mapblock_T {
     fn drop(&mut self) {
         unsafe {
-            xfree(self.m_keys.cast::<c_void>());
+            xfree(self.m_keys.cast());
             if !self.m_alt.is_null() {
                 (*self.m_alt).m_alt = ptr::null_mut();
             } else {
                 nlua_clear_ref(&mut self.m_luaref);
-                xfree(self.m_str.cast::<c_void>());
-                xfree(self.m_orig_str.cast::<c_void>());
-                xfree(self.m_desc.cast::<c_void>());
+                xfree(self.m_str.cast());
+                xfree(self.m_orig_str.cast());
+                xfree(self.m_desc.cast());
             }
         }
     }
@@ -422,7 +422,7 @@ unsafe fn showmap(mp: *mut mapblock_T, local: bool) {
         if (*mp).m_luaref != LUA_NOREF {
             let str_ptr = nlua_funcref_str((*mp).m_luaref, ptr::null_mut(), true);
             msg_puts_hl(str_ptr, HLF_8, false);
-            xfree(str_ptr.cast::<c_void>());
+            xfree(str_ptr.cast());
         } else if *(*mp).m_str == NUL {
             msg_puts_hl(c"<Nop>".as_ptr(), HLF_8, false);
         } else {
@@ -511,7 +511,7 @@ unsafe fn set_maparg_rhs(
 
         if rhs_lua == LUA_NOREF {
             mapargs.orig_rhs_len = orig_rhs_len;
-            mapargs.orig_rhs = xmemdupz(orig_rhs.cast::<c_void>(), mapargs.orig_rhs_len).cast();
+            mapargs.orig_rhs = xmemdupz(orig_rhs.cast(), mapargs.orig_rhs_len).cast();
             if CStr::from_ptr(orig_rhs)
                 .to_bytes()
                 .eq_ignore_ascii_case(b"<nop>")
@@ -621,8 +621,8 @@ unsafe fn str_to_mapargs(
         }
         let mut lhs_to_replace = [0 as c_char; 256];
         xmemcpyz(
-            lhs_to_replace.as_mut_ptr().cast::<c_void>(),
-            to_parse.cast::<c_void>(),
+            lhs_to_replace.as_mut_ptr().cast(),
+            to_parse.cast(),
             orig_lhs_len,
         );
 
@@ -797,8 +797,8 @@ unsafe fn buf_do_map(
                         let mut same: c_int = -1;
                         let mut keys_unescaped = [0 as c_char; MAXMAPLEN + 1];
                         xmemcpyz(
-                            keys_unescaped.as_mut_ptr().cast::<c_void>(),
-                            lhs.cast::<c_void>(),
+                            keys_unescaped.as_mut_ptr().cast(),
+                            lhs.cast(),
                             len as usize,
                         );
                         let keys_unescaped_len = vim_unescape_ks(keys_unescaped.as_mut_ptr());
@@ -991,9 +991,9 @@ unsafe fn buf_do_map(
                                                 (*mp).m_alt = ptr::null_mut();
                                             } else {
                                                 nlua_clear_ref(&mut (*mp).m_luaref);
-                                                xfree((*mp).m_str.cast::<c_void>());
-                                                xfree((*mp).m_orig_str.cast::<c_void>());
-                                                xfree((*mp).m_desc.cast::<c_void>());
+                                                xfree((*mp).m_str.cast());
+                                                xfree((*mp).m_orig_str.cast());
+                                                xfree((*mp).m_desc.cast());
                                             }
                                             (*mp).m_str = args.rhs;
                                             (*mp).m_orig_str = args.orig_rhs;
@@ -1109,8 +1109,8 @@ pub unsafe fn do_map(maptype: c_int, arg: *mut c_char, mode: c_int, is_abbrev: b
             }
         }
 
-        xfree(parsed_args.rhs.cast::<c_void>());
-        xfree(parsed_args.orig_rhs.cast::<c_void>());
+        xfree(parsed_args.rhs.cast());
+        xfree(parsed_args.orig_rhs.cast());
         result
     }
 }
@@ -1254,7 +1254,7 @@ pub unsafe fn map_to_exists(str_ptr: *const c_char, modechars: *const c_char, ab
         }
 
         let retval = map_to_exists_mode(rhs, mode, abbr);
-        xfree(buf.cast::<c_void>());
+        xfree(buf.cast());
         retval
     }
 }
@@ -1477,7 +1477,7 @@ pub unsafe fn ExpandMappings(
                 };
 
                 if !match_found {
-                    xfree(p.cast::<c_void>());
+                    xfree(p.cast());
                     continue;
                 }
 
@@ -1521,7 +1521,7 @@ pub unsafe fn ExpandMappings(
                     write_idx += 1;
                     matches[write_idx] = matches[read_idx];
                 } else {
-                    xfree(matches[read_idx].cast::<c_void>());
+                    xfree(matches[read_idx].cast());
                 }
             }
             matches.truncate(write_idx + 1);
@@ -1601,7 +1601,7 @@ pub unsafe fn check_abbr(
                     && std::slice::from_raw_parts(q.cast::<u8>(), len as usize)
                         == std::slice::from_raw_parts(ptr_arg.cast::<u8>(), len as usize);
                 if !ptr::eq(q, (*cand).m_keys) {
-                    xfree(q.cast::<c_void>());
+                    xfree(q.cast());
                 }
                 if match_found {
                     mp = cand;
@@ -1635,7 +1635,7 @@ pub unsafe fn check_abbr(
                             newlen = CStr::from_ptr(escaped).to_bytes().len();
                             ptr::copy(escaped.cast::<u8>(), tb.as_mut_ptr().add(j), newlen);
                             j += newlen;
-                            xfree(escaped.cast::<c_void>());
+                            xfree(escaped.cast());
                         }
                     }
                     tb[j] = 0;
@@ -1661,7 +1661,7 @@ pub unsafe fn check_abbr(
                     ins_typebuf(s, noremap, 0, true, silent);
                     typebuf.tb_no_abbr_cnt += (CStr::from_ptr(s).to_bytes().len() + j + 1) as c_int;
                     if expr {
-                        xfree(s.cast::<c_void>());
+                        xfree(s.cast());
                     }
                 }
 
@@ -1726,7 +1726,7 @@ pub unsafe fn eval_map_expr(mp: *mut mapblock_T, c: c_int) -> *mut c_char {
             }
         } else {
             p = eval_to_string(expr, false, false);
-            xfree(expr.cast::<c_void>());
+            xfree(expr.cast());
         }
         expr_map_lock -= 1;
         (*curwin).w_cursor = save_cursor;
@@ -1751,7 +1751,7 @@ pub unsafe fn eval_map_expr(mp: *mut mapblock_T, c: c_int) -> *mut c_char {
         } else {
             res = vim_strsave_escape_ks(p);
         }
-        xfree(p.cast::<c_void>());
+        xfree(p.cast());
 
         res
     }
@@ -2330,8 +2330,8 @@ unsafe fn get_maparg(argvars: *mut typval_T, rettv: *mut typval_T, exact: c_int)
             tv_dict_alloc_ret(rettv);
         }
 
-        xfree(keys_buf.cast::<c_void>());
-        xfree(alt_keys_buf.cast::<c_void>());
+        xfree(keys_buf.cast());
+        xfree(alt_keys_buf.cast());
     }
 }
 
@@ -2491,8 +2491,8 @@ pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: Eva
             is_abbr != 0,
             curbuf,
         );
-        xfree(unmap_args.rhs.cast::<c_void>());
-        xfree(unmap_args.orig_rhs.cast::<c_void>());
+        xfree(unmap_args.rhs.cast());
+        xfree(unmap_args.orig_rhs.cast());
 
         let mut mp_result: [*mut mapblock_T; 2] = [ptr::null_mut(), ptr::null_mut()];
         mp_result[0] = map_add(
@@ -2589,7 +2589,7 @@ pub unsafe fn f_maplist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                     debug_assert!(d.v_type == VarType::VAR_DICT);
                     tv_list_append_dict((*rettv).vval.v_list, d.vval.v_dict);
                     arena_mem_free(arena_finish(&mut arena));
-                    xfree(keys_buf.cast::<c_void>());
+                    xfree(keys_buf.cast());
                 }
             }
         }
@@ -2626,8 +2626,8 @@ pub unsafe fn add_map(lhs: *mut c_char, rhs: *mut c_char, mode: c_int, buffer: b
         args.buffer = buffer;
 
         buf_do_map(MAPTYPE_NOREMAP, &mut args, mode, false, curbuf);
-        xfree(args.rhs.cast::<c_void>());
-        xfree(args.orig_rhs.cast::<c_void>());
+        xfree(args.rhs.cast());
+        xfree(args.orig_rhs.cast());
     }
 }
 
@@ -2813,8 +2813,8 @@ unsafe fn do_exmap(eap: *mut exarg_T, isabbrev: bool) {
                 debug_assert!(false, "Unknown return code from str_to_mapargs!");
             }
         }
-        xfree(parsed_args.rhs.cast::<c_void>());
-        xfree(parsed_args.orig_rhs.cast::<c_void>());
+        xfree(parsed_args.rhs.cast());
+        xfree(parsed_args.orig_rhs.cast());
     }
 }
 
@@ -3049,9 +3049,9 @@ pub unsafe fn modify_keymap(
 
         current_sctx = save_current_sctx;
         nlua_clear_ref(&mut parsed_args.rhs_lua);
-        xfree(parsed_args.rhs.cast::<c_void>());
-        xfree(parsed_args.orig_rhs.cast::<c_void>());
-        xfree(parsed_args.desc.cast::<c_void>());
+        xfree(parsed_args.rhs.cast());
+        xfree(parsed_args.orig_rhs.cast());
+        xfree(parsed_args.desc.cast());
     }
 }
 

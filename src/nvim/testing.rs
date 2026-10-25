@@ -30,7 +30,7 @@ use crate::regexp::NUMBUFLEN;
 use crate::runtime::{ESTACK_NONE, estack_sfile, sourcing_lnum};
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 use crate::viml::parser::expressions::{BS, CAR, ESC, NL, TAB};
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 
 const EOF_VAL: c_int = -1;
 
@@ -88,7 +88,7 @@ unsafe fn prepare_assert_error(gap: &mut Vec<u8>) {
         if !sname.is_null() || slnum > 0 {
             ga_concat_literal(gap, b": ");
         }
-        xfree(sname.cast::<c_void>());
+        xfree(sname.cast());
     }
 }
 
@@ -172,7 +172,7 @@ unsafe fn fill_assert_error(
         {
             let tofree = encode_tv2echo(opt_msg_tv, std::ptr::null_mut());
             buf_concat_cstr(gap, tofree);
-            xfree(tofree.cast::<c_void>());
+            xfree(tofree.cast());
             ga_concat_literal(gap, b": ");
         }
 
@@ -245,7 +245,7 @@ unsafe fn fill_assert_error(
 
             let tofree = encode_tv2string(exp_tv, std::ptr::null_mut());
             ga_concat_shorten_esc(gap, tofree);
-            xfree(tofree.cast::<c_void>());
+            xfree(tofree.cast());
         } else {
             if atype == AssertType::Fails {
                 ga_concat_literal(gap, b"'");
@@ -266,7 +266,7 @@ unsafe fn fill_assert_error(
             }
             let tofree = encode_tv2string(got_tv, std::ptr::null_mut());
             ga_concat_shorten_esc(gap, tofree);
-            xfree(tofree.cast::<c_void>());
+            xfree(tofree.cast());
 
             if omitted != 0 {
                 let s = if omitted == 1 {
@@ -375,7 +375,7 @@ unsafe fn assert_append_cmd_or_arg(gap: &mut Vec<u8>, argvars: *mut typval_T, cm
         {
             let tofree = encode_tv2echo(argvars.add(2), std::ptr::null_mut());
             buf_concat_cstr(gap, tofree);
-            xfree(tofree.cast::<c_void>());
+            xfree(tofree.cast());
         } else {
             buf_concat_cstr(gap, cmd);
         }
@@ -521,7 +521,7 @@ unsafe fn assert_equalfile(argvars: *mut typval_T) -> c_int {
             if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
                 let tofree = encode_tv2echo(argvars.add(2), std::ptr::null_mut());
                 buf_concat_cstr(&mut ga, tofree);
-                xfree(tofree.cast::<c_void>());
+                xfree(tofree.cast());
                 ga_concat_literal(&mut ga, b": ");
             }
             buf_concat_len(&mut ga, iobuf.as_ptr(), iobuflen);
@@ -779,9 +779,9 @@ pub unsafe fn f_assert_fails(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
         emsg_on_display = false;
         msg_reset_scroll();
         lines_left = Rows;
-        xfree(emsg_assert_fails_msg.cast::<c_void>());
+        xfree(emsg_assert_fails_msg.cast());
         emsg_assert_fails_msg = std::ptr::null_mut();
-        xfree(tofree.cast::<c_void>());
+        xfree(tofree.cast());
         set_vim_var_string(VV_ERRMSG, std::ptr::null(), 0);
         if !wrong_arg_msg.is_null() {
             emsg(wrong_arg_msg);

@@ -155,7 +155,7 @@ use crate::window::{
     WSP_BOT, close_windows, global_stl_height, lastwin_nofloating,
     may_trigger_win_scrolled_resized, win_T, win_enter, win_size_restore, win_size_save, win_split,
 };
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 #[cfg(windows)]
@@ -1278,7 +1278,7 @@ unsafe fn command_line_enter(
                         },
                     );
                     if (*s).firstc == b':' as c_int {
-                        xfree(new_last_cmdline.cast::<c_void>());
+                        xfree(new_last_cmdline.cast());
                         new_last_cmdline = xstrnsave(ccline.cmdbuff, ccline.cmdlen as usize);
                     }
                 }
@@ -1326,8 +1326,8 @@ unsafe fn command_line_enter(
         }
 
         // theend:
-        xfree((*s).save_p_icm.cast::<c_void>());
-        xfree(ccline.last_colors.cmdbuff.cast::<c_void>());
+        xfree((*s).save_p_icm.cast());
+        xfree(ccline.last_colors.cmdbuff.cast());
         ccline.last_colors.cmdbuff = ptr::null_mut();
         let lc_colors = &raw mut ccline.last_colors.colors;
         *lc_colors = Vec::new();
@@ -1350,7 +1350,7 @@ unsafe fn command_line_enter(
             ccline.cmdbuff = ptr::null_mut();
         }
 
-        xfree((*s).prev_cmdbuff.cast::<c_void>());
+        xfree((*s).prev_cmdbuff.cast());
         p.cast::<u8>()
     }
 }
@@ -1360,7 +1360,7 @@ unsafe fn command_line_check(state: *mut VimState) -> c_int {
         let s = state.cast::<CommandLineState>();
 
         (*s).prev_cmdpos = ccline.cmdpos;
-        xfree((*s).prev_cmdbuff.cast::<c_void>());
+        xfree((*s).prev_cmdbuff.cast());
         (*s).prev_cmdbuff = ptr::null_mut();
 
         redir_off = true;
@@ -1424,7 +1424,7 @@ unsafe fn command_line_handle_ctrl_bsl(s: *mut CommandLineState) -> c_int {
                     realloc_cmdbuff(len + 1);
                     ccline.cmdlen = len;
                     strcpy(ccline.cmdbuff, p);
-                    xfree(p.cast::<c_void>());
+                    xfree(p.cast());
 
                     ccline.cmdpos = ccline.cmdlen.min(new_cmdpos);
 
@@ -1757,7 +1757,7 @@ unsafe fn command_line_execute(state: *mut VimState, key: c_int) -> c_int {
             && (*s).c != K_RIGHT
             && ((*s).xpc.xp_numfiles > 0 || ((*s).c != Ctrl_P && (*s).c != Ctrl_N))
         {
-            xfree((*s).lookfor.cast::<c_void>());
+            xfree((*s).lookfor.cast());
             (*s).lookfor = ptr::null_mut();
             (*s).lookforlen = 0;
         }
@@ -2104,7 +2104,7 @@ unsafe fn may_do_command_line_next_incsearch(
         } else {
             vim_beep(kOptBoFlagError);
         }
-        xfree(strcopy.cast::<c_void>());
+        xfree(strcopy.cast());
         restore_last_search_pattern();
         FAIL
     }
@@ -3151,13 +3151,13 @@ unsafe fn cmdpreview_may_show(_s: *mut CommandLineState) -> bool {
         );
         emsg_off -= 1;
         if !parsed {
-            xfree(cmdline.cast::<c_void>());
+            xfree(cmdline.cast());
             return false;
         }
 
         if (ea.argt & EX_PREVIEW) == 0 {
             undo_cmdmod(&raw mut cmod);
-            xfree(cmdline.cast::<c_void>());
+            xfree(cmdline.cast());
             return false;
         }
 
@@ -3234,7 +3234,7 @@ unsafe fn cmdpreview_may_show(_s: *mut CommandLineState) -> bool {
         emsg_silent -= 1;
         redrawcmdline();
 
-        xfree(cmdline.cast::<c_void>());
+        xfree(cmdline.cast());
         cmdpreview_type != 0
     }
 }
@@ -3599,7 +3599,7 @@ pub unsafe fn cmdline_at_end() -> bool {
 /// Deallocate a command line buffer, updating the buffer size and length.
 unsafe fn dealloc_cmdbuff() {
     unsafe {
-        xfree(ccline.cmdbuff.cast::<c_void>());
+        xfree(ccline.cmdbuff.cast());
         ccline.cmdbuff = ptr::null_mut();
         ccline.cmdbufflen = 0;
         ccline.cmdlen = 0;
@@ -3645,7 +3645,7 @@ pub unsafe fn realloc_cmdbuff(len: c_int) {
             }
         }
 
-        xfree(p.cast::<c_void>());
+        xfree(p.cast());
     }
 }
 
@@ -3723,7 +3723,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
         (*ccline_colors).colors.clear();
 
         if (*colored_ccline).cmdbuff.is_null() || *(*colored_ccline).cmdbuff == NUL {
-            xfree((*ccline_colors).cmdbuff.cast::<c_void>());
+            xfree((*ccline_colors).cmdbuff.cast());
             (*ccline_colors).cmdbuff = ptr::null_mut();
             return ret;
         }
@@ -3788,7 +3788,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                 {
                     arg_allocated = true;
                     arg.vval.v_string = xmemdupz(
-                        (*colored_ccline).cmdbuff.cast::<c_void>(),
+                        (*colored_ccline).cmdbuff.cast(),
                         (*colored_ccline).cmdlen as usize,
                     )
                     .cast::<c_char>();
@@ -3979,13 +3979,13 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
         if can_free_cb {
             callback_free(&raw mut color_cb);
         }
-        xfree((*ccline_colors).cmdbuff.cast::<c_void>());
+        xfree((*ccline_colors).cmdbuff.cast());
         (*ccline_colors).prompt_id = (*colored_ccline).prompt_id;
         if arg_allocated {
             (*ccline_colors).cmdbuff = arg.vval.v_string;
         } else {
             (*ccline_colors).cmdbuff = xmemdupz(
-                (*colored_ccline).cmdbuff.cast::<c_void>(),
+                (*colored_ccline).cmdbuff.cast(),
                 (*colored_ccline).cmdlen as usize,
             )
             .cast::<c_char>();
@@ -4423,7 +4423,7 @@ unsafe fn cmdline_paste(regname: c_int, literally: bool, remcr: bool) -> bool {
 
             cmdline_paste_str(p, literally);
             if allocated {
-                xfree(arg.cast::<c_void>());
+                xfree(arg.cast());
             }
             return OK != 0;
         }
@@ -4655,7 +4655,7 @@ pub unsafe fn vim_strsave_fnameescape(fname: *const c_char, what: c_int) -> *mut
             let mut res = vim_strsave_escaped(fname, chars);
             if what == VSE_SHELL && csh_like_shell() != 0 {
                 let s = vim_strsave_escaped(res, c"!".as_ptr());
-                xfree(res.cast::<c_void>());
+                xfree(res.cast());
                 res = s;
             }
             res
@@ -4678,7 +4678,7 @@ pub unsafe fn escape_fname(pp: *mut *mut c_char) {
         let p = xmalloc(strlen(*pp) + 2).cast::<c_char>();
         *p = b'\\' as c_char;
         strcpy(p.add(1), *pp);
-        xfree((*pp).cast::<c_void>());
+        xfree((*pp).cast());
         *pp = p;
     }
 }
@@ -4690,7 +4690,7 @@ pub unsafe fn tilde_replace(orig_pat: *mut c_char, files: &mut [*mut c_char]) {
         if *orig_pat == b'~' as c_char && vim_ispathsep((*orig_pat.add(1) as u8) as c_int) {
             for f in files {
                 let p = home_replace_save(ptr::null_mut(), *f);
-                xfree((*f).cast::<c_void>());
+                xfree((*f).cast());
                 *f = p;
             }
         }
@@ -5185,7 +5185,7 @@ pub unsafe fn script_get(eap: *mut exarg_T, lenp: *mut usize) -> *mut c_char {
             return if (*eap).skip != 0 {
                 ptr::null_mut()
             } else {
-                xmemdupz((*eap).arg.cast::<c_void>(), *lenp).cast::<c_char>()
+                xmemdupz((*eap).arg.cast(), *lenp).cast::<c_char>()
             };
         }
         cmd = cmd.add(2);
@@ -5379,7 +5379,7 @@ pub unsafe fn get_user_input(
             tv_copy(cancelreturn, rettv);
         }
 
-        xfree(xp_arg.cast::<c_void>());
+        xfree(xp_arg.cast());
 
         need_wait_return = false;
         msg_didout = false;
