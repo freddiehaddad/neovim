@@ -233,7 +233,7 @@ static mut urls: Vec<std::ffi::CString> = Vec::new();
 static mut fonts: Vec<std::ffi::CString> = Vec::new();
 static mut ns_hls: std::collections::BTreeMap<ColorKey, ColorItem> =
     std::collections::BTreeMap::new();
-static mut ns_hl_attr: std::collections::BTreeMap<c_int, std::pin::Pin<Box<NSHlAttr>>> =
+static mut ns_hl_attr: std::collections::BTreeMap<c_int, Box<NSHlAttr>> =
     std::collections::BTreeMap::new();
 
 static mut get_attr_entry_recursive: bool = false;
@@ -803,7 +803,7 @@ pub unsafe fn update_ns_hl(ns_id: c_int) {
         let ns_hl_attr_ptr = &raw mut ns_hl_attr;
         let alloc = (*ns_hl_attr_ptr)
             .entry(ns_id)
-            .or_insert_with(|| Box::pin([0; HLF_COUNT]));
+            .or_insert_with(|| Box::new([0; HLF_COUNT]));
         let hl_attrs = alloc.as_mut_ptr();
 
         for hlf in 1..HLF_COUNT {

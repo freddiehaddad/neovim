@@ -64,7 +64,7 @@ pub struct memfile_T {
     pub mf_flags: c_int,
     pub mf_reopen: bool,
     pub mf_free_list: Vec<bhdr_T>,
-    pub mf_hash: std::collections::HashMap<i64, std::pin::Pin<Box<bhdr_T>>>,
+    pub mf_hash: std::collections::HashMap<i64, Box<bhdr_T>>,
     pub mf_trans: std::collections::HashMap<i64, i64>,
     pub mf_blocknr_max: blocknr_T,
     pub mf_blocknr_min: blocknr_T,
@@ -92,7 +92,7 @@ unsafe fn perror_msg(msg: *const c_char) {
 
 #[inline]
 pub unsafe fn pmap_get_bhdr(
-    map: *const std::collections::HashMap<i64, std::pin::Pin<Box<bhdr_T>>>,
+      map: *const std::collections::HashMap<i64, Box<bhdr_T>>,
     key: i64,
   ) -> *mut bhdr_T {
     unsafe {
@@ -452,11 +452,11 @@ unsafe fn mf_alloc_bhdr(
     bnum: blocknr_T,
     page_count: c_uint,
     flags: c_uint,
-) -> std::pin::Pin<Box<bhdr_T>> {
+) -> Box<bhdr_T> {
     let len = (unsafe { (*mfp).mf_page_size } as usize) * (page_count as usize);
     let mut bh_data_vec = vec![0u8; len];
     let bh_data = bh_data_vec.as_mut_ptr();
-    Box::pin(bhdr_T {
+    Box::new(bhdr_T {
         bh_bnum: bnum,
         bh_data_vec,
         bh_data,
@@ -727,7 +727,7 @@ mod tests {
         }
 
         unsafe {
-            let mut ht: std::collections::HashMap<i64, std::pin::Pin<Box<bhdr_T>>> =
+            let mut ht: std::collections::HashMap<i64, Box<bhdr_T>> =
                 std::collections::HashMap::new();
             let mut items: Vec<*mut bhdr_T> = Vec::with_capacity(TEST_COUNT);
 
@@ -736,7 +736,7 @@ mod tests {
                 let key = index_to_key(i);
                 assert!(pmap_get_bhdr(&raw const ht, key).is_null());
 
-                let mut boxed = Box::pin(bhdr_T {
+                let mut boxed = Box::new(bhdr_T {
                     bh_bnum: key,
                     bh_data_vec: Vec::new(),
                     bh_data: ptr::null_mut(),

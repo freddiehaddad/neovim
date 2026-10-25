@@ -178,7 +178,7 @@ pub struct syl_item_T {
     sy_chars: [c_char; SY_MAXLEN],
     sy_len: c_int,
 }
-pub static mut first_lang: Vec< std::pin::Pin<Box<slang_T>>> = Vec::new();
+pub static mut first_lang: Vec<std::pin::Pin<Box<slang_T>>> = Vec::new();
 pub static mut int_wordlist: *mut c_char = ptr::null_mut();
 pub static mut spelltab: spelltab_T = spelltab_T {
     st_isw: [false; 256],
