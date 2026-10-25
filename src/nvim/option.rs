@@ -2406,18 +2406,12 @@ unsafe fn didset_options2() {
         );
 
         check_opt_wim(p_wim, (&raw mut wim_flags).cast::<u8>());
-        xfree((*curbuf).b_p_vsts_array.cast());
         tabstop_set(
             (*curbuf).b_p_vsts,
-            &raw mut (*curbuf).b_p_vsts_array,
+            &mut (*curbuf).b_p_vsts_array,
             ptr::null(),
         );
-        xfree((*curbuf).b_p_vts_array.cast());
-        tabstop_set(
-            (*curbuf).b_p_vts,
-            &raw mut (*curbuf).b_p_vts_array,
-            ptr::null(),
-        );
+        tabstop_set((*curbuf).b_p_vts, &mut (*curbuf).b_p_vts_array, ptr::null());
     }
 }
 
@@ -3169,8 +3163,7 @@ pub unsafe fn did_set_paste(_args: *mut optset_T) -> *const c_char {
                     free_string_option((*buf).b_p_vsts);
                 }
                 (*buf).b_p_vsts = empty_opt;
-                xfree((*buf).b_p_vsts_array.cast());
-                (*buf).b_p_vsts_array = ptr::null_mut();
+                (*buf).b_p_vsts_array.clear();
                 buf = (*buf).b_next;
             }
 
@@ -3206,11 +3199,10 @@ pub unsafe fn did_set_paste(_args: *mut optset_T) -> *const c_char {
                 } else {
                     empty_opt
                 };
-                xfree((*buf).b_p_vsts_array.cast());
                 if !(*buf).b_p_vsts.is_null() && (*buf).b_p_vsts != empty_opt {
-                    tabstop_set((*buf).b_p_vsts, &raw mut (*buf).b_p_vsts_array, ptr::null());
+                    tabstop_set((*buf).b_p_vsts, &mut (*buf).b_p_vsts_array, ptr::null());
                 } else {
-                    (*buf).b_p_vsts_array = ptr::null_mut();
+                    (*buf).b_p_vsts_array.clear();
                 }
                 buf = (*buf).b_next;
             }
@@ -7616,9 +7608,9 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                 (*buf).b_p_vsts = xstrdup(p_vsts);
                 copy_opt_sctx(buf, kBufOptVarsofttabstop);
                 if !p_vsts.is_null() && p_vsts != empty_opt {
-                    tabstop_set(p_vsts, &raw mut (*buf).b_p_vsts_array, ptr::null());
+                    tabstop_set(p_vsts, &mut (*buf).b_p_vsts_array, ptr::null());
                 } else {
-                    (*buf).b_p_vsts_array = ptr::null_mut();
+                    (*buf).b_p_vsts_array.clear();
                 }
                 (*buf).b_p_vsts_nopaste = if !P_VSTS_NOPASTE.is_null() {
                     xstrdup(P_VSTS_NOPASTE)
@@ -7730,10 +7722,10 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
 
                 if dont_do_help {
                     (*buf).b_p_isk = save_p_isk;
-                    if !p_vts.is_null() && *p_vts != NUL && (*buf).b_p_vts_array.is_null() {
-                        tabstop_set(p_vts, &raw mut (*buf).b_p_vts_array, ptr::null());
+                    if !p_vts.is_null() && *p_vts != NUL && (*buf).b_p_vts_array.is_empty() {
+                        tabstop_set(p_vts, &mut (*buf).b_p_vts_array, ptr::null());
                     } else {
-                        (*buf).b_p_vts_array = ptr::null_mut();
+                        (*buf).b_p_vts_array.clear();
                     }
                 } else {
                     (*buf).b_p_isk = xstrdup(p_isk);
@@ -7743,10 +7735,10 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                     copy_opt_sctx(buf, kBufOptTabstop);
                     (*buf).b_p_vts = xstrdup(p_vts);
                     copy_opt_sctx(buf, kBufOptVartabstop);
-                    if !p_vts.is_null() && *p_vts != NUL && (*buf).b_p_vts_array.is_null() {
-                        tabstop_set(p_vts, &raw mut (*buf).b_p_vts_array, ptr::null());
+                    if !p_vts.is_null() && *p_vts != NUL && (*buf).b_p_vts_array.is_empty() {
+                        tabstop_set(p_vts, &mut (*buf).b_p_vts_array, ptr::null());
                     } else {
-                        (*buf).b_p_vts_array = ptr::null_mut();
+                        (*buf).b_p_vts_array.clear();
                     }
                     (*buf).b_help = false;
                     if *(*buf).b_p_bt == b'h' as c_char {

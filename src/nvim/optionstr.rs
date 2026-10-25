@@ -130,7 +130,7 @@ pub enum OptSetPrep {
     Wildmode([u8; 4]),
     Encoding(*mut c_char),
     SpellcapProg(*mut regprog_T),
-    Tabstop(*mut colnr_T),
+    Tabstop(Vec<colnr_T>),
 }
 
 impl OptSetPrep {
@@ -145,8 +145,8 @@ impl OptSetPrep {
     #[inline]
     pub fn take_encoding(&mut self) -> *mut c_char {
         let old = std::mem::ManuallyDrop::new(std::mem::replace(self, Self::None));
-        match *old {
-            Self::Encoding(p) => p,
+        match &*old {
+            Self::Encoding(p) => *p,
             _ => ptr::null_mut(),
         }
     }
@@ -154,18 +154,18 @@ impl OptSetPrep {
     #[inline]
     pub fn take_spellcap_prog(&mut self) -> *mut regprog_T {
         let old = std::mem::ManuallyDrop::new(std::mem::replace(self, Self::None));
-        match *old {
-            Self::SpellcapProg(p) => p,
+        match &*old {
+            Self::SpellcapProg(p) => *p,
             _ => ptr::null_mut(),
         }
     }
 
     #[inline]
-    pub fn take_tabstop(&mut self) -> *mut colnr_T {
-        let old = std::mem::ManuallyDrop::new(std::mem::replace(self, Self::None));
-        match *old {
-            Self::Tabstop(p) => p,
-            _ => ptr::null_mut(),
+    pub fn take_tabstop(&mut self) -> Vec<colnr_T> {
+        let mut old = std::mem::ManuallyDrop::new(std::mem::replace(self, Self::None));
+        match &mut *old {
+            Self::Tabstop(v) => std::mem::take(v),
+            _ => Vec::new(),
         }
     }
 }
@@ -173,11 +173,14 @@ impl OptSetPrep {
 impl Drop for OptSetPrep {
     fn drop(&mut self) {
         unsafe {
-            match *self {
-                Self::Encoding(p) => xfree(p.cast()),
-                Self::SpellcapProg(p) => vim_regfree(p),
-                Self::Tabstop(p) => xfree(p.cast()),
-                Self::None | Self::Flags(_) | Self::Spellsuggest(_) | Self::Wildmode(_) => {}
+            match self {
+                Self::Encoding(p) => xfree((*p).cast()),
+                Self::SpellcapProg(p) => vim_regfree(*p),
+                Self::None
+                | Self::Flags(_)
+                | Self::Spellsuggest(_)
+                | Self::Wildmode(_)
+                | Self::Tabstop(_) => {}
             }
         }
     }
@@ -3404,8 +3407,8 @@ pub unsafe fn validate_vartabstop(args: *mut optset_T) -> *const c_char {
             return e_invarg.as_ptr();
         }
 
-        let mut array: *mut colnr_T = ptr::null_mut();
-        let errmsg = tabstop_set(value, &raw mut array, (*args).os_errbuf.cast());
+        let mut array: Vec<colnr_T> = Vec::new();
+        let errmsg = tabstop_set(value, &mut array, (*args).os_errbuf.cast());
         (*args).os_prep = OptSetPrep::Tabstop(array);
         errmsg
     }
@@ -3423,11 +3426,10 @@ pub unsafe fn did_set_vartabstop(args: *mut optset_T) -> *const c_char {
         let win = (*args).os_win;
         let soft = (*args).os_idx == kOptVarsofttabstop;
         let array = if soft {
-            &raw mut (*buf).b_p_vsts_array
+            &mut (*buf).b_p_vsts_array
         } else {
-            &raw mut (*buf).b_p_vts_array
+            &mut (*buf).b_p_vts_array
         };
-        xfree((*array).cast());
         *array = (*args).os_prep.take_tabstop();
         if !soft && foldmethodIsIndent(win) {
             foldUpdateAll(win);

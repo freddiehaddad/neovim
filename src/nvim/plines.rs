@@ -150,7 +150,7 @@ pub unsafe fn win_chartabsize(wp: *mut win_T, p: *const c_char, col: colnr_T) ->
         if c_int::from(*p) == TAB
             && ((*wp).w_onebuf_opt.wo_list == 0 || (*wp).w_p_lcs_chars.tab1 != 0)
         {
-            return tabstop_padding(col, (*buf).b_p_ts, (*buf).b_p_vts_array);
+            return tabstop_padding(col, (*buf).b_p_ts, &(*buf).b_p_vts_array);
         }
         ptr2cells(p)
     }
@@ -305,7 +305,7 @@ pub unsafe fn charsize_regular(
         let mut size: c_int;
         let mut is_doublewidth = false;
         if use_tabstop {
-            size = tabstop_padding(vcol, (*buf).b_p_ts, (*buf).b_p_vts_array);
+            size = tabstop_padding(vcol, (*buf).b_p_ts, &(*buf).b_p_vts_array);
         } else if *cur == NUL {
             size = if has_lcs_eol { 1 } else { 0 };
         } else if cur_char < 0 {
@@ -342,7 +342,7 @@ pub unsafe fn charsize_regular(
                                 tab_size = tabstop_padding(
                                     vcol + size,
                                     (*buf).b_p_ts,
-                                    (*buf).b_p_vts_array,
+                                    &(*buf).b_p_vts_array,
                                 );
                                 size += tab_size;
                             }
@@ -543,7 +543,7 @@ unsafe fn charsize_fast_impl(
                 width: tabstop_padding(
                     vcol,
                     (*(*wp).w_buffer).b_p_ts,
-                    (*(*wp).w_buffer).b_p_vts_array,
+                    &(*(*wp).w_buffer).b_p_vts_array,
                 ),
                 head: 0,
                 tail: 0,
@@ -605,7 +605,7 @@ pub unsafe fn charsize_nowrap(
 ) -> c_int {
     unsafe {
         if cur_char == TAB && use_tabstop {
-            tabstop_padding(vcol, (*buf).b_p_ts, (*buf).b_p_vts_array)
+            tabstop_padding(vcol, (*buf).b_p_ts, &(*buf).b_p_vts_array)
         } else if cur_char < 0 {
             kInvalidByteCells
         } else {

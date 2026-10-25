@@ -341,31 +341,28 @@ pub unsafe fn op_shift(oap: *mut oparg_T, curs_top: bool, amount: c_int) {
     }
 }
 
-unsafe fn get_vts(vts_array: *const c_int, index: c_int) -> c_int {
-    unsafe {
-        if index < 1 {
-            0
-        } else if index <= *vts_array {
-            *vts_array.add(index as usize)
-        } else {
-            *vts_array.add(*vts_array as usize)
-        }
+fn get_vts(vts_array: &[c_int], index: c_int) -> c_int {
+    if index < 1 {
+        0
+    } else if (index as usize) <= vts_array.len() {
+        vts_array[index as usize - 1]
+    } else {
+        *vts_array.last().unwrap()
     }
 }
 
-unsafe fn get_vts_sum(vts_array: *const c_int, index: c_int) -> c_int {
-    unsafe {
-        let mut sum: c_int = 0;
-        let mut i: c_int = 1;
-        while i <= index && i <= *vts_array {
-            sum += *vts_array.add(i as usize);
-            i += 1;
-        }
-        if i <= index {
-            sum += *vts_array.add(*vts_array as usize) * (index - *vts_array);
-        }
-        sum
+fn get_vts_sum(vts_array: &[c_int], index: c_int) -> c_int {
+    let mut sum: c_int = 0;
+    let mut i: c_int = 1;
+    let len = vts_array.len() as c_int;
+    while i <= index && i <= len {
+        sum += vts_array[i as usize - 1];
+        i += 1;
     }
+    if i <= index {
+        sum += *vts_array.last().unwrap() * (index - len);
+    }
+    sum
 }
 
 unsafe fn get_new_sw_indent(left: bool, round: bool, mut amount: i64, sw_val: i64) -> i64 {
@@ -398,7 +395,7 @@ unsafe fn get_new_vts_indent(
     left: bool,
     round: bool,
     amount: c_int,
-    vts_array: *const c_int,
+    vts_array: &[c_int],
 ) -> i64 {
     unsafe {
         let mut indent = i64::from(get_indent());
@@ -445,11 +442,11 @@ pub unsafe fn shift_line(left: bool, round: bool, amount: c_int, call_changed_by
     unsafe {
         let sw_val = (*curbuf).b_p_sw;
         let ts_val = (*curbuf).b_p_ts;
-        let vts_array = (*curbuf).b_p_vts_array;
+        let vts_array = &(*curbuf).b_p_vts_array;
 
         let count = if sw_val != 0 {
             get_new_sw_indent(left, round, i64::from(amount), sw_val)
-        } else if vts_array.is_null() || *vts_array == 0 {
+        } else if vts_array.is_empty() {
             get_new_sw_indent(left, round, i64::from(amount), ts_val)
         } else {
             get_new_vts_indent(left, round, amount, vts_array)
@@ -548,7 +545,7 @@ unsafe fn shift_block(oap: *mut oparg_T, amount: c_int) {
                     ws_vcol,
                     ws_vcol + total,
                     ts_val,
-                    (*curbuf).b_p_vts_array,
+                    &(*curbuf).b_p_vts_array,
                     &raw mut tabs,
                     &raw mut spaces,
                 );

@@ -1725,7 +1725,7 @@ pub unsafe fn decor_virt_line_rows(
             while *virt_str != NUL {
                 let bytes_to_next_char = utfc_ptr2len(virt_str);
                 let cells = if *virt_str == TAB {
-                    tabstop_padding(vcol, (*buf).b_p_ts, (*buf).b_p_vts_array)
+                    tabstop_padding(vcol, (*buf).b_p_ts, &(*buf).b_p_vts_array)
                 } else {
                     utf_ptr2cells(virt_str)
                 };

@@ -88,7 +88,7 @@ const KEYSET_OPTIDX_briopt__column: u64 = 5;
 
 static mut PREV_INDENT: c_int = 0;
 static mut PREV_TS: OptInt = 0;
-static mut PREV_VTS: *mut colnr_T = ptr::null_mut();
+static mut PREV_VTS: Vec<colnr_T> = Vec::new();
 static mut PREV_FNUM: c_int = 0;
 static mut PREV_LINE: *mut c_char = ptr::null_mut();
 static mut PREV_TICK: varnumber_T = 0;
@@ -106,14 +106,14 @@ const fn has_briopt_key(v: &OptKeyDict_briopt, bit: u64) -> bool {
 /// Set the integer values corresponding to the string setting of `'vartabstop'` (`tabstop_set`).
 pub unsafe fn tabstop_set(
     mut var: *mut c_char,
-    array: *mut *mut colnr_T,
+    array: &mut Vec<colnr_T>,
     errbuf: *const CharBuf,
 ) -> *const c_char {
     unsafe {
-        let mut valcount: c_int = 1;
+        let mut valcount: usize = 1;
 
         if *var == NUL || (*var == b'0' as c_char && *var.add(1) == NUL) {
-            *array = ptr::null_mut();
+            array.clear();
             return ptr::null();
         }
 
@@ -146,22 +146,16 @@ pub unsafe fn tabstop_set(
             return opt_error(errbuf, e_invarg2.as_ptr(), var);
         }
 
-        let arr = xmalloc(((valcount + 1) as usize) * size_of::<c_int>()).cast::<colnr_T>();
-        *array = arr;
-        *arr = valcount;
-
-        let mut t: usize = 1;
+        let mut out = Vec::with_capacity(valcount);
         cp = var;
         while *cp != NUL {
             let n = atoi(cp);
             if n <= 0 || n > TABSTOP_MAX {
-                xfree((*array).cast());
-                *array = ptr::null_mut();
+                array.clear();
                 var = cp;
                 return opt_error(errbuf, e_invarg2.as_ptr(), var);
             }
-            *arr.add(t) = n;
-            t += 1;
+            out.push(n);
             while *cp != NUL && *cp != b',' as c_char {
                 cp = cp.add(1);
             }
@@ -170,93 +164,68 @@ pub unsafe fn tabstop_set(
             }
         }
 
+        *array = out;
         ptr::null()
     }
 }
 
 /// Calculate the number of screen spaces a tab will occupy (`tabstop_padding`).
-pub unsafe fn tabstop_padding(col: colnr_T, ts_arg: OptInt, vts: *const colnr_T) -> c_int {
-    unsafe {
-        let ts = if ts_arg == 0 { 8 } else { ts_arg };
-        let mut tabcol: colnr_T = 0;
-        let mut padding: c_int = 0;
+pub fn tabstop_padding(col: colnr_T, ts_arg: OptInt, vts: &[colnr_T]) -> c_int {
+    let ts = if ts_arg == 0 { 8 } else { ts_arg };
+    let mut tabcol: colnr_T = 0;
 
-        if vts.is_null() || *vts == 0 {
-            return (ts - (i64::from(col) % ts)) as c_int;
-        }
-
-        let tabcount = *vts;
-        let mut t: c_int = 1;
-        while t <= tabcount {
-            tabcol += *vts.add(t as usize);
-            if tabcol > col {
-                padding = tabcol - col;
-                break;
-            }
-            t += 1;
-        }
-        if t > tabcount {
-            let last = *vts.add(tabcount as usize);
-            padding = last - ((col - tabcol) % last);
-        }
-
-        padding
+    if vts.is_empty() {
+        return (ts - (i64::from(col) % ts)) as c_int;
     }
+
+    for &width in vts {
+        tabcol += width;
+        if tabcol > col {
+            return tabcol - col;
+        }
+    }
+    let last = *vts.last().unwrap();
+    last - ((col - tabcol) % last)
 }
 
 /// Find the size of the tab that covers a particular column (`tabstop_at`).
-pub unsafe fn tabstop_at(col: colnr_T, ts: OptInt, vts: *const colnr_T, left: bool) -> c_int {
-    unsafe {
-        if vts.is_null() || *vts == 0 {
-            return ts as c_int;
-        }
-
-        let mut tabcol: colnr_T = 0;
-        let mut tab_size: c_int = 0;
-        let tabcount = *vts;
-        let mut t: c_int = 1;
-        while t <= tabcount {
-            tabcol += *vts.add(t as usize);
-            if tabcol > col {
-                if left && t == 1 {
-                    tab_size = col;
-                } else {
-                    tab_size = *vts.add((t - if left { 1 } else { 0 }) as usize);
-                }
-                break;
-            }
-            t += 1;
-        }
-        if t > tabcount {
-            tab_size = *vts.add(tabcount as usize);
-        }
-
-        tab_size
+pub fn tabstop_at(col: colnr_T, ts: OptInt, vts: &[colnr_T], left: bool) -> c_int {
+    if vts.is_empty() {
+        return ts as c_int;
     }
+
+    let mut tabcol: colnr_T = 0;
+    for (idx, &width) in vts.iter().enumerate() {
+        tabcol += width;
+        if tabcol > col {
+            return if left && idx == 0 {
+                col
+            } else {
+                vts[idx - usize::from(left)]
+            };
+        }
+    }
+    *vts.last().unwrap()
 }
 
 /// Find the column on which a tab starts (`tabstop_start`).
-pub unsafe fn tabstop_start(col: colnr_T, ts: c_int, vts: *mut colnr_T) -> colnr_T {
-    unsafe {
-        let mut tabcol: colnr_T = 0;
+pub fn tabstop_start(col: colnr_T, ts: c_int, vts: &[colnr_T]) -> colnr_T {
+    let mut tabcol: colnr_T = 0;
 
-        if vts.is_null() || *vts == 0 {
-            return col - col % ts;
-        }
-
-        let tabcount = *vts;
-        for t in 1..=tabcount {
-            let cur = *vts.add(t as usize);
-            tabcol += cur;
-            if tabcol > col {
-                return tabcol - cur;
-            }
-        }
-
-        let last = *vts.add(tabcount as usize);
-        let excess = tabcol % last;
-        col - (col - excess) % last
+    if vts.is_empty() {
+        return col - col % ts;
     }
+
+    for &cur in vts {
+        tabcol += cur;
+        if tabcol > col {
+            return tabcol - cur;
+        }
+    }
+
+    let last = *vts.last().unwrap();
+    let excess = tabcol % last;
+    col - (col - excess) % last
 }
 
 /// Find the number of tabs and spaces necessary to get from one column to another (`tabstop_fromto`).
@@ -264,7 +233,7 @@ pub unsafe fn tabstop_fromto(
     start_col: colnr_T,
     end_col: colnr_T,
     ts_arg: c_int,
-    vts: *const colnr_T,
+    vts: &[colnr_T],
     ntabs: *mut c_int,
     nspcs: *mut c_int,
 ) {
@@ -279,7 +248,7 @@ pub unsafe fn tabstop_fromto(
         };
         debug_assert!(ts != 0);
 
-        if vts.is_null() || *vts == 0 {
+        if vts.is_empty() {
             let mut tabs: c_int = 0;
             let initspc = ts - (start_col % ts);
             if spaces >= initspc {
@@ -294,18 +263,18 @@ pub unsafe fn tabstop_fromto(
             return;
         }
 
-        let tabcount = *vts;
-        let mut t: c_int = 1;
-        while t <= tabcount {
-            tabcol += *vts.add(t as usize);
+        let tabcount = vts.len();
+        let mut t: usize = 0;
+        while t < tabcount {
+            tabcol += vts[t];
             if tabcol > start_col {
                 padding = tabcol - start_col;
                 break;
             }
             t += 1;
         }
-        if t > tabcount {
-            let last = *vts.add(tabcount as usize);
+        if t >= tabcount {
+            let last = *vts.last().unwrap();
             padding = last - ((start_col - tabcol) % last);
         }
 
@@ -320,9 +289,9 @@ pub unsafe fn tabstop_fromto(
 
         while spaces != 0 && {
             t += 1;
-            t <= tabcount
+            t < tabcount
         } {
-            padding = *vts.add(t as usize);
+            padding = vts[t];
             if spaces < padding {
                 *nspcs = spaces;
                 return;
@@ -331,24 +300,22 @@ pub unsafe fn tabstop_fromto(
             spaces -= padding;
         }
 
-        let last = *vts.add(tabcount as usize);
+        let last = *vts.last().unwrap();
         *ntabs += spaces / last;
         *nspcs = spaces % last;
     }
 }
 
 /// Return a count of the number of tabstops (`tabstop_count`).
-pub unsafe fn tabstop_count(ts: *mut colnr_T) -> c_int {
-    if ts.is_null() { 0 } else { unsafe { *ts } }
+#[inline]
+pub fn tabstop_count(ts: &[colnr_T]) -> c_int {
+    ts.len() as c_int
 }
 
 /// Return the first tabstop, or 8 if there are no tabstops defined (`tabstop_first`).
-pub unsafe fn tabstop_first(ts: *mut colnr_T) -> c_int {
-    if ts.is_null() {
-        8
-    } else {
-        unsafe { *ts.add(1) }
-    }
+#[inline]
+pub fn tabstop_first(ts: &[colnr_T]) -> c_int {
+    ts.first().copied().unwrap_or(8)
 }
 
 /// Return the effective shiftwidth value for current buffer (`get_sw_value`).
@@ -381,7 +348,7 @@ pub unsafe fn get_sw_value_col(buf: *mut buf_T, col: colnr_T, left: bool) -> c_i
         if (*buf).b_p_sw != 0 {
             (*buf).b_p_sw as c_int
         } else {
-            tabstop_at(col, (*buf).b_p_ts, (*buf).b_p_vts_array, left)
+            tabstop_at(col, (*buf).b_p_ts, &(*buf).b_p_vts_array, left)
         }
     }
 }
@@ -403,19 +370,19 @@ pub unsafe fn get_indent() -> c_int {
         indent_size_ts(
             get_cursor_line_ptr(),
             (*curbuf).b_p_ts,
-            (*curbuf).b_p_vts_array,
+            &(*curbuf).b_p_vts_array,
         )
     }
 }
 
 /// Count the size (in window cells) of the indent in line `lnum` (`get_indent_lnum`).
 pub unsafe fn get_indent_lnum(lnum: linenr_T) -> c_int {
-    unsafe { indent_size_ts(ml_get(lnum), (*curbuf).b_p_ts, (*curbuf).b_p_vts_array) }
+    unsafe { indent_size_ts(ml_get(lnum), (*curbuf).b_p_ts, &(*curbuf).b_p_vts_array) }
 }
 
 /// Count the size (in window cells) of the indent in line `lnum` of buffer `buf` (`get_indent_buf`).
 pub unsafe fn get_indent_buf(buf: *mut buf_T, lnum: linenr_T) -> c_int {
-    unsafe { indent_size_ts(ml_get_buf(buf, lnum), (*buf).b_p_ts, (*buf).b_p_vts_array) }
+    unsafe { indent_size_ts(ml_get_buf(buf, lnum), (*buf).b_p_ts, &(*buf).b_p_vts_array) }
 }
 
 /// Compute the size of the indent (in window cells) in line `ptr`, without tabstops (`indent_size_no_ts`).
@@ -438,7 +405,7 @@ pub unsafe fn indent_size_no_ts(mut ptr: *const c_char) -> c_int {
 }
 
 /// Compute the size of the indent (in window cells) in line `ptr`, using tabstops (`indent_size_ts`).
-pub unsafe fn indent_size_ts(mut ptr: *const c_char, ts: OptInt, vts: *mut colnr_T) -> c_int {
+pub unsafe fn indent_size_ts(mut ptr: *const c_char, ts: OptInt, vts: &[colnr_T]) -> c_int {
     unsafe {
         debug_assert!(char2cells(b' ' as c_int) == 1);
 
@@ -446,17 +413,10 @@ pub unsafe fn indent_size_ts(mut ptr: *const c_char, ts: OptInt, vts: *mut colnr
         let tabstop_width: c_int;
         let mut next_tab_vcol: c_int;
 
-        if vts.is_null() || *vts < 1 {
-            tabstop_width = (if ts == 0 { 8 } else { ts }) as c_int;
-            next_tab_vcol = tabstop_width;
-        } else {
-            let mut cur_tabstop = vts.add(1);
-            let last_tabstop = vts.add(*vts as usize);
-
-            while cur_tabstop != last_tabstop {
+        if let Some((&last_tabstop, init_tabstops)) = vts.split_last() {
+            for &cur_tabstop in init_tabstops {
                 let mut cur_vcol = vcol;
-                vcol += *cur_tabstop;
-                cur_tabstop = cur_tabstop.add(1);
+                vcol += cur_tabstop;
                 debug_assert!(cur_vcol < vcol);
 
                 loop {
@@ -475,8 +435,11 @@ pub unsafe fn indent_size_ts(mut ptr: *const c_char, ts: OptInt, vts: *mut colnr
                 }
             }
 
-            tabstop_width = *last_tabstop;
+            tabstop_width = last_tabstop;
             next_tab_vcol = vcol + tabstop_width;
+        } else {
+            tabstop_width = (if ts == 0 { 8 } else { ts }) as c_int;
+            next_tab_vcol = tabstop_width;
         }
 
         debug_assert!(tabstop_width != 0);
@@ -521,7 +484,7 @@ pub unsafe fn set_indent(size: c_int, flags: c_int) -> bool {
                 while todo > 0 && ascii_iswhite(*p) {
                     if *p == TAB {
                         tab_pad =
-                            tabstop_padding(ind_done, (*curbuf).b_p_ts, (*curbuf).b_p_vts_array);
+                            tabstop_padding(ind_done, (*curbuf).b_p_ts, &(*curbuf).b_p_vts_array);
                         if todo < tab_pad {
                             break;
                         }
@@ -540,7 +503,7 @@ pub unsafe fn set_indent(size: c_int, flags: c_int) -> bool {
                 if (*curbuf).b_p_et != 0 {
                     orig_char_len = ind_len;
                 }
-                tab_pad = tabstop_padding(ind_done, (*curbuf).b_p_ts, (*curbuf).b_p_vts_array);
+                tab_pad = tabstop_padding(ind_done, (*curbuf).b_p_ts, &(*curbuf).b_p_vts_array);
                 if todo >= tab_pad && orig_char_len == -1 {
                     doit = true;
                     todo -= tab_pad;
@@ -550,7 +513,7 @@ pub unsafe fn set_indent(size: c_int, flags: c_int) -> bool {
             }
 
             loop {
-                tab_pad = tabstop_padding(ind_col, (*curbuf).b_p_ts, (*curbuf).b_p_vts_array);
+                tab_pad = tabstop_padding(ind_col, (*curbuf).b_p_ts, &(*curbuf).b_p_vts_array);
                 if todo < tab_pad {
                     break;
                 }
@@ -632,7 +595,7 @@ pub unsafe fn set_indent(size: c_int, flags: c_int) -> bool {
                 while todo > 0 && ascii_iswhite(*p) {
                     if *p == TAB {
                         tab_pad =
-                            tabstop_padding(ind_done, (*curbuf).b_p_ts, (*curbuf).b_p_vts_array);
+                            tabstop_padding(ind_done, (*curbuf).b_p_ts, &(*curbuf).b_p_vts_array);
                         if todo < tab_pad {
                             break;
                         }
@@ -648,7 +611,7 @@ pub unsafe fn set_indent(size: c_int, flags: c_int) -> bool {
                     skipcols += 1;
                 }
 
-                tab_pad = tabstop_padding(ind_done, (*curbuf).b_p_ts, (*curbuf).b_p_vts_array);
+                tab_pad = tabstop_padding(ind_done, (*curbuf).b_p_ts, &(*curbuf).b_p_vts_array);
                 if todo >= tab_pad {
                     *s = TAB;
                     s = s.add(1);
@@ -659,7 +622,7 @@ pub unsafe fn set_indent(size: c_int, flags: c_int) -> bool {
             }
 
             loop {
-                tab_pad = tabstop_padding(ind_done, (*curbuf).b_p_ts, (*curbuf).b_p_vts_array);
+                tab_pad = tabstop_padding(ind_done, (*curbuf).b_p_ts, &(*curbuf).b_p_vts_array);
                 if todo < tab_pad {
                     break;
                 }
@@ -809,9 +772,10 @@ pub unsafe fn get_breakindent_win(wp: *mut win_T, line: *mut c_char) -> c_int {
         let no_ts = (*wp).w_onebuf_opt.wo_list != 0 && (*wp).w_p_lcs_chars.tab1 == 0;
 
         let buf = (*wp).w_buffer;
+        let prev_vts = &raw mut PREV_VTS;
         if PREV_FNUM != (*buf).b_fnum
             || PREV_TS != (*buf).b_p_ts
-            || PREV_VTS != (*buf).b_p_vts_array
+            || (*prev_vts).as_slice() != (*buf).b_p_vts_array.as_slice()
             || PREV_TICK != buf_get_changedtick(buf)
             || PREV_LISTOPT != (*wp).w_briopt_list
             || PREV_NO_TS != no_ts
@@ -825,12 +789,12 @@ pub unsafe fn get_breakindent_win(wp: *mut win_T, line: *mut c_char) -> c_int {
             xfree(PREV_LINE.cast());
             PREV_LINE = xstrdup(line);
             PREV_TS = (*buf).b_p_ts;
-            PREV_VTS = (*buf).b_p_vts_array;
+            (*prev_vts).clone_from(&(*buf).b_p_vts_array);
             if (*wp).w_briopt_vcol == 0 {
                 if no_ts {
                     PREV_INDENT = indent_size_no_ts(line);
                 } else {
-                    PREV_INDENT = indent_size_ts(line, (*buf).b_p_ts, (*buf).b_p_vts_array);
+                    PREV_INDENT = indent_size_ts(line, (*buf).b_p_ts, &(*buf).b_p_vts_array);
                 }
             }
             PREV_TICK = buf_get_changedtick(buf);
@@ -1308,7 +1272,7 @@ pub unsafe fn copy_indent(size: c_int, src: *mut c_char) -> bool {
 
             while todo > 0 && ascii_iswhite(*s) {
                 if *s == TAB {
-                    tab_pad = tabstop_padding(ind_done, (*curbuf).b_p_ts, (*curbuf).b_p_vts_array);
+                    tab_pad = tabstop_padding(ind_done, (*curbuf).b_p_ts, &(*curbuf).b_p_vts_array);
                     if todo < tab_pad {
                         break;
                     }
@@ -1329,7 +1293,7 @@ pub unsafe fn copy_indent(size: c_int, src: *mut c_char) -> bool {
                 s = s.add(1);
             }
 
-            tab_pad = tabstop_padding(ind_done, (*curbuf).b_p_ts, (*curbuf).b_p_vts_array);
+            tab_pad = tabstop_padding(ind_done, (*curbuf).b_p_ts, &(*curbuf).b_p_vts_array);
             if todo >= tab_pad && (*curbuf).b_p_et == 0 {
                 todo -= tab_pad;
                 ind_len += 1;
@@ -1343,7 +1307,7 @@ pub unsafe fn copy_indent(size: c_int, src: *mut c_char) -> bool {
 
             if (*curbuf).b_p_et == 0 {
                 loop {
-                    tab_pad = tabstop_padding(ind_col, (*curbuf).b_p_ts, (*curbuf).b_p_vts_array);
+                    tab_pad = tabstop_padding(ind_col, (*curbuf).b_p_ts, &(*curbuf).b_p_vts_array);
                     if todo < tab_pad {
                         break;
                     }
@@ -1402,7 +1366,7 @@ pub unsafe fn ex_retab(eap: *mut exarg_T) {
         let mut start_col: c_int = 0;
         let mut start_vcol: i64 = 0;
         let mut new_line: *mut c_char = ptr::dangling_mut::<c_char>();
-        let mut new_vts_array: *mut colnr_T = ptr::null_mut();
+        let mut new_vts_array: Vec<colnr_T> = Vec::new();
 
         let mut first_line: linenr_T = 0;
         let mut last_line: linenr_T = 0;
@@ -1420,7 +1384,7 @@ pub unsafe fn ex_retab(eap: *mut exarg_T) {
             data: errbuf_storage.as_mut_ptr(),
             size: IOSIZE,
         };
-        let errmsg = tabstop_set(ptr, &raw mut new_vts_array, &raw const errbuf);
+        let errmsg = tabstop_set(ptr, &mut new_vts_array, &raw const errbuf);
         if !errmsg.is_null() {
             emsg(gettext(errmsg));
             return;
@@ -1429,8 +1393,8 @@ pub unsafe fn ex_retab(eap: *mut exarg_T) {
             ptr = ptr.add(1);
         }
 
-        if new_vts_array.is_null() {
-            new_vts_array = (*curbuf).b_p_vts_array;
+        if new_vts_array.is_empty() {
+            new_vts_array = (*curbuf).b_p_vts_array.clone();
             new_ts_str = ptr::null_mut();
         } else {
             new_ts_str = xmemdupz(new_ts_str.cast(), ptr.offset_from(new_ts_str) as usize).cast();
@@ -1469,7 +1433,7 @@ pub unsafe fn ex_retab(eap: *mut exarg_T) {
                                 start_vcol as colnr_T,
                                 vcol as colnr_T,
                                 (*curbuf).b_p_ts as c_int,
-                                new_vts_array,
+                                &new_vts_array,
                                 &raw mut t,
                                 &raw mut s,
                             );
@@ -1571,7 +1535,7 @@ pub unsafe fn ex_retab(eap: *mut exarg_T) {
             let win_handle: handle_T = (*curwin).handle;
             let buf_handle: handle_T = (*curbuf).b_fnum;
 
-            if tabstop_count((*curbuf).b_p_vts_array) > 0 || tabstop_count(new_vts_array) > 1 {
+            if tabstop_count(&(*curbuf).b_p_vts_array) > 0 || tabstop_count(&new_vts_array) > 1 {
                 set_option_value(
                     kOptVartabstop,
                     cstr_as_obj(new_ts_str),
@@ -1582,13 +1546,12 @@ pub unsafe fn ex_retab(eap: *mut exarg_T) {
             } else {
                 set_option_value(
                     kOptTabstop,
-                    integer_obj(i64::from(tabstop_first(new_vts_array))),
+                    integer_obj(i64::from(tabstop_first(&new_vts_array))),
                     OPT_LOCAL,
                     true,
                     ptr::null(),
                 );
             }
-            xfree(new_vts_array.cast());
             xfree(new_ts_str.cast());
             if (*curwin).handle != win_handle || (*curbuf).b_fnum != buf_handle {
                 return;
@@ -1955,40 +1918,24 @@ mod tests {
     #[test]
     fn tabstop_set_padding_and_at_work() {
         unsafe {
-            let mut vts: *mut colnr_T = ptr::null_mut();
-            assert!(tabstop_set(c"4,8".as_ptr().cast_mut(), &raw mut vts, ptr::null()).is_null());
-            assert!(!vts.is_null());
-            assert_eq!(tabstop_count(vts), 2);
-            assert_eq!(tabstop_first(vts), 4);
-            assert_eq!(tabstop_padding(0, 8, vts), 4);
-            assert_eq!(tabstop_padding(4, 8, vts), 8);
-            assert_eq!(tabstop_at(0, 8, vts, false), 4);
-            xfree(vts.cast());
+            let mut vts: Vec<colnr_T> = Vec::new();
+            assert!(tabstop_set(c"4,8".as_ptr().cast_mut(), &mut vts, ptr::null()).is_null());
+            assert!(!vts.is_empty());
+            assert_eq!(tabstop_count(&vts), 2);
+            assert_eq!(tabstop_first(&vts), 4);
+            assert_eq!(tabstop_padding(0, 8, &vts), 4);
+            assert_eq!(tabstop_padding(4, 8, &vts), 8);
+            assert_eq!(tabstop_at(0, 8, &vts, false), 4);
 
+            assert_eq!(indent_size_ts(c"       a ".as_ptr(), 100, &[]), 7);
+            assert_eq!(indent_size_ts(c"   \t  \t \t\t   a ".as_ptr(), 4, &[]), 19);
             assert_eq!(
-                indent_size_ts(c"       a ".as_ptr(), 100, ptr::null_mut()),
-                7
-            );
-            assert_eq!(
-                indent_size_ts(c"   \t  \t \t\t   a ".as_ptr(), 4, ptr::null_mut()),
-                19
-            );
-            let mut empty_vts = [0 as colnr_T; 1];
-            assert_eq!(
-                indent_size_ts(
-                    c"   \t  \t \t\t       a ".as_ptr(),
-                    4,
-                    empty_vts.as_mut_ptr()
-                ),
+                indent_size_ts(c"   \t  \t \t\t       a ".as_ptr(), 4, &[]),
                 23
             );
-            let mut custom_vts = [2 as colnr_T, 7, 2];
+            let custom_vts = [7 as colnr_T, 2];
             assert_eq!(
-                indent_size_ts(
-                    c"      \t  \t \t\t   a ".as_ptr(),
-                    4,
-                    custom_vts.as_mut_ptr()
-                ),
+                indent_size_ts(c"      \t  \t \t\t   a ".as_ptr(), 4, &custom_vts),
                 18
             );
         }

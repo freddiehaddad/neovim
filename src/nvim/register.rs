@@ -1884,7 +1884,7 @@ pub unsafe fn do_put(
                     let viscol = getviscol();
                     let ts = (*curbuf).b_p_ts;
                     let cond = if dir == FORWARD {
-                        tabstop_padding(viscol, ts, (*curbuf).b_p_vts_array) != 1
+                        tabstop_padding(viscol, ts, &(*curbuf).b_p_vts_array) != 1
                     } else {
                         (*curwin).w_cursor.coladd > 0
                     };

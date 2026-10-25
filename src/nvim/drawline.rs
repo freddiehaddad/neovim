@@ -321,7 +321,7 @@ unsafe fn line_putchar(
         }
 
         if *p == TAB {
-            cells = tabstop_padding(vcol, (*buf).b_p_ts, (*buf).b_p_vts_array);
+            cells = tabstop_padding(vcol, (*buf).b_p_ts, &(*buf).b_p_vts_array);
             cells = cells.min(maxcells);
         }
 
@@ -500,7 +500,7 @@ unsafe fn draw_virt_text_item(
             while skip_cells > 0 && *virt_str != NUL {
                 let c_len = utfc_ptr2len(virt_str);
                 let cells = if *virt_str == TAB {
-                    tabstop_padding(vcol, (*buf).b_p_ts, (*buf).b_p_vts_array)
+                    tabstop_padding(vcol, (*buf).b_p_ts, &(*buf).b_p_vts_array)
                 } else {
                     utf_ptr2cells(virt_str)
                 };
@@ -2765,7 +2765,7 @@ pub unsafe fn win_line(
                                 wlv.n_extra = tabstop_padding(
                                     wlv.vcol,
                                     (*(*wp).w_buffer).b_p_ts,
-                                    (*(*wp).w_buffer).b_p_vts_array,
+                                    &(*(*wp).w_buffer).b_p_vts_array,
                                 ) - 1;
                             }
                             wlv.sc_extra =
@@ -2887,7 +2887,7 @@ pub unsafe fn win_line(
                             tab_len = tabstop_padding(
                                 vcol_adjusted,
                                 (*(*wp).w_buffer).b_p_ts,
-                                (*(*wp).w_buffer).b_p_vts_array,
+                                &(*(*wp).w_buffer).b_p_vts_array,
                             ) - 1;
 
                             if (*wp).w_onebuf_opt.wo_lbr == 0 || (*wp).w_onebuf_opt.wo_list == 0 {

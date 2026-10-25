@@ -627,7 +627,7 @@ unsafe fn insert_check(state: *mut VimState) -> c_int {
                     - tabstop_at(
                         get_nolist_virtcol(),
                         (*curbuf).b_p_ts,
-                        (*curbuf).b_p_vts_array,
+                        &(*curbuf).b_p_vts_array,
                         false,
                     )
                 && (*curwin).w_wrow
@@ -3235,7 +3235,7 @@ unsafe fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: *mut c_int) -> boo
 
             if mode == BACKSPACE_CHAR
                 && ((p_sta != 0 && in_indent)
-                    || ((get_sts_value() != 0 || tabstop_count((*curbuf).b_p_vsts_array) != 0)
+                    || ((get_sts_value() != 0 || tabstop_count(&(*curbuf).b_p_vsts_array) != 0)
                         && (*curwin).w_cursor.col > 0
                         && (*get_cursor_pos_ptr().offset(-1) == TAB as c_char
                             || (*get_cursor_pos_ptr().offset(-1) == b' ' as c_char
@@ -3274,7 +3274,7 @@ unsafe fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: *mut c_int) -> boo
                     want_vcol = tabstop_start(
                         want_vcol,
                         get_sts_value() as c_int,
-                        (*curbuf).b_p_vsts_array,
+                        &(*curbuf).b_p_vsts_array,
                     );
                 }
 
@@ -3670,12 +3670,12 @@ unsafe fn ins_tab() -> bool {
         if (*curbuf).b_p_et == 0
             && !(p_sta != 0
                 && ind
-                && ((tabstop_count((*curbuf).b_p_vts_array) > 1)
-                    || (tabstop_count((*curbuf).b_p_vts_array) == 1
-                        && tabstop_first((*curbuf).b_p_vts_array) != get_sw_value(curbuf))
-                    || (tabstop_count((*curbuf).b_p_vts_array) == 0
+                && ((tabstop_count(&(*curbuf).b_p_vts_array) > 1)
+                    || (tabstop_count(&(*curbuf).b_p_vts_array) == 1
+                        && tabstop_first(&(*curbuf).b_p_vts_array) != get_sw_value(curbuf))
+                    || (tabstop_count(&(*curbuf).b_p_vts_array) == 0
                         && (*curbuf).b_p_ts != i64::from(get_sw_value(curbuf)))))
-            && tabstop_count((*curbuf).b_p_vsts_array) == 0
+            && tabstop_count(&(*curbuf).b_p_vsts_array) == 0
             && get_sts_value() == 0
         {
             return true;
@@ -3694,17 +3694,17 @@ unsafe fn ins_tab() -> bool {
         let mut temp: c_int = if p_sta != 0 && ind {
             let sw = get_sw_value(curbuf);
             sw - (get_nolist_virtcol() % sw)
-        } else if tabstop_count((*curbuf).b_p_vsts_array) > 0 || (*curbuf).b_p_sts != 0 {
+        } else if tabstop_count(&(*curbuf).b_p_vsts_array) > 0 || (*curbuf).b_p_sts != 0 {
             tabstop_padding(
                 get_nolist_virtcol(),
                 i64::from(get_sts_value()),
-                (*curbuf).b_p_vsts_array,
+                &(*curbuf).b_p_vsts_array,
             )
         } else {
             tabstop_padding(
                 get_nolist_virtcol(),
                 (*curbuf).b_p_ts,
-                (*curbuf).b_p_vts_array,
+                &(*curbuf).b_p_vts_array,
             )
         };
 
@@ -3724,7 +3724,7 @@ unsafe fn ins_tab() -> bool {
         }
 
         if (*curbuf).b_p_et == 0
-            && (tabstop_count((*curbuf).b_p_vsts_array) > 0
+            && (tabstop_count(&(*curbuf).b_p_vsts_array) > 0
                 || get_sts_value() > 0
                 || (p_sta != 0 && ind))
         {

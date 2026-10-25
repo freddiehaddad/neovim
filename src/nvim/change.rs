@@ -1047,7 +1047,7 @@ pub unsafe fn open_line(
         if (flags & OPENLINE_FORCE_INDENT) != 0 {
             newindent = second_line_indent;
         } else if (*curbuf).b_p_ai != 0 || do_si {
-            newindent = indent_size_ts(saved_line, (*curbuf).b_p_ts, (*curbuf).b_p_vts_array);
+            newindent = indent_size_ts(saved_line, (*curbuf).b_p_ts, &(*curbuf).b_p_vts_array);
             if newindent == 0 && (flags & OPENLINE_COM_LIST) == 0 {
                 newindent = second_line_indent;
             }
@@ -1498,7 +1498,7 @@ pub unsafe fn open_line(
 
                     if (*curbuf).b_p_ai != 0 || do_si {
                         newindent =
-                            indent_size_ts(leader, (*curbuf).b_p_ts, (*curbuf).b_p_vts_array);
+                            indent_size_ts(leader, (*curbuf).b_p_ts, &(*curbuf).b_p_vts_array);
                     }
 
                     if newindent + off < 0 {

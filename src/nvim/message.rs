@@ -2675,7 +2675,7 @@ pub unsafe fn msg_prt_line(mut s: *const c_char, mut list: bool) {
                     }
                     if c == TAB && (!list || (*curwin).w_p_lcs_chars.tab1 != 0) {
                         n_extra =
-                            tabstop_padding(col, (*curbuf).b_p_ts, (*curbuf).b_p_vts_array) - 1;
+                            tabstop_padding(col, (*curbuf).b_p_ts, &(*curbuf).b_p_vts_array) - 1;
                         if !list {
                             sc = schar_from_ascii(b' ');
                             sc_extra = schar_from_ascii(b' ');

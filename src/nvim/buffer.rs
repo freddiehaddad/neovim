@@ -350,10 +350,10 @@ pub struct buf_T {
     pub b_p_wm_nobin: i64,
     pub b_p_wm_nopaste: i64,
     pub b_p_vsts: *mut c_char,
-    pub b_p_vsts_array: *mut i32,
+    pub b_p_vsts_array: Vec<i32>,
     pub b_p_vsts_nopaste: *mut c_char,
     pub b_p_vts: *mut c_char,
-    pub b_p_vts_array: *mut i32,
+    pub b_p_vts_array: Vec<i32>,
     pub b_p_keymap: *mut c_char,
     pub b_p_gefm: *mut c_char,
     pub b_p_gp: *mut c_char,
@@ -631,10 +631,10 @@ impl buf_T {
             b_p_wm_nobin: 0,
             b_p_wm_nopaste: 0,
             b_p_vsts: ptr::null_mut(),
-            b_p_vsts_array: ptr::null_mut(),
+            b_p_vsts_array: Vec::new(),
             b_p_vsts_nopaste: ptr::null_mut(),
             b_p_vts: ptr::null_mut(),
-            b_p_vts_array: ptr::null_mut(),
+            b_p_vts_array: Vec::new(),
             b_p_keymap: ptr::null_mut(),
             b_p_gefm: ptr::null_mut(),
             b_p_gp: ptr::null_mut(),
@@ -2951,11 +2951,9 @@ pub unsafe fn free_buf_options(buf: *mut buf_T, free_p_ff: bool) {
         clear_string_option(&raw mut (*buf).b_p_vsts);
         xfree((*buf).b_p_vsts_nopaste.cast());
         (*buf).b_p_vsts_nopaste = ptr::null_mut();
-        xfree((*buf).b_p_vsts_array.cast());
-        (*buf).b_p_vsts_array = ptr::null_mut();
+        (*buf).b_p_vsts_array = Vec::new();
         clear_string_option(&raw mut (*buf).b_p_vts);
-        xfree((*buf).b_p_vts_array.cast());
-        (*buf).b_p_vts_array = ptr::null_mut();
+        (*buf).b_p_vts_array = Vec::new();
         clear_string_option(&raw mut (*buf).b_p_keymap);
         keymap_ga_clear(&raw mut (*buf).b_kmap_ga);
         clear_string_option(&raw mut (*buf).b_p_com);
