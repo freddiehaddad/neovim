@@ -22,7 +22,6 @@ use crate::ex_docmd::do_cmdline_cmd;
 use crate::extmark::{extmark_del_id, extmark_get_pos, extmark_set_pos};
 use crate::fileio::shorten_fnames;
 use crate::globals::*;
-use crate::hashtab::hash_init;
 use crate::mark::{fmark_T, fmarkv_T};
 use crate::memory::{Arena, strequal_str, xfree, xstrdup};
 use crate::msgpack_rpc::packer::handle_T;
@@ -990,7 +989,6 @@ pub unsafe fn ctx_restore(cs: *mut CtxSwitch) {
             }
 
             vars_clear(&raw mut (*(*cwp).w_vars).dv_hashtab);
-            hash_init(&raw mut (*(*cwp).w_vars).dv_hashtab);
 
             ctx_localdirs_restore(cs, cwp, curtab, ((*cs).cs_flags & kCtxKeepDirs) == 0);
 

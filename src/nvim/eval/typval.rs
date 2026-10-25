@@ -25,7 +25,7 @@ use crate::eval::{
 };
 use crate::globals::*;
 use crate::hashtab::{
-    hash_add, hash_clear, hash_find, hash_find_len, hash_init, hash_lock, hash_remove, hash_unlock,
+    hash_add, hash_clear, hash_find, hash_find_len, hash_lock, hash_remove, hash_unlock,
     hashitem_T, hashitem_empty,
 };
 use crate::lua::converter::{LUA_NOREF, LuaRef};
@@ -2782,8 +2782,6 @@ pub unsafe fn tv_dict_alloc() -> *mut dict_T {
         }
         gc_first_dict = d;
 
-        hash_init(&raw mut (*d).dv_hashtab);
-
         d
     }
 }
@@ -2808,8 +2806,6 @@ pub unsafe fn tv_dict_free_contents(d: *mut dict_T) {
         (*d).watchers.clear();
 
         hash_clear(&raw mut (*d).dv_hashtab);
-        (*d).dv_hashtab.ht_locked -= 1;
-        hash_init(&raw mut (*d).dv_hashtab);
     }
 }
 

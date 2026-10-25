@@ -49,7 +49,7 @@ use crate::fuzzy::{
 };
 use crate::globals::IOSIZE;
 use crate::globals::*;
-use crate::hashtab::{hash_find, hash_init, hash_remove};
+use crate::hashtab::{hash_find, hash_remove};
 use crate::help::get_local_additions;
 use crate::indent::inindent;
 use crate::indent_c::parse_cino;
@@ -1787,7 +1787,6 @@ unsafe fn free_buffer_stuff(buf: *mut buf_T, free_flags: c_int) {
             hash_remove(&raw mut (*(*buf).b_vars).dv_hashtab, changedtick_hi);
         }
         vars_clear(&raw mut (*(*buf).b_vars).dv_hashtab);
-        hash_init(&raw mut (*(*buf).b_vars).dv_hashtab);
         if (free_flags & kBffInitChangedtick) != 0 {
             buf_init_changedtick(buf);
         }

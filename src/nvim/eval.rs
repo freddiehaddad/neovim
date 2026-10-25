@@ -119,7 +119,7 @@ use crate::event::time::{
     TimeWatcher, time_watcher_close, time_watcher_init, time_watcher_start, time_watcher_stop,
 };
 use crate::ex_eval::{aborting, discard_current_exception};
-use crate::hashtab::{hash_init, hashitem_empty, hashtab_T};
+use crate::hashtab::{hashitem_empty, hashtab_T};
 use crate::highlight_group::syn_name2id;
 use crate::insexpand::{set_ref_in_cpt_callbacks, set_ref_in_insexpand_funcs};
 use crate::keycodes::{
@@ -371,12 +371,7 @@ pub unsafe fn get_v_event(sve: *mut save_v_event_T) -> *mut dict_T {
 
         if (*v_event).dv_hashtab.ht_used > 0 {
             (*sve).sve_did_save = true;
-            ptr::copy_nonoverlapping(
-                &raw const (*v_event).dv_hashtab,
-                &raw mut (*sve).sve_hashtab,
-                1,
-            );
-            hash_init(&raw mut (*v_event).dv_hashtab);
+            (*sve).sve_hashtab = std::mem::take(&mut (*v_event).dv_hashtab);
         } else {
             (*sve).sve_did_save = false;
         }
@@ -388,13 +383,7 @@ pub unsafe fn restore_v_event(v_event: *mut dict_T, sve: *mut save_v_event_T) {
     unsafe {
         tv_dict_free_contents(v_event);
         if (*sve).sve_did_save {
-            ptr::copy_nonoverlapping(
-                &raw const (*sve).sve_hashtab,
-                &raw mut (*v_event).dv_hashtab,
-                1,
-            );
-        } else {
-            hash_init(&raw mut (*v_event).dv_hashtab);
+            (*v_event).dv_hashtab = std::mem::take(&mut (*sve).sve_hashtab);
         }
     }
 }

@@ -47,8 +47,8 @@ use crate::extmark::{TriState, kFalse, kNone, kTrue};
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::hashtab::{
-    HT_INIT_SIZE, hash_add, hash_clear, hash_find, hash_find_len, hash_init, hash_lock,
-    hash_remove, hash_unlock, hashitem_T, hashitem_empty, hashtab_T,
+    hash_add, hash_clear, hash_find, hash_find_len, hash_lock, hash_remove, hash_unlock,
+    hashitem_T, hashitem_empty, hashtab_T,
 };
 use crate::lua::executor::{nlua_funcref_str, nlua_set_sctx};
 use crate::math::{FAIL, OK};
@@ -344,24 +344,13 @@ const fn make_vimvar(name: &'static CStr, v_type: VarType, flags: c_char) -> Vim
     }
 }
 
-const fn empty_hashtab() -> hashtab_T {
-    hashtab_T {
-        ht_mask: HT_INIT_SIZE - 1,
-        ht_used: 0,
-        ht_filled: 0,
-        ht_changed: 0,
-        ht_locked: 0,
-        ht_array: crate::hashtab::empty_hasharray_ptr(),
-    }
-}
-
 const fn empty_dict() -> dict_T {
     dict_T {
         dv_lock: 0,
         dv_scope: 0,
         dv_refcount: 0,
         dv_copyID: 0,
-        dv_hashtab: empty_hashtab(),
+        dv_hashtab: hashtab_T::new(),
         dv_copydict: ptr::null_mut(),
         dv_used_next: ptr::null_mut(),
         dv_used_prev: ptr::null_mut(),
@@ -384,7 +373,7 @@ const fn empty_scope_var() -> ScopeDictDictItem {
 
 static mut globvars_var: ScopeDictDictItem = empty_scope_var();
 static mut globvardict: dict_T = empty_dict();
-static mut compat_hashtab: hashtab_T = empty_hashtab();
+static mut compat_hashtab: hashtab_T = hashtab_T::new();
 
 static mut vimvars_var: ScopeDictDictItem = empty_scope_var();
 static mut vimvardict: dict_T = empty_dict();
@@ -575,7 +564,7 @@ pub unsafe fn evalvars_init() {
         init_var_dict(get_globvar_dict(), &raw mut globvars_var, VAR_DEF_SCOPE);
         init_var_dict(&raw mut vimvardict, &raw mut vimvars_var, VAR_SCOPE);
         vimvardict.dv_lock = VAR_FIXED;
-        hash_init(&raw mut compat_hashtab);
+        hash_clear(&raw mut compat_hashtab);
 
         let vimvars_ptr = (&raw mut vimvars).cast::<VimVar>();
         for i in 0..VV_LEN {
@@ -704,7 +693,6 @@ pub unsafe fn evalvars_clear() {
         partial_unref(get_vim_var_partial(VV_LUA));
         set_vim_var_partial(VV_LUA, ptr::null_mut());
         hash_clear(&raw mut vimvardict.dv_hashtab);
-        hash_init(&raw mut vimvardict.dv_hashtab);
         hash_clear(&raw mut compat_hashtab);
 
         vars_clear(get_globvar_ht());
@@ -2961,7 +2949,7 @@ pub unsafe fn new_script_vars(id: scid_T) {
 /// Initialize dictionary "dict" as a scope and set variable "dict_var" to point to it.
 pub unsafe fn init_var_dict(dict: *mut dict_T, dict_var: *mut ScopeDictDictItem, scope: ScopeType) {
     unsafe {
-        hash_init(&raw mut (*dict).dv_hashtab);
+        hash_clear(&raw mut (*dict).dv_hashtab);
         (*dict).dv_lock = VAR_UNLOCKED;
         (*dict).dv_scope = scope;
         (*dict).dv_refcount = DO_NOT_FREE_CNT;
@@ -3011,7 +2999,6 @@ pub unsafe fn vars_clear_ext(ht: *mut hashtab_T, free_val: bool) {
             hi = hi.add(1);
         }
         hash_clear(ht);
-        hash_init(ht);
     }
 }
 

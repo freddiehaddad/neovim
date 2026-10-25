@@ -64,7 +64,6 @@ use crate::globals::*;
 use crate::grid::{
     GridView, ScreenGrid, grid_adjust, grid_assign_handle, grid_clear, grid_free, win_grid_alloc,
 };
-use crate::hashtab::hash_init;
 use crate::input::{beep_flush, langmap_adjust, plain_vgetc};
 use crate::insert::{Ctrl_J, Ctrl_S, Ctrl_X, beginline, cursor_down_inner, cursor_up_inner};
 use crate::keycodes::{CAR, K_BS, K_DOWN, K_KENTER, K_LEFT, K_RIGHT, K_UP, TAB};
@@ -5126,7 +5125,6 @@ impl Drop for tabpage_T {
             }
             if !self.tp_vars.is_null() {
                 vars_clear(&raw mut (*self.tp_vars).dv_hashtab);
-                hash_init(&raw mut (*self.tp_vars).dv_hashtab);
                 unref_var_dict(self.tp_vars);
             }
             if ptr::eq(self, lastused_tabpage) {
@@ -6290,7 +6288,6 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
         (*wp).w_p_lcs_chars.leadmultispace = Vec::new();
 
         vars_clear(&raw mut (*(*wp).w_vars).dv_hashtab);
-        hash_init(&raw mut (*(*wp).w_vars).dv_hashtab);
         unref_var_dict((*wp).w_vars);
 
         if ptr::eq(prevwin, wp) {

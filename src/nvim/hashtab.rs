@@ -42,12 +42,27 @@ pub struct hashtab_T {
 impl hashtab_T {
     pub const fn new() -> Self {
         Self {
-            ht_mask: 0,
+            ht_mask: HT_INIT_SIZE - 1,
             ht_used: 0,
             ht_filled: 0,
             ht_changed: 0,
             ht_locked: 0,
-            ht_array: std::ptr::null_mut(),
+            ht_array: empty_hasharray_ptr(),
+        }
+    }
+}
+
+impl Default for hashtab_T {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Drop for hashtab_T {
+    fn drop(&mut self) {
+        unsafe {
+            free_hasharray(self.ht_array, self.ht_mask + 1);
+            self.ht_array = empty_hasharray_ptr();
         }
     }
 }
@@ -88,19 +103,6 @@ unsafe fn key_matches(hi_key: *const c_char, key: *const c_char, key_len: usize)
     unsafe { *hi_key.add(key_len) == 0 }
 }
 
-/// Initialize an empty hash table (`hash_init`).
-///
-/// # Safety
-/// `ht` must be a valid writable pointer to a `hashtab_T`.
-pub unsafe fn hash_init(ht: *mut hashtab_T) {
-    unsafe {
-        *ht = hashtab_T::new();
-        let ht_ref = &mut *ht;
-        ht_ref.ht_array = empty_hasharray_ptr();
-        ht_ref.ht_mask = HT_INIT_SIZE - 1;
-    }
-}
-
 #[inline]
 fn alloc_hasharray(size: usize) -> *mut hashitem_T {
     Box::into_raw(vec![hashitem_T::default(); size].into_boxed_slice()).cast::<hashitem_T>()
@@ -120,11 +122,9 @@ unsafe fn free_hasharray(ptr: *mut hashitem_T, size: usize) {
 /// # Safety
 /// `ht` must be a valid writable pointer to an initialized `hashtab_T`.
 pub unsafe fn hash_clear(ht: *mut hashtab_T) {
-    let ht_ref = unsafe { &mut *ht };
     unsafe {
-        free_hasharray(ht_ref.ht_array, ht_ref.ht_mask + 1);
+        *ht = hashtab_T::new();
     }
-    ht_ref.ht_array = empty_hasharray_ptr();
 }
 
 /// Find item for NUL-terminated `key` in `ht` (`hash_find`).
@@ -441,7 +441,6 @@ mod tests {
 
         unsafe {
             let ht: *mut hashtab_T = &raw mut ht_val;
-            hash_init(ht);
             assert_eq!((*ht).ht_used, 0);
 
             let items: Vec<*mut crate::eval::typval::dictitem_T> = keys
