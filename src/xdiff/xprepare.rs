@@ -135,9 +135,7 @@ unsafe fn xdl_prepare_ctx(
 
         let mut nrec: c_long = 0;
         let mut bsize: c_long = 0;
-        let blk = xdl_mmfile_first(mf, &mut bsize)
-            .cast::<c_char>()
-            .cast_const();
+        let blk = xdl_mmfile_first(mf, &mut bsize).cast_const();
         let mut cur = blk;
         if !cur.is_null() {
             let top = blk.offset(bsize as isize);

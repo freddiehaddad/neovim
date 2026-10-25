@@ -16,7 +16,7 @@ use crate::xdiff::{
     XDF_HISTOGRAM_DIFF, XDF_IGNORE_CR_AT_EOL, XDF_INDENT_HEURISTIC, XDF_NEED_MINIMAL,
     XDF_PATIENCE_DIFF, mmbuffer_t, mmfile_t, xdemitcb_t, xdemitconf_t, xpparam_t,
 };
-use std::ffi::{c_char, c_int, c_long, c_void};
+use std::ffi::{c_char, c_int, c_long};
 
 const COMPARED_BUFFER0: c_int = 1 << 0;
 const COMPARED_BUFFER1: c_int = 1 << 1;
@@ -87,7 +87,7 @@ impl KeyDict_xdl_diff {
     }
 }
 
-struct HunkPriv {
+pub(crate) struct HunkPriv {
     lstate: *mut lua_State,
     err: *mut Error,
     ma: *mut mmfile_t,
@@ -188,8 +188,12 @@ unsafe fn get_linematch_results(
     }
 }
 
-unsafe fn write_string(priv_data: *mut c_void, mb: *mut mmbuffer_t, nbuf: c_int) -> c_int {
-    let out = unsafe { &mut *priv_data.cast::<Vec<u8>>() };
+pub(crate) unsafe fn write_string(
+    priv_data: *mut Vec<u8>,
+    mb: *mut mmbuffer_t,
+    nbuf: c_int,
+) -> c_int {
+    let out = unsafe { &mut *priv_data };
     for i in 0..nbuf.max(0) as usize {
         unsafe {
             let chunk = &*mb.add(i);
@@ -202,14 +206,14 @@ unsafe fn write_string(priv_data: *mut c_void, mb: *mut mmbuffer_t, nbuf: c_int)
     0
 }
 
-unsafe fn hunk_locations_cb(
+pub(crate) unsafe fn hunk_locations_cb(
     start_a: c_int,
     count_a: c_int,
     start_b: c_int,
     count_b: c_int,
-    cb_data: *mut c_void,
+    cb_data: *mut HunkPriv,
 ) -> c_int {
-    let priv_ref = unsafe { &mut *cb_data.cast::<HunkPriv>() };
+    let priv_ref = unsafe { &mut *cb_data };
     let lstate = priv_ref.lstate;
     if priv_ref.linematch > 0 && i64::from(count_a) + i64::from(count_b) <= priv_ref.linematch {
         unsafe {
@@ -238,12 +242,12 @@ unsafe fn hunk_locations_cb(
     0
 }
 
-unsafe fn call_on_hunk_cb(
+pub(crate) unsafe fn call_on_hunk_cb(
     mut start_a: c_int,
     count_a: c_int,
     mut start_b: c_int,
     count_b: c_int,
-    cb_data: *mut c_void,
+    cb_data: *mut HunkPriv,
 ) -> c_int {
     if count_a > 0 {
         start_a += 1;
@@ -252,7 +256,7 @@ unsafe fn call_on_hunk_cb(
         start_b += 1;
     }
 
-    let priv_ref = unsafe { &mut *cb_data.cast::<HunkPriv>() };
+    let priv_ref = unsafe { &mut *cb_data };
     let lstate = priv_ref.lstate;
     let err = priv_ref.err;
 
@@ -314,7 +318,7 @@ unsafe fn process_xdl_diff_opts(
     unsafe {
         nlua_pop_keydict(
             lstate,
-            (&raw mut opts).cast::<c_void>(),
+            (&raw mut opts).cast(),
             Some(KeyDict_xdl_diff_get_field),
             &mut err_param,
             std::ptr::null_mut(),
@@ -448,11 +452,6 @@ pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> c_int {
 
         let mut cfg = xdemitconf_t::default();
         let mut params = xpparam_t::default();
-        let mut ecb = xdemitcb_t {
-            priv_data: std::ptr::null_mut(),
-            out_hunk: None,
-            out_line: None,
-        };
         let mut linematch: i64 = 0;
         let mut mode = NluaXdiffMode::Unified;
 
@@ -474,21 +473,14 @@ pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> c_int {
         };
 
         if err.err_type == ErrorType::kErrorTypeNone {
-            match mode {
-                NluaXdiffMode::Unified => {
-                    ecb.priv_data = (&raw mut unified_buf).cast::<c_void>();
-                    ecb.out_line = Some(write_string);
-                }
-                NluaXdiffMode::OnHunkCb => {
-                    cfg.hunk_func = Some(call_on_hunk_cb);
-                    ecb.priv_data = (&raw mut priv_state).cast::<c_void>();
-                }
+            let mut ecb = match mode {
+                NluaXdiffMode::Unified => xdemitcb_t::Unified(&raw mut unified_buf),
+                NluaXdiffMode::OnHunkCb => xdemitcb_t::OnHunk(&raw mut priv_state),
                 NluaXdiffMode::Locations => {
-                    cfg.hunk_func = Some(hunk_locations_cb);
-                    ecb.priv_data = (&raw mut priv_state).cast::<c_void>();
                     lua_createtable(lstate, 0, 0);
+                    xdemitcb_t::Locations(&raw mut priv_state)
                 }
-            }
+            };
 
             if xdl_diff(&mut ma, &mut mb, &params, &cfg, &mut ecb) == -1
                 && err.err_type == ErrorType::kErrorTypeNone

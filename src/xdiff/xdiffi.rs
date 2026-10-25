@@ -849,14 +849,12 @@ unsafe fn xdl_call_hunk_func(
             if xch.is_null() {
                 break;
             }
-            if let Some(hunk_func) = (*xecfg).hunk_func
-                && hunk_func(
-                    (*xch).i1 as c_int,
-                    ((*xche).i1 + (*xche).chg1 - (*xch).i1) as c_int,
-                    (*xch).i2 as c_int,
-                    ((*xche).i2 + (*xche).chg2 - (*xch).i2) as c_int,
-                    (*ecb).priv_data,
-                ) < 0
+            if (*ecb).call_hunk(
+                (*xch).i1 as c_int,
+                ((*xche).i1 + (*xche).chg1 - (*xch).i1) as c_int,
+                (*xch).i2 as c_int,
+                ((*xche).i2 + (*xche).chg2 - (*xch).i2) as c_int,
+            ) < 0
             {
                 return -1;
             }
@@ -912,7 +910,7 @@ pub unsafe fn xdl_diff(
     unsafe {
         let mut xscr: *mut xdchange_t = ptr::null_mut();
         let mut xe = xdfenv_t::new();
-        let ef: emit_func_t = if (*xecfg).hunk_func.is_some() {
+        let ef: emit_func_t = if (*ecb).has_hunk_func() {
             xdl_call_hunk_func
         } else {
             xdl_emit_diff_wrapper

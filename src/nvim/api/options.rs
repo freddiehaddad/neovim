@@ -23,18 +23,18 @@ use crate::lua::converter::Boolean;
 use crate::memline::ml_open;
 use crate::memory::{Arena, arena_memdupz, strequal_str, xfree, xmalloc, xstrdup};
 use crate::option::{
-    OP_ADDING, OP_NONE, OP_PREPENDING, OP_REMOVING, OPT_GLOBAL, OPT_LOCAL, OptScope, PREFIX_NONE,
-    copy_option_part, escape_option_str_cmdline, find_option, get_all_options_info, get_option,
-    get_option_info, get_option_newval, get_option_value_for, get_option_varp_scope_from,
-    get_varp_from, kOptBufhidden, kOptBuftype, kOptFiletype, kOptFlagColon, kOptFlagComma,
-    kOptFlagFlagList, kOptInvalid, kOptModeline, kOptScopeBuf, kOptScopeGlobal, kOptScopeTab,
-    kOptScopeWin, kOptSwapfile, opt_from_varp, option_has_scope, option_has_type, optval_free,
-    optval_from_obj, optval_own, set_op_T, set_option_direct, set_option_value_for,
-    validate_and_prepare_option_value,
+    OP_ADDING, OP_NONE, OP_PREPENDING, OP_REMOVING, OPT_GLOBAL, OPT_LOCAL, OptScope, OptTarget,
+    PREFIX_NONE, copy_option_part, escape_option_str_cmdline, find_option, get_all_options_info,
+    get_option, get_option_info, get_option_newval, get_option_value_for,
+    get_option_varp_scope_from, get_varp_from, kOptBufhidden, kOptBuftype, kOptFiletype,
+    kOptFlagColon, kOptFlagComma, kOptFlagFlagList, kOptInvalid, kOptModeline, kOptScopeBuf,
+    kOptScopeGlobal, kOptScopeTab, kOptScopeWin, kOptSwapfile, opt_from_varp, option_has_scope,
+    option_has_type, optval_free, optval_from_obj, optval_own, set_op_T, set_option_direct,
+    set_option_value_for, validate_and_prepare_option_value,
 };
 use crate::strings::{strchr, strlen};
-use crate::window::{close_windows, win_T};
-use std::ffi::{CStr, c_char, c_int, c_void};
+use crate::window::close_windows;
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::highlight::OptionalKeys;
@@ -73,7 +73,7 @@ unsafe fn validate_option_value_args(
     opt_idxp: *mut OptIndex,
     opt_flags: *mut c_int,
     scope: *mut OptScope,
-    from: *mut *mut c_void,
+    from: *mut OptTarget,
     filetype: *mut *mut c_char,
     operation: *mut set_op_T,
     dry_run: *mut bool,
@@ -143,7 +143,7 @@ unsafe fn validate_option_value_args(
 
         if has_key(mask, KEYSET_OPTIDX_option__win) {
             *scope = kOptScopeWin;
-            *from = find_window_by_handle((*opts).win, err).cast();
+            *from = OptTarget::Win(find_window_by_handle((*opts).win, err));
             if error_set(err) {
                 return FAIL;
             }
@@ -156,7 +156,7 @@ unsafe fn validate_option_value_args(
             }
             *opt_flags = OPT_LOCAL;
             *scope = kOptScopeBuf;
-            *from = find_buffer_by_handle((*opts).buf, err).cast();
+            *from = OptTarget::Buf(find_buffer_by_handle((*opts).buf, err));
             if error_set(err) {
                 return FAIL;
             }
@@ -164,7 +164,7 @@ unsafe fn validate_option_value_args(
 
         if has_key(mask, KEYSET_OPTIDX_option__tab) {
             *scope = kOptScopeTab;
-            *from = find_tab_by_handle((*opts).tab, err).cast();
+            *from = OptTarget::Tab(find_tab_by_handle((*opts).tab, err));
             if error_set(err) {
                 return FAIL;
             }
@@ -395,7 +395,7 @@ pub unsafe extern "C" fn nvim_get_option_value(
         let mut opt_idx: OptIndex = 0;
         let mut opt_flags: c_int = 0;
         let mut scope: OptScope = kOptScopeGlobal;
-        let mut from: *mut c_void = ptr::null_mut();
+        let mut from = OptTarget::Global;
         let mut filetype: *mut c_char = ptr::null_mut();
 
         if validate_option_value_args(
@@ -427,8 +427,8 @@ pub unsafe extern "C" fn nvim_get_option_value(
         }
 
         if !ftbuf.is_null() {
-            assert!(from.is_null());
-            from = ftbuf.cast();
+            assert!(matches!(from, OptTarget::Global));
+            from = OptTarget::Buf(ftbuf);
         }
 
         let value = get_option_value_for(opt_idx, opt_flags, scope, from, err);
@@ -595,7 +595,7 @@ pub unsafe extern "C" fn nvim_set_option_value(
         let mut opt_flags: c_int = 0;
         let mut scope: OptScope = kOptScopeGlobal;
         let mut operation: set_op_T = OP_NONE;
-        let mut to: *mut c_void = ptr::null_mut();
+        let mut to = OptTarget::Global;
         let mut dry_run = false;
 
         if validate_option_value_args(
@@ -625,13 +625,13 @@ pub unsafe extern "C" fn nvim_set_option_value(
         let is_array = value.obj_type == ObjectType::kObjectTypeArray;
         let is_dict = value.obj_type == ObjectType::kObjectTypeDict;
 
-        let buf = if scope == kOptScopeBuf {
-            to as *mut buf_T
+        let buf = if let (kOptScopeBuf, OptTarget::Buf(b)) = (scope, to) {
+            b
         } else {
             curbuf
         };
-        let win = if scope == kOptScopeWin {
-            to as *mut win_T
+        let win = if let (kOptScopeWin, OptTarget::Win(w)) = (scope, to) {
+            w
         } else {
             curwin
         };
@@ -854,7 +854,7 @@ pub unsafe extern "C" fn nvim_get_option_info2(
         let mut opt_idx: OptIndex = 0;
         let mut opt_flags: c_int = 0;
         let mut scope: OptScope = kOptScopeGlobal;
-        let mut from: *mut c_void = ptr::null_mut();
+        let mut from = OptTarget::Global;
 
         if validate_option_value_args(
             opts,
@@ -873,13 +873,13 @@ pub unsafe extern "C" fn nvim_get_option_info2(
             return Dict::new();
         }
 
-        let buf = if scope == kOptScopeBuf {
-            from as *mut buf_T
+        let buf = if let (kOptScopeBuf, OptTarget::Buf(b)) = (scope, from) {
+            b
         } else {
             curbuf
         };
-        let win = if scope == kOptScopeWin {
-            from as *mut win_T
+        let win = if let (kOptScopeWin, OptTarget::Win(w)) = (scope, from) {
+            w
         } else {
             curwin
         };

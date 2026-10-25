@@ -6215,29 +6215,46 @@ pub unsafe fn set_option_value_give_err(opt_idx: OptIndex, value: Object, opt_fl
     }
 }
 
+#[derive(Clone, Copy)]
+pub enum OptTarget {
+    Global,
+    Win(*mut win_T),
+    Buf(*mut buf_T),
+    Tab(*mut tabpage_T),
+}
+
+enum OptSavedCtx {
+    None,
+    Switch(CtxSwitch),
+    Tab(*mut tabpage_T),
+}
+
 /// Switch current context to get/set option value for the target window/buffer/tabpage.
 unsafe fn switch_option_context(
-    ctx: *mut c_void,
+    ctx: &mut OptSavedCtx,
     scope: OptScope,
-    from: *mut c_void,
+    from: OptTarget,
     err: *mut Error,
 ) -> bool {
     unsafe {
         match scope {
             kOptScopeGlobal => false,
             kOptScopeWin => {
-                let win = from.cast::<win_T>();
+                let OptTarget::Win(win) = from else {
+                    return false;
+                };
                 if win == curwin {
                     return false;
                 }
+                let mut cs = CtxSwitch::new();
                 if !ctx_switch(
-                    ctx.cast::<CtxSwitch>(),
+                    &raw mut cs,
                     win,
                     win_find_tabpage(win),
                     ptr::null_mut(),
                     kCtxNoDisplay,
                 ) {
-                    ctx_restore(ctx.cast::<CtxSwitch>());
+                    ctx_restore(&raw mut cs);
                     if !error_set(err) {
                         api_set_error!(
                             err,
@@ -6247,29 +6264,29 @@ unsafe fn switch_option_context(
                     }
                     return false;
                 }
+                *ctx = OptSavedCtx::Switch(cs);
                 true
             }
             kOptScopeBuf => {
-                let buf = from.cast::<buf_T>();
+                let OptTarget::Buf(buf) = from else {
+                    return false;
+                };
                 if buf == curbuf {
                     return false;
                 }
-                ctx_switch(
-                    ctx.cast::<CtxSwitch>(),
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    buf,
-                    0,
-                );
+                let mut cs = CtxSwitch::new();
+                ctx_switch(&raw mut cs, ptr::null_mut(), ptr::null_mut(), buf, 0);
+                *ctx = OptSavedCtx::Switch(cs);
                 true
             }
             kOptScopeTab => {
-                let tab = from.cast::<tabpage_T>();
-                let saved_curtab = ctx.cast::<*mut tabpage_T>();
+                let OptTarget::Tab(tab) = from else {
+                    return false;
+                };
                 if tab == curtab {
                     return false;
                 }
-                *saved_curtab = curtab;
+                *ctx = OptSavedCtx::Tab(curtab);
                 unuse_tabpage(curtab);
                 use_tabpage(tab);
                 true
@@ -6279,17 +6296,16 @@ unsafe fn switch_option_context(
     }
 }
 
-unsafe fn restore_option_context(ctx: *mut c_void, scope: OptScope) {
+unsafe fn restore_option_context(ctx: &mut OptSavedCtx, scope: OptScope) {
     unsafe {
-        match scope {
-            kOptScopeGlobal => {}
-            kOptScopeWin | kOptScopeBuf => {
-                ctx_restore(ctx.cast::<CtxSwitch>());
+        match (scope, ctx) {
+            (kOptScopeGlobal, _) => {}
+            (kOptScopeWin | kOptScopeBuf, OptSavedCtx::Switch(cs)) => {
+                ctx_restore(cs);
             }
-            kOptScopeTab => {
-                let saved_curtab = *(ctx.cast::<*mut tabpage_T>());
+            (kOptScopeTab, OptSavedCtx::Tab(saved_curtab)) => {
                 unuse_tabpage(curtab);
-                use_tabpage(saved_curtab);
+                use_tabpage(*saved_curtab);
             }
             _ => {}
         }
@@ -6301,19 +6317,13 @@ pub unsafe fn get_option_value_for(
     opt_idx: OptIndex,
     opt_flags: c_int,
     scope: OptScope,
-    from: *mut c_void,
+    from: OptTarget,
     err: *mut Error,
 ) -> Object {
     unsafe {
-        let mut cs = CtxSwitch::new();
-        let mut swtab: *mut tabpage_T = ptr::null_mut();
-        let ctx = if scope == kOptScopeTab {
-            (&raw mut swtab).cast::<c_void>()
-        } else {
-            (&raw mut cs).cast::<c_void>()
-        };
+        let mut ctx = OptSavedCtx::None;
 
-        let switched = switch_option_context(ctx, scope, from, err);
+        let switched = switch_option_context(&mut ctx, scope, from, err);
         if error_set(err) {
             return nil_obj();
         }
@@ -6321,7 +6331,7 @@ pub unsafe fn get_option_value_for(
         let retv = get_option_value(opt_idx, opt_flags);
 
         if switched {
-            restore_option_context(ctx, scope);
+            restore_option_context(&mut ctx, scope);
         }
 
         retv
@@ -6334,13 +6344,14 @@ pub unsafe fn set_option_value_for(
     value: Object,
     opt_flags: c_int,
     scope: OptScope,
-    from: *mut c_void,
+    from: OptTarget,
     value_replaced: bool,
     err: *mut Error,
 ) {
     unsafe {
-        if scope == kOptScopeTab && from.cast::<tabpage_T>() != curtab {
-            let tab = from.cast::<tabpage_T>();
+        if let (kOptScopeTab, OptTarget::Tab(tab)) = (scope, from)
+            && tab != curtab
+        {
             assert!(opt_idx == kOptCmdheight);
             if value.obj_type != ObjectType::kObjectTypeInteger {
                 api_set_error!(
@@ -6354,15 +6365,9 @@ pub unsafe fn set_option_value_for(
             return;
         }
 
-        let mut cs = CtxSwitch::new();
-        let mut swtab: *mut tabpage_T = ptr::null_mut();
-        let ctx = if scope == kOptScopeTab {
-            (&raw mut swtab).cast::<c_void>()
-        } else {
-            (&raw mut cs).cast::<c_void>()
-        };
+        let mut ctx = OptSavedCtx::None;
 
-        let switched = switch_option_context(ctx, scope, from, err);
+        let switched = switch_option_context(&mut ctx, scope, from, err);
         if error_set(err) {
             return;
         }
@@ -6378,7 +6383,7 @@ pub unsafe fn set_option_value_for(
         }
 
         if switched {
-            restore_option_context(ctx, scope);
+            restore_option_context(&mut ctx, scope);
         }
     }
 }
@@ -6725,7 +6730,7 @@ unsafe fn put_set_value(
                 }
                 let value_num = value.data.integer;
                 let mut wc: OptInt = 0;
-                if wc_use_keyname(varp, &raw mut wc) != 0 {
+                if wc_use_keyname(varp.cast::<OptInt>(), &raw mut wc) != 0 {
                     if fputs(get_special_key_name(wc as c_int, 0), fd) < 0 {
                         return FAIL;
                     }
@@ -8371,7 +8376,7 @@ unsafe fn optval_fmt(opt_idx: OptIndex, opt_flags: c_int) {
 
         let namebuf_ptr = (&raw mut NameBuff).cast::<c_char>();
         let mut wc: OptInt = 0;
-        if wc_use_keyname(varp, &raw mut wc) != 0 {
+        if wc_use_keyname(varp.cast::<OptInt>(), &raw mut wc) != 0 {
             xstrlcpy(namebuf_ptr, get_special_key_name(wc as c_int, 0), MAXPATHL);
             return;
         }
@@ -8401,9 +8406,8 @@ unsafe fn optval_fmt(opt_idx: OptIndex, opt_flags: c_int) {
     }
 }
 
-unsafe fn wc_use_keyname(varp: *const c_void, wcp: *mut OptInt) -> c_int {
+unsafe fn wc_use_keyname(p: *const OptInt, wcp: *mut OptInt) -> c_int {
     unsafe {
-        let p = varp.cast::<OptInt>();
         if p == &raw const p_wc || p == &raw const p_wcm {
             *wcp = *p;
             if is_special(*wcp as c_int) || find_special_key_in_table(*wcp as c_int) >= 0 {

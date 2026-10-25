@@ -574,15 +574,15 @@ unsafe fn linelen(has_tab: *mut c_int) -> c_int {
     }
 }
 
-unsafe fn string_compare(s1: *const c_void, s2: *const c_void) -> c_int {
+unsafe fn string_compare(s1: *const c_char, s2: *const c_char) -> c_int {
     unsafe {
         if sort_lc {
-            return strcoll(s1.cast::<c_char>(), s2.cast::<c_char>());
+            return strcoll(s1, s2);
         }
         if sort_ic {
-            vim_stricmp(s1.cast::<c_char>(), s2.cast::<c_char>())
+            vim_stricmp(s1, s2)
         } else {
-            strcmp(s1.cast::<c_char>(), s2.cast::<c_char>())
+            strcmp(s1, s2)
         }
     }
 }
@@ -654,7 +654,7 @@ unsafe fn sort_compare(
                 ptr::copy_nonoverlapping(ml_get(l2.lnum).add(s2 as usize), sortbuf2, len2 + 1);
                 *sortbuf2.add(len2) = NUL;
 
-                result = string_compare(sortbuf1.cast::<c_void>(), sortbuf2.cast::<c_void>());
+                result = string_compare(sortbuf1, sortbuf2);
             }
             _ => unreachable!(),
         }
@@ -882,7 +882,7 @@ pub unsafe fn ex_sort(eap: *mut exarg_T) {
                 old_count += bytelen as bcount_t;
                 if !unique
                     || i == 0
-                    || string_compare(s.cast::<c_void>(), sortbuf1.cast::<c_void>()) != 0
+                    || string_compare(s, sortbuf1) != 0
                 {
                     strcpy(sortbuf1, s);
                     if ml_append(lnum, sortbuf1, 0, false) == FAIL {
@@ -1065,10 +1065,7 @@ pub unsafe fn ex_uniq(eap: *mut exarg_T) {
                 }
 
                 let mut is_match = if i > 0 {
-                    string_compare(
-                        s.add(start_col as usize).cast::<c_void>(),
-                        sortbuf1.cast::<c_void>(),
-                    ) == 0
+                    string_compare(s.add(start_col as usize), sortbuf1) == 0
                 } else {
                     false
                 };

@@ -7,7 +7,7 @@ pub mod xpatience;
 pub mod xprepare;
 pub mod xutils;
 
-use std::ffi::{c_char, c_int, c_long, c_uint, c_ulong, c_void};
+use std::ffi::{c_char, c_int, c_long, c_uint, c_ulong};
 
 pub const XDF_NEED_MINIMAL: c_ulong = 1 << 0;
 
@@ -55,36 +55,52 @@ pub struct xpparam_t {
     pub flags: c_ulong,
 }
 
-pub type xdl_out_hunk_fn = Option<
-    unsafe fn(
-        priv_data: *mut c_void,
-        old_begin: c_long,
-        old_nr: c_long,
-        new_begin: c_long,
-        new_nr: c_long,
-        func: *const c_char,
-        funclen: c_long,
-    ) -> c_int,
->;
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct xdemitcb_t {
-    pub priv_data: *mut c_void,
-    pub out_hunk: xdl_out_hunk_fn,
-    pub out_line:
-        Option<unsafe fn(priv_data: *mut c_void, mb: *mut mmbuffer_t, nbuf: c_int) -> c_int>,
+#[derive(Copy, Clone, Default)]
+pub enum xdemitcb_t {
+    #[default]
+    None,
+    Unified(*mut Vec<u8>),
+    Diff(*mut crate::diff::diffout_T),
+    OnHunk(*mut crate::lua::xdiff::HunkPriv),
+    Locations(*mut crate::lua::xdiff::HunkPriv),
 }
 
-pub type xdl_emit_hunk_consume_func_t = Option<
-    unsafe fn(
+impl xdemitcb_t {
+    #[inline]
+    pub const fn has_hunk_func(self) -> bool {
+        matches!(self, Self::Diff(_) | Self::OnHunk(_) | Self::Locations(_))
+    }
+
+    #[inline]
+    pub unsafe fn out_line(self, mb: *mut mmbuffer_t, nbuf: c_int) -> c_int {
+        match self {
+            Self::Unified(out) => unsafe { crate::lua::xdiff::write_string(out, mb, nbuf) },
+            _ => 0,
+        }
+    }
+
+    #[inline]
+    pub unsafe fn call_hunk(
+        self,
         start_a: c_int,
         count_a: c_int,
         start_b: c_int,
         count_b: c_int,
-        cb_data: *mut c_void,
-    ) -> c_int,
->;
+    ) -> c_int {
+        match self {
+            Self::Diff(dout) => unsafe {
+                crate::diff::xdiff_out(start_a, count_a, start_b, count_b, dout)
+            },
+            Self::OnHunk(priv_data) => unsafe {
+                crate::lua::xdiff::call_on_hunk_cb(start_a, count_a, start_b, count_b, priv_data)
+            },
+            Self::Locations(priv_data) => unsafe {
+                crate::lua::xdiff::hunk_locations_cb(start_a, count_a, start_b, count_b, priv_data)
+            },
+            Self::None | Self::Unified(_) => 0,
+        }
+    }
+}
 
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
@@ -92,7 +108,6 @@ pub struct xdemitconf_t {
     pub ctxlen: c_long,
     pub interhunkctxlen: c_long,
     pub flags: c_ulong,
-    pub hunk_func: xdl_emit_hunk_consume_func_t,
 }
 
 #[repr(C)]

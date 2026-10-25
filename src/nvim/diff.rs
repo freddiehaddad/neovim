@@ -62,7 +62,7 @@ use crate::window::{
 };
 use crate::xdiff::xdiffi::xdl_diff;
 use crate::xdiff::{mmfile_t, xdemitcb_t, xdemitconf_t, xpparam_t};
-use std::ffi::{c_char, c_int, c_uint, c_ulong, c_void};
+use std::ffi::{c_char, c_int, c_uint, c_ulong};
 use std::ptr;
 const DB_COUNT: usize = 8;
 const MAX_DIFF_ANCHORS: usize = 20;
@@ -149,7 +149,7 @@ struct diffin_T {
     din_mmfile: mmfile_t,
 }
 #[repr(C)]
-struct diffout_T {
+pub(crate) struct diffout_T {
     dout_fname: *mut c_char,
     dout_ga: Vec<diffhunk_T>,
 }
@@ -1111,13 +1111,8 @@ unsafe fn diff_file_internal(diffio: *mut diffio_T) -> c_int {
             ctxlen: 0,
             interhunkctxlen: 0,
             flags: 0,
-            hunk_func: Some(xdiff_out),
         };
-        let mut emit_cb = xdemitcb_t {
-            priv_data: (&raw mut (*diffio).dio_diff).cast(),
-            out_hunk: None,
-            out_line: None,
-        };
+        let mut emit_cb = xdemitcb_t::Diff(&raw mut (*diffio).dio_diff);
         if (diff_flags & DIFF_IWHITE) != 0 {
             param.flags |= XDF_IGNORE_WHITESPACE_CHANGE;
         }
@@ -3783,15 +3778,14 @@ unsafe fn parse_diff_unified(line: *mut c_char, hunk: *mut diffhunk_T) -> c_int 
         FAIL
     }
 }
-unsafe fn xdiff_out(
+pub(crate) unsafe fn xdiff_out(
     start_a: c_int,
     count_a: c_int,
     start_b: c_int,
     count_b: c_int,
-    priv_data: *mut c_void,
+    dout: *mut diffout_T,
 ) -> c_int {
     unsafe {
-        let dout = priv_data.cast::<diffout_T>();
         (*dout).dout_ga.push(diffhunk_T {
             lnum_orig: start_a + 1,
             count_orig: count_a,

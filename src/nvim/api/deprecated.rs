@@ -36,12 +36,12 @@ use crate::memory::Arena;
 use crate::message::{emsg, msg, msg_end, msg_ext_no_fast};
 use crate::msgpack_rpc::packer::Integer;
 use crate::option::{
-    OPT_GLOBAL, OPT_LOCAL, OptScope, find_option, get_option_info, get_option_value_for,
+    OPT_GLOBAL, OPT_LOCAL, OptScope, OptTarget, find_option, get_option_info, get_option_value_for,
     kOptInvalid, kOptScopeBuf, kOptScopeGlobal, kOptScopeWin, option_has_scope,
     set_option_value_for,
 };
 use crate::window::{win_setheight_win, win_setwidth_win};
-use std::ffi::{c_char, c_int, c_void};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 const LINE_BUFFER_MIN_SIZE: usize = 4096;
@@ -818,7 +818,7 @@ pub unsafe extern "C" fn nvim_set_option(
     unsafe {
         set_option_to(
             channel_id,
-            ptr::null_mut(),
+            OptTarget::Global,
             kOptScopeGlobal,
             name,
             value,
@@ -839,7 +839,7 @@ pub unsafe extern "C" fn nvim_set_option(
 //   FUNC_API_RET_ALLOC;
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_get_option(name: NvimString, err: *mut Error) -> Object {
-    unsafe { get_option_from(ptr::null_mut(), kOptScopeGlobal, name, err) }
+    unsafe { get_option_from(OptTarget::Global, kOptScopeGlobal, name, err) }
 }
 
 /// Gets a buffer option value
@@ -864,7 +864,7 @@ pub unsafe extern "C" fn nvim_buf_get_option(
         if buf.is_null() {
             return OBJECT_NIL;
         }
-        get_option_from(buf.cast(), kOptScopeBuf, name, err)
+        get_option_from(OptTarget::Buf(buf), kOptScopeBuf, name, err)
     }
 }
 
@@ -894,7 +894,7 @@ pub unsafe extern "C" fn nvim_buf_set_option(
         if buf.is_null() {
             return;
         }
-        set_option_to(channel_id, buf.cast(), kOptScopeBuf, name, value, err);
+        set_option_to(channel_id, OptTarget::Buf(buf), kOptScopeBuf, name, value, err);
     }
 }
 
@@ -920,7 +920,7 @@ pub unsafe extern "C" fn nvim_win_get_option(
         if win.is_null() {
             return OBJECT_NIL;
         }
-        get_option_from(win.cast(), kOptScopeWin, name, err)
+        get_option_from(OptTarget::Win(win), kOptScopeWin, name, err)
     }
 }
 
@@ -950,12 +950,12 @@ pub unsafe extern "C" fn nvim_win_set_option(
         if win.is_null() {
             return;
         }
-        set_option_to(channel_id, win.cast(), kOptScopeWin, name, value, err);
+        set_option_to(channel_id, OptTarget::Win(win), kOptScopeWin, name, value, err);
     }
 }
 
 unsafe fn get_option_from(
-    from: *mut c_void,
+    from: OptTarget,
     scope: OptScope,
     name: NvimString,
     err: *mut Error,
@@ -998,7 +998,7 @@ unsafe fn get_option_from(
 
 unsafe fn set_option_to(
     channel_id: u64,
-    to: *mut c_void,
+    to: OptTarget,
     scope: OptScope,
     name: NvimString,
     value: Object,

@@ -1,6 +1,6 @@
 //! XDiff utility functions (`src/xdiff/xutils.c`).
 
-use std::ffi::{c_char, c_int, c_long, c_uint, c_ulong, c_void};
+use std::ffi::{c_char, c_int, c_long, c_uint, c_ulong};
 use std::ptr;
 
 use crate::strings::memchr;
@@ -44,19 +44,17 @@ pub unsafe fn xdl_emit_diffrec(
         mb[2].size = (NO_NL.len() - 1) as c_int;
         i += 1;
     }
-    if let Some(out_line) = unsafe { (*ecb).out_line }
-        && unsafe { out_line((*ecb).priv_data, mb.as_mut_ptr(), i) } < 0
-    {
+    if unsafe { (*ecb).out_line(mb.as_mut_ptr(), i) } < 0 {
         return -1;
     }
 
     0
 }
 
-pub unsafe fn xdl_mmfile_first(mmf: *mut mmfile_t, size: *mut c_long) -> *mut c_void {
+pub unsafe fn xdl_mmfile_first(mmf: *mut mmfile_t, size: *mut c_long) -> *mut c_char {
     unsafe {
         *size = (*mmf).size as c_long;
-        (*mmf).ptr.cast::<c_void>()
+        (*mmf).ptr
     }
 }
 
@@ -69,7 +67,7 @@ pub unsafe fn xdl_guess_lines(mf: *mut mmfile_t, sample: c_long) -> c_long {
     let mut size: c_long = 0;
     let mut tsize: c_long = 0;
 
-    let data = unsafe { xdl_mmfile_first(mf, &mut size) }.cast::<c_char>();
+    let data = unsafe { xdl_mmfile_first(mf, &mut size) };
     let mut cur = data;
     if !cur.is_null() {
         let top = unsafe { data.offset(size as isize) };
@@ -77,7 +75,7 @@ pub unsafe fn xdl_guess_lines(mf: *mut mmfile_t, sample: c_long) -> c_long {
             nl += 1;
             let found = unsafe {
                 memchr(
-                    cur.cast::<c_void>(),
+                    cur.cast(),
                     c_int::from(b'\n'),
                     top.offset_from(cur) as usize,
                 )
@@ -346,9 +344,7 @@ unsafe fn xdl_format_hunk_hdr(
             ptr: buf.as_mut_ptr().cast::<c_char>(),
             size: nb,
         };
-        if let Some(out_line) = (*ecb).out_line
-            && out_line((*ecb).priv_data, &mut mb, 1) < 0
-        {
+        if (*ecb).out_line(&mut mb, 1) < 0 {
             return -1;
         }
     }
@@ -362,25 +358,7 @@ pub unsafe fn xdl_emit_hunk_hdr(
     c2: c_long,
     ecb: *mut xdemitcb_t,
 ) -> c_int {
-    if let Some(out_hunk) = unsafe { (*ecb).out_hunk } {
-        if unsafe {
-            out_hunk(
-                (*ecb).priv_data,
-                if c1 != 0 { s1 } else { s1 - 1 },
-                c1,
-                if c2 != 0 { s2 } else { s2 - 1 },
-                c2,
-                c"".as_ptr(),
-                0,
-            )
-        } < 0
-        {
-            return -1;
-        }
-        0
-    } else {
-        unsafe { xdl_format_hunk_hdr(s1, c1, s2, c2, ecb) }
-    }
+    unsafe { xdl_format_hunk_hdr(s1, c1, s2, c2, ecb) }
 }
 
 pub unsafe fn xdl_fall_back_diff(
