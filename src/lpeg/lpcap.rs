@@ -380,33 +380,15 @@ pub unsafe extern "C-unwind" fn runtimecap(
     }
 }
 
-#[repr(C)]
 #[derive(Copy, Clone)]
-struct StrAuxS {
-    idx: Index_t,
-    siz: Index_t,
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-union StrAuxU {
-    cp: *mut Capture,
-    s: StrAuxS,
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-struct StrAux {
-    isstring: c_int,
-    u: StrAuxU,
+enum StrAux {
+    Capture(*mut Capture),
+    Span { idx: Index_t, siz: Index_t },
 }
 
 impl StrAux {
     const fn new() -> Self {
-        Self {
-            isstring: 0,
-            u: StrAuxU { cp: ptr::null_mut() },
-        }
+        Self::Capture(ptr::null_mut())
     }
 }
 
@@ -421,22 +403,23 @@ unsafe fn getstrcaps(cs: *mut CapState, cps: *mut StrAux, mut n: c_int) -> c_int
         let k = n as usize;
         n += 1;
         let head = (*cs).cap;
+        let head_idx = (*head).index;
         (*cs).cap = (*cs).cap.add(1);
-        (*cps.add(k)).isstring = 1;
-        (*cps.add(k)).u.s.idx = (*head).index;
         while capinside(head, (*cs).cap) {
             if (n as usize) >= MAXSTRCAPS {
                 nextcap(cs);
             } else if captype((*cs).cap) == Csimple {
                 n = getstrcaps(cs, cps, n);
             } else {
-                (*cps.add(n as usize)).isstring = 0;
-                (*cps.add(n as usize)).u.cp = (*cs).cap;
+                *cps.add(n as usize) = StrAux::Capture((*cs).cap);
                 nextcap(cs);
                 n += 1;
             }
         }
-        (*cps.add(k)).u.s.siz = closesize(cs, head);
+        *cps.add(k) = StrAux::Span {
+            idx: head_idx,
+            siz: closesize(cs, head),
+        };
         skipclose(cs, head);
         n
     }
@@ -463,19 +446,24 @@ unsafe fn stringcap(b: *mut luaL_Buffer, cs: *mut CapState) {
                     let l = c_int::from(next_ch - b'0');
                     if l > n {
                         luaL_error((*cs).L, c"invalid capture index (%d)".as_ptr(), l);
-                    } else if cps[l as usize].isstring != 0 {
-                        luaL_addlstring(
-                            b,
-                            (*cs).s.add(cps[l as usize].u.s.idx as usize),
-                            cps[l as usize].u.s.siz as usize,
-                        );
                     } else {
-                        let curr = (*cs).cap;
-                        (*cs).cap = cps[l as usize].u.cp;
-                        if addonestring(b, cs, c"capture".as_ptr()) == 0 {
-                            luaL_error((*cs).L, c"no values in capture index %d".as_ptr(), l);
+                        match cps[l as usize] {
+                            StrAux::Span { idx, siz } => {
+                                luaL_addlstring(b, (*cs).s.add(idx as usize), siz as usize);
+                            }
+                            StrAux::Capture(cp) => {
+                                let curr = (*cs).cap;
+                                (*cs).cap = cp;
+                                if addonestring(b, cs, c"capture".as_ptr()) == 0 {
+                                    luaL_error(
+                                        (*cs).L,
+                                        c"no values in capture index %d".as_ptr(),
+                                        l,
+                                    );
+                                }
+                                (*cs).cap = curr;
+                            }
                         }
-                        (*cs).cap = curr;
                     }
                 }
             }

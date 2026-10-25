@@ -1183,10 +1183,23 @@ unsafe fn typval_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_
                 (*node).data[1].p = list.cast::<c_void>();
             }
             mpack_token_type_t::MPACK_TOKEN_MAP => {
-                (*node).data[1].p =
-                    xmallocz(((*node).tok.length as usize) * 2 * std::mem::size_of::<typval_T>());
+                let pairs = vec![[typval_T::new(); 2]; (*node).tok.length as usize]
+                    .into_boxed_slice();
+                (*node).data[1].p = Box::into_raw(pairs).cast::<c_void>();
             }
             mpack_token_type_t::MPACK_TOKEN_NONE => std::process::abort(),
+        }
+    }
+}
+
+#[inline]
+unsafe fn free_map_pairs(ptr: *mut c_void, len: usize) {
+    if !ptr.is_null() {
+        unsafe {
+            drop(Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+                ptr.cast::<[typval_T; 2]>(),
+                len,
+            )));
         }
     }
 }
@@ -1196,17 +1209,21 @@ pub unsafe fn typval_parser_error_free(parser: *mut mpack_parser_t) {
     let p = unsafe { &mut *parser };
     for i in 0..p.size as usize {
         let node = &mut p.items[i];
-        if matches!(
-            node.tok.r#type,
+        match node.tok.r#type {
             mpack_token_type_t::MPACK_TOKEN_BIN
-                | mpack_token_type_t::MPACK_TOKEN_STR
-                | mpack_token_type_t::MPACK_TOKEN_EXT
-                | mpack_token_type_t::MPACK_TOKEN_MAP
-        ) {
-            unsafe {
+            | mpack_token_type_t::MPACK_TOKEN_STR
+            | mpack_token_type_t::MPACK_TOKEN_EXT => unsafe {
                 xfree(std::ptr::read(&raw const node.data[1].p));
                 node.data[1].p = std::ptr::null_mut();
-            }
+            },
+            mpack_token_type_t::MPACK_TOKEN_MAP => unsafe {
+                free_map_pairs(
+                    std::ptr::read(&raw const node.data[1].p),
+                    node.tok.length as usize,
+                );
+                node.data[1].p = std::ptr::null_mut();
+            },
+            _ => {}
         }
     }
 }
@@ -1300,7 +1317,7 @@ unsafe fn typval_parse_exit(_parser: *mut mpack_parser_t, node: *mut mpack_node_
                     for i in 0..len {
                         xfree((*items.add(i))[0].vval.v_string.cast::<c_void>());
                     }
-                    xfree(node.data[1].p);
+                    free_map_pairs(node.data[1].p, len);
                     node.data[1].p = std::ptr::null_mut();
                 } else {
                     let list = decode_create_map_special_dict(result, len as isize);
@@ -1310,7 +1327,7 @@ unsafe fn typval_parse_exit(_parser: *mut mpack_parser_t, node: *mut mpack_node_
                         tv_list_append_owned_tv(kv_pair, (*items.add(i))[0]);
                         tv_list_append_owned_tv(kv_pair, (*items.add(i))[1]);
                     }
-                    xfree(node.data[1].p);
+                    free_map_pairs(node.data[1].p, len);
                     node.data[1].p = std::ptr::null_mut();
                 }
             }

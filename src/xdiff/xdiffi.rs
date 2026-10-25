@@ -441,19 +441,14 @@ unsafe fn xdl_add_change(
     chg1: c_long,
     chg2: c_long,
 ) -> *mut xdchange_t {
-    unsafe {
-        let xch = xmalloc(size_of::<xdchange_t>()).cast::<xdchange_t>();
-        if xch.is_null() {
-            return ptr::null_mut();
-        }
-        (*xch).next = xscr;
-        (*xch).i1 = i1;
-        (*xch).i2 = i2;
-        (*xch).chg1 = chg1;
-        (*xch).chg2 = chg2;
-        (*xch).ignore = 0;
-        xch
-    }
+    Box::into_raw(Box::new(xdchange_t {
+        next: xscr,
+        i1,
+        i2,
+        chg1,
+        chg2,
+        ignore: 0,
+    }))
 }
 
 unsafe fn recs_match(rec1: *mut xrecord_t, rec2: *mut xrecord_t, flags: c_long) -> bool {
@@ -845,7 +840,7 @@ pub unsafe fn xdl_free_script(mut xscr: *mut xdchange_t) {
     while !xscr.is_null() {
         let xch = xscr;
         xscr = unsafe { (*xscr).next };
-        unsafe { xfree(xch.cast::<c_void>()) };
+        unsafe { drop(Box::from_raw(xch)) };
     }
 }
 

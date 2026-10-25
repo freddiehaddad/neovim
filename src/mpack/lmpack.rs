@@ -237,10 +237,7 @@ unsafe extern "C-unwind" fn lmpack_unpacker_new(l: *mut lua_State) -> c_int {
         }
 
         let rv = lua_newuserdata(l, size_of::<LmpackUnpacker>()).cast::<LmpackUnpacker>();
-        (*rv).parser = try_malloc(size_of::<mpack_parser_t>()).cast::<mpack_parser_t>();
-        if (*rv).parser.is_null() {
-            return luaL_error(l, c"Failed to allocate memory".as_ptr());
-        }
+        (*rv).parser = Box::into_raw(Box::new(mpack_parser_t::new(0)));
         mpack_parser_init((*rv).parser, 0);
         (*(*rv).parser).data.p = rv.cast::<c_void>();
         (*rv).string_buffer = ptr::null_mut();
@@ -278,7 +275,10 @@ unsafe extern "C-unwind" fn lmpack_unpacker_delete(l: *mut lua_State) -> c_int {
             lmpack_unref(l, (*unpacker).reg, (*unpacker).ext);
         }
         luaL_unref(l, LUA_REGISTRYINDEX, (*unpacker).reg);
-        xfree((*unpacker).parser.cast::<c_void>());
+        if !(*unpacker).parser.is_null() {
+            drop(Box::from_raw((*unpacker).parser));
+            (*unpacker).parser = ptr::null_mut();
+        }
         0
     }
 }
@@ -489,10 +489,7 @@ unsafe extern "C-unwind" fn lmpack_packer_new(l: *mut lua_State) -> c_int {
         }
 
         let rv = lua_newuserdata(l, size_of::<Packer>()).cast::<Packer>();
-        (*rv).parser = try_malloc(size_of::<mpack_parser_t>()).cast::<mpack_parser_t>();
-        if (*rv).parser.is_null() {
-            return luaL_error(l, c"failed to allocate parser memory".as_ptr());
-        }
+        (*rv).parser = Box::into_raw(Box::new(mpack_parser_t::new(0)));
         mpack_parser_init((*rv).parser, 0);
         (*(*rv).parser).data.p = rv.cast::<c_void>();
         (*rv).L = l;
@@ -549,7 +546,10 @@ unsafe extern "C-unwind" fn lmpack_packer_delete(l: *mut lua_State) -> c_int {
             lmpack_unref(l, (*packer).reg, (*packer).ext);
         }
         luaL_unref(l, LUA_REGISTRYINDEX, (*packer).reg);
-        xfree((*packer).parser.cast::<c_void>());
+        if !(*packer).parser.is_null() {
+            drop(Box::from_raw((*packer).parser));
+            (*packer).parser = ptr::null_mut();
+        }
         0
     }
 }
