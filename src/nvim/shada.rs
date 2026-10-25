@@ -517,15 +517,26 @@ struct FileMarks {
     greatest_timestamp: Timestamp,
 }
 
-#[inline]
-fn alloc_file_marks() -> *mut FileMarks {
-    Box::into_raw(Box::new(FileMarks {
-        marks: [const { MISSING_ENTRY }; NLOCALMARKS],
-        changes: [const { MISSING_ENTRY }; JUMPLISTSIZE],
-        changes_size: 0,
-        additional_marks: Vec::new(),
-        greatest_timestamp: 0,
-    }))
+impl FileMarks {
+    fn new() -> Self {
+        Self {
+            marks: [const { MISSING_ENTRY }; NLOCALMARKS],
+            changes: [const { MISSING_ENTRY }; JUMPLISTSIZE],
+            changes_size: 0,
+            additional_marks: Vec::new(),
+            greatest_timestamp: 0,
+        }
+    }
+}
+
+impl Drop for FileMarks {
+    fn drop(&mut self) {
+        unsafe {
+            for mut add_entry in self.additional_marks.drain(..) {
+                shada_free_shada_entry(&mut add_entry);
+            }
+        }
+    }
 }
 
 #[repr(C)]
@@ -540,7 +551,7 @@ struct WriteMergerState {
     sub_search_pattern: ShadaEntry,
     replacement: ShadaEntry,
     dumped_variables: std::collections::HashSet<Vec<u8>>,
-    file_marks: std::collections::HashMap<Vec<u8>, *mut FileMarks>,
+    file_marks: std::collections::HashMap<Vec<u8>, FileMarks>,
 }
 
 impl WriteMergerState {
@@ -2265,10 +2276,10 @@ unsafe fn shada_read_when_writing(
                         continue;
                     }
                     let fname_bytes = CStr::from_ptr(fm_data.fname).to_bytes().to_vec();
-                    let filemarks = *(*wms)
+                    let filemarks: *mut FileMarks = (*wms)
                         .file_marks
                         .entry(fname_bytes)
-                        .or_insert_with(alloc_file_marks);
+                        .or_insert_with(FileMarks::new);
                     if entry.timestamp > (*filemarks).greatest_timestamp {
                         (*filemarks).greatest_timestamp = entry.timestamp;
                     }
@@ -2955,10 +2966,10 @@ unsafe fn shada_write(
                         let mut local_marks_iter: *const c_void = ptr::null();
                         let fname = (*buf).b_ffname;
                         let fname_bytes = CStr::from_ptr(fname).to_bytes().to_vec();
-                        let filemarks = *(*wms)
+                        let filemarks: *mut FileMarks = (*wms)
                             .file_marks
                             .entry(fname_bytes)
-                            .or_insert_with(alloc_file_marks);
+                            .or_insert_with(FileMarks::new);
                         loop {
                             let mut fm = fmark_T::new();
                             let mut name: c_char = NUL;
@@ -3085,8 +3096,11 @@ unsafe fn shada_write(
                 }
             }
 
-            let mut all_file_markss: Vec<*mut FileMarks> =
-                (*wms).file_marks.values().copied().collect();
+            let mut all_file_markss: Vec<*mut FileMarks> = (*wms)
+                .file_marks
+                .values_mut()
+                .map(|fm| fm as *mut FileMarks)
+                .collect();
             all_file_markss.sort_by(|&a, &b| {
                 let ta = (*a).greatest_timestamp;
                 let tb = (*b).greatest_timestamp;
@@ -3157,12 +3171,7 @@ unsafe fn shada_write(
                 hms_dealloc(&mut (*wms).hms[i]);
             }
         }
-        for (_, val) in (*wms).file_marks.drain() {
-            for mut add_entry in (*val).additional_marks.drain(..) {
-                shada_free_shada_entry(&mut add_entry);
-            }
-            drop(Box::from_raw(val));
-        }
+        (*wms).file_marks.clear();
         if let Some(flush) = packer.packer_flush {
             flush(&mut packer);
         }

@@ -345,9 +345,12 @@ unsafe fn json_create_config(l: *mut lua_State) {
         if cfg.is_null() {
             abort();
         }
-        *cfg = json_config_t {
-            encode_buf: strbuf_t::new(),
-        };
+        ptr::write(
+            cfg,
+            json_config_t {
+                encode_buf: strbuf_t::new(),
+            },
+        );
 
         lua_newtable(l);
         lua_pushcfunction(l, Some(json_destroy_config));
@@ -565,8 +568,8 @@ unsafe fn cmp_key_entries(ka: &key_entry_t, kb: &key_entry_t) -> c_int {
     unsafe {
         let min_len = ka.length.min(kb.length);
         let res = memcmp(
-            (*ka.buf).buf.add(ka.offset).cast::<c_void>(),
-            (*kb.buf).buf.add(kb.offset).cast::<c_void>(),
+            (*ka.buf).buf.as_ptr().add(ka.offset).cast::<c_void>(),
+            (*kb.buf).buf.as_ptr().add(kb.offset).cast::<c_void>(),
             min_len,
         );
         if res == 0 {
@@ -642,7 +645,7 @@ unsafe fn json_append_object(l: *mut lua_State, ctx: *mut json_encode_t, current
                 strbuf_append_char_unsafe(json, b'"' as c_char);
                 strbuf_append_mem_unsafe(
                     json,
-                    (*keybuf).buf.buf.add(current_key.offset),
+                    (*keybuf).buf.buf.as_ptr().add(current_key.offset),
                     current_key.length,
                 );
                 strbuf_append_mem_unsafe(json, c"\":".as_ptr(), 2);
