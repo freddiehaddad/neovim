@@ -73,7 +73,7 @@ pub type ParserHighlight = Vec<ParserHighlightChunk>;
 pub struct ParserState {
     pub reader: ParserInputReader,
     pub pos: ParserPosition,
-    pub colors: *mut ParserHighlight,
+    pub colors: Option<ParserHighlight>,
 }
 
 unsafe fn viml_preader_get_line(preader: &mut ParserInputReader, ret_pline: &mut ParserLine) {
@@ -109,17 +109,11 @@ unsafe fn viml_preader_get_line(preader: &mut ParserInputReader, ret_pline: &mut
     *ret_pline = pline;
 }
 
-/// Get the currently parsed line shifted to `pstate->pos.col` (`viml_parser_get_remaining_line`).
-///
-/// # Safety
-/// `pstate` and `ret_pline` must be valid writable pointers.
+/// Get the currently parsed line shifted to `pstate.pos.col` (`viml_parser_get_remaining_line`).
 pub unsafe fn viml_parser_get_remaining_line(
-    pstate: *mut ParserState,
-    ret_pline: *mut ParserLine,
+    pstate: &mut ParserState,
+    ret_pline: &mut ParserLine,
 ) -> bool {
-    let pstate = unsafe { &mut *pstate };
-    let ret_pline = unsafe { &mut *ret_pline };
-
     let num_lines = pstate.reader.lines.len();
     if pstate.pos.line == num_lines {
         unsafe {

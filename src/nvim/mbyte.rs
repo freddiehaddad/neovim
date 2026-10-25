@@ -2711,7 +2711,7 @@ pub unsafe fn utf_find_illegal() {
         let mut tofree: *mut c_char = ptr::null_mut();
 
         if (enc_canon_props((*curbuf).b_p_fenc) & ENC_8BIT) != 0 {
-            convert_setup(&raw mut vimconv, p_enc, (*curbuf).b_p_fenc);
+            convert_setup(&mut vimconv, p_enc, (*curbuf).b_p_fenc);
         }
 
         (*curwin).w_cursor.coladd = 0;
@@ -2719,7 +2719,7 @@ pub unsafe fn utf_find_illegal() {
             let mut p = get_cursor_pos_ptr();
             if vimconv.vc_type != CONV_NONE {
                 xfree(tofree.cast());
-                tofree = string_convert(&raw const vimconv, p, ptr::null_mut());
+                tofree = string_convert(&vimconv, p, ptr::null_mut());
                 if tofree.is_null() {
                     break;
                 }
@@ -3087,7 +3087,7 @@ pub unsafe fn my_iconv_open(to: *mut c_char, from: *mut c_char) -> *mut c_void {
 }
 
 unsafe fn iconv_string(
-    vcp: *const vimconv_T,
+    vcp: &vimconv_T,
     str_: *const c_char,
     slen: usize,
     unconvlenp: *mut usize,
@@ -3115,7 +3115,7 @@ unsafe fn iconv_string(
             to = result.add(done);
             let mut tolen = len - done - 2;
             if call_iconv(
-                (*vcp).vc_fd,
+                vcp.vc_fd,
                 &raw mut from,
                 &raw mut fromlen,
                 &raw mut to,
@@ -3127,11 +3127,11 @@ unsafe fn iconv_string(
             }
 
             let err = os_errno();
-            if !(*vcp).vc_fail && !unconvlenp.is_null() && err == ICONV_EINVAL {
+            if !vcp.vc_fail && !unconvlenp.is_null() && err == ICONV_EINVAL {
                 *to = NUL;
                 *unconvlenp = fromlen;
                 break;
-            } else if !(*vcp).vc_fail && (err == ICONV_EILSEQ || err == ICONV_EINVAL) {
+            } else if !vcp.vc_fail && (err == ICONV_EILSEQ || err == ICONV_EINVAL) {
                 *to = b'?' as c_char;
                 to = to.add(1);
                 if utf_ptr2cells(from) > 1 {
@@ -3176,13 +3176,13 @@ pub unsafe fn f_iconv(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
             vc_fd: ptr::null_mut(),
             vc_fail: false,
         };
-        convert_setup(&raw mut vimconv, from, to);
+        convert_setup(&mut vimconv, from, to);
 
         if vimconv.vc_type == CONV_NONE {
             (*rettv).vval.v_string = xstrdup(str_);
         } else {
             (*rettv).vval.v_string =
-                string_convert(&raw const vimconv, str_.cast_mut(), ptr::null_mut());
+                string_convert(&vimconv, str_.cast_mut(), ptr::null_mut());
         }
 
         xfree(from.cast());
@@ -3190,12 +3190,12 @@ pub unsafe fn f_iconv(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
     }
 }
 
-pub unsafe fn convert_setup(vcp: *mut vimconv_T, from: *mut c_char, to: *mut c_char) -> c_int {
+pub unsafe fn convert_setup(vcp: &mut vimconv_T, from: *mut c_char, to: *mut c_char) -> c_int {
     unsafe { convert_setup_ext(vcp, from, true, to, true) }
 }
 
 pub unsafe fn convert_setup_ext(
-    vcp: *mut vimconv_T,
+    vcp: &mut vimconv_T,
     from: *mut c_char,
     from_unicode_is_utf8: bool,
     to: *mut c_char,
@@ -3232,15 +3232,15 @@ pub unsafe fn convert_setup_ext(
         };
 
         if (from_prop & ENC_LATIN1) != 0 && to_is_utf8 {
-            (*vcp).vc_type = CONV_TO_UTF8;
-            (*vcp).vc_factor = 2;
+            vcp.vc_type = CONV_TO_UTF8;
+            vcp.vc_factor = 2;
         } else if (from_prop & ENC_LATIN9) != 0 && to_is_utf8 {
-            (*vcp).vc_type = CONV_9_TO_UTF8;
-            (*vcp).vc_factor = 3;
+            vcp.vc_type = CONV_9_TO_UTF8;
+            vcp.vc_factor = 3;
         } else if from_is_utf8 && (to_prop & ENC_LATIN1) != 0 {
-            (*vcp).vc_type = CONV_TO_LATIN1;
+            vcp.vc_type = CONV_TO_LATIN1;
         } else if from_is_utf8 && (to_prop & ENC_LATIN9) != 0 {
-            (*vcp).vc_type = CONV_TO_LATIN9;
+            vcp.vc_type = CONV_TO_LATIN9;
         } else {
             let to_arg = if to_is_utf8 {
                 c"utf-8".as_ptr().cast_mut()
@@ -3252,14 +3252,14 @@ pub unsafe fn convert_setup_ext(
             } else {
                 from
             };
-            (*vcp).vc_fd = my_iconv_open(to_arg, from_arg);
-            if (*vcp).vc_fd != usize::MAX as *mut c_void {
-                (*vcp).vc_type = CONV_ICONV;
-                (*vcp).vc_factor = 4;
+            vcp.vc_fd = my_iconv_open(to_arg, from_arg);
+            if vcp.vc_fd != usize::MAX as *mut c_void {
+                vcp.vc_type = CONV_ICONV;
+                vcp.vc_factor = 4;
             }
         }
 
-        if (*vcp).vc_type == CONV_NONE {
+        if vcp.vc_type == CONV_NONE {
             FAIL
         } else {
             OK
@@ -3268,7 +3268,7 @@ pub unsafe fn convert_setup_ext(
 }
 
 pub unsafe fn string_convert(
-    vcp: *const vimconv_T,
+    vcp: &vimconv_T,
     ptr: *mut c_char,
     lenp: *mut usize,
 ) -> *mut c_char {
@@ -3276,7 +3276,7 @@ pub unsafe fn string_convert(
 }
 
 pub unsafe fn string_convert_ext(
-    vcp: *const vimconv_T,
+    vcp: &vimconv_T,
     ptr: *mut c_char,
     lenp: *mut usize,
     unconvlenp: *mut usize,
@@ -3292,7 +3292,7 @@ pub unsafe fn string_convert_ext(
         }
 
         let mut retval: *mut u8 = ptr::null_mut();
-        match (*vcp).vc_type {
+        match vcp.vc_type {
             CONV_TO_UTF8 => {
                 retval = xmalloc(len * 2 + 1).cast::<u8>();
                 let mut d = retval;
@@ -3359,7 +3359,7 @@ pub unsafe fn string_convert_ext(
                         d = d.add(1);
                     } else {
                         let mut c = utf_ptr2char(ptr.add(i));
-                        if (*vcp).vc_type == CONV_TO_LATIN9 {
+                        if vcp.vc_type == CONV_TO_LATIN9 {
                             c = match c {
                                 0x20ac => 0xa4,
                                 0x0160 => 0xa6,
@@ -3377,7 +3377,7 @@ pub unsafe fn string_convert_ext(
                             if c < 0x100 {
                                 *d = c as u8;
                                 d = d.add(1);
-                            } else if (*vcp).vc_fail {
+                            } else if vcp.vc_fail {
                                 xfree(retval.cast());
                                 return ptr::null_mut();
                             } else {

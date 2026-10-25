@@ -1746,7 +1746,7 @@ unsafe fn findtags_hdr_parse(st: *mut findtags_state_T) -> bool {
                 p = p.add(1);
             }
             *p = NUL;
-            convert_setup(&raw mut (*st).vimconv, lbuf.add(20), p_enc);
+            convert_setup(&mut (*st).vimconv, lbuf.add(20), p_enc);
         }
 
         false
@@ -1988,7 +1988,7 @@ unsafe fn findtags_match_tag(
 unsafe fn findtags_string_convert(st: *mut findtags_state_T) {
     unsafe {
         let st = &mut *st;
-        let conv_line = string_convert(&raw const st.vimconv, st.lbuf.as_mut_ptr(), ptr::null_mut());
+        let conv_line = string_convert(&st.vimconv, st.lbuf.as_mut_ptr(), ptr::null_mut());
         if conv_line.is_null() {
             return;
         }
@@ -2237,7 +2237,7 @@ unsafe fn findtags_in_file(st: *mut findtags_state_T, _flags: c_int, buf_ffname:
             (*st).fp = ptr::null_mut();
         }
         if (*st).vimconv.vc_type != CONV_NONE {
-            convert_setup(&raw mut (*st).vimconv, ptr::null_mut(), ptr::null_mut());
+            convert_setup(&mut (*st).vimconv, ptr::null_mut(), ptr::null_mut());
         }
 
         if margs.sort_error {

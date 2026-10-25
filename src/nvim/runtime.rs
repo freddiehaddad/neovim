@@ -3334,7 +3334,7 @@ pub unsafe fn f_getscriptinfo(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
 
                 if sid > 0 {
                     let var_dict = tv_dict_copy(
-                        ptr::null(),
+                        None,
                         &mut (*(*si).sn_vars).sv_dict,
                         true,
                         get_copyID(),

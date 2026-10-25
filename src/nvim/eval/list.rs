@@ -663,7 +663,7 @@ unsafe fn extend_dict(
         }
 
         if is_new {
-            d1 = tv_dict_copy(std::ptr::null(), d1, false, get_copyID());
+            d1 = tv_dict_copy(None, d1, false, get_copyID());
             if d1.is_null() {
                 return;
             }
@@ -720,7 +720,7 @@ unsafe fn extend_list(
         }
 
         if is_new {
-            l1 = tv_list_copy(std::ptr::null(), l1, false, get_copyID());
+            l1 = tv_list_copy(None, l1, false, get_copyID());
             if l1.is_null() {
                 return;
             }

@@ -1185,7 +1185,7 @@ pub unsafe fn tv_list_append_number(l: *mut list_T, n: varnumber_T) {
 
 /// Make a copy of list.
 pub unsafe fn tv_list_copy(
-    conv: *const vimconv_T,
+    conv: Option<&vimconv_T>,
     orig: *mut list_T,
     deep: bool,
     copyID: c_int,
@@ -1209,7 +1209,7 @@ pub unsafe fn tv_list_copy(
             let ni = tv_list_item_alloc();
             if deep {
                 if var_item_copy(
-                    conv.cast(),
+                    conv,
                     &raw mut (*item).li_tv,
                     &raw mut (*ni).li_tv,
                     deep,
@@ -1513,9 +1513,9 @@ pub unsafe fn tv_list_concat(l1: *mut list_T, l2: *mut list_T, tv: *mut typval_T
         let l = if l1.is_null() && l2.is_null() {
             ptr::null_mut()
         } else if l1.is_null() {
-            tv_list_copy(ptr::null(), l2, false, 0)
+            tv_list_copy(None, l2, false, 0)
         } else {
-            let copy = tv_list_copy(ptr::null(), l1, false, 0);
+            let copy = tv_list_copy(None, l1, false, 0);
             if !copy.is_null() && !l2.is_null() {
                 tv_list_extend(copy, l2, ptr::null_mut());
             }
@@ -3383,7 +3383,7 @@ pub unsafe fn tv_dict_equal(d1: *mut dict_T, d2: *mut dict_T, ic: bool) -> bool 
 
 /// Make a copy of dictionary.
 pub unsafe fn tv_dict_copy(
-    conv: *const vimconv_T,
+    conv: Option<&vimconv_T>,
     orig: *mut dict_T,
     deep: bool,
     copyID: c_int,
@@ -3408,9 +3408,7 @@ pub unsafe fn tv_dict_copy(
                 }
                 let di = tv_dict_hi2di(hi);
                 let key_ptr = (*di).di_key.as_mut_ptr();
-                let new_di = if conv.is_null() || (*conv).vc_type == CONV_NONE {
-                    tv_dict_item_alloc(key_ptr)
-                } else {
+                let new_di = if let Some(conv) = conv.filter(|c| c.vc_type != CONV_NONE) {
                     let mut len = strlen(key_ptr);
                     let key = string_convert(conv, key_ptr, &raw mut len);
                     if key.is_null() {
@@ -3420,10 +3418,12 @@ pub unsafe fn tv_dict_copy(
                         xfree(key.cast());
                         item
                     }
+                } else {
+                    tv_dict_item_alloc(key_ptr)
                 };
                 if deep {
                     if var_item_copy(
-                        conv.cast(),
+                        conv,
                         &raw mut (*di).di_tv,
                         &raw mut (*new_di).di_tv,
                         deep,
@@ -5353,7 +5353,7 @@ mod tests {
             assert_eq!(CStr::from_ptr(tv_list_find_str(l2, 2)).to_bytes(), b"world");
 
             // copy, extend, concat, join, equal
-            let l2_copy = tv_list_copy(ptr::null_mut(), l2, true, 0);
+            let l2_copy = tv_list_copy(None, l2, true, 0);
             (*l2_copy).lv_refcount = 1;
             assert!(tv_list_equal(l2, l2_copy, false));
             assert!(tv_list_equal(ptr::null_mut(), ptr::null_mut(), false));
@@ -5433,7 +5433,7 @@ mod tests {
             );
 
             // Copy, equal, extend, readonly, clear
-            let d_copy = tv_dict_copy(ptr::null_mut(), d, true, 0);
+            let d_copy = tv_dict_copy(None, d, true, 0);
             (*d_copy).dv_refcount = 1;
             assert!(tv_dict_equal(d, d_copy, false));
             assert!(tv_dict_equal(ptr::null_mut(), ptr::null_mut(), false));

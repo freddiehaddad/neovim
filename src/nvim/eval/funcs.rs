@@ -1855,7 +1855,7 @@ pub unsafe fn f_confirm(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
 /// "copy()" function
 pub unsafe fn f_copy(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        var_item_copy(ptr::null_mut(), argvars, rettv, false, 0);
+        var_item_copy(None, argvars, rettv, false, 0);
     }
 }
 
@@ -1984,7 +1984,7 @@ pub unsafe fn f_deepcopy(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             noref = tv_get_bool_chk(argvars.add(1), ptr::null_mut());
         }
         var_item_copy(
-            ptr::null_mut(),
+            None,
             argvars,
             rettv,
             true,
@@ -2507,7 +2507,7 @@ unsafe fn flatten_common(argvars: *mut typval_T, rettv: *mut typval_T, make_copy
         }
 
         if make_copy {
-            list = tv_list_copy(ptr::null_mut(), list, false, get_copyID());
+            list = tv_list_copy(None, list, false, get_copyID());
             (*rettv).vval.v_list = list;
             if list.is_null() {
                 return;
@@ -8705,9 +8705,9 @@ pub unsafe fn f_strftime(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
         let mut conv = vimconv_T::new();
         conv.vc_type = CONV_NONE;
         let enc = enc_locale();
-        convert_setup(&raw mut conv, p_enc, enc);
+        convert_setup(&mut conv, p_enc, enc);
         if conv.vc_type != CONV_NONE {
-            p = string_convert(&raw const conv, p, ptr::null_mut());
+            p = string_convert(&conv, p, ptr::null_mut());
         }
         let mut result_buf = [0 as c_char; 256];
         if p.is_null() || strftime(result_buf.as_mut_ptr(), result_buf.len(), p, curtime_ptr) == 0 {
@@ -8717,10 +8717,10 @@ pub unsafe fn f_strftime(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
         if conv.vc_type != CONV_NONE {
             xfree(p.cast());
         }
-        convert_setup(&raw mut conv, enc, p_enc);
+        convert_setup(&mut conv, enc, p_enc);
         if conv.vc_type != CONV_NONE {
             (*rettv).vval.v_string =
-                string_convert(&raw const conv, result_buf.as_mut_ptr(), ptr::null_mut());
+                string_convert(&conv, result_buf.as_mut_ptr(), ptr::null_mut());
         } else {
             (*rettv).vval.v_string = xstrdup(result_buf.as_ptr());
         }
@@ -8743,9 +8743,9 @@ pub unsafe fn f_strptime(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
         let mut conv = vimconv_T::new();
         conv.vc_type = CONV_NONE;
         let enc = enc_locale();
-        convert_setup(&raw mut conv, p_enc, enc);
+        convert_setup(&mut conv, p_enc, enc);
         if conv.vc_type != CONV_NONE {
-            fmt = string_convert(&raw const conv, fmt, ptr::null_mut());
+            fmt = string_convert(&conv, fmt, ptr::null_mut());
         }
         if fmt.is_null() || os_strptime(str_, fmt, &raw mut tmval).is_null() {
             (*rettv).vval.v_number = 0;

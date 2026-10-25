@@ -3666,13 +3666,13 @@ unsafe fn color_expr_cmdline(
                 allocated: false,
             },
         ];
-        let mut colors = ParserHighlight::new();
         let mut pstate = ParserState {
             reader: ParserInputReader::new(parser_lines.as_ptr()),
             pos: ParserPosition { line: 0, col: 0 },
-            colors: &raw mut colors,
+            colors: Some(ParserHighlight::new()),
         };
-        drop(viml_pexpr_parse(&raw mut pstate, kExprFlagsDisallowEOC));
+        drop(viml_pexpr_parse(&mut pstate, kExprFlagsDisallowEOC));
+        let colors = pstate.colors.take().unwrap_or_default();
         drop(pstate);
 
         (*ret_ccline_colors).colors.reserve(colors.len());

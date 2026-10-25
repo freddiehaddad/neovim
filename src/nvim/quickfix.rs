@@ -1270,7 +1270,7 @@ unsafe fn qf_get_next_file_line(state: *mut qfstate_T) -> c_int {
 
         if (*state).vc.vc_type != CONV_NONE && has_non_ascii((*state).linebuf) {
             let line = string_convert(
-                &raw mut (*state).vc,
+                &(*state).vc,
                 (*state).linebuf,
                 &raw mut (*state).linelen,
             );
@@ -1459,7 +1459,7 @@ unsafe fn qf_setup_state(
     unsafe {
         (*pstate).vc.vc_type = CONV_NONE;
         if !enc.is_null() && *enc != NUL {
-            convert_setup(&raw mut (*pstate).vc, enc, p_enc);
+            convert_setup(&mut (*pstate).vc, enc, p_enc);
         }
 
         if !efile.is_null() {

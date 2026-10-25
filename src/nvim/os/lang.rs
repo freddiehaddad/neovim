@@ -314,7 +314,7 @@ unsafe fn convert_mo_bytes_to_utf8(bytes: &[u8], charset: Option<&[u8]>) -> Vec<
         let mut vc = vimconv_T::new();
         if unsafe {
             convert_setup(
-                &raw mut vc,
+                &mut vc,
                 cs_cstr.as_ptr().cast_mut(),
                 c"utf-8".as_ptr().cast_mut(),
             )
@@ -324,7 +324,7 @@ unsafe fn convert_mo_bytes_to_utf8(bytes: &[u8], charset: Option<&[u8]>) -> Vec<
             let mut len = bytes.len();
             let converted = unsafe {
                 string_convert(
-                    &raw const vc,
+                    &vc,
                     bytes.as_ptr().cast::<c_char>().cast_mut(),
                     &raw mut len,
                 )

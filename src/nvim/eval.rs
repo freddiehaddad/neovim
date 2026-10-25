@@ -6519,7 +6519,7 @@ pub unsafe fn set_selfdict(rettv: *mut typval_T, selfdict: *mut dict_T) {
 
 /// Make a copy of an item.
 pub unsafe fn var_item_copy(
-    conv: *const vimconv_T,
+    conv: Option<&vimconv_T>,
     from: *mut typval_T,
     to: *mut typval_T,
     deep: bool,
@@ -6544,8 +6544,12 @@ pub unsafe fn var_item_copy(
                 tv_copy(from, to);
             }
             VarType::VAR_STRING => {
-                if conv.is_null() || (*conv).vc_type == CONV_NONE || (*from).vval.v_string.is_null()
-                {
+                let Some(conv) = conv.filter(|c| c.vc_type != CONV_NONE) else {
+                    tv_copy(from, to);
+                    VAR_ITEM_COPY_RECURSE -= 1;
+                    return ret;
+                };
+                if (*from).vval.v_string.is_null() {
                     tv_copy(from, to);
                 } else {
                     (*to).v_type = VarType::VAR_STRING;

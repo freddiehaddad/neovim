@@ -1787,7 +1787,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
             xfree(pc.cast());
             let line = if (*spin).si_conv.vc_type != CONV_NONE {
                 pc = string_convert(
-                    &raw const (*spin).si_conv,
+                    &(*spin).si_conv,
                     rline.as_mut_ptr(),
                     ptr::null_mut(),
                 );
@@ -1841,7 +1841,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                 {
                     (*aff).af_enc = enc_canonize(items[1]);
                     if (*spin).si_ascii == 0
-                        && convert_setup(&raw mut (*spin).si_conv, (*aff).af_enc, p_enc) == FAIL
+                        && convert_setup(&mut (*spin).si_conv, (*aff).af_enc, p_enc) == FAIL
                     {
                         smsg!(
                             0,
@@ -3032,7 +3032,7 @@ unsafe fn spell_read_dic(
             let pc: *mut c_char;
             let w = if (*spin).si_conv.vc_type != CONV_NONE {
                 pc = string_convert(
-                    &raw const (*spin).si_conv,
+                    &(*spin).si_conv,
                     line.as_mut_ptr(),
                     ptr::null_mut(),
                 );
@@ -3676,7 +3676,7 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
             xfree(pc.cast());
             let mut line = if (*spin).si_conv.vc_type != CONV_NONE {
                 pc = string_convert(
-                    &raw const (*spin).si_conv,
+                    &(*spin).si_conv,
                     rline.as_mut_ptr(),
                     ptr::null_mut(),
                 );
@@ -3723,7 +3723,7 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
                         line = line.add(9);
                         let enc = enc_canonize(line);
                         if (*spin).si_ascii == 0
-                            && convert_setup(&raw mut (*spin).si_conv, enc, p_enc) == FAIL
+                            && convert_setup(&mut (*spin).si_conv, enc, p_enc) == FAIL
                         {
                             smsg!(
                                 0,
@@ -5171,7 +5171,7 @@ unsafe fn mkspell(fnames: &[*mut c_char], ascii: bool, over_write: bool, added_w
                         error = true;
                     }
 
-                    convert_setup(&raw mut spin.si_conv, ptr::null_mut(), ptr::null_mut());
+                    convert_setup(&mut spin.si_conv, ptr::null_mut(), ptr::null_mut());
                     i += 1;
                 }
 

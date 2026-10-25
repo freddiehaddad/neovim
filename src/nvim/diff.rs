@@ -711,22 +711,22 @@ pub unsafe fn diff_redraw(dofold: bool) {
         }
     }
 }
-unsafe fn clear_diffin(din: *mut diffin_T) {
+unsafe fn clear_diffin(din: &mut diffin_T) {
     unsafe {
-        if (*din).din_fname.is_null() {
-            xfree((*din).din_mmfile.ptr.cast());
-            (*din).din_mmfile.ptr = ptr::null_mut();
+        if din.din_fname.is_null() {
+            xfree(din.din_mmfile.ptr.cast());
+            din.din_mmfile.ptr = ptr::null_mut();
         } else {
-            let _ = os_remove((*din).din_fname);
+            let _ = os_remove(din.din_fname);
         }
     }
 }
-unsafe fn clear_diffout(dout: *mut diffout_T) {
+unsafe fn clear_diffout(dout: &mut diffout_T) {
     unsafe {
-        if (*dout).dout_fname.is_null() {
-            (*dout).dout_ga = Vec::new();
+        if dout.dout_fname.is_null() {
+            dout.dout_ga = Vec::new();
         } else {
-            let _ = os_remove((*dout).dout_fname);
+            let _ = os_remove(dout.dout_fname);
         }
     }
 }
@@ -944,10 +944,10 @@ unsafe fn diff_try_update(dio: *mut diffio_T, idx_orig: usize, eap: *mut exarg_T
                         continue;
                     }
                     diff_read(idx_orig, idx_new, dio);
-                    clear_diffin(&raw mut (*dio).dio_new);
-                    clear_diffout(&raw mut (*dio).dio_diff);
+                    clear_diffin(&mut (*dio).dio_new);
+                    clear_diffout(&mut (*dio).dio_diff);
                 }
-                clear_diffin(&raw mut (*dio).dio_orig);
+                clear_diffin(&mut (*dio).dio_orig);
                 if anchor_i != 0 {
                     diff_finger_dp_idx = None;
                     for dp in &mut (*curtab).tp_diffs {
@@ -2991,7 +2991,7 @@ unsafe fn diff_find_change_inline_diff(dp_idx: usize) {
                         break 'done;
                     }
                     diff_read(0, i, &raw mut dio);
-                    clear_diffout(&raw mut dio.dio_diff);
+                    clear_diffout(&mut dio.dio_diff);
                 }
             }
             if (diff_flags & DIFF_INLINE_WORD) != 0 && file1_idx != -1 {
@@ -3046,7 +3046,7 @@ unsafe fn diff_find_change_inline_diff(dp_idx: usize) {
         (*curtab).tp_diffbuf = orig_diffbuf;
         (&mut (*curtab).tp_diffs)[dp_idx].df_changes = changes;
         (&mut (*curtab).tp_diffs)[dp_idx].has_changes = true;
-        clear_diffout(&raw mut dio.dio_diff);
+        clear_diffout(&mut dio.dio_diff);
     }
 }
 pub unsafe fn diff_find_change(wp: *mut win_T, lnum: linenr_T, diffline: *mut diffline_T) -> bool {

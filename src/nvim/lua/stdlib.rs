@@ -588,9 +588,9 @@ unsafe extern "C-unwind" fn nlua_iconv(lstate: *mut lua_State) -> c_int {
             vc_fd: ptr::null_mut(),
             vc_fail: false,
         };
-        let _ = convert_setup_ext(&raw mut vimconv, from, false, to, false);
+        let _ = convert_setup_ext(&mut vimconv, from, false, to, false);
 
-        let ret = string_convert(&raw const vimconv, str_.cast_mut(), &raw mut str_len);
+        let ret = string_convert(&vimconv, str_.cast_mut(), &raw mut str_len);
 
         xfree(from.cast());
         xfree(to.cast());

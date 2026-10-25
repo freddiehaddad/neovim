@@ -1289,44 +1289,40 @@ fn is_opt_scope(b: u8) -> bool {
 }
 
 #[inline]
-unsafe fn viml_parser_advance(pstate: *mut ParserState, len: usize) {
-    unsafe {
-        let pstate = &mut *pstate;
-        debug_assert_eq!(pstate.pos.line, pstate.reader.lines.len() - 1);
-        let pline = *pstate.reader.lines.last().unwrap();
-        if pstate.pos.col + len >= pline.size {
-            pstate.pos.line += 1;
-            pstate.pos.col = 0;
-        } else {
-            pstate.pos.col += len;
-        }
+fn viml_parser_advance(pstate: &mut ParserState, len: usize) {
+    debug_assert_eq!(pstate.pos.line, pstate.reader.lines.len() - 1);
+    let pline = *pstate.reader.lines.last().unwrap();
+    if pstate.pos.col + len >= pline.size {
+        pstate.pos.line += 1;
+        pstate.pos.col = 0;
+    } else {
+        pstate.pos.col += len;
     }
 }
 
 #[inline]
-unsafe fn viml_parser_highlight(
-    pstate: *mut ParserState,
+fn viml_parser_highlight(
+    pstate: &mut ParserState,
     start: ParserPosition,
     len: usize,
     group: *const c_char,
 ) {
-    unsafe {
-        let pstate = &mut *pstate;
-        if pstate.colors.is_null() || len == 0 {
-            return;
-        }
-        let colors = &mut *pstate.colors;
-        debug_assert!(
-            colors.is_empty()
-                || colors.last().unwrap().start.line < start.line
-                || colors.last().unwrap().end_col <= start.col
-        );
-        colors.push(ParserHighlightChunk {
-            start,
-            end_col: start.col + len,
-            group,
-        });
+    if len == 0 {
+        return;
     }
+    let Some(colors) = &mut pstate.colors else {
+        return;
+    };
+    debug_assert!(
+        colors.is_empty()
+            || colors.last().unwrap().start.line < start.line
+            || colors.last().unwrap().end_col <= start.col
+    );
+    colors.push(ParserHighlightChunk {
+        start,
+        end_col: start.col + len,
+        group,
+    });
 }
 
 #[inline]
@@ -1370,11 +1366,11 @@ unsafe fn get_ccs(ret: &mut LexExprToken, bytes: &[u8]) {
 }
 
 /// Get next token for the Vimscript expression input (`viml_pexpr_next_token`).
-pub unsafe fn viml_pexpr_next_token(pstate: *mut ParserState, flags: c_int) -> LexExprToken {
+pub unsafe fn viml_pexpr_next_token(pstate: &mut ParserState, flags: c_int) -> LexExprToken {
     unsafe {
         let mut ret = LexExprToken::new();
         ret.r#type = kExprLexInvalid;
-        ret.start = (*pstate).pos;
+        ret.start = pstate.pos;
 
         let mut pline = ParserLine {
             data: std::ptr::null(),
@@ -1843,19 +1839,19 @@ const fn recol_pos(pos: ParserPosition, new_col: usize) -> ParserPosition {
 
 #[inline]
 unsafe fn east_set_error(
-    pstate: *const ParserState,
-    ret_ast_err: *mut ExprASTError,
+    pstate: &ParserState,
+    ret_ast_err: &mut ExprASTError,
     msg: *const c_char,
     start: ParserPosition,
 ) {
     unsafe {
-        if !(*ret_ast_err).msg.is_null() {
+        if !ret_ast_err.msg.is_null() {
             return;
         }
-        let pline = (*pstate).reader.lines.as_slice()[start.line];
-        (*ret_ast_err).msg = msg;
-        (*ret_ast_err).arg_len = (pline.size - start.col) as c_int;
-        (*ret_ast_err).arg = if pline.data.is_null() {
+        let pline = pstate.reader.lines.as_slice()[start.line];
+        ret_ast_err.msg = msg;
+        ret_ast_err.arg_len = (pline.size - start.col) as c_int;
+        ret_ast_err.arg = if pline.data.is_null() {
             std::ptr::null()
         } else {
             pline.data.add(start.col)
@@ -1864,11 +1860,11 @@ unsafe fn east_set_error(
 }
 
 unsafe fn viml_pexpr_handle_bop(
-    pstate: *const ParserState,
-    ast_stack: *mut ExprASTStack,
+    pstate: &ParserState,
+    ast_stack: &mut ExprASTStack,
     bop_node: *mut ExprASTNode,
-    want_node_p: *mut ExprASTWantedNode,
-    ast_err: *mut ExprASTError,
+    want_node_p: &mut ExprASTWantedNode,
+    ast_err: &mut ExprASTError,
 ) -> bool {
     unsafe {
         let mut ret = true;
@@ -1876,7 +1872,7 @@ unsafe fn viml_pexpr_handle_bop(
         let mut top_node: *mut ExprASTNode = std::ptr::null_mut();
         let mut top_node_lvl = ExprOpLvl::Invalid;
         let mut top_node_ass = ExprOpAssociativity::No;
-        debug_assert!(!(*ast_stack).is_empty());
+        debug_assert!(!ast_stack.is_empty());
         let bop_node_lvl =
             if (*bop_node).r#type == kExprNodeCall || (*bop_node).r#type == kExprNodeSubscript {
                 ExprOpLvl::Subscript
@@ -1884,7 +1880,7 @@ unsafe fn viml_pexpr_handle_bop(
                 node_lvl(&*bop_node)
             };
         loop {
-            let new_top_node_p = *(*ast_stack).last().unwrap();
+            let new_top_node_p = *ast_stack.last().unwrap();
             let new_top_node = *new_top_node_p;
             debug_assert!(!new_top_node.is_null());
             let new_top_node_lvl = node_lvl(&*new_top_node);
@@ -1896,7 +1892,7 @@ unsafe fn viml_pexpr_handle_bop(
             {
                 break;
             }
-            (*ast_stack).pop();
+            ast_stack.pop();
             top_node_p = new_top_node_p;
             top_node = new_top_node;
             top_node_lvl = new_top_node_lvl;
@@ -1904,7 +1900,7 @@ unsafe fn viml_pexpr_handle_bop(
             if bop_node_lvl == top_node_lvl && top_node_ass == ExprOpAssociativity::Right {
                 break;
             }
-            if (*ast_stack).is_empty() {
+            if ast_stack.is_empty() {
                 break;
             }
         }
@@ -1912,8 +1908,8 @@ unsafe fn viml_pexpr_handle_bop(
             *top_node_p = bop_node;
             (*bop_node).children = top_node;
             debug_assert!((*(*bop_node).children).next.is_null());
-            (*ast_stack).push(top_node_p);
-            (*ast_stack).push(&mut (*(*bop_node).children).next);
+            ast_stack.push(top_node_p);
+            ast_stack.push(&mut (*(*bop_node).children).next);
         } else {
             debug_assert!(
                 top_node_lvl == bop_node_lvl && top_node_ass == ExprOpAssociativity::Right
@@ -1924,9 +1920,9 @@ unsafe fn viml_pexpr_handle_bop(
             (*bop_node).children = (*(*top_node).children).next;
             (*(*top_node).children).next = bop_node;
             debug_assert!((*(*bop_node).children).next.is_null());
-            (*ast_stack).push(top_node_p);
-            (*ast_stack).push(&mut (*(*top_node).children).next);
-            (*ast_stack).push(&mut (*(*bop_node).children).next);
+            ast_stack.push(top_node_p);
+            ast_stack.push(&mut (*(*top_node).children).next);
+            ast_stack.push(&mut (*(*bop_node).children).next);
             if (*bop_node).r#type == kExprNodeComparison {
                 east_set_error(
                     pstate,
@@ -1970,14 +1966,14 @@ macro_rules! hl_group {
 }
 
 unsafe fn parse_quoted_string(
-    pstate: *mut ParserState,
-    node: *mut ExprASTNode,
+    pstate: &mut ParserState,
+    node: &mut ExprASTNode,
     token: LexExprToken,
-    _ast_stack: *const ExprASTStack,
+    _ast_stack: &ExprASTStack,
     is_invalid: bool,
 ) {
     unsafe {
-        let pline = (*pstate).reader.lines.as_slice()[token.start.line];
+        let pline = pstate.reader.lines.as_slice()[token.start.line];
         let s = pline.data.add(token.start.col);
         let closed_len = usize::from(token.data.str().closed);
         let e = s.add(token.len - closed_len);
@@ -2002,7 +1998,7 @@ unsafe fn parse_quoted_string(
                 let chunk_e = p.add(pos);
                 size -= 1;
                 p = chunk_e.add(2);
-                if !(*pstate).colors.is_null() {
+                if pstate.colors.is_some() {
                     shifts.push(StringShift {
                         start: token.start.col + (chunk_e as usize - s as usize),
                         orig_len: 2,
@@ -2011,12 +2007,12 @@ unsafe fn parse_quoted_string(
                     });
                 }
             }
-            (*node).data.str_mut().size = size;
+            node.data.str_mut().size = size;
             if size == 0 {
-                (*node).data.str_mut().value = std::ptr::null_mut();
+                node.data.str_mut().value = std::ptr::null_mut();
             } else {
                 let mut v_p = xmallocz(size).cast::<c_char>();
-                (*node).data.str_mut().value = v_p;
+                node.data.str_mut().value = v_p;
                 p = s.add(1);
                 while (p as usize) < (e as usize) {
                     let rem = e as usize - p as usize;
@@ -2103,11 +2099,11 @@ unsafe fn parse_quoted_string(
                 p = p.add(1);
             }
             if size == 0 {
-                (*node).data.str_mut().value = std::ptr::null_mut();
-                (*node).data.str_mut().size = 0;
+                node.data.str_mut().value = std::ptr::null_mut();
+                node.data.str_mut().size = 0;
             } else {
                 let mut v_p = xmalloc(size).cast::<c_char>();
-                (*node).data.str_mut().value = v_p;
+                node.data.str_mut().value = v_p;
                 p = s.add(1);
                 while (p as usize) < (e as usize) {
                     let rem = e as usize - p as usize;
@@ -2248,7 +2244,7 @@ unsafe fn parse_quoted_string(
                             mb_copy_char(&mut p, &mut v_p);
                         }
                     }
-                    if !(*pstate).colors.is_null() {
+                    if pstate.colors.is_some() {
                         shifts.push(StringShift {
                             start: token.start.col + (chunk_e as usize - s as usize),
                             orig_len: p as usize - chunk_e as usize,
@@ -2257,10 +2253,10 @@ unsafe fn parse_quoted_string(
                         });
                     }
                 }
-                (*node).data.str_mut().size = v_p as usize - (*node).data.str().value as usize;
+                node.data.str_mut().size = v_p as usize - node.data.str().value as usize;
             }
         }
-        if !(*pstate).colors.is_null() {
+        if pstate.colors.is_some() {
             let mut next_col = token.start.col + 1;
             let body_str = if is_double {
                 hl_group!(
@@ -2359,7 +2355,7 @@ const WANT_NODE_TO_LEXER_FLAGS: [c_int; 2] = [
 const BASE_TO_PREFIX_LENGTH: [usize; 17] = [0, 0, 2, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2];
 
 /// Parse one Vimscript expression (`viml_pexpr_parse`).
-pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAST {
+pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAST {
     unsafe {
         let mut ast = ExprAST {
             err: ExprASTError {
@@ -2439,7 +2435,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                     is_invalid = false;
                     highlighted_prev_spacing = true;
                 }
-                let pline = (*pstate).reader.lines.as_slice()[cur_token.start.line];
+                let pline = pstate.reader.lines.as_slice()[cur_token.start.line];
                 let top_node_p = *ast_stack.last().unwrap();
                 debug_assert!(!ast_stack.is_empty());
 
@@ -2947,10 +2943,8 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                         if cur_pt == ExprASTParseType::LambdaArguments {
                             debug_assert!(!lambda_node.is_null());
                             (*lambda_node).r#type = kExprNodeLambda;
-                            if !(*pstate).colors.is_null() {
-                                (*(*pstate).colors).as_mut_slice()
-                                    [(*lambda_node).data.fig().opening_hl_idx]
-                                    .group =
+                            if let Some(colors) = &mut pstate.colors {
+                                colors[(*lambda_node).data.fig().opening_hl_idx].group =
                                     hl_group!(is_invalid, c"NvimLambda", c"NvimInvalidLambda");
                             }
                         }
@@ -3032,10 +3026,8 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                     break;
                                 } else if eastnode_type == kExprNodeUnknownFigure {
                                     (**eastnode_p).r#type = kExprNodeDictLiteral;
-                                    if !(*pstate).colors.is_null() {
-                                        (*(*pstate).colors).as_mut_slice()
-                                            [(**eastnode_p).data.fig().opening_hl_idx]
-                                            .group =
+                                    if let Some(colors) = &mut pstate.colors {
+                                        colors[(**eastnode_p).data.fig().opening_hl_idx].group =
                                             hl_group!(is_invalid, c"NvimDict", c"NvimInvalidDict");
                                     }
                                     valid_colon = true;
@@ -3383,9 +3375,8 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                                 c"NvimDict",
                                                 c"NvimInvalidDict"
                                             );
-                                            if !(*pstate).colors.is_null() {
-                                                (*(*pstate).colors).as_mut_slice()
-                                                    [(*new_top_node).data.fig().opening_hl_idx]
+                                            if let Some(colors) = &mut pstate.colors {
+                                                colors[(*new_top_node).data.fig().opening_hl_idx]
                                                     .group = grp;
                                             }
                                             viml_parser_highlight(
@@ -3402,9 +3393,8 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                                 c"NvimCurly",
                                                 c"NvimInvalidCurly"
                                             );
-                                            if !(*pstate).colors.is_null() {
-                                                (*(*pstate).colors).as_mut_slice()
-                                                    [(*new_top_node).data.fig().opening_hl_idx]
+                                            if let Some(colors) = &mut pstate.colors {
+                                                colors[(*new_top_node).data.fig().opening_hl_idx]
                                                     .group = grp;
                                             }
                                             viml_parser_highlight(
@@ -3427,9 +3417,8 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                                 c"NvimFigureBrace",
                                                 c"NvimInvalidFigureBrace"
                                             );
-                                            if !(*pstate).colors.is_null() {
-                                                (*(*pstate).colors).as_mut_slice()
-                                                    [(*new_top_node).data.fig().opening_hl_idx]
+                                            if let Some(colors) = &mut pstate.colors {
+                                                colors[(*new_top_node).data.fig().opening_hl_idx]
                                                     .group = grp;
                                             }
                                             viml_parser_highlight(
@@ -3537,9 +3526,9 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                     (*n).data.fig_mut().type_guesses.allow_ident = true;
                                     n
                                 };
-                                if !(*pstate).colors.is_null() {
+                                if let Some(colors) = &pstate.colors {
                                     (*cur_node).data.fig_mut().opening_hl_idx =
-                                        (*(*pstate).colors).len() - 1;
+                                        colors.len() - 1;
                                 }
                                 *top_node_p = cur_node;
                                 ast_stack.push(&mut (*cur_node).children);
@@ -3569,9 +3558,9 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                         cur_token,
                                         prev_token,
                                     );
-                                    if !(*pstate).colors.is_null() {
+                                    if let Some(colors) = &pstate.colors {
                                         (*cur_node).data.fig_mut().opening_hl_idx =
-                                            (*(*pstate).colors).len();
+                                            colors.len();
                                     }
                                     (*cur_node).data.fig_mut().type_guesses.allow_lambda = false;
                                     (*cur_node).data.fig_mut().type_guesses.allow_dict = false;
@@ -3612,10 +3601,8 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                             }
                             debug_assert_eq!(**ast_stack.last().unwrap(), lambda_node);
                             (*lambda_node).r#type = kExprNodeLambda;
-                            if !(*pstate).colors.is_null() {
-                                (*(*pstate).colors).as_mut_slice()
-                                    [(*lambda_node).data.fig().opening_hl_idx]
-                                    .group =
+                            if let Some(colors) = &mut pstate.colors {
+                                colors[(*lambda_node).data.fig().opening_hl_idx].group =
                                     hl_group!(is_invalid, c"NvimLambda", c"NvimInvalidLambda");
                             }
                             let cur_node =
@@ -4079,7 +4066,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                             prev_token,
                         );
                         *top_node_p = cur_node;
-                        parse_quoted_string(pstate, cur_node, cur_token, &ast_stack, is_invalid);
+                        parse_quoted_string(pstate, &mut *cur_node, cur_token, &ast_stack, is_invalid);
                         want_node = ExprASTWantedNode::Operator;
                     }
                     kExprLexAssignment => {
@@ -4155,7 +4142,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                 pstate,
                 &mut ast.err,
                 c"E15: Expected value, got EOC: %.*s".as_ptr(),
-                (*pstate).pos,
+                pstate.pos,
             );
         } else if ast_stack.len() != 1 {
             ast_stack.pop();
@@ -4262,11 +4249,10 @@ mod tests {
                 allocated: false,
             },
         ];
-        let mut colors = ParserHighlight::new();
         let mut pstate = ParserState {
             reader: ParserInputReader::new(lines.as_ptr()),
             pos: ParserPosition { line: 0, col: 0 },
-            colors: &mut colors,
+            colors: Some(ParserHighlight::new()),
         };
         f(&mut pstate)
     }
@@ -4411,7 +4397,7 @@ mod tests {
                 let right = (*left).next;
                 assert_eq!((*left).r#type, kExprNodeInteger);
                 assert_eq!((*right).r#type, kExprNodeMultiplication);
-                assert!(!(*pstate.colors).is_empty());
+                assert!(!pstate.colors.as_ref().unwrap().is_empty());
             });
 
             // Ternary, lambda, dictionary, list, call, subscript

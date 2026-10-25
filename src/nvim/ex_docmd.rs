@@ -9962,7 +9962,7 @@ unsafe fn call_findfunc(pat: *mut c_char, cmdcomplete: BoolVarValue) -> *mut lis
         let mut retlist: *mut list_T = ptr::null_mut();
         if retval {
             if rettv.v_type == VarType::VAR_LIST {
-                retlist = tv_list_copy(ptr::null(), rettv.vval.v_list, false, get_copyID());
+                retlist = tv_list_copy(None, rettv.vval.v_list, false, get_copyID());
             } else {
                 let _ = emsg(gettext(e_invalid_return_type_from_findfunc.as_ptr()));
             }

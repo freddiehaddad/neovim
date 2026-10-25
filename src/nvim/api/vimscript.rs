@@ -602,17 +602,10 @@ pub unsafe extern "C" fn nvim_parse_expression(
                 allocated: false,
             },
         ];
-        let mut colors = ParserHighlight::new();
-        let colors_p = if hl {
-            &raw mut colors
-        } else {
-            std::ptr::null_mut()
-        };
-
         let mut pstate = ParserState {
             reader: ParserInputReader::new(parser_lines.as_ptr()),
             pos: ParserPosition { line: 0, col: 0 },
-            colors: colors_p,
+            colors: hl.then(ParserHighlight::new),
         };
 
         let mut east = viml_pexpr_parse(&mut pstate, pflags);
@@ -638,7 +631,7 @@ pub unsafe extern "C" fn nvim_parse_expression(
             put_c(&mut ret, c"error", dict_obj(err_dict));
         }
 
-        if hl {
+        if let Some(colors) = pstate.colors.take() {
             let mut hl_arr = arena_array(arena, colors.len());
             for chunk in &colors {
                 let mut chunk_arr = arena_array(arena, 4);
@@ -650,7 +643,6 @@ pub unsafe extern "C" fn nvim_parse_expression(
             }
             put_c(&mut ret, c"highlight", array_obj(hl_arr));
         }
-        drop(colors);
 
         let mut ast = nil_obj();
         let mut ast_conv_stack: ExprASTConvStack = vec![ExprASTConvStackItem {
