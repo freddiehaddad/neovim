@@ -30,7 +30,7 @@ use crate::ex_docmd::{
     do_cmdline_cmd, exarg_T, set_no_hlsearch,
 };
 use crate::file_search::{
-    FINDFILE_FILE, vim_findfile, vim_findfile_cleanup, vim_findfile_init, vim_findfile_stopdir,
+    FINDFILE_FILE, vim_findfile, vim_findfile_init, vim_findfile_stopdir,
 };
 use crate::fileio::{FILE, fclose, off_T, vim_fgets, vim_fseek, vim_ftell};
 use crate::fold::foldOpenCursor;
@@ -147,7 +147,7 @@ pub struct tagname_T {
     pub tn_np: *mut c_char,
     pub tn_did_filefind_init: c_int,
     pub tn_hf_idx: c_int,
-    pub tn_search_ctx: *mut crate::file_search::ff_search_ctx_T,
+    pub tn_search_ctx: Option<crate::file_search::ff_search_ctx_T>,
 }
 
 impl tagname_T {
@@ -157,7 +157,7 @@ impl tagname_T {
             tn_np: ptr::null_mut(),
             tn_did_filefind_init: 0,
             tn_hf_idx: 0,
-            tn_search_ctx: ptr::null_mut(),
+            tn_search_ctx: None,
         }
     }
 }
@@ -172,7 +172,6 @@ impl Drop for tagname_T {
     fn drop(&mut self) {
         unsafe {
             xfree(self.tn_tags.cast());
-            vim_findfile_cleanup(self.tn_search_ctx);
             let tf = &raw mut tag_fnames;
             (*tf).clear();
         }
@@ -2458,13 +2457,7 @@ pub unsafe fn get_tagfname(tnp: *mut tagname_T, first: c_int, buf: *mut c_char) 
         let mut fname: *mut c_char;
 
         if first != 0 {
-            *tnp = tagname_T {
-                tn_tags: ptr::null_mut(),
-                tn_np: ptr::null_mut(),
-                tn_did_filefind_init: 0,
-                tn_hf_idx: 0,
-                tn_search_ctx: ptr::null_mut(),
-            };
+            *tnp = tagname_T::new();
         }
 
         if (*curbuf).b_help {
@@ -2514,15 +2507,14 @@ pub unsafe fn get_tagfname(tnp: *mut tagname_T, first: c_int, buf: *mut c_char) 
 
         loop {
             if (*tnp).tn_did_filefind_init != 0 {
-                fname = vim_findfile((*tnp).tn_search_ctx);
+                fname = vim_findfile((*tnp).tn_search_ctx.as_mut());
                 if !fname.is_null() {
                     break;
                 }
                 (*tnp).tn_did_filefind_init = 0;
             } else {
                 if *(*tnp).tn_np == NUL {
-                    vim_findfile_cleanup((*tnp).tn_search_ctx);
-                    (*tnp).tn_search_ctx = ptr::null_mut();
+                    (*tnp).tn_search_ctx = None;
                     return FAIL;
                 }
 
@@ -2547,11 +2539,11 @@ pub unsafe fn get_tagfname(tnp: *mut tagname_T, first: c_int, buf: *mut c_char) 
                     100,
                     0,
                     FINDFILE_FILE,
-                    (*tnp).tn_search_ctx,
+                    (*tnp).tn_search_ctx.take(),
                     1,
                     (*curbuf).b_ffname,
                 );
-                if !(*tnp).tn_search_ctx.is_null() {
+                if (*tnp).tn_search_ctx.is_some() {
                     (*tnp).tn_did_filefind_init = 1;
                 }
             }
