@@ -3965,30 +3965,23 @@ unsafe fn version_msg(s: *const c_char) {
 }
 
 /// List string items nicely aligned in columns (`list_in_columns`).
-pub unsafe fn list_in_columns(items: *mut *mut c_char, size: c_int, current: c_int) {
+pub unsafe fn list_in_columns(items: &[*mut c_char], current: c_int) {
     unsafe {
-        let mut item_count: c_int = 0;
+        let item_count = items.len() as c_int;
         let mut width: c_int = 0;
 
-        let mut i: c_int = 0;
-        while if size < 0 {
-            !(*items.add(i as usize)).is_null()
-        } else {
-            i < size
-        } {
-            let l = vim_strsize(*items.add(i as usize)) + if i == current { 2 } else { 0 };
+        for (i, &item) in items.iter().enumerate() {
+            let l = vim_strsize(item) + if i as c_int == current { 2 } else { 0 };
             if l > width {
                 width = l;
             }
-            item_count += 1;
-            i += 1;
         }
         width += 1;
 
         if Columns < width {
-            for idx in 0..item_count {
-                version_msg_wrap(*items.add(idx as usize), idx == current);
-                if msg_col > 0 && idx < item_count - 1 {
+            for (idx, &item) in items.iter().enumerate() {
+                version_msg_wrap(item, idx as c_int == current);
+                if msg_col > 0 && (idx as c_int) < item_count - 1 {
                     msg_putchar(b'\n' as c_int);
                 }
             }
@@ -4007,7 +4000,7 @@ pub unsafe fn list_in_columns(items: *mut *mut c_char, size: c_int, current: c_i
                 if idx == current {
                     msg_putchar(b'[' as c_int);
                 }
-                msg_puts(*items.add(idx as usize));
+                msg_puts(items[idx as usize]);
                 if idx == current {
                     msg_putchar(b']' as c_int);
                 }

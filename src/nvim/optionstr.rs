@@ -37,7 +37,7 @@ use crate::mark::{fmark_T, fmarkv_T};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{enc_canonize, get_encoding_name, utf_ptr2char, utfc_ptr2len, utfc_ptr2schar};
 use crate::memline::ml_setflags;
-use crate::memory::{xfree, xmalloc, xmemcpyz, xmemdupz, xstrdup};
+use crate::memory::{xfree, xmemcpyz, xmemdupz, xstrdup};
 use crate::message::{kOptMessagesopt, msg_grid_validate, verbose_open, verbose_stop};
 use crate::r#move::validate_virtcol;
 use crate::msgpack_rpc::packer::Integer;
@@ -216,8 +216,7 @@ pub struct optexpand_T {
 
 pub type opt_validate_cb_T = Option<unsafe fn(*mut optset_T) -> *const c_char>;
 pub type opt_did_set_cb_T = Option<unsafe fn(*mut optset_T) -> *const c_char>;
-pub type opt_expand_cb_T =
-    Option<unsafe fn(*mut optexpand_T, *mut c_int, *mut *mut *mut c_char) -> c_int>;
+pub type opt_expand_cb_T = Option<unsafe fn(*mut optexpand_T, &mut Vec<*mut c_char>) -> c_int>;
 
 #[repr(C)]
 pub struct vimoption_T {
@@ -1374,13 +1373,11 @@ unsafe fn check_str_opt(
 
 pub unsafe fn expand_set_str_generic(
     args: *mut optexpand_T,
-    numMatches: *mut c_int,
-    matches: *mut *mut *mut c_char,
+    matches: &mut Vec<*mut c_char>,
 ) -> c_int {
     unsafe {
-        let mut values_len: usize = 0;
-        let values = opt_values((*args).oe_idx, &raw mut values_len);
-        expand_set_opt_string(args, values, values_len, numMatches, matches)
+        let values = opt_values((*args).oe_idx, ptr::null_mut());
+        expand_set_opt_string(args, values, matches)
     }
 }
 
@@ -1432,23 +1429,17 @@ unsafe fn check_option_listflag(
 unsafe fn expand_set_opt_string(
     args: *mut optexpand_T,
     values: *const *const c_char,
-    numValues: usize,
-    numMatches: *mut c_int,
-    matches: *mut *mut *mut c_char,
+    matches: &mut Vec<*mut c_char>,
 ) -> c_int {
     unsafe {
         let regmatch = (*args).oe_regmatch;
         let include_orig_val = (*args).oe_include_orig_val;
         let option_val = (*args).oe_opt_value;
 
-        *matches =
-            xmalloc(std::mem::size_of::<*mut c_char>() * (numValues + 1)).cast::<*mut c_char>();
-
-        let mut count: usize = 0;
+        matches.clear();
 
         if include_orig_val && *option_val != NUL {
-            *(*matches).add(count) = xstrdup(option_val);
-            count += 1;
+            matches.push(xstrdup(option_val));
         }
 
         let mut val = values;
@@ -1460,17 +1451,13 @@ unsafe fn expand_set_opt_string(
                 continue;
             }
             if vim_regexec(regmatch, *val, 0) {
-                *(*matches).add(count) = xstrdup(*val);
-                count += 1;
+                matches.push(xstrdup(*val));
             }
             val = val.add(1);
         }
-        if count == 0 {
-            xfree((*matches).cast());
-            *matches = ptr::null_mut();
+        if matches.is_empty() {
             return FAIL;
         }
-        *numMatches = count as c_int;
         OK
     }
 }
@@ -1497,8 +1484,7 @@ unsafe fn expand_set_opt_callback(xp: *mut expand_T, idx: c_int) -> *mut c_char 
 unsafe fn expand_set_opt_generic(
     args: *mut optexpand_T,
     func: CompleteListItemGetter,
-    numMatches: *mut c_int,
-    matches: *mut *mut *mut c_char,
+    matches: &mut Vec<*mut c_char>,
 ) -> c_int {
     unsafe {
         set_opt_callback_orig_option = if (*args).oe_include_orig_val {
@@ -1508,17 +1494,14 @@ unsafe fn expand_set_opt_generic(
         };
         set_opt_callback_func = func;
 
-        let mut vec: Vec<*mut c_char> = Vec::new();
         ExpandGeneric(
             c"".as_ptr(),
             (*args).oe_xp,
             (*args).oe_regmatch,
-            &mut vec,
+            matches,
             Some(expand_set_opt_callback),
             false,
         );
-        *numMatches = vec.len() as c_int;
-        *matches = crate::path::slice_to_xmalloc(&vec);
 
         set_opt_callback_orig_option = ptr::null_mut();
         set_opt_callback_func = None;
@@ -1530,8 +1513,7 @@ unsafe fn expand_set_opt_generic(
 unsafe fn expand_set_opt_listflag(
     args: *mut optexpand_T,
     flags: *const c_char,
-    numMatches: *mut c_int,
-    matches: *mut *mut *mut c_char,
+    matches: &mut Vec<*mut c_char>,
 ) -> c_int {
     unsafe {
         let option_val = (*args).oe_opt_value;
@@ -1539,16 +1521,10 @@ unsafe fn expand_set_opt_listflag(
         let append = (*args).oe_append;
         let include_orig_val = (*args).oe_include_orig_val && (*option_val != NUL);
 
-        let num_flags = strlen(flags);
-
-        *matches =
-            xmalloc(std::mem::size_of::<*mut c_char>() * (num_flags + 1)).cast::<*mut c_char>();
-
-        let mut count: usize = 0;
+        matches.clear();
 
         if include_orig_val {
-            *(*matches).add(count) = xstrdup(option_val);
-            count += 1;
+            matches.push(xstrdup(option_val));
         }
 
         let mut flag = flags;
@@ -1563,18 +1539,14 @@ unsafe fn expand_set_opt_listflag(
                     flag = flag.add(1);
                     continue;
                 }
-                *(*matches).add(count) = xmemdupz(flag.cast(), 1).cast::<c_char>();
-                count += 1;
+                matches.push(xmemdupz(flag.cast(), 1).cast::<c_char>());
             }
             flag = flag.add(1);
         }
 
-        if count == 0 {
-            xfree((*matches).cast());
-            *matches = ptr::null_mut();
+        if matches.is_empty() {
             return FAIL;
         }
-        *numMatches = count as c_int;
         OK
     }
 }
@@ -1951,8 +1923,7 @@ pub unsafe fn did_set_chars_option(args: *mut optset_T) -> *const c_char {
 /// Expand 'fillchars' or 'listchars' option value.
 pub unsafe fn expand_set_chars_option(
     args: *mut optexpand_T,
-    numMatches: *mut c_int,
-    matches: *mut *mut *mut c_char,
+    matches: &mut Vec<*mut c_char>,
 ) -> c_int {
     unsafe {
         let varp = (*args).oe_varp.cast::<*mut c_char>();
@@ -1965,7 +1936,6 @@ pub unsafe fn expand_set_chars_option(
             } else {
                 get_fillchars_name
             }),
-            numMatches,
             matches,
         )
     }
@@ -2234,10 +2204,9 @@ pub unsafe fn validate_concealcursor(args: *mut optset_T) -> *const c_char {
 
 pub unsafe fn expand_set_concealcursor(
     args: *mut optexpand_T,
-    numMatches: *mut c_int,
-    matches: *mut *mut *mut c_char,
+    matches: &mut Vec<*mut c_char>,
 ) -> c_int {
-    unsafe { expand_set_opt_listflag(args, COCU_ALL.as_ptr(), numMatches, matches) }
+    unsafe { expand_set_opt_listflag(args, COCU_ALL.as_ptr(), matches) }
 }
 
 /// Validate the 'cpoptions' option.
@@ -2253,10 +2222,9 @@ pub unsafe fn validate_cpoptions(args: *mut optset_T) -> *const c_char {
 
 pub unsafe fn expand_set_cpoptions(
     args: *mut optexpand_T,
-    numMatches: *mut c_int,
-    matches: *mut *mut *mut c_char,
+    matches: &mut Vec<*mut c_char>,
 ) -> c_int {
-    unsafe { expand_set_opt_listflag(args, CPO_VI.as_ptr(), numMatches, matches) }
+    unsafe { expand_set_opt_listflag(args, CPO_VI.as_ptr(), matches) }
 }
 
 pub unsafe fn validate_cursorlineopt(args: *mut optset_T) -> *const c_char {
@@ -2306,8 +2274,7 @@ pub unsafe fn did_set_diffopt(_args: *mut optset_T) -> *const c_char {
 
 pub unsafe fn expand_set_diffopt(
     args: *mut optexpand_T,
-    numMatches: *mut c_int,
-    matches: *mut *mut *mut c_char,
+    matches: &mut Vec<*mut c_char>,
 ) -> c_int {
     unsafe {
         let xp = (*args).oe_xp;
@@ -2319,8 +2286,6 @@ pub unsafe fn expand_set_diffopt(
                 return expand_set_opt_string(
                     args,
                     (&raw const opt_dip_algorithm_values).cast(),
-                    (&raw const opt_dip_algorithm_values as *const [*const c_char]).len() - 1,
-                    numMatches,
                     matches,
                 );
             }
@@ -2328,15 +2293,13 @@ pub unsafe fn expand_set_diffopt(
                 return expand_set_opt_string(
                     args,
                     (&raw const opt_dip_inline_values).cast(),
-                    (&raw const opt_dip_inline_values as *const [*const c_char]).len() - 1,
-                    numMatches,
                     matches,
                 );
             }
             return FAIL;
         }
 
-        expand_set_str_generic(args, numMatches, matches)
+        expand_set_str_generic(args, matches)
     }
 }
 
@@ -2404,10 +2367,9 @@ pub unsafe fn did_set_encoding(args: *mut optset_T) -> *const c_char {
 
 pub unsafe fn expand_set_encoding(
     args: *mut optexpand_T,
-    numMatches: *mut c_int,
-    matches: *mut *mut *mut c_char,
+    matches: &mut Vec<*mut c_char>,
 ) -> c_int {
-    unsafe { expand_set_opt_generic(args, Some(get_encoding_name), numMatches, matches) }
+    unsafe { expand_set_opt_generic(args, Some(get_encoding_name), matches) }
 }
 
 /// Validate the 'eventignore'/'eventignorewin' option.
@@ -2454,12 +2416,11 @@ unsafe fn get_eventignore_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
 
 pub unsafe fn expand_set_eventignore(
     args: *mut optexpand_T,
-    numMatches: *mut c_int,
-    matches: *mut *mut *mut c_char,
+    matches: &mut Vec<*mut c_char>,
 ) -> c_int {
     unsafe {
         expand_eiw = !ptr::eq((*args).oe_varp, (&raw mut p_ei).cast::<c_char>());
-        expand_set_opt_generic(args, Some(get_eventignore_name), numMatches, matches)
+        expand_set_opt_generic(args, Some(get_eventignore_name), matches)
     }
 }
 
@@ -2593,10 +2554,9 @@ pub unsafe fn validate_formatoptions(args: *mut optset_T) -> *const c_char {
 
 pub unsafe fn expand_set_formatoptions(
     args: *mut optexpand_T,
-    numMatches: *mut c_int,
-    matches: *mut *mut *mut c_char,
+    matches: &mut Vec<*mut c_char>,
 ) -> c_int {
-    unsafe { expand_set_opt_listflag(args, FO_ALL.as_ptr(), numMatches, matches) }
+    unsafe { expand_set_opt_listflag(args, FO_ALL.as_ptr(), matches) }
 }
 
 /// The 'guicursor' option is changed.
@@ -2828,10 +2788,9 @@ pub unsafe fn validate_mouse(args: *mut optset_T) -> *const c_char {
 
 pub unsafe fn expand_set_mouse(
     args: *mut optexpand_T,
-    numMatches: *mut c_int,
-    matches: *mut *mut *mut c_char,
+    matches: &mut Vec<*mut c_char>,
 ) -> c_int {
-    unsafe { expand_set_opt_listflag(args, MOUSE_ALL.as_ptr(), numMatches, matches) }
+    unsafe { expand_set_opt_listflag(args, MOUSE_ALL.as_ptr(), matches) }
 }
 
 /// Validate the 'mousescroll' option.
@@ -3015,17 +2974,9 @@ pub unsafe fn validate_shellpipe_redir(args: *mut optset_T) -> *const c_char {
 
 pub unsafe fn expand_set_shortmess(
     args: *mut optexpand_T,
-    numMatches: *mut c_int,
-    matches: *mut *mut *mut c_char,
+    matches: &mut Vec<*mut c_char>,
 ) -> c_int {
-    unsafe {
-        expand_set_opt_listflag(
-            args,
-            (&raw const SHM_ALL).cast::<c_char>(),
-            numMatches,
-            matches,
-        )
-    }
+    unsafe { expand_set_opt_listflag(args, (&raw const SHM_ALL).cast::<c_char>(), matches) }
 }
 
 /// Validate the 'shortmess' option.
@@ -3498,10 +3449,9 @@ pub unsafe fn validate_whichwrap(args: *mut optset_T) -> *const c_char {
 
 pub unsafe fn expand_set_whichwrap(
     args: *mut optexpand_T,
-    numMatches: *mut c_int,
-    matches: *mut *mut *mut c_char,
+    matches: &mut Vec<*mut c_char>,
 ) -> c_int {
-    unsafe { expand_set_opt_listflag(args, WW_ALL.as_ptr(), numMatches, matches) }
+    unsafe { expand_set_opt_listflag(args, WW_ALL.as_ptr(), matches) }
 }
 
 pub unsafe fn validate_wildmode(args: *mut optset_T) -> *const c_char {
@@ -3569,10 +3519,9 @@ pub unsafe fn did_set_winhighlight(args: *mut optset_T) -> *const c_char {
 
 pub unsafe fn expand_set_winhighlight(
     args: *mut optexpand_T,
-    numMatches: *mut c_int,
-    matches: *mut *mut *mut c_char,
+    matches: &mut Vec<*mut c_char>,
 ) -> c_int {
-    unsafe { expand_set_opt_generic(args, Some(get_highlight_name), numMatches, matches) }
+    unsafe { expand_set_opt_generic(args, Some(get_highlight_name), matches) }
 }
 
 /// Format an error naming an item (at most 63 bytes) and listing its valid values.
@@ -4476,8 +4425,7 @@ pub unsafe fn validate_previewpopup(args: *mut optset_T) -> *const c_char {
 
 pub unsafe fn expand_set_popupoption(
     args: *mut optexpand_T,
-    numMatches: *mut c_int,
-    matches: *mut *mut *mut c_char,
+    matches: &mut Vec<*mut c_char>,
 ) -> c_int {
     unsafe {
         let xp = (*args).oe_xp;
@@ -4489,21 +4437,13 @@ pub unsafe fn expand_set_popupoption(
                 return expand_set_opt_string(
                     args,
                     (&raw const opt_pvp_border_values).cast(),
-                    (&raw const opt_pvp_border_values as *const [*const c_char]).len() - 1,
-                    numMatches,
                     matches,
                 );
             }
             return FAIL;
         }
 
-        expand_set_opt_string(
-            args,
-            (&raw const opt_pvp_values).cast(),
-            (&raw const opt_pvp_values as *const [*const c_char]).len() - 1,
-            numMatches,
-            matches,
-        )
+        expand_set_opt_string(args, (&raw const opt_pvp_values).cast(), matches)
     }
 }
 

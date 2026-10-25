@@ -29,9 +29,9 @@ use crate::os::fs::{
 use crate::os::input::os_breakcheck;
 use crate::path::{
     EW_ADDSLASH, EW_DIR, EW_NOTWILD, EW_SILENT, FullName_save, PATHSEP, after_pathsep,
-    expand_wildcards, kPathCmpLiteral, path_cmp, path_equal, path_has_drive_letter, path_is_url,
-    path_shorten_fname, path_tail, path_tail_with_sep, path_with_url, simplify_filename,
-    vim_isAbsName, vim_ispathsep,
+    expand_wildcards_vec, kPathCmpLiteral, path_cmp, path_equal, path_has_drive_letter,
+    path_is_url, path_shorten_fname, path_tail, path_tail_with_sep, path_with_url,
+    simplify_filename, vim_isAbsName, vim_ispathsep,
 };
 #[cfg(windows)]
 use crate::path::{path_to_slash, vim_FullName};
@@ -699,21 +699,12 @@ pub unsafe fn vim_findfile(search_ctx: *mut ff_search_ctx_T) -> *mut c_char {
                         (*stackp).ffs_filearray =
                             vec![xmemdupz(dirptrs[0].cast(), file_path.size).cast()];
                     } else {
-                        let mut num_files: c_int = 0;
-                        let mut files: *mut *mut c_char = ptr::null_mut();
-                        expand_wildcards(
+                        expand_wildcards_vec(
                             if dirptrs[1].is_null() { 1 } else { 2 },
                             dirptrs.as_mut_ptr(),
-                            &raw mut num_files,
-                            &raw mut files,
+                            &mut (*stackp).ffs_filearray,
                             EW_DIR | EW_ADDSLASH | EW_SILENT | EW_NOTWILD,
                         );
-                        if num_files > 0 && !files.is_null() {
-                            (*stackp).ffs_filearray.extend_from_slice(
-                                std::slice::from_raw_parts(files, num_files as usize),
-                            );
-                        }
-                        xfree(files.cast());
                     }
 
                     (*stackp).ffs_filearray_cur = 0;

@@ -119,18 +119,16 @@ unsafe extern "system" {
 unsafe fn save_patterns(
     num_pat: c_int,
     pat: *mut *mut c_char,
-    num_file: *mut c_int,
-    file: *mut *mut *mut c_char,
+    file: &mut Vec<*mut c_char>,
 ) {
     unsafe {
-        let out: *mut *mut c_char = xmalloc(num_pat as usize * size_of::<*mut c_char>()).cast();
-        *file = out;
+        file.clear();
+        file.reserve(num_pat as usize);
         for i in 0..(num_pat as usize) {
             let s = xstrdup(*pat.add(i));
             backslash_halve(s);
-            *out.add(i) = s;
+            file.push(s);
         }
-        *num_file = num_pat;
     }
 }
 
@@ -163,8 +161,7 @@ unsafe fn have_dollars(num: c_int, file: *mut *mut c_char) -> bool {
 pub unsafe fn os_expand_wildcards(
     num_pat: c_int,
     pat: *mut *mut c_char,
-    num_file: *mut c_int,
-    file: *mut *mut *mut c_char,
+    file: &mut Vec<*mut c_char>,
     flags: c_int,
 ) -> c_int {
     const SH_VIMGLOB_FUNC: &CStr =
@@ -186,11 +183,10 @@ pub unsafe fn os_expand_wildcards(
         #[cfg(not(unix))]
         let is_fish_shell = false;
 
-        *num_file = 0;
-        *file = ptr::null_mut();
+        file.clear();
 
         if !have_wildcard(num_pat, pat) {
-            save_patterns(num_pat, pat, num_file, file);
+            save_patterns(num_pat, pat, file);
             return OK;
         }
 
@@ -388,7 +384,7 @@ pub unsafe fn os_expand_wildcards(
                 return FAIL;
             }
             if (flags & EW_NOTFOUND) != 0 {
-                save_patterns(num_pat, pat, num_file, file);
+                save_patterns(num_pat, pat, file);
                 return OK;
             }
             return FAIL;
@@ -402,7 +398,7 @@ pub unsafe fn os_expand_wildcards(
             }
             xfree(tempname.cast());
             if (flags & EW_NOTFOUND) != 0 {
-                save_patterns(num_pat, pat, num_file, file);
+                save_patterns(num_pat, pat, file);
                 return OK;
             }
             return FAIL;
@@ -492,18 +488,16 @@ pub unsafe fn os_expand_wildcards(
 
         if count == 0 {
             if (flags & EW_NOTFOUND) != 0 {
-                save_patterns(num_pat, pat, num_file, file);
+                save_patterns(num_pat, pat, file);
                 return OK;
             }
             return FAIL;
         }
-        *num_file = count;
-        let file_arr: *mut *mut c_char = xmalloc(size_of::<*mut c_char>() * count as usize).cast();
-        *file = file_arr;
+        let mut raw_entries: Vec<*mut c_char> = Vec::with_capacity(count as usize);
 
         let mut p = buffer;
-        for i in 0..(count as usize) {
-            *file_arr.add(i) = p;
+        for _ in 0..(count as usize) {
+            raw_entries.push(p);
             if shell_style == STYLE_ECHO
                 || shell_style == STYLE_BT
                 || shell_style == STYLE_VIMGLOB
@@ -529,9 +523,7 @@ pub unsafe fn os_expand_wildcards(
             }
         }
 
-        let mut j: usize = 0;
-        for i in 0..(count as usize) {
-            let entry = *file_arr.add(i);
+        for entry in raw_entries {
             if (flags & EW_NOTFOUND) == 0 && !os_path_exists(entry) {
                 continue;
             }
@@ -553,17 +545,13 @@ pub unsafe fn os_expand_wildcards(
             if dir {
                 add_pathsep(new_entry);
             }
-            *file_arr.add(j) = new_entry;
-            j += 1;
+            file.push(new_entry);
         }
         drop(buffer_vec);
-        *num_file = j as c_int;
 
-        if *num_file == 0 {
-            xfree((*file).cast());
-            *file = ptr::null_mut();
+        if file.is_empty() {
             if (flags & EW_NOTFOUND) != 0 {
-                save_patterns(num_pat, pat, num_file, file);
+                save_patterns(num_pat, pat, file);
                 return OK;
             }
             return FAIL;

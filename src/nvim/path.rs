@@ -1208,15 +1208,14 @@ unsafe fn has_special_wildchar(mut p: *const c_char, flags: c_int) -> bool {
     }
 }
 
-pub unsafe fn gen_expand_wildcards(
+pub unsafe fn gen_expand_wildcards_vec(
     num_pat: c_int,
     pat: *mut *mut c_char,
-    num_file: *mut c_int,
-    file: *mut *mut *mut c_char,
+    file: &mut Vec<*mut c_char>,
     flags: c_int,
 ) -> c_int {
     unsafe {
-        let mut ga: Vec<*mut c_char> = Vec::new();
+        file.clear();
         let mut did_expand_in_path = false;
         let path_option = if *(*curbuf).b_p_path == NUL {
             p_path
@@ -1227,7 +1226,7 @@ pub unsafe fn gen_expand_wildcards(
         if EXPAND_RECURSIVE {
             #[cfg(unix)]
             {
-                return os_expand_wildcards(num_pat, pat, num_file, file, flags);
+                return os_expand_wildcards(num_pat, pat, file, flags);
             }
             #[cfg(not(unix))]
             {
@@ -1241,7 +1240,7 @@ pub unsafe fn gen_expand_wildcards(
             if has_special_wildchar(pi, flags)
                 && !(vim_backtick(pi) && *pi.add(1) == b'=' as c_char)
             {
-                return os_expand_wildcards(num_pat, pat, num_file, file, flags);
+                return os_expand_wildcards(num_pat, pat, file, flags);
             }
         }
 
@@ -1255,12 +1254,10 @@ pub unsafe fn gen_expand_wildcards(
             let mut p = *pat.add(i as usize);
 
             if vim_backtick(p) {
-                add_pat = expand_backtick(&mut ga, p, flags);
+                add_pat = expand_backtick(file, p, flags);
                 if add_pat == -1 {
                     EXPAND_RECURSIVE = false;
-                    clear_cstrings(&mut ga);
-                    *num_file = 0;
-                    *file = ptr::null_mut();
+                    clear_cstrings(file);
                     return FAIL;
                 }
             } else {
@@ -1272,11 +1269,10 @@ pub unsafe fn gen_expand_wildcards(
                         #[cfg(unix)]
                         if has_env_var(p) || *p == b'~' as c_char {
                             xfree(p.cast::<c_void>());
-                            clear_cstrings(&mut ga);
+                            clear_cstrings(file);
                             let res = os_expand_wildcards(
                                 num_pat,
                                 pat,
-                                num_file,
                                 file,
                                 flags | EW_KEEPDOLLAR,
                             );
@@ -1295,12 +1291,12 @@ pub unsafe fn gen_expand_wildcards(
                                     && vim_ispathsep(*p.add(2) as c_int))))
                     {
                         EXPAND_RECURSIVE = false;
-                        add_pat = expand_in_path(&mut ga, p, flags);
+                        add_pat = expand_in_path(file, p, flags);
                         EXPAND_RECURSIVE = true;
                         did_expand_in_path = true;
                     } else {
                         EXPAND_RECURSIVE = false;
-                        let tmp_add_pat = path_expand(&mut ga, p, flags);
+                        let tmp_add_pat = path_expand(file, p, flags);
                         EXPAND_RECURSIVE = true;
                         debug_assert!(tmp_add_pat <= c_int::MAX as usize);
                         add_pat = tmp_add_pat as c_int;
@@ -1311,18 +1307,18 @@ pub unsafe fn gen_expand_wildcards(
             if add_pat == -1 || (add_pat == 0 && (flags & EW_NOTFOUND) != 0) {
                 let t = backslash_halve_save(p);
                 if (flags & EW_NOTFOUND) != 0 {
-                    addfile(&mut ga, t, flags | EW_DIR | EW_FILE);
+                    addfile(file, t, flags | EW_DIR | EW_FILE);
                 } else {
-                    addfile(&mut ga, t, flags);
+                    addfile(file, t, flags);
                 }
                 if t != p {
                     xfree(t.cast::<c_void>());
                 }
             }
 
-            if did_expand_in_path && !ga.is_empty() && (flags & (EW_PATH | EW_CDPATH)) != 0 {
+            if did_expand_in_path && !file.is_empty() && (flags & (EW_PATH | EW_CDPATH)) != 0 {
                 EXPAND_RECURSIVE = false;
-                uniquefy_paths(&mut ga, p, path_option);
+                uniquefy_paths(file, p, path_option);
                 EXPAND_RECURSIVE = true;
             }
             if p != *pat.add(i as usize) {
@@ -1330,35 +1326,13 @@ pub unsafe fn gen_expand_wildcards(
             }
         }
 
-        *num_file = ga.len() as c_int;
-        *file = slice_to_xmalloc(&ga);
-
         EXPAND_RECURSIVE = false;
 
-        if (flags & EW_EMPTYOK) != 0 || !(*file).is_null() {
+        if (flags & EW_EMPTYOK) != 0 || !file.is_empty() {
             OK
         } else {
             FAIL
         }
-    }
-}
-
-pub unsafe fn gen_expand_wildcards_vec(
-    num_pat: c_int,
-    pat: *mut *mut c_char,
-    files: &mut Vec<*mut c_char>,
-    flags: c_int,
-) -> c_int {
-    unsafe {
-        let mut count: c_int = 0;
-        let mut raw_files: *mut *mut c_char = ptr::null_mut();
-        let retval = gen_expand_wildcards(num_pat, pat, &mut count, &mut raw_files, flags);
-        files.clear();
-        if count > 0 && !raw_files.is_null() {
-            files.extend_from_slice(std::slice::from_raw_parts(raw_files, count as usize));
-        }
-        xfree(raw_files.cast());
-        retval
     }
 }
 
@@ -1369,14 +1343,44 @@ pub unsafe fn expand_wildcards_vec(
     flags: c_int,
 ) -> c_int {
     unsafe {
-        let mut count: c_int = 0;
-        let mut raw_files: *mut *mut c_char = ptr::null_mut();
-        let retval = expand_wildcards(num_pat, pat, &mut count, &mut raw_files, flags);
-        files.clear();
-        if count > 0 && !raw_files.is_null() {
-            files.extend_from_slice(std::slice::from_raw_parts(raw_files, count as usize));
+        let retval = gen_expand_wildcards_vec(num_pat, pat, files, flags);
+
+        if (flags & EW_KEEPALL) != 0 || retval == FAIL {
+            return retval;
         }
-        xfree(raw_files.cast());
+
+        if *p_wig != NUL {
+            let mut i = 0;
+            while i < files.len() {
+                let fi = files[i];
+                let ffname = FullName_save(fi, false);
+                debug_assert!(!fi.is_null());
+                debug_assert!(!ffname.is_null());
+                if match_file_list(p_wig, fi, ffname) {
+                    xfree(fi.cast::<c_void>());
+                    files.remove(i);
+                } else {
+                    i += 1;
+                }
+                xfree(ffname.cast::<c_void>());
+            }
+        }
+
+        if files.len() > 1 && !got_int {
+            let mut non_suf_match = 0;
+            for i in 0..files.len() {
+                let fi = files[i];
+                if !match_suffix(fi) {
+                    files[non_suf_match..=i].rotate_right(1);
+                    non_suf_match += 1;
+                }
+            }
+        }
+
+        if files.is_empty() {
+            return FAIL;
+        }
+
         retval
     }
 }
@@ -2060,71 +2064,6 @@ pub unsafe fn expand_wildcards_eval(
         }
 
         ret
-    }
-}
-
-pub unsafe fn expand_wildcards(
-    num_pat: c_int,
-    pat: *mut *mut c_char,
-    num_files: *mut c_int,
-    files: *mut *mut *mut c_char,
-    flags: c_int,
-) -> c_int {
-    unsafe {
-        let retval = gen_expand_wildcards(num_pat, pat, num_files, files, flags);
-
-        if (flags & EW_KEEPALL) != 0 || retval == FAIL {
-            return retval;
-        }
-
-        if *p_wig != NUL {
-            debug_assert!(*num_files == 0 || !(*files).is_null());
-            let mut i: c_int = 0;
-            while i < *num_files {
-                let fi = *(*files).add(i as usize);
-                let ffname = FullName_save(fi, false);
-                debug_assert!(!fi.is_null());
-                debug_assert!(!ffname.is_null());
-                if match_file_list(p_wig, fi, ffname) {
-                    xfree(fi.cast::<c_void>());
-                    let mut j = i;
-                    while j + 1 < *num_files {
-                        *(*files).add(j as usize) = *(*files).add((j + 1) as usize);
-                        j += 1;
-                    }
-                    *num_files -= 1;
-                    i -= 1;
-                }
-                xfree(ffname.cast::<c_void>());
-                i += 1;
-            }
-        }
-
-        debug_assert!(*num_files == 0 || !(*files).is_null());
-        if *num_files > 1 && !got_int {
-            let mut non_suf_match: c_int = 0;
-            for i in 0..*num_files {
-                let fi = *(*files).add(i as usize);
-                if !match_suffix(fi) {
-                    let p = fi;
-                    let mut j = i;
-                    while j > non_suf_match {
-                        *(*files).add(j as usize) = *(*files).add((j - 1) as usize);
-                        j -= 1;
-                    }
-                    *(*files).add(non_suf_match as usize) = p;
-                    non_suf_match += 1;
-                }
-            }
-        }
-
-        if *num_files == 0 {
-            xfree((*files).cast::<c_void>());
-            *files = ptr::null_mut();
-            return FAIL;
-        }
-
-        retval
     }
 }
 

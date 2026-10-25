@@ -8188,14 +8188,7 @@ pub unsafe fn ExpandStringSetting(
         let buf = escape_option_str_cmdline((&raw mut NameBuff).cast::<c_char>());
         args.oe_opt_value = buf;
 
-        let mut raw_num: c_int = 0;
-        let mut raw_matches: *mut *mut c_char = ptr::null_mut();
-        let num_ret = expand_cb(&raw mut args, &raw mut raw_num, &raw mut raw_matches);
-        matches.clear();
-        if raw_num > 0 && !raw_matches.is_null() {
-            matches.extend_from_slice(std::slice::from_raw_parts(raw_matches, raw_num as usize));
-        }
-        xfree(raw_matches.cast());
+        let num_ret = expand_cb(&raw mut args, matches);
 
         xfree(buf.cast());
         num_ret
