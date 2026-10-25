@@ -296,6 +296,22 @@ impl Default for CmdAtom {
     }
 }
 
+impl Drop for CmdAtom {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.keys.is_null() {
+                xfree(self.keys.cast());
+            }
+            if !self.text.is_null() {
+                xfree(self.text.cast());
+            }
+            if !self.lhs.is_null() {
+                xfree(self.lhs.cast());
+            }
+        }
+    }
+}
+
 #[repr(C)]
 pub struct CmdFrame {
     pub origin: CmdOrigin,
@@ -339,6 +355,16 @@ impl CmdFrame {
             payload_end: 0,
             redo_frame: 0,
             cmdline: ptr::null_mut(),
+        }
+    }
+}
+
+impl Drop for CmdFrame {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.cmdline.is_null() {
+                xfree(self.cmdline.cast());
+            }
         }
     }
 }
@@ -454,38 +480,22 @@ unsafe fn is_child_frame() -> bool {
 
 pub unsafe fn atom_free(atom: *mut CmdAtom) {
     unsafe {
-        if !(*atom).keys.is_null() {
-            xfree((*atom).keys.cast());
-            (*atom).keys = ptr::null_mut();
-        }
-        if !(*atom).text.is_null() {
-            xfree((*atom).text.cast());
-            (*atom).text = ptr::null_mut();
-        }
-        if !(*atom).lhs.is_null() {
-            xfree((*atom).lhs.cast());
-            (*atom).lhs = ptr::null_mut();
-        }
-        (*atom).spec.body = Vec::new();
-        atoms_free(&raw mut (*atom).atoms);
+        *atom = CmdAtom::new();
     }
 }
 
 pub unsafe fn atoms_free(v: *mut CmdAtomVec) {
     unsafe {
-        while let Some(mut atom) = (*v).pop() {
-            atom_free(&mut atom);
-        }
-        *v = Vec::new();
+        (*v).clear();
     }
 }
 
 pub unsafe fn atom_free_all() {
     unsafe {
-        atoms_free(&raw mut g_atoms);
+        g_atoms = Vec::new();
         let mut frame = cur_frame;
         while !frame.is_null() {
-            atom_free(&mut (*frame).staged);
+            (*frame).staged = CmdAtom::new();
             if !(*frame).cmdline.is_null() {
                 xfree((*frame).cmdline.cast());
                 (*frame).cmdline = ptr::null_mut();
@@ -497,7 +507,7 @@ pub unsafe fn atom_free_all() {
         *comp_atoms = Vec::new();
         let typed_keys = &raw mut typed.keys;
         *typed_keys = Vec::new();
-        atoms_free(&raw mut vatom.atoms);
+        vatom.atoms = Vec::new();
     }
 }
 
@@ -589,24 +599,22 @@ unsafe fn atom_redo_keys(spec: &CmdSpec) -> *mut c_char {
 unsafe fn atom_from_redo(r#type: CmdAtomType) -> CmdAtom {
     unsafe {
         let keys = redo_keys(ptr::null());
-        CmdAtom {
-            r#type,
-            spec: redo_spec(),
-            keys: keys.data,
-            ..CmdAtom::default()
-        }
+        let mut atom = CmdAtom::new();
+        atom.r#type = r#type;
+        atom.spec = redo_spec();
+        atom.keys = keys.data;
+        atom
     }
 }
 
 unsafe fn atom_from_spec(r#type: CmdAtomType, spec: CmdSpec) -> CmdAtom {
     unsafe {
         let keys = atom_redo_keys(&spec);
-        CmdAtom {
-            r#type,
-            spec,
-            keys,
-            ..CmdAtom::default()
-        }
+        let mut atom = CmdAtom::new();
+        atom.r#type = r#type;
+        atom.spec = spec;
+        atom.keys = keys;
+        atom
     }
 }
 
@@ -641,17 +649,16 @@ unsafe fn atom_from_cmdline(
         }
         sb_add_char(&mut sb, NL);
         let keys = xmemdupz(sb.as_ptr().cast(), sb.len()).cast();
-        CmdAtom {
-            r#type,
-            spec: CmdSpec {
-                count: c_long::from((*ca).count0),
-                cmd: (*ca).cmdchar,
-                ..CmdSpec::default()
-            },
-            keys,
-            text: xstrdup(cmdline),
-            ..CmdAtom::default()
-        }
+        let mut atom = CmdAtom::new();
+        atom.r#type = r#type;
+        atom.spec = CmdSpec {
+            count: c_long::from((*ca).count0),
+            cmd: (*ca).cmdchar,
+            ..CmdSpec::default()
+        };
+        atom.keys = keys;
+        atom.text = xstrdup(cmdline);
+        atom
     }
 }
 
@@ -966,13 +973,12 @@ unsafe fn atom_composite_lhs() -> *mut c_char {
 pub unsafe fn atom_lhs_replay_queue() {
     unsafe {
         let ga = &raw mut g_atoms;
-        (*ga).push(CmdAtom {
-            r#type: kAComp,
-            keys: atom_composite_lhs(),
-            remap: true,
-            origin: composite.origin,
-            ..CmdAtom::default()
-        });
+        let mut atom = CmdAtom::new();
+        atom.r#type = kAComp;
+        atom.keys = atom_composite_lhs();
+        atom.remap = true;
+        atom.origin = composite.origin;
+        (*ga).push(atom);
     }
 }
 
@@ -1023,18 +1029,16 @@ unsafe fn atom_composite_end() {
             atom.remap = remap;
         } else {
             let keys = atoms_concat_keys(&*comp_atoms, 0).data;
-            atom = CmdAtom {
-                r#type: kAComp,
-                keys,
-                lhs,
-                remap,
-                origin: composite.origin,
-                changed: atom_origin_changed(composite.origin),
-                moved: atom_origin_moved(composite.origin),
-                undoseq: atom_origin_undoseq(composite.origin),
-                atoms: std::mem::take(&mut *comp_atoms),
-                ..CmdAtom::default()
-            };
+            atom = CmdAtom::new();
+            atom.r#type = kAComp;
+            atom.keys = keys;
+            atom.lhs = lhs;
+            atom.remap = remap;
+            atom.origin = composite.origin;
+            atom.changed = atom_origin_changed(composite.origin);
+            atom.moved = atom_origin_moved(composite.origin);
+            atom.undoseq = atom_origin_undoseq(composite.origin);
+            atom.atoms = std::mem::take(&mut *comp_atoms);
         }
         atom_emit(&atom);
         atom_free(&mut atom);
@@ -1491,12 +1495,11 @@ unsafe fn atom_visual_span_flush() {
         let span = atom_visual_span();
         vatom.done = (*v_atoms).len();
         let ga = &raw mut g_atoms;
-        (*ga).push(CmdAtom {
-            r#type: kAVisualSpan,
-            keys: span.data,
-            origin: vatom.origin,
-            ..CmdAtom::default()
-        });
+        let mut atom = CmdAtom::new();
+        atom.r#type = kAVisualSpan;
+        atom.keys = span.data;
+        atom.origin = vatom.origin;
+        (*ga).push(atom);
     }
 }
 
@@ -1559,14 +1562,12 @@ unsafe fn atom_visual_end_suffix(
             xfree(suffix.cast());
             atom_visual_reset();
             if emit {
-                let mut staged_atom = CmdAtom {
-                    r#type: kAVisual,
-                    spec: (*spec).without_body(),
-                    keys: xstrdup(c"".as_ptr()),
-                    lhs: label,
-                    origin,
-                    ..CmdAtom::default()
-                };
+                let mut staged_atom = CmdAtom::new();
+                staged_atom.r#type = kAVisual;
+                staged_atom.spec = (*spec).without_body();
+                staged_atom.keys = xstrdup(c"".as_ptr());
+                staged_atom.lhs = label;
+                staged_atom.origin = origin;
                 atom_stage_set(&mut staged_atom);
             }
             return prepped;
@@ -1581,25 +1582,20 @@ unsafe fn atom_visual_end_suffix(
 
         let keys = concat_str(v.data, suffix);
         xfree(v.data.cast());
-        let mut atom = CmdAtom {
-            r#type: kAVisual,
-            spec: if !spec.is_null() {
-                (*spec).without_body()
-            } else {
-                CmdSpec::default()
-            },
-            keys,
-            origin,
-            ..CmdAtom::default()
-        };
+        let mut atom = CmdAtom::new();
+        atom.r#type = kAVisual;
         if !spec.is_null() {
-            (*v_atoms).push(CmdAtom {
-                r#type: kAOperator,
-                spec: (*spec).without_body(),
-                keys: suffix,
-                origin: (*cur_frame).origin,
-                ..CmdAtom::default()
-            });
+            atom.spec = (*spec).without_body();
+        }
+        atom.keys = keys;
+        atom.origin = origin;
+        if !spec.is_null() {
+            let mut op_atom = CmdAtom::new();
+            op_atom.r#type = kAOperator;
+            op_atom.spec = (*spec).without_body();
+            op_atom.keys = suffix;
+            op_atom.origin = (*cur_frame).origin;
+            (*v_atoms).push(op_atom);
         } else {
             xfree(suffix.cast());
         }
@@ -1607,12 +1603,11 @@ unsafe fn atom_visual_end_suffix(
         if atom.cascaded && vatom.done < (*v_atoms).len() {
             let span = atom_visual_span();
             let ga = &raw mut g_atoms;
-            (*ga).push(CmdAtom {
-                r#type: kAVisualSpan,
-                keys: span.data,
-                origin,
-                ..CmdAtom::default()
-            });
+            let mut span_atom = CmdAtom::new();
+            span_atom.r#type = kAVisualSpan;
+            span_atom.keys = span.data;
+            span_atom.origin = origin;
+            (*ga).push(span_atom);
         }
         atom.atoms = std::mem::take(&mut *v_atoms);
         atom_visual_reset();

@@ -223,13 +223,20 @@ impl source_cookie_T {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
 struct SearchPathItem {
     path: *mut c_char,
     after: bool,
     pack_inserted: bool,
     has_lua: TriState,
     pos_in_rtp: usize,
+}
+
+impl Drop for SearchPathItem {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.path.cast::<c_void>());
+        }
+    }
 }
 
 type RuntimeSearchPath = Vec<SearchPathItem>;
@@ -830,9 +837,7 @@ unsafe fn runtime_search_path_unref() {
         runtime_search_path_refcount -= 1;
         if runtime_search_path_refcount == 0 {
             let old_ptr = &raw mut runtime_search_path_old;
-            for mut old_path in (*old_ptr).drain(..) {
-                runtime_search_path_free(&mut old_path);
-            }
+            (*old_ptr).clear();
         }
     }
 }
@@ -861,9 +866,9 @@ unsafe fn do_in_cached_path(
 
         let do_all = (flags & DIP_ALL) != 0;
 
-        for &item_in in path {
-            let mut item = item_in;
-            let buflen = CStr::from_ptr(item.path).to_bytes().len();
+        for item in path {
+            let mut item_path = item.path;
+            let buflen = CStr::from_ptr(item_path).to_bytes().len();
 
             if (flags & (DIP_NOAFTER | DIP_AFTER)) != 0
                 && ((item.after && (flags & DIP_NOAFTER) != 0)
@@ -874,10 +879,10 @@ unsafe fn do_in_cached_path(
 
             if name.is_null() {
                 if let Some(cb) = callback {
-                    cb(1, &mut item.path, do_all, cookie);
+                    cb(1, &mut item_path, do_all, cookie);
                 }
             } else if buflen + CStr::from_ptr(name).to_bytes().len() + 2 < MAXPATHL {
-                ptr::copy_nonoverlapping(item.path, buf.as_mut_ptr(), buflen + 1);
+                ptr::copy_nonoverlapping(item_path, buf.as_mut_ptr(), buflen + 1);
                 add_pathsep(buf.as_mut_ptr());
                 let tail = buf
                     .as_mut_ptr()
@@ -1317,14 +1322,6 @@ pub unsafe fn did_set_runtimepackpath(_args: *mut optset_T) -> *const c_char {
     }
 }
 
-unsafe fn runtime_search_path_free(path: &mut RuntimeSearchPath) {
-    unsafe {
-        for item in path.drain(..) {
-            xfree(item.path.cast::<c_void>());
-        }
-    }
-}
-
 pub unsafe fn runtime_search_path_validate() {
     unsafe {
         if !nlua_is_deferred_safe() {
@@ -1333,10 +1330,10 @@ pub unsafe fn runtime_search_path_validate() {
         if !runtime_search_path_valid {
             let new_path = runtime_search_path_build();
             let rsp_ptr = &raw mut runtime_search_path;
-            let mut old_path = std::mem::replace(&mut *rsp_ptr, new_path);
+            let old_path = std::mem::replace(&mut *rsp_ptr, new_path);
             if runtime_search_path_refcount == 0 {
                 msg_ext_ui_flush();
-                runtime_search_path_free(&mut old_path);
+                drop(old_path);
             } else {
                 let old_ptr = &raw mut runtime_search_path_old;
                 (*old_ptr).push(old_path);
@@ -1356,9 +1353,7 @@ pub unsafe fn update_runtime_search_path_thread(force: bool) {
         let _guard = RUNTIME_SEARCH_PATH_MUTEX
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        let thread_ptr = &raw mut runtime_search_path_thread;
         let rsp_ptr = &raw const runtime_search_path;
-        runtime_search_path_free(&mut *thread_ptr);
         runtime_search_path_thread = copy_runtime_search_path(&*rsp_ptr);
         drop(_guard);
         runtime_search_path_valid_thread = true;
@@ -1617,61 +1612,45 @@ unsafe fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
                 runtime_search_path_valid_thread = false;
                 let rsp_ptr = &raw mut runtime_search_path;
                 let rsp = &mut *rsp_ptr;
-                rsp.push(SearchPathItem {
-                    path: ptr::null_mut(),
-                    after: false,
-                    pack_inserted: false,
-                    has_lua: kNone,
-                    pos_in_rtp: 0,
-                });
-                let mut i = (rsp.len() as isize) - 1;
+
+                let idx1 = rsp
+                    .iter()
+                    .position(|item| item.pos_in_rtp >= first_pos)
+                    .unwrap_or(rsp.len());
+                for item in &mut rsp[idx1..] {
+                    item.pos_in_rtp += fname_len + 1;
+                }
+                rsp.insert(
+                    idx1,
+                    SearchPathItem {
+                        path: xmemdupz(fname.cast::<c_void>(), fname_len).cast::<c_char>(),
+                        after: false,
+                        pack_inserted: true,
+                        has_lua: kNone,
+                        pos_in_rtp: first_pos,
+                    },
+                );
 
                 if afterdir.size > 0 {
-                    rsp.push(SearchPathItem {
-                        path: ptr::null_mut(),
-                        after: false,
-                        pack_inserted: false,
-                        has_lua: kNone,
-                        pos_in_rtp: 0,
-                    });
-                    i += 1;
-                    while i >= 1 {
-                        if i > 1 && rsp[(i - 2) as usize].pos_in_rtp >= after_pos {
-                            let mut prev = rsp[(i - 2) as usize];
-                            prev.pos_in_rtp += fname_len + afterdir.size + 2;
-                            rsp[i as usize] = prev;
-                        } else {
-                            rsp[i as usize] = SearchPathItem {
-                                path: xmemdupz(afterdir.data.cast::<c_void>(), afterdir.size)
-                                    .cast::<c_char>(),
-                                after: true,
-                                pack_inserted: true,
-                                has_lua: kNone,
-                                pos_in_rtp: after_pos + fname_len + 1,
-                            };
-                            i -= 1;
-                            break;
-                        }
-                        i -= 1;
+                    let target_after_pos = after_pos + fname_len + 1;
+                    let idx2 = rsp
+                        .iter()
+                        .position(|item| item.pos_in_rtp >= target_after_pos)
+                        .unwrap_or(rsp.len());
+                    for item in &mut rsp[idx2..] {
+                        item.pos_in_rtp += afterdir.size + 1;
                     }
-                }
-
-                while i >= 0 {
-                    if i > 0 && rsp[(i - 1) as usize].pos_in_rtp >= first_pos {
-                        let mut prev = rsp[(i - 1) as usize];
-                        prev.pos_in_rtp += fname_len + 1;
-                        rsp[i as usize] = prev;
-                    } else {
-                        rsp[i as usize] = SearchPathItem {
-                            path: xmemdupz(fname.cast::<c_void>(), fname_len).cast::<c_char>(),
-                            after: false,
+                    rsp.insert(
+                        idx2,
+                        SearchPathItem {
+                            path: xmemdupz(afterdir.data.cast::<c_void>(), afterdir.size)
+                                .cast::<c_char>(),
+                            after: true,
                             pack_inserted: true,
                             has_lua: kNone,
-                            pos_in_rtp: first_pos,
-                        };
-                        break;
-                    }
-                    i -= 1;
+                            pos_in_rtp: target_after_pos,
+                        },
+                    );
                 }
             }
             xfree(new_rtp.data.cast::<c_void>());

@@ -52,7 +52,7 @@ use crate::runtime::{DIP_ALL, do_in_runtimepath};
 use crate::search::{BACKWARD, Direction, FORWARD, do_search, kShmSearch};
 use crate::spellfile::{MAXREGIONS, spell_load_file};
 use crate::spellsuggest::{
-    fromto_T, idx_T, langp_T, slang_T, spell_suggest_list, spelltab_T,
+    idx_T, langp_T, slang_T, spell_suggest_list, spelltab_T,
 };
 use crate::strings::{
     concat_str, gettext, strcat, strcmp, strcpy, strlen, strncmp, strstr, vim_snprintf, vim_strchr,
@@ -1465,12 +1465,6 @@ pub unsafe fn free_sal_items(lp: *mut slang_T) {
         (*lp).sl_sofo_sal = Vec::new();
     }
 }
-unsafe fn free_fromto(ftp: *mut fromto_T) {
-    unsafe {
-        xfree((*ftp).ft_from.cast());
-        xfree((*ftp).ft_to.cast());
-    }
-}
 pub unsafe fn slang_clear(lp: *mut slang_T) {
     unsafe {
         (*lp).sl_fbyts = Vec::new();
@@ -1479,13 +1473,7 @@ pub unsafe fn slang_clear(lp: *mut slang_T) {
         (*lp).sl_fidxs = Vec::new();
         (*lp).sl_kidxs = Vec::new();
         (*lp).sl_pidxs = Vec::new();
-        for mut ft in (*lp).sl_rep.drain(..) {
-            free_fromto(&raw mut ft);
-        }
         (*lp).sl_rep = Vec::new();
-        for mut ft in (*lp).sl_repsal.drain(..) {
-            free_fromto(&raw mut ft);
-        }
         (*lp).sl_repsal = Vec::new();
         free_sal_items(lp);
         for prog in (*lp).sl_prefprog.drain(..) {

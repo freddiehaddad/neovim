@@ -66,7 +66,6 @@ use std::ptr;
 pub(crate) const UC_BUFFER: c_int = 1;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
 pub struct ucmd_T {
     pub uc_name: *mut c_char,
     pub uc_argt: u32,
@@ -80,6 +79,20 @@ pub struct ucmd_T {
     pub uc_preview_luaref: LuaRef,
     pub uc_luaref: LuaRef,
     pub uc_desc: *mut c_char,
+}
+
+impl Drop for ucmd_T {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.uc_name.cast());
+            xfree(self.uc_rep.cast());
+            xfree(self.uc_compl_arg.cast());
+            xfree(self.uc_desc.cast());
+            nlua_clear_ref(&mut self.uc_compl_luaref);
+            nlua_clear_ref(&mut self.uc_luaref);
+            nlua_clear_ref(&mut self.uc_preview_luaref);
+        }
+    }
 }
 
 impl ucmd_T {
@@ -1290,24 +1303,9 @@ pub unsafe fn ex_comclear(_eap: *mut exarg_T) {
     }
 }
 
-pub unsafe fn free_ucmd(cmd: *mut ucmd_T) {
-    unsafe {
-        xfree((*cmd).uc_name.cast());
-        xfree((*cmd).uc_rep.cast());
-        xfree((*cmd).uc_compl_arg.cast());
-        xfree((*cmd).uc_desc.cast());
-        nlua_clear_ref(&mut (*cmd).uc_compl_luaref);
-        nlua_clear_ref(&mut (*cmd).uc_luaref);
-        nlua_clear_ref(&mut (*cmd).uc_preview_luaref);
-    }
-}
-
 /// Clear all user commands for `gap` (`uc_clear`).
 pub unsafe fn uc_clear(gap: *mut Vec<ucmd_T>) {
     unsafe {
-        for mut cmd in (*gap).drain(..) {
-            free_ucmd(&raw mut cmd);
-        }
         *gap = Vec::new();
     }
 }
@@ -1354,8 +1352,7 @@ pub unsafe fn ex_delcommand(eap: *mut exarg_T) {
             return;
         }
 
-        let mut removed = (*gap).remove(i as usize);
-        free_ucmd(&raw mut removed);
+        let _ = (*gap).remove(i as usize);
     }
 }
 

@@ -698,13 +698,11 @@ unsafe fn mc_ins_restore_state(saved: *const McInsSaved) {
 unsafe fn mc_ins_span_push(keys: *mut c_char, text: *mut c_char) {
     unsafe {
         let cascade = mc_buf_has_cursors(curbuf);
-        let mut atom = CmdAtom {
-            r#type: kAInsertSpan,
-            keys,
-            text,
-            origin: mc_ins_span.origin,
-            ..CmdAtom::default()
-        };
+        let mut atom = CmdAtom::new();
+        atom.r#type = kAInsertSpan;
+        atom.keys = keys;
+        atom.text = text;
+        atom.origin = mc_ins_span.origin;
         atom_push_raw(cascade, &mut atom);
         if cascade {
             let saved = mc_ins_save_state();

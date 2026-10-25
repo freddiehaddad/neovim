@@ -104,10 +104,18 @@ const SPS_FAST: c_int = 2;
 const SPS_DOUBLE: c_int = 4;
 const kOptBoFlagSpell: c_uint = 0x20000;
 #[repr(C)]
-#[derive(Clone, Copy)]
 pub struct fromto_T {
     pub ft_from: *mut c_char,
     pub ft_to: *mut c_char,
+}
+
+impl Drop for fromto_T {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.ft_from.cast());
+            xfree(self.ft_to.cast());
+        }
+    }
 }
 #[repr(C)]
 pub struct salitem_T {

@@ -366,6 +366,14 @@ impl Default for qf_list_T {
     }
 }
 
+impl Drop for qf_list_T {
+    fn drop(&mut self) {
+        unsafe {
+            qf_free(self);
+        }
+    }
+}
+
 #[repr(C)]
 pub struct qf_info_T {
     pub qf_refcount: c_int,
@@ -1630,19 +1638,10 @@ unsafe fn qf_get_curlist(qi: *mut qf_info_T) -> *mut qf_list_T {
 
 unsafe fn qf_pop_stack(qi: *mut qf_info_T, adjust: bool) {
     unsafe {
-        qf_free((*qi).qf_lists.as_mut_ptr());
-        for i in 1..(*qi).qf_listcount {
-            ptr::copy_nonoverlapping(
-                (*qi).qf_lists.as_ptr().add(i as usize),
-                (*qi).qf_lists.as_mut_ptr().add((i - 1) as usize),
-                1,
-            );
-        }
-
-        ptr::write(
-            (*qi).qf_lists.as_mut_ptr().add(((*qi).qf_listcount - 1) as usize),
-            qf_list_T::default(),
-        );
+        let cnt = (*qi).qf_listcount as usize;
+        let lists = &mut (*qi).qf_lists.as_mut_slice()[..cnt];
+        lists.rotate_left(1);
+        lists[cnt - 1] = qf_list_T::default();
 
         if adjust {
             (*qi).qf_listcount -= 1;

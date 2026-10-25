@@ -39,9 +39,8 @@ use crate::msgpack_rpc::packer::Integer;
 use crate::regexp::{RE_MAGIC, vim_regcomp};
 use crate::register::valid_yank_reg;
 use crate::usercmd::{
-    UC_BUFFER, commands_array, free_ucmd, get_user_command_name, parse_addr_type_arg,
-    parse_compl_arg, uc_add_command, uc_nargs_upper_bound, uc_split_args_iter, uc_validate_name,
-    ucmds,
+    UC_BUFFER, commands_array, get_user_command_name, parse_addr_type_arg, parse_compl_arg,
+    uc_add_command, uc_nargs_upper_bound, uc_split_args_iter, uc_validate_name, ucmds,
 };
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
@@ -1401,8 +1400,7 @@ pub unsafe extern "C" fn nvim_buf_del_user_command(buf: Buffer, name: NvimString
             .iter()
             .position(|cmd| CStr::from_ptr(cmd.uc_name).to_bytes() == name_bytes)
         {
-            let mut removed = (*gap).remove(i);
-            free_ucmd(&raw mut removed);
+            let _ = (*gap).remove(i);
             return;
         }
 
