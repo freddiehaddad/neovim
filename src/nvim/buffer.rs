@@ -3282,16 +3282,14 @@ unsafe fn buf_time_compare(buf1: *const buf_T, buf2: *const buf_T) -> c_int {
 /// Find all buffer names that match.
 pub unsafe fn ExpandBufnames(
     pat: *mut c_char,
-    num_file: *mut c_int,
-    file: *mut *mut *mut c_char,
+    file: &mut Vec<*mut c_char>,
     options: c_int,
 ) -> c_int {
     unsafe {
         let mut matches: Vec<bufmatch_T> = Vec::new();
         let mut to_free = false;
 
-        *num_file = 0;
-        *file = ptr::null_mut();
+        file.clear();
 
         if (options & BUF_DIFF_FILTER) != 0 && (*curwin).w_onebuf_opt.wo_diff == 0 {
             return FAIL;
@@ -3314,93 +3312,68 @@ pub unsafe fn ExpandBufnames(
                 patc = pat;
             }
             regmatch.regprog = vim_regcomp(patc, RE_MAGIC);
+            if regmatch.regprog.is_null() {
+                if to_free {
+                    xfree(patc.cast());
+                }
+                return FAIL;
+            }
         }
 
-        let mut count = 0;
         let mut score = 0;
-        for round in 1..=2 {
-            count = 0;
-            let mut buf = firstbuf;
-            while !buf.is_null() {
-                if (*buf).b_p_bl == 0 {
-                    buf = (*buf).b_next;
-                    continue;
-                }
-                if (options & BUF_DIFF_FILTER) != 0 && (buf == curbuf || !diff_mode_buf(buf)) {
-                    buf = (*buf).b_next;
-                    continue;
-                }
-
-                let mut p: *mut c_char = ptr::null_mut();
-                if !fuzzy {
-                    if regmatch.regprog.is_null() {
-                        if to_free {
-                            xfree(patc.cast());
-                        }
-                        return FAIL;
-                    }
-                    p = buflist_match(&raw mut regmatch, buf, p_wic != 0);
-                } else {
-                    score = fuzzy_match_str((*buf).b_sfname, pat);
-                    if score != FUZZY_SCORE_NONE {
-                        p = (*buf).b_sfname;
-                    }
-                    if p.is_null() {
-                        score = fuzzy_match_str((*buf).b_ffname, pat);
-                        if score != FUZZY_SCORE_NONE {
-                            p = (*buf).b_ffname;
-                        }
-                    }
-                }
-
-                if p.is_null() {
-                    buf = (*buf).b_next;
-                    continue;
-                }
-
-                if round == 1 {
-                    count += 1;
-                    buf = (*buf).b_next;
-                    continue;
-                }
-
-                p = if (options & WILD_HOME_REPLACE) != 0 {
-                    home_replace_save(buf, p)
-                } else {
-                    xstrdup(p)
-                };
-
-                if !fuzzy {
-                    if use_matches {
-                        matches.push(bufmatch_T { buf, match_: p });
-                        count += 1;
-                    } else {
-                        *(*file).add(count as usize) = p;
-                        count += 1;
-                    }
-                } else {
-                    fuzmatch.push(fuzmatch_str_T {
-                        idx: count,
-                        str_ptr: p,
-                        score,
-                    });
-                    count += 1;
-                }
+        let mut buf = firstbuf;
+        while !buf.is_null() {
+            if (*buf).b_p_bl == 0 {
                 buf = (*buf).b_next;
+                continue;
             }
-            if count == 0 {
-                break;
+            if (options & BUF_DIFF_FILTER) != 0 && (buf == curbuf || !diff_mode_buf(buf)) {
+                buf = (*buf).b_next;
+                continue;
             }
-            if round == 1 {
-                if !fuzzy {
-                    *file = xmalloc(count as usize * std::mem::size_of::<*mut c_char>()).cast();
-                    if use_matches {
-                        matches.reserve(count as usize);
+
+            let mut p: *mut c_char = ptr::null_mut();
+            if !fuzzy {
+                p = buflist_match(&raw mut regmatch, buf, p_wic != 0);
+            } else {
+                score = fuzzy_match_str((*buf).b_sfname, pat);
+                if score != FUZZY_SCORE_NONE {
+                    p = (*buf).b_sfname;
+                }
+                if p.is_null() {
+                    score = fuzzy_match_str((*buf).b_ffname, pat);
+                    if score != FUZZY_SCORE_NONE {
+                        p = (*buf).b_ffname;
                     }
-                } else {
-                    fuzmatch.reserve(count as usize);
                 }
             }
+
+            if p.is_null() {
+                buf = (*buf).b_next;
+                continue;
+            }
+
+            p = if (options & WILD_HOME_REPLACE) != 0 {
+                home_replace_save(buf, p)
+            } else {
+                xstrdup(p)
+            };
+
+            if !fuzzy {
+                if use_matches {
+                    matches.push(bufmatch_T { buf, match_: p });
+                } else {
+                    file.push(p);
+                }
+            } else {
+                let idx = fuzmatch.len() as c_int;
+                fuzmatch.push(fuzmatch_str_T {
+                    idx,
+                    str_ptr: p,
+                    score,
+                });
+            }
+            buf = (*buf).b_next;
         }
 
         if !fuzzy {
@@ -3412,18 +3385,19 @@ pub unsafe fn ExpandBufnames(
 
         if !fuzzy {
             if use_matches && !matches.is_empty() {
-                if count > 1 {
+                if matches.len() > 1 {
                     sort_slice_by(&mut matches, |a, b| buf_time_compare(a.buf, b.buf));
                 }
 
+                file.reserve_exact(matches.len());
                 if matches[0].buf == curbuf {
-                    for (i, item) in matches.iter().enumerate().skip(1) {
-                        *(*file).add(i - 1) = item.match_;
+                    for item in matches.iter().skip(1) {
+                        file.push(item.match_);
                     }
-                    *(*file).add((count - 1) as usize) = matches[0].match_;
+                    file.push(matches[0].match_);
                 } else {
-                    for (i, item) in matches.iter().enumerate() {
-                        *(*file).add(i) = item.match_;
+                    for item in &matches {
+                        file.push(item.match_);
                     }
                 }
             }
@@ -3431,8 +3405,7 @@ pub unsafe fn ExpandBufnames(
             fuzzymatches_slice_to_strmatches(&mut fuzmatch, file, false);
         }
 
-        *num_file = count;
-        if count == 0 { FAIL } else { OK }
+        if file.is_empty() { FAIL } else { OK }
     }
 }
 

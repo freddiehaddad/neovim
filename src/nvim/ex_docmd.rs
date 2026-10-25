@@ -37,8 +37,8 @@ use crate::charset::{
 use crate::clipboard::{end_batch_changes, start_batch_changes};
 use crate::cmdexpand::{
     CompleteListItemGetter, EX_NOTRLCOM, EXPAND_FILES, EXPAND_NOTHING, ExpandGeneric, ExpandOne,
-    LineGetter, WILD_ADD_SLASH, WILD_EXPAND_FREE, WILD_ICASE, WILD_LIST_NOTFOUND,
-    WILD_NOERROR, cmd_addr_T, cmdidx_T, expand_process_user_list, kUICmdline,
+    LineGetter, WILD_ADD_SLASH, WILD_EXPAND_FREE, WILD_ICASE, WILD_LIST_NOTFOUND, WILD_NOERROR,
+    cmd_addr_T, cmdidx_T, kUICmdline,
 };
 use crate::cmdhist::ex_history;
 use crate::context::{CdCause, ctx_did_chdir, is_ctx_win};
@@ -8599,8 +8599,7 @@ pub unsafe fn expand_argopt(
     pat: *mut c_char,
     xp: *mut expand_T,
     rmp: *mut regmatch_T,
-    matches: *mut *mut *mut c_char,
-    numMatches: *mut c_int,
+    matches: &mut Vec<*mut c_char>,
 ) -> c_int {
     unsafe {
         if (*xp).xp_pattern > (*xp).xp_line && *(*xp).xp_pattern.sub(1) == b'=' as c_char {
@@ -8620,7 +8619,7 @@ pub unsafe fn expand_argopt(
             }
 
             if cb.is_some() {
-                ExpandGeneric(pat, xp, rmp, matches, numMatches, cb, false);
+                ExpandGeneric(pat, xp, rmp, matches, cb, false);
                 return OK;
             }
             return FAIL;
@@ -8629,21 +8628,11 @@ pub unsafe fn expand_argopt(
         if (*xp).xp_pattern_len == 2
             && strncmp((*xp).xp_pattern, c"ff".as_ptr(), (*xp).xp_pattern_len) == 0
         {
-            *matches = xmalloc(size_of::<*mut c_char>()).cast();
-            *numMatches = 1;
-            **matches = xstrdup(c"fileformat=".as_ptr());
+            *matches = vec![xstrdup(c"fileformat=".as_ptr())];
             return OK;
         }
 
-        ExpandGeneric(
-            pat,
-            xp,
-            rmp,
-            matches,
-            numMatches,
-            Some(get_argopt_name),
-            false,
-        );
+        ExpandGeneric(pat, xp, rmp, matches, Some(get_argopt_name), false);
         OK
     }
 }
@@ -9990,12 +9979,10 @@ unsafe fn call_findfunc(pat: *mut c_char, cmdcomplete: BoolVarValue) -> *mut lis
 pub unsafe fn expand_findfunc(
     xp: *mut expand_T,
     pat: *mut c_char,
-    files: *mut *mut *mut c_char,
-    numMatches: *mut c_int,
+    files: &mut Vec<*mut c_char>,
 ) -> c_int {
     unsafe {
-        *numMatches = 0;
-        *files = ptr::null_mut();
+        files.clear();
 
         let l = call_findfunc(pat, kBoolVarTrue);
         if l.is_null() {
@@ -10008,7 +9995,7 @@ pub unsafe fn expand_findfunc(
             return FAIL;
         }
 
-        expand_process_user_list(l, files, numMatches, xp);
+        crate::cmdexpand::expand_process_user_list(l, files, xp);
         tv_list_free(l);
 
         OK

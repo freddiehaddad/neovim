@@ -1508,15 +1508,17 @@ unsafe fn expand_set_opt_generic(
         };
         set_opt_callback_func = func;
 
+        let mut vec: Vec<*mut c_char> = Vec::new();
         ExpandGeneric(
             c"".as_ptr(),
             (*args).oe_xp,
             (*args).oe_regmatch,
-            matches,
-            numMatches,
+            &mut vec,
             Some(expand_set_opt_callback),
             false,
         );
+        *numMatches = vec.len() as c_int;
+        *matches = crate::path::slice_to_xmalloc(&vec);
 
         set_opt_callback_orig_option = ptr::null_mut();
         set_opt_callback_func = None;

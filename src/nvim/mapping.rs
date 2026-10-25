@@ -47,8 +47,8 @@ use crate::mbyte::{
     mb_prevptr, mb_unescape, utf_char2bytes, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
 };
 use crate::memory::{
-    Arena, arena_alloc, arena_finish, arena_mem_free, xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz,
-    xstrdup, xstrlcpy,
+    Arena, arena_alloc, arena_finish, arena_mem_free, xfree, xmallocz, xmemcpyz, xmemdupz, xstrdup,
+    xstrlcpy,
 };
 use crate::message::{
     emsg, iemsg, message_filtered, msg, msg_clr_eos, msg_ext_set_kind, msg_outtrans,
@@ -1405,14 +1405,12 @@ pub unsafe fn set_context_in_map_cmd(
 pub unsafe fn ExpandMappings(
     pat: *mut c_char,
     regmatch: *mut regmatch_T,
-    numMatches: *mut c_int,
-    matches: *mut *mut *mut c_char,
+    matches: &mut Vec<*mut c_char>,
 ) -> c_int {
     unsafe {
         let fuzzy = cmdline_fuzzy_complete(pat);
 
-        *numMatches = 0;
-        *matches = ptr::null_mut();
+        matches.clear();
 
         let mut str_matches: Vec<*mut c_char> = Vec::new();
         let mut fuz_matches: Vec<fuzmatch_str_T> = Vec::new();
@@ -1505,42 +1503,31 @@ pub unsafe fn ExpandMappings(
         }
 
         if !fuzzy {
-            let len = str_matches.len();
-            let out = xmalloc(len * std::mem::size_of::<*mut c_char>()).cast::<*mut c_char>();
-            ptr::copy_nonoverlapping(str_matches.as_ptr(), out, len);
-            *matches = out;
-            *numMatches = len as c_int;
+            *matches = str_matches;
         } else {
-            let len = fuz_matches.len();
             fuzzymatches_slice_to_strmatches(&mut fuz_matches, matches, false);
-            *numMatches = len as c_int;
         }
 
-        let mut count = *numMatches;
-        if count > 1 {
+        if matches.len() > 1 {
             if !fuzzy {
-                sort_strings(*matches, count);
+                sort_strings(matches.as_mut_ptr(), matches.len() as c_int);
             }
 
-            let mut ptr1 = *matches;
-            let mut ptr2 = ptr1.add(1);
-            let ptr3 = ptr1.add(count as usize);
-
-            while (ptr2 as usize) < (ptr3 as usize) {
-                if CStr::from_ptr(*ptr1).to_bytes() != CStr::from_ptr(*ptr2).to_bytes() {
-                    ptr1 = ptr1.add(1);
-                    *ptr1 = *ptr2;
-                    ptr2 = ptr2.add(1);
+            let mut write_idx: usize = 0;
+            for read_idx in 1..matches.len() {
+                if CStr::from_ptr(matches[write_idx]).to_bytes()
+                    != CStr::from_ptr(matches[read_idx]).to_bytes()
+                {
+                    write_idx += 1;
+                    matches[write_idx] = matches[read_idx];
                 } else {
-                    xfree((*ptr2).cast::<c_void>());
-                    ptr2 = ptr2.add(1);
-                    count -= 1;
+                    xfree(matches[read_idx].cast::<c_void>());
                 }
             }
+            matches.truncate(write_idx + 1);
         }
 
-        *numMatches = count;
-        if count == 0 { FAIL } else { OK }
+        if matches.is_empty() { FAIL } else { OK }
     }
 }
 

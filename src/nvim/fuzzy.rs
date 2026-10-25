@@ -22,7 +22,7 @@ use crate::mbyte::{
     utfc_ptr2len,
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
-use crate::memory::{xfree, xmalloc, xstrdup};
+use crate::memory::{xfree, xstrdup};
 use crate::message::semsg;
 use crate::option_vars::*;
 use crate::search::FORWARD;
@@ -943,26 +943,22 @@ pub unsafe fn search_for_fuzzy_match(
     }
 }
 
-/// Sort `fuzmatch` by score and copy strings into `*matches`.
+/// Sort `fuzmatch` by score and copy strings into `matches`.
 pub unsafe fn fuzzymatches_slice_to_strmatches(
     fuzmatch: &mut [fuzmatch_str_T],
-    matches: *mut *mut *mut c_char,
+    matches: &mut Vec<*mut c_char>,
     funcsort: bool,
 ) {
     unsafe {
+        matches.clear();
         if !fuzmatch.is_empty() {
-            let cnt = fuzmatch.len();
-            *matches = xmalloc(cnt * std::mem::size_of::<*mut c_char>()).cast::<*mut c_char>();
-
             if funcsort {
                 sort_slice_by(fuzmatch, |a, b| fuzzy_match_func_compare(a, b));
             } else {
                 sort_slice_by(fuzmatch, fuzzy_match_str_compare);
             }
 
-            for (i, item) in fuzmatch.iter().enumerate() {
-                *(*matches).add(i) = item.str_ptr;
-            }
+            matches.extend(fuzmatch.iter().map(|item| item.str_ptr));
         }
     }
 }
@@ -986,13 +982,11 @@ mod tests {
                     score: 50,
                 },
             ];
-            let mut matches: *mut *mut c_char = std::ptr::null_mut();
+            let mut matches: Vec<*mut c_char> = Vec::new();
             fuzzymatches_slice_to_strmatches(&mut fm, &mut matches, true);
-            assert_eq!(CStr::from_ptr(*matches).to_bytes(), b"Bar");
-            assert_eq!(CStr::from_ptr(*matches.add(1)).to_bytes(), b"<SNR>1_foo");
-            xfree((*matches).cast::<c_void>());
-            xfree((*matches.add(1)).cast::<c_void>());
-            xfree(matches.cast::<c_void>());
+            assert_eq!(CStr::from_ptr(matches[0]).to_bytes(), b"Bar");
+            assert_eq!(CStr::from_ptr(matches[1]).to_bytes(), b"<SNR>1_foo");
+            crate::path::clear_cstrings(&mut matches);
         }
     }
 }

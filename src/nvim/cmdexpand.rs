@@ -86,8 +86,8 @@ use crate::os::lang::{get_lang_arg, get_locales};
 use crate::os::users::{get_users, match_user};
 use crate::path::{
     EW_ADDSLASH, EW_ALLLINKS, EW_CDPATH, EW_DIR, EW_EXEC, EW_FILE, EW_ICASE, EW_KEEPALL,
-    EW_NOERROR, EW_NOTFOUND, EW_PATH, EW_SHELLCMD, EW_SILENT, FreeWild, after_pathsep,
-    expand_wildcards, expand_wildcards_eval, match_suffix, path_is_absolute, path_tail,
+    EW_NOERROR, EW_NOTFOUND, EW_PATH, EW_SHELLCMD, EW_SILENT, after_pathsep,
+    expand_wildcards_eval, expand_wildcards_vec, match_suffix, path_is_absolute, path_tail,
 };
 use crate::popupmenu::{
     pum_clear, pum_display, pum_get_height, pum_undisplay, pum_visible, pumitem_T,
@@ -1692,9 +1692,9 @@ use crate::mbyte::ptr2cells;
 use crate::path::vim_ispathsep;
 
 #[inline]
-unsafe fn show_match(matches: *mut *mut c_char, m: usize, showtail: bool) -> *mut c_char {
+unsafe fn show_match(matches: &[*mut c_char], m: usize, showtail: bool) -> *mut c_char {
     unsafe {
-        let item = *matches.add(m);
+        let item = matches[m];
         if showtail {
             showmatches_gettail(item, false)
         } else {
@@ -1758,12 +1758,7 @@ unsafe fn sort_func_compare(&p1: &*mut c_char, &p2: &*mut c_char) -> c_int {
 }
 
 /// Escape special characters in the cmdline completion matches.
-unsafe fn wildescape(
-    xp: *mut expand_T,
-    str_arg: *const c_char,
-    numfiles: c_int,
-    files: *mut *mut c_char,
-) {
+unsafe fn wildescape(xp: *mut expand_T, str_arg: *const c_char, files: &mut [*mut c_char]) {
     unsafe {
         let vse_what = if (*xp).xp_context == EXPAND_BUFFERS {
             VSE_BUFFER
@@ -1778,8 +1773,7 @@ unsafe fn wildescape(
             || (*xp).xp_context == EXPAND_DIRECTORIES
             || (*xp).xp_context == EXPAND_DIRS_IN_CDPATH
         {
-            for i in 0..(numfiles as usize) {
-                let file_slot = files.add(i);
+            for file_slot in files.iter_mut() {
                 if ((*xp).xp_backslash & XP_BS_THREE) != 0 {
                     let pat = if ((*xp).xp_backslash & XP_BS_COMMA) != 0 {
                         c" ,".as_ptr()
@@ -1822,12 +1816,13 @@ unsafe fn wildescape(
             }
             (*xp).xp_backslash = XP_BS_NONE;
 
-            if *(*files) == b'+' as c_char {
-                escape_fname(files);
+            if let Some(first) = files.first_mut()
+                && **first == b'+' as c_char
+            {
+                escape_fname(first);
             }
         } else if (*xp).xp_context == EXPAND_TAGS {
-            for i in 0..(numfiles as usize) {
-                let file_slot = files.add(i);
+            for file_slot in files.iter_mut() {
                 let p = vim_strsave_escaped(*file_slot, c"\\|\"".as_ptr());
                 xfree((*file_slot).cast());
                 *file_slot = p;
@@ -1840,20 +1835,16 @@ unsafe fn wildescape(
 unsafe fn ExpandEscape(
     xp: *mut expand_T,
     str_arg: *mut c_char,
-    numfiles: c_int,
-    files: *mut *mut c_char,
+    files: &mut [*mut c_char],
     options: c_int,
 ) {
     unsafe {
-        if (options & WILD_HOME_REPLACE) != 0 && numfiles > 0 && !files.is_null() {
-            tilde_replace(
-                str_arg,
-                std::slice::from_raw_parts_mut(files, numfiles as usize),
-            );
+        if (options & WILD_HOME_REPLACE) != 0 && !files.is_empty() {
+            tilde_replace(str_arg, files);
         }
 
         if (options & WILD_ESCAPE) != 0 {
-            wildescape(xp, str_arg, numfiles, files);
+            wildescape(xp, str_arg, files);
         }
     }
 }
@@ -2008,15 +1999,13 @@ pub unsafe fn nextwild(xp: *mut expand_T, type_arg: c_int, options: c_int, escap
 unsafe fn cmdline_pum_create(
     ccline: *const CmdlineInfo,
     xp: *mut expand_T,
-    matches: *mut *mut c_char,
-    numMatches: c_int,
+    matches: &[*mut c_char],
     showtail: bool,
     cmdline_unchanged: bool,
 ) {
     unsafe {
-        debug_assert!(numMatches >= 0);
-        let mut items = Vec::with_capacity(numMatches as usize);
-        for i in 0..(numMatches as usize) {
+        let mut items = Vec::with_capacity(matches.len());
+        for i in 0..matches.len() {
             let pum_text = (*xp)
                 .xp_files_abbr
                 .as_slice()
@@ -2180,8 +2169,7 @@ unsafe fn wildmenu_match_len(xp: *mut expand_T, mut s: *mut c_char) -> c_int {
 /// Show wildchar matches in the status line.
 unsafe fn redraw_wildmenu(
     xp: *mut expand_T,
-    num_matches: c_int,
-    matches: *mut *mut c_char,
+    matches: &[*mut c_char],
     mut match_idx: c_int,
     showtail: bool,
 ) {
@@ -2194,9 +2182,10 @@ unsafe fn redraw_wildmenu(
         let mut selend: *mut c_char = ptr::null_mut();
         let mut add_left = false;
 
-        if matches.is_null() {
+        if matches.is_empty() {
             return;
         }
+        let num_matches = matches.len() as c_int;
 
         let mut buf_vec = vec![0 as c_char; (Columns as usize) * MB_MAXBYTES + 1];
         let buf = buf_vec.as_mut_ptr();
@@ -2423,8 +2412,7 @@ unsafe fn get_next_or_prev_match(mode: c_int, xp: *mut expand_T) -> *mut c_char 
                 cmdline_pum_create(
                     get_cmdline_info(),
                     xp,
-                    (*xp).xp_files.as_mut_ptr(),
-                    (*xp).xp_numfiles,
+                    &(*xp).xp_files.as_slice()[..(*xp).xp_numfiles as usize],
                     cmd_showtail,
                     false,
                 );
@@ -2434,8 +2422,7 @@ unsafe fn get_next_or_prev_match(mode: c_int, xp: *mut expand_T) -> *mut c_char 
             } else {
                 redraw_wildmenu(
                     xp,
-                    (*xp).xp_numfiles,
-                    (*xp).xp_files.as_mut_ptr(),
+                    &(*xp).xp_files.as_slice()[..(*xp).xp_numfiles as usize],
                     findex,
                     cmd_showtail,
                 );
@@ -2460,42 +2447,22 @@ unsafe fn ExpandOne_start(
 ) -> *mut c_char {
     unsafe {
         let mut ss: *mut c_char = ptr::null_mut();
-        let mut raw_files: *mut *mut c_char = ptr::null_mut();
 
-        if ExpandFromContext(
-            xp,
-            str_arg,
-            &raw mut raw_files,
-            &raw mut (*xp).xp_numfiles,
-            options,
-        ) == FAIL
-        {
+        if ExpandFromContext(xp, str_arg, &mut (*xp).xp_files, options) == FAIL {
+            (*xp).xp_numfiles = 0;
             #[cfg(windows)]
             if (options & WILD_SILENT) == 0 && (options & WILD_LIST_NOTFOUND) != 0 {
                 semsg!(gettext(e_nomatch2.as_ptr()), str_arg);
             }
         } else {
-            (*xp).xp_files.clear();
-            if (*xp).xp_numfiles > 0 && !raw_files.is_null() {
-                (*xp).xp_files.extend_from_slice(std::slice::from_raw_parts(
-                    raw_files,
-                    (*xp).xp_numfiles as usize,
-                ));
-            }
-            xfree(raw_files.cast());
-
+            (*xp).xp_numfiles = (*xp).xp_files.len() as c_int;
             if (*xp).xp_numfiles == 0 {
                 if (options & WILD_SILENT) == 0 {
                     semsg!(gettext(e_nomatch2.as_ptr()), str_arg);
                 }
             } else {
-                ExpandEscape(
-                    xp,
-                    str_arg,
-                    (*xp).xp_numfiles,
-                    (*xp).xp_files.as_mut_ptr(),
-                    options,
-                );
+                let nfiles = (*xp).xp_numfiles as usize;
+                ExpandEscape(xp, str_arg, &mut (*xp).xp_files.as_mut_slice()[..nfiles], options);
 
                 if mode != WILD_ALL && mode != WILD_ALL_KEEP && mode != WILD_LONGEST {
                     let mut non_suf_match = if (*xp).xp_numfiles != 0 {
@@ -2738,19 +2705,19 @@ pub unsafe fn clear_cmdline_orig() {
 /// Display one line of completion matches.
 unsafe fn showmatches_oneline(
     xp: *mut expand_T,
-    matches: *mut *mut c_char,
-    numMatches: c_int,
+    matches: &[*mut c_char],
     lines: c_int,
     linenr: c_int,
     maxlen: c_int,
     showtail: bool,
 ) {
     unsafe {
+        let numMatches = matches.len() as c_int;
         let mut lastlen: c_int = 999;
         let mut j = linenr;
         while j < numMatches {
             if (*xp).xp_context == EXPAND_TAGS_LISTFILES {
-                let m = *matches.add(j as usize);
+                let m = matches[j as usize];
                 msg_outtrans(m, HLF_D, false);
                 let p = m.add(strlen(m) + 1);
                 msg_advance(maxlen + 1);
@@ -2772,7 +2739,7 @@ unsafe fn showmatches_oneline(
                 || (*xp).xp_context == EXPAND_SHELLCMD
                 || (*xp).xp_context == EXPAND_BUFFERS
             {
-                let match_j = *matches.add(j as usize);
+                let match_j = matches[j as usize];
                 if (*xp).xp_numfiles != -1 {
                     let exp_path = expand_env_save_opt(match_j, true, ptr::null_mut());
                     let path = if !exp_path.is_null() {
@@ -2814,14 +2781,13 @@ unsafe fn showmatches_oneline(
 unsafe fn show_pum_matches(
     ccline: *mut CmdlineInfo,
     xp: *mut expand_T,
-    matches: *mut *mut c_char,
-    numMatches: c_int,
+    matches: &[*mut c_char],
     showtail: bool,
     noselect: bool,
     cmdline_unchanged: bool,
 ) {
     unsafe {
-        cmdline_pum_create(ccline, xp, matches, numMatches, showtail, cmdline_unchanged);
+        cmdline_pum_create(ccline, xp, matches, showtail, cmdline_unchanged);
         compl_selected = if noselect { -1 } else { 0 };
         pum_clear();
         cmdline_pum_display(true);
@@ -2837,45 +2803,41 @@ pub unsafe fn showmatches(
 ) -> c_int {
     unsafe {
         let ccline = get_cmdline_info();
-        let mut numMatches: c_int = 0;
-        let mut matches: *mut *mut c_char = ptr::null_mut();
+        let mut temp_matches: Vec<*mut c_char> = Vec::new();
         let showtail: bool;
         let noselect = (wim_flags_arg & c_int::from(kOptWimFlagNoselect)) != 0;
         let noinsert = (wim_flags_arg & c_int::from(kOptWimFlagNoinsert)) != 0;
         let cmdline_unchanged = noselect || noinsert;
 
-        if (*xp).xp_numfiles == -1 {
+        let matches: &[*mut c_char] = if (*xp).xp_numfiles == -1 {
             set_expand_context(xp);
             if (*xp).xp_context == EXPAND_LUA {
                 nlua_expand_pat(xp);
             }
-            let retval = expand_cmdline(
-                xp,
-                (*ccline).cmdbuff,
-                (*ccline).cmdpos,
-                &raw mut numMatches,
-                &raw mut matches,
-            );
+            let retval = expand_cmdline(xp, (*ccline).cmdbuff, (*ccline).cmdpos, &mut temp_matches);
             if retval != EXPAND_OK {
                 return retval;
             }
             showtail = expand_showtail(xp);
+            &temp_matches
         } else {
-            numMatches = (*xp).xp_numfiles;
-            matches = (*xp).xp_files.as_mut_ptr();
             showtail = cmd_showtail;
-        }
+            &(*xp).xp_files.as_slice()[..(*xp).xp_numfiles as usize]
+        };
 
         if cmdline_compl_use_pum(display_wildmenu && !display_list) {
             show_pum_matches(
                 ccline,
                 xp,
                 matches,
-                numMatches,
                 showtail,
                 noselect,
                 cmdline_unchanged,
             );
+            if (*xp).xp_numfiles == -1 {
+                crate::path::clear_cstrings(&mut temp_matches);
+                free_xp_files_extra(xp, 0);
+            }
             return EXPAND_OK;
         }
 
@@ -2897,21 +2859,21 @@ pub unsafe fn showmatches(
         } else if display_wildmenu && !display_list {
             redraw_wildmenu(
                 xp,
-                numMatches,
                 matches,
                 if noselect { -1 } else { 0 },
                 showtail,
             );
         } else if display_list {
+            let numMatches = matches.len() as c_int;
             let mut maxlen: c_int = 0;
-            for i in 0..(numMatches as usize) {
+            for (i, &match_i) in matches.iter().enumerate() {
                 let len = if !showtail
                     && ((*xp).xp_context == EXPAND_FILES
                         || (*xp).xp_context == EXPAND_SHELLCMD
                         || (*xp).xp_context == EXPAND_BUFFERS)
                 {
                     let name_buff = (&raw mut NameBuff).cast::<c_char>();
-                    home_replace(ptr::null(), *matches.add(i), name_buff, MAXPATHL, true);
+                    home_replace(ptr::null(), match_i, name_buff, MAXPATHL, true);
                     vim_strsize(name_buff)
                 } else {
                     vim_strsize(show_match(matches, i, showtail))
@@ -2938,7 +2900,7 @@ pub unsafe fn showmatches(
             }
 
             for i in 0..lines {
-                showmatches_oneline(xp, matches, numMatches, lines, i, maxlen, showtail);
+                showmatches_oneline(xp, matches, lines, i, maxlen, showtail);
                 if got_int {
                     got_int = false;
                     break;
@@ -2954,7 +2916,6 @@ pub unsafe fn showmatches(
                     ccline,
                     xp,
                     matches,
-                    numMatches,
                     showtail,
                     noselect,
                     cmdline_unchanged,
@@ -2962,7 +2923,6 @@ pub unsafe fn showmatches(
             } else {
                 redraw_wildmenu(
                     xp,
-                    numMatches,
                     matches,
                     if noselect { -1 } else { 0 },
                     showtail,
@@ -2971,8 +2931,8 @@ pub unsafe fn showmatches(
         }
 
         if (*xp).xp_numfiles == -1 {
-            FreeWild(numMatches, matches);
-            free_xp_files_extra(xp, numMatches);
+            crate::path::clear_cstrings(&mut temp_matches);
+            free_xp_files_extra(xp, 0);
         }
 
         EXPAND_OK
@@ -4351,8 +4311,7 @@ pub unsafe fn expand_cmdline(
     xp: *mut expand_T,
     str_arg: *const c_char,
     col: c_int,
-    matchcount: *mut c_int,
-    matches: *mut *mut *mut c_char,
+    matches: &mut Vec<*mut c_char>,
 ) -> c_int {
     unsafe {
         let mut options = WILD_ADD_SLASH | WILD_SILENT;
@@ -4377,9 +4336,8 @@ pub unsafe fn expand_cmdline(
             options += WILD_ICASE;
         }
 
-        if ExpandFromContext(xp, file_str, matches, matchcount, options) == FAIL {
-            *matchcount = 0;
-            *matches = ptr::null_mut();
+        if ExpandFromContext(xp, file_str, matches, options) == FAIL {
+            matches.clear();
         }
         xfree(file_str.cast());
 
@@ -4391,8 +4349,7 @@ pub unsafe fn expand_cmdline(
 unsafe fn expand_files_and_dirs(
     xp: *mut expand_T,
     mut pat: *mut c_char,
-    matches: *mut *mut *mut c_char,
-    numMatches: *mut c_int,
+    matches: &mut Vec<*mut c_char>,
     mut flags: c_int,
     options: c_int,
 ) -> c_int {
@@ -4440,7 +4397,7 @@ unsafe fn expand_files_and_dirs(
         }
 
         let ret = if (*xp).xp_context == EXPAND_FINDFUNC {
-            expand_findfunc(xp, pat, matches, numMatches)
+            expand_findfunc(xp, pat, matches)
         } else {
             if (*xp).xp_context == EXPAND_FILES {
                 flags |= EW_FILE;
@@ -4454,7 +4411,7 @@ unsafe fn expand_files_and_dirs(
             if (options & WILD_ICASE) != 0 {
                 flags |= EW_ICASE;
             }
-            expand_wildcards_eval(&raw mut pat, numMatches, matches, flags)
+            expand_wildcards_eval(&raw mut pat, matches, flags)
         };
         if free_pat {
             xfree(pat.cast());
@@ -4464,8 +4421,8 @@ unsafe fn expand_files_and_dirs(
             || ((options & WILD_USE_COMPLETESLASH) != 0
                 && ((*p_csl == NUL && p_ssl == 0) || *p_csl == b'b' as c_char))
         {
-            for j in 0..(*numMatches as usize) {
-                let mut ptr_iter = *(*matches).add(j);
+            for &match_ptr in matches.iter() {
+                let mut ptr_iter = match_ptr;
                 while *ptr_iter != NUL {
                     if *ptr_iter == PATHSEP as c_char {
                         *ptr_iter = b'\\' as c_char;
@@ -4723,8 +4680,7 @@ unsafe fn ExpandOther(
     pat: *mut c_char,
     xp: *mut expand_T,
     rmp: *mut regmatch_T,
-    matches: *mut *mut *mut c_char,
-    numMatches: *mut c_int,
+    matches: &mut Vec<*mut c_char>,
 ) -> c_int {
     struct ExpGen {
         context: c_int,
@@ -4964,15 +4920,7 @@ unsafe fn ExpandOther(
                 if entry.ic {
                     (*rmp).rm_ic = true;
                 }
-                ExpandGeneric(
-                    pat,
-                    xp,
-                    rmp,
-                    matches,
-                    numMatches,
-                    Some(entry.func),
-                    entry.escaped,
-                );
+                ExpandGeneric(pat, xp, rmp, matches, Some(entry.func), entry.escaped);
                 return OK;
             }
         }
@@ -5008,8 +4956,7 @@ fn map_wildopts_to_ewflags(options: c_int) -> c_int {
 unsafe fn ExpandFromContext(
     xp: *mut expand_T,
     mut pat: *mut c_char,
-    matches: *mut *mut *mut c_char,
-    numMatches: *mut c_int,
+    matches: &mut Vec<*mut c_char>,
     options: c_int,
 ) -> c_int {
     unsafe {
@@ -5023,42 +4970,38 @@ unsafe fn ExpandFromContext(
             || (*xp).xp_context == EXPAND_FINDFUNC
             || (*xp).xp_context == EXPAND_DIRS_IN_CDPATH
         {
-            return expand_files_and_dirs(xp, pat, matches, numMatches, flags, options);
+            return expand_files_and_dirs(xp, pat, matches, flags, options);
         }
 
-        *matches = ptr::null_mut();
-        *numMatches = 0;
+        matches.clear();
         if (*xp).xp_context == EXPAND_HELP {
-            let mut help_matches: Vec<*mut c_char> = Vec::new();
             if find_help_tags(
                 if *pat == NUL { c"help".as_ptr() } else { pat },
-                &mut help_matches,
+                matches,
                 false,
             ) == OK
             {
-                cleanup_help_tags(&mut help_matches);
-                *numMatches = help_matches.len() as c_int;
-                *matches = crate::path::slice_to_xmalloc(&help_matches);
+                cleanup_help_tags(matches);
                 return OK;
             }
             return FAIL;
         }
 
         if (*xp).xp_context == EXPAND_SHELLCMD {
-            expand_shellcmd(pat, matches, numMatches, flags);
+            expand_shellcmd(pat, matches, flags);
             return OK;
         }
         if (*xp).xp_context == EXPAND_OLD_SETTING {
-            return ExpandOldSetting(numMatches, matches);
+            return ExpandOldSetting(matches);
         }
         if (*xp).xp_context == EXPAND_BUFFERS {
-            return ExpandBufnames(pat, numMatches, matches, options);
+            return ExpandBufnames(pat, matches, options);
         }
         if (*xp).xp_context == EXPAND_DIFF_BUFFERS {
-            return ExpandBufnames(pat, numMatches, matches, options | BUF_DIFF_FILTER);
+            return ExpandBufnames(pat, matches, options | BUF_DIFF_FILTER);
         }
         if (*xp).xp_context == EXPAND_TAGS || (*xp).xp_context == EXPAND_TAGS_LISTFILES {
-            return expand_tags((*xp).xp_context == EXPAND_TAGS, pat, numMatches, matches);
+            return expand_tags((*xp).xp_context == EXPAND_TAGS, pat, matches);
         }
         if (*xp).xp_context == EXPAND_COLORS {
             let mut directories: [*mut c_char; 2] =
@@ -5066,7 +5009,6 @@ unsafe fn ExpandFromContext(
             return ExpandRTDir(
                 pat,
                 DIP_START + DIP_OPT,
-                numMatches,
                 matches,
                 directories.as_mut_ptr(),
             );
@@ -5074,12 +5016,12 @@ unsafe fn ExpandFromContext(
         if (*xp).xp_context == EXPAND_COMPILER {
             let mut directories: [*mut c_char; 2] =
                 [c"compiler".as_ptr().cast_mut(), ptr::null_mut()];
-            return ExpandRTDir(pat, 0, numMatches, matches, directories.as_mut_ptr());
+            return ExpandRTDir(pat, 0, matches, directories.as_mut_ptr());
         }
         if (*xp).xp_context == EXPAND_OWNSYNTAX {
             let mut directories: [*mut c_char; 2] =
                 [c"syntax".as_ptr().cast_mut(), ptr::null_mut()];
-            return ExpandRTDir(pat, 0, numMatches, matches, directories.as_mut_ptr());
+            return ExpandRTDir(pat, 0, matches, directories.as_mut_ptr());
         }
         if (*xp).xp_context == EXPAND_FILETYPE {
             let mut directories: [*mut c_char; 4] = [
@@ -5088,27 +5030,27 @@ unsafe fn ExpandFromContext(
                 c"ftplugin".as_ptr().cast_mut(),
                 ptr::null_mut(),
             ];
-            return ExpandRTDir(pat, 0, numMatches, matches, directories.as_mut_ptr());
+            return ExpandRTDir(pat, 0, matches, directories.as_mut_ptr());
         }
         if (*xp).xp_context == EXPAND_KEYMAP {
             let mut directories: [*mut c_char; 2] =
                 [c"keymap".as_ptr().cast_mut(), ptr::null_mut()];
-            return ExpandRTDir(pat, 0, numMatches, matches, directories.as_mut_ptr());
+            return ExpandRTDir(pat, 0, matches, directories.as_mut_ptr());
         }
         if (*xp).xp_context == EXPAND_USER_LIST {
-            return ExpandUserList(xp, matches, numMatches);
+            return ExpandUserList(xp, matches);
         }
         if (*xp).xp_context == EXPAND_USER_LUA {
-            return ExpandUserLua(xp, numMatches, matches);
+            return ExpandUserLua(xp, matches);
         }
         if (*xp).xp_context == EXPAND_PACKADD {
-            return ExpandPackAddDir(pat, numMatches, matches);
+            return ExpandPackAddDir(pat, matches);
         }
         if (*xp).xp_context == EXPAND_RUNTIME {
-            return expand_runtime_cmd(pat, numMatches, matches);
+            return expand_runtime_cmd(pat, matches);
         }
         if (*xp).xp_context == EXPAND_PATTERN_IN_BUF {
-            return expand_pattern_in_buf(pat, (*xp).xp_search_dir, matches, numMatches);
+            return expand_pattern_in_buf(pat, (*xp).xp_search_dir, matches);
         }
 
         let mut tofree: *mut c_char = ptr::null_mut();
@@ -5121,7 +5063,7 @@ unsafe fn ExpandFromContext(
 
         if (*xp).xp_context == EXPAND_LUA {
             xfree(tofree.cast());
-            return nlua_expand_get_matches(numMatches, matches);
+            return nlua_expand_get_matches(matches);
         }
 
         if !fuzzy {
@@ -5135,19 +5077,19 @@ unsafe fn ExpandFromContext(
 
         let ret = if (*xp).xp_context == EXPAND_SETTINGS || (*xp).xp_context == EXPAND_BOOL_SETTINGS
         {
-            ExpandSettings(xp, &raw mut regmatch, pat, numMatches, matches, fuzzy)
+            ExpandSettings(xp, &raw mut regmatch, pat, matches, fuzzy)
         } else if (*xp).xp_context == EXPAND_STRING_SETTING {
-            ExpandStringSetting(xp, &raw mut regmatch, numMatches, matches)
+            ExpandStringSetting(xp, &raw mut regmatch, matches)
         } else if (*xp).xp_context == EXPAND_SETTING_SUBTRACT {
-            ExpandSettingSubtract(xp, &raw mut regmatch, numMatches, matches)
+            ExpandSettingSubtract(xp, &raw mut regmatch, matches)
         } else if (*xp).xp_context == EXPAND_MAPPINGS {
-            ExpandMappings(pat, &raw mut regmatch, numMatches, matches)
+            ExpandMappings(pat, &raw mut regmatch, matches)
         } else if (*xp).xp_context == EXPAND_ARGOPT {
-            expand_argopt(pat, xp, &raw mut regmatch, matches, numMatches)
+            expand_argopt(pat, xp, &raw mut regmatch, matches)
         } else if (*xp).xp_context == EXPAND_USER_DEFINED {
-            ExpandUserDefined(pat, xp, &raw mut regmatch, matches, numMatches)
+            ExpandUserDefined(pat, xp, &raw mut regmatch, matches)
         } else {
-            ExpandOther(pat, xp, &raw mut regmatch, matches, numMatches)
+            ExpandOther(pat, xp, &raw mut regmatch, matches)
         };
 
         if !fuzzy {
@@ -5164,15 +5106,13 @@ pub unsafe fn ExpandGeneric(
     pat: *const c_char,
     xp: *mut expand_T,
     regmatch: *mut regmatch_T,
-    matches: *mut *mut *mut c_char,
-    numMatches: *mut c_int,
+    matches: &mut Vec<*mut c_char>,
     func: CompleteListItemGetter,
     escaped: bool,
 ) {
     unsafe {
         let fuzzy = cmdline_fuzzy_complete(pat);
-        *matches = ptr::null_mut();
-        *numMatches = 0;
+        matches.clear();
 
         let Some(func_fn) = func else {
             return;
@@ -5260,10 +5200,8 @@ pub unsafe fn ExpandGeneric(
         }
 
         if !fuzzy {
-            *numMatches = str_ga.len() as c_int;
-            *matches = crate::path::slice_to_xmalloc(&str_ga);
+            *matches = str_ga;
         } else {
-            *numMatches = fuz_ga.len() as c_int;
             fuzzymatches_slice_to_strmatches(&mut fuz_ga, matches, funcsort);
         }
 
@@ -5275,21 +5213,19 @@ pub unsafe fn ExpandGeneric(
 unsafe fn expand_shellcmd_onedir(
     mut pathed_pattern: *mut c_char,
     pathlen: usize,
-    matches: *mut *mut *mut c_char,
-    numMatches: *mut c_int,
     flags: c_int,
     found_ht: &mut std::collections::HashSet<Vec<u8>>,
     gap: &mut Vec<*mut c_char>,
 ) {
     unsafe {
-        if expand_wildcards(1, &raw mut pathed_pattern, numMatches, matches, flags) != OK {
+        let mut dir_matches: Vec<*mut c_char> = Vec::new();
+        if expand_wildcards_vec(1, &raw mut pathed_pattern, &mut dir_matches, flags) != OK {
             return;
         }
 
-        gap.reserve(*numMatches as usize);
+        gap.reserve(dir_matches.len());
 
-        for i in 0..(*numMatches as usize) {
-            let mut name = *(*matches).add(i);
+        for mut name in dir_matches {
             let namelen = strlen(name);
 
             if namelen > pathlen {
@@ -5303,20 +5239,18 @@ unsafe fn expand_shellcmd_onedir(
             }
             xfree(name.cast());
         }
-        xfree((*matches).cast());
     }
 }
 
 /// Complete a shell command.
 unsafe fn expand_shellcmd(
     filepat: *mut c_char,
-    matches: *mut *mut *mut c_char,
-    numMatches: *mut c_int,
+    matches: &mut Vec<*mut c_char>,
     flagsarg: c_int,
 ) {
     unsafe {
         let mut path: *mut c_char = ptr::null_mut();
-        let mut ga: Vec<*mut c_char> = Vec::new();
+        matches.clear();
         let mut buf_vec = vec![0 as c_char; MAXPATHL];
         let buf = buf_vec.as_mut_ptr();
         let mut flags = flagsarg;
@@ -5405,15 +5339,7 @@ unsafe fn expand_shellcmd(
                 }
                 xmemcpyz(buf.add(pathlen).cast(), pat.cast(), patlen);
 
-                expand_shellcmd_onedir(
-                    buf,
-                    pathlen,
-                    matches,
-                    numMatches,
-                    flags,
-                    &mut found_ht,
-                    &mut ga,
-                );
+                expand_shellcmd_onedir(buf, pathlen, flags, &mut found_ht, matches);
             }
 
             if *e != NUL {
@@ -5421,8 +5347,6 @@ unsafe fn expand_shellcmd(
             }
             s = e;
         }
-        *numMatches = ga.len() as c_int;
-        *matches = crate::path::slice_to_xmalloc(&ga);
 
         xfree(pat.cast());
         if mustfree {
@@ -5479,13 +5403,11 @@ unsafe fn ExpandUserDefined(
     pat: *const c_char,
     xp: *mut expand_T,
     regmatch: *mut regmatch_T,
-    matches: *mut *mut *mut c_char,
-    numMatches: *mut c_int,
+    matches: &mut Vec<*mut c_char>,
 ) -> c_int {
     unsafe {
         let fuzzy = cmdline_fuzzy_complete(pat);
-        *matches = ptr::null_mut();
-        *numMatches = 0;
+        matches.clear();
 
         let retstr = call_user_expand_func(call_func_retstr, xp);
         if retstr.is_null() {
@@ -5545,10 +5467,8 @@ unsafe fn ExpandUserDefined(
         }
 
         if !fuzzy {
-            *numMatches = str_ga.len() as c_int;
-            *matches = crate::path::slice_to_xmalloc(&str_ga);
+            *matches = str_ga;
         } else {
-            *numMatches = fuz_ga.len() as c_int;
             fuzzymatches_slice_to_strmatches(&mut fuz_ga, matches, false);
         }
         OK
@@ -5557,12 +5477,11 @@ unsafe fn ExpandUserDefined(
 
 pub unsafe fn expand_process_user_list(
     retlist: *mut list_T,
-    matches: *mut *mut *mut c_char,
-    numMatches: *mut c_int,
+    matches: &mut Vec<*mut c_char>,
     xp: *mut expand_T,
 ) {
     unsafe {
-        let mut ga: Vec<*mut c_char> = Vec::new();
+        matches.clear();
         let mut ga_abbr: Vec<*mut c_char> = Vec::new();
         let mut ga_kind: Vec<*mut c_char> = Vec::new();
         let mut ga_menu: Vec<*mut c_char> = Vec::new();
@@ -5605,7 +5524,7 @@ pub unsafe fn expand_process_user_list(
                     continue;
                 }
 
-                ga.push(p);
+                matches.push(p);
                 ga_abbr.push(abbr);
                 ga_kind.push(kind);
                 ga_menu.push(menu);
@@ -5615,9 +5534,7 @@ pub unsafe fn expand_process_user_list(
             }
         }
 
-        *numMatches = ga.len() as c_int;
-        *matches = crate::path::slice_to_xmalloc(&ga);
-        if have_extra && !ga.is_empty() {
+        if have_extra && !matches.is_empty() {
             (*xp).xp_files_abbr = ga_abbr;
             (*xp).xp_files_kind = ga_kind;
             (*xp).xp_files_menu = ga_menu;
@@ -5632,30 +5549,21 @@ pub unsafe fn expand_process_user_list(
 }
 
 /// Expand names with a list returned by a function defined by the user.
-unsafe fn ExpandUserList(
-    xp: *mut expand_T,
-    matches: *mut *mut *mut c_char,
-    numMatches: *mut c_int,
-) -> c_int {
+unsafe fn ExpandUserList(xp: *mut expand_T, matches: &mut Vec<*mut c_char>) -> c_int {
     unsafe {
-        *matches = ptr::null_mut();
-        *numMatches = 0;
+        matches.clear();
         let retlist = call_user_expand_func(call_func_retlist, xp);
         if retlist.is_null() {
             return FAIL;
         }
 
-        expand_process_user_list(retlist, matches, numMatches, xp);
+        expand_process_user_list(retlist, matches, xp);
         tv_list_unref(retlist);
         OK
     }
 }
 
-unsafe fn ExpandUserLua(
-    xp: *mut expand_T,
-    numMatches: *mut c_int,
-    matches: *mut *mut *mut c_char,
-) -> c_int {
+unsafe fn ExpandUserLua(xp: *mut expand_T, matches: &mut Vec<*mut c_char>) -> c_int {
     unsafe {
         let mut rettv: typval_T = typval_T::new();
         nlua_call_user_expand_func(xp, &raw mut rettv);
@@ -5665,7 +5573,7 @@ unsafe fn ExpandUserLua(
         }
 
         let retlist = rettv.vval.v_list;
-        expand_process_user_list(retlist, matches, numMatches, xp);
+        expand_process_user_list(retlist, matches, xp);
         tv_list_unref(retlist);
         OK
     }
@@ -5707,20 +5615,11 @@ pub unsafe fn globpath(
                 }
                 xmemcpyz(buf.add(pathlen).cast(), file.cast(), filelen);
 
-                let mut p: *mut *mut c_char = ptr::null_mut();
-                let mut num_p: c_int = 0;
-                ExpandFromContext(
-                    &raw mut xpc,
-                    buf,
-                    &raw mut p,
-                    &raw mut num_p,
-                    WILD_SILENT | expand_options,
-                );
-                if num_p > 0 {
-                    ExpandEscape(&raw mut xpc, buf, num_p, p, WILD_SILENT | expand_options);
-
-                    ga.extend_from_slice(std::slice::from_raw_parts(p, num_p as usize));
-                    xfree(p.cast());
+                let mut p: Vec<*mut c_char> = Vec::new();
+                ExpandFromContext(&raw mut xpc, buf, &mut p, WILD_SILENT | expand_options);
+                if !p.is_empty() {
+                    ExpandEscape(&raw mut xpc, buf, &mut p, WILD_SILENT | expand_options);
+                    ga.extend(p);
                 }
             }
         }
@@ -6336,15 +6235,13 @@ unsafe fn concat_pattern_with_buffer_match(
 unsafe fn expand_pattern_in_buf(
     pat: *mut c_char,
     dir: Direction,
-    matches: *mut *mut *mut c_char,
-    numMatches: *mut c_int,
+    matches: &mut Vec<*mut c_char>,
 ) -> c_int {
     unsafe {
         let exacttext = (wop_flags & kOptWopFlagExacttext) != 0;
         let has_range = Search.first_line != 0;
 
-        *matches = ptr::null_mut();
-        *numMatches = 0;
+        matches.clear();
 
         if pat.is_null() || *pat == NUL {
             return FAIL;
@@ -6372,8 +6269,6 @@ unsafe fn expand_pattern_in_buf(
             | SEARCH_PEEK
             | SEARCH_NFMSG
             | if has_range { SEARCH_START } else { 0 };
-
-        let mut ga: Vec<*mut c_char> = Vec::new();
 
         let mut end_match_pos: pos_T = pos_T::new();
         let mut word_end_pos: pos_T = pos_T::new();
@@ -6430,7 +6325,7 @@ unsafe fn expand_pattern_in_buf(
                     let _ = vpeekc();
                     got_int = false;
                 }
-                crate::path::clear_cstrings(&mut ga);
+                crate::path::clear_cstrings(matches);
                 return FAIL;
             }
 
@@ -6475,7 +6370,7 @@ unsafe fn expand_pattern_in_buf(
                 m
             };
 
-            for &existing in &ga {
+            for &existing in matches.iter() {
                 if strcmp(match_str, existing) == 0 {
                     xfree(match_str.cast());
                     match_str = ptr::null_mut();
@@ -6483,8 +6378,8 @@ unsafe fn expand_pattern_in_buf(
                 }
             }
             if !match_str.is_null() {
-                ga.push(match_str);
-                if ga.len() as c_int > TAG_MANY {
+                matches.push(match_str);
+                if matches.len() as c_int > TAG_MANY {
                     break;
                 }
             }
@@ -6493,8 +6388,6 @@ unsafe fn expand_pattern_in_buf(
             }
         }
 
-        *numMatches = ga.len() as c_int;
-        *matches = crate::path::slice_to_xmalloc(&ga);
         OK
     }
 }

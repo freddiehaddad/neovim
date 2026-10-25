@@ -93,7 +93,7 @@ use crate::os::fs::os_fopen;
 use crate::os::input::{fast_breakcheck, line_breakcheck, os_breakcheck};
 use crate::os::time::os_hrtime;
 use crate::path::{
-    EW_ADDSLASH, EW_DIR, EW_FILE, EW_SILENT, FreeWild, PATHSEP, expand_wildcards_vec, path_tail,
+    EW_ADDSLASH, EW_DIR, EW_FILE, EW_SILENT, PATHSEP, expand_wildcards_vec, path_tail,
 };
 #[cfg(windows)]
 use crate::path::{path_has_drive_letter, path_to_slash};
@@ -4367,21 +4367,21 @@ unsafe fn get_next_filename_completion() {
 
 unsafe fn get_next_cmdline_completion() {
     unsafe {
-        let mut matches: *mut *mut c_char = ptr::null_mut();
-        let mut num_matches: c_int = 0;
+        let mut matches: Vec<*mut c_char> = Vec::new();
         if expand_cmdline(
             &raw mut compl_xp,
             compl_pattern.data,
             compl_pattern.size as c_int,
-            &raw mut num_matches,
-            &raw mut matches,
+            &mut matches,
         ) == EXPAND_OK
         {
             let mut add_r = OK;
             let mut dir = compl_direction;
 
-            let mut i: usize = 0;
-            while (i as c_int) < num_matches && add_r != FAIL {
+            for (i, &match_i) in matches.iter().enumerate() {
+                if add_r == FAIL {
+                    break;
+                }
                 let mut cptext: [*mut c_char; CPT_COUNT] = [ptr::null_mut(); CPT_COUNT];
 
                 let cxp = &raw const compl_xp;
@@ -4399,7 +4399,7 @@ unsafe fn get_next_cmdline_completion() {
                 }
 
                 add_r = ins_compl_add(
-                    *matches.add(i),
+                    match_i,
                     -1,
                     ptr::null_mut(),
                     cptext.as_ptr(),
@@ -4416,10 +4416,9 @@ unsafe fn get_next_cmdline_completion() {
                 if add_r == OK {
                     dir = FORWARD;
                 }
-                i += 1;
             }
-            FreeWild(num_matches, matches);
-            free_xp_files_extra(&raw mut compl_xp, num_matches);
+            crate::path::clear_cstrings(&mut matches);
+            free_xp_files_extra(&raw mut compl_xp, 0);
         }
     }
 }

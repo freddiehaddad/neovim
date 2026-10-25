@@ -2593,24 +2593,11 @@ pub unsafe fn nlua_expand_pat(xp: *mut expand_T) {
     }
 }
 
-pub unsafe fn nlua_expand_get_matches(
-    num_results: *mut c_int,
-    results: *mut *mut *mut c_char,
-) -> c_int {
+pub unsafe fn nlua_expand_get_matches(results: &mut Vec<*mut c_char>) -> c_int {
     unsafe {
         let er = &raw mut EXPAND_RESULT_ARRAY;
-        if (*er).is_empty() {
-            *results = ptr::null_mut();
-            *num_results = 0;
-        } else {
-            let len = (*er).len();
-            let out = xmalloc(len * size_of::<*mut c_char>()).cast::<*mut c_char>();
-            ptr::copy_nonoverlapping((*er).as_ptr(), out, len);
-            *results = out;
-            *num_results = len as c_int;
-        }
-        *er = Vec::new();
-        c_int::from(*num_results > 0)
+        *results = std::mem::take(&mut *er);
+        c_int::from(!results.is_empty())
     }
 }
 

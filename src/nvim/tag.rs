@@ -2287,24 +2287,7 @@ unsafe fn findtags_copy_matches(st: *mut findtags_state_T, matches: &mut Vec<*mu
     }
 }
 
-/// `find_tags()` - search for tags in tags files.
-pub unsafe fn find_tags(
-    pat: *mut c_char,
-    num_matches: *mut c_int,
-    matchesp: *mut *mut *mut c_char,
-    flags: c_int,
-    mincount: c_int,
-    buf_ffname: *mut c_char,
-) -> c_int {
-    unsafe {
-        let mut matches = Vec::new();
-        let retval = find_tags_vec(pat, &mut matches, flags, mincount, buf_ffname);
-        *num_matches = matches.len() as c_int;
-        *matchesp = crate::path::slice_to_xmalloc(&matches);
-        retval
-    }
-}
-
+/// `find_tags_vec()` - search for tags in tags files.
 pub unsafe fn find_tags_vec(
     pat: *mut c_char,
     matches: &mut Vec<*mut c_char>,
@@ -3169,26 +3152,23 @@ pub unsafe fn tagstack_clear_entry(item: *mut taggy_T) {
 pub unsafe fn expand_tags(
     tagnames: bool,
     pat: *mut c_char,
-    num_file: *mut c_int,
-    file: *mut *mut *mut c_char,
+    file: &mut Vec<*mut c_char>,
 ) -> c_int {
     unsafe {
         let mut name_buf: Vec<c_char> = Vec::with_capacity(100);
 
         let extra_flag = if tagnames { TAG_NAMES } else { 0 };
         let ret = if *pat == b'/' as c_char {
-            find_tags(
+            find_tags_vec(
                 pat.add(1),
-                num_file,
                 file,
                 TAG_REGEXP | extra_flag | TAG_VERBOSE,
                 TAG_MANY,
                 (*curbuf).b_ffname,
             )
         } else {
-            find_tags(
+            find_tags_vec(
                 pat,
-                num_file,
                 file,
                 TAG_REGEXP | extra_flag | TAG_VERBOSE | TAG_NOIC,
                 TAG_MANY,
@@ -3196,9 +3176,8 @@ pub unsafe fn expand_tags(
             )
         };
         if ret == OK && !tagnames {
-            for i in 0..(*num_file) as usize {
+            for &item_ptr in file.iter() {
                 let mut t_p = tagptrs_T::default();
-                let item_ptr = *(*file).add(i);
                 parse_match(item_ptr, &mut t_p);
                 let len = t_p.tagname_end.offset_from(t_p.tagname) as usize;
                 name_buf.clear();

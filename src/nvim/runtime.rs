@@ -2057,46 +2057,33 @@ unsafe fn ExpandRTDir_int(
 pub unsafe fn ExpandRTDir(
     pat: *mut c_char,
     flags: c_int,
-    num_file: *mut c_int,
-    file: *mut *mut *mut c_char,
+    file: &mut Vec<*mut c_char>,
     dirnames: *mut *mut c_char,
 ) -> c_int {
     unsafe {
-        *num_file = 0;
-        *file = ptr::null_mut();
-
-        let mut ga: Vec<*mut c_char> = Vec::new();
+        file.clear();
 
         ExpandRTDir_int(
             pat,
             CStr::from_ptr(pat).to_bytes().len(),
             flags,
             false,
-            &mut ga,
+            file,
             dirnames,
         );
 
-        if ga.is_empty() {
+        if file.is_empty() {
             return FAIL;
         }
 
-        *num_file = ga.len() as c_int;
-        *file = crate::path::slice_to_xmalloc(&ga);
         OK
     }
 }
 
 /// Handle command line completion for :runtime command.
-pub unsafe fn expand_runtime_cmd(
-    pat: *mut c_char,
-    numMatches: *mut c_int,
-    matches: *mut *mut *mut c_char,
-) -> c_int {
+pub unsafe fn expand_runtime_cmd(pat: *mut c_char, matches: &mut Vec<*mut c_char>) -> c_int {
     unsafe {
-        *numMatches = 0;
-        *matches = ptr::null_mut();
-
-        let mut ga: Vec<*mut c_char> = Vec::new();
+        matches.clear();
 
         let pat_len = CStr::from_ptr(pat).to_bytes().len();
         let mut dirnames = [c"".as_ptr() as *mut c_char, ptr::null_mut()];
@@ -2105,7 +2092,7 @@ pub unsafe fn expand_runtime_cmd(
             pat_len,
             runtime_expand_flags,
             true,
-            &mut ga,
+            matches,
             dirnames.as_mut_ptr(),
         );
 
@@ -2114,57 +2101,45 @@ pub unsafe fn expand_runtime_cmd(
             let pat_slice = std::slice::from_raw_parts(pat.cast::<u8>(), pat_len);
             for wv in &where_values {
                 if wv.to_bytes().starts_with(pat_slice) {
-                    ga.push(xstrdup(wv.as_ptr()));
+                    matches.push(xstrdup(wv.as_ptr()));
                 }
             }
         }
 
-        if ga.is_empty() {
+        if matches.is_empty() {
             return FAIL;
         }
 
-        *numMatches = ga.len() as c_int;
-        *matches = crate::path::slice_to_xmalloc(&ga);
         OK
     }
 }
 
 /// Expand loadplugin names: 'packpath'/pack/*/opt/{pat}
-pub unsafe fn ExpandPackAddDir(
-    pat: *mut c_char,
-    num_file: *mut c_int,
-    file: *mut *mut *mut c_char,
-) -> c_int {
+pub unsafe fn ExpandPackAddDir(pat: *mut c_char, file: &mut Vec<*mut c_char>) -> c_int {
     unsafe {
-        let mut ga: Vec<*mut c_char> = Vec::new();
-
-        *num_file = 0;
-        *file = ptr::null_mut();
+        file.clear();
         let pat_len = CStr::from_ptr(pat).to_bytes().len();
 
         let buflen = pat_len + 26;
         let mut s_vec = vec![0 as c_char; buflen];
         let s = s_vec.as_mut_ptr();
         vim_snprintf!(s, buflen, c"pack/*/opt/%s*".as_ptr(), pat);
-        globpath(p_pp, s, &mut ga, 0, true);
+        globpath(p_pp, s, file, 0, true);
         vim_snprintf!(s, buflen, c"opt/%s*".as_ptr(), pat);
-        globpath(p_pp, s, &mut ga, 0, true);
+        globpath(p_pp, s, file, 0, true);
         drop(s_vec);
 
-        for &match_ptr in &ga {
+        for &match_ptr in file.iter() {
             let tail = path_tail(match_ptr);
             let tail_len = CStr::from_ptr(tail).to_bytes().len();
             ptr::copy(tail, match_ptr, tail_len + 1);
         }
 
-        if ga.is_empty() {
+        if file.is_empty() {
             return FAIL;
         }
 
-        crate::path::remove_duplicate_strings(&mut ga);
-
-        *num_file = ga.len() as c_int;
-        *file = crate::path::slice_to_xmalloc(&ga);
+        crate::path::remove_duplicate_strings(file);
         OK
     }
 }

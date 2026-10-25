@@ -8023,9 +8023,7 @@ pub unsafe fn set_context_in_set_cmd(xp: *mut expand_T, mut arg: *mut c_char, op
 unsafe fn match_str(
     str_arg: *mut c_char,
     regmatch: *mut regmatch_T,
-    matches: *mut *mut c_char,
-    idx: c_int,
-    test_only: bool,
+    matches: &mut Vec<*mut c_char>,
     fuzzy: bool,
     fuzzystr: *const c_char,
     fuzmatch: &mut Vec<fuzmatch_str_T>,
@@ -8033,21 +8031,18 @@ unsafe fn match_str(
     unsafe {
         if !fuzzy {
             if vim_regexec(regmatch.cast(), str_arg, 0) {
-                if !test_only {
-                    *matches.add(idx as usize) = xstrdup(str_arg);
-                }
+                matches.push(xstrdup(str_arg));
                 return true;
             }
         } else {
             let score = fuzzy_match_str(str_arg, fuzzystr);
             if score != FUZZY_SCORE_NONE {
-                if !test_only {
-                    fuzmatch.push(fuzmatch_str_T {
-                        idx,
-                        str_ptr: xstrdup(str_arg),
-                        score,
-                    });
-                }
+                let idx = fuzmatch.len() as c_int;
+                fuzmatch.push(fuzmatch_str_T {
+                    idx,
+                    str_ptr: xstrdup(str_arg),
+                    score,
+                });
                 return true;
             }
         }
@@ -8059,93 +8054,41 @@ pub unsafe fn ExpandSettings(
     xp: *mut expand_T,
     regmatch: *mut regmatch_T,
     fuzzystr: *mut c_char,
-    numMatches: *mut c_int,
-    matches: *mut *mut *mut c_char,
+    matches: &mut Vec<*mut c_char>,
     can_fuzzy: bool,
 ) -> c_int {
     unsafe {
-        let mut num_normal: c_int = 0;
-        let mut count: c_int = 0;
         let names: [*mut c_char; 1] = [c"all".as_ptr().cast_mut()];
         let ic = (*regmatch).rm_ic;
 
+        matches.clear();
         let mut fuzmatch: Vec<fuzmatch_str_T> = Vec::new();
         let fuzzy = can_fuzzy && cmdline_fuzzy_complete(fuzzystr);
 
-        for loop_idx in 0..=1 {
-            (*regmatch).rm_ic = ic;
-            if (*xp).xp_context != EXPAND_BOOL_SETTINGS {
-                for &name in &names {
-                    if match_str(
-                        name,
-                        regmatch,
-                        *matches,
-                        count,
-                        loop_idx == 0,
-                        fuzzy,
-                        fuzzystr,
-                        &mut fuzmatch,
-                    ) {
-                        if loop_idx == 0 {
-                            num_normal += 1;
-                        } else {
-                            count += 1;
-                        }
-                    }
-                }
+        (*regmatch).rm_ic = ic;
+        if (*xp).xp_context != EXPAND_BOOL_SETTINGS {
+            for &name in &names {
+                match_str(name, regmatch, matches, fuzzy, fuzzystr, &mut fuzmatch);
             }
-            for opt_idx in 0..kOptCount {
-                let opt = get_option(opt_idx);
-                let str_ptr = (*opt).fullname;
-                if is_option_hidden(opt_idx) {
-                    continue;
-                }
-                if (*xp).xp_context == EXPAND_BOOL_SETTINGS
-                    && !option_has_type(opt_idx, ObjectType::kObjectTypeBoolean)
-                {
-                    continue;
-                }
-
-                if match_str(
-                    str_ptr,
-                    regmatch,
-                    *matches,
-                    count,
-                    loop_idx == 0,
-                    fuzzy,
-                    fuzzystr,
-                    &mut fuzmatch,
-                ) {
-                    if loop_idx == 0 {
-                        num_normal += 1;
-                    } else {
-                        count += 1;
-                    }
-                } else if !fuzzy
-                    && !(*opt).shortname.is_null()
-                    && vim_regexec(regmatch.cast(), (*opt).shortname, 0)
-                {
-                    if loop_idx == 0 {
-                        num_normal += 1;
-                    } else {
-                        *(*matches).add(count as usize) = xstrdup(str_ptr);
-                        count += 1;
-                    }
-                }
+        }
+        for opt_idx in 0..kOptCount {
+            let opt = get_option(opt_idx);
+            let str_ptr = (*opt).fullname;
+            if is_option_hidden(opt_idx) {
+                continue;
+            }
+            if (*xp).xp_context == EXPAND_BOOL_SETTINGS
+                && !option_has_type(opt_idx, ObjectType::kObjectTypeBoolean)
+            {
+                continue;
             }
 
-            if loop_idx == 0 {
-                if num_normal > 0 {
-                    *numMatches = num_normal;
-                } else {
-                    return OK;
-                }
-                if !fuzzy {
-                    *matches = xmalloc((*numMatches as usize) * std::mem::size_of::<*mut c_char>())
-                        .cast::<*mut c_char>();
-                } else {
-                    fuzmatch.reserve(*numMatches as usize);
-                }
+            if !match_str(str_ptr, regmatch, matches, fuzzy, fuzzystr, &mut fuzmatch)
+                && !fuzzy
+                && !(*opt).shortname.is_null()
+                && vim_regexec(regmatch.cast(), (*opt).shortname, 0)
+            {
+                matches.push(xstrdup(str_ptr));
             }
         }
 
@@ -8185,10 +8128,9 @@ pub unsafe fn escape_option_str_cmdline(var_arg: *mut c_char) -> *mut c_char {
 }
 
 /// Expansion handler for :set= when we just want to fill in with the existing value.
-pub unsafe fn ExpandOldSetting(numMatches: *mut c_int, matches: *mut *mut *mut c_char) -> c_int {
+pub unsafe fn ExpandOldSetting(matches: &mut Vec<*mut c_char>) -> c_int {
     unsafe {
-        *numMatches = 0;
-        *matches = ptr::null_mut();
+        matches.clear();
 
         if EXPAND_OPTION_IDX == kOptInvalid {
             EXPAND_OPTION_IDX = find_option((&raw const EXPAND_OPTION_NAME).cast());
@@ -8210,11 +8152,7 @@ pub unsafe fn ExpandOldSetting(numMatches: *mut c_int, matches: *mut *mut *mut c
             c"".as_ptr().cast_mut()
         };
 
-        let buf = escape_option_str_cmdline(var);
-
-        *matches = xmalloc(std::mem::size_of::<*mut c_char>()).cast::<*mut c_char>();
-        *(*matches) = buf;
-        *numMatches = 1;
+        matches.push(escape_option_str_cmdline(var));
         OK
     }
 }
@@ -8223,8 +8161,7 @@ pub unsafe fn ExpandOldSetting(numMatches: *mut c_int, matches: *mut *mut *mut c
 pub unsafe fn ExpandStringSetting(
     xp: *mut expand_T,
     regmatch: *mut regmatch_T,
-    numMatches: *mut c_int,
-    matches: *mut *mut *mut c_char,
+    matches: &mut Vec<*mut c_char>,
 ) -> c_int {
     unsafe {
         if EXPAND_OPTION_IDX == kOptInvalid {
@@ -8251,7 +8188,14 @@ pub unsafe fn ExpandStringSetting(
         let buf = escape_option_str_cmdline((&raw mut NameBuff).cast::<c_char>());
         args.oe_opt_value = buf;
 
-        let num_ret = expand_cb(&raw mut args, numMatches, matches);
+        let mut raw_num: c_int = 0;
+        let mut raw_matches: *mut *mut c_char = ptr::null_mut();
+        let num_ret = expand_cb(&raw mut args, &raw mut raw_num, &raw mut raw_matches);
+        matches.clear();
+        if raw_num > 0 && !raw_matches.is_null() {
+            matches.extend_from_slice(std::slice::from_raw_parts(raw_matches, raw_num as usize));
+        }
+        xfree(raw_matches.cast());
 
         xfree(buf.cast());
         num_ret
@@ -8262,15 +8206,14 @@ pub unsafe fn ExpandStringSetting(
 pub unsafe fn ExpandSettingSubtract(
     xp: *mut expand_T,
     regmatch: *mut regmatch_T,
-    numMatches: *mut c_int,
-    matches: *mut *mut *mut c_char,
+    matches: &mut Vec<*mut c_char>,
 ) -> c_int {
     unsafe {
         if EXPAND_OPTION_IDX == kOptInvalid
             || option_has_type(EXPAND_OPTION_IDX, ObjectType::kObjectTypeInteger)
             || is_callback_option(EXPAND_OPTION_IDX)
         {
-            return ExpandOldSetting(numMatches, matches);
+            return ExpandOldSetting(matches);
         }
 
         let option_val =
@@ -8287,7 +8230,7 @@ pub unsafe fn ExpandSettingSubtract(
             let option_copy = xstrdup(option_val);
             let mut next_val = option_copy;
 
-            let mut results: Vec<*mut c_char> = Vec::with_capacity(10);
+            matches.clear();
 
             loop {
                 let item = next_val;
@@ -8305,7 +8248,7 @@ pub unsafe fn ExpandSettingSubtract(
 
                 if *item != NUL && vim_regexec(regmatch.cast(), item, 0) {
                     let buf = escape_option_str_cmdline(item);
-                    results.push(buf);
+                    matches.push(buf);
                 }
 
                 if next_val.is_null() {
@@ -8314,17 +8257,6 @@ pub unsafe fn ExpandSettingSubtract(
             }
 
             xfree(option_copy.cast());
-
-            if results.is_empty() {
-                *matches = ptr::null_mut();
-                *numMatches = 0;
-            } else {
-                let out =
-                    xmalloc(results.len() * std::mem::size_of::<*mut c_char>()).cast::<*mut c_char>();
-                ptr::copy_nonoverlapping(results.as_ptr(), out, results.len());
-                *matches = out;
-                *numMatches = results.len() as c_int;
-            }
             return OK;
         } else if (option_flags & kOptFlagFlagList) != 0 {
             if *(*xp).xp_pattern != NUL {
@@ -8336,27 +8268,22 @@ pub unsafe fn ExpandSettingSubtract(
                 return FAIL;
             }
 
-            *matches =
-                xmalloc(std::mem::size_of::<*mut c_char>() * (num_flags + 1)).cast::<*mut c_char>();
-            let mut count: usize = 0;
-
-            *(*matches).add(count) = xmemdupz(option_val.cast(), num_flags).cast::<c_char>();
-            count += 1;
+            matches.clear();
+            matches.reserve_exact(num_flags + 1);
+            matches.push(xmemdupz(option_val.cast(), num_flags).cast::<c_char>());
 
             if num_flags > 1 {
                 let mut flag = option_val;
                 while *flag != NUL {
-                    *(*matches).add(count) = xmemdupz(flag.cast(), 1).cast::<c_char>();
-                    count += 1;
+                    matches.push(xmemdupz(flag.cast(), 1).cast::<c_char>());
                     flag = flag.add(1);
                 }
             }
 
-            *numMatches = count as c_int;
             return OK;
         }
 
-        ExpandOldSetting(numMatches, matches)
+        ExpandOldSetting(matches)
     }
 }
 

@@ -1381,19 +1381,6 @@ pub unsafe fn expand_wildcards_vec(
     }
 }
 
-pub unsafe fn FreeWild(mut count: c_int, files: *mut *mut c_char) {
-    if count <= 0 || files.is_null() {
-        return;
-    }
-    unsafe {
-        while count > 0 {
-            count -= 1;
-            xfree((*files.add(count as usize)).cast::<c_void>());
-        }
-        xfree(files.cast::<c_void>());
-    }
-}
-
 unsafe fn vim_backtick(p: *const c_char) -> bool {
     unsafe {
         if *p != b'`' as c_char || *p.add(1) == NUL {
@@ -2026,8 +2013,7 @@ pub unsafe fn path_shorten_fname(full_path: *mut c_char, dir_name: *mut c_char) 
 
 pub unsafe fn expand_wildcards_eval(
     pat: *mut *mut c_char,
-    num_file: *mut c_int,
-    file: *mut *mut *mut c_char,
+    file: &mut Vec<*mut c_char>,
     flags: c_int,
 ) -> c_int {
     unsafe {
@@ -2038,6 +2024,8 @@ pub unsafe fn expand_wildcards_eval(
         let mut usedlen: usize = 0;
         let is_cur_alt_file = *exp_pat == b'%' as c_char || *exp_pat == b'#' as c_char;
         let mut star_follows = false;
+
+        file.clear();
 
         if is_cur_alt_file || *exp_pat == b'<' as c_char {
             emsg_off += 1;
@@ -2058,15 +2046,13 @@ pub unsafe fn expand_wildcards_eval(
         }
 
         if !exp_pat.is_null() {
-            ret = expand_wildcards(1, &mut exp_pat, num_file, file, flags);
+            ret = expand_wildcards_vec(1, &mut exp_pat, file, flags);
         }
 
         if !eval_pat.is_null() {
-            if *num_file == 0 && is_cur_alt_file && star_follows {
-                *file = xmalloc(size_of::<*mut c_char>()).cast::<*mut c_char>();
-                **file = eval_pat;
+            if file.is_empty() && is_cur_alt_file && star_follows {
+                file.push(eval_pat);
                 eval_pat = ptr::null_mut();
-                *num_file = 1;
                 ret = OK;
             }
             xfree(exp_pat.cast::<c_void>());
