@@ -55,7 +55,6 @@ pub(crate) mod input_cmdatom;
 pub(crate) mod insert;
 pub(crate) mod insexpand;
 pub(crate) mod keycodes;
-pub(crate) mod kvec;
 pub(crate) mod linematch;
 pub(crate) mod log;
 #[path = "../lpeg/mod.rs"]

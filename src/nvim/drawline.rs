@@ -1841,8 +1841,8 @@ pub unsafe fn win_line(
 
         if (*wp).w_onebuf_opt.wo_list != 0 && !has_foldtext && draw_text {
             if (*wp).w_p_lcs_chars.space != 0
-                || !(*wp).w_p_lcs_chars.multispace.is_null()
-                || !(*wp).w_p_lcs_chars.leadmultispace.is_null()
+                || !(*wp).w_p_lcs_chars.multispace.is_empty()
+                || !(*wp).w_p_lcs_chars.leadmultispace.is_empty()
                 || (*wp).w_p_lcs_chars.trail != 0
                 || (*wp).w_p_lcs_chars.lead != 0
                 || (*wp).w_p_lcs_chars.nbsp != 0
@@ -1857,7 +1857,7 @@ pub unsafe fn win_line(
                 trailcol += ptr.offset_from(line) as colnr_T;
             }
             if (*wp).w_p_lcs_chars.lead != 0
-                || !(*wp).w_p_lcs_chars.leadmultispace.is_null()
+                || !(*wp).w_p_lcs_chars.leadmultispace.is_empty()
                 || (*wp).w_p_lcs_chars.leadtab1 != 0
             {
                 leadcol = 0;
@@ -1913,17 +1913,17 @@ pub unsafe fn win_line(
                     if !in_multispace {
                         multispace_pos = 0;
                     } else if ci.ptr >= (line as *const c_char).add(leadcol as usize)
-                        && !(*wp).w_p_lcs_chars.multispace.is_null()
+                        && !(*wp).w_p_lcs_chars.multispace.is_empty()
                     {
                         multispace_pos += 1;
-                        if *(*wp).w_p_lcs_chars.multispace.add(multispace_pos) == 0 {
+                        if multispace_pos >= (*wp).w_p_lcs_chars.multispace.len() {
                             multispace_pos = 0;
                         }
                     } else if ci.ptr < (line as *const c_char).add(leadcol as usize)
-                        && !(*wp).w_p_lcs_chars.leadmultispace.is_null()
+                        && !(*wp).w_p_lcs_chars.leadmultispace.is_empty()
                     {
                         multispace_pos += 1;
-                        if *(*wp).w_p_lcs_chars.leadmultispace.add(multispace_pos) == 0 {
+                        if multispace_pos >= (*wp).w_p_lcs_chars.leadmultispace.len() {
                             multispace_pos = 0;
                         }
                     }
@@ -2800,14 +2800,14 @@ pub unsafe fn win_line(
                                     && mb_l == 1
                                     && ((*wp).w_p_lcs_chars.space != 0
                                         || (in_multispace
-                                            && !(*wp).w_p_lcs_chars.multispace.is_null()))
+                                            && !(*wp).w_p_lcs_chars.multispace.is_empty()))
                                     && (ptr.offset_from(line) as colnr_T) >= leadcol
                                     && (ptr.offset_from(line) as colnr_T) <= trailcol))
                         {
-                            if in_multispace && !(*wp).w_p_lcs_chars.multispace.is_null() {
-                                mb_schar = *(*wp).w_p_lcs_chars.multispace.add(multispace_pos);
+                            if in_multispace && !(*wp).w_p_lcs_chars.multispace.is_empty() {
+                                mb_schar = (*wp).w_p_lcs_chars.multispace.as_slice()[multispace_pos];
                                 multispace_pos += 1;
-                                if *(*wp).w_p_lcs_chars.multispace.add(multispace_pos) == 0 {
+                                if multispace_pos >= (*wp).w_p_lcs_chars.multispace.len() {
                                     multispace_pos = 0;
                                 }
                             } else {
@@ -2833,11 +2833,12 @@ pub unsafe fn win_line(
                             if leadcol != 0
                                 && in_multispace
                                 && ptr < (line as *const c_char).add(leadcol as usize)
-                                && !(*wp).w_p_lcs_chars.leadmultispace.is_null()
+                                && !(*wp).w_p_lcs_chars.leadmultispace.is_empty()
                             {
-                                mb_schar = *(*wp).w_p_lcs_chars.leadmultispace.add(multispace_pos);
+                                mb_schar =
+                                    (*wp).w_p_lcs_chars.leadmultispace.as_slice()[multispace_pos];
                                 multispace_pos += 1;
-                                if *(*wp).w_p_lcs_chars.leadmultispace.add(multispace_pos) == 0 {
+                                if multispace_pos >= (*wp).w_p_lcs_chars.leadmultispace.len() {
                                     multispace_pos = 0;
                                 }
                             } else if ptr > (line as *const c_char).add(trailcol as usize)

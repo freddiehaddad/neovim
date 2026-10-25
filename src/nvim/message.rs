@@ -1490,15 +1490,20 @@ pub unsafe fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, msg_data: *mut
             return;
         }
 
-        let mut messages = Array::new();
-        for chunk in msg {
-            messages.push(Object {
+        let mut messages_vec: Vec<Object> = msg
+            .iter()
+            .map(|chunk| Object {
                 obj_type: ObjectType::kObjectTypeString,
                 data: ObjectData {
                     string: chunk.text,
                 },
-            });
-        }
+            })
+            .collect();
+        let messages = Array {
+            items: messages_vec.as_mut_ptr(),
+            size: messages_vec.len(),
+            capacity: messages_vec.len(),
+        };
 
         let empty_pair = KeyValuePair {
             key: NvimString {
@@ -1605,7 +1610,6 @@ pub unsafe fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, msg_data: *mut
             &raw mut dict_obj,
             false,
         );
-        messages.destroy();
     }
 }
 
@@ -2631,7 +2635,7 @@ pub unsafe fn msg_prt_line(mut s: *const c_char, mut list: bool) {
             }
             // find end of leading whitespace
             if (*curwin).w_p_lcs_chars.lead != 0
-                || !(*curwin).w_p_lcs_chars.leadmultispace.is_null()
+                || !(*curwin).w_p_lcs_chars.leadmultispace.is_empty()
                 || (*curwin).w_p_lcs_chars.leadtab1 != 0
             {
                 lead = s;
@@ -2750,11 +2754,11 @@ pub unsafe fn msg_prt_line(mut s: *const c_char, mut list: bool) {
                         if !lead.is_null()
                             && s <= lead
                             && in_multispace
-                            && !(*curwin).w_p_lcs_chars.leadmultispace.is_null()
+                            && !(*curwin).w_p_lcs_chars.leadmultispace.is_empty()
                         {
-                            sc = *(*curwin).w_p_lcs_chars.leadmultispace.add(multispace_pos);
+                            sc = (*curwin).w_p_lcs_chars.leadmultispace.as_slice()[multispace_pos];
                             multispace_pos += 1;
-                            if *(*curwin).w_p_lcs_chars.leadmultispace.add(multispace_pos) == 0 {
+                            if multispace_pos >= (*curwin).w_p_lcs_chars.leadmultispace.len() {
                                 multispace_pos = 0;
                             }
                             hl_id = HLF_0;
@@ -2765,10 +2769,10 @@ pub unsafe fn msg_prt_line(mut s: *const c_char, mut list: bool) {
                         } else if !trail.is_null() && s > trail {
                             sc = (*curwin).w_p_lcs_chars.trail;
                             hl_id = HLF_0;
-                        } else if in_multispace && !(*curwin).w_p_lcs_chars.multispace.is_null() {
-                            sc = *(*curwin).w_p_lcs_chars.multispace.add(multispace_pos);
+                        } else if in_multispace && !(*curwin).w_p_lcs_chars.multispace.is_empty() {
+                            sc = (*curwin).w_p_lcs_chars.multispace.as_slice()[multispace_pos];
                             multispace_pos += 1;
-                            if *(*curwin).w_p_lcs_chars.multispace.add(multispace_pos) == 0 {
+                            if multispace_pos >= (*curwin).w_p_lcs_chars.multispace.len() {
                                 multispace_pos = 0;
                             }
                             hl_id = HLF_0;

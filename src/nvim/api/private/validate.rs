@@ -1,9 +1,8 @@
 //! API argument validation helpers (`src/nvim/api/private/validate.c`).
 
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_char, c_int, c_void};
 
-use crate::kvec::KVec;
-use crate::memory::xmallocz;
+use crate::memory::{xmallocz, xrealloc};
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -94,8 +93,101 @@ impl ObjectType {
     }
 }
 
-pub type Array = KVec<Object>;
-pub type Dict = KVec<KeyValuePair>;
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct Array {
+    pub size: usize,
+    pub capacity: usize,
+    pub items: *mut Object,
+}
+
+impl Array {
+    #[inline]
+    pub const fn new() -> Self {
+        Self {
+            size: 0,
+            capacity: 0,
+            items: std::ptr::null_mut(),
+        }
+    }
+
+    #[inline]
+    pub unsafe fn push(&mut self, value: Object) {
+        if self.size == self.capacity {
+            self.capacity = if self.capacity != 0 {
+                self.capacity << 1
+            } else {
+                8
+            };
+            self.items = unsafe {
+                xrealloc(
+                    self.items.cast::<c_void>(),
+                    std::mem::size_of::<Object>() * self.capacity,
+                )
+                .cast::<Object>()
+            };
+        }
+        unsafe {
+            std::ptr::write(self.items.add(self.size), value);
+        }
+        self.size += 1;
+    }
+}
+
+impl Default for Array {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct Dict {
+    pub size: usize,
+    pub capacity: usize,
+    pub items: *mut KeyValuePair,
+}
+
+impl Dict {
+    #[inline]
+    pub const fn new() -> Self {
+        Self {
+            size: 0,
+            capacity: 0,
+            items: std::ptr::null_mut(),
+        }
+    }
+
+    #[inline]
+    pub unsafe fn push(&mut self, value: KeyValuePair) {
+        if self.size == self.capacity {
+            self.capacity = if self.capacity != 0 {
+                self.capacity << 1
+            } else {
+                8
+            };
+            self.items = unsafe {
+                xrealloc(
+                    self.items.cast::<c_void>(),
+                    std::mem::size_of::<KeyValuePair>() * self.capacity,
+                )
+                .cast::<KeyValuePair>()
+            };
+        }
+        unsafe {
+            std::ptr::write(self.items.add(self.size), value);
+        }
+        self.size += 1;
+    }
+}
+
+impl Default for Dict {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 #[repr(C)]
 #[derive(Clone, Copy)]

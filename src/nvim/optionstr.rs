@@ -411,24 +411,7 @@ static mut fcs_chars: fcs_chars_T = fcs_chars_T {
     truncrl: 0,
 };
 
-static mut lcs_chars: lcs_chars_T = lcs_chars_T {
-    eol: 0,
-    ext: 0,
-    prec: 0,
-    nbsp: 0,
-    space: 0,
-    tab1: 0,
-    tab2: 0,
-    tab3: 0,
-    leadtab1: 0,
-    leadtab2: 0,
-    leadtab3: 0,
-    lead: 0,
-    trail: 0,
-    multispace: ptr::null_mut(),
-    leadmultispace: ptr::null_mut(),
-    conceal: 0,
-};
+static mut lcs_chars: lcs_chars_T = lcs_chars_T::new();
 
 static BRIOPT_TABLE: [KeySetLink; 6] = [
     KeySetLink {
@@ -4187,24 +4170,8 @@ pub unsafe fn set_chars_option(
                     lcs_chars.tab3 = 0;
                     lcs_chars.leadtab1 = 0;
                     lcs_chars.leadtab3 = 0;
-
-                    if multispace_len > 0 {
-                        lcs_chars.multispace =
-                            xmalloc((multispace_len + 1) * std::mem::size_of::<schar_T>())
-                                .cast::<schar_T>();
-                        *lcs_chars.multispace.add(multispace_len) = 0;
-                    } else {
-                        lcs_chars.multispace = ptr::null_mut();
-                    }
-
-                    if lead_multispace_len > 0 {
-                        lcs_chars.leadmultispace =
-                            xmalloc((lead_multispace_len + 1) * std::mem::size_of::<schar_T>())
-                                .cast::<schar_T>();
-                        *lcs_chars.leadmultispace.add(lead_multispace_len) = 0;
-                    } else {
-                        lcs_chars.leadmultispace = ptr::null_mut();
-                    }
+                    lcs_chars.multispace = vec![0; multispace_len];
+                    lcs_chars.leadmultispace = vec![0; lead_multispace_len];
                 }
             }
 
@@ -4248,10 +4215,11 @@ pub unsafe fn set_chars_option(
                             }
                         } else {
                             let mut multispace_pos: usize = 0;
+                            let lcs = &raw mut lcs_chars;
                             while *s != NUL && *s != b',' as c_char {
                                 let c1 = get_encoded_char_adv(&raw mut s);
                                 if p == last_multispace {
-                                    *lcs_chars.multispace.add(multispace_pos) = c1;
+                                    (*lcs).multispace.as_mut_slice()[multispace_pos] = c1;
                                     multispace_pos += 1;
                                 }
                             }
@@ -4286,10 +4254,11 @@ pub unsafe fn set_chars_option(
                             }
                         } else {
                             let mut multispace_pos: usize = 0;
+                            let lcs = &raw mut lcs_chars;
                             while *s != NUL && *s != b',' as c_char {
                                 let c1 = get_encoded_char_adv(&raw mut s);
                                 if p == last_lmultispace {
-                                    *lcs_chars.leadmultispace.add(multispace_pos) = c1;
+                                    (*lcs).leadmultispace.as_mut_slice()[multispace_pos] = c1;
                                     multispace_pos += 1;
                                 }
                             }
@@ -4391,9 +4360,8 @@ pub unsafe fn set_chars_option(
 
         if apply {
             if what == CharsOption::kListchars {
-                xfree((*wp).w_p_lcs_chars.multispace.cast());
-                xfree((*wp).w_p_lcs_chars.leadmultispace.cast());
-                (*wp).w_p_lcs_chars = lcs_chars;
+                let lcs = &raw mut lcs_chars;
+                (*wp).w_p_lcs_chars = std::mem::take(&mut *lcs);
             } else {
                 (*wp).w_p_fcs_chars = fcs_chars;
             }

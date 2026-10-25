@@ -683,7 +683,7 @@ fn lookup_termdef_field(name: &[u8]) -> Option<TermdefFieldTarget> {
     }
 }
 
-unsafe fn push_termdef_err(err_arena: &mut Arena, chunks: &mut Array, msg: &str) {
+unsafe fn push_termdef_err(err_arena: &mut Arena, chunks: &mut Vec<Object>, msg: &str) {
     unsafe {
         let dup = arena_memdupz(err_arena, msg.as_ptr().cast::<c_char>(), msg.len());
         let str_val = NvimString {
@@ -729,7 +729,7 @@ unsafe fn apply_termdefs(tui: *mut TUIData) {
         }
 
         let mut err_arena = ARENA_EMPTY;
-        let mut chunks = Array::new();
+        let mut chunks: Vec<Object> = Vec::new();
         let mut err_count = 0usize;
 
         let dict = rv.data.dict;
@@ -829,7 +829,12 @@ unsafe fn apply_termdefs(tui: *mut TUIData) {
                 size: 1,
                 capacity: 1,
             };
-            let mut args_items = [array_obj(chunks), boolean_obj(true), dict_obj(opts)];
+            let chunks_arr = Array {
+                items: chunks.as_mut_ptr(),
+                size: chunks.len(),
+                capacity: chunks.len(),
+            };
+            let mut args_items = [array_obj(chunks_arr), boolean_obj(true), dict_obj(opts)];
             let args = Array {
                 items: args_items.as_mut_ptr(),
                 size: 3,
@@ -839,7 +844,6 @@ unsafe fn apply_termdefs(tui: *mut TUIData) {
         }
 
         arena_mem_free(arena_finish(&raw mut err_arena));
-        chunks.destroy();
         api_free_object(rv);
         api_clear_error(&raw mut lua_err);
     }

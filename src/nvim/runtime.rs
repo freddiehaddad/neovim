@@ -49,8 +49,8 @@ use crate::mbyte::{
 };
 use crate::memline::ml_get;
 use crate::memory::{
-    Arena, memcnt, strequal, try_malloc, xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz,
-    xstrdup, xstrlcat, xstrlcpy,
+    Arena, memcnt, strequal, xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz, xstrdup, xstrlcat,
+    xstrlcpy,
 };
 #[cfg(windows)]
 use crate::message::msg_source;
@@ -1546,10 +1546,7 @@ unsafe fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
             }
 
             let new_rtp_capacity = p_rtp_len + fname_len + afterdir.size + 3;
-            let new_rtp_data = try_malloc(new_rtp_capacity).cast::<c_char>();
-            if new_rtp_data.is_null() {
-                break 'block;
-            }
+            let new_rtp_data = xmalloc(new_rtp_capacity).cast::<c_char>();
             let mut new_rtp = NvimString {
                 data: new_rtp_data,
                 size: 0,

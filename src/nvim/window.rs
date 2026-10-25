@@ -138,7 +138,7 @@ pub struct pos_save_T {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Default)]
 pub struct lcs_chars_T {
     pub eol: u32,
     pub ext: u32,
@@ -153,9 +153,32 @@ pub struct lcs_chars_T {
     pub leadtab3: u32,
     pub lead: u32,
     pub trail: u32,
-    pub multispace: *mut u32,
-    pub leadmultispace: *mut u32,
+    pub multispace: Vec<u32>,
+    pub leadmultispace: Vec<u32>,
     pub conceal: u32,
+}
+
+impl lcs_chars_T {
+    pub const fn new() -> Self {
+        Self {
+            eol: 0,
+            ext: 0,
+            prec: 0,
+            nbsp: 0,
+            space: 0,
+            tab1: 0,
+            tab2: 0,
+            tab3: 0,
+            leadtab1: 0,
+            leadtab2: 0,
+            leadtab3: 0,
+            lead: 0,
+            trail: 0,
+            multispace: Vec::new(),
+            leadmultispace: Vec::new(),
+            conceal: 0,
+        }
+    }
 }
 
 #[repr(C)]
@@ -607,24 +630,7 @@ impl win_T {
             w_old_visual_col: 0,
             w_old_curswant: 0,
             w_last_cursor_lnum_rnu: 0,
-            w_p_lcs_chars: lcs_chars_T {
-                eol: 0,
-                ext: 0,
-                prec: 0,
-                nbsp: 0,
-                space: 0,
-                tab1: 0,
-                tab2: 0,
-                tab3: 0,
-                leadtab1: 0,
-                leadtab2: 0,
-                leadtab3: 0,
-                lead: 0,
-                trail: 0,
-                multispace: ptr::null_mut(),
-                leadmultispace: ptr::null_mut(),
-                conceal: 0,
-            },
+            w_p_lcs_chars: lcs_chars_T::new(),
             w_p_fcs_chars: fcs_chars_T {
                 stl: 0,
                 stlnc: 0,
@@ -6264,8 +6270,8 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
         clear_winopt(&raw mut (*wp).w_onebuf_opt);
         clear_winopt(&raw mut (*wp).w_allbuf_opt);
 
-        xfree((*wp).w_p_lcs_chars.multispace.cast());
-        xfree((*wp).w_p_lcs_chars.leadmultispace.cast());
+        (*wp).w_p_lcs_chars.multispace = Vec::new();
+        (*wp).w_p_lcs_chars.leadmultispace = Vec::new();
 
         vars_clear(&raw mut (*(*wp).w_vars).dv_hashtab);
         hash_init(&raw mut (*(*wp).w_vars).dv_hashtab);
