@@ -237,14 +237,6 @@ const ADDR_TYPE_COMPLETE: [AddrTypeComplete; 9] = [
     },
 ];
 
-#[inline]
-unsafe fn user_cmd(i: c_int) -> *mut ucmd_T {
-    unsafe {
-        let u = &raw mut ucmds;
-        (*u).as_mut_ptr().add(i as usize)
-    }
-}
-
 /// Search for a user command that matches `eap->cmd` (`find_ucmd`).
 pub unsafe fn find_ucmd(
     eap: *mut exarg_T,
@@ -464,7 +456,7 @@ pub unsafe fn get_user_commands(_xp: *mut expand_T, mut idx: c_int) -> *mut c_ch
         let u = &raw const ucmds;
         let u_len = (*u).len() as c_int;
         if idx < u_len {
-            let name = (*user_cmd(idx)).uc_name;
+            let name = (&*u)[idx as usize].uc_name;
 
             for cmd in &(*buf).b_ucmds {
                 if strcmp(name, cmd.uc_name) == 0 {
@@ -483,7 +475,7 @@ pub unsafe fn get_user_command_name(idx: c_int, cmdidx: c_int) -> *mut c_char {
         let u = &raw const ucmds;
         let u_len = (*u).len() as c_int;
         if cmdidx == CMD_USER && idx < u_len {
-            return (*user_cmd(idx)).uc_name;
+            return (&*u)[idx as usize].uc_name;
         }
         if cmdidx == CMD_USER_BUF {
             let buf = (*prevwin_curwin()).w_buffer;
@@ -1902,12 +1894,10 @@ pub unsafe fn do_ucmd(eap: *mut exarg_T, preview: bool) -> c_int {
         let mut split_buf: *mut c_char = ptr::null_mut();
 
         let cmd = if (*eap).cmdidx == CMD_USER {
-            user_cmd((*eap).useridx)
+            let u = &raw mut ucmds;
+            &raw mut (&mut *u)[(*eap).useridx as usize]
         } else {
-            (*(*prevwin_curwin()).w_buffer)
-                .b_ucmds
-                .as_mut_ptr()
-                .add((*eap).useridx as usize)
+            &raw mut (&mut (*(*prevwin_curwin()).w_buffer).b_ucmds)[(*eap).useridx as usize]
         };
 
         if preview {

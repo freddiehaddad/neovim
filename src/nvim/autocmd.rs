@@ -1576,13 +1576,12 @@ unsafe fn au_show_for_event(group: c_int, event: event_T, mut pat: *const c_char
                 patlen = CStr::from_ptr(pat).to_bytes().len() as c_int;
             }
 
-            for i in 0..(*acs).len() {
-                let ac = (*acs).as_mut_ptr().add(i);
-                if (*ac).pat.is_null() {
+            for ac in &mut *acs {
+                if ac.pat.is_null() {
                     continue;
                 }
 
-                let ap = (*ac).pat;
+                let ap = ac.pat;
                 let pat_matches = if patlen != 0 {
                     (*ap).patlen == patlen
                         && std::slice::from_raw_parts(pat.cast::<u8>(), patlen as usize)
@@ -1643,11 +1642,11 @@ unsafe fn au_show_for_event(group: c_int, event: event_T, mut pat: *const c_char
                 }
 
                 let handler_str = aucmd_handler_to_string(ac);
-                if !(*ac).desc.is_null() {
+                if !ac.desc.is_null() {
                     let msglen = 100usize;
                     let mbuf = xmallocz(msglen).cast::<c_char>();
-                    let desc_str = CStr::from_ptr((*ac).desc).to_string_lossy();
-                    let formatted = if (*ac).handler.is_cmd() {
+                    let desc_str = CStr::from_ptr(ac.desc).to_string_lossy();
+                    let formatted = if ac.handler.is_cmd() {
                         let h_str = CStr::from_ptr(handler_str).to_string_lossy();
                         format!("{h_str} [{desc_str}]")
                     } else {
@@ -1659,14 +1658,14 @@ unsafe fn au_show_for_event(group: c_int, event: event_T, mut pat: *const c_char
                     *mbuf.add(copy_len) = NUL;
                     msg_outtrans(mbuf, 0, false);
                     xfree(mbuf.cast());
-                } else if (*ac).handler.is_cmd() {
+                } else if ac.handler.is_cmd() {
                     msg_outtrans(handler_str, 0, false);
                 } else {
                     msg_puts_hl(handler_str, HLF_8, false);
                 }
                 xfree(handler_str.cast());
                 if p_verbose > 0 {
-                    last_set_msg((*ac).script_ctx);
+                    last_set_msg(ac.script_ctx);
                 }
 
                 if got_int {
@@ -1682,7 +1681,7 @@ unsafe fn au_show_for_event(group: c_int, event: event_T, mut pat: *const c_char
     }
 }
 
-unsafe fn aucmd_del(ac: *mut AutoCmd) {
+unsafe fn aucmd_del(ac: &mut AutoCmd) {
     unsafe {
         *ac = AutoCmd::new();
         au_need_clean = true;
@@ -1692,9 +1691,8 @@ unsafe fn aucmd_del(ac: *mut AutoCmd) {
 pub unsafe fn aucmd_del_for_event_and_group(event: event_T, group: c_int) {
     unsafe {
         let acs = &raw mut autocmds[event as usize];
-        for i in 0..(*acs).len() {
-            let ac = (*acs).as_mut_ptr().add(i);
-            if !(*ac).pat.is_null() && (*(*ac).pat).group == group {
+        for ac in &mut *acs {
+            if !ac.pat.is_null() && (*ac.pat).group == group {
                 aucmd_del(ac);
             }
         }
@@ -1708,10 +1706,10 @@ unsafe fn au_cleanup() {
             return;
         }
 
-        for event in 0..NUM_EVENTS {
-            let acs = (&raw mut autocmds).cast::<AutoCmdVec>().add(event);
-            (*acs).retain(|ac| !ac.pat.is_null());
-            if (*acs).is_empty() {
+        let all_autocmds = &raw mut autocmds;
+        for acs in &mut *all_autocmds {
+            acs.retain(|ac| !ac.pat.is_null());
+            if acs.is_empty() {
                 *acs = Vec::new();
             }
         }
@@ -1720,8 +1718,8 @@ unsafe fn au_cleanup() {
     }
 }
 
-pub unsafe fn au_get_autocmds_for_event(event: event_T) -> *mut AutoCmdVec {
-    unsafe { &raw mut autocmds[event as usize] }
+pub unsafe fn au_get_autocmds_for_event(event: event_T) -> &'static mut AutoCmdVec {
+    unsafe { (&raw mut autocmds[event as usize]).as_mut().unwrap() }
 }
 
 pub unsafe fn aubuflocal_remove(buf: *mut buf_T) {
@@ -1735,9 +1733,8 @@ pub unsafe fn aubuflocal_remove(buf: *mut buf_T) {
 
         for event in 0..NUM_EVENTS as event_T {
             let acs = &raw mut autocmds[event as usize];
-            for i in 0..(*acs).len() {
-                let ac = (*acs).as_mut_ptr().add(i);
-                if (*ac).pat.is_null() || (*(*ac).pat).buflocal_nr != (*buf).b_fnum {
+            for ac in &mut *acs {
+                if ac.pat.is_null() || (*ac.pat).buflocal_nr != (*buf).b_fnum {
                     continue;
                 }
 
@@ -1813,9 +1810,9 @@ pub unsafe fn augroup_del(name: *mut c_char, id_for_error: c_int, stupid_legacy_
         }
 
         if stupid_legacy_mode {
-            for event in 0..NUM_EVENTS {
-                let acs = (&raw mut autocmds).cast::<AutoCmdVec>().add(event);
-                for ac in &*acs {
+            let all_autocmds = &raw const autocmds;
+            for acs in &*all_autocmds {
+                for ac in acs {
                     let ap = ac.pat;
                     if !ap.is_null() && (*ap).group == group {
                         give_warning(
@@ -1830,11 +1827,10 @@ pub unsafe fn augroup_del(name: *mut c_char, id_for_error: c_int, stupid_legacy_
                 }
             }
         } else {
-            for event in 0..NUM_EVENTS {
-                let acs = (&raw mut autocmds).cast::<AutoCmdVec>().add(event);
-                for i in 0..(*acs).len() {
-                    let ac = (*acs).as_mut_ptr().add(i);
-                    if !(*ac).pat.is_null() && (*(*ac).pat).group == group {
+            let all_autocmds = &raw mut autocmds;
+            for acs in &mut *all_autocmds {
+                for ac in acs {
+                    if !ac.pat.is_null() && (*ac.pat).group == group {
                         aucmd_del(ac);
                     }
                 }
@@ -1932,10 +1928,10 @@ pub unsafe fn do_augroup(arg: *mut c_char, del_group: bool) {
 
 pub unsafe fn free_all_autocmds() {
     unsafe {
-        for event in 0..NUM_EVENTS {
-            let acs = (&raw mut autocmds).cast::<AutoCmdVec>().add(event);
-            for i in 0..(*acs).len() {
-                aucmd_del((*acs).as_mut_ptr().add(i));
+        let all_autocmds = &raw mut autocmds;
+        for acs in &mut *all_autocmds {
+            for ac in acs.iter_mut() {
+                aucmd_del(ac);
             }
             *acs = Vec::new();
             au_need_clean = false;
@@ -2252,9 +2248,8 @@ pub unsafe fn do_autocmd_event(
                 assert!(*pat != NUL);
 
                 let acs = &raw mut autocmds[event as usize];
-                for i in 0..(*acs).len() {
-                    let ac = (*acs).as_mut_ptr().add(i);
-                    let ap = (*ac).pat;
+                for ac in &mut *acs {
+                    let ap = ac.pat;
                     if !ap.is_null()
                         && (*ap).group == findgroup
                         && (*ap).patlen == patlen
@@ -3279,8 +3274,8 @@ unsafe fn aucmd_next(apc: *mut AutoPatCmd) {
         assert!((*apc).ausize <= (*acs).len());
         let mut i = (*apc).auidx;
         while i < (*apc).ausize && !got_int {
-            let ac = (*acs).as_mut_ptr().add(i);
-            let ap = (*ac).pat;
+            let ac = &(&*acs)[i];
+            let ap = ac.pat;
             if ap.is_null() {
                 i += 1;
                 continue;
@@ -3453,9 +3448,10 @@ pub unsafe fn getnextac(
         }
 
         assert!((*apc).auidx < (*acs).len());
-        let ac = (*acs).as_mut_ptr().add((*apc).auidx);
-        assert!(!(*ac).pat.is_null());
-        let mut oneshot = (*ac).once;
+        let auidx = (*apc).auidx;
+        let ac = &mut (&mut *acs)[auidx];
+        assert!(!ac.pat.is_null());
+        let mut oneshot = ac.once;
 
         if p_verbose >= 9 {
             verbose_enter_scroll();
@@ -3466,20 +3462,20 @@ pub unsafe fn getnextac(
             verbose_leave_scroll();
         }
 
-        autocmd_nested = (*ac).nested;
-        current_sctx = (*ac).script_ctx;
+        autocmd_nested = ac.nested;
+        current_sctx = ac.script_ctx;
         (*apc).script_ctx = current_sctx;
 
-        let retval = match (*ac).handler {
+        let retval = match ac.handler {
             AutoCmdHandler::Cmd(cmd) => xstrdup(cmd),
             AutoCmdHandler::Fn(_) | AutoCmdHandler::None => {
                 let ac_copy = std::mem::ManuallyDrop::new(ptr::read(ac));
                 if oneshot {
-                    (*ac).pat = ptr::null_mut();
+                    ac.pat = ptr::null_mut();
                 }
                 let rv = au_callback(&raw const *ac_copy, apc);
                 if oneshot {
-                    (*(*acs).as_mut_ptr().add((*apc).auidx)).pat = ac_copy.pat;
+                    (&mut *acs)[auidx].pat = ac_copy.pat;
                 }
                 oneshot = oneshot || rv;
                 xmallocz(0).cast::<c_char>()
@@ -3487,7 +3483,7 @@ pub unsafe fn getnextac(
         };
 
         if oneshot {
-            aucmd_del((*acs).as_mut_ptr().add((*apc).auidx));
+            aucmd_del(&mut (&mut *acs)[auidx]);
         }
 
         if (*apc).auidx < (*apc).ausize {
@@ -3793,11 +3789,10 @@ pub unsafe fn autocmd_delete_id(id: i64) -> bool {
         assert!(id > 0);
         let mut success = false;
 
-        for event in 0..NUM_EVENTS {
-            let acs = (&raw mut autocmds).cast::<AutoCmdVec>().add(event);
-            for i in 0..(*acs).len() {
-                let ac = (*acs).as_mut_ptr().add(i);
-                if (*ac).id == id {
+        let all_autocmds = &raw mut autocmds;
+        for acs in &mut *all_autocmds {
+            for ac in acs {
+                if ac.id == id {
                     aucmd_del(ac);
                     success = true;
                 }
@@ -3807,9 +3802,9 @@ pub unsafe fn autocmd_delete_id(id: i64) -> bool {
     }
 }
 
-pub unsafe fn aucmd_handler_to_string(ac: *mut AutoCmd) -> *mut c_char {
+pub unsafe fn aucmd_handler_to_string(ac: &mut AutoCmd) -> *mut c_char {
     unsafe {
-        match &mut (*ac).handler {
+        match &mut ac.handler {
             AutoCmdHandler::Cmd(cmd) => xstrdup(*cmd),
             AutoCmdHandler::Fn(cb) => callback_to_string(cb, ptr::null_mut()),
             AutoCmdHandler::None => xstrdup(c"".as_ptr()),

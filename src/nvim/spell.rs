@@ -314,7 +314,7 @@ pub unsafe fn spell_check(
         mi.mi_result = SP_BAD;
         mi.mi_result2 = SP_BAD;
         for lpi in 0..(*w_s).b_langp.len() {
-            mi.mi_lp = (*w_s).b_langp.as_mut_ptr().add(lpi);
+            mi.mi_lp = &raw mut (&mut (*w_s).b_langp)[lpi];
             if (*(*mi.mi_lp).lp_slang).sl_fidxs.is_empty() {
                 continue;
             }
@@ -743,7 +743,7 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
                     let w_s = (*(*mip).mi_win).w_s;
                     for lpi in 0..(*w_s).b_langp.len() {
                         if (*slang).sl_nobreak {
-                            (*mip).mi_lp = (*w_s).b_langp.as_mut_ptr().add(lpi);
+                            (*mip).mi_lp = &raw mut (&mut (*w_s).b_langp)[lpi];
                             if (*(*(*mip).mi_lp).lp_slang).sl_fidxs.is_empty()
                                 || !(*(*(*mip).mi_lp).lp_slang).sl_nobreak
                             {
@@ -912,7 +912,7 @@ pub unsafe fn valid_word_prefix(
         let prefid = ((flags as u32) >> 24) as c_int;
         let mut prefcnt = totprefcnt - 1;
         while prefcnt >= 0 {
-            let pidx = *(*slang).sl_pidxs.as_ptr().add((arridx + prefcnt) as usize);
+            let pidx = (&(*slang).sl_pidxs)[(arridx + prefcnt) as usize];
             prefcnt -= 1;
             if prefid != (pidx & 0xff) {
                 continue;
@@ -920,10 +920,7 @@ pub unsafe fn valid_word_prefix(
             if (flags & WF_HAS_AFF) != 0 && (pidx & WF_PFX_NC) != 0 {
                 continue;
             }
-            let rp = (*slang)
-                .sl_prefprog
-                .as_mut_ptr()
-                .add((((pidx as u32) >> 8) & 0xffff) as usize);
+            let rp = &raw mut (&mut (*slang).sl_prefprog)[(((pidx as u32) >> 8) & 0xffff) as usize];
             if !(*rp).is_null() {
                 if !vim_regexec_prog(rp, false, word, 0) {
                     continue;
@@ -2837,9 +2834,8 @@ pub unsafe fn spell_dump_compl(
         } else {
             do_region = false;
         }
-        for lpi in 0..(*w_s).b_langp.len() {
-            let lp = (*w_s).b_langp.as_mut_ptr().add(lpi);
-            let slang = (*lp).lp_slang;
+        for lp in &(*w_s).b_langp {
+            let slang = lp.lp_slang;
             if (*slang).sl_fbyts.is_empty() {
                 continue;
             }
@@ -2897,7 +2893,7 @@ pub unsafe fn spell_dump_compl(
                                 && (flags & WF_NEEDCOMP) == 0
                                 && (do_region
                                     || (flags & WF_REGION) == 0
-                                    || (((flags as u32) >> 16) & ((*lp).lp_region as u32)) != 0)
+                                    || (((flags as u32) >> 16) & (lp.lp_region as u32)) != 0)
                             {
                                 word[udepth] = NUL;
                                 if !do_region {

@@ -2719,8 +2719,8 @@ unsafe fn common_function(argvars: *mut typval_T, rettv: *mut typval_T, is_funcr
                         let mut i: c_int = 0;
                         while i < arg_len {
                             tv_copy(
-                                (*arg_pt).pt_argv.as_ptr().add(i as usize),
-                                (*pt).pt_argv.as_mut_ptr().add(i as usize),
+                                &(&(*arg_pt).pt_argv)[i as usize],
+                                &raw mut (&mut (*pt).pt_argv)[i as usize],
                             );
                             i += 1;
                         }
@@ -2729,7 +2729,7 @@ unsafe fn common_function(argvars: *mut typval_T, rettv: *mut typval_T, is_funcr
                             while !li.is_null() {
                                 tv_copy(
                                     &raw const (*li).li_tv,
-                                    (*pt).pt_argv.as_mut_ptr().add(i as usize),
+                                    &raw mut (&mut (*pt).pt_argv)[i as usize],
                                 );
                                 i += 1;
                                 li = (*li).li_next;
@@ -2876,8 +2876,8 @@ pub unsafe fn f_get(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFun
                 } else if strcmp(what, c"args".as_ptr()) == 0 {
                     (*rettv).v_type = VarType::VAR_LIST;
                     tv_list_alloc_ret(rettv, (*pt).pt_argv.len() as isize);
-                    for i in 0..(*pt).pt_argv.len() {
-                        tv_list_append_tv((*rettv).vval.v_list, (*pt).pt_argv.as_mut_ptr().add(i));
+                    for arg in &mut (*pt).pt_argv {
+                        tv_list_append_tv((*rettv).vval.v_list, arg);
                     }
                 } else if strcmp(what, c"arity".as_ptr()) == 0 {
                     let mut required: c_int = 0;

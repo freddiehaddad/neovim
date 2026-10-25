@@ -1155,9 +1155,8 @@ unsafe fn suggest_try_change(su: *mut suginfo_T) {
             fword[n as usize] = NUL;
         }
         let w_s = (*curwin).w_s.cast::<synblock_T>();
-        for lpi in 0..(*w_s).b_langp.len() {
-            let lp = (*w_s).b_langp.as_mut_ptr().add(lpi);
-            if (*(*lp).lp_slang).sl_fbyts.is_empty() {
+        for lp in &(*w_s).b_langp {
+            if (*lp.lp_slang).sl_fbyts.is_empty() {
                 continue;
             }
             suggest_trie_walk(su, lp, (&raw mut fword).cast(), false);
@@ -1175,7 +1174,7 @@ unsafe fn try_deeper(
 }
 unsafe fn suggest_trie_walk(
     su: *mut suginfo_T,
-    lp: *mut langp_T,
+    lp: &langp_T,
     fword: *mut c_char,
     soundfold: bool,
 ) {
@@ -1198,7 +1197,7 @@ unsafe fn suggest_trie_walk(
         let mut fl: c_int;
         let mut tl: c_int;
         let mut repextra: c_int = 0;
-        let slang = (*lp).lp_slang;
+        let slang = lp.lp_slang;
         let mut goodword_ends: bool;
         let mut breakcheckcount: c_int = 1000;
         let mut depth: isize = 0;
@@ -1367,7 +1366,7 @@ unsafe fn suggest_trie_walk(
                                         newscore,
                                         0,
                                         false,
-                                        (*lp).lp_sallang,
+                                        lp.lp_sallang,
                                         false,
                                     );
                                 }
@@ -1501,7 +1500,7 @@ unsafe fn suggest_trie_walk(
                     let mut newscore: c_int = 0;
                     if !soundfold {
                         if (flags & WF_REGION) != 0
-                            && (((flags as u32) >> 16) & ((*lp).lp_region as u32)) == 0
+                            && (((flags as u32) >> 16) & (lp.lp_region as u32)) == 0
                         {
                             newscore += SCORE_REGION;
                         }
@@ -1561,7 +1560,7 @@ unsafe fn suggest_trie_walk(
                                     score,
                                     0,
                                     false,
-                                    (*lp).lp_sallang,
+                                    lp.lp_sallang,
                                     false,
                                 );
                                 if ((*su).su_badflags & WF_MIXCAP) != 0 {
@@ -1584,7 +1583,7 @@ unsafe fn suggest_trie_walk(
                                             score + SCORE_ICASE,
                                             0,
                                             false,
-                                            (*lp).lp_sallang,
+                                            lp.lp_sallang,
                                             false,
                                         );
                                     }
@@ -2120,7 +2119,7 @@ unsafe fn suggest_trie_walk(
                             ptr::copy(p.add(tl as usize), p, n as usize);
                             utf_char2bytes(c, p.add(n as usize));
                         }
-                        if ((*lp).lp_replang.is_null() && !soundfold)
+                        if (lp.lp_replang.is_null() && !soundfold)
                             || stack[udepth].ts_score + SCORE_REP >= (*su).su_maxscore
                             || stack[udepth].ts_fidx < stack[udepth].ts_fidxtry
                         {
@@ -2132,7 +2131,7 @@ unsafe fn suggest_trie_walk(
                             stack[udepth].ts_curi = if soundfold {
                                 (*slang).sl_repsal_first[first_byte]
                             } else {
-                                (*(*lp).lp_replang).sl_rep_first[first_byte]
+                                (*lp.lp_replang).sl_rep_first[first_byte]
                             };
                             if stack[udepth].ts_curi < 0 {
                                 stack[udepth].ts_state = state_T::STATE_FINAL;
@@ -2147,7 +2146,7 @@ unsafe fn suggest_trie_walk(
                         let gap = if soundfold {
                             &(*slang).sl_repsal
                         } else {
-                            &(*(*lp).lp_replang).sl_rep
+                            &(*lp.lp_replang).sl_rep
                         };
                         while (stack[udepth].ts_curi as usize) < gap.len() {
                             let curi = stack[udepth].ts_curi;
@@ -2188,7 +2187,7 @@ unsafe fn suggest_trie_walk(
                     let gap = if soundfold {
                         &(*slang).sl_repsal
                     } else {
-                        &(*(*lp).lp_replang).sl_rep
+                        &(*lp.lp_replang).sl_rep
                     };
                     let ftp = &gap[(stack[udepth].ts_curi - 1) as usize];
                     fl = strlen(ftp.ft_from) as c_int;
@@ -2378,15 +2377,14 @@ unsafe fn score_combine(su: *mut suginfo_T) {
                     true,
                     (&raw mut badsound).cast(),
                 );
-                for i in 0..(*su).su_ga.len() {
-                    let stp = (*su).su_ga.as_mut_ptr().add(i);
-                    (*stp).st_altscore = stp_sal_score(stp, su, slang, (&raw mut badsound).cast());
-                    if (*stp).st_altscore == SCORE_MAXMAX {
-                        (*stp).st_score = ((*stp).st_score * 3 + SCORE_BIG) / 4;
+                for stp in &mut (*su).su_ga {
+                    stp.st_altscore = stp_sal_score(stp, su, slang, (&raw mut badsound).cast());
+                    if stp.st_altscore == SCORE_MAXMAX {
+                        stp.st_score = (stp.st_score * 3 + SCORE_BIG) / 4;
                     } else {
-                        (*stp).st_score = ((*stp).st_score * 3 + (*stp).st_altscore) / 4;
+                        stp.st_score = (stp.st_score * 3 + stp.st_altscore) / 4;
                     }
-                    (*stp).st_salscore = false;
+                    stp.st_salscore = false;
                 }
                 break;
             }
@@ -2436,7 +2434,7 @@ unsafe fn score_combine(su: *mut suginfo_T) {
     }
 }
 unsafe fn stp_sal_score(
-    stp: *const suggest_T,
+    stp: &suggest_T,
     su: *const suginfo_T,
     slang: *mut slang_T,
     badsound: *mut c_char,
@@ -2446,19 +2444,19 @@ unsafe fn stp_sal_score(
         let mut fword: [c_char; MAXWLEN] = [0; MAXWLEN];
         let mut goodsound: [c_char; MAXWLEN] = [0; MAXWLEN];
         let mut goodword: [c_char; MAXWLEN] = [0; MAXWLEN];
-        let lendiff = (*su).su_badlen - (*stp).st_orglen;
+        let lendiff = (*su).su_badlen - stp.st_orglen;
         let pbad = if lendiff >= 0 {
             badsound
         } else {
             spell_casefold(
                 curwin,
                 (*su).su_badptr,
-                (*stp).st_orglen,
+                stp.st_orglen,
                 (&raw mut fword).cast(),
                 MAXWLEN as c_int,
             );
             if ascii_iswhite(*(*su).su_badptr.add((*su).su_badlen as usize))
-                && *skiptowhite((*stp).st_word) == NUL
+                && *skiptowhite(stp.st_word) == NUL
             {
                 let mut p = (&raw mut fword).cast::<c_char>();
                 loop {
@@ -2477,12 +2475,12 @@ unsafe fn stp_sal_score(
             );
             (&raw mut badsound2).cast()
         };
-        let pgood = if lendiff > 0 && ((*stp).st_wordlen + lendiff) < MAXWLEN as c_int {
-            strcpy((&raw mut goodword).cast(), (*stp).st_word);
+        let pgood = if lendiff > 0 && (stp.st_wordlen + lendiff) < MAXWLEN as c_int {
+            strcpy((&raw mut goodword).cast(), stp.st_word);
             xmemcpyz(
                 (&raw mut goodword)
                     .cast::<c_char>()
-                    .add((*stp).st_wordlen as usize)
+                    .add(stp.st_wordlen as usize)
                     .cast(),
                 (*su)
                     .su_badptr
@@ -2492,7 +2490,7 @@ unsafe fn stp_sal_score(
             );
             (&raw mut goodword).cast()
         } else {
-            (*stp).st_word
+            stp.st_word
         };
         spell_soundfold(slang, pgood, false, (&raw mut goodsound).cast());
         soundalike_score((&raw mut goodsound).cast(), pbad)
@@ -2513,9 +2511,8 @@ unsafe fn suggest_try_soundalike(su: *mut suginfo_T) {
     unsafe {
         let mut salword: [c_char; MAXWLEN] = [0; MAXWLEN];
         let w_s = (*curwin).w_s;
-        for lpi in 0..(*w_s).b_langp.len() {
-            let lp = (*w_s).b_langp.as_mut_ptr().add(lpi);
-            let slang = (*lp).lp_slang;
+        for lp in &(*w_s).b_langp {
+            let slang = lp.lp_slang;
             if (*slang).has_sal() && !(*slang).sl_sbyts.is_empty() {
                 spell_soundfold(
                     slang,
@@ -2543,10 +2540,10 @@ unsafe fn add_sound_suggest(
     su: *mut suginfo_T,
     goodword: *mut c_char,
     score: c_int,
-    lp: *mut langp_T,
+    lp: &langp_T,
 ) {
     unsafe {
-        let slang = (*lp).lp_slang;
+        let slang = lp.lp_slang;
         let mut theword: [c_char; MAXWLEN] = [0; MAXWLEN];
         let goodword_bytes = std::ffi::CStr::from_ptr(goodword).to_bytes();
         if let Some(prev_score) = (*slang).sl_sounddone.get_mut(goodword_bytes) {
@@ -2643,7 +2640,7 @@ unsafe fn add_sound_suggest(
                     }
                 } else {
                     let mut goodscore = if (flags & WF_REGION) != 0
-                        && (((flags as u32) >> 16) & ((*lp).lp_region as u32)) == 0
+                        && (((flags as u32) >> 16) & (lp.lp_region as u32)) == 0
                     {
                         SCORE_REGION
                     } else {
@@ -2797,54 +2794,47 @@ unsafe fn add_suggestion(
         if badlen == 0 && goodlen == 0 {
             return;
         }
-        let mut i: c_int;
-        if gap.is_empty() {
-            i = -1;
-        } else {
-            let mut stp = gap.as_mut_ptr();
-            i = gap.len() as c_int - 1;
-            while i >= 0 {
-                if (*stp).st_wordlen == goodlen
-                    && (*stp).st_orglen == badlen
-                    && strncmp((*stp).st_word, goodword, goodlen as usize) == 0
-                {
-                    if (*stp).st_slang.is_null() {
-                        (*stp).st_slang = slang;
-                    }
-                    let mut new_sug = suggest_T {
-                        st_word: ptr::null_mut(),
-                        st_wordlen: 0,
-                        st_orglen: 0,
-                        st_score: score,
-                        st_altscore: altscore,
-                        st_salscore: false,
-                        st_had_bonus: had_bonus,
-                        st_slang: ptr::null_mut(),
-                    };
-                    if (*stp).st_had_bonus != had_bonus {
-                        if had_bonus {
-                            rescore_one(su, stp);
-                        } else {
-                            new_sug.st_word = (*stp).st_word;
-                            new_sug.st_wordlen = (*stp).st_wordlen;
-                            new_sug.st_slang = (*stp).st_slang;
-                            new_sug.st_orglen = badlen;
-                            rescore_one(su, &raw mut new_sug);
-                            new_sug.st_word = ptr::null_mut();
-                        }
-                    }
-                    if (*stp).st_score > new_sug.st_score {
-                        (*stp).st_score = new_sug.st_score;
-                        (*stp).st_altscore = new_sug.st_altscore;
-                        (*stp).st_had_bonus = new_sug.st_had_bonus;
-                    }
-                    break;
+        let mut found = false;
+        for stp in gap.iter_mut() {
+            if stp.st_wordlen == goodlen
+                && stp.st_orglen == badlen
+                && strncmp(stp.st_word, goodword, goodlen as usize) == 0
+            {
+                if stp.st_slang.is_null() {
+                    stp.st_slang = slang;
                 }
-                stp = stp.add(1);
-                i -= 1;
+                let mut new_sug = suggest_T {
+                    st_word: ptr::null_mut(),
+                    st_wordlen: 0,
+                    st_orglen: 0,
+                    st_score: score,
+                    st_altscore: altscore,
+                    st_salscore: false,
+                    st_had_bonus: had_bonus,
+                    st_slang: ptr::null_mut(),
+                };
+                if stp.st_had_bonus != had_bonus {
+                    if had_bonus {
+                        rescore_one(su, stp);
+                    } else {
+                        new_sug.st_word = stp.st_word;
+                        new_sug.st_wordlen = stp.st_wordlen;
+                        new_sug.st_slang = stp.st_slang;
+                        new_sug.st_orglen = badlen;
+                        rescore_one(su, &mut new_sug);
+                        new_sug.st_word = ptr::null_mut();
+                    }
+                }
+                if stp.st_score > new_sug.st_score {
+                    stp.st_score = new_sug.st_score;
+                    stp.st_altscore = new_sug.st_altscore;
+                    stp.st_had_bonus = new_sug.st_had_bonus;
+                }
+                found = true;
+                break;
             }
         }
-        if i < 0 {
+        if !found {
             gap.push(suggest_T {
                 st_word: xmemdupz(goodword.cast(), goodlen as usize).cast(),
                 st_wordlen: goodlen,
@@ -2910,17 +2900,17 @@ unsafe fn add_banned(su: *mut suginfo_T, word: *mut c_char) {
 unsafe fn rescore_suggestions(su: *mut suginfo_T) {
     unsafe {
         if !(*su).su_sallang.is_null() {
-            for i in 0..(*su).su_ga.len() {
-                rescore_one(su, (*su).su_ga.as_mut_ptr().add(i));
+            for stp in &mut (*su).su_ga {
+                rescore_one(su, stp);
             }
         }
     }
 }
-unsafe fn rescore_one(su: *mut suginfo_T, stp: *mut suggest_T) {
+unsafe fn rescore_one(su: *mut suginfo_T, stp: &mut suggest_T) {
     unsafe {
-        let slang = (*stp).st_slang;
+        let slang = stp.st_slang;
         let mut sal_badword: [c_char; MAXWLEN] = [0; MAXWLEN];
-        if !slang.is_null() && (*slang).has_sal() && !(*stp).st_had_bonus {
+        if !slang.is_null() && (*slang).has_sal() && !stp.st_had_bonus {
             let p: *mut c_char = if slang == (*su).su_sallang {
                 (&raw mut (*su).su_sal_badword).cast()
             } else {
@@ -2932,12 +2922,12 @@ unsafe fn rescore_one(su: *mut suginfo_T, stp: *mut suggest_T) {
                 );
                 (&raw mut sal_badword).cast()
             };
-            (*stp).st_altscore = stp_sal_score(stp, su, slang, p);
-            if (*stp).st_altscore == SCORE_MAXMAX {
-                (*stp).st_altscore = SCORE_BIG;
+            stp.st_altscore = stp_sal_score(stp, su, slang, p);
+            if stp.st_altscore == SCORE_MAXMAX {
+                stp.st_altscore = SCORE_BIG;
             }
-            (*stp).st_score = rescore((*stp).st_score, (*stp).st_altscore);
-            (*stp).st_had_bonus = true;
+            stp.st_score = rescore(stp.st_score, stp.st_altscore);
+            stp.st_had_bonus = true;
         }
     }
 }

@@ -523,10 +523,10 @@ unsafe fn mc_cascade() {
         mc_sandbox_enter(&mut sb, edits);
 
         'outer: for ai in 0..(*ga).len() {
-            let atom = (*ga).as_mut_ptr().add(ai);
-            if !(*atom).origin.buf.br_buf.is_null()
-                && (!bufref_valid(&raw mut (*atom).origin.buf)
-                    || (*atom).origin.buf.br_buf != curbuf)
+            let atom = &mut (&mut *ga)[ai];
+            if !atom.origin.buf.br_buf.is_null()
+                && (!bufref_valid(&raw mut atom.origin.buf)
+                    || atom.origin.buf.br_buf != curbuf)
             {
                 continue;
             }

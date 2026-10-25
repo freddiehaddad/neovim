@@ -3104,16 +3104,16 @@ pub unsafe fn diff_find_change(wp: *mut win_T, lnum: linenr_T, diffline: *mut di
         let mut change_idx: c_int = 0;
         (*diffline).changes = ptr::null_mut();
         while change_idx < changes_len {
-            let change = dp.df_changes.as_mut_ptr().add(change_idx as usize);
-            if (*change).dc_end_lnum_off[u_idx] < off {
+            let change = &mut dp.df_changes[change_idx as usize];
+            if change.dc_end_lnum_off[u_idx] < off {
                 change_idx += 1;
                 continue;
             }
-            if (*change).dc_start_lnum_off[u_idx] > off {
+            if change.dc_start_lnum_off[u_idx] > off {
                 break;
             }
             if (*diffline).changes.is_null() {
-                (*diffline).changes = change;
+                (*diffline).changes = &raw mut *change;
             }
             num_changes += 1;
             change_idx += 1;

@@ -958,7 +958,7 @@ unsafe fn ff_get_visited_list(
             .iter()
             .position(|item| path_equal(filename, item.ffvl_filename, kPathCmpLiteral))
         {
-            return list_headp.as_mut_ptr().add(pos);
+            return &raw mut list_headp[pos];
         }
 
         list_headp.push(ff_visited_list_hdr_T {
@@ -966,7 +966,7 @@ unsafe fn ff_get_visited_list(
             ffvl_visited_list: Vec::new(),
         });
         let last_idx = list_headp.len() - 1;
-        list_headp.as_mut_ptr().add(last_idx)
+        &raw mut list_headp[last_idx]
     }
 }
 

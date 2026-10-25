@@ -169,11 +169,6 @@ impl funccall_T {
 
 use crate::fileio::setvbuf;
 
-#[inline]
-unsafe fn prl_item(si: *mut scriptitem_T, idx: c_int) -> *mut sn_prl_T {
-    unsafe { (*si).sn_prl_ga.as_mut_ptr().add(idx as usize) }
-}
-
 /// Gets the current time (`profile_start`).
 pub fn profile_start() -> proftime_T {
     os_hrtime()
@@ -799,7 +794,7 @@ unsafe fn script_dump_profile(fd: *mut FILE) {
                             iobuf[n + 1] = 0;
                         }
                         if (i as usize) < (*si).sn_prl_ga.len() {
-                            let pp = &*prl_item(si, i);
+                            let pp = &(&(*si).sn_prl_ga)[i as usize];
                             if pp.snp_count > 0 {
                                 fprintf!(fd, c"%5d ".as_ptr(), pp.snp_count);
                                 if profile_equal(pp.sn_prl_total, pp.sn_prl_self) {
@@ -896,7 +891,8 @@ pub unsafe fn script_line_end() {
             && ((*si).sn_prl_idx as usize) < (*si).sn_prl_ga.len()
         {
             if (*si).sn_prl_execed != 0 {
-                let pp = &mut *prl_item(si, (*si).sn_prl_idx);
+                let prl_idx = (*si).sn_prl_idx as usize;
+                let pp = &mut (&mut (*si).sn_prl_ga)[prl_idx];
                 pp.snp_count += 1;
                 (*si).sn_prl_start =
                     profile_sub_wait((*si).sn_prl_wait, profile_end((*si).sn_prl_start));

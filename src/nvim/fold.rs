@@ -171,7 +171,7 @@ pub unsafe fn hasFoldingWin(
         if cache {
             let x = find_wl_entry(win, lnum);
             if x >= 0 {
-                let wl = &*(*win).w_lines.as_ptr().add(x as usize);
+                let wl = &(&(*win).w_lines)[x as usize];
                 first = wl.wl_lnum;
                 last = wl.wl_foldend;
                 had_folded = wl.wl_folded;
@@ -608,7 +608,7 @@ pub unsafe fn deleteFold(
             let mut lnum_off: linenr_T = 0;
             let mut use_level = false;
             while let (true, idx) = foldFind(&*gap, lnum - lnum_off) {
-                let fp = (*gap).as_mut_ptr().add(idx);
+                let fp = &raw mut (&mut *gap)[idx];
                 found_ga = gap;
                 found_fp = fp;
                 found_off = lnum_off;

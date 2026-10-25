@@ -2768,18 +2768,19 @@ unsafe fn addstate(
                 }
 
                 (*state).lastlist[nfa_ll_index] = (*l).id;
-                let thread = (*l).t.as_mut_ptr().add((*l).n as usize);
+                let thread_idx = (*l).n as usize;
                 (*l).n += 1;
-                (*thread).state = state;
+                let thread = &mut (&mut (*l).t)[thread_idx];
+                thread.state = state;
                 if pim.is_null() {
-                    (*thread).pim.result = NFA_PIM_UNUSED;
+                    thread.pim.result = NFA_PIM_UNUSED;
                 } else {
-                    copy_pim(&raw mut (*thread).pim, pim);
+                    copy_pim(&raw mut thread.pim, pim);
                     (*l).has_pim = 1;
                 }
-                copy_sub(&raw mut (*thread).subs.norm, &raw mut (*subs).norm);
+                copy_sub(&raw mut thread.subs.norm, &raw mut (*subs).norm);
                 if rex.nfa_has_zsubexpr != 0 {
-                    copy_sub(&raw mut (*thread).subs.synt, &raw mut (*subs).synt);
+                    copy_sub(&raw mut thread.subs.synt, &raw mut (*subs).synt);
                 }
             }
         }
@@ -3604,7 +3605,7 @@ unsafe fn nfa_regmatch(
                         }
                     }
                 }
-                let t = (*thislist).t.as_mut_ptr().add(listidx as usize);
+                let t = &raw mut (&mut (*thislist).t)[listidx as usize];
 
                 let mut add_state: *mut nfa_state_T = ptr::null_mut();
                 let mut add_here = false;
@@ -4363,8 +4364,8 @@ unsafe fn nfa_regmatch(
                     } else {
                         let r = addstate(nextlist, add_state, &raw mut (*t).subs, pim, add_off, 0);
                         if add_count > 0 && !r.is_null() {
-                            (*(*nextlist).t.as_mut_ptr().add(((*nextlist).n - 1) as usize)).count =
-                                add_count;
+                            let last_idx = ((*nextlist).n - 1) as usize;
+                            (&mut (*nextlist).t)[last_idx].count = add_count;
                         }
                         r
                     };

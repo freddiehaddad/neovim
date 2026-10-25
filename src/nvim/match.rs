@@ -414,20 +414,20 @@ unsafe fn next_search_hl_pos(
         let mut found: isize = -1;
 
         (*shl).lnum = 0;
-        let pos_count = (*match_item).mit_pos.len() as c_int;
+        let mit_pos = &mut (*match_item).mit_pos;
+        let pos_count = mit_pos.len() as c_int;
         for i in (*match_item).mit_pos_cur..pos_count {
-            let pos = (*match_item).mit_pos.as_mut_ptr().add(i as usize);
-            if (*pos).lnum == 0 {
+            let pos = mit_pos[i as usize];
+            if pos.lnum == 0 {
                 break;
             }
-            if (*pos).len == 0 && (*pos).col < mincol {
+            if pos.len == 0 && pos.col < mincol {
                 continue;
             }
-            if (*pos).lnum == lnum {
+            if pos.lnum == lnum {
                 if found >= 0 {
-                    let found_pos = (*match_item).mit_pos.as_mut_ptr().add(found as usize);
-                    if (*pos).col < (*found_pos).col {
-                        ptr::swap(pos, found_pos);
+                    if pos.col < mit_pos[found as usize].col {
+                        mit_pos.swap(i as usize, found as usize);
                     }
                 } else {
                     found = i as isize;
@@ -436,7 +436,7 @@ unsafe fn next_search_hl_pos(
         }
         (*match_item).mit_pos_cur = 0;
         if found >= 0 {
-            let found_pos = *(*match_item).mit_pos.as_ptr().add(found as usize);
+            let found_pos = mit_pos[found as usize];
             let start = if found_pos.col == 0 {
                 0
             } else {
@@ -571,7 +571,7 @@ pub unsafe fn prepare_search_hl(wp: *mut win_T, search_hl: *mut match_T, lnum: l
 
         while idx < len || !shl_flag {
             let cur: *mut matchitem_T = if idx < len {
-                (*wp).w_match_head.as_mut_ptr().add(idx)
+                &raw mut (&mut (*wp).w_match_head)[idx]
             } else {
                 ptr::null_mut()
             };
@@ -664,7 +664,7 @@ pub unsafe fn prepare_search_hl_line(
 
         while idx < len || !shl_flag {
             let cur: *mut matchitem_T = if idx < len {
-                (*wp).w_match_head.as_mut_ptr().add(idx)
+                &raw mut (&mut (*wp).w_match_head)[idx]
             } else {
                 ptr::null_mut()
             };
@@ -759,7 +759,7 @@ pub unsafe fn update_search_hl(
 
         while idx < len || !shl_flag {
             let cur: *mut matchitem_T = if idx < len {
-                (*wp).w_match_head.as_mut_ptr().add(idx)
+                &raw mut (&mut (*wp).w_match_head)[idx]
             } else {
                 ptr::null_mut()
             };
@@ -851,7 +851,7 @@ pub unsafe fn update_search_hl(
         shl_flag = false;
         while idx < len || !shl_flag {
             let cur: *mut matchitem_T = if idx < len {
-                (*wp).w_match_head.as_mut_ptr().add(idx)
+                &raw mut (&mut (*wp).w_match_head)[idx]
             } else {
                 ptr::null_mut()
             };
@@ -926,7 +926,7 @@ pub unsafe fn get_search_match_hl(
 
         while idx < len || !shl_flag {
             let cur: *mut matchitem_T = if idx < len {
-                (*wp).w_match_head.as_mut_ptr().add(idx)
+                &raw mut (&mut (*wp).w_match_head)[idx]
             } else {
                 ptr::null_mut()
             };

@@ -4292,8 +4292,8 @@ pub unsafe fn func_equal(tv1: *mut typval_T, tv2: *mut typval_T, ic: bool) -> bo
         }
         for i in 0..(a1 as usize) {
             if !tv_equal(
-                (*tv_partial(tv1)).pt_argv.as_mut_ptr().add(i),
-                (*tv_partial(tv2)).pt_argv.as_mut_ptr().add(i),
+                &raw mut (&mut (*tv_partial(tv1)).pt_argv)[i],
+                &raw mut (&mut (*tv_partial(tv2)).pt_argv)[i],
                 ic,
             ) {
                 return false;
@@ -4743,14 +4743,8 @@ unsafe fn set_ref_in_item_partial(
             abort = abort || set_ref_in_item(&raw mut dtv, copyID, ht_stack, list_stack);
         }
 
-        for i in 0..(*pt).pt_argv.len() {
-            abort = abort
-                || set_ref_in_item(
-                    (*pt).pt_argv.as_mut_ptr().add(i),
-                    copyID,
-                    ht_stack,
-                    list_stack,
-                );
+        for arg in &mut (*pt).pt_argv {
+            abort = abort || set_ref_in_item(arg, copyID, ht_stack, list_stack);
         }
 
         abort

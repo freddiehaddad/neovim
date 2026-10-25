@@ -1943,7 +1943,7 @@ pub unsafe fn call_func(
                         break;
                     }
                     tv_copy(
-                        (*partial).pt_argv.as_ptr().add(argv_clear as usize),
+                        &(&(*partial).pt_argv)[argv_clear as usize],
                         &raw mut argv[argv_clear as usize],
                     );
                     argv_clear += 1;
@@ -3685,7 +3685,7 @@ unsafe fn ex_defer_inner(
                 partial_argc = (*partial).pt_argv.len() as c_int;
                 for i in 0..partial_argc {
                     tv_copy(
-                        (*partial).pt_argv.as_ptr().add(i as usize),
+                        &(&(*partial).pt_argv)[i as usize],
                         &raw mut argvars[i as usize],
                     );
                 }
@@ -3765,9 +3765,9 @@ unsafe fn handle_defer_one(funccal: *mut funccall_T) {
     unsafe {
         let mut idx = (*funccal).fc_defer.len() as isize - 1;
         while idx >= 0 {
-            let dr = (*funccal).fc_defer.as_mut_ptr().add(idx as usize);
+            let dr = &mut (&mut (*funccal).fc_defer)[idx as usize];
 
-            if (*dr).dr_name.is_null() {
+            if dr.dr_name.is_null() {
                 idx -= 1;
                 continue;
             }
@@ -3778,9 +3778,9 @@ unsafe fn handle_defer_one(funccal: *mut funccall_T) {
             let mut rettv: typval_T = typval_T::new();
             rettv.v_type = VarType::VAR_UNKNOWN;
 
-            let name = (*dr).dr_name;
-            (*dr).dr_name = ptr::null_mut();
-            let argcount = ((*dr).dr_argvars.len() - 1) as c_int;
+            let name = dr.dr_name;
+            dr.dr_name = ptr::null_mut();
+            let argcount = (dr.dr_argvars.len() - 1) as c_int;
 
             let mut estate = exception_state_T::new();
             exception_state_save(&raw mut estate);
@@ -3791,7 +3791,7 @@ unsafe fn handle_defer_one(funccal: *mut funccall_T) {
                 -1,
                 &raw mut rettv,
                 argcount,
-                (*dr).dr_argvars.as_mut_ptr(),
+                dr.dr_argvars.as_mut_ptr(),
                 &raw mut funcexe,
             );
 
@@ -3801,10 +3801,11 @@ unsafe fn handle_defer_one(funccal: *mut funccall_T) {
             xfree(name.cast());
             let mut i = argcount - 1;
             while i >= 0 {
-                tv_clear((*dr).dr_argvars.as_mut_ptr().add(i as usize));
+                let dr = &mut (&mut (*funccal).fc_defer)[idx as usize];
+                tv_clear(&raw mut dr.dr_argvars[i as usize]);
                 i -= 1;
             }
-            (*dr).dr_argvars.clear();
+            (&mut (*funccal).fc_defer)[idx as usize].dr_argvars.clear();
             idx -= 1;
         }
         (*funccal).fc_defer.clear();
@@ -4145,8 +4146,8 @@ pub unsafe fn make_partial(selfdict: *mut dict_T, rettv: *mut typval_T) {
                     (*pt).pt_argv.resize(pt_argc, typval_T::new());
                     for i in 0..pt_argc {
                         tv_copy(
-                            (*ret_pt).pt_argv.as_ptr().add(i),
-                            (*pt).pt_argv.as_mut_ptr().add(i),
+                            &(&(*ret_pt).pt_argv)[i],
+                            &raw mut (&mut (*pt).pt_argv)[i],
                         );
                     }
                 }

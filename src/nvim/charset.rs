@@ -515,7 +515,7 @@ pub unsafe fn str_foldcase(
 
         let str_ptr = |vec_ref: &mut Vec<c_char>, idx: usize| -> *mut c_char {
             if buf.is_null() {
-                vec_ref.as_mut_ptr().add(idx)
+                &raw mut vec_ref[idx]
             } else {
                 buf.add(idx)
             }

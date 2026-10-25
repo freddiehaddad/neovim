@@ -354,17 +354,17 @@ pub unsafe extern "C" fn nvim_parse_cmd(
 
         let cmd = if ea.cmdidx == CMD_USER {
             let u = &raw mut ucmds;
-            (*u).as_mut_ptr().add(ea.useridx as usize)
+            Some(&(&*u)[ea.useridx as usize])
         } else if ea.cmdidx == CMD_USER_BUF {
-            (*curbuf).b_ucmds.as_mut_ptr().add(ea.useridx as usize)
+            Some(&(&(*curbuf).b_ucmds)[ea.useridx as usize])
         } else {
-            ptr::null_mut()
+            None
         };
 
         let name = if ea.cmdidx == CMD_SIZE {
             c"".as_ptr()
-        } else if !cmd.is_null() {
-            (*cmd).uc_name
+        } else if let Some(cmd) = cmd {
+            cmd.uc_name
         } else {
             get_command_name(ptr::null_mut(), ea.cmdidx)
         };
@@ -385,12 +385,12 @@ pub unsafe extern "C" fn nvim_parse_cmd(
         if (ea.argt & EX_COUNT) != 0 {
             let count = if ea.addr_count > 0 {
                 i64::from(ea.line2)
-            } else if !cmd.is_null() {
-                (*cmd).uc_def
+            } else if let Some(cmd) = cmd {
+                cmd.uc_def
             } else {
                 0
             };
-            if ea.addr_count > 0 || (!cmd.is_null() && (*cmd).uc_def != 0) || count != 0 {
+            if ea.addr_count > 0 || cmd.is_some_and(|c| c.uc_def != 0) || count != 0 {
                 result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_cmd__count;
                 result.count = count;
             }

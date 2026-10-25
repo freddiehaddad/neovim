@@ -1190,9 +1190,9 @@ pub unsafe fn ml_recover(checkext: bool) {
                         }
 
                         let top = ml_add_stack(buf);
-                        let ip = (*buf).b_ml.ml_stack.as_mut_ptr().add(top as usize);
-                        (*ip).ip_bnum = bnum;
-                        (*ip).ip_index = idx;
+                        let ip = &mut (&mut (*buf).b_ml.ml_stack)[top as usize];
+                        ip.ip_bnum = bnum;
+                        ip.ip_index = idx;
 
                         bnum = (*pe).pe_bnum;
                         line_count = (*pe).pe_line_count;
@@ -1204,8 +1204,8 @@ pub unsafe fn ml_recover(checkext: bool) {
                             error += 1;
                             ml_append(lnum, tr(c"???ILLEGAL BLOCK NUMBER"), 0, true);
                             lnum += 1;
-                            idx = (*ip).ip_index + 1;
-                            bnum = (*ip).ip_bnum;
+                            idx = ip.ip_index + 1;
+                            bnum = ip.ip_bnum;
                             page_count = 1;
                             (*buf).b_ml.ml_stack_top -= 1;
                             line_breakcheck();
@@ -3150,11 +3150,11 @@ unsafe fn ml_find_line(buf: *mut buf_T, lnum: linenr_T, action: c_int) -> *mut b
         if action == ML_FIND {
             let mut top = (*buf).b_ml.ml_stack_top - 1;
             while top >= 0 {
-                let ip = (*buf).b_ml.ml_stack.as_mut_ptr().add(top as usize);
-                if (*ip).ip_low <= lnum && (*ip).ip_high >= lnum {
-                    bnum = (*ip).ip_bnum;
-                    low = (*ip).ip_low;
-                    high = (*ip).ip_high;
+                let ip = &(&(*buf).b_ml.ml_stack)[top as usize];
+                if ip.ip_low <= lnum && ip.ip_high >= lnum {
+                    bnum = ip.ip_bnum;
+                    low = ip.ip_low;
+                    high = ip.ip_high;
                     (*buf).b_ml.ml_stack_top = top;
                     break;
                 }
@@ -3197,11 +3197,11 @@ unsafe fn ml_find_line(buf: *mut buf_T, lnum: linenr_T, action: c_int) -> *mut b
             }
 
             let top = ml_add_stack(buf);
-            let ip = (*buf).b_ml.ml_stack.as_mut_ptr().add(top as usize);
-            (*ip).ip_bnum = bnum;
-            (*ip).ip_low = low;
-            (*ip).ip_high = high;
-            (*ip).ip_index = -1;
+            let ip = &mut (&mut (*buf).b_ml.ml_stack)[top as usize];
+            ip.ip_bnum = bnum;
+            ip.ip_low = low;
+            ip.ip_high = high;
+            ip.ip_index = -1;
 
             let mut dirty = false;
             let mut idx: c_int = 0;
@@ -3210,7 +3210,7 @@ unsafe fn ml_find_line(buf: *mut buf_T, lnum: linenr_T, action: c_int) -> *mut b
                 let t = (*pe).pe_line_count;
                 low += t;
                 if low > lnum {
-                    (*ip).ip_index = idx;
+                    ip.ip_index = idx;
                     bnum = (*pe).pe_bnum;
                     page_count = (*pe).pe_page_count;
                     high = low - 1;
@@ -3283,8 +3283,8 @@ unsafe fn ml_lineadd(buf: *mut buf_T, count: c_int) {
         let mfp = (*buf).b_ml.ml_mfp.cast::<memfile_T>();
         let mut idx = (*buf).b_ml.ml_stack_top - 1;
         while idx >= 0 {
-            let ip = (*buf).b_ml.ml_stack.as_mut_ptr().add(idx as usize);
-            let hp = mf_get(mfp, (*ip).ip_bnum, 1);
+            let ip = &mut (&mut (*buf).b_ml.ml_stack)[idx as usize];
+            let hp = mf_get(mfp, ip.ip_bnum, 1);
             if hp.is_null() {
                 break;
             }
@@ -3294,8 +3294,8 @@ unsafe fn ml_lineadd(buf: *mut buf_T, count: c_int) {
                 iemsg(tr(e_pointer_block_id_wrong_two));
                 break;
             }
-            (*pb_ptr(pp, (*ip).ip_index as usize)).pe_line_count += count;
-            (*ip).ip_high += count;
+            (*pb_ptr(pp, ip.ip_index as usize)).pe_line_count += count;
+            ip.ip_high += count;
             mf_put(mfp, hp, true, false);
             idx -= 1;
         }

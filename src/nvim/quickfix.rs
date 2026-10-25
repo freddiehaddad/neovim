@@ -1345,7 +1345,7 @@ unsafe fn qf_list_has_valid_entries(qfl: *const qf_list_T) -> bool {
 
 #[inline]
 unsafe fn qf_get_list(qi: *mut qf_info_T, idx: c_int) -> *mut qf_list_T {
-    unsafe { (*qi).qf_lists.as_mut_ptr().add(idx as usize) }
+    unsafe { &raw mut (&mut (*qi).qf_lists)[idx as usize] }
 }
 
 unsafe fn qf_parse_line(
@@ -1656,7 +1656,7 @@ unsafe fn qf_new_list(qi: *mut qf_info_T, qf_title: *const c_char) {
     unsafe {
         while (*qi).qf_listcount > (*qi).qf_curlist + 1 {
             (*qi).qf_listcount -= 1;
-            qf_free((*qi).qf_lists.as_mut_ptr().add((*qi).qf_listcount as usize));
+            qf_free(qf_get_list(qi, (*qi).qf_listcount));
         }
 
         if (*qi).qf_listcount == (*qi).qf_maxcount {
@@ -2752,7 +2752,7 @@ unsafe fn qflist_valid(wp: *mut win_T, qf_id: c_uint) -> bool {
         }
 
         for i in 0..(*qi).qf_listcount {
-            if (*(*qi).qf_lists.as_ptr().add(i as usize)).qf_id == qf_id {
+            if (&(*qi).qf_lists)[i as usize].qf_id == qf_id {
                 return true;
             }
         }
@@ -3777,8 +3777,9 @@ unsafe fn qf_range_text(gap: &mut Vec<c_char>, qfp: *const qfline_T) {
 
 unsafe fn qf_msg(qi: *mut qf_info_T, which: c_int, lead: *const c_char) {
     unsafe {
-        let title = (*(*qi).qf_lists.as_ptr().add(which as usize)).qf_title;
-        let count = (*(*qi).qf_lists.as_ptr().add(which as usize)).count();
+        let qfl = &(&(*qi).qf_lists)[which as usize];
+        let title = qfl.qf_title;
+        let count = qfl.count();
         let mut buf = [0 as c_char; IOSIZE];
 
         vim_snprintf!(
@@ -4719,7 +4720,7 @@ unsafe fn qf_list_changed(qfl: *mut qf_list_T) {
 unsafe fn qf_id2nr(qi: *const qf_info_T, qfid: c_uint) -> c_int {
     unsafe {
         for qf_idx in 0..(*qi).qf_listcount {
-            if (*(*qi).qf_lists.as_ptr().add(qf_idx as usize)).qf_id == qfid {
+            if (&(*qi).qf_lists)[qf_idx as usize].qf_id == qfid {
                 return qf_idx;
             }
         }
@@ -7090,7 +7091,7 @@ unsafe fn qf_setprop_items(
             return FAIL;
         }
 
-        let title_save = xstrdup((*(*qi).qf_lists.as_ptr().add(qf_idx as usize)).qf_title);
+        let title_save = xstrdup((&(*qi).qf_lists)[qf_idx as usize].qf_title);
         let retval = qf_add_entries(
             qi,
             qf_idx,
@@ -7134,7 +7135,7 @@ unsafe fn qf_setprop_items_from_lines(
         }
 
         if action == b'r' as c_int || action == b'u' as c_int {
-            qf_free_items((*qi).qf_lists.as_mut_ptr().add(qf_idx as usize));
+            qf_free_items(qf_get_list(qi, qf_idx));
         }
         if qf_init_ext(
             qi,
@@ -7200,7 +7201,7 @@ unsafe fn qf_setprop_curidx(
         }
         (*qfl).qf_index = newidx;
 
-        if (*(*qi).qf_lists.as_ptr().add((*qi).qf_curlist as usize)).qf_id == (*qfl).qf_id {
+        if (&(*qi).qf_lists)[(*qi).qf_curlist as usize].qf_id == (*qfl).qf_id {
             qf_win_pos_update(qi, old_qfidx);
         }
         OK
@@ -7351,9 +7352,9 @@ unsafe fn mark_quickfix_user_data(qi: *mut qf_info_T, copyID: c_int) -> bool {
         let mut abort = false;
         let mut i: c_int = 0;
         while i < (*qi).qf_maxcount && !abort {
-            let qfl = (*qi).qf_lists.as_mut_ptr().add(i as usize);
-            if (*qfl).qf_has_user_data {
-                for qfp in &mut (*qfl).qf_items {
+            let qfl = &mut (&mut (*qi).qf_lists)[i as usize];
+            if qfl.qf_has_user_data {
+                for qfp in &mut qfl.qf_items {
                     if got_int {
                         break;
                     }
@@ -7378,8 +7379,8 @@ unsafe fn mark_quickfix_ctx(qi: *mut qf_info_T, copyID: c_int) -> bool {
         let mut abort = false;
         let mut i: c_int = 0;
         while i < (*qi).qf_maxcount && !abort {
-            let qfl = (*qi).qf_lists.as_mut_ptr().add(i as usize);
-            let ctx = (*qfl).qf_ctx;
+            let qfl = &mut (&mut (*qi).qf_lists)[i as usize];
+            let ctx = qfl.qf_ctx;
             if !ctx.is_null()
                 && (*ctx).v_type != VarType::VAR_NUMBER
                 && (*ctx).v_type != VarType::VAR_STRING
@@ -7388,7 +7389,7 @@ unsafe fn mark_quickfix_ctx(qi: *mut qf_info_T, copyID: c_int) -> bool {
                 abort = set_ref_in_item(ctx, copyID, ptr::null_mut(), ptr::null_mut());
             }
 
-            let cb = &raw mut (*qfl).qf_qftf_cb;
+            let cb = &raw mut qfl.qf_qftf_cb;
             abort = abort || set_ref_in_callback(cb, copyID, ptr::null_mut(), ptr::null_mut());
             i += 1;
         }
