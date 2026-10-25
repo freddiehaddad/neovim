@@ -1,16 +1,14 @@
 //! XDiff environment preparation (`src/xdiff/xprepare.c`).
 
-use std::ffi::{c_char, c_int, c_long, c_uint, c_ulong, c_void};
-use std::mem::size_of;
+use std::ffi::{c_char, c_int, c_long, c_uint, c_ulong};
+use std::pin::Pin;
 use std::ptr;
 
-use crate::memory::{xfree, xmalloc, xrealloc};
 use crate::xdiff::xutils::{
-    xdl_bogosqrt, xdl_cha_alloc, xdl_cha_free, xdl_cha_init, xdl_guess_lines, xdl_hash_record,
-    xdl_hashbits, xdl_mmfile_first, xdl_recmatch,
+    xdl_bogosqrt, xdl_guess_lines, xdl_hash_record, xdl_hashbits, xdl_mmfile_first, xdl_recmatch,
 };
 use crate::xdiff::{
-    XDF_HISTOGRAM_DIFF, XDF_PATIENCE_DIFF, chastore_t, mmfile_t, xdf_diff_alg, xdfenv_t, xdfile_t,
+    XDF_HISTOGRAM_DIFF, XDF_PATIENCE_DIFF, mmfile_t, xdf_diff_alg, xdfenv_t, xdfile_t,
     xdl_hashlong, xpparam_t, xrecord_t,
 };
 
@@ -35,32 +33,22 @@ struct xdlclass_t {
 struct xdlclassifier_t {
     hbits: c_uint,
     rchash: Vec<*mut xdlclass_t>,
-    ncha: chastore_t,
-    rcrecs: Vec<*mut xdlclass_t>,
+    rcrecs: Vec<Pin<Box<xdlclass_t>>>,
     flags: c_long,
 }
 
-unsafe fn xdl_init_classifier(cf: &mut xdlclassifier_t, size: c_long, flags: c_long) -> c_int {
-    unsafe {
-        cf.flags = flags;
-        cf.hbits = xdl_hashbits(size as c_uint);
-        let hsize = 1usize << cf.hbits;
-
-        if xdl_cha_init(&mut cf.ncha, size_of::<xdlclass_t>() as c_long, size / 4 + 1) < 0 {
-            return -1;
-        }
-        cf.rchash = vec![ptr::null_mut(); hsize];
-        cf.rcrecs = Vec::with_capacity(size as usize);
-    }
+fn xdl_init_classifier(cf: &mut xdlclassifier_t, size: c_long, flags: c_long) -> c_int {
+    cf.flags = flags;
+    cf.hbits = xdl_hashbits(size as c_uint);
+    let hsize = 1usize << cf.hbits;
+    cf.rchash = vec![ptr::null_mut(); hsize];
+    cf.rcrecs = Vec::with_capacity(size as usize);
     0
 }
 
-unsafe fn xdl_free_classifier(cf: &mut xdlclassifier_t) {
-    unsafe {
-        cf.rcrecs.clear();
-        cf.rchash.clear();
-        xdl_cha_free(&mut cf.ncha);
-    }
+fn xdl_free_classifier(cf: &mut xdlclassifier_t) {
+    cf.rcrecs.clear();
+    cf.rchash.clear();
 }
 
 unsafe fn xdl_classify_record(
@@ -90,18 +78,18 @@ unsafe fn xdl_classify_record(
         }
 
         if rcrec.is_null() {
-            rcrec = xdl_cha_alloc(&mut cf.ncha).cast::<xdlclass_t>();
-            if rcrec.is_null() {
-                return -1;
-            }
-            (*rcrec).idx = cf.rcrecs.len() as c_long;
-            cf.rcrecs.push(rcrec);
-            (*rcrec).line = line;
-            (*rcrec).size = (*rec).size;
-            (*rcrec).ha = (*rec).ha;
-            (*rcrec).len1 = 0;
-            (*rcrec).len2 = 0;
-            (*rcrec).next = cf.rchash[hi];
+            let idx = cf.rcrecs.len() as c_long;
+            let mut boxed = Box::pin(xdlclass_t {
+                next: cf.rchash[hi],
+                ha: (*rec).ha,
+                line,
+                size: (*rec).size,
+                idx,
+                len1: 0,
+                len2: 0,
+            });
+            rcrec = &raw mut *boxed;
+            cf.rcrecs.push(boxed);
             cf.rchash[hi] = rcrec;
         }
 
@@ -123,57 +111,26 @@ unsafe fn xdl_classify_record(
 unsafe fn xdl_prepare_ctx(
     pass: c_uint,
     mf: *mut mmfile_t,
-    mut narec: c_long,
+    narec: c_long,
     xpp: *const xpparam_t,
     cf: &mut xdlclassifier_t,
     xdf: *mut xdfile_t,
 ) -> c_int {
-    let mut ha: *mut c_ulong = ptr::null_mut();
-    let mut rindex: *mut c_long = ptr::null_mut();
-    let mut rchg: *mut c_char = ptr::null_mut();
-    let mut rhash: *mut *mut xrecord_t = ptr::null_mut();
-    let mut recs: *mut *mut xrecord_t = ptr::null_mut();
-
-    let abort = |ha: *mut c_ulong,
-                 rindex: *mut c_long,
-                 rchg: *mut c_char,
-                 rhash: *mut *mut xrecord_t,
-                 recs: *mut *mut xrecord_t,
-                 xdf: *mut xdfile_t| unsafe {
-        xfree(ha.cast::<c_void>());
-        xfree(rindex.cast::<c_void>());
-        xfree(rchg.cast::<c_void>());
-        xfree(rhash.cast::<c_void>());
-        xfree(recs.cast::<c_void>());
-        xdl_cha_free(&mut (*xdf).rcha);
-        -1
-    };
-
     unsafe {
-        if xdl_cha_init(
-            &mut (*xdf).rcha,
-            size_of::<xrecord_t>() as c_long,
-            narec / 4 + 1,
-        ) < 0
-        {
-            return abort(ha, rindex, rchg, rhash, recs, xdf);
-        }
-        recs = xmalloc((narec as usize) * size_of::<*mut xrecord_t>()).cast::<*mut xrecord_t>();
-        if recs.is_null() {
-            return abort(ha, rindex, rchg, rhash, recs, xdf);
-        }
+        let xdf = &mut *xdf;
+        xdf.rcha = Vec::with_capacity(narec.max(0) as usize);
+        xdf.recs_vec = Vec::with_capacity(narec.max(0) as usize);
 
         let hbits: c_uint;
         if xdf_diff_alg((*xpp).flags) == XDF_HISTOGRAM_DIFF {
             hbits = 0;
+            xdf.rhash_vec = Vec::new();
+            xdf.rhash = ptr::null_mut();
         } else {
             hbits = xdl_hashbits(narec as c_uint);
             let hsize: usize = 1usize << hbits;
-            rhash = xmalloc(hsize * size_of::<*mut xrecord_t>()).cast::<*mut xrecord_t>();
-            if rhash.is_null() {
-                return abort(ha, rindex, rchg, rhash, recs, xdf);
-            }
-            std::slice::from_raw_parts_mut(rhash, hsize).fill(ptr::null_mut());
+            xdf.rhash_vec = vec![ptr::null_mut(); hsize];
+            xdf.rhash = xdf.rhash_vec.as_mut_ptr();
         }
 
         let mut nrec: c_long = 0;
@@ -187,61 +144,39 @@ unsafe fn xdl_prepare_ctx(
             while cur < top {
                 let prev = cur;
                 let hav = xdl_hash_record(&mut cur, top, (*xpp).flags as c_long);
-                if nrec >= narec {
-                    narec *= 2;
-                    let rrecs = xrealloc(
-                        recs.cast::<c_void>(),
-                        (narec as usize) * size_of::<*mut xrecord_t>(),
-                    )
-                    .cast::<*mut xrecord_t>();
-                    if rrecs.is_null() {
-                        return abort(ha, rindex, rchg, rhash, recs, xdf);
-                    }
-                    recs = rrecs;
-                }
-                let crec = xdl_cha_alloc(&mut (*xdf).rcha).cast::<xrecord_t>();
-                if crec.is_null() {
-                    return abort(ha, rindex, rchg, rhash, recs, xdf);
-                }
-                (*crec).ptr = prev;
-                (*crec).size = cur.offset_from(prev) as c_long;
-                (*crec).ha = hav;
-                *recs.offset(nrec as isize) = crec;
+                let mut boxed = Box::pin(xrecord_t {
+                    next: ptr::null_mut(),
+                    ptr: prev,
+                    size: cur.offset_from(prev) as c_long,
+                    ha: hav,
+                });
+                let crec: *mut xrecord_t = &raw mut *boxed;
+                xdf.rcha.push(boxed);
+                xdf.recs_vec.push(crec);
                 nrec += 1;
 
                 if xdf_diff_alg((*xpp).flags) != XDF_HISTOGRAM_DIFF
-                    && xdl_classify_record(pass, cf, rhash, hbits, crec) < 0
+                    && xdl_classify_record(pass, cf, xdf.rhash, hbits, crec) < 0
                 {
-                    return abort(ha, rindex, rchg, rhash, recs, xdf);
+                    *xdf = xdfile_t::new();
+                    return -1;
                 }
             }
         }
 
-        rchg = xmalloc(((nrec + 2) as usize) * size_of::<c_char>()).cast::<c_char>();
-        if rchg.is_null() {
-            return abort(ha, rindex, rchg, rhash, recs, xdf);
-        }
-        std::slice::from_raw_parts_mut(rchg, (nrec + 2) as usize).fill(0);
+        xdf.rchg_vec = vec![0; (nrec + 2) as usize];
+        xdf.rindex_vec = vec![0; (nrec + 1) as usize];
+        xdf.ha_vec = vec![0; (nrec + 1) as usize];
 
-        rindex = xmalloc(((nrec + 1) as usize) * size_of::<c_long>()).cast::<c_long>();
-        if rindex.is_null() {
-            return abort(ha, rindex, rchg, rhash, recs, xdf);
-        }
-        ha = xmalloc(((nrec + 1) as usize) * size_of::<c_ulong>()).cast::<c_ulong>();
-        if ha.is_null() {
-            return abort(ha, rindex, rchg, rhash, recs, xdf);
-        }
-
-        (*xdf).nrec = nrec;
-        (*xdf).recs = recs;
-        (*xdf).hbits = hbits;
-        (*xdf).rhash = rhash;
-        (*xdf).rchg = rchg.add(1);
-        (*xdf).rindex = rindex;
-        (*xdf).nreff = 0;
-        (*xdf).ha = ha;
-        (*xdf).dstart = 0;
-        (*xdf).dend = nrec - 1;
+        xdf.nrec = nrec;
+        xdf.recs = xdf.recs_vec.as_mut_ptr();
+        xdf.hbits = hbits;
+        xdf.rchg = xdf.rchg_vec.as_mut_ptr().add(1);
+        xdf.rindex = xdf.rindex_vec.as_mut_ptr();
+        xdf.nreff = 0;
+        xdf.ha = xdf.ha_vec.as_mut_ptr();
+        xdf.dstart = 0;
+        xdf.dend = nrec - 1;
     }
 
     0
@@ -249,12 +184,7 @@ unsafe fn xdl_prepare_ctx(
 
 unsafe fn xdl_free_ctx(xdf: *mut xdfile_t) {
     unsafe {
-        xfree((*xdf).rhash.cast::<c_void>());
-        xfree((*xdf).rindex.cast::<c_void>());
-        xfree((*xdf).rchg.sub(1).cast::<c_void>());
-        xfree((*xdf).ha.cast::<c_void>());
-        xfree((*xdf).recs.cast::<c_void>());
-        xdl_cha_free(&mut (*xdf).rcha);
+        *xdf = xdfile_t::new();
     }
 }
 
@@ -268,7 +198,6 @@ pub unsafe fn xdl_prepare_env(
         let mut cf = xdlclassifier_t {
             hbits: 0,
             rchash: Vec::new(),
-            ncha: chastore_t::new(),
             rcrecs: Vec::new(),
             flags: 0,
         };
@@ -390,8 +319,7 @@ unsafe fn xdl_cleanup_records(
         let mut i = (*xdf1).dstart;
         let mut recs = (*xdf1).recs.offset((*xdf1).dstart as isize);
         while i <= (*xdf1).dend {
-            let rcrec = cf.rcrecs[(**recs).ha as usize];
-            let nm = if !rcrec.is_null() { (*rcrec).len2 } else { 0 };
+            let nm = cf.rcrecs[(**recs).ha as usize].len2;
             *dis1.offset(i as isize) = if nm == 0 {
                 0
             } else if nm >= mlim {
@@ -410,8 +338,7 @@ unsafe fn xdl_cleanup_records(
         i = (*xdf2).dstart;
         recs = (*xdf2).recs.offset((*xdf2).dstart as isize);
         while i <= (*xdf2).dend {
-            let rcrec = cf.rcrecs[(**recs).ha as usize];
-            let nm = if !rcrec.is_null() { (*rcrec).len1 } else { 0 };
+            let nm = cf.rcrecs[(**recs).ha as usize].len1;
             *dis2.offset(i as isize) = if nm == 0 {
                 0
             } else if nm >= mlim {

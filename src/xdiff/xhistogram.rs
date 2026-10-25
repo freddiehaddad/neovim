@@ -1,15 +1,13 @@
 //! Histogram diff algorithm (`src/xdiff/xhistogram.c`).
 
 use std::ffi::{c_int, c_long, c_uint};
-use std::mem::size_of;
+use std::pin::Pin;
 use std::ptr;
 
 use crate::xdiff::xprepare::xdl_prepare_env;
-use crate::xdiff::xutils::{
-    xdl_cha_alloc, xdl_cha_free, xdl_cha_init, xdl_fall_back_diff, xdl_hashbits, xdl_recmatch,
-};
+use crate::xdiff::xutils::{xdl_fall_back_diff, xdl_hashbits, xdl_recmatch};
 use crate::xdiff::{
-    XDF_DIFF_ALGORITHM_MASK, chastore_t, mmfile_t, xdfenv_t, xdl_hashlong, xpparam_t, xrecord_t,
+    XDF_DIFF_ALGORITHM_MASK, mmfile_t, xdfenv_t, xdl_hashlong, xpparam_t, xrecord_t,
 };
 
 const MAX_PTR: c_uint = c_int::MAX as c_uint;
@@ -26,7 +24,7 @@ struct Record {
 struct HistIndex {
     records: Vec<*mut Record>,
     line_map: Vec<*mut Record>,
-    rcha: chastore_t,
+    rcha: Vec<Pin<Box<Record>>>,
     next_ptrs: Vec<c_uint>,
     table_bits: c_uint,
     max_chain_length: c_uint,
@@ -124,13 +122,13 @@ unsafe fn scan_a(index: &mut HistIndex, line1: c_int, count1: c_int) -> c_int {
                     return -1;
                 }
 
-                rec = xdl_cha_alloc(&mut index.rcha).cast::<Record>();
-                if rec.is_null() {
-                    return -1;
-                }
-                (*rec).ptr = uptr;
-                (*rec).cnt = 1;
-                (*rec).next = index.records[tbl_idx];
+                let mut boxed = Box::pin(Record {
+                    ptr: uptr,
+                    cnt: 1,
+                    next: index.records[tbl_idx],
+                });
+                rec = &raw mut *boxed;
+                index.rcha.push(boxed);
                 index.records[tbl_idx] = rec;
                 let lm_idx = line_map_idx(index, uptr);
                 index.line_map[lm_idx] = rec;
@@ -271,7 +269,7 @@ unsafe fn find_lcs(
     let mut index = HistIndex {
         records: vec![ptr::null_mut(); records_size],
         line_map: vec![ptr::null_mut(); line_map_size],
-        rcha: chastore_t::new(),
+        rcha: Vec::with_capacity((count1 / 4 + 1).max(0) as usize),
         next_ptrs: vec![0; line_map_size],
         table_bits,
         max_chain_length: 64,
@@ -283,17 +281,7 @@ unsafe fn find_lcs(
     };
 
     unsafe {
-        if xdl_cha_init(
-            &mut index.rcha,
-            size_of::<Record>() as c_long,
-            (count1 / 4 + 1) as c_long,
-        ) < 0
-        {
-            return -1;
-        }
-
         if scan_a(&mut index, line1, count1) != 0 {
-            xdl_cha_free(&mut index.rcha);
             return -1;
         }
 
@@ -303,13 +291,11 @@ unsafe fn find_lcs(
             b_ptr = try_lcs(&mut index, lcs, b_ptr, line1, count1, line2, count2);
         }
 
-        let ret = if index.has_common != 0 && index.max_chain_length < index.cnt {
+        if index.has_common != 0 && index.max_chain_length < index.cnt {
             1
         } else {
             0
-        };
-        xdl_cha_free(&mut index.rcha);
-        ret
+        }
     }
 }
 

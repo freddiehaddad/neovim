@@ -1,10 +1,8 @@
 //! Core diff algorithm (`src/xdiff/xdiffi.c`).
 
-use std::ffi::{c_char, c_int, c_long, c_ulong, c_void};
-use std::mem::size_of;
+use std::ffi::{c_char, c_int, c_long, c_ulong};
 use std::ptr;
 
-use crate::memory::{xfree, xmalloc};
 use crate::xdiff::xemit::{xdl_emit_diff, xdl_get_hunk};
 use crate::xdiff::xhistogram::xdl_do_histogram_diff;
 use crate::xdiff::xpatience::xdl_do_patience_diff;
@@ -382,11 +380,8 @@ pub unsafe fn xdl_do_diff(
         }
 
         let ndiags = (*xe).xdf1.nreff + (*xe).xdf2.nreff + 3;
-        let kvd = xmalloc(((2 * ndiags + 2) as usize) * size_of::<c_long>()).cast::<c_long>();
-        if kvd.is_null() {
-            xdl_free_env(xe);
-            return -1;
-        }
+        let mut kvd_vec = vec![0 as c_long; (2 * ndiags + 2) as usize];
+        let kvd = kvd_vec.as_mut_ptr();
         let mut kvdf = kvd;
         let mut kvdb = kvdf.offset(ndiags as isize);
         kvdf = kvdf.offset(((*xe).xdf2.nreff + 1) as isize);
@@ -424,12 +419,9 @@ pub unsafe fn xdl_do_diff(
             &mut xenv,
         ) < 0
         {
-            xfree(kvd.cast::<c_void>());
             xdl_free_env(xe);
             return -1;
         }
-
-        xfree(kvd.cast::<c_void>());
     }
     0
 }

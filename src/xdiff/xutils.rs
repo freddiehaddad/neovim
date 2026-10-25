@@ -1,17 +1,15 @@
 //! XDiff utility functions (`src/xdiff/xutils.c`).
 
 use std::ffi::{c_char, c_int, c_long, c_uint, c_ulong, c_void};
-use std::mem::size_of;
 use std::ptr;
 
-use crate::memory::{xfree, xmalloc};
 use crate::strings::memchr;
 use crate::xdiff::xdiffi::xdl_do_diff;
 use crate::xdiff::xprepare::xdl_free_env;
 use crate::xdiff::{
     XDF_IGNORE_CR_AT_EOL, XDF_IGNORE_WHITESPACE, XDF_IGNORE_WHITESPACE_AT_EOL,
-    XDF_IGNORE_WHITESPACE_CHANGE, XDF_WHITESPACE_FLAGS, chanode_t, chastore_t, mmbuffer_t,
-    mmfile_t, xdemitcb_t, xdfenv_t, xdl_isspace, xpparam_t,
+    XDF_IGNORE_WHITESPACE_CHANGE, XDF_WHITESPACE_FLAGS, mmbuffer_t, mmfile_t, xdemitcb_t,
+    xdfenv_t, xdl_isspace, xpparam_t,
 };
 
 pub fn xdl_bogosqrt(mut n: c_long) -> c_long {
@@ -64,61 +62,6 @@ pub unsafe fn xdl_mmfile_first(mmf: *mut mmfile_t, size: *mut c_long) -> *mut c_
 
 pub unsafe fn xdl_mmfile_size(mmf: *mut mmfile_t) -> c_long {
     unsafe { (*mmf).size as c_long }
-}
-
-pub unsafe fn xdl_cha_init(cha: *mut chastore_t, isize: c_long, icount: c_long) -> c_int {
-    unsafe {
-        (*cha).head = ptr::null_mut();
-        (*cha).tail = ptr::null_mut();
-        (*cha).isize = isize;
-        (*cha).nsize = icount * isize;
-        (*cha).ancur = ptr::null_mut();
-    }
-    0
-}
-
-pub unsafe fn xdl_cha_free(cha: *mut chastore_t) {
-    let mut cur = unsafe { (*cha).head };
-    while !cur.is_null() {
-        let tmp = cur;
-        cur = unsafe { (*cur).next };
-        unsafe { xfree(tmp.cast::<c_void>()) };
-    }
-}
-
-pub unsafe fn xdl_cha_alloc(cha: *mut chastore_t) -> *mut c_void {
-    let mut ancur = unsafe { (*cha).ancur };
-    if ancur.is_null() || unsafe { (*ancur).icurr == (*cha).nsize } {
-        ancur =
-            unsafe { xmalloc(size_of::<chanode_t>() + (*cha).nsize as usize) }.cast::<chanode_t>();
-        if ancur.is_null() {
-            return ptr::null_mut();
-        }
-        unsafe {
-            (*ancur).icurr = 0;
-            (*ancur).next = ptr::null_mut();
-            if !(*cha).tail.is_null() {
-                (*(*cha).tail).next = ancur;
-            }
-            if (*cha).head.is_null() {
-                (*cha).head = ancur;
-            }
-            (*cha).tail = ancur;
-            (*cha).ancur = ancur;
-        }
-    }
-
-    let data = unsafe {
-        ancur
-            .cast::<c_char>()
-            .add(size_of::<chanode_t>())
-            .offset((*ancur).icurr as isize)
-            .cast::<c_void>()
-    };
-    unsafe {
-        (*ancur).icurr += (*cha).isize;
-    }
-    data
 }
 
 pub unsafe fn xdl_guess_lines(mf: *mut mmfile_t, sample: c_long) -> c_long {

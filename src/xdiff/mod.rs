@@ -97,41 +97,6 @@ pub struct xdemitconf_t {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct chanode_t {
-    pub next: *mut chanode_t,
-    pub icurr: c_long,
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct chastore_t {
-    pub head: *mut chanode_t,
-    pub tail: *mut chanode_t,
-    pub isize: c_long,
-    pub nsize: c_long,
-    pub ancur: *mut chanode_t,
-}
-
-impl chastore_t {
-    pub const fn new() -> Self {
-        Self {
-            head: std::ptr::null_mut(),
-            tail: std::ptr::null_mut(),
-            isize: 0,
-            nsize: 0,
-            ancur: std::ptr::null_mut(),
-        }
-    }
-}
-
-impl Default for chastore_t {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
 pub struct xrecord_t {
     pub next: *mut xrecord_t,
     pub ptr: *const c_char,
@@ -140,34 +105,43 @@ pub struct xrecord_t {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
 pub struct xdfile_t {
-    pub rcha: chastore_t,
+    pub rcha: Vec<std::pin::Pin<Box<xrecord_t>>>,
     pub nrec: c_long,
     pub hbits: c_uint,
+    pub rhash_vec: Vec<*mut xrecord_t>,
     pub rhash: *mut *mut xrecord_t,
     pub dstart: c_long,
     pub dend: c_long,
+    pub recs_vec: Vec<*mut xrecord_t>,
     pub recs: *mut *mut xrecord_t,
+    pub rchg_vec: Vec<c_char>,
     pub rchg: *mut c_char,
+    pub rindex_vec: Vec<c_long>,
     pub rindex: *mut c_long,
     pub nreff: c_long,
+    pub ha_vec: Vec<c_ulong>,
     pub ha: *mut c_ulong,
 }
 
 impl xdfile_t {
     pub const fn new() -> Self {
         Self {
-            rcha: chastore_t::new(),
+            rcha: Vec::new(),
             nrec: 0,
             hbits: 0,
+            rhash_vec: Vec::new(),
             rhash: std::ptr::null_mut(),
             dstart: 0,
             dend: 0,
+            recs_vec: Vec::new(),
             recs: std::ptr::null_mut(),
+            rchg_vec: Vec::new(),
             rchg: std::ptr::null_mut(),
+            rindex_vec: Vec::new(),
             rindex: std::ptr::null_mut(),
             nreff: 0,
+            ha_vec: Vec::new(),
             ha: std::ptr::null_mut(),
         }
     }
@@ -180,7 +154,7 @@ impl Default for xdfile_t {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, Default)]
+#[derive(Default)]
 pub struct xdfenv_t {
     pub xdf1: xdfile_t,
     pub xdf2: xdfile_t,
