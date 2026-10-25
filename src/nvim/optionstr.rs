@@ -123,29 +123,40 @@ pub struct OptDictSchema {
     pub size: usize,
 }
 
-#[derive(Clone, Copy)]
 pub enum OptSetPrep {
     None,
     Flags(c_uint),
     Spellsuggest([c_int; 2]),
     Wildmode([u8; 4]),
-    Ptr(*mut c_void),
+    Encoding(*mut c_char),
+    SpellcapProg(*mut regprog_T),
+    Tabstop(*mut colnr_T),
 }
 
 impl OptSetPrep {
     #[inline]
-    pub fn as_ptr(self) -> *mut c_void {
-        match self {
-            Self::Ptr(p) => p,
-            _ => ptr::null_mut(),
+    pub fn as_flags(&self) -> c_uint {
+        match *self {
+            Self::Flags(f) => f,
+            _ => 0,
         }
     }
 
     #[inline]
-    pub fn as_flags(self) -> c_uint {
-        match self {
-            Self::Flags(f) => f,
-            _ => 0,
+    pub fn take(&mut self) -> Self {
+        std::mem::replace(self, Self::None)
+    }
+}
+
+impl Drop for OptSetPrep {
+    fn drop(&mut self) {
+        unsafe {
+            match *self {
+                Self::Encoding(p) => xfree(p.cast()),
+                Self::SpellcapProg(p) => vim_regfree(p),
+                Self::Tabstop(p) => xfree(p.cast()),
+                Self::None | Self::Flags(_) | Self::Spellsuggest(_) | Self::Wildmode(_) => {}
+            }
         }
     }
 }
@@ -158,7 +169,6 @@ pub struct optset_T {
     pub os_oldval: Object,
     pub os_newval: Object,
     pub os_prep: OptSetPrep,
-    pub os_prep_free: Option<unsafe fn(*mut c_void)>,
     pub os_value_checked: bool,
     pub os_value_changed: bool,
     pub os_restore_chartab: bool,
@@ -2335,8 +2345,7 @@ pub unsafe fn validate_encoding(args: *mut optset_T) -> *const c_char {
         }
 
         let value = enc_canonize((*args).os_newval.data.string.data);
-        (*args).os_prep = OptSetPrep::Ptr(value.cast());
-        (*args).os_prep_free = Some(xfree);
+        (*args).os_prep = OptSetPrep::Encoding(value);
         if (*args).os_idx == kOptEncoding && strcmp(value, c"utf-8".as_ptr()) != 0 {
             return e_unsupportedoption.as_ptr();
         }
@@ -2354,11 +2363,11 @@ pub unsafe fn did_set_encoding(args: *mut optset_T) -> *const c_char {
             ml_setflags(buf);
         }
 
-        let prep_ptr = (*args).os_prep.as_ptr();
-        if !prep_ptr.is_null() {
+        if let OptSetPrep::Encoding(prep_ptr) = (*args).os_prep.take()
+            && !prep_ptr.is_null()
+        {
             xfree((*varp).cast());
-            *varp = prep_ptr.cast::<c_char>();
-            (*args).os_prep = OptSetPrep::None;
+            *varp = prep_ptr;
         }
         if ptr::eq(varp, &raw mut p_enc) {
             spell_reload();
@@ -3062,12 +3071,6 @@ pub unsafe fn did_set_signcolumn(args: *mut optset_T) -> *const c_char {
     }
 }
 
-unsafe fn free_spellcap_prog(prog: *mut c_void) {
-    unsafe {
-        vim_regfree(prog.cast());
-    }
-}
-
 /// Validate 'spellcapcheck' and prepare its regexp program.
 pub unsafe fn validate_spellcapcheck(args: *mut optset_T) -> *const c_char {
     unsafe {
@@ -3088,8 +3091,7 @@ pub unsafe fn validate_spellcapcheck(args: *mut optset_T) -> *const c_char {
 
         emsg_silent = save_emsg_silent;
         suppress_errthrow = save_suppress_errthrow;
-        (*args).os_prep = OptSetPrep::Ptr(prog.cast());
-        (*args).os_prep_free = Some(free_spellcap_prog);
+        (*args).os_prep = OptSetPrep::SpellcapProg(prog);
         if err.err_type != ErrorType::kErrorTypeNone {
             let msg = if strncmp(err.msg, c"Vim:".as_ptr(), 4) == 0 {
                 err.msg.add(4)
@@ -3113,8 +3115,10 @@ pub unsafe fn did_set_spellcapcheck(args: *mut optset_T) -> *const c_char {
         let win = (*args).os_win;
         let ws = (*win).w_s.cast::<synblock_T>();
         vim_regfree((*ws).b_cap_prog.cast());
-        (*ws).b_cap_prog = (*args).os_prep.as_ptr().cast();
-        (*args).os_prep = OptSetPrep::None;
+        (*ws).b_cap_prog = match (*args).os_prep.take() {
+            OptSetPrep::SpellcapProg(p) => p,
+            _ => ptr::null_mut(),
+        };
         ptr::null()
     }
 }
@@ -3384,8 +3388,7 @@ pub unsafe fn validate_vartabstop(args: *mut optset_T) -> *const c_char {
 
         let mut array: *mut colnr_T = ptr::null_mut();
         let errmsg = tabstop_set(value, &raw mut array, (*args).os_errbuf.cast());
-        (*args).os_prep = OptSetPrep::Ptr(array.cast());
-        (*args).os_prep_free = Some(xfree);
+        (*args).os_prep = OptSetPrep::Tabstop(array);
         errmsg
     }
 }
@@ -3407,8 +3410,10 @@ pub unsafe fn did_set_vartabstop(args: *mut optset_T) -> *const c_char {
             &raw mut (*buf).b_p_vts_array
         };
         xfree((*array).cast());
-        *array = (*args).os_prep.as_ptr().cast::<colnr_T>();
-        (*args).os_prep = OptSetPrep::None;
+        *array = match (*args).os_prep.take() {
+            OptSetPrep::Tabstop(p) => p,
+            _ => ptr::null_mut(),
+        };
         if !soft && foldmethodIsIndent(win) {
             foldUpdateAll(win);
         }

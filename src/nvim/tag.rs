@@ -143,7 +143,6 @@ const MT_NAMES: [&CStr; MT_COUNT / 2] = [
 
 /// Structure used for `get_tagfname()`.
 #[repr(C)]
-#[derive(Clone, Copy)]
 pub struct tagname_T {
     pub tn_tags: *mut c_char,
     pub tn_np: *mut c_char,
@@ -167,6 +166,15 @@ impl tagname_T {
 impl Default for tagname_T {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Drop for tagname_T {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.tn_tags.cast());
+            vim_findfile_cleanup(self.tn_search_ctx);
+        }
     }
 }
 
@@ -1561,12 +1569,11 @@ unsafe fn findtags_state_init(
     }
 }
 
-unsafe fn findtags_state_free(st: *mut findtags_state_T) {
-    unsafe {
-        let st = &mut *st;
-        st.tag_fname.clear();
-        st.lbuf.clear();
-        vim_regfree(st.orgpat.regmatch.regprog);
+impl Drop for findtags_state_T {
+    fn drop(&mut self) {
+        unsafe {
+            vim_regfree(self.orgpat.regmatch.regprog);
+        }
     }
 }
 
@@ -2429,8 +2436,6 @@ pub unsafe fn find_tags(
             }
         }
 
-        findtags_state_free(&raw mut st);
-
         if retval == FAIL {
             st.match_count = 0;
         }
@@ -2596,9 +2601,7 @@ pub unsafe fn get_tagfname(tnp: *mut tagname_T, first: c_int, buf: *mut c_char) 
 /// Free the contents of a `tagname_T` that was filled by `get_tagfname()`.
 pub unsafe fn tagname_free(tnp: *mut tagname_T) {
     unsafe {
-        xfree((*tnp).tn_tags.cast());
-        vim_findfile_cleanup((*tnp).tn_search_ctx);
-        (*tnp).tn_search_ctx = ptr::null_mut();
+        *tnp = tagname_T::new();
         let tf = &raw mut tag_fnames;
         *tf = Vec::new();
     }

@@ -1961,21 +1961,27 @@ pub unsafe fn next_for_item(fi: *mut forinfo_T, arg: *mut c_char) -> bool {
     }
 }
 
+impl Drop for forinfo_T {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.fi_list.is_null() {
+                tv_list_watch_remove(self.fi_list, &raw mut self.fi_lw);
+                tv_list_unref(self.fi_list);
+            } else if !self.fi_blob.is_null() {
+                tv_blob_unref(self.fi_blob);
+            } else {
+                xfree(self.fi_string.cast());
+            }
+        }
+    }
+}
+
 /// Free the structure used to store info used by ":for".
 pub unsafe fn free_for_info(fi: *mut forinfo_T) {
     unsafe {
-        if fi.is_null() {
-            return;
+        if !fi.is_null() {
+            drop(Box::from_raw(fi));
         }
-        if !(*fi).fi_list.is_null() {
-            tv_list_watch_remove((*fi).fi_list, &raw mut (*fi).fi_lw);
-            tv_list_unref((*fi).fi_list);
-        } else if !(*fi).fi_blob.is_null() {
-            tv_blob_unref((*fi).fi_blob);
-        } else {
-            xfree((*fi).fi_string.cast());
-        }
-        drop(Box::from_raw(fi));
     }
 }
 

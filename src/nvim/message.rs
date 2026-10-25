@@ -122,7 +122,6 @@ pub struct MessageHistoryEntry {
 impl Drop for MessageHistoryEntry {
     fn drop(&mut self) {
         unsafe {
-            hl_msg_free(std::mem::take(&mut self.msg));
             xfree(self.kind.cast());
         }
     }
@@ -688,7 +687,7 @@ pub unsafe fn msg_multihl(
         if raw_for_lua_print {
             msg_special_case_for_lua_print = true;
             assert!(active_msg.len() == 1);
-            let chunk = active_msg[0];
+            let chunk = &active_msg[0];
             printf!(
                 c"%.*s\n".as_ptr(),
                 chunk.text.size as c_int,
@@ -699,7 +698,7 @@ pub unsafe fn msg_multihl(
         msg_ext_skip_flush = true;
         msg_ext_id = id;
 
-        for &chunk in active_msg {
+        for chunk in active_msg {
             is_multihl += 1;
             if err {
                 emsg_multiline(chunk.text.data, kind, chunk.hl_id, true);
@@ -723,9 +722,6 @@ pub unsafe fn msg_multihl(
         no_wait_return -= 1;
         msg_end();
 
-        if hl_msg_updated && !(history && has_chunks) {
-            hl_msg_free(updated_msg);
-        }
         // Release the id: it belongs to this message, and a String id only borrows the caller's storage
         // (often a stack buffer). Redundant unless nothing was emitted (e.g. 'msg_silent').
         msg_ext_id = Object {
@@ -1419,7 +1415,7 @@ pub unsafe fn msg_with_id(
                 s = msg_may_trunc(false, s);
             }
             chunks.push(HlMessageChunk {
-                text: cstr_as_string(s),
+                text: cstr_to_string(s),
                 hl_id,
             });
         }
@@ -1442,14 +1438,6 @@ pub unsafe fn msg_with_id(
         );
         ui_flush();
         s
-    }
-}
-
-pub unsafe fn hl_msg_free(hl_msg: HlMessage) {
-    unsafe {
-        for chunk in hl_msg {
-            xfree(chunk.text.data.cast());
-        }
     }
 }
 
@@ -1621,7 +1609,6 @@ unsafe fn msg_hist_add_multihl(msg: HlMessage, temp: bool) {
         }
 
         if msg_hist_off || msg_silent != 0 {
-            hl_msg_free(msg);
             return;
         }
 
@@ -1774,7 +1761,7 @@ pub unsafe fn ex_messages(eap: *mut exarg_T) {
                     },
                 });
                 let mut content = Array::new();
-                for &chunk in &(*p).msg {
+                for chunk in &(*p).msg {
                     let mut content_entry = Array::new();
                     content_entry.push(Object {
                         obj_type: ObjectType::kObjectTypeInteger,

@@ -30,7 +30,6 @@ use crate::memory::{
     Arena, ArenaMem, arena_alloc, arena_finish, arena_memdupz, memchrsub, xfree, xmemdupz, xstrdup,
     xstrndup, xstrnlen,
 };
-use crate::message::hl_msg_free;
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::msgpack_rpc::unpacker::unpack;
 use crate::runtime::{script_is_lua, sctx_T};
@@ -208,10 +207,17 @@ impl TryState {
 pub type ArrayBuilder = Vec<Object>;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
 pub struct HlMessageChunk {
     pub text: NvimString,
     pub hl_id: c_int,
+}
+
+impl Drop for HlMessageChunk {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.text.data.cast());
+        }
+    }
 }
 
 use crate::api::vim::HlMessage;
@@ -1139,7 +1145,6 @@ pub unsafe fn parse_hl_msg(chunks: Array, is_err: bool, err: *mut Error) -> HlMe
                     api_typename(ObjectType::kObjectTypeArray),
                     api_typename(item.obj_type),
                 );
-                hl_msg_free(hl_msg);
                 return HlMessage::new();
             }
             let chunk = item.data.array;
@@ -1153,7 +1158,6 @@ pub unsafe fn parse_hl_msg(chunks: Array, is_err: bool, err: *mut Error) -> HlMe
                     c"%s".as_ptr(),
                     c"Invalid chunk: expected Array with 1 or 2 Strings".as_ptr(),
                 );
-                hl_msg_free(hl_msg);
                 return HlMessage::new();
             }
 

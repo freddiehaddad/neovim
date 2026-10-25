@@ -478,18 +478,6 @@ unsafe fn is_child_frame() -> bool {
     }
 }
 
-pub unsafe fn atom_free(atom: *mut CmdAtom) {
-    unsafe {
-        *atom = CmdAtom::new();
-    }
-}
-
-pub unsafe fn atoms_free(v: *mut CmdAtomVec) {
-    unsafe {
-        (*v).clear();
-    }
-}
-
 pub unsafe fn atom_free_all() {
     unsafe {
         g_atoms = Vec::new();
@@ -909,7 +897,7 @@ pub unsafe fn atom_push_raw(cascade: bool, atom: *mut CmdAtom) {
             if (*atom).r#type != kAInsertSpan {
                 atom_emit(atom);
             }
-            atom_free(atom);
+            *atom = CmdAtom::new();
         }
     }
 }
@@ -917,7 +905,7 @@ pub unsafe fn atom_push_raw(cascade: bool, atom: *mut CmdAtom) {
 unsafe fn atom_push(cascade: bool, atom: *mut CmdAtom) {
     unsafe {
         if atom_blocked() {
-            atom_free(atom);
+            *atom = CmdAtom::new();
             return;
         }
         atom_push_raw(cascade && mc_buf_has_cursors(curbuf), atom);
@@ -928,9 +916,9 @@ unsafe fn atom_stage_set(atom: *mut CmdAtom) {
     unsafe {
         assert!(!cur_frame.is_null());
         assert!(!atom_staged());
-        atom_free(&mut (*cur_frame).staged);
+        (*cur_frame).staged = CmdAtom::new();
         if atom_blocked() {
-            atom_free(atom);
+            *atom = CmdAtom::new();
             return;
         }
         assert!(!(*atom).keys.is_null());
@@ -1041,7 +1029,6 @@ unsafe fn atom_composite_end() {
             atom.atoms = std::mem::take(&mut *comp_atoms);
         }
         atom_emit(&atom);
-        atom_free(&mut atom);
     }
 }
 
@@ -1050,7 +1037,7 @@ pub unsafe fn atom_composite_abort() {
         composite.r#macro = false;
         composite.lhs[0] = 0;
         composite.active = false;
-        atoms_free(&raw mut composite.atoms);
+        composite.atoms = Vec::new();
         composite.open = false;
     }
 }
@@ -1408,7 +1395,7 @@ pub unsafe fn atom_map_start(lhs: *const c_char, len: usize, peeked: bool) {
 pub unsafe fn atom_visual_reset() {
     unsafe {
         vatom.state = kVatomNone;
-        atoms_free(&raw mut vatom.atoms);
+        vatom.atoms = Vec::new();
         vatom.origin = CmdOrigin::default();
         vatom.frame = 0;
         vatom.done = 0;
@@ -1881,7 +1868,6 @@ unsafe fn atom_ins_push(session: *const InsSession, cascade: bool) {
         let replace = atom.spec.cmd == b'r' as c_int
             || (atom.spec.cmd == b'g' as c_int && atom.spec.cmd2 == b'r' as c_int);
         if size == 0 || (!replace && *atom.keys.add(size - 1) as u8 != ESC) {
-            atom_free(&mut atom);
             return;
         }
         atom.text = get_last_insert_save();
@@ -2010,7 +1996,7 @@ unsafe fn atom_capture_cmd(ca: *mut cmdarg_T, old: *mut CmdFrame) -> bool {
             if !own.keys.is_null() {
                 let suffix = own.keys;
                 own.keys = ptr::null_mut();
-                atom_free(&mut own);
+                drop(own);
                 atom_visual_end_suffix(suffix, ptr::null(), false);
             } else if user && atom_visual_replayable() && !(*v_atoms).is_empty() {
                 let suffix: [c_char; 2] = [ESC as c_char, 0];
@@ -2066,8 +2052,6 @@ unsafe fn atom_capture_cmd(ca: *mut cmdarg_T, old: *mut CmdFrame) -> bool {
                 if !atom.keys.is_null() && *atom.keys != 0 {
                     atom.origin = (*old).origin;
                     atom_push(effect, &mut atom);
-                } else {
-                    atom_free(&mut atom);
                 }
             } else if !(*ca).searchbuf.is_null()
                 && ((*ca).cmdchar == b'/' as c_int || (*ca).cmdchar == b'?' as c_int)
@@ -2173,7 +2157,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn sb_concat_and_atoms_free_work() {
+    fn sb_concat_works() {
         unsafe {
             let mut sb: Vec<c_char> = Vec::new();
             sb_concat(&mut sb, c"abc".as_ptr());
@@ -2185,7 +2169,7 @@ mod tests {
             );
 
             let mut v = CmdAtomVec::new();
-            atoms_free(&raw mut v);
+            v.clear();
             assert!(v.is_empty());
         }
     }

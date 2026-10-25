@@ -150,8 +150,8 @@ use crate::quickfix::qf_view_result;
 use crate::regexp::{Ctrl_H, Ctrl_V, MAXCOL};
 use crate::register::{
     PUT_BLOCK_INNER, PUT_CURSEND, PUT_FIXINDENT, PUT_LINE, PUT_LINE_FORWARD, PUT_LINE_SPLIT,
-    copy_register, do_execreg, do_put, do_record, free_register, get_default_register_name,
-    get_expr_register, valid_yank_reg, yankreg_T,
+    copy_register, do_execreg, do_put, do_record, get_default_register_name, get_expr_register,
+    valid_yank_reg, yankreg_T,
 };
 use crate::search::{
     BACKWARD, FORWARD, current_search, do_search, find_pattern_in_path, findmatchlimit,
@@ -7733,10 +7733,7 @@ unsafe fn nv_put_opt(cap: *mut cmdarg_T, fix_indent: bool) {
             .as_mut()
             .map_or(ptr::null_mut(), |r| r as *mut yankreg_T);
         do_put((*(*cap).oap).regname, savereg_ptr, dir, (*cap).count1, flags);
-
-        if let Some(ref mut r) = savereg {
-            free_register(r);
-        }
+        drop(savereg);
 
         if was_visual {
             if save_fen != 0 {

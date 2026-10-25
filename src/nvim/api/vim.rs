@@ -87,8 +87,7 @@ use crate::memfile::memfile_T;
 use crate::memline::ml_open;
 use crate::memory::{Arena, arena_alloc, arena_strdup, memchrsub, strequal, xfree};
 use crate::message::{
-    hl_msg_free, msg_ext_no_fast, msg_id_exists, msg_multihl, verbose_enter, verbose_leave,
-    verbose_stop,
+    msg_ext_no_fast, msg_id_exists, msg_multihl, verbose_enter, verbose_leave, verbose_stop,
 };
 use crate::r#move::{changed_window_setting, update_topline, validate_cursor, win_col_off};
 use crate::msgpack_rpc::channel::{ChannelStreamType, find_channel, rpc_set_client_info};
@@ -1310,7 +1309,6 @@ pub unsafe extern "C" fn nvim_echo(
         let mut id = integer_obj(-1);
         let mut hl_msg = parse_hl_msg(chunks, (*opts).err, err);
         if error_set(&*err) {
-            hl_msg_free(hl_msg);
             return id;
         }
 
@@ -1404,7 +1402,6 @@ pub unsafe extern "C" fn nvim_echo(
         };
 
         if !valid {
-            hl_msg_free(hl_msg);
             return id;
         }
 
@@ -1449,11 +1446,6 @@ pub unsafe extern "C" fn nvim_echo(
             verbose_stop();
         }
 
-        if !needs_clear {
-            return id;
-        }
-
-        hl_msg_free(hl_msg);
         id
     }
 }
@@ -2065,7 +2057,7 @@ pub unsafe extern "C" fn nvim_put(
     reg_type: NvimString,
     after: Boolean,
     follow: Boolean,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     err: *mut Error,
 ) {
     unsafe {
@@ -2095,7 +2087,7 @@ pub unsafe extern "C" fn nvim_put(
                 return;
             }
             let line = item.data.string;
-            let copied = copy_string(line, arena);
+            let copied = copy_string(line, ptr::null_mut());
             reg.y_array.push(copied);
             memchrsub(copied.data.cast::<c_void>(), NUL, NL, line.size);
         }

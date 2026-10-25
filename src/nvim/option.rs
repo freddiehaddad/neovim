@@ -5919,19 +5919,6 @@ pub unsafe fn validate_and_prepare_option_value(args: *mut optset_T) -> *const c
     }
 }
 
-pub unsafe fn free_option_prepared(args: *mut optset_T) {
-    unsafe {
-        let prep_ptr = (*args).os_prep.as_ptr();
-        if let Some(free_fn) = (*args).os_prep_free
-            && !prep_ptr.is_null()
-        {
-            free_fn(prep_ptr);
-        }
-        (*args).os_prep = crate::optionstr::OptSetPrep::None;
-        (*args).os_prep_free = None;
-    }
-}
-
 /// Set the value of an option using an Object.
 unsafe fn set_option(
     opt_idx: OptIndex,
@@ -5953,7 +5940,6 @@ unsafe fn set_option(
             os_oldval: nil_obj(),
             os_newval: value,
             os_prep: crate::optionstr::OptSetPrep::None,
-            os_prep_free: None,
             os_value_checked: false,
             os_value_changed: false,
             os_restore_chartab: false,
@@ -5992,7 +5978,6 @@ unsafe fn set_option(
         }
 
         if !errmsg.is_null() {
-            free_option_prepared(&raw mut args);
             optval_free(value);
             return errmsg;
         }
@@ -6089,7 +6074,7 @@ unsafe fn set_option(
             value_replaced,
             value_untrusted,
         );
-        free_option_prepared(&raw mut args);
+        args.os_prep = crate::optionstr::OptSetPrep::None;
 
         secure = secure_saved;
 

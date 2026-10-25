@@ -42,8 +42,8 @@ use crate::input::{
 use crate::input_cmdatom::{
     CmdAtom, CmdOrigin, atom_cmd_spec, atom_composite_active, atom_composite_queued,
     atom_did_global_op, atom_key_class, atom_lhs_replay_queue, atom_push_raw, atom_suppress,
-    atom_visual_reset, atom_visual_span, atoms_free, cmdarg_T, g_atoms, kAInsertSpan, kAMotion,
-    kAVisualSpan, kKeyInsFlush,
+    atom_visual_reset, atom_visual_span, cmdarg_T, g_atoms, kAInsertSpan, kAMotion, kAVisualSpan,
+    kKeyInsFlush,
 };
 use crate::insexpand::ins_compl_active;
 use crate::keycodes::{K_COMMAND, K_SPECIAL, NL};
@@ -509,7 +509,7 @@ unsafe fn mc_cascade() {
         if edits {
             mc_cleanup(true, ptr::null(), 0);
             if cursors().is_empty() {
-                atoms_free(ga);
+                (*ga).clear();
                 return;
             }
         }
@@ -544,7 +544,7 @@ unsafe fn mc_cascade() {
             }
         }
 
-        atoms_free(ga);
+        (*ga).clear();
         let bufnr = sb.primary.buf;
         mc_sandbox_leave(&mut sb);
 
@@ -579,7 +579,7 @@ pub unsafe fn mc_clock_edge(map_edit: bool, map_moved: bool, follow: bool) {
             if has_edit || follow || Visual.active {
                 mc_cascade();
             } else {
-                atoms_free(ga);
+                (*ga).clear();
             }
         }
     }
@@ -1934,7 +1934,7 @@ pub unsafe fn mc_ns_cleared(buf: *mut buf_T, ns_id: u32) {
         }
         mc_cleanup(false, ptr::null(), 0);
         if cursors().is_empty() {
-            atoms_free(&raw mut g_atoms);
+            g_atoms = Vec::new();
         }
     }
 }

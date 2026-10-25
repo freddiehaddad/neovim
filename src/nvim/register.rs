@@ -105,6 +105,17 @@ pub struct yankreg_T {
     pub additional_data: *mut crate::search::AdditionalData,
 }
 
+impl Drop for yankreg_T {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.additional_data.cast());
+            for item in self.y_array.iter_mut().rev() {
+                api_clear_string(item);
+            }
+        }
+    }
+}
+
 const Ctrl_U: u8 = 21;
 
 pub const PUT_FIXINDENT: c_int = 1;
@@ -441,7 +452,6 @@ pub unsafe fn op_reg_set(name: c_char, reg: yankreg_T, is_unnamed: bool) -> bool
             return false;
         }
         let target = (&raw mut y_regs).cast::<yankreg_T>().add(i as usize);
-        free_register(target);
         *target = reg;
 
         if is_unnamed {
@@ -547,7 +557,7 @@ pub unsafe fn copy_register(name: c_int) -> yankreg_T {
             y_type: reg.y_type,
             y_width: reg.y_width,
             timestamp: reg.timestamp,
-            additional_data: reg.additional_data,
+            additional_data: ptr::null_mut(),
         }
     }
 }
@@ -1100,12 +1110,6 @@ pub unsafe fn clear_registers() {
 
 pub unsafe fn free_register(reg: *mut yankreg_T) {
     unsafe {
-        let reg = &mut *reg;
-        xfree(reg.additional_data.cast());
-        reg.additional_data = ptr::null_mut();
-        for item in reg.y_array.iter_mut().rev() {
-            api_clear_string(item);
-        }
         *reg = EMPTY_YANKREG;
     }
 }

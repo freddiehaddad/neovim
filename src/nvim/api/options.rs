@@ -24,13 +24,13 @@ use crate::memline::ml_open;
 use crate::memory::{Arena, arena_memdupz, strequal_str, xfree, xmalloc, xstrdup};
 use crate::option::{
     OP_ADDING, OP_NONE, OP_PREPENDING, OP_REMOVING, OPT_GLOBAL, OPT_LOCAL, OptScope, PREFIX_NONE,
-    copy_option_part, escape_option_str_cmdline, find_option, free_option_prepared,
-    get_all_options_info, get_option, get_option_info, get_option_newval, get_option_value_for,
-    get_option_varp_scope_from, get_varp_from, kOptBufhidden, kOptBuftype, kOptFiletype,
-    kOptFlagColon, kOptFlagComma, kOptFlagFlagList, kOptInvalid, kOptModeline, kOptScopeBuf,
-    kOptScopeGlobal, kOptScopeTab, kOptScopeWin, kOptSwapfile, opt_from_varp, option_has_scope,
-    option_has_type, optval_free, optval_from_obj, optval_own, set_op_T, set_option_direct,
-    set_option_value_for, validate_and_prepare_option_value,
+    copy_option_part, escape_option_str_cmdline, find_option, get_all_options_info, get_option,
+    get_option_info, get_option_newval, get_option_value_for, get_option_varp_scope_from,
+    get_varp_from, kOptBufhidden, kOptBuftype, kOptFiletype, kOptFlagColon, kOptFlagComma,
+    kOptFlagFlagList, kOptInvalid, kOptModeline, kOptScopeBuf, kOptScopeGlobal, kOptScopeTab,
+    kOptScopeWin, kOptSwapfile, opt_from_varp, option_has_scope, option_has_type, optval_free,
+    optval_from_obj, optval_own, set_op_T, set_option_direct, set_option_value_for,
+    validate_and_prepare_option_value,
 };
 use crate::strings::{strchr, strlen};
 use crate::window::{close_windows, win_T};
@@ -758,7 +758,6 @@ pub unsafe extern "C" fn nvim_set_option_value(
                 os_oldval: OBJECT_NIL,
                 os_newval: merged_val,
                 os_prep: OptSetPrep::None,
-                os_prep_free: None,
                 os_value_checked: false,
                 os_value_changed: false,
                 os_restore_chartab: false,
@@ -768,7 +767,6 @@ pub unsafe extern "C" fn nvim_set_option_value(
             };
             errmsg = validate_and_prepare_option_value(&mut args);
             merged_val = args.os_newval;
-            free_option_prepared(&mut args);
             if !errmsg.is_null() {
                 api_set_error!(err, ErrorType::kErrorTypeException, c"%s".as_ptr(), errmsg);
                 optval_free(merged_val);

@@ -102,9 +102,7 @@ use crate::popupmenu::{
     pumitem_T,
 };
 use crate::regexp::{Ctrl_V, MAXCOL, RE_MAGIC, regmatch_T, vim_regcomp, vim_regexec, vim_regfree};
-use crate::register::{
-    NUM_REGISTERS, copy_register, free_register, get_register_name, valid_yank_reg,
-};
+use crate::register::{NUM_REGISTERS, copy_register, get_register_name, valid_yank_reg};
 use crate::search::{Direction, find_pattern_in_path, ignorecase, search_for_exact_line, searchit};
 use crate::spell::{
     expand_spelling, spell_dump_compl, spell_expand_check_cap, spell_move_to, spell_word_start,
@@ -4688,10 +4686,9 @@ unsafe fn get_register_completion() {
                 continue;
             }
 
-            let mut reg = copy_register(regname);
+            let reg = copy_register(regname);
 
             if !reg.y_allocated || reg.y_array.is_empty() {
-                free_register(&raw mut reg);
                 continue;
             }
 
@@ -4774,8 +4771,6 @@ unsafe fn get_register_completion() {
                     }
                 }
             }
-
-            free_register(&raw mut reg);
         }
     }
 }
