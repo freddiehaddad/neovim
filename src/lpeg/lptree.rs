@@ -5,7 +5,7 @@ use std::mem::{offset_of, size_of};
 use std::ptr;
 
 use crate::lpeg::lpcap::getcaptures;
-use crate::lpeg::lpcode::{compile, fixedlen, freecode, hascaptures, nofail, nullable};
+use crate::lpeg::lpcode::{compile, fixedlen, hascaptures, nofail, nullable};
 use crate::lpeg::lpcset::{charsettype, tocharset};
 use crate::lpeg::lpvm::r#match;
 use crate::lpeg::{
@@ -308,7 +308,7 @@ unsafe fn newtree(l: *mut lua_State, len: c_int) -> *mut TTree {
         lua_pushvalue(l, -1);
         lua_setfenv(l, -3);
         lua_setmetatable(l, -2);
-        (*p).code = ptr::null_mut();
+        (&raw mut (*p).code).write(Vec::new());
         pattern_tree_ptr(p)
     }
 }
@@ -1165,8 +1165,8 @@ unsafe extern "C-unwind" fn lp_match(l: *mut lua_State) -> c_int {
         let mut len: usize = 0;
         getpatt(l, 1, ptr::null_mut());
         let p = getpattern(l, 1);
-        let code = if !(*p).code.is_null() {
-            (*p).code
+        let code = if !(*p).code.is_empty() {
+            (*p).code.as_mut_ptr()
         } else {
             prepcompile(l, p, 1)
         };
@@ -1215,7 +1215,7 @@ unsafe extern "C-unwind" fn lp_type(l: *mut lua_State) -> c_int {
 pub unsafe extern "C-unwind" fn lp_gc(l: *mut lua_State) -> c_int {
     unsafe {
         let p = getpattern(l, 1);
-        freecode(l, p);
+        (*p).code = Vec::new();
         0
     }
 }

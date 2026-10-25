@@ -258,7 +258,7 @@ pub unsafe fn sib2(t: *mut TTree) -> *mut TTree {
 
 #[repr(C)]
 pub struct Pattern {
-    pub code: *mut Instruction,
+    pub code: Vec<Instruction>,
     pub tree: [TTree; 1],
 }
 
@@ -328,7 +328,6 @@ pub struct Inst {
 pub union Instruction {
     pub i: Inst,
     pub offset: c_int,
-    pub codesize: uint,
     pub buff: [byte; 1],
 }
 

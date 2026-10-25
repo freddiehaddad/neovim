@@ -45,14 +45,6 @@ pub type lua_State = c_void;
 pub type lua_CFunction = Option<unsafe extern "C-unwind" fn(lstate: *mut lua_State) -> c_int>;
 pub type lua_Number = f64;
 pub type lua_Integer = isize;
-pub type lua_Alloc = Option<
-    unsafe extern "C-unwind" fn(
-        ud: *mut c_void,
-        ptr: *mut c_void,
-        osize: usize,
-        nsize: usize,
-    ) -> *mut c_void,
->;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -254,7 +246,6 @@ unsafe extern "C-unwind" {
     pub fn lua_error(L: *mut lua_State) -> c_int;
     pub fn lua_next(L: *mut lua_State, idx: c_int) -> c_int;
     pub fn lua_concat(L: *mut lua_State, n: c_int);
-    pub fn lua_getallocf(L: *mut lua_State, ud: *mut *mut c_void) -> lua_Alloc;
     pub fn lua_pushcclosure(L: *mut lua_State, fn_: lua_CFunction, n: c_int);
     pub fn lua_isnumber(L: *mut lua_State, idx: c_int) -> c_int;
     pub fn lua_isstring(L: *mut lua_State, idx: c_int) -> c_int;

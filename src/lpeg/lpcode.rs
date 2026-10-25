@@ -1,8 +1,7 @@
 //! LPeg pattern analysis and bytecode compiler (`src/lpeg/lpcode.c`).
 
-use std::ffi::{c_int, c_short, c_void};
+use std::ffi::{c_int, c_short};
 use std::mem::size_of;
-use std::ptr;
 
 use crate::lpeg::lpcset::{charsettype, getbytefromcharset, tocharset, tree2cset};
 use crate::lpeg::{
@@ -15,7 +14,7 @@ use crate::lpeg::{
     joinkindoff, lua_State, setchar, sib1, sib2, uint,
 };
 
-use crate::lua::converter::{lua_getallocf, luaL_error};
+use crate::lua::converter::luaL_error;
 
 pub const PEnullable: c_int = 0;
 pub const PEnofail: c_int = 1;
@@ -362,77 +361,17 @@ struct CompileState {
     L: *mut lua_State,
 }
 
-unsafe fn finishrelcode(l: *mut lua_State, p: *mut Pattern, block: *mut Instruction, size: c_int) {
-    unsafe {
-        if block.is_null() {
-            luaL_error(l, c"not enough memory".as_ptr());
-        }
-        (*block).codesize = size as uint;
-        (*p).code = block.add(1);
-    }
-}
-
-unsafe fn newcode(l: *mut lua_State, p: *mut Pattern, mut size: c_int) {
-    unsafe {
-        let mut ud: *mut c_void = ptr::null_mut();
-        let f = lua_getallocf(l, &mut ud).unwrap_unchecked();
-        size += 1;
-        let block = f(
-            ud,
-            ptr::null_mut(),
-            0,
-            (size as usize) * size_of::<Instruction>(),
-        )
-        .cast::<Instruction>();
-        finishrelcode(l, p, block, size);
-    }
-}
-
-pub unsafe extern "C-unwind" fn freecode(l: *mut lua_State, p: *mut Pattern) {
-    unsafe {
-        if !(*p).code.is_null() {
-            let mut ud: *mut c_void = ptr::null_mut();
-            let f = lua_getallocf(l, &mut ud).unwrap_unchecked();
-            let block = (*p).code.sub(1);
-            let osize = (*block).codesize as usize;
-            f(
-                ud,
-                block.cast::<c_void>(),
-                osize * size_of::<Instruction>(),
-                0,
-            );
-        }
-    }
-}
-
-unsafe fn realloccode(l: *mut lua_State, p: *mut Pattern, mut nsize: c_int) {
-    unsafe {
-        let mut ud: *mut c_void = ptr::null_mut();
-        let f = lua_getallocf(l, &mut ud).unwrap_unchecked();
-        let mut block = (*p).code.sub(1);
-        let osize = (*block).codesize as usize;
-        nsize += 1;
-        block = f(
-            ud,
-            block.cast::<c_void>(),
-            osize * size_of::<Instruction>(),
-            (nsize as usize) * size_of::<Instruction>(),
-        )
-        .cast::<Instruction>();
-        finishrelcode(l, p, block, nsize);
-    }
-}
-
 unsafe fn nextinstruction(compst: *mut CompileState, n: c_int) -> c_int {
     unsafe {
-        let size = ((*(*(*compst).p).code.sub(1)).codesize as c_int) - 1;
+        let code = &mut (*(*compst).p).code;
+        let size = code.len() as c_int;
         let ncode = (*compst).ncode;
         if ncode > size - n {
             let nsize = (size as uint) + ((size as uint) >> 1) + (n as uint);
             if nsize >= (c_int::MAX as uint) {
                 luaL_error((*compst).L, c"pattern code too large".as_ptr());
             }
-            realloccode((*compst).L, (*compst).p, nsize as c_int);
+            code.resize(nsize as usize, Instruction { offset: 0 });
         }
         (*compst).ncode = ncode + n;
         ncode
@@ -441,7 +380,7 @@ unsafe fn nextinstruction(compst: *mut CompileState, n: c_int) -> c_int {
 
 #[inline]
 unsafe fn getinstr(cs: *mut CompileState, i: c_int) -> *mut Instruction {
-    unsafe { (*(*cs).p).code.add(i as usize) }
+    unsafe { (*(*cs).p).code.as_mut_ptr().add(i as usize) }
 }
 
 unsafe fn addinstruction(compst: *mut CompileState, op: Opcode, aux: c_int) -> c_int {
@@ -818,7 +757,7 @@ unsafe fn codenot(compst: *mut CompileState, tree: *mut TTree) {
 
 unsafe fn correctcalls(compst: *mut CompileState, positions: *const c_int, from: c_int, to: c_int) {
     unsafe {
-        let code = (*(*compst).p).code;
+        let code = (*(*compst).p).code.as_mut_ptr();
         let mut i = from;
         while i < to {
             let inst = code.add(i as usize);
@@ -972,7 +911,7 @@ unsafe fn codegen(
 
 unsafe fn peephole(compst: *mut CompileState) {
     unsafe {
-        let code = (*(*compst).p).code;
+        let code = (*(*compst).p).code.as_mut_ptr();
         let mut i: c_int = 0;
         while i < (*compst).ncode {
             loop {
@@ -1020,12 +959,14 @@ pub unsafe fn compile(
 ) -> *mut Instruction {
     unsafe {
         let mut compst = CompileState { p, ncode: 0, L: l };
-        newcode(l, p, ((size / 2) + 2) as c_int);
+        let init_size = ((size / 2) + 2) as usize;
+        (*p).code = vec![Instruction { offset: 0 }; init_size];
         let tree_ptr = (&raw mut (*p).tree).cast::<TTree>();
         codegen(&mut compst, tree_ptr, false, NOINST, &raw const FULLSET);
         addinstruction(&mut compst, IEnd, 0);
-        realloccode(l, p, compst.ncode);
+        (*p).code.truncate(compst.ncode as usize);
+        (*p).code.shrink_to_fit();
         peephole(&mut compst);
-        (*p).code
+        (*p).code.as_mut_ptr()
     }
 }
