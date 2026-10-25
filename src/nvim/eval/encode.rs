@@ -54,12 +54,10 @@ pub struct ListReaderState {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum MPConvStackValType {
-    Dict,
-    List,
-    Pairs,
-    Partial,
-    PartialList,
+pub(crate) enum MPContainerRef {
+    Dict(*mut dict_T),
+    List(*mut list_T),
+    Pairs(*mut list_T),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -81,6 +79,10 @@ pub(crate) enum MPConvStackData {
         list: *mut list_T,
         li: *mut listitem_T,
     },
+    Pairs {
+        list: *mut list_T,
+        li: *mut listitem_T,
+    },
     Partial {
         stage: MPConvPartialStage,
         pt: *mut partial_T,
@@ -94,19 +96,17 @@ pub(crate) enum MPConvStackData {
 
 #[derive(Clone, Copy)]
 pub(crate) struct MPConvStackVal {
-    pub(crate) val_type: MPConvStackValType,
     pub(crate) tv: *mut typval_T,
     pub(crate) saved_copy_id: c_int,
     pub(crate) data: MPConvStackData,
 }
 
 /// Msgpack callback for writing to `readfile()`-style list (`encode_list_write`).
-pub unsafe fn encode_list_write(data: *mut c_void, buf: *const c_char, len: usize) {
+pub unsafe fn encode_list_write(list: *mut list_T, buf: *const c_char, len: usize) {
     unsafe {
         if len == 0 {
             return;
         }
-        let list = data.cast::<list_T>();
         let end = buf.add(len);
         let mut line_end = buf;
         let li = tv_list_last(list);
@@ -371,7 +371,8 @@ unsafe fn conv_error(
                     xfree(key.cast::<c_void>());
                     buf_concat_cstr(&mut msg_ga, iobuf.as_ptr());
                 }
-                MPConvStackData::List { list, li } => {
+                MPConvStackData::List { list, li } | MPConvStackData::Pairs { list, li } => {
+                    let is_list = matches!(v.data, MPConvStackData::List { .. });
                     let first = tv_list_first(list);
                     let idx = if li == first {
                         0
@@ -385,7 +386,7 @@ unsafe fn conv_error(
                     } else {
                         (*li).li_prev
                     };
-                    if v.val_type == MPConvStackValType::List
+                    if is_list
                         || prev_li.is_null()
                         || ((*prev_li).li_tv.v_type != VarType::VAR_LIST
                             && tv_list_len((*prev_li).li_tv.vval.v_list) <= 0)
@@ -1097,11 +1098,10 @@ impl EncodeBackend {
 
     unsafe fn check_self_reference(
         &mut self,
-        val: *mut c_void,
+        container: MPContainerRef,
         val_copy_id: *mut c_int,
         mpstack: &[MPConvStackVal],
         copy_id: c_int,
-        conv_type: MPConvStackValType,
         objname: *const c_char,
     ) -> c_int {
         unsafe {
@@ -1111,22 +1111,18 @@ impl EncodeBackend {
             }
             let find_backref = || -> usize {
                 for (idx, mpval) in mpstack.iter().enumerate() {
-                    if mpval.val_type == conv_type {
-                        match mpval.data {
-                            MPConvStackData::Dict { dict, .. }
-                                if conv_type == MPConvStackValType::Dict
-                                    && dict.cast::<c_void>() == val =>
-                            {
-                                return idx;
-                            }
-                            MPConvStackData::List { list, .. }
-                                if conv_type == MPConvStackValType::List
-                                    && list.cast::<c_void>() == val =>
-                            {
-                                return idx;
-                            }
-                            _ => {}
+                    match (container, mpval.data) {
+                        (MPContainerRef::Dict(d1), MPConvStackData::Dict { dict: d2, .. })
+                            if d1 == d2 =>
+                        {
+                            return idx;
                         }
+                        (MPContainerRef::List(l1), MPConvStackData::List { list: l2, .. })
+                            if l1 == l2 =>
+                        {
+                            return idx;
+                        }
+                        _ => {}
                     }
                 }
                 mpstack.len()
@@ -1154,7 +1150,7 @@ impl EncodeBackend {
                     mode: TextEncodeMode::Echo,
                 } => {
                     let backref = find_backref();
-                    let s = if conv_type == MPConvStackValType::Dict {
+                    let s = if matches!(container, MPContainerRef::Dict(_)) {
                         format!("{{...@{backref}}}")
                     } else {
                         format!("[...@{backref}]")
@@ -1247,7 +1243,6 @@ unsafe fn convert_one_value(
                     return FAIL;
                 }
                 mpstack.push(MPConvStackVal {
-                    val_type: MPConvStackValType::Partial,
                     tv,
                     saved_copy_id: copy_id - 1,
                     data: MPConvStackData::Partial {
@@ -1263,11 +1258,10 @@ unsafe fn convert_one_value(
                 } else {
                     let saved_copy_id = (*list).lv_copyID;
                     let csr = backend.check_self_reference(
-                        list.cast::<c_void>(),
+                        MPContainerRef::List(list),
                         &mut (*list).lv_copyID,
                         mpstack,
                         copy_id,
-                        MPConvStackValType::List,
                         objname,
                     );
                     if csr != NOTDONE {
@@ -1275,7 +1269,6 @@ unsafe fn convert_one_value(
                     }
                     backend.conv_list_start(tv_list_len(list));
                     mpstack.push(MPConvStackVal {
-                        val_type: MPConvStackValType::List,
                         tv,
                         saved_copy_id,
                         data: MPConvStackData::List {
@@ -1397,11 +1390,10 @@ unsafe fn convert_one_value(
                                             let val_list = (*val_di).di_tv.vval.v_list;
                                             let saved_copy_id = (*val_list).lv_copyID;
                                             let csr = backend.check_self_reference(
-                                                val_list.cast::<c_void>(),
+                                                MPContainerRef::List(val_list),
                                                 &mut (*val_list).lv_copyID,
                                                 mpstack,
                                                 copy_id,
-                                                MPConvStackValType::List,
                                                 objname,
                                             );
                                             if csr != NOTDONE {
@@ -1409,7 +1401,6 @@ unsafe fn convert_one_value(
                                             }
                                             backend.conv_list_start(tv_list_len(val_list));
                                             mpstack.push(MPConvStackVal {
-                                                val_type: MPConvStackValType::List,
                                                 tv,
                                                 saved_copy_id,
                                                 data: MPConvStackData::List {
@@ -1441,11 +1432,10 @@ unsafe fn convert_one_value(
                                                 if all_pairs {
                                                     let saved_copy_id = (*val_list).lv_copyID;
                                                     let csr = backend.check_self_reference(
-                                                        val_list.cast::<c_void>(),
+                                                        MPContainerRef::Pairs(val_list),
                                                         &mut (*val_list).lv_copyID,
                                                         mpstack,
                                                         copy_id,
-                                                        MPConvStackValType::Pairs,
                                                         objname,
                                                     );
                                                     if csr != NOTDONE {
@@ -1455,10 +1445,9 @@ unsafe fn convert_one_value(
                                                         tv_list_len(val_list) as usize
                                                     );
                                                     mpstack.push(MPConvStackVal {
-                                                        val_type: MPConvStackValType::Pairs,
                                                         tv,
                                                         saved_copy_id,
-                                                        data: MPConvStackData::List {
+                                                        data: MPConvStackData::Pairs {
                                                             list: val_list,
                                                             li: tv_list_first(val_list),
                                                         },
@@ -1506,11 +1495,10 @@ unsafe fn convert_one_value(
                 if !handled_special {
                     let saved_copy_id = (*dict).dv_copyID;
                     let csr = backend.check_self_reference(
-                        dict.cast::<c_void>(),
+                        MPContainerRef::Dict(dict),
                         &mut (*dict).dv_copyID,
                         mpstack,
                         copy_id,
-                        MPConvStackValType::Dict,
                         objname,
                     );
                     if csr != NOTDONE {
@@ -1518,7 +1506,6 @@ unsafe fn convert_one_value(
                     }
                     backend.conv_dict_start((*dict).dv_hashtab.ht_used);
                     mpstack.push(MPConvStackVal {
-                        val_type: MPConvStackValType::Dict,
                         tv,
                         saved_copy_id,
                         data: MPConvStackData::Dict {
@@ -1554,36 +1541,32 @@ unsafe fn encode_vim_with_backend(
 
         while !mpstack.is_empty() {
             let cur_idx = mpstack.len() - 1;
-            let cur_type = mpstack[cur_idx].val_type;
-            let next_tv: *mut typval_T = match cur_type {
-                MPConvStackValType::Dict => {
-                    let (dict, mut hi, todo, saved_copy_id) = match mpstack[cur_idx].data {
-                        MPConvStackData::Dict { dict, hi, todo, .. } => {
-                            (dict, hi, todo, mpstack[cur_idx].saved_copy_id)
-                        }
-                        _ => unreachable!(),
-                    };
-                    if todo == 0 {
+            let saved_copy_id = mpstack[cur_idx].saved_copy_id;
+            let next_tv: *mut typval_T = match mpstack[cur_idx].data {
+                MPConvStackData::Dict {
+                    dict,
+                    mut hi,
+                    ref mut todo,
+                    ..
+                } => {
+                    if *todo == 0 {
                         mpstack.pop();
                         (*dict).dv_copyID = saved_copy_id;
                         backend.conv_dict_end();
                         continue;
-                    } else if todo != (*dict).dv_hashtab.ht_used {
+                    } else if *todo != (*dict).dv_hashtab.ht_used {
                         backend.conv_dict_between_items();
                     }
                     while hashitem_empty(&*hi) {
                         hi = hi.add(1);
                     }
                     let di = crate::eval::typval::tv_dict_hi2di(hi);
-                    let next_hi = hi.add(1);
+                    *todo -= 1;
                     if let MPConvStackData::Dict {
-                        hi: ref mut hi_ref,
-                        todo: ref mut todo_ref,
-                        ..
+                        hi: ref mut hi_ref, ..
                     } = mpstack[cur_idx].data
                     {
-                        *todo_ref -= 1;
-                        *hi_ref = next_hi;
+                        *hi_ref = hi.add(1);
                     }
                     let key_ptr = (*di).di_key.as_ptr();
                     let key_len = CStr::from_ptr(key_ptr).to_bytes().len();
@@ -1593,38 +1576,20 @@ unsafe fn encode_vim_with_backend(
                     backend.conv_dict_after_key();
                     &mut (*di).di_tv
                 }
-                MPConvStackValType::List => {
-                    let (list, li, saved_copy_id) = match mpstack[cur_idx].data {
-                        MPConvStackData::List { list, li } => {
-                            (list, li, mpstack[cur_idx].saved_copy_id)
-                        }
-                        _ => unreachable!(),
-                    };
-                    if li.is_null() {
+                MPConvStackData::List { list, ref mut li } => {
+                    let cur_li = *li;
+                    if cur_li.is_null() {
                         mpstack.pop();
                         (*list).lv_copyID = saved_copy_id;
                         backend.conv_list_end();
                         continue;
-                    } else if li != tv_list_first(list) {
+                    } else if cur_li != tv_list_first(list) {
                         backend.conv_list_between_items();
                     }
-                    let item_tv = &mut (*li).li_tv as *mut typval_T;
-                    let next_li = (*li).li_next;
-                    if let MPConvStackData::List {
-                        li: ref mut li_ref, ..
-                    } = mpstack[cur_idx].data
-                    {
-                        *li_ref = next_li;
-                    }
-                    item_tv
+                    *li = (*cur_li).li_next;
+                    &mut (*cur_li).li_tv
                 }
-                MPConvStackValType::Pairs => {
-                    let (list, li, saved_copy_id) = match mpstack[cur_idx].data {
-                        MPConvStackData::List { list, li } => {
-                            (list, li, mpstack[cur_idx].saved_copy_id)
-                        }
-                        _ => unreachable!(),
-                    };
+                MPConvStackData::Pairs { list, li } => {
                     if li.is_null() {
                         mpstack.pop();
                         (*list).lv_copyID = saved_copy_id;
@@ -1651,7 +1616,7 @@ unsafe fn encode_vim_with_backend(
                     backend.conv_dict_after_key();
                     let last_item = tv_list_last(kv_pair);
                     let next_li = (*li).li_next;
-                    if let MPConvStackData::List {
+                    if let MPConvStackData::Pairs {
                         li: ref mut li_ref, ..
                     } = mpstack[cur_idx].data
                     {
@@ -1659,11 +1624,7 @@ unsafe fn encode_vim_with_backend(
                     }
                     &mut (*last_item).li_tv
                 }
-                MPConvStackValType::Partial => {
-                    let (stage, pt) = match mpstack[cur_idx].data {
-                        MPConvStackData::Partial { stage, pt } => (stage, pt),
-                        _ => unreachable!(),
-                    };
+                MPConvStackData::Partial { stage, pt } => {
                     match stage {
                         MPConvPartialStage::Args => {
                             let argc = if pt.is_null() { 0 } else { (*pt).pt_argc };
@@ -1678,7 +1639,6 @@ unsafe fn encode_vim_with_backend(
                             if !pt.is_null() && (*pt).pt_argc > 0 {
                                 backend.conv_list_start((*pt).pt_argc);
                                 mpstack.push(MPConvStackVal {
-                                    val_type: MPConvStackValType::PartialList,
                                     tv: std::ptr::null_mut(),
                                     saved_copy_id: copy_id - 1,
                                     data: MPConvStackData::PartialList {
@@ -1710,11 +1670,10 @@ unsafe fn encode_vim_with_backend(
                                 }
                                 let saved_copy_id = (*dict).dv_copyID;
                                 let csr = backend.check_self_reference(
-                                    dict.cast::<c_void>(),
+                                    MPContainerRef::Dict(dict),
                                     &mut (*dict).dv_copyID,
                                     &mpstack,
                                     copy_id,
-                                    MPConvStackValType::Dict,
                                     objname,
                                 );
                                 if csr != NOTDONE {
@@ -1726,7 +1685,6 @@ unsafe fn encode_vim_with_backend(
                                 }
                                 backend.conv_dict_start((*dict).dv_hashtab.ht_used);
                                 mpstack.push(MPConvStackVal {
-                                    val_type: MPConvStackValType::Dict,
                                     tv: std::ptr::null_mut(),
                                     saved_copy_id,
                                     data: MPConvStackData::Dict {
@@ -1747,29 +1705,22 @@ unsafe fn encode_vim_with_backend(
                     }
                     continue;
                 }
-                MPConvStackValType::PartialList => {
-                    let (arg, argv, todo) = match mpstack[cur_idx].data {
-                        MPConvStackData::PartialList { arg, argv, todo } => (arg, argv, todo),
-                        _ => unreachable!(),
-                    };
-                    if todo == 0 {
+                MPConvStackData::PartialList {
+                    ref mut arg,
+                    argv,
+                    ref mut todo,
+                } => {
+                    let cur_arg = *arg;
+                    if *todo == 0 {
                         mpstack.pop();
                         backend.conv_list_end();
                         continue;
-                    } else if argv != arg {
+                    } else if argv != cur_arg {
                         backend.conv_list_between_items();
                     }
-                    let next_arg = arg.add(1);
-                    if let MPConvStackData::PartialList {
-                        arg: ref mut arg_ref,
-                        todo: ref mut todo_ref,
-                        ..
-                    } = mpstack[cur_idx].data
-                    {
-                        *arg_ref = next_arg;
-                        *todo_ref -= 1;
-                    }
-                    arg
+                    *arg = cur_arg.add(1);
+                    *todo -= 1;
+                    cur_arg
                 }
             };
 
@@ -1937,7 +1888,7 @@ mod tests {
             let check = |chunks: &[&[u8]], expected: &[Option<&[u8]>]| {
                 let l = tv_list_alloc(0);
                 for &chunk in chunks {
-                    encode_list_write(l.cast(), chunk.as_ptr().cast(), chunk.len());
+                    encode_list_write(l, chunk.as_ptr().cast(), chunk.len());
                 }
                 assert_eq!((*l).lv_len as usize, expected.len());
                 let mut li = (*l).lv_first;

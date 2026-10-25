@@ -1258,7 +1258,7 @@ unsafe fn typval_parse_exit(_parser: *mut mpack_parser_t, node: *mut mpack_node_
                     },
                 );
                 encode_list_write(
-                    ext_val_list.cast::<c_void>(),
+                    ext_val_list,
                     node.data[1].p.cast::<c_char>(),
                     node.tok.length as usize,
                 );

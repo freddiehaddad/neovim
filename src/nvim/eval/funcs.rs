@@ -5988,7 +5988,7 @@ pub unsafe fn f_msgpackdump(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
             api_free_string(data);
         } else {
             encode_list_write(
-                tv_list_alloc_ret(rettv, kListLenMayKnow).cast(),
+                tv_list_alloc_ret(rettv, kListLenMayKnow),
                 data.data,
                 data.size,
             );

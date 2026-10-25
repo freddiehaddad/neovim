@@ -366,6 +366,20 @@ pub struct DecorVirtText {
     pub next: *mut DecorVirtText,
 }
 
+impl Drop for DecorVirtText {
+    fn drop(&mut self) {
+        let mut next = self.next;
+        self.next = ptr::null_mut();
+        while !next.is_null() {
+            unsafe {
+                let mut boxed = Box::from_raw(next);
+                next = boxed.next;
+                boxed.next = ptr::null_mut();
+            }
+        }
+    }
+}
+
 use crate::extmark::{
     kExtmarkHighlight, kExtmarkNone, kExtmarkSign, kExtmarkVirtLines, kExtmarkVirtText,
 };
@@ -401,7 +415,7 @@ pub struct SignItem {
 }
 
 static mut decor_freelist: u32 = u32::MAX;
-static mut to_free_virt: Vec<*mut DecorVirtText> = Vec::new();
+static mut to_free_virt: Vec<std::pin::Pin<Box<DecorVirtText>>> = Vec::new();
 static mut to_free_sh: u32 = u32::MAX;
 static mut sign_add_id: c_int = 0;
 
@@ -691,7 +705,7 @@ pub unsafe fn decor_free(decor: DecorInline) {
         if decor_state.running_decor_provider {
             if !vt.is_null() {
                 let list = &raw mut to_free_virt;
-                (*list).push(vt);
+                (*list).push(std::pin::Pin::from(Box::from_raw(vt)));
             }
             let items = &raw mut decor_items;
             while idx != DECOR_ID_INVALID {
@@ -704,18 +718,10 @@ pub unsafe fn decor_free(decor: DecorInline) {
                 idx = (*sh).next;
             }
         } else {
-            decor_free_vt(vt);
+            if !vt.is_null() {
+                drop(Box::from_raw(vt));
+            }
             decor_free_sh(idx);
-        }
-    }
-}
-
-unsafe fn decor_free_vt(mut vt: *mut DecorVirtText) {
-    unsafe {
-        while !vt.is_null() {
-            let tofree = vt;
-            vt = (*vt).next;
-            drop(Box::from_raw(tofree));
         }
     }
 }
@@ -757,9 +763,7 @@ pub unsafe fn decor_check_to_be_deleted() {
     unsafe {
         assert!(!decor_state.running_decor_provider);
         let list = &raw mut to_free_virt;
-        for vt in (*list).drain(..) {
-            decor_free_vt(vt);
-        }
+        (*list).clear();
         decor_free_sh(to_free_sh);
         to_free_sh = DECOR_ID_INVALID;
         decor_state.win = ptr::null_mut();

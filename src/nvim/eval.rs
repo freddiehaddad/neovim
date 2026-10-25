@@ -5156,7 +5156,7 @@ unsafe fn string_to_list(str_: *const c_char, mut len: usize, keepempty: bool) -
             len -= 1;
         }
         let list = tv_list_alloc(kListLenMayKnow);
-        encode_list_write(list.cast(), str_, len);
+        encode_list_write(list, str_, len);
         list
     }
 }

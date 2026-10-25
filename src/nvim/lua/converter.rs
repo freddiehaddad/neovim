@@ -14,8 +14,8 @@ use crate::eval::decode::{
     K_MP_EXT, K_MP_INTEGER, K_MP_MAP, decode_create_map_special_dict, decode_string,
 };
 use crate::eval::encode::{
-    K_MP_ARRAY, K_MP_BOOLEAN, K_MP_FLOAT, K_MP_NIL, K_MP_STRING, MPConvStackData, MPConvStackVal,
-    MPConvStackValType, encode_vim_list_to_buf,
+    K_MP_ARRAY, K_MP_BOOLEAN, K_MP_FLOAT, K_MP_NIL, K_MP_STRING, MPContainerRef, MPConvStackData,
+    MPConvStackVal, encode_vim_list_to_buf,
 };
 use crate::eval::typval::{
     TypvalVval, VAR_UNLOCKED, VarType, tv_blob_len,
@@ -898,11 +898,10 @@ unsafe fn lua_conv_dict_start(lstate: *mut lua_State, len: usize) -> c_int {
 
 unsafe fn lua_check_self_reference(
     lstate: *mut lua_State,
-    val: *mut c_void,
+    container: MPContainerRef,
     val_copy_id: *mut c_int,
     mpstack: &[MPConvStackVal],
     copy_id: c_int,
-    conv_type: MPConvStackValType,
 ) -> c_int {
     unsafe {
         if *val_copy_id != copy_id {
@@ -912,21 +911,16 @@ unsafe fn lua_check_self_reference(
         let mut backref = mpstack.len();
         while backref > 0 {
             let mpval = mpstack[backref - 1];
-            if mpval.val_type == conv_type {
-                let matched = match mpval.data {
-                    MPConvStackData::Dict { dict, .. } if conv_type == MPConvStackValType::Dict => {
-                        dict.cast::<c_void>() == val
-                    }
-                    MPConvStackData::List { list, .. } if conv_type != MPConvStackValType::Dict => {
-                        list.cast::<c_void>() == val
-                    }
-                    _ => false,
-                };
-                if matched {
-                    let stack_offset = -(((mpstack.len() - backref + 1) * 2) as c_int);
-                    lua_pushvalue(lstate, stack_offset);
-                    break;
-                }
+            let matched = match (container, mpval.data) {
+                (MPContainerRef::Dict(d1), MPConvStackData::Dict { dict: d2, .. }) => d1 == d2,
+                (MPContainerRef::List(l1), MPConvStackData::List { list: l2, .. }) => l1 == l2,
+                (MPContainerRef::Pairs(l1), MPConvStackData::Pairs { list: l2, .. }) => l1 == l2,
+                _ => false,
+            };
+            if matched {
+                let stack_offset = -(((mpstack.len() - backref + 1) * 2) as c_int);
+                lua_pushvalue(lstate, stack_offset);
+                break;
             }
             backref -= 1;
         }
@@ -1007,11 +1001,10 @@ unsafe fn lua_convert_one_value(
                     let saved_copy_id = (*list).lv_copyID;
                     let csr = lua_check_self_reference(
                         lstate,
-                        list.cast::<c_void>(),
+                        MPContainerRef::List(list),
                         &mut (*list).lv_copyID,
                         mpstack,
                         copy_id,
-                        MPConvStackValType::List,
                     );
                     if csr != NOTDONE {
                         return csr;
@@ -1020,7 +1013,6 @@ unsafe fn lua_convert_one_value(
                         return FAIL;
                     }
                     mpstack.push(MPConvStackVal {
-                        val_type: MPConvStackValType::List,
                         tv,
                         saved_copy_id,
                         data: MPConvStackData::List {
@@ -1146,11 +1138,10 @@ unsafe fn lua_convert_one_value(
                                             let saved_copy_id = (*val_list).lv_copyID;
                                             let csr = lua_check_self_reference(
                                                 lstate,
-                                                val_list.cast::<c_void>(),
+                                                MPContainerRef::List(val_list),
                                                 &mut (*val_list).lv_copyID,
                                                 mpstack,
                                                 copy_id,
-                                                MPConvStackValType::List,
                                             );
                                             if csr != NOTDONE {
                                                 return csr;
@@ -1161,7 +1152,6 @@ unsafe fn lua_convert_one_value(
                                                 return FAIL;
                                             }
                                             mpstack.push(MPConvStackVal {
-                                                val_type: MPConvStackValType::List,
                                                 tv,
                                                 saved_copy_id,
                                                 data: MPConvStackData::List {
@@ -1194,11 +1184,10 @@ unsafe fn lua_convert_one_value(
                                                     let saved_copy_id = (*val_list).lv_copyID;
                                                     let csr = lua_check_self_reference(
                                                         lstate,
-                                                        val_list.cast::<c_void>(),
+                                                        MPContainerRef::Pairs(val_list),
                                                         &mut (*val_list).lv_copyID,
                                                         mpstack,
                                                         copy_id,
-                                                        MPConvStackValType::Pairs,
                                                     );
                                                     if csr != NOTDONE {
                                                         return csr;
@@ -1211,10 +1200,9 @@ unsafe fn lua_convert_one_value(
                                                         return FAIL;
                                                     }
                                                     mpstack.push(MPConvStackVal {
-                                                        val_type: MPConvStackValType::Pairs,
                                                         tv,
                                                         saved_copy_id,
-                                                        data: MPConvStackData::List {
+                                                        data: MPConvStackData::Pairs {
                                                             list: val_list,
                                                             li: tv_list_first(val_list),
                                                         },
@@ -1258,11 +1246,10 @@ unsafe fn lua_convert_one_value(
                     let saved_copy_id = (*dict).dv_copyID;
                     let csr = lua_check_self_reference(
                         lstate,
-                        dict.cast::<c_void>(),
+                        MPContainerRef::Dict(dict),
                         &mut (*dict).dv_copyID,
                         mpstack,
                         copy_id,
-                        MPConvStackValType::Dict,
                     );
                     if csr != NOTDONE {
                         return csr;
@@ -1271,7 +1258,6 @@ unsafe fn lua_convert_one_value(
                         return FAIL;
                     }
                     mpstack.push(MPConvStackVal {
-                        val_type: MPConvStackValType::Dict,
                         tv,
                         saved_copy_id,
                         data: MPConvStackData::Dict {
@@ -1303,76 +1289,49 @@ unsafe fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: *mut typval_T) -> c_
 
         while !mpstack.is_empty() {
             let cur_idx = mpstack.len() - 1;
-            let cur_type = mpstack[cur_idx].val_type;
-            let next_tv: *mut typval_T = match cur_type {
-                MPConvStackValType::Dict => {
-                    let (dict, mut hi, todo, saved_copy_id) = match mpstack[cur_idx].data {
-                        MPConvStackData::Dict { dict, hi, todo, .. } => {
-                            (dict, hi, todo, mpstack[cur_idx].saved_copy_id)
-                        }
-                        _ => unreachable!(),
-                    };
-                    if todo == 0 {
+            let saved_copy_id = mpstack[cur_idx].saved_copy_id;
+            let next_tv: *mut typval_T = match mpstack[cur_idx].data {
+                MPConvStackData::Dict {
+                    dict,
+                    ref mut hi,
+                    ref mut todo,
+                    ..
+                } => {
+                    if *todo == 0 {
                         mpstack.pop();
                         (*dict).dv_copyID = saved_copy_id;
                         lua_rawset(lstate, -3);
                         continue;
-                    } else if todo != (*dict).dv_hashtab.ht_used {
+                    } else if *todo != (*dict).dv_hashtab.ht_used {
                         lua_rawset(lstate, -3);
                     }
-                    while hashitem_empty(&*hi) {
-                        hi = hi.add(1);
+                    while hashitem_empty(&**hi) {
+                        *hi = (*hi).add(1);
                     }
-                    let di = crate::eval::typval::tv_dict_hi2di(hi);
-                    let next_hi = hi.add(1);
-                    if let MPConvStackData::Dict {
-                        hi: ref mut hi_ref,
-                        todo: ref mut todo_ref,
-                        ..
-                    } = mpstack[cur_idx].data
-                    {
-                        *todo_ref -= 1;
-                        *hi_ref = next_hi;
-                    }
+                    let di = crate::eval::typval::tv_dict_hi2di(*hi);
+                    *todo -= 1;
+                    *hi = (*hi).add(1);
                     let key_ptr = (*di).di_key.as_ptr();
                     let key_len = CStr::from_ptr(key_ptr).to_bytes().len();
                     lua_pushlstring(lstate, key_ptr, key_len);
                     &mut (*di).di_tv
                 }
-                MPConvStackValType::List => {
-                    let (list, li, saved_copy_id) = match mpstack[cur_idx].data {
-                        MPConvStackData::List { list, li } => {
-                            (list, li, mpstack[cur_idx].saved_copy_id)
-                        }
-                        _ => unreachable!(),
-                    };
-                    if li.is_null() {
+                MPConvStackData::List { list, ref mut li } => {
+                    let cur_li = *li;
+                    if cur_li.is_null() {
                         mpstack.pop();
                         (*list).lv_copyID = saved_copy_id;
                         lua_rawset(lstate, -3);
                         continue;
-                    } else if li != tv_list_first(list) {
+                    } else if cur_li != tv_list_first(list) {
                         let idx = lua_tonumber(lstate, -2);
                         lua_rawset(lstate, -3);
                         lua_pushnumber(lstate, idx + 1.0);
                     }
-                    let item_tv = &mut (*li).li_tv as *mut typval_T;
-                    let next_li = (*li).li_next;
-                    if let MPConvStackData::List {
-                        li: ref mut li_ref, ..
-                    } = mpstack[cur_idx].data
-                    {
-                        *li_ref = next_li;
-                    }
-                    item_tv
+                    *li = (*cur_li).li_next;
+                    &mut (*cur_li).li_tv
                 }
-                MPConvStackValType::Pairs => {
-                    let (list, li, saved_copy_id) = match mpstack[cur_idx].data {
-                        MPConvStackData::List { list, li } => {
-                            (list, li, mpstack[cur_idx].saved_copy_id)
-                        }
-                        _ => unreachable!(),
-                    };
+                MPConvStackData::Pairs { list, li } => {
                     if li.is_null() {
                         mpstack.pop();
                         (*list).lv_copyID = saved_copy_id;
@@ -1394,7 +1353,7 @@ unsafe fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: *mut typval_T) -> c_
                     }
                     let last_item = tv_list_last(kv_pair);
                     let next_li = (*li).li_next;
-                    if let MPConvStackData::List {
+                    if let MPConvStackData::Pairs {
                         li: ref mut li_ref, ..
                     } = mpstack[cur_idx].data
                     {
@@ -1402,7 +1361,9 @@ unsafe fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: *mut typval_T) -> c_
                     }
                     &mut (*last_item).li_tv
                 }
-                MPConvStackValType::Partial | MPConvStackValType::PartialList => unreachable!(),
+                MPConvStackData::Partial { .. } | MPConvStackData::PartialList { .. } => {
+                    unreachable!()
+                }
             };
 
             if lua_convert_one_value(lstate, &mut mpstack, next_tv, copy_id) == FAIL {

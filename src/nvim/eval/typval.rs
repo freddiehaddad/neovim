@@ -11,7 +11,7 @@ use crate::errors::*;
 use crate::api::private::validate::NvimString;
 use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE, VAR_FIXED, buf_T};
 use crate::eval::encode::{
-    MPConvPartialStage, MPConvStackData, MPConvStackVal, MPConvStackValType, encode_bool_var_names,
+    MPConvPartialStage, MPConvStackData, MPConvStackVal, encode_bool_var_names,
     encode_special_var_names, encode_tv2echo, encode_tv2string,
 };
 use crate::eval::executor::eexe_mod_op;
@@ -4069,7 +4069,6 @@ unsafe fn nothing_convert_one_value(
                     return OK;
                 }
                 mpstack.push(MPConvStackVal {
-                    val_type: MPConvStackValType::Partial,
                     tv,
                     saved_copy_id: copy_id - 1,
                     data: MPConvStackData::Partial {
@@ -4092,7 +4091,6 @@ unsafe fn nothing_convert_one_value(
                 }
                 (*list).lv_copyID = copy_id;
                 let mut mpsv = MPConvStackVal {
-                    val_type: MPConvStackValType::List,
                     tv,
                     saved_copy_id,
                     data: MPConvStackData::List {
@@ -4124,7 +4122,6 @@ unsafe fn nothing_convert_one_value(
                 }
                 (*dict).dv_copyID = copy_id;
                 let mut mpsv = MPConvStackVal {
-                    val_type: MPConvStackValType::Dict,
                     tv,
                     saved_copy_id,
                     data: MPConvStackData::Dict {
@@ -4157,69 +4154,41 @@ unsafe fn encode_vim_to_nothing(top_tv: *mut typval_T) -> c_int {
 
         while !mpstack.is_empty() {
             let last_idx = mpstack.len() - 1;
-            let val_type = mpstack[last_idx].val_type;
-            let tv: *mut typval_T = match val_type {
-                MPConvStackValType::Dict => {
-                    let (dict, dictp, mut hi, todo, saved_copy_id) = match mpstack[last_idx].data {
-                        MPConvStackData::Dict {
-                            dict,
-                            dictp,
-                            hi,
-                            todo,
-                        } => (dict, dictp, hi, todo, mpstack[last_idx].saved_copy_id),
-                        _ => unreachable!(),
-                    };
-                    if todo == 0 {
+            let saved_copy_id = mpstack[last_idx].saved_copy_id;
+            let cur_tv = mpstack[last_idx].tv;
+            let tv: *mut typval_T = match mpstack[last_idx].data {
+                MPConvStackData::Dict {
+                    dict,
+                    dictp,
+                    ref mut hi,
+                    ref mut todo,
+                } => {
+                    if *todo == 0 {
                         mpstack.pop();
                         (*dict).dv_copyID = saved_copy_id;
                         nothing_conv_dict_end(dictp);
                         continue;
                     }
-                    while hashitem_empty(&*hi) {
-                        hi = hi.add(1);
+                    while hashitem_empty(&**hi) {
+                        *hi = (*hi).add(1);
                     }
-                    let di = tv_dict_hi2di(hi);
-                    if let MPConvStackData::Dict {
-                        hi: ref mut hi_ref,
-                        todo: ref mut todo_ref,
-                        ..
-                    } = mpstack[last_idx].data
-                    {
-                        *todo_ref -= 1;
-                        *hi_ref = hi.add(1);
-                    }
+                    let di = tv_dict_hi2di(*hi);
+                    *todo -= 1;
+                    *hi = (*hi).add(1);
                     &raw mut (*di).di_tv
                 }
-                MPConvStackValType::List => {
-                    let (list, li, saved_copy_id, cur_tv) = match mpstack[last_idx].data {
-                        MPConvStackData::List { list, li } => (
-                            list,
-                            li,
-                            mpstack[last_idx].saved_copy_id,
-                            mpstack[last_idx].tv,
-                        ),
-                        _ => unreachable!(),
-                    };
-                    if li.is_null() {
+                MPConvStackData::List { list, ref mut li } => {
+                    let cur_li = *li;
+                    if cur_li.is_null() {
                         mpstack.pop();
                         (*list).lv_copyID = saved_copy_id;
                         nothing_conv_list_end(cur_tv);
                         continue;
                     }
-                    let item_tv = &raw mut (*li).li_tv;
-                    if let MPConvStackData::List {
-                        li: ref mut li_ref, ..
-                    } = mpstack[last_idx].data
-                    {
-                        *li_ref = (*li).li_next;
-                    }
-                    item_tv
+                    *li = (*cur_li).li_next;
+                    &raw mut (*cur_li).li_tv
                 }
-                MPConvStackValType::Partial => {
-                    let (stage, pt, cur_tv) = match mpstack[last_idx].data {
-                        MPConvStackData::Partial { stage, pt } => (stage, pt, mpstack[last_idx].tv),
-                        _ => unreachable!(),
-                    };
+                MPConvStackData::Partial { stage, pt } => {
                     match stage {
                         MPConvPartialStage::Args => {
                             if let MPConvStackData::Partial {
@@ -4231,7 +4200,6 @@ unsafe fn encode_vim_to_nothing(top_tv: *mut typval_T) -> c_int {
                             }
                             if !pt.is_null() && (*pt).pt_argc > 0 {
                                 mpstack.push(MPConvStackVal {
-                                    val_type: MPConvStackValType::PartialList,
                                     tv: ptr::null_mut(),
                                     saved_copy_id: copy_id - 1,
                                     data: MPConvStackData::PartialList {
@@ -4267,7 +4235,6 @@ unsafe fn encode_vim_to_nothing(top_tv: *mut typval_T) -> c_int {
                                 }
                                 (*dict).dv_copyID = copy_id;
                                 let mut mpsv = MPConvStackVal {
-                                    val_type: MPConvStackValType::Dict,
                                     tv: ptr::null_mut(),
                                     saved_copy_id,
                                     data: MPConvStackData::Dict {
@@ -4292,32 +4259,22 @@ unsafe fn encode_vim_to_nothing(top_tv: *mut typval_T) -> c_int {
                     }
                     continue;
                 }
-                MPConvStackValType::PartialList => {
-                    let (arg, todo, cur_tv) = match mpstack[last_idx].data {
-                        MPConvStackData::PartialList {
-                            arg,
-                            argv: _argv,
-                            todo,
-                        } => (arg, todo, mpstack[last_idx].tv),
-                        _ => unreachable!(),
-                    };
-                    if todo == 0 {
+                MPConvStackData::PartialList {
+                    ref mut arg,
+                    argv: _argv,
+                    ref mut todo,
+                } => {
+                    let cur_arg = *arg;
+                    if *todo == 0 {
                         mpstack.pop();
                         nothing_conv_list_end(cur_tv);
                         continue;
                     }
-                    if let MPConvStackData::PartialList {
-                        arg: ref mut arg_ref,
-                        todo: ref mut todo_ref,
-                        ..
-                    } = mpstack[last_idx].data
-                    {
-                        *arg_ref = arg.add(1);
-                        *todo_ref -= 1;
-                    }
-                    arg
+                    *arg = cur_arg.add(1);
+                    *todo -= 1;
+                    cur_arg
                 }
-                MPConvStackValType::Pairs => unreachable!(),
+                MPConvStackData::Pairs { .. } => unreachable!(),
             };
             debug_assert!(!tv.is_null());
             if nothing_convert_one_value(&mut mpstack, tv, copy_id) == FAIL {
