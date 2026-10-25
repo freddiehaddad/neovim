@@ -1683,6 +1683,43 @@ pub unsafe fn buf_freeall(buf: *mut buf_T, flags: c_int) -> bool {
     }
 }
 
+impl Drop for buf_T {
+    fn drop(&mut self) {
+        unsafe {
+            if self.b_sfname != self.b_ffname {
+                xfree(self.b_sfname.cast());
+            }
+            self.b_sfname = ptr::null_mut();
+            xfree(self.b_ffname.cast());
+            self.b_ffname = ptr::null_mut();
+            free_buf_options(self, true);
+            xfree(self.b_start_fenc.cast());
+            self.b_start_fenc = ptr::null_mut();
+            xfree(self.b_localdir.cast());
+            self.b_localdir = ptr::null_mut();
+            xfree(self.b_prevdir.cast());
+            self.b_prevdir = ptr::null_mut();
+            xfree(self.additional_data.cast());
+            self.additional_data = ptr::null_mut();
+            xfree(self.b_prompt_text.cast());
+            self.b_prompt_text = ptr::null_mut();
+            callback_free(&raw mut self.b_prompt_callback);
+            callback_free(&raw mut self.b_prompt_interrupt);
+            clear_fmark(&raw mut self.b_last_cursor, 0);
+            clear_fmark(&raw mut self.b_last_insert, 0);
+            clear_fmark(&raw mut self.b_last_change, 0);
+            clear_fmark(&raw mut self.b_prompt_start, 0);
+            for i in 0..NMARKS {
+                free_fmark(self.b_namedm[i]);
+            }
+            for i in 0..self.b_changelistlen as usize {
+                free_fmark(self.b_changelist[i]);
+            }
+            self.b_changelistlen = 0;
+        }
+    }
+}
+
 unsafe fn free_buffer(buf: *mut buf_T) {
     unsafe {
         let map_ptr = &raw mut buffer_handles;
@@ -1697,23 +1734,24 @@ unsafe fn free_buffer(buf: *mut buf_T) {
         }
         unref_var_dict((*buf).b_vars);
         aubuflocal_remove(buf);
-        xfree((*buf).additional_data.cast());
-        xfree((*buf).b_prompt_text.cast());
-        callback_free(&raw mut (*buf).b_prompt_callback);
-        callback_free(&raw mut (*buf).b_prompt_interrupt);
-        clear_fmark(&raw mut (*buf).b_last_cursor, 0);
-        clear_fmark(&raw mut (*buf).b_last_insert, 0);
-        clear_fmark(&raw mut (*buf).b_last_change, 0);
-        clear_fmark(&raw mut (*buf).b_prompt_start, 0);
-        let namedm_ptr = (&raw mut (*buf).b_namedm).cast::<fmark_T>();
-        for i in 0..NMARKS {
-            free_fmark(*namedm_ptr.add(i));
-        }
-        let changelist_ptr = (&raw mut (*buf).b_changelist).cast::<fmark_T>();
-        for i in 0..(*buf).b_changelistlen as usize {
-            free_fmark(*changelist_ptr.add(i));
-        }
         if autocmd_busy {
+            xfree((*buf).additional_data.cast());
+            (*buf).additional_data = ptr::null_mut();
+            xfree((*buf).b_prompt_text.cast());
+            (*buf).b_prompt_text = ptr::null_mut();
+            callback_free(&raw mut (*buf).b_prompt_callback);
+            callback_free(&raw mut (*buf).b_prompt_interrupt);
+            clear_fmark(&raw mut (*buf).b_last_cursor, 0);
+            clear_fmark(&raw mut (*buf).b_last_insert, 0);
+            clear_fmark(&raw mut (*buf).b_last_change, 0);
+            clear_fmark(&raw mut (*buf).b_prompt_start, 0);
+            for i in 0..NMARKS {
+                free_fmark((*buf).b_namedm[i]);
+            }
+            for i in 0..(*buf).b_changelistlen as usize {
+                free_fmark((*buf).b_changelist[i]);
+            }
+            (*buf).b_changelistlen = 0;
             (*buf).b_namedm.fill(fmark_T::new());
             (*buf).b_changelist.fill(fmark_T::new());
             let pending_buf = &raw mut au_pending_free_buf;

@@ -155,11 +155,7 @@ impl funccall_T {
             fc_l_avars: dict_T::new(),
             fc_l_avars_var: dictitem_T::new(),
             fc_l_varlist: list_T::new(),
-            fc_l_listitems: [listitem_T {
-                li_next: std::ptr::null_mut(),
-                li_prev: std::ptr::null_mut(),
-                li_tv: crate::eval::typval::tv_initial_value(),
-            }; MAX_FUNC_ARGS],
+            fc_l_listitems: [const { listitem_T::new() }; MAX_FUNC_ARGS],
             fc_rettv: std::ptr::null_mut(),
             fc_breakpoint: 0,
             fc_dbg_tick: 0,

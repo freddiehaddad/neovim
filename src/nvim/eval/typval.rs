@@ -265,11 +265,34 @@ impl Default for typval_T {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
 pub struct listitem_T {
     pub li_next: *mut listitem_T,
     pub li_prev: *mut listitem_T,
     pub li_tv: typval_T,
+}
+
+impl listitem_T {
+    pub const fn new() -> Self {
+        Self {
+            li_next: ptr::null_mut(),
+            li_prev: ptr::null_mut(),
+            li_tv: tv_initial_value(),
+        }
+    }
+}
+
+impl Default for listitem_T {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Drop for listitem_T {
+    fn drop(&mut self) {
+        unsafe {
+            tv_clear(&raw mut self.li_tv);
+        }
+    }
 }
 
 #[repr(C)]
@@ -430,11 +453,7 @@ impl staticList10_T {
     pub const fn new() -> Self {
         Self {
             sl_list: list_T::new(),
-            sl_items: [listitem_T {
-                li_next: ptr::null_mut(),
-                li_prev: ptr::null_mut(),
-                li_tv: tv_initial_value(),
-            }; 10],
+            sl_items: [const { listitem_T::new() }; 10],
         }
     }
 }
@@ -809,7 +828,6 @@ pub unsafe fn tv_list_item_remove(l: *mut list_T, item: *mut listitem_T) -> *mut
     unsafe {
         let next_item = (*item).li_next;
         tv_list_drop_items(l, item, item);
-        tv_clear(&raw mut (*item).li_tv);
         drop(Box::from_raw(item));
         next_item
     }
@@ -911,7 +929,6 @@ pub unsafe fn tv_list_free_contents(l: *mut list_T) {
         let mut item = (*l).lv_first;
         while !item.is_null() {
             (*l).lv_first = (*item).li_next;
-            tv_clear(&raw mut (*item).li_tv);
             drop(Box::from_raw(item));
             item = (*l).lv_first;
         }
@@ -977,7 +994,6 @@ pub unsafe fn tv_list_remove_items(l: *mut list_T, item: *mut listitem_T, item2:
         tv_list_drop_items(l, item, item2);
         let mut li = item;
         loop {
-            tv_clear(&raw mut (*li).li_tv);
             let nli = (*li).li_next;
             drop(Box::from_raw(li));
             if li == item2 {

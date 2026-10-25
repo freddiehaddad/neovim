@@ -158,16 +158,6 @@ impl WinInfo {
     }
 }
 
-impl Drop for WinInfo {
-    fn drop(&mut self) {
-        if self.wi_optset {
-            unsafe {
-                crate::option::clear_winopt(&raw mut self.wi_opt);
-            }
-        }
-    }
-}
-
 pub(crate) const EXTRA_MARKS: usize = 10;
 const NGLOBALMARKS: usize = NMARKS + EXTRA_MARKS;
 const NMARK_LOCAL_MAX: c_int = 126;

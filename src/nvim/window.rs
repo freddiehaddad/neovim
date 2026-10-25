@@ -208,7 +208,6 @@ pub struct fcs_chars_T {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
 pub struct winopt_T {
     pub wo_arab: c_int,
     pub wo_bri: c_int,
@@ -356,6 +355,14 @@ impl winopt_T {
             sc_chan: 0,
         }; K_WIN_OPT_COUNT],
     };
+}
+
+impl Drop for winopt_T {
+    fn drop(&mut self) {
+        unsafe {
+            crate::option::clear_winopt(self);
+        }
+    }
 }
 
 #[repr(C)]
@@ -6300,9 +6307,12 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
         for i in 0..(*wp).w_tagstacklen as usize {
             tagstack_clear_entry(&raw mut (*wp).w_tagstack[i]);
         }
+        (*wp).w_tagstacklen = 0;
 
         xfree((*wp).w_localdir.cast());
+        (*wp).w_localdir = ptr::null_mut();
         xfree((*wp).w_prevdir.cast());
+        (*wp).w_prevdir = ptr::null_mut();
 
         stl_clear_click_defs(&raw mut (*wp).w_status_click_defs);
         stl_clear_click_defs(&raw mut (*wp).w_winbar_click_defs);
@@ -6363,6 +6373,33 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
         }
 
         unblock_autocmds();
+    }
+}
+
+impl Drop for win_T {
+    fn drop(&mut self) {
+        unsafe {
+            for i in 0..self.w_tagstacklen as usize {
+                tagstack_clear_entry(&raw mut self.w_tagstack[i]);
+            }
+            self.w_tagstacklen = 0;
+
+            xfree(self.w_localdir.cast());
+            self.w_localdir = ptr::null_mut();
+            xfree(self.w_prevdir.cast());
+            self.w_prevdir = ptr::null_mut();
+
+            stl_clear_click_defs(&raw mut self.w_status_click_defs);
+            stl_clear_click_defs(&raw mut self.w_winbar_click_defs);
+
+            for (_, lnum_click_defs) in std::mem::take(&mut self.w_statuscol_click_defs) {
+                for (_, mut row_click_defs) in lnum_click_defs {
+                    stl_clear_click_defs(&raw mut row_click_defs);
+                }
+            }
+
+            free_jumplist(self);
+        }
     }
 }
 

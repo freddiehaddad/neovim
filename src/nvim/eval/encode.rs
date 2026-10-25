@@ -1879,6 +1879,8 @@ mod tests {
             assert_eq!(slice, b"a\0b\nc");
             xfree(buf.cast::<c_void>());
         }
+        li1.li_tv.v_type = VarType::VAR_UNKNOWN;
+        li2.li_tv.v_type = VarType::VAR_UNKNOWN;
     }
 
     #[test]

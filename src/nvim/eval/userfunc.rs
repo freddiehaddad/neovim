@@ -1031,6 +1031,8 @@ unsafe fn add_nr_var(dp: *mut dict_T, name: *const c_char, nr: varnumber_T) {
 impl Drop for funccall_T {
     fn drop(&mut self) {
         unsafe {
+            vars_clear(&raw mut self.fc_l_vars.dv_hashtab);
+            vars_clear(&raw mut self.fc_l_avars.dv_hashtab);
             let self_ptr = std::ptr::from_mut(self).cast();
             for &fp in &self.fc_ufuncs {
                 if !fp.is_null() && (*fp).uf_scoped == self_ptr {
@@ -1039,22 +1041,6 @@ impl Drop for funccall_T {
             }
             func_ptr_unref(self.fc_func);
         }
-    }
-}
-
-/// Free `fc` and what it contains.
-unsafe fn free_funccal_contents(fc: *mut funccall_T) {
-    unsafe {
-        vars_clear(&raw mut (*fc).fc_l_vars.dv_hashtab);
-        vars_clear(&raw mut (*fc).fc_l_avars.dv_hashtab);
-
-        let mut li = (*fc).fc_l_varlist.lv_first;
-        while !li.is_null() {
-            tv_clear(&raw mut (*li).li_tv);
-            li = (*li).li_next;
-        }
-
-        drop(Box::from_raw(fc));
     }
 }
 
@@ -1093,6 +1079,11 @@ unsafe fn cleanup_function_call(fc: *mut funccall_T) {
         }
 
         if may_free_fc && (*fc).fc_l_varlist.lv_refcount == DO_NOT_FREE_CNT {
+            let mut li = (*fc).fc_l_varlist.lv_first;
+            while !li.is_null() {
+                (*li).li_tv.v_type = VarType::VAR_UNKNOWN;
+                li = (*li).li_next;
+            }
             (*fc).fc_l_varlist.lv_first = ptr::null_mut();
         } else {
             free_fc = false;
@@ -1143,7 +1134,7 @@ unsafe fn funccal_unref(fc: *mut funccall_T, fp: *mut ufunc_T, force: bool) {
             let pfc = &raw mut previous_funccal;
             if let Some(pos) = (*pfc).iter().position(|&item| item == fc) {
                 (*pfc).remove(pos);
-                free_funccal_contents(fc);
+                drop(Box::from_raw(fc));
                 return;
             }
         }
@@ -4220,7 +4211,7 @@ pub unsafe fn free_unref_funccal(copyID: c_int, testing: c_int) -> bool {
             let fc = (*pfc).as_slice()[i];
             if can_free_funccal(fc, copyID) {
                 (*pfc).remove(i);
-                free_funccal_contents(fc);
+                drop(Box::from_raw(fc));
                 did_free = true;
                 did_free_funccal = true;
             } else {
