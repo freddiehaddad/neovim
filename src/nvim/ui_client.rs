@@ -23,7 +23,7 @@ use crate::globals::*;
 use crate::highlight::{HLATTRS_INIT, HlAttrs, KeyDict_highlight, dict2hlattrs};
 use crate::log::{LOGLVL_ERR, LOGLVL_INF, logmsg};
 use crate::main_init::os_exit;
-use crate::memory::{Arena, strequal, xfree, xmalloc, xmemdupz, xstrdup};
+use crate::memory::{Arena, strequal, xfree, xmemdupz, xstrdup};
 use crate::msgpack_rpc::channel::rpc_send_event;
 use crate::msgpack_rpc::packer::Integer;
 use crate::msgpack_rpc::unpacker::GridLineEvent;
@@ -40,7 +40,6 @@ use crate::tui::tui::{
     tui_visual_bell,
 };
 use std::ffi::{c_char, c_int};
-use std::mem::size_of;
 use std::ptr;
 
 pub(crate) const UI_CLIENT_STDIN_FD: c_int = 3;
@@ -64,17 +63,13 @@ pub unsafe fn ui_client_start_server(
     argv: *mut *mut c_char,
 ) -> u64 {
     unsafe {
-        let args = xmalloc((2 + argc) * size_of::<*mut c_char>()).cast::<*mut c_char>();
-        let mut args_idx: usize = 0;
-        *args.add(args_idx) = xstrdup(*argv);
-        args_idx += 1;
-        *args.add(args_idx) = xstrdup(c"--embed".as_ptr());
-        args_idx += 1;
+        let mut args = Vec::with_capacity(2 + argc);
+        args.push(xstrdup(*argv));
+        args.push(xstrdup(c"--embed".as_ptr()));
         for i in 1..argc {
-            *args.add(args_idx) = xstrdup(*argv.add(i));
-            args_idx += 1;
+            args.push(xstrdup(*argv.add(i)));
         }
-        *args.add(args_idx) = ptr::null_mut();
+        args.push(ptr::null_mut());
 
         let on_stdout = CallbackReader::none();
         let mut on_err = CallbackReader::none();

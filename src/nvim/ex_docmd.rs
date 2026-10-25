@@ -9261,7 +9261,6 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
             li = (*li).li_next;
         }
         argv_vec.push(ptr::null_mut());
-        let argv = crate::path::slice_to_xmalloc(&argv_vec);
 
         #[cfg(windows)]
         let server_stopped = {
@@ -9321,7 +9320,7 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
         let mut exit_status: varnumber_T = 0;
 
         let channel = channel_job_start(
-            argv,
+            argv_vec,
             exepath,
             on_stdout,
             on_err,
@@ -12766,12 +12765,12 @@ unsafe fn ex_terminal(eap: *mut exarg_T) {
             let argv = shell_build_argv(ptr::null(), ptr::null());
             let mut shell_tv: typval_T = typval_T::new();
             tv_list_alloc_ret(&raw mut shell_tv, 0);
-            let mut p = argv;
-            while !(*p).is_null() {
-                tv_list_append_allocated_string(shell_tv.vval.v_list, *p);
-                p = p.add(1);
+            for arg in argv {
+                if arg.is_null() {
+                    break;
+                }
+                tv_list_append_allocated_string(shell_tv.vval.v_list, arg);
             }
-            xfree(argv.cast());
             nlua_call_excmd(
                 c"vim._core.ex_cmd".as_ptr(),
                 c"ex_terminal".as_ptr(),

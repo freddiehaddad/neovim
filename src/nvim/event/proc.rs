@@ -20,7 +20,6 @@ use crate::os::proc::os_proc_tree_kill;
 use crate::os::pty_proc::{
     pty_proc_close, pty_proc_close_master, pty_proc_flush_master, pty_proc_spawn, pty_proc_teardown,
 };
-use crate::os::shell::shell_free_argv;
 use crate::os::time::os_hrtime;
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
@@ -47,7 +46,7 @@ pub struct Proc {
     pub exit_signal: u8,
     pub stopped_time: u64,
     pub cwd: *const c_char,
-    pub argv: *mut *mut c_char,
+    pub argv: Vec<*mut c_char>,
     pub exepath: *const c_char,
     pub env: *mut dict_T,
     pub r#in: Stream,
@@ -89,7 +88,7 @@ impl Proc {
             exit_signal: 0,
             stopped_time: 0,
             cwd: ptr::null(),
-            argv: ptr::null_mut(),
+            argv: Vec::new(),
             exepath: ptr::null(),
             env: ptr::null_mut(),
             r#in: Stream::new(),
@@ -129,10 +128,7 @@ impl Proc {
 impl Drop for Proc {
     fn drop(&mut self) {
         unsafe {
-            if !self.argv.is_null() {
-                shell_free_argv(self.argv);
-                self.argv = ptr::null_mut();
-            }
+            crate::path::clear_cstrings(&mut self.argv);
         }
     }
 }

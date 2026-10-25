@@ -45,17 +45,6 @@ pub unsafe fn clear_cstrings(strings: &mut Vec<*mut c_char>) {
     }
 }
 
-pub unsafe fn slice_to_xmalloc<T: Copy>(items: &[T]) -> *mut T {
-    if items.is_empty() {
-        return ptr::null_mut();
-    }
-    unsafe {
-        let ptr = xmalloc(std::mem::size_of_val(items)).cast::<T>();
-        ptr::copy_nonoverlapping(items.as_ptr(), ptr, items.len());
-        ptr
-    }
-}
-
 pub unsafe fn remove_duplicate_strings(fnames: &mut Vec<*mut c_char>) {
     if fnames.is_empty() {
         return;

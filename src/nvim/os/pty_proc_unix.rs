@@ -508,7 +508,7 @@ mod unix_impl {
             }
 
             *os_environ_ptr() = new_env;
-            execvp(prog, (*hdr).argv.cast_const());
+            execvp(prog, (*hdr).argv.as_ptr());
             let err = os_errno();
             logmsg!(
                 LOGLVL_ERR,

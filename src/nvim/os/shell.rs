@@ -563,70 +563,47 @@ pub unsafe fn os_expand_wildcards(
 
 /// Builds the argument vector for running the user-configured 'shell' (p_sh)
 /// with an optional command prefixed by 'shellcmdflag' (p_shcf).
-pub unsafe fn shell_build_argv(cmd: *const c_char, extra_args: *const c_char) -> *mut *mut c_char {
+pub unsafe fn shell_build_argv(cmd: *const c_char, extra_args: *const c_char) -> Vec<*mut c_char> {
     unsafe {
-        let argc = tokenize(p_sh, ptr::null_mut())
-            + if !cmd.is_null() {
-                tokenize(p_shcf, ptr::null_mut())
-            } else {
-                0
-            };
-        let rv: *mut *mut c_char = xmalloc((argc + 4) * size_of::<*mut c_char>()).cast();
-
-        let mut i = tokenize(p_sh, rv);
+        let mut rv: Vec<*mut c_char> = Vec::new();
+        tokenize(p_sh, &mut rv);
 
         if !extra_args.is_null() {
-            *rv.add(i) = xstrdup(extra_args);
-            i += 1;
+            rv.push(xstrdup(extra_args));
         }
 
         if !cmd.is_null() {
-            i += tokenize(p_shcf, rv.add(i));
-            *rv.add(i) = shell_xescape_xquote(cmd);
-            i += 1;
+            tokenize(p_shcf, &mut rv);
+            rv.push(shell_xescape_xquote(cmd));
         }
 
-        *rv.add(i) = ptr::null_mut();
-        debug_assert!(!(*rv).is_null());
+        rv.push(ptr::null_mut());
+        debug_assert!(!rv[0].is_null());
 
         rv
     }
 }
 
-/// Releases the memory allocated by `shell_build_argv`.
-pub unsafe fn shell_free_argv(argv: *mut *mut c_char) {
-    if argv.is_null() {
-        return;
-    }
-    unsafe {
-        let mut p = argv;
-        while !(*p).is_null() {
-            xfree((*p).cast());
-            p = p.add(1);
-        }
-        xfree(argv.cast());
-    }
-}
-
 /// Joins shell arguments from `argv` into a new string.
-pub unsafe fn shell_argv_to_str(argv: *mut *mut c_char) -> *mut c_char {
+pub unsafe fn shell_argv_to_str(argv: &[*mut c_char]) -> *mut c_char {
     unsafe {
         let mut n: usize = 0;
-        let mut p = argv;
         let maxsize: usize = 256;
         let rv: *mut c_char = xmalloc(maxsize).cast();
         *rv = NUL;
-        if (*p).is_null() {
+        if argv.is_empty() || argv[0].is_null() {
             return rv;
         }
-        while !(*p).is_null() {
+        for &arg in argv {
+            if arg.is_null() {
+                break;
+            }
             xstrlcat(rv, c"'".as_ptr(), maxsize);
-            xstrlcat(rv, *p, maxsize);
+            xstrlcat(rv, arg, maxsize);
             n = xstrlcat(rv, c"' ".as_ptr(), maxsize);
             if n >= maxsize {
                 break;
             }
-            p = p.add(1);
         }
         if n < maxsize {
             *rv.add(n - 1) = NUL;
@@ -822,7 +799,7 @@ pub unsafe fn get_cmd_output(
 
 /// os_system - synchronously execute a command in the shell
 pub unsafe fn os_system(
-    argv: *mut *mut c_char,
+    argv: Vec<*mut c_char>,
     input: *const c_char,
     len: usize,
     output: *mut *mut c_char,
@@ -832,7 +809,7 @@ pub unsafe fn os_system(
 }
 
 unsafe fn do_os_system(
-    argv: *mut *mut c_char,
+    argv: Vec<*mut c_char>,
     input: *const c_char,
     len: usize,
     output: *mut *mut c_char,
@@ -875,7 +852,7 @@ unsafe fn do_os_system(
         }
 
         let mut prog = [0 as c_char; MAXPATHL];
-        xstrlcpy(prog.as_mut_ptr(), *argv, MAXPATHL);
+        xstrlcpy(prog.as_mut_ptr(), argv[0], MAXPATHL);
 
         let mloop = main_loop_ptr();
         let mut uvproc = LibuvProc::new();
@@ -1162,23 +1139,15 @@ unsafe fn out_data_cb(
     }
 }
 
-unsafe fn tokenize(str_in: *const c_char, argv: *mut *mut c_char) -> usize {
+unsafe fn tokenize(str_in: *const c_char, argv: &mut Vec<*mut c_char>) {
     unsafe {
-        let mut argc: usize = 0;
         let mut p = str_in;
 
         while *p != NUL {
             let len = word_length(p);
-
-            if !argv.is_null() {
-                *argv.add(argc) = vim_strnsave_unquoted(p, len);
-            }
-
-            argc += 1;
+            argv.push(vim_strnsave_unquoted(p, len));
             p = skipwhite(p.add(len));
         }
-
-        argc
     }
 }
 
@@ -1343,16 +1312,16 @@ mod tests {
             p_sxe = c"".as_ptr().cast_mut();
 
             let collect_argv = |cmd: *const c_char, extra: *const c_char| -> Vec<String> {
-                let res = shell_build_argv(cmd, extra);
+                let mut res = shell_build_argv(cmd, extra);
                 let mut out = Vec::new();
-                let mut i = 0usize;
-                while !(*res.add(i)).is_null() {
-                    let s = CStr::from_ptr(*res.add(i)).to_str().unwrap().to_string();
+                for &arg in &res {
+                    if arg.is_null() {
+                        break;
+                    }
+                    let s = CStr::from_ptr(arg).to_str().unwrap().to_string();
                     out.push(s);
-                    xfree((*res.add(i)).cast());
-                    i += 1;
                 }
-                xfree(res.cast());
+                crate::path::clear_cstrings(&mut res);
                 out
             };
 
@@ -1408,13 +1377,13 @@ mod tests {
                 vec!["/bin/sh", "-c", "\"echo -n some text\""]
             );
 
-            let mut argv_arr: [*mut c_char; 4] = [
+            let argv_arr: [*mut c_char; 4] = [
                 c"foo".as_ptr().cast_mut(),
                 c"".as_ptr().cast_mut(),
                 c"bar".as_ptr().cast_mut(),
                 ptr::null_mut(),
             ];
-            let s = shell_argv_to_str(argv_arr.as_mut_ptr());
+            let s = shell_argv_to_str(&argv_arr);
             assert_eq!(CStr::from_ptr(s).to_str().unwrap(), "'foo' '' 'bar'");
             xfree(s.cast());
 

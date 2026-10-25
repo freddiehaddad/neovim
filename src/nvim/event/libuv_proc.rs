@@ -112,7 +112,7 @@ pub unsafe fn proc_get_exepath(proc_: *mut Proc) -> *const c_char {
         if !(*proc_).exepath.is_null() {
             (*proc_).exepath
         } else {
-            *(*proc_).argv
+            (*proc_).argv.as_slice()[0]
         }
     }
 }
@@ -193,14 +193,14 @@ pub unsafe fn libuv_proc_spawn(uvproc: *mut LibuvProc) -> c_int {
         let uv: *mut uv_handle_t = (&raw mut (*uvproc).uv).cast();
 
         (*uvproc).uvopts.file = proc_get_exepath(proc_);
-        (*uvproc).uvopts.args = (*proc_).argv;
+        (*uvproc).uvopts.args = (*proc_).argv.as_mut_ptr();
         (*uvproc).uvopts.flags = UV_PROCESS_WINDOWS_HIDE;
 
         #[cfg(windows)]
         {
-            if os_shell_is_cmdexe(*(*proc_).argv) {
+            if os_shell_is_cmdexe((*proc_).argv.as_slice()[0]) {
                 (*uvproc).uvopts.flags |= UV_PROCESS_WINDOWS_VERBATIM_ARGUMENTS;
-                path_to_backslash(*(*proc_).argv);
+                path_to_backslash((*proc_).argv.as_slice()[0]);
             }
             if (*proc_).detach {
                 (*uvproc).uvopts.flags |= UV_PROCESS_DETACHED;

@@ -52,7 +52,6 @@ use crate::os::pty_conpty_win::os_has_conpty_working;
 use crate::os::pty_proc::{
     pty_proc_close_master, pty_proc_resize, pty_proc_resume, pty_proc_tty_name,
 };
-use crate::os::shell::shell_free_argv;
 use crate::state::save_v_event_T;
 use crate::strings::gettext;
 use crate::terminal::{
@@ -464,7 +463,7 @@ unsafe fn close_cb(_stream: *mut Stream, data: StreamInternalData) {
 
 /// Starts a job and returns the associated channel.
 pub unsafe fn channel_job_start(
-    argv: *mut *mut c_char,
+    mut argv: Vec<*mut c_char>,
     exepath: *const c_char,
     on_stdout: CallbackReader,
     on_stderr: CallbackReader,
@@ -500,7 +499,7 @@ pub unsafe fn channel_job_start(
                         tv_dict_free(env);
                     }
                 }
-                shell_free_argv(argv);
+                crate::path::clear_cstrings(&mut argv);
                 channel_destroy_early(chan);
                 *status_out = 0;
                 return ptr::null_mut();
@@ -549,7 +548,7 @@ pub unsafe fn channel_job_start(
         let exe_str = if !(*ph).exepath.is_null() {
             (*ph).exepath
         } else {
-            *(*ph).argv
+            (*ph).argv.as_slice()[0]
         };
         let cmd = xstrdup(exe_str);
 
@@ -1302,27 +1301,22 @@ pub unsafe fn channel_info(id: u64, arena: *mut Arena) -> Dict {
                     );
                 }
 
-                let args = (*ph).argv;
+                let args = (*ph).argv.as_slice();
                 let mut argv = Array {
                     items: ptr::null_mut(),
                     size: 0,
                     capacity: 0,
                 };
-                if !args.is_null() {
-                    let mut n: usize = 0;
-                    while !(*args.add(n)).is_null() {
-                        n += 1;
-                    }
-                    {
-                        argv = arena_array(arena, n);
-                    }
-                    for i in 0..n {
+                if !args.is_empty() {
+                    let n = args.iter().take_while(|&&p| !p.is_null()).count();
+                    argv = arena_array(arena, n);
+                    for &arg in &args[..n] {
                         add_c(
                             &mut argv,
                             Object {
                                 obj_type: ObjectType::kObjectTypeString,
                                 data: ObjectData {
-                                    string: cstr_as_string(*args.add(i)),
+                                    string: cstr_as_string(arg),
                                 },
                             },
                         );

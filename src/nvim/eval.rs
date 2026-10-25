@@ -5062,7 +5062,7 @@ pub unsafe fn tv_to_argv(
     cmd_tv: *mut typval_T,
     cmd: *mut *const c_char,
     executable: *mut bool,
-) -> *mut *mut c_char {
+) -> Vec<*mut c_char> {
     unsafe {
         if (*cmd_tv).v_type == VarType::VAR_STRING {
             let cmd_str = tv_get_string(cmd_tv);
@@ -5077,14 +5077,14 @@ pub unsafe fn tv_to_argv(
                 gettext((&raw const e_invarg2).cast()),
                 c"expected String or List".as_ptr(),
             );
-            return ptr::null_mut();
+            return Vec::new();
         }
 
         let argl = (*cmd_tv).vval.v_list;
         let argc = tv_list_len(argl);
         if argc == 0 {
             emsg(gettext((&raw const e_invarg).cast()));
-            return ptr::null_mut();
+            return Vec::new();
         }
 
         let arg0 = tv_get_string_chk(tv_list_item_tv(tv_list_first(argl)));
@@ -5105,7 +5105,7 @@ pub unsafe fn tv_to_argv(
                 );
                 *executable = false;
             }
-            return ptr::null_mut();
+            return Vec::new();
         }
 
         if !cmd.is_null() {
@@ -5122,11 +5122,9 @@ pub unsafe fn tv_to_argv(
         while !arg.is_null() {
             let a = tv_get_string_chk(tv_list_item_tv(arg));
             if a.is_null() {
-                for p in argv {
-                    xfree(p.cast());
-                }
+                crate::path::clear_cstrings(&mut argv);
                 xfree(exe_resolved.cast());
-                return ptr::null_mut();
+                return Vec::new();
             }
             argv[i] = xstrdup(a);
             i += 1;
@@ -5135,7 +5133,7 @@ pub unsafe fn tv_to_argv(
         xfree(argv[0].cast());
         argv[0] = exe_resolved;
 
-        crate::path::slice_to_xmalloc(&argv)
+        argv
     }
 }
 
@@ -5171,7 +5169,7 @@ unsafe fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: *mut typval_
 
         let mut executable = true;
         let argv = tv_to_argv(argvars, ptr::null_mut(), &raw mut executable);
-        if argv.is_null() {
+        if argv.is_empty() {
             if !executable {
                 set_vim_var_nr(VV_SHELL_ERROR, -1);
             }
@@ -5180,7 +5178,7 @@ unsafe fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: *mut typval_
         }
 
         if p_verbose > 3 {
-            let cmdstr = shell_argv_to_str(argv);
+            let cmdstr = shell_argv_to_str(&argv);
             verbose_enter_scroll();
             smsg!(0, gettext(c"Executing command: \"%s\"".as_ptr()), cmdstr);
             msg_puts(c"\n\n".as_ptr());

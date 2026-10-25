@@ -274,10 +274,11 @@ mod win_impl {
                     }
                 }
 
-                let is_cmdexe = os_shell_is_cmdexe(*(*hdr).argv);
+                let arg0 = (*hdr).argv.as_slice()[0];
+                let is_cmdexe = os_shell_is_cmdexe(arg0);
                 if is_cmdexe {
                     let mut path: *mut c_char = ptr::null_mut();
-                    if !os_can_exe(*(*hdr).argv, &raw mut path, true) {
+                    if !os_can_exe(arg0, &raw mut path, true) {
                         status = UV_ENOENT;
                         emsg = c"executable not found".as_ptr();
                         break 'cleanup;
@@ -289,7 +290,7 @@ mod win_impl {
                     }
                     xfree(path.cast());
                 }
-                status = build_cmd_line((*hdr).argv, &raw mut cmd_line, is_cmdexe);
+                status = build_cmd_line((*hdr).argv.as_mut_ptr(), &raw mut cmd_line, is_cmdexe);
                 if status != 0 {
                     emsg = c"build_cmd_line failed".as_ptr();
                     break 'cleanup;
@@ -353,7 +354,7 @@ mod win_impl {
                     line!() as c_int,
                     true,
                     c"pty_proc_spawn(%s): %s: error code: %d".as_ptr(),
-                    *(*hdr).argv,
+                    (*hdr).argv.as_slice()[0],
                     emsg,
                     status,
                 );
