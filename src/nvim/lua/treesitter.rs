@@ -2495,8 +2495,6 @@ unsafe extern "C-unwind" fn tslua_get_minimum_language_version(L: *mut lua_State
     }
 }
 
-pub unsafe fn nlua_treesitter_free() {}
-
 pub unsafe extern "C-unwind" fn nlua_treesitter_init(lstate: *mut lua_State) {
     unsafe {
         tslua_init(lstate);

@@ -4,9 +4,7 @@ use crate::charset::{skiptowhite, skipwhite};
 use crate::debugger::ex_breakadd;
 use crate::errors::e_notopen;
 use crate::eval::typval::{dict_T, dictitem_T, list_T, listitem_T, typval_T};
-use crate::eval::userfunc::{
-    defer_T, func_tbl_get, funcline, get_current_funccal, ufunc_T,
-};
+use crate::eval::userfunc::{defer_T, func_tbl_get, get_current_funccal, ufunc_T};
 use crate::eval::vars::{VV_PROFILING, set_vim_var_nr};
 use crate::event::r#loop::uv_err_name;
 use crate::ex_docmd::exarg_T;
@@ -322,7 +320,7 @@ pub unsafe fn profile_reset() {
         }
 
         let functbl = func_tbl_get();
-        for &fp in (*functbl).values() {
+        for &fp in functbl.values() {
             let uf = &mut *fp;
             if uf.uf_prof_initialized != 0 {
                 uf.uf_profiling = 0;
@@ -587,7 +585,7 @@ pub unsafe fn func_line_start(fcp: *mut funccall_T) {
 
         if fp.uf_profiling != 0 && slnum >= 1 && slnum <= fp.uf_lines.len() as c_int {
             fp.uf_tml_idx = slnum - 1;
-            while fp.uf_tml_idx > 0 && funcline(fp, fp.uf_tml_idx).is_null() {
+            while fp.uf_tml_idx > 0 && fp.uf_lines[fp.uf_tml_idx as usize].is_null() {
                 fp.uf_tml_idx -= 1;
             }
             fp.uf_tml_execed = 0;
@@ -629,14 +627,14 @@ pub unsafe fn func_line_end(fcp: *mut funccall_T) {
 unsafe fn func_dump_profile(fd: *mut FILE) {
     unsafe {
         let functbl = func_tbl_get();
-        let todo = (*functbl).len();
+        let todo = functbl.len();
         if todo == 0 {
             return;
         }
 
         let mut sorttab: Vec<*mut ufunc_T> = Vec::with_capacity(todo);
 
-        for &fp in (*functbl).values() {
+        for &fp in functbl.values() {
             if (*fp).uf_prof_initialized != 0 {
                 sorttab.push(fp);
 
@@ -678,7 +676,7 @@ unsafe fn func_dump_profile(fd: *mut FILE) {
                     fprintf!(fd, c"count  total (s)   self (s)\n".as_ptr());
 
                     for i in 0..(*fp).uf_lines.len() as c_int {
-                        let line = funcline(fp, i);
+                        let line = (&(*fp).uf_lines)[i as usize];
                         if line.is_null() {
                             continue;
                         }

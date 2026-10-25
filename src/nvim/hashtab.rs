@@ -203,9 +203,6 @@ pub unsafe fn hash_lookup(
     }
 }
 
-/// Print hashtable efficiency statistics when `HT_DEBUG` is enabled (`hash_debug_results`).
-pub fn hash_debug_results() {}
-
 /// Add dictionary item `di` to hashtable `ht` (`hash_add`).
 ///
 /// # Safety

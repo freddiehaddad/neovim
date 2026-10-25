@@ -382,7 +382,7 @@ pub unsafe fn ctx_save(ctx: *mut Context, flags: CtxStateFlags) {
             };
 
             let ht = func_tbl_get();
-            for name_bytes in (*ht).keys() {
+            for name_bytes in ht.keys() {
                 let islambda = name_bytes.starts_with(b"<lambda>");
                 let isscript = !name_bytes.is_empty() && name_bytes[0] == K_SPECIAL;
 

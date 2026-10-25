@@ -604,8 +604,6 @@ pub unsafe fn f_getstacktrace(_argvars: *mut typval_T, rettv: *mut typval_T, _fp
     }
 }
 
-pub unsafe fn runtime_init() {}
-
 unsafe fn get_runtime_cmd_flags(argp: *mut *mut c_char, where_len: usize) -> c_int {
     unsafe {
         let arg = *argp;
@@ -3258,9 +3256,9 @@ pub unsafe fn get_sourced_lnum(fgetline: LineGetter) -> linenr_T {
 unsafe fn get_script_local_funcs(sid: scid_T) -> *mut list_T {
     unsafe {
         let functbl = func_tbl_get();
-        let l = tv_list_alloc((*functbl).len() as isize);
+        let l = tv_list_alloc(functbl.len() as isize);
 
-        for &fp in (*functbl).values() {
+        for &fp in functbl.values() {
             if (*fp).uf_script_ctx.sc_sid == sid {
                 let name = if !(*fp).uf_name_exp.is_null() {
                     (*fp).uf_name_exp

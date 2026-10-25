@@ -3176,8 +3176,8 @@ unsafe fn spell_read_dic(
                     dw,
                     afflist,
                     affile,
-                    &raw mut (*affile).af_suff,
-                    &raw mut (*affile).af_pref,
+                    &(*affile).af_suff,
+                    Some(&(*affile).af_pref),
                     CONDIT_SUF,
                     flags,
                     store_afflist.as_mut_ptr(),
@@ -3192,8 +3192,8 @@ unsafe fn spell_read_dic(
                     dw,
                     afflist,
                     affile,
-                    &raw mut (*affile).af_pref,
-                    ptr::null_mut(),
+                    &(*affile).af_pref,
+                    None,
                     CONDIT_SUF,
                     flags,
                     store_afflist.as_mut_ptr(),
@@ -3339,8 +3339,8 @@ unsafe fn store_aff_word(
     word: *mut c_char,
     afflist: *mut c_char,
     affile: *mut afffile_T,
-    ht: *const std::collections::BTreeMap<Vec<u8>, affheader_T>,
-    xht: *const std::collections::BTreeMap<Vec<u8>, affheader_T>,
+    ht: &std::collections::BTreeMap<Vec<u8>, affheader_T>,
+    xht: Option<&std::collections::BTreeMap<Vec<u8>, affheader_T>>,
     condit: c_int,
     flags: c_int,
     pfxlist: *mut c_char,
@@ -3353,18 +3353,17 @@ unsafe fn store_aff_word(
         let mut pfx_pfxlist = [0 as c_char; MAXWLEN];
         let wordlen = strlen(word);
 
-        for ah_ref in (*ht).values() {
+        for ah in ht.values() {
             if retval != OK {
                 break;
             }
-            let ah: *const affheader_T = &raw const *ah_ref;
             {
-                if ((condit & CONDIT_COMB) == 0 || (*ah).ah_combine != 0)
-                    && flag_in_afflist((*affile).af_flagtype, afflist, (*ah).ah_flag)
+                if ((condit & CONDIT_COMB) == 0 || ah.ah_combine != 0)
+                    && flag_in_afflist((*affile).af_flagtype, afflist, ah.ah_flag)
                 {
-                    for ae_ref in &(*ah).ah_entries {
+                    for ae_ref in &ah.ah_entries {
                         let ae: *mut affentry_T = (&raw const *ae_ref).cast_mut();
-                        if (!xht.is_null()
+                        if (xht.is_some()
                             || (*affile).af_pfxpostpone == 0
                             || !(*ae).ae_chop.is_null()
                             || !(*ae).ae_flags.is_null())
@@ -3380,7 +3379,7 @@ unsafe fn store_aff_word(
                                         (*affile).af_circumfix,
                                     )))
                         {
-                            if xht.is_null() {
+                            if xht.is_none() {
                                 if (*ae).ae_add.is_null() {
                                     newword[0] = NUL;
                                 } else {
@@ -3549,13 +3548,13 @@ unsafe fn store_aff_word(
                                 && !(*(*spin).si_prefroot).wn_sibling.is_null()
                             {
                                 use_flags |= WF_HAS_AFF;
-                                if (*ah).ah_combine == 0 && !use_pfxlist.is_null() {
+                                if ah.ah_combine == 0 && !use_pfxlist.is_null() {
                                     use_pfxlist = use_pfxlist.offset(use_pfxlen as isize);
                                 }
                             }
 
                             if !(*spin).si_compflags.is_null() && (*ae).ae_comppermit == 0 {
-                                if !xht.is_null() {
+                                if xht.is_some() {
                                     use_flags |= WF_NOCOMPAFT;
                                 } else {
                                     use_flags |= WF_NOCOMPBEF;
@@ -3576,13 +3575,13 @@ unsafe fn store_aff_word(
 
                             if (condit & CONDIT_SUF) != 0 && !(*ae).ae_flags.is_null() {
                                 let next_condit =
-                                    use_condit & if xht.is_null() { !0 } else { !CONDIT_SUF };
+                                    use_condit & if xht.is_none() { !0 } else { !CONDIT_SUF };
                                 if store_aff_word(
                                     spin,
                                     newword.as_mut_ptr(),
                                     (*ae).ae_flags,
                                     affile,
-                                    &raw mut (*affile).af_suff,
+                                    &(*affile).af_suff,
                                     xht,
                                     next_condit,
                                     use_flags,
@@ -3594,15 +3593,15 @@ unsafe fn store_aff_word(
                                 }
                             }
 
-                            if !xht.is_null()
-                                && (*ah).ah_combine != 0
+                            if let Some(xht_ref) = xht
+                                && ah.ah_combine != 0
                                 && (store_aff_word(
                                     spin,
                                     newword.as_mut_ptr(),
                                     afflist,
                                     affile,
-                                    xht,
-                                    ptr::null_mut(),
+                                    xht_ref,
+                                    None,
                                     use_condit,
                                     use_flags,
                                     use_pfxlist,
@@ -3614,8 +3613,8 @@ unsafe fn store_aff_word(
                                             newword.as_mut_ptr(),
                                             (*ae).ae_flags,
                                             affile,
-                                            xht,
-                                            ptr::null_mut(),
+                                            xht_ref,
+                                            None,
                                             use_condit,
                                             use_flags,
                                             use_pfxlist,

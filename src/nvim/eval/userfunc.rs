@@ -301,16 +301,12 @@ unsafe fn funcarg(fp: *const ufunc_T, j: c_int) -> *mut c_char {
     unsafe { (&(*fp).uf_args)[j as usize] }
 }
 
-#[inline]
-pub unsafe fn funcline(fp: *const ufunc_T, j: c_int) -> *mut c_char {
-    unsafe { (&(*fp).uf_lines)[j as usize] }
-}
-
-pub unsafe fn func_init() {}
-
 /// Return the function hash table.
-pub unsafe fn func_tbl_get() -> *mut std::collections::BTreeMap<Vec<u8>, *mut ufunc_T> {
-    &raw mut func_hashtab
+pub unsafe fn func_tbl_get() -> &'static mut std::collections::BTreeMap<Vec<u8>, *mut ufunc_T> {
+    unsafe {
+        let tbl = &raw mut func_hashtab;
+        &mut *tbl
+    }
 }
 
 /// Get one function argument.
@@ -2588,7 +2584,7 @@ unsafe fn list_one_function(eap: *mut exarg_T, name: *mut c_char, p: *mut c_char
 
         let mut j = 0;
         while j < (*fp).uf_lines.len() as c_int && !got_int {
-            let line = funcline(fp, j);
+            let line = (&(*fp).uf_lines)[j as usize];
             if line.is_null() {
                 j += 1;
                 continue;

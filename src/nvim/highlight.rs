@@ -276,52 +276,6 @@ const fn hl_attr_key(a: c_int, b: c_int) -> u64 {
     ((a as u32 as u64) << 32) | (b as u32 as u64)
 }
 
-#[inline]
-unsafe fn map_get_u64_int(
-    map: *const std::collections::BTreeMap<u64, c_int>,
-    key: u64,
-) -> c_int {
-    unsafe { (*map).get(&key).copied().unwrap_or(0) }
-}
-
-#[inline]
-unsafe fn map_put_u64_int(
-    map: *mut std::collections::BTreeMap<u64, c_int>,
-    key: u64,
-    val: c_int,
-) {
-    unsafe {
-        (*map).insert(key, val);
-    }
-}
-
-#[inline]
-unsafe fn map_get_color(
-    map: *const std::collections::BTreeMap<ColorKey, ColorItem>,
-    key: ColorKey,
-) -> ColorItem {
-    unsafe {
-        (*map).get(&key).copied().unwrap_or(ColorItem {
-            attr_id: -1,
-            link_id: -1,
-            version: -1,
-            is_default: false,
-            link_global: false,
-        })
-    }
-}
-
-#[inline]
-unsafe fn map_put_color(
-    map: *mut std::collections::BTreeMap<ColorKey, ColorItem>,
-    key: ColorKey,
-    val: ColorItem,
-) {
-    unsafe {
-        (*map).insert(key, val);
-    }
-}
-
 pub unsafe fn highlight_init() {
     unsafe {
         let entries_ptr = &raw mut attr_entries;
@@ -486,7 +440,8 @@ pub unsafe fn ns_hl_def(
             is_default: (attrs.rgb_ae_attr & HL_DEFAULT) != 0,
             link_global: (attrs.rgb_ae_attr & HL_GLOBAL) != 0,
         };
-        map_put_color(&raw mut ns_hls, key, it);
+        let ns_hls_ptr = &raw mut ns_hls;
+        (*ns_hls_ptr).insert(key, it);
         (*p).hl_cached = false;
     }
 }
@@ -510,7 +465,14 @@ pub unsafe fn ns_get_hl(ns_hl: *mut NS, hl_id: c_int, link: bool, nodefault: boo
             ns_id,
             syn_id: hl_id,
         };
-        let mut it = map_get_color(&raw mut ns_hls, key);
+        let ns_hls_ptr = &raw mut ns_hls;
+        let mut it = (*ns_hls_ptr).get(&key).copied().unwrap_or(ColorItem {
+            attr_id: -1,
+            link_id: -1,
+            version: -1,
+            is_default: false,
+            link_global: false,
+        });
         let mut valid_item = it.version >= (*p).hl_valid;
 
         if !valid_item && (*p).hl_def != LUA_NOREF && ns_get_hl_recursive == 0 {
@@ -582,7 +544,7 @@ pub unsafe fn ns_get_hl(ns_hl: *mut NS, hl_id: c_int, link: bool, nodefault: boo
             it.version = (*p).hl_valid - c_int::from(tmp);
             it.is_default = (attrs.rgb_ae_attr & HL_DEFAULT) != 0;
             it.link_global = (attrs.rgb_ae_attr & HL_GLOBAL) != 0;
-            map_put_color(&raw mut ns_hls, key, it);
+            (*ns_hls_ptr).insert(key, it);
             valid_item = true;
         }
 
@@ -992,7 +954,8 @@ pub unsafe fn hl_combine_attr(char_attr: c_int, prim_attr: c_int) -> c_int {
         }
 
         let combine_tag = hl_attr_key(char_attr, prim_attr);
-        let mut id = map_get_u64_int(&raw mut combine_attr_entries, combine_tag);
+        let combine_ptr = &raw mut combine_attr_entries;
+        let mut id = (*combine_ptr).get(&combine_tag).copied().unwrap_or(0);
         if id > 0 {
             return id;
         }
@@ -1057,7 +1020,7 @@ pub unsafe fn hl_combine_attr(char_attr: c_int, prim_attr: c_int) -> c_int {
             winid: 0,
         });
         if id > 0 {
-            map_put_u64_int(&raw mut combine_attr_entries, combine_tag, id);
+            (*combine_ptr).insert(combine_tag, id);
         }
 
         id
@@ -1110,12 +1073,13 @@ pub unsafe fn hl_blend_attrs(back_attr: c_int, front_attr: c_int, through: *mut 
         }
 
         let combine_tag = hl_attr_key(back_attr, front_attr);
-        let map = if *through {
+        let map_ptr = if *through {
             &raw mut blendthrough_attr_entries
         } else {
             &raw mut blend_attr_entries
         };
-        let mut id = map_get_u64_int(map, combine_tag);
+        let map = &mut *map_ptr;
+        let mut id = map.get(&combine_tag).copied().unwrap_or(0);
         if id > 0 {
             return id;
         }
@@ -1170,7 +1134,7 @@ pub unsafe fn hl_blend_attrs(back_attr: c_int, front_attr: c_int, through: *mut 
             winid: 0,
         });
         if id > 0 {
-            map_put_u64_int(map, combine_tag, id);
+            map.insert(combine_tag, id);
         }
         id
     }

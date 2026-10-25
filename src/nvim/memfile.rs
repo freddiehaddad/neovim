@@ -90,26 +90,16 @@ unsafe fn perror_msg(msg: *const c_char) {
     }
 }
 
-#[inline]
-pub unsafe fn pmap_get_bhdr(
-      map: *const std::collections::HashMap<i64, Box<bhdr_T>>,
-    key: i64,
+  #[inline]
+  pub fn pmap_get_bhdr(
+      map: &std::collections::HashMap<i64, Box<bhdr_T>>,
+      key: i64,
   ) -> *mut bhdr_T {
-    unsafe {
-        (*map)
-            .get(&key)
-            .map_or(ptr::null_mut(), |b| (&raw const **b).cast_mut())
-    }
-}
+      map.get(&key)
+          .map_or(ptr::null_mut(), |b| (&raw const **b).cast_mut())
+  }
 
-#[inline]
-unsafe fn map_put_i64(map: *mut std::collections::HashMap<i64, i64>, key: i64, val: i64) {
-    unsafe {
-        (*map).insert(key, val);
-    }
-}
-
-/// Open a new or existing memory block file.
+  /// Open a new or existing memory block file.
 pub unsafe fn mf_open(fname: *mut c_char, flags: c_int) -> *mut memfile_T {
     unsafe {
         let mfp = Box::into_raw(Box::new(memfile_T {
@@ -269,7 +259,7 @@ pub unsafe fn mf_get(mfp: *mut memfile_T, nr: blocknr_T, page_count: c_uint) -> 
             return ptr::null_mut();
         }
 
-        let mut hp = pmap_get_bhdr(&raw const (*mfp).mf_hash, nr);
+        let mut hp = pmap_get_bhdr(&(*mfp).mf_hash, nr);
         if hp.is_null() {
             if nr < 0 || nr >= (*mfp).mf_infile_count || page_count == 0 {
                 return ptr::null_mut();
@@ -505,7 +495,7 @@ unsafe fn mf_write(mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
             let mut nr = (*hp).bh_bnum;
             let hp2: *mut bhdr_T = if nr > (*mfp).mf_infile_count {
                 nr = (*mfp).mf_infile_count;
-                pmap_get_bhdr(&raw const (*mfp).mf_hash, nr)
+                pmap_get_bhdr(&(*mfp).mf_hash, nr)
             } else {
                 hp
             };
@@ -603,7 +593,7 @@ unsafe fn mf_trans_add(mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
             (*mfp).mf_hash.insert(new_bnum, boxed);
         }
 
-        map_put_i64(&raw mut (*mfp).mf_trans, old_bnum, new_bnum);
+        (*mfp).mf_trans.insert(old_bnum, new_bnum);
 
         OK
     }
@@ -734,7 +724,7 @@ mod tests {
             for i in 0..TEST_COUNT {
                 assert_eq!(ht.len(), i);
                 let key = index_to_key(i);
-                assert!(pmap_get_bhdr(&raw const ht, key).is_null());
+                assert!(pmap_get_bhdr(&ht, key).is_null());
 
                 let mut boxed = Box::new(bhdr_T {
                     bh_bnum: key,
@@ -745,13 +735,13 @@ mod tests {
                 });
                 let item: *mut bhdr_T = &raw mut *boxed;
                 ht.insert(key, boxed);
-                assert_eq!(pmap_get_bhdr(&raw const ht, key), item);
+                assert_eq!(pmap_get_bhdr(&ht, key), item);
                 items.push(item);
             }
 
             for i in 0..TEST_COUNT {
                 let key = index_to_key(i);
-                let item = pmap_get_bhdr(&raw const ht, key);
+                let item = pmap_get_bhdr(&ht, key);
                 assert!(!item.is_null());
                 assert_eq!((*item).bh_bnum, key);
             }
@@ -759,24 +749,24 @@ mod tests {
             for i in 0..TEST_COUNT {
                 if i % 100 < 70 {
                     let key = index_to_key(i);
-                    let item = pmap_get_bhdr(&raw const ht, key);
+                    let item = pmap_get_bhdr(&ht, key);
                     assert!(!item.is_null());
                     assert_eq!((*item).bh_bnum, key);
 
                     let removed = ht.remove(&key).unwrap();
-                    assert!(pmap_get_bhdr(&raw const ht, key).is_null());
+                    assert!(pmap_get_bhdr(&ht, key).is_null());
 
                     ht.insert(key, removed);
-                    assert_eq!(pmap_get_bhdr(&raw const ht, key), item);
+                    assert_eq!(pmap_get_bhdr(&ht, key), item);
 
                     ht.remove(&key);
-                    assert!(pmap_get_bhdr(&raw const ht, key).is_null());
+                    assert!(pmap_get_bhdr(&ht, key).is_null());
                 }
             }
 
             for i in 0..TEST_COUNT {
                 let key = index_to_key(i);
-                let item = pmap_get_bhdr(&raw const ht, key);
+                let item = pmap_get_bhdr(&ht, key);
                 if i % 100 < 70 {
                     assert!(item.is_null());
                 } else {

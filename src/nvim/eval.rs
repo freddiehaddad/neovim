@@ -64,11 +64,10 @@ use crate::errors::*;
 use crate::eval::funcs::{E_STRING_LIST_OR_BLOB_REQUIRED, kOptCpoptions};
 use crate::eval::userfunc::{
     call_func, call_simple_func, call_simple_luafunc, deref_func_name, eval_fname_script,
-    find_func, free_all_functions, free_unref_funccal, func_init, func_ref, funcexe_T,
-    get_current_funccal, get_func_tv, get_funccal_args_ht, get_lambda_tv,
-    get_scriptlocal_funcname, make_partial, restore_funccal, save_funccal, set_ref_in_call_stack,
-    set_ref_in_func, set_ref_in_func_args, set_ref_in_functions, set_ref_in_previous_funccal,
-    ufunc_T,
+    find_func, free_all_functions, free_unref_funccal, func_ref, funcexe_T, get_current_funccal,
+    get_func_tv, get_funccal_args_ht, get_lambda_tv, get_scriptlocal_funcname, make_partial,
+    restore_funccal, save_funccal, set_ref_in_call_stack, set_ref_in_func, set_ref_in_func_args,
+    set_ref_in_functions, set_ref_in_previous_funccal, ufunc_T,
 };
 use crate::ex_cmds::check_secure;
 use crate::globals::*;
@@ -414,7 +413,6 @@ pub fn num_modulus(n1: varnumber_T, n2: varnumber_T) -> varnumber_T {
 pub unsafe fn eval_init() {
     unsafe {
         evalvars_init();
-        func_init();
     }
 }
 

@@ -52,7 +52,7 @@ use crate::lua::converter::{
     nlua_push_Array, nlua_push_Object, nlua_push_typval, nlua_ref_state_t,
 };
 use crate::lua::stdlib::nlua_state_add_stdlib;
-use crate::lua::treesitter::{nlua_treesitter_free, nlua_treesitter_init};
+use crate::lua::treesitter::nlua_treesitter_init;
 use crate::main_init::{getout, os_exit, preserve_exit};
 use crate::math::{FAIL, OK};
 use crate::memline::{ml_get_buf, ml_get_buf_len, ml_replace};
@@ -1383,7 +1383,6 @@ pub unsafe fn nlua_free_all_mem() {
         GLOBAL_LSTATE = ptr::null_mut();
         nlua_unref_global(lstate, REQUIRE_REF);
         nlua_common_free_all_mem(lstate);
-        nlua_treesitter_free();
     }
 }
 

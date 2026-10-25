@@ -56,7 +56,6 @@ use crate::ex_getln::cmdline_init;
 use crate::extmark::TriState;
 use crate::fileio::{READ_NEW, READ_STDIN, fprintf, printf, readfile, shorten_fnames};
 use crate::globals::*;
-use crate::hashtab::hash_debug_results;
 use crate::highlight::highlight_init;
 use crate::highlight_group::init_highlight;
 use crate::input::{open_scriptin, stuffcharReadbuff, vgetc};
@@ -120,7 +119,7 @@ use crate::quickfix::{kOptErrorfile, qf_init, qf_init_stack, qf_jump};
 use crate::register::get_default_register_name;
 use crate::runtime::{
     DOSO_NONE, DOSO_VIMRC, ETYPE_ARGS, ETYPE_ENV, SID_CARG, SID_CMDARG, SID_ENV, do_source,
-    estack_init, estack_pop, estack_push, load_plugins, runtime_init,
+    estack_init, estack_pop, estack_push, load_plugins,
 };
 use crate::shada::{shada_read_everything, shada_write_file};
 use crate::strings::{gettext, vim_snprintf};
@@ -349,7 +348,6 @@ unsafe fn early_init(paramp: *mut mparm_T) {
             c"nvim".as_ptr()
         });
         init_normal_cmds();
-        runtime_init();
         highlight_init();
         mc_init();
 
@@ -897,7 +895,6 @@ pub unsafe fn getout(mut exitval: c_int) -> ! {
         }
 
         invoke_all_defer();
-        hash_debug_results();
 
         if v_dying <= 1 {
             let mut next_tp: *const tabpage_T;
@@ -2656,7 +2653,6 @@ pub(crate) unsafe fn ensure_test_editor_init() {
         eval_init();
         init_path(c"nvim".as_ptr());
         init_normal_cmds();
-        runtime_init();
         highlight_init();
         mc_init();
         init_locale();

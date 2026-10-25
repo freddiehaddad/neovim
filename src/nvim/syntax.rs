@@ -4116,7 +4116,6 @@ unsafe fn syn_cmd_match(eap: *mut exarg_T, syncing: c_int) {
             (*eap).skip,
         );
 
-        init_syn_patterns();
         rest = get_syn_pattern(rest, &raw mut item);
         if vim_regcomp_had_eol() != 0 && (syn_opt_arg.flags & HL_EXCLUDENL) == 0 {
             syn_opt_arg.flags |= HL_HAS_EOL;
@@ -4191,8 +4190,6 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
         let mut conceal_char: c_int = NUL as c_int;
 
         let mut rest = get_group_name(arg, &raw mut group_name_end);
-
-        init_syn_patterns();
 
         let mut syn_opt_arg = syn_opt_arg_T {
             flags: 0,
@@ -4606,8 +4603,6 @@ unsafe fn syn_cmd_cluster(eap: *mut exarg_T, _syncing: c_int) {
         }
     }
 }
-
-unsafe fn init_syn_patterns() {}
 
 unsafe fn get_syn_pattern(arg: *mut c_char, ci: *mut synpat_T) -> *mut c_char {
     unsafe {

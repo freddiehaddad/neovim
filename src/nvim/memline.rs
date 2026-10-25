@@ -3865,7 +3865,7 @@ pub unsafe fn ml_setflags(buf: *mut buf_T) {
             return;
         }
         let mfp = (*buf).b_ml.ml_mfp.cast::<memfile_T>();
-        let hp = pmap_get_bhdr(&raw mut (*mfp).mf_hash, 0);
+        let hp = pmap_get_bhdr(&(*mfp).mf_hash, 0);
         if !hp.is_null() {
             let b0p = (*hp).bh_data.cast::<ZeroBlock>();
             (*b0p).set_dirty(if (*buf).b_changed != 0 { B0_DIRTY } else { 0 });
