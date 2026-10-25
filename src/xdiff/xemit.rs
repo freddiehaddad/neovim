@@ -12,9 +12,9 @@ use crate::strings::strlen;
 
 unsafe fn xdl_get_rec(xdf: *mut xdfile_t, ri: c_long, rec: *mut *const c_char) -> c_long {
     unsafe {
-        let r = *(*xdf).recs.offset(ri as isize);
-        *rec = (*r).ptr;
-        (*r).size
+        let r = &(&(*xdf).recs)[ri as usize];
+        *rec = r.ptr;
+        r.size
     }
 }
 

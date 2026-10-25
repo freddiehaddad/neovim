@@ -370,27 +370,27 @@ pub unsafe fn xdl_fall_back_diff(
 ) -> c_int {
     unsafe {
         let mut subfile1 = mmfile_t {
-            ptr: (**(*diff_env).xdf1.recs.offset((line1 - 1) as isize))
+            ptr: (&(*diff_env).xdf1.recs)[(line1 - 1) as usize]
                 .ptr
                 .cast_mut(),
             size: 0,
         };
-        let end_rec1 = *(*diff_env).xdf1.recs.offset((line1 + count1 - 2) as isize);
-        subfile1.size = (*end_rec1)
+        let end_rec1 = &(&(*diff_env).xdf1.recs)[(line1 + count1 - 2) as usize];
+        subfile1.size = end_rec1
             .ptr
-            .offset((*end_rec1).size as isize)
+            .offset(end_rec1.size as isize)
             .offset_from(subfile1.ptr) as c_int;
 
         let mut subfile2 = mmfile_t {
-            ptr: (**(*diff_env).xdf2.recs.offset((line2 - 1) as isize))
+            ptr: (&(*diff_env).xdf2.recs)[(line2 - 1) as usize]
                 .ptr
                 .cast_mut(),
             size: 0,
         };
-        let end_rec2 = *(*diff_env).xdf2.recs.offset((line2 + count2 - 2) as isize);
-        subfile2.size = (*end_rec2)
+        let end_rec2 = &(&(*diff_env).xdf2.recs)[(line2 + count2 - 2) as usize];
+        subfile2.size = end_rec2
             .ptr
-            .offset((*end_rec2).size as isize)
+            .offset(end_rec2.size as isize)
             .offset_from(subfile2.ptr) as c_int;
 
         let mut env = xdfenv_t::new();

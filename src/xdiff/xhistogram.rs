@@ -1,8 +1,6 @@
 //! Histogram diff algorithm (`src/xdiff/xhistogram.c`).
 
 use std::ffi::{c_int, c_long, c_uint};
-use std::pin::Pin;
-use std::ptr;
 
 use crate::xdiff::xprepare::xdl_prepare_env;
 use crate::xdiff::xutils::{xdl_fall_back_diff, xdl_hashbits, xdl_recmatch};
@@ -18,13 +16,13 @@ const MAX_CNT: c_uint = c_int::MAX as c_uint;
 struct Record {
     ptr: c_uint,
     cnt: c_uint,
-    next: *mut Record,
+    next: Option<usize>,
 }
 
 struct HistIndex {
-    records: Vec<*mut Record>,
-    line_map: Vec<*mut Record>,
-    rcha: Vec<Pin<Box<Record>>>,
+    records: Vec<Option<usize>>,
+    line_map: Vec<Option<usize>>,
+    rcha: Vec<Record>,
     next_ptrs: Vec<c_uint>,
     table_bits: c_uint,
     max_chain_length: c_uint,
@@ -45,25 +43,25 @@ struct Region {
 }
 
 #[inline]
-unsafe fn get_rec(env: *mut xdfenv_t, side: c_int, line: c_uint) -> *mut xrecord_t {
+unsafe fn get_rec(env: *const xdfenv_t, side: c_int, line: c_uint) -> xrecord_t {
     unsafe {
         if side == 1 {
-            *(*env).xdf1.recs.offset((line as isize) - 1)
+            (&(*env).xdf1.recs)[(line as usize) - 1]
         } else {
-            *(*env).xdf2.recs.offset((line as isize) - 1)
+            (&(*env).xdf2.recs)[(line as usize) - 1]
         }
     }
 }
 
 #[inline]
-unsafe fn cmp_recs(xpp: *const xpparam_t, r1: *mut xrecord_t, r2: *mut xrecord_t) -> bool {
+unsafe fn cmp_recs(xpp: *const xpparam_t, r1: &xrecord_t, r2: &xrecord_t) -> bool {
     unsafe {
-        (*r1).ha == (*r2).ha
+        r1.ha == r2.ha
             && xdl_recmatch(
-                (*r1).ptr,
-                (*r1).size,
-                (*r2).ptr,
-                (*r2).size,
+                r1.ptr,
+                r1.size,
+                r2.ptr,
+                r2.size,
                 (*xpp).flags as c_long,
             ) != 0
     }
@@ -72,11 +70,9 @@ unsafe fn cmp_recs(xpp: *const xpparam_t, r1: *mut xrecord_t, r2: *mut xrecord_t
 #[inline]
 unsafe fn cmp_index(index: &HistIndex, s1: c_int, l1: c_uint, s2: c_int, l2: c_uint) -> bool {
     unsafe {
-        cmp_recs(
-            index.xpp,
-            get_rec(index.env, s1, l1),
-            get_rec(index.env, s2, l2),
-        )
+        let r1 = get_rec(index.env, s1, l1);
+        let r2 = get_rec(index.env, s2, l2);
+        cmp_recs(index.xpp, &r1, &r2)
     }
 }
 
@@ -84,7 +80,7 @@ unsafe fn cmp_index(index: &HistIndex, s1: c_int, l1: c_uint, s2: c_int, l2: c_u
 unsafe fn table_hash(index: &HistIndex, side: c_int, line: c_uint) -> usize {
     unsafe {
         let rec = get_rec(index.env, side, line);
-        xdl_hashlong((*rec).ha, index.table_bits) as usize
+        xdl_hashlong(rec.ha, index.table_bits) as usize
     }
 }
 
@@ -99,21 +95,23 @@ unsafe fn scan_a(index: &mut HistIndex, line1: c_int, count1: c_int) -> c_int {
         while line1 <= ptr {
             let uptr = ptr as c_uint;
             let tbl_idx = table_hash(index, 1, uptr);
-            let mut rec = index.records[tbl_idx];
+            let mut rec_idx = index.records[tbl_idx];
 
             let mut chain_len: c_uint = 0;
             let mut matched = false;
-            while !rec.is_null() {
-                if cmp_index(index, 1, (*rec).ptr, 1, uptr) {
+            while let Some(ri) = rec_idx {
+                let r_ptr = index.rcha[ri].ptr;
+                if cmp_index(index, 1, r_ptr, 1, uptr) {
                     let lm_idx = line_map_idx(index, uptr);
-                    index.next_ptrs[lm_idx] = (*rec).ptr;
-                    (*rec).ptr = uptr;
-                    (*rec).cnt = MAX_CNT.min((*rec).cnt + 1);
-                    index.line_map[lm_idx] = rec;
+                    index.next_ptrs[lm_idx] = r_ptr;
+                    let rec = &mut index.rcha[ri];
+                    rec.ptr = uptr;
+                    rec.cnt = MAX_CNT.min(rec.cnt + 1);
+                    index.line_map[lm_idx] = Some(ri);
                     matched = true;
                     break;
                 }
-                rec = (*rec).next;
+                rec_idx = index.rcha[ri].next;
                 chain_len += 1;
             }
 
@@ -122,16 +120,15 @@ unsafe fn scan_a(index: &mut HistIndex, line1: c_int, count1: c_int) -> c_int {
                     return -1;
                 }
 
-                let mut boxed = Box::pin(Record {
+                let new_ri = index.rcha.len();
+                index.rcha.push(Record {
                     ptr: uptr,
                     cnt: 1,
                     next: index.records[tbl_idx],
                 });
-                rec = &raw mut *boxed;
-                index.rcha.push(boxed);
-                index.records[tbl_idx] = rec;
+                index.records[tbl_idx] = Some(new_ri);
                 let lm_idx = line_map_idx(index, uptr);
-                index.line_map[lm_idx] = rec;
+                index.line_map[lm_idx] = Some(new_ri);
             }
 
             ptr -= 1;
@@ -155,19 +152,20 @@ unsafe fn try_lcs(
     let line_end2 = line2 + count2 - 1;
 
     unsafe {
-        let mut rec = index.records[table_hash(index, 2, ub_ptr)];
-        while !rec.is_null() {
-            if (*rec).cnt > index.cnt {
+        let mut rec_idx = index.records[table_hash(index, 2, ub_ptr)];
+        while let Some(ri) = rec_idx {
+            let rec = index.rcha[ri];
+            if rec.cnt > index.cnt {
                 if index.has_common == 0 {
-                    index.has_common = c_uint::from(cmp_index(index, 1, (*rec).ptr, 2, ub_ptr));
+                    index.has_common = c_uint::from(cmp_index(index, 1, rec.ptr, 2, ub_ptr));
                 }
-                rec = (*rec).next;
+                rec_idx = rec.next;
                 continue;
             }
 
-            let mut as_ = (*rec).ptr;
+            let mut as_ = rec.ptr;
             if !cmp_index(index, 1, as_, 2, ub_ptr) {
-                rec = (*rec).next;
+                rec_idx = rec.next;
                 continue;
             }
 
@@ -178,7 +176,7 @@ unsafe fn try_lcs(
                 let mut bs = ub_ptr;
                 let mut ae = as_;
                 let mut be = bs;
-                let mut rc = (*rec).cnt;
+                let mut rc = rec.cnt;
 
                 while line1 < (as_ as c_int)
                     && line2 < (bs as c_int)
@@ -187,7 +185,8 @@ unsafe fn try_lcs(
                     as_ -= 1;
                     bs -= 1;
                     if 1 < rc {
-                        rc = rc.min((*index.line_map[line_map_idx(index, as_)]).cnt);
+                        let lmi = index.line_map[line_map_idx(index, as_)].unwrap();
+                        rc = rc.min(index.rcha[lmi].cnt);
                     }
                 }
                 while (ae as c_int) < line_end1
@@ -197,7 +196,8 @@ unsafe fn try_lcs(
                     ae += 1;
                     be += 1;
                     if 1 < rc {
-                        rc = rc.min((*index.line_map[line_map_idx(index, ae)]).cnt);
+                        let lmi = index.line_map[line_map_idx(index, ae)].unwrap();
+                        rc = rc.min(index.rcha[lmi].cnt);
                     }
                 }
 
@@ -231,7 +231,7 @@ unsafe fn try_lcs(
                 as_ = np;
             }
 
-            rec = (*rec).next;
+            rec_idx = rec.next;
         }
     }
 
@@ -267,8 +267,8 @@ unsafe fn find_lcs(
     let records_size = 1usize << table_bits;
     let line_map_size = count1 as usize;
     let mut index = HistIndex {
-        records: vec![ptr::null_mut(); records_size],
-        line_map: vec![ptr::null_mut(); line_map_size],
+        records: vec![None; records_size],
+        line_map: vec![None; line_map_size],
         rcha: Vec::with_capacity((count1 / 4 + 1).max(0) as usize),
         next_ptrs: vec![0; line_map_size],
         table_bits,

@@ -394,15 +394,15 @@ pub unsafe fn xdl_do_diff(
 
         let mut dd1 = diffdata_t {
             nrec: (*xe).xdf1.nreff,
-            ha: (*xe).xdf1.ha,
+            ha: (*xe).xdf1.ha.as_ptr(),
             rchg: (*xe).xdf1.rchg,
-            rindex: (*xe).xdf1.rindex,
+            rindex: (*xe).xdf1.rindex.as_mut_ptr(),
         };
         let mut dd2 = diffdata_t {
             nrec: (*xe).xdf2.nreff,
-            ha: (*xe).xdf2.ha,
+            ha: (*xe).xdf2.ha.as_ptr(),
             rchg: (*xe).xdf2.rchg,
-            rindex: (*xe).xdf2.rindex,
+            rindex: (*xe).xdf2.rindex.as_mut_ptr(),
         };
 
         if xdl_recs_cmp(
@@ -425,18 +425,17 @@ pub unsafe fn xdl_do_diff(
     0
 }
 
-unsafe fn recs_match(rec1: *mut xrecord_t, rec2: *mut xrecord_t, flags: c_long) -> bool {
+unsafe fn recs_match(rec1: &xrecord_t, rec2: &xrecord_t, flags: c_long) -> bool {
     unsafe {
-        (*rec1).ha == (*rec2).ha
-            && xdl_recmatch((*rec1).ptr, (*rec1).size, (*rec2).ptr, (*rec2).size, flags) != 0
+        rec1.ha == rec2.ha && xdl_recmatch(rec1.ptr, rec1.size, rec2.ptr, rec2.size, flags) != 0
     }
 }
 
-unsafe fn xget_indent(rec: *mut xrecord_t) -> c_int {
+unsafe fn xget_indent(rec: &xrecord_t) -> c_int {
     let mut ret: c_int = 0;
     unsafe {
-        for i in 0..(*rec).size {
-            let c = *(*rec).ptr.offset(i as isize);
+        for i in 0..rec.size {
+            let c = *rec.ptr.offset(i as isize);
             if !xdl_isspace(c) {
                 return ret;
             } else if c == b' ' as c_char {
@@ -471,19 +470,20 @@ struct SplitScore {
 
 unsafe fn measure_split(xdf: *const xdfile_t, split: c_long, m: &mut SplitMeasurement) {
     unsafe {
+        let recs = &(*xdf).recs;
         if split >= (*xdf).nrec {
             m.end_of_file = 1;
             m.indent = -1;
         } else {
             m.end_of_file = 0;
-            m.indent = xget_indent(*(*xdf).recs.offset(split as isize));
+            m.indent = xget_indent(&recs[split as usize]);
         }
 
         m.pre_blank = 0;
         m.pre_indent = -1;
         let mut i = split - 1;
         while i >= 0 {
-            m.pre_indent = xget_indent(*(*xdf).recs.offset(i as isize));
+            m.pre_indent = xget_indent(&recs[i as usize]);
             if m.pre_indent != -1 {
                 break;
             }
@@ -499,7 +499,7 @@ unsafe fn measure_split(xdf: *const xdfile_t, split: c_long, m: &mut SplitMeasur
         m.post_indent = -1;
         i = split + 1;
         while i < (*xdf).nrec {
-            m.post_indent = xget_indent(*(*xdf).recs.offset(i as isize));
+            m.post_indent = xget_indent(&recs[i as usize]);
             if m.post_indent != -1 {
                 break;
             }
@@ -614,12 +614,9 @@ unsafe fn group_previous(xdf: *mut xdfile_t, g: &mut XdlGroup) -> c_int {
 
 unsafe fn group_slide_down(xdf: *mut xdfile_t, g: &mut XdlGroup, flags: c_long) -> c_int {
     unsafe {
+        let recs = &(*xdf).recs;
         if g.end < (*xdf).nrec
-            && recs_match(
-                *(*xdf).recs.offset(g.start as isize),
-                *(*xdf).recs.offset(g.end as isize),
-                flags,
-            )
+            && recs_match(&recs[g.start as usize], &recs[g.end as usize], flags)
         {
             *(*xdf).rchg.offset(g.start as isize) = 0;
             g.start += 1;
@@ -638,10 +635,11 @@ unsafe fn group_slide_down(xdf: *mut xdfile_t, g: &mut XdlGroup, flags: c_long) 
 
 unsafe fn group_slide_up(xdf: *mut xdfile_t, g: &mut XdlGroup, flags: c_long) -> c_int {
     unsafe {
+        let recs = &(*xdf).recs;
         if g.start > 0
             && recs_match(
-                *(*xdf).recs.offset((g.start - 1) as isize),
-                *(*xdf).recs.offset((g.end - 1) as isize),
+                &recs[(g.start - 1) as usize],
+                &recs[(g.end - 1) as usize],
                 flags,
             )
         {
@@ -839,21 +837,21 @@ unsafe fn xdl_call_hunk_func(
 
 unsafe fn xdl_mark_ignorable_lines(xscr: &mut [xdchange_t], xe: *mut xdfenv_t, flags: c_long) {
     unsafe {
+        let recs1 = &(*xe).xdf1.recs;
+        let recs2 = &(*xe).xdf2.recs;
         for xch in xscr {
             let mut ignore: c_int = 1;
-            let rec1 = (*xe).xdf1.recs.offset(xch.i1 as isize);
             let mut i: c_long = 0;
             while i < xch.chg1 && ignore != 0 {
-                let r = *rec1.offset(i as isize);
-                ignore = xdl_blankline((*r).ptr, (*r).size, flags);
+                let r = &recs1[(xch.i1 + i) as usize];
+                ignore = xdl_blankline(r.ptr, r.size, flags);
                 i += 1;
             }
 
-            let rec2 = (*xe).xdf2.recs.offset(xch.i2 as isize);
             i = 0;
             while i < xch.chg2 && ignore != 0 {
-                let r = *rec2.offset(i as isize);
-                ignore = xdl_blankline((*r).ptr, (*r).size, flags);
+                let r = &recs2[(xch.i2 + i) as usize];
+                ignore = xdl_blankline(r.ptr, r.size, flags);
                 i += 1;
             }
 

@@ -47,15 +47,15 @@ struct HashMap {
 unsafe fn insert_record(line: c_int, map: &mut HashMap, pass: c_int) {
     unsafe {
         let records = if pass == 1 {
-            (*map.env).xdf1.recs
+            &(*map.env).xdf1.recs
         } else {
-            (*map.env).xdf2.recs
+            &(*map.env).xdf2.recs
         };
-        let record = *records.offset((line - 1) as isize);
-        let mut index = (((*record).ha << 1) % (map.alloc as c_ulong)) as usize;
+        let record = &records[(line - 1) as usize];
+        let mut index = ((record.ha << 1) % (map.alloc as c_ulong)) as usize;
 
         while map.entries[index].line1 != 0 {
-            if map.entries[index].hash != (*record).ha {
+            if map.entries[index].hash != record.ha {
                 index += 1;
                 if index >= map.alloc as usize {
                     index = 0;
@@ -77,7 +77,7 @@ unsafe fn insert_record(line: c_int, map: &mut HashMap, pass: c_int) {
         }
         let ent = map.entries.as_mut_ptr().add(index);
         (*ent).line1 = line as c_ulong;
-        (*ent).hash = (*record).ha;
+        (*ent).hash = record.ha;
         if map.first.is_null() {
             map.first = ent;
         }
@@ -187,9 +187,9 @@ unsafe fn find_longest_common_sequence(map: &mut HashMap) -> *mut Entry {
 
 unsafe fn match_lines(map: &HashMap, line1: c_int, line2: c_int) -> bool {
     unsafe {
-        let record1 = *(*map.env).xdf1.recs.offset((line1 - 1) as isize);
-        let record2 = *(*map.env).xdf2.recs.offset((line2 - 1) as isize);
-        (*record1).ha == (*record2).ha
+        let record1 = &(&(*map.env).xdf1.recs)[(line1 - 1) as usize];
+        let record2 = &(&(*map.env).xdf2.recs)[(line2 - 1) as usize];
+        record1.ha == record2.ha
     }
 }
 

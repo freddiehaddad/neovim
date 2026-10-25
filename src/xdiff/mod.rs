@@ -113,7 +113,6 @@ pub struct xdemitconf_t {
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct xrecord_t {
-    pub next: *mut xrecord_t,
     pub ptr: *const c_char,
     pub size: c_long,
     pub ha: c_ulong,
@@ -121,43 +120,29 @@ pub struct xrecord_t {
 
 #[repr(C)]
 pub struct xdfile_t {
-    pub rcha: Vec<std::pin::Pin<Box<xrecord_t>>>,
     pub nrec: c_long,
-    pub hbits: c_uint,
-    pub rhash_vec: Vec<*mut xrecord_t>,
-    pub rhash: *mut *mut xrecord_t,
     pub dstart: c_long,
     pub dend: c_long,
-    pub recs_vec: Vec<*mut xrecord_t>,
-    pub recs: *mut *mut xrecord_t,
+    pub recs: Vec<xrecord_t>,
     pub rchg_vec: Vec<c_char>,
     pub rchg: *mut c_char,
-    pub rindex_vec: Vec<c_long>,
-    pub rindex: *mut c_long,
+    pub rindex: Vec<c_long>,
     pub nreff: c_long,
-    pub ha_vec: Vec<c_ulong>,
-    pub ha: *mut c_ulong,
+    pub ha: Vec<c_ulong>,
 }
 
 impl xdfile_t {
     pub const fn new() -> Self {
         Self {
-            rcha: Vec::new(),
             nrec: 0,
-            hbits: 0,
-            rhash_vec: Vec::new(),
-            rhash: std::ptr::null_mut(),
             dstart: 0,
             dend: 0,
-            recs_vec: Vec::new(),
-            recs: std::ptr::null_mut(),
+            recs: Vec::new(),
             rchg_vec: Vec::new(),
             rchg: std::ptr::null_mut(),
-            rindex_vec: Vec::new(),
-            rindex: std::ptr::null_mut(),
+            rindex: Vec::new(),
             nreff: 0,
-            ha_vec: Vec::new(),
-            ha: std::ptr::null_mut(),
+            ha: Vec::new(),
         }
     }
 }
