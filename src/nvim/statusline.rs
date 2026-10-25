@@ -1179,7 +1179,7 @@ unsafe fn stl_truncate(
     mut minwid: c_int,
     maxwid: c_int,
     fillchar: schar_T,
-    stl_items: *mut stl_item_t,
+    stl_items: &mut [stl_item_t],
     startitem: c_int,
     curitem: *mut c_int,
     start_p: *mut c_char,
@@ -1194,11 +1194,11 @@ unsafe fn stl_truncate(
         if startitem == *curitem {
             trunc_p = start_p;
         } else {
-            trunc_p = (*stl_items.add(item_idx as usize)).start;
+            trunc_p = stl_items[item_idx as usize].start;
 
             for i in startitem..*curitem {
-                if (*stl_items.add(i as usize)).type_ == StlItemType::Trunc {
-                    trunc_p = (*stl_items.add(i as usize)).start;
+                if stl_items[i as usize].type_ == StlItemType::Trunc {
+                    trunc_p = stl_items[i as usize].start;
                     item_idx = i;
                     break;
                 }
@@ -1218,11 +1218,11 @@ unsafe fn stl_truncate(
             }
 
             for i in startitem..*curitem {
-                if (*stl_items.add(i as usize)).start > trunc_p {
+                if stl_items[i as usize].start > trunc_p {
                     for j in i..*curitem {
-                        if (*stl_items.add(j as usize)).type_ == StlItemType::ClickFunc {
-                            xfree((*stl_items.add(j as usize)).cmd.cast());
-                            (*stl_items.add(j as usize)).cmd = ptr::null_mut();
+                        if stl_items[j as usize].type_ == StlItemType::ClickFunc {
+                            xfree(stl_items[j as usize].cmd.cast());
+                            stl_items[j as usize].cmd = ptr::null_mut();
                         }
                     }
                     *curitem = i;
@@ -1248,12 +1248,11 @@ unsafe fn stl_truncate(
             *trunc_p = b'<' as c_char;
 
             let item_offset = (trunc_len - 1) as isize;
-            for i in item_idx..*curitem {
-                let item = stl_items.add(i as usize);
-                if (*item).start >= trunc_end_p {
-                    (*item).start = (*item).start.offset(-item_offset);
+            for item in &mut stl_items[(item_idx as usize)..(*curitem as usize)] {
+                if item.start >= trunc_end_p {
+                    item.start = item.start.offset(-item_offset);
                 } else {
-                    (*item).start = trunc_p;
+                    item.start = trunc_p;
                 }
             }
         }
@@ -1277,7 +1276,7 @@ unsafe fn stl_expand(
     padding: StlPadding,
     remaining_capacity: c_int,
     fillchar: schar_T,
-    stl_items: *mut stl_item_t,
+    stl_items: &mut [stl_item_t],
     startitem: c_int,
     curitem: c_int,
     mut start_p: *mut c_char,
@@ -1289,8 +1288,8 @@ unsafe fn stl_expand(
         let added_bytes = added_cells * fillchar_bytes;
 
         let mut num_separators: c_int = 0;
-        for i in startitem..curitem {
-            if (*stl_items.add(i as usize)).type_ == StlItemType::Separate {
+        for item in &stl_items[(startitem as usize)..(curitem as usize)] {
+            if item.type_ == StlItemType::Separate {
                 num_separators += 1;
             }
         }
@@ -1299,11 +1298,10 @@ unsafe fn stl_expand(
             let final_spaces = added_cells - standard_spaces * (num_separators - 1);
             let mut cumulated_dislocation: isize = 0;
 
-            for i in startitem..curitem {
-                let item = stl_items.add(i as usize);
-                (*item).start = (*item).start.offset(cumulated_dislocation);
+            for item in &mut stl_items[(startitem as usize)..(curitem as usize)] {
+                item.start = item.start.offset(cumulated_dislocation);
 
-                if (*item).type_ == StlItemType::Separate {
+                if item.type_ == StlItemType::Separate {
                     num_separators -= 1;
                     let mut dislocation = if num_separators > 0 {
                         standard_spaces
@@ -1313,7 +1311,7 @@ unsafe fn stl_expand(
                     dislocation *= fillchar_bytes;
                     cumulated_dislocation += dislocation as isize;
 
-                    let start = (*item).start;
+                    let start = item.start;
                     let seploc = start.add(dislocation as usize);
                     let len = CStr::from_ptr(start).to_bytes().len() + 1;
                     ptr::copy(start, seploc, len);
@@ -1345,9 +1343,8 @@ unsafe fn stl_expand(
                 added_cells -= 1;
             }
 
-            for n in startitem..curitem {
-                (*stl_items.add(n as usize)).start =
-                    (*stl_items.add(n as usize)).start.add(added_bytes as usize);
+            for item in &mut stl_items[(startitem as usize)..(curitem as usize)] {
+                item.start = item.start.add(added_bytes as usize);
             }
 
             *width += orig_added_cells;
@@ -1372,15 +1369,10 @@ pub unsafe extern "C" fn build_stl_str_hl(
     stcp: *mut statuscol_T,
 ) -> c_int {
     unsafe {
-        static mut stl_items_len: usize = 20;
         static mut stl_items_vec: Vec<stl_item_t> = Vec::new();
         static mut stl_groupitems_vec: Vec<c_int> = Vec::new();
         static mut stl_hltab_vec: Vec<stl_hlrec_t> = Vec::new();
         static mut stl_tabtab_vec: Vec<StlClickRecord> = Vec::new();
-        static mut stl_items: *mut stl_item_t = ptr::null_mut();
-        static mut stl_groupitems: *mut c_int = ptr::null_mut();
-        static mut stl_hltab: *mut stl_hlrec_t = ptr::null_mut();
-        static mut stl_tabtab: *mut StlClickRecord = ptr::null_mut();
         static mut curitem: c_int = 0;
 
         let mut buf_tmp: [c_char; TMPLEN] = [0; TMPLEN];
@@ -1398,15 +1390,32 @@ pub unsafe extern "C" fn build_stl_str_hl(
         let groupitems_vec_ptr = &raw mut stl_groupitems_vec;
         let hltab_vec_ptr = &raw mut stl_hltab_vec;
         let tabtab_vec_ptr = &raw mut stl_tabtab_vec;
-        if stl_items.is_null() {
-            (*items_vec_ptr).resize(stl_items_len, stl_item_t::new());
-            (*groupitems_vec_ptr).resize(stl_items_len, 0);
-            (*hltab_vec_ptr).resize(stl_items_len + 1, stl_hlrec_t::new());
-            (*tabtab_vec_ptr).resize(stl_items_len + 1, StlClickRecord::new());
-            stl_items = (*items_vec_ptr).as_mut_ptr();
-            stl_groupitems = (*groupitems_vec_ptr).as_mut_ptr();
-            stl_hltab = (*hltab_vec_ptr).as_mut_ptr();
-            stl_tabtab = (*tabtab_vec_ptr).as_mut_ptr();
+        macro_rules! stl_items {
+            () => {
+                (&mut *items_vec_ptr)
+            };
+        }
+        macro_rules! stl_groupitems {
+            () => {
+                (&mut *groupitems_vec_ptr)
+            };
+        }
+        macro_rules! stl_hltab {
+            () => {
+                (&mut *hltab_vec_ptr)
+            };
+        }
+        macro_rules! stl_tabtab {
+            () => {
+                (&mut *tabtab_vec_ptr)
+            };
+        }
+        if (*items_vec_ptr).is_empty() {
+            const INIT_LEN: usize = 20;
+            stl_items!().resize(INIT_LEN, stl_item_t::new());
+            stl_groupitems!().resize(INIT_LEN, 0);
+            stl_hltab!().resize(INIT_LEN + 1, stl_hlrec_t::new());
+            stl_tabtab!().resize(INIT_LEN + 1, StlClickRecord::new());
         }
 
         let use_sandbox = if opt_idx != kOptInvalid {
@@ -1477,17 +1486,12 @@ pub unsafe extern "C" fn build_stl_str_hl(
 
         macro_rules! may_grow_stl_items_len {
             () => {
-                if curitem == stl_items_len as c_int {
-                    let new_len = stl_items_len * 3 / 2;
-                    (*items_vec_ptr).resize(new_len, stl_item_t::new());
-                    (*groupitems_vec_ptr).resize(new_len, 0);
-                    (*hltab_vec_ptr).resize(new_len + 1, stl_hlrec_t::new());
-                    (*tabtab_vec_ptr).resize(new_len + 1, StlClickRecord::new());
-                    stl_items = (*items_vec_ptr).as_mut_ptr();
-                    stl_groupitems = (*groupitems_vec_ptr).as_mut_ptr();
-                    stl_hltab = (*hltab_vec_ptr).as_mut_ptr();
-                    stl_tabtab = (*tabtab_vec_ptr).as_mut_ptr();
-                    stl_items_len = new_len;
+                if curitem as usize == (*items_vec_ptr).len() {
+                    let new_len = (*items_vec_ptr).len() * 3 / 2;
+                    stl_items!().resize(new_len, stl_item_t::new());
+                    stl_groupitems!().resize(new_len, 0);
+                    stl_hltab!().resize(new_len + 1, stl_hlrec_t::new());
+                    stl_tabtab!().resize(new_len + 1, StlClickRecord::new());
                 }
             };
         }
@@ -1527,16 +1531,16 @@ pub unsafe extern "C" fn build_stl_str_hl(
 
             if *fmt_p == STL_SEPARATE {
                 fmt_p = fmt_p.add(1);
-                (*stl_items.add(curitem as usize)).type_ = StlItemType::Separate;
-                (*stl_items.add(curitem as usize)).start = out_p;
+                stl_items!()[curitem as usize].type_ = StlItemType::Separate;
+                stl_items!()[curitem as usize].start = out_p;
                 curitem += 1;
                 continue;
             }
 
             if *fmt_p == STL_TRUNCMARK {
                 fmt_p = fmt_p.add(1);
-                (*stl_items.add(curitem as usize)).type_ = StlItemType::Trunc;
-                (*stl_items.add(curitem as usize)).start = out_p;
+                stl_items!()[curitem as usize].type_ = StlItemType::Trunc;
+                stl_items!()[curitem as usize].start = out_p;
                 curitem += 1;
                 continue;
             }
@@ -1547,23 +1551,23 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     continue;
                 }
                 groupdepth -= 1;
-                let gidx = *stl_groupitems.add(groupdepth);
-                if (*stl_items.add(gidx as usize)).type_ != StlItemType::Group {
+                let gidx = stl_groupitems!()[groupdepth];
+                if stl_items!()[gidx as usize].type_ != StlItemType::Group {
                     continue;
                 }
 
-                let t = (*stl_items.add(gidx as usize)).start;
+                let t = stl_items!()[gidx as usize].start;
                 *out_p = NUL;
                 let mut group_len = vim_strsize(t);
 
-                if curitem > gidx + 1 && (*stl_items.add(gidx as usize)).minwid == 0 {
+                if curitem > gidx + 1 && stl_items!()[gidx as usize].minwid == 0 {
                     let mut group_start_userhl = 0;
                     let mut group_end_userhl = 0;
                     let mut n = gidx - 1;
                     while n >= 0 {
-                        let it = (*stl_items.add(n as usize)).type_;
+                        let it = stl_items!()[n as usize].type_;
                         if it == StlItemType::Highlight || it == StlItemType::HighlightCombining {
-                            group_start_userhl = (*stl_items.add(n as usize)).minwid;
+                            group_start_userhl = stl_items!()[n as usize].minwid;
                             group_end_userhl = group_start_userhl;
                             break;
                         }
@@ -1571,34 +1575,33 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     }
                     n = gidx + 1;
                     while n < curitem {
-                        let it = (*stl_items.add(n as usize)).type_;
+                        let it = stl_items!()[n as usize].type_;
                         if it == StlItemType::Normal {
                             break;
                         }
                         if it == StlItemType::Highlight || it == StlItemType::HighlightCombining {
-                            group_end_userhl = (*stl_items.add(n as usize)).minwid;
+                            group_end_userhl = stl_items!()[n as usize].minwid;
                         }
                         n += 1;
                     }
                     if n == curitem && group_start_userhl == group_end_userhl {
                         out_p = t;
                         group_len = 0;
-                        for idx in (gidx + 1)..curitem {
-                            let item = stl_items.add(idx as usize);
-                            if (*item).type_ == StlItemType::Highlight
-                                || (*item).type_ == StlItemType::HighlightCombining
+                        for item in &mut stl_items!()[((gidx + 1) as usize)..(curitem as usize)] {
+                            if item.type_ == StlItemType::Highlight
+                                || item.type_ == StlItemType::HighlightCombining
                             {
-                                (*item).type_ = StlItemType::Disabled;
+                                item.type_ = StlItemType::Disabled;
                             }
-                            if (*item).type_ == StlItemType::TabPage {
-                                (*item).start = out_p;
+                            if item.type_ == StlItemType::TabPage {
+                                item.start = out_p;
                             }
                         }
                     }
                 }
 
-                let maxwid = (*stl_items.add(gidx as usize)).maxwid;
-                let mut minwid = (*stl_items.add(gidx as usize)).minwid;
+                let maxwid = stl_items!()[gidx as usize].maxwid;
+                let mut minwid = stl_items!()[gidx as usize].minwid;
                 let padding = if minwid < 0 {
                     StlPadding::kPaddingRight
                 } else {
@@ -1607,14 +1610,14 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 minwid = minwid.abs();
 
                 if group_len > maxwid
-                    && (*stl_items.add(gidx as usize)).type_ != StlItemType::HighlightFold
+                    && stl_items!()[gidx as usize].type_ != StlItemType::HighlightFold
                 {
                     stl_truncate(
                         &raw mut group_len,
                         minwid,
                         maxwid,
                         fillchar,
-                        stl_items,
+                        stl_items!(),
                         gidx + 1,
                         &raw mut curitem,
                         t,
@@ -1627,7 +1630,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         padding,
                         out_end_p.offset_from(out_p) as c_int,
                         fillchar,
-                        stl_items,
+                        stl_items!(),
                         gidx + 1,
                         curitem,
                         t,
@@ -1635,11 +1638,9 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     );
                 }
 
-                for idx in (gidx + 1)..curitem {
-                    let item = stl_items.add(idx as usize);
-                    if (*item).type_ == StlItemType::Separate || (*item).type_ == StlItemType::Trunc
-                    {
-                        (*item).type_ = StlItemType::Disabled;
+                for item in &mut stl_items!()[((gidx + 1) as usize)..(curitem as usize)] {
+                    if item.type_ == StlItemType::Separate || item.type_ == StlItemType::Trunc {
+                        item.type_ = StlItemType::Disabled;
                     }
                 }
 
@@ -1668,9 +1669,9 @@ pub unsafe extern "C" fn build_stl_str_hl(
 
             if *fmt_p == STL_USER_HL {
                 curr_hl_pos = curitem;
-                (*stl_items.add(curitem as usize)).type_ = StlItemType::Highlight;
-                (*stl_items.add(curitem as usize)).start = out_p;
-                (*stl_items.add(curitem as usize)).minwid = if minwid > 9 { 1 } else { minwid };
+                stl_items!()[curitem as usize].type_ = StlItemType::Highlight;
+                stl_items!()[curitem as usize].start = out_p;
+                stl_items!()[curitem as usize].minwid = if minwid > 9 { 1 } else { minwid };
                 fmt_p = fmt_p.add(1);
                 curitem += 1;
                 continue;
@@ -1681,10 +1682,10 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     if minwid == 0 {
                         let mut n = curitem - 1;
                         while n >= 0 {
-                            if (*stl_items.add(n as usize)).type_ == StlItemType::TabPage
-                                && (*stl_items.add(n as usize)).minwid >= 0
+                            if stl_items!()[n as usize].type_ == StlItemType::TabPage
+                                && stl_items!()[n as usize].minwid >= 0
                             {
-                                minwid = (*stl_items.add(n as usize)).minwid;
+                                minwid = stl_items!()[n as usize].minwid;
                                 break;
                             }
                             n -= 1;
@@ -1693,9 +1694,9 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         minwid = -minwid;
                     }
                 }
-                (*stl_items.add(curitem as usize)).type_ = StlItemType::TabPage;
-                (*stl_items.add(curitem as usize)).start = out_p;
-                (*stl_items.add(curitem as usize)).minwid = minwid;
+                stl_items!()[curitem as usize].type_ = StlItemType::TabPage;
+                stl_items!()[curitem as usize].start = out_p;
+                stl_items!()[curitem as usize].minwid = minwid;
                 fmt_p = fmt_p.add(1);
                 curitem += 1;
                 continue;
@@ -1710,14 +1711,14 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 if *fmt_p != STL_CLICK_FUNC {
                     break;
                 }
-                (*stl_items.add(curitem as usize)).type_ = StlItemType::ClickFunc;
-                (*stl_items.add(curitem as usize)).start = out_p;
-                (*stl_items.add(curitem as usize)).cmd = if !tabtab.is_null() {
+                stl_items!()[curitem as usize].type_ = StlItemType::ClickFunc;
+                stl_items!()[curitem as usize].start = out_p;
+                stl_items!()[curitem as usize].cmd = if !tabtab.is_null() {
                     xmemdupz(t.cast(), fmt_p.offset_from(t) as usize).cast()
                 } else {
                     ptr::null_mut()
                 };
-                (*stl_items.add(curitem as usize)).minwid = minwid;
+                stl_items!()[curitem as usize].minwid = minwid;
                 fmt_p = fmt_p.add(1);
                 curitem += 1;
                 continue;
@@ -1738,12 +1739,12 @@ pub unsafe extern "C" fn build_stl_str_hl(
             }
 
             if *fmt_p == b'(' as c_char {
-                *stl_groupitems.add(groupdepth) = curitem;
+                stl_groupitems!()[groupdepth] = curitem;
                 groupdepth += 1;
-                (*stl_items.add(curitem as usize)).type_ = StlItemType::Group;
-                (*stl_items.add(curitem as usize)).start = out_p;
-                (*stl_items.add(curitem as usize)).minwid = minwid;
-                (*stl_items.add(curitem as usize)).maxwid = maxwid;
+                stl_items!()[curitem as usize].type_ = StlItemType::Group;
+                stl_items!()[curitem as usize].start = out_p;
+                stl_items!()[curitem as usize].minwid = minwid;
+                stl_items!()[curitem as usize].maxwid = maxwid;
                 fmt_p = fmt_p.add(1);
                 curitem += 1;
                 continue;
@@ -1756,9 +1757,9 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     let mut normal_items = false;
                     let mut i = curitem - 1;
                     while i >= evalstart
-                        && (*stl_items.add(i as usize)).type_ != StlItemType::Expression
+                        && stl_items!()[i as usize].type_ != StlItemType::Expression
                     {
-                        let it = (*stl_items.add(i as usize)).type_;
+                        let it = stl_items!()[i as usize].type_;
                         if it == StlItemType::Normal || it == StlItemType::NormalEmpty {
                             normal_items = true;
                             break;
@@ -1766,8 +1767,8 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         i -= 1;
                     }
                     if !normal_items {
-                        (*stl_items.add(curitem as usize)).type_ = StlItemType::Normal;
-                        (*stl_items.add(curitem as usize)).start = out_p;
+                        stl_items!()[curitem as usize].type_ = StlItemType::Normal;
+                        stl_items!()[curitem as usize].start = out_p;
                         curitem += 1;
                     }
                 }
@@ -1777,11 +1778,11 @@ pub unsafe extern "C" fn build_stl_str_hl(
             if *fmt_p == STL_HIGHLIGHT {
                 if *fmt_p.add(1) == b'(' as c_char {
                     fmt_p = fmt_p.add(2);
-                    *stl_groupitems.add(groupdepth) = curitem;
+                    stl_groupitems!()[groupdepth] = curitem;
                     groupdepth += 1;
-                    (*stl_items.add(curitem as usize)).type_ = StlItemType::HighlightScope;
-                    (*stl_items.add(curitem as usize)).start = out_p;
-                    (*stl_items.add(curitem as usize)).minwid = curr_hl_pos;
+                    stl_items!()[curitem as usize].type_ = StlItemType::HighlightScope;
+                    stl_items!()[curitem as usize].start = out_p;
+                    stl_items!()[curitem as usize].minwid = curr_hl_pos;
                     curitem += 1;
                     continue;
                 } else if *fmt_p.add(1) == b')' as c_char {
@@ -1790,29 +1791,29 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         continue;
                     }
                     groupdepth -= 1;
-                    let scope_start = *stl_groupitems.add(groupdepth);
-                    if (*stl_items.add(scope_start as usize)).type_ != StlItemType::HighlightScope {
+                    let scope_start = stl_groupitems!()[groupdepth];
+                    if stl_items!()[scope_start as usize].type_ != StlItemType::HighlightScope {
                         continue;
                     }
-                    let hl_pos = (*stl_items.add(scope_start as usize)).minwid;
+                    let hl_pos = stl_items!()[scope_start as usize].minwid;
                     curr_hl_pos = curitem;
-                    (*stl_items.add(curitem as usize)).type_ = StlItemType::Highlight;
-                    (*stl_items.add(curitem as usize)).start = out_p;
-                    (*stl_items.add(curitem as usize)).minwid = if hl_pos == -1 {
+                    stl_items!()[curitem as usize].type_ = StlItemType::Highlight;
+                    stl_items!()[curitem as usize].start = out_p;
+                    stl_items!()[curitem as usize].minwid = if hl_pos == -1 {
                         0
                     } else {
-                        (*stl_items.add(hl_pos as usize)).minwid
+                        stl_items!()[hl_pos as usize].minwid
                     };
                     curitem += 1;
                     let start_i = if hl_pos == -1 { evalstart } else { hl_pos + 1 };
                     for i in start_i..scope_start {
                         may_grow_stl_items_len!();
-                        if (*stl_items.add(i as usize)).type_ == StlItemType::HighlightCombining {
-                            (*stl_items.add(curitem as usize)).type_ =
+                        if stl_items!()[i as usize].type_ == StlItemType::HighlightCombining {
+                            let mw = stl_items!()[i as usize].minwid;
+                            stl_items!()[curitem as usize].type_ =
                                 StlItemType::HighlightCombining;
-                            (*stl_items.add(curitem as usize)).start = out_p;
-                            (*stl_items.add(curitem as usize)).minwid =
-                                (*stl_items.add(i as usize)).minwid;
+                            stl_items!()[curitem as usize].start = out_p;
+                            stl_items!()[curitem as usize].minwid = mw;
                             curitem += 1;
                         }
                     }
@@ -1958,8 +1959,8 @@ pub unsafe extern "C" fn build_stl_str_hl(
                             usefmt = new_fmt;
                             fmt_p = usefmt.add(parsed_usefmt);
                             evaldepth += 1;
-                            (*stl_items.add(curitem as usize)).type_ = StlItemType::Expression;
-                            (*stl_items.add(curitem as usize)).start = out_p;
+                            stl_items!()[curitem as usize].type_ = StlItemType::Expression;
+                            stl_items!()[curitem as usize].start = out_p;
                             curitem += 1;
                             continue;
                         }
@@ -1985,8 +1986,8 @@ pub unsafe extern "C" fn build_stl_str_hl(
                                 && (*wp).w_onebuf_opt.wo_nu != 0
                                 && relnum == 0;
                             if !left_align_num {
-                                (*stl_items.add(curitem as usize)).type_ = StlItemType::Separate;
-                                (*stl_items.add(curitem as usize)).start = out_p;
+                                stl_items!()[curitem as usize].type_ = StlItemType::Separate;
+                                stl_items!()[curitem as usize].start = out_p;
                                 curitem += 1;
                                 may_grow_stl_items_len!();
                             }
@@ -2177,13 +2178,13 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     if *fmt_p == opt {
                         if opt == STL_HIGHLIGHT {
                             curr_hl_pos = curitem;
-                            (*stl_items.add(curitem as usize)).type_ = StlItemType::Highlight;
+                            stl_items!()[curitem as usize].type_ = StlItemType::Highlight;
                         } else {
-                            (*stl_items.add(curitem as usize)).type_ =
+                            stl_items!()[curitem as usize].type_ =
                                 StlItemType::HighlightCombining;
                         }
-                        (*stl_items.add(curitem as usize)).start = out_p;
-                        (*stl_items.add(curitem as usize)).minwid =
+                        stl_items!()[curitem as usize].start = out_p;
+                        stl_items!()[curitem as usize].minwid =
                             -syn_name2id_len(t, fmt_p.offset_from(t) as usize);
                         curitem += 1;
                         fmt_p = fmt_p.add(1);
@@ -2224,7 +2225,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                             (*stcp).fold_vcol.as_mut_ptr(),
                             fold_buf.as_mut_ptr(),
                         );
-                        (*stl_items.add(curitem as usize)).minwid =
+                        stl_items!()[curitem as usize].minwid =
                             -if use_cursor_line_highlight(wp, lnum) {
                                 HLF_CLF
                             } else {
@@ -2238,7 +2239,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
 
                     let mut signlen: usize = 0;
                     for i in 0..width {
-                        (*stl_items.add(curitem as usize)).start = out_p.add(signlen);
+                        stl_items!()[curitem as usize].start = out_p.add(signlen);
                         if fdc == 0 {
                             let mut sattr = *(*stcp).sattrs.add(i as usize);
                             if sattr.text[0] != 0 && get_vim_var_nr(VV_VIRTNUM) == 0 {
@@ -2246,7 +2247,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                                     buf_tmp.as_mut_ptr().add(signlen),
                                     sattr.text.as_mut_ptr(),
                                 );
-                                (*stl_items.add(curitem as usize)).minwid =
+                                stl_items!()[curitem as usize].minwid =
                                     -if (*stcp).sign_cul_id != 0 {
                                         (*stcp).sign_cul_id
                                     } else {
@@ -2258,10 +2259,10 @@ pub unsafe extern "C" fn build_stl_str_hl(
                                 buf_tmp[signlen] = b' ' as c_char;
                                 signlen += 1;
                                 buf_tmp[signlen] = NUL;
-                                (*stl_items.add(curitem as usize)).minwid = 0;
+                                stl_items!()[curitem as usize].minwid = 0;
                             }
                         }
-                        (*stl_items.add(curitem as usize)).type_ = if fdc > 0 {
+                        stl_items!()[curitem as usize].type_ = if fdc > 0 {
                             StlItemType::HighlightFold
                         } else {
                             StlItemType::HighlightSign
@@ -2273,9 +2274,9 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 }
             }
 
-            debug_assert!(curitem < stl_items_len as c_int);
-            (*stl_items.add(curitem as usize)).start = out_p;
-            (*stl_items.add(curitem as usize)).type_ = StlItemType::Normal;
+            debug_assert!((curitem as usize) < (*items_vec_ptr).len());
+            stl_items!()[curitem as usize].start = out_p;
+            stl_items!()[curitem as usize].type_ = StlItemType::Normal;
 
             if !str.is_null() && *str != NUL {
                 let mut t = str;
@@ -2323,10 +2324,11 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     minwid = 0;
                     if foldsignitem >= 0 {
                         let offset =
-                            out_p.offset_from((*stl_items.add(foldsignitem as usize)).start);
-                        for i in foldsignitem..curitem {
-                            (*stl_items.add(i as usize)).start =
-                                (*stl_items.add(i as usize)).start.offset(offset);
+                            out_p.offset_from(stl_items!()[foldsignitem as usize].start);
+                        for item in
+                            &mut stl_items!()[(foldsignitem as usize)..(curitem as usize)]
+                        {
+                            item.start = item.start.offset(offset);
                         }
                     }
                 } else {
@@ -2347,9 +2349,9 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 }
 
                 if foldsignitem >= 0 {
-                    (*stl_items.add(curitem as usize)).type_ = StlItemType::Highlight;
-                    (*stl_items.add(curitem as usize)).start = out_p;
-                    (*stl_items.add(curitem as usize)).minwid = 0;
+                    stl_items!()[curitem as usize].type_ = StlItemType::Highlight;
+                    stl_items!()[curitem as usize].start = out_p;
+                    stl_items!()[curitem as usize].minwid = 0;
                 }
 
                 while l < minwid && out_p < out_end_p {
@@ -2427,7 +2429,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     ));
                 }
             } else {
-                (*stl_items.add(curitem as usize)).type_ = StlItemType::NormalEmpty;
+                stl_items!()[curitem as usize].type_ = StlItemType::NormalEmpty;
             }
 
             if num >= 0 || (!itemisflag && !str.is_null() && *str != NUL) {
@@ -2441,8 +2443,8 @@ pub unsafe extern "C" fn build_stl_str_hl(
             curitem += 1;
             if left_align_num {
                 may_grow_stl_items_len!();
-                (*stl_items.add(curitem as usize)).type_ = StlItemType::Separate;
-                (*stl_items.add(curitem as usize)).start = out_p;
+                stl_items!()[curitem as usize].type_ = StlItemType::Separate;
+                stl_items!()[curitem as usize].start = out_p;
                 curitem += 1;
             }
         }
@@ -2460,7 +2462,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 0,
                 maxwidth,
                 fillchar,
-                stl_items,
+                stl_items!(),
                 evalstart,
                 &raw mut curitem,
                 out.data,
@@ -2473,7 +2475,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 StlPadding::kPaddingNone,
                 out_end_p.offset_from(out_p) as c_int,
                 fillchar,
-                stl_items,
+                stl_items!(),
                 evalstart,
                 curitem,
                 out.data,
@@ -2482,10 +2484,9 @@ pub unsafe extern "C" fn build_stl_str_hl(
         }
 
         if !hltab.is_null() {
-            *hltab = stl_hltab;
-            let mut sp = stl_hltab;
-            for l in evalstart..curitem {
-                let item = *stl_items.add(l as usize);
+            *hltab = stl_hltab!().as_mut_ptr();
+            let mut sp_idx: usize = 0;
+            for item in &stl_items!()[(evalstart as usize)..(curitem as usize)] {
                 if matches!(
                     item.type_,
                     StlItemType::Highlight
@@ -2493,58 +2494,60 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         | StlItemType::HighlightFold
                         | StlItemType::HighlightSign
                 ) {
-                    (*sp).start = item.start;
-                    (*sp).userhl = item.minwid;
-                    (*sp).item = match item.type_ {
+                    stl_hltab!()[sp_idx].start = item.start;
+                    stl_hltab!()[sp_idx].userhl = item.minwid;
+                    stl_hltab!()[sp_idx].item = match item.type_ {
                         StlItemType::HighlightSign => c_int::from(STL_SIGNCOL as u8),
                         StlItemType::HighlightFold => c_int::from(STL_FOLDCOL as u8),
                         StlItemType::HighlightCombining => c_int::from(STL_HIGHLIGHT_COMB as u8),
                         _ => 0,
                     };
-                    sp = sp.add(1);
+                    sp_idx += 1;
                 }
             }
-            (*sp).start = ptr::null_mut();
-            (*sp).userhl = 0;
+            stl_hltab!()[sp_idx].start = ptr::null_mut();
+            stl_hltab!()[sp_idx].userhl = 0;
         }
         if !hltab_len.is_null() {
             *hltab_len = (curitem - evalstart) as usize;
         }
 
         if !tabtab.is_null() {
-            *tabtab = stl_tabtab;
-            let mut cur_tab_rec = stl_tabtab;
-            for l in evalstart..curitem {
-                let item = *stl_items.add(l as usize);
+            *tabtab = stl_tabtab!().as_mut_ptr();
+            let mut tab_idx: usize = 0;
+            for item in &stl_items!()[(evalstart as usize)..(curitem as usize)] {
                 if item.type_ == StlItemType::TabPage {
-                    (*cur_tab_rec).start = item.start;
+                    let rec = &mut stl_tabtab!()[tab_idx];
+                    rec.start = item.start;
                     if item.minwid == 0 {
-                        (*cur_tab_rec).def.type_ = kStlClickDisabled;
-                        (*cur_tab_rec).def.tabnr = 0;
+                        rec.def.type_ = kStlClickDisabled;
+                        rec.def.tabnr = 0;
                     } else {
                         let mut tabnr = item.minwid;
                         if item.minwid > 0 {
-                            (*cur_tab_rec).def.type_ = kStlClickTabSwitch;
+                            rec.def.type_ = kStlClickTabSwitch;
                         } else {
-                            (*cur_tab_rec).def.type_ = kStlClickTabClose;
+                            rec.def.type_ = kStlClickTabClose;
                             tabnr = -tabnr;
                         }
-                        (*cur_tab_rec).def.tabnr = tabnr;
+                        rec.def.tabnr = tabnr;
                     }
-                    (*cur_tab_rec).def.func = ptr::null_mut();
-                    cur_tab_rec = cur_tab_rec.add(1);
+                    rec.def.func = ptr::null_mut();
+                    tab_idx += 1;
                 } else if item.type_ == StlItemType::ClickFunc {
-                    (*cur_tab_rec).start = item.start;
-                    (*cur_tab_rec).def.type_ = kStlClickFuncRun;
-                    (*cur_tab_rec).def.tabnr = item.minwid;
-                    (*cur_tab_rec).def.func = item.cmd;
-                    cur_tab_rec = cur_tab_rec.add(1);
+                    let rec = &mut stl_tabtab!()[tab_idx];
+                    rec.start = item.start;
+                    rec.def.type_ = kStlClickFuncRun;
+                    rec.def.tabnr = item.minwid;
+                    rec.def.func = item.cmd;
+                    tab_idx += 1;
                 }
             }
-            (*cur_tab_rec).start = ptr::null();
-            (*cur_tab_rec).def.type_ = kStlClickDisabled;
-            (*cur_tab_rec).def.tabnr = 0;
-            (*cur_tab_rec).def.func = ptr::null_mut();
+            let rec = &mut stl_tabtab!()[tab_idx];
+            rec.start = ptr::null();
+            rec.def.type_ = kStlClickDisabled;
+            rec.def.tabnr = 0;
+            rec.def.func = ptr::null_mut();
         }
 
         curitem = evalstart;

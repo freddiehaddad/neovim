@@ -50,10 +50,16 @@ const S_IWRITE: c_int = 0o200;
 #[repr(C)]
 pub struct bhdr_T {
     pub bh_bnum: blocknr_T,
-    pub bh_data_vec: Vec<u8>,
-    pub bh_data: *mut u8,
+    pub bh_data: Vec<u8>,
     pub bh_page_count: c_uint,
     pub bh_flags: c_uint,
+}
+
+impl bhdr_T {
+    #[inline]
+    pub fn data_ptr(&mut self) -> *mut u8 {
+        self.bh_data.as_mut_ptr()
+    }
 }
 
 #[repr(C)]
@@ -312,8 +318,7 @@ pub unsafe fn mf_free(mfp: *mut memfile_T, hp: *mut bhdr_T) {
         } else {
             (*mfp).mf_free_list.push(bhdr_T {
                 bh_bnum: bnum,
-                bh_data_vec: Vec::new(),
-                bh_data: ptr::null_mut(),
+                bh_data: Vec::new(),
                 bh_page_count: page_count,
                 bh_flags: 0,
             });
@@ -444,12 +449,9 @@ unsafe fn mf_alloc_bhdr(
     flags: c_uint,
 ) -> Box<bhdr_T> {
     let len = (unsafe { (*mfp).mf_page_size } as usize) * (page_count as usize);
-    let mut bh_data_vec = vec![0u8; len];
-    let bh_data = bh_data_vec.as_mut_ptr();
     Box::new(bhdr_T {
         bh_bnum: bnum,
-        bh_data_vec,
-        bh_data,
+        bh_data: vec![0u8; len],
         bh_page_count: page_count,
         bh_flags: flags,
     })
@@ -469,7 +471,7 @@ unsafe fn mf_read(mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
         }
         assert!((*hp).bh_page_count <= c_uint::MAX / page_size);
         let size = (page_size * (*hp).bh_page_count) as usize;
-        let nread = read_eintr((*mfp).mf_fd, (*hp).bh_data.cast(), size);
+        let nread = read_eintr((*mfp).mf_fd, (*hp).data_ptr().cast(), size);
         if (nread as usize) != size {
             perror_msg(c"E295: Read error in swap file".as_ptr());
             return FAIL;
@@ -515,9 +517,9 @@ unsafe fn mf_write(mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
                         return FAIL;
                     }
                     let data = if hp2.is_null() {
-                        (*hp).bh_data
+                        (*hp).data_ptr()
                     } else {
-                        (*hp2).bh_data
+                        (*hp2).data_ptr()
                     };
                     let nwritten = write_eintr((*mfp).mf_fd, data.cast(), size);
                     if (nwritten as usize) == size {
@@ -728,8 +730,7 @@ mod tests {
 
                 let mut boxed = Box::new(bhdr_T {
                     bh_bnum: key,
-                    bh_data_vec: Vec::new(),
-                    bh_data: ptr::null_mut(),
+                    bh_data: Vec::new(),
                     bh_page_count: 1,
                     bh_flags: 0,
                 });

@@ -401,7 +401,7 @@ pub unsafe fn ml_open(buf: *mut buf_T) -> c_int {
             iemsg(tr(c"E298: Didn't get block nr 0?"));
             return ml_open_error(buf, mfp, hp);
         }
-        let b0p = (*hp).bh_data.cast::<ZeroBlock>();
+        let b0p = (*hp).data_ptr().cast::<ZeroBlock>();
 
         (*b0p).b0_id[0] = BLOCK0_ID0;
         (*b0p).b0_id[1] = BLOCK0_ID1;
@@ -438,7 +438,7 @@ pub unsafe fn ml_open(buf: *mut buf_T) -> c_int {
             iemsg(tr(c"E298: Didn't get block nr 1?"));
             return ml_open_error(buf, mfp, hp);
         }
-        let pp = (*hp).bh_data.cast::<PointerBlock>();
+        let pp = (*hp).data_ptr().cast::<PointerBlock>();
         (*pp).pb_count = 1;
         let pe0 = pb_ptr(pp, 0);
         (*pe0).pe_bnum = 2;
@@ -453,7 +453,7 @@ pub unsafe fn ml_open(buf: *mut buf_T) -> c_int {
             return ml_open_error(buf, mfp, hp);
         }
 
-        let dp = (*hp).bh_data.cast::<DataBlock>();
+        let dp = (*hp).data_ptr().cast::<DataBlock>();
         (*dp).db_txt_start -= 1;
         *db_idx_ptr(dp, 0) = (*dp).db_txt_start;
         (*dp).db_free -= 1 + INDEX_SIZE as c_uint;
@@ -723,7 +723,7 @@ unsafe fn ml_upd_block0(buf: *mut buf_T, what: upd_block0_T) {
         if hp.is_null() {
             return;
         }
-        let b0p = (*hp).bh_data.cast::<ZeroBlock>();
+        let b0p = (*hp).data_ptr().cast::<ZeroBlock>();
         if !ml_check_b0_id(b0p) {
             iemsg(tr(c"E304: ml_upd_block0(): Didn't get block 0??"));
         } else if what == upd_block0_T::UB_FNAME {
@@ -926,7 +926,7 @@ pub unsafe fn ml_recover(checkext: bool) {
             ml_recover_theend(fname_used, mfp, hp, buf, serious_error, called_from_main);
             return;
         }
-        let mut b0p = (*hp).bh_data.cast::<ZeroBlock>();
+        let mut b0p = (*hp).data_ptr().cast::<ZeroBlock>();
         if (&(*b0p).b0_version)[..7]
             == [
                 b'V' as c_char,
@@ -991,9 +991,8 @@ pub unsafe fn ml_recover(checkext: bool) {
             };
             (*mfp).mf_infile_count = (*mfp).mf_blocknr_max;
 
-            (*hp).bh_data_vec.resize((*mfp).mf_page_size as usize, 0);
-            (*hp).bh_data = (*hp).bh_data_vec.as_mut_ptr();
-            b0p = (*hp).bh_data.cast::<ZeroBlock>();
+            (*hp).bh_data.resize((*mfp).mf_page_size as usize, 0);
+            b0p = (*hp).data_ptr().cast::<ZeroBlock>();
         }
 
         let namebuff_ptr = (&raw mut NameBuff).cast::<c_char>();
@@ -1125,7 +1124,7 @@ pub unsafe fn ml_recover(checkext: bool) {
                 ml_append(lnum, tr(c"???MANY LINES MISSING"), 0, true);
                 lnum += 1;
             } else {
-                let pp = (*hp).bh_data.cast::<PointerBlock>();
+                let pp = (*hp).data_ptr().cast::<PointerBlock>();
                 if (*pp).pb_id == PTR_ID {
                     let mut ptr_block_error = false;
                     let max_cnt = pb_count_max(mfp);
@@ -1217,7 +1216,7 @@ pub unsafe fn ml_recover(checkext: bool) {
                         continue;
                     }
                 } else {
-                    let dp = (*hp).bh_data.cast::<DataBlock>();
+                    let dp = (*hp).data_ptr().cast::<DataBlock>();
                     if (*dp).db_id != DATA_ID {
                         if bnum == 1 {
                             semsg!(
@@ -2148,7 +2147,7 @@ unsafe fn ml_get_buf_impl(buf: *mut buf_T, mut lnum: linenr_T, will_change: bool
                 return ml_get_errorret(buf, lnum);
             }
 
-            let dp = (*hp).bh_data.cast::<DataBlock>();
+            let dp = (*hp).data_ptr().cast::<DataBlock>();
             let idx = (lnum - (*buf).b_ml.ml_locked_low) as usize;
             let start = *db_idx_ptr(dp, idx) & DB_INDEX_MASK;
             let end = if idx == 0 {
@@ -2230,7 +2229,7 @@ unsafe fn ml_append_int(
         };
         let mut line_count = (*buf).b_ml.ml_locked_high - (*buf).b_ml.ml_locked_low;
 
-        let mut dp = (*hp).bh_data.cast::<DataBlock>();
+        let mut dp = (*hp).data_ptr().cast::<DataBlock>();
 
         if i64::from((*dp).db_free) < space_needed
             && db_idx == line_count - 1
@@ -2245,7 +2244,7 @@ unsafe fn ml_append_int(
 
             db_idx = -1;
             line_count = (*buf).b_ml.ml_locked_high - (*buf).b_ml.ml_locked_low;
-            dp = (*hp).bh_data.cast::<DataBlock>();
+            dp = (*hp).data_ptr().cast::<DataBlock>();
         }
 
         if (*buf).b_prev_line_count == 0 {
@@ -2334,8 +2333,8 @@ unsafe fn ml_append_int(
                 line_count_left = line_count;
                 line_count_right = 0;
             }
-            let dp_right = (*hp_right).bh_data.cast::<DataBlock>();
-            let dp_left = (*hp_left).bh_data.cast::<DataBlock>();
+            let dp_right = (*hp_right).data_ptr().cast::<DataBlock>();
+            let dp_left = (*hp_left).data_ptr().cast::<DataBlock>();
             let mut bnum_left = (*hp_left).bh_bnum;
             let mut bnum_right = (*hp_right).bh_bnum;
             let mut page_count_left = (*hp_left).bh_page_count as c_int;
@@ -2444,7 +2443,7 @@ unsafe fn ml_append_int(
                 if hp.is_null() {
                     return FAIL;
                 }
-                let mut pp = (*hp).bh_data.cast::<PointerBlock>();
+                let mut pp = (*hp).data_ptr().cast::<PointerBlock>();
                 if (*pp).pb_id != PTR_ID {
                     iemsg(tr(e_pointer_block_id_wrong_three));
                     mf_put(mfp, hp, false, false);
@@ -2499,7 +2498,7 @@ unsafe fn ml_append_int(
                     if hp_new.is_null() {
                         return FAIL;
                     }
-                    pp_new = (*hp_new).bh_data.cast::<PointerBlock>();
+                    pp_new = (*hp_new).data_ptr().cast::<PointerBlock>();
 
                     if (*hp).bh_bnum != 1 {
                         break;
@@ -2782,7 +2781,7 @@ unsafe fn ml_delete_int(buf: *mut buf_T, lnum: linenr_T, flags: c_int) -> c_int 
             return FAIL;
         }
 
-        let dp = (*hp).bh_data.cast::<DataBlock>();
+        let dp = (*hp).data_ptr().cast::<DataBlock>();
         let mut count = (*buf).b_ml.ml_locked_high - (*buf).b_ml.ml_locked_low + 2;
         let mut idx = lnum - (*buf).b_ml.ml_locked_low;
 
@@ -2822,7 +2821,7 @@ unsafe fn ml_delete_int(buf: *mut buf_T, lnum: linenr_T, flags: c_int) -> c_int 
                 if hp.is_null() {
                     return FAIL;
                 }
-                let pp = (*hp).bh_data.cast::<PointerBlock>();
+                let pp = (*hp).data_ptr().cast::<PointerBlock>();
                 if (*pp).pb_id != PTR_ID {
                     iemsg(tr(e_pointer_block_id_wrong_four));
                     mf_put(mfp, hp, false, false);
@@ -2912,7 +2911,7 @@ pub unsafe fn ml_setmarked(lnum: linenr_T) {
         if hp.is_null() {
             return;
         }
-        let dp = (*hp).bh_data.cast::<DataBlock>();
+        let dp = (*hp).data_ptr().cast::<DataBlock>();
         *db_idx_ptr(dp, (lnum - (*curbuf).b_ml.ml_locked_low) as usize) |= DB_MARKED;
         (*curbuf).b_ml.ml_flags |= ML_LOCKED_DIRTY;
     }
@@ -2931,7 +2930,7 @@ pub unsafe fn ml_firstmarked() -> linenr_T {
             if hp.is_null() {
                 return 0;
             }
-            let dp = (*hp).bh_data.cast::<DataBlock>();
+            let dp = (*hp).data_ptr().cast::<DataBlock>();
             let mut i = (lnum - (*curbuf).b_ml.ml_locked_low) as isize;
             while lnum <= (*curbuf).b_ml.ml_locked_high {
                 let idx_p = (&raw mut (*dp).db_index).cast::<c_uint>().offset(i);
@@ -2963,7 +2962,7 @@ pub unsafe fn ml_clearmarked() {
             if hp.is_null() {
                 return;
             }
-            let dp = (*hp).bh_data.cast::<DataBlock>();
+            let dp = (*hp).data_ptr().cast::<DataBlock>();
             let mut i = (lnum - (*curbuf).b_ml.ml_locked_low) as isize;
             while lnum <= (*curbuf).b_ml.ml_locked_high {
                 let idx_p = (&raw mut (*dp).db_index).cast::<c_uint>().offset(i);
@@ -3016,7 +3015,7 @@ unsafe fn ml_flush_line(buf: *mut buf_T, noalloc: bool) {
             if hp.is_null() {
                 siemsg!(tr(c"E320: Cannot find line %lld"), i64::from(lnum));
             } else {
-                let dp = (*hp).bh_data.cast::<DataBlock>();
+                let dp = (*hp).data_ptr().cast::<DataBlock>();
                 let idx = (lnum - (*buf).b_ml.ml_locked_low) as usize;
                 let start = (*db_idx_ptr(dp, idx) & DB_INDEX_MASK) as c_int;
                 let old_line = dp.cast::<c_char>().add(start as usize);
@@ -3086,7 +3085,7 @@ unsafe fn ml_new_data(mfp: *mut memfile_T, negative: bool, page_count: i64) -> *
     unsafe {
         assert!(page_count >= 0);
         let hp = mf_new(mfp, negative, page_count as c_uint);
-        let dp = (*hp).bh_data.cast::<DataBlock>();
+        let dp = (*hp).data_ptr().cast::<DataBlock>();
         (*dp).db_id = DATA_ID;
         (*dp).db_txt_end = (page_count as c_uint).wrapping_mul((*mfp).mf_page_size);
         (*dp).db_txt_start = (*dp).db_txt_end;
@@ -3099,7 +3098,7 @@ unsafe fn ml_new_data(mfp: *mut memfile_T, negative: bool, page_count: i64) -> *
 unsafe fn ml_new_ptr(mfp: *mut memfile_T) -> *mut bhdr_T {
     unsafe {
         let hp = mf_new(mfp, false, 1);
-        let pp = (*hp).bh_data.cast::<PointerBlock>();
+        let pp = (*hp).data_ptr().cast::<PointerBlock>();
         (*pp).pb_id = PTR_ID;
         (*pp).pb_count = 0;
         (*pp).pb_count_max = pb_count_max(mfp);
@@ -3180,7 +3179,7 @@ unsafe fn ml_find_line(buf: *mut buf_T, lnum: linenr_T, action: c_int) -> *mut b
                 high -= 1;
             }
 
-            let dp = (*hp).bh_data.cast::<DataBlock>();
+            let dp = (*hp).data_ptr().cast::<DataBlock>();
             if (*dp).db_id == DATA_ID {
                 (*buf).b_ml.ml_locked = hp.cast();
                 (*buf).b_ml.ml_locked_low = low;
@@ -3289,7 +3288,7 @@ unsafe fn ml_lineadd(buf: *mut buf_T, count: c_int) {
             if hp.is_null() {
                 break;
             }
-            let pp = (*hp).bh_data.cast::<PointerBlock>();
+            let pp = (*hp).data_ptr().cast::<PointerBlock>();
             if (*pp).pb_id != PTR_ID {
                 mf_put(mfp, hp, false, false);
                 iemsg(tr(e_pointer_block_id_wrong_two));
@@ -3867,7 +3866,7 @@ pub unsafe fn ml_setflags(buf: *mut buf_T) {
         let mfp = (*buf).b_ml.ml_mfp.cast::<memfile_T>();
         let hp = pmap_get_bhdr(&(*mfp).mf_hash, 0);
         if !hp.is_null() {
-            let b0p = (*hp).bh_data.cast::<ZeroBlock>();
+            let b0p = (*hp).data_ptr().cast::<ZeroBlock>();
             (*b0p).set_dirty(if (*buf).b_changed != 0 { B0_DIRTY } else { 0 });
             let ff_bits = ((get_fileformat(buf) + 1) as u8) & B0_FF_MASK;
             (*b0p).set_flags(((*b0p).flags() & !B0_FF_MASK) | ff_bits);
@@ -3947,7 +3946,7 @@ unsafe fn ml_updatechunk(buf: *mut buf_T, line: linenr_T, mut len: c_int, updtyp
                         (*buf).b_ml.ml_usedchunks = -1;
                         return;
                     }
-                    let dp = (*hp).bh_data.cast::<DataBlock>();
+                    let dp = (*hp).data_ptr().cast::<DataBlock>();
                     let count = (*buf).b_ml.ml_locked_high - (*buf).b_ml.ml_locked_low + 1;
                     let idx = curline - (*buf).b_ml.ml_locked_low;
                     curline = (*buf).b_ml.ml_locked_high + 1;
@@ -3990,7 +3989,7 @@ unsafe fn ml_updatechunk(buf: *mut buf_T, line: linenr_T, mut len: c_int, updtyp
                         (*buf).b_ml.ml_usedchunks = -1;
                         return;
                     }
-                    let dp = (*hp).bh_data.cast::<DataBlock>();
+                    let dp = (*hp).data_ptr().cast::<DataBlock>();
                     let rest = if (*dp).db_line_count == 1 {
                         ((*dp).db_txt_end - (*dp).db_txt_start) as c_int
                     } else {
@@ -4105,7 +4104,7 @@ pub unsafe fn ml_find_line_or_offset(
             if hp.is_null() {
                 return -1;
             }
-            let dp = (*hp).bh_data.cast::<DataBlock>();
+            let dp = (*hp).data_ptr().cast::<DataBlock>();
             let count = (*buf).b_ml.ml_locked_high - (*buf).b_ml.ml_locked_low + 1;
             let start_idx = curline - (*buf).b_ml.ml_locked_low;
             let mut idx = start_idx;
