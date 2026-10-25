@@ -66,40 +66,34 @@ pub struct mpack_rpc_session_t {
     pub slots: Vec<mpack_rpc_slot_s>,
 }
 
-pub unsafe fn mpack_rpc_session_new(capacity: mpack_uint32_t) -> *mut mpack_rpc_session_t {
-    unsafe {
-        let cap = if capacity != 0 {
-            capacity as usize
-        } else {
-            MPACK_RPC_MAX_REQUESTS
-        };
-        let empty_slot = mpack_rpc_slot_s {
-            used: 0,
-            msg: mpack_rpc_message_t {
-                id: 0,
-                data: mpack_data_t::new(),
-            },
-        };
-        let mut session = Box::new(mpack_rpc_session_t {
-            reader: mpack_tokbuf_t::new(),
-            writer: mpack_tokbuf_t::new(),
-            receive: mpack_rpc_header_t::new(),
-            send: mpack_rpc_header_t::new(),
-            request_id: 0,
-            slots: vec![empty_slot; cap],
-        });
-        mpack_tokbuf_init(&raw mut session.reader);
-        mpack_tokbuf_init(&raw mut session.writer);
-        mpack_rpc_reset_hdr(&raw mut session.receive);
-        mpack_rpc_reset_hdr(&raw mut session.send);
-        Box::into_raw(session)
-    }
-}
-
-pub unsafe fn mpack_rpc_session_free(session: *mut mpack_rpc_session_t) {
-    if !session.is_null() {
+impl mpack_rpc_session_t {
+    pub unsafe fn new(capacity: mpack_uint32_t) -> Self {
         unsafe {
-            drop(Box::from_raw(session));
+            let cap = if capacity != 0 {
+                capacity as usize
+            } else {
+                MPACK_RPC_MAX_REQUESTS
+            };
+            let empty_slot = mpack_rpc_slot_s {
+                used: 0,
+                msg: mpack_rpc_message_t {
+                    id: 0,
+                    data: mpack_data_t::new(),
+                },
+            };
+            let mut session = mpack_rpc_session_t {
+                reader: mpack_tokbuf_t::new(),
+                writer: mpack_tokbuf_t::new(),
+                receive: mpack_rpc_header_t::new(),
+                send: mpack_rpc_header_t::new(),
+                request_id: 0,
+                slots: vec![empty_slot; cap],
+            };
+            mpack_tokbuf_init(&raw mut session.reader);
+            mpack_tokbuf_init(&raw mut session.writer);
+            mpack_rpc_reset_hdr(&raw mut session.receive);
+            mpack_rpc_reset_hdr(&raw mut session.send);
+            session
         }
     }
 }

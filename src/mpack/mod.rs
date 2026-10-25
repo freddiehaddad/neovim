@@ -72,11 +72,10 @@ mod tests {
             crate::mpack::object::mpack_parser_grow(&mut p);
             assert_eq!(p.capacity, 4);
 
-            let s = crate::mpack::rpc::mpack_rpc_session_new(2);
-            assert_eq!((*s).slots.len(), 2);
-            crate::mpack::rpc::mpack_rpc_session_grow(s);
-            assert_eq!((*s).slots.len(), 4);
-            crate::mpack::rpc::mpack_rpc_session_free(s);
+            let mut s = crate::mpack::rpc::mpack_rpc_session_t::new(2);
+            assert_eq!(s.slots.len(), 2);
+            crate::mpack::rpc::mpack_rpc_session_grow(&mut s);
+            assert_eq!(s.slots.len(), 4);
         }
     }
 }

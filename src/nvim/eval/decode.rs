@@ -1087,7 +1087,7 @@ unsafe fn typval_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_
         if !parent.is_null() {
             match (*parent).tok.r#type {
                 mpack_token_type_t::MPACK_TOKEN_ARRAY => {
-                    let list = (*parent).data[1].p().cast::<list_T>();
+                    let list = (*parent).data[1].list();
                     result = tv_list_append_owned_tv(
                         list,
                         typval_T {
@@ -1098,7 +1098,7 @@ unsafe fn typval_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_
                     );
                 }
                 mpack_token_type_t::MPACK_TOKEN_MAP => {
-                    let items = (*parent).data[1].p().cast::<[typval_T; 2]>();
+                    let items = (*parent).data[1].map_pairs();
                     let pair = &mut *items.add((*parent).pos);
                     result = &mut pair[(*parent).key_visited as usize];
                 }
@@ -1110,10 +1110,10 @@ unsafe fn typval_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_
                 _ => std::process::abort(),
             }
         } else {
-            result = (*parser).data.p().cast::<typval_T>();
+            result = (*parser).data.typval();
         }
 
-        (*node).data[0] = mpack_data_t::Ptr(result.cast::<c_void>());
+        (*node).data[0] = mpack_data_t::Typval(result);
         (*node).data[1] = mpack_data_t::Null;
 
         match (*node).tok.r#type {
@@ -1160,10 +1160,10 @@ unsafe fn typval_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_
             mpack_token_type_t::MPACK_TOKEN_BIN
             | mpack_token_type_t::MPACK_TOKEN_STR
             | mpack_token_type_t::MPACK_TOKEN_EXT => {
-                (*node).data[1] = mpack_data_t::Ptr(xmallocz((*node).tok.length as usize));
+                (*node).data[1] = mpack_data_t::Bytes(xmallocz((*node).tok.length as usize).cast());
             }
             mpack_token_type_t::MPACK_TOKEN_CHUNK => {
-                let data = (*parent).data[1].p().cast::<u8>();
+                let data = (*parent).data[1].bytes();
                 let len = (*node).tok.length as usize;
                 if len > 0 {
                     std::ptr::copy_nonoverlapping(
@@ -1181,12 +1181,12 @@ unsafe fn typval_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_
                     v_lock: VAR_UNLOCKED,
                     vval: TypvalVval { v_list: list },
                 };
-                (*node).data[1] = mpack_data_t::Ptr(list.cast::<c_void>());
+                (*node).data[1] = mpack_data_t::List(list);
             }
             mpack_token_type_t::MPACK_TOKEN_MAP => {
                 let pairs = vec![[typval_T::new(); 2]; (*node).tok.length as usize]
                     .into_boxed_slice();
-                (*node).data[1] = mpack_data_t::Ptr(Box::into_raw(pairs).cast::<c_void>());
+                (*node).data[1] = mpack_data_t::MapPairs(Box::into_raw(pairs).cast());
             }
             mpack_token_type_t::MPACK_TOKEN_NONE => std::process::abort(),
         }
@@ -1211,11 +1211,11 @@ pub unsafe fn typval_parser_error_free(parser: *mut mpack_parser_t) {
             mpack_token_type_t::MPACK_TOKEN_BIN
             | mpack_token_type_t::MPACK_TOKEN_STR
             | mpack_token_type_t::MPACK_TOKEN_EXT => unsafe {
-                xfree(node.data[1].p());
+                xfree(node.data[1].bytes().cast());
                 node.data[1] = mpack_data_t::Null;
             },
             mpack_token_type_t::MPACK_TOKEN_MAP => unsafe {
-                free_map_pairs(node.data[1].p().cast(), node.tok.length as usize);
+                free_map_pairs(node.data[1].map_pairs(), node.tok.length as usize);
                 node.data[1] = mpack_data_t::Null;
             },
             _ => {}
@@ -1226,11 +1226,11 @@ pub unsafe fn typval_parser_error_free(parser: *mut mpack_parser_t) {
 unsafe fn typval_parse_exit(_parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
     unsafe {
         let node = &mut *node;
-        let result = node.data[0].p().cast::<typval_T>();
+        let result = node.data[0].typval();
         match node.tok.r#type {
             mpack_token_type_t::MPACK_TOKEN_BIN | mpack_token_type_t::MPACK_TOKEN_STR => {
                 *result = decode_string(
-                    node.data[1].p().cast::<c_char>(),
+                    node.data[1].bytes().cast::<c_char>(),
                     node.tok.length as usize,
                     false,
                     true,
@@ -1254,14 +1254,14 @@ unsafe fn typval_parse_exit(_parser: *mut mpack_parser_t, node: *mut mpack_node_
                 );
                 encode_list_write(
                     ext_val_list,
-                    node.data[1].p().cast::<c_char>(),
+                    node.data[1].bytes().cast::<c_char>(),
                     node.tok.length as usize,
                 );
-                xfree(node.data[1].p());
+                xfree(node.data[1].bytes().cast());
                 node.data[1] = mpack_data_t::Null;
             }
             mpack_token_type_t::MPACK_TOKEN_MAP => {
-                let items = node.data[1].p().cast::<[typval_T; 2]>();
+                let items = node.data[1].map_pairs();
                 let len = node.tok.length as usize;
                 let mut can_be_dict = true;
                 for i in 0..len {
@@ -1358,7 +1358,7 @@ pub unsafe fn unpack_typval(
         (*ret).v_type = VarType::VAR_UNKNOWN;
         let mut parser = mpack_parser_t::new(0);
         mpack_parser_init(&raw mut parser, 0);
-        parser.data = mpack_data_t::Ptr(ret.cast::<c_void>());
+        parser.data = mpack_data_t::Typval(ret);
         let status = mpack_parse_typval(&mut parser, data, size);
         if status != MPACK_OK {
             typval_parser_error_free(&mut parser);

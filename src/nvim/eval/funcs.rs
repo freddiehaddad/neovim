@@ -6039,7 +6039,7 @@ unsafe fn msgpackparse_unpack_list(list: *const list_T, ret_list: *mut list_T) {
         let mut cur_item = tv_initial_value();
         let mut parser = mpack_parser_t::new(0);
         mpack_parser_init(&raw mut parser, 0);
-        parser.data = crate::mpack::object::mpack_data_t::Ptr((&raw mut cur_item).cast());
+        parser.data = crate::mpack::object::mpack_data_t::Typval(&raw mut cur_item);
 
         let mut status = MPACK_OK;
         'end: {

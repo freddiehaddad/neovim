@@ -1,6 +1,6 @@
 //! MessagePack object tree parser and unparser (`src/mpack/object.c`).
 
-use std::ffi::{c_char, c_int, c_void};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 use crate::mpack::mpack_core::{
@@ -16,8 +16,15 @@ pub const MPACK_NOMEM: c_int = MPACK_ERROR + 1;
 #[derive(Copy, Clone)]
 pub enum mpack_data_t {
     Null,
-    Ptr(*mut c_void),
     Int(mpack_sintmax_t),
+    LmpackUnpacker(*mut crate::mpack::lmpack::LmpackUnpacker),
+    LmpackPacker(*mut crate::mpack::lmpack::Packer),
+    Typval(*mut crate::eval::typval::typval_T),
+    List(*mut crate::eval::typval::list_T),
+    MapPairs(*mut [crate::eval::typval::typval_T; 2]),
+    Bytes(*mut u8),
+    Unpacker(*mut crate::msgpack_rpc::unpacker::Unpacker),
+    Object(*mut crate::api::private::validate::Object),
 }
 
 impl mpack_data_t {
@@ -26,18 +33,74 @@ impl mpack_data_t {
     }
 
     #[inline]
-    pub const fn p(self) -> *mut c_void {
+    pub const fn i(self) -> mpack_sintmax_t {
         match self {
-            Self::Ptr(p) => p,
+            Self::Int(i) => i,
+            _ => 0,
+        }
+    }
+
+    #[inline]
+    pub const fn lmpack_unpacker(self) -> *mut crate::mpack::lmpack::LmpackUnpacker {
+        match self {
+            Self::LmpackUnpacker(p) => p,
             _ => ptr::null_mut(),
         }
     }
 
     #[inline]
-    pub const fn i(self) -> mpack_sintmax_t {
+    pub const fn lmpack_packer(self) -> *mut crate::mpack::lmpack::Packer {
         match self {
-            Self::Int(i) => i,
-            _ => 0,
+            Self::LmpackPacker(p) => p,
+            _ => ptr::null_mut(),
+        }
+    }
+
+    #[inline]
+    pub const fn typval(self) -> *mut crate::eval::typval::typval_T {
+        match self {
+            Self::Typval(p) => p,
+            _ => ptr::null_mut(),
+        }
+    }
+
+    #[inline]
+    pub const fn list(self) -> *mut crate::eval::typval::list_T {
+        match self {
+            Self::List(p) => p,
+            _ => ptr::null_mut(),
+        }
+    }
+
+    #[inline]
+    pub const fn map_pairs(self) -> *mut [crate::eval::typval::typval_T; 2] {
+        match self {
+            Self::MapPairs(p) => p,
+            _ => ptr::null_mut(),
+        }
+    }
+
+    #[inline]
+    pub const fn bytes(self) -> *mut u8 {
+        match self {
+            Self::Bytes(p) => p,
+            _ => ptr::null_mut(),
+        }
+    }
+
+    #[inline]
+    pub const fn unpacker(self) -> *mut crate::msgpack_rpc::unpacker::Unpacker {
+        match self {
+            Self::Unpacker(p) => p,
+            _ => ptr::null_mut(),
+        }
+    }
+
+    #[inline]
+    pub const fn object(self) -> *mut crate::api::private::validate::Object {
+        match self {
+            Self::Object(p) => p,
+            _ => ptr::null_mut(),
         }
     }
 }
