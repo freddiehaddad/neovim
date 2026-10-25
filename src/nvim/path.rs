@@ -1343,6 +1343,44 @@ pub unsafe fn gen_expand_wildcards(
     }
 }
 
+pub unsafe fn gen_expand_wildcards_vec(
+    num_pat: c_int,
+    pat: *mut *mut c_char,
+    files: &mut Vec<*mut c_char>,
+    flags: c_int,
+) -> c_int {
+    unsafe {
+        let mut count: c_int = 0;
+        let mut raw_files: *mut *mut c_char = ptr::null_mut();
+        let retval = gen_expand_wildcards(num_pat, pat, &mut count, &mut raw_files, flags);
+        files.clear();
+        if count > 0 && !raw_files.is_null() {
+            files.extend_from_slice(std::slice::from_raw_parts(raw_files, count as usize));
+        }
+        xfree(raw_files.cast());
+        retval
+    }
+}
+
+pub unsafe fn expand_wildcards_vec(
+    num_pat: c_int,
+    pat: *mut *mut c_char,
+    files: &mut Vec<*mut c_char>,
+    flags: c_int,
+) -> c_int {
+    unsafe {
+        let mut count: c_int = 0;
+        let mut raw_files: *mut *mut c_char = ptr::null_mut();
+        let retval = expand_wildcards(num_pat, pat, &mut count, &mut raw_files, flags);
+        files.clear();
+        if count > 0 && !raw_files.is_null() {
+            files.extend_from_slice(std::slice::from_raw_parts(raw_files, count as usize));
+        }
+        xfree(raw_files.cast());
+        retval
+    }
+}
+
 pub unsafe fn FreeWild(mut count: c_int, files: *mut *mut c_char) {
     if count <= 0 || files.is_null() {
         return;

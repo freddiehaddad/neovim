@@ -33,7 +33,7 @@ use crate::os::input::{fast_breakcheck, line_breakcheck, veryfast_breakcheck};
 use crate::os::stdpaths::{XDGVarType, get_xdg_home};
 use crate::os::time::{Timestamp, os_time, time_t};
 use crate::path::{
-    FreeWild, dir_of_file_exists, kPathCmpExpand, kPathCmpLiteral, path_equal, path_tail,
+    dir_of_file_exists, kPathCmpExpand, kPathCmpLiteral, path_equal, path_tail,
     path_tail_with_sep, vim_ispathsep,
 };
 use crate::regexp::{
@@ -4719,8 +4719,7 @@ unsafe fn put_node(
 /// ":mkspell [-ascii] addfile"
 pub unsafe fn ex_mkspell(eap: *mut exarg_T) {
     unsafe {
-        let mut fcount: c_int = 0;
-        let mut fnames: *mut *mut c_char = ptr::null_mut();
+        let mut fnames: Vec<*mut c_char> = Vec::new();
         let mut arg = (*eap).arg;
         let mut ascii = false;
 
@@ -4729,12 +4728,12 @@ pub unsafe fn ex_mkspell(eap: *mut exarg_T) {
             arg = skipwhite(arg.add(6));
         }
 
-        if get_arglist_exp(arg, &raw mut fcount, &raw mut fnames, false) != OK {
+        if get_arglist_exp(arg, &mut fnames, false) != OK {
             return;
         }
 
-        mkspell(fcount, fnames, ascii, (*eap).forceit != 0, false);
-        FreeWild(fcount, fnames);
+        mkspell(&fnames, ascii, (*eap).forceit != 0, false);
+        crate::path::clear_cstrings(&mut fnames);
     }
 }
 
@@ -5047,13 +5046,7 @@ unsafe fn sug_write(spin: *mut spellinfo_T, fname: *mut c_char) {
     }
 }
 
-unsafe fn mkspell(
-    fcount: c_int,
-    fnames: *mut *mut c_char,
-    ascii: bool,
-    over_write: bool,
-    added_word: bool,
-) {
+unsafe fn mkspell(fnames: &[*mut c_char], ascii: bool, over_write: bool, added_word: bool) {
     unsafe {
         let mut fname_buf = [0 as c_char; MAXPATHL];
         let mut wfname_buf = [0 as c_char; MAXPATHL];
@@ -5069,13 +5062,13 @@ unsafe fn mkspell(
         spin.si_rem_accents = 1;
         spin.si_newcompID = 127;
 
-        let innames = fnames.offset(if fcount == 1 { 0 } else { 1 });
+        let fcount = fnames.len() as c_int;
+        let innames = if fcount == 1 { fnames } else { &fnames[1..] };
         let mut incount = fcount - 1;
 
         let wfname = wfname_buf.as_mut_ptr();
 
-        if fcount >= 1 {
-            let f0 = *fnames;
+        if let Some(&f0) = fnames.first() {
             let len = strlen(f0);
             if fcount == 1 && len > 4 && strcmp(f0.add(len - 4), c".add".as_ptr()) == 0 {
                 incount = 1;
@@ -5140,7 +5133,7 @@ unsafe fn mkspell(
                 *slot = ptr::null_mut();
 
                 if incount > 1 {
-                    let in_i = *innames.add(i);
+                    let in_i = innames[i];
                     let len = strlen(in_i);
                     if strlen(path_tail(in_i)) < 5 || *in_i.add(len - 3) != b'_' as c_char {
                         semsg!(gettext(c"E755: Invalid region in %s".as_ptr()), in_i);
@@ -5166,7 +5159,7 @@ unsafe fn mkspell(
 
                 let mut i: usize = 0;
                 while (i as c_int) < incount && !error {
-                    let in_i = *innames.add(i);
+                    let in_i = innames[i];
                     spin.si_conv.vc_type = CONV_NONE;
                     spin.si_region = 1 << i;
 
@@ -5308,7 +5301,7 @@ pub unsafe fn spell_add_word(
             return;
         }
 
-        let mut fname: *mut c_char = if idx == 0 {
+        let fname: *mut c_char = if idx == 0 {
             if int_wordlist.is_null() {
                 int_wordlist = vim_tempname();
                 if int_wordlist.is_null() {
@@ -5461,7 +5454,7 @@ pub unsafe fn spell_add_word(
         }
 
         if !fd.is_null() {
-            mkspell(1, &raw mut fname, false, true, true);
+            mkspell(&[fname], false, true, true);
 
             if !buf.is_null() {
                 buf_reload(buf, (*buf).b_orig_mode, false);

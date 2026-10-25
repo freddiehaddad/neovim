@@ -111,7 +111,7 @@ use crate::os::time::{os_time, time_t};
 #[cfg(windows)]
 use crate::path::path_to_slash;
 use crate::path::{
-    EW_FILE, EW_SILENT, FreeWild, add_pathsep, concat_fnames, fix_fname, gen_expand_wildcards,
+    EW_FILE, EW_SILENT, add_pathsep, concat_fnames, fix_fname, gen_expand_wildcards_vec,
     kPathCmpLiteral, path_equal, path_is_absolute, path_tail, path_try_shorten_fname,
     vim_isAbsName,
 };
@@ -492,8 +492,7 @@ struct vgr_args_T {
     tomatch: c_int,
     spat: *mut c_char,
     flags: c_int,
-    fnames: *mut *mut c_char,
-    fcount: c_int,
+    fnames: Vec<*mut c_char>,
     regmatch: regmmatch_T,
     qf_title: *mut c_char,
 }
@@ -504,8 +503,7 @@ impl vgr_args_T {
             tomatch: 0,
             spat: ptr::null_mut(),
             flags: 0,
-            fnames: ptr::null_mut(),
-            fcount: 0,
+            fnames: Vec::new(),
             regmatch: regmmatch_T::new(),
             qf_title: ptr::null_mut(),
         }
@@ -521,7 +519,7 @@ impl Default for vgr_args_T {
 impl Drop for vgr_args_T {
     fn drop(&mut self) {
         unsafe {
-            FreeWild(self.fcount, self.fnames);
+            crate::path::clear_cstrings(&mut self.fnames);
         }
     }
 }
@@ -5853,9 +5851,7 @@ unsafe fn vgr_process_args(eap: *mut exarg_T, args: *mut vgr_args_T) -> c_int {
             return FAIL;
         }
 
-        if get_arglist_exp(p, &raw mut (*args).fcount, &raw mut (*args).fnames, true) == FAIL
-            || (*args).fcount == 0
-        {
+        if get_arglist_exp(p, &mut (*args).fnames, true) == FAIL || (*args).fnames.is_empty() {
             emsg(gettext((&raw const e_nomatch).cast()));
             return FAIL;
         }
@@ -5883,10 +5879,10 @@ unsafe fn vgr_process_files(
         os_dirname(dirname_start.as_mut_ptr(), MAXPATHL);
 
         let mut seconds: time_t = 0;
-        let mut fi: c_int = 0;
+        let mut fi: usize = 0;
         let mut aborted = false;
-        while fi < (*cmd_args).fcount && !got_int && (*cmd_args).tomatch > 0 {
-            let fname_exp = *(*cmd_args).fnames.add(fi as usize);
+        while fi < (*cmd_args).fnames.len() && !got_int && (*cmd_args).tomatch > 0 {
+            let fname_exp = (*cmd_args).fnames.as_slice()[fi];
             let fname = path_try_shorten_fname(fname_exp);
             let now = os_time() as time_t;
             if now > seconds {
@@ -7774,23 +7770,17 @@ unsafe fn hgr_search_files_in_dir(
     lang: *const c_char,
 ) {
     unsafe {
-        let mut fcount: c_int = 0;
-        let mut fnames: *mut *mut c_char = ptr::null_mut();
+        let mut fnames: Vec<*mut c_char> = Vec::new();
 
         add_pathsep(dirname);
         c_strcat(dirname, c"doc/*.\\(txt\\|??x\\)".as_ptr());
-        if gen_expand_wildcards(
-            1,
-            &raw mut dirname,
-            &raw mut fcount,
-            &raw mut fnames,
-            EW_FILE | EW_SILENT,
-        ) == OK
-            && fcount > 0
+        if gen_expand_wildcards_vec(1, &raw mut dirname, &mut fnames, EW_FILE | EW_SILENT) == OK
+            && !fnames.is_empty()
         {
-            let mut fi: c_int = 0;
-            while fi < fcount && !got_int {
-                let f = *fnames.add(fi as usize);
+            for &f in &fnames {
+                if got_int {
+                    break;
+                }
                 let flen = strlen(f);
                 if !lang.is_null()
                     && flen >= 3
@@ -7798,14 +7788,12 @@ unsafe fn hgr_search_files_in_dir(
                     && !(vim_strnicmp_asc(lang, c"en".as_ptr(), 2) == 0
                         && vim_strnicmp_asc(c"txt".as_ptr(), f.add(flen - 3), 3) == 0)
                 {
-                    fi += 1;
                     continue;
                 }
 
                 hgr_search_file(qfl, f, p_regmatch);
-                fi += 1;
             }
-            FreeWild(fcount, fnames);
+            crate::path::clear_cstrings(&mut fnames);
         }
     }
 }

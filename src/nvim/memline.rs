@@ -54,7 +54,7 @@ use crate::os::users::os_get_username;
 #[cfg(unix)]
 use crate::path::path_is_absolute;
 use crate::path::{
-    EW_FILE, EW_KEEPALL, EW_SILENT, FreeWild, after_pathsep, concat_fnames, expand_wildcards,
+    EW_FILE, EW_KEEPALL, EW_SILENT, after_pathsep, concat_fnames, expand_wildcards_vec,
     fix_fname, kPathCmpFull, kPathCmpLiteral, path_equal, path_tail, same_directory, shorten_dir,
     vim_FullName, vim_ispathsep,
 };
@@ -1456,7 +1456,6 @@ unsafe fn ml_recover_theend(
 pub unsafe fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: *mut list_T) {
     unsafe {
         let mut names = [ptr::null_mut::<c_char>(); 6];
-        let mut files: *mut *mut c_char = ptr::null_mut();
         #[cfg(unix)]
         let mut fname_buf = [0 as c_char; MAXPATHL];
         let mut fname_res: *mut c_char = ptr::null_mut();
@@ -1539,27 +1538,22 @@ pub unsafe fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: *mu
                 xfree(tail.cast());
             }
 
-            let mut num_files: c_int = 0;
-            if num_names == 0
-                || expand_wildcards(
+            let mut files: Vec<*mut c_char> = Vec::new();
+            if num_names > 0 {
+                let _ = expand_wildcards_vec(
                     num_names,
                     (&raw mut names).cast(),
-                    &raw mut num_files,
-                    &raw mut files,
+                    &mut files,
                     EW_KEEPALL | EW_FILE | EW_SILENT,
-                ) == FAIL
-            {
-                num_files = 0;
+                );
             }
 
-            if *dirp == NUL && tv_list_len(ret_list) + num_files == 0 && !fname.is_null() {
+            if *dirp == NUL && tv_list_len(ret_list) == 0 && files.is_empty() && !fname.is_null() {
                 let mut swapname = modname(fname_res, c".swp".as_ptr(), true);
                 if !swapname.is_null() {
                     if os_path_exists(swapname) {
-                        files = xmalloc(size_of::<*mut c_char>()).cast();
-                        *files = swapname;
+                        files.push(swapname);
                         swapname = ptr::null_mut();
-                        num_files = 1;
                     }
                     xfree(swapname.cast());
                 }
@@ -1569,34 +1563,23 @@ pub unsafe fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: *mu
                 let cur_mfp = (*curbuf).b_ml.ml_mfp.cast::<memfile_T>();
                 let p = (*cur_mfp).mf_fname;
                 if !p.is_null() {
-                    let mut i = 0;
-                    while i < num_files {
-                        if path_equal(p, *files.add(i as usize), kPathCmpFull) {
-                            xfree((*files.add(i as usize)).cast());
-                            num_files -= 1;
-                            if num_files == 0 {
-                                xfree(files.cast());
-                                files = ptr::null_mut();
-                            } else {
-                                for j in i..num_files {
-                                    *files.add(j as usize) = *files.add((j + 1) as usize);
-                                }
-                            }
+                    files.retain(|&f| {
+                        if path_equal(p, f, kPathCmpFull) {
+                            xfree(f.cast());
+                            false
+                        } else {
+                            true
                         }
-                        i += 1;
-                    }
+                    });
                 }
             }
 
-            for i in 0..num_files {
-                tv_list_append_allocated_string(ret_list, xstrdup(*files.add(i as usize)));
+            for f in files {
+                tv_list_append_allocated_string(ret_list, f);
             }
 
             for name in names.iter().take(num_names as usize) {
                 xfree((*name).cast());
-            }
-            if num_files > 0 {
-                FreeWild(num_files, files);
             }
         }
         xfree(dir_name.data.cast());

@@ -26,7 +26,8 @@ use crate::option_vars::*;
 use crate::os::input::os_breakcheck;
 use crate::path::{
     EW_ADDSLASH, EW_DIR, EW_FILE, EW_NOTFOUND, EW_NOTWILD, FullName_save, expand_wildcards,
-    fix_fname, gen_expand_wildcards, kPathCmpExpand, kPathCmpFull, kPathCmpLiteral, path_equal,
+    expand_wildcards_vec, fix_fname, gen_expand_wildcards_vec, kPathCmpExpand, kPathCmpFull,
+    kPathCmpLiteral, path_equal,
 };
 use crate::regexp::{RE_MAGIC, regmatch_T, vim_regcomp, vim_regexec, vim_regfree};
 use crate::strings::gettext;
@@ -81,21 +82,18 @@ impl alist_T {
     }
 }
 
-impl Drop for alist_T {
-    fn drop(&mut self) {
-        for entry in self.al_ga.drain(..) {
-            unsafe {
-                xfree(entry.ae_fname.cast());
-            }
-        }
-    }
-}
-
 #[repr(C)]
-#[derive(Clone, Copy)]
 pub struct aentry_T {
     pub ae_fname: *mut c_char,
     pub ae_fnum: c_int,
+}
+
+impl Drop for aentry_T {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.ae_fname.cast());
+        }
+    }
 }
 
 struct arg_all_state_T {
@@ -171,9 +169,6 @@ pub unsafe fn alist_clear(al: *mut alist_T) {
     unsafe {
         if check_arglist_locked() == FAIL {
             return;
-        }
-        for entry in (*al).al_ga.drain(..) {
-            xfree(entry.ae_fname.cast());
         }
         (*al).al_ga = Vec::new();
     }
@@ -336,11 +331,10 @@ unsafe fn get_arglist(gap: &mut Vec<*mut c_char>, mut str_: *mut c_char, escaped
     }
 }
 
-/// Parse a list of arguments (file names), expand them and return in `fnames[fcountp]` (`get_arglist_exp`).
+/// Parse a list of arguments (file names), expand them and return in `fnames` (`get_arglist_exp`).
 pub unsafe fn get_arglist_exp(
     str_: *mut c_char,
-    fcountp: *mut c_int,
-    fnamesp: *mut *mut *mut c_char,
+    fnames: &mut Vec<*mut c_char>,
     wig: bool,
 ) -> c_int {
     unsafe {
@@ -348,19 +342,17 @@ pub unsafe fn get_arglist_exp(
         get_arglist(&mut ga, str_, true);
 
         if wig {
-            expand_wildcards(
+            expand_wildcards_vec(
                 ga.len() as c_int,
                 ga.as_mut_ptr(),
-                fcountp,
-                fnamesp,
+                fnames,
                 EW_FILE | EW_NOTFOUND | EW_NOTWILD,
             )
         } else {
-            gen_expand_wildcards(
+            gen_expand_wildcards_vec(
                 ga.len() as c_int,
                 ga.as_mut_ptr(),
-                fcountp,
-                fnamesp,
+                fnames,
                 EW_FILE | EW_NOTFOUND | EW_NOTWILD,
             )
         }
@@ -444,8 +436,7 @@ unsafe fn arglist_del_files(alist_ga: &[*mut c_char]) {
                     0,
                 ) {
                     didone = true;
-                    let removed = (*win_alist(curwin)).al_ga.remove(match_idx as usize);
-                    xfree(removed.ae_fname.cast());
+                    (*win_alist(curwin)).al_ga.remove(match_idx as usize);
                     if (*curwin).w_arg_idx > match_idx {
                         (*curwin).w_arg_idx -= 1;
                     }
@@ -627,7 +618,7 @@ pub unsafe fn ex_args(eap: *mut exarg_T) {
             (*al).al_ga.reserve(gcount);
 
             for i in 0..gcount {
-                let ge = *garglist().add(i);
+                let ge = &*garglist().add(i);
                 if !ge.ae_fname.is_null() {
                     (*al).al_ga.push(aentry_T {
                         ae_fname: xstrdup(ge.ae_fname),
