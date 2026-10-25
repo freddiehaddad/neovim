@@ -80,7 +80,7 @@ use crate::strings::{atoi, gettext, strcmp, strlen, strncmp, vim_snprintf, vim_s
 use crate::textformat::oparg_T;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_cursor_goto, ui_flush, vim_beep};
 use crate::undo::u_sync;
-use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
 use std::ptr;
 
 use crate::option::OptInt;
@@ -1874,7 +1874,7 @@ pub unsafe fn vgetc() -> c_int {
         (*okb).push(NUL as c_char);
         if on_key_blocked == 0 && nlua_exec_on_key(c, (*okb).as_mut_ptr()) {
             if c == K_COMMAND {
-                xfree(getcmdkeycmd(NUL, ptr::null_mut(), 0, false).cast());
+                xfree(getcmdkeycmd(NUL, 0, false).cast());
             } else if c == K_LUA {
                 map_execute_lua(false, true);
             } else if c == K_PASTE_START {
@@ -3236,12 +3236,7 @@ pub unsafe fn get_keystroke(events: *mut MultiQueue) -> c_int {
 }
 
 /// Function passed to `do_cmdline()` to get the command after a `<Cmd>` key from typeahead.
-pub unsafe fn getcmdkeycmd(
-    promptc: c_int,
-    _cookie: *mut c_void,
-    _indent: c_int,
-    _do_concat: bool,
-) -> *mut c_char {
+pub unsafe fn getcmdkeycmd(promptc: c_int, _indent: c_int, _do_concat: bool) -> *mut c_char {
     unsafe {
         let mut line: Vec<u8> = Vec::new();
         let mut c1: c_int = -1;

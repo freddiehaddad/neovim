@@ -1038,10 +1038,7 @@ unsafe fn packer_buffer_init_channels(
         (*packer).ptr = (*packer).startptr;
         (*packer).endptr = (*packer).startptr.add(ARENA_BLOCK_SIZE);
         (*packer).packer_flush = Some(channel_flush_callback);
-        (*packer).anydata = crate::msgpack_rpc::packer::PackerData {
-            chans,
-            ..crate::msgpack_rpc::packer::PackerData::NONE
-        };
+        (*packer).anydata = crate::msgpack_rpc::packer::PackerData::Chans(chans);
         (*packer).anyint = nchans as i64;
     }
 }
@@ -1056,7 +1053,7 @@ unsafe fn packer_buffer_finish_channels(packer: *mut PackerBuffer) {
                 (*packer).anyint as usize,
                 Some(free_block_void),
             );
-            let chans = (*packer).anydata.chans;
+            let chans = (*packer).anydata.as_chans();
             for i in 0..((*packer).anyint as usize) {
                 let _ = channel_write(*chans.add(i), buf);
             }
@@ -1070,7 +1067,7 @@ unsafe fn channel_flush_callback(packer: *mut PackerBuffer) {
     unsafe {
         packer_buffer_finish_channels(packer);
         packer_buffer_init_channels(
-            (*packer).anydata.chans,
+            (*packer).anydata.as_chans(),
             (*packer).anyint as usize,
             packer,
         );

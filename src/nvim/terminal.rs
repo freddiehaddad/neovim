@@ -54,9 +54,7 @@ use crate::highlight::{
     HL_BG_INDEXED, HL_FG_INDEXED, hl_add_url, hl_combine_attr, hl_get_term_attr,
 };
 use crate::highlight_group::name_to_color;
-use crate::input::{
-    K_PASTE_START, getcmdkeycmd, map_execute_lua, merge_modifiers, paste_repeat, requeue_key,
-};
+use crate::input::{K_PASTE_START, map_execute_lua, merge_modifiers, paste_repeat, requeue_key};
 use crate::input_cmdatom::{atom_term_enter, cmdarg_T};
 use crate::keycodes::{
     ESC, K_BS, K_COMMAND, K_DEL, K_DOWN, K_END, K_F1, K_F2, K_F3, K_F4, K_F5, K_F6, K_F7, K_F8,
@@ -1411,7 +1409,7 @@ unsafe fn terminal_execute(state: *mut VimState, key: c_int) -> c_int {
                 }
             }
             K_COMMAND => {
-                do_cmdline(ptr::null_mut(), Some(getcmdkeycmd), ptr::null_mut(), 0);
+                do_cmdline(ptr::null_mut(), crate::cmdexpand::LineGetter::CmdKeyCmd, 0);
             }
             K_LUA => {
                 map_execute_lua(false, false);

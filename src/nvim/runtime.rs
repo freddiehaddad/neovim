@@ -30,9 +30,7 @@ use crate::eval::vars::{SID_STR, new_script_vars, scid_T};
 use crate::eval::{eval_to_number, get_copyID};
 #[cfg(windows)]
 use crate::ex_docmd::Ctrl_Z;
-use crate::ex_docmd::{
-    do_cmdline, do_cmdline_cmd, do_exedit, exarg_T, getline_cookie, getline_equal,
-};
+use crate::ex_docmd::{do_cmdline, do_cmdline_cmd, do_exedit, exarg_T};
 use crate::ex_eval::{CSTP_FINISH, aborting, cleanup_conditionals, cstack_T, report_make_pending};
 use crate::fileio::{EINTR, FILE, O_RDONLY, fclose, fdopen, fgets};
 #[cfg(windows)]
@@ -175,7 +173,7 @@ impl scriptvar_T {
     }
 }
 
-struct source_cookie_T {
+pub struct source_cookie_T {
     fp: *mut FILE,
     nextline: *mut c_char,
     sourcing_lnum: linenr_T,
@@ -2629,16 +2627,16 @@ pub unsafe fn ex_options(_eap: *mut exarg_T) {
     }
 }
 
-pub unsafe fn source_breakpoint(cookie: *mut c_void) -> *mut linenr_T {
-    unsafe { &raw mut (*cookie.cast::<source_cookie_T>()).breakpoint }
+pub unsafe fn source_breakpoint(sp: *mut source_cookie_T) -> *mut linenr_T {
+    unsafe { &raw mut (*sp).breakpoint }
 }
 
-pub unsafe fn source_dbg_tick(cookie: *mut c_void) -> *mut c_int {
-    unsafe { &raw mut (*cookie.cast::<source_cookie_T>()).dbg_tick }
+pub unsafe fn source_dbg_tick(sp: *mut source_cookie_T) -> *mut c_int {
+    unsafe { &raw mut (*sp).dbg_tick }
 }
 
-pub unsafe fn source_level(cookie: *mut c_void) -> c_int {
-    unsafe { (*cookie.cast::<source_cookie_T>()).level }
+pub unsafe fn source_level(sp: *mut source_cookie_T) -> c_int {
+    unsafe { (*sp).level }
 }
 
 unsafe fn fopen_noinh_readbin(filename: *const c_char) -> *mut FILE {
@@ -3085,8 +3083,7 @@ unsafe fn do_source_ext(
             } else if !si.is_null() && (*si).sn_lua {
                 nlua_exec_file(fname_exp);
             } else {
-                firstline =
-                    getsourceline(0, (&raw mut cookie).cast::<c_void>(), 0, true).cast::<u8>();
+                firstline = getsourceline(0, &raw mut cookie, 0, true).cast::<u8>();
                 if !firstline.is_null()
                     && CStr::from_ptr(firstline.cast::<c_char>()).to_bytes().len() >= 3
                     && *firstline == 0xef
@@ -3107,8 +3104,7 @@ unsafe fn do_source_ext(
                 }
                 do_cmdline(
                     firstline.cast::<c_char>(),
-                    Some(getsourceline),
-                    (&raw mut cookie).cast::<c_void>(),
+                    LineGetter::Source(&raw mut cookie),
                     DOCMD_VERBOSE | DOCMD_NOWAIT | DOCMD_REPEAT,
                 );
             }
@@ -3329,15 +3325,10 @@ pub unsafe fn free_autoload_scriptnames() {
     }
 }
 
-pub unsafe fn get_sourced_lnum(fgetline: LineGetter, cookie: *mut c_void) -> linenr_T {
+pub unsafe fn get_sourced_lnum(fgetline: LineGetter) -> linenr_T {
     unsafe {
-        if fgetline.is_some_and(|f| {
-            std::ptr::fn_addr_eq(
-                f,
-                getsourceline as unsafe fn(c_int, *mut c_void, c_int, bool) -> *mut c_char,
-            )
-        }) {
-            (*cookie.cast::<source_cookie_T>()).sourcing_lnum
+        if let LineGetter::Source(sp) = fgetline {
+            (*sp).sourcing_lnum
         } else {
             sourcing_lnum()
         }
@@ -3451,13 +3442,11 @@ pub unsafe fn f_getscriptinfo(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
 /// Get one full line from a sourced file.
 pub unsafe fn getsourceline(
     _c: c_int,
-    cookie: *mut c_void,
+    sp: *mut source_cookie_T,
     _indent: c_int,
     do_concat: bool,
 ) -> *mut c_char {
     unsafe {
-        let sp = cookie.cast::<source_cookie_T>();
-
         if (*sp).dbg_tick < debug_tick && !(*sp).source_from_buf_or_str {
             (*sp).breakpoint = dbg_find_breakpoint(true, (*sp).fname, sourcing_lnum());
             (*sp).dbg_tick = debug_tick;
@@ -3655,21 +3644,18 @@ unsafe fn get_one_sourceline(sp: *mut source_cookie_T) -> *mut c_char {
 
 /// Returns true if sourcing a script either from a file or a buffer or a string.
 pub unsafe fn sourcing_a_script(eap: *mut exarg_T) -> c_int {
-    unsafe {
-        let fgetline: LineGetter = (*eap).ea_getline;
-        c_int::from(getline_equal(fgetline, (*eap).cookie, Some(getsourceline)))
-    }
+    unsafe { c_int::from((*eap).ea_getline.is_source()) }
 }
 
 /// ":scriptencoding": Set encoding conversion for a sourced script.
 pub unsafe fn ex_scriptencoding(eap: *mut exarg_T) {
     unsafe {
-        if sourcing_a_script(eap) == 0 {
+        let Some(sp) = (*eap).ea_getline.as_source() else {
             emsg(gettext(
                 c"E167: :scriptencoding used outside of a sourced file".as_ptr(),
             ));
             return;
-        }
+        };
 
         let name = if *(*eap).arg != NUL {
             enc_canonize((*eap).arg)
@@ -3677,8 +3663,6 @@ pub unsafe fn ex_scriptencoding(eap: *mut exarg_T) {
             (*eap).arg
         };
 
-        let fgetline: LineGetter = (*eap).ea_getline;
-        let sp = getline_cookie(fgetline, (*eap).cookie).cast::<source_cookie_T>();
         convert_setup(&mut (*sp).conv, name, p_enc);
 
         if !ptr::eq(name, (*eap).arg) {
@@ -3703,9 +3687,9 @@ pub unsafe fn ex_finish(eap: *mut exarg_T) {
 /// Mark a sourced file as finished.
 pub unsafe fn do_finish(eap: *mut exarg_T, reanimate: bool) {
     unsafe {
-        let fgetline: LineGetter = (*eap).ea_getline;
+        let sp = (*eap).ea_getline.as_source().unwrap();
         if reanimate {
-            (*getline_cookie(fgetline, (*eap).cookie).cast::<source_cookie_T>()).finished = false;
+            (*sp).finished = false;
         }
 
         let cstack = (*eap).cstack.cast::<cstack_T>();
@@ -3714,16 +3698,13 @@ pub unsafe fn do_finish(eap: *mut exarg_T, reanimate: bool) {
             (*cstack).cs_pending[idx as usize] = CSTP_FINISH as c_char;
             report_make_pending(CSTP_FINISH, ptr::null_mut());
         } else {
-            (*getline_cookie(fgetline, (*eap).cookie).cast::<source_cookie_T>()).finished = true;
+            (*sp).finished = true;
         }
     }
 }
 
-pub unsafe fn source_finished(fgetline: LineGetter, cookie: *mut c_void) -> bool {
-    unsafe {
-        getline_equal(fgetline, cookie, Some(getsourceline))
-            && (*getline_cookie(fgetline, cookie).cast::<source_cookie_T>()).finished
-    }
+pub unsafe fn source_finished(fgetline: LineGetter) -> bool {
+    unsafe { fgetline.as_source().is_some_and(|sp| (*sp).finished) }
 }
 
 /// Return the autoload script name for a function or variable name.

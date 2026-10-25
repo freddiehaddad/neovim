@@ -1496,8 +1496,7 @@ pub unsafe fn call_user_func(
         } else {
             do_cmdline(
                 ptr::null_mut(),
-                Some(get_func_line),
-                fc.cast(),
+                crate::cmdexpand::LineGetter::Func(fc),
                 DOCMD_NOWAIT | DOCMD_VERBOSE | DOCMD_REPEAT,
             );
         }
@@ -2687,9 +2686,10 @@ unsafe fn get_function_body(
                 }
             } else {
                 xfree((*line_to_free).cast());
-                theline = match (*eap).ea_getline {
-                    None => getcmdline(b':' as c_int, 0, indent, do_concat),
-                    Some(getline_fn) => getline_fn(b':' as c_int, (*eap).cookie, indent, do_concat),
+                theline = if (*eap).ea_getline.is_none() {
+                    getcmdline(b':' as c_int, 0, indent, do_concat)
+                } else {
+                    (*eap).ea_getline.call(b':' as c_int, indent, do_concat)
                 };
                 *line_to_free = theline;
             }
@@ -2715,7 +2715,7 @@ unsafe fn get_function_body(
                 ui_ext_cmdline_block_append(indent as usize, theline);
             }
 
-            let mut sourcing_lnum_off = get_sourced_lnum((*eap).ea_getline, (*eap).cookie);
+            let mut sourcing_lnum_off = get_sourced_lnum((*eap).ea_getline);
             let cur_sourcing_lnum = sourcing_lnum();
             if cur_sourcing_lnum < sourcing_lnum_off {
                 sourcing_lnum_off -= cur_sourcing_lnum;
@@ -3586,8 +3586,6 @@ pub unsafe fn ex_return(eap: *mut exarg_T) {
 
         let mut evalarg = evalarg_T {
             eval_flags: if (*eap).skip != 0 { 0 } else { EVAL_EVALUATE },
-            eval_getline: None,
-            eval_cookie: ptr::null_mut(),
             eval_tofree: ptr::null_mut(),
         };
 
@@ -4047,12 +4045,11 @@ pub unsafe fn get_return_cmd(rettv: *mut c_void) -> *mut c_char {
 /// Get next function line.
 pub unsafe fn get_func_line(
     _c: c_int,
-    cookie: *mut c_void,
+    fcp: *mut funccall_T,
     _indent: c_int,
     _do_concat: bool,
 ) -> *mut c_char {
     unsafe {
-        let fcp = cookie.cast::<funccall_T>();
         let fp = (*fcp).fc_func;
         let retval: *mut c_char;
 
@@ -4061,7 +4058,7 @@ pub unsafe fn get_func_line(
             (*fcp).fc_dbg_tick = debug_tick;
         }
         if do_profiling == PROF_YES {
-            func_line_end(cookie);
+            func_line_end(fcp);
         }
 
         let lines = &(*fp).uf_lines;
@@ -4082,7 +4079,7 @@ pub unsafe fn get_func_line(
                 retval = xstrdup(line);
                 set_sourcing_lnum((*fcp).fc_linenr);
                 if do_profiling == PROF_YES {
-                    func_line_start(cookie);
+                    func_line_start(fcp);
                 }
             }
         }
@@ -4098,9 +4095,8 @@ pub unsafe fn get_func_line(
     }
 }
 
-pub unsafe fn func_has_ended(cookie: *mut c_void) -> c_int {
+pub unsafe fn func_has_ended(fcp: *mut funccall_T) -> c_int {
     unsafe {
-        let fcp = cookie.cast::<funccall_T>();
         if (((*(*fcp).fc_func).uf_flags & FC_ABORT) != 0 && did_emsg != 0 && !aborted_in_try())
             || (*fcp).fc_returned != 0
         {
@@ -4111,8 +4107,8 @@ pub unsafe fn func_has_ended(cookie: *mut c_void) -> c_int {
     }
 }
 
-pub unsafe fn func_has_abort(cookie: *mut c_void) -> c_int {
-    unsafe { (*(*cookie.cast::<funccall_T>()).fc_func).uf_flags & FC_ABORT }
+pub unsafe fn func_has_abort(fcp: *mut funccall_T) -> c_int {
+    unsafe { (*(*fcp).fc_func).uf_flags & FC_ABORT }
 }
 
 /// Turn `dict.Func` into a partial for `Func` bound to `dict`.
@@ -4187,20 +4183,20 @@ pub unsafe fn make_partial(selfdict: *mut dict_T, rettv: *mut typval_T) {
     }
 }
 
-pub unsafe fn func_name(cookie: *mut c_void) -> *mut c_char {
-    unsafe { uf2hikey((*cookie.cast::<funccall_T>()).fc_func) }
+pub unsafe fn func_name(fcp: *mut funccall_T) -> *mut c_char {
+    unsafe { uf2hikey((*fcp).fc_func) }
 }
 
-pub unsafe fn func_breakpoint(cookie: *mut c_void) -> *mut linenr_T {
-    unsafe { &raw mut (*cookie.cast::<funccall_T>()).fc_breakpoint }
+pub unsafe fn func_breakpoint(fcp: *mut funccall_T) -> *mut linenr_T {
+    unsafe { &raw mut (*fcp).fc_breakpoint }
 }
 
-pub unsafe fn func_dbg_tick(cookie: *mut c_void) -> *mut c_int {
-    unsafe { &raw mut (*cookie.cast::<funccall_T>()).fc_dbg_tick }
+pub unsafe fn func_dbg_tick(fcp: *mut funccall_T) -> *mut c_int {
+    unsafe { &raw mut (*fcp).fc_dbg_tick }
 }
 
-pub unsafe fn func_level(cookie: *mut c_void) -> c_int {
-    unsafe { (*cookie.cast::<funccall_T>()).fc_level }
+pub unsafe fn func_level(fcp: *mut funccall_T) -> c_int {
+    unsafe { (*fcp).fc_level }
 }
 
 pub unsafe fn current_func_returned() -> c_int {

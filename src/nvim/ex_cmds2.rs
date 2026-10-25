@@ -670,7 +670,6 @@ pub unsafe fn ex_listdo(eap: *mut exarg_T) {
                     do_cmdline(
                         (*eap).arg,
                         (*eap).ea_getline,
-                        (*eap).cookie,
                         DOCMD_VERBOSE + DOCMD_NOWAIT,
                     );
                 }
@@ -930,7 +929,11 @@ pub unsafe fn ex_drop(eap: *mut exarg_T) {
 
                     if !(*eap).do_ecmd_cmd.is_null() {
                         let did_set_swapcommand = set_swapcommand((*eap).do_ecmd_cmd, 0);
-                        do_cmdline((*eap).do_ecmd_cmd, None, ptr::null_mut(), DOCMD_VERBOSE);
+                        do_cmdline(
+                            (*eap).do_ecmd_cmd,
+                            crate::cmdexpand::LineGetter::None,
+                            DOCMD_VERBOSE,
+                        );
                         if did_set_swapcommand {
                             set_vim_var_string(VV_SWAPCOMMAND, ptr::null(), -1);
                         }

@@ -66,9 +66,9 @@ use crate::indent::{
 };
 use crate::indent_c::{cindent_on, do_c_expr_indent, in_cinkeys};
 use crate::input::{
-    K_COMPLETE_DELAY, K_PASTE_START, char_avail, getcmdkeycmd, kInsNone, langmap_adjust,
-    map_execute_lua, mb_byte2len_check, merge_modifiers, paste_repeat, plain_vgetc, prep_redo,
-    redo_append_char, redo_append_lit, redo_append_str, redo_keys, start_redo_ins, stop_redo_ins,
+    K_COMPLETE_DELAY, K_PASTE_START, char_avail, kInsNone, langmap_adjust, map_execute_lua,
+    mb_byte2len_check, merge_modifiers, paste_repeat, plain_vgetc, prep_redo, redo_append_char,
+    redo_append_lit, redo_append_str, redo_keys, start_redo_ins, stop_redo_ins,
     stuff_empty, stuffReadbuffLen, stuffRedoReadbuff, stuffcharReadbuff, vgetc, vpeekc, vungetc,
 };
 use crate::input_cmdatom::CmdSpec;
@@ -1041,7 +1041,7 @@ unsafe fn insert_handle_key(s: *mut InsertState) -> c_int {
                         Ins.dont_sync_undo = kNone;
                     }
                 } else if (*s).c == K_COMMAND {
-                    do_cmdline(ptr::null_mut(), Some(getcmdkeycmd), ptr::null_mut(), 0);
+                    do_cmdline(ptr::null_mut(), crate::cmdexpand::LineGetter::CmdKeyCmd, 0);
                 } else {
                     map_execute_lua(false, false);
                 }

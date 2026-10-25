@@ -9,7 +9,7 @@ use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE, VAR_FIXED, VAR_SCOPE, buf_T};
 use crate::charset::{
     NUL, ascii_isdigit, ascii_isupper, ascii_iswhite, getdigits_int, skiptowhite, skipwhite,
 };
-use crate::cmdexpand::{LineGetter, cmdidx_T};
+use crate::cmdexpand::cmdidx_T;
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::drawscreen::{UPD_SOME_VALID, redraw_all_later};
 use crate::errors::*;
@@ -82,7 +82,7 @@ use crate::version::{highest_patch, min_vim_version};
 use crate::window::{
     find_tabpage, goto_tabpage_tp, prevwin_curwin, tabpage_T, valid_tabpage, win_T,
 };
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 pub type VimVarIndex = c_int;
@@ -99,8 +99,6 @@ use crate::regexp::NUMBUFLEN;
 #[derive(Clone, Copy)]
 pub struct evalarg_T {
     pub eval_flags: c_int,
-    pub eval_getline: LineGetter,
-    pub eval_cookie: *mut c_void,
     pub eval_tofree: *mut c_char,
 }
 
@@ -108,8 +106,6 @@ impl evalarg_T {
     pub const fn new() -> Self {
         Self {
             eval_flags: 0,
-            eval_getline: None,
-            eval_cookie: ptr::null_mut(),
             eval_tofree: ptr::null_mut(),
         }
     }
@@ -1138,11 +1134,7 @@ pub unsafe fn heredoc_get(
                 }
             } else {
                 xfree(theline.cast());
-                theline = if let Some(getline_fn) = (*eap).ea_getline {
-                    getline_fn(0, (*eap).cookie, 0, false)
-                } else {
-                    ptr::null_mut()
-                };
+                theline = (*eap).ea_getline.call(0, 0, false);
                 if theline.is_null() {
                     if !script_get {
                         semsg!(gettext(E_MISSING_END_MARKER_STR.as_ptr()), marker);

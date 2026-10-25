@@ -120,14 +120,100 @@ use crate::usercmd::{
     set_context_in_user_cmd, set_context_in_user_cmdarg,
 };
 use crate::window::{global_stl_height, last_status};
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 use crate::api::win_config::UIExtension;
 pub type xp_prefix_T = c_int;
 pub type CompleteListItemGetter = Option<unsafe fn(*mut expand_T, c_int) -> *mut c_char>;
-type user_expand_func_T = unsafe fn(*const c_char, c_int, *mut typval_T) -> *mut c_void;
-pub type LineGetter = Option<unsafe fn(c_int, *mut c_void, c_int, bool) -> *mut c_char>;
+#[derive(Clone, Copy)]
+pub enum LineGetter {
+    None,
+    ExLine,
+    CmdKeyCmd,
+    AutoCmd(*mut crate::autocmd::AutoPatCmd),
+    Func(*mut crate::profile::funccall_T),
+    Source(*mut crate::runtime::source_cookie_T),
+    Loop(*mut crate::ex_docmd::loop_cookie),
+    List(*mut crate::eval::funcs::GetListLineCookie),
+    LuaEx(*mut crate::lua::executor::ExDocmdCookie),
+}
+
+impl LineGetter {
+    #[inline]
+    pub const fn is_none(self) -> bool {
+        matches!(self, Self::None)
+    }
+
+    #[inline]
+    pub unsafe fn inner(self) -> Self {
+        let mut gp = self;
+        while let Self::Loop(cp) = gp {
+            gp = unsafe { (*cp).lc_getline };
+        }
+        gp
+    }
+
+    #[inline]
+    pub unsafe fn is_exline(self) -> bool {
+        matches!(unsafe { self.inner() }, Self::ExLine)
+    }
+
+    #[inline]
+    pub unsafe fn is_autocmd(self) -> bool {
+        matches!(unsafe { self.inner() }, Self::AutoCmd(_))
+    }
+
+    #[inline]
+    pub unsafe fn is_func(self) -> bool {
+        matches!(unsafe { self.inner() }, Self::Func(_))
+    }
+
+    #[inline]
+    pub unsafe fn is_source(self) -> bool {
+        matches!(unsafe { self.inner() }, Self::Source(_))
+    }
+
+    #[inline]
+    pub unsafe fn as_func(self) -> Option<*mut crate::profile::funccall_T> {
+        match unsafe { self.inner() } {
+            Self::Func(p) => Some(p),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    pub unsafe fn as_source(self) -> Option<*mut crate::runtime::source_cookie_T> {
+        match unsafe { self.inner() } {
+            Self::Source(p) => Some(p),
+            _ => None,
+        }
+    }
+
+    pub unsafe fn call(self, c: c_int, indent: c_int, do_concat: bool) -> *mut c_char {
+        unsafe {
+            match self {
+                Self::None => ptr::null_mut(),
+                Self::ExLine => crate::ex_getln::getexline(c, indent, do_concat),
+                Self::CmdKeyCmd => crate::input::getcmdkeycmd(c, indent, do_concat),
+                Self::AutoCmd(cookie) => crate::autocmd::getnextac(c, cookie, indent, do_concat),
+                Self::Func(cookie) => {
+                    crate::eval::userfunc::get_func_line(c, cookie, indent, do_concat)
+                }
+                Self::Source(cookie) => {
+                    crate::runtime::getsourceline(c, cookie, indent, do_concat)
+                }
+                Self::Loop(cookie) => crate::ex_docmd::get_loop_line(c, cookie, indent, do_concat),
+                Self::List(cookie) => {
+                    crate::eval::funcs::get_list_line(c, cookie, indent, do_concat)
+                }
+                Self::LuaEx(cookie) => {
+                    crate::lua::executor::nlua_ex_getline(c, cookie, indent, do_concat)
+                }
+            }
+        }
+    }
+}
 pub type cmd_addr_T = c_int;
 
 #[repr(i32)]
@@ -5325,10 +5411,10 @@ unsafe fn expand_shellcmd(
 }
 
 /// Call "user_expand_func()" to invoke a user defined Vim script function.
-unsafe fn call_user_expand_func(
-    user_expand_func: user_expand_func_T,
+unsafe fn call_user_expand_func<T>(
+    user_expand_func: unsafe fn(*const c_char, c_int, *mut typval_T) -> *mut T,
     xp: *mut expand_T,
-) -> *mut c_void {
+) -> *mut T {
     unsafe {
         let ccline = get_cmdline_info();
         let mut keep: c_char = 0;
@@ -5380,7 +5466,7 @@ unsafe fn ExpandUserDefined(
         *matches = ptr::null_mut();
         *numMatches = 0;
 
-        let retstr = call_user_expand_func(call_func_retstr, xp).cast::<c_char>();
+        let retstr = call_user_expand_func(call_func_retstr, xp);
         if retstr.is_null() {
             return FAIL;
         }
@@ -5533,7 +5619,7 @@ unsafe fn ExpandUserList(
     unsafe {
         *matches = ptr::null_mut();
         *numMatches = 0;
-        let retlist = call_user_expand_func(call_func_retlist, xp).cast::<list_T>();
+        let retlist = call_user_expand_func(call_func_retlist, xp);
         if retlist.is_null() {
             return FAIL;
         }

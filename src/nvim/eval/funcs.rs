@@ -316,7 +316,7 @@ enum SomeMatchType {
 }
 
 #[repr(C)]
-struct GetListLineCookie {
+pub struct GetListLineCookie {
     l: *const list_T,
     li: *const listitem_T,
 }
@@ -2185,12 +2185,11 @@ pub unsafe fn f_eventhandler(_argvars: *mut typval_T, rettv: *mut typval_T, _fpt
 
 pub unsafe fn get_list_line(
     _c: c_int,
-    cookie: *mut c_void,
+    p: *mut GetListLineCookie,
     _indent: c_int,
     _do_concat: bool,
 ) -> *mut c_char {
     unsafe {
-        let p = cookie.cast::<GetListLineCookie>();
         let item = (*p).li;
         if item.is_null() {
             return ptr::null_mut();
@@ -2259,8 +2258,7 @@ pub unsafe fn execute_common(argvars: *mut typval_T, rettv: *mut typval_T, arg_o
             };
             do_cmdline(
                 ptr::null_mut(),
-                Some(get_list_line),
-                (&raw mut cookie).cast(),
+                crate::cmdexpand::LineGetter::List(&raw mut cookie),
                 DOCMD_NOWAIT | DOCMD_VERBOSE | DOCMD_REPEAT | DOCMD_KEYTYPED,
             );
             tv_list_unref(list);

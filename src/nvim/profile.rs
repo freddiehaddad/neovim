@@ -585,9 +585,8 @@ pub unsafe fn prof_child_exit(tm: *mut proftime_T) {
 }
 
 /// Called when starting to read a function line (`func_line_start`).
-pub unsafe fn func_line_start(cookie: *mut c_void) {
+pub unsafe fn func_line_start(fcp: *mut funccall_T) {
     unsafe {
-        let fcp = cookie.cast::<funccall_T>();
         let fp = &mut *(*fcp).fc_func;
         let slnum = sourcing_lnum();
 
@@ -605,8 +604,7 @@ pub unsafe fn func_line_start(cookie: *mut c_void) {
 }
 
 /// Called when actually executing a function line (`func_line_exec`).
-pub unsafe fn func_line_exec(cookie: *mut c_void) {
-    let fcp = cookie.cast::<funccall_T>();
+pub unsafe fn func_line_exec(fcp: *mut funccall_T) {
     let fp = unsafe { &mut *(*fcp).fc_func };
     if fp.uf_profiling != 0 && fp.uf_tml_idx >= 0 {
         fp.uf_tml_execed = 1;
@@ -614,8 +612,7 @@ pub unsafe fn func_line_exec(cookie: *mut c_void) {
 }
 
 /// Called when done with a function line (`func_line_end`).
-pub unsafe fn func_line_end(cookie: *mut c_void) {
-    let fcp = cookie.cast::<funccall_T>();
+pub unsafe fn func_line_end(fcp: *mut funccall_T) {
     let fp = unsafe { &mut *(*fcp).fc_func };
 
     if fp.uf_profiling != 0 && fp.uf_tml_idx >= 0 {

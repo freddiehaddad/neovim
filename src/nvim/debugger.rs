@@ -6,7 +6,7 @@ use crate::errors::{e_invarg2, e_noname};
 use crate::eval::typval::{Callback, tv_free, typval_T};
 use crate::eval::{EXPR_IS, eval_expr, typval_compare, typval_tostring};
 use crate::ex_docmd::{DOCMD_EXCRESET, do_cmdline, do_cmdline_cmd, exarg_T};
-use crate::ex_getln::{getcmdline_prompt, getexline};
+use crate::ex_getln::getcmdline_prompt;
 use crate::fileio::file_pat_to_reg_pat;
 use crate::globals::*;
 use crate::input::{restore_typeahead, save_typeahead, tasave_T};
@@ -362,8 +362,7 @@ pub unsafe fn do_debug(cmd: *mut c_char) {
                 debug_break_level = -1;
                 do_cmdline(
                     cmdline,
-                    Some(getexline),
-                    std::ptr::null_mut(),
+                    crate::cmdexpand::LineGetter::ExLine,
                     DOCMD_VERBOSE | DOCMD_EXCRESET,
                 );
                 debug_break_level = n2;

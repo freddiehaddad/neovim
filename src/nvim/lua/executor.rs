@@ -310,7 +310,7 @@ const BUILTIN_MODULES: [BuiltinModule; 34] = [
 ];
 
 #[repr(C)]
-struct ExDocmdCookie {
+pub struct ExDocmdCookie {
     getline: LuaRef,
     got_line: bool,
 }
@@ -952,14 +952,13 @@ unsafe extern "C-unwind" fn nlua_check_interrupt(lstate: *mut lua_State) -> c_in
     }
 }
 
-unsafe fn nlua_ex_getline(
+pub unsafe fn nlua_ex_getline(
     _c: c_int,
-    cookie: *mut c_void,
+    ecd: *mut ExDocmdCookie,
     _indent: c_int,
     _do_concat: bool,
 ) -> *mut c_char {
     unsafe {
-        let ecd = cookie.cast::<ExDocmdCookie>();
         let lstate = GLOBAL_LSTATE;
         nlua_pushref(lstate, (*ecd).getline);
         if nlua_pcall(lstate, 0, 1) != 0 {
@@ -992,8 +991,7 @@ unsafe extern "C-unwind" fn nlua_ex_docmd(lstate: *mut lua_State) -> c_int {
         no_wait_return += 1;
         do_cmdline(
             ptr::null_mut(),
-            Some(nlua_ex_getline),
-            (&raw mut cookie).cast(),
+            crate::cmdexpand::LineGetter::LuaEx(&raw mut cookie),
             0,
         );
         no_wait_return -= 1;

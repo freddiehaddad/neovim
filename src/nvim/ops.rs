@@ -27,7 +27,7 @@ use crate::eval::typval::{
 };
 use crate::eval::{callback_call, set_ref_in_callback};
 use crate::ex_docmd::{CMOD_LOCKMARKS, do_cmdline};
-use crate::ex_getln::{Ctrl_A, K_LUA, getexline};
+use crate::ex_getln::{Ctrl_A, K_LUA};
 use crate::extmark::{
     TriState, bcount_t, extmark_splice, extmark_splice_cols, kExtmarkUndo, kNone,
 };
@@ -3457,7 +3457,7 @@ unsafe fn op_colon(oap: *mut oparg_T) {
             stuffReadbuff(c"\n']".as_ptr());
         }
 
-        do_cmdline(ptr::null_mut(), Some(getexline), ptr::null_mut(), 0);
+        do_cmdline(ptr::null_mut(), crate::cmdexpand::LineGetter::ExLine, 0);
         atom_suppress(true);
         exec_stuffed(ptr::null_mut());
         atom_suppress(false);

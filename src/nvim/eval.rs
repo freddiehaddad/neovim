@@ -62,7 +62,7 @@ pub mod window;
 use crate::buffer::{NOTDONE, VAR_FIXED, bt_prompt, buf_T, buflist_findnr, kUIMessages};
 use crate::channel::{CallbackReader, Channel, callback_reader_free, kChannelStreamProc};
 use crate::errors::*;
-use crate::eval::funcs::{E_STRING_LIST_OR_BLOB_REQUIRED, get_list_line, kOptCpoptions};
+use crate::eval::funcs::{E_STRING_LIST_OR_BLOB_REQUIRED, kOptCpoptions};
 use crate::eval::userfunc::{
     call_func, call_simple_func, call_simple_luafunc, deref_func_name, eval_fname_script,
     find_func, free_all_functions, free_unref_funccal, func_init, func_ptr_unref, func_ref,
@@ -98,7 +98,7 @@ use crate::regexp::{
 use crate::register::{get_reg_contents, kGRegExprSrc, op_global_reg_iter, yankreg_T};
 use crate::runtime::{
     exestack, free_autoload_scriptnames, free_scriptnames, get_scriptname, script_autoload,
-    script_is_lua, sctx_T, sourcing_a_script,
+    script_is_lua, sctx_T,
 };
 use crate::ui::ui_has;
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -430,30 +430,12 @@ pub unsafe fn eval_clear() {
     }
 }
 
-pub unsafe fn fill_evalarg_from_eap(evalarg: *mut evalarg_T, eap: *mut exarg_T, skip: bool) {
+pub unsafe fn fill_evalarg_from_eap(evalarg: *mut evalarg_T, _eap: *mut exarg_T, skip: bool) {
     unsafe {
         *evalarg = evalarg_T {
             eval_flags: if skip { 0 } else { EVAL_EVALUATE },
-            eval_getline: None,
-            eval_cookie: ptr::null_mut(),
             eval_tofree: ptr::null_mut(),
         };
-
-        if eap.is_null() {
-            return;
-        }
-
-        let is_list_line = (*eap).ea_getline.is_some_and(|f| {
-            ptr::fn_addr_eq(
-                f,
-                get_list_line as unsafe fn(c_int, *mut c_void, c_int, bool) -> *mut c_char,
-            )
-        });
-
-        if sourcing_a_script(eap) != 0 || is_list_line {
-            (*evalarg).eval_getline = (*eap).ea_getline;
-            (*evalarg).eval_cookie = (*eap).cookie;
-        }
     }
 }
 
@@ -469,12 +451,7 @@ pub unsafe fn eval_to_bool(
     unsafe {
         let mut tv = tv_initial_value();
         let mut retval = false;
-        let mut evalarg = evalarg_T {
-            eval_flags: 0,
-            eval_getline: None,
-            eval_cookie: ptr::null_mut(),
-            eval_tofree: ptr::null_mut(),
-        };
+        let mut evalarg = evalarg_T::new();
 
         fill_evalarg_from_eap(&raw mut evalarg, eap, skip);
 
@@ -510,12 +487,7 @@ unsafe fn eval1_emsg(arg: *mut *mut c_char, rettv: *mut typval_T, eap: *mut exar
         let start = *arg;
         let did_emsg_before = did_emsg;
         let called_emsg_before = called_emsg;
-        let mut evalarg = evalarg_T {
-            eval_flags: 0,
-            eval_getline: None,
-            eval_cookie: ptr::null_mut(),
-            eval_tofree: ptr::null_mut(),
-        };
+        let mut evalarg = evalarg_T::new();
 
         fill_evalarg_from_eap(&raw mut evalarg, eap, !eap.is_null() && (*eap).skip != 0);
 
@@ -681,12 +653,7 @@ pub unsafe fn eval_to_string_skip(arg: *mut c_char, eap: *mut exarg_T, skip: boo
     unsafe {
         let mut tv = tv_initial_value();
         let retval: *mut c_char;
-        let mut evalarg = evalarg_T {
-            eval_flags: 0,
-            eval_getline: None,
-            eval_cookie: ptr::null_mut(),
-            eval_tofree: ptr::null_mut(),
-        };
+        let mut evalarg = evalarg_T::new();
 
         fill_evalarg_from_eap(&raw mut evalarg, eap, skip);
         if skip {
@@ -761,12 +728,7 @@ pub unsafe fn eval_to_string_eap(
     unsafe {
         let mut tv = tv_initial_value();
         let retval: *mut c_char;
-        let mut evalarg = evalarg_T {
-            eval_flags: 0,
-            eval_getline: None,
-            eval_cookie: ptr::null_mut(),
-            eval_tofree: ptr::null_mut(),
-        };
+        let mut evalarg = evalarg_T::new();
 
         fill_evalarg_from_eap(&raw mut evalarg, eap, !eap.is_null() && (*eap).skip != 0);
         let r = if use_simple_function {
@@ -865,12 +827,7 @@ pub unsafe fn eval_expr_ext(
 ) -> *mut typval_T {
     unsafe {
         let mut tv = Box::into_raw(Box::new(tv_initial_value()));
-        let mut evalarg = evalarg_T {
-            eval_flags: 0,
-            eval_getline: None,
-            eval_cookie: ptr::null_mut(),
-            eval_tofree: ptr::null_mut(),
-        };
+        let mut evalarg = evalarg_T::new();
 
         fill_evalarg_from_eap(&raw mut evalarg, eap, !eap.is_null() && (*eap).skip != 0);
 
@@ -942,7 +899,7 @@ pub unsafe fn call_func_retstr(
     func: *const c_char,
     argc: c_int,
     argv: *mut typval_T,
-) -> *mut c_void {
+) -> *mut c_char {
     unsafe {
         let mut rettv = tv_initial_value();
         if call_vim_function(func, argc, argv, &raw mut rettv) == FAIL {
@@ -951,7 +908,7 @@ pub unsafe fn call_func_retstr(
 
         let retval = xstrdup(tv_get_string(&raw const rettv));
         tv_clear(&raw mut rettv);
-        retval.cast()
+        retval
     }
 }
 
@@ -960,7 +917,7 @@ pub unsafe fn call_func_retlist(
     func: *const c_char,
     argc: c_int,
     argv: *mut typval_T,
-) -> *mut c_void {
+) -> *mut list_T {
     unsafe {
         let mut rettv = tv_initial_value();
 
@@ -973,7 +930,7 @@ pub unsafe fn call_func_retlist(
             return ptr::null_mut();
         }
 
-        rettv.vval.v_list.cast()
+        rettv.vval.v_list
     }
 }
 
@@ -2314,12 +2271,7 @@ pub unsafe fn eval1(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut e
         let mut p = *arg;
         if *p == b'?' as c_char {
             let op_falsy = *p.add(1) == b'?' as c_char;
-            let mut local_evalarg = evalarg_T {
-                eval_flags: 0,
-                eval_getline: None,
-                eval_cookie: ptr::null_mut(),
-                eval_tofree: ptr::null_mut(),
-            };
+            let mut local_evalarg = evalarg_T::new();
             let evalarg_used = if evalarg.is_null() {
                 &raw mut local_evalarg
             } else {
@@ -2412,12 +2364,7 @@ unsafe fn eval2(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut evala
 
         let mut p = *arg;
         if *p == b'|' as c_char && *p.add(1) == b'|' as c_char {
-            let mut local_evalarg = evalarg_T {
-                eval_flags: 0,
-                eval_getline: None,
-                eval_cookie: ptr::null_mut(),
-                eval_tofree: ptr::null_mut(),
-            };
+            let mut local_evalarg = evalarg_T::new();
             let evalarg_used = if evalarg.is_null() {
                 &raw mut local_evalarg
             } else {
@@ -2489,12 +2436,7 @@ unsafe fn eval3(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut evala
 
         let mut p = *arg;
         if *p == b'&' as c_char && *p.add(1) == b'&' as c_char {
-            let mut local_evalarg = evalarg_T {
-                eval_flags: 0,
-                eval_getline: None,
-                eval_cookie: ptr::null_mut(),
-                eval_tofree: ptr::null_mut(),
-            };
+            let mut local_evalarg = evalarg_T::new();
             let evalarg_used = if evalarg.is_null() {
                 &raw mut local_evalarg
             } else {
@@ -6751,12 +6693,7 @@ pub unsafe fn ex_echo(eap: *mut exarg_T) {
         let mut need_clear = true;
         let did_emsg_before = did_emsg;
         let called_emsg_before = called_emsg;
-        let mut evalarg = evalarg_T {
-            eval_flags: 0,
-            eval_getline: None,
-            eval_cookie: ptr::null_mut(),
-            eval_tofree: ptr::null_mut(),
-        };
+        let mut evalarg = evalarg_T::new();
 
         fill_evalarg_from_eap(&raw mut evalarg, eap, (*eap).skip != 0);
 
@@ -6904,7 +6841,6 @@ pub unsafe fn ex_execute(eap: *mut exarg_T) {
                 do_cmdline(
                     buf.as_mut_ptr(),
                     (*eap).ea_getline,
-                    (*eap).cookie,
                     DOCMD_NOWAIT | DOCMD_VERBOSE,
                 );
             }

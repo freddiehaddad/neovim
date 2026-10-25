@@ -13,20 +13,40 @@ pub type handle_T = c_int;
 pub type Integer = i64;
 pub type PackerBufferFlush = Option<unsafe fn(buffer: *mut PackerBuffer)>;
 
-#[repr(C)]
 #[derive(Clone, Copy, Debug)]
-pub struct PackerData {
-    pub ui: *mut crate::msgpack_rpc::channel::RemoteUI,
-    pub file: *mut crate::os::fileio::FileDescriptor,
-    pub chans: *mut *mut crate::msgpack_rpc::channel::Channel,
+pub enum PackerData {
+    None,
+    Ui(*mut crate::msgpack_rpc::channel::RemoteUI),
+    File(*mut crate::os::fileio::FileDescriptor),
+    Chans(*mut *mut crate::msgpack_rpc::channel::Channel),
 }
 
 impl PackerData {
-    pub const NONE: Self = Self {
-        ui: std::ptr::null_mut(),
-        file: std::ptr::null_mut(),
-        chans: std::ptr::null_mut(),
-    };
+    pub const NONE: Self = Self::None;
+
+    #[inline]
+    pub const fn as_ui(self) -> *mut crate::msgpack_rpc::channel::RemoteUI {
+        match self {
+            Self::Ui(p) => p,
+            _ => std::ptr::null_mut(),
+        }
+    }
+
+    #[inline]
+    pub const fn as_file(self) -> *mut crate::os::fileio::FileDescriptor {
+        match self {
+            Self::File(p) => p,
+            _ => std::ptr::null_mut(),
+        }
+    }
+
+    #[inline]
+    pub const fn as_chans(self) -> *mut *mut crate::msgpack_rpc::channel::Channel {
+        match self {
+            Self::Chans(p) => p,
+            _ => std::ptr::null_mut(),
+        }
+    }
 }
 
 #[repr(C)]
@@ -38,6 +58,25 @@ pub struct PackerBuffer {
     pub anydata: PackerData,
     pub anyint: i64,
     pub packer_flush: PackerBufferFlush,
+}
+
+impl PackerBuffer {
+    pub const fn new() -> Self {
+        Self {
+            startptr: std::ptr::null_mut(),
+            ptr: std::ptr::null_mut(),
+            endptr: std::ptr::null_mut(),
+            anydata: PackerData::None,
+            anyint: 0,
+            packer_flush: None,
+        }
+    }
+}
+
+impl Default for PackerBuffer {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[repr(C)]

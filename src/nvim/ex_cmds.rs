@@ -3247,7 +3247,7 @@ pub unsafe fn do_ecmd(
             (*curbuf).b_last_used = os_time() as time_t;
 
             if !command.is_null() {
-                do_cmdline(command, None, ptr::null_mut(), DOCMD_VERBOSE);
+                do_cmdline(command, crate::cmdexpand::LineGetter::None, DOCMD_VERBOSE);
             }
 
             if ((*curbuf).b_kmap_state & KEYMAP_INIT) != 0 {
@@ -3335,15 +3335,13 @@ unsafe fn get_append_line(eap: *mut exarg_T, indent: c_int) -> *mut c_char {
         } else {
             let getline_State = State;
             State = MODE_CMDLINE;
-            let ea_getline = (*eap).ea_getline.unwrap();
             let cstack = (*eap).cstack.cast::<cstack_T>();
-            let theline = ea_getline(
+            let theline = (*eap).ea_getline.call(
                 if (*cstack).cs_looplevel > 0 {
                     -1
                 } else {
                     NUL as c_int
                 },
-                (*eap).cookie,
                 indent,
                 true,
             );
@@ -4863,12 +4861,11 @@ unsafe fn global_exe_one(cmd: *mut c_char, lnum: linenr_T) {
         if *cmd == NUL || *cmd == b'\n' as c_char {
             do_cmdline(
                 c"p".as_ptr().cast_mut(),
-                None,
-                ptr::null_mut(),
+                crate::cmdexpand::LineGetter::None,
                 DOCMD_NOWAIT,
             );
         } else {
-            do_cmdline(cmd, None, ptr::null_mut(), DOCMD_NOWAIT);
+            do_cmdline(cmd, crate::cmdexpand::LineGetter::None, DOCMD_NOWAIT);
         }
     }
 }

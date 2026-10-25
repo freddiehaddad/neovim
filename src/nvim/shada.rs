@@ -2596,7 +2596,7 @@ const fn hist_type2char(hist_type: c_int) -> c_int {
 
 unsafe fn flush_file_buffer(buffer: *mut PackerBuffer) {
     unsafe {
-        let fd = (*buffer).anydata.file;
+        let fd = (*buffer).anydata.as_file();
         (*fd).write_pos = (*buffer).ptr;
         (*buffer).anyint = i64::from(file_flush(fd));
         (*buffer).ptr = (*fd).write_pos;
@@ -2612,10 +2612,7 @@ unsafe fn packer_buffer_for_file(file: *mut FileDescriptor) -> PackerBuffer {
             startptr: (*file).buffer,
             ptr: (*file).write_pos,
             endptr: (*file).buffer.add(ARENA_BLOCK_SIZE),
-            anydata: crate::msgpack_rpc::packer::PackerData {
-                file,
-                ..crate::msgpack_rpc::packer::PackerData::NONE
-            },
+            anydata: crate::msgpack_rpc::packer::PackerData::File(file),
             anyint: 0,
             packer_flush: Some(flush_file_buffer),
         }

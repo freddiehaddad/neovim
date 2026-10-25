@@ -18,7 +18,7 @@ use crate::arglist::{
 use crate::autocmd::{
     DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_CHANINFO, EVENT_CMDUNDEFINED, EVENT_EXITPRE,
     EVENT_QUITPRE, EVENT_TABNEWENTERED, HLF_T, PROF_YES, apply_autocmds, apply_autocmds_win,
-    check_nomodeline, do_augroup, do_autocmd, do_doautocmd, ex_doautoall, getnextac, has_event,
+    check_nomodeline, do_augroup, do_autocmd, do_doautocmd, ex_doautoall, has_event,
     kOptEventignore, may_trigger_vim_suspend_resume,
 };
 use crate::buffer::{
@@ -72,7 +72,6 @@ use crate::eval::typval::{
 use crate::eval::userfunc::{
     MSG_BUF_LEN, current_func_returned, do_return, ex_call, ex_delfunction, ex_function, ex_return,
     func_breakpoint, func_dbg_tick, func_has_abort, func_has_ended, func_level, func_name,
-    get_func_line,
 };
 use crate::eval::vars::{
     BAD_DROP, BAD_KEEP, ENV_STARTREASON, FORCE_BIN, FORCE_NOBIN, VV_ARGV, VV_EXITREASON,
@@ -112,7 +111,7 @@ use crate::ex_eval::{
 };
 use crate::ex_getln::{
     allbuf_locked, cmdpreview_get_bufnr, cmdpreview_get_ns, curbuf_locked, get_text_locked_msg,
-    getcmdline, getexline, script_get, text_locked, text_locked_msg, text_or_buf_locked,
+    getcmdline, script_get, text_locked, text_locked_msg, text_or_buf_locked,
     ui_ext_cmdline_block_append, ui_ext_cmdline_block_leave,
 };
 use crate::ex_session::{ex_loadview, ex_mkrc};
@@ -209,8 +208,8 @@ use crate::register::{
 use crate::runtime::{
     DIP_ALL, ESTACK_SCRIPT, ESTACK_SFILE, ESTACK_STACK, ETYPE_EXCEPT, SID_NONE, do_finish,
     estack_pop, estack_push, estack_sfile, ex_finish, ex_options, ex_packadd, ex_packloadall,
-    ex_runtime, ex_scriptencoding, ex_scriptnames, ex_source, exestack, getsourceline,
-    source_breakpoint, source_dbg_tick, source_finished, source_level, source_runtime,
+    ex_runtime, ex_scriptencoding, ex_scriptnames, ex_source, exestack, source_breakpoint,
+    source_dbg_tick, source_finished, source_level, source_runtime,
 };
 use crate::search::{
     do_search, find_pattern_in_path, restore_last_search_pattern, save_last_search_pattern,
@@ -251,7 +250,7 @@ use crate::window::{
     win_split, win_valid, window_layout_locked,
 };
 use crate::winfloat::{win_float_close, win_float_remove};
-use std::ffi::{CStr, c_char, c_int, c_long, c_void};
+use std::ffi::{CStr, c_char, c_int, c_long};
 use std::ptr;
 
 #[cfg(windows)]
@@ -358,7 +357,6 @@ pub struct exarg_T {
     pub useridx: c_int,
     pub errmsg: *mut c_char,
     pub ea_getline: LineGetter,
-    pub cookie: *mut c_void,
     pub cstack: *mut crate::ex_eval::cstack_T,
     pub magic: ExMagic,
 }
@@ -397,8 +395,7 @@ impl exarg_T {
             bad_char: 0,
             useridx: 0,
             errmsg: ptr::null_mut(),
-            ea_getline: None,
-            cookie: ptr::null_mut(),
+            ea_getline: LineGetter::None,
             cstack: ptr::null_mut(),
             magic: ExMagic {
                 file: false,
@@ -599,12 +596,11 @@ struct wcmd_T {
 }
 
 #[repr(C)]
-struct loop_cookie {
+pub struct loop_cookie {
     lines_gap: *mut Vec<wcmd_T>,
     current_line: c_int,
     repeating: c_int,
-    lc_getline: LineGetter,
-    cookie: *mut c_void,
+    pub lc_getline: LineGetter,
 }
 
 impl loop_cookie {
@@ -613,8 +609,7 @@ impl loop_cookie {
             lines_gap: ptr::null_mut(),
             current_line: 0,
             repeating: 0,
-            lc_getline: None,
-            cookie: ptr::null_mut(),
+            lc_getline: LineGetter::None,
         }
     }
 }
@@ -4825,15 +4820,6 @@ const CMDIDXS2: [[u8; 26]; 26] = [
 ];
 
 #[inline]
-fn line_getter_eq(a: LineGetter, b: LineGetter) -> bool {
-    match (a, b) {
-        (Some(fa), Some(fb)) => ptr::fn_addr_eq(fa, fb),
-        (None, None) => true,
-        _ => false,
-    }
-}
-
-#[inline]
 unsafe fn sourcing_name_ptr() -> *mut *mut c_char {
     unsafe {
         let es = &raw mut exestack;
@@ -4967,20 +4953,14 @@ pub unsafe fn do_cmdline_cmd(cmd: *const c_char) -> c_int {
     unsafe {
         do_cmdline(
             cmd.cast_mut(),
-            None,
-            ptr::null_mut(),
+            LineGetter::None,
             DOCMD_VERBOSE | DOCMD_NOWAIT | DOCMD_KEYTYPED,
         )
     }
 }
 
 /// do_cmdline(): execute one Ex command line
-pub unsafe fn do_cmdline(
-    cmdline: *mut c_char,
-    fgetline: LineGetter,
-    cookie: *mut c_void,
-    flags: c_int,
-) -> c_int {
+pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_int) -> c_int {
     static mut recursive: c_int = 0;
 
     unsafe {
@@ -5002,7 +4982,6 @@ pub unsafe fn do_cmdline(
         let mut private_msg_list: Vec<msglist_T> = Vec::new();
 
         let mut cmd_getline: LineGetter;
-        let mut cmd_cookie: *mut c_void;
         let mut cmd_loop_cookie = loop_cookie::new();
 
         let saved_msg_list = msg_list;
@@ -5015,21 +4994,20 @@ pub unsafe fn do_cmdline(
             return FAIL;
         }
 
-        let real_cookie = getline_cookie(fgetline, cookie);
+        let func_cookie = fgetline.as_func();
+        let source_cookie = fgetline.as_source();
 
-        let mut getline_is_func = getline_equal(fgetline, cookie, Some(get_func_line));
-        if getline_is_func && ex_nesting_level == func_level(real_cookie) {
-            ex_nesting_level += 1;
-        }
-
-        if getline_is_func {
-            fname = func_name(real_cookie);
-            breakpoint = func_breakpoint(real_cookie);
-            dbg_tick = func_dbg_tick(real_cookie);
-        } else if getline_equal(fgetline, cookie, Some(getsourceline)) {
+        if let Some(fcp) = func_cookie {
+            if ex_nesting_level == func_level(fcp) {
+                ex_nesting_level += 1;
+            }
+            fname = func_name(fcp);
+            breakpoint = func_breakpoint(fcp);
+            dbg_tick = func_dbg_tick(fcp);
+        } else if let Some(sp) = source_cookie {
             fname = *sourcing_name_ptr();
-            breakpoint = source_breakpoint(real_cookie);
-            dbg_tick = source_dbg_tick(real_cookie);
+            breakpoint = source_breakpoint(sp);
+            dbg_tick = source_dbg_tick(sp);
         }
 
         if recursive == 0 {
@@ -5046,18 +5024,18 @@ pub unsafe fn do_cmdline(
         did_throw = false;
         did_emsg = 0;
 
-        if (flags & DOCMD_KEYTYPED) == 0 && !getline_equal(fgetline, cookie, Some(getexline)) {
+        if (flags & DOCMD_KEYTYPED) == 0 && !fgetline.is_exline() {
             KeyTyped = false;
         }
 
         next_cmdline = cmdline;
         loop {
-            getline_is_func = getline_equal(fgetline, cookie, Some(get_func_line));
+            let func_cookie = fgetline.as_func();
 
             if next_cmdline.is_null()
                 && !force_abort
                 && cstack.cs_idx < 0
-                && !(getline_is_func && func_has_abort(real_cookie) != 0)
+                && !func_cookie.is_some_and(|fcp| func_has_abort(fcp) != 0)
             {
                 did_emsg = 0;
             }
@@ -5066,31 +5044,26 @@ pub unsafe fn do_cmdline(
                 xfree(cmdline_copy.cast());
                 cmdline_copy = ptr::null_mut();
 
-                if getline_is_func {
+                if let Some(fcp) = func_cookie {
                     if do_profiling == PROF_YES {
-                        func_line_end(real_cookie);
+                        func_line_end(fcp);
                     }
-                    if func_has_ended(real_cookie) != 0 {
+                    if func_has_ended(fcp) != 0 {
                         retval = FAIL;
                         break;
                     }
-                } else if do_profiling == PROF_YES
-                    && getline_equal(fgetline, cookie, Some(getsourceline))
-                {
+                } else if do_profiling == PROF_YES && fgetline.is_source() {
                     script_line_end();
                 }
 
-                if source_finished(fgetline, cookie) {
+                if source_finished(fgetline) {
                     retval = FAIL;
                     break;
                 }
 
                 if !breakpoint.is_null() && !dbg_tick.is_null() && *dbg_tick != debug_tick {
-                    *breakpoint = dbg_find_breakpoint(
-                        getline_equal(fgetline, cookie, Some(getsourceline)),
-                        fname,
-                        *sourcing_lnum_ptr(),
-                    );
+                    *breakpoint =
+                        dbg_find_breakpoint(fgetline.is_source(), fname, *sourcing_lnum_ptr());
                     *dbg_tick = debug_tick;
                 }
 
@@ -5101,17 +5074,14 @@ pub unsafe fn do_cmdline(
                 if !breakpoint.is_null() && *breakpoint != 0 && *breakpoint <= *sourcing_lnum_ptr()
                 {
                     dbg_breakpoint(fname, *sourcing_lnum_ptr());
-                    *breakpoint = dbg_find_breakpoint(
-                        getline_equal(fgetline, cookie, Some(getsourceline)),
-                        fname,
-                        *sourcing_lnum_ptr(),
-                    );
+                    *breakpoint =
+                        dbg_find_breakpoint(fgetline.is_source(), fname, *sourcing_lnum_ptr());
                     *dbg_tick = debug_tick;
                 }
                 if do_profiling == PROF_YES {
-                    if getline_is_func {
-                        func_line_start(real_cookie);
-                    } else if getline_equal(fgetline, cookie, Some(getsourceline)) {
+                    if let Some(fcp) = func_cookie {
+                        func_line_start(fcp);
+                    } else if fgetline.is_source() {
                         script_line_start();
                     }
                 }
@@ -5124,7 +5094,7 @@ pub unsafe fn do_cmdline(
                     (cstack.cs_idx + 1) * 2
                 };
 
-                if count == 1 && getline_equal(fgetline, cookie, Some(getexline)) {
+                if count == 1 && fgetline.is_exline() {
                     if ui_has(kUICmdline) {
                         ui_ext_cmdline_block_append(0, last_cmdline);
                         did_block = true;
@@ -5132,14 +5102,14 @@ pub unsafe fn do_cmdline(
                     msg_didout = true;
                 }
 
-                let Some(fget) = fgetline else {
+                if fgetline.is_none() {
                     if KeyTyped && (flags & DOCMD_REPEAT) == 0 {
                         need_wait_return = false;
                     }
                     retval = FAIL;
                     break;
-                };
-                next_cmdline = fget(b':' as c_int, cookie, indent, true);
+                }
+                next_cmdline = fgetline.call(b':' as c_int, indent, true);
                 if next_cmdline.is_null() {
                     if KeyTyped && (flags & DOCMD_REPEAT) == 0 {
                         need_wait_return = false;
@@ -5149,10 +5119,7 @@ pub unsafe fn do_cmdline(
                 }
                 used_getline = true;
 
-                if ui_has(kUICmdline)
-                    && count > 0
-                    && getline_equal(fgetline, cookie, Some(getexline))
-                {
+                if ui_has(kUICmdline) && count > 0 && fgetline.is_exline() {
                     ui_ext_cmdline_block_append(indent as usize, next_cmdline);
                 }
 
@@ -5170,14 +5137,13 @@ pub unsafe fn do_cmdline(
             cmdline_copy = next_cmdline;
 
             let mut current_line_before: c_int = 0;
-            if cstack.cs_looplevel > 0 || has_loop_cmd(next_cmdline) {
-                cmd_getline = Some(get_loop_line);
-                cmd_cookie = (&raw mut cmd_loop_cookie).cast::<c_void>();
+            let using_loop_cookie = cstack.cs_looplevel > 0 || has_loop_cmd(next_cmdline);
+            if using_loop_cookie {
                 cmd_loop_cookie.lines_gap = &raw mut lines_ga;
                 cmd_loop_cookie.current_line = current_line;
                 cmd_loop_cookie.lc_getline = fgetline;
-                cmd_loop_cookie.cookie = cookie;
                 cmd_loop_cookie.repeating = c_int::from((current_line as usize) < lines_ga.len());
+                cmd_getline = LineGetter::Loop(&raw mut cmd_loop_cookie);
 
                 if (current_line as usize) == lines_ga.len() {
                     store_loop_line(&mut lines_ga, next_cmdline);
@@ -5185,7 +5151,6 @@ pub unsafe fn do_cmdline(
                 current_line_before = current_line;
             } else {
                 cmd_getline = fgetline;
-                cmd_cookie = cookie;
             }
 
             did_endif = false;
@@ -5207,16 +5172,10 @@ pub unsafe fn do_cmdline(
             }
 
             recursive += 1;
-            next_cmdline = do_one_cmd(
-                &raw mut cmdline_copy,
-                flags,
-                &raw mut cstack,
-                cmd_getline,
-                cmd_cookie,
-            );
+            next_cmdline = do_one_cmd(&raw mut cmdline_copy, flags, &raw mut cstack, cmd_getline);
             recursive -= 1;
 
-            if cmd_cookie == (&raw mut cmd_loop_cookie).cast::<c_void>() {
+            if using_loop_cookie {
                 current_line = cmd_loop_cookie.current_line;
             }
 
@@ -5224,7 +5183,7 @@ pub unsafe fn do_cmdline(
                 xfree(cmdline_copy.cast());
                 cmdline_copy = ptr::null_mut();
 
-                if getline_equal(fgetline, cookie, Some(getexline)) && !new_last_cmdline.is_null() {
+                if fgetline.is_exline() && !new_last_cmdline.is_null() {
                     xfree(last_cmdline.cast());
                     last_cmdline = new_last_cmdline;
                     new_last_cmdline = ptr::null_mut();
@@ -5236,8 +5195,9 @@ pub unsafe fn do_cmdline(
 
             if did_emsg != 0
                 && !force_abort
-                && getline_equal(fgetline, cookie, Some(get_func_line))
-                && func_has_abort(real_cookie) == 0
+                && fgetline
+                    .as_func()
+                    .is_some_and(|fcp| func_has_abort(fcp) == 0)
             {
                 did_emsg = 0;
             }
@@ -5262,11 +5222,8 @@ pub unsafe fn do_cmdline(
 
                         if !breakpoint.is_null() && lines_ga.len() > current_line as usize {
                             let wp = &lines_ga[current_line as usize];
-                            *breakpoint = dbg_find_breakpoint(
-                                getline_equal(fgetline, cookie, Some(getsourceline)),
-                                fname,
-                                wp.lnum - 1,
-                            );
+                            *breakpoint =
+                                dbg_find_breakpoint(fgetline.is_source(), fname, wp.lnum - 1);
                             *dbg_tick = debug_tick;
                         }
                     } else if cstack.cs_idx >= 0 {
@@ -5321,7 +5278,7 @@ pub unsafe fn do_cmdline(
                 && !(did_emsg != 0
                     && (cstack.cs_trylevel == 0 || did_emsg_syntax)
                     && used_getline
-                    && getline_equal(fgetline, cookie, Some(getexline)))
+                    && fgetline.is_exline())
                 && (!next_cmdline.is_null() || cstack.cs_idx >= 0 || (flags & DOCMD_REPEAT) != 0);
             if !keep_going {
                 break;
@@ -5336,10 +5293,10 @@ pub unsafe fn do_cmdline(
             if !got_int
                 && !did_throw
                 && !aborting()
-                && ((getline_equal(fgetline, cookie, Some(getsourceline))
-                    && !source_finished(fgetline, cookie))
-                    || (getline_equal(fgetline, cookie, Some(get_func_line))
-                        && func_has_ended(real_cookie) == 0))
+                && ((fgetline.is_source() && !source_finished(fgetline))
+                    || fgetline
+                        .as_func()
+                        .is_some_and(|fcp| func_has_ended(fcp) == 0))
             {
                 let top_flags = cstack.cs_flags[cstack.cs_idx as usize];
                 if (top_flags & CSF_TRY) != 0 {
@@ -5373,7 +5330,7 @@ pub unsafe fn do_cmdline(
 
         do_errthrow(
             &raw mut cstack,
-            if getline_equal(fgetline, cookie, Some(get_func_line)) {
+            if fgetline.is_func() {
                 c"endfunction".as_ptr().cast_mut()
             } else {
                 ptr::null_mut()
@@ -5391,23 +5348,23 @@ pub unsafe fn do_cmdline(
         if did_throw {
             need_rethrow = true;
         }
-        if (getline_equal(fgetline, cookie, Some(getsourceline))
-            && ex_nesting_level > source_level(real_cookie))
-            || (getline_equal(fgetline, cookie, Some(get_func_line))
-                && ex_nesting_level > func_level(real_cookie) + 1)
+        if fgetline
+            .as_source()
+            .is_some_and(|sp| ex_nesting_level > source_level(sp))
+            || fgetline
+                .as_func()
+                .is_some_and(|fcp| ex_nesting_level > func_level(fcp) + 1)
         {
             if !did_throw {
                 check_cstack = true;
             }
         } else {
-            if getline_equal(fgetline, cookie, Some(get_func_line)) {
+            if fgetline.is_func() {
                 ex_nesting_level -= 1;
             }
-            if (getline_equal(fgetline, cookie, Some(getsourceline))
-                || getline_equal(fgetline, cookie, Some(get_func_line)))
-                && ex_nesting_level < debug_break_level
+            if (fgetline.is_source() || fgetline.is_func()) && ex_nesting_level < debug_break_level
             {
-                do_debug(if getline_equal(fgetline, cookie, Some(getsourceline)) {
+                do_debug(if fgetline.is_source() {
                     gettext(c"End of sourced file".as_ptr())
                 } else {
                     gettext(c"End of function".as_ptr())
@@ -5500,22 +5457,21 @@ pub unsafe fn handle_did_throw() {
 }
 
 /// Obtain a line when inside a ":while" or ":for" loop.
-unsafe fn get_loop_line(
+pub unsafe fn get_loop_line(
     c: c_int,
-    cookie: *mut c_void,
+    cp: *mut loop_cookie,
     indent: c_int,
     do_concat: bool,
 ) -> *mut c_char {
     unsafe {
-        let cp = cookie.cast::<loop_cookie>();
         let lines = &mut *(*cp).lines_gap;
 
         if ((*cp).current_line + 1) as usize >= lines.len() {
             if (*cp).repeating != 0 {
                 return ptr::null_mut();
             }
-            let line = if let Some(lc_getline) = (*cp).lc_getline {
-                lc_getline(c, (*cp).cookie, indent, do_concat)
+            let line = if !(*cp).lc_getline.is_none() {
+                (*cp).lc_getline.call(c, indent, do_concat)
             } else {
                 getcmdline(c, 0, indent, do_concat)
             };
@@ -5541,30 +5497,6 @@ unsafe fn store_loop_line(lines: &mut Vec<wcmd_T>, line: *const c_char) {
             line: CStr::from_ptr(line).to_owned(),
             lnum: *sourcing_lnum_ptr(),
         });
-    }
-}
-
-pub unsafe fn getline_equal(fgetline: LineGetter, cookie: *mut c_void, func: LineGetter) -> bool {
-    unsafe {
-        let mut gp = fgetline;
-        let mut cp = cookie.cast::<loop_cookie>();
-        while line_getter_eq(gp, Some(get_loop_line)) {
-            gp = (*cp).lc_getline;
-            cp = (*cp).cookie.cast::<loop_cookie>();
-        }
-        line_getter_eq(gp, func)
-    }
-}
-
-pub unsafe fn getline_cookie(fgetline: LineGetter, cookie: *mut c_void) -> *mut c_void {
-    unsafe {
-        let mut gp = fgetline;
-        let mut cp = cookie.cast::<loop_cookie>();
-        while line_getter_eq(gp, Some(get_loop_line)) {
-            gp = (*cp).lc_getline;
-            cp = (*cp).cookie.cast::<loop_cookie>();
-        }
-        cp.cast::<c_void>()
     }
 }
 
@@ -6319,12 +6251,7 @@ pub unsafe fn execute_cmd(eap: *mut exarg_T, cmod: *mut cmdmod_T, preview: bool)
     }
 }
 
-unsafe fn profile_cmd(
-    eap: *const exarg_T,
-    cstack: *mut cstack_T,
-    fgetline: LineGetter,
-    cookie: *mut c_void,
-) {
+unsafe fn profile_cmd(eap: *const exarg_T, cstack: *mut cstack_T, fgetline: LineGetter) {
     unsafe {
         if do_profiling == PROF_YES
             && ((*eap).skip == 0
@@ -6358,9 +6285,9 @@ unsafe fn profile_cmd(
             }
 
             if !skip {
-                if getline_equal(fgetline, cookie, Some(get_func_line)) {
-                    func_line_exec(getline_cookie(fgetline, cookie));
-                } else if getline_equal(fgetline, cookie, Some(getsourceline)) {
+                if let Some(fcp) = fgetline.as_func() {
+                    func_line_exec(fcp);
+                } else if fgetline.is_source() {
                     script_line_exec();
                 }
             }
@@ -6470,7 +6397,6 @@ unsafe fn do_one_cmd(
     flags: c_int,
     cstack: *mut cstack_T,
     fgetline: LineGetter,
-    cookie: *mut c_void,
 ) -> *mut c_char {
     unsafe {
         let mut errormsg: *const c_char = ptr::null();
@@ -6482,10 +6408,7 @@ unsafe fn do_one_cmd(
         ea.line2 = 1;
         ex_nesting_level += 1;
 
-        if quitmore != 0
-            && !getline_equal(fgetline, cookie, Some(get_func_line))
-            && !getline_equal(fgetline, cookie, Some(getnextac))
-        {
+        if quitmore != 0 && !fgetline.is_func() && !fgetline.is_autocmd() {
             quitmore -= 1;
         }
 
@@ -6499,7 +6422,6 @@ unsafe fn do_one_cmd(
             ea.cmd = *cmdlinep;
             ea.cmdlinep = cmdlinep;
             ea.ea_getline = fgetline;
-            ea.cookie = cookie;
             ea.cstack = cstack.cast();
 
             if parse_command_modifiers(&raw mut ea, &raw mut errormsg, &raw mut cmdmod, false)
@@ -6520,7 +6442,7 @@ unsafe fn do_one_cmd(
             );
 
             let mut p = find_excmd_after_range(&raw mut ea);
-            profile_cmd(&raw const ea, cstack, fgetline, cookie);
+            profile_cmd(&raw const ea, cstack, fgetline);
 
             if !exiting {
                 dbg_check_breakpoint((&raw mut ea).cast());
@@ -6807,11 +6729,9 @@ unsafe fn do_one_cmd(
             if need_rethrow {
                 do_throw(cstack);
             } else if check_cstack {
-                if source_finished(fgetline, cookie) {
+                if source_finished(fgetline) {
                     do_finish(&raw mut ea, true);
-                } else if getline_equal(fgetline, cookie, Some(get_func_line))
-                    && current_func_returned() != 0
-                {
+                } else if fgetline.is_func() && current_func_returned() != 0 {
                     let _ = do_return(&raw mut ea, true, false, ptr::null_mut());
                 }
             }
@@ -11449,8 +11369,7 @@ unsafe fn ex_at(eap: *mut exarg_T) {
         while !stuff_empty() || typebuf.tb_len > prev_len {
             do_cmdline(
                 ptr::null_mut(),
-                Some(getexline),
-                ptr::null_mut(),
+                LineGetter::ExLine,
                 DOCMD_NOWAIT | DOCMD_VERBOSE,
             );
         }

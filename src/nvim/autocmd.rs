@@ -3103,8 +3103,7 @@ pub unsafe fn apply_autocmds_group(
 
                 do_cmdline(
                     ptr::null_mut(),
-                    Some(getnextac),
-                    (&raw mut patcmd).cast(),
+                    crate::cmdexpand::LineGetter::AutoCmd(&raw mut patcmd),
                     DOCMD_NOWAIT | DOCMD_VERBOSE | DOCMD_REPEAT,
                 );
 
@@ -3428,12 +3427,11 @@ unsafe fn au_callback(ac: *const AutoCmd, apc: *const AutoPatCmd) -> bool {
 
 pub unsafe fn getnextac(
     _c: c_int,
-    cookie: *mut c_void,
+    apc: *mut AutoPatCmd,
     _indent: c_int,
     _do_concat: bool,
 ) -> *mut c_char {
     unsafe {
-        let apc = cookie.cast::<AutoPatCmd>();
         let acs = &raw mut autocmds[(*apc).event as usize];
 
         aucmd_next(apc);

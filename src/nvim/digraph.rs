@@ -11,7 +11,7 @@ use crate::eval::typval::{
     tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret, tv_list_append_list,
     tv_list_append_string, tv_list_first, tv_list_len, typval_T,
 };
-use crate::ex_docmd::{do_cmdline_cmd, exarg_T, getline_equal};
+use crate::ex_docmd::{do_cmdline_cmd, exarg_T};
 use crate::ex_getln::putcmdline;
 use crate::globals::*;
 use crate::input::plain_vgetc;
@@ -23,7 +23,7 @@ use crate::message::{emsg, msg_advance, msg_ext_set_kind, msg_outtrans, msg_putc
 use crate::normal::add_to_showcmd;
 use crate::option_vars::*;
 use crate::os::input::fast_breakcheck;
-use crate::runtime::{getsourceline, source_runtime};
+use crate::runtime::source_runtime;
 use crate::strings::{gettext, vim_snprintf};
 use crate::window::win_T;
 use std::ffi::{CStr, CString, c_char, c_int};
@@ -2138,20 +2138,16 @@ pub unsafe fn ex_loadkeymap(eap: *mut exarg_T) {
         let save_cpo = p_cpo;
         let fgetline: LineGetter = (*eap).ea_getline;
 
-        if !getline_equal(fgetline, (*eap).cookie, Some(getsourceline)) {
+        if !fgetline.is_source() {
             emsg(gettext(
                 c"E105: Using :loadkeymap not in a sourced file".as_ptr(),
             ));
             return;
         }
 
-        let Some(getline_fn) = fgetline else {
-            return;
-        };
-
         if (*eap).skip != 0 {
             loop {
-                let line = getline_fn(0, (*eap).cookie, 0, true);
+                let line = fgetline.call(0, 0, true);
                 if line.is_null() {
                     break;
                 }
@@ -2168,7 +2164,7 @@ pub unsafe fn ex_loadkeymap(eap: *mut exarg_T) {
         p_cpo = c"C".as_ptr().cast_mut();
 
         loop {
-            let line = getline_fn(0, (*eap).cookie, 0, true);
+            let line = fgetline.call(0, 0, true);
             if line.is_null() {
                 break;
             }

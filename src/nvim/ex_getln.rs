@@ -69,7 +69,7 @@ use crate::extmark::extmark_clear;
 use crate::globals::*;
 use crate::highlight_group::{syn_id2attr, syn_name2id};
 use crate::input::{
-    beep_flush, char_avail, getcmdkeycmd, ins_typebuf, map_execute_lua, plain_vgetc, stuff_empty,
+    beep_flush, char_avail, ins_typebuf, map_execute_lua, plain_vgetc, stuff_empty,
     stuffReadbuffSpecial, stuffcharReadbuff, vgetc, vpeekc, vpeekc_any, vungetc,
 };
 use crate::input_cmdatom::{atom_cmdline_set, atom_payload_end, atom_payload_start};
@@ -1672,8 +1672,7 @@ unsafe fn command_line_execute(state: *mut VimState, key: c_int) -> c_int {
             } else if (*s).c == K_COMMAND {
                 do_cmdline(
                     ptr::null_mut(),
-                    Some(getcmdkeycmd),
-                    ptr::null_mut(),
+                    crate::cmdexpand::LineGetter::CmdKeyCmd,
                     DOCMD_NOWAIT,
                 );
             } else {
@@ -3573,12 +3572,7 @@ unsafe fn correct_screencol(idx: c_int, cells: c_int, col: *mut c_int) {
 }
 
 /// Get an Ex command line for the `:` command.
-pub unsafe fn getexline(
-    c: c_int,
-    _cookie: *mut c_void,
-    indent: c_int,
-    do_concat: bool,
-) -> *mut c_char {
+pub unsafe fn getexline(c: c_int, indent: c_int, do_concat: bool) -> *mut c_char {
     unsafe {
         if exec_from_reg && vpeekc() == b':' as c_int {
             vgetc();

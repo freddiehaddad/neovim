@@ -2012,7 +2012,6 @@ pub unsafe fn do_ucmd(eap: *mut exarg_T, preview: bool) -> c_int {
         do_cmdline(
             buf,
             (*eap).ea_getline,
-            (*eap).cookie,
             DOCMD_VERBOSE | DOCMD_NOWAIT | DOCMD_KEYTYPED,
         );
 

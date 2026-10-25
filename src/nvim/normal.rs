@@ -53,8 +53,8 @@ use crate::ex_eval::discard_current_exception;
 use crate::ex_getln::{
     Ctrl__, Ctrl_A, Ctrl_B, Ctrl_BSL, Ctrl_D, Ctrl_F, Ctrl_G, Ctrl_HAT, Ctrl_K, Ctrl_L, Ctrl_O,
     Ctrl_Q, Ctrl_R, Ctrl_RSB, Ctrl_T, Ctrl_U, Ctrl_W, Ctrl_Z, K_EVENT, K_LUA, K_SELECT, VSE_NONE,
-    cmdwin_do_action, compute_cmdrow, curbuf_locked, getcmdline, getexline, text_locked,
-    text_locked_msg, vim_strsave_fnameescape,
+    cmdwin_do_action, compute_cmdrow, curbuf_locked, getcmdline, text_locked, text_locked_msg,
+    vim_strsave_fnameescape,
 };
 use crate::extmark::{kFalse, kNone, kTrue};
 use crate::file_search::grab_file_name;
@@ -69,7 +69,7 @@ use crate::grid::{grid_line_flush, grid_line_puts, grid_line_start};
 use crate::help::ex_help;
 use crate::indent_c::{FM_BACKWARD, FM_SKIPCOMM, check_linecomment};
 use crate::input::{
-    K_PASTE_START, beep_flush, char_avail, getcmdkeycmd, gotchars_ignore, kInsNone, langmap_adjust,
+    K_PASTE_START, beep_flush, char_avail, gotchars_ignore, kInsNone, langmap_adjust,
     map_execute_lua, paste_repeat, plain_vgetc, prep_redo, readbuf1_empty, redo_append_char,
     redo_append_str, requeue_key, safe_vgetc, start_redo, stuff_empty, stuffReadbuff,
     stuffcharReadbuff, stuffnumReadbuff, typebuf_maplen, typebuf_typed, vgetc, vpeekc, vungetc,
@@ -4215,8 +4215,11 @@ unsafe fn nv_colon(cap: *mut cmdarg_T) {
         } else {
             do_cmdline(
                 ptr::null_mut(),
-                Some(if is_cmdkey { getcmdkeycmd } else { getexline }),
-                ptr::null_mut(),
+                if is_cmdkey {
+                    crate::cmdexpand::LineGetter::CmdKeyCmd
+                } else {
+                    crate::cmdexpand::LineGetter::ExLine
+                },
                 if (*(*cap).oap).op_type != OP_NOP {
                     DOCMD_KEEPLINE
                 } else {
