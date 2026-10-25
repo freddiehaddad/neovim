@@ -283,6 +283,8 @@ impl Drop for VirtTextChunk {
     }
 }
 
+unsafe impl Sync for VirtTextChunk {}
+
 pub type VirtText = Vec<VirtTextChunk>;
 
 #[repr(C)]
@@ -295,18 +297,58 @@ pub struct VirtLine {
 
 pub type VirtLines = Vec<VirtLine>;
 
-#[repr(C)]
 #[derive(Clone)]
-pub struct DecorVirtTextData {
-    pub virt_text: VirtText,
-    pub virt_lines: VirtLines,
+pub enum DecorVirtTextData {
+    VirtText(VirtText),
+    VirtLines(VirtLines),
 }
 
 impl DecorVirtTextData {
     pub const fn empty() -> Self {
-        Self {
-            virt_text: Vec::new(),
-            virt_lines: Vec::new(),
+        Self::VirtText(Vec::new())
+    }
+
+    pub const fn empty_lines() -> Self {
+        Self::VirtLines(Vec::new())
+    }
+
+    #[inline]
+    pub fn virt_text(&self) -> &VirtText {
+        static EMPTY: VirtText = Vec::new();
+        match self {
+            Self::VirtText(vt) => vt,
+            Self::VirtLines(_) => &EMPTY,
+        }
+    }
+
+    #[inline]
+    pub fn virt_text_mut(&mut self) -> &mut VirtText {
+        if !matches!(self, Self::VirtText(_)) {
+            *self = Self::VirtText(Vec::new());
+        }
+        match self {
+            Self::VirtText(vt) => vt,
+            Self::VirtLines(_) => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub fn virt_lines(&self) -> &VirtLines {
+        static EMPTY: VirtLines = Vec::new();
+        match self {
+            Self::VirtLines(vl) => vl,
+            Self::VirtText(_) => &EMPTY,
+        }
+    }
+
+    #[inline]
+    pub fn virt_lines_mut(&mut self) -> &mut VirtLines {
+        if !matches!(self, Self::VirtLines(_)) {
+            *self = Self::VirtLines(Vec::new());
+        }
+        match self {
+            Self::VirtLines(vl) => vl,
+            Self::VirtText(_) => unreachable!(),
         }
     }
 }
@@ -721,12 +763,6 @@ pub unsafe fn decor_check_to_be_deleted() {
         decor_free_sh(to_free_sh);
         to_free_sh = DECOR_ID_INVALID;
         decor_state.win = ptr::null_mut();
-    }
-}
-
-pub unsafe fn clear_virttext(text: *mut VirtText) {
-    unsafe {
-        *text = Vec::new();
     }
 }
 
@@ -1743,7 +1779,7 @@ pub unsafe fn decor_virt_lines(
             let mut vt = mt_decor_virt(mark);
             if !mt_invalid(mark) && ns_in_win(mark.ns, wp) {
                 while !vt.is_null() {
-                    let virt_lines = &(*vt).data.virt_lines;
+                    let virt_lines = (*vt).data.virt_lines();
                     if ((*vt).flags & kVTIsLines) != 0 && !virt_lines.is_empty() {
                         let above = ((*vt).flags & kVTLinesAbove) != 0;
                         let mrow = mark.pos.row;
@@ -1886,7 +1922,7 @@ pub unsafe fn decor_to_dict_legacy(
                 put_c(&mut *dict, c"hl_mode".as_ptr(), cstr_as_obj(mode_str));
             }
 
-            let chunks = virt_text_to_array(&(*virt_text).data.virt_text, hl_name, arena);
+            let chunks = virt_text_to_array((*virt_text).data.virt_text(), hl_name, arena);
             put_c(&mut *dict, c"virt_text".as_ptr(), array_obj(chunks));
             put_c(
                 &mut *dict,
@@ -1913,7 +1949,7 @@ pub unsafe fn decor_to_dict_legacy(
         }
 
         if !virt_lines.is_null() {
-            let vl_vec = &(*virt_lines).data.virt_lines;
+            let vl_vec = (*virt_lines).data.virt_lines();
             let mut all_chunks = arena_array(arena, vl_vec.len());
             let mut virt_lines_flags: c_int = 0;
             let mut virt_lines_overflow: VirtLineOverflow = kVLOverflowTrunc;

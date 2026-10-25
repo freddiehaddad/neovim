@@ -8,7 +8,7 @@ use crate::buffer_updates::buf_updates_send_changes;
 use crate::change::{TAB, changed_lines};
 use crate::charset::{NUL, ascii_isdigit, ascii_iswhite, skipwhite, transstr, vim_isprintc};
 use crate::cursor::{check_cursor_col, colnr_T, linenr_T, ltoreq, pos_T};
-use crate::decoration::{VirtText, clear_virttext, next_virt_text_chunk};
+use crate::decoration::{VirtText, next_virt_text_chunk};
 use crate::diff::{diff_infold, diff_lnum_win};
 use crate::drawscreen::{
     UPD_INVERTED, UPD_NOT_VALID, redraw_buf_later, redraw_later, redraw_win_range_later,
@@ -2926,7 +2926,6 @@ pub unsafe fn f_foldtextresult(argvars: *mut typval_T, rettv: *mut typval_T, _fp
                     text = joined;
                 }
             }
-            clear_virttext(&mut vt);
             (*rettv).vval.v_string = text;
         }
 

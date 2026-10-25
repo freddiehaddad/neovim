@@ -5358,7 +5358,7 @@ pub unsafe fn callback_call(
         let mut name: *mut c_char;
         match (*callback).cb_type {
             kCallbackFuncref => {
-                name = (*callback).data.funcref;
+                name = (*callback).data.as_funcref();
                 let len = strlen(name) as c_int;
                 if len >= 6 && std::slice::from_raw_parts(name.cast::<u8>(), 6) == b"v:lua." {
                     name = name.add(6);
@@ -5371,7 +5371,7 @@ pub unsafe fn callback_call(
                 }
             }
             kCallbackPartial => {
-                partial = (*callback).data.partial;
+                partial = (*callback).data.as_partial();
                 name = partial_name(partial);
             }
             kCallbackLua => {
@@ -5390,7 +5390,7 @@ pub unsafe fn callback_call(
                     err_type: ErrorType::kErrorTypeNone,
                     msg: ptr::null_mut(),
                 };
-                let luaref = (*callback).data.luaref;
+                let luaref = (*callback).data.as_luaref();
                 callback_depth += 1;
                 let result = nlua_call_ref(
                     luaref,
@@ -5415,7 +5415,7 @@ pub unsafe fn callback_call(
                 callback_depth += 1;
                 let evalarg_ptr = &raw mut EVALARG_EVALUATE;
                 let r = eval0_simple_funccal(
-                    skipwhite((*callback).data.funcref),
+                    skipwhite((*callback).data.as_funcref()),
                     rettv,
                     ptr::null_mut(),
                     evalarg_ptr,
@@ -5461,7 +5461,7 @@ pub unsafe fn set_ref_in_callback(
                 v_type: VarType::VAR_PARTIAL,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval {
-                    v_partial: (*callback).data.partial,
+                    v_partial: (*callback).data.as_partial(),
                 },
             };
             return set_ref_in_item(&raw mut tv, copyID, ht_stack, list_stack);

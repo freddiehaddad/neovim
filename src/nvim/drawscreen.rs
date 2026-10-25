@@ -1442,8 +1442,8 @@ unsafe fn win_update(wp: *mut win_T) {
 
         if !(*buf).terminal.is_null() && terminal_suspended((*buf).terminal.cast::<Terminal>()) {
             let svt_ptr = &raw mut suspended_virt_text;
-            if (*svt_ptr).data.virt_text.is_empty() {
-                (*svt_ptr).data.virt_text.push(VirtTextChunk {
+            if (*svt_ptr).data.virt_text().is_empty() {
+                (*svt_ptr).data.virt_text_mut().push(VirtTextChunk {
                     text: crate::memory::xstrdup(c"[Process suspended]".as_ptr()),
                     hl_id: -1,
                 });

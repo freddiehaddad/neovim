@@ -18,8 +18,8 @@ use crate::api::vimscript::{KeyDict_exec_opts, exec_impl};
 use crate::charset::{NL, NUL};
 use crate::cursor::colnr_T;
 use crate::decoration::{
-    DECOR_ID_INVALID, DecorInline, DecorVirtText, DecorVirtTextData, clear_virttext,
-    decor_find_virttext, kHlModeUnknown, kVPosEndOfLine,
+    DECOR_ID_INVALID, DecorInline, DecorVirtText, DecorVirtTextData, decor_find_virttext,
+    kHlModeUnknown, kVPosEndOfLine,
 };
 use crate::eval::vars::MAXCOL;
 use crate::eval::vars::get_globvar_dict;
@@ -312,8 +312,7 @@ pub unsafe extern "C" fn nvim_buf_set_virtual_text(
 
         let existing = decor_find_virttext(buf, line as c_int, u64::from(ns_id));
         if !existing.is_null() {
-            clear_virttext(&raw mut (*existing).data.virt_text);
-            (*existing).data.virt_text = virt_text;
+            (*existing).data = DecorVirtTextData::VirtText(virt_text);
             (*existing).width = width;
             return src_id;
         }
@@ -326,10 +325,7 @@ pub unsafe extern "C" fn nvim_buf_set_virtual_text(
                 width,
                 col: 0,
                 pos: kVPosEndOfLine,
-                data: DecorVirtTextData {
-                    virt_text,
-                    virt_lines: Vec::new(),
-                },
+                data: DecorVirtTextData::VirtText(virt_text),
                 next: ptr::null_mut(),
             },
             ptr::null_mut(),

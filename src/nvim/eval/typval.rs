@@ -105,45 +105,53 @@ impl Default for partial_T {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
-pub struct CallbackData {
-    pub funcref: *mut c_char,
-    pub partial: *mut partial_T,
-    pub luaref: LuaRef,
+pub enum CallbackData {
+    None,
+    Funcref(*mut c_char),
+    Partial(*mut partial_T),
+    Lua(LuaRef),
 }
 
 impl CallbackData {
-    pub const NONE: Self = Self {
-        funcref: ptr::null_mut(),
-        partial: ptr::null_mut(),
-        luaref: 0,
-    };
+    pub const NONE: Self = Self::None;
 
     #[inline]
     pub const fn funcref(funcref: *mut c_char) -> Self {
-        Self {
-            funcref,
-            partial: ptr::null_mut(),
-            luaref: 0,
-        }
+        Self::Funcref(funcref)
     }
 
     #[inline]
     pub const fn partial(partial: *mut partial_T) -> Self {
-        Self {
-            funcref: ptr::null_mut(),
-            partial,
-            luaref: 0,
-        }
+        Self::Partial(partial)
     }
 
     #[inline]
     pub const fn lua(luaref: LuaRef) -> Self {
-        Self {
-            funcref: ptr::null_mut(),
-            partial: ptr::null_mut(),
-            luaref,
+        Self::Lua(luaref)
+    }
+
+    #[inline]
+    pub const fn as_funcref(self) -> *mut c_char {
+        match self {
+            Self::Funcref(p) => p,
+            _ => ptr::null_mut(),
+        }
+    }
+
+    #[inline]
+    pub const fn as_partial(self) -> *mut partial_T {
+        match self {
+            Self::Partial(p) => p,
+            _ => ptr::null_mut(),
+        }
+    }
+
+    #[inline]
+    pub const fn as_luaref(self) -> LuaRef {
+        match self {
+            Self::Lua(r) => r,
+            _ => 0,
         }
     }
 }
@@ -2353,9 +2361,11 @@ pub unsafe fn tv_callback_equal(cb1: *const Callback, cb2: *const Callback) -> b
             return false;
         }
         match (*cb1).cb_type {
-            kCallbackFuncref | kCallbackExpr => strequal((*cb1).data.funcref, (*cb2).data.funcref),
-            kCallbackPartial => (*cb1).data.partial == (*cb2).data.partial,
-            kCallbackLua => (*cb1).data.luaref == (*cb2).data.luaref,
+            kCallbackFuncref | kCallbackExpr => {
+                strequal((*cb1).data.as_funcref(), (*cb2).data.as_funcref())
+            }
+            kCallbackPartial => (*cb1).data.as_partial() == (*cb2).data.as_partial(),
+            kCallbackLua => (*cb1).data.as_luaref() == (*cb2).data.as_luaref(),
             kCallbackNone => true,
             _ => std::process::abort(),
         }
@@ -2367,19 +2377,19 @@ pub unsafe fn callback_free(callback: *mut Callback) {
     unsafe {
         match (*callback).cb_type {
             kCallbackFuncref => {
-                let funcref = (*callback).data.funcref;
+                let funcref = (*callback).data.as_funcref();
                 func_unref(funcref);
                 xfree(funcref.cast());
             }
             kCallbackPartial => {
-                partial_unref((*callback).data.partial);
+                partial_unref((*callback).data.as_partial());
             }
             kCallbackLua => {
-                let mut luaref = (*callback).data.luaref;
+                let mut luaref = (*callback).data.as_luaref();
                 nlua_clear_ref(&mut luaref);
             }
             kCallbackExpr => {
-                xfree((*callback).data.funcref.cast());
+                xfree((*callback).data.as_funcref().cast());
             }
             _ => {}
         }
@@ -2392,13 +2402,13 @@ pub unsafe fn callback_put(cb: *mut Callback, tv: *mut typval_T) {
     unsafe {
         match (*cb).cb_type {
             kCallbackPartial => {
-                let pt = (*cb).data.partial;
+                let pt = (*cb).data.as_partial();
                 (*tv).v_type = VarType::VAR_PARTIAL;
                 (*tv).vval.v_partial = pt;
                 (*pt).pt_refcount += 1;
             }
             kCallbackFuncref => {
-                let funcref = (*cb).data.funcref;
+                let funcref = (*cb).data.as_funcref();
                 (*tv).v_type = VarType::VAR_FUNC;
                 (*tv).vval.v_string = xstrdup(funcref);
                 func_ref((*tv).vval.v_string);
@@ -2417,21 +2427,21 @@ pub unsafe fn callback_copy(dest: *mut Callback, src: *mut Callback) {
         (*dest).cb_type = (*src).cb_type;
         match (*src).cb_type {
             kCallbackPartial => {
-                let pt = (*src).data.partial;
+                let pt = (*src).data.as_partial();
                 (*dest).data = CallbackData::partial(pt);
                 (*pt).pt_refcount += 1;
             }
             kCallbackFuncref => {
-                let funcref = (*src).data.funcref;
+                let funcref = (*src).data.as_funcref();
                 (*dest).data = CallbackData::funcref(xstrdup(funcref));
                 func_ref(funcref);
             }
             kCallbackLua => {
-                let new_ref = api_new_luaref((*src).data.luaref);
+                let new_ref = api_new_luaref((*src).data.as_luaref());
                 (*dest).data = CallbackData::lua(new_ref);
             }
             kCallbackExpr => {
-                (*dest).data = CallbackData::funcref(xstrdup((*src).data.funcref));
+                (*dest).data = CallbackData::funcref(xstrdup((*src).data.as_funcref()));
             }
             _ => {
                 (*dest).data = CallbackData::NONE;
@@ -2444,7 +2454,7 @@ pub unsafe fn callback_copy(dest: *mut Callback, src: *mut Callback) {
 pub unsafe fn callback_to_string(cb: *mut Callback, arena: *mut Arena) -> *mut c_char {
     unsafe {
         if (*cb).cb_type == kCallbackLua {
-            return nlua_funcref_str((*cb).data.luaref, arena.cast(), true);
+            return nlua_funcref_str((*cb).data.as_luaref(), arena.cast(), true);
         }
 
         const MSGLEN: usize = 100;
@@ -2452,7 +2462,7 @@ pub unsafe fn callback_to_string(cb: *mut Callback, arena: *mut Arena) -> *mut c
 
         match (*cb).cb_type {
             kCallbackFuncref => {
-                let s = CStr::from_ptr((*cb).data.funcref).to_bytes();
+                let s = CStr::from_ptr((*cb).data.as_funcref()).to_bytes();
                 let prefix = b"<vim function: ";
                 let suffix = b">";
                 let copy_len = s.len().min(MSGLEN - prefix.len() - suffix.len());
@@ -2471,7 +2481,7 @@ pub unsafe fn callback_to_string(cb: *mut Callback, arena: *mut Arena) -> *mut c
                 }
             }
             kCallbackPartial => {
-                let pt = (*cb).data.partial;
+                let pt = (*cb).data.as_partial();
                 let s = CStr::from_ptr((*pt).pt_name).to_bytes();
                 let prefix = b"<vim partial: ";
                 let suffix = b">";

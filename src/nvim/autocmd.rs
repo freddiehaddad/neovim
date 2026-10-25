@@ -3406,7 +3406,7 @@ unsafe fn au_callback(ac: *const AutoCmd, apc: *const AutoPatCmd) -> bool {
                 capacity: 1,
             };
 
-            let luaref = callback.data.luaref;
+            let luaref = callback.data.as_luaref();
             let result = nlua_call_ref(
                 luaref,
                 ptr::null(),

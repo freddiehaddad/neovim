@@ -13,7 +13,6 @@ use crate::api::win_config::{
 };
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 use crate::cursor::{linenr_T, pos_T};
-use crate::decoration::clear_virttext;
 use crate::drawscreen::{UPD_NOT_VALID, UPD_VALID, redraw_later, set_must_redraw};
 use crate::errors::*;
 use crate::fileio::shorten_buf_fname;
@@ -585,7 +584,7 @@ pub unsafe fn win_float_update_preview(wp: *mut win_T) {
             os_dirname(dirname.as_mut_ptr(), MAXPATHL);
             shorten_buf_fname((*wp).w_buffer, dirname.as_mut_ptr(), 0);
 
-            clear_virttext(&raw mut (*wp).w_config.title_chunks);
+            (*wp).w_config.title_chunks.clear();
             let mut err = error_init();
             parse_bordertext(
                 cstr_as_obj((*(*wp).w_buffer).b_fname),

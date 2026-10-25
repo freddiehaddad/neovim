@@ -5298,11 +5298,11 @@ unsafe fn opt_from_callback(cb: *mut Callback) -> Object {
     unsafe {
         match (*cb).cb_type {
             kCallbackLua => {
-                let luaref = (*cb).data.luaref;
+                let luaref = (*cb).data.as_luaref();
                 return luaref_obj(api_new_luaref(luaref));
             }
             kCallbackExpr | kCallbackFuncref => {
-                return cstr_to_obj((*cb).data.funcref);
+                return cstr_to_obj((*cb).data.as_funcref());
             }
             kCallbackPartial => {
                 let mut tv = typval_T::new();

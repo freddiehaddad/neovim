@@ -28,7 +28,7 @@ use crate::charset::{ascii_isdigit, getdigits_int};
 use crate::cmdexpand::{Ctrl_N, Ctrl_P, cmdidx_T};
 use crate::context::{CdCause, CtxSwitch, ctx_restore, ctx_switch, is_ctx_win, kCdCauseWindow};
 use crate::cursor::{check_cursor, check_cursor_lnum, colnr_T, equalpos, linenr_T, pos_T};
-use crate::decoration::{clear_virttext, decor_conceal_line};
+use crate::decoration::decor_conceal_line;
 use crate::diff::{diff_clear, diffopt_closeoff};
 use crate::drawscreen::{
     FR_LEAF, FR_ROW, UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID, comp_col, redraw_all_later,
@@ -6334,8 +6334,8 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
             buf = (*buf).b_next;
         }
 
-        clear_virttext(&raw mut (*wp).w_config.title_chunks);
-        clear_virttext(&raw mut (*wp).w_config.footer_chunks);
+        (*wp).w_config.title_chunks.clear();
+        (*wp).w_config.footer_chunks.clear();
 
         clear_matches(wp);
         free_jumplist(wp);

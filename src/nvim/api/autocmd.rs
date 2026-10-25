@@ -696,7 +696,7 @@ pub unsafe extern "C" fn nvim_get_autocmds(
                         let cb = &mut ac.handler_fn;
                         match cb.cb_type {
                             kCallbackLua => {
-                                let luaref = cb.data.luaref;
+                                let luaref = cb.data.as_luaref();
                                 if nlua_ref_is_function(luaref) {
                                     put_c(
                                         &mut autocmd_info,

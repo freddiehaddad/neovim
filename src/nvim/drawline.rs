@@ -12,12 +12,11 @@ use crate::charset::{
 use crate::cursor::{VALID_VIRTCOL, colnr_T, get_cursor_rel_lnum, linenr_T, ltoreq, pos_T};
 use crate::decoration::{
     DecorRange, DecorVirtText, NS, SCL_NUM, SignTextAttrs, VirtLines, VirtText, VirtTextChunk,
-    clear_virttext, decor_has_more_decorations, decor_init_draw_col, decor_recheck_draw_col,
-    decor_redraw_col, decor_redraw_eol, decor_redraw_line, decor_redraw_signs,
-    decor_virt_line_rows, decor_virt_lines, decor_virt_pos, decor_virt_pos_kind,
-    kDecorKindUIWatched, kDecorKindVirtText, kVLLeftcol, kVLOverflowAuto, kVLOverflowScroll,
-    kVPosEndOfLine, kVPosEndOfLineRightAlign, kVPosInline, kVPosRightAlign, kVPosWinCol,
-    kVTRepeatLinebreak, next_virt_text_chunk,
+    decor_has_more_decorations, decor_init_draw_col, decor_recheck_draw_col, decor_redraw_col,
+    decor_redraw_eol, decor_redraw_line, decor_redraw_signs, decor_virt_line_rows,
+    decor_virt_lines, decor_virt_pos, decor_virt_pos_kind, kDecorKindUIWatched, kDecorKindVirtText,
+    kVLLeftcol, kVLOverflowAuto, kVLOverflowScroll, kVPosEndOfLine, kVPosEndOfLineRightAlign,
+    kVPosInline, kVPosRightAlign, kVPosWinCol, kVTRepeatLinebreak, next_virt_text_chunk,
 };
 use crate::decoration_provider::{decor_providers_invoke_line, decor_providers_invoke_range};
 use crate::diff::{
@@ -448,7 +447,7 @@ unsafe fn draw_virt_text(
                 let col = draw_virt_text_item(
                     buf,
                     (*item).draw_col,
-                    &(*vt).data.virt_text,
+                    (*vt).data.virt_text(),
                     (*vt).hl_mode,
                     max_col,
                     vcol,
@@ -1249,7 +1248,7 @@ unsafe fn handle_inline_virtual_text(
                     if (*item).draw_col >= -1
                         && isize::try_from((*item).start_col).unwrap_or(-1) == v
                     {
-                        wlv.virt_inline = (*(*item).data.vt()).data.virt_text.as_slice();
+                        wlv.virt_inline = (*(*item).data.vt()).data.virt_text().as_slice();
                         wlv.virt_inline_hl_mode = (*(*item).data.vt()).hl_mode;
                         (*item).draw_col = c_int::MIN;
                         break;
@@ -3680,7 +3679,7 @@ pub unsafe fn win_line(
             }
         }
 
-        clear_virttext(&raw mut fold_vt);
+        drop(fold_vt);
         drop(virt_lines);
         xfree(foldtext_free.cast());
         wlv.row

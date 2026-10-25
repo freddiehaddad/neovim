@@ -14,10 +14,10 @@ use crate::buffer::buf_T;
 use crate::charset::{NUL, transstr, vim_isprintc};
 use crate::decoration::{
     DECOR_ID_INVALID, DECOR_SIGN_HIGHLIGHT_INIT, DecorInline, DecorPriority, DecorVirtText,
-    DecorVirtTextData, HLGroupID, NS, VirtLine, VirtText, VirtTextChunk, clear_virttext,
-    decor_free, decor_put_sh, decor_put_vt, decor_range_add_sh, decor_range_add_virt,
-    decor_sh_from_inline, decor_to_dict_legacy, hl_group_name, kHlModeUnknown, kSHConceal,
-    kSHConcealLines, kSHConcealOff, kSHHlEol, kSHIsSign, kSHSpellOff, kSHSpellOn, kSHUIWatched,
+    DecorVirtTextData, HLGroupID, NS, VirtLine, VirtText, VirtTextChunk, decor_free, decor_put_sh,
+    decor_put_vt, decor_range_add_sh, decor_range_add_virt, decor_sh_from_inline,
+    decor_to_dict_legacy, hl_group_name, kHlModeUnknown, kSHConceal, kSHConcealLines,
+    kSHConcealOff, kSHHlEol, kSHIsSign, kSHSpellOff, kSHSpellOn, kSHUIWatched,
     kSHUIWatchedOverlay, kVLLeftcol, kVLOverflowAuto, kVLOverflowScroll, kVLOverflowTrunc,
     kVLOverflowWrap, kVPosEndOfLine, kVPosEndOfLineRightAlign, kVPosInline, kVPosOverlay,
     kVPosRightAlign, kVPosWinCol, kVTHide, kVTIsLines, kVTLinesAbove, kVTRepeatLinebreak,
@@ -756,7 +756,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
             width: 0,
             col: 0,
             pos: kVPosEndOfLine,
-            data: DecorVirtTextData::empty(),
+            data: DecorVirtTextData::empty_lines(),
             next: ptr::null_mut(),
         };
         let mut url: *mut c_char = ptr::null_mut();
@@ -930,8 +930,12 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
             }
 
             if has_key(mask, KEYSET_OPTIDX_set_extmark__virt_text) {
-                virt_text.data.virt_text =
-                    parse_virt_text((*opts).virt_text, err, &mut virt_text.width, false);
+                virt_text.data = DecorVirtTextData::VirtText(parse_virt_text(
+                    (*opts).virt_text,
+                    err,
+                    &mut virt_text.width,
+                    false,
+                ));
                 if error_set(err) {
                     break 'error;
                 }
@@ -1026,7 +1030,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                     }
                     let mut dummig: c_int = 0;
                     let jtem = parse_virt_text(item.data.array, err, &mut dummig, false);
-                    virt_lines.data.virt_lines.push(VirtLine {
+                    virt_lines.data.virt_lines_mut().push(VirtLine {
                         line: jtem,
                         flags: virt_lines_flags,
                         overflow: virt_lines_overflow,
@@ -1184,7 +1188,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                     subpriority = (*opts)._subpriority as DecorPriority;
                 }
 
-                if !virt_text.data.virt_text.is_empty() {
+                if !virt_text.data.virt_text().is_empty() {
                     decor_range_add_virt(
                         &raw mut decor_state,
                         r,
@@ -1195,7 +1199,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                         true,
                     );
                 }
-                if !virt_lines.data.virt_lines.is_empty() {
+                if !virt_lines.data.virt_lines().is_empty() {
                     decor_range_add_virt(
                         &raw mut decor_state,
                         r,
@@ -1234,13 +1238,13 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
 
                 let mut decor_flags: u16 = 0;
                 let mut decor_alloc: *mut DecorVirtText = ptr::null_mut();
-                if !virt_text.data.virt_text.is_empty() {
+                if !virt_text.data.virt_text().is_empty() {
                     if virt_text.pos == kVPosInline {
                         decor_flags |= MT_FLAG_DECOR_VIRT_TEXT_INLINE;
                     }
                     decor_alloc = decor_put_vt(virt_text, decor_alloc);
                 }
-                if !virt_lines.data.virt_lines.is_empty() {
+                if !virt_lines.data.virt_lines().is_empty() {
                     decor_alloc = decor_put_vt(virt_lines, decor_alloc);
                     decor_flags |= MT_FLAG_DECOR_VIRT_LINES;
                 }
@@ -1686,7 +1690,7 @@ pub unsafe fn parse_virt_text(
             return virt_text;
         }
 
-        clear_virttext(&mut virt_text);
+        virt_text.clear();
         virt_text
     }
 }
