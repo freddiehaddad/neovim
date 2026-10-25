@@ -20,9 +20,8 @@ use crate::option::{OPT_LOCAL, OptInt, kOptBuftype, set_option_direct};
 use crate::option_vars::*;
 use crate::optionstr::{OptIndex, check_buf_options};
 use crate::os::fs::os_fopen;
-use crate::path::FreeWild;
 use crate::strings::{gettext, sort_slice_by};
-use crate::tag::{do_tag, find_tags};
+use crate::tag::{do_tag, find_tags_vec};
 use crate::window::{
     WSP_BOT, WSP_HELP, WSP_TOP, win_T, win_close, win_enter, win_setheight, win_split,
 };
@@ -33,7 +32,6 @@ use crate::cmdexpand::TAG_MANY;
 use crate::diff::kOptFoldmethod;
 use crate::globals::IOSIZE;
 use crate::math::{FAIL, OK};
-use crate::regexp::MAXCOL;
 
 pub(crate) const DT_HELP: c_int = 8;
 pub(crate) const TAG_HELP: c_int = 1;
@@ -52,8 +50,6 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
     unsafe {
         let mut arg: *mut c_char;
         let mut wp: *mut win_T;
-        let mut num_matches: c_int = 0;
-        let mut matches: *mut *mut c_char = ptr::null_mut();
         let mut empty_fnum: c_int = 0;
         let mut alt_fnum: c_int = 0;
         let old_KeyTyped = KeyTyped;
@@ -137,18 +133,18 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
         }
 
         // Check if there is a match for the argument.
+        let mut matches: Vec<*mut c_char> = Vec::new();
         let mut n = find_help_tags(
             arg,
-            &raw mut num_matches,
-            &raw mut matches,
+            &mut matches,
             !eap.is_null() && (*eap).forceit != 0,
         );
 
-        let mut i: c_int = 0;
+        let mut i: usize = 0;
         if n != FAIL && !lang.is_null() {
             let lang_bytes = CStr::from_ptr(lang).to_bytes();
-            while i < num_matches {
-                let m = *matches.add(i as usize);
+            while i < matches.len() {
+                let m = matches[i];
                 let m_bytes = CStr::from_ptr(m).to_bytes();
                 let len = m_bytes.len();
                 if len > 3
@@ -160,22 +156,22 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
                 i += 1;
             }
         }
-        if i >= num_matches || n == FAIL {
+        if i >= matches.len() || n == FAIL {
             if !lang.is_null() {
                 semsg!(gettext(c"E661: No '%s' help for %s".as_ptr()), lang, arg);
             } else {
                 semsg!(gettext(c"E149: No help for %s".as_ptr()), arg);
             }
             if n != FAIL {
-                FreeWild(num_matches, matches);
+                crate::path::clear_cstrings(&mut matches);
             }
             xfree(allocated_arg.cast());
             return;
         }
 
         // The first match (in the requested language) is the best match.
-        let tag = xstrdup(*matches.add(i as usize));
-        FreeWild(num_matches, matches);
+        let tag = xstrdup(matches[i]);
+        crate::path::clear_cstrings(&mut matches);
 
         // Re-use an existing help window or open a new one.
         let mut early_ret = false;
@@ -350,11 +346,10 @@ unsafe fn help_compare(&str1: &*mut c_char, &str2: &*mut c_char) -> c_int {
     }
 }
 
-/// Find all help tags matching `arg`, sort them and return in `matches[]` (`find_help_tags`).
+/// Find all help tags matching `arg`, sort them and return in `matches` (`find_help_tags`).
 pub unsafe fn find_help_tags(
     arg: *const c_char,
-    num_matches: *mut c_int,
-    matches: *mut *mut *mut c_char,
+    matches: &mut Vec<*mut c_char>,
     keep_lang: bool,
 ) -> c_int {
     unsafe {
@@ -390,27 +385,25 @@ pub unsafe fn find_help_tags(
         xstrlcpy((&raw mut IObuff).cast(), rettv.vval.v_string, IOSIZE);
         tv_clear(&raw mut rettv);
 
-        *matches = ptr::null_mut();
-        *num_matches = 0;
+        matches.clear();
         let mut flags = TAG_HELP | TAG_REGEXP | TAG_NAMES | TAG_VERBOSE | TAG_NO_TAGFUNC;
         if keep_lang {
             flags |= TAG_KEEP_LANG;
         }
-        if find_tags(
+        if find_tags_vec(
             (&raw mut IObuff).cast(),
-            num_matches,
             matches,
             flags,
-            MAXCOL,
+            crate::regexp::MAXCOL,
             ptr::null_mut(),
         ) == OK
-            && *num_matches > 0
+            && !matches.is_empty()
         {
-            let slice = std::slice::from_raw_parts_mut(*matches, *num_matches as usize);
-            sort_slice_by(slice, |a, b| help_compare(a, b));
-            while *num_matches > TAG_MANY {
-                *num_matches -= 1;
-                xfree((*(*matches).add(*num_matches as usize)).cast());
+            sort_slice_by(matches, |a, b| help_compare(a, b));
+            while matches.len() > TAG_MANY as usize {
+                if let Some(p) = matches.pop() {
+                    xfree(p.cast());
+                }
             }
         }
         OK
@@ -418,7 +411,7 @@ pub unsafe fn find_help_tags(
 }
 
 /// Cleanup matches for help tags (`cleanup_help_tags`).
-pub unsafe fn cleanup_help_tags(num_file: c_int, file: *mut *mut c_char) {
+pub unsafe fn cleanup_help_tags(file: &mut [*mut c_char]) {
     unsafe {
         let mut buf = [0u8; 3];
         let has_default_lang =
@@ -429,8 +422,8 @@ pub unsafe fn cleanup_help_tags(num_file: c_int, file: *mut *mut c_char) {
             buf[2] = *p_hlg.add(1) as u8;
         }
 
-        for i in 0..num_file {
-            let fi_ptr = *file.add(i as usize);
+        for i in 0..file.len() {
+            let fi_ptr = file[i];
             let fi_bytes = CStr::from_ptr(fi_ptr).to_bytes();
             if fi_bytes.len() <= 3 {
                 continue;
@@ -438,9 +431,9 @@ pub unsafe fn cleanup_help_tags(num_file: c_int, file: *mut *mut c_char) {
             let len = fi_bytes.len() - 3;
             if &fi_bytes[len..] == b"@en" {
                 let mut found_other = false;
-                for j in 0..num_file {
+                for (j, &fj_ptr) in file.iter().enumerate() {
                     if j != i {
-                        let fj_bytes = CStr::from_ptr(*file.add(j as usize)).to_bytes();
+                        let fj_bytes = CStr::from_ptr(fj_ptr).to_bytes();
                         if fj_bytes.len() == len + 3 && fi_bytes[..=len] == fj_bytes[..=len] {
                             found_other = true;
                             break;
@@ -454,8 +447,7 @@ pub unsafe fn cleanup_help_tags(num_file: c_int, file: *mut *mut c_char) {
         }
 
         if has_default_lang {
-            for i in 0..num_file {
-                let fi_ptr = *file.add(i as usize);
+            for &fi_ptr in file.iter() {
                 let fi_bytes = CStr::from_ptr(fi_ptr).to_bytes();
                 if fi_bytes.len() <= 3 {
                     continue;

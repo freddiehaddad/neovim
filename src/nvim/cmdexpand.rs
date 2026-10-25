@@ -2423,7 +2423,7 @@ unsafe fn get_next_or_prev_match(mode: c_int, xp: *mut expand_T) -> *mut c_char 
                 cmdline_pum_create(
                     get_cmdline_info(),
                     xp,
-                    (*xp).xp_files,
+                    (*xp).xp_files.as_mut_ptr(),
                     (*xp).xp_numfiles,
                     cmd_showtail,
                     false,
@@ -2432,7 +2432,13 @@ unsafe fn get_next_or_prev_match(mode: c_int, xp: *mut expand_T) -> *mut c_char 
                 pum_clear();
                 cmdline_pum_display(true);
             } else {
-                redraw_wildmenu(xp, (*xp).xp_numfiles, (*xp).xp_files, findex, cmd_showtail);
+                redraw_wildmenu(
+                    xp,
+                    (*xp).xp_numfiles,
+                    (*xp).xp_files.as_mut_ptr(),
+                    findex,
+                    cmd_showtail,
+                );
             }
         }
 
@@ -2440,7 +2446,7 @@ unsafe fn get_next_or_prev_match(mode: c_int, xp: *mut expand_T) -> *mut c_char 
         xstrdup(if findex == -1 {
             (*xp).xp_orig
         } else {
-            *(*xp).xp_files.add(findex as usize)
+            (*xp).xp_files.as_slice()[findex as usize]
         })
     }
 }
@@ -2454,11 +2460,12 @@ unsafe fn ExpandOne_start(
 ) -> *mut c_char {
     unsafe {
         let mut ss: *mut c_char = ptr::null_mut();
+        let mut raw_files: *mut *mut c_char = ptr::null_mut();
 
         if ExpandFromContext(
             xp,
             str_arg,
-            &raw mut (*xp).xp_files,
+            &raw mut raw_files,
             &raw mut (*xp).xp_numfiles,
             options,
         ) == FAIL
@@ -2467,38 +2474,55 @@ unsafe fn ExpandOne_start(
             if (options & WILD_SILENT) == 0 && (options & WILD_LIST_NOTFOUND) != 0 {
                 semsg!(gettext(e_nomatch2.as_ptr()), str_arg);
             }
-        } else if (*xp).xp_numfiles == 0 {
-            if (options & WILD_SILENT) == 0 {
-                semsg!(gettext(e_nomatch2.as_ptr()), str_arg);
-            }
         } else {
-            ExpandEscape(xp, str_arg, (*xp).xp_numfiles, (*xp).xp_files, options);
+            (*xp).xp_files.clear();
+            if (*xp).xp_numfiles > 0 && !raw_files.is_null() {
+                (*xp).xp_files.extend_from_slice(std::slice::from_raw_parts(
+                    raw_files,
+                    (*xp).xp_numfiles as usize,
+                ));
+            }
+            xfree(raw_files.cast());
 
-            if mode != WILD_ALL && mode != WILD_ALL_KEEP && mode != WILD_LONGEST {
-                let mut non_suf_match = if (*xp).xp_numfiles != 0 {
-                    (*xp).xp_numfiles
-                } else {
-                    1
-                };
-                if ((*xp).xp_context == EXPAND_FILES || (*xp).xp_context == EXPAND_DIRECTORIES)
-                    && (*xp).xp_numfiles > 1
-                {
-                    non_suf_match = 0;
-                    for i in 0..2 {
-                        if match_suffix(*(*xp).xp_files.add(i)) {
-                            non_suf_match += 1;
+            if (*xp).xp_numfiles == 0 {
+                if (options & WILD_SILENT) == 0 {
+                    semsg!(gettext(e_nomatch2.as_ptr()), str_arg);
+                }
+            } else {
+                ExpandEscape(
+                    xp,
+                    str_arg,
+                    (*xp).xp_numfiles,
+                    (*xp).xp_files.as_mut_ptr(),
+                    options,
+                );
+
+                if mode != WILD_ALL && mode != WILD_ALL_KEEP && mode != WILD_LONGEST {
+                    let mut non_suf_match = if (*xp).xp_numfiles != 0 {
+                        (*xp).xp_numfiles
+                    } else {
+                        1
+                    };
+                    if ((*xp).xp_context == EXPAND_FILES || (*xp).xp_context == EXPAND_DIRECTORIES)
+                        && (*xp).xp_numfiles > 1
+                    {
+                        non_suf_match = 0;
+                        for i in 0..2 {
+                            if match_suffix((*xp).xp_files.as_slice()[i]) {
+                                non_suf_match += 1;
+                            }
                         }
                     }
-                }
-                if non_suf_match != 1 {
-                    if (options & WILD_SILENT) == 0 {
-                        emsg(gettext(e_toomany.as_ptr()));
-                    } else if (options & WILD_NO_BEEP) == 0 {
-                        beep_flush();
+                    if non_suf_match != 1 {
+                        if (options & WILD_SILENT) == 0 {
+                            emsg(gettext(e_toomany.as_ptr()));
+                        } else if (options & WILD_NO_BEEP) == 0 {
+                            beep_flush();
+                        }
                     }
-                }
-                if !(non_suf_match != 1 && mode == WILD_EXPAND_FREE) {
-                    ss = xstrdup(*(*xp).xp_files);
+                    if !(non_suf_match != 1 && mode == WILD_EXPAND_FREE) {
+                        ss = xstrdup((*xp).xp_files.as_slice()[0]);
+                    }
                 }
             }
         }
@@ -2511,14 +2535,15 @@ unsafe fn ExpandOne_start(
 unsafe fn find_longest_match(xp: *mut expand_T, options: c_int) -> *mut c_char {
     unsafe {
         let mut len: usize = 0;
-        let first_file = *(*xp).xp_files;
+        let files = (*xp).xp_files.as_slice();
+        let first_file = files[0];
 
         while *first_file.add(len) != NUL {
             let mb_len = utfc_ptr2len(first_file.add(len)) as usize;
             let c0 = utf_ptr2char(first_file.add(len));
-            let mut i: c_int = 1;
-            while i < (*xp).xp_numfiles {
-                let ci = utf_ptr2char((*(*xp).xp_files.add(i as usize)).add(len));
+            let mut i: usize = 1;
+            while (i as c_int) < (*xp).xp_numfiles {
+                let ci = utf_ptr2char(files[i].add(len));
 
                 if p_fic != 0
                     && ((*xp).xp_context == EXPAND_DIRECTORIES
@@ -2534,7 +2559,7 @@ unsafe fn find_longest_match(xp: *mut expand_T, options: c_int) -> *mut c_char {
                 }
                 i += 1;
             }
-            if i < (*xp).xp_numfiles {
+            if (i as c_int) < (*xp).xp_numfiles {
                 if (options & WILD_NO_BEEP) == 0 {
                     vim_beep(kOptBoFlagWildmode);
                 }
@@ -2591,12 +2616,12 @@ pub unsafe fn ExpandOne(
                     c"".as_ptr()
                 }
             } else {
-                *(*xp).xp_files.add((*xp).xp_selected as usize)
+                (*xp).xp_files.as_slice()[(*xp).xp_selected as usize]
             });
         }
 
         if (*xp).xp_numfiles != -1 && mode != WILD_ALL && mode != WILD_LONGEST {
-            FreeWild((*xp).xp_numfiles, (*xp).xp_files);
+            crate::path::clear_cstrings(&mut (*xp).xp_files);
             free_xp_files_extra(xp, (*xp).xp_numfiles);
             (*xp).xp_numfiles = -1;
             xfree((*xp).xp_orig.cast());
@@ -2648,19 +2673,21 @@ pub unsafe fn ExpandOne(
                 ss_size = 3 * (n as usize);
             }
 
-            for i in 0..((*xp).xp_numfiles as usize) {
-                ss_size += strlen(*(*xp).xp_files.add(i)) + 1;
+            let files = (*xp).xp_files.as_slice();
+            for &f in files.iter().take((*xp).xp_numfiles as usize) {
+                ss_size += strlen(f) + 1;
             }
             ss_size += 1;
 
             ss = xmalloc(ss_size).cast::<c_char>();
             *ss = NUL;
             let mut ssp = ss;
-            for i in 0..(*xp).xp_numfiles {
+            for (idx, &f) in files.iter().take((*xp).xp_numfiles as usize).enumerate() {
+                let i = idx as c_int;
                 if i > 0 {
                     ssp = xstpcpy(ssp, prefix);
                 }
-                ssp = xstpcpy(ssp, *(*xp).xp_files.add(i as usize));
+                ssp = xstpcpy(ssp, f);
                 if i < n {
                     ssp = xstpcpy(ssp, suffix);
                 }
@@ -2692,7 +2719,7 @@ pub unsafe fn ExpandCleanup(xp: *mut expand_T) {
     unsafe {
         if (*xp).xp_numfiles >= 0 {
             free_xp_files_extra(xp, (*xp).xp_numfiles);
-            FreeWild((*xp).xp_numfiles, (*xp).xp_files);
+            crate::path::clear_cstrings(&mut (*xp).xp_files);
             (*xp).xp_numfiles = -1;
         }
         xfree((*xp).xp_orig.cast());
@@ -2835,7 +2862,7 @@ pub unsafe fn showmatches(
             showtail = expand_showtail(xp);
         } else {
             numMatches = (*xp).xp_numfiles;
-            matches = (*xp).xp_files;
+            matches = (*xp).xp_files.as_mut_ptr();
             showtail = cmd_showtail;
         }
 
@@ -5002,14 +5029,16 @@ unsafe fn ExpandFromContext(
         *matches = ptr::null_mut();
         *numMatches = 0;
         if (*xp).xp_context == EXPAND_HELP {
+            let mut help_matches: Vec<*mut c_char> = Vec::new();
             if find_help_tags(
                 if *pat == NUL { c"help".as_ptr() } else { pat },
-                numMatches,
-                matches,
+                &mut help_matches,
                 false,
             ) == OK
             {
-                cleanup_help_tags(*numMatches, *matches);
+                cleanup_help_tags(&mut help_matches);
+                *numMatches = help_matches.len() as c_int;
+                *matches = crate::path::slice_to_xmalloc(&help_matches);
                 return OK;
             }
             return FAIL;
@@ -6074,8 +6103,8 @@ pub unsafe fn f_getcompletion(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
         ExpandOne(&raw mut xpc, pat, ptr::null_mut(), options, WILD_ALL_KEEP);
         tv_list_alloc_ret(rettv, xpc.xp_numfiles as isize);
 
-        for i in 0..(xpc.xp_numfiles as usize) {
-            tv_list_append_string((*rettv).vval.v_list, *xpc.xp_files.add(i), -1);
+        for &f in xpc.xp_files.iter().take(xpc.xp_numfiles.max(0) as usize) {
+            tv_list_append_string((*rettv).vval.v_list, f, -1);
         }
         xfree(pat.cast());
     }
@@ -6120,7 +6149,7 @@ pub unsafe fn f_cmdcomplete_info(
         let ccline = get_cmdline_info();
 
         tv_dict_alloc_ret(rettv);
-        if ccline.is_null() || (*ccline).xpc.is_null() || (*(*ccline).xpc).xp_files.is_null() {
+        if ccline.is_null() || (*ccline).xpc.is_null() || (*(*ccline).xpc).xp_files.is_empty() {
             return;
         }
 
@@ -6151,9 +6180,10 @@ pub unsafe fn f_cmdcomplete_info(
         if ret == OK {
             let li = tv_list_alloc((*(*ccline).xpc).xp_numfiles as isize);
             ret = tv_dict_add_list(retdict, c"matches".as_ptr(), 7, li);
-            let mut idx: c_int = 0;
-            while ret == OK && idx < (*(*ccline).xpc).xp_numfiles {
-                tv_list_append_string(li, *(*(*ccline).xpc).xp_files.add(idx as usize), -1);
+            let files = (*(*ccline).xpc).xp_files.as_slice();
+            let mut idx: usize = 0;
+            while ret == OK && (idx as c_int) < (*(*ccline).xpc).xp_numfiles {
+                tv_list_append_string(li, files[idx], -1);
                 idx += 1;
             }
         }

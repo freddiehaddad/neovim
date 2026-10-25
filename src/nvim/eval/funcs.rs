@@ -2402,8 +2402,8 @@ pub unsafe fn f_expand(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
                         WILD_ALL_KEEP,
                     );
                     tv_list_alloc_ret(rettv, xpc.xp_numfiles as isize);
-                    for i in 0..(xpc.xp_numfiles as usize) {
-                        tv_list_append_string((*rettv).vval.v_list, *xpc.xp_files.add(i), -1);
+                    for &f in xpc.xp_files.iter().take(xpc.xp_numfiles.max(0) as usize) {
+                        tv_list_append_string((*rettv).vval.v_list, f, -1);
                     }
                 }
             } else {
