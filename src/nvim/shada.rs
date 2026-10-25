@@ -1284,32 +1284,27 @@ const fn marks_equal(a: pos_T, b: pos_T) -> bool {
     a.lnum == b.lnum && a.col == b.col
 }
 
-unsafe fn marklist_insert(
-    jumps_arr: *mut c_void,
-    jump_size: usize,
-    jl_len: c_int,
-    mut i: c_int,
-) -> c_int {
+unsafe fn marklist_insert<T>(jumps: &mut [T; JUMPLISTSIZE], jl_len: c_int, mut i: c_int) -> c_int {
     unsafe {
-        let jumps = jumps_arr.cast::<u8>();
+        let ptr = jumps.as_mut_ptr();
         if i > 0 {
             if jl_len == (JUMPLISTSIZE as c_int) {
                 i -= 1;
                 if i > 0 {
-                    ptr::copy(jumps.add(jump_size), jumps, jump_size * (i as usize));
+                    ptr::copy(ptr.add(1), ptr, i as usize);
                 }
             } else if i != jl_len {
                 ptr::copy(
-                    jumps.add((i as usize) * jump_size),
-                    jumps.add(((i + 1) as usize) * jump_size),
-                    jump_size * ((jl_len - i) as usize),
+                    ptr.add(i as usize),
+                    ptr.add((i + 1) as usize),
+                    (jl_len - i) as usize,
                 );
             }
         } else if i == 0 {
             if jl_len == (JUMPLISTSIZE as c_int) {
                 return -1;
             } else if jl_len > 0 {
-                ptr::copy(jumps, jumps.add(jump_size), jump_size * (jl_len as usize));
+                ptr::copy(ptr, ptr.add(1), jl_len as usize);
             }
         }
         i
@@ -1569,8 +1564,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                             free_xfmark((*curwin).w_jumplist[0]);
                         }
                         i = marklist_insert(
-                            (&raw mut (*curwin).w_jumplist).cast::<c_void>(),
-                            std::mem::size_of::<xfmark_T>(),
+                            &mut (*curwin).w_jumplist,
                             (*curwin).w_jumplistlen,
                             i,
                         );
@@ -1669,8 +1663,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                             free_fmark((*buf).b_changelist[0]);
                         }
                         i = marklist_insert(
-                            (&raw mut (*buf).b_changelist).cast::<c_void>(),
-                            std::mem::size_of::<fmark_T>(),
+                            &mut (*buf).b_changelist,
                             (*buf).b_changelistlen,
                             i,
                         );
@@ -2346,8 +2339,7 @@ unsafe fn shada_read_when_writing(
                             shada_free_shada_entry(&mut (*filemarks).changes[0]);
                         }
                         i = marklist_insert(
-                            (&raw mut (*filemarks).changes).cast::<c_void>(),
-                            std::mem::size_of::<ShadaEntry>(),
+                            &mut (*filemarks).changes,
                             (*filemarks).changes_size as c_int,
                             i,
                         );
@@ -2382,12 +2374,7 @@ unsafe fn shada_read_when_writing(
                     if i > 0 && (*wms).jumps_size == JUMPLISTSIZE {
                         shada_free_shada_entry(&mut (*wms).jumps[0]);
                     }
-                    i = marklist_insert(
-                        (&raw mut (*wms).jumps).cast::<c_void>(),
-                        std::mem::size_of::<ShadaEntry>(),
-                        (*wms).jumps_size as c_int,
-                        i,
-                    );
+                    i = marklist_insert(&mut (*wms).jumps, (*wms).jumps_size as c_int, i);
                     if i != -1 {
                         ptr::write(
                             &raw mut (*wms).jumps[i as usize],

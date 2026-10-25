@@ -94,7 +94,7 @@ use crate::regexp::{
     NUMBUFLEN, RE_MAGIC, RE_STRING, REGSUB_COPY, REGSUB_MAGIC, regmatch_T, vim_regcomp,
     vim_regexec_nl, vim_regfree, vim_regsub,
 };
-use crate::register::{get_reg_contents, kGRegExprSrc, op_global_reg_iter, yankreg_T};
+use crate::register::{get_reg_contents_str, kGRegExprSrc, op_global_reg_iter, yankreg_T};
 use crate::runtime::{
     exestack, free_autoload_scriptnames, free_scriptnames, get_scriptname, script_autoload,
     script_is_lua, sctx_T,
@@ -2948,7 +2948,7 @@ unsafe fn eval7(
                 if evaluate {
                     (*rettv).v_type = VarType::VAR_STRING;
                     (*rettv).vval.v_string =
-                        get_reg_contents(c_int::from(**arg as u8), kGRegExprSrc).cast();
+                        get_reg_contents_str(c_int::from(**arg as u8), kGRegExprSrc);
                 }
                 if **arg != NUL {
                     *arg = (*arg).add(1);

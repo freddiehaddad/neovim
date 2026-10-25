@@ -768,7 +768,7 @@ pub unsafe fn os_open(path: *const c_char, flags: c_int, mode: c_int) -> c_int {
 }
 
 /// Compatibility wrapper conforming to `fopen(3)`.
-pub unsafe fn os_fopen(path: *const c_char, flags: *const c_char) -> *mut c_void {
+pub unsafe fn os_fopen(path: *const c_char, flags: *const c_char) -> *mut crate::fileio::FILE {
     unsafe {
         assert!(!flags.is_null());
         let flen = strlen(flags);

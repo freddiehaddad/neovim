@@ -71,7 +71,7 @@ use crate::os::time::{Timestamp, os_realtime};
 use crate::plines::getvcols;
 use crate::popupmenu::pum_visible;
 use crate::register::{
-    get_reg_contents, get_unname_register, get_y_previous, get_y_register, op_reg_index,
+    get_reg_contents_str, get_unname_register, get_y_previous, get_y_register, op_reg_index,
     reg_max_ts, write_reg_contents_ex,
 };
 use crate::search::{restore_search_patterns, save_search_patterns};
@@ -1059,7 +1059,7 @@ unsafe fn mc_ins_span_flush(ins: *const NvimString, commit: bool) {
 
 unsafe fn mc_reg_read(reg: c_int) -> *mut c_char {
     unsafe {
-        let s = get_reg_contents(reg, 0).cast::<c_char>();
+        let s = get_reg_contents_str(reg, 0);
         if s.is_null() {
             return xstrdup(c"".as_ptr());
         }

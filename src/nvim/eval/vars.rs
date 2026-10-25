@@ -71,7 +71,7 @@ use crate::os::env::{
     expand_T, os_env_exists, os_getenv_buf, os_unsetenv, vim_getenv, vim_setenv_ext,
     vim_unsetenv_ext,
 };
-use crate::register::{get_reg_contents, kGRegExprSrc, write_reg_contents};
+use crate::register::{get_reg_contents_str, kGRegExprSrc, write_reg_contents};
 use crate::runtime::{new_script_item, script_autoload, script_item, scriptvar_T};
 use crate::search::set_search_direction;
 use crate::strings::{
@@ -1862,7 +1862,7 @@ unsafe fn ex_let_register(
                 } else {
                     *arg as u8 as c_int
                 };
-                let s = get_reg_contents(reg_c, kGRegExprSrc).cast::<c_char>();
+                let s = get_reg_contents_str(reg_c, kGRegExprSrc);
                 if !s.is_null() {
                     ptofree = concat_str(s, p);
                     p = ptofree;

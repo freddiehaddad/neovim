@@ -188,9 +188,9 @@ use crate::regexp::{
     vim_regcomp, vim_regexec_nl, vim_regfree,
 };
 use crate::register::{
-    YREG_YANK, block_def, format_reg_type, get_reg_contents, get_reg_type, get_register_name,
-    get_unname_register, get_yank_register, kGRegExprSrc, kGRegList, op_reg_set_previous,
-    write_reg_contents_ex, write_reg_contents_lst,
+    YREG_YANK, block_def, format_reg_type, get_reg_contents_list, get_reg_contents_str,
+    get_reg_type, get_register_name, get_unname_register, get_yank_register, kGRegExprSrc,
+    op_reg_set_previous, write_reg_contents_ex, write_reg_contents_lst,
 };
 use crate::runtime::{exestack, sctx_T};
 use crate::search::{
@@ -3636,11 +3636,8 @@ pub unsafe fn f_getreg(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
 
         if return_list {
             (*rettv).v_type = VarType::VAR_LIST;
-            (*rettv).vval.v_list = get_reg_contents(
-                regname,
-                (if arg2 != 0 { kGRegExprSrc } else { 0 }) | kGRegList,
-            )
-            .cast();
+            (*rettv).vval.v_list =
+                get_reg_contents_list(regname, if arg2 != 0 { kGRegExprSrc } else { 0 });
             if (*rettv).vval.v_list.is_null() {
                 (*rettv).vval.v_list = tv_list_alloc(0);
             }
@@ -3648,7 +3645,7 @@ pub unsafe fn f_getreg(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
         } else {
             (*rettv).v_type = VarType::VAR_STRING;
             (*rettv).vval.v_string =
-                get_reg_contents(regname, if arg2 != 0 { kGRegExprSrc } else { 0 }).cast();
+                get_reg_contents_str(regname, if arg2 != 0 { kGRegExprSrc } else { 0 });
         }
     }
 }
@@ -6477,7 +6474,7 @@ pub unsafe fn f_getreginfo(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
         tv_dict_alloc_ret(rettv);
         let dict = (*rettv).vval.v_dict.cast::<dict_T>();
 
-        let list = get_reg_contents(regname, kGRegExprSrc | kGRegList).cast::<list_T>();
+        let list = get_reg_contents_list(regname, kGRegExprSrc);
         if list.is_null() {
             return;
         }

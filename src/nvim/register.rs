@@ -24,7 +24,7 @@ use crate::drawscreen::{showmode, update_screen};
 use crate::errors::*;
 use crate::eval::funcs::RE_SEARCH;
 use crate::eval::typval::{
-    dict_T, tv_dict_add_bool, tv_dict_add_list, tv_dict_add_str, tv_dict_add_str_len,
+    dict_T, list_T, tv_dict_add_bool, tv_dict_add_list, tv_dict_add_str, tv_dict_add_str_len,
     tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_allocated_string,
     tv_list_append_string,
 };
@@ -82,7 +82,7 @@ use crate::terminal::terminal_paste;
 use crate::textformat::oparg_T;
 use crate::ui::ui_has;
 use crate::undo::{u_save, u_save_cursor};
-use std::ffi::{CStr, c_char, c_int, c_ulong, c_void};
+use std::ffi::{CStr, c_char, c_int, c_ulong};
 use std::ptr;
 
 #[repr(C)]
@@ -134,7 +134,6 @@ pub const NUM_REGISTERS: usize = 39;
 
 pub const kGRegNoExpr: c_int = 1;
 pub const kGRegExprSrc: c_int = 2;
-pub const kGRegList: c_int = 4;
 
 pub const YREG_PASTE: c_int = 0;
 pub const YREG_YANK: c_int = 1;
@@ -2704,27 +2703,27 @@ pub unsafe fn get_reg_type(regname: c_int, reg_width: *mut colnr_T) -> MotionTyp
     }
 }
 
-unsafe fn get_reg_wrap_one_line(s: *mut c_char, flags: c_int) -> *mut c_void {
+unsafe fn get_reg_wrap_one_line_list(s: *mut c_char) -> *mut list_T {
     unsafe {
-        if (flags & kGRegList) == 0 {
-            return s.cast::<c_void>();
+        if s.is_null() {
+            return ptr::null_mut();
         }
         let list = tv_list_alloc(1);
         tv_list_append_allocated_string(list, s);
-        list.cast::<c_void>()
+        list
     }
 }
 
-pub unsafe fn get_reg_contents(mut regname: c_int, flags: c_int) -> *mut c_void {
+pub unsafe fn get_reg_contents_str(mut regname: c_int, flags: c_int) -> *mut c_char {
     unsafe {
         if regname == c_int::from(b'=') {
             if (flags & kGRegNoExpr) != 0 {
                 return ptr::null_mut();
             }
             if (flags & kGRegExprSrc) != 0 {
-                return get_reg_wrap_one_line(get_expr_line_src(), flags);
+                return get_expr_line_src();
             }
-            return get_reg_wrap_one_line(get_expr_line(), flags);
+            return get_expr_line();
         }
 
         if regname == c_int::from(b'@') {
@@ -2741,23 +2740,12 @@ pub unsafe fn get_reg_contents(mut regname: c_int, flags: c_int) -> *mut c_void 
             if retval.is_null() {
                 return ptr::null_mut();
             }
-            if allocated {
-                return get_reg_wrap_one_line(retval, flags);
-            }
-            return get_reg_wrap_one_line(xstrdup(retval), flags);
+            return if allocated { retval } else { xstrdup(retval) };
         }
 
         let reg = &*get_yank_register(regname, YREG_PUT);
         if !reg.y_allocated {
             return ptr::null_mut();
-        }
-
-        if (flags & kGRegList) != 0 {
-            let list = tv_list_alloc(reg.y_array.len() as isize);
-            for &item in &reg.y_array {
-                tv_list_append_string(list, item.data, item.size as isize);
-            }
-            return list.cast::<c_void>();
         }
 
         let mut len: usize = 0;
@@ -2781,7 +2769,49 @@ pub unsafe fn get_reg_contents(mut regname: c_int, flags: c_int) -> *mut c_void 
         }
         *retval.add(len) = NUL;
 
-        retval.cast::<c_void>()
+        retval
+    }
+}
+
+pub unsafe fn get_reg_contents_list(mut regname: c_int, flags: c_int) -> *mut list_T {
+    unsafe {
+        if regname == c_int::from(b'=') {
+            if (flags & kGRegNoExpr) != 0 {
+                return ptr::null_mut();
+            }
+            if (flags & kGRegExprSrc) != 0 {
+                return get_reg_wrap_one_line_list(get_expr_line_src());
+            }
+            return get_reg_wrap_one_line_list(get_expr_line());
+        }
+
+        if regname == c_int::from(b'@') {
+            regname = c_int::from(b'"');
+        }
+
+        if regname != 0 && !valid_yank_reg(regname, false) {
+            return ptr::null_mut();
+        }
+
+        let mut retval: *mut c_char = ptr::null_mut();
+        let mut allocated = false;
+        if get_spec_reg(regname, &raw mut retval, &raw mut allocated, false) {
+            if retval.is_null() {
+                return ptr::null_mut();
+            }
+            return get_reg_wrap_one_line_list(if allocated { retval } else { xstrdup(retval) });
+        }
+
+        let reg = &*get_yank_register(regname, YREG_PUT);
+        if !reg.y_allocated {
+            return ptr::null_mut();
+        }
+
+        let list = tv_list_alloc(reg.y_array.len() as isize);
+        for &item in &reg.y_array {
+            tv_list_append_string(list, item.data, item.size as isize);
+        }
+        list
     }
 }
 
