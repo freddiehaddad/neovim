@@ -1,5 +1,6 @@
 //! Multi-level queue for selective async event processing (`src/nvim/event/multiqueue.c`).
 
+use std::collections::VecDeque;
 use std::ffi::{c_int, c_void};
 
 pub const EVENT_HANDLER_MAX_ARGC: usize = 10;
@@ -24,21 +25,16 @@ impl Event {
 
 pub type PutCallback = Option<unsafe fn(multiq: *mut MultiQueue, data: *mut c_void)>;
 
-#[repr(C)]
-struct MultiQueueItem {
-    link: bool,
-    queue: *mut MultiQueue,
-    event: Event,
-    parent_item: *mut MultiQueueItem,
-    prev: *mut MultiQueueItem,
-    next: *mut MultiQueueItem,
+#[derive(Clone, Copy)]
+enum QueueEntry {
+    Event(Event),
+    Child(*mut MultiQueue),
 }
 
 #[repr(C)]
 pub struct MultiQueue {
     parent: *mut MultiQueue,
-    head: *mut MultiQueueItem,
-    tail: *mut MultiQueueItem,
+    items: VecDeque<QueueEntry>,
     on_put: PutCallback,
     data: *mut c_void,
     size: usize,
@@ -50,40 +46,6 @@ struct MulticastEvent {
     refcount: c_int,
 }
 
-#[inline]
-unsafe fn push_tail(q: &mut MultiQueue, item: *mut MultiQueueItem) {
-    unsafe {
-        (*item).prev = q.tail;
-        (*item).next = std::ptr::null_mut();
-        if !q.tail.is_null() {
-            (*q.tail).next = item;
-        } else {
-            q.head = item;
-        }
-        q.tail = item;
-    }
-}
-
-#[inline]
-unsafe fn unlink(q: &mut MultiQueue, item: *mut MultiQueueItem) {
-    unsafe {
-        let prev = (*item).prev;
-        let next = (*item).next;
-        if !prev.is_null() {
-            (*prev).next = next;
-        } else {
-            q.head = next;
-        }
-        if !next.is_null() {
-            (*next).prev = prev;
-        } else {
-            q.tail = prev;
-        }
-        (*item).prev = std::ptr::null_mut();
-        (*item).next = std::ptr::null_mut();
-    }
-}
-
 fn multiqueue_new_inner(
     parent: *mut MultiQueue,
     on_put: PutCallback,
@@ -91,8 +53,7 @@ fn multiqueue_new_inner(
 ) -> *mut MultiQueue {
     Box::into_raw(Box::new(MultiQueue {
         parent,
-        head: std::ptr::null_mut(),
-        tail: std::ptr::null_mut(),
+        items: VecDeque::new(),
         on_put,
         data,
         size: 0,
@@ -123,51 +84,12 @@ pub unsafe fn multiqueue_free(this: *mut MultiQueue) {
     assert!(!this.is_null());
     unsafe {
         let q = &mut *this;
-        let mut curr = q.head;
-        while !curr.is_null() {
-            let next = (*curr).next;
-            if !q.parent.is_null() && !(*curr).parent_item.is_null() {
-                let pitem = (*curr).parent_item;
-                unlink(&mut *q.parent, pitem);
-                drop(Box::from_raw(pitem));
-            }
-            unlink(q, curr);
-            drop(Box::from_raw(curr));
-            curr = next;
+        if !q.parent.is_null() && !q.items.is_empty() {
+            (*q.parent)
+                .items
+                .retain(|entry| !matches!(*entry, QueueEntry::Child(child) if child == this));
         }
         drop(Box::from_raw(this));
-    }
-}
-
-unsafe fn multiqueueitem_get_event(
-    owner: &mut MultiQueue,
-    item: *mut MultiQueueItem,
-    remove: bool,
-) -> Event {
-    assert!(!item.is_null());
-    unsafe {
-        if (*item).link {
-            let linked = (*item).queue;
-            assert!(!multiqueue_empty(linked));
-            let linked_ref = &mut *linked;
-            let child = linked_ref.head;
-            let ev = (*child).event;
-            if remove {
-                unlink(linked_ref, child);
-                drop(Box::from_raw(child));
-            }
-            ev
-        } else {
-            if remove && !(*item).parent_item.is_null() {
-                let pitem = (*item).parent_item;
-                if !owner.parent.is_null() {
-                    unlink(&mut *owner.parent, pitem);
-                }
-                drop(Box::from_raw(pitem));
-                (*item).parent_item = std::ptr::null_mut();
-            }
-            (*item).event
-        }
     }
 }
 
@@ -175,42 +97,42 @@ unsafe fn multiqueue_remove(this: *mut MultiQueue) -> Event {
     assert!(unsafe { !multiqueue_empty(this) });
     unsafe {
         let q = &mut *this;
-        let h = q.head;
-        unlink(q, h);
-        assert!(!(*h).link || q.parent.is_null());
-        let ev = multiqueueitem_get_event(q, h, true);
+        let entry = q.items.pop_front().unwrap();
         q.size = q.size.wrapping_sub(1);
-        drop(Box::from_raw(h));
-        ev
+        match entry {
+            QueueEntry::Child(linked) => {
+                assert!(q.parent.is_null());
+                assert!(!multiqueue_empty(linked));
+                let linked_ref = &mut *linked;
+                match linked_ref.items.pop_front().unwrap() {
+                    QueueEntry::Event(ev) => ev,
+                    QueueEntry::Child(_) => unreachable!(),
+                }
+            }
+            QueueEntry::Event(ev) => {
+                if !q.parent.is_null() {
+                    let parent = &mut *q.parent;
+                    if let Some(pos) = parent
+                        .items
+                        .iter()
+                        .position(|e| matches!(*e, QueueEntry::Child(child) if child == this))
+                    {
+                        parent.items.remove(pos);
+                    }
+                }
+                ev
+            }
+        }
     }
 }
 
 unsafe fn multiqueue_push(this: *mut MultiQueue, event: Event) {
     unsafe {
         let q = &mut *this;
-        let item = Box::into_raw(Box::new(MultiQueueItem {
-            link: false,
-            queue: std::ptr::null_mut(),
-            event,
-            parent_item: std::ptr::null_mut(),
-            prev: std::ptr::null_mut(),
-            next: std::ptr::null_mut(),
-        }));
-        push_tail(q, item);
-
+        q.items.push_back(QueueEntry::Event(event));
         if !q.parent.is_null() {
-            let pitem = Box::into_raw(Box::new(MultiQueueItem {
-                link: true,
-                queue: this,
-                event: Event::nil(),
-                parent_item: std::ptr::null_mut(),
-                prev: std::ptr::null_mut(),
-                next: std::ptr::null_mut(),
-            }));
-            (*item).parent_item = pitem;
-            push_tail(&mut *q.parent, pitem);
+            (*q.parent).items.push_back(QueueEntry::Child(this));
         }
-
         q.size = q.size.wrapping_add(1);
     }
 }
@@ -294,7 +216,7 @@ pub unsafe fn multiqueue_purge_events(this: *mut MultiQueue) {
 /// `this` must be a valid pointer to a `MultiQueue`.
 pub unsafe fn multiqueue_empty(this: *mut MultiQueue) -> bool {
     assert!(!this.is_null());
-    unsafe { (*this).head.is_null() }
+    unsafe { (*this).items.is_empty() }
 }
 
 /// Replace the parent of an empty queue `this` (`multiqueue_replace_parent`).
