@@ -34,7 +34,7 @@ use crate::highlight::OptionalKeys;
 use crate::lua::converter::{Boolean, LUA_NOREF, LuaRef};
 use crate::lua::executor::{api_free_luaref, api_new_luaref};
 use crate::mbyte::mb_islower;
-use crate::memory::{Arena, arena_alloc, arena_memdupz, strequal_str, xfree, xmalloc, xmemdupz};
+use crate::memory::{Arena, arena_alloc, arena_memdupz, strequal_str, xfree, xmemdupz};
 use crate::msgpack_rpc::packer::Integer;
 use crate::regexp::{RE_MAGIC, vim_regcomp};
 use crate::register::valid_yank_reg;
@@ -890,15 +890,14 @@ pub unsafe extern "C" fn nvim_cmd(
                 ea.line2 = 1;
             }
 
-            ea.argc = args.size;
-            if ea.argc > 0 {
-                ea.args = xmalloc(ea.argc * std::mem::size_of::<*mut c_char>()).cast();
-                ea.arglens = xmalloc(ea.argc * std::mem::size_of::<usize>()).cast();
+            if args.size > 0 {
+                ea.args.reserve_exact(args.size);
+                ea.arglens.reserve_exact(args.size);
                 p = ea.arg;
-                for i in 0..ea.argc {
-                    *ea.args.add(i) = p;
+                for i in 0..args.size {
+                    ea.args.push(p);
                     let arglen = (*args.items.add(i)).data.string.size;
-                    *ea.arglens.add(i) = arglen;
+                    ea.arglens.push(arglen);
                     p = p.add(arglen + 1);
                 }
             }
@@ -1159,11 +1158,8 @@ pub unsafe extern "C" fn nvim_cmd(
             p = replace_makeprg(&mut ea, ea.arg, &mut cmdline);
             if p != ea.arg {
                 ea.arg = p;
-                xfree(ea.args.cast());
-                ea.args = ptr::null_mut();
-                xfree(ea.arglens.cast());
-                ea.arglens = ptr::null_mut();
-                ea.argc = 0;
+                ea.args.clear();
+                ea.arglens.clear();
             }
 
             if (ea.argt & EX_ARGOPT) != 0 {
@@ -1222,8 +1218,6 @@ pub unsafe extern "C" fn nvim_cmd(
         }
 
         xfree(cmdline.cast());
-        xfree(ea.args.cast());
-        xfree(ea.arglens.cast());
         retv
     }
 }

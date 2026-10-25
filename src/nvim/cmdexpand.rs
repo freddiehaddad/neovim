@@ -2014,27 +2014,31 @@ unsafe fn cmdline_pum_create(
         debug_assert!(numMatches >= 0);
         let mut items = Vec::with_capacity(numMatches as usize);
         for i in 0..(numMatches as usize) {
-            let pum_text =
-                if !(*xp).xp_files_abbr.is_null() && !(*(*xp).xp_files_abbr.add(i)).is_null() {
-                    *(*xp).xp_files_abbr.add(i)
-                } else {
-                    show_match(matches, i, showtail)
-                };
-            let pum_info = if !(*xp).xp_files_info.is_null() {
-                *(*xp).xp_files_info.add(i)
-            } else {
-                ptr::null_mut()
-            };
-            let pum_extra = if !(*xp).xp_files_menu.is_null() {
-                *(*xp).xp_files_menu.add(i)
-            } else {
-                ptr::null_mut()
-            };
-            let pum_kind = if !(*xp).xp_files_kind.is_null() {
-                *(*xp).xp_files_kind.add(i)
-            } else {
-                ptr::null_mut()
-            };
+            let pum_text = (*xp)
+                .xp_files_abbr
+                .as_slice()
+                .get(i)
+                .copied()
+                .filter(|p| !p.is_null())
+                .unwrap_or_else(|| show_match(matches, i, showtail));
+            let pum_info = (*xp)
+                .xp_files_info
+                .as_slice()
+                .get(i)
+                .copied()
+                .unwrap_or(ptr::null_mut());
+            let pum_extra = (*xp)
+                .xp_files_menu
+                .as_slice()
+                .get(i)
+                .copied()
+                .unwrap_or(ptr::null_mut());
+            let pum_kind = (*xp)
+                .xp_files_kind
+                .as_slice()
+                .get(i)
+                .copied()
+                .unwrap_or(ptr::null_mut());
             items.push(pumitem_T {
                 pum_text,
                 pum_kind,
@@ -2540,24 +2544,12 @@ unsafe fn find_longest_match(xp: *mut expand_T, options: c_int) -> *mut c_char {
     }
 }
 
-pub unsafe fn free_xp_files_extra(xp: *mut expand_T, numfiles: c_int) {
+pub unsafe fn free_xp_files_extra(xp: *mut expand_T, _numfiles: c_int) {
     unsafe {
-        if !(*xp).xp_files_abbr.is_null() {
-            FreeWild(numfiles, (*xp).xp_files_abbr);
-            (*xp).xp_files_abbr = ptr::null_mut();
-        }
-        if !(*xp).xp_files_kind.is_null() {
-            FreeWild(numfiles, (*xp).xp_files_kind);
-            (*xp).xp_files_kind = ptr::null_mut();
-        }
-        if !(*xp).xp_files_menu.is_null() {
-            FreeWild(numfiles, (*xp).xp_files_menu);
-            (*xp).xp_files_menu = ptr::null_mut();
-        }
-        if !(*xp).xp_files_info.is_null() {
-            FreeWild(numfiles, (*xp).xp_files_info);
-            (*xp).xp_files_info = ptr::null_mut();
-        }
+        crate::path::clear_cstrings(&mut (*xp).xp_files_abbr);
+        crate::path::clear_cstrings(&mut (*xp).xp_files_kind);
+        crate::path::clear_cstrings(&mut (*xp).xp_files_menu);
+        crate::path::clear_cstrings(&mut (*xp).xp_files_info);
     }
 }
 
@@ -5594,10 +5586,10 @@ pub unsafe fn expand_process_user_list(
         *numMatches = ga.len() as c_int;
         *matches = crate::path::slice_to_xmalloc(&ga);
         if have_extra && !ga.is_empty() {
-            (*xp).xp_files_abbr = crate::path::slice_to_xmalloc(&ga_abbr);
-            (*xp).xp_files_kind = crate::path::slice_to_xmalloc(&ga_kind);
-            (*xp).xp_files_menu = crate::path::slice_to_xmalloc(&ga_menu);
-            (*xp).xp_files_info = crate::path::slice_to_xmalloc(&ga_info);
+            (*xp).xp_files_abbr = ga_abbr;
+            (*xp).xp_files_kind = ga_kind;
+            (*xp).xp_files_menu = ga_menu;
+            (*xp).xp_files_info = ga_info;
         } else {
             crate::path::clear_cstrings(&mut ga_abbr);
             crate::path::clear_cstrings(&mut ga_kind);

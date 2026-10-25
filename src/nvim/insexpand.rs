@@ -4386,17 +4386,18 @@ unsafe fn get_next_cmdline_completion() {
             while (i as c_int) < num_matches && add_r != FAIL {
                 let mut cptext: [*mut c_char; CPT_COUNT] = [ptr::null_mut(); CPT_COUNT];
 
-                if !compl_xp.xp_files_abbr.is_null() {
-                    cptext[CPT_ABBR] = *compl_xp.xp_files_abbr.add(i);
+                let cxp = &raw const compl_xp;
+                if let Some(&abbr) = (*cxp).xp_files_abbr.as_slice().get(i) {
+                    cptext[CPT_ABBR] = abbr;
                 }
-                if !compl_xp.xp_files_kind.is_null() {
-                    cptext[CPT_KIND] = *compl_xp.xp_files_kind.add(i);
+                if let Some(&kind) = (*cxp).xp_files_kind.as_slice().get(i) {
+                    cptext[CPT_KIND] = kind;
                 }
-                if !compl_xp.xp_files_menu.is_null() {
-                    cptext[CPT_MENU] = *compl_xp.xp_files_menu.add(i);
+                if let Some(&menu) = (*cxp).xp_files_menu.as_slice().get(i) {
+                    cptext[CPT_MENU] = menu;
                 }
-                if !compl_xp.xp_files_info.is_null() {
-                    cptext[CPT_INFO] = *compl_xp.xp_files_info.add(i);
+                if let Some(&info) = (*cxp).xp_files_info.as_slice().get(i) {
+                    cptext[CPT_INFO] = info;
                 }
 
                 add_r = ins_compl_add(

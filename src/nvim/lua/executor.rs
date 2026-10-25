@@ -530,10 +530,10 @@ unsafe fn nlua_push_eap(lstate: *mut lua_State, eap: *mut exarg_T, cmod: *const 
         lua_pushstring(lstate, reg.as_ptr());
         lua_setfield(lstate, -2, c"reg".as_ptr());
 
-        if !(*eap).args.is_null() {
-            lua_createtable(lstate, (*eap).argc as c_int, 0);
-            for i in 0..(*eap).argc {
-                lua_pushlstring(lstate, *(*eap).args.add(i), *(*eap).arglens.add(i));
+        if !(*eap).args.is_empty() {
+            lua_createtable(lstate, (*eap).args.len() as c_int, 0);
+            for (i, (&arg, &arglen)) in (*eap).args.iter().zip(&(*eap).arglens).enumerate() {
+                lua_pushlstring(lstate, arg, arglen);
                 lua_rawseti(lstate, -2, (i + 1) as c_int);
             }
             lua_setfield(lstate, -2, c"fargs".as_ptr());

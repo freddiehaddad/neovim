@@ -323,12 +323,11 @@ pub struct ExMagic {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct exarg_T {
     pub arg: *mut c_char,
-    pub args: *mut *mut c_char,
-    pub arglens: *mut usize,
-    pub argc: usize,
+    pub args: Vec<*mut c_char>,
+    pub arglens: Vec<usize>,
     pub nextcmd: *mut c_char,
     pub cmd: *mut c_char,
     pub cmdlinep: *mut *mut c_char,
@@ -365,9 +364,8 @@ impl exarg_T {
     pub const fn new() -> Self {
         Self {
             arg: ptr::null_mut(),
-            args: ptr::null_mut(),
-            arglens: ptr::null_mut(),
-            argc: 0,
+            args: Vec::new(),
+            arglens: Vec::new(),
             nextcmd: ptr::null_mut(),
             cmd: ptr::null_mut(),
             cmdlinep: ptr::null_mut(),
@@ -5838,13 +5836,14 @@ unsafe fn parse_count(eap: *mut exarg_T, errormsg: *mut *const c_char, validate:
                 let n = getdigits_int32(&raw mut (*eap).arg, false, i32::MAX);
                 (*eap).arg = skipwhite((*eap).arg);
 
-                if !(*eap).args.is_null() {
-                    let arg0 = *(*eap).args;
-                    let arglen0 = *(*eap).arglens;
-                    debug_assert!((*eap).argc > 0 && (*eap).arg >= arg0);
+                if !(*eap).args.is_empty() {
+                    let arg0 = (*eap).args.as_slice()[0];
+                    let arglen0 = (*eap).arglens.as_slice()[0];
+                    debug_assert!((*eap).arg >= arg0);
                     if ((*eap).arg as usize) < (arg0 as usize) + arglen0 {
-                        *(*eap).arglens -= ((*eap).arg as usize) - (arg0 as usize);
-                        *(*eap).args = (*eap).arg;
+                        (*eap).arglens.as_mut_slice()[0] -=
+                            ((*eap).arg as usize) - (arg0 as usize);
+                        (*eap).args.as_mut_slice()[0] = (*eap).arg;
                     } else {
                         shift_cmd_args(eap);
                     }
@@ -6066,34 +6065,16 @@ pub unsafe fn parse_cmdline(
 
 unsafe fn shift_cmd_args(eap: *mut exarg_T) {
     unsafe {
-        debug_assert!(!(*eap).args.is_null() && (*eap).argc > 0);
+        debug_assert!(!(*eap).args.is_empty());
 
-        let oldargs = (*eap).args;
-        let oldarglens = (*eap).arglens;
+        let oldarg0 = (*eap).args.remove(0);
+        let oldarglen0 = (*eap).arglens.remove(0);
 
-        (*eap).argc -= 1;
-        (*eap).args = if (*eap).argc > 0 {
-            crate::path::slice_to_xmalloc(std::slice::from_raw_parts(oldargs.add(1), (*eap).argc))
+        (*eap).arg = if let Some(&first_arg) = (*eap).args.first() {
+            first_arg
         } else {
-            ptr::null_mut()
+            oldarg0.add(oldarglen0)
         };
-        (*eap).arglens = if (*eap).argc > 0 {
-            crate::path::slice_to_xmalloc(std::slice::from_raw_parts(
-                oldarglens.add(1),
-                (*eap).argc,
-            ))
-        } else {
-            ptr::null_mut()
-        };
-
-        (*eap).arg = if (*eap).argc > 0 {
-            *(*eap).args
-        } else {
-            (*oldargs).add(*oldarglens)
-        };
-
-        xfree(oldargs.cast());
-        xfree(oldarglens.cast());
     }
 }
 
@@ -6114,7 +6095,7 @@ unsafe fn execute_cmd0(
             && (*eap).addr_count == 0
             && (*eap).cmdidx >= 0
         {
-            if (*eap).args.is_null() {
+            if (*eap).args.is_empty() {
                 let mut p: *mut c_char;
                 if (*eap).cmdidx == cmdidx_T::CMD_bdelete as c_int
                     || (*eap).cmdidx == cmdidx_T::CMD_bwipeout as c_int
@@ -6132,8 +6113,8 @@ unsafe fn execute_cmd0(
                 (*eap).addr_count = 1;
                 (*eap).arg = skipwhite(p);
             } else {
-                let arg0 = *(*eap).args;
-                let arglen0 = *(*eap).arglens;
+                let arg0 = (*eap).args.as_slice()[0];
+                let arglen0 = (*eap).arglens.as_slice()[0];
                 (*eap).line2 = buflist_findpat(
                     arg0,
                     arg0.add(arglen0),
@@ -8376,13 +8357,12 @@ unsafe fn repl_cmdline(
         (*eap).arg =
             new_cmdline.wrapping_add(((*eap).arg as usize).wrapping_sub((*cmdlinep) as usize));
 
-        for j in 0..(*eap).argc {
-            let arg_j = *(*eap).args.add(j);
-            let arg_off = (arg_j as usize).wrapping_sub((*cmdlinep) as usize);
+        for arg_j in &mut (*eap).args {
+            let arg_off = (*arg_j as usize).wrapping_sub((*cmdlinep) as usize);
             if offset >= arg_off {
-                *(*eap).args.add(j) = new_cmdline.wrapping_add(arg_off);
+                *arg_j = new_cmdline.wrapping_add(arg_off);
             } else {
-                *(*eap).args.add(j) =
+                *arg_j =
                     new_cmdline.wrapping_add(arg_off.wrapping_add(len).wrapping_sub(srclen));
             }
         }
@@ -9205,13 +9185,13 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
 
         if strequal(quit_cmd, c":::".as_ptr()) {
             startreason = c"restart".as_ptr();
-            if (*eap).argc > 1 {
-                let arg1 = *(*eap).args.add(1);
-                let arglen1 = *(*eap).arglens.add(1);
+            if (*eap).args.len() > 1 {
+                let arg1 = (*eap).args.as_slice()[1];
+                let arglen1 = (*eap).arglens.as_slice()[1];
                 *arg1.add(arglen1) = NUL;
                 quit_cmd = arg1;
-                after_cmd = if (*eap).argc > 2 {
-                    *(*eap).args.add(2)
+                after_cmd = if (*eap).args.len() > 2 {
+                    (*eap).args.as_slice()[2]
                 } else {
                     c"".as_ptr().cast_mut()
                 };

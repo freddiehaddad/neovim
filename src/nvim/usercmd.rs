@@ -1422,14 +1422,13 @@ pub unsafe fn uc_nargs_upper_bound(arg: *const c_char, arglen: usize) -> usize {
 /// Split and quote args for `<f-args>` (`uc_split_args`).
 unsafe fn uc_split_args(
     arg: *const c_char,
-    args: *mut *mut c_char,
-    arglens: *const usize,
-    argc: usize,
+    args: &[*mut c_char],
+    arglens: &[usize],
     lenp: *mut usize,
 ) -> *mut c_char {
     unsafe {
         let mut len: c_int = 2;
-        if args.is_null() {
+        if args.is_empty() {
             let mut p = arg;
             while *p != NUL {
                 if *p == b'\\' as c_char && *p.add(1) == b'\\' as c_char {
@@ -1454,9 +1453,9 @@ unsafe fn uc_split_args(
                 }
             }
         } else {
-            for i in 0..argc {
-                let mut p: *const c_char = *args.add(i);
-                let arg_end = p.add(*arglens.add(i));
+            for (i, (&arg_i, &arglen_i)) in args.iter().zip(arglens).enumerate() {
+                let mut p: *const c_char = arg_i;
+                let arg_end = p.add(arglen_i);
 
                 while p < arg_end {
                     if *p == b'\\' as c_char || *p == b'"' as c_char {
@@ -1469,7 +1468,7 @@ unsafe fn uc_split_args(
                     }
                 }
 
-                if i != argc - 1 {
+                if i != args.len() - 1 {
                     len += 4;
                 }
             }
@@ -1480,7 +1479,7 @@ unsafe fn uc_split_args(
         *q = b'"' as c_char;
         q = q.add(1);
 
-        if args.is_null() {
+        if args.is_empty() {
             let mut p = arg;
             while *p != NUL {
                 if *p == b'\\' as c_char && *p.add(1) == b'\\' as c_char {
@@ -1512,9 +1511,9 @@ unsafe fn uc_split_args(
                 }
             }
         } else {
-            for i in 0..argc {
-                let mut p: *const c_char = *args.add(i);
-                let arg_end = p.add(*arglens.add(i));
+            for (i, (&arg_i, &arglen_i)) in args.iter().zip(arglens).enumerate() {
+                let mut p: *const c_char = arg_i;
+                let arg_end = p.add(arglen_i);
 
                 while p < arg_end {
                     if *p == b'\\' as c_char || *p == b'"' as c_char {
@@ -1526,7 +1525,7 @@ unsafe fn uc_split_args(
                         mb_copy_char(&raw mut p, &raw mut q);
                     }
                 }
-                if i != argc - 1 {
+                if i != args.len() - 1 {
                     *q = b'"' as c_char;
                     *q.add(1) = b',' as c_char;
                     *q.add(2) = b' ' as c_char;
@@ -1794,9 +1793,8 @@ unsafe fn uc_check_code(
                             if (*split_buf).is_null() {
                                 *split_buf = uc_split_args(
                                     (*eap).arg,
-                                    (*eap).args,
-                                    (*eap).arglens,
-                                    (*eap).argc,
+                                    &(*eap).args,
+                                    &(*eap).arglens,
                                     split_len,
                                 );
                             }
