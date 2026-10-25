@@ -931,8 +931,8 @@ pub unsafe fn ui_call_event(name: *mut c_char, args: Array) {
 
 unsafe fn ui_cb_update_ext() {
     unsafe {
+        ui_cb_ext = [false; kUIExtCount];
         let ui_cb_ext_ptr = (&raw mut ui_cb_ext).cast::<bool>();
-        ptr::write_bytes(ui_cb_ext_ptr, 0, kUIExtCount);
 
         let cbs_ptr = &raw const ui_event_cbs;
         for i in 0..kUIGlobalCount {

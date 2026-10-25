@@ -116,7 +116,7 @@ unsafe fn find_win_for_curbuf() {
 /// Used before making a change in `buf`, which is not the current one (`change_other_buffer_prepare`).
 unsafe fn change_other_buffer_prepare(cob: *mut cob_T, buf: *mut buf_T) {
     unsafe {
-        ptr::write_bytes(cob, 0, 1);
+        *cob = cob_T::new();
 
         (*cob).cob_save_VIsual_active = c_int::from(Visual.active);
         Visual.active = false;

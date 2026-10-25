@@ -2449,20 +2449,19 @@ unsafe fn copy_pim(to: *mut nfa_pim_T, from: *mut nfa_pim_T) {
 
 unsafe fn clear_sub(sub: *mut regsub_T) {
     unsafe {
+        let sub = &mut *sub;
+        let n = rex.nfa_nsubexpr as usize;
         if REG_MULTI() {
-            ptr::write_bytes(
-                (&raw mut (*sub).list.multi).cast::<u8>(),
-                0xff,
-                size_of::<multipos>() * rex.nfa_nsubexpr as usize,
-            );
+            sub.list.multi[..n].fill(multipos {
+                start_lnum: -1,
+                end_lnum: -1,
+                start_col: -1,
+                end_col: -1,
+            });
         } else {
-            ptr::write_bytes(
-                (&raw mut (*sub).list.line).cast::<u8>(),
-                0,
-                size_of::<linepos>() * rex.nfa_nsubexpr as usize,
-            );
+            sub.list.line[..n].fill(linepos::new());
         }
-        (*sub).in_use = 0;
+        sub.in_use = 0;
     }
 }
 

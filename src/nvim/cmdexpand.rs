@@ -2023,7 +2023,7 @@ pub unsafe fn ExpandOne(
 /// Prepare an expand structure for use.
 pub unsafe fn ExpandInit(xp: *mut expand_T) {
     unsafe {
-        ptr::write_bytes(xp, 0, 1);
+        *xp = expand_T::new();
         (*xp).xp_backslash = XP_BS_NONE;
         (*xp).xp_prefix = XP_PREFIX_NONE;
         (*xp).xp_numfiles = -1;

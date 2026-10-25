@@ -3027,7 +3027,7 @@ pub unsafe fn do_addsub(
 
 pub unsafe fn clear_oparg(oap: *mut oparg_T) {
     unsafe {
-        ptr::write_bytes(oap, 0, 1);
+        *oap = oparg_T::new();
     }
 }
 

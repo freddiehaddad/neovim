@@ -5986,8 +5986,8 @@ pub unsafe fn parse_cmdline(
         let save_cursor = (*curwin).w_cursor;
         save_last_search_pattern();
 
-        ptr::write_bytes(cmod, 0, 1);
-        ptr::write_bytes(eap, 0, 1);
+        *cmod = cmdmod_T::new();
+        *eap = exarg_T::new();
         (*eap).line1 = 1;
         (*eap).line2 = 1;
         (*eap).cmd = *cmdline;
@@ -6900,7 +6900,7 @@ pub unsafe fn parse_command_modifiers(
         let orig_cmd = (*eap).cmd;
         let mut cmd_start: *mut c_char = ptr::null_mut();
         let mut has_visual_range = false;
-        ptr::write_bytes(cmod, 0, 1);
+        *cmod = cmdmod_T::new();
 
         if strncmp((*eap).cmd, c"'<,'>".as_ptr(), 5) == 0 {
             let p = skipwhite((*eap).cmd.add(5));

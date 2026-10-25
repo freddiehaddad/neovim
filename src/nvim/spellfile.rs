@@ -238,6 +238,15 @@ struct sblock_T {
     sb_data: [c_char; SBLOCKSIZE + 1],
 }
 
+impl sblock_T {
+    const fn new() -> Self {
+        Self {
+            sb_used: 0,
+            sb_data: [0; SBLOCKSIZE + 1],
+        }
+    }
+}
+
 #[repr(C)]
 struct wordnode_T {
     wn_index: c_int,
@@ -249,6 +258,22 @@ struct wordnode_T {
     wn_affixID: u8,
     wn_flags: u16,
     wn_region: i16,
+}
+
+impl wordnode_T {
+    const fn new() -> Self {
+        Self {
+            wn_index: 0,
+            wn_wnode: ptr::null_mut(),
+            wn_child: ptr::null_mut(),
+            wn_sibling: ptr::null_mut(),
+            wn_refs: 0,
+            wn_byte: 0,
+            wn_affixID: 0,
+            wn_flags: 0,
+            wn_region: 0,
+        }
+    }
 }
 
 #[repr(C)]
@@ -3847,9 +3872,7 @@ unsafe fn getroom(spin: *mut spellinfo_T, len: usize, align: bool) -> *mut c_voi
             .last()
             .is_none_or(|bl| bl.sb_used + len > SBLOCKSIZE)
         {
-            let mut boxed = Box::<sblock_T>::new_uninit();
-            ptr::write_bytes(boxed.as_mut_ptr(), 0, 1);
-            (*spin).si_blocks.push(boxed.assume_init());
+            (*spin).si_blocks.push(Box::new(sblock_T::new()));
             (*spin).si_blocks_cnt += 1;
         }
 
@@ -4100,7 +4123,7 @@ unsafe fn get_wordnode(spin: *mut spellinfo_T) -> *mut wordnode_T {
         } else {
             let n = (*spin).si_first_free;
             (*spin).si_first_free = (*n).wn_child;
-            ptr::write_bytes(n, 0, 1);
+            *n = wordnode_T::new();
             (*spin).si_free_count -= 1;
             n
         }

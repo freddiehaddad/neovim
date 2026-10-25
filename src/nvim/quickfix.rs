@@ -5827,7 +5827,7 @@ unsafe fn existing_swapfile(buf: *const buf_T) -> bool {
 
 unsafe fn vgr_process_args(eap: *mut exarg_T, args: *mut vgr_args_T) -> c_int {
     unsafe {
-        ptr::write_bytes(args, 0, 1);
+        *args = vgr_args_T::new();
 
         (*args).regmatch.regprog = ptr::null_mut();
         (*args).qf_title = xstrdup(qf_cmdtitle(*(*eap).cmdlinep));

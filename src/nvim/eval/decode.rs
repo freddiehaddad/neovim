@@ -1344,15 +1344,12 @@ pub unsafe fn unpack_typval(
 ) -> c_int {
     unsafe {
         (*ret).v_type = VarType::VAR_UNKNOWN;
-    }
-    unsafe {
-        let mut parser = std::mem::MaybeUninit::<mpack_parser_t>::uninit();
-        mpack_parser_init(parser.as_mut_ptr(), 0);
-        let p = &mut *parser.as_mut_ptr();
-        p.data.p = ret.cast::<c_void>();
-        let status = mpack_parse_typval(p, data, size);
+        let mut parser = mpack_parser_t::new(0);
+        mpack_parser_init(&raw mut parser, 0);
+        parser.data.p = ret.cast::<c_void>();
+        let status = mpack_parse_typval(&mut parser, data, size);
         if status != MPACK_OK {
-            typval_parser_error_free(p);
+            typval_parser_error_free(&mut parser);
             tv_clear(ret);
         }
         status

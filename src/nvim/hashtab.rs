@@ -94,7 +94,7 @@ unsafe fn key_matches(hi_key: *const c_char, key: *const c_char, key_len: usize)
 /// `ht` must be a valid writable pointer to a `hashtab_T`.
 pub unsafe fn hash_init(ht: *mut hashtab_T) {
     unsafe {
-        std::ptr::write_bytes(ht, 0, 1);
+        *ht = hashtab_T::new();
         let ht_ref = &mut *ht;
         ht_ref.ht_array = empty_hasharray_ptr();
         ht_ref.ht_mask = HT_INIT_SIZE - 1;
@@ -434,13 +434,13 @@ mod tests {
 
     #[test]
     fn hash_init_insert_lookup_resize_and_remove() {
-        let mut ht = std::mem::MaybeUninit::<hashtab_T>::uninit();
+        let mut ht_val = hashtab_T::new();
         let keys: Vec<CString> = (0..50)
             .map(|i| CString::new(format!("key_{i}")).unwrap())
             .collect();
 
         unsafe {
-            let ht = ht.as_mut_ptr();
+            let ht: *mut hashtab_T = &raw mut ht_val;
             hash_init(ht);
             assert_eq!((*ht).ht_used, 0);
 

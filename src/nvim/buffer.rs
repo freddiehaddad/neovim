@@ -1704,8 +1704,8 @@ unsafe fn free_buffer(buf: *mut buf_T) {
             free_fmark(*changelist_ptr.add(i));
         }
         if autocmd_busy {
-            ptr::write_bytes(namedm_ptr, 0, NMARKS);
-            ptr::write_bytes(changelist_ptr, 0, JUMPLISTSIZE);
+            (*buf).b_namedm.fill(fmark_T::new());
+            (*buf).b_changelist.fill(fmark_T::new());
             (*buf).b_next = au_pending_free_buf;
             au_pending_free_buf = buf;
         } else {

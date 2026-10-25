@@ -828,14 +828,14 @@ unsafe fn meta_describe_key_inc(meta_inc: *mut u32, k: *const MTKey) {
 #[inline]
 unsafe fn meta_describe_key(meta_inc: *mut u32, k: MTKey) {
     unsafe {
-        std::ptr::write_bytes(meta_inc, 0, kMTMetaCount);
+        std::slice::from_raw_parts_mut(meta_inc, kMTMetaCount).fill(0);
         meta_describe_key_inc(meta_inc, &k);
     }
 }
 
 unsafe fn meta_describe_node(meta_node: *mut u32, x: *mut MTNode) {
     unsafe {
-        std::ptr::write_bytes(meta_node, 0, kMTMetaCount);
+        std::slice::from_raw_parts_mut(meta_node, kMTMetaCount).fill(0);
         for i in 0..(*x).n as usize {
             meta_describe_key_inc(meta_node, &(*x).key[i]);
         }

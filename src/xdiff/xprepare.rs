@@ -173,7 +173,7 @@ unsafe fn xdl_prepare_ctx(
             if rhash.is_null() {
                 return abort(ha, rindex, rchg, rhash, recs, xdf);
             }
-            ptr::write_bytes(rhash, 0, hsize);
+            std::slice::from_raw_parts_mut(rhash, hsize).fill(ptr::null_mut());
         }
 
         let mut nrec: c_long = 0;
@@ -221,7 +221,7 @@ unsafe fn xdl_prepare_ctx(
         if rchg.is_null() {
             return abort(ha, rindex, rchg, rhash, recs, xdf);
         }
-        ptr::write_bytes(rchg, 0, (nrec + 2) as usize);
+        std::slice::from_raw_parts_mut(rchg, (nrec + 2) as usize).fill(0);
 
         rindex = xmalloc(((nrec + 1) as usize) * size_of::<c_long>()).cast::<c_long>();
         if rindex.is_null() {

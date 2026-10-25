@@ -32,6 +32,23 @@ pub struct mpack_node_t {
     pub data: [mpack_data_t; 2],
 }
 
+impl mpack_node_t {
+    pub const fn new() -> Self {
+        Self {
+            tok: mpack_token_t::new(),
+            pos: 0,
+            key_visited: 0,
+            data: [mpack_data_t { p: ptr::null_mut() }; 2],
+        }
+    }
+}
+
+impl Default for mpack_node_t {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct mpack_parser_t {
@@ -117,7 +134,8 @@ pub unsafe fn mpack_parser_init(parser: *mut mpack_parser_t, capacity: mpack_uin
         (*parser).size = 0;
         (*parser).exiting = 0;
         let items = parser_items_ptr(parser);
-        ptr::write_bytes(items, 0, ((*parser).capacity as usize) + 1);
+        let items_slice = std::slice::from_raw_parts_mut(items, ((*parser).capacity as usize) + 1);
+        items_slice.fill(mpack_node_t::new());
         (*items).pos = usize::MAX;
         (*parser).status = 0;
     }

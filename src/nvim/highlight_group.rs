@@ -2390,11 +2390,11 @@ unsafe fn combine_stl_hlt(
         let s_idx = (id_S - 1) as usize;
 
         if id_alt == 0 {
-            ptr::write_bytes(hlt.add(dst), 0, 1);
+            *hlt.add(dst) = HlGroup::new();
             (*hlt.add(dst)).sg_cterm = highlight_attr[hlf];
             (*hlt.add(dst)).sg_gui = highlight_attr[hlf];
         } else {
-            ptr::copy(hlt.add((id_alt - 1) as usize), hlt.add(dst), 1);
+            *hlt.add(dst) = *hlt.add((id_alt - 1) as usize);
         }
         (*hlt.add(dst)).sg_link = 0;
 
@@ -2466,7 +2466,7 @@ pub unsafe fn highlight_changed() {
         let ga = &raw mut highlight_ga;
         (*ga).resize((hlcnt + 10) as usize, HlGroup::new());
         if id_S == -1 {
-            ptr::write_bytes(hl_table().add((hlcnt + 9) as usize), 0, 1);
+            *hl_table().add((hlcnt + 9) as usize) = HlGroup::new();
             id_S = hlcnt + 10;
         }
         for i in 0..9 {

@@ -32,7 +32,6 @@ pub(super) use crate::strings::{strcpy, strlen, strncmp, strncpy};
 use crate::strings::{tr, xstrnsave};
 use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int, c_uint};
-pub(super) use std::mem::size_of;
 use std::ptr;
 
 #[path = "regexp_bt.rs"]
@@ -2164,19 +2163,12 @@ pub(super) unsafe fn cleanup_subexpr() {
             return;
         }
         if REG_MULTI() {
-            ptr::write_bytes(
-                rex.reg_startpos.cast::<u8>(),
-                0xff,
-                size_of::<lpos_T>() * NSUBEXP,
-            );
-            ptr::write_bytes(
-                rex.reg_endpos.cast::<u8>(),
-                0xff,
-                size_of::<lpos_T>() * NSUBEXP,
-            );
+            let uninit_pos = lpos_T { lnum: -1, col: -1 };
+            std::slice::from_raw_parts_mut(rex.reg_startpos, NSUBEXP).fill(uninit_pos);
+            std::slice::from_raw_parts_mut(rex.reg_endpos, NSUBEXP).fill(uninit_pos);
         } else {
-            ptr::write_bytes(rex.reg_startp, 0, NSUBEXP);
-            ptr::write_bytes(rex.reg_endp, 0, NSUBEXP);
+            std::slice::from_raw_parts_mut(rex.reg_startp, NSUBEXP).fill(ptr::null_mut());
+            std::slice::from_raw_parts_mut(rex.reg_endp, NSUBEXP).fill(ptr::null_mut());
         }
         rex.need_clear_subexpr = 0;
     }
@@ -2188,19 +2180,12 @@ pub(super) unsafe fn cleanup_zsubexpr() {
             return;
         }
         if REG_MULTI() {
-            ptr::write_bytes(
-                (&raw mut reg_startzpos).cast::<u8>(),
-                0xff,
-                size_of::<lpos_T>() * NSUBEXP,
-            );
-            ptr::write_bytes(
-                (&raw mut reg_endzpos).cast::<u8>(),
-                0xff,
-                size_of::<lpos_T>() * NSUBEXP,
-            );
+            let uninit_pos = lpos_T { lnum: -1, col: -1 };
+            reg_startzpos = [uninit_pos; NSUBEXP];
+            reg_endzpos = [uninit_pos; NSUBEXP];
         } else {
-            ptr::write_bytes((&raw mut reg_startzp).cast::<*mut u8>(), 0, NSUBEXP);
-            ptr::write_bytes((&raw mut reg_endzp).cast::<*mut u8>(), 0, NSUBEXP);
+            reg_startzp = [ptr::null_mut(); NSUBEXP];
+            reg_endzp = [ptr::null_mut(); NSUBEXP];
         }
         rex.need_clear_zsubexpr = 0;
     }
@@ -3267,7 +3252,7 @@ pub(super) unsafe fn regcomp_start(expr: *mut u8, re_flags: c_int) {
 
         num_complex_braces = 0;
         regnpar = 1;
-        ptr::write_bytes((&raw mut had_endbrace).cast::<u8>(), 0, NSUBEXP);
+        had_endbrace = [0; NSUBEXP];
         regnzpar = 1;
         re_has_z = 0;
         regsize = 0;

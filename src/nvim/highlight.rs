@@ -949,11 +949,7 @@ pub unsafe fn clear_hl_tables(reinit: bool) {
             (*blend_ptr).clear();
             (*blendthrough_ptr).clear();
             (*urls_ptr).clear();
-            ptr::write_bytes(
-                (&raw mut highlight_attr_last).cast::<u8>(),
-                0xFF,
-                size_of::<[c_int; HLF_COUNT]>(),
-            );
+            highlight_attr_last = [-1; HLF_COUNT];
             highlight_attr_set_all();
             highlight_changed();
             screen_invalidate_highlights();

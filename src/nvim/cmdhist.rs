@@ -186,11 +186,8 @@ pub unsafe fn init_history() {
 
             let l3 = if j < 0 { 0 } else { newlen.min(oldlen) };
             if newlen > l3 {
-                std::ptr::write_bytes(
-                    temp.add(l3 as usize).cast::<u8>(),
-                    0,
-                    ((newlen - l3) as usize) * elem_size,
-                );
+                std::slice::from_raw_parts_mut(temp.add(l3 as usize), (newlen - l3) as usize)
+                    .fill(histentry_T::new());
             }
 
             HISIDX[hist_type] = l3 - 1;

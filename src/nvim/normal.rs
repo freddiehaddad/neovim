@@ -419,7 +419,7 @@ use crate::memory::strequal;
 #[inline]
 unsafe fn normal_state_init(s: *mut NormalState) {
     unsafe {
-        ptr::write_bytes(s, 0, 1);
+        *s = NormalState::new();
         (*s).state.check = Some(normal_check);
         (*s).state.execute = Some(normal_execute);
     }
@@ -1697,7 +1697,7 @@ pub unsafe fn normal_enter() {
 
 unsafe fn normal_prepare(s: *mut NormalState) {
     unsafe {
-        ptr::write_bytes(&raw mut (*s).ca, 0, 1);
+        (*s).ca = cmdarg_T::new();
         (*s).ca.oap = &raw mut (*s).oa;
 
         (*s).ca.opcount = opcount;

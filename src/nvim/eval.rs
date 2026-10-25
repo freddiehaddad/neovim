@@ -1528,7 +1528,7 @@ pub unsafe fn get_lval(
     unsafe {
         let quiet = (flags & GLV_QUIET) != 0;
 
-        ptr::write_bytes(lp, 0, 1);
+        *lp = lval_T::new();
 
         if skip {
             (*lp).ll_name = name;
@@ -2299,7 +2299,7 @@ unsafe fn eval0_simple_funccal(
 ///      expr2 ?? expr1
 pub unsafe fn eval1(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut evalarg_T) -> c_int {
     unsafe {
-        ptr::write_bytes(rettv, 0, 1);
+        *rettv = typval_T::new();
 
         if eval2(arg, rettv, evalarg) == FAIL {
             return FAIL;

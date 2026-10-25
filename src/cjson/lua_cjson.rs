@@ -321,7 +321,9 @@ unsafe fn json_create_config(l: *mut lua_State) {
         if cfg.is_null() {
             abort();
         }
-        ptr::write_bytes(cfg, 0, 1);
+        *cfg = json_config_t {
+            encode_buf: strbuf_t::new(),
+        };
 
         lua_newtable(l);
         lua_pushcfunction(l, Some(json_destroy_config));

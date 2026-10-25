@@ -1119,7 +1119,7 @@ unsafe fn terminfo_stop(tui: *mut TUIData) {
             std::process::abort();
         }
         arena_mem_free(arena_finish(&raw mut (*tui).ti_arena));
-        ptr::write_bytes(&raw mut (*tui).ti, 0, 1);
+        (*tui).ti = TerminfoEntry::new();
         (*tui).term = ptr::null_mut();
     }
 }

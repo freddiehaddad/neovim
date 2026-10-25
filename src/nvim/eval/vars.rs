@@ -523,7 +523,7 @@ unsafe fn c_memchr(s: *const c_char, c: u8, n: usize) -> *const c_char {
 pub unsafe fn tv_init(tv: *mut typval_T) {
     if !tv.is_null() {
         unsafe {
-            ptr::write_bytes(tv, 0, 1);
+            *tv = typval_T::new();
         }
     }
 }
