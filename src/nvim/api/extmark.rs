@@ -1286,7 +1286,6 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                 }
 
                 let mut decor = DecorInline {
-                    ext: false,
                     data: DecorInlineData::Hl(DECOR_HIGHLIGHT_INLINE_INIT),
                 };
                 if !decor_alloc.is_null()
@@ -1300,7 +1299,6 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                         sh.next = decor_indexed;
                         decor_indexed = decor_put_sh(sh);
                     }
-                    decor.ext = true;
                     decor.data = DecorInlineData::Ext(DecorExt {
                         sh_idx: decor_indexed,
                         vt: decor_alloc.cast(),

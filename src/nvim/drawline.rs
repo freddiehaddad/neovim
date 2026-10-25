@@ -14,9 +14,9 @@ use crate::decoration::{
     DecorRange, DecorVirtText, NS, SCL_NUM, SignTextAttrs, VirtLines, VirtText, VirtTextChunk,
     decor_has_more_decorations, decor_init_draw_col, decor_recheck_draw_col, decor_redraw_col,
     decor_redraw_eol, decor_redraw_line, decor_redraw_signs, decor_virt_line_rows,
-    decor_virt_lines, decor_virt_pos, decor_virt_pos_kind, kDecorKindUIWatched, kDecorKindVirtText,
-    kVLLeftcol, kVLOverflowAuto, kVLOverflowScroll, kVPosEndOfLine, kVPosEndOfLineRightAlign,
-    kVPosInline, kVPosRightAlign, kVPosWinCol, kVTRepeatLinebreak, next_virt_text_chunk,
+    decor_virt_lines, decor_virt_pos, decor_virt_pos_kind, kVLLeftcol, kVLOverflowAuto,
+    kVLOverflowScroll, kVPosEndOfLine, kVPosEndOfLineRightAlign, kVPosInline, kVPosRightAlign,
+    kVPosWinCol, kVTRepeatLinebreak, next_virt_text_chunk,
 };
 use crate::decoration_provider::{decor_providers_invoke_line, decor_providers_invoke_range};
 use crate::diff::{
@@ -372,7 +372,7 @@ unsafe fn draw_virt_text(
             }
 
             let mut vt: *mut DecorVirtText = ptr::null_mut();
-            if (*item).kind == kDecorKindVirtText {
+            if (*item).data.is_vt() {
                 debug_assert!(!(*item).data.vt().is_null());
                 vt = (*item).data.vt();
             }
@@ -395,7 +395,7 @@ unsafe fn draw_virt_text(
                             }
 
                             let mut lookaheadVt: *mut DecorVirtText = ptr::null_mut();
-                            if (*lookaheadItem).kind == kDecorKindVirtText {
+                            if (*lookaheadItem).data.is_vt() {
                                 debug_assert!(!(*lookaheadItem).data.vt().is_null());
                                 lookaheadVt = (*lookaheadItem).data.vt();
                             }
@@ -431,7 +431,7 @@ unsafe fn draw_virt_text(
             if (*item).draw_col < 0 {
                 continue;
             }
-            if (*item).kind == kDecorKindUIWatched {
+            if (*item).data.is_ui() {
                 let ui = (*item).data.ui();
                 let m = WinExtmark {
                     ns_id: ui.ns_id as NS,
@@ -1200,7 +1200,7 @@ unsafe fn has_more_inline_virt(wlv: &winlinevars_T, v: isize) -> bool {
                 let item: *mut DecorRange =
                     (*slots.add(*indices.add(i as usize) as usize)).range_mut();
                 if (*item).start_row != (*state).row
-                    || (*item).kind != kDecorKindVirtText
+                    || !(*item).data.is_vt()
                     || (*(*item).data.vt()).pos != kVPosInline
                     || (*(*item).data.vt()).width == 0
                 {
@@ -1239,7 +1239,7 @@ unsafe fn handle_inline_virtual_text(
                         decor_init_draw_col(wlv.off, selected, item);
                     }
                     if (*item).start_row != (*state).row
-                        || (*item).kind != kDecorKindVirtText
+                        || !(*item).data.is_vt()
                         || (*(*item).data.vt()).pos != kVPosInline
                         || (*(*item).data.vt()).width == 0
                     {

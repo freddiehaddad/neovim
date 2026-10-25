@@ -319,7 +319,7 @@ unsafe extern "C" {
         flags: u32,
         cb: *const c_void,
     ) -> c_int;
-    pub fn uv_print_all_handles(loop_: *mut c_void, stream: *mut crate::fileio::FILE);
+    pub fn uv_print_all_handles(loop_: *mut uv_loop_t, stream: *mut crate::fileio::FILE);
     pub fn uv_gettimeofday(tv: *mut UvTimeval64) -> c_int;
     pub fn uv_uptime(uptime: *mut f64) -> c_int;
     pub fn uv_sleep(msec: std::ffi::c_uint);

@@ -174,7 +174,7 @@ pub unsafe fn extmark_set(
         let mut id = if !idp.is_null() { *idp } else { 0 };
         let mut created = true;
 
-        let flags = mt_flags(right_gravity, no_undo, invalidate, decor.ext) | decor_flags;
+        let flags = mt_flags(right_gravity, no_undo, invalidate, decor.is_ext()) | decor_flags;
         let mut revised_in_place = false;
         if id == 0 {
             *ns += 1;
@@ -272,7 +272,7 @@ pub unsafe fn extmark_set(
             }
         }
 
-        if decor_flags != 0 || decor.ext {
+        if decor_flags != 0 || decor.is_ext() {
             let r2 = if end_row > -1 { end_row } else { row };
             buf_put_decor(buf, decor, row, r2);
             decor_redraw(buf, row, r2, col, decor);
@@ -615,7 +615,6 @@ pub unsafe fn extmark_set_pos(
 ) {
     unsafe {
         let mut decor = DecorInline {
-            ext: false,
             data: DecorInlineData::Hl(DECOR_HIGHLIGHT_INLINE_INIT),
         };
         if ui_watched {

@@ -15,7 +15,7 @@ use crate::os::stdpaths::{get_xdg_home, stdpaths_user_state_subpath};
 use crate::os::time::{Tm, os_localtime, strftime};
 use crate::path::{concat_fnames_realloc, path_tail};
 use crate::strings::strerror;
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::io::Write;
 use std::ptr;
 
@@ -313,7 +313,7 @@ pub unsafe fn logmsg_str(
     }
 }
 
-pub unsafe fn log_uv_handles(loop_: *mut c_void) {
+pub unsafe fn log_uv_handles(loop_: *mut crate::event::r#loop::uv_loop_t) {
     unsafe {
         log_lock();
         let log_file = open_log_file();

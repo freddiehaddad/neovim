@@ -210,7 +210,6 @@ unsafe fn buf_set_sign(
         } | if has_hl { MT_FLAG_DECOR_SIGNHL } else { 0 };
 
         let decor = DecorInline {
-            ext: true,
             data: DecorInlineData::Ext(DecorExt {
                 sh_idx: decor_put_sh(sign),
                 vt: ptr::null_mut(),
@@ -296,14 +295,7 @@ unsafe fn sign_row_cmp_slice(s1: &MTKey, s2: &MTKey) -> Ordering {
         let si1 = SignItem { sh: sh1, id: s1.id };
         let si2 = SignItem { sh: sh2, id: s2.id };
 
-        let cmp = sign_item_cmp((&raw const si1).cast(), (&raw const si2).cast());
-        if cmp < 0 {
-            Ordering::Less
-        } else if cmp > 0 {
-            Ordering::Greater
-        } else {
-            Ordering::Equal
-        }
+        sign_item_cmp(&si1, &si2)
     }
 }
 

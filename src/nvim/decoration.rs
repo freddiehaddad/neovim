@@ -37,14 +37,13 @@ use crate::regexp::MAXCOL;
 use crate::sign::{buf_has_signs, describe_sign_text};
 use crate::window::win_T;
 use std::cmp::Ordering;
-use std::ffi::{c_char, c_int, c_void};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 pub type NS = crate::msgpack_rpc::packer::handle_T;
 pub type HLGroupID = Integer;
 pub type DecorPriority = u16;
 pub type DecorPriorityInternal = u32;
-pub type DecorRangeKind = u8;
 pub type VirtTextPos = c_int;
 pub type VirtLineOverflow = c_int;
 
@@ -121,10 +120,26 @@ pub struct DecorRangeUI {
 pub enum DecorRangeData {
     Sh(DecorSignHighlight),
     Vt(*mut DecorVirtText),
+    VirtLines(*mut DecorVirtText),
     Ui(DecorRangeUI),
 }
 
 impl DecorRangeData {
+    #[inline]
+    pub const fn is_sh(&self) -> bool {
+        matches!(self, Self::Sh(_))
+    }
+
+    #[inline]
+    pub const fn is_vt(&self) -> bool {
+        matches!(self, Self::Vt(_))
+    }
+
+    #[inline]
+    pub const fn is_ui(&self) -> bool {
+        matches!(self, Self::Ui(_))
+    }
+
     #[inline]
     pub const fn sh(&self) -> &DecorSignHighlight {
         match self {
@@ -136,7 +151,7 @@ impl DecorRangeData {
     #[inline]
     pub const fn vt(self) -> *mut DecorVirtText {
         match self {
-            Self::Vt(vt) => vt,
+            Self::Vt(vt) | Self::VirtLines(vt) => vt,
             _ => ptr::null_mut(),
         }
     }
@@ -159,7 +174,6 @@ pub struct DecorRange {
     pub ordering: c_int,
     pub priority_internal: u32,
     pub owned: bool,
-    pub kind: u8,
     pub data: DecorRangeData,
     pub attr_id: c_int,
     pub draw_col: c_int,
@@ -250,8 +264,14 @@ impl DecorState {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct DecorInline {
-    pub ext: bool,
     pub data: DecorInlineData,
+}
+
+impl DecorInline {
+    #[inline]
+    pub const fn is_ext(&self) -> bool {
+        matches!(self.data, DecorInlineData::Ext(_))
+    }
 }
 
 #[repr(C)]
@@ -388,11 +408,6 @@ pub(crate) const SIGN_WIDTH: usize = 2;
 const SIGN_SHOW_MAX: c_int = 9;
 pub(crate) const SCL_NUM: c_int = -2;
 
-const kDecorKindHighlight: DecorRangeKind = 0;
-pub(crate) const kDecorKindVirtText: DecorRangeKind = 2;
-const kDecorKindVirtLines: DecorRangeKind = 3;
-pub(crate) const kDecorKindUIWatched: DecorRangeKind = 4;
-
 pub(crate) const kMTFilterSelect: u32 = u32::MAX;
 
 static CONCEAL_FILTER: [u32; kMTMetaCount] = [0, 0, 0, 0, kMTFilterSelect];
@@ -445,7 +460,6 @@ pub unsafe fn bufhl_add_hl_pos_offset(
         let mut hl_start: colnr_T = 0;
         let mut hl_end: colnr_T = 0;
         let decor = DecorInline {
-            ext: false,
             data: DecorInlineData::Hl(DecorHighlightInline {
                 hl_id,
                 ..DECOR_HIGHLIGHT_INLINE_INIT
@@ -498,7 +512,7 @@ pub unsafe fn decor_redraw(
     decor: DecorInline,
 ) {
     unsafe {
-        if decor.ext {
+        if decor.is_ext() {
             let mut vt = decor.data.ext().vt;
             while !vt.is_null() {
                 let below = ((*vt).flags & kVTIsLines) != 0 && ((*vt).flags & kVTLinesAbove) == 0;
@@ -593,7 +607,7 @@ pub unsafe fn decor_sh_from_inline(item: DecorHighlightInline) -> DecorSignHighl
 
 pub unsafe fn buf_put_decor(buf: *mut buf_T, decor: DecorInline, row: c_int, mut row2: c_int) {
     unsafe {
-        if decor.ext && row < (*buf).b_ml.ml_line_count {
+        if decor.is_ext() && row < (*buf).b_ml.ml_line_count {
             let items = &raw mut decor_items;
             let mut idx = decor.data.ext().sh_idx;
             row2 = row2.min((*buf).b_ml.ml_line_count - 1);
@@ -658,7 +672,7 @@ pub unsafe fn buf_decor_remove(
 ) {
     unsafe {
         decor_redraw(buf, row1, row2, col1, decor);
-        if decor.ext && row1 < (*buf).b_ml.ml_line_count {
+        if decor.is_ext() && row1 < (*buf).b_ml.ml_line_count {
             let items = &raw mut decor_items;
             let mut idx = decor.data.ext().sh_idx;
             row2 = row2.min((*buf).b_ml.ml_line_count - 1);
@@ -695,7 +709,7 @@ pub unsafe fn buf_remove_decor_sh(
 
 pub unsafe fn decor_free(decor: DecorInline) {
     unsafe {
-        if !decor.ext {
+        if !decor.is_ext() {
             return;
         }
         let ext = decor.data.ext();
@@ -851,7 +865,7 @@ pub unsafe fn decor_redraw_reset(wp: *mut win_T, state: *mut DecorState) -> bool
             for i in beg_pos[pos_i]..end_pos[pos_i] {
                 let r: *mut DecorRange =
                     (*slots.add(*indices.add(i as usize) as usize)).range_mut();
-                if (*r).owned && (*r).kind == kDecorKindVirtText {
+                if (*r).owned && (*r).data.is_vt() {
                     drop(Box::from_raw((*r).data.vt()));
                 }
             }
@@ -869,18 +883,16 @@ pub unsafe fn decor_redraw_reset(wp: *mut win_T, state: *mut DecorState) -> bool
 }
 
 pub unsafe fn decor_virt_pos(decor: *const DecorRange) -> bool {
-    unsafe { (*decor).kind == kDecorKindVirtText || (*decor).kind == kDecorKindUIWatched }
+    unsafe { (*decor).data.is_vt() || (*decor).data.is_ui() }
 }
 
 pub unsafe fn decor_virt_pos_kind(decor: *const DecorRange) -> VirtTextPos {
     unsafe {
-        if (*decor).kind == kDecorKindVirtText {
-            return (*(*decor).data.vt()).pos;
+        match (*decor).data {
+            DecorRangeData::Vt(vt) => (*vt).pos,
+            DecorRangeData::Ui(ui) => ui.pos,
+            _ => kVPosEndOfLine,
         }
-        if (*decor).kind == kDecorKindUIWatched {
-            return (*decor).data.ui().pos;
-        }
-        kVPosEndOfLine
     }
 }
 
@@ -997,7 +1009,7 @@ unsafe fn decor_range_add_from_inline(
     mark_id: u32,
 ) {
     unsafe {
-        if decor.ext {
+        if decor.is_ext() {
             let mut vt = decor.data.ext().vt;
             while !vt.is_null() {
                 decor_range_add_virt(state, start_row, start_col, end_row, end_col, vt, owned);
@@ -1094,12 +1106,11 @@ pub unsafe fn decor_range_add_virt(
             ordering: 0,
             priority_internal: DecorPriorityInternal::from((*vt).priority) << 16,
             owned,
-            kind: if is_lines {
-                kDecorKindVirtLines
+            data: if is_lines {
+                DecorRangeData::VirtLines(vt)
             } else {
-                kDecorKindVirtText
+                DecorRangeData::Vt(vt)
             },
-            data: DecorRangeData::Vt(vt),
             attr_id: 0,
             draw_col: -10,
         };
@@ -1133,7 +1144,6 @@ pub unsafe fn decor_range_add_sh(
             priority_internal: (DecorPriorityInternal::from((*sh).priority) << 16)
                 + DecorPriorityInternal::from(subpriority),
             owned,
-            kind: kDecorKindHighlight,
             data: DecorRangeData::Sh(*sh),
             attr_id: 0,
             draw_col: -10,
@@ -1150,7 +1160,6 @@ pub unsafe fn decor_range_add_sh(
         }
 
         if ((*sh).flags & kSHUIWatched) != 0 {
-            range.kind = kDecorKindUIWatched;
             range.data = DecorRangeData::Ui(DecorRangeUI {
                 ns_id: ns,
                 mark_id,
@@ -1167,7 +1176,7 @@ pub unsafe fn decor_range_add_sh(
 
 pub unsafe fn decor_init_draw_col(win_col: c_int, hidden: bool, item: *mut DecorRange) {
     unsafe {
-        let vt = if (*item).kind == kDecorKindVirtText {
+        let vt = if (*item).data.is_vt() {
             (*item).data.vt()
         } else {
             ptr::null_mut()
@@ -1314,12 +1323,12 @@ pub unsafe fn decor_redraw_col_impl(
 
                 if (*r).attr_id > 0 {
                     attr = hl_combine_attr(attr, (*r).attr_id);
-                    if (*r).kind == kDecorKindHighlight && ((*r).data.sh().flags & kSHHlEol) != 0 {
+                    if (*r).data.is_sh() && ((*r).data.sh().flags & kSHHlEol) != 0 {
                         hl_eol_attr = hl_combine_attr(hl_eol_attr, (*r).attr_id);
                     }
                 }
 
-                if (*r).kind == kDecorKindHighlight && ((*r).data.sh().flags & kSHConceal) != 0 {
+                if (*r).data.is_sh() && ((*r).data.sh().flags & kSHConceal) != 0 {
                     conceal = 1;
                     if (*r).start_row == row && (*r).start_col == col {
                         conceal = 2;
@@ -1329,11 +1338,11 @@ pub unsafe fn decor_redraw_col_impl(
                     }
                 }
 
-                if (*r).kind == kDecorKindHighlight && ((*r).data.sh().flags & kSHConcealOff) != 0 {
+                if (*r).data.is_sh() && ((*r).data.sh().flags & kSHConcealOff) != 0 {
                     conceal = 0;
                 }
 
-                if (*r).kind == kDecorKindHighlight {
+                if (*r).data.is_sh() {
                     if ((*r).data.sh().flags & kSHSpellOn) != 0 {
                         spell = kTrue;
                     } else if ((*r).data.sh().flags & kSHSpellOff) != 0 {
@@ -1358,10 +1367,10 @@ pub unsafe fn decor_redraw_col_impl(
                 new_cur_end += 1;
             } else {
                 if (*r).owned {
-                    if (*r).kind == kDecorKindVirtText {
-                        drop(Box::from_raw((*r).data.vt()));
-                    } else if (*r).kind == kDecorKindHighlight {
-                        xfree((*r).data.sh().url.cast_mut().cast());
+                    match (*r).data {
+                        DecorRangeData::Vt(vt) => drop(Box::from_raw(vt)),
+                        DecorRangeData::Sh(sh) => xfree(sh.url.cast_mut().cast()),
+                        _ => {}
                     }
                 }
 
@@ -1439,7 +1448,7 @@ pub unsafe fn win_lines_concealed(wp: *mut win_T) -> bool {
     unsafe { hasAnyFolding(wp) != 0 || (*wp).w_onebuf_opt.wo_cole >= 2 }
 }
 
-unsafe fn sign_item_cmp_slice(s1: &SignItem, s2: &SignItem) -> Ordering {
+pub unsafe fn sign_item_cmp(s1: &SignItem, s2: &SignItem) -> Ordering {
     unsafe {
         let p1 = (*s1.sh).priority;
         let p2 = (*s2.sh).priority;
@@ -1467,16 +1476,6 @@ unsafe fn sign_item_cmp_slice(s1: &SignItem, s2: &SignItem) -> Ordering {
             };
         }
         Ordering::Equal
-    }
-}
-
-pub unsafe fn sign_item_cmp(p1: *const c_void, p2: *const c_void) -> c_int {
-    unsafe {
-        match sign_item_cmp_slice(&*p1.cast::<SignItem>(), &*p2.cast::<SignItem>()) {
-            Ordering::Less => -1,
-            Ordering::Equal => 0,
-            Ordering::Greater => 1,
-        }
     }
 }
 
@@ -1537,7 +1536,7 @@ pub unsafe fn decor_redraw_signs(
             };
             let len = width.min(num_text);
             let mut idx: usize = 0;
-            signs.sort_by(|a, b| sign_item_cmp_slice(a, b));
+            signs.sort_by(|a, b| sign_item_cmp(a, b));
 
             for item in &signs {
                 let sh = item.sh;
@@ -1562,7 +1561,7 @@ pub unsafe fn decor_redraw_signs(
 
 pub unsafe fn decor_find_sign(decor: DecorInline) -> *mut DecorSignHighlight {
     unsafe {
-        if !decor.ext {
+        if !decor.is_ext() {
             return ptr::null_mut();
         }
         let items = &raw mut decor_items;
@@ -1675,7 +1674,7 @@ pub unsafe fn decor_redraw_eol(
             let r: *const DecorRange = (*slots.add(*indices.add(i as usize) as usize)).range();
             has_virt_pos |= (*r).start_row == (*state).row && decor_virt_pos(r);
 
-            if (*r).kind == kDecorKindHighlight && ((*r).data.sh().flags & kSHHlEol) != 0 {
+            if (*r).data.is_sh() && ((*r).data.sh().flags & kSHHlEol) != 0 {
                 *eol_attr = hl_combine_attr(*eol_attr, (*r).attr_id);
             }
         }
@@ -1844,7 +1843,7 @@ pub unsafe fn decor_to_dict_legacy(
         let mut virt_lines: *mut DecorVirtText = ptr::null_mut();
         let mut priority: i32 = -1;
 
-        if decor.ext {
+        if decor.is_ext() {
             let mut vt = decor.data.ext().vt;
             while !vt.is_null() {
                 if ((*vt).flags & kVTIsLines) != 0 {
@@ -2034,7 +2033,7 @@ pub unsafe fn decor_to_dict_legacy(
 
 pub unsafe fn decor_type_flags(decor: DecorInline) -> u16 {
     unsafe {
-        if decor.ext {
+        if decor.is_ext() {
             let mut type_flags: u16 = kExtmarkNone;
             let mut vt = decor.data.ext().vt;
             while !vt.is_null() {
@@ -2094,7 +2093,6 @@ mod tests {
             assert_eq!(sh.text[0], 0x41);
 
             let di = DecorInline {
-                ext: false,
                 data: DecorInlineData::Hl(inline),
             };
             assert_eq!(decor_type_flags(di), kExtmarkHighlight);

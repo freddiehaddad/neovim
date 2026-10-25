@@ -259,7 +259,7 @@ unsafe fn inline_virt_text_width(
                 break;
             } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, wp) {
                 let decor = mt_decor(mark);
-                let mut vt = if decor.ext {
+                let mut vt = if decor.is_ext() {
                     decor.data.ext().vt
                 } else {
                     ptr::null_mut()
@@ -324,7 +324,7 @@ pub unsafe fn charsize_regular(
                     break;
                 } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, wp) {
                     let decor = mt_decor(mark);
-                    let mut vt = if decor.ext {
+                    let mut vt = if decor.is_ext() {
                         decor.data.ext().vt
                     } else {
                         ptr::null_mut()

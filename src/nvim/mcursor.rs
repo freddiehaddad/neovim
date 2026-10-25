@@ -84,7 +84,6 @@ use std::ffi::{c_char, c_int, c_long};
 use std::ptr;
 
 const DECOR_INLINE_INIT: DecorInline = DecorInline {
-    ext: false,
     data: DecorInlineData::Hl(DECOR_HIGHLIGHT_INLINE_INIT),
 };
 

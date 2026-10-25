@@ -401,7 +401,7 @@ pub unsafe fn os_conpty_init(
             emsg,
             uv_translate_sys_error(GetLastError() as c_int),
         );
-        os_conpty_free(conpty_object.cast());
+        os_conpty_free(conpty_object);
         conpty_object = std::ptr::null_mut();
         if in_read != INVALID_HANDLE_VALUE {
             CloseHandle(in_read);
@@ -473,19 +473,26 @@ pub unsafe fn os_conpty_set_size(conpty_object: *mut conpty_t, width: u16, heigh
 }
 
 #[cfg(windows)]
-pub unsafe fn os_conpty_free(data: *mut c_void) {
-    unsafe {
-        let conpty_object = data.cast::<conpty_t>();
-        if !conpty_object.is_null() {
-            if !(*conpty_object).si_ex.lpAttributeList.is_null() {
-                DeleteProcThreadAttributeList((*conpty_object).si_ex.lpAttributeList);
-                xfree((*conpty_object).si_ex.lpAttributeList);
+impl Drop for conpty_t {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.si_ex.lpAttributeList.is_null() {
+                DeleteProcThreadAttributeList(self.si_ex.lpAttributeList);
+                xfree(self.si_ex.lpAttributeList);
             }
-            if !(*conpty_object).pty.is_null()
+            if !self.pty.is_null()
                 && let Some(close_fn) = pClosePseudoConsole
             {
-                close_fn((*conpty_object).pty);
+                close_fn(self.pty);
             }
+        }
+    }
+}
+
+#[cfg(windows)]
+pub unsafe fn os_conpty_free(conpty_object: *mut conpty_t) {
+    if !conpty_object.is_null() {
+        unsafe {
             drop(Box::from_raw(conpty_object));
         }
     }

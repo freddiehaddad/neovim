@@ -359,7 +359,7 @@ mod win_impl {
                 );
                 status = uv_translate_sys_error(status);
             }
-            os_conpty_free(conpty_object.cast());
+            os_conpty_free(conpty_object);
             xfree(in_name.cast());
             xfree(out_name.cast());
             if !proc_handle.is_null() {
