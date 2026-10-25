@@ -124,9 +124,9 @@ pub struct salitem_T {
     pub sm_oneof: *mut c_char,
     pub sm_rules: *mut c_char,
     pub sm_to: *mut c_char,
-    pub sm_lead_w: *mut c_int,
-    pub sm_oneof_w: *mut c_int,
-    pub sm_to_w: *mut c_int,
+    pub sm_lead_w: Vec<c_int>,
+    pub sm_oneof_w: Vec<c_int>,
+    pub sm_to_w: Vec<c_int>,
 }
 
 impl Drop for salitem_T {
@@ -134,9 +134,6 @@ impl Drop for salitem_T {
         unsafe {
             xfree(self.sm_lead.cast());
             xfree(self.sm_to.cast());
-            xfree(self.sm_lead_w.cast());
-            xfree(self.sm_oneof_w.cast());
-            xfree(self.sm_to_w.cast());
         }
     }
 }

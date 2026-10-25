@@ -2905,11 +2905,10 @@ pub unsafe fn tv_dict_get_bool(d: *const dict_T, key: *const c_char, def: c_int)
 }
 
 /// Converts a dict to an environment.
-pub unsafe fn tv_dict_to_env(denv: *mut dict_T) -> *mut *mut c_char {
+pub unsafe fn tv_dict_to_env(denv: *mut dict_T) -> Vec<*mut c_char> {
     unsafe {
         let env_size = tv_dict_len_inline(denv) as usize;
-        let mut i: usize = 0;
-        let env = xmalloc((env_size + 1) * size_of::<*mut c_char>()).cast::<*mut c_char>();
+        let mut env = Vec::with_capacity(env_size + 1);
 
         if !denv.is_null() {
             let mut todo = (*denv).dv_hashtab.ht_used;
@@ -2928,14 +2927,13 @@ pub unsafe fn tv_dict_to_env(denv: *mut dict_T) -> *mut *mut c_char {
                     ptr::copy_nonoverlapping(key_ptr, entry, key_len);
                     *entry.add(key_len) = b'=' as c_char;
                     ptr::copy_nonoverlapping(str_, entry.add(key_len + 1), val_len + 1);
-                    *env.add(i) = entry;
-                    i += 1;
+                    env.push(entry);
                 }
                 hi = hi.add(1);
             }
         }
 
-        *env.add(env_size) = ptr::null_mut();
+        env.push(ptr::null_mut());
         env
     }
 }

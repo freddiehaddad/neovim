@@ -2490,7 +2490,7 @@ unsafe fn spell_soundfold_wsal(slang: *mut slang_T, inword: *const c_char, res: 
             if n >= 0 {
                 while n < sl_sal_len {
                     let cur_n = n as usize;
-                    let mut ws = (*smp.add(cur_n)).sm_lead_w;
+                    let mut ws = (*smp.add(cur_n)).sm_lead_w.as_ptr();
                     if (*ws & 0xff) != (c & 0xff) || *ws == 0 {
                         break;
                     }
@@ -2516,7 +2516,11 @@ unsafe fn spell_soundfold_wsal(slang: *mut slang_T, inword: *const c_char, res: 
                             }
                         }
                     }
-                    let mut pf = (*smp.add(cur_n)).sm_oneof_w;
+                    let mut pf = if (*smp.add(cur_n)).sm_oneof_w.is_empty() {
+                        ptr::null()
+                    } else {
+                        (*smp.add(cur_n)).sm_oneof_w.as_ptr()
+                    };
                     if !pf.is_null() {
                         while *pf != 0 && *pf != word[i + k] {
                             pf = pf.add(1);
@@ -2565,9 +2569,11 @@ unsafe fn spell_soundfold_wsal(slang: *mut slang_T, inword: *const c_char, res: 
                             && p0 != b'-' as c_int
                             && word[i + k] != 0
                         {
-                            while (*(*smp.add(n0 as usize)).sm_lead_w & 0xff) == (c0 & 0xff) {
+                            while ((*smp.add(n0 as usize)).sm_lead_w.as_slice()[0] & 0xff)
+                                == (c0 & 0xff)
+                            {
                                 let cur_n0 = n0 as usize;
-                                ws = (*smp.add(cur_n0)).sm_lead_w;
+                                ws = (*smp.add(cur_n0)).sm_lead_w.as_ptr();
                                 if c0 != *ws {
                                     n0 += 1;
                                     continue;
@@ -2595,7 +2601,11 @@ unsafe fn spell_soundfold_wsal(slang: *mut slang_T, inword: *const c_char, res: 
                                     }
                                 }
                                 k0 += k - 1;
-                                pf = (*smp.add(cur_n0)).sm_oneof_w;
+                                pf = if (*smp.add(cur_n0)).sm_oneof_w.is_empty() {
+                                    ptr::null()
+                                } else {
+                                    (*smp.add(cur_n0)).sm_oneof_w.as_ptr()
+                                };
                                 if !pf.is_null() {
                                     while *pf != 0 && *pf != word[i + k0] {
                                         pf = pf.add(1);
@@ -2635,12 +2645,17 @@ unsafe fn spell_soundfold_wsal(slang: *mut slang_T, inword: *const c_char, res: 
                                 n0 += 1;
                             }
                             if p0 >= pri
-                                && (*(*smp.add(n0 as usize)).sm_lead_w & 0xff) == (c0 & 0xff)
+                                && ((*smp.add(n0 as usize)).sm_lead_w.as_slice()[0] & 0xff)
+                                    == (c0 & 0xff)
                             {
                                 continue;
                             }
                         }
-                        ws = (*smp.add(cur_n)).sm_to_w;
+                        ws = if (*smp.add(cur_n)).sm_to_w.is_empty() {
+                            ptr::null()
+                        } else {
+                            (*smp.add(cur_n)).sm_to_w.as_ptr()
+                        };
                         sr = (*smp.add(cur_n)).sm_rules;
                         p0 = c_int::from(!vim_strchr(sr, b'<' as c_int).is_null());
                         if p0 == 1 && z == 0 {

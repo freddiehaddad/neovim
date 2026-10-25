@@ -6,7 +6,6 @@ use crate::event::r#loop::{uv_close, uv_gid_t, uv_handle_t, uv_pipe_open, uv_uid
 use crate::event::proc::Proc;
 use crate::event::stream::{uv_pipe_t, uv_stream_t};
 use crate::globals::*;
-use crate::os::env::os_free_fullenv;
 #[cfg(windows)]
 use crate::os::env::os_shell_is_cmdexe;
 use crate::os::fs::os_close;
@@ -75,6 +74,7 @@ pub struct LibuvProc {
     pub uv: UvProcessHandle,
     pub uvopts: uv_process_options_t,
     pub uvstdio: [uv_stdio_container_t; 4],
+    pub env_vec: Vec<*mut c_char>,
 }
 
 impl LibuvProc {
@@ -100,6 +100,15 @@ impl LibuvProc {
                     stream: ptr::null_mut(),
                 },
             }; 4],
+            env_vec: Vec::new(),
+        }
+    }
+}
+
+impl Drop for LibuvProc {
+    fn drop(&mut self) {
+        unsafe {
+            crate::path::clear_cstrings(&mut self.env_vec);
         }
     }
 }
@@ -229,7 +238,8 @@ pub unsafe fn libuv_proc_spawn(uvproc: *mut LibuvProc) -> c_int {
         *uv.cast::<*mut Proc>() = proc_;
 
         if !(*proc_).env.is_null() {
-            (*uvproc).uvopts.env = tv_dict_to_env((*proc_).env);
+            (*uvproc).env_vec = tv_dict_to_env((*proc_).env);
+            (*uvproc).uvopts.env = (*uvproc).env_vec.as_mut_ptr();
         } else {
             (*uvproc).uvopts.env = ptr::null_mut();
         }
@@ -277,9 +287,8 @@ pub unsafe fn libuv_proc_spawn(uvproc: *mut LibuvProc) -> c_int {
 
         let status = uv_spawn((*proc_).loop_.cast(), uv.cast(), &raw const (*uvproc).uvopts);
         if status != 0 {
-            if !(*uvproc).uvopts.env.is_null() {
-                os_free_fullenv((*uvproc).uvopts.env);
-            }
+            crate::path::clear_cstrings(&mut (*uvproc).env_vec);
+            (*uvproc).uvopts.env = ptr::null_mut();
         } else {
             (*proc_).pid = uv_process_get_pid(uv.cast());
         }
@@ -306,9 +315,8 @@ unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
             cb(proc_);
         }
         let uvproc = proc_.cast::<LibuvProc>();
-        if !(*uvproc).uvopts.env.is_null() {
-            os_free_fullenv((*uvproc).uvopts.env);
-        }
+        crate::path::clear_cstrings(&mut (*uvproc).env_vec);
+        (*uvproc).uvopts.env = ptr::null_mut();
     }
 }
 

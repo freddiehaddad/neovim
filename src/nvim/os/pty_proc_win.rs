@@ -494,13 +494,16 @@ mod win_impl {
             };
             let mut env_block_len: usize = 0;
             let mut rc: c_int = 0;
-            let env = tv_dict_to_env(denv);
+            let mut env = tv_dict_to_env(denv);
             let mut nodes: Vec<(*mut u16, usize)> = Vec::with_capacity(denv_size);
 
             'cleanup: {
-                for i in 0..denv_size {
+                for &entry in &env {
+                    if entry.is_null() {
+                        break;
+                    }
                     let mut str_utf16: *mut u16 = ptr::null_mut();
-                    rc = utf8_to_utf16(*env.add(i), -1, &raw mut str_utf16);
+                    rc = utf8_to_utf16(entry, -1, &raw mut str_utf16);
                     if rc != 0 {
                         xfree(str_utf16.cast());
                         break 'cleanup;
@@ -522,6 +525,7 @@ mod win_impl {
                 *pos = 0;
             }
 
+            crate::path::clear_cstrings(&mut env);
             for (s, _) in nodes {
                 xfree(s.cast());
             }

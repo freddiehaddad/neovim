@@ -245,7 +245,7 @@ mod unix_impl {
 
     use crate::event::r#loop::{uv_chdir, uv_pipe_open, uv_signal_start, uv_signal_stop};
     use crate::fileio::{close, dup, fcntl, kill};
-    use crate::os::env::{os_environ_ptr, os_free_fullenv};
+    use crate::os::env::os_environ_ptr;
     use crate::os::signal::signal;
 
     unsafe extern "C" {
@@ -303,7 +303,7 @@ mod unix_impl {
             uv_disable_stdio_inheritance();
             let prog = proc_get_exepath(proc_);
             debug_assert!(!(*hdr).env.is_null());
-            let new_env = tv_dict_to_env((*hdr).env);
+            let mut new_env = tv_dict_to_env((*hdr).env);
             let mut master: c_int = -1;
             let pid = forkpty(
                 &raw mut master,
@@ -313,7 +313,7 @@ mod unix_impl {
             );
 
             if pid < 0 {
-                os_free_fullenv(new_env);
+                crate::path::clear_cstrings(&mut new_env);
                 let err = os_errno();
                 let status = -err;
                 logmsg!(
@@ -327,9 +327,9 @@ mod unix_impl {
                 );
                 return status;
             } else if pid == 0 {
-                init_child(ptyproc, prog, new_env);
+                init_child(ptyproc, prog, new_env.as_mut_ptr());
             }
-            os_free_fullenv(new_env);
+            crate::path::clear_cstrings(&mut new_env);
 
             let mut status: c_int;
             'error: {

@@ -355,21 +355,6 @@ pub unsafe fn os_unsetenv(name: *const c_char) -> c_int {
     }
 }
 
-pub unsafe fn os_free_fullenv(env: *mut *mut c_char) {
-    if env.is_null() {
-        return;
-    }
-    unsafe {
-        let mut it = env;
-        while !(*it).is_null() {
-            xfree((*it).cast());
-            *it = ptr::null_mut();
-            it = it.add(1);
-        }
-        xfree(env.cast());
-    }
-}
-
 /// Copy name of the environment variable at `index` in the current environment variables block.
 pub unsafe fn os_getenvname_at_index(index: usize) -> *mut c_char {
     #[cfg(windows)]

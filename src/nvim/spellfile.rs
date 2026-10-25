@@ -1080,9 +1080,9 @@ unsafe fn read_sal_section(fd: *mut FILE, slang: *mut slang_T) -> c_int {
                 sm_oneof: ptr::null_mut(),
                 sm_rules: ptr::null_mut(),
                 sm_to: ptr::null_mut(),
-                sm_lead_w: ptr::null_mut(),
-                sm_oneof_w: ptr::null_mut(),
-                sm_to_w: ptr::null_mut(),
+                sm_lead_w: Vec::new(),
+                sm_oneof_w: Vec::new(),
+                sm_to_w: Vec::new(),
             };
             let mut ccnt = fgetc(fd);
             if ccnt < 0 {
@@ -1150,14 +1150,10 @@ unsafe fn read_sal_section(fd: *mut FILE, slang: *mut slang_T) -> c_int {
 
             smp.sm_lead_w = mb_str2wide(smp.sm_lead);
             smp.sm_leadlen = mb_charlen(smp.sm_lead);
-            if smp.sm_oneof.is_null() {
-                smp.sm_oneof_w = ptr::null_mut();
-            } else {
+            if !smp.sm_oneof.is_null() {
                 smp.sm_oneof_w = mb_str2wide(smp.sm_oneof);
             }
-            if smp.sm_to.is_null() {
-                smp.sm_to_w = ptr::null_mut();
-            } else {
+            if !smp.sm_to.is_null() {
                 smp.sm_to_w = mb_str2wide(smp.sm_to);
             }
             gap.push(smp);
@@ -1171,10 +1167,10 @@ unsafe fn read_sal_section(fd: *mut FILE, slang: *mut slang_T) -> c_int {
                 sm_lead_w: mb_str2wide(p),
                 sm_leadlen: 0,
                 sm_oneof: ptr::null_mut(),
-                sm_oneof_w: ptr::null_mut(),
+                sm_oneof_w: Vec::new(),
                 sm_rules: p,
                 sm_to: ptr::null_mut(),
-                sm_to_w: ptr::null_mut(),
+                sm_to_w: Vec::new(),
             });
         }
 
@@ -1442,17 +1438,17 @@ unsafe fn set_sal_first(lp: *mut slang_T) {
         let len = gap.len() as c_int;
         let mut i: c_int = 0;
         while i < len {
-            let c = (*gap[i as usize].sm_lead_w & 0xff) as usize;
+            let c = (gap[i as usize].sm_lead_w[0] & 0xff) as usize;
             if (*lp).sl_sal_first[c] == -1 {
                 (*lp).sl_sal_first[c] = i;
 
-                while i + 1 < len && (*gap[(i + 1) as usize].sm_lead_w & 0xff) as usize == c {
+                while i + 1 < len && (gap[(i + 1) as usize].sm_lead_w[0] & 0xff) as usize == c {
                     i += 1;
                 }
 
                 let mut n: c_int = 1;
                 while i + n < len {
-                    if (*gap[(i + n) as usize].sm_lead_w & 0xff) as usize == c {
+                    if (gap[(i + n) as usize].sm_lead_w[0] & 0xff) as usize == c {
                         i += 1;
                         n -= 1;
                         gap[i as usize..=(i + n) as usize].rotate_right(1);
@@ -1465,16 +1461,14 @@ unsafe fn set_sal_first(lp: *mut slang_T) {
     }
 }
 
-unsafe fn mb_str2wide(s: *const c_char) -> *mut c_int {
+unsafe fn mb_str2wide(s: *const c_char) -> Vec<c_int> {
     unsafe {
-        let mut i: usize = 0;
-        let res = xmalloc((mb_charlen(s) as usize + 1) * size_of::<c_int>()).cast::<c_int>();
+        let mut res = Vec::with_capacity(mb_charlen(s) as usize + 1);
         let mut p = s;
         while *p != NUL {
-            *res.add(i) = mb_ptr2char_adv(&raw mut p);
-            i += 1;
+            res.push(mb_ptr2char_adv(&raw mut p));
         }
-        *res.add(i) = 0;
+        res.push(0);
         res
     }
 }
