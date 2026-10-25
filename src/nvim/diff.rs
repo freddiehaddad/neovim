@@ -168,6 +168,15 @@ struct diffio_T {
     dio_diff: diffout_T,
     dio_internal: c_int,
 }
+impl Drop for diffio_T {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.dio_orig.din_fname.cast());
+            xfree(self.dio_new.din_fname.cast());
+            xfree(self.dio_diff.dout_fname.cast());
+        }
+    }
+}
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum diffstyle_T {
     DIFF_ED,
@@ -955,9 +964,6 @@ unsafe fn diff_try_update(dio: *mut diffio_T, idx_orig: usize, eap: *mut exarg_T
                 }
             }
         }
-        xfree((*dio).dio_orig.din_fname.cast());
-        xfree((*dio).dio_new.din_fname.cast());
-        xfree((*dio).dio_diff.dout_fname.cast());
     }
 }
 pub unsafe fn diff_internal() -> c_int {

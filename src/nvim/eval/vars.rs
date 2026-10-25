@@ -35,11 +35,10 @@ use crate::eval::userfunc::{
 use crate::eval::window::find_win_by_nr;
 use crate::eval::{
     AUTOLOAD_CHAR, DICT_MAXNEST, FNE_CHECK_START, FNE_INCL_BR, GLV_QUIET, VAR_DEF_SCOPE,
-    callback_call, clear_evalarg, clear_lval, eval_isnamec1, eval_lavars_used, eval_option,
-    eval_to_string, eval0, eval1, fill_evalarg_from_eap, find_name_end, find_option_var_end,
-    get_env_len, get_lval, get_name_len, handle_subscript, kListLenUnknown, may_call_simple_func,
-    num_divide, num_modulus, partial_unref, set_ref_in_ht, set_var_lval, skip_expr,
-    tv_dict_set_ret,
+    callback_call, clear_evalarg, eval_isnamec1, eval_lavars_used, eval_option, eval_to_string,
+    eval0, eval1, fill_evalarg_from_eap, find_name_end, find_option_var_end, get_env_len, get_lval,
+    get_name_len, handle_subscript, kListLenUnknown, may_call_simple_func, num_divide,
+    num_modulus, partial_unref, set_ref_in_ht, set_var_lval, skip_expr, tv_dict_set_ret,
 };
 use crate::ex_cmds::check_secure;
 use crate::ex_docmd::{check_nextcmd, ends_excmd, exarg_T};
@@ -173,7 +172,8 @@ impl Default for lval_T {
 impl Drop for lval_T {
     fn drop(&mut self) {
         unsafe {
-            clear_lval(self);
+            xfree(self.ll_exp_name.cast());
+            xfree(self.ll_newkey.cast());
         }
     }
 }
@@ -1927,7 +1927,6 @@ unsafe fn ex_let_one(
                     arg_end = p;
                 }
             }
-            clear_lval(&raw mut lv);
         } else {
             semsg!(gettext(e_invarg2.as_ptr()), arg);
         }
@@ -2015,19 +2014,12 @@ unsafe fn ex_unletlock(
                         emsg_severe = true;
                         semsg!(gettext(e_trailing_arg.as_ptr()), name_end);
                     }
-                    if !((*eap).skip != 0 || error) {
-                        clear_lval(&raw mut lv);
-                    }
                     break;
                 }
 
                 if !error && (*eap).skip == 0 && callback(&raw mut lv, name_end, eap, deep) == FAIL
                 {
                     error = true;
-                }
-
-                if (*eap).skip == 0 {
-                    clear_lval(&raw mut lv);
                 }
             }
             arg = skipwhite(name_end);
@@ -3807,7 +3799,6 @@ pub unsafe fn var_redir_start(name: *mut c_char, append: bool) -> c_int {
             FNE_CHECK_START,
         );
         if redir_endp.is_null() || (*lval_ptr).ll_name.is_null() || *redir_endp != NUL {
-            clear_lval(lval_ptr);
             if !redir_endp.is_null() && *redir_endp != NUL {
                 semsg!(gettext(e_trailing_arg.as_ptr()), redir_endp);
             } else {
@@ -3846,7 +3837,7 @@ pub unsafe fn var_redir_start(name: *mut c_char, append: bool) -> c_int {
                 c"=".as_ptr(),
             );
         }
-        clear_lval(lval_ptr);
+        *lval_ptr = lval_T::new();
         if called_emsg > called_emsg_before {
             redir_endp = ptr::null_mut();
             var_redir_stop();
@@ -3914,7 +3905,6 @@ pub unsafe fn var_redir_stop() {
                         c".".as_ptr(),
                     );
                 }
-                clear_lval(lval_ptr);
             }
 
             *buf = Vec::new();

@@ -81,7 +81,7 @@ use crate::eval::window::{find_tabwin, find_win_by_nr_or_id, win_id2wp_tp};
 use crate::eval::{
     FNE_CHECK_START, GLV_NO_AUTOLOAD, GLV_READ_ONLY, TFN_NO_AUTOLOAD, TFN_QUIET, VARNUMBER_MAX,
     add_timer_info, add_timer_info_all, buf_byteidx_to_charidx, buf_charidx_to_byteidx,
-    callback_from_typval, clear_lval, common_job_callbacks, do_string_sub, eval_expr_to_bool,
+    callback_from_typval, common_job_callbacks, do_string_sub, eval_expr_to_bool,
     eval_expr_typval, eval_expr_valid_arg, eval_has_provider, eval_option, eval1, find_job,
     find_timer_by_nr, get_callback_depth, get_copyID, get_lval, kListLenMayKnow,
     kListLenShouldKnow, kListLenUnknown, list2fpos, partial_name, save_tv_as_string,
@@ -4430,7 +4430,6 @@ pub unsafe fn f_islocked(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
                     varnumber_T::from(tv_islocked(&raw const (*lv.ll_di).di_tv));
             }
         }
-        clear_lval(&raw mut lv);
     }
 }
 

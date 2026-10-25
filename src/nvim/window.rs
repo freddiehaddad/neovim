@@ -5118,6 +5118,20 @@ unsafe fn alloc_tabpage() -> *mut tabpage_T {
 impl Drop for tabpage_T {
     fn drop(&mut self) {
         unsafe {
+            let map_ptr = &raw mut tabpage_handles;
+            (*map_ptr).remove(&self.handle);
+            diff_clear(self);
+            for idx in 0..SNAP_COUNT {
+                clear_snapshot(self, idx as c_int);
+            }
+            if !self.tp_vars.is_null() {
+                vars_clear(&raw mut (*self.tp_vars).dv_hashtab);
+                hash_init(&raw mut (*self.tp_vars).dv_hashtab);
+                unref_var_dict(self.tp_vars);
+            }
+            if ptr::eq(self, lastused_tabpage) {
+                lastused_tabpage = ptr::null_mut();
+            }
             xfree(self.tp_localdir.cast());
             xfree(self.tp_prevdir.cast());
         }
@@ -5126,21 +5140,9 @@ impl Drop for tabpage_T {
 
 pub unsafe fn free_tabpage(tp: *mut tabpage_T) {
     unsafe {
-        let map_ptr = &raw mut tabpage_handles;
-        (*map_ptr).remove(&(*tp).handle);
-        diff_clear(tp);
-        for idx in 0..SNAP_COUNT {
-            clear_snapshot(tp, idx as c_int);
+        if !tp.is_null() {
+            drop(Box::from_raw(tp));
         }
-        vars_clear(&raw mut (*(*tp).tp_vars).dv_hashtab);
-        hash_init(&raw mut (*(*tp).tp_vars).dv_hashtab);
-        unref_var_dict((*tp).tp_vars);
-
-        if ptr::eq(tp, lastused_tabpage) {
-            lastused_tabpage = ptr::null_mut();
-        }
-
-        drop(Box::from_raw(tp));
     }
 }
 

@@ -29,11 +29,10 @@ use crate::eval::vars::{
 };
 use crate::eval::{
     AUTOLOAD_CHAR, EVAL_EVALUATE, FNE_CHECK_START, FNE_INCL_BR, GLV_READ_ONLY, TFN_NO_AUTOLOAD,
-    TFN_QUIET, VAR_DEF_SCOPE, callback_call, check_luafunc_name, clear_evalarg, clear_lval,
-    eval_isnamec, eval_isnamec1, eval_lavars_used, eval0, eval1, fill_evalarg_from_eap,
-    find_name_end, garbage_collect, get_id_len, get_lval, handle_subscript, is_luafunc,
-    last_set_msg, partial_name, partial_unref, set_ref_in_ht, set_ref_in_item,
-    set_ref_in_list_items, skip_expr,
+    TFN_QUIET, VAR_DEF_SCOPE, callback_call, check_luafunc_name, clear_evalarg, eval_isnamec,
+    eval_isnamec1, eval_lavars_used, eval0, eval1, fill_evalarg_from_eap, find_name_end,
+    garbage_collect, get_id_len, get_lval, handle_subscript, is_luafunc, last_set_msg,
+    partial_name, partial_unref, set_ref_in_ht, set_ref_in_item, set_ref_in_list_items, skip_expr,
 };
 use crate::ex_docmd::{check_nextcmd, checkforcmd, do_cmdline, ends_excmd, exarg_T, skip_range};
 use crate::ex_eval::{
@@ -2262,7 +2261,6 @@ pub unsafe fn trans_function_name(
             if !skip {
                 emsg(gettext(c"E129: Function name required".as_ptr()));
             }
-            clear_lval(&raw mut lv);
             return name;
         }
         if end.is_null() || (!lv.ll_tv.is_null() && (lead > 2 || lv.ll_range)) {
@@ -2274,7 +2272,6 @@ pub unsafe fn trans_function_name(
                 *pp =
                     find_name_end(start, ptr::null_mut(), ptr::null_mut(), FNE_INCL_BR).cast_mut();
             }
-            clear_lval(&raw mut lv);
             return name;
         }
 
@@ -2296,7 +2293,6 @@ pub unsafe fn trans_function_name(
                     len = check_luafunc_name(end.add(1), true);
                     if len == 0 {
                         semsg!(e_invexpr2.as_ptr(), c"v:lua".as_ptr());
-                        clear_lval(&raw mut lv);
                         return name;
                     }
                     name = xmallocz(len as usize).cast();
@@ -2320,13 +2316,11 @@ pub unsafe fn trans_function_name(
                 }
                 name = ptr::null_mut();
             }
-            clear_lval(&raw mut lv);
             return name;
         }
 
         if lv.ll_name.is_null() {
             *pp = end.cast_mut();
-            clear_lval(&raw mut lv);
             return name;
         }
 
@@ -2365,7 +2359,6 @@ pub unsafe fn trans_function_name(
                 let tail_len = strlen(name.add(5)) + 1;
                 ptr::copy(name.add(5), name.add(3), tail_len);
             }
-            clear_lval(&raw mut lv);
             return name;
         }
 
@@ -2401,7 +2394,6 @@ pub unsafe fn trans_function_name(
             {
                 if current_sctx.sc_sid <= 0 {
                     emsg(gettext(e_usingsid.as_ptr()));
-                    clear_lval(&raw mut lv);
                     return name;
                 }
                 sid_buflen = vim_snprintf!(
@@ -2417,7 +2409,6 @@ pub unsafe fn trans_function_name(
                 gettext(c"E128: Function name must start with a capital or \"s:\": %s".as_ptr()),
                 start,
             );
-            clear_lval(&raw mut lv);
             return name;
         }
 
@@ -2428,7 +2419,6 @@ pub unsafe fn trans_function_name(
                     gettext(c"E884: Function name cannot contain a colon: %s".as_ptr()),
                     start,
                 );
-                clear_lval(&raw mut lv);
                 return name;
             }
         }
@@ -2446,7 +2436,6 @@ pub unsafe fn trans_function_name(
         *name.add((lead + len) as usize) = NUL;
         *pp = end.cast_mut();
 
-        clear_lval(&raw mut lv);
         name
     }
 }

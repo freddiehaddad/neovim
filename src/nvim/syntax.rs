@@ -404,7 +404,6 @@ impl Default for synpat_T {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
 pub struct syn_cluster_T {
     scl_name: *mut c_char,
     scl_name_u: *mut c_char,
@@ -427,8 +426,17 @@ impl Default for syn_cluster_T {
     }
 }
 
+impl Drop for syn_cluster_T {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.scl_name.cast());
+            xfree(self.scl_name_u.cast());
+            xfree(self.scl_list.cast());
+        }
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
 struct stateitem_T {
     si_idx: c_int,
     si_id: c_int,
@@ -481,6 +489,14 @@ impl Default for stateitem_T {
     }
 }
 
+impl Drop for stateitem_T {
+    fn drop(&mut self) {
+        unsafe {
+            unref_extmatch(self.si_extmatch);
+        }
+    }
+}
+
 struct syn_opt_arg_T {
     flags: c_int,
     keyword: bool,
@@ -489,6 +505,16 @@ struct syn_opt_arg_T {
     cont_list: *mut i16,
     cont_in_list: *mut i16,
     next_list: *mut i16,
+}
+
+impl Drop for syn_opt_arg_T {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.cont_list.cast());
+            xfree(self.cont_in_list.cast());
+            xfree(self.next_list.cast());
+        }
+    }
 }
 
 #[derive(Default)]
@@ -777,9 +803,6 @@ pub unsafe fn syntax_start(wp: *mut win_T, lnum: linenr_T) {
 unsafe fn clear_current_state() {
     unsafe {
         let cs_ptr = &raw mut current_state;
-        for si in (*cs_ptr).drain(..) {
-            unref_extmatch(si.si_extmatch);
-        }
         *cs_ptr = Vec::new();
     }
 }
@@ -1363,26 +1386,27 @@ unsafe fn load_current_state(from: *const synstate_T) {
         let stacksize = (*from).sst_stack.len() as c_int;
         if stacksize != 0 {
             let cs_ptr = &raw mut current_state;
-            (*cs_ptr).resize(stacksize as usize, stateitem_T::new());
+            (*cs_ptr).reserve(stacksize as usize);
             for (i, b) in (*from).sst_stack.iter().enumerate() {
                 let i_c = i as c_int;
-                let cur_si = cur_state_at(i_c);
-                (*cur_si).si_idx = b.bs_idx;
-                (*cur_si).si_flags = b.bs_flags;
-                (*cur_si).si_seqnr = b.bs_seqnr;
-                (*cur_si).si_cchar = b.bs_cchar;
-                (*cur_si).si_extmatch = ref_extmatch(b.bs_extmatch);
-                if keepend_level < 0 && ((*cur_si).si_flags & HL_KEEPEND) != 0 {
+                let mut item = stateitem_T::new();
+                item.si_idx = b.bs_idx;
+                item.si_flags = b.bs_flags;
+                item.si_seqnr = b.bs_seqnr;
+                item.si_cchar = b.bs_cchar;
+                item.si_extmatch = ref_extmatch(b.bs_extmatch);
+                if keepend_level < 0 && (item.si_flags & HL_KEEPEND) != 0 {
                     keepend_level = i_c;
                 }
-                (*cur_si).si_ends = 0;
-                (*cur_si).si_m_lnum = 0;
-                if (*cur_si).si_idx >= 0 {
-                    (*cur_si).si_next_list =
-                        (*syn_items(syn_block).offset((*cur_si).si_idx as isize)).sp_next_list;
+                item.si_ends = 0;
+                item.si_m_lnum = 0;
+                if item.si_idx >= 0 {
+                    item.si_next_list =
+                        (*syn_items(syn_block).offset(item.si_idx as isize)).sp_next_list;
                 } else {
-                    (*cur_si).si_next_list = ptr::null_mut();
+                    item.si_next_list = ptr::null_mut();
                 }
+                (*cs_ptr).push(item);
                 update_si_attr(i_c);
             }
         }
@@ -2342,9 +2366,7 @@ unsafe fn push_current_state(idx: c_int) {
 unsafe fn pop_current_state() {
     unsafe {
         let cs_ptr = &raw mut current_state;
-        if let Some(last) = (*cs_ptr).pop() {
-            unref_extmatch(last.si_extmatch);
-        }
+        let _ = (*cs_ptr).pop();
         next_match_idx = -1;
 
         if keepend_level >= (*cs_ptr).len() as c_int {
@@ -2956,11 +2978,6 @@ pub unsafe fn syntax_clear(block: *mut synblock_T) {
         }
         (*block).b_syn_patterns = Vec::new();
 
-        let mut j = (*block).b_syn_clusters.len() as c_int - 1;
-        while j >= 0 {
-            syn_clear_cluster(block, j);
-            j -= 1;
-        }
         (*block).b_syn_clusters = Vec::new();
         (*block).b_spell_cluster_id = 0;
         (*block).b_nospell_cluster_id = 0;
@@ -3050,15 +3067,6 @@ unsafe fn syn_clear_pattern(block: *mut synblock_T, i: c_int) {
             xfree((*spp).sp_next_list.cast());
             xfree((*spp).sp_syn.cont_in_list.cast());
         }
-    }
-}
-
-unsafe fn syn_clear_cluster(block: *mut synblock_T, i: c_int) {
-    unsafe {
-        let clp = syn_clstr(block).offset(i as isize);
-        xfree((*clp).scl_name.cast());
-        xfree((*clp).scl_name_u.cast());
-        xfree((*clp).scl_list.cast());
     }
 }
 
@@ -4064,9 +4072,6 @@ unsafe fn syn_cmd_keyword(eap: *mut exarg_T, _syncing: c_int) {
                         kw = kw.add(kwlen + 1);
                     }
                 }
-
-                xfree(syn_opt_arg.cont_in_list.cast());
-                xfree(syn_opt_arg.next_list.cast());
             }
         }
 
@@ -4138,13 +4143,14 @@ unsafe fn syn_cmd_match(eap: *mut exarg_T, syncing: c_int) {
                     item.sp_syn.inc_tag = current_syn_inc_tag;
                     item.sp_flags = syn_opt_arg.flags;
                     item.sp_sync_idx = sync_idx;
-                    item.sp_cont_list = syn_opt_arg.cont_list;
-                    item.sp_syn.cont_in_list = syn_opt_arg.cont_in_list;
+                    item.sp_cont_list = ptr::replace(&mut syn_opt_arg.cont_list, ptr::null_mut());
+                    item.sp_syn.cont_in_list =
+                        ptr::replace(&mut syn_opt_arg.cont_in_list, ptr::null_mut());
                     item.sp_cchar = conceal_char;
-                    if !syn_opt_arg.cont_in_list.is_null() {
+                    if !item.sp_syn.cont_in_list.is_null() {
                         (*win_s(curwin)).b_syn_containedin = 1;
                     }
-                    item.sp_next_list = syn_opt_arg.next_list;
+                    item.sp_next_list = ptr::replace(&mut syn_opt_arg.next_list, ptr::null_mut());
                     let pats = &mut (*win_s(curwin)).b_syn_patterns;
                     pats.push(item);
 
@@ -4164,9 +4170,6 @@ unsafe fn syn_cmd_match(eap: *mut exarg_T, syncing: c_int) {
 
         vim_regfree(item.sp_prog);
         xfree(item.sp_pattern.cast());
-        xfree(syn_opt_arg.cont_list.cast());
-        xfree(syn_opt_arg.cont_in_list.cast());
-        xfree(syn_opt_arg.next_list.cast());
 
         if rest.is_null() {
             semsg!(gettext((&raw const e_invarg2).cast()), arg);
@@ -4343,6 +4346,9 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
 
                     redraw_curbuf_later(UPD_SOME_VALID);
                     syn_stack_free_all(win_s(curwin));
+                    syn_opt_arg.cont_list = ptr::null_mut();
+                    syn_opt_arg.cont_in_list = ptr::null_mut();
+                    syn_opt_arg.next_list = ptr::null_mut();
                     success = true;
                 }
             }
@@ -4358,9 +4364,6 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
         }
 
         if !success {
-            xfree(syn_opt_arg.cont_list.cast());
-            xfree(syn_opt_arg.cont_in_list.cast());
-            xfree(syn_opt_arg.next_list.cast());
             if not_enough {
                 semsg!(
                     gettext(c"E399: Not enough arguments: syntax region %s".as_ptr()),

@@ -11,7 +11,7 @@ use crate::eval::vars::{
 };
 use crate::eval::{
     clear_evalarg, eval_for_line, eval_to_bool, eval_to_string_skip, eval0, fill_evalarg_from_eap,
-    forinfo_T, free_for_info, next_for_item,
+    forinfo_T, next_for_item,
 };
 use crate::ex_docmd::{ends_excmd, exarg_T, find_nextcmd, handle_did_throw, modifier_len};
 use crate::globals::*;
@@ -1016,7 +1016,9 @@ pub unsafe fn ex_while(eap: *mut exarg_T) {
                 };
 
                 if !res {
-                    free_for_info(fi);
+                    if !fi.is_null() {
+                        drop(Box::from_raw(fi));
+                    }
                     (*cstack).cs_forinfo[idx] = ptr::null_mut();
                 }
                 clear_evalarg(&mut evalarg, eap);
@@ -1693,7 +1695,10 @@ pub unsafe fn rewind_conditionals(
                 *cond_level -= 1;
             }
             if ((*cstack).cs_flags[cur_idx] & CSF_FOR) != 0 {
-                free_for_info((*cstack).cs_forinfo[cur_idx]);
+                let fi = (*cstack).cs_forinfo[cur_idx];
+                if !fi.is_null() {
+                    drop(Box::from_raw(fi));
+                }
             }
             (*cstack).cs_idx -= 1;
         }

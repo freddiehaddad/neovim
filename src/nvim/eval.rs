@@ -1585,16 +1585,6 @@ pub unsafe fn get_lval(
     }
 }
 
-/// Clear lval "lp" that was filled by get_lval().
-pub unsafe fn clear_lval(lp: *mut lval_T) {
-    unsafe {
-        xfree((*lp).ll_exp_name.cast());
-        (*lp).ll_exp_name = ptr::null_mut();
-        xfree((*lp).ll_newkey.cast());
-        (*lp).ll_newkey = ptr::null_mut();
-    }
-}
-
 /// Set a variable that was parsed by get_lval() to "rettv".
 pub unsafe fn set_var_lval(
     lp: *mut lval_T,
@@ -1940,15 +1930,6 @@ impl Drop for forinfo_T {
             } else {
                 xfree(self.fi_string.cast());
             }
-        }
-    }
-}
-
-/// Free the structure used to store info used by ":for".
-pub unsafe fn free_for_info(fi: *mut forinfo_T) {
-    unsafe {
-        if !fi.is_null() {
-            drop(Box::from_raw(fi));
         }
     }
 }
