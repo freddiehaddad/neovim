@@ -255,30 +255,21 @@ pub unsafe fn proc_spawn(proc_: *mut Proc, in_: bool, out: bool, err: bool) -> c
 
         if in_ {
             stream_init(ptr::null_mut(), s_in, -1, (&raw mut (*s_in).uv).cast());
-            (*s_in).internal_data = StreamInternalData {
-                proc_,
-                ..StreamInternalData::NONE
-            };
+            (*s_in).internal_data = StreamInternalData::Proc(proc_);
             (*s_in).internal_close_cb = Some(on_proc_stream_close);
             (*proc_).refcount += 1;
         }
 
         if out {
             stream_init(ptr::null_mut(), s_out, -1, (&raw mut (*s_out).uv).cast());
-            (*s_out).internal_data = StreamInternalData {
-                proc_,
-                ..StreamInternalData::NONE
-            };
+            (*s_out).internal_data = StreamInternalData::Proc(proc_);
             (*s_out).internal_close_cb = Some(on_proc_stream_close);
             (*proc_).refcount += 1;
         }
 
         if err {
             stream_init(ptr::null_mut(), s_err, -1, (&raw mut (*s_err).uv).cast());
-            (*s_err).internal_data = StreamInternalData {
-                proc_,
-                ..StreamInternalData::NONE
-            };
+            (*s_err).internal_data = StreamInternalData::Proc(proc_);
             (*s_err).internal_close_cb = Some(on_proc_stream_close);
             (*proc_).refcount += 1;
         }
@@ -618,6 +609,6 @@ unsafe fn on_proc_exit(proc_: *mut Proc) {
 
 unsafe fn on_proc_stream_close(_stream: *mut Stream, data: StreamInternalData) {
     unsafe {
-        decref(data.proc_);
+        decref(data.as_proc());
     }
 }

@@ -926,23 +926,9 @@ unsafe fn do_os_system(
                 wstream_init(s_in, 0);
             }
             rstream_init(r_out);
-            rstream_start(
-                r_out,
-                data_cb,
-                StreamCbData {
-                    buf: &raw mut buf,
-                    ..StreamCbData::NONE
-                },
-            );
+            rstream_start(r_out, data_cb, StreamCbData::Buf(&raw mut buf));
             rstream_init(r_err);
-            rstream_start(
-                r_err,
-                data_cb,
-                StreamCbData {
-                    buf: &raw mut buf,
-                    ..StreamCbData::NONE
-                },
-            );
+            rstream_start(r_err, data_cb, StreamCbData::Buf(&raw mut buf));
 
             if has_input {
                 let input_buffer = wstream_new_buffer(input.cast_mut(), len, 1, None);
@@ -1010,7 +996,7 @@ unsafe fn system_data_cb(
 ) -> usize {
     unsafe {
         if !buf.is_null() && count > 0 {
-            let dbuf = data.buf;
+            let dbuf = data.as_buf();
             (*dbuf).extend_from_slice(std::slice::from_raw_parts(buf, count));
         }
         count

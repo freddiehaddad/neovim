@@ -723,8 +723,8 @@ pub unsafe extern "C" fn nvim_parse_expression(
                         kExprNodeDoubleQuotedString | kExprNodeSingleQuotedString => {
                             let str_obj = cbuf_to_arena_obj(
                                 arena,
-                                (*node).data.str.value,
-                                (*node).data.str.size,
+                                (*node).data.str().value,
+                                (*node).data.str().size,
                             );
                             put_c(ret_node, c"svalue", str_obj);
                         }
@@ -732,15 +732,15 @@ pub unsafe extern "C" fn nvim_parse_expression(
                             put_c(
                                 ret_node,
                                 c"scope",
-                                integer_obj(i64::from((*node).data.opt.scope)),
+                                integer_obj(i64::from((*node).data.opt().scope)),
                             );
                             put_c(
                                 ret_node,
                                 c"ident",
                                 cbuf_to_arena_obj(
                                     arena,
-                                    (*node).data.opt.ident,
-                                    (*node).data.opt.ident_len,
+                                    (*node).data.opt().ident,
+                                    (*node).data.opt().ident_len,
                                 ),
                             );
                         }
@@ -748,15 +748,15 @@ pub unsafe extern "C" fn nvim_parse_expression(
                             put_c(
                                 ret_node,
                                 c"scope",
-                                integer_obj(i64::from((*node).data.var.scope)),
+                                integer_obj(i64::from((*node).data.var().scope)),
                             );
                             put_c(
                                 ret_node,
                                 c"ident",
                                 cbuf_to_arena_obj(
                                     arena,
-                                    (*node).data.var.ident,
-                                    (*node).data.var.ident_len,
+                                    (*node).data.var().ident,
+                                    (*node).data.var().ident_len,
                                 ),
                             );
                         }
@@ -766,8 +766,8 @@ pub unsafe extern "C" fn nvim_parse_expression(
                                 c"ident",
                                 cbuf_to_arena_obj(
                                     arena,
-                                    (*node).data.var.ident,
-                                    (*node).data.var.ident_len,
+                                    (*node).data.var().ident,
+                                    (*node).data.var().ident_len,
                                 ),
                             );
                         }
@@ -777,8 +777,8 @@ pub unsafe extern "C" fn nvim_parse_expression(
                                 c"ident",
                                 cbuf_to_arena_obj(
                                     arena,
-                                    (*node).data.env.ident,
-                                    (*node).data.env.ident_len,
+                                    (*node).data.env().ident,
+                                    (*node).data.env().ident_len,
                                 ),
                             );
                         }
@@ -786,7 +786,7 @@ pub unsafe extern "C" fn nvim_parse_expression(
                             put_c(
                                 ret_node,
                                 c"name",
-                                integer_obj(i64::from((*node).data.reg.name)),
+                                integer_obj(i64::from((*node).data.reg().name)),
                             );
                         }
                         kExprNodeComparison => {
@@ -794,23 +794,23 @@ pub unsafe extern "C" fn nvim_parse_expression(
                                 ret_node,
                                 c"cmp_type",
                                 string_obj(cstr_as_string(
-                                    eltkn_cmp_type_tab.0[(*node).data.cmp.r#type as usize],
+                                    eltkn_cmp_type_tab.0[(*node).data.cmp().r#type as usize],
                                 )),
                             );
                             put_c(
                                 ret_node,
                                 c"ccs_strategy",
                                 string_obj(cstr_as_string(
-                                    ccs_tab.0[(*node).data.cmp.ccs as usize],
+                                    ccs_tab.0[(*node).data.cmp().ccs as usize],
                                 )),
                             );
-                            put_c(ret_node, c"invert", boolean_obj((*node).data.cmp.inv));
+                            put_c(ret_node, c"invert", boolean_obj((*node).data.cmp().inv));
                         }
                         kExprNodeFloat => {
-                            put_c(ret_node, c"fvalue", float_obj((*node).data.flt.value));
+                            put_c(ret_node, c"fvalue", float_obj((*node).data.flt().value));
                         }
                         kExprNodeInteger => {
-                            let v = (*node).data.num.value;
+                            let v = (*node).data.num().value;
                             let iv = if v > API_INTEGER_MAX {
                                 API_INTEGER_MAX as Integer
                             } else {
@@ -819,7 +819,7 @@ pub unsafe extern "C" fn nvim_parse_expression(
                             put_c(ret_node, c"ivalue", integer_obj(iv));
                         }
                         kExprNodeAssignment => {
-                            let asgn_type = (*node).data.ass.r#type;
+                            let asgn_type = (*node).data.ass().r#type;
                             let str_val = if asgn_type == kExprAsgnPlain {
                                 NvimString {
                                     data: std::ptr::null_mut(),

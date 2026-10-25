@@ -34,36 +34,76 @@ pub type uv_tty_t = c_void;
 pub type stream_close_cb = Option<unsafe fn(stream: *mut Stream, data: StreamInternalData)>;
 pub type stream_write_cb = Option<unsafe fn(stream: *mut Stream, status: c_int)>;
 
-#[repr(C)]
 #[derive(Clone, Copy)]
-pub struct StreamCbData {
-    pub channel: *mut crate::channel::Channel,
-    pub buf: *mut Vec<std::ffi::c_char>,
-    pub input: *mut crate::tui::input::TermInput,
+pub enum StreamCbData {
+    None,
+    Channel(*mut crate::channel::Channel),
+    Buf(*mut Vec<std::ffi::c_char>),
+    Input(*mut crate::tui::input::TermInput),
 }
 
 impl StreamCbData {
-    pub const NONE: Self = Self {
-        channel: ptr::null_mut(),
-        buf: ptr::null_mut(),
-        input: ptr::null_mut(),
-    };
+    pub const NONE: Self = Self::None;
+
+    #[inline]
+    pub const fn as_channel(self) -> *mut crate::channel::Channel {
+        match self {
+            Self::Channel(p) => p,
+            _ => ptr::null_mut(),
+        }
+    }
+
+    #[inline]
+    pub const fn as_buf(self) -> *mut Vec<std::ffi::c_char> {
+        match self {
+            Self::Buf(p) => p,
+            _ => ptr::null_mut(),
+        }
+    }
+
+    #[inline]
+    pub const fn as_input(self) -> *mut crate::tui::input::TermInput {
+        match self {
+            Self::Input(p) => p,
+            _ => ptr::null_mut(),
+        }
+    }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
-pub struct StreamInternalData {
-    pub channel: *mut crate::channel::Channel,
-    pub proc_: *mut crate::event::proc::Proc,
-    pub closed: *mut bool,
+pub enum StreamInternalData {
+    None,
+    Channel(*mut crate::channel::Channel),
+    Proc(*mut crate::event::proc::Proc),
+    Closed(*mut bool),
 }
 
 impl StreamInternalData {
-    pub const NONE: Self = Self {
-        channel: ptr::null_mut(),
-        proc_: ptr::null_mut(),
-        closed: ptr::null_mut(),
-    };
+    pub const NONE: Self = Self::None;
+
+    #[inline]
+    pub const fn as_channel(self) -> *mut crate::channel::Channel {
+        match self {
+            Self::Channel(p) => p,
+            _ => ptr::null_mut(),
+        }
+    }
+
+    #[inline]
+    pub const fn as_proc(self) -> *mut crate::event::proc::Proc {
+        match self {
+            Self::Proc(p) => p,
+            _ => ptr::null_mut(),
+        }
+    }
+
+    #[inline]
+    pub const fn as_closed(self) -> *mut bool {
+        match self {
+            Self::Closed(p) => p,
+            _ => ptr::null_mut(),
+        }
+    }
 }
 
 #[repr(C, align(8))]

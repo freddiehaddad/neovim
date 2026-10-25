@@ -226,6 +226,8 @@ impl Default for LexExprTokenOpt {
     }
 }
 
+unsafe impl Sync for LexExprTokenOpt {}
+
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct LexExprTokenVar {
@@ -264,18 +266,38 @@ impl Default for LexExprTokenErr {
     }
 }
 
-#[repr(C)]
-#[derive(Clone, Copy, Default)]
-pub struct LexExprTokenNumVal {
-    pub floating: float_T,
-    pub integer: uvarnumber_T,
+unsafe impl Sync for LexExprTokenErr {}
+
+#[derive(Clone, Copy)]
+pub enum LexExprTokenNumVal {
+    Integer(uvarnumber_T),
+    Floating(float_T),
+}
+
+impl Default for LexExprTokenNumVal {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl LexExprTokenNumVal {
     pub const fn new() -> Self {
-        Self {
-            floating: 0.0,
-            integer: 0,
+        Self::Integer(0)
+    }
+
+    #[inline]
+    pub const fn integer(self) -> uvarnumber_T {
+        match self {
+            Self::Integer(v) => v,
+            Self::Floating(_) => 0,
+        }
+    }
+
+    #[inline]
+    pub const fn floating(self) -> float_T {
+        match self {
+            Self::Floating(v) => v,
+            Self::Integer(_) => 0.0,
         }
     }
 }
@@ -310,34 +332,224 @@ impl LexExprTokenAss {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
-pub struct LexExprTokenData {
-    pub cmp: LexExprTokenCmp,
-    pub mul: LexExprTokenMul,
-    pub brc: LexExprTokenBrc,
-    pub reg: LexExprTokenReg,
-    pub str: LexExprTokenStr,
-    pub opt: LexExprTokenOpt,
-    pub var: LexExprTokenVar,
-    pub err: LexExprTokenErr,
-    pub num: LexExprTokenNum,
-    pub ass: LexExprTokenAss,
+pub enum LexExprTokenData {
+    #[default]
+    None,
+    Cmp(LexExprTokenCmp),
+    Mul(LexExprTokenMul),
+    Brc(LexExprTokenBrc),
+    Reg(LexExprTokenReg),
+    Str(LexExprTokenStr),
+    Opt(LexExprTokenOpt),
+    Var(LexExprTokenVar),
+    Err(LexExprTokenErr),
+    Num(LexExprTokenNum),
+    Ass(LexExprTokenAss),
 }
 
 impl LexExprTokenData {
     pub const fn new() -> Self {
-        Self {
-            cmp: LexExprTokenCmp::new(),
-            mul: LexExprTokenMul::new(),
-            brc: LexExprTokenBrc::new(),
-            reg: LexExprTokenReg::new(),
-            str: LexExprTokenStr::new(),
-            opt: LexExprTokenOpt::new(),
-            var: LexExprTokenVar::new(),
-            err: LexExprTokenErr::new(),
-            num: LexExprTokenNum::new(),
-            ass: LexExprTokenAss::new(),
+        Self::None
+    }
+
+    #[inline]
+    pub fn cmp(&self) -> &LexExprTokenCmp {
+        static EMPTY: LexExprTokenCmp = LexExprTokenCmp::new();
+        match self {
+            Self::Cmp(v) => v,
+            _ => &EMPTY,
+        }
+    }
+
+    #[inline]
+    pub fn cmp_mut(&mut self) -> &mut LexExprTokenCmp {
+        if !matches!(self, Self::Cmp(_)) {
+            *self = Self::Cmp(LexExprTokenCmp::new());
+        }
+        match self {
+            Self::Cmp(v) => v,
+            _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub fn mul(&self) -> &LexExprTokenMul {
+        static EMPTY: LexExprTokenMul = LexExprTokenMul::new();
+        match self {
+            Self::Mul(v) => v,
+            _ => &EMPTY,
+        }
+    }
+
+    #[inline]
+    pub fn mul_mut(&mut self) -> &mut LexExprTokenMul {
+        if !matches!(self, Self::Mul(_)) {
+            *self = Self::Mul(LexExprTokenMul::new());
+        }
+        match self {
+            Self::Mul(v) => v,
+            _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub fn brc(&self) -> &LexExprTokenBrc {
+        static EMPTY: LexExprTokenBrc = LexExprTokenBrc::new();
+        match self {
+            Self::Brc(v) => v,
+            _ => &EMPTY,
+        }
+    }
+
+    #[inline]
+    pub fn brc_mut(&mut self) -> &mut LexExprTokenBrc {
+        if !matches!(self, Self::Brc(_)) {
+            *self = Self::Brc(LexExprTokenBrc::new());
+        }
+        match self {
+            Self::Brc(v) => v,
+            _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub fn reg(&self) -> &LexExprTokenReg {
+        static EMPTY: LexExprTokenReg = LexExprTokenReg::new();
+        match self {
+            Self::Reg(v) => v,
+            _ => &EMPTY,
+        }
+    }
+
+    #[inline]
+    pub fn reg_mut(&mut self) -> &mut LexExprTokenReg {
+        if !matches!(self, Self::Reg(_)) {
+            *self = Self::Reg(LexExprTokenReg::new());
+        }
+        match self {
+            Self::Reg(v) => v,
+            _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub fn str(&self) -> &LexExprTokenStr {
+        static EMPTY: LexExprTokenStr = LexExprTokenStr::new();
+        match self {
+            Self::Str(v) => v,
+            _ => &EMPTY,
+        }
+    }
+
+    #[inline]
+    pub fn str_mut(&mut self) -> &mut LexExprTokenStr {
+        if !matches!(self, Self::Str(_)) {
+            *self = Self::Str(LexExprTokenStr::new());
+        }
+        match self {
+            Self::Str(v) => v,
+            _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub fn opt(&self) -> &LexExprTokenOpt {
+        static EMPTY: LexExprTokenOpt = LexExprTokenOpt::new();
+        match self {
+            Self::Opt(v) => v,
+            _ => &EMPTY,
+        }
+    }
+
+    #[inline]
+    pub fn opt_mut(&mut self) -> &mut LexExprTokenOpt {
+        if !matches!(self, Self::Opt(_)) {
+            *self = Self::Opt(LexExprTokenOpt::new());
+        }
+        match self {
+            Self::Opt(v) => v,
+            _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub fn var(&self) -> &LexExprTokenVar {
+        static EMPTY: LexExprTokenVar = LexExprTokenVar::new();
+        match self {
+            Self::Var(v) => v,
+            _ => &EMPTY,
+        }
+    }
+
+    #[inline]
+    pub fn var_mut(&mut self) -> &mut LexExprTokenVar {
+        if !matches!(self, Self::Var(_)) {
+            *self = Self::Var(LexExprTokenVar::new());
+        }
+        match self {
+            Self::Var(v) => v,
+            _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub fn err(&self) -> &LexExprTokenErr {
+        static EMPTY: LexExprTokenErr = LexExprTokenErr::new();
+        match self {
+            Self::Err(v) => v,
+            _ => &EMPTY,
+        }
+    }
+
+    #[inline]
+    pub fn err_mut(&mut self) -> &mut LexExprTokenErr {
+        if !matches!(self, Self::Err(_)) {
+            *self = Self::Err(LexExprTokenErr::new());
+        }
+        match self {
+            Self::Err(v) => v,
+            _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub fn num(&self) -> &LexExprTokenNum {
+        static EMPTY: LexExprTokenNum = LexExprTokenNum::new();
+        match self {
+            Self::Num(v) => v,
+            _ => &EMPTY,
+        }
+    }
+
+    #[inline]
+    pub fn num_mut(&mut self) -> &mut LexExprTokenNum {
+        if !matches!(self, Self::Num(_)) {
+            *self = Self::Num(LexExprTokenNum::new());
+        }
+        match self {
+            Self::Num(v) => v,
+            _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub fn ass(&self) -> &LexExprTokenAss {
+        static EMPTY: LexExprTokenAss = LexExprTokenAss::new();
+        match self {
+            Self::Ass(v) => v,
+            _ => &EMPTY,
+        }
+    }
+
+    #[inline]
+    pub fn ass_mut(&mut self) -> &mut LexExprTokenAss {
+        if !matches!(self, Self::Ass(_)) {
+            *self = Self::Ass(LexExprTokenAss::new());
+        }
+        match self {
+            Self::Ass(v) => v,
+            _ => unreachable!(),
         }
     }
 }
@@ -368,6 +580,12 @@ pub struct ExprASTNodeReg {
     pub name: c_int,
 }
 
+impl ExprASTNodeReg {
+    pub const fn new() -> Self {
+        Self { name: 0 }
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExprASTNodeFigTypeGuesses {
@@ -383,6 +601,19 @@ pub struct ExprASTNodeFig {
     pub opening_hl_idx: usize,
 }
 
+impl ExprASTNodeFig {
+    pub const fn new() -> Self {
+        Self {
+            type_guesses: ExprASTNodeFigTypeGuesses {
+                allow_dict: false,
+                allow_lambda: false,
+                allow_ident: false,
+            },
+            opening_hl_idx: 0,
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExprASTNodeVar {
@@ -391,10 +622,28 @@ pub struct ExprASTNodeVar {
     pub ident_len: usize,
 }
 
+impl ExprASTNodeVar {
+    pub const fn new() -> Self {
+        Self {
+            scope: kExprVarScopeMissing,
+            ident: std::ptr::null(),
+            ident_len: 0,
+        }
+    }
+}
+
+unsafe impl Sync for ExprASTNodeVar {}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExprASTNodeTer {
     pub got_colon: bool,
+}
+
+impl ExprASTNodeTer {
+    pub const fn new() -> Self {
+        Self { got_colon: false }
+    }
 }
 
 #[repr(C)]
@@ -405,16 +654,38 @@ pub struct ExprASTNodeCmp {
     pub inv: bool,
 }
 
+impl ExprASTNodeCmp {
+    pub const fn new() -> Self {
+        Self {
+            r#type: kExprCmpEqual,
+            ccs: kCCStrategyUseOption,
+            inv: false,
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExprASTNodeNum {
     pub value: uvarnumber_T,
 }
 
+impl ExprASTNodeNum {
+    pub const fn new() -> Self {
+        Self { value: 0 }
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExprASTNodeFlt {
     pub value: float_T,
+}
+
+impl ExprASTNodeFlt {
+    pub const fn new() -> Self {
+        Self { value: 0.0 }
+    }
 }
 
 #[repr(C)]
@@ -424,6 +695,17 @@ pub struct ExprASTNodeStr {
     pub size: usize,
 }
 
+impl ExprASTNodeStr {
+    pub const fn new() -> Self {
+        Self {
+            value: std::ptr::null_mut(),
+            size: 0,
+        }
+    }
+}
+
+unsafe impl Sync for ExprASTNodeStr {}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExprASTNodeOpt {
@@ -432,6 +714,18 @@ pub struct ExprASTNodeOpt {
     pub scope: ExprOptScope,
 }
 
+impl ExprASTNodeOpt {
+    pub const fn new() -> Self {
+        Self {
+            ident: std::ptr::null(),
+            ident_len: 0,
+            scope: kExprOptScopeUnspecified,
+        }
+    }
+}
+
+unsafe impl Sync for ExprASTNodeOpt {}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExprASTNodeEnv {
@@ -439,26 +733,268 @@ pub struct ExprASTNodeEnv {
     pub ident_len: usize,
 }
 
+impl ExprASTNodeEnv {
+    pub const fn new() -> Self {
+        Self {
+            ident: std::ptr::null(),
+            ident_len: 0,
+        }
+    }
+}
+
+unsafe impl Sync for ExprASTNodeEnv {}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExprASTNodeAss {
     pub r#type: ExprAssignmentType,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct ExprASTNodeData {
-    pub reg: ExprASTNodeReg,
-    pub fig: ExprASTNodeFig,
-    pub var: ExprASTNodeVar,
-    pub ter: ExprASTNodeTer,
-    pub cmp: ExprASTNodeCmp,
-    pub num: ExprASTNodeNum,
-    pub flt: ExprASTNodeFlt,
-    pub str: ExprASTNodeStr,
-    pub opt: ExprASTNodeOpt,
-    pub env: ExprASTNodeEnv,
-    pub ass: ExprASTNodeAss,
+impl ExprASTNodeAss {
+    pub const fn new() -> Self {
+        Self {
+            r#type: kExprAsgnPlain,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+pub enum ExprASTNodeData {
+    #[default]
+    None,
+    Reg(ExprASTNodeReg),
+    Fig(ExprASTNodeFig),
+    Var(ExprASTNodeVar),
+    Ter(ExprASTNodeTer),
+    Cmp(ExprASTNodeCmp),
+    Num(ExprASTNodeNum),
+    Flt(ExprASTNodeFlt),
+    Str(ExprASTNodeStr),
+    Opt(ExprASTNodeOpt),
+    Env(ExprASTNodeEnv),
+    Ass(ExprASTNodeAss),
+}
+
+impl ExprASTNodeData {
+    #[inline]
+    pub fn reg(&self) -> &ExprASTNodeReg {
+        static EMPTY: ExprASTNodeReg = ExprASTNodeReg::new();
+        match self {
+            Self::Reg(v) => v,
+            _ => &EMPTY,
+        }
+    }
+
+    #[inline]
+    pub fn reg_mut(&mut self) -> &mut ExprASTNodeReg {
+        if !matches!(self, Self::Reg(_)) {
+            *self = Self::Reg(ExprASTNodeReg::new());
+        }
+        match self {
+            Self::Reg(v) => v,
+            _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub fn fig(&self) -> &ExprASTNodeFig {
+        static EMPTY: ExprASTNodeFig = ExprASTNodeFig::new();
+        match self {
+            Self::Fig(v) => v,
+            _ => &EMPTY,
+        }
+    }
+
+    #[inline]
+    pub fn fig_mut(&mut self) -> &mut ExprASTNodeFig {
+        if !matches!(self, Self::Fig(_)) {
+            *self = Self::Fig(ExprASTNodeFig::new());
+        }
+        match self {
+            Self::Fig(v) => v,
+            _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub fn var(&self) -> &ExprASTNodeVar {
+        static EMPTY: ExprASTNodeVar = ExprASTNodeVar::new();
+        match self {
+            Self::Var(v) => v,
+            _ => &EMPTY,
+        }
+    }
+
+    #[inline]
+    pub fn var_mut(&mut self) -> &mut ExprASTNodeVar {
+        if !matches!(self, Self::Var(_)) {
+            *self = Self::Var(ExprASTNodeVar::new());
+        }
+        match self {
+            Self::Var(v) => v,
+            _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub fn ter(&self) -> &ExprASTNodeTer {
+        static EMPTY: ExprASTNodeTer = ExprASTNodeTer::new();
+        match self {
+            Self::Ter(v) => v,
+            _ => &EMPTY,
+        }
+    }
+
+    #[inline]
+    pub fn ter_mut(&mut self) -> &mut ExprASTNodeTer {
+        if !matches!(self, Self::Ter(_)) {
+            *self = Self::Ter(ExprASTNodeTer::new());
+        }
+        match self {
+            Self::Ter(v) => v,
+            _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub fn cmp(&self) -> &ExprASTNodeCmp {
+        static EMPTY: ExprASTNodeCmp = ExprASTNodeCmp::new();
+        match self {
+            Self::Cmp(v) => v,
+            _ => &EMPTY,
+        }
+    }
+
+    #[inline]
+    pub fn cmp_mut(&mut self) -> &mut ExprASTNodeCmp {
+        if !matches!(self, Self::Cmp(_)) {
+            *self = Self::Cmp(ExprASTNodeCmp::new());
+        }
+        match self {
+            Self::Cmp(v) => v,
+            _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub fn num(&self) -> &ExprASTNodeNum {
+        static EMPTY: ExprASTNodeNum = ExprASTNodeNum::new();
+        match self {
+            Self::Num(v) => v,
+            _ => &EMPTY,
+        }
+    }
+
+    #[inline]
+    pub fn num_mut(&mut self) -> &mut ExprASTNodeNum {
+        if !matches!(self, Self::Num(_)) {
+            *self = Self::Num(ExprASTNodeNum::new());
+        }
+        match self {
+            Self::Num(v) => v,
+            _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub fn flt(&self) -> &ExprASTNodeFlt {
+        static EMPTY: ExprASTNodeFlt = ExprASTNodeFlt::new();
+        match self {
+            Self::Flt(v) => v,
+            _ => &EMPTY,
+        }
+    }
+
+    #[inline]
+    pub fn flt_mut(&mut self) -> &mut ExprASTNodeFlt {
+        if !matches!(self, Self::Flt(_)) {
+            *self = Self::Flt(ExprASTNodeFlt::new());
+        }
+        match self {
+            Self::Flt(v) => v,
+            _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub fn str(&self) -> &ExprASTNodeStr {
+        static EMPTY: ExprASTNodeStr = ExprASTNodeStr::new();
+        match self {
+            Self::Str(v) => v,
+            _ => &EMPTY,
+        }
+    }
+
+    #[inline]
+    pub fn str_mut(&mut self) -> &mut ExprASTNodeStr {
+        if !matches!(self, Self::Str(_)) {
+            *self = Self::Str(ExprASTNodeStr::new());
+        }
+        match self {
+            Self::Str(v) => v,
+            _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub fn opt(&self) -> &ExprASTNodeOpt {
+        static EMPTY: ExprASTNodeOpt = ExprASTNodeOpt::new();
+        match self {
+            Self::Opt(v) => v,
+            _ => &EMPTY,
+        }
+    }
+
+    #[inline]
+    pub fn opt_mut(&mut self) -> &mut ExprASTNodeOpt {
+        if !matches!(self, Self::Opt(_)) {
+            *self = Self::Opt(ExprASTNodeOpt::new());
+        }
+        match self {
+            Self::Opt(v) => v,
+            _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub fn env(&self) -> &ExprASTNodeEnv {
+        static EMPTY: ExprASTNodeEnv = ExprASTNodeEnv::new();
+        match self {
+            Self::Env(v) => v,
+            _ => &EMPTY,
+        }
+    }
+
+    #[inline]
+    pub fn env_mut(&mut self) -> &mut ExprASTNodeEnv {
+        if !matches!(self, Self::Env(_)) {
+            *self = Self::Env(ExprASTNodeEnv::new());
+        }
+        match self {
+            Self::Env(v) => v,
+            _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub fn ass(&self) -> &ExprASTNodeAss {
+        static EMPTY: ExprASTNodeAss = ExprASTNodeAss::new();
+        match self {
+            Self::Ass(v) => v,
+            _ => &EMPTY,
+        }
+    }
+
+    #[inline]
+    pub fn ass_mut(&mut self) -> &mut ExprASTNodeAss {
+        if !matches!(self, Self::Ass(_)) {
+            *self = Self::Ass(ExprASTNodeAss::new());
+        }
+        match self {
+            Self::Ass(v) => v,
+            _ => unreachable!(),
+        }
+    }
 }
 
 #[repr(C)]
@@ -473,12 +1009,14 @@ pub struct ExprASTNode {
 
 impl Drop for ExprASTNode {
     fn drop(&mut self) {
-        if self.r#type == kExprNodeDoubleQuotedString || self.r#type == kExprNodeSingleQuotedString
+        if (self.r#type == kExprNodeDoubleQuotedString
+            || self.r#type == kExprNodeSingleQuotedString)
+            && let ExprASTNodeData::Str(s) = &mut self.data
         {
             unsafe {
-                xfree(self.data.str.value.cast());
+                xfree(s.value.cast());
             }
-            self.data.str.value = std::ptr::null_mut();
+            s.value = std::ptr::null_mut();
         }
     }
 }
@@ -491,46 +1029,7 @@ impl ExprASTNode {
             next: std::ptr::null_mut(),
             start: ParserPosition { line: 0, col: 0 },
             len: 0,
-            data: ExprASTNodeData {
-                reg: ExprASTNodeReg { name: 0 },
-                fig: ExprASTNodeFig {
-                    type_guesses: ExprASTNodeFigTypeGuesses {
-                        allow_dict: false,
-                        allow_lambda: false,
-                        allow_ident: false,
-                    },
-                    opening_hl_idx: 0,
-                },
-                var: ExprASTNodeVar {
-                    scope: kExprVarScopeMissing,
-                    ident: std::ptr::null(),
-                    ident_len: 0,
-                },
-                ter: ExprASTNodeTer { got_colon: false },
-                cmp: ExprASTNodeCmp {
-                    r#type: kExprCmpEqual,
-                    ccs: kCCStrategyUseOption,
-                    inv: false,
-                },
-                num: ExprASTNodeNum { value: 0 },
-                flt: ExprASTNodeFlt { value: 0.0 },
-                str: ExprASTNodeStr {
-                    value: std::ptr::null_mut(),
-                    size: 0,
-                },
-                opt: ExprASTNodeOpt {
-                    ident: std::ptr::null(),
-                    ident_len: 0,
-                    scope: kExprOptScopeUnspecified,
-                },
-                env: ExprASTNodeEnv {
-                    ident: std::ptr::null(),
-                    ident_len: 0,
-                },
-                ass: ExprASTNodeAss {
-                    r#type: kExprAsgnPlain,
-                },
-            },
+            data: ExprASTNodeData::None,
         }
     }
 }
@@ -861,10 +1360,12 @@ fn scale_number(
 #[inline]
 unsafe fn get_ccs(ret: &mut LexExprToken, bytes: &[u8]) {
     if ret.len < bytes.len() && (bytes[ret.len] == b'?' || bytes[ret.len] == b'#') {
-        ret.data.cmp.ccs = c_int::from(bytes[ret.len]);
+        if ret.r#type == kExprLexComparison {
+            ret.data.cmp_mut().ccs = c_int::from(bytes[ret.len]);
+        }
         ret.len += 1;
-    } else {
-        ret.data.cmp.ccs = kCCStrategyUseOption;
+    } else if ret.r#type == kExprLexComparison {
+        ret.data.cmp_mut().ccs = kCCStrategyUseOption;
     }
 }
 
@@ -899,15 +1400,15 @@ pub unsafe fn viml_pexpr_next_token(pstate: *mut ParserState, flags: c_int) -> L
         match schar {
             b'(' | b')' => {
                 ret.r#type = kExprLexParenthesis;
-                ret.data.brc.closing = schar == b')';
+                ret.data.brc_mut().closing = schar == b')';
             }
             b'[' | b']' => {
                 ret.r#type = kExprLexBracket;
-                ret.data.brc.closing = schar == b']';
+                ret.data.brc_mut().closing = schar == b']';
             }
             b'{' | b'}' => {
                 ret.r#type = kExprLexFigureBrace;
-                ret.data.brc.closing = schar == b'}';
+                ret.data.brc_mut().closing = schar == b'}';
             }
             b'?' => {
                 ret.r#type = kExprLexQuestion;
@@ -920,15 +1421,15 @@ pub unsafe fn viml_pexpr_next_token(pstate: *mut ParserState, flags: c_int) -> L
             }
             b'*' => {
                 ret.r#type = kExprLexMultiplication;
-                ret.data.mul.r#type = kExprLexMulMul;
+                ret.data.mul_mut().r#type = kExprLexMulMul;
             }
             b'/' => {
                 ret.r#type = kExprLexMultiplication;
-                ret.data.mul.r#type = kExprLexMulDiv;
+                ret.data.mul_mut().r#type = kExprLexMulDiv;
             }
             b'%' => {
                 ret.r#type = kExprLexMultiplication;
-                ret.data.mul.r#type = kExprLexMulMod;
+                ret.data.mul_mut().r#type = kExprLexMulMod;
             }
             b' ' | TAB => {
                 ret.r#type = kExprLexSpacing;
@@ -941,13 +1442,13 @@ pub unsafe fn viml_pexpr_next_token(pstate: *mut ParserState, flags: c_int) -> L
                 while ret.len < bytes.len() && (bytes[ret.len] as i8) < (b' ' as i8) {
                     ret.len += 1;
                 }
-                ret.data.err.r#type = kExprLexSpacing;
-                ret.data.err.msg =
+                ret.data.err_mut().r#type = kExprLexSpacing;
+                ret.data.err_mut().msg =
                     c"E15: Invalid control character present in input: %.*s".as_ptr();
             }
             b'0'..=b'9' => {
-                ret.data.num.is_float = false;
-                ret.data.num.base = 10;
+                ret.data.num_mut().is_float = false;
+                ret.data.num_mut().base = 10;
                 let mut frac_start = 0usize;
                 let mut exp_start = 0usize;
                 let mut frac_end = 0usize;
@@ -965,7 +1466,7 @@ pub unsafe fn viml_pexpr_next_token(pstate: *mut ParserState, flags: c_int) -> L
                         ret.len += 1;
                         frac_start = ret.len;
                         frac_end = ret.len;
-                        ret.data.num.is_float = true;
+                        ret.data.num_mut().is_float = true;
                         while ret.len < bytes.len() && ascii_isdigit(bytes[ret.len]) {
                             if bytes[ret.len] != b'0' {
                                 frac_end = ret.len + 1;
@@ -999,7 +1500,7 @@ pub unsafe fn viml_pexpr_next_token(pstate: *mut ParserState, flags: c_int) -> L
                         ret = non_float_ret;
                     }
                 }
-                if ret.data.num.is_float {
+                if ret.data.num().is_float {
                     let mut significand_part: float_T = 0.0;
                     let mut exp_part: uvarnumber_T = 0;
                     let frac_size = (frac_end - frac_start) as uvarnumber_T;
@@ -1030,8 +1531,9 @@ pub unsafe fn viml_pexpr_next_token(pstate: *mut ParserState, flags: c_int) -> L
                     } else {
                         exp_part -= frac_size;
                     }
-                    ret.data.num.val.floating =
-                        scale_number(significand_part, 10, exp_part, exp_negative);
+                    ret.data.num_mut().val = LexExprTokenNumVal::Floating(
+                        scale_number(significand_part, 10, exp_part, exp_negative),
+                    );
                 } else {
                     let mut len: c_int = 0;
                     let mut prep: c_int = 0;
@@ -1047,9 +1549,9 @@ pub unsafe fn viml_pexpr_next_token(pstate: *mut ParserState, flags: c_int) -> L
                         false,
                         std::ptr::null_mut(),
                     );
-                    ret.data.num.val.integer = int_val;
+                    ret.data.num_mut().val = LexExprTokenNumVal::Integer(int_val);
                     ret.len = len as usize;
-                    ret.data.num.base = match prep as u8 {
+                    ret.data.num_mut().base = match prep as u8 {
                         0 => 10,
                         b'0' => 8,
                         b'x' | b'X' => 16,
@@ -1065,8 +1567,8 @@ pub unsafe fn viml_pexpr_next_token(pstate: *mut ParserState, flags: c_int) -> L
                 }
             }
             b'a'..=b'z' | b'A'..=b'Z' | b'_' => {
-                ret.data.var.scope = 0;
-                ret.data.var.autoload = false;
+                ret.data.var_mut().scope = 0;
+                ret.data.var_mut().autoload = false;
                 ret.r#type = kExprLexPlainIdentifier;
                 while ret.len < bytes.len() && ascii_isident(bytes[ret.len]) {
                     ret.len += 1;
@@ -1076,8 +1578,8 @@ pub unsafe fn viml_pexpr_next_token(pstate: *mut ParserState, flags: c_int) -> L
                         || (ret.len == 5 && &bytes[..5] == b"isnot"))
                 {
                     ret.r#type = kExprLexComparison;
-                    ret.data.cmp.r#type = kExprCmpIdentical;
-                    ret.data.cmp.inv = ret.len == 5;
+                    ret.data.cmp_mut().r#type = kExprCmpIdentical;
+                    ret.data.cmp_mut().inv = ret.len == 5;
                     get_ccs(&mut ret, bytes);
                 } else if ret.len == 1
                     && bytes.len() > 1
@@ -1086,16 +1588,16 @@ pub unsafe fn viml_pexpr_next_token(pstate: *mut ParserState, flags: c_int) -> L
                     && (flags & kELFlagForbidScope) == 0
                 {
                     ret.len += 1;
-                    ret.data.var.scope = c_int::from(schar);
+                    ret.data.var_mut().scope = c_int::from(schar);
                     ret.r#type = kExprLexPlainIdentifier;
                     while ret.len < bytes.len()
                         && (ascii_isident(bytes[ret.len]) || bytes[ret.len] == AUTOLOAD_CHAR)
                     {
                         ret.len += 1;
                     }
-                    ret.data.var.autoload = bytes[2..ret.len].contains(&AUTOLOAD_CHAR);
+                    ret.data.var_mut().autoload = bytes[2..ret.len].contains(&AUTOLOAD_CHAR);
                 } else if bytes.len() > ret.len && bytes[ret.len] == AUTOLOAD_CHAR {
-                    ret.data.var.autoload = true;
+                    ret.data.var_mut().autoload = true;
                     ret.r#type = kExprLexPlainIdentifier;
                     while ret.len < bytes.len()
                         && (ascii_isident(bytes[ret.len]) || bytes[ret.len] == AUTOLOAD_CHAR)
@@ -1110,39 +1612,39 @@ pub unsafe fn viml_pexpr_next_token(pstate: *mut ParserState, flags: c_int) -> L
                     ret.len += 1;
                 } else if bytes.len() == 1 || !ascii_isalpha(bytes[1]) {
                     ret.r#type = kExprLexInvalid;
-                    ret.data.err.r#type = kExprLexOption;
-                    ret.data.err.msg = c"E112: Option name missing: %.*s".as_ptr();
+                    ret.data.err_mut().r#type = kExprLexOption;
+                    ret.data.err_mut().msg = c"E112: Option name missing: %.*s".as_ptr();
                 } else {
                     ret.r#type = kExprLexOption;
                     let p_offset: usize =
                         if bytes.len() > 2 && bytes[2] == b':' && is_opt_scope(bytes[1]) {
                             ret.len += 2;
-                            ret.data.opt.scope = c_int::from(bytes[1]);
-                            ret.data.opt.name = pline.data.add(3);
+                            ret.data.opt_mut().scope = c_int::from(bytes[1]);
+                            ret.data.opt_mut().name = pline.data.add(3);
                             3
                         } else {
-                            ret.data.opt.scope = kExprOptScopeUnspecified;
-                            ret.data.opt.name = pline.data.add(1);
+                            ret.data.opt_mut().scope = kExprOptScopeUnspecified;
+                            ret.data.opt_mut().name = pline.data.add(1);
                             1
                         };
                     if bytes.len() - p_offset >= 4
                         && bytes[p_offset] == b't'
                         && bytes[p_offset + 1] == b'_'
                     {
-                        ret.data.opt.len = 4;
+                        ret.data.opt_mut().len = 4;
                         ret.len += 4;
                     } else {
                         let mut p_idx = p_offset;
                         while p_idx < bytes.len() && ascii_isalpha(bytes[p_idx]) {
                             p_idx += 1;
                         }
-                        ret.data.opt.len = p_idx - p_offset;
-                        if ret.data.opt.len == 0 {
+                        ret.data.opt_mut().len = p_idx - p_offset;
+                        if ret.data.opt().len == 0 {
                             ret.r#type = kExprLexInvalid;
-                            ret.data.err.r#type = kExprLexOption;
-                            ret.data.err.msg = c"E112: Option name missing: %.*s".as_ptr();
+                            ret.data.err_mut().r#type = kExprLexOption;
+                            ret.data.err_mut().msg = c"E112: Option name missing: %.*s".as_ptr();
                         } else {
-                            ret.len += ret.data.opt.len;
+                            ret.len += ret.data.opt().len;
                         }
                     }
                 }
@@ -1151,20 +1653,20 @@ pub unsafe fn viml_pexpr_next_token(pstate: *mut ParserState, flags: c_int) -> L
                 ret.r#type = kExprLexRegister;
                 if bytes.len() > 1 {
                     ret.len += 1;
-                    ret.data.reg.name = c_int::from(bytes[1]);
+                    ret.data.reg_mut().name = c_int::from(bytes[1]);
                 } else {
-                    ret.data.reg.name = -1;
+                    ret.data.reg_mut().name = -1;
                 }
             }
             b'\'' => {
                 ret.r#type = kExprLexSingleQuotedString;
-                ret.data.str.closed = false;
-                while ret.len < bytes.len() && !ret.data.str.closed {
+                ret.data.str_mut().closed = false;
+                while ret.len < bytes.len() && !ret.data.str().closed {
                     if bytes[ret.len] == b'\'' {
                         if ret.len + 1 < bytes.len() && bytes[ret.len + 1] == b'\'' {
                             ret.len += 1;
                         } else {
-                            ret.data.str.closed = true;
+                            ret.data.str_mut().closed = true;
                         }
                     }
                     ret.len += 1;
@@ -1172,14 +1674,14 @@ pub unsafe fn viml_pexpr_next_token(pstate: *mut ParserState, flags: c_int) -> L
             }
             b'"' => {
                 ret.r#type = kExprLexDoubleQuotedString;
-                ret.data.str.closed = false;
-                while ret.len < bytes.len() && !ret.data.str.closed {
+                ret.data.str_mut().closed = false;
+                while ret.len < bytes.len() && !ret.data.str().closed {
                     if bytes[ret.len] == b'\\' {
                         if ret.len + 1 < bytes.len() {
                             ret.len += 1;
                         }
                     } else if bytes[ret.len] == b'"' {
-                        ret.data.str.closed = true;
+                        ret.data.str_mut().closed = true;
                     }
                     ret.len += 1;
                 }
@@ -1191,21 +1693,21 @@ pub unsafe fn viml_pexpr_next_token(pstate: *mut ParserState, flags: c_int) -> L
                     } else {
                         kExprLexAssignment
                     };
-                    ret.data.ass.r#type = kExprAsgnPlain;
+                    ret.data.ass_mut().r#type = kExprAsgnPlain;
                 } else {
                     ret.r#type = kExprLexComparison;
-                    ret.data.cmp.inv = schar == b'!';
+                    ret.data.cmp_mut().inv = schar == b'!';
                     if bytes[1] == b'=' {
-                        ret.data.cmp.r#type = kExprCmpEqual;
+                        ret.data.cmp_mut().r#type = kExprCmpEqual;
                         ret.len += 1;
                     } else if bytes[1] == b'~' {
-                        ret.data.cmp.r#type = kExprCmpMatches;
+                        ret.data.cmp_mut().r#type = kExprCmpMatches;
                         ret.len += 1;
                     } else if schar == b'!' {
                         ret.r#type = kExprLexNot;
                     } else {
                         ret.r#type = kExprLexAssignment;
-                        ret.data.ass.r#type = kExprAsgnPlain;
+                        ret.data.ass_mut().r#type = kExprAsgnPlain;
                     }
                     get_ccs(&mut ret, bytes);
                 }
@@ -1217,8 +1719,8 @@ pub unsafe fn viml_pexpr_next_token(pstate: *mut ParserState, flags: c_int) -> L
                     ret.len += 1;
                 }
                 get_ccs(&mut ret, bytes);
-                ret.data.cmp.inv = schar == b'<';
-                ret.data.cmp.r#type = if ret.data.cmp.inv ^ haseqsign {
+                ret.data.cmp_mut().inv = schar == b'<';
+                ret.data.cmp_mut().r#type = if ret.data.cmp().inv ^ haseqsign {
                     kExprCmpGreaterOrEqual
                 } else {
                     kExprCmpGreater
@@ -1231,7 +1733,7 @@ pub unsafe fn viml_pexpr_next_token(pstate: *mut ParserState, flags: c_int) -> L
                 } else if bytes.len() > 1 && bytes[1] == b'=' {
                     ret.len += 1;
                     ret.r#type = kExprLexAssignment;
-                    ret.data.ass.r#type = kExprAsgnSubtract;
+                    ret.data.ass_mut().r#type = kExprAsgnSubtract;
                 } else {
                     ret.r#type = kExprLexMinus;
                 }
@@ -1240,7 +1742,7 @@ pub unsafe fn viml_pexpr_next_token(pstate: *mut ParserState, flags: c_int) -> L
                 if bytes.len() > 1 && bytes[1] == b'=' {
                     ret.len += 1;
                     ret.r#type = kExprLexAssignment;
-                    ret.data.ass.r#type = kExprAsgnAdd;
+                    ret.data.ass_mut().r#type = kExprAsgnAdd;
                 } else {
                     ret.r#type = kExprLexPlus;
                 }
@@ -1249,7 +1751,7 @@ pub unsafe fn viml_pexpr_next_token(pstate: *mut ParserState, flags: c_int) -> L
                 if bytes.len() > 1 && bytes[1] == b'=' {
                     ret.len += 1;
                     ret.r#type = kExprLexAssignment;
-                    ret.data.ass.r#type = kExprAsgnConcat;
+                    ret.data.ass_mut().r#type = kExprAsgnConcat;
                 } else {
                     ret.r#type = kExprLexDot;
                 }
@@ -1257,8 +1759,8 @@ pub unsafe fn viml_pexpr_next_token(pstate: *mut ParserState, flags: c_int) -> L
             NUL | NL => {
                 if (flags & kELFlagForbidEOC) != 0 {
                     ret.r#type = kExprLexInvalid;
-                    ret.data.err.msg = c"E15: Unexpected EOC character: %.*s".as_ptr();
-                    ret.data.err.r#type = kExprLexSpacing;
+                    ret.data.err_mut().msg = c"E15: Unexpected EOC character: %.*s".as_ptr();
+                    ret.data.err_mut().r#type = kExprLexSpacing;
                 } else {
                     ret.r#type = kExprLexEOC;
                 }
@@ -1269,8 +1771,8 @@ pub unsafe fn viml_pexpr_next_token(pstate: *mut ParserState, flags: c_int) -> L
                     ret.r#type = kExprLexOr;
                 } else if (flags & kELFlagForbidEOC) != 0 {
                     ret.r#type = kExprLexInvalid;
-                    ret.data.err.msg = c"E15: Unexpected EOC character: %.*s".as_ptr();
-                    ret.data.err.r#type = kExprLexOr;
+                    ret.data.err_mut().msg = c"E15: Unexpected EOC character: %.*s".as_ptr();
+                    ret.data.err_mut().r#type = kExprLexOr;
                 } else {
                     ret.r#type = kExprLexEOC;
                 }
@@ -1278,8 +1780,8 @@ pub unsafe fn viml_pexpr_next_token(pstate: *mut ParserState, flags: c_int) -> L
             _ => {
                 ret.len = utfc_ptr2len_len(pline.data, pline.size as c_int) as usize;
                 ret.r#type = kExprLexInvalid;
-                ret.data.err.r#type = kExprLexPlainIdentifier;
-                ret.data.err.msg = c"E15: Unidentified character: %.*s".as_ptr();
+                ret.data.err_mut().r#type = kExprLexPlainIdentifier;
+                ret.data.err_mut().msg = c"E15: Unidentified character: %.*s".as_ptr();
             }
         }
 
@@ -1477,7 +1979,7 @@ unsafe fn parse_quoted_string(
     unsafe {
         let pline = (*pstate).reader.lines.as_slice()[token.start.line];
         let s = pline.data.add(token.start.col);
-        let closed_len = usize::from(token.data.str.closed);
+        let closed_len = usize::from(token.data.str().closed);
         let e = s.add(token.len - closed_len);
         let mut p = s.add(1);
         let is_double = token.r#type == kExprLexDoubleQuotedString;
@@ -1509,12 +2011,12 @@ unsafe fn parse_quoted_string(
                     });
                 }
             }
-            (*node).data.str.size = size;
+            (*node).data.str_mut().size = size;
             if size == 0 {
-                (*node).data.str.value = std::ptr::null_mut();
+                (*node).data.str_mut().value = std::ptr::null_mut();
             } else {
                 let mut v_p = xmallocz(size).cast::<c_char>();
-                (*node).data.str.value = v_p;
+                (*node).data.str_mut().value = v_p;
                 p = s.add(1);
                 while (p as usize) < (e as usize) {
                     let rem = e as usize - p as usize;
@@ -1601,11 +2103,11 @@ unsafe fn parse_quoted_string(
                 p = p.add(1);
             }
             if size == 0 {
-                (*node).data.str.value = std::ptr::null_mut();
-                (*node).data.str.size = 0;
+                (*node).data.str_mut().value = std::ptr::null_mut();
+                (*node).data.str_mut().size = 0;
             } else {
                 let mut v_p = xmalloc(size).cast::<c_char>();
-                (*node).data.str.value = v_p;
+                (*node).data.str_mut().value = v_p;
                 p = s.add(1);
                 while (p as usize) < (e as usize) {
                     let rem = e as usize - p as usize;
@@ -1755,7 +2257,7 @@ unsafe fn parse_quoted_string(
                         });
                     }
                 }
-                (*node).data.str.size = v_p as usize - (*node).data.str.value as usize;
+                (*node).data.str_mut().size = v_p as usize - (*node).data.str().value as usize;
             }
         }
         if !(*pstate).colors.is_null() {
@@ -1829,7 +2331,7 @@ unsafe fn parse_quoted_string(
                 );
             }
         }
-        if token.data.str.closed {
+        if token.data.str().closed {
             if is_double {
                 viml_parser_highlight(
                     pstate,
@@ -1943,8 +2445,8 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
 
                 let node_is_key = is_concat_or_subscript
                     && (if cur_token.r#type == kExprLexPlainIdentifier {
-                        !cur_token.data.var.autoload
-                            && cur_token.data.var.scope == kExprVarScopeMissing
+                        !cur_token.data.var().autoload
+                            && cur_token.data.var().scope == kExprVarScopeMissing
                     } else {
                         cur_token.r#type == kExprLexNumber
                     })
@@ -1964,11 +2466,11 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                             && tok_type != kExprLexArrow)
                             || (want_node == ExprASTWantedNode::Value
                                 && !(cur_token.r#type == kExprLexPlainIdentifier
-                                    && cur_token.data.var.scope == kExprVarScopeMissing
-                                    && !cur_token.data.var.autoload)
+                                    && cur_token.data.var().scope == kExprVarScopeMissing
+                                    && !cur_token.data.var().autoload)
                                 && tok_type != kExprLexArrow)
                         {
-                            (*lambda_node).data.fig.type_guesses.allow_lambda = false;
+                            (*lambda_node).data.fig_mut().type_guesses.allow_lambda = false;
                             if !(*lambda_node).children.is_null()
                                 && (*(*lambda_node).children).r#type == kExprNodeComma
                             {
@@ -1989,7 +2491,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                         if want_node == ExprASTWantedNode::Value
                             && tok_type != kExprLexBracket
                             && tok_type != kExprLexPlainIdentifier
-                            && (tok_type != kExprLexFigureBrace || cur_token.data.brc.closing)
+                            && (tok_type != kExprLexFigureBrace || cur_token.data.brc().closing)
                             && !(node_is_key && tok_type == kExprLexNumber)
                             && tok_type != kExprLexEnv
                             && tok_type != kExprLexOption
@@ -2005,13 +2507,13 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                             pt_stack.pop();
                         } else if want_node == ExprASTWantedNode::Operator
                             && tok_type != kExprLexBracket
-                            && (tok_type != kExprLexFigureBrace || cur_token.data.brc.closing)
+                            && (tok_type != kExprLexFigureBrace || cur_token.data.brc().closing)
                             && tok_type != kExprLexDot
                             && (tok_type != kExprLexComma || !is_single_assignment)
                             && tok_type != kExprLexAssignment
                             && !((tok_type == kExprLexPlainIdentifier
                                 || (tok_type == kExprLexFigureBrace
-                                    && !cur_token.data.brc.closing))
+                                    && !cur_token.data.brc().closing))
                                 && prev_token.r#type != kExprLexSpacing)
                         {
                             if (flags & kExprFlagsMulti) != 0 && ast_stack.len() == 1 {
@@ -2083,10 +2585,10 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                         east_set_error(
                             pstate,
                             &mut ast.err,
-                            cur_token.data.err.msg,
+                            cur_token.data.err().msg,
                             cur_token.start,
                         );
-                        tok_type = cur_token.data.err.r#type;
+                        tok_type = cur_token.data.err().r#type;
                         continue 'process_token;
                     }
                     kExprLexRegister => {
@@ -2095,7 +2597,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                         }
                         let cur_node =
                             new_node_with_cur_pos(kExprNodeRegister, cur_token, prev_token);
-                        (*cur_node).data.reg.name = cur_token.data.reg.name;
+                        (*cur_node).data.reg_mut().name = cur_token.data.reg().name;
                         *top_node_p = cur_node;
                         want_node = ExprASTWantedNode::Operator;
                         viml_parser_highlight(
@@ -2209,7 +2711,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                         add_value_if_missing!(
                             c"E15: Unexpected multiplication-like operator: %.*s".as_ptr()
                         );
-                        let cur_node = match cur_token.data.mul.r#type {
+                        let cur_node = match cur_token.data.mul().r#type {
                             kExprLexMulMul => {
                                 let n = new_node_with_cur_pos(
                                     kExprNodeMultiplication,
@@ -2265,18 +2767,18 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                         let cur_node =
                             new_node_with_cur_pos(kExprNodeOption, cur_token, prev_token);
                         if cur_token.r#type == kExprLexInvalid {
-                            (*cur_node).data.opt.ident =
+                            (*cur_node).data.opt_mut().ident =
                                 pline.data.add(cur_token.start.col + cur_token.len);
-                            (*cur_node).data.opt.ident_len = 0;
-                            (*cur_node).data.opt.scope = if cur_token.len == 3 {
+                            (*cur_node).data.opt_mut().ident_len = 0;
+                            (*cur_node).data.opt_mut().scope = if cur_token.len == 3 {
                                 c_int::from(*pline.data.add(cur_token.start.col + 1) as u8)
                             } else {
                                 kExprOptScopeUnspecified
                             };
                         } else {
-                            (*cur_node).data.opt.ident = cur_token.data.opt.name;
-                            (*cur_node).data.opt.ident_len = cur_token.data.opt.len;
-                            (*cur_node).data.opt.scope = cur_token.data.opt.scope;
+                            (*cur_node).data.opt_mut().ident = cur_token.data.opt().name;
+                            (*cur_node).data.opt_mut().ident_len = cur_token.data.opt().len;
+                            (*cur_node).data.opt_mut().scope = cur_token.data.opt().scope;
                         }
                         *top_node_p = cur_node;
                         want_node = ExprASTWantedNode::Operator;
@@ -2286,7 +2788,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                             1,
                             hl_group!(is_invalid, c"NvimOptionSigil", c"NvimInvalidOptionSigil"),
                         );
-                        let scope_shift = if cur_token.data.opt.scope == kExprOptScopeUnspecified {
+                        let scope_shift = if cur_token.data.opt().scope == kExprOptScopeUnspecified {
                             0
                         } else {
                             2
@@ -2326,9 +2828,9 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                         }
                         let cur_node =
                             new_node_with_cur_pos(kExprNodeEnvironment, cur_token, prev_token);
-                        (*cur_node).data.env.ident = pline.data.add(cur_token.start.col + 1);
-                        (*cur_node).data.env.ident_len = cur_token.len - 1;
-                        if (*cur_node).data.env.ident_len == 0 {
+                        (*cur_node).data.env_mut().ident = pline.data.add(cur_token.start.col + 1);
+                        (*cur_node).data.env_mut().ident_len = cur_token.len - 1;
+                        if (*cur_node).data.env().ident_len == 0 {
                             is_invalid = true;
                             east_set_error(
                                 pstate,
@@ -2381,13 +2883,13 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                         let cur_node =
                             new_node_with_cur_pos(kExprNodeComparison, cur_token, prev_token);
                         if cur_token.r#type == kExprLexInvalid {
-                            (*cur_node).data.cmp.ccs = kCCStrategyUseOption;
-                            (*cur_node).data.cmp.r#type = kExprCmpEqual;
-                            (*cur_node).data.cmp.inv = false;
+                            (*cur_node).data.cmp_mut().ccs = kCCStrategyUseOption;
+                            (*cur_node).data.cmp_mut().r#type = kExprCmpEqual;
+                            (*cur_node).data.cmp_mut().inv = false;
                         } else {
-                            (*cur_node).data.cmp.ccs = cur_token.data.cmp.ccs;
-                            (*cur_node).data.cmp.r#type = cur_token.data.cmp.r#type;
-                            (*cur_node).data.cmp.inv = cur_token.data.cmp.inv;
+                            (*cur_node).data.cmp_mut().ccs = cur_token.data.cmp().ccs;
+                            (*cur_node).data.cmp_mut().r#type = cur_token.data.cmp().r#type;
+                            (*cur_node).data.cmp_mut().inv = cur_token.data.cmp().inv;
                         }
                         is_invalid |= !viml_pexpr_handle_bop(
                             pstate,
@@ -2396,7 +2898,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                             &mut want_node,
                             &mut ast.err,
                         );
-                        if cur_token.data.cmp.ccs != kCCStrategyUseOption {
+                        if cur_token.data.cmp().ccs != kCCStrategyUseOption {
                             viml_parser_highlight(
                                 pstate,
                                 cur_token.start,
@@ -2447,7 +2949,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                             (*lambda_node).r#type = kExprNodeLambda;
                             if !(*pstate).colors.is_null() {
                                 (*(*pstate).colors).as_mut_slice()
-                                    [(*lambda_node).data.fig.opening_hl_idx]
+                                    [(*lambda_node).data.fig().opening_hl_idx]
                                     .group =
                                     hl_group!(is_invalid, c"NvimLambda", c"NvimInvalidLambda");
                             }
@@ -2511,7 +3013,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                 let eastnode_lvl = node_lvl(&**eastnode_p);
                                 if can_be_ternary
                                     && eastnode_type == kExprNodeTernaryValue
-                                    && !(**eastnode_p).data.ter.got_colon
+                                    && !(**eastnode_p).data.ter().got_colon
                                 {
                                     ast_stack.truncate(ast_stack.len() - i);
                                     (**eastnode_p).start = cur_token.start;
@@ -2521,7 +3023,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                         (**eastnode_p).len += prev_token.len;
                                     }
                                     is_ternary = true;
-                                    (**eastnode_p).data.ter.got_colon = true;
+                                    (**eastnode_p).data.ter_mut().got_colon = true;
                                     add_value_if_missing!(
                                         c"E15: Expected value, got colon: %.*s".as_ptr()
                                     );
@@ -2532,7 +3034,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                     (**eastnode_p).r#type = kExprNodeDictLiteral;
                                     if !(*pstate).colors.is_null() {
                                         (*(*pstate).colors).as_mut_slice()
-                                            [(**eastnode_p).data.fig.opening_hl_idx]
+                                            [(**eastnode_p).data.fig().opening_hl_idx]
                                             .group =
                                             hl_group!(is_invalid, c"NvimDict", c"NvimInvalidDict");
                                     }
@@ -2632,7 +3134,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                         want_node = ExprASTWantedNode::Value;
                     }
                     kExprLexBracket => {
-                        if cur_token.data.brc.closing {
+                        if cur_token.data.brc().closing {
                             let mut new_top_node_p: *mut *mut ExprASTNode;
                             ast_stack.pop();
                             if ast_stack.is_empty() {
@@ -2805,7 +3307,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                         }
                     }
                     kExprLexFigureBrace => {
-                        if cur_token.data.brc.closing {
+                        if cur_token.data.brc().closing {
                             let mut new_top_node_p: *mut *mut ExprASTNode;
                             ast_stack.pop();
                             if ast_stack.is_empty() {
@@ -2814,9 +3316,9 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                     cur_token,
                                     prev_token,
                                 );
-                                (*cur_node).data.fig.type_guesses.allow_lambda = false;
-                                (*cur_node).data.fig.type_guesses.allow_dict = false;
-                                (*cur_node).data.fig.type_guesses.allow_ident = false;
+                                (*cur_node).data.fig_mut().type_guesses.allow_lambda = false;
+                                (*cur_node).data.fig_mut().type_guesses.allow_dict = false;
+                                (*cur_node).data.fig_mut().type_guesses.allow_ident = false;
                                 (*cur_node).len = 0;
                                 if want_node != ExprASTWantedNode::Value {
                                     (*cur_node).children = *top_node_p;
@@ -2883,7 +3385,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                             );
                                             if !(*pstate).colors.is_null() {
                                                 (*(*pstate).colors).as_mut_slice()
-                                                    [(*new_top_node).data.fig.opening_hl_idx]
+                                                    [(*new_top_node).data.fig().opening_hl_idx]
                                                     .group = grp;
                                             }
                                             viml_parser_highlight(
@@ -2892,7 +3394,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                                 cur_token.len,
                                                 grp,
                                             );
-                                        } else if (*new_top_node).data.fig.type_guesses.allow_ident
+                                        } else if (*new_top_node).data.fig().type_guesses.allow_ident
                                         {
                                             (*new_top_node).r#type = kExprNodeCurlyBracesIdentifier;
                                             let grp = hl_group!(
@@ -2902,7 +3404,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                             );
                                             if !(*pstate).colors.is_null() {
                                                 (*(*pstate).colors).as_mut_slice()
-                                                    [(*new_top_node).data.fig.opening_hl_idx]
+                                                    [(*new_top_node).data.fig().opening_hl_idx]
                                                     .group = grp;
                                             }
                                             viml_parser_highlight(
@@ -2927,7 +3429,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                             );
                                             if !(*pstate).colors.is_null() {
                                                 (*(*pstate).colors).as_mut_slice()
-                                                    [(*new_top_node).data.fig.opening_hl_idx]
+                                                    [(*new_top_node).data.fig().opening_hl_idx]
                                                     .group = grp;
                                             }
                                             viml_parser_highlight(
@@ -3019,9 +3521,9 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                         cur_token,
                                         prev_token,
                                     );
-                                    (*n).data.fig.type_guesses.allow_lambda = false;
-                                    (*n).data.fig.type_guesses.allow_dict = false;
-                                    (*n).data.fig.type_guesses.allow_ident = true;
+                                    (*n).data.fig_mut().type_guesses.allow_lambda = false;
+                                    (*n).data.fig_mut().type_guesses.allow_dict = false;
+                                    (*n).data.fig_mut().type_guesses.allow_ident = true;
                                     pt_stack.push(ExprASTParseType::Expr);
                                     n
                                 } else {
@@ -3030,13 +3532,13 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                         cur_token,
                                         prev_token,
                                     );
-                                    (*n).data.fig.type_guesses.allow_lambda = true;
-                                    (*n).data.fig.type_guesses.allow_dict = true;
-                                    (*n).data.fig.type_guesses.allow_ident = true;
+                                    (*n).data.fig_mut().type_guesses.allow_lambda = true;
+                                    (*n).data.fig_mut().type_guesses.allow_dict = true;
+                                    (*n).data.fig_mut().type_guesses.allow_ident = true;
                                     n
                                 };
                                 if !(*pstate).colors.is_null() {
-                                    (*cur_node).data.fig.opening_hl_idx =
+                                    (*cur_node).data.fig_mut().opening_hl_idx =
                                         (*(*pstate).colors).len() - 1;
                                 }
                                 *top_node_p = cur_node;
@@ -3068,12 +3570,12 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                         prev_token,
                                     );
                                     if !(*pstate).colors.is_null() {
-                                        (*cur_node).data.fig.opening_hl_idx =
+                                        (*cur_node).data.fig_mut().opening_hl_idx =
                                             (*(*pstate).colors).len();
                                     }
-                                    (*cur_node).data.fig.type_guesses.allow_lambda = false;
-                                    (*cur_node).data.fig.type_guesses.allow_dict = false;
-                                    (*cur_node).data.fig.type_guesses.allow_ident = true;
+                                    (*cur_node).data.fig_mut().type_guesses.allow_lambda = false;
+                                    (*cur_node).data.fig_mut().type_guesses.allow_dict = false;
+                                    (*cur_node).data.fig_mut().type_guesses.allow_ident = true;
                                     ast_stack.push(&mut (*cur_node).children);
                                     if pt_is_assignment(cur_pt) {
                                         pt_stack.push(ExprASTParseType::Expr);
@@ -3112,7 +3614,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                             (*lambda_node).r#type = kExprNodeLambda;
                             if !(*pstate).colors.is_null() {
                                 (*(*pstate).colors).as_mut_slice()
-                                    [(*lambda_node).data.fig.opening_hl_idx]
+                                    [(*lambda_node).data.fig().opening_hl_idx]
                                     .group =
                                     hl_group!(is_invalid, c"NvimLambda", c"NvimInvalidLambda");
                             }
@@ -3169,7 +3671,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                         let scope = if cur_token.r#type == kExprLexInvalid {
                             kExprVarScopeMissing
                         } else {
-                            cur_token.data.var.scope
+                            cur_token.data.var().scope
                         };
                         if want_node == ExprASTWantedNode::Value {
                             want_node = ExprASTWantedNode::Operator;
@@ -3182,11 +3684,11 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                 cur_token,
                                 prev_token,
                             );
-                            (*cur_node).data.var.scope = scope;
+                            (*cur_node).data.var_mut().scope = scope;
                             let scope_shift = if scope == kExprVarScopeMissing { 0 } else { 2 };
-                            (*cur_node).data.var.ident =
+                            (*cur_node).data.var_mut().ident =
                                 pline.data.add(cur_token.start.col + scope_shift);
-                            (*cur_node).data.var.ident_len = cur_token.len - scope_shift;
+                            (*cur_node).data.var_mut().ident_len = cur_token.len - scope_shift;
                             *top_node_p = cur_node;
                             if scope_shift != 0 {
                                 viml_parser_highlight(
@@ -3252,9 +3754,9 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                     cur_token,
                                     prev_token,
                                 );
-                                (*cur_node).data.var.scope = scope;
-                                (*cur_node).data.var.ident = pline.data.add(cur_token.start.col);
-                                (*cur_node).data.var.ident_len = cur_token.len;
+                                (*cur_node).data.var_mut().scope = scope;
+                                (*cur_node).data.var_mut().ident = pline.data.add(cur_token.start.col);
+                                (*cur_node).data.var_mut().ident_len = cur_token.len;
                                 want_node = ExprASTWantedNode::Operator;
                                 *new_top_node_p = cur_node;
                                 viml_parser_highlight(
@@ -3280,8 +3782,8 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                         }
                         let cur_node = if node_is_key {
                             let n = new_node_with_cur_pos(kExprNodePlainKey, cur_token, prev_token);
-                            (*n).data.var.ident = pline.data.add(cur_token.start.col);
-                            (*n).data.var.ident_len = cur_token.len;
+                            (*n).data.var_mut().ident = pline.data.add(cur_token.start.col);
+                            (*n).data.var_mut().ident_len = cur_token.len;
                             viml_parser_highlight(
                                 pstate,
                                 cur_token.start,
@@ -3293,9 +3795,9 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                                 ),
                             );
                             n
-                        } else if cur_token.data.num.is_float {
+                        } else if cur_token.data.num().is_float {
                             let n = new_node_with_cur_pos(kExprNodeFloat, cur_token, prev_token);
-                            (*n).data.flt.value = cur_token.data.num.val.floating;
+                            (*n).data.flt_mut().value = cur_token.data.num().val.floating();
                             viml_parser_highlight(
                                 pstate,
                                 cur_token.start,
@@ -3305,9 +3807,9 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                             n
                         } else {
                             let n = new_node_with_cur_pos(kExprNodeInteger, cur_token, prev_token);
-                            (*n).data.num.value = cur_token.data.num.val.integer;
+                            (*n).data.num_mut().value = cur_token.data.num().val.integer();
                             let prefix_length =
-                                BASE_TO_PREFIX_LENGTH[cur_token.data.num.base as usize];
+                                BASE_TO_PREFIX_LENGTH[cur_token.data.num().base as usize];
                             viml_parser_highlight(
                                 pstate,
                                 cur_token.start,
@@ -3376,7 +3878,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                         );
                     }
                     kExprLexParenthesis => {
-                        if cur_token.data.brc.closing {
+                        if cur_token.data.brc().closing {
                             let mut no_paren_closing_error = false;
                             if want_node == ExprASTWantedNode::Value {
                                 if ast_stack.len() > 1 {
@@ -3545,13 +4047,13 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                         );
                         let ter_val_node =
                             new_node_with_cur_pos(kExprNodeTernaryValue, cur_token, prev_token);
-                        (*ter_val_node).data.ter.got_colon = false;
+                        (*ter_val_node).data.ter_mut().got_colon = false;
                         **ast_stack.last().unwrap() = ter_val_node;
                         ast_stack.push(&mut (*ter_val_node).children);
                     }
                     kExprLexDoubleQuotedString | kExprLexSingleQuotedString => {
                         let is_double = tok_type == kExprLexDoubleQuotedString;
-                        if !cur_token.data.str.closed {
+                        if !cur_token.data.str().closed {
                             is_invalid = true;
                             east_set_error(
                                 pstate,
@@ -3605,8 +4107,8 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                         add_value_if_missing!(c"E15: Unexpected assignment: %.*s".as_ptr());
                         let cur_node =
                             new_node_with_cur_pos(kExprNodeAssignment, cur_token, prev_token);
-                        (*cur_node).data.ass.r#type = cur_token.data.ass.r#type;
-                        let hl_grp = match cur_token.data.ass.r#type {
+                        (*cur_node).data.ass_mut().r#type = cur_token.data.ass().r#type;
+                        let hl_grp = match cur_token.data.ass().r#type {
                             kExprAsgnPlain => hl_group!(
                                 is_invalid,
                                 c"NvimPlainAssignment",
@@ -3725,7 +4227,7 @@ pub unsafe fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int) -> ExprAS
                     | kExprNodePlainKey => {
                         std::process::abort();
                     }
-                    kExprNodeTernaryValue if !(*cur_node).data.ter.got_colon => {
+                    kExprNodeTernaryValue if !(*cur_node).data.ter_mut().got_colon => {
                         east_set_error(
                             pstate,
                             &mut ast.err,
@@ -3778,107 +4280,107 @@ mod tests {
         unsafe {
             let t = lex_one(b"(", 0);
             assert_eq!(t.r#type, kExprLexParenthesis);
-            assert!(!t.data.brc.closing);
+            assert!(!t.data.brc().closing);
 
             let t = lex_one(b")]", 0);
             assert_eq!(t.r#type, kExprLexParenthesis);
-            assert!(t.data.brc.closing);
+            assert!(t.data.brc().closing);
             assert_eq!(t.len, 1);
 
             let t = lex_one(b"0x123", 0);
             assert_eq!(t.r#type, kExprLexNumber);
-            assert!(!t.data.num.is_float);
-            assert_eq!(t.data.num.base, 16);
-            assert_eq!(t.data.num.val.integer, 0x123);
+            assert!(!t.data.num().is_float);
+            assert_eq!(t.data.num().base, 16);
+            assert_eq!(t.data.num().val.integer(), 0x123);
 
             let t = lex_one(b"0b100111", 0);
             assert_eq!(t.r#type, kExprLexNumber);
-            assert_eq!(t.data.num.base, 2);
-            assert_eq!(t.data.num.val.integer, 39);
+            assert_eq!(t.data.num().base, 2);
+            assert_eq!(t.data.num().val.integer(), 39);
 
             let t = lex_one(b"0123", 0);
             assert_eq!(t.r#type, kExprLexNumber);
-            assert_eq!(t.data.num.base, 8);
-            assert_eq!(t.data.num.val.integer, 83);
+            assert_eq!(t.data.num().base, 8);
+            assert_eq!(t.data.num().val.integer(), 83);
 
             // Without kELFlagAllowFloat, "2.5" stops at "2".
             let t = lex_one(b"2.5", 0);
             assert_eq!(t.r#type, kExprLexNumber);
-            assert!(!t.data.num.is_float);
+            assert!(!t.data.num().is_float);
             assert_eq!(t.len, 1);
-            assert_eq!(t.data.num.val.integer, 2);
+            assert_eq!(t.data.num().val.integer(), 2);
 
             // With kELFlagAllowFloat, "2.5e-2" parses as float.
             let t = lex_one(b"2.5e-2", kELFlagAllowFloat);
             assert_eq!(t.r#type, kExprLexNumber);
-            assert!(t.data.num.is_float);
+            assert!(t.data.num().is_float);
             assert_eq!(t.len, 6);
-            assert!((t.data.num.val.floating - 0.025).abs() < 1e-12);
+            assert!((t.data.num().val.floating() - 0.025).abs() < 1e-12);
 
             // Comparisons and case strategies
             let t = lex_one(b"==#", 0);
             assert_eq!(t.r#type, kExprLexComparison);
-            assert_eq!(t.data.cmp.r#type, kExprCmpEqual);
-            assert!(!t.data.cmp.inv);
-            assert_eq!(t.data.cmp.ccs, kCCStrategyMatchCase);
+            assert_eq!(t.data.cmp().r#type, kExprCmpEqual);
+            assert!(!t.data.cmp().inv);
+            assert_eq!(t.data.cmp().ccs, kCCStrategyMatchCase);
 
             let t = lex_one(b"!~?", 0);
             assert_eq!(t.r#type, kExprLexComparison);
-            assert_eq!(t.data.cmp.r#type, kExprCmpMatches);
-            assert!(t.data.cmp.inv);
-            assert_eq!(t.data.cmp.ccs, kCCStrategyIgnoreCase);
+            assert_eq!(t.data.cmp().r#type, kExprCmpMatches);
+            assert!(t.data.cmp().inv);
+            assert_eq!(t.data.cmp().ccs, kCCStrategyIgnoreCase);
 
             // `is` / `isnot` with and without kELFlagIsNotCmp
             let t = lex_one(b"isnot#", 0);
             assert_eq!(t.r#type, kExprLexComparison);
-            assert_eq!(t.data.cmp.r#type, kExprCmpIdentical);
-            assert!(t.data.cmp.inv);
-            assert_eq!(t.data.cmp.ccs, kCCStrategyMatchCase);
+            assert_eq!(t.data.cmp().r#type, kExprCmpIdentical);
+            assert!(t.data.cmp().inv);
+            assert_eq!(t.data.cmp().ccs, kCCStrategyMatchCase);
 
             let t = lex_one(b"isnot#foo", kELFlagIsNotCmp);
             assert_eq!(t.r#type, kExprLexPlainIdentifier);
             assert_eq!(t.len, 9);
-            assert!(t.data.var.autoload);
+            assert!(t.data.var().autoload);
 
             // Scope and kELFlagForbidScope
             let t = lex_one(b"g:test#var", 0);
             assert_eq!(t.r#type, kExprLexPlainIdentifier);
-            assert_eq!(t.data.var.scope, b'g' as c_int);
-            assert!(t.data.var.autoload);
+            assert_eq!(t.data.var().scope, b'g' as c_int);
+            assert!(t.data.var().autoload);
 
             let t = lex_one(b"g:test", kELFlagForbidScope);
             assert_eq!(t.r#type, kExprLexPlainIdentifier);
             assert_eq!(t.len, 1);
-            assert_eq!(t.data.var.scope, 0);
+            assert_eq!(t.data.var().scope, 0);
 
             // Options, registers, env, strings, assignments
             let t = lex_one(b"&l:opt", 0);
             assert_eq!(t.r#type, kExprLexOption);
-            assert_eq!(t.data.opt.scope, b'l' as c_int);
-            assert_eq!(t.data.opt.len, 3);
+            assert_eq!(t.data.opt().scope, b'l' as c_int);
+            assert_eq!(t.data.opt().len, 3);
 
             let t = lex_one(b"&g:", 0);
             assert_eq!(t.r#type, kExprLexInvalid);
             assert_eq!(
-                &CStr::from_ptr(t.data.err.msg).to_bytes()[4..],
+                &CStr::from_ptr(t.data.err().msg).to_bytes()[4..],
                 b": Option name missing: %.*s"
             );
 
             let t = lex_one(b"@a", 0);
             assert_eq!(t.r#type, kExprLexRegister);
-            assert_eq!(t.data.reg.name, b'a' as c_int);
+            assert_eq!(t.data.reg().name, b'a' as c_int);
 
             let t = lex_one(b"'x'''", 0);
             assert_eq!(t.r#type, kExprLexSingleQuotedString);
-            assert!(t.data.str.closed);
+            assert!(t.data.str().closed);
 
             let t = lex_one(b"\"x\\\"", 0);
             assert_eq!(t.r#type, kExprLexDoubleQuotedString);
-            assert!(!t.data.str.closed);
+            assert!(!t.data.str().closed);
 
             let t = lex_one(b".=", 0);
             assert_eq!(t.r#type, kExprLexAssignment);
-            assert_eq!(t.data.ass.r#type, kExprAsgnConcat);
+            assert_eq!(t.data.ass().r#type, kExprAsgnConcat);
 
             // Peek does not advance pstate.pos
             with_pstate(b"abc", |pstate| {
@@ -3924,14 +4426,14 @@ mod tests {
                 let ast = viml_pexpr_parse(pstate, kExprFlagsParseLet);
                 assert!(ast.err.msg.is_null());
                 assert_eq!((*ast.root).r#type, kExprNodeAssignment);
-                assert_eq!((*ast.root).data.ass.r#type, kExprAsgnPlain);
+                assert_eq!((*ast.root).data.ass().r#type, kExprAsgnPlain);
             });
 
             with_pstate(b"a += 1", |pstate| {
                 let ast = viml_pexpr_parse(pstate, kExprFlagsParseLet);
                 assert!(ast.err.msg.is_null());
                 assert_eq!((*ast.root).r#type, kExprNodeAssignment);
-                assert_eq!((*ast.root).data.ass.r#type, kExprAsgnAdd);
+                assert_eq!((*ast.root).data.ass().r#type, kExprAsgnAdd);
             });
 
             // Syntax errors report expected diagnostics

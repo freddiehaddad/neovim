@@ -278,10 +278,7 @@ pub unsafe fn rpc_start(channel: *mut Channel) {
             rstream_start(
                 out,
                 Some(receive_msgpack),
-                StreamCbData {
-                    channel,
-                    ..StreamCbData::NONE
-                },
+                StreamCbData::Channel(channel),
             );
         }
     }
@@ -452,7 +449,7 @@ unsafe fn receive_msgpack(
     eof: bool,
 ) -> usize {
     unsafe {
-        let channel = data.channel;
+        let channel = data.as_channel();
         channel_incref(channel);
 
         let mut consumed: usize = 0;

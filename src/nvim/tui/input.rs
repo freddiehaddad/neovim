@@ -253,10 +253,7 @@ pub unsafe fn tinput_start(input: *mut TermInput) {
         rstream_start(
             &raw mut (*input).read_stream,
             Some(tinput_read_cb),
-            StreamCbData {
-                input,
-                ..StreamCbData::NONE
-            },
+            StreamCbData::Input(input),
         );
     }
 }
@@ -1010,7 +1007,7 @@ unsafe fn tinput_read_cb(
     eof: bool,
 ) -> usize {
     unsafe {
-        let input = data.input;
+        let input = data.as_input();
         let p = input;
 
         let consumed = handle_raw_buffer(input, false, buf, count_);

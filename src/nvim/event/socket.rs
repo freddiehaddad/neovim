@@ -267,7 +267,7 @@ pub unsafe fn socket_watcher_init(
 /// Callback after closing a Stream initialized by socket_connect().
 unsafe fn connect_close_cb(_stream: *mut Stream, data: StreamInternalData) {
     unsafe {
-        *data.closed = true;
+        *data.as_closed() = true;
     }
 }
 
@@ -286,10 +286,7 @@ unsafe fn socket_alive(loop_: *mut Loop, addr: *const c_char) -> bool {
         let mut closed = false;
         let closed_ptr: *mut bool = &raw mut closed;
         stream.s.internal_close_cb = Some(connect_close_cb);
-        stream.s.internal_data = StreamInternalData {
-            closed: closed_ptr,
-            ..StreamInternalData::NONE
-        };
+        stream.s.internal_data = StreamInternalData::Closed(closed_ptr);
         stream_may_close(&raw mut stream.s);
         poll_main_loop_until(-1, || ptr::read_volatile(closed_ptr));
 
@@ -576,10 +573,7 @@ pub unsafe fn socket_connect(
                 };
                 stream_init(ptr::null_mut(), s_ptr, -1, uv_stream);
                 (*fields).internal_close_cb = Some(connect_close_cb);
-                (*fields).internal_data = StreamInternalData {
-                    closed: closed_ptr,
-                    ..StreamInternalData::NONE
-                };
+                (*fields).internal_data = StreamInternalData::Closed(closed_ptr);
                 ptr::write_volatile(closed_ptr, false);
                 ptr::write_volatile(status_ptr, 1);
                 poll_main_loop_until(i64::from(timeout), || ptr::read_volatile(status_ptr) != 1);

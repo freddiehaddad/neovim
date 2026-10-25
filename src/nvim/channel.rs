@@ -524,7 +524,7 @@ unsafe fn channel_destroy_early(chan: *mut Channel) {
 
 unsafe fn close_cb(_stream: *mut Stream, data: StreamInternalData) {
     unsafe {
-        channel_decref(data.channel);
+        channel_decref(data.as_channel());
     }
 }
 
@@ -671,10 +671,7 @@ pub unsafe fn channel_job_start(
             rstream_start(
                 &raw mut (*proc_ptr).out,
                 Some(on_channel_data),
-                StreamCbData {
-                    channel: chan,
-                    ..StreamCbData::NONE
-                },
+                StreamCbData::Channel(chan),
             );
         }
 
@@ -684,10 +681,7 @@ pub unsafe fn channel_job_start(
             rstream_start(
                 &raw mut (*proc_ptr).err,
                 Some(on_job_stderr),
-                StreamCbData {
-                    channel: chan,
-                    ..StreamCbData::NONE
-                },
+                StreamCbData::Channel(chan),
             );
         }
 
@@ -730,10 +724,7 @@ pub unsafe fn channel_connect(
         }
 
         (*socket_stream).s.internal_close_cb = Some(close_cb);
-        (*socket_stream).s.internal_data = StreamInternalData {
-            channel,
-            ..StreamInternalData::NONE
-        };
+        (*socket_stream).s.internal_data = StreamInternalData::Channel(channel);
         wstream_init(&raw mut (*socket_stream).s, 0);
         rstream_init(socket_stream);
 
@@ -745,10 +736,7 @@ pub unsafe fn channel_connect(
             rstream_start(
                 socket_stream,
                 Some(on_channel_data),
-                StreamCbData {
-                    channel,
-                    ..StreamCbData::NONE
-                },
+                StreamCbData::Channel(channel),
             );
         }
 
@@ -768,10 +756,7 @@ pub unsafe fn channel_from_connection(watcher: *mut SocketWatcher) {
             return;
         }
         (*socket_stream).s.internal_close_cb = Some(close_cb);
-        (*socket_stream).s.internal_data = StreamInternalData {
-            channel,
-            ..StreamInternalData::NONE
-        };
+        (*socket_stream).s.internal_data = StreamInternalData::Channel(channel);
         wstream_init(&raw mut (*socket_stream).s, 0);
         rstream_init(socket_stream);
         rpc_start(channel);
@@ -833,10 +818,7 @@ pub unsafe fn channel_from_stdio(
             rstream_start(
                 stdio_in,
                 Some(on_channel_data),
-                StreamCbData {
-                    channel,
-                    ..StreamCbData::NONE
-                },
+                StreamCbData::Channel(channel),
             );
         }
 
@@ -956,7 +938,7 @@ pub unsafe fn on_channel_data(
     eof: bool,
 ) -> usize {
     unsafe {
-        let chan = data.channel;
+        let chan = data.as_channel();
         let ct = chan;
         on_channel_output(stream, chan, buf, count, eof, &raw mut (*ct).on_data)
     }
@@ -970,7 +952,7 @@ pub unsafe fn on_job_stderr(
     eof: bool,
 ) -> usize {
     unsafe {
-        let chan = data.channel;
+        let chan = data.as_channel();
         let ct = chan;
         on_channel_output(stream, chan, buf, count, eof, &raw mut (*ct).on_stderr)
     }
