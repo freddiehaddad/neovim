@@ -756,8 +756,7 @@ pub unsafe fn ex_argdedupe(_eap: *mut exarg_T) {
                 xfree(second_fullname.cast());
 
                 if dup {
-                    let removed = (*win_alist(curwin)).al_ga.remove(j as usize);
-                    xfree(removed.ae_fname.cast());
+                    (*win_alist(curwin)).al_ga.remove(j as usize);
 
                     if (*curwin).w_arg_idx == j {
                         (*curwin).w_arg_idx = i;
@@ -850,12 +849,9 @@ pub unsafe fn ex_argdelete(eap: *mut exarg_T) {
                 return;
             }
 
-            for removed in (*win_alist(curwin))
+            (*win_alist(curwin))
                 .al_ga
-                .drain(((*eap).line1 as usize - 1)..((*eap).line2 as usize))
-            {
-                xfree(removed.ae_fname.cast());
-            }
+                .drain(((*eap).line1 as usize - 1)..((*eap).line2 as usize));
             if (*curwin).w_arg_idx >= (*eap).line2 {
                 (*curwin).w_arg_idx -= n;
             } else if (*curwin).w_arg_idx > (*eap).line1 {

@@ -23,7 +23,7 @@ use crate::event::r#loop::uv_strerror;
 use crate::ex_cmds::check_secure;
 use crate::ex_docmd::{do_chdir, vim_mkdir_emsg};
 use crate::file_search::{
-    FINDFILE_DIR, FINDFILE_FILE, find_file_in_path_option, vim_findfile_cleanup,
+    FINDFILE_DIR, FINDFILE_FILE, ff_search_ctx_T, find_file_in_path_option, vim_findfile_cleanup,
 };
 #[cfg(not(windows))]
 use crate::fileio::readlink;
@@ -664,7 +664,7 @@ unsafe fn findfilendir(argvars: *mut typval_T, rettv: *mut typval_T, find_what: 
 
         if *fname != NUL && !error {
             let mut file_to_find: *mut c_char = ptr::null_mut();
-            let mut search_ctx: *mut c_char = ptr::null_mut();
+            let mut search_ctx: *mut ff_search_ctx_T = ptr::null_mut();
 
             loop {
                 if (*rettv).v_type == VarType::VAR_STRING || (*rettv).v_type == VarType::VAR_LIST {
@@ -706,7 +706,7 @@ unsafe fn findfilendir(argvars: *mut typval_T, rettv: *mut typval_T, find_what: 
             }
 
             xfree(file_to_find.cast());
-            vim_findfile_cleanup(search_ctx.cast());
+            vim_findfile_cleanup(search_ctx);
         }
 
         if (*rettv).v_type == VarType::VAR_STRING {

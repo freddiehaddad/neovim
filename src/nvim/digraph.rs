@@ -2211,13 +2211,6 @@ pub unsafe fn ex_loadkeymap(eap: *mut exarg_T) {
     }
 }
 
-/// Frees the `buf_T.b_kmap_ga` field of a buffer (`keymap_ga_clear`).
-pub unsafe fn keymap_ga_clear(kmap_ga: *mut Vec<kmap_T>) {
-    unsafe {
-        *kmap_ga = Vec::new();
-    }
-}
-
 /// Stop using `'keymap'` (`keymap_unload`).
 unsafe fn keymap_unload() {
     unsafe {
@@ -2239,7 +2232,7 @@ unsafe fn keymap_unload() {
             );
             do_map(MAPTYPE_UNMAP, buf.as_mut_ptr(), MODE_LANGMAP, false);
         }
-        keymap_ga_clear(&raw mut (*curbuf).b_kmap_ga);
+        (*curbuf).b_kmap_ga.clear();
 
         p_cpo = save_cpo;
 

@@ -140,7 +140,7 @@ pub struct ff_search_ctx_T {
     pub ffsc_fix_path: NvimString,
     pub ffsc_wc_path: NvimString,
     pub ffsc_level: c_int,
-    pub ffsc_stopdirs_v: Vec<NvimString>,
+    pub ffsc_stopdirs_v: Vec<std::ffi::CString>,
     pub ffsc_find_what: c_int,
     pub ffsc_tagfile: c_int,
 }
@@ -283,9 +283,13 @@ pub unsafe fn vim_findfile_init(
                 let dir_str = if *helper != NUL && !vim_isAbsName(helper) && len + 1 < MAXPATHL {
                     xmemcpyz(ff_expand_buffer.data.cast(), helper.cast(), len);
                     ff_expand_buffer.size = len;
-                    cstr_as_string(FullName_save(helper, len != 0))
+                    let full = FullName_save(helper, len != 0);
+                    let s = CStr::from_ptr(full).to_owned();
+                    xfree(full.cast());
+                    s
                 } else {
-                    cbuf_to_string(helper, len)
+                    std::ffi::CString::new(std::slice::from_raw_parts(helper.cast::<u8>(), len))
+                        .unwrap_or_default()
                 };
                 (*search_ctx).ffsc_stopdirs_v.push(dir_str);
                 if !walker.is_null() {
@@ -1117,11 +1121,7 @@ unsafe fn ff_pop(search_ctx: *mut ff_search_ctx_T) -> Option<ff_stack_T> {
 unsafe fn ff_clear(search_ctx: *mut ff_search_ctx_T) {
     unsafe {
         (*search_ctx).ffsc_stack.clear();
-
-        for dir in (*search_ctx).ffsc_stopdirs_v.drain(..) {
-            xfree(dir.data.cast());
-        }
-        (*search_ctx).ffsc_stopdirs_v = Vec::new();
+        (*search_ctx).ffsc_stopdirs_v.clear();
 
         api_clear_string(&mut (*search_ctx).ffsc_file_to_search);
         api_clear_string(&mut (*search_ctx).ffsc_start_dir);
@@ -1134,7 +1134,7 @@ unsafe fn ff_clear(search_ctx: *mut ff_search_ctx_T) {
 unsafe fn ff_path_in_stoplist(
     path: *const c_char,
     mut path_len: usize,
-    stopdirs_v: &[NvimString],
+    stopdirs_v: &[std::ffi::CString],
 ) -> bool {
     unsafe {
         while path_len > 1 && vim_ispathsep(c_int::from(*path.add(path_len - 1) as u8)) {
@@ -1145,10 +1145,10 @@ unsafe fn ff_path_in_stoplist(
             return true;
         }
 
-        for &stopdir in stopdirs_v {
-            if path_cmp(p_fic != 0, stopdir.data, path, path_len) == 0
-                && (stopdir.size <= path_len
-                    || vim_ispathsep(c_int::from(*stopdir.data.add(path_len) as u8)))
+        for stopdir in stopdirs_v {
+            let bytes = stopdir.to_bytes();
+            if path_cmp(p_fic != 0, stopdir.as_ptr(), path, path_len) == 0
+                && (bytes.len() <= path_len || vim_ispathsep(c_int::from(bytes[path_len])))
             {
                 return true;
             }
@@ -1166,7 +1166,7 @@ pub unsafe fn find_file_in_path(
     first: c_int,
     rel_fname: *mut c_char,
     file_to_find: *mut *mut c_char,
-    search_ctx: *mut *mut c_char,
+    search_ctx: *mut *mut ff_search_ctx_T,
 ) -> *mut c_char {
     unsafe {
         find_file_in_path_option(
@@ -1202,7 +1202,7 @@ pub unsafe fn find_directory_in_path(
     options: c_int,
     rel_fname: *mut c_char,
     file_to_find: *mut *mut c_char,
-    search_ctx: *mut *mut c_char,
+    search_ctx: *mut *mut ff_search_ctx_T,
 ) -> *mut c_char {
     unsafe {
         find_file_in_path_option(
@@ -1230,10 +1230,9 @@ pub unsafe fn find_file_in_path_option(
     mut rel_fname: *mut c_char,
     suffixes: *mut c_char,
     file_to_find: *mut *mut c_char,
-    search_ctx_arg: *mut *mut c_char,
+    search_ctx: *mut *mut ff_search_ctx_T,
 ) -> *mut c_char {
     unsafe {
-        let search_ctx = search_ctx_arg.cast::<*mut ff_search_ctx_T>();
         static mut dir: *mut c_char = ptr::null_mut();
         static mut did_findfile_init: bool = false;
         static mut file_to_findlen: usize = 0;
@@ -1346,21 +1345,21 @@ pub unsafe fn find_file_in_path_option(
             }
         } else {
             if first == c_int::from(true) {
-                vim_findfile_free_visited((*search_ctx).cast());
+                vim_findfile_free_visited(*search_ctx);
                 dir = path_option;
                 did_findfile_init = false;
             }
 
             loop {
                 if did_findfile_init {
-                    file_name = vim_findfile((*search_ctx).cast());
+                    file_name = vim_findfile(*search_ctx);
                     if !file_name.is_null() {
                         break;
                     }
                     did_findfile_init = false;
                 } else {
                     if dir.is_null() || *dir == NUL {
-                        vim_findfile_cleanup((*search_ctx).cast());
+                        vim_findfile_cleanup(*search_ctx);
                         *search_ctx = ptr::null_mut();
                         break;
                     }
@@ -1377,11 +1376,10 @@ pub unsafe fn find_file_in_path_option(
                         100,
                         c_int::from(false),
                         find_what,
-                        (*search_ctx).cast(),
+                        *search_ctx,
                         c_int::from(false),
                         rel_fname,
-                    )
-                    .cast();
+                    );
                     if !(*search_ctx).is_null() {
                         did_findfile_init = true;
                     }
@@ -1618,7 +1616,7 @@ pub unsafe fn find_file_name_in_path(
         let mut file_name: *mut c_char;
         if (options & FNAME_EXP) != 0 {
             let mut file_to_find: *mut c_char = ptr::null_mut();
-            let mut search_ctx: *mut c_char = ptr::null_mut();
+            let mut search_ctx: *mut ff_search_ctx_T = ptr::null_mut();
 
             file_name = find_file_in_path(
                 ptr,
@@ -1673,7 +1671,7 @@ pub unsafe fn find_file_name_in_path(
             }
 
             xfree(file_to_find.cast());
-            vim_findfile_cleanup(search_ctx.cast());
+            vim_findfile_cleanup(search_ctx);
         } else {
             file_name = xstrnsave(ptr, len);
         }
@@ -1784,7 +1782,7 @@ pub unsafe fn vim_chdirfile(fname: *mut c_char, cause: CdCause) -> c_int {
 pub unsafe fn vim_chdir(new_dir: *mut c_char) -> c_int {
     unsafe {
         let mut file_to_find: *mut c_char = ptr::null_mut();
-        let mut search_ctx: *mut c_char = ptr::null_mut();
+        let mut search_ctx: *mut ff_search_ctx_T = ptr::null_mut();
         let dir_name = find_directory_in_path(
             new_dir,
             CStr::from_ptr(new_dir).to_bytes().len(),
@@ -1794,7 +1792,7 @@ pub unsafe fn vim_chdir(new_dir: *mut c_char) -> c_int {
             &raw mut search_ctx,
         );
         xfree(file_to_find.cast());
-        vim_findfile_cleanup(search_ctx.cast());
+        vim_findfile_cleanup(search_ctx);
         if dir_name.is_null() {
             return -1;
         }

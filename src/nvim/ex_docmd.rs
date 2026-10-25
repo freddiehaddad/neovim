@@ -116,8 +116,8 @@ use crate::ex_getln::{
 };
 use crate::ex_session::{ex_loadview, ex_mkrc};
 use crate::file_search::{
-    FNAME_HYP, FNAME_MESS, do_autocmd_dirchanged, file_name_at_cursor, find_file_in_path,
-    vim_chdir, vim_findfile_cleanup,
+    FNAME_HYP, FNAME_MESS, do_autocmd_dirchanged, ff_search_ctx_T, file_name_at_cursor,
+    find_file_in_path, vim_chdir, vim_findfile_cleanup,
 };
 use crate::fileio::{FILE, fclose, readfile, shorten_fnames};
 use crate::fold::{foldCreate, foldManualAllowed, hasFolding, opFoldRange};
@@ -10100,7 +10100,7 @@ pub unsafe fn ex_splitview(eap: *mut exarg_T) {
                     );
                 } else {
                     let mut file_to_find: *mut c_char = ptr::null_mut();
-                    let mut search_ctx: *mut c_char = ptr::null_mut();
+                    let mut search_ctx: *mut ff_search_ctx_T = ptr::null_mut();
                     fname = find_file_in_path(
                         (*eap).arg,
                         strlen((*eap).arg),
@@ -10111,7 +10111,7 @@ pub unsafe fn ex_splitview(eap: *mut exarg_T) {
                         &raw mut search_ctx,
                     );
                     xfree(file_to_find.cast());
-                    vim_findfile_cleanup(search_ctx.cast());
+                    vim_findfile_cleanup(search_ctx);
                 }
                 if fname.is_null() {
                     break 'theend;
@@ -10478,7 +10478,7 @@ unsafe fn ex_find(eap: *mut exarg_T) {
             );
         } else {
             let mut file_to_find: *mut c_char = ptr::null_mut();
-            let mut search_ctx: *mut c_char = ptr::null_mut();
+            let mut search_ctx: *mut ff_search_ctx_T = ptr::null_mut();
             fname = find_file_in_path(
                 (*eap).arg,
                 strlen((*eap).arg),
@@ -10507,7 +10507,7 @@ unsafe fn ex_find(eap: *mut exarg_T) {
                 }
             }
             xfree(file_to_find.cast());
-            vim_findfile_cleanup(search_ctx.cast());
+            vim_findfile_cleanup(search_ctx);
         }
 
         if fname.is_null() {

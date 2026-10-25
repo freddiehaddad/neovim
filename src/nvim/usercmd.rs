@@ -1296,17 +1296,11 @@ pub unsafe fn ex_command(eap: *mut exarg_T) {
 /// `:comclear` (`ex_comclear`).
 pub unsafe fn ex_comclear(_eap: *mut exarg_T) {
     unsafe {
-        uc_clear(&raw mut ucmds);
+        let u = &raw mut ucmds;
+        (*u).clear();
         if !curbuf.is_null() {
-            uc_clear(&raw mut (*curbuf).b_ucmds);
+            (*curbuf).b_ucmds.clear();
         }
-    }
-}
-
-/// Clear all user commands for `gap` (`uc_clear`).
-pub unsafe fn uc_clear(gap: *mut Vec<ucmd_T>) {
-    unsafe {
-        *gap = Vec::new();
     }
 }
 

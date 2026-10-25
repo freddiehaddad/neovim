@@ -212,7 +212,7 @@ use crate::syntax::{
     HL_CONCEAL, get_syntax_info, syn_get_id, syn_get_stack_item, syn_get_sub_char, synblock_T,
     syntax_present,
 };
-use crate::tag::{get_tagfname, get_tags, get_tagstack, set_tagstack, tagname_T, tagname_free};
+use crate::tag::{get_tagfname, get_tags, get_tagstack, set_tagstack, tagname_T};
 use crate::textformat::oparg_T;
 use crate::ui::{
     ui_busy_start, ui_busy_stop, ui_current_col, ui_current_row, ui_flush, ui_gui_attached, ui_has,
@@ -9095,8 +9095,6 @@ pub unsafe fn f_tagfiles(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
             tv_list_append_string((*rettv).vval.v_list, fname.as_ptr(), -1);
             first = false;
         }
-
-        tagname_free(&raw mut tn);
     }
 }
 

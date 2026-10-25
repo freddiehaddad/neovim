@@ -22,7 +22,7 @@ use crate::cmdexpand::{
 use crate::context::{CtxSwitch, INIT_FMARK, INIT_FMARKV, ctx_restore, ctx_switch, is_ctx_win};
 use crate::cursor::{check_cursor_col, check_cursor_lnum, colnr_T, linenr_T, pos_T};
 use crate::diff::{diff_buf_add, diff_buf_delete, diff_mode_buf, diffopt_hiddenoff};
-use crate::digraph::{keymap_ga_clear, keymap_init};
+use crate::digraph::keymap_init;
 use crate::drawscreen::{UPD_NOT_VALID, redraw_later, redrawing, status_redraw_all};
 use crate::errors::*;
 use crate::eval::typval::{
@@ -110,7 +110,6 @@ use crate::syntax::{reset_synblock, synblock_T, syntax_clear};
 use crate::terminal::{Terminal, terminal_check_size, terminal_close, terminal_running};
 use crate::ui::{ui_call_set_icon, ui_call_set_title, ui_has};
 use crate::undo::{u_clearallandblockfree, u_sync, undo_fmt_time};
-use crate::usercmd::uc_clear;
 use crate::version::min_vim_version;
 use crate::window::{
     WSP_BELOW, WSP_ROOM, WSP_VERT, check_can_set_curbuf_forceit, check_colorcolumn, close_windows,
@@ -1790,7 +1789,7 @@ unsafe fn free_buffer_stuff(buf: *mut buf_T, free_flags: c_int) {
         if (free_flags & kBffInitChangedtick) != 0 {
             buf_init_changedtick(buf);
         }
-        uc_clear(&raw mut (*buf).b_ucmds);
+        (*buf).b_ucmds.clear();
         extmark_free_all(buf);
         mc_buf_free(buf);
         map_clear_mode(buf, MAP_ALL_MODES, true, false);
@@ -2954,7 +2953,7 @@ pub unsafe fn free_buf_options(buf: *mut buf_T, free_p_ff: bool) {
         clear_string_option(&raw mut (*buf).b_p_vts);
         (*buf).b_p_vts_array = Vec::new();
         clear_string_option(&raw mut (*buf).b_p_keymap);
-        keymap_ga_clear(&raw mut (*buf).b_kmap_ga);
+        (*buf).b_kmap_ga.clear();
         clear_string_option(&raw mut (*buf).b_p_com);
         clear_string_option(&raw mut (*buf).b_p_cms);
         clear_string_option(&raw mut (*buf).b_p_nf);

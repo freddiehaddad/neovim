@@ -173,6 +173,8 @@ impl Drop for tagname_T {
         unsafe {
             xfree(self.tn_tags.cast());
             vim_findfile_cleanup(self.tn_search_ctx);
+            let tf = &raw mut tag_fnames;
+            (*tf).clear();
         }
     }
 }
@@ -2297,13 +2299,6 @@ pub unsafe fn find_tags_vec(
 ) -> c_int {
     unsafe {
         let mut st = findtags_state_T::new();
-        let mut tn = tagname_T {
-            tn_tags: ptr::null_mut(),
-            tn_np: ptr::null_mut(),
-            tn_did_filefind_init: 0,
-            tn_hf_idx: 0,
-            tn_search_ctx: ptr::null_mut(),
-        };
         let mut retval: c_int;
         let mut saved_pat: *mut c_char = ptr::null_mut();
 
@@ -2381,6 +2376,7 @@ pub unsafe fn find_tags_vec(
                 for round in 1..=2 {
                     st.linear = st.orgpat.headlen == 0 || p_tbs == 0 || round == 2;
 
+                    let mut tn = tagname_T::new();
                     let mut first_file: c_int = 1;
                     while get_tagfname(&raw mut tn, first_file, st.tag_fname.as_mut_ptr()) == OK {
                         findtags_in_file(&raw mut st, flags, buf_ffname);
@@ -2390,8 +2386,6 @@ pub unsafe fn find_tags_vec(
                         }
                         first_file = 0;
                     }
-
-                    tagname_free(&raw mut tn);
 
                     if st.stop_searching
                         || st.linear
@@ -2566,15 +2560,6 @@ pub unsafe fn get_tagfname(tnp: *mut tagname_T, first: c_int, buf: *mut c_char) 
         strcpy(buf, fname);
         xfree(fname.cast());
         OK
-    }
-}
-
-/// Free the contents of a `tagname_T` that was filled by `get_tagfname()`.
-pub unsafe fn tagname_free(tnp: *mut tagname_T) {
-    unsafe {
-        *tnp = tagname_T::new();
-        let tf = &raw mut tag_fnames;
-        *tf = Vec::new();
     }
 }
 
