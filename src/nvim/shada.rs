@@ -36,7 +36,7 @@ use crate::fileio::{S_IFDIR, S_IFMT, modname, vim_rename};
 #[cfg(unix)]
 use crate::fileio::{getgid, getuid};
 use crate::globals::*;
-use crate::hashtab::{hashitem_T, hashitem_empty};
+use crate::hashtab::hashitem_empty;
 use crate::highlight::OptionalKeys;
 use crate::lua::converter::Boolean;
 use crate::mark::{
@@ -503,7 +503,7 @@ struct HistoryMergerState {
     hmll: HMLList,
     do_merge: bool,
     reading: bool,
-    iter: *const histentry_T,
+    iter: Option<usize>,
     last_hist_entry: ShadaEntry,
     history_type: u8,
 }
@@ -570,7 +570,7 @@ impl WriteMergerState {
                 },
                 do_merge: false,
                 reading: false,
-                iter: ptr::null(),
+                iter: None,
                 last_hist_entry: MISSING_ENTRY,
                 history_type: 0,
             }),
@@ -1063,11 +1063,11 @@ unsafe fn shada_read_file(file: *const c_char, flags: c_int) -> c_int {
 }
 
 unsafe fn shada_hist_iter(
-    iter: *const histentry_T,
+    iter: Option<usize>,
     history_type: u8,
     zero: bool,
-    hist: *mut ShadaEntry,
-) -> *const histentry_T {
+    hist: &mut ShadaEntry,
+) -> Option<usize> {
     unsafe {
         let mut hist_he = histentry_T::new();
         let ret = hist_iter(iter, history_type, zero, &mut hist_he);
@@ -1103,7 +1103,7 @@ unsafe fn hms_insert(hms_p: *mut HistoryMergerState, entry: ShadaEntry, do_iter:
             {
                 let last_entry = std::mem::replace(&mut (*hms_p).last_hist_entry, MISSING_ENTRY);
                 hms_insert(hms_p, last_entry, false);
-                if (*hms_p).iter.is_null() {
+                if (*hms_p).iter.is_none() {
                     (*hms_p).last_hist_entry.entry_type = ShadaEntryType::kSDItemMissing;
                     break;
                 }
@@ -1153,7 +1153,7 @@ unsafe fn hms_init(
         (*hms_p).do_merge = do_merge;
         (*hms_p).reading = reading;
         (*hms_p).iter = shada_hist_iter(
-            ptr::null(),
+            None,
             history_type,
             (*hms_p).reading,
             &mut (*hms_p).last_hist_entry,
@@ -1168,7 +1168,7 @@ unsafe fn hms_insert_whole_neovim_history(hms_p: *mut HistoryMergerState) {
         while (*hms_p).last_hist_entry.entry_type != ShadaEntryType::kSDItemMissing {
             let last_entry = std::mem::replace(&mut (*hms_p).last_hist_entry, MISSING_ENTRY);
             hms_insert(hms_p, last_entry, false);
-            if (*hms_p).iter.is_null() {
+            if (*hms_p).iter.is_none() {
                 break;
             }
             (*hms_p).iter = shada_hist_iter(
@@ -1183,27 +1183,29 @@ unsafe fn hms_insert_whole_neovim_history(hms_p: *mut HistoryMergerState) {
 
 #[inline]
 unsafe fn hms_to_he_array(
-    hms_p: *const HistoryMergerState,
-    hist_array: *mut histentry_T,
-    new_hisidx: *mut c_int,
-    new_hisnum: *mut c_int,
+    hms_p: &HistoryMergerState,
+    hist_array: &mut [histentry_T],
+    new_hisidx: &mut c_int,
+    new_hisnum: &mut c_int,
 ) {
     unsafe {
-        let mut hist = hist_array;
-        let hmll = &(*hms_p).hmll;
+        let mut count = 0usize;
+        let hmll = &hms_p.hmll;
         let mut cur_idx = hmll.first;
         while let Some(idx) = cur_idx {
             let cur_entry = &hmll.entries[idx];
-            (*hist).timestamp = cur_entry.data.timestamp;
-            (*hist).hisnum = (hist.offset_from(hist_array) as c_int) + 1;
             let s = cur_entry.data.data.history_item().string;
-            (*hist).hisstr = s;
-            (*hist).hisstrlen = CStr::from_ptr(s).to_bytes().len();
-            (*hist).additional_data = cur_entry.data.additional_data;
-            hist = hist.add(1);
+            hist_array[count] = histentry_T {
+                timestamp: cur_entry.data.timestamp,
+                hisnum: (count as c_int) + 1,
+                hisstr: s,
+                hisstrlen: CStr::from_ptr(s).to_bytes().len(),
+                additional_data: cur_entry.data.additional_data,
+            };
+            count += 1;
             cur_idx = cur_entry.next;
         }
-        *new_hisnum = hist.offset_from(hist_array) as c_int;
+        *new_hisnum = count as c_int;
         *new_hisidx = *new_hisnum - 1;
     }
 }
@@ -1216,43 +1218,41 @@ unsafe fn hms_dealloc(hms_p: *mut HistoryMergerState) {
 }
 
 unsafe fn var_shada_iter(
-    iter: *const hashitem_T,
-    name: *mut *const c_char,
-    rettv: *mut typval_T,
+    iter: Option<usize>,
+    name: &mut *const c_char,
+    rettv: &mut typval_T,
     flavour: var_flavour_T,
-) -> *const hashitem_T {
+) -> Option<usize> {
     unsafe {
         let globvarht = get_globvar_ht();
-        let hifirst = (*globvarht).ht_array;
         let hinum = (*globvarht).ht_mask + 1;
+        let harray = std::slice::from_raw_parts((*globvarht).ht_array, hinum);
         *name = ptr::null();
-        let mut hi: *const hashitem_T;
-        if iter.is_null() {
-            hi = (*globvarht).ht_array;
-            while (hi.offset_from(hifirst) as usize) < hinum
-                && (hashitem_empty(&*hi) || (var_flavour((*hi).hi_key) & flavour) == 0)
-            {
-                hi = hi.add(1);
-            }
-            if (hi.offset_from(hifirst) as usize) == hinum {
-                return ptr::null();
-            }
+        let mut idx = if let Some(i) = iter {
+            i
         } else {
-            hi = iter;
-        }
-        let di = tv_dict_hi2di(hi);
+            let mut i = 0;
+            while i < hinum
+                && (hashitem_empty(&harray[i]) || (var_flavour(harray[i].hi_key) & flavour) == 0)
+            {
+                i += 1;
+            }
+            if i == hinum {
+                return None;
+            }
+            i
+        };
+        let di = tv_dict_hi2di(&raw const harray[idx]);
         *name = (*di).di_key.as_ptr();
         tv_copy(&(*di).di_tv, rettv);
-        loop {
-            hi = hi.add(1);
-            if (hi.offset_from(hifirst) as usize) >= hinum {
-                break;
+        idx += 1;
+        while idx < hinum {
+            if !hashitem_empty(&harray[idx]) && (var_flavour(harray[idx].hi_key) & flavour) != 0 {
+                return Some(idx);
             }
-            if !hashitem_empty(&*hi) && (var_flavour((*hi).hi_key) & flavour) != 0 {
-                return hi;
-            }
+            idx += 1;
         }
-        ptr::null()
+        None
     }
 }
 
@@ -1363,7 +1363,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
             },
             do_merge: false,
             reading: false,
-            iter: ptr::null(),
+            iter: None,
             last_hist_entry: MISSING_ENTRY,
             history_type: 0,
         });
@@ -1685,10 +1685,8 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
             for (i, hm) in hms.iter_mut().enumerate().take(HIST_COUNT) {
                 hms_insert_whole_neovim_history(hm);
                 clr_history(i as c_int);
-                let mut new_hisidx: *mut c_int = ptr::null_mut();
-                let mut new_hisnum: *mut c_int = ptr::null_mut();
-                let hist = hist_get_array(i as u8, &mut new_hisidx, &mut new_hisnum);
-                if !hist.is_null() {
+                let (hist, new_hisidx, new_hisnum) = hist_get_array(i as u8);
+                if !hist.is_empty() {
                     hms_to_he_array(hm, hist, new_hisidx, new_hisnum);
                 }
                 hms_dealloc(hm);
@@ -2495,7 +2493,7 @@ unsafe fn shada_initialize_registers(
     scale_ts: bool,
 ) {
     unsafe {
-        let mut reg_iter: *const yankreg_T = ptr::null();
+        let mut reg_iter: Option<usize> = None;
         let limit_reg_lines = max_reg_lines >= 0;
         loop {
             let mut reg: *const yankreg_T = ptr::null();
@@ -2507,7 +2505,7 @@ unsafe fn shada_initialize_registers(
             }
             let reg_ref = &*reg;
             if limit_reg_lines && reg_ref.y_array.len() > (max_reg_lines as usize) {
-                if reg_iter.is_null() {
+                if reg_iter.is_none() {
                     break;
                 }
                 continue;
@@ -2534,7 +2532,7 @@ unsafe fn shada_initialize_registers(
                 }),
                 additional_data: reg_ref.additional_data,
             };
-            if reg_iter.is_null() {
+            if reg_iter.is_none() {
                 break;
             }
         }
@@ -2771,7 +2769,7 @@ unsafe fn shada_write(
             }
 
             if dump_global_vars {
-                let mut var_iter: *const hashitem_T = ptr::null();
+                let mut var_iter: Option<usize> = None;
                 let cur_timestamp = os_time();
                 loop {
                     let mut vartv = typval_T::new();
@@ -2838,17 +2836,14 @@ unsafe fn shada_write(
                                 .insert(CStr::from_ptr(name).to_bytes().to_vec());
                         }
                     }
-                    if var_iter.is_null() {
+                    if var_iter.is_none() {
                         break;
                     }
                 }
             }
 
             if num_marked_files > 0 {
-                (*wms).jumps_size = shada_init_jumps(
-                    (&raw mut (*wms).jumps).cast::<ShadaEntry>(),
-                    &removable_bufs,
-                );
+                (*wms).jumps_size = shada_init_jumps(&mut (*wms).jumps, &removable_bufs);
             }
 
             if dump_one_history[HIST_SEARCH as usize] {
@@ -2885,7 +2880,7 @@ unsafe fn shada_write(
             }
 
             if dump_global_marks {
-                let mut global_mark_iter: *const xfmark_T = ptr::null();
+                let mut global_mark_iter: Option<usize> = None;
                 let mut digit_mark_idx = 0usize;
                 loop {
                     let mut name: c_char = NUL;
@@ -2897,7 +2892,7 @@ unsafe fn shada_write(
                     let fname: *const c_char = if fm.fmark.fnum == 0 {
                         assert!(!fm.fname.is_null());
                         if shada_removable(fm.fname) {
-                            if global_mark_iter.is_null() {
+                            if global_mark_iter.is_none() {
                                 break;
                             }
                             continue;
@@ -2909,7 +2904,7 @@ unsafe fn shada_write(
                             || (*buf).b_ffname.is_null()
                             || removable_bufs.contains(&buf)
                         {
-                            if global_mark_iter.is_null() {
+                            if global_mark_iter.is_none() {
                                 break;
                             }
                             continue;
@@ -2933,7 +2928,7 @@ unsafe fn shada_write(
                     } else {
                         (*wms).global_marks[mark_global_index(name) as usize] = entry;
                     }
-                    if global_mark_iter.is_null() {
+                    if global_mark_iter.is_none() {
                         break;
                     }
                 }
@@ -2947,7 +2942,7 @@ unsafe fn shada_write(
                 let mut buf = firstbuf;
                 while !buf.is_null() {
                     if !ignore_buf(buf, &removable_bufs) {
-                        let mut local_marks_iter: *const fmark_T = ptr::null();
+                        let mut local_marks_iter: Option<c_char> = None;
                         let fname = (*buf).b_ffname;
                         let fname_bytes = CStr::from_ptr(fname).to_bytes().to_vec();
                         let filemarks: *mut FileMarks = (*wms)
@@ -2958,7 +2953,7 @@ unsafe fn shada_write(
                             let mut fm = fmark_T::new();
                             let mut name: c_char = NUL;
                             local_marks_iter =
-                                mark_buffer_iter(local_marks_iter, buf, &mut name, &mut fm);
+                                mark_buffer_iter(local_marks_iter, &*buf, &mut name, &mut fm);
                             if name == NUL {
                                 break;
                             }
@@ -2976,7 +2971,7 @@ unsafe fn shada_write(
                             if fm.timestamp > (*filemarks).greatest_timestamp {
                                 (*filemarks).greatest_timestamp = fm.timestamp;
                             }
-                            if local_marks_iter.is_null() {
+                            if local_marks_iter.is_none() {
                                 break;
                             }
                         }
@@ -4288,25 +4283,25 @@ unsafe fn shada_removable(name: *const c_char) -> bool {
 
 #[inline]
 unsafe fn shada_init_jumps(
-    jumps: *mut ShadaEntry,
+    jumps: &mut [ShadaEntry; JUMPLISTSIZE],
     removable_bufs: &std::collections::HashSet<*mut buf_T>,
 ) -> usize {
     unsafe {
         let mut jumps_size = 0usize;
-        let mut jump_iter: *const xfmark_T = ptr::null();
+        let mut jump_iter: Option<usize> = None;
         setpcmark();
         cleanup_jumplist(curwin, false);
         loop {
             let mut fm = xfmark_T::new();
-            jump_iter = mark_jumplist_iter(jump_iter, curwin, &mut fm);
+            jump_iter = mark_jumplist_iter(jump_iter, &*curwin, &mut fm);
             if fm.fmark.mark.lnum == 0 {
                 siemsg!(
-                    c"ShaDa: mark lnum zero (ji:%p, js:%p, len:%i)".as_ptr(),
-                    jump_iter,
+                    c"ShaDa: mark lnum zero (ji:%zu, js:%p, len:%i)".as_ptr(),
+                    jump_iter.unwrap_or(0),
                     &raw const (*curwin).w_jumplist,
                     (*curwin).w_jumplistlen,
                 );
-                if jump_iter.is_null() {
+                if jump_iter.is_none() {
                     break;
                 }
                 continue;
@@ -4322,7 +4317,7 @@ unsafe fn shada_init_jumps(
                 fm.fmark.fnum != 0
             };
             if skip {
-                if jump_iter.is_null() {
+                if jump_iter.is_none() {
                     break;
                 }
                 continue;
@@ -4335,12 +4330,12 @@ unsafe fn shada_init_jumps(
                 ptr::null_mut()
             };
             if fname.is_null() {
-                if jump_iter.is_null() {
+                if jump_iter.is_none() {
                     break;
                 }
                 continue;
             }
-            *jumps.add(jumps_size) = ShadaEntry {
+            jumps[jumps_size] = ShadaEntry {
                 can_free_entry: false,
                 entry_type: ShadaEntryType::kSDItemJump,
                 timestamp: fm.fmark.timestamp,
@@ -4352,7 +4347,7 @@ unsafe fn shada_init_jumps(
                 additional_data: fm.fmark.additional_data,
             };
             jumps_size += 1;
-            if jump_iter.is_null() {
+            if jump_iter.is_none() {
                 break;
             }
         }
@@ -4386,7 +4381,7 @@ pub unsafe fn shada_encode_jumps() -> NvimString {
             std::collections::HashSet::new();
         find_removable_bufs(&mut removable_bufs);
         let mut jumps = [const { MISSING_ENTRY }; JUMPLISTSIZE];
-        let jumps_size = shada_init_jumps(jumps.as_mut_ptr(), &removable_bufs);
+        let jumps_size = shada_init_jumps(&mut jumps, &removable_bufs);
         let mut packer = packer_string_buffer();
         for entry in &mut jumps[..jumps_size] {
             let entry = std::mem::replace(entry, MISSING_ENTRY);
@@ -4418,7 +4413,7 @@ pub unsafe fn shada_encode_buflist() -> NvimString {
 pub unsafe fn shada_encode_gvars() -> NvimString {
     unsafe {
         let mut packer = packer_string_buffer();
-        let mut var_iter: *const hashitem_T = ptr::null();
+        let mut var_iter: Option<usize> = None;
         let cur_timestamp = os_time();
         loop {
             let mut vartv = typval_T::new();
@@ -4455,7 +4450,7 @@ pub unsafe fn shada_encode_gvars() -> NvimString {
                 tv_clear(&mut tgttv);
             }
             tv_clear(&mut vartv);
-            if var_iter.is_null() {
+            if var_iter.is_none() {
                 break;
             }
         }

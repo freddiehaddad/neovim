@@ -2008,137 +2008,103 @@ pub unsafe fn copy_jumplist(from: *mut win_T, to: *mut win_T) {
 }
 
 /// Iterate over jumplist items (`mark_jumplist_iter`).
-pub unsafe fn mark_jumplist_iter(
-    iter: *const xfmark_T,
-    win: *const win_T,
-    fm: *mut xfmark_T,
-) -> *const xfmark_T {
-    unsafe {
-        if iter.is_null() && (*win).w_jumplistlen == 0 {
-            *fm = INIT_XFMARK;
-            return ptr::null();
-        }
-        let iter_mark = if iter.is_null() {
-            &raw const (*win).w_jumplist[0]
-        } else {
-            iter
-        };
-        *fm = *iter_mark;
-        if ptr::eq(
-            iter_mark,
-            &raw const (*win).w_jumplist[((*win).w_jumplistlen - 1) as usize],
-        ) {
-            return ptr::null();
-        }
-        iter_mark.add(1)
+pub fn mark_jumplist_iter(
+    iter: Option<usize>,
+    win: &win_T,
+    fm: &mut xfmark_T,
+) -> Option<usize> {
+    if iter.is_none() && win.w_jumplistlen == 0 {
+        *fm = INIT_XFMARK;
+        return None;
+    }
+    let idx = iter.unwrap_or(0);
+    *fm = win.w_jumplist[idx];
+    if idx + 1 >= win.w_jumplistlen as usize {
+        None
+    } else {
+        Some(idx + 1)
     }
 }
 
 /// Iterate over global marks (`mark_global_iter`).
 pub unsafe fn mark_global_iter(
-    iter: *const xfmark_T,
-    name: *mut c_char,
-    fm: *mut xfmark_T,
-) -> *const xfmark_T {
+    iter: Option<usize>,
+    name: &mut c_char,
+    fm: &mut xfmark_T,
+) -> Option<usize> {
     unsafe {
         *name = NUL;
-        let base = &raw const namedfm[0];
-        let mut iter_mark = if iter.is_null() { base } else { iter };
-        while (iter_mark.offset_from(base) as usize) < NGLOBALMARKS
-            && (*iter_mark).fmark.mark.lnum == 0
-        {
-            iter_mark = iter_mark.add(1);
+        let marks = (&raw const namedfm).as_ref().unwrap();
+        let mut idx = iter.unwrap_or(0);
+        while idx < NGLOBALMARKS && marks[idx].fmark.mark.lnum == 0 {
+            idx += 1;
         }
-        if (iter_mark.offset_from(base) as usize) == NGLOBALMARKS
-            || (*iter_mark).fmark.mark.lnum == 0
-        {
-            return ptr::null();
+        if idx >= NGLOBALMARKS || marks[idx].fmark.mark.lnum == 0 {
+            return None;
         }
-        let iter_off = iter_mark.offset_from(base) as usize;
-        *name = if iter_off < NMARKS {
-            (b'A' + iter_off as u8) as c_char
+        *name = if idx < NMARKS {
+            (b'A' + idx as u8) as c_char
         } else {
-            (b'0' + (iter_off - NMARKS) as u8) as c_char
+            (b'0' + (idx - NMARKS) as u8) as c_char
         };
-        *fm = *iter_mark;
-        loop {
-            iter_mark = iter_mark.add(1);
-            if (iter_mark.offset_from(base) as usize) >= NGLOBALMARKS {
-                break;
+        *fm = marks[idx];
+        idx += 1;
+        while idx < NGLOBALMARKS {
+            if marks[idx].fmark.mark.lnum != 0 {
+                return Some(idx);
             }
-            if (*iter_mark).fmark.mark.lnum != 0 {
-                return iter_mark;
-            }
+            idx += 1;
         }
-        ptr::null()
+        None
     }
 }
 
 #[inline]
-unsafe fn next_buffer_mark(buf: *const buf_T, mark_name: &mut c_char) -> *const fmark_T {
-    unsafe {
-        match *mark_name as u8 {
-            0 => {
-                *mark_name = b'"' as c_char;
-                &raw const (*buf).b_last_cursor
-            }
-            b'"' => {
-                *mark_name = b'^' as c_char;
-                &raw const (*buf).b_last_insert
-            }
-            b'^' => {
-                *mark_name = b'.' as c_char;
-                &raw const (*buf).b_last_change
-            }
-            b'.' => {
-                *mark_name = b'a' as c_char;
-                &raw const (*buf).b_namedm[0]
-            }
-            b'z' => ptr::null(),
-            ch => {
-                *mark_name = (ch + 1) as c_char;
-                &raw const (*buf).b_namedm[(*mark_name as u8 - b'a') as usize]
-            }
+fn next_buffer_mark<'a>(buf: &'a buf_T, mark_name: &mut c_char) -> Option<&'a fmark_T> {
+    match *mark_name as u8 {
+        0 => {
+            *mark_name = b'"' as c_char;
+            Some(&buf.b_last_cursor)
+        }
+        b'"' => {
+            *mark_name = b'^' as c_char;
+            Some(&buf.b_last_insert)
+        }
+        b'^' => {
+            *mark_name = b'.' as c_char;
+            Some(&buf.b_last_change)
+        }
+        b'.' => {
+            *mark_name = b'a' as c_char;
+            Some(&buf.b_namedm[0])
+        }
+        b'z' => None,
+        ch => {
+            *mark_name = (ch + 1) as c_char;
+            Some(&buf.b_namedm[(*mark_name as u8 - b'a') as usize])
         }
     }
 }
 
 /// Iterate over buffer marks (`mark_buffer_iter`).
-pub unsafe fn mark_buffer_iter(
-    iter: *const fmark_T,
-    buf: *const buf_T,
-    name: *mut c_char,
-    fm: *mut fmark_T,
-) -> *const fmark_T {
-    unsafe {
-        *name = NUL;
-        let mut mark_name: c_char = if iter.is_null() {
-            NUL
-        } else if ptr::eq(iter, &raw const (*buf).b_last_cursor) {
-            b'"' as c_char
-        } else if ptr::eq(iter, &raw const (*buf).b_last_insert) {
-            b'^' as c_char
-        } else if ptr::eq(iter, &raw const (*buf).b_last_change) {
-            b'.' as c_char
-        } else {
-            (b'a' as isize + iter.offset_from(&raw const (*buf).b_namedm[0])) as c_char
-        };
-        let mut iter_mark = next_buffer_mark(buf, &mut mark_name);
-        while !iter_mark.is_null() && (*iter_mark).mark.lnum == 0 {
-            iter_mark = next_buffer_mark(buf, &mut mark_name);
-        }
-        if iter_mark.is_null() {
-            return ptr::null();
-        }
-        if mark_name != NUL {
+pub fn mark_buffer_iter(
+    iter: Option<c_char>,
+    buf: &buf_T,
+    name: &mut c_char,
+    fm: &mut fmark_T,
+) -> Option<c_char> {
+    *name = NUL;
+    let mut mark_name = iter.unwrap_or(NUL);
+    let mut iter_mark = next_buffer_mark(buf, &mut mark_name);
+    while let Some(m) = iter_mark {
+        if m.mark.lnum != 0 {
             *name = mark_name;
-        } else {
-            let iter_off = iter_mark.offset_from(&raw const (*buf).b_namedm[0]) as usize;
-            *name = (b'a' + iter_off as u8) as c_char;
+            *fm = *m;
+            return Some(mark_name);
         }
-        *fm = *iter_mark;
-        iter_mark
+        iter_mark = next_buffer_mark(buf, &mut mark_name);
     }
+    None
 }
 
 /// Set global mark (`mark_set_global`).

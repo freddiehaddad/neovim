@@ -93,7 +93,7 @@ use crate::regexp::{
     NUMBUFLEN, RE_MAGIC, RE_STRING, REGSUB_COPY, REGSUB_MAGIC, regmatch_T, vim_regcomp,
     vim_regexec_nl, vim_regfree, vim_regsub,
 };
-use crate::register::{get_reg_contents_str, kGRegExprSrc, op_global_reg_iter, yankreg_T};
+use crate::register::{get_reg_contents_str, kGRegExprSrc};
 use crate::runtime::{
     exestack, free_autoload_scriptnames, free_scriptnames, get_scriptname, script_autoload,
     script_is_lua, sctx_T,
@@ -125,7 +125,7 @@ use crate::keycodes::{
     FSK_IN_STRING, FSK_KEYCODE, FSK_SIMPLIFY, K_SPECIAL, KE_SNR, KS_EXTRA, find_special_key,
     trans_special,
 };
-use crate::mark::{mark_get, mark_global_iter, xfmark_T};
+use crate::mark::mark_get;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
     mb_charlen, mb_copy_char, mb_strcmp_ic, string_convert, utf_char2bytes, utf_head_off,
@@ -4428,8 +4428,8 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
             }
 
             let vec = &raw const ctx_win_vec;
-            for i in 0..(*vec).len() {
-                let cw_win = (*vec).as_slice()[i].cw_win;
+            for cw in &*vec {
+                let cw_win = cw.cw_win;
                 if !cw_win.is_null() {
                     abort = abort
                         || set_ref_in_item(
@@ -4438,32 +4438,6 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
                             ptr::null_mut(),
                             ptr::null_mut(),
                         );
-                }
-            }
-        }
-
-        {
-            let mut reg_iter: *const yankreg_T = ptr::null();
-            loop {
-                let mut reg: *const yankreg_T = ptr::null();
-                let mut name: c_char = NUL;
-                let mut is_unnamed = false;
-                reg_iter =
-                    op_global_reg_iter(reg_iter, &raw mut name, &raw mut reg, &raw mut is_unnamed);
-                if reg_iter.is_null() {
-                    break;
-                }
-            }
-        }
-
-        {
-            let mut mark_iter: *const xfmark_T = ptr::null();
-            loop {
-                let mut fm = xfmark_T::new();
-                let mut name: c_char = NUL;
-                mark_iter = mark_global_iter(mark_iter, &raw mut name, &raw mut fm);
-                if mark_iter.is_null() {
-                    break;
                 }
             }
         }

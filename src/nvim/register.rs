@@ -366,48 +366,46 @@ pub unsafe fn get_default_register_name() -> c_int {
 }
 
 pub unsafe fn op_reg_iter(
-    iter: *const yankreg_T,
-    regs: *const yankreg_T,
-    name: *mut c_char,
-    reg: *mut *const yankreg_T,
-    is_unnamed: *mut bool,
-) -> *const yankreg_T {
+    iter: Option<usize>,
+    regs: &[yankreg_T],
+    name: &mut c_char,
+    reg: &mut *const yankreg_T,
+    is_unnamed: &mut bool,
+) -> Option<usize> {
     unsafe {
         *name = NUL;
-        let mut iter_reg = if iter.is_null() { regs } else { iter };
-        while (iter_reg.offset_from(regs) as usize) < NUM_SAVED_REGISTERS && reg_empty(iter_reg) {
-            iter_reg = iter_reg.add(1);
+        let mut idx = iter.unwrap_or(0);
+        while idx < NUM_SAVED_REGISTERS && reg_empty(&raw const regs[idx]) {
+            idx += 1;
         }
-        if (iter_reg.offset_from(regs) as usize) == NUM_SAVED_REGISTERS || reg_empty(iter_reg) {
-            return ptr::null();
+        if idx >= NUM_SAVED_REGISTERS || reg_empty(&raw const regs[idx]) {
+            return None;
         }
-        let iter_off = iter_reg.offset_from(regs) as c_int;
-        *name = get_register_name(iter_off) as u8 as c_char;
+        *name = get_register_name(idx as c_int) as u8 as c_char;
+        let iter_reg = &raw const regs[idx];
         *reg = iter_reg;
         *is_unnamed = ptr::eq(iter_reg, y_previous);
-        loop {
-            iter_reg = iter_reg.add(1);
-            if (iter_reg.offset_from(regs) as usize) >= NUM_SAVED_REGISTERS {
-                break;
+        idx += 1;
+        while idx < NUM_SAVED_REGISTERS {
+            if !reg_empty(&raw const regs[idx]) {
+                return Some(idx);
             }
-            if !reg_empty(iter_reg) {
-                return iter_reg;
-            }
+            idx += 1;
         }
-        ptr::null()
+        None
     }
 }
 
 pub unsafe fn op_global_reg_iter(
-    iter: *const yankreg_T,
-    name: *mut c_char,
-    reg: *mut *const yankreg_T,
-    is_unnamed: *mut bool,
-) -> *const yankreg_T {
+    iter: Option<usize>,
+    name: &mut c_char,
+    reg: &mut *const yankreg_T,
+    is_unnamed: &mut bool,
+) -> Option<usize> {
     unsafe {
         op_reg_iter(
             iter,
-            (&raw const y_regs).cast::<yankreg_T>(),
+            (&raw const y_regs).as_ref().unwrap(),
             name,
             reg,
             is_unnamed,
@@ -418,17 +416,17 @@ pub unsafe fn op_global_reg_iter(
 pub unsafe fn reg_max_ts(clipboard: bool) -> Timestamp {
     unsafe {
         let mut max_ts: Timestamp = 0;
-        let mut iter: *const yankreg_T = ptr::null();
+        let mut iter: Option<usize> = None;
         loop {
             let mut name: c_char = NUL;
             let mut reg: *const yankreg_T = ptr::null();
             let mut is_unnamed = false;
-            iter = op_global_reg_iter(iter, &raw mut name, &raw mut reg, &raw mut is_unnamed);
+            iter = op_global_reg_iter(iter, &mut name, &mut reg, &mut is_unnamed);
             if name == NUL {
                 break;
             }
             max_ts = max_ts.max((*reg).timestamp);
-            if iter.is_null() {
+            if iter.is_none() {
                 break;
             }
         }
