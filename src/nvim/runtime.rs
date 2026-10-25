@@ -114,9 +114,54 @@ impl sctx_T {
     }
 }
 use crate::extmark::TriState;
-pub type DoInRuntimepathCB = Option<
-    unsafe fn(num_fnames: c_int, fnames: *mut *mut c_char, all: bool, cookie: *mut c_void) -> bool,
->;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum PackAddAction {
+    AddDir,
+    Load,
+    Both,
+}
+
+#[derive(Clone, Copy)]
+pub enum RuntimeCallback {
+    Source(*mut c_int),
+    SourceVimLua,
+    AddPackStartDir,
+    AddPackPlugins { opt: bool, action: PackAddAction },
+    FindRuntime(*mut crate::api::vim::RuntimeCookie),
+    SpellLoad(*mut crate::spell::spelload_T),
+    FoundTagfile,
+}
+
+impl RuntimeCallback {
+    unsafe fn invoke(self, num_fnames: c_int, fnames: *mut *mut c_char, all: bool) {
+        unsafe {
+            match self {
+                Self::Source(cookie) => {
+                    let _ = source_callback(num_fnames, fnames, all, cookie);
+                }
+                Self::SourceVimLua => {
+                    let _ = source_callback_vim_lua(num_fnames, fnames, all, ptr::null_mut());
+                }
+                Self::AddPackStartDir => {
+                    let _ = add_pack_start_dir(num_fnames, fnames, all);
+                }
+                Self::AddPackPlugins { opt, action } => {
+                    add_pack_plugins(opt, num_fnames, fnames, all, action);
+                }
+                Self::FindRuntime(cookie) => {
+                    crate::api::vim::find_runtime_cb(num_fnames, fnames, all, cookie);
+                }
+                Self::SpellLoad(slp) => {
+                    crate::spell::spell_load_cb(num_fnames, fnames, all, slp);
+                }
+                Self::FoundTagfile => {
+                    crate::tag::found_tagfile_cb(num_fnames, fnames, all);
+                }
+            }
+        }
+    }
+}
 
 pub const ETYPE_TOP: etype_T = 0;
 pub const ETYPE_SCRIPT: etype_T = 1;
@@ -276,10 +321,6 @@ static mut get_named_thread_buf: [c_char; MAXPATHL] = [0; MAXPATHL];
 static mut pack_entry_buf: [c_char; MAXPATHL] = [0; MAXPATHL];
 static mut build_rtp_buf: [c_char; MAXPATHL] = [0; MAXPATHL];
 static mut pack_start_buf: [c_char; MAXPATHL] = [0; MAXPATHL];
-
-static mut APP_ADD_DIR: c_int = 0;
-static mut APP_LOAD: c_int = 0;
-static mut APP_BOTH: c_int = 0;
 
 use crate::buffer::{SID_MODELINE, VAR_FIXED};
 use crate::charset::NUL;
@@ -635,7 +676,7 @@ unsafe fn source_callback_vim_lua(
     num_fnames: c_int,
     fnames: *mut *mut c_char,
     all: bool,
-    cookie: *mut c_void,
+    cookie: *mut c_int,
 ) -> bool {
     unsafe {
         let mut did_one = false;
@@ -643,7 +684,7 @@ unsafe fn source_callback_vim_lua(
         for i in 0..num_fnames {
             let fname = *fnames.add(i as usize);
             if path_with_extension(fname, c"vim".as_ptr()) {
-                do_source(fname, false, DOSO_NONE, cookie.cast::<c_int>());
+                do_source(fname, false, DOSO_NONE, cookie);
                 did_one = true;
                 if !all {
                     return true;
@@ -654,7 +695,7 @@ unsafe fn source_callback_vim_lua(
         for i in 0..num_fnames {
             let fname = *fnames.add(i as usize);
             if path_with_extension(fname, c"lua".as_ptr()) {
-                do_source(fname, false, DOSO_NONE, cookie.cast::<c_int>());
+                do_source(fname, false, DOSO_NONE, cookie);
                 did_one = true;
                 if !all {
                     return true;
@@ -670,7 +711,7 @@ unsafe fn source_callback(
     num_fnames: c_int,
     fnames: *mut *mut c_char,
     all: bool,
-    cookie: *mut c_void,
+    cookie: *mut c_int,
 ) -> bool {
     unsafe {
         let mut did_one = source_callback_vim_lua(num_fnames, fnames, all, cookie);
@@ -684,7 +725,7 @@ unsafe fn source_callback(
             if !path_with_extension(fname, c"vim".as_ptr())
                 && !path_with_extension(fname, c"lua".as_ptr())
             {
-                do_source(fname, false, DOSO_NONE, cookie.cast::<c_int>());
+                do_source(fname, false, DOSO_NONE, cookie);
                 did_one = true;
                 if !all {
                     return true;
@@ -696,15 +737,13 @@ unsafe fn source_callback(
     }
 }
 
-/// Find the patterns in "name" in all directories in "path" and invoke
-/// "callback(fname, cookie)".
+/// Find the patterns in "name" in all directories in "path" and invoke `callback`.
 pub unsafe fn do_in_path(
     path: *const c_char,
     prefix: *const c_char,
     name: *mut c_char,
     flags: c_int,
-    callback: DoInRuntimepathCB,
-    cookie: *mut c_void,
+    callback: RuntimeCallback,
 ) -> c_int {
     unsafe {
         let mut did_one = false;
@@ -749,9 +788,7 @@ pub unsafe fn do_in_path(
                 }
 
                 if name.is_null() {
-                    if let Some(cb) = callback {
-                        cb(1, &mut buf, do_all, cookie);
-                    }
+                    callback.invoke(1, &mut buf, do_all);
                     did_one = true;
                 } else {
                     let prefix_len = CStr::from_ptr(prefix).to_bytes().len();
@@ -785,7 +822,7 @@ pub unsafe fn do_in_path(
                             });
 
                             did_one |= gen_expand_wildcards_and_cb(
-                                1, &mut buf, ew_flags, do_all, callback, cookie,
+                                1, &mut buf, ew_flags, do_all, callback,
                             ) == OK;
                         }
                     }
@@ -858,8 +895,7 @@ unsafe fn runtime_search_path_unref() {
 unsafe fn do_in_cached_path(
     name: *mut c_char,
     flags: c_int,
-    callback: DoInRuntimepathCB,
-    cookie: *mut c_void,
+    callback: RuntimeCallback,
 ) -> c_int {
     unsafe {
         let mut did_one = false;
@@ -891,9 +927,7 @@ unsafe fn do_in_cached_path(
             }
 
             if name.is_null() {
-                if let Some(cb) = callback {
-                    cb(1, &mut item_path, do_all, cookie);
-                }
+                callback.invoke(1, &mut item_path, do_all);
             } else if buflen + CStr::from_ptr(name).to_bytes().len() + 2 < MAXPATHL {
                 ptr::copy_nonoverlapping(item_path, buf.as_mut_ptr(), buflen + 1);
                 add_pathsep(buf.as_mut_ptr());
@@ -930,7 +964,6 @@ unsafe fn do_in_cached_path(
                         ew_flags,
                         do_all,
                         callback,
-                        cookie,
                     ) == OK;
                 }
             }
@@ -1074,8 +1107,7 @@ pub unsafe fn do_in_path_and_pp(
     path: *mut c_char,
     name: *mut c_char,
     flags: c_int,
-    callback: DoInRuntimepathCB,
-    cookie: *mut c_void,
+    callback: RuntimeCallback,
 ) -> c_int {
     unsafe {
         let mut done = FAIL;
@@ -1086,7 +1118,7 @@ pub unsafe fn do_in_path_and_pp(
             } else {
                 name
             };
-            done |= do_in_path(path, c"".as_ptr(), name_arg, flags, callback, cookie);
+            done |= do_in_path(path, c"".as_ptr(), name_arg, flags, callback);
         }
 
         if (done == FAIL || (flags & DIP_ALL) != 0) && (flags & DIP_START) != 0 {
@@ -1095,7 +1127,7 @@ pub unsafe fn do_in_path_and_pp(
             } else {
                 c"pack/*/start/*/".as_ptr()
             };
-            done |= do_in_path(p_pp, prefix, name, flags & !DIP_AFTER, callback, cookie);
+            done |= do_in_path(p_pp, prefix, name, flags & !DIP_AFTER, callback);
 
             if done == FAIL || (flags & DIP_ALL) != 0 {
                 prefix = if (flags & DIP_AFTER) != 0 {
@@ -1103,22 +1135,15 @@ pub unsafe fn do_in_path_and_pp(
                 } else {
                     c"start/*/".as_ptr()
                 };
-                done |= do_in_path(p_pp, prefix, name, flags & !DIP_AFTER, callback, cookie);
+                done |= do_in_path(p_pp, prefix, name, flags & !DIP_AFTER, callback);
             }
         }
 
         if (done == FAIL || (flags & DIP_ALL) != 0) && (flags & DIP_OPT) != 0 {
-            done |= do_in_path(
-                p_pp,
-                c"pack/*/opt/*/".as_ptr(),
-                name,
-                flags,
-                callback,
-                cookie,
-            );
+            done |= do_in_path(p_pp, c"pack/*/opt/*/".as_ptr(), name, flags, callback);
 
             if done == FAIL || (flags & DIP_ALL) != 0 {
-                done |= do_in_path(p_pp, c"opt/*/".as_ptr(), name, flags, callback, cookie);
+                done |= do_in_path(p_pp, c"opt/*/".as_ptr(), name, flags, callback);
             }
         }
 
@@ -1377,8 +1402,7 @@ pub unsafe fn update_runtime_search_path_thread(force: bool) {
 pub unsafe fn do_in_runtimepath(
     name: *mut c_char,
     mut flags: c_int,
-    callback: DoInRuntimepathCB,
-    cookie: *mut c_void,
+    callback: RuntimeCallback,
 ) -> c_int {
     unsafe {
         let mut success = FAIL;
@@ -1388,11 +1412,11 @@ pub unsafe fn do_in_runtimepath(
             } else {
                 name
             };
-            success |= do_in_cached_path(name_arg, flags, callback, cookie);
+            success |= do_in_cached_path(name_arg, flags, callback);
             flags = (flags & !DIP_START) | DIP_NORTP;
         }
         if (flags & (DIP_START | DIP_OPT)) != 0 && (success == FAIL || (flags & DIP_ALL) != 0) {
-            success |= do_in_path_and_pp(p_rtp, name, flags, callback, cookie);
+            success |= do_in_path_and_pp(p_rtp, name, flags, callback);
         }
         success
     }
@@ -1400,25 +1424,17 @@ pub unsafe fn do_in_runtimepath(
 
 /// Source the file "name" from all directories in 'runtimepath'.
 pub unsafe fn source_runtime(name: *mut c_char, flags: c_int) -> c_int {
-    unsafe { do_in_runtimepath(name, flags, Some(source_callback), ptr::null_mut()) }
+    unsafe { do_in_runtimepath(name, flags, RuntimeCallback::Source(ptr::null_mut())) }
 }
 
 /// Just like source_runtime(), but only source vim and lua files.
 pub unsafe fn source_runtime_vim_lua(name: *mut c_char, flags: c_int) -> c_int {
-    unsafe { do_in_runtimepath(name, flags, Some(source_callback_vim_lua), ptr::null_mut()) }
+    unsafe { do_in_runtimepath(name, flags, RuntimeCallback::SourceVimLua) }
 }
 
 /// Just like source_runtime(), but use "path" instead of 'runtimepath' and only source .vim and .lua files.
 pub unsafe fn source_in_path_vim_lua(path: *mut c_char, name: *mut c_char, flags: c_int) -> c_int {
-    unsafe {
-        do_in_path_and_pp(
-            path,
-            name,
-            flags,
-            Some(source_callback_vim_lua),
-            ptr::null_mut(),
-        )
-    }
+    unsafe { do_in_path_and_pp(path, name, flags, RuntimeCallback::SourceVimLua) }
 }
 
 unsafe fn gen_expand_wildcards_and_cb(
@@ -1426,8 +1442,7 @@ unsafe fn gen_expand_wildcards_and_cb(
     pats: *mut *mut c_char,
     flags: c_int,
     all: bool,
-    callback: DoInRuntimepathCB,
-    cookie: *mut c_void,
+    callback: RuntimeCallback,
 ) -> c_int {
     unsafe {
         let mut num_files: c_int = 0;
@@ -1437,9 +1452,7 @@ unsafe fn gen_expand_wildcards_and_cb(
             return FAIL;
         }
 
-        if let Some(cb) = callback {
-            cb(num_files, files, all, cookie);
-        }
+        callback.invoke(num_files, files, all);
 
         FreeWild(num_files, files);
 
@@ -1683,28 +1696,14 @@ unsafe fn load_pack_plugin(opt: bool, fname: *mut c_char) -> c_int {
         let mut pat = xmallocz(len).cast::<c_char>();
 
         vim_snprintf!(pat, len, c"%s/plugin/**/*".as_ptr(), ffname);
-        gen_expand_wildcards_and_cb(
-            1,
-            &mut pat,
-            EW_FILE,
-            true,
-            Some(source_callback_vim_lua),
-            ptr::null_mut(),
-        );
+        gen_expand_wildcards_and_cb(1, &mut pat, EW_FILE, true, RuntimeCallback::SourceVimLua);
 
         let cmd = xstrdup(c"g:did_load_filetypes".as_ptr());
 
         if opt && eval_to_number(cmd, false) > 0 {
             do_cmdline_cmd(c"augroup filetypedetect".as_ptr());
             vim_snprintf!(pat, len, c"%s/ftdetect/*".as_ptr(), ffname);
-            gen_expand_wildcards_and_cb(
-                1,
-                &mut pat,
-                EW_FILE,
-                true,
-                Some(source_callback_vim_lua),
-                ptr::null_mut(),
-            );
+            gen_expand_wildcards_and_cb(1, &mut pat, EW_FILE, true, RuntimeCallback::SourceVimLua);
             do_cmdline_cmd(c"augroup END".as_ptr());
         }
         xfree(cmd.cast::<c_void>());
@@ -1720,12 +1719,12 @@ unsafe fn add_pack_plugins(
     num_fnames: c_int,
     fnames: *mut *mut c_char,
     all: bool,
-    cookie: *mut c_void,
+    action: PackAddAction,
 ) {
     unsafe {
         let mut did_one = false;
 
-        if !ptr::eq(cookie, (&raw mut APP_LOAD).cast::<c_void>()) {
+        if action != PackAddAction::Load {
             let mut buf = [0 as c_char; MAXPATHL];
             for i in 0..num_fnames {
                 let mut found = false;
@@ -1751,7 +1750,7 @@ unsafe fn add_pack_plugins(
             return;
         }
 
-        if !ptr::eq(cookie, (&raw mut APP_ADD_DIR).cast::<c_void>()) {
+        if action != PackAddAction::AddDir {
             for i in 0..num_fnames {
                 load_pack_plugin(opt, *fnames.add(i as usize));
                 if !all {
@@ -1759,30 +1758,6 @@ unsafe fn add_pack_plugins(
                 }
             }
         }
-    }
-}
-
-unsafe fn add_start_pack_plugins(
-    num_fnames: c_int,
-    fnames: *mut *mut c_char,
-    all: bool,
-    cookie: *mut c_void,
-) -> bool {
-    unsafe {
-        add_pack_plugins(false, num_fnames, fnames, all, cookie);
-        num_fnames > 0
-    }
-}
-
-unsafe fn add_opt_pack_plugins(
-    num_fnames: c_int,
-    fnames: *mut *mut c_char,
-    all: bool,
-    cookie: *mut c_void,
-) -> bool {
-    unsafe {
-        add_pack_plugins(true, num_fnames, fnames, all, cookie);
-        num_fnames > 0
     }
 }
 
@@ -1794,8 +1769,7 @@ pub unsafe fn add_pack_start_dirs() {
             c"".as_ptr(),
             ptr::null_mut(),
             DIP_ALL + DIP_DIR,
-            Some(add_pack_start_dir),
-            ptr::null_mut(),
+            RuntimeCallback::AddPackStartDir,
         );
     }
 }
@@ -1816,7 +1790,6 @@ unsafe fn add_pack_start_dir(
     num_fnames: c_int,
     fnames: *mut *mut c_char,
     all: bool,
-    _cookie: *mut c_void,
 ) -> bool {
     unsafe {
         let buf = (&raw mut pack_start_buf).cast::<c_char>();
@@ -1853,16 +1826,20 @@ pub unsafe fn load_start_packages() {
             c"".as_ptr(),
             c"pack/*/start/*".as_ptr() as *mut c_char,
             DIP_ALL + DIP_DIR,
-            Some(add_start_pack_plugins),
-            (&raw mut APP_LOAD).cast::<c_void>(),
+            RuntimeCallback::AddPackPlugins {
+                opt: false,
+                action: PackAddAction::Load,
+            },
         );
         do_in_path(
             p_pp,
             c"".as_ptr(),
             c"start/*".as_ptr() as *mut c_char,
             DIP_ALL + DIP_DIR,
-            Some(add_start_pack_plugins),
-            (&raw mut APP_LOAD).cast::<c_void>(),
+            RuntimeCallback::AddPackPlugins {
+                opt: false,
+                action: PackAddAction::Load,
+            },
         );
 
         update_runtime_search_path_thread(false);
@@ -1919,10 +1896,10 @@ pub unsafe fn ex_packadd(eap: *mut exarg_T) {
         let len = 11 + CStr::from_ptr((*eap).arg).to_bytes().len() + 5;
         let mut pat_vec = vec![0 as c_char; len];
         let pat = pat_vec.as_mut_ptr();
-        let cookie = if (*eap).forceit != 0 {
-            (&raw mut APP_ADD_DIR).cast::<c_void>()
+        let action = if (*eap).forceit != 0 {
+            PackAddAction::AddDir
         } else {
-            (&raw mut APP_BOTH).cast::<c_void>()
+            PackAddAction::Both
         };
 
         if !did_source_packages {
@@ -1938,8 +1915,7 @@ pub unsafe fn ex_packadd(eap: *mut exarg_T) {
                 c"".as_ptr(),
                 pat,
                 DIP_ALL + DIP_DIR,
-                Some(add_start_pack_plugins),
-                cookie,
+                RuntimeCallback::AddPackPlugins { opt: false, action },
             );
         }
 
@@ -1955,8 +1931,7 @@ pub unsafe fn ex_packadd(eap: *mut exarg_T) {
             c"".as_ptr(),
             pat,
             DIP_ALL + DIP_DIR + if res == FAIL { DIP_ERR } else { 0 },
-            Some(add_opt_pack_plugins),
-            cookie,
+            RuntimeCallback::AddPackPlugins { opt: true, action },
         );
 
         update_runtime_search_path_thread(false);
@@ -3767,8 +3742,7 @@ pub unsafe fn script_autoload(name: *const c_char, name_len: usize, reload: bool
             if do_in_runtimepath(
                 scriptname,
                 DIP_START,
-                Some(source_callback),
-                (&raw mut ret_sid).cast::<c_void>(),
+                RuntimeCallback::Source(&raw mut ret_sid),
             ) == OK
             {
                 ret = true;

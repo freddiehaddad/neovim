@@ -2984,12 +2984,18 @@ pub unsafe fn syntax_clear(block: *mut synblock_T) {
     }
 }
 
+impl Drop for synblock_T {
+    fn drop(&mut self) {
+        unsafe {
+            syntax_clear(self);
+        }
+    }
+}
+
 /// Get rid of ownsyntax for window "wp".
 pub unsafe fn reset_synblock(wp: *mut win_T) {
     unsafe {
         if win_s(wp) != &raw mut (*(*wp).w_buffer).b_s {
-            syntax_clear(win_s(wp));
-            (*win_s(wp)).b_langp = Vec::new();
             drop(Box::from_raw((*wp).w_s));
             (*wp).w_s = &raw mut (*(*wp).w_buffer).b_s;
         }

@@ -45,8 +45,8 @@ use crate::spell::{
     WF_NOCOMPAFT, WF_NOCOMPBEF, WF_RARE, WF_REGION, WFP_NC, byte_in_str, captype,
     clear_spell_chartab, close_spellbuf, count_common_word, did_set_spelltab, e_format, first_lang,
     free_sal_items, init_spell_chartab, init_syl_tab, int_wordlist, onecap_copy, open_spellbuf,
-    parse_spelllang, slang_alloc, slang_clear, slang_clear_sug, slang_free, spell_casefold,
-    spell_enc, spell_soundfold, spell_toupper, spelltab,
+    parse_spelllang, slang_alloc, slang_clear, slang_clear_sug, spell_casefold, spell_enc,
+    spell_soundfold, spell_toupper, spelltab,
 };
 use crate::spellsuggest::{fromto_T, idx_T, salitem_T, slang_T, spelltab_T};
 use crate::strings::{
@@ -699,7 +699,7 @@ pub unsafe fn spell_load_file(
                 *lang = NUL;
             }
             if !lp.is_null() && old_lp.is_null() {
-                slang_free(lp);
+                drop(Box::from_raw(lp));
             }
             lp = ptr::null_mut();
         }
@@ -4783,7 +4783,7 @@ unsafe fn spell_make_sugfile(spin: *mut spellinfo_T, wfname: *mut c_char) {
         }
 
         if free_slang {
-            slang_free(slang);
+            drop(Box::from_raw(slang));
         }
         (*spin).si_blocks.clear();
         close_spellbuf((*spin).si_spellbuf);

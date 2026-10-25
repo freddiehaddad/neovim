@@ -284,6 +284,17 @@ pub struct timer_T {
     pub callback: Callback,
 }
 
+impl Drop for timer_T {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.watcher.events.is_null() {
+                multiqueue_free(self.watcher.events);
+            }
+            callback_free(&raw mut self.callback);
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct caller_scope {
@@ -5627,8 +5638,6 @@ pub unsafe fn timer_stop(timer: *mut timer_T) {
 
 unsafe fn timer_close_cb(_tw: *mut TimeWatcher, timer: *mut timer_T) {
     unsafe {
-        multiqueue_free((*timer).watcher.events);
-        callback_free(&raw mut (*timer).callback);
         let timers_ptr = &raw mut timers;
         let _ = (*timers_ptr).remove(&((*timer).timer_id as u64));
         timer_decref(timer);

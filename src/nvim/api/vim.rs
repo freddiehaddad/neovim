@@ -106,8 +106,8 @@ use crate::register::{
     PUT_CURSEND, do_put, finish_yankreg_from_object, prepare_yankreg_from_object,
 };
 use crate::runtime::{
-    DIP_ALL, DIP_DIRFILE, DOSO_NONE, do_in_runtimepath, do_source, get_lib_dir, runtime_get_named,
-    runtime_inspect, script_autoload,
+    DIP_ALL, DIP_DIRFILE, DOSO_NONE, RuntimeCallback, do_in_runtimepath, do_source, get_lib_dir,
+    runtime_get_named, runtime_inspect, script_autoload,
 };
 use crate::search::{BACKWARD, FORWARD};
 use crate::state::{MODE_MAX_LENGTH, get_mode};
@@ -270,7 +270,7 @@ pub struct MessageData {
     pub data: Dict,
 }
 
-struct RuntimeCookie {
+pub struct RuntimeCookie {
     rv: ArrayBuilder,
     arena: *mut Arena,
 }
@@ -949,14 +949,14 @@ pub unsafe extern "C" fn nvim__runtime_inspect(arena: *mut Arena) -> Array {
     unsafe { runtime_inspect(arena) }
 }
 
-unsafe fn find_runtime_cb(
+pub unsafe fn find_runtime_cb(
     num_fnames: c_int,
     fnames: *mut *mut c_char,
     all: bool,
-    c: *mut c_void,
+    c: *mut RuntimeCookie,
 ) -> bool {
     unsafe {
-        let cookie = &mut *c.cast::<RuntimeCookie>();
+        let cookie = &mut *c;
         for i in 0..(num_fnames as usize) {
             cookie
                 .rv
@@ -1006,8 +1006,7 @@ pub unsafe extern "C" fn nvim_get_runtime_file(
                 c"".as_ptr().cast_mut()
             },
             flags,
-            Some(find_runtime_cb),
-            (&raw mut cookie).cast::<c_void>(),
+            RuntimeCallback::FindRuntime(&raw mut cookie),
         );
         try_leave(&tstate, err);
 

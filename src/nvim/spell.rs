@@ -48,7 +48,7 @@ use crate::regexp::{
     MAXCOL, RE_MAGIC, regmatch_T, regprog_T, vim_regcomp, vim_regexec, vim_regexec_prog,
     vim_regfree,
 };
-use crate::runtime::{DIP_ALL, do_in_runtimepath};
+use crate::runtime::{DIP_ALL, RuntimeCallback, do_in_runtimepath};
 use crate::search::{BACKWARD, Direction, FORWARD, do_search, kShmSearch};
 use crate::spellfile::{MAXREGIONS, spell_load_file};
 use crate::spellsuggest::{
@@ -61,7 +61,7 @@ use crate::strings::{
 use crate::syntax::{syn_get_id, synblock_T, syntax_present};
 use crate::undo::u_save_cursor;
 use crate::window::{win_T, win_valid_any_tab};
-use std::ffi::{c_char, c_int, c_void};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 pub type smt_T = c_int;
 use crate::cmdexpand::MB_MAXBYTES;
@@ -167,7 +167,7 @@ impl Default for matchinf_T {
     }
 }
 #[repr(C)]
-struct spelload_T {
+pub struct spelload_T {
     sl_lang: [c_char; MAXWLEN + 1],
     sl_slang: *mut slang_T,
     sl_nobreak: c_int,
@@ -1313,8 +1313,7 @@ unsafe fn spell_load_lang(lang: *mut c_char) {
             r = do_in_runtimepath(
                 (&raw mut fname_enc).cast(),
                 0,
-                Some(spell_load_cb),
-                (&raw mut sl).cast(),
+                RuntimeCallback::SpellLoad(&raw mut sl),
             );
             if r == FAIL && sl.sl_lang[0] != NUL {
                 vim_snprintf!(
@@ -1326,8 +1325,7 @@ unsafe fn spell_load_lang(lang: *mut c_char) {
                 r = do_in_runtimepath(
                     (&raw mut fname_enc).cast(),
                     0,
-                    Some(spell_load_cb),
-                    (&raw mut sl).cast(),
+                    RuntimeCallback::SpellLoad(&raw mut sl),
                 );
                 if r == FAIL
                     && sl.sl_lang[0] != NUL
@@ -1372,7 +1370,7 @@ unsafe fn spell_load_lang(lang: *mut c_char) {
         } else if !sl.sl_slang.is_null() {
             let fn_ptr = (&raw mut fname_enc).cast::<c_char>();
             strcpy(fn_ptr.add(strlen(fn_ptr) - 3), c"add.spl".as_ptr());
-            do_in_runtimepath(fn_ptr, DIP_ALL, Some(spell_load_cb), (&raw mut sl).cast());
+            do_in_runtimepath(fn_ptr, DIP_ALL, RuntimeCallback::SpellLoad(&raw mut sl));
         }
         (*curbuf).b_locked -= 1;
     }
@@ -1454,11 +1452,6 @@ pub unsafe fn slang_alloc(lang: *mut c_char) -> *mut slang_T {
         }))
     }
 }
-pub unsafe fn slang_free(lp: *mut slang_T) {
-    unsafe {
-        drop(Box::from_raw(lp));
-    }
-}
 pub unsafe fn free_sal_items(lp: *mut slang_T) {
     unsafe {
         (*lp).sl_sal = Vec::new();
@@ -1516,14 +1509,13 @@ pub unsafe fn slang_clear_sug(lp: *mut slang_T) {
         (*lp).sl_sugtime = 0;
     }
 }
-unsafe fn spell_load_cb(
+pub unsafe fn spell_load_cb(
     num_fnames: c_int,
     fnames: *mut *mut c_char,
     all: bool,
-    cookie: *mut c_void,
+    slp: *mut spelload_T,
 ) -> bool {
     unsafe {
-        let slp = cookie.cast::<spelload_T>();
         for i in 0..(num_fnames as usize) {
             let slang = spell_load_file(
                 *fnames.add(i),

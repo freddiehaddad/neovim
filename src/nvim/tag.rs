@@ -66,7 +66,7 @@ use crate::quickfix::{CMDBUFFSIZE, kOptSwbFlagUsetab, set_errorlist};
 use crate::regexp::{
     MAXCOL, NSUBEXP, RE_MAGIC, regmatch_T, skip_regexp, vim_regcomp, vim_regexec, vim_regfree,
 };
-use crate::runtime::{DIP_ALL, do_in_runtimepath};
+use crate::runtime::{DIP_ALL, RuntimeCallback, do_in_runtimepath};
 use crate::search::{do_search, ignorecase, ignorecase_opt};
 use crate::state::MODE_INSERT;
 use crate::strings::{
@@ -77,7 +77,7 @@ use crate::window::{
     WSP_VERT, check_can_set_curbuf_forceit, swbuf_goto_win_with_buf, tabpage_index, win_T,
     win_close, win_enter, win_split, win_valid,
 };
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 #[repr(C)]
@@ -2451,11 +2451,10 @@ pub unsafe fn find_tags(
     }
 }
 
-unsafe fn found_tagfile_cb(
+pub unsafe fn found_tagfile_cb(
     num_fnames: c_int,
     fnames: *mut *mut c_char,
     all: bool,
-    _cookie: *mut c_void,
 ) -> bool {
     unsafe {
         let tf = &raw mut tag_fnames;
@@ -2508,8 +2507,7 @@ pub unsafe fn get_tagfname(tnp: *mut tagname_T, first: c_int, buf: *mut c_char) 
                 do_in_runtimepath(
                     c"doc/tags doc/tags-??".as_ptr().cast_mut(),
                     DIP_ALL,
-                    Some(found_tagfile_cb),
-                    ptr::null_mut(),
+                    RuntimeCallback::FoundTagfile,
                 );
             }
 
