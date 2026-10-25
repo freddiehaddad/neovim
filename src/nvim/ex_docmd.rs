@@ -36,8 +36,8 @@ use crate::charset::{
 };
 use crate::clipboard::{end_batch_changes, start_batch_changes};
 use crate::cmdexpand::{
-    CompleteListItemGetter, EX_NOTRLCOM, EXPAND_FILES, EXPAND_NOTHING, ExpandGeneric, ExpandInit,
-    ExpandOne, LineGetter, WILD_ADD_SLASH, WILD_EXPAND_FREE, WILD_ICASE, WILD_LIST_NOTFOUND,
+    CompleteListItemGetter, EX_NOTRLCOM, EXPAND_FILES, EXPAND_NOTHING, ExpandGeneric, ExpandOne,
+    LineGetter, WILD_ADD_SLASH, WILD_EXPAND_FREE, WILD_ICASE, WILD_LIST_NOTFOUND,
     WILD_NOERROR, cmd_addr_T, cmdidx_T, expand_process_user_list, kUICmdline,
 };
 use crate::cmdhist::ex_history;
@@ -8319,7 +8319,6 @@ pub unsafe fn expand_filename(
                 let mut xpc: expand_T = expand_T::new();
                 let mut options = WILD_LIST_NOTFOUND | WILD_NOERROR | WILD_ADD_SLASH;
 
-                ExpandInit(&raw mut xpc);
                 xpc.xp_context = EXPAND_FILES;
                 if p_wic != 0 {
                     options += WILD_ICASE;

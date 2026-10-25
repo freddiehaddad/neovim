@@ -4,8 +4,8 @@ use crate::api::private::helpers::{MAXLNUM, SID_API_CLIENT, find_buffer_by_handl
 use crate::api::private::validate::{Error, ErrorType};
 use crate::buffer::buf_T;
 use crate::cmdexpand::{
-    EXPAND_FILES, ExpandCleanup, ExpandInit, ExpandOne, WILD_ALL, WILD_ALL_KEEP, WILD_ALLLINKS,
-    WILD_ICASE, WILD_KEEP_ALL, WILD_SILENT, WILD_USE_NL, globpath,
+    EXPAND_FILES, ExpandOne, WILD_ALL, WILD_ALL_KEEP, WILD_ALLLINKS, WILD_ICASE, WILD_KEEP_ALL,
+    WILD_SILENT, WILD_USE_NL, globpath,
 };
 use crate::errors::*;
 use crate::eval::typval::{
@@ -1091,7 +1091,6 @@ pub unsafe fn f_glob(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
             }
         }
         if !error {
-            ExpandInit(&raw mut xpc);
             xpc.xp_context = EXPAND_FILES;
             if p_wic != 0 {
                 options += WILD_ICASE;
@@ -1116,7 +1115,6 @@ pub unsafe fn f_glob(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
                 for i in 0..xpc.xp_numfiles {
                     tv_list_append_string((*rettv).vval.v_list, *xpc.xp_files.add(i as usize), -1);
                 }
-                ExpandCleanup(&raw mut xpc);
             }
         } else {
             (*rettv).vval.v_string = ptr::null_mut();

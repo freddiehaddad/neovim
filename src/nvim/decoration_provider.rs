@@ -560,11 +560,16 @@ pub unsafe fn decor_provider_clear(p: *mut DecorProvider) {
     }
 }
 
+impl Drop for DecorProvider {
+    fn drop(&mut self) {
+        unsafe {
+            decor_provider_clear(self);
+        }
+    }
+}
+
 pub unsafe fn decor_free_all_mem() {
     unsafe {
-        for p in providers_mut().iter_mut() {
-            decor_provider_clear(&raw mut *p);
-        }
         decor_providers = Vec::new();
     }
 }

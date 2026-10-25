@@ -203,6 +203,18 @@ pub unsafe fn multiqueue_new_child(parent: *mut MultiQueue) -> *mut MultiQueue {
     multiqueue_new_inner(parent, std::ptr::null_mut())
 }
 
+impl Drop for MultiQueue {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.parent.is_null() && !self.items.is_empty() {
+                (*self.parent).items.retain(
+                    |entry| !matches!(*entry, QueueEntry::Child(child) if std::ptr::eq(child, self)),
+                );
+            }
+        }
+    }
+}
+
 /// Free a `MultiQueue` and all queued items (`multiqueue_free`).
 ///
 /// # Safety
@@ -210,12 +222,6 @@ pub unsafe fn multiqueue_new_child(parent: *mut MultiQueue) -> *mut MultiQueue {
 pub unsafe fn multiqueue_free(this: *mut MultiQueue) {
     assert!(!this.is_null());
     unsafe {
-        let q = &mut *this;
-        if !q.parent.is_null() && !q.items.is_empty() {
-            (*q.parent)
-                .items
-                .retain(|entry| !matches!(*entry, QueueEntry::Child(child) if child == this));
-        }
         drop(Box::from_raw(this));
     }
 }

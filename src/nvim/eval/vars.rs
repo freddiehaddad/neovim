@@ -96,7 +96,6 @@ use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
 use crate::regexp::NUMBUFLEN;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
 pub struct evalarg_T {
     pub eval_flags: c_int,
     pub eval_tofree: *mut c_char,
@@ -114,6 +113,14 @@ impl evalarg_T {
 impl Default for evalarg_T {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Drop for evalarg_T {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.eval_tofree.cast());
+        }
     }
 }
 

@@ -752,7 +752,6 @@ pub unsafe fn eval_to_string_eap(
             retval = typval2string(&raw mut tv, join_list);
             tv_clear(&raw mut tv);
         }
-        clear_evalarg(&raw mut evalarg, ptr::null_mut());
 
         retval
     }
@@ -2356,9 +2355,7 @@ pub unsafe fn eval1(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut e
                 }
             }
 
-            if evalarg.is_null() {
-                clear_evalarg(&raw mut local_evalarg, ptr::null_mut());
-            } else {
+            if !evalarg.is_null() {
                 (*evalarg).eval_flags = orig_flags;
             }
         }
@@ -2428,9 +2425,7 @@ unsafe fn eval2(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut evala
                 p = *arg;
             }
 
-            if evalarg.is_null() {
-                clear_evalarg(&raw mut local_evalarg, ptr::null_mut());
-            } else {
+            if !evalarg.is_null() {
                 (*evalarg).eval_flags = orig_flags;
             }
         }
@@ -2500,9 +2495,7 @@ unsafe fn eval3(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut evala
                 p = *arg;
             }
 
-            if evalarg.is_null() {
-                clear_evalarg(&raw mut local_evalarg, ptr::null_mut());
-            } else {
+            if !evalarg.is_null() {
                 (*evalarg).eval_flags = orig_flags;
             }
         }
@@ -5414,7 +5407,6 @@ pub unsafe fn callback_call(
                     evalarg_ptr,
                 );
                 callback_depth -= 1;
-                clear_evalarg(evalarg_ptr, ptr::null_mut());
                 return r == OK;
             }
             _ => {
@@ -7597,7 +7589,10 @@ mod tests {
 
             let mut expr1 = *b"$XXX_UNEXISTENT_VAR_XXX\0";
             let mut rettv = tv_initial_value();
-            let mut evalarg = EVALARG_EVALUATE;
+            let mut evalarg = evalarg_T {
+                eval_flags: EVAL_EVALUATE,
+                eval_tofree: ptr::null_mut(),
+            };
             assert_eq!(
                 eval0(
                     expr1.as_mut_ptr().cast(),

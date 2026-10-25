@@ -10,8 +10,7 @@ use crate::charset::{
     ascii_isalpha, ascii_isdigit, ascii_islower, ascii_iswhite, skipdigits, vim_isblankline,
 };
 use crate::cmdexpand::{
-    EXPAND_FILES, ExpandInit, ExpandOne, HLF_D, TAG_MANY, WILD_EXPAND_FREE, WILD_LIST_NOTFOUND,
-    WILD_SILENT,
+    EXPAND_FILES, ExpandOne, HLF_D, TAG_MANY, WILD_EXPAND_FREE, WILD_LIST_NOTFOUND, WILD_SILENT,
 };
 use crate::cursor::{check_cursor, linenr_T, pos_T};
 use crate::drawscreen::{UPD_VALID, redraw_later};
@@ -3065,7 +3064,6 @@ unsafe fn expand_tag_fname(
         let mut fname = to_slash_save(fname_arg);
 
         if expand && path_has_wildcard(fname, true) && vim_strchr(fname, b'`' as c_int).is_null() {
-            ExpandInit(&raw mut xpc);
             xpc.xp_context = EXPAND_FILES;
             let expanded_fname = ExpandOne(
                 &raw mut xpc,

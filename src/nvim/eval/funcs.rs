@@ -25,9 +25,9 @@ use crate::channel::{
 };
 use crate::charset::{Ctrl_V, VARNUMBER_MIN, ascii_isdigit, getdigits_int, skipwhite};
 use crate::cmdexpand::{
-    EXPAND_FILES, ExpandCleanup, ExpandInit, ExpandOne, SEARCH_START, WILD_ALL, WILD_ALL_KEEP,
-    WILD_ICASE, WILD_KEEP_ALL, WILD_LIST_NOTFOUND, WILD_SILENT, WILD_USE_NL, WILD_USE_SHELLSLASH,
-    cmdidx_T, cmdline_pum_active,
+    EXPAND_FILES, ExpandOne, SEARCH_START, WILD_ALL, WILD_ALL_KEEP, WILD_ICASE, WILD_KEEP_ALL,
+    WILD_LIST_NOTFOUND, WILD_SILENT, WILD_USE_NL, WILD_USE_SHELLSLASH, cmdidx_T,
+    cmdline_pum_active,
 };
 use crate::cursor::{
     VALID_VIRTCOL, check_cursor, colnr_T, equalpos, get_cursor_pos_ptr, linenr_T, pos_T,
@@ -2381,7 +2381,6 @@ pub unsafe fn f_expand(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
             }
             if !error {
                 let mut xpc: expand_T = expand_T::new();
-                ExpandInit(&raw mut xpc);
                 xpc.xp_context = EXPAND_FILES;
                 if p_wic != 0 {
                     options += WILD_ICASE;
@@ -2406,7 +2405,6 @@ pub unsafe fn f_expand(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
                     for i in 0..(xpc.xp_numfiles as usize) {
                         tv_list_append_string((*rettv).vval.v_list, *xpc.xp_files.add(i), -1);
                     }
-                    ExpandCleanup(&raw mut xpc);
                 }
             } else {
                 (*rettv).vval.v_string = ptr::null_mut();
