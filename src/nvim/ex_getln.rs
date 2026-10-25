@@ -4683,15 +4683,15 @@ pub unsafe fn escape_fname(pp: *mut *mut c_char) {
     }
 }
 
-/// For each file name in `files[num_files]`:
+/// For each file name in `files`:
 /// If `orig_pat` starts with `~/`, replace the home directory with `~`.
-pub unsafe fn tilde_replace(orig_pat: *mut c_char, num_files: c_int, files: *mut *mut c_char) {
+pub unsafe fn tilde_replace(orig_pat: *mut c_char, files: &mut [*mut c_char]) {
     unsafe {
         if *orig_pat == b'~' as c_char && vim_ispathsep((*orig_pat.add(1) as u8) as c_int) {
-            for i in 0..(num_files as usize) {
-                let p = home_replace_save(ptr::null_mut(), *files.add(i));
-                xfree((*files.add(i)).cast::<c_void>());
-                *files.add(i) = p;
+            for f in files {
+                let p = home_replace_save(ptr::null_mut(), *f);
+                xfree((*f).cast::<c_void>());
+                *f = p;
             }
         }
     }

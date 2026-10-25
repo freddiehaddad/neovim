@@ -1845,8 +1845,11 @@ unsafe fn ExpandEscape(
     options: c_int,
 ) {
     unsafe {
-        if (options & WILD_HOME_REPLACE) != 0 {
-            tilde_replace(str_arg, numfiles, files);
+        if (options & WILD_HOME_REPLACE) != 0 && numfiles > 0 && !files.is_null() {
+            tilde_replace(
+                str_arg,
+                std::slice::from_raw_parts_mut(files, numfiles as usize),
+            );
         }
 
         if (options & WILD_ESCAPE) != 0 {

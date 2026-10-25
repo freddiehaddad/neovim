@@ -72,9 +72,8 @@ use crate::os::fs::{errno_ptr, os_file_is_readable, os_isdir, os_open, os_set_cl
 use crate::os::input::line_breakcheck;
 use crate::os::stdpaths::{XDGVarType, get_appname, stdpaths_get_xdg_var};
 use crate::path::{
-    ENV_SEPCHAR, EW_DIR, EW_FILE, EW_NOBREAK, FreeWild, PATHSEP, add_pathsep, after_pathsep,
-    append_path, concat_fnames, fix_fname, gen_expand_wildcards, get_past_head, kPathCmpLiteral,
-    path_cmp, path_equal, path_tail, path_with_extension, to_slash, vim_ispathsep,
+    ENV_SEPCHAR, EW_DIR, EW_FILE, EW_NOBREAK, PATHSEP, add_pathsep, after_pathsep, append_path,
+    concat_fnames, fix_fname, gen_expand_wildcards_vec, get_past_head, kPathCmpLiteral, path_cmp, path_equal, path_tail, path_with_extension, to_slash, vim_ispathsep,
     vim_ispathsep_nocolon,
 };
 use crate::profile::{
@@ -134,29 +133,29 @@ pub enum RuntimeCallback {
 }
 
 impl RuntimeCallback {
-    unsafe fn invoke(self, num_fnames: c_int, fnames: *mut *mut c_char, all: bool) {
+    unsafe fn invoke(self, fnames: &[*mut c_char], all: bool) {
         unsafe {
             match self {
                 Self::Source(cookie) => {
-                    let _ = source_callback(num_fnames, fnames, all, cookie);
+                    let _ = source_callback(fnames, all, cookie);
                 }
                 Self::SourceVimLua => {
-                    let _ = source_callback_vim_lua(num_fnames, fnames, all, ptr::null_mut());
+                    let _ = source_callback_vim_lua(fnames, all, ptr::null_mut());
                 }
                 Self::AddPackStartDir => {
-                    let _ = add_pack_start_dir(num_fnames, fnames, all);
+                    let _ = add_pack_start_dir(fnames, all);
                 }
                 Self::AddPackPlugins { opt, action } => {
-                    add_pack_plugins(opt, num_fnames, fnames, all, action);
+                    add_pack_plugins(opt, fnames, all, action);
                 }
                 Self::FindRuntime(cookie) => {
-                    crate::api::vim::find_runtime_cb(num_fnames, fnames, all, cookie);
+                    crate::api::vim::find_runtime_cb(fnames, all, cookie);
                 }
                 Self::SpellLoad(slp) => {
-                    crate::spell::spell_load_cb(num_fnames, fnames, all, slp);
+                    crate::spell::spell_load_cb(fnames, all, slp);
                 }
                 Self::FoundTagfile => {
-                    crate::tag::found_tagfile_cb(num_fnames, fnames, all);
+                    crate::tag::found_tagfile_cb(fnames, all);
                 }
             }
         }
@@ -672,17 +671,11 @@ pub unsafe fn set_context_in_runtime_cmd(xp: *mut expand_T, mut arg: *const c_ch
     }
 }
 
-unsafe fn source_callback_vim_lua(
-    num_fnames: c_int,
-    fnames: *mut *mut c_char,
-    all: bool,
-    cookie: *mut c_int,
-) -> bool {
+unsafe fn source_callback_vim_lua(fnames: &[*mut c_char], all: bool, cookie: *mut c_int) -> bool {
     unsafe {
         let mut did_one = false;
 
-        for i in 0..num_fnames {
-            let fname = *fnames.add(i as usize);
+        for &fname in fnames {
             if path_with_extension(fname, c"vim".as_ptr()) {
                 do_source(fname, false, DOSO_NONE, cookie);
                 did_one = true;
@@ -692,8 +685,7 @@ unsafe fn source_callback_vim_lua(
             }
         }
 
-        for i in 0..num_fnames {
-            let fname = *fnames.add(i as usize);
+        for &fname in fnames {
             if path_with_extension(fname, c"lua".as_ptr()) {
                 do_source(fname, false, DOSO_NONE, cookie);
                 did_one = true;
@@ -707,21 +699,15 @@ unsafe fn source_callback_vim_lua(
     }
 }
 
-unsafe fn source_callback(
-    num_fnames: c_int,
-    fnames: *mut *mut c_char,
-    all: bool,
-    cookie: *mut c_int,
-) -> bool {
+unsafe fn source_callback(fnames: &[*mut c_char], all: bool, cookie: *mut c_int) -> bool {
     unsafe {
-        let mut did_one = source_callback_vim_lua(num_fnames, fnames, all, cookie);
+        let mut did_one = source_callback_vim_lua(fnames, all, cookie);
 
         if !all && did_one {
             return true;
         }
 
-        for i in 0..num_fnames {
-            let fname = *fnames.add(i as usize);
+        for &fname in fnames {
             if !path_with_extension(fname, c"vim".as_ptr())
                 && !path_with_extension(fname, c"lua".as_ptr())
             {
@@ -788,7 +774,7 @@ pub unsafe fn do_in_path(
                 }
 
                 if name.is_null() {
-                    callback.invoke(1, &mut buf, do_all);
+                    callback.invoke(&[buf], do_all);
                     did_one = true;
                 } else {
                     let prefix_len = CStr::from_ptr(prefix).to_bytes().len();
@@ -916,7 +902,7 @@ unsafe fn do_in_cached_path(
         let do_all = (flags & DIP_ALL) != 0;
 
         for item in path {
-            let mut item_path = item.path;
+            let item_path = item.path;
             let buflen = CStr::from_ptr(item_path).to_bytes().len();
 
             if (flags & (DIP_NOAFTER | DIP_AFTER)) != 0
@@ -927,7 +913,7 @@ unsafe fn do_in_cached_path(
             }
 
             if name.is_null() {
-                callback.invoke(1, &mut item_path, do_all);
+                callback.invoke(&[item_path], do_all);
             } else if buflen + CStr::from_ptr(name).to_bytes().len() + 2 < MAXPATHL {
                 ptr::copy_nonoverlapping(item_path, buf.as_mut_ptr(), buflen + 1);
                 add_pathsep(buf.as_mut_ptr());
@@ -1189,27 +1175,13 @@ unsafe fn expand_rtp_entry(
             push_path(search_path, rtp_used, entry, after, pos_in_rtp);
         }
 
-        let mut num_files: c_int = 0;
-        let mut files: *mut *mut c_char = ptr::null_mut();
+        let mut files: Vec<*mut c_char> = Vec::new();
         let mut pat = [entry];
-        if gen_expand_wildcards(
-            1,
-            pat.as_mut_ptr(),
-            &mut num_files,
-            &mut files,
-            EW_DIR | EW_NOBREAK,
-        ) == OK
-        {
-            for i in 0..num_files {
-                push_path(
-                    search_path,
-                    rtp_used,
-                    *files.add(i as usize),
-                    after,
-                    pos_in_rtp,
-                );
+        if gen_expand_wildcards_vec(1, pat.as_mut_ptr(), &mut files, EW_DIR | EW_NOBREAK) == OK {
+            for &file in &files {
+                push_path(search_path, rtp_used, file, after, pos_in_rtp);
             }
-            FreeWild(num_files, files);
+            crate::path::clear_cstrings(&mut files);
         }
     }
 }
@@ -1445,16 +1417,15 @@ unsafe fn gen_expand_wildcards_and_cb(
     callback: RuntimeCallback,
 ) -> c_int {
     unsafe {
-        let mut num_files: c_int = 0;
-        let mut files: *mut *mut c_char = ptr::null_mut();
+        let mut files: Vec<*mut c_char> = Vec::new();
 
-        if gen_expand_wildcards(num_pat, pats, &mut num_files, &mut files, flags) != OK {
+        if gen_expand_wildcards_vec(num_pat, pats, &mut files, flags) != OK {
             return FAIL;
         }
 
-        callback.invoke(num_files, files, all);
+        callback.invoke(&files, all);
 
-        FreeWild(num_files, files);
+        crate::path::clear_cstrings(&mut files);
 
         OK
     }
@@ -1714,29 +1685,23 @@ unsafe fn load_pack_plugin(opt: bool, fname: *mut c_char) -> c_int {
     }
 }
 
-unsafe fn add_pack_plugins(
-    opt: bool,
-    num_fnames: c_int,
-    fnames: *mut *mut c_char,
-    all: bool,
-    action: PackAddAction,
-) {
+unsafe fn add_pack_plugins(opt: bool, fnames: &[*mut c_char], all: bool, action: PackAddAction) {
     unsafe {
         let mut did_one = false;
 
         if action != PackAddAction::Load {
             let mut buf = [0 as c_char; MAXPATHL];
-            for i in 0..num_fnames {
+            for &fname in fnames {
                 let mut found = false;
                 let mut p: *mut c_char = p_rtp;
                 while *p != NUL {
                     copy_option_part(&mut p, buf.as_mut_ptr(), MAXPATHL, c",".as_ptr());
-                    if path_equal(buf.as_ptr(), *fnames.add(i as usize), kPathCmpLiteral) {
+                    if path_equal(buf.as_ptr(), fname, kPathCmpLiteral) {
                         found = true;
                         break;
                     }
                 }
-                if !found && add_pack_dir_to_rtp(*fnames.add(i as usize), false) == FAIL {
+                if !found && add_pack_dir_to_rtp(fname, false) == FAIL {
                     return;
                 }
                 did_one = true;
@@ -1751,8 +1716,8 @@ unsafe fn add_pack_plugins(
         }
 
         if action != PackAddAction::AddDir {
-            for i in 0..num_fnames {
-                load_pack_plugin(opt, *fnames.add(i as usize));
+            for &fname in fnames {
+                load_pack_plugin(opt, fname);
                 if !all {
                     break;
                 }
@@ -1776,26 +1741,23 @@ pub unsafe fn add_pack_start_dirs() {
 
 unsafe fn pack_has_entries(buf: *mut c_char) -> bool {
     unsafe {
-        let mut num_files: c_int = 0;
-        let mut files: *mut *mut c_char = ptr::null_mut();
+        let mut files: Vec<*mut c_char> = Vec::new();
         let mut pat = [buf];
-        if gen_expand_wildcards(1, pat.as_mut_ptr(), &mut num_files, &mut files, EW_DIR) == OK {
-            FreeWild(num_files, files);
+        if gen_expand_wildcards_vec(1, pat.as_mut_ptr(), &mut files, EW_DIR) == OK {
+            let has_entries = !files.is_empty();
+            crate::path::clear_cstrings(&mut files);
+            has_entries
+        } else {
+            false
         }
-        num_files > 0
     }
 }
 
-unsafe fn add_pack_start_dir(
-    num_fnames: c_int,
-    fnames: *mut *mut c_char,
-    all: bool,
-) -> bool {
+unsafe fn add_pack_start_dir(fnames: &[*mut c_char], all: bool) -> bool {
     unsafe {
         let buf = (&raw mut pack_start_buf).cast::<c_char>();
         let start_pats = [c"/start/*", c"/pack/*/start/*"];
-        for i in 0..num_fnames {
-            let fname = *fnames.add(i as usize);
+        for &fname in fnames {
             let fname_len = CStr::from_ptr(fname).to_bytes().len();
             for pat in &start_pats {
                 if fname_len + pat.to_bytes().len() + 1 > MAXPATHL {
@@ -1813,7 +1775,7 @@ unsafe fn add_pack_start_dir(
             }
         }
 
-        num_fnames > 1
+        fnames.len() > 1
     }
 }
 

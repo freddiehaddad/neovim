@@ -93,7 +93,7 @@ use crate::os::fs::os_fopen;
 use crate::os::input::{fast_breakcheck, line_breakcheck, os_breakcheck};
 use crate::os::time::os_hrtime;
 use crate::path::{
-    EW_ADDSLASH, EW_DIR, EW_FILE, EW_SILENT, FreeWild, PATHSEP, expand_wildcards, path_tail,
+    EW_ADDSLASH, EW_DIR, EW_FILE, EW_SILENT, FreeWild, PATHSEP, expand_wildcards_vec, path_tail,
 };
 #[cfg(windows)]
 use crate::path::{path_has_drive_letter, path_to_slash};
@@ -116,7 +116,7 @@ use crate::strings::{
     atoi, gettext, memcmp, sort_slice_by, strcat, strchr, strcmp, strcpy, strlen, strncmp, strncpy,
     strrchr, tolower, vim_snprintf, vim_strchr, vim_strsave_escaped, xstrnsave,
 };
-use crate::tag::find_tags;
+use crate::tag::find_tags_vec;
 use crate::textformat::auto_format;
 use crate::ui::{ui_flush, ui_has, vim_beep};
 use crate::undo::undo_allowed;
@@ -1431,15 +1431,17 @@ unsafe fn ins_compl_longest_match(match_: *mut compl_T) {
 }
 
 /// Add an array of matches to the list of matches. Frees matches[].
-unsafe fn ins_compl_add_matches(num_matches: c_int, matches: *mut *mut c_char, icase: c_int) {
+unsafe fn ins_compl_add_matches(matches: &mut Vec<*mut c_char>, icase: c_int) {
     unsafe {
         let mut add_r = OK;
         let mut dir = compl_direction;
 
-        let mut i: c_int = 0;
-        while i < num_matches && add_r != FAIL {
+        for &m in matches.iter() {
+            if add_r == FAIL {
+                break;
+            }
             add_r = ins_compl_add(
-                *matches.add(i as usize),
+                m,
                 -1,
                 ptr::null_mut(),
                 ptr::null(),
@@ -1456,9 +1458,8 @@ unsafe fn ins_compl_add_matches(num_matches: c_int, matches: *mut *mut c_char, i
             if add_r == OK {
                 dir = FORWARD;
             }
-            i += 1;
         }
-        FreeWild(num_matches, matches);
+        crate::path::clear_cstrings(matches);
     }
 }
 
@@ -2018,8 +2019,8 @@ unsafe fn ins_compl_dictionaries(
     unsafe {
         let mut dict = dict_start;
         let mut regmatch: regmatch_T = regmatch_T::new();
-        let mut files: *mut *mut c_char = ptr::null_mut();
-        let mut count: c_int = 0;
+        let mut files: Vec<*mut c_char> = Vec::new();
+        let mut count: c_int;
         let mut dir = compl_direction;
 
         if *dict == NUL {
@@ -2060,21 +2061,16 @@ unsafe fn ins_compl_dictionaries(
         while *dict != NUL && !got_int && !compl_interrupted {
             if flags == DICT_EXACT {
                 count = 1;
-                files = &raw mut dict;
             } else {
                 copy_option_part(&raw mut dict, buf, LSIZE, c",".as_ptr());
                 if !thesaurus && strcmp(buf, c"spell".as_ptr()) == 0 {
                     count = -1;
                 } else if !vim_strchr(buf, b'`' as c_int).is_null()
-                    || expand_wildcards(
-                        1,
-                        &raw mut buf,
-                        &raw mut count,
-                        &raw mut files,
-                        EW_FILE | EW_SILENT,
-                    ) != OK
+                    || expand_wildcards_vec(1, &raw mut buf, &mut files, EW_FILE | EW_SILENT) != OK
                 {
                     count = 0;
+                } else {
+                    count = files.len() as c_int;
                 }
             }
 
@@ -2086,17 +2082,25 @@ unsafe fn ins_compl_dictionaries(
                 };
                 spell_dump_compl(ptr, c_int::from(regmatch.rm_ic), &raw mut dir, 0);
             } else if count > 0 {
-                ins_compl_files(
-                    count,
-                    files,
-                    thesaurus,
-                    flags,
-                    &raw mut regmatch,
-                    buf,
-                    &raw mut dir,
-                );
-                if flags != DICT_EXACT {
-                    FreeWild(count, files);
+                if flags == DICT_EXACT {
+                    ins_compl_files(
+                        &[dict],
+                        thesaurus,
+                        flags,
+                        &raw mut regmatch,
+                        buf,
+                        &raw mut dir,
+                    );
+                } else {
+                    ins_compl_files(
+                        &files,
+                        thesaurus,
+                        flags,
+                        &raw mut regmatch,
+                        buf,
+                        &raw mut dir,
+                    );
+                    crate::path::clear_cstrings(&mut files);
                 }
             }
             if flags != 0 {
@@ -2156,8 +2160,7 @@ unsafe fn thesaurus_add_words_in_line(
 }
 
 unsafe fn ins_compl_files(
-    count: c_int,
-    files: *mut *mut c_char,
+    files: &[*mut c_char],
     thesaurus: bool,
     flags: c_int,
     regmatch: *mut regmatch_T,
@@ -2176,16 +2179,18 @@ unsafe fn ins_compl_files(
             0
         };
 
-        let mut i: c_int = 0;
-        while i < count && !got_int && !ins_compl_interrupted() {
-            let fp = os_fopen(*files.add(i as usize), c"r".as_ptr());
+        for &file in files {
+            if got_int || ins_compl_interrupted() {
+                break;
+            }
+            let fp = os_fopen(file, c"r".as_ptr());
             if flags != DICT_EXACT && !shortmess(kShmCompletionscan) && !compl_autocomplete {
                 let iobuff_ptr = (&raw mut IObuff).cast::<c_char>();
                 vim_snprintf!(
                     iobuff_ptr,
                     IOSIZE,
                     gettext(c"Scanning dictionary: %s".as_ptr()),
-                    *files.add(i as usize),
+                    file,
                 );
                 msg_progress(
                     iobuff_ptr,
@@ -2200,7 +2205,6 @@ unsafe fn ins_compl_files(
             }
 
             if fp.is_null() {
-                i += 1;
                 continue;
             }
 
@@ -2227,7 +2231,7 @@ unsafe fn ins_compl_files(
                                 ptr,
                                 end_ptr.offset_from(ptr) as c_int,
                                 p_ic != 0,
-                                *files.add(i as usize),
+                                file,
                                 *dir,
                                 false,
                                 score,
@@ -2257,7 +2261,7 @@ unsafe fn ins_compl_files(
                             (*regmatch).startp[0],
                             ptr.offset_from((*regmatch).startp[0]) as c_int,
                             p_ic != 0,
-                            *files.add(i as usize),
+                            file,
                             *dir,
                             false,
                             FUZZY_SCORE_NONE,
@@ -2265,7 +2269,7 @@ unsafe fn ins_compl_files(
                         if thesaurus {
                             ptr = buf;
                             add_r = thesaurus_add_words_in_line(
-                                *files.add(i as usize),
+                                file,
                                 &raw mut ptr,
                                 *dir,
                                 (*regmatch).startp[0],
@@ -2285,7 +2289,6 @@ unsafe fn ins_compl_files(
                 ins_compl_check_keys(50, false);
             }
             fclose(fp);
-            i += 1;
         }
     }
 }
@@ -4105,12 +4108,10 @@ unsafe fn get_next_tag_completion() {
         p_ic = ignorecase(compl_pattern.data);
 
         g_tag_at_cursor = true;
-        let mut matches: *mut *mut c_char = ptr::null_mut();
-        let mut num_matches: c_int = 0;
-        if find_tags(
+        let mut matches: Vec<*mut c_char> = Vec::new();
+        if find_tags_vec(
             compl_pattern.data,
-            &raw mut num_matches,
-            &raw mut matches,
+            &mut matches,
             TAG_REGEXP
                 | TAG_NAMES
                 | TAG_NOIC
@@ -4123,9 +4124,9 @@ unsafe fn get_next_tag_completion() {
             TAG_MANY,
             (*curbuf).b_ffname,
         ) == OK
-            && num_matches > 0
+            && !matches.is_empty()
         {
-            ins_compl_add_matches(num_matches, matches, p_ic);
+            ins_compl_add_matches(&mut matches, p_ic);
         }
         g_tag_at_cursor = false;
         p_ic = save_p_ic;
@@ -4217,8 +4218,7 @@ unsafe fn fuzzy_longest_match() {
 
 unsafe fn get_next_filename_completion() {
     unsafe {
-        let mut matches: *mut *mut c_char = ptr::null_mut();
-        let mut num_matches: c_int = 0;
+        let mut matches: Vec<*mut c_char> = Vec::new();
         let mut leader = ins_compl_leader();
         let mut leader_len = ins_compl_leader_len();
         let mut in_fuzzy_collect = cot_fuzzy() && leader_len > 0;
@@ -4257,23 +4257,22 @@ unsafe fn get_next_filename_completion() {
             }
         }
 
-        if expand_wildcards(
+        if expand_wildcards_vec(
             1,
             &raw mut compl_pattern.data,
-            &raw mut num_matches,
-            &raw mut matches,
+            &mut matches,
             EW_FILE | EW_DIR | EW_ADDSLASH | EW_SILENT,
         ) != OK
         {
             return;
         }
 
-        tilde_replace(compl_pattern.data, num_matches, matches);
+        tilde_replace(compl_pattern.data, &mut matches);
         #[cfg(windows)]
         {
             if (*(*curbuf).b_p_csl == NUL && p_ssl == 0) || *(*curbuf).b_p_csl == b'b' as c_char {
-                for i in 0..(num_matches as usize) {
-                    let mut ptr = *matches.add(i);
+                for &match_ptr in &matches {
+                    let mut ptr = match_ptr;
                     while *ptr != NUL {
                         if *ptr == b'/' as c_char {
                             *ptr = b'\\' as c_char;
@@ -4286,14 +4285,13 @@ unsafe fn get_next_filename_completion() {
 
         if in_fuzzy_collect {
             let mut fuzzy_indices: Vec<c_int> = Vec::with_capacity(10);
-            let mut compl_fuzzy_scores = vec![0 as c_int; num_matches as usize];
+            let mut compl_fuzzy_scores = vec![0 as c_int; matches.len()];
 
-            for i in 0..num_matches {
-                let ptr = *matches.add(i as usize);
+            for (i, &ptr) in matches.iter().enumerate() {
                 let score = fuzzy_match_str(ptr, leader);
                 if score != FUZZY_SCORE_NONE {
-                    fuzzy_indices.push(i);
-                    compl_fuzzy_scores[i as usize] = score;
+                    fuzzy_indices.push(i as c_int);
+                    compl_fuzzy_scores[i] = score;
                 }
             }
 
@@ -4318,7 +4316,7 @@ unsafe fn get_next_filename_completion() {
 
                 for (i, &idx_c) in fuzzy_indices.iter().enumerate() {
                     let idx = idx_c as usize;
-                    let match_ = *matches.add(idx);
+                    let match_ = matches[idx];
                     let current_score = compl_fuzzy_scores[idx];
                     if ins_compl_add(
                         match_,
@@ -4350,9 +4348,9 @@ unsafe fn get_next_filename_completion() {
                     }
                 }
 
-                FreeWild(num_matches, matches);
+                crate::path::clear_cstrings(&mut matches);
             } else if leader_len > 0 {
-                FreeWild(num_matches, matches);
+                crate::path::clear_cstrings(&mut matches);
             }
 
             if compl_num_bests > 0 && compl_get_longest {
@@ -4361,8 +4359,8 @@ unsafe fn get_next_filename_completion() {
             return;
         }
 
-        if num_matches > 0 {
-            ins_compl_add_matches(num_matches, matches, c_int::from(p_fic != 0 || p_wic != 0));
+        if !matches.is_empty() {
+            ins_compl_add_matches(&mut matches, c_int::from(p_fic != 0 || p_wic != 0));
         }
     }
 }
@@ -4428,12 +4426,10 @@ unsafe fn get_next_cmdline_completion() {
 
 unsafe fn get_next_spell_completion(lnum: linenr_T) {
     unsafe {
-        let mut matches: *mut *mut c_char = ptr::null_mut();
-        let num_matches = expand_spelling(lnum, compl_pattern.data, &raw mut matches);
-        if num_matches > 0 {
-            ins_compl_add_matches(num_matches, matches, p_ic);
-        } else {
-            xfree(matches.cast());
+        let mut matches: Vec<*mut c_char> = Vec::new();
+        expand_spelling(lnum, compl_pattern.data, &mut matches);
+        if !matches.is_empty() {
+            ins_compl_add_matches(&mut matches, p_ic);
         }
     }
 }

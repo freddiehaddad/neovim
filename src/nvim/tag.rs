@@ -2445,15 +2445,11 @@ pub unsafe fn find_tags_vec(
     }
 }
 
-pub unsafe fn found_tagfile_cb(
-    num_fnames: c_int,
-    fnames: *mut *mut c_char,
-    all: bool,
-) -> bool {
+pub unsafe fn found_tagfile_cb(fnames: &[*mut c_char], all: bool) -> bool {
     unsafe {
         let tf = &raw mut tag_fnames;
-        for i in 0..num_fnames as usize {
-            let tag_fname = xstrdup(*fnames.add(i));
+        for &fname in fnames {
+            let tag_fname = xstrdup(fname);
             simplify_filename(tag_fname);
             (*tf).push(CStr::from_ptr(tag_fname).to_owned());
             xfree(tag_fname.cast());
@@ -2463,7 +2459,7 @@ pub unsafe fn found_tagfile_cb(
             }
         }
 
-        num_fnames > 0
+        !fnames.is_empty()
     }
 }
 

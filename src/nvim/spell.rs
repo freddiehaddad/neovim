@@ -1509,16 +1509,11 @@ pub unsafe fn slang_clear_sug(lp: *mut slang_T) {
         (*lp).sl_sugtime = 0;
     }
 }
-pub unsafe fn spell_load_cb(
-    num_fnames: c_int,
-    fnames: *mut *mut c_char,
-    all: bool,
-    slp: *mut spelload_T,
-) -> bool {
+pub unsafe fn spell_load_cb(fnames: &[*mut c_char], all: bool, slp: *mut spelload_T) -> bool {
     unsafe {
-        for i in 0..(num_fnames as usize) {
+        for &fname in fnames {
             let slang = spell_load_file(
-                *fnames.add(i),
+                fname,
                 (&raw mut (*slp).sl_lang).cast(),
                 ptr::null_mut(),
                 false,
@@ -1536,7 +1531,7 @@ pub unsafe fn spell_load_cb(
                 break;
             }
         }
-        num_fnames > 0
+        !fnames.is_empty()
     }
 }
 pub unsafe fn count_common_word(lp: *mut slang_T, word: *mut c_char, len: c_int, count: u8) {
@@ -3201,13 +3196,11 @@ pub unsafe fn spell_expand_check_cap(col: colnr_T) {
 pub unsafe fn expand_spelling(
     _lnum: linenr_T,
     pat: *mut c_char,
-    matchp: *mut *mut *mut c_char,
-) -> c_int {
+    matches: &mut Vec<*mut c_char>,
+) {
     unsafe {
-        let mut ga: Vec<*mut c_char> = Vec::new();
-        spell_suggest_list(&mut ga, pat, 100, spell_expand_need_cap, true);
-        *matchp = crate::path::slice_to_xmalloc(&ga);
-        ga.len() as c_int
+        matches.clear();
+        spell_suggest_list(matches, pat, 100, spell_expand_need_cap, true);
     }
 }
 pub unsafe fn valid_spelllang(val: *const c_char) -> bool {
