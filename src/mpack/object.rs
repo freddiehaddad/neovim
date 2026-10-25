@@ -1,7 +1,6 @@
 //! MessagePack object tree parser and unparser (`src/mpack/object.c`).
 
 use std::ffi::{c_char, c_int, c_void};
-use std::mem::{offset_of, size_of};
 use std::ptr;
 
 use crate::mpack::mpack_core::{
@@ -63,7 +62,7 @@ impl Default for mpack_node_t {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct mpack_parser_t {
     pub data: mpack_data_t,
     pub size: mpack_uint32_t,
@@ -72,6 +71,7 @@ pub struct mpack_parser_t {
     pub exiting: c_int,
     pub tokbuf: mpack_tokbuf_t,
     pub items: [mpack_node_t; MPACK_MAX_OBJECT_DEPTH + 1],
+    pub items_vec: Vec<mpack_node_t>,
 }
 
 impl mpack_parser_t {
@@ -91,21 +91,12 @@ impl mpack_parser_t {
             exiting: 0,
             tokbuf: mpack_tokbuf_t::new(),
             items,
+            items_vec: Vec::new(),
         }
     }
 }
 
 pub type mpack_walk_cb = Option<unsafe fn(w: *mut mpack_parser_t, n: *mut mpack_node_t)>;
-
-#[inline]
-pub const fn mpack_parser_struct_size(c: mpack_uint32_t) -> usize {
-    let min_cap = if (c as usize) < MPACK_MAX_OBJECT_DEPTH {
-        MPACK_MAX_OBJECT_DEPTH
-    } else {
-        c as usize
-    };
-    offset_of!(mpack_parser_t, items) + (min_cap + 1) * size_of::<mpack_node_t>()
-}
 
 #[inline]
 pub unsafe fn mpack_parent_node(n: *mut mpack_node_t) -> *mut mpack_node_t {
@@ -121,25 +112,52 @@ pub unsafe fn mpack_parent_node(n: *mut mpack_node_t) -> *mut mpack_node_t {
 
 #[inline]
 unsafe fn parser_items_ptr(parser: *mut mpack_parser_t) -> *mut mpack_node_t {
-    unsafe { (&raw mut (*parser).items).cast::<mpack_node_t>() }
+    unsafe {
+        if (*parser).items_vec.is_empty() {
+            (&raw mut (*parser).items).cast::<mpack_node_t>()
+        } else {
+            (*parser).items_vec.as_mut_ptr()
+        }
+    }
 }
 
 pub unsafe fn mpack_parser_init(parser: *mut mpack_parser_t, capacity: mpack_uint32_t) {
     unsafe {
-        mpack_tokbuf_init(&raw mut (*parser).tokbuf);
-        (*parser).data.p = ptr::null_mut();
-        (*parser).capacity = if capacity != 0 {
+        let parser = &mut *parser;
+        mpack_tokbuf_init(&raw mut parser.tokbuf);
+        parser.data.p = ptr::null_mut();
+        parser.capacity = if capacity != 0 {
             capacity
         } else {
             MPACK_MAX_OBJECT_DEPTH as mpack_uint32_t
         };
-        (*parser).size = 0;
-        (*parser).exiting = 0;
-        let items = parser_items_ptr(parser);
-        let items_slice = std::slice::from_raw_parts_mut(items, ((*parser).capacity as usize) + 1);
-        items_slice.fill(mpack_node_t::new());
-        (*items).pos = usize::MAX;
-        (*parser).status = 0;
+        parser.size = 0;
+        parser.exiting = 0;
+        if (parser.capacity as usize) <= MPACK_MAX_OBJECT_DEPTH {
+            parser.items_vec = Vec::new();
+            parser.items[..(parser.capacity as usize) + 1].fill(mpack_node_t::new());
+            parser.items[0].pos = usize::MAX;
+        } else {
+            parser.items_vec = vec![mpack_node_t::new(); (parser.capacity as usize) + 1];
+            parser.items_vec[0].pos = usize::MAX;
+        }
+        parser.status = 0;
+    }
+}
+
+pub unsafe fn mpack_parser_grow(parser: *mut mpack_parser_t) {
+    unsafe {
+        let p = &mut *parser;
+        let new_capacity = p.capacity * 2;
+        if p.items_vec.is_empty() {
+            let mut v = vec![mpack_node_t::new(); (new_capacity as usize) + 1];
+            let copy_len = ((p.capacity as usize) + 1).min(p.items.len());
+            v[..copy_len].copy_from_slice(&p.items[..copy_len]);
+            p.items_vec = v;
+        } else {
+            p.items_vec.resize((new_capacity as usize) + 1, mpack_node_t::new());
+        }
+        p.capacity = new_capacity;
     }
 }
 
@@ -327,22 +345,6 @@ pub unsafe fn mpack_unparse(
         }
 
         status
-    }
-}
-
-pub unsafe fn mpack_parser_copy(d: *mut mpack_parser_t, s: *mut mpack_parser_t) {
-    unsafe {
-        let dst_capacity = (*d).capacity;
-        debug_assert!((*s).capacity <= dst_capacity);
-        ptr::copy_nonoverlapping(
-            s.cast::<u8>(),
-            d.cast::<u8>(),
-            offset_of!(mpack_parser_t, items),
-        );
-        (*d).capacity = dst_capacity;
-        let dst_items = parser_items_ptr(d);
-        let src_items = parser_items_ptr(s);
-        ptr::copy_nonoverlapping(src_items, dst_items, ((*s).capacity as usize) + 1);
     }
 }
 

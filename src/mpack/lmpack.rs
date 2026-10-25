@@ -17,7 +17,6 @@ use crate::lua::converter::{
     luaL_checklstring, luaL_checknumber, luaL_checkudata, luaL_error, luaL_getmetatable,
     luaL_newmetatable, luaL_prepbuffer, luaL_pushresult, luaL_ref, luaL_register, luaL_unref,
 };
-use crate::memory::{try_malloc, xfree};
 use crate::mpack::conv::{
     mpack_pack_array, mpack_pack_bin, mpack_pack_boolean, mpack_pack_chunk, mpack_pack_ext,
     mpack_pack_map, mpack_pack_nil, mpack_pack_number, mpack_pack_str, mpack_unpack_boolean,
@@ -29,8 +28,8 @@ use crate::mpack::mpack_core::{
     MPACK_TOKEN_SINT, MPACK_TOKEN_STR, MPACK_TOKEN_UINT, mpack_sintmax_t, mpack_uint32_t,
 };
 use crate::mpack::object::{
-    MPACK_NOMEM, mpack_data_t, mpack_node_t, mpack_parent_node, mpack_parse, mpack_parser_copy,
-    mpack_parser_init, mpack_parser_struct_size, mpack_parser_t, mpack_unparse,
+    MPACK_NOMEM, mpack_data_t, mpack_node_t, mpack_parent_node, mpack_parse, mpack_parser_grow,
+    mpack_parser_init, mpack_parser_t, mpack_unparse,
 };
 use crate::mpack::rpc::{
     MPACK_RPC_NOTIFICATION, MPACK_RPC_REQUEST, MPACK_RPC_RESPONSE, mpack_rpc_message_t,
@@ -55,7 +54,7 @@ struct LmpackUnpacker {
     ext: c_int,
     unpacking: c_int,
     mtdict: c_int,
-    string_buffer: *mut c_char,
+    string_buffer: Vec<c_char>,
 }
 
 #[repr(C)]
@@ -131,21 +130,6 @@ unsafe fn lmpack_shallow_copy(l: *mut lua_State) {
             lua_settable(l, -4);
         }
         lua_remove(l, -2);
-    }
-}
-
-unsafe fn lmpack_grow_parser(parser: *mut mpack_parser_t) -> *mut mpack_parser_t {
-    unsafe {
-        let old = parser;
-        let new_capacity = (*old).capacity * 2;
-        let new_parser =
-            try_malloc(mpack_parser_struct_size(new_capacity)).cast::<mpack_parser_t>();
-        if !new_parser.is_null() {
-            mpack_parser_init(new_parser, new_capacity);
-            mpack_parser_copy(new_parser, old);
-            xfree(old.cast::<c_void>());
-        }
-        new_parser
     }
 }
 
@@ -237,18 +221,25 @@ unsafe extern "C-unwind" fn lmpack_unpacker_new(l: *mut lua_State) -> c_int {
         }
 
         let rv = lua_newuserdata(l, size_of::<LmpackUnpacker>()).cast::<LmpackUnpacker>();
-        (*rv).parser = Box::into_raw(Box::new(mpack_parser_t::new(0)));
+        ptr::write(
+            rv,
+            LmpackUnpacker {
+                L: l,
+                parser: Box::into_raw(Box::new(mpack_parser_t::new(0))),
+                reg: LUA_NOREF,
+                ext: LUA_NOREF,
+                unpacking: 0,
+                mtdict: 0,
+                string_buffer: Vec::new(),
+            },
+        );
         mpack_parser_init((*rv).parser, 0);
         (*(*rv).parser).data.p = rv.cast::<c_void>();
-        (*rv).string_buffer = ptr::null_mut();
-        (*rv).L = l;
-        (*rv).unpacking = 0;
         luaL_getmetatable(l, UNPACKER_META_NAME.as_ptr());
         lua_setmetatable(l, -2);
 
         lua_newtable(l);
         (*rv).reg = luaL_ref(l, LUA_REGISTRYINDEX);
-        (*rv).ext = LUA_NOREF;
 
         lua_getfield(l, LUA_REGISTRYINDEX, EMPTY_DICT_NAME.as_ptr());
         (*rv).mtdict = lmpack_ref(l, (*rv).reg);
@@ -279,6 +270,7 @@ unsafe extern "C-unwind" fn lmpack_unpacker_delete(l: *mut lua_State) -> c_int {
             drop(Box::from_raw((*unpacker).parser));
             (*unpacker).parser = ptr::null_mut();
         }
+        (*unpacker).string_buffer = Vec::new();
         0
     }
 }
@@ -299,20 +291,18 @@ unsafe fn lmpack_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_
                 lua_pushnumber(l, mpack_unpack_number((*node).tok));
             }
             MPACK_TOKEN_CHUNK => {
-                debug_assert!(!(*unpacker).string_buffer.is_null());
                 let parent = mpack_parent_node(node);
                 ptr::copy_nonoverlapping(
                     (*node).tok.data.chunk_ptr,
-                    (*unpacker).string_buffer.add((*parent).pos),
+                    (*unpacker).string_buffer.as_mut_ptr().add((*parent).pos),
                     (*node).tok.length as usize,
                 );
             }
             MPACK_TOKEN_BIN | MPACK_TOKEN_STR | MPACK_TOKEN_EXT => {
-                (*unpacker).string_buffer =
-                    try_malloc((*node).tok.length as usize).cast::<c_char>();
-                if (*unpacker).string_buffer.is_null() {
-                    luaL_error(l, c"Failed to allocate memory".as_ptr());
-                }
+                (*unpacker).string_buffer.clear();
+                (*unpacker)
+                    .string_buffer
+                    .resize((*node).tok.length as usize, 0);
             }
             MPACK_TOKEN_ARRAY | MPACK_TOKEN_MAP => {
                 lua_newtable(l);
@@ -331,9 +321,12 @@ unsafe fn lmpack_parse_exit(parser: *mut mpack_parser_t, node: *mut mpack_node_t
 
         match (*node).tok.r#type {
             MPACK_TOKEN_BIN | MPACK_TOKEN_STR | MPACK_TOKEN_EXT => {
-                lua_pushlstring(l, (*unpacker).string_buffer, (*node).tok.length as usize);
-                xfree((*unpacker).string_buffer.cast::<c_void>());
-                (*unpacker).string_buffer = ptr::null_mut();
+                lua_pushlstring(
+                    l,
+                    (*unpacker).string_buffer.as_ptr(),
+                    (*node).tok.length as usize,
+                );
+                (*unpacker).string_buffer.clear();
                 if (*node).tok.r#type == MPACK_TOKEN_EXT && (*unpacker).ext != LUA_NOREF {
                     lmpack_geti(l, (*unpacker).reg, (*unpacker).ext);
                     lua_rawgeti(l, -1, (*node).tok.data.ext_type);
@@ -412,10 +405,7 @@ unsafe fn lmpack_unpacker_unpack_str(
             (*unpacker).unpacking = 0;
 
             if rv == MPACK_NOMEM {
-                (*unpacker).parser = lmpack_grow_parser((*unpacker).parser);
-                if (*unpacker).parser.is_null() {
-                    return luaL_error(l, c"failed to grow Unpacker capacity".as_ptr());
-                }
+                mpack_parser_grow((*unpacker).parser);
             } else {
                 break;
             }
@@ -754,10 +744,7 @@ unsafe extern "C-unwind" fn lmpack_packer_pack(l: *mut lua_State) -> c_int {
             (*packer).packing = 0;
 
             if result == MPACK_NOMEM {
-                (*packer).parser = lmpack_grow_parser((*packer).parser);
-                if (*packer).parser.is_null() {
-                    return luaL_error(l, c"Failed to grow Packer capacity".as_ptr());
-                }
+                mpack_parser_grow((*packer).parser);
             }
 
             luaL_addsize(&mut buffer, bl_init - bl);
@@ -1044,7 +1031,7 @@ unsafe extern "C-unwind" fn lmpack_unpack(l: *mut lua_State) -> c_int {
             ext: LUA_NOREF,
             unpacking: 0,
             mtdict: 0,
-            string_buffer: ptr::null_mut(),
+            string_buffer: Vec::new(),
         };
         mpack_parser_init(unpacker.parser, 0);
         (*unpacker.parser).data.p = (&raw mut unpacker).cast::<c_void>();
