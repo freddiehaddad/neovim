@@ -222,10 +222,10 @@ mod win_impl {
             let mut proc_handle: HANDLE = ptr::null_mut();
             let mut in_req: *mut uv_connect_t = ptr::null_mut();
             let mut out_req: *mut uv_connect_t = ptr::null_mut();
-            let mut file: *mut u16 = ptr::null_mut();
-            let mut cmd_line: *mut u16 = ptr::null_mut();
-            let mut cwd: *mut u16 = ptr::null_mut();
-            let mut env: *mut u16 = ptr::null_mut();
+            let mut file: Vec<u16> = Vec::new();
+            let mut cmd_line: Vec<u16> = Vec::new();
+            let mut cwd: Vec<u16> = Vec::new();
+            let mut env: Vec<u16> = Vec::new();
             let mut emsg: *const c_char = ptr::null();
 
             debug_assert!((*r_err).s.closed);
@@ -267,7 +267,7 @@ mod win_impl {
                 }
 
                 if !(*hdr).cwd.is_null() {
-                    status = utf8_to_utf16((*hdr).cwd, -1, &raw mut cwd);
+                    status = utf8_to_utf16((*hdr).cwd, -1, &mut cwd);
                     if status != 0 {
                         emsg = c"utf8_to_utf16(proc->cwd) failed".as_ptr();
                         break 'cleanup;
@@ -283,21 +283,21 @@ mod win_impl {
                         emsg = c"executable not found".as_ptr();
                         break 'cleanup;
                     }
-                    status = utf8_to_utf16(path, -1, &raw mut file);
+                    status = utf8_to_utf16(path, -1, &mut file);
+                    xfree(path.cast());
                     if status != 0 {
                         emsg = c"utf8_to_utf16(proc->argv[0]) failed".as_ptr();
                         break 'cleanup;
                     }
-                    xfree(path.cast());
                 }
-                status = build_cmd_line((*hdr).argv.as_mut_ptr(), &raw mut cmd_line, is_cmdexe);
+                status = build_cmd_line((*hdr).argv.as_slice(), &mut cmd_line, is_cmdexe);
                 if status != 0 {
                     emsg = c"build_cmd_line failed".as_ptr();
                     break 'cleanup;
                 }
 
                 if !(*hdr).env.is_null() {
-                    status = build_env_block((*hdr).env, &raw mut env);
+                    status = build_env_block((*hdr).env, &mut env);
                 }
 
                 if status != 0 {
@@ -308,10 +308,22 @@ mod win_impl {
                 if !os_conpty_spawn(
                     conpty_object,
                     &raw mut proc_handle,
-                    file,
-                    cmd_line,
-                    cwd,
-                    env,
+                    if file.is_empty() {
+                        ptr::null_mut()
+                    } else {
+                        file.as_mut_ptr()
+                    },
+                    cmd_line.as_mut_ptr(),
+                    if cwd.is_empty() {
+                        ptr::null_mut()
+                    } else {
+                        cwd.as_mut_ptr()
+                    },
+                    if env.is_empty() {
+                        ptr::null_mut()
+                    } else {
+                        env.as_mut_ptr()
+                    },
                 ) {
                     emsg = c"os_conpty_spawn failed".as_ptr();
                     status = GetLastError() as c_int;
@@ -368,10 +380,6 @@ mod win_impl {
             }
             xfree(in_req.cast());
             xfree(out_req.cast());
-            xfree(file.cast());
-            xfree(cmd_line.cast());
-            xfree(env.cast());
-            xfree(cwd.cast());
             status
         }
     }
@@ -447,20 +455,21 @@ mod win_impl {
     }
 
     unsafe fn build_cmd_line(
-        mut argv: *mut *mut c_char,
-        cmd_line: *mut *mut u16,
+        argv: &[*mut c_char],
+        cmd_line: &mut Vec<u16>,
         is_cmdexe: bool,
     ) -> c_int {
         unsafe {
             let mut utf8_cmd_line: Vec<c_char> = Vec::new();
             let mut arg_buf: Vec<c_char> = Vec::new();
-            let mut argc: usize = 0;
 
-            while !(*argv).is_null() {
+            for (argc, &arg_str) in argv.iter().enumerate() {
+                if arg_str.is_null() {
+                    break;
+                }
                 if argc > 0 {
                     utf8_cmd_line.push(b' ' as c_char);
                 }
-                let arg_str = *argv;
                 if is_cmdexe {
                     let src = if argc == 0 {
                         c"cmd.exe".as_ptr()
@@ -476,8 +485,6 @@ mod win_impl {
                     let quoted_len = strlen(arg_buf.as_ptr());
                     utf8_cmd_line.extend_from_slice(&arg_buf[..quoted_len]);
                 }
-                argc += 1;
-                argv = argv.add(1);
             }
             utf8_cmd_line.push(NUL);
 
@@ -485,50 +492,30 @@ mod win_impl {
         }
     }
 
-    unsafe fn build_env_block(denv: *mut dict_T, env_block: *mut *mut u16) -> c_int {
+    unsafe fn build_env_block(denv: *mut dict_T, env_block: &mut Vec<u16>) -> c_int {
         unsafe {
-            let denv_size = if denv.is_null() {
-                0
-            } else {
-                (*denv).dv_hashtab.ht_used
-            };
-            let mut env_block_len: usize = 0;
+            env_block.clear();
             let mut rc: c_int = 0;
             let mut env = tv_dict_to_env(denv);
-            let mut nodes: Vec<(*mut u16, usize)> = Vec::with_capacity(denv_size);
+            let mut str_utf16: Vec<u16> = Vec::new();
 
-            'cleanup: {
-                for &entry in &env {
-                    if entry.is_null() {
-                        break;
-                    }
-                    let mut str_utf16: *mut u16 = ptr::null_mut();
-                    rc = utf8_to_utf16(entry, -1, &raw mut str_utf16);
-                    if rc != 0 {
-                        xfree(str_utf16.cast());
-                        break 'cleanup;
-                    }
-                    let len = wcslen(str_utf16) + 1;
-                    env_block_len += len;
-                    nodes.push((str_utf16, len));
+            for &entry in &env {
+                if entry.is_null() {
+                    break;
                 }
-
-                env_block_len += 1;
-                let block: *mut u16 = xmalloc(size_of::<u16>() * env_block_len).cast();
-                *env_block = block;
-                let mut pos = block;
-
-                for &(s, len) in &nodes {
-                    ptr::copy_nonoverlapping(s, pos, len);
-                    pos = pos.add(len);
+                rc = utf8_to_utf16(entry, -1, &mut str_utf16);
+                if rc != 0 {
+                    env_block.clear();
+                    break;
                 }
-                *pos = 0;
+                let len = wcslen(str_utf16.as_ptr()) + 1;
+                env_block.extend_from_slice(&str_utf16[..len]);
+            }
+            if rc == 0 {
+                env_block.push(0);
             }
 
             crate::path::clear_cstrings(&mut env);
-            for (s, _) in nodes {
-                xfree(s.cast());
-            }
             rc
         }
     }

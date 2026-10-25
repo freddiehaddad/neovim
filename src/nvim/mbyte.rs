@@ -2195,23 +2195,22 @@ pub unsafe fn utf_strnicmp(
 }
 
 #[cfg(windows)]
-pub unsafe fn utf8_to_utf16(utf8: *const c_char, utf8len: c_int, utf16: *mut *mut u16) -> c_int {
+pub unsafe fn utf8_to_utf16(utf8: *const c_char, utf8len: c_int, utf16: &mut Vec<u16>) -> c_int {
     unsafe {
+        utf16.clear();
         let mut bufsize = MultiByteToWideChar(CP_UTF8, 0, utf8, utf8len, ptr::null_mut(), 0);
         if bufsize == 0 {
-            *utf16 = ptr::null_mut();
             return uv_translate_sys_error(GetLastError() as c_int);
         }
 
-        *utf16 = xmalloc(size_of::<u16>() * ((bufsize as usize) + 1)).cast::<u16>();
-        bufsize = MultiByteToWideChar(CP_UTF8, 0, utf8, utf8len, *utf16, bufsize);
+        utf16.resize((bufsize as usize) + 1, 0);
+        bufsize = MultiByteToWideChar(CP_UTF8, 0, utf8, utf8len, utf16.as_mut_ptr(), bufsize);
         if bufsize == 0 {
-            xfree((*utf16).cast());
-            *utf16 = ptr::null_mut();
+            utf16.clear();
             return uv_translate_sys_error(GetLastError() as c_int);
         }
 
-        *(*utf16).add(bufsize as usize) = 0;
+        utf16[bufsize as usize] = 0;
         0
     }
 }

@@ -1731,18 +1731,18 @@ pub unsafe fn os_resolve_shortcut(fname: *const c_char) -> *mut c_char {
             (&raw mut pslw).cast(),
         );
         if hr == 0 {
-            let mut p: *mut u16 = ptr::null_mut();
-            let r = utf8_to_utf16(fname, -1, &raw mut p);
+            let mut p: Vec<u16> = Vec::new();
+            let r = utf8_to_utf16(fname, -1, &mut p);
             if r != 0 {
                 semsg!(c"utf8_to_utf16 failed: %d".as_ptr(), r);
-            } else if !p.is_null() {
+            } else if !p.is_empty() {
                 let hr2 = ((*(*pslw).lp_vtbl).query_interface)(
                     pslw,
                     &raw const IID_IPERSIST_FILE,
                     (&raw mut ppf).cast(),
                 );
                 if hr2 == 0 {
-                    let hr3 = ((*(*ppf).lp_vtbl).load)(ppf, p, 0);
+                    let hr3 = ((*(*ppf).lp_vtbl).load)(ppf, p.as_ptr(), 0);
                     if hr3 == 0 {
                         let mut wsz = [0u16; 260];
                         let mut ffdw = [0u8; 600];
@@ -1761,7 +1761,6 @@ pub unsafe fn os_resolve_shortcut(fname: *const c_char) -> *mut c_char {
                         }
                     }
                 }
-                xfree(p.cast());
             }
         }
 
@@ -1787,12 +1786,13 @@ pub unsafe fn os_resolve_shortcut(fname: *const c_char) -> *mut c_char {
 pub unsafe fn os_is_reparse_point_include(path: *const c_char) -> bool {
     #[cfg(windows)]
     unsafe {
-        let mut utf16_path: *mut u16 = ptr::null_mut();
-        let r = utf8_to_utf16(path, -1, &raw mut utf16_path);
+        let mut utf16_vec: Vec<u16> = Vec::new();
+        let r = utf8_to_utf16(path, -1, &mut utf16_vec);
         if r != 0 {
             semsg!(c"utf8_to_utf16 failed: %d".as_ptr(), r);
             return false;
         }
+        let utf16_path = utf16_vec.as_ptr();
 
         let is_sep = |c: u16| c == (b'\\' as u16) || c == (b'/' as u16);
         let mut p = utf16_path;
@@ -1828,7 +1828,6 @@ pub unsafe fn os_is_reparse_point_include(path: *const c_char) -> bool {
                 break;
             }
         }
-        xfree(utf16_path.cast());
         result
     }
     #[cfg(not(windows))]
