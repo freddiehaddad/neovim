@@ -6,7 +6,7 @@ use crate::event::r#loop::loop_recursive_ptr;
 use crate::fileio::{SEEK_END, SEEK_SET, close, off_T, read_eintr, vim_lseek, write_eintr};
 use crate::globals::*;
 use crate::memline::{MFS_FLUSH, ml_get_buf, ml_open_file};
-use crate::memory::{xfree, xmalloc};
+use crate::memory::xfree;
 use crate::message::{emsg, iemsg, semsg};
 use crate::os::fs::{
     FileInfo, O_CREAT, O_EXCL, O_NOFOLLOW, O_RDWR, O_TRUNC, os_fileinfo_blocksize, os_fileinfo_fd,
@@ -50,6 +50,7 @@ const S_IWRITE: c_int = 0o200;
 #[repr(C)]
 pub struct bhdr_T {
     pub bh_bnum: blocknr_T,
+    pub bh_data_vec: Vec<u8>,
     pub bh_data: *mut u8,
     pub bh_page_count: c_uint,
     pub bh_flags: c_uint,
@@ -62,8 +63,8 @@ pub struct memfile_T {
     pub mf_fd: c_int,
     pub mf_flags: c_int,
     pub mf_reopen: bool,
-    pub mf_free_list: Vec<*mut bhdr_T>,
-    pub mf_hash: std::collections::HashMap<i64, *mut bhdr_T>,
+    pub mf_free_list: Vec<bhdr_T>,
+    pub mf_hash: std::collections::HashMap<i64, std::pin::Pin<Box<bhdr_T>>>,
     pub mf_trans: std::collections::HashMap<i64, i64>,
     pub mf_blocknr_max: blocknr_T,
     pub mf_blocknr_min: blocknr_T,
@@ -83,20 +84,13 @@ unsafe fn perror_msg(msg: *const c_char) {
 
 #[inline]
 pub unsafe fn pmap_get_bhdr(
-    map: *const std::collections::HashMap<i64, *mut bhdr_T>,
+    map: *const std::collections::HashMap<i64, std::pin::Pin<Box<bhdr_T>>>,
     key: i64,
-) -> *mut bhdr_T {
-    unsafe { (*map).get(&key).copied().unwrap_or(ptr::null_mut()) }
-}
-
-#[inline]
-unsafe fn pmap_put_bhdr(
-    map: *mut std::collections::HashMap<i64, *mut bhdr_T>,
-    key: i64,
-    val: *mut bhdr_T,
-) {
+  ) -> *mut bhdr_T {
     unsafe {
-        (*map).insert(key, val);
+        (*map)
+            .get(&key)
+            .map_or(ptr::null_mut(), |b| (&raw const **b).cast_mut())
     }
 }
 
@@ -188,12 +182,8 @@ pub unsafe fn mf_close(mfp: *mut memfile_T, del_file: bool) {
             os_remove((*mfp).mf_fname);
         }
 
-        for (_, hp) in (*mfp).mf_hash.drain() {
-            mf_free_bhdr(hp);
-        }
-        for hp in (*mfp).mf_free_list.drain(..) {
-            drop(Box::from_raw(hp));
-        }
+        (*mfp).mf_hash.clear();
+        (*mfp).mf_free_list.clear();
         mf_free_fnames(mfp);
         drop(Box::from_raw(mfp));
     }
@@ -235,46 +225,34 @@ pub unsafe fn mf_new_page_size(mfp: *mut memfile_T, new_size: c_uint) {
 /// Get a new block.
 pub unsafe fn mf_new(mfp: *mut memfile_T, negative: bool, page_count: c_uint) -> *mut bhdr_T {
     unsafe {
-        let freep = (*mfp).mf_free_list.last().copied().unwrap_or(ptr::null_mut());
-        let hp: *mut bhdr_T =
-            if !negative && !freep.is_null() && (*freep).bh_page_count >= page_count {
-                if (*freep).bh_page_count > page_count {
-                    let hp = mf_alloc_bhdr(mfp, page_count);
-                    (*hp).bh_bnum = (*freep).bh_bnum;
-                    (*freep).bh_bnum += i64::from(page_count);
-                    (*freep).bh_page_count -= page_count;
-                    hp
-                } else {
-                    let p = xmalloc(((*mfp).mf_page_size as usize) * (page_count as usize))
-                        .cast::<u8>();
-                    let hp = mf_rem_free(mfp);
-                    (*hp).bh_data = p;
-                    hp
-                }
+        let bnum: blocknr_T = if !negative
+            && let Some(freep) = (*mfp).mf_free_list.last_mut()
+            && freep.bh_page_count >= page_count
+        {
+            if freep.bh_page_count > page_count {
+                let b = freep.bh_bnum;
+                freep.bh_bnum += i64::from(page_count);
+                freep.bh_page_count -= page_count;
+                b
             } else {
-                let hp = mf_alloc_bhdr(mfp, page_count);
-                if negative {
-                    (*hp).bh_bnum = (*mfp).mf_blocknr_min;
-                    (*mfp).mf_blocknr_min -= 1;
-                    (*mfp).mf_neg_count += 1;
-                } else {
-                    (*hp).bh_bnum = (*mfp).mf_blocknr_max;
-                    (*mfp).mf_blocknr_max += i64::from(page_count);
-                }
-                hp
-            };
+                let free_blk = (*mfp).mf_free_list.pop().unwrap();
+                free_blk.bh_bnum
+            }
+        } else if negative {
+            let b = (*mfp).mf_blocknr_min;
+            (*mfp).mf_blocknr_min -= 1;
+            (*mfp).mf_neg_count += 1;
+            b
+        } else {
+            let b = (*mfp).mf_blocknr_max;
+            (*mfp).mf_blocknr_max += i64::from(page_count);
+            b
+        };
 
-        (*hp).bh_flags = BH_LOCKED | BH_DIRTY;
+        let mut boxed = mf_alloc_bhdr(mfp, bnum, page_count, BH_LOCKED | BH_DIRTY);
+        let hp: *mut bhdr_T = &raw mut *boxed;
         (*mfp).mf_dirty = MF_DIRTY_YES;
-        (*hp).bh_page_count = page_count;
-        pmap_put_bhdr(&raw mut (*mfp).mf_hash, (*hp).bh_bnum, hp);
-
-        ptr::write_bytes(
-            (*hp).bh_data,
-            0,
-            ((*mfp).mf_page_size as usize) * (page_count as usize),
-        );
-
+        (*mfp).mf_hash.insert(bnum, boxed);
         hp
     }
 }
@@ -288,30 +266,19 @@ pub unsafe fn mf_get(mfp: *mut memfile_T, nr: blocknr_T, page_count: c_uint) -> 
 
         let mut hp = pmap_get_bhdr(&raw const (*mfp).mf_hash, nr);
         if hp.is_null() {
-            if nr < 0 || nr >= (*mfp).mf_infile_count {
+            if nr < 0 || nr >= (*mfp).mf_infile_count || page_count == 0 {
                 return ptr::null_mut();
             }
 
-            if page_count > 0 {
-                hp = mf_alloc_bhdr(mfp, page_count);
-            }
-            if hp.is_null() {
-                return ptr::null_mut();
-            }
-
-            (*hp).bh_bnum = nr;
-            (*hp).bh_flags = 0;
-            (*hp).bh_page_count = page_count;
+            let mut boxed = mf_alloc_bhdr(mfp, nr, page_count, BH_LOCKED);
+            hp = &raw mut *boxed;
             if mf_read(mfp, hp) == FAIL {
-                mf_free_bhdr(hp);
                 return ptr::null_mut();
             }
+            (*mfp).mf_hash.insert(nr, boxed);
         } else {
-            let _ = (*mfp).mf_hash.remove(&(*hp).bh_bnum);
+            (*hp).bh_flags |= BH_LOCKED;
         }
-
-        (*hp).bh_flags |= BH_LOCKED;
-        pmap_put_bhdr(&raw mut (*mfp).mf_hash, (*hp).bh_bnum, hp);
 
         hp
     }
@@ -342,13 +309,19 @@ pub unsafe fn mf_put(mfp: *mut memfile_T, hp: *mut bhdr_T, dirty: bool, infile: 
 /// Signal block as no longer used (may put it in the free list).
 pub unsafe fn mf_free(mfp: *mut memfile_T, hp: *mut bhdr_T) {
     unsafe {
-        xfree((*hp).bh_data.cast());
-        let _ = (*mfp).mf_hash.remove(&(*hp).bh_bnum);
-        if (*hp).bh_bnum < 0 {
-            drop(Box::from_raw(hp));
+        let bnum = (*hp).bh_bnum;
+        let page_count = (*hp).bh_page_count;
+        let _ = (*mfp).mf_hash.remove(&bnum);
+        if bnum < 0 {
             (*mfp).mf_neg_count -= 1;
         } else {
-            mf_ins_free(mfp, hp);
+            (*mfp).mf_free_list.push(bhdr_T {
+                bh_bnum: bnum,
+                bh_data_vec: Vec::new(),
+                bh_data: ptr::null_mut(),
+                bh_page_count: page_count,
+                bh_flags: 0,
+            });
         }
     }
 }
@@ -369,7 +342,11 @@ pub unsafe fn mf_sync(mfp: *mut memfile_T, flags: c_int) -> c_int {
 
         let mut status = OK;
         let mut completed_all = true;
-        let blocks: Vec<*mut bhdr_T> = (*mfp).mf_hash.values().copied().collect();
+        let blocks: Vec<*mut bhdr_T> = (*mfp)
+            .mf_hash
+            .values()
+            .map(|b| (&raw const **b).cast_mut())
+            .collect();
 
         for hp in blocks {
             if ((flags & MFS_ALL) != 0 || (*hp).bh_bnum >= 0)
@@ -422,9 +399,9 @@ pub unsafe fn mf_sync(mfp: *mut memfile_T, flags: c_int) -> c_int {
 /// Set dirty flag for all blocks in memory file with a positive block number.
 pub unsafe fn mf_set_dirty(mfp: *mut memfile_T) {
     unsafe {
-        for &hp in (*mfp).mf_hash.values() {
-            if (*hp).bh_bnum > 0 {
-                (*hp).bh_flags |= BH_DIRTY;
+        for hp in (*mfp).mf_hash.values_mut() {
+            if hp.bh_bnum > 0 {
+                hp.bh_flags |= BH_DIRTY;
             }
         }
         (*mfp).mf_dirty = MF_DIRTY_YES;
@@ -444,13 +421,16 @@ pub unsafe fn mf_release_all() -> bool {
                 }
 
                 if (*mfp).mf_fd >= 0 {
-                    let blocks: Vec<*mut bhdr_T> = (*mfp).mf_hash.values().copied().collect();
+                    let blocks: Vec<*mut bhdr_T> = (*mfp)
+                        .mf_hash
+                        .values()
+                        .map(|b| (&raw const **b).cast_mut())
+                        .collect();
                     for hp in blocks {
                         if ((*hp).bh_flags & BH_LOCKED) == 0
                             && (((*hp).bh_flags & BH_DIRTY) == 0 || mf_write(mfp, hp) != FAIL)
                         {
                             let _ = (*mfp).mf_hash.remove(&(*hp).bh_bnum);
-                            mf_free_bhdr(hp);
                             retval = true;
                         }
                     }
@@ -462,33 +442,22 @@ pub unsafe fn mf_release_all() -> bool {
     retval
 }
 
-unsafe fn mf_alloc_bhdr(mfp: *mut memfile_T, page_count: c_uint) -> *mut bhdr_T {
-    unsafe {
-        Box::into_raw(Box::new(bhdr_T {
-            bh_bnum: 0,
-            bh_data: xmalloc(((*mfp).mf_page_size as usize) * (page_count as usize)).cast::<u8>(),
-            bh_page_count: page_count,
-            bh_flags: 0,
-        }))
-    }
-}
-
-unsafe fn mf_free_bhdr(hp: *mut bhdr_T) {
-    unsafe {
-        xfree((*hp).bh_data.cast());
-        drop(Box::from_raw(hp));
-    }
-}
-
-unsafe fn mf_ins_free(mfp: *mut memfile_T, hp: *mut bhdr_T) {
-    unsafe {
-        (*hp).bh_data = ptr::null_mut();
-        (*mfp).mf_free_list.push(hp);
-    }
-}
-
-unsafe fn mf_rem_free(mfp: *mut memfile_T) -> *mut bhdr_T {
-    unsafe { (*mfp).mf_free_list.pop().unwrap_or(ptr::null_mut()) }
+unsafe fn mf_alloc_bhdr(
+    mfp: *mut memfile_T,
+    bnum: blocknr_T,
+    page_count: c_uint,
+    flags: c_uint,
+) -> std::pin::Pin<Box<bhdr_T>> {
+    let len = (unsafe { (*mfp).mf_page_size } as usize) * (page_count as usize);
+    let mut bh_data_vec = vec![0u8; len];
+    let bh_data = bh_data_vec.as_mut_ptr();
+    Box::pin(bhdr_T {
+        bh_bnum: bnum,
+        bh_data_vec,
+        bh_data,
+        bh_page_count: page_count,
+        bh_flags: flags,
+    })
 }
 
 unsafe fn mf_read(mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
@@ -605,16 +574,16 @@ unsafe fn mf_trans_add(mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
             return OK;
         }
 
-        let freep = (*mfp).mf_free_list.last().copied().unwrap_or(ptr::null_mut());
         let page_count = (*hp).bh_page_count;
-        let new_bnum: blocknr_T = if !freep.is_null() && (*freep).bh_page_count >= page_count {
-            let bnum = (*freep).bh_bnum;
-            if (*freep).bh_page_count > page_count {
-                (*freep).bh_bnum += i64::from(page_count);
-                (*freep).bh_page_count -= page_count;
+        let new_bnum: blocknr_T = if let Some(freep) = (*mfp).mf_free_list.last_mut()
+            && freep.bh_page_count >= page_count
+        {
+            let bnum = freep.bh_bnum;
+            if freep.bh_page_count > page_count {
+                freep.bh_bnum += i64::from(page_count);
+                freep.bh_page_count -= page_count;
             } else {
-                let rem = mf_rem_free(mfp);
-                drop(Box::from_raw(rem));
+                let _ = (*mfp).mf_free_list.pop();
             }
             bnum
         } else {
@@ -624,9 +593,10 @@ unsafe fn mf_trans_add(mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
         };
 
         let old_bnum = (*hp).bh_bnum;
-        let _ = (*mfp).mf_hash.remove(&(*hp).bh_bnum);
-        (*hp).bh_bnum = new_bnum;
-        pmap_put_bhdr(&raw mut (*mfp).mf_hash, new_bnum, hp);
+        if let Some(mut boxed) = (*mfp).mf_hash.remove(&old_bnum) {
+            boxed.bh_bnum = new_bnum;
+            (*mfp).mf_hash.insert(new_bnum, boxed);
+        }
 
         map_put_i64(&raw mut (*mfp).mf_trans, old_bnum, new_bnum);
 
@@ -752,7 +722,7 @@ mod tests {
         }
 
         unsafe {
-            let mut ht: std::collections::HashMap<i64, *mut bhdr_T> =
+            let mut ht: std::collections::HashMap<i64, std::pin::Pin<Box<bhdr_T>>> =
                 std::collections::HashMap::new();
             let mut items: Vec<*mut bhdr_T> = Vec::with_capacity(TEST_COUNT);
 
@@ -761,13 +731,15 @@ mod tests {
                 let key = index_to_key(i);
                 assert!(pmap_get_bhdr(&raw const ht, key).is_null());
 
-                let item = Box::into_raw(Box::new(bhdr_T {
+                let mut boxed = Box::pin(bhdr_T {
                     bh_bnum: key,
+                    bh_data_vec: Vec::new(),
                     bh_data: ptr::null_mut(),
                     bh_page_count: 1,
                     bh_flags: 0,
-                }));
-                pmap_put_bhdr(&raw mut ht, key, item);
+                });
+                let item: *mut bhdr_T = &raw mut *boxed;
+                ht.insert(key, boxed);
                 assert_eq!(pmap_get_bhdr(&raw const ht, key), item);
                 items.push(item);
             }
@@ -786,16 +758,14 @@ mod tests {
                     assert!(!item.is_null());
                     assert_eq!((*item).bh_bnum, key);
 
-                    ht.remove(&key);
+                    let removed = ht.remove(&key).unwrap();
                     assert!(pmap_get_bhdr(&raw const ht, key).is_null());
 
-                    pmap_put_bhdr(&raw mut ht, key, item);
+                    ht.insert(key, removed);
                     assert_eq!(pmap_get_bhdr(&raw const ht, key), item);
 
                     ht.remove(&key);
                     assert!(pmap_get_bhdr(&raw const ht, key).is_null());
-
-                    drop(Box::from_raw(item));
                 }
             }
 
@@ -807,7 +777,6 @@ mod tests {
                 } else {
                     assert!(!item.is_null());
                     assert_eq!((*item).bh_bnum, key);
-                    drop(Box::from_raw(item));
                 }
             }
         }
