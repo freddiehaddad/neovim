@@ -11,8 +11,8 @@ mod tests {
 
     use crate::cjson::fpconv::{FPCONV_G_FMT_BUFSIZE, fpconv_g_fmt, fpconv_strtod};
     use crate::cjson::strbuf::{
-        strbuf_append_char, strbuf_append_string, strbuf_free, strbuf_init, strbuf_length,
-        strbuf_string, strbuf_t,
+        strbuf_append_char, strbuf_append_string, strbuf_init, strbuf_length, strbuf_string,
+        strbuf_t,
     };
 
     #[test]
@@ -31,7 +31,6 @@ mod tests {
             let ptr = strbuf_string(&mut sb, &mut len);
             let bytes = std::slice::from_raw_parts(ptr.cast::<u8>(), len);
             assert_eq!(bytes, b"hello!");
-            strbuf_free(&mut sb);
 
             let mut endptr: *mut c_char = ptr::null_mut();
             let v = fpconv_strtod(c"3.25".as_ptr(), &mut endptr);

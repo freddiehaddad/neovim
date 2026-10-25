@@ -1,14 +1,14 @@
 //! JSON support for Lua (`src/cjson/lua_cjson.c`).
 
-use std::ffi::{CStr, c_char, c_double, c_int, c_longlong, c_void};
+use std::ffi::{CStr, c_char, c_double, c_int, c_longlong};
 use std::mem::size_of;
 use std::ptr;
 
 use crate::cjson::fpconv::{FPCONV_G_FMT_BUFSIZE, fpconv_g_fmt, fpconv_strtod};
 use crate::cjson::strbuf::{
     strbuf_append_char, strbuf_append_char_unsafe, strbuf_append_mem, strbuf_append_mem_unsafe,
-    strbuf_append_string, strbuf_ensure_empty_length, strbuf_ensure_null, strbuf_free,
-    strbuf_init, strbuf_length, strbuf_reset, strbuf_set_length, strbuf_string, strbuf_t,
+    strbuf_append_string, strbuf_ensure_empty_length, strbuf_ensure_null, strbuf_init,
+    strbuf_length, strbuf_reset, strbuf_set_length, strbuf_string, strbuf_t,
 };
 use crate::lua::converter::{
     LUA_REGISTRYINDEX, LUA_TBOOLEAN, LUA_TLIGHTUSERDATA, LUA_TNIL, LUA_TNUMBER, LUA_TSTRING,
@@ -41,10 +41,10 @@ static JSON_EMPTY_ARRAY: u8 = 0;
 static JSON_ARRAY: u8 = 0;
 
 #[inline]
-fn json_lightudata_mask(ludata: *const c_void) -> *mut c_void {
+fn json_lightudata_mask(ludata: *const u8) -> *mut u8 {
     #[cfg(target_pointer_width = "64")]
     {
-        ((ludata as usize) & ((1usize << 47) - 1)) as *mut c_void
+        ((ludata as usize) & ((1usize << 47) - 1)) as *mut u8
     }
     #[cfg(not(target_pointer_width = "64"))]
     {
@@ -316,7 +316,7 @@ const fn init_char2escape() -> [*const c_char; 256] {
 const CHAR2ESCAPE: [*const c_char; 256] = init_char2escape();
 
 
-use crate::strings::{memcmp, sort_slice_by, strncmp, strtoll};
+use crate::strings::{strncmp, strtoll};
 use std::process::abort;
 
 unsafe fn json_fetch_config(l: *mut lua_State) -> *mut json_config_t {
@@ -333,7 +333,7 @@ unsafe extern "C-unwind" fn json_destroy_config(l: *mut lua_State) -> c_int {
     unsafe {
         let cfg = lua_touserdata(l, 1).cast::<json_config_t>();
         if !cfg.is_null() {
-            strbuf_free(&mut (*cfg).encode_buf);
+            ptr::drop_in_place(cfg);
         }
     }
     0
@@ -369,8 +369,7 @@ unsafe fn json_encode_exception(
 ) -> ! {
     unsafe {
         if (*(*ctx).options).sort_keys != 0 {
-            strbuf_free(&mut (*(*ctx).options).keybuf.buf);
-            (*(*ctx).options).keybuf.keys = Vec::new();
+            (*(*ctx).options).keybuf = keybuf_t::new();
         }
 
         luaL_error(
@@ -463,8 +462,7 @@ unsafe fn json_check_encode_depth(l: *mut lua_State, ctx: *mut json_encode_t, cu
         }
 
         if (*(*ctx).options).sort_keys != 0 {
-            strbuf_free(&mut (*(*ctx).options).keybuf.buf);
-            (*(*ctx).options).keybuf.keys = Vec::new();
+            (*(*ctx).options).keybuf = keybuf_t::new();
         }
 
         luaL_error(
@@ -564,19 +562,17 @@ unsafe fn json_append_number(
     }
 }
 
-unsafe fn cmp_key_entries(ka: &key_entry_t, kb: &key_entry_t) -> c_int {
+unsafe fn cmp_key_entries(ka: &key_entry_t, kb: &key_entry_t) -> std::cmp::Ordering {
     unsafe {
-        let min_len = ka.length.min(kb.length);
-        let res = memcmp(
-            (*ka.buf).buf.as_ptr().add(ka.offset).cast::<c_void>(),
-            (*kb.buf).buf.as_ptr().add(kb.offset).cast::<c_void>(),
-            min_len,
+        let a = std::slice::from_raw_parts(
+            (*ka.buf).buf.as_ptr().add(ka.offset).cast::<u8>(),
+            ka.length,
         );
-        if res == 0 {
-            (ka.length.wrapping_sub(kb.length)) as c_int
-        } else {
-            res
-        }
+        let b = std::slice::from_raw_parts(
+            (*kb.buf).buf.as_ptr().add(kb.offset).cast::<u8>(),
+            kb.length,
+        );
+        a.cmp(b)
     }
 }
 
@@ -626,7 +622,7 @@ unsafe fn json_append_object(l: *mut lua_State, ctx: *mut json_encode_t, current
             let keys_count = (*keybuf).keys.len() - init_keybuf_size;
             if keys_count > 0 {
                 let slice = &mut (*keybuf).keys.as_mut_slice()[init_keybuf_size..];
-                sort_slice_by(slice, |a, b| cmp_key_entries(a, b));
+                slice.sort_by(|a, b| cmp_key_entries(a, b));
             }
 
             for i in init_keybuf_size..(init_keybuf_size + keys_count) {
@@ -764,7 +760,7 @@ unsafe fn json_append_data(
                         lua_pop(l, 1);
                         lua_pushlightuserdata(
                             l,
-                            json_lightudata_mask((&raw const JSON_ARRAY).cast::<c_void>()),
+                            json_lightudata_mask(&raw const JSON_ARRAY).cast(),
                         );
                         lua_rawget(l, LUA_REGISTRYINDEX);
                         as_array = lua_rawequal(l, -1, -2);
@@ -797,9 +793,7 @@ unsafe fn json_append_data(
                             lua_getmetatable(l, -1);
                             lua_pushlightuserdata(
                                 l,
-                                json_lightudata_mask(
-                                    (&raw const JSON_EMPTY_ARRAY).cast::<c_void>(),
-                                ),
+                                json_lightudata_mask(&raw const JSON_EMPTY_ARRAY).cast(),
                             );
                             lua_rawget(l, LUA_REGISTRYINDEX);
                             as_array = lua_rawequal(l, -1, -2);
@@ -818,7 +812,7 @@ unsafe fn json_append_data(
                 strbuf_append_mem(json, c"null".as_ptr(), 4);
             }
             LUA_TLIGHTUSERDATA => {
-                if lua_touserdata(l, -1) == (&raw const JSON_ARRAY).cast::<c_void>().cast_mut() {
+                if lua_touserdata(l, -1) == (&raw const JSON_ARRAY).cast_mut().cast() {
                     json_append_array(l, ctx, current_depth, 0, 1);
                 }
             }
@@ -906,11 +900,6 @@ unsafe extern "C-unwind" fn json_encode(l: *mut lua_State) -> c_int {
         let json = strbuf_string(encode_buf, &mut len);
 
         lua_pushlstring(l, json, len);
-
-        if options.sort_keys != 0 {
-            strbuf_free(&mut options.keybuf.buf);
-            options.keybuf.keys = Vec::new();
-        }
 
         1
     }
@@ -1243,7 +1232,7 @@ unsafe fn json_throw_parse_error(
     token: *mut json_token_t,
 ) -> ! {
     unsafe {
-        strbuf_free((*json).tmp);
+        *(*json).tmp = strbuf_t::new();
         let found = if (*token).r#type == T_ERROR {
             (*token).value.as_string()
         } else {
@@ -1275,7 +1264,7 @@ unsafe fn json_decode_descend(l: *mut lua_State, json: *mut json_parse_t, slots:
             return;
         }
 
-        strbuf_free((*json).tmp);
+        *(*json).tmp = strbuf_t::new();
         luaL_error(
             l,
             c"Found too many nested data structures (%d) at character %d".as_ptr(),
@@ -1468,7 +1457,6 @@ unsafe extern "C-unwind" fn json_decode(l: *mut lua_State) -> c_int {
             json_throw_parse_error(l, &mut json, c"the end".as_ptr(), &mut token);
         }
 
-        strbuf_free(json.tmp);
         1
     }
 }
@@ -1511,7 +1499,7 @@ pub unsafe extern "C-unwind" fn lua_cjson_new(l: *mut lua_State) -> c_int {
     unsafe {
         lua_pushlightuserdata(
             l,
-            json_lightudata_mask((&raw const JSON_EMPTY_ARRAY).cast::<c_void>()),
+            json_lightudata_mask(&raw const JSON_EMPTY_ARRAY).cast(),
         );
         lua_rawget(l, LUA_REGISTRYINDEX);
         if lua_isnil(l, -1) {
@@ -1519,15 +1507,12 @@ pub unsafe extern "C-unwind" fn lua_cjson_new(l: *mut lua_State) -> c_int {
 
             lua_pushlightuserdata(
                 l,
-                json_lightudata_mask((&raw const JSON_EMPTY_ARRAY).cast::<c_void>()),
+                json_lightudata_mask(&raw const JSON_EMPTY_ARRAY).cast(),
             );
             lua_newtable(l);
             lua_rawset(l, LUA_REGISTRYINDEX);
 
-            lua_pushlightuserdata(
-                l,
-                json_lightudata_mask((&raw const JSON_ARRAY).cast::<c_void>()),
-            );
+            lua_pushlightuserdata(l, json_lightudata_mask(&raw const JSON_ARRAY).cast());
             lua_newtable(l);
             lua_rawset(l, LUA_REGISTRYINDEX);
         }

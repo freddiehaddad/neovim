@@ -113,12 +113,6 @@ pub unsafe fn strbuf_init(s: *mut strbuf_t, len: usize) {
     }
 }
 
-pub unsafe fn strbuf_free(s: *mut strbuf_t) {
-    unsafe {
-        (*s).buf = Vec::new();
-    }
-}
-
 pub unsafe fn strbuf_append_string(s: *mut strbuf_t, str_in: *const c_char) {
     unsafe {
         let bytes = CStr::from_ptr(str_in).to_bytes();
