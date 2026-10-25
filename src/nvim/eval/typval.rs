@@ -368,6 +368,16 @@ impl dictitem_T {
     }
 }
 
+impl Drop for dictitem_T {
+    fn drop(&mut self) {
+        if (self.di_flags & DI_FLAGS_ALLOC) != 0 {
+            unsafe {
+                tv_clear(&raw mut self.di_tv);
+            }
+        }
+    }
+}
+
 pub type ScopeDictDictItem = dictitem_T;
 
 #[repr(C)]
@@ -2730,9 +2740,10 @@ pub unsafe fn tv_dict_item_alloc(key: *const c_char) -> *mut dictitem_T {
 /// Free a dictionary item, also clearing the value.
 pub unsafe fn tv_dict_item_free(item: *mut dictitem_T) {
     unsafe {
-        tv_clear(&raw mut (*item).di_tv);
         if ((*item).di_flags & DI_FLAGS_ALLOC) != 0 {
             drop(Box::from_raw(item));
+        } else {
+            tv_clear(&raw mut (*item).di_tv);
         }
     }
 }

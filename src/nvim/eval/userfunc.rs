@@ -1182,6 +1182,10 @@ unsafe fn func_clear(fp: *mut ufunc_T, force: bool) {
 impl Drop for ufunc_T {
     fn drop(&mut self) {
         unsafe {
+            if !self.uf_cleared {
+                self.uf_cleared = true;
+                func_clear_items(self);
+            }
             if (self.uf_flags & (FC_DELETED | FC_REMOVED)) == 0 {
                 func_remove(self);
             }
@@ -2989,12 +2993,11 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
 
         macro_rules! errret_2 {
             () => {{
-                if !fp.is_null() {
+                if free_fp && !fp.is_null() {
+                    drop(Box::from_raw(fp));
+                } else if !fp.is_null() {
                     xfree((*fp).uf_name_exp.cast());
                     (*fp).uf_name_exp = ptr::null_mut();
-                }
-                if free_fp {
-                    drop(Box::from_raw(fp));
                 }
                 errret_keep!();
             }};
@@ -3251,7 +3254,6 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
                     if tv_dict_add(fudi.fd_dict, fudi.fd_di) == FAIL {
                         crate::eval::typval::tv_dict_item_free(fudi.fd_di);
                         xfree(func_name.cast());
-                        xfree((*fp).uf_name_exp.cast());
                         drop(Box::from_raw(fp));
                         fp = ptr::null_mut();
                         erret!();

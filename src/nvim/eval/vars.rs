@@ -2989,11 +2989,13 @@ pub unsafe fn vars_clear_ext(ht: *mut hashtab_T, free_val: bool) {
                 todo -= 1;
 
                 let v = tv_dict_hi2di(hi);
-                if free_val {
-                    tv_clear(&raw mut (*v).di_tv);
+                if !free_val {
+                    (*v).di_tv.v_type = VarType::VAR_UNKNOWN;
                 }
                 if ((*v).di_flags & DI_FLAGS_ALLOC) != 0 {
                     drop(Box::from_raw(v));
+                } else if free_val {
+                    tv_clear(&raw mut (*v).di_tv);
                 }
             }
             hi = hi.add(1);

@@ -695,12 +695,6 @@ unsafe fn corruption_error(mesg: *const c_char, file_name: *const c_char) {
     }
 }
 
-unsafe fn u_free_uhp(uhp: *mut u_header_T) {
-    unsafe {
-        drop(Box::from_raw(uhp));
-    }
-}
-
 unsafe fn serialize_header(bi: &mut bufinfo_T, hash: *mut u8) -> bool {
     unsafe {
         let buf = bi.bi_buf;
@@ -831,7 +825,7 @@ unsafe fn unserialize_uhp(
             let mut len = undo_read_byte(bi);
             if len == EOF {
                 corruption_error(c"truncated".as_ptr(), file_name);
-                u_free_uhp(uhp);
+                drop(Box::from_raw(uhp));
                 return (ptr::null_mut(), [0; 4]);
             }
             if len == 0 {
@@ -859,21 +853,21 @@ unsafe fn unserialize_uhp(
             let uep = unserialize_uep(bi, &mut error, file_name);
             (*uhp).uh_entries.push(uep);
             if error {
-                u_free_uhp(uhp);
+                drop(Box::from_raw(uhp));
                 return (ptr::null_mut(), [0; 4]);
             }
             c = undo_read_2c(bi);
         }
         if c != UF_ENTRY_END_MAGIC {
             corruption_error(c"entry end".as_ptr(), file_name);
-            u_free_uhp(uhp);
+            drop(Box::from_raw(uhp));
             return (ptr::null_mut(), [0; 4]);
         }
 
         c = undo_read_2c(bi);
         while c == UF_ENTRY_MAGIC {
             let Some(extup) = unserialize_extmark(bi, file_name) else {
-                u_free_uhp(uhp);
+                drop(Box::from_raw(uhp));
                 return (ptr::null_mut(), [0; 4]);
             };
             (*uhp).uh_extmark.push(extup);
@@ -881,7 +875,7 @@ unsafe fn unserialize_uhp(
         }
         if c != UF_ENTRY_END_MAGIC {
             corruption_error(c"entry end".as_ptr(), file_name);
-            u_free_uhp(uhp);
+            drop(Box::from_raw(uhp));
             return (ptr::null_mut(), [0; 4]);
         }
 
@@ -1579,7 +1573,7 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
             xfree(line_ptr.cast());
             for &(p, _) in &uhp_table[..num_read_uhps as usize] {
                 if !p.is_null() {
-                    u_free_uhp(p);
+                    drop(Box::from_raw(p));
                 }
             }
         }
