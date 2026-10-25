@@ -677,44 +677,49 @@ pub unsafe extern "C" fn nvim_get_autocmds(
                         );
                     }
 
-                    if !ac.handler_cmd.is_null() {
-                        put_c(
-                            &mut autocmd_info,
-                            c"command",
-                            string_obj(cstr_as_string(ac.handler_cmd)),
-                        );
-                    } else {
-                        put_c(
-                            &mut autocmd_info,
-                            c"command",
-                            string_obj(NvimString {
-                                data: std::ptr::null_mut(),
-                                size: 0,
-                            }),
-                        );
+                    match &mut ac.handler {
+                        crate::autocmd::AutoCmdHandler::Cmd(cmd) => {
+                            put_c(
+                                &mut autocmd_info,
+                                c"command",
+                                string_obj(cstr_as_string(*cmd)),
+                            );
+                        }
+                        crate::autocmd::AutoCmdHandler::Fn(cb) => {
+                            put_c(
+                                &mut autocmd_info,
+                                c"command",
+                                string_obj(NvimString {
+                                    data: std::ptr::null_mut(),
+                                    size: 0,
+                                }),
+                            );
 
-                        let cb = &mut ac.handler_fn;
-                        match cb.cb_type() {
-                            kCallbackLua => {
-                                let luaref = cb.data.as_luaref();
-                                if nlua_ref_is_function(luaref) {
+                            match cb.cb_type() {
+                                kCallbackLua => {
+                                    let luaref = cb.data.as_luaref();
+                                    if nlua_ref_is_function(luaref) {
+                                        put_c(
+                                            &mut autocmd_info,
+                                            c"callback",
+                                            luaref_obj(api_new_luaref(luaref)),
+                                        );
+                                    }
+                                }
+                                kCallbackFuncref | kCallbackPartial => {
                                     put_c(
                                         &mut autocmd_info,
                                         c"callback",
-                                        luaref_obj(api_new_luaref(luaref)),
+                                        string_obj(cstr_as_string(callback_to_string(cb, arena))),
                                     );
                                 }
+                                _ => {
+                                    std::process::abort();
+                                }
                             }
-                            kCallbackFuncref | kCallbackPartial => {
-                                put_c(
-                                    &mut autocmd_info,
-                                    c"callback",
-                                    string_obj(cstr_as_string(callback_to_string(cb, arena))),
-                                );
-                            }
-                            _ => {
-                                std::process::abort();
-                            }
+                        }
+                        crate::autocmd::AutoCmdHandler::None => {
+                            std::process::abort();
                         }
                     }
 

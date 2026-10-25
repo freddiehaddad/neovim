@@ -296,6 +296,14 @@ impl MarkTree {
     }
 }
 
+impl Drop for MarkTree {
+    fn drop(&mut self) {
+        unsafe {
+            marktree_clear(self);
+        }
+    }
+}
+
 #[inline]
 pub const fn mt_lookup_id(ns: u32, id: u32, enda: bool) -> u64 {
     ((ns as u64) << 33) | ((id as u64) << 1) | if enda { MARKTREE_END_FLAG } else { 0 }
@@ -3223,7 +3231,6 @@ mod tests {
             assert!(marktree_check_intersections(&mut tree));
             marktree_splice(&mut tree, 48, 0, 139, 0, 0, 0);
             assert!(marktree_check_intersections(&mut tree));
-            marktree_clear(&mut tree);
         }
     }
 }

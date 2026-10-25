@@ -178,27 +178,7 @@ static mut empty_frag: Frag_T = Frag_T {
     start: ptr::null_mut(),
     out: ptr::null_mut(),
 };
-const EMPTY_REGSUB: regsub_T = regsub_T {
-    in_use: 0,
-    list: crate::regexp::regsub_list_u {
-        multi: [multipos {
-            start_lnum: 0,
-            end_lnum: 0,
-            start_col: 0,
-            end_col: 0,
-        }; NSUBEXP],
-        line: [linepos {
-            start: ptr::null_mut(),
-            end: ptr::null_mut(),
-        }; NSUBEXP],
-    },
-    orig_start_col: 0,
-};
-
-static mut temp_subs: regsubs_T = regsubs_T {
-    norm: EMPTY_REGSUB,
-    synt: EMPTY_REGSUB,
-};
+static mut temp_subs: regsubs_T = regsubs_T::new();
 static mut nfa_match: c_int = 0;
 static mut nfa_time_limit: *mut proftime_T = ptr::null_mut();
 static mut nfa_timed_out: *mut c_int = ptr::null_mut();
@@ -2452,14 +2432,14 @@ unsafe fn clear_sub(sub: *mut regsub_T) {
         let sub = &mut *sub;
         let n = rex.nfa_nsubexpr as usize;
         if REG_MULTI() {
-            sub.list.multi[..n].fill(multipos {
+            sub.list.multi_mut()[..n].fill(multipos {
                 start_lnum: -1,
                 end_lnum: -1,
                 start_col: -1,
                 end_col: -1,
             });
         } else {
-            sub.list.line[..n].fill(linepos::new());
+            sub.list.line_mut()[..n].fill(linepos::new());
         }
         sub.in_use = 0;
     }
@@ -2472,25 +2452,12 @@ unsafe fn copy_sub(to: *mut regsub_T, from: *mut regsub_T) {
         if (*from).in_use <= 0 {
             return;
         }
+        let n = (*from).in_use as usize;
         if REG_MULTI() {
-            if (*from).in_use == 1 {
-                (*to).list.multi[0] = (*from).list.multi[0];
-            } else {
-                ptr::copy(
-                    (&raw const (*from).list.multi).cast::<multipos>(),
-                    (&raw mut (*to).list.multi).cast::<multipos>(),
-                    (*from).in_use as usize,
-                );
-            }
+            (*to).list.multi_mut()[..n].copy_from_slice(&(*from).list.multi()[..n]);
             (*to).orig_start_col = (*from).orig_start_col;
-        } else if (*from).in_use == 1 {
-            (*to).list.line[0] = (*from).list.line[0];
         } else {
-            ptr::copy(
-                (&raw const (*from).list.line).cast::<linepos>(),
-                (&raw mut (*to).list.line).cast::<linepos>(),
-                (*from).in_use as usize,
-            );
+            (*to).list.line_mut()[..n].copy_from_slice(&(*from).list.line()[..n]);
         }
     }
 }
@@ -2503,18 +2470,11 @@ unsafe fn copy_sub_off(to: *mut regsub_T, from: *mut regsub_T) {
         if (*from).in_use <= 1 {
             return;
         }
+        let n = (*from).in_use as usize;
         if REG_MULTI() {
-            ptr::copy(
-                (&raw const (*from).list.multi).cast::<multipos>().add(1),
-                (&raw mut (*to).list.multi).cast::<multipos>().add(1),
-                (*from).in_use as usize - 1,
-            );
+            (*to).list.multi_mut()[1..n].copy_from_slice(&(*from).list.multi()[1..n]);
         } else {
-            ptr::copy(
-                (&raw const (*from).list.line).cast::<linepos>().add(1),
-                (&raw mut (*to).list.line).cast::<linepos>().add(1),
-                (*from).in_use as usize - 1,
-            );
+            (*to).list.line_mut()[1..n].copy_from_slice(&(*from).list.line()[1..n]);
         }
     }
 }
@@ -2525,12 +2485,16 @@ unsafe fn copy_ze_off(to: *mut regsub_T, from: *mut regsub_T) {
             return;
         }
         if REG_MULTI() {
-            if (*from).list.multi[0].end_lnum >= 0 {
-                (*to).list.multi[0].end_lnum = (*from).list.multi[0].end_lnum;
-                (*to).list.multi[0].end_col = (*from).list.multi[0].end_col;
+            let from_m = (*from).list.multi()[0];
+            if from_m.end_lnum >= 0 {
+                (*to).list.multi_mut()[0].end_lnum = from_m.end_lnum;
+                (*to).list.multi_mut()[0].end_col = from_m.end_col;
             }
-        } else if !(*from).list.line[0].end.is_null() {
-            (*to).list.line[0].end = (*from).list.line[0].end;
+        } else {
+            let from_end = (*from).list.line()[0].end;
+            if !from_end.is_null() {
+                (*to).list.line_mut()[0].end = from_end;
+            }
         }
     }
 }
@@ -2539,51 +2503,55 @@ unsafe fn sub_equal(sub1: *mut regsub_T, sub2: *mut regsub_T) -> bool {
     unsafe {
         let todo = (*sub1).in_use.max((*sub2).in_use) as usize;
         if REG_MULTI() {
+            let m1 = (*sub1).list.multi();
+            let m2 = (*sub2).list.multi();
             for i in 0..todo {
                 let s1 = if (i as c_int) < (*sub1).in_use {
-                    (*sub1).list.multi[i].start_lnum
+                    m1[i].start_lnum
                 } else {
                     -1
                 };
                 let s2 = if (i as c_int) < (*sub2).in_use {
-                    (*sub2).list.multi[i].start_lnum
+                    m2[i].start_lnum
                 } else {
                     -1
                 };
                 if s1 != s2 {
                     return false;
                 }
-                if s1 != -1 && (*sub1).list.multi[i].start_col != (*sub2).list.multi[i].start_col {
+                if s1 != -1 && m1[i].start_col != m2[i].start_col {
                     return false;
                 }
                 if rex.nfa_has_backref != 0 {
                     let e1 = if (i as c_int) < (*sub1).in_use {
-                        (*sub1).list.multi[i].end_lnum
+                        m1[i].end_lnum
                     } else {
                         -1
                     };
                     let e2 = if (i as c_int) < (*sub2).in_use {
-                        (*sub2).list.multi[i].end_lnum
+                        m2[i].end_lnum
                     } else {
                         -1
                     };
                     if e1 != e2 {
                         return false;
                     }
-                    if e1 != -1 && (*sub1).list.multi[i].end_col != (*sub2).list.multi[i].end_col {
+                    if e1 != -1 && m1[i].end_col != m2[i].end_col {
                         return false;
                     }
                 }
             }
         } else {
+            let l1 = (*sub1).list.line();
+            let l2 = (*sub2).list.line();
             for i in 0..todo {
                 let sp1 = if (i as c_int) < (*sub1).in_use {
-                    (*sub1).list.line[i].start
+                    l1[i].start
                 } else {
                     ptr::null_mut()
                 };
                 let sp2 = if (i as c_int) < (*sub2).in_use {
-                    (*sub2).list.line[i].start
+                    l2[i].start
                 } else {
                     ptr::null_mut()
                 };
@@ -2592,12 +2560,12 @@ unsafe fn sub_equal(sub1: *mut regsub_T, sub2: *mut regsub_T) -> bool {
                 }
                 if rex.nfa_has_backref != 0 {
                     let ep1 = if (i as c_int) < (*sub1).in_use {
-                        (*sub1).list.line[i].end
+                        l1[i].end
                     } else {
                         ptr::null_mut()
                     };
                     let ep2 = if (i as c_int) < (*sub2).in_use {
-                        (*sub2).list.line[i].end
+                        l2[i].end
                     } else {
                         ptr::null_mut()
                     };
@@ -2648,9 +2616,11 @@ unsafe fn pim_equal(one: *const nfa_pim_T, two: *const nfa_pim_T) -> bool {
             return false;
         }
         if REG_MULTI() {
-            (*one).end.pos.lnum == (*two).end.pos.lnum && (*one).end.pos.col == (*two).end.pos.col
+            let p1 = (*one).end.pos();
+            let p2 = (*two).end.pos();
+            p1.lnum == p2.lnum && p1.col == p2.col
         } else {
-            (*one).end.ptr == (*two).end.ptr
+            (*one).end.ptr() == (*two).end.ptr()
         }
     }
 }
@@ -2747,7 +2717,9 @@ unsafe fn addstate(
                 if (c == NFA_BOL || c == NFA_BOF)
                     && rex.input > rex.line
                     && *rex.input != NUL
-                    && (nfa_endp.is_null() || !REG_MULTI() || rex.lnum == (*nfa_endp).se_u.pos.lnum)
+                    && (nfa_endp.is_null()
+                        || !REG_MULTI()
+                        || rex.lnum == (*nfa_endp).se_u.pos().lnum)
                 {
                     return subs;
                 }
@@ -2838,39 +2810,41 @@ unsafe fn addstate(
                 let save_in_use: c_int;
 
                 if REG_MULTI() {
+                    let multi = (*sub).list.multi_mut();
                     if (subidx as c_int) < (*sub).in_use {
-                        save_multipos = (*sub).list.multi[subidx];
+                        save_multipos = multi[subidx];
                         save_in_use = -1;
                     } else {
                         save_in_use = (*sub).in_use;
-                        for i in (*sub).in_use as usize..subidx {
-                            (*sub).list.multi[i].start_lnum = -1;
-                            (*sub).list.multi[i].end_lnum = -1;
+                        for item in &mut multi[(*sub).in_use as usize..subidx] {
+                            item.start_lnum = -1;
+                            item.end_lnum = -1;
                         }
                         (*sub).in_use = subidx as c_int + 1;
                     }
                     if off == -1 {
-                        (*sub).list.multi[subidx].start_lnum = rex.lnum + 1;
-                        (*sub).list.multi[subidx].start_col = 0;
+                        multi[subidx].start_lnum = rex.lnum + 1;
+                        multi[subidx].start_col = 0;
                     } else {
-                        (*sub).list.multi[subidx].start_lnum = rex.lnum;
-                        (*sub).list.multi[subidx].start_col =
+                        multi[subidx].start_lnum = rex.lnum;
+                        multi[subidx].start_col =
                             (rex.input.offset_from(rex.line) as colnr_T) + off;
                     }
-                    (*sub).list.multi[subidx].end_lnum = -1;
+                    multi[subidx].end_lnum = -1;
                 } else {
+                    let line = (*sub).list.line_mut();
                     if (subidx as c_int) < (*sub).in_use {
-                        save_ptr = (*sub).list.line[subidx].start;
+                        save_ptr = line[subidx].start;
                         save_in_use = -1;
                     } else {
                         save_in_use = (*sub).in_use;
-                        for i in (*sub).in_use as usize..subidx {
-                            (*sub).list.line[i].start = ptr::null_mut();
-                            (*sub).list.line[i].end = ptr::null_mut();
+                        for item in &mut line[(*sub).in_use as usize..subidx] {
+                            item.start = ptr::null_mut();
+                            item.end = ptr::null_mut();
                         }
                         (*sub).in_use = subidx as c_int + 1;
                     }
-                    (*sub).list.line[subidx].start = rex.input.offset(off as isize);
+                    line[subidx].start = rex.input.offset(off as isize);
                 }
 
                 subs = addstate(l, (*state).out, subs, pim, off_arg, depth + 1);
@@ -2882,9 +2856,9 @@ unsafe fn addstate(
                     };
                     if save_in_use == -1 {
                         if REG_MULTI() {
-                            (*sub).list.multi[subidx] = save_multipos;
+                            (*sub).list.multi_mut()[subidx] = save_multipos;
                         } else {
-                            (*sub).list.line[subidx].start = save_ptr;
+                            (*sub).list.line_mut()[subidx].start = save_ptr;
                         }
                     } else {
                         (*sub).in_use = save_in_use;
@@ -2898,9 +2872,9 @@ unsafe fn addstate(
                 if c == NFA_MCLOSE
                     && rex.nfa_has_zend != 0
                     && if REG_MULTI() {
-                        (*subs).norm.list.multi[0].end_lnum >= 0
+                        (*subs).norm.list.multi()[0].end_lnum >= 0
                     } else {
-                        !(*subs).norm.list.line[0].end.is_null()
+                        !(*subs).norm.list.line()[0].end.is_null()
                     }
                 {
                     subs = addstate(l, (*state).out, subs, pim, off_arg, depth + 1);
@@ -2920,18 +2894,20 @@ unsafe fn addstate(
                     let mut save_ptr: *mut u8 = ptr::null_mut();
                     let mut save_multipos = multipos::new();
                     if REG_MULTI() {
-                        save_multipos = (*sub).list.multi[subidx];
+                        let multi = (*sub).list.multi_mut();
+                        save_multipos = multi[subidx];
                         if off == -1 {
-                            (*sub).list.multi[subidx].end_lnum = rex.lnum + 1;
-                            (*sub).list.multi[subidx].end_col = 0;
+                            multi[subidx].end_lnum = rex.lnum + 1;
+                            multi[subidx].end_col = 0;
                         } else {
-                            (*sub).list.multi[subidx].end_lnum = rex.lnum;
-                            (*sub).list.multi[subidx].end_col =
+                            multi[subidx].end_lnum = rex.lnum;
+                            multi[subidx].end_col =
                                 (rex.input.offset_from(rex.line) as colnr_T) + off;
                         }
                     } else {
-                        save_ptr = (*sub).list.line[subidx].end;
-                        (*sub).list.line[subidx].end = rex.input.offset(off as isize);
+                        let line = (*sub).list.line_mut();
+                        save_ptr = line[subidx].end;
+                        line[subidx].end = rex.input.offset(off as isize);
                     }
 
                     subs = addstate(l, (*state).out, subs, pim, off_arg, depth + 1);
@@ -2942,9 +2918,9 @@ unsafe fn addstate(
                             &raw mut (*subs).norm
                         };
                         if REG_MULTI() {
-                            (*sub).list.multi[subidx] = save_multipos;
+                            (*sub).list.multi_mut()[subidx] = save_multipos;
                         } else {
-                            (*sub).list.line[subidx].end = save_ptr;
+                            (*sub).list.line_mut()[subidx].end = save_ptr;
                         }
                         (*sub).in_use = save_in_use;
                     }
@@ -3124,7 +3100,7 @@ unsafe fn match_backref(sub: *mut regsub_T, subidx: c_int, bytelen: *mut c_int) 
         }
         let idx = subidx as usize;
         if REG_MULTI() {
-            let mpos = (*sub).list.multi[idx];
+            let mpos = (*sub).list.multi()[idx];
             if mpos.start_lnum < 0 || mpos.end_lnum < 0 {
                 *bytelen = 0;
                 return true;
@@ -3151,7 +3127,7 @@ unsafe fn match_backref(sub: *mut regsub_T, subidx: c_int, bytelen: *mut c_int) 
                 return true;
             }
         } else {
-            let lpos = (*sub).list.line[idx];
+            let lpos = (*sub).list.line()[idx];
             if lpos.start.is_null() || lpos.end.is_null() {
                 *bytelen = 0;
                 return true;
@@ -3244,9 +3220,9 @@ unsafe fn recursive_regmatch(
 
         if !pim.is_null() {
             if REG_MULTI() {
-                rex.input = rex.line.add((*pim).end.pos.col as usize);
+                rex.input = rex.line.add((*pim).end.pos().col as usize);
             } else {
-                rex.input = (*pim).end.ptr;
+                rex.input = (*pim).end.ptr();
             }
         }
 
@@ -3257,15 +3233,17 @@ unsafe fn recursive_regmatch(
         {
             if REG_MULTI() {
                 if pim.is_null() {
-                    endpos.se_u.pos.col = rex.input.offset_from(rex.line) as colnr_T;
-                    endpos.se_u.pos.lnum = rex.lnum;
+                    endpos.se_u = crate::regexp::RegPos::Pos(lpos_T {
+                        col: rex.input.offset_from(rex.line) as colnr_T,
+                        lnum: rex.lnum,
+                    });
                 } else {
-                    endpos.se_u.pos = (*pim).end.pos;
+                    endpos.se_u = (*pim).end;
                 }
             } else if pim.is_null() {
-                endpos.se_u.ptr = rex.input;
+                endpos.se_u = crate::regexp::RegPos::Ptr(rex.input);
             } else {
-                endpos.se_u.ptr = (*pim).end.ptr;
+                endpos.se_u = (*pim).end;
             }
             endposp = &raw mut endpos;
 
@@ -3558,11 +3536,12 @@ unsafe fn nfa_regmatch(
 
         let r = if toplevel {
             if REG_MULTI() {
-                (*m).norm.list.multi[0].start_lnum = rex.lnum;
-                (*m).norm.list.multi[0].start_col = rex.input.offset_from(rex.line) as colnr_T;
-                (*m).norm.orig_start_col = (*m).norm.list.multi[0].start_col;
+                let start_col = rex.input.offset_from(rex.line) as colnr_T;
+                (*m).norm.list.multi_mut()[0].start_lnum = rex.lnum;
+                (*m).norm.list.multi_mut()[0].start_col = start_col;
+                (*m).norm.orig_start_col = start_col;
             } else {
-                (*m).norm.list.line[0].start = rex.input;
+                (*m).norm.list.line_mut()[0].start = rex.input;
             }
             (*m).norm.in_use = 1;
             addstate(&raw mut list[0], (*start).out, m, ptr::null_mut(), 0, 0)
@@ -3655,11 +3634,11 @@ unsafe fn nfa_regmatch(
                     NFA_END_INVISIBLE | NFA_END_INVISIBLE_NEG | NFA_END_PATTERN => {
                         if !nfa_endp.is_null()
                             && if REG_MULTI() {
-                                rex.lnum != (*nfa_endp).se_u.pos.lnum
-                                    || (rex.input.offset_from(rex.line) as colnr_T)
-                                        != (*nfa_endp).se_u.pos.col
+                                let end_pos = (*nfa_endp).se_u.pos();
+                                rex.lnum != end_pos.lnum
+                                    || (rex.input.offset_from(rex.line) as colnr_T) != end_pos.col
                             } else {
-                                rex.input != (*nfa_endp).se_u.ptr
+                                rex.input != (*nfa_endp).se_u.ptr()
                             }
                         {
                             listidx += 1;
@@ -3731,10 +3710,12 @@ unsafe fn nfa_regmatch(
                             pim.subs.norm.in_use = 0;
                             pim.subs.synt.in_use = 0;
                             if REG_MULTI() {
-                                pim.end.pos.col = rex.input.offset_from(rex.line) as colnr_T;
-                                pim.end.pos.lnum = rex.lnum;
+                                pim.end = crate::regexp::RegPos::Pos(lpos_T {
+                                    col: rex.input.offset_from(rex.line) as colnr_T,
+                                    lnum: rex.lnum,
+                                });
                             } else {
-                                pim.end.ptr = rex.input;
+                                pim.end = crate::regexp::RegPos::Ptr(rex.input);
                             }
                             if addstate_here(
                                 thislist,
@@ -3784,10 +3765,10 @@ unsafe fn nfa_regmatch(
                                     copy_sub_off(&raw mut (*t).subs.synt, &raw mut (*m).synt);
                                 }
                                 let bytelen = if REG_MULTI() {
-                                    (*m).norm.list.multi[0].end_col
+                                    (*m).norm.list.multi()[0].end_col
                                         - (rex.input.offset_from(rex.line) as colnr_T)
                                 } else {
-                                    (*m).norm.list.line[0].end.offset_from(rex.input) as c_int
+                                    (*m).norm.list.line()[0].end.offset_from(rex.input) as c_int
                                 };
                                 if bytelen == 0 {
                                     add_here = true;
@@ -4405,12 +4386,12 @@ unsafe fn nfa_regmatch(
                         || (rex.input.offset_from(rex.line) as colnr_T) < rex.reg_maxcol))
                     || (!nfa_endp.is_null()
                         && if REG_MULTI() {
-                            rex.lnum < (*nfa_endp).se_u.pos.lnum
-                                || (rex.lnum == (*nfa_endp).se_u.pos.lnum
-                                    && (rex.input.offset_from(rex.line) as colnr_T)
-                                        < (*nfa_endp).se_u.pos.col)
+                            let end_pos = (*nfa_endp).se_u.pos();
+                            rex.lnum < end_pos.lnum
+                                || (rex.lnum == end_pos.lnum
+                                    && (rex.input.offset_from(rex.line) as colnr_T) < end_pos.col)
                         } else {
-                            rex.input < (*nfa_endp).se_u.ptr
+                            rex.input < (*nfa_endp).se_u.ptr()
                         }))
             {
                 if toplevel {
@@ -4433,11 +4414,11 @@ unsafe fn nfa_regmatch(
                     }
                     if add {
                         if REG_MULTI() {
-                            (*m).norm.list.multi[0].start_col =
-                                (rex.input.offset_from(rex.line) as colnr_T) + clen;
-                            (*m).norm.orig_start_col = (*m).norm.list.multi[0].start_col;
+                            let start_col = (rex.input.offset_from(rex.line) as colnr_T) + clen;
+                            (*m).norm.list.multi_mut()[0].start_col = start_col;
+                            (*m).norm.orig_start_col = start_col;
                         } else {
-                            (*m).norm.list.line[0].start = rex.input.add(clen as usize);
+                            (*m).norm.list.line_mut()[0].start = rex.input.add(clen as usize);
                         }
                         if addstate(nextlist, (*start).out, m, ptr::null_mut(), clen, 0).is_null() {
                             nfa_match = NFA_TOO_EXPENSIVE;
@@ -4452,7 +4433,7 @@ unsafe fn nfa_regmatch(
                     if REG_MULTI()
                         && clen == 0
                         && !nfa_endp.is_null()
-                        && rex.lnum < (*nfa_endp).se_u.pos.lnum
+                        && rex.lnum < (*nfa_endp).se_u.pos().lnum
                     {
                         let next_line = reg_getline(rex.lnum + 1);
                         if !next_line.is_null() {
@@ -4478,7 +4459,7 @@ unsafe fn nfa_regmatch(
             if clen != 0 {
                 rex.input = rex.input.add(clen as usize);
             } else if go_to_nextline
-                || (!nfa_endp.is_null() && REG_MULTI() && rex.lnum < (*nfa_endp).se_u.pos.lnum)
+                || (!nfa_endp.is_null() && REG_MULTI() && rex.lnum < (*nfa_endp).se_u.pos().lnum)
             {
                 reg_nextline();
             } else {
@@ -4547,11 +4528,12 @@ unsafe fn nfa_regtry(
 
         cleanup_subexpr();
         if REG_MULTI() {
-            for i in 0..subs.norm.in_use as usize {
-                (*rex.reg_startpos.add(i)).lnum = subs.norm.list.multi[i].start_lnum;
-                (*rex.reg_startpos.add(i)).col = subs.norm.list.multi[i].start_col;
-                (*rex.reg_endpos.add(i)).lnum = subs.norm.list.multi[i].end_lnum;
-                (*rex.reg_endpos.add(i)).col = subs.norm.list.multi[i].end_col;
+            let norm_multi = subs.norm.list.multi();
+            for (i, item) in norm_multi[..subs.norm.in_use as usize].iter().enumerate() {
+                (*rex.reg_startpos.add(i)).lnum = item.start_lnum;
+                (*rex.reg_startpos.add(i)).col = item.start_col;
+                (*rex.reg_endpos.add(i)).lnum = item.end_lnum;
+                (*rex.reg_endpos.add(i)).col = item.end_col;
             }
             if !rex.reg_mmatch.is_null() {
                 (*rex.reg_mmatch).rmm_matchcol = subs.norm.orig_start_col;
@@ -4567,9 +4549,10 @@ unsafe fn nfa_regtry(
                 rex.lnum = (*rex.reg_endpos).lnum;
             }
         } else {
-            for i in 0..subs.norm.in_use as usize {
-                *rex.reg_startp.add(i) = subs.norm.list.line[i].start;
-                *rex.reg_endp.add(i) = subs.norm.list.line[i].end;
+            let norm_line = subs.norm.list.line();
+            for (i, item) in norm_line[..subs.norm.in_use as usize].iter().enumerate() {
+                *rex.reg_startp.add(i) = item.start;
+                *rex.reg_endp.add(i) = item.end;
             }
             if (*rex.reg_startp).is_null() {
                 *rex.reg_startp = rex.line.add(col as usize);
@@ -4587,7 +4570,7 @@ unsafe fn nfa_regtry(
             re_extmatch_out = make_extmatch();
             for i in 1..subs.synt.in_use as usize {
                 if REG_MULTI() {
-                    let mpos = subs.synt.list.multi[i];
+                    let mpos = subs.synt.list.multi()[i];
                     if mpos.start_lnum >= 0
                         && mpos.start_lnum == mpos.end_lnum
                         && mpos.end_col >= mpos.start_col
@@ -4599,7 +4582,7 @@ unsafe fn nfa_regtry(
                         .cast();
                     }
                 } else {
-                    let lpos = subs.synt.list.line[i];
+                    let lpos = subs.synt.list.line()[i];
                     if !lpos.start.is_null() && !lpos.end.is_null() {
                         (*re_extmatch_out).matches[i] =
                             xstrnsave(lpos.start.cast(), lpos.end.offset_from(lpos.start) as usize)
@@ -4812,13 +4795,9 @@ unsafe fn cleanup_nfa_regcomp(prog: *mut nfa_regprog_T) -> *mut regprog_T {
 
 pub(super) unsafe fn nfa_regfree(prog: *mut regprog_T) {
     unsafe {
-        if prog.is_null() {
-            return;
+        if !prog.is_null() {
+            drop(Box::from_raw(prog.cast::<nfa_regprog_T>()));
         }
-        let nfa_prog = prog.cast::<nfa_regprog_T>();
-        xfree((*nfa_prog).match_text.cast());
-        xfree((*nfa_prog).pattern.cast());
-        drop(Box::from_raw(nfa_prog));
     }
 }
 

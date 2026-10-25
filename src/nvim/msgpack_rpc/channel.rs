@@ -98,6 +98,15 @@ pub struct RemoteUI {
     pub wildmenu_active: bool,
 }
 
+impl Drop for RemoteUI {
+    fn drop(&mut self) {
+        unsafe {
+            crate::memory::xfree(self.packer.startptr.cast());
+            crate::memory::xfree(self.term_name.cast());
+        }
+    }
+}
+
 #[repr(C)]
 pub struct ChannelCallFrame {
     pub request_id: u32,

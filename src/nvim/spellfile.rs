@@ -196,6 +196,14 @@ struct afffile_T {
     af_comp: std::collections::BTreeMap<Vec<u8>, compitem_T>,
 }
 
+impl Drop for afffile_T {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.af_enc.cast());
+        }
+    }
+}
+
 #[repr(C)]
 struct affentry_T {
     ae_chop: *mut c_char,
@@ -2974,13 +2982,6 @@ unsafe fn sal_to_bool(s: *const c_char) -> bool {
     unsafe { strcmp(s, c"1".as_ptr()) == 0 || strcmp(s, c"true".as_ptr()) == 0 }
 }
 
-unsafe fn spell_free_aff(aff: *mut afffile_T) {
-    unsafe {
-        xfree((*aff).af_enc.cast());
-        drop(Box::from_raw(aff));
-    }
-}
-
 unsafe fn spell_read_dic(
     spin: *mut spellinfo_T,
     fname: *mut c_char,
@@ -5231,7 +5232,7 @@ unsafe fn mkspell(
 
                 for &af in afile.iter().take(incount as usize) {
                     if !af.is_null() {
-                        spell_free_aff(af);
+                        drop(Box::from_raw(af));
                     }
                 }
 

@@ -74,6 +74,14 @@ pub struct memfile_T {
     pub mf_dirty: mfdirty_T,
 }
 
+impl Drop for memfile_T {
+    fn drop(&mut self) {
+        unsafe {
+            mf_free_fnames(self);
+        }
+    }
+}
+
 #[inline]
 unsafe fn perror_msg(msg: *const c_char) {
     unsafe {
@@ -182,9 +190,6 @@ pub unsafe fn mf_close(mfp: *mut memfile_T, del_file: bool) {
             os_remove((*mfp).mf_fname);
         }
 
-        (*mfp).mf_hash.clear();
-        (*mfp).mf_free_list.clear();
-        mf_free_fnames(mfp);
         drop(Box::from_raw(mfp));
     }
 }

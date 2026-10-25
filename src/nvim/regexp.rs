@@ -360,6 +360,15 @@ pub(super) struct nfa_regprog_T {
     pub state: Vec<nfa_state_T>,
 }
 
+impl Drop for nfa_regprog_T {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.match_text.cast());
+            xfree(self.pattern.cast());
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct regengine_T {
@@ -377,23 +386,57 @@ pub struct regengine_T {
     ) -> c_int,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
-pub(super) struct regsave_u {
-    pub ptr: *mut u8,
-    pub pos: lpos_T,
+pub(super) enum RegPos {
+    Ptr(*mut u8),
+    Pos(lpos_T),
 }
 
-impl regsave_u {
+impl RegPos {
     pub(super) const fn new() -> Self {
-        Self {
-            ptr: ptr::null_mut(),
-            pos: lpos_T::new(),
+        Self::Ptr(ptr::null_mut())
+    }
+
+    #[inline]
+    pub(super) const fn ptr(self) -> *mut u8 {
+        match self {
+            Self::Ptr(p) => p,
+            Self::Pos(_) => ptr::null_mut(),
+        }
+    }
+
+    #[inline]
+    pub(super) fn ptr_mut(&mut self) -> &mut *mut u8 {
+        if !matches!(*self, Self::Ptr(_)) {
+            *self = Self::Ptr(ptr::null_mut());
+        }
+        match self {
+            Self::Ptr(p) => p,
+            Self::Pos(_) => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub(super) const fn pos(self) -> lpos_T {
+        match self {
+            Self::Pos(pos) => pos,
+            Self::Ptr(_) => lpos_T::new(),
+        }
+    }
+
+    #[inline]
+    pub(super) fn pos_mut(&mut self) -> &mut lpos_T {
+        if !matches!(*self, Self::Pos(_)) {
+            *self = Self::Pos(lpos_T::new());
+        }
+        match self {
+            Self::Pos(pos) => pos,
+            Self::Ptr(_) => unreachable!(),
         }
     }
 }
 
-impl Default for regsave_u {
+impl Default for RegPos {
     fn default() -> Self {
         Self::new()
     }
@@ -402,51 +445,29 @@ impl Default for regsave_u {
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub(super) struct regsave_T {
-    pub rs_u: regsave_u,
+    pub rs_u: RegPos,
     pub rs_len: c_int,
 }
 
 impl regsave_T {
     pub(super) const fn new() -> Self {
         Self {
-            rs_u: regsave_u::new(),
+            rs_u: RegPos::new(),
             rs_len: 0,
         }
     }
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
-pub(super) struct save_se_u {
-    pub ptr: *mut u8,
-    pub pos: lpos_T,
-}
-
-impl save_se_u {
-    pub(super) const fn new() -> Self {
-        Self {
-            ptr: ptr::null_mut(),
-            pos: lpos_T::new(),
-        }
-    }
-}
-
-impl Default for save_se_u {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub(super) struct save_se_T {
-    pub se_u: save_se_u,
+    pub se_u: RegPos,
 }
 
 impl save_se_T {
     pub(super) const fn new() -> Self {
         Self {
-            se_u: save_se_u::new(),
+            se_u: RegPos::new(),
         }
     }
 }
@@ -467,19 +488,59 @@ pub(super) const RS_BEHIND2: regstate_T = 11;
 pub(super) const RS_STAR_LONG: regstate_T = 12;
 pub(super) const RS_STAR_SHORT: regstate_T = 13;
 
-#[repr(C)]
-#[derive(Clone, Copy, Default)]
-pub(super) struct regitem_u {
-    pub sesave: save_se_T,
-    pub regsave: regsave_T,
+#[derive(Clone, Copy)]
+pub(super) enum RegItemSave {
+    Se(save_se_T),
+    Reg(regsave_T),
 }
 
-impl regitem_u {
+impl RegItemSave {
     pub(super) const fn new() -> Self {
-        Self {
-            sesave: save_se_T::new(),
-            regsave: regsave_T::new(),
+        Self::Se(save_se_T::new())
+    }
+
+    #[inline]
+    pub(super) fn sesave(&self) -> &save_se_T {
+        match self {
+            Self::Se(s) => s,
+            Self::Reg(_) => unreachable!(),
         }
+    }
+
+    #[inline]
+    pub(super) fn sesave_mut(&mut self) -> &mut save_se_T {
+        if !matches!(*self, Self::Se(_)) {
+            *self = Self::Se(save_se_T::new());
+        }
+        match self {
+            Self::Se(s) => s,
+            Self::Reg(_) => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub(super) fn regsave(&self) -> &regsave_T {
+        match self {
+            Self::Reg(r) => r,
+            Self::Se(_) => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub(super) fn regsave_mut(&mut self) -> &mut regsave_T {
+        if !matches!(*self, Self::Reg(_)) {
+            *self = Self::Reg(regsave_T::new());
+        }
+        match self {
+            Self::Reg(r) => r,
+            Self::Se(_) => unreachable!(),
+        }
+    }
+}
+
+impl Default for RegItemSave {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -489,7 +550,7 @@ pub(super) struct regitem_T {
     pub rs_state: regstate_T,
     pub rs_no: i16,
     pub rs_scan: *mut u8,
-    pub rs_un: regitem_u,
+    pub rs_un: RegItemSave,
 }
 
 impl regitem_T {
@@ -498,7 +559,7 @@ impl regitem_T {
             rs_state: 0,
             rs_no: 0,
             rs_scan: ptr::null_mut(),
-            rs_un: regitem_u::new(),
+            rs_un: RegItemSave::new(),
         }
     }
 }
@@ -587,23 +648,57 @@ impl Default for linepos {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
-pub(super) struct regsub_list_u {
-    pub multi: [multipos; NSUBEXP],
-    pub line: [linepos; NSUBEXP],
+pub(super) enum RegSubList {
+    Multi([multipos; NSUBEXP]),
+    Line([linepos; NSUBEXP]),
 }
 
-impl regsub_list_u {
+impl RegSubList {
     pub(super) const fn new() -> Self {
-        Self {
-            multi: [multipos::new(); NSUBEXP],
-            line: [linepos::new(); NSUBEXP],
+        Self::Line([linepos::new(); NSUBEXP])
+    }
+
+    #[inline]
+    pub(super) fn multi(&self) -> &[multipos; NSUBEXP] {
+        match self {
+            Self::Multi(m) => m,
+            Self::Line(_) => const { &[multipos::new(); NSUBEXP] },
+        }
+    }
+
+    #[inline]
+    pub(super) fn multi_mut(&mut self) -> &mut [multipos; NSUBEXP] {
+        if !matches!(*self, Self::Multi(_)) {
+            *self = Self::Multi([multipos::new(); NSUBEXP]);
+        }
+        match self {
+            Self::Multi(m) => m,
+            Self::Line(_) => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub(super) fn line(&self) -> &[linepos; NSUBEXP] {
+        match self {
+            Self::Line(l) => l,
+            Self::Multi(_) => const { &[linepos::new(); NSUBEXP] },
+        }
+    }
+
+    #[inline]
+    pub(super) fn line_mut(&mut self) -> &mut [linepos; NSUBEXP] {
+        if !matches!(*self, Self::Line(_)) {
+            *self = Self::Line([linepos::new(); NSUBEXP]);
+        }
+        match self {
+            Self::Line(l) => l,
+            Self::Multi(_) => unreachable!(),
         }
     }
 }
 
-impl Default for regsub_list_u {
+impl Default for RegSubList {
     fn default() -> Self {
         Self::new()
     }
@@ -613,7 +708,7 @@ impl Default for regsub_list_u {
 #[derive(Clone, Copy, Default)]
 pub(super) struct regsub_T {
     pub in_use: c_int,
-    pub list: regsub_list_u,
+    pub list: RegSubList,
     pub orig_start_col: colnr_T,
 }
 
@@ -621,7 +716,7 @@ impl regsub_T {
     pub(super) const fn new() -> Self {
         Self {
             in_use: 0,
-            list: regsub_list_u::new(),
+            list: RegSubList::new(),
             orig_start_col: 0,
         }
     }
@@ -645,33 +740,11 @@ impl regsubs_T {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub(super) struct nfa_pim_end_u {
-    pub pos: lpos_T,
-    pub ptr: *mut u8,
-}
-
-impl nfa_pim_end_u {
-    pub(super) const fn new() -> Self {
-        Self {
-            pos: lpos_T::new(),
-            ptr: ptr::null_mut(),
-        }
-    }
-}
-
-impl Default for nfa_pim_end_u {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
 pub(super) struct nfa_pim_T {
     pub result: c_int,
     pub state: *mut nfa_state_T,
     pub subs: regsubs_T,
-    pub end: nfa_pim_end_u,
+    pub end: RegPos,
 }
 
 impl nfa_pim_T {
@@ -680,7 +753,7 @@ impl nfa_pim_T {
             result: 0,
             state: ptr::null_mut(),
             subs: regsubs_T::new(),
-            end: nfa_pim_end_u::new(),
+            end: RegPos::new(),
         }
     }
 }
@@ -1202,13 +1275,7 @@ pub(super) static mut one_exactly: bool = false;
 
 pub(super) static mut regstack: Vec<u64> = Vec::new();
 static mut backpos: Vec<backpos_T> = Vec::new();
-pub(super) static mut behind_pos: regsave_T = regsave_T {
-    rs_u: regsave_u {
-        ptr: ptr::null_mut(),
-        pos: lpos_T { lnum: 0, col: 0 },
-    },
-    rs_len: 0,
-};
+pub(super) static mut behind_pos: regsave_T = regsave_T::new();
 
 pub(super) static mut nfa_re_flags: c_int = 0;
 pub(super) static mut post_vec: Vec<c_int> = Vec::new();

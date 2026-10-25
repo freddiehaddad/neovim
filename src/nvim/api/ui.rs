@@ -19,7 +19,7 @@ use crate::grid::{sattr_T, schar_T, schar_from_ascii, schar_get, schar_get_adv};
 use crate::highlight::{HlAttrs, hl_get_url, hlattrs2dict, syn_attr2entry};
 use crate::lua::converter::{Boolean, Float};
 use crate::mbyte::utf_ambiguous_width;
-use crate::memory::{Arena, alloc_block, arena_finish, arena_mem_free, strequal, xfree};
+use crate::memory::{Arena, alloc_block, arena_finish, arena_mem_free, strequal};
 use crate::msgpack_rpc::channel::{RemoteUI, find_channel, rpc_write_raw};
 use crate::msgpack_rpc::packer::{
     Integer, PackerBuffer, handle_T, mpack_array, mpack_bool, mpack_object_array, mpack_uint,
@@ -118,9 +118,6 @@ unsafe fn mpack_str_small(buf: *mut *mut c_char, str_: *const c_char, len: usize
 
 unsafe fn remote_ui_destroy(ui: *mut RemoteUI) {
     unsafe {
-        xfree((*ui).packer.startptr.cast());
-        xfree((*ui).term_name.cast());
-        (*ui).term_name = ptr::null_mut();
         drop(Box::from_raw(ui));
     }
 }

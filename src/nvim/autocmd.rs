@@ -92,13 +92,26 @@ impl Drop for AutoPat {
     }
 }
 
+#[derive(Clone, Copy)]
+pub enum AutoCmdHandler {
+    None,
+    Cmd(*mut c_char),
+    Fn(Callback),
+}
+
+impl AutoCmdHandler {
+    #[inline]
+    pub const fn is_cmd(&self) -> bool {
+        matches!(self, Self::Cmd(_))
+    }
+}
+
 #[repr(C)]
 pub struct AutoCmd {
     pub pat: *mut AutoPat,
     pub id: i64,
     pub desc: *mut c_char,
-    pub handler_cmd: *mut c_char,
-    pub handler_fn: Callback,
+    pub handler: AutoCmdHandler,
     pub script_ctx: crate::runtime::sctx_T,
     pub once: bool,
     pub nested: bool,
@@ -110,8 +123,7 @@ impl AutoCmd {
             pat: ptr::null_mut(),
             id: 0,
             desc: ptr::null_mut(),
-            handler_cmd: ptr::null_mut(),
-            handler_fn: Callback::new(),
+            handler: AutoCmdHandler::None,
             script_ctx: crate::runtime::sctx_T::new(),
             once: false,
             nested: false,
@@ -122,6 +134,32 @@ impl AutoCmd {
 impl Default for AutoCmd {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Drop for AutoCmd {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.pat.is_null() {
+                (*self.pat).refcount -= 1;
+                if (*self.pat).refcount == 0 {
+                    drop(Box::from_raw(self.pat));
+                }
+                self.pat = ptr::null_mut();
+            }
+            match &mut self.handler {
+                AutoCmdHandler::Cmd(cmd) => {
+                    xfree((*cmd).cast());
+                }
+                AutoCmdHandler::Fn(cb) => {
+                    callback_free(cb);
+                }
+                AutoCmdHandler::None => {}
+            }
+            self.handler = AutoCmdHandler::None;
+            xfree(self.desc.cast());
+            self.desc = ptr::null_mut();
+        }
     }
 }
 
@@ -1609,7 +1647,7 @@ unsafe fn au_show_for_event(group: c_int, event: event_T, mut pat: *const c_char
                     let msglen = 100usize;
                     let mbuf = xmallocz(msglen).cast::<c_char>();
                     let desc_str = CStr::from_ptr((*ac).desc).to_string_lossy();
-                    let formatted = if !(*ac).handler_cmd.is_null() {
+                    let formatted = if (*ac).handler.is_cmd() {
                         let h_str = CStr::from_ptr(handler_str).to_string_lossy();
                         format!("{h_str} [{desc_str}]")
                     } else {
@@ -1621,7 +1659,7 @@ unsafe fn au_show_for_event(group: c_int, event: event_T, mut pat: *const c_char
                     *mbuf.add(copy_len) = NUL;
                     msg_outtrans(mbuf, 0, false);
                     xfree(mbuf.cast());
-                } else if !(*ac).handler_cmd.is_null() {
+                } else if (*ac).handler.is_cmd() {
                     msg_outtrans(handler_str, 0, false);
                 } else {
                     msg_puts_hl(handler_str, HLF_8, false);
@@ -1646,22 +1684,7 @@ unsafe fn au_show_for_event(group: c_int, event: event_T, mut pat: *const c_char
 
 unsafe fn aucmd_del(ac: *mut AutoCmd) {
     unsafe {
-        if !(*ac).pat.is_null() {
-            (*(*ac).pat).refcount -= 1;
-            if (*(*ac).pat).refcount == 0 {
-                drop(Box::from_raw((*ac).pat));
-            }
-        }
-        (*ac).pat = ptr::null_mut();
-        if !(*ac).handler_cmd.is_null() {
-            xfree((*ac).handler_cmd.cast());
-            (*ac).handler_cmd = ptr::null_mut();
-        } else {
-            callback_free(&raw mut (*ac).handler_fn);
-        }
-        xfree((*ac).desc.cast());
-        (*ac).desc = ptr::null_mut();
-
+        *ac = AutoCmd::new();
         au_need_clean = true;
     }
 }
@@ -2397,10 +2420,11 @@ pub unsafe fn autocmd_register(
         ac.pat = ap;
         ac.id = id;
         if !handler_cmd.is_null() {
-            ac.handler_cmd = xstrdup(handler_cmd);
+            ac.handler = AutoCmdHandler::Cmd(xstrdup(handler_cmd));
         } else {
-            ac.handler_cmd = ptr::null_mut();
-            callback_copy(&raw mut ac.handler_fn, handler_fn);
+            let mut cb = Callback::new();
+            callback_copy(&raw mut cb, handler_fn);
+            ac.handler = AutoCmdHandler::Fn(cb);
         }
         ac.script_ctx = current_sctx;
         let es = &raw const exestack;
@@ -3317,7 +3341,10 @@ unsafe fn aucmd_next(apc: *mut AutoPatCmd) {
 
 unsafe fn au_callback(ac: *const AutoCmd, apc: *const AutoPatCmd) -> bool {
     unsafe {
-        let mut callback = (*ac).handler_fn;
+        let mut callback = match (*ac).handler {
+            AutoCmdHandler::Fn(cb) => cb,
+            AutoCmdHandler::Cmd(_) | AutoCmdHandler::None => Callback::NONE,
+        };
         if callback.cb_type() == kCallbackLua {
             let mut data_items = [KeyValuePair {
                 key: NvimString {
@@ -3443,19 +3470,20 @@ pub unsafe fn getnextac(
         current_sctx = (*ac).script_ctx;
         (*apc).script_ctx = current_sctx;
 
-        let retval = if !(*ac).handler_cmd.is_null() {
-            xstrdup((*ac).handler_cmd)
-        } else {
-            let ac_copy = ptr::read(ac);
-            if oneshot {
-                (*ac).pat = ptr::null_mut();
+        let retval = match (*ac).handler {
+            AutoCmdHandler::Cmd(cmd) => xstrdup(cmd),
+            AutoCmdHandler::Fn(_) | AutoCmdHandler::None => {
+                let ac_copy = std::mem::ManuallyDrop::new(ptr::read(ac));
+                if oneshot {
+                    (*ac).pat = ptr::null_mut();
+                }
+                let rv = au_callback(&raw const *ac_copy, apc);
+                if oneshot {
+                    (*(*acs).as_mut_ptr().add((*apc).auidx)).pat = ac_copy.pat;
+                }
+                oneshot = oneshot || rv;
+                xmallocz(0).cast::<c_char>()
             }
-            let rv = au_callback(&raw const ac_copy, apc);
-            if oneshot {
-                (*(*acs).as_mut_ptr().add((*apc).auidx)).pat = ac_copy.pat;
-            }
-            oneshot = oneshot || rv;
-            xmallocz(0).cast::<c_char>()
         };
 
         if oneshot {
@@ -3781,10 +3809,10 @@ pub unsafe fn autocmd_delete_id(id: i64) -> bool {
 
 pub unsafe fn aucmd_handler_to_string(ac: *mut AutoCmd) -> *mut c_char {
     unsafe {
-        if !(*ac).handler_cmd.is_null() {
-            xstrdup((*ac).handler_cmd)
-        } else {
-            callback_to_string(&raw mut (*ac).handler_fn, ptr::null_mut())
+        match &mut (*ac).handler {
+            AutoCmdHandler::Cmd(cmd) => xstrdup(*cmd),
+            AutoCmdHandler::Fn(cb) => callback_to_string(cb, ptr::null_mut()),
+            AutoCmdHandler::None => xstrdup(c"".as_ptr()),
         }
     }
 }
