@@ -160,6 +160,21 @@ impl Default for VTerm {
     }
 }
 
+impl Drop for VTerm {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.screen.is_null() {
+                drop(Box::from_raw(self.screen));
+                self.screen = std::ptr::null_mut();
+            }
+            if !self.state.is_null() {
+                drop(Box::from_raw(self.state));
+                self.state = std::ptr::null_mut();
+            }
+        }
+    }
+}
+
 unsafe fn output_mouse(
     state: *mut VTermStateFull,
     mut code: c_int,

@@ -423,12 +423,6 @@ unsafe fn vterm_state_new(vt: *mut VTerm) -> *mut VTermStateFull {
     }
 }
 
-pub unsafe fn vterm_state_free(state: *mut VTermStateFull) {
-    unsafe {
-        drop(Box::from_raw(state));
-    }
-}
-
 unsafe fn scroll(
     state: *mut VTermStateFull,
     rect: VTermRect,

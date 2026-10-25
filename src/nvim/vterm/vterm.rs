@@ -13,8 +13,8 @@ use crate::vterm::pen::{
     VTERM_ATTR_UNDERLINE, VTERM_ATTR_URI, VTERM_VALUETYPE_BOOL, VTERM_VALUETYPE_COLOR,
     VTERM_VALUETYPE_INT, VTermAttr, VTermRect, VTermValueType,
 };
-use crate::vterm::screen::{VTermScreen, vterm_screen_free};
-use crate::vterm::state::{VT_MODE_CTRL8BIT, VT_MODE_UTF8, vterm_state_free};
+use crate::vterm::screen::VTermScreen;
+use crate::vterm::state::{VT_MODE_CTRL8BIT, VT_MODE_UTF8};
 
 pub type VTermOutputCallback = Option<unsafe fn(s: *const c_char, len: usize, user: *mut Terminal)>;
 
@@ -34,16 +34,10 @@ pub unsafe fn vterm_new(rows: c_int, cols: c_int) -> *mut VTerm {
 }
 
 pub unsafe fn vterm_free(vt: *mut VTerm) {
-    unsafe {
-        if !(*vt).screen.is_null() {
-            vterm_screen_free((*vt).screen);
+    if !vt.is_null() {
+        unsafe {
+            drop(Box::from_raw(vt));
         }
-
-        if !(*vt).state.is_null() {
-            vterm_state_free((*vt).state);
-        }
-
-        drop(Box::from_raw(vt));
     }
 }
 

@@ -1208,7 +1208,7 @@ unsafe fn free_map_pairs(ptr: *mut c_void, len: usize) {
 /// Free un-exited nodes on `parser` after a parse error (`typval_parser_error_free`).
 pub unsafe fn typval_parser_error_free(parser: *mut mpack_parser_t) {
     let p = unsafe { &mut *parser };
-    for i in 0..p.size as usize {
+    for i in 1..=(p.size as usize) {
         let node = &mut p.items[i];
         match node.tok.r#type {
             mpack_token_type_t::MPACK_TOKEN_BIN

@@ -319,6 +319,17 @@ pub struct Terminal {
     refcount: usize,
 }
 
+impl Drop for Terminal {
+    fn drop(&mut self) {
+        unsafe {
+            vterm_free(self.vt);
+            self.vt = ptr::null_mut();
+            multiqueue_free(self.pending.events);
+            self.pending.events = ptr::null_mut();
+        }
+    }
+}
+
 static mut REFRESH_TIMER: TimeWatcher = TimeWatcher::new();
 static mut REFRESH_PENDING: bool = false;
 
@@ -1469,8 +1480,6 @@ pub unsafe fn terminal_destroy(termpp: *mut *mut Terminal) {
                 unblock_autocmds();
                 (*inv_ptr).swap_remove(pos);
             }
-            vterm_free((*term).vt);
-            multiqueue_free((*term).pending.events);
             drop(Box::from_raw(term));
             *termpp = ptr::null_mut();
         }

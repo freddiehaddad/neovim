@@ -83,15 +83,11 @@ pub struct mpack_parser_t {
     pub status: c_int,
     pub exiting: c_int,
     pub tokbuf: mpack_tokbuf_t,
-    pub items: [mpack_node_t; MPACK_MAX_OBJECT_DEPTH + 1],
-    pub items_vec: Vec<mpack_node_t>,
+    pub items: Vec<mpack_node_t>,
 }
 
 impl mpack_parser_t {
     pub const fn new(capacity: mpack_uint32_t) -> Self {
-        let zero_node = mpack_node_t::new();
-        let mut items = [zero_node; MPACK_MAX_OBJECT_DEPTH + 1];
-        items[0].pos = usize::MAX;
         Self {
             data: mpack_data_t::new(),
             size: 0,
@@ -103,8 +99,7 @@ impl mpack_parser_t {
             status: 0,
             exiting: 0,
             tokbuf: mpack_tokbuf_t::new(),
-            items,
-            items_vec: Vec::new(),
+            items: Vec::new(),
         }
     }
 }
@@ -123,17 +118,6 @@ pub unsafe fn mpack_parent_node(n: *mut mpack_node_t) -> *mut mpack_node_t {
     }
 }
 
-#[inline]
-unsafe fn parser_items_ptr(parser: *mut mpack_parser_t) -> *mut mpack_node_t {
-    unsafe {
-        if (*parser).items_vec.is_empty() {
-            (&raw mut (*parser).items).cast::<mpack_node_t>()
-        } else {
-            (*parser).items_vec.as_mut_ptr()
-        }
-    }
-}
-
 pub unsafe fn mpack_parser_init(parser: *mut mpack_parser_t, capacity: mpack_uint32_t) {
     unsafe {
         let parser = &mut *parser;
@@ -146,14 +130,11 @@ pub unsafe fn mpack_parser_init(parser: *mut mpack_parser_t, capacity: mpack_uin
         };
         parser.size = 0;
         parser.exiting = 0;
-        if (parser.capacity as usize) <= MPACK_MAX_OBJECT_DEPTH {
-            parser.items_vec = Vec::new();
-            parser.items[..(parser.capacity as usize) + 1].fill(mpack_node_t::new());
-            parser.items[0].pos = usize::MAX;
-        } else {
-            parser.items_vec = vec![mpack_node_t::new(); (parser.capacity as usize) + 1];
-            parser.items_vec[0].pos = usize::MAX;
-        }
+        parser.items.clear();
+        parser
+            .items
+            .resize((parser.capacity as usize) + 1, mpack_node_t::new());
+        parser.items[0].pos = usize::MAX;
         parser.status = 0;
     }
 }
@@ -162,14 +143,8 @@ pub unsafe fn mpack_parser_grow(parser: *mut mpack_parser_t) {
     unsafe {
         let p = &mut *parser;
         let new_capacity = p.capacity * 2;
-        if p.items_vec.is_empty() {
-            let mut v = vec![mpack_node_t::new(); (new_capacity as usize) + 1];
-            let copy_len = ((p.capacity as usize) + 1).min(p.items.len());
-            v[..copy_len].copy_from_slice(&p.items[..copy_len]);
-            p.items_vec = v;
-        } else {
-            p.items_vec.resize((new_capacity as usize) + 1, mpack_node_t::new());
-        }
+        p.items
+            .resize((new_capacity as usize) + 1, mpack_node_t::new());
         p.capacity = new_capacity;
     }
 }
@@ -369,7 +344,7 @@ unsafe fn mpack_parser_full(parser: *mut mpack_parser_t) -> bool {
 unsafe fn mpack_parser_push(parser: *mut mpack_parser_t) -> *mut mpack_node_t {
     unsafe {
         debug_assert!((*parser).size < (*parser).capacity);
-        let top = parser_items_ptr(parser).add(((*parser).size as usize) + 1);
+        let top = (*parser).items.as_mut_ptr().add(((*parser).size as usize) + 1);
         (*top).data[0] = mpack_data_t::Null;
         (*top).data[1] = mpack_data_t::Null;
         (*top).pos = 0;
@@ -382,7 +357,7 @@ unsafe fn mpack_parser_push(parser: *mut mpack_parser_t) -> *mut mpack_node_t {
 unsafe fn mpack_parser_pop(parser: *mut mpack_parser_t) -> *mut mpack_node_t {
     unsafe {
         debug_assert!((*parser).size != 0);
-        let top = parser_items_ptr(parser).add((*parser).size as usize);
+        let top = (*parser).items.as_mut_ptr().add((*parser).size as usize);
 
         if (*top).tok.r#type > MPACK_TOKEN_CHUNK && (*top).pos < ((*top).tok.length as usize) {
             return ptr::null_mut();

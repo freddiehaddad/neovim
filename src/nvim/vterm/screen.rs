@@ -1371,12 +1371,6 @@ unsafe fn screen_new(vt: *mut VTerm) -> *mut VTermScreen {
     }
 }
 
-pub unsafe fn vterm_screen_free(screen: *mut VTermScreen) {
-    unsafe {
-        drop(Box::from_raw(screen));
-    }
-}
-
 pub unsafe fn vterm_screen_reset(screen: *mut VTermScreen, hard: c_int) {
     unsafe {
         (*screen).damaged.start_row = -1;

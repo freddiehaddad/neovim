@@ -395,7 +395,7 @@ pub unsafe fn termkey_new_abstract(term: *mut TerminfoEntry, flags: c_int) -> *m
         register_c0(tk, TERMKEY_SYM_ESCAPE, 0x1b, std::ptr::null());
 
         if (flags & TERMKEY_FLAG_NOSTART) == 0 && termkey_start(tk) == 0 {
-            termkey_free(tk);
+            drop(Box::from_raw(tk));
             return std::ptr::null_mut();
         }
 
@@ -403,20 +403,21 @@ pub unsafe fn termkey_new_abstract(term: *mut TerminfoEntry, flags: c_int) -> *m
     }
 }
 
-pub unsafe fn termkey_free(tk: *mut TermKey) {
-    if !tk.is_null() {
-        unsafe {
-            drop(Box::from_raw(tk));
+impl Drop for TermKey {
+    fn drop(&mut self) {
+        if self.is_started != 0 {
+            unsafe {
+                termkey_stop(self);
+            }
         }
     }
 }
 
 pub unsafe fn termkey_destroy(tk: *mut TermKey) {
-    unsafe {
-        if (*tk).is_started != 0 {
-            termkey_stop(tk);
+    if !tk.is_null() {
+        unsafe {
+            drop(Box::from_raw(tk));
         }
-        termkey_free(tk);
     }
 }
 
