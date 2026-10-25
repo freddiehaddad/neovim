@@ -5,7 +5,6 @@ use std::ptr;
 
 use crate::strings::memchr;
 use crate::xdiff::xdiffi::xdl_do_diff;
-use crate::xdiff::xprepare::xdl_free_env;
 use crate::xdiff::{
     XDF_IGNORE_CR_AT_EOL, XDF_IGNORE_WHITESPACE, XDF_IGNORE_WHITESPACE_AT_EOL,
     XDF_IGNORE_WHITESPACE_CHANGE, XDF_WHITESPACE_FLAGS, mmbuffer_t, mmfile_t, xdemitcb_t,
@@ -409,8 +408,6 @@ pub unsafe fn xdl_fall_back_diff(
             (*diff_env).xdf2.rchg.offset((line2 - 1) as isize),
             count2 as usize,
         );
-
-        xdl_free_env(&mut env);
     }
 
     0

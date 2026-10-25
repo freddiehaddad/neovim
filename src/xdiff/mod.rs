@@ -204,7 +204,6 @@ pub struct xdalgoenv_t {
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct xdchange_t {
-    pub next: *mut xdchange_t,
     pub i1: c_long,
     pub i2: c_long,
     pub chg1: c_long,
@@ -214,7 +213,7 @@ pub struct xdchange_t {
 
 pub type emit_func_t = unsafe fn(
     xe: *mut xdfenv_t,
-    xscr: *mut xdchange_t,
+    xscr: &[xdchange_t],
     ecb: *mut xdemitcb_t,
     xecfg: *const xdemitconf_t,
 ) -> c_int;

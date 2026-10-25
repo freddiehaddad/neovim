@@ -46,11 +46,6 @@ fn xdl_init_classifier(cf: &mut xdlclassifier_t, size: c_long, flags: c_long) ->
     0
 }
 
-fn xdl_free_classifier(cf: &mut xdlclassifier_t) {
-    cf.rcrecs.clear();
-    cf.rchash.clear();
-}
-
 unsafe fn xdl_classify_record(
     pass: c_uint,
     cf: &mut xdlclassifier_t,
@@ -180,12 +175,6 @@ unsafe fn xdl_prepare_ctx(
     0
 }
 
-unsafe fn xdl_free_ctx(xdf: *mut xdfile_t) {
-    unsafe {
-        *xdf = xdfile_t::new();
-    }
-}
-
 pub unsafe fn xdl_prepare_env(
     mf1: *mut mmfile_t,
     mf2: *mut mmfile_t,
@@ -216,12 +205,10 @@ pub unsafe fn xdl_prepare_env(
         }
 
         if xdl_prepare_ctx(1, mf1, enl1, xpp, &mut cf, &mut (*xe).xdf1) < 0 {
-            xdl_free_classifier(&mut cf);
             return -1;
         }
         if xdl_prepare_ctx(2, mf2, enl2, xpp, &mut cf, &mut (*xe).xdf2) < 0 {
-            xdl_free_ctx(&mut (*xe).xdf1);
-            xdl_free_classifier(&mut cf);
+            (*xe).xdf1 = xdfile_t::new();
             return -1;
         }
 
@@ -229,25 +216,12 @@ pub unsafe fn xdl_prepare_env(
             && xdf_diff_alg((*xpp).flags) != XDF_HISTOGRAM_DIFF
             && xdl_optimize_ctxs(&cf, &mut (*xe).xdf1, &mut (*xe).xdf2) < 0
         {
-            xdl_free_ctx(&mut (*xe).xdf2);
-            xdl_free_ctx(&mut (*xe).xdf1);
-            xdl_free_classifier(&mut cf);
+            *xe = xdfenv_t::new();
             return -1;
-        }
-
-        if xdf_diff_alg((*xpp).flags) != XDF_HISTOGRAM_DIFF {
-            xdl_free_classifier(&mut cf);
         }
     }
 
     0
-}
-
-pub unsafe fn xdl_free_env(xe: *mut xdfenv_t) {
-    unsafe {
-        xdl_free_ctx(&mut (*xe).xdf2);
-        xdl_free_ctx(&mut (*xe).xdf1);
-    }
 }
 
 unsafe fn xdl_clean_mmatch(dis: *const c_char, i: c_long, mut s: c_long, mut e: c_long) -> c_int {

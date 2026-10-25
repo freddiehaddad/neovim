@@ -1,12 +1,11 @@
 //! Core diff algorithm (`src/xdiff/xdiffi.c`).
 
 use std::ffi::{c_char, c_int, c_long, c_ulong};
-use std::ptr;
 
 use crate::xdiff::xemit::{xdl_emit_diff, xdl_get_hunk};
 use crate::xdiff::xhistogram::xdl_do_histogram_diff;
 use crate::xdiff::xpatience::xdl_do_patience_diff;
-use crate::xdiff::xprepare::{xdl_free_env, xdl_prepare_env};
+use crate::xdiff::xprepare::xdl_prepare_env;
 use crate::xdiff::xutils::{xdl_blankline, xdl_bogosqrt, xdl_recmatch};
 use crate::xdiff::{
     XDF_HISTOGRAM_DIFF, XDF_IGNORE_BLANK_LINES, XDF_INDENT_HEURISTIC, XDF_NEED_MINIMAL,
@@ -419,28 +418,11 @@ pub unsafe fn xdl_do_diff(
             &mut xenv,
         ) < 0
         {
-            xdl_free_env(xe);
+            *xe = xdfenv_t::new();
             return -1;
         }
     }
     0
-}
-
-unsafe fn xdl_add_change(
-    xscr: *mut xdchange_t,
-    i1: c_long,
-    i2: c_long,
-    chg1: c_long,
-    chg2: c_long,
-) -> *mut xdchange_t {
-    Box::into_raw(Box::new(xdchange_t {
-        next: xscr,
-        i1,
-        i2,
-        chg1,
-        chg2,
-        ignore: 0,
-    }))
 }
 
 unsafe fn recs_match(rec1: *mut xrecord_t, rec2: *mut xrecord_t, flags: c_long) -> bool {
@@ -793,8 +775,8 @@ pub unsafe fn xdl_change_compact(xdf: *mut xdfile_t, xdfo: *mut xdfile_t, flags:
     0
 }
 
-pub unsafe fn xdl_build_script(xe: *mut xdfenv_t, xscr: *mut *mut xdchange_t) -> c_int {
-    let mut cscr: *mut xdchange_t = ptr::null_mut();
+pub unsafe fn xdl_build_script(xe: *mut xdfenv_t, xscr: &mut Vec<xdchange_t>) -> c_int {
+    xscr.clear();
     unsafe {
         let rchg1 = (*xe).xdf1.rchg;
         let rchg2 = (*xe).xdf2.rchg;
@@ -812,88 +794,77 @@ pub unsafe fn xdl_build_script(xe: *mut xdfenv_t, xscr: *mut *mut xdchange_t) ->
                     i2 -= 1;
                 }
 
-                let xch = xdl_add_change(cscr, i1, i2, l1 - i1, l2 - i2);
-                if xch.is_null() {
-                    xdl_free_script(cscr);
-                    return -1;
-                }
-                cscr = xch;
+                xscr.push(xdchange_t {
+                    i1,
+                    i2,
+                    chg1: l1 - i1,
+                    chg2: l2 - i2,
+                    ignore: 0,
+                });
             }
             i1 -= 1;
             i2 -= 1;
         }
 
-        *xscr = cscr;
+        xscr.reverse();
     }
     0
 }
 
-pub unsafe fn xdl_free_script(mut xscr: *mut xdchange_t) {
-    while !xscr.is_null() {
-        let xch = xscr;
-        xscr = unsafe { (*xscr).next };
-        unsafe { drop(Box::from_raw(xch)) };
-    }
-}
-
 unsafe fn xdl_call_hunk_func(
     _xe: *mut xdfenv_t,
-    xscr: *mut xdchange_t,
+    xscr: &[xdchange_t],
     ecb: *mut xdemitcb_t,
     xecfg: *const xdemitconf_t,
 ) -> c_int {
-    let mut xch = xscr;
+    let mut idx = 0;
     unsafe {
-        while !xch.is_null() {
-            let xche = xdl_get_hunk(&mut xch, xecfg);
-            if xch.is_null() {
-                break;
-            }
+        while let Some(end_idx) = xdl_get_hunk(xscr, &mut idx, xecfg) {
+            let xch = &xscr[idx];
+            let xche = &xscr[end_idx];
             if (*ecb).call_hunk(
-                (*xch).i1 as c_int,
-                ((*xche).i1 + (*xche).chg1 - (*xch).i1) as c_int,
-                (*xch).i2 as c_int,
-                ((*xche).i2 + (*xche).chg2 - (*xch).i2) as c_int,
+                xch.i1 as c_int,
+                (xche.i1 + xche.chg1 - xch.i1) as c_int,
+                xch.i2 as c_int,
+                (xche.i2 + xche.chg2 - xch.i2) as c_int,
             ) < 0
             {
                 return -1;
             }
-            xch = (*xche).next;
+            idx = end_idx + 1;
         }
     }
     0
 }
 
-unsafe fn xdl_mark_ignorable_lines(xscr: *mut xdchange_t, xe: *mut xdfenv_t, flags: c_long) {
-    let mut xch = xscr;
+unsafe fn xdl_mark_ignorable_lines(xscr: &mut [xdchange_t], xe: *mut xdfenv_t, flags: c_long) {
     unsafe {
-        while !xch.is_null() {
+        for xch in xscr {
             let mut ignore: c_int = 1;
-            let rec1 = (*xe).xdf1.recs.offset((*xch).i1 as isize);
+            let rec1 = (*xe).xdf1.recs.offset(xch.i1 as isize);
             let mut i: c_long = 0;
-            while i < (*xch).chg1 && ignore != 0 {
+            while i < xch.chg1 && ignore != 0 {
                 let r = *rec1.offset(i as isize);
                 ignore = xdl_blankline((*r).ptr, (*r).size, flags);
                 i += 1;
             }
 
-            let rec2 = (*xe).xdf2.recs.offset((*xch).i2 as isize);
+            let rec2 = (*xe).xdf2.recs.offset(xch.i2 as isize);
             i = 0;
-            while i < (*xch).chg2 && ignore != 0 {
+            while i < xch.chg2 && ignore != 0 {
                 let r = *rec2.offset(i as isize);
                 ignore = xdl_blankline((*r).ptr, (*r).size, flags);
                 i += 1;
             }
 
-            (*xch).ignore = ignore;
-            xch = (*xch).next;
+            xch.ignore = ignore;
         }
     }
 }
 
 unsafe fn xdl_emit_diff_wrapper(
     xe: *mut xdfenv_t,
-    xscr: *mut xdchange_t,
+    xscr: &[xdchange_t],
     ecb: *mut xdemitcb_t,
     xecfg: *const xdemitconf_t,
 ) -> c_int {
@@ -908,7 +879,7 @@ pub unsafe fn xdl_diff(
     ecb: *mut xdemitcb_t,
 ) -> c_int {
     unsafe {
-        let mut xscr: *mut xdchange_t = ptr::null_mut();
+        let mut xscr: Vec<xdchange_t> = Vec::new();
         let mut xe = xdfenv_t::new();
         let ef: emit_func_t = if (*ecb).has_hunk_func() {
             xdl_call_hunk_func
@@ -923,22 +894,17 @@ pub unsafe fn xdl_diff(
             || xdl_change_compact(&mut xe.xdf2, &mut xe.xdf1, (*xpp).flags as c_long) < 0
             || xdl_build_script(&mut xe, &mut xscr) < 0
         {
-            xdl_free_env(&mut xe);
             return -1;
         }
-        if !xscr.is_null() {
+        if !xscr.is_empty() {
             if ((*xpp).flags & XDF_IGNORE_BLANK_LINES) != 0 {
-                xdl_mark_ignorable_lines(xscr, &mut xe, (*xpp).flags as c_long);
+                xdl_mark_ignorable_lines(&mut xscr, &mut xe, (*xpp).flags as c_long);
             }
 
-            if ef(&mut xe, xscr, ecb, xecfg) < 0 {
-                xdl_free_script(xscr);
-                xdl_free_env(&mut xe);
+            if ef(&mut xe, &xscr, ecb, xecfg) < 0 {
                 return -1;
             }
-            xdl_free_script(xscr);
         }
-        xdl_free_env(&mut xe);
     }
 
     0
