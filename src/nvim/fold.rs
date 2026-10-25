@@ -181,23 +181,19 @@ pub unsafe fn hasFoldingWin(
         let mut lnum_rel = lnum;
         let mut level: c_int = 0;
         let mut low_level: c_int = 0;
-        let mut fp: *mut fold_T = ptr::null_mut();
         let mut maybe_small = false;
         let mut use_level = false;
 
         if first == 0 {
-            let mut gap = &raw mut (*win).w_folds;
-            loop {
-                if !foldFind(gap, lnum_rel, &mut fp) {
-                    break;
-                }
-
-                if lnum_rel == (*fp).fd_top && low_level == 0 {
+            let mut gap = &mut (*win).w_folds;
+            while let (true, idx) = foldFind(gap, lnum_rel) {
+                let fp = &mut gap[idx];
+                if lnum_rel == fp.fd_top && low_level == 0 {
                     low_level = level + 1;
                 }
 
-                first += (*fp).fd_top;
-                last += (*fp).fd_top;
+                first += fp.fd_top;
+                last += fp.fd_top;
 
                 had_folded = check_closed(
                     win,
@@ -208,12 +204,12 @@ pub unsafe fn hasFoldingWin(
                     lnum - lnum_rel,
                 );
                 if had_folded {
-                    last += (*fp).fd_len - 1;
+                    last += fp.fd_len - 1;
                     break;
                 }
 
-                gap = &raw mut (*fp).fd_nested;
-                lnum_rel -= (*fp).fd_top;
+                lnum_rel -= fp.fd_top;
+                gap = &mut fp.fd_nested;
                 level += 1;
             }
         }
@@ -515,42 +511,37 @@ pub unsafe fn foldCreate(wp: *mut win_T, mut start: pos_T, mut end: pos_T) {
 
         checkupdate(wp);
 
-        let i_usize: usize;
-        let mut gap = &raw mut (*wp).w_folds;
-        if (*gap).is_empty() {
-            i_usize = 0;
-        } else {
-            let mut fp: *mut fold_T = ptr::null_mut();
+        let mut i_usize: usize = 0;
+        let mut gap = &mut (*wp).w_folds;
+        if !gap.is_empty() {
             loop {
-                if !foldFind(gap, start_rel.lnum, &mut fp) {
+                let (found, idx) = foldFind(gap, start_rel.lnum);
+                i_usize = idx;
+                if !found {
                     break;
                 }
-                if (*fp).fd_top + (*fp).fd_len > end_rel.lnum {
-                    gap = &raw mut (*fp).fd_nested;
-                    start_rel.lnum -= (*fp).fd_top;
-                    end_rel.lnum -= (*fp).fd_top;
-                    if use_level || (*fp).fd_flags == FD_LEVEL {
+                if gap[idx].fd_top + gap[idx].fd_len > end_rel.lnum {
+                    let fp = &mut gap[idx];
+                    start_rel.lnum -= fp.fd_top;
+                    end_rel.lnum -= fp.fd_top;
+                    if use_level || fp.fd_flags == FD_LEVEL {
                         use_level = true;
                         if i64::from(level) >= (*wp).w_onebuf_opt.wo_fdl {
                             closed = true;
                         }
-                    } else if (*fp).fd_flags == FD_CLOSED {
+                    } else if fp.fd_flags == FD_CLOSED {
                         closed = true;
                     }
+                    gap = &mut fp.fd_nested;
                     level += 1;
                 } else {
                     break;
                 }
             }
-            if (*gap).is_empty() {
-                i_usize = 0;
-            } else {
-                i_usize = fp.offset_from((*gap).as_ptr()) as usize;
-            }
         }
 
         {
-            let gap_ref = &mut *gap;
+            let gap_ref = gap;
             let mut fold_ga: Vec<fold_T> = Vec::new();
 
             let mut cont: usize = 0;
@@ -616,11 +607,8 @@ pub unsafe fn deleteFold(
             let mut found_ga: *mut Vec<fold_T> = ptr::null_mut();
             let mut lnum_off: linenr_T = 0;
             let mut use_level = false;
-            loop {
-                let mut fp: *mut fold_T = ptr::null_mut();
-                if !foldFind(gap, lnum - lnum_off, &mut fp) {
-                    break;
-                }
+            while let (true, idx) = foldFind(&*gap, lnum - lnum_off) {
+                let fp = (*gap).as_mut_ptr().add(idx);
                 found_ga = gap;
                 found_fp = fp;
                 found_off = lnum_off;
@@ -695,15 +683,11 @@ pub unsafe fn foldUpdate(wp: *mut win_T, top: linenr_T, bot: linenr_T) {
             let maybe_small_start = top.min(bot);
             let maybe_small_end = top.max(bot);
 
-            let mut fp: *mut fold_T = ptr::null_mut();
-            foldFind(&raw const (*wp).w_folds, maybe_small_start, &mut fp);
-            let end_fp = (*wp).w_folds.as_mut_ptr().add((*wp).w_folds.len());
-            while !fp.is_null()
-                && (fp as usize) < (end_fp as usize)
-                && (*fp).fd_top <= maybe_small_end
-            {
-                (*fp).fd_small = kNone;
-                fp = fp.add(1);
+            let folds = &mut (*wp).w_folds;
+            let (_, mut idx) = foldFind(folds, maybe_small_start);
+            while idx < folds.len() && folds[idx].fd_top <= maybe_small_end {
+                folds[idx].fd_small = kNone;
+                idx += 1;
             }
         }
 
@@ -744,14 +728,13 @@ pub unsafe fn foldUpdateAll(win: *mut win_T) {
 pub unsafe fn foldMoveTo(updown: bool, dir: c_int, count: c_int) -> c_int {
     unsafe {
         let mut retval = FAIL;
-        let mut fp: *mut fold_T = ptr::null_mut();
 
         checkupdate(curwin);
 
         for _ in 0..count {
             let mut lnum_off: linenr_T = 0;
-            let mut gap = &raw mut (*curwin).w_folds;
-            if (*gap).is_empty() {
+            let mut gap = &mut (*curwin).w_folds;
+            if gap.is_empty() {
                 break;
             }
             let mut use_level = false;
@@ -760,27 +743,36 @@ pub unsafe fn foldMoveTo(updown: bool, dir: c_int, count: c_int) -> c_int {
             let mut level: c_int = 0;
             let mut last = false;
             loop {
-                if !foldFind(gap, (*curwin).w_cursor.lnum - lnum_off, &mut fp) {
-                    if !updown || (*gap).is_empty() {
+                let (found, idx) = foldFind(gap, (*curwin).w_cursor.lnum - lnum_off);
+                if !found {
+                    if !updown || gap.is_empty() {
                         break;
                     }
-
-                    let ga_start = (*gap).as_mut_ptr();
                     if dir == FORWARD {
-                        if fp.offset_from(ga_start) as usize >= (*gap).len() {
+                        if idx >= gap.len() {
                             break;
                         }
-                        fp = fp.sub(1);
-                    } else if ptr::eq(fp, ga_start) {
-                        break;
+                        let lnum = gap[idx].fd_top + lnum_off;
+                        if lnum > (*curwin).w_cursor.lnum {
+                            lnum_found = lnum;
+                        }
+                    } else {
+                        if idx == 0 {
+                            break;
+                        }
+                        let prev_fp = &gap[idx - 1];
+                        let lnum = prev_fp.fd_top + lnum_off + prev_fp.fd_len - 1;
+                        if lnum < (*curwin).w_cursor.lnum {
+                            lnum_found = lnum;
+                        }
                     }
-                    last = true;
+                    break;
                 }
 
                 if !last {
                     if check_closed(
                         curwin,
-                        fp,
+                        &mut gap[idx],
                         &mut use_level,
                         level,
                         &mut maybe_small,
@@ -793,29 +785,28 @@ pub unsafe fn foldMoveTo(updown: bool, dir: c_int, count: c_int) -> c_int {
                     }
                 }
 
-                let ga_start = (*gap).as_mut_ptr();
                 if updown {
                     if dir == FORWARD {
-                        if (fp.add(1).offset_from(ga_start) as usize) < (*gap).len() {
-                            let lnum = (*fp.add(1)).fd_top + lnum_off;
+                        if idx + 1 < gap.len() {
+                            let lnum = gap[idx + 1].fd_top + lnum_off;
                             if lnum > (*curwin).w_cursor.lnum {
                                 lnum_found = lnum;
                             }
                         }
-                    } else if (fp as usize) > (ga_start as usize) {
-                        let prev_fp = &*fp.sub(1);
+                    } else if idx > 0 {
+                        let prev_fp = &gap[idx - 1];
                         let lnum = prev_fp.fd_top + lnum_off + prev_fp.fd_len - 1;
                         if lnum < (*curwin).w_cursor.lnum {
                             lnum_found = lnum;
                         }
                     }
                 } else if dir == FORWARD {
-                    let lnum = (*fp).fd_top + lnum_off + (*fp).fd_len - 1;
+                    let lnum = gap[idx].fd_top + lnum_off + gap[idx].fd_len - 1;
                     if lnum > (*curwin).w_cursor.lnum {
                         lnum_found = lnum;
                     }
                 } else {
-                    let lnum = (*fp).fd_top + lnum_off;
+                    let lnum = gap[idx].fd_top + lnum_off;
                     if lnum < (*curwin).w_cursor.lnum {
                         lnum_found = lnum;
                     }
@@ -825,8 +816,9 @@ pub unsafe fn foldMoveTo(updown: bool, dir: c_int, count: c_int) -> c_int {
                     break;
                 }
 
-                gap = &raw mut (*fp).fd_nested;
-                lnum_off += (*fp).fd_top;
+                let top = gap[idx].fd_top;
+                gap = &mut gap[idx].fd_nested;
+                lnum_off += top;
                 level += 1;
             }
             if lnum_found != (*curwin).w_cursor.lnum {
@@ -916,46 +908,32 @@ pub unsafe fn foldAdjustCursor(wp: *mut win_T) {
     }
 }
 
-unsafe fn foldFind(gap: *const Vec<fold_T>, lnum: linenr_T, fpp: *mut *mut fold_T) -> bool {
-    unsafe {
-        if (*gap).is_empty() {
-            *fpp = ptr::null_mut();
-            return false;
+fn foldFind(gap: &[fold_T], lnum: linenr_T) -> (bool, usize) {
+    let mut low: usize = 0;
+    let mut high: isize = gap.len() as isize - 1;
+    while (low as isize) <= high {
+        let i = ((low as isize + high) / 2) as usize;
+        let entry = &gap[i];
+        if entry.fd_top > lnum {
+            high = i as isize - 1;
+        } else if entry.fd_top + entry.fd_len <= lnum {
+            low = i + 1;
+        } else {
+            return (true, i);
         }
-
-        let fp = (*gap).as_ptr().cast_mut();
-        let mut low: linenr_T = 0;
-        let mut high: linenr_T = (*gap).len() as linenr_T - 1;
-        while low <= high {
-            let i = (low + high) / 2;
-            let entry = &*fp.add(i as usize);
-            if entry.fd_top > lnum {
-                high = i - 1;
-            } else if entry.fd_top + entry.fd_len <= lnum {
-                low = i + 1;
-            } else {
-                *fpp = fp.add(i as usize);
-                return true;
-            }
-        }
-        *fpp = fp.add(low as usize);
-        false
     }
+    (false, low)
 }
 
 unsafe fn foldLevelWin(wp: *mut win_T, lnum: linenr_T) -> c_int {
     unsafe {
-        let mut fp: *mut fold_T = ptr::null_mut();
         let mut lnum_rel = lnum;
         let mut level: c_int = 0;
 
-        let mut gap = &raw const (*wp).w_folds;
-        loop {
-            if !foldFind(gap, lnum_rel, &mut fp) {
-                break;
-            }
-            gap = &raw const (*fp).fd_nested;
-            lnum_rel -= (*fp).fd_top;
+        let mut gap: &[fold_T] = &(*wp).w_folds;
+        while let (true, idx) = foldFind(gap, lnum_rel) {
+            lnum_rel -= gap[idx].fd_top;
+            gap = &gap[idx].fd_nested;
             level += 1;
         }
 
@@ -1016,7 +994,6 @@ unsafe fn setManualFoldWin(
     donep: *mut c_int,
 ) -> linenr_T {
     unsafe {
-        let mut fp: *mut fold_T = ptr::null_mut();
         let mut found: *mut fold_T = ptr::null_mut();
         let mut level: c_int = 0;
         let mut use_level = false;
@@ -1027,22 +1004,23 @@ unsafe fn setManualFoldWin(
 
         checkupdate(wp);
 
-        let mut gap = &raw mut (*wp).w_folds;
+        let mut gap = &mut (*wp).w_folds;
         loop {
-            let ga_end = (*gap).as_mut_ptr().add((*gap).len());
-            if !foldFind(gap, lnum, &mut fp) {
-                if !fp.is_null() && (fp as usize) < (ga_end as usize) {
-                    next = (*fp).fd_top + off;
+            let (found_in_gap, idx) = foldFind(gap, lnum);
+            if !found_in_gap {
+                if idx < gap.len() {
+                    next = gap[idx].fd_top + off;
                 }
                 break;
             }
 
             found_fold = true;
 
-            if (fp.add(1) as usize) < (ga_end as usize) {
-                next = (*fp.add(1)).fd_top + off;
+            if idx + 1 < gap.len() {
+                next = gap[idx + 1].fd_top + off;
             }
 
+            let fp = &raw mut gap[idx];
             if use_level || (*fp).fd_flags == FD_LEVEL {
                 use_level = true;
                 (*fp).fd_flags = if i64::from(level) >= (*wp).w_onebuf_opt.wo_fdl {
@@ -1072,9 +1050,9 @@ unsafe fn setManualFoldWin(
             }
 
             found = fp;
-            gap = &raw mut (*fp).fd_nested;
             lnum -= (*fp).fd_top;
             off += (*fp).fd_top;
+            gap = &mut (*fp).fd_nested;
             level += 1;
         }
         if found_fold {
@@ -1146,19 +1124,19 @@ pub unsafe fn foldMarkAdjust(
         if (State & MODE_INSERT) != 0 && amount == 1 && line2 == MAXLNUM {
             line1 -= 1;
         }
-        foldMarkAdjustRecurse(&raw mut (*wp).w_folds, line1, line2, amount, amount_after);
+        foldMarkAdjustRecurse(&mut (*wp).w_folds, line1, line2, amount, amount_after);
     }
 }
 
 unsafe fn foldMarkAdjustRecurse(
-    gap: *mut Vec<fold_T>,
+    gap: &mut Vec<fold_T>,
     line1: linenr_T,
     line2: linenr_T,
     amount: linenr_T,
     amount_after: linenr_T,
 ) {
     unsafe {
-        if (*gap).is_empty() {
+        if gap.is_empty() {
             return;
         }
 
@@ -1168,68 +1146,68 @@ unsafe fn foldMarkAdjustRecurse(
             line1
         };
 
-        let mut fp: *mut fold_T = ptr::null_mut();
-        foldFind(gap, line1, &mut fp);
+        let (_, mut i) = foldFind(gap, line1);
 
-        let mut i = fp.offset_from((*gap).as_ptr()) as c_int;
-        while (i as usize) < (*gap).len() {
-            fp = (*gap).as_mut_ptr().add(i as usize);
-            let last = (*fp).fd_top + (*fp).fd_len - 1;
+        while i < gap.len() {
+            let last = gap[i].fd_top + gap[i].fd_len - 1;
 
             if last < line1 {
                 i += 1;
                 continue;
             }
 
-            if (*fp).fd_top > line2 {
+            if gap[i].fd_top > line2 {
                 if amount_after == 0 {
                     break;
                 }
-                (*fp).fd_top += amount_after;
-            } else if (*fp).fd_top >= top && last <= line2 {
+                gap[i].fd_top += amount_after;
+            } else if gap[i].fd_top >= top && last <= line2 {
                 if amount == MAXLNUM {
-                    deleteFoldEntry(&mut *gap, i, true);
+                    deleteFoldEntry(gap, i as c_int, true);
                     continue;
                 } else {
-                    (*fp).fd_top += amount;
+                    gap[i].fd_top += amount;
                 }
-            } else if (*fp).fd_top < top {
+            } else if gap[i].fd_top < top {
+                let fp = &mut gap[i];
                 foldMarkAdjustRecurse(
-                    &raw mut (*fp).fd_nested,
-                    line1 - (*fp).fd_top,
-                    line2 - (*fp).fd_top,
+                    &mut fp.fd_nested,
+                    line1 - fp.fd_top,
+                    line2 - fp.fd_top,
                     amount,
                     amount_after,
                 );
                 if last <= line2 {
                     if amount == MAXLNUM {
-                        (*fp).fd_len = line1 - (*fp).fd_top;
+                        fp.fd_len = line1 - fp.fd_top;
                     } else {
-                        (*fp).fd_len += amount;
+                        fp.fd_len += amount;
                     }
                 } else {
-                    (*fp).fd_len += amount_after;
+                    fp.fd_len += amount_after;
                 }
             } else if amount == MAXLNUM {
+                let fp = &mut gap[i];
                 foldMarkAdjustRecurse(
-                    &raw mut (*fp).fd_nested,
+                    &mut fp.fd_nested,
                     0,
-                    line2 - (*fp).fd_top,
+                    line2 - fp.fd_top,
                     amount,
-                    amount_after + ((*fp).fd_top - top),
+                    amount_after + (fp.fd_top - top),
                 );
-                (*fp).fd_len -= line2 - (*fp).fd_top + 1;
-                (*fp).fd_top = line1;
+                fp.fd_len -= line2 - fp.fd_top + 1;
+                fp.fd_top = line1;
             } else {
+                let fp = &mut gap[i];
                 foldMarkAdjustRecurse(
-                    &raw mut (*fp).fd_nested,
+                    &mut fp.fd_nested,
                     0,
-                    line2 - (*fp).fd_top,
+                    line2 - fp.fd_top,
                     amount,
                     amount_after - amount,
                 );
-                (*fp).fd_len += amount_after - amount;
-                (*fp).fd_top += amount;
+                fp.fd_len += amount_after - amount;
+                fp.fd_top += amount;
             }
 
             i += 1;
@@ -1796,24 +1774,29 @@ unsafe fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
         }
 
         if getlevel == LevelGetterKind::Syntax {
-            let mut gap = &raw const (*wp).w_folds;
-            let mut fpn: *mut fold_T = ptr::null_mut();
+            let mut gap: &[fold_T] = &(*wp).w_folds;
+            let mut fpn: Option<&fold_T> = None;
             let mut current_fdl: c_int = 0;
             let mut fold_start_lnum: linenr_T = 0;
             let mut lnum_rel = fline.lnum;
 
             while current_fdl < fline.lvl {
-                if !foldFind(gap, lnum_rel, &mut fpn) {
+                let (found, idx) = foldFind(gap, lnum_rel);
+                if !found {
                     break;
                 }
                 current_fdl += 1;
 
-                fold_start_lnum += (*fpn).fd_top;
-                gap = &raw const (*fpn).fd_nested;
-                lnum_rel -= (*fpn).fd_top;
+                let entry = &gap[idx];
+                fold_start_lnum += entry.fd_top;
+                gap = &entry.fd_nested;
+                lnum_rel -= entry.fd_top;
+                fpn = Some(entry);
             }
-            if !fpn.is_null() && current_fdl == fline.lvl {
-                let fold_end_lnum = fold_start_lnum + (*fpn).fd_len;
+            if let Some(entry) = fpn
+                && current_fdl == fline.lvl
+            {
+                let fold_end_lnum = fold_start_lnum + entry.fd_len;
                 bot = bot.max(fold_end_lnum);
             }
         }
@@ -1823,8 +1806,6 @@ unsafe fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
         if start > end && end < (*(*wp).w_buffer).b_ml.ml_line_count {
             end = start;
         }
-
-        let mut fp: *mut fold_T = ptr::null_mut();
 
         while !got_int {
             if fline.lnum > (*(*wp).w_buffer).b_ml.ml_line_count {
@@ -1837,14 +1818,17 @@ unsafe fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
                 {
                     break;
                 }
-                if (start <= end
-                    && foldFind(&raw const (*wp).w_folds, end, &mut fp)
-                    && (*fp).fd_top + (*fp).fd_len - 1 > end)
-                    || (fline.lvl == 0
-                        && foldFind(&raw const (*wp).w_folds, fline.lnum, &mut fp)
-                        && (*fp).fd_top < fline.lnum)
+                let folds = &(*wp).w_folds;
+                if start <= end
+                    && let (true, idx) = foldFind(folds, end)
+                    && folds[idx].fd_top + folds[idx].fd_len - 1 > end
                 {
-                    end = (*fp).fd_top + (*fp).fd_len - 1;
+                    end = folds[idx].fd_top + folds[idx].fd_len - 1;
+                } else if fline.lvl == 0
+                    && let (true, idx) = foldFind(folds, fline.lnum)
+                    && folds[idx].fd_top < fline.lnum
+                {
+                    end = folds[idx].fd_top + folds[idx].fd_len - 1;
                 } else if getlevel == LevelGetterKind::Syntax
                     && foldLevelWin(wp, fline.lnum) != fline.lvl
                 {
@@ -1858,7 +1842,7 @@ unsafe fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
                 invalid_top = fline.lnum;
                 invalid_bot = end;
                 end = foldUpdateIEMSRecurse(
-                    &raw mut (*wp).w_folds,
+                    &mut (*wp).w_folds,
                     1,
                     start,
                     &mut fline,
@@ -1877,7 +1861,7 @@ unsafe fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
             }
         }
 
-        foldRemove(&raw mut (*wp).w_folds, start, end);
+        foldRemove(&mut (*wp).w_folds, start, end);
 
         if fold_changed && (*wp).w_onebuf_opt.wo_fen != 0 {
             changed_window_setting(wp);
@@ -1892,7 +1876,7 @@ unsafe fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
 }
 
 unsafe fn foldUpdateIEMSRecurse(
-    gap: *mut Vec<fold_T>,
+    gap: &mut Vec<fold_T>,
     level: c_int,
     startlnum: linenr_T,
     flp: &mut fline_T,
@@ -1901,17 +1885,15 @@ unsafe fn foldUpdateIEMSRecurse(
     topflags: c_char,
 ) -> linenr_T {
     unsafe {
-        let mut fp: *mut fold_T = ptr::null_mut();
+        let mut fp_idx: Option<usize> = None;
 
         if getlevel == LevelGetterKind::Marker && flp.start <= flp.lvl - level && flp.lvl > 0 {
-            foldFind(gap, startlnum - 1, &mut fp);
-            let ga_end = (*gap).as_mut_ptr().add((*gap).len());
-            if !fp.is_null() && ((fp as usize) >= (ga_end as usize) || (*fp).fd_top >= startlnum) {
-                fp = ptr::null_mut();
+            let (_, idx) = foldFind(gap, startlnum - 1);
+            if idx < gap.len() && gap[idx].fd_top < startlnum {
+                fp_idx = Some(idx);
             }
         }
 
-        let mut fp2: *mut fold_T;
         let mut lvl = level;
         let mut startlnum2 = startlnum;
         let firstlnum = flp.lnum;
@@ -1927,7 +1909,10 @@ unsafe fn foldUpdateIEMSRecurse(
                 lvl = 0;
             }
 
-            if flp.lnum > bot && !finish && !fp.is_null() {
+            if flp.lnum > bot
+                && !finish
+                && let Some(fpi) = fp_idx
+            {
                 if getlevel != LevelGetterKind::Marker
                     && getlevel != LevelGetterKind::Expr
                     && getlevel != LevelGetterKind::Syntax
@@ -1935,27 +1920,29 @@ unsafe fn foldUpdateIEMSRecurse(
                     break;
                 }
                 let mut i: c_int = 0;
-                fp2 = fp;
                 if lvl >= level {
-                    let mut ll = flp.lnum - (*fp).fd_top;
-                    while foldFind(&raw const (*fp2).fd_nested, ll, &mut fp2) {
+                    let mut ll = flp.lnum - gap[fpi].fd_top;
+                    let mut cur_nested: &[fold_T] = &gap[fpi].fd_nested;
+                    while let (true, ni) = foldFind(cur_nested, ll) {
                         i += 1;
-                        ll -= (*fp2).fd_top;
+                        ll -= cur_nested[ni].fd_top;
+                        cur_nested = &cur_nested[ni].fd_nested;
                     }
                 }
                 if lvl < level + i {
-                    foldFind(&raw const (*fp).fd_nested, flp.lnum - (*fp).fd_top, &mut fp2);
-                    if !fp2.is_null() {
-                        bot = (*fp2).fd_top + (*fp2).fd_len - 1 + (*fp).fd_top;
+                    let (_, ni) = foldFind(&gap[fpi].fd_nested, flp.lnum - gap[fpi].fd_top);
+                    if ni < gap[fpi].fd_nested.len() {
+                        let f2 = &gap[fpi].fd_nested[ni];
+                        bot = f2.fd_top + f2.fd_len - 1 + gap[fpi].fd_top;
                     }
-                } else if (*fp).fd_top + (*fp).fd_len <= flp.lnum && lvl >= level {
+                } else if gap[fpi].fd_top + gap[fpi].fd_len <= flp.lnum && lvl >= level {
                     finish = true;
                 } else {
                     break;
                 }
             }
 
-            if fp.is_null()
+            if fp_idx.is_none()
                 && (lvl != level
                     || flp.lnum_save >= bot
                     || flp.start != 0
@@ -1969,39 +1956,49 @@ unsafe fn foldUpdateIEMSRecurse(
                         1
                     };
 
-                    let ga_end = (*gap).as_mut_ptr().add((*gap).len());
-                    if !(*gap).is_empty()
-                        && (foldFind(gap, startlnum, &mut fp)
-                            || ((fp as usize) < (ga_end as usize) && (*fp).fd_top <= firstlnum)
-                            || foldFind(gap, firstlnum - concat, &mut fp)
-                            || ((fp as usize) < (ga_end as usize)
-                                && ((lvl < level && (*fp).fd_top < flp.lnum)
-                                    || (lvl >= level && (*fp).fd_top <= flp.lnum_save))))
-                    {
-                        if (*fp).fd_top + (*fp).fd_len + concat > firstlnum {
-                            if (*fp).fd_top == firstlnum {
+                    let mut cand_idx = 0;
+                    let has_cand = !gap.is_empty() && {
+                        let (found1, idx1) = foldFind(gap, startlnum);
+                        cand_idx = idx1;
+                        if found1 || (cand_idx < gap.len() && gap[cand_idx].fd_top <= firstlnum) {
+                            true
+                        } else {
+                            let (found2, idx2) = foldFind(gap, firstlnum - concat);
+                            cand_idx = idx2;
+                            found2
+                                || (cand_idx < gap.len()
+                                    && ((lvl < level && gap[cand_idx].fd_top < flp.lnum)
+                                        || (lvl >= level && gap[cand_idx].fd_top <= flp.lnum_save)))
+                        }
+                    };
+
+                    if has_cand {
+                        if gap[cand_idx].fd_top + gap[cand_idx].fd_len + concat > firstlnum {
+                            let mut fpi = cand_idx;
+                            if gap[fpi].fd_top == firstlnum {
                                 // exact match
-                            } else if (*fp).fd_top >= startlnum {
-                                if (*fp).fd_top > firstlnum {
+                            } else if gap[fpi].fd_top >= startlnum {
+                                let fp = &mut gap[fpi];
+                                if fp.fd_top > firstlnum {
                                     foldMarkAdjustRecurse(
-                                        &raw mut (*fp).fd_nested,
+                                        &mut fp.fd_nested,
                                         0,
                                         MAXLNUM,
-                                        (*fp).fd_top - firstlnum,
+                                        fp.fd_top - firstlnum,
                                         0,
                                     );
                                 } else {
                                     foldMarkAdjustRecurse(
-                                        &raw mut (*fp).fd_nested,
+                                        &mut fp.fd_nested,
                                         0,
-                                        firstlnum - (*fp).fd_top - 1,
+                                        firstlnum - fp.fd_top - 1,
                                         MAXLNUM,
-                                        (*fp).fd_top - firstlnum,
+                                        fp.fd_top - firstlnum,
                                     );
                                 }
-                                (*fp).fd_len += (*fp).fd_top - firstlnum;
-                                (*fp).fd_top = firstlnum;
-                                (*fp).fd_small = kNone;
+                                fp.fd_len += fp.fd_top - firstlnum;
+                                fp.fd_top = firstlnum;
+                                fp.fd_small = kNone;
                                 fold_changed = true;
                             } else if (flp.start != 0 && lvl == level) || firstlnum != startlnum {
                                 let (breakstart, breakend) = if firstlnum != startlnum {
@@ -2009,14 +2006,14 @@ unsafe fn foldUpdateIEMSRecurse(
                                 } else {
                                     (flp.lnum, flp.lnum)
                                 };
+                                let fp_top = gap[fpi].fd_top;
                                 foldRemove(
-                                    &raw mut (*fp).fd_nested,
-                                    breakstart - (*fp).fd_top,
-                                    breakend - (*fp).fd_top,
+                                    &mut gap[fpi].fd_nested,
+                                    breakstart - fp_top,
+                                    breakend - fp_top,
                                 );
-                                let i = fp.offset_from((*gap).as_ptr()) as c_int;
-                                foldSplit(&mut *gap, i, breakstart, breakend - 1);
-                                fp = (*gap).as_mut_ptr().add((i + 1) as usize);
+                                foldSplit(gap, fpi as c_int, breakstart, breakend - 1);
+                                fpi += 1;
                                 if getlevel == LevelGetterKind::Marker
                                     || getlevel == LevelGetterKind::Expr
                                     || getlevel == LevelGetterKind::Syntax
@@ -2024,26 +2021,25 @@ unsafe fn foldUpdateIEMSRecurse(
                                     finish = true;
                                 }
                             }
-                            if (*fp).fd_top == startlnum && concat != 0 {
-                                let i = fp.offset_from((*gap).as_ptr()) as c_int;
-                                if i != 0 {
-                                    fp2 = fp.sub(1);
-                                    if (*fp2).fd_top + (*fp2).fd_len == (*fp).fd_top {
-                                        foldMerge(fp2, gap, fp);
-                                        fp = (*gap).as_mut_ptr().add((i - 1) as usize);
-                                    }
-                                }
+                            if gap[fpi].fd_top == startlnum
+                                && concat != 0
+                                && fpi != 0
+                                && gap[fpi - 1].fd_top + gap[fpi - 1].fd_len == gap[fpi].fd_top
+                            {
+                                foldMerge(gap, fpi - 1);
+                                fpi -= 1;
                             }
+                            fp_idx = Some(fpi);
                             break;
                         }
-                        if (*fp).fd_top >= startlnum {
-                            let idx = fp.offset_from((*gap).as_ptr()) as c_int;
-                            deleteFoldEntry(&mut *gap, idx, true);
+                        if gap[cand_idx].fd_top >= startlnum {
+                            deleteFoldEntry(gap, cand_idx as c_int, true);
                         } else {
-                            (*fp).fd_len = startlnum - (*fp).fd_top;
+                            let fp = &mut gap[cand_idx];
+                            fp.fd_len = startlnum - fp.fd_top;
                             foldMarkAdjustRecurse(
-                                &raw mut (*fp).fd_nested,
-                                (*fp).fd_len,
+                                &mut fp.fd_nested,
+                                fp.fd_len,
                                 MAXLNUM,
                                 MAXLNUM,
                                 0,
@@ -2051,27 +2047,24 @@ unsafe fn foldUpdateIEMSRecurse(
                             fold_changed = true;
                         }
                     } else {
-                        let i = if (*gap).is_empty() {
-                            0
-                        } else {
-                            fp.offset_from((*gap).as_ptr()) as c_int
-                        };
-                        foldInsert(&mut *gap, i);
-                        fp = (*gap).as_mut_ptr().add(i as usize);
-                        (*fp).fd_top = firstlnum;
-                        (*fp).fd_len = bot - firstlnum + 1;
+                        let i = cand_idx;
+                        foldInsert(gap, i as c_int);
+                        let prev_flags = if i > 0 { gap[i - 1].fd_flags } else { 0 };
+                        let fp = &mut gap[i];
+                        fp.fd_top = firstlnum;
+                        fp.fd_len = bot - firstlnum + 1;
                         if topflags == FD_OPEN {
                             (*flp.wp).w_fold_manual = true;
-                            (*fp).fd_flags = FD_OPEN;
-                        } else if i <= 0 {
-                            (*fp).fd_flags = topflags;
+                            fp.fd_flags = FD_OPEN;
+                        } else if i == 0 {
+                            fp.fd_flags = topflags;
                             if topflags != FD_LEVEL {
                                 (*flp.wp).w_fold_manual = true;
                             }
                         } else {
-                            (*fp).fd_flags = (*fp.sub(1)).fd_flags;
+                            fp.fd_flags = prev_flags;
                         }
-                        (*fp).fd_small = kNone;
+                        fp.fd_small = kNone;
                         if getlevel == LevelGetterKind::Marker
                             || getlevel == LevelGetterKind::Expr
                             || getlevel == LevelGetterKind::Syntax
@@ -2079,6 +2072,7 @@ unsafe fn foldUpdateIEMSRecurse(
                             finish = true;
                         }
                         fold_changed = true;
+                        fp_idx = Some(i);
                         break;
                     }
                 }
@@ -2088,26 +2082,29 @@ unsafe fn foldUpdateIEMSRecurse(
                 break;
             }
 
-            if lvl > level && !fp.is_null() {
+            if lvl > level
+                && let Some(fpi) = fp_idx
+            {
                 bot = bot.max(flp.lnum);
 
-                flp.lnum = flp.lnum_save - (*fp).fd_top;
-                flp.off += (*fp).fd_top;
-                let i = fp.offset_from((*gap).as_ptr()) as c_int;
+                let fp_top = gap[fpi].fd_top;
+                let fp_flags = gap[fpi].fd_flags;
+                flp.lnum = flp.lnum_save - fp_top;
+                flp.off += fp_top;
                 bot = foldUpdateIEMSRecurse(
-                    &raw mut (*fp).fd_nested,
+                    &mut gap[fpi].fd_nested,
                     level + 1,
-                    startlnum2 - (*fp).fd_top,
+                    startlnum2 - fp_top,
                     flp,
                     getlevel,
-                    bot - (*fp).fd_top,
-                    (*fp).fd_flags,
+                    bot - fp_top,
+                    fp_flags,
                 );
-                fp = (*gap).as_mut_ptr().add(i as usize);
-                flp.lnum += (*fp).fd_top;
-                flp.lnum_save += (*fp).fd_top;
-                flp.off -= (*fp).fd_top;
-                bot += (*fp).fd_top;
+                let fp_top = gap[fpi].fd_top;
+                flp.lnum += fp_top;
+                flp.lnum_save += fp_top;
+                flp.off -= fp_top;
+                bot += fp_top;
                 startlnum2 = flp.lnum;
             } else {
                 flp.lnum = flp.lnum_save;
@@ -2136,73 +2133,69 @@ unsafe fn foldUpdateIEMSRecurse(
             }
         }
 
-        if fp.is_null() {
+        let Some(fpi) = fp_idx else {
             return bot;
-        }
+        };
 
-        if (*fp).fd_len < flp.lnum - (*fp).fd_top {
-            (*fp).fd_len = flp.lnum - (*fp).fd_top;
-            (*fp).fd_small = kNone;
+        if gap[fpi].fd_len < flp.lnum - gap[fpi].fd_top {
+            gap[fpi].fd_len = flp.lnum - gap[fpi].fd_top;
+            gap[fpi].fd_small = kNone;
             fold_changed = true;
-        } else if (*fp).fd_top + (*fp).fd_len > linecount {
-            (*fp).fd_len = linecount - (*fp).fd_top + 1;
+        } else if gap[fpi].fd_top + gap[fpi].fd_len > linecount {
+            gap[fpi].fd_len = linecount - gap[fpi].fd_top + 1;
         }
 
+        let fp_top = gap[fpi].fd_top;
         foldRemove(
-            &raw mut (*fp).fd_nested,
-            startlnum2 - (*fp).fd_top,
-            flp.lnum - 1 - (*fp).fd_top,
+            &mut gap[fpi].fd_nested,
+            startlnum2 - fp_top,
+            flp.lnum - 1 - fp_top,
         );
 
-        if lvl < level && (*fp).fd_len != flp.lnum - (*fp).fd_top {
-            if (*fp).fd_top + (*fp).fd_len - 1 > bot {
+        if lvl < level && gap[fpi].fd_len != flp.lnum - gap[fpi].fd_top {
+            if gap[fpi].fd_top + gap[fpi].fd_len - 1 > bot {
                 if getlevel == LevelGetterKind::Marker
                     || getlevel == LevelGetterKind::Expr
                     || getlevel == LevelGetterKind::Syntax
                 {
-                    bot = (*fp).fd_top + (*fp).fd_len - 1;
-                    (*fp).fd_len = flp.lnum - (*fp).fd_top;
+                    bot = gap[fpi].fd_top + gap[fpi].fd_len - 1;
+                    gap[fpi].fd_len = flp.lnum - gap[fpi].fd_top;
                 } else {
-                    let i = fp.offset_from((*gap).as_ptr()) as c_int;
-                    foldSplit(&mut *gap, i, flp.lnum, bot);
-                    fp = (*gap).as_mut_ptr().add(i as usize);
+                    foldSplit(gap, fpi as c_int, flp.lnum, bot);
                 }
             } else {
-                (*fp).fd_len = flp.lnum - (*fp).fd_top;
+                gap[fpi].fd_len = flp.lnum - gap[fpi].fd_top;
             }
             fold_changed = true;
         }
 
-        let fp_idx = fp.offset_from((*gap).as_ptr()) as usize;
         loop {
-            fp = (*gap).as_mut_ptr().add(fp_idx);
-            fp2 = fp.add(1);
-            let ga_end = (*gap).as_mut_ptr().add((*gap).len());
-            if (fp2 as usize) >= (ga_end as usize) || (*fp2).fd_top > flp.lnum {
+            let next_idx = fpi + 1;
+            if next_idx >= gap.len() || gap[next_idx].fd_top > flp.lnum {
                 break;
             }
-            if (*fp2).fd_top + (*fp2).fd_len > flp.lnum {
-                if (*fp2).fd_top < flp.lnum {
+            if gap[next_idx].fd_top + gap[next_idx].fd_len > flp.lnum {
+                if gap[next_idx].fd_top < flp.lnum {
+                    let fp2 = &mut gap[next_idx];
                     foldMarkAdjustRecurse(
-                        &raw mut (*fp2).fd_nested,
+                        &mut fp2.fd_nested,
                         0,
-                        flp.lnum - (*fp2).fd_top - 1,
+                        flp.lnum - fp2.fd_top - 1,
                         MAXLNUM,
-                        (*fp2).fd_top - flp.lnum,
+                        fp2.fd_top - flp.lnum,
                     );
-                    (*fp2).fd_len -= flp.lnum - (*fp2).fd_top;
-                    (*fp2).fd_top = flp.lnum;
+                    fp2.fd_len -= flp.lnum - fp2.fd_top;
+                    fp2.fd_top = flp.lnum;
                     fold_changed = true;
                 }
 
                 if lvl >= level {
-                    foldMerge(fp, gap, fp2);
+                    foldMerge(gap, fpi);
                 }
                 break;
             }
             fold_changed = true;
-            let idx = fp2.offset_from((*gap).as_ptr()) as c_int;
-            deleteFoldEntry(&mut *gap, idx, true);
+            deleteFoldEntry(gap, next_idx as c_int, true);
         }
 
         bot = bot.max(flp.lnum - 1);
@@ -2225,8 +2218,6 @@ fn foldInsert(gap: &mut Vec<fold_T>, i: c_int) {
 
 unsafe fn foldSplit(gap: &mut Vec<fold_T>, i: c_int, top: linenr_T, bot: linenr_T) {
     unsafe {
-        let mut fp2: *mut fold_T = ptr::null_mut();
-
         foldInsert(gap, i + 1);
 
         let gap_slice = gap.as_mut_slice();
@@ -2241,14 +2232,11 @@ unsafe fn foldSplit(gap: &mut Vec<fold_T>, i: c_int, top: linenr_T, bot: linenr_
         fp.fd_small = kNone;
 
         let delta = next_fp.fd_top - fp.fd_top;
-        foldFind(&raw const fp.fd_nested, bot + 1 - fp.fd_top, &mut fp2);
-        if !fp2.is_null() {
-            let split_idx = fp2.offset_from(fp.fd_nested.as_ptr()) as usize;
-            if split_idx < fp.fd_nested.len() {
-                for mut child in fp.fd_nested.drain(split_idx..) {
-                    child.fd_top -= delta;
-                    next_fp.fd_nested.push(child);
-                }
+        let (_, split_idx) = foldFind(&fp.fd_nested, bot + 1 - fp.fd_top);
+        if split_idx < fp.fd_nested.len() {
+            for mut child in fp.fd_nested.drain(split_idx..) {
+                child.fd_top -= delta;
+                next_fp.fd_nested.push(child);
             }
         }
         fp.fd_len = top - fp.fd_top;
@@ -2256,54 +2244,52 @@ unsafe fn foldSplit(gap: &mut Vec<fold_T>, i: c_int, top: linenr_T, bot: linenr_
     }
 }
 
-unsafe fn foldRemove(gap: *mut Vec<fold_T>, top: linenr_T, bot: linenr_T) {
+unsafe fn foldRemove(gap: &mut Vec<fold_T>, top: linenr_T, bot: linenr_T) {
     unsafe {
         if bot < top {
             return;
         }
 
-        let mut fp: *mut fold_T = ptr::null_mut();
-
         loop {
-            if (*gap).is_empty() {
+            if gap.is_empty() {
                 break;
             }
-            if foldFind(gap, top, &mut fp) && (*fp).fd_top < top {
+            let (found, idx) = foldFind(gap, top);
+            if found && gap[idx].fd_top < top {
+                let fp_top = gap[idx].fd_top;
                 foldRemove(
-                    &raw mut (*fp).fd_nested,
-                    top - (*fp).fd_top,
-                    bot - (*fp).fd_top,
+                    &mut gap[idx].fd_nested,
+                    top - fp_top,
+                    bot - fp_top,
                 );
-                if (*fp).fd_top + (*fp).fd_len - 1 > bot {
-                    let idx = fp.offset_from((*gap).as_ptr()) as c_int;
-                    foldSplit(&mut *gap, idx, top, bot);
+                if gap[idx].fd_top + gap[idx].fd_len - 1 > bot {
+                    foldSplit(gap, idx as c_int, top, bot);
                 } else {
-                    (*fp).fd_len = top - (*fp).fd_top;
+                    gap[idx].fd_len = top - gap[idx].fd_top;
                 }
                 fold_changed = true;
                 continue;
             }
-            let ga_end = (*gap).as_mut_ptr().add((*gap).len());
-            if (*gap).is_empty() || (fp as usize) >= (ga_end as usize) || (*fp).fd_top > bot {
+            if idx >= gap.len() || gap[idx].fd_top > bot {
                 break;
             }
-            if (*fp).fd_top >= top {
+            if gap[idx].fd_top >= top {
                 fold_changed = true;
-                if (*fp).fd_top + (*fp).fd_len - 1 > bot {
+                if gap[idx].fd_top + gap[idx].fd_len - 1 > bot {
+                    let fp = &mut gap[idx];
                     foldMarkAdjustRecurse(
-                        &raw mut (*fp).fd_nested,
+                        &mut fp.fd_nested,
                         0,
-                        bot - (*fp).fd_top,
+                        bot - fp.fd_top,
                         MAXLNUM,
-                        (*fp).fd_top - bot - 1,
+                        fp.fd_top - bot - 1,
                     );
-                    (*fp).fd_len -= bot - (*fp).fd_top + 1;
-                    (*fp).fd_top = bot + 1;
+                    fp.fd_len -= bot - fp.fd_top + 1;
+                    fp.fd_top = bot + 1;
                     break;
                 }
 
-                let idx = fp.offset_from((*gap).as_ptr()) as c_int;
-                deleteFoldEntry(&mut *gap, idx, true);
+                deleteFoldEntry(gap, idx as c_int, true);
             }
         }
     }
@@ -2315,154 +2301,149 @@ fn foldReverseOrder(gap: &mut [fold_T], start: linenr_T, end: linenr_T) {
     }
 }
 
-unsafe fn truncate_fold(fp: *mut fold_T, mut end: linenr_T) {
+unsafe fn truncate_fold(fp: &mut fold_T, mut end: linenr_T) {
     unsafe {
         end += 1;
-        foldRemove(&raw mut (*fp).fd_nested, end - (*fp).fd_top, MAXLNUM);
-        (*fp).fd_len = end - (*fp).fd_top;
+        foldRemove(&mut fp.fd_nested, end - fp.fd_top, MAXLNUM);
+        fp.fd_len = end - fp.fd_top;
     }
 }
 
 #[inline]
-unsafe fn fold_end(fp: *const fold_T) -> linenr_T {
-    unsafe { (*fp).fd_top + (*fp).fd_len - 1 }
-}
-
-#[inline]
-unsafe fn valid_fold(fp: *const fold_T, gap: &[fold_T]) -> bool {
-    unsafe { !gap.is_empty() && (fp as usize) < (gap.as_ptr().add(gap.len()) as usize) }
-}
-
-#[inline]
-unsafe fn fold_index(fp: *const fold_T, gap: &[fold_T]) -> usize {
-    unsafe { fp.offset_from(gap.as_ptr()) as usize }
+const fn fold_end(fp: &fold_T) -> linenr_T {
+    fp.fd_top + fp.fd_len - 1
 }
 
 /// Move folds within the inclusive range "line1" to "line2" to after "dest".
 pub unsafe fn foldMoveRange(
-    gap: *mut Vec<fold_T>,
+    gap: &mut [fold_T],
     line1: linenr_T,
     line2: linenr_T,
     dest: linenr_T,
 ) {
     unsafe {
-        let mut fp: *mut fold_T = ptr::null_mut();
         let range_len = line2 - line1 + 1;
         let move_len = dest - line2;
-        let at_start = foldFind(gap, line1 - 1, &mut fp);
+        let (at_start, mut idx) = foldFind(gap, line1 - 1);
 
         if at_start {
-            if fold_end(fp) > dest {
+            if fold_end(&gap[idx]) > dest {
+                let fp = &mut gap[idx];
                 foldMoveRange(
-                    &raw mut (*fp).fd_nested,
-                    line1 - (*fp).fd_top,
-                    line2 - (*fp).fd_top,
-                    dest - (*fp).fd_top,
+                    &mut fp.fd_nested,
+                    line1 - fp.fd_top,
+                    line2 - fp.fd_top,
+                    dest - fp.fd_top,
                 );
                 return;
-            } else if fold_end(fp) > line2 {
+            } else if fold_end(&gap[idx]) > line2 {
+                let fp = &mut gap[idx];
                 foldMarkAdjustRecurse(
-                    &raw mut (*fp).fd_nested,
-                    line1 - (*fp).fd_top,
-                    line2 - (*fp).fd_top,
+                    &mut fp.fd_nested,
+                    line1 - fp.fd_top,
+                    line2 - fp.fd_top,
                     MAXLNUM,
                     -range_len,
                 );
-                (*fp).fd_len -= range_len;
+                fp.fd_len -= range_len;
             } else {
-                truncate_fold(fp, line1 - 1);
+                truncate_fold(&mut gap[idx], line1 - 1);
             }
-            fp = fp.add(1);
+            idx += 1;
         }
 
-        if !valid_fold(fp, &*gap) || (*fp).fd_top > dest {
+        if idx >= gap.len() || gap[idx].fd_top > dest {
             return;
-        } else if (*fp).fd_top > line2 {
-            while valid_fold(fp, &*gap) && fold_end(fp) <= dest {
-                (*fp).fd_top -= range_len;
-                fp = fp.add(1);
+        } else if gap[idx].fd_top > line2 {
+            while idx < gap.len() && fold_end(&gap[idx]) <= dest {
+                gap[idx].fd_top -= range_len;
+                idx += 1;
             }
-            if valid_fold(fp, &*gap) && (*fp).fd_top <= dest {
-                truncate_fold(fp, dest);
-                (*fp).fd_top -= range_len;
+            if idx < gap.len() && gap[idx].fd_top <= dest {
+                truncate_fold(&mut gap[idx], dest);
+                gap[idx].fd_top -= range_len;
             }
             return;
-        } else if fold_end(fp) > dest {
+        } else if fold_end(&gap[idx]) > dest {
+            let fp = &mut gap[idx];
             foldMarkAdjustRecurse(
-                &raw mut (*fp).fd_nested,
-                line2 + 1 - (*fp).fd_top,
-                dest - (*fp).fd_top,
+                &mut fp.fd_nested,
+                line2 + 1 - fp.fd_top,
+                dest - fp.fd_top,
                 MAXLNUM,
                 -move_len,
             );
-            (*fp).fd_len -= move_len;
-            (*fp).fd_top += move_len;
+            fp.fd_len -= move_len;
+            fp.fd_top += move_len;
             return;
         }
 
-        let move_start = fold_index(fp, &*gap);
+        let move_start = idx;
         let mut move_end: usize = 0;
-        while valid_fold(fp, &*gap) && (*fp).fd_top <= dest {
-            if (*fp).fd_top <= line2 {
-                if fold_end(fp) > line2 {
-                    truncate_fold(fp, line2);
+        while idx < gap.len() && gap[idx].fd_top <= dest {
+            if gap[idx].fd_top <= line2 {
+                if fold_end(&gap[idx]) > line2 {
+                    truncate_fold(&mut gap[idx], line2);
                 }
-                (*fp).fd_top += move_len;
-                fp = fp.add(1);
+                gap[idx].fd_top += move_len;
+                idx += 1;
                 continue;
             }
 
             if move_end == 0 {
-                move_end = fold_index(fp, &*gap);
+                move_end = idx;
             }
 
-            if fold_end(fp) > dest {
-                truncate_fold(fp, dest);
+            if fold_end(&gap[idx]) > dest {
+                truncate_fold(&mut gap[idx], dest);
             }
 
-            (*fp).fd_top -= range_len;
-            fp = fp.add(1);
+            gap[idx].fd_top -= range_len;
+            idx += 1;
         }
-        let dest_index = fold_index(fp, &*gap);
+        let dest_index = idx;
 
         if move_end == 0 {
             return;
         }
-        foldReverseOrder(&mut *gap, move_start as linenr_T, (dest_index - 1) as linenr_T);
+        foldReverseOrder(gap, move_start as linenr_T, (dest_index - 1) as linenr_T);
         foldReverseOrder(
-            &mut *gap,
+            gap,
             move_start as linenr_T,
             (move_start + dest_index - move_end - 1) as linenr_T,
         );
         foldReverseOrder(
-            &mut *gap,
+            gap,
             (move_start + dest_index - move_end) as linenr_T,
             (dest_index - 1) as linenr_T,
         );
     }
 }
 
-unsafe fn foldMerge(fp1: *mut fold_T, gap: *mut Vec<fold_T>, fp2: *mut fold_T) {
+unsafe fn foldMergeInto(fp1: &mut fold_T, mut fp2: fold_T) {
     unsafe {
-        let mut fp3: *mut fold_T = ptr::null_mut();
-        let mut fp4: *mut fold_T = ptr::null_mut();
-        let gap1 = &raw mut (*fp1).fd_nested;
-        let gap2 = &raw mut (*fp2).fd_nested;
-
-        if foldFind(gap1, (*fp1).fd_len - 1, &mut fp3) && foldFind(gap2, 0, &mut fp4) {
-            foldMerge(fp3, gap2, fp4);
+        if let (true, idx3) = foldFind(&fp1.fd_nested, fp1.fd_len - 1)
+            && let (true, idx4) = foldFind(&fp2.fd_nested, 0)
+        {
+            let child2 = fp2.fd_nested.remove(idx4);
+            foldMergeInto(&mut fp1.fd_nested[idx3], child2);
         }
 
-        let fp1_len = (*fp1).fd_len;
-        for mut child in (*gap2).drain(..) {
+        let fp1_len = fp1.fd_len;
+        for mut child in fp2.fd_nested {
             child.fd_top += fp1_len;
-            (*gap1).push(child);
+            fp1.fd_nested.push(child);
         }
 
-        (*fp1).fd_len += (*fp2).fd_len;
-        let idx = fp2.offset_from((*gap).as_ptr()) as c_int;
-        deleteFoldEntry(&mut *gap, idx, true);
+        fp1.fd_len += fp2.fd_len;
         fold_changed = true;
+    }
+}
+
+unsafe fn foldMerge(gap: &mut Vec<fold_T>, idx1: usize) {
+    unsafe {
+        let fp2 = gap.remove(idx1 + 1);
+        foldMergeInto(&mut gap[idx1], fp2);
     }
 }
 
@@ -2906,6 +2887,6 @@ mod tests {
             fd_flags: FD_CLOSED,
             fd_small: kNone,
         };
-        assert_eq!(unsafe { fold_end(&raw const f) }, 14);
+        assert_eq!(fold_end(&f), 14);
     }
 }

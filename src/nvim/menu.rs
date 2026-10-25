@@ -358,13 +358,13 @@ pub unsafe fn ex_menu(eap: *mut exarg_T) {
                 for idx in 0..MENU_INDEX_TIP {
                     if (modes & (1 << idx)) != 0 {
                         p = popup_mode_name(menu_path, idx as usize);
-                        remove_menu(root_menu_ptr, p, MENU_ALL_MODES, true);
+                        remove_menu(&mut *root_menu_ptr, p, MENU_ALL_MODES, true);
                         xfree(p.cast());
                     }
                 }
             }
 
-            remove_menu(root_menu_ptr, menu_path, modes, false);
+            remove_menu(&mut *root_menu_ptr, menu_path, modes, false);
         } else {
             if is_menus_locked() {
                 return;
@@ -656,21 +656,21 @@ unsafe fn menu_enable_recurse(
 
 /// Remove the (sub)menu with the given name from the menu hierarchy (`remove_menu`).
 unsafe fn remove_menu(
-    menup: *mut Vec<vimmenu_T>,
+    menup: &mut Vec<vimmenu_T>,
     name: *mut c_char,
     modes: c_int,
     silent: bool,
 ) -> c_int {
     unsafe {
-        if (*menup).is_empty() {
+        if menup.is_empty() {
             return OK;
         }
         let p = menu_name_skip(name);
 
         let mut idx: usize = 0;
-        let mut found_menu: *mut vimmenu_T = ptr::null_mut();
-        while idx < (*menup).len() {
-            let menu: *mut vimmenu_T = &raw mut (*menup).as_mut_slice()[idx];
+        let mut found_menu = false;
+        while idx < menup.len() {
+            let menu: *mut vimmenu_T = &raw mut menup[idx];
             if *name == NUL || menu_name_equal(name, menu) {
                 if *p != NUL && (*menu).children.is_empty() {
                     if !silent {
@@ -679,7 +679,7 @@ unsafe fn remove_menu(
                     return FAIL;
                 }
                 if ((*menu).modes & modes) != 0 {
-                    if remove_menu(&raw mut (*menu).children, p, modes, silent) == FAIL {
+                    if remove_menu(&mut (*menu).children, p, modes, silent) == FAIL {
                         return FAIL;
                     }
                 } else if *name != NUL {
@@ -690,7 +690,7 @@ unsafe fn remove_menu(
                 }
 
                 if *name != NUL {
-                    found_menu = menu;
+                    found_menu = true;
                     break;
                 }
 
@@ -699,7 +699,7 @@ unsafe fn remove_menu(
                     free_menu_string(menu, MENU_INDEX_TIP as usize);
                 }
                 if ((*menu).modes & MENU_ALL_MODES) == 0 {
-                    (*menup).remove(idx);
+                    menup.remove(idx);
                 } else {
                     idx += 1;
                 }
@@ -708,22 +708,23 @@ unsafe fn remove_menu(
             }
         }
         if *name != NUL {
-            if found_menu.is_null() {
+            if !found_menu {
                 if !silent {
                     semsg!(gettext(E_NOMENU.as_ptr()), name);
                 }
                 return FAIL;
             }
 
-            (*found_menu).modes &= !modes;
-            for child in &(*found_menu).children {
-                (*found_menu).modes |= child.modes;
+            let found = &raw mut menup[idx];
+            (*found).modes &= !modes;
+            for child in &(*found).children {
+                (*found).modes |= child.modes;
             }
             if (modes & MENU_TIP_MODE) != 0 {
-                free_menu_string(found_menu, MENU_INDEX_TIP as usize);
+                free_menu_string(found, MENU_INDEX_TIP as usize);
             }
-            if ((*found_menu).modes & MENU_ALL_MODES) == 0 {
-                (*menup).remove(idx);
+            if ((*found).modes & MENU_ALL_MODES) == 0 {
+                menup.remove(idx);
             }
         }
 

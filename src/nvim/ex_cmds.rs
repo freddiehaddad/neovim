@@ -1226,7 +1226,7 @@ pub unsafe fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> c
                 };
                 while !win.is_null() {
                     if (*win).w_buffer == curbuf {
-                        foldMoveRange(&raw mut (*win).w_folds, line1, line2, dest);
+                        foldMoveRange(&mut (*win).w_folds, line1, line2, dest);
                     }
                     win = (*win).w_next;
                 }
@@ -1249,7 +1249,7 @@ pub unsafe fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> c
                 };
                 while !win.is_null() {
                     if (*win).w_buffer == curbuf {
-                        foldMoveRange(&raw mut (*win).w_folds, dest + 1, line1 - 1, line2);
+                        foldMoveRange(&mut (*win).w_folds, dest + 1, line1 - 1, line2);
                     }
                     win = (*win).w_next;
                 }
