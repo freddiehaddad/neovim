@@ -4559,10 +4559,10 @@ unsafe fn call_qftf_func(
         }
         qftf_recursive = true;
 
-        if (*qfl).qf_qftf_cb.cb_type != kCallbackNone {
+        if (*qfl).qf_qftf_cb.cb_type() != kCallbackNone {
             cb = &raw mut (*qfl).qf_qftf_cb;
         }
-        if (*cb).cb_type != kCallbackNone {
+        if (*cb).cb_type() != kCallbackNone {
             let mut args: [typval_T; 1] = [typval_T::new(); 1];
             let mut rettv: typval_T = typval_T::new();
 
@@ -6651,7 +6651,7 @@ unsafe fn qf_getprop_idx(qfl: *mut qf_list_T, mut eidx: c_int, retdict: *mut dic
 
 unsafe fn qf_getprop_qftf(qfl: *mut qf_list_T, retdict: *mut dict_T) -> c_int {
     unsafe {
-        if (*qfl).qf_qftf_cb.cb_type != kCallbackNone {
+        if (*qfl).qf_qftf_cb.cb_type() != kCallbackNone {
             let mut tv: typval_T = typval_T::new();
             callback_put(&raw mut (*qfl).qf_qftf_cb, &raw mut tv);
             let status = tv_dict_add_tv(retdict, c"quickfixtextfunc".as_ptr(), 16, &raw mut tv);

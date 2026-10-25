@@ -10126,7 +10126,7 @@ pub unsafe fn ex_splitview(eap: *mut exarg_T) {
             if (*eap).cmdidx == cmdidx_T::CMD_sfind as c_int
                 || (*eap).cmdidx == cmdidx_T::CMD_tabfind as c_int
             {
-                if (*get_findfunc()).cb_type != kCallbackNone {
+                if (*get_findfunc()).cb_type() != kCallbackNone {
                     fname = findfunc_find_file(
                         (*eap).arg,
                         strlen((*eap).arg),
@@ -10504,7 +10504,7 @@ unsafe fn ex_find(eap: *mut exarg_T) {
         }
 
         let mut fname: *mut c_char;
-        if (*get_findfunc()).cb_type != kCallbackNone {
+        if (*get_findfunc()).cb_type() != kCallbackNone {
             fname = findfunc_find_file(
                 (*eap).arg,
                 strlen((*eap).arg),

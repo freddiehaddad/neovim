@@ -2437,7 +2437,10 @@ pub unsafe fn check_options() {
     unsafe {
         for opt_idx in 0..kOptCount {
             let opt = get_option(opt_idx);
-            if option_has_type(opt_idx, ObjectType::kObjectTypeString) && !(*opt).var.is_null() {
+            if option_has_type(opt_idx, ObjectType::kObjectTypeString)
+                && !is_callback_option(opt_idx)
+                && !(*opt).var.is_null()
+            {
                 check_string_option(get_varp(opt).cast::<*mut c_char>());
             }
         }
@@ -5296,7 +5299,7 @@ unsafe fn optval_snapshot_varp(opt_idx: OptIndex, varp: *mut c_void) -> Object {
 
 unsafe fn opt_from_callback(cb: *mut Callback) -> Object {
     unsafe {
-        match (*cb).cb_type {
+        match (*cb).cb_type() {
             kCallbackLua => {
                 let luaref = (*cb).data.as_luaref();
                 return luaref_obj(api_new_luaref(luaref));
@@ -5323,21 +5326,19 @@ unsafe fn opt_to_callback(value: Object, is_expr: bool) -> Callback {
         let mut cb = Callback::NONE;
         match value.obj_type {
             ObjectType::kObjectTypeLuaRef => {
-                cb.cb_type = kCallbackLua;
                 cb.data = crate::eval::typval::CallbackData::lua(api_new_luaref(value.data.luaref));
             }
             ObjectType::kObjectTypeString => {
                 if !is_expr {
                     option_set_callback_func(value.data.string.data, &raw mut cb);
                 } else if value.data.string.size > 0 {
-                    cb.cb_type = kCallbackExpr;
                     let name = get_scriptlocal_funcname(value.data.string.data);
                     let funcref = if !name.is_null() {
                         name
                     } else {
                         xstrdup(value.data.string.data)
                     };
-                    cb.data = crate::eval::typval::CallbackData::funcref(funcref);
+                    cb.data = crate::eval::typval::CallbackData::expr(funcref);
                 }
             }
             _ => {}
@@ -5717,6 +5718,7 @@ unsafe fn did_set_option(
         } else if (secure != 0 || sandbox != 0) && ((*opt).flags & kOptFlagSecure) != 0 {
             errmsg = e_secure.as_ptr();
         } else if (*args).os_newval.obj_type == ObjectType::kObjectTypeString
+            && !is_callback_option(opt_idx)
             && check_illegal_path_names(*(varp.cast::<*mut c_char>()), (*opt).flags)
         {
             errmsg = e_invarg.as_ptr();
@@ -7009,7 +7011,7 @@ pub unsafe fn get_varp_from(p: *mut vimoption_T, buf: *mut buf_T, win: *mut win_
                 }
             }
             kOptThesaurusfunc => {
-                if (*buf).b_p_tsrfu.cb_type != kCallbackNone {
+                if (*buf).b_p_tsrfu.cb_type() != kCallbackNone {
                     (&raw mut (*buf).b_p_tsrfu).cast()
                 } else {
                     (*p).var
@@ -7030,7 +7032,7 @@ pub unsafe fn get_varp_from(p: *mut vimoption_T, buf: *mut buf_T, win: *mut win_
                 }
             }
             kOptFindfunc => {
-                if (*buf).b_p_ffu.cb_type != kCallbackNone {
+                if (*buf).b_p_ffu.cb_type() != kCallbackNone {
                     (&raw mut (*buf).b_p_ffu).cast()
                 } else {
                     (*p).var
@@ -7276,7 +7278,7 @@ pub unsafe fn get_equalprg() -> *mut c_char {
 /// Get the value of 'findfunc', either the buffer-local one or the global one.
 pub unsafe fn get_findfunc() -> *mut Callback {
     unsafe {
-        if (*curbuf).b_p_ffu.cb_type != kCallbackNone {
+        if (*curbuf).b_p_ffu.cb_type() != kCallbackNone {
             &raw mut (*curbuf).b_p_ffu
         } else {
             &raw mut p_ffu
@@ -8267,7 +8269,10 @@ pub unsafe fn ExpandSettingSubtract(
     matches: *mut *mut *mut c_char,
 ) -> c_int {
     unsafe {
-        if EXPAND_OPTION_IDX == kOptInvalid {
+        if EXPAND_OPTION_IDX == kOptInvalid
+            || option_has_type(EXPAND_OPTION_IDX, ObjectType::kObjectTypeInteger)
+            || is_callback_option(EXPAND_OPTION_IDX)
+        {
             return ExpandOldSetting(numMatches, matches);
         }
 
@@ -8277,9 +8282,7 @@ pub unsafe fn ExpandSettingSubtract(
 
         let option_flags = (*get_option(EXPAND_OPTION_IDX)).flags;
 
-        if option_has_type(EXPAND_OPTION_IDX, ObjectType::kObjectTypeInteger) {
-            return ExpandOldSetting(numMatches, matches);
-        } else if (option_flags & kOptFlagComma) != 0 {
+        if (option_flags & kOptFlagComma) != 0 {
             if *option_val == NUL {
                 return FAIL;
             }
@@ -8518,7 +8521,7 @@ pub unsafe fn option_set_callback_func(optval: *mut c_char, optcb: *mut Callback
         };
 
         let mut cb = Callback::NONE;
-        if !callback_from_typval(&raw mut cb, tv) || cb.cb_type == kCallbackNone {
+        if !callback_from_typval(&raw mut cb, tv) || cb.cb_type() == kCallbackNone {
             tv_free(tv);
             return FAIL;
         }

@@ -1572,7 +1572,7 @@ pub unsafe fn readfile(
                     if fio_flags == 0
                         && !read_stdin
                         && !read_buffer
-                        && p_ccv.cb_type != kCallbackNone
+                        && p_ccv.cb_type() != kCallbackNone
                         && !read_fifo
                         && iconv_fd == -1
                     {
@@ -1720,7 +1720,7 @@ pub unsafe fn readfile(
                                 } else if conv_restlen > 0 {
                                     if fio_flags != 0 || iconv_fd != -1 {
                                         if can_retry {
-                                            if p_ccv.cb_type != kCallbackNone && iconv_fd != -1 {
+                                            if p_ccv.cb_type() != kCallbackNone && iconv_fd != -1 {
                                                 did_iconv = true;
                                             } else {
                                                 advance_fenc = true;
@@ -1830,7 +1830,7 @@ pub unsafe fn readfile(
                                 || from_size > CONV_RESTLEN
                             {
                                 if can_retry {
-                                    if p_ccv.cb_type != kCallbackNone && iconv_fd != -1 {
+                                    if p_ccv.cb_type() != kCallbackNone && iconv_fd != -1 {
                                         did_iconv = true;
                                     } else {
                                         advance_fenc = true;
@@ -1942,7 +1942,7 @@ pub unsafe fn readfile(
                                     {
                                         if p == ptr.cast::<u8>() {
                                             if can_retry {
-                                                if p_ccv.cb_type != kCallbackNone && iconv_fd != -1
+                                                if p_ccv.cb_type() != kCallbackNone && iconv_fd != -1
                                                 {
                                                     did_iconv = true;
                                                 } else {
@@ -1981,7 +1981,7 @@ pub unsafe fn readfile(
 
                                         if !(0xd800..=0xdbff).contains(&u16c) {
                                             if can_retry {
-                                                if p_ccv.cb_type != kCallbackNone && iconv_fd != -1
+                                                if p_ccv.cb_type() != kCallbackNone && iconv_fd != -1
                                                 {
                                                     did_iconv = true;
                                                 } else {
@@ -2035,7 +2035,7 @@ pub unsafe fn readfile(
                                         u8c = utf_ptr2char(p.cast()) as c_uint;
                                         if len == 0 {
                                             if can_retry {
-                                                if p_ccv.cb_type != kCallbackNone && iconv_fd != -1
+                                                if p_ccv.cb_type() != kCallbackNone && iconv_fd != -1
                                                 {
                                                     did_iconv = true;
                                                 } else {
@@ -2134,7 +2134,7 @@ pub unsafe fn readfile(
                                 }
                             }
                             if p < ptr.cast::<u8>().offset(size) && !incomplete_tail {
-                                if p_ccv.cb_type != kCallbackNone && iconv_fd != -1 {
+                                if p_ccv.cb_type() != kCallbackNone && iconv_fd != -1 {
                                     did_iconv = true;
                                 } else {
                                     advance_fenc = true;

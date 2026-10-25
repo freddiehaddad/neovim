@@ -1169,7 +1169,7 @@ pub unsafe fn open_line(
         }
 
         let do_cindent = p_paste == 0
-            && ((*curbuf).b_p_cin != 0 || (*curbuf).b_p_inde.cb_type != kCallbackNone)
+            && ((*curbuf).b_p_cin != 0 || (*curbuf).b_p_inde.cb_type() != kCallbackNone)
             && in_cinkeys(
                 if dir == FORWARD {
                     KEY_OPEN_FORW

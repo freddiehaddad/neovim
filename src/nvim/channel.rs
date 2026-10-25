@@ -184,7 +184,7 @@ unsafe fn redirect_stderr_to_null() {
 
 #[inline]
 fn callback_reader_set(reader: &CallbackReader) -> bool {
-    reader.cb.cb_type != kCallbackNone || !reader.self_dict.is_null()
+    reader.cb.cb_type() != kCallbackNone || !reader.self_dict.is_null()
 }
 
 #[inline]
@@ -1095,7 +1095,7 @@ unsafe fn channel_proc_exit_cb(proc_: *mut Proc, status: c_int, chan: *mut Chann
         }
 
         let exited = status >= 0;
-        if exited && (*ct).on_exit.cb_type != kCallbackNone {
+        if exited && (*ct).on_exit.cb_type() != kCallbackNone {
             schedule_channel_event(chan);
         }
         if exited {
@@ -1543,7 +1543,7 @@ mod tests {
     fn callback_reader_set_checks_callback_type_or_self_dict() {
         let mut reader = CallbackReader::none();
         assert!(!callback_reader_set(&reader));
-        reader.cb.cb_type = 1;
+        reader.cb.data = crate::eval::typval::CallbackData::lua(1);
         assert!(callback_reader_set(&reader));
     }
 }

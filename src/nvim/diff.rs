@@ -961,7 +961,7 @@ unsafe fn diff_try_update(dio: *mut diffio_T, idx_orig: usize, eap: *mut exarg_T
     }
 }
 pub unsafe fn diff_internal() -> c_int {
-    unsafe { c_int::from((diff_flags & DIFF_INTERNAL) != 0 && p_dex.cb_type == kCallbackNone) }
+    unsafe { c_int::from((diff_flags & DIFF_INTERNAL) != 0 && p_dex.cb_type() == kCallbackNone) }
 }
 pub unsafe fn ex_diffupdate(eap: *mut exarg_T) {
     unsafe {
@@ -1080,7 +1080,7 @@ unsafe fn check_external_diff(diffio: *mut diffio_T) -> c_int {
                 }
                 let _ = os_remove((*diffio).dio_orig.din_fname);
             }
-            if p_dex.cb_type != kCallbackNone {
+            if p_dex.cb_type() != kCallbackNone {
                 break;
             }
             if diff_a_works != kNone {
@@ -1159,7 +1159,7 @@ unsafe fn diff_file(dio: *mut diffio_T) -> c_int {
         let tmp_orig = (*dio).dio_orig.din_fname;
         let tmp_new = (*dio).dio_new.din_fname;
         let tmp_diff = (*dio).dio_diff.dout_fname;
-        if p_dex.cb_type != kCallbackNone {
+        if p_dex.cb_type() != kCallbackNone {
             eval_diff(tmp_orig, tmp_new, tmp_diff);
             return OK;
         }
@@ -1286,7 +1286,7 @@ pub unsafe fn ex_diffpatch(eap: *mut exarg_T) {
                     shorten_fnames(1);
                 }
             }
-            if p_pex.cb_type != kCallbackNone {
+            if p_pex.cb_type() != kCallbackNone {
                 #[cfg(unix)]
                 eval_patch(
                     tmp_orig,

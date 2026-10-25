@@ -3693,7 +3693,7 @@ unsafe fn set_context_by_cmdname(
         match cmdidx {
             cmdidx_T::CMD_find | cmdidx_T::CMD_sfind | cmdidx_T::CMD_tabfind => {
                 if (*xp).xp_context == EXPAND_FILES {
-                    (*xp).xp_context = if (*get_findfunc()).cb_type != 0 {
+                    (*xp).xp_context = if (*get_findfunc()).cb_type() != 0 {
                         EXPAND_FINDFUNC
                     } else {
                         EXPAND_FILES_IN_PATH

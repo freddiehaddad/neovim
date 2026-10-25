@@ -40,20 +40,50 @@ pub enum mpack_token_type_t {
 
 pub use mpack_token_type_t::*;
 
-#[repr(C)]
 #[derive(Copy, Clone)]
-pub struct mpack_token_data_t {
-    pub value: mpack_value_t,
-    pub chunk_ptr: *const c_char,
-    pub ext_type: c_int,
+pub enum mpack_token_data_t {
+    Value(mpack_value_t),
+    ChunkPtr(*const c_char),
+    ExtType(c_int),
 }
 
 impl mpack_token_data_t {
     pub const fn new() -> Self {
-        Self {
-            value: mpack_value_t { lo: 0, hi: 0 },
-            chunk_ptr: ptr::null(),
-            ext_type: 0,
+        Self::Value(mpack_value_t { lo: 0, hi: 0 })
+    }
+
+    #[inline]
+    pub const fn value(self) -> mpack_value_t {
+        match self {
+            Self::Value(v) => v,
+            _ => mpack_value_t { lo: 0, hi: 0 },
+        }
+    }
+
+    #[inline]
+    pub fn value_mut(&mut self) -> &mut mpack_value_t {
+        if !matches!(self, Self::Value(_)) {
+            *self = Self::Value(mpack_value_t { lo: 0, hi: 0 });
+        }
+        match self {
+            Self::Value(v) => v,
+            _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub const fn chunk_ptr(self) -> *const c_char {
+        match self {
+            Self::ChunkPtr(p) => p,
+            _ => ptr::null(),
+        }
+    }
+
+    #[inline]
+    pub const fn ext_type(self) -> c_int {
+        match self {
+            Self::ExtType(t) => t,
+            _ => 0,
         }
     }
 }
@@ -143,7 +173,7 @@ unsafe fn mpack_value(
     unsafe {
         (*tok).r#type = r#type;
         (*tok).length = length;
-        (*tok).data.value = value;
+        (*tok).data = mpack_token_data_t::Value(value);
     }
     MPACK_OK
 }
@@ -158,7 +188,7 @@ unsafe fn mpack_blob(
     unsafe {
         (*tok).r#type = r#type;
         (*tok).length = length;
-        (*tok).data.ext_type = ext_type;
+        (*tok).data = mpack_token_data_t::ExtType(ext_type);
     }
     MPACK_OK
 }
@@ -185,7 +215,7 @@ pub unsafe fn mpack_read(
 
         if (*tokbuf).passthrough != 0 {
             (*tok).r#type = MPACK_TOKEN_CHUNK;
-            (*tok).data.chunk_ptr = *buf;
+            (*tok).data = mpack_token_data_t::ChunkPtr(*buf);
             let len = ((*buflen).min((*tokbuf).passthrough as usize)) as mpack_uint32_t;
             (*tok).length = len;
             (*tokbuf).passthrough -= len;
@@ -259,7 +289,7 @@ pub unsafe fn mpack_write(
             let written = (*tokbuf).ppos;
             let pending = (tok.length as usize) - written;
             let count = pending.min(*buflen);
-            ptr::copy_nonoverlapping(tok.data.chunk_ptr.add(written), *buf, count);
+            ptr::copy_nonoverlapping(tok.data.chunk_ptr().add(written), *buf, count);
             *buf = (*buf).add(count);
             *buflen -= count;
             (*tokbuf).ppos += count;
@@ -352,7 +382,7 @@ pub unsafe fn mpack_rtoken(
                     }
                     (*tok).length = tlen(t, 0xd4);
                     (*tok).r#type = MPACK_TOKEN_EXT;
-                    (*tok).data.ext_type = c_int::from(advance(buf, buflen));
+                    (*tok).data = mpack_token_data_t::ExtType(c_int::from(advance(buf, buflen)));
                     MPACK_OK
                 }
                 0xd9..=0xdb => mpack_rblob(MPACK_TOKEN_STR, tlen(t, 0xd9), buf, buflen, tok),
@@ -409,16 +439,18 @@ unsafe fn mpack_rvalue(
             remaining -= 1;
             let byte_idx = remaining;
             let byte_shift = (byte_idx % 4) * 8;
-            (*tok).data.value.lo |= byte << byte_shift;
+            let v = (*tok).data.value_mut();
+            v.lo |= byte << byte_shift;
             if remaining == 4 {
-                (*tok).data.value.hi = (*tok).data.value.lo;
-                (*tok).data.value.lo = 0;
+                v.hi = v.lo;
+                v.lo = 0;
             }
         }
 
         if r#type == MPACK_TOKEN_SINT {
-            let hi = (*tok).data.value.hi;
-            let lo = (*tok).data.value.lo;
+            let v = (*tok).data.value();
+            let hi = v.hi;
+            let lo = v.lo;
             let msb = ((*tok).length == 8 && (hi >> 31) != 0)
                 || ((*tok).length == 4 && (lo >> 31) != 0)
                 || ((*tok).length == 2 && (lo >> 15) != 0)
@@ -449,10 +481,10 @@ unsafe fn mpack_rblob(
         let mut l = mpack_token_t::new();
         mpack_rvalue(MPACK_TOKEN_UINT, tlen, buf, buflen, &mut l);
         (*tok).r#type = r#type;
-        (*tok).length = l.data.value.lo;
+        (*tok).length = l.data.value().lo;
 
         if r#type == MPACK_TOKEN_EXT {
-            (*tok).data.ext_type = c_int::from(advance(buf, buflen));
+            (*tok).data = mpack_token_data_t::ExtType(c_int::from(advance(buf, buflen)));
         }
 
         MPACK_OK
@@ -470,18 +502,18 @@ unsafe fn mpack_wtoken(
             MPACK_TOKEN_BOOLEAN => mpack_w1(
                 buf,
                 buflen,
-                if (*tok).data.value.lo != 0 {
+                if (*tok).data.value().lo != 0 {
                     0xc3
                 } else {
                     0xc2
                 },
             ),
-            MPACK_TOKEN_UINT => mpack_wpint(buf, buflen, (*tok).data.value),
-            MPACK_TOKEN_SINT => mpack_wnint(buf, buflen, (*tok).data.value),
+            MPACK_TOKEN_UINT => mpack_wpint(buf, buflen, (*tok).data.value()),
+            MPACK_TOKEN_SINT => mpack_wnint(buf, buflen, (*tok).data.value()),
             MPACK_TOKEN_FLOAT => mpack_wfloat(buf, buflen, tok),
             MPACK_TOKEN_BIN => mpack_wbin(buf, buflen, (*tok).length),
             MPACK_TOKEN_STR => mpack_wstr(buf, buflen, (*tok).length),
-            MPACK_TOKEN_EXT => mpack_wext(buf, buflen, (*tok).data.ext_type, (*tok).length),
+            MPACK_TOKEN_EXT => mpack_wext(buf, buflen, (*tok).data.ext_type(), (*tok).length),
             MPACK_TOKEN_ARRAY => mpack_warray(buf, buflen, (*tok).length),
             MPACK_TOKEN_MAP => mpack_wmap(buf, buflen, (*tok).length),
             _ => MPACK_ERROR,
@@ -561,13 +593,14 @@ unsafe fn mpack_wfloat(
     tok: *const mpack_token_t,
 ) -> c_int {
     unsafe {
+        let v = (*tok).data.value();
         if (*tok).length == 4 {
             mpack_w1(buf, buflen, 0xca);
-            mpack_w4(buf, buflen, (*tok).data.value.lo)
+            mpack_w4(buf, buflen, v.lo)
         } else if (*tok).length == 8 {
             mpack_w1(buf, buflen, 0xcb);
-            mpack_w4(buf, buflen, (*tok).data.value.hi);
-            mpack_w4(buf, buflen, (*tok).data.value.lo)
+            mpack_w4(buf, buflen, v.hi);
+            mpack_w4(buf, buflen, v.lo)
         } else {
             MPACK_ERROR
         }

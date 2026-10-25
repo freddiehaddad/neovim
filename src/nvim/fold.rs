@@ -1524,7 +1524,7 @@ pub unsafe fn get_foldtext(
             did_emsg = 0;
         }
 
-        if (*wp).w_onebuf_opt.wo_fdt.cb_type != kCallbackNone {
+        if (*wp).w_onebuf_opt.wo_fdt.cb_type() != kCallbackNone {
             let mut dashes = [0 as c_char; (MAX_LEVEL as usize) + 2];
 
             set_vim_var_nr(VV_FOLDSTART, varnumber_T::from(lnum));

@@ -694,7 +694,7 @@ pub unsafe extern "C" fn nvim_get_autocmds(
                         );
 
                         let cb = &mut ac.handler_fn;
-                        match cb.cb_type {
+                        match cb.cb_type() {
                             kCallbackLua => {
                                 let luaref = cb.data.as_luaref();
                                 if nlua_ref_is_function(luaref) {
@@ -856,13 +856,11 @@ pub unsafe extern "C" fn nvim_create_autocmd(
                             api_err_inv(err, c"callback".as_ptr(), c"<not a function>".as_ptr());
                             break 'body;
                         }
-                        handler_fn.cb_type = kCallbackLua;
                         handler_fn.data =
                             crate::eval::typval::CallbackData::lua(callback.data.luaref);
                         callback.data.luaref = LUA_NOREF;
                     }
                     ObjectType::kObjectTypeString => {
-                        handler_fn.cb_type = kCallbackFuncref;
                         handler_fn.data = crate::eval::typval::CallbackData::funcref(xstrndup(
                             callback.data.string.data,
                             callback.data.string.size,

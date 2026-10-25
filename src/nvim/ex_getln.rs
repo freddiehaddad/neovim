@@ -3748,7 +3748,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                 } else if prev_prompt_errors >= MAX_CB_ERRORS {
                     break 'color_cmdline_end;
                 }
-                if (*colored_ccline).highlight_callback.cb_type != kCallbackNone {
+                if (*colored_ccline).highlight_callback.cb_type() != kCallbackNone {
                     debug_assert!((*colored_ccline).input_fn != 0);
                     color_cb = (*colored_ccline).highlight_callback;
                 } else if (*colored_ccline).cmdfirstc == b':' as c_int {
@@ -3770,7 +3770,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                     break 'color_cmdline_error;
                 }
 
-                if color_cb.cb_type == kCallbackNone {
+                if color_cb.cb_type() == kCallbackNone {
                     break 'color_cmdline_end;
                 }
                 if *(*colored_ccline)

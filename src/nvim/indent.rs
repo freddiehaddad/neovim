@@ -1053,7 +1053,7 @@ pub unsafe fn may_do_si() -> bool {
     unsafe {
         (*curbuf).b_p_si != 0
             && (*curbuf).b_p_cin == 0
-            && (*curbuf).b_p_inde.cb_type == kCallbackNone
+            && (*curbuf).b_p_inde.cb_type() == kCallbackNone
             && p_paste == 0
     }
 }
@@ -1898,7 +1898,7 @@ pub unsafe fn fixthisline(get_the_indent: IndentGetter) {
 pub unsafe fn use_indentexpr_for_lisp() -> bool {
     unsafe {
         (*curbuf).b_p_lisp != 0
-            && (*curbuf).b_p_inde.cb_type != kCallbackNone
+            && (*curbuf).b_p_inde.cb_type() != kCallbackNone
             && strcmp((*curbuf).b_p_lop, c"expr:1".as_ptr()) == 0
     }
 }

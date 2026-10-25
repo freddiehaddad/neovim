@@ -828,7 +828,6 @@ pub(crate) const SID_MODELINE: c_int = -1;
 pub(crate) const OPT_MODELINE: c_int = 0x04;
 
 use crate::charset::{NL, NUL};
-use crate::eval::typval::kCallbackNone;
 use crate::os::fs::MAXPATHL;
 use crate::search::FORWARD;
 
@@ -2854,8 +2853,8 @@ pub unsafe fn buflist_new(
             }
         }
 
-        (*buf).b_prompt_callback.cb_type = kCallbackNone;
-        (*buf).b_prompt_interrupt.cb_type = kCallbackNone;
+        (*buf).b_prompt_callback = crate::eval::typval::Callback::NONE;
+        (*buf).b_prompt_interrupt = crate::eval::typval::Callback::NONE;
         (*buf).b_prompt_text = ptr::null_mut();
         (*buf).b_prompt_start = INIT_FMARK;
         (*buf).b_prompt_start.mark.col = 2;

@@ -1369,7 +1369,7 @@ pub unsafe fn win_line(
 
         let in_curline = wp == curwin && lnum == (*curwin).w_cursor.lnum;
         let has_fold = foldinfo.fi_level != 0 && foldinfo.fi_lines > 0;
-        let has_foldtext = has_fold && (*wp).w_onebuf_opt.wo_fdt.cb_type != kCallbackNone;
+        let has_foldtext = has_fold && (*wp).w_onebuf_opt.wo_fdt.cb_type() != kCallbackNone;
 
         let is_wrapped = (*wp).w_onebuf_opt.wo_wrap != 0 && !has_fold;
 

@@ -111,6 +111,7 @@ pub enum CallbackData {
     Funcref(*mut c_char),
     Partial(*mut partial_T),
     Lua(LuaRef),
+    Expr(*mut c_char),
 }
 
 impl CallbackData {
@@ -119,6 +120,11 @@ impl CallbackData {
     #[inline]
     pub const fn funcref(funcref: *mut c_char) -> Self {
         Self::Funcref(funcref)
+    }
+
+    #[inline]
+    pub const fn expr(expr: *mut c_char) -> Self {
+        Self::Expr(expr)
     }
 
     #[inline]
@@ -134,7 +140,7 @@ impl CallbackData {
     #[inline]
     pub const fn as_funcref(self) -> *mut c_char {
         match self {
-            Self::Funcref(p) => p,
+            Self::Funcref(p) | Self::Expr(p) => p,
             _ => ptr::null_mut(),
         }
     }
@@ -160,18 +166,27 @@ impl CallbackData {
 #[derive(Clone, Copy)]
 pub struct Callback {
     pub data: CallbackData,
-    pub cb_type: c_int,
 }
 
 impl Callback {
     pub const NONE: Self = Self {
         data: CallbackData::NONE,
-        cb_type: kCallbackNone,
     };
 
     #[inline]
     pub const fn new() -> Self {
         Self::NONE
+    }
+
+    #[inline]
+    pub const fn cb_type(self) -> c_int {
+        match self.data {
+            CallbackData::None => kCallbackNone,
+            CallbackData::Funcref(_) => kCallbackFuncref,
+            CallbackData::Partial(_) => kCallbackPartial,
+            CallbackData::Lua(_) => kCallbackLua,
+            CallbackData::Expr(_) => kCallbackExpr,
+        }
     }
 }
 
@@ -2357,10 +2372,10 @@ pub unsafe fn tv_dict_watcher_add(
 /// Check whether two callbacks are equal.
 pub unsafe fn tv_callback_equal(cb1: *const Callback, cb2: *const Callback) -> bool {
     unsafe {
-        if (*cb1).cb_type != (*cb2).cb_type {
+        if (*cb1).cb_type() != (*cb2).cb_type() {
             return false;
         }
-        match (*cb1).cb_type {
+        match (*cb1).cb_type() {
             kCallbackFuncref | kCallbackExpr => {
                 strequal((*cb1).data.as_funcref(), (*cb2).data.as_funcref())
             }
@@ -2375,7 +2390,7 @@ pub unsafe fn tv_callback_equal(cb1: *const Callback, cb2: *const Callback) -> b
 /// Unref/free callback.
 pub unsafe fn callback_free(callback: *mut Callback) {
     unsafe {
-        match (*callback).cb_type {
+        match (*callback).cb_type() {
             kCallbackFuncref => {
                 let funcref = (*callback).data.as_funcref();
                 func_unref(funcref);
@@ -2400,7 +2415,7 @@ pub unsafe fn callback_free(callback: *mut Callback) {
 /// Copy a callback into a typval_T.
 pub unsafe fn callback_put(cb: *mut Callback, tv: *mut typval_T) {
     unsafe {
-        match (*cb).cb_type {
+        match (*cb).cb_type() {
             kCallbackPartial => {
                 let pt = (*cb).data.as_partial();
                 (*tv).v_type = VarType::VAR_PARTIAL;
@@ -2424,8 +2439,7 @@ pub unsafe fn callback_put(cb: *mut Callback, tv: *mut typval_T) {
 /// Copy callback from "src" to "dest", incrementing the refcounts.
 pub unsafe fn callback_copy(dest: *mut Callback, src: *mut Callback) {
     unsafe {
-        (*dest).cb_type = (*src).cb_type;
-        match (*src).cb_type {
+        match (*src).cb_type() {
             kCallbackPartial => {
                 let pt = (*src).data.as_partial();
                 (*dest).data = CallbackData::partial(pt);
@@ -2441,7 +2455,7 @@ pub unsafe fn callback_copy(dest: *mut Callback, src: *mut Callback) {
                 (*dest).data = CallbackData::lua(new_ref);
             }
             kCallbackExpr => {
-                (*dest).data = CallbackData::funcref(xstrdup((*src).data.as_funcref()));
+                (*dest).data = CallbackData::expr(xstrdup((*src).data.as_funcref()));
             }
             _ => {
                 (*dest).data = CallbackData::NONE;
@@ -2453,14 +2467,14 @@ pub unsafe fn callback_copy(dest: *mut Callback, src: *mut Callback) {
 /// Generate a string description of a callback.
 pub unsafe fn callback_to_string(cb: *mut Callback, arena: *mut Arena) -> *mut c_char {
     unsafe {
-        if (*cb).cb_type == kCallbackLua {
+        if (*cb).cb_type() == kCallbackLua {
             return nlua_funcref_str((*cb).data.as_luaref(), arena.cast(), true);
         }
 
         const MSGLEN: usize = 100;
         let msg = xmallocz(MSGLEN).cast::<c_char>();
 
-        match (*cb).cb_type {
+        match (*cb).cb_type() {
             kCallbackFuncref => {
                 let s = CStr::from_ptr((*cb).data.as_funcref()).to_bytes();
                 let prefix = b"<vim function: ";
@@ -2950,7 +2964,7 @@ pub unsafe fn tv_dict_get_callback(
     result: *mut Callback,
 ) -> bool {
     unsafe {
-        (*result).cb_type = kCallbackNone;
+        *result = Callback::NONE;
 
         let di = tv_dict_find(d, key, key_len);
         if di.is_null() {

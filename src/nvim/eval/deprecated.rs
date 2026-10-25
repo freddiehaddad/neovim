@@ -197,7 +197,7 @@ mod tests {
     fn callback_reader_init_defaults_to_null_and_false() {
         let r = callback_reader_init();
         assert!(r.cb.data.as_funcref().is_null());
-        assert_eq!(r.cb.cb_type, 0);
+        assert_eq!(r.cb.cb_type(), 0);
         assert!(r.self_dict.is_null());
         assert!(!r.eof);
         assert!(!r.buffered);

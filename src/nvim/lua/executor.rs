@@ -1415,7 +1415,7 @@ unsafe extern "C-unwind" fn nlua_common_free_all_mem(lstate: *mut lua_State) {
 unsafe fn nlua_print_event(argv: *mut *mut c_void) {
     unsafe {
         msg_ext_no_fast();
-        let raw = msg_use_printf() != 0 && redirecting() == 0 && on_print.cb_type == kCallbackNone;
+        let raw = msg_use_printf() != 0 && redirecting() == 0 && on_print.cb_type() == kCallbackNone;
 
         let mut msg: HlMessage = vec![HlMessageChunk {
             text: NvimString {

@@ -1885,7 +1885,7 @@ pub unsafe fn insertchar(mut c: c_int, flags: c_int, second_indent: c_int) {
             let virtcol = get_nolist_virtcol()
                 + char2cells(if c != NUL as c_int { c } else { gchar_cursor() });
 
-            if (*curbuf).b_p_fex.cb_type != kCallbackNone
+            if (*curbuf).b_p_fex.cb_type() != kCallbackNone
                 && (flags & INSCHAR_NO_FEX) == 0
                 && (force_format || virtcol > textwidth)
             {

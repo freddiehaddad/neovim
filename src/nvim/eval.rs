@@ -5287,7 +5287,6 @@ pub unsafe fn callback_from_typval(callback: *mut Callback, arg: *const typval_T
             let pt = tv_partial(arg);
             (*callback).data = crate::eval::typval::CallbackData::partial(pt);
             (*pt).pt_refcount += 1;
-            (*callback).cb_type = kCallbackPartial;
         } else if (*arg).v_type == VarType::VAR_STRING
             && !(*arg).vval.v_string.is_null()
             && ascii_isdigit(*(*arg).vval.v_string)
@@ -5309,14 +5308,12 @@ pub unsafe fn callback_from_typval(callback: *mut Callback, arg: *const typval_T
                 }
                 func_ref(funcref);
                 (*callback).data = crate::eval::typval::CallbackData::funcref(funcref);
-                (*callback).cb_type = kCallbackFuncref;
             }
         } else if is_lua_tbl {
             {
                 let name = nlua_register_table_as_callable(arg);
                 if !name.is_null() {
                     (*callback).data = crate::eval::typval::CallbackData::funcref(xstrdup(name));
-                    (*callback).cb_type = kCallbackFuncref;
                 } else {
                     r = FAIL;
                 }
@@ -5356,7 +5353,7 @@ pub unsafe fn callback_call(
 
         let partial: *mut partial_T;
         let mut name: *mut c_char;
-        match (*callback).cb_type {
+        match (*callback).cb_type() {
             kCallbackFuncref => {
                 name = (*callback).data.as_funcref();
                 let len = strlen(name) as c_int;
@@ -5456,7 +5453,7 @@ pub unsafe fn set_ref_in_callback(
     list_stack: *mut list_stack_T,
 ) -> bool {
     unsafe {
-        if (*callback).cb_type == kCallbackPartial {
+        if (*callback).cb_type() == kCallbackPartial {
             let mut tv = typval_T {
                 v_type: VarType::VAR_PARTIAL,
                 v_lock: VAR_UNLOCKED,
@@ -7061,10 +7058,10 @@ pub unsafe fn common_job_callbacks(
         {
             (*on_stdout).buffered = tv_dict_get_number(vopts, c"stdout_buffered".as_ptr()) != 0;
             (*on_stderr).buffered = tv_dict_get_number(vopts, c"stderr_buffered".as_ptr()) != 0;
-            if (*on_stdout).buffered && (*on_stdout).cb.cb_type == kCallbackNone {
+            if (*on_stdout).buffered && (*on_stdout).cb.cb_type() == kCallbackNone {
                 (*on_stdout).self_dict = vopts;
             }
-            if (*on_stderr).buffered && (*on_stderr).cb.cb_type == kCallbackNone {
+            if (*on_stderr).buffered && (*on_stderr).cb.cb_type() == kCallbackNone {
                 (*on_stderr).self_dict = vopts;
             }
             (*vopts).dv_refcount += 1;

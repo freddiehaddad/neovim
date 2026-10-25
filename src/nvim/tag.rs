@@ -1300,7 +1300,7 @@ unsafe fn find_tagfunc_tags(
             }
         }
 
-        if (*curbuf).b_p_tfu.cb_type == kCallbackNone {
+        if (*curbuf).b_p_tfu.cb_type() == kCallbackNone {
             return FAIL;
         }
 
@@ -1658,7 +1658,7 @@ unsafe fn findtags_apply_tfu(
     unsafe {
         let use_tfu = ((*st).flags & TAG_NO_TAGFUNC) == 0;
 
-        if !use_tfu || tfu_in_use || (*curbuf).b_p_tfu.cb_type == kCallbackNone {
+        if !use_tfu || tfu_in_use || (*curbuf).b_p_tfu.cb_type() == kCallbackNone {
             return NOTDONE;
         }
 

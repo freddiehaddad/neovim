@@ -676,8 +676,8 @@ pub unsafe fn check_compl_option(dict_opt: bool) -> bool {
         } else {
             *(*curbuf).b_p_tsr == NUL
                 && *p_tsr == NUL
-                && (*curbuf).b_p_tsrfu.cb_type == kCallbackNone
-                && p_tsrfu.cb_type == kCallbackNone
+                && (*curbuf).b_p_tsrfu.cb_type() == kCallbackNone
+                && p_tsrfu.cb_type() == kCallbackNone
         };
         if empty {
             ctrl_x_mode = CTRL_X_NORMAL;
@@ -3110,7 +3110,7 @@ unsafe fn copy_cpt_callbacks(dest: *mut Vec<Callback>, src: *mut Vec<Callback>) 
         dest.resize(src.len(), Callback::new());
 
         for (dst_cb, src_cb) in dest.iter_mut().zip(src.iter_mut()) {
-            if src_cb.cb_type != kCallbackNone {
+            if src_cb.cb_type() != kCallbackNone {
                 callback_copy(dst_cb, src_cb);
             }
         }
@@ -3153,7 +3153,7 @@ unsafe fn parse_cpt_callbacks(cpt: *mut c_char, cbp: *mut Vec<Callback>) {
                         *caret = NUL;
                     }
                     if option_set_callback_func(buf.as_mut_ptr().add(1), &raw mut cbp[idx]) != OK {
-                        cbp[idx].cb_type = kCallbackNone;
+                        cbp[idx] = Callback::NONE;
                     }
                 }
                 idx += 1;
@@ -3223,7 +3223,7 @@ unsafe fn get_insert_callback(type_: c_int) -> *mut Callback {
         if type_ == CTRL_X_OMNI {
             return &raw mut (*curbuf).b_p_ofu;
         }
-        if (*curbuf).b_p_tsrfu.cb_type != kCallbackNone {
+        if (*curbuf).b_p_tsrfu.cb_type() != kCallbackNone {
             &raw mut (*curbuf).b_p_tsrfu
         } else {
             &raw mut p_tsrfu
@@ -3245,7 +3245,7 @@ unsafe fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callb
             is_cpt_function && was_set_insecurely(curwin, kOptComplete, OPT_LOCAL) != 0;
         if !is_cpt_function {
             cb = get_insert_callback(type_);
-            if (*cb).cb_type == kCallbackNone {
+            if (*cb).cb_type() == kCallbackNone {
                 return;
             }
         }
@@ -3883,7 +3883,7 @@ pub unsafe fn f_complete_info(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
 unsafe fn thesaurus_func_complete(type_: c_int) -> bool {
     unsafe {
         type_ == CTRL_X_THESAURUS
-            && ((*curbuf).b_p_tsrfu.cb_type != kCallbackNone || p_tsrfu.cb_type != kCallbackNone)
+            && ((*curbuf).b_p_tsrfu.cb_type() != kCallbackNone || p_tsrfu.cb_type() != kCallbackNone)
     }
 }
 
@@ -4789,7 +4789,7 @@ unsafe fn get_callback_if_cpt_func(p: *mut c_char, idx: c_int) -> *mut Callback 
                     return ptr::null_mut();
                 }
                 let cb = &raw mut cbs[idx as usize];
-                return if (*cb).cb_type != kCallbackNone {
+                return if (*cb).cb_type() != kCallbackNone {
                     cb
                 } else {
                     ptr::null_mut()
@@ -6105,7 +6105,7 @@ unsafe fn get_userdefined_compl_info(
             is_cpt_function && was_set_insecurely(curwin, kOptComplete, OPT_LOCAL) != 0;
         if !is_cpt_function {
             cb = get_insert_callback(ctrl_x_mode);
-            if (*cb).cb_type == kCallbackNone {
+            if (*cb).cb_type() == kCallbackNone {
                 semsg!(
                     gettext((&raw const e_notset).cast()),
                     if ctrl_x_mode_function() {

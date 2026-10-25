@@ -13,18 +13,31 @@ pub const MPACK_MAX_OBJECT_DEPTH: usize = 32;
 pub const MPACK_EXCEPTION: c_int = -1;
 pub const MPACK_NOMEM: c_int = MPACK_ERROR + 1;
 
-#[repr(C)]
 #[derive(Copy, Clone)]
-pub struct mpack_data_t {
-    pub p: *mut c_void,
-    pub i: mpack_sintmax_t,
+pub enum mpack_data_t {
+    Null,
+    Ptr(*mut c_void),
+    Int(mpack_sintmax_t),
 }
 
 impl mpack_data_t {
     pub const fn new() -> Self {
-        Self {
-            p: ptr::null_mut(),
-            i: 0,
+        Self::Null
+    }
+
+    #[inline]
+    pub const fn p(self) -> *mut c_void {
+        match self {
+            Self::Ptr(p) => p,
+            _ => ptr::null_mut(),
+        }
+    }
+
+    #[inline]
+    pub const fn i(self) -> mpack_sintmax_t {
+        match self {
+            Self::Int(i) => i,
+            _ => 0,
         }
     }
 }
@@ -125,7 +138,7 @@ pub unsafe fn mpack_parser_init(parser: *mut mpack_parser_t, capacity: mpack_uin
     unsafe {
         let parser = &mut *parser;
         mpack_tokbuf_init(&raw mut parser.tokbuf);
-        parser.data.p = ptr::null_mut();
+        parser.data = mpack_data_t::Null;
         parser.capacity = if capacity != 0 {
             capacity
         } else {
@@ -357,8 +370,8 @@ unsafe fn mpack_parser_push(parser: *mut mpack_parser_t) -> *mut mpack_node_t {
     unsafe {
         debug_assert!((*parser).size < (*parser).capacity);
         let top = parser_items_ptr(parser).add(((*parser).size as usize) + 1);
-        (*top).data[0].p = ptr::null_mut();
-        (*top).data[1].p = ptr::null_mut();
+        (*top).data[0] = mpack_data_t::Null;
+        (*top).data[1] = mpack_data_t::Null;
         (*top).pos = 0;
         (*top).key_visited = 0;
         (*parser).size += 1;

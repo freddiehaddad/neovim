@@ -3479,7 +3479,7 @@ unsafe fn op_function(oap: *const oparg_T) {
         let orig_start = (*curbuf).b_op_start;
         let orig_end = (*curbuf).b_op_end;
 
-        if p_opfunc.cb_type == kCallbackNone {
+        if p_opfunc.cb_type() == kCallbackNone {
             emsg(tr(c"E774: 'operatorfunc' is empty".as_ptr()));
         } else {
             (*curbuf).b_op_start = (*oap).start;
@@ -3989,7 +3989,7 @@ pub unsafe fn do_pending_operator(cap: *mut cmdarg_T, old_col: c_int, gui_yank: 
                         } else {
                             op_reindent(
                                 oap,
-                                if (*curbuf).b_p_inde.cb_type != kCallbackNone {
+                                if (*curbuf).b_p_inde.cb_type() != kCallbackNone {
                                     get_expr_indent
                                 } else {
                                     get_c_indent
@@ -4010,7 +4010,7 @@ pub unsafe fn do_pending_operator(cap: *mut cmdarg_T, old_col: c_int, gui_yank: 
                     check_cursor_col(curwin);
                 }
                 OP_FORMAT => {
-                    if (*curbuf).b_p_fex.cb_type != kCallbackNone {
+                    if (*curbuf).b_p_fex.cb_type() != kCallbackNone {
                         op_formatexpr(oap);
                     } else if *p_fp != NUL || *(*curbuf).b_p_fp != NUL {
                         op_colon(oap);

@@ -1610,7 +1610,7 @@ pub unsafe fn find_file_name_in_path(
             len -= off;
         }
 
-        if (options & FNAME_INCL) != 0 && (*curbuf).b_p_inex.cb_type != kCallbackNone {
+        if (options & FNAME_INCL) != 0 && (*curbuf).b_p_inex.cb_type() != kCallbackNone {
             tofree = eval_includeexpr(ptr, len);
             if !tofree.is_null() {
                 ptr = tofree;
@@ -1635,7 +1635,7 @@ pub unsafe fn find_file_name_in_path(
 
             if file_name.is_null()
                 && (options & FNAME_INCL) == 0
-                && (*curbuf).b_p_inex.cb_type != kCallbackNone
+                && (*curbuf).b_p_inex.cb_type() != kCallbackNone
             {
                 tofree = eval_includeexpr(ptr, len);
                 if !tofree.is_null() {

@@ -3332,7 +3332,7 @@ unsafe fn aucmd_next(apc: *mut AutoPatCmd) {
 unsafe fn au_callback(ac: *const AutoCmd, apc: *const AutoPatCmd) -> bool {
     unsafe {
         let mut callback = (*ac).handler_fn;
-        if callback.cb_type == kCallbackLua {
+        if callback.cb_type() == kCallbackLua {
             let mut data_items = [KeyValuePair {
                 key: NvimString {
                     data: ptr::null_mut(),

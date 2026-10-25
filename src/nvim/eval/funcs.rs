@@ -6042,7 +6042,7 @@ unsafe fn msgpackparse_unpack_list(list: *const list_T, ret_list: *mut list_T) {
         let mut cur_item = tv_initial_value();
         let mut parser = mpack_parser_t::new(0);
         mpack_parser_init(&raw mut parser, 0);
-        parser.data.p = (&raw mut cur_item).cast();
+        parser.data = crate::mpack::object::mpack_data_t::Ptr((&raw mut cur_item).cast());
 
         let mut status = MPACK_OK;
         'end: {
@@ -8349,7 +8349,7 @@ pub unsafe fn f_sockconnect(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
                     break 'cleanup;
                 }
                 on_data.buffered = tv_dict_get_number(opts, c"data_buffered".as_ptr()) != 0;
-                if on_data.buffered && on_data.cb.cb_type == kCallbackNone {
+                if on_data.buffered && on_data.cb.cb_type() == kCallbackNone {
                     on_data.self_dict = opts;
                 }
             }
@@ -8388,7 +8388,7 @@ pub unsafe fn f_stdioopen(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
         }
 
         on_stdin.buffered = tv_dict_get_number(opts, c"stdin_buffered".as_ptr()) != 0;
-        if on_stdin.buffered && on_stdin.cb.cb_type == kCallbackNone {
+        if on_stdin.buffered && on_stdin.cb.cb_type() == kCallbackNone {
             on_stdin.self_dict = opts;
         }
 

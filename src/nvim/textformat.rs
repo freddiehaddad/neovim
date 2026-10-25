@@ -1038,7 +1038,7 @@ pub unsafe fn format_lines(line_count: linenr_T, avoid_fex: bool) {
                         } else if (*curbuf).b_p_lisp != 0 {
                             get_lisp_indent()
                         } else if cindent_on() {
-                            if (*curbuf).b_p_inde.cb_type != kCallbackNone {
+                            if (*curbuf).b_p_inde.cb_type() != kCallbackNone {
                                 get_expr_indent()
                             } else {
                                 get_c_indent()

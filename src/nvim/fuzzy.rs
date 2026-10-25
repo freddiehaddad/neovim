@@ -479,7 +479,7 @@ unsafe fn fuzzy_match_in_list(
             if tv.v_type == VarType::VAR_STRING {
                 itemstr = tv.vval.v_string;
             } else if tv.v_type == VarType::VAR_DICT
-                && (!key.is_null() || (*item_cb).cb_type != K_CALLBACK_NONE)
+                && (!key.is_null() || (*item_cb).cb_type() != K_CALLBACK_NONE)
             {
                 let d = tv.vval.v_dict;
                 if !key.is_null() {

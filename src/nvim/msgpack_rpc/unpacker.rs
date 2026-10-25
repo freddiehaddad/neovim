@@ -117,7 +117,7 @@ const fn empty_arena() -> Arena {
 
 unsafe fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
     unsafe {
-        let p = (*parser).data.p.cast::<Unpacker>();
+        let p = (*parser).data.p().cast::<Unpacker>();
         let mut result: *mut Object = std::ptr::null_mut();
         let mut key_location: *mut NvimString = std::ptr::null_mut();
 
@@ -125,11 +125,11 @@ unsafe fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) 
         if !parent.is_null() {
             match (*parent).tok.r#type {
                 mpack_token_type_t::MPACK_TOKEN_ARRAY => {
-                    let obj = (*parent).data[0].p.cast::<Object>();
+                    let obj = (*parent).data[0].p().cast::<Object>();
                     result = (*obj).data.array.items.add((*parent).pos);
                 }
                 mpack_token_type_t::MPACK_TOKEN_MAP => {
-                    let obj = (*parent).data[0].p.cast::<Object>();
+                    let obj = (*parent).data[0].p().cast::<Object>();
                     let kv = &mut *(*obj).data.dict.items.add((*parent).pos);
                     if (*parent).key_visited == 0 {
                         kv.key = NvimString {
@@ -204,10 +204,10 @@ unsafe fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) 
                         data: ObjectData { string: s },
                     };
                 }
-                (*node).data[0].p = mem.cast::<c_void>();
+                (*node).data[0] = crate::mpack::object::mpack_data_t::Ptr(mem.cast::<c_void>());
             }
             mpack_token_type_t::MPACK_TOKEN_EXT => {
-                (*node).data[0].p = result.cast::<c_void>();
+                (*node).data[0] = crate::mpack::object::mpack_data_t::Ptr(result.cast::<c_void>());
             }
             mpack_token_type_t::MPACK_TOKEN_CHUNK => {
                 assert!(!parent.is_null());
@@ -215,16 +215,16 @@ unsafe fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) 
                 if (*parent).tok.r#type == mpack_token_type_t::MPACK_TOKEN_STR
                     || (*parent).tok.r#type == mpack_token_type_t::MPACK_TOKEN_BIN
                 {
-                    let data = (*parent).data[0].p.cast::<u8>();
+                    let data = (*parent).data[0].p().cast::<u8>();
                     if chunk_len > 0 {
                         std::ptr::copy_nonoverlapping(
-                            tok.data.chunk_ptr.cast::<u8>(),
+                            tok.data.chunk_ptr().cast::<u8>(),
                             data.add((*parent).pos),
                             chunk_len,
                         );
                     }
                 } else {
-                    let res = (*parent).data[0].p.cast::<Object>();
+                    let res = (*parent).data[0].p().cast::<Object>();
                     let endlen = (*parent).pos + chunk_len;
                     if endlen > MAX_EXT_LEN {
                         *res = nil_obj();
@@ -232,7 +232,7 @@ unsafe fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) 
                     }
                     if chunk_len > 0 {
                         std::ptr::copy_nonoverlapping(
-                            tok.data.chunk_ptr.cast::<u8>(),
+                            tok.data.chunk_ptr().cast::<u8>(),
                             (*p).ext_buf.as_mut_ptr().cast::<u8>().add((*parent).pos),
                             chunk_len,
                         );
@@ -248,7 +248,7 @@ unsafe fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) 
                         *res = nil_obj();
                         return;
                     }
-                    let ext_type = (*parent).tok.data.ext_type;
+                    let ext_type = (*parent).tok.data.ext_type();
                     if (0..=EXT_OBJECT_TYPE_MAX).contains(&ext_type)
                         && let Some(obj_type) =
                             ObjectType::from_raw(ext_type + EXT_OBJECT_TYPE_SHIFT)
@@ -274,7 +274,7 @@ unsafe fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) 
                         },
                     },
                 };
-                (*node).data[0].p = result.cast::<c_void>();
+                (*node).data[0] = crate::mpack::object::mpack_data_t::Ptr(result.cast::<c_void>());
             }
             mpack_token_type_t::MPACK_TOKEN_MAP => {
                 let len = tok.length as usize;
@@ -294,7 +294,7 @@ unsafe fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) 
                         },
                     },
                 };
-                (*node).data[0].p = result.cast::<c_void>();
+                (*node).data[0] = crate::mpack::object::mpack_data_t::Ptr(result.cast::<c_void>());
             }
             mpack_token_type_t::MPACK_TOKEN_NONE => std::process::abort(),
         }
@@ -315,7 +315,7 @@ pub unsafe fn unpack(
     unsafe {
         let mut unpacker = Unpacker::new();
         mpack_parser_init(&mut unpacker.parser, 0);
-        unpacker.parser.data.p = (&mut unpacker as *mut Unpacker).cast::<c_void>();
+        unpacker.parser.data = crate::mpack::object::mpack_data_t::Ptr((&mut unpacker as *mut Unpacker).cast::<c_void>());
         unpacker.arena = *arena;
 
         let result = mpack_parse(
@@ -408,7 +408,7 @@ pub unsafe fn unpacker_init(p: *mut Unpacker) {
     unsafe {
         let p_ref = &mut *p;
         mpack_parser_init(&mut p_ref.parser, 0);
-        p_ref.parser.data.p = p.cast::<c_void>();
+        p_ref.parser.data = crate::mpack::object::mpack_data_t::Ptr(p.cast::<c_void>());
         mpack_tokbuf_init(&mut p_ref.reader);
         p_ref.unpack_error = Error {
             err_type: ErrorType::kErrorTypeNone,
@@ -506,7 +506,7 @@ pub unsafe fn unpacker_parse_header(p: *mut Unpacker) -> bool {
                         }
                         if result == 0 {
                             let name_ptr = if tok.length != 0 {
-                                tok.data.chunk_ptr
+                                tok.data.chunk_ptr()
                             } else {
                                 c"".as_ptr()
                             };
@@ -761,7 +761,7 @@ pub unsafe fn unpacker_parse_redraw(p: *mut Unpacker) -> bool {
                 ) {
                     return false;
                 }
-                p.grid_line_event.args[i] = tok.data.value.lo as c_int;
+                p.grid_line_event.args[i] = tok.data.value().lo as c_int;
             }
 
             if !next_type(
@@ -830,7 +830,7 @@ pub unsafe fn unpacker_parse_redraw(p: *mut Unpacker) -> bool {
                     ) {
                         return false;
                     }
-                    p.grid_line_event.cur_attr = tok.data.value.lo as c_int;
+                    p.grid_line_event.cur_attr = tok.data.value().lo as c_int;
                 }
 
                 let mut repeat = 1 as c_int;
@@ -844,7 +844,7 @@ pub unsafe fn unpacker_parse_redraw(p: *mut Unpacker) -> bool {
                     ) {
                         return false;
                     }
-                    repeat = tok.data.value.lo as c_int;
+                    repeat = tok.data.value().lo as c_int;
                 }
 
                 p.grid_line_event.clear_width = 0;

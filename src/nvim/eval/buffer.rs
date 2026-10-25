@@ -366,7 +366,7 @@ pub unsafe fn prompt_invoke_callback() {
         (*curwin).w_cursor.col = 0;
         (*curbuf).b_prompt_start.mark.lnum = lnum + 1;
 
-        if (*curbuf).b_prompt_callback.cb_type == kCallbackNone {
+        if (*curbuf).b_prompt_callback.cb_type() == kCallbackNone {
             xfree(user_input.cast());
         } else {
             let mut rettv = typval_T {
@@ -411,7 +411,7 @@ pub unsafe fn prompt_invoke_callback() {
 /// Return true when the interrupt callback was invoked (`invoke_prompt_interrupt`).
 pub unsafe fn invoke_prompt_interrupt() -> bool {
     unsafe {
-        if (*curbuf).b_prompt_interrupt.cb_type == kCallbackNone {
+        if (*curbuf).b_prompt_interrupt.cb_type() == kCallbackNone {
             return false;
         }
         let mut rettv = typval_T {

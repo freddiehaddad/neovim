@@ -297,7 +297,7 @@ pub unsafe fn cin_is_cinword(mut line: *const c_char) -> bool {
 }
 pub unsafe fn cindent_on() -> bool {
     unsafe {
-        p_paste == 0 && ((*curbuf).b_p_cin != 0 || (*curbuf).b_p_inde.cb_type != kCallbackNone)
+        p_paste == 0 && ((*curbuf).b_p_cin != 0 || (*curbuf).b_p_inde.cb_type() != kCallbackNone)
     }
 }
 unsafe fn cin_skipcomment(mut s: *const c_char) -> *const c_char {
@@ -2999,7 +2999,7 @@ pub unsafe fn in_cinkeys(keytyped: c_int, when: c_int, line_is_empty: bool) -> b
         if keytyped == NUL as c_int {
             return false;
         }
-        let mut look: *const c_char = if (*curbuf).b_p_inde.cb_type != kCallbackNone {
+        let mut look: *const c_char = if (*curbuf).b_p_inde.cb_type() != kCallbackNone {
             (*curbuf).b_p_indk
         } else {
             (*curbuf).b_p_cink
@@ -3176,7 +3176,7 @@ pub unsafe fn in_cinkeys(keytyped: c_int, when: c_int, line_is_empty: bool) -> b
 /// Do C or expression indenting on the current line.
 pub unsafe fn do_c_expr_indent() {
     unsafe {
-        if (*curbuf).b_p_inde.cb_type != kCallbackNone {
+        if (*curbuf).b_p_inde.cb_type() != kCallbackNone {
             fixthisline(get_expr_indent);
         } else {
             fixthisline(get_c_indent);

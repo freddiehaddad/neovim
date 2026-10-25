@@ -1394,7 +1394,7 @@ pub unsafe fn buf_write(
                                 end = 0;
                             }
                             write_info.bw_first = 1;
-                        } else if p_ccv.cb_type != kCallbackNone {
+                        } else if p_ccv.cb_type() != kCallbackNone {
                             wfname = vim_tempname();
                             if wfname.is_null() {
                                 err = set_err(gettext(

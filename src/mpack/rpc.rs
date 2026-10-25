@@ -1,7 +1,6 @@
 //! MessagePack-RPC session state machine (`src/mpack/rpc.c`).
 
 use std::ffi::{c_char, c_int};
-use std::ptr;
 
 use crate::mpack::mpack_core::{
     MPACK_EOF, MPACK_OK, MPACK_TOKEN_ARRAY, MPACK_TOKEN_UINT, mpack_read, mpack_tokbuf_init,
@@ -143,20 +142,21 @@ pub unsafe fn mpack_rpc_receive_tok(
         }
 
         if (*session).receive.index == 1 {
-            if tok.r#type != MPACK_TOKEN_UINT || tok.length > 1 || tok.data.value.lo > 2 {
+            let v_lo = tok.data.value().lo;
+            if tok.r#type != MPACK_TOKEN_UINT || tok.length > 1 || v_lo > 2 {
                 return MPACK_RPC_ETYPE;
             }
-            if tok.data.value.lo < 2 && (*session).receive.toks[0].length != 4 {
+            if v_lo < 2 && (*session).receive.toks[0].length != 4 {
                 return MPACK_RPC_EARRAYL;
             }
-            if tok.data.value.lo == 2 && (*session).receive.toks[0].length != 3 {
+            if v_lo == 2 && (*session).receive.toks[0].length != 3 {
                 return MPACK_RPC_EARRAYL;
             }
 
             (*session).receive.toks[1] = tok;
             (*session).receive.index += 1;
 
-            if tok.data.value.lo < 2 {
+            if v_lo < 2 {
                 return MPACK_EOF;
             }
 
@@ -170,9 +170,9 @@ pub unsafe fn mpack_rpc_receive_tok(
             return MPACK_RPC_EMSGID;
         }
 
-        (*msg).id = tok.data.value.lo;
-        (*msg).data.p = ptr::null_mut();
-        let r#type = ((*session).receive.toks[1].data.value.lo as c_int) + MPACK_RPC_REQUEST;
+        (*msg).id = tok.data.value().lo;
+        (*msg).data = mpack_data_t::Null;
+        let r#type = ((*session).receive.toks[1].data.value().lo as c_int) + MPACK_RPC_REQUEST;
 
         if r#type == MPACK_RPC_RESPONSE && mpack_rpc_pop(session, msg) == 0 {
             return MPACK_RPC_ERESPID;
@@ -197,8 +197,8 @@ pub unsafe fn mpack_rpc_request_tok(
                 };
                 (*session).send = mpack_rpc_request_hdr();
                 (*session).send.toks[2].r#type = MPACK_TOKEN_UINT;
-                (*session).send.toks[2].data.value.lo = msg.id;
-                (*session).send.toks[2].data.value.hi = 0;
+                (*session).send.toks[2].data.value_mut().lo = msg.id;
+                (*session).send.toks[2].data.value_mut().hi = 0;
                 *tok = (*session).send.toks[0];
                 let status = mpack_rpc_put(session, msg);
                 if status == -1 {
@@ -235,8 +235,8 @@ pub unsafe fn mpack_rpc_reply_tok(
         if (*session).send.index == 0 {
             (*session).send = mpack_rpc_reply_hdr();
             (*session).send.toks[2].r#type = MPACK_TOKEN_UINT;
-            (*session).send.toks[2].data.value.lo = id;
-            (*session).send.toks[2].data.value.hi = 0;
+            (*session).send.toks[2].data.value_mut().lo = id;
+            (*session).send.toks[2].data.value_mut().hi = 0;
             *tok = (*session).send.toks[0];
             (*session).send.index += 1;
             return MPACK_EOF;
@@ -370,23 +370,23 @@ fn mpack_rpc_request_hdr() -> mpack_rpc_header_t {
     hdr.toks[0].r#type = MPACK_TOKEN_ARRAY;
     hdr.toks[0].length = 4;
     hdr.toks[1].r#type = MPACK_TOKEN_UINT;
-    hdr.toks[1].data.value.lo = 0;
-    hdr.toks[1].data.value.hi = 0;
+    hdr.toks[1].data.value_mut().lo = 0;
+    hdr.toks[1].data.value_mut().hi = 0;
     hdr
 }
 
 fn mpack_rpc_reply_hdr() -> mpack_rpc_header_t {
     let mut hdr = mpack_rpc_request_hdr();
-    hdr.toks[1].data.value.lo = 1;
-    hdr.toks[1].data.value.hi = 0;
+    hdr.toks[1].data.value_mut().lo = 1;
+    hdr.toks[1].data.value_mut().hi = 0;
     hdr
 }
 
 fn mpack_rpc_notify_hdr() -> mpack_rpc_header_t {
     let mut hdr = mpack_rpc_request_hdr();
     hdr.toks[0].length = 3;
-    hdr.toks[1].data.value.lo = 2;
-    hdr.toks[1].data.value.hi = 0;
+    hdr.toks[1].data.value_mut().lo = 2;
+    hdr.toks[1].data.value_mut().hi = 0;
     hdr
 }
 

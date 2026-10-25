@@ -2141,7 +2141,7 @@ unsafe fn win_update(wp: *mut win_T) {
 
                         let display_buf_line = !concealed
                             && (foldinfo.fi_lines == 0
-                                || (*wp).w_onebuf_opt.wo_fdt.cb_type == kCallbackNone);
+                                || (*wp).w_onebuf_opt.wo_fdt.cb_type() == kCallbackNone);
 
                         let mut zero_spv = spellvars_T::default();
                         row = win_line(
