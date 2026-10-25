@@ -10,8 +10,7 @@ use crate::cmdexpand::{
 use crate::errors::*;
 use crate::eval::typval::{
     EvalFuncData, TypvalVval, VAR_UNLOCKED, VarType, blob_T, list_T, tv_blob_alloc_ret,
-    tv_blob_free, tv_blob_len, tv_check_for_nonempty_string_arg, tv_check_for_string_arg,
-    tv_check_str_or_nr, tv_clear, tv_get_bool_chk, tv_get_number, tv_get_number_chk, tv_get_string,
+    tv_blob_len, tv_check_for_nonempty_string_arg, tv_check_for_string_arg, tv_check_str_or_nr, tv_clear, tv_get_bool_chk, tv_get_number, tv_get_number_chk, tv_get_string,
     tv_get_string_buf, tv_get_string_buf_chk, tv_get_string_chk, tv_list_alloc_ret,
     tv_list_append_owned_tv, tv_list_append_string, tv_list_first, tv_list_item_remove,
     tv_list_len, tv_list_set_ret, typval_T, varnumber_T,
@@ -1472,7 +1471,7 @@ unsafe fn read_blob(
         bv.resize(size as usize, 0);
         if fread(bv.as_mut_ptr().cast(), 1, bv.len(), fd) < bv.len() {
             // An empty blob is returned on error.
-            tv_blob_free((*rettv).vval.v_blob);
+            drop(Box::from_raw((*rettv).vval.v_blob));
             (*rettv).vval.v_blob = ptr::null_mut();
             return FAIL;
         }

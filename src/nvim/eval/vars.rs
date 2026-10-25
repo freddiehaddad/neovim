@@ -118,7 +118,6 @@ impl Default for evalarg_T {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
 pub struct lval_T {
     pub ll_name: *const c_char,
     pub ll_name_len: usize,
@@ -161,6 +160,14 @@ impl Default for lval_T {
     #[inline]
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Drop for lval_T {
+    fn drop(&mut self) {
+        unsafe {
+            clear_lval(self);
+        }
     }
 }
 
@@ -497,7 +504,7 @@ pub static mut eval_msgpack_type_lists: [*const list_T; NUM_MSGPACK_TYPES] =
 
 static mut varnamebuf: Vec<c_char> = Vec::new();
 
-static mut redir_lval: *mut lval_T = ptr::null_mut();
+static mut redir_lval: Option<lval_T> = None;
 static mut redir_buf: Vec<c_char> = Vec::new();
 static mut redir_endp: *mut c_char = ptr::null_mut();
 static mut redir_varname: *mut c_char = ptr::null_mut();
@@ -3776,22 +3783,9 @@ pub unsafe fn var_redir_start(name: *mut c_char, append: bool) -> c_int {
         }
 
         redir_varname = xstrdup(name);
-        redir_lval = Box::into_raw(Box::new(lval_T {
-            ll_name: ptr::null(),
-            ll_name_len: 0,
-            ll_exp_name: ptr::null_mut(),
-            ll_tv: ptr::null_mut(),
-            ll_li: ptr::null_mut(),
-            ll_list: ptr::null_mut(),
-            ll_range: false,
-            ll_empty2: false,
-            ll_n1: 0,
-            ll_n2: 0,
-            ll_dict: ptr::null_mut(),
-            ll_di: ptr::null_mut(),
-            ll_newkey: ptr::null_mut(),
-            ll_blob: ptr::null_mut(),
-        }));
+        let rl = &raw mut redir_lval;
+        *rl = Some(lval_T::new());
+        let lval_ptr: *mut lval_T = (*rl).as_mut().unwrap();
 
         let buf = &raw mut redir_buf;
         (*buf).clear();
@@ -3799,14 +3793,14 @@ pub unsafe fn var_redir_start(name: *mut c_char, append: bool) -> c_int {
         redir_endp = get_lval(
             redir_varname,
             ptr::null_mut(),
-            redir_lval,
+            lval_ptr,
             false,
             false,
             0,
             FNE_CHECK_START,
         );
-        if redir_endp.is_null() || (*redir_lval).ll_name.is_null() || *redir_endp != NUL {
-            clear_lval(redir_lval);
+        if redir_endp.is_null() || (*lval_ptr).ll_name.is_null() || *redir_endp != NUL {
+            clear_lval(lval_ptr);
             if !redir_endp.is_null() && *redir_endp != NUL {
                 semsg!(gettext(e_trailing_arg.as_ptr()), redir_endp);
             } else {
@@ -3828,7 +3822,7 @@ pub unsafe fn var_redir_start(name: *mut c_char, append: bool) -> c_int {
         };
         if append {
             set_var_lval(
-                redir_lval,
+                lval_ptr,
                 redir_endp,
                 &raw mut tv,
                 true,
@@ -3837,7 +3831,7 @@ pub unsafe fn var_redir_start(name: *mut c_char, append: bool) -> c_int {
             );
         } else {
             set_var_lval(
-                redir_lval,
+                lval_ptr,
                 redir_endp,
                 &raw mut tv,
                 true,
@@ -3845,7 +3839,7 @@ pub unsafe fn var_redir_start(name: *mut c_char, append: bool) -> c_int {
                 c"=".as_ptr(),
             );
         }
-        clear_lval(redir_lval);
+        clear_lval(lval_ptr);
         if called_emsg > called_emsg_before {
             redir_endp = ptr::null_mut();
             var_redir_stop();
@@ -3859,7 +3853,8 @@ pub unsafe fn var_redir_start(name: *mut c_char, append: bool) -> c_int {
 /// Append "value[value_len]" to the variable set by var_redir_start().
 pub unsafe fn var_redir_str(value: *const c_char, value_len: c_int) {
     unsafe {
-        if redir_lval.is_null() {
+        let rl = &raw const redir_lval;
+        if (*rl).is_none() {
             return;
         }
 
@@ -3880,7 +3875,9 @@ pub unsafe fn var_redir_str(value: *const c_char, value_len: c_int) {
 /// Stop redirecting command output to a variable.
 pub unsafe fn var_redir_stop() {
     unsafe {
-        if !redir_lval.is_null() {
+        let rl = &raw mut redir_lval;
+        if let Some(ref mut lval) = *rl {
+            let lval_ptr: *mut lval_T = lval;
             let buf = &raw mut redir_buf;
             if !redir_endp.is_null() {
                 (*buf).push(0);
@@ -3894,15 +3891,15 @@ pub unsafe fn var_redir_stop() {
                 redir_endp = get_lval(
                     redir_varname,
                     ptr::null_mut(),
-                    redir_lval,
+                    lval_ptr,
                     false,
                     false,
                     0,
                     FNE_CHECK_START,
                 );
-                if !redir_endp.is_null() && !(*redir_lval).ll_name.is_null() {
+                if !redir_endp.is_null() && !(*lval_ptr).ll_name.is_null() {
                     set_var_lval(
-                        redir_lval,
+                        lval_ptr,
                         redir_endp,
                         &raw mut tv,
                         false,
@@ -3910,13 +3907,11 @@ pub unsafe fn var_redir_stop() {
                         c".".as_ptr(),
                     );
                 }
-                clear_lval(redir_lval);
+                clear_lval(lval_ptr);
             }
 
             *buf = Vec::new();
-
-            drop(Box::from_raw(redir_lval));
-            redir_lval = ptr::null_mut();
+            *rl = None;
         }
         xfree(redir_varname.cast());
         redir_varname = ptr::null_mut();

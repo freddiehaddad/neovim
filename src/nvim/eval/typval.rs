@@ -312,6 +312,17 @@ impl list_T {
 impl Drop for list_T {
     fn drop(&mut self) {
         unsafe {
+            let self_ptr = std::ptr::from_mut(self);
+            if !self.lv_used_prev.is_null() || ptr::eq(gc_first_list, self_ptr) {
+                if self.lv_used_prev.is_null() {
+                    gc_first_list = self.lv_used_next;
+                } else {
+                    (*self.lv_used_prev).lv_used_next = self.lv_used_next;
+                }
+                if !self.lv_used_next.is_null() {
+                    (*self.lv_used_next).lv_used_prev = self.lv_used_prev;
+                }
+            }
             nlua_clear_ref(&mut self.lua_table_ref);
         }
     }
@@ -370,6 +381,17 @@ impl dict_T {
 impl Drop for dict_T {
     fn drop(&mut self) {
         unsafe {
+            let self_ptr = std::ptr::from_mut(self);
+            if !self.dv_used_prev.is_null() || ptr::eq(gc_first_dict, self_ptr) {
+                if self.dv_used_prev.is_null() {
+                    gc_first_dict = self.dv_used_next;
+                } else {
+                    (*self.dv_used_prev).dv_used_next = self.dv_used_next;
+                }
+                if !self.dv_used_next.is_null() {
+                    (*self.dv_used_next).dv_used_prev = self.dv_used_prev;
+                }
+            }
             nlua_clear_ref(&mut self.lua_table_ref);
         }
     }
@@ -900,22 +922,6 @@ pub unsafe fn tv_list_free_contents(l: *mut list_T) {
     }
 }
 
-/// Free a list itself, ignoring items it contains.
-pub unsafe fn tv_list_free_list(l: *mut list_T) {
-    unsafe {
-        if (*l).lv_used_prev.is_null() {
-            gc_first_list = (*l).lv_used_next;
-        } else {
-            (*(*l).lv_used_prev).lv_used_next = (*l).lv_used_next;
-        }
-        if !(*l).lv_used_next.is_null() {
-            (*(*l).lv_used_next).lv_used_prev = (*l).lv_used_prev;
-        }
-
-        drop(Box::from_raw(l));
-    }
-}
-
 /// Free a list, including all items it points to.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn tv_list_free(l: *mut list_T) {
@@ -925,7 +931,7 @@ pub unsafe extern "C" fn tv_list_free(l: *mut list_T) {
         }
 
         tv_list_free_contents(l);
-        tv_list_free_list(l);
+        drop(Box::from_raw(l));
     }
 }
 
@@ -2791,22 +2797,6 @@ pub unsafe fn tv_dict_free_contents(d: *mut dict_T) {
     }
 }
 
-/// Free a dictionary itself, ignoring items it contains.
-pub unsafe fn tv_dict_free_dict(d: *mut dict_T) {
-    unsafe {
-        if (*d).dv_used_prev.is_null() {
-            gc_first_dict = (*d).dv_used_next;
-        } else {
-            (*(*d).dv_used_prev).dv_used_next = (*d).dv_used_next;
-        }
-        if !(*d).dv_used_next.is_null() {
-            (*(*d).dv_used_next).dv_used_prev = (*d).dv_used_prev;
-        }
-
-        drop(Box::from_raw(d));
-    }
-}
-
 /// Free a dictionary, including all items it contains.
 pub unsafe fn tv_dict_free(d: *mut dict_T) {
     unsafe {
@@ -2815,7 +2805,7 @@ pub unsafe fn tv_dict_free(d: *mut dict_T) {
         }
 
         tv_dict_free_contents(d);
-        tv_dict_free_dict(d);
+        drop(Box::from_raw(d));
     }
 }
 
@@ -3468,20 +3458,13 @@ pub unsafe fn tv_blob_alloc() -> *mut blob_T {
     }))
 }
 
-/// Free a blob. Ignores the reference count.
-pub unsafe fn tv_blob_free(b: *mut blob_T) {
-    unsafe {
-        drop(Box::from_raw(b));
-    }
-}
-
 /// Unreference a blob.
 pub unsafe fn tv_blob_unref(b: *mut blob_T) {
     unsafe {
         if !b.is_null() {
             (*b).bv_refcount -= 1;
             if (*b).bv_refcount <= 0 {
-                tv_blob_free(b);
+                drop(Box::from_raw(b));
             }
         }
     }
