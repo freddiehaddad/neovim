@@ -6908,8 +6908,7 @@ pub unsafe fn parse_command_modifiers(
                     }
                     if !skip_only {
                         (*cmod).cmod_filter_pat = xstrdup(reg_pat);
-                        (*cmod).cmod_filter_regmatch.regprog =
-                            vim_regcomp(reg_pat, RE_MAGIC).cast();
+                        (*cmod).cmod_filter_regmatch.regprog = vim_regcomp(reg_pat, RE_MAGIC);
                         if (*cmod).cmod_filter_regmatch.regprog.is_null() {
                             break;
                         }
@@ -7120,7 +7119,7 @@ pub unsafe fn undo_cmdmod(cmod: *mut cmdmod_T) {
         }
 
         xfree((*cmod).cmod_filter_pat.cast());
-        vim_regfree((*cmod).cmod_filter_regmatch.regprog.cast());
+        vim_regfree((*cmod).cmod_filter_regmatch.regprog);
 
         if (*cmod).cmod_save_msg_silent > 0 {
             if did_emsg == 0 || msg_silent > (*cmod).cmod_save_msg_silent - 1 {

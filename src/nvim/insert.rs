@@ -158,7 +158,7 @@ use crate::textobject::{bck_word, fwd_word};
 use crate::ui::{ui_cursor_shape, ui_flush, ui_has, vim_beep};
 use crate::undo::{u_clearallandblockfree, u_save, u_save_cursor, u_sync};
 use crate::window::{goto_tabpage, may_trigger_win_scrolled_resized, win_T};
-use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
 use std::ptr;
 
 use crate::change::COM_MIDDLE;
@@ -230,7 +230,6 @@ pub(crate) const ML_ALLOCATED: c_int = 0x10;
 #[repr(C)]
 struct InsertState {
     state: VimState,
-    ca: *mut c_void,
     mincol: c_int,
     cmdchar: c_int,
     cmdchar_todo: c_int,
@@ -254,7 +253,6 @@ impl InsertState {
     const fn new() -> Self {
         Self {
             state: VimState::new(),
-            ca: ptr::null_mut(),
             mincol: 0,
             cmdchar: 0,
             cmdchar_todo: 0,

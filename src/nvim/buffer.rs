@@ -2962,7 +2962,7 @@ pub unsafe fn free_buf_options(buf: *mut buf_T, free_p_ff: bool) {
         clear_string_option(&raw mut (*buf).b_s.b_syn_isk);
         clear_string_option(&raw mut (*buf).b_s.b_p_spc);
         clear_string_option(&raw mut (*buf).b_s.b_p_spf);
-        vim_regfree((*buf).b_s.b_cap_prog.cast());
+        vim_regfree((*buf).b_s.b_cap_prog);
         (*buf).b_s.b_cap_prog = ptr::null_mut();
         clear_string_option(&raw mut (*buf).b_s.b_p_spl);
         clear_string_option(&raw mut (*buf).b_s.b_p_spo);

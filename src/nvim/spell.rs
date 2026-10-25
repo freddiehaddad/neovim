@@ -1465,14 +1465,14 @@ pub unsafe fn slang_clear(lp: *mut slang_T) {
         (*lp).sl_sal = Vec::new();
         (*lp).sl_sofo_sal = Vec::new();
         for prog in (*lp).sl_prefprog.drain(..) {
-            vim_regfree(prog.cast());
+            vim_regfree(prog);
         }
         (*lp).sl_prefprog = Vec::new();
         xfree((*lp).sl_info.cast());
         (*lp).sl_info = ptr::null_mut();
         xfree((*lp).sl_midword.cast());
         (*lp).sl_midword = ptr::null_mut();
-        vim_regfree((*lp).sl_compprog.cast());
+        vim_regfree((*lp).sl_compprog);
         (*lp).sl_compprog = ptr::null_mut();
         xfree((*lp).sl_comprules.cast());
         (*lp).sl_comprules = ptr::null_mut();

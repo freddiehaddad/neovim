@@ -100,7 +100,7 @@ use crate::runtime::{
     script_is_lua, sctx_T,
 };
 use crate::ui::ui_has;
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::api::private::converter::{object_to_vim, vim_to_object};
@@ -4446,7 +4446,7 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
         }
 
         {
-            let mut reg_iter: *const c_void = ptr::null();
+            let mut reg_iter: *const yankreg_T = ptr::null();
             loop {
                 let mut reg: *const yankreg_T = ptr::null();
                 let mut name: c_char = NUL;
@@ -4460,7 +4460,7 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
         }
 
         {
-            let mut mark_iter: *const c_void = ptr::null();
+            let mut mark_iter: *const xfmark_T = ptr::null();
             loop {
                 let mut fm = xfmark_T::new();
                 let mut name: c_char = NUL;

@@ -46,7 +46,7 @@ use crate::textformat::oparg_T;
 use crate::textobject::{findpar, findsent};
 use crate::undo::u_update_named_mark;
 use crate::window::{win_T, winopt_T};
-use std::ffi::{c_char, c_int, c_uint, c_void};
+use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
 
 pub type MarkMoveRes = c_int;
@@ -2009,10 +2009,10 @@ pub unsafe fn copy_jumplist(from: *mut win_T, to: *mut win_T) {
 
 /// Iterate over jumplist items (`mark_jumplist_iter`).
 pub unsafe fn mark_jumplist_iter(
-    iter: *const c_void,
+    iter: *const xfmark_T,
     win: *const win_T,
     fm: *mut xfmark_T,
-) -> *const c_void {
+) -> *const xfmark_T {
     unsafe {
         if iter.is_null() && (*win).w_jumplistlen == 0 {
             *fm = INIT_XFMARK;
@@ -2021,7 +2021,7 @@ pub unsafe fn mark_jumplist_iter(
         let iter_mark = if iter.is_null() {
             &raw const (*win).w_jumplist[0]
         } else {
-            iter.cast::<xfmark_T>()
+            iter
         };
         *fm = *iter_mark;
         if ptr::eq(
@@ -2030,24 +2030,20 @@ pub unsafe fn mark_jumplist_iter(
         ) {
             return ptr::null();
         }
-        iter_mark.add(1).cast()
+        iter_mark.add(1)
     }
 }
 
 /// Iterate over global marks (`mark_global_iter`).
 pub unsafe fn mark_global_iter(
-    iter: *const c_void,
+    iter: *const xfmark_T,
     name: *mut c_char,
     fm: *mut xfmark_T,
-) -> *const c_void {
+) -> *const xfmark_T {
     unsafe {
         *name = NUL;
         let base = &raw const namedfm[0];
-        let mut iter_mark = if iter.is_null() {
-            base
-        } else {
-            iter.cast::<xfmark_T>()
-        };
+        let mut iter_mark = if iter.is_null() { base } else { iter };
         while (iter_mark.offset_from(base) as usize) < NGLOBALMARKS
             && (*iter_mark).fmark.mark.lnum == 0
         {
@@ -2071,7 +2067,7 @@ pub unsafe fn mark_global_iter(
                 break;
             }
             if (*iter_mark).fmark.mark.lnum != 0 {
-                return iter_mark.cast();
+                return iter_mark;
             }
         }
         ptr::null()
@@ -2109,26 +2105,23 @@ unsafe fn next_buffer_mark(buf: *const buf_T, mark_name: &mut c_char) -> *const 
 
 /// Iterate over buffer marks (`mark_buffer_iter`).
 pub unsafe fn mark_buffer_iter(
-    iter: *const c_void,
+    iter: *const fmark_T,
     buf: *const buf_T,
     name: *mut c_char,
     fm: *mut fmark_T,
-) -> *const c_void {
+) -> *const fmark_T {
     unsafe {
         *name = NUL;
         let mut mark_name: c_char = if iter.is_null() {
             NUL
-        } else if ptr::eq(iter.cast::<fmark_T>(), &raw const (*buf).b_last_cursor) {
+        } else if ptr::eq(iter, &raw const (*buf).b_last_cursor) {
             b'"' as c_char
-        } else if ptr::eq(iter.cast::<fmark_T>(), &raw const (*buf).b_last_insert) {
+        } else if ptr::eq(iter, &raw const (*buf).b_last_insert) {
             b'^' as c_char
-        } else if ptr::eq(iter.cast::<fmark_T>(), &raw const (*buf).b_last_change) {
+        } else if ptr::eq(iter, &raw const (*buf).b_last_change) {
             b'.' as c_char
         } else {
-            (b'a' as isize
-                + iter
-                    .cast::<fmark_T>()
-                    .offset_from(&raw const (*buf).b_namedm[0])) as c_char
+            (b'a' as isize + iter.offset_from(&raw const (*buf).b_namedm[0])) as c_char
         };
         let mut iter_mark = next_buffer_mark(buf, &mut mark_name);
         while !iter_mark.is_null() && (*iter_mark).mark.lnum == 0 {
@@ -2144,7 +2137,7 @@ pub unsafe fn mark_buffer_iter(
             *name = (b'a' + iter_off as u8) as c_char;
         }
         *fm = *iter_mark;
-        iter_mark.cast()
+        iter_mark
     }
 }
 

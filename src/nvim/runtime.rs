@@ -2168,7 +2168,7 @@ unsafe fn compute_double_env_sep_len(
             return 0;
         }
         let mut ret: usize = 0;
-        let mut iter: *const c_void = ptr::null();
+        let mut iter: *const c_char = ptr::null();
         loop {
             let mut dir_len: usize = 0;
             let mut dir: *const c_char = ptr::null();
@@ -2202,7 +2202,7 @@ unsafe fn add_env_sep_dirs(
         if val.is_null() || *val == NUL {
             return dest;
         }
-        let mut iter: *const c_void = ptr::null();
+        let mut iter: *const c_char = ptr::null();
         let appname = get_appname(false);
         let appname_len = CStr::from_ptr(appname).to_bytes().len();
         loop {

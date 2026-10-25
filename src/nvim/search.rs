@@ -3218,7 +3218,7 @@ pub unsafe fn find_pattern_in_path(
                 ptr_pat,
             );
             regmatch.rm_ic = ignorecase(pat) != 0;
-            regmatch.regprog = vim_regcomp(pat, if p_magic != 0 { RE_MAGIC } else { 0 }).cast();
+            regmatch.regprog = vim_regcomp(pat, if p_magic != 0 { RE_MAGIC } else { 0 });
             xfree(pat.cast());
             if regmatch.regprog.is_null() {
                 xfree(file_line.cast());
@@ -3231,11 +3231,10 @@ pub unsafe fn find_pattern_in_path(
             (*curbuf).b_p_inc
         };
         if *inc_opt != NUL {
-            incl_regmatch.regprog =
-                vim_regcomp(inc_opt, if p_magic != 0 { RE_MAGIC } else { 0 }).cast();
+            incl_regmatch.regprog = vim_regcomp(inc_opt, if p_magic != 0 { RE_MAGIC } else { 0 });
             if incl_regmatch.regprog.is_null() {
                 xfree(file_line.cast());
-                vim_regfree(regmatch.regprog.cast());
+                vim_regfree(regmatch.regprog);
                 return;
             }
             incl_regmatch.rm_ic = false;
@@ -3248,12 +3247,11 @@ pub unsafe fn find_pattern_in_path(
                     (*curbuf).b_p_def
                 },
                 if p_magic != 0 { RE_MAGIC } else { 0 },
-            )
-            .cast();
+            );
             if def_regmatch.regprog.is_null() {
                 xfree(file_line.cast());
-                vim_regfree(regmatch.regprog.cast());
-                vim_regfree(incl_regmatch.regprog.cast());
+                vim_regfree(regmatch.regprog);
+                vim_regfree(incl_regmatch.regprog);
                 return;
             }
             def_regmatch.rm_ic = false;
@@ -3886,9 +3884,9 @@ pub unsafe fn find_pattern_in_path(
         }
 
         xfree(file_line.cast());
-        vim_regfree(regmatch.regprog.cast());
-        vim_regfree(incl_regmatch.regprog.cast());
-        vim_regfree(def_regmatch.regprog.cast());
+        vim_regfree(regmatch.regprog);
+        vim_regfree(incl_regmatch.regprog);
+        vim_regfree(def_regmatch.regprog);
     }
 }
 

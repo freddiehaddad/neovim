@@ -26,7 +26,7 @@ use crate::strings::{
     concat_str, gettext, strcat, strcpy, strlen, strncmp, vim_snprintf, vim_snprintf_safelen,
     xstrnsave,
 };
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 const CSTACK_LEN: usize = 50;
@@ -348,8 +348,8 @@ pub unsafe fn do_errthrow(cstack: *mut cstack_T, cmdname: *mut c_char) {
             return;
         }
 
-        let mut messages = std::mem::take(&mut *msg_list);
-        if throw_exception((&raw mut messages).cast(), ET_ERROR, cmdname) != FAIL {
+        let messages = std::mem::take(&mut *msg_list);
+        if throw_exception(ExceptionValue::Error(messages), cmdname) != FAIL {
             if !cstack.is_null() {
                 do_throw(cstack);
             } else {
@@ -372,8 +372,7 @@ pub unsafe fn do_intthrow(cstack: *mut cstack_T) -> bool {
             discard_current_exception();
         }
         if throw_exception(
-            c"Vim:Interrupt".as_ptr().cast_mut().cast(),
-            ET_INTERRUPT,
+            ExceptionValue::Interrupt(c"Vim:Interrupt".as_ptr().cast_mut()),
             ptr::null_mut(),
         ) != FAIL
         {
@@ -384,111 +383,97 @@ pub unsafe fn do_intthrow(cstack: *mut cstack_T) -> bool {
     }
 }
 
-pub unsafe fn get_exception_string(
-    value: *mut c_void,
-    r#type: except_type_T,
+enum ExceptionValue {
+    Error(Vec<msglist_T>),
+    Interrupt(*mut c_char),
+    User(*mut c_char),
+}
+
+pub unsafe fn get_error_exception_string(
+    mesg: *const c_char,
     cmdname: *mut c_char,
-    should_free: *mut bool,
 ) -> *mut c_char {
     unsafe {
-        if r#type == ET_ERROR {
-            *should_free = true;
-            let mesg = (*(value.cast::<msglist_T>())).throw_msg;
-            let (ret, val) = if !cmdname.is_null() && *cmdname != NUL {
-                let cmdlen = strlen(cmdname);
-                let ret = xstrnsave(c"Vim(".as_ptr(), 4 + cmdlen + 2 + strlen(mesg));
-                strcpy(ret.add(4), cmdname);
-                strcpy(ret.add(4 + cmdlen), c"):".as_ptr());
-                (ret, ret.add(4 + cmdlen + 2))
-            } else {
-                let ret = xstrnsave(c"Vim:".as_ptr(), 4 + strlen(mesg));
-                (ret, ret.add(4))
-            };
-
-            let mut p = mesg;
-            loop {
-                if *p == NUL
-                    || (*p == b'E' as c_char
-                        && ascii_isdigit(*p.add(1))
-                        && (*p.add(2) == b':' as c_char
-                            || (ascii_isdigit(*p.add(2))
-                                && (*p.add(3) == b':' as c_char
-                                    || (ascii_isdigit(*p.add(3)) && *p.add(4) == b':' as c_char)))))
-                {
-                    if *p == NUL || ptr::eq(p, mesg) {
-                        strcat(val, mesg);
-                    } else {
-                        if *mesg != b'"' as c_char
-                            || (p as usize) < (mesg.add(3) as usize)
-                            || *p.sub(2) != b'"' as c_char
-                            || *p.sub(1) != b' ' as c_char
-                        {
-                            p = p.add(1);
-                            continue;
-                        }
-
-                        strcat(val, p);
-                        *p.sub(2) = NUL;
-                        vim_snprintf!(
-                            val.add(strlen(p)),
-                            strlen(c" (%s)".as_ptr()),
-                            c" (%s)".as_ptr(),
-                            mesg.add(1),
-                        );
-                        *p.sub(2) = b'"' as c_char;
-                    }
-                    break;
-                }
-                p = p.add(1);
-            }
-            ret
+        let (ret, val) = if !cmdname.is_null() && *cmdname != NUL {
+            let cmdlen = strlen(cmdname);
+            let ret = xstrnsave(c"Vim(".as_ptr(), 4 + cmdlen + 2 + strlen(mesg));
+            strcpy(ret.add(4), cmdname);
+            strcpy(ret.add(4 + cmdlen), c"):".as_ptr());
+            (ret, ret.add(4 + cmdlen + 2))
         } else {
-            *should_free = false;
-            value.cast()
+            let ret = xstrnsave(c"Vim:".as_ptr(), 4 + strlen(mesg));
+            (ret, ret.add(4))
+        };
+
+        let mut p = mesg;
+        loop {
+            if *p == NUL
+                || (*p == b'E' as c_char
+                    && ascii_isdigit(*p.add(1))
+                    && (*p.add(2) == b':' as c_char
+                        || (ascii_isdigit(*p.add(2))
+                            && (*p.add(3) == b':' as c_char
+                                || (ascii_isdigit(*p.add(3)) && *p.add(4) == b':' as c_char)))))
+            {
+                if *p == NUL || ptr::eq(p, mesg) {
+                    strcat(val, mesg);
+                } else {
+                    if *mesg != b'"' as c_char
+                        || (p as usize) < (mesg.add(3) as usize)
+                        || *p.sub(2) != b'"' as c_char
+                        || *p.sub(1) != b' ' as c_char
+                    {
+                        p = p.add(1);
+                        continue;
+                    }
+
+                    strcat(val, p);
+                    *p.cast_mut().sub(2) = NUL;
+                    vim_snprintf!(
+                        val.add(strlen(p)),
+                        strlen(c" (%s)".as_ptr()),
+                        c" (%s)".as_ptr(),
+                        mesg.add(1),
+                    );
+                    *p.cast_mut().sub(2) = b'"' as c_char;
+                }
+                break;
+            }
+            p = p.add(1);
         }
+        ret
     }
 }
 
-unsafe fn throw_exception(
-    value: *mut c_void,
-    r#type: except_type_T,
-    cmdname: *mut c_char,
-) -> c_int {
+unsafe fn throw_exception(value: ExceptionValue, cmdname: *mut c_char) -> c_int {
     unsafe {
-        if r#type == ET_USER {
-            let val_str = value.cast::<c_char>();
-            if strncmp(val_str, c"Vim".as_ptr(), 3) == 0
-                && (*val_str.add(3) == NUL
-                    || *val_str.add(3) == b':' as c_char
-                    || *val_str.add(3) == b'(' as c_char)
-            {
-                emsg(gettext(
-                    c"E608: Cannot :throw exceptions with 'Vim' prefix".as_ptr(),
-                ));
-                current_exception = ptr::null_mut();
-                return FAIL;
+        let (r#type, mut messages, excp_value) = match value {
+            ExceptionValue::User(val_str) => {
+                if strncmp(val_str, c"Vim".as_ptr(), 3) == 0
+                    && (*val_str.add(3) == NUL
+                        || *val_str.add(3) == b':' as c_char
+                        || *val_str.add(3) == b'(' as c_char)
+                {
+                    emsg(gettext(
+                        c"E608: Cannot :throw exceptions with 'Vim' prefix".as_ptr(),
+                    ));
+                    current_exception = ptr::null_mut();
+                    return FAIL;
+                }
+                (ET_USER, Vec::new(), val_str)
             }
-        }
-
-        let mut messages = if r#type == ET_ERROR {
-            std::mem::take(&mut *value.cast::<Vec<msglist_T>>())
-        } else {
-            Vec::new()
+            ExceptionValue::Interrupt(val_str) => (ET_INTERRUPT, Vec::new(), val_str),
+            ExceptionValue::Error(msgs) => {
+                let excp_val = get_error_exception_string(msgs[0].throw_msg, cmdname);
+                if excp_val.is_null() {
+                    suppress_errthrow = true;
+                    emsg(gettext(e_outofmem.as_ptr()));
+                    current_exception = ptr::null_mut();
+                    return FAIL;
+                }
+                (ET_ERROR, msgs, excp_val)
+            }
         };
-        let msg_val = if r#type == ET_ERROR {
-            messages.as_mut_ptr().cast::<c_void>()
-        } else {
-            value
-        };
-
-        let mut should_free = false;
-        let excp_value = get_exception_string(msg_val, r#type, cmdname, &mut should_free);
-        if excp_value.is_null() && should_free {
-            suppress_errthrow = true;
-            emsg(gettext(e_outofmem.as_ptr()));
-            current_exception = ptr::null_mut();
-            return FAIL;
-        }
 
         let (throw_name, throw_lnum) = if r#type == ET_ERROR && !messages[0].sfile.is_null() {
             let sfile = messages[0].sfile;
@@ -1137,7 +1122,7 @@ pub unsafe fn ex_throw(eap: *mut exarg_T) {
         };
 
         if (*eap).skip == 0 && !value.is_null() {
-            if throw_exception(value.cast(), ET_USER, ptr::null_mut()) == FAIL {
+            if throw_exception(ExceptionValue::User(value), ptr::null_mut()) == FAIL {
                 xfree(value.cast());
             } else {
                 do_throw((*eap).cstack.cast());

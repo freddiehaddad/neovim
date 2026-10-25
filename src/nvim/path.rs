@@ -2257,7 +2257,7 @@ pub unsafe fn path_guess_exepath(argv0: *const c_char, buf: *mut c_char, bufsize
             xstrlcat(buf, argv0, bufsize);
         } else {
             let namebuff = (&raw mut NameBuff).cast::<c_char>();
-            let mut iter: *const c_void = ptr::null();
+            let mut iter: *const c_char = ptr::null();
             loop {
                 let mut dir: *const c_char = ptr::null();
                 let mut dir_len: usize = 0;

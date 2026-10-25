@@ -367,19 +367,15 @@ pub unsafe fn get_default_register_name() -> c_int {
 }
 
 pub unsafe fn op_reg_iter(
-    iter: *const c_void,
+    iter: *const yankreg_T,
     regs: *const yankreg_T,
     name: *mut c_char,
     reg: *mut *const yankreg_T,
     is_unnamed: *mut bool,
-) -> *const c_void {
+) -> *const yankreg_T {
     unsafe {
         *name = NUL;
-        let mut iter_reg = if iter.is_null() {
-            regs
-        } else {
-            iter.cast::<yankreg_T>()
-        };
+        let mut iter_reg = if iter.is_null() { regs } else { iter };
         while (iter_reg.offset_from(regs) as usize) < NUM_SAVED_REGISTERS && reg_empty(iter_reg) {
             iter_reg = iter_reg.add(1);
         }
@@ -396,7 +392,7 @@ pub unsafe fn op_reg_iter(
                 break;
             }
             if !reg_empty(iter_reg) {
-                return iter_reg.cast::<c_void>();
+                return iter_reg;
             }
         }
         ptr::null()
@@ -404,11 +400,11 @@ pub unsafe fn op_reg_iter(
 }
 
 pub unsafe fn op_global_reg_iter(
-    iter: *const c_void,
+    iter: *const yankreg_T,
     name: *mut c_char,
     reg: *mut *const yankreg_T,
     is_unnamed: *mut bool,
-) -> *const c_void {
+) -> *const yankreg_T {
     unsafe {
         op_reg_iter(
             iter,
@@ -423,7 +419,7 @@ pub unsafe fn op_global_reg_iter(
 pub unsafe fn reg_max_ts(clipboard: bool) -> Timestamp {
     unsafe {
         let mut max_ts: Timestamp = 0;
-        let mut iter: *const c_void = ptr::null();
+        let mut iter: *const yankreg_T = ptr::null();
         loop {
             let mut name: c_char = NUL;
             let mut reg: *const yankreg_T = ptr::null();

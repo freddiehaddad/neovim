@@ -3090,8 +3090,8 @@ pub unsafe fn did_set_spellcapcheck(args: *mut optset_T) -> *const c_char {
             return ptr::null();
         }
         let win = (*args).os_win;
-        let ws = (*win).w_s.cast::<synblock_T>();
-        vim_regfree((*ws).b_cap_prog.cast());
+        let ws = (*win).w_s;
+        vim_regfree((*ws).b_cap_prog);
         (*ws).b_cap_prog = (*args).os_prep.take_spellcap_prog();
         ptr::null()
     }

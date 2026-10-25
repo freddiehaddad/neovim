@@ -745,11 +745,11 @@ pub unsafe fn ex_history(eap: *mut exarg_T) {
 
 /// Iterate over history items (`hist_iter`).
 pub unsafe fn hist_iter(
-    iter: *const c_void,
+    iter: *const histentry_T,
     history_type: u8,
     zero: bool,
     hist: *mut histentry_T,
-) -> *const c_void {
+) -> *const histentry_T {
     unsafe {
         *hist = histentry_T {
             hisnum: 0,
@@ -780,7 +780,7 @@ pub unsafe fn hist_iter(
             }
             hfirst
         } else {
-            iter.cast_mut().cast::<histentry_T>()
+            iter.cast_mut()
         };
 
         if hiter.is_null() {
@@ -795,9 +795,9 @@ pub unsafe fn hist_iter(
         }
         hiter = hiter.add(1);
         if (hiter as usize) > (hend as usize) {
-            hstart.cast::<c_void>()
+            hstart
         } else {
-            hiter.cast::<c_void>()
+            hiter
         }
     }
 }

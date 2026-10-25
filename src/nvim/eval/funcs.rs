@@ -221,7 +221,7 @@ use crate::ui::{
 use crate::ui_compositor::ui_comp_get_grid_at_coord;
 use crate::version::{has_nvim_version, has_vim_patch};
 use crate::window::{find_tabpage, tabpage_T, win_T};
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 pub type SpecialVarValue = c_int;
@@ -5412,7 +5412,7 @@ unsafe fn find_some_match(argvars: *mut typval_T, rettv: *mut typval_T, type_: S
                 }
             }
 
-            regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING).cast();
+            regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
             if !regmatch.regprog.is_null() {
                 regmatch.rm_ic = p_ic != 0;
 
@@ -5520,7 +5520,7 @@ unsafe fn find_some_match(argvars: *mut typval_T, rettv: *mut typval_T, type_: S
                         }
                     }
                 }
-                vim_regfree(regmatch.regprog.cast());
+                vim_regfree(regmatch.regprog);
             }
         }
 
@@ -5679,7 +5679,7 @@ pub unsafe fn f_matchbufline(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
         p_cpo = (&raw mut empty_string_option).cast();
 
         let mut regmatch: regmatch_T = regmatch_T::new();
-        regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING).cast();
+        regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
         if !regmatch.regprog.is_null() {
             regmatch.rm_ic = p_ic != 0;
 
@@ -5689,7 +5689,7 @@ pub unsafe fn f_matchbufline(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
                 slnum += 1;
             }
 
-            vim_regfree(regmatch.regprog.cast());
+            vim_regfree(regmatch.regprog);
         }
 
         p_cpo = save_cpo;
@@ -5753,7 +5753,7 @@ pub unsafe fn f_matchstrlist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
         p_cpo = (&raw mut empty_string_option).cast();
 
         let mut regmatch: regmatch_T = regmatch_T::new();
-        regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING).cast();
+        regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
         if !regmatch.regprog.is_null() {
             regmatch.rm_ic = p_ic != 0;
 
@@ -5792,7 +5792,7 @@ pub unsafe fn f_matchstrlist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
                 }
             }
 
-            vim_regfree(regmatch.regprog.cast());
+            vim_regfree(regmatch.regprog);
         }
 
         p_cpo = save_cpo;
@@ -8560,7 +8560,7 @@ pub unsafe fn f_split(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
 
         if !typeerr {
             let mut regmatch = regmatch_T {
-                regprog: vim_regcomp(pat, RE_MAGIC + RE_STRING).cast(),
+                regprog: vim_regcomp(pat, RE_MAGIC + RE_STRING),
                 startp: [ptr::null_mut(); NSUBEXP],
                 endp: [ptr::null_mut(); NSUBEXP],
                 rm_matchcol: 0,
@@ -8571,7 +8571,7 @@ pub unsafe fn f_split(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
                     let match_found = if *str_ == NUL {
                         false
                     } else {
-                        vim_regexec_nl((&raw mut regmatch).cast(), str_, col)
+                        vim_regexec_nl(&raw mut regmatch, str_, col)
                     };
                     let end: *const c_char = if match_found {
                         regmatch.startp[0]
@@ -8597,7 +8597,7 @@ pub unsafe fn f_split(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
                     }
                     str_ = regmatch.endp[0];
                 }
-                vim_regfree(regmatch.regprog.cast());
+                vim_regfree(regmatch.regprog);
             }
         }
 
@@ -8615,7 +8615,7 @@ unsafe fn get_xdg_var_list(xdg: XDGVarType, rettv: *mut typval_T) {
         if dirs.is_null() {
             return;
         }
-        let mut iter: *const c_void = ptr::null();
+        let mut iter: *const c_char = ptr::null();
         let appname = get_appname(false);
         loop {
             let mut dir_len: usize = 0;

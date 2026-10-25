@@ -39,7 +39,7 @@ use crate::runtime::sctx_T;
 #[cfg(windows)]
 use crate::strings::wcslen;
 use crate::strings::{striequal, strlen, vim_strchr, vim_strsave_escaped};
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 pub(crate) const EXPAND_BUF_LEN: usize = 256;
@@ -835,21 +835,17 @@ unsafe fn remove_tail(path: *mut c_char, pend: *mut c_char, dirname: *const c_ch
 pub unsafe fn vim_env_iter(
     delim: c_char,
     val: *const c_char,
-    iter: *const c_void,
+    iter: *const c_char,
     dir: *mut *const c_char,
     len: *mut usize,
-) -> *const c_void {
+) -> *const c_char {
     unsafe {
-        let varval = if iter.is_null() {
-            val
-        } else {
-            iter.cast::<c_char>()
-        };
+        let varval = if iter.is_null() { val } else { iter };
         *dir = varval;
         let bytes = CStr::from_ptr(varval).to_bytes();
         if let Some(pos) = bytes.iter().position(|&b| b == (delim as u8)) {
             *len = pos;
-            varval.add(pos + 1).cast::<c_void>()
+            varval.add(pos + 1)
         } else {
             *len = bytes.len();
             ptr::null()
@@ -861,15 +857,15 @@ pub unsafe fn vim_env_iter(
 pub unsafe fn vim_env_iter_rev(
     delim: c_char,
     val: *const c_char,
-    iter: *const c_void,
+    iter: *const c_char,
     dir: *mut *const c_char,
     len: *mut usize,
-) -> *const c_void {
+) -> *const c_char {
     unsafe {
         let varend = if iter.is_null() {
             val.add(strlen(val)).sub(1)
         } else {
-            iter.cast::<c_char>()
+            iter
         };
         let varlen = (varend as usize).wrapping_sub(val as usize).wrapping_add(1);
         let colon = xmemrchr(val.cast(), delim as u8, varlen).cast::<c_char>();
@@ -880,7 +876,7 @@ pub unsafe fn vim_env_iter_rev(
         }
         *dir = colon.add(1);
         *len = (varend as usize) - (colon as usize);
-        colon.sub(1).cast::<c_void>()
+        colon.sub(1)
     }
 }
 
@@ -1284,7 +1280,7 @@ mod tests {
             assert_eq!(env_name_len(c"-invalid".as_ptr()), 0);
 
             let val = c"/a:/bb:/ccc";
-            let mut iter: *const c_void = ptr::null();
+            let mut iter: *const c_char = ptr::null();
             let mut dir: *const c_char = ptr::null();
             let mut len: usize = 0;
 

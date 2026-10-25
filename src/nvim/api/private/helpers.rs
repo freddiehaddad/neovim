@@ -16,7 +16,7 @@ use crate::eval::vars::MAXCOL;
 use crate::eval::vars::{before_set_vvar, get_vimvar_dict, scid_T};
 use crate::ex_docmd::CAR;
 use crate::ex_eval::{
-    ET_ERROR, discard_current_exception, except_T, free_global_msglist, get_exception_string,
+    discard_current_exception, except_T, free_global_msglist, get_error_exception_string,
     msglist_T,
 };
 use crate::globals::*;
@@ -410,18 +410,11 @@ pub unsafe fn try_leave(tstate: *const TryState, err: *mut Error) {
             );
             got_int = false;
         } else if !msg_list.is_null() && !(*msg_list).is_empty() {
-            let mut should_free = false;
-            let msg = get_exception_string(
-                (*msg_list).as_mut_ptr().cast(),
-                ET_ERROR,
-                ptr::null_mut(),
-                &raw mut should_free,
-            );
+            let msg =
+                get_error_exception_string((*msg_list).as_slice()[0].throw_msg, ptr::null_mut());
             api_set_error!(err, ErrorType::kErrorTypeException, c"%s".as_ptr(), msg);
             free_global_msglist();
-            if should_free {
-                xfree(msg.cast());
-            }
+            xfree(msg.cast());
         } else if did_throw || need_rethrow {
             if *(*current_exception).throw_name != NUL {
                 if (*current_exception).throw_lnum != 0 {

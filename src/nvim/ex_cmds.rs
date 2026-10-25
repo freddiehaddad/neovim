@@ -80,8 +80,8 @@ use crate::main_init::getout;
 use crate::mark::{mark_adjust, mark_adjust_nofold, set_last_cursor, setpcmark};
 use crate::regexp::{
     MAXCOL, RE_MAGIC, REGSUB_BACKSLASH, REGSUB_COPY, REGSUB_MAGIC, re_multiline, regmatch_T,
-    regmmatch_T, regprog_T, regtilde, skip_regexp, skip_regexp_err, skip_regexp_ex, vim_regcomp,
-    vim_regexec, vim_regexec_multi, vim_regfree, vim_regsub_multi,
+    regmmatch_T, regtilde, skip_regexp, skip_regexp_err, skip_regexp_ex, vim_regcomp, vim_regexec,
+    vim_regexec_multi, vim_regfree, vim_regsub_multi,
 };
 use crate::runtime::SID_NONE;
 use crate::syntax::synblock_T;
@@ -941,7 +941,7 @@ pub unsafe fn ex_sort(eap: *mut exarg_T) {
         }
 
         // sortend:
-        vim_regfree(regmatch.regprog.cast::<regprog_T>());
+        vim_regfree(regmatch.regprog);
         if got_int {
             emsg(gettext(e_interr.as_ptr()));
         }
@@ -1152,7 +1152,7 @@ pub unsafe fn ex_uniq(eap: *mut exarg_T) {
         }
 
         // uniqend:
-        vim_regfree(regmatch.regprog.cast::<regprog_T>());
+        vim_regfree(regmatch.regprog);
         if got_int {
             emsg(gettext(e_interr.as_ptr()));
         }

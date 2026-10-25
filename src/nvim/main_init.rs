@@ -136,7 +136,7 @@ use crate::window::{
     goto_tabpage, make_tabpages, make_windows, only_one_window, tabpage_T, win_alloc_first,
     win_close, win_count, win_enter, win_equal, win_init_size, win_new_screensize, win_valid,
 };
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::io::Write;
 use std::ptr;
 
@@ -2268,7 +2268,7 @@ unsafe fn do_system_initialization() {
     unsafe {
         let config_dirs = stdpaths_get_xdg_var(XDGVarType::kXDGConfigDirs);
         if !config_dirs.is_null() {
-            let mut iter: *const c_void = ptr::null();
+            let mut iter: *const c_char = ptr::null();
             let appname = get_appname(false);
             let appname_bytes = CStr::from_ptr(appname).to_bytes();
             let sysinit_suffix: [u8; 13] = [
@@ -2362,7 +2362,7 @@ unsafe fn do_user_initialization() -> bool {
             let init_vim_suffix: [u8; 10] =
                 [PATHSEP, b'i', b'n', b'i', b't', b'.', b'v', b'i', b'm', 0];
 
-            let mut iter: *const c_void = ptr::null();
+            let mut iter: *const c_char = ptr::null();
             loop {
                 let mut dir: *const c_char = ptr::null();
                 let mut dir_len: usize = 0;
