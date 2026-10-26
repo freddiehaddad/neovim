@@ -22,6 +22,7 @@ pub enum mpack_data_t {
     Typval(*mut crate::eval::typval::typval_T),
     List(*mut crate::eval::typval::list_T),
     MapPairs(Vec<[crate::eval::typval::typval_T; 2]>),
+    OwnedBytes(Vec<u8>),
     Bytes(*mut u8),
     Unpacker(*mut crate::msgpack_rpc::unpacker::Unpacker),
     Object(*mut crate::api::private::validate::Object),
@@ -93,6 +94,22 @@ impl mpack_data_t {
         match *self {
             Self::Bytes(p) => p,
             _ => ptr::null_mut(),
+        }
+    }
+
+    #[inline]
+    pub fn owned_bytes_mut(&mut self) -> &mut [u8] {
+        match self {
+            Self::OwnedBytes(v) => v.as_mut_slice(),
+            _ => &mut [],
+        }
+    }
+
+    #[inline]
+    pub fn take_owned_bytes(&mut self) -> Vec<u8> {
+        match std::mem::take(self) {
+            Self::OwnedBytes(v) => v,
+            _ => Vec::new(),
         }
     }
 

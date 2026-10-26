@@ -11,11 +11,11 @@ use crate::eval::typval::{
     tv_dict_add_list, tv_dict_add_nr, tv_dict_alloc, tv_dict_alloc_ret, tv_dict_find,
     tv_dict_get_bool, tv_dict_get_number, tv_get_bool, tv_get_number, tv_get_number_chk,
     tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict, tv_list_append_list,
-    tv_list_append_number, tv_list_append_string, typval_T, varnumber_T,
+    tv_list_append_number, tv_list_append_string, tv_set_string, typval_T, varnumber_T,
 };
 use crate::ex_getln::text_or_buf_locked;
 use crate::globals::*;
-use crate::memory::{xmallocz, xmemdupz, xstrdup};
+use crate::memory::xmemdupz;
 use crate::message::{emsg, semsg};
 use crate::r#move::{
     changed_window_setting, check_topfill, restore_viewstate, save_viewstate, set_topline,
@@ -890,29 +890,31 @@ pub unsafe fn f_win_gettype(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
     unsafe {
         let mut wp = curwin;
 
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = ptr::null_mut();
+        tv_set_string(rettv, ptr::null());
         if (*argvars).v_type != VarType::VAR_UNKNOWN {
             wp = find_win_by_nr_or_id(argvars);
             if wp.is_null() {
-                (*rettv).vval.v_string = xstrdup(c"unknown".as_ptr());
+                tv_set_string(rettv, c"unknown".as_ptr());
                 return;
             }
         }
         if is_ctx_win(wp) {
-            (*rettv).vval.v_string = xstrdup(c"autocmd".as_ptr());
+            tv_set_string(rettv, c"autocmd".as_ptr());
         } else if (*wp).w_onebuf_opt.wo_pvw != 0 {
-            (*rettv).vval.v_string = xstrdup(c"preview".as_ptr());
+            tv_set_string(rettv, c"preview".as_ptr());
         } else if (*wp).w_floating {
-            (*rettv).vval.v_string = xstrdup(c"popup".as_ptr());
+            tv_set_string(rettv, c"popup".as_ptr());
         } else if bt_cmdwin((*wp).w_buffer) {
-            (*rettv).vval.v_string = xstrdup(c"command".as_ptr());
+            tv_set_string(rettv, c"command".as_ptr());
         } else if bt_quickfix((*wp).w_buffer) {
-            (*rettv).vval.v_string = xstrdup(if !(*wp).w_llist_ref.is_null() {
-                c"loclist".as_ptr()
-            } else {
-                c"quickfix".as_ptr()
-            });
+            tv_set_string(
+                rettv,
+                if !(*wp).w_llist_ref.is_null() {
+                    c"loclist".as_ptr()
+                } else {
+                    c"quickfix".as_ptr()
+                },
+            );
         }
     }
 }
@@ -920,10 +922,8 @@ pub unsafe fn f_win_gettype(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
 /// `getcmdwintype()` function (`f_getcmdwintype`).
 pub unsafe fn f_getcmdwintype(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_STRING;
-        let s: *mut c_char = xmallocz(1).cast();
-        *s = cmdwin_type as c_char;
-        (*rettv).vval.v_string = s;
+        let buf = [cmdwin_type as c_char, 0];
+        tv_set_string(rettv, buf.as_ptr());
     }
 }
 

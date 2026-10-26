@@ -13,7 +13,7 @@ use crate::eval::vars::eval_msgpack_type_lists;
 use crate::hashtab::hashitem_empty;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{utf_char2bytes, utf_char2len, utf_ptr2char, utf_ptr2len};
-use crate::memory::{xfree, xmalloc, xmallocz, xmemdupz};
+use crate::memory::xmemdupz;
 use crate::message::{emsg, semsg};
 use crate::mpack::object::mpack_data_t;
 use std::ffi::{CStr, c_char, c_int};
@@ -101,7 +101,7 @@ pub unsafe fn decode_string(
     s: *const c_char,
     len: usize,
     force_blob: bool,
-    s_allocated: bool,
+    _s_allocated: bool,
 ) -> typval_T {
     assert!(!s.is_null() || len == 0);
     let has_nul = if !s.is_null() && len > 0 {
@@ -124,16 +124,13 @@ pub unsafe fn decode_string(
                 b.bv_ga
                     .extend_from_slice(std::slice::from_raw_parts(s.cast::<u8>(), len));
             }
-            if s_allocated {
-                xfree(s.cast_mut().cast());
-            }
         }
         return tv;
     }
 
     let _ = use_blob;
-    let str_ptr = if s.is_null() || s_allocated {
-        s.cast_mut()
+    let str_ptr = if s.is_null() {
+        std::ptr::null_mut()
     } else {
         unsafe { xmemdupz(s.cast(), len).cast::<c_char>() }
     };
@@ -372,7 +369,8 @@ unsafe fn parse_json_string(
             return FAIL;
         }
 
-        let str_buf = xmalloc(len + 1).cast::<c_char>();
+        let mut str_buf_vec: Vec<c_char> = vec![0; len + 1];
+        let str_buf = str_buf_vec.as_mut_ptr();
         let mut fst_in_pair: c_int = 0;
         let mut str_end = str_buf;
         let mut t = s;
@@ -465,7 +463,7 @@ unsafe fn parse_json_string(
         *str_end = 0;
 
         let out_len = (str_end as usize) - (str_buf as usize);
-        let obj = decode_string(str_buf, out_len, false, true);
+        let obj = decode_string(str_buf, out_len, false, false);
         let is_sp = obj.v_type != VarType::VAR_STRING;
         let pop_res = json_decoder_pop(
             ValuesStackItem {
@@ -1161,17 +1159,15 @@ unsafe fn typval_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_
             mpack_token_type_t::MPACK_TOKEN_BIN
             | mpack_token_type_t::MPACK_TOKEN_STR
             | mpack_token_type_t::MPACK_TOKEN_EXT => {
-                (*node).data[1] = mpack_data_t::Bytes(xmallocz((*node).tok.length as usize).cast());
+                (*node).data[1] = mpack_data_t::OwnedBytes(vec![0u8; (*node).tok.length as usize]);
             }
             mpack_token_type_t::MPACK_TOKEN_CHUNK => {
-                let data = (*parent).data[1].bytes();
+                let data = (*parent).data[1].owned_bytes_mut();
                 let len = (*node).tok.length as usize;
                 if len > 0 {
-                    std::ptr::copy_nonoverlapping(
-                        (*node).tok.data.chunk_ptr().cast::<u8>(),
-                        data.add((*parent).pos),
-                        len,
-                    );
+                    let chunk =
+                        std::slice::from_raw_parts((*node).tok.data.chunk_ptr().cast::<u8>(), len);
+                    data[(*parent).pos..((*parent).pos + len)].copy_from_slice(chunk);
                 }
             }
             mpack_token_type_t::MPACK_TOKEN_ARRAY => {
@@ -1200,11 +1196,8 @@ pub unsafe fn typval_parser_error_free(p: &mut mpack_parser_t) {
         match node.tok.r#type {
             mpack_token_type_t::MPACK_TOKEN_BIN
             | mpack_token_type_t::MPACK_TOKEN_STR
-            | mpack_token_type_t::MPACK_TOKEN_EXT => unsafe {
-                xfree(node.data[1].bytes().cast());
-                node.data[1] = mpack_data_t::Null;
-            },
-            mpack_token_type_t::MPACK_TOKEN_MAP => {
+            | mpack_token_type_t::MPACK_TOKEN_EXT
+            | mpack_token_type_t::MPACK_TOKEN_MAP => {
                 node.data[1] = mpack_data_t::Null;
             }
             _ => {}
@@ -1218,15 +1211,16 @@ unsafe fn typval_parse_exit(_parser: *mut mpack_parser_t, node: *mut mpack_node_
         let result = node.data[0].typval();
         match node.tok.r#type {
             mpack_token_type_t::MPACK_TOKEN_BIN | mpack_token_type_t::MPACK_TOKEN_STR => {
+                let bytes = node.data[1].take_owned_bytes();
                 *result = decode_string(
-                    node.data[1].bytes().cast::<c_char>(),
+                    bytes.as_ptr().cast::<c_char>(),
                     node.tok.length as usize,
                     false,
-                    true,
+                    false,
                 );
-                node.data[1] = mpack_data_t::Null;
             }
             mpack_token_type_t::MPACK_TOKEN_EXT => {
+                let bytes = node.data[1].take_owned_bytes();
                 let list = tv_list_alloc(2);
                 tv_list_ref(list);
                 tv_list_append_number(list, i64::from(node.tok.data.ext_type()));
@@ -1243,14 +1237,12 @@ unsafe fn typval_parse_exit(_parser: *mut mpack_parser_t, node: *mut mpack_node_
                 );
                 encode_list_write(
                     ext_val_list,
-                    node.data[1].bytes().cast::<c_char>(),
+                    bytes.as_ptr().cast::<c_char>(),
                     node.tok.length as usize,
                 );
-                xfree(node.data[1].bytes().cast());
-                node.data[1] = mpack_data_t::Null;
             }
             mpack_token_type_t::MPACK_TOKEN_MAP => {
-                let items = node.data[1].take_map_pairs();
+                let mut items = node.data[1].take_map_pairs();
                 let len = node.tok.length as usize;
                 let mut can_be_dict = items[..len].iter().all(|pair| {
                     let key = &pair[0];
@@ -1293,8 +1285,8 @@ unsafe fn typval_parse_exit(_parser: *mut mpack_parser_t, node: *mut mpack_node_
                 }
 
                 if can_be_dict {
-                    for pair in &items[..len] {
-                        xfree(pair[0].vval.v_string.cast());
+                    for pair in &mut items[..len] {
+                        tv_clear(&raw mut pair[0]);
                     }
                 } else {
                     let list = decode_create_map_special_dict(result, len as isize);
@@ -1355,10 +1347,10 @@ mod tests {
     #[test]
     fn decode_string_copies_ascii() {
         unsafe {
-            let tv = decode_string(c"hello".as_ptr(), 5, false, false);
+            let mut tv = decode_string(c"hello".as_ptr(), 5, false, false);
             assert_eq!(tv.v_type, VarType::VAR_STRING);
             assert_eq!(CStr::from_ptr(tv.vval.v_string).to_str().unwrap(), "hello");
-            xfree(tv.vval.v_string.cast());
+            tv_clear(&raw mut tv);
         }
     }
 

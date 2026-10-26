@@ -7217,11 +7217,11 @@ pub unsafe fn eval_has_provider(feat: *const c_char, throw_if_fast: bool) -> boo
     }
 }
 
-/// Gets the current user-input in prompt buffer `buf`, or NULL if buffer is not a prompt buffer.
-pub unsafe fn prompt_get_input(buf: *mut buf_T) -> *mut c_char {
+/// Gets the current user-input in prompt buffer `buf`, or `None` if buffer is not a prompt buffer.
+pub unsafe fn prompt_get_input(buf: *mut buf_T) -> Option<std::ffi::CString> {
     unsafe {
         if !bt_prompt(buf) {
-            return ptr::null_mut();
+            return None;
         }
         let lnum_start = (*buf).b_prompt_start.mark.lnum;
         let lnum_last = (*buf).b_ml.ml_line_count;
@@ -7231,14 +7231,12 @@ pub unsafe fn prompt_get_input(buf: *mut buf_T) -> *mut c_char {
             text = text.add((*buf).b_prompt_start.mark.col as usize);
         }
 
-        let mut full_text = xstrdup(text);
+        let mut bytes = CStr::from_ptr(text).to_bytes().to_vec();
         for i in (lnum_start + 1)..=lnum_last {
-            let half_text = concat_str(full_text, c"\n".as_ptr());
-            xfree(full_text.cast());
-            full_text = concat_str(half_text, ml_get_buf(buf, i));
-            xfree(half_text.cast());
+            bytes.push(b'\n');
+            bytes.extend_from_slice(CStr::from_ptr(ml_get_buf(buf, i)).to_bytes());
         }
-        full_text
+        Some(std::ffi::CString::new(bytes).unwrap_or_default())
     }
 }
 

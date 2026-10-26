@@ -18,7 +18,7 @@ use crate::eval::typval::{
     tv_dict_add_str, tv_dict_alloc, tv_dict_get_bool, tv_get_bool_chk, tv_get_lnum,
     tv_get_lnum_buf, tv_get_string, tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret,
     tv_list_append_dict, tv_list_append_number, tv_list_append_string, tv_list_first,
-    tv_list_item_remove, tv_list_last, tv_list_len, typval_T, varnumber_T,
+    tv_list_item_remove, tv_list_last, tv_list_len, tv_set_string, typval_T, varnumber_T,
 };
 use crate::eval::window::win_has_winnr;
 use crate::eval::{
@@ -33,7 +33,7 @@ use crate::memline::{
     ml_append, ml_delete_buf, ml_delete_flags, ml_get, ml_get_buf, ml_get_buf_len, ml_replace,
     ml_replace_buf,
 };
-use crate::memory::{cstr_take, xfree, xmemdupz, xstrdup};
+use crate::memory::{cstr_take, xmemdupz};
 use crate::r#move::update_topline;
 use crate::path::path_with_url;
 use crate::sign::{buf_has_signs, get_buffer_signs};
@@ -359,10 +359,9 @@ unsafe fn prompt_trim_scrollback(buf: *mut buf_T) {
 pub unsafe fn prompt_invoke_callback() {
     unsafe {
         let lnum = (*curbuf).b_ml.ml_line_count;
-        let user_input = prompt_get_input(curbuf);
-        if user_input.is_null() {
+        let Some(user_input) = prompt_get_input(curbuf) else {
             return;
-        }
+        };
 
         ml_append(lnum, c"".as_ptr().cast_mut(), 0, false);
         appended_lines_mark(lnum, 1);
@@ -370,9 +369,7 @@ pub unsafe fn prompt_invoke_callback() {
         (*curwin).w_cursor.col = 0;
         (*curbuf).b_prompt_start.mark.lnum = lnum + 1;
 
-        if (*curbuf).b_prompt_callback.cb_type() == kCallbackNone {
-            xfree(user_input.cast());
-        } else {
+        if (*curbuf).b_prompt_callback.cb_type() != kCallbackNone {
             let mut rettv = typval_T {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: 0,
@@ -380,11 +377,9 @@ pub unsafe fn prompt_invoke_callback() {
             };
             let mut argv = [
                 typval_T {
-                    v_type: VarType::VAR_STRING,
+                    v_type: VarType::VAR_UNKNOWN,
                     v_lock: 0,
-                    vval: TypvalVval {
-                        v_string: user_input,
-                    },
+                    vval: TypvalVval { v_number: 0 },
                 },
                 typval_T {
                     v_type: VarType::VAR_UNKNOWN,
@@ -392,6 +387,7 @@ pub unsafe fn prompt_invoke_callback() {
                     vval: TypvalVval { v_number: 0 },
                 },
             ];
+            tv_set_string(&raw mut argv[0], user_input.as_ptr());
 
             callback_call(
                 &raw mut (*curbuf).b_prompt_callback,
@@ -576,15 +572,14 @@ pub unsafe fn f_bufloaded(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
 /// `bufname(expr)` function (`f_bufname`).
 pub unsafe fn f_bufname(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = ptr::null_mut();
+        tv_set_string(rettv, ptr::null());
         let buf: *const buf_T = if (*argvars).v_type == VarType::VAR_UNKNOWN {
             curbuf
         } else {
             tv_get_buf_from_arg(argvars)
         };
         if !buf.is_null() && !(*buf).b_fname.is_null() {
-            (*rettv).vval.v_string = xstrdup((*buf).b_fname);
+            tv_set_string(rettv, (*buf).b_fname);
         }
     }
 }
@@ -1059,30 +1054,33 @@ pub unsafe fn f_prompt_getprompt(
     _fptr: EvalFuncData,
 ) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = ptr::null_mut();
+        tv_set_string(rettv, ptr::null());
 
         let buf = tv_get_buf_from_arg(argvars);
         if buf.is_null() || !bt_prompt(buf) {
             return;
         }
 
-        (*rettv).vval.v_string = xstrdup(buf_prompt_text(buf));
+        tv_set_string(rettv, buf_prompt_text(buf));
     }
 }
 
 /// `prompt_getinput({buffer})` function (`f_prompt_getinput`).
 pub unsafe fn f_prompt_getinput(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = ptr::null_mut();
+        tv_set_string(rettv, ptr::null());
 
         let buf = tv_get_buf_from_arg(argvars);
         if buf.is_null() || !bt_prompt(buf) {
             return;
         }
 
-        (*rettv).vval.v_string = prompt_get_input(buf);
+        tv_set_string(
+            rettv,
+            prompt_get_input(buf)
+                .as_ref()
+                .map_or(ptr::null(), |s| s.as_ptr()),
+        );
     }
 }
 

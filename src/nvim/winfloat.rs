@@ -18,7 +18,7 @@ use crate::errors::*;
 use crate::fileio::shorten_buf_fname;
 use crate::globals::*;
 use crate::grid::grid_adjust;
-use crate::memory::{xfree, xstrdup};
+use crate::memory::xstrdup;
 use crate::message::{emsg, kZIndexMessages};
 use crate::mouse::mouse_find_win_inner;
 use crate::r#move::{textpos2screenpos, validate_cursor};
@@ -109,7 +109,9 @@ pub unsafe fn win_new_float(
             };
             let mut dir: c_int = 0;
             winframe_remove(wp, &raw mut dir, tp, ptr::null_mut());
-            xfree((*wp).w_frame.cast());
+            if !(*wp).w_frame.is_null() {
+                drop(Box::from_raw((*wp).w_frame));
+            }
             (*wp).w_frame = ptr::null_mut();
             win_remove(wp, tp);
             if win_tp == curtab {
