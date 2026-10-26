@@ -1068,7 +1068,7 @@ unsafe fn mc_ins_span_flush(ins: *const NvimString, commit: bool) {
 
 unsafe fn mc_reg_read(reg: c_int) -> std::ffi::CString {
     unsafe {
-        let Some(s) = cstr_take(get_reg_contents_str(reg, 0)) else {
+        let Some(s) = get_reg_contents_str(reg, 0) else {
             return std::ffi::CString::default();
         };
         let mut bytes = s.into_bytes();

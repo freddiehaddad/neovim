@@ -708,7 +708,7 @@ pub unsafe fn free_all_mem() {
         free_tag_stuff();
         free_cd_dir();
         free_signs();
-        set_expr_line(std::ptr::null_mut());
+        set_expr_line(None);
         if !curtab.is_null() {
             diff_clear(curtab);
         }

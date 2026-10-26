@@ -3640,9 +3640,11 @@ pub unsafe fn f_getreg(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
             }
             tv_list_ref((*rettv).vval.v_list);
         } else {
-            (*rettv).v_type = VarType::VAR_STRING;
-            (*rettv).vval.v_string =
-                get_reg_contents_str(regname, if arg2 != 0 { kGRegExprSrc } else { 0 });
+            let reg_str = get_reg_contents_str(regname, if arg2 != 0 { kGRegExprSrc } else { 0 });
+            crate::eval::typval::tv_set_string(
+                rettv,
+                reg_str.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+            );
         }
     }
 }

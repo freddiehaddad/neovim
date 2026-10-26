@@ -2943,9 +2943,11 @@ unsafe fn eval7(
             b'@' => {
                 *arg = (*arg).add(1);
                 if evaluate {
-                    (*rettv).v_type = VarType::VAR_STRING;
-                    (*rettv).vval.v_string =
-                        get_reg_contents_str(c_int::from(**arg as u8), kGRegExprSrc);
+                    let reg_str = get_reg_contents_str(c_int::from(**arg as u8), kGRegExprSrc);
+                    crate::eval::typval::tv_set_string(
+                        rettv,
+                        reg_str.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+                    );
                 }
                 if **arg != NUL {
                     *arg = (*arg).add(1);

@@ -25,7 +25,7 @@ use crate::errors::*;
 use crate::eval::funcs::RE_SEARCH;
 use crate::eval::typval::{
     dict_T, list_T, tv_dict_add_bool, tv_dict_add_list, tv_dict_add_str, tv_dict_add_str_len,
-    tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_allocated_string,
+    tv_dict_set_keys_readonly, tv_list_alloc,
     tv_list_append_string,
 };
 use crate::eval::{ESC, eval_to_string, get_v_event, restore_v_event};
@@ -56,7 +56,7 @@ use crate::mbyte::{
 };
 use crate::mcursor::mc_ins_cascading;
 use crate::memline::{decl, ml_append, ml_get, ml_get_buf, ml_get_len, ml_replace};
-use crate::memory::{memchrsub, memcnt, xfree, xmalloc, xmallocz, xmemdupz, xstrdup};
+use crate::memory::{cstr_take, memchrsub, memcnt, xfree, xmalloc, xmallocz};
 use crate::message::{
     emsg, emsg_invreg, message_filtered, msg, msg_ext_set_kind, msg_outtrans_len, msg_putchar,
     msg_puts, msg_puts_hl, msg_puts_title, msgmore, semsg, smsg,
@@ -189,7 +189,7 @@ pub const EMPTY_YANKREG: yankreg_T = yankreg_T {
     additional_data: None,
 };
 
-static mut expr_line: *mut c_char = ptr::null_mut();
+static mut expr_line: Option<std::ffi::CString> = None;
 static mut get_expr_line_nested: c_int = 0;
 static mut execreg_lastc: c_int = 0;
 static mut y_regs: [yankreg_T; NUM_REGISTERS] = [const { EMPTY_YANKREG }; NUM_REGISTERS];
@@ -293,52 +293,39 @@ pub unsafe fn get_y_previous() -> *mut yankreg_T {
 
 pub unsafe fn get_expr_register() -> c_int {
     unsafe {
-        let new_line = getcmdline(c_int::from(b'='), 0, 0, true);
-        if new_line.is_null() {
+        let new_line = cstr_take(getcmdline(c_int::from(b'='), 0, 0, true));
+        let Some(new_line) = new_line else {
             return 0;
-        }
-        if *new_line == NUL {
-            xfree(new_line.cast());
-        } else {
-            set_expr_line(new_line);
+        };
+        if !new_line.as_bytes().is_empty() {
+            set_expr_line(Some(new_line));
         }
         c_int::from(b'=')
     }
 }
 
-pub unsafe fn set_expr_line(new_line: *mut c_char) {
+pub unsafe fn set_expr_line(new_line: Option<std::ffi::CString>) {
     unsafe {
-        xfree(expr_line.cast());
         expr_line = new_line;
     }
 }
 
-pub unsafe fn get_expr_line() -> *mut c_char {
+pub unsafe fn get_expr_line() -> Option<std::ffi::CString> {
     unsafe {
-        if expr_line.is_null() {
-            return ptr::null_mut();
-        }
-
-        let expr_copy = xstrdup(expr_line);
+        let expr_copy = (&raw const expr_line).as_ref().unwrap().clone()?;
         if get_expr_line_nested >= 10 {
-            return expr_copy;
+            return Some(expr_copy);
         }
 
         get_expr_line_nested += 1;
-        let rv = eval_to_string(expr_copy, true, false);
+        let rv = cstr_take(eval_to_string(expr_copy.as_ptr().cast_mut(), true, false));
         get_expr_line_nested -= 1;
-        xfree(expr_copy.cast());
         rv
     }
 }
 
-pub unsafe fn get_expr_line_src() -> *mut c_char {
-    unsafe {
-        if expr_line.is_null() {
-            return ptr::null_mut();
-        }
-        xstrdup(expr_line)
-    }
+pub unsafe fn get_expr_line_src() -> Option<std::ffi::CString> {
+    unsafe { (&raw const expr_line).as_ref().unwrap().clone() }
 }
 
 pub unsafe fn valid_yank_reg(regname: c_int, writing: bool) -> bool {
@@ -711,7 +698,7 @@ unsafe fn put_reedit_in_typebuf(silent: c_int) {
     }
 }
 
-unsafe fn execreg_line_continuation(lines: *mut NvimString, idx: *mut usize) -> *mut c_char {
+unsafe fn execreg_line_continuation(lines: *mut NvimString, idx: *mut usize) -> Vec<c_char> {
     unsafe {
         let mut cmd_start = *idx;
         assert!(cmd_start > 0);
@@ -746,10 +733,10 @@ unsafe fn execreg_line_continuation(lines: *mut NvimString, idx: *mut usize) -> 
                 }
             }
         }
-        let str_ = xmemdupz(buf.as_ptr().cast(), buf.len()).cast::<c_char>();
+        buf.push(0);
 
         *idx = cmd_start;
-        str_
+        buf
     }
 }
 
@@ -784,25 +771,24 @@ pub unsafe fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent:
             }
             xfree(new_last_cmdline.cast());
             new_last_cmdline = ptr::null_mut();
-            let p = vim_strsave_escaped_ext(
+            let p = cstr_take(vim_strsave_escaped_ext(
                 last_cmdline,
                 c"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f".as_ptr(),
                 Ctrl_V as u8 as c_char,
                 false,
-            );
-            if Visual.active && strncmp(p, c"'<,'>".as_ptr(), 5) == 0 {
-                retval = put_in_typebuf(p.add(5), true, true, silent);
+            ))
+            .unwrap_or_default();
+            let p_ptr = p.as_ptr().cast_mut();
+            if Visual.active && strncmp(p_ptr, c"'<,'>".as_ptr(), 5) == 0 {
+                retval = put_in_typebuf(p_ptr.add(5), true, true, silent);
             } else {
-                retval = put_in_typebuf(p, true, true, silent);
+                retval = put_in_typebuf(p_ptr, true, true, silent);
             }
-            xfree(p.cast());
         } else if regname == c_int::from(b'=') {
-            let p = get_expr_line();
-            if p.is_null() {
+            let Some(p) = get_expr_line() else {
                 return FAIL;
-            }
-            retval = put_in_typebuf(p, true, colon != 0, silent);
-            xfree(p.cast());
+            };
+            retval = put_in_typebuf(p.as_ptr().cast_mut(), true, colon != 0, silent);
         } else if regname == c_int::from(b'.') {
             let Some(p) = get_last_insert_save() else {
                 emsg(gettext(e_noinstext.as_ptr()));
@@ -831,7 +817,7 @@ pub unsafe fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent:
                 }
 
                 let mut str_ = reg.y_array[i].data;
-                let mut free_str = false;
+                let cont_vec: Vec<c_char>;
                 if colon != 0 && i > 0 {
                     let p = skipwhite(str_);
                     if *p == b'\\' as c_char
@@ -839,15 +825,12 @@ pub unsafe fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent:
                             && *p.add(1) == b'\\' as c_char
                             && *p.add(2) == b' ' as c_char)
                     {
-                        str_ =
+                        cont_vec =
                             execreg_line_continuation(reg.y_array.as_ptr().cast_mut(), &raw mut i);
-                        free_str = true;
+                        str_ = cont_vec.as_ptr().cast_mut();
                     }
                 }
                 let escaped = vim_strsave_escape_ks(str_);
-                if free_str {
-                    xfree(str_.cast());
-                }
                 retval = ins_typebuf(escaped.as_ptr().cast_mut(), remap, 0, true, is_silent);
                 drop(escaped);
                 if retval == FAIL {
@@ -873,7 +856,7 @@ pub unsafe fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent:
 pub unsafe fn insert_reg(regname: c_int, mut reg: *mut yankreg_T, literally_arg: bool) -> c_int {
     unsafe {
         let mut retval = OK;
-        let mut allocated = false;
+        let mut owned: Option<Vec<c_char>> = None;
         let literally = literally_arg || is_literal_register(regname);
 
         os_breakcheck();
@@ -888,14 +871,11 @@ pub unsafe fn insert_reg(regname: c_int, mut reg: *mut yankreg_T, literally_arg:
         let mut arg: *mut c_char = ptr::null_mut();
         if regname == c_int::from(b'.') {
             retval = stuff_inserted(0, 1, 1);
-        } else if get_spec_reg(regname, &raw mut arg, &raw mut allocated, true) {
+        } else if get_spec_reg(regname, &raw mut arg, &mut owned, true) {
             if arg.is_null() {
                 return FAIL;
             }
             stuffescaped(arg, literally);
-            if allocated {
-                xfree(arg.cast());
-            }
         } else {
             if reg.is_null() {
                 reg = get_yank_register(regname, YREG_PASTE);
@@ -948,12 +928,25 @@ pub unsafe fn insert_reg(regname: c_int, mut reg: *mut yankreg_T, literally_arg:
 pub unsafe fn get_spec_reg(
     regname: c_int,
     argp: *mut *mut c_char,
-    allocated: *mut bool,
+    owned: &mut Option<Vec<c_char>>,
     errmsg: bool,
 ) -> bool {
     unsafe {
         *argp = ptr::null_mut();
-        *allocated = false;
+        *owned = None;
+        let set_owned = |argp: *mut *mut c_char,
+                         owned: &mut Option<Vec<c_char>>,
+                         cstr: Option<std::ffi::CString>| {
+            if let Some(s) = cstr {
+                let mut v: Vec<c_char> = s
+                    .into_bytes_with_nul()
+                    .into_iter()
+                    .map(|b| b as c_char)
+                    .collect();
+                *argp = v.as_mut_ptr();
+                *owned = Some(v);
+            }
+        };
         match regname {
             x if x == c_int::from(b'%') => {
                 if errmsg {
@@ -967,8 +960,7 @@ pub unsafe fn get_spec_reg(
                 true
             }
             x if x == c_int::from(b'=') => {
-                *argp = get_expr_line();
-                *allocated = true;
+                set_owned(argp, owned, get_expr_line());
                 true
             }
             x if x == c_int::from(b':') => {
@@ -986,8 +978,7 @@ pub unsafe fn get_spec_reg(
                 true
             }
             x if x == c_int::from(b'.') => {
-                *argp = get_last_insert_save().map_or(ptr::null_mut(), |s| xstrdup(s.as_ptr()));
-                *allocated = true;
+                set_owned(argp, owned, get_last_insert_save());
                 if (*argp).is_null() && errmsg {
                     emsg(gettext(e_noinstext.as_ptr()));
                 }
@@ -997,13 +988,15 @@ pub unsafe fn get_spec_reg(
                 if !errmsg {
                     return false;
                 }
-                *argp = file_name_at_cursor(
-                    FNAME_MESS | FNAME_HYP | if regname == Ctrl_P { FNAME_EXP } else { 0 },
-                    1,
-                    ptr::null_mut(),
-                )
-                .map_or(ptr::null_mut(), |s| xstrdup(s.as_ptr()));
-                *allocated = true;
+                set_owned(
+                    argp,
+                    owned,
+                    file_name_at_cursor(
+                        FNAME_MESS | FNAME_HYP | if regname == Ctrl_P { FNAME_EXP } else { 0 },
+                        1,
+                        ptr::null_mut(),
+                    ),
+                );
                 true
             }
             Ctrl_W | Ctrl_A => {
@@ -1019,12 +1012,15 @@ pub unsafe fn get_spec_reg(
                     },
                     ptr::null_mut(),
                 );
-                *argp = if cnt != 0 {
-                    xmemdupz((*argp).cast(), cnt).cast::<c_char>()
+                if cnt != 0 {
+                    let mut v: Vec<c_char> = Vec::with_capacity(cnt + 1);
+                    v.extend_from_slice(std::slice::from_raw_parts(*argp, cnt));
+                    v.push(0);
+                    *argp = v.as_mut_ptr();
+                    *owned = Some(v);
                 } else {
-                    ptr::null_mut()
-                };
-                *allocated = true;
+                    *argp = ptr::null_mut();
+                }
                 true
             }
             Ctrl_L => {
@@ -1573,7 +1569,6 @@ pub unsafe fn do_put(
         let mut expr_y_array: Vec<NvimString> = Vec::new();
         let mut y_allocated = true;
         let mut nr_lines: linenr_T = 0;
-        let mut allocated = false;
         let orig_start = (*curbuf).b_op_start;
         let orig_end = (*curbuf).b_op_end;
         let cur_ve_flags = get_ve_flags(curwin);
@@ -1682,11 +1677,12 @@ pub unsafe fn do_put(
             data: ptr::null_mut(),
             size: 0,
         };
+        let mut insert_string_owned: Option<Vec<c_char>> = None;
         if reg.is_null()
             && get_spec_reg(
                 regname,
                 &raw mut insert_string.data,
-                &raw mut allocated,
+                &mut insert_string_owned,
                 true,
             )
             && insert_string.data.is_null()
@@ -1786,14 +1782,16 @@ pub unsafe fn do_put(
                     }
                     split_pos = ((p as usize) - (curline as usize)) as colnr_T;
 
-                    let mut ptr_ = xmemdupz(p.cast(), plen - ((p as usize) - (p_orig as usize)))
-                        .cast::<c_char>();
-                    ml_append((*curwin).w_cursor.lnum, ptr_, 0, false);
-                    xfree(ptr_.cast());
+                    let tail_len = plen - ((p as usize) - (p_orig as usize));
+                    let mut tail_vec: Vec<c_char> = Vec::with_capacity(tail_len + 1);
+                    tail_vec.extend_from_slice(std::slice::from_raw_parts(p, tail_len));
+                    tail_vec.push(0);
+                    ml_append((*curwin).w_cursor.lnum, tail_vec.as_mut_ptr(), 0, false);
 
-                    ptr_ =
-                        xmemdupz(get_cursor_line_ptr().cast(), split_pos as usize).cast::<c_char>();
-                    ml_replace((*curwin).w_cursor.lnum, ptr_, false);
+                    let head_ptr = xmalloc((split_pos as usize) + 1).cast::<c_char>();
+                    ptr::copy_nonoverlapping(get_cursor_line_ptr(), head_ptr, split_pos as usize);
+                    *head_ptr.add(split_pos as usize) = NUL;
+                    ml_replace((*curwin).w_cursor.lnum, head_ptr, false);
                     nr_lines += 1;
                     dir = FORWARD;
 
@@ -2243,19 +2241,23 @@ pub unsafe fn do_put(
                                 let ptr_ = ml_get(lnum).add(col as usize);
                                 let ptrlen = (ml_get_len(lnum) as usize) - (col as usize);
                                 totlen = (*y_array.add(y_size - 1)).size;
-                                let mut newp = xmalloc(ptrlen + totlen + 1).cast::<c_char>();
+                                let mut append_vec: Vec<c_char> = vec![0; ptrlen + totlen + 1];
                                 ptr::copy_nonoverlapping(
                                     (*y_array.add(y_size - 1)).data,
-                                    newp,
+                                    append_vec.as_mut_ptr(),
                                     totlen,
                                 );
-                                ptr::copy_nonoverlapping(ptr_, newp.add(totlen), ptrlen + 1);
-                                ml_append(lnum, newp, 0, false);
+                                ptr::copy_nonoverlapping(
+                                    ptr_,
+                                    append_vec.as_mut_ptr().add(totlen),
+                                    ptrlen + 1,
+                                );
+                                ml_append(lnum, append_vec.as_mut_ptr(), 0, false);
                                 new_lnum += 1;
-                                xfree(newp.cast());
+                                drop(append_vec);
 
                                 let oldp = ml_get(lnum);
-                                newp = xmalloc((col as usize) + (yanklen as usize) + 1)
+                                let newp = xmalloc((col as usize) + (yanklen as usize) + 1)
                                     .cast::<c_char>();
                                 ptr::copy(oldp, newp, col as usize);
                                 ptr::copy(
@@ -2472,9 +2474,7 @@ pub unsafe fn do_put(
             }
         }
 
-        if allocated {
-            xfree(insert_string.data.cast());
-        }
+        drop(insert_string_owned);
 
         if (*curbuf).terminal.is_null() {
             Visual.active = false;
@@ -2648,13 +2648,13 @@ pub unsafe fn ex_display(eap: *mut exarg_T) {
             dis_msg(last_search_pat(), false);
         }
 
-        if !expr_line.is_null()
+        if let Some(el) = (&raw const expr_line).as_ref().unwrap()
             && (arg.is_null() || !vim_strchr(arg, c_int::from(b'=')).is_null())
             && !got_int
-            && !message_filtered(expr_line)
+            && !message_filtered(el.as_ptr())
         {
             msg_puts(c"\n  c  \"=   ".as_ptr());
-            dis_msg(expr_line, false);
+            dis_msg(el.as_ptr(), false);
         }
         msg_ext_skip_flush = false;
     }
@@ -2692,22 +2692,22 @@ pub unsafe fn get_reg_type(regname: c_int, reg_width: *mut colnr_T) -> MotionTyp
     }
 }
 
-unsafe fn get_reg_wrap_one_line_list(s: *mut c_char) -> *mut list_T {
+unsafe fn get_reg_wrap_one_line_list(s: Option<std::ffi::CString>) -> *mut list_T {
     unsafe {
-        if s.is_null() {
+        let Some(s) = s else {
             return ptr::null_mut();
-        }
+        };
         let list = tv_list_alloc(1);
-        tv_list_append_allocated_string(list, s);
+        tv_list_append_string(list, s.as_ptr(), -1);
         list
     }
 }
 
-pub unsafe fn get_reg_contents_str(mut regname: c_int, flags: c_int) -> *mut c_char {
+pub unsafe fn get_reg_contents_str(mut regname: c_int, flags: c_int) -> Option<std::ffi::CString> {
     unsafe {
         if regname == c_int::from(b'=') {
             if (flags & kGRegNoExpr) != 0 {
-                return ptr::null_mut();
+                return None;
             }
             if (flags & kGRegExprSrc) != 0 {
                 return get_expr_line_src();
@@ -2720,21 +2720,21 @@ pub unsafe fn get_reg_contents_str(mut regname: c_int, flags: c_int) -> *mut c_c
         }
 
         if regname != 0 && !valid_yank_reg(regname, false) {
-            return ptr::null_mut();
+            return None;
         }
 
         let mut retval: *mut c_char = ptr::null_mut();
-        let mut allocated = false;
-        if get_spec_reg(regname, &raw mut retval, &raw mut allocated, false) {
+        let mut owned: Option<Vec<c_char>> = None;
+        if get_spec_reg(regname, &raw mut retval, &mut owned, false) {
             if retval.is_null() {
-                return ptr::null_mut();
+                return None;
             }
-            return if allocated { retval } else { xstrdup(retval) };
+            return Some(CStr::from_ptr(retval).to_owned());
         }
 
         let reg = &*get_yank_register(regname, YREG_PUT);
         if !reg.y_allocated {
-            return ptr::null_mut();
+            return None;
         }
 
         let mut len: usize = 0;
@@ -2745,20 +2745,17 @@ pub unsafe fn get_reg_contents_str(mut regname: c_int, flags: c_int) -> *mut c_c
             }
         }
 
-        retval = xmalloc(len + 1).cast::<c_char>();
-
-        len = 0;
+        let mut out: Vec<u8> = Vec::with_capacity(len);
         for (i, &item) in reg.y_array.iter().enumerate() {
-            ptr::copy_nonoverlapping(item.data, retval.add(len), item.size);
-            len += item.size;
+            if item.size > 0 {
+                out.extend_from_slice(std::slice::from_raw_parts(item.data.cast::<u8>(), item.size));
+            }
             if reg.y_type == MotionType::kMTLineWise || i < reg.y_array.len() - 1 {
-                *retval.add(len) = b'\n' as c_char;
-                len += 1;
+                out.push(b'\n');
             }
         }
-        *retval.add(len) = NUL;
 
-        retval
+        Some(std::ffi::CString::new(out).unwrap_or_default())
     }
 }
 
@@ -2783,12 +2780,12 @@ pub unsafe fn get_reg_contents_list(mut regname: c_int, flags: c_int) -> *mut li
         }
 
         let mut retval: *mut c_char = ptr::null_mut();
-        let mut allocated = false;
-        if get_spec_reg(regname, &raw mut retval, &raw mut allocated, false) {
+        let mut owned: Option<Vec<c_char>> = None;
+        if get_spec_reg(regname, &raw mut retval, &mut owned, false) {
             if retval.is_null() {
                 return ptr::null_mut();
             }
-            return get_reg_wrap_one_line_list(if allocated { retval } else { xstrdup(retval) });
+            return get_reg_wrap_one_line_list(Some(CStr::from_ptr(retval).to_owned()));
         }
 
         let reg = &*get_yank_register(regname, YREG_PUT);
@@ -3054,22 +3051,16 @@ pub unsafe fn write_reg_contents_ex(
         }
 
         if name == c_int::from(b'=') {
-            let mut offset: usize = 0;
-            let mut totlen = len as usize;
-
-            if must_append && !expr_line.is_null() {
-                let exprlen = CStr::from_ptr(expr_line).to_bytes().len();
-                totlen += exprlen;
-                offset = exprlen;
+            let mut out: Vec<u8> = Vec::new();
+            if must_append
+                && let Some(el) = (&raw const expr_line).as_ref().unwrap()
+            {
+                out.extend_from_slice(el.as_bytes());
             }
-
-            let new_expr_line = crate::memory::xmallocz(totlen).cast::<c_char>();
-            if offset > 0 {
-                ptr::copy_nonoverlapping(expr_line, new_expr_line, offset);
-            }
-            ptr::copy_nonoverlapping(str_, new_expr_line.add(offset), len as usize);
-            xfree(expr_line.cast());
-            expr_line = new_expr_line;
+            let slice = std::slice::from_raw_parts(str_.cast::<u8>(), len as usize);
+            let end = slice.iter().position(|&b| b == 0).unwrap_or(slice.len());
+            out.extend_from_slice(&slice[..end]);
+            expr_line = Some(std::ffi::CString::new(out).unwrap_or_default());
             return;
         }
 

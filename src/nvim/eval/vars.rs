@@ -1850,11 +1850,9 @@ unsafe fn ex_let_register(
                 } else {
                     *arg as u8 as c_int
                 };
-                let s = get_reg_contents_str(reg_c, kGRegExprSrc);
-                if !s.is_null() {
-                    ptofree = concat_str(s, p);
+                if let Some(s) = get_reg_contents_str(reg_c, kGRegExprSrc) {
+                    ptofree = concat_str(s.as_ptr(), p);
                     p = ptofree;
-                    xfree(s.cast());
                 }
             }
             if !p.is_null() {

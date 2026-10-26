@@ -5802,7 +5802,7 @@ unsafe fn parse_register(eap: *mut exarg_T) {
             (*eap).arg = (*eap).arg.add(1);
             if *(*eap).arg.sub(1) == b'=' as c_char && *(*eap).arg != NUL {
                 if (*eap).skip == 0 {
-                    set_expr_line(xstrdup((*eap).arg));
+                    set_expr_line(Some(CStr::from_ptr((*eap).arg).to_owned()));
                 }
                 (*eap).arg = (*eap).arg.add(strlen((*eap).arg));
             }

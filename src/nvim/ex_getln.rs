@@ -1407,7 +1407,7 @@ unsafe fn command_line_handle_ctrl_bsl(s: *mut CommandLineState) -> c_int {
             (*s).c = get_expr_register();
             if (*s).c == b'=' as c_int {
                 textlock += 1;
-                let p = cstr_take(get_expr_line());
+                let p = get_expr_line();
                 textlock -= 1;
 
                 if let Some(p) = p {
@@ -4380,7 +4380,7 @@ unsafe fn restore_cmdline(ccp: *mut CmdlineInfo) {
 unsafe fn cmdline_paste(regname: c_int, literally: bool, remcr: bool) -> bool {
     unsafe {
         let mut arg: *mut c_char = ptr::null_mut();
-        let mut allocated = false;
+        let mut owned: Option<Vec<c_char>> = None;
 
         if regname != Ctrl_F
             && regname != Ctrl_P
@@ -4398,13 +4398,9 @@ unsafe fn cmdline_paste(regname: c_int, literally: bool, remcr: bool) -> bool {
         }
 
         textlock += 1;
-        let i = get_spec_reg(regname, &raw mut arg, &raw mut allocated, true);
+        let i = get_spec_reg(regname, &raw mut arg, &mut owned, true);
         textlock -= 1;
 
-        let arg_owned = if allocated { cstr_take(arg) } else { None };
-        if let Some(ref ao) = arg_owned {
-            arg = ao.as_ptr().cast_mut();
-        }
         if i {
             if arg.is_null() {
                 return FAIL != 0;
