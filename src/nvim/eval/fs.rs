@@ -1468,7 +1468,7 @@ unsafe fn read_blob(
         bv.resize(size as usize, 0);
         if fread(bv.as_mut_ptr().cast(), 1, bv.len(), fd) < bv.len() {
             // An empty blob is returned on error.
-            drop(Box::from_raw((*rettv).vval.v_blob));
+            crate::eval::typval::tv_blob_unref((*rettv).vval.v_blob);
             (*rettv).vval.v_blob = ptr::null_mut();
             return FAIL;
         }

@@ -1384,9 +1384,9 @@ unsafe fn int_wordlist_spl(fname: *mut c_char) {
         );
     }
 }
-pub unsafe fn slang_alloc(lang: *mut c_char) -> *mut slang_T {
+pub unsafe fn slang_alloc(lang: *mut c_char) -> Box<slang_T> {
     unsafe {
-        Box::into_raw(Box::new(slang_T {
+        Box::new(slang_T {
             sl_name: if !lang.is_null() {
                 xstrdup(lang)
             } else {
@@ -1433,13 +1433,13 @@ pub unsafe fn slang_alloc(lang: *mut c_char) -> *mut slang_T {
             sl_sugtime: 0,
             sl_sbyts: Vec::new(),
             sl_sidxs: Vec::new(),
-            sl_sugbuf: ptr::null_mut(),
+            sl_sugbuf: None,
             sl_sugloaded: false,
             sl_has_map: false,
             sl_map_hash: std::collections::BTreeMap::new(),
             sl_map_array: [0; 256],
             sl_sounddone: std::collections::BTreeMap::new(),
-        }))
+        })
     }
 }
 pub unsafe fn slang_clear(lp: *mut slang_T) {
@@ -1488,8 +1488,7 @@ pub unsafe fn slang_clear_sug(lp: *mut slang_T) {
     unsafe {
         (*lp).sl_sbyts = Vec::new();
         (*lp).sl_sidxs = Vec::new();
-        close_spellbuf((*lp).sl_sugbuf);
-        (*lp).sl_sugbuf = ptr::null_mut();
+        close_spellbuf(&mut (*lp).sl_sugbuf);
         (*lp).sl_sugloaded = false;
         (*lp).sl_sugtime = 0;
     }
@@ -2001,12 +2000,12 @@ pub unsafe fn spell_reload() {
         }
     }
 }
-pub unsafe fn open_spellbuf() -> *mut buf_T {
+pub unsafe fn open_spellbuf() -> Box<buf_T> {
     unsafe {
-        let buf = buf_T::alloc();
-        (*buf).b_spell = true;
-        (*buf).b_p_swf = 1;
-        if ml_open(buf) == FAIL {
+        let mut buf = Box::new(buf_T::new());
+        buf.b_spell = true;
+        buf.b_p_swf = 1;
+        if ml_open(&raw mut *buf) == FAIL {
             let _ = logmsg!(
                 3,
                 ptr::null(),
@@ -2016,17 +2015,15 @@ pub unsafe fn open_spellbuf() -> *mut buf_T {
                 c"Error opening a new memline".as_ptr(),
             );
         }
-        ml_open_file(buf);
+        ml_open_file(&raw mut *buf);
         buf
     }
 }
-pub unsafe fn close_spellbuf(buf: *mut buf_T) {
+pub unsafe fn close_spellbuf(buf: &mut Option<Box<buf_T>>) {
     unsafe {
-        if buf.is_null() {
-            return;
+        if let Some(mut b) = buf.take() {
+            ml_close(&raw mut *b, 1);
         }
-        ml_close(buf, 1);
-        drop(Box::from_raw(buf));
     }
 }
 pub unsafe fn clear_spell_chartab(sp: *mut spelltab_T) {

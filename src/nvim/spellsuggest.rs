@@ -190,7 +190,7 @@ pub struct slang_T {
     pub sl_sugtime: i64,
     pub sl_sbyts: Vec<u8>,
     pub sl_sidxs: Vec<idx_T>,
-    pub sl_sugbuf: *mut buf_T,
+    pub sl_sugbuf: Option<Box<buf_T>>,
     pub sl_sugloaded: bool,
     pub sl_has_map: bool,
     pub sl_map_hash: std::collections::BTreeMap<c_int, c_int>,
@@ -2561,7 +2561,11 @@ unsafe fn add_sound_suggest(
             internal_error(c"add_sound_suggest()".as_ptr());
             return;
         }
-        let mut nrline = ml_get_buf((*slang).sl_sugbuf, sfwordnr + 1);
+        let sugbuf = (*slang)
+            .sl_sugbuf
+            .as_deref_mut()
+            .map_or(ptr::null_mut(), |b| &raw mut *b);
+        let mut nrline = ml_get_buf(sugbuf, sfwordnr + 1);
         let mut orgnr: c_int = 0;
         while *nrline != NUL {
             orgnr += bytes2offset(&raw mut nrline);

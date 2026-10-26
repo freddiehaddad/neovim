@@ -3743,35 +3743,32 @@ unsafe fn eval_number(
         } else if **arg == b'0' as c_char
             && (*(*arg).add(1) == b'z' as c_char || *(*arg).add(1) == b'Z' as c_char)
         {
-            let mut blob: *mut blob_T = ptr::null_mut();
-            if evaluate {
-                blob = tv_blob_alloc();
-            }
+            let mut bytes: Vec<u8> = Vec::new();
             let mut bp = (*arg).add(2);
             while ascii_isxdigit(*bp) {
                 if !ascii_isxdigit(*bp.add(1)) {
-                    if !blob.is_null() {
+                    if evaluate {
                         emsg(gettext(
                             c"E973: Blob literal should have an even number of hex characters"
                                 .as_ptr(),
                         ));
-                        drop(Box::from_raw(blob));
                     }
                     return FAIL;
                 }
-                if !blob.is_null() {
+                if evaluate {
                     let byte = ((hex2nr(c_int::from(*bp as u8)) << 4)
                         + hex2nr(c_int::from(*bp.add(1) as u8)))
                         as u8;
-                    let bv = &mut (*blob).bv_ga;
-                    bv.push(byte);
+                    bytes.push(byte);
                 }
                 if *bp.add(2) == b'.' as c_char && ascii_isxdigit(*bp.add(3)) {
                     bp = bp.add(1);
                 }
                 bp = bp.add(2);
             }
-            if !blob.is_null() {
+            if evaluate {
+                let blob = tv_blob_alloc();
+                (*blob).bv_ga = bytes;
                 tv_blob_set_ret(rettv, blob);
             }
             *arg = bp;

@@ -298,7 +298,7 @@ struct spellinfo_T {
     si_compress_cnt: c_int,
     si_first_free: *mut wordnode_T,
     si_free_count: c_int,
-    si_spellbuf: *mut buf_T,
+    si_spellbuf: Option<Box<buf_T>>,
     si_ascii: c_int,
     si_add: c_int,
     si_clear_chartab: c_int,
@@ -353,7 +353,7 @@ impl Default for spellinfo_T {
             si_compress_cnt: 0,
             si_first_free: ptr::null_mut(),
             si_free_count: 0,
-            si_spellbuf: ptr::null_mut(),
+            si_spellbuf: None,
             si_ascii: 0,
             si_add: 0,
             si_clear_chartab: 0,
@@ -475,14 +475,15 @@ pub unsafe fn spell_load_file(
             verbose_leave();
         }
 
-        let mut lp = if old_lp.is_null() {
-            let new_lp = slang_alloc(lang);
-            (*new_lp).sl_fname = xstrdup(fname);
-            (*new_lp).sl_add = !strstr(path_tail(fname), SPL_FNAME_ADD).is_null();
-            new_lp
+        let mut owned_lp = if old_lp.is_null() {
+            let mut new_lp = slang_alloc(lang);
+            new_lp.sl_fname = xstrdup(fname);
+            new_lp.sl_add = !strstr(path_tail(fname), SPL_FNAME_ADD).is_null();
+            Some(new_lp)
         } else {
-            old_lp
+            None
         };
+        let mut lp: *mut slang_T = owned_lp.as_deref_mut().map_or(old_lp, |b| &raw mut *b);
 
         estack_push(ETYPE_SPELL, fname, 0);
         let did_estack_push = true;
@@ -697,17 +698,18 @@ pub unsafe fn spell_load_file(
         }
 
         if !fail {
-            if old_lp.is_null() && !lang.is_null() {
+            if let Some(boxed_lp) = owned_lp.take()
+                && !lang.is_null()
+            {
                 let langs = &raw mut first_lang;
-                (*langs).push(std::pin::Pin::new(Box::from_raw(lp)));
+                (*langs).push(std::pin::Pin::new(boxed_lp));
+                lp = &raw mut **(*langs).last_mut().unwrap();
             }
         } else {
             if !lang.is_null() {
                 *lang = NUL;
             }
-            if !lp.is_null() && old_lp.is_null() {
-                drop(Box::from_raw(lp));
-            }
+            drop(owned_lp);
             lp = ptr::null_mut();
         }
 
@@ -840,7 +842,9 @@ pub unsafe fn suggest_load_files() {
                         }
 
                         if !someerror {
-                            (*slang).sl_sugbuf = open_spellbuf();
+                            let mut sugbuf = open_spellbuf();
+                            let sugbuf_ptr: *mut buf_T = &raw mut *sugbuf;
+                            (*slang).sl_sugbuf = Some(sugbuf);
                             let wcount = get4c(fd);
                             if wcount < 0 {
                                 someerror = true;
@@ -863,7 +867,7 @@ pub unsafe fn suggest_load_files() {
                                         break;
                                     }
                                     if ml_append_buf(
-                                        (*slang).sl_sugbuf,
+                                        sugbuf_ptr,
                                         wordnr as linenr_T,
                                         ga.as_mut_ptr().cast(),
                                         ga.len() as c_int,
@@ -4681,14 +4685,17 @@ unsafe fn spell_make_sugfile(spin: *mut spellinfo_T, wfname: *mut c_char) {
             .rev()
             .find(|s| path_equal(wfname, s.sl_fname, kPathCmpExpand))
             .map_or(ptr::null_mut(), |s| &raw mut **s);
-        let mut free_slang = false;
+        let mut temp_slang: Option<Box<slang_T>> = None;
         if slang.is_null() {
             spell_message(spin, gettext(c"Reading back spell file...".as_ptr()));
-            slang = spell_load_file(wfname, ptr::null_mut(), ptr::null_mut(), false);
+            let mut new_lp = slang_alloc(ptr::null_mut());
+            new_lp.sl_fname = xstrdup(wfname);
+            new_lp.sl_add = !strstr(path_tail(wfname), SPL_FNAME_ADD).is_null();
+            slang = spell_load_file(wfname, ptr::null_mut(), &raw mut *new_lp, false);
             if slang.is_null() {
                 return;
             }
-            free_slang = true;
+            temp_slang = Some(new_lp);
         }
 
         (*spin).si_blocks.clear();
@@ -4703,7 +4710,7 @@ unsafe fn spell_make_sugfile(spin: *mut spellinfo_T, wfname: *mut c_char) {
             smsg!(
                 0,
                 gettext(c"Number of words after soundfolding: %lld".as_ptr()),
-                (*(*spin).si_spellbuf).b_ml.ml_line_count as i64,
+                (*spin).si_spellbuf.as_ref().unwrap().b_ml.ml_line_count as i64,
             );
 
             spell_message(spin, gettext(msg_compressing));
@@ -4718,11 +4725,9 @@ unsafe fn spell_make_sugfile(spin: *mut spellinfo_T, wfname: *mut c_char) {
             sug_write(spin, fname);
         }
 
-        if free_slang {
-            drop(Box::from_raw(slang));
-        }
+        drop(temp_slang);
         (*spin).si_blocks.clear();
-        close_spellbuf((*spin).si_spellbuf);
+        close_spellbuf(&mut (*spin).si_spellbuf);
     }
 }
 
@@ -4813,7 +4818,7 @@ unsafe fn sug_maketable(spin: *mut spellinfo_T) -> c_int {
         let mut ga: Vec<c_char> = Vec::with_capacity(100);
         let mut res = OK;
 
-        (*spin).si_spellbuf = open_spellbuf();
+        (*spin).si_spellbuf = Some(open_spellbuf());
 
         if sug_filltable(spin, (*(*spin).si_foldroot).wn_sibling, 0, &mut ga) == -1 {
             res = FAIL;
@@ -4851,8 +4856,9 @@ unsafe fn sug_filltable(
 
                 gap.push(NUL);
 
+                let spellbuf = (*spin).si_spellbuf.as_deref_mut().unwrap();
                 if ml_append_buf(
-                    (*spin).si_spellbuf,
+                    spellbuf,
                     wordnr as linenr_T,
                     gap.as_mut_ptr(),
                     gap.len() as c_int,
@@ -4949,13 +4955,17 @@ unsafe fn sug_write(spin: *mut spellinfo_T, fname: *mut c_char) {
 
         put_node(fd, tree, 0, 0, false);
 
-        let wcount = (*(*spin).si_spellbuf).b_ml.ml_line_count;
+        let spellbuf: *mut buf_T = (*spin)
+            .si_spellbuf
+            .as_deref_mut()
+            .map_or(ptr::null_mut(), |b| &raw mut *b);
+        let wcount = (*spellbuf).b_ml.ml_line_count;
         put_bytes(fd, wcount as u64, 4);
 
         let mut write_err = false;
         for lnum in 1..=wcount {
-            let line = ml_get_buf((*spin).si_spellbuf, lnum);
-            let len = ml_get_buf_len((*spin).si_spellbuf, lnum) + 1;
+            let line = ml_get_buf(spellbuf, lnum);
+            let len = ml_get_buf_len(spellbuf, lnum) + 1;
             if fwrite(line.cast(), len as usize, 1, fd) == 0 {
                 emsg(gettext((&raw const e_write).cast()));
                 write_err = true;

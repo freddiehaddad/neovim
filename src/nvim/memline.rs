@@ -832,7 +832,7 @@ unsafe fn swapfile_proc_running(b0p: *const ZeroBlock, swap_fname: *const c_char
 /// Try to recover `curbuf` from the `.swp` file.
 pub unsafe fn ml_recover(checkext: bool) {
     unsafe {
-        let mut buf: *mut buf_T = ptr::null_mut();
+        let mut buf_box: Option<Box<buf_T>> = None;
         let mut mfp: *mut memfile_T = ptr::null_mut();
         let mut fname_used: *mut c_char = ptr::null_mut();
         let mut hp: *mut bhdr_T = ptr::null_mut();
@@ -871,7 +871,7 @@ pub unsafe fn ml_recover(checkext: bool) {
             if n_swaps == 0 {
                 tv_clear(&raw mut items_tv);
                 semsg!(tr(c"E305: No swap file found for %s"), fname);
-                ml_recover_theend(fname_used, mfp, hp, buf, serious_error, called_from_main);
+                ml_recover_theend(fname_used, mfp, hp, buf_box, serious_error, called_from_main);
                 return;
             }
             if n_swaps > 1 {
@@ -883,28 +883,30 @@ pub unsafe fn ml_recover(checkext: bool) {
                     ptr::null_mut(),
                 );
                 tv_clear(&raw mut items_tv);
-                ml_recover_theend(fname_used, mfp, hp, buf, serious_error, called_from_main);
+                ml_recover_theend(fname_used, mfp, hp, buf_box, serious_error, called_from_main);
                 return;
             }
             fname_used = xstrdup((*tv_list_first(items_tv.vval.v_list)).li_tv.vval.v_string);
             tv_clear(&raw mut items_tv);
         }
         if fname_used.is_null() {
-            ml_recover_theend(fname_used, mfp, hp, buf, serious_error, called_from_main);
+            ml_recover_theend(fname_used, mfp, hp, buf_box, serious_error, called_from_main);
             return;
         }
         if called_from_main && ml_open(curbuf) == FAIL {
             getout(1);
         }
 
-        buf = buf_T::alloc();
+        let mut allocated_buf = Box::new(buf_T::new());
+        let buf: *mut buf_T = &raw mut *allocated_buf;
+        buf_box = Some(allocated_buf);
 
         let p = xstrdup(fname_used);
         mfp = mf_open(fname_used, O_RDONLY);
         fname_used = p;
         if mfp.is_null() || (*mfp).mf_fd < 0 {
             semsg!(tr(c"E306: Cannot open %s"), fname_used);
-            ml_recover_theend(fname_used, mfp, hp, buf, serious_error, called_from_main);
+            ml_recover_theend(fname_used, mfp, hp, buf_box, serious_error, called_from_main);
             return;
         }
         (*buf).b_ml.ml_mfp = mfp.cast();
@@ -923,7 +925,7 @@ pub unsafe fn ml_recover(checkext: bool) {
                 true,
             );
             msg_end();
-            ml_recover_theend(fname_used, mfp, hp, buf, serious_error, called_from_main);
+            ml_recover_theend(fname_used, mfp, hp, buf_box, serious_error, called_from_main);
             return;
         }
         let mut b0p = (*hp).data_ptr().cast::<ZeroBlock>();
@@ -943,7 +945,7 @@ pub unsafe fn ml_recover(checkext: bool) {
             msg_puts_hl(tr(c" cannot be used with this version of Nvim.\n"), 0, true);
             msg_puts_hl(tr(c"Use Vim version 3.0.\n"), 0, true);
             msg_end();
-            ml_recover_theend(fname_used, mfp, hp, buf, serious_error, called_from_main);
+            ml_recover_theend(fname_used, mfp, hp, buf_box, serious_error, called_from_main);
             return;
         }
         if !ml_check_b0_id(b0p) {
@@ -951,7 +953,7 @@ pub unsafe fn ml_recover(checkext: bool) {
                 tr(c"E307: %s does not look like a Nvim swap file"),
                 (*mfp).mf_fname,
             );
-            ml_recover_theend(fname_used, mfp, hp, buf, serious_error, called_from_main);
+            ml_recover_theend(fname_used, mfp, hp, buf_box, serious_error, called_from_main);
             return;
         }
         if b0_magic_wrong(b0p) {
@@ -963,7 +965,7 @@ pub unsafe fn ml_recover(checkext: bool) {
             msg_puts_hl((&raw const (*b0p).b0_hname).cast(), hl_id, true);
             msg_puts_hl(tr(c",\nor the file has been damaged."), hl_id, true);
             msg_end();
-            ml_recover_theend(fname_used, mfp, hp, buf, serious_error, called_from_main);
+            ml_recover_theend(fname_used, mfp, hp, buf_box, serious_error, called_from_main);
             return;
         }
 
@@ -980,7 +982,7 @@ pub unsafe fn ml_recover(checkext: bool) {
                     true,
                 );
                 msg_end();
-                ml_recover_theend(fname_used, mfp, hp, buf, serious_error, called_from_main);
+                ml_recover_theend(fname_used, mfp, hp, buf_box, serious_error, called_from_main);
                 return;
             }
             let size: off_T = vim_lseek((*mfp).mf_fd, 0, SEEK_END);
@@ -1005,7 +1007,7 @@ pub unsafe fn ml_recover(checkext: bool) {
                 MAXPATHL as c_int,
             );
             if setfname(curbuf, namebuff_ptr, ptr::null_mut(), true) == FAIL {
-                ml_recover_theend(fname_used, mfp, hp, buf, serious_error, called_from_main);
+                ml_recover_theend(fname_used, mfp, hp, buf_box, serious_error, called_from_main);
                 return;
             }
         }
@@ -1117,7 +1119,7 @@ pub unsafe fn ml_recover(checkext: bool) {
             if hp.is_null() {
                 if bnum == 1 {
                     semsg!(tr(c"E309: Unable to read block 1 from %s"), (*mfp).mf_fname);
-                    ml_recover_theend(fname_used, mfp, hp, buf, serious_error, called_from_main);
+                    ml_recover_theend(fname_used, mfp, hp, buf_box, serious_error, called_from_main);
                     return;
                 }
                 error += 1;
@@ -1227,7 +1229,7 @@ pub unsafe fn ml_recover(checkext: bool) {
                                 fname_used,
                                 mfp,
                                 hp,
-                                buf,
+                                buf_box,
                                 serious_error,
                                 called_from_main,
                             );
@@ -1405,7 +1407,7 @@ pub unsafe fn ml_recover(checkext: bool) {
         }
         redraw_curbuf_later(UPD_NOT_VALID);
 
-        ml_recover_theend(fname_used, mfp, hp, buf, serious_error, called_from_main);
+        ml_recover_theend(fname_used, mfp, hp, buf_box, serious_error, called_from_main);
     }
 }
 
@@ -1413,7 +1415,7 @@ unsafe fn ml_recover_theend(
     fname_used: *mut c_char,
     mfp: *mut memfile_T,
     hp: *mut bhdr_T,
-    buf: *mut buf_T,
+    buf: Option<Box<buf_T>>,
     serious_error: bool,
     called_from_main: bool,
 ) {
@@ -1427,9 +1429,7 @@ unsafe fn ml_recover_theend(
             }
             mf_close(mfp, false);
         }
-        if !buf.is_null() {
-            drop(Box::from_raw(buf));
-        }
+        drop(buf);
         if serious_error && called_from_main {
             ml_close(curbuf, 1);
         } else {
