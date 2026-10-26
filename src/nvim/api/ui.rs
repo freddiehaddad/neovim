@@ -329,7 +329,7 @@ pub unsafe extern "C" fn nvim_ui_attach(
         let ui: *mut RemoteUI = &raw mut *ui_box;
 
         for i in 0..options.size {
-            let item = *options.items.add(i);
+            let item = options[i];
             ui_set_option(ui, true, item.key, item.value, err);
             if error_set(err) {
                 return;
@@ -1458,7 +1458,7 @@ unsafe fn translate_contents(ui: *mut RemoteUI, contents: Array, arena: *mut Are
     unsafe {
         let mut new_contents = arena_array(arena, contents.size);
         for i in 0..contents.size {
-            let item = (*contents.items.add(i)).data.array();
+            let item = contents[i].data.array();
             let mut new_item = arena_array(arena, 2);
             let attr = (*item.items).data.integer() as c_int;
             if attr != 0 {
@@ -1474,7 +1474,7 @@ unsafe fn translate_contents(ui: *mut RemoteUI, contents: Array, arena: *mut Are
             } else {
                 *new_item.items.add(0) = dict_obj(DICT_INIT);
             }
-            *new_item.items.add(1) = *item.items.add(1);
+            *new_item.items.add(1) = item[1];
             new_item.size = 2;
             *new_contents.items.add(i) = array_obj(new_item);
         }
@@ -1489,7 +1489,7 @@ unsafe fn translate_firstarg(ui: *mut RemoteUI, args: Array, arena: *mut Arena) 
         let contents = (*args.items).data.array();
         *new_args.items.add(0) = array_obj(translate_contents(ui, contents, arena));
         for i in 1..args.size {
-            *new_args.items.add(i) = *args.items.add(i);
+            *new_args.items.add(i) = args[i];
         }
         new_args.size = args.size;
         new_args
@@ -1516,7 +1516,7 @@ pub unsafe fn remote_ui_event(ui: *mut RemoteUI, mut name: *mut c_char, args: Ar
                 for i in 0..block.size {
                     *new_block.items.add(i) = array_obj(translate_contents(
                         ui,
-                        (*block.items.add(i)).data.array(),
+                        block[i].data.array(),
                         &raw mut arena,
                     ));
                 }
@@ -1541,12 +1541,12 @@ pub unsafe fn remote_ui_event(ui: *mut RemoteUI, mut name: *mut c_char, args: Ar
         if (*ui).ui_ext[kUIWildmenu] {
             if strequal(name, c"popupmenu_show".as_ptr()) {
                 (*ui).wildmenu_active =
-                    (*args.items.add(4)).data.integer() == -1 || !(*ui).ui_ext[kUIPopupmenu];
+                    args[4].data.integer() == -1 || !(*ui).ui_ext[kUIPopupmenu];
                 if (*ui).wildmenu_active {
                     let items = (*args.items).data.array();
                     let mut new_items = arena_array(&raw mut arena, items.size);
                     for i in 0..items.size {
-                        *new_items.items.add(i) = *(*items.items.add(i)).data.array().items;
+                        *new_items.items.add(i) = *items[i].data.array().items;
                     }
                     new_items.size = items.size;
                     let mut new_args_items: [Object; 1] = [array_obj(new_items)];
@@ -1559,8 +1559,8 @@ pub unsafe fn remote_ui_event(ui: *mut RemoteUI, mut name: *mut c_char, args: Ar
                             capacity: 1,
                         },
                     );
-                    if (*args.items.add(1)).data.integer() != -1 {
-                        new_args_items[0] = *args.items.add(1);
+                    if args[1].data.integer() != -1 {
+                        new_args_items[0] = args[1];
                         push_call(
                             ui,
                             c"wildmenu_select".as_ptr(),

@@ -3865,7 +3865,7 @@ pub unsafe fn msg_ext_ui_flush() {
                 // Add to history as temporary message for "g<".
                 let mut msg = HlMessage::new();
                 for i in 0..tofree.size {
-                    let chunk = (*tofree.items.add(i)).data.array().items;
+                    let chunk = tofree[i].data.array().items;
                     let text = std::mem::replace(
                         &mut (*chunk.add(1)).data.string(),
                         NvimString {

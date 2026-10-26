@@ -4126,7 +4126,7 @@ pub unsafe fn handle_nvim_get_autocmds(
             return ret;
         }
         if args.size >= 1
-            && !extract_keydict(*args.items.add(0), &raw mut arg_1, Some(KeyDict_get_autocmds_get_field), c"Wrong type for argument 1 when calling nvim_get_autocmds, expecting Dict(get_autocmds) *".as_ptr(), error) {
+            && !extract_keydict(args[0], &raw mut arg_1, Some(KeyDict_get_autocmds_get_field), c"Wrong type for argument 1 when calling nvim_get_autocmds, expecting Dict(get_autocmds) *".as_ptr(), error) {
                 return ret;
             }
         let rv = nvim_get_autocmds(&raw mut arg_1, arena, error);
@@ -4161,9 +4161,9 @@ pub unsafe fn handle_nvim_create_autocmd(
             );
             return ret;
         }
-        let arg_1: Object = *args.items.add(0);
+        let arg_1: Object = args[0];
         if args.size >= 2
-            && !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_create_autocmd_get_field), c"Wrong type for argument 2 when calling nvim_create_autocmd, expecting Dict(create_autocmd) *".as_ptr(), error) {
+            && !extract_keydict(args[1], &raw mut arg_2, Some(KeyDict_create_autocmd_get_field), c"Wrong type for argument 2 when calling nvim_create_autocmd, expecting Dict(create_autocmd) *".as_ptr(), error) {
                 return ret;
             }
         let rv = nvim_create_autocmd(channel_id, arg_1, &raw mut arg_2, arena, error);
@@ -4199,7 +4199,7 @@ pub unsafe fn handle_nvim_del_autocmd(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_del_autocmd, expecting Integer".as_ptr(),
             error,
@@ -4238,7 +4238,7 @@ pub unsafe fn handle_nvim_clear_autocmds(
             return ret;
         }
         if args.size >= 1
-            && !extract_keydict(*args.items.add(0), &raw mut arg_1, Some(KeyDict_clear_autocmds_get_field), c"Wrong type for argument 1 when calling nvim_clear_autocmds, expecting Dict(clear_autocmds) *".as_ptr(), error) {
+            && !extract_keydict(args[0], &raw mut arg_1, Some(KeyDict_clear_autocmds_get_field), c"Wrong type for argument 1 when calling nvim_clear_autocmds, expecting Dict(clear_autocmds) *".as_ptr(), error) {
                 return ret;
             }
         nvim_clear_autocmds(&raw mut arg_1, arena, error);
@@ -4274,7 +4274,7 @@ pub unsafe fn handle_nvim_create_augroup(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_create_augroup, expecting String"
                 .as_ptr(),
@@ -4283,7 +4283,7 @@ pub unsafe fn handle_nvim_create_augroup(
             return ret;
         }
         if args.size >= 2
-            && !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_create_augroup_get_field), c"Wrong type for argument 2 when calling nvim_create_augroup, expecting Dict(create_augroup) *".as_ptr(), error) {
+            && !extract_keydict(args[1], &raw mut arg_2, Some(KeyDict_create_augroup_get_field), c"Wrong type for argument 2 when calling nvim_create_augroup, expecting Dict(create_augroup) *".as_ptr(), error) {
                 return ret;
             }
         let rv = nvim_create_augroup(channel_id, arg_1, &raw mut arg_2, error);
@@ -4319,7 +4319,7 @@ pub unsafe fn handle_nvim_del_augroup_by_id(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_del_augroup_by_id, expecting Integer"
                 .as_ptr(),
@@ -4359,7 +4359,7 @@ pub unsafe fn handle_nvim_del_augroup_by_name(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_del_augroup_by_name, expecting String"
                 .as_ptr(),
@@ -4398,9 +4398,9 @@ pub unsafe fn handle_nvim_exec_autocmds(
             );
             return ret;
         }
-        let arg_1: Object = *args.items.add(0);
+        let arg_1: Object = args[0];
         if args.size >= 2
-            && !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_exec_autocmds_get_field), c"Wrong type for argument 2 when calling nvim_exec_autocmds, expecting Dict(exec_autocmds) *".as_ptr(), error) {
+            && !extract_keydict(args[1], &raw mut arg_2, Some(KeyDict_exec_autocmds_get_field), c"Wrong type for argument 2 when calling nvim_exec_autocmds, expecting Dict(exec_autocmds) *".as_ptr(), error) {
                 return ret;
             }
         nvim_exec_autocmds(arg_1, &raw mut arg_2, arena, error);
@@ -4435,7 +4435,7 @@ pub unsafe fn handle_nvim_buf_line_count(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_line_count, expecting Buffer"
@@ -4479,7 +4479,7 @@ pub unsafe fn handle_nvim_buf_attach(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_attach, expecting Buffer".as_ptr(),
@@ -4488,7 +4488,7 @@ pub unsafe fn handle_nvim_buf_attach(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_buf_attach, expecting Boolean".as_ptr(),
             error,
@@ -4496,7 +4496,7 @@ pub unsafe fn handle_nvim_buf_attach(
             return ret;
         }
         if args.size >= 3
-            && !extract_keydict(*args.items.add(2), &raw mut arg_3, Some(KeyDict_buf_attach_get_field), c"Wrong type for argument 3 when calling nvim_buf_attach, expecting Dict(buf_attach) *".as_ptr(), error) {
+            && !extract_keydict(args[2], &raw mut arg_3, Some(KeyDict_buf_attach_get_field), c"Wrong type for argument 3 when calling nvim_buf_attach, expecting Dict(buf_attach) *".as_ptr(), error) {
                 return ret;
             }
         let rv = nvim_buf_attach(channel_id, arg_1, arg_2, &raw mut arg_3, error);
@@ -4532,7 +4532,7 @@ pub unsafe fn handle_nvim_buf_detach(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_detach, expecting Buffer".as_ptr(),
@@ -4576,7 +4576,7 @@ pub unsafe fn handle_nvim_buf_get_lines(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_get_lines, expecting Buffer".as_ptr(),
@@ -4585,7 +4585,7 @@ pub unsafe fn handle_nvim_buf_get_lines(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_buf_get_lines, expecting Integer"
                 .as_ptr(),
@@ -4594,7 +4594,7 @@ pub unsafe fn handle_nvim_buf_get_lines(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_buf_get_lines, expecting Integer"
                 .as_ptr(),
@@ -4603,7 +4603,7 @@ pub unsafe fn handle_nvim_buf_get_lines(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(3),
+            args[3],
             &raw mut arg_4,
             c"Wrong type for argument 4 when calling nvim_buf_get_lines, expecting Boolean"
                 .as_ptr(),
@@ -4657,7 +4657,7 @@ pub unsafe fn handle_nvim_buf_set_lines(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_set_lines, expecting Buffer".as_ptr(),
@@ -4666,7 +4666,7 @@ pub unsafe fn handle_nvim_buf_set_lines(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_buf_set_lines, expecting Integer"
                 .as_ptr(),
@@ -4675,7 +4675,7 @@ pub unsafe fn handle_nvim_buf_set_lines(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_buf_set_lines, expecting Integer"
                 .as_ptr(),
@@ -4684,7 +4684,7 @@ pub unsafe fn handle_nvim_buf_set_lines(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(3),
+            args[3],
             &raw mut arg_4,
             c"Wrong type for argument 4 when calling nvim_buf_set_lines, expecting Boolean"
                 .as_ptr(),
@@ -4693,7 +4693,7 @@ pub unsafe fn handle_nvim_buf_set_lines(
             return ret;
         }
         if !extract_array(
-            *args.items.add(4),
+            args[4],
             &raw mut arg_5,
             c"Wrong type for argument 5 when calling nvim_buf_set_lines, expecting ArrayOf(String)"
                 .as_ptr(),
@@ -4742,7 +4742,7 @@ pub unsafe fn handle_nvim_buf_set_text(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_set_text, expecting Buffer".as_ptr(),
@@ -4751,7 +4751,7 @@ pub unsafe fn handle_nvim_buf_set_text(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_buf_set_text, expecting Integer".as_ptr(),
             error,
@@ -4759,7 +4759,7 @@ pub unsafe fn handle_nvim_buf_set_text(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_buf_set_text, expecting Integer".as_ptr(),
             error,
@@ -4767,7 +4767,7 @@ pub unsafe fn handle_nvim_buf_set_text(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(3),
+            args[3],
             &raw mut arg_4,
             c"Wrong type for argument 4 when calling nvim_buf_set_text, expecting Integer".as_ptr(),
             error,
@@ -4775,7 +4775,7 @@ pub unsafe fn handle_nvim_buf_set_text(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(4),
+            args[4],
             &raw mut arg_5,
             c"Wrong type for argument 5 when calling nvim_buf_set_text, expecting Integer".as_ptr(),
             error,
@@ -4783,7 +4783,7 @@ pub unsafe fn handle_nvim_buf_set_text(
             return ret;
         }
         if !extract_array(
-            *args.items.add(5),
+            args[5],
             &raw mut arg_6,
             c"Wrong type for argument 6 when calling nvim_buf_set_text, expecting ArrayOf(String)"
                 .as_ptr(),
@@ -4834,7 +4834,7 @@ pub unsafe fn handle_nvim_buf_get_text(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_get_text, expecting Buffer".as_ptr(),
@@ -4843,7 +4843,7 @@ pub unsafe fn handle_nvim_buf_get_text(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_buf_get_text, expecting Integer".as_ptr(),
             error,
@@ -4851,7 +4851,7 @@ pub unsafe fn handle_nvim_buf_get_text(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_buf_get_text, expecting Integer".as_ptr(),
             error,
@@ -4859,7 +4859,7 @@ pub unsafe fn handle_nvim_buf_get_text(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(3),
+            args[3],
             &raw mut arg_4,
             c"Wrong type for argument 4 when calling nvim_buf_get_text, expecting Integer".as_ptr(),
             error,
@@ -4867,7 +4867,7 @@ pub unsafe fn handle_nvim_buf_get_text(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(4),
+            args[4],
             &raw mut arg_5,
             c"Wrong type for argument 5 when calling nvim_buf_get_text, expecting Integer".as_ptr(),
             error,
@@ -4875,7 +4875,7 @@ pub unsafe fn handle_nvim_buf_get_text(
             return ret;
         }
         if args.size >= 6
-            && !extract_keydict(*args.items.add(5), &raw mut arg_6, Some(KeyDict_empty_get_field), c"Wrong type for argument 6 when calling nvim_buf_get_text, expecting Dict(empty) *".as_ptr(), error) {
+            && !extract_keydict(args[5], &raw mut arg_6, Some(KeyDict_empty_get_field), c"Wrong type for argument 6 when calling nvim_buf_get_text, expecting Dict(empty) *".as_ptr(), error) {
                 return ret;
             }
         let rv = nvim_buf_get_text(
@@ -4923,7 +4923,7 @@ pub unsafe fn handle_nvim_buf_get_offset(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_get_offset, expecting Buffer"
@@ -4933,7 +4933,7 @@ pub unsafe fn handle_nvim_buf_get_offset(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_buf_get_offset, expecting Integer"
                 .as_ptr(),
@@ -4975,7 +4975,7 @@ pub unsafe fn handle_nvim_buf_get_var(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_get_var, expecting Buffer".as_ptr(),
@@ -4984,7 +4984,7 @@ pub unsafe fn handle_nvim_buf_get_var(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_buf_get_var, expecting String".as_ptr(),
             error,
@@ -5024,7 +5024,7 @@ pub unsafe fn handle_nvim_buf_get_changedtick(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_get_changedtick, expecting Buffer"
@@ -5067,7 +5067,7 @@ pub unsafe fn handle_nvim_buf_get_keymap(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_get_keymap, expecting Buffer"
@@ -5077,7 +5077,7 @@ pub unsafe fn handle_nvim_buf_get_keymap(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_buf_get_keymap, expecting String"
                 .as_ptr(),
@@ -5122,7 +5122,7 @@ pub unsafe fn handle_nvim_buf_set_keymap(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_set_keymap, expecting Buffer"
@@ -5132,7 +5132,7 @@ pub unsafe fn handle_nvim_buf_set_keymap(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_buf_set_keymap, expecting String"
                 .as_ptr(),
@@ -5141,7 +5141,7 @@ pub unsafe fn handle_nvim_buf_set_keymap(
             return ret;
         }
         if !extract_string(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_buf_set_keymap, expecting String"
                 .as_ptr(),
@@ -5150,7 +5150,7 @@ pub unsafe fn handle_nvim_buf_set_keymap(
             return ret;
         }
         if !extract_string(
-            *args.items.add(3),
+            args[3],
             &raw mut arg_4,
             c"Wrong type for argument 4 when calling nvim_buf_set_keymap, expecting String"
                 .as_ptr(),
@@ -5159,7 +5159,7 @@ pub unsafe fn handle_nvim_buf_set_keymap(
             return ret;
         }
         if args.size >= 5
-            && !extract_keydict(*args.items.add(4), &raw mut arg_5, Some(KeyDict_keymap_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_keymap, expecting Dict(keymap) *".as_ptr(), error) {
+            && !extract_keydict(args[4], &raw mut arg_5, Some(KeyDict_keymap_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_keymap, expecting Dict(keymap) *".as_ptr(), error) {
                 return ret;
             }
         nvim_buf_set_keymap(
@@ -5205,7 +5205,7 @@ pub unsafe fn handle_nvim_buf_del_keymap(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_del_keymap, expecting Buffer"
@@ -5215,7 +5215,7 @@ pub unsafe fn handle_nvim_buf_del_keymap(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_buf_del_keymap, expecting String"
                 .as_ptr(),
@@ -5224,7 +5224,7 @@ pub unsafe fn handle_nvim_buf_del_keymap(
             return ret;
         }
         if !extract_string(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_buf_del_keymap, expecting String"
                 .as_ptr(),
@@ -5233,7 +5233,7 @@ pub unsafe fn handle_nvim_buf_del_keymap(
             return ret;
         }
         if args.size >= 4
-            && !extract_keydict(*args.items.add(3), &raw mut arg_4, Some(KeyDict_keymap_del_get_field), c"Wrong type for argument 4 when calling nvim_buf_del_keymap, expecting Dict(keymap_del) *".as_ptr(), error) {
+            && !extract_keydict(args[3], &raw mut arg_4, Some(KeyDict_keymap_del_get_field), c"Wrong type for argument 4 when calling nvim_buf_del_keymap, expecting Dict(keymap_del) *".as_ptr(), error) {
                 return ret;
             }
         nvim_buf_del_keymap(channel_id, arg_1, arg_2, arg_3, &raw mut arg_4, error);
@@ -5269,7 +5269,7 @@ pub unsafe fn handle_nvim_buf_set_var(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_set_var, expecting Buffer".as_ptr(),
@@ -5278,14 +5278,14 @@ pub unsafe fn handle_nvim_buf_set_var(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_buf_set_var, expecting String".as_ptr(),
             error,
         ) {
             return ret;
         }
-        let arg_3: Object = *args.items.add(2);
+        let arg_3: Object = args[2];
         nvim_buf_set_var(arg_1, arg_2, arg_3, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -5319,7 +5319,7 @@ pub unsafe fn handle_nvim_buf_del_var(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_del_var, expecting Buffer".as_ptr(),
@@ -5328,7 +5328,7 @@ pub unsafe fn handle_nvim_buf_del_var(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_buf_del_var, expecting String".as_ptr(),
             error,
@@ -5367,7 +5367,7 @@ pub unsafe fn handle_nvim_buf_get_name(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_get_name, expecting Buffer".as_ptr(),
@@ -5409,7 +5409,7 @@ pub unsafe fn handle_nvim_buf_set_name(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_set_name, expecting Buffer".as_ptr(),
@@ -5418,7 +5418,7 @@ pub unsafe fn handle_nvim_buf_set_name(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_buf_set_name, expecting String".as_ptr(),
             error,
@@ -5457,7 +5457,7 @@ pub unsafe fn handle_nvim_buf_is_loaded(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_is_loaded, expecting Buffer".as_ptr(),
@@ -5496,7 +5496,7 @@ pub unsafe fn handle_nvim_buf_delete(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_delete, expecting Buffer".as_ptr(),
@@ -5505,7 +5505,7 @@ pub unsafe fn handle_nvim_buf_delete(
             return ret;
         }
         if args.size >= 2
-            && !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_buf_delete_get_field), c"Wrong type for argument 2 when calling nvim_buf_delete, expecting Dict(buf_delete) *".as_ptr(), error) {
+            && !extract_keydict(args[1], &raw mut arg_2, Some(KeyDict_buf_delete_get_field), c"Wrong type for argument 2 when calling nvim_buf_delete, expecting Dict(buf_delete) *".as_ptr(), error) {
                 return ret;
             }
         if text_locked() {
@@ -5544,7 +5544,7 @@ pub unsafe fn handle_nvim_buf_is_valid(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_is_valid, expecting Buffer".as_ptr(),
@@ -5583,7 +5583,7 @@ pub unsafe fn handle_nvim_buf_del_mark(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_del_mark, expecting Buffer".as_ptr(),
@@ -5592,7 +5592,7 @@ pub unsafe fn handle_nvim_buf_del_mark(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_buf_del_mark, expecting String".as_ptr(),
             error,
@@ -5636,7 +5636,7 @@ pub unsafe fn handle_nvim_buf_set_mark(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_set_mark, expecting Buffer".as_ptr(),
@@ -5645,7 +5645,7 @@ pub unsafe fn handle_nvim_buf_set_mark(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_buf_set_mark, expecting String".as_ptr(),
             error,
@@ -5653,7 +5653,7 @@ pub unsafe fn handle_nvim_buf_set_mark(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_buf_set_mark, expecting Integer".as_ptr(),
             error,
@@ -5661,7 +5661,7 @@ pub unsafe fn handle_nvim_buf_set_mark(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(3),
+            args[3],
             &raw mut arg_4,
             c"Wrong type for argument 4 when calling nvim_buf_set_mark, expecting Integer".as_ptr(),
             error,
@@ -5669,7 +5669,7 @@ pub unsafe fn handle_nvim_buf_set_mark(
             return ret;
         }
         if args.size >= 5
-            && !extract_keydict(*args.items.add(4), &raw mut arg_5, Some(KeyDict_empty_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_mark, expecting Dict(empty) *".as_ptr(), error) {
+            && !extract_keydict(args[4], &raw mut arg_5, Some(KeyDict_empty_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_mark, expecting Dict(empty) *".as_ptr(), error) {
                 return ret;
             }
         let rv = nvim_buf_set_mark(arg_1, arg_2, arg_3, arg_4, &raw mut arg_5, error);
@@ -5706,7 +5706,7 @@ pub unsafe fn handle_nvim_buf_get_mark(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_get_mark, expecting Buffer".as_ptr(),
@@ -5715,7 +5715,7 @@ pub unsafe fn handle_nvim_buf_get_mark(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_buf_get_mark, expecting String".as_ptr(),
             error,
@@ -5755,7 +5755,7 @@ pub unsafe fn handle_nvim__buf_stats(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim__buf_stats, expecting Buffer".as_ptr(),
@@ -5797,7 +5797,7 @@ pub unsafe fn handle_nvim_parse_cmd(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_parse_cmd, expecting String".as_ptr(),
             error,
@@ -5806,7 +5806,7 @@ pub unsafe fn handle_nvim_parse_cmd(
         }
         if args.size >= 2
             && !extract_keydict(
-                *args.items.add(1),
+                args[1],
                 &raw mut arg_2,
                 Some(KeyDict_empty_get_field),
                 c"Wrong type for argument 2 when calling nvim_parse_cmd, expecting Dict(empty) *"
@@ -5855,7 +5855,7 @@ pub unsafe fn handle_nvim_cmd(
             return ret;
         }
         if !extract_keydict(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             Some(KeyDict_cmd_get_field),
             c"Wrong type for argument 1 when calling nvim_cmd, expecting Dict(cmd) *".as_ptr(),
@@ -5865,7 +5865,7 @@ pub unsafe fn handle_nvim_cmd(
         }
         if args.size >= 2
             && !extract_keydict(
-                *args.items.add(1),
+                args[1],
                 &raw mut arg_2,
                 Some(KeyDict_cmd_opts_get_field),
                 c"Wrong type for argument 2 when calling nvim_cmd, expecting Dict(cmd_opts) *"
@@ -5909,7 +5909,7 @@ pub unsafe fn handle_nvim_create_user_command(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_create_user_command, expecting String"
                 .as_ptr(),
@@ -5917,9 +5917,9 @@ pub unsafe fn handle_nvim_create_user_command(
         ) {
             return ret;
         }
-        let arg_2: Object = *args.items.add(1);
+        let arg_2: Object = args[1];
         if args.size >= 3
-            && !extract_keydict(*args.items.add(2), &raw mut arg_3, Some(KeyDict_user_command_get_field), c"Wrong type for argument 3 when calling nvim_create_user_command, expecting Dict(user_command) *".as_ptr(), error) {
+            && !extract_keydict(args[2], &raw mut arg_3, Some(KeyDict_user_command_get_field), c"Wrong type for argument 3 when calling nvim_create_user_command, expecting Dict(user_command) *".as_ptr(), error) {
                 return ret;
             }
         nvim_create_user_command(channel_id, arg_1, arg_2, &raw mut arg_3, error);
@@ -5954,7 +5954,7 @@ pub unsafe fn handle_nvim_del_user_command(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_del_user_command, expecting String"
                 .as_ptr(),
@@ -5995,15 +5995,15 @@ pub unsafe fn handle_nvim_buf_create_user_command(
             );
             return ret;
         }
-        if !extract_handle(*args.items.add(0), ObjectType::kObjectTypeBuffer, &raw mut arg_1, c"Wrong type for argument 1 when calling nvim_buf_create_user_command, expecting Buffer".as_ptr(), error) {
+        if !extract_handle(args[0], ObjectType::kObjectTypeBuffer, &raw mut arg_1, c"Wrong type for argument 1 when calling nvim_buf_create_user_command, expecting Buffer".as_ptr(), error) {
             return ret;
         }
-        if !extract_string(*args.items.add(1), &raw mut arg_2, c"Wrong type for argument 2 when calling nvim_buf_create_user_command, expecting String".as_ptr(), error) {
+        if !extract_string(args[1], &raw mut arg_2, c"Wrong type for argument 2 when calling nvim_buf_create_user_command, expecting String".as_ptr(), error) {
             return ret;
         }
-        let arg_3: Object = *args.items.add(2);
+        let arg_3: Object = args[2];
         if args.size >= 4
-            && !extract_keydict(*args.items.add(3), &raw mut arg_4, Some(KeyDict_user_command_get_field), c"Wrong type for argument 4 when calling nvim_buf_create_user_command, expecting Dict(user_command) *".as_ptr(), error) {
+            && !extract_keydict(args[3], &raw mut arg_4, Some(KeyDict_user_command_get_field), c"Wrong type for argument 4 when calling nvim_buf_create_user_command, expecting Dict(user_command) *".as_ptr(), error) {
                 return ret;
             }
         nvim_buf_create_user_command(channel_id, arg_1, arg_2, arg_3, &raw mut arg_4, error);
@@ -6039,7 +6039,7 @@ pub unsafe fn handle_nvim_buf_del_user_command(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_del_user_command, expecting Buffer"
@@ -6049,7 +6049,7 @@ pub unsafe fn handle_nvim_buf_del_user_command(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_buf_del_user_command, expecting String"
                 .as_ptr(),
@@ -6089,7 +6089,7 @@ pub unsafe fn handle_nvim_get_commands(
             return ret;
         }
         if args.size >= 1
-            && !extract_keydict(*args.items.add(0), &raw mut arg_1, Some(KeyDict_get_commands_get_field), c"Wrong type for argument 1 when calling nvim_get_commands, expecting Dict(get_commands) *".as_ptr(), error) {
+            && !extract_keydict(args[0], &raw mut arg_1, Some(KeyDict_get_commands_get_field), c"Wrong type for argument 1 when calling nvim_get_commands, expecting Dict(get_commands) *".as_ptr(), error) {
                 return ret;
             }
         let rv = nvim_get_commands(&raw mut arg_1, arena, error);
@@ -6126,7 +6126,7 @@ pub unsafe fn handle_nvim_buf_get_commands(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_get_commands, expecting Buffer"
@@ -6136,7 +6136,7 @@ pub unsafe fn handle_nvim_buf_get_commands(
             return ret;
         }
         if args.size >= 2
-            && !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_get_commands_get_field), c"Wrong type for argument 2 when calling nvim_buf_get_commands, expecting Dict(get_commands) *".as_ptr(), error) {
+            && !extract_keydict(args[1], &raw mut arg_2, Some(KeyDict_get_commands_get_field), c"Wrong type for argument 2 when calling nvim_buf_get_commands, expecting Dict(get_commands) *".as_ptr(), error) {
                 return ret;
             }
         let rv = nvim_buf_get_commands(arg_1, &raw mut arg_2, arena, error);
@@ -6173,7 +6173,7 @@ pub unsafe fn handle_nvim_exec(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_exec, expecting String".as_ptr(),
             error,
@@ -6181,7 +6181,7 @@ pub unsafe fn handle_nvim_exec(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_exec, expecting Boolean".as_ptr(),
             error,
@@ -6221,7 +6221,7 @@ pub unsafe fn handle_nvim_command_output(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_command_output, expecting String"
                 .as_ptr(),
@@ -6263,7 +6263,7 @@ pub unsafe fn handle_nvim_execute_lua(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_execute_lua, expecting String".as_ptr(),
             error,
@@ -6271,7 +6271,7 @@ pub unsafe fn handle_nvim_execute_lua(
             return ret;
         }
         if !extract_array(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_execute_lua, expecting Array".as_ptr(),
             error,
@@ -6311,7 +6311,7 @@ pub unsafe fn handle_nvim_buf_get_number(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_get_number, expecting Buffer"
@@ -6356,7 +6356,7 @@ pub unsafe fn handle_nvim_buf_clear_highlight(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_clear_highlight, expecting Buffer"
@@ -6366,7 +6366,7 @@ pub unsafe fn handle_nvim_buf_clear_highlight(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_buf_clear_highlight, expecting Integer"
                 .as_ptr(),
@@ -6375,7 +6375,7 @@ pub unsafe fn handle_nvim_buf_clear_highlight(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_buf_clear_highlight, expecting Integer"
                 .as_ptr(),
@@ -6384,7 +6384,7 @@ pub unsafe fn handle_nvim_buf_clear_highlight(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(3),
+            args[3],
             &raw mut arg_4,
             c"Wrong type for argument 4 when calling nvim_buf_clear_highlight, expecting Integer"
                 .as_ptr(),
@@ -6429,7 +6429,7 @@ pub unsafe fn handle_nvim_buf_add_highlight(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_add_highlight, expecting Buffer"
@@ -6439,7 +6439,7 @@ pub unsafe fn handle_nvim_buf_add_highlight(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_buf_add_highlight, expecting Integer"
                 .as_ptr(),
@@ -6448,7 +6448,7 @@ pub unsafe fn handle_nvim_buf_add_highlight(
             return ret;
         }
         if !extract_string(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_buf_add_highlight, expecting String"
                 .as_ptr(),
@@ -6457,7 +6457,7 @@ pub unsafe fn handle_nvim_buf_add_highlight(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(3),
+            args[3],
             &raw mut arg_4,
             c"Wrong type for argument 4 when calling nvim_buf_add_highlight, expecting Integer"
                 .as_ptr(),
@@ -6466,7 +6466,7 @@ pub unsafe fn handle_nvim_buf_add_highlight(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(4),
+            args[4],
             &raw mut arg_5,
             c"Wrong type for argument 5 when calling nvim_buf_add_highlight, expecting Integer"
                 .as_ptr(),
@@ -6475,7 +6475,7 @@ pub unsafe fn handle_nvim_buf_add_highlight(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(5),
+            args[5],
             &raw mut arg_6,
             c"Wrong type for argument 6 when calling nvim_buf_add_highlight, expecting Integer"
                 .as_ptr(),
@@ -6520,7 +6520,7 @@ pub unsafe fn handle_nvim_buf_set_virtual_text(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_set_virtual_text, expecting Buffer"
@@ -6530,7 +6530,7 @@ pub unsafe fn handle_nvim_buf_set_virtual_text(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_buf_set_virtual_text, expecting Integer"
                 .as_ptr(),
@@ -6539,7 +6539,7 @@ pub unsafe fn handle_nvim_buf_set_virtual_text(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_buf_set_virtual_text, expecting Integer"
                 .as_ptr(),
@@ -6548,7 +6548,7 @@ pub unsafe fn handle_nvim_buf_set_virtual_text(
             return ret;
         }
         if !extract_array(
-            *args.items.add(3),
+            args[3],
             &raw mut arg_4,
             c"Wrong type for argument 4 when calling nvim_buf_set_virtual_text, expecting Array"
                 .as_ptr(),
@@ -6557,7 +6557,7 @@ pub unsafe fn handle_nvim_buf_set_virtual_text(
             return ret;
         }
         if args.size >= 5
-            && !extract_keydict(*args.items.add(4), &raw mut arg_5, Some(KeyDict_empty_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_virtual_text, expecting Dict(empty) *".as_ptr(), error) {
+            && !extract_keydict(args[4], &raw mut arg_5, Some(KeyDict_empty_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_virtual_text, expecting Dict(empty) *".as_ptr(), error) {
                 return ret;
             }
         let rv = nvim_buf_set_virtual_text(arg_1, arg_2, arg_3, arg_4, &raw mut arg_5, error);
@@ -6594,7 +6594,7 @@ pub unsafe fn handle_nvim_get_hl_by_id(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_get_hl_by_id, expecting Integer".as_ptr(),
             error,
@@ -6602,7 +6602,7 @@ pub unsafe fn handle_nvim_get_hl_by_id(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_get_hl_by_id, expecting Boolean".as_ptr(),
             error,
@@ -6643,7 +6643,7 @@ pub unsafe fn handle_nvim_get_hl_by_name(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_get_hl_by_name, expecting String"
                 .as_ptr(),
@@ -6652,7 +6652,7 @@ pub unsafe fn handle_nvim_get_hl_by_name(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_get_hl_by_name, expecting Boolean"
                 .as_ptr(),
@@ -6695,7 +6695,7 @@ pub unsafe fn handle_buffer_insert(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling buffer_insert, expecting Buffer".as_ptr(),
@@ -6704,7 +6704,7 @@ pub unsafe fn handle_buffer_insert(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling buffer_insert, expecting Integer".as_ptr(),
             error,
@@ -6712,7 +6712,7 @@ pub unsafe fn handle_buffer_insert(
             return ret;
         }
         if !extract_array(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling buffer_insert, expecting ArrayOf(String)"
                 .as_ptr(),
@@ -6753,7 +6753,7 @@ pub unsafe fn handle_buffer_get_line(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling buffer_get_line, expecting Buffer".as_ptr(),
@@ -6762,7 +6762,7 @@ pub unsafe fn handle_buffer_get_line(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling buffer_get_line, expecting Integer".as_ptr(),
             error,
@@ -6804,7 +6804,7 @@ pub unsafe fn handle_buffer_set_line(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling buffer_set_line, expecting Buffer".as_ptr(),
@@ -6813,7 +6813,7 @@ pub unsafe fn handle_buffer_set_line(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling buffer_set_line, expecting Integer".as_ptr(),
             error,
@@ -6821,7 +6821,7 @@ pub unsafe fn handle_buffer_set_line(
             return ret;
         }
         if !extract_string(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling buffer_set_line, expecting String".as_ptr(),
             error,
@@ -6861,7 +6861,7 @@ pub unsafe fn handle_buffer_del_line(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling buffer_del_line, expecting Buffer".as_ptr(),
@@ -6870,7 +6870,7 @@ pub unsafe fn handle_buffer_del_line(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling buffer_del_line, expecting Integer".as_ptr(),
             error,
@@ -6913,7 +6913,7 @@ pub unsafe fn handle_buffer_get_line_slice(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling buffer_get_line_slice, expecting Buffer"
@@ -6923,7 +6923,7 @@ pub unsafe fn handle_buffer_get_line_slice(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling buffer_get_line_slice, expecting Integer"
                 .as_ptr(),
@@ -6932,7 +6932,7 @@ pub unsafe fn handle_buffer_get_line_slice(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling buffer_get_line_slice, expecting Integer"
                 .as_ptr(),
@@ -6941,7 +6941,7 @@ pub unsafe fn handle_buffer_get_line_slice(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(3),
+            args[3],
             &raw mut arg_4,
             c"Wrong type for argument 4 when calling buffer_get_line_slice, expecting Boolean"
                 .as_ptr(),
@@ -6950,7 +6950,7 @@ pub unsafe fn handle_buffer_get_line_slice(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(4),
+            args[4],
             &raw mut arg_5,
             c"Wrong type for argument 5 when calling buffer_get_line_slice, expecting Boolean"
                 .as_ptr(),
@@ -6996,7 +6996,7 @@ pub unsafe fn handle_buffer_set_line_slice(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling buffer_set_line_slice, expecting Buffer"
@@ -7006,7 +7006,7 @@ pub unsafe fn handle_buffer_set_line_slice(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling buffer_set_line_slice, expecting Integer"
                 .as_ptr(),
@@ -7015,7 +7015,7 @@ pub unsafe fn handle_buffer_set_line_slice(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling buffer_set_line_slice, expecting Integer"
                 .as_ptr(),
@@ -7024,7 +7024,7 @@ pub unsafe fn handle_buffer_set_line_slice(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(3),
+            args[3],
             &raw mut arg_4,
             c"Wrong type for argument 4 when calling buffer_set_line_slice, expecting Boolean"
                 .as_ptr(),
@@ -7033,7 +7033,7 @@ pub unsafe fn handle_buffer_set_line_slice(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(4),
+            args[4],
             &raw mut arg_5,
             c"Wrong type for argument 5 when calling buffer_set_line_slice, expecting Boolean"
                 .as_ptr(),
@@ -7041,7 +7041,7 @@ pub unsafe fn handle_buffer_set_line_slice(
         ) {
             return ret;
         }
-        if !extract_array(*args.items.add(5), &raw mut arg_6, c"Wrong type for argument 6 when calling buffer_set_line_slice, expecting ArrayOf(String)".as_ptr(), error) {
+        if !extract_array(args[5], &raw mut arg_6, c"Wrong type for argument 6 when calling buffer_set_line_slice, expecting ArrayOf(String)".as_ptr(), error) {
             return ret;
         }
         buffer_set_line_slice(arg_1, arg_2, arg_3, arg_4, arg_5, arg_6, arena, error);
@@ -7077,7 +7077,7 @@ pub unsafe fn handle_buffer_set_var(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling buffer_set_var, expecting Buffer".as_ptr(),
@@ -7086,14 +7086,14 @@ pub unsafe fn handle_buffer_set_var(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling buffer_set_var, expecting String".as_ptr(),
             error,
         ) {
             return ret;
         }
-        let arg_3: Object = *args.items.add(2);
+        let arg_3: Object = args[2];
         let rv = buffer_set_var(arg_1, arg_2, arg_3, arena, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -7128,7 +7128,7 @@ pub unsafe fn handle_buffer_del_var(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling buffer_del_var, expecting Buffer".as_ptr(),
@@ -7137,7 +7137,7 @@ pub unsafe fn handle_buffer_del_var(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling buffer_del_var, expecting String".as_ptr(),
             error,
@@ -7178,7 +7178,7 @@ pub unsafe fn handle_window_set_var(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeWindow,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling window_set_var, expecting Window".as_ptr(),
@@ -7187,14 +7187,14 @@ pub unsafe fn handle_window_set_var(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling window_set_var, expecting String".as_ptr(),
             error,
         ) {
             return ret;
         }
-        let arg_3: Object = *args.items.add(2);
+        let arg_3: Object = args[2];
         let rv = window_set_var(arg_1, arg_2, arg_3, arena, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -7229,7 +7229,7 @@ pub unsafe fn handle_window_del_var(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeWindow,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling window_del_var, expecting Window".as_ptr(),
@@ -7238,7 +7238,7 @@ pub unsafe fn handle_window_del_var(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling window_del_var, expecting String".as_ptr(),
             error,
@@ -7279,7 +7279,7 @@ pub unsafe fn handle_tabpage_set_var(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeTabpage,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling tabpage_set_var, expecting Tabpage".as_ptr(),
@@ -7288,14 +7288,14 @@ pub unsafe fn handle_tabpage_set_var(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling tabpage_set_var, expecting String".as_ptr(),
             error,
         ) {
             return ret;
         }
-        let arg_3: Object = *args.items.add(2);
+        let arg_3: Object = args[2];
         let rv = tabpage_set_var(arg_1, arg_2, arg_3, arena, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -7330,7 +7330,7 @@ pub unsafe fn handle_tabpage_del_var(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeTabpage,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling tabpage_del_var, expecting Tabpage".as_ptr(),
@@ -7339,7 +7339,7 @@ pub unsafe fn handle_tabpage_del_var(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling tabpage_del_var, expecting String".as_ptr(),
             error,
@@ -7379,14 +7379,14 @@ pub unsafe fn handle_vim_set_var(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling vim_set_var, expecting String".as_ptr(),
             error,
         ) {
             return ret;
         }
-        let arg_2: Object = *args.items.add(1);
+        let arg_2: Object = args[1];
         let rv = vim_set_var(arg_1, arg_2, arena, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -7420,7 +7420,7 @@ pub unsafe fn handle_vim_del_var(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling vim_del_var, expecting String".as_ptr(),
             error,
@@ -7460,7 +7460,7 @@ pub unsafe fn handle_nvim_get_option_info(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_get_option_info, expecting String"
                 .as_ptr(),
@@ -7501,14 +7501,14 @@ pub unsafe fn handle_nvim_set_option(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_set_option, expecting String".as_ptr(),
             error,
         ) {
             return ret;
         }
-        let arg_2: Object = *args.items.add(1);
+        let arg_2: Object = args[1];
         nvim_set_option(channel_id, arg_1, arg_2, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -7541,7 +7541,7 @@ pub unsafe fn handle_nvim_get_option(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_get_option, expecting String".as_ptr(),
             error,
@@ -7582,7 +7582,7 @@ pub unsafe fn handle_nvim_buf_get_option(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_get_option, expecting Buffer"
@@ -7592,7 +7592,7 @@ pub unsafe fn handle_nvim_buf_get_option(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_buf_get_option, expecting String"
                 .as_ptr(),
@@ -7634,7 +7634,7 @@ pub unsafe fn handle_nvim_buf_set_option(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_set_option, expecting Buffer"
@@ -7644,7 +7644,7 @@ pub unsafe fn handle_nvim_buf_set_option(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_buf_set_option, expecting String"
                 .as_ptr(),
@@ -7652,7 +7652,7 @@ pub unsafe fn handle_nvim_buf_set_option(
         ) {
             return ret;
         }
-        let arg_3: Object = *args.items.add(2);
+        let arg_3: Object = args[2];
         nvim_buf_set_option(channel_id, arg_1, arg_2, arg_3, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -7686,7 +7686,7 @@ pub unsafe fn handle_nvim_win_get_option(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeWindow,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_get_option, expecting Window"
@@ -7696,7 +7696,7 @@ pub unsafe fn handle_nvim_win_get_option(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_win_get_option, expecting String"
                 .as_ptr(),
@@ -7738,7 +7738,7 @@ pub unsafe fn handle_nvim_win_set_option(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeWindow,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_set_option, expecting Window"
@@ -7748,7 +7748,7 @@ pub unsafe fn handle_nvim_win_set_option(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_win_set_option, expecting String"
                 .as_ptr(),
@@ -7756,7 +7756,7 @@ pub unsafe fn handle_nvim_win_set_option(
         ) {
             return ret;
         }
-        let arg_3: Object = *args.items.add(2);
+        let arg_3: Object = args[2];
         nvim_win_set_option(channel_id, arg_1, arg_2, arg_3, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -7789,7 +7789,7 @@ pub unsafe fn handle_nvim_call_atomic(
             return ret;
         }
         if !extract_array(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_call_atomic, expecting Array".as_ptr(),
             error,
@@ -7829,7 +7829,7 @@ pub unsafe fn handle_nvim_subscribe(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_subscribe, expecting String".as_ptr(),
             error,
@@ -7865,7 +7865,7 @@ pub unsafe fn handle_nvim_unsubscribe(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_unsubscribe, expecting String".as_ptr(),
             error,
@@ -7901,7 +7901,7 @@ pub unsafe fn handle_nvim_out_write(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_out_write, expecting String".as_ptr(),
             error,
@@ -7937,7 +7937,7 @@ pub unsafe fn handle_nvim_err_write(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_err_write, expecting String".as_ptr(),
             error,
@@ -7973,7 +7973,7 @@ pub unsafe fn handle_nvim_err_writeln(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_err_writeln, expecting String".as_ptr(),
             error,
@@ -8011,7 +8011,7 @@ pub unsafe fn handle_nvim_notify(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_notify, expecting String".as_ptr(),
             error,
@@ -8019,7 +8019,7 @@ pub unsafe fn handle_nvim_notify(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_notify, expecting Integer".as_ptr(),
             error,
@@ -8027,7 +8027,7 @@ pub unsafe fn handle_nvim_notify(
             return ret;
         }
         if !extract_dict(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_notify, expecting Dict".as_ptr(),
             error,
@@ -8068,7 +8068,7 @@ pub unsafe fn handle_nvim_win_set_height(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeWindow,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_set_height, expecting Window"
@@ -8078,7 +8078,7 @@ pub unsafe fn handle_nvim_win_set_height(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_win_set_height, expecting Integer"
                 .as_ptr(),
@@ -8119,7 +8119,7 @@ pub unsafe fn handle_nvim_win_set_width(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeWindow,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_set_width, expecting Window".as_ptr(),
@@ -8128,7 +8128,7 @@ pub unsafe fn handle_nvim_win_set_width(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_win_set_width, expecting Integer"
                 .as_ptr(),
@@ -8169,7 +8169,7 @@ pub unsafe fn handle_nvim_error_event(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_error_event, expecting Integer".as_ptr(),
             error,
@@ -8177,7 +8177,7 @@ pub unsafe fn handle_nvim_error_event(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_error_event, expecting String".as_ptr(),
             error,
@@ -8213,14 +8213,14 @@ pub unsafe fn handle_nvim_ui_term_event(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_ui_term_event, expecting String".as_ptr(),
             error,
         ) {
             return ret;
         }
-        let arg_2: Object = *args.items.add(1);
+        let arg_2: Object = args[1];
         nvim_ui_term_event(channel_id, arg_1, arg_2, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -8253,7 +8253,7 @@ pub unsafe fn handle_nvim_create_namespace(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_create_namespace, expecting String"
                 .as_ptr(),
@@ -8322,7 +8322,7 @@ pub unsafe fn handle_nvim_buf_get_extmark_by_id(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_get_extmark_by_id, expecting Buffer"
@@ -8332,7 +8332,7 @@ pub unsafe fn handle_nvim_buf_get_extmark_by_id(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_buf_get_extmark_by_id, expecting Integer"
                 .as_ptr(),
@@ -8341,7 +8341,7 @@ pub unsafe fn handle_nvim_buf_get_extmark_by_id(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_buf_get_extmark_by_id, expecting Integer"
                 .as_ptr(),
@@ -8350,7 +8350,7 @@ pub unsafe fn handle_nvim_buf_get_extmark_by_id(
             return ret;
         }
         if args.size >= 4
-            && !extract_keydict(*args.items.add(3), &raw mut arg_4, Some(KeyDict_get_extmark_get_field), c"Wrong type for argument 4 when calling nvim_buf_get_extmark_by_id, expecting Dict(get_extmark) *".as_ptr(), error) {
+            && !extract_keydict(args[3], &raw mut arg_4, Some(KeyDict_get_extmark_get_field), c"Wrong type for argument 4 when calling nvim_buf_get_extmark_by_id, expecting Dict(get_extmark) *".as_ptr(), error) {
                 return ret;
             }
         let rv = nvim_buf_get_extmark_by_id(arg_1, arg_2, arg_3, &raw mut arg_4, arena, error);
@@ -8388,7 +8388,7 @@ pub unsafe fn handle_nvim_buf_get_extmarks(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_get_extmarks, expecting Buffer"
@@ -8398,7 +8398,7 @@ pub unsafe fn handle_nvim_buf_get_extmarks(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_buf_get_extmarks, expecting Integer"
                 .as_ptr(),
@@ -8406,10 +8406,10 @@ pub unsafe fn handle_nvim_buf_get_extmarks(
         ) {
             return ret;
         }
-        let arg_3: Object = *args.items.add(2);
-        let arg_4: Object = *args.items.add(3);
+        let arg_3: Object = args[2];
+        let arg_4: Object = args[3];
         if args.size >= 5
-            && !extract_keydict(*args.items.add(4), &raw mut arg_5, Some(KeyDict_get_extmarks_get_field), c"Wrong type for argument 5 when calling nvim_buf_get_extmarks, expecting Dict(get_extmarks) *".as_ptr(), error) {
+            && !extract_keydict(args[4], &raw mut arg_5, Some(KeyDict_get_extmarks_get_field), c"Wrong type for argument 5 when calling nvim_buf_get_extmarks, expecting Dict(get_extmarks) *".as_ptr(), error) {
                 return ret;
             }
         let rv = nvim_buf_get_extmarks(arg_1, arg_2, arg_3, arg_4, &raw mut arg_5, arena, error);
@@ -8449,7 +8449,7 @@ pub unsafe fn handle_nvim_buf_set_extmark(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_set_extmark, expecting Buffer"
@@ -8459,7 +8459,7 @@ pub unsafe fn handle_nvim_buf_set_extmark(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_buf_set_extmark, expecting Integer"
                 .as_ptr(),
@@ -8468,7 +8468,7 @@ pub unsafe fn handle_nvim_buf_set_extmark(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_buf_set_extmark, expecting Integer"
                 .as_ptr(),
@@ -8477,7 +8477,7 @@ pub unsafe fn handle_nvim_buf_set_extmark(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(3),
+            args[3],
             &raw mut arg_4,
             c"Wrong type for argument 4 when calling nvim_buf_set_extmark, expecting Integer"
                 .as_ptr(),
@@ -8486,7 +8486,7 @@ pub unsafe fn handle_nvim_buf_set_extmark(
             return ret;
         }
         if args.size >= 5
-            && !extract_keydict(*args.items.add(4), &raw mut arg_5, Some(KeyDict_set_extmark_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_extmark, expecting Dict(set_extmark) *".as_ptr(), error) {
+            && !extract_keydict(args[4], &raw mut arg_5, Some(KeyDict_set_extmark_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_extmark, expecting Dict(set_extmark) *".as_ptr(), error) {
                 return ret;
             }
         let rv = nvim_buf_set_extmark(arg_1, arg_2, arg_3, arg_4, &raw mut arg_5, error);
@@ -8524,7 +8524,7 @@ pub unsafe fn handle_nvim_buf_del_extmark(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_del_extmark, expecting Buffer"
@@ -8534,7 +8534,7 @@ pub unsafe fn handle_nvim_buf_del_extmark(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_buf_del_extmark, expecting Integer"
                 .as_ptr(),
@@ -8543,7 +8543,7 @@ pub unsafe fn handle_nvim_buf_del_extmark(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_buf_del_extmark, expecting Integer"
                 .as_ptr(),
@@ -8587,7 +8587,7 @@ pub unsafe fn handle_nvim_buf_clear_namespace(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_buf_clear_namespace, expecting Buffer"
@@ -8597,7 +8597,7 @@ pub unsafe fn handle_nvim_buf_clear_namespace(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_buf_clear_namespace, expecting Integer"
                 .as_ptr(),
@@ -8606,7 +8606,7 @@ pub unsafe fn handle_nvim_buf_clear_namespace(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_buf_clear_namespace, expecting Integer"
                 .as_ptr(),
@@ -8615,7 +8615,7 @@ pub unsafe fn handle_nvim_buf_clear_namespace(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(3),
+            args[3],
             &raw mut arg_4,
             c"Wrong type for argument 4 when calling nvim_buf_clear_namespace, expecting Integer"
                 .as_ptr(),
@@ -8657,7 +8657,7 @@ pub unsafe fn handle_nvim__buf_debug_extmarks(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim__buf_debug_extmarks, expecting Buffer"
@@ -8667,7 +8667,7 @@ pub unsafe fn handle_nvim__buf_debug_extmarks(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim__buf_debug_extmarks, expecting Boolean"
                 .as_ptr(),
@@ -8676,7 +8676,7 @@ pub unsafe fn handle_nvim__buf_debug_extmarks(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim__buf_debug_extmarks, expecting Boolean"
                 .as_ptr(),
@@ -8718,7 +8718,7 @@ pub unsafe fn handle_nvim__ns_set(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim__ns_set, expecting Integer".as_ptr(),
             error,
@@ -8727,7 +8727,7 @@ pub unsafe fn handle_nvim__ns_set(
         }
         if args.size >= 2
             && !extract_keydict(
-                *args.items.add(1),
+                args[1],
                 &raw mut arg_2,
                 Some(KeyDict_ns_opts_get_field),
                 c"Wrong type for argument 2 when calling nvim__ns_set, expecting Dict(ns_opts) *"
@@ -8769,7 +8769,7 @@ pub unsafe fn handle_nvim__ns_get(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim__ns_get, expecting Integer".as_ptr(),
             error,
@@ -8815,7 +8815,7 @@ pub unsafe fn handle_nvim_get_option_value(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_get_option_value, expecting String"
                 .as_ptr(),
@@ -8824,7 +8824,7 @@ pub unsafe fn handle_nvim_get_option_value(
             return ret;
         }
         if args.size >= 2
-            && !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_option_get_field), c"Wrong type for argument 2 when calling nvim_get_option_value, expecting Dict(option) *".as_ptr(), error) {
+            && !extract_keydict(args[1], &raw mut arg_2, Some(KeyDict_option_get_field), c"Wrong type for argument 2 when calling nvim_get_option_value, expecting Dict(option) *".as_ptr(), error) {
                 return ret;
             }
         let rv = nvim_get_option_value(arg_1, &raw mut arg_2, error);
@@ -8861,7 +8861,7 @@ pub unsafe fn handle_nvim_set_option_value(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_set_option_value, expecting String"
                 .as_ptr(),
@@ -8869,9 +8869,9 @@ pub unsafe fn handle_nvim_set_option_value(
         ) {
             return ret;
         }
-        let arg_2: Object = *args.items.add(1);
+        let arg_2: Object = args[1];
         if args.size >= 3
-            && !extract_keydict(*args.items.add(2), &raw mut arg_3, Some(KeyDict_option_get_field), c"Wrong type for argument 3 when calling nvim_set_option_value, expecting Dict(option) *".as_ptr(), error) {
+            && !extract_keydict(args[2], &raw mut arg_3, Some(KeyDict_option_get_field), c"Wrong type for argument 3 when calling nvim_set_option_value, expecting Dict(option) *".as_ptr(), error) {
                 return ret;
             }
         let rv = nvim_set_option_value(channel_id, arg_1, arg_2, &raw mut arg_3, arena, error);
@@ -8939,7 +8939,7 @@ pub unsafe fn handle_nvim_get_option_info2(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_get_option_info2, expecting String"
                 .as_ptr(),
@@ -8948,7 +8948,7 @@ pub unsafe fn handle_nvim_get_option_info2(
             return ret;
         }
         if args.size >= 2
-            && !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_option_get_field), c"Wrong type for argument 2 when calling nvim_get_option_info2, expecting Dict(option) *".as_ptr(), error) {
+            && !extract_keydict(args[1], &raw mut arg_2, Some(KeyDict_option_get_field), c"Wrong type for argument 2 when calling nvim_get_option_info2, expecting Dict(option) *".as_ptr(), error) {
                 return ret;
             }
         let rv = nvim_get_option_info2(arg_1, &raw mut arg_2, arena, error);
@@ -8984,7 +8984,7 @@ pub unsafe fn handle_nvim_tabpage_list_wins(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeTabpage,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_tabpage_list_wins, expecting Tabpage"
@@ -9027,7 +9027,7 @@ pub unsafe fn handle_nvim_tabpage_get_var(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeTabpage,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_tabpage_get_var, expecting Tabpage"
@@ -9037,7 +9037,7 @@ pub unsafe fn handle_nvim_tabpage_get_var(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_tabpage_get_var, expecting String"
                 .as_ptr(),
@@ -9079,7 +9079,7 @@ pub unsafe fn handle_nvim_tabpage_set_var(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeTabpage,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_tabpage_set_var, expecting Tabpage"
@@ -9089,7 +9089,7 @@ pub unsafe fn handle_nvim_tabpage_set_var(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_tabpage_set_var, expecting String"
                 .as_ptr(),
@@ -9097,7 +9097,7 @@ pub unsafe fn handle_nvim_tabpage_set_var(
         ) {
             return ret;
         }
-        let arg_3: Object = *args.items.add(2);
+        let arg_3: Object = args[2];
         nvim_tabpage_set_var(arg_1, arg_2, arg_3, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -9131,7 +9131,7 @@ pub unsafe fn handle_nvim_tabpage_del_var(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeTabpage,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_tabpage_del_var, expecting Tabpage"
@@ -9141,7 +9141,7 @@ pub unsafe fn handle_nvim_tabpage_del_var(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_tabpage_del_var, expecting String"
                 .as_ptr(),
@@ -9181,7 +9181,7 @@ pub unsafe fn handle_nvim_tabpage_get_win(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeTabpage,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_tabpage_get_win, expecting Tabpage"
@@ -9224,7 +9224,7 @@ pub unsafe fn handle_nvim_tabpage_set_win(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeTabpage,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_tabpage_set_win, expecting Tabpage"
@@ -9234,7 +9234,7 @@ pub unsafe fn handle_nvim_tabpage_set_win(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(1),
+            args[1],
             ObjectType::kObjectTypeWindow,
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_tabpage_set_win, expecting Window"
@@ -9275,7 +9275,7 @@ pub unsafe fn handle_nvim_tabpage_get_number(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeTabpage,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_tabpage_get_number, expecting Tabpage"
@@ -9317,7 +9317,7 @@ pub unsafe fn handle_nvim_tabpage_is_valid(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeTabpage,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_tabpage_is_valid, expecting Tabpage"
@@ -9358,7 +9358,7 @@ pub unsafe fn handle_nvim_open_tabpage(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_open_tabpage, expecting Buffer".as_ptr(),
@@ -9367,14 +9367,14 @@ pub unsafe fn handle_nvim_open_tabpage(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_open_tabpage, expecting Boolean".as_ptr(),
             error,
         ) {
             return ret;
         }
-        if !extract_keydict(*args.items.add(2), &raw mut arg_3, Some(KeyDict_tabpage_config_get_field), c"Wrong type for argument 3 when calling nvim_open_tabpage, expecting Dict(tabpage_config) *".as_ptr(), error) {
+        if !extract_keydict(args[2], &raw mut arg_3, Some(KeyDict_tabpage_config_get_field), c"Wrong type for argument 3 when calling nvim_open_tabpage, expecting Dict(tabpage_config) *".as_ptr(), error) {
             return ret;
         }
         if text_locked() {
@@ -9416,7 +9416,7 @@ pub unsafe fn handle_nvim_ui_attach(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_ui_attach, expecting Integer".as_ptr(),
             error,
@@ -9424,7 +9424,7 @@ pub unsafe fn handle_nvim_ui_attach(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_ui_attach, expecting Integer".as_ptr(),
             error,
@@ -9432,7 +9432,7 @@ pub unsafe fn handle_nvim_ui_attach(
             return ret;
         }
         if !extract_dict(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_ui_attach, expecting Dict".as_ptr(),
             error,
@@ -9473,7 +9473,7 @@ pub unsafe fn handle_ui_attach(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling ui_attach, expecting Integer".as_ptr(),
             error,
@@ -9481,7 +9481,7 @@ pub unsafe fn handle_ui_attach(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling ui_attach, expecting Integer".as_ptr(),
             error,
@@ -9489,7 +9489,7 @@ pub unsafe fn handle_ui_attach(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling ui_attach, expecting Boolean".as_ptr(),
             error,
@@ -9528,7 +9528,7 @@ pub unsafe fn handle_nvim_ui_set_focus(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_ui_set_focus, expecting Boolean".as_ptr(),
             error,
@@ -9598,7 +9598,7 @@ pub unsafe fn handle_nvim_ui_try_resize(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_ui_try_resize, expecting Integer"
                 .as_ptr(),
@@ -9607,7 +9607,7 @@ pub unsafe fn handle_nvim_ui_try_resize(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_ui_try_resize, expecting Integer"
                 .as_ptr(),
@@ -9647,14 +9647,14 @@ pub unsafe fn handle_nvim_ui_set_option(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_ui_set_option, expecting String".as_ptr(),
             error,
         ) {
             return ret;
         }
-        let arg_2: Object = *args.items.add(1);
+        let arg_2: Object = args[1];
         nvim_ui_set_option(channel_id, arg_1, arg_2, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -9689,7 +9689,7 @@ pub unsafe fn handle_nvim_ui_try_resize_grid(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_ui_try_resize_grid, expecting Integer"
                 .as_ptr(),
@@ -9698,7 +9698,7 @@ pub unsafe fn handle_nvim_ui_try_resize_grid(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_ui_try_resize_grid, expecting Integer"
                 .as_ptr(),
@@ -9707,7 +9707,7 @@ pub unsafe fn handle_nvim_ui_try_resize_grid(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_ui_try_resize_grid, expecting Integer"
                 .as_ptr(),
@@ -9747,7 +9747,7 @@ pub unsafe fn handle_nvim_ui_pum_set_height(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_ui_pum_set_height, expecting Integer"
                 .as_ptr(),
@@ -9790,7 +9790,7 @@ pub unsafe fn handle_nvim_ui_pum_set_bounds(
             return ret;
         }
         if !extract_float(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_ui_pum_set_bounds, expecting Float"
                 .as_ptr(),
@@ -9799,7 +9799,7 @@ pub unsafe fn handle_nvim_ui_pum_set_bounds(
             return ret;
         }
         if !extract_float(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_ui_pum_set_bounds, expecting Float"
                 .as_ptr(),
@@ -9808,7 +9808,7 @@ pub unsafe fn handle_nvim_ui_pum_set_bounds(
             return ret;
         }
         if !extract_float(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_ui_pum_set_bounds, expecting Float"
                 .as_ptr(),
@@ -9817,7 +9817,7 @@ pub unsafe fn handle_nvim_ui_pum_set_bounds(
             return ret;
         }
         if !extract_float(
-            *args.items.add(3),
+            args[3],
             &raw mut arg_4,
             c"Wrong type for argument 4 when calling nvim_ui_pum_set_bounds, expecting Float"
                 .as_ptr(),
@@ -9857,7 +9857,7 @@ pub unsafe fn handle_nvim_ui_send(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_ui_send, expecting String".as_ptr(),
             error,
@@ -9896,7 +9896,7 @@ pub unsafe fn handle_nvim_get_hl_id_by_name(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_get_hl_id_by_name, expecting String"
                 .as_ptr(),
@@ -9938,7 +9938,7 @@ pub unsafe fn handle_nvim_get_hl(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_get_hl, expecting Integer".as_ptr(),
             error,
@@ -9946,7 +9946,7 @@ pub unsafe fn handle_nvim_get_hl(
             return ret;
         }
         if args.size >= 2
-            && !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_get_highlight_get_field), c"Wrong type for argument 2 when calling nvim_get_hl, expecting Dict(get_highlight) *".as_ptr(), error) {
+            && !extract_keydict(args[1], &raw mut arg_2, Some(KeyDict_get_highlight_get_field), c"Wrong type for argument 2 when calling nvim_get_hl, expecting Dict(get_highlight) *".as_ptr(), error) {
                 return ret;
             }
         let rv = nvim_get_hl(arg_1, &raw mut arg_2, arena, error);
@@ -9984,7 +9984,7 @@ pub unsafe fn handle_nvim_set_hl(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_set_hl, expecting Integer".as_ptr(),
             error,
@@ -9992,7 +9992,7 @@ pub unsafe fn handle_nvim_set_hl(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_set_hl, expecting String".as_ptr(),
             error,
@@ -10000,7 +10000,7 @@ pub unsafe fn handle_nvim_set_hl(
             return ret;
         }
         if !extract_keydict(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             Some(KeyDict_highlight_get_field),
             c"Wrong type for argument 3 when calling nvim_set_hl, expecting Dict(highlight) *"
@@ -10042,7 +10042,7 @@ pub unsafe fn handle_nvim_get_hl_ns(
         }
         if args.size >= 1
             && !extract_keydict(
-                *args.items.add(0),
+                args[0],
                 &raw mut arg_1,
                 Some(KeyDict_get_ns_get_field),
                 c"Wrong type for argument 1 when calling nvim_get_hl_ns, expecting Dict(get_ns) *"
@@ -10085,7 +10085,7 @@ pub unsafe fn handle_nvim_set_hl_ns(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_set_hl_ns, expecting Integer".as_ptr(),
             error,
@@ -10124,7 +10124,7 @@ pub unsafe fn handle_nvim_set_hl_ns_fast(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_set_hl_ns_fast, expecting Integer"
                 .as_ptr(),
@@ -10166,7 +10166,7 @@ pub unsafe fn handle_nvim_feedkeys(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_feedkeys, expecting String".as_ptr(),
             error,
@@ -10174,7 +10174,7 @@ pub unsafe fn handle_nvim_feedkeys(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_feedkeys, expecting String".as_ptr(),
             error,
@@ -10182,7 +10182,7 @@ pub unsafe fn handle_nvim_feedkeys(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_feedkeys, expecting Boolean".as_ptr(),
             error,
@@ -10218,7 +10218,7 @@ pub unsafe fn handle_nvim_input(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_input, expecting String".as_ptr(),
             error,
@@ -10260,7 +10260,7 @@ pub unsafe fn handle_nvim_input_mouse(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_input_mouse, expecting String".as_ptr(),
             error,
@@ -10268,7 +10268,7 @@ pub unsafe fn handle_nvim_input_mouse(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_input_mouse, expecting String".as_ptr(),
             error,
@@ -10276,7 +10276,7 @@ pub unsafe fn handle_nvim_input_mouse(
             return ret;
         }
         if !extract_string(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_input_mouse, expecting String".as_ptr(),
             error,
@@ -10284,7 +10284,7 @@ pub unsafe fn handle_nvim_input_mouse(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(3),
+            args[3],
             &raw mut arg_4,
             c"Wrong type for argument 4 when calling nvim_input_mouse, expecting Integer".as_ptr(),
             error,
@@ -10292,7 +10292,7 @@ pub unsafe fn handle_nvim_input_mouse(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(4),
+            args[4],
             &raw mut arg_5,
             c"Wrong type for argument 5 when calling nvim_input_mouse, expecting Integer".as_ptr(),
             error,
@@ -10300,7 +10300,7 @@ pub unsafe fn handle_nvim_input_mouse(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(5),
+            args[5],
             &raw mut arg_6,
             c"Wrong type for argument 6 when calling nvim_input_mouse, expecting Integer".as_ptr(),
             error,
@@ -10342,7 +10342,7 @@ pub unsafe fn handle_nvim_replace_termcodes(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_replace_termcodes, expecting String"
                 .as_ptr(),
@@ -10351,7 +10351,7 @@ pub unsafe fn handle_nvim_replace_termcodes(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_replace_termcodes, expecting Boolean"
                 .as_ptr(),
@@ -10360,7 +10360,7 @@ pub unsafe fn handle_nvim_replace_termcodes(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_replace_termcodes, expecting Boolean"
                 .as_ptr(),
@@ -10369,7 +10369,7 @@ pub unsafe fn handle_nvim_replace_termcodes(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(3),
+            args[3],
             &raw mut arg_4,
             c"Wrong type for argument 4 when calling nvim_replace_termcodes, expecting Boolean"
                 .as_ptr(),
@@ -10408,7 +10408,7 @@ pub unsafe fn handle_nvim_exec_lua(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_exec_lua, expecting String".as_ptr(),
             error,
@@ -10416,7 +10416,7 @@ pub unsafe fn handle_nvim_exec_lua(
             return ret;
         }
         if !extract_array(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_exec_lua, expecting Array".as_ptr(),
             error,
@@ -10457,7 +10457,7 @@ pub unsafe fn handle_nvim__exec_lua_fast(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim__exec_lua_fast, expecting String"
                 .as_ptr(),
@@ -10466,7 +10466,7 @@ pub unsafe fn handle_nvim__exec_lua_fast(
             return ret;
         }
         if !extract_array(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim__exec_lua_fast, expecting Array".as_ptr(),
             error,
@@ -10506,7 +10506,7 @@ pub unsafe fn handle_nvim_strwidth(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_strwidth, expecting String".as_ptr(),
             error,
@@ -10606,7 +10606,7 @@ pub unsafe fn handle_nvim_get_runtime_file(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_get_runtime_file, expecting String"
                 .as_ptr(),
@@ -10615,7 +10615,7 @@ pub unsafe fn handle_nvim_get_runtime_file(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_get_runtime_file, expecting Boolean"
                 .as_ptr(),
@@ -10686,7 +10686,7 @@ pub unsafe fn handle_nvim__get_runtime(
             return ret;
         }
         if !extract_array(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim__get_runtime, expecting ArrayOf(String)"
                 .as_ptr(),
@@ -10695,7 +10695,7 @@ pub unsafe fn handle_nvim__get_runtime(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim__get_runtime, expecting Boolean".as_ptr(),
             error,
@@ -10703,7 +10703,7 @@ pub unsafe fn handle_nvim__get_runtime(
             return ret;
         }
         if args.size >= 3
-            && !extract_keydict(*args.items.add(2), &raw mut arg_3, Some(KeyDict_runtime_get_field), c"Wrong type for argument 3 when calling nvim__get_runtime, expecting Dict(runtime) *".as_ptr(), error) {
+            && !extract_keydict(args[2], &raw mut arg_3, Some(KeyDict_runtime_get_field), c"Wrong type for argument 3 when calling nvim__get_runtime, expecting Dict(runtime) *".as_ptr(), error) {
                 return ret;
             }
         let rv = nvim__get_runtime(arg_1, arg_2, &raw mut arg_3, arena, error);
@@ -10739,7 +10739,7 @@ pub unsafe fn handle_nvim_set_current_dir(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_set_current_dir, expecting String"
                 .as_ptr(),
@@ -10810,7 +10810,7 @@ pub unsafe fn handle_nvim_set_current_line(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_set_current_line, expecting String"
                 .as_ptr(),
@@ -10888,7 +10888,7 @@ pub unsafe fn handle_nvim_get_var(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_get_var, expecting String".as_ptr(),
             error,
@@ -10928,14 +10928,14 @@ pub unsafe fn handle_nvim_set_var(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_set_var, expecting String".as_ptr(),
             error,
         ) {
             return ret;
         }
-        let arg_2: Object = *args.items.add(1);
+        let arg_2: Object = args[1];
         nvim_set_var(arg_1, arg_2, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -10968,7 +10968,7 @@ pub unsafe fn handle_nvim_del_var(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_del_var, expecting String".as_ptr(),
             error,
@@ -11007,7 +11007,7 @@ pub unsafe fn handle_nvim_get_vvar(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_get_vvar, expecting String".as_ptr(),
             error,
@@ -11047,14 +11047,14 @@ pub unsafe fn handle_nvim_set_vvar(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_set_vvar, expecting String".as_ptr(),
             error,
         ) {
             return ret;
         }
-        let arg_2: Object = *args.items.add(1);
+        let arg_2: Object = args[1];
         nvim_set_vvar(arg_1, arg_2, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -11088,11 +11088,11 @@ pub unsafe fn handle_nvim_echo(
             );
             return ret;
         }
-        if !extract_array(*args.items.add(0), &raw mut arg_1, c"Wrong type for argument 1 when calling nvim_echo, expecting ArrayOf(Tuple(String, *HLGroupID))".as_ptr(), error) {
+        if !extract_array(args[0], &raw mut arg_1, c"Wrong type for argument 1 when calling nvim_echo, expecting ArrayOf(Tuple(String, *HLGroupID))".as_ptr(), error) {
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_echo, expecting Boolean".as_ptr(),
             error,
@@ -11101,7 +11101,7 @@ pub unsafe fn handle_nvim_echo(
         }
         if args.size >= 3
             && !extract_keydict(
-                *args.items.add(2),
+                args[2],
                 &raw mut arg_3,
                 Some(KeyDict_echo_opts_get_field),
                 c"Wrong type for argument 3 when calling nvim_echo, expecting Dict(echo_opts) *"
@@ -11200,7 +11200,7 @@ pub unsafe fn handle_nvim_set_current_buf(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_set_current_buf, expecting Buffer"
@@ -11301,7 +11301,7 @@ pub unsafe fn handle_nvim_set_current_win(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeWindow,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_set_current_win, expecting Window"
@@ -11347,7 +11347,7 @@ pub unsafe fn handle_nvim_create_buf(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_create_buf, expecting Boolean".as_ptr(),
             error,
@@ -11355,7 +11355,7 @@ pub unsafe fn handle_nvim_create_buf(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_create_buf, expecting Boolean".as_ptr(),
             error,
@@ -11396,7 +11396,7 @@ pub unsafe fn handle_nvim_open_term(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_open_term, expecting Buffer".as_ptr(),
@@ -11405,7 +11405,7 @@ pub unsafe fn handle_nvim_open_term(
             return ret;
         }
         if args.size >= 2
-            && !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_open_term_get_field), c"Wrong type for argument 2 when calling nvim_open_term, expecting Dict(open_term) *".as_ptr(), error) {
+            && !extract_keydict(args[1], &raw mut arg_2, Some(KeyDict_open_term_get_field), c"Wrong type for argument 2 when calling nvim_open_term, expecting Dict(open_term) *".as_ptr(), error) {
                 return ret;
             }
         if text_locked() {
@@ -11446,7 +11446,7 @@ pub unsafe fn handle_nvim_chan_send(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_chan_send, expecting Integer".as_ptr(),
             error,
@@ -11454,7 +11454,7 @@ pub unsafe fn handle_nvim_chan_send(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_chan_send, expecting String".as_ptr(),
             error,
@@ -11549,7 +11549,7 @@ pub unsafe fn handle_nvim_set_current_tabpage(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeTabpage,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_set_current_tabpage, expecting Tabpage"
@@ -11596,7 +11596,7 @@ pub unsafe fn handle_nvim_paste(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_paste, expecting String".as_ptr(),
             error,
@@ -11604,7 +11604,7 @@ pub unsafe fn handle_nvim_paste(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_paste, expecting Boolean".as_ptr(),
             error,
@@ -11612,7 +11612,7 @@ pub unsafe fn handle_nvim_paste(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_paste, expecting Integer".as_ptr(),
             error,
@@ -11659,7 +11659,7 @@ pub unsafe fn handle_nvim_put(
             return ret;
         }
         if !extract_array(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_put, expecting ArrayOf(String)".as_ptr(),
             error,
@@ -11667,7 +11667,7 @@ pub unsafe fn handle_nvim_put(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_put, expecting String".as_ptr(),
             error,
@@ -11675,7 +11675,7 @@ pub unsafe fn handle_nvim_put(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_put, expecting Boolean".as_ptr(),
             error,
@@ -11683,7 +11683,7 @@ pub unsafe fn handle_nvim_put(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(3),
+            args[3],
             &raw mut arg_4,
             c"Wrong type for argument 4 when calling nvim_put, expecting Boolean".as_ptr(),
             error,
@@ -11726,7 +11726,7 @@ pub unsafe fn handle_nvim_get_color_by_name(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_get_color_by_name, expecting String"
                 .as_ptr(),
@@ -11792,7 +11792,7 @@ pub unsafe fn handle_nvim_get_context(
             return ret;
         }
         if args.size >= 1
-            && !extract_keydict(*args.items.add(0), &raw mut arg_1, Some(KeyDict_context_get_field), c"Wrong type for argument 1 when calling nvim_get_context, expecting Dict(context) *".as_ptr(), error) {
+            && !extract_keydict(args[0], &raw mut arg_1, Some(KeyDict_context_get_field), c"Wrong type for argument 1 when calling nvim_get_context, expecting Dict(context) *".as_ptr(), error) {
                 return ret;
             }
         let rv = nvim_get_context(&raw mut arg_1, arena, error);
@@ -11828,7 +11828,7 @@ pub unsafe fn handle_nvim_load_context(
             return ret;
         }
         if !extract_dict(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_load_context, expecting Dict".as_ptr(),
             error,
@@ -11896,7 +11896,7 @@ pub unsafe fn handle_nvim_get_keymap(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_get_keymap, expecting String".as_ptr(),
             error,
@@ -11936,7 +11936,7 @@ pub unsafe fn handle_nvim_set_keymap(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_set_keymap, expecting String".as_ptr(),
             error,
@@ -11944,7 +11944,7 @@ pub unsafe fn handle_nvim_set_keymap(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_set_keymap, expecting String".as_ptr(),
             error,
@@ -11952,7 +11952,7 @@ pub unsafe fn handle_nvim_set_keymap(
             return ret;
         }
         if !extract_string(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_set_keymap, expecting String".as_ptr(),
             error,
@@ -11961,7 +11961,7 @@ pub unsafe fn handle_nvim_set_keymap(
         }
         if args.size >= 4
             && !extract_keydict(
-                *args.items.add(3),
+                args[3],
                 &raw mut arg_4,
                 Some(KeyDict_keymap_get_field),
                 c"Wrong type for argument 4 when calling nvim_set_keymap, expecting Dict(keymap) *"
@@ -12005,7 +12005,7 @@ pub unsafe fn handle_nvim_del_keymap(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_del_keymap, expecting String".as_ptr(),
             error,
@@ -12013,7 +12013,7 @@ pub unsafe fn handle_nvim_del_keymap(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_del_keymap, expecting String".as_ptr(),
             error,
@@ -12021,7 +12021,7 @@ pub unsafe fn handle_nvim_del_keymap(
             return ret;
         }
         if args.size >= 3
-            && !extract_keydict(*args.items.add(2), &raw mut arg_3, Some(KeyDict_keymap_del_get_field), c"Wrong type for argument 3 when calling nvim_del_keymap, expecting Dict(keymap_del) *".as_ptr(), error) {
+            && !extract_keydict(args[2], &raw mut arg_3, Some(KeyDict_keymap_del_get_field), c"Wrong type for argument 3 when calling nvim_del_keymap, expecting Dict(keymap_del) *".as_ptr(), error) {
                 return ret;
             }
         nvim_del_keymap(channel_id, arg_1, arg_2, &raw mut arg_3, error);
@@ -12088,7 +12088,7 @@ pub unsafe fn handle_nvim_set_client_info(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_set_client_info, expecting String"
                 .as_ptr(),
@@ -12097,7 +12097,7 @@ pub unsafe fn handle_nvim_set_client_info(
             return ret;
         }
         if !extract_dict(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_set_client_info, expecting Dict".as_ptr(),
             error,
@@ -12105,7 +12105,7 @@ pub unsafe fn handle_nvim_set_client_info(
             return ret;
         }
         if !extract_string(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_set_client_info, expecting String"
                 .as_ptr(),
@@ -12114,7 +12114,7 @@ pub unsafe fn handle_nvim_set_client_info(
             return ret;
         }
         if !extract_dict(
-            *args.items.add(3),
+            args[3],
             &raw mut arg_4,
             c"Wrong type for argument 4 when calling nvim_set_client_info, expecting Dict".as_ptr(),
             error,
@@ -12122,7 +12122,7 @@ pub unsafe fn handle_nvim_set_client_info(
             return ret;
         }
         if !extract_dict(
-            *args.items.add(4),
+            args[4],
             &raw mut arg_5,
             c"Wrong type for argument 5 when calling nvim_set_client_info, expecting Dict".as_ptr(),
             error,
@@ -12162,7 +12162,7 @@ pub unsafe fn handle_nvim_chan_set(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_chan_set, expecting Integer".as_ptr(),
             error,
@@ -12170,7 +12170,7 @@ pub unsafe fn handle_nvim_chan_set(
             return ret;
         }
         if !extract_keydict(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             Some(KeyDict_chan_set_get_field),
             c"Wrong type for argument 2 when calling nvim_chan_set, expecting Dict(chan_set) *"
@@ -12212,7 +12212,7 @@ pub unsafe fn handle_nvim__cmdwin_set(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim__cmdwin_set, expecting String".as_ptr(),
             error,
@@ -12220,7 +12220,7 @@ pub unsafe fn handle_nvim__cmdwin_set(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(1),
+            args[1],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim__cmdwin_set, expecting Buffer".as_ptr(),
@@ -12260,7 +12260,7 @@ pub unsafe fn handle_nvim_get_chan_info(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_get_chan_info, expecting Integer"
                 .as_ptr(),
@@ -12327,7 +12327,7 @@ pub unsafe fn handle_nvim__id(
             );
             return ret;
         }
-        let arg_1: Object = *args.items.add(0);
+        let arg_1: Object = args[0];
         let rv = nvim__id(arg_1, arena);
         ret = rv;
         ret
@@ -12358,7 +12358,7 @@ pub unsafe fn handle_nvim__id_array(
             return ret;
         }
         if !extract_array(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim__id_array, expecting Array".as_ptr(),
             error,
@@ -12395,7 +12395,7 @@ pub unsafe fn handle_nvim__id_dict(
             return ret;
         }
         if !extract_dict(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim__id_dict, expecting Dict".as_ptr(),
             error,
@@ -12432,7 +12432,7 @@ pub unsafe fn handle_nvim__id_float(
             return ret;
         }
         if !extract_float(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim__id_float, expecting Float".as_ptr(),
             error,
@@ -12525,7 +12525,7 @@ pub unsafe fn handle_nvim_get_proc_children(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_get_proc_children, expecting Integer"
                 .as_ptr(),
@@ -12566,7 +12566,7 @@ pub unsafe fn handle_nvim_get_proc(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_get_proc, expecting Integer".as_ptr(),
             error,
@@ -12609,7 +12609,7 @@ pub unsafe fn handle_nvim_select_popupmenu_item(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_select_popupmenu_item, expecting Integer"
                 .as_ptr(),
@@ -12618,7 +12618,7 @@ pub unsafe fn handle_nvim_select_popupmenu_item(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_select_popupmenu_item, expecting Boolean"
                 .as_ptr(),
@@ -12627,7 +12627,7 @@ pub unsafe fn handle_nvim_select_popupmenu_item(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_select_popupmenu_item, expecting Boolean"
                 .as_ptr(),
@@ -12636,7 +12636,7 @@ pub unsafe fn handle_nvim_select_popupmenu_item(
             return ret;
         }
         if args.size >= 4
-            && !extract_keydict(*args.items.add(3), &raw mut arg_4, Some(KeyDict_empty_get_field), c"Wrong type for argument 4 when calling nvim_select_popupmenu_item, expecting Dict(empty) *".as_ptr(), error) {
+            && !extract_keydict(args[3], &raw mut arg_4, Some(KeyDict_empty_get_field), c"Wrong type for argument 4 when calling nvim_select_popupmenu_item, expecting Dict(empty) *".as_ptr(), error) {
                 return ret;
             }
         nvim_select_popupmenu_item(arg_1, arg_2, arg_3, &raw mut arg_4, error);
@@ -12673,7 +12673,7 @@ pub unsafe fn handle_nvim__inspect_cell(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim__inspect_cell, expecting Integer"
                 .as_ptr(),
@@ -12682,7 +12682,7 @@ pub unsafe fn handle_nvim__inspect_cell(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim__inspect_cell, expecting Integer"
                 .as_ptr(),
@@ -12691,7 +12691,7 @@ pub unsafe fn handle_nvim__inspect_cell(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim__inspect_cell, expecting Integer"
                 .as_ptr(),
@@ -12732,7 +12732,7 @@ pub unsafe fn handle_nvim__screenshot(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim__screenshot, expecting String".as_ptr(),
             error,
@@ -12795,7 +12795,7 @@ pub unsafe fn handle_nvim__unpack(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim__unpack, expecting String".as_ptr(),
             error,
@@ -12835,7 +12835,7 @@ pub unsafe fn handle_nvim_del_mark(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_del_mark, expecting String".as_ptr(),
             error,
@@ -12876,7 +12876,7 @@ pub unsafe fn handle_nvim_get_mark(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_get_mark, expecting String".as_ptr(),
             error,
@@ -12885,7 +12885,7 @@ pub unsafe fn handle_nvim_get_mark(
         }
         if args.size >= 2
             && !extract_keydict(
-                *args.items.add(1),
+                args[1],
                 &raw mut arg_2,
                 Some(KeyDict_empty_get_field),
                 c"Wrong type for argument 2 when calling nvim_get_mark, expecting Dict(empty) *"
@@ -12929,7 +12929,7 @@ pub unsafe fn handle_nvim_eval_statusline(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_eval_statusline, expecting String"
                 .as_ptr(),
@@ -12938,7 +12938,7 @@ pub unsafe fn handle_nvim_eval_statusline(
             return ret;
         }
         if args.size >= 2
-            && !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_eval_statusline_get_field), c"Wrong type for argument 2 when calling nvim_eval_statusline, expecting Dict(eval_statusline) *".as_ptr(), error) {
+            && !extract_keydict(args[1], &raw mut arg_2, Some(KeyDict_eval_statusline_get_field), c"Wrong type for argument 2 when calling nvim_eval_statusline, expecting Dict(eval_statusline) *".as_ptr(), error) {
                 return ret;
             }
         let rv = nvim_eval_statusline(arg_1, &raw mut arg_2, arena, error);
@@ -12975,7 +12975,7 @@ pub unsafe fn handle_nvim__complete_set(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim__complete_set, expecting Integer"
                 .as_ptr(),
@@ -12984,7 +12984,7 @@ pub unsafe fn handle_nvim__complete_set(
             return ret;
         }
         if args.size >= 2
-            && !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_complete_set_get_field), c"Wrong type for argument 2 when calling nvim__complete_set, expecting Dict(complete_set) *".as_ptr(), error) {
+            && !extract_keydict(args[1], &raw mut arg_2, Some(KeyDict_complete_set_get_field), c"Wrong type for argument 2 when calling nvim__complete_set, expecting Dict(complete_set) *".as_ptr(), error) {
                 return ret;
             }
         let rv = nvim__complete_set(arg_1, &raw mut arg_2, arena, error);
@@ -13021,7 +13021,7 @@ pub unsafe fn handle_nvim__redraw(
         }
         if args.size >= 1
             && !extract_keydict(
-                *args.items.add(0),
+                args[0],
                 &raw mut arg_1,
                 Some(KeyDict_redraw_get_field),
                 c"Wrong type for argument 1 when calling nvim__redraw, expecting Dict(redraw) *"
@@ -13064,7 +13064,7 @@ pub unsafe fn handle_nvim__set_restart_on_crash(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim__set_restart_on_crash, expecting String"
                 .as_ptr(),
@@ -13073,7 +13073,7 @@ pub unsafe fn handle_nvim__set_restart_on_crash(
             return ret;
         }
         if !extract_array(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim__set_restart_on_crash, expecting Array"
                 .as_ptr(),
@@ -13111,7 +13111,7 @@ pub unsafe fn handle_nvim_exec2(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_exec2, expecting String".as_ptr(),
             error,
@@ -13120,7 +13120,7 @@ pub unsafe fn handle_nvim_exec2(
         }
         if args.size >= 2
             && !extract_keydict(
-                *args.items.add(1),
+                args[1],
                 &raw mut arg_2,
                 Some(KeyDict_exec_opts_get_field),
                 c"Wrong type for argument 2 when calling nvim_exec2, expecting Dict(exec_opts) *"
@@ -13163,7 +13163,7 @@ pub unsafe fn handle_nvim_command(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_command, expecting String".as_ptr(),
             error,
@@ -13202,7 +13202,7 @@ pub unsafe fn handle_nvim_eval(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_eval, expecting String".as_ptr(),
             error,
@@ -13243,7 +13243,7 @@ pub unsafe fn handle_nvim_call_function(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_call_function, expecting String".as_ptr(),
             error,
@@ -13251,7 +13251,7 @@ pub unsafe fn handle_nvim_call_function(
             return ret;
         }
         if !extract_array(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_call_function, expecting Array".as_ptr(),
             error,
@@ -13291,9 +13291,9 @@ pub unsafe fn handle_nvim_call_dict_function(
             );
             return ret;
         }
-        let arg_1: Object = *args.items.add(0);
+        let arg_1: Object = args[0];
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_call_dict_function, expecting String"
                 .as_ptr(),
@@ -13302,7 +13302,7 @@ pub unsafe fn handle_nvim_call_dict_function(
             return ret;
         }
         if !extract_array(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_call_dict_function, expecting Array"
                 .as_ptr(),
@@ -13345,7 +13345,7 @@ pub unsafe fn handle_nvim_parse_expression(
             return ret;
         }
         if !extract_string(
-            *args.items.add(0),
+            args[0],
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_parse_expression, expecting String"
                 .as_ptr(),
@@ -13354,7 +13354,7 @@ pub unsafe fn handle_nvim_parse_expression(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_parse_expression, expecting String"
                 .as_ptr(),
@@ -13363,7 +13363,7 @@ pub unsafe fn handle_nvim_parse_expression(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_parse_expression, expecting Boolean"
                 .as_ptr(),
@@ -13406,7 +13406,7 @@ pub unsafe fn handle_nvim_open_win(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_open_win, expecting Buffer".as_ptr(),
@@ -13415,7 +13415,7 @@ pub unsafe fn handle_nvim_open_win(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_open_win, expecting Boolean".as_ptr(),
             error,
@@ -13423,7 +13423,7 @@ pub unsafe fn handle_nvim_open_win(
             return ret;
         }
         if !extract_keydict(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             Some(KeyDict_win_config_get_field),
             c"Wrong type for argument 3 when calling nvim_open_win, expecting Dict(win_config) *"
@@ -13470,7 +13470,7 @@ pub unsafe fn handle_nvim_win_set_config(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeWindow,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_set_config, expecting Window"
@@ -13479,7 +13479,7 @@ pub unsafe fn handle_nvim_win_set_config(
         ) {
             return ret;
         }
-        if !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_win_config_get_field), c"Wrong type for argument 2 when calling nvim_win_set_config, expecting Dict(win_config) *".as_ptr(), error) {
+        if !extract_keydict(args[1], &raw mut arg_2, Some(KeyDict_win_config_get_field), c"Wrong type for argument 2 when calling nvim_win_set_config, expecting Dict(win_config) *".as_ptr(), error) {
             return ret;
         }
         nvim_win_set_config(arg_1, &raw mut arg_2, error);
@@ -13514,7 +13514,7 @@ pub unsafe fn handle_nvim_win_get_config(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeWindow,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_get_config, expecting Window"
@@ -13561,7 +13561,7 @@ pub unsafe fn handle_nvim_win_get_buf(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeWindow,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_get_buf, expecting Window".as_ptr(),
@@ -13603,7 +13603,7 @@ pub unsafe fn handle_nvim_win_set_buf(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeWindow,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_set_buf, expecting Window".as_ptr(),
@@ -13612,7 +13612,7 @@ pub unsafe fn handle_nvim_win_set_buf(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(1),
+            args[1],
             ObjectType::kObjectTypeBuffer,
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_win_set_buf, expecting Buffer".as_ptr(),
@@ -13656,7 +13656,7 @@ pub unsafe fn handle_nvim_win_get_cursor(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeWindow,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_get_cursor, expecting Window"
@@ -13699,7 +13699,7 @@ pub unsafe fn handle_nvim_win_set_cursor(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeWindow,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_set_cursor, expecting Window"
@@ -13708,7 +13708,7 @@ pub unsafe fn handle_nvim_win_set_cursor(
         ) {
             return ret;
         }
-        if !extract_array(*args.items.add(1), &raw mut arg_2, c"Wrong type for argument 2 when calling nvim_win_set_cursor, expecting ArrayOf(Integer, 2)".as_ptr(), error) {
+        if !extract_array(args[1], &raw mut arg_2, c"Wrong type for argument 2 when calling nvim_win_set_cursor, expecting ArrayOf(Integer, 2)".as_ptr(), error) {
             return ret;
         }
         nvim_win_set_cursor(arg_1, arg_2, error);
@@ -13743,7 +13743,7 @@ pub unsafe fn handle_nvim_win_get_height(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeWindow,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_get_height, expecting Window"
@@ -13785,7 +13785,7 @@ pub unsafe fn handle_nvim_win_get_width(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeWindow,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_get_width, expecting Window".as_ptr(),
@@ -13827,7 +13827,7 @@ pub unsafe fn handle_nvim_win_get_var(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeWindow,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_get_var, expecting Window".as_ptr(),
@@ -13836,7 +13836,7 @@ pub unsafe fn handle_nvim_win_get_var(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_win_get_var, expecting String".as_ptr(),
             error,
@@ -13877,7 +13877,7 @@ pub unsafe fn handle_nvim_win_set_var(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeWindow,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_set_var, expecting Window".as_ptr(),
@@ -13886,14 +13886,14 @@ pub unsafe fn handle_nvim_win_set_var(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_win_set_var, expecting String".as_ptr(),
             error,
         ) {
             return ret;
         }
-        let arg_3: Object = *args.items.add(2);
+        let arg_3: Object = args[2];
         nvim_win_set_var(arg_1, arg_2, arg_3, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -13927,7 +13927,7 @@ pub unsafe fn handle_nvim_win_del_var(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeWindow,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_del_var, expecting Window".as_ptr(),
@@ -13936,7 +13936,7 @@ pub unsafe fn handle_nvim_win_del_var(
             return ret;
         }
         if !extract_string(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_win_del_var, expecting String".as_ptr(),
             error,
@@ -13975,7 +13975,7 @@ pub unsafe fn handle_nvim_win_get_position(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeWindow,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_get_position, expecting Window"
@@ -14017,7 +14017,7 @@ pub unsafe fn handle_nvim_win_get_tabpage(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeWindow,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_get_tabpage, expecting Window"
@@ -14059,7 +14059,7 @@ pub unsafe fn handle_nvim_win_get_number(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeWindow,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_get_number, expecting Window"
@@ -14101,7 +14101,7 @@ pub unsafe fn handle_nvim_win_is_valid(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeWindow,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_is_valid, expecting Window".as_ptr(),
@@ -14139,7 +14139,7 @@ pub unsafe fn handle_nvim_win_hide(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeWindow,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_hide, expecting Window".as_ptr(),
@@ -14184,7 +14184,7 @@ pub unsafe fn handle_nvim_win_close(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeWindow,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_close, expecting Window".as_ptr(),
@@ -14193,7 +14193,7 @@ pub unsafe fn handle_nvim_win_close(
             return ret;
         }
         if !extract_boolean(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_win_close, expecting Boolean".as_ptr(),
             error,
@@ -14237,7 +14237,7 @@ pub unsafe fn handle_nvim_win_set_hl_ns(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeWindow,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_set_hl_ns, expecting Window".as_ptr(),
@@ -14246,7 +14246,7 @@ pub unsafe fn handle_nvim_win_set_hl_ns(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_win_set_hl_ns, expecting Integer"
                 .as_ptr(),
@@ -14287,7 +14287,7 @@ pub unsafe fn handle_nvim_win_text_height(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeWindow,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_text_height, expecting Window"
@@ -14297,7 +14297,7 @@ pub unsafe fn handle_nvim_win_text_height(
             return ret;
         }
         if args.size >= 2
-            && !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_win_text_height_get_field), c"Wrong type for argument 2 when calling nvim_win_text_height, expecting Dict(win_text_height) *".as_ptr(), error) {
+            && !extract_keydict(args[1], &raw mut arg_2, Some(KeyDict_win_text_height_get_field), c"Wrong type for argument 2 when calling nvim_win_text_height, expecting Dict(win_text_height) *".as_ptr(), error) {
                 return ret;
             }
         let rv = nvim_win_text_height(arg_1, &raw mut arg_2, arena, error);
@@ -14336,7 +14336,7 @@ pub unsafe fn handle_nvim_win_resize(
             return ret;
         }
         if !extract_handle(
-            *args.items.add(0),
+            args[0],
             ObjectType::kObjectTypeWindow,
             &raw mut arg_1,
             c"Wrong type for argument 1 when calling nvim_win_resize, expecting Window".as_ptr(),
@@ -14345,7 +14345,7 @@ pub unsafe fn handle_nvim_win_resize(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(1),
+            args[1],
             &raw mut arg_2,
             c"Wrong type for argument 2 when calling nvim_win_resize, expecting Integer".as_ptr(),
             error,
@@ -14353,7 +14353,7 @@ pub unsafe fn handle_nvim_win_resize(
             return ret;
         }
         if !extract_integer(
-            *args.items.add(2),
+            args[2],
             &raw mut arg_3,
             c"Wrong type for argument 3 when calling nvim_win_resize, expecting Integer".as_ptr(),
             error,
@@ -14361,7 +14361,7 @@ pub unsafe fn handle_nvim_win_resize(
             return ret;
         }
         if args.size >= 4
-            && !extract_keydict(*args.items.add(3), &raw mut arg_4, Some(KeyDict_win_resize_get_field), c"Wrong type for argument 4 when calling nvim_win_resize, expecting Dict(win_resize) *".as_ptr(), error) {
+            && !extract_keydict(args[3], &raw mut arg_4, Some(KeyDict_win_resize_get_field), c"Wrong type for argument 4 when calling nvim_win_resize, expecting Dict(win_resize) *".as_ptr(), error) {
                 return ret;
             }
         nvim_win_resize(arg_1, arg_2, arg_3, &raw mut arg_4, error);

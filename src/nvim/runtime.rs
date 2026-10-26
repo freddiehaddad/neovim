@@ -1034,7 +1034,7 @@ unsafe fn runtime_get_named_common(
             }
 
             for j in 0..pat.size {
-                let pat_item = *pat.items.add(j);
+                let pat_item = pat[j];
                 if pat_item.obj_type == ObjectType::kObjectTypeString {
                     let size = vim_snprintf!(
                         buf,

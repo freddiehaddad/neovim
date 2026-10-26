@@ -1059,7 +1059,7 @@ pub unsafe extern "C" fn nvim__get_runtime(
         let res = runtime_get_named((*opts).is_lua, pat, all, arena);
         if (*opts).do_source {
             for i in 0..res.size {
-                let name = (*res.items.add(i)).data.string();
+                let name = res[i].data.string();
                 do_source(name.data, false, DOSO_NONE, ptr::null_mut());
             }
         }
@@ -2074,7 +2074,7 @@ pub unsafe extern "C" fn nvim_put(
         reg.y_array = Vec::with_capacity(lines.size);
         reg.y_allocated = true;
         for i in 0..lines.size {
-            let item = *lines.items.add(i);
+            let item = lines[i];
             if !validate_t(
                 c"line".as_ptr(),
                 ObjectType::kObjectTypeString,
@@ -2182,7 +2182,7 @@ pub unsafe extern "C" fn nvim_get_context(
         let mut int_types: CtxStateFlags = if types.size > 0 { 0 } else { kCtxAll };
         if types.size > 0 {
             for i in 0..types.size {
-                let item = *types.items.add(i);
+                let item = types[i];
                 if item.obj_type == ObjectType::kObjectTypeString {
                     let s = item.data.string().data;
                     if strequal(s, c"regs".as_ptr()) {
@@ -2434,7 +2434,7 @@ pub unsafe extern "C" fn nvim_set_client_info(
 
         let mut has_major = false;
         for i in 0..version.size {
-            if strequal((*version.items.add(i)).key.data, c"major".as_ptr()) {
+            if strequal(version[i].key.data, c"major".as_ptr()) {
                 has_major = true;
                 break;
             }
@@ -3491,9 +3491,9 @@ pub unsafe extern "C" fn nvim__redraw(opts: *mut KeyDict_redraw, err: *mut Error
             let r = (*opts).range;
             let ok = r.size == 2
                 && (*r.items).obj_type == ObjectType::kObjectTypeInteger
-                && (*r.items.add(1)).obj_type == ObjectType::kObjectTypeInteger
+                && r[1].obj_type == ObjectType::kObjectTypeInteger
                 && (*r.items).data.integer() >= 0
-                && (*r.items.add(1)).data.integer() >= -1;
+                && r[1].data.integer() >= -1;
             if !ok {
                 api_set_error!(
                     err,
@@ -3504,7 +3504,7 @@ pub unsafe extern "C" fn nvim__redraw(opts: *mut KeyDict_redraw, err: *mut Error
                 return;
             }
             let begin_raw = (*r.items).data.integer();
-            let end_raw = (*r.items.add(1)).data.integer();
+            let end_raw = r[1].data.integer();
 
             let rbuf = if !win.is_null() {
                 (*win).w_buffer

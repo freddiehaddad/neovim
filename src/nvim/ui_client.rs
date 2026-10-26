@@ -370,8 +370,8 @@ pub unsafe fn ui_client_event_grid_resize(args: Array) {
     unsafe {
         if args.size < 3
             || (*args.items).obj_type != ObjectType::kObjectTypeInteger
-            || (*args.items.add(1)).obj_type != ObjectType::kObjectTypeInteger
-            || (*args.items.add(2)).obj_type != ObjectType::kObjectTypeInteger
+            || args[1].obj_type != ObjectType::kObjectTypeInteger
+            || args[2].obj_type != ObjectType::kObjectTypeInteger
         {
             logmsg!(
                 LOGLVL_ERR,
@@ -385,8 +385,8 @@ pub unsafe fn ui_client_event_grid_resize(args: Array) {
         }
 
         let grid = (*args.items).data.integer();
-        let width = (*args.items.add(1)).data.integer();
-        let height = (*args.items.add(2)).data.integer();
+        let width = args[1].data.integer();
+        let height = args[2].data.integer();
         tui_grid_resize(tui_ptr(), grid, width, height);
 
         let cols = width as usize;
@@ -551,7 +551,7 @@ pub unsafe fn ui_client_attach_to_restarted_server(error_restart: bool) {
 
         let first_arg = (*args.items).data.string().data;
         let chan_id = if start_server {
-            if args.size < 2 || (*args.items.add(1)).obj_type != ObjectType::kObjectTypeArray {
+            if args.size < 2 || args[1].obj_type != ObjectType::kObjectTypeArray {
                 logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
@@ -563,10 +563,10 @@ pub unsafe fn ui_client_attach_to_restarted_server(error_restart: bool) {
                 cleanup();
                 return;
             }
-            let cmdargs = (*args.items.add(1)).data.array();
+            let cmdargs = args[1].data.array();
             let mut argv: Vec<*mut c_char> = vec![ptr::null_mut(); cmdargs.size + 1];
             for (i, dst) in argv.iter_mut().enumerate().take(cmdargs.size) {
-                let item = *cmdargs.items.add(i);
+                let item = cmdargs[i];
                 if item.obj_type == ObjectType::kObjectTypeString {
                     *dst = item.data.string().data;
                 }
@@ -596,8 +596,8 @@ pub unsafe fn ui_client_attach_to_restarted_server(error_restart: bool) {
                 cleanup();
                 return;
             }
-            if args.size > 1 && (*args.items.add(1)).obj_type == ObjectType::kObjectTypeDict {
-                let mut chan_args_items: [Object; 2] = [integer_obj(0), *args.items.add(1)];
+            if args.size > 1 && args[1].obj_type == ObjectType::kObjectTypeDict {
+                let mut chan_args_items: [Object; 2] = [integer_obj(0), args[1]];
                 let chan_args = Array {
                     items: chan_args_items.as_mut_ptr(),
                     size: 2,
@@ -676,7 +676,7 @@ pub unsafe fn ui_client_event_mode_info_set(args: Array) {
     unsafe {
         if args.size < 2
             || (*args.items).obj_type != ObjectType::kObjectTypeBoolean
-            || (*args.items.add(1)).obj_type != ObjectType::kObjectTypeArray
+            || args[1].obj_type != ObjectType::kObjectTypeArray
         {
             log_ui_event_err(
                 c"ui_client_event_mode_info_set".as_ptr(),
@@ -687,7 +687,7 @@ pub unsafe fn ui_client_event_mode_info_set(args: Array) {
         tui_mode_info_set(
             tui_ptr(),
             (*args.items).data.boolean(),
-            (*args.items.add(1)).data.array(),
+            args[1].data.array(),
         );
     }
 }
@@ -726,7 +726,7 @@ pub unsafe fn ui_client_event_mode_change(args: Array) {
     unsafe {
         if args.size < 2
             || (*args.items).obj_type != ObjectType::kObjectTypeString
-            || (*args.items.add(1)).obj_type != ObjectType::kObjectTypeInteger
+            || args[1].obj_type != ObjectType::kObjectTypeInteger
         {
             log_ui_event_err(
                 c"ui_client_event_mode_change".as_ptr(),
@@ -737,7 +737,7 @@ pub unsafe fn ui_client_event_mode_change(args: Array) {
         tui_mode_change(
             tui_ptr(),
             (*args.items).data.string(),
-            (*args.items.add(1)).data.integer(),
+            args[1].data.integer(),
         );
     }
 }
@@ -808,7 +808,7 @@ pub unsafe fn ui_client_event_option_set(args: Array) {
             );
             return;
         }
-        tui_option_set(tui_ptr(), (*args.items).data.string(), *args.items.add(1));
+        tui_option_set(tui_ptr(), (*args.items).data.string(), args[1]);
     }
 }
 
@@ -836,10 +836,10 @@ pub unsafe fn ui_client_event_default_colors_set(args: Array) {
     unsafe {
         if args.size < 5
             || (*args.items).obj_type != ObjectType::kObjectTypeInteger
-            || (*args.items.add(1)).obj_type != ObjectType::kObjectTypeInteger
-            || (*args.items.add(2)).obj_type != ObjectType::kObjectTypeInteger
-            || (*args.items.add(3)).obj_type != ObjectType::kObjectTypeInteger
-            || (*args.items.add(4)).obj_type != ObjectType::kObjectTypeInteger
+            || args[1].obj_type != ObjectType::kObjectTypeInteger
+            || args[2].obj_type != ObjectType::kObjectTypeInteger
+            || args[3].obj_type != ObjectType::kObjectTypeInteger
+            || args[4].obj_type != ObjectType::kObjectTypeInteger
         {
             log_ui_event_err(
                 c"ui_client_event_default_colors_set".as_ptr(),
@@ -850,10 +850,10 @@ pub unsafe fn ui_client_event_default_colors_set(args: Array) {
         tui_default_colors_set(
             tui_ptr(),
             (*args.items).data.integer(),
-            (*args.items.add(1)).data.integer(),
-            (*args.items.add(2)).data.integer(),
-            (*args.items.add(3)).data.integer(),
-            (*args.items.add(4)).data.integer(),
+            args[1].data.integer(),
+            args[2].data.integer(),
+            args[3].data.integer(),
+            args[4].data.integer(),
         );
     }
 }
@@ -862,9 +862,9 @@ pub unsafe fn ui_client_event_hl_attr_define(args: Array) {
     unsafe {
         if args.size < 4
             || (*args.items).obj_type != ObjectType::kObjectTypeInteger
-            || (*args.items.add(1)).obj_type != ObjectType::kObjectTypeDict
-            || (*args.items.add(2)).obj_type != ObjectType::kObjectTypeDict
-            || (*args.items.add(3)).obj_type != ObjectType::kObjectTypeArray
+            || args[1].obj_type != ObjectType::kObjectTypeDict
+            || args[2].obj_type != ObjectType::kObjectTypeDict
+            || args[3].obj_type != ObjectType::kObjectTypeArray
         {
             log_ui_event_err(
                 c"ui_client_event_hl_attr_define".as_ptr(),
@@ -873,9 +873,9 @@ pub unsafe fn ui_client_event_hl_attr_define(args: Array) {
             return;
         }
         let arg_1 = (*args.items).data.integer();
-        let arg_2 = ui_client_dict2hlattrs((*args.items.add(1)).data.dict(), true);
-        let arg_3 = ui_client_dict2hlattrs((*args.items.add(2)).data.dict(), false);
-        let arg_4 = (*args.items.add(3)).data.array();
+        let arg_2 = ui_client_dict2hlattrs(args[1].data.dict(), true);
+        let arg_3 = ui_client_dict2hlattrs(args[2].data.dict(), false);
+        let arg_4 = args[3].data.array();
         tui_hl_attr_define(tui_ptr(), arg_1, arg_2, arg_3, arg_4);
     }
 }
@@ -897,8 +897,8 @@ pub unsafe fn ui_client_event_grid_cursor_goto(args: Array) {
     unsafe {
         if args.size < 3
             || (*args.items).obj_type != ObjectType::kObjectTypeInteger
-            || (*args.items.add(1)).obj_type != ObjectType::kObjectTypeInteger
-            || (*args.items.add(2)).obj_type != ObjectType::kObjectTypeInteger
+            || args[1].obj_type != ObjectType::kObjectTypeInteger
+            || args[2].obj_type != ObjectType::kObjectTypeInteger
         {
             log_ui_event_err(
                 c"ui_client_event_grid_cursor_goto".as_ptr(),
@@ -909,8 +909,8 @@ pub unsafe fn ui_client_event_grid_cursor_goto(args: Array) {
         tui_grid_cursor_goto(
             tui_ptr(),
             (*args.items).data.integer(),
-            (*args.items.add(1)).data.integer(),
-            (*args.items.add(2)).data.integer(),
+            args[1].data.integer(),
+            args[2].data.integer(),
         );
     }
 }
@@ -919,12 +919,12 @@ pub unsafe fn ui_client_event_grid_scroll(args: Array) {
     unsafe {
         if args.size < 7
             || (*args.items).obj_type != ObjectType::kObjectTypeInteger
-            || (*args.items.add(1)).obj_type != ObjectType::kObjectTypeInteger
-            || (*args.items.add(2)).obj_type != ObjectType::kObjectTypeInteger
-            || (*args.items.add(3)).obj_type != ObjectType::kObjectTypeInteger
-            || (*args.items.add(4)).obj_type != ObjectType::kObjectTypeInteger
-            || (*args.items.add(5)).obj_type != ObjectType::kObjectTypeInteger
-            || (*args.items.add(6)).obj_type != ObjectType::kObjectTypeInteger
+            || args[1].obj_type != ObjectType::kObjectTypeInteger
+            || args[2].obj_type != ObjectType::kObjectTypeInteger
+            || args[3].obj_type != ObjectType::kObjectTypeInteger
+            || args[4].obj_type != ObjectType::kObjectTypeInteger
+            || args[5].obj_type != ObjectType::kObjectTypeInteger
+            || args[6].obj_type != ObjectType::kObjectTypeInteger
         {
             log_ui_event_err(
                 c"ui_client_event_grid_scroll".as_ptr(),
@@ -935,12 +935,12 @@ pub unsafe fn ui_client_event_grid_scroll(args: Array) {
         tui_grid_scroll(
             tui_ptr(),
             (*args.items).data.integer(),
-            (*args.items.add(1)).data.integer(),
-            (*args.items.add(2)).data.integer(),
-            (*args.items.add(3)).data.integer(),
-            (*args.items.add(4)).data.integer(),
-            (*args.items.add(5)).data.integer(),
-            (*args.items.add(6)).data.integer(),
+            args[1].data.integer(),
+            args[2].data.integer(),
+            args[3].data.integer(),
+            args[4].data.integer(),
+            args[5].data.integer(),
+            args[6].data.integer(),
         );
     }
 }

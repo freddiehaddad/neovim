@@ -2546,7 +2546,7 @@ pub unsafe fn nlua_expand_pat(xp: *mut expand_T) {
 
                 let mut all_strings = true;
                 for i in 0..completions.size {
-                    let v = *completions.items.add(i);
+                    let v = completions[i];
                     if v.obj_type != ObjectType::kObjectTypeString {
                         all_strings = false;
                         break;

@@ -1314,13 +1314,13 @@ unsafe fn parse_config_split(split: NvimString, out: *mut WinSplit) -> bool {
 unsafe fn parse_float_bufpos(bufpos: Array, out: *mut lpos_T) -> bool {
     unsafe {
         if bufpos.size != 2
-            || (*bufpos.items.add(0)).obj_type != ObjectType::kObjectTypeInteger
-            || (*bufpos.items.add(1)).obj_type != ObjectType::kObjectTypeInteger
+            || bufpos[0].obj_type != ObjectType::kObjectTypeInteger
+            || bufpos[1].obj_type != ObjectType::kObjectTypeInteger
         {
             return false;
         }
-        (*out).lnum = (*bufpos.items.add(0)).data.integer() as i32;
-        (*out).col = (*bufpos.items.add(1)).data.integer() as i32;
+        (*out).lnum = bufpos[0].data.integer() as i32;
+        (*out).col = bufpos[1].data.integer() as i32;
         true
     }
 }
@@ -1473,7 +1473,7 @@ pub unsafe fn parse_border_style(style: Object, fconfig: *mut WinConfig, err: *m
                 return;
             }
             for i in 0..size {
-                let iytem = *arr.items.add(i);
+                let iytem = arr[i];
                 let string: NvimString;
                 let mut hl_id: c_int = 0;
                 if iytem.obj_type == ObjectType::kObjectTypeArray {
@@ -1487,7 +1487,7 @@ pub unsafe fn parse_border_style(style: Object, fconfig: *mut WinConfig, err: *m
                         );
                         return;
                     }
-                    let first = *iarr.items.add(0);
+                    let first = iarr[0];
                     if first.obj_type != ObjectType::kObjectTypeString {
                         api_err_exp(
                             err,
@@ -1500,7 +1500,7 @@ pub unsafe fn parse_border_style(style: Object, fconfig: *mut WinConfig, err: *m
                     string = first.data.string();
                     if iarr.size == 2 {
                         hl_id = object_to_hl_id(
-                            *iarr.items.add(1),
+                            iarr[1],
                             c"border char highlight".as_ptr(),
                             err,
                         );

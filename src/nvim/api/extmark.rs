@@ -839,14 +839,14 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                     let arr = (*opts).hl_group.data.array();
                     if arr.size >= 1 {
                         hl.hl_id =
-                            object_to_hl_id(*arr.items.add(0), c"hl_group item".as_ptr(), err);
+                            object_to_hl_id(arr[0], c"hl_group item".as_ptr(), err);
                         if error_set(err) {
                             break 'error;
                         }
                     }
                     for i in 1..arr.size {
                         let hl_id =
-                            object_to_hl_id(*arr.items.add(i), c"hl_group item".as_ptr(), err);
+                            object_to_hl_id(arr[i], c"hl_group item".as_ptr(), err);
                         if error_set(err) {
                             break 'error;
                         }
@@ -1018,7 +1018,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
             if has_key(mask, KEYSET_OPTIDX_set_extmark__virt_lines) {
                 let a = (*opts).virt_lines;
                 for j in 0..a.size {
-                    let item = *a.items.add(j);
+                    let item = a[j];
                     if item.obj_type != ObjectType::kObjectTypeArray {
                         api_err_exp(
                             err,
@@ -1268,7 +1268,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                     let mut i = arr.size - 1;
                     while i > 0 {
                         let hl_id =
-                            object_to_hl_id(*arr.items.add(i), c"hl_group item".as_ptr(), err);
+                            object_to_hl_id(arr[i], c"hl_group item".as_ptr(), err);
                         if hl_id > 0 {
                             let mut sh = DECOR_SIGN_HIGHLIGHT_INIT;
                             sh.hl_id = hl_id;
@@ -1570,8 +1570,8 @@ unsafe fn extmark_get_index_from_obj(
         } else if obj.obj_type == ObjectType::kObjectTypeArray {
             let pos = obj.data.array();
             if pos.size != 2
-                || (*pos.items.add(0)).obj_type != ObjectType::kObjectTypeInteger
-                || (*pos.items.add(1)).obj_type != ObjectType::kObjectTypeInteger
+                || pos[0].obj_type != ObjectType::kObjectTypeInteger
+                || pos[1].obj_type != ObjectType::kObjectTypeInteger
             {
                 api_err_exp(
                     err,
@@ -1582,8 +1582,8 @@ unsafe fn extmark_get_index_from_obj(
                 return false;
             }
 
-            let pos_row = (*pos.items.add(0)).data.integer();
-            let pos_col = (*pos.items.add(1)).data.integer();
+            let pos_row = pos[0].data.integer();
+            let pos_col = pos[1].data.integer();
             *row = (if pos_row >= 0 { pos_row } else { MAXLNUM }) as c_int;
             *col = (if pos_col >= 0 { pos_col } else { MAXCOL }) as colnr_T;
             true
@@ -1612,7 +1612,7 @@ pub unsafe fn parse_virt_text(
 
         'free_exit: {
             for i in 0..chunks.size {
-                let item = *chunks.items.add(i);
+                let item = chunks[i];
                 if item.obj_type != ObjectType::kObjectTypeArray {
                     api_err_exp(
                         err,
@@ -1625,7 +1625,7 @@ pub unsafe fn parse_virt_text(
                 let chunk = item.data.array();
                 if chunk.size == 0
                     || chunk.size > 2
-                    || (*chunk.items.add(0)).obj_type != ObjectType::kObjectTypeString
+                    || chunk[0].obj_type != ObjectType::kObjectTypeString
                 {
                     api_set_error!(
                         err,
@@ -1636,15 +1636,15 @@ pub unsafe fn parse_virt_text(
                     break 'free_exit;
                 }
 
-                let str_val = (*chunk.items.add(0)).data.string();
+                let str_val = chunk[0].data.string();
                 let mut hl_id: c_int = -1;
                 if chunk.size == 2 {
-                    let hl = *chunk.items.add(1);
+                    let hl = chunk[1];
                     if hl.obj_type == ObjectType::kObjectTypeArray {
                         let arr = hl.data.array();
                         for j in 0..arr.size {
                             hl_id = object_to_hl_id(
-                                *arr.items.add(j),
+                                arr[j],
                                 c"virt_text highlight".as_ptr(),
                                 err,
                             );

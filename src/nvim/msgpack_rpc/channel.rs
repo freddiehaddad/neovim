@@ -402,13 +402,13 @@ pub unsafe fn rpc_send_call(
                         et,
                         ErrorType::kErrorTypeException | ErrorType::kErrorTypeValidation
                     )
-                    && (*array.items.add(1)).obj_type == ObjectType::kObjectTypeString
+                    && array[1].obj_type == ObjectType::kObjectTypeString
                 {
                     api_set_error!(
                         err,
                         et,
                         c"%s".as_ptr(),
-                        (*array.items.add(1)).data.string().data,
+                        array[1].data.string().data,
                     );
                 } else {
                     api_set_error!(

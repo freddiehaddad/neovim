@@ -5489,8 +5489,8 @@ pub unsafe fn optval_from_obj(
             let dict = o.data.dict();
             let mut items: Vec<std::ffi::CString> = Vec::with_capacity(dict.size);
             for di in 0..dict.size {
-                let k = (*dict.items.add(di)).key;
-                let v = (*dict.items.add(di)).value;
+                let k = dict[di].key;
+                let v = dict[di].value;
                 if is_flaglist {
                     if !(v.obj_type == ObjectType::kObjectTypeNil
                         || (v.obj_type == ObjectType::kObjectTypeBoolean && !v.data.boolean()))

@@ -416,10 +416,9 @@ pub unsafe fn object_to_vim_take_luaref(
             tv_ref.vval = TypvalVval::List(list);
         },
         ObjectType::kObjectTypeDict => unsafe {
-            let d = obj.data.dict();
+            let mut d = obj.data.dict();
             let dict = tv_dict_alloc();
-            for i in 0..d.size {
-                let item = &mut *d.items.add(i);
+            for item in d.as_mut_slice() {
                 let di = tv_dict_item_alloc(item.key.data);
                 object_to_vim_take_luaref(&mut item.value, &mut (*di).di_tv, take_luaref, _err);
                 tv_dict_add(dict, di);

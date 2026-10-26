@@ -19,6 +19,15 @@ impl NvimString {
             size: 0,
         }
     }
+
+    #[inline]
+    pub unsafe fn as_bytes(&self) -> &[u8] {
+        if self.size == 0 || self.data.is_null() {
+            &[]
+        } else {
+            unsafe { std::slice::from_raw_parts(self.data.cast::<u8>(), self.size) }
+        }
+    }
 }
 
 impl Default for NvimString {
@@ -136,6 +145,24 @@ impl Array {
     }
 
     #[inline]
+    pub unsafe fn as_slice(&self) -> &[Object] {
+        if self.size == 0 || self.items.is_null() {
+            &[]
+        } else {
+            unsafe { std::slice::from_raw_parts(self.items, self.size) }
+        }
+    }
+
+    #[inline]
+    pub unsafe fn as_mut_slice(&mut self) -> &mut [Object] {
+        if self.size == 0 || self.items.is_null() {
+            &mut []
+        } else {
+            unsafe { std::slice::from_raw_parts_mut(self.items, self.size) }
+        }
+    }
+
+    #[inline]
     pub unsafe fn push(&mut self, value: Object) {
         if self.size == self.capacity {
             self.capacity = if self.capacity != 0 {
@@ -149,6 +176,22 @@ impl Array {
             std::ptr::write(self.items.add(self.size), value);
         }
         self.size += 1;
+    }
+}
+
+impl std::ops::Index<usize> for Array {
+    type Output = Object;
+
+    #[inline]
+    fn index(&self, index: usize) -> &Self::Output {
+        unsafe { &self.as_slice()[index] }
+    }
+}
+
+impl std::ops::IndexMut<usize> for Array {
+    #[inline]
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        unsafe { &mut self.as_mut_slice()[index] }
     }
 }
 
@@ -178,6 +221,24 @@ impl Dict {
     }
 
     #[inline]
+    pub unsafe fn as_slice(&self) -> &[KeyValuePair] {
+        if self.size == 0 || self.items.is_null() {
+            &[]
+        } else {
+            unsafe { std::slice::from_raw_parts(self.items, self.size) }
+        }
+    }
+
+    #[inline]
+    pub unsafe fn as_mut_slice(&mut self) -> &mut [KeyValuePair] {
+        if self.size == 0 || self.items.is_null() {
+            &mut []
+        } else {
+            unsafe { std::slice::from_raw_parts_mut(self.items, self.size) }
+        }
+    }
+
+    #[inline]
     pub unsafe fn push(&mut self, value: KeyValuePair) {
         if self.size == self.capacity {
             self.capacity = if self.capacity != 0 {
@@ -191,6 +252,22 @@ impl Dict {
             std::ptr::write(self.items.add(self.size), value);
         }
         self.size += 1;
+    }
+}
+
+impl std::ops::Index<usize> for Dict {
+    type Output = KeyValuePair;
+
+    #[inline]
+    fn index(&self, index: usize) -> &Self::Output {
+        unsafe { &self.as_slice()[index] }
+    }
+}
+
+impl std::ops::IndexMut<usize> for Dict {
+    #[inline]
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        unsafe { &mut self.as_mut_slice()[index] }
     }
 }
 
@@ -510,15 +587,12 @@ pub unsafe fn check_string_array(
         }
         if disallow_nl {
             let l = item.data.string();
-            if l.size > 0 && !l.data.is_null() {
-                let bytes = unsafe { std::slice::from_raw_parts(l.data.cast::<u8>(), l.size) };
-                if bytes.contains(&b'\n') {
-                    let msg = format!("'{name_str}' item contains newlines");
-                    unsafe {
-                        set_error_str(err, ErrorType::kErrorTypeValidation, &msg);
-                    }
-                    return false;
+            if unsafe { l.as_bytes() }.contains(&b'\n') {
+                let msg = format!("'{name_str}' item contains newlines");
+                unsafe {
+                    set_error_str(err, ErrorType::kErrorTypeValidation, &msg);
                 }
+                return false;
             }
         }
     }

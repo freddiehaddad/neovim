@@ -484,7 +484,7 @@ pub unsafe extern "C" fn nvim_buf_set_lines(
         };
 
         for i in 0..new_len {
-            let l = (*replacement.items.add(i)).data.string();
+            let l = replacement[i].data.string();
             let p = arena_memdupz(arena, l.data, l.size);
             memchrsub(p.cast(), NUL, NL, l.size);
             *lines.add(i) = p;
@@ -766,7 +766,7 @@ pub unsafe extern "C" fn nvim_buf_set_text(
             old_byte += (end_col as bcount_t) + 1;
         }
 
-        let first_item = (*replacement.items.add(0)).data.string();
+        let first_item = replacement[0].data.string();
         let last_item = (*replacement.items.add(replacement.size - 1)).data.string();
 
         let mut firstlen = (start_col as usize) + first_item.size;
@@ -814,7 +814,7 @@ pub unsafe extern "C" fn nvim_buf_set_text(
         *lines.add(0) = first;
         new_byte += first_item.size as bcount_t;
         for i in 1..new_len.saturating_sub(1) {
-            let l = (*replacement.items.add(i)).data.string();
+            let l = replacement[i].data.string();
             let p = arena_memdupz(arena, l.data, l.size);
             memchrsub(p.cast(), NUL, NL, l.size);
             *lines.add(i) = p;

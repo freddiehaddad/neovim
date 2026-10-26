@@ -430,7 +430,7 @@ pub unsafe fn decor_providers_invoke_range(
                         let row = first.data.integer();
                         let mut col: Integer = 0;
                         if res.size >= 2 {
-                            let second = *res.items.add(1);
+                            let second = res[1];
                             if matches!(second.obj_type, ObjectType::kObjectTypeInteger) {
                                 col = second.data.integer();
                             }

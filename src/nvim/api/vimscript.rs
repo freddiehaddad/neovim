@@ -255,7 +255,7 @@ unsafe fn call_function_impl(
         let mut vim_args: [typval_T; MAX_FUNC_ARGS + 1] = [typval_T::new(); MAX_FUNC_ARGS + 1];
         let mut i = 0usize;
         while i < args.size {
-            object_to_vim(*args.items.add(i), &mut vim_args[i], err);
+            object_to_vim(args[i], &mut vim_args[i], err);
             i += 1;
         }
 

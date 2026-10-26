@@ -533,7 +533,7 @@ pub unsafe fn ctx_from_dict(dict: Dict, ctx: *mut Context, err: *mut Error) -> C
         let mut types: CtxStateFlags = 0;
         let mut i = 0usize;
         while i < dict.size && !error_set(err) {
-            let item = *dict.items.add(i);
+            let item = dict[i];
             i += 1;
             if item.value.obj_type != ObjectType::kObjectTypeArray {
                 continue;

@@ -152,8 +152,8 @@ pub unsafe extern "C" fn nvim_win_set_cursor(win: Window, pos: Array, err: *mut 
         }
 
         if pos.size != 2
-            || (*pos.items.add(0)).obj_type != ObjectType::kObjectTypeInteger
-            || (*pos.items.add(1)).obj_type != ObjectType::kObjectTypeInteger
+            || pos[0].obj_type != ObjectType::kObjectTypeInteger
+            || pos[1].obj_type != ObjectType::kObjectTypeInteger
         {
             api_err_exp(
                 err,
@@ -164,8 +164,8 @@ pub unsafe extern "C" fn nvim_win_set_cursor(win: Window, pos: Array, err: *mut 
             return;
         }
 
-        let row = (*pos.items.add(0)).data.integer();
-        let col = (*pos.items.add(1)).data.integer();
+        let row = pos[0].data.integer();
+        let col = pos[1].data.integer();
 
         if row <= 0 || row > i64::from((*(*w).w_buffer).b_ml.ml_line_count) {
             api_err_range(err, c"cursor line".as_ptr());

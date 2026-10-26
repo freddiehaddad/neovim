@@ -2015,7 +2015,7 @@ unsafe fn shada_pack_entry(
                 let hdr = entry.data.header();
                 mpack_map(&mut sbuf.ptr, hdr.size as u32);
                 for i in 0..hdr.size {
-                    let kv = *hdr.items.add(i);
+                    let kv = hdr[i];
                     mpack_str(kv.key, &mut sbuf);
                     match kv.value.obj_type {
                         ObjectType::kObjectTypeString => {

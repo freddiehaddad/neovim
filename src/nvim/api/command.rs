@@ -856,7 +856,7 @@ pub unsafe extern "C" fn nvim_cmd(
                 ea.addr_count = range.size as c_int;
 
                 for i in 0..range.size {
-                    let elem = *range.items.add(i);
+                    let elem = range[i];
                     if elem.obj_type != ObjectType::kObjectTypeInteger || elem.data.integer() < 0 {
                         api_err_exp(
                             err,
@@ -869,7 +869,7 @@ pub unsafe extern "C" fn nvim_cmd(
                 }
 
                 if range.size > 0 {
-                    ea.line1 = (*range.items.add(0)).data.integer() as linenr_T;
+                    ea.line1 = range[0].data.integer() as linenr_T;
                     ea.line2 = (*range.items.add(range.size - 1)).data.integer() as linenr_T;
                 }
             }
@@ -917,7 +917,7 @@ pub unsafe extern "C" fn nvim_cmd(
                 p = ea.arg;
                 for i in 0..args.size {
                     ea.args.push(p);
-                    let arglen = (*args.items.add(i)).data.string().size;
+                    let arglen = args[i].data.string().size;
                     ea.arglens.push(arglen);
                     p = p.add(arglen + 1);
                 }
@@ -1287,7 +1287,7 @@ unsafe fn build_cmdline_str(
         );
 
         for i in 0..args.size {
-            let s = (*args.items.add(i)).data.string();
+            let s = args[i].data.string();
             cmdline_buf.push(b' ' as c_char);
             if s.size > 0 {
                 cmdline_buf.extend_from_slice(std::slice::from_raw_parts(s.data, s.size));

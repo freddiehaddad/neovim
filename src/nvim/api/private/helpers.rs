@@ -945,8 +945,8 @@ pub unsafe fn api_free_object(value: Object) {
 
 pub unsafe fn api_free_array(value: Array) {
     unsafe {
-        for i in 0..value.size {
-            api_free_object(*value.items.add(i));
+        for &item in value.as_slice() {
+            api_free_object(item);
         }
         free_items(value.items);
     }
@@ -954,8 +954,7 @@ pub unsafe fn api_free_array(value: Array) {
 
 pub unsafe fn api_free_dict(value: Dict) {
     unsafe {
-        for i in 0..value.size {
-            let item = *value.items.add(i);
+        for &item in value.as_slice() {
             api_free_string(item.key);
             api_free_object(item.value);
         }
@@ -993,7 +992,7 @@ pub unsafe fn copy_array(array: Array, arena: *mut Arena) -> Array {
     unsafe {
         let mut rv = arena_array(arena, array.size);
         for i in 0..array.size {
-            *rv.items.add(i) = copy_object(*array.items.add(i), arena);
+            *rv.items.add(i) = copy_object(array[i], arena);
         }
         rv.size = array.size;
         rv
@@ -1004,7 +1003,7 @@ pub unsafe fn copy_dict(dict: Dict, arena: *mut Arena) -> Dict {
     unsafe {
         let mut rv = arena_dict(arena, dict.size);
         for i in 0..dict.size {
-            let item = *dict.items.add(i);
+            let item = dict[i];
             let k_copy = copy_string(item.key, arena);
             *rv.items.add(i) = KeyValuePair {
                 key: cstr_as_string(k_copy.data),
@@ -1119,7 +1118,7 @@ pub unsafe fn parse_hl_msg(chunks: Array, is_err: bool, err: *mut Error) -> HlMe
     unsafe {
         let mut hl_msg = HlMessage::new();
         for i in 0..chunks.size {
-            let item = *chunks.items.add(i);
+            let item = chunks[i];
             if item.obj_type != ObjectType::kObjectTypeArray {
                 api_err_exp(
                     err,
@@ -1145,7 +1144,7 @@ pub unsafe fn parse_hl_msg(chunks: Array, is_err: bool, err: *mut Error) -> HlMe
 
             let str_ = copy_string((*chunk.items).data.string(), ptr::null_mut());
             let hl_id = if chunk.size == 2 {
-                object_to_hl_id(*chunk.items.add(1), c"text highlight".as_ptr(), err)
+                object_to_hl_id(chunk[1], c"text highlight".as_ptr(), err)
             } else if is_err {
                 HLF_E
             } else {
@@ -1160,7 +1159,7 @@ pub unsafe fn parse_hl_msg(chunks: Array, is_err: bool, err: *mut Error) -> HlMe
 pub unsafe fn api_dict_to_keydict(
     retval: *mut OptKeySet,
     hashy: FieldHashfn,
-    dict: Dict,
+    mut dict: Dict,
     err: *mut Error,
 ) -> bool {
     unsafe {
@@ -1168,7 +1167,7 @@ pub unsafe fn api_dict_to_keydict(
             return false;
         };
         for i in 0..dict.size {
-            let k = (*dict.items.add(i)).key;
+            let k = dict[i].key;
             let field = hashy_fn(k.data, k.size);
             if field.is_null() {
                 api_set_error!(
@@ -1187,7 +1186,7 @@ pub unsafe fn api_dict_to_keydict(
 
             let field_name = (*field).str.map_or(ptr::null(), |s| s.as_ptr());
             let mem = retval.cast::<u8>().add((*field).ptr_off);
-            let value = &raw mut (*dict.items.add(i)).value;
+            let value = &raw mut dict[i].value;
             let field_type =
                 ObjectType::from_raw((*field).key_type).unwrap_or(ObjectType::kObjectTypeUnset);
 
@@ -1422,16 +1421,16 @@ pub unsafe fn api_luarefs_free_keydict(dict: *mut OptKeySet, table: *mut KeySetL
 
 pub unsafe fn api_luarefs_free_array(value: Array) {
     unsafe {
-        for i in 0..value.size {
-            api_luarefs_free_object(*value.items.add(i));
+        for &item in value.as_slice() {
+            api_luarefs_free_object(item);
         }
     }
 }
 
 pub unsafe fn api_luarefs_free_dict(value: Dict) {
     unsafe {
-        for i in 0..value.size {
-            api_luarefs_free_object((*value.items.add(i)).value);
+        for &item in value.as_slice() {
+            api_luarefs_free_object(item.value);
         }
     }
 }

@@ -1426,15 +1426,18 @@ pub unsafe extern "C-unwind" fn nlua_push_Boolean(
 }
 
 /// Convert given `Dict` to Lua table (`nlua_push_Dict`).
-pub unsafe extern "C-unwind" fn nlua_push_Dict(lstate: *mut lua_State, dict: Dict, flags: c_int) {
+pub unsafe extern "C-unwind" fn nlua_push_Dict(
+    lstate: *mut lua_State,
+    mut dict: Dict,
+    flags: c_int,
+) {
     unsafe {
         lua_createtable(lstate, 0, dict.size as c_int);
         if dict.size == 0 {
             nlua_pushref(lstate, (*nlua_global_refs).empty_dict_ref);
             lua_setmetatable(lstate, -2);
         }
-        for i in 0..dict.size {
-            let item = &mut *dict.items.add(i);
+        for item in dict.as_mut_slice() {
             nlua_push_String(lstate, item.key, flags);
             nlua_push_Object(lstate, &mut item.value, flags);
             lua_rawset(lstate, -3);

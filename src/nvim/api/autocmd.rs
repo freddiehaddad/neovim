@@ -278,7 +278,7 @@ unsafe fn get_patterns_from_pattern_or_buf(
                 }
                 let array = pattern.data.array();
                 for i in 0..array.size {
-                    let entry = *array.items.add(i);
+                    let entry = array[i];
                     let mut pat: *const c_char = entry.data.string().data;
                     let mut patlen = aucmd_span_pattern(pat, &mut pat);
                     while patlen != 0 {
@@ -597,7 +597,7 @@ pub unsafe extern "C" fn nvim_get_autocmds(
             }
 
             for i in 0..buffers.size {
-                let bufnr = *buffers.items.add(i);
+                let bufnr = buffers[i];
                 pattern_filters[pattern_filter_count] = bufnr.data.string().data;
                 pattern_filter_count += 1;
             }
@@ -865,10 +865,7 @@ pub unsafe extern "C" fn nvim_create_autocmd(
                         callback.data = crate::api::private::validate::ObjectData::LuaRef(LUA_NOREF);
                     }
                     ObjectType::kObjectTypeString => {
-                        let s = cstr_from_bytes(std::slice::from_raw_parts(
-                            callback.data.string().data.cast::<u8>(),
-                            callback.data.string().size,
-                        ));
+                        let s = cstr_from_bytes(callback.data.string().as_bytes());
                         handler_fn.data = crate::eval::typval::CallbackData::funcref(s);
                     }
                     _ => {
@@ -882,10 +879,7 @@ pub unsafe extern "C" fn nvim_create_autocmd(
                     }
                 }
             } else if has_command {
-                handler_cmd = Some(cstr_from_bytes(std::slice::from_raw_parts(
-                    (*opts).command.data.cast::<u8>(),
-                    (*opts).command.size,
-                )));
+                handler_cmd = Some(cstr_from_bytes((*opts).command.as_bytes()));
             } else {
                 api_err_req(err, c"'command' or 'callback'".as_ptr());
                 break 'body;
@@ -948,7 +942,7 @@ pub unsafe extern "C" fn nvim_create_autocmd(
             NEXT_AUTOCMD_ID += 1;
 
             for i in 0..event_array.size {
-                let event_str = *event_array.items.add(i);
+                let event_str = event_array[i];
                 let event_nr = event_name2nr_str(event_str.data.string());
                 if (event_nr as usize) >= NUM_EVENTS {
                     api_err_inv(err, c"event".as_ptr(), event_str.data.string().data);
@@ -956,7 +950,7 @@ pub unsafe extern "C" fn nvim_create_autocmd(
                 }
 
                 for j in 0..patterns.size {
-                    let pat = *patterns.items.add(j);
+                    let pat = patterns[j];
                     let save_current_sctx = api_set_sctx(channel_id);
                     let retval = autocmd_register(
                         autocmd_id,
@@ -1084,7 +1078,7 @@ pub unsafe extern "C" fn nvim_clear_autocmds(
         if (*opts).event.obj_type == ObjectType::kObjectTypeNil {
             for event in 0..NUM_EVENTS {
                 for j in 0..patterns.size {
-                    let pat_object = *patterns.items.add(j);
+                    let pat_object = patterns[j];
                     if !clear_autocmd(event as event_T, pat_object.data.string().data, au_group, err)
                     {
                         return;
@@ -1093,14 +1087,14 @@ pub unsafe extern "C" fn nvim_clear_autocmds(
             }
         } else {
             for i in 0..event_array.size {
-                let event_str = *event_array.items.add(i);
+                let event_str = event_array[i];
                 let event_nr = event_name2nr_str(event_str.data.string());
                 if (event_nr as usize) >= NUM_EVENTS {
                     api_err_inv(err, c"event".as_ptr(), event_str.data.string().data);
                     return;
                 }
                 for j in 0..patterns.size {
-                    let pat_object = *patterns.items.add(j);
+                    let pat_object = patterns[j];
                     if !clear_autocmd(event_nr, pat_object.data.string().data, au_group, err) {
                         return;
                     }
@@ -1317,14 +1311,14 @@ pub unsafe extern "C" fn nvim_exec_autocmds(
 
         let mut did_aucmd = false;
         for i in 0..event_array.size {
-            let event_str = *event_array.items.add(i);
+            let event_str = event_array[i];
             let event_nr = event_name2nr_str(event_str.data.string());
             if (event_nr as usize) >= NUM_EVENTS {
                 api_err_inv(err, c"event".as_ptr(), event_str.data.string().data);
                 return;
             }
             for j in 0..patterns.size {
-                let pat = *patterns.items.add(j);
+                let pat = patterns[j];
                 let fname = if !has_buf {
                     pat.data.string().data
                 } else {

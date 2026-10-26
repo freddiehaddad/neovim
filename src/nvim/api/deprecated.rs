@@ -472,7 +472,7 @@ pub unsafe fn buffer_get_line(
             err,
         );
         if !error_set(err) && slice.size > 0 {
-            rv = (*slice.items.add(0)).data.string();
+            rv = slice[0].data.string();
         }
         rv
     }
@@ -1087,7 +1087,7 @@ pub unsafe extern "C" fn nvim_call_atomic(
         let mut i = 0usize;
         'theend: {
             while i < calls.size {
-                let item = *calls.items.add(i);
+                let item = calls[i];
                 if item.obj_type != ObjectType::kObjectTypeArray {
                     api_err_exp(
                         err,
@@ -1107,7 +1107,7 @@ pub unsafe extern "C" fn nvim_call_atomic(
                     );
                     break 'theend;
                 }
-                let first = *call.items.add(0);
+                let first = call[0];
                 if first.obj_type != ObjectType::kObjectTypeString {
                     api_err_exp(
                         err,
@@ -1118,7 +1118,7 @@ pub unsafe extern "C" fn nvim_call_atomic(
                     break 'theend;
                 }
                 let name = first.data.string();
-                let second = *call.items.add(1);
+                let second = call[1];
                 if second.obj_type != ObjectType::kObjectTypeArray {
                     api_err_exp(
                         err,

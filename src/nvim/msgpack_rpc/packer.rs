@@ -519,8 +519,8 @@ pub unsafe fn mpack_object_inner(
                     container = std::ptr::null_mut();
                 }
             } else {
-                let dict = cont.data.dict();
-                let it = &mut *dict.items.add(container_idx);
+                let mut dict = cont.data.dict();
+                let it = &mut dict[container_idx];
                 container_idx += 1;
                 mpack_check_buffer(packer);
                 mpack_str(it.key, packer);

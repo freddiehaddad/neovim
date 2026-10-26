@@ -719,7 +719,7 @@ unsafe fn apply_termdefs(tui: *mut TUIData) {
 
         let dict = rv.data.dict();
         for i in 0..dict.size {
-            let kv = *dict.items.add(i);
+            let kv = dict[i];
             let key_bytes = if kv.key.data.is_null() {
                 &[][..]
             } else {
@@ -784,7 +784,7 @@ unsafe fn apply_termdefs(tui: *mut TUIData) {
                     (*tui).ti.keys[idx][0] = ptr::null();
                     (*tui).ti.keys[idx][1] = ptr::null();
                     for key_map_idx in 0..arr.size {
-                        let key_mapping = *arr.items.add(key_map_idx);
+                        let key_mapping = arr[key_map_idx];
                         if key_mapping.obj_type != ObjectType::kObjectTypeString {
                             let msg = format!(
                                 "skipping invalid field definition in $NVIM_TERMDEFS for {key_str}[{key_map_idx}]: expected type 'string'\n"
@@ -1843,7 +1843,7 @@ unsafe fn decode_cursor_entry(args: Dict) -> cursorentry_T {
     unsafe {
         let mut r = shape_table[0];
         for i in 0..args.size {
-            let item = *args.items.add(i);
+            let item = args[i];
             let key = item.key.data;
             let value = item.value;
             if strequal(key, c"cursor_shape".as_ptr()) {
@@ -1871,7 +1871,7 @@ pub unsafe fn tui_mode_info_set(tui: *mut TUIData, guicursor_enabled: bool, args
         assert!(args.size != 0);
 
         for i in 0..args.size {
-            let item = *args.items.add(i);
+            let item = args[i];
             assert!(item.obj_type == ObjectType::kObjectTypeDict);
             let r = decode_cursor_entry(item.data.dict());
             (*tui).cursor_shapes[i] = r;
