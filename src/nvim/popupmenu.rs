@@ -350,9 +350,9 @@ unsafe fn pum_compute_horizontal_placement(
 #[inline]
 unsafe fn pum_border_width() -> c_int {
     unsafe {
-        if *p_pumborder == NUL || strequal(p_pumborder, opt_winborder_values[7]) {
+        if *p_pumborder == NUL || strequal(p_pumborder, opt_winborder_values[7].as_ptr()) {
             0
-        } else if strequal(p_pumborder, opt_winborder_values[3]) {
+        } else if strequal(p_pumborder, opt_winborder_values[3].as_ptr()) {
             1
         } else {
             2
@@ -762,7 +762,7 @@ pub unsafe fn pum_redraw() {
                 return;
             }
 
-            if strequal(p_pumborder, opt_winborder_values[3]) {
+            if strequal(p_pumborder, opt_winborder_values[3].as_ptr()) {
                 fconfig.shadow = true;
                 let blend = syn_check_group(c"PmenuShadow".as_ptr(), 11);
                 let through = syn_check_group(c"PmenuShadowThrough".as_ptr(), 18);

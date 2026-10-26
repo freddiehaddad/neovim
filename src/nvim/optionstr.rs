@@ -108,18 +108,16 @@ pub struct CharBuf {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct OptSchemaItem {
-    pub name: *const c_char,
+    pub name: &'static std::ffi::CStr,
     pub kind: OptSchemaKind,
-    pub enum_values: *const *const c_char,
+    pub enum_values: &'static [&'static std::ffi::CStr],
 }
-
-unsafe impl Sync for OptSchemaItem {}
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct OptDictSchema {
     pub get_field: FieldHashfn,
-    pub schema: *const OptSchemaItem,
+    pub schema: &'static [OptSchemaItem],
     pub size: usize,
 }
 
@@ -229,9 +227,8 @@ pub struct vimoption_T {
     pub flags_var: *mut c_uint,
     pub scope_idx: [isize; 4],
     pub immutable: bool,
-    pub values: *mut *const c_char,
-    pub values_len: usize,
-    pub schema: *const OptSchemaItem,
+    pub values: &'static [&'static std::ffi::CStr],
+    pub schema: &'static [OptSchemaItem],
     pub opt_validate_cb: opt_validate_cb_T,
     pub opt_did_set_cb: opt_did_set_cb_T,
     pub opt_expand_cb: opt_expand_cb_T,
@@ -955,62 +952,40 @@ unsafe fn OptKeyDict_pvp_get_field(str_arg: *const c_char, len: usize) -> *const
     }
 }
 
-pub(crate) unsafe fn opt_dict_schema(opt_idx: OptIndex) -> *const OptDictSchema {
-    static mut INFO_BRIOPT: OptDictSchema = OptDictSchema {
-        get_field: None,
-        schema: ptr::null(),
+pub(crate) fn opt_dict_schema(opt_idx: OptIndex) -> Option<&'static OptDictSchema> {
+    static INFO_BRIOPT: OptDictSchema = OptDictSchema {
+        get_field: Some(OptKeyDict_briopt_get_field),
+        schema: &opt_briopt_schema,
         size: std::mem::size_of::<OptKeyDict_briopt>(),
     };
-    static mut INFO_DIP: OptDictSchema = OptDictSchema {
-        get_field: None,
-        schema: ptr::null(),
+    static INFO_DIP: OptDictSchema = OptDictSchema {
+        get_field: Some(OptKeyDict_dip_get_field),
+        schema: &opt_dip_schema,
         size: std::mem::size_of::<OptKeyDict_dip>(),
     };
-    static mut INFO_MOPT: OptDictSchema = OptDictSchema {
-        get_field: None,
-        schema: ptr::null(),
+    static INFO_MOPT: OptDictSchema = OptDictSchema {
+        get_field: Some(OptKeyDict_mopt_get_field),
+        schema: &opt_mopt_schema,
         size: std::mem::size_of::<OptKeyDict_mopt>(),
     };
-    static mut INFO_MOUSESCROLL: OptDictSchema = OptDictSchema {
-        get_field: None,
-        schema: ptr::null(),
+    static INFO_MOUSESCROLL: OptDictSchema = OptDictSchema {
+        get_field: Some(OptKeyDict_mousescroll_get_field),
+        schema: &opt_mousescroll_schema,
         size: std::mem::size_of::<OptKeyDict_mousescroll>(),
     };
-    static mut INFO_PVP: OptDictSchema = OptDictSchema {
-        get_field: None,
-        schema: ptr::null(),
+    static INFO_PVP: OptDictSchema = OptDictSchema {
+        get_field: Some(OptKeyDict_pvp_get_field),
+        schema: &opt_pvp_schema,
         size: std::mem::size_of::<OptKeyDict_pvp>(),
     };
 
-    unsafe {
-        match opt_idx {
-            kOptBreakindentopt => {
-                INFO_BRIOPT.get_field = Some(OptKeyDict_briopt_get_field);
-                INFO_BRIOPT.schema = opt_briopt_schema.as_ptr();
-                &raw const INFO_BRIOPT
-            }
-            kOptDiffopt => {
-                INFO_DIP.get_field = Some(OptKeyDict_dip_get_field);
-                INFO_DIP.schema = opt_dip_schema.as_ptr();
-                &raw const INFO_DIP
-            }
-            kOptMessagesopt => {
-                INFO_MOPT.get_field = Some(OptKeyDict_mopt_get_field);
-                INFO_MOPT.schema = opt_mopt_schema.as_ptr();
-                &raw const INFO_MOPT
-            }
-            kOptMousescroll => {
-                INFO_MOUSESCROLL.get_field = Some(OptKeyDict_mousescroll_get_field);
-                INFO_MOUSESCROLL.schema = opt_mousescroll_schema.as_ptr();
-                &raw const INFO_MOUSESCROLL
-            }
-            kOptPreviewpopup => {
-                INFO_PVP.get_field = Some(OptKeyDict_pvp_get_field);
-                INFO_PVP.schema = opt_pvp_schema.as_ptr();
-                &raw const INFO_PVP
-            }
-            _ => ptr::null(),
-        }
+    match opt_idx {
+        kOptBreakindentopt => Some(&INFO_BRIOPT),
+        kOptDiffopt => Some(&INFO_DIP),
+        kOptMessagesopt => Some(&INFO_MOPT),
+        kOptMousescroll => Some(&INFO_MOUSESCROLL),
+        kOptPreviewpopup => Some(&INFO_PVP),
+        _ => None,
     }
 }
 
@@ -1158,7 +1133,7 @@ pub unsafe fn check_signcolumn(scl: *mut c_char, wp: *mut win_T) -> c_int {
 
         if opt_strings_flags(
             val,
-            (&raw const opt_scl_values).cast(),
+            &opt_scl_values,
             ptr::null_mut(),
             false,
             ptr::null(),
@@ -1347,7 +1322,7 @@ pub unsafe fn check_illegal_path_names(val: *mut c_char, flags: u32) -> bool {
     }
 }
 
-unsafe fn opt_values(idx: OptIndex, values_len: *mut usize) -> *const *const c_char {
+unsafe fn opt_values(idx: OptIndex) -> &'static [&'static CStr] {
     unsafe {
         let idx1 = if idx == kOptViewoptions {
             kOptSessionoptions
@@ -1357,11 +1332,7 @@ unsafe fn opt_values(idx: OptIndex, values_len: *mut usize) -> *const *const c_c
             idx
         };
 
-        let opt = get_option(idx1);
-        if !values_len.is_null() {
-            *values_len = (*opt).values_len;
-        }
-        (*opt).values.cast_const()
+        (*get_option(idx1)).values
     }
 }
 
@@ -1376,7 +1347,7 @@ unsafe fn check_str_opt(
             varp = (*opt).var.cast::<*mut c_char>();
         }
         let list = ((*opt).flags & (kOptFlagComma | kOptFlagOneComma)) != 0;
-        let values = opt_values(idx, ptr::null_mut());
+        let values = opt_values(idx);
         opt_strings_flags(*varp, values, (*opt).flags_var, list, errbuf)
     }
 }
@@ -1386,7 +1357,7 @@ pub unsafe fn expand_set_str_generic(
     matches: &mut Vec<std::ffi::CString>,
 ) -> c_int {
     unsafe {
-        let values = opt_values((*args).oe_idx, ptr::null_mut());
+        let values = opt_values((*args).oe_idx);
         expand_set_opt_string(args, values, matches)
     }
 }
@@ -1409,7 +1380,7 @@ pub unsafe fn validate_str_generic(args: *mut optset_T) -> *const c_char {
         let value = (*args).os_newval.data.string().data;
         opt_strings_flags(
             value,
-            opt_values((*args).os_idx, ptr::null_mut()),
+            opt_values((*args).os_idx),
             ptr::null_mut(),
             ((*opt).flags & kOptFlagComma) != 0,
             (*args).os_errbuf,
@@ -1438,7 +1409,7 @@ unsafe fn check_option_listflag(
 /// Expand an option that accepts a list of string values.
 unsafe fn expand_set_opt_string(
     args: *mut optexpand_T,
-    values: *const *const c_char,
+    values: &[&CStr],
     matches: &mut Vec<std::ffi::CString>,
 ) -> c_int {
     unsafe {
@@ -1452,18 +1423,15 @@ unsafe fn expand_set_opt_string(
             matches.push(CStr::from_ptr(option_val).to_owned());
         }
 
-        let mut val = values;
-        while !(*val).is_null() {
-            if **val == NUL
-                || (include_orig_val && *option_val != NUL && strcmp(*val, option_val) == 0)
+        for &val in values {
+            if val.to_bytes().is_empty()
+                || (include_orig_val && *option_val != NUL && strcmp(val.as_ptr(), option_val) == 0)
             {
-                val = val.add(1);
                 continue;
             }
-            if vim_regexec(regmatch, *val, 0) {
-                matches.push(CStr::from_ptr(*val).to_owned());
+            if vim_regexec(regmatch, val.as_ptr(), 0) {
+                matches.push(val.to_owned());
             }
-            val = val.add(1);
         }
         if matches.is_empty() {
             return FAIL;
@@ -1643,7 +1611,7 @@ pub unsafe fn validate_backupcopy(args: *mut optset_T) -> *const c_char {
         let mut flags: c_uint = 0;
         let errmsg = opt_strings_flags(
             (*args).os_newval.data.string().data,
-            (&raw const opt_bkc_values).cast(),
+            &opt_bkc_values,
             &raw mut flags,
             true,
             (*args).os_errbuf,
@@ -1682,7 +1650,7 @@ pub unsafe fn did_set_backupcopy(args: *mut optset_T) -> *const c_char {
         } else {
             let errmsg = opt_strings_flags(
                 bkc,
-                (&raw const opt_bkc_values).cast(),
+                &opt_bkc_values,
                 flags,
                 true,
                 (*args).os_errbuf,
@@ -2167,7 +2135,7 @@ pub unsafe fn did_set_completeopt(args: *mut optset_T) -> *const c_char {
 
         opt_strings_flags(
             cot,
-            (&raw const opt_cot_values).cast(),
+            &opt_cot_values,
             flags,
             true,
             (*args).os_errbuf,
@@ -2181,7 +2149,7 @@ pub unsafe fn did_set_completeslash(args: *mut optset_T) -> *const c_char {
         let buf = (*args).os_buf;
         let errmsg = opt_strings_flags(
             p_csl,
-            (&raw const opt_csl_values).cast(),
+            &opt_csl_values,
             ptr::null_mut(),
             false,
             (*args).os_errbuf,
@@ -2191,7 +2159,7 @@ pub unsafe fn did_set_completeslash(args: *mut optset_T) -> *const c_char {
         }
         opt_strings_flags(
             (*buf).b_p_csl,
-            (&raw const opt_csl_values).cast(),
+            &opt_csl_values,
             ptr::null_mut(),
             false,
             (*args).os_errbuf,
@@ -2290,14 +2258,14 @@ pub unsafe fn expand_set_diffopt(args: *mut optexpand_T, matches: &mut Vec<std::
             if completing_value_for_subopt(args, c"algorithm".as_ptr()) {
                 return expand_set_opt_string(
                     args,
-                    (&raw const opt_dip_algorithm_values).cast(),
+                    &opt_dip_algorithm_values,
                     matches,
                 );
             }
             if completing_value_for_subopt(args, c"inline".as_ptr()) {
                 return expand_set_opt_string(
                     args,
-                    (&raw const opt_dip_inline_values).cast(),
+                    &opt_dip_inline_values,
                     matches,
                 );
             }
@@ -2453,12 +2421,12 @@ pub unsafe fn did_set_fileformat(args: *mut optset_T) -> *const c_char {
 
 /// Function given to ExpandGeneric() to obtain the possible arguments of fileformat options.
 pub unsafe fn get_fileformat_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
-    unsafe {
-        if idx < 0 || (idx as usize) >= (&raw const opt_ff_values as *const [*const c_char]).len() {
-            return ptr::null_mut();
-        }
-        opt_ff_values[idx as usize].cast_mut()
+    if idx < 0 {
+        return ptr::null_mut();
     }
+    opt_ff_values
+        .get(idx as usize)
+        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
 }
 
 /// Validate the 'filetype', 'syntax' or 'keymap' option.
@@ -2853,7 +2821,7 @@ pub unsafe fn validate_sessionoptions(args: *mut optset_T) -> *const c_char {
         let mut flags: c_uint = 0;
         let errmsg = opt_strings_flags(
             (*args).os_newval.data.string().data,
-            (&raw const opt_ssop_values).cast(),
+            &opt_ssop_values,
             &raw mut flags,
             true,
             (*args).os_errbuf,
@@ -3135,7 +3103,7 @@ pub unsafe fn did_set_spelloptions(args: *mut optset_T) -> *const c_char {
         if (opt_flags & OPT_LOCAL) == 0 {
             let errmsg = opt_strings_flags(
                 val,
-                (&raw const opt_spo_values).cast(),
+                &opt_spo_values,
                 &raw mut spo_flags,
                 true,
                 (*args).os_errbuf,
@@ -3148,7 +3116,7 @@ pub unsafe fn did_set_spelloptions(args: *mut optset_T) -> *const c_char {
             let ws = (*win).w_s.cast::<synblock_T>();
             let errmsg = opt_strings_flags(
                 val,
-                (&raw const opt_spo_values).cast(),
+                &opt_spo_values,
                 &raw mut (*ws).b_p_spo_flags,
                 true,
                 (*args).os_errbuf,
@@ -3300,7 +3268,7 @@ pub unsafe fn did_set_tagcase(args: *mut optset_T) -> *const c_char {
         } else {
             let errmsg = opt_strings_flags(
                 p,
-                (&raw const opt_tc_values).cast(),
+                &opt_tc_values,
                 flags,
                 false,
                 (*args).os_errbuf,
@@ -3416,7 +3384,7 @@ pub unsafe fn did_set_virtualedit(args: *mut optset_T) -> *const c_char {
         } else {
             let errmsg = opt_strings_flags(
                 ve,
-                (&raw const opt_ve_values).cast(),
+                &opt_ve_values,
                 flags,
                 true,
                 (*args).os_errbuf,
@@ -3523,7 +3491,7 @@ unsafe fn opt_values_err(
     fmt: *const c_char,
     item: *const c_char,
     itemlen: usize,
-    values: *const *const c_char,
+    values: &[&CStr],
 ) -> *const c_char {
     unsafe {
         if errbuf.is_null() {
@@ -3541,8 +3509,10 @@ unsafe fn opt_values_err(
             gettext(fmt),
             itembuf.as_ptr(),
         );
-        let mut j: usize = 0;
-        while !(*values.add(j)).is_null() && n > 0 && (n as usize) < (*errbuf).size {
+        for (j, &v) in values.iter().enumerate() {
+            if n <= 0 || (n as usize) >= (*errbuf).size {
+                break;
+            }
             n += vim_snprintf!(
                 (*errbuf).data.add(n as usize),
                 (*errbuf).size - (n as usize),
@@ -3552,9 +3522,8 @@ unsafe fn opt_values_err(
                 } else {
                     c", ".as_ptr()
                 },
-                *values.add(j),
+                v.as_ptr(),
             );
-            j += 1;
         }
         (*errbuf).data
     }
@@ -3563,7 +3532,7 @@ unsafe fn opt_values_err(
 /// Handle an option that can be a range of string values.
 unsafe fn opt_strings_flags(
     mut val: *const c_char,
-    values: *const *const c_char,
+    values: &[&CStr],
     flagp: *mut c_uint,
     list: bool,
     errbuf: *const CharBuf,
@@ -3573,28 +3542,27 @@ unsafe fn opt_strings_flags(
         let iter_one = (*val == NUL) && !list;
 
         while *val != NUL || iter_one {
-            let mut i: usize = 0;
-            loop {
-                if (*values.add(i)).is_null() {
-                    return opt_values_err(
-                        errbuf,
-                        c"E474: Invalid value '%s', expected one of:".as_ptr(),
-                        val,
-                        strcspn(val, c",".as_ptr()),
-                        values,
-                    );
-                }
-
-                let len = strlen(*values.add(i));
-                if strncmp(*values.add(i), val, len) == 0
+            let mut matched = false;
+            for (i, &v) in values.iter().enumerate() {
+                let len = v.to_bytes().len();
+                if strncmp(v.as_ptr(), val, len) == 0
                     && ((list && *val.add(len) == b',' as c_char) || *val.add(len) == NUL)
                 {
                     val = val.add(len + usize::from(*val.add(len) == b',' as c_char));
                     debug_assert!(i < std::mem::size_of::<c_uint>() * 8);
                     new_flags |= 1u32 << i;
+                    matched = true;
                     break;
                 }
-                i += 1;
+            }
+            if !matched {
+                return opt_values_err(
+                    errbuf,
+                    c"E474: Invalid value '%s', expected one of:".as_ptr(),
+                    val,
+                    strcspn(val, c",".as_ptr()),
+                    values,
+                );
             }
             if iter_one {
                 break;
@@ -3632,7 +3600,7 @@ unsafe fn opt_schema_err(
 /// Validates a dict option against its schema (options.lua).
 pub unsafe fn opt_strings_check(
     val: *const c_char,
-    schema: *const OptSchemaItem,
+    schema: &[OptSchemaItem],
     errbuf: *const CharBuf,
 ) -> *const c_char {
     unsafe {
@@ -3651,14 +3619,13 @@ pub unsafe fn opt_strings_check(
             if keylen == 0 && v.is_null() {
                 continue;
             }
-            let mut it = schema;
-            while !(*it).name.is_null() && !option_slice_eq(key, keylen, (*it).name) {
-                it = it.add(1);
-            }
-            if (*it).name.is_null() {
+            let Some(it) = schema
+                .iter()
+                .find(|item| option_slice_eq(key, keylen, item.name.as_ptr()))
+            else {
                 return opt_schema_err(errbuf, c"E474: Unknown item '%s'".as_ptr(), key, keylen);
-            }
-            match (*it).kind {
+            };
+            match it.kind {
                 OptSchemaKind::kOptSchemaFlag => {
                     if !v.is_null() {
                         return opt_schema_err(
@@ -3671,7 +3638,7 @@ pub unsafe fn opt_strings_check(
                 }
                 OptSchemaKind::kOptSchemaNum | OptSchemaKind::kOptSchemaSNum => {
                     let mut i: usize = if !v.is_null()
-                        && (*it).kind == OptSchemaKind::kOptSchemaSNum
+                        && it.kind == OptSchemaKind::kOptSchemaSNum
                         && *v == b'-' as c_char
                     {
                         1
@@ -3706,11 +3673,12 @@ pub unsafe fn opt_strings_check(
                     }
                 }
                 OptSchemaKind::kOptSchemaEnum => {
-                    let mut ev = (*it).enum_values;
-                    while !v.is_null() && !(*ev).is_null() && !option_slice_eq(v, vlen, *ev) {
-                        ev = ev.add(1);
-                    }
-                    if !v.is_null() && !(*ev).is_null() {
+                    if !v.is_null()
+                        && it
+                            .enum_values
+                            .iter()
+                            .any(|&ev| option_slice_eq(v, vlen, ev.as_ptr()))
+                    {
                         continue;
                     }
                     return opt_values_err(
@@ -3718,7 +3686,7 @@ pub unsafe fn opt_strings_check(
                         c"E474: '%s' must be one of:".as_ptr(),
                         key,
                         keylen,
-                        (*it).enum_values,
+                        it.enum_values,
                     );
                 }
                 OptSchemaKind::kOptSchemaStr => {
@@ -3792,10 +3760,10 @@ pub unsafe fn opt_keyset(
         if keyset.is_null() {
             keyset = (&raw mut OPT_KEYSET_SHARED).cast::<OptKeySet>();
         }
-        let si = opt_dict_schema(opt_idx);
-        ptr::write_bytes(keyset.cast::<u8>(), 0, (*si).size);
+        let si = opt_dict_schema(opt_idx).unwrap();
+        ptr::write_bytes(keyset.cast::<u8>(), 0, si.size);
         if !value.is_null() {
-            opt_fill(value, (*si).get_field, keyset);
+            opt_fill(value, si.get_field, keyset);
         }
         keyset
     }
@@ -3806,7 +3774,7 @@ pub unsafe fn check_ff_value(p: *mut c_char) -> c_int {
     unsafe {
         if opt_strings_flags(
             p,
-            (&raw const opt_ff_values).cast(),
+            &opt_ff_values,
             ptr::null_mut(),
             false,
             ptr::null(),
@@ -4429,14 +4397,14 @@ pub unsafe fn expand_set_popupoption(
             if completing_value_for_subopt(args, c"border".as_ptr()) {
                 return expand_set_opt_string(
                     args,
-                    (&raw const opt_pvp_border_values).cast(),
+                    &opt_pvp_border_values,
                     matches,
                 );
             }
             return FAIL;
         }
 
-        expand_set_opt_string(args, (&raw const opt_pvp_values).cast(), matches)
+        expand_set_opt_string(args, &opt_pvp_values, matches)
     }
 }
 

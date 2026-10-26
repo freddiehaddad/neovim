@@ -356,689 +356,564 @@ pub static buf_opt_idx: [OptIndex; 93] = [
     209, 219, 220, 232, 233, 247, 270, 283, 286, 288, 289, 290, 291, 300, 301, 303, 304, 308, 310,
     311, 314, 322, 323, 324, 336, 337, 341, 342, 373,
 ];
-pub static mut opt_ambw_values: [*const c_char; 3] =
-    [c"single".as_ptr(), c"double".as_ptr(), ptr::null()];
-pub static mut opt_bg_values: [*const c_char; 3] =
-    [c"light".as_ptr(), c"dark".as_ptr(), ptr::null()];
-pub static mut opt_bs_values: [*const c_char; 5] = [
-    c"indent".as_ptr(),
-    c"eol".as_ptr(),
-    c"start".as_ptr(),
-    c"nostop".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_bkc_values: [*const c_char; 6] = [
-    c"yes".as_ptr(),
-    c"auto".as_ptr(),
-    c"no".as_ptr(),
-    c"breaksymlink".as_ptr(),
-    c"breakhardlink".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_bo_values: [*const c_char; 21] = [
-    c"all".as_ptr(),
-    c"backspace".as_ptr(),
-    c"cursor".as_ptr(),
-    c"complete".as_ptr(),
-    c"copy".as_ptr(),
-    c"ctrlg".as_ptr(),
-    c"error".as_ptr(),
-    c"esc".as_ptr(),
-    c"ex".as_ptr(),
-    c"hangul".as_ptr(),
-    c"insertmode".as_ptr(),
-    c"lang".as_ptr(),
-    c"mess".as_ptr(),
-    c"showmatch".as_ptr(),
-    c"operator".as_ptr(),
-    c"register".as_ptr(),
-    c"shell".as_ptr(),
-    c"spell".as_ptr(),
-    c"term".as_ptr(),
-    c"wildmode".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_briopt_values: [*const c_char; 6] = [
-    c"shift:".as_ptr(),
-    c"min:".as_ptr(),
-    c"sbr".as_ptr(),
-    c"list:".as_ptr(),
-    c"column:".as_ptr(),
-    ptr::null(),
-];
-pub static opt_briopt_schema: [OptSchemaItem; 6] = [
+pub static opt_ambw_values: [&std::ffi::CStr; 2] = [c"single", c"double"];
+pub static opt_bg_values: [&std::ffi::CStr; 2] = [c"light", c"dark"];
+pub static opt_bs_values: [&std::ffi::CStr; 4] = [
+    c"indent",
+    c"eol",
+    c"start",
+    c"nostop"];
+pub static opt_bkc_values: [&std::ffi::CStr; 5] = [
+    c"yes",
+    c"auto",
+    c"no",
+    c"breaksymlink",
+    c"breakhardlink"];
+pub static opt_bo_values: [&std::ffi::CStr; 20] = [
+    c"all",
+    c"backspace",
+    c"cursor",
+    c"complete",
+    c"copy",
+    c"ctrlg",
+    c"error",
+    c"esc",
+    c"ex",
+    c"hangul",
+    c"insertmode",
+    c"lang",
+    c"mess",
+    c"showmatch",
+    c"operator",
+    c"register",
+    c"shell",
+    c"spell",
+    c"term",
+    c"wildmode"];
+pub static opt_briopt_values: [&std::ffi::CStr; 5] = [
+    c"shift:",
+    c"min:",
+    c"sbr",
+    c"list:",
+    c"column:"];
+pub static opt_briopt_schema: [OptSchemaItem; 5] = [
     OptSchemaItem {
-        name: c"shift".as_ptr(),
+        name: c"shift",
         kind: OptSchemaKind::kOptSchemaSNum,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
     OptSchemaItem {
-        name: c"min".as_ptr(),
+        name: c"min",
         kind: OptSchemaKind::kOptSchemaNum,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
     OptSchemaItem {
-        name: c"sbr".as_ptr(),
+        name: c"sbr",
         kind: OptSchemaKind::kOptSchemaFlag,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
     OptSchemaItem {
-        name: c"list".as_ptr(),
+        name: c"list",
         kind: OptSchemaKind::kOptSchemaSNum,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
     OptSchemaItem {
-        name: c"column".as_ptr(),
+        name: c"column",
         kind: OptSchemaKind::kOptSchemaSNum,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
+];
+pub static opt_bh_values: [&std::ffi::CStr; 5] = [
+    c"",
+    c"hide",
+    c"unload",
+    c"delete",
+    c"wipe"];
+pub static opt_bt_values: [&std::ffi::CStr; 8] = [
+    c"",
+    c"acwrite",
+    c"help",
+    c"nofile",
+    c"nowrite",
+    c"quickfix",
+    c"terminal",
+    c"prompt"];
+pub static opt_cmp_values: [&std::ffi::CStr; 2] = [c"internal", c"keepascii"];
+pub static opt_cb_values: [&std::ffi::CStr; 2] = [c"unnamed", c"unnamedplus"];
+pub static opt_cpt_values: [&std::ffi::CStr; 15] = [
+    c".",
+    c"w",
+    c"b",
+    c"u",
+    c"k",
+    c"kspell",
+    c"s",
+    c"i",
+    c"d",
+    c"]",
+    c"t",
+    c"U",
+    c"f",
+    c"F",
+    c"o"];
+pub static opt_cot_values: [&std::ffi::CStr; 13] = [
+    c"fuzzy",
+    c"longest",
+    c"menu",
+    c"menuone",
+    c"nearest",
+    c"noinsert",
+    c"noselect",
+    c"nosort",
+    c"pathopt",
+    c"popup",
+    c"preinsert",
+    c"preselect",
+    c"preview"];
+pub static opt_csl_values: [&std::ffi::CStr; 3] = [
+    c"",
+    c"slash",
+    c"backslash"];
+pub static opt_culopt_values: [&std::ffi::CStr; 4] = [
+    c"line",
+    c"screenline",
+    c"number",
+    c"both"];
+pub static opt_debug_values: [&std::ffi::CStr; 3] = [
+    c"msg",
+    c"throw",
+    c"beep"];
+pub static opt_dip_values: [&std::ffi::CStr; 19] = [
+    c"filler",
+    c"anchor",
+    c"context:",
+    c"iblank",
+    c"icase",
+    c"iwhite",
+    c"iwhiteall",
+    c"iwhiteeol",
+    c"horizontal",
+    c"vertical",
+    c"closeoff",
+    c"hiddenoff",
+    c"foldcolumn:",
+    c"followwrap",
+    c"internal",
+    c"indent-heuristic",
+    c"algorithm:",
+    c"inline:",
+    c"linematch:"];
+pub static opt_dip_algorithm_values: [&std::ffi::CStr; 4] = [
+    c"myers",
+    c"minimal",
+    c"patience",
+    c"histogram"];
+pub static opt_dip_inline_values: [&std::ffi::CStr; 4] = [
+    c"none",
+    c"simple",
+    c"char",
+    c"word"];
+pub static opt_dip_schema: [OptSchemaItem; 19] = [
     OptSchemaItem {
-        name: ptr::null(),
+        name: c"filler",
         kind: OptSchemaKind::kOptSchemaFlag,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
-];
-pub static mut opt_bh_values: [*const c_char; 6] = [
-    c"".as_ptr(),
-    c"hide".as_ptr(),
-    c"unload".as_ptr(),
-    c"delete".as_ptr(),
-    c"wipe".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_bt_values: [*const c_char; 9] = [
-    c"".as_ptr(),
-    c"acwrite".as_ptr(),
-    c"help".as_ptr(),
-    c"nofile".as_ptr(),
-    c"nowrite".as_ptr(),
-    c"quickfix".as_ptr(),
-    c"terminal".as_ptr(),
-    c"prompt".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_cmp_values: [*const c_char; 3] =
-    [c"internal".as_ptr(), c"keepascii".as_ptr(), ptr::null()];
-pub static mut opt_cb_values: [*const c_char; 3] =
-    [c"unnamed".as_ptr(), c"unnamedplus".as_ptr(), ptr::null()];
-pub static mut opt_cpt_values: [*const c_char; 16] = [
-    c".".as_ptr(),
-    c"w".as_ptr(),
-    c"b".as_ptr(),
-    c"u".as_ptr(),
-    c"k".as_ptr(),
-    c"kspell".as_ptr(),
-    c"s".as_ptr(),
-    c"i".as_ptr(),
-    c"d".as_ptr(),
-    c"]".as_ptr(),
-    c"t".as_ptr(),
-    c"U".as_ptr(),
-    c"f".as_ptr(),
-    c"F".as_ptr(),
-    c"o".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_cot_values: [*const c_char; 14] = [
-    c"fuzzy".as_ptr(),
-    c"longest".as_ptr(),
-    c"menu".as_ptr(),
-    c"menuone".as_ptr(),
-    c"nearest".as_ptr(),
-    c"noinsert".as_ptr(),
-    c"noselect".as_ptr(),
-    c"nosort".as_ptr(),
-    c"pathopt".as_ptr(),
-    c"popup".as_ptr(),
-    c"preinsert".as_ptr(),
-    c"preselect".as_ptr(),
-    c"preview".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_csl_values: [*const c_char; 4] = [
-    c"".as_ptr(),
-    c"slash".as_ptr(),
-    c"backslash".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_culopt_values: [*const c_char; 5] = [
-    c"line".as_ptr(),
-    c"screenline".as_ptr(),
-    c"number".as_ptr(),
-    c"both".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_debug_values: [*const c_char; 4] = [
-    c"msg".as_ptr(),
-    c"throw".as_ptr(),
-    c"beep".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_dip_values: [*const c_char; 20] = [
-    c"filler".as_ptr(),
-    c"anchor".as_ptr(),
-    c"context:".as_ptr(),
-    c"iblank".as_ptr(),
-    c"icase".as_ptr(),
-    c"iwhite".as_ptr(),
-    c"iwhiteall".as_ptr(),
-    c"iwhiteeol".as_ptr(),
-    c"horizontal".as_ptr(),
-    c"vertical".as_ptr(),
-    c"closeoff".as_ptr(),
-    c"hiddenoff".as_ptr(),
-    c"foldcolumn:".as_ptr(),
-    c"followwrap".as_ptr(),
-    c"internal".as_ptr(),
-    c"indent-heuristic".as_ptr(),
-    c"algorithm:".as_ptr(),
-    c"inline:".as_ptr(),
-    c"linematch:".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_dip_algorithm_values: [*const c_char; 5] = [
-    c"myers".as_ptr(),
-    c"minimal".as_ptr(),
-    c"patience".as_ptr(),
-    c"histogram".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_dip_inline_values: [*const c_char; 5] = [
-    c"none".as_ptr(),
-    c"simple".as_ptr(),
-    c"char".as_ptr(),
-    c"word".as_ptr(),
-    ptr::null(),
-];
-pub static opt_dip_schema: [OptSchemaItem; 20] = [
     OptSchemaItem {
-        name: c"filler".as_ptr(),
+        name: c"anchor",
         kind: OptSchemaKind::kOptSchemaFlag,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
     OptSchemaItem {
-        name: c"anchor".as_ptr(),
-        kind: OptSchemaKind::kOptSchemaFlag,
-        enum_values: ptr::null(),
-    },
-    OptSchemaItem {
-        name: c"context".as_ptr(),
+        name: c"context",
         kind: OptSchemaKind::kOptSchemaNum,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
     OptSchemaItem {
-        name: c"iblank".as_ptr(),
+        name: c"iblank",
         kind: OptSchemaKind::kOptSchemaFlag,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
     OptSchemaItem {
-        name: c"icase".as_ptr(),
+        name: c"icase",
         kind: OptSchemaKind::kOptSchemaFlag,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
     OptSchemaItem {
-        name: c"iwhite".as_ptr(),
+        name: c"iwhite",
         kind: OptSchemaKind::kOptSchemaFlag,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
     OptSchemaItem {
-        name: c"iwhiteall".as_ptr(),
+        name: c"iwhiteall",
         kind: OptSchemaKind::kOptSchemaFlag,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
     OptSchemaItem {
-        name: c"iwhiteeol".as_ptr(),
+        name: c"iwhiteeol",
         kind: OptSchemaKind::kOptSchemaFlag,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
     OptSchemaItem {
-        name: c"horizontal".as_ptr(),
+        name: c"horizontal",
         kind: OptSchemaKind::kOptSchemaFlag,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
     OptSchemaItem {
-        name: c"vertical".as_ptr(),
+        name: c"vertical",
         kind: OptSchemaKind::kOptSchemaFlag,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
     OptSchemaItem {
-        name: c"closeoff".as_ptr(),
+        name: c"closeoff",
         kind: OptSchemaKind::kOptSchemaFlag,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
     OptSchemaItem {
-        name: c"hiddenoff".as_ptr(),
+        name: c"hiddenoff",
         kind: OptSchemaKind::kOptSchemaFlag,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
     OptSchemaItem {
-        name: c"foldcolumn".as_ptr(),
+        name: c"foldcolumn",
         kind: OptSchemaKind::kOptSchemaNum,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
     OptSchemaItem {
-        name: c"followwrap".as_ptr(),
+        name: c"followwrap",
         kind: OptSchemaKind::kOptSchemaFlag,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
     OptSchemaItem {
-        name: c"internal".as_ptr(),
+        name: c"internal",
         kind: OptSchemaKind::kOptSchemaFlag,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
     OptSchemaItem {
-        name: c"indent-heuristic".as_ptr(),
+        name: c"indent-heuristic",
         kind: OptSchemaKind::kOptSchemaFlag,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
     OptSchemaItem {
-        name: c"algorithm".as_ptr(),
+        name: c"algorithm",
         kind: OptSchemaKind::kOptSchemaEnum,
-        enum_values: (&raw const opt_dip_algorithm_values).cast(),
+        enum_values: &opt_dip_algorithm_values,
     },
     OptSchemaItem {
-        name: c"inline".as_ptr(),
+        name: c"inline",
         kind: OptSchemaKind::kOptSchemaEnum,
-        enum_values: (&raw const opt_dip_inline_values).cast(),
+        enum_values: &opt_dip_inline_values,
     },
     OptSchemaItem {
-        name: c"linematch".as_ptr(),
+        name: c"linematch",
         kind: OptSchemaKind::kOptSchemaNum,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
+];
+pub static opt_dy_values: [&std::ffi::CStr; 4] = [
+    c"lastline",
+    c"truncate",
+    c"uhex",
+    c"msgsep"];
+pub static opt_ead_values: [&std::ffi::CStr; 3] = [
+    c"both",
+    c"ver",
+    c"hor"];
+pub static opt_ff_values: [&std::ffi::CStr; 3] = [
+    c"unix",
+    c"dos",
+    c"mac"];
+pub static opt_fcl_values: [&std::ffi::CStr; 1] = [c"all"];
+pub static opt_fdc_values: [&std::ffi::CStr; 20] = [
+    c"auto",
+    c"auto:1",
+    c"auto:2",
+    c"auto:3",
+    c"auto:4",
+    c"auto:5",
+    c"auto:6",
+    c"auto:7",
+    c"auto:8",
+    c"auto:9",
+    c"0",
+    c"1",
+    c"2",
+    c"3",
+    c"4",
+    c"5",
+    c"6",
+    c"7",
+    c"8",
+    c"9"];
+pub static opt_fdm_values: [&std::ffi::CStr; 6] = [
+    c"manual",
+    c"expr",
+    c"marker",
+    c"indent",
+    c"syntax",
+    c"diff"];
+pub static opt_fdo_values: [&std::ffi::CStr; 11] = [
+    c"all",
+    c"block",
+    c"hor",
+    c"mark",
+    c"percent",
+    c"quickfix",
+    c"search",
+    c"tag",
+    c"insert",
+    c"undo",
+    c"jump"];
+pub static opt_icm_values: [&std::ffi::CStr; 3] = [
+    c"nosplit",
+    c"split",
+    c""];
+pub static opt_jop_values: [&std::ffi::CStr; 3] = [
+    c"stack",
+    c"view",
+    c"clean"];
+pub static opt_km_values: [&std::ffi::CStr; 2] = [c"startsel", c"stopsel"];
+pub static opt_lop_values: [&std::ffi::CStr; 2] = [c"expr:0", c"expr:1"];
+pub static opt_mopt_values: [&std::ffi::CStr; 7] = [
+    c"hit-enter",
+    c"history:",
+    c"maxheight:",
+    c"pager:",
+    c"progress:",
+    c"timeout:",
+    c"wait:"];
+pub static opt_mopt_progress_values: [&std::ffi::CStr; 2] = [c"", c"c"];
+pub static opt_mopt_schema: [OptSchemaItem; 7] = [
     OptSchemaItem {
-        name: ptr::null(),
+        name: c"hit-enter",
         kind: OptSchemaKind::kOptSchemaFlag,
-        enum_values: ptr::null(),
-    },
-];
-pub static mut opt_dy_values: [*const c_char; 5] = [
-    c"lastline".as_ptr(),
-    c"truncate".as_ptr(),
-    c"uhex".as_ptr(),
-    c"msgsep".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_ead_values: [*const c_char; 4] = [
-    c"both".as_ptr(),
-    c"ver".as_ptr(),
-    c"hor".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_ff_values: [*const c_char; 4] = [
-    c"unix".as_ptr(),
-    c"dos".as_ptr(),
-    c"mac".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_fcl_values: [*const c_char; 2] = [c"all".as_ptr(), ptr::null()];
-pub static mut opt_fdc_values: [*const c_char; 21] = [
-    c"auto".as_ptr(),
-    c"auto:1".as_ptr(),
-    c"auto:2".as_ptr(),
-    c"auto:3".as_ptr(),
-    c"auto:4".as_ptr(),
-    c"auto:5".as_ptr(),
-    c"auto:6".as_ptr(),
-    c"auto:7".as_ptr(),
-    c"auto:8".as_ptr(),
-    c"auto:9".as_ptr(),
-    c"0".as_ptr(),
-    c"1".as_ptr(),
-    c"2".as_ptr(),
-    c"3".as_ptr(),
-    c"4".as_ptr(),
-    c"5".as_ptr(),
-    c"6".as_ptr(),
-    c"7".as_ptr(),
-    c"8".as_ptr(),
-    c"9".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_fdm_values: [*const c_char; 7] = [
-    c"manual".as_ptr(),
-    c"expr".as_ptr(),
-    c"marker".as_ptr(),
-    c"indent".as_ptr(),
-    c"syntax".as_ptr(),
-    c"diff".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_fdo_values: [*const c_char; 12] = [
-    c"all".as_ptr(),
-    c"block".as_ptr(),
-    c"hor".as_ptr(),
-    c"mark".as_ptr(),
-    c"percent".as_ptr(),
-    c"quickfix".as_ptr(),
-    c"search".as_ptr(),
-    c"tag".as_ptr(),
-    c"insert".as_ptr(),
-    c"undo".as_ptr(),
-    c"jump".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_icm_values: [*const c_char; 4] = [
-    c"nosplit".as_ptr(),
-    c"split".as_ptr(),
-    c"".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_jop_values: [*const c_char; 4] = [
-    c"stack".as_ptr(),
-    c"view".as_ptr(),
-    c"clean".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_km_values: [*const c_char; 3] =
-    [c"startsel".as_ptr(), c"stopsel".as_ptr(), ptr::null()];
-pub static mut opt_lop_values: [*const c_char; 3] =
-    [c"expr:0".as_ptr(), c"expr:1".as_ptr(), ptr::null()];
-pub static mut opt_mopt_values: [*const c_char; 8] = [
-    c"hit-enter".as_ptr(),
-    c"history:".as_ptr(),
-    c"maxheight:".as_ptr(),
-    c"pager:".as_ptr(),
-    c"progress:".as_ptr(),
-    c"timeout:".as_ptr(),
-    c"wait:".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_mopt_progress_values: [*const c_char; 3] =
-    [c"".as_ptr(), c"c".as_ptr(), ptr::null()];
-pub static opt_mopt_schema: [OptSchemaItem; 8] = [
-    OptSchemaItem {
-        name: c"hit-enter".as_ptr(),
-        kind: OptSchemaKind::kOptSchemaFlag,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
     OptSchemaItem {
-        name: c"history".as_ptr(),
+        name: c"history",
         kind: OptSchemaKind::kOptSchemaNum,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
     OptSchemaItem {
-        name: c"maxheight".as_ptr(),
+        name: c"maxheight",
         kind: OptSchemaKind::kOptSchemaNum,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
     OptSchemaItem {
-        name: c"pager".as_ptr(),
+        name: c"pager",
         kind: OptSchemaKind::kOptSchemaStr,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
     OptSchemaItem {
-        name: c"progress".as_ptr(),
+        name: c"progress",
         kind: OptSchemaKind::kOptSchemaEnum,
-        enum_values: (&raw const opt_mopt_progress_values).cast(),
+        enum_values: &opt_mopt_progress_values,
     },
     OptSchemaItem {
-        name: c"timeout".as_ptr(),
+        name: c"timeout",
         kind: OptSchemaKind::kOptSchemaNum,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
     OptSchemaItem {
-        name: c"wait".as_ptr(),
+        name: c"wait",
         kind: OptSchemaKind::kOptSchemaNum,
-        enum_values: ptr::null(),
-    },
-    OptSchemaItem {
-        name: ptr::null(),
-        kind: OptSchemaKind::kOptSchemaFlag,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
 ];
-pub static mut opt_mousem_values: [*const c_char; 4] = [
-    c"extend".as_ptr(),
-    c"popup".as_ptr(),
-    c"popup_setpos".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_mousescroll_values: [*const c_char; 3] =
-    [c"hor:".as_ptr(), c"ver:".as_ptr(), ptr::null()];
-pub static opt_mousescroll_schema: [OptSchemaItem; 3] = [
+pub static opt_mousem_values: [&std::ffi::CStr; 3] = [
+    c"extend",
+    c"popup",
+    c"popup_setpos"];
+pub static opt_mousescroll_values: [&std::ffi::CStr; 2] = [c"hor:", c"ver:"];
+pub static opt_mousescroll_schema: [OptSchemaItem; 2] = [
     OptSchemaItem {
-        name: c"hor".as_ptr(),
+        name: c"hor",
         kind: OptSchemaKind::kOptSchemaNum,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
     OptSchemaItem {
-        name: c"ver".as_ptr(),
+        name: c"ver",
         kind: OptSchemaKind::kOptSchemaNum,
-        enum_values: ptr::null(),
-    },
-    OptSchemaItem {
-        name: ptr::null(),
-        kind: OptSchemaKind::kOptSchemaFlag,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
 ];
-pub static mut opt_nf_values: [*const c_char; 7] = [
-    c"bin".as_ptr(),
-    c"octal".as_ptr(),
-    c"hex".as_ptr(),
-    c"alpha".as_ptr(),
-    c"unsigned".as_ptr(),
-    c"blank".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_pvp_values: [*const c_char; 4] = [
-    c"height:".as_ptr(),
-    c"width:".as_ptr(),
-    c"border:".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_pvp_border_values: [*const c_char; 8] = [
-    c"double".as_ptr(),
-    c"single".as_ptr(),
-    c"shadow".as_ptr(),
-    c"rounded".as_ptr(),
-    c"solid".as_ptr(),
-    c"bold".as_ptr(),
-    c"none".as_ptr(),
-    ptr::null(),
-];
-pub static opt_pvp_schema: [OptSchemaItem; 4] = [
+pub static opt_nf_values: [&std::ffi::CStr; 6] = [
+    c"bin",
+    c"octal",
+    c"hex",
+    c"alpha",
+    c"unsigned",
+    c"blank"];
+pub static opt_pvp_values: [&std::ffi::CStr; 3] = [
+    c"height:",
+    c"width:",
+    c"border:"];
+pub static opt_pvp_border_values: [&std::ffi::CStr; 7] = [
+    c"double",
+    c"single",
+    c"shadow",
+    c"rounded",
+    c"solid",
+    c"bold",
+    c"none"];
+pub static opt_pvp_schema: [OptSchemaItem; 3] = [
     OptSchemaItem {
-        name: c"height".as_ptr(),
+        name: c"height",
         kind: OptSchemaKind::kOptSchemaNum,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
     OptSchemaItem {
-        name: c"width".as_ptr(),
+        name: c"width",
         kind: OptSchemaKind::kOptSchemaNum,
-        enum_values: ptr::null(),
+        enum_values: &[],
     },
     OptSchemaItem {
-        name: c"border".as_ptr(),
+        name: c"border",
         kind: OptSchemaKind::kOptSchemaEnum,
-        enum_values: (&raw const opt_pvp_border_values).cast(),
-    },
-    OptSchemaItem {
-        name: ptr::null(),
-        kind: OptSchemaKind::kOptSchemaFlag,
-        enum_values: ptr::null(),
+        enum_values: &opt_pvp_border_values,
     },
 ];
-pub static mut opt_pumborder_values: [*const c_char; 9] = [
-    c"".as_ptr(),
-    c"double".as_ptr(),
-    c"single".as_ptr(),
-    c"shadow".as_ptr(),
-    c"rounded".as_ptr(),
-    c"solid".as_ptr(),
-    c"bold".as_ptr(),
-    c"none".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_rdb_values: [*const c_char; 7] = [
-    c"compositor".as_ptr(),
-    c"nothrottle".as_ptr(),
-    c"invalid".as_ptr(),
-    c"nodelta".as_ptr(),
-    c"line".as_ptr(),
-    c"flush".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_rlc_values: [*const c_char; 2] = [c"search".as_ptr(), ptr::null()];
-pub static mut opt_sbo_values: [*const c_char; 4] = [
-    c"ver".as_ptr(),
-    c"hor".as_ptr(),
-    c"jump".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_sel_values: [*const c_char; 4] = [
-    c"inclusive".as_ptr(),
-    c"exclusive".as_ptr(),
-    c"old".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_slm_values: [*const c_char; 4] = [
-    c"mouse".as_ptr(),
-    c"key".as_ptr(),
-    c"cmd".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_ssop_values: [*const c_char; 19] = [
-    c"buffers".as_ptr(),
-    c"winpos".as_ptr(),
-    c"resize".as_ptr(),
-    c"winsize".as_ptr(),
-    c"localoptions".as_ptr(),
-    c"options".as_ptr(),
-    c"help".as_ptr(),
-    c"blank".as_ptr(),
-    c"globals".as_ptr(),
-    c"slash".as_ptr(),
-    c"unix".as_ptr(),
-    c"sesdir".as_ptr(),
-    c"curdir".as_ptr(),
-    c"folds".as_ptr(),
-    c"cursor".as_ptr(),
-    c"tabpages".as_ptr(),
-    c"terminal".as_ptr(),
-    c"skiprtp".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_sloc_values: [*const c_char; 4] = [
-    c"last".as_ptr(),
-    c"statusline".as_ptr(),
-    c"tabline".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_scl_values: [*const c_char; 23] = [
-    c"yes".as_ptr(),
-    c"no".as_ptr(),
-    c"auto".as_ptr(),
-    c"auto:1".as_ptr(),
-    c"auto:2".as_ptr(),
-    c"auto:3".as_ptr(),
-    c"auto:4".as_ptr(),
-    c"auto:5".as_ptr(),
-    c"auto:6".as_ptr(),
-    c"auto:7".as_ptr(),
-    c"auto:8".as_ptr(),
-    c"auto:9".as_ptr(),
-    c"yes:1".as_ptr(),
-    c"yes:2".as_ptr(),
-    c"yes:3".as_ptr(),
-    c"yes:4".as_ptr(),
-    c"yes:5".as_ptr(),
-    c"yes:6".as_ptr(),
-    c"yes:7".as_ptr(),
-    c"yes:8".as_ptr(),
-    c"yes:9".as_ptr(),
-    c"number".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_spo_values: [*const c_char; 3] =
-    [c"camel".as_ptr(), c"noplainbuffer".as_ptr(), ptr::null()];
-pub static mut opt_sps_values: [*const c_char; 7] = [
-    c"best".as_ptr(),
-    c"fast".as_ptr(),
-    c"double".as_ptr(),
-    c"expr:".as_ptr(),
-    c"file:".as_ptr(),
-    c"timeout:".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_spk_values: [*const c_char; 4] = [
-    c"cursor".as_ptr(),
-    c"screen".as_ptr(),
-    c"topline".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_swb_values: [*const c_char; 7] = [
-    c"useopen".as_ptr(),
-    c"usetab".as_ptr(),
-    c"split".as_ptr(),
-    c"newtab".as_ptr(),
-    c"vsplit".as_ptr(),
-    c"uselast".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_tcl_values: [*const c_char; 3] =
-    [c"left".as_ptr(), c"uselast".as_ptr(), ptr::null()];
-pub static mut opt_tc_values: [*const c_char; 6] = [
-    c"followic".as_ptr(),
-    c"ignore".as_ptr(),
-    c"match".as_ptr(),
-    c"followscs".as_ptr(),
-    c"smart".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_tpf_values: [*const c_char; 8] = [
-    c"BS".as_ptr(),
-    c"HT".as_ptr(),
-    c"FF".as_ptr(),
-    c"ESC".as_ptr(),
-    c"DEL".as_ptr(),
-    c"C0".as_ptr(),
-    c"C1".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_ve_values: [*const c_char; 7] = [
-    c"block".as_ptr(),
-    c"insert".as_ptr(),
-    c"all".as_ptr(),
-    c"onemore".as_ptr(),
-    c"none".as_ptr(),
-    c"NONE".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_wim_values: [*const c_char; 7] = [
-    c"full".as_ptr(),
-    c"longest".as_ptr(),
-    c"list".as_ptr(),
-    c"lastused".as_ptr(),
-    c"noselect".as_ptr(),
-    c"noinsert".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_wop_values: [*const c_char; 5] = [
-    c"fuzzy".as_ptr(),
-    c"tagfile".as_ptr(),
-    c"pum".as_ptr(),
-    c"exacttext".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_wak_values: [*const c_char; 4] = [
-    c"yes".as_ptr(),
-    c"menu".as_ptr(),
-    c"no".as_ptr(),
-    ptr::null(),
-];
-pub static mut opt_winborder_values: [*const c_char; 9] = [
-    c"".as_ptr(),
-    c"double".as_ptr(),
-    c"single".as_ptr(),
-    c"shadow".as_ptr(),
-    c"rounded".as_ptr(),
-    c"solid".as_ptr(),
-    c"bold".as_ptr(),
-    c"none".as_ptr(),
-    ptr::null(),
-];
+pub static opt_pumborder_values: [&std::ffi::CStr; 8] = [
+    c"",
+    c"double",
+    c"single",
+    c"shadow",
+    c"rounded",
+    c"solid",
+    c"bold",
+    c"none"];
+pub static opt_rdb_values: [&std::ffi::CStr; 6] = [
+    c"compositor",
+    c"nothrottle",
+    c"invalid",
+    c"nodelta",
+    c"line",
+    c"flush"];
+pub static opt_rlc_values: [&std::ffi::CStr; 1] = [c"search"];
+pub static opt_sbo_values: [&std::ffi::CStr; 3] = [
+    c"ver",
+    c"hor",
+    c"jump"];
+pub static opt_sel_values: [&std::ffi::CStr; 3] = [
+    c"inclusive",
+    c"exclusive",
+    c"old"];
+pub static opt_slm_values: [&std::ffi::CStr; 3] = [
+    c"mouse",
+    c"key",
+    c"cmd"];
+pub static opt_ssop_values: [&std::ffi::CStr; 18] = [
+    c"buffers",
+    c"winpos",
+    c"resize",
+    c"winsize",
+    c"localoptions",
+    c"options",
+    c"help",
+    c"blank",
+    c"globals",
+    c"slash",
+    c"unix",
+    c"sesdir",
+    c"curdir",
+    c"folds",
+    c"cursor",
+    c"tabpages",
+    c"terminal",
+    c"skiprtp"];
+pub static opt_sloc_values: [&std::ffi::CStr; 3] = [
+    c"last",
+    c"statusline",
+    c"tabline"];
+pub static opt_scl_values: [&std::ffi::CStr; 22] = [
+    c"yes",
+    c"no",
+    c"auto",
+    c"auto:1",
+    c"auto:2",
+    c"auto:3",
+    c"auto:4",
+    c"auto:5",
+    c"auto:6",
+    c"auto:7",
+    c"auto:8",
+    c"auto:9",
+    c"yes:1",
+    c"yes:2",
+    c"yes:3",
+    c"yes:4",
+    c"yes:5",
+    c"yes:6",
+    c"yes:7",
+    c"yes:8",
+    c"yes:9",
+    c"number"];
+pub static opt_spo_values: [&std::ffi::CStr; 2] = [c"camel", c"noplainbuffer"];
+pub static opt_sps_values: [&std::ffi::CStr; 6] = [
+    c"best",
+    c"fast",
+    c"double",
+    c"expr:",
+    c"file:",
+    c"timeout:"];
+pub static opt_spk_values: [&std::ffi::CStr; 3] = [
+    c"cursor",
+    c"screen",
+    c"topline"];
+pub static opt_swb_values: [&std::ffi::CStr; 6] = [
+    c"useopen",
+    c"usetab",
+    c"split",
+    c"newtab",
+    c"vsplit",
+    c"uselast"];
+pub static opt_tcl_values: [&std::ffi::CStr; 2] = [c"left", c"uselast"];
+pub static opt_tc_values: [&std::ffi::CStr; 5] = [
+    c"followic",
+    c"ignore",
+    c"match",
+    c"followscs",
+    c"smart"];
+pub static opt_tpf_values: [&std::ffi::CStr; 7] = [
+    c"BS",
+    c"HT",
+    c"FF",
+    c"ESC",
+    c"DEL",
+    c"C0",
+    c"C1"];
+pub static opt_ve_values: [&std::ffi::CStr; 6] = [
+    c"block",
+    c"insert",
+    c"all",
+    c"onemore",
+    c"none",
+    c"NONE"];
+pub static opt_wim_values: [&std::ffi::CStr; 6] = [
+    c"full",
+    c"longest",
+    c"list",
+    c"lastused",
+    c"noselect",
+    c"noinsert"];
+pub static opt_wop_values: [&std::ffi::CStr; 4] = [
+    c"fuzzy",
+    c"tagfile",
+    c"pum",
+    c"exacttext"];
+pub static opt_wak_values: [&std::ffi::CStr; 3] = [
+    c"yes",
+    c"menu",
+    c"no"];
+pub static opt_winborder_values: [&std::ffi::CStr; 8] = [
+    c"",
+    c"double",
+    c"single",
+    c"shadow",
+    c"rounded",
+    c"solid",
+    c"bold",
+    c"none"];
 
 #[cfg(test)]
 mod tests {

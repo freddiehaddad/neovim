@@ -507,7 +507,7 @@ pub unsafe extern "C" fn nvim__option_to_object(
             }
             let as_map = (flags & kOptFlagColon) != 0
                 || (flags & kOptFlagFlagList) != 0
-                || !schema.is_null();
+                || !schema.is_empty();
             let mut d = if as_map {
                 arena_dict(arena, nparts)
             } else {

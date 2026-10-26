@@ -1563,7 +1563,7 @@ pub unsafe fn parse_border_style(style: Object, fconfig: *mut WinConfig, err: *m
                 return;
             }
             for i in 0..6 {
-                let def_name = opt_winborder_values[i + 1];
+                let def_name = opt_winborder_values[i + 1].as_ptr();
                 if strequal(str_val.data, def_name) {
                     *chars = [[0; MAX_SCHAR_SIZE]; 8];
                     for (slot, piece) in chars.iter_mut().zip(DEFAULTS_CHARS[i].iter()) {
