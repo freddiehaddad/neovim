@@ -5559,7 +5559,7 @@ unsafe fn vgr_load_dummy_buf(
         let buf = load_dummy_buffer(fname, dirname_start, dirname_now);
 
         p_mls = save_mls;
-        au_event_restore(save_ei);
+        au_event_restore(Some(save_ei));
 
         buf
     }

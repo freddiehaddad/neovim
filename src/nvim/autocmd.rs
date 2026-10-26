@@ -42,7 +42,7 @@ use crate::insexpand::ins_compl_active;
 use crate::lua::executor::{kRetNilBool, nlua_call_ref, nlua_set_sctx};
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strcmp_ic;
-use crate::memory::{xfree, xmallocz, xmemdupz, xstrdup};
+use crate::memory::{cstr_take, xmallocz, xstrdup};
 use crate::message::{
     emsg, give_warning, msg_advance, msg_clr_eos, msg_end, msg_ext_set_kind, msg_outtrans,
     msg_putchar, msg_puts, msg_puts_hl, msg_puts_title, msg_start, semsg, smsg, verbose_enter,
@@ -63,7 +63,6 @@ use crate::runtime::{ETYPE_AUCMD, SID_NONE, estack_pop, estack_push, exestack, s
 use crate::search::{restore_search_patterns, save_search_patterns};
 use crate::state::{MODE_INSERT, MODE_NORMAL_BUSY, get_mode, get_real_state, save_v_event_T};
 use crate::strings::tr;
-use crate::strings::xstrnsave;
 use crate::window::{
     check_lnums, check_lnums_nested, reset_lnums, snapshot_windows_scroll_size, unuse_tabpage,
     use_tabpage, win_T,
@@ -325,6 +324,7 @@ const E_AUTOCOMMAND_NESTING_TOO_DEEP: &CStr = c"E218: Autocommand nesting too de
 #[repr(C)]
 pub struct AutoPatCmd {
     pub lastpat: Option<std::rc::Rc<AutoPat>>,
+    pub es_name_owned: Option<std::ffi::CString>,
     pub auidx: usize,
     pub ausize: usize,
     pub afile_orig: *mut c_char,
@@ -2017,28 +2017,28 @@ pub unsafe fn check_ei(mut ei: *mut c_char, win: bool) -> c_int {
     }
 }
 
-pub unsafe fn au_event_disable(what: *mut c_char) -> *mut c_char {
+pub unsafe fn au_event_disable(what: *mut c_char) -> std::ffi::CString {
     unsafe {
-        let p_ei_len = CStr::from_ptr(p_ei).to_bytes().len();
-        let what_len = CStr::from_ptr(what).to_bytes().len();
-        let save_ei = xmemdupz(p_ei.cast(), p_ei_len).cast::<c_char>();
-        let new_ei = xstrnsave(p_ei, p_ei_len + what_len);
-        if *what == b',' as c_char && *p_ei == NUL {
-            ptr::copy_nonoverlapping(what.add(1), new_ei, what_len);
+        let p_ei_bytes = CStr::from_ptr(p_ei).to_bytes();
+        let what_bytes = CStr::from_ptr(what).to_bytes();
+        let save_ei = CStr::from_ptr(p_ei).to_owned();
+        let mut new_ei_vec: Vec<u8> = Vec::with_capacity(p_ei_bytes.len() + what_bytes.len());
+        if what_bytes.first() == Some(&b',') && p_ei_bytes.is_empty() {
+            new_ei_vec.extend_from_slice(&what_bytes[1..]);
         } else {
-            ptr::copy_nonoverlapping(what, new_ei.add(p_ei_len), what_len + 1);
+            new_ei_vec.extend_from_slice(p_ei_bytes);
+            new_ei_vec.extend_from_slice(what_bytes);
         }
-        set_option_direct(kOptEventignore, cstr_as_obj(new_ei), 0, SID_NONE);
-        xfree(new_ei.cast());
+        let new_ei = CString::new(new_ei_vec).unwrap_or_default();
+        set_option_direct(kOptEventignore, cstr_as_obj(new_ei.as_ptr()), 0, SID_NONE);
         save_ei
     }
 }
 
-pub unsafe fn au_event_restore(old_ei: *mut c_char) {
+pub unsafe fn au_event_restore(old_ei: Option<std::ffi::CString>) {
     unsafe {
-        if !old_ei.is_null() {
-            set_option_direct(kOptEventignore, cstr_as_obj(old_ei), 0, SID_NONE);
-            xfree(old_ei.cast());
+        if let Some(old_ei) = old_ei {
+            set_option_direct(kOptEventignore, cstr_as_obj(old_ei.as_ptr()), 0, SID_NONE);
         }
     }
 }
@@ -2046,9 +2046,9 @@ pub unsafe fn au_event_restore(old_ei: *mut c_char) {
 pub unsafe fn do_autocmd(eap: *mut exarg_T, arg_in: *mut c_char, forceit: c_int) {
     unsafe {
         let mut arg = arg_in;
-        let mut envpat: *mut c_char = ptr::null_mut();
+        let mut envpat: Option<CString> = None;
         let mut cmd: *mut c_char;
-        let mut cmd_need_free = false;
+        let mut cmd_owned: Option<CString> = None;
         let mut nested = false;
         let mut once = false;
         let group = if *arg == b'|' as c_char {
@@ -2083,9 +2083,9 @@ pub unsafe fn do_autocmd(eap: *mut exarg_T, arg_in: *mut c_char, forceit: c_int)
                 if !vim_strchr(pat, b'$' as c_int).is_null()
                     || !vim_strchr(pat, b'~' as c_int).is_null()
                 {
-                    envpat = expand_env_save(pat);
-                    if !envpat.is_null() {
-                        pat = envpat;
+                    envpat = cstr_take(expand_env_save(pat));
+                    if let Some(ref ep) = envpat {
+                        pat = ep.as_ptr().cast_mut();
                     }
                 }
 
@@ -2113,11 +2113,11 @@ pub unsafe fn do_autocmd(eap: *mut exarg_T, arg_in: *mut c_char, forceit: c_int)
                 }
 
                 if *cmd != NUL {
-                    cmd = expand_sfile(cmd);
-                    if cmd.is_null() {
-                        break 'run;
+                    cmd_owned = cstr_take(expand_sfile(cmd));
+                    match cmd_owned {
+                        Some(ref co) => cmd = co.as_ptr().cast_mut(),
+                        None => break 'run,
                     }
-                    cmd_need_free = true;
                 }
             }
 
@@ -2161,11 +2161,8 @@ pub unsafe fn do_autocmd(eap: *mut exarg_T, arg_in: *mut c_char, forceit: c_int)
                 }
             }
         }
-
-        if cmd_need_free {
-            xfree(cmd.cast());
-        }
-        xfree(envpat.cast());
+        drop(cmd_owned);
+        drop(envpat);
     }
 }
 
@@ -2340,15 +2337,17 @@ pub unsafe fn autocmd_register(
             let reg_prog = if is_buflocal {
                 ptr::null_mut()
             } else {
-                let reg_pat =
-                    file_pat_to_reg_pat(pat, pat.add(patlen as usize), &raw mut allow_dirs, 1);
-                let prog = if !reg_pat.is_null() {
-                    vim_regcomp(reg_pat, RE_MAGIC | RE_NOBREAK)
-                } else {
-                    ptr::null_mut()
+                let reg_pat = cstr_take(file_pat_to_reg_pat(
+                    pat,
+                    pat.add(patlen as usize),
+                    &raw mut allow_dirs,
+                    1,
+                ));
+                let prog = match reg_pat {
+                    Some(ref rp) => vim_regcomp(rp.as_ptr().cast_mut(), RE_MAGIC | RE_NOBREAK),
+                    None => ptr::null_mut(),
                 };
-                xfree(reg_pat.cast());
-                if reg_pat.is_null() || prog.is_null() {
+                if reg_pat.is_none() || prog.is_null() {
                     return FAIL;
                 }
                 prog
@@ -2818,7 +2817,6 @@ pub unsafe fn apply_autocmds_group(
     with_buf: bool,
 ) -> bool {
     unsafe {
-        let mut sfname: *mut c_char = ptr::null_mut();
         let mut retval = false;
         let mut wait_time: proftime_T = 0;
         let mut did_save_redobuff = false;
@@ -2916,18 +2914,29 @@ pub unsafe fn apply_autocmds_group(
             } else {
                 autocmd_fname = fname_io;
             }
-            let afile_orig = if !autocmd_fname.is_null() {
-                let orig = xstrdup(autocmd_fname);
-                autocmd_fname = xstrnsave(autocmd_fname, MAXPATHL);
-                orig
+            let mut autocmd_fname_buf: Vec<c_char> = Vec::new();
+            let afile_orig_owned = if !autocmd_fname.is_null() {
+                let orig = CStr::from_ptr(autocmd_fname).to_owned();
+                let src_bytes = orig.as_bytes_with_nul();
+                autocmd_fname_buf = vec![0; MAXPATHL + 1];
+                let copy_len = src_bytes.len().min(MAXPATHL);
+                for (dst, &b) in autocmd_fname_buf[..copy_len].iter_mut().zip(src_bytes) {
+                    *dst = b as c_char;
+                }
+                autocmd_fname = autocmd_fname_buf.as_mut_ptr();
+                Some(orig)
             } else {
-                ptr::null_mut()
+                None
             };
+            let afile_orig = afile_orig_owned
+                .as_ref()
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             autocmd_fname_full = false;
 
             autocmd_bufnr = if buf.is_null() { 0 } else { (*buf).b_fnum };
 
-            if fname.is_null() || *fname == NUL {
+            let mut sfname_owned: Option<CString> = None;
+            let fname_owned: Option<CString> = if fname.is_null() || *fname == NUL {
                 if buf.is_null() {
                     fname = ptr::null_mut();
                 } else if event == EVENT_SYNTAX {
@@ -2936,16 +2945,16 @@ pub unsafe fn apply_autocmds_group(
                     fname = (*buf).b_p_ft;
                 } else {
                     if !(*buf).b_sfname.is_null() {
-                        sfname = xstrdup((*buf).b_sfname);
+                        sfname_owned = Some(CStr::from_ptr((*buf).b_sfname).to_owned());
                     }
                     fname = (*buf).b_ffname;
                 }
                 if fname.is_null() {
                     fname = c"".as_ptr().cast_mut();
                 }
-                fname = xstrdup(fname);
+                Some(CStr::from_ptr(fname).to_owned())
             } else {
-                sfname = to_slash_save(fname);
+                sfname_owned = cstr_take(to_slash_save(fname));
                 if event == EVENT_CMDATOM
                     || event == EVENT_CMDLINECHANGED
                     || event == EVENT_CMDLINEENTER
@@ -2979,14 +2988,19 @@ pub unsafe fn apply_autocmds_group(
                     || event == EVENT_WINRESIZED
                     || event == EVENT_WINSCROLLED
                 {
-                    fname = to_slash_save(fname);
                     autocmd_fname_full = true;
+                    cstr_take(to_slash_save(fname))
                 } else {
-                    fname = FullName_save(fname, false);
+                    cstr_take(FullName_save(fname, false))
                 }
-            }
+            };
+            let sfname = sfname_owned
+                .as_ref()
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+            fname = fname_owned
+                .as_ref()
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             if fname.is_null() {
-                xfree(sfname.cast());
                 retval = false;
                 break 'bypass_au;
             }
@@ -3042,6 +3056,7 @@ pub unsafe fn apply_autocmds_group(
             let acs = &raw const autocmds[event as usize];
             let mut patcmd = AutoPatCmd {
                 lastpat: None,
+                es_name_owned: None,
                 auidx: 0,
                 ausize: (*acs).len(),
                 afile_orig,
@@ -3110,13 +3125,10 @@ pub unsafe fn apply_autocmds_group(
             autocmd_busy = save_autocmd_busy;
             filechangeshell_busy = false;
             autocmd_nested = save_autocmd_nested;
-            let es = &raw const exestack;
-            if let Some(top) = (*es).last() {
-                xfree(top.es_name.cast());
-            }
             estack_pop();
-            xfree(afile_orig.cast());
-            xfree(autocmd_fname.cast());
+            drop(patcmd);
+            drop(afile_orig_owned);
+            drop(autocmd_fname_buf);
             autocmd_fname = save_autocmd_fname;
             autocmd_fname_full = save_autocmd_fname_full;
             autocmd_bufnr = save_autocmd_bufnr;
@@ -3128,8 +3140,8 @@ pub unsafe fn apply_autocmds_group(
                 prof_child_exit(&raw mut wait_time);
             }
             KeyTyped = save_KeyTyped;
-            xfree(fname.cast());
-            xfree(sfname.cast());
+            drop(fname_owned);
+            drop(sfname_owned);
             apply_autocmds_nesting -= 1;
 
             if !autocmd_busy {
@@ -3284,14 +3296,15 @@ unsafe fn aucmd_next(apc: *mut AutoPatCmd) {
                 let name_str = CStr::from_ptr(name).to_string_lossy();
                 let pat_str = ap.pat.to_string_lossy();
                 let formatted = format!("{name_str} Autocommands for \"{pat_str}\"");
-                let namep = xmemdupz(formatted.as_ptr().cast(), formatted.len()).cast::<c_char>();
+                let name_cstr = CString::new(formatted).unwrap_or_default();
+                let namep = name_cstr.as_ptr().cast_mut();
                 if p_verbose >= 8 {
                     verbose_enter();
                     smsg!(0, tr(c"Executing %s"), namep);
                     verbose_leave();
                 }
 
-                xfree(entry.es_name.cast());
+                (*apc).es_name_owned = Some(name_cstr);
                 entry.es_name = namep;
                 entry.es_info = crate::profile::EStackInfo::AuCmd(apc);
             }
@@ -3303,9 +3316,9 @@ unsafe fn aucmd_next(apc: *mut AutoPatCmd) {
             return;
         }
 
-        xfree(entry.es_name.cast());
         entry.es_name = ptr::null_mut();
         entry.es_info = crate::profile::EStackInfo::None;
+        (*apc).es_name_owned = None;
 
         (*apc).lastpat = None;
         (*apc).auidx = usize::MAX;
@@ -3499,13 +3512,13 @@ unsafe fn has_autocmd_ext(
         let mut retval = false;
 
         let fname = if is_full {
-            xstrdup(sfname)
+            (!sfname.is_null()).then(|| CStr::from_ptr(sfname).to_owned())
         } else {
-            FullName_save(sfname, false)
+            cstr_take(FullName_save(sfname, false))
         };
-        if fname.is_null() {
+        let Some(fname) = fname else {
             return false;
-        }
+        };
 
         let acs = &raw mut autocmds[event as usize];
         for ac in &*acs {
@@ -3515,7 +3528,7 @@ unsafe fn has_autocmd_ext(
                     let m = match_file_pat(
                         ptr::null_mut(),
                         &raw mut prog,
-                        fname,
+                        fname.as_ptr().cast_mut(),
                         sfname,
                         tail,
                         c_int::from(ap.allow_dirs),
@@ -3532,7 +3545,6 @@ unsafe fn has_autocmd_ext(
             }
         }
 
-        xfree(fname.cast());
         retval
     }
 }
@@ -3665,7 +3677,12 @@ pub unsafe fn au_exists(arg: *const c_char) -> bool {
         let mut buflocal_buf: *mut buf_T = ptr::null_mut();
         let mut retval = false;
 
-        let arg_save = xstrdup(arg);
+        let mut arg_save_vec: Vec<c_char> = CStr::from_ptr(arg)
+            .to_bytes_with_nul()
+            .iter()
+            .map(|&b| b as c_char)
+            .collect();
+        let arg_save = arg_save_vec.as_mut_ptr();
         let mut p = vim_strchr(arg_save, b'#' as c_int);
         if !p.is_null() {
             *p = NUL;
@@ -3678,7 +3695,6 @@ pub unsafe fn au_exists(arg: *const c_char) -> bool {
             arg_save
         } else {
             if p.is_null() {
-                xfree(arg_save.cast());
                 return true;
             }
             let ev_name = p;
@@ -3719,7 +3735,6 @@ pub unsafe fn au_exists(arg: *const c_char) -> bool {
             }
         }
 
-        xfree(arg_save.cast());
         retval
     }
 }
@@ -3797,12 +3812,7 @@ pub unsafe fn aucmd_handler_to_string(ac: &mut AutoCmd) -> CString {
     unsafe {
         match &mut ac.handler {
             AutoCmdHandler::Cmd(cmd) => cmd.clone(),
-            AutoCmdHandler::Fn(cb) => {
-                let raw = callback_to_string(cb, ptr::null_mut());
-                let cstr = CStr::from_ptr(raw).to_owned();
-                xfree(raw.cast());
-                cstr
-            }
+            AutoCmdHandler::Fn(cb) => cstr_take(callback_to_string(cb, ptr::null_mut())).unwrap_or_default(),
             AutoCmdHandler::None => CString::default(),
         }
     }
@@ -3848,14 +3858,15 @@ unsafe fn arg_augroup_get(argp: *mut *mut c_char) -> c_int {
             return AUGROUP_ALL;
         }
 
-        let group_name = xmemdupz(arg.cast(), p.offset_from(arg) as usize).cast::<c_char>();
-        let mut group = augroup_find(group_name);
+        let len = p.offset_from(arg) as usize;
+        let group_name =
+            CString::new(std::slice::from_raw_parts(arg.cast::<u8>(), len)).unwrap_or_default();
+        let mut group = augroup_find(group_name.as_ptr());
         if group == AUGROUP_ERROR {
             group = AUGROUP_ALL;
         } else {
             *argp = skipwhite(p);
         }
-        xfree(group_name.cast());
         group
     }
 }

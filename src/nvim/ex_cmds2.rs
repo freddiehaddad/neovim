@@ -536,12 +536,12 @@ pub unsafe fn ex_listdo(eap: *mut exarg_T) {
             }
         }
 
-        let mut save_ei: *mut c_char = ptr::null_mut();
+        let mut save_ei: Option<std::ffi::CString> = None;
 
         msg_listdo_overwrite += 1;
 
         if (*eap).cmdidx != CMD_windo && (*eap).cmdidx != CMD_tabdo {
-            save_ei = au_event_disable(c",Syntax".as_ptr().cast_mut());
+            save_ei = Some(au_event_disable(c",Syntax".as_ptr().cast_mut()));
 
             let mut buf = firstbuf;
             while !buf.is_null() {
@@ -731,7 +731,7 @@ pub unsafe fn ex_listdo(eap: *mut exarg_T) {
         }
 
         msg_listdo_overwrite -= 1;
-        if !save_ei.is_null() {
+        if save_ei.is_some() {
             let mut aco: CtxSwitch = CtxSwitch::new();
 
             au_event_restore(save_ei);
